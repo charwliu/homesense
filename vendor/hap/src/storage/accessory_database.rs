@@ -81,7 +81,7 @@ impl AccessoryDatabase {
             }
         }
         let mut subscriptions = subscriptions.lock().await;
-        if let Err(status) = handler.write(controller, body) {
+        if let Err(status) = handler.write_async(controller, body).await {
             return Some(Err(status));
         }
         for write in writes {
@@ -319,3 +319,72 @@ impl AccessoryDatabase {
 //     #[test]
 //     fn test_json_serialization() {} // TODO: test it
 // }
+
+#[cfg(test)]
+mod async_acceptance_tests {
+    use super::*;
+    use crate::{
+        accessory::{lightbulb::LightbulbAccessory, AccessoryInformation},
+        characteristic::HapCharacteristic,
+        event::EventEmitter,
+        server::{WriteBatchHandler, WriteStatus},
+    };
+    use futures::{channel::oneshot, future::BoxFuture, poll};
+    use std::task::Poll;
+    struct Gate(std::sync::Mutex<Option<oneshot::Receiver<std::result::Result<(), WriteStatus>>>>);
+    impl WriteBatchHandler for Gate {
+        fn write(&self, _: uuid::Uuid, _: &[u8]) -> std::result::Result<(), WriteStatus> {
+            panic!("synchronous fallback invoked")
+        }
+        fn write_async<'a>(
+            &'a self,
+            _: uuid::Uuid,
+            _: &'a [u8],
+        ) -> BoxFuture<'a, std::result::Result<(), WriteStatus>> {
+            let receiver = self.0.lock().unwrap().take().unwrap();
+            Box::pin(async move { receiver.await.unwrap() })
+        }
+    }
+    #[tokio::test]
+    async fn subscriptions_commit_only_after_async_acceptance() {
+        for result in [Ok(()), Err(Status::ResourceBusy)] {
+            let emitter = Arc::new(Mutex::new(EventEmitter::new()));
+            let mut db = AccessoryDatabase::new(emitter);
+            let light = LightbulbAccessory::new(2, AccessoryInformation::default()).unwrap();
+            let iid = light.lightbulb.power_state.get_id();
+            db.accessories.push(Arc::new(Mutex::new(Box::new(light))));
+            let (sender, receiver) = oneshot::channel();
+            db.set_write_batch_handler(Arc::new(Gate(std::sync::Mutex::new(Some(receiver)))));
+            let subscriptions = Arc::new(Mutex::new(Vec::new()));
+            let writes = vec![WriteObject {
+                aid: 2,
+                iid,
+                ev: Some(true),
+                value: Some(json!(true)),
+                auth_data: None,
+                remote: None,
+            }];
+            let mut pending =
+                Box::pin(db.write_batch(uuid::Uuid::new_v4(), b"request", &writes, &subscriptions));
+            assert!(matches!(poll!(pending.as_mut()), Poll::Pending));
+            sender.send(result).unwrap();
+            assert_eq!(pending.await, Some(result));
+            assert_eq!(
+                subscriptions.lock().await.len(),
+                usize::from(result.is_ok())
+            );
+            let mut light = db.accessories[0].lock().await;
+            assert_eq!(
+                light
+                    .get_mut_service(crate::HapType::Lightbulb)
+                    .unwrap()
+                    .get_mut_characteristic(crate::HapType::PowerState)
+                    .unwrap()
+                    .get_value()
+                    .await
+                    .unwrap(),
+                json!(false)
+            );
+        }
+    }
+}

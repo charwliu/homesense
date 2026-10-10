@@ -1,0 +1,22 @@
+{
+  "source_sha256": "ff8c298fd2c8efa840d572d3ca544860ffbbc4e7176f09e93efdc5464b9ce6ec",
+  "revision": 1,
+  "gateway_id": "hopebeauty",
+  "endpoint": "192.168.0.10:50007",
+  "modules": [
+    {
+      "address": "03",
+      "profile": "gt_c8_rl_v2_8_2_2",
+      "basis": "候选型号，依据厂家 GT-C8-RL 手册；仍需核对实物，不构成现场验证。"
+    },
+    {
+      "address": "07",
+      "profile": "gt_c8_rl_v2_8_2_2",
+      "basis": "候选型号，依据厂家 GT-C8-RL 手册；仍需核对实物，不构成现场验证。"
+    }
+  ],
+  "control4_ids": [
+    "210",
+    "278"
+  ]
+}

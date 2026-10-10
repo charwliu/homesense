@@ -669,7 +669,7 @@ mod record_tests {
 const OUTPUT_BYTES: usize = 1024 * 1024;
 const OUTPUT_MESSAGE_BYTES: usize = 256 * 1024;
 #[derive(Debug)]
-struct QueuedOutput {
+pub(crate) struct QueuedOutput {
     data: Vec<u8>,
     used: Arc<std::sync::atomic::AtomicUsize>,
 }
@@ -694,7 +694,7 @@ pub struct OutputSender {
     abort_waker: Arc<futures::task::AtomicWaker>,
 }
 impl OutputSender {
-    fn channel() -> (Self, Receiver<QueuedOutput>) {
+    pub(crate) fn channel() -> (Self, Receiver<QueuedOutput>) {
         // futures MPSC has one extra reserved slot for its single sender.
         let (sender, receiver) = mpsc::channel(63);
         (
@@ -707,7 +707,7 @@ impl OutputSender {
             receiver,
         )
     }
-    fn abort(&self) {
+    pub(crate) fn abort(&self) {
         self.aborted
             .store(true, std::sync::atomic::Ordering::Release);
         self.abort_waker.wake();

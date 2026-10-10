@@ -4,7 +4,7 @@ use futures::{
     channel::oneshot,
     future::{BoxFuture, FutureExt},
 };
-use hyper::{body::HttpBody, Body};
+use hyper::Body;
 use log::{debug, info};
 use rand::rngs::OsRng;
 use signature::Signer;
@@ -60,23 +60,7 @@ impl TlvHandlerExt for PairVerify {
 
     fn parse(&self, body: Body) -> BoxFuture<Result<Step, tlv::ErrorContainer>> {
         async {
-            let mut body = body;
-            let bytes = tokio::time::timeout(std::time::Duration::from_secs(5), async move {
-                let mut bytes = Vec::new();
-                while let Some(chunk) = body.data().await {
-                    let chunk = chunk.map_err(|_| tlv::Error::Unknown)?;
-                    if chunk.len() > 65536 - bytes.len() {
-                        return Err(tlv::Error::Unknown);
-                    }
-                    bytes.extend_from_slice(&chunk);
-                }
-                Ok(bytes)
-            })
-            .await
-            .map_err(|_| tlv::ErrorContainer::new(0, tlv::Error::Unknown))?
-            .map_err(|error| tlv::ErrorContainer::new(0, error))?;
-            let mut decoded =
-                tlv::try_decode(&bytes).map_err(|error| tlv::ErrorContainer::new(0, error))?;
+            let mut decoded = super::read_tlv_body(body).await?;
             match decoded.get(&(Type::State as u8)) {
                 Some(method) if method.len() == 1 => match method[0] {
                     x if x == StepNumber::StartReq as u8 => {

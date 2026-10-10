@@ -239,12 +239,16 @@ impl Server {
                     session_sender,
                 );
 
+                let notification_controller = session_controller.clone();
+                let notification_storage = storage.clone();
                 let listener_id = event_emitter
                     .lock()
                     .await
                     .add_listener(Box::new(move |event| {
                         let event_subscriptions_ = event_subscriptions.clone();
                         let stream_outgoing_ = stream_outgoing.clone();
+                        let controller = notification_controller.clone();
+                        let storage = notification_storage.clone();
                         async move {
                             match *event {
                                 Event::CharacteristicValueChanged {
@@ -264,7 +268,15 @@ impl Server {
                                             };
                                             let event_res = event_response(vec![event])
                                                 .expect("couldn't create event response");
-                                            if stream_outgoing_.try_send(event_res).is_err() {
+                                            if send_authorized_event(
+                                                &controller,
+                                                &storage,
+                                                &stream_outgoing_,
+                                                event_res,
+                                            )
+                                            .await
+                                            .is_err()
+                                            {
                                                 dropped_subscriptions.push(i);
                                             }
                                         }
@@ -405,5 +417,84 @@ mod session_tests {
             .await
             .unwrap();
         assert_eq!(drops.load(Ordering::SeqCst), 2);
+    }
+}
+
+/// Serialize the pairing check and notification enqueue with local revocation.
+async fn send_authorized_event(
+    controller: &pointer::ControllerId,
+    storage: &pointer::Storage,
+    output: &crate::transport::tcp::OutputSender,
+    bytes: Vec<u8>,
+) -> Result<()> {
+    let id = controller.read().ok().and_then(|id| *id);
+    let storage = storage.lock().await;
+    let authorized = match id {
+        Some(id) => storage
+            .load_pairing(&id)
+            .await
+            .map(|p| p.id == id)
+            .unwrap_or(false),
+        None => false,
+    };
+    if !authorized {
+        output.abort();
+        return Err(Error::Storage);
+    }
+    output.try_send(bytes)?;
+    Ok(())
+}
+
+#[cfg(test)]
+mod notification_authorization_tests {
+    use super::*;
+    use crate::{
+        pairing::{Pairing, Permissions},
+        storage::{FileStorage, Storage},
+        transport::tcp::OutputSender,
+    };
+    use futures::StreamExt;
+    use std::sync::RwLock;
+    use uuid::Uuid;
+
+    #[tokio::test]
+    async fn revoked_subscriber_cannot_receive_another_event() {
+        let path = std::env::temp_dir().join(format!("hap-notify-auth-{}", Uuid::new_v4()));
+        let mut store = FileStorage::new(path.as_os_str()).await.unwrap();
+        let revoked = Pairing::new(Uuid::new_v4(), Permissions::User, [1; 32]);
+        let retained = Pairing::new(Uuid::new_v4(), Permissions::Admin, [2; 32]);
+        store.save_pairing(&revoked).await.unwrap();
+        store.save_pairing(&retained).await.unwrap();
+        let storage: pointer::Storage = Arc::new(Mutex::new(Box::new(store)));
+        let controller = Arc::new(RwLock::new(Some(revoked.id)));
+        let other = Arc::new(RwLock::new(Some(retained.id)));
+        let (output, mut receiver) = OutputSender::channel();
+        let (other_output, mut other_receiver) = OutputSender::channel();
+        assert!(
+            send_authorized_event(&controller, &storage, &output, vec![1])
+                .await
+                .is_ok()
+        );
+        assert_eq!(&*receiver.next().await.unwrap(), &[1]);
+        storage
+            .lock()
+            .await
+            .delete_pairing(&revoked.id)
+            .await
+            .unwrap();
+        assert!(
+            send_authorized_event(&controller, &storage, &output, vec![2])
+                .await
+                .is_err()
+        );
+        assert!(output.try_send(vec![3]).is_err());
+        assert!(
+            send_authorized_event(&other, &storage, &other_output, vec![4])
+                .await
+                .is_ok()
+        );
+        assert_eq!(&*other_receiver.next().await.unwrap(), &[4]);
+        drop(storage);
+        std::fs::remove_dir_all(path).unwrap();
     }
 }

@@ -1,7 +1,7 @@
 use aead::{generic_array::GenericArray, AeadInPlace, NewAead};
 use chacha20poly1305::ChaCha20Poly1305;
 use futures::future::{BoxFuture, FutureExt};
-use hyper::{body::Buf, Body};
+use hyper::Body;
 use log::{debug, info};
 use num::BigUint;
 use rand::{rngs::OsRng, RngCore};
@@ -70,15 +70,9 @@ impl TlvHandlerExt for PairSetup {
 
     fn parse(&self, body: Body) -> BoxFuture<Result<Step, tlv::ErrorContainer>> {
         async {
-            let aggregated_body = hyper::body::aggregate(body).await.map_err(|_| {
-                tlv::ErrorContainer::new(StepNumber::Unknown as u8, tlv::Error::Unknown)
-            })?;
-
-            debug!("received body: {:?}", aggregated_body.chunk());
-
-            let mut decoded = tlv::decode(aggregated_body.chunk());
+            let mut decoded = super::read_tlv_body(body).await?;
             match decoded.get(&(Type::State as u8)) {
-                Some(method) => match method[0] {
+                Some(method) if method.len() == 1 => match method[0] {
                     x if x == StepNumber::SrpStartRequest as u8 => Ok(Step::Start),
                     x if x == StepNumber::SrpVerifyRequest as u8 => {
                         let a_pub = decoded.remove(&(Type::PublicKey as u8)).ok_or(
@@ -109,7 +103,7 @@ impl TlvHandlerExt for PairSetup {
                         tlv::Error::Unknown,
                     )),
                 },
-                None => Err(tlv::ErrorContainer::new(
+                _ => Err(tlv::ErrorContainer::new(
                     StepNumber::Unknown as u8,
                     tlv::Error::Unknown,
                 )),
@@ -128,13 +122,13 @@ impl TlvHandlerExt for PairSetup {
     ) -> BoxFuture<Result<tlv::Container, tlv::ErrorContainer>> {
         async move {
             match step {
-                Step::Start => match handle_start(self, config).await {
+                Step::Start => match handle_start(self, config, storage).await {
                     Ok(res) => {
                         self.unsuccessful_tries = 0;
                         Ok(res)
                     }
                     Err(err) => {
-                        self.unsuccessful_tries += 1;
+                        self.unsuccessful_tries = self.unsuccessful_tries.saturating_add(1);
                         Err(tlv::ErrorContainer::new(
                             StepNumber::SrpStartResponse as u8,
                             err,
@@ -148,7 +142,7 @@ impl TlvHandlerExt for PairSetup {
                             Ok(res)
                         }
                         Err(err) => {
-                            self.unsuccessful_tries += 1;
+                            self.unsuccessful_tries = self.unsuccessful_tries.saturating_add(1);
                             Err(tlv::ErrorContainer::new(
                                 StepNumber::SrpVerifyResponse as u8,
                                 err,
@@ -163,7 +157,7 @@ impl TlvHandlerExt for PairSetup {
                             Ok(res)
                         }
                         Err(err) => {
-                            self.unsuccessful_tries += 1;
+                            self.unsuccessful_tries = self.unsuccessful_tries.saturating_add(1);
                             Err(tlv::ErrorContainer::new(
                                 StepNumber::ExchangeResponse as u8,
                                 err,
@@ -180,13 +174,14 @@ impl TlvHandlerExt for PairSetup {
 async fn handle_start(
     handler: &mut PairSetup,
     config: pointer::Config,
+    storage: pointer::Storage,
 ) -> Result<tlv::Container, tlv::Error> {
     info!("pair setup M1: received SRP start request");
 
-    // TODO
-    // If the accessory is already paired, it must respond with the following TLV items:
-    // kTLVType_State <M2>
-    // kTLVType_Error <kTLVError_Unavailable>
+    handler.session = None;
+    if storage.lock().await.count_pairings().await? != 0 {
+        return Err(tlv::Error::Unavailable);
+    }
 
     if handler.unsuccessful_tries > 100 {
         return Err(tlv::Error::MaxTries);
@@ -246,9 +241,16 @@ async fn handle_verify(
 ) -> Result<tlv::Container, tlv::Error> {
     info!("pair setup M3: received SRP verify request");
 
-    match handler.session {
+    match handler.session.take() {
         None => Err(tlv::Error::Unknown),
-        Some(ref mut session) => {
+        Some(mut session) => {
+            if session.shared_secret.is_some()
+                || a_pub.is_empty()
+                || a_pub.len() > 384
+                || a_proof.len() != 64
+            {
+                return Err(tlv::Error::Authentication);
+            }
             let user = UserRecord {
                 username: b"Pair-Setup",
                 salt: &session.salt,
@@ -256,8 +258,6 @@ async fn handle_verify(
             };
             let srp_server = SrpServer::<Sha512>::new(&user, a_pub, &session.b, &G_3072)?;
             let shared_secret = srp_server.get_key();
-
-            session.shared_secret = Some(shared_secret.to_vec());
 
             let b_proof = verify_client_proof::<Sha512>(
                 &session.b_pub,
@@ -267,6 +267,9 @@ async fn handle_verify(
                 &shared_secret,
                 &G_3072,
             )?;
+
+            session.shared_secret = Some(shared_secret.to_vec());
+            handler.session = Some(session);
 
             info!("pair setup M4: sending SRP verify response");
 
@@ -287,9 +290,12 @@ async fn handle_exchange(
 ) -> Result<tlv::Container, tlv::Error> {
     info!("pair setup M5: received exchange request");
 
-    match handler.session {
+    if data.len() < 16 {
+        return Err(tlv::Error::Unknown);
+    }
+    match handler.session.take() {
         None => Err(tlv::Error::Unknown),
-        Some(ref mut session) => match session.shared_secret {
+        Some(session) => match session.shared_secret {
             None => Err(tlv::Error::Unknown),
             Some(ref shared_secret) => {
                 let encrypted_data = Vec::from(&data[..data.len() - 16]);
@@ -315,7 +321,7 @@ async fn handle_exchange(
                     GenericArray::from_slice(&auth_tag),
                 )?;
 
-                let sub_tlv = tlv::decode(&decrypted_data);
+                let sub_tlv = tlv::try_decode(&decrypted_data)?;
                 let device_pairing_id = sub_tlv
                     .get(&(Type::Identifier as u8))
                     .ok_or(tlv::Error::Unknown)?;
@@ -354,15 +360,8 @@ async fn handle_exchange(
                 let mut pairing_ltpk = [0; 32];
                 pairing_ltpk[..32].copy_from_slice(&device_ltpk.as_bytes()[..32]);
 
-                if let Some(max_peers) = config.lock().await.max_peers {
-                    if storage.lock().await.count_pairings().await? + 1 > max_peers {
-                        return Err(tlv::Error::MaxPeers);
-                    }
-                }
-
                 let pairing =
                     Pairing::new(pairing_uuid, Permissions::Admin, device_ltpk.to_bytes());
-                storage.lock().await.save_pairing(&pairing).await?;
 
                 debug!("pairing: {:?}", &pairing);
 
@@ -372,19 +371,25 @@ async fn handle_exchange(
                     b"Pair-Setup-Accessory-Sign-Info",
                 )?;
 
-                let config = config.lock().await;
-                let device_id = config.device_id.to_string();
+                let configuration = config.lock().await;
+                let device_id = configuration.device_id.to_string();
 
                 let mut accessory_info: Vec<u8> = Vec::new();
                 accessory_info.extend(&accessory_x);
                 accessory_info.extend(device_id.as_bytes());
-                accessory_info.extend(config.device_ed25519_keypair.verifying_key().as_bytes());
-                let accessory_signature = config.device_ed25519_keypair.sign(&accessory_info);
+                accessory_info.extend(
+                    configuration
+                        .device_ed25519_keypair
+                        .verifying_key()
+                        .as_bytes(),
+                );
+                let accessory_signature =
+                    configuration.device_ed25519_keypair.sign(&accessory_info);
 
                 let encoded_sub_tlv = vec![
                     Value::Identifier(device_id),
                     Value::PublicKey(
-                        config
+                        configuration
                             .device_ed25519_keypair
                             .verifying_key()
                             .as_bytes()
@@ -394,7 +399,7 @@ async fn handle_exchange(
                 ]
                 .encode();
 
-                drop(config);
+                drop(configuration);
 
                 let mut nonce = vec![0; 4];
                 nonce.extend(b"PS-Msg06");
@@ -407,6 +412,11 @@ async fn handle_exchange(
                     &mut encrypted_data,
                 )?;
                 encrypted_data.extend(&auth_tag);
+
+                // Build M6 before persisting; serialize the final empty-store check
+                // and save so two concurrent setup sessions cannot both enroll.
+                let max_peers = config.lock().await.max_peers;
+                save_initial_pairing(&storage, &pairing, max_peers).await?;
 
                 event_emitter
                     .lock()
@@ -549,5 +559,271 @@ mod tests {
                 223, 161, 192, 52, 251, 187, 66, 52, 170, 18, 85
             ]
         );
+    }
+}
+
+/// Initial enrollment is permitted only while no controller is stored.
+async fn save_initial_pairing(
+    storage: &pointer::Storage,
+    pairing: &Pairing,
+    max_peers: Option<usize>,
+) -> Result<(), tlv::Error> {
+    let mut storage = storage.lock().await;
+    if storage.count_pairings().await? != 0 {
+        return Err(tlv::Error::Unavailable);
+    }
+    if max_peers == Some(0) {
+        return Err(tlv::Error::MaxPeers);
+    }
+    storage.save_pairing(pairing).await?;
+    Ok(())
+}
+
+#[cfg(test)]
+mod enrollment_tests {
+    use super::*;
+    use crate::storage::FileStorage;
+    use futures::lock::Mutex;
+    use std::sync::Arc;
+
+    #[tokio::test]
+    async fn initial_enrollment_is_exclusive_and_paired_start_is_rejected() {
+        let path = std::env::temp_dir().join(format!("hap-enrollment-{}", Uuid::new_v4()));
+        let store = FileStorage::new(path.as_os_str()).await.unwrap();
+        let storage: pointer::Storage = Arc::new(Mutex::new(Box::new(store)));
+        let first = Pairing::new(Uuid::new_v4(), Permissions::Admin, [1; 32]);
+        let second = Pairing::new(Uuid::new_v4(), Permissions::Admin, [2; 32]);
+        assert!(save_initial_pairing(&storage, &first, Some(0))
+            .await
+            .is_err());
+        assert_eq!(storage.lock().await.count_pairings().await.unwrap(), 0);
+        let (a, b) = futures::join!(
+            save_initial_pairing(&storage, &first, None),
+            save_initial_pairing(&storage, &second, None)
+        );
+        assert_ne!(a.is_ok(), b.is_ok());
+        assert_eq!(storage.lock().await.count_pairings().await.unwrap(), 1);
+        let winner = if a.is_ok() { first.id } else { second.id };
+        assert!(save_initial_pairing(&storage, &second, None).await.is_err());
+        assert!(storage.lock().await.load_pairing(&winner).await.is_ok());
+        let config = Arc::new(Mutex::new(crate::Config::default()));
+        let mut handler = PairSetup::new();
+        handler.session = Some(Session {
+            salt: [0; 16],
+            verifier: vec![],
+            b: [0; 64],
+            b_pub: vec![],
+            shared_secret: None,
+        });
+        assert!(handle_start(&mut handler, config, storage.clone())
+            .await
+            .is_err());
+        assert!(handler.session.is_none());
+        drop(storage);
+        std::fs::remove_dir_all(path).unwrap();
+    }
+}
+
+#[cfg(test)]
+mod complete_exchange_tests {
+    use super::*;
+    use crate::{event::EventEmitter, storage::FileStorage};
+    use futures::lock::Mutex;
+    use std::sync::{Arc, RwLock};
+
+    async fn exchange(bad_proof: bool) {
+        let path = std::env::temp_dir().join(format!("hap-setup-wire-{}", Uuid::new_v4()));
+        let storage: pointer::Storage = Arc::new(Mutex::new(Box::new(
+            FileStorage::new(path.as_os_str()).await.unwrap(),
+        )));
+        let settings = crate::Config::default();
+        let pin = settings.pin.to_string();
+        let accessory_key = settings.device_ed25519_keypair.verifying_key();
+        let accessory_id = settings.device_id.to_string();
+        let config = Arc::new(Mutex::new(settings));
+        let emitter = Arc::new(Mutex::new(EventEmitter::new()));
+        let controller = Arc::new(RwLock::new(None));
+        let mut handler = PairSetup::new();
+        let m1 = handler
+            .parse(Body::from(vec![6, 1, 1, 0, 1, 0]))
+            .await
+            .unwrap_or_else(|_| panic!("M1 parse"));
+        let m2 = handler
+            .handle(
+                m1,
+                controller.clone(),
+                config.clone(),
+                storage.clone(),
+                emitter.clone(),
+            )
+            .await
+            .unwrap_or_else(|_| panic!("M1 handle"))
+            .encode();
+        let m2 = tlv::try_decode(&m2).unwrap();
+        assert_eq!(m2[&(Type::State as u8)], vec![2]);
+        let salt = &m2[&(Type::Salt as u8)];
+        let mut ephemeral = [0; 64];
+        OsRng.fill_bytes(&mut ephemeral);
+        let client = SrpClient::<Sha512>::new(&ephemeral, &G_3072);
+        let public = client.get_a_pub();
+        let private = srp_private_key::<Sha512>(b"Pair-Setup", pin.as_bytes(), salt);
+        // The HAP candidate uses unpadded g in the proof transcript, unlike
+        // srp 0.5's generic username-and-salt proof helper. Derive the client
+        // secret with SRP, then build and verify the wire transcript here.
+        let key = client
+            .process_reply(&private, &m2[&(Type::PublicKey as u8)])
+            .unwrap()
+            .get_key();
+        let hn = Sha512::digest(&G_3072.n.to_bytes_be());
+        let hg = Sha512::digest(&G_3072.g.to_bytes_be());
+        let xor: Vec<u8> = hn.iter().zip(hg.iter()).map(|(n, g)| n ^ g).collect();
+        let mut transcript = Sha512::new();
+        transcript.update(&xor);
+        transcript.update(Sha512::digest(b"Pair-Setup"));
+        transcript.update(salt);
+        transcript.update(&public);
+        transcript.update(&m2[&(Type::PublicKey as u8)]);
+        transcript.update(&key);
+        let mut proof = transcript.finalize().to_vec();
+        let mut server_proof = Sha512::new();
+        server_proof.update(&public);
+        server_proof.update(&proof);
+        server_proof.update(&key);
+        let server_proof = server_proof.finalize();
+        if bad_proof {
+            proof[0] ^= 1;
+        }
+        let m3 = vec![
+            Value::State(3),
+            Value::PublicKey(public),
+            Value::Proof(proof),
+        ]
+        .encode();
+        let m3 = handler
+            .parse(Body::from(m3))
+            .await
+            .unwrap_or_else(|_| panic!("M3 parse"));
+        let m4 = handler
+            .handle(
+                m3,
+                controller.clone(),
+                config.clone(),
+                storage.clone(),
+                emitter.clone(),
+            )
+            .await;
+        if bad_proof {
+            assert!(m4.is_err());
+        } else {
+            let m4 = tlv::try_decode(&m4.unwrap_or_else(|_| panic!("M3 handle")).encode()).unwrap();
+            assert_eq!(m4[&(Type::State as u8)], vec![4]);
+            assert_eq!(m4[&(Type::Proof as u8)], server_proof.as_slice());
+        };
+        let id = Uuid::new_v4();
+        let signing = ed25519_dalek::SigningKey::generate(&mut OsRng);
+        let derive = |salt: &[u8], info: &[u8]| {
+            let mut output = [0; 32];
+            hkdf::Hkdf::<Sha512>::new(Some(salt), &key)
+                .expand(info, &mut output)
+                .unwrap();
+            output
+        };
+        let x = derive(
+            b"Pair-Setup-Controller-Sign-Salt",
+            b"Pair-Setup-Controller-Sign-Info",
+        );
+        let signed = [
+            x.as_slice(),
+            id.to_string().as_bytes(),
+            signing.verifying_key().as_bytes(),
+        ]
+        .concat();
+        let mut data = vec![
+            Value::Identifier(id.to_string()),
+            Value::PublicKey(signing.verifying_key().to_bytes().to_vec()),
+            Value::Signature(signing.sign(&signed).to_bytes().to_vec()),
+        ]
+        .encode();
+        let encryption_key = derive(b"Pair-Setup-Encrypt-Salt", b"Pair-Setup-Encrypt-Info");
+        let cipher = ChaCha20Poly1305::new(GenericArray::from_slice(&encryption_key));
+        let mut nonce = [0; 12];
+        nonce[4..].copy_from_slice(b"PS-Msg05");
+        let tag = cipher
+            .encrypt_in_place_detached(GenericArray::from_slice(&nonce), &[], &mut data)
+            .unwrap();
+        data.extend(tag);
+        let m5 = vec![Value::State(5), Value::EncryptedData(data)].encode();
+        let step = handler
+            .parse(Body::from(m5.clone()))
+            .await
+            .unwrap_or_else(|_| panic!("M5 parse"));
+        let result = handler
+            .handle(
+                step,
+                controller.clone(),
+                config.clone(),
+                storage.clone(),
+                emitter.clone(),
+            )
+            .await;
+        if bad_proof {
+            assert!(result.is_err());
+            assert_eq!(storage.lock().await.count_pairings().await.unwrap(), 0);
+        } else {
+            let m6 =
+                tlv::try_decode(&result.unwrap_or_else(|_| panic!("M5 handle")).encode()).unwrap();
+            assert_eq!(m6[&(Type::State as u8)], vec![6]);
+            let data = &m6[&(Type::EncryptedData as u8)];
+            let mut plaintext = data[..data.len() - 16].to_vec();
+            nonce[4..].copy_from_slice(b"PS-Msg06");
+            cipher
+                .decrypt_in_place_detached(
+                    GenericArray::from_slice(&nonce),
+                    &[],
+                    &mut plaintext,
+                    GenericArray::from_slice(&data[data.len() - 16..]),
+                )
+                .unwrap();
+            let sub = tlv::try_decode(&plaintext).unwrap();
+            assert_eq!(sub[&(Type::Identifier as u8)], accessory_id.as_bytes());
+            assert_eq!(sub[&(Type::PublicKey as u8)], accessory_key.as_bytes());
+            let x = derive(
+                b"Pair-Setup-Accessory-Sign-Salt",
+                b"Pair-Setup-Accessory-Sign-Info",
+            );
+            let signed = [
+                x.as_slice(),
+                accessory_id.as_bytes(),
+                accessory_key.as_bytes(),
+            ]
+            .concat();
+            accessory_key
+                .verify_strict(
+                    &signed,
+                    &ed25519_dalek::Signature::from_slice(&sub[&(Type::Signature as u8)]).unwrap(),
+                )
+                .unwrap();
+            let pairing = storage.lock().await.load_pairing(&id).await.unwrap();
+            assert_eq!(pairing.public_key, signing.verifying_key().to_bytes());
+            assert_eq!(pairing.permissions, Permissions::Admin);
+        }
+        let repeated = handler
+            .parse(Body::from(m5))
+            .await
+            .unwrap_or_else(|_| panic!("repeat parse"));
+        assert!(handler
+            .handle(repeated, controller, config, storage.clone(), emitter)
+            .await
+            .is_err());
+        drop(storage);
+        std::fs::remove_dir_all(path).unwrap();
+    }
+    #[tokio::test]
+    async fn m1_to_m6_authenticates_both_sides_and_stores_controller() {
+        exchange(false).await;
+    }
+    #[tokio::test]
+    async fn invalid_srp_proof_cannot_continue_to_valid_encrypted_enrollment() {
+        exchange(true).await;
     }
 }

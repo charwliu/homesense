@@ -38,6 +38,15 @@ pub use crate::transport::http::Status as WriteStatus;
 /// durable acceptance remain the application's responsibility.
 pub trait WriteBatchHandler: Send + Sync {
     fn write(&self, controller: uuid::Uuid, body: &[u8]) -> std::result::Result<(), WriteStatus>;
+    /// Await runtime acceptance before applying subscription changes. Implementors
+    /// must not acquire HAP accessory/subscription locks or perform bus writes.
+    fn write_async<'a>(
+        &'a self,
+        controller: uuid::Uuid,
+        body: &'a [u8],
+    ) -> BoxFuture<'a, std::result::Result<(), WriteStatus>> {
+        Box::pin(async move { self.write(controller, body) })
+    }
 }
 
 /// Shared accessory handle returned by Server::add_accessory.
