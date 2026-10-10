@@ -146,3 +146,24 @@ impl<T: JsonHandlerExt + Send + Sync> HandlerExt for JsonHandler<T> {
         .boxed()
     }
 }
+
+/// Recheck persisted pairing at request handling, not just session establishment.
+pub(crate) async fn paired_controller(
+    controller: &pointer::ControllerId,
+    storage: &pointer::Storage,
+) -> Result<uuid::Uuid> {
+    let id = (*controller
+        .read()
+        .map_err(|_| Error::HttpStatus(StatusCode::UNAUTHORIZED))?)
+    .ok_or(Error::HttpStatus(StatusCode::UNAUTHORIZED))?;
+    let pairing = storage
+        .lock()
+        .await
+        .load_pairing(&id)
+        .await
+        .map_err(|_| Error::HttpStatus(StatusCode::UNAUTHORIZED))?;
+    if pairing.id != id {
+        return Err(Error::HttpStatus(StatusCode::UNAUTHORIZED));
+    }
+    Ok(id)
+}

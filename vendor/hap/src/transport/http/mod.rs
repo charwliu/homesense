@@ -14,7 +14,7 @@ mod handler;
 pub(crate) mod server;
 
 #[allow(dead_code)]
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Status {
     Success = 0,
     InsufficientPrivileges = -70401,

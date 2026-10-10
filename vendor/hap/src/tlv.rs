@@ -43,6 +43,37 @@ pub fn encode(tlvs: Vec<(u8, Vec<u8>)>) -> Vec<u8> {
 }
 
 /// Decodes a slice of concatenated TLVs to a `HashMap<u8, Vec<u8>>` in the format `<Type, Value>`.
+/// Checked decoding for single-message authentication TLVs. Continuations are
+/// allowed only immediately after a 255-byte fragment of the same type.
+pub fn try_decode(bytes: &[u8]) -> Result<HashMap<u8, Vec<u8>>, Error> {
+    if bytes.len() > 65536 {
+        return Err(Error::Unknown);
+    }
+    let mut result: HashMap<u8, Vec<u8>> = HashMap::new();
+    let mut offset = 0;
+    let mut previous = None;
+    while offset < bytes.len() {
+        if bytes.len() - offset < 2 {
+            return Err(Error::Unknown);
+        }
+        let kind = bytes[offset];
+        let len = bytes[offset + 1] as usize;
+        if len > bytes.len() - offset - 2 {
+            return Err(Error::Unknown);
+        }
+        if result.contains_key(&kind) && previous != Some((kind, 255)) {
+            return Err(Error::Unknown);
+        }
+        result
+            .entry(kind)
+            .or_default()
+            .extend_from_slice(&bytes[offset + 2..offset + 2 + len]);
+        previous = Some((kind, len));
+        offset += len + 2;
+    }
+    Ok(result)
+}
+
 pub fn decode(tlv: &[u8]) -> HashMap<u8, Vec<u8>> {
     let mut hm = HashMap::new();
     let mut buf: Vec<u8> = Vec::new();
@@ -280,5 +311,20 @@ impl ErrorContainer {
 impl Encodable for ErrorContainer {
     fn encode(self) -> Vec<u8> {
         vec![Value::State(self.step), Value::Error(self.error)].encode()
+    }
+}
+
+#[cfg(test)]
+mod checked_decode_tests {
+    use super::*;
+    #[test]
+    fn fragments_roundtrip_but_duplicates_and_truncation_are_rejected() {
+        let bytes = encode(vec![(3, vec![7; 256]), (6, vec![1])]);
+        let decoded = try_decode(&bytes).unwrap();
+        assert_eq!(decoded[&3], vec![7; 256]);
+        assert_eq!(decoded[&6], vec![1]);
+        for bytes in [vec![3], vec![3, 2, 1], vec![6, 1, 1, 6, 1, 2]] {
+            assert!(try_decode(&bytes).is_err());
+        }
     }
 }

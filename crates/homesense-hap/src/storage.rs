@@ -14,7 +14,7 @@ const APPLICATION_ID: i64 = 0x48534850;
 pub struct IdentityStore {
     db: Arc<Mutex<Connection>>,
 }
-fn storage_error<E>(_: E) -> Error {
+pub(crate) fn storage_error<E>(_: E) -> Error {
     Error::Storage
 }
 impl IdentityStore {
@@ -37,7 +37,16 @@ impl IdentityStore {
                 tx.pragma_update(None, "application_id", APPLICATION_ID).map_err(storage_error)?;
                 tx.pragma_update(None, "user_version", 1).map_err(storage_error)?;
                 tx.commit().map_err(storage_error)?;
-            } else if app != APPLICATION_ID || version != 1 { return Err(Error::Storage); }
+            } else if app != APPLICATION_ID || !(1..=2).contains(&version) { return Err(Error::Storage); }
+            let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate).map_err(storage_error)?;
+            let current: i64 = tx.pragma_query_value(None, "user_version", |r| r.get(0)).map_err(storage_error)?;
+            if current == 1 {
+                tx.execute_batch("CREATE TABLE accessory_ids (device TEXT PRIMARY KEY, aid INTEGER NOT NULL UNIQUE CHECK(aid BETWEEN 1 AND 4294967295));
+                    CREATE TABLE instance_ids (aid INTEGER NOT NULL, resource TEXT NOT NULL, iid INTEGER NOT NULL CHECK(iid BETWEEN 1 AND 4294967295), PRIMARY KEY(aid,resource), UNIQUE(aid,iid), FOREIGN KEY(aid) REFERENCES accessory_ids(aid));").map_err(storage_error)?;
+                tx.pragma_update(None, "user_version", 2).map_err(storage_error)?;
+            }
+            tx.commit().map_err(storage_error)?;
+            db.pragma_update(None, "foreign_keys", "ON").map_err(storage_error)?;
             db.pragma_update(None, "journal_mode", "WAL").map_err(storage_error)?;
             db.pragma_update(None, "synchronous", "FULL").map_err(storage_error)?;
             Ok(db)
@@ -46,7 +55,7 @@ impl IdentityStore {
             db: Arc::new(Mutex::new(db)),
         })
     }
-    async fn with<T: Send + 'static>(
+    pub(crate) async fn with<T: Send + 'static>(
         &self,
         action: impl FnOnce(&mut Connection) -> Result<T> + Send + 'static,
     ) -> Result<T> {
@@ -100,7 +109,7 @@ impl IdentityStore {
                     let new: Config = serde_json::from_slice(&value)?;
                     if old.device_id != new.device_id || old.device_ed25519_keypair.to_keypair_bytes() != new.device_ed25519_keypair.to_keypair_bytes() { return Err(Error::Storage); }
                 } else {
-                    let count: i64 = tx.query_row("SELECT count(*) FROM entries", [], |r| r.get(0)).map_err(storage_error)?;
+                    let count: i64 = tx.query_row("SELECT (SELECT count(*) FROM entries) + (SELECT count(*) FROM accessory_ids)", [], |r| r.get(0)).map_err(storage_error)?;
                     if count != 0 { return Err(Error::Storage); }
                 }
             }
@@ -116,7 +125,7 @@ impl IdentityStore {
             if key == "config" {
                 let count: i64 = tx
                     .query_row(
-                        "SELECT count(*) FROM entries WHERE key LIKE 'pair:%'",
+                        "SELECT (SELECT count(*) FROM entries WHERE key LIKE 'pair:%') + (SELECT count(*) FROM accessory_ids)",
                         [],
                         |r| r.get(0),
                     )
