@@ -199,9 +199,17 @@ impl Server {
 
             mdns_responder.lock().await.update_records().await;
 
+            let slots = Arc::new(tokio::sync::Semaphore::new(32));
             loop {
                 let (stream, _socket_addr) = listener.accept().await?;
 
+                let permit = match slots.clone().try_acquire_owned() {
+                    Ok(permit) => permit,
+                    Err(_) => {
+                        drop(stream);
+                        continue;
+                    }
+                };
                 debug!("incoming TCP stream from {}", stream.peer_addr()?);
 
                 let (
@@ -220,6 +228,7 @@ impl Server {
                 );
                 let event_subscriptions = Arc::new(Mutex::new(vec![]));
 
+                let session_controller = encrypted_stream.controller_id.clone();
                 let api = Api::new(
                     encrypted_stream.controller_id.clone(),
                     event_subscriptions.clone(),
@@ -230,7 +239,7 @@ impl Server {
                     session_sender,
                 );
 
-                event_emitter
+                let listener_id = event_emitter
                     .lock()
                     .await
                     .add_listener(Box::new(move |event| {
@@ -255,7 +264,7 @@ impl Server {
                                             };
                                             let event_res = event_response(vec![event])
                                                 .expect("couldn't create event response");
-                                            if stream_outgoing_.unbounded_send(event_res).is_err() {
+                                            if stream_outgoing_.try_send(event_res).is_err() {
                                                 dropped_subscriptions.push(i);
                                             }
                                         }
@@ -277,17 +286,124 @@ impl Server {
                 http.http1_keep_alive(true);
                 http.http1_preserve_header_case(true);
 
-                tokio::spawn(encrypted_stream.map_err(|e| error!("{:?}", e)).map(|_| ()));
-                tokio::spawn(
-                    http.serve_connection(stream_wrapper, api)
+                let emitter = event_emitter.clone();
+                tokio::spawn(async move {
+                    let transport = encrypted_stream.map_err(|e| error!("{:?}", e)).map(|_| ());
+                    let http = http
+                        .serve_connection(stream_wrapper, api)
                         .map_err(|e| error!("{:?}", e))
-                        .map(|_| ()),
-                );
+                        .map(|_| ());
+                    supervise_session(
+                        transport,
+                        http,
+                        session_controller,
+                        std::time::Duration::from_secs(60),
+                    )
+                    .await;
+                    emitter.lock().await.remove_listener(listener_id);
+                    drop(permit);
+                });
             }
 
             #[allow(unreachable_code)]
             Ok(())
         }
         .boxed()
+    }
+}
+
+/// Completing either I/O half or expiring the unauthenticated deadline drops
+/// both halves. Authenticated idle sessions remain open for event subscriptions.
+async fn supervise_session<T, H>(
+    transport: T,
+    http: H,
+    controller: pointer::ControllerId,
+    auth_timeout: std::time::Duration,
+) where
+    T: Future<Output = ()>,
+    H: Future<Output = ()>,
+{
+    let io = async move {
+        match future::select(Box::pin(transport), Box::pin(http)).await {
+            future::Either::Left(((), remaining)) => drop(remaining),
+            future::Either::Right(((), remaining)) => drop(remaining),
+        }
+    };
+    let authentication = async move {
+        tokio::time::sleep(auth_timeout).await;
+        let authenticated = controller.read().map(|id| id.is_some()).unwrap_or(false);
+        if authenticated {
+            future::pending::<()>().await;
+        }
+    };
+    match future::select(Box::pin(io), Box::pin(authentication)).await {
+        future::Either::Left(((), remaining)) => drop(remaining),
+        future::Either::Right(((), remaining)) => drop(remaining),
+    }
+}
+
+#[cfg(test)]
+mod session_tests {
+    use super::*;
+    use std::sync::{
+        atomic::{AtomicUsize, Ordering},
+        RwLock,
+    };
+    use std::time::Duration;
+    struct PendingHalf(Arc<AtomicUsize>);
+    impl Future for PendingHalf {
+        type Output = ();
+        fn poll(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<()> {
+            Poll::Pending
+        }
+    }
+    impl Drop for PendingHalf {
+        fn drop(&mut self) {
+            self.0.fetch_add(1, Ordering::SeqCst);
+        }
+    }
+    #[tokio::test]
+    async fn unauthenticated_deadline_drops_both_halves() {
+        let drops = Arc::new(AtomicUsize::new(0));
+        tokio::time::timeout(
+            Duration::from_secs(1),
+            supervise_session(
+                PendingHalf(drops.clone()),
+                PendingHalf(drops.clone()),
+                Arc::new(RwLock::new(None)),
+                Duration::from_millis(5),
+            ),
+        )
+        .await
+        .unwrap();
+        assert_eq!(drops.load(Ordering::SeqCst), 2);
+    }
+    #[tokio::test]
+    async fn authenticated_idle_connection_survives_deadline_but_io_completion_cleans_up() {
+        let drops = Arc::new(AtomicUsize::new(0));
+        let (finish, receiver) = oneshot::channel::<()>();
+        let count = drops.clone();
+        let http = async move {
+            let _guard = PendingHalf(count);
+            let _ = receiver.await;
+        };
+        let session = supervise_session(
+            PendingHalf(drops.clone()),
+            http,
+            Arc::new(RwLock::new(Some(uuid::Uuid::new_v4()))),
+            Duration::from_millis(5),
+        );
+        futures::pin_mut!(session);
+        assert!(
+            tokio::time::timeout(Duration::from_millis(30), &mut session)
+                .await
+                .is_err()
+        );
+        assert_eq!(drops.load(Ordering::SeqCst), 0);
+        finish.send(()).unwrap();
+        tokio::time::timeout(Duration::from_secs(1), session)
+            .await
+            .unwrap();
+        assert_eq!(drops.load(Ordering::SeqCst), 2);
     }
 }

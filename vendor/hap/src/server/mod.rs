@@ -27,3 +27,19 @@ pub trait Server {
     // where /// all pairing information is erased and restored to factory default settings. This method is doing
     // just that. async fn factory_reset(&mut self) -> Result<()>;
 }
+
+/// HAP status returned by a grouped write adapter.
+pub use crate::transport::http::Status as WriteStatus;
+
+/// One authenticated request, accepted atomically by the application.
+/// Implementations must be bounded and nonblocking, must not acquire HAP locks,
+/// and must not change state on error. Success accepts intent, not observed state.
+/// Session authentication is supplied by the server; dispatch authorization and
+/// durable acceptance remain the application's responsibility.
+pub trait WriteBatchHandler: Send + Sync {
+    fn write(&self, controller: uuid::Uuid, body: &[u8]) -> std::result::Result<(), WriteStatus>;
+}
+
+/// Shared accessory handle returned by Server::add_accessory.
+pub type AccessoryHandle = crate::pointer::Accessory;
+pub use crate::event::{Event as ServerEvent, EventEmitter};

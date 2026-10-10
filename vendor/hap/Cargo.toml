@@ -45,7 +45,7 @@ sha2 = "0.9"
 signature = "2.2"
 srp = "0.5"
 thiserror = "1.0"
-tokio = "1.8"
+tokio = { version = "1.8", features = ["time", "io-util", "sync"] }
 url = "2.1"
 uuid = { version = "0.8", features = ["v4", "serde"] }
 x25519-dalek = "=2.0.1"

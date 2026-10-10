@@ -8,6 +8,7 @@ publish.workspace = true
 [dependencies]
 hap.workspace = true
 homesense-core.workspace = true
+homesense-state.workspace = true
 serde.workspace = true
 rusqlite.workspace = true
 serde_json.workspace = true

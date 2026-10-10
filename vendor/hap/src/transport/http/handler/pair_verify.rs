@@ -4,7 +4,7 @@ use futures::{
     channel::oneshot,
     future::{BoxFuture, FutureExt},
 };
-use hyper::{body::Buf, Body};
+use hyper::{body::HttpBody, Body};
 use log::{debug, info};
 use rand::rngs::OsRng;
 use signature::Signer;
@@ -60,15 +60,25 @@ impl TlvHandlerExt for PairVerify {
 
     fn parse(&self, body: Body) -> BoxFuture<Result<Step, tlv::ErrorContainer>> {
         async {
-            let aggregated_body = hyper::body::aggregate(body).await.map_err(|_| {
-                tlv::ErrorContainer::new(StepNumber::Unknown as u8, tlv::Error::Unknown)
-            })?;
-
-            debug!("received body: {:?}", aggregated_body.chunk());
-
-            let mut decoded = tlv::decode(aggregated_body.chunk());
+            let mut body = body;
+            let bytes = tokio::time::timeout(std::time::Duration::from_secs(5), async move {
+                let mut bytes = Vec::new();
+                while let Some(chunk) = body.data().await {
+                    let chunk = chunk.map_err(|_| tlv::Error::Unknown)?;
+                    if chunk.len() > 65536 - bytes.len() {
+                        return Err(tlv::Error::Unknown);
+                    }
+                    bytes.extend_from_slice(&chunk);
+                }
+                Ok(bytes)
+            })
+            .await
+            .map_err(|_| tlv::ErrorContainer::new(0, tlv::Error::Unknown))?
+            .map_err(|error| tlv::ErrorContainer::new(0, error))?;
+            let mut decoded =
+                tlv::try_decode(&bytes).map_err(|error| tlv::ErrorContainer::new(0, error))?;
             match decoded.get(&(Type::State as u8)) {
-                Some(method) => match method[0] {
+                Some(method) if method.len() == 1 => match method[0] {
                     x if x == StepNumber::StartReq as u8 => {
                         let a_pub = decoded.remove(&(Type::PublicKey as u8)).ok_or(
                             tlv::ErrorContainer::new(
@@ -92,7 +102,7 @@ impl TlvHandlerExt for PairVerify {
                         tlv::Error::Unknown,
                     )),
                 },
-                None => Err(tlv::ErrorContainer::new(
+                _ => Err(tlv::ErrorContainer::new(
                     StepNumber::Unknown as u8,
                     tlv::Error::Unknown,
                 )),
@@ -132,15 +142,21 @@ async fn handle_start(
 ) -> Result<tlv::Container, tlv::Error> {
     info!("pair verify M1: received verify start request");
 
+    handler.session = None;
+    if a_pub_bytes.len() != 32 {
+        return Err(tlv::Error::Unknown);
+    }
     let mut a_pub = [0; 32];
-    let bytes = &a_pub_bytes[..a_pub.len()]; // panics if not enough data
-    a_pub.copy_from_slice(bytes);
+    a_pub.copy_from_slice(&a_pub_bytes);
     let a_pub = PublicKey::from(a_pub);
 
     let mut csprng = OsRng {};
     let b = EphemeralSecret::random_from_rng(&mut csprng);
     let b_pub = PublicKey::from(&b);
     let shared_secret = b.diffie_hellman(&a_pub);
+    if !shared_secret.was_contributory() {
+        return Err(tlv::Error::Authentication);
+    }
 
     let config = config.lock().await;
     let device_id = config.device_id.to_string();
@@ -199,9 +215,13 @@ async fn handle_finish(
 ) -> Result<tlv::Container, tlv::Error> {
     info!("pair verify M3: received verify finish request");
 
-    match handler.session {
+    if data.len() < 16 {
+        handler.session = None;
+        return Err(tlv::Error::Unknown);
+    }
+    match handler.session.take() {
         None => Err(tlv::Error::Unknown),
-        Some(ref mut session) => {
+        Some(session) => {
             let encrypted_data = Vec::from(&data[..data.len() - 16]);
             let auth_tag = Vec::from(&data[data.len() - 16..]);
 
@@ -219,7 +239,7 @@ async fn handle_finish(
                 GenericArray::from_slice(&auth_tag),
             )?;
 
-            let sub_tlv = tlv::decode(&decrypted_data);
+            let sub_tlv = tlv::try_decode(&decrypted_data)?;
             debug!("received sub-TLV: {:?}", &sub_tlv);
             let device_pairing_id = sub_tlv
                 .get(&(Type::Identifier as u8))
@@ -255,7 +275,9 @@ async fn handle_finish(
                     controller_id: pairing_uuid,
                     shared_secret: session.shared_secret,
                 };
-                let _session = sender.send(encrypted_session);
+                sender
+                    .send(encrypted_session)
+                    .map_err(|_| tlv::Error::Unknown)?;
             } else {
                 return Err(tlv::Error::Unknown);
             }
@@ -263,6 +285,244 @@ async fn handle_finish(
             info!("pair verify M4: sending verify finish response");
 
             Ok(vec![Value::State(StepNumber::FinishRes as u8)])
+        }
+    }
+}
+
+#[cfg(test)]
+mod input_tests {
+    use super::*;
+    use futures::lock::Mutex;
+    use std::sync::Arc;
+    #[tokio::test]
+    async fn malformed_tlv_and_state_lengths_are_rejected_without_panicking() {
+        let (sender, _receiver) = oneshot::channel();
+        let handler = PairVerify::new(sender);
+        for bytes in [
+            vec![],
+            vec![6],
+            vec![6, 1],
+            vec![6, 0],
+            vec![6, 2, 1, 1],
+            vec![6, 1, 1, 6, 1, 1],
+            vec![6, 1, 1, 3, 32, 0],
+        ] {
+            assert!(handler.parse(Body::from(bytes)).await.is_err());
+        }
+        assert!(handler.parse(Body::from(vec![0; 65537])).await.is_err());
+    }
+    #[tokio::test]
+    async fn invalid_public_keys_and_short_finish_never_create_a_session() {
+        let (sender, mut receiver) = oneshot::channel();
+        let mut handler = PairVerify::new(sender);
+        let config = Arc::new(Mutex::new(crate::Config::default()));
+        for len in [0, 1, 31, 33, 64] {
+            assert!(handle_start(&mut handler, config.clone(), vec![1; len])
+                .await
+                .is_err());
+            assert!(handler.session.is_none());
+        }
+        assert!(handle_start(&mut handler, config.clone(), vec![0; 32])
+            .await
+            .is_err());
+        assert!(handler.session.is_none());
+        let secret = EphemeralSecret::random_from_rng(OsRng);
+        let public = PublicKey::from(&secret);
+        assert!(
+            handle_start(&mut handler, config, public.as_bytes().to_vec())
+                .await
+                .is_ok()
+        );
+        let path = std::env::temp_dir().join(format!("hap-short-verify-{}", Uuid::new_v4()));
+        let storage: pointer::Storage = Arc::new(Mutex::new(Box::new(
+            crate::storage::FileStorage::new(path.as_os_str())
+                .await
+                .unwrap(),
+        )));
+        assert!(handle_finish(&mut handler, storage, &[0; 15])
+            .await
+            .is_err());
+        assert!(handler.session.is_none());
+        assert!(receiver.try_recv().unwrap().is_none());
+        std::fs::remove_dir_all(path).unwrap();
+    }
+}
+
+#[cfg(test)]
+mod exchange_tests {
+    use super::*;
+    use crate::{
+        event::EventEmitter,
+        pairing::{Pairing, Permissions},
+        storage::{FileStorage, Storage},
+    };
+    use futures::lock::Mutex;
+    use std::sync::Arc;
+
+    // Uses public wire TLVs and a separately derived client key. No reads of the
+    // handler's ephemeral/session internals and no direct handle_start/finish calls.
+    async fn exchange(fault: u8) {
+        let id = Uuid::new_v4();
+        let controller_key = ed25519_dalek::SigningKey::generate(&mut OsRng);
+        let path = std::env::temp_dir().join(format!("hap-verify-exchange-{id}"));
+        let mut store = FileStorage::new(path.as_os_str())
+            .await
+            .unwrap_or_else(|_| panic!("exchange step failed"));
+        let pairing = Pairing::new(
+            id,
+            Permissions::Admin,
+            controller_key.verifying_key().to_bytes(),
+        );
+        store
+            .save_pairing(&pairing)
+            .await
+            .unwrap_or_else(|_| panic!("exchange step failed"));
+        let storage: pointer::Storage = Arc::new(Mutex::new(Box::new(store)));
+        let config = crate::Config::default();
+        let accessory_key = config.device_ed25519_keypair.verifying_key();
+        let accessory_id = config.device_id.to_string();
+        let config = Arc::new(Mutex::new(config));
+        let identity = Arc::new(std::sync::RwLock::new(None));
+        let emitter = Arc::new(Mutex::new(EventEmitter::new()));
+        let (sender, mut receiver) = oneshot::channel();
+        let mut handler = PairVerify::new(sender);
+        let secret = EphemeralSecret::random_from_rng(OsRng);
+        let public = PublicKey::from(&secret);
+        let m1 = vec![
+            Value::State(1),
+            Value::PublicKey(public.as_bytes().to_vec()),
+        ]
+        .encode();
+        let step = handler
+            .parse(Body::from(m1))
+            .await
+            .unwrap_or_else(|_| panic!("exchange step failed"));
+        let m2 = handler
+            .handle(
+                step,
+                identity.clone(),
+                config.clone(),
+                storage.clone(),
+                emitter.clone(),
+            )
+            .await
+            .unwrap_or_else(|_| panic!("exchange step failed"))
+            .encode();
+        let m2 = tlv::try_decode(&m2).unwrap();
+        assert_eq!(m2[&(Type::State as u8)], vec![2]);
+        let server_public =
+            PublicKey::from(<[u8; 32]>::try_from(m2[&(Type::PublicKey as u8)].as_slice()).unwrap());
+        let shared = secret.diffie_hellman(&server_public);
+        assert!(shared.was_contributory());
+        let mut key = [0; 32];
+        hkdf::Hkdf::<sha2::Sha512>::new(Some(b"Pair-Verify-Encrypt-Salt"), shared.as_bytes())
+            .expand(b"Pair-Verify-Encrypt-Info", &mut key)
+            .unwrap();
+        let cipher = ChaCha20Poly1305::new(GenericArray::from_slice(&key));
+        let encrypted = &m2[&(Type::EncryptedData as u8)];
+        let mut plaintext = encrypted[..encrypted.len() - 16].to_vec();
+        let mut nonce = [0; 12];
+        nonce[4..].copy_from_slice(b"PV-Msg02");
+        cipher
+            .decrypt_in_place_detached(
+                GenericArray::from_slice(&nonce),
+                &[],
+                &mut plaintext,
+                GenericArray::from_slice(&encrypted[encrypted.len() - 16..]),
+            )
+            .unwrap();
+        let sub = tlv::try_decode(&plaintext).unwrap();
+        assert_eq!(sub[&(Type::Identifier as u8)], accessory_id.as_bytes());
+        let signed = [
+            server_public.as_bytes().as_slice(),
+            accessory_id.as_bytes(),
+            public.as_bytes().as_slice(),
+        ]
+        .concat();
+        let signature =
+            ed25519_dalek::Signature::from_slice(&sub[&(Type::Signature as u8)]).unwrap();
+        accessory_key.verify_strict(&signed, &signature).unwrap();
+        let claimed = if fault == 2 { Uuid::new_v4() } else { id };
+        let claimed = claimed.to_string();
+        let signed = [
+            public.as_bytes().as_slice(),
+            claimed.as_bytes(),
+            server_public.as_bytes().as_slice(),
+        ]
+        .concat();
+        let signing_key = if fault == 1 {
+            ed25519_dalek::SigningKey::generate(&mut OsRng)
+        } else {
+            controller_key
+        };
+        let signature = signing_key.sign(&signed);
+        let mut encrypted = vec![
+            Value::Identifier(claimed),
+            Value::Signature(signature.to_bytes().to_vec()),
+        ]
+        .encode();
+        nonce[4..].copy_from_slice(b"PV-Msg03");
+        let tag = cipher
+            .encrypt_in_place_detached(GenericArray::from_slice(&nonce), &[], &mut encrypted)
+            .unwrap();
+        encrypted.extend(tag);
+        if fault == 3 {
+            *encrypted.last_mut().unwrap() ^= 1;
+        }
+        let m3 = vec![Value::State(3), Value::EncryptedData(encrypted)].encode();
+        let step = handler
+            .parse(Body::from(m3.clone()))
+            .await
+            .unwrap_or_else(|_| panic!("exchange step failed"));
+        let result = handler
+            .handle(
+                step,
+                identity.clone(),
+                config.clone(),
+                storage.clone(),
+                emitter.clone(),
+            )
+            .await;
+        if fault == 0 {
+            let m4 = tlv::try_decode(&result.unwrap_or_else(|_| panic!("M3 rejected")).encode())
+                .unwrap();
+            assert_eq!(m4[&(Type::State as u8)], vec![4]);
+            let session = receiver.try_recv().unwrap().unwrap();
+            assert_eq!(session.controller_id, id);
+            assert_eq!(session.shared_secret, *shared.as_bytes());
+        } else {
+            assert!(result.is_err());
+            assert!(receiver.try_recv().unwrap().is_none());
+        }
+        // Success and all failure variants consume M3 state; replay cannot grant a session.
+        let replay = handler
+            .parse(Body::from(m3))
+            .await
+            .unwrap_or_else(|_| panic!("exchange step failed"));
+        assert!(handler
+            .handle(replay, identity.clone(), config, storage.clone(), emitter)
+            .await
+            .is_err());
+        assert!(identity.read().unwrap().is_none());
+        assert_eq!(
+            storage
+                .lock()
+                .await
+                .load_pairing(&id)
+                .await
+                .unwrap_or_else(|_| panic!("exchange step failed")),
+            pairing
+        );
+        std::fs::remove_dir_all(path).unwrap();
+    }
+    #[tokio::test]
+    async fn m1_through_m4_verifies_both_signatures_and_delivers_matching_secret_once() {
+        exchange(0).await;
+    }
+    #[tokio::test]
+    async fn wrong_signer_unknown_pairing_and_bad_tag_never_deliver_a_session() {
+        for fault in 1..=3 {
+            exchange(fault).await;
         }
     }
 }

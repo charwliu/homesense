@@ -29,6 +29,15 @@ pub struct IpServer {
 }
 
 impl IpServer {
+    /// Install before serving requests. All characteristic writes then use this
+    /// grouped adapter, without falling back to individual value callbacks.
+    pub async fn set_write_batch_handler(&self, handler: Arc<dyn super::WriteBatchHandler>) {
+        self.accessory_database
+            .lock()
+            .await
+            .set_write_batch_handler(handler);
+    }
+
     /// Creates a new [`IpServer`](IpServer).
     ///
     /// # Examples
