@@ -4,16 +4,17 @@
 
 ## 当前实现
 
-阶段 A1：`homesense-core` 设备类型及基础范围校验、`hb-protocol` 编解码与反馈分类、`homesensed` 离线工具。已实现面板协议配置、验证状态与 LED 模式门槛，真实设备验证记录仍待现场填写。此版本不连接真实 TCP485、不启动网络服务、不发送设备动作；HAP、状态仲裁、场景和迁移器尚未实现。
+阶段 A1：`homesense-core` 设备类型及基础范围校验、`hb-protocol` 编解码与反馈分类、`homesensed` 离线工具。已实现面板协议配置、验证状态与 LED 模式门槛，真实设备验证记录仍待现场填写。A2 已加入状态存储、有界命令队列和确定性网关模拟器。已加入 `hb-transport` TCP 基础接口并完成 localhost 测试，CLI 仍为离线工具；此版本未连接真实 TCP485、不启动网络服务、不发送设备动作；统一控制入口、HAP 已接入受控依赖和身份存储，服务入口尚未实现；场景和迁移器尚未实现。
 
 ```sh
 cargo test --workspace --offline
 cargo clippy --workspace --all-targets --offline -- -D warnings
+cargo run --offline -p homesensed -- check-config config/simulation.json --simulation
 cargo run --offline -p homesensed -- demo
 cargo run --offline -p homesensed -- decode 'AE 15 D1 1E EE'
 ```
 
-使用 Rust edition 2024，最低 Rust 1.99；已在本机 Rust/Cargo 1.99.0 上完成构建和测试，验证记录见 `docs/implementation.md`。首批 crate 仅使用标准库和 workspace 内部依赖，可离线构建。后台服务最终名称为 `homesensed.service`，目前没有部署或自启动配置。
+使用 Rust edition 2024，最低 Rust 1.99；已在本机 Rust/Cargo 1.99.0 上完成构建和测试，验证记录见 `docs/implementation.md`。协议与核心类型保持标准库依赖；存储使用锁定的 rusqlite 0.40.0 和 bundled SQLite。当前缓存下可离线构建，新环境需要先获取 Cargo.lock 中的依赖。后台服务最终名称为 `homesensed.service`，目前没有部署或自启动配置。
 
 ## 资料
 
@@ -33,7 +34,7 @@ cargo run --offline -p homesensed -- decode 'AE 15 D1 1E EE'
 
 窗帘只编码电机升/降/停，不推算位置，也不假定升降对应开关方向。编码成功不等于设备收到或状态已确认。真实型号、反馈模式、接线方向与原系统行为仍需现场验收。
 
-下一步进入 A2：模拟传输、desired/observed 状态、命令仲裁、连接代际、发布屏障和 STOP 保留容量；随后再验证原生 HAP 虚拟调光灯。
+A2 进行中：已有 desired/observed 分离、连接代际检查、命令优先级、STOP 保留容量和拆包／延迟／丢包模拟。下一步补齐统一控制入口、超时结果跟踪、配置发布屏障及存储故障集成，再验证原生 HAP 虚拟调光灯。
 
 项目中的品牌全称统一为 `HopeBeauty`，代码与模块缩写使用 `hb`。原始 Control4 驱动标识、厂家资料路径、手册摘录和归档设计保留来源原文，解析器仍按原始驱动标识识别设备。
 

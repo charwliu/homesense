@@ -1,0 +1,6 @@
+{
+  "repository": "https://github.com/ewilken/hap-rs",
+  "commit": "acf45bdb00e23c81b67b3d5116c113335dc83f16",
+  "patch": "../../probes/hap-rs/candidate.patch",
+  "packaging": "src and licenses; unused build/dev dependencies and upstream workspace removed; Rust sources formatted by cargo fmt"
+}

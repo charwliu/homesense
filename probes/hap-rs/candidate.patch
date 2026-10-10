@@ -1,0 +1,3765 @@
+diff --git a/Cargo.toml b/Cargo.toml
+index 3ba0156..57a269c 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -26,27 +26,28 @@ async-trait = "0.1"
+ byteorder = "1.3"
+ bytes = "1.0"
+ chacha20poly1305 = "0.8"
+-ed25519-dalek = { version = "1.0", features = ["std", "serde"] }
++ed25519-dalek = { version = "=2.2.0", features = ["std", "serde", "rand_core"] }
++curve25519-dalek = "=4.1.3"
+ erased-serde = "0.3"
+ macaddr = { version = "1.0.1", features = ["serde"] }
+ futures = "0.3"
+-get_if_addrs = "0.5"
++get_if_addrs = { package = "if-addrs", version = "0.6" }
+ hkdf = "0.11"
+ hyper = { version = "0.14", features = ["server", "http1"] }
+ libmdns = "0.6"
+ log = "0.4"
+ num = "0.2"
+-rand = "0.7"
++rand = "0.8"
+ serde = { version = "1.0", features = ["rc", "derive"] }
+ serde_json = "1.0"
+ sha2 = "0.9"
+-signature = "1.1"
++signature = "2.2"
+ srp = "0.5"
+ thiserror = "1.0"
+ tokio = "1.8"
+ url = "2.1"
+ uuid = { version = "0.8", features = ["v4", "serde"] }
+-x25519-dalek = "0.6"
++x25519-dalek = "=2.0.1"
+ 
+ [build-dependencies]
+ handlebars = "2.0"
+diff --git a/codegen/src/main.rs b/codegen/src/main.rs
+index 4e3ab0d..2954b0a 100644
+--- a/codegen/src/main.rs
++++ b/codegen/src/main.rs
+@@ -898,6 +898,10 @@ impl HapCharacteristic for {{pascal_case characteristic.DefaultDescription}}Char
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/access_code_control_point.rs b/src/characteristic/generated/access_code_control_point.rs
+index cda7812..fac0568 100644
+--- a/src/characteristic/generated/access_code_control_point.rs
++++ b/src/characteristic/generated/access_code_control_point.rs
+@@ -93,6 +93,10 @@ impl HapCharacteristic for AccessCodeControlPointCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/access_code_supported_configuration.rs b/src/characteristic/generated/access_code_supported_configuration.rs
+index 09516e0..b65b6c1 100644
+--- a/src/characteristic/generated/access_code_supported_configuration.rs
++++ b/src/characteristic/generated/access_code_supported_configuration.rs
+@@ -92,6 +92,10 @@ impl HapCharacteristic for AccessCodeSupportedConfigurationCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/access_control_level.rs b/src/characteristic/generated/access_control_level.rs
+index 88afd44..7d59a39 100644
+--- a/src/characteristic/generated/access_control_level.rs
++++ b/src/characteristic/generated/access_control_level.rs
+@@ -97,6 +97,10 @@ impl HapCharacteristic for AccessControlLevelCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/accessory_flags.rs b/src/characteristic/generated/accessory_flags.rs
+index 2050ce3..765214e 100644
+--- a/src/characteristic/generated/accessory_flags.rs
++++ b/src/characteristic/generated/accessory_flags.rs
+@@ -93,6 +93,10 @@ impl HapCharacteristic for AccessoryFlagsCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/accessory_identifier.rs b/src/characteristic/generated/accessory_identifier.rs
+index 041ae14..44bba98 100644
+--- a/src/characteristic/generated/accessory_identifier.rs
++++ b/src/characteristic/generated/accessory_identifier.rs
+@@ -92,6 +92,10 @@ impl HapCharacteristic for AccessoryIdentifierCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/active.rs b/src/characteristic/generated/active.rs
+index 5b47e8d..8cf5090 100644
+--- a/src/characteristic/generated/active.rs
++++ b/src/characteristic/generated/active.rs
+@@ -97,6 +97,10 @@ impl HapCharacteristic for ActiveCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/active_identifier.rs b/src/characteristic/generated/active_identifier.rs
+index 2838a49..1ba1d10 100644
+--- a/src/characteristic/generated/active_identifier.rs
++++ b/src/characteristic/generated/active_identifier.rs
+@@ -95,6 +95,10 @@ impl HapCharacteristic for ActiveIdentifierCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/activity_interval.rs b/src/characteristic/generated/activity_interval.rs
+index 66a7ebb..b040cdc 100644
+--- a/src/characteristic/generated/activity_interval.rs
++++ b/src/characteristic/generated/activity_interval.rs
+@@ -95,6 +95,10 @@ impl HapCharacteristic for ActivityIntervalCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/administrator_only_access.rs b/src/characteristic/generated/administrator_only_access.rs
+index aa05acd..df0ab76 100644
+--- a/src/characteristic/generated/administrator_only_access.rs
++++ b/src/characteristic/generated/administrator_only_access.rs
+@@ -94,6 +94,10 @@ impl HapCharacteristic for AdministratorOnlyAccessCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/air_particulate_density.rs b/src/characteristic/generated/air_particulate_density.rs
+index 26db5ba..d1a5609 100644
+--- a/src/characteristic/generated/air_particulate_density.rs
++++ b/src/characteristic/generated/air_particulate_density.rs
+@@ -96,6 +96,10 @@ impl HapCharacteristic for AirParticulateDensityCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/air_particulate_size.rs b/src/characteristic/generated/air_particulate_size.rs
+index 78ab5aa..178f003 100644
+--- a/src/characteristic/generated/air_particulate_size.rs
++++ b/src/characteristic/generated/air_particulate_size.rs
+@@ -96,6 +96,10 @@ impl HapCharacteristic for AirParticulateSizeCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/airplay_enable.rs b/src/characteristic/generated/airplay_enable.rs
+index 9b9d4fa..c142043 100644
+--- a/src/characteristic/generated/airplay_enable.rs
++++ b/src/characteristic/generated/airplay_enable.rs
+@@ -96,6 +96,10 @@ impl HapCharacteristic for AirplayEnableCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/application_matching_identifier.rs b/src/characteristic/generated/application_matching_identifier.rs
+index 6b2d2f7..a96ab4f 100644
+--- a/src/characteristic/generated/application_matching_identifier.rs
++++ b/src/characteristic/generated/application_matching_identifier.rs
+@@ -92,6 +92,10 @@ impl HapCharacteristic for ApplicationMatchingIdentifierCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/asset_update_readiness.rs b/src/characteristic/generated/asset_update_readiness.rs
+index 05d1910..4b71357 100644
+--- a/src/characteristic/generated/asset_update_readiness.rs
++++ b/src/characteristic/generated/asset_update_readiness.rs
+@@ -93,6 +93,10 @@ impl HapCharacteristic for AssetUpdateReadinessCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/audio_feedback.rs b/src/characteristic/generated/audio_feedback.rs
+index 356be9f..bf1ec29 100644
+--- a/src/characteristic/generated/audio_feedback.rs
++++ b/src/characteristic/generated/audio_feedback.rs
+@@ -94,6 +94,10 @@ impl HapCharacteristic for AudioFeedbackCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/battery_level.rs b/src/characteristic/generated/battery_level.rs
+index 232ec5b..b8e9885 100644
+--- a/src/characteristic/generated/battery_level.rs
++++ b/src/characteristic/generated/battery_level.rs
+@@ -97,6 +97,10 @@ impl HapCharacteristic for BatteryLevelCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/brightness.rs b/src/characteristic/generated/brightness.rs
+index 311e672..e3cd66e 100644
+--- a/src/characteristic/generated/brightness.rs
++++ b/src/characteristic/generated/brightness.rs
+@@ -98,6 +98,10 @@ impl HapCharacteristic for BrightnessCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/button_event.rs b/src/characteristic/generated/button_event.rs
+index 9a49961..0ca8196 100644
+--- a/src/characteristic/generated/button_event.rs
++++ b/src/characteristic/generated/button_event.rs
+@@ -93,6 +93,10 @@ impl HapCharacteristic for ButtonEventCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/camera_operating_mode_indicator.rs b/src/characteristic/generated/camera_operating_mode_indicator.rs
+index 900408e..f06c9b2 100644
+--- a/src/characteristic/generated/camera_operating_mode_indicator.rs
++++ b/src/characteristic/generated/camera_operating_mode_indicator.rs
+@@ -95,6 +95,10 @@ impl HapCharacteristic for CameraOperatingModeIndicatorCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/carbon_dioxide_detected.rs b/src/characteristic/generated/carbon_dioxide_detected.rs
+index 9488d73..174204c 100644
+--- a/src/characteristic/generated/carbon_dioxide_detected.rs
++++ b/src/characteristic/generated/carbon_dioxide_detected.rs
+@@ -105,6 +105,10 @@ impl HapCharacteristic for CarbonDioxideDetectedCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/carbon_dioxide_level.rs b/src/characteristic/generated/carbon_dioxide_level.rs
+index f9ae378..917a687 100644
+--- a/src/characteristic/generated/carbon_dioxide_level.rs
++++ b/src/characteristic/generated/carbon_dioxide_level.rs
+@@ -97,6 +97,10 @@ impl HapCharacteristic for CarbonDioxideLevelCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/carbon_dioxide_peak_level.rs b/src/characteristic/generated/carbon_dioxide_peak_level.rs
+index dffe788..7b6c0b6 100644
+--- a/src/characteristic/generated/carbon_dioxide_peak_level.rs
++++ b/src/characteristic/generated/carbon_dioxide_peak_level.rs
+@@ -97,6 +97,10 @@ impl HapCharacteristic for CarbonDioxidePeakLevelCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/carbon_monoxide_detected.rs b/src/characteristic/generated/carbon_monoxide_detected.rs
+index 3676cac..c94d4a3 100644
+--- a/src/characteristic/generated/carbon_monoxide_detected.rs
++++ b/src/characteristic/generated/carbon_monoxide_detected.rs
+@@ -96,6 +96,10 @@ impl HapCharacteristic for CarbonMonoxideDetectedCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/carbon_monoxide_level.rs b/src/characteristic/generated/carbon_monoxide_level.rs
+index 51a6d6e..2ed72d4 100644
+--- a/src/characteristic/generated/carbon_monoxide_level.rs
++++ b/src/characteristic/generated/carbon_monoxide_level.rs
+@@ -97,6 +97,10 @@ impl HapCharacteristic for CarbonMonoxideLevelCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/carbon_monoxide_peak_level.rs b/src/characteristic/generated/carbon_monoxide_peak_level.rs
+index 1d65cb5..665cff7 100644
+--- a/src/characteristic/generated/carbon_monoxide_peak_level.rs
++++ b/src/characteristic/generated/carbon_monoxide_peak_level.rs
+@@ -97,6 +97,10 @@ impl HapCharacteristic for CarbonMonoxidePeakLevelCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/cca_energy_detect_threshold.rs b/src/characteristic/generated/cca_energy_detect_threshold.rs
+index 9060f04..cb36112 100644
+--- a/src/characteristic/generated/cca_energy_detect_threshold.rs
++++ b/src/characteristic/generated/cca_energy_detect_threshold.rs
+@@ -92,6 +92,10 @@ impl HapCharacteristic for CcaEnergyDetectThresholdCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/cca_signal_detect_threshold.rs b/src/characteristic/generated/cca_signal_detect_threshold.rs
+index 749a733..fe6a0ec 100644
+--- a/src/characteristic/generated/cca_signal_detect_threshold.rs
++++ b/src/characteristic/generated/cca_signal_detect_threshold.rs
+@@ -92,6 +92,10 @@ impl HapCharacteristic for CcaSignalDetectThresholdCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/characteristic_value_active_transition_count.rs b/src/characteristic/generated/characteristic_value_active_transition_count.rs
+index 96a0fd0..c07af72 100644
+--- a/src/characteristic/generated/characteristic_value_active_transition_count.rs
++++ b/src/characteristic/generated/characteristic_value_active_transition_count.rs
+@@ -93,6 +93,10 @@ impl HapCharacteristic for CharacteristicValueActiveTransitionCountCharacteristi
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/characteristic_value_transition_control.rs b/src/characteristic/generated/characteristic_value_transition_control.rs
+index 1e2e6ef..9cd9857 100644
+--- a/src/characteristic/generated/characteristic_value_transition_control.rs
++++ b/src/characteristic/generated/characteristic_value_transition_control.rs
+@@ -93,6 +93,10 @@ impl HapCharacteristic for CharacteristicValueTransitionControlCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/charging_state.rs b/src/characteristic/generated/charging_state.rs
+index affd750..8336eec 100644
+--- a/src/characteristic/generated/charging_state.rs
++++ b/src/characteristic/generated/charging_state.rs
+@@ -107,6 +107,10 @@ impl HapCharacteristic for ChargingStateCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/closed_captions.rs b/src/characteristic/generated/closed_captions.rs
+index c9d00a1..448f774 100644
+--- a/src/characteristic/generated/closed_captions.rs
++++ b/src/characteristic/generated/closed_captions.rs
+@@ -97,6 +97,10 @@ impl HapCharacteristic for ClosedCaptionsCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/cloud_relay_control_point.rs b/src/characteristic/generated/cloud_relay_control_point.rs
+index ff83255..2add153 100644
+--- a/src/characteristic/generated/cloud_relay_control_point.rs
++++ b/src/characteristic/generated/cloud_relay_control_point.rs
+@@ -94,6 +94,10 @@ impl HapCharacteristic for CloudRelayControlPointCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/cloud_relay_current_state.rs b/src/characteristic/generated/cloud_relay_current_state.rs
+index f3ac1d6..dbeb538 100644
+--- a/src/characteristic/generated/cloud_relay_current_state.rs
++++ b/src/characteristic/generated/cloud_relay_current_state.rs
+@@ -96,6 +96,10 @@ impl HapCharacteristic for CloudRelayCurrentStateCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/cloud_relay_enable_status.rs b/src/characteristic/generated/cloud_relay_enable_status.rs
+index d175183..8505a30 100644
+--- a/src/characteristic/generated/cloud_relay_enable_status.rs
++++ b/src/characteristic/generated/cloud_relay_enable_status.rs
+@@ -94,6 +94,10 @@ impl HapCharacteristic for CloudRelayEnableStatusCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/color_temperature.rs b/src/characteristic/generated/color_temperature.rs
+index 1f47c1c..40753b1 100644
+--- a/src/characteristic/generated/color_temperature.rs
++++ b/src/characteristic/generated/color_temperature.rs
+@@ -97,6 +97,10 @@ impl HapCharacteristic for ColorTemperatureCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/configuration_state.rs b/src/characteristic/generated/configuration_state.rs
+index 7dd34ac..6108892 100644
+--- a/src/characteristic/generated/configuration_state.rs
++++ b/src/characteristic/generated/configuration_state.rs
+@@ -93,6 +93,10 @@ impl HapCharacteristic for ConfigurationStateCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/configured_name.rs b/src/characteristic/generated/configured_name.rs
+index bbae7e4..fcdb949 100644
+--- a/src/characteristic/generated/configured_name.rs
++++ b/src/characteristic/generated/configured_name.rs
+@@ -93,6 +93,10 @@ impl HapCharacteristic for ConfiguredNameCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/contact_sensor_state.rs b/src/characteristic/generated/contact_sensor_state.rs
+index 1c42d5f..a119d47 100644
+--- a/src/characteristic/generated/contact_sensor_state.rs
++++ b/src/characteristic/generated/contact_sensor_state.rs
+@@ -105,6 +105,10 @@ impl HapCharacteristic for ContactSensorStateCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/cooling_threshold_temperature.rs b/src/characteristic/generated/cooling_threshold_temperature.rs
+index 3b0c4a6..c2d63f6 100644
+--- a/src/characteristic/generated/cooling_threshold_temperature.rs
++++ b/src/characteristic/generated/cooling_threshold_temperature.rs
+@@ -98,6 +98,10 @@ impl HapCharacteristic for CoolingThresholdTemperatureCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/current_air_purifier_state.rs b/src/characteristic/generated/current_air_purifier_state.rs
+index e2b4713..8ef64cd 100644
+--- a/src/characteristic/generated/current_air_purifier_state.rs
++++ b/src/characteristic/generated/current_air_purifier_state.rs
+@@ -107,6 +107,10 @@ impl HapCharacteristic for CurrentAirPurifierStateCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/current_air_quality.rs b/src/characteristic/generated/current_air_quality.rs
+index e3fe450..5074eb6 100644
+--- a/src/characteristic/generated/current_air_quality.rs
++++ b/src/characteristic/generated/current_air_quality.rs
+@@ -113,6 +113,10 @@ impl HapCharacteristic for CurrentAirQualityCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/current_door_state.rs b/src/characteristic/generated/current_door_state.rs
+index fc0b517..a75d70e 100644
+--- a/src/characteristic/generated/current_door_state.rs
++++ b/src/characteristic/generated/current_door_state.rs
+@@ -111,6 +111,10 @@ impl HapCharacteristic for CurrentDoorStateCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/current_fan_state.rs b/src/characteristic/generated/current_fan_state.rs
+index 26d0ff9..3a474de 100644
+--- a/src/characteristic/generated/current_fan_state.rs
++++ b/src/characteristic/generated/current_fan_state.rs
+@@ -107,6 +107,10 @@ impl HapCharacteristic for CurrentFanStateCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/current_heater_cooler_state.rs b/src/characteristic/generated/current_heater_cooler_state.rs
+index 4d949f4..ec66d95 100644
+--- a/src/characteristic/generated/current_heater_cooler_state.rs
++++ b/src/characteristic/generated/current_heater_cooler_state.rs
+@@ -109,6 +109,10 @@ impl HapCharacteristic for CurrentHeaterCoolerStateCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/current_heating_cooling_state.rs b/src/characteristic/generated/current_heating_cooling_state.rs
+index 664b0f1..ea87be0 100644
+--- a/src/characteristic/generated/current_heating_cooling_state.rs
++++ b/src/characteristic/generated/current_heating_cooling_state.rs
+@@ -109,6 +109,10 @@ impl HapCharacteristic for CurrentHeatingCoolingStateCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/current_horizontal_tilt_angle.rs b/src/characteristic/generated/current_horizontal_tilt_angle.rs
+index 78a6928..c3b7aab 100644
+--- a/src/characteristic/generated/current_horizontal_tilt_angle.rs
++++ b/src/characteristic/generated/current_horizontal_tilt_angle.rs
+@@ -97,6 +97,10 @@ impl HapCharacteristic for CurrentHorizontalTiltAngleCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/current_humidifier_dehumidifier_state.rs b/src/characteristic/generated/current_humidifier_dehumidifier_state.rs
+index 9b7fa99..f20d540 100644
+--- a/src/characteristic/generated/current_humidifier_dehumidifier_state.rs
++++ b/src/characteristic/generated/current_humidifier_dehumidifier_state.rs
+@@ -109,6 +109,10 @@ impl HapCharacteristic for CurrentHumidifierDehumidifierStateCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/current_light_level.rs b/src/characteristic/generated/current_light_level.rs
+index 66706c9..ba5b117 100644
+--- a/src/characteristic/generated/current_light_level.rs
++++ b/src/characteristic/generated/current_light_level.rs
+@@ -96,6 +96,10 @@ impl HapCharacteristic for CurrentLightLevelCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/current_media_state.rs b/src/characteristic/generated/current_media_state.rs
+index a3bf497..66a192f 100644
+--- a/src/characteristic/generated/current_media_state.rs
++++ b/src/characteristic/generated/current_media_state.rs
+@@ -96,6 +96,10 @@ impl HapCharacteristic for CurrentMediaStateCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/current_position.rs b/src/characteristic/generated/current_position.rs
+index ad98ff9..bc1cd9c 100644
+--- a/src/characteristic/generated/current_position.rs
++++ b/src/characteristic/generated/current_position.rs
+@@ -97,6 +97,10 @@ impl HapCharacteristic for CurrentPositionCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/current_relative_humidity.rs b/src/characteristic/generated/current_relative_humidity.rs
+index f6edeaa..7272116 100644
+--- a/src/characteristic/generated/current_relative_humidity.rs
++++ b/src/characteristic/generated/current_relative_humidity.rs
+@@ -97,6 +97,10 @@ impl HapCharacteristic for CurrentRelativeHumidityCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/current_slat_state.rs b/src/characteristic/generated/current_slat_state.rs
+index aca5231..d508340 100644
+--- a/src/characteristic/generated/current_slat_state.rs
++++ b/src/characteristic/generated/current_slat_state.rs
+@@ -109,6 +109,10 @@ impl HapCharacteristic for CurrentSlatStateCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/current_temperature.rs b/src/characteristic/generated/current_temperature.rs
+index f77cdcc..ece607c 100644
+--- a/src/characteristic/generated/current_temperature.rs
++++ b/src/characteristic/generated/current_temperature.rs
+@@ -97,6 +97,10 @@ impl HapCharacteristic for CurrentTemperatureCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/current_tilt_angle.rs b/src/characteristic/generated/current_tilt_angle.rs
+index 263e155..df05ab0 100644
+--- a/src/characteristic/generated/current_tilt_angle.rs
++++ b/src/characteristic/generated/current_tilt_angle.rs
+@@ -97,6 +97,10 @@ impl HapCharacteristic for CurrentTiltAngleCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/current_transport.rs b/src/characteristic/generated/current_transport.rs
+index 78fb429..d0c1ffc 100644
+--- a/src/characteristic/generated/current_transport.rs
++++ b/src/characteristic/generated/current_transport.rs
+@@ -92,6 +92,10 @@ impl HapCharacteristic for CurrentTransportCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/current_vertical_tilt_angle.rs b/src/characteristic/generated/current_vertical_tilt_angle.rs
+index ced6c34..3c7133f 100644
+--- a/src/characteristic/generated/current_vertical_tilt_angle.rs
++++ b/src/characteristic/generated/current_vertical_tilt_angle.rs
+@@ -97,6 +97,10 @@ impl HapCharacteristic for CurrentVerticalTiltAngleCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/current_visibility_state.rs b/src/characteristic/generated/current_visibility_state.rs
+index e4bebb5..0330c8e 100644
+--- a/src/characteristic/generated/current_visibility_state.rs
++++ b/src/characteristic/generated/current_visibility_state.rs
+@@ -96,6 +96,10 @@ impl HapCharacteristic for CurrentVisibilityStateCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/current_water_level.rs b/src/characteristic/generated/current_water_level.rs
+index de9e14c..b55beab 100644
+--- a/src/characteristic/generated/current_water_level.rs
++++ b/src/characteristic/generated/current_water_level.rs
+@@ -97,6 +97,10 @@ impl HapCharacteristic for CurrentWaterLevelCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/data_stream_hap_transport.rs b/src/characteristic/generated/data_stream_hap_transport.rs
+index 5b6ffce..8394740 100644
+--- a/src/characteristic/generated/data_stream_hap_transport.rs
++++ b/src/characteristic/generated/data_stream_hap_transport.rs
+@@ -93,6 +93,10 @@ impl HapCharacteristic for DataStreamHapTransportCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/data_stream_hap_transport_interrupt.rs b/src/characteristic/generated/data_stream_hap_transport_interrupt.rs
+index 0e0e8a3..2eec6f0 100644
+--- a/src/characteristic/generated/data_stream_hap_transport_interrupt.rs
++++ b/src/characteristic/generated/data_stream_hap_transport_interrupt.rs
+@@ -93,6 +93,10 @@ impl HapCharacteristic for DataStreamHapTransportInterruptCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/digital_zoom.rs b/src/characteristic/generated/digital_zoom.rs
+index f01a8fc..47af771 100644
+--- a/src/characteristic/generated/digital_zoom.rs
++++ b/src/characteristic/generated/digital_zoom.rs
+@@ -95,6 +95,10 @@ impl HapCharacteristic for DigitalZoomCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/display_order.rs b/src/characteristic/generated/display_order.rs
+index 7ce0af4..4c55f44 100644
+--- a/src/characteristic/generated/display_order.rs
++++ b/src/characteristic/generated/display_order.rs
+@@ -93,6 +93,10 @@ impl HapCharacteristic for DisplayOrderCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/event_retransmission_maximum.rs b/src/characteristic/generated/event_retransmission_maximum.rs
+index 300982c..f04dbd9 100644
+--- a/src/characteristic/generated/event_retransmission_maximum.rs
++++ b/src/characteristic/generated/event_retransmission_maximum.rs
+@@ -92,6 +92,10 @@ impl HapCharacteristic for EventRetransmissionMaximumCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/event_snapshots_active.rs b/src/characteristic/generated/event_snapshots_active.rs
+index 31e6ab9..dc82292 100644
+--- a/src/characteristic/generated/event_snapshots_active.rs
++++ b/src/characteristic/generated/event_snapshots_active.rs
+@@ -95,6 +95,10 @@ impl HapCharacteristic for EventSnapshotsActiveCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/event_transmission_counters.rs b/src/characteristic/generated/event_transmission_counters.rs
+index 3fc0ea0..bc56854 100644
+--- a/src/characteristic/generated/event_transmission_counters.rs
++++ b/src/characteristic/generated/event_transmission_counters.rs
+@@ -92,6 +92,10 @@ impl HapCharacteristic for EventTransmissionCountersCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/filter_change_indication.rs b/src/characteristic/generated/filter_change_indication.rs
+index 9c62dff..12fe527 100644
+--- a/src/characteristic/generated/filter_change_indication.rs
++++ b/src/characteristic/generated/filter_change_indication.rs
+@@ -105,6 +105,10 @@ impl HapCharacteristic for FilterChangeIndicationCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/filter_life_level.rs b/src/characteristic/generated/filter_life_level.rs
+index ffbb44a..0fced7b 100644
+--- a/src/characteristic/generated/filter_life_level.rs
++++ b/src/characteristic/generated/filter_life_level.rs
+@@ -96,6 +96,10 @@ impl HapCharacteristic for FilterLifeLevelCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/filter_reset_change_indication.rs b/src/characteristic/generated/filter_reset_change_indication.rs
+index 027bafc..9a0b486 100644
+--- a/src/characteristic/generated/filter_reset_change_indication.rs
++++ b/src/characteristic/generated/filter_reset_change_indication.rs
+@@ -95,6 +95,10 @@ impl HapCharacteristic for FilterResetChangeIndicationCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/firmware_revision.rs b/src/characteristic/generated/firmware_revision.rs
+index ae6c99b..1f4ce84 100644
+--- a/src/characteristic/generated/firmware_revision.rs
++++ b/src/characteristic/generated/firmware_revision.rs
+@@ -92,6 +92,10 @@ impl HapCharacteristic for FirmwareRevisionCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/firmware_update_readiness.rs b/src/characteristic/generated/firmware_update_readiness.rs
+index b5877b3..07dfc60 100644
+--- a/src/characteristic/generated/firmware_update_readiness.rs
++++ b/src/characteristic/generated/firmware_update_readiness.rs
+@@ -93,6 +93,10 @@ impl HapCharacteristic for FirmwareUpdateReadinessCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/firmware_update_status.rs b/src/characteristic/generated/firmware_update_status.rs
+index 92bac28..bada6a3 100644
+--- a/src/characteristic/generated/firmware_update_status.rs
++++ b/src/characteristic/generated/firmware_update_status.rs
+@@ -93,6 +93,10 @@ impl HapCharacteristic for FirmwareUpdateStatusCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/hardware_finish.rs b/src/characteristic/generated/hardware_finish.rs
+index 3a2a7cc..d488120 100644
+--- a/src/characteristic/generated/hardware_finish.rs
++++ b/src/characteristic/generated/hardware_finish.rs
+@@ -92,6 +92,10 @@ impl HapCharacteristic for HardwareFinishCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/hardware_revision.rs b/src/characteristic/generated/hardware_revision.rs
+index e509c84..b557645 100644
+--- a/src/characteristic/generated/hardware_revision.rs
++++ b/src/characteristic/generated/hardware_revision.rs
+@@ -92,6 +92,10 @@ impl HapCharacteristic for HardwareRevisionCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/heart_beat.rs b/src/characteristic/generated/heart_beat.rs
+index dddce68..d13e0ce 100644
+--- a/src/characteristic/generated/heart_beat.rs
++++ b/src/characteristic/generated/heart_beat.rs
+@@ -93,6 +93,10 @@ impl HapCharacteristic for HeartBeatCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/heating_threshold_temperature.rs b/src/characteristic/generated/heating_threshold_temperature.rs
+index cd917a8..d6226bb 100644
+--- a/src/characteristic/generated/heating_threshold_temperature.rs
++++ b/src/characteristic/generated/heating_threshold_temperature.rs
+@@ -98,6 +98,10 @@ impl HapCharacteristic for HeatingThresholdTemperatureCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/hold_position.rs b/src/characteristic/generated/hold_position.rs
+index 792acc4..0a2cbf1 100644
+--- a/src/characteristic/generated/hold_position.rs
++++ b/src/characteristic/generated/hold_position.rs
+@@ -92,6 +92,10 @@ impl HapCharacteristic for HoldPositionCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/homekit_camera_active.rs b/src/characteristic/generated/homekit_camera_active.rs
+index 2fd186d..1e61d3e 100644
+--- a/src/characteristic/generated/homekit_camera_active.rs
++++ b/src/characteristic/generated/homekit_camera_active.rs
+@@ -95,6 +95,10 @@ impl HapCharacteristic for HomekitCameraActiveCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/hue.rs b/src/characteristic/generated/hue.rs
+index c50ebe2..eda62b1 100644
+--- a/src/characteristic/generated/hue.rs
++++ b/src/characteristic/generated/hue.rs
+@@ -98,6 +98,10 @@ impl HapCharacteristic for HueCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/identifier.rs b/src/characteristic/generated/identifier.rs
+index b2ed668..fbdd27e 100644
+--- a/src/characteristic/generated/identifier.rs
++++ b/src/characteristic/generated/identifier.rs
+@@ -93,6 +93,10 @@ impl HapCharacteristic for IdentifierCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/identify.rs b/src/characteristic/generated/identify.rs
+index 1c2489f..bac6e17 100644
+--- a/src/characteristic/generated/identify.rs
++++ b/src/characteristic/generated/identify.rs
+@@ -92,6 +92,10 @@ impl HapCharacteristic for IdentifyCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/image_mirroring.rs b/src/characteristic/generated/image_mirroring.rs
+index 401087c..211d78e 100644
+--- a/src/characteristic/generated/image_mirroring.rs
++++ b/src/characteristic/generated/image_mirroring.rs
+@@ -94,6 +94,10 @@ impl HapCharacteristic for ImageMirroringCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/image_rotation.rs b/src/characteristic/generated/image_rotation.rs
+index 905410a..f73845f 100644
+--- a/src/characteristic/generated/image_rotation.rs
++++ b/src/characteristic/generated/image_rotation.rs
+@@ -98,6 +98,10 @@ impl HapCharacteristic for ImageRotationCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/in_use.rs b/src/characteristic/generated/in_use.rs
+index 03d9c75..9d76d43 100644
+--- a/src/characteristic/generated/in_use.rs
++++ b/src/characteristic/generated/in_use.rs
+@@ -96,6 +96,10 @@ impl HapCharacteristic for InUseCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/input_device_type.rs b/src/characteristic/generated/input_device_type.rs
+index 5c006e8..3f78d6c 100644
+--- a/src/characteristic/generated/input_device_type.rs
++++ b/src/characteristic/generated/input_device_type.rs
+@@ -96,6 +96,10 @@ impl HapCharacteristic for InputDeviceTypeCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/input_source_type.rs b/src/characteristic/generated/input_source_type.rs
+index 31a072a..a2571af 100644
+--- a/src/characteristic/generated/input_source_type.rs
++++ b/src/characteristic/generated/input_source_type.rs
+@@ -96,6 +96,10 @@ impl HapCharacteristic for InputSourceTypeCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/is_configured.rs b/src/characteristic/generated/is_configured.rs
+index d10ed85..74fc3e9 100644
+--- a/src/characteristic/generated/is_configured.rs
++++ b/src/characteristic/generated/is_configured.rs
+@@ -96,6 +96,10 @@ impl HapCharacteristic for IsConfiguredCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/label_index.rs b/src/characteristic/generated/label_index.rs
+index 74d2dee..8a6075f 100644
+--- a/src/characteristic/generated/label_index.rs
++++ b/src/characteristic/generated/label_index.rs
+@@ -95,6 +95,10 @@ impl HapCharacteristic for LabelIndexCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/label_namespace.rs b/src/characteristic/generated/label_namespace.rs
+index 71cbd0f..38e8cf9 100644
+--- a/src/characteristic/generated/label_namespace.rs
++++ b/src/characteristic/generated/label_namespace.rs
+@@ -95,6 +95,10 @@ impl HapCharacteristic for LabelNamespaceCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/leak_detected.rs b/src/characteristic/generated/leak_detected.rs
+index ee3b1f6..eef3985 100644
+--- a/src/characteristic/generated/leak_detected.rs
++++ b/src/characteristic/generated/leak_detected.rs
+@@ -105,6 +105,10 @@ impl HapCharacteristic for LeakDetectedCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/list_pairings.rs b/src/characteristic/generated/list_pairings.rs
+index 2dee170..a90a40e 100644
+--- a/src/characteristic/generated/list_pairings.rs
++++ b/src/characteristic/generated/list_pairings.rs
+@@ -93,6 +93,10 @@ impl HapCharacteristic for ListPairingsCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/lock_control_point.rs b/src/characteristic/generated/lock_control_point.rs
+index a294e51..a5de891 100644
+--- a/src/characteristic/generated/lock_control_point.rs
++++ b/src/characteristic/generated/lock_control_point.rs
+@@ -92,6 +92,10 @@ impl HapCharacteristic for LockControlPointCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/lock_current_state.rs b/src/characteristic/generated/lock_current_state.rs
+index 8cd3f84..d0ec5cf 100644
+--- a/src/characteristic/generated/lock_current_state.rs
++++ b/src/characteristic/generated/lock_current_state.rs
+@@ -105,6 +105,10 @@ impl HapCharacteristic for LockCurrentStateCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/lock_last_known_action.rs b/src/characteristic/generated/lock_last_known_action.rs
+index ee37f66..2190078 100644
+--- a/src/characteristic/generated/lock_last_known_action.rs
++++ b/src/characteristic/generated/lock_last_known_action.rs
+@@ -96,6 +96,10 @@ impl HapCharacteristic for LockLastKnownActionCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/lock_management_auto_security_timeout.rs b/src/characteristic/generated/lock_management_auto_security_timeout.rs
+index 29eb766..43b2e8c 100644
+--- a/src/characteristic/generated/lock_management_auto_security_timeout.rs
++++ b/src/characteristic/generated/lock_management_auto_security_timeout.rs
+@@ -95,6 +95,10 @@ impl HapCharacteristic for LockManagementAutoSecurityTimeoutCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/lock_physical_controls.rs b/src/characteristic/generated/lock_physical_controls.rs
+index 6935b0d..351b23f 100644
+--- a/src/characteristic/generated/lock_physical_controls.rs
++++ b/src/characteristic/generated/lock_physical_controls.rs
+@@ -97,6 +97,10 @@ impl HapCharacteristic for LockPhysicalControlsCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/lock_target_state.rs b/src/characteristic/generated/lock_target_state.rs
+index 0d78330..a8b42a5 100644
+--- a/src/characteristic/generated/lock_target_state.rs
++++ b/src/characteristic/generated/lock_target_state.rs
+@@ -106,6 +106,10 @@ impl HapCharacteristic for LockTargetStateCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/logs.rs b/src/characteristic/generated/logs.rs
+index e6530ea..1c4e5de 100644
+--- a/src/characteristic/generated/logs.rs
++++ b/src/characteristic/generated/logs.rs
+@@ -93,6 +93,10 @@ impl HapCharacteristic for LogsCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/mac_retransmission_maximum.rs b/src/characteristic/generated/mac_retransmission_maximum.rs
+index c73455e..689fd03 100644
+--- a/src/characteristic/generated/mac_retransmission_maximum.rs
++++ b/src/characteristic/generated/mac_retransmission_maximum.rs
+@@ -92,6 +92,10 @@ impl HapCharacteristic for MacRetransmissionMaximumCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/mac_transmission_counters.rs b/src/characteristic/generated/mac_transmission_counters.rs
+index ca666ba..a9d864e 100644
+--- a/src/characteristic/generated/mac_transmission_counters.rs
++++ b/src/characteristic/generated/mac_transmission_counters.rs
+@@ -92,6 +92,10 @@ impl HapCharacteristic for MacTransmissionCountersCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/managed_network_enable.rs b/src/characteristic/generated/managed_network_enable.rs
+index 04e7469..4c7a28f 100644
+--- a/src/characteristic/generated/managed_network_enable.rs
++++ b/src/characteristic/generated/managed_network_enable.rs
+@@ -97,6 +97,10 @@ impl HapCharacteristic for ManagedNetworkEnableCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/manually_disabled.rs b/src/characteristic/generated/manually_disabled.rs
+index 0cd4602..f1c4c5f 100644
+--- a/src/characteristic/generated/manually_disabled.rs
++++ b/src/characteristic/generated/manually_disabled.rs
+@@ -93,6 +93,10 @@ impl HapCharacteristic for ManuallyDisabledCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/manufacturer.rs b/src/characteristic/generated/manufacturer.rs
+index c463ebd..5d22e33 100644
+--- a/src/characteristic/generated/manufacturer.rs
++++ b/src/characteristic/generated/manufacturer.rs
+@@ -93,6 +93,10 @@ impl HapCharacteristic for ManufacturerCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/maximum_transmit_power.rs b/src/characteristic/generated/maximum_transmit_power.rs
+index 2dfe0a1..e5a44ca 100644
+--- a/src/characteristic/generated/maximum_transmit_power.rs
++++ b/src/characteristic/generated/maximum_transmit_power.rs
+@@ -92,6 +92,10 @@ impl HapCharacteristic for MaximumTransmitPowerCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/model.rs b/src/characteristic/generated/model.rs
+index 9df7c11..1a2e3bf 100644
+--- a/src/characteristic/generated/model.rs
++++ b/src/characteristic/generated/model.rs
+@@ -93,6 +93,10 @@ impl HapCharacteristic for ModelCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/motion_detected.rs b/src/characteristic/generated/motion_detected.rs
+index 4a60f52..b862586 100644
+--- a/src/characteristic/generated/motion_detected.rs
++++ b/src/characteristic/generated/motion_detected.rs
+@@ -93,6 +93,10 @@ impl HapCharacteristic for MotionDetectedCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/multifunction_button.rs b/src/characteristic/generated/multifunction_button.rs
+index a9ed8f7..6fc2651 100644
+--- a/src/characteristic/generated/multifunction_button.rs
++++ b/src/characteristic/generated/multifunction_button.rs
+@@ -95,6 +95,10 @@ impl HapCharacteristic for MultifunctionButtonCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/mute.rs b/src/characteristic/generated/mute.rs
+index 1b797d7..c4fc84f 100644
+--- a/src/characteristic/generated/mute.rs
++++ b/src/characteristic/generated/mute.rs
+@@ -94,6 +94,10 @@ impl HapCharacteristic for MuteCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/name.rs b/src/characteristic/generated/name.rs
+index b6fb8c1..9814457 100644
+--- a/src/characteristic/generated/name.rs
++++ b/src/characteristic/generated/name.rs
+@@ -93,6 +93,10 @@ impl HapCharacteristic for NameCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/network_access_violation_control.rs b/src/characteristic/generated/network_access_violation_control.rs
+index c4e9bae..407aeb6 100644
+--- a/src/characteristic/generated/network_access_violation_control.rs
++++ b/src/characteristic/generated/network_access_violation_control.rs
+@@ -96,6 +96,10 @@ impl HapCharacteristic for NetworkAccessViolationControlCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/network_client_control.rs b/src/characteristic/generated/network_client_control.rs
+index af1cb2a..d58cc0b 100644
+--- a/src/characteristic/generated/network_client_control.rs
++++ b/src/characteristic/generated/network_client_control.rs
+@@ -96,6 +96,10 @@ impl HapCharacteristic for NetworkClientControlCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/network_client_status_control.rs b/src/characteristic/generated/network_client_status_control.rs
+index ee4a60a..be4a7a4 100644
+--- a/src/characteristic/generated/network_client_status_control.rs
++++ b/src/characteristic/generated/network_client_status_control.rs
+@@ -94,6 +94,10 @@ impl HapCharacteristic for NetworkClientStatusControlCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/nfc_access_control_point.rs b/src/characteristic/generated/nfc_access_control_point.rs
+index b6084b8..f93b88c 100644
+--- a/src/characteristic/generated/nfc_access_control_point.rs
++++ b/src/characteristic/generated/nfc_access_control_point.rs
+@@ -93,6 +93,10 @@ impl HapCharacteristic for NfcAccessControlPointCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/nfc_access_supported_configuration.rs b/src/characteristic/generated/nfc_access_supported_configuration.rs
+index e9d14b1..5894f83 100644
+--- a/src/characteristic/generated/nfc_access_supported_configuration.rs
++++ b/src/characteristic/generated/nfc_access_supported_configuration.rs
+@@ -92,6 +92,10 @@ impl HapCharacteristic for NfcAccessSupportedConfigurationCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/night_vision.rs b/src/characteristic/generated/night_vision.rs
+index 1470184..ea0abb7 100644
+--- a/src/characteristic/generated/night_vision.rs
++++ b/src/characteristic/generated/night_vision.rs
+@@ -95,6 +95,10 @@ impl HapCharacteristic for NightVisionCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/nitrogen_dioxide_density.rs b/src/characteristic/generated/nitrogen_dioxide_density.rs
+index d052008..6ce41d2 100644
+--- a/src/characteristic/generated/nitrogen_dioxide_density.rs
++++ b/src/characteristic/generated/nitrogen_dioxide_density.rs
+@@ -97,6 +97,10 @@ impl HapCharacteristic for NitrogenDioxideDensityCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/obstruction_detected.rs b/src/characteristic/generated/obstruction_detected.rs
+index e5dd0bf..f962c7b 100644
+--- a/src/characteristic/generated/obstruction_detected.rs
++++ b/src/characteristic/generated/obstruction_detected.rs
+@@ -93,6 +93,10 @@ impl HapCharacteristic for ObstructionDetectedCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/occupancy_detected.rs b/src/characteristic/generated/occupancy_detected.rs
+index 30070cf..419b8f6 100644
+--- a/src/characteristic/generated/occupancy_detected.rs
++++ b/src/characteristic/generated/occupancy_detected.rs
+@@ -105,6 +105,10 @@ impl HapCharacteristic for OccupancyDetectedCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/operating_state_response.rs b/src/characteristic/generated/operating_state_response.rs
+index ea0b909..f5c92b9 100644
+--- a/src/characteristic/generated/operating_state_response.rs
++++ b/src/characteristic/generated/operating_state_response.rs
+@@ -93,6 +93,10 @@ impl HapCharacteristic for OperatingStateResponseCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/optical_zoom.rs b/src/characteristic/generated/optical_zoom.rs
+index 1932094..a3a341e 100644
+--- a/src/characteristic/generated/optical_zoom.rs
++++ b/src/characteristic/generated/optical_zoom.rs
+@@ -95,6 +95,10 @@ impl HapCharacteristic for OpticalZoomCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/outlet_in_use.rs b/src/characteristic/generated/outlet_in_use.rs
+index 9cb6677..8cc7abc 100644
+--- a/src/characteristic/generated/outlet_in_use.rs
++++ b/src/characteristic/generated/outlet_in_use.rs
+@@ -93,6 +93,10 @@ impl HapCharacteristic for OutletInUseCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/ozone_density.rs b/src/characteristic/generated/ozone_density.rs
+index b970a8d..50a6887 100644
+--- a/src/characteristic/generated/ozone_density.rs
++++ b/src/characteristic/generated/ozone_density.rs
+@@ -97,6 +97,10 @@ impl HapCharacteristic for OzoneDensityCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/pair_setup.rs b/src/characteristic/generated/pair_setup.rs
+index 9409e7c..51bb629 100644
+--- a/src/characteristic/generated/pair_setup.rs
++++ b/src/characteristic/generated/pair_setup.rs
+@@ -93,6 +93,10 @@ impl HapCharacteristic for PairSetupCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/pair_verify.rs b/src/characteristic/generated/pair_verify.rs
+index ece6543..7162ed6 100644
+--- a/src/characteristic/generated/pair_verify.rs
++++ b/src/characteristic/generated/pair_verify.rs
+@@ -93,6 +93,10 @@ impl HapCharacteristic for PairVerifyCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/pairing_features.rs b/src/characteristic/generated/pairing_features.rs
+index 506145d..8cf4aa3 100644
+--- a/src/characteristic/generated/pairing_features.rs
++++ b/src/characteristic/generated/pairing_features.rs
+@@ -93,6 +93,10 @@ impl HapCharacteristic for PairingFeaturesCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/password_setting.rs b/src/characteristic/generated/password_setting.rs
+index f8d5d20..93ea953 100644
+--- a/src/characteristic/generated/password_setting.rs
++++ b/src/characteristic/generated/password_setting.rs
+@@ -94,6 +94,10 @@ impl HapCharacteristic for PasswordSettingCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/periodic_snapshots_active.rs b/src/characteristic/generated/periodic_snapshots_active.rs
+index a2ee609..e8cfc0d 100644
+--- a/src/characteristic/generated/periodic_snapshots_active.rs
++++ b/src/characteristic/generated/periodic_snapshots_active.rs
+@@ -95,6 +95,10 @@ impl HapCharacteristic for PeriodicSnapshotsActiveCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/picture_mode.rs b/src/characteristic/generated/picture_mode.rs
+index 89983e7..e744c8e 100644
+--- a/src/characteristic/generated/picture_mode.rs
++++ b/src/characteristic/generated/picture_mode.rs
+@@ -97,6 +97,10 @@ impl HapCharacteristic for PictureModeCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/ping.rs b/src/characteristic/generated/ping.rs
+index 6c8e73a..be9bad7 100644
+--- a/src/characteristic/generated/ping.rs
++++ b/src/characteristic/generated/ping.rs
+@@ -92,6 +92,10 @@ impl HapCharacteristic for PingCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/pm10_density.rs b/src/characteristic/generated/pm10_density.rs
+index 78ad470..ff7e303 100644
+--- a/src/characteristic/generated/pm10_density.rs
++++ b/src/characteristic/generated/pm10_density.rs
+@@ -97,6 +97,10 @@ impl HapCharacteristic for Pm10DensityCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/pm2_5_density.rs b/src/characteristic/generated/pm2_5_density.rs
+index 8c02769..81c972c 100644
+--- a/src/characteristic/generated/pm2_5_density.rs
++++ b/src/characteristic/generated/pm2_5_density.rs
+@@ -97,6 +97,10 @@ impl HapCharacteristic for Pm2_5DensityCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/position_state.rs b/src/characteristic/generated/position_state.rs
+index 68a2edf..ab7ed4c 100644
+--- a/src/characteristic/generated/position_state.rs
++++ b/src/characteristic/generated/position_state.rs
+@@ -96,6 +96,10 @@ impl HapCharacteristic for PositionStateCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/power_mode_selection.rs b/src/characteristic/generated/power_mode_selection.rs
+index 1264fcd..3e2a747 100644
+--- a/src/characteristic/generated/power_mode_selection.rs
++++ b/src/characteristic/generated/power_mode_selection.rs
+@@ -95,6 +95,10 @@ impl HapCharacteristic for PowerModeSelectionCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/power_state.rs b/src/characteristic/generated/power_state.rs
+index 5f3c398..88a70a1 100644
+--- a/src/characteristic/generated/power_state.rs
++++ b/src/characteristic/generated/power_state.rs
+@@ -94,6 +94,10 @@ impl HapCharacteristic for PowerStateCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/product_data.rs b/src/characteristic/generated/product_data.rs
+index e2a512d..04a3697 100644
+--- a/src/characteristic/generated/product_data.rs
++++ b/src/characteristic/generated/product_data.rs
+@@ -92,6 +92,10 @@ impl HapCharacteristic for ProductDataCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/program_mode.rs b/src/characteristic/generated/program_mode.rs
+index 83294b9..0b7e76e 100644
+--- a/src/characteristic/generated/program_mode.rs
++++ b/src/characteristic/generated/program_mode.rs
+@@ -96,6 +96,10 @@ impl HapCharacteristic for ProgramModeCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/programmable_switch_event.rs b/src/characteristic/generated/programmable_switch_event.rs
+index f011df9..78a01dd 100644
+--- a/src/characteristic/generated/programmable_switch_event.rs
++++ b/src/characteristic/generated/programmable_switch_event.rs
+@@ -96,6 +96,10 @@ impl HapCharacteristic for ProgrammableSwitchEventCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/programmable_switch_output_state.rs b/src/characteristic/generated/programmable_switch_output_state.rs
+index ddbd703..bcce3e3 100644
+--- a/src/characteristic/generated/programmable_switch_output_state.rs
++++ b/src/characteristic/generated/programmable_switch_output_state.rs
+@@ -97,6 +97,10 @@ impl HapCharacteristic for ProgrammableSwitchOutputStateCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/received_signal_strength_indication.rs b/src/characteristic/generated/received_signal_strength_indication.rs
+index 010dc9b..d6a77ff 100644
+--- a/src/characteristic/generated/received_signal_strength_indication.rs
++++ b/src/characteristic/generated/received_signal_strength_indication.rs
+@@ -92,6 +92,10 @@ impl HapCharacteristic for ReceivedSignalStrengthIndicationCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/receiver_sensitivity.rs b/src/characteristic/generated/receiver_sensitivity.rs
+index 35b1ca5..a9ed760 100644
+--- a/src/characteristic/generated/receiver_sensitivity.rs
++++ b/src/characteristic/generated/receiver_sensitivity.rs
+@@ -92,6 +92,10 @@ impl HapCharacteristic for ReceiverSensitivityCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/recording_audio_active.rs b/src/characteristic/generated/recording_audio_active.rs
+index 6c0a1b0..4500818 100644
+--- a/src/characteristic/generated/recording_audio_active.rs
++++ b/src/characteristic/generated/recording_audio_active.rs
+@@ -95,6 +95,10 @@ impl HapCharacteristic for RecordingAudioActiveCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/relative_humidity_dehumidifier_threshold.rs b/src/characteristic/generated/relative_humidity_dehumidifier_threshold.rs
+index 27be809..ecf56f4 100644
+--- a/src/characteristic/generated/relative_humidity_dehumidifier_threshold.rs
++++ b/src/characteristic/generated/relative_humidity_dehumidifier_threshold.rs
+@@ -98,6 +98,10 @@ impl HapCharacteristic for RelativeHumidityDehumidifierThresholdCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/relative_humidity_humidifier_threshold.rs b/src/characteristic/generated/relative_humidity_humidifier_threshold.rs
+index 954cd14..89aa15a 100644
+--- a/src/characteristic/generated/relative_humidity_humidifier_threshold.rs
++++ b/src/characteristic/generated/relative_humidity_humidifier_threshold.rs
+@@ -98,6 +98,10 @@ impl HapCharacteristic for RelativeHumidityHumidifierThresholdCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/remaining_duration.rs b/src/characteristic/generated/remaining_duration.rs
+index 68017be..2fa3fcd 100644
+--- a/src/characteristic/generated/remaining_duration.rs
++++ b/src/characteristic/generated/remaining_duration.rs
+@@ -97,6 +97,10 @@ impl HapCharacteristic for RemainingDurationCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/remote_key.rs b/src/characteristic/generated/remote_key.rs
+index aa94282..07c8f9f 100644
+--- a/src/characteristic/generated/remote_key.rs
++++ b/src/characteristic/generated/remote_key.rs
+@@ -95,6 +95,10 @@ impl HapCharacteristic for RemoteKeyCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/rotation_direction.rs b/src/characteristic/generated/rotation_direction.rs
+index 6be0fee..a466d6d 100644
+--- a/src/characteristic/generated/rotation_direction.rs
++++ b/src/characteristic/generated/rotation_direction.rs
+@@ -106,6 +106,10 @@ impl HapCharacteristic for RotationDirectionCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/rotation_speed.rs b/src/characteristic/generated/rotation_speed.rs
+index 49f8d0b..27d865c 100644
+--- a/src/characteristic/generated/rotation_speed.rs
++++ b/src/characteristic/generated/rotation_speed.rs
+@@ -97,6 +97,10 @@ impl HapCharacteristic for RotationSpeedCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/router_status.rs b/src/characteristic/generated/router_status.rs
+index a9034b3..cb3ebac 100644
+--- a/src/characteristic/generated/router_status.rs
++++ b/src/characteristic/generated/router_status.rs
+@@ -95,6 +95,10 @@ impl HapCharacteristic for RouterStatusCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/saturation.rs b/src/characteristic/generated/saturation.rs
+index e4dbfc2..722005e 100644
+--- a/src/characteristic/generated/saturation.rs
++++ b/src/characteristic/generated/saturation.rs
+@@ -98,6 +98,10 @@ impl HapCharacteristic for SaturationCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/security_system_alarm_type.rs b/src/characteristic/generated/security_system_alarm_type.rs
+index 96ea281..87e2280 100644
+--- a/src/characteristic/generated/security_system_alarm_type.rs
++++ b/src/characteristic/generated/security_system_alarm_type.rs
+@@ -96,6 +96,10 @@ impl HapCharacteristic for SecuritySystemAlarmTypeCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/security_system_current_state.rs b/src/characteristic/generated/security_system_current_state.rs
+index ef0e283..bff8b01 100644
+--- a/src/characteristic/generated/security_system_current_state.rs
++++ b/src/characteristic/generated/security_system_current_state.rs
+@@ -111,6 +111,10 @@ impl HapCharacteristic for SecuritySystemCurrentStateCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/security_system_target_state.rs b/src/characteristic/generated/security_system_target_state.rs
+index fa96267..be61162 100644
+--- a/src/characteristic/generated/security_system_target_state.rs
++++ b/src/characteristic/generated/security_system_target_state.rs
+@@ -112,6 +112,10 @@ impl HapCharacteristic for SecuritySystemTargetStateCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/selected_audio_stream_configuration.rs b/src/characteristic/generated/selected_audio_stream_configuration.rs
+index 68840f9..b165d15 100644
+--- a/src/characteristic/generated/selected_audio_stream_configuration.rs
++++ b/src/characteristic/generated/selected_audio_stream_configuration.rs
+@@ -93,6 +93,10 @@ impl HapCharacteristic for SelectedAudioStreamConfigurationCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/selected_camera_recording_configuration.rs b/src/characteristic/generated/selected_camera_recording_configuration.rs
+index 8801214..58f4d01 100644
+--- a/src/characteristic/generated/selected_camera_recording_configuration.rs
++++ b/src/characteristic/generated/selected_camera_recording_configuration.rs
+@@ -94,6 +94,10 @@ impl HapCharacteristic for SelectedCameraRecordingConfigurationCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/selected_diagnostics_modes.rs b/src/characteristic/generated/selected_diagnostics_modes.rs
+index 5ef890e..691de6a 100644
+--- a/src/characteristic/generated/selected_diagnostics_modes.rs
++++ b/src/characteristic/generated/selected_diagnostics_modes.rs
+@@ -93,6 +93,10 @@ impl HapCharacteristic for SelectedDiagnosticsModesCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/selected_stream_configuration.rs b/src/characteristic/generated/selected_stream_configuration.rs
+index 43bb79e..97f3519 100644
+--- a/src/characteristic/generated/selected_stream_configuration.rs
++++ b/src/characteristic/generated/selected_stream_configuration.rs
+@@ -93,6 +93,10 @@ impl HapCharacteristic for SelectedStreamConfigurationCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/serial_number.rs b/src/characteristic/generated/serial_number.rs
+index dae4c5a..5ad7715 100644
+--- a/src/characteristic/generated/serial_number.rs
++++ b/src/characteristic/generated/serial_number.rs
+@@ -93,6 +93,10 @@ impl HapCharacteristic for SerialNumberCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/service_signature.rs b/src/characteristic/generated/service_signature.rs
+index 75a6ae5..7a9a233 100644
+--- a/src/characteristic/generated/service_signature.rs
++++ b/src/characteristic/generated/service_signature.rs
+@@ -93,6 +93,10 @@ impl HapCharacteristic for ServiceSignatureCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/set_duration.rs b/src/characteristic/generated/set_duration.rs
+index b688271..58715af 100644
+--- a/src/characteristic/generated/set_duration.rs
++++ b/src/characteristic/generated/set_duration.rs
+@@ -98,6 +98,10 @@ impl HapCharacteristic for SetDurationCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/setup_data_stream_transport.rs b/src/characteristic/generated/setup_data_stream_transport.rs
+index a7a641b..c11935a 100644
+--- a/src/characteristic/generated/setup_data_stream_transport.rs
++++ b/src/characteristic/generated/setup_data_stream_transport.rs
+@@ -93,6 +93,10 @@ impl HapCharacteristic for SetupDataStreamTransportCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/setup_endpoint.rs b/src/characteristic/generated/setup_endpoint.rs
+index 42c18e3..9f99f65 100644
+--- a/src/characteristic/generated/setup_endpoint.rs
++++ b/src/characteristic/generated/setup_endpoint.rs
+@@ -93,6 +93,10 @@ impl HapCharacteristic for SetupEndpointCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/setup_transfer_transport.rs b/src/characteristic/generated/setup_transfer_transport.rs
+index 1492638..77eca17 100644
+--- a/src/characteristic/generated/setup_transfer_transport.rs
++++ b/src/characteristic/generated/setup_transfer_transport.rs
+@@ -93,6 +93,10 @@ impl HapCharacteristic for SetupTransferTransportCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/signal_to_noise_ratio.rs b/src/characteristic/generated/signal_to_noise_ratio.rs
+index 386e2f8..959f49c 100644
+--- a/src/characteristic/generated/signal_to_noise_ratio.rs
++++ b/src/characteristic/generated/signal_to_noise_ratio.rs
+@@ -92,6 +92,10 @@ impl HapCharacteristic for SignalToNoiseRatioCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/siri_enable.rs b/src/characteristic/generated/siri_enable.rs
+index e55d763..97acba5 100644
+--- a/src/characteristic/generated/siri_enable.rs
++++ b/src/characteristic/generated/siri_enable.rs
+@@ -96,6 +96,10 @@ impl HapCharacteristic for SiriEnableCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/siri_endpoint_session_status.rs b/src/characteristic/generated/siri_endpoint_session_status.rs
+index 45de173..19aa193 100644
+--- a/src/characteristic/generated/siri_endpoint_session_status.rs
++++ b/src/characteristic/generated/siri_endpoint_session_status.rs
+@@ -93,6 +93,10 @@ impl HapCharacteristic for SiriEndpointSessionStatusCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/siri_engine_version.rs b/src/characteristic/generated/siri_engine_version.rs
+index 807a6c9..2621878 100644
+--- a/src/characteristic/generated/siri_engine_version.rs
++++ b/src/characteristic/generated/siri_engine_version.rs
+@@ -92,6 +92,10 @@ impl HapCharacteristic for SiriEngineVersionCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/siri_input_type.rs b/src/characteristic/generated/siri_input_type.rs
+index 5191e01..97f247a 100644
+--- a/src/characteristic/generated/siri_input_type.rs
++++ b/src/characteristic/generated/siri_input_type.rs
+@@ -94,6 +94,10 @@ impl HapCharacteristic for SiriInputTypeCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/siri_light_on_use.rs b/src/characteristic/generated/siri_light_on_use.rs
+index 2f71724..d961438 100644
+--- a/src/characteristic/generated/siri_light_on_use.rs
++++ b/src/characteristic/generated/siri_light_on_use.rs
+@@ -96,6 +96,10 @@ impl HapCharacteristic for SiriLightOnUseCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/siri_listening.rs b/src/characteristic/generated/siri_listening.rs
+index a0610b7..5039dd8 100644
+--- a/src/characteristic/generated/siri_listening.rs
++++ b/src/characteristic/generated/siri_listening.rs
+@@ -96,6 +96,10 @@ impl HapCharacteristic for SiriListeningCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/siri_touch_to_use.rs b/src/characteristic/generated/siri_touch_to_use.rs
+index 6793ab2..b5a7760 100644
+--- a/src/characteristic/generated/siri_touch_to_use.rs
++++ b/src/characteristic/generated/siri_touch_to_use.rs
+@@ -96,6 +96,10 @@ impl HapCharacteristic for SiriTouchToUseCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/slat_type.rs b/src/characteristic/generated/slat_type.rs
+index 9a40b6e..bb52861 100644
+--- a/src/characteristic/generated/slat_type.rs
++++ b/src/characteristic/generated/slat_type.rs
+@@ -95,6 +95,10 @@ impl HapCharacteristic for SlatTypeCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/sleep_discovery_mode.rs b/src/characteristic/generated/sleep_discovery_mode.rs
+index 9e50e72..169253c 100644
+--- a/src/characteristic/generated/sleep_discovery_mode.rs
++++ b/src/characteristic/generated/sleep_discovery_mode.rs
+@@ -96,6 +96,10 @@ impl HapCharacteristic for SleepDiscoveryModeCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/sleep_interval.rs b/src/characteristic/generated/sleep_interval.rs
+index beaa266..6d4beae 100644
+--- a/src/characteristic/generated/sleep_interval.rs
++++ b/src/characteristic/generated/sleep_interval.rs
+@@ -95,6 +95,10 @@ impl HapCharacteristic for SleepIntervalCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/smoke_detected.rs b/src/characteristic/generated/smoke_detected.rs
+index 3e85d68..b6ee938 100644
+--- a/src/characteristic/generated/smoke_detected.rs
++++ b/src/characteristic/generated/smoke_detected.rs
+@@ -96,6 +96,10 @@ impl HapCharacteristic for SmokeDetectedCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/software_revision.rs b/src/characteristic/generated/software_revision.rs
+index 6e225a8..05c4f95 100644
+--- a/src/characteristic/generated/software_revision.rs
++++ b/src/characteristic/generated/software_revision.rs
+@@ -92,6 +92,10 @@ impl HapCharacteristic for SoftwareRevisionCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/staged_firmware_version.rs b/src/characteristic/generated/staged_firmware_version.rs
+index e6a482a..8f38782 100644
+--- a/src/characteristic/generated/staged_firmware_version.rs
++++ b/src/characteristic/generated/staged_firmware_version.rs
+@@ -93,6 +93,10 @@ impl HapCharacteristic for StagedFirmwareVersionCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/status_active.rs b/src/characteristic/generated/status_active.rs
+index 65be8d4..c8a1d85 100644
+--- a/src/characteristic/generated/status_active.rs
++++ b/src/characteristic/generated/status_active.rs
+@@ -93,6 +93,10 @@ impl HapCharacteristic for StatusActiveCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/status_fault.rs b/src/characteristic/generated/status_fault.rs
+index 1730204..86f74d8 100644
+--- a/src/characteristic/generated/status_fault.rs
++++ b/src/characteristic/generated/status_fault.rs
+@@ -96,6 +96,10 @@ impl HapCharacteristic for StatusFaultCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/status_jammed.rs b/src/characteristic/generated/status_jammed.rs
+index 852287d..ad1ac36 100644
+--- a/src/characteristic/generated/status_jammed.rs
++++ b/src/characteristic/generated/status_jammed.rs
+@@ -96,6 +96,10 @@ impl HapCharacteristic for StatusJammedCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/status_low_battery.rs b/src/characteristic/generated/status_low_battery.rs
+index 912353a..9a39004 100644
+--- a/src/characteristic/generated/status_low_battery.rs
++++ b/src/characteristic/generated/status_low_battery.rs
+@@ -105,6 +105,10 @@ impl HapCharacteristic for StatusLowBatteryCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/status_tampered.rs b/src/characteristic/generated/status_tampered.rs
+index 44e0ef0..9a22e49 100644
+--- a/src/characteristic/generated/status_tampered.rs
++++ b/src/characteristic/generated/status_tampered.rs
+@@ -96,6 +96,10 @@ impl HapCharacteristic for StatusTamperedCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/streaming_status.rs b/src/characteristic/generated/streaming_status.rs
+index bc1dfcb..a319dee 100644
+--- a/src/characteristic/generated/streaming_status.rs
++++ b/src/characteristic/generated/streaming_status.rs
+@@ -93,6 +93,10 @@ impl HapCharacteristic for StreamingStatusCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/sulphur_dioxide_density.rs b/src/characteristic/generated/sulphur_dioxide_density.rs
+index 74db9c5..f818fae 100644
+--- a/src/characteristic/generated/sulphur_dioxide_density.rs
++++ b/src/characteristic/generated/sulphur_dioxide_density.rs
+@@ -97,6 +97,10 @@ impl HapCharacteristic for SulphurDioxideDensityCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/supported_asset_types.rs b/src/characteristic/generated/supported_asset_types.rs
+index 36356a7..b7703ed 100644
+--- a/src/characteristic/generated/supported_asset_types.rs
++++ b/src/characteristic/generated/supported_asset_types.rs
+@@ -92,6 +92,10 @@ impl HapCharacteristic for SupportedAssetTypesCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/supported_audio_recording_configuration.rs b/src/characteristic/generated/supported_audio_recording_configuration.rs
+index a5e10a5..874f844 100644
+--- a/src/characteristic/generated/supported_audio_recording_configuration.rs
++++ b/src/characteristic/generated/supported_audio_recording_configuration.rs
+@@ -93,6 +93,10 @@ impl HapCharacteristic for SupportedAudioRecordingConfigurationCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/supported_audio_stream_configuration.rs b/src/characteristic/generated/supported_audio_stream_configuration.rs
+index 80f4dcb..d8867dc 100644
+--- a/src/characteristic/generated/supported_audio_stream_configuration.rs
++++ b/src/characteristic/generated/supported_audio_stream_configuration.rs
+@@ -92,6 +92,10 @@ impl HapCharacteristic for SupportedAudioStreamConfigurationCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/supported_camera_recording_configuration.rs b/src/characteristic/generated/supported_camera_recording_configuration.rs
+index 15648ce..8d16232 100644
+--- a/src/characteristic/generated/supported_camera_recording_configuration.rs
++++ b/src/characteristic/generated/supported_camera_recording_configuration.rs
+@@ -93,6 +93,10 @@ impl HapCharacteristic for SupportedCameraRecordingConfigurationCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/supported_characteristic_value_transition_configuration.rs b/src/characteristic/generated/supported_characteristic_value_transition_configuration.rs
+index 6475e13..c030fe8 100644
+--- a/src/characteristic/generated/supported_characteristic_value_transition_configuration.rs
++++ b/src/characteristic/generated/supported_characteristic_value_transition_configuration.rs
+@@ -92,6 +92,10 @@ impl HapCharacteristic for SupportedCharacteristicValueTransitionConfigurationCh
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/supported_data_stream_transport_configuration.rs b/src/characteristic/generated/supported_data_stream_transport_configuration.rs
+index 0c65eec..a83d73c 100644
+--- a/src/characteristic/generated/supported_data_stream_transport_configuration.rs
++++ b/src/characteristic/generated/supported_data_stream_transport_configuration.rs
+@@ -92,6 +92,10 @@ impl HapCharacteristic for SupportedDataStreamTransportConfigurationCharacterist
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/supported_diagnostics_modes.rs b/src/characteristic/generated/supported_diagnostics_modes.rs
+index 72433f5..6d9223f 100644
+--- a/src/characteristic/generated/supported_diagnostics_modes.rs
++++ b/src/characteristic/generated/supported_diagnostics_modes.rs
+@@ -92,6 +92,10 @@ impl HapCharacteristic for SupportedDiagnosticsModesCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/supported_diagnostics_snapshot.rs b/src/characteristic/generated/supported_diagnostics_snapshot.rs
+index 172bbe5..cf49bca 100644
+--- a/src/characteristic/generated/supported_diagnostics_snapshot.rs
++++ b/src/characteristic/generated/supported_diagnostics_snapshot.rs
+@@ -92,6 +92,10 @@ impl HapCharacteristic for SupportedDiagnosticsSnapshotCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/supported_firmware_update_configuration.rs b/src/characteristic/generated/supported_firmware_update_configuration.rs
+index 092af0e..b662b4c 100644
+--- a/src/characteristic/generated/supported_firmware_update_configuration.rs
++++ b/src/characteristic/generated/supported_firmware_update_configuration.rs
+@@ -92,6 +92,10 @@ impl HapCharacteristic for SupportedFirmwareUpdateConfigurationCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/supported_router_configuration.rs b/src/characteristic/generated/supported_router_configuration.rs
+index 3435c65..b914a0b 100644
+--- a/src/characteristic/generated/supported_router_configuration.rs
++++ b/src/characteristic/generated/supported_router_configuration.rs
+@@ -92,6 +92,10 @@ impl HapCharacteristic for SupportedRouterConfigurationCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/supported_rtp_configuration.rs b/src/characteristic/generated/supported_rtp_configuration.rs
+index 444808c..dbe96c8 100644
+--- a/src/characteristic/generated/supported_rtp_configuration.rs
++++ b/src/characteristic/generated/supported_rtp_configuration.rs
+@@ -92,6 +92,10 @@ impl HapCharacteristic for SupportedRtpConfigurationCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/supported_target_configuration.rs b/src/characteristic/generated/supported_target_configuration.rs
+index ad4ccd9..8189e7a 100644
+--- a/src/characteristic/generated/supported_target_configuration.rs
++++ b/src/characteristic/generated/supported_target_configuration.rs
+@@ -92,6 +92,10 @@ impl HapCharacteristic for SupportedTargetConfigurationCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/supported_transfer_transport_configuration.rs b/src/characteristic/generated/supported_transfer_transport_configuration.rs
+index a801ec5..d838500 100644
+--- a/src/characteristic/generated/supported_transfer_transport_configuration.rs
++++ b/src/characteristic/generated/supported_transfer_transport_configuration.rs
+@@ -92,6 +92,10 @@ impl HapCharacteristic for SupportedTransferTransportConfigurationCharacteristic
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/supported_video_recording_configuration.rs b/src/characteristic/generated/supported_video_recording_configuration.rs
+index daeb14b..fcadb06 100644
+--- a/src/characteristic/generated/supported_video_recording_configuration.rs
++++ b/src/characteristic/generated/supported_video_recording_configuration.rs
+@@ -93,6 +93,10 @@ impl HapCharacteristic for SupportedVideoRecordingConfigurationCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/supported_video_stream_configuration.rs b/src/characteristic/generated/supported_video_stream_configuration.rs
+index 9d72fc4..197804c 100644
+--- a/src/characteristic/generated/supported_video_stream_configuration.rs
++++ b/src/characteristic/generated/supported_video_stream_configuration.rs
+@@ -92,6 +92,10 @@ impl HapCharacteristic for SupportedVideoStreamConfigurationCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/swing_mode.rs b/src/characteristic/generated/swing_mode.rs
+index 5420f7e..10ae9cf 100644
+--- a/src/characteristic/generated/swing_mode.rs
++++ b/src/characteristic/generated/swing_mode.rs
+@@ -97,6 +97,10 @@ impl HapCharacteristic for SwingModeCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/target_air_purifier_state.rs b/src/characteristic/generated/target_air_purifier_state.rs
+index 1a9982b..b1abcc7 100644
+--- a/src/characteristic/generated/target_air_purifier_state.rs
++++ b/src/characteristic/generated/target_air_purifier_state.rs
+@@ -106,6 +106,10 @@ impl HapCharacteristic for TargetAirPurifierStateCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/target_door_state.rs b/src/characteristic/generated/target_door_state.rs
+index 40f501a..2ce0e0a 100644
+--- a/src/characteristic/generated/target_door_state.rs
++++ b/src/characteristic/generated/target_door_state.rs
+@@ -106,6 +106,10 @@ impl HapCharacteristic for TargetDoorStateCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/target_fan_state.rs b/src/characteristic/generated/target_fan_state.rs
+index 56287ff..8a245ca 100644
+--- a/src/characteristic/generated/target_fan_state.rs
++++ b/src/characteristic/generated/target_fan_state.rs
+@@ -106,6 +106,10 @@ impl HapCharacteristic for TargetFanStateCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/target_heater_cooler_state.rs b/src/characteristic/generated/target_heater_cooler_state.rs
+index a374ab9..853fae1 100644
+--- a/src/characteristic/generated/target_heater_cooler_state.rs
++++ b/src/characteristic/generated/target_heater_cooler_state.rs
+@@ -108,6 +108,10 @@ impl HapCharacteristic for TargetHeaterCoolerStateCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/target_heating_cooling_state.rs b/src/characteristic/generated/target_heating_cooling_state.rs
+index 327403c..1f5500a 100644
+--- a/src/characteristic/generated/target_heating_cooling_state.rs
++++ b/src/characteristic/generated/target_heating_cooling_state.rs
+@@ -110,6 +110,10 @@ impl HapCharacteristic for TargetHeatingCoolingStateCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/target_horizontal_tilt_angle.rs b/src/characteristic/generated/target_horizontal_tilt_angle.rs
+index 730a056..a0590a3 100644
+--- a/src/characteristic/generated/target_horizontal_tilt_angle.rs
++++ b/src/characteristic/generated/target_horizontal_tilt_angle.rs
+@@ -98,6 +98,10 @@ impl HapCharacteristic for TargetHorizontalTiltAngleCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/target_humidifier_dehumidifier_state.rs b/src/characteristic/generated/target_humidifier_dehumidifier_state.rs
+index b4ac294..e1938c2 100644
+--- a/src/characteristic/generated/target_humidifier_dehumidifier_state.rs
++++ b/src/characteristic/generated/target_humidifier_dehumidifier_state.rs
+@@ -108,6 +108,10 @@ impl HapCharacteristic for TargetHumidifierDehumidifierStateCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/target_list_configuration.rs b/src/characteristic/generated/target_list_configuration.rs
+index 1ef3829..c5f2ad5 100644
+--- a/src/characteristic/generated/target_list_configuration.rs
++++ b/src/characteristic/generated/target_list_configuration.rs
+@@ -94,6 +94,10 @@ impl HapCharacteristic for TargetListConfigurationCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/target_media_state.rs b/src/characteristic/generated/target_media_state.rs
+index 7a72ad0..85d514d 100644
+--- a/src/characteristic/generated/target_media_state.rs
++++ b/src/characteristic/generated/target_media_state.rs
+@@ -97,6 +97,10 @@ impl HapCharacteristic for TargetMediaStateCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/target_position.rs b/src/characteristic/generated/target_position.rs
+index 703b5fd..cafceae 100644
+--- a/src/characteristic/generated/target_position.rs
++++ b/src/characteristic/generated/target_position.rs
+@@ -98,6 +98,10 @@ impl HapCharacteristic for TargetPositionCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/target_relative_humidity.rs b/src/characteristic/generated/target_relative_humidity.rs
+index 70a1fd3..3d790f5 100644
+--- a/src/characteristic/generated/target_relative_humidity.rs
++++ b/src/characteristic/generated/target_relative_humidity.rs
+@@ -98,6 +98,10 @@ impl HapCharacteristic for TargetRelativeHumidityCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/target_temperature.rs b/src/characteristic/generated/target_temperature.rs
+index c4505f0..dd752e1 100644
+--- a/src/characteristic/generated/target_temperature.rs
++++ b/src/characteristic/generated/target_temperature.rs
+@@ -98,6 +98,10 @@ impl HapCharacteristic for TargetTemperatureCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/target_tilt_angle.rs b/src/characteristic/generated/target_tilt_angle.rs
+index eaf2a9a..019a501 100644
+--- a/src/characteristic/generated/target_tilt_angle.rs
++++ b/src/characteristic/generated/target_tilt_angle.rs
+@@ -98,6 +98,10 @@ impl HapCharacteristic for TargetTiltAngleCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/target_vertical_tilt_angle.rs b/src/characteristic/generated/target_vertical_tilt_angle.rs
+index ecb82ab..d7f7a72 100644
+--- a/src/characteristic/generated/target_vertical_tilt_angle.rs
++++ b/src/characteristic/generated/target_vertical_tilt_angle.rs
+@@ -98,6 +98,10 @@ impl HapCharacteristic for TargetVerticalTiltAngleCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/target_visibility_state.rs b/src/characteristic/generated/target_visibility_state.rs
+index 437a9db..851ebbb 100644
+--- a/src/characteristic/generated/target_visibility_state.rs
++++ b/src/characteristic/generated/target_visibility_state.rs
+@@ -97,6 +97,10 @@ impl HapCharacteristic for TargetVisibilityStateCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/temperature_display_units.rs b/src/characteristic/generated/temperature_display_units.rs
+index f8e907a..19533d9 100644
+--- a/src/characteristic/generated/temperature_display_units.rs
++++ b/src/characteristic/generated/temperature_display_units.rs
+@@ -97,6 +97,10 @@ impl HapCharacteristic for TemperatureDisplayUnitsCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/third_party_camera_active.rs b/src/characteristic/generated/third_party_camera_active.rs
+index 73a40d3..ab8c9f4 100644
+--- a/src/characteristic/generated/third_party_camera_active.rs
++++ b/src/characteristic/generated/third_party_camera_active.rs
+@@ -93,6 +93,10 @@ impl HapCharacteristic for ThirdPartyCameraActiveCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/thread_control_point.rs b/src/characteristic/generated/thread_control_point.rs
+index fca2146..fd7fef0 100644
+--- a/src/characteristic/generated/thread_control_point.rs
++++ b/src/characteristic/generated/thread_control_point.rs
+@@ -92,6 +92,10 @@ impl HapCharacteristic for ThreadControlPointCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/thread_node_capabilities.rs b/src/characteristic/generated/thread_node_capabilities.rs
+index 8eba1ec..c3a64c0 100644
+--- a/src/characteristic/generated/thread_node_capabilities.rs
++++ b/src/characteristic/generated/thread_node_capabilities.rs
+@@ -95,6 +95,10 @@ impl HapCharacteristic for ThreadNodeCapabilitiesCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/thread_openthread_version.rs b/src/characteristic/generated/thread_openthread_version.rs
+index 12034b4..463baf5 100644
+--- a/src/characteristic/generated/thread_openthread_version.rs
++++ b/src/characteristic/generated/thread_openthread_version.rs
+@@ -92,6 +92,10 @@ impl HapCharacteristic for ThreadOpenthreadVersionCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/thread_status.rs b/src/characteristic/generated/thread_status.rs
+index 8a1fd9e..e201d77 100644
+--- a/src/characteristic/generated/thread_status.rs
++++ b/src/characteristic/generated/thread_status.rs
+@@ -96,6 +96,10 @@ impl HapCharacteristic for ThreadStatusCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/transmit_power.rs b/src/characteristic/generated/transmit_power.rs
+index 51c28ec..67bfe9e 100644
+--- a/src/characteristic/generated/transmit_power.rs
++++ b/src/characteristic/generated/transmit_power.rs
+@@ -92,6 +92,10 @@ impl HapCharacteristic for TransmitPowerCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/valve_type.rs b/src/characteristic/generated/valve_type.rs
+index dbea425..5ddfe19 100644
+--- a/src/characteristic/generated/valve_type.rs
++++ b/src/characteristic/generated/valve_type.rs
+@@ -96,6 +96,10 @@ impl HapCharacteristic for ValveTypeCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/version.rs b/src/characteristic/generated/version.rs
+index 1b25463..14172a7 100644
+--- a/src/characteristic/generated/version.rs
++++ b/src/characteristic/generated/version.rs
+@@ -94,6 +94,10 @@ impl HapCharacteristic for VersionCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/video_analysis_active.rs b/src/characteristic/generated/video_analysis_active.rs
+index 6b7ca4f..64a9976 100644
+--- a/src/characteristic/generated/video_analysis_active.rs
++++ b/src/characteristic/generated/video_analysis_active.rs
+@@ -94,6 +94,10 @@ impl HapCharacteristic for VideoAnalysisActiveCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/volatile_organic_compound_density.rs b/src/characteristic/generated/volatile_organic_compound_density.rs
+index 5e863d5..dfe6c18 100644
+--- a/src/characteristic/generated/volatile_organic_compound_density.rs
++++ b/src/characteristic/generated/volatile_organic_compound_density.rs
+@@ -97,6 +97,10 @@ impl HapCharacteristic for VolatileOrganicCompoundDensityCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/volume.rs b/src/characteristic/generated/volume.rs
+index f51b7a8..5563117 100644
+--- a/src/characteristic/generated/volume.rs
++++ b/src/characteristic/generated/volume.rs
+@@ -98,6 +98,10 @@ impl HapCharacteristic for VolumeCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/volume_control_type.rs b/src/characteristic/generated/volume_control_type.rs
+index 6d23812..3daa19a 100644
+--- a/src/characteristic/generated/volume_control_type.rs
++++ b/src/characteristic/generated/volume_control_type.rs
+@@ -96,6 +96,10 @@ impl HapCharacteristic for VolumeControlTypeCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/volume_selector.rs b/src/characteristic/generated/volume_selector.rs
+index 91c19f6..f54c1e9 100644
+--- a/src/characteristic/generated/volume_selector.rs
++++ b/src/characteristic/generated/volume_selector.rs
+@@ -95,6 +95,10 @@ impl HapCharacteristic for VolumeSelectorCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/wake_configuration.rs b/src/characteristic/generated/wake_configuration.rs
+index 4aded18..0eb3bba 100644
+--- a/src/characteristic/generated/wake_configuration.rs
++++ b/src/characteristic/generated/wake_configuration.rs
+@@ -92,6 +92,10 @@ impl HapCharacteristic for WakeConfigurationCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/wan_configuration_list.rs b/src/characteristic/generated/wan_configuration_list.rs
+index 0d6d05f..41b4cfe 100644
+--- a/src/characteristic/generated/wan_configuration_list.rs
++++ b/src/characteristic/generated/wan_configuration_list.rs
+@@ -93,6 +93,10 @@ impl HapCharacteristic for WanConfigurationListCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/wan_status_list.rs b/src/characteristic/generated/wan_status_list.rs
+index fb9cef5..27da6b7 100644
+--- a/src/characteristic/generated/wan_status_list.rs
++++ b/src/characteristic/generated/wan_status_list.rs
+@@ -93,6 +93,10 @@ impl HapCharacteristic for WanStatusListCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/wi_fi_capabilities.rs b/src/characteristic/generated/wi_fi_capabilities.rs
+index 8a2be7b..4aed9f8 100644
+--- a/src/characteristic/generated/wi_fi_capabilities.rs
++++ b/src/characteristic/generated/wi_fi_capabilities.rs
+@@ -92,6 +92,10 @@ impl HapCharacteristic for WiFiCapabilitiesCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/wi_fi_configuration_control.rs b/src/characteristic/generated/wi_fi_configuration_control.rs
+index f8b5ea5..c9af575 100644
+--- a/src/characteristic/generated/wi_fi_configuration_control.rs
++++ b/src/characteristic/generated/wi_fi_configuration_control.rs
+@@ -96,6 +96,10 @@ impl HapCharacteristic for WiFiConfigurationControlCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/generated/wi_fi_satellite_status.rs b/src/characteristic/generated/wi_fi_satellite_status.rs
+index 6396cc5..f974d88 100644
+--- a/src/characteristic/generated/wi_fi_satellite_status.rs
++++ b/src/characteristic/generated/wi_fi_satellite_status.rs
+@@ -95,6 +95,10 @@ impl HapCharacteristic for WiFiSatelliteStatusCharacteristic {
+         HapCharacteristic::set_value(&mut self.0, value).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        HapCharacteristic::set_observed_value(&mut self.0, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { HapCharacteristic::get_unit(&self.0) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { HapCharacteristic::set_unit(&mut self.0, unit) }
+diff --git a/src/characteristic/mod.rs b/src/characteristic/mod.rs
+index 6dae288..a74b15b 100644
+--- a/src/characteristic/mod.rs
++++ b/src/characteristic/mod.rs
+@@ -216,11 +216,9 @@ where
+         if let Some(ref mut on_read_async) = self.on_read_async {
+             val = on_read_async().await.map_err(|e| Error::ValueOnRead(e))?;
+         }
+-        if let Some(v) = val {
+-            self.set_value(v).await?;
+-        }
+-
+-        Ok(self.value.clone())
++        // Reads return the observed snapshot without invoking control callbacks
++        // or generating a write notification.
++        Ok(val.unwrap_or_else(|| self.value.clone()))
+     }
+ 
+     /// Sets the value of the characteristic.
+@@ -237,6 +235,7 @@ where
+         //     }
+         // }
+ 
++        let custom_writer = self.on_update.is_some() || self.on_update_async.is_some();
+         let old_val = self.value.clone();
+         if let Some(ref mut on_update) = self.on_update {
+             on_update(&old_val, &val).map_err(|e| Error::ValueOnUpdate(e))?;
+@@ -247,6 +246,13 @@ where
+                 .map_err(|e| Error::ValueOnUpdate(e))?;
+         }
+ 
++        // A successful command callback is admission, not device observation.
++        if custom_writer { return Ok(()); }
++        self.set_observed_value(val).await
++    }
++
++    /// Publish device feedback without calling control callbacks.
++    pub async fn set_observed_value(&mut self, val: T) -> Result<()> {
+         if self.event_notifications == Some(true) {
+             if let Some(ref event_emitter) = self.event_emitter {
+                 event_emitter
+@@ -512,6 +518,8 @@ pub trait HapCharacteristic: HapCharacteristicSetup + erased_serde::Serialize +
+     async fn get_value(&mut self) -> Result<serde_json::Value>;
+     /// Sets the value of the characteristic.
+     async fn set_value(&mut self, value: serde_json::Value) -> Result<()>;
++    /// Device feedback path; never submits a control command.
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()>;
+     /// Returns the [`Unit`](Unit) of the characteristic.
+     fn get_unit(&self) -> Option<Unit>;
+     /// Sets the [`Unit`](Unit) of the characteristic.
+@@ -705,6 +713,11 @@ where
+         Characteristic::set_value(self, v).await
+     }
+ 
++    async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
++        let value = serde_json::from_value(value).map_err(|_| Error::InvalidValue(Characteristic::get_format(self)))?;
++        Characteristic::set_observed_value(self, value).await
++    }
++
+     fn get_unit(&self) -> Option<Unit> { Characteristic::get_unit(self) }
+ 
+     fn set_unit(&mut self, unit: Option<Unit>) { Characteristic::set_unit(self, unit) }
+diff --git a/src/config.rs b/src/config.rs
+index 4a7be01..5ddf147 100644
+--- a/src/config.rs
++++ b/src/config.rs
+@@ -1,4 +1,4 @@
+-use ed25519_dalek::Keypair as Ed25519Keypair;
++use ed25519_dalek::SigningKey as Ed25519Keypair;
+ //use eui48::MacAddress;
+ use macaddr::MacAddr6 as MacAddress;
+ use rand::{rngs::OsRng, Rng};
+@@ -51,6 +51,7 @@ pub struct Config {
+     /// reboots.
+     pub device_id: MacAddress, // Bonjour: id
+     ///
++    #[serde(with = "keypair_bytes")]
+     pub device_ed25519_keypair: Ed25519Keypair,
+     /// Current configuration number. Is updated when an accessory, service, or characteristic is added or removed on
+     /// the accessory server. Accessories must increment the config number after a firmware update.
+@@ -132,3 +133,18 @@ fn get_local_ip() -> IpAddr {
+     }
+     "127.0.0.1".parse().unwrap()
+ }
++
++// Preserve the existing 64-byte identity representation and verify that the
++// stored public half belongs to the secret, instead of accepting arbitrary pairs.
++mod keypair_bytes {
++    use ed25519_dalek::SigningKey;
++    use serde::{Deserialize, Deserializer, Serialize, Serializer};
++    pub fn serialize<S: Serializer>(key: &SigningKey, serializer: S) -> Result<S::Ok, S::Error> {
++        key.to_keypair_bytes().as_slice().serialize(serializer)
++    }
++    pub fn deserialize<'de, D: Deserializer<'de>>(deserializer: D) -> Result<SigningKey, D::Error> {
++        let bytes = Vec::<u8>::deserialize(deserializer)?;
++        let bytes: [u8; 64] = bytes.try_into().map_err(|_| serde::de::Error::custom("invalid signing key length"))?;
++        SigningKey::from_keypair_bytes(&bytes).map_err(serde::de::Error::custom)
++    }
++}
+diff --git a/src/lib.rs b/src/lib.rs
+index c123386..bf13c10 100644
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -1,4 +1,4 @@
+-pub use ed25519_dalek::Keypair as Ed25519Keypair;
++pub use ed25519_dalek::SigningKey as Ed25519Keypair;
+ pub use futures;
+ pub use macaddr::MacAddr6 as MacAddress;
+ pub use serde_json;
+diff --git a/src/transport/http/handler/pair_setup.rs b/src/transport/http/handler/pair_setup.rs
+index 6954528..da9be43 100644
+--- a/src/transport/http/handler/pair_setup.rs
++++ b/src/transport/http/handler/pair_setup.rs
+@@ -6,7 +6,7 @@ use log::{debug, info};
+ use num::BigUint;
+ use rand::{rngs::OsRng, RngCore};
+ use sha2::{digest::Digest, Sha512};
+-use signature::{Signer, Verifier};
++use signature::Signer;
+ use srp::{
+     client::{srp_private_key, SrpClient},
+     groups::G_3072,
+@@ -276,10 +276,10 @@ async fn handle_exchange(
+ 
+                 let sub_tlv = tlv::decode(&decrypted_data);
+                 let device_pairing_id = sub_tlv.get(&(Type::Identifier as u8)).ok_or(tlv::Error::Unknown)?;
+-                let device_ltpk = ed25519_dalek::PublicKey::from_bytes(
+-                    sub_tlv.get(&(Type::PublicKey as u8)).ok_or(tlv::Error::Unknown)?,
++                let device_ltpk = ed25519_dalek::VerifyingKey::try_from(
++                    sub_tlv.get(&(Type::PublicKey as u8)).ok_or(tlv::Error::Unknown)?.as_slice(),
+                 )?;
+-                let device_signature = ed25519_dalek::Signature::from_bytes(
++                let device_signature = ed25519_dalek::Signature::from_slice(
+                     sub_tlv.get(&(Type::Signature as u8)).ok_or(tlv::Error::Unknown)?,
+                 )?;
+ 
+@@ -294,7 +294,7 @@ async fn handle_exchange(
+                 device_info.extend(device_pairing_id);
+                 device_info.extend(device_ltpk.as_bytes());
+ 
+-                if device_ltpk.verify(&device_info, &device_signature).is_err() {
++                if device_ltpk.verify_strict(&device_info, &device_signature).is_err() {
+                     return Err(tlv::Error::Authentication);
+                 }
+ 
+@@ -326,12 +326,12 @@ async fn handle_exchange(
+                 let mut accessory_info: Vec<u8> = Vec::new();
+                 accessory_info.extend(&accessory_x);
+                 accessory_info.extend(device_id.as_bytes());
+-                accessory_info.extend(config.device_ed25519_keypair.public.as_bytes());
++                accessory_info.extend(config.device_ed25519_keypair.verifying_key().as_bytes());
+                 let accessory_signature = config.device_ed25519_keypair.sign(&accessory_info);
+ 
+                 let encoded_sub_tlv = vec![
+                     Value::Identifier(device_id),
+-                    Value::PublicKey(config.device_ed25519_keypair.public.as_bytes().to_vec()),
++                    Value::PublicKey(config.device_ed25519_keypair.verifying_key().as_bytes().to_vec()),
+                     Value::Signature(accessory_signature.to_bytes().to_vec()),
+                 ]
+                 .encode();
+diff --git a/src/transport/http/handler/pair_verify.rs b/src/transport/http/handler/pair_verify.rs
+index 752d60c..123de1e 100644
+--- a/src/transport/http/handler/pair_verify.rs
++++ b/src/transport/http/handler/pair_verify.rs
+@@ -7,7 +7,7 @@ use futures::{
+ use hyper::{body::Buf, Body};
+ use log::{debug, info};
+ use rand::rngs::OsRng;
+-use signature::{Signer, Verifier};
++use signature::Signer;
+ use std::str;
+ use uuid::Uuid;
+ use x25519_dalek::{EphemeralSecret, PublicKey};
+@@ -132,7 +132,7 @@ async fn handle_start(
+     let a_pub = PublicKey::from(a_pub);
+ 
+     let mut csprng = OsRng {};
+-    let b = EphemeralSecret::new(&mut csprng);
++    let b = EphemeralSecret::random_from_rng(&mut csprng);
+     let b_pub = PublicKey::from(&b);
+     let shared_secret = b.diffie_hellman(&a_pub);
+ 
+@@ -216,7 +216,7 @@ async fn handle_finish(
+             debug!("received sub-TLV: {:?}", &sub_tlv);
+             let device_pairing_id = sub_tlv.get(&(Type::Identifier as u8)).ok_or(tlv::Error::Unknown)?;
+             debug!("raw device pairing ID: {:?}", &device_pairing_id);
+-            let device_signature = ed25519_dalek::Signature::from_bytes(
++            let device_signature = ed25519_dalek::Signature::from_slice(
+                 sub_tlv.get(&(Type::Signature as u8)).ok_or(tlv::Error::Unknown)?,
+             )?;
+             debug!("device signature: {:?}", &device_signature);
+@@ -232,8 +232,8 @@ async fn handle_finish(
+             device_info.extend(device_pairing_id);
+             device_info.extend(session.b_pub.as_bytes());
+ 
+-            if ed25519_dalek::PublicKey::from_bytes(&pairing.public_key)?
+-                .verify(&device_info, &device_signature)
++            if ed25519_dalek::VerifyingKey::from_bytes(&pairing.public_key)?
++                .verify_strict(&device_info, &device_signature)
+                 .is_err()
+             {
+                 return Err(tlv::Error::Authentication);
+diff --git a/src/transport/http/handler/pairings.rs b/src/transport/http/handler/pairings.rs
+index 67403e8..0a3f890 100644
+--- a/src/transport/http/handler/pairings.rs
++++ b/src/transport/http/handler/pairings.rs
+@@ -157,8 +157,8 @@ async fn handle_add(
+     let mut s = storage.lock().await;
+     match s.load_pairing(&pairing_uuid).await {
+         Ok(mut pairing) => {
+-            if ed25519_dalek::PublicKey::from_bytes(&pairing.public_key)?
+-                != ed25519_dalek::PublicKey::from_bytes(&ltpk)?
++            if ed25519_dalek::VerifyingKey::from_bytes(&pairing.public_key)?
++                != ed25519_dalek::VerifyingKey::try_from(ltpk.as_slice())?
+             {
+                 return Err(tlv::Error::Unknown);
+             }

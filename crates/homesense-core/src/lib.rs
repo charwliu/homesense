@@ -1,4 +1,8 @@
 //! HomeSense device types. Construction validates wire-level ranges.
+pub mod admission;
+pub mod arbiter;
+pub mod execution;
+pub mod queue;
 use std::fmt;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -78,7 +82,7 @@ impl Percent {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DeviceId(String);
 impl DeviceId {
     pub fn new(value: impl Into<String>) -> Result<Self, ValidationError> {
@@ -288,9 +292,47 @@ pub enum Observation {
     Button { pressed: bool },
 }
 
+impl Command {
+    /// Whether feedback reports this command's absolute target state.
+    /// This is not an acknowledgement: the bus has no transaction identifier,
+    /// so another controller may have produced the same state. The caller must
+    /// also validate the endpoint, connection epoch and feedback timing.
+    pub fn target_matches(self, observation: Observation) -> bool {
+        match (self, observation) {
+            (Self::Switch(target), Observation::Switch(actual)) => target == actual,
+            (Self::SetLevel { level, .. }, Observation::Level(actual)) => level == actual,
+            _ => false,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn feedback_must_match_absolute_target_and_never_acknowledges_motor_or_led() {
+        let target = Percent::new(73).unwrap();
+        for transition in [LevelTransition::Immediate, LevelTransition::Ramp] {
+            let command = Command::SetLevel {
+                level: target,
+                transition,
+            };
+            assert!(command.target_matches(Observation::Level(target)));
+            assert!(!command.target_matches(Observation::Level(Percent::new(30).unwrap())));
+            assert!(!command.target_matches(Observation::Switch(true)));
+        }
+        assert!(Command::Switch(true).target_matches(Observation::Switch(true)));
+        assert!(!Command::Switch(false).target_matches(Observation::Switch(true)));
+        for command in [
+            Command::Motor(MotorMotion::Stop),
+            Command::PanelLed(true),
+            Command::Query,
+            Command::PauseRamp,
+        ] {
+            assert!(!command.target_matches(Observation::Button { pressed: true }));
+            assert!(!command.target_matches(Observation::Switch(true)));
+        }
+    }
     #[test]
     fn address_is_hex_and_broadcast_is_rejected() {
         assert_eq!(BusAddress::from_hex("15").unwrap().get(), 21);

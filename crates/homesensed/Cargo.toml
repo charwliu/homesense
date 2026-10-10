@@ -7,7 +7,10 @@ publish.workspace = true
 
 [dependencies]
 homesense-core.workspace = true
+homesense-config.workspace = true
 hb-protocol.workspace = true
+homesense-state.workspace = true
+homesense-simulator.workspace = true
 
 [lints]
 workspace = true

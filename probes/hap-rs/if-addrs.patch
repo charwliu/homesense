@@ -1,0 +1,13 @@
+diff --git a/Cargo.toml b/Cargo.toml
+index 3ba0156..58d2429 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -30,7 +30,7 @@ ed25519-dalek = { version = "1.0", features = ["std", "serde"] }
+ erased-serde = "0.3"
+ macaddr = { version = "1.0.1", features = ["serde"] }
+ futures = "0.3"
+-get_if_addrs = "0.5"
++get_if_addrs = { package = "if-addrs", version = "0.6" }
+ hkdf = "0.11"
+ hyper = { version = "0.14", features = ["server", "http1"] }
+ libmdns = "0.6"
