@@ -1,6 +1,6 @@
 use futures::future::{BoxFuture, FutureExt};
-use hyper::{body::Buf, Body};
-use log::{debug, info};
+use hyper::Body;
+use log::info;
 use std::{ops::Deref, str};
 use uuid::Uuid;
 
@@ -51,18 +51,12 @@ impl TlvHandlerExt for Pairings {
 
     fn parse(&self, body: Body) -> BoxFuture<Result<HandlerType, tlv::ErrorContainer>> {
         async {
-            let aggregated_body = hyper::body::aggregate(body).await.map_err(|_| {
-                tlv::ErrorContainer::new(StepNumber::Unknown as u8, tlv::Error::Unknown)
-            })?;
-
-            debug!("received body: {:?}", aggregated_body.chunk());
-
-            let mut decoded = tlv::decode(aggregated_body.chunk());
+            let mut decoded = super::read_tlv_body(body).await?;
             if decoded.get(&(Type::State as u8)) != Some(&vec![1]) {
                 return Err(tlv::ErrorContainer::new(0, tlv::Error::Unknown));
             }
             match decoded.get(&(Type::Method as u8)) {
-                Some(handler) => match handler[0] {
+                Some(handler) if handler.len() == 1 => match handler[0] {
                     x if x == HandlerNumber::Add as u8 => {
                         let pairing_id = decoded.remove(&(Type::Identifier as u8)).ok_or(
                             tlv::ErrorContainer::new(StepNumber::Res as u8, tlv::Error::Unknown),
@@ -73,6 +67,9 @@ impl TlvHandlerExt for Pairings {
                         let perms = decoded.remove(&(Type::Permissions as u8)).ok_or(
                             tlv::ErrorContainer::new(StepNumber::Res as u8, tlv::Error::Unknown),
                         )?;
+                        if perms.len() != 1 || ltpk.len() != 32 {
+                            return Err(tlv::ErrorContainer::new(2, tlv::Error::Unknown));
+                        }
                         let permissions = Permissions::from_byte(perms[0]).map_err(|_| {
                             tlv::ErrorContainer::new(StepNumber::Res as u8, tlv::Error::Unknown)
                         })?;
@@ -94,7 +91,7 @@ impl TlvHandlerExt for Pairings {
                         tlv::Error::Unknown,
                     )),
                 },
-                None => Err(tlv::ErrorContainer::new(
+                _ => Err(tlv::ErrorContainer::new(
                     StepNumber::Unknown as u8,
                     tlv::Error::Unknown,
                 )),
@@ -158,53 +155,38 @@ async fn handle_add(
 ) -> Result<tlv::Container, tlv::Error> {
     info!("pairings M1: received add pairing request");
 
-    check_admin(&controller_id, &storage).await?;
-
-    let uuid_str = str::from_utf8(&pairing_id)?;
-    let pairing_uuid = Uuid::parse_str(uuid_str)?;
-
+    let pairing_uuid = Uuid::parse_str(str::from_utf8(&pairing_id)?)?;
+    let public_key = ed25519_dalek::VerifyingKey::try_from(ltpk.as_slice())?.to_bytes();
+    let max_peers = config.lock().await.max_peers;
     let mut s = storage.lock().await;
-    match s.load_pairing(&pairing_uuid).await {
-        Ok(mut pairing) => {
-            if ed25519_dalek::VerifyingKey::from_bytes(&pairing.public_key)?
-                != ed25519_dalek::VerifyingKey::try_from(ltpk.as_slice())?
-            {
-                return Err(tlv::Error::Unknown);
-            }
-            pairing.permissions = permissions;
-            s.save_pairing(&pairing).await?;
-
-            drop(s);
-
-            event_emitter
-                .lock()
-                .await
-                .emit(&Event::ControllerPaired { id: pairing.id })
-                .await;
+    check_admin(&controller_id, s.as_ref()).await?;
+    // Listing must succeed before absence can be inferred. A read failure must
+    // never authorize replacing a controller's stored key.
+    let pairings = s.list_pairings().await?;
+    if let Some(existing) = pairings.iter().find(|pairing| pairing.id == pairing_uuid) {
+        if existing.public_key != public_key {
+            return Err(tlv::Error::Unknown);
         }
-        Err(_) => {
-            if let Some(max_peers) = config.lock().await.max_peers {
-                if s.count_pairings().await? + 1 > max_peers {
-                    return Err(tlv::Error::MaxPeers);
-                }
-            }
-
-            let mut public_key = [0; 32];
-            public_key.clone_from_slice(&ltpk);
-            let pairing = Pairing {
-                id: pairing_uuid,
-                permissions,
-                public_key,
-            };
-            s.save_pairing(&pairing).await?;
-
-            drop(s);
-
-            event_emitter
-                .lock()
-                .await
-                .emit(&Event::ControllerPaired { id: pairing.id })
-                .await;
+    } else if max_peers.is_some_and(|limit| pairings.len() >= limit) {
+        return Err(tlv::Error::MaxPeers);
+    }
+    let pairing = Pairing::new(pairing_uuid, permissions, public_key);
+    let actor = (*controller_id
+        .read()
+        .map_err(|_| tlv::Error::Authentication)?)
+    .ok_or(tlv::Error::Authentication)?;
+    let revoked = s
+        .save_pairing_authorized(&actor, &pairing, max_peers)
+        .await?;
+    drop(s);
+    let mut emitter = event_emitter.lock().await;
+    if revoked.is_empty() {
+        emitter
+            .emit(&Event::ControllerPaired { id: pairing.id })
+            .await;
+    } else {
+        for id in revoked {
+            emitter.emit(&Event::ControllerUnpaired { id }).await;
         }
     }
 
@@ -221,17 +203,21 @@ async fn handle_remove(
 ) -> Result<tlv::Container, tlv::Error> {
     info!("pairings M1: received remove pairing request");
 
-    check_admin(&controller_id, &storage).await?;
+    let mut s = storage.lock().await;
+    check_admin(&controller_id, s.as_ref()).await?;
 
     let uuid_str = str::from_utf8(&pairing_id)?;
     let pairing_uuid = Uuid::parse_str(uuid_str)?;
-    storage.lock().await.delete_pairing(&pairing_uuid).await?;
-
-    event_emitter
-        .lock()
-        .await
-        .emit(&Event::ControllerUnpaired { id: pairing_uuid })
-        .await;
+    let actor = (*controller_id
+        .read()
+        .map_err(|_| tlv::Error::Authentication)?)
+    .ok_or(tlv::Error::Authentication)?;
+    let revoked = s.remove_pairing_authorized(&actor, &pairing_uuid).await?;
+    drop(s);
+    let mut emitter = event_emitter.lock().await;
+    for id in revoked {
+        emitter.emit(&Event::ControllerUnpaired { id }).await;
+    }
 
     info!("pairings M2: sending remove pairing response");
 
@@ -244,15 +230,16 @@ async fn handle_list(
 ) -> Result<tlv::Container, tlv::Error> {
     info!("pairings M1: received list pairings request");
 
-    check_admin(&controller_id, &storage).await?;
-
-    let pairings = storage.lock().await.list_pairings().await?;
+    let s = storage.lock().await;
+    check_admin(&controller_id, s.as_ref()).await?;
+    let pairings = s.list_pairings().await?;
+    drop(s);
     let mut list = vec![Value::State(StepNumber::Res as u8)];
     for (i, pairing) in pairings.iter().enumerate() {
         list.push(Value::Identifier(pairing.id.to_hyphenated().to_string()));
         list.push(Value::PublicKey(pairing.public_key.to_vec()));
         list.push(Value::Permissions(pairing.permissions.clone()));
-        if i < pairings.len() {
+        if i + 1 < pairings.len() {
             list.push(Value::Separator);
         }
     }
@@ -264,18 +251,122 @@ async fn handle_list(
 
 async fn check_admin(
     controller_id: &pointer::ControllerId,
-    storage: &pointer::Storage,
+    storage: &dyn crate::storage::Storage,
 ) -> Result<(), tlv::Error> {
     let controller_id: Uuid = controller_id
         .read()
-        .unwrap()
+        .map_err(|_| tlv::Error::Authentication)?
         .deref()
         .ok_or(tlv::Error::Authentication)?;
-    match storage.lock().await.load_pairing(&controller_id).await {
+    match storage.load_pairing(&controller_id).await {
         Err(_) => Err(tlv::Error::Authentication),
-        Ok(controller) => match controller.permissions {
+        Ok(controller) if controller.id == controller_id => match controller.permissions {
             Permissions::Admin => Ok(()),
             _ => Err(tlv::Error::Authentication),
         },
+        Ok(_) => Err(tlv::Error::Authentication),
+    }
+}
+
+#[cfg(test)]
+mod management_tests {
+    use super::*;
+    use crate::{
+        event::EventEmitter,
+        storage::{FileStorage, Storage},
+    };
+    use futures::lock::Mutex;
+    use std::sync::{Arc, RwLock};
+
+    #[tokio::test]
+    async fn permissions_key_replacement_and_corrupt_storage_fail_closed() {
+        let path = std::env::temp_dir().join(format!("hap-management-{}", Uuid::new_v4()));
+        let mut store = FileStorage::new(path.as_os_str()).await.unwrap();
+        let key = ed25519_dalek::SigningKey::generate(&mut rand::rngs::OsRng)
+            .verifying_key()
+            .to_bytes();
+        let admin = Pairing::new(Uuid::new_v4(), Permissions::Admin, key);
+        let user = Pairing::new(Uuid::new_v4(), Permissions::User, key);
+        store.save_pairing(&admin).await.unwrap();
+        store.save_pairing(&user).await.unwrap();
+        let storage: pointer::Storage = Arc::new(Mutex::new(Box::new(store)));
+        let controller = Arc::new(RwLock::new(Some(user.id)));
+        let config = Arc::new(Mutex::new(crate::Config::default()));
+        let emitter = Arc::new(Mutex::new(EventEmitter::new()));
+        assert!(handle_list(controller.clone(), storage.clone())
+            .await
+            .is_err());
+        assert!(handle_remove(
+            controller.clone(),
+            storage.clone(),
+            emitter.clone(),
+            admin.id.to_string().into_bytes()
+        )
+        .await
+        .is_err());
+        assert!(handle_add(
+            controller.clone(),
+            config.clone(),
+            storage.clone(),
+            emitter.clone(),
+            user.id.to_string().into_bytes(),
+            key.to_vec(),
+            Permissions::Admin
+        )
+        .await
+        .is_err());
+        *controller.write().unwrap() = Some(admin.id);
+        let listing = handle_list(controller.clone(), storage.clone())
+            .await
+            .unwrap();
+        assert_eq!(
+            listing
+                .iter()
+                .filter(|v| matches!(v, Value::Separator))
+                .count(),
+            1
+        );
+        assert!(!matches!(listing.last(), Some(Value::Separator)));
+        let other_key = ed25519_dalek::SigningKey::generate(&mut rand::rngs::OsRng)
+            .verifying_key()
+            .to_bytes();
+        assert!(handle_add(
+            controller.clone(),
+            config.clone(),
+            storage.clone(),
+            emitter.clone(),
+            user.id.to_string().into_bytes(),
+            other_key.to_vec(),
+            Permissions::Admin
+        )
+        .await
+        .is_err());
+        assert_eq!(
+            storage.lock().await.load_pairing(&user.id).await.unwrap(),
+            user
+        );
+        let file = path.join(format!("pairings/{}.json", user.id));
+        std::fs::write(&file, b"corrupt").unwrap();
+        assert!(handle_add(
+            controller.clone(),
+            config,
+            storage.clone(),
+            emitter,
+            user.id.to_string().into_bytes(),
+            key.to_vec(),
+            Permissions::Admin
+        )
+        .await
+        .is_err());
+        assert_eq!(std::fs::read(&file).unwrap(), b"corrupt");
+        storage
+            .lock()
+            .await
+            .delete_pairing(&admin.id)
+            .await
+            .unwrap();
+        assert!(handle_list(controller, storage.clone()).await.is_err());
+        drop(storage);
+        std::fs::remove_dir_all(path).unwrap();
     }
 }

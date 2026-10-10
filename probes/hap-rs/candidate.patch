@@ -3821,10 +3821,10 @@ index 9435f4c..199e129 100644
  
          let accessory = self
 diff --git a/src/server/mod.rs b/src/server/mod.rs
-index 4c2d0ef..dc41435 100644
+index 4c2d0ef..1734b41 100644
 --- a/src/server/mod.rs
 +++ b/src/server/mod.rs
-@@ -17,10 +17,29 @@ pub trait Server {
+@@ -17,10 +17,38 @@ pub trait Server {
      /// Returns a pointer to the [`Storage`](crate::storage::Storage) of the server.
      fn storage_pointer(&self) -> pointer::Storage;
      /// Adds an accessory to the server and returns a pointer to it.
@@ -3850,13 +3850,22 @@ index 4c2d0ef..dc41435 100644
 +/// durable acceptance remain the application's responsibility.
 +pub trait WriteBatchHandler: Send + Sync {
 +    fn write(&self, controller: uuid::Uuid, body: &[u8]) -> std::result::Result<(), WriteStatus>;
++    /// Await runtime acceptance before applying subscription changes. Implementors
++    /// must not acquire HAP accessory/subscription locks or perform bus writes.
++    fn write_async<'a>(
++        &'a self,
++        controller: uuid::Uuid,
++        body: &'a [u8],
++    ) -> BoxFuture<'a, std::result::Result<(), WriteStatus>> {
++        Box::pin(async move { self.write(controller, body) })
++    }
 +}
 +
 +/// Shared accessory handle returned by Server::add_accessory.
 +pub type AccessoryHandle = crate::pointer::Accessory;
 +pub use crate::event::{Event as ServerEvent, EventEmitter};
 diff --git a/src/storage/accessory_database.rs b/src/storage/accessory_database.rs
-index 85a7c8e..afe3ee6 100644
+index 85a7c8e..a3a1b27 100644
 --- a/src/storage/accessory_database.rs
 +++ b/src/storage/accessory_database.rs
 @@ -1,7 +1,6 @@
@@ -3945,7 +3954,7 @@ index 85a7c8e..afe3ee6 100644
 +            }
 +        }
 +        let mut subscriptions = subscriptions.lock().await;
-+        if let Err(status) = handler.write(controller, body) {
++        if let Err(status) = handler.write_async(controller, body).await {
 +            return Some(Err(status));
 +        }
 +        for write in writes {
@@ -4062,6 +4071,110 @@ index 85a7c8e..afe3ee6 100644
          Ok(serde_json::to_vec(&json)?)
      }
  }
+@@ -205,3 +319,72 @@ impl AccessoryDatabase {
+ //     #[test]
+ //     fn test_json_serialization() {} // TODO: test it
+ // }
++
++#[cfg(test)]
++mod async_acceptance_tests {
++    use super::*;
++    use crate::{
++        accessory::{lightbulb::LightbulbAccessory, AccessoryInformation},
++        characteristic::HapCharacteristic,
++        event::EventEmitter,
++        server::{WriteBatchHandler, WriteStatus},
++    };
++    use futures::{channel::oneshot, future::BoxFuture, poll};
++    use std::task::Poll;
++    struct Gate(std::sync::Mutex<Option<oneshot::Receiver<std::result::Result<(), WriteStatus>>>>);
++    impl WriteBatchHandler for Gate {
++        fn write(&self, _: uuid::Uuid, _: &[u8]) -> std::result::Result<(), WriteStatus> {
++            panic!("synchronous fallback invoked")
++        }
++        fn write_async<'a>(
++            &'a self,
++            _: uuid::Uuid,
++            _: &'a [u8],
++        ) -> BoxFuture<'a, std::result::Result<(), WriteStatus>> {
++            let receiver = self.0.lock().unwrap().take().unwrap();
++            Box::pin(async move { receiver.await.unwrap() })
++        }
++    }
++    #[tokio::test]
++    async fn subscriptions_commit_only_after_async_acceptance() {
++        for result in [Ok(()), Err(Status::ResourceBusy)] {
++            let emitter = Arc::new(Mutex::new(EventEmitter::new()));
++            let mut db = AccessoryDatabase::new(emitter);
++            let light = LightbulbAccessory::new(2, AccessoryInformation::default()).unwrap();
++            let iid = light.lightbulb.power_state.get_id();
++            db.accessories.push(Arc::new(Mutex::new(Box::new(light))));
++            let (sender, receiver) = oneshot::channel();
++            db.set_write_batch_handler(Arc::new(Gate(std::sync::Mutex::new(Some(receiver)))));
++            let subscriptions = Arc::new(Mutex::new(Vec::new()));
++            let writes = vec![WriteObject {
++                aid: 2,
++                iid,
++                ev: Some(true),
++                value: Some(json!(true)),
++                auth_data: None,
++                remote: None,
++            }];
++            let mut pending =
++                Box::pin(db.write_batch(uuid::Uuid::new_v4(), b"request", &writes, &subscriptions));
++            assert!(matches!(poll!(pending.as_mut()), Poll::Pending));
++            sender.send(result).unwrap();
++            assert_eq!(pending.await, Some(result));
++            assert_eq!(
++                subscriptions.lock().await.len(),
++                usize::from(result.is_ok())
++            );
++            let mut light = db.accessories[0].lock().await;
++            assert_eq!(
++                light
++                    .get_mut_service(crate::HapType::Lightbulb)
++                    .unwrap()
++                    .get_mut_characteristic(crate::HapType::PowerState)
++                    .unwrap()
++                    .get_value()
++                    .await
++                    .unwrap(),
++                json!(false)
++            );
++        }
++    }
++}
+diff --git a/src/storage/storage.rs b/src/storage/storage.rs
+index 614c225..5f53bd9 100644
+--- a/src/storage/storage.rs
++++ b/src/storage/storage.rs
+@@ -25,6 +25,26 @@ pub trait Storage: Send + Sync {
+     async fn save_pairing(&mut self, pairing: &Pairing) -> Result<()>;
+     /// Deletes the [`Pairing`](Pairing) from the [`Storage`](Storage).
+     async fn delete_pairing(&mut self, id: &Uuid) -> Result<()>;
++    /// Atomically authorize and add/update a pairing without replacing its key.
++    /// Demoting the last administrator revokes every pairing; return revoked IDs.
++    async fn save_pairing_authorized(
++        &mut self,
++        _actor: &Uuid,
++        _pairing: &Pairing,
++        _max_peers: Option<usize>,
++    ) -> Result<Vec<Uuid>> {
++        Err(crate::Error::Storage)
++    }
++    /// Atomically authorize an administrator and remove a controller. Removing
++    /// the last administrator also removes every remaining controller. Returns
++    /// revoked IDs only after commit. Backends without transactions fail closed.
++    async fn remove_pairing_authorized(
++        &mut self,
++        _actor: &Uuid,
++        _target: &Uuid,
++    ) -> Result<Vec<Uuid>> {
++        Err(crate::Error::Storage)
++    }
+     /// Loads all [`Pairing`](Pairing)s from the [`Storage`](Storage).
+     async fn list_pairings(&self) -> Result<Vec<Pairing>>;
+     /// Returns the count of [`Pairing`](Pairing)s stored on the [`Storage`](Storage).
 diff --git a/src/tlv.rs b/src/tlv.rs
 index e02ce90..3205754 100644
 --- a/src/tlv.rs
@@ -4857,7 +4970,7 @@ index ecba5e6..5033b8a 100644
 +    }
 +}
 diff --git a/src/transport/http/handler/mod.rs b/src/transport/http/handler/mod.rs
-index b2f544a..ec26082 100644
+index b2f544a..2efe587 100644
 --- a/src/transport/http/handler/mod.rs
 +++ b/src/transport/http/handler/mod.rs
 @@ -5,8 +5,7 @@ use crate::{
@@ -4917,7 +5030,7 @@ index b2f544a..ec26082 100644
  }
  
  impl<T: JsonHandlerExt + Send + Sync> HandlerExt for JsonHandler<T> {
-@@ -136,3 +146,24 @@ impl<T: JsonHandlerExt + Send + Sync> HandlerExt for JsonHandler<T> {
+@@ -136,3 +146,103 @@ impl<T: JsonHandlerExt + Send + Sync> HandlerExt for JsonHandler<T> {
          .boxed()
      }
  }
@@ -4942,11 +5055,96 @@ index b2f544a..ec26082 100644
 +    }
 +    Ok(id)
 +}
++
++/// Bound authentication bodies before decoding attacker-controlled TLV fields.
++pub(crate) async fn read_tlv_body(
++    mut body: hyper::Body,
++) -> std::result::Result<std::collections::HashMap<u8, Vec<u8>>, crate::tlv::ErrorContainer> {
++    use hyper::body::HttpBody;
++    let bytes = tokio::time::timeout(std::time::Duration::from_secs(5), async move {
++        let mut bytes = Vec::new();
++        while let Some(chunk) = body.data().await {
++            let chunk = chunk.map_err(|_| crate::tlv::Error::Unknown)?;
++            if chunk.len() > 65536 - bytes.len() {
++                return Err(crate::tlv::Error::Unknown);
++            }
++            bytes.extend_from_slice(&chunk);
++        }
++        Ok(bytes)
++    })
++    .await
++    .map_err(|_| crate::tlv::ErrorContainer::new(0, crate::tlv::Error::Unknown))?
++    .map_err(|e| crate::tlv::ErrorContainer::new(0, e))?;
++    crate::tlv::try_decode(&bytes).map_err(|e| crate::tlv::ErrorContainer::new(0, e))
++}
++
++#[cfg(test)]
++mod authentication_input_tests {
++    use super::*;
++    use hyper::Body;
++
++    #[tokio::test]
++    async fn setup_and_pairings_reject_malformed_fields() {
++        let setup = pair_setup::PairSetup::new();
++        let pairings = pairings::Pairings::new();
++        for bytes in [
++            vec![6],
++            vec![6, 2, 1],
++            vec![6, 0],
++            vec![6, 2, 1, 1],
++            vec![6, 1, 1, 6, 1, 1],
++        ] {
++            assert!(setup.parse(Body::from(bytes.clone())).await.is_err());
++            assert!(pairings.parse(Body::from(bytes)).await.is_err());
++        }
++        for method in [vec![], vec![3, 3]] {
++            let mut bytes = vec![6, 1, 1, 0, method.len() as u8];
++            bytes.extend(method);
++            assert!(pairings.parse(Body::from(bytes)).await.is_err());
++        }
++        for key_len in [0, 31, 33] {
++            let mut bytes = vec![6, 1, 1, 0, 1, 3, 1, 1, b'a', 3, key_len];
++            bytes.extend(vec![1; key_len as usize]);
++            bytes.extend([11, 1, 1]);
++            assert!(pairings.parse(Body::from(bytes)).await.is_err());
++        }
++        for permission in [vec![], vec![1, 1], vec![2]] {
++            let mut bytes = vec![6, 1, 1, 0, 1, 3, 1, 1, b'a', 3, 32];
++            bytes.extend([1; 32]);
++            bytes.extend([11, permission.len() as u8]);
++            bytes.extend(permission);
++            assert!(pairings.parse(Body::from(bytes)).await.is_err());
++        }
++    }
++
++    #[tokio::test]
++    async fn authentication_body_has_size_and_time_limits() {
++        assert!(read_tlv_body(Body::from(vec![0; 65537])).await.is_err());
++        let (mut sender, body) = Body::channel();
++        let producer = tokio::spawn(async move {
++            for _ in 0..65 {
++                if sender.send_data(vec![0; 1024].into()).await.is_err() {
++                    break;
++                }
++            }
++        });
++        assert!(read_tlv_body(body).await.is_err());
++        producer.await.unwrap();
++        let (_sender, body) = Body::channel();
++        assert!(read_tlv_body(body).await.is_err());
++    }
++}
 diff --git a/src/transport/http/handler/pair_setup.rs b/src/transport/http/handler/pair_setup.rs
-index 6954528..da9be43 100644
+index 6954528..6011b18 100644
 --- a/src/transport/http/handler/pair_setup.rs
 +++ b/src/transport/http/handler/pair_setup.rs
-@@ -6,7 +6,7 @@ use log::{debug, info};
+@@ -1,12 +1,12 @@
+ use aead::{generic_array::GenericArray, AeadInPlace, NewAead};
+ use chacha20poly1305::ChaCha20Poly1305;
+ use futures::future::{BoxFuture, FutureExt};
+-use hyper::{body::Buf, Body};
++use hyper::Body;
+ use log::{debug, info};
  use num::BigUint;
  use rand::{rngs::OsRng, RngCore};
  use sha2::{digest::Digest, Sha512};
@@ -4955,62 +5153,7 @@ index 6954528..da9be43 100644
  use srp::{
      client::{srp_private_key, SrpClient},
      groups::G_3072,
-@@ -276,10 +276,10 @@ async fn handle_exchange(
- 
-                 let sub_tlv = tlv::decode(&decrypted_data);
-                 let device_pairing_id = sub_tlv.get(&(Type::Identifier as u8)).ok_or(tlv::Error::Unknown)?;
--                let device_ltpk = ed25519_dalek::PublicKey::from_bytes(
--                    sub_tlv.get(&(Type::PublicKey as u8)).ok_or(tlv::Error::Unknown)?,
-+                let device_ltpk = ed25519_dalek::VerifyingKey::try_from(
-+                    sub_tlv.get(&(Type::PublicKey as u8)).ok_or(tlv::Error::Unknown)?.as_slice(),
-                 )?;
--                let device_signature = ed25519_dalek::Signature::from_bytes(
-+                let device_signature = ed25519_dalek::Signature::from_slice(
-                     sub_tlv.get(&(Type::Signature as u8)).ok_or(tlv::Error::Unknown)?,
-                 )?;
- 
-@@ -294,7 +294,7 @@ async fn handle_exchange(
-                 device_info.extend(device_pairing_id);
-                 device_info.extend(device_ltpk.as_bytes());
- 
--                if device_ltpk.verify(&device_info, &device_signature).is_err() {
-+                if device_ltpk.verify_strict(&device_info, &device_signature).is_err() {
-                     return Err(tlv::Error::Authentication);
-                 }
- 
-@@ -326,12 +326,12 @@ async fn handle_exchange(
-                 let mut accessory_info: Vec<u8> = Vec::new();
-                 accessory_info.extend(&accessory_x);
-                 accessory_info.extend(device_id.as_bytes());
--                accessory_info.extend(config.device_ed25519_keypair.public.as_bytes());
-+                accessory_info.extend(config.device_ed25519_keypair.verifying_key().as_bytes());
-                 let accessory_signature = config.device_ed25519_keypair.sign(&accessory_info);
- 
-                 let encoded_sub_tlv = vec![
-                     Value::Identifier(device_id),
--                    Value::PublicKey(config.device_ed25519_keypair.public.as_bytes().to_vec()),
-+                    Value::PublicKey(config.device_ed25519_keypair.verifying_key().as_bytes().to_vec()),
-                     Value::Signature(accessory_signature.to_bytes().to_vec()),
-                 ]
-                 .encode();
-diff --git a/src/transport/http/handler/pair_verify.rs b/src/transport/http/handler/pair_verify.rs
-index 752d60c..99bfbaa 100644
---- a/src/transport/http/handler/pair_verify.rs
-+++ b/src/transport/http/handler/pair_verify.rs
-@@ -4,10 +4,10 @@ use futures::{
-     channel::oneshot,
-     future::{BoxFuture, FutureExt},
- };
--use hyper::{body::Buf, Body};
-+use hyper::{body::HttpBody, Body};
- use log::{debug, info};
- use rand::rngs::OsRng;
--use signature::{Signer, Verifier};
-+use signature::Signer;
- use std::str;
- use uuid::Uuid;
- use x25519_dalek::{EphemeralSecret, PublicKey};
-@@ -60,36 +60,52 @@ impl TlvHandlerExt for PairVerify {
+@@ -70,41 +70,43 @@ impl TlvHandlerExt for PairSetup {
  
      fn parse(&self, body: Body) -> BoxFuture<Result<Step, tlv::ErrorContainer>> {
          async {
@@ -5021,23 +5164,806 @@ index 752d60c..99bfbaa 100644
 -            debug!("received body: {:?}", aggregated_body.chunk());
 -
 -            let mut decoded = tlv::decode(aggregated_body.chunk());
-+            let mut body = body;
-+            let bytes = tokio::time::timeout(std::time::Duration::from_secs(5), async move {
-+                let mut bytes = Vec::new();
-+                while let Some(chunk) = body.data().await {
-+                    let chunk = chunk.map_err(|_| tlv::Error::Unknown)?;
-+                    if chunk.len() > 65536 - bytes.len() {
-+                        return Err(tlv::Error::Unknown);
++            let mut decoded = super::read_tlv_body(body).await?;
+             match decoded.get(&(Type::State as u8)) {
+-                Some(method) => match method[0] {
++                Some(method) if method.len() == 1 => match method[0] {
+                     x if x == StepNumber::SrpStartRequest as u8 => Ok(Step::Start),
+                     x if x == StepNumber::SrpVerifyRequest as u8 => {
+-                        let a_pub = decoded
+-                            .remove(&(Type::PublicKey as u8))
+-                            .ok_or(tlv::ErrorContainer::new(
++                        let a_pub = decoded.remove(&(Type::PublicKey as u8)).ok_or(
++                            tlv::ErrorContainer::new(
+                                 StepNumber::SrpVerifyResponse as u8,
+                                 tlv::Error::Unknown,
+-                            ))?;
+-                        let a_proof = decoded.remove(&(Type::Proof as u8)).ok_or(tlv::ErrorContainer::new(
+-                            StepNumber::SrpVerifyResponse as u8,
+-                            tlv::Error::Unknown,
+-                        ))?;
++                            ),
++                        )?;
++                        let a_proof = decoded.remove(&(Type::Proof as u8)).ok_or(
++                            tlv::ErrorContainer::new(
++                                StepNumber::SrpVerifyResponse as u8,
++                                tlv::Error::Unknown,
++                            ),
++                        )?;
+                         Ok(Step::Verify { a_pub, a_proof })
+-                    },
 +                    }
-+                    bytes.extend_from_slice(&chunk);
+                     x if x == StepNumber::ExchangeRequest as u8 => {
+-                        let data = decoded
+-                            .remove(&(Type::EncryptedData as u8))
+-                            .ok_or(tlv::ErrorContainer::new(
++                        let data = decoded.remove(&(Type::EncryptedData as u8)).ok_or(
++                            tlv::ErrorContainer::new(
+                                 StepNumber::ExchangeResponse as u8,
+                                 tlv::Error::Unknown,
+-                            ))?;
++                            ),
++                        )?;
+                         Ok(Step::Exchange { data })
+-                    },
+-                    _ => Err(tlv::ErrorContainer::new(StepNumber::Unknown as u8, tlv::Error::Unknown)),
++                    }
++                    _ => Err(tlv::ErrorContainer::new(
++                        StepNumber::Unknown as u8,
++                        tlv::Error::Unknown,
++                    )),
+                 },
+-                None => Err(tlv::ErrorContainer::new(StepNumber::Unknown as u8, tlv::Error::Unknown)),
++                _ => Err(tlv::ErrorContainer::new(
++                    StepNumber::Unknown as u8,
++                    tlv::Error::Unknown,
++                )),
+             }
+         }
+         .boxed()
+@@ -120,49 +122,66 @@ impl TlvHandlerExt for PairSetup {
+     ) -> BoxFuture<Result<tlv::Container, tlv::ErrorContainer>> {
+         async move {
+             match step {
+-                Step::Start => match handle_start(self, config).await {
+-                    Ok(res) => {
+-                        self.unsuccessful_tries = 0;
+-                        Ok(res)
+-                    },
+-                    Err(err) => {
+-                        self.unsuccessful_tries += 1;
+-                        Err(tlv::ErrorContainer::new(StepNumber::SrpStartResponse as u8, err))
+-                    },
+-                },
+-                Step::Verify { a_pub, a_proof } => match handle_verify(self, &a_pub, &a_proof).await {
++                Step::Start => match handle_start(self, config, storage).await {
+                     Ok(res) => {
+                         self.unsuccessful_tries = 0;
+                         Ok(res)
+-                    },
+-                    Err(err) => {
+-                        self.unsuccessful_tries += 1;
+-                        Err(tlv::ErrorContainer::new(StepNumber::SrpVerifyResponse as u8, err))
+-                    },
+-                },
+-                Step::Exchange { data } => match handle_exchange(self, config, storage, event_emitter, &data).await {
+-                    Ok(res) => {
+-                        self.unsuccessful_tries = 0;
+-                        Ok(res)
+-                    },
++                    }
+                     Err(err) => {
+-                        self.unsuccessful_tries += 1;
+-                        Err(tlv::ErrorContainer::new(StepNumber::ExchangeResponse as u8, err))
+-                    },
++                        self.unsuccessful_tries = self.unsuccessful_tries.saturating_add(1);
++                        Err(tlv::ErrorContainer::new(
++                            StepNumber::SrpStartResponse as u8,
++                            err,
++                        ))
++                    }
+                 },
++                Step::Verify { a_pub, a_proof } => {
++                    match handle_verify(self, &a_pub, &a_proof).await {
++                        Ok(res) => {
++                            self.unsuccessful_tries = 0;
++                            Ok(res)
++                        }
++                        Err(err) => {
++                            self.unsuccessful_tries = self.unsuccessful_tries.saturating_add(1);
++                            Err(tlv::ErrorContainer::new(
++                                StepNumber::SrpVerifyResponse as u8,
++                                err,
++                            ))
++                        }
++                    }
 +                }
-+                Ok(bytes)
-+            })
++                Step::Exchange { data } => {
++                    match handle_exchange(self, config, storage, event_emitter, &data).await {
++                        Ok(res) => {
++                            self.unsuccessful_tries = 0;
++                            Ok(res)
++                        }
++                        Err(err) => {
++                            self.unsuccessful_tries = self.unsuccessful_tries.saturating_add(1);
++                            Err(tlv::ErrorContainer::new(
++                                StepNumber::ExchangeResponse as u8,
++                                err,
++                            ))
++                        }
++                    }
++                }
+             }
+         }
+         .boxed()
+     }
+ }
+ 
+-async fn handle_start(handler: &mut PairSetup, config: pointer::Config) -> Result<tlv::Container, tlv::Error> {
++async fn handle_start(
++    handler: &mut PairSetup,
++    config: pointer::Config,
++    storage: pointer::Storage,
++) -> Result<tlv::Container, tlv::Error> {
+     info!("pair setup M1: received SRP start request");
+ 
+-    // TODO
+-    // If the accessory is already paired, it must respond with the following TLV items:
+-    // kTLVType_State <M2>
+-    // kTLVType_Error <kTLVError_Unavailable>
++    handler.session = None;
++    if storage.lock().await.count_pairings().await? != 0 {
++        return Err(tlv::Error::Unavailable);
++    }
+ 
+     if handler.unsuccessful_tries > 100 {
+         return Err(tlv::Error::MaxTries);
+@@ -182,7 +201,11 @@ async fn handle_start(handler: &mut PairSetup, config: pointer::Config) -> Resul
+ 
+     // TODO - respect pairing flags (specification p. 35 - 7.) for split pair setup
+ 
+-    let private_key = srp_private_key::<Sha512>(b"Pair-Setup", &config.lock().await.pin.to_string().as_bytes(), &salt); // x = H(s | H(I | ":" | P))
++    let private_key = srp_private_key::<Sha512>(
++        b"Pair-Setup",
++        &config.lock().await.pin.to_string().as_bytes(),
++        &salt,
++    ); // x = H(s | H(I | ":" | P))
+     let srp_client = SrpClient::<Sha512>::new(&private_key, &G_3072);
+     let verifier = srp_client.get_password_verifier(&private_key); // v = g^x
+ 
+@@ -211,12 +234,23 @@ async fn handle_start(handler: &mut PairSetup, config: pointer::Config) -> Resul
+     ])
+ }
+ 
+-async fn handle_verify(handler: &mut PairSetup, a_pub: &[u8], a_proof: &[u8]) -> Result<tlv::Container, tlv::Error> {
++async fn handle_verify(
++    handler: &mut PairSetup,
++    a_pub: &[u8],
++    a_proof: &[u8],
++) -> Result<tlv::Container, tlv::Error> {
+     info!("pair setup M3: received SRP verify request");
+ 
+-    match handler.session {
++    match handler.session.take() {
+         None => Err(tlv::Error::Unknown),
+-        Some(ref mut session) => {
++        Some(mut session) => {
++            if session.shared_secret.is_some()
++                || a_pub.is_empty()
++                || a_pub.len() > 384
++                || a_proof.len() != 64
++            {
++                return Err(tlv::Error::Authentication);
++            }
+             let user = UserRecord {
+                 username: b"Pair-Setup",
+                 salt: &session.salt,
+@@ -225,10 +259,17 @@ async fn handle_verify(handler: &mut PairSetup, a_pub: &[u8], a_proof: &[u8]) ->
+             let srp_server = SrpServer::<Sha512>::new(&user, a_pub, &session.b, &G_3072)?;
+             let shared_secret = srp_server.get_key();
+ 
+-            session.shared_secret = Some(shared_secret.to_vec());
++            let b_proof = verify_client_proof::<Sha512>(
++                &session.b_pub,
++                a_pub,
++                a_proof,
++                &session.salt,
++                &shared_secret,
++                &G_3072,
++            )?;
+ 
+-            let b_proof =
+-                verify_client_proof::<Sha512>(&session.b_pub, a_pub, a_proof, &session.salt, &shared_secret, &G_3072)?;
++            session.shared_secret = Some(shared_secret.to_vec());
++            handler.session = Some(session);
+ 
+             info!("pair setup M4: sending SRP verify response");
+ 
+@@ -236,7 +277,7 @@ async fn handle_verify(handler: &mut PairSetup, a_pub: &[u8], a_proof: &[u8]) ->
+                 Value::State(StepNumber::SrpVerifyResponse as u8),
+                 Value::Proof(b_proof),
+             ])
+-        },
++        }
+     }
+ }
+ 
+@@ -249,16 +290,22 @@ async fn handle_exchange(
+ ) -> Result<tlv::Container, tlv::Error> {
+     info!("pair setup M5: received exchange request");
+ 
+-    match handler.session {
++    if data.len() < 16 {
++        return Err(tlv::Error::Unknown);
++    }
++    match handler.session.take() {
+         None => Err(tlv::Error::Unknown),
+-        Some(ref mut session) => match session.shared_secret {
++        Some(session) => match session.shared_secret {
+             None => Err(tlv::Error::Unknown),
+             Some(ref shared_secret) => {
+                 let encrypted_data = Vec::from(&data[..data.len() - 16]);
+                 let auth_tag = Vec::from(&data[data.len() - 16..]);
+ 
+-                let encryption_key =
+-                    hkdf_extract_and_expand(b"Pair-Setup-Encrypt-Salt", shared_secret, b"Pair-Setup-Encrypt-Info")?;
++                let encryption_key = hkdf_extract_and_expand(
++                    b"Pair-Setup-Encrypt-Salt",
++                    shared_secret,
++                    b"Pair-Setup-Encrypt-Info",
++                )?;
+ 
+                 let mut nonce = vec![0; 4];
+                 nonce.extend(b"PS-Msg05");
+@@ -274,13 +321,20 @@ async fn handle_exchange(
+                     GenericArray::from_slice(&auth_tag),
+                 )?;
+ 
+-                let sub_tlv = tlv::decode(&decrypted_data);
+-                let device_pairing_id = sub_tlv.get(&(Type::Identifier as u8)).ok_or(tlv::Error::Unknown)?;
+-                let device_ltpk = ed25519_dalek::PublicKey::from_bytes(
+-                    sub_tlv.get(&(Type::PublicKey as u8)).ok_or(tlv::Error::Unknown)?,
++                let sub_tlv = tlv::try_decode(&decrypted_data)?;
++                let device_pairing_id = sub_tlv
++                    .get(&(Type::Identifier as u8))
++                    .ok_or(tlv::Error::Unknown)?;
++                let device_ltpk = ed25519_dalek::VerifyingKey::try_from(
++                    sub_tlv
++                        .get(&(Type::PublicKey as u8))
++                        .ok_or(tlv::Error::Unknown)?
++                        .as_slice(),
+                 )?;
+-                let device_signature = ed25519_dalek::Signature::from_bytes(
+-                    sub_tlv.get(&(Type::Signature as u8)).ok_or(tlv::Error::Unknown)?,
++                let device_signature = ed25519_dalek::Signature::from_slice(
++                    sub_tlv
++                        .get(&(Type::Signature as u8))
++                        .ok_or(tlv::Error::Unknown)?,
+                 )?;
+ 
+                 let device_x = hkdf_extract_and_expand(
+@@ -294,7 +348,10 @@ async fn handle_exchange(
+                 device_info.extend(device_pairing_id);
+                 device_info.extend(device_ltpk.as_bytes());
+ 
+-                if device_ltpk.verify(&device_info, &device_signature).is_err() {
++                if device_ltpk
++                    .verify_strict(&device_info, &device_signature)
++                    .is_err()
++                {
+                     return Err(tlv::Error::Authentication);
+                 }
+ 
+@@ -303,14 +360,8 @@ async fn handle_exchange(
+                 let mut pairing_ltpk = [0; 32];
+                 pairing_ltpk[..32].copy_from_slice(&device_ltpk.as_bytes()[..32]);
+ 
+-                if let Some(max_peers) = config.lock().await.max_peers {
+-                    if storage.lock().await.count_pairings().await? + 1 > max_peers {
+-                        return Err(tlv::Error::MaxPeers);
+-                    }
+-                }
+-
+-                let pairing = Pairing::new(pairing_uuid, Permissions::Admin, device_ltpk.to_bytes());
+-                storage.lock().await.save_pairing(&pairing).await?;
++                let pairing =
++                    Pairing::new(pairing_uuid, Permissions::Admin, device_ltpk.to_bytes());
+ 
+                 debug!("pairing: {:?}", &pairing);
+ 
+@@ -320,33 +371,53 @@ async fn handle_exchange(
+                     b"Pair-Setup-Accessory-Sign-Info",
+                 )?;
+ 
+-                let config = config.lock().await;
+-                let device_id = config.device_id.to_string();
++                let configuration = config.lock().await;
++                let device_id = configuration.device_id.to_string();
+ 
+                 let mut accessory_info: Vec<u8> = Vec::new();
+                 accessory_info.extend(&accessory_x);
+                 accessory_info.extend(device_id.as_bytes());
+-                accessory_info.extend(config.device_ed25519_keypair.public.as_bytes());
+-                let accessory_signature = config.device_ed25519_keypair.sign(&accessory_info);
++                accessory_info.extend(
++                    configuration
++                        .device_ed25519_keypair
++                        .verifying_key()
++                        .as_bytes(),
++                );
++                let accessory_signature =
++                    configuration.device_ed25519_keypair.sign(&accessory_info);
+ 
+                 let encoded_sub_tlv = vec![
+                     Value::Identifier(device_id),
+-                    Value::PublicKey(config.device_ed25519_keypair.public.as_bytes().to_vec()),
++                    Value::PublicKey(
++                        configuration
++                            .device_ed25519_keypair
++                            .verifying_key()
++                            .as_bytes()
++                            .to_vec(),
++                    ),
+                     Value::Signature(accessory_signature.to_bytes().to_vec()),
+                 ]
+                 .encode();
+ 
+-                drop(config);
++                drop(configuration);
+ 
+                 let mut nonce = vec![0; 4];
+                 nonce.extend(b"PS-Msg06");
+ 
+                 let mut encrypted_data = Vec::new();
+                 encrypted_data.extend_from_slice(&encoded_sub_tlv);
+-                let auth_tag =
+-                    aead.encrypt_in_place_detached(GenericArray::from_slice(&nonce), &[], &mut encrypted_data)?;
++                let auth_tag = aead.encrypt_in_place_detached(
++                    GenericArray::from_slice(&nonce),
++                    &[],
++                    &mut encrypted_data,
++                )?;
+                 encrypted_data.extend(&auth_tag);
+ 
++                // Build M6 before persisting; serialize the final empty-store check
++                // and save so two concurrent setup sessions cannot both enroll.
++                let max_peers = config.lock().await.max_peers;
++                save_initial_pairing(&storage, &pairing, max_peers).await?;
++
+                 event_emitter
+                     .lock()
+                     .await
+@@ -359,7 +430,7 @@ async fn handle_exchange(
+                     Value::State(StepNumber::ExchangeResponse as u8),
+                     Value::EncryptedData(encrypted_data),
+                 ])
+-            },
++            }
+         },
+     }
+ }
+@@ -414,61 +485,345 @@ mod tests {
+     #[test]
+     fn test_verify_client_proof() {
+         let b_pub = [
+-            66, 254, 195, 54, 248, 36, 231, 56, 186, 118, 54, 42, 5, 66, 113, 73, 150, 54, 54, 156, 16, 76, 252, 50,
+-            206, 135, 204, 173, 159, 174, 68, 125, 23, 251, 75, 215, 136, 102, 165, 73, 107, 249, 205, 158, 32, 192,
+-            157, 134, 17, 70, 51, 225, 74, 3, 195, 74, 124, 137, 26, 48, 245, 253, 212, 197, 29, 141, 12, 5, 36, 191,
+-            77, 203, 137, 72, 27, 38, 231, 136, 43, 60, 134, 137, 192, 134, 218, 13, 90, 232, 166, 245, 168, 29, 34,
+-            91, 121, 185, 82, 144, 146, 215, 6, 120, 204, 126, 217, 146, 135, 243, 55, 1, 99, 159, 192, 53, 80, 103,
+-            19, 87, 253, 193, 104, 98, 228, 167, 138, 214, 84, 135, 232, 225, 185, 158, 114, 48, 228, 110, 137, 109,
+-            32, 21, 227, 177, 18, 241, 240, 240, 125, 115, 135, 46, 249, 172, 206, 170, 41, 76, 169, 163, 62, 77, 94,
+-            51, 116, 69, 188, 218, 171, 90, 171, 128, 163, 84, 233, 52, 134, 77, 70, 130, 207, 84, 55, 218, 155, 199,
+-            67, 214, 10, 25, 142, 134, 34, 65, 43, 52, 113, 92, 234, 213, 101, 32, 12, 34, 87, 31, 82, 132, 175, 144,
+-            116, 36, 47, 119, 221, 46, 103, 44, 80, 74, 201, 196, 249, 230, 127, 123, 80, 118, 216, 163, 249, 186, 218,
+-            184, 181, 144, 72, 187, 101, 164, 150, 209, 45, 247, 70, 184, 92, 155, 146, 175, 162, 54, 95, 155, 174,
+-            116, 38, 190, 166, 137, 133, 51, 253, 21, 169, 129, 167, 61, 102, 49, 115, 24, 245, 130, 171, 6, 196, 177,
+-            44, 49, 149, 39, 239, 142, 253, 49, 123, 226, 140, 40, 43, 193, 131, 20, 30, 17, 57, 252, 1, 68, 55, 1,
+-            227, 226, 24, 73, 204, 237, 230, 2, 81, 203, 54, 204, 157, 174, 22, 134, 126, 132, 106, 66, 115, 27, 189,
+-            157, 131, 173, 205, 36, 140, 160, 183, 171, 62, 97, 7, 73, 93, 114, 199, 50, 192, 22, 56, 132, 172, 61,
+-            208, 84, 102, 85, 60, 216, 170, 249, 29, 66, 158, 48, 221, 78, 166, 50, 20, 203, 99, 206, 6, 112, 163, 194,
+-            43, 165, 176, 193, 62, 157, 184, 57, 235, 221, 175, 46, 7, 152,
++            66, 254, 195, 54, 248, 36, 231, 56, 186, 118, 54, 42, 5, 66, 113, 73, 150, 54, 54, 156,
++            16, 76, 252, 50, 206, 135, 204, 173, 159, 174, 68, 125, 23, 251, 75, 215, 136, 102,
++            165, 73, 107, 249, 205, 158, 32, 192, 157, 134, 17, 70, 51, 225, 74, 3, 195, 74, 124,
++            137, 26, 48, 245, 253, 212, 197, 29, 141, 12, 5, 36, 191, 77, 203, 137, 72, 27, 38,
++            231, 136, 43, 60, 134, 137, 192, 134, 218, 13, 90, 232, 166, 245, 168, 29, 34, 91, 121,
++            185, 82, 144, 146, 215, 6, 120, 204, 126, 217, 146, 135, 243, 55, 1, 99, 159, 192, 53,
++            80, 103, 19, 87, 253, 193, 104, 98, 228, 167, 138, 214, 84, 135, 232, 225, 185, 158,
++            114, 48, 228, 110, 137, 109, 32, 21, 227, 177, 18, 241, 240, 240, 125, 115, 135, 46,
++            249, 172, 206, 170, 41, 76, 169, 163, 62, 77, 94, 51, 116, 69, 188, 218, 171, 90, 171,
++            128, 163, 84, 233, 52, 134, 77, 70, 130, 207, 84, 55, 218, 155, 199, 67, 214, 10, 25,
++            142, 134, 34, 65, 43, 52, 113, 92, 234, 213, 101, 32, 12, 34, 87, 31, 82, 132, 175,
++            144, 116, 36, 47, 119, 221, 46, 103, 44, 80, 74, 201, 196, 249, 230, 127, 123, 80, 118,
++            216, 163, 249, 186, 218, 184, 181, 144, 72, 187, 101, 164, 150, 209, 45, 247, 70, 184,
++            92, 155, 146, 175, 162, 54, 95, 155, 174, 116, 38, 190, 166, 137, 133, 51, 253, 21,
++            169, 129, 167, 61, 102, 49, 115, 24, 245, 130, 171, 6, 196, 177, 44, 49, 149, 39, 239,
++            142, 253, 49, 123, 226, 140, 40, 43, 193, 131, 20, 30, 17, 57, 252, 1, 68, 55, 1, 227,
++            226, 24, 73, 204, 237, 230, 2, 81, 203, 54, 204, 157, 174, 22, 134, 126, 132, 106, 66,
++            115, 27, 189, 157, 131, 173, 205, 36, 140, 160, 183, 171, 62, 97, 7, 73, 93, 114, 199,
++            50, 192, 22, 56, 132, 172, 61, 208, 84, 102, 85, 60, 216, 170, 249, 29, 66, 158, 48,
++            221, 78, 166, 50, 20, 203, 99, 206, 6, 112, 163, 194, 43, 165, 176, 193, 62, 157, 184,
++            57, 235, 221, 175, 46, 7, 152,
+         ];
+         let a_pub = [
+-            21, 187, 129, 247, 180, 115, 7, 3, 46, 219, 190, 0, 89, 8, 126, 225, 37, 159, 98, 137, 226, 202, 13, 228,
+-            31, 55, 17, 244, 180, 120, 159, 97, 141, 126, 131, 219, 227, 64, 81, 24, 99, 206, 12, 218, 27, 95, 43, 216,
+-            151, 228, 46, 89, 133, 153, 100, 55, 134, 206, 65, 165, 244, 228, 121, 88, 78, 54, 19, 220, 48, 86, 150,
+-            92, 21, 168, 219, 226, 214, 254, 33, 26, 135, 134, 247, 49, 58, 114, 245, 76, 67, 182, 223, 191, 93, 1,
+-            131, 58, 76, 62, 49, 123, 11, 10, 164, 221, 249, 114, 77, 154, 179, 95, 207, 127, 9, 154, 30, 91, 99, 67,
+-            160, 94, 33, 239, 178, 32, 173, 245, 25, 91, 153, 189, 34, 216, 16, 100, 160, 145, 150, 208, 85, 135, 237,
+-            13, 225, 234, 144, 137, 224, 217, 187, 77, 10, 51, 240, 45, 72, 9, 184, 164, 195, 153, 55, 66, 98, 110,
+-            208, 204, 45, 204, 14, 46, 195, 119, 25, 83, 120, 223, 17, 167, 79, 75, 68, 182, 105, 97, 176, 15, 153, 95,
+-            170, 16, 33, 172, 134, 114, 73, 69, 5, 49, 78, 133, 250, 44, 136, 75, 179, 33, 213, 48, 77, 236, 16, 148,
+-            221, 74, 185, 209, 83, 94, 167, 180, 101, 170, 91, 129, 143, 228, 180, 251, 185, 210, 16, 74, 26, 248, 65,
+-            208, 73, 182, 161, 120, 59, 223, 98, 166, 58, 94, 69, 250, 93, 75, 29, 36, 41, 211, 242, 115, 253, 65, 28,
+-            204, 117, 167, 194, 113, 98, 180, 54, 96, 170, 81, 125, 134, 19, 213, 2, 213, 178, 163, 108, 74, 215, 177,
+-            52, 217, 75, 225, 144, 220, 3, 164, 87, 156, 233, 1, 99, 218, 251, 89, 45, 165, 227, 98, 232, 143, 165,
+-            141, 246, 196, 230, 209, 136, 35, 75, 218, 63, 15, 94, 150, 79, 113, 245, 247, 28, 139, 115, 136, 232, 175,
+-            49, 228, 11, 70, 234, 131, 126, 167, 31, 234, 202, 34, 27, 240, 195, 201, 1, 29, 98, 229, 254, 146, 87,
+-            223, 113, 5, 218, 217, 250, 58, 115, 53, 9, 162, 175, 42, 176, 10, 195, 48, 155, 56, 58, 246, 219, 98, 166,
+-            41, 34, 216, 225, 29, 28, 1, 18, 89,
++            21, 187, 129, 247, 180, 115, 7, 3, 46, 219, 190, 0, 89, 8, 126, 225, 37, 159, 98, 137,
++            226, 202, 13, 228, 31, 55, 17, 244, 180, 120, 159, 97, 141, 126, 131, 219, 227, 64, 81,
++            24, 99, 206, 12, 218, 27, 95, 43, 216, 151, 228, 46, 89, 133, 153, 100, 55, 134, 206,
++            65, 165, 244, 228, 121, 88, 78, 54, 19, 220, 48, 86, 150, 92, 21, 168, 219, 226, 214,
++            254, 33, 26, 135, 134, 247, 49, 58, 114, 245, 76, 67, 182, 223, 191, 93, 1, 131, 58,
++            76, 62, 49, 123, 11, 10, 164, 221, 249, 114, 77, 154, 179, 95, 207, 127, 9, 154, 30,
++            91, 99, 67, 160, 94, 33, 239, 178, 32, 173, 245, 25, 91, 153, 189, 34, 216, 16, 100,
++            160, 145, 150, 208, 85, 135, 237, 13, 225, 234, 144, 137, 224, 217, 187, 77, 10, 51,
++            240, 45, 72, 9, 184, 164, 195, 153, 55, 66, 98, 110, 208, 204, 45, 204, 14, 46, 195,
++            119, 25, 83, 120, 223, 17, 167, 79, 75, 68, 182, 105, 97, 176, 15, 153, 95, 170, 16,
++            33, 172, 134, 114, 73, 69, 5, 49, 78, 133, 250, 44, 136, 75, 179, 33, 213, 48, 77, 236,
++            16, 148, 221, 74, 185, 209, 83, 94, 167, 180, 101, 170, 91, 129, 143, 228, 180, 251,
++            185, 210, 16, 74, 26, 248, 65, 208, 73, 182, 161, 120, 59, 223, 98, 166, 58, 94, 69,
++            250, 93, 75, 29, 36, 41, 211, 242, 115, 253, 65, 28, 204, 117, 167, 194, 113, 98, 180,
++            54, 96, 170, 81, 125, 134, 19, 213, 2, 213, 178, 163, 108, 74, 215, 177, 52, 217, 75,
++            225, 144, 220, 3, 164, 87, 156, 233, 1, 99, 218, 251, 89, 45, 165, 227, 98, 232, 143,
++            165, 141, 246, 196, 230, 209, 136, 35, 75, 218, 63, 15, 94, 150, 79, 113, 245, 247, 28,
++            139, 115, 136, 232, 175, 49, 228, 11, 70, 234, 131, 126, 167, 31, 234, 202, 34, 27,
++            240, 195, 201, 1, 29, 98, 229, 254, 146, 87, 223, 113, 5, 218, 217, 250, 58, 115, 53,
++            9, 162, 175, 42, 176, 10, 195, 48, 155, 56, 58, 246, 219, 98, 166, 41, 34, 216, 225,
++            29, 28, 1, 18, 89,
+         ];
+         let a_proof = [
+-            33, 202, 204, 21, 29, 11, 142, 163, 254, 113, 245, 137, 104, 89, 101, 247, 182, 215, 41, 42, 213, 171, 173,
+-            142, 172, 183, 214, 187, 204, 48, 253, 153, 224, 246, 18, 246, 72, 5, 95, 165, 27, 245, 255, 22, 229, 250,
+-            129, 33, 8, 40, 1, 194, 131, 19, 51, 75, 37, 179, 34, 60, 222, 13, 182, 81,
++            33, 202, 204, 21, 29, 11, 142, 163, 254, 113, 245, 137, 104, 89, 101, 247, 182, 215,
++            41, 42, 213, 171, 173, 142, 172, 183, 214, 187, 204, 48, 253, 153, 224, 246, 18, 246,
++            72, 5, 95, 165, 27, 245, 255, 22, 229, 250, 129, 33, 8, 40, 1, 194, 131, 19, 51, 75,
++            37, 179, 34, 60, 222, 13, 182, 81,
++        ];
++        let salt = [
++            67, 81, 86, 223, 10, 171, 140, 180, 0, 188, 111, 77, 228, 110, 173, 185,
+         ];
+-        let salt = [67, 81, 86, 223, 10, 171, 140, 180, 0, 188, 111, 77, 228, 110, 173, 185];
+         let shared_secret = [
+-            39, 162, 132, 15, 245, 98, 72, 107, 190, 101, 117, 162, 228, 189, 241, 14, 132, 216, 104, 7, 65, 72, 90,
+-            154, 86, 129, 171, 235, 197, 55, 174, 216, 183, 170, 12, 101, 219, 128, 62, 155, 113, 212, 250, 40, 137,
+-            178, 199, 215, 68, 139, 218, 112, 205, 68, 52, 66, 95, 11, 116, 251, 143, 93, 206, 89,
++            39, 162, 132, 15, 245, 98, 72, 107, 190, 101, 117, 162, 228, 189, 241, 14, 132, 216,
++            104, 7, 65, 72, 90, 154, 86, 129, 171, 235, 197, 55, 174, 216, 183, 170, 12, 101, 219,
++            128, 62, 155, 113, 212, 250, 40, 137, 178, 199, 215, 68, 139, 218, 112, 205, 68, 52,
++            66, 95, 11, 116, 251, 143, 93, 206, 89,
+         ];
+ 
+-        let b_proof = verify_client_proof::<Sha512>(&b_pub, &a_pub, &a_proof, &salt, &shared_secret, &G_3072).unwrap();
++        let b_proof =
++            verify_client_proof::<Sha512>(&b_pub, &a_pub, &a_proof, &salt, &shared_secret, &G_3072)
++                .unwrap();
++
++        assert_eq!(
++            b_proof,
++            vec![
++                53, 222, 231, 209, 7, 123, 202, 208, 135, 119, 183, 90, 79, 154, 55, 155, 63, 56,
++                215, 210, 4, 20, 229, 119, 234, 168, 107, 137, 48, 172, 180, 244, 184, 142, 170,
++                120, 188, 106, 94, 135, 122, 4, 211, 21, 190, 26, 121, 180, 13, 192, 173, 246, 172,
++                223, 161, 192, 52, 251, 187, 66, 52, 170, 18, 85
++            ]
++        );
++    }
++}
+ 
+-        assert_eq!(b_proof, vec![
+-            53, 222, 231, 209, 7, 123, 202, 208, 135, 119, 183, 90, 79, 154, 55, 155, 63, 56, 215, 210, 4, 20, 229,
+-            119, 234, 168, 107, 137, 48, 172, 180, 244, 184, 142, 170, 120, 188, 106, 94, 135, 122, 4, 211, 21, 190,
+-            26, 121, 180, 13, 192, 173, 246, 172, 223, 161, 192, 52, 251, 187, 66, 52, 170, 18, 85
+-        ]);
++/// Initial enrollment is permitted only while no controller is stored.
++async fn save_initial_pairing(
++    storage: &pointer::Storage,
++    pairing: &Pairing,
++    max_peers: Option<usize>,
++) -> Result<(), tlv::Error> {
++    let mut storage = storage.lock().await;
++    if storage.count_pairings().await? != 0 {
++        return Err(tlv::Error::Unavailable);
++    }
++    if max_peers == Some(0) {
++        return Err(tlv::Error::MaxPeers);
++    }
++    storage.save_pairing(pairing).await?;
++    Ok(())
++}
++
++#[cfg(test)]
++mod enrollment_tests {
++    use super::*;
++    use crate::storage::FileStorage;
++    use futures::lock::Mutex;
++    use std::sync::Arc;
++
++    #[tokio::test]
++    async fn initial_enrollment_is_exclusive_and_paired_start_is_rejected() {
++        let path = std::env::temp_dir().join(format!("hap-enrollment-{}", Uuid::new_v4()));
++        let store = FileStorage::new(path.as_os_str()).await.unwrap();
++        let storage: pointer::Storage = Arc::new(Mutex::new(Box::new(store)));
++        let first = Pairing::new(Uuid::new_v4(), Permissions::Admin, [1; 32]);
++        let second = Pairing::new(Uuid::new_v4(), Permissions::Admin, [2; 32]);
++        assert!(save_initial_pairing(&storage, &first, Some(0))
 +            .await
-+            .map_err(|_| tlv::ErrorContainer::new(0, tlv::Error::Unknown))?
-+            .map_err(|error| tlv::ErrorContainer::new(0, error))?;
-+            let mut decoded =
-+                tlv::try_decode(&bytes).map_err(|error| tlv::ErrorContainer::new(0, error))?;
++            .is_err());
++        assert_eq!(storage.lock().await.count_pairings().await.unwrap(), 0);
++        let (a, b) = futures::join!(
++            save_initial_pairing(&storage, &first, None),
++            save_initial_pairing(&storage, &second, None)
++        );
++        assert_ne!(a.is_ok(), b.is_ok());
++        assert_eq!(storage.lock().await.count_pairings().await.unwrap(), 1);
++        let winner = if a.is_ok() { first.id } else { second.id };
++        assert!(save_initial_pairing(&storage, &second, None).await.is_err());
++        assert!(storage.lock().await.load_pairing(&winner).await.is_ok());
++        let config = Arc::new(Mutex::new(crate::Config::default()));
++        let mut handler = PairSetup::new();
++        handler.session = Some(Session {
++            salt: [0; 16],
++            verifier: vec![],
++            b: [0; 64],
++            b_pub: vec![],
++            shared_secret: None,
++        });
++        assert!(handle_start(&mut handler, config, storage.clone())
++            .await
++            .is_err());
++        assert!(handler.session.is_none());
++        drop(storage);
++        std::fs::remove_dir_all(path).unwrap();
++    }
++}
++
++#[cfg(test)]
++mod complete_exchange_tests {
++    use super::*;
++    use crate::{event::EventEmitter, storage::FileStorage};
++    use futures::lock::Mutex;
++    use std::sync::{Arc, RwLock};
++
++    async fn exchange(bad_proof: bool) {
++        let path = std::env::temp_dir().join(format!("hap-setup-wire-{}", Uuid::new_v4()));
++        let storage: pointer::Storage = Arc::new(Mutex::new(Box::new(
++            FileStorage::new(path.as_os_str()).await.unwrap(),
++        )));
++        let settings = crate::Config::default();
++        let pin = settings.pin.to_string();
++        let accessory_key = settings.device_ed25519_keypair.verifying_key();
++        let accessory_id = settings.device_id.to_string();
++        let config = Arc::new(Mutex::new(settings));
++        let emitter = Arc::new(Mutex::new(EventEmitter::new()));
++        let controller = Arc::new(RwLock::new(None));
++        let mut handler = PairSetup::new();
++        let m1 = handler
++            .parse(Body::from(vec![6, 1, 1, 0, 1, 0]))
++            .await
++            .unwrap_or_else(|_| panic!("M1 parse"));
++        let m2 = handler
++            .handle(
++                m1,
++                controller.clone(),
++                config.clone(),
++                storage.clone(),
++                emitter.clone(),
++            )
++            .await
++            .unwrap_or_else(|_| panic!("M1 handle"))
++            .encode();
++        let m2 = tlv::try_decode(&m2).unwrap();
++        assert_eq!(m2[&(Type::State as u8)], vec![2]);
++        let salt = &m2[&(Type::Salt as u8)];
++        let mut ephemeral = [0; 64];
++        OsRng.fill_bytes(&mut ephemeral);
++        let client = SrpClient::<Sha512>::new(&ephemeral, &G_3072);
++        let public = client.get_a_pub();
++        let private = srp_private_key::<Sha512>(b"Pair-Setup", pin.as_bytes(), salt);
++        // The HAP candidate uses unpadded g in the proof transcript, unlike
++        // srp 0.5's generic username-and-salt proof helper. Derive the client
++        // secret with SRP, then build and verify the wire transcript here.
++        let key = client
++            .process_reply(&private, &m2[&(Type::PublicKey as u8)])
++            .unwrap()
++            .get_key();
++        let hn = Sha512::digest(&G_3072.n.to_bytes_be());
++        let hg = Sha512::digest(&G_3072.g.to_bytes_be());
++        let xor: Vec<u8> = hn.iter().zip(hg.iter()).map(|(n, g)| n ^ g).collect();
++        let mut transcript = Sha512::new();
++        transcript.update(&xor);
++        transcript.update(Sha512::digest(b"Pair-Setup"));
++        transcript.update(salt);
++        transcript.update(&public);
++        transcript.update(&m2[&(Type::PublicKey as u8)]);
++        transcript.update(&key);
++        let mut proof = transcript.finalize().to_vec();
++        let mut server_proof = Sha512::new();
++        server_proof.update(&public);
++        server_proof.update(&proof);
++        server_proof.update(&key);
++        let server_proof = server_proof.finalize();
++        if bad_proof {
++            proof[0] ^= 1;
++        }
++        let m3 = vec![
++            Value::State(3),
++            Value::PublicKey(public),
++            Value::Proof(proof),
++        ]
++        .encode();
++        let m3 = handler
++            .parse(Body::from(m3))
++            .await
++            .unwrap_or_else(|_| panic!("M3 parse"));
++        let m4 = handler
++            .handle(
++                m3,
++                controller.clone(),
++                config.clone(),
++                storage.clone(),
++                emitter.clone(),
++            )
++            .await;
++        if bad_proof {
++            assert!(m4.is_err());
++        } else {
++            let m4 = tlv::try_decode(&m4.unwrap_or_else(|_| panic!("M3 handle")).encode()).unwrap();
++            assert_eq!(m4[&(Type::State as u8)], vec![4]);
++            assert_eq!(m4[&(Type::Proof as u8)], server_proof.as_slice());
++        };
++        let id = Uuid::new_v4();
++        let signing = ed25519_dalek::SigningKey::generate(&mut OsRng);
++        let derive = |salt: &[u8], info: &[u8]| {
++            let mut output = [0; 32];
++            hkdf::Hkdf::<Sha512>::new(Some(salt), &key)
++                .expand(info, &mut output)
++                .unwrap();
++            output
++        };
++        let x = derive(
++            b"Pair-Setup-Controller-Sign-Salt",
++            b"Pair-Setup-Controller-Sign-Info",
++        );
++        let signed = [
++            x.as_slice(),
++            id.to_string().as_bytes(),
++            signing.verifying_key().as_bytes(),
++        ]
++        .concat();
++        let mut data = vec![
++            Value::Identifier(id.to_string()),
++            Value::PublicKey(signing.verifying_key().to_bytes().to_vec()),
++            Value::Signature(signing.sign(&signed).to_bytes().to_vec()),
++        ]
++        .encode();
++        let encryption_key = derive(b"Pair-Setup-Encrypt-Salt", b"Pair-Setup-Encrypt-Info");
++        let cipher = ChaCha20Poly1305::new(GenericArray::from_slice(&encryption_key));
++        let mut nonce = [0; 12];
++        nonce[4..].copy_from_slice(b"PS-Msg05");
++        let tag = cipher
++            .encrypt_in_place_detached(GenericArray::from_slice(&nonce), &[], &mut data)
++            .unwrap();
++        data.extend(tag);
++        let m5 = vec![Value::State(5), Value::EncryptedData(data)].encode();
++        let step = handler
++            .parse(Body::from(m5.clone()))
++            .await
++            .unwrap_or_else(|_| panic!("M5 parse"));
++        let result = handler
++            .handle(
++                step,
++                controller.clone(),
++                config.clone(),
++                storage.clone(),
++                emitter.clone(),
++            )
++            .await;
++        if bad_proof {
++            assert!(result.is_err());
++            assert_eq!(storage.lock().await.count_pairings().await.unwrap(), 0);
++        } else {
++            let m6 =
++                tlv::try_decode(&result.unwrap_or_else(|_| panic!("M5 handle")).encode()).unwrap();
++            assert_eq!(m6[&(Type::State as u8)], vec![6]);
++            let data = &m6[&(Type::EncryptedData as u8)];
++            let mut plaintext = data[..data.len() - 16].to_vec();
++            nonce[4..].copy_from_slice(b"PS-Msg06");
++            cipher
++                .decrypt_in_place_detached(
++                    GenericArray::from_slice(&nonce),
++                    &[],
++                    &mut plaintext,
++                    GenericArray::from_slice(&data[data.len() - 16..]),
++                )
++                .unwrap();
++            let sub = tlv::try_decode(&plaintext).unwrap();
++            assert_eq!(sub[&(Type::Identifier as u8)], accessory_id.as_bytes());
++            assert_eq!(sub[&(Type::PublicKey as u8)], accessory_key.as_bytes());
++            let x = derive(
++                b"Pair-Setup-Accessory-Sign-Salt",
++                b"Pair-Setup-Accessory-Sign-Info",
++            );
++            let signed = [
++                x.as_slice(),
++                accessory_id.as_bytes(),
++                accessory_key.as_bytes(),
++            ]
++            .concat();
++            accessory_key
++                .verify_strict(
++                    &signed,
++                    &ed25519_dalek::Signature::from_slice(&sub[&(Type::Signature as u8)]).unwrap(),
++                )
++                .unwrap();
++            let pairing = storage.lock().await.load_pairing(&id).await.unwrap();
++            assert_eq!(pairing.public_key, signing.verifying_key().to_bytes());
++            assert_eq!(pairing.permissions, Permissions::Admin);
++        }
++        let repeated = handler
++            .parse(Body::from(m5))
++            .await
++            .unwrap_or_else(|_| panic!("repeat parse"));
++        assert!(handler
++            .handle(repeated, controller, config, storage.clone(), emitter)
++            .await
++            .is_err());
++        drop(storage);
++        std::fs::remove_dir_all(path).unwrap();
++    }
++    #[tokio::test]
++    async fn m1_to_m6_authenticates_both_sides_and_stores_controller() {
++        exchange(false).await;
++    }
++    #[tokio::test]
++    async fn invalid_srp_proof_cannot_continue_to_valid_encrypted_enrollment() {
++        exchange(true).await;
+     }
+ }
+diff --git a/src/transport/http/handler/pair_verify.rs b/src/transport/http/handler/pair_verify.rs
+index 752d60c..833607d 100644
+--- a/src/transport/http/handler/pair_verify.rs
++++ b/src/transport/http/handler/pair_verify.rs
+@@ -4,10 +4,10 @@ use futures::{
+     channel::oneshot,
+     future::{BoxFuture, FutureExt},
+ };
+-use hyper::{body::Buf, Body};
++use hyper::Body;
+ use log::{debug, info};
+ use rand::rngs::OsRng;
+-use signature::{Signer, Verifier};
++use signature::Signer;
+ use std::str;
+ use uuid::Uuid;
+ use x25519_dalek::{EphemeralSecret, PublicKey};
+@@ -60,36 +60,36 @@ impl TlvHandlerExt for PairVerify {
+ 
+     fn parse(&self, body: Body) -> BoxFuture<Result<Step, tlv::ErrorContainer>> {
+         async {
+-            let aggregated_body = hyper::body::aggregate(body)
+-                .await
+-                .map_err(|_| tlv::ErrorContainer::new(StepNumber::Unknown as u8, tlv::Error::Unknown))?;
+-
+-            debug!("received body: {:?}", aggregated_body.chunk());
+-
+-            let mut decoded = tlv::decode(aggregated_body.chunk());
++            let mut decoded = super::read_tlv_body(body).await?;
              match decoded.get(&(Type::State as u8)) {
 -                Some(method) => match method[0] {
 +                Some(method) if method.len() == 1 => match method[0] {
@@ -5083,7 +6009,7 @@ index 752d60c..99bfbaa 100644
              }
          }
          .boxed()
-@@ -126,15 +142,21 @@ async fn handle_start(
+@@ -126,15 +126,21 @@ async fn handle_start(
  ) -> Result<tlv::Container, tlv::Error> {
      info!("pair verify M1: received verify start request");
  
@@ -5108,7 +6034,7 @@ index 752d60c..99bfbaa 100644
  
      let config = config.lock().await;
      let device_id = config.device_id.to_string();
-@@ -173,7 +195,8 @@ async fn handle_start(
+@@ -173,7 +179,8 @@ async fn handle_start(
  
      let mut encrypted_data = Vec::new();
      encrypted_data.extend_from_slice(&encoded_sub_tlv);
@@ -5118,7 +6044,7 @@ index 752d60c..99bfbaa 100644
      encrypted_data.extend(&auth_tag);
  
      info!("pair verify M2: sending verify start response");
-@@ -192,9 +215,13 @@ async fn handle_finish(
+@@ -192,9 +199,13 @@ async fn handle_finish(
  ) -> Result<tlv::Container, tlv::Error> {
      info!("pair verify M3: received verify finish request");
  
@@ -5134,7 +6060,7 @@ index 752d60c..99bfbaa 100644
              let encrypted_data = Vec::from(&data[..data.len() - 16]);
              let auth_tag = Vec::from(&data[data.len() - 16..]);
  
-@@ -212,12 +239,16 @@ async fn handle_finish(
+@@ -212,12 +223,16 @@ async fn handle_finish(
                  GenericArray::from_slice(&auth_tag),
              )?;
  
@@ -5155,7 +6081,7 @@ index 752d60c..99bfbaa 100644
              )?;
              debug!("device signature: {:?}", &device_signature);
  
-@@ -232,8 +263,8 @@ async fn handle_finish(
+@@ -232,8 +247,8 @@ async fn handle_finish(
              device_info.extend(device_pairing_id);
              device_info.extend(session.b_pub.as_bytes());
  
@@ -5166,7 +6092,7 @@ index 752d60c..99bfbaa 100644
                  .is_err()
              {
                  return Err(tlv::Error::Authentication);
-@@ -244,7 +275,9 @@ async fn handle_finish(
+@@ -244,7 +259,9 @@ async fn handle_finish(
                      controller_id: pairing_uuid,
                      shared_secret: session.shared_secret,
                  };
@@ -5177,7 +6103,7 @@ index 752d60c..99bfbaa 100644
              } else {
                  return Err(tlv::Error::Unknown);
              }
-@@ -252,6 +285,244 @@ async fn handle_finish(
+@@ -252,6 +269,244 @@ async fn handle_finish(
              info!("pair verify M4: sending verify finish response");
  
              Ok(vec![Value::State(StepNumber::FinishRes as u8)])
@@ -5424,20 +6350,382 @@ index 752d60c..99bfbaa 100644
      }
  }
 diff --git a/src/transport/http/handler/pairings.rs b/src/transport/http/handler/pairings.rs
-index 67403e8..0a3f890 100644
+index 67403e8..cb73176 100644
 --- a/src/transport/http/handler/pairings.rs
 +++ b/src/transport/http/handler/pairings.rs
-@@ -157,8 +157,8 @@ async fn handle_add(
+@@ -1,6 +1,6 @@
+ use futures::future::{BoxFuture, FutureExt};
+-use hyper::{body::Buf, Body};
+-use log::{debug, info};
++use hyper::Body;
++use log::info;
+ use std::{ops::Deref, str};
+ use uuid::Uuid;
+ 
+@@ -15,7 +15,9 @@ use crate::{
+ pub struct Pairings;
+ 
+ impl Pairings {
+-    pub fn new() -> Pairings { Pairings }
++    pub fn new() -> Pairings {
++        Pairings
++    }
+ }
+ 
+ #[derive(Debug, Clone)]
+@@ -49,46 +51,50 @@ impl TlvHandlerExt for Pairings {
+ 
+     fn parse(&self, body: Body) -> BoxFuture<Result<HandlerType, tlv::ErrorContainer>> {
+         async {
+-            let aggregated_body = hyper::body::aggregate(body)
+-                .await
+-                .map_err(|_| tlv::ErrorContainer::new(StepNumber::Unknown as u8, tlv::Error::Unknown))?;
+-
+-            debug!("received body: {:?}", aggregated_body.chunk());
+-
+-            let mut decoded = tlv::decode(aggregated_body.chunk());
++            let mut decoded = super::read_tlv_body(body).await?;
+             if decoded.get(&(Type::State as u8)) != Some(&vec![1]) {
+                 return Err(tlv::ErrorContainer::new(0, tlv::Error::Unknown));
+             }
+             match decoded.get(&(Type::Method as u8)) {
+-                Some(handler) => match handler[0] {
++                Some(handler) if handler.len() == 1 => match handler[0] {
+                     x if x == HandlerNumber::Add as u8 => {
+-                        let pairing_id = decoded
+-                            .remove(&(Type::Identifier as u8))
+-                            .ok_or(tlv::ErrorContainer::new(StepNumber::Res as u8, tlv::Error::Unknown))?;
+-                        let ltpk = decoded
+-                            .remove(&(Type::PublicKey as u8))
+-                            .ok_or(tlv::ErrorContainer::new(StepNumber::Res as u8, tlv::Error::Unknown))?;
+-                        let perms = decoded
+-                            .remove(&(Type::Permissions as u8))
+-                            .ok_or(tlv::ErrorContainer::new(StepNumber::Res as u8, tlv::Error::Unknown))?;
+-                        let permissions = Permissions::from_byte(perms[0])
+-                            .map_err(|_| tlv::ErrorContainer::new(StepNumber::Res as u8, tlv::Error::Unknown))?;
++                        let pairing_id = decoded.remove(&(Type::Identifier as u8)).ok_or(
++                            tlv::ErrorContainer::new(StepNumber::Res as u8, tlv::Error::Unknown),
++                        )?;
++                        let ltpk = decoded.remove(&(Type::PublicKey as u8)).ok_or(
++                            tlv::ErrorContainer::new(StepNumber::Res as u8, tlv::Error::Unknown),
++                        )?;
++                        let perms = decoded.remove(&(Type::Permissions as u8)).ok_or(
++                            tlv::ErrorContainer::new(StepNumber::Res as u8, tlv::Error::Unknown),
++                        )?;
++                        if perms.len() != 1 || ltpk.len() != 32 {
++                            return Err(tlv::ErrorContainer::new(2, tlv::Error::Unknown));
++                        }
++                        let permissions = Permissions::from_byte(perms[0]).map_err(|_| {
++                            tlv::ErrorContainer::new(StepNumber::Res as u8, tlv::Error::Unknown)
++                        })?;
+                         Ok(HandlerType::Add {
+                             pairing_id,
+                             ltpk,
+                             permissions,
+                         })
+-                    },
++                    }
+                     x if x == HandlerNumber::Remove as u8 => {
+-                        let pairing_id = decoded
+-                            .remove(&(Type::Identifier as u8))
+-                            .ok_or(tlv::ErrorContainer::new(StepNumber::Res as u8, tlv::Error::Unknown))?;
++                        let pairing_id = decoded.remove(&(Type::Identifier as u8)).ok_or(
++                            tlv::ErrorContainer::new(StepNumber::Res as u8, tlv::Error::Unknown),
++                        )?;
+                         Ok(HandlerType::Remove { pairing_id })
+-                    },
++                    }
+                     x if x == HandlerNumber::List as u8 => Ok(HandlerType::List),
+-                    _ => Err(tlv::ErrorContainer::new(StepNumber::Unknown as u8, tlv::Error::Unknown)),
++                    _ => Err(tlv::ErrorContainer::new(
++                        StepNumber::Unknown as u8,
++                        tlv::Error::Unknown,
++                    )),
+                 },
+-                None => Err(tlv::ErrorContainer::new(StepNumber::Unknown as u8, tlv::Error::Unknown)),
++                _ => Err(tlv::ErrorContainer::new(
++                    StepNumber::Unknown as u8,
++                    tlv::Error::Unknown,
++                )),
+             }
+         }
+         .boxed()
+@@ -127,7 +133,7 @@ impl TlvHandlerExt for Pairings {
+                         Ok(res) => Ok(res),
+                         Err(err) => Err(tlv::ErrorContainer::new(StepNumber::Res as u8, err)),
+                     }
+-                },
++                }
+                 HandlerType::List => match handle_list(controller_id, storage).await {
+                     Ok(res) => Ok(res),
+                     Err(err) => Err(tlv::ErrorContainer::new(StepNumber::Res as u8, err)),
+@@ -149,54 +155,39 @@ async fn handle_add(
+ ) -> Result<tlv::Container, tlv::Error> {
+     info!("pairings M1: received add pairing request");
+ 
+-    check_admin(&controller_id, &storage).await?;
+-
+-    let uuid_str = str::from_utf8(&pairing_id)?;
+-    let pairing_uuid = Uuid::parse_str(uuid_str)?;
+-
++    let pairing_uuid = Uuid::parse_str(str::from_utf8(&pairing_id)?)?;
++    let public_key = ed25519_dalek::VerifyingKey::try_from(ltpk.as_slice())?.to_bytes();
++    let max_peers = config.lock().await.max_peers;
      let mut s = storage.lock().await;
-     match s.load_pairing(&pairing_uuid).await {
-         Ok(mut pairing) => {
+-    match s.load_pairing(&pairing_uuid).await {
+-        Ok(mut pairing) => {
 -            if ed25519_dalek::PublicKey::from_bytes(&pairing.public_key)?
 -                != ed25519_dalek::PublicKey::from_bytes(&ltpk)?
-+            if ed25519_dalek::VerifyingKey::from_bytes(&pairing.public_key)?
-+                != ed25519_dalek::VerifyingKey::try_from(ltpk.as_slice())?
-             {
-                 return Err(tlv::Error::Unknown);
-             }
+-            {
+-                return Err(tlv::Error::Unknown);
+-            }
+-            pairing.permissions = permissions;
+-            s.save_pairing(&pairing).await?;
+-
+-            drop(s);
+-
+-            event_emitter
+-                .lock()
+-                .await
+-                .emit(&Event::ControllerPaired { id: pairing.id })
+-                .await;
+-        },
+-        Err(_) => {
+-            if let Some(max_peers) = config.lock().await.max_peers {
+-                if s.count_pairings().await? + 1 > max_peers {
+-                    return Err(tlv::Error::MaxPeers);
+-                }
+-            }
+-
+-            let mut public_key = [0; 32];
+-            public_key.clone_from_slice(&ltpk);
+-            let pairing = Pairing {
+-                id: pairing_uuid,
+-                permissions,
+-                public_key,
+-            };
+-            s.save_pairing(&pairing).await?;
+-
+-            drop(s);
+-
+-            event_emitter
+-                .lock()
+-                .await
+-                .emit(&Event::ControllerPaired { id: pairing.id })
+-                .await;
+-        },
++    check_admin(&controller_id, s.as_ref()).await?;
++    // Listing must succeed before absence can be inferred. A read failure must
++    // never authorize replacing a controller's stored key.
++    let pairings = s.list_pairings().await?;
++    if let Some(existing) = pairings.iter().find(|pairing| pairing.id == pairing_uuid) {
++        if existing.public_key != public_key {
++            return Err(tlv::Error::Unknown);
++        }
++    } else if max_peers.is_some_and(|limit| pairings.len() >= limit) {
++        return Err(tlv::Error::MaxPeers);
++    }
++    let pairing = Pairing::new(pairing_uuid, permissions, public_key);
++    let actor = (*controller_id
++        .read()
++        .map_err(|_| tlv::Error::Authentication)?)
++    .ok_or(tlv::Error::Authentication)?;
++    let revoked = s
++        .save_pairing_authorized(&actor, &pairing, max_peers)
++        .await?;
++    drop(s);
++    let mut emitter = event_emitter.lock().await;
++    if revoked.is_empty() {
++        emitter
++            .emit(&Event::ControllerPaired { id: pairing.id })
++            .await;
++    } else {
++        for id in revoked {
++            emitter.emit(&Event::ControllerUnpaired { id }).await;
++        }
+     }
+ 
+     info!("pairings M2: sending add pairing response");
+@@ -212,17 +203,21 @@ async fn handle_remove(
+ ) -> Result<tlv::Container, tlv::Error> {
+     info!("pairings M1: received remove pairing request");
+ 
+-    check_admin(&controller_id, &storage).await?;
++    let mut s = storage.lock().await;
++    check_admin(&controller_id, s.as_ref()).await?;
+ 
+     let uuid_str = str::from_utf8(&pairing_id)?;
+     let pairing_uuid = Uuid::parse_str(uuid_str)?;
+-    storage.lock().await.delete_pairing(&pairing_uuid).await?;
+-
+-    event_emitter
+-        .lock()
+-        .await
+-        .emit(&Event::ControllerUnpaired { id: pairing_uuid })
+-        .await;
++    let actor = (*controller_id
++        .read()
++        .map_err(|_| tlv::Error::Authentication)?)
++    .ok_or(tlv::Error::Authentication)?;
++    let revoked = s.remove_pairing_authorized(&actor, &pairing_uuid).await?;
++    drop(s);
++    let mut emitter = event_emitter.lock().await;
++    for id in revoked {
++        emitter.emit(&Event::ControllerUnpaired { id }).await;
++    }
+ 
+     info!("pairings M2: sending remove pairing response");
+ 
+@@ -235,15 +230,16 @@ async fn handle_list(
+ ) -> Result<tlv::Container, tlv::Error> {
+     info!("pairings M1: received list pairings request");
+ 
+-    check_admin(&controller_id, &storage).await?;
+-
+-    let pairings = storage.lock().await.list_pairings().await?;
++    let s = storage.lock().await;
++    check_admin(&controller_id, s.as_ref()).await?;
++    let pairings = s.list_pairings().await?;
++    drop(s);
+     let mut list = vec![Value::State(StepNumber::Res as u8)];
+     for (i, pairing) in pairings.iter().enumerate() {
+         list.push(Value::Identifier(pairing.id.to_hyphenated().to_string()));
+         list.push(Value::PublicKey(pairing.public_key.to_vec()));
+         list.push(Value::Permissions(pairing.permissions.clone()));
+-        if i < pairings.len() {
++        if i + 1 < pairings.len() {
+             list.push(Value::Separator);
+         }
+     }
+@@ -253,17 +249,124 @@ async fn handle_list(
+     Ok(list)
+ }
+ 
+-async fn check_admin(controller_id: &pointer::ControllerId, storage: &pointer::Storage) -> Result<(), tlv::Error> {
++async fn check_admin(
++    controller_id: &pointer::ControllerId,
++    storage: &dyn crate::storage::Storage,
++) -> Result<(), tlv::Error> {
+     let controller_id: Uuid = controller_id
+         .read()
+-        .unwrap()
++        .map_err(|_| tlv::Error::Authentication)?
+         .deref()
+         .ok_or(tlv::Error::Authentication)?;
+-    match storage.lock().await.load_pairing(&controller_id).await {
++    match storage.load_pairing(&controller_id).await {
+         Err(_) => Err(tlv::Error::Authentication),
+-        Ok(controller) => match controller.permissions {
++        Ok(controller) if controller.id == controller_id => match controller.permissions {
+             Permissions::Admin => Ok(()),
+             _ => Err(tlv::Error::Authentication),
+         },
++        Ok(_) => Err(tlv::Error::Authentication),
++    }
++}
++
++#[cfg(test)]
++mod management_tests {
++    use super::*;
++    use crate::{
++        event::EventEmitter,
++        storage::{FileStorage, Storage},
++    };
++    use futures::lock::Mutex;
++    use std::sync::{Arc, RwLock};
++
++    #[tokio::test]
++    async fn permissions_key_replacement_and_corrupt_storage_fail_closed() {
++        let path = std::env::temp_dir().join(format!("hap-management-{}", Uuid::new_v4()));
++        let mut store = FileStorage::new(path.as_os_str()).await.unwrap();
++        let key = ed25519_dalek::SigningKey::generate(&mut rand::rngs::OsRng)
++            .verifying_key()
++            .to_bytes();
++        let admin = Pairing::new(Uuid::new_v4(), Permissions::Admin, key);
++        let user = Pairing::new(Uuid::new_v4(), Permissions::User, key);
++        store.save_pairing(&admin).await.unwrap();
++        store.save_pairing(&user).await.unwrap();
++        let storage: pointer::Storage = Arc::new(Mutex::new(Box::new(store)));
++        let controller = Arc::new(RwLock::new(Some(user.id)));
++        let config = Arc::new(Mutex::new(crate::Config::default()));
++        let emitter = Arc::new(Mutex::new(EventEmitter::new()));
++        assert!(handle_list(controller.clone(), storage.clone())
++            .await
++            .is_err());
++        assert!(handle_remove(
++            controller.clone(),
++            storage.clone(),
++            emitter.clone(),
++            admin.id.to_string().into_bytes()
++        )
++        .await
++        .is_err());
++        assert!(handle_add(
++            controller.clone(),
++            config.clone(),
++            storage.clone(),
++            emitter.clone(),
++            user.id.to_string().into_bytes(),
++            key.to_vec(),
++            Permissions::Admin
++        )
++        .await
++        .is_err());
++        *controller.write().unwrap() = Some(admin.id);
++        let listing = handle_list(controller.clone(), storage.clone())
++            .await
++            .unwrap();
++        assert_eq!(
++            listing
++                .iter()
++                .filter(|v| matches!(v, Value::Separator))
++                .count(),
++            1
++        );
++        assert!(!matches!(listing.last(), Some(Value::Separator)));
++        let other_key = ed25519_dalek::SigningKey::generate(&mut rand::rngs::OsRng)
++            .verifying_key()
++            .to_bytes();
++        assert!(handle_add(
++            controller.clone(),
++            config.clone(),
++            storage.clone(),
++            emitter.clone(),
++            user.id.to_string().into_bytes(),
++            other_key.to_vec(),
++            Permissions::Admin
++        )
++        .await
++        .is_err());
++        assert_eq!(
++            storage.lock().await.load_pairing(&user.id).await.unwrap(),
++            user
++        );
++        let file = path.join(format!("pairings/{}.json", user.id));
++        std::fs::write(&file, b"corrupt").unwrap();
++        assert!(handle_add(
++            controller.clone(),
++            config,
++            storage.clone(),
++            emitter,
++            user.id.to_string().into_bytes(),
++            key.to_vec(),
++            Permissions::Admin
++        )
++        .await
++        .is_err());
++        assert_eq!(std::fs::read(&file).unwrap(), b"corrupt");
++        storage
++            .lock()
++            .await
++            .delete_pairing(&admin.id)
++            .await
++            .unwrap();
++        assert!(handle_list(controller, storage.clone()).await.is_err());
++        drop(storage);
++        std::fs::remove_dir_all(path).unwrap();
+     }
+ }
 diff --git a/src/transport/http/mod.rs b/src/transport/http/mod.rs
 index 4f471b4..f4d3a6f 100644
 --- a/src/transport/http/mod.rs
@@ -5484,7 +6772,7 @@ index 4f471b4..f4d3a6f 100644
          .status(status)
          .header(CONTENT_TYPE, content_type.to_string())
 diff --git a/src/transport/http/server.rs b/src/transport/http/server.rs
-index b955456..2afd33f 100644
+index b955456..e38250a 100644
 --- a/src/transport/http/server.rs
 +++ b/src/transport/http/server.rs
 @@ -26,17 +26,13 @@ use crate::{
@@ -5625,7 +6913,7 @@ index b955456..2afd33f 100644
                  let api = Api::new(
                      encrypted_stream.controller_id.clone(),
                      event_subscriptions.clone(),
-@@ -217,37 +239,46 @@ impl Server {
+@@ -217,37 +239,58 @@ impl Server {
                      session_sender,
                  );
  
@@ -5647,12 +6935,16 @@ index b955456..2afd33f 100644
 -                                            event_response(vec![event]).expect("couldn't create event response");
 -                                        if stream_outgoing_.unbounded_send(event_res).is_err() {
 -                                            dropped_subscriptions.push(i);
++                let notification_controller = session_controller.clone();
++                let notification_storage = storage.clone();
 +                let listener_id = event_emitter
 +                    .lock()
 +                    .await
 +                    .add_listener(Box::new(move |event| {
 +                        let event_subscriptions_ = event_subscriptions.clone();
 +                        let stream_outgoing_ = stream_outgoing.clone();
++                        let controller = notification_controller.clone();
++                        let storage = notification_storage.clone();
 +                        async move {
 +                            match *event {
 +                                Event::CharacteristicValueChanged {
@@ -5672,7 +6964,15 @@ index b955456..2afd33f 100644
 +                                            };
 +                                            let event_res = event_response(vec![event])
 +                                                .expect("couldn't create event response");
-+                                            if stream_outgoing_.try_send(event_res).is_err() {
++                                            if send_authorized_event(
++                                                &controller,
++                                                &storage,
++                                                &stream_outgoing_,
++                                                event_res,
++                                            )
++                                            .await
++                                            .is_err()
++                                            {
 +                                                dropped_subscriptions.push(i);
 +                                            }
                                          }
@@ -5699,7 +6999,7 @@ index b955456..2afd33f 100644
  
                  let mut http = Http::new();
                  http.http1_only(true);
-@@ -255,12 +286,23 @@ impl Server {
+@@ -255,12 +298,23 @@ impl Server {
                  http.http1_keep_alive(true);
                  http.http1_preserve_header_case(true);
  
@@ -5728,7 +7028,7 @@ index b955456..2afd33f 100644
              }
  
              #[allow(unreachable_code)]
-@@ -269,3 +311,99 @@ impl Server {
+@@ -269,3 +323,178 @@ impl Server {
          .boxed()
      }
  }
@@ -5828,8 +7128,87 @@ index b955456..2afd33f 100644
 +        assert_eq!(drops.load(Ordering::SeqCst), 2);
 +    }
 +}
++
++/// Serialize the pairing check and notification enqueue with local revocation.
++async fn send_authorized_event(
++    controller: &pointer::ControllerId,
++    storage: &pointer::Storage,
++    output: &crate::transport::tcp::OutputSender,
++    bytes: Vec<u8>,
++) -> Result<()> {
++    let id = controller.read().ok().and_then(|id| *id);
++    let storage = storage.lock().await;
++    let authorized = match id {
++        Some(id) => storage
++            .load_pairing(&id)
++            .await
++            .map(|p| p.id == id)
++            .unwrap_or(false),
++        None => false,
++    };
++    if !authorized {
++        output.abort();
++        return Err(Error::Storage);
++    }
++    output.try_send(bytes)?;
++    Ok(())
++}
++
++#[cfg(test)]
++mod notification_authorization_tests {
++    use super::*;
++    use crate::{
++        pairing::{Pairing, Permissions},
++        storage::{FileStorage, Storage},
++        transport::tcp::OutputSender,
++    };
++    use futures::StreamExt;
++    use std::sync::RwLock;
++    use uuid::Uuid;
++
++    #[tokio::test]
++    async fn revoked_subscriber_cannot_receive_another_event() {
++        let path = std::env::temp_dir().join(format!("hap-notify-auth-{}", Uuid::new_v4()));
++        let mut store = FileStorage::new(path.as_os_str()).await.unwrap();
++        let revoked = Pairing::new(Uuid::new_v4(), Permissions::User, [1; 32]);
++        let retained = Pairing::new(Uuid::new_v4(), Permissions::Admin, [2; 32]);
++        store.save_pairing(&revoked).await.unwrap();
++        store.save_pairing(&retained).await.unwrap();
++        let storage: pointer::Storage = Arc::new(Mutex::new(Box::new(store)));
++        let controller = Arc::new(RwLock::new(Some(revoked.id)));
++        let other = Arc::new(RwLock::new(Some(retained.id)));
++        let (output, mut receiver) = OutputSender::channel();
++        let (other_output, mut other_receiver) = OutputSender::channel();
++        assert!(
++            send_authorized_event(&controller, &storage, &output, vec![1])
++                .await
++                .is_ok()
++        );
++        assert_eq!(&*receiver.next().await.unwrap(), &[1]);
++        storage
++            .lock()
++            .await
++            .delete_pairing(&revoked.id)
++            .await
++            .unwrap();
++        assert!(
++            send_authorized_event(&controller, &storage, &output, vec![2])
++                .await
++                .is_err()
++        );
++        assert!(output.try_send(vec![3]).is_err());
++        assert!(
++            send_authorized_event(&other, &storage, &other_output, vec![4])
++                .await
++                .is_ok()
++        );
++        assert_eq!(&*other_receiver.next().await.unwrap(), &[4]);
++        drop(storage);
++        std::fs::remove_dir_all(path).unwrap();
++    }
++}
 diff --git a/src/transport/tcp.rs b/src/transport/tcp.rs
-index 32bf4e1..082f2f7 100644
+index 32bf4e1..c191414 100644
 --- a/src/transport/tcp.rs
 +++ b/src/transport/tcp.rs
 @@ -4,13 +4,13 @@ use bytes::{Buf, BytesMut};
@@ -6595,7 +7974,7 @@ index 32bf4e1..082f2f7 100644
 +const OUTPUT_BYTES: usize = 1024 * 1024;
 +const OUTPUT_MESSAGE_BYTES: usize = 256 * 1024;
 +#[derive(Debug)]
-+struct QueuedOutput {
++pub(crate) struct QueuedOutput {
 +    data: Vec<u8>,
 +    used: Arc<std::sync::atomic::AtomicUsize>,
 +}
@@ -6620,7 +7999,7 @@ index 32bf4e1..082f2f7 100644
 +    abort_waker: Arc<futures::task::AtomicWaker>,
 +}
 +impl OutputSender {
-+    fn channel() -> (Self, Receiver<QueuedOutput>) {
++    pub(crate) fn channel() -> (Self, Receiver<QueuedOutput>) {
 +        // futures MPSC has one extra reserved slot for its single sender.
 +        let (sender, receiver) = mpsc::channel(63);
 +        (
@@ -6633,7 +8012,7 @@ index 32bf4e1..082f2f7 100644
 +            receiver,
 +        )
 +    }
-+    fn abort(&self) {
++    pub(crate) fn abort(&self) {
 +        self.aborted
 +            .store(true, std::sync::atomic::Ordering::Release);
 +        self.abort_waker.wake();

@@ -68,3 +68,59 @@ fn runtime_backpressure_and_subscription_authorization_are_not_swallowed() {
         Err(WriteStatus::ResourceBusy)
     );
 }
+
+#[tokio::test]
+async fn asynchronous_acceptance_waits_and_preserves_runtime_rejection() {
+    use hap::futures::{channel::oneshot, poll};
+    use homesense_hap::write::AsyncLightWriteHandler;
+    use std::{sync::Arc, task::Poll};
+    for outcome in [Ok(()), Err(WriteStatus::ResourceBusy)] {
+        let controller = Uuid::new_v4();
+        let requests = LightRequests::new(vec![LightBinding {
+            device: DeviceId::new("light").unwrap(),
+            aid: 2,
+            on_iid: 10,
+            brightness_iid: None,
+            default_on_level: None,
+        }])
+        .unwrap();
+        let (sender, receiver) = oneshot::channel();
+        let receiver = Arc::new(Mutex::new(Some(receiver)));
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let captured = seen.clone();
+        let handler = AsyncLightWriteHandler::new(
+            requests,
+            |_: &DeviceId| None,
+            move |batch: homesense_hap::requests::Batch| {
+                captured.lock().unwrap().push(batch);
+                let receive = receiver.lock().unwrap().take().unwrap();
+                async move { receive.await.unwrap() }
+            },
+        );
+        let body = br#"{"characteristics":[{"aid":2,"iid":10,"value":true}]}"#;
+        assert_eq!(
+            handler.write(controller, body),
+            Err(WriteStatus::ServiceCommunicationFailure)
+        );
+        assert!(seen.lock().unwrap().is_empty());
+        assert!(
+            handler
+                .write_async(
+                    controller,
+                    br#"{"characteristics":[{"aid":2,"iid":10,"value":2}]}"#
+                )
+                .await
+                .is_err()
+        );
+        assert!(seen.lock().unwrap().is_empty());
+        let mut pending = handler.write_async(controller, body);
+        assert!(matches!(poll!(pending.as_mut()), Poll::Pending));
+        assert_eq!(seen.lock().unwrap()[0].controller, controller);
+        assert_eq!(
+            seen.lock().unwrap()[0].intents[0].command,
+            Command::Switch(true)
+        );
+        sender.send(outcome).unwrap();
+        assert_eq!(pending.await, outcome);
+    }
+}

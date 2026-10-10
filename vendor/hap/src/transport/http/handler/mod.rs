@@ -167,3 +167,82 @@ pub(crate) async fn paired_controller(
     }
     Ok(id)
 }
+
+/// Bound authentication bodies before decoding attacker-controlled TLV fields.
+pub(crate) async fn read_tlv_body(
+    mut body: hyper::Body,
+) -> std::result::Result<std::collections::HashMap<u8, Vec<u8>>, crate::tlv::ErrorContainer> {
+    use hyper::body::HttpBody;
+    let bytes = tokio::time::timeout(std::time::Duration::from_secs(5), async move {
+        let mut bytes = Vec::new();
+        while let Some(chunk) = body.data().await {
+            let chunk = chunk.map_err(|_| crate::tlv::Error::Unknown)?;
+            if chunk.len() > 65536 - bytes.len() {
+                return Err(crate::tlv::Error::Unknown);
+            }
+            bytes.extend_from_slice(&chunk);
+        }
+        Ok(bytes)
+    })
+    .await
+    .map_err(|_| crate::tlv::ErrorContainer::new(0, crate::tlv::Error::Unknown))?
+    .map_err(|e| crate::tlv::ErrorContainer::new(0, e))?;
+    crate::tlv::try_decode(&bytes).map_err(|e| crate::tlv::ErrorContainer::new(0, e))
+}
+
+#[cfg(test)]
+mod authentication_input_tests {
+    use super::*;
+    use hyper::Body;
+
+    #[tokio::test]
+    async fn setup_and_pairings_reject_malformed_fields() {
+        let setup = pair_setup::PairSetup::new();
+        let pairings = pairings::Pairings::new();
+        for bytes in [
+            vec![6],
+            vec![6, 2, 1],
+            vec![6, 0],
+            vec![6, 2, 1, 1],
+            vec![6, 1, 1, 6, 1, 1],
+        ] {
+            assert!(setup.parse(Body::from(bytes.clone())).await.is_err());
+            assert!(pairings.parse(Body::from(bytes)).await.is_err());
+        }
+        for method in [vec![], vec![3, 3]] {
+            let mut bytes = vec![6, 1, 1, 0, method.len() as u8];
+            bytes.extend(method);
+            assert!(pairings.parse(Body::from(bytes)).await.is_err());
+        }
+        for key_len in [0, 31, 33] {
+            let mut bytes = vec![6, 1, 1, 0, 1, 3, 1, 1, b'a', 3, key_len];
+            bytes.extend(vec![1; key_len as usize]);
+            bytes.extend([11, 1, 1]);
+            assert!(pairings.parse(Body::from(bytes)).await.is_err());
+        }
+        for permission in [vec![], vec![1, 1], vec![2]] {
+            let mut bytes = vec![6, 1, 1, 0, 1, 3, 1, 1, b'a', 3, 32];
+            bytes.extend([1; 32]);
+            bytes.extend([11, permission.len() as u8]);
+            bytes.extend(permission);
+            assert!(pairings.parse(Body::from(bytes)).await.is_err());
+        }
+    }
+
+    #[tokio::test]
+    async fn authentication_body_has_size_and_time_limits() {
+        assert!(read_tlv_body(Body::from(vec![0; 65537])).await.is_err());
+        let (mut sender, body) = Body::channel();
+        let producer = tokio::spawn(async move {
+            for _ in 0..65 {
+                if sender.send_data(vec![0; 1024].into()).await.is_err() {
+                    break;
+                }
+            }
+        });
+        assert!(read_tlv_body(body).await.is_err());
+        producer.await.unwrap();
+        let (_sender, body) = Body::channel();
+        assert!(read_tlv_body(body).await.is_err());
+    }
+}

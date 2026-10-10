@@ -27,6 +27,14 @@ impl std::fmt::Display for ArbiterError {
 }
 impl std::error::Error for ArbiterError {}
 
+/// Queue validation and persistence failures are distinct; neither publishes the
+/// staged queue. A persistence error may still require database recovery.
+#[derive(Debug)]
+pub enum BatchCommitError<E> {
+    Admission(ArbiterError),
+    Persistence(E),
+}
+
 #[derive(Debug, Default)]
 pub struct Dispatch {
     pub command: Option<QueuedCommand>,
@@ -175,21 +183,41 @@ impl Arbiter {
         commands: Vec<(QueuedCommand, Access)>,
         now: u64,
     ) -> Result<Vec<Cancellation>, ArbiterError> {
+        match self
+            .submit_batch_committed(commands, now, |_, _| Ok::<(), std::convert::Infallible>(()))
+        {
+            Ok(result) => Ok(result),
+            Err(BatchCommitError::Admission(error)) => Err(error),
+            Err(BatchCommitError::Persistence(never)) => match never {},
+        }
+    }
+    /// Stage all queue effects, then commit their audit before publishing them.
+    /// The synchronous callback runs under exclusive arbiter ownership. It must
+    /// commit all commands AND cancellations together, and must not dispatch I/O.
+    pub fn submit_batch_committed<E>(
+        &mut self,
+        commands: Vec<(QueuedCommand, Access)>,
+        now: u64,
+        commit: impl FnOnce(&[QueuedCommand], &[Cancellation]) -> Result<(), E>,
+    ) -> Result<Vec<Cancellation>, BatchCommitError<E>> {
         if commands.len() > 128 {
-            return Err(ArbiterError::BatchTooLarge);
+            return Err(BatchCommitError::Admission(ArbiterError::BatchTooLarge));
         }
         let mut staged = self.queue.clone();
         let mut cancelled = Vec::new();
+        let mut accepted = Vec::with_capacity(commands.len());
         for (command, access) in commands {
             self.policy
                 .check(&command, access, now)
-                .map_err(ArbiterError::Admission)?;
+                .map_err(|e| BatchCommitError::Admission(ArbiterError::Admission(e)))?;
             cancelled.extend(
                 staged
-                    .enqueue(command, now, self.policy.epochs)
-                    .map_err(ArbiterError::Queue)?,
+                    .enqueue(command.clone(), now, self.policy.epochs)
+                    .map_err(|e| BatchCommitError::Admission(ArbiterError::Queue(e)))?,
             );
+            accepted.push(command);
         }
+        commit(&accepted, &cancelled).map_err(BatchCommitError::Persistence)?;
         self.queue = staged;
         Ok(cancelled)
     }

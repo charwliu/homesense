@@ -25,6 +25,26 @@ pub trait Storage: Send + Sync {
     async fn save_pairing(&mut self, pairing: &Pairing) -> Result<()>;
     /// Deletes the [`Pairing`](Pairing) from the [`Storage`](Storage).
     async fn delete_pairing(&mut self, id: &Uuid) -> Result<()>;
+    /// Atomically authorize and add/update a pairing without replacing its key.
+    /// Demoting the last administrator revokes every pairing; return revoked IDs.
+    async fn save_pairing_authorized(
+        &mut self,
+        _actor: &Uuid,
+        _pairing: &Pairing,
+        _max_peers: Option<usize>,
+    ) -> Result<Vec<Uuid>> {
+        Err(crate::Error::Storage)
+    }
+    /// Atomically authorize an administrator and remove a controller. Removing
+    /// the last administrator also removes every remaining controller. Returns
+    /// revoked IDs only after commit. Backends without transactions fail closed.
+    async fn remove_pairing_authorized(
+        &mut self,
+        _actor: &Uuid,
+        _target: &Uuid,
+    ) -> Result<Vec<Uuid>> {
+        Err(crate::Error::Storage)
+    }
     /// Loads all [`Pairing`](Pairing)s from the [`Storage`](Storage).
     async fn list_pairings(&self) -> Result<Vec<Pairing>>;
     /// Returns the count of [`Pairing`](Pairing)s stored on the [`Storage`](Storage).

@@ -8,9 +8,17 @@ publish.workspace = true
 [dependencies]
 homesense-core.workspace = true
 homesense-config.workspace = true
+homesense-storage.workspace = true
+homesense-hap.workspace = true
+uuid.workspace = true
+hap.workspace = true
+tokio.workspace = true
 hb-protocol.workspace = true
 homesense-state.workspace = true
 homesense-simulator.workspace = true
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+rusqlite.workspace = true

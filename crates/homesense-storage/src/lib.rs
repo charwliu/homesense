@@ -1,6 +1,7 @@
 //! SQLite configuration revisions and atomic active-pointer publication.
 //! A single runtime owner coordinates this store with the arbitration barrier.
 //! Configuration schema validation precedes this opaque payload storage layer.
+pub mod journal;
 use homesense_core::queue::CancelReason;
 use rusqlite::{Connection, OptionalExtension, TransactionBehavior, params};
 use std::{path::Path, time::Duration};
@@ -59,7 +60,7 @@ impl Store {
         if app != 0 && app != APPLICATION_ID {
             return Err(Error::ForeignDatabase);
         }
-        if version != 0 && (version != 1 || app != APPLICATION_ID) {
+        if version != 0 && (!(1..=3).contains(&version) || app != APPLICATION_ID) {
             return Err(Error::UnsupportedSchema(version));
         }
         if version == 0 {
@@ -82,6 +83,24 @@ impl Store {
             tx.pragma_update(None, "user_version", 1)?;
             tx.commit()?;
         }
+        let tx = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let version: i64 = tx.pragma_query_value(None, "user_version", |r| r.get(0))?;
+        if version == 1 {
+            tx.execute_batch("CREATE TABLE command_journal (
+                boot_id TEXT NOT NULL, command_id INTEGER NOT NULL CHECK(command_id>0),
+                revision INTEGER NOT NULL REFERENCES configuration_revision(revision),
+                device_id TEXT NOT NULL, origin TEXT NOT NULL, intent BLOB NOT NULL CHECK(length(intent)=4),
+                transport_epoch INTEGER NOT NULL, control_epoch INTEGER NOT NULL,
+                deadline_ms INTEGER NOT NULL, updated_ms INTEGER NOT NULL, run_id INTEGER,
+                status TEXT NOT NULL CHECK(status IN ('accepted','writing','written','observed','cancelled','failed','uncertain')),
+                recovered_by TEXT, PRIMARY KEY(boot_id,command_id));")?;
+            tx.pragma_update(None, "user_version", 2)?;
+        }
+        if version <= 2 {
+            tx.execute_batch("ALTER TABLE command_journal ADD COLUMN cancellation_reason TEXT;")?;
+            tx.pragma_update(None, "user_version", 3)?;
+        }
+        tx.commit()?;
         connection.pragma_update(None, "foreign_keys", "ON")?;
         connection.pragma_update(None, "journal_mode", "WAL")?;
         connection.pragma_update(None, "synchronous", "FULL")?;

@@ -229,6 +229,73 @@ impl Storage for IdentityStore {
     async fn delete_pairing(&mut self, id: &Uuid) -> Result<()> {
         self.delete(format!("pair:{id}")).await
     }
+    async fn save_pairing_authorized(
+        &mut self,
+        actor: &Uuid,
+        pairing: &Pairing,
+        max_peers: Option<usize>,
+    ) -> Result<Vec<Uuid>> {
+        let actor = *actor;
+        let pairing = pairing.clone();
+        self.with(move |db| {
+            let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate).map_err(storage_error)?;
+            let pairings = transaction_pairings(&tx)?;
+            if !pairings.iter().any(|p| p.id == actor && p.permissions == hap::pairing::Permissions::Admin) { return Err(Error::Storage); }
+            if let Some(old) = pairings.iter().find(|p| p.id == pairing.id) {
+                if old.public_key != pairing.public_key { return Err(Error::Storage); }
+            } else {
+                let total: i64 = tx.query_row("SELECT count(*) FROM entries", [], |r| r.get(0)).map_err(storage_error)?;
+                if total >= 4096 || pairings.len() >= max_peers.unwrap_or(32).min(32) {
+                    return Err(Error::Storage);
+                }
+            }
+            let revoked = if pairing.permissions != hap::pairing::Permissions::Admin && !pairings.iter().any(|p| p.id != pairing.id && p.permissions == hap::pairing::Permissions::Admin) {
+                tx.execute("DELETE FROM entries WHERE key LIKE 'pair:%'", []).map_err(storage_error)?;
+                pairings.iter().map(|p| p.id).collect()
+            } else {
+                tx.execute("INSERT INTO entries(key,value) VALUES (?1,?2) ON CONFLICT(key) DO UPDATE SET value=excluded.value", rusqlite::params![format!("pair:{}", pairing.id), serde_json::to_vec(&pairing)?]).map_err(storage_error)?;
+                Vec::new()
+            };
+            tx.commit().map_err(storage_error)?;
+            Ok(revoked)
+        }).await
+    }
+    async fn remove_pairing_authorized(
+        &mut self,
+        actor: &Uuid,
+        target: &Uuid,
+    ) -> Result<Vec<Uuid>> {
+        let (actor, target) = (*actor, *target);
+        self.with(move |db| {
+            let tx = db
+                .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+                .map_err(storage_error)?;
+            let pairings = transaction_pairings(&tx)?;
+            if !pairings
+                .iter()
+                .any(|p| p.id == actor && p.permissions == hap::pairing::Permissions::Admin)
+            {
+                return Err(Error::Storage);
+            }
+            let removed = if !pairings.iter().any(|p| p.id == target) {
+                Vec::new()
+            } else if pairings
+                .iter()
+                .any(|p| p.id != target && p.permissions == hap::pairing::Permissions::Admin)
+            {
+                vec![target]
+            } else {
+                pairings.iter().map(|p| p.id).collect()
+            };
+            for id in &removed {
+                tx.execute("DELETE FROM entries WHERE key = ?1", [format!("pair:{id}")])
+                    .map_err(storage_error)?;
+            }
+            tx.commit().map_err(storage_error)?;
+            Ok(removed)
+        })
+        .await
+    }
     async fn list_pairings(&self) -> Result<Vec<Pairing>> {
         self.with(|db| {
             let mut statement = db
@@ -264,4 +331,25 @@ impl Storage for IdentityStore {
     async fn delete_bytes(&mut self, key: &str) -> Result<()> {
         self.delete(misc_key(key)?).await
     }
+}
+
+fn transaction_pairings(tx: &rusqlite::Transaction<'_>) -> Result<Vec<Pairing>> {
+    let mut statement = tx
+        .prepare("SELECT key, value FROM entries WHERE key LIKE 'pair:%' ORDER BY key")
+        .map_err(storage_error)?;
+    let rows = statement
+        .query_map([], |r| {
+            Ok((r.get::<_, String>(0)?, r.get::<_, Vec<u8>>(1)?))
+        })
+        .map_err(storage_error)?;
+    let mut pairings = Vec::new();
+    for row in rows {
+        let (key, bytes) = row.map_err(storage_error)?;
+        let pairing: Pairing = serde_json::from_slice(&bytes)?;
+        if key != format!("pair:{}", pairing.id) {
+            return Err(Error::Storage);
+        }
+        pairings.push(pairing);
+    }
+    Ok(pairings)
 }
