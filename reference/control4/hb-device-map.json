@@ -1,0 +1,1366 @@
+{
+  "endpoint": "192.168.0.10:50007",
+  "address_encoding": "hexadecimal",
+  "devices": [
+    {
+      "control4_id": "362",
+      "kind": "Dimmer",
+      "bus_id_hex": "15",
+      "bus_id": 21,
+      "channel": 1,
+      "name": "GJ-TECH.CN Dimmer (v2)",
+      "room": "休闲区",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "252",
+      "kind": "Switch",
+      "bus_id_hex": "05",
+      "bus_id": 5,
+      "channel": 1,
+      "name": "GJ-TECH.CN Switch (v2)",
+      "room": "休闲区",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "358",
+      "kind": "Dimmer",
+      "bus_id_hex": "14",
+      "bus_id": 20,
+      "channel": 7,
+      "name": "GJ-TECH.CN Dimmer (v2)",
+      "room": "休闲区",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "91",
+      "kind": "Switch",
+      "bus_id_hex": "02",
+      "bus_id": 2,
+      "channel": 3,
+      "name": "GJ-TECH.CN Switch (v2)",
+      "room": "休闲区",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "95",
+      "kind": "Switch",
+      "bus_id_hex": "02",
+      "bus_id": 2,
+      "channel": 5,
+      "name": "GJ-TECH.CN Switch (v2)",
+      "room": "休闲区",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "97",
+      "kind": "Switch",
+      "bus_id_hex": "02",
+      "bus_id": 2,
+      "channel": 6,
+      "name": "GJ-TECH.CN Switch (v2)",
+      "room": "休闲区",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "338",
+      "kind": "Dimmer",
+      "bus_id_hex": "12",
+      "bus_id": 18,
+      "channel": 5,
+      "name": "GJ-TECH.CN Dimmer (v2)",
+      "room": "休闲区",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "356",
+      "kind": "Dimmer",
+      "bus_id_hex": "14",
+      "bus_id": 20,
+      "channel": 6,
+      "name": "GJ-TECH.CN Dimmer (v2)",
+      "room": "休闲区",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "99",
+      "kind": "Switch",
+      "bus_id_hex": "02",
+      "bus_id": 2,
+      "channel": 7,
+      "name": "GJ-TECH.CN Switch (v2)",
+      "room": "休闲区",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "354",
+      "kind": "Dimmer",
+      "bus_id_hex": "14",
+      "bus_id": 20,
+      "channel": 5,
+      "name": "GJ-TECH.CN Dimmer (v2)",
+      "room": "休闲区",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "416",
+      "kind": "Keypad",
+      "bus_id_hex": "5B",
+      "bus_id": 91,
+      "channel": null,
+      "name": "B1南门口",
+      "room": "休闲区",
+      "keypad_type": "Rocker"
+    },
+    {
+      "control4_id": "417",
+      "kind": "Keypad",
+      "bus_id_hex": "5A",
+      "bus_id": 90,
+      "channel": null,
+      "name": "B1卧室门口",
+      "room": "休闲区",
+      "keypad_type": "Rocker"
+    },
+    {
+      "control4_id": "423",
+      "kind": "Keypad",
+      "bus_id_hex": "57",
+      "bus_id": 87,
+      "channel": null,
+      "name": "B1楼梯口",
+      "room": "休闲区",
+      "keypad_type": "Rocker"
+    },
+    {
+      "control4_id": "424",
+      "kind": "Keypad",
+      "bus_id_hex": "56",
+      "bus_id": 86,
+      "channel": null,
+      "name": "B1影音室门口",
+      "room": "休闲区",
+      "keypad_type": "Rocker"
+    },
+    {
+      "control4_id": "288",
+      "kind": "Blind",
+      "bus_id_hex": "22",
+      "bus_id": 34,
+      "channel": 1,
+      "name": "GJ-TECH.CN Blinds (OS 2.9+)",
+      "room": "休闲区",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "328",
+      "kind": "Dimmer",
+      "bus_id_hex": "13",
+      "bus_id": 19,
+      "channel": 8,
+      "name": "GJ-TECH.CN Dimmer (v2)",
+      "room": "画室",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "250",
+      "kind": "Switch",
+      "bus_id_hex": "06",
+      "bus_id": 6,
+      "channel": 8,
+      "name": "GJ-TECH.CN Switch (v2)",
+      "room": "画室",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "89",
+      "kind": "Switch",
+      "bus_id_hex": "02",
+      "bus_id": 2,
+      "channel": 2,
+      "name": "GJ-TECH.CN Switch (v2)",
+      "room": "画室",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "360",
+      "kind": "Dimmer",
+      "bus_id_hex": "14",
+      "bus_id": 20,
+      "channel": 8,
+      "name": "GJ-TECH.CN Dimmer (v2)",
+      "room": "画室",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "425",
+      "kind": "Keypad",
+      "bus_id_hex": "72",
+      "bus_id": 114,
+      "channel": null,
+      "name": "画室门口",
+      "room": "画室",
+      "keypad_type": "Rocker"
+    },
+    {
+      "control4_id": "302",
+      "kind": "Blind",
+      "bus_id_hex": "23",
+      "bus_id": 35,
+      "channel": 4,
+      "name": "GJ-TECH.CN Blinds (OS 2.9+)",
+      "room": "画室",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "204",
+      "kind": "Switch",
+      "bus_id_hex": "03",
+      "bus_id": 3,
+      "channel": 1,
+      "name": "GJ-TECH.CN Switch (v2)",
+      "room": "影音室",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "206",
+      "kind": "Switch",
+      "bus_id_hex": "03",
+      "bus_id": 3,
+      "channel": 2,
+      "name": "GJ-TECH.CN Switch (v2)",
+      "room": "影音室",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "208",
+      "kind": "Switch",
+      "bus_id_hex": "03",
+      "bus_id": 3,
+      "channel": 3,
+      "name": "GJ-TECH.CN Switch (v2)",
+      "room": "影音室",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "332",
+      "kind": "Dimmer",
+      "bus_id_hex": "12",
+      "bus_id": 18,
+      "channel": 2,
+      "name": "GJ-TECH.CN Dimmer (v2)",
+      "room": "影音室",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "350",
+      "kind": "Dimmer",
+      "bus_id_hex": "14",
+      "bus_id": 20,
+      "channel": 3,
+      "name": "GJ-TECH.CN Dimmer (v2)",
+      "room": "影音室",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "352",
+      "kind": "Dimmer",
+      "bus_id_hex": "14",
+      "bus_id": 20,
+      "channel": 4,
+      "name": "GJ-TECH.CN Dimmer (v2)",
+      "room": "影音室",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "202",
+      "kind": "Switch",
+      "bus_id_hex": "02",
+      "bus_id": 2,
+      "channel": 8,
+      "name": "GJ-TECH.CN Switch (v2)",
+      "room": "影音室",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "442",
+      "kind": "Keypad",
+      "bus_id_hex": "58",
+      "bus_id": 88,
+      "channel": null,
+      "name": "影音室",
+      "room": "影音室",
+      "keypad_type": "Rocker"
+    },
+    {
+      "control4_id": "387",
+      "kind": "Switch",
+      "bus_id_hex": "01",
+      "bus_id": 1,
+      "channel": 2,
+      "name": "GJ-TECH.CN Switch (v2)",
+      "room": "设备间",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "224",
+      "kind": "Switch",
+      "bus_id_hex": "04",
+      "bus_id": 4,
+      "channel": 3,
+      "name": "GJ-TECH.CN Switch (v2)",
+      "room": "设备间",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "414",
+      "kind": "Keypad",
+      "bus_id_hex": "61",
+      "bus_id": 97,
+      "channel": null,
+      "name": "设备间门口",
+      "room": "设备间",
+      "keypad_type": "Rocker"
+    },
+    {
+      "control4_id": "220",
+      "kind": "Switch",
+      "bus_id_hex": "04",
+      "bus_id": 4,
+      "channel": 1,
+      "name": "GJ-TECH.CN Switch (v2)",
+      "room": "洗衣房",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "222",
+      "kind": "Switch",
+      "bus_id_hex": "04",
+      "bus_id": 4,
+      "channel": 2,
+      "name": "GJ-TECH.CN Switch (v2)",
+      "room": "配电室",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "93",
+      "kind": "Switch",
+      "bus_id_hex": "02",
+      "bus_id": 2,
+      "channel": 4,
+      "name": "GJ-TECH.CN Switch (v2)",
+      "room": "客卧",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "212",
+      "kind": "Switch",
+      "bus_id_hex": "03",
+      "bus_id": 3,
+      "channel": 5,
+      "name": "GJ-TECH.CN Switch (v2)",
+      "room": "客卧",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "334",
+      "kind": "Dimmer",
+      "bus_id_hex": "12",
+      "bus_id": 18,
+      "channel": 3,
+      "name": "GJ-TECH.CN Dimmer (v2)",
+      "room": "客卧",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "330",
+      "kind": "Dimmer",
+      "bus_id_hex": "12",
+      "bus_id": 18,
+      "channel": 1,
+      "name": "GJ-TECH.CN Dimmer (v2)",
+      "room": "客卧",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "420",
+      "kind": "Keypad",
+      "bus_id_hex": "53",
+      "bus_id": 83,
+      "channel": null,
+      "name": "客卧左",
+      "room": "客卧",
+      "keypad_type": "Rocker"
+    },
+    {
+      "control4_id": "421",
+      "kind": "Keypad",
+      "bus_id_hex": "54",
+      "bus_id": 84,
+      "channel": null,
+      "name": "客卧右",
+      "room": "客卧",
+      "keypad_type": "Rocker"
+    },
+    {
+      "control4_id": "292",
+      "kind": "Blind",
+      "bus_id_hex": "22",
+      "bus_id": 34,
+      "channel": 3,
+      "name": "GJ-TECH.CN Blinds (OS 2.9+)",
+      "room": "客卧",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "228",
+      "kind": "Switch",
+      "bus_id_hex": "04",
+      "bus_id": 4,
+      "channel": 5,
+      "name": "GJ-TECH.CN Switch (v2)",
+      "room": "卫生间",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "234",
+      "kind": "Switch",
+      "bus_id_hex": "04",
+      "bus_id": 4,
+      "channel": 8,
+      "name": "GJ-TECH.CN Switch (v2)",
+      "room": "庭院",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "226",
+      "kind": "Switch",
+      "bus_id_hex": "04",
+      "bus_id": 4,
+      "channel": 4,
+      "name": "GJ-TECH.CN Switch (v2)",
+      "room": "阳光房",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "348",
+      "kind": "Dimmer",
+      "bus_id_hex": "14",
+      "bus_id": 20,
+      "channel": 2,
+      "name": "GJ-TECH.CN Dimmer (v2)",
+      "room": "阳光房",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "81",
+      "kind": "Switch",
+      "bus_id_hex": "01",
+      "bus_id": 1,
+      "channel": 5,
+      "name": "GJ-TECH.CN Switch (v2)",
+      "room": "阳光房",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "422",
+      "kind": "Keypad",
+      "bus_id_hex": "5C",
+      "bus_id": 92,
+      "channel": null,
+      "name": "B1入户门",
+      "room": "阳光房",
+      "keypad_type": "Rocker"
+    },
+    {
+      "control4_id": "216",
+      "kind": "Switch",
+      "bus_id_hex": "03",
+      "bus_id": 3,
+      "channel": 7,
+      "name": "GJ-TECH.CN Switch (v2)",
+      "room": "门廊",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "218",
+      "kind": "Switch",
+      "bus_id_hex": "03",
+      "bus_id": 3,
+      "channel": 8,
+      "name": "GJ-TECH.CN Switch (v2)",
+      "room": "门厅",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "389",
+      "kind": "Dimmer",
+      "bus_id_hex": "11",
+      "bus_id": 17,
+      "channel": 1,
+      "name": "GJ-TECH.CN Dimmer (v2)",
+      "room": "门厅",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "268",
+      "kind": "Switch",
+      "bus_id_hex": "07",
+      "bus_id": 7,
+      "channel": 1,
+      "name": "GJ-TECH.CN Switch (v2)",
+      "room": "门厅",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "456",
+      "kind": "Keypad",
+      "bus_id_hex": "48",
+      "bus_id": 72,
+      "channel": null,
+      "name": "门厅",
+      "room": "门厅",
+      "keypad_type": "Rocker"
+    },
+    {
+      "control4_id": "258",
+      "kind": "Switch",
+      "bus_id_hex": "05",
+      "bus_id": 5,
+      "channel": 4,
+      "name": "GJ-TECH.CN Switch (v2)",
+      "room": "客厅",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "260",
+      "kind": "Switch",
+      "bus_id_hex": "05",
+      "bus_id": 5,
+      "channel": 5,
+      "name": "GJ-TECH.CN Switch (v2)",
+      "room": "客厅",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "262",
+      "kind": "Switch",
+      "bus_id_hex": "05",
+      "bus_id": 5,
+      "channel": 6,
+      "name": "GJ-TECH.CN Switch (v2)",
+      "room": "客厅",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "232",
+      "kind": "Switch",
+      "bus_id_hex": "04",
+      "bus_id": 4,
+      "channel": 7,
+      "name": "GJ-TECH.CN Switch (v2)",
+      "room": "客厅",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "340",
+      "kind": "Dimmer",
+      "bus_id_hex": "12",
+      "bus_id": 18,
+      "channel": 6,
+      "name": "GJ-TECH.CN Dimmer (v2)",
+      "room": "客厅",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "272",
+      "kind": "Switch",
+      "bus_id_hex": "07",
+      "bus_id": 7,
+      "channel": 3,
+      "name": "GJ-TECH.CN Switch (v2)",
+      "room": "客厅",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "391",
+      "kind": "Dimmer",
+      "bus_id_hex": "11",
+      "bus_id": 17,
+      "channel": 3,
+      "name": "GJ-TECH.CN Dimmer (v2)",
+      "room": "客厅",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "320",
+      "kind": "Dimmer",
+      "bus_id_hex": "13",
+      "bus_id": 19,
+      "channel": 4,
+      "name": "GJ-TECH.CN Dimmer (v2)",
+      "room": "客厅",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "322",
+      "kind": "Dimmer",
+      "bus_id_hex": "13",
+      "bus_id": 19,
+      "channel": 5,
+      "name": "GJ-TECH.CN Dimmer (v2)",
+      "room": "客厅",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "242",
+      "kind": "Switch",
+      "bus_id_hex": "06",
+      "bus_id": 6,
+      "channel": 4,
+      "name": "GJ-TECH.CN Switch (v2)",
+      "room": "客厅",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "426",
+      "kind": "Keypad",
+      "bus_id_hex": "47",
+      "bus_id": 71,
+      "channel": null,
+      "name": "F1楼梯口",
+      "room": "客厅",
+      "keypad_type": "Rocker"
+    },
+    {
+      "control4_id": "437",
+      "kind": "Keypad",
+      "bus_id_hex": "44",
+      "bus_id": 68,
+      "channel": null,
+      "name": "客厅",
+      "room": "客厅",
+      "keypad_type": "Rocker"
+    },
+    {
+      "control4_id": "438",
+      "kind": "Keypad",
+      "bus_id_hex": "45",
+      "bus_id": 69,
+      "channel": null,
+      "name": "卧室门口",
+      "room": "客厅",
+      "keypad_type": "Rocker"
+    },
+    {
+      "control4_id": "294",
+      "kind": "Blind",
+      "bus_id_hex": "22",
+      "bus_id": 34,
+      "channel": 4,
+      "name": "GJ-TECH.CN Blinds (OS 2.9+)",
+      "room": "客厅",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "83",
+      "kind": "Switch",
+      "bus_id_hex": "01",
+      "bus_id": 1,
+      "channel": 6,
+      "name": "GJ-TECH.CN Switch (v2)",
+      "room": "餐厅",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "346",
+      "kind": "Dimmer",
+      "bus_id_hex": "14",
+      "bus_id": 20,
+      "channel": 1,
+      "name": "GJ-TECH.CN Dimmer (v2)",
+      "room": "餐厅",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "403",
+      "kind": "Dimmer",
+      "bus_id_hex": "11",
+      "bus_id": 17,
+      "channel": 2,
+      "name": "GJ-TECH.CN Dimmer (v2)",
+      "room": "餐厅",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "270",
+      "kind": "Switch",
+      "bus_id_hex": "07",
+      "bus_id": 7,
+      "channel": 2,
+      "name": "GJ-TECH.CN Switch (v2)",
+      "room": "餐厅",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "240",
+      "kind": "Switch",
+      "bus_id_hex": "06",
+      "bus_id": 6,
+      "channel": 3,
+      "name": "GJ-TECH.CN Switch (v2)",
+      "room": "餐厅",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "316",
+      "kind": "Dimmer",
+      "bus_id_hex": "13",
+      "bus_id": 19,
+      "channel": 2,
+      "name": "GJ-TECH.CN Dimmer (v2)",
+      "room": "餐厅",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "318",
+      "kind": "Dimmer",
+      "bus_id_hex": "13",
+      "bus_id": 19,
+      "channel": 3,
+      "name": "GJ-TECH.CN Dimmer (v2)",
+      "room": "餐厅",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "410",
+      "kind": "Keypad",
+      "bus_id_hex": "46",
+      "bus_id": 70,
+      "channel": null,
+      "name": "餐厅",
+      "room": "餐厅",
+      "keypad_type": "Rocker"
+    },
+    {
+      "control4_id": "85",
+      "kind": "Switch",
+      "bus_id_hex": "01",
+      "bus_id": 1,
+      "channel": 7,
+      "name": "GJ-TECH.CN Switch (v2)",
+      "room": "厨房",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "230",
+      "kind": "Switch",
+      "bus_id_hex": "04",
+      "bus_id": 4,
+      "channel": 6,
+      "name": "GJ-TECH.CN Switch (v2)",
+      "room": "厨房",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "366",
+      "kind": "Dimmer",
+      "bus_id_hex": "15",
+      "bus_id": 21,
+      "channel": 3,
+      "name": "GJ-TECH.CN Dimmer (v2)",
+      "room": "卧室",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "254",
+      "kind": "Switch",
+      "bus_id_hex": "05",
+      "bus_id": 5,
+      "channel": 2,
+      "name": "GJ-TECH.CN Switch (v2)",
+      "room": "卧室",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "364",
+      "kind": "Dimmer",
+      "bus_id_hex": "15",
+      "bus_id": 21,
+      "channel": 2,
+      "name": "GJ-TECH.CN Dimmer (v2)",
+      "room": "卧室",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "256",
+      "kind": "Switch",
+      "bus_id_hex": "05",
+      "bus_id": 5,
+      "channel": 3,
+      "name": "GJ-TECH.CN Switch (v2)",
+      "room": "卧室",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "409",
+      "kind": "Keypad",
+      "bus_id_hex": "60",
+      "bus_id": 96,
+      "channel": null,
+      "name": "卧室右",
+      "room": "卧室",
+      "keypad_type": "Rocker"
+    },
+    {
+      "control4_id": "441",
+      "kind": "Keypad",
+      "bus_id_hex": "43",
+      "bus_id": 67,
+      "channel": null,
+      "name": "卧室左",
+      "room": "卧室",
+      "keypad_type": "Rocker"
+    },
+    {
+      "control4_id": "284",
+      "kind": "Blind",
+      "bus_id_hex": "21",
+      "bus_id": 33,
+      "channel": 3,
+      "name": "GJ-TECH.CN Blinds (OS 2.9+)",
+      "room": "卧室",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "210",
+      "kind": "Switch",
+      "bus_id_hex": "03",
+      "bus_id": 3,
+      "channel": 4,
+      "name": "GJ-TECH.CN Switch (v2)",
+      "room": "书房",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "336",
+      "kind": "Dimmer",
+      "bus_id_hex": "12",
+      "bus_id": 18,
+      "channel": 4,
+      "name": "GJ-TECH.CN Dimmer (v2)",
+      "room": "书房",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "63",
+      "kind": "Keypad",
+      "bus_id_hex": "41",
+      "bus_id": 65,
+      "channel": null,
+      "name": "书房",
+      "room": "书房",
+      "keypad_type": "Rocker"
+    },
+    {
+      "control4_id": "308",
+      "kind": "Dimmer",
+      "bus_id_hex": "11",
+      "bus_id": 17,
+      "channel": 5,
+      "name": "GJ-TECH.CN Dimmer (v2)",
+      "room": "书房",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "278",
+      "kind": "Switch",
+      "bus_id_hex": "07",
+      "bus_id": 7,
+      "channel": 6,
+      "name": "GJ-TECH.CN Switch (v2)",
+      "room": "书房",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "290",
+      "kind": "Blind",
+      "bus_id_hex": "22",
+      "bus_id": 34,
+      "channel": 2,
+      "name": "GJ-TECH.CN Blinds (OS 2.9+)",
+      "room": "书房",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "71",
+      "kind": "Switch",
+      "bus_id_hex": "02",
+      "bus_id": 2,
+      "channel": 1,
+      "name": "GJ-TECH.CN Switch (v2)",
+      "room": "Front",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "385",
+      "kind": "Switch",
+      "bus_id_hex": "01",
+      "bus_id": 1,
+      "channel": 1,
+      "name": "GJ-TECH.CN Switch (v2)",
+      "room": "Front",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "286",
+      "kind": "Blind",
+      "bus_id_hex": "21",
+      "bus_id": 33,
+      "channel": 4,
+      "name": "GJ-TECH.CN Blinds (OS 2.9+)",
+      "room": "Front",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "405",
+      "kind": "Dimmer",
+      "bus_id_hex": "13",
+      "bus_id": 19,
+      "channel": 1,
+      "name": "GJ-TECH.CN Dimmer (v2)",
+      "room": "Front",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "79",
+      "kind": "Switch",
+      "bus_id_hex": "01",
+      "bus_id": 1,
+      "channel": 3,
+      "name": "GJ-TECH.CN Switch (v2)",
+      "room": "卫生间",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "236",
+      "kind": "Switch",
+      "bus_id_hex": "06",
+      "bus_id": 6,
+      "channel": 1,
+      "name": "GJ-TECH.CN Switch (v2)",
+      "room": "主卧",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "87",
+      "kind": "Switch",
+      "bus_id_hex": "01",
+      "bus_id": 1,
+      "channel": 8,
+      "name": "GJ-TECH.CN Switch (v2)",
+      "room": "主卧",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "238",
+      "kind": "Switch",
+      "bus_id_hex": "06",
+      "bus_id": 6,
+      "channel": 2,
+      "name": "GJ-TECH.CN Switch (v2)",
+      "room": "主卧",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "376",
+      "kind": "Dimmer",
+      "bus_id_hex": "15",
+      "bus_id": 21,
+      "channel": 8,
+      "name": "GJ-TECH.CN Dimmer (v2)",
+      "room": "主卧",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "370",
+      "kind": "Dimmer",
+      "bus_id_hex": "15",
+      "bus_id": 21,
+      "channel": 5,
+      "name": "GJ-TECH.CN Dimmer (v2)",
+      "room": "主卧",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "368",
+      "kind": "Dimmer",
+      "bus_id_hex": "15",
+      "bus_id": 21,
+      "channel": 4,
+      "name": "GJ-TECH.CN Dimmer (v2)",
+      "room": "主卧",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "435",
+      "kind": "Keypad",
+      "bus_id_hex": "4A",
+      "bus_id": 74,
+      "channel": null,
+      "name": "主卧左",
+      "room": "主卧",
+      "keypad_type": "Rocker"
+    },
+    {
+      "control4_id": "436",
+      "kind": "Keypad",
+      "bus_id_hex": "4B",
+      "bus_id": 75,
+      "channel": null,
+      "name": "主卧右",
+      "room": "主卧",
+      "keypad_type": "Rocker"
+    },
+    {
+      "control4_id": "58",
+      "kind": "Blind",
+      "bus_id_hex": "21",
+      "bus_id": 33,
+      "channel": 1,
+      "name": "GJ-TECH.CN Blinds (OS 2.9+)",
+      "room": "主卧",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "244",
+      "kind": "Switch",
+      "bus_id_hex": "06",
+      "bus_id": 6,
+      "channel": 5,
+      "name": "GJ-TECH.CN Switch (v2)",
+      "room": "阅览室",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "324",
+      "kind": "Dimmer",
+      "bus_id_hex": "13",
+      "bus_id": 19,
+      "channel": 6,
+      "name": "GJ-TECH.CN Dimmer (v2)",
+      "room": "阅览室",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "430",
+      "kind": "Keypad",
+      "bus_id_hex": "51",
+      "bus_id": 81,
+      "channel": null,
+      "name": "阅览室",
+      "room": "阅览室",
+      "keypad_type": "Rocker"
+    },
+    {
+      "control4_id": "448",
+      "kind": "Blind",
+      "bus_id_hex": "23",
+      "bus_id": 35,
+      "channel": 1,
+      "name": "GJ-TECH.CN Blinds (OS 2.9+)",
+      "room": "阅览室",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "246",
+      "kind": "Switch",
+      "bus_id_hex": "06",
+      "bus_id": 6,
+      "channel": 6,
+      "name": "GJ-TECH.CN Switch (v2)",
+      "room": "衣帽间",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "326",
+      "kind": "Dimmer",
+      "bus_id_hex": "13",
+      "bus_id": 19,
+      "channel": 7,
+      "name": "GJ-TECH.CN Dimmer (v2)",
+      "room": "衣帽间",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "432",
+      "kind": "Keypad",
+      "bus_id_hex": "4C",
+      "bus_id": 76,
+      "channel": null,
+      "name": "衣帽间",
+      "room": "衣帽间",
+      "keypad_type": "Rocker"
+    },
+    {
+      "control4_id": "298",
+      "kind": "Blind",
+      "bus_id_hex": "23",
+      "bus_id": 35,
+      "channel": 2,
+      "name": "GJ-TECH.CN Blinds (OS 2.9+)",
+      "room": "衣帽间",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "282",
+      "kind": "Switch",
+      "bus_id_hex": "07",
+      "bus_id": 7,
+      "channel": 8,
+      "name": "GJ-TECH.CN Switch (v2)",
+      "room": "主卫",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "314",
+      "kind": "Dimmer",
+      "bus_id_hex": "11",
+      "bus_id": 17,
+      "channel": 8,
+      "name": "GJ-TECH.CN Dimmer (v2)",
+      "room": "主卫",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "214",
+      "kind": "Switch",
+      "bus_id_hex": "03",
+      "bus_id": 3,
+      "channel": 6,
+      "name": "GJ-TECH.CN Switch (v2)",
+      "room": "客卫",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "264",
+      "kind": "Switch",
+      "bus_id_hex": "05",
+      "bus_id": 5,
+      "channel": 7,
+      "name": "GJ-TECH.CN Switch (v2)",
+      "room": "南卧",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "266",
+      "kind": "Switch",
+      "bus_id_hex": "05",
+      "bus_id": 5,
+      "channel": 8,
+      "name": "GJ-TECH.CN Switch (v2)",
+      "room": "南卧",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "344",
+      "kind": "Dimmer",
+      "bus_id_hex": "12",
+      "bus_id": 18,
+      "channel": 8,
+      "name": "GJ-TECH.CN Dimmer (v2)",
+      "room": "南卧",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "374",
+      "kind": "Dimmer",
+      "bus_id_hex": "15",
+      "bus_id": 21,
+      "channel": 7,
+      "name": "GJ-TECH.CN Dimmer (v2)",
+      "room": "南卧",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "342",
+      "kind": "Dimmer",
+      "bus_id_hex": "12",
+      "bus_id": 18,
+      "channel": 7,
+      "name": "GJ-TECH.CN Dimmer (v2)",
+      "room": "南卧",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "433",
+      "kind": "Keypad",
+      "bus_id_hex": "4D",
+      "bus_id": 77,
+      "channel": null,
+      "name": "南卧左",
+      "room": "南卧",
+      "keypad_type": "Rocker"
+    },
+    {
+      "control4_id": "434",
+      "kind": "Keypad",
+      "bus_id_hex": "4E",
+      "bus_id": 78,
+      "channel": null,
+      "name": "南卧右",
+      "room": "南卧",
+      "keypad_type": "Rocker"
+    },
+    {
+      "control4_id": "451",
+      "kind": "Blind",
+      "bus_id_hex": "21",
+      "bus_id": 33,
+      "channel": 2,
+      "name": "GJ-TECH.CN Blinds (OS 2.9+)",
+      "room": "南卧",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "73",
+      "kind": "Switch",
+      "bus_id_hex": "01",
+      "bus_id": 1,
+      "channel": 4,
+      "name": "GJ-TECH.CN Switch (v2)",
+      "room": "楼道",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "274",
+      "kind": "Switch",
+      "bus_id_hex": "07",
+      "bus_id": 7,
+      "channel": 4,
+      "name": "GJ-TECH.CN Switch (v2)",
+      "room": "楼道",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "276",
+      "kind": "Switch",
+      "bus_id_hex": "07",
+      "bus_id": 7,
+      "channel": 5,
+      "name": "GJ-TECH.CN Switch (v2)",
+      "room": "楼道",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "306",
+      "kind": "Dimmer",
+      "bus_id_hex": "11",
+      "bus_id": 17,
+      "channel": 4,
+      "name": "GJ-TECH.CN Dimmer (v2)",
+      "room": "楼道",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "310",
+      "kind": "Dimmer",
+      "bus_id_hex": "11",
+      "bus_id": 17,
+      "channel": 6,
+      "name": "GJ-TECH.CN Dimmer (v2)",
+      "room": "楼道",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "427",
+      "kind": "Keypad",
+      "bus_id_hex": "49",
+      "bus_id": 73,
+      "channel": null,
+      "name": "F2楼梯口",
+      "room": "楼道",
+      "keypad_type": "Rocker"
+    },
+    {
+      "control4_id": "431",
+      "kind": "Keypad",
+      "bus_id_hex": "52",
+      "bus_id": 82,
+      "channel": null,
+      "name": "南卧门口",
+      "room": "楼道",
+      "keypad_type": "Rocker"
+    },
+    {
+      "control4_id": "248",
+      "kind": "Switch",
+      "bus_id_hex": "06",
+      "bus_id": 6,
+      "channel": 7,
+      "name": "GJ-TECH.CN Switch (v2)",
+      "room": "北卧",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "312",
+      "kind": "Dimmer",
+      "bus_id_hex": "11",
+      "bus_id": 17,
+      "channel": 7,
+      "name": "GJ-TECH.CN Dimmer (v2)",
+      "room": "北卧",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "372",
+      "kind": "Dimmer",
+      "bus_id_hex": "15",
+      "bus_id": 21,
+      "channel": 6,
+      "name": "GJ-TECH.CN Dimmer (v2)",
+      "room": "北卧",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "280",
+      "kind": "Switch",
+      "bus_id_hex": "07",
+      "bus_id": 7,
+      "channel": 7,
+      "name": "GJ-TECH.CN Switch (v2)",
+      "room": "北卧",
+      "keypad_type": null
+    },
+    {
+      "control4_id": "428",
+      "kind": "Keypad",
+      "bus_id_hex": "50",
+      "bus_id": 80,
+      "channel": null,
+      "name": "北卧右",
+      "room": "北卧",
+      "keypad_type": "Rocker"
+    },
+    {
+      "control4_id": "429",
+      "kind": "Keypad",
+      "bus_id_hex": "4F",
+      "bus_id": 79,
+      "channel": null,
+      "name": "北卧左",
+      "room": "北卧",
+      "keypad_type": "Rocker"
+    },
+    {
+      "control4_id": "300",
+      "kind": "Blind",
+      "bus_id_hex": "23",
+      "bus_id": 35,
+      "channel": 3,
+      "name": "GJ-TECH.CN Blinds (OS 2.9+)",
+      "room": "北卧",
+      "keypad_type": null
+    }
+  ]
+}

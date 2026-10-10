@@ -1,0 +1,180 @@
+{
+  "copied_on": "2026-10-10",
+  "files": [
+    {
+      "path": "reference/control4/Charlies250801.parsed.json",
+      "source": "/Users/liuwei/.codex/visualizations/2026/10/10/01a1233b-ff40-7971-b40d-806595943d96/control4/Charlies250801.parsed.json",
+      "sha256_at_copy": "d7b71d17de92a6eda9405ae62ab60b0ba90d64dfd1d695d906ea142ae32a4d99",
+      "sha256_current": "d7b71d17de92a6eda9405ae62ab60b0ba90d64dfd1d695d906ea142ae32a4d99"
+    },
+    {
+      "path": "reference/control4/Charlies250801.report.txt",
+      "source": "/Users/liuwei/.codex/visualizations/2026/10/10/01a1233b-ff40-7971-b40d-806595943d96/control4/Charlies250801.report.txt",
+      "sha256_at_copy": "415ae6bc6f5070702ee4a92a076eff70c394d96da9e7db7a408d4413a6d4f9da",
+      "sha256_current": "415ae6bc6f5070702ee4a92a076eff70c394d96da9e7db7a408d4413a6d4f9da"
+    },
+    {
+      "path": "reference/control4/hb-device-map.json",
+      "source": "/Users/liuwei/.codex/visualizations/2026/10/10/01a1233b-ff40-7971-b40d-806595943d96/control4/GJ-device-map.json",
+      "sha256_at_copy": "39302441d0ddd2117eaf5104494cc7bffeec158985fa9802703667f86c3efa8f",
+      "sha256_current": "39302441d0ddd2117eaf5104494cc7bffeec158985fa9802703667f86c3efa8f"
+    },
+    {
+      "path": "reference/control4/hb-module-addresses.txt",
+      "source": "/Users/liuwei/.codex/visualizations/2026/10/10/01a1233b-ff40-7971-b40d-806595943d96/control4/GJ-module-addresses.txt",
+      "sha256_at_copy": "df222442ec7b34831f2931d87af4e4d8f059d3eb6d30a1e10dd1cfec4d533709",
+      "sha256_current": "df222442ec7b34831f2931d87af4e4d8f059d3eb6d30a1e10dd1cfec4d533709"
+    },
+    {
+      "path": "reference/control4/hb-protocol-notes.txt",
+      "source": "/Users/liuwei/.codex/visualizations/2026/10/10/01a1233b-ff40-7971-b40d-806595943d96/control4/GJ-protocol-notes.txt",
+      "sha256_at_copy": "3bdb3ac1b6b3400567575da009c2946e516a79d5f7371a1611480623494165e2",
+      "sha256_current": "b9b699f98de95ebba2d95187cd6e06094e3da62b4788325123027c9983aecb1b"
+    },
+    {
+      "path": "docs/design.md",
+      "source": "/Users/liuwei/.codex/visualizations/2026/10/10/01a1233b-ff40-7971-b40d-806595943d96/control4/Home-control-design.md",
+      "sha256_at_copy": "6a41df7855d2c63421e5d3a1ecf3e6439e80c2529fd348cdd40305c590c64e6e",
+      "sha256_current": "d11c50107910a429c79d5d1df321b2918d0d5a6649fc233aa1b04de0238083bb"
+    },
+    {
+      "path": "docs/archive/design-v1.2.md",
+      "source": "/Users/liuwei/.codex/visualizations/2026/10/10/01a1233b-ff40-7971-b40d-806595943d96/control4/Home-control-design.v1.2.md",
+      "sha256_at_copy": "64b9d725c9559494b2a4023167d3451cd9b6d43b4c29151ea7546196bf6ac040",
+      "sha256_current": "64b9d725c9559494b2a4023167d3451cd9b6d43b4c29151ea7546196bf6ac040"
+    },
+    {
+      "path": "reference/control4/manual-pages/BT-86.png",
+      "source": "/Users/liuwei/.codex/visualizations/2026/10/10/01a1233b-ff40-7971-b40d-806595943d96/control4/manual-pages/BT-86.png",
+      "sha256_at_copy": "57c37065b4c167855c5fa5a772e72a87def8933e7e152ab1168365e95fbfaf05",
+      "sha256_current": "57c37065b4c167855c5fa5a772e72a87def8933e7e152ab1168365e95fbfaf05"
+    },
+    {
+      "path": "reference/control4/manual-pages/GT-C8.png",
+      "source": "/Users/liuwei/.codex/visualizations/2026/10/10/01a1233b-ff40-7971-b40d-806595943d96/control4/manual-pages/GT-C8.png",
+      "sha256_at_copy": "8c9d30c913f796a17521de9eaf03bb7e7465f489c546bbac7990cb8e3aad09a2",
+      "sha256_current": "8c9d30c913f796a17521de9eaf03bb7e7465f489c546bbac7990cb8e3aad09a2"
+    },
+    {
+      "path": "reference/control4/manual-pages/GT-D8.png",
+      "source": "/Users/liuwei/.codex/visualizations/2026/10/10/01a1233b-ff40-7971-b40d-806595943d96/control4/manual-pages/GT-D8.png",
+      "sha256_at_copy": "f6bbd588476bce5760a2e37e29eb0cbf7106d44dda0ba0f61b3197e779216617",
+      "sha256_current": "f6bbd588476bce5760a2e37e29eb0cbf7106d44dda0ba0f61b3197e779216617"
+    },
+    {
+      "path": "reference/control4/manual-pages/GT-E4.png",
+      "source": "/Users/liuwei/.codex/visualizations/2026/10/10/01a1233b-ff40-7971-b40d-806595943d96/control4/manual-pages/GT-E4.png",
+      "sha256_at_copy": "cfef09aef7e5e0dd392bce0f223f78614e852c67ab1f57545239a0788977afd6",
+      "sha256_current": "cfef09aef7e5e0dd392bce0f223f78614e852c67ab1f57545239a0788977afd6"
+    },
+    {
+      "path": "reference/control4/manual-pages/GT-L8.png",
+      "source": "/Users/liuwei/.codex/visualizations/2026/10/10/01a1233b-ff40-7971-b40d-806595943d96/control4/manual-pages/GT-L8.png",
+      "sha256_at_copy": "9852e8ccd6ef9d08d1d1f3076f0ac5f7965f2f92eeacd37624e9632c52ab563b",
+      "sha256_current": "9852e8ccd6ef9d08d1d1f3076f0ac5f7965f2f92eeacd37624e9632c52ab563b"
+    },
+    {
+      "path": "reference/control4/manual-pages/GT-M4.png",
+      "source": "/Users/liuwei/.codex/visualizations/2026/10/10/01a1233b-ff40-7971-b40d-806595943d96/control4/manual-pages/GT-M4.png",
+      "sha256_at_copy": "7b655b4f32856c96d38aee0a01064304ed6a8bcf25a3dfe8e5d198673b846578",
+      "sha256_current": "7b655b4f32856c96d38aee0a01064304ed6a8bcf25a3dfe8e5d198673b846578"
+    },
+    {
+      "path": "reference/control4/manual-pages/TCP485.png",
+      "source": "/Users/liuwei/.codex/visualizations/2026/10/10/01a1233b-ff40-7971-b40d-806595943d96/control4/manual-pages/TCP485.png",
+      "sha256_at_copy": "9c8b1e42f99223d866f62073e346419655ed98d859f73cf3ece8b8921436d46e",
+      "sha256_current": "9c8b1e42f99223d866f62073e346419655ed98d859f73cf3ece8b8921436d46e"
+    },
+    {
+      "path": "reference/control4/manual-text/6进6出控制面板接口模块IO6(RS485)使用手册 V2.7.7.2.txt",
+      "source": "/Users/liuwei/.codex/visualizations/2026/10/10/01a1233b-ff40-7971-b40d-806595943d96/control4/manual-text/6进6出控制面板接口模块IO6(RS485)使用手册 V2.7.7.2.txt",
+      "sha256_at_copy": "66dbfa037ce0e049b1d4a15f9f4629d92e23ff957964f9b218e54e3ac5fe9eac",
+      "sha256_current": "66dbfa037ce0e049b1d4a15f9f4629d92e23ff957964f9b218e54e3ac5fe9eac"
+    },
+    {
+      "path": "reference/control4/manual-text/86按键式智能场景面板BT-86-C(RS485)用户手册 Ver2.9.6-2.txt",
+      "source": "/Users/liuwei/.codex/visualizations/2026/10/10/01a1233b-ff40-7971-b40d-806595943d96/control4/manual-text/86按键式智能场景面板BT-86-C(RS485)用户手册 Ver2.9.6-2.txt",
+      "sha256_at_copy": "11fb1396e8563858e26e47f6ed5e84203cef83a978cee1d69d16b2fd176d03ec",
+      "sha256_current": "11fb1396e8563858e26e47f6ed5e84203cef83a978cee1d69d16b2fd176d03ec"
+    },
+    {
+      "path": "reference/control4/manual-text/86触摸式POE场景面板TS6-86(TCP)使用手册 Ver2.4.5.txt",
+      "source": "/Users/liuwei/.codex/visualizations/2026/10/10/01a1233b-ff40-7971-b40d-806595943d96/control4/manual-text/86触摸式POE场景面板TS6-86(TCP)使用手册 Ver2.4.5.txt",
+      "sha256_at_copy": "fd2ae36c7706ce5b8da0aec599d1bb86ce450fe4a5e6740ec4426778bd9327f3",
+      "sha256_current": "fd2ae36c7706ce5b8da0aec599d1bb86ce450fe4a5e6740ec4426778bd9327f3"
+    },
+    {
+      "path": "reference/control4/manual-text/串口分配器RS-232 COM 用户手册 Ver2.2.7.txt",
+      "source": "/Users/liuwei/.codex/visualizations/2026/10/10/01a1233b-ff40-7971-b40d-806595943d96/control4/manual-text/串口分配器RS-232 COM 用户手册 Ver2.2.7.txt",
+      "sha256_at_copy": "7398c9c55aa75651c5b4c7e27fda13b5941ceb95f8f7fee5fee701901d06d83a",
+      "sha256_current": "7398c9c55aa75651c5b4c7e27fda13b5941ceb95f8f7fee5fee701901d06d83a"
+    },
+    {
+      "path": "reference/control4/manual-text/导轨式16通道干接点输入模块IN16-DIN Pro(RS485)用户手册Ver2.0.4.txt",
+      "source": "/Users/liuwei/.codex/visualizations/2026/10/10/01a1233b-ff40-7971-b40d-806595943d96/control4/manual-text/导轨式16通道干接点输入模块IN16-DIN Pro(RS485)用户手册Ver2.0.4.txt",
+      "sha256_at_copy": "fd5ee086b11259812e871b043436aa3e111738f997fa7de7e84314d27c54d8b4",
+      "sha256_current": "fd5ee086b11259812e871b043436aa3e111738f997fa7de7e84314d27c54d8b4"
+    },
+    {
+      "path": "reference/control4/manual-text/导轨式4组电机控制模块GT-M4-RL 产品手册 Ver2.1.9-2.txt",
+      "source": "/Users/liuwei/.codex/visualizations/2026/10/10/01a1233b-ff40-7971-b40d-806595943d96/control4/manual-text/导轨式4组电机控制模块GT-M4-RL 产品手册 Ver2.1.9-2.txt",
+      "sha256_at_copy": "ff424977e46dd7b11fae785b46cfb74905501a505d7ea3eeee1c0952ee07afd9",
+      "sha256_current": "ff424977e46dd7b11fae785b46cfb74905501a505d7ea3eeee1c0952ee07afd9"
+    },
+    {
+      "path": "reference/control4/manual-text/导轨式4通道前切调光模块GT-E4-RL 产品手册Ver3.2.2-2.txt",
+      "source": "/Users/liuwei/.codex/visualizations/2026/10/10/01a1233b-ff40-7971-b40d-806595943d96/control4/manual-text/导轨式4通道前切调光模块GT-E4-RL 产品手册Ver3.2.2-2.txt",
+      "sha256_at_copy": "075a21f8df15d7c769be51a9b5bbbf832eac380c846b35652f022931d2202fe9",
+      "sha256_current": "075a21f8df15d7c769be51a9b5bbbf832eac380c846b35652f022931d2202fe9"
+    },
+    {
+      "path": "reference/control4/manual-text/导轨式8通道0-10V模拟输出模块GT-D8-RL 产品手册Ver2.2.6-2.txt",
+      "source": "/Users/liuwei/.codex/visualizations/2026/10/10/01a1233b-ff40-7971-b40d-806595943d96/control4/manual-text/导轨式8通道0-10V模拟输出模块GT-D8-RL 产品手册Ver2.2.6-2.txt",
+      "sha256_at_copy": "303d03f93ed330ddfa8975cc90935e389267d71d13ba970a3341d2226ba9036b",
+      "sha256_current": "303d03f93ed330ddfa8975cc90935e389267d71d13ba970a3341d2226ba9036b"
+    },
+    {
+      "path": "reference/control4/manual-text/导轨式8通道LED灯带调光模块GT-L8-RL用户手册 Vev2.0.7-2.txt",
+      "source": "/Users/liuwei/.codex/visualizations/2026/10/10/01a1233b-ff40-7971-b40d-806595943d96/control4/manual-text/导轨式8通道LED灯带调光模块GT-L8-RL用户手册 Vev2.0.7-2.txt",
+      "sha256_at_copy": "f659ee18e119e752b8fbf10a669b5fee1c1b20da8f9e4399c6bca039808dc0bd",
+      "sha256_current": "f659ee18e119e752b8fbf10a669b5fee1c1b20da8f9e4399c6bca039808dc0bd"
+    },
+    {
+      "path": "reference/control4/manual-text/导轨式8通道开关模块GT-C8-RL 产品手册 Ver2.8.2-2.txt",
+      "source": "/Users/liuwei/.codex/visualizations/2026/10/10/01a1233b-ff40-7971-b40d-806595943d96/control4/manual-text/导轨式8通道开关模块GT-C8-RL 产品手册 Ver2.8.2-2.txt",
+      "sha256_at_copy": "cfd50c24f8b3532b1138b4fee1f810e45e57d20f8d7958caaf0b1a484988974c",
+      "sha256_current": "cfd50c24f8b3532b1138b4fee1f810e45e57d20f8d7958caaf0b1a484988974c"
+    },
+    {
+      "path": "reference/control4/manual-text/导轨式GSM智能电话报警模块GSM-DIN Pro(RS485) 用户手册 Ver8.0.txt",
+      "source": "/Users/liuwei/.codex/visualizations/2026/10/10/01a1233b-ff40-7971-b40d-806595943d96/control4/manual-text/导轨式GSM智能电话报警模块GSM-DIN Pro(RS485) 用户手册 Ver8.0.txt",
+      "sha256_at_copy": "4ff7fa9bb642d45eacd6deac2458a7caba93ea9ac0996fba1789971b9c00f9ee",
+      "sha256_current": "4ff7fa9bb642d45eacd6deac2458a7caba93ea9ac0996fba1789971b9c00f9ee"
+    },
+    {
+      "path": "reference/control4/manual-text/导轨式RF433无线传感模组RFM-DIN PRO.(RS485)使用手册Ver2.0.5.txt",
+      "source": "/Users/liuwei/.codex/visualizations/2026/10/10/01a1233b-ff40-7971-b40d-806595943d96/control4/manual-text/导轨式RF433无线传感模组RFM-DIN PRO.(RS485)使用手册Ver2.0.5.txt",
+      "sha256_at_copy": "d14c42ca220524d5d62b512ff32972e38729e33544673281d792f84955376e9a",
+      "sha256_current": "d14c42ca220524d5d62b512ff32972e38729e33544673281d792f84955376e9a"
+    },
+    {
+      "path": "reference/control4/manual-text/导轨式TCP485通信转换模块TCP485-DIN使用手册  Ver2.4.4.txt",
+      "source": "/Users/liuwei/.codex/visualizations/2026/10/10/01a1233b-ff40-7971-b40d-806595943d96/control4/manual-text/导轨式TCP485通信转换模块TCP485-DIN使用手册  Ver2.4.4.txt",
+      "sha256_at_copy": "83ae5e188589ac18b9abf879273cebd9a5837f48bc372a0a4ca98f06ac5474bb",
+      "sha256_current": "83ae5e188589ac18b9abf879273cebd9a5837f48bc372a0a4ca98f06ac5474bb"
+    },
+    {
+      "path": "reference/control4/manual-text/广角可编程中控主机GT-A5-RL产品手册Ver2.7.7.3.txt",
+      "source": "/Users/liuwei/.codex/visualizations/2026/10/10/01a1233b-ff40-7971-b40d-806595943d96/control4/manual-text/广角可编程中控主机GT-A5-RL产品手册Ver2.7.7.3.txt",
+      "sha256_at_copy": "62b9f4153f0a5ed1a4927351e36696cc47adbf93c3b29b094ca46d1cf60a7d75",
+      "sha256_current": "62b9f4153f0a5ed1a4927351e36696cc47adbf93c3b29b094ca46d1cf60a7d75"
+    },
+    {
+      "path": "reference/control4/parse_project.py",
+      "source": "/Users/liuwei/.codex/visualizations/2026/10/10/01a1233b-ff40-7971-b40d-806595943d96/control4/parse_project.py",
+      "sha256_at_copy": "9f2cdd6879b298df734d0a4e8cc8b4ae8e22275d46233ab8481644907c57657f",
+      "sha256_current": "9f2cdd6879b298df734d0a4e8cc8b4ae8e22275d46233ab8481644907c57657f"
+    }
+  ],
+  "maintenance_note": "2026-10-10: HopeBeauty branding with hb prefix; design updated to v1.7 with verified panel profiles, publication cancellation and storage degradation rules. source and sha256_at_copy preserve original provenance; sha256_current tracks maintained contents."
+}
