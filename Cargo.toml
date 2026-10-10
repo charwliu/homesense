@@ -1,0 +1,16 @@
+[workspace]
+members = ["crates/homesense-core", "crates/hb-protocol", "crates/homesensed"]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.99"
+publish = false
+
+[workspace.dependencies]
+homesense-core = { path = "crates/homesense-core" }
+hb-protocol = { path = "crates/hb-protocol" }
+
+[workspace.lints.rust]
+unsafe_code = "forbid"

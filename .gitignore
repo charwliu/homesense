@@ -1,0 +1,6 @@
+/target/
+/.idea/
+.DS_Store
+# Private source snapshots remain local unless explicitly reviewed for publication.
+/reference/control4/Charlies250801.parsed.json
+/reference/control4/Charlies250801.report.txt
