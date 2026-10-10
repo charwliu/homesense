@@ -1,10 +1,17 @@
 //! Offline tooling only; no sockets or physical device commands.
-use hb_protocol::{Registry, StreamDecoder, encode_in_context};
+use hb_protocol::{Decoded, Registry, StreamDecoder, encode_in_context};
+use homesense_config::Configuration;
+use homesense_core::admission::{Access, RuntimePolicy};
+use homesense_core::arbiter::Arbiter;
+use homesense_core::execution::Execution;
+use homesense_core::queue::{Epochs, Origin, QueuedCommand};
 use homesense_core::{
-    BusAddress, Channel, Command, ExecutionContext, LevelTransition, ModuleSpec, Percent,
+    BusAddress, Channel, Command, DeviceId, ExecutionContext, LevelTransition, ModuleSpec, Percent,
     ProtocolProfile, Verification,
 };
-use std::{error::Error, process::ExitCode};
+use homesense_simulator::{Faults, Gateway};
+use homesense_state::StateStore;
+use std::{error::Error, io::Read, process::ExitCode};
 
 fn hex_bytes(text: &str) -> Result<Vec<u8>, String> {
     let compact: String = text.chars().filter(|c| !c.is_ascii_whitespace()).collect();
@@ -26,35 +33,149 @@ fn hex_bytes(text: &str) -> Result<Vec<u8>, String> {
         .collect()
 }
 
+fn simulate_light(level: Percent) -> Result<(), Box<dyn Error>> {
+    let module = ModuleSpec::new(
+        BusAddress::from_hex("15")?,
+        ProtocolProfile::GtD8Rl,
+        Verification::Simulated,
+    )?;
+    let id = DeviceId::new("simulation:light")?;
+    let channel = Channel::new(1)?;
+    let epochs = Epochs {
+        transport: 1,
+        configuration: 1,
+        control: 1,
+    };
+    let mut states = StateStore::new(1, epochs.transport, 1, 16)?;
+    states.register(id.clone(), module.kind())?;
+    let mut gateway = Gateway::new(
+        vec![module.clone()],
+        Faults {
+            reply_delay_ms: 20,
+            output_chunk_size: 2,
+            ..Faults::default()
+        },
+        16,
+    )?;
+    let mut registry = Registry::for_simulation();
+    registry.register(module.clone())?;
+    let command = Command::SetLevel {
+        level,
+        transition: LevelTransition::Immediate,
+    };
+    let frame = encode_in_context(&module, channel, command, ExecutionContext::Simulation)?;
+    let request = QueuedCommand {
+        id: 1,
+        device_id: id.clone(),
+        command,
+        origin: Origin::Hap,
+        epochs,
+        deadline_ms: 1000,
+        run_id: None,
+    };
+    // Offline fixture only: real adapters must resolve authentication and load
+    // persisted policy. No session or storage service is claimed by this demo.
+    let policy = RuntimePolicy {
+        epochs,
+        publishing: false,
+        controller: true,
+        gateway_ready: true,
+        storage_healthy: true,
+        manual_degraded_enabled: false,
+        valid_configuration_loaded: true,
+    };
+    let access = Access {
+        authorized: true,
+        device_exists: true,
+        device_verified: false,
+        existing_direct_manual: false,
+    };
+    let mut arbiter = Arbiter::new(policy, 8, 2)?;
+    arbiter.submit(request, access, 0)?;
+    states.set_desired(&id, 1, command, 0)?;
+    let queued = arbiter
+        .dispatch(0, |_| access)?
+        .command
+        .ok_or("missing queued demo command")?;
+    println!("HomeSense deterministic simulation; no hardware connection");
+    println!("Queued {}: {:02X?}", queued.id, frame.bytes());
+    let mut execution = Execution::new(queued.clone(), 0)?;
+    execution.begin_write(epochs, 0)?;
+    // Feed a split command into the simulated gateway, just like split TCP writes.
+    for chunk in frame.bytes().chunks(2) {
+        for result in gateway.receive(chunk, 0)? {
+            result?;
+        }
+    }
+    execution.written(0)?;
+    arbiter.finish_write(queued.id, true)?;
+    println!(
+        "Written: observed={:?}, quality={:?}",
+        states.get(&id).unwrap().observed,
+        states.get(&id).unwrap().quality
+    );
+    let mut decoder = StreamDecoder::default();
+    for chunk in gateway.drain_due(20)? {
+        for frame in decoder.feed(&chunk) {
+            if let Decoded::Feedback {
+                address,
+                channel: observed_channel,
+                observation,
+            } = registry.decode(frame)
+            {
+                if address != module.address() || observed_channel != channel {
+                    return Err("unexpected simulated endpoint".into());
+                }
+                states.observe(&id, observation, epochs.transport, 20)?;
+                if execution.observe(&id, observation, epochs.transport, 20)? {
+                    states.finish_pending(&id, queued.id, 20)?;
+                }
+            }
+        }
+    }
+    let state = states.get(&id).unwrap();
+    if state.pending_command.is_some() {
+        return Err("simulation did not observe the requested target".into());
+    }
+    println!(
+        "Feedback: observed={:?}, quality={:?}, pending={:?}",
+        state.observed, state.quality, state.pending_command
+    );
+    Ok(())
+}
+
 fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
     match args.first().map(String::as_str) {
-        Some("demo") if args.len() == 1 => {
-            let module = ModuleSpec::new(
-                BusAddress::from_hex("15")?,
-                ProtocolProfile::GtD8Rl,
-                Verification::Simulated,
+        Some("demo") if args.len() <= 2 => {
+            let level = Percent::new(
+                args.get(1)
+                    .map(|s| s.parse::<u8>())
+                    .transpose()?
+                    .unwrap_or(30),
             )?;
-            let frame = encode_in_context(
-                &module,
-                Channel::new(1)?,
-                Command::SetLevel {
-                    level: Percent::new(30)?,
-                    transition: LevelTransition::Immediate,
-                },
-                ExecutionContext::Simulation,
-            )?;
-            println!("HomeSense offline demo; no hardware connection");
-            println!("Encoded command: {:02X?}", frame.bytes());
-            let mut registry = Registry::for_simulation();
-            registry.register(module)?;
-            let mut decoder = StreamDecoder::default();
-            // Synthetic feedback is explicitly independent of the encoded command.
-            // Encoding/writing alone must never confirm the observed state.
-            let simulated_reply = [0xAE, 0x15, 0xD1, 0x1E, 0xEE];
-            assert!(decoder.feed(&simulated_reply[..2]).is_empty());
-            for reply in decoder.feed(&simulated_reply[2..]) {
-                println!("Synthetic feedback: {:?}", registry.decode(reply));
-            }
+            simulate_light(level)?;
+        }
+        Some("check-config")
+            if args.len() == 2 || (args.len() == 3 && args[2] == "--simulation") =>
+        {
+            let context = if args.len() == 3 {
+                ExecutionContext::Simulation
+            } else {
+                ExecutionContext::Live
+            };
+            let mut bytes = Vec::new();
+            std::fs::File::open(&args[1])?
+                .take(4 * 1024 * 1024 + 1)
+                .read_to_end(&mut bytes)?;
+            let config = Configuration::parse(&bytes, context)?;
+            println!(
+                "Configuration valid: revision={}, gateways={}, devices={}, enabled={}, context={:?}; no connection opened",
+                config.revision(),
+                config.gateways().len(),
+                config.devices().len(),
+                config.devices().values().filter(|d| d.enabled).count(),
+                context
+            );
         }
         Some("decode") if args.len() >= 2 => {
             let bytes = hex_bytes(&args[1..].join(" "))?;
@@ -79,7 +200,7 @@ fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
             }
         }
         Some("--help" | "-h") | None => println!(
-            "HomeSense offline tooling\nUsage: homesensed demo\n       homesensed decode 'AE 15 D1 1E EE'\nNo network service or hardware control is implemented yet."
+            "HomeSense offline tooling\nUsage: homesensed demo [0..100]\n       homesensed check-config FILE [--simulation]\n       homesensed decode 'AE 15 D1 1E EE'\nNo network service or hardware control is implemented yet."
         ),
         _ => return Err("unknown command; use --help".into()),
     }

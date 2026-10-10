@@ -1,0 +1,254 @@
+use homesense_core::{
+    Command, DeviceId,
+    admission::{Access, RuntimePolicy},
+    arbiter::{Arbiter, CommitResult},
+    queue::{CancelReason, Epochs, Origin, QueuedCommand},
+};
+use homesense_storage::{CancellationAudit, Error, Store};
+use std::{
+    path::PathBuf,
+    sync::atomic::{AtomicU64, Ordering},
+};
+static SEQUENCE: AtomicU64 = AtomicU64::new(1);
+struct Database {
+    directory: PathBuf,
+}
+impl Database {
+    fn new() -> Self {
+        let directory = std::env::temp_dir().join(format!(
+            "homesense-storage-test-{}-{}",
+            std::process::id(),
+            SEQUENCE.fetch_add(1, Ordering::Relaxed)
+        ));
+        std::fs::create_dir(&directory).unwrap();
+        Self { directory }
+    }
+    fn path(&self) -> PathBuf {
+        self.directory.join("state.sqlite")
+    }
+}
+impl Drop for Database {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.directory);
+    }
+}
+
+#[test]
+fn committed_configuration_and_audit_survive_close_and_reopen() {
+    let db = Database::new();
+    let mut store = Store::open(db.path()).unwrap();
+    assert!(store.active().unwrap().is_none());
+    store.publish(None, 1, b"config-one", &[]).unwrap();
+    store
+        .publish(
+            Some(1),
+            2,
+            b"config-two",
+            &[CancellationAudit {
+                boot_id: "boot1",
+                command_id: 1,
+                reason: CancelReason::ConfigurationChanged,
+            }],
+        )
+        .unwrap();
+    drop(store);
+    let store = Store::open(db.path()).unwrap();
+    assert_eq!(store.active().unwrap().unwrap().payload, b"config-two");
+    assert_eq!(store.revision(1).unwrap().unwrap().payload, b"config-one");
+    assert_eq!(store.cancellation_count(2).unwrap(), 1);
+}
+#[test]
+fn audit_failure_rolls_back_revision_and_pointer_together() {
+    let db = Database::new();
+    let mut store = Store::open(db.path()).unwrap();
+    store.publish(None, 1, b"old", &[]).unwrap();
+    let a = || CancellationAudit {
+        boot_id: "boot",
+        command_id: 1,
+        reason: CancelReason::ConfigurationChanged,
+    };
+    assert!(store.publish(Some(1), 2, b"new", &[a(), a()]).is_err());
+    assert!(store.revision(2).unwrap().is_none());
+    assert_eq!(store.cancellation_count(2).unwrap(), 0);
+    assert_eq!(store.active().unwrap().unwrap().revision, 1);
+    drop(store);
+    assert_eq!(
+        Store::open(db.path())
+            .unwrap()
+            .active()
+            .unwrap()
+            .unwrap()
+            .revision,
+        1
+    );
+}
+#[test]
+fn compare_and_swap_rejects_stale_writer_and_nonmonotonic_revision() {
+    let db = Database::new();
+    let mut first = Store::open(db.path()).unwrap();
+    first.publish(None, 1, b"one", &[]).unwrap();
+    let mut second = Store::open(db.path()).unwrap();
+    first.publish(Some(1), 2, b"two", &[]).unwrap();
+    assert!(matches!(
+        second.publish(Some(1), 3, b"three", &[]),
+        Err(Error::Conflict)
+    ));
+    assert!(matches!(
+        second.publish(Some(2), 2, b"replace", &[]),
+        Err(Error::InvalidRevision)
+    ));
+    assert!(matches!(
+        second.publish(Some(2), 3, b"", &[]),
+        Err(Error::InvalidPayload)
+    ));
+    assert_eq!(second.active().unwrap().unwrap().payload, b"two");
+}
+#[test]
+fn foreign_databases_are_not_migrated_and_existing_revisions_are_immutable() {
+    let db = Database::new();
+    let connection = rusqlite::Connection::open(db.path()).unwrap();
+    connection
+        .execute_batch("CREATE TABLE unrelated(value TEXT);")
+        .unwrap();
+    assert!(matches!(
+        Store::open(db.path()),
+        Err(Error::ForeignDatabase)
+    ));
+    let version: i64 = connection
+        .pragma_query_value(None, "user_version", |r| r.get(0))
+        .unwrap();
+    assert_eq!(version, 0);
+    let db2 = Database::new();
+    let mut store = Store::open(db2.path()).unwrap();
+    store.publish(None, 1, b"original", &[]).unwrap();
+    let connection = rusqlite::Connection::open(db2.path()).unwrap();
+    assert!(
+        connection
+            .execute("UPDATE configuration_revision SET payload='changed'", [])
+            .is_err()
+    );
+    assert!(
+        connection
+            .execute("DELETE FROM configuration_revision", [])
+            .is_err()
+    );
+    assert_eq!(store.active().unwrap().unwrap().payload, b"original");
+}
+#[test]
+fn real_sqlite_commit_drives_arbiter_revision_and_restart_truth() {
+    let db = Database::new();
+    let mut store = Store::open(db.path()).unwrap();
+    store.publish(None, 1, b"first", &[]).unwrap();
+    let epochs = Epochs {
+        transport: 1,
+        configuration: store.active().unwrap().unwrap().revision,
+        control: 1,
+    };
+    let mut arbiter = Arbiter::new(
+        RuntimePolicy {
+            epochs,
+            publishing: false,
+            controller: true,
+            gateway_ready: true,
+            storage_healthy: true,
+            manual_degraded_enabled: false,
+            valid_configuration_loaded: true,
+        },
+        8,
+        2,
+    )
+    .unwrap();
+    let request = QueuedCommand {
+        id: 1,
+        device_id: DeviceId::new("study:light").unwrap(),
+        command: Command::Switch(true),
+        origin: Origin::Hap,
+        epochs,
+        deadline_ms: 100,
+        run_id: None,
+    };
+    arbiter
+        .submit(
+            request,
+            Access {
+                authorized: true,
+                device_exists: true,
+                device_verified: true,
+                existing_direct_manual: true,
+            },
+            0,
+        )
+        .unwrap();
+    let cancelled = arbiter.begin_publication(1, 50).unwrap();
+    arbiter.begin_commit(2).unwrap();
+    let audit: Vec<_> = cancelled
+        .iter()
+        .map(|c| CancellationAudit {
+            boot_id: "boot1",
+            command_id: c.command.id,
+            reason: c.reason,
+        })
+        .collect();
+    store.publish(Some(1), 2, b"second", &audit).unwrap();
+    // Simulate losing the commit acknowledgement; resolve from the actual pointer.
+    arbiter.record_commit(CommitResult::Unknown).unwrap();
+    drop(store);
+    let store = Store::open(db.path()).unwrap();
+    let active = store.active().unwrap().unwrap();
+    arbiter
+        .record_commit(CommitResult::Committed(active.revision))
+        .unwrap();
+    assert!(arbiter.policy().publishing);
+    arbiter.synchronized(active.revision).unwrap();
+    assert_eq!(arbiter.policy().epochs.configuration, 2);
+    assert_eq!(store.cancellation_count(2).unwrap(), 1);
+    assert_eq!(arbiter.queued_len(), 0);
+}
+#[test]
+fn database_lock_failure_leaves_active_pointer_and_revision_unchanged() {
+    let db = Database::new();
+    let mut store = Store::open(db.path()).unwrap();
+    store.publish(None, 1, b"old", &[]).unwrap();
+    let connection = rusqlite::Connection::open(db.path()).unwrap();
+    connection.execute_batch("BEGIN IMMEDIATE").unwrap();
+    assert!(store.publish(Some(1), 2, b"new", &[]).is_err());
+    connection.execute_batch("ROLLBACK").unwrap();
+    assert_eq!(store.active().unwrap().unwrap().revision, 1);
+    assert!(store.revision(2).unwrap().is_none());
+}
+
+#[test]
+fn validated_configuration_is_checked_before_publish_and_again_at_startup() {
+    use homesense_core::ExecutionContext::{Live, Simulation};
+    let db = Database::new();
+    let mut store = Store::open(db.path()).unwrap();
+    let payload = include_bytes!("../../../config/simulation.json");
+    assert!(
+        store
+            .publish_configuration(None, payload, Live, &[])
+            .is_err()
+    );
+    assert!(store.active().unwrap().is_none());
+    store
+        .publish_configuration(None, payload, Simulation, &[])
+        .unwrap();
+    drop(store);
+    let store = Store::open(db.path()).unwrap();
+    assert_eq!(
+        store
+            .active_configuration(Simulation)
+            .unwrap()
+            .unwrap()
+            .revision(),
+        1
+    );
+    assert!(store.active_configuration(Live).is_err());
+    let db2 = Database::new();
+    let mut store = Store::open(db2.path()).unwrap();
+    // Low-level storage accepts opaque bytes; startup must detect mismatch.
+    store.publish(None, 2, payload, &[]).unwrap();
+    assert!(matches!(
+        store.active_configuration(Simulation),
+        Err(Error::InvalidRevision)
+    ));
+}

@@ -1,0 +1,413 @@
+//! Single-owner queue and configuration-publication barrier.
+//! The caller owns immutable device mappings, authentication, encoding and the
+//! durable journal. No method here performs I/O or proves database durability.
+use crate::{
+    admission::{Access, Rejection, RuntimePolicy},
+    queue::{CancelReason, Cancellation, CommandQueue, QueueError, QueuedCommand},
+};
+use std::collections::VecDeque;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ArbiterError {
+    Admission(Rejection),
+    Queue(QueueError),
+    Busy,
+    InvalidState,
+    CounterExhausted,
+    Expired,
+    DrainFailed,
+    NotSynchronized,
+    RevisionMismatch,
+    BatchTooLarge,
+}
+impl std::fmt::Display for ArbiterError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{self:?}")
+    }
+}
+impl std::error::Error for ArbiterError {}
+
+#[derive(Debug, Default)]
+pub struct Dispatch {
+    pub command: Option<QueuedCommand>,
+    pub cancelled: Vec<Cancellation>,
+    pub rejected: Vec<(QueuedCommand, Rejection)>,
+}
+struct Publication {
+    deadline: u64,
+    stops: VecDeque<QueuedCommand>,
+    failed: bool,
+    committed: bool,
+    transaction_started: bool,
+}
+/// Completion of a durable revision transaction, supplied by the storage owner.
+#[derive(Debug, Clone, Copy)]
+pub enum CommitResult {
+    Committed(u64),
+    RolledBack,
+    Unknown,
+}
+
+pub struct Arbiter {
+    policy: RuntimePolicy,
+    queue: CommandQueue,
+    writing: Option<QueuedCommand>,
+    publication: Option<Publication>,
+}
+impl Arbiter {
+    pub fn new(
+        policy: RuntimePolicy,
+        normal_capacity: usize,
+        stop_capacity: usize,
+    ) -> Result<Self, ArbiterError> {
+        if policy.publishing {
+            return Err(ArbiterError::InvalidState);
+        }
+        Ok(Self {
+            policy,
+            queue: CommandQueue::new(normal_capacity, stop_capacity)
+                .map_err(ArbiterError::Queue)?,
+            writing: None,
+            publication: None,
+        })
+    }
+    pub fn policy(&self) -> RuntimePolicy {
+        self.policy
+    }
+    pub fn queued_len(&self) -> usize {
+        self.queue.len()
+    }
+    /// Invalidate old producers immediately. Returned cancellations include STOP:
+    /// the owner may explicitly submit a NEW degraded STOP after revalidating its
+    /// original mapping, authorization and deadline. Nothing is silently replayed.
+    /// An in-flight frame remains tracked until finish_write reports its boundary.
+    pub fn storage_failed(&mut self) -> Result<Vec<Cancellation>, ArbiterError> {
+        if !self.policy.storage_healthy {
+            return Ok(Vec::new());
+        }
+        self.policy.storage_healthy = false;
+        let Some(control) = self.policy.epochs.control.checked_add(1) else {
+            self.policy.valid_configuration_loaded = false;
+            return Err(ArbiterError::CounterExhausted);
+        };
+        self.policy.epochs.control = control;
+        let mut cancelled = self.queue.clear(CancelReason::ControlChanged);
+        if let Some(publication) = &mut self.publication {
+            publication.failed = true;
+            cancelled.extend(publication.stops.drain(..).map(|command| Cancellation {
+                command,
+                reason: CancelReason::ControlChanged,
+            }));
+        }
+        Ok(cancelled)
+    }
+    /// Call after database read/write health checks and device synchronization.
+    /// STOP must finish under the existing degraded mapping before recovery;
+    /// ordinary queued degraded actions are cancelled, never upgraded in place.
+    /// A revision mismatch enters maintenance and requires configuration reload.
+    pub fn storage_recovered(
+        &mut self,
+        durable_revision: u64,
+    ) -> Result<Vec<Cancellation>, ArbiterError> {
+        if self.policy.storage_healthy || self.publication.as_ref().is_some_and(|p| !p.committed) {
+            return Err(ArbiterError::InvalidState);
+        }
+        if durable_revision != self.policy.epochs.configuration {
+            self.policy.valid_configuration_loaded = false;
+            self.policy.gateway_ready = false;
+            return Err(ArbiterError::RevisionMismatch);
+        }
+        if !self.policy.valid_configuration_loaded
+            || (!self.policy.gateway_ready && self.publication.is_none())
+        {
+            return Err(ArbiterError::NotSynchronized);
+        }
+        if self.writing.is_some() || self.queue.has_stop() {
+            return Err(ArbiterError::Busy);
+        }
+        let control = self
+            .policy
+            .epochs
+            .control
+            .checked_add(1)
+            .ok_or(ArbiterError::CounterExhausted)?;
+        self.policy.epochs.control = control;
+        let cancelled = self.queue.clear(CancelReason::ControlChanged);
+        self.policy.storage_healthy = true;
+        Ok(cancelled)
+    }
+    /// Evidence from the connection owner after querying/synchronizing the active
+    /// mapping. Does not permit a new connection to reuse an old transport epoch.
+    /// Reconnection lifecycle is handled separately from this readiness update.
+    pub fn gateway_resynchronized(
+        &mut self,
+        transport_epoch: u64,
+        revision: u64,
+    ) -> Result<(), ArbiterError> {
+        if self.publication.is_some()
+            || !self.policy.valid_configuration_loaded
+            || transport_epoch != self.policy.epochs.transport
+            || revision != self.policy.epochs.configuration
+        {
+            return Err(ArbiterError::NotSynchronized);
+        }
+        self.policy.gateway_ready = true;
+        Ok(())
+    }
+    pub fn submit(
+        &mut self,
+        command: QueuedCommand,
+        access: Access,
+        now: u64,
+    ) -> Result<Vec<Cancellation>, ArbiterError> {
+        self.policy
+            .check(&command, access, now)
+            .map_err(ArbiterError::Admission)?;
+        self.queue
+            .enqueue(command, now, self.policy.epochs)
+            .map_err(ArbiterError::Queue)
+    }
+    /// All-or-nothing admission for one normalized request. No earlier member,
+    /// coalescing, STOP cancellation, or ID consumption survives a later rejection.
+    /// Durable acceptance must still be coordinated by the runtime owner.
+    pub fn submit_batch(
+        &mut self,
+        commands: Vec<(QueuedCommand, Access)>,
+        now: u64,
+    ) -> Result<Vec<Cancellation>, ArbiterError> {
+        if commands.len() > 128 {
+            return Err(ArbiterError::BatchTooLarge);
+        }
+        let mut staged = self.queue.clone();
+        let mut cancelled = Vec::new();
+        for (command, access) in commands {
+            self.policy
+                .check(&command, access, now)
+                .map_err(ArbiterError::Admission)?;
+            cancelled.extend(
+                staged
+                    .enqueue(command, now, self.policy.epochs)
+                    .map_err(ArbiterError::Queue)?,
+            );
+        }
+        self.queue = staged;
+        Ok(cancelled)
+    }
+    /// Resolve current access for every candidate. Only one write may be in flight.
+    /// A returned command must be encoded against its unchanged configuration.
+    pub fn dispatch(
+        &mut self,
+        now: u64,
+        mut access: impl FnMut(&QueuedCommand) -> Access,
+    ) -> Result<Dispatch, ArbiterError> {
+        if self.writing.is_some() {
+            return Err(ArbiterError::Busy);
+        }
+        if self.publication.is_some() {
+            return Err(ArbiterError::InvalidState);
+        }
+        let mut result = Dispatch::default();
+        loop {
+            let polled = self.queue.poll(now, self.policy.epochs);
+            result.cancelled.extend(polled.cancelled);
+            let Some(command) = polled.next else {
+                return Ok(result);
+            };
+            if let Err(error) = self.policy.check(&command, access(&command), now) {
+                result.rejected.push((command, error));
+                continue;
+            }
+            self.writing = Some(command.clone());
+            result.command = Some(command);
+            return Ok(result);
+        }
+    }
+    /// false means the frame boundary was not completed; publication must fail.
+    /// Execution outcome/partial byte count must also be recorded by the caller.
+    pub fn finish_write(&mut self, id: u64, complete_frame: bool) -> Result<(), ArbiterError> {
+        if self.writing.as_ref().is_none_or(|c| c.id != id) {
+            return Err(ArbiterError::InvalidState);
+        }
+        self.writing.take();
+        if !complete_frame {
+            self.policy.gateway_ready = false;
+            if let Some(publication) = &mut self.publication {
+                publication.failed = true;
+            }
+        }
+        Ok(())
+    }
+    /// Call only after full candidate validation; return cancellations for journal
+    /// persistence. Existing asynchronous producers must retain their old epochs.
+    pub fn begin_publication(
+        &mut self,
+        now: u64,
+        deadline: u64,
+    ) -> Result<Vec<Cancellation>, ArbiterError> {
+        if self.publication.is_some() {
+            return Err(ArbiterError::InvalidState);
+        }
+        if deadline <= now {
+            return Err(ArbiterError::Expired);
+        }
+        if !self.policy.storage_healthy {
+            return Err(ArbiterError::Admission(Rejection::PersistenceUnavailable));
+        }
+        let control = self
+            .policy
+            .epochs
+            .control
+            .checked_add(1)
+            .ok_or(ArbiterError::CounterExhausted)?;
+        let (cancelled, stops) = self.queue.publication_barrier();
+        self.policy.epochs.control = control;
+        self.policy.publishing = true;
+        self.publication = Some(Publication {
+            deadline,
+            stops: stops.into(),
+            failed: false,
+            committed: false,
+            transaction_started: false,
+        });
+        Ok(cancelled)
+    }
+    /// STOP retains the old configuration revision. Caller resolves its original
+    /// mapping and authority; only this explicit drain can adopt the new control
+    /// epoch. New external STOP requests are still rejected during publication.
+    pub fn drain_stop(
+        &mut self,
+        now: u64,
+        access: impl FnOnce(&QueuedCommand) -> Access,
+    ) -> Result<Option<QueuedCommand>, ArbiterError> {
+        if self.writing.is_some() {
+            return Err(ArbiterError::Busy);
+        }
+        let publication = self
+            .publication
+            .as_mut()
+            .ok_or(ArbiterError::InvalidState)?;
+        if now >= publication.deadline {
+            publication.failed = true;
+            return Err(ArbiterError::Expired);
+        }
+        if publication.failed || publication.committed || publication.transaction_started {
+            return Err(ArbiterError::DrainFailed);
+        }
+        let Some(original) = publication.stops.front() else {
+            return Ok(None);
+        };
+        let mut command = original.clone();
+        command.epochs.control = self.policy.epochs.control;
+        let mut drain_policy = self.policy;
+        drain_policy.publishing = false;
+        let checked = if !drain_policy.storage_healthy {
+            Err(Rejection::PersistenceUnavailable)
+        } else {
+            drain_policy.check(&command, access(original), now)
+        };
+        if let Err(error) = checked {
+            publication.failed = true;
+            return Err(ArbiterError::Admission(error));
+        }
+        publication.stops.pop_front();
+        self.writing = Some(command.clone());
+        Ok(Some(command))
+    }
+    /// Must succeed before the storage owner starts its commit transaction.
+    pub fn begin_commit(&mut self, now: u64) -> Result<(), ArbiterError> {
+        if !self.policy.storage_healthy {
+            return Err(ArbiterError::Admission(Rejection::PersistenceUnavailable));
+        }
+        let publication = self
+            .publication
+            .as_mut()
+            .ok_or(ArbiterError::InvalidState)?;
+        if now >= publication.deadline {
+            publication.failed = true;
+            return Err(ArbiterError::Expired);
+        }
+        if publication.failed || publication.committed || publication.transaction_started {
+            return Err(ArbiterError::DrainFailed);
+        }
+        if self.writing.is_some() || !publication.stops.is_empty() {
+            return Err(ArbiterError::Busy);
+        }
+        publication.transaction_started = true;
+        Ok(())
+    }
+    /// Once a transaction starts, keep the owner serialized. An unknown result
+    /// holds the barrier until the durable active pointer is read and resolved.
+    /// Even a commit completed after the deadline must install the durable truth.
+    pub fn record_commit(&mut self, result: CommitResult) -> Result<(), ArbiterError> {
+        let publication = self
+            .publication
+            .as_mut()
+            .ok_or(ArbiterError::InvalidState)?;
+        if self.writing.is_some()
+            || !publication.stops.is_empty()
+            || publication.committed
+            || !publication.transaction_started
+        {
+            return Err(ArbiterError::InvalidState);
+        }
+        match result {
+            CommitResult::Unknown => {
+                publication.failed = true;
+                self.policy.gateway_ready = false;
+            }
+            CommitResult::RolledBack => {
+                self.publication = None;
+                self.policy.publishing = false;
+            }
+            CommitResult::Committed(revision) => {
+                if revision <= self.policy.epochs.configuration {
+                    return Err(ArbiterError::InvalidState);
+                }
+                self.policy.epochs.configuration = revision;
+                self.policy.gateway_ready = false;
+                publication.committed = true;
+            }
+        }
+        Ok(())
+    }
+    /// Caller installs immutable mappings and completes synchronization first.
+    pub fn synchronized(&mut self, revision: u64) -> Result<(), ArbiterError> {
+        if !self.policy.storage_healthy {
+            return Err(ArbiterError::Admission(Rejection::PersistenceUnavailable));
+        }
+        let publication = self
+            .publication
+            .as_ref()
+            .ok_or(ArbiterError::InvalidState)?;
+        if !publication.committed || revision != self.policy.epochs.configuration {
+            return Err(ArbiterError::NotSynchronized);
+        }
+        self.policy.gateway_ready = true;
+        self.policy.publishing = false;
+        self.publication = None;
+        Ok(())
+    }
+    /// Abort before starting the database transaction. Never call this for an
+    /// unknown commit result; resolve the durable pointer via record_commit.
+    pub fn abort_before_commit(&mut self) -> Result<Vec<Cancellation>, ArbiterError> {
+        if self.writing.is_some() {
+            return Err(ArbiterError::Busy);
+        }
+        let p = self
+            .publication
+            .as_ref()
+            .ok_or(ArbiterError::InvalidState)?;
+        if p.committed || p.transaction_started {
+            return Err(ArbiterError::InvalidState);
+        }
+        let p = self.publication.take().unwrap();
+        self.policy.publishing = false;
+        Ok(p.stops
+            .into_iter()
+            .map(|command| Cancellation {
+                command,
+                reason: CancelReason::ConfigurationChanged,
+            })
+            .collect())
+    }
+}

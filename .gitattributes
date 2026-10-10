@@ -1,0 +1,2 @@
+# Unified diff context lines retain their required leading space.
+probes/hap-rs/*.patch whitespace=-blank-at-eol
