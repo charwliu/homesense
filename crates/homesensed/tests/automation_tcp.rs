@@ -36,16 +36,26 @@ async fn tcp_automation_synchronizes_before_startup_and_preserves_other_state() 
             );
         }
     });
+    let device_path = root.join("devices.json");
+    let rules_path = root.join("rules.json");
+    std::fs::write(&device_path, &devices).unwrap();
+    std::fs::write(&rules_path, &rules).unwrap();
     for _ in 0..2 {
-        homesensed::automation_tcp::serve(
-            &devices,
-            &rules,
-            &root,
-            Duration::from_millis(250),
-            true,
-        )
-        .await
-        .unwrap();
+        let output = std::process::Command::new(env!("CARGO_BIN_EXE_homesensed"))
+            .arg("serve-automation-tcp")
+            .arg(&device_path)
+            .arg(&rules_path)
+            .arg(&root)
+            .arg("1")
+            .arg("--coexistence-confirmed")
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(String::from_utf8_lossy(&output.stdout).contains("TCP automation stopped"));
     }
     server.join().unwrap();
     assert_eq!(
@@ -126,5 +136,40 @@ async fn missing_initial_feedback_never_executes_startup() {
         .unwrap();
     assert_eq!(count, 0);
     drop(sql);
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn cli_rejects_missing_confirmation_and_invalid_duration_without_state() {
+    let root = std::env::temp_dir().join(format!("automation-tcp-cli-{}", uuid::Uuid::new_v4()));
+    std::fs::create_dir_all(&root).unwrap();
+    let device = root.join("devices.json");
+    let rules = root.join("rules.json");
+    let state = root.join("state");
+    std::fs::write(
+        &device,
+        include_bytes!("../../../config/simulation-home.json"),
+    )
+    .unwrap();
+    std::fs::write(&rules, b"{}").unwrap();
+    for (duration, confirmation) in [
+        ("1", None),
+        ("1", Some("--unknown")),
+        ("invalid", Some("--coexistence-confirmed")),
+        ("0", Some("--coexistence-confirmed")),
+        ("86401", Some("--coexistence-confirmed")),
+    ] {
+        let mut cmd = std::process::Command::new(env!("CARGO_BIN_EXE_homesensed"));
+        cmd.arg("serve-automation-tcp")
+            .arg(&device)
+            .arg(&rules)
+            .arg(&state)
+            .arg(duration);
+        if let Some(flag) = confirmation {
+            cmd.arg(flag);
+        }
+        assert!(!cmd.output().unwrap().status.success());
+        assert!(!state.exists());
+    }
     std::fs::remove_dir_all(root).unwrap();
 }
