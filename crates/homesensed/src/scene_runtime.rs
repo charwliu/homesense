@@ -41,6 +41,11 @@ struct Pending {
     written: usize,
 }
 impl SceneRuntime {
+    /// A durable terminal with no owned output is safe to deliver as a result.
+    pub(crate) fn settled_terminal(&self) -> bool {
+        !self.audit_failed && !self.has_pending() && self.audit_status.terminal()
+    }
+
     pub(crate) fn take_result(&mut self) -> Option<(String, String, Status)> {
         if self.audit_failed
             || self.result_taken
