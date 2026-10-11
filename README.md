@@ -162,3 +162,6 @@ TCP 断链前置回归：回环网关同步后收到启动规则第一条控制�
 
 
 运行时启动策略：`AutomationRuntime::load_with_startup` 接受显式 `StartupPolicy::Run/Suppress`，原 load 继续默认 Run。Suppress 只跳过本次装配的 startup_synchronized，不禁用手动场景、日历或反馈路由，也不恢复终止的 Admission。新增同配置先 Run 再 Suppress 的重新装配回归：启动规则总计一次、持久变量保持、两次手动场景均可启动取消；69 项运行时测试与库严格 Clippy 通过。此为重连监督器装配能力，尚未接入自动重连，不能据此声称重连期间临时变量或旧任务生命周期已完成验证。
+
+
+显式断链交接接口：`AutomationRuntime::drive_recoverable` 仅在明确断开且退出清理成功后保留 Admission 给监督器；旧运行时仍关闭控制入口、面板和计时器。普通 drive／drive_classified 保持终止语义，取消或清理失败不授予交接。模拟 EOF 回归验证同一 Admission 经显式新代际同步仍保留临时变量、旧运行时不能继续执行、可用 Suppress 装配替代实例；70 项运行时、4 项模拟服务测试及库严格 Clippy 通过。TCP 服务尚未调用此接口，实际自动重连、活动延迟链交接与恢复查询仍需接入并验证，未部署现场。

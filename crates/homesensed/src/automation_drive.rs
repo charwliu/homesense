@@ -118,6 +118,25 @@ pub(crate) async fn drive_classified<S: Read + Write + Send + 'static>(
     calendar: Option<&mut crate::event_rules::ScheduledRules>,
     cadence: Duration,
     max_age_ms: u64,
+    stop: tokio::sync::watch::Receiver<bool>,
+    wall_clock: impl FnMut() -> Result<i64, String>,
+    control: Option<(
+        &mut crate::automation_control::Receiver,
+        &homesense_config::rule_document::Document,
+    )>,
+    causal: Option<&mut crate::deferred_router::Router>,
+) -> Result<Exit, String> {
+    drive_with_handoff(admission,owner,panels,scenes,calendar,cadence,max_age_ms,stop,wall_clock,control,causal,false).await
+}
+#[allow(clippy::too_many_arguments)]
+pub(crate) async fn drive_with_handoff<S: Read + Write + Send + 'static>(
+    admission: &Admission,
+    owner: &mut ObservedTransport<S>,
+    panels: &mut PanelRules,
+    scenes: &mut SceneScheduler,
+    calendar: Option<&mut crate::event_rules::ScheduledRules>,
+    cadence: Duration,
+    max_age_ms: u64,
     mut stop: tokio::sync::watch::Receiver<bool>,
     mut wall_clock: impl FnMut() -> Result<i64, String>,
     control: Option<(
@@ -125,6 +144,7 @@ pub(crate) async fn drive_classified<S: Read + Write + Send + 'static>(
         &homesense_config::rule_document::Document,
     )>,
     mut causal: Option<&mut crate::deferred_router::Router>,
+    allow_handoff: bool,
 ) -> Result<Exit, String> {
     struct Close<'a>(
         Option<(
@@ -284,6 +304,9 @@ pub(crate) async fn drive_classified<S: Read + Write + Send + 'static>(
                 Ok(()) => cleanup,
                 Err(error) => format!("{error}; {cleanup}"),
             });
+        }
+        if allow_handoff && disconnected.is_some() && result.is_ok() {
+            guard.publication_paused = true; // Supervisor owns subsequent recovery.
         }
         result.map(|()| match disconnected {
             Some(gateway) => Exit::Disconnected { gateway },
