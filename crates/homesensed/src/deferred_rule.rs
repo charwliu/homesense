@@ -197,3 +197,75 @@ pub async fn execute(
         changed_variables,
     })
 }
+
+/// Resume only a persisted terminal result belonging to this causal parent.
+/// Claiming occurs before dispatch; failed or interrupted delivery is never
+/// retried as a new root. The caller keeps this Chain alive across the delay.
+pub async fn resume_scene(
+    admission: &Admission,
+    controller: Uuid,
+    chain: &mut Chain,
+    parent: &Cause,
+    result: &crate::scene_scheduler::SceneResult,
+    scheduler: &mut SceneScheduler,
+    feedback: Option<(&Feedback, u64)>,
+) -> Result<Vec<Outcome>, String> {
+    use homesense_core::scene::Status;
+    use homesense_storage::scene_run::{Query, Status as Stored};
+    let expected = match result.status {
+        Status::CommandsWritten => Stored::CommandsWritten,
+        Status::Partial => Stored::Partial,
+        Status::Cancelled => Stored::Cancelled,
+        Status::Failed => Stored::Failed,
+        _ => return Err("nonterminal scene result".into()),
+    };
+    let generation = admission
+        .task_generation()
+        .await
+        .map_err(|e| format!("{e:?}"))?;
+    let page = admission
+        .scene_history(
+            controller,
+            generation.clone(),
+            Query::Run {
+                boot: admission.boot_id().into(),
+                run: result.audit_id.clone(),
+                after: 0,
+                limit: 1,
+            },
+        )
+        .await
+        .map_err(|e| format!("{e:?}"))?
+        .ok_or("scene result receipt missing")?;
+    let cause = page.cause.ok_or("scene result has no rule cause")?;
+    if page.record.status != expected
+        || page.record.definition.as_deref() != Some(result.definition.as_str())
+        || cause.correlation != parent.correlation_id()
+        || cause.event != parent.event_id()
+    {
+        return Err("scene result cause or status mismatch".into());
+    }
+    let document = admission
+        .automation_bundle(controller, generation)
+        .await
+        .map_err(|e| format!("{e:?}"))?
+        .automation
+        .ok_or("automation missing")?;
+    let rules = document
+        .linked_rules_with_deferred()
+        .map_err(|e| e.to_string())?;
+    if !chain
+        .claim_completion(parent, &result.audit_id, admission.monotonic_ms())
+        .map_err(|e| format!("{e:?}"))?
+    {
+        return Ok(vec![]);
+    }
+    let mut outcomes = vec![];
+    for rule in rules.iter().filter(|r|matches!(&r.trigger,homesense_config::rule_document::Trigger::SceneResult{scene} if scene==&result.definition)) {
+        match execute(admission,controller,&rule.id,chain,parent,scheduler,feedback).await {
+            Ok(outcome)=>outcomes.push(outcome),
+            Err(error)=>{chain.cancel();return Err(error);}
+        }
+    }
+    Ok(outcomes)
+}

@@ -4539,7 +4539,10 @@ async fn deferred_rule_adapter_reserves_before_variables_and_preserves_chain() {
     let db=Db(std::env::temp_dir().join(format!("deferred-adapter-{}.sqlite",Uuid::new_v4())));
     let devices=include_bytes!("../../../config/simulation.json");
     let rules=br#"{"schema_version":1,"configuration_revision":1,"variables":[{"id":"mode","kind":"integer","lifetime":"persistent"}],"rules":[{"id":"trigger","enabled":true,"review_evidence":"test","source":"test","trigger":{"kind":"startup_synchronized"},"actions":[{"source":"set","action":{"kind":"set","variable":"mode","value":{"kind":"integer","value":1}}},{"source":"call","action":{"kind":"scene","id":"later","activate":true}}]}],"timed_scenes":[{"id":"later","enabled":true,"review_evidence":"test","max_lateness_ms":1000,"steps":[{"source":"step","offset_ms":100,"device":"simulation:light","command":{"kind":"level","value":30,"ramp":false}}]}]}"#;
-    Store::open(&db.0).unwrap().publish_automation(None,devices,rules,ExecutionContext::Simulation,&[]).unwrap();
+    let mut document:hap::serde_json::Value=hap::serde_json::from_slice(rules).unwrap();
+    document["rules"].as_array_mut().unwrap().push(hap::serde_json::json!({"id":"after","enabled":true,"review_evidence":"test","source":"test","trigger":{"kind":"scene_result","scene":"later"},"actions":[{"source":"done","action":{"kind":"set","variable":"mode","value":{"kind":"integer","value":2}}}]}));
+    let rules=hap::serde_json::to_vec(&document).unwrap();
+    Store::open(&db.0).unwrap().publish_automation(None,devices,&rules,ExecutionContext::Simulation,&[]).unwrap();
     let controller=Uuid::new_v4();let a=actor(&db,controller).await;
     let mut scheduler=homesensed::scene_scheduler::SceneScheduler::new(a.clone(),controller,1,0).unwrap();
     let full=scheduler.reserve_slots(1).unwrap();
@@ -4566,6 +4569,17 @@ async fn deferred_rule_adapter_reserves_before_variables_and_preserves_chain() {
     scheduler.tick(page.record.started_ms+100).await.unwrap();
     let ticket=a.dispatch().await.unwrap().unwrap();
     assert_eq!(ticket.command.origin,Origin::Rule);a.finish_write(ticket.command.id,true).await.unwrap();
+    scheduler.tick(page.record.started_ms+101).await.unwrap();
+    let terminal=scheduler.take_results().pop().unwrap();
+    assert!(homesensed::deferred_rule::resume_scene(&a,controller,&mut chain,&root,&terminal,&mut scheduler,None).await.is_err());
+    assert_eq!(store.logical_variable(1,"mode").unwrap().unwrap().value,Some(homesense_core::rule::Value::Integer(1)));
+    let resumed=homesensed::deferred_rule::resume_scene(&a,controller,&mut chain,&result.cause,&terminal,&mut scheduler,None).await.unwrap();
+    assert_eq!(resumed.len(),1);assert_eq!(resumed[0].cause.correlation_id(),77);
+    assert_eq!(resumed[0].causation_id,result.cause.event_id());
+    assert_eq!(store.logical_variable(1,"mode").unwrap().unwrap().value,Some(homesense_core::rule::Value::Integer(2)));
+    let version=store.logical_variable(1,"mode").unwrap().unwrap().version;
+    assert!(homesensed::deferred_rule::resume_scene(&a,controller,&mut chain,&result.cause,&terminal,&mut scheduler,None).await.unwrap().is_empty());
+    assert_eq!(store.logical_variable(1,"mode").unwrap().unwrap().version,version);
     assert!(homesensed::deferred_rule::execute(&a,controller,"trigger",&mut chain,&result.cause,&mut scheduler,None).await.is_err(),"same-rule causal cycle must remain rejected");
     a.shutdown().await.unwrap();
 }
