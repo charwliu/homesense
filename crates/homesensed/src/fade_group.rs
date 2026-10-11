@@ -7,7 +7,9 @@ use uuid::Uuid;
 #[derive(Clone, Copy)]
 pub struct Limits {
     pub tasks: usize,
+    /// Maximum expanded output commands reserved by this group.
     pub samples: u64,
+    /// Maximum expanded output commands per second (legacy field name).
     pub targets_per_second: u64,
 }
 #[derive(Clone, Copy)]
@@ -78,8 +80,10 @@ impl FadeGroup {
             self.limits.samples,
         )
         .map_err(|e| format!("{e:?}"))?;
-        let samples = plan.reserved_samples();
-        let rate = 1000u64.div_ceil(request.interval_ms);
+        let logical_samples = plan.reserved_samples();
+        let frames = if feedback.supply_relay(&device).is_some() { 2 } else { 1 };
+        let samples = logical_samples * frames;
+        let rate = 1000u64.div_ceil(request.interval_ms) * frames;
         if self.tasks.values().map(|t| t.samples).sum::<u64>() + samples > self.limits.samples
             || self.tasks.values().map(|t| t.rate).sum::<u64>() + rate
                 > self.limits.targets_per_second
@@ -94,7 +98,7 @@ impl FadeGroup {
             request.duration_ms,
             request.interval_ms,
             request.lateness_ms,
-            samples,
+            logical_samples,
             feedback,
             max_age,
         )
