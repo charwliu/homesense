@@ -4469,6 +4469,19 @@ async fn deferred_admission_validates_definition_and_rolls_back_on_storage_fault
         };
         assert!(a.submit_deferred_rule(generation.clone(),request(Uuid::new_v4(),"light")).await.is_err());
         assert!(a.submit_deferred_rule(generation.clone(),request(controller,"missing")).await.is_err());
+        let configuration=homesense_config::Configuration::parse(devices,ExecutionContext::Simulation).unwrap();
+        let mut feedback=homesensed::feedback::Feedback::new(&configuration,ExecutionContext::Simulation,Uuid::parse_str(a.boot_id()).unwrap().as_u128(),1).unwrap();
+        let sample=|level|homesensed::transport_owner::GatewayRead{gateway_id:"simulation".into(),transport_epoch:1,received_at_ms:0,result:hb_transport::Receive::Frames{transport_epoch:1,frames:vec![hb_protocol::RawFrame{address:0x15,command:0xd1,value:level}]}};
+        feedback.apply(&sample(30)).unwrap();
+        let condition=vec![homesense_core::rule::Node{source:"observed".into(),action:homesense_core::rule::Action::If{condition:homesense_core::rule::Condition::Equal(homesense_core::rule::Expr::DeviceLevel(homesense_core::DeviceId::new("simulation:light").unwrap()),homesense_core::rule::Expr::Literal(homesense_core::rule::Value::Integer(30))),then_actions:vec![],else_actions:vec![]}}];
+        let (_,changed)=feedback.plan_rule(&condition,&Default::default(),Default::default(),0,5000).unwrap();
+        feedback.apply(&sample(40)).unwrap();
+        assert!(a.submit_deferred_rule_with_feedback(generation.clone(),request(controller,"light"),Some(changed)).await.is_err());
+        let (_,lease)=feedback.plan_rule(&[],&Default::default(),Default::default(),0,5000).unwrap();
+        feedback.invalidate().unwrap();
+        assert!(a.submit_deferred_rule_with_feedback(generation.clone(),request(controller,"light"),Some(lease)).await.is_err());
+        assert_eq!(Store::open(&db.0).unwrap().logical_variable(1,"mode").unwrap().unwrap().version,0);
+        assert!(Store::open(&db.0).unwrap().scene_run(a.boot_id(),"run").unwrap().is_none());
         let sql=rusqlite::Connection::open(&db.0).unwrap();
         if fault {sql.execute_batch("CREATE TRIGGER injected BEFORE INSERT ON scene_cause BEGIN SELECT RAISE(ABORT,'fault'); END;").unwrap();}
         let result=a.submit_deferred_rule(generation,request(controller,"light")).await;
