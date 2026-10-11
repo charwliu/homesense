@@ -155,17 +155,16 @@ impl SceneScheduler {
         {
             return Err("timed scene disabled or unreviewed".into());
         }
-        if !scene.fades.is_empty() {
-            return Err("configured fades require feedback preparation support".into());
-        }
-        self.start_inner(
+        let run=self.start_inner(
             scene.steps.clone(),
             now,
             scene.max_lateness_ms,
             Some(document.revision),
             Some(id.to_owned()),
         )
-        .await
+        .await?;
+        self.runs.get_mut(&run).unwrap().configured_fades=scene.fades.clone();
+        Ok(run)
     }
     /// New scene targets supersede future and queued output for the same device.
     /// Cancellation failure prevents installation of the new scene; already
@@ -251,24 +250,37 @@ impl SceneScheduler {
     /// At most one admission per scene per tick. Transport remains the sole
     /// writer; waiting for Writing is normal and does not fail other scenes.
     pub async fn tick(&mut self, now: u64) -> Result<Vec<Tick>, String> {
+        self.tick_with_feedback(now,None).await
+    }
+    pub async fn tick_with_feedback(&mut self, now:u64, feedback:Option<(&crate::feedback::Feedback,u64)>) -> Result<Vec<Tick>,String> {
         self.clock(now)?;
-        let mut results = vec![];
-        for (id, run) in &mut self.runs {
-            if !matches!(run.status(), Status::Pending | Status::Running) {
-                continue;
-            }
-            let result = match run.reconcile().await {
-                Err(error) => Err(error),
-                Ok(()) if run.has_pending() => Ok(vec![]),
-                Ok(()) => run.poll(now).await.map(|ids| ids.unwrap_or_default()),
-            };
-            results.push(Tick {
-                run: *id,
-                result,
-                status: run.status(),
-            });
+        let mut results=vec![];
+        for id in self.runs.keys().copied().collect::<Vec<_>>() {
+            if !matches!(self.runs[&id].status(),Status::Pending|Status::Running) {continue;}
+            let result=self.tick_run(id,now,feedback).await;
+            results.push(Tick{run:id,result,status:self.runs[&id].status()});
         }
         Ok(results)
+    }
+    async fn tick_run(&mut self,id:u64,now:u64,feedback:Option<(&crate::feedback::Feedback,u64)>)->Result<Vec<u64>,String> {
+        let run=self.runs.get_mut(&id).unwrap();
+        run.reconcile().await?;
+        if run.has_pending() {return Ok(vec![]);}
+        if let Some((step,timing))=run.due_fade(now) {
+            let prepared=async {
+                let (feedback,max_age)=feedback.ok_or("configured fade requires fresh feedback")?;
+                let homesense_core::Command::SetLevel{level,..}=step.command else {return Err("invalid fade target".into());};
+                let fade=crate::software_fade::SoftwareFade::start(self.admission.clone(),self.controller,step.device,level,
+                    timing.duration_ms,timing.interval_ms,timing.lateness_ms,timing.samples().map_err(|e|e.to_string())?,feedback,max_age).await?;
+                self.install_due_fade(id,fade,now).await
+            }.await;
+            if let Err(error)=prepared {
+                self.runs.get_mut(&id).unwrap().cancel().await?;
+                return Err(error);
+            }
+            return Ok(vec![]);
+        }
+        self.runs.get_mut(&id).unwrap().poll(now).await.map(|ids|ids.unwrap_or_default())
     }
     pub(crate) fn identity(&self)->Uuid {self.identity}
     pub(crate) fn audit_id(&self,run:u64)->Option<&str> {self.runs.get(&run).map(SceneRuntime::audit_id)}

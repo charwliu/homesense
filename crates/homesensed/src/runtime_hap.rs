@@ -364,7 +364,7 @@ impl RuntimeHap {
                     return Ok(());
                 }
                 if let Some(scheduler) = &mut scenes.0 {
-                    for result in scheduler.tick(guard.graph.admission.monotonic_ms()).await? {
+                    for result in scheduler.tick_with_feedback(guard.graph.admission.monotonic_ms(),Some((guard.owner.feedback(),guard.graph.max_age_ms))).await? {
                         if let Err(error) = result.result {
                             log::warn!(
                                 "scene run={} status={:?}: {error}",

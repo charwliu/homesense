@@ -25,6 +25,7 @@ pub struct SceneRuntime {
     admitted: Vec<u64>,
     pending: Option<Pending>,
     fade: Option<OwnedFade>,
+    pub(crate) configured_fades: std::collections::BTreeMap<usize,homesense_config::rule_document::FadeTiming>,
 }
 struct OwnedFade {
     index: usize,
@@ -116,6 +117,7 @@ impl SceneRuntime {
             admitted: vec![],
             pending: None,
             fade: None,
+            configured_fades: Default::default(),
         })
     }
     /// Install only a freshly accepted, single-use capability. This never reads
@@ -127,7 +129,6 @@ impl SceneRuntime {
         let document=bundle.automation.ok_or("accepted automation missing")?;
         let definition=document.timed_scenes.get(&accepted.start.definition).ok_or("accepted scene missing")?;
         if !definition.enabled {return Err("accepted scene disabled".into());}
-        if !definition.fades.is_empty() {return Err("configured fades require feedback preparation support".into());}
         let mut steps=definition.steps.clone();
         for step in &mut steps {
             step.source=format!("{} -> {}",accepted.start.source,step.source);
@@ -137,7 +138,7 @@ impl SceneRuntime {
         let timeline=Timeline::new(steps,current.epochs,accepted.started_ms,definition.max_lateness_ms).map_err(|e|format!("{e:?}"))?;
         Ok(Self{admission,controller:accepted.controller,generation:current,manual_fence:accepted.manual_fence,causal_deadline:accepted.causal_deadline,timeline,targets,
             audit_id:accepted.start.run,definition:Some(accepted.start.definition),result_taken:false,audit_version:0,
-            audit_status:homesense_storage::scene_run::Status::Pending,audit_failed:false,admitted:vec![],pending:None,fade:None})
+            audit_status:homesense_storage::scene_run::Status::Pending,audit_failed:false,admitted:vec![],pending:None,fade:None,configured_fades:definition.fades.clone()})
     }
     /// Transfer the original scene fences to a delayed fade. This does not
     /// start the fade or resolve the timeline step; the scheduler owns both.
@@ -201,6 +202,11 @@ impl SceneRuntime {
         self.fade=None;
         Ok(())
     }
+    pub(crate) fn due_fade(&self, now:u64) -> Option<(Step,homesense_config::rule_document::FadeTiming)> {
+        if self.has_pending() {return None;}
+        let (index,step)=self.timeline.due_step(now)?;
+        self.configured_fades.get(&index).copied().map(|timing|(step.clone(),timing))
+    }
     /// Caller uses the same boot-relative monotonic clock for construction and polling.
     pub async fn poll(&mut self, now: u64) -> Result<Option<Vec<u64>>, String> {
         if self.audit_failed {
@@ -223,6 +229,9 @@ impl SceneRuntime {
         if current != self.generation {
             self.timeline.cancel();
             return Err("scene generation changed".into());
+        }
+        if self.due_fade(now).is_some() {
+            return Err("configured fade requires feedback preparation".into());
         }
         let Some(due) = self
             .timeline

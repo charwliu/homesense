@@ -174,6 +174,13 @@ impl Timeline {
         }
         n
     }
+    pub fn due_step(&self, now: u64) -> Option<(usize, &Step)> {
+        self.order.iter().copied().find_map(|i| {
+            let due=self.started+self.steps[i].delay_ms;
+            (self.states[i]==State::Waiting && now>=due && now<=due+self.lateness)
+                .then_some((i,&self.steps[i]))
+        })
+    }
     pub fn step(&self, index: usize) -> Option<&Step> { self.steps.get(index) }
     pub fn states(&self) -> &[State] {
         &self.states
