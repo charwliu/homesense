@@ -39,7 +39,8 @@ pub async fn serve(
                         let api=api.clone();
                         async move {
                             let (parts,body)=request.into_parts();
-                            let response=match tokio::time::timeout(Duration::from_secs(3),Limited::new(body,4096).collect()).await {
+                            let limit=if parts.uri.path().starts_with("/api/v1/config/drafts/"){crate::web_drafts::MAX_BYTES}else{4096};
+                            let response=match tokio::time::timeout(Duration::from_secs(3),Limited::new(body,limit).collect()).await {
                                 Ok(Ok(body))=>match tokio::time::timeout(Duration::from_secs(8),api.handle(Request::from_parts(parts,body.to_bytes()))).await {
                                     Ok(response)=>response,
                                     Err(_)=>failure(StatusCode::SERVICE_UNAVAILABLE)

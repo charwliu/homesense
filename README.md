@@ -387,3 +387,5 @@ Web 模拟管理入口：`homesensed serve-web-simulation config/simulation.json
 统一 HAP 发布增量：`serve-unified-simulation DEVICE_FILE AUTOMATION_FILE STATE_DIR SECONDS LOOPBACK_IP:PORT SCENE...` 将灯光和显式选定场景安装到同一个桥。有界最新快照通道将反馈发布与控制循环分开，避免配件锁与运行时接受互相等待；灯光／场景混合写批次暂整批拒绝，无部分执行。加密回环覆盖配件列表、交替控制、真实 false 复位事件；重启保留配对／配置编号、不重放场景。路由器专项及原运行时／自动化服务回归通过；未开放 LAN 或改动 EA-5。
 
 设备管理增量：`GET /api/v1/devices` 返回授权设备的反馈、质量、未决命令及 boot/revision/sequence；`POST /api/v1/device-commands` 接受灯光开关和亮度，复用 HAP 亮度恢复和 Admission 队列。页面不将未知状态显示成关灯；未观察到亮度且未配置默认值时，开灯不擅自设为 100%。控制要求设备范围权限，持久幂等键与场景共用命名空间，相同键不同动作拒绝。Web 集成和安全测试 4 项通过，覆盖状态读取、越权、非法亮度、重复控制仅一条命令和内容冲突；尚未开放电机、配置编辑及 LAN 服务。
+
+配置草稿增量：模拟 Web 入口可显式添加 `--administrator`，页面提供设备与自动化 JSON 成组校验、保存和按 ID 读取。`POST/GET /api/v1/config/drafts/{uuid}` 要求管理员，按调用者隔离；草稿不可覆盖，重复同内容保存幂等，容量 128 份、请求上限 256 KiB，SQLite 文件以 0600 创建。草稿保存不改变活动版本；发布前运行清单、备份、屏障激活和版本历史仍待接线。5 项 Web／草稿回归通过，现场未部署。
