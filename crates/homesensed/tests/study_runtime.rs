@@ -5133,6 +5133,8 @@ async fn software_fade_partial_wire_failure_does_not_admit_successor() {
     assert!(outcome.result.is_err());
     assert!(fade.tick().await.is_err());
     assert!(fade.tick().await.is_err());
+    fade.cancel().await.unwrap();
+    assert!(fade.tick().await.is_err(),"cleanup must not turn failure into success");
     assert_eq!(*wire.lock().unwrap(),[0xae,0x15]);
     let sql=rusqlite::Connection::open(&db.0).unwrap();
     assert_eq!(sql.query_row("SELECT count(*) FROM command_journal",[],|r|r.get::<_,i64>(0)).unwrap(),1);
@@ -5210,4 +5212,29 @@ async fn fade_group_reserves_budget_and_releases_cancelled_device() {
     assert_eq!(sql.query_row("SELECT count(*) FROM command_journal WHERE status='cancelled'",[],|r|r.get::<_,i64>(0)).unwrap(),1);
     assert!(a.task_generation().await.is_ok());
     a.shutdown().await.unwrap();
+}
+
+#[tokio::test]
+async fn software_fade_expiry_remains_failed_after_cleanup() {
+    use homesensed::{software_fade::SoftwareFade,feedback::Feedback,transport_owner::GatewayRead};
+    let db=Db(std::env::temp_dir().join(format!("fade-{}.sqlite",Uuid::new_v4())));
+    let devices=include_bytes!("../../../config/simulation.json");
+    Store::open(&db.0).unwrap().publish_configuration(None,devices,ExecutionContext::Simulation,&[]).unwrap();
+    let controller=Uuid::new_v4();let a=actor(&db,controller).await;
+    let config=homesense_config::Configuration::parse(devices,ExecutionContext::Simulation).unwrap();
+    let mut feedback=Feedback::new(&config,ExecutionContext::Simulation,Uuid::parse_str(a.boot_id()).unwrap().as_u128(),1).unwrap();
+    let device=homesense_core::DeviceId::new("simulation:light").unwrap();
+    let zero=homesense_core::Percent::new(0).unwrap();
+    assert!(SoftwareFade::start(a.clone(),controller,device.clone(),zero,200,50,100,4,&feedback,2000).await.is_err());
+    feedback.apply(&GatewayRead{gateway_id:"simulation".into(),transport_epoch:1,received_at_ms:0,result:hb_transport::Receive::Frames{transport_epoch:1,frames:vec![hb_protocol::RawFrame{address:0x15,command:0xd1,value:100}]}}).unwrap();
+    let mut fade=SoftwareFade::start(a.clone(),controller,device,zero,50,50,0,1,&feedback,2000).await.unwrap();
+    tokio::time::sleep(std::time::Duration::from_millis(70)).await;
+    let error=fade.tick().await.unwrap_err();
+    assert!(error.contains("DeadlineMissed"));
+    assert_eq!(fade.tick().await.unwrap_err(),error);
+    fade.cancel().await.unwrap();
+    assert_eq!(fade.tick().await.unwrap_err(),error);
+    let sql=rusqlite::Connection::open(&db.0).unwrap();
+    assert_eq!(sql.query_row("SELECT count(*) FROM command_journal",[],|r|r.get::<_,i64>(0)).unwrap(),0);
+    drop(fade);a.shutdown().await.unwrap();
 }

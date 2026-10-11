@@ -25,6 +25,7 @@ pub struct SoftwareFade {
     pending: Vec<u64>,
     closed: bool,
     in_flight: bool,
+    failure: Option<String>,
 }
 impl SoftwareFade {
     /// The caller must reserve `ceil(duration/interval)` output slots against
@@ -96,18 +97,23 @@ impl SoftwareFade {
             pending: vec![],
             closed: false,
             in_flight: false,
+            failure: None,
         })
     }
-    /// Returns true only after the last admitted sample is written. Device
+    /// Returns true when quiescent after successful writes or explicit cancellation. Device
     /// activity must still be derived from fresh physical feedback separately.
     pub async fn tick(&mut self) -> Result<bool, String> {
+        if let Some(error) = &self.failure {
+            return Err(error.clone());
+        }
         if self.closed {
             return Ok(true);
         }
         if self.in_flight {
             self.admission.stop_now();
             self.closed = true;
-            return Err("fade admission outcome unknown".into());
+            self.failure = Some("fade admission outcome unknown".into());
+            return Err(self.failure.clone().unwrap());
         }
         if !self.pending.is_empty() {
             let statuses = self
@@ -118,21 +124,27 @@ impl SoftwareFade {
                     self.pending.clone(),
                 )
                 .await
-                .map_err(|e| format!("fade status: {e:?}"))?;
+                .map_err(|e| {
+                    let error = format!("fade status: {e:?}");
+                    self.failure = Some(error.clone());
+                    error
+                })?;
             if statuses
                 .iter()
                 .any(|s| matches!(s, Status::Failed | Status::Uncertain | Status::Cancelled))
             {
+                self.failure = Some("fade output interrupted".into());
                 self.cancel().await?;
-                return Err("fade output interrupted".into());
+                return Err(self.failure.clone().unwrap());
             }
             if statuses
                 .iter()
                 .any(|s| matches!(s, Status::Accepted | Status::Writing))
             {
                 if self.admission.monotonic_ms() > self.expires {
+                    self.failure = Some("fade output expired".into());
                     self.cancel().await?;
-                    return Err("fade output expired".into());
+                    return Err(self.failure.clone().unwrap());
                 }
                 return Ok(false);
             }
@@ -145,7 +157,11 @@ impl SoftwareFade {
         let sample = self
             .fade
             .sample(self.admission.monotonic_ms())
-            .map_err(|e| format!("fade sample: {e:?}"))?;
+            .map_err(|e| {
+                let error = format!("fade sample: {e:?}");
+                self.failure = Some(error.clone());
+                error
+            })?;
         if let Some(level) = sample {
             // Cancellation of this await may lose a receipt: the Drop guard closes
             // admission unless the caller completes or explicitly cancels us.
@@ -177,7 +193,8 @@ impl SoftwareFade {
                     self.fade.cancel();
                     self.admission.stop_now();
                     self.closed = true;
-                    return Err(format!("fade admission: {error:?}"));
+                    self.failure = Some(format!("fade admission: {error:?}"));
+                    return Err(self.failure.clone().unwrap());
                 }
             }
         }
@@ -188,13 +205,28 @@ impl SoftwareFade {
         if self.in_flight {
             self.admission.stop_now();
             self.closed = true;
-            return Err("fade admission outcome unknown".into());
+            self.failure = Some("fade admission outcome unknown".into());
+            return Err(self.failure.clone().unwrap());
         }
         if let Some(run) = self.pending.first().copied() {
-            self.admission
-                .cancel_scene_run(self.controller, self.generation.clone(), run)
+            let statuses = self
+                .admission
+                .command_statuses(
+                    self.controller,
+                    self.generation.clone(),
+                    self.pending.clone(),
+                )
                 .await
-                .map_err(|e| format!("fade cancel: {e:?}"))?;
+                .map_err(|e| format!("fade cancellation status: {e:?}"))?;
+            if statuses
+                .iter()
+                .any(|s| matches!(s, Status::Accepted | Status::Writing))
+            {
+                self.admission
+                    .cancel_scene_run(self.controller, self.generation.clone(), run)
+                    .await
+                    .map_err(|e| format!("fade cancel: {e:?}"))?;
+            }
         }
         self.pending.clear();
         self.closed = true;
