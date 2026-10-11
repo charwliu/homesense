@@ -447,3 +447,65 @@ async fn supervised_reconnect_queries_again_without_repeating_startup() {
         std::fs::remove_dir_all(root).unwrap();
     }
 }
+
+#[tokio::test]
+async fn supervision_stops_at_limit_or_failed_recovery_sync() {
+    for synchronized in [true, false] {
+        let root = std::env::temp_dir().join(format!(
+            "automation-recovery-failure-{}",
+            uuid::Uuid::new_v4()
+        ));
+        let bus = TcpListener::bind("127.0.0.1:0").unwrap();
+        let mut devices: hap::serde_json::Value =
+            hap::serde_json::from_slice(include_bytes!("../../../config/simulation-home.json"))
+                .unwrap();
+        devices["gateways"][0]["endpoint"] = bus.local_addr().unwrap().to_string().into();
+        devices["gateways"][0]["modules"][0]["verification"] = hap::serde_json::json!({"status":"verified","evidence":"loopback only","verified_at_unix_ms":1});
+        let rules = br#"{"schema_version":1,"configuration_revision":1,"variables":[],"rules":[]}"#;
+        let server = std::thread::spawn(move || {
+            for round in 0..2 {
+                let (mut socket, _) = bus.accept().unwrap();
+                socket
+                    .set_read_timeout(Some(Duration::from_secs(5)))
+                    .unwrap();
+                let mut frame = [0; 5];
+                socket.read_exact(&mut frame).unwrap();
+                assert_eq!(frame, [0xae, 0x15, 0xa1, 0xf2, 0xee]);
+                if round == 0 || synchronized {
+                    socket.write_all(&[0xae, 0x15, 0xd1, 42, 0xee]).unwrap();
+                }
+                socket.shutdown(std::net::Shutdown::Both).unwrap();
+            }
+            bus
+        });
+        let error = homesensed::automation_tcp::serve_supervised(
+            &hap::serde_json::to_vec(&devices).unwrap(),
+            rules,
+            &root,
+            Duration::from_secs(3),
+            true,
+            1,
+        )
+        .await
+        .unwrap_err();
+        if synchronized {
+            assert!(error.contains("recovery limit reached"), "{error}");
+        }
+        let listener = server.join().unwrap();
+        listener.set_nonblocking(true).unwrap();
+        assert_eq!(
+            listener.accept().unwrap_err().kind(),
+            std::io::ErrorKind::WouldBlock,
+            "no third connection after exhausted budget or failed synchronization"
+        );
+        let sql = rusqlite::Connection::open(root.join("automation-tcp.sqlite")).unwrap();
+        assert_eq!(
+            sql.query_row("SELECT count(*) FROM command_journal", [], |r| r
+                .get::<_, i64>(0))
+                .unwrap(),
+            0
+        );
+        drop(sql);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+}
