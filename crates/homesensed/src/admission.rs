@@ -147,6 +147,8 @@ impl SubmissionFailure {
     }
 }
 enum Message {
+    ConfigurationExport(Uuid, TaskGeneration, u64, oneshot::Sender<Result<Option<homesense_storage::configuration_history::Export>, WriteStatus>>),
+    ConfigurationHistory(Uuid, TaskGeneration, Option<u64>, usize, oneshot::Sender<Result<homesense_storage::configuration_history::Page, WriteStatus>>),
     PublicationBundle(Uuid, oneshot::Sender<Result<(homesense_storage::automation::Bundle, ExecutionContext, u64), WriteStatus>>),
     PublicationState(oneshot::Sender<bool>),
     AutomationBundle(Uuid, TaskGeneration, oneshot::Sender<Result<homesense_storage::automation::Bundle, WriteStatus>>),
@@ -405,6 +407,22 @@ impl Admission {
                             let _=reply.send(result);
                         }
                         Message::PublicationState(reply) => { let _=reply.send(!failed && arbiter.policy().publishing && publication.is_some()); },
+                        Message::ConfigurationHistory(controller,generation,before,limit,reply) => {
+                            let result=(|| {
+                                if !authorize(controller) {return Err(WriteStatus::InsufficientPrivileges)}
+                                if failed || generation.boot!=worker_boot || generation.epochs!=arbiter.policy().epochs {return Err(WriteStatus::ServiceCommunicationFailure)}
+                                store.configuration_history(before,limit).map_err(|_|WriteStatus::ServiceCommunicationFailure)
+                            })();
+                            let _=reply.send(result);
+                        }
+                        Message::ConfigurationExport(controller,generation,revision,reply) => {
+                            let result=(|| {
+                                if !authorize(controller) {return Err(WriteStatus::InsufficientPrivileges)}
+                                if failed || generation.boot!=worker_boot || generation.epochs!=arbiter.policy().epochs {return Err(WriteStatus::ServiceCommunicationFailure)}
+                                store.export_configuration(revision,options.context).map_err(|_|WriteStatus::ServiceCommunicationFailure)
+                            })();
+                            let _=reply.send(result);
+                        }
                         Message::AutomationBundle(controller,generation,reply) => {
                             let result=(|| {
                                 if !authorize(controller) {return Err(WriteStatus::InsufficientPrivileges)}
@@ -1309,6 +1327,16 @@ impl Admission {
     pub(crate) async fn feedback_settled(&self,controller:Uuid,generation:TaskGeneration,lease:crate::feedback::RuleLease)->Result<bool,WriteStatus>{
         let (reply,receive)=oneshot::channel();
         self.sender.try_send(Message::FeedbackSettled(controller,generation,lease,reply)).map_err(|_|WriteStatus::ResourceBusy)?;
+        receive.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?
+    }
+    pub(crate) async fn configuration_history(&self,controller:Uuid,generation:TaskGeneration,before:Option<u64>,limit:usize)->Result<homesense_storage::configuration_history::Page,WriteStatus>{
+        let (reply,receive)=oneshot::channel();
+        self.sender.try_send(Message::ConfigurationHistory(controller,generation,before,limit,reply)).map_err(|_|WriteStatus::ResourceBusy)?;
+        receive.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?
+    }
+    pub(crate) async fn configuration_export(&self,controller:Uuid,generation:TaskGeneration,revision:u64)->Result<Option<homesense_storage::configuration_history::Export>,WriteStatus>{
+        let (reply,receive)=oneshot::channel();
+        self.sender.try_send(Message::ConfigurationExport(controller,generation,revision,reply)).map_err(|_|WriteStatus::ResourceBusy)?;
         receive.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?
     }
     pub(crate) async fn automation_bundle(&self, controller: Uuid, generation: TaskGeneration) -> Result<homesense_storage::automation::Bundle, WriteStatus> {

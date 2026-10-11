@@ -397,9 +397,41 @@ async fn web_scope_origin_receipts_and_runtime_admission() {
         );
         let mut activation=make_draft();*activation.uri_mut()=format!("/api/v1/config/activations/{draft_id}").parse().unwrap();
         assert_eq!(api.handle(activation).await.status(),StatusCode::FORBIDDEN);
+        for path in ["/api/v1/config/versions","/api/v1/config/versions/1/export"] {
+            let mut read=make(&api.origin,"");*read.method_mut()=hyper::Method::GET;*read.uri_mut()=path.parse().unwrap();
+            assert_eq!(api.handle(read).await.status(),StatusCode::FORBIDDEN);
+        }
         let mut administrator = tokens.authenticate(&format!("Bearer {secret}")).unwrap();
         administrator.role = Role::Administrator;
         tokens.insert(token_id, secret, administrator).unwrap();
+        for (path,status) in [
+            ("/api/v1/config/versions?limit=1",StatusCode::OK),
+            ("/api/v1/config/versions/1/export",StatusCode::OK),
+            ("/api/v1/config/versions/99/export",StatusCode::NOT_FOUND),
+            ("/api/v1/config/versions?limit=0",StatusCode::BAD_REQUEST),
+            ("/api/v1/config/versions?limit=101",StatusCode::BAD_REQUEST),
+            ("/api/v1/config/versions?limit=1&limit=2",StatusCode::BAD_REQUEST),
+            ("/api/v1/config/versions?before=0",StatusCode::BAD_REQUEST),
+            ("/api/v1/config/versions?before=18446744073709551615",StatusCode::BAD_REQUEST),
+            ("/api/v1/config/versions?unknown=1",StatusCode::BAD_REQUEST),
+            ("/api/v1/config/versions/1/export?x=1",StatusCode::BAD_REQUEST),
+            ("/api/v1/config/versions/0/export",StatusCode::BAD_REQUEST),
+        ] {
+            let mut read=make(&api.origin,"");*read.method_mut()=hyper::Method::GET;*read.uri_mut()=path.parse().unwrap();
+            let response=api.handle(read).await;assert_eq!(response.status(),status,"{path}");
+            assert_eq!(response.headers()["cache-control"],"no-store");
+            let body:serde_json::Value=serde_json::from_slice(&response.into_body().collect().await.unwrap().to_bytes()).unwrap();
+            if status==StatusCode::OK {
+                assert_eq!(body["active_revision"],"1");
+                if path.ends_with("export") {
+                    assert_eq!(body["devices"],serde_json::from_slice::<serde_json::Value>(devices).unwrap());
+                    assert_eq!(body["automation"],serde_json::from_slice::<serde_json::Value>(rules).unwrap());
+                } else {assert_eq!(body["versions"][0]["revision"],"1");assert!(body["next_before"].is_null());}
+            }
+        }
+        let mut write=make(&api.origin,"{}");*write.uri_mut()="/api/v1/config/versions".parse().unwrap();assert_eq!(api.handle(write).await.status(),StatusCode::METHOD_NOT_ALLOWED);
+        assert!(control.request(Action::ConfigurationHistory{controller:Uuid::new_v4(),revision:1,before:None,limit:20}).await.is_err());
+        assert!(control.request(Action::ConfigurationExport{controller:caller,revision:2,selected:1}).await.is_err());
         assert_eq!(api.handle(make_draft()).await.status(), StatusCode::OK);
         assert_eq!(api.handle(make_draft()).await.status(), StatusCode::OK);
         let mut read = make_draft();

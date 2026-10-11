@@ -108,3 +108,5 @@ mod management_endpoint;
 
 pub mod hap_endpoint;
 pub mod runtime_motor_hap;
+
+mod web_history;
