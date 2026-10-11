@@ -1349,7 +1349,7 @@ async fn scheduler_replaces_overlapping_devices_and_preserves_other_scene_member
 }
 
 #[tokio::test]
-async fn scheduler_stop_invalidates_all_runs_even_when_first_durable_cancel_fails() {
+async fn scheduler_stop_reconciles_transport_cancelled_runs_and_invalidates_timers() {
     use homesense_core::{
         Command, DeviceId,
         scene::{Status, Step},
@@ -1377,7 +1377,7 @@ async fn scheduler_stop_invalidates_all_runs_even_when_first_durable_cancel_fail
     a.transport_failed().await.unwrap();
     let results = scheduler.stop().await;
     assert_eq!(results.len(), 2);
-    assert!(results.iter().find(|r| r.0 == first).unwrap().1.is_err());
+    assert!(results.iter().all(|(_, result)| result.is_ok()), "transport audit already cancelled pending output");
     assert_eq!(scheduler.status(first), Some(Status::Cancelled));
     assert_eq!(scheduler.status(second), Some(Status::Cancelled));
     assert!(scheduler.tick(100).await.is_err());

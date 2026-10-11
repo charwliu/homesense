@@ -248,6 +248,7 @@ impl SceneRuntime {
             self.timeline.cancel_offered(pending.index)
         };
         result.map_err(|e| format!("{e:?}"))?;
+        self.admitted.retain(|run| *run != pending.run);
         self.pending = None;
         self.checkpoint().await
     }
@@ -269,6 +270,7 @@ impl SceneRuntime {
                 self.timeline.resolve(pending.index, false)
             }
             .map_err(|e| format!("{e:?}"))?;
+            self.admitted.retain(|run| *run != pending.run);
             self.pending = None;
             return self.checkpoint().await;
         }
@@ -278,6 +280,7 @@ impl SceneRuntime {
             self.timeline
                 .resolve(pending.index, true)
                 .map_err(|e| format!("{e:?}"))?;
+            self.admitted.retain(|run| *run != pending.run);
             self.pending = None;
         }
         self.checkpoint().await
@@ -307,6 +310,8 @@ impl SceneRuntime {
         // Invalidate volatile timers even if durable cancellation fails; caller
         // may retry cancellation, but no further timed action can be admitted.
         let mut count = self.timeline.cancel();
+        // A transport failure may already have made every in-flight command terminal.
+        self.reconcile().await?;
         for run in &self.admitted {
             let cancelled = self
                 .admission
