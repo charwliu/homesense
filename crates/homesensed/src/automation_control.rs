@@ -15,6 +15,7 @@ pub enum Action {
     Cancel(u64),
     Status(u64),
     Retire(u64),
+    LastRun(String),
 }
 #[derive(Debug, PartialEq, Eq)]
 pub enum Reply {
@@ -22,6 +23,19 @@ pub enum Reply {
     Cancelled(usize),
     Status(Option<Status>),
     Retired(Status),
+    LastRun(Option<LastRun>),
+}
+/// Persisted execution receipt. Timestamps are monotonic within `boot`, and
+/// CommandsWritten is not proof that physical targets were reached.
+#[derive(Debug, PartialEq, Eq)]
+pub struct LastRun {
+    pub boot: String,
+    pub run: String,
+    pub revision: u64,
+    pub started_ms: u64,
+    pub updated_ms: u64,
+    pub version: u64,
+    pub status: homesense_storage::scene_run::Status,
 }
 struct Request {
     action: Action,
@@ -36,7 +50,7 @@ impl Control {
     /// Bounded admission, no retry. A lost response after execution is ambiguous;
     /// callers must inspect history rather than resubmit an action automatically.
     pub async fn request(&self, action: Action) -> Result<Reply, String> {
-        if matches!(&action, Action::Start(id) if id.is_empty() || id.len()>256) {
+        if matches!(&action, Action::Start(id) | Action::LastRun(id) if id.is_empty() || id.len()>256 || id.chars().any(char::is_control)) {
             return Err("invalid scene name".into());
         }
         let (reply, receive) = oneshot::channel();
@@ -106,6 +120,11 @@ impl Receiver {
                     Action::Cancel(run) => scenes.cancel(run).await.map(Reply::Cancelled),
                     Action::Status(run) => Ok(Reply::Status(scenes.status(run))),
                     Action::Retire(run) => scenes.retire(run).map(Reply::Retired),
+                    Action::LastRun(id) => {
+                        if !document.timed_scenes.contains_key(&id) { return Err("unknown timed scene".into()); }
+                        let page=admission.scene_history(self.controller,self.generation.clone(),homesense_storage::scene_run::Query::Latest{definition:id}).await.map_err(|e|format!("{e:?}"))?;
+                        Ok(Reply::LastRun(page.map(|p|LastRun{boot:p.boot,run:p.run,revision:p.record.revision,started_ms:p.record.started_ms,updated_ms:p.record.updated_ms,version:p.record.version,status:p.record.status})))
+                    },
                 }
             }
             .await;

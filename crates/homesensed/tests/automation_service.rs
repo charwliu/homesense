@@ -116,5 +116,11 @@ async fn simulation_publication_cancels_old_delays_and_runs_new_mapping() {
     assert!(!root.join("runtime.sqlite").exists());
     assert!(!root.join("identity").exists());
     drop(sql);
+    // Durable active bytes govern restart: old inputs cannot silently revert it.
+    assert!(homesensed::service::serve_automation_simulation(devices,&old_rules,&root,Duration::from_millis(40),None).await.is_err());
+    homesensed::service::serve_automation_simulation(&next,&next_rules,&root,Duration::from_millis(40),None).await.unwrap();
+    let sql=rusqlite::Connection::open(root.join("automation-simulation.sqlite")).unwrap();
+    assert_eq!(sql.query_row("SELECT count(*) FROM scene_run",[],|r|r.get::<_,i64>(0)).unwrap(),2,"restart must not replay scenes");
+    drop(sql);
     std::fs::remove_dir_all(root).unwrap();
 }
