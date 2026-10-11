@@ -5176,3 +5176,38 @@ async fn dropping_unfinished_software_fade_closes_output_admission() {
     a.shutdown().await.unwrap();
     assert_eq!(sql.query_row("SELECT count(*) FROM command_journal WHERE status='written'",[],|r|r.get::<_,i64>(0)).unwrap(),0);
 }
+
+#[tokio::test]
+async fn fade_group_reserves_budget_and_releases_cancelled_device() {
+    use homesensed::{fade_group::{FadeGroup,Limits,Request},feedback::Feedback,transport_owner::GatewayRead};
+    let db=Db(std::env::temp_dir().join(format!("fade-{}.sqlite",Uuid::new_v4())));
+    let devices=include_bytes!("../../../config/simulation.json");
+    Store::open(&db.0).unwrap().publish_configuration(None,devices,ExecutionContext::Simulation,&[]).unwrap();
+    let controller=Uuid::new_v4();let a=actor(&db,controller).await;
+    let config=homesense_config::Configuration::parse(devices,ExecutionContext::Simulation).unwrap();
+    let mut feedback=Feedback::new(&config,ExecutionContext::Simulation,Uuid::parse_str(a.boot_id()).unwrap().as_u128(),1).unwrap();
+    let device=homesense_core::DeviceId::new("simulation:light").unwrap();
+    let zero=homesense_core::Percent::new(0).unwrap();
+    feedback.apply(&GatewayRead{gateway_id:"simulation".into(),transport_epoch:1,received_at_ms:0,result:hb_transport::Receive::Frames{transport_epoch:1,frames:vec![hb_protocol::RawFrame{address:0x15,command:0xd1,value:100}]}}).unwrap();
+    let mut group=FadeGroup::new(a.clone(),controller,Limits{tasks:2,samples:8,targets_per_second:10}).unwrap();
+    let request=Request{target:zero,duration_ms:300,interval_ms:100,lateness_ms:100};
+    assert!(group.start(device.clone(),Request{interval_ms:50,..request},&feedback,2000).await.unwrap_err().contains("allocation"));
+    assert_eq!(group.active_count(),0);
+    group.start(device.clone(),request,&feedback,2000).await.unwrap();
+    assert!(group.start(device.clone(),request,&feedback,2000).await.unwrap_err().contains("duplicate"));
+    assert!(group.start(homesense_core::DeviceId::new("other").unwrap(),request,&feedback,2000).await.unwrap_err().contains("allocation"));
+    assert_eq!(group.active_count(),1);
+    group.cancel(&device).await.unwrap();
+    assert_eq!(group.active_count(),0);
+    group.start(device.clone(),request,&feedback,2000).await.unwrap();
+    tokio::time::sleep(std::time::Duration::from_millis(110)).await;
+    assert!(group.tick().await.unwrap().is_empty());
+    group.cancel_all().await.unwrap();
+    assert_eq!(group.active_count(),0);
+    assert!(group.tick().await.is_err());
+    assert!(group.start(device,request,&feedback,2000).await.is_err());
+    let sql=rusqlite::Connection::open(&db.0).unwrap();
+    assert_eq!(sql.query_row("SELECT count(*) FROM command_journal WHERE status='cancelled'",[],|r|r.get::<_,i64>(0)).unwrap(),1);
+    assert!(a.task_generation().await.is_ok());
+    a.shutdown().await.unwrap();
+}
