@@ -14,6 +14,7 @@ struct Guard<'a, S: Read + Write + Send + 'static> {
     panels: &'a mut PanelRules,
     scenes: &'a mut SceneScheduler,
     calendar: Option<&'a mut crate::event_rules::ScheduledRules>,
+    publication_paused: bool,
 }
 impl<S: Read + Write + Send + 'static> Drop for Guard<'_, S> {
     fn drop(&mut self) {
@@ -22,7 +23,9 @@ impl<S: Read + Write + Send + 'static> Drop for Guard<'_, S> {
         }
         self.panels.disconnect();
         self.scenes.stop_now();
-        self.admission.stop_now();
+        if !self.publication_paused {
+            self.admission.stop_now();
+        }
         self.owner.invalidate();
     }
 }
@@ -52,6 +55,7 @@ pub async fn drive<S: Read + Write + Send + 'static>(
         },
     )
     .await
+    .map(|_| ())
 }
 /// The wall clock is injectable for simulation. Delays and gestures continue to
 /// use Admission's monotonic clock. Only explicitly supplied schedules run.
@@ -72,6 +76,7 @@ pub async fn drive_with_calendar<S: Read + Write + Send + 'static>(
         admission, owner, panels, scenes, calendar, cadence, max_age_ms, stop, wall_clock, None,
     )
     .await
+    .map(|_| ())
 }
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn drive_controlled<S: Read + Write + Send + 'static>(
@@ -88,7 +93,7 @@ pub(crate) async fn drive_controlled<S: Read + Write + Send + 'static>(
         &mut crate::automation_control::Receiver,
         &homesense_config::rule_document::Document,
     )>,
-) -> Result<(), String> {
+) -> Result<bool, String> {
     struct Close<'a>(
         Option<(
             &'a mut crate::automation_control::Receiver,
@@ -120,6 +125,7 @@ pub(crate) async fn drive_controlled<S: Read + Write + Send + 'static>(
         panels,
         scenes,
         calendar,
+        publication_paused: false,
     };
     let result = async {
         let gateways = guard.owner.gateway_ids();
@@ -202,5 +208,12 @@ pub(crate) async fn drive_controlled<S: Read + Write + Send + 'static>(
             log::warn!("automation shutdown run={id}: {error}");
         }
     }
-    result
+    // Only an acknowledged active barrier permits a soft pause. Cancellation
+    // of this future or an unavailable coordinator keeps the fail-closed Drop.
+    if admission.publication_in_progress().await.unwrap_or(false) {
+        guard.publication_paused = true;
+        Ok(true)
+    } else {
+        result.map(|()| false)
+    }
 }
