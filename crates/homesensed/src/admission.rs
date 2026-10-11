@@ -61,6 +61,18 @@ pub struct DeferredRule {
     pub audit: homesense_storage::rule_audit::Admission,
     pub starts: Vec<homesense_storage::scene_run::Start>,
 }
+/// Ephemeral installation capability; deliberately not Clone or serializable.
+pub struct AcceptedScene {
+    pub(crate) generation: TaskGeneration,
+    pub(crate) controller: Uuid,
+    pub(crate) manual_fence: u64,
+    pub(crate) start: homesense_storage::scene_run::Start,
+    pub(crate) started_ms: u64,
+}
+pub struct AcceptedDeferred {
+    pub command_ids: Vec<u64>,
+    pub scenes: Vec<AcceptedScene>,
+}
 enum Submission {
     Automation {
         batch: Batch,
@@ -1428,8 +1440,18 @@ impl Admission {
     }
     /// Atomically accept variable changes, immediate output and delayed receipts.
     /// No delayed output is scheduled by this call. It is not a network endpoint.
-    pub async fn submit_deferred_rule(&self,generation:TaskGeneration,rule:DeferredRule)->Result<Vec<u64>,WriteStatus> {
-        self.submit_scoped(Submission::Automation{batch:rule.batch,variables:rule.variables,audit:Some(rule.audit),starts:rule.starts,feedback:None,manual_fence:None,scene:None},Some(SubmissionScope::Generation(generation))).await
+    pub async fn submit_deferred_rule(&self,generation:TaskGeneration,rule:DeferredRule)->Result<AcceptedDeferred,WriteStatus> {
+        let manual_fence=self.manual_fence().await?;
+        let controller=rule.batch.controller;
+        let starts=rule.starts.clone();
+        let command_ids=self.submit_scoped(Submission::Automation{batch:rule.batch,variables:rule.variables,audit:Some(rule.audit),starts:rule.starts,feedback:None,manual_fence:None,scene:None},Some(SubmissionScope::Generation(generation.clone()))).await?;
+        let mut scenes=Vec::with_capacity(starts.len());
+        for start in starts {
+            let page=self.scene_history(controller,generation.clone(),homesense_storage::scene_run::Query::Run{boot:self.boot_id().into(),run:start.run.clone(),after:0,limit:1}).await?.ok_or(WriteStatus::ServiceCommunicationFailure)?;
+            if page.record.version!=0 || page.record.status!=homesense_storage::scene_run::Status::Pending || !page.commands.is_empty() {return Err(WriteStatus::ServiceCommunicationFailure);}
+            scenes.push(AcceptedScene{generation:generation.clone(),controller,manual_fence,start,started_ms:page.record.started_ms});
+        }
+        Ok(AcceptedDeferred{command_ids,scenes})
     }
     pub async fn submit_rule_update(
         &self,
