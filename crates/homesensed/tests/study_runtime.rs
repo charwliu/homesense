@@ -6385,3 +6385,48 @@ async fn inferred_feedback_session_preserves_lineage_budget_and_terminal_audit()
         a.shutdown().await.unwrap();
     }
 }
+
+#[tokio::test]
+async fn inferred_feedback_claim_checks_authority_generation_time_and_storage_failure() {
+    use homesense_core::{Observation,Percent,LevelTransition,DeviceId,Command};
+    use homesense_hap::requests::{Batch,Intent};
+    use homesense_storage::feedback_inference::Inference;
+    for fault in [false,true] {
+        let db=Db(std::env::temp_dir().join(format!("inference-owner-{}.sqlite",Uuid::new_v4())));
+        Store::open(&db.0).unwrap().publish(None,1,include_bytes!("../../../config/simulation.json"),&[]).unwrap();
+        let controller=Uuid::new_v4();let a=actor(&db,controller).await;
+        let generation=a.task_generation().await.unwrap();
+        let accepted=a.submit_deferred_rule(generation.clone(),homesensed::admission::DeferredRule {
+            batch:Batch { controller, intents:vec![Intent{device:DeviceId::new("simulation:light").unwrap(),command:Command::SetLevel{level:Percent::new(40).unwrap(),transition:LevelTransition::Immediate}}],subscriptions:vec![] },
+            variables:vec![],starts:vec![],
+            audit:homesense_storage::rule_audit::Admission{revision:1,correlation:3,event:1,parent:0,rule:"synthetic".into()},
+        }).await.unwrap();
+        let ticket=a.dispatch().await.unwrap().unwrap();
+        assert_eq!(accepted.command_ids,vec![ticket.command.id]);
+        a.finish_write(ticket.command.id,true).await.unwrap();
+        let sql=rusqlite::Connection::open(&db.0).unwrap();
+        let written=sql.query_row("SELECT updated_ms FROM command_journal WHERE command_id=?1",[ticket.command.id as i64],|r|r.get::<_,i64>(0)).unwrap() as u64;
+        let inference=Inference{sequence:1,epochs:ticket.command.epochs,correlation:3,parent_event:1,command_id:ticket.command.id,device:ticket.command.device_id,observed:Observation::Level(Percent::new(40).unwrap()),observed_ms:written,window_ms:5000};
+        assert_eq!(a.record_feedback_inference(Uuid::new_v4(),generation.clone(),inference.clone()).await,Err(hap::server::WriteStatus::InsufficientPrivileges));
+        let mut foreign=inference.clone(); foreign.epochs.transport+=1;
+        assert!(a.record_feedback_inference(controller,generation.clone(),foreign).await.is_err());
+        let mut future=inference.clone(); future.observed_ms=u64::MAX;
+        assert_eq!(a.record_feedback_inference(controller,generation.clone(),future).await,Err(hap::server::WriteStatus::InvalidValueInRequest));
+        assert_eq!(sql.query_row("SELECT count(*) FROM feedback_inference",[],|r|r.get::<_,i64>(0)).unwrap(),0);
+        assert!(a.task_generation().await.is_ok());
+        if fault {
+            sql.execute_batch("CREATE TRIGGER inference_failure BEFORE INSERT ON feedback_inference BEGIN SELECT RAISE(ABORT,'injected'); END;").unwrap();
+        }
+        let result=a.record_feedback_inference(controller,generation.clone(),inference.clone()).await;
+        assert_eq!(result.is_err(),fault);
+        assert_eq!(sql.query_row("SELECT count(*) FROM feedback_inference",[],|r|r.get::<_,i64>(0)).unwrap(),if fault{0}else{1});
+        assert_eq!(a.task_generation().await.is_err(),fault);
+        if fault { assert!(a.dispatch().await.is_err()); }
+        else {
+            assert_eq!(a.record_feedback_inference(controller,generation.clone(),inference).await,Err(hap::server::WriteStatus::InvalidValueInRequest));
+            assert!(a.task_generation().await.is_ok());
+            assert!(a.dispatch().await.unwrap().is_none());
+        }
+        a.shutdown().await.unwrap();
+    }
+}
