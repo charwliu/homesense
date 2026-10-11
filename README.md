@@ -429,3 +429,5 @@ Web 事件恢复：`GET /api/v1/events` 提供已鉴权 WebSocket，首帧发送
 LAN TLS 模拟入口：`homesensed serve-web-tls-simulation DEVICE_FILE AUTOMATION_FILE STATE_DIR SECONDS LAN_IP:PORT TOKEN_FILE HTTPS_ORIGIN CERT_PEM KEY_PEM [--administrator]`。仅允许明确的回环、RFC1918 IPv4 或 IPv6 ULA 地址，不允许通配地址；Origin 使用小写主机名与监听端口（443 不写端口），证书 SAN 须覆盖该名称并由客户端信任。私钥为仅当前用户可读的 PEM，启动加载证书，轮换后需重启；不自动生成证书或安装信任。HTTP 仍只允许回环，HTTPS 监听无明文降级，握手期限 3 秒，Cookie 设置 Secure。`python3 tools/verify_web_tls.py BINARY` 使用临时 CA 验证 HTTPS/WSS、严格证书检查和拒绝路径；不连接现场网关。
 
 校准窗帘恢复策略：新增显式 `OutputsAndCalibratedMotors`，在完整查询计划校验中验证模块与逻辑方向／STOP 校准，电机和事件面板保持未知，至少一路可查询输出必须收到新鲜反馈。严格完整反馈策略保留；缺少校准、仅电机映射和反馈超时均关闭控制。当前仅恢复组件提供该策略，TCP 启动／重连及 HAP 电机选择入口尚未启用，现场不变。
+
+TCP 统一 HAP 可用 `--hap-motor DEVICE` 显式选择窗帘（可重复，最多 64 台）；每台发布 Open／Close／Stop 三个瞬时动作，沿用配对授权与配置版本准入，不显示推断位置。必须已有方向和 STOP 校准，缺失／禁用／重复选择及过长名称在启动或发布预检时拒绝。启动、断线恢复和配置发布均使用校准电机同步策略；至少一路可查询输出得到新鲜反馈后恢复，不重放旧动作。`--hap-listen` 仍要求同时配置 Web TLS 参数；未选择的电机不发布。只完成合成回环验证，现场 Apple 家庭／Siri 确认继续挂起。
