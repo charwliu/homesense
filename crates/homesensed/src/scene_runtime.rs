@@ -510,6 +510,7 @@ impl SceneRuntime {
         self.targets.project(&self.admission,self.controller,&self.generation,feedback,max_age).await
     }
 
+    pub(crate) fn definition(&self) -> Option<&str> { self.definition.as_deref() }
     pub fn audit_id(&self) -> &str {
         &self.audit_id
     }

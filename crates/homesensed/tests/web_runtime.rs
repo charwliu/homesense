@@ -212,6 +212,44 @@ async fn web_scope_origin_receipts_and_runtime_admission() {
         let result: serde_json::Value =
             serde_json::from_slice(&first.into_body().collect().await.unwrap().to_bytes()).unwrap();
         assert_eq!(result["outcome"], "accepted");
+        let mut next: serde_json::Value = serde_json::from_slice(devices).unwrap();
+        next["revision"] = 2.into();
+        let candidate = homesense_config::Configuration::parse(
+            &serde_json::to_vec(&next).unwrap(),
+            ExecutionContext::Simulation,
+        )
+        .unwrap();
+        let preview = control
+            .request(Action::ConfigurationPreview {
+                controller: caller,
+                revision: 1,
+                candidate: candidate.clone(),
+            })
+            .await
+            .unwrap();
+        let Reply::ConfigurationPreview(preview) = preview else {
+            panic!("wrong preview reply");
+        };
+        assert_eq!(preview.interrupted_runs.len(), 1);
+        assert_eq!(
+            preview.interrupted_runs[0].run,
+            result["run"].as_u64().unwrap()
+        );
+        assert_eq!(
+            preview.interrupted_runs[0].definition.as_deref(),
+            Some("light")
+        );
+        assert!(!preview.connection_rebuild_required);
+        assert!(
+            control
+                .request(Action::ConfigurationPreview {
+                    controller: Uuid::new_v4(),
+                    revision: 1,
+                    candidate
+                })
+                .await
+                .is_err()
+        );
         let duplicate = api.handle(make(&api.origin, body)).await;
         assert_eq!(duplicate.status(), StatusCode::OK);
         assert_eq!(
@@ -319,6 +357,25 @@ async fn web_scope_origin_receipts_and_runtime_admission() {
         let saved: serde_json::Value =
             serde_json::from_slice(&saved.into_body().collect().await.unwrap().to_bytes()).unwrap();
         assert_eq!(saved["revision"], 2);
+        let mut preview = make_draft();
+        *preview.uri_mut() = format!("/api/v1/config/previews/{draft_id}")
+            .parse()
+            .unwrap();
+        *preview.method_mut() = hyper::Method::GET;
+        *preview.body_mut() = Bytes::new();
+        let preview = api.handle(preview).await;
+        assert_eq!(preview.status(), StatusCode::OK);
+        let preview: serde_json::Value =
+            serde_json::from_slice(&preview.into_body().collect().await.unwrap().to_bytes())
+                .unwrap();
+        assert_eq!(preview["reservation"], false);
+        assert_eq!(preview["impact"]["active_revision"], 1);
+        assert!(
+            preview["impact"]["interrupted_runs"]
+                .as_array()
+                .unwrap()
+                .is_empty()
+        );
         let mut no_origin = make_draft();
         no_origin.headers_mut().remove("origin");
         assert_eq!(api.handle(no_origin).await.status(), StatusCode::FORBIDDEN);

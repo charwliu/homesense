@@ -11,6 +11,7 @@ use tokio::sync::{mpsc, oneshot};
 use uuid::Uuid;
 #[derive(Debug)]
 pub enum Action {
+    ConfigurationPreview {controller:Uuid,revision:u64,candidate:homesense_config::Configuration},
     CalendarStatus,
     Devices {controller:Uuid,revision:u64,ids:Vec<homesense_core::DeviceId>},
     DeviceCommand {controller:Uuid,revision:u64,device:homesense_core::DeviceId,action:crate::management_devices::LightAction},
@@ -26,6 +27,7 @@ pub enum Action {
 }
 #[derive(Debug, PartialEq, Eq)]
 pub enum Reply {
+    ConfigurationPreview(crate::configuration_preview::Preview),
     Devices(crate::management_devices::DeviceSnapshot),
     CommandsAccepted(Vec<u64>),
     SceneAccepted(Option<u64>),
@@ -165,6 +167,16 @@ impl Receiver {
                     return Err("automation request expired or abandoned".into());
                 }
                 match request.action {
+                    Action::ConfigurationPreview {controller,revision,candidate} => {
+                        if revision!=document.revision || candidate.revision()<=revision {return Err("configuration preview revision mismatch".into());}
+                        let current=admission.automation_bundle(controller,self.generation.clone()).await.map_err(|e|format!("{e:?}"))?;
+                        Ok(Reply::ConfigurationPreview(crate::configuration_preview::Preview {
+                            boot:admission.boot_id().to_owned(),active_revision:revision,candidate_revision:candidate.revision(),
+                            connection_rebuild_required:crate::configuration_preview::connection_rebuild_required(&current.configuration,&candidate),
+                            interrupted_runs:scenes.publication_impact(),invalidates_old_rules_and_timers:true,
+                        }))
+                    },
+
                     Action::Devices {controller,revision,ids} => {
                         if revision!=document.revision {return Err("device query revision expired".into());}
                         crate::management_devices::snapshot(admission,controller,self.generation.clone(),ids,feedback).await.map(Reply::Devices)
