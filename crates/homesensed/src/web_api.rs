@@ -423,7 +423,7 @@ impl Api {
             struct DeviceCommand {
                 device: String,
                 request_id: String,
-                command: crate::management_devices::LightAction,
+                command: crate::management_devices::DeviceAction,
             }
             let Ok(body) = serde_json::from_slice::<DeviceCommand>(request.body()) else {
                 return deny(StatusCode::BAD_REQUEST, "invalid_body");
@@ -434,7 +434,7 @@ impl Api {
             let Ok(device) = homesense_core::DeviceId::new(body.device.clone()) else {
                 return deny(StatusCode::BAD_REQUEST, "invalid_device");
             };
-            if matches!(body.command, crate::management_devices::LightAction::Brightness {level} if level>100)
+            if matches!(body.command, crate::management_devices::DeviceAction::Brightness {level} if level>100)
             {
                 return deny(StatusCode::BAD_REQUEST, "invalid_brightness");
             }
@@ -594,5 +594,5 @@ pub(crate) fn device_json(
         device.state.kind,
         homesense_core::ModuleKind::Switch | homesense_core::ModuleKind::Dimmer
     );
-    json!({"id":device.id.as_str(),"name":device.name,"kind":format!("{:?}",device.state.kind),"observed":observed,"quality":format!("{:?}",device.state.quality),"observed_at_ms":device.state.observed_at_ms,"pending":device.state.pending_command,"version":device.state.version,"can_control":light && grant.may_control_device(device.id.as_str())})
+    json!({"id":device.id.as_str(),"name":device.name,"kind":format!("{:?}",device.state.kind),"observed":observed,"quality":format!("{:?}",device.state.quality),"observed_at_ms":device.state.observed_at_ms,"pending":device.state.pending_command,"version":device.state.version,"motor_calibrated":device.motor_calibrated,"can_control":(light || device.motor_calibrated) && grant.may_control_device(device.id.as_str())})
 }

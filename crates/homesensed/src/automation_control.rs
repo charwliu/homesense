@@ -15,7 +15,7 @@ pub enum Action {
     ConfigurationPreview {controller:Uuid,revision:u64,candidate:homesense_config::Configuration},
     CalendarStatus,
     Devices {controller:Uuid,revision:u64,ids:Vec<homesense_core::DeviceId>},
-    DeviceCommand {controller:Uuid,revision:u64,device:homesense_core::DeviceId,action:crate::management_devices::LightAction},
+    DeviceCommand {controller:Uuid,revision:u64,device:homesense_core::DeviceId,action:crate::management_devices::DeviceAction},
     SceneCancel { controller: Uuid, revision: u64, run: u64 },
     SceneAction { controller: Uuid, revision: u64, scene: String, execute: bool },
     Start(String),
@@ -190,6 +190,17 @@ impl Receiver {
                     },
                     Action::DeviceCommand {controller,revision,device,action} => {
                         if revision!=document.revision {return Err("device command revision expired".into());}
+                        let motor=match action {
+                            crate::management_devices::DeviceAction::Open=>Some(homesense_core::MotorAction::Open),
+                            crate::management_devices::DeviceAction::Close=>Some(homesense_core::MotorAction::Close),
+                            crate::management_devices::DeviceAction::Stop=>Some(homesense_core::MotorAction::Stop),
+                            _=>None,
+                        };
+                        if let Some(motor)=motor {
+                            admission.automation_bundle(controller,self.generation.clone()).await.map_err(|e|format!("{e:?}"))?;
+                            if request.reply.is_closed() || Instant::now()>=request.deadline {return Err("device command expired or abandoned".into());}
+                            return admission.submit_motor_for_revision(revision,controller,device,motor).await.map(Reply::CommandsAccepted).map_err(|e|format!("{e:?}"));
+                        }
                         let batch=crate::management_devices::prepare(admission,controller,self.generation.clone(),device,action,feedback,max_age_ms).await?;
                         if request.reply.is_closed() || Instant::now()>=request.deadline {return Err("device command expired or abandoned".into());}
                         admission.submit_for_revision(revision,batch).await.map(Reply::CommandsAccepted).map_err(|e|format!("{e:?}"))
