@@ -145,6 +145,7 @@ pub(crate) async fn drive_controlled<S: Read + Write + Send + 'static>(
             let now = admission.monotonic_ms();
             if let Some(calendar) = &mut guard.calendar {
                 if let Some(router) = &mut causal {
+                    calendar.startup_causal(Some((guard.owner.feedback(),max_age_ms)),router,guard.scenes).await?;
                     calendar.poll_causal(wall_clock()?,Some((guard.owner.feedback(),max_age_ms)),router,guard.scenes).await?;
                 } else {
                 for report in calendar

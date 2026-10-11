@@ -457,10 +457,28 @@ pub struct ScheduledRules {
     rules: EventRules,
     calendar: homesense_core::calendar::Calendar,
     watermark: Option<i64>,
+    startup_attempted: bool,
 }
 impl ScheduledRules {
     pub(crate) fn matches_admission(&self, admission: &Admission) -> bool {
         self.rules.admission.boot_id() == admission.boot_id()
+    }
+    /// One startup event per assembled synchronized runtime. Mark before await:
+    /// ambiguous acceptance is never retried by another loop iteration.
+    pub(crate) async fn startup_causal(
+        &mut self, feedback:Option<(&Feedback,u64)>,
+        router:&mut crate::deferred_router::Router,
+        scheduler:&mut crate::scene_scheduler::SceneScheduler,
+    )->Result<Vec<crate::deferred_rule::Outcome>,String> {
+        if !router.matches_owner(&self.rules.admission,self.rules.controller) {
+            return Err("foreign startup causal owner".into());
+        }
+        if self.startup_attempted {return Ok(vec![]);}
+        self.startup_attempted=true;
+        let ids:Vec<_>=self.rules.bindings.iter().filter(|b|b.trigger==Trigger::StartupSynchronized).map(|b|b.id.clone()).collect();
+        if ids.is_empty() {return Ok(vec![]);}
+        let (_,outcomes)=router.start_rules(&ids,scheduler,feedback,self.rules.budget,5000).await?;
+        Ok(outcomes)
     }
     pub(crate) async fn scene_result_causal(
         &mut self, result: crate::scene_scheduler::SceneResult,
@@ -507,6 +525,7 @@ impl ScheduledRules {
             .await
     }
     pub fn stop(&mut self) {
+        self.startup_attempted = true;
         self.calendar.stop();
     }
 
@@ -533,6 +552,7 @@ impl ScheduledRules {
             rules,
             calendar,
             watermark,
+            startup_attempted: false,
         })
     }
     async fn occurrences(&mut self, wall_unix_ms:i64)->Result<Vec<String>,String> {
