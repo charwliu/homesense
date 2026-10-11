@@ -322,11 +322,21 @@ impl Store {
         device: &homesense_core::DeviceId,
         observed_ms: Option<u64>,
     ) -> Result<bool, Error> {
+        self.feedback_is_settled_in_epoch(boot_id,device,observed_ms,0)
+    }
+    /// A validated, freshly synchronized newer transport epoch supersedes old
+    /// terminal commands even when both share a millisecond timestamp. Pending
+    /// commands in any epoch and terminal commands in the current/future epoch
+    /// still block. Epoch zero retains the conservative legacy behavior.
+    pub fn feedback_is_settled_in_epoch(
+        &self, boot_id: &str, device: &homesense_core::DeviceId,
+        observed_ms: Option<u64>, transport_epoch: u64,
+    ) -> Result<bool, Error> {
         boot(boot_id)?;
         let sample = observed_ms.map(integer).transpose()?;
         let blocked:bool=self.connection.query_row(
-            "SELECT EXISTS(SELECT 1 FROM command_journal WHERE boot_id=?1 AND device_id=?2 AND (status IN ('accepted','writing') OR (status IN ('written','observed','failed','uncertain') AND (?3 IS NULL OR updated_ms>=?3))))",
-            params![boot_id,device.as_str(),sample],|row|row.get(0))?;
+            "SELECT EXISTS(SELECT 1 FROM command_journal WHERE boot_id=?1 AND device_id=?2 AND (status IN ('accepted','writing') OR (status IN ('written','observed','failed','uncertain') AND (?3 IS NULL OR (transport_epoch>=?4 AND updated_ms>=?3)))))",
+            params![boot_id,device.as_str(),sample,integer(transport_epoch)?],|row|row.get(0))?;
         Ok(!blocked)
     }
     pub fn command_status(&self, boot_id: &str, id: u64) -> Result<Option<Status>, Error> {

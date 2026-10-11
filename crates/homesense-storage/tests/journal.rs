@@ -502,6 +502,9 @@ fn feedback_rules_wait_for_output_completion_and_a_newer_sample() {
     store
         .transition_command("boot1", 1, Status::Writing, Status::Written, 12)
         .unwrap();
+    assert!(store.feedback_is_settled_in_epoch("boot1", &device, Some(12), 2).unwrap());
+    assert!(!store.feedback_is_settled_in_epoch("boot1", &device, Some(12), 1).unwrap());
+    assert!(!store.feedback_is_settled_in_epoch("boot1", &device, None, 2).unwrap());
     for sample in [None, Some(10), Some(12)] {
         assert!(!store.feedback_is_settled("boot1", &device, sample).unwrap());
     }
@@ -516,6 +519,7 @@ fn feedback_rules_wait_for_output_completion_and_a_newer_sample() {
             .unwrap()
     );
     store.accept_commands("boot1", &[command(2)], 20).unwrap();
+    assert!(!store.feedback_is_settled_in_epoch("boot1", &device, Some(50), 2).unwrap());
     store
         .transition_command("boot1", 2, Status::Accepted, Status::Cancelled, 21)
         .unwrap();
