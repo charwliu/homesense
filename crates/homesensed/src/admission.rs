@@ -1729,6 +1729,17 @@ impl Admission {
         })
         .await
     }
+    /// Motor intent from an immutable published graph. Resolve calibration and
+    /// check the graph revision on the same owner turn as durable acceptance.
+    pub async fn submit_motor_for_revision(
+        &self,
+        revision:u64,
+        controller:Uuid,
+        device:homesense_core::DeviceId,
+        action:homesense_core::MotorAction,
+    )->Result<Vec<u64>,WriteStatus> {
+        self.submit_scoped(Submission::Motor{controller,device,action},Some(SubmissionScope::Configuration(revision))).await
+    }
     /// Manual LED control only; encoding checks the persisted panel profile,
     /// verification and Manual LED mode before any command is accepted.
     pub async fn submit_panel_led(

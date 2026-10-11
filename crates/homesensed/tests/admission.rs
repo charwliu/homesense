@@ -2073,3 +2073,40 @@ async fn invalid_write_interval_rejects_before_creating_database() {
         assert!(!path.with_extension("runtime.lock").exists());
     }
 }
+
+#[tokio::test]
+async fn motor_graph_revision_cannot_control_a_republished_channel() {
+    use homesense_core::MotorAction;
+    let doc=motor_document(true);let db=Database::with_config(&doc);let id=Uuid::new_v4();
+    let actor=Admission::open(db.0.clone(),options(),move |v|v==id).await.unwrap();
+    let device=DeviceId::new("motor").unwrap();
+    assert!(actor.submit_motor_for_revision(2,id,device.clone(),MotorAction::Open).await.is_err());
+    assert!(actor.submit_motor_for_revision(1,Uuid::new_v4(),device.clone(),MotorAction::Open).await.is_err());
+    assert!(actor.dispatch().await.unwrap().is_none());
+    let accepted=actor.submit_motor_for_revision(1,id,device.clone(),MotorAction::Open).await.unwrap();assert_eq!(accepted.len(),1);
+    let mut next:hap::serde_json::Value=hap::serde_json::from_slice(&doc).unwrap();next["revision"]=2.into();next["devices"][0]["channel"]=3.into();
+    actor.begin_publication(hap::serde_json::to_vec(&next).unwrap(),1,Duration::from_secs(3)).await.unwrap();
+    assert_eq!(actor.commit_publication().await.unwrap(),2);
+    actor.synchronized(1,2).await.unwrap();
+    for action in [MotorAction::Open,MotorAction::Close,MotorAction::Stop] {
+        assert!(actor.submit_motor_for_revision(1,id,device.clone(),action).await.is_err());
+    }
+    assert!(actor.dispatch().await.unwrap().is_none());
+    actor.submit_motor_for_revision(2,id,device,MotorAction::Open).await.unwrap();
+    let dispatched=actor.dispatch().await.unwrap().unwrap();
+    let bytes=Arc::new(std::sync::Mutex::new(Vec::new()));
+    let mut connection=hb_transport::Connection::for_simulation(OutputStream{bytes:bytes.clone(),fail_after:100},1);
+    connection.send(&dispatched.frame,100,||0).unwrap();
+    assert_eq!(*bytes.lock().unwrap(),[0xae,0x22,3,0xf2,0xee]);
+    actor.finish_write(dispatched.command.id,true).await.unwrap();actor.shutdown().await.unwrap();
+}
+
+#[tokio::test]
+async fn revision_bound_motor_still_requires_verified_calibration() {
+    let db=Database::with_config(&motor_document(false));let id=Uuid::new_v4();
+    let actor=Admission::open(db.0.clone(),options(),move |v|v==id).await.unwrap();
+    for action in [homesense_core::MotorAction::Open,homesense_core::MotorAction::Close,homesense_core::MotorAction::Stop] {
+        assert!(actor.submit_motor_for_revision(1,id,DeviceId::new("motor").unwrap(),action).await.is_err());
+    }
+    assert!(actor.dispatch().await.unwrap().is_none());actor.shutdown().await.unwrap();
+}
