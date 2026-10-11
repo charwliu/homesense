@@ -90,6 +90,7 @@ pub struct AcceptedDeferred {
 }
 enum Submission {
     Automation {
+        software_sample: bool,
         batch: Batch,
         variables: Vec<homesense_storage::variables::Update>,
         manual_fence: Option<u64>,
@@ -887,8 +888,12 @@ impl Admission {
                                 }) {
                                     return Err(WriteStatus::ServiceCommunicationFailure);
                                 }
+                                let software_sample = matches!(&*submission, Submission::Automation { software_sample: true, .. });
                                 let (submission, study, automation, variables, feedback, audit, scene, starts) = match *submission {
-                                    Submission::Automation { batch, variables, manual_fence, feedback, audit, scene, starts } => {
+                                    Submission::Automation { batch, variables, manual_fence, feedback, audit, scene, starts, .. } => {
+                                        if software_sample && batch.intents.iter().any(|intent| !matches!(intent.command, homesense_core::Command::SetLevel { transition: homesense_core::LevelTransition::Immediate, .. })) {
+                                            return Err(WriteStatus::InvalidValueInRequest);
+                                        }
                                         if manual_fence.is_some_and(|fence|batch.intents.iter().any(|i|manual_versions.get(&i.device).is_some_and(|version|*version>=fence))) {
                                             return Err(WriteStatus::InvalidValueInRequest);
                                         }
@@ -955,14 +960,17 @@ impl Admission {
                                                 if matches!(intent.command, homesense_core::Command::Switch(true)) {
                                                     return Err(WriteStatus::InvalidValueInRequest);
                                                 }
-                                                for (output, command) in crate::combined_light::plan(intent.command, None, device.default_on_level).map_err(|_| WriteStatus::InvalidValueInRequest)? {
+                                                for (output, mut command) in crate::combined_light::plan(intent.command, None, device.default_on_level).map_err(|_| WriteStatus::InvalidValueInRequest)? {
+                                                    if software_sample && let homesense_core::Command::SetLevel { level, .. } = command {
+                                                        command = homesense_core::Command::SetLevel { level, transition: homesense_core::LevelTransition::Immediate };
+                                                    }
                                                     expanded.push(homesense_hap::requests::Intent { device: match output {
                                                         crate::combined_light::Output::Relay => relay.clone(),
                                                         crate::combined_light::Output::Dimmer => intent.device.clone(),
                                                     }, command });
                                                 }
                                             } else {
-                                                expanded.push(homesense_hap::requests::Intent { device: intent.device, command: if automation && matches!(intent.command, homesense_core::Command::PanelLed(_) | homesense_core::Command::PauseRamp) {intent.command} else {crate::light_command::plan(module, intent.command).map_err(|_| WriteStatus::InvalidValueInRequest)?} });
+                                                expanded.push(homesense_hap::requests::Intent { device: intent.device, command: if software_sample || automation && matches!(intent.command, homesense_core::Command::PanelLed(_) | homesense_core::Command::PauseRamp) {intent.command} else {crate::light_command::plan(module, intent.command).map_err(|_| WriteStatus::InvalidValueInRequest)?} });
                                             }
                                         }
                                         batch.intents = expanded;
@@ -1400,15 +1408,17 @@ impl Admission {
         &self, generation: TaskGeneration, batch: Batch, manual_fence: u64,
         feedback: Option<crate::feedback::RuleLease>, deadline: Option<u64>,
     ) -> Result<Vec<u64>,WriteStatus> {
-        self.submit_scene_sample(generation,batch,manual_fence,feedback,deadline,None).await
+        self.submit_scene_sample(generation,batch,manual_fence,feedback,deadline,None,false).await
     }
+    #[allow(clippy::too_many_arguments)]
     pub(crate) async fn submit_scene_sample(
         &self, generation: TaskGeneration, batch: Batch, manual_fence: u64,
         feedback: Option<crate::feedback::RuleLease>, deadline: Option<u64>,
         scene: Option<homesense_storage::scene_run::StepLink>,
+        software_sample: bool,
     ) -> Result<Vec<u64>,WriteStatus> {
         self.submit_scoped_before(
-            Submission::Automation {
+            Submission::Automation { software_sample,
                 batch,
                 variables: vec![],
                 manual_fence: Some(manual_fence),
@@ -1427,7 +1437,7 @@ impl Admission {
         scene: homesense_storage::scene_run::StepLink,
         deadline: Option<u64>,
     ) -> Result<Vec<u64>, WriteStatus> {
-        self.submit_scoped_before(Submission::Automation { batch, variables: vec![], manual_fence: Some(manual_fence), feedback: None, audit: None, scene: Some(scene), starts: vec![] }, Some(SubmissionScope::Generation(generation)),deadline).await
+        self.submit_scoped_before(Submission::Automation { software_sample: false, batch, variables: vec![], manual_fence: Some(manual_fence), feedback: None, audit: None, scene: Some(scene), starts: vec![] }, Some(SubmissionScope::Generation(generation)),deadline).await
     }
     pub(crate) async fn submit_audited_rule(
         &self,
@@ -1438,7 +1448,7 @@ impl Admission {
         audit: homesense_storage::rule_audit::Admission,
     ) -> Result<Vec<u64>, WriteStatus> {
         self.submit_scoped(
-            Submission::Automation {
+            Submission::Automation { software_sample: false,
                 batch,
                 variables,
                 feedback: feedback.map(Box::new),
@@ -1459,7 +1469,7 @@ impl Admission {
         feedback: crate::feedback::RuleLease,
     ) -> Result<Vec<u64>, WriteStatus> {
         self.submit_scoped(
-            Submission::Automation {
+            Submission::Automation { software_sample: false,
                 batch,
                 variables,
                 manual_fence: None,
@@ -1488,7 +1498,7 @@ impl Admission {
         let manual_fence=self.manual_fence().await.map_err(DeferredFailure::Rejected)?;
         let controller=rule.batch.controller;
         let starts=rule.starts.clone();
-        let command_ids=self.submit_scoped_before(Submission::Automation{batch:rule.batch,variables:rule.variables,audit:Some(rule.audit),starts:rule.starts,feedback:feedback.map(Box::new),manual_fence:None,scene:None},Some(SubmissionScope::Generation(generation.clone())),deadline).await.map_err(DeferredFailure::Rejected)?;
+        let command_ids=self.submit_scoped_before(Submission::Automation{software_sample:false,batch:rule.batch,variables:rule.variables,audit:Some(rule.audit),starts:rule.starts,feedback:feedback.map(Box::new),manual_fence:None,scene:None},Some(SubmissionScope::Generation(generation.clone())),deadline).await.map_err(DeferredFailure::Rejected)?;
         let mut scenes=Vec::with_capacity(starts.len());
         for start in starts {
             let page=self.scene_history(controller,generation.clone(),homesense_storage::scene_run::Query::Run{boot:self.boot_id().into(),run:start.run.clone(),after:0,limit:1}).await.map_err(DeferredFailure::Uncertain)?.ok_or(DeferredFailure::Uncertain(WriteStatus::ServiceCommunicationFailure))?;
@@ -1504,7 +1514,7 @@ impl Admission {
         variables: Vec<homesense_storage::variables::Update>,
     ) -> Result<Vec<u64>, WriteStatus> {
         self.submit_scoped(
-            Submission::Automation {
+            Submission::Automation { software_sample: false,
                 batch,
                 variables,
                 manual_fence: None,
