@@ -4601,9 +4601,16 @@ async fn deferred_admission_validates_definition_and_rolls_back_on_storage_fault
             let now=store.scene_run(a.boot_id(),"two").unwrap().unwrap().started_ms;
             let ids=scheduler.install_accepted(&mut slots,accepted.scenes,now).await.unwrap();
             assert_eq!(ids.len(),2);assert_eq!(slots.remaining(),0);
+            assert_eq!(scheduler.status(ids[0]),Some(homesense_core::scene::Status::Cancelled));
+            assert_eq!(store.scene_run(a.boot_id(),"two").unwrap().unwrap().status,homesense_storage::scene_run::Status::Cancelled);
+
             assert!(scheduler.reserve_slots(1).is_err());
             assert!(scheduler.tick(now).await.unwrap().iter().all(|t|t.result.as_ref().unwrap().is_empty()));
             assert!(a.dispatch().await.unwrap().is_none());
+            scheduler.tick(now+100).await.unwrap();
+            let only=a.dispatch().await.unwrap().unwrap();
+            a.finish_write(only.command.id,true).await.unwrap();
+            assert!(a.dispatch().await.unwrap().is_none(),"superseded batch member must not emit");
             for id in ids {scheduler.cancel(id).await.unwrap();scheduler.retire(id).unwrap();}
             scheduler.take_results();
             let mut slots=scheduler.reserve_slots(1).unwrap();
