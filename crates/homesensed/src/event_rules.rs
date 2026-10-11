@@ -462,6 +462,22 @@ impl ScheduledRules {
     pub(crate) fn matches_admission(&self, admission: &Admission) -> bool {
         self.rules.admission.boot_id() == admission.boot_id()
     }
+    pub(crate) async fn scene_result(
+        &mut self,
+        result: crate::scene_scheduler::SceneResult,
+        feedback: Option<(&Feedback, u64)>,
+    ) -> Report {
+        log::info!(
+            "scene_result run={} definition={} audit={} status={:?}",
+            result.run,
+            result.definition,
+            result.audit_id,
+            result.status
+        );
+        self.rules
+            .dispatch(Trigger::SceneResult(result.definition), feedback)
+            .await
+    }
     pub fn stop(&mut self) {
         self.calendar.stop();
     }

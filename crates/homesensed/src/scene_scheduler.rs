@@ -16,6 +16,14 @@ pub struct SceneScheduler {
     now: u64,
     capacity: usize,
     stopped: bool,
+    results: Vec<SceneResult>,
+}
+#[derive(Debug)]
+pub struct SceneResult {
+    pub run: u64,
+    pub definition: String,
+    pub audit_id: String,
+    pub status: Status,
 }
 #[derive(Debug)]
 pub struct Tick {
@@ -41,6 +49,7 @@ impl SceneScheduler {
             now,
             capacity,
             stopped: false,
+            results: vec![],
         })
     }
     fn clock(&mut self, now: u64) -> Result<(), String> {
@@ -107,7 +116,7 @@ impl SceneScheduler {
         definition: Option<String>,
     ) -> Result<u64, String> {
         self.clock(now)?;
-        if self.runs.len() >= self.capacity {
+        if self.runs.len() + self.results.len() >= self.capacity {
             return Err("scene capacity reached; retire terminal runs".into());
         }
         let next = self.next.checked_add(1).ok_or("scene id exhausted")?;
@@ -202,6 +211,22 @@ impl SceneScheduler {
         }
         results
     }
+    /// Consume terminal named results once. No replay after restart; the durable
+    /// receipt remains the authoritative historical record.
+    pub fn take_results(&mut self) -> Vec<SceneResult> {
+        let mut results = std::mem::take(&mut self.results);
+        for (id, run) in &mut self.runs {
+            if let Some((definition, audit_id, status)) = run.take_result() {
+                results.push(SceneResult {
+                    run: *id,
+                    definition,
+                    audit_id,
+                    status,
+                });
+            }
+        }
+        results
+    }
     pub fn status(&self, id: u64) -> Option<Status> {
         self.runs.get(&id).map(SceneRuntime::status)
     }
@@ -217,6 +242,16 @@ impl SceneScheduler {
         let status = self.status(id).ok_or("unknown scene run")?;
         if matches!(status, Status::Pending | Status::Running) {
             return Err("scene still active".into());
+        }
+        if let Some((definition, audit_id, status)) =
+            self.runs.get_mut(&id).and_then(SceneRuntime::take_result)
+        {
+            self.results.push(SceneResult {
+                run: id,
+                definition,
+                audit_id,
+                status,
+            });
         }
         self.runs.remove(&id);
         Ok(status)

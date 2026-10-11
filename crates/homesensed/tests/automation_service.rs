@@ -9,6 +9,10 @@ fn isolated_automation_cli_runs_scene_restarts_and_preserves_live_files() {
     let rules = root.join("rules.json");
     std::fs::write(&devices, include_bytes!("../../../config/simulation.json")).unwrap();
     std::fs::write(&rules,br#"{"schema_version":1,"configuration_revision":1,"variables":[],"rules":[],"timed_scenes":[{"id":"demo","enabled":true,"review_evidence":"isolated simulation test","max_lateness_ms":1000,"steps":[{"source":"fixture","offset_ms":0,"device":"simulation:light","command":{"kind":"level","value":30,"ramp":false}}]}]}"#).unwrap();
+    let mut automation: hap::serde_json::Value = hap::serde_json::from_slice(&std::fs::read(&rules).unwrap()).unwrap();
+    automation["variables"] = hap::serde_json::json!([{"id":"completed","kind":"integer","lifetime":"persistent"}]);
+    automation["rules"] = hap::serde_json::json!([{"id":"after-demo","enabled":true,"review_evidence":"simulation","source":"fixture","trigger":{"kind":"scene_result","scene":"demo"},"actions":[{"source":"result","action":{"kind":"set","variable":"completed","value":{"kind":"integer","value":7}}}]}]);
+    std::fs::write(&rules,hap::serde_json::to_vec(&automation).unwrap()).unwrap();
     let run = |seconds: &str, scene: &str| {
         Command::new(env!("CARGO_BIN_EXE_homesensed"))
             .arg("serve-automation-simulation")
@@ -51,6 +55,10 @@ fn isolated_automation_cli_runs_scene_restarts_and_preserves_live_files() {
     // Restart preserves the earlier write as uncertain, never replaying it.
     let old: i64 = sql.query_row("SELECT count(*) FROM command_journal WHERE status='uncertain'",[],|r|r.get(0)).unwrap();
     assert_eq!(old,1);
+    let rules_run:i64=sql.query_row("SELECT count(*) FROM rule_admission WHERE rule_id='after-demo'",[],|r|r.get(0)).unwrap();
+    assert_eq!(rules_run,2,"one result rule per run, never every tick");
+    let value:i64=sql.query_row("SELECT value FROM logical_variable WHERE name='completed'",[],|r|r.get(0)).unwrap();
+    assert_eq!(value,7);
     std::fs::write(
         &rules,
         br#"{"schema_version":1,"configuration_revision":1,"variables":[],"rules":[]}"#,
