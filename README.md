@@ -339,3 +339,5 @@ TCP 在线发布协调循环已接入 `serve_with_publications`：可信进程�
 隔离验证更新：`f687c40` 全工作区 454 项通过；后续 `601bd41` 仅增加停止屏障测试及文档，该新增定向测试单独通过。当前 homesensed 库严格 Clippy 通过；不等同全 workspace 严格 Clippy。阶段 D/E 仍未完成，未部署现场。
 
 阶段范围核对：依据设计第 20 节，D 聚焦自动化迁移及全部场景／程序处置；Web／HAP 场景入口、网络管理与鉴权属 E，全屋接管签认属 G。阶段审计已注明边界；原程序语义、变量和条件处置仍待完成，阶段 D 未完成。
+
+窗帘条件调查的公开协议依据：Control4 Blind Proxy 区分目标命令与 MOVING／STOPPED 通知；`always_send_level` 控制是否忽略当前 level 仍发送目标，文档默认 false。见 [官方代理文档](https://snap-one.github.io/docs-driverworks-proxyprotocol-blind/#always_send_level)。这仅是代理接口依据，不能证明具体驱动的运行状态，也不能把按钮可用性或 last_command 当作物理反馈；IF_MOVING／IF_STOPPED 的迁移审核仍未关闭。
