@@ -20,6 +20,31 @@ pub struct ConfiguredRules {
     pub panels: PanelRules,
 }
 impl ConfiguredRules {
+    /// Trigger indexes for a runtime whose every execution path uses Router.
+    /// Original actions are validated here and fetched from Admission at execution.
+    pub(crate) async fn load_causal_document(
+        admission:Admission, controller:Uuid, document:&Document, budget:Budget,
+    )->Result<Self,String> {
+        let mut rules=document.linked_rules_with_deferred().map_err(|e|e.to_string())?;
+        let deferred=document.timed_scenes.iter().filter(|(_,s)|s.enabled).map(|(id,_)|id.clone()).collect();
+        for rule in &mut rules {
+            let names=homesense_core::rule::variable_references_with_deferred(&rule.actions,&deferred).map_err(str::to_owned)?;
+            for name in names {
+                if document.variables[&name].lifetime==Lifetime::FeedbackCache {
+                    return Err(format!("{name}: runtime scope not yet supported"));
+                }
+            }
+            rule.actions.clear();
+        }
+        let index=Document {
+            revision:document.revision,variables:document.variables.clone(),
+            feedback_bindings:document.feedback_bindings.clone(),rules,
+            immediate_scenes:Default::default(),schedules:document.schedules.clone(),
+            gestures:document.gestures.clone(),holds:document.holds.clone(),
+            timed_scenes:document.timed_scenes.clone(),
+        };
+        Self::load_document(admission,controller,&index,budget).await
+    }
     pub async fn load_document(
         admission: Admission,
         controller: Uuid,

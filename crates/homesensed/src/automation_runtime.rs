@@ -61,7 +61,7 @@ impl AutomationRuntime {
         )?;
         let causal = crate::deferred_router::Router::new(admission.clone(), controller, &scenes, 64)?;
         let configured =
-            ConfiguredRules::load_document(admission.clone(), controller, &document, budget)
+            ConfiguredRules::load_causal_document(admission.clone(), controller, &document, budget)
                 .await?;
         let calendar = ScheduledRules::new(
             configured.events,

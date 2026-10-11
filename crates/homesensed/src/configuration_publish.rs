@@ -77,10 +77,7 @@ pub fn validate_automation(
     context: ExecutionContext,
 ) -> Result<homesense_config::rule_document::Document, Box<dyn Error>> {
     let document = homesense_config::rule_document::Document::parse(bytes, config)?;
-    let linked = document.linked_rules(
-        &document.immediate_scenes,
-        &document.schedules.iter().map(|s| s.id.clone()).collect(),
-    )?;
+    let linked = document.linked_rules_with_deferred()?;
     fn commands(
         nodes: &[homesense_core::rule::Node],
         config: &Configuration,
