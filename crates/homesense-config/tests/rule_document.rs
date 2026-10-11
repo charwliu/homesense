@@ -294,3 +294,16 @@ fn ad8_fade_draft_cannot_be_enabled_but_module_ramp_remains_valid() {
     document["timed_scenes"][0]["steps"][0]["command"]=json!({"kind":"level","value":50,"ramp":true});
     assert!(Document::parse(&serde_json::to_vec(&document).unwrap(),&config).is_ok());
 }
+
+#[test]
+fn scene_failure_policy_is_explicit_and_rejects_unimplemented_semantics() {
+    use homesense_config::rule_document::SceneFailurePolicy;
+    let mut document=json!({"schema_version":1,"configuration_revision":1,"variables":[],"rules":[],"timed_scenes":[{"id":"scene","enabled":false,"max_lateness_ms":1000,"steps":[{"source":"synthetic","offset_ms":0,"device":"simulation:light","command":{"kind":"level","value":50,"ramp":false}}]}]});
+    assert_eq!(parse(&document).unwrap().timed_scenes["scene"].failure_policy,SceneFailurePolicy::CancelRemaining);
+    document["timed_scenes"][0]["failure_policy"]="cancel_remaining".into();
+    assert!(parse(&document).is_ok());
+    for policy in ["continue","retry","rollback","compensate",""] {
+        document["timed_scenes"][0]["failure_policy"]=policy.into();
+        assert!(parse(&document).is_err(),"unsupported policy {policy}");
+    }
+}
