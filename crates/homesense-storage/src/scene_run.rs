@@ -49,6 +49,16 @@ pub struct Record {
     pub version: u64,
     pub status: Status,
 }
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CancellationReason { ManualOverride, SceneReplacement }
+impl CancellationReason {
+    fn text(self) -> &'static str { match self { Self::ManualOverride => "manual_override", Self::SceneReplacement => "scene_replacement" } }
+}
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Cancellation {
+    pub device: homesense_core::DeviceId,
+    pub reason: CancellationReason,
+}
 fn key(s: &str) -> Result<(), Error> {
     if s.is_empty() || s.len() > 128 || s.chars().any(char::is_control) {
         Err(Error::InvalidAudit)
@@ -156,6 +166,15 @@ impl Store {
         status: Status,
         now: u64,
     ) -> Result<u64, Error> {
+        self.checkpoint_scene_run_with_cancellation(boot,run,expected,status,now,None)
+    }
+    /// Record cancellation intent and lifecycle together under the same CAS.
+    /// This receipt does not assert that an already-writing frame was recalled.
+    #[allow(clippy::too_many_arguments)]
+    pub fn checkpoint_scene_run_with_cancellation(
+        &mut self, boot: &str, run: &str, expected: u64, status: Status, now: u64,
+        cancellation: Option<&Cancellation>,
+    ) -> Result<u64, Error> {
         key(boot)?;
         key(run)?;
         if status == Status::Pending || status == Status::Interrupted {
@@ -164,10 +183,15 @@ impl Store {
         let expected = i64::try_from(expected).map_err(|_| Error::InvalidAudit)?;
         let next = expected.checked_add(1).ok_or(Error::InvalidAudit)?;
         let now = i64::try_from(now).map_err(|_| Error::InvalidAudit)?;
-        let changed = self.connection.execute("UPDATE scene_run SET status=?1,updated_ms=?2,version=?3 WHERE boot_id=?4 AND run_id=?5 AND version=?6 AND status IN ('pending','running') AND updated_ms<=?2", params![status.text(),now,next,boot,run,expected])?;
+        let tx = self.connection.transaction()?;
+        let changed = tx.execute("UPDATE scene_run SET status=?1,updated_ms=?2,version=?3 WHERE boot_id=?4 AND run_id=?5 AND version=?6 AND status IN ('pending','running') AND updated_ms<=?2", params![status.text(),now,next,boot,run,expected])?;
         if changed != 1 {
             return Err(Error::Conflict);
         }
+        if let Some(cancellation) = cancellation {
+            tx.execute("INSERT INTO scene_cancellation(boot_id,run_id,version,device_id,reason) VALUES(?1,?2,?3,?4,?5)",params![boot,run,next,cancellation.device.as_str(),cancellation.reason.text()])?;
+        }
+        tx.commit()?;
         Ok(next as u64)
     }
     /// Called only by the exclusive startup owner. Keep old boot-relative times;
