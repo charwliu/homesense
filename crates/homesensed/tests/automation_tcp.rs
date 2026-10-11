@@ -671,3 +671,62 @@ async fn online_publication_queries_new_mapping_before_acknowledgement() {
     std::fs::remove_dir_all(root).unwrap();
     }
 }
+
+#[tokio::test]
+async fn repeated_publication_then_recovery_uses_latest_endpoint_and_suppresses_startup() {
+    use hap::serde_json::{json, to_vec, Value};
+    let root=std::env::temp_dir().join(format!("tcp-republish-{}",uuid::Uuid::new_v4()));
+    let old_bus=TcpListener::bind("127.0.0.1:0").unwrap();
+    let new_bus=TcpListener::bind("127.0.0.1:0").unwrap();
+    let mut devices:Value=hap::serde_json::from_slice(include_bytes!("../../../config/simulation-home.json")).unwrap();
+    devices["gateways"][0]["endpoint"]=old_bus.local_addr().unwrap().to_string().into();
+    devices["gateways"][0]["modules"][0]["verification"]=json!({"status":"verified","evidence":"loopback","verified_at_unix_ms":1});
+    let initial=to_vec(&devices).unwrap();
+    let rules=|revision|to_vec(&json!({"schema_version":1,"configuration_revision":revision,"variables":[],
+        "rules":[{"id":"startup","enabled":true,"review_evidence":"loopback","source":"test","trigger":{"kind":"startup_synchronized"},"actions":[{"source":"test","action":{"kind":"command","device":"simulation:light","command":{"kind":"level","value":revision*11,"ramp":false}}}]}]
+    })).unwrap();
+    devices["gateways"][0]["endpoint"]=new_bus.local_addr().unwrap().to_string().into();
+    let (started,mut events)=tokio::sync::mpsc::unbounded_channel();
+    let server=std::thread::spawn(move || {
+        let mut retained=Vec::new();
+        for (index,channel) in [1u8,2,3,3].into_iter().enumerate() {
+            let bus=if index==0 {&old_bus} else {&new_bus};
+            let (mut socket,_)=bus.accept().unwrap();
+            socket.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+            let mut frame=[0;5];
+            socket.read_exact(&mut frame).unwrap();
+            assert_eq!(frame,[0xAE,0x15,0xA0+channel,0xF2,0xEE]);
+            socket.write_all(&[0xAE,0x15,0xD0+channel,30,0xEE]).unwrap();
+            if index<3 {
+                socket.read_exact(&mut frame).unwrap();
+                assert_eq!(frame,[0xAE,0x15,channel,channel*11,0xEE]);
+                started.send(channel).unwrap();
+            }
+            if index==2 {drop(socket);} else if index==3 {
+                assert_eq!(socket.read(&mut frame).unwrap(),0,"recovery must not repeat startup");
+            } else {retained.push(socket);}
+        }
+        for mut socket in retained {assert_eq!(socket.read(&mut [0;5]).unwrap(),0);}
+    });
+    let (publisher,receiver)=homesensed::automation_publication::channel();
+    let old_rules=rules(1);
+    let service=homesensed::automation_tcp::serve_with_publications(&initial,&old_rules,&root,Duration::from_millis(1500),true,1,Some(receiver));
+    let client=async {
+        assert_eq!(events.recv().await,Some(1));
+        for revision in [2,3] {
+            devices["revision"]=revision.into();
+            devices["devices"][0]["channel"]=revision.into();
+            assert_eq!(publisher.publish(to_vec(&devices).unwrap(),rules(revision),revision-1).await.unwrap(),revision);
+            assert_eq!(events.recv().await,Some(revision as u8));
+        }
+        drop(publisher);
+    };
+    let (result,())=tokio::join!(service,client);
+    result.unwrap();
+    server.join().unwrap();
+    let sql=rusqlite::Connection::open(root.join("automation-tcp.sqlite")).unwrap();
+    assert_eq!(sql.query_row("SELECT count(*) FROM command_journal",[],|r|r.get::<_,i64>(0)).unwrap(),3);
+    drop(sql);
+    assert_eq!(homesense_storage::Store::open(root.join("automation-tcp.sqlite")).unwrap().active().unwrap().unwrap().revision,3);
+    std::fs::remove_dir_all(root).unwrap();
+}
