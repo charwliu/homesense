@@ -2,7 +2,9 @@
 """Loopback-only management restart regression; no physical gateway access."""
 import tempfile,pathlib,json,subprocess,socket,time,urllib.request,urllib.error,sqlite3,secrets,sys,shutil,http.cookiejar
 repo=pathlib.Path(__file__).resolve().parents[1]
-binary=pathlib.Path(sys.argv[1]).resolve() if len(sys.argv)==2 else repo/"target/debug/homesensed"
+combined=len(sys.argv)==3 and sys.argv[2]=='--combined'
+if len(sys.argv)>3 or (len(sys.argv)==3 and not combined):raise SystemExit('usage: verify_web_simulation.py [BINARY [--combined]]')
+binary=pathlib.Path(sys.argv[1]).resolve() if len(sys.argv)>=2 else repo/"target/debug/homesensed"
 root=pathlib.Path(tempfile.mkdtemp(prefix='homesense-web-smoke-'))
 token=secrets.token_urlsafe(32); tokenfile=root/'token';tokenfile.write_text(token);tokenfile.chmod(0o600)
 rules={'schema_version':1,'configuration_revision':1,'variables':[],'rules':[],'timed_scenes':[{'id':'demo','enabled':True,'review_evidence':'isolated simulation','max_lateness_ms':1000,'steps':[{'source':'test','offset_ms':60000,'device':'simulation:light','command':{'kind':'level','value':30,'ramp':False}}]}]}
@@ -11,6 +13,11 @@ with socket.socket() as sock:
  sock.bind(('127.0.0.1',0));port=sock.getsockname()[1]
 origin=f'http://127.0.0.1:{port}'
 cmd=[str(binary),'serve-web-simulation',str(repo/'config/simulation.json'),str(root/'rules.json'),str(root/'state'),'8',f'127.0.0.1:{port}',str(tokenfile)]
+if combined:
+ with socket.socket() as sock:
+  sock.bind(('127.0.0.1',0));hap_port=sock.getsockname()[1]
+ cmd=[str(binary),'serve-combined-simulation',str(repo/'config/simulation.json'),str(root/'rules.json'),str(root/'state'),'8',f'127.0.0.1:{hap_port}',f'127.0.0.1:{port}',str(tokenfile),'demo']
+
 def get(path, data=None, auth=True, cross=False):
  req=urllib.request.Request(origin+path,data=json.dumps(data).encode() if data else None,headers={'Authorization':f'Bearer {token}' if auth else 'Bearer invalid','Origin':'http://evil.invalid' if cross else origin,'Content-Type':'application/json'})
  try:
@@ -57,8 +64,13 @@ assert results[0]==results[1]
 tokenfile.chmod(0o644)
 assert subprocess.run(cmd,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=5).returncode != 0
 tokenfile.chmod(0o600)
-nonlocal_cmd=cmd.copy();nonlocal_cmd[-2]='192.0.2.1:8088'
+nonlocal_cmd=cmd.copy();nonlocal_cmd[7 if combined else 6]='192.0.2.1:8088'
 assert subprocess.run(nonlocal_cmd,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=5).returncode != 0
+if combined:
+ for hap_endpoint in ['192.0.2.1:51826',f'127.0.0.1:{port}']:
+  rejected=cmd.copy();rejected[6]=hap_endpoint;rejected[4]=str(root/'rejected-state')
+  assert subprocess.run(rejected,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=5).returncode != 0
+  assert not (root/'rejected-state').exists()
 (root/'state'/'web-controller-id').unlink()
 assert subprocess.run(cmd,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=5).returncode != 0
 with sqlite3.connect(root/'state'/'automation-simulation.sqlite') as db:
