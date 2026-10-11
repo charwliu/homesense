@@ -220,6 +220,18 @@ pub(crate) fn insert_step(
     {
         return Err(Error::InvalidAudit);
     }
+    if link.sample.is_some() {
+        if commands.windows(2).any(|pair| pair[0].id >= pair[1].id) {
+            return Err(Error::InvalidAudit);
+        }
+        let previous: Option<i64> = tx.query_row(
+            "SELECT MAX(command_id) FROM scene_command WHERE boot_id=?1 AND run_id=?2 AND step_index=?3",
+            params![boot,link.run,link.index as i64], |r|r.get(0)
+        )?;
+        if previous.is_some_and(|id| commands[0].id <= id as u64) {
+            return Err(Error::InvalidAudit);
+        }
+    }
     if let Some(sample) = link.sample.filter(|s| *s > 0) {
         if sample >= 1024 { return Err(Error::InvalidAudit); }
         let prior: Option<(String, i64)> = tx.query_row(
@@ -252,6 +264,8 @@ pub(crate) fn insert_step(
 }
 #[derive(Debug)]
 pub struct CommandRecord {
+    /// None for ordinary steps; all expanded outputs retain their sample number.
+    pub sample: Option<u16>,
     pub step: usize,
     pub source: String,
     pub command_id: u64,
@@ -273,7 +287,7 @@ impl Store {
             return Err(Error::InvalidAudit);
         }
         let after = i64::try_from(after).map_err(|_| Error::InvalidAudit)?;
-        let mut statement = self.connection.prepare("SELECT c.step_index,s.source,c.command_id,j.device_id,j.status FROM scene_command c JOIN scene_step s ON s.boot_id=c.boot_id AND s.run_id=c.run_id AND s.step_index=c.step_index JOIN command_journal j ON j.boot_id=c.boot_id AND j.command_id=c.command_id WHERE c.boot_id=?1 AND c.run_id=?2 AND c.command_id>?3 ORDER BY c.command_id LIMIT ?4")?;
+        let mut statement = self.connection.prepare("SELECT c.step_index,s.source,c.command_id,j.device_id,j.status,(SELECT f.sample_index FROM scene_sample f WHERE f.boot_id=c.boot_id AND f.run_id=c.run_id AND f.step_index=c.step_index AND f.first_command<=c.command_id ORDER BY f.sample_index DESC LIMIT 1) FROM scene_command c JOIN scene_step s ON s.boot_id=c.boot_id AND s.run_id=c.run_id AND s.step_index=c.step_index JOIN command_journal j ON j.boot_id=c.boot_id AND j.command_id=c.command_id WHERE c.boot_id=?1 AND c.run_id=?2 AND c.command_id>?3 ORDER BY c.command_id LIMIT ?4")?;
         let rows = statement
             .query_map(params![boot, run, after, limit as i64], |r| {
                 Ok((
@@ -282,12 +296,14 @@ impl Store {
                     r.get::<_, i64>(2)?,
                     r.get::<_, String>(3)?,
                     r.get::<_, String>(4)?,
+                    r.get::<_, Option<i64>>(5)?,
                 ))
             })?
             .collect::<Result<Vec<_>, _>>()?;
         rows.into_iter()
-            .map(|(step, source, id, device, status)| {
+            .map(|(step, source, id, device, status, sample)| {
                 Ok(CommandRecord {
+                    sample: sample.map(u16::try_from).transpose().map_err(|_|Error::InvalidAudit)?,
                     step: usize::try_from(step).map_err(|_| Error::InvalidAudit)?,
                     source,
                     command_id: u64::try_from(id).map_err(|_| Error::InvalidAudit)?,

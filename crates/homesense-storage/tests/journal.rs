@@ -707,7 +707,7 @@ fn scene_step_links_commit_atomically_with_all_expanded_commands() {
     assert_eq!(rows.len(), 2);
     assert!(
         rows.iter()
-            .all(|r| r.step == 0 && r.source == "combined:light")
+            .all(|r| r.step == 0 && r.source == "combined:light" && r.sample.is_none())
     );
     let mut next = command(3);
     next.origin = Origin::Rule;
@@ -850,6 +850,10 @@ fn fade_samples_append_contiguously_and_rollback_with_commands() {
     store.accept_queue_batch_with_audits("boot",&[c],&[],2,None,&[],None,Some(&link)).unwrap();
     assert_eq!(store.scene_commands("boot","fade",0,128).unwrap().len(),2);
     assert_eq!(sql.query_row("SELECT count(*) FROM scene_sample",[],|r|r.get::<_,i64>(0)).unwrap(),2);
+    let rows=store.scene_commands("boot","fade",0,128).unwrap();
+    assert_eq!(rows.iter().map(|r|r.sample).collect::<Vec<_>>(),vec![Some(0),Some(1)]);
+    assert_eq!(store.scene_commands("boot","fade",1,1).unwrap()[0].sample,Some(1));
+
     store.checkpoint_scene_run("boot","fade",0,homesense_storage::scene_run::Status::Cancelled,3).unwrap();
     link.sample=Some(2);
     let mut c=command(3);c.origin=Origin::Rule;
@@ -876,4 +880,26 @@ fn schema_thirteen_keeps_scene_links_without_inventing_fade_samples() {
     assert_eq!(rows[0].source,"ordinary");
     assert_eq!(sql.query_row("SELECT count(*) FROM scene_sample",[],|r|r.get::<_,i64>(0)).unwrap(),0);
     assert_eq!(sql.pragma_query_value(None,"user_version",|r|r.get::<_,i64>(0)).unwrap(),14);
+}
+
+#[test]
+fn expanded_sample_commands_keep_sample_identity_across_pages() {
+    use homesense_storage::scene_run::StepLink;
+    let db=Database::new();
+    let mut store=Store::open(&db.0).unwrap();
+    store.publish(None,1,b"config",&[]).unwrap();
+    store.begin_scene_run("boot","fade",1,None,0).unwrap();
+    for (sample,ids) in [(0,vec![10,11]),(1,vec![12,13])] {
+        let commands=ids.into_iter().map(|id|{let mut c=command(id);c.origin=Origin::Rule;c}).collect::<Vec<_>>();
+        let link=StepLink{run:"fade".into(),index:0,source:"combined".into(),sample:Some(sample)};
+        store.accept_queue_batch_with_audits("boot",&commands,&[],1,None,&[],None,Some(&link)).unwrap();
+    }
+    let page=store.scene_commands("boot","fade",10,2).unwrap();
+    assert_eq!(page.iter().map(|r|(r.command_id,r.sample)).collect::<Vec<_>>(),vec![(11,Some(0)),(12,Some(1))]);
+    let link=StepLink{run:"fade".into(),index:0,source:"combined".into(),sample:Some(2)};
+    for ids in [vec![9],vec![15,14]] {
+        let commands=ids.into_iter().map(|id|{let mut c=command(id);c.origin=Origin::Rule;c}).collect::<Vec<_>>();
+        assert!(store.accept_queue_batch_with_audits("boot",&commands,&[],2,None,&[],None,Some(&link)).is_err());
+    }
+    assert_eq!(store.scene_commands("boot","fade",0,128).unwrap().len(),4);
 }
