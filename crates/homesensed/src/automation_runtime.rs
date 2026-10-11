@@ -249,6 +249,19 @@ impl AutomationRuntime {
             crate::automation_drive::Exit::PublicationPaused | crate::automation_drive::Exit::Disconnected { .. });
         Ok(outcome)
     }
+    /// Drive one transport owner and publish light/scene updates outside HAP locks.
+    pub async fn drive_hap<S:std::io::Read+std::io::Write+Send+'static>(
+        &mut self,owner:&mut crate::observed_transport::ObservedTransport<S>,
+        projection:tokio::sync::watch::Sender<homesense_state::Snapshot>,stop:tokio::sync::watch::Receiver<bool>,
+        wall_clock:impl FnMut()->Result<i64,String>,
+    )->Result<(),String> {
+        self.validate().await?;
+        let result=crate::automation_drive::drive_with_projection(&self.admission,owner,&mut self.panels,&mut self.scenes,
+            Some(&mut self.calendar),std::time::Duration::from_millis(10),5000,stop,wall_clock,
+            Some((&mut self.requests,&self.document)),Some(&mut self.causal),false,Some(projection)).await?;
+        self.publication_paused=matches!(result,crate::automation_drive::Exit::PublicationPaused);
+        Ok(())
+    }
     fn stop(&mut self) {
         self.requests.close();
         self.panels.disconnect();

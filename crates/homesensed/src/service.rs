@@ -352,17 +352,22 @@ pub async fn serve_automation_simulation_with_publication(
     devices: &[u8], rules: &[u8], directory: &Path, duration: Duration,
     scene: Option<&str>, publication: Option<SimulationPublication<'_>>,
 ) -> Result<(), String> {
-    serve_automation_simulation_options(devices,rules,directory,duration,scene,publication,None).await
+    serve_automation_simulation_options(devices,rules,directory,duration,scene,publication,None,None).await
 }
 /// Explicit local-only management simulation; credentials are supplied out of band.
 pub struct WebSimulation { pub address:std::net::SocketAddr, pub secret:String }
 pub async fn serve_web_simulation(devices:&[u8],rules:&[u8],directory:&Path,duration:Duration,web:WebSimulation)->Result<(),String> {
     if !web.address.ip().is_loopback() || web.address.port()==0 {return Err("Web simulation requires a loopback address and nonzero port".into());}
-    serve_automation_simulation_options(devices,rules,directory,duration,None,None,Some(web)).await
+    serve_automation_simulation_options(devices,rules,directory,duration,None,None,Some(web),None).await
+}
+pub struct UnifiedSimulation {pub address:std::net::SocketAddr,pub scenes:Vec<String>}
+pub async fn serve_unified_simulation(devices:&[u8],rules:&[u8],directory:&Path,duration:Duration,hap:UnifiedSimulation)->Result<(),String> {
+    if !hap.address.ip().is_loopback() || hap.address.port()==0 || hap.scenes.is_empty() {return Err("unified simulation needs loopback endpoint and selected scenes".into());}
+    serve_automation_simulation_options(devices,rules,directory,duration,None,None,None,Some(hap)).await
 }
 #[allow(clippy::too_many_arguments)]
 async fn serve_automation_simulation_options(
-    devices:&[u8],rules:&[u8],directory:&Path,duration:Duration,scene:Option<&str>,publication:Option<SimulationPublication<'_>>,web:Option<WebSimulation>
+    devices:&[u8],rules:&[u8],directory:&Path,duration:Duration,scene:Option<&str>,publication:Option<SimulationPublication<'_>>,web:Option<WebSimulation>,hap:Option<UnifiedSimulation>
 )->Result<(),String> {
     if duration.is_zero() || duration > Duration::from_secs(86400) {
         return Err("duration must be in (0,24h]".into());
@@ -413,6 +418,8 @@ async fn serve_automation_simulation_options(
             .map_err(error)?;
     }
     drop(store);
+    let identity=if hap.is_some(){Some(IdentityStore::open(directory.join("identity")).await.map_err(error)?)}else{None};
+    let paired=identity.clone();
     let controller = if web.is_some() { web_controller(directory)? } else { Uuid::new_v4() };
     let admission = Admission::open(
         path,
@@ -420,7 +427,7 @@ async fn serve_automation_simulation_options(
             context: ExecutionContext::Simulation,
             ..Default::default()
         },
-        move |id| id == controller,
+        move |id| id == controller || paired.as_ref().is_some_and(|identity|identity.controller_is_paired(id).unwrap_or(false)),
     )
     .await?;
     let result = async {
@@ -467,6 +474,33 @@ async fn serve_automation_simulation_options(
             .map_err(|e| format!("{e:?}"))?;
         if let Some(scene) = scene {
             runtime.start_scene(scene).await?;
+        }
+        if let (Some(hap),Some(mut identity))=(hap,identity) {
+            let settings=if identity.has_config().await.map_err(error)? {
+                let settings=identity.load_config().await.map_err(error)?;
+                if settings.host!=hap.address.ip() || settings.port!=hap.address.port() {return Err("stored HAP endpoint differs".into());}settings
+            } else {
+                let settings=hap::Config{host:hap.address.ip(),port:hap.address.port(),name:"HomeSense Unified Simulation".into(),category:hap::accessory::AccessoryCategory::Bridge,pin:random_pin(),..Default::default()};
+                identity.save_config(&settings).await.map_err(error)?;settings
+            };
+            let lights=RuntimeHap::new(&config,owner.snapshot(),&identity,admission.clone(),5000).await?;
+            let authorization=identity.clone();
+            let scenes=crate::runtime_scene_hap::RuntimeSceneHap::new(&identity,&document,hap.scenes.into_iter().map(|id|homesense_hap::scene_graph::SceneSpec{name:id.clone(),id}).collect(),runtime.control(),move |id,_|authorization.controller_is_paired(id).unwrap_or(false)).await?;
+            let mut graph=crate::unified_hap::UnifiedHap{lights,scenes:Some(scenes)};
+            let server=IpServer::new_loopback(settings,identity).await.map_err(error)?;
+            graph.install(&server).await?;
+            let (stop,receive)=tokio::sync::watch::channel(false);
+            let (snapshots,updates)=tokio::sync::watch::channel(owner.snapshot());
+            let project=graph.project(updates,receive.clone());
+            let drive=runtime.drive_hap(&mut owner,snapshots,receive,wall_ms);
+            tokio::pin!(drive,project);
+            tokio::select! {
+                result=server.run_handle()=>{let _=stop.send(true);drive.await?;result.map_err(error)?;},
+                result=&mut project=>{let _=stop.send(true);drive.await?;result?;},
+                result=&mut drive=>{result?;},
+                _=tokio::time::sleep(duration)=>{let _=stop.send(true);drive.await?;}
+            }
+            return Ok(());
         }
         if let Some(web)=web {
             let tokens=std::sync::Arc::new(crate::web_auth::Tokens::default());

@@ -179,6 +179,24 @@ impl RuntimeHap {
             restore_levels,
         })
     }
+    /// Coalesced full snapshot path for an independent HAP projection task.
+    /// It never borrows the transport owner or blocks its control channel.
+    pub async fn publish_snapshot(&mut self, physical:Snapshot)->Result<(),String> {
+        {
+            let current=self.snapshot.read().map_err(|_|"snapshot lock poisoned")?;
+            if physical.cursor.boot_id!=current.cursor.boot_id || physical.cursor.sequence<current.cursor.sequence {return Err("snapshot cursor regressed".into());}
+        }
+        let saved=self.admission.remember_levels(self.configuration.revision(),physical.clone(),self.max_age_ms).await.map_err(|e|format!("restore levels: {e:?}"))?;
+        let snapshot=crate::combined_light::project(&self.configuration,&physical).map_err(error)?;
+        {
+            let mut current=self.snapshot.write().map_err(|_|"snapshot lock poisoned")?;
+            if snapshot.cursor.boot_id!=current.cursor.boot_id || snapshot.cursor.sequence<current.cursor.sequence {return Err("snapshot cursor regressed".into());}
+            *current=snapshot.clone();
+        }
+        *self.physical_snapshot.write().map_err(|_|"snapshot lock poisoned")?=physical;
+        *self.restore_levels.write().map_err(|_|"restore lock poisoned")?=saved;
+        self.projection.refresh_snapshot(&snapshot,self.admission.monotonic_ms()).await.map_err(error)
+    }
     /// Register the exact graph handles before running the HTTP server.
     /// A failure requires discarding the server; partial startup is not served.
     pub async fn install(&self, server: &hap::server::IpServer) -> Result<(), String> {

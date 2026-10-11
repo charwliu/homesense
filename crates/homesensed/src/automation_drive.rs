@@ -137,6 +137,26 @@ pub(crate) async fn drive_with_handoff<S: Read + Write + Send + 'static>(
     calendar: Option<&mut crate::event_rules::ScheduledRules>,
     cadence: Duration,
     max_age_ms: u64,
+    stop: tokio::sync::watch::Receiver<bool>,
+    wall_clock: impl FnMut() -> Result<i64, String>,
+    control: Option<(
+        &mut crate::automation_control::Receiver,
+        &homesense_config::rule_document::Document,
+    )>,
+    causal: Option<&mut crate::deferred_router::Router>,
+    allow_handoff: bool,
+) -> Result<Exit, String> {
+    drive_with_projection(admission,owner,panels,scenes,calendar,cadence,max_age_ms,stop,wall_clock,control,causal,allow_handoff,None).await
+}
+#[allow(clippy::too_many_arguments)]
+pub(crate) async fn drive_with_projection<S: Read + Write + Send + 'static>(
+    admission: &Admission,
+    owner: &mut ObservedTransport<S>,
+    panels: &mut PanelRules,
+    scenes: &mut SceneScheduler,
+    calendar: Option<&mut crate::event_rules::ScheduledRules>,
+    cadence: Duration,
+    max_age_ms: u64,
     mut stop: tokio::sync::watch::Receiver<bool>,
     mut wall_clock: impl FnMut() -> Result<i64, String>,
     control: Option<(
@@ -145,6 +165,7 @@ pub(crate) async fn drive_with_handoff<S: Read + Write + Send + 'static>(
     )>,
     mut causal: Option<&mut crate::deferred_router::Router>,
     allow_handoff: bool,
+    projection: Option<tokio::sync::watch::Sender<homesense_state::Snapshot>>,
 ) -> Result<Exit, String> {
     struct Close<'a>(
         Option<(
@@ -273,6 +294,7 @@ pub(crate) async fn drive_with_handoff<S: Read + Write + Send + 'static>(
                 return Ok(());
             }
             guard.owner.expire(admission.monotonic_ms(), max_age_ms)?;
+            if let Some(projection)=&projection {projection.send_replace(guard.owner.snapshot());}
             next = (next + 1) % gateways.len();
             tokio::select! {
                 _=tokio::time::sleep(cadence)=>{},

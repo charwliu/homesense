@@ -85,3 +85,5 @@ pub mod web_auth;
 pub mod web_receipts;
 pub mod web_api;
 pub mod web_server;
+
+pub mod unified_hap;
