@@ -155,15 +155,15 @@ fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
             };
             let mut recoveries=None;
             let mut interval=None;
-            let mut flags=args[6..].chunks_exact(2);
-            for pair in &mut flags {
+            let (flags,remainder)=args[6..].as_chunks::<2>();
+            for pair in flags {
                 match pair[0].as_str() {
                     "--recoveries" if recoveries.is_none() => recoveries=Some(pair[1].parse::<u8>()?),
                     "--write-interval-ms" if interval.is_none() => interval=Some(pair[1].parse::<u64>()?),
                     _ => return Err("unknown or duplicate automation option".into()),
                 }
             }
-            if !flags.remainder().is_empty() {return Err("automation option requires a value".into());}
+            if !remainder.is_empty() {return Err("automation option requires a value".into());}
             let interval=interval.unwrap_or(20);
             if !(20..=1000).contains(&interval) {return Err("write interval must be 20..1000 ms".into());}
             tokio::runtime::Runtime::new()?.block_on(homesensed::automation_tcp::serve_with_write_interval(
