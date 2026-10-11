@@ -4,6 +4,7 @@
 pub mod automation;
 pub mod calendar;
 pub mod journal;
+pub mod feedback_inference;
 pub mod light_restore;
 pub mod rule_audit;
 pub mod scene_run;
@@ -66,7 +67,7 @@ impl Store {
         if app != 0 && app != APPLICATION_ID {
             return Err(Error::ForeignDatabase);
         }
-        if version != 0 && (!(1..=17).contains(&version) || app != APPLICATION_ID) {
+        if version != 0 && (!(1..=18).contains(&version) || app != APPLICATION_ID) {
             return Err(Error::UnsupportedSchema(version));
         }
         if version == 0 {
@@ -169,6 +170,22 @@ impl Store {
         if version <= 16 {
             tx.execute_batch("CREATE TABLE scene_expiry (boot_id TEXT NOT NULL, run_id TEXT NOT NULL, step_index INTEGER NOT NULL CHECK(step_index>=0 AND step_index<4096), version INTEGER NOT NULL CHECK(version>0), device_id TEXT NOT NULL, source TEXT NOT NULL, PRIMARY KEY(boot_id,run_id,step_index), FOREIGN KEY(boot_id,run_id) REFERENCES scene_run(boot_id,run_id));")?;
             tx.pragma_update(None, "user_version", 17)?;
+        }
+        if version <= 17 {
+            tx.execute_batch("CREATE TABLE feedback_inference (
+                boot_id TEXT NOT NULL, sequence INTEGER NOT NULL CHECK(sequence>0),
+                revision INTEGER NOT NULL, transport_epoch INTEGER NOT NULL, control_epoch INTEGER NOT NULL,
+                correlation TEXT NOT NULL, parent_event INTEGER NOT NULL CHECK(parent_event>0),
+                command_id INTEGER NOT NULL, device_id TEXT NOT NULL,
+                observation_kind TEXT NOT NULL CHECK(observation_kind IN ('switch','level')),
+                observation_value INTEGER NOT NULL, written_ms INTEGER NOT NULL,
+                observed_ms INTEGER NOT NULL, window_ms INTEGER NOT NULL CHECK(window_ms>0 AND window_ms<=60000),
+                attribution TEXT NOT NULL CHECK(attribution='inferred'),
+                PRIMARY KEY(boot_id,sequence),
+                FOREIGN KEY(boot_id,command_id) REFERENCES command_journal(boot_id,command_id),
+                FOREIGN KEY(boot_id,correlation,parent_event) REFERENCES rule_admission(boot_id,correlation,event_id));
+                CREATE TRIGGER immutable_feedback_inference_update BEFORE UPDATE ON feedback_inference BEGIN SELECT RAISE(ABORT, 'immutable inference'); END;")?;
+            tx.pragma_update(None, "user_version", 18)?;
         }
         tx.commit()?;
         connection.pragma_update(None, "foreign_keys", "ON")?;

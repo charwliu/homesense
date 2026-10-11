@@ -134,7 +134,7 @@ fn version_one_database_migrates_without_losing_configuration() {
     let connection = rusqlite::Connection::open(&db.0).unwrap();
     connection
         .execute_batch(
-            "DROP TABLE scene_expiry; DROP TABLE scene_cancellation; DROP TABLE scene_sample; DROP TABLE scene_cause; DROP TABLE automation_revision; DROP TABLE command_journal; DROP TABLE light_restore; DROP TABLE study_mode; DROP TABLE logical_variable; DROP TABLE calendar_watermark; DROP TABLE rule_command; DROP TABLE rule_admission; DROP TABLE rule_chain_outcome; DROP TABLE scene_command; DROP TABLE scene_step; DROP TABLE scene_run; PRAGMA user_version=1;",
+            "DROP TABLE feedback_inference; DROP TABLE scene_expiry; DROP TABLE scene_cancellation; DROP TABLE scene_sample; DROP TABLE scene_cause; DROP TABLE automation_revision; DROP TABLE command_journal; DROP TABLE light_restore; DROP TABLE study_mode; DROP TABLE logical_variable; DROP TABLE calendar_watermark; DROP TABLE rule_command; DROP TABLE rule_admission; DROP TABLE rule_chain_outcome; DROP TABLE scene_command; DROP TABLE scene_step; DROP TABLE scene_run; PRAGMA user_version=1;",
         )
         .unwrap();
     drop(connection);
@@ -814,13 +814,13 @@ fn schema_twelve_migration_preserves_existing_manual_scene_without_inventing_cau
     store.begin_scene_run("boot","manual",1,Some("scene"),10).unwrap();
     drop(store);
     let sql=rusqlite::Connection::open(&db.0).unwrap();
-    sql.execute_batch("DROP TABLE scene_expiry; DROP TABLE scene_cancellation; DROP TABLE scene_sample; DROP TABLE scene_cause; PRAGMA user_version=12;").unwrap();
+    sql.execute_batch("DROP TABLE feedback_inference; DROP TABLE scene_expiry; DROP TABLE scene_cancellation; DROP TABLE scene_sample; DROP TABLE scene_cause; PRAGMA user_version=12;").unwrap();
     drop(sql);
     let store=Store::open(&db.0).unwrap();
     assert_eq!(store.scene_run("boot","manual").unwrap().unwrap().started_ms,10);
     assert!(store.scene_cause("boot","manual").unwrap().is_none());
     let sql=rusqlite::Connection::open(&db.0).unwrap();
-    assert_eq!(sql.pragma_query_value(None,"user_version",|r|r.get::<_,i64>(0)).unwrap(),17);
+    assert_eq!(sql.pragma_query_value(None,"user_version",|r|r.get::<_,i64>(0)).unwrap(),18);
 }
 
 #[test]
@@ -873,13 +873,13 @@ fn schema_thirteen_keeps_scene_links_without_inventing_fade_samples() {
     store.accept_queue_batch_with_audits("boot",&[c],&[],1,None,&[],None,Some(&link)).unwrap();
     drop(store);
     let sql=rusqlite::Connection::open(&db.0).unwrap();
-    sql.execute_batch("DROP TABLE scene_expiry; DROP TABLE scene_cancellation; DROP TABLE scene_sample; PRAGMA user_version=13;").unwrap();
+    sql.execute_batch("DROP TABLE feedback_inference; DROP TABLE scene_expiry; DROP TABLE scene_cancellation; DROP TABLE scene_sample; PRAGMA user_version=13;").unwrap();
     let store=Store::open(&db.0).unwrap();
     let rows=store.scene_commands("boot","scene",0,128).unwrap();
     assert_eq!(rows.len(),1);
     assert_eq!(rows[0].source,"ordinary");
     assert_eq!(sql.query_row("SELECT count(*) FROM scene_sample",[],|r|r.get::<_,i64>(0)).unwrap(),0);
-    assert_eq!(sql.pragma_query_value(None,"user_version",|r|r.get::<_,i64>(0)).unwrap(),17);
+    assert_eq!(sql.pragma_query_value(None,"user_version",|r|r.get::<_,i64>(0)).unwrap(),18);
 }
 
 #[test]
@@ -938,7 +938,7 @@ fn scene_cancellation_is_atomic_with_checkpoint_and_survives_schema_upgrade() {
     store.begin_scene_run("boot","scene",1,None,10).unwrap();
     drop(store);
     let sql=rusqlite::Connection::open(&db.0).unwrap();
-    sql.execute_batch("DROP TABLE scene_expiry; DROP TABLE scene_cancellation; PRAGMA user_version=14;").unwrap();
+    sql.execute_batch("DROP TABLE feedback_inference; DROP TABLE scene_expiry; DROP TABLE scene_cancellation; PRAGMA user_version=14;").unwrap();
     let mut store=Store::open(&db.0).unwrap();
     assert_eq!(store.scene_run("boot","scene").unwrap().unwrap().version,0);
     let reason=Cancellation{device:DeviceId::new("synthetic:light").unwrap(),reason:CancellationReason::SceneReplacement};
@@ -985,7 +985,7 @@ fn schema_fifteen_preserves_cancellation_history_and_accepts_cancel_request() {
     let sql=rusqlite::Connection::open(&db.0).unwrap();
     sql.execute_batch("ALTER TABLE scene_cancellation RENAME TO newer;
         CREATE TABLE scene_cancellation (boot_id TEXT NOT NULL, run_id TEXT NOT NULL, version INTEGER NOT NULL CHECK(version>0), device_id TEXT NOT NULL, reason TEXT NOT NULL CHECK(reason IN ('manual_override','scene_replacement')), PRIMARY KEY(boot_id,run_id,version), FOREIGN KEY(boot_id,run_id) REFERENCES scene_run(boot_id,run_id));
-        INSERT INTO scene_cancellation SELECT * FROM newer; DROP TABLE newer; DROP TABLE scene_expiry; PRAGMA user_version=15;").unwrap();
+        INSERT INTO scene_cancellation SELECT * FROM newer; DROP TABLE newer; DROP TABLE feedback_inference; DROP TABLE scene_expiry; PRAGMA user_version=15;").unwrap();
     let mut store=Store::open(&db.0).unwrap();
     let request=Cancellation{device,reason:CancellationReason::CancelRequested};
     sql.execute_batch("CREATE TRIGGER reject_request BEFORE INSERT ON scene_cancellation BEGIN SELECT RAISE(ABORT,'synthetic'); END;").unwrap();
@@ -998,7 +998,7 @@ fn schema_fifteen_preserves_cancellation_history_and_accepts_cancel_request() {
     let page=store.query_scene(1,&Query::Cancellations{boot:"boot".into(),run:"scene".into(),after:0,limit:128}).unwrap().unwrap();
     assert_eq!(page.cancellations.iter().map(|v|v.cancellation.reason).collect::<Vec<_>>(),vec![CancellationReason::ManualOverride,CancellationReason::CancelRequested]);
     assert_eq!(store.scene_run("boot","scene").unwrap().unwrap().status,Scene::Cancelled);
-    assert_eq!(sql.pragma_query_value(None,"user_version",|r|r.get::<_,i64>(0)).unwrap(),17);
+    assert_eq!(sql.pragma_query_value(None,"user_version",|r|r.get::<_,i64>(0)).unwrap(),18);
 }
 
 #[test]
@@ -1009,7 +1009,7 @@ fn expired_scene_step_migrates_atomically_and_cannot_be_admitted() {
     store.begin_scene_run("boot","scene",1,None,0).unwrap();
     drop(store);
     let sql=rusqlite::Connection::open(&db.0).unwrap();
-    sql.execute_batch("DROP TABLE scene_expiry; PRAGMA user_version=16;").unwrap();
+    sql.execute_batch("DROP TABLE feedback_inference; DROP TABLE scene_expiry; PRAGMA user_version=16;").unwrap();
     let mut store=Store::open(&db.0).unwrap();
     let expiry=Expiry{index:0,device:DeviceId::new("synthetic:light").unwrap(),source:"synthetic:late".into()};
     sql.execute_batch("CREATE TRIGGER fail_expiry BEFORE INSERT ON scene_expiry BEGIN SELECT RAISE(ABORT,'synthetic'); END;").unwrap();
@@ -1030,7 +1030,7 @@ fn expired_scene_step_migrates_atomically_and_cannot_be_admitted() {
     drop(store);let store=Store::open(&db.0).unwrap();
     assert_eq!(store.scene_run("boot","scene").unwrap().unwrap().version,1);
     assert_eq!(sql.query_row("SELECT source FROM scene_expiry",[],|r|r.get::<_,String>(0)).unwrap(),expiry.source);
-    assert_eq!(sql.pragma_query_value(None,"user_version",|r|r.get::<_,i64>(0)).unwrap(),17);
+    assert_eq!(sql.pragma_query_value(None,"user_version",|r|r.get::<_,i64>(0)).unwrap(),18);
 }
 
 #[test]
@@ -1051,4 +1051,89 @@ fn expiry_history_pages_by_checkpoint_version_and_configuration() {
     assert!(store.query_scene(1,&query(3,2)).unwrap().unwrap().expiries.is_empty());
     assert!(store.query_scene(2,&query(0,2)).unwrap().is_none());
     for (after,limit) in [(0,0),(0,129),(u64::MAX,1)] {assert!(store.query_scene(1,&query(after,limit)).is_err());}
+}
+
+#[test]
+fn feedback_inference_requires_written_owned_matching_fresh_target_and_claims_once() {
+    use homesense_storage::feedback_inference::Inference;
+    use homesense_core::Observation;
+    let db=Database::new();
+    let mut store=Store::open(&db.0).unwrap();
+    store.publish(None,1,b"config",&[]).unwrap();
+    let audit=homesense_storage::rule_audit::Admission{revision:1,correlation:7,event:1,parent:0,rule:"synthetic".into()};
+    let mut cmd=command(1); cmd.origin=Origin::Rule;
+    store.accept_queue_batch_with_audits("boot",&[cmd.clone()],&[],10,None,&[],Some(&audit),None).unwrap();
+    let i=Inference{sequence:1,epochs:cmd.epochs,correlation:7,parent_event:1,command_id:1,device:cmd.device_id.clone(),observed:Observation::Switch(true),observed_ms:20,window_ms:10};
+    assert!(store.record_feedback_inference("boot",&i).is_err(),"accepted is not written");
+    assert!(store.begin_command_write("boot",1,11).unwrap());
+    assert!(store.record_feedback_inference("boot",&i).is_err(),"writing is not written");
+    store.transition_command("boot",1,Status::Writing,Status::Written,12).unwrap();
+    let sql=rusqlite::Connection::open(&db.0).unwrap();
+    for variant in 0..12 {
+        let mut bad=i.clone();
+        match variant {
+            0=>bad.epochs.transport=2,
+            1=>bad.epochs.control=2,
+            2=>bad.correlation=8,
+            3=>bad.parent_event=2,
+            4=>bad.observed=Observation::Switch(false),
+            5=>bad.device=DeviceId::new("other").unwrap(),
+            6=>bad.observed_ms=11,
+            7=>bad.observed_ms=22,
+            8=>bad.observed=Observation::Button{pressed:true},
+            9=>bad.sequence=0,
+            10=>bad.window_ms=60_001,
+            _=>bad.command_id=u64::MAX,
+        }
+        assert!(store.record_feedback_inference("boot",&bad).is_err(),"variant {variant}");
+    }
+    assert!(store.record_feedback_inference("foreign",&i).is_err());
+    assert_eq!(sql.query_row("SELECT count(*) FROM feedback_inference",[],|r|r.get::<_,i64>(0)).unwrap(),0);
+    sql.execute_batch("CREATE TRIGGER reject_inference BEFORE INSERT ON feedback_inference BEGIN SELECT RAISE(ABORT,'injected'); END;").unwrap();
+    assert!(store.record_feedback_inference("boot",&i).is_err());
+    assert_eq!(sql.query_row("SELECT count(*) FROM feedback_inference",[],|r|r.get::<_,i64>(0)).unwrap(),0);
+    sql.execute_batch("DROP TRIGGER reject_inference;").unwrap();
+    store.record_feedback_inference("boot",&i).unwrap();
+    assert!(store.record_feedback_inference("boot",&i).is_err(),"duplicate must not permit another continuation");
+    assert_eq!(store.command_status("boot",1).unwrap(),Some(Status::Written));
+    assert_eq!(sql.query_row("SELECT attribution,written_ms,observed_ms FROM feedback_inference",[],|r|Ok((r.get::<_,String>(0)?,r.get::<_,i64>(1)?,r.get::<_,i64>(2)?))).unwrap(),("inferred".into(),12,20));
+    assert!(sql.execute("UPDATE feedback_inference SET attribution='inferred'",[]).is_err());
+    store.finish_rule_chain("boot",1,7,21,None).unwrap();
+    let mut later=i.clone(); later.sequence=2;
+    assert!(store.record_feedback_inference("boot",&later).is_err(),"terminal chain cannot resume");
+    drop(store);
+    let mut reopened=Store::open(&db.0).unwrap();
+    assert!(reopened.record_feedback_inference("boot",&i).is_err());
+    assert_eq!(sql.query_row("SELECT count(*) FROM feedback_inference",[],|r|r.get::<_,i64>(0)).unwrap(),1);
+    reopened.publish(Some(1),2,b"new",&[]).unwrap();
+    assert!(matches!(reopened.record_feedback_inference("boot",&later),Err(homesense_storage::Error::Conflict)));
+}
+
+#[test]
+fn feedback_inference_migrates_and_resolves_delayed_scene_parent() {
+    use homesense_storage::{feedback_inference::Inference,scene_run::{Start,StepLink}};
+    use homesense_core::{Observation,Percent,LevelTransition};
+    let db=Database::new();
+    let mut store=Store::open(&db.0).unwrap();
+    store.publish(None,1,b"config",&[]).unwrap();
+    drop(store);
+    let sql=rusqlite::Connection::open(&db.0).unwrap();
+    sql.execute_batch("DROP TABLE feedback_inference; PRAGMA user_version=17;").unwrap();
+    let mut store=Store::open(&db.0).unwrap();
+    assert_eq!(sql.pragma_query_value(None,"user_version",|r|r.get::<_,i64>(0)).unwrap(),18);
+    let audit=homesense_storage::rule_audit::Admission{revision:1,correlation:9,event:1,parent:0,rule:"synthetic".into()};
+    let start=Start{run:"later".into(),revision:1,definition:"scene".into(),source:"synthetic:scene".into(),action_index:0};
+    store.accept_queue_batch_with_scene_starts("boot",&[],&[],1,None,&[],Some(&audit),None,&[start]).unwrap();
+    let mut cmd=command(1);cmd.origin=Origin::Rule;
+    cmd.command=Command::SetLevel{level:Percent::new(40).unwrap(),transition:LevelTransition::Immediate};
+    let link=StepLink{sample:None,run:"later".into(),index:0,source:"synthetic:step".into()};
+    store.accept_queue_batch_with_audits("boot",&[cmd.clone()],&[],2,None,&[],None,Some(&link)).unwrap();
+    store.begin_command_write("boot",1,3).unwrap();
+    store.transition_command("boot",1,Status::Writing,Status::Written,4).unwrap();
+    let mut i=Inference{sequence:1,epochs:cmd.epochs,correlation:9,parent_event:1,command_id:1,device:cmd.device_id,observed:Observation::Level(Percent::new(36).unwrap()),observed_ms:5,window_ms:10};
+    assert!(store.record_feedback_inference("boot",&i).is_err(),"ramp intermediate cannot match final target");
+    i.observed=Observation::Level(Percent::new(40).unwrap());
+    store.record_feedback_inference("boot",&i).unwrap();
+    assert_eq!(sql.query_row("SELECT parent_event FROM feedback_inference",[],|r|r.get::<_,i64>(0)).unwrap(),1);
+    assert_eq!(store.command_status("boot",1).unwrap(),Some(Status::Written));
 }
