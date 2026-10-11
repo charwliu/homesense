@@ -64,6 +64,23 @@ impl Session {
             isolated_failure: false,
         })
     }
+    pub(crate) async fn expire(&mut self, scheduler: &mut SceneScheduler) -> Result<bool, String> {
+        if self.closed || self.admission.monotonic_ms() < self.chain.deadline_ms() {
+            return Ok(false);
+        }
+        self.validate(scheduler).await?;
+        let mut guard = Guard(self.admission.clone(), false);
+        self.planning_failure = true;
+        let error = self
+            .record_failure("causal deadline exceeded".into(), scheduler)
+            .await;
+        guard.1 = self.isolated_failure;
+        if self.isolated_failure {
+            Ok(true)
+        } else {
+            Err(error)
+        }
+    }
     pub fn failure_isolated(&self) -> bool {
         self.isolated_failure
     }
