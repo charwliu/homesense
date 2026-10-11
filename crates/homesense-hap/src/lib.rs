@@ -7,3 +7,4 @@ pub mod observed;
 pub mod requests;
 pub mod storage;
 pub mod write;
+pub mod scene_graph;
