@@ -333,20 +333,43 @@ fn new_transport_generation_requires_closed_control_and_fresh_synchronization() 
     assert_eq!(a.transport_reconnected(2), Err(ArbiterError::Busy));
     assert_eq!(a.policy().epochs.transport, 1);
     a.finish_write(1, false).unwrap();
-    assert_eq!(a.transport_reconnected(1), Err(ArbiterError::NotSynchronized));
-    assert_eq!(a.transport_reconnected(0), Err(ArbiterError::NotSynchronized));
+    assert_eq!(
+        a.transport_reconnected(1),
+        Err(ArbiterError::NotSynchronized)
+    );
+    assert_eq!(
+        a.transport_reconnected(0),
+        Err(ArbiterError::NotSynchronized)
+    );
     assert!(a.transport_reconnected(2).unwrap().is_empty());
     assert!(!a.policy().gateway_ready);
     assert!(!a.policy().storage_healthy);
     assert_eq!(a.storage_recovered(4), Err(ArbiterError::NotSynchronized));
-    assert_eq!(a.gateway_resynchronized(1, 4), Err(ArbiterError::NotSynchronized));
-    assert_eq!(a.gateway_resynchronized(2, 5), Err(ArbiterError::NotSynchronized));
+    assert_eq!(
+        a.gateway_resynchronized(1, 4),
+        Err(ArbiterError::NotSynchronized)
+    );
+    assert_eq!(
+        a.gateway_resynchronized(2, 5),
+        Err(ArbiterError::NotSynchronized)
+    );
     a.gateway_resynchronized(2, 4).unwrap();
     a.storage_recovered(4).unwrap();
-    assert_eq!(a.submit(old.clone(), access(&old), 1), Err(ArbiterError::Admission(Rejection::ConfigurationChanged)));
+    assert_eq!(
+        a.submit(old.clone(), access(&old), 1),
+        Err(ArbiterError::Admission(Rejection::ConfigurationChanged))
+    );
     assert!(a.dispatch(1, access).unwrap().command.is_none());
     enqueue(&mut a, 2, false);
-    assert_eq!(a.dispatch(2, access).unwrap().command.unwrap().epochs.transport, 2);
+    assert_eq!(
+        a.dispatch(2, access)
+            .unwrap()
+            .command
+            .unwrap()
+            .epochs
+            .transport,
+        2
+    );
 }
 
 #[test]
@@ -359,8 +382,16 @@ fn reconnect_cancels_degraded_stop_instead_of_replaying_on_new_socket() {
     enqueue(&mut a, 2, false);
     let cancelled = a.transport_reconnected(2).unwrap();
     assert_eq!(cancelled.len(), 2);
-    assert!(cancelled.iter().all(|c| c.reason == homesense_core::queue::CancelReason::TransportChanged));
-    assert!(cancelled.iter().any(|c| c.command.command == Command::Motor(MotorMotion::Stop)));
+    assert!(
+        cancelled
+            .iter()
+            .all(|c| c.reason == homesense_core::queue::CancelReason::TransportChanged)
+    );
+    assert!(
+        cancelled
+            .iter()
+            .any(|c| c.command.command == Command::Motor(MotorMotion::Stop))
+    );
     assert_eq!(a.queued_len(), 0);
     a.gateway_resynchronized(2, 4).unwrap();
     a.storage_recovered(4).unwrap();

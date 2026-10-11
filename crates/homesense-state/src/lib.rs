@@ -75,6 +75,33 @@ impl fmt::Display for StateError {
 }
 impl std::error::Error for StateError {}
 
+/// Opaque feedback read set. Validation and admission must run without another
+/// state mutation between them in the owning actor; this is not a lock or lease.
+pub struct RuleFeedbackRead {
+    boot_id: u128,
+    epoch: u64,
+    captured_ms: u64,
+    max_age_ms: u64,
+    states: BTreeMap<DeviceId, Option<DeviceState>>,
+    feedback: BTreeMap<DeviceId, homesense_core::rule::Feedback>,
+}
+impl RuleFeedbackRead {
+    pub fn expires_at_ms(&self) -> Option<u64> {
+        self.feedback
+            .values()
+            .map(|v| v.observed_ms.saturating_add(self.max_age_ms))
+            .min()
+    }
+
+    pub fn feedback(&self) -> homesense_core::rule::FeedbackSnapshot<'_> {
+        homesense_core::rule::FeedbackSnapshot {
+            devices: &self.feedback,
+            now_ms: self.captured_ms,
+            max_age_ms: self.max_age_ms,
+        }
+    }
+}
+
 pub struct StateStore {
     boot_id: u128,
     sequence: u64,
@@ -168,6 +195,137 @@ impl StateStore {
             sequence: self.sequence,
         }
     }
+    /// Project only current, settled actual feedback for rule evaluation.
+    /// The caller must additionally bind the resulting plan to its configuration
+    /// generation and revalidate the read set at command admission.
+    pub fn rule_feedback(
+        &self,
+        expected_epoch: u64,
+        now_ms: u64,
+        max_age_ms: u64,
+    ) -> Result<BTreeMap<DeviceId, homesense_core::rule::Feedback>, StateError> {
+        self.validate_time(now_ms)?;
+        if expected_epoch != self.transport_epoch {
+            return Err(StateError::WrongTransportEpoch);
+        }
+        Ok(self
+            .devices
+            .iter()
+            .filter_map(|(id, state)| {
+                if state.quality != Quality::Confirmed
+                    || state.pending_command.is_some()
+                    || max_age_ms == 0
+                {
+                    return None;
+                }
+                let observed_ms = state.observed_at_ms?;
+                if now_ms.checked_sub(observed_ms)? >= max_age_ms {
+                    return None;
+                }
+                let (on, level) = match state.observed? {
+                    Observation::Switch(on) => (Some(on), None),
+                    Observation::Level(level) => (Some(level.get() > 0), Some(level)),
+                    Observation::Button { .. } => return None,
+                };
+                Some((
+                    id.clone(),
+                    homesense_core::rule::Feedback {
+                        on,
+                        level,
+                        observed_ms,
+                    },
+                ))
+            })
+            .collect())
+    }
+
+    /// Evaluate and capture the exact feedback read set in one immutable borrow.
+    /// Variables are supplied by their owner and require their own commit CAS.
+    pub fn plan_rule(
+        &self,
+        nodes: &[homesense_core::rule::Node],
+        variables: &BTreeMap<String, homesense_core::rule::Variable>,
+        budget: homesense_core::rule::Budget,
+        expected_epoch: u64,
+        now_ms: u64,
+        max_age_ms: u64,
+    ) -> Result<(homesense_core::rule::Plan, RuleFeedbackRead), String> {
+        let feedback = self
+            .rule_feedback(expected_epoch, now_ms, max_age_ms)
+            .map_err(|e| e.to_string())?;
+        let plan = homesense_core::rule::evaluate_with_feedback(
+            nodes,
+            variables,
+            budget,
+            homesense_core::rule::FeedbackSnapshot {
+                devices: &feedback,
+                now_ms,
+                max_age_ms,
+            },
+        )
+        .map_err(|e| format!("rule: {e:?}"))?;
+        let devices: Vec<_> = plan.feedback_reads.iter().cloned().collect();
+        let read = self
+            .capture_rule_feedback(&devices, expected_epoch, now_ms, max_age_ms)
+            .map_err(|e| e.to_string())?;
+        Ok((plan, read))
+    }
+
+    /// Capture every device referenced by the rule, including missing devices.
+    /// Unrelated device changes do not invalidate this read set.
+    pub fn capture_rule_feedback(
+        &self,
+        devices: &[DeviceId],
+        expected_epoch: u64,
+        now_ms: u64,
+        max_age_ms: u64,
+    ) -> Result<RuleFeedbackRead, StateError> {
+        if devices.len() > self.capacity {
+            return Err(StateError::Capacity);
+        }
+        let mut feedback = self.rule_feedback(expected_epoch, now_ms, max_age_ms)?;
+        let states: BTreeMap<_, _> = devices
+            .iter()
+            .map(|id| (id.clone(), self.devices.get(id).cloned()))
+            .collect();
+        feedback.retain(|id, _| states.contains_key(id));
+        Ok(RuleFeedbackRead {
+            boot_id: self.boot_id,
+            epoch: expected_epoch,
+            captured_ms: now_ms,
+            max_age_ms,
+            states,
+            feedback,
+        })
+    }
+    /// Revalidate at the point of admission, not merely before awaiting a queue.
+    pub fn validate_rule_feedback(
+        &self,
+        read: &RuleFeedbackRead,
+        now_ms: u64,
+    ) -> Result<(), StateError> {
+        self.validate_time(now_ms)?;
+        if now_ms < read.captured_ms {
+            return Err(StateError::ClockWentBackwards);
+        }
+        if self.boot_id != read.boot_id || self.transport_epoch != read.epoch {
+            return Err(StateError::WrongTransportEpoch);
+        }
+        if read
+            .states
+            .iter()
+            .any(|(id, state)| self.devices.get(id) != state.as_ref())
+            || read.feedback.values().any(|v| {
+                now_ms
+                    .checked_sub(v.observed_ms)
+                    .is_none_or(|age| age >= read.max_age_ms)
+            })
+        {
+            return Err(StateError::ResyncRequired);
+        }
+        Ok(())
+    }
+
     /// Snapshot and subscription cursor are captured atomically by the owning actor.
     pub fn snapshot(&self) -> Snapshot {
         Snapshot {

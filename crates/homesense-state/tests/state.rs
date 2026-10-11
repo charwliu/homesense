@@ -174,3 +174,154 @@ fn identical_button_edges_remain_events_for_the_gesture_layer() {
         Err(StateError::Capacity)
     );
 }
+
+#[test]
+fn rule_feedback_excludes_pending_stale_and_previous_connection() {
+    let mut store = setup(30);
+    store
+        .observe(&id(), Observation::Level(level(30)), 1, 10)
+        .unwrap();
+    let feedback = store.rule_feedback(1, 11, 10).unwrap();
+    assert_eq!(feedback[&id()].on, Some(true));
+    assert_eq!(feedback[&id()].level, Some(level(30)));
+    assert!(store.rule_feedback(1, 20, 10).unwrap().is_empty());
+    assert!(store.rule_feedback(1, 11, 0).unwrap().is_empty());
+    assert!(matches!(
+        store.rule_feedback(1, 9, 10),
+        Err(StateError::ClockWentBackwards)
+    ));
+    store
+        .set_desired(
+            &id(),
+            1,
+            Command::SetLevel {
+                level: level(80),
+                transition: LevelTransition::Immediate,
+            },
+            11,
+        )
+        .unwrap();
+    assert!(store.rule_feedback(1, 12, 10).unwrap().is_empty());
+    store
+        .observe(&id(), Observation::Level(level(80)), 1, 12)
+        .unwrap();
+    store.finish_pending(&id(), 1, 13).unwrap();
+    assert_eq!(
+        store.rule_feedback(1, 13, 10).unwrap()[&id()].level,
+        Some(level(80))
+    );
+    store.disconnect(2, 14).unwrap();
+    assert!(matches!(
+        store.rule_feedback(1, 15, 10),
+        Err(StateError::WrongTransportEpoch)
+    ));
+    assert!(store.rule_feedback(2, 15, 10).unwrap().is_empty());
+    store
+        .observe(&id(), Observation::Level(level(0)), 2, 16)
+        .unwrap();
+    assert_eq!(
+        store.rule_feedback(2, 16, 10).unwrap()[&id()].on,
+        Some(false)
+    );
+}
+
+#[test]
+fn feedback_read_set_detects_expiry_refresh_pending_and_missing_registration() {
+    let mut store = setup(50);
+    let other = DeviceId::new("other").unwrap();
+    store
+        .observe(&id(), Observation::Level(level(30)), 1, 10)
+        .unwrap();
+    let read = store.capture_rule_feedback(&[id()], 1, 11, 10).unwrap();
+    store.register(other.clone(), ModuleKind::Switch).unwrap();
+    store
+        .observe(&other, Observation::Switch(true), 1, 12)
+        .unwrap();
+    store.validate_rule_feedback(&read, 13).unwrap();
+    assert_eq!(
+        store.validate_rule_feedback(&read, 20),
+        Err(StateError::ResyncRequired)
+    );
+    // Equal-valued feedback refreshes its timestamp without emitting a change;
+    // it must still invalidate a plan based on the previous sample.
+    store
+        .observe(&id(), Observation::Level(level(30)), 1, 13)
+        .unwrap();
+    assert_eq!(
+        store.validate_rule_feedback(&read, 13),
+        Err(StateError::ResyncRequired)
+    );
+    let read = store.capture_rule_feedback(&[id()], 1, 13, 10).unwrap();
+    store
+        .set_desired(
+            &id(),
+            1,
+            Command::SetLevel {
+                level: level(60),
+                transition: LevelTransition::Immediate,
+            },
+            14,
+        )
+        .unwrap();
+    assert_eq!(
+        store.validate_rule_feedback(&read, 14),
+        Err(StateError::ResyncRequired)
+    );
+    let missing = DeviceId::new("missing").unwrap();
+    let read = store
+        .capture_rule_feedback(std::slice::from_ref(&missing), 1, 14, 10)
+        .unwrap();
+    store.register(missing, ModuleKind::Switch).unwrap();
+    assert_eq!(
+        store.validate_rule_feedback(&read, 14),
+        Err(StateError::ResyncRequired)
+    );
+    let read = store.capture_rule_feedback(&[id()], 1, 14, 10).unwrap();
+    store.disconnect(2, 15).unwrap();
+    assert_eq!(
+        store.validate_rule_feedback(&read, 15),
+        Err(StateError::WrongTransportEpoch)
+    );
+}
+
+#[test]
+fn rule_planning_captures_exact_observed_read_set() {
+    use homesense_core::rule::{Action, Budget, Condition, Expr, Node, Value};
+    let mut store = setup(20);
+    store
+        .observe(&id(), Observation::Level(level(30)), 1, 10)
+        .unwrap();
+    let nodes = [Node {
+        source: "test/condition".into(),
+        action: Action::If {
+            condition: Condition::Equal(Expr::DeviceLevel(id()), Expr::Literal(Value::Integer(30))),
+            then_actions: vec![Node {
+                source: "test/command".into(),
+                action: Action::Command {
+                    device: id(),
+                    command: Command::SetLevel {
+                        level: level(50),
+                        transition: LevelTransition::Immediate,
+                    },
+                },
+            }],
+            else_actions: vec![],
+        },
+    }];
+    let (plan, read) = store
+        .plan_rule(&nodes, &Default::default(), Budget::default(), 1, 11, 10)
+        .unwrap();
+    assert_eq!(plan.commands.len(), 1);
+    store.validate_rule_feedback(&read, 12).unwrap();
+    store
+        .observe(&id(), Observation::Level(level(40)), 1, 12)
+        .unwrap();
+    assert_eq!(
+        store.validate_rule_feedback(&read, 12),
+        Err(StateError::ResyncRequired)
+    );
+    let (plan, _) = store
+        .plan_rule(&nodes, &Default::default(), Budget::default(), 1, 12, 10)
+        .unwrap();
+    assert!(plan.commands.is_empty());
+}
