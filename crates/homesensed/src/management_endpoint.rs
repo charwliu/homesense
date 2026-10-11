@@ -1,0 +1,170 @@
+//! A management listener owned by the TCP supervisor, never a second bus owner.
+use crate::{
+    admission::Admission,
+    automation_runtime::AutomationRuntime,
+    web_api::{Api, Runtime},
+};
+use std::{
+    path::Path,
+    sync::{Arc, Mutex, RwLock},
+};
+use uuid::Uuid;
+pub(crate) struct Endpoint {
+    pub api: Arc<Api>,
+    stop: tokio::sync::watch::Sender<bool>,
+    task: tokio::task::JoinHandle<Result<(), String>>,
+}
+impl Drop for Endpoint {
+    fn drop(&mut self) {
+        let _ = self.stop.send(true);
+        self.task.abort();
+    }
+}
+impl Endpoint {
+    pub async fn start(
+        settings: crate::service::WebSettings,
+        directory: &Path,
+        admission: &Admission,
+        controller: Uuid,
+        runtime: &AutomationRuntime,
+        publisher: crate::automation_publication::Publisher,
+    ) -> Result<Self, String> {
+        let bundle = admission
+            .automation_bundle(
+                controller,
+                admission
+                    .task_generation()
+                    .await
+                    .map_err(|e| format!("{e:?}"))?,
+            )
+            .await
+            .map_err(|e| format!("{e:?}"))?;
+        let view = view(admission, runtime, &bundle)?;
+        let tokens = Arc::new(crate::web_auth::Tokens::default());
+        tokens.insert(
+            Uuid::new_v4(),
+            &settings.secret,
+            crate::web_auth::Grant {
+                controller,
+                role: if settings.administrator {
+                    crate::web_auth::Role::Administrator
+                } else {
+                    crate::web_auth::Role::Member
+                },
+                scenes: view.scenes.keys().cloned().collect(),
+                devices: bundle
+                    .configuration
+                    .devices()
+                    .iter()
+                    .filter(|(_, d)| d.enabled)
+                    .map(|(id, _)| id.as_str().to_owned())
+                    .collect(),
+            },
+        )?;
+        let origin = settings.tls.as_ref().map_or_else(
+            || format!("http://{}", settings.address),
+            |tls| tls.origin.clone(),
+        );
+        let api = Arc::new(Api {
+            origin,
+            tokens,
+            runtime: RwLock::new(Some(view)),
+            publisher: Some(publisher),
+            receipts: Mutex::new(crate::web_receipts::Receipts::open(
+                &directory.join("web-receipts.sqlite"),
+            )?),
+            drafts: Some((
+                homesense_core::ExecutionContext::Live,
+                Mutex::new(crate::web_drafts::Drafts::open(
+                    &directory.join("web-drafts.sqlite"),
+                )?),
+            )),
+        });
+        let (stop, receive) = tokio::sync::watch::channel(false);
+        let (ready, started) = tokio::sync::oneshot::channel();
+        let owned = api.clone();
+        let task = tokio::spawn(crate::web_server::serve_ready(
+            owned,
+            settings.address,
+            receive,
+            settings.tls,
+            Some(ready),
+        ));
+        let mut endpoint = Self { api, stop, task };
+        if started.await.is_err() {
+            return Err(endpoint
+                .finished()
+                .await
+                .err()
+                .unwrap_or_else(|| "management failed before listening".into()));
+        }
+        Ok(endpoint)
+    }
+    pub fn pause(&self) -> Result<Option<Runtime>, String> {
+        Ok(self
+            .api
+            .runtime
+            .write()
+            .map_err(|_| "management lock poisoned")?
+            .take())
+    }
+    pub fn restore(&self, view: Option<Runtime>) -> Result<(), String> {
+        *self
+            .api
+            .runtime
+            .write()
+            .map_err(|_| "management lock poisoned")? = view;
+        Ok(())
+    }
+    pub async fn install(
+        &self,
+        admission: &Admission,
+        controller: Uuid,
+        runtime: &AutomationRuntime,
+    ) -> Result<(), String> {
+        let bundle = admission
+            .automation_bundle(
+                controller,
+                admission
+                    .task_generation()
+                    .await
+                    .map_err(|e| format!("{e:?}"))?,
+            )
+            .await
+            .map_err(|e| format!("{e:?}"))?;
+        self.restore(Some(view(admission, runtime, &bundle)?))
+    }
+    pub async fn finished(&mut self) -> Result<(), String> {
+        (&mut self.task).await.map_err(|e| e.to_string())?
+    }
+}
+fn view(
+    admission: &Admission,
+    runtime: &AutomationRuntime,
+    bundle: &homesense_storage::automation::Bundle,
+) -> Result<Runtime, String> {
+    let document = bundle
+        .automation
+        .as_ref()
+        .ok_or("automation document missing")?;
+    let scenes: std::collections::BTreeMap<String, String> = document
+        .timed_scenes
+        .iter()
+        .filter(|(_, s)| {
+            s.enabled
+                && s.review_evidence
+                    .as_ref()
+                    .is_some_and(|v| !v.trim().is_empty())
+        })
+        .map(|(id, _)| (id.clone(), id.clone()))
+        .collect();
+    if scenes.len() > 64 {
+        return Err("management scene capacity exceeded".into());
+    }
+    Ok(Runtime {
+        control: runtime.control(),
+        revision: bundle.configuration.revision(),
+        boot: admission.boot_id().to_owned(),
+        scenes,
+    })
+}
