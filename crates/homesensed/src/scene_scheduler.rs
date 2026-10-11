@@ -47,6 +47,12 @@ pub struct Tick {
     pub status: Status,
 }
 impl SceneScheduler {
+    pub(crate) fn publication_impact(&self) -> Vec<crate::configuration_preview::Run> {
+        self.runs.iter().filter(|(_,run)|!run.settled_terminal()).map(|(id,run)|crate::configuration_preview::Run {
+            run:*id, audit_id:run.audit_id().to_owned(),definition:run.definition().map(str::to_owned),status:format!("{:?}",run.status()),
+        }).collect()
+    }
+
     pub(crate) fn owned_by(&self,run:u64,controller:Uuid)->bool {self.runs.get(&run).is_some_and(|r|r.controller()==controller)}
     pub fn new(
         admission: Admission,

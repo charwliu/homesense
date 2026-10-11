@@ -51,7 +51,7 @@ document.getElementById('connect').onclick = async () => {
   } catch (error) { csrf = ''; list.replaceChildren(); status.textContent = error.message; }
 };
 document.getElementById('logout').onclick = async () => {
-  try { await request('/api/v1/session', {method: 'DELETE'}); csrf = ''; document.getElementById('configuration').hidden=true; for(const id of ['device-document','automation-document','draft-id','base-revision','draft-revision']) document.getElementById(id).value=''; started.clear(); list.replaceChildren(); document.getElementById('devices').replaceChildren(); status.textContent = '已退出'; }
+  try { await request('/api/v1/session', {method: 'DELETE'}); csrf = ''; document.getElementById('draft-impact').textContent=''; document.getElementById('configuration').hidden=true; for(const id of ['device-document','automation-document','draft-id','base-revision','draft-revision']) document.getElementById(id).value=''; started.clear(); list.replaceChildren(); document.getElementById('devices').replaceChildren(); status.textContent = '已退出'; }
   catch (error) { status.textContent = '注销未确认：' + error.message; }
 };
 
@@ -107,4 +107,12 @@ document.getElementById('load-draft').onclick = async () => {
     document.getElementById('automation-document').value=JSON.stringify(draft.automation,null,2);
     status.textContent='已读取草稿；当前运行配置未改变。';
   } catch(error) {status.textContent=error.message;}
+};
+
+document.getElementById('preview-draft').onclick = async () => {
+  try {
+    const result=await request('/api/v1/config/previews/'+encodeURIComponent(document.getElementById('draft-id').value.trim()));
+    const impact=result.impact;
+    document.getElementById('draft-impact').textContent=`版本 ${impact.active_revision} → ${impact.candidate_revision}\n需要重建网关连接：${impact.connection_rebuild_required?'是':'否'}\n发布将结束旧版本规则和定时任务。\n受影响场景：\n` + (impact.interrupted_runs.map(run=>`${run.definition || run.audit_id} · ${run.status}`).join('\n') || '当前无未结束场景') + '\n此为当前快照，不锁定运行状态；尚未激活。';
+  } catch(error) {document.getElementById('draft-impact').textContent='';status.textContent=error.message;}
 };

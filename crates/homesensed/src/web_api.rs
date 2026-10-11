@@ -144,6 +144,59 @@ impl Api {
                 json!({"can_manage_configuration":grant.role==crate::web_auth::Role::Administrator && self.drafts.is_some()}),
             );
         }
+        if let Some(id) = request
+            .uri()
+            .path()
+            .strip_prefix("/api/v1/config/previews/")
+        {
+            if grant.role != crate::web_auth::Role::Administrator {
+                return deny(StatusCode::FORBIDDEN, "administrator_required");
+            }
+            if request.method() != hyper::Method::GET {
+                return deny(StatusCode::METHOD_NOT_ALLOWED, "method_not_allowed");
+            }
+            let Ok(id) = uuid::Uuid::parse_str(id) else {
+                return deny(StatusCode::BAD_REQUEST, "invalid_draft_id");
+            };
+            let Some((context, drafts)) = &self.drafts else {
+                return deny(
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    "configuration_management_unavailable",
+                );
+            };
+            let draft = match drafts
+                .lock()
+                .map_err(|_| ())
+                .and_then(|d| d.get(grant.controller, id).map_err(|_| ()))
+            {
+                Ok(Some(draft)) => draft,
+                Ok(None) => return deny(StatusCode::NOT_FOUND, "draft_not_found"),
+                Err(_) => {
+                    return deny(StatusCode::SERVICE_UNAVAILABLE, "draft_storage_unavailable");
+                }
+            };
+            let candidate = serde_json::to_vec(&draft.devices)
+                .ok()
+                .and_then(|bytes| homesense_config::Configuration::parse(&bytes, *context).ok());
+            let Some(candidate) = candidate else {
+                return deny(StatusCode::CONFLICT, "invalid_stored_draft");
+            };
+            return match self
+                .control
+                .request(Action::ConfigurationPreview {
+                    controller: grant.controller,
+                    revision: draft.expected_revision,
+                    candidate,
+                })
+                .await
+            {
+                Ok(Reply::ConfigurationPreview(preview)) => response(
+                    StatusCode::OK,
+                    json!({"draft":id,"impact":preview,"reservation":false}),
+                ),
+                _ => deny(StatusCode::CONFLICT, "configuration_changed_or_unavailable"),
+            };
+        }
         if let Some(id) = request.uri().path().strip_prefix("/api/v1/config/drafts/") {
             if grant.role != crate::web_auth::Role::Administrator {
                 return deny(StatusCode::FORBIDDEN, "administrator_required");
