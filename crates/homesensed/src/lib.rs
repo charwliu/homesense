@@ -66,3 +66,5 @@ pub mod publication_recovery;
 pub mod deferred_rule;
 
 pub mod deferred_session;
+
+pub mod deferred_router;
