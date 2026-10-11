@@ -87,3 +87,5 @@ pub mod web_api;
 pub mod web_server;
 
 pub mod unified_hap;
+
+pub mod management_devices;

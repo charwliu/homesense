@@ -18,6 +18,7 @@ pub struct Grant {
     pub controller: Uuid,
     pub role: Role,
     pub scenes: BTreeSet<String>,
+    pub devices: BTreeSet<String>,
 }
 struct Credential {
     hash: [u8; 32],
@@ -51,6 +52,7 @@ impl Tokens {
                 .bytes()
                 .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
             || grant.scenes.len() > 4095
+            || grant.devices.len() > 256
         {
             return Err("invalid credential configuration".into());
         }
@@ -138,6 +140,12 @@ impl Tokens {
     }
 }
 impl Grant {
+    pub fn may_read_device(&self, id: &str) -> bool {
+        self.devices.contains(id)
+    }
+    pub fn may_control_device(&self, id: &str) -> bool {
+        self.role != Role::Viewer && self.may_read_device(id)
+    }
     pub fn may_read(&self, scene: &str) -> bool {
         self.scenes.contains(scene)
     }
@@ -161,6 +169,7 @@ mod tests {
                     controller: id,
                     role: Role::Viewer,
                     scenes: BTreeSet::new(),
+                    devices: BTreeSet::new(),
                 },
             )
             .unwrap();

@@ -505,7 +505,7 @@ async fn serve_automation_simulation_options(
         if let Some(web)=web {
             let tokens=std::sync::Arc::new(crate::web_auth::Tokens::default());
             let selected:std::collections::BTreeMap<String,String>=document.timed_scenes.iter().filter(|(_,s)|s.enabled && s.review_evidence.as_ref().is_some_and(|v|!v.trim().is_empty())).map(|(id,_)|(id.clone(),id.clone())).collect();
-            tokens.insert(Uuid::new_v4(),&web.secret,crate::web_auth::Grant{controller,role:crate::web_auth::Role::Member,scenes:selected.keys().cloned().collect()})?;
+            tokens.insert(Uuid::new_v4(),&web.secret,crate::web_auth::Grant{controller,role:crate::web_auth::Role::Member,scenes:selected.keys().cloned().collect(),devices:config.devices().iter().filter(|(_,d)|d.enabled).map(|(id,_)|id.as_str().to_owned()).collect()})?;
             let api=std::sync::Arc::new(crate::web_api::Api{origin:format!("http://{}",web.address),tokens,control:runtime.control(),revision:document.revision,boot:admission.boot_id().to_owned(),scenes:selected,receipts:std::sync::Mutex::new(crate::web_receipts::Receipts::open(&directory.join("web-receipts.sqlite"))?)});
             let (stop,receive)=tokio::sync::watch::channel(false);
             let drive=runtime.drive(&mut owner,Duration::from_millis(10),5000,receive.clone(),wall_ms);
