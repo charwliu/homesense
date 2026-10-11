@@ -227,6 +227,13 @@ impl SceneScheduler {
         }
         results
     }
+    /// Observed target projection for a retained run; never inferred from status.
+    pub async fn activity(&self, id:u64, feedback:&crate::feedback::Feedback, max_age_ms:u64) -> Result<Option<crate::scene_activity::SceneActivity>,String> {
+        match self.runs.get(&id) {
+            Some(run)=>run.activity(feedback,max_age_ms).await.map(Some),
+            None=>Ok(None),
+        }
+    }
     pub fn status(&self, id: u64) -> Option<Status> {
         self.runs.get(&id).map(SceneRuntime::status)
     }
