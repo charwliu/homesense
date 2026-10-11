@@ -147,3 +147,25 @@ async fn simulation_publication_cancels_old_delays_and_runs_new_mapping() {
     drop(sql);
     std::fs::remove_dir_all(root).unwrap();
 }
+
+#[test]
+fn startup_calls_delayed_scene_and_resumes_original_cause_in_service() {
+    let root=std::env::temp_dir().join(format!("deferred-service-{}",uuid::Uuid::new_v4()));
+    std::fs::create_dir_all(&root).unwrap();
+    let devices=root.join("devices.json");let rules=root.join("rules.json");
+    std::fs::write(&devices,include_bytes!("../../../config/simulation.json")).unwrap();
+    std::fs::write(&rules,br#"{"schema_version":1,"configuration_revision":1,"variables":[{"id":"done","kind":"integer","lifetime":"persistent"}],"rules":[{"id":"begin","enabled":true,"review_evidence":"simulation","source":"test","trigger":{"kind":"startup_synchronized"},"actions":[{"source":"call","action":{"kind":"scene","id":"later","activate":true}}]},{"id":"after","enabled":true,"review_evidence":"simulation","source":"test","trigger":{"kind":"scene_result","scene":"later"},"actions":[{"source":"done","action":{"kind":"set","variable":"done","value":{"kind":"integer","value":1}}}]}],"timed_scenes":[{"id":"later","enabled":true,"review_evidence":"simulation","max_lateness_ms":1000,"steps":[{"source":"delayed","offset_ms":100,"device":"simulation:light","command":{"kind":"level","value":30,"ramp":false}}]}]}"#).unwrap();
+    for _ in 0..2 {
+        let output=Command::new(env!("CARGO_BIN_EXE_homesensed")).arg("serve-automation-simulation").arg(&devices).arg(&rules).arg(&root).arg("1").output().unwrap();
+        assert!(output.status.success(),"{}",String::from_utf8_lossy(&output.stderr));
+    }
+    let sql=rusqlite::Connection::open(root.join("automation-simulation.sqlite")).unwrap();
+    let counts:(i64,i64)=sql.query_row("SELECT count(*),count(DISTINCT correlation) FROM rule_admission",[],|r|Ok((r.get(0)?,r.get(1)?))).unwrap();
+    assert_eq!(counts,(4,2));
+    let children:i64=sql.query_row("SELECT count(*) FROM rule_admission child JOIN rule_admission parent ON child.boot_id=parent.boot_id AND child.correlation=parent.correlation AND child.parent_id=parent.event_id WHERE child.rule_id='after' AND parent.rule_id='begin'",[],|r|r.get(0)).unwrap();
+    assert_eq!(children,2,"delayed results inherit original root across scheduler ticks");
+    let scenes:i64=sql.query_row("SELECT count(*) FROM scene_cause",[],|r|r.get(0)).unwrap();assert_eq!(scenes,2);
+    let done:i64=sql.query_row("SELECT value FROM logical_variable WHERE name='done'",[],|r|r.get(0)).unwrap();assert_eq!(done,1);
+    let complete:i64=sql.query_row("SELECT count(*) FROM rule_chain_outcome WHERE error IS NULL",[],|r|r.get(0)).unwrap();assert_eq!(complete,2);
+    assert!(!root.join("runtime.sqlite").exists());drop(sql);std::fs::remove_dir_all(root).unwrap();
+}
