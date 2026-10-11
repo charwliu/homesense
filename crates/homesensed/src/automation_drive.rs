@@ -236,7 +236,7 @@ pub(crate) async fn drive_with_handoff<S: Read + Write + Send + 'static>(
                 let (_, unowned) = router.poll(guard.scenes, Some((guard.owner.feedback(), max_age_ms))).await?;
                 unowned
             } else {
-                for run in guard.scenes.tick(now).await? {
+                for run in guard.scenes.tick_with_feedback(now,Some((guard.owner.feedback(),max_age_ms))).await? {
                     if let Err(error) = run.result {
                         log::warn!("scene run={} failed: {error}", run.run);
                     }
