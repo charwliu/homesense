@@ -375,6 +375,8 @@ impl Store {
 pub enum Query {
     /// `after` and the returned cursor refer to checkpoint versions.
     Cancellations { boot: String, run: String, after: u64, limit: usize },
+    /// Expiry pages use checkpoint versions, independently of command IDs.
+    Expiries { boot: String, run: String, after: u64, limit: usize },
     Latest {
         definition: String,
     },
@@ -397,7 +399,8 @@ impl Query {
                 }
             }
             Self::Run { boot, run, after, limit }
-            | Self::Cancellations { boot, run, after, limit } => {
+            | Self::Cancellations { boot, run, after, limit }
+            | Self::Expiries { boot, run, after, limit } => {
                 key(boot)?;
                 key(run)?;
                 if *after > i64::MAX as u64 || !(1..=128).contains(limit) {
@@ -413,6 +416,11 @@ pub struct CancellationRecord {
     pub version: u64,
     pub cancellation: Cancellation,
 }
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExpiryRecord {
+    pub version: u64,
+    pub expiry: Expiry,
+}
 #[derive(Debug)]
 pub struct Page {
     pub boot: String,
@@ -421,6 +429,7 @@ pub struct Page {
     pub cause: Option<Cause>,
     pub commands: Vec<CommandRecord>,
     pub cancellations: Vec<CancellationRecord>,
+    pub expiries: Vec<ExpiryRecord>,
     pub next_after: Option<u64>,
 }
 impl Store {
@@ -434,12 +443,12 @@ impl Store {
             Query::Latest {definition} => {
                 tx.query_row("SELECT boot_id,run_id FROM scene_run WHERE revision=?1 AND definition=?2 ORDER BY rowid DESC LIMIT 1",params![revision,definition],|r|Ok((r.get::<_,String>(0)?,r.get::<_,String>(1)?,0,128))).optional()?
             }
-            Query::Run {boot,run,after,limit} | Query::Cancellations {boot,run,after,limit} => Some((boot.clone(),run.clone(),*after,*limit)),
+            Query::Run {boot,run,after,limit} | Query::Cancellations {boot,run,after,limit} | Query::Expiries {boot,run,after,limit} => Some((boot.clone(),run.clone(),*after,*limit)),
         };
         let result = if let Some((boot, run, after, limit)) = identity {
             if let Some(record) = self.scene_run(&boot, &run)?.filter(|r|r.revision==revision as u64) {
                 let cause=self.scene_cause(&boot,&run)?;
-                let (commands,cancellations,next_after) = if matches!(query,Query::Cancellations{..}) {
+                let (commands,cancellations,expiries,next_after) = if matches!(query,Query::Cancellations{..}) {
                     let mut statement=tx.prepare("SELECT version,device_id,reason FROM scene_cancellation WHERE boot_id=?1 AND run_id=?2 AND version>?3 ORDER BY version LIMIT ?4")?;
                     let rows=statement.query_map(params![boot,run,after as i64,limit as i64],|row|Ok((row.get::<_,i64>(0)?,row.get::<_,String>(1)?,row.get::<_,String>(2)?)))?.collect::<Result<Vec<_>,_>>()?;
                     let records=rows.into_iter().map(|(version,device,reason)|{
@@ -447,11 +456,20 @@ impl Store {
                         Ok(CancellationRecord{version:u64::try_from(version).map_err(|_|Error::InvalidAudit)?,cancellation:Cancellation{device:homesense_core::DeviceId::new(device).map_err(|_|Error::InvalidAudit)?,reason}})
                     }).collect::<Result<Vec<_>,Error>>()?;
                     let cursor=if records.len()==limit {records.last().map(|r|r.version)} else {None};
-                    (vec![],records,cursor)
+                    (vec![],records,vec![],cursor)
+                } else if matches!(query,Query::Expiries{..}) {
+                    let mut statement=tx.prepare("SELECT version,step_index,device_id,source FROM scene_expiry WHERE boot_id=?1 AND run_id=?2 AND version>?3 ORDER BY version LIMIT ?4")?;
+                    let rows=statement.query_map(params![boot,run,after as i64,limit as i64],|row|Ok((row.get::<_,i64>(0)?,row.get::<_,i64>(1)?,row.get::<_,String>(2)?,row.get::<_,String>(3)?)))?.collect::<Result<Vec<_>,_>>()?;
+                    let records=rows.into_iter().map(|(version,index,device,source)|Ok(ExpiryRecord{
+                        version:u64::try_from(version).map_err(|_|Error::InvalidAudit)?,
+                        expiry:Expiry{index:usize::try_from(index).map_err(|_|Error::InvalidAudit)?,device:homesense_core::DeviceId::new(device).map_err(|_|Error::InvalidAudit)?,source},
+                    })).collect::<Result<Vec<_>,Error>>()?;
+                    let cursor=if records.len()==limit {records.last().map(|r|r.version)} else {None};
+                    (vec![],vec![],records,cursor)
                 } else {
                     let commands=self.scene_commands(&boot,&run,after,limit)?;
                     let cursor=if commands.len()==limit {commands.last().map(|c|c.command_id)} else {None};
-                    (commands,vec![],cursor)
+                    (commands,vec![],vec![],cursor)
                 };
                 Some(Page {
                     boot,
@@ -460,6 +478,7 @@ impl Store {
                     cause,
                     commands,
                     cancellations,
+                    expiries,
                     next_after,
                 })
             } else {

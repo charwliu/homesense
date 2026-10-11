@@ -1032,3 +1032,23 @@ fn expired_scene_step_migrates_atomically_and_cannot_be_admitted() {
     assert_eq!(sql.query_row("SELECT source FROM scene_expiry",[],|r|r.get::<_,String>(0)).unwrap(),expiry.source);
     assert_eq!(sql.pragma_query_value(None,"user_version",|r|r.get::<_,i64>(0)).unwrap(),17);
 }
+
+#[test]
+fn expiry_history_pages_by_checkpoint_version_and_configuration() {
+    use homesense_storage::scene_run::{Expiry,Status as Scene,Query};
+    let db=Database::new();let mut store=Store::open(&db.0).unwrap();
+    store.publish(None,1,b"config",&[]).unwrap();store.begin_scene_run("boot","scene",1,None,0).unwrap();
+    for (index,version) in [(3,0),(1,1),(7,2)] {
+        store.checkpoint_scene_run_with_expiry("boot","scene",version,Scene::Running,version+1,&Expiry{index,device:DeviceId::new("synthetic:light").unwrap(),source:format!("synthetic:{index}")}).unwrap();
+    }
+    let query=|after,limit|Query::Expiries{boot:"boot".into(),run:"scene".into(),after,limit};
+    let first=store.query_scene(1,&query(0,2)).unwrap().unwrap();
+    assert!(first.commands.is_empty() && first.cancellations.is_empty());
+    assert_eq!(first.expiries.iter().map(|r|(r.version,r.expiry.index)).collect::<Vec<_>>(),vec![(1,3),(2,1)]);
+    assert_eq!(first.next_after,Some(2));
+    let second=store.query_scene(1,&query(2,2)).unwrap().unwrap();
+    assert_eq!(second.expiries[0].expiry.index,7);assert_eq!(second.next_after,None);
+    assert!(store.query_scene(1,&query(3,2)).unwrap().unwrap().expiries.is_empty());
+    assert!(store.query_scene(2,&query(0,2)).unwrap().is_none());
+    for (after,limit) in [(0,0),(0,129),(u64::MAX,1)] {assert!(store.query_scene(1,&query(after,limit)).is_err());}
+}
