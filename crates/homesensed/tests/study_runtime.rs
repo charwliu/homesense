@@ -6225,6 +6225,13 @@ async fn scene_expiry_is_saved_before_later_valid_step_admission() {
             assert!(result.unwrap().is_some());
             assert_eq!(sql.query_row("SELECT step_index FROM scene_expiry WHERE run_id=?1",[scene.audit_id()],|r|r.get::<_,i64>(0)).unwrap(),0);
             assert_eq!(sql.query_row("SELECT step_index FROM scene_step WHERE run_id=?1",[scene.audit_id()],|r|r.get::<_,i64>(0)).unwrap(),1);
+            let query=||homesense_storage::scene_run::Query::Expiries{boot:a.boot_id().into(),run:scene.audit_id().into(),after:0,limit:128};
+            let generation=a.task_generation().await.unwrap();
+            assert!(a.scene_history(Uuid::new_v4(),generation.clone(),query()).await.is_err());
+            let page=a.scene_history(controller,generation,query()).await.unwrap().unwrap();
+            assert_eq!(page.expiries.len(),1);
+            assert_eq!(page.expiries[0].expiry.index,0);
+            assert_eq!(page.expiries[0].expiry.source,"synthetic:0");
             let ticket=a.dispatch().await.unwrap().unwrap();a.finish_write(ticket.command.id,true).await.unwrap();scene.reconcile().await.unwrap();
             assert_eq!(scene.status(),homesense_core::scene::Status::Partial);
             assert!(scene.poll(20).await.unwrap().is_none());
