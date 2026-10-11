@@ -6266,3 +6266,29 @@ async fn entirely_expired_scene_retains_history_without_restart_replay() {
     assert_eq!(sql.query_row("SELECT count(*) FROM command_journal",[],|r|r.get::<_,i64>(0)).unwrap(),0);
     reopened.shutdown().await.unwrap();
 }
+
+#[tokio::test]
+async fn fade_install_audits_preceding_expiry_before_sampling() {
+    use homesense_core::{DeviceId,Command,Percent,LevelTransition,scene::Step};
+    use homesensed::{feedback::Feedback,software_fade::SoftwareFade,transport_owner::GatewayRead};
+    for fault in [false,true] {
+        let db=Db(std::env::temp_dir().join(format!("fade-expiry-audit-{}.sqlite",Uuid::new_v4())));
+        let devices=include_bytes!("../../../config/simulation.json");
+        Store::open(&db.0).unwrap().publish_configuration(None,devices,ExecutionContext::Simulation,&[]).unwrap();
+        let controller=Uuid::new_v4();let a=actor(&db,controller).await;
+        let config=homesense_config::Configuration::parse(devices,ExecutionContext::Simulation).unwrap();
+        let mut feedback=Feedback::new(&config,ExecutionContext::Simulation,Uuid::parse_str(a.boot_id()).unwrap().as_u128(),1).unwrap();
+        feedback.apply(&GatewayRead{gateway_id:"simulation".into(),transport_epoch:1,received_at_ms:0,result:hb_transport::Receive::Frames{transport_epoch:1,frames:vec![hb_protocol::RawFrame{address:0x15,command:0xd1,value:100}]}}).unwrap();
+        let device=DeviceId::new("simulation:light").unwrap();let target=Percent::new(0).unwrap();
+        let steps=[0,10].into_iter().map(|delay_ms|Step{device:device.clone(),command:Command::SetLevel{level:target,transition:LevelTransition::Immediate},delay_ms,source:"synthetic".into()}).collect();
+        let mut scene=homesensed::scene_runtime::SceneRuntime::new(a.clone(),controller,steps,0,5).await.unwrap();
+        let fade=SoftwareFade::start(a.clone(),controller,device,target,200,50,100,4,&feedback,2000).await.unwrap();
+        let sql=rusqlite::Connection::open(&db.0).unwrap();
+        if fault {sql.execute_batch("CREATE TRIGGER fail_fade_expiry BEFORE INSERT ON scene_expiry BEGIN SELECT RAISE(ABORT,'synthetic'); END;").unwrap();}
+        assert_eq!(scene.install_due_fade(fade,10).await.is_err(),fault);
+        assert_eq!(sql.query_row("SELECT count(*) FROM scene_expiry",[],|r|r.get::<_,i64>(0)).unwrap(),if fault {0}else{1});
+        assert_eq!(sql.query_row("SELECT count(*) FROM command_journal",[],|r|r.get::<_,i64>(0)).unwrap(),0);
+        if fault {assert!(a.dispatch().await.is_err());} else {scene.cancel().await.unwrap();assert!(a.dispatch().await.unwrap().is_none());}
+        a.shutdown().await.unwrap();
+    }
+}
