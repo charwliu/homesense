@@ -31,6 +31,18 @@ pub struct Poll {
     pub watermark_unix_ms: i64,
     pub clock_jump: bool,
 }
+/// Read-only scheduler diagnostics. A watermark prevents replay; it is not
+/// evidence that any corresponding rule or physical action succeeded.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Status {
+    pub schedule_count: usize,
+    pub wall_unix_ms: i64,
+    pub monotonic_ms: u64,
+    pub watermark_unix_ms: i64,
+    pub stopped: bool,
+    /// None until the first successful poll; invalid polls stop the calendar.
+    pub last_clock_jump: Option<bool>,
+}
 pub struct Calendar {
     schedules: Vec<Schedule>,
     wall: i64,
@@ -38,6 +50,7 @@ pub struct Calendar {
     watermark: i64,
     lateness: i64,
     stopped: bool,
+    last_clock_jump: Option<bool>,
 }
 impl Calendar {
     pub fn new(
@@ -73,7 +86,18 @@ impl Calendar {
             watermark: persisted_watermark.unwrap_or(wall).max(wall),
             lateness: lateness_ms.into(),
             stopped: false,
+            last_clock_jump: None,
         })
+    }
+    pub fn status(&self) -> Status {
+        Status {
+            schedule_count: self.schedules.len(),
+            wall_unix_ms: self.wall,
+            monotonic_ms: self.monotonic,
+            watermark_unix_ms: self.watermark,
+            stopped: self.stopped,
+            last_clock_jump: self.last_clock_jump,
+        }
     }
     pub fn stop(&mut self) {
         self.stopped = true;
@@ -91,6 +115,7 @@ impl Calendar {
         let elapsed = i128::from(monotonic - self.monotonic);
         let wall_elapsed = i128::from(wall) - i128::from(self.wall);
         let clock_jump = (wall_elapsed - elapsed).abs() > 1000;
+        self.last_clock_jump = Some(clock_jump);
         self.wall = wall;
         self.monotonic = monotonic;
         let previous = self.watermark;

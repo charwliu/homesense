@@ -79,3 +79,27 @@ fn invalid_times_stop_and_invalid_schedule_is_rejected() {
     assert!(matches!(c.poll(MONDAY, 9), Err(Error::InvalidClock)));
     assert!(matches!(c.poll(MONDAY, 11), Err(Error::Stopped)));
 }
+
+#[test]
+fn diagnostics_are_read_only_and_distinguish_rollback_and_stop() {
+    let saved = MONDAY + 60_000;
+    let mut c = Calendar::new(vec![daily("synthetic", 0, 1)], MONDAY, 10, Some(saved), 1000).unwrap();
+    let initial = c.status();
+    assert_eq!(initial.schedule_count, 1);
+    assert_eq!(initial.wall_unix_ms, MONDAY);
+    assert_eq!(initial.watermark_unix_ms, saved);
+    assert_eq!(initial.last_clock_jump, None);
+    assert_eq!(c.status(), initial);
+    assert!(c.poll(MONDAY - 1000, 1010).unwrap().clock_jump);
+    let rollback = c.status();
+    assert_eq!(rollback.wall_unix_ms, MONDAY - 1000);
+    assert_eq!(rollback.monotonic_ms, 1010);
+    assert_eq!(rollback.watermark_unix_ms, saved);
+    assert_eq!(rollback.last_clock_jump, Some(true));
+    assert!(!rollback.stopped);
+    c.poll(MONDAY, 2010).unwrap();
+    assert_eq!(c.status().last_clock_jump, Some(false));
+    assert!(matches!(c.poll(MONDAY, 2009), Err(Error::InvalidClock)));
+    assert!(c.status().stopped);
+    assert_eq!(c.status().monotonic_ms, 2010);
+}

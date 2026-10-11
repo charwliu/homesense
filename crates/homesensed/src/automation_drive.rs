@@ -195,7 +195,7 @@ pub(crate) async fn drive_with_handoff<S: Read + Write + Send + 'static>(
                 return Ok(());
             }
             if let Some((receiver, document)) = &mut control.0 {
-                receiver.poll(admission, document, guard.scenes, guard.owner.feedback(), max_age_ms).await;
+                receiver.poll(admission, document, guard.scenes, guard.owner.feedback(), max_age_ms, guard.calendar.as_deref()).await;
             }
             let now = admission.monotonic_ms();
             if let Some(calendar) = &mut guard.calendar {

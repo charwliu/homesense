@@ -463,7 +463,22 @@ pub struct ScheduledRules {
     watermark: Option<i64>,
     startup_attempted: bool,
 }
+/// In-memory clock state and the checkpoint successfully acknowledged by storage.
+#[derive(Debug, PartialEq, Eq)]
+pub struct CalendarStatus {
+    pub clock: homesense_core::calendar::Status,
+    pub persisted_watermark_unix_ms: Option<i64>,
+    pub startup_attempted: bool,
+}
 impl ScheduledRules {
+    pub fn status(&self) -> CalendarStatus {
+        CalendarStatus {
+            clock: self.calendar.status(),
+            persisted_watermark_unix_ms: self.watermark,
+            startup_attempted: self.startup_attempted,
+        }
+    }
+
     pub(crate) fn matches_admission(&self, admission: &Admission) -> bool {
         self.rules.admission.boot_id() == admission.boot_id()
     }

@@ -11,6 +11,7 @@ use tokio::sync::{mpsc, oneshot};
 use uuid::Uuid;
 #[derive(Debug)]
 pub enum Action {
+    CalendarStatus,
     Start(String),
     Cancel(u64),
     Status(u64),
@@ -21,6 +22,7 @@ pub enum Action {
 }
 #[derive(Debug, PartialEq, Eq)]
 pub enum Reply {
+    CalendarStatus { boot: String, revision: u64, status: Option<crate::event_rules::CalendarStatus> },
     Started(u64),
     Cancelled(usize),
     Status(Option<Status>),
@@ -117,6 +119,7 @@ pub(crate) fn channel(controller: Uuid, generation: TaskGeneration) -> (Control,
     )
 }
 impl Receiver {
+    #[allow(clippy::too_many_arguments)]
     pub(crate) async fn poll(
         &mut self,
         admission: &Admission,
@@ -124,6 +127,7 @@ impl Receiver {
         scenes: &mut SceneScheduler,
         feedback: &crate::feedback::Feedback,
         max_age_ms: u64,
+        calendar: Option<&crate::event_rules::ScheduledRules>,
     ) {
         // Bound per-cycle work so incoming control cannot starve bus processing.
         for _ in 0..8 {
@@ -151,6 +155,11 @@ impl Receiver {
                     return Err("automation request expired or abandoned".into());
                 }
                 match request.action {
+                    Action::CalendarStatus => Ok(Reply::CalendarStatus {
+                        boot: admission.boot_id().to_owned(),
+                        revision: document.revision,
+                        status: calendar.map(|calendar| calendar.status()),
+                    }),
                     Action::Start(id) => scenes
                         .start_document(document, &id, admission.monotonic_ms())
                         .await
