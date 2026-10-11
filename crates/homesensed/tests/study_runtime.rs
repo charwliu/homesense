@@ -6240,3 +6240,29 @@ async fn scene_expiry_is_saved_before_later_valid_step_admission() {
         a.shutdown().await.unwrap();
     }
 }
+
+#[tokio::test]
+async fn entirely_expired_scene_retains_history_without_restart_replay() {
+    use homesense_core::{DeviceId,Command,Percent,LevelTransition,scene::{Step,Status}};
+    use homesense_storage::scene_run::Query;
+    let db=Db(std::env::temp_dir().join(format!("all-expired-{}.sqlite",Uuid::new_v4())));
+    Store::open(&db.0).unwrap().publish_configuration(None,include_bytes!("../../../config/simulation.json"),ExecutionContext::Simulation,&[]).unwrap();
+    let controller=Uuid::new_v4();let a=actor(&db,controller).await;
+    let steps=[0,10].into_iter().map(|delay_ms|Step{device:DeviceId::new("simulation:light").unwrap(),command:Command::SetLevel{level:Percent::new(30).unwrap(),transition:LevelTransition::Immediate},delay_ms,source:format!("synthetic:{delay_ms}")}).collect();
+    let mut scene=homesensed::scene_runtime::SceneRuntime::new(a.clone(),controller,steps,0,5).await.unwrap();
+    for now in [20,30] {
+        assert!(scene.poll(now).await.unwrap().is_none());
+        assert_eq!(scene.status(),Status::Failed);
+        assert!(a.dispatch().await.unwrap().is_none());
+    }
+    let boot=a.boot_id().to_owned();let run=scene.audit_id().to_owned();
+    a.shutdown().await.unwrap();
+    let reopened=actor(&db,controller).await;
+    assert!(reopened.dispatch().await.unwrap().is_none());
+    let page=reopened.scene_history(controller,reopened.task_generation().await.unwrap(),Query::Expiries{boot,run,after:0,limit:128}).await.unwrap().unwrap();
+    assert_eq!(page.record.status,homesense_storage::scene_run::Status::Failed);
+    assert_eq!(page.expiries.iter().map(|r|r.expiry.index).collect::<Vec<_>>(),vec![0,1]);
+    let sql=rusqlite::Connection::open(&db.0).unwrap();
+    assert_eq!(sql.query_row("SELECT count(*) FROM command_journal",[],|r|r.get::<_,i64>(0)).unwrap(),0);
+    reopened.shutdown().await.unwrap();
+}
