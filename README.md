@@ -262,3 +262,5 @@ TCP 在线发布协调循环已接入 `serve_with_publications`：可信进程�
 - SceneRuntime 新增渐变绑定入口：继承原场景的 manual fence 和因果 deadline，校验 controller／generation／设备／目标，拒绝已结束步骤。回归确认场景启动后人工调光、随后才创建的渐变不能重新取得控制权；study_runtime 84 项通过。此入口仅关联权限与审计，不启动或解决 timeline 步骤，统一调度接线仍未完成。
 
 - SceneRuntime 现持有并轮询已准备好的渐变步骤，沿用时间线、场景审计及设备／全场景取消。回归覆盖完成、零写取消、部分写出取消和 Writing 中取消；后者等待写入结算后记录 Partial，不提前关闭步骤。85 项运行时测试及 homesensed 库严格 Clippy 通过（vendor/hap 既有警告保留）。当前仍需显式 install_due_fade，配置解析、调度器自动安装与总线共享预算尚未完成，未部署现场。
+
+- SceneScheduler 已接显式 install_due_fade：正常 tick 驱动采样、完成后续普通步骤，既有 cancel 处理零写／部分写／Writing 中取消。混合场景及调度器端到端回归通过，study_runtime 共 87 项通过。调用方仍需准备新鲜反馈并预留预算；配置自动准备、共享总线预算及原项目渐变转换未完成，现场不变。
