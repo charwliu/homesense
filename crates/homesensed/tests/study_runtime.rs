@@ -4193,3 +4193,26 @@ async fn combined_feedback_events_follow_logical_light_and_share_cause() {
     assert!(a.dispatch().await.unwrap().is_none());
     a.shutdown().await.unwrap();
 }
+
+#[tokio::test]
+async fn published_automation_assembly_binds_identity_revision_and_generation() {
+    use homesensed::automation_runtime::AutomationRuntime;
+    let db=Db(std::env::temp_dir().join(format!("assembly-{}.sqlite",Uuid::new_v4())));
+    let devices=include_bytes!("../../../config/simulation.json");
+    let rules=br#"{"schema_version":1,"configuration_revision":1,"variables":[{"id":"mode","kind":"integer","lifetime":"persistent"}],"rules":[],"timed_scenes":[{"id":"light","enabled":true,"review_evidence":"simulation","max_lateness_ms":1000,"steps":[{"source":"fixture","offset_ms":100,"device":"simulation:light","command":{"kind":"level","value":30,"ramp":false}}]}]}"#;
+    Store::open(&db.0).unwrap().publish_automation(None,devices,rules,ExecutionContext::Simulation,&[]).unwrap();
+    let controller=Uuid::new_v4();
+    let a=actor(&db,controller).await;
+    assert!(AutomationRuntime::load(a.clone(),Uuid::new_v4(),1_800_000_000_000,1000,8,Default::default()).await.is_err());
+    assert!(AutomationRuntime::load(a.clone(),controller,0,1000,8,Default::default()).await.is_err());
+    let mut runtime=AutomationRuntime::load(a.clone(),controller,1_800_000_000_000,1000,8,Default::default()).await.unwrap();
+    assert_eq!(runtime.revision(),1);
+    assert!(a.dispatch().await.unwrap().is_none());
+    assert!(runtime.start_scene("unknown").await.is_err());
+    assert!(runtime.start_scene("light").await.is_ok());
+    assert!(a.dispatch().await.unwrap().is_none());
+    a.transport_failed().await.unwrap();
+    assert!(runtime.start_scene("light").await.is_err());
+    drop(runtime);
+    a.shutdown().await.unwrap();
+}
