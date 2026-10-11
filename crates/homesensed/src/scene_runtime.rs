@@ -108,6 +108,26 @@ impl SceneRuntime {
             pending: None,
         })
     }
+    /// Install only a freshly accepted, single-use capability. This never reads
+    /// executable work from history and cannot recreate a token after restart.
+    pub async fn from_accepted(admission:Admission, accepted:crate::admission::AcceptedScene)->Result<Self,String> {
+        let current=admission.task_generation().await.map_err(|e|format!("{e:?}"))?;
+        if current!=accepted.generation {return Err("accepted scene generation expired".into());}
+        let bundle=admission.automation_bundle(accepted.controller,current.clone()).await.map_err(|e|format!("{e:?}"))?;
+        let document=bundle.automation.ok_or("accepted automation missing")?;
+        let definition=document.timed_scenes.get(&accepted.start.definition).ok_or("accepted scene missing")?;
+        if !definition.enabled {return Err("accepted scene disabled".into());}
+        let mut steps=definition.steps.clone();
+        for step in &mut steps {
+            step.source=format!("{} -> {}",accepted.start.source,step.source);
+            if step.source.len()>8192 {return Err("accepted scene source too long".into());}
+        }
+        let targets=crate::scene_activity::Targets::new(&steps);
+        let timeline=Timeline::new(steps,current.epochs,accepted.started_ms,definition.max_lateness_ms).map_err(|e|format!("{e:?}"))?;
+        Ok(Self{admission,controller:accepted.controller,generation:current,manual_fence:accepted.manual_fence,timeline,targets,
+            audit_id:accepted.start.run,definition:Some(accepted.start.definition),result_taken:false,audit_version:0,
+            audit_status:homesense_storage::scene_run::Status::Pending,audit_failed:false,admitted:vec![],pending:None})
+    }
     /// Caller uses the same boot-relative monotonic clock for construction and polling.
     pub async fn poll(&mut self, now: u64) -> Result<Option<Vec<u64>>, String> {
         if self.audit_failed {
