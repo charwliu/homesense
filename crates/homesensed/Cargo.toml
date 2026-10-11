@@ -15,6 +15,8 @@ subtle = "=2.6.1"
 hyper = { version = "=1.12.0", features = ["server", "http1"] }
 hyper-util = { version = "=0.1.21", features = ["tokio"] }
 http-body-util = "=0.1.5"
+rustls = { version = "=0.23.45", default-features = false, features = ["std", "ring", "tls12"] }
+tokio-rustls = { version = "=0.26.6", default-features = false, features = ["ring", "tls12"] }
 tokio-tungstenite = { version = "=0.30.0", default-features = false, features = ["handshake"] }
 futures-util = { version = "=0.3.34", features = ["sink"] }
 homesense-import = { path = "../homesense-import" }

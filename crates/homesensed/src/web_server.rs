@@ -1,5 +1,4 @@
-//! Explicit loopback HTTP listener. LAN exposure requires a separate TLS design;
-//! this entry point refuses non-loopback addresses and forwarded host headers.
+//! Explicit loopback HTTP or private-LAN HTTPS; no plaintext LAN fallback.
 use crate::web_api::Api;
 use http_body_util::{BodyExt, Full, Limited};
 use hyper::{
@@ -11,14 +10,16 @@ use std::{net::SocketAddr, sync::Arc, time::Duration};
 pub async fn serve(
     api: Arc<Api>,
     address: SocketAddr,
-    mut stop: tokio::sync::watch::Receiver<bool>,
-) -> Result<(), String> {
-    if !address.ip().is_loopback()
+    stop: tokio::sync::watch::Receiver<bool>,
+) -> Result<(), String> {serve_with_tls(api,address,stop,None).await}
+pub async fn serve_with_tls(api:Arc<Api>,address:SocketAddr,mut stop:tokio::sync::watch::Receiver<bool>,tls:Option<crate::web_tls::Settings>)->Result<(),String> {
+    if let Some(tls)=&tls {tls.validate_address(address)?;if api.origin!=tls.origin{return Err("TLS origin mismatch".into());}}
+
+    if (tls.is_none() && (!address.ip().is_loopback() || api.origin != format!("http://{address}")))
         || address.port() == 0
-        || api.origin != format!("http://{address}")
         || api.runtime.read().map_err(|_|"management runtime lock poisoned")?.as_ref().is_none_or(|r|r.scenes.len()>64)
     {
-        return Err("loopback address, matching origin and at most 64 scenes required".into());
+        return Err("valid listener address, matching origin and at most 64 scenes required".into());
     }
     let listener = tokio::net::TcpListener::bind(address)
         .await
@@ -33,9 +34,14 @@ pub async fn serve(
             accepted=listener.accept()=>{
                 let (stream,_)=accepted.map_err(|e|e.to_string())?;
                 let Ok(permit)=permits.clone().try_acquire_owned() else {continue};
-                let api=api.clone();let event_permits=event_permits.clone();let event_stop=stop.clone();
+                let api=api.clone();let event_permits=event_permits.clone();let event_stop=stop.clone();let tls=tls.clone();
                 tasks.spawn(async move {
                     let _permit=permit;
+                    trait Stream:tokio::io::AsyncRead+tokio::io::AsyncWrite+Unpin+Send {}
+                    impl<T:tokio::io::AsyncRead+tokio::io::AsyncWrite+Unpin+Send> Stream for T {}
+                    let stream:Box<dyn Stream>=if let Some(tls)=tls {
+                        match tokio::time::timeout(Duration::from_secs(3),tls.acceptor.accept(stream)).await {Ok(Ok(stream))=>Box::new(stream),_=>return}
+                    }else{Box::new(stream)};
                     let service=service_fn(move |request:Request<Incoming>| {
                         let api=api.clone();let event_permits=event_permits.clone();let event_stop=event_stop.clone();
                         async move {
