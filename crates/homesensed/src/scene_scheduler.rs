@@ -11,6 +11,7 @@ use std::sync::{Arc, atomic::{AtomicUsize, Ordering}};
 
 pub struct SceneScheduler {
     admission: Admission,
+    identity: Uuid,
     controller: Uuid,
     runs: BTreeMap<u64, SceneRuntime>,
     next: u64,
@@ -57,6 +58,7 @@ impl SceneScheduler {
         }
         Ok(Self {
             admission,
+            identity: Uuid::new_v4(),
             controller,
             runs: BTreeMap::new(),
             next: 1,
@@ -243,6 +245,8 @@ impl SceneScheduler {
         }
         Ok(results)
     }
+    pub(crate) fn identity(&self)->Uuid {self.identity}
+    pub(crate) fn audit_id(&self,run:u64)->Option<&str> {self.runs.get(&run).map(SceneRuntime::audit_id)}
     pub(crate) fn matches_controller(&self, controller:Uuid)->bool {self.controller==controller}
     pub(crate) fn matches_admission(&self, admission: &Admission) -> bool {
         self.admission.boot_id() == admission.boot_id()
