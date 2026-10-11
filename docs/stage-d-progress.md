@@ -836,3 +836,7 @@ Admission actor 在持久认领前复核控制器权限、进程及完整运行�
 ### 已提交快照完整回归
 
 `1fbee5a` 通过独立 git archive 源码及独立 target 的 `cargo test --workspace --locked --offline`：469 项通过，0 失败、0 忽略，84 个结果块。证据为 `committed-workspace-1fbee5a.json`，没有混入工作树其他修改或本地私有夹具。覆盖 schema 18 与候选反馈运行时；后续 unknown 分支诊断修复不计入这一快照。完整源码测试通过仍不能替代原项目语义或现场行为证据。
+
+### Unknown 分支诊断补齐
+
+对照设计第 10 节发现：核心 Plan 与旧立即适配器保留 unknown_branches，但统一延迟适配器此前丢弃了该字段。现将源节点列表放入 Outcome，并在接受后记录包含 correlation／event／rule 的跳过日志，日志源文本使用转义格式。新增真实文档 → Router → 持久准入回归，确认未知条件两侧均零输出、后续独立变量动作生效并返回准确源节点；107 项运行时回归通过。此改动未部署，不改变 unknown 的三值求值语义。
