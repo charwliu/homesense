@@ -6184,3 +6184,24 @@ async fn explicit_cancel_audit_failure_blocks_output_and_restart_replay() {
     assert_eq!(sql.query_row("SELECT status FROM scene_run WHERE run_id=?1",[scene.audit_id()],|r|r.get::<_,String>(0)).unwrap(),"interrupted");
     reopened.shutdown().await.unwrap();
 }
+
+#[tokio::test]
+async fn scheduler_stop_barrier_preserves_cancellation_request_for_cleanup() {
+    use homesense_core::{DeviceId,Command,Percent,LevelTransition,scene::Step};
+    let db=Db(std::env::temp_dir().join(format!("scheduler-stop-audit-{}.sqlite",Uuid::new_v4())));
+    Store::open(&db.0).unwrap().publish_configuration(None,include_bytes!("../../../config/simulation.json"),ExecutionContext::Simulation,&[]).unwrap();
+    let controller=Uuid::new_v4();let a=actor(&db,controller).await;
+    let mut scheduler=homesensed::scene_scheduler::SceneScheduler::new(a.clone(),controller,1,0).unwrap();
+    scheduler.start(vec![Step{device:DeviceId::new("simulation:light").unwrap(),command:Command::SetLevel{level:Percent::new(30).unwrap(),transition:LevelTransition::Immediate},delay_ms:10,source:"synthetic".into()}],0,1000).await.unwrap();
+    scheduler.stop_now();
+    assert!(scheduler.tick(20).await.is_err());
+    for _ in 0..2 {
+        assert!(scheduler.stop().await.into_iter().all(|(_,r)|r.is_ok()));
+        assert!(a.dispatch().await.unwrap().is_none());
+    }
+    let sql=rusqlite::Connection::open(&db.0).unwrap();
+    assert_eq!(sql.query_row("SELECT count(*) FROM scene_cancellation WHERE reason='cancel_requested'",[],|r|r.get::<_,i64>(0)).unwrap(),1);
+    assert_eq!(sql.query_row("SELECT status FROM scene_run",[],|r|r.get::<_,String>(0)).unwrap(),"cancelled");
+    assert_eq!(sql.query_row("SELECT count(*) FROM command_journal",[],|r|r.get::<_,i64>(0)).unwrap(),0);
+    a.shutdown().await.unwrap();
+}
