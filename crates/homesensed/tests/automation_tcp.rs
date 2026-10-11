@@ -396,12 +396,14 @@ async fn supervised_reconnect_queries_again_without_repeating_startup() {
                     let mut frame = [0; 5];
                     socket.read_exact(&mut frame).unwrap();
                     assert_eq!(frame, [0xae, 0x15, 0xa1, 0xf2, 0xee]);
+                    let query_seen=std::time::Instant::now();
                     if recovery_feedback || round == 0 {
                         socket.write_all(&[0xae, 0x15, 0xd1, 42, 0xee]).unwrap();
                     }
                     if round == 0 {
                         socket.read_exact(&mut frame).unwrap();
                         assert_eq!(frame, [0xae, 0x15, 1, 30, 0xee]);
+                        if recovery_feedback {assert!(query_seen.elapsed()>=Duration::from_millis(80),"CLI pacing was not applied");}
                         socket.shutdown(std::net::Shutdown::Both).unwrap();
                     } else {
                         assert_eq!(
@@ -423,7 +425,7 @@ async fn supervised_reconnect_queries_again_without_repeating_startup() {
                     .arg(device_file)
                     .arg(rule_file)
                     .arg(&root)
-                    .args(["1", "--coexistence-confirmed", "--recoveries", "1"])
+                    .args(["1", "--coexistence-confirmed", "--write-interval-ms", "100", "--recoveries", "1"])
                     .output()
                     .unwrap();
                 assert!(
@@ -864,4 +866,18 @@ async fn publication_partial_feedback_never_enables_startup() {
     drop(sql);
     assert_eq!(homesense_storage::Store::open(root.join("automation-tcp.sqlite")).unwrap().active().unwrap().unwrap().revision,2);
     std::fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn cli_rejects_invalid_pacing_flags_before_reading_configuration() {
+    for flags in [vec!["--write-interval-ms","19"],vec!["--write-interval-ms","1001"],vec!["--write-interval-ms"],vec!["--write-interval-ms","50","--write-interval-ms","50"],vec!["--unknown","50"]] {
+        let root=std::env::temp_dir().join(format!("invalid-pacing-cli-{}",uuid::Uuid::new_v4()));
+        let output=std::process::Command::new(env!("CARGO_BIN_EXE_homesensed"))
+            .args(["serve-automation-tcp","missing-device","missing-rules"])
+            .arg(&root).args(["1","--coexistence-confirmed"]).args(flags).output().unwrap();
+        assert!(!output.status.success());
+        let error=String::from_utf8_lossy(&output.stderr);
+        assert!(error.contains("write interval") || error.contains("automation option"),"{error}");
+        assert!(!root.exists());
+    }
 }
