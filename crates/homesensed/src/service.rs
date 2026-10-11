@@ -219,42 +219,7 @@ async fn serve_simulation_inner(
             5000,
         )
         .await?;
-        let mut connections = BTreeMap::new();
-        for (id, gateway) in config.gateways() {
-            let mut queries = Vec::new();
-            for device_id in config.devices().keys() {
-                if let Some((device, module)) = config.binding(device_id)
-                    && device.gateway == *id
-                {
-                    queries.push(
-                        hb_protocol::encode_in_context(
-                            module,
-                            device.channel,
-                            homesense_core::Command::Query,
-                            ExecutionContext::Simulation,
-                        )
-                        .map_err(error)?
-                        .bytes(),
-                    );
-                }
-            }
-            let stream = SimulatedStream {
-                gateway: Gateway::new(
-                    gateway.modules().values().cloned().collect(),
-                    Faults::default(),
-                    128,
-                )
-                .map_err(error)?,
-                clock: Instant::now(),
-                pending: VecDeque::new(),
-                queries,
-                next_query_ms: 0,
-            };
-            connections.insert(
-                id.clone(),
-                hb_transport::Connection::for_simulation(stream, 1),
-            );
-        }
+        let connections = simulation_connections(&config)?;
         let mut owner = ObservedTransport::new(
             TransportOwner::new(admission.clone(), connections),
             feedback,
@@ -315,4 +280,164 @@ mod tests {
         let count = stream.read(&mut bytes).unwrap();
         assert_eq!(&bytes[..count], &[0xAE, 0x15, 0xD1, 0, 0xEE]);
     }
+}
+
+fn simulation_connections(
+    config: &homesense_config::Configuration,
+) -> Result<BTreeMap<String, hb_transport::Connection<SimulatedStream>>, String> {
+    let mut connections = BTreeMap::new();
+    for (id, gateway) in config.gateways() {
+        let mut queries = Vec::new();
+        for device_id in config.devices().keys() {
+            if let Some((device, module)) = config.binding(device_id)
+                && device.gateway == *id
+            {
+                queries.push(
+                    hb_protocol::encode_in_context(
+                        module,
+                        device.channel,
+                        homesense_core::Command::Query,
+                        ExecutionContext::Simulation,
+                    )
+                    .map_err(error)?
+                    .bytes(),
+                );
+            }
+        }
+        let stream = SimulatedStream {
+            gateway: Gateway::new(
+                gateway.modules().values().cloned().collect(),
+                Faults::default(),
+                128,
+            )
+            .map_err(error)?,
+            clock: Instant::now(),
+            pending: VecDeque::new(),
+            queries,
+            next_query_ms: 0,
+        };
+        connections.insert(
+            id.clone(),
+            hb_transport::Connection::for_simulation(stream, 1),
+        );
+    }
+    Ok(connections)
+}
+
+/// Isolated automation service. Uses a separate database and in-memory gateways;
+/// neither runtime.sqlite nor the HAP identity directory is opened.
+pub async fn serve_automation_simulation(
+    devices: &[u8],
+    rules: &[u8],
+    directory: &Path,
+    duration: Duration,
+    scene: Option<&str>,
+) -> Result<(), String> {
+    if duration.is_zero() || duration > Duration::from_secs(86400) {
+        return Err("duration must be in (0,24h]".into());
+    }
+    let config = homesense_config::Configuration::parse(devices, ExecutionContext::Simulation)
+        .map_err(error)?;
+    if config.gateways().is_empty() {
+        return Err("at least one simulated gateway required".into());
+    }
+    let document = crate::configuration_publish::validate_automation(
+        &config,
+        rules,
+        ExecutionContext::Simulation,
+    )
+    .map_err(error)?;
+    if let Some(id) = scene
+        && !document.timed_scenes.get(id).is_some_and(|s| s.enabled) {
+        return Err("enabled timed scene required".into());
+    }
+    std::fs::create_dir_all(directory).map_err(error)?;
+    let path = directory.join("automation-simulation.sqlite");
+    let mut store = Store::open(&path).map_err(error)?;
+    if let Some(existing) = store.active().map_err(error)? {
+        if existing.payload != devices {
+            return Err("simulation configuration differs; use a new simulation directory".into());
+        }
+        // Stored rule bytes are immutable. Compare through the published bundle
+        // source rather than accepting a caller-supplied replacement on restart.
+        if store
+            .automation_payload(existing.revision)
+            .map_err(error)?
+            .as_deref()
+            != Some(rules)
+        {
+            return Err("simulation automation differs; use a new simulation directory".into());
+        }
+    } else {
+        store
+            .publish_automation(None, devices, rules, ExecutionContext::Simulation, &[])
+            .map_err(error)?;
+    }
+    drop(store);
+    let controller = Uuid::new_v4();
+    let admission = Admission::open(
+        path,
+        Options {
+            context: ExecutionContext::Simulation,
+            ..Default::default()
+        },
+        move |id| id == controller,
+    )
+    .await?;
+    let result = async {
+        admission
+            .synchronized(1, config.revision())
+            .await
+            .map_err(|e| format!("{e:?}"))?;
+        let mut runtime = crate::automation_runtime::AutomationRuntime::load(
+            admission.clone(),
+            controller,
+            wall_ms()?,
+            1000,
+            64,
+            Default::default(),
+        )
+        .await?;
+        let feedback = Feedback::new(
+            &config,
+            ExecutionContext::Simulation,
+            Uuid::parse_str(admission.boot_id())
+                .map_err(error)?
+                .as_u128(),
+            1,
+        )?;
+        let mut owner = ObservedTransport::new(
+            TransportOwner::new(admission.clone(), simulation_connections(&config)?),
+            feedback,
+        );
+        if let Some(scene) = scene {
+            runtime.start_scene(scene).await?;
+        }
+        let (stop, receive) = tokio::sync::watch::channel(false);
+        let drive = runtime.drive(
+            &mut owner,
+            Duration::from_millis(10),
+            5000,
+            receive,
+            wall_ms,
+        );
+        tokio::pin!(drive);
+        tokio::select! {
+            result=&mut drive=>result,
+            _=tokio::time::sleep(duration)=>{let _=stop.send(true);drive.await}
+        }
+    }
+    .await;
+    admission.stop_now();
+    let _ = admission.shutdown().await;
+    result
+}
+fn wall_ms() -> Result<i64, String> {
+    i64::try_from(
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_err(error)?
+            .as_millis(),
+    )
+    .map_err(error)
 }
