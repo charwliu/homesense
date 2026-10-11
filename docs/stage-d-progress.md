@@ -770,3 +770,5 @@ TCP 在线发布前置校验补充：共享候选文档预检已接入启动入�
 失败策略验收范围校正：设计第 9 节限定首期 `cancel_remaining`，不要求启用 continue／retry／rollback。配置回归 `scene_failure_policy_is_explicit_and_rejects_unimplemented_semantics` 覆盖默认值、显式选择和不支持策略拒绝；运行时回归 `scene_uncertain_output_cancels_remaining_without_restart_replay` 覆盖写入不确定、partial 持久化及重开零重放。此证据不关闭规则链失败隔离、其他取消原因和现场故障验收。
 
 配置发布锁释放修复：提交快照 `cfa1d57` 的完整回归在 configuration_publish 发现间歇锁占用，重复测试第 10 轮复现；该轮全量结果不是通过。发布作用域现显式解锁，避免重复／fork 继承的文件描述符延长锁生命周期；测试模拟运行锁也显式释放。重复描述符回归 1 项、配置发布 2 项及后者 100 轮重复测试（200 项）通过。仍保留运行中禁止发布和版本校验；修复后的完整工作区回归待补，未部署现场。
+
+取消请求审计存储：schema 16 新增 `cancel_requested` 原因，schema 15 迁移保留已有设备取消记录；新增回归覆盖迁移、检查点／原因写入失败回滚和重开查询。存储全套 33 项通过。运行时全场景取消尚未接入此原因，过期原因仍待补齐；此数据库版本未部署 nanopc，旧二进制不能直接打开升级后的数据库。
