@@ -97,3 +97,16 @@ fn elapsed_deadline_disconnect_and_wrong_chain_are_rejected() {
         Err(Error::Stopped)
     ));
 }
+
+#[test]
+fn completion_claims_keep_budget_deadline_and_reject_duplicate_delivery() {
+    let mut c=chain(1,1);let root=c.root();
+    assert_eq!(c.claim_completion(&root,"run",0),Err(Error::ForeignCause));
+    let parent=c.plan(&root,"first",&[command()],&Default::default(),0).unwrap().cause;
+    assert_eq!(c.claim_completion(&parent,"run",10),Ok(true));
+    assert_eq!(c.claim_completion(&parent,"run",11),Ok(false));
+    assert_eq!(c.plan(&parent,"second",&[command()],&Default::default(),12).err(),Some(Error::Rule(homesense_core::rule::Error::Budget)));
+    let mut c=chain(2,1);let root=c.root();
+    let parent=c.plan(&root,"first",&[],&Default::default(),0).unwrap().cause;
+    assert_eq!(c.claim_completion(&parent,"late",1000),Err(Error::Budget));
+}
