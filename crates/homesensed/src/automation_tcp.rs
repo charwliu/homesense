@@ -138,18 +138,21 @@ pub async fn serve_with_publications(
                 None => AutomationRuntime::load_with_startup(admission.clone(),controller,wall_ms()?,1000,64,Default::default(),startup).await?,
             };
             let outcome={
-                let drive=runtime.drive_recoverable(&mut owner,Duration::from_millis(10),5000,runtime_receive,wall_ms);
+                let (ready,mut started)=tokio::sync::oneshot::channel();
+                let mut running=false;
+                let drive=runtime.drive_recoverable_ready(&mut owner,Duration::from_millis(10),5000,runtime_receive,wall_ms,Some(ready));
                 tokio::pin!(drive);
                 loop {
                     tokio::select! {
-                        result=&mut drive=>break result?,
-                        _=tokio::time::sleep_until(deadline)=>{let _=runtime_stop.send(true);break drive.await?},
+                        result=&mut drive=>break result,
+                        _=tokio::time::sleep_until(deadline)=>{let _=runtime_stop.send(true);break drive.await},
+                        result=&mut started, if !running => {if result.is_err() {break drive.await;} running=true;},
                         request=async {
                             match publications.as_mut() {
                                 Some(receiver) => receiver.receive().await,
                                 None => std::future::pending().await,
                             }
-                        } => {
+                        }, if running => {
                             let Some(request)=request else { publications=None; continue; };
                             let candidate=match validate_candidate(request.devices(),request.rules()) {
                                 Ok(config)=>config,
@@ -161,12 +164,21 @@ pub async fn serve_with_publications(
                             }
                             pending=Some((request,candidate));
                             let _=runtime_stop.send(true);
-                            break drive.await?;
+                            break drive.await;
                         }
                     }
                 }
             };
             drop(runtime);
+            let outcome=match outcome {
+                Ok(outcome)=>outcome,
+                Err(error)=>{
+                    if let Some((request,_))=pending.take() {
+                        request.complete(Err(format!("publication runtime handoff failed; inspect active revision before retrying: {error}")));
+                    }
+                    return Err(error);
+                }
+            };
             match outcome {
                 Exit::Stopped => return Ok(()),
                 Exit::PublicationPaused => {
