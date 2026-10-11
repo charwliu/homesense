@@ -1404,6 +1404,13 @@ impl Admission {
         &self, generation: TaskGeneration, batch: Batch, manual_fence: u64,
         feedback: Option<crate::feedback::RuleLease>, deadline: Option<u64>,
     ) -> Result<Vec<u64>,WriteStatus> {
+        self.submit_scene_sample(generation,batch,manual_fence,feedback,deadline,None).await
+    }
+    pub(crate) async fn submit_scene_sample(
+        &self, generation: TaskGeneration, batch: Batch, manual_fence: u64,
+        feedback: Option<crate::feedback::RuleLease>, deadline: Option<u64>,
+        scene: Option<homesense_storage::scene_run::StepLink>,
+    ) -> Result<Vec<u64>,WriteStatus> {
         self.submit_scoped_before(
             Submission::Automation {
                 batch,
@@ -1411,7 +1418,7 @@ impl Admission {
                 manual_fence: Some(manual_fence),
                 feedback: feedback.map(Box::new),
                 audit: None,
-                scene: None,
+                scene,
                 starts: vec![],
             },
             Some(SubmissionScope::Generation(generation)),
