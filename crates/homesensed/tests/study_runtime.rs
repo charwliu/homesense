@@ -4699,8 +4699,9 @@ async fn causal_root_batch_shares_identity_and_node_budget() {
         let db=Db(std::env::temp_dir().join(format!("causal-batch-{}.sqlite",Uuid::new_v4())));
         let document=hap::serde_json::json!({
             "schema_version":1,"configuration_revision":1,
+            "schedules":[{"id":"daily","timezone":"Asia/Shanghai","weekdays":[true,true,true,true,true,true,true],"hour":0,"minute":1}],
             "variables":[{"id":"a","kind":"integer","lifetime":"persistent"},{"id":"b","kind":"integer","lifetime":"persistent"}],
-            "rules":(["a","b"].map(|id|hap::serde_json::json!({"id":id,"enabled":true,"review_evidence":"test","source":"test","trigger":{"kind":"startup_synchronized"},"actions":[{"source":"set","action":{"kind":"set","variable":id,"value":{"kind":"integer","value":1}}}]})))
+            "rules":(["a","b"].map(|id|hap::serde_json::json!({"id":id,"enabled":true,"review_evidence":"test","source":"test","trigger":{"kind":"schedule","schedule":"daily"},"actions":[{"source":"set","action":{"kind":"set","variable":id,"value":{"kind":"integer","value":1}}}]})))
         });
         Store::open(&db.0).unwrap().publish_automation(None,include_bytes!("../../../config/simulation.json"),&hap::serde_json::to_vec(&document).unwrap(),ExecutionContext::Simulation,&[]).unwrap();
         let controller=Uuid::new_v4();let a=actor(&db,controller).await;
@@ -4708,7 +4709,12 @@ async fn causal_root_batch_shares_identity_and_node_budget() {
         let mut router=homesensed::deferred_router::Router::new(a.clone(),controller,&scheduler,2).unwrap();
         assert!(router.start_rules(&[],&mut scheduler,None,Default::default(),60000).await.is_err());
         assert!(a.task_generation().await.is_ok());
-        let result=router.start_rules(&["a".into(),"b".into()],&mut scheduler,None,homesense_core::rule::Budget{nodes:3*limit,..Default::default()},60000).await;
+        let config=homesense_config::Configuration::parse(include_bytes!("../../../config/simulation.json"),ExecutionContext::Simulation).unwrap();
+        let document=homesense_config::rule_document::Document::parse(&hap::serde_json::to_vec(&document).unwrap(),&config).unwrap();
+        let configured=homesensed::configured_rules::ConfiguredRules::load_document(a.clone(),controller,&document,homesense_core::rule::Budget{nodes:3*limit,..Default::default()}).await.unwrap();
+        let due=946_828_860_000;
+        let mut calendar=homesensed::event_rules::ScheduledRules::new(configured.events,document.schedules.clone(),due-1,1000).await.unwrap();
+        let result=calendar.poll_causal(due,None,&mut router,&mut scheduler).await;
         let store=Store::open(&db.0).unwrap();
         assert_eq!(store.logical_variable(1,"a").unwrap().unwrap().value,Some(homesense_core::rule::Value::Integer(1)),"{:?}",result.as_ref().err());
         if limit==1 {
@@ -4716,12 +4722,13 @@ async fn causal_root_batch_shares_identity_and_node_budget() {
             assert_eq!(store.logical_variable(1,"b").unwrap().unwrap().value,None);
             assert!(a.task_generation().await.is_err());
         } else {
-            let (_,reports)=result.unwrap();assert_eq!(reports.len(),2);
+            let reports=result.unwrap();assert_eq!(reports.len(),2);
             assert_eq!(reports[0].cause.correlation_id(),reports[1].cause.correlation_id());
             assert_eq!(reports[0].causation_id,0);assert_eq!(reports[1].causation_id,0);
             assert_ne!(reports[0].cause.event_id(),reports[1].cause.event_id());
             assert_eq!(store.logical_variable(1,"b").unwrap().unwrap().value,Some(homesense_core::rule::Value::Integer(1)));
             assert_eq!(router.retained_count(),0);assert!(a.task_generation().await.is_ok());
+            assert!(calendar.poll_causal(due,None,&mut router,&mut scheduler).await.unwrap().is_empty());
         }
         let sql=rusqlite::Connection::open(&db.0).unwrap();
         assert_eq!(sql.query_row("SELECT count(*) FROM rule_chain_outcome",[],|r|r.get::<_,i64>(0)).unwrap(),1);

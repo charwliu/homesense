@@ -54,6 +54,9 @@ impl Router {
         }
         Ok(())
     }
+    pub(crate) fn matches_owner(&self, admission:&Admission, controller:Uuid)->bool {
+        self.admission.boot_id()==admission.boot_id() && self.controller==controller
+    }
     pub fn retained_count(&self) -> usize {
         self.entries.len()
     }
