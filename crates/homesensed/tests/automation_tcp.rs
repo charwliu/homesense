@@ -663,11 +663,17 @@ async fn online_publication_queries_new_mapping_before_acknowledgement() {
         "rules":[{"id":"startup","enabled":true,"review_evidence":"loopback","source":"test","trigger":{"kind":"startup_synchronized"},"actions":[{"source":"remember","action":{"kind":"set","variable":"remember","value":{"kind":"integer","value":17}}},{"source":"test","action":{"kind":"scene","id":"later","activate":true}}]}],
         "timed_scenes":[{"id":"later","enabled":true,"review_evidence":"loopback","max_lateness_ms":1000,"steps":[{"source":"test","offset_ms":300,"device":"simulation:light","command":{"kind":"level","value":90,"ramp":false}}]}]
     })).unwrap();
-    let service=homesensed::automation_tcp::serve_with_publications(&initial,&old_rules,&root,Duration::from_millis(700),true,0,Some(receiver));
+    let service=homesensed::automation_tcp::serve_with_write_interval(&initial,&old_rules,&root,Duration::from_millis(700),true,0,Some(receiver),Duration::from_millis(200));
     let client=async {
         ready.await.unwrap();
         tokio::time::sleep(Duration::from_millis(80)).await;
         assert!(publisher.publish(candidate.clone(),rules(2),99).await.is_err());
+        let mut excessive:Value=hap::serde_json::from_slice(&rules(2)).unwrap();
+        excessive["timed_scenes"]=json!([{"id":"too-fast","enabled":true,"review_evidence":"loopback","max_lateness_ms":1000,"steps":[{"source":"loopback","offset_ms":0,"device":"simulation:light","command":{"kind":"level","value":50,"ramp":false},"fade":{"duration_ms":1000,"interval_ms":100,"lateness_ms":100}}]}]);
+        let error=publisher.publish(candidate.clone(),to_vec(&excessive).unwrap(),1).await.unwrap_err();
+        assert!(error.contains("fade step"),"{error}");
+        assert_eq!(homesense_storage::Store::open(root.join("automation-tcp.sqlite")).unwrap().active().unwrap().unwrap().revision,1);
+
         let mut incompatible:Value=hap::serde_json::from_slice(&rules(2)).unwrap();
         incompatible["variables"][0]["kind"]="bool".into();
         incompatible.as_object_mut().unwrap().remove("variable_migrations");
