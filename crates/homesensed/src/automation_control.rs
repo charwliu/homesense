@@ -39,6 +39,7 @@ pub struct LastRun {
     pub updated_ms: u64,
     pub version: u64,
     pub status: homesense_storage::scene_run::Status,
+    pub cause: Option<homesense_storage::scene_run::Cause>,
 }
 struct Request {
     action: Action,
@@ -134,7 +135,7 @@ impl Receiver {
                     Action::LastRun(id) => {
                         if !document.timed_scenes.contains_key(&id) { return Err("unknown timed scene".into()); }
                         let page=admission.scene_history(self.controller,self.generation.clone(),homesense_storage::scene_run::Query::Latest{definition:id}).await.map_err(|e|format!("{e:?}"))?;
-                        Ok(Reply::LastRun(page.map(|p|LastRun{boot:p.boot,run:p.run,revision:p.record.revision,started_ms:p.record.started_ms,updated_ms:p.record.updated_ms,version:p.record.version,status:p.record.status})))
+                        Ok(Reply::LastRun(page.map(|p|LastRun{boot:p.boot,run:p.run,revision:p.record.revision,started_ms:p.record.started_ms,updated_ms:p.record.updated_ms,version:p.record.version,status:p.record.status,cause:p.cause})))
                     },
                 }
             }
