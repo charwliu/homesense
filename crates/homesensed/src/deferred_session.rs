@@ -63,6 +63,12 @@ impl Session {
     pub fn is_closed(&self) -> bool {
         self.closed
     }
+    pub(crate) fn pending_identities(&self) -> BTreeMap<u64, String> {
+        self.pending
+            .iter()
+            .map(|(id, (audit, _))| (*id, audit.clone()))
+            .collect()
+    }
     pub fn pending_count(&self) -> usize {
         self.pending.len()
     }
