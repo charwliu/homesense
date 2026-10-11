@@ -17,7 +17,7 @@ use std::{
     time::Duration,
 };
 use uuid::Uuid;
-struct Wire;
+struct Wire(Arc<Mutex<Vec<Vec<u8>>>>);
 impl std::io::Read for Wire {
     fn read(&mut self, _: &mut [u8]) -> std::io::Result<usize> {
         Err(std::io::ErrorKind::WouldBlock.into())
@@ -25,6 +25,7 @@ impl std::io::Read for Wire {
 }
 impl std::io::Write for Wire {
     fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        self.0.lock().unwrap().push(bytes.to_vec());
         Ok(bytes.len()) // In-memory simulation sink; no gateway connection.
     }
     fn flush(&mut self) -> std::io::Result<()> {
@@ -35,7 +36,15 @@ impl std::io::Write for Wire {
 async fn web_scope_origin_receipts_and_runtime_admission() {
     let root = std::env::temp_dir().join(format!("web-runtime-{}", Uuid::new_v4()));
     std::fs::create_dir(&root).unwrap();
-    let devices = include_bytes!("../../../config/simulation.json");
+    let mut definition:serde_json::Value=serde_json::from_slice(include_bytes!("../../../config/simulation.json")).unwrap();
+    definition["gateways"][0]["modules"].as_array_mut().unwrap().push(serde_json::json!({"address":"22","profile":"c4_din_pro_v2_7_7","verification":{"status":"simulated"}}));
+    for (id,channel) in [("z:motor",2),("z:uncalibrated",3)] {
+        let mut device=serde_json::json!({"id":id,"name":"Curtain","gateway":"simulation","address":"22","channel":channel,"enabled":true});
+        if channel==2 {device["motor_calibration"]=serde_json::json!({"open_direction":"down","stop_verified":true,"evidence":"synthetic","verified_at_unix_ms":1});}
+        definition["devices"].as_array_mut().unwrap().push(device);
+    }
+    let device_bytes=serde_json::to_vec(&definition).unwrap();let devices=device_bytes.as_slice();
+    let writes=Arc::new(Mutex::new(vec![]));
     let rules=br#"{"schema_version":1,"configuration_revision":1,"variables":[],"rules":[],"timed_scenes":[{"id":"light","enabled":true,"review_evidence":"simulation","max_lateness_ms":1000,"steps":[{"source":"fixture","offset_ms":60000,"device":"simulation:light","command":{"kind":"level","value":30,"ramp":false}}]}]}"#;
     let path = root.join("runtime.sqlite");
     homesense_storage::Store::open(&path)
@@ -84,7 +93,7 @@ async fn web_scope_origin_receipts_and_runtime_admission() {
             caller,
             generation.clone(),
             device.clone(),
-            homesensed::management_devices::LightAction::Power { on: true },
+            homesensed::management_devices::DeviceAction::Power { on: true },
             &feedback,
             1000
         )
@@ -97,7 +106,7 @@ async fn web_scope_origin_receipts_and_runtime_admission() {
             Uuid::new_v4(),
             generation.clone(),
             device.clone(),
-            homesensed::management_devices::LightAction::Brightness { level: 40 },
+            homesensed::management_devices::DeviceAction::Brightness { level: 40 },
             &feedback,
             1000
         )
@@ -109,7 +118,7 @@ async fn web_scope_origin_receipts_and_runtime_admission() {
         caller,
         generation,
         device,
-        homesensed::management_devices::LightAction::Brightness { level: 40 },
+        homesensed::management_devices::DeviceAction::Brightness { level: 40 },
         &feedback,
         1000,
     )
@@ -125,7 +134,7 @@ async fn web_scope_origin_receipts_and_runtime_admission() {
             admission.clone(),
             [(
                 "simulation".into(),
-                hb_transport::Connection::for_simulation(Wire, 1),
+                hb_transport::Connection::for_simulation(Wire(writes.clone()), 1),
             )]
             .into(),
         ),
@@ -141,7 +150,7 @@ async fn web_scope_origin_receipts_and_runtime_admission() {
                 controller: caller,
                 role: Role::Member,
                 scenes: ["light".into()].into(),
-                devices: ["simulation:light".into()].into(),
+                devices: ["simulation:light".into(),"z:motor".into(),"z:uncalibrated".into()].into(),
             },
         )
         .unwrap();
@@ -296,7 +305,10 @@ async fn web_scope_origin_receipts_and_runtime_admission() {
         let snapshot: serde_json::Value =
             serde_json::from_slice(&snapshot.into_body().collect().await.unwrap().to_bytes())
                 .unwrap();
-        assert_eq!(snapshot["devices"].as_array().unwrap().len(), 1);
+        assert_eq!(snapshot["devices"].as_array().unwrap().len(), 3);
+        assert_eq!(snapshot["devices"][1]["can_control"],true);
+        assert_eq!(snapshot["devices"][2]["can_control"],false);
+        assert!(snapshot["devices"][1]["observed"].is_null());
         assert_eq!(snapshot["devices"][0]["id"], "simulation:light");
         assert!(snapshot["devices"][0]["observed"].is_null());
         for (body, expected) in [
@@ -334,6 +346,42 @@ async fn web_scope_origin_receipts_and_runtime_admission() {
         let mut conflict = make(&api.origin, &device_body.replace("40", "30"));
         *conflict.uri_mut() = "/api/v1/device-commands".parse().unwrap();
         assert_eq!(api.handle(conflict).await.status(), StatusCode::CONFLICT);
+        let member=tokens.authenticate(&format!("Bearer {secret}")).unwrap();
+        for viewer in [false,true] {
+            let mut denied=member.clone();
+            if viewer {denied.role=Role::Viewer;} else {denied.devices.remove("z:motor");}
+            tokens.insert(token_id,secret,denied).unwrap();
+            let body=r#"{"device":"z:motor","request_id":"denied-motor","command":{"action":"open"}}"#;
+            let mut request=make(&api.origin,body);*request.uri_mut()="/api/v1/device-commands".parse().unwrap();
+            assert_eq!(api.handle(request).await.status(),StatusCode::FORBIDDEN);
+        }
+        tokens.insert(token_id,secret,member).unwrap();
+        assert!(control.request(Action::DeviceCommand{controller:Uuid::new_v4(),revision:1,device:homesense_core::DeviceId::new("z:motor").unwrap(),action:homesensed::management_devices::DeviceAction::Open}).await.is_err());
+        for (index,action) in ["open","close","stop"].into_iter().enumerate() {
+            let body=serde_json::json!({"device":"z:motor","request_id":format!("motor-{action}"),"command":{"action":action}}).to_string();
+            let mut original=None;
+            for expected in [StatusCode::ACCEPTED,StatusCode::OK] {
+                let mut request=make(&api.origin,&body);*request.uri_mut()="/api/v1/device-commands".parse().unwrap();
+                let response=api.handle(request).await;assert_eq!(response.status(),expected);
+                let value:serde_json::Value=serde_json::from_slice(&response.into_body().collect().await.unwrap().to_bytes()).unwrap();
+                assert_eq!(value["outcome"],"accepted");
+                if let Some(previous)=original.as_ref() {assert_eq!(previous,&value);} else {original=Some(value);}
+            }
+            tokio::time::timeout(Duration::from_secs(1),async {
+                while writes.lock().unwrap().iter().filter(|f|f[1]==0x22).count()<=index {tokio::time::sleep(Duration::from_millis(2)).await;}
+            }).await.unwrap();
+            let mut conflict=make(&api.origin,&body.replace(&format!("\"action\":\"{action}\""),"\"action\":\"power\",\"on\":true"));
+            *conflict.uri_mut()="/api/v1/device-commands".parse().unwrap();assert_eq!(api.handle(conflict).await.status(),StatusCode::CONFLICT);
+        }
+        for (device,action) in [("z:uncalibrated","open"),("simulation:light","stop"),("z:motor","power")] {
+            let command=if action=="power" {serde_json::json!({"action":action,"on":true})}else{serde_json::json!({"action":action})};
+            let body=serde_json::json!({"device":device,"request_id":format!("reject-{device}"),"command":command}).to_string();
+            let mut request=make(&api.origin,&body);*request.uri_mut()="/api/v1/device-commands".parse().unwrap();
+            let response=api.handle(request).await;let value:serde_json::Value=serde_json::from_slice(&response.into_body().collect().await.unwrap().to_bytes()).unwrap();
+            assert_ne!(value["outcome"],"accepted");
+        }
+        assert!(control.request(Action::DeviceCommand{controller:caller,revision:2,device:homesense_core::DeviceId::new("z:motor").unwrap(),action:homesensed::management_devices::DeviceAction::Open}).await.is_err());
+        assert_eq!(writes.lock().unwrap().iter().filter(|f|f[1]==0x22).cloned().collect::<Vec<_>>(),vec![vec![0xae,0x22,2,0xf2,0xee],vec![0xae,0x22,2,0xf1,0xee],vec![0xae,0x22,2,0xf0,0xee]]);
         let draft_id = Uuid::new_v4();
         let mut definition: serde_json::Value = serde_json::from_slice(devices).unwrap();
         definition["revision"] = 2.into();
@@ -444,7 +492,7 @@ async fn web_scope_origin_receipts_and_runtime_admission() {
         sql.query_row("SELECT count(*) FROM command_journal", [], |r| r
             .get::<_, i64>(0))
             .unwrap(),
-        1
+        4
     );
     drop(sql);
     drop(api);

@@ -1,4 +1,4 @@
-//! Typed device management, sharing HAP light normalization and Admission.
+//! Typed device management, sharing HAP normalization and calibrated Admission.
 use crate::{
     admission::{Admission, TaskGeneration},
     feedback::Feedback,
@@ -8,14 +8,18 @@ use homesense_hap::requests::{Batch, LightBinding, LightRequests};
 use uuid::Uuid;
 #[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
 #[serde(tag = "action", rename_all = "snake_case", deny_unknown_fields)]
-pub enum LightAction {
+pub enum DeviceAction {
     Power { on: bool },
     Brightness { level: u8 },
+    Open,
+    Close,
+    Stop,
 }
 #[derive(Debug, PartialEq, Eq)]
 pub struct DeviceView {
     pub id: DeviceId,
     pub name: String,
+    pub motor_calibrated: bool,
     pub state: homesense_state::DeviceState,
 }
 #[derive(Debug, PartialEq, Eq)]
@@ -56,9 +60,11 @@ pub async fn snapshot(
             .get(&id)
             .ok_or("missing device state")?
             .clone();
+        let motor_calibrated=bundle.configuration.motor_command(&id,homesense_core::MotorAction::Stop).is_ok();
         devices.push(DeviceView {
             id,
             name: device.name.clone(),
+            motor_calibrated,
             state,
         });
     }
@@ -74,7 +80,7 @@ pub async fn prepare(
     controller: Uuid,
     generation: TaskGeneration,
     id: DeviceId,
-    action: LightAction,
+    action: DeviceAction,
     feedback: &Feedback,
     max_age_ms: u64,
 ) -> Result<Batch, String> {
@@ -91,12 +97,12 @@ pub async fn prepare(
         ModuleKind::Switch => false,
         _ => return Err("not a light device".into()),
     };
-    if matches!(action, LightAction::Brightness { .. }) && !dimmable {
+    if matches!(action, DeviceAction::Brightness { .. }) && !dimmable {
         return Err("brightness unsupported".into());
     }
     let (iid, value) = match action {
-        LightAction::Power { on } => (1, serde_json::json!(on)),
-        LightAction::Brightness { level } if level <= 100 => (2, serde_json::json!(level)),
+        DeviceAction::Power { on } => (1, serde_json::json!(on)),
+        DeviceAction::Brightness { level } if level <= 100 => (2, serde_json::json!(level)),
         _ => return Err("invalid brightness".into()),
     };
     let levels = admission
