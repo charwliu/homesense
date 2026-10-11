@@ -1,0 +1,14 @@
+{
+  "tested_head": "5725b95b0627612863b5413b9a944687c6126a3e",
+  "scope": "Isolated git archive HEAD snapshot; no working-tree modifications or local-only fixtures included. Reused compiled dependency cache only. Offline tests with isolated databases and localhost; no field actions.",
+  "command": "cargo test --workspace --locked --offline",
+  "date": "2026-10-11T10:37:33.438728+00:00",
+  "exit_code": 0,
+  "suite_results": 84,
+  "passed": 437,
+  "failed": 0,
+  "ignored": 0,
+  "log_sha256": "97e6745023b87f9e026c6f7d7616844cba385fe96cc2970c0ecfcfc25178db21",
+  "stage_d_complete": false,
+  "stage_e_complete": false
+}
