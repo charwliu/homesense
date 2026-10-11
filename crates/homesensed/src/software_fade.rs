@@ -132,6 +132,29 @@ impl SoftwareFade {
             self.failure = Some("fade admission outcome unknown".into());
             return Err(self.failure.clone().unwrap());
         }
+        if let Some(scene) = &self.scene {
+            let result = self.admission.scene_history(
+                self.controller, self.generation.clone(),
+                homesense_storage::scene_run::Query::Run {
+                    boot: self.admission.boot_id().into(), run: scene.run.clone(),
+                    after: 0, limit: 1,
+                },
+            ).await;
+            match result {
+                Ok(Some(page)) if !page.record.status.terminal() => {}
+                Ok(_) => {
+                    self.failure = Some("fade scene no longer active".into());
+                    self.cancel().await?;
+                    return Err(self.failure.clone().unwrap());
+                }
+                Err(error) => {
+                    self.failure = Some(format!("fade scene lookup: {error:?}"));
+                    self.admission.stop_now();
+                    self.closed = true;
+                    return Err(self.failure.clone().unwrap());
+                }
+            }
+        }
         let superseded = self.admission.manual_superseded(self.device.clone(), self.fence).await.map_err(|e| {
             let error = format!("fade manual fence: {e:?}");
             self.failure = Some(error.clone());
