@@ -427,3 +427,5 @@ Web 模拟激活：管理员先保存草稿并预览，再点击“激活已预�
 Web 事件恢复：`GET /api/v1/events` 提供已鉴权 WebSocket，首帧发送 `{"cursor":null}` 或上次游标。返回合并后的设备状态及场景状态；游标包含 boot、配置、连接代际和权限范围，缓存缺口或范围变化要求完整快照，绝不重放动作。持续检查会话／令牌，注销后断开；最多 16 条流，每条最高 2 Hz、不积压发送队列，慢消费者超时关闭。页面使用内存游标退避重连。状态恢复及 Web 5 项、真实回环 WebSocket 1 项通过；尚需 LAN TLS、浏览器视觉验收及真实服务联合装配。
 
 LAN TLS 模拟入口：`homesensed serve-web-tls-simulation DEVICE_FILE AUTOMATION_FILE STATE_DIR SECONDS LAN_IP:PORT TOKEN_FILE HTTPS_ORIGIN CERT_PEM KEY_PEM [--administrator]`。仅允许明确的回环、RFC1918 IPv4 或 IPv6 ULA 地址，不允许通配地址；Origin 使用小写主机名与监听端口（443 不写端口），证书 SAN 须覆盖该名称并由客户端信任。私钥为仅当前用户可读的 PEM，启动加载证书，轮换后需重启；不自动生成证书或安装信任。HTTP 仍只允许回环，HTTPS 监听无明文降级，握手期限 3 秒，Cookie 设置 Secure。`python3 tools/verify_web_tls.py BINARY` 使用临时 CA 验证 HTTPS/WSS、严格证书检查和拒绝路径；不连接现场网关。
+
+校准窗帘恢复策略：新增显式 `OutputsAndCalibratedMotors`，在完整查询计划校验中验证模块与逻辑方向／STOP 校准，电机和事件面板保持未知，至少一路可查询输出必须收到新鲜反馈。严格完整反馈策略保留；缺少校准、仅电机映射和反馈超时均关闭控制。当前仅恢复组件提供该策略，TCP 启动／重连及 HAP 电机选择入口尚未启用，现场不变。

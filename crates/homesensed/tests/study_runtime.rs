@@ -4398,7 +4398,8 @@ async fn running_automation_control_cancels_before_output_and_closes_on_exit() {
 async fn publication_pauses_old_automation_without_closing_admission() {
     use homesensed::{automation_runtime::AutomationRuntime, automation_control::Action, feedback::Feedback, observed_transport::ObservedTransport, transport_owner::TransportOwner};
     for projected in [false,true] {
-    for keypads in [false,true] {
+    for policy_index in 0..6 {
+    let keypads=matches!(policy_index,1..=3);
     for responds in [false, true] {
     let db=Db(std::env::temp_dir().join(format!("assembly-{}.sqlite",Uuid::new_v4())));
     let devices=include_bytes!("../../../config/simulation.json");
@@ -4426,9 +4427,21 @@ async fn publication_pauses_old_automation_without_closing_admission() {
         next["gateways"][0]["modules"].as_array_mut().unwrap().push(hap::serde_json::json!({"address":"41","profile":"ts6_86_rs485_v2_6_5_6key","verification":{"status":"simulated"},"led_mode":"manual"}));
         next["devices"].as_array_mut().unwrap().push(hap::serde_json::json!({"id":"panel:1","name":"keypad","gateway":"simulation","address":"41","channel":1,"enabled":true}));
     }
-    let policy=if keypads {homesensed::publication_recovery::Synchronization::OutputsAndKeypadEvents} else {homesensed::publication_recovery::Synchronization::CompleteFeedback};
+    if policy_index>=2 {
+        next["gateways"][0]["modules"].as_array_mut().unwrap().push(hap::serde_json::json!({"address":"22","profile":"c4_din_pro_v2_7_7","verification":{"status":"simulated"}}));
+        next["devices"].as_array_mut().unwrap().push(hap::serde_json::json!({"id":"motor","name":"Curtain","gateway":"simulation","address":"22","channel":2,"enabled":true,"motor_calibration":{"open_direction":"down","stop_verified":true,"evidence":"synthetic","verified_at_unix_ms":1}}));
+    }
+    if policy_index==3 {
+        next["devices"].as_array_mut().unwrap().last_mut().unwrap().as_object_mut().unwrap().remove("motor_calibration");
+    }
+    if policy_index==5 {
+        next["devices"].as_array_mut().unwrap().retain(|d|d["id"]=="motor");
+    }
+    use homesensed::publication_recovery::Synchronization;
+    let policy=match policy_index {0=>Synchronization::CompleteFeedback,1=>Synchronization::OutputsAndKeypadEvents,4=>Synchronization::CompleteFeedback,_=>Synchronization::OutputsAndCalibratedMotors};
     let mut next_rules:hap::serde_json::Value=hap::serde_json::from_slice(rules).unwrap();
     next_rules["configuration_revision"]=2.into();
+    if policy_index==5 { next_rules["timed_scenes"]=hap::serde_json::json!([]); }
     let (projection,mut updates)=tokio::sync::watch::channel(owner.snapshot());
     let pause=async {
         if projected {
@@ -4461,7 +4474,7 @@ async fn publication_pauses_old_automation_without_closing_admission() {
     assert!(owner.drain_publication(&a).await.unwrap().is_none());
     assert_eq!(a.commit_publication().await.unwrap(),2);
     assert!(owner.drain_publication(&a).await.is_err());
-    struct QueryWire(Vec<u8>,bool);
+    struct QueryWire(Vec<u8>,bool,bool);
     impl std::io::Read for QueryWire {
         fn read(&mut self, out:&mut [u8])->std::io::Result<usize>{
             if self.0.is_empty(){return Err(std::io::ErrorKind::WouldBlock.into())}
@@ -4470,6 +4483,7 @@ async fn publication_pauses_old_automation_without_closing_admission() {
     }
     impl std::io::Write for QueryWire {
         fn write(&mut self, bytes:&[u8])->std::io::Result<usize>{
+            assert!(!self.2,"invalid recovery policy must reject before any query");
             assert_eq!(bytes, &[0xae,0x15,0xa1,0xf2,0xee]);
             if self.1 {self.0.extend([0xae,0x15,0xd1,30,0xee]);} Ok(bytes.len())
         }
@@ -4481,16 +4495,16 @@ async fn publication_pauses_old_automation_without_closing_admission() {
     // Invalid recovery attempts must not consume the committed publication or
     // reopen admission. The valid attempt below must still be possible.
     for (principal,epoch,complete) in [(Uuid::new_v4(),2,true),(controller,1,true),(controller,2,false)] {
-        let streams=if complete {[("simulation".into(),hb_transport::Connection::for_simulation(QueryWire(vec![],true),epoch))].into()} else {std::collections::BTreeMap::new()};
+        let streams=if complete {[("simulation".into(),hb_transport::Connection::for_simulation(QueryWire(vec![],true,policy_index>=3),epoch))].into()} else {std::collections::BTreeMap::new()};
         let rejected=homesensed::publication_recovery::rebuild_with_policy(a.clone(),principal,TransportOwner::new(a.clone(),streams),epoch,settings,policy).await;
         assert!(rejected.is_err());
         assert!(a.task_generation().await.is_err());
     }
-    let fresh=TransportOwner::new(a.clone(),[("simulation".into(),hb_transport::Connection::for_simulation(QueryWire(vec![],responds),2))].into());
+    let fresh=TransportOwner::new(a.clone(),[("simulation".into(),hb_transport::Connection::for_simulation(QueryWire(vec![],responds,policy_index>=3),2))].into());
     let rebuilt=homesensed::publication_recovery::rebuild_with_policy(a.clone(),controller,fresh,2,homesensed::publication_recovery::Settings{
         query_timeout_ms:100,max_age_ms:5000,wall_unix_ms:1_800_000_000_000,calendar_lateness_ms:1000,scene_capacity:8
     },policy).await;
-    if !responds {
+    if !responds || policy_index>=3 {
         assert!(rebuilt.is_err());
         assert!(a.synchronized(2,2).await.is_err());
         assert!(a.dispatch().await.is_err());
@@ -4499,6 +4513,12 @@ async fn publication_pauses_old_automation_without_closing_admission() {
     }
     let (mut next_runtime,mut new_owner)=rebuilt.unwrap();
     if keypads {assert!(new_owner.snapshot().devices[&homesense_core::DeviceId::new("panel:1").unwrap()].observed.is_none());}
+    if policy_index==2 {
+        let state=&new_owner.snapshot().devices[&homesense_core::DeviceId::new("motor").unwrap()];
+        assert!(state.observed.is_none());
+        assert_ne!(state.quality,homesense_state::Quality::Confirmed);
+        assert!(state.observed_at_ms.is_none());
+    }
     assert_eq!(next_runtime.revision(),2);
     assert!(a.dispatch().await.unwrap().is_none());
     let fresh_control=next_runtime.control();
