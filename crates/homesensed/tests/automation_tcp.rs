@@ -626,7 +626,7 @@ async fn online_publication_queries_new_mapping_before_acknowledgement() {
     let mut devices:Value=hap::serde_json::from_slice(include_bytes!("../../../config/simulation-home.json")).unwrap();
     devices["gateways"][0]["endpoint"]=bus.local_addr().unwrap().to_string().into();
     devices["gateways"][0]["modules"][0]["verification"]=json!({"status":"verified","evidence":"loopback","verified_at_unix_ms":1});
-    let rules=|revision|to_vec(&json!({"schema_version":1,"configuration_revision":revision,"variables":[],"rules":[]})).unwrap();
+    let rules=|revision|to_vec(&json!({"schema_version":1,"configuration_revision":revision,"variables":[{"id":"remember","kind":"integer","lifetime":"persistent"}],"rules":[]})).unwrap();
     let initial=to_vec(&devices).unwrap();
     devices["revision"]=2.into();
     devices["devices"][0]["channel"]=2.into();
@@ -649,8 +649,8 @@ async fn online_publication_queries_new_mapping_before_acknowledgement() {
         assert_eq!(old.read(&mut frame).unwrap(),0);
     });
     let (publisher,receiver)=homesensed::automation_publication::channel();
-    let old_rules=to_vec(&json!({"schema_version":1,"configuration_revision":1,"variables":[],
-        "rules":[{"id":"startup","enabled":true,"review_evidence":"loopback","source":"test","trigger":{"kind":"startup_synchronized"},"actions":[{"source":"test","action":{"kind":"scene","id":"later","activate":true}}]}],
+    let old_rules=to_vec(&json!({"schema_version":1,"configuration_revision":1,"variables":[{"id":"remember","kind":"integer","lifetime":"persistent"}],
+        "rules":[{"id":"startup","enabled":true,"review_evidence":"loopback","source":"test","trigger":{"kind":"startup_synchronized"},"actions":[{"source":"remember","action":{"kind":"set","variable":"remember","value":{"kind":"integer","value":17}}},{"source":"test","action":{"kind":"scene","id":"later","activate":true}}]}],
         "timed_scenes":[{"id":"later","enabled":true,"review_evidence":"loopback","max_lateness_ms":1000,"steps":[{"source":"test","offset_ms":300,"device":"simulation:light","command":{"kind":"level","value":90,"ramp":false}}]}]
     })).unwrap();
     let service=homesensed::automation_tcp::serve_with_publications(&initial,&old_rules,&root,Duration::from_millis(700),true,0,Some(receiver));
@@ -658,6 +658,9 @@ async fn online_publication_queries_new_mapping_before_acknowledgement() {
         ready.await.unwrap();
         tokio::time::sleep(Duration::from_millis(80)).await;
         assert!(publisher.publish(candidate.clone(),rules(2),99).await.is_err());
+        let mut incompatible:Value=hap::serde_json::from_slice(&rules(2)).unwrap();
+        incompatible["variables"][0]["kind"]="bool".into();
+        assert!(publisher.publish(candidate.clone(),to_vec(&incompatible).unwrap(),1).await.is_err());
         let outcome=publisher.publish(candidate,rules(2),1).await;
         if reply { assert_eq!(outcome.unwrap(),2); } else { assert!(outcome.is_err()); }
     };
@@ -667,6 +670,10 @@ async fn online_publication_queries_new_mapping_before_acknowledgement() {
     assert_eq!(homesense_storage::Store::open(root.join("automation-tcp.sqlite")).unwrap().active().unwrap().unwrap().revision,2);
     let sql=rusqlite::Connection::open(root.join("automation-tcp.sqlite")).unwrap();
     assert_eq!(sql.query_row("SELECT count(*) FROM scene_run WHERE definition='later' AND status='cancelled'",[],|row|row.get::<_,i64>(0)).unwrap(),1);
+    for revision in [1,2] {
+        let stored:(String,i64)=sql.query_row("SELECT kind,value FROM logical_variable WHERE revision=?1 AND name='remember'",[revision],|r|Ok((r.get(0)?,r.get(1)?))).unwrap();
+        assert_eq!(stored,("integer".into(),17));
+    }
     drop(sql);
     std::fs::remove_dir_all(root).unwrap();
     }
