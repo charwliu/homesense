@@ -224,8 +224,7 @@ impl EventRules {
             let mut states = self.cache_states.clone();
             let mut batches = vec![];
             for event in &events {
-                let mut triggers = vec![];
-                if event.change == homesense_state::Change::Observation
+                let observation = event.change == homesense_state::Change::Observation
                     && event.state.quality == homesense_state::Quality::Confirmed
                     && matches!(
                         event.state.observed,
@@ -233,8 +232,8 @@ impl EventRules {
                             homesense_core::Observation::Switch(_)
                                 | homesense_core::Observation::Level(_)
                         )
-                    )
-                {
+                    );
+                if observation {
                     let at = event
                         .state
                         .observed_at_ms
@@ -242,36 +241,46 @@ impl EventRules {
                     if now.checked_sub(at).is_none_or(|age| age >= max_age) {
                         return Err("stale device event".into());
                     }
-                    triggers.push(Trigger::DeviceChanged(event.device_id.clone()));
                 }
-                if matches!(
-                    event.change,
-                    homesense_state::Change::Observation
-                        | homesense_state::Change::Quality
-                        | homesense_state::Change::Desired
-                        | homesense_state::Change::PendingFinished
-                ) {
+                let affected = feedback.affected_devices(&event.device_id);
+                let previous: BTreeMap<_, _> = affected
+                    .iter()
+                    .map(|id| (id.clone(), logical_state(feedback, &states, id)))
+                    .collect();
+                states.insert(event.device_id.clone(), event.state.clone());
+                let mut triggers = vec![];
+                for id in affected {
+                    use homesense_config::rule_document::FeedbackBinding;
+                    let before = previous[&id].as_ref();
+                    let after = logical_state(feedback, &states, &id);
+                    let before_time = before.and_then(|s| s.observed_at_ms).unwrap_or(now);
+                    let on = FeedbackBinding::On {
+                        device: id.as_str().into(),
+                    };
+                    let level = FeedbackBinding::Level {
+                        device: id.as_str().into(),
+                    };
+                    let changed = [&on, &level].iter().any(|binding| {
+                        cache_value(before, binding, before_time, max_age)
+                            != cache_value(after.as_ref(), binding, now, max_age)
+                    });
+                    let known = cache_value(after.as_ref(), &on, now, max_age).is_some();
+                    if observation && known && (feedback.supply_relay(&id).is_none() || changed) {
+                        triggers.push(Trigger::DeviceChanged(id.clone()));
+                    }
                     for (name, binding) in &self.cache_bindings {
-                        use homesense_config::rule_document::FeedbackBinding;
                         let source = match binding {
                             FeedbackBinding::On { device } | FeedbackBinding::Level { device } => {
                                 device
                             }
                         };
-                        if source != event.device_id.as_str() {
-                            continue;
-                        }
-                        // Compare with the previously consumed value, before
-                        // this quality/expiry event made it unknown.
-                        let previous = states.get(&event.device_id);
-                        let previous_at = previous.and_then(|s| s.observed_at_ms).unwrap_or(now);
-                        if cache_value(previous, binding, previous_at, max_age)
-                            != cache_value(Some(&event.state), binding, now, max_age)
+                        if source == id.as_str()
+                            && cache_value(before, binding, before_time, max_age)
+                                != cache_value(after.as_ref(), binding, now, max_age)
                         {
                             triggers.push(Trigger::VariableChanged(name.clone()));
                         }
                     }
-                    states.insert(event.device_id.clone(), event.state.clone());
                 }
                 if !triggers.is_empty() {
                     batches.push(triggers);
@@ -549,4 +558,38 @@ fn cache_value(
         }
         _ => None,
     }
+}
+
+// Reconstruct each event's logical state from its two physical components.
+// Keep physical states in the cursor cache so a relay-only event can update it.
+fn logical_state(
+    feedback: &Feedback,
+    states: &BTreeMap<DeviceId, homesense_state::DeviceState>,
+    id: &DeviceId,
+) -> Option<homesense_state::DeviceState> {
+    use homesense_core::{Observation, Percent};
+    use homesense_state::Quality;
+    let mut state = states.get(id)?.clone();
+    if let Some(relay) = feedback.supply_relay(id) {
+        let relay = states.get(relay)?;
+        state.observed_at_ms = state
+            .observed_at_ms
+            .zip(relay.observed_at_ms)
+            .map(|(a, b)| a.min(b));
+        state.pending_command = state.pending_command.or(relay.pending_command);
+        if relay.quality != Quality::Confirmed {
+            state.quality = relay.quality;
+        }
+        state.observed = match (state.observed, relay.observed) {
+            (Some(Observation::Level(level)), Some(Observation::Switch(on))) => {
+                Some(Observation::Level(if on {
+                    level
+                } else {
+                    Percent::new(0).unwrap()
+                }))
+            }
+            _ => None,
+        };
+    }
+    Some(state)
 }

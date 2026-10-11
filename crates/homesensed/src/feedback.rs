@@ -73,6 +73,16 @@ impl Feedback {
     pub(crate) fn supply_relay(&self, device: &DeviceId) -> Option<&DeviceId> {
         self.supply_relays.get(device)
     }
+    pub(crate) fn affected_devices(&self, source: &DeviceId) -> Vec<DeviceId> {
+        std::iter::once(source.clone())
+            .chain(
+                self.supply_relays
+                    .iter()
+                    .filter(|(_, relay)| *relay == source)
+                    .map(|(id, _)| id.clone()),
+            )
+            .collect()
+    }
     pub fn plan_rule(
         &self,
         nodes: &[homesense_core::rule::Node],
