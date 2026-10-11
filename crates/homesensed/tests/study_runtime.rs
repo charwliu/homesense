@@ -4450,3 +4450,41 @@ async fn scene_capacity_reservations_isolate_owners_and_release_unused_slots() {
     assert!(a.dispatch().await.unwrap().is_none());
     a.shutdown().await.unwrap();
 }
+
+#[tokio::test]
+async fn deferred_admission_validates_definition_and_rolls_back_on_storage_fault() {
+    use homesensed::admission::DeferredRule;
+    for fault in [false,true] {
+        let db=Db(std::env::temp_dir().join(format!("deferred-{}.sqlite",Uuid::new_v4())));
+        let devices=include_bytes!("../../../config/simulation.json");
+        let rules=br#"{"schema_version":1,"configuration_revision":1,"variables":[{"id":"mode","kind":"integer","lifetime":"persistent"}],"rules":[],"timed_scenes":[{"id":"light","enabled":true,"review_evidence":"simulation","max_lateness_ms":1000,"steps":[{"source":"fixture","offset_ms":100,"device":"simulation:light","command":{"kind":"level","value":30,"ramp":false}}]}]}"#;
+        Store::open(&db.0).unwrap().publish_automation(None,devices,rules,ExecutionContext::Simulation,&[]).unwrap();
+        let controller=Uuid::new_v4();let a=actor(&db,controller).await;
+        let generation=a.task_generation().await.unwrap();
+        let request=|controller,definition:&str|DeferredRule{
+            batch:homesense_hap::requests::Batch{controller,intents:vec![],subscriptions:vec![]},
+            variables:vec![homesense_storage::variables::Update{revision:1,name:"mode".into(),expected_version:0,value:Some(homesense_core::rule::Value::Integer(1))}],
+            audit:homesense_storage::rule_audit::Admission{revision:1,correlation:1,event:1,parent:0,rule:"fixture".into()},
+            starts:vec![homesense_storage::scene_run::Start{run:"run".into(),revision:1,definition:definition.into(),action_index:1,source:"fixture:call".into()}],
+        };
+        assert!(a.submit_deferred_rule(generation.clone(),request(Uuid::new_v4(),"light")).await.is_err());
+        assert!(a.submit_deferred_rule(generation.clone(),request(controller,"missing")).await.is_err());
+        let sql=rusqlite::Connection::open(&db.0).unwrap();
+        if fault {sql.execute_batch("CREATE TRIGGER injected BEFORE INSERT ON scene_cause BEGIN SELECT RAISE(ABORT,'fault'); END;").unwrap();}
+        let result=a.submit_deferred_rule(generation,request(controller,"light")).await;
+        let store=Store::open(&db.0).unwrap();
+        if fault {
+            assert!(result.is_err());
+            assert!(store.scene_run(a.boot_id(),"run").unwrap().is_none());
+            assert_eq!(store.logical_variable(1,"mode").unwrap().unwrap().value,None);
+            assert!(a.task_generation().await.is_err());
+        } else {
+            assert!(result.unwrap().is_empty());
+            assert_eq!(store.scene_run(a.boot_id(),"run").unwrap().unwrap().status,homesense_storage::scene_run::Status::Pending);
+            assert_eq!(store.scene_cause(a.boot_id(),"run").unwrap().unwrap().event,1);
+            assert_eq!(store.logical_variable(1,"mode").unwrap().unwrap().value,Some(homesense_core::rule::Value::Integer(1)));
+            assert!(a.dispatch().await.unwrap().is_none());
+        }
+        a.shutdown().await.unwrap();
+    }
+}
