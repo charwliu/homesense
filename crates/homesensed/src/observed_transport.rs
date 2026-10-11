@@ -59,6 +59,12 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
         owner.pending_recovery = Some(epoch);
         Ok(owner)
     }
+    pub(crate) fn feedback(&self) -> &Feedback {
+        &self.feedback
+    }
+    pub(crate) fn belongs_to(&self, admission: &crate::admission::Admission) -> bool {
+        self.transport.belongs_to(admission)
+    }
     pub(crate) fn gateway_ids(&self) -> Vec<String> {
         self.gateways.clone()
     }
@@ -149,10 +155,10 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
         if plan.is_empty() || plan.len() != self.snapshot().devices.len() {
             return Err("recovery query mapping does not match feedback".into());
         }
-        if let Some(id) = selected {
-            if !plan.iter().any(|(candidate, _, _)| candidate == id) {
-                return Err("refresh device is not enabled in the mapping".into());
-            }
+        if let Some(id) = selected
+            && !plan.iter().any(|(candidate, _, _)| candidate == id)
+        {
+            return Err("refresh device is not enabled in the mapping".into());
         }
         for (id, device, module) in plan {
             if selected.is_some_and(|selected| selected != &id) {

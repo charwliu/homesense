@@ -47,13 +47,21 @@ pub struct DispatchTicket {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TaskGeneration {
     boot: String,
-    epochs: Epochs,
+    pub(crate) epochs: Epochs,
 }
 enum SubmissionScope {
     Generation(TaskGeneration),
     Configuration(u64),
 }
 enum Submission {
+    Automation {
+        batch: Batch,
+        variables: Vec<homesense_storage::variables::Update>,
+        manual_fence: Option<u64>,
+        feedback: Option<Box<crate::feedback::RuleLease>>,
+        audit: Option<homesense_storage::rule_audit::Admission>,
+        scene: Option<homesense_storage::scene_run::StepLink>,
+    },
     Study {
         batch: Batch,
         expected_mode: Option<u8>,
@@ -76,7 +84,73 @@ struct PendingPublication {
     document: Vec<u8>,
     cancellations: Vec<homesense_core::queue::Cancellation>,
 }
+pub(crate) enum SceneUpdate {
+    Begin { run: String, definition: Option<String> },
+    Checkpoint { run: String, expected: u64, status: homesense_storage::scene_run::Status },
+}
 enum Message {
+    FeedbackSettled(Uuid, TaskGeneration, crate::feedback::RuleLease, oneshot::Sender<Result<bool, WriteStatus>>),
+
+    SceneQuery(Uuid, TaskGeneration, homesense_storage::scene_run::Query, oneshot::Sender<Result<Option<homesense_storage::scene_run::Page>, WriteStatus>>),
+
+    SceneUpdate(Uuid, TaskGeneration, SceneUpdate, oneshot::Sender<Result<u64, WriteStatus>>),
+
+    RuleOutcome(
+        Uuid,
+        TaskGeneration,
+        u128,
+        Option<String>,
+        oneshot::Sender<Result<(), WriteStatus>>,
+    ),
+    RuleChain(
+        Uuid,
+        TaskGeneration,
+        u128,
+        u64,
+        usize,
+        oneshot::Sender<Result<homesense_storage::rule_audit::Page, WriteStatus>>,
+    ),
+    InitializeVariables(
+        Uuid,
+        TaskGeneration,
+        BTreeMap<String, homesense_core::rule::Variable>,
+        oneshot::Sender<Result<(), WriteStatus>>,
+    ),
+    Temporary(
+        Uuid,
+        TaskGeneration,
+        String,
+        homesense_core::rule::ValueType,
+        oneshot::Sender<Result<(), WriteStatus>>,
+    ),
+    Calendar(
+        Uuid,
+        TaskGeneration,
+        Option<homesense_storage::calendar::Checkpoint>,
+        oneshot::Sender<Result<Option<i64>, WriteStatus>>,
+    ),
+    ManualFence(oneshot::Sender<u64>),
+    CommandStatuses(
+        Uuid,
+        TaskGeneration,
+        Vec<u64>,
+        oneshot::Sender<Result<Vec<Status>, WriteStatus>>,
+    ),
+    VariableSnapshot(
+        Uuid,
+        TaskGeneration,
+        Vec<String>,
+        oneshot::Sender<
+            Result<BTreeMap<String, homesense_storage::variables::Stored>, WriteStatus>,
+        >,
+    ),
+    Variable(
+        Uuid,
+        TaskGeneration,
+        String,
+        Option<homesense_core::rule::ValueType>,
+        oneshot::Sender<Result<Option<homesense_storage::variables::Stored>, WriteStatus>>,
+    ),
     StudyMode(oneshot::Sender<Result<Option<u8>, WriteStatus>>),
     CancelRun(
         Uuid,
@@ -100,7 +174,7 @@ enum Message {
     Finished(u64, bool, oneshot::Sender<Result<(), WriteStatus>>),
     Shutdown(oneshot::Sender<()>),
     Submit(
-        Submission,
+        Box<Submission>,
         Option<SubmissionScope>,
         u64,
         oneshot::Sender<Result<Vec<u64>, WriteStatus>>,
@@ -167,6 +241,7 @@ impl Admission {
                     store
                         .recover_commands(&worker_boot)
                         .map_err(|e| e.to_string())?;
+                    store.recover_scene_runs(&worker_boot).map_err(|e| e.to_string())?;
                     let epochs = Epochs {
                         transport: 1,
                         configuration: configuration.revision(),
@@ -201,6 +276,8 @@ impl Admission {
                 };
                 let mut restore_policy = crate::restore_policy::RestorePolicy::default();
                 let mut principals = BTreeMap::<u64, Uuid>::new();
+                let mut manual_versions = BTreeMap::new();
+                let mut temporary = BTreeMap::<String, homesense_storage::variables::Stored>::new();
                 let mut in_flight: Option<u64> = None;
                 let mut write_deadline: Option<u64> = None;
                 let mut next_id = 1u64;
@@ -249,6 +326,147 @@ impl Admission {
                         Err(mpsc::RecvTimeoutError::Disconnected) => break,
                     };
                     match message {
+                        Message::FeedbackSettled(controller,generation,lease,reply) => {
+                            let result = (|| {
+                                if !authorize(controller) {return Err(WriteStatus::InsufficientPrivileges);}
+                                if generation.boot!=worker_boot || generation.epochs!=arbiter.policy().epochs {return Err(WriteStatus::ServiceCommunicationFailure);}
+                                let _guard=lease.lock(Uuid::parse_str(&worker_boot).map_err(|_|WriteStatus::ServiceCommunicationFailure)?.as_u128(),configuration.revision(),arbiter.policy().epochs.transport,millis(clock)).map_err(|_|WriteStatus::ResourceBusy)?;
+                                for (device,observed) in &lease.observations {
+                                    // Every combined light read must cover its power supply too.
+                                    if configuration.devices().get(device).and_then(|d|d.supply_relay.as_ref()).is_some_and(|relay|!lease.observations.contains_key(relay)) {return Err(WriteStatus::ResourceBusy);}
+                                    if !store.feedback_is_settled(&worker_boot,device,*observed).map_err(|_|WriteStatus::ServiceCommunicationFailure)? {return Ok(false);}
+                                }
+                                Ok(true)
+                            })();
+                            let _=reply.send(result);
+                        }
+                        Message::SceneQuery(controller,generation,query,reply) => {
+                            let result = if !authorize(controller) {Err(WriteStatus::InsufficientPrivileges)}
+                            else if generation.boot != worker_boot || generation.epochs.configuration != configuration.revision() {Err(WriteStatus::ServiceCommunicationFailure)}
+                            else {store.query_scene(configuration.revision(), &query).map_err(|error| match error {
+                                homesense_storage::Error::InvalidAudit => WriteStatus::InvalidValueInRequest,
+                                _ => WriteStatus::ServiceCommunicationFailure,
+                            })};
+                            let _=reply.send(result);
+                        }
+                        Message::SceneUpdate(controller,generation,update,reply) => {
+                            let result = if !authorize(controller) { Err(WriteStatus::InsufficientPrivileges) }
+                            else if generation.boot != worker_boot || (matches!(&update,SceneUpdate::Begin{..}) && (failed || generation.epochs != arbiter.policy().epochs)) { Err(WriteStatus::ServiceCommunicationFailure) }
+                            else {
+                                let stored = match update {
+                                    SceneUpdate::Begin{run,definition} => store.begin_scene_run(&worker_boot,&run,generation.epochs.configuration,definition.as_deref(),millis(clock)).map(|()|0),
+                                    SceneUpdate::Checkpoint{run,expected,status} => store.checkpoint_scene_run(&worker_boot,&run,expected,status,millis(clock)),
+                                };
+                                stored.map_err(|error| match error {
+                                    homesense_storage::Error::Conflict | homesense_storage::Error::InvalidAudit => WriteStatus::InvalidValueInRequest,
+                                    _ => { failed=true;let _=arbiter.storage_failed();WriteStatus::ServiceCommunicationFailure }
+                                })
+                            };
+                            let _=reply.send(result);
+                        }
+                        Message::ManualFence(reply) => { let _ = reply.send(next_id); }
+                        Message::RuleOutcome(controller,generation,correlation,error,reply)=>{
+                            let result=if !authorize(controller){Err(WriteStatus::InsufficientPrivileges)}
+                            else if failed || generation.boot!=worker_boot || generation.epochs.configuration!=configuration.revision(){Err(WriteStatus::ServiceCommunicationFailure)}
+                            else{store.finish_rule_chain(&worker_boot,configuration.revision(),correlation,millis(clock),error.as_deref()).map_err(|error|match error{
+                                homesense_storage::Error::Conflict|homesense_storage::Error::InvalidAudit=>WriteStatus::InvalidValueInRequest,
+                                _=>{failed=true;let _=arbiter.storage_failed();WriteStatus::ServiceCommunicationFailure}
+                            })};
+                            let _=reply.send(result);
+                        }
+                        Message::RuleChain(controller,generation,correlation,after,limit,reply)=>{
+                            let result=if !authorize(controller){Err(WriteStatus::InsufficientPrivileges)}
+                            else if generation.boot!=worker_boot{Err(WriteStatus::ServiceCommunicationFailure)}
+                            else{store.rule_chain(&worker_boot,correlation,after,limit).map_err(|_|WriteStatus::ServiceCommunicationFailure)};
+                            let _=reply.send(result);
+                        }
+                        Message::CommandStatuses(controller, generation, ids, reply) => {
+                            let result = (|| {
+                                if !authorize(controller) { return Err(WriteStatus::InsufficientPrivileges); }
+                                if generation.boot != worker_boot { return Err(WriteStatus::ServiceCommunicationFailure); }
+                                ids.into_iter().map(|id| store.command_status(&worker_boot,id)
+                                    .map_err(|_|WriteStatus::ServiceCommunicationFailure)?
+                                    .ok_or(WriteStatus::ResourceDoesNotExist)).collect()
+                            })();
+                            let _ = reply.send(result);
+                        }
+
+                        Message::Calendar(controller, generation, update, reply) => {
+                            let result = if !authorize(controller) { Err(WriteStatus::InsufficientPrivileges) }
+                            else if failed || generation.boot != worker_boot || generation.epochs != arbiter.policy().epochs { Err(WriteStatus::ServiceCommunicationFailure) }
+                            else { store.calendar_watermark(configuration.revision(), update).map_err(|error| match error {
+                                homesense_storage::Error::Conflict => WriteStatus::ResourceBusy,
+                                homesense_storage::Error::InvalidAudit => WriteStatus::InvalidValueInRequest,
+                                _ => { failed = true; WriteStatus::ServiceCommunicationFailure }
+                            }) };
+                            let _ = reply.send(result);
+                        }
+                        Message::InitializeVariables(controller,generation,definitions,reply)=>{
+                            let result=(||{
+                                use homesense_core::rule::Lifetime;
+                                if !authorize(controller){return Err(WriteStatus::InsufficientPrivileges);}
+                                if failed || generation.boot!=worker_boot || generation.epochs!=arbiter.policy().epochs{return Err(WriteStatus::ServiceCommunicationFailure);}
+                                let mut next=temporary.clone();let mut persistent=vec![];
+                                for (name,definition) in definitions {
+                                    if definition.value.is_some(){return Err(WriteStatus::InvalidValueInRequest);}
+                                    match definition.lifetime {
+                                        Lifetime::Persistent=>{
+                                            if temporary.contains_key(&name){return Err(WriteStatus::InvalidValueInRequest);}
+                                            persistent.push((name,definition.value_type));
+                                        },
+                                        Lifetime::Temporary=>{
+                                            if store.logical_variable(configuration.revision(),&name).map_err(|_|WriteStatus::ServiceCommunicationFailure)?.is_some(){return Err(WriteStatus::InvalidValueInRequest);}
+                                            if let Some(value)=next.get(&name) {
+                                                if value.kind!=definition.value_type{return Err(WriteStatus::InvalidValueInRequest);}
+                                            }else{next.insert(name,homesense_storage::variables::Stored{kind:definition.value_type,lifetime:Lifetime::Temporary,value:None,version:0});}
+                                        },
+                                        Lifetime::FeedbackCache=>return Err(WriteStatus::InvalidValueInRequest),
+                                    }
+                                }
+                                if next.len()>1024{return Err(WriteStatus::InvalidValueInRequest);}
+                                store.ensure_logical_variables(configuration.revision(),&persistent).map_err(|error|match error{
+                                    homesense_storage::Error::Conflict | homesense_storage::Error::InvalidAudit=>WriteStatus::InvalidValueInRequest,
+                                    _=>{failed=true;let _=arbiter.storage_failed();WriteStatus::ServiceCommunicationFailure}
+                                })?;
+                                temporary=next;Ok(())
+                            })();
+                            let _=reply.send(result);
+                        }
+                        Message::Temporary(controller, generation, name, kind, reply) => {
+                            let result=(||{
+                                if !authorize(controller){return Err(WriteStatus::InsufficientPrivileges);}
+                                if failed || generation.boot!=worker_boot || generation.epochs!=arbiter.policy().epochs {return Err(WriteStatus::ServiceCommunicationFailure);}
+                                if temporary.len()>=1024 || temporary.contains_key(&name) || store.logical_variable(configuration.revision(),&name).map_err(|_|WriteStatus::ServiceCommunicationFailure)?.is_some() {return Err(WriteStatus::InvalidValueInRequest);}
+                                temporary.insert(name,homesense_storage::variables::Stored{kind,lifetime:homesense_core::rule::Lifetime::Temporary,value:None,version:0});
+                                Ok(())
+                            })();
+                            let _=reply.send(result);
+                        }
+                        Message::VariableSnapshot(controller, generation, names, reply) => {
+                            let result = (|| {
+                                if !authorize(controller) {return Err(WriteStatus::InsufficientPrivileges);}
+                                if failed || generation.boot != worker_boot || generation.epochs != arbiter.policy().epochs {return Err(WriteStatus::ServiceCommunicationFailure);}
+                                let mut values = BTreeMap::new();
+                                for name in names {
+                                    let value=match temporary.get(&name) {Some(value)=>value.clone(),None=>store.logical_variable(configuration.revision(),&name).map_err(|_|WriteStatus::ServiceCommunicationFailure)?.ok_or(WriteStatus::ResourceDoesNotExist)?};
+                                    if values.insert(name,value).is_some() {return Err(WriteStatus::InvalidValueInRequest);}
+                                }
+                                Ok(values)
+                            })();
+                            let _ = reply.send(result);
+                        }
+                        Message::Variable(controller, generation, name, define, reply) => {
+                            let result = (|| {
+                                if !authorize(controller) {return Err(WriteStatus::InsufficientPrivileges);}
+                                if failed || generation.boot != worker_boot || generation.epochs != arbiter.policy().epochs {return Err(WriteStatus::ServiceCommunicationFailure);}
+                                if temporary.contains_key(&name) {return Err(WriteStatus::InvalidValueInRequest);}
+                                if let Some(kind) = define {
+                                    store.define_logical_variable(configuration.revision(), &name, kind).map_err(|_|WriteStatus::InvalidValueInRequest)?;
+                                }
+                                store.logical_variable(configuration.revision(), &name).map_err(|_|WriteStatus::ServiceCommunicationFailure)
+                            })();
+                            let _ = reply.send(result);
+                        }
                         Message::StudyMode(reply) => {
                             let result = store.study_mode(configuration.revision()).map_err(|_|WriteStatus::ServiceCommunicationFailure);
                             let _ = reply.send(result);
@@ -325,6 +543,8 @@ impl Admission {
                                     arbiter.record_commit(homesense_core::arbiter::CommitResult::Committed(active.revision))
                                         .map_err(|_| WriteStatus::ServiceCommunicationFailure)?;
                                     configuration = next;
+                                    manual_versions.clear();
+                                    temporary.clear();
                                     durable_configuration = active.clone();
                                     publication = None;
                                     restore_policy = crate::restore_policy::RestorePolicy::default();
@@ -588,16 +808,51 @@ impl Admission {
                                 }) {
                                     return Err(WriteStatus::ServiceCommunicationFailure);
                                 }
-                                let (submission, study) = match submission {
+                                let (submission, study, automation, variables, feedback, audit, scene) = match *submission {
+                                    Submission::Automation { batch, variables, manual_fence, feedback, audit, scene } => {
+                                        if manual_fence.is_some_and(|fence|batch.intents.iter().any(|i|manual_versions.get(&i.device).is_some_and(|version|*version>=fence))) {
+                                            return Err(WriteStatus::InvalidValueInRequest);
+                                        }
+                                        if !batch.subscriptions.is_empty() || (batch.intents.is_empty() && variables.is_empty() && audit.is_none()) || variables.len()>1024 || variables.iter().any(|v|v.revision!=configuration.revision()) { return Err(WriteStatus::InvalidValueInRequest); }
+                                        (Submission::Lights(batch), None, true, variables, feedback, audit, scene)
+                                    },
                                     Submission::Study { batch, expected_mode, next_mode } => {
                                         if batch.intents.iter().any(|i| !["control4:210","control4:278","control4:308","control4:336","control4:63:key:1","control4:63:key:3","control4:63:key:5"].contains(&i.device.as_str())) || batch.intents.is_empty() || batch.intents.len()>16 || !batch.subscriptions.is_empty() {return Err(WriteStatus::InvalidValueInRequest);}
-                                        (Submission::Lights(batch), Some((expected_mode,next_mode)))
+                                        (Submission::Lights(batch), Some((expected_mode,next_mode)), true, vec![], None, None, None)
                                     },
-                                    other => (other,None),
+                                    other => (other,None,false,vec![],None,None,None),
                                 };
+                                if audit.as_ref().is_some_and(|a|a.revision!=configuration.revision()){return Err(WriteStatus::InvalidValueInRequest);}
+                                // Prepare in-memory deltas without publishing them. Persistent
+                                // variables and queued commands must commit first.
+                                let mut memory_updates=BTreeMap::new();
+                                let mut persistent_updates=vec![];
+                                let mut variable_names=std::collections::BTreeSet::new();
+                                for update in variables {
+                                    if !variable_names.insert(update.name.clone()){return Err(WriteStatus::InvalidValueInRequest);}
+                                    if let Some(current)=temporary.get(&update.name) {
+                                        if current.version!=update.expected_version {return Err(WriteStatus::InvalidValueInRequest);}
+                                        let correct=matches!((&update.value,current.kind), (None,_) | (Some(homesense_core::rule::Value::Bool(_)),homesense_core::rule::ValueType::Bool) | (Some(homesense_core::rule::Value::Integer(_)),homesense_core::rule::ValueType::Integer));
+                                        if !correct{return Err(WriteStatus::InvalidValueInRequest);}
+                                        let mut next=current.clone();next.value=update.value;next.version=next.version.checked_add(1).ok_or(WriteStatus::InvalidValueInRequest)?;
+                                        memory_updates.insert(update.name,next);
+                                    } else {persistent_updates.push(update);}
+                                }
+                                let variables=persistent_updates;
+                                let _feedback_guard = feedback.as_ref().map(|lease|lease.lock(
+                                    Uuid::parse_str(&worker_boot).map_err(|_|WriteStatus::ServiceCommunicationFailure)?.as_u128(),
+                                    configuration.revision(), arbiter.policy().epochs.transport, millis(clock))
+                                    .map_err(|_|WriteStatus::InvalidValueInRequest)).transpose()?;
+                                if let Some(lease) = &feedback {
+                                    for (device, observed) in &lease.observations {
+                                        if !store.feedback_is_settled(&worker_boot,device,*observed).map_err(|_|WriteStatus::ServiceCommunicationFailure)? {
+                                            return Err(WriteStatus::ResourceBusy);
+                                        }
+                                    }
+                                }
                                 let mut restore_intents = Vec::new();
                                 let (batch, compiled) = match submission {
-                                    Submission::Study { .. } => unreachable!(),
+                                    Submission::Study { .. } | Submission::Automation { .. } => unreachable!(),
                                     Submission::Lights(mut batch) => {
                                         if !authorize(batch.controller) { return Err(WriteStatus::InsufficientPrivileges); }
                                         restore_intents = batch.intents.iter().map(|i| (i.device.clone(), i.command)).collect();
@@ -620,7 +875,7 @@ impl Admission {
                                                     }, command });
                                                 }
                                             } else {
-                                                expanded.push(homesense_hap::requests::Intent { device: intent.device, command: if study.is_some() && matches!(intent.command, homesense_core::Command::PanelLed(_)) {intent.command} else {crate::light_command::plan(module, intent.command).map_err(|_| WriteStatus::InvalidValueInRequest)?} });
+                                                expanded.push(homesense_hap::requests::Intent { device: intent.device, command: if automation && matches!(intent.command, homesense_core::Command::PanelLed(_) | homesense_core::Command::PauseRamp) {intent.command} else {crate::light_command::plan(module, intent.command).map_err(|_| WriteStatus::InvalidValueInRequest)?} });
                                             }
                                         }
                                         batch.intents = expanded;
@@ -645,11 +900,24 @@ impl Admission {
                                 }
                                 // Subscription-only requests still require authorization.
                                 if batch.intents.is_empty() {
+                                    if !variables.is_empty() || audit.is_some() {
+                                        match store.accept_queue_batch_with_rule_audit(&worker_boot,&[],&[],millis(clock),None,&variables,audit.as_ref()) {
+                                            Ok(()) => {},
+                                            Err(homesense_storage::Error::Conflict | homesense_storage::Error::InvalidAudit) => return Err(WriteStatus::InvalidValueInRequest),
+                                            Err(_) => {
+                                                failed = true;
+                                                let _ = arbiter.storage_failed();
+                                                return Err(WriteStatus::ServiceCommunicationFailure);
+                                            }
+                                        }
+                                    }
+                                    temporary.extend(memory_updates);
                                     return Ok(Vec::new());
                                 }
                                 let end = next_id
                                     .checked_add(batch.intents.len() as u64)
                                     .ok_or(WriteStatus::ServiceCommunicationFailure)?;
+                                let manual_devices: Vec<_> = if automation {vec![]} else {batch.intents.iter().map(|i|i.device.clone()).collect()};
                                 let mut commands = Vec::new();
                                 for (offset, intent) in batch.intents.into_iter().enumerate() {
                                     let (device, module) = configuration
@@ -671,10 +939,10 @@ impl Admission {
                                             id: next_id + offset as u64,
                                             device_id: intent.device,
                                             command,
-                                            origin: if study.is_some() { Origin::Rule } else { Origin::Hap },
+                                            origin: if automation { Origin::Rule } else { Origin::Hap },
                                             epochs: arbiter.policy().epochs,
                                             deadline_ms: deadline,
-                                            run_id: study.map(|_| next_id),
+                                            run_id: automation.then_some(next_id),
                                         },
                                         Access {
                                             authorized: true,
@@ -692,17 +960,22 @@ impl Admission {
                                     commands,
                                     now,
                                     |commands, cancelled| {
-                                        store.accept_queue_batch_with_study(
+                                        store.accept_queue_batch_with_audits(
                                             &worker_boot,
                                             commands,
                                             cancelled,
                                             now,
                                             study,
+                                            &variables,
+                                            audit.as_ref(),
+                                            scene.as_ref(),
                                         )
                                     },
                                 );
                                 match result {
                                     Ok(cancelled) => {
+                                        temporary.extend(memory_updates);
+                                        for device in manual_devices { manual_versions.insert(device,next_id); }
                                         for (device, command) in restore_intents {
                                             restore_policy.accepted(device, command, now);
                                         }
@@ -721,6 +994,9 @@ impl Admission {
                                     }
                                     Err(BatchCommitError::Admission(_)) => {
                                         Err(WriteStatus::ServiceCommunicationFailure)
+                                    }
+                                    Err(BatchCommitError::Persistence(homesense_storage::Error::Conflict | homesense_storage::Error::InvalidAudit)) => {
+                                        Err(WriteStatus::InvalidValueInRequest)
                                     }
                                     Err(BatchCommitError::Persistence(_)) => {
                                         failed = true;
@@ -854,6 +1130,301 @@ impl Admission {
     pub fn boot_id(&self) -> &str {
         &self.boot
     }
+    /// One actor message reads the complete requested variable set without
+    /// interleaving configuration publication or another rule update.
+    /// Internal audit read remains available after transport failure. It cannot
+    /// authorize or replay commands and is scoped to the captured process boot.
+    pub(crate) async fn feedback_settled(&self,controller:Uuid,generation:TaskGeneration,lease:crate::feedback::RuleLease)->Result<bool,WriteStatus>{
+        let (reply,receive)=oneshot::channel();
+        self.sender.try_send(Message::FeedbackSettled(controller,generation,lease,reply)).map_err(|_|WriteStatus::ResourceBusy)?;
+        receive.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?
+    }
+    pub async fn scene_history(
+        &self, controller: Uuid, generation: TaskGeneration,
+        query: homesense_storage::scene_run::Query,
+    ) -> Result<Option<homesense_storage::scene_run::Page>, WriteStatus> {
+        query.validate().map_err(|_|WriteStatus::InvalidValueInRequest)?;
+        let (reply,receive)=oneshot::channel();
+        self.sender.try_send(Message::SceneQuery(controller,generation,query,reply)).map_err(|_|WriteStatus::ResourceBusy)?;
+        receive.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?
+    }
+    pub(crate) async fn scene_update(&self, controller: Uuid, generation: TaskGeneration, update: SceneUpdate) -> Result<u64, WriteStatus> {
+        let (reply,receive)=oneshot::channel();
+        self.sender.try_send(Message::SceneUpdate(controller,generation,update,reply)).map_err(|_|WriteStatus::ResourceBusy)?;
+        receive.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?
+    }
+    pub(crate) async fn record_rule_outcome(
+        &self,
+        controller: Uuid,
+        generation: TaskGeneration,
+        correlation: u128,
+        error: Option<String>,
+    ) -> Result<(), WriteStatus> {
+        if correlation == 0 || error.as_ref().is_some_and(|e| e.len() > 8192) {
+            return Err(WriteStatus::InvalidValueInRequest);
+        }
+        let (reply, receive) = oneshot::channel();
+        self.sender
+            .try_send(Message::RuleOutcome(
+                controller,
+                generation,
+                correlation,
+                error,
+                reply,
+            ))
+            .map_err(|_| WriteStatus::ResourceBusy)?;
+        receive
+            .await
+            .map_err(|_| WriteStatus::ServiceCommunicationFailure)?
+    }
+    pub async fn rule_chain(
+        &self,
+        controller: Uuid,
+        generation: TaskGeneration,
+        correlation: u128,
+        after: u64,
+        limit: usize,
+    ) -> Result<homesense_storage::rule_audit::Page, WriteStatus> {
+        if correlation == 0 || after > i64::MAX as u64 || !(1..=64).contains(&limit) {
+            return Err(WriteStatus::InvalidValueInRequest);
+        }
+        let (reply, receive) = oneshot::channel();
+        self.sender
+            .try_send(Message::RuleChain(
+                controller,
+                generation,
+                correlation,
+                after,
+                limit,
+                reply,
+            ))
+            .map_err(|_| WriteStatus::ResourceBusy)?;
+        receive
+            .await
+            .map_err(|_| WriteStatus::ServiceCommunicationFailure)?
+    }
+    pub(crate) async fn command_statuses(
+        &self,
+        controller: Uuid,
+        generation: TaskGeneration,
+        ids: Vec<u64>,
+    ) -> Result<Vec<Status>, WriteStatus> {
+        if ids.is_empty() || ids.len() > 128 {
+            return Err(WriteStatus::InvalidValueInRequest);
+        }
+        let (reply, receive) = oneshot::channel();
+        self.sender
+            .try_send(Message::CommandStatuses(controller, generation, ids, reply))
+            .map_err(|_| WriteStatus::ResourceBusy)?;
+        receive
+            .await
+            .map_err(|_| WriteStatus::ServiceCommunicationFailure)?
+    }
+    pub async fn calendar_watermark(
+        &self,
+        controller: Uuid,
+        generation: TaskGeneration,
+        update: Option<homesense_storage::calendar::Checkpoint>,
+    ) -> Result<Option<i64>, WriteStatus> {
+        let (reply, receive) = oneshot::channel();
+        self.sender
+            .try_send(Message::Calendar(controller, generation, update, reply))
+            .map_err(|_| WriteStatus::ResourceBusy)?;
+        receive
+            .await
+            .map_err(|_| WriteStatus::ServiceCommunicationFailure)?
+    }
+    pub async fn variable_snapshot(
+        &self,
+        controller: Uuid,
+        generation: TaskGeneration,
+        names: Vec<String>,
+    ) -> Result<BTreeMap<String, homesense_storage::variables::Stored>, WriteStatus> {
+        if names.len() > 1024 || names.iter().any(|n| n.is_empty() || n.len() > 256) {
+            return Err(WriteStatus::InvalidValueInRequest);
+        }
+        let (reply, receive) = oneshot::channel();
+        self.sender
+            .try_send(Message::VariableSnapshot(
+                controller, generation, names, reply,
+            ))
+            .map_err(|_| WriteStatus::ResourceBusy)?;
+        receive
+            .await
+            .map_err(|_| WriteStatus::ServiceCommunicationFailure)?
+    }
+    pub(crate) async fn manual_fence(&self) -> Result<u64, WriteStatus> {
+        let (reply, receive) = oneshot::channel();
+        self.sender
+            .try_send(Message::ManualFence(reply))
+            .map_err(|_| WriteStatus::ResourceBusy)?;
+        receive
+            .await
+            .map_err(|_| WriteStatus::ServiceCommunicationFailure)
+    }
+    pub(crate) async fn submit_scene(
+        &self,
+        generation: TaskGeneration,
+        batch: Batch,
+        manual_fence: u64,
+    ) -> Result<Vec<u64>, WriteStatus> {
+        self.submit_scene_with_feedback(generation, batch, manual_fence, None)
+            .await
+    }
+    pub(crate) async fn submit_scene_with_feedback(
+        &self,
+        generation: TaskGeneration,
+        batch: Batch,
+        manual_fence: u64,
+        feedback: Option<crate::feedback::RuleLease>,
+    ) -> Result<Vec<u64>, WriteStatus> {
+        self.submit_scoped(
+            Submission::Automation {
+                batch,
+                variables: vec![],
+                manual_fence: Some(manual_fence),
+                feedback: feedback.map(Box::new),
+                audit: None,
+                scene: None,
+            },
+            Some(SubmissionScope::Generation(generation)),
+        )
+        .await
+    }
+    pub(crate) async fn submit_scene_step(
+        &self, generation: TaskGeneration, batch: Batch, manual_fence: u64,
+        scene: homesense_storage::scene_run::StepLink,
+    ) -> Result<Vec<u64>, WriteStatus> {
+        self.submit_scoped(Submission::Automation { batch, variables: vec![], manual_fence: Some(manual_fence), feedback: None, audit: None, scene: Some(scene) }, Some(SubmissionScope::Generation(generation))).await
+    }
+    pub(crate) async fn submit_audited_rule(
+        &self,
+        generation: TaskGeneration,
+        batch: Batch,
+        variables: Vec<homesense_storage::variables::Update>,
+        feedback: Option<crate::feedback::RuleLease>,
+        audit: homesense_storage::rule_audit::Admission,
+    ) -> Result<Vec<u64>, WriteStatus> {
+        self.submit_scoped(
+            Submission::Automation {
+                batch,
+                variables,
+                feedback: feedback.map(Box::new),
+                audit: Some(audit),
+                scene: None,
+                manual_fence: None,
+            },
+            Some(SubmissionScope::Generation(generation)),
+        )
+        .await
+    }
+    pub(crate) async fn submit_feedback_rule(
+        &self,
+        generation: TaskGeneration,
+        batch: Batch,
+        variables: Vec<homesense_storage::variables::Update>,
+        feedback: crate::feedback::RuleLease,
+    ) -> Result<Vec<u64>, WriteStatus> {
+        self.submit_scoped(
+            Submission::Automation {
+                batch,
+                variables,
+                manual_fence: None,
+                feedback: Some(Box::new(feedback)),
+                audit: None,
+                scene: None,
+            },
+            Some(SubmissionScope::Generation(generation)),
+        )
+        .await
+    }
+    pub async fn submit_rule_update(
+        &self,
+        generation: TaskGeneration,
+        batch: Batch,
+        variables: Vec<homesense_storage::variables::Update>,
+    ) -> Result<Vec<u64>, WriteStatus> {
+        self.submit_scoped(
+            Submission::Automation {
+                batch,
+                variables,
+                manual_fence: None,
+                feedback: None,
+                audit: None,
+                scene: None,
+            },
+            Some(SubmissionScope::Generation(generation)),
+        )
+        .await
+    }
+    /// Defining a variable is an explicit configuration operation; existing names
+    /// cannot be silently overwritten. A read passes None and leaves storage unchanged.
+    pub async fn initialize_variables(
+        &self,
+        controller: Uuid,
+        generation: TaskGeneration,
+        definitions: BTreeMap<String, homesense_core::rule::Variable>,
+    ) -> Result<(), WriteStatus> {
+        if definitions.len() > 1024
+            || definitions
+                .keys()
+                .any(|n| n.is_empty() || n.len() > 256 || n.chars().any(char::is_control))
+        {
+            return Err(WriteStatus::InvalidValueInRequest);
+        }
+        let (reply, receive) = oneshot::channel();
+        self.sender
+            .try_send(Message::InitializeVariables(
+                controller,
+                generation,
+                definitions,
+                reply,
+            ))
+            .map_err(|_| WriteStatus::ResourceBusy)?;
+        receive
+            .await
+            .map_err(|_| WriteStatus::ServiceCommunicationFailure)?
+    }
+    pub async fn define_temporary_variable(
+        &self,
+        controller: Uuid,
+        generation: TaskGeneration,
+        name: String,
+        kind: homesense_core::rule::ValueType,
+    ) -> Result<(), WriteStatus> {
+        if name.is_empty() || name.len() > 256 || name.chars().any(char::is_control) {
+            return Err(WriteStatus::InvalidValueInRequest);
+        }
+        let (reply, receive) = oneshot::channel();
+        self.sender
+            .try_send(Message::Temporary(
+                controller, generation, name, kind, reply,
+            ))
+            .map_err(|_| WriteStatus::ResourceBusy)?;
+        receive
+            .await
+            .map_err(|_| WriteStatus::ServiceCommunicationFailure)?
+    }
+    pub async fn logical_variable(
+        &self,
+        controller: Uuid,
+        generation: TaskGeneration,
+        name: String,
+        define: Option<homesense_core::rule::ValueType>,
+    ) -> Result<Option<homesense_storage::variables::Stored>, WriteStatus> {
+        if name.len() > 256 {
+            return Err(WriteStatus::InvalidValueInRequest);
+        }
+        let (reply, receive) = oneshot::channel();
+        self.sender
+            .try_send(Message::Variable(
+                controller, generation, name, define, reply,
+            ))
+            .map_err(|_| WriteStatus::ResourceBusy)?;
+        receive
+            .await
+            .map_err(|_| WriteStatus::ServiceCommunicationFailure)?
+    }
     pub async fn study_mode(&self) -> Result<Option<u8>, WriteStatus> {
         let (reply, receive) = oneshot::channel();
         self.sender
@@ -985,7 +1556,7 @@ impl Admission {
             .ok_or(WriteStatus::ServiceCommunicationFailure)?;
         let (reply, receive) = oneshot::channel();
         self.sender
-            .try_send(Message::Submit(submission, generation, deadline, reply))
+            .try_send(Message::Submit(Box::new(submission), generation, deadline, reply))
             .map_err(|_| WriteStatus::ResourceBusy)?;
         receive
             .await
