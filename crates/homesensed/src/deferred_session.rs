@@ -23,6 +23,7 @@ pub struct Session {
     closed: bool,
     planning_failure: bool,
     isolated_failure: bool,
+    retain_for_feedback: bool,
 }
 impl Session {
     pub async fn new(
@@ -62,14 +63,36 @@ impl Session {
             closed: false,
             planning_failure: false,
             isolated_failure: false,
+            retain_for_feedback: false,
         })
     }
-    pub(crate) async fn expire(&mut self, scheduler: &mut SceneScheduler) -> Result<bool, String> {
+    /// Retain the original budget until its original deadline, even when all
+    /// current commands/scenes have settled. No feedback subscription is opened.
+    pub async fn new_for_feedback(
+        admission: Admission, controller: Uuid, scheduler: &SceneScheduler,
+        budget: Budget, duration_ms: u64,
+    ) -> Result<Self, String> {
+        let mut session = Self::new(admission, controller, scheduler, budget, duration_ms).await?;
+        session.retain_for_feedback = true;
+        Ok(session)
+    }
+    pub fn deadline_ms(&self) -> u64 { self.chain.deadline_ms() }
+    pub async fn expire(&mut self, scheduler: &mut SceneScheduler) -> Result<bool, String> {
         if self.closed || self.admission.monotonic_ms() < self.chain.deadline_ms() {
             return Ok(false);
         }
         self.validate(scheduler).await?;
         let mut guard = Guard(self.admission.clone(), false);
+        if self.retain_for_feedback && self.pending.is_empty() {
+            self.closed = true;
+            self.chain.cancel();
+            self.admission.record_rule_outcome(
+                self.controller, self.generation.clone(),
+                self.chain.root().correlation_id(), None,
+            ).await.map_err(|e| format!("feedback retention completion audit: {e:?}"))?;
+            guard.1 = true;
+            return Ok(true);
+        }
         self.planning_failure = true;
         let error = self
             .record_failure("causal deadline exceeded".into(), scheduler)
@@ -172,7 +195,7 @@ impl Session {
             }
             index += 1;
         }
-        self.closed = self.pending.is_empty();
+        self.closed = self.pending.is_empty() && !self.retain_for_feedback;
         if self.closed {
             self.admission
                 .record_rule_outcome(
@@ -238,25 +261,48 @@ impl Session {
         scheduler: &mut SceneScheduler,
         feedback: Option<(&Feedback, u64)>,
     ) -> Result<Vec<Outcome>, String> {
-        if rules.is_empty()
-            || rules.len() > 256
-            || rules
-                .iter()
-                .collect::<std::collections::BTreeSet<_>>()
-                .len()
-                != rules.len()
-        {
-            return Err("invalid causal root rule batch".into());
-        }
+        Self::validate_rules(rules)?;
         self.validate(scheduler).await?;
         if self.started {
             return Err("causal root already started".into());
         }
         self.started = true;
+        let parent = self.chain.root();
+        self.execute_rules(rules, &parent, scheduler, feedback).await
+    }
+    fn validate_rules(rules: &[String]) -> Result<(), String> {
+        if rules.is_empty() || rules.len() > 256
+            || rules.iter().collect::<std::collections::BTreeSet<_>>().len() != rules.len() {
+            return Err("invalid causal rule batch".into());
+        }
+        Ok(())
+    }
+    /// Continue a retained chain using an explicitly inferred parent. Caller
+    /// must match a completed write and persist the inference before invoking.
+    /// This never renews the deadline or constructs a fresh budget.
+    pub async fn resume_inferred(
+        &mut self, rules: &[String], candidate: &homesense_core::feedback_cause::Candidate,
+        scheduler: &mut SceneScheduler, feedback: Option<(&Feedback, u64)>,
+    ) -> Result<Vec<Outcome>, String> {
+        Self::validate_rules(rules)?;
+        self.validate(scheduler).await?;
+        if !self.retain_for_feedback || !self.started || candidate.command_id == 0
+            || candidate.cause.event_id() == 0
+            || candidate.cause.correlation_id() != self.chain.root().correlation_id()
+            || candidate.written_ms > self.admission.monotonic_ms() {
+            return Err("invalid inferred feedback continuation".into());
+        }
+        log::info!("inferred feedback continuation correlation={} parent={} command={}",
+            candidate.cause.correlation_id(), candidate.cause.event_id(), candidate.command_id);
+        self.execute_rules(rules, &candidate.cause, scheduler, feedback).await
+    }
+    async fn execute_rules(
+        &mut self, rules: &[String], parent: &Cause,
+        scheduler: &mut SceneScheduler, feedback: Option<(&Feedback, u64)>,
+    ) -> Result<Vec<Outcome>, String> {
         self.closed = true;
         let mut guard = Guard(self.admission.clone(), false);
         let execution: Result<Vec<Outcome>, String> = async {
-            let parent = self.chain.root();
             let mut roots = Vec::new();
             for rule in rules {
                 let outcome = deferred_rule::execute_classified(
@@ -264,7 +310,7 @@ impl Session {
                     self.controller,
                     rule,
                     &mut self.chain,
-                    &parent,
+                    parent,
                     scheduler,
                     feedback,
                 )
