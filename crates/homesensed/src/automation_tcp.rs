@@ -76,9 +76,19 @@ pub async fn serve_with_publications(
 pub async fn serve_with_write_interval(
     devices: &[u8], rules: &[u8], directory: &Path, duration: Duration,
     coexistence_confirmed: bool, recovery_limit: u8,
-    mut publications: Option<crate::automation_publication::Receiver>,
+    publications: Option<crate::automation_publication::Receiver>,
     write_interval: Duration,
 ) -> Result<(), String> {
+    serve_inner(devices,rules,directory,duration,coexistence_confirmed,recovery_limit,publications,write_interval,None,None).await
+}
+#[allow(clippy::too_many_arguments)]
+pub async fn serve_managed(devices:&[u8],rules:&[u8],directory:&Path,duration:Duration,coexistence_confirmed:bool,recovery_limit:u8,write_interval:Duration,settings:crate::service::WebSettings)->Result<(),String> {
+    if let Some(tls)=&settings.tls {tls.validate_address(settings.address)?;} else if !settings.address.ip().is_loopback() || settings.address.port()==0 {return Err("plaintext management requires loopback".into());}
+    let (publisher,receiver)=crate::automation_publication::channel();
+    serve_inner(devices,rules,directory,duration,coexistence_confirmed,recovery_limit,Some(receiver),write_interval,Some(settings),Some(publisher)).await
+}
+#[allow(clippy::too_many_arguments)]
+async fn serve_inner(devices:&[u8],rules:&[u8],directory:&Path,duration:Duration,coexistence_confirmed:bool,recovery_limit:u8,mut publications:Option<crate::automation_publication::Receiver>,write_interval:Duration,mut management_settings:Option<crate::service::WebSettings>,publisher:Option<crate::automation_publication::Publisher>)->Result<(),String> {
     if !(Duration::from_millis(20)..=Duration::from_secs(1)).contains(&write_interval) {
         return Err("write interval must be 20..1000 ms".into());
     }
@@ -108,8 +118,8 @@ pub async fn serve_with_write_interval(
             .map_err(|e| e.to_string())?;
     }
     drop(store);
-    let controller = Uuid::new_v4();
-    let admission = Admission::open(path, Options {write_interval,..Options::default()}, move |id| id == controller).await?;
+    let controller = if management_settings.is_some(){crate::service::web_controller(directory)?}else{Uuid::new_v4()};
+    let admission = Admission::open(path.clone(), Options {write_interval,..Options::default()}, move |id| id == controller).await?;
     let _guard = Stop(admission.clone());
     let result = async {
         let (_stop, receiver) = tokio::sync::watch::channel(false);
@@ -142,6 +152,7 @@ pub async fn serve_with_write_interval(
         let deadline=tokio::time::Instant::now()+duration;
         let mut recoveries=0;
         let mut prepared_runtime = None;
+        let mut management:Option<crate::management_endpoint::Endpoint>=None;
         loop {
             use crate::{automation_drive::Exit,automation_runtime::StartupPolicy};
             let startup=if recoveries==0 {StartupPolicy::Run} else {StartupPolicy::Suppress};
@@ -151,6 +162,9 @@ pub async fn serve_with_write_interval(
                 Some(runtime) => runtime,
                 None => AutomationRuntime::load_with_startup(admission.clone(),controller,wall_ms()?,1000,64,Default::default(),startup).await?,
             };
+            if let Some(settings)=management_settings.take() {
+                management=Some(crate::management_endpoint::Endpoint::start(settings,directory,&admission,controller,&runtime,publisher.clone().ok_or("management publisher missing")?).await?);
+            } else if let Some(endpoint)=&management {endpoint.install(&admission,controller,&runtime).await?;}
             let outcome={
                 let (ready,mut started)=tokio::sync::oneshot::channel();
                 let mut running=false;
@@ -159,6 +173,10 @@ pub async fn serve_with_write_interval(
                 loop {
                     tokio::select! {
                         result=&mut drive=>break result,
+                        result=async {match management.as_mut(){Some(endpoint)=>endpoint.finished().await,None=>std::future::pending().await}}=>{
+                            let _=runtime_stop.send(true);let cleanup=drive.await;
+                            break cleanup.and_then(|_|Err(result.err().unwrap_or_else(||"management listener ended".into())));
+                        },
                         _=tokio::time::sleep_until(deadline)=>{let _=runtime_stop.send(true);break drive.await},
                         result=&mut started, if !running => {if result.is_err() {break drive.await;} running=true;},
                         request=async {
@@ -173,7 +191,25 @@ pub async fn serve_with_write_interval(
                                 Err(error)=>{request.complete(Err(error));continue;}
                             };
                             if request.abandoned() {request.complete(Err("publication abandoned before barrier".into()));continue;}
+                            if management.is_some() {
+                                let document=crate::configuration_publish::validate_automation(&candidate,request.rules(),ExecutionContext::Live).map_err(|e|e.to_string())?;
+                                if document.timed_scenes.values().filter(|s|s.enabled && s.review_evidence.as_ref().is_some_and(|v|!v.trim().is_empty())).count()>64 {request.complete(Err("management scene capacity exceeded".into()));continue;}
+                            }
+                            let previous=match &management {Some(endpoint)=>endpoint.pause()?,None=>None};
+                            let source=path.clone();let expected=request.expected_revision();
+                            let backup=tokio::task::spawn_blocking(move || {
+                                let folder=source.parent().ok_or("database parent missing")?.join("publication-backups");
+                                let mut builder=std::fs::DirBuilder::new();builder.recursive(true);
+                                #[cfg(unix)]{use std::os::unix::fs::DirBuilderExt;builder.mode(0o700);}
+                                builder.create(&folder).map_err(|e|e.to_string())?;
+                                homesense_storage::backup::create(&source,&folder.join(format!("before-{expected}-{}.sqlite",Uuid::new_v4())),Duration::from_secs(10))
+                            }).await.map_err(|e|e.to_string()).and_then(|v|v);
+                            if backup.is_err() || request.abandoned() {
+                                if let Some(endpoint)=&management {endpoint.restore(previous)?;}
+                                request.complete(Err("backup failed or publication abandoned".into()));continue;
+                            }
                             if let Err(error)=admission.begin_automation_publication(request.devices().to_vec(),request.rules().to_vec(),request.expected_revision(),Duration::from_secs(3)).await {
+                                if let Some(endpoint)=&management {endpoint.restore(previous)?;}
                                 request.complete(Err(format!("publication rejected: {error:?}")));continue;
                             }
                             pending=Some((request,candidate));
@@ -183,6 +219,7 @@ pub async fn serve_with_write_interval(
                     }
                 }
             };
+            if let Some(endpoint)=&management {endpoint.pause()?;}
             drop(runtime);
             let outcome=match outcome {
                 Ok(outcome)=>outcome,
@@ -222,6 +259,7 @@ pub async fn serve_with_write_interval(
                             epoch=next;
                             endpoints=candidate.gateways().iter().map(|(id,g)|(id.clone(),g.endpoint)).collect();
                             config=candidate;
+                            if let Some(endpoint)=&management {endpoint.install(&admission,controller,&runtime).await?;}
                             prepared_runtime=Some(runtime);
                             request.complete(Ok(revision));
                         }

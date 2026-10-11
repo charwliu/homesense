@@ -12,7 +12,8 @@ pub async fn serve(
     address: SocketAddr,
     stop: tokio::sync::watch::Receiver<bool>,
 ) -> Result<(), String> {serve_with_tls(api,address,stop,None).await}
-pub async fn serve_with_tls(api:Arc<Api>,address:SocketAddr,mut stop:tokio::sync::watch::Receiver<bool>,tls:Option<crate::web_tls::Settings>)->Result<(),String> {
+pub async fn serve_with_tls(api:Arc<Api>,address:SocketAddr,stop:tokio::sync::watch::Receiver<bool>,tls:Option<crate::web_tls::Settings>)->Result<(),String> {serve_ready(api,address,stop,tls,None).await}
+pub(crate) async fn serve_ready(api:Arc<Api>,address:SocketAddr,mut stop:tokio::sync::watch::Receiver<bool>,tls:Option<crate::web_tls::Settings>,ready:Option<tokio::sync::oneshot::Sender<()>>)->Result<(),String> {
     if let Some(tls)=&tls {tls.validate_address(address)?;if api.origin!=tls.origin{return Err("TLS origin mismatch".into());}}
 
     if (tls.is_none() && (!address.ip().is_loopback() || api.origin != format!("http://{address}")))
@@ -24,6 +25,7 @@ pub async fn serve_with_tls(api:Arc<Api>,address:SocketAddr,mut stop:tokio::sync
     let listener = tokio::net::TcpListener::bind(address)
         .await
         .map_err(|e| e.to_string())?;
+    if let Some(ready)=ready {let _=ready.send(());}
     let event_permits=Arc::new(tokio::sync::Semaphore::new(16));
     let permits = Arc::new(tokio::sync::Semaphore::new(32));
     let mut tasks = tokio::task::JoinSet::new();

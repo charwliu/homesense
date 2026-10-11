@@ -355,7 +355,8 @@ pub async fn serve_automation_simulation_with_publication(
     serve_automation_simulation_options(devices,rules,directory,duration,scene,publication,None,None).await
 }
 /// Explicit local-only management simulation; credentials are supplied out of band.
-pub struct WebSimulation { pub address:std::net::SocketAddr, pub secret:String, pub administrator:bool, pub tls:Option<crate::web_tls::Settings> }
+pub struct WebSettings { pub address:std::net::SocketAddr, pub secret:String, pub administrator:bool, pub tls:Option<crate::web_tls::Settings> }
+pub type WebSimulation = WebSettings;
 pub async fn serve_web_simulation(devices:&[u8],rules:&[u8],directory:&Path,duration:Duration,web:WebSimulation)->Result<(),String> {
     if let Some(tls)=&web.tls {tls.validate_address(web.address)?;}
     if (web.tls.is_none() && !web.address.ip().is_loopback()) || web.address.port()==0 {return Err("Web simulation requires a loopback address and nonzero port".into());}
@@ -572,7 +573,7 @@ pub(crate) fn wall_ms() -> Result<i64, String> {
     .map_err(error)
 }
 
-fn web_controller(directory:&Path)->Result<Uuid,String> {
+pub(crate) fn web_controller(directory:&Path)->Result<Uuid,String> {
     use std::io::Write;
     let path=directory.join("web-controller-id");
     if !path.exists() && directory.join("web-receipts.sqlite").exists() {return Err("Web identity missing beside existing receipts; refusing identity replacement".into());}
