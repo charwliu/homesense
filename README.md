@@ -397,3 +397,5 @@ Web 模拟管理入口：`homesensed serve-web-simulation config/simulation.json
 发布前备份：停机 `publish-config`／`publish-automation` 现在先通过 SQLite online backup 保存 `publication-backups/before-版本-UUID.sqlite`，成功后才恢复旧命令和切换版本。快照包含已提交 WAL、排除未提交事务，0600 创建且拒绝覆盖；失败保持活动配置不变。备份专项 1、停机发布 2、自动化服务 5 项通过。运行中 Web 发布仍待接线，备份保留策略尚未自动化。
 
 Web 模拟激活：管理员先保存草稿并预览，再点击“激活已预览草稿”。`POST /api/v1/config/activations/{draft_id}` 使用 `request_id` 和预览的 `boot`，先保存持久回执，再经一致性备份、原发布屏障、旧运行取消和新反馈同步恢复管理入口。备份失败恢复旧入口；进入屏障后的失败关闭控制并保留不确定结果，不自动重试。重复请求在新版本和进程重启后仍返回原回执。`tools/verify_web_publication.py BINARY` 验证完整 HTTP 发布及重启；恢复进程仍要求 CLI 提供与已发布数据库完全一致的两份文档。当前仅模拟入口，真实 TCP/HAP 联合服务、版本导出与备份保留策略继续实现。
+
+Web 事件恢复：`GET /api/v1/events` 提供已鉴权 WebSocket，首帧发送 `{"cursor":null}` 或上次游标。返回合并后的设备状态及场景状态；游标包含 boot、配置、连接代际和权限范围，缓存缺口或范围变化要求完整快照，绝不重放动作。持续检查会话／令牌，注销后断开；最多 16 条流，每条最高 2 Hz、不积压发送队列，慢消费者超时关闭。页面使用内存游标退避重连。状态恢复及 Web 5 项、真实回环 WebSocket 1 项通过；尚需 LAN TLS、浏览器视觉验收及真实服务联合装配。
