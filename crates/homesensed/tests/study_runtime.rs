@@ -1241,6 +1241,14 @@ async fn device_override_cancels_future_actions_even_after_prior_output_complete
     assert_eq!(sql.query_row("SELECT reason FROM scene_cancellation WHERE run_id=?1",[scene.audit_id()],|r|r.get::<_,String>(0)).unwrap(),"manual_override");
     assert_eq!(scene.cancel_device(&device).await.unwrap(),0);
     assert_eq!(sql.query_row("SELECT count(*) FROM scene_cancellation WHERE run_id=?1",[scene.audit_id()],|r|r.get::<_,i64>(0)).unwrap(),1);
+    let query=homesense_storage::scene_run::Query::Cancellations{boot:a.boot_id().into(),run:scene.audit_id().into(),after:0,limit:1};
+    let generation=a.task_generation().await.unwrap();
+    assert!(a.scene_history(Uuid::new_v4(),generation.clone(),query.clone()).await.is_err());
+    let page=a.scene_history(id,generation,query).await.unwrap().unwrap();
+    assert_eq!(page.cancellations.len(),1);
+    assert_eq!(page.cancellations[0].cancellation.reason,homesense_storage::scene_run::CancellationReason::ManualOverride);
+    assert_eq!(page.cancellations[0].cancellation.device,device);
+
 
     scene.poll(100).await.unwrap().unwrap();
     let ticket = a.dispatch().await.unwrap().unwrap();
