@@ -53,6 +53,14 @@ enum SubmissionScope {
     Generation(TaskGeneration),
     Configuration(u64),
 }
+/// Trusted in-process acceptance payload. It reserves durable pending receipts;
+/// the runtime must reserve capacity beforehand and install timelines afterward.
+pub struct DeferredRule {
+    pub batch: Batch,
+    pub variables: Vec<homesense_storage::variables::Update>,
+    pub audit: homesense_storage::rule_audit::Admission,
+    pub starts: Vec<homesense_storage::scene_run::Start>,
+}
 enum Submission {
     Automation {
         batch: Batch,
@@ -61,6 +69,7 @@ enum Submission {
         feedback: Option<Box<crate::feedback::RuleLease>>,
         audit: Option<homesense_storage::rule_audit::Admission>,
         scene: Option<homesense_storage::scene_run::StepLink>,
+        starts: Vec<homesense_storage::scene_run::Start>,
     },
     Study {
         batch: Batch,
@@ -852,21 +861,29 @@ impl Admission {
                                 }) {
                                     return Err(WriteStatus::ServiceCommunicationFailure);
                                 }
-                                let (submission, study, automation, variables, feedback, audit, scene) = match *submission {
-                                    Submission::Automation { batch, variables, manual_fence, feedback, audit, scene } => {
+                                let (submission, study, automation, variables, feedback, audit, scene, starts) = match *submission {
+                                    Submission::Automation { batch, variables, manual_fence, feedback, audit, scene, starts } => {
                                         if manual_fence.is_some_and(|fence|batch.intents.iter().any(|i|manual_versions.get(&i.device).is_some_and(|version|*version>=fence))) {
                                             return Err(WriteStatus::InvalidValueInRequest);
                                         }
                                         if !batch.subscriptions.is_empty() || (batch.intents.is_empty() && variables.is_empty() && audit.is_none()) || variables.len()>1024 || variables.iter().any(|v|v.revision!=configuration.revision()) { return Err(WriteStatus::InvalidValueInRequest); }
-                                        (Submission::Lights(batch), None, true, variables, feedback, audit, scene)
+                                        (Submission::Lights(batch), None, true, variables, feedback, audit, scene, starts)
                                     },
                                     Submission::Study { batch, expected_mode, next_mode } => {
                                         if batch.intents.iter().any(|i| !["control4:210","control4:278","control4:308","control4:336","control4:63:key:1","control4:63:key:3","control4:63:key:5"].contains(&i.device.as_str())) || batch.intents.is_empty() || batch.intents.len()>16 || !batch.subscriptions.is_empty() {return Err(WriteStatus::InvalidValueInRequest);}
-                                        (Submission::Lights(batch), Some((expected_mode,next_mode)), true, vec![], None, None, None)
+                                        (Submission::Lights(batch), Some((expected_mode,next_mode)), true, vec![], None, None, None, vec![])
                                     },
-                                    other => (other,None,false,vec![],None,None,None),
+                                    other => (other,None,false,vec![],None,None,None,vec![]),
                                 };
                                 if audit.as_ref().is_some_and(|a|a.revision!=configuration.revision()){return Err(WriteStatus::InvalidValueInRequest);}
+                                if !starts.is_empty() {
+                                    if starts.len()>64 || audit.is_none() || scene.is_some() {return Err(WriteStatus::InvalidValueInRequest);}
+                                    let bundle=store.active_bundle(options.context).map_err(|_|WriteStatus::ServiceCommunicationFailure)?.ok_or(WriteStatus::ServiceCommunicationFailure)?;
+                                    let document=bundle.automation.ok_or(WriteStatus::InvalidValueInRequest)?;
+                                    for start in &starts {
+                                        if start.revision!=configuration.revision() || !document.timed_scenes.get(&start.definition).is_some_and(|s|s.enabled && s.review_evidence.as_ref().is_some_and(|v|!v.trim().is_empty())) {return Err(WriteStatus::InvalidValueInRequest);}
+                                    }
+                                }
                                 // Prepare in-memory deltas without publishing them. Persistent
                                 // variables and queued commands must commit first.
                                 let mut memory_updates=BTreeMap::new();
@@ -945,7 +962,7 @@ impl Admission {
                                 // Subscription-only requests still require authorization.
                                 if batch.intents.is_empty() {
                                     if !variables.is_empty() || audit.is_some() {
-                                        match store.accept_queue_batch_with_rule_audit(&worker_boot,&[],&[],millis(clock),None,&variables,audit.as_ref()) {
+                                        match store.accept_queue_batch_with_scene_starts(&worker_boot,&[],&[],millis(clock),None,&variables,audit.as_ref(),None,&starts) {
                                             Ok(()) => {},
                                             Err(homesense_storage::Error::Conflict | homesense_storage::Error::InvalidAudit) => return Err(WriteStatus::InvalidValueInRequest),
                                             Err(_) => {
@@ -1004,7 +1021,7 @@ impl Admission {
                                     commands,
                                     now,
                                     |commands, cancelled| {
-                                        store.accept_queue_batch_with_audits(
+                                        store.accept_queue_batch_with_scene_starts(
                                             &worker_boot,
                                             commands,
                                             cancelled,
@@ -1013,6 +1030,7 @@ impl Admission {
                                             &variables,
                                             audit.as_ref(),
                                             scene.as_ref(),
+                                            &starts,
                                         )
                                     },
                                 );
@@ -1353,6 +1371,7 @@ impl Admission {
                 feedback: feedback.map(Box::new),
                 audit: None,
                 scene: None,
+                starts: vec![],
             },
             Some(SubmissionScope::Generation(generation)),
         )
@@ -1362,7 +1381,7 @@ impl Admission {
         &self, generation: TaskGeneration, batch: Batch, manual_fence: u64,
         scene: homesense_storage::scene_run::StepLink,
     ) -> Result<Vec<u64>, WriteStatus> {
-        self.submit_scoped(Submission::Automation { batch, variables: vec![], manual_fence: Some(manual_fence), feedback: None, audit: None, scene: Some(scene) }, Some(SubmissionScope::Generation(generation))).await
+        self.submit_scoped(Submission::Automation { batch, variables: vec![], manual_fence: Some(manual_fence), feedback: None, audit: None, scene: Some(scene), starts: vec![] }, Some(SubmissionScope::Generation(generation))).await
     }
     pub(crate) async fn submit_audited_rule(
         &self,
@@ -1379,6 +1398,7 @@ impl Admission {
                 feedback: feedback.map(Box::new),
                 audit: Some(audit),
                 scene: None,
+                starts: vec![],
                 manual_fence: None,
             },
             Some(SubmissionScope::Generation(generation)),
@@ -1400,10 +1420,16 @@ impl Admission {
                 feedback: Some(Box::new(feedback)),
                 audit: None,
                 scene: None,
+                starts: vec![],
             },
             Some(SubmissionScope::Generation(generation)),
         )
         .await
+    }
+    /// Atomically accept variable changes, immediate output and delayed receipts.
+    /// No delayed output is scheduled by this call. It is not a network endpoint.
+    pub async fn submit_deferred_rule(&self,generation:TaskGeneration,rule:DeferredRule)->Result<Vec<u64>,WriteStatus> {
+        self.submit_scoped(Submission::Automation{batch:rule.batch,variables:rule.variables,audit:Some(rule.audit),starts:rule.starts,feedback:None,manual_fence:None,scene:None},Some(SubmissionScope::Generation(generation))).await
     }
     pub async fn submit_rule_update(
         &self,
@@ -1419,6 +1445,7 @@ impl Admission {
                 feedback: None,
                 audit: None,
                 scene: None,
+                starts: vec![],
             },
             Some(SubmissionScope::Generation(generation)),
         )
