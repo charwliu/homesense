@@ -68,3 +68,22 @@ fn validated_drafts_are_immutable_private_and_survive_restart() {
     drop(store);
     std::fs::remove_dir_all(root).unwrap();
 }
+
+#[test]
+fn publication_preview_distinguishes_names_from_connection_changes() {
+    let mut source: serde_json::Value =
+        serde_json::from_slice(include_bytes!("../../../config/simulation.json")).unwrap();
+    let parse = |value: &serde_json::Value| {
+        homesense_config::Configuration::parse(
+            &serde_json::to_vec(value).unwrap(),
+            ExecutionContext::Simulation,
+        )
+        .unwrap()
+    };
+    let old = parse(&source);
+    source["revision"] = 2.into();
+    source["devices"][0]["name"] = "Renamed".into();
+    assert!(!homesensed::configuration_preview::connection_rebuild_required(&old, &parse(&source)));
+    source["gateways"][0]["endpoint"] = "127.0.0.1:50008".into();
+    assert!(homesensed::configuration_preview::connection_rebuild_required(&old, &parse(&source)));
+}

@@ -91,3 +91,5 @@ pub mod unified_hap;
 pub mod management_devices;
 
 pub mod web_drafts;
+
+pub mod configuration_preview;
