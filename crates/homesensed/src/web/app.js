@@ -76,11 +76,18 @@ function renderDevices() {
     const send = async command => {
       try {
         const result = await request('/api/v1/device-commands', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({device:device.id, request_id:crypto.randomUUID(), command})});
-        status.textContent = result.outcome === 'accepted' ? '控制已接受，等待设备反馈。' : '结果未知，请核对设备；不要重复点击。';
+        status.textContent = result.outcome === 'accepted' ? (device.kind==='Motor'?'动作已接受；请观察实际移动和停止，位置仍未知。':'控制已接受，等待设备反馈。') : '结果未知，请核对设备；不要重复点击。';
         await refreshDevices();
       } catch(error) {status.textContent = `${error.message}；未自动重试。`;}
     };
-    for (const on of [true,false]) {
+    if(device.kind==='Motor') {
+      info.textContent='位置未知 · '+(device.motor_calibrated?'方向和停止已校准':'尚未校准');
+      for(const [action,label] of [['open','打开'],['close','关闭'],['stop','停止']]) {
+        const button=document.createElement('button');button.textContent=label;button.disabled=!device.can_control;
+        button.onclick=async()=>{button.disabled=true;await send({action});};row.append(button);
+      }
+    }
+    if(device.kind==='Switch'||device.kind==='Dimmer') for (const on of [true,false]) {
       const button=document.createElement('button'); button.textContent=on?'开':'关'; button.disabled=!device.can_control;
       button.onclick=async()=>{button.disabled=true;await send({action:'power',on});}; row.append(button);
     }
