@@ -5844,7 +5844,7 @@ async fn rejected_fade_snapshot_does_not_disable_independent_manual_control() {
 async fn combined_fade_reserves_expanded_frames_in_group_and_scheduler() {
     use homesensed::{fade_group::{FadeGroup,Limits,Request},feedback::Feedback,software_fade::SoftwareFade,scene_scheduler::SceneScheduler,transport_owner::GatewayRead};
     use homesense_core::{DeviceId,Percent,Command,LevelTransition,scene::Step};
-    let devices=br#"{"schema_version":1,"revision":1,"gateways":[{"id":"bus","endpoint":"127.0.0.1:50007","modules":[{"address":"12","profile":"ad8_din_rs485_v2_2_1","verification":{"status":"simulated"}},{"address":"03","profile":"r8i8_din_pro_v2_7_7","verification":{"status":"simulated"}}]}],"devices":[{"id":"light","name":"Light","gateway":"bus","address":"12","channel":4,"enabled":true,"default_on_level":100,"supply_relay":"relay"},{"id":"relay","name":"Relay","gateway":"bus","address":"03","channel":4,"enabled":true}]}"#;
+    let devices=br#"{"schema_version":1,"revision":1,"gateways":[{"id":"bus","endpoint":"127.0.0.1:50007","modules":[{"address":"12","profile":"gt_d8_rl_v2_2_6_2","verification":{"status":"simulated"}},{"address":"03","profile":"r8i8_din_pro_v2_7_7","verification":{"status":"simulated"}}]}],"devices":[{"id":"light","name":"Light","gateway":"bus","address":"12","channel":4,"enabled":true,"default_on_level":100,"supply_relay":"relay"},{"id":"relay","name":"Relay","gateway":"bus","address":"03","channel":4,"enabled":true}]}"#;
     let db=Db(std::env::temp_dir().join(format!("fade-expanded-{}.sqlite",Uuid::new_v4())));
     Store::open(&db.0).unwrap().publish_configuration(None,devices,ExecutionContext::Simulation,&[]).unwrap();
     let controller=Uuid::new_v4();let a=actor(&db,controller).await;
@@ -5863,8 +5863,33 @@ async fn combined_fade_reserves_expanded_frames_in_group_and_scheduler() {
     assert!(a.task_generation().await.is_ok());
     // At 100 ms, two commands per sample fit the 20-command/s allocation.
     group.start(device.clone(),Request{interval_ms:100,..request},&feedback,2000).await.unwrap();
+    tokio::time::sleep(std::time::Duration::from_millis(110)).await;
+    group.tick().await.unwrap();
+    let first=a.dispatch().await.unwrap().unwrap();
+    assert!(matches!(first.command.command,Command::SetLevel{transition:LevelTransition::Immediate,..}));
+    a.finish_write(first.command.id,true).await.unwrap();
+    let second=a.dispatch().await.unwrap().unwrap();
+    assert_eq!(second.command.command,Command::Switch(true));
+    a.finish_write(second.command.id,true).await.unwrap();
     group.cancel(&device).await.unwrap();
     scheduler.cancel(run).await.unwrap();
+    assert!(a.dispatch().await.unwrap().is_none());
+    a.shutdown().await.unwrap();
+}
+
+#[tokio::test]
+async fn ad8_software_fade_rejects_before_output_without_disabling_admission() {
+    let db=Db(std::env::temp_dir().join(format!("ad8-fade-{}.sqlite",Uuid::new_v4())));
+    let mut data:hap::serde_json::Value=hap::serde_json::from_slice(include_bytes!("../../../config/simulation.json")).unwrap();
+    data["gateways"][0]["modules"][0]["profile"]="ad8_din_rs485_v2_2_1".into();
+    let bytes=hap::serde_json::to_vec(&data).unwrap();
+    Store::open(&db.0).unwrap().publish_configuration(None,&bytes,ExecutionContext::Simulation,&[]).unwrap();
+    let controller=Uuid::new_v4();let a=actor(&db,controller).await;
+    let config=homesense_config::Configuration::parse(&bytes,ExecutionContext::Simulation).unwrap();
+    let feedback=homesensed::feedback::Feedback::new(&config,ExecutionContext::Simulation,Uuid::parse_str(a.boot_id()).unwrap().as_u128(),1).unwrap();
+    let result=homesensed::software_fade::SoftwareFade::start(a.clone(),controller,homesense_core::DeviceId::new("simulation:light").unwrap(),homesense_core::Percent::new(50).unwrap(),300,100,100,3,&feedback,2000).await;
+    assert!(matches!(result,Err(ref e) if e.contains("AD8")));
+    assert!(a.task_generation().await.is_ok());
     assert!(a.dispatch().await.unwrap().is_none());
     a.shutdown().await.unwrap();
 }
