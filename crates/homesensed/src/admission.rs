@@ -54,6 +54,11 @@ enum SubmissionScope {
     Configuration(u64),
 }
 enum Submission {
+    Study {
+        batch: Batch,
+        expected_mode: Option<u8>,
+        next_mode: u8,
+    },
     Lights(Batch),
     PanelLed {
         controller: Uuid,
@@ -72,6 +77,13 @@ struct PendingPublication {
     cancellations: Vec<homesense_core::queue::Cancellation>,
 }
 enum Message {
+    StudyMode(oneshot::Sender<Result<Option<u8>, WriteStatus>>),
+    CancelRun(
+        Uuid,
+        TaskGeneration,
+        u64,
+        oneshot::Sender<Result<usize, WriteStatus>>,
+    ),
     BeginPublication(Vec<u8>, u64, u64, oneshot::Sender<Result<(), WriteStatus>>),
     CommitPublication(oneshot::Sender<Result<u64, WriteStatus>>),
     AbortPublication(oneshot::Sender<Result<(), WriteStatus>>),
@@ -237,6 +249,20 @@ impl Admission {
                         Err(mpsc::RecvTimeoutError::Disconnected) => break,
                     };
                     match message {
+                        Message::StudyMode(reply) => {
+                            let result = store.study_mode(configuration.revision()).map_err(|_|WriteStatus::ServiceCommunicationFailure);
+                            let _ = reply.send(result);
+                        }
+                        Message::CancelRun(controller, generation, run, reply) => {
+                            let result = if !authorize(controller) { Err(WriteStatus::InsufficientPrivileges) }
+                            else if failed || generation.boot != worker_boot || generation.epochs != arbiter.policy().epochs { Err(WriteStatus::ServiceCommunicationFailure) }
+                            else {
+                                arbiter.cancel_run_committed(run, |items|store.cancel_queued(&worker_boot,items,millis(clock)))
+                                    .map(|items| { for item in &items { principals.remove(&item.command.id); } items.len() })
+                                    .map_err(|_|WriteStatus::ServiceCommunicationFailure)
+                            };
+                            let _ = reply.send(result);
+                        }
                         Message::Wake => {},
                         Message::BeginPublication(document, expected, deadline, reply) => {
                             if reply.is_closed() { continue; }
@@ -562,8 +588,16 @@ impl Admission {
                                 }) {
                                     return Err(WriteStatus::ServiceCommunicationFailure);
                                 }
+                                let (submission, study) = match submission {
+                                    Submission::Study { batch, expected_mode, next_mode } => {
+                                        if batch.intents.iter().any(|i| !["control4:210","control4:278","control4:308","control4:336","control4:63:key:1","control4:63:key:3","control4:63:key:5"].contains(&i.device.as_str())) || batch.intents.is_empty() || batch.intents.len()>16 || !batch.subscriptions.is_empty() {return Err(WriteStatus::InvalidValueInRequest);}
+                                        (Submission::Lights(batch), Some((expected_mode,next_mode)))
+                                    },
+                                    other => (other,None),
+                                };
                                 let mut restore_intents = Vec::new();
                                 let (batch, compiled) = match submission {
+                                    Submission::Study { .. } => unreachable!(),
                                     Submission::Lights(mut batch) => {
                                         if !authorize(batch.controller) { return Err(WriteStatus::InsufficientPrivileges); }
                                         restore_intents = batch.intents.iter().map(|i| (i.device.clone(), i.command)).collect();
@@ -586,7 +620,7 @@ impl Admission {
                                                     }, command });
                                                 }
                                             } else {
-                                                expanded.push(homesense_hap::requests::Intent { device: intent.device, command: crate::light_command::plan(module, intent.command).map_err(|_| WriteStatus::InvalidValueInRequest)? });
+                                                expanded.push(homesense_hap::requests::Intent { device: intent.device, command: if study.is_some() && matches!(intent.command, homesense_core::Command::PanelLed(_)) {intent.command} else {crate::light_command::plan(module, intent.command).map_err(|_| WriteStatus::InvalidValueInRequest)?} });
                                             }
                                         }
                                         batch.intents = expanded;
@@ -637,10 +671,10 @@ impl Admission {
                                             id: next_id + offset as u64,
                                             device_id: intent.device,
                                             command,
-                                            origin: Origin::Hap,
+                                            origin: if study.is_some() { Origin::Rule } else { Origin::Hap },
                                             epochs: arbiter.policy().epochs,
                                             deadline_ms: deadline,
-                                            run_id: None,
+                                            run_id: study.map(|_| next_id),
                                         },
                                         Access {
                                             authorized: true,
@@ -658,11 +692,12 @@ impl Admission {
                                     commands,
                                     now,
                                     |commands, cancelled| {
-                                        store.accept_queue_batch(
+                                        store.accept_queue_batch_with_study(
                                             &worker_boot,
                                             commands,
                                             cancelled,
                                             now,
+                                            study,
                                         )
                                     },
                                 );
@@ -818,6 +853,46 @@ impl Admission {
     }
     pub fn boot_id(&self) -> &str {
         &self.boot
+    }
+    pub async fn study_mode(&self) -> Result<Option<u8>, WriteStatus> {
+        let (reply, receive) = oneshot::channel();
+        self.sender
+            .try_send(Message::StudyMode(reply))
+            .map_err(|_| WriteStatus::ResourceBusy)?;
+        receive
+            .await
+            .map_err(|_| WriteStatus::ServiceCommunicationFailure)?
+    }
+    pub async fn submit_study(
+        &self,
+        generation: TaskGeneration,
+        batch: Batch,
+        expected_mode: Option<u8>,
+        next_mode: u8,
+    ) -> Result<Vec<u64>, WriteStatus> {
+        self.submit_scoped(
+            Submission::Study {
+                batch,
+                expected_mode,
+                next_mode,
+            },
+            Some(SubmissionScope::Generation(generation)),
+        )
+        .await
+    }
+    pub async fn cancel_scene_run(
+        &self,
+        controller: Uuid,
+        generation: TaskGeneration,
+        run: u64,
+    ) -> Result<usize, WriteStatus> {
+        let (reply, receive) = oneshot::channel();
+        self.sender
+            .try_send(Message::CancelRun(controller, generation, run, reply))
+            .map_err(|_| WriteStatus::ResourceBusy)?;
+        receive
+            .await
+            .map_err(|_| WriteStatus::ServiceCommunicationFailure)?
     }
     pub async fn submit(&self, batch: Batch) -> Result<Vec<u64>, WriteStatus> {
         self.submit_request(Submission::Lights(batch)).await

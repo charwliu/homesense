@@ -154,13 +154,27 @@ impl CommandQueue {
                     && old.run_id == request.run_id
                     && old.epochs == current
             });
+        let supersedes_rule = |old: &QueuedCommand| {
+            old.device_id == request.device_id
+                && old.origin == Origin::Rule
+                && old.run_id.is_some()
+                && !old.is_stop()
+                && !request.is_stop()
+                && (matches!(request.origin, Origin::Http | Origin::Hap | Origin::Panel)
+                    || (request.origin == Origin::Rule && request.run_id != old.run_id))
+        };
+        let replaced_rules = self
+            .commands
+            .iter()
+            .filter(|c| c.is_stop() == stop && supersedes_rule(c))
+            .count();
         let used = self.commands.iter().filter(|c| c.is_stop() == stop).count();
         let capacity = if stop {
             self.stop_capacity
         } else {
             self.normal_capacity
         };
-        if used - usize::from(replace.is_some()) >= capacity {
+        if used - usize::from(replace.is_some()) - replaced_rules >= capacity {
             return Err(QueueError::QueueFull);
         }
         let mut cancelled = Vec::new();
@@ -170,6 +184,17 @@ impl CommandQueue {
                 reason: CancelReason::Superseded,
             });
         }
+        self.commands.retain(|old| {
+            if supersedes_rule(old) {
+                cancelled.push(Cancellation {
+                    command: old.clone(),
+                    reason: CancelReason::Superseded,
+                });
+                false
+            } else {
+                true
+            }
+        });
         if stop {
             // A queued UP must not execute after a later STOP and restart the motor.
             self.commands.retain(|old| {
@@ -412,7 +437,7 @@ mod tests {
         let mut a = req(1, "light", level(10), Origin::Rule);
         a.run_id = Some(7);
         q.enqueue(a, 0, EPOCH).unwrap();
-        let mut b = req(2, "light", level(20), Origin::Rule);
+        let mut b = req(2, "other-light", level(20), Origin::Rule);
         b.run_id = Some(8);
         assert!(q.enqueue(b, 0, EPOCH).unwrap().is_empty());
         q.enqueue(

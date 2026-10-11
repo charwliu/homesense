@@ -1,0 +1,22 @@
+{
+  "scope": "study scene runtime execution, cancellation and local variable persistence",
+  "workspace_tests": {
+    "passed": 238,
+    "failed": 0,
+    "ignored": 0,
+    "exit_code": 0,
+    "sha256": "24bbc361094df508505aeebb31e9677f52debdb454418edb4796722e39abbafc"
+  },
+  "focused_tests": 6,
+  "schema_version": 5,
+  "physical_bus_writes": 0,
+  "ea5_changes": false,
+  "automatic_panel_execution": false,
+  "deployed": false,
+  "timing": "explicit ModuleNative policy; exact Control4 ramp duration not claimed",
+  "limitations": [
+    "scene active feedback projection not implemented",
+    "nonzero source delays rejected",
+    "mode is local selection, not EA-5 variable or observed light state"
+  ]
+}

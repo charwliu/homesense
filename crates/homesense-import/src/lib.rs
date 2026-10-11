@@ -324,3 +324,5 @@ fn sha256_hex(bytes: &[u8]) -> String {
 }
 
 pub mod room;
+
+pub mod study;

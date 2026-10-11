@@ -1,0 +1,42 @@
+{
+  "date": "2026-10-11",
+  "host": "nanopc.lab.vixal.xyz",
+  "release": "/users/alarm/apps/homesense/releases/20261011-d1-study",
+  "binary_sha256": "b0fc4d422fda249b1e640148ccdcb674777a08a44718a149b6fbf4d8ed579045",
+  "state_directory": "/users/alarm/apps/homesense/tests/study-scenes-d1",
+  "schema": 5,
+  "automatic_execution": false,
+  "ea5_modified": false,
+  "current_symlink_changed": false,
+  "mode_query_before_each_scene": "C7 candidate single byte 02 (manual LED mode)",
+  "tests": [
+    {
+      "key": 1,
+      "name": "阅读",
+      "mode": 1,
+      "written_commands": 7,
+      "user_confirmed_lights_and_leds": true
+    },
+    {
+      "key": 3,
+      "name": "日常",
+      "mode": 2,
+      "written_commands": 7,
+      "user_confirmed_lights_and_leds": true
+    },
+    {
+      "key": 5,
+      "name": "节能",
+      "mode": 3,
+      "written_commands": 7,
+      "user_confirmed_lights_and_leds": true
+    }
+  ],
+  "final_scene": "节能",
+  "limitations": [
+    "Physical observations confirmed by user; 17% not photometrically measured.",
+    "Manual activation only; panel event subscriptions remain off.",
+    "No field cancellation or repeated-key deactivation test in this round.",
+    "Command ids are scoped by boot; each one-shot invocation used a new boot."
+  ]
+}

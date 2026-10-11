@@ -1,0 +1,342 @@
+{
+  "source_sha256": "ff8c298fd2c8efa840d572d3ca544860ffbbc4e7176f09e93efdc5464b9ce6ec",
+  "keypad_address": "41",
+  "variable_id": "411",
+  "automatic_execution": false,
+  "deactivate_policy": "all_scene_members_off",
+  "deactivate_evidence": "User confirmed repeated scene key turns off all study scene lights",
+  "rules": [
+    {
+      "key": 1,
+      "mode": 1,
+      "then_actions": [
+        {
+          "kind": "set_mode",
+          "value": 1,
+          "source": "event:63:2/code:14"
+        },
+        {
+          "kind": "scene",
+          "scene_id": "10",
+          "activate": true,
+          "source": "event:63:2/code:3"
+        },
+        {
+          "kind": "led",
+          "key": 1,
+          "on": true,
+          "source": "event:63:2/code:7"
+        },
+        {
+          "kind": "led",
+          "key": 5,
+          "on": false,
+          "source": "event:63:2/code:11"
+        },
+        {
+          "kind": "led",
+          "key": 3,
+          "on": false,
+          "source": "event:63:2/code:10"
+        }
+      ],
+      "else_actions": [
+        {
+          "kind": "set_mode",
+          "value": 0,
+          "source": "event:63:2/code:15"
+        },
+        {
+          "kind": "scene",
+          "scene_id": "10",
+          "activate": false,
+          "source": "event:63:2/code:5"
+        },
+        {
+          "kind": "led",
+          "key": 1,
+          "on": false,
+          "source": "event:63:2/code:6"
+        }
+      ]
+    },
+    {
+      "key": 3,
+      "mode": 2,
+      "then_actions": [
+        {
+          "kind": "set_mode",
+          "value": 2,
+          "source": "event:63:6/code:13"
+        },
+        {
+          "kind": "scene",
+          "scene_id": "6",
+          "activate": true,
+          "source": "event:63:6/code:6"
+        },
+        {
+          "kind": "led",
+          "key": 3,
+          "on": true,
+          "source": "event:63:6/code:3"
+        },
+        {
+          "kind": "led",
+          "key": 1,
+          "on": false,
+          "source": "event:63:6/code:8"
+        },
+        {
+          "kind": "led",
+          "key": 5,
+          "on": false,
+          "source": "event:63:6/code:9"
+        }
+      ],
+      "else_actions": [
+        {
+          "kind": "set_mode",
+          "value": 0,
+          "source": "event:63:6/code:14"
+        },
+        {
+          "kind": "scene",
+          "scene_id": "6",
+          "activate": false,
+          "source": "event:63:6/code:7"
+        },
+        {
+          "kind": "led",
+          "key": 3,
+          "on": false,
+          "source": "event:63:6/code:5"
+        }
+      ]
+    },
+    {
+      "key": 5,
+      "mode": 3,
+      "then_actions": [
+        {
+          "kind": "set_mode",
+          "value": 3,
+          "source": "event:63:10/code:10"
+        },
+        {
+          "kind": "led",
+          "key": 5,
+          "on": true,
+          "source": "event:63:10/code:4"
+        },
+        {
+          "kind": "led",
+          "key": 1,
+          "on": false,
+          "source": "event:63:10/code:6"
+        },
+        {
+          "kind": "led",
+          "key": 3,
+          "on": false,
+          "source": "event:63:10/code:7"
+        },
+        {
+          "kind": "scene",
+          "scene_id": "8",
+          "activate": true,
+          "source": "event:63:10/code:8"
+        }
+      ],
+      "else_actions": [
+        {
+          "kind": "set_mode",
+          "value": 0,
+          "source": "event:63:10/code:11"
+        },
+        {
+          "kind": "led",
+          "key": 5,
+          "on": false,
+          "source": "event:63:10/code:5"
+        },
+        {
+          "kind": "scene",
+          "scene_id": "8",
+          "activate": false,
+          "source": "event:63:10/code:9"
+        }
+      ]
+    }
+  ],
+  "scenes": [
+    {
+      "name": "书房-阅读",
+      "scene_id": "10",
+      "members": [
+        {
+          "device_id": "211",
+          "device_name": "主灯 03-4",
+          "track_level": "1",
+          "elements": [
+            {
+              "delay": "0",
+              "rate": "1",
+              "level": "100"
+            }
+          ]
+        },
+        {
+          "device_id": "279",
+          "device_name": "筒灯 07-6",
+          "track_level": "100",
+          "elements": [
+            {
+              "delay": "0",
+              "rate": "0",
+              "level": "0"
+            }
+          ]
+        },
+        {
+          "device_id": "309",
+          "device_name": "筒灯 11-5",
+          "track_level": "100",
+          "elements": [
+            {
+              "delay": "0",
+              "rate": "1000",
+              "level": "0"
+            }
+          ]
+        },
+        {
+          "device_id": "337",
+          "device_name": "主灯 12-4",
+          "track_level": "1",
+          "elements": [
+            {
+              "delay": "0",
+              "rate": "1000",
+              "level": "100"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "书房-日常",
+      "scene_id": "6",
+      "members": [
+        {
+          "device_id": "211",
+          "device_name": "主灯 03-4",
+          "track_level": "1",
+          "elements": [
+            {
+              "delay": "0",
+              "rate": "1",
+              "level": "100"
+            }
+          ]
+        },
+        {
+          "device_id": "279",
+          "device_name": "筒灯 07-6",
+          "track_level": "1",
+          "elements": [
+            {
+              "delay": "0",
+              "rate": "1",
+              "level": "100"
+            }
+          ]
+        },
+        {
+          "device_id": "309",
+          "device_name": "筒灯 11-5",
+          "track_level": "1",
+          "elements": [
+            {
+              "delay": "0",
+              "rate": "1000",
+              "level": "100"
+            }
+          ]
+        },
+        {
+          "device_id": "337",
+          "device_name": "主灯 12-4",
+          "track_level": "1",
+          "elements": [
+            {
+              "delay": "0",
+              "rate": "1000",
+              "level": "100"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "书房-节能",
+      "scene_id": "8",
+      "members": [
+        {
+          "device_id": "211",
+          "device_name": "主灯 03-4",
+          "track_level": "100",
+          "elements": [
+            {
+              "delay": "0",
+              "rate": "0",
+              "level": "0"
+            }
+          ]
+        },
+        {
+          "device_id": "279",
+          "device_name": "筒灯 07-6",
+          "track_level": "1",
+          "elements": [
+            {
+              "delay": "0",
+              "rate": "1",
+              "level": "100"
+            }
+          ]
+        },
+        {
+          "device_id": "309",
+          "device_name": "筒灯 11-5",
+          "track_level": "1",
+          "elements": [
+            {
+              "delay": "0",
+              "rate": "1000",
+              "level": "17"
+            }
+          ]
+        },
+        {
+          "device_id": "337",
+          "device_name": "主灯 12-4",
+          "track_level": "100",
+          "elements": [
+            {
+              "delay": "0",
+              "rate": "1000",
+              "level": "0"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "proxy_to_device": {
+    "211": "control4:210",
+    "279": "control4:278",
+    "309": "control4:308",
+    "337": "control4:336"
+  }
+}

@@ -1,11 +1,13 @@
 [package]
 name = "homesensed"
+default-run = "homesensed"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 publish.workspace = true
 
 [dependencies]
+homesense-import = { path = "../homesense-import" }
 homesense-core.workspace = true
 homesense-config.workspace = true
 homesense-storage.workspace = true

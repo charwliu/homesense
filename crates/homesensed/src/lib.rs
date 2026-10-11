@@ -36,3 +36,7 @@ pub mod panel_led;
 pub mod delayed_actions;
 
 pub mod motor_commission;
+
+pub mod study_runtime;
+
+pub mod study_commission;

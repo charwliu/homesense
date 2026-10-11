@@ -1,0 +1,117 @@
+{
+  "devices": [
+    {
+      "address": "03",
+      "channel": 4,
+      "enabled": true,
+      "gateway": "hopebeauty",
+      "id": "control4:210",
+      "name": "GJ-TECH.CN Switch (v2)"
+    },
+    {
+      "address": "07",
+      "channel": 6,
+      "enabled": true,
+      "gateway": "hopebeauty",
+      "id": "control4:278",
+      "name": "GJ-TECH.CN Switch (v2)"
+    },
+    {
+      "address": "11",
+      "channel": 5,
+      "enabled": true,
+      "gateway": "hopebeauty",
+      "id": "control4:308",
+      "name": "GJ-TECH.CN Dimmer (v2)"
+    },
+    {
+      "address": "12",
+      "channel": 4,
+      "enabled": true,
+      "gateway": "hopebeauty",
+      "id": "control4:336",
+      "name": "GJ-TECH.CN Dimmer (v2)"
+    },
+    {
+      "id": "control4:63:key:1",
+      "name": "Study scene LED 1",
+      "gateway": "hopebeauty",
+      "address": "41",
+      "channel": 1,
+      "enabled": true
+    },
+    {
+      "id": "control4:63:key:3",
+      "name": "Study scene LED 3",
+      "gateway": "hopebeauty",
+      "address": "41",
+      "channel": 3,
+      "enabled": true
+    },
+    {
+      "id": "control4:63:key:5",
+      "name": "Study scene LED 5",
+      "gateway": "hopebeauty",
+      "address": "41",
+      "channel": 5,
+      "enabled": true
+    }
+  ],
+  "gateways": [
+    {
+      "endpoint": "192.168.0.10:50007",
+      "id": "hopebeauty",
+      "modules": [
+        {
+          "address": "03",
+          "profile": "r8i8_din_pro_v2_7_7",
+          "verification": {
+            "status": "verified",
+            "evidence": "User confirmed study module models and A-C field commissioning; see docs evidence. Manual study tests only.",
+            "verified_at_unix_ms": 1791685244160
+          }
+        },
+        {
+          "address": "07",
+          "profile": "r8i8_din_pro_v2_7_7",
+          "verification": {
+            "status": "verified",
+            "evidence": "User confirmed study module models and A-C field commissioning; see docs evidence. Manual study tests only.",
+            "verified_at_unix_ms": 1791685244160
+          }
+        },
+        {
+          "address": "11",
+          "profile": "ad8_din_rs485_v2_2_1",
+          "verification": {
+            "status": "verified",
+            "evidence": "User confirmed study module models and A-C field commissioning; see docs evidence. Manual study tests only.",
+            "verified_at_unix_ms": 1791685244160
+          }
+        },
+        {
+          "address": "12",
+          "profile": "ad8_din_rs485_v2_2_1",
+          "verification": {
+            "status": "verified",
+            "evidence": "User confirmed study module models and A-C field commissioning; see docs evidence. Manual study tests only.",
+            "verified_at_unix_ms": 1791685244160
+          }
+        },
+        {
+          "address": "41",
+          "profile": "ts6_86_rs485_v2_6_5_6key",
+          "verification": {
+            "status": "verified",
+            "evidence": "User confirmed six-key TS6; LED red/green field tested. Fresh C7 manual-mode query required by study-scene.",
+            "verified_at_unix_ms": 1791685244160
+          },
+          "led_mode": "manual"
+        }
+      ]
+    }
+  ],
+  "manual_degraded_enabled": false,
+  "revision": 1,
+  "schema_version": 1
+}
