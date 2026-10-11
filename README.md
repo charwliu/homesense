@@ -83,7 +83,7 @@ cargo run --locked --offline -p homesensed -- serve-simulation config/simulation
 ## 资料
 
 - [完整设计](docs/design.md)：v1.7，系统边界、协议契约、迁移方案及阶段 A–G 计划。
-- [家庭网络架构设计](docs/network-architecture.md)：华为核心、完整端口分配、双固定 /60 IPv6 前缀、RA、源前缀分流及迁移验收方案。
+- [家庭网络架构设计](docs/network-architecture.md)：华为核心、四 VLAN 双栈出口分流、桌面换口切换 WAN、x86 HomeSense 双聚合接入及迁移验收。
 - [A–C 验收跟踪](docs/stages-a-c.md) 与 [逐项证据](docs/evidence/stages-a-c-requirements-20261011.md)：限定验收结论及未关闭问题。
 - [阶段 D 完成审计](docs/stage-d-progress.md)：当前实现、验收缺口和增量验证记录。
 - [书房场景迁移](docs/stage-d-study.md)：源规则、离线回放及手动场景现场证据。
