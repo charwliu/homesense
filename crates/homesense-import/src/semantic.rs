@@ -250,11 +250,47 @@ fn action(
     };
     Ok(Action::Command { device, command })
 }
+/// Generated definitions remain disabled until device and source semantics review.
+pub struct CompiledEvent {
+    pub actions: Vec<Node>,
+    pub timed_scenes: BTreeMap<String, serde_json::Value>,
+}
+struct FadeContext {
+    definitions: BTreeMap<String, serde_json::Value>,
+    interval_ms: u64,
+    lateness_ms: u64,
+}
+fn timed_fade(n:Xml<'_, '_>,target:&str,bindings:&BTreeMap<String,Binding>,source:&str,context:&mut FadeContext)->Result<Action,String> {
+    let binding=bindings.get(target).ok_or("unreviewed fade target")?;
+    if binding.kind!=ModuleKind::Dimmer || n.children().filter(|n|n.is_element()).count()!=2 {return Err("invalid fade command shape or target".into());}
+    let mut values=BTreeMap::new();
+    for param in child(n,"params")?.children().filter(|n|n.is_element()) {
+        if !param.has_tag_name("param") || param.children().filter(|n|n.is_element()).count()!=2 {return Err("invalid fade parameter".into());}
+        let name=text(param,"name")?;
+        let value=child(param,"value")?;
+        if !matches!(name,"TIME"|"LEVEL") || value.attribute("type")!=Some("INTEGER")
+            || value.children().filter(|n|n.is_element()).count()!=1 {return Err("unsupported fade operand".into());}
+        let number=text(value,"static")?.parse::<u64>().map_err(|_|"invalid fade integer")?;
+        if values.insert(name,number).is_some() {return Err("duplicate fade parameter".into());}
+    }
+    if values.len()!=2 {return Err("fade requires TIME and LEVEL".into());}
+    let level=Percent::new(u8::try_from(values["LEVEL"]).map_err(|_|"invalid fade level")?).map_err(|e|e.to_string())?;
+    homesense_config::rule_document::FadeTiming{duration_ms:values["TIME"],interval_ms:context.interval_ms,lateness_ms:context.lateness_ms}.samples().map_err(|e|e.to_string())?;
+    let id=format!("imported-fade:{source}");
+    if id.len()>256 {return Err("generated fade identity too long".into());}
+    let definition=serde_json::json!({"id":id,"enabled":false,"max_lateness_ms":1000,"steps":[{
+        "source":source,"offset_ms":0,"device":binding.device.as_str(),"command":{"kind":"level","value":level.get(),"ramp":false},
+        "fade":{"duration_ms":values["TIME"],"interval_ms":context.interval_ms,"lateness_ms":context.lateness_ms}
+    }]});
+    if context.definitions.insert(id.clone(),definition).is_some() {return Err("duplicate generated fade".into());}
+    Ok(Action::Scene{id,activate:true})
+}
 fn sequence(
     parent: Xml<'_, '_>,
     bindings: &BTreeMap<String, Binding>,
     prefix: &str,
     depth: usize,
+    fades: &mut Option<FadeContext>,
 ) -> Result<Vec<Node>, String> {
     if depth > 64 {
         return Err("program nesting exceeds 64".into());
@@ -311,13 +347,13 @@ fn sequence(
                 if !else_actions.is_empty() {
                     return Err("duplicate Else".into());
                 }
-                *else_actions = sequence(children, bindings, &source, depth + 1)?;
+                *else_actions = sequence(children, bindings, &source, depth + 1, fades)?;
             }
             "2" => result.push(Node {
                 source: source.clone(),
                 action: Action::If {
                     condition: compound_condition(code, bindings, depth)?,
-                    then_actions: sequence(children, bindings, &source, depth + 1)?,
+                    then_actions: sequence(children, bindings, &source, depth + 1, fades)?,
                     else_actions: vec![],
                 },
             }),
@@ -325,20 +361,18 @@ fn sequence(
                 && text(code, "device")? == "0"
                 && !payload.children().any(|n| n.is_element()) =>
             {
-                result.extend(sequence(children, bindings, &source, depth + 1)?)
+                result.extend(sequence(children, bindings, &source, depth + 1, fades)?)
             }
             "1" => {
                 if children.children().any(|n| n.is_element()) {
                     return Err("action with nested executable children".into());
                 }
-                result.push(Node {
-                    source,
-                    action: action(
-                        child(payload, "devicecommand")?,
-                        text(code, "device")?,
-                        bindings,
-                    )?,
-                });
+                let payload=child(payload,"devicecommand")?;
+                let action=if payload.attribute("owneridtype")!=Some("variable")
+                    && text(payload,"command")?=="RAMP_TO_LEVEL" && fades.is_some() {
+                    timed_fade(payload,text(code,"device")?,bindings,&source,fades.as_mut().unwrap())?
+                } else {action(payload,text(code,"device")?,bindings)?};
+                result.push(Node {source,action});
             }
             _ => return Err(format!("{source}: unsupported node type {kind}")),
         }
@@ -346,6 +380,14 @@ fn sequence(
     Ok(result)
 }
 pub fn compile_event(xml: &str, bindings: &BTreeMap<String, Binding>) -> Result<Vec<Node>, String> {
+    compile_event_inner(xml,bindings,None).map(|event|event.actions)
+}
+/// Opt-in conversion returns both AST references and disabled timed definitions.
+/// Callers must retain both; the legacy API still rejects timed fades.
+pub fn compile_event_with_fades(xml:&str,bindings:&BTreeMap<String,Binding>,interval_ms:u64,lateness_ms:u64)->Result<CompiledEvent,String> {
+    compile_event_inner(xml,bindings,Some(FadeContext{definitions:Default::default(),interval_ms,lateness_ms}))
+}
+fn compile_event_inner(xml:&str,bindings:&BTreeMap<String,Binding>,mut fades:Option<FadeContext>)->Result<CompiledEvent,String> {
     if xml.len() > 4 * 1024 * 1024 {
         return Err("event XML too large".into());
     }
@@ -371,7 +413,8 @@ pub fn compile_event(xml: &str, bindings: &BTreeMap<String, Binding>) -> Result<
         text(event, "deviceid")?,
         text(event, "eventid")?
     );
-    sequence(event, bindings, &prefix, 0)
+    let actions=sequence(event, bindings, &prefix, 0, &mut fades)?;
+    Ok(CompiledEvent{actions,timed_scenes:fades.map(|v|v.definitions).unwrap_or_default()})
 }
 
 #[derive(Debug, serde::Serialize)]
