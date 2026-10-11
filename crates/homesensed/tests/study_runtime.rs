@@ -4541,6 +4541,8 @@ async fn deferred_rule_adapter_reserves_before_variables_and_preserves_chain() {
     let rules=br#"{"schema_version":1,"configuration_revision":1,"variables":[{"id":"mode","kind":"integer","lifetime":"persistent"}],"rules":[{"id":"trigger","enabled":true,"review_evidence":"test","source":"test","trigger":{"kind":"startup_synchronized"},"actions":[{"source":"set","action":{"kind":"set","variable":"mode","value":{"kind":"integer","value":1}}},{"source":"call","action":{"kind":"scene","id":"later","activate":true}}]}],"timed_scenes":[{"id":"later","enabled":true,"review_evidence":"test","max_lateness_ms":1000,"steps":[{"source":"step","offset_ms":100,"device":"simulation:light","command":{"kind":"level","value":30,"ramp":false}}]}]}"#;
     let mut document:hap::serde_json::Value=hap::serde_json::from_slice(rules).unwrap();
     document["rules"].as_array_mut().unwrap().push(hap::serde_json::json!({"id":"after","enabled":true,"review_evidence":"test","source":"test","trigger":{"kind":"scene_result","scene":"later"},"actions":[{"source":"done","action":{"kind":"set","variable":"mode","value":{"kind":"integer","value":2}}}]}));
+    document["variables"].as_array_mut().unwrap().push(hap::serde_json::json!({"id":"marker","kind":"integer","lifetime":"persistent"}));
+    document["rules"].as_array_mut().unwrap().push(hap::serde_json::json!({"id":"mode-changed","enabled":true,"review_evidence":"test","source":"test","trigger":{"kind":"variable_changed","variable":"mode"},"actions":[{"source":"copy","action":{"kind":"set","variable":"marker","value":{"kind":"variable","id":"mode"}}}]}));
     let rules=hap::serde_json::to_vec(&document).unwrap();
     Store::open(&db.0).unwrap().publish_automation(None,devices,&rules,ExecutionContext::Simulation,&[]).unwrap();
     let controller=Uuid::new_v4();let a=actor(&db,controller).await;
@@ -4584,7 +4586,12 @@ async fn deferred_rule_adapter_reserves_before_variables_and_preserves_chain() {
     scheduler.retire(result.scene_runs[0]).unwrap();
     tokio::time::sleep(std::time::Duration::from_millis(110)).await;
     let mut session=homesensed::deferred_session::Session::new(a.clone(),controller,&scheduler,Default::default(),60000).await.unwrap();
-    session.start("trigger",&mut scheduler,None).await.unwrap();
+    let started=session.start("trigger",&mut scheduler,None).await.unwrap();
+    assert_eq!(started.len(),2);
+    assert_eq!(started[1].causation_id,started[0].cause.event_id());
+    assert_eq!(started[1].cause.correlation_id(),started[0].cause.correlation_id());
+    assert_eq!(store.logical_variable(1,"marker").unwrap().unwrap().value,Some(homesense_core::rule::Value::Integer(1)));
+    assert_eq!(sql.query_row("SELECT count(*) FROM rule_chain_outcome",[],|r|r.get::<_,i64>(0)).unwrap(),0);
     assert_eq!(session.pending_count(),1);assert!(!session.is_closed());
     assert!(session.resume(&terminal,&mut scheduler,None).await.is_err());
     let next=store.query_scene(1,&homesense_storage::scene_run::Query::Latest{definition:"later".into()}).unwrap().unwrap();
@@ -4593,7 +4600,9 @@ async fn deferred_rule_adapter_reserves_before_variables_and_preserves_chain() {
     let ticket=a.dispatch().await.unwrap().unwrap();a.finish_write(ticket.command.id,true).await.unwrap();
     scheduler.tick(next.record.started_ms+101).await.unwrap();
     let complete=scheduler.take_results().pop().unwrap();
-    assert_eq!(session.resume(&complete,&mut scheduler,None).await.unwrap().len(),1);
+    assert_eq!(session.resume(&complete,&mut scheduler,None).await.unwrap().len(),2);
+    assert_eq!(store.logical_variable(1,"marker").unwrap().unwrap().value,Some(homesense_core::rule::Value::Integer(2)));
+    assert_eq!(sql.query_row("SELECT count(*) FROM rule_chain_outcome WHERE error IS NULL",[],|r|r.get::<_,i64>(0)).unwrap(),1);
     assert_eq!(session.pending_count(),0);assert!(session.is_closed());
     assert!(session.resume(&complete,&mut scheduler,None).await.is_err());
     drop(session);assert!(a.task_generation().await.is_ok());
