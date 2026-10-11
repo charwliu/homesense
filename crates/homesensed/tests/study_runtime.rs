@@ -4905,3 +4905,33 @@ async fn assembly_can_suppress_startup_without_disabling_manual_scenes() {
     assert_eq!(sql.query_row("SELECT value FROM logical_variable WHERE name='booted'",[],|r|r.get::<_,i64>(0)).unwrap(),7);
     assert_eq!(sql.query_row("SELECT count(*) FROM scene_run WHERE definition='manual'",[],|r|r.get::<_,i64>(0)).unwrap(),2);
 }
+
+#[tokio::test]
+async fn explicit_disconnect_handoff_keeps_boot_variables_but_retires_old_runtime() {
+    use homesensed::{automation_runtime::{AutomationRuntime,StartupPolicy},feedback::Feedback,observed_transport::ObservedTransport,transport_owner::TransportOwner};
+    let db=Db(std::env::temp_dir().join(format!("handoff-{}.sqlite",Uuid::new_v4())));
+    let devices=include_bytes!("../../../config/simulation.json");
+    let rules=br#"{"schema_version":1,"configuration_revision":1,"variables":[{"id":"temporary","kind":"integer","lifetime":"temporary"}],"rules":[{"id":"boot","enabled":true,"review_evidence":"test","source":"test","trigger":{"kind":"startup_synchronized"},"actions":[{"source":"set","action":{"kind":"set","variable":"temporary","value":{"kind":"integer","value":7}}}]}]}"#;
+    Store::open(&db.0).unwrap().publish_automation(None,devices,rules,ExecutionContext::Simulation,&[]).unwrap();
+    let controller=Uuid::new_v4();let a=actor(&db,controller).await;
+    let mut runtime=AutomationRuntime::load(a.clone(),controller,1_800_000_000_000,1000,8,Default::default()).await.unwrap();
+    struct Eof;
+    impl std::io::Read for Eof {fn read(&mut self,_:&mut [u8])->std::io::Result<usize>{Ok(0)}}
+    impl std::io::Write for Eof {fn write(&mut self,_:&[u8])->std::io::Result<usize>{panic!("unexpected write")} fn flush(&mut self)->std::io::Result<()>{Ok(())}}
+    let config=homesense_config::Configuration::parse(devices,ExecutionContext::Simulation).unwrap();
+    let feedback=Feedback::new(&config,ExecutionContext::Simulation,Uuid::parse_str(a.boot_id()).unwrap().as_u128(),1).unwrap();
+    let transport=TransportOwner::new(a.clone(),[("simulation".into(),hb_transport::Connection::for_simulation(Eof,1))].into());
+    let mut owner=ObservedTransport::new(transport,feedback);
+    let (_stop,receive)=tokio::sync::watch::channel(false);
+    let outcome=runtime.drive_recoverable(&mut owner,std::time::Duration::from_millis(1),5000,receive,||Ok(1_800_000_000_000)).await.unwrap();
+    assert_eq!(outcome,homesensed::automation_drive::Exit::Disconnected{gateway:"simulation".into()});
+    assert!(runtime.start_rule("boot",None).await.is_err());
+    drop(runtime);
+    // Simulation supervisor supplies the new synchronization boundary explicitly.
+    a.recover_synchronized(2,1).await.unwrap();
+    let generation=a.task_generation().await.unwrap();
+    let value=a.variable_snapshot(controller,generation,vec!["temporary".into()]).await.unwrap();
+    assert_eq!(value["temporary"].value,Some(homesense_core::rule::Value::Integer(7)));
+    let replacement=AutomationRuntime::load_with_startup(a.clone(),controller,1_800_000_000_000,1000,8,Default::default(),StartupPolicy::Suppress).await.unwrap();
+    drop(replacement);a.shutdown().await.unwrap();
+}
