@@ -1,0 +1,11 @@
+Use case: precise-object-edit
+Asset type: HomeSense 知居 smart-home brain hub logo, refined abstract multicolor nodes.
+Edit target: supplied orange house-roof and orange/white brain with three connected nodes: rounded square bulb, hexagon circular arrows, green circle leaf.
+Primary request: Differentiate the THREE node colors clearly, and make their content a LITTLE MORE ABSTRACT while retaining understandable smart-home meaning. This is a restrained refinement, not a full redesign.
+Changes ONLY to the three lower nodes:
+1. LEFT rounded square: replace BOTH its orange border and amber interior with a unified warm AMBER-GOLD rounded square (#EAA52B approximate). Inside, replace the literal lightbulb with a minimal WHITE radiance symbol: one small circular luminous center and three short, thick radial strokes above and diagonally to its sides, no bulb outline or screw base. Suggest lighting through geometry.
+2. CENTER hexagon: replace BOTH its orange border and amber interior with a unified clear medium BLUE hexagon (#3B82C4 approximate). Inside, replace the explicit two arrowheads with TWO simple WHITE opposing curved arc segments, thick and balanced, suggesting a continuous automatic flow. No arrowheads or tiny embellishments.
+3. RIGHT circle: keep fresh GREEN (#43A84D approximate), recolor its existing orange outer border green too, yielding a unified green disk. Replace the detailed white leaf and vein with ONE simple WHITE tapered almond/leaf silhouette at a diagonal, no stem or interior vein, representing efficiency/nature abstractly.
+All three nodes must have distinctly different complete fill colors: golden amber square, blue hexagon, green circle. Keep their three distinct outer shapes, same positions and balanced sizes. Keep the connecting stems warm orange, smoothly meeting the new colored nodes.
+Invariants: preserve the main orange pitched roof, orange-and-white brain silhouette and folds, central proportions, overall composition and genuine transparent background/alpha. Do not simplify or alter the brain in this edit. Keep orange as the dominant brand color.
+Style: sophisticated minimalist geometric flat logo; clean solid fills, crisp antialiasing, generous negative space, icons readable at small size. No text, gradients, shadows, texture, mockups, 3D, extra elements or additional nodes.
