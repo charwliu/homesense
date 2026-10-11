@@ -226,6 +226,7 @@ enum Message {
 }
 #[derive(Clone)]
 pub struct Admission {
+    pub(crate) write_slot: std::sync::Arc<tokio::sync::Mutex<Option<tokio::time::Instant>>>,
     pub(crate) fade_budget: crate::fade_budget::Budget,
     sender: mpsc::SyncSender<Message>,
     boot: String,
@@ -1117,6 +1118,7 @@ impl Admission {
         start.await.map_err(|_| "admission worker exited")??;
         Ok(Self {
             fade_budget: Default::default(),
+            write_slot: Default::default(),
             sender,
             boot,
             clock,
