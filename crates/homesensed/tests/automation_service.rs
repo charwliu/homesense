@@ -84,3 +84,37 @@ fn isolated_automation_cli_runs_scene_restarts_and_preserves_live_files() {
     drop(sql);
     std::fs::remove_dir_all(root).unwrap();
 }
+
+#[tokio::test]
+async fn simulation_publication_cancels_old_delays_and_runs_new_mapping() {
+    use homesensed::service::{SimulationPublication,serve_automation_simulation_with_publication};
+    use std::time::Duration;
+    let root=std::env::temp_dir().join(format!("automation-reload-{}",uuid::Uuid::new_v4()));
+    let devices=include_bytes!("../../../config/simulation.json");
+    let mut next:hap::serde_json::Value=hap::serde_json::from_slice(devices).unwrap();
+    next["revision"]=2.into();
+    next["devices"][0]["channel"]=2.into();
+    let next=hap::serde_json::to_vec(&next).unwrap();
+    let rules=|revision, delayed| {
+        let mut steps=vec![hap::serde_json::json!({"source":"immediate","offset_ms":0,"device":"simulation:light","command":{"kind":"level","value":30,"ramp":false}})];
+        if delayed {steps.push(hap::serde_json::json!({"source":"must cancel","offset_ms":10000,"device":"simulation:light","command":{"kind":"level","value":90,"ramp":false}}));}
+        hap::serde_json::to_vec(&hap::serde_json::json!({"schema_version":1,"configuration_revision":revision,"variables":[],"rules":[],"timed_scenes":[{"id":"demo","enabled":true,"review_evidence":"simulation","max_lateness_ms":1000,"steps":steps}]})).unwrap()
+    };
+    let old_rules=rules(1,true);
+    let next_rules=rules(2,false);
+    serve_automation_simulation_with_publication(devices,&old_rules,&root,Duration::from_millis(400),Some("demo"),Some(SimulationPublication{
+        devices:&next,rules:&next_rules,after:Duration::from_millis(200),scene:Some("demo"),
+    })).await.unwrap();
+    let sql=rusqlite::Connection::open(root.join("automation-simulation.sqlite")).unwrap();
+    assert_eq!(sql.query_row("SELECT revision FROM active_configuration",[],|r|r.get::<_,i64>(0)).unwrap(),2);
+    for revision in [1,2] {
+        assert_eq!(sql.query_row("SELECT count(*) FROM command_journal WHERE revision=?1",[revision],|r|r.get::<_,i64>(0)).unwrap(),1,"old delayed output must not survive publication");
+    }
+    assert_eq!(sql.query_row("SELECT transport_epoch FROM command_journal WHERE revision=2",[],|r|r.get::<_,i64>(0)).unwrap(),2);
+    assert_eq!(sql.query_row("SELECT count(*) FROM command_journal WHERE revision=2 AND status IN ('written','observed')",[],|r|r.get::<_,i64>(0)).unwrap(),1);
+    assert_eq!(sql.query_row("SELECT count(*) FROM scene_run",[],|r|r.get::<_,i64>(0)).unwrap(),2);
+    assert!(!root.join("runtime.sqlite").exists());
+    assert!(!root.join("identity").exists());
+    drop(sql);
+    std::fs::remove_dir_all(root).unwrap();
+}
