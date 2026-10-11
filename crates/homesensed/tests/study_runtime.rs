@@ -4324,3 +4324,35 @@ async fn publication_pauses_old_automation_without_closing_admission() {
     drop(next_runtime);
     a.shutdown().await.unwrap();
 }
+
+#[tokio::test]
+async fn automation_control_backpressure_and_shutdown_release_all_waiters() {
+    use homesensed::{automation_runtime::AutomationRuntime,automation_control::Action};
+    let db=Db(std::env::temp_dir().join(format!("assembly-{}.sqlite",Uuid::new_v4())));
+    let devices=include_bytes!("../../../config/simulation.json");
+    let rules=br#"{"schema_version":1,"configuration_revision":1,"variables":[{"id":"mode","kind":"integer","lifetime":"persistent"}],"rules":[],"timed_scenes":[{"id":"light","enabled":true,"review_evidence":"simulation","max_lateness_ms":1000,"steps":[{"source":"fixture","offset_ms":100,"device":"simulation:light","command":{"kind":"level","value":30,"ramp":false}}]}]}"#;
+    Store::open(&db.0).unwrap().publish_automation(None,devices,rules,ExecutionContext::Simulation,&[]).unwrap();
+    let controller=Uuid::new_v4();
+    let a=actor(&db,controller).await;
+
+    let runtime=AutomationRuntime::load(a.clone(),controller,1_800_000_000_000,1000,8,Default::default()).await.unwrap();
+
+    let control=runtime.control();
+    let mut pending=std::collections::VecDeque::new();
+    // Poll each request once to deterministically fill the bounded channel,
+    // without relying on task scheduling or sleeping until the timeout.
+    for _ in 0..32 {
+        let mut request=Box::pin(control.request(Action::Status(1)));
+        assert!(std::future::poll_fn(|cx| std::task::Poll::Ready(std::future::Future::poll(request.as_mut(),cx))).await.is_pending());
+        pending.push_back(request);
+    }
+    let rejected=tokio::time::timeout(std::time::Duration::from_millis(100),control.request(Action::Status(1))).await.unwrap();
+    assert!(rejected.unwrap_err().contains("busy or closed"));
+    assert!(a.dispatch().await.unwrap().is_none());
+    drop(runtime);
+    while let Some(request)=pending.pop_front() {
+        assert!(tokio::time::timeout(std::time::Duration::from_millis(100),request).await.unwrap().is_err());
+    }
+    assert!(control.request(Action::Status(1)).await.is_err());
+    a.shutdown().await.unwrap();
+}
