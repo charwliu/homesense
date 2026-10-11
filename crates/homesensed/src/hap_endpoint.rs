@@ -133,7 +133,7 @@ impl Endpoint {
                 .await?,
             )
         };
-        let mut graph = crate::unified_hap::UnifiedHap { lights, scenes };
+        let mut graph = crate::unified_hap::UnifiedHap { lights, scenes, motors:None };
         let config = identity.load_config().await.map_err(|e| e.to_string())?;
         let server = if settings.address.ip().is_loopback() {
             IpServer::new_loopback(config, identity.clone()).await
