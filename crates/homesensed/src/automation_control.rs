@@ -16,6 +16,7 @@ pub enum Action {
     Status(u64),
     Retire(u64),
     LastRun(String),
+    Activity(u64),
 }
 #[derive(Debug, PartialEq, Eq)]
 pub enum Reply {
@@ -24,6 +25,7 @@ pub enum Reply {
     Status(Option<Status>),
     Retired(Status),
     LastRun(Option<LastRun>),
+    Activity(Option<crate::scene_activity::SceneActivity>),
 }
 /// Persisted execution receipt. Timestamps are monotonic within `boot`, and
 /// CommandsWritten is not proof that physical targets were reached.
@@ -91,6 +93,8 @@ impl Receiver {
         admission: &Admission,
         document: &Document,
         scenes: &mut SceneScheduler,
+        feedback: &crate::feedback::Feedback,
+        max_age_ms: u64,
     ) {
         // Bound per-cycle work so incoming control cannot starve bus processing.
         for _ in 0..8 {
@@ -119,6 +123,7 @@ impl Receiver {
                         .map(Reply::Started),
                     Action::Cancel(run) => scenes.cancel(run).await.map(Reply::Cancelled),
                     Action::Status(run) => Ok(Reply::Status(scenes.status(run))),
+                    Action::Activity(run) => scenes.activity(run,feedback,max_age_ms).await.map(Reply::Activity),
                     Action::Retire(run) => scenes.retire(run).map(Reply::Retired),
                     Action::LastRun(id) => {
                         if !document.timed_scenes.contains_key(&id) { return Err("unknown timed scene".into()); }
