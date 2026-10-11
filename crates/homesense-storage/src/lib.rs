@@ -2,6 +2,7 @@
 //! A single runtime owner coordinates this store with the arbitration barrier.
 //! Configuration schema validation precedes this opaque payload storage layer.
 pub mod automation;
+pub mod configuration_history;
 pub mod calendar;
 pub mod journal;
 pub mod feedback_inference;
