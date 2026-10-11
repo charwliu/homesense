@@ -328,12 +328,13 @@ pub struct Page {
     pub boot: String,
     pub run: String,
     pub record: Record,
+    pub cause: Option<Cause>,
     pub commands: Vec<CommandRecord>,
     pub next_after: Option<u64>,
 }
 impl Store {
     /// Latest means insertion order, not incomparable clocks from different
-    /// process boots. One read transaction covers both receipt and command rows.
+    /// process boots. One read transaction covers receipt, cause and command rows.
     pub fn query_scene(&self, revision: u64, query: &Query) -> Result<Option<Page>, Error> {
         query.validate()?;
         let revision = sql_revision(revision)?;
@@ -345,7 +346,8 @@ impl Store {
             Query::Run {boot,run,after,limit} => Some((boot.clone(),run.clone(),*after,*limit)),
         };
         let result = if let Some((boot, run, after, limit)) = identity {
-            if let Some(record) = self.scene_run(&boot, &run)? {
+            if let Some(record) = self.scene_run(&boot, &run)?.filter(|r|r.revision==revision as u64) {
+                let cause=self.scene_cause(&boot,&run)?;
                 let commands = self.scene_commands(&boot, &run, after, limit)?;
                 let next_after = if commands.len() == limit {
                     commands.last().map(|c| c.command_id)
@@ -356,6 +358,7 @@ impl Store {
                     boot,
                     run,
                     record,
+                    cause,
                     commands,
                     next_after,
                 })

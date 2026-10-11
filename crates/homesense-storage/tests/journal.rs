@@ -742,6 +742,9 @@ fn latest_scene_uses_durable_insertion_order_across_boot_clocks_and_revisions() 
         .unwrap();
     assert_eq!(store.query_scene(2, &query).unwrap().unwrap().run, "r3");
     assert_eq!(store.query_scene(1, &query).unwrap().unwrap().run, "r2");
+    let explicit=Query::Run{boot:"new".into(),run:"r2".into(),after:0,limit:1};
+    assert!(store.query_scene(2,&explicit).unwrap().is_none());
+    assert_eq!(store.query_scene(1,&explicit).unwrap().unwrap().run,"r2");
     assert!(
         store
             .query_scene(
@@ -792,6 +795,8 @@ fn deferred_receipts_variables_and_immediate_commands_commit_atomically() {
         let cause=store.scene_cause("boot",run).unwrap().unwrap();
         assert_eq!(cause.correlation,1);assert_eq!(cause.event,1);
         assert_eq!(cause.source,"rule:call");
+        let page=store.query_scene(1,&homesense_storage::scene_run::Query::Run{boot:"boot".into(),run:run.into(),after:0,limit:1}).unwrap().unwrap();
+        assert_eq!(page.cause,Some(cause));
     }
     assert!(store.scene_cause("boot","missing").unwrap().is_none());
 }
