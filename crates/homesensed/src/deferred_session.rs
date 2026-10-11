@@ -21,6 +21,8 @@ pub struct Session {
     pending: BTreeMap<u64, (String, Cause)>,
     started: bool,
     closed: bool,
+    planning_failure: bool,
+    isolated_failure: bool,
 }
 impl Session {
     pub async fn new(
@@ -58,7 +60,12 @@ impl Session {
             pending: BTreeMap::new(),
             started: false,
             closed: false,
+            planning_failure: false,
+            isolated_failure: false,
         })
+    }
+    pub fn failure_isolated(&self) -> bool {
+        self.isolated_failure
     }
     pub fn is_closed(&self) -> bool {
         self.closed
@@ -129,7 +136,7 @@ impl Session {
                 if outcomes.len() >= 1024 {
                     return Err("causal report capacity exceeded".into());
                 }
-                let outcome = deferred_rule::execute(
+                let outcome = deferred_rule::execute_classified(
                     &self.admission,
                     self.controller,
                     &rule,
@@ -138,7 +145,11 @@ impl Session {
                     scheduler,
                     feedback,
                 )
-                .await?;
+                .await
+                .map_err(|error| {
+                    self.planning_failure = error.is_chain_rejection();
+                    error.to_string()
+                })?;
                 self.track(&outcome, scheduler)?;
                 outcomes.push(outcome);
             }
@@ -158,9 +169,19 @@ impl Session {
         }
         Ok(outcomes)
     }
-    async fn record_failure(&mut self, error: String) -> String {
+    async fn record_failure(&mut self, error: String, scheduler: &mut SceneScheduler) -> String {
         self.closed = true;
         self.chain.cancel();
+        if self.planning_failure {
+            for (run, (audit, _)) in &self.pending {
+                if scheduler.audit_id(*run) != Some(audit.as_str()) {
+                    return format!("{error}; failure cleanup identity unavailable");
+                }
+                if let Err(cleanup) = scheduler.cancel(*run).await {
+                    return format!("{error}; failure cleanup unavailable: {cleanup}");
+                }
+            }
+        }
         let mut length = error.len().min(8192);
         while !error.is_char_boundary(length) {
             length -= 1;
@@ -175,12 +196,15 @@ impl Session {
             )
             .await
         {
-            Ok(()) => error,
+            Ok(()) => {
+                self.isolated_failure = self.planning_failure;
+                error
+            }
             Err(audit) => format!("{error}; failure audit unavailable: {audit:?}"),
         }
     }
-    /// One explicit root rule. Errors/cancellation close the session and gate
-    /// admission; accepted actions are not undone or retried.
+    /// One explicit root rule. Verified planning rejection may be isolated after
+    /// cleanup and audit; other errors/cancellation gate admission. No rollback.
     pub async fn start(
         &mut self,
         rule: &str,
@@ -218,7 +242,7 @@ impl Session {
             let parent = self.chain.root();
             let mut roots = Vec::new();
             for rule in rules {
-                let outcome = deferred_rule::execute(
+                let outcome = deferred_rule::execute_classified(
                     &self.admission,
                     self.controller,
                     rule,
@@ -227,7 +251,11 @@ impl Session {
                     scheduler,
                     feedback,
                 )
-                .await?;
+                .await
+                .map_err(|error| {
+                    self.planning_failure = error.is_chain_rejection();
+                    error.to_string()
+                })?;
                 self.track(&outcome, scheduler)?;
                 roots.push(outcome);
             }
@@ -240,7 +268,11 @@ impl Session {
                 guard.1 = true;
                 Ok(outcomes)
             }
-            Err(error) => Err(self.record_failure(error).await),
+            Err(error) => {
+                let error = self.record_failure(error, scheduler).await;
+                guard.1 = self.isolated_failure;
+                Err(error)
+            }
         }
     }
     /// Cancel this chain without deriving scene-result rules. Commands already
@@ -314,6 +346,7 @@ impl Session {
             let outcomes = match continuation {
                 Ok(outcomes) => outcomes,
                 Err(deferred_rule::ExecutionFailure::Partial { completed, error }) => {
+                    self.planning_failure = error.is_chain_rejection();
                     // The terminal was verified and claimed before these commits.
                     self.pending.remove(&result.run);
                     for outcome in &completed {
@@ -324,7 +357,10 @@ impl Session {
                         completed.len()
                     ));
                 }
-                Err(error) => return Err(error.to_string()),
+                Err(error) => {
+                    self.planning_failure = error.is_chain_rejection();
+                    return Err(error.to_string());
+                }
             };
             self.pending.remove(&result.run);
             for outcome in &outcomes {
@@ -339,7 +375,11 @@ impl Session {
                 guard.1 = true;
                 Ok(outcomes)
             }
-            Err(error) => Err(self.record_failure(error).await),
+            Err(error) => {
+                let error = self.record_failure(error, scheduler).await;
+                guard.1 = self.isolated_failure;
+                Err(error)
+            }
         }
     }
 }
@@ -354,7 +394,7 @@ impl Drop for Guard {
 impl Drop for Session {
     fn drop(&mut self) {
         self.chain.cancel();
-        if !self.pending.is_empty() {
+        if !self.pending.is_empty() && !self.isolated_failure {
             self.admission.stop_now();
         }
     }
