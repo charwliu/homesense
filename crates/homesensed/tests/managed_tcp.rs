@@ -32,10 +32,12 @@ async fn request(
     )
 }
 #[tokio::test]
-async fn managed_tcp_uses_one_owner_and_recovers_view_after_publication() { run_managed(false).await; }
+async fn managed_tcp_uses_one_owner_and_recovers_view_after_publication() { run_managed(false,false).await; }
 #[tokio::test]
-async fn combined_tcp_rebuilds_hap_and_retires_old_sessions_after_publication() { run_managed(true).await; }
-async fn run_managed(combined:bool) {
+async fn combined_tcp_rebuilds_hap_and_retires_old_sessions_after_publication() { run_managed(true,false).await; }
+#[tokio::test]
+async fn combined_tcp_recovers_hap_with_fresh_feedback_without_replaying_startup() {run_managed(true,true).await;}
+async fn run_managed(combined:bool,recover:bool) {
     let root = std::env::temp_dir().join(format!("homesense-managed-{}", Uuid::new_v4()));
     let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
     let address = listener.local_addr().unwrap();
@@ -47,13 +49,18 @@ async fn run_managed(combined:bool) {
     devices["gateways"][0]["modules"][0]["verification"] = serde_json::json!({"status":"verified","evidence":"synthetic loopback fixture","verified_at_unix_ms":1});
     let mut rules = serde_json::json!({"schema_version":1,"configuration_revision":1,"variables":[],"rules":[]});
     if combined {rules["timed_scenes"]=serde_json::json!([{"id":"demo","enabled":true,"review_evidence":"synthetic","max_lateness_ms":1000,"steps":[{"source":"fixture","offset_ms":60000,"device":"simulation:light","command":{"kind":"level","value":90,"ramp":false}}]}]);}
+    if recover {
+        rules["variables"]=serde_json::json!([{"id":"booted","kind":"integer","lifetime":"persistent"}]);
+        rules["rules"]=serde_json::json!([{"id":"boot","enabled":true,"review_evidence":"synthetic","source":"fixture","trigger":{"kind":"startup_synchronized"},"actions":[{"source":"fixture","action":{"kind":"set","variable":"booted","value":{"kind":"integer","value":1}}}]}]);
+    }
     let writes = Arc::new(Mutex::new(vec![]));
     let received = writes.clone();
     let server = std::thread::spawn(move || {
         let level = Arc::new(AtomicU8::new(42));
         let mut workers = vec![];
-        for _ in 0..2 {
+        for connection in 0..2 {
             let (mut stream, _) = bus.accept().unwrap();
+            if recover && connection==1 {level.store(55,Ordering::SeqCst);}
             let level = level.clone();
             let writes = received.clone();
             workers.push(std::thread::spawn(move || {
@@ -78,6 +85,7 @@ async fn run_managed(combined:bool) {
                     stream
                         .write_all(&[0xae, 0x15, 0xd1, level.load(Ordering::SeqCst), 0xee])
                         .unwrap();
+                    if recover && connection==0 && frame[2]==0x01 {break;}
                 }
             }));
         }
@@ -104,7 +112,7 @@ async fn run_managed(combined:bool) {
     let directory = root.clone();
     let service = tokio::spawn(async move {
         if combined {
-            return homesensed::automation_tcp::serve_combined(&service_devices,&service_rules,&directory,Duration::from_secs(6),true,0,Duration::from_millis(20),homesensed::service::WebSettings{address,secret:"abcdefghijklmnopqrstuvwxyz0123456789".into(),administrator:true,tls:None},homesensed::hap_endpoint::Settings{address:hap_address,scenes:vec!["demo".into()]}).await;
+            return homesensed::automation_tcp::serve_combined(&service_devices,&service_rules,&directory,Duration::from_secs(6),true,u8::from(recover),Duration::from_millis(20),homesensed::service::WebSettings{address,secret:"abcdefghijklmnopqrstuvwxyz0123456789".into(),administrator:true,tls:None},homesensed::hap_endpoint::Settings{address:hap_address,scenes:vec!["demo".into()]}).await;
         }
         homesensed::automation_tcp::serve_managed(
             &service_devices,
@@ -148,6 +156,7 @@ async fn run_managed(combined:bool) {
         }
         tokio::time::sleep(Duration::from_millis(20)).await;
     }
+    if !recover {
     devices["revision"] = 2.into();
     devices["devices"][0]["name"] = "Renamed".into();
     let mut rules = rules;
@@ -180,15 +189,26 @@ async fn run_managed(combined:bool) {
         .0,
         200
     );
+    }
     if let Some(mut stream)=old_session {
         tokio::task::spawn_blocking(move || {let mut byte=[0];match stream.read(&mut byte){Ok(0)=>{},Err(e) if matches!(e.kind(),std::io::ErrorKind::ConnectionReset|std::io::ErrorKind::ConnectionAborted)=>{},other=>panic!("old HAP session survived publication: {other:?}")}}).await.unwrap();
     }
+    if recover {
+        let deadline=std::time::Instant::now()+Duration::from_secs(3);
+        loop {
+            let (code,view)=request(address,"/api/v1/devices",None).await;
+            if code==200 && view["devices"][0]["observed"]["level"]==55 {break;}
+            assert!(std::time::Instant::now()<deadline,"new feedback missing: {view}");
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    }
     let (_, next) = request(address, "/api/v1/devices", None).await;
-    assert_eq!(next["revision"], 2);
-    assert_eq!(next["devices"][0]["observed"]["level"], 30);
+    assert_eq!(next["revision"], if recover {1}else{2});
+    assert_eq!(next["devices"][0]["observed"]["level"], if recover {55}else{30});
     if let Some(store)=&identity {
-        let fresh=hap_write(store,hap_address,controller,signing.clone(),40,true).await;drop(fresh);
-        assert!(store.load_config().await.unwrap().configuration_number>old_number.unwrap());
+        let fresh=hap_write(store,hap_address,controller,signing.clone(),40,!recover).await;drop(fresh);
+        let number=store.load_config().await.unwrap().configuration_number;
+        if recover {assert_eq!(number,old_number.unwrap());}else{assert!(number>old_number.unwrap());}
         assert!(store.controller_is_paired(controller).unwrap());
     } else {
     let result=request(address,"/api/v1/device-commands",Some(serde_json::json!({"request_id":"two","device":"simulation:light","command":{"action":"brightness","level":40}}))).await;
@@ -197,15 +217,16 @@ async fn run_managed(combined:bool) {
     service.await.unwrap().unwrap();
     server.join().unwrap();
     assert_eq!(*writes.lock().unwrap(), vec![30, 40]);
-    assert_eq!(
+    if recover {assert!(!root.join("publication-backups").exists());}else{assert_eq!(
         std::fs::read_dir(root.join("publication-backups"))
             .unwrap()
             .count(),
         1
-    );
+    );}
     if combined {
         let sql=rusqlite::Connection::open(root.join("automation-tcp.sqlite")).unwrap();
         assert_eq!(sql.query_row("SELECT count(*) FROM scene_run",[],|r|r.get::<_,i64>(0)).unwrap(),2);
+        if recover {assert_eq!(sql.query_row("SELECT count(*) FROM rule_admission WHERE rule_id='boot'",[],|r|r.get::<_,i64>(0)).unwrap(),1);}
     }
     std::fs::remove_dir_all(root).unwrap();
 }
