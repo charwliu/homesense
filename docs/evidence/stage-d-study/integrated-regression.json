@@ -1,0 +1,17 @@
+{
+  "command": "cargo test --locked --offline --workspace",
+  "date": "2026-10-11",
+  "tested_head": "4f159e80dd31de00716d51a92773282570bf0a9f",
+  "scope": "Current working tree including pending formatting and historical study commissioning updates; isolated databases, simulators and loopback only. No new field validation.",
+  "exit_code": 0,
+  "suite_results": 75,
+  "passed": 350,
+  "failed": 0,
+  "ignored": 0,
+  "log_sha256": "f64136b542f29e37d217c56549d48dc149c147ad03a259787aba16fc21784e7e",
+  "tracked_diff_sha256": "d136028ca995f4513ed2addb979be030beeb91e0a6766b60b49bd985da061a31",
+  "schema": 12,
+  "stage_d_complete": false,
+  "stage_e_complete": false,
+  "workspace_strict_clippy": "not passed; legacy HAP warnings remain; focused target checks recorded separately"
+}

@@ -1,0 +1,1731 @@
+{
+  "source": {
+    "format": "c4p",
+    "project_xml_sha256": "cac7dcdc9db08599e55a22bacb72858035c64e1ac846e2139ead5fc634513748",
+    "sha256": "ff8c298fd2c8efa840d572d3ca544860ffbbc4e7176f09e93efdc5464b9ce6ec"
+  },
+  "automatic_execution": false,
+  "syntax_only": true,
+  "programs": [
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 5,
+      "enabled": false,
+      "owner": "event:59:2",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 1,
+      "enabled": false,
+      "owner": "event:59:3",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 5,
+      "enabled": false,
+      "owner": "event:59:4",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 1,
+      "enabled": false,
+      "owner": "event:59:5",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 9,
+      "enabled": false,
+      "owner": "event:63:2",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": "unsupported device-state condition IF_STOPPED",
+      "compiled_nodes": 0,
+      "enabled": false,
+      "owner": "event:63:4",
+      "syntax_compiled": false
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 9,
+      "enabled": false,
+      "owner": "event:63:6",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": "unsupported device-state condition IF_MOVING",
+      "compiled_nodes": 0,
+      "enabled": false,
+      "owner": "event:63:8",
+      "syntax_compiled": false
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 9,
+      "enabled": false,
+      "owner": "event:63:10",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": "unsupported device-state condition IF_STOPPED",
+      "compiled_nodes": 0,
+      "enabled": false,
+      "owner": "event:63:12",
+      "syntax_compiled": false
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 5,
+      "enabled": false,
+      "owner": "event:285:2",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 1,
+      "enabled": false,
+      "owner": "event:285:3",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 5,
+      "enabled": false,
+      "owner": "event:285:4",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 1,
+      "enabled": false,
+      "owner": "event:285:5",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 5,
+      "enabled": false,
+      "owner": "event:289:2",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 1,
+      "enabled": false,
+      "owner": "event:289:3",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 5,
+      "enabled": false,
+      "owner": "event:289:4",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 1,
+      "enabled": false,
+      "owner": "event:289:5",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 5,
+      "enabled": false,
+      "owner": "event:291:2",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 1,
+      "enabled": false,
+      "owner": "event:291:3",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 5,
+      "enabled": false,
+      "owner": "event:291:4",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 1,
+      "enabled": false,
+      "owner": "event:291:5",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 5,
+      "enabled": false,
+      "owner": "event:293:2",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 1,
+      "enabled": false,
+      "owner": "event:293:3",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 5,
+      "enabled": false,
+      "owner": "event:293:4",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 1,
+      "enabled": false,
+      "owner": "event:293:5",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 5,
+      "enabled": false,
+      "owner": "event:295:2",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 1,
+      "enabled": false,
+      "owner": "event:295:3",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 5,
+      "enabled": false,
+      "owner": "event:295:4",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 1,
+      "enabled": false,
+      "owner": "event:295:5",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 5,
+      "enabled": false,
+      "owner": "event:299:2",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 1,
+      "enabled": false,
+      "owner": "event:299:3",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 5,
+      "enabled": false,
+      "owner": "event:299:4",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 1,
+      "enabled": false,
+      "owner": "event:299:5",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 5,
+      "enabled": false,
+      "owner": "event:301:2",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 1,
+      "enabled": false,
+      "owner": "event:301:3",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 5,
+      "enabled": false,
+      "owner": "event:301:4",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 1,
+      "enabled": false,
+      "owner": "event:301:5",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 4,
+      "enabled": false,
+      "owner": "event:303:2",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 9,
+      "enabled": false,
+      "owner": "event:303:3",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 4,
+      "enabled": false,
+      "owner": "event:303:4",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 12,
+      "enabled": false,
+      "owner": "event:409:2",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 21,
+      "enabled": false,
+      "owner": "event:409:4",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 12,
+      "enabled": false,
+      "owner": "event:409:6",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 20,
+      "enabled": false,
+      "owner": "event:409:8",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 21,
+      "enabled": false,
+      "owner": "event:409:10",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 20,
+      "enabled": false,
+      "owner": "event:409:12",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 9,
+      "enabled": false,
+      "owner": "event:410:2",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 8,
+      "enabled": false,
+      "owner": "event:410:4",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 9,
+      "enabled": false,
+      "owner": "event:410:6",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 6,
+      "enabled": false,
+      "owner": "event:410:8",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 11,
+      "enabled": false,
+      "owner": "event:410:10",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 5,
+      "enabled": false,
+      "owner": "event:410:12",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 6,
+      "enabled": false,
+      "owner": "event:414:2",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 13,
+      "enabled": false,
+      "owner": "event:414:4",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 6,
+      "enabled": false,
+      "owner": "event:414:6",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 6,
+      "enabled": false,
+      "owner": "event:414:8",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 6,
+      "enabled": false,
+      "owner": "event:414:10",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 6,
+      "enabled": false,
+      "owner": "event:414:12",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": "unsupported device-state condition IF_STOPPED",
+      "compiled_nodes": 0,
+      "enabled": false,
+      "owner": "event:416:2",
+      "syntax_compiled": false
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 7,
+      "enabled": false,
+      "owner": "event:416:4",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": "unsupported device-state condition IF_MOVING",
+      "compiled_nodes": 0,
+      "enabled": false,
+      "owner": "event:416:6",
+      "syntax_compiled": false
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 9,
+      "enabled": false,
+      "owner": "event:416:8",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": "unsupported device-state condition IF_STOPPED",
+      "compiled_nodes": 0,
+      "enabled": false,
+      "owner": "event:416:10",
+      "syntax_compiled": false
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 5,
+      "enabled": false,
+      "owner": "event:416:12",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": "unsupported typed command RAMP_TO_LEVEL",
+      "compiled_nodes": 0,
+      "enabled": false,
+      "owner": "event:417:2",
+      "syntax_compiled": false
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 9,
+      "enabled": false,
+      "owner": "event:417:4",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 22,
+      "enabled": false,
+      "owner": "event:417:6",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 19,
+      "enabled": false,
+      "owner": "event:417:8",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 21,
+      "enabled": false,
+      "owner": "event:417:10",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 21,
+      "enabled": false,
+      "owner": "event:417:12",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": "unsupported device-state condition IF_STOPPED",
+      "compiled_nodes": 0,
+      "enabled": false,
+      "owner": "event:420:2",
+      "syntax_compiled": false
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 18,
+      "enabled": false,
+      "owner": "event:420:4",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": "unsupported device-state condition IF_MOVING",
+      "compiled_nodes": 0,
+      "enabled": false,
+      "owner": "event:420:6",
+      "syntax_compiled": false
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 23,
+      "enabled": false,
+      "owner": "event:420:8",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": "unsupported device-state condition IF_STOPPED",
+      "compiled_nodes": 0,
+      "enabled": false,
+      "owner": "event:420:10",
+      "syntax_compiled": false
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 22,
+      "enabled": false,
+      "owner": "event:420:12",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": "unsupported device-state condition IF_STOPPED",
+      "compiled_nodes": 0,
+      "enabled": false,
+      "owner": "event:421:2",
+      "syntax_compiled": false
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 16,
+      "enabled": false,
+      "owner": "event:421:4",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": "unsupported device-state condition IF_MOVING",
+      "compiled_nodes": 0,
+      "enabled": false,
+      "owner": "event:421:6",
+      "syntax_compiled": false
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 23,
+      "enabled": false,
+      "owner": "event:421:8",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": "unsupported device-state condition IF_STOPPED",
+      "compiled_nodes": 0,
+      "enabled": false,
+      "owner": "event:421:10",
+      "syntax_compiled": false
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 22,
+      "enabled": false,
+      "owner": "event:421:12",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 9,
+      "enabled": false,
+      "owner": "event:422:2",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 7,
+      "enabled": false,
+      "owner": "event:422:4",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 22,
+      "enabled": false,
+      "owner": "event:422:6",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 7,
+      "enabled": false,
+      "owner": "event:422:8",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 13,
+      "enabled": false,
+      "owner": "event:422:10",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 2,
+      "enabled": false,
+      "owner": "event:422:12",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 21,
+      "enabled": false,
+      "owner": "event:423:2",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 7,
+      "enabled": false,
+      "owner": "event:423:4",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 22,
+      "enabled": false,
+      "owner": "event:423:6",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 21,
+      "enabled": false,
+      "owner": "event:423:8",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 21,
+      "enabled": false,
+      "owner": "event:423:10",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 9,
+      "enabled": false,
+      "owner": "event:423:12",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 21,
+      "enabled": false,
+      "owner": "event:424:2",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 13,
+      "enabled": false,
+      "owner": "event:424:4",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 22,
+      "enabled": false,
+      "owner": "event:424:6",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 21,
+      "enabled": false,
+      "owner": "event:424:8",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 21,
+      "enabled": false,
+      "owner": "event:424:10",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 9,
+      "enabled": false,
+      "owner": "event:424:12",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": "unsupported device-state condition IF_STOPPED",
+      "compiled_nodes": 0,
+      "enabled": false,
+      "owner": "event:425:2",
+      "syntax_compiled": false
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": "unsupported device-state condition IF_STOPPED",
+      "compiled_nodes": 0,
+      "enabled": false,
+      "owner": "event:425:4",
+      "syntax_compiled": false
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 8,
+      "enabled": false,
+      "owner": "event:425:6",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 8,
+      "enabled": false,
+      "owner": "event:425:8",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 5,
+      "enabled": false,
+      "owner": "event:425:10",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 13,
+      "enabled": false,
+      "owner": "event:425:12",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 19,
+      "enabled": false,
+      "owner": "event:426:2",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 8,
+      "enabled": false,
+      "owner": "event:426:4",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 18,
+      "enabled": false,
+      "owner": "event:426:6",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 9,
+      "enabled": false,
+      "owner": "event:426:8",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 11,
+      "enabled": false,
+      "owner": "event:426:10",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 7,
+      "enabled": false,
+      "owner": "event:426:12",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 16,
+      "enabled": false,
+      "owner": "event:427:2",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 19,
+      "enabled": false,
+      "owner": "event:427:4",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 7,
+      "enabled": false,
+      "owner": "event:427:6",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 26,
+      "enabled": false,
+      "owner": "event:427:8",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 11,
+      "enabled": false,
+      "owner": "event:427:10",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 11,
+      "enabled": false,
+      "owner": "event:427:12",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 23,
+      "enabled": false,
+      "owner": "event:428:2",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 26,
+      "enabled": false,
+      "owner": "event:428:4",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 23,
+      "enabled": false,
+      "owner": "event:428:6",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 24,
+      "enabled": false,
+      "owner": "event:428:8",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 19,
+      "enabled": false,
+      "owner": "event:428:10",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 24,
+      "enabled": false,
+      "owner": "event:428:12",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": "unsupported device-state condition IF_STOPPED",
+      "compiled_nodes": 0,
+      "enabled": false,
+      "owner": "event:429:2",
+      "syntax_compiled": false
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 26,
+      "enabled": false,
+      "owner": "event:429:4",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": "unsupported device-state condition IF_MOVING",
+      "compiled_nodes": 0,
+      "enabled": false,
+      "owner": "event:429:6",
+      "syntax_compiled": false
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 24,
+      "enabled": false,
+      "owner": "event:429:8",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": "unsupported device-state condition IF_STOPPED",
+      "compiled_nodes": 0,
+      "enabled": false,
+      "owner": "event:429:10",
+      "syntax_compiled": false
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 24,
+      "enabled": false,
+      "owner": "event:429:12",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": "unsupported device-state condition IF_STOPPED",
+      "compiled_nodes": 0,
+      "enabled": false,
+      "owner": "event:430:2",
+      "syntax_compiled": false
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 26,
+      "enabled": false,
+      "owner": "event:430:4",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": "unsupported device-state condition IF_MOVING",
+      "compiled_nodes": 0,
+      "enabled": false,
+      "owner": "event:430:6",
+      "syntax_compiled": false
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 11,
+      "enabled": false,
+      "owner": "event:430:8",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": "unsupported device-state condition IF_STOPPED",
+      "compiled_nodes": 0,
+      "enabled": false,
+      "owner": "event:430:10",
+      "syntax_compiled": false
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 19,
+      "enabled": false,
+      "owner": "event:430:12",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 27,
+      "enabled": false,
+      "owner": "event:431:2",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 19,
+      "enabled": false,
+      "owner": "event:431:4",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 7,
+      "enabled": false,
+      "owner": "event:431:6",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 16,
+      "enabled": false,
+      "owner": "event:431:8",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 11,
+      "enabled": false,
+      "owner": "event:431:10",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 11,
+      "enabled": false,
+      "owner": "event:431:12",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": "unsupported device-state condition IF_STOPPED",
+      "compiled_nodes": 0,
+      "enabled": false,
+      "owner": "event:432:2",
+      "syntax_compiled": false
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 19,
+      "enabled": false,
+      "owner": "event:432:4",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": "unsupported device-state condition IF_MOVING",
+      "compiled_nodes": 0,
+      "enabled": false,
+      "owner": "event:432:6",
+      "syntax_compiled": false
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 20,
+      "enabled": false,
+      "owner": "event:432:8",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": "unsupported device-state condition IF_STOPPED",
+      "compiled_nodes": 0,
+      "enabled": false,
+      "owner": "event:432:10",
+      "syntax_compiled": false
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 17,
+      "enabled": false,
+      "owner": "event:432:12",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": "unsupported device-state condition IF_STOPPED",
+      "compiled_nodes": 0,
+      "enabled": false,
+      "owner": "event:433:2",
+      "syntax_compiled": false
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 27,
+      "enabled": false,
+      "owner": "event:433:4",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": "unsupported device-state condition IF_MOVING",
+      "compiled_nodes": 0,
+      "enabled": false,
+      "owner": "event:433:6",
+      "syntax_compiled": false
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 25,
+      "enabled": false,
+      "owner": "event:433:8",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": "unsupported device-state condition IF_STOPPED",
+      "compiled_nodes": 0,
+      "enabled": false,
+      "owner": "event:433:10",
+      "syntax_compiled": false
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 27,
+      "enabled": false,
+      "owner": "event:433:12",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 26,
+      "enabled": false,
+      "owner": "event:434:2",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 27,
+      "enabled": false,
+      "owner": "event:434:4",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 26,
+      "enabled": false,
+      "owner": "event:434:6",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 26,
+      "enabled": false,
+      "owner": "event:434:8",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 21,
+      "enabled": false,
+      "owner": "event:434:10",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 27,
+      "enabled": false,
+      "owner": "event:434:12",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": "unsupported device-state condition IF_STOPPED",
+      "compiled_nodes": 0,
+      "enabled": false,
+      "owner": "event:435:2",
+      "syntax_compiled": false
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 19,
+      "enabled": false,
+      "owner": "event:435:4",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": "unsupported device-state condition IF_MOVING",
+      "compiled_nodes": 0,
+      "enabled": false,
+      "owner": "event:435:6",
+      "syntax_compiled": false
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 25,
+      "enabled": false,
+      "owner": "event:435:8",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": "unsupported device-state condition IF_STOPPED",
+      "compiled_nodes": 0,
+      "enabled": false,
+      "owner": "event:435:10",
+      "syntax_compiled": false
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 27,
+      "enabled": false,
+      "owner": "event:435:12",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 22,
+      "enabled": false,
+      "owner": "event:436:2",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 26,
+      "enabled": false,
+      "owner": "event:436:4",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 24,
+      "enabled": false,
+      "owner": "event:436:6",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 28,
+      "enabled": false,
+      "owner": "event:436:8",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 21,
+      "enabled": false,
+      "owner": "event:436:10",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 27,
+      "enabled": false,
+      "owner": "event:436:12",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 15,
+      "enabled": false,
+      "owner": "event:437:2",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 11,
+      "enabled": false,
+      "owner": "event:437:4",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 15,
+      "enabled": false,
+      "owner": "event:437:6",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 12,
+      "enabled": false,
+      "owner": "event:437:8",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 7,
+      "enabled": false,
+      "owner": "event:437:10",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 9,
+      "enabled": false,
+      "owner": "event:437:12",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": "unsupported device-state condition IF_STOPPED",
+      "compiled_nodes": 0,
+      "enabled": false,
+      "owner": "event:438:2",
+      "syntax_compiled": false
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 21,
+      "enabled": false,
+      "owner": "event:438:4",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": "unsupported device-state condition IF_MOVING",
+      "compiled_nodes": 0,
+      "enabled": false,
+      "owner": "event:438:6",
+      "syntax_compiled": false
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 12,
+      "enabled": false,
+      "owner": "event:438:8",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": "unsupported device-state condition IF_STOPPED",
+      "compiled_nodes": 0,
+      "enabled": false,
+      "owner": "event:438:10",
+      "syntax_compiled": false
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 7,
+      "enabled": false,
+      "owner": "event:438:12",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": "unsupported device-state condition IF_STOPPED",
+      "compiled_nodes": 0,
+      "enabled": false,
+      "owner": "event:441:2",
+      "syntax_compiled": false
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 21,
+      "enabled": false,
+      "owner": "event:441:4",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": "unsupported device-state condition IF_MOVING",
+      "compiled_nodes": 0,
+      "enabled": false,
+      "owner": "event:441:6",
+      "syntax_compiled": false
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 20,
+      "enabled": false,
+      "owner": "event:441:8",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": "unsupported device-state condition IF_STOPPED",
+      "compiled_nodes": 0,
+      "enabled": false,
+      "owner": "event:441:10",
+      "syntax_compiled": false
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 20,
+      "enabled": false,
+      "owner": "event:441:12",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 12,
+      "enabled": false,
+      "owner": "event:442:2",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 12,
+      "enabled": false,
+      "owner": "event:442:4",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 12,
+      "enabled": false,
+      "owner": "event:442:6",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 12,
+      "enabled": false,
+      "owner": "event:442:8",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 12,
+      "enabled": false,
+      "owner": "event:442:10",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 12,
+      "enabled": false,
+      "owner": "event:442:12",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 5,
+      "enabled": false,
+      "owner": "event:449:2",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 1,
+      "enabled": false,
+      "owner": "event:449:3",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 5,
+      "enabled": false,
+      "owner": "event:449:4",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 1,
+      "enabled": false,
+      "owner": "event:449:5",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 5,
+      "enabled": false,
+      "owner": "event:452:2",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 1,
+      "enabled": false,
+      "owner": "event:452:3",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 5,
+      "enabled": false,
+      "owner": "event:452:4",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 1,
+      "enabled": false,
+      "owner": "event:452:5",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 9,
+      "enabled": false,
+      "owner": "event:456:2",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 5,
+      "enabled": false,
+      "owner": "event:456:4",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 14,
+      "enabled": false,
+      "owner": "event:456:6",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 15,
+      "enabled": false,
+      "owner": "event:456:8",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 17,
+      "enabled": false,
+      "owner": "event:456:10",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 15,
+      "enabled": false,
+      "owner": "event:456:12",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 0,
+      "enabled": false,
+      "owner": "event:100100:1",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 0,
+      "enabled": false,
+      "owner": "event:100100:2",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 0,
+      "enabled": false,
+      "owner": "event:100100:3",
+      "syntax_compiled": true
+    },
+    {
+      "binding_basis": "source hierarchy only; physical bindings and scene semantics need review",
+      "blocker": null,
+      "compiled_nodes": 0,
+      "enabled": false,
+      "owner": "event:100100:4",
+      "syntax_compiled": true
+    }
+  ]
+}

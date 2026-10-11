@@ -1,0 +1,3762 @@
+{
+  "source_sha256": "ff8c298fd2c8efa840d572d3ca544860ffbbc4e7176f09e93efdc5464b9ce6ec",
+  "variables": [
+    {
+      "id": "411",
+      "name": "书房",
+      "source_type": "2",
+      "saved_value_for_reference_only": "0",
+      "initialize_from_saved_value": false,
+      "enabled": false,
+      "reads": [
+        {
+          "source": "device:63/event:2/code:2",
+          "operator": "!=",
+          "operand": "1",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:63/event:6/code:2",
+          "operator": "!=",
+          "operand": "2",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:63/event:10/code:2",
+          "operator": "!=",
+          "operand": "3",
+          "operand_type": "int"
+        }
+      ],
+      "writes": [
+        {
+          "source": "device:63/event:2/code:14",
+          "operator": "=",
+          "operand": "1",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:63/event:2/code:15",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:63/event:6/code:13",
+          "operator": "=",
+          "operand": "2",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:63/event:6/code:14",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:63/event:10/code:10",
+          "operator": "=",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:63/event:10/code:11",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        }
+      ],
+      "context_commands": [
+        "ACTIVATE_SCENE",
+        "DEACTIVATE_SCENE",
+        "Turn Off",
+        "Turn On"
+      ],
+      "proposed_lifetime": "persistent",
+      "encoding": "enumerated_integer",
+      "assignment_values": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "arithmetic_operands": [],
+      "feedback_cache_confirmed": false,
+      "basis": "scene/light actions imply logical mode candidate; motor-only actions imply transient bookkeeping candidate; no physical feedback classification inferred",
+      "review_status": "study_logic_field_validated",
+      "read_count": 3,
+      "write_count": 6
+    },
+    {
+      "id": "412",
+      "name": "卧室",
+      "source_type": "2",
+      "saved_value_for_reference_only": "0",
+      "initialize_from_saved_value": false,
+      "enabled": false,
+      "reads": [
+        {
+          "source": "device:409/event:2/code:1",
+          "operator": "!=",
+          "operand": "1",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:409/event:4/code:1",
+          "operator": "!=",
+          "operand": "2",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:409/event:6/code:1",
+          "operator": "!=",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:409/event:8/code:1",
+          "operator": "!=",
+          "operand": "4",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:409/event:10/code:1",
+          "operator": "!=",
+          "operand": "5",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:409/event:12/code:1",
+          "operator": "!=",
+          "operand": "6",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:438/event:4/code:19",
+          "operator": "!=",
+          "operand": "2",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:441/event:4/code:1",
+          "operator": "!=",
+          "operand": "2",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:441/event:8/code:1",
+          "operator": "!=",
+          "operand": "4",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:441/event:12/code:1",
+          "operator": "!=",
+          "operand": "6",
+          "operand_type": "int"
+        }
+      ],
+      "writes": [
+        {
+          "source": "device:409/event:2/code:2",
+          "operator": "=",
+          "operand": "1",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:409/event:2/code:4",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:409/event:4/code:2",
+          "operator": "=",
+          "operand": "2",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:409/event:4/code:18",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:409/event:6/code:3",
+          "operator": "=",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:409/event:6/code:4",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:409/event:8/code:2",
+          "operator": "=",
+          "operand": "4",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:409/event:8/code:18",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:409/event:10/code:2",
+          "operator": "=",
+          "operand": "5",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:409/event:10/code:29",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:409/event:12/code:2",
+          "operator": "=",
+          "operand": "6",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:409/event:12/code:18",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:438/event:4/code:20",
+          "operator": "=",
+          "operand": "2",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:438/event:4/code:36",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:441/event:4/code:2",
+          "operator": "=",
+          "operand": "2",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:441/event:4/code:18",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:441/event:8/code:2",
+          "operator": "=",
+          "operand": "4",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:441/event:8/code:18",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:441/event:12/code:2",
+          "operator": "=",
+          "operand": "6",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:441/event:12/code:18",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        }
+      ],
+      "context_commands": [
+        "ACTIVATE_SCENE",
+        "DEACTIVATE_SCENE",
+        "OFF",
+        "SET_LEVEL",
+        "Turn Off",
+        "Turn On"
+      ],
+      "proposed_lifetime": "persistent",
+      "encoding": "enumerated_integer",
+      "assignment_values": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "arithmetic_operands": [],
+      "feedback_cache_confirmed": false,
+      "basis": "scene/light actions imply logical mode candidate; motor-only actions imply transient bookkeeping candidate; no physical feedback classification inferred",
+      "review_status": "needs_review",
+      "read_count": 10,
+      "write_count": 20
+    },
+    {
+      "id": "413",
+      "name": "餐厅",
+      "source_type": "2",
+      "saved_value_for_reference_only": "1",
+      "initialize_from_saved_value": false,
+      "enabled": false,
+      "reads": [
+        {
+          "source": "device:410/event:2/code:1",
+          "operator": "!=",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:410/event:6/code:7",
+          "operator": "!=",
+          "operand": "2",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:410/event:10/code:2",
+          "operator": "!=",
+          "operand": "1",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:426/event:10/code:1",
+          "operator": "!=",
+          "operand": "1",
+          "operand_type": "int"
+        }
+      ],
+      "writes": [
+        {
+          "source": "device:410/event:2/code:3",
+          "operator": "=",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:410/event:2/code:9",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:410/event:6/code:8",
+          "operator": "=",
+          "operand": "2",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:410/event:6/code:10",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:410/event:10/code:3",
+          "operator": "=",
+          "operand": "1",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:410/event:10/code:13",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:426/event:10/code:2",
+          "operator": "=",
+          "operand": "1",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:426/event:10/code:10",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        }
+      ],
+      "context_commands": [
+        "ACTIVATE_SCENE",
+        "DEACTIVATE_SCENE",
+        "Turn Off",
+        "Turn On"
+      ],
+      "proposed_lifetime": "persistent",
+      "encoding": "enumerated_integer",
+      "assignment_values": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "arithmetic_operands": [],
+      "feedback_cache_confirmed": false,
+      "basis": "scene/light actions imply logical mode candidate; motor-only actions imply transient bookkeeping candidate; no physical feedback classification inferred",
+      "review_status": "needs_review",
+      "read_count": 4,
+      "write_count": 8
+    },
+    {
+      "id": "415",
+      "name": "过道",
+      "source_type": "2",
+      "saved_value_for_reference_only": "0",
+      "initialize_from_saved_value": false,
+      "enabled": false,
+      "reads": [
+        {
+          "source": "device:414/event:4/code:1",
+          "operator": "!=",
+          "operand": "1",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:424/event:4/code:1",
+          "operator": "!=",
+          "operand": "1",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:425/event:12/code:1",
+          "operator": "!=",
+          "operand": "1",
+          "operand_type": "int"
+        }
+      ],
+      "writes": [
+        {
+          "source": "device:414/event:4/code:2",
+          "operator": "=",
+          "operand": "1",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:414/event:4/code:9",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:424/event:4/code:2",
+          "operator": "=",
+          "operand": "1",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:424/event:4/code:8",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:425/event:12/code:2",
+          "operator": "=",
+          "operand": "1",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:425/event:12/code:9",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        }
+      ],
+      "context_commands": [
+        "OFF",
+        "ON",
+        "SET_LEVEL",
+        "Turn Off",
+        "Turn On"
+      ],
+      "proposed_lifetime": "persistent",
+      "encoding": "enumerated_integer",
+      "assignment_values": [
+        0,
+        1
+      ],
+      "arithmetic_operands": [],
+      "feedback_cache_confirmed": false,
+      "basis": "scene/light actions imply logical mode candidate; motor-only actions imply transient bookkeeping candidate; no physical feedback classification inferred",
+      "review_status": "needs_review",
+      "read_count": 3,
+      "write_count": 6
+    },
+    {
+      "id": "419",
+      "name": "客卧",
+      "source_type": "2",
+      "saved_value_for_reference_only": "0",
+      "initialize_from_saved_value": false,
+      "enabled": false,
+      "reads": [
+        {
+          "source": "device:417/event:2/code:29",
+          "operator": "!=",
+          "operand": "2",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:420/event:4/code:2",
+          "operator": "!=",
+          "operand": "2",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:420/event:8/code:20",
+          "operator": "!=",
+          "operand": "4",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:420/event:12/code:36",
+          "operator": "!=",
+          "operand": "6",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:421/event:4/code:1",
+          "operator": "!=",
+          "operand": "2",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:421/event:8/code:21",
+          "operator": "!=",
+          "operand": "4",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:421/event:12/code:1",
+          "operator": "!=",
+          "operand": "6",
+          "operand_type": "int"
+        }
+      ],
+      "writes": [
+        {
+          "source": "device:417/event:2/code:30",
+          "operator": "=",
+          "operand": "2",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:417/event:2/code:51",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:420/event:4/code:3",
+          "operator": "=",
+          "operand": "2",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:420/event:4/code:18",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:420/event:8/code:21",
+          "operator": "=",
+          "operand": "4",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:420/event:8/code:37",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:420/event:12/code:37",
+          "operator": "=",
+          "operand": "6",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:420/event:12/code:58",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:421/event:4/code:2",
+          "operator": "=",
+          "operand": "2",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:421/event:4/code:13",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:421/event:8/code:22",
+          "operator": "=",
+          "operand": "4",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:421/event:8/code:44",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:421/event:12/code:2",
+          "operator": "=",
+          "operand": "6",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:421/event:12/code:13",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        }
+      ],
+      "context_commands": [
+        "ACTIVATE_SCENE",
+        "DEACTIVATE_SCENE",
+        "OFF",
+        "ON",
+        "RAMP_TO_LEVEL",
+        "SET_LEVEL",
+        "Turn Off",
+        "Turn On"
+      ],
+      "proposed_lifetime": "persistent",
+      "encoding": "enumerated_integer",
+      "assignment_values": [
+        0,
+        2,
+        4,
+        6
+      ],
+      "arithmetic_operands": [],
+      "feedback_cache_confirmed": false,
+      "basis": "scene/light actions imply logical mode candidate; motor-only actions imply transient bookkeeping candidate; no physical feedback classification inferred",
+      "review_status": "needs_review",
+      "read_count": 7,
+      "write_count": 14
+    },
+    {
+      "id": "440",
+      "name": "客厅",
+      "source_type": "2",
+      "saved_value_for_reference_only": "0",
+      "initialize_from_saved_value": false,
+      "enabled": false,
+      "reads": [
+        {
+          "source": "device:426/event:2/code:2",
+          "operator": "!=",
+          "operand": "1",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:426/event:6/code:2",
+          "operator": "!=",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:437/event:2/code:2",
+          "operator": "!=",
+          "operand": "1",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:437/event:4/code:1",
+          "operator": "!=",
+          "operand": "2",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:437/event:6/code:1",
+          "operator": "!=",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:437/event:8/code:1",
+          "operator": "!=",
+          "operand": "4",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:438/event:8/code:21",
+          "operator": "!=",
+          "operand": "3",
+          "operand_type": "int"
+        }
+      ],
+      "writes": [
+        {
+          "source": "device:426/event:2/code:3",
+          "operator": "=",
+          "operand": "1",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:426/event:2/code:16",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:426/event:6/code:3",
+          "operator": "=",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:426/event:6/code:17",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:437/event:2/code:3",
+          "operator": "=",
+          "operand": "1",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:437/event:2/code:17",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:437/event:4/code:2",
+          "operator": "=",
+          "operand": "2",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:437/event:4/code:14",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:437/event:6/code:5",
+          "operator": "=",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:437/event:6/code:6",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:437/event:8/code:2",
+          "operator": "=",
+          "operand": "4",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:437/event:8/code:15",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:438/event:8/code:22",
+          "operator": "=",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:438/event:8/code:34",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        }
+      ],
+      "context_commands": [
+        "ACTIVATE_SCENE",
+        "DEACTIVATE_SCENE",
+        "Turn Off",
+        "Turn On"
+      ],
+      "proposed_lifetime": "persistent",
+      "encoding": "enumerated_integer",
+      "assignment_values": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "arithmetic_operands": [],
+      "feedback_cache_confirmed": false,
+      "basis": "scene/light actions imply logical mode candidate; motor-only actions imply transient bookkeeping candidate; no physical feedback classification inferred",
+      "review_status": "needs_review",
+      "read_count": 7,
+      "write_count": 14
+    },
+    {
+      "id": "443",
+      "name": "影音室",
+      "source_type": "2",
+      "saved_value_for_reference_only": "0",
+      "initialize_from_saved_value": false,
+      "enabled": false,
+      "reads": [
+        {
+          "source": "device:442/event:2/code:1",
+          "operator": "!=",
+          "operand": "1",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:442/event:4/code:1",
+          "operator": "!=",
+          "operand": "2",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:442/event:6/code:1",
+          "operator": "!=",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:442/event:8/code:1",
+          "operator": "!=",
+          "operand": "4",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:442/event:10/code:1",
+          "operator": "!=",
+          "operand": "5",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:442/event:12/code:1",
+          "operator": "!=",
+          "operand": "6",
+          "operand_type": "int"
+        }
+      ],
+      "writes": [
+        {
+          "source": "device:442/event:2/code:3",
+          "operator": "=",
+          "operand": "1",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:442/event:2/code:13",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:442/event:4/code:3",
+          "operator": "=",
+          "operand": "2",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:442/event:4/code:13",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:442/event:6/code:12",
+          "operator": "=",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:442/event:6/code:13",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:442/event:8/code:3",
+          "operator": "=",
+          "operand": "4",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:442/event:8/code:13",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:442/event:10/code:3",
+          "operator": "=",
+          "operand": "5",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:442/event:10/code:13",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:442/event:12/code:3",
+          "operator": "=",
+          "operand": "6",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:442/event:12/code:13",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        }
+      ],
+      "context_commands": [
+        "ACTIVATE_SCENE",
+        "DEACTIVATE_SCENE",
+        "Turn Off",
+        "Turn On"
+      ],
+      "proposed_lifetime": "persistent",
+      "encoding": "enumerated_integer",
+      "assignment_values": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "arithmetic_operands": [],
+      "feedback_cache_confirmed": false,
+      "basis": "scene/light actions imply logical mode candidate; motor-only actions imply transient bookkeeping candidate; no physical feedback classification inferred",
+      "review_status": "needs_review",
+      "read_count": 6,
+      "write_count": 12
+    },
+    {
+      "id": "444",
+      "name": "画室",
+      "source_type": "2",
+      "saved_value_for_reference_only": "0",
+      "initialize_from_saved_value": false,
+      "enabled": false,
+      "reads": [
+        {
+          "source": "device:425/event:6/code:1",
+          "operator": "!=",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:425/event:8/code:1",
+          "operator": "!=",
+          "operand": "4",
+          "operand_type": "int"
+        }
+      ],
+      "writes": [
+        {
+          "source": "device:425/event:6/code:2",
+          "operator": "=",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:425/event:6/code:7",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:425/event:8/code:2",
+          "operator": "=",
+          "operand": "4",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:425/event:8/code:7",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        }
+      ],
+      "context_commands": [
+        "ACTIVATE_SCENE",
+        "DEACTIVATE_SCENE",
+        "Turn Off",
+        "Turn On"
+      ],
+      "proposed_lifetime": "persistent",
+      "encoding": "enumerated_integer",
+      "assignment_values": [
+        0,
+        3,
+        4
+      ],
+      "arithmetic_operands": [],
+      "feedback_cache_confirmed": false,
+      "basis": "scene/light actions imply logical mode candidate; motor-only actions imply transient bookkeeping candidate; no physical feedback classification inferred",
+      "review_status": "needs_review",
+      "read_count": 2,
+      "write_count": 4
+    },
+    {
+      "id": "445",
+      "name": "南卧",
+      "source_type": "2",
+      "saved_value_for_reference_only": "0",
+      "initialize_from_saved_value": false,
+      "enabled": false,
+      "reads": [
+        {
+          "source": "device:431/event:2/code:22",
+          "operator": "!=",
+          "operand": "2",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:433/event:4/code:2",
+          "operator": "!=",
+          "operand": "2",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:433/event:8/code:21",
+          "operator": "==",
+          "operand": "40",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:433/event:8/code:23",
+          "operator": "==",
+          "operand": "44",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:433/event:8/code:27",
+          "operator": "==",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:433/event:8/code:32",
+          "operator": "==",
+          "operand": "4",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:433/event:12/code:2",
+          "operator": "!=",
+          "operand": "6",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:434/event:2/code:2",
+          "operator": "!=",
+          "operand": "1",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:434/event:4/code:16",
+          "operator": "!=",
+          "operand": "2",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:434/event:6/code:2",
+          "operator": "!=",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:434/event:8/code:33",
+          "operator": "==",
+          "operand": "4",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:434/event:8/code:35",
+          "operator": "==",
+          "operand": "44",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:434/event:8/code:40",
+          "operator": "==",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:434/event:8/code:46",
+          "operator": "==",
+          "operand": "40",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:434/event:10/code:1",
+          "operator": "!=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:434/event:12/code:1",
+          "operator": "!=",
+          "operand": "6",
+          "operand_type": "int"
+        }
+      ],
+      "writes": [
+        {
+          "source": "device:428/event:10/code:18",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:431/event:2/code:23",
+          "operator": "=",
+          "operand": "2",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:431/event:2/code:46",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:433/event:4/code:3",
+          "operator": "=",
+          "operand": "2",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:433/event:4/code:26",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:433/event:8/code:24",
+          "operator": "-",
+          "operand": "40",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:433/event:8/code:33",
+          "operator": "+",
+          "operand": "40",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:433/event:8/code:35",
+          "operator": "=",
+          "operand": "40",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:433/event:12/code:3",
+          "operator": "=",
+          "operand": "6",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:433/event:12/code:22",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:434/event:2/code:5",
+          "operator": "=",
+          "operand": "1",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:434/event:2/code:4",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:434/event:4/code:17",
+          "operator": "=",
+          "operand": "2",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:434/event:4/code:31",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:434/event:6/code:3",
+          "operator": "=",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:434/event:6/code:22",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:434/event:8/code:36",
+          "operator": "-",
+          "operand": "4",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:434/event:8/code:47",
+          "operator": "+",
+          "operand": "4",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:434/event:8/code:49",
+          "operator": "=",
+          "operand": "4",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:434/event:10/code:12",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:434/event:12/code:2",
+          "operator": "=",
+          "operand": "6",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:434/event:12/code:21",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        }
+      ],
+      "context_commands": [
+        "OFF",
+        "ON",
+        "SET_LEVEL",
+        "Turn Off",
+        "Turn On"
+      ],
+      "proposed_lifetime": "persistent",
+      "encoding": "arithmetic_components",
+      "assignment_values": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        6,
+        40
+      ],
+      "arithmetic_operands": [
+        4,
+        40
+      ],
+      "feedback_cache_confirmed": false,
+      "basis": "scene/light actions imply logical mode candidate; motor-only actions imply transient bookkeeping candidate; no physical feedback classification inferred",
+      "review_status": "needs_review",
+      "read_count": 16,
+      "write_count": 22
+    },
+    {
+      "id": "446",
+      "name": "主卧",
+      "source_type": "2",
+      "saved_value_for_reference_only": "0",
+      "initialize_from_saved_value": false,
+      "enabled": false,
+      "reads": [
+        {
+          "source": "device:430/event:4/code:30",
+          "operator": "!=",
+          "operand": "2",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:435/event:4/code:3",
+          "operator": "<",
+          "operand": "100",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:435/event:4/code:29",
+          "operator": "==",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:435/event:4/code:31",
+          "operator": "==",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:435/event:4/code:33",
+          "operator": "==",
+          "operand": "2",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:435/event:8/code:1",
+          "operator": "==",
+          "operand": "40",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:435/event:8/code:3",
+          "operator": "==",
+          "operand": "44",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:435/event:8/code:7",
+          "operator": "==",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:435/event:8/code:10",
+          "operator": "==",
+          "operand": "4",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:435/event:12/code:2",
+          "operator": "!=",
+          "operand": "6",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:436/event:2/code:1",
+          "operator": "!=",
+          "operand": "1",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:436/event:4/code:1",
+          "operator": "!=",
+          "operand": "2",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:436/event:6/code:1",
+          "operator": "!=",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:436/event:8/code:1",
+          "operator": "==",
+          "operand": "4",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:436/event:8/code:34",
+          "operator": "==",
+          "operand": "44",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:436/event:8/code:13",
+          "operator": "==",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:436/event:8/code:36",
+          "operator": "==",
+          "operand": "40",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:436/event:10/code:20",
+          "operator": "!=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:436/event:12/code:1",
+          "operator": "!=",
+          "operand": "6",
+          "operand_type": "int"
+        }
+      ],
+      "writes": [
+        {
+          "source": "device:430/event:4/code:31",
+          "operator": "=",
+          "operand": "2",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:430/event:4/code:51",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:435/event:4/code:4",
+          "operator": "+",
+          "operand": "100",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:435/event:4/code:24",
+          "operator": "-",
+          "operand": "100",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:435/event:8/code:4",
+          "operator": "-",
+          "operand": "40",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:435/event:8/code:11",
+          "operator": "+",
+          "operand": "40",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:435/event:8/code:13",
+          "operator": "=",
+          "operand": "40",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:435/event:12/code:3",
+          "operator": "=",
+          "operand": "6",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:435/event:12/code:23",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:436/event:2/code:17",
+          "operator": "=",
+          "operand": "1",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:436/event:2/code:18",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:436/event:4/code:2",
+          "operator": "=",
+          "operand": "2",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:436/event:4/code:14",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:436/event:6/code:20",
+          "operator": "=",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:436/event:6/code:19",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:436/event:8/code:35",
+          "operator": "-",
+          "operand": "4",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:436/event:8/code:37",
+          "operator": "+",
+          "operand": "4",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:436/event:8/code:3",
+          "operator": "=",
+          "operand": "4",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:436/event:10/code:19",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:436/event:12/code:12",
+          "operator": "=",
+          "operand": "6",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:436/event:12/code:13",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        }
+      ],
+      "context_commands": [
+        "OFF",
+        "ON",
+        "SET_LEVEL",
+        "Turn Off",
+        "Turn On"
+      ],
+      "proposed_lifetime": "persistent",
+      "encoding": "arithmetic_components",
+      "assignment_values": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        6,
+        40
+      ],
+      "arithmetic_operands": [
+        4,
+        40,
+        100
+      ],
+      "feedback_cache_confirmed": false,
+      "basis": "scene/light actions imply logical mode candidate; motor-only actions imply transient bookkeeping candidate; no physical feedback classification inferred",
+      "review_status": "needs_review",
+      "read_count": 19,
+      "write_count": 21
+    },
+    {
+      "id": "447",
+      "name": "北卧",
+      "source_type": "2",
+      "saved_value_for_reference_only": "0",
+      "initialize_from_saved_value": false,
+      "enabled": false,
+      "reads": [
+        {
+          "source": "device:427/event:8/code:3",
+          "operator": "!=",
+          "operand": "2",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:428/event:2/code:2",
+          "operator": "!=",
+          "operand": "1",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:428/event:4/code:27",
+          "operator": "!=",
+          "operand": "2",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:428/event:6/code:2",
+          "operator": "!=",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:428/event:8/code:3",
+          "operator": "==",
+          "operand": "4",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:428/event:8/code:5",
+          "operator": "==",
+          "operand": "44",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:428/event:8/code:9",
+          "operator": "==",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:428/event:8/code:15",
+          "operator": "==",
+          "operand": "40",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:428/event:10/code:2",
+          "operator": "!=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:428/event:12/code:2",
+          "operator": "!=",
+          "operand": "6",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:429/event:4/code:27",
+          "operator": "!=",
+          "operand": "2",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:429/event:8/code:2",
+          "operator": "==",
+          "operand": "40",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:429/event:8/code:4",
+          "operator": "==",
+          "operand": "44",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:429/event:8/code:8",
+          "operator": "==",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:429/event:8/code:13",
+          "operator": "==",
+          "operand": "4",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:429/event:12/code:2",
+          "operator": "!=",
+          "operand": "6",
+          "operand_type": "int"
+        }
+      ],
+      "writes": [
+        {
+          "source": "device:427/event:8/code:10",
+          "operator": "=",
+          "operand": "2",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:427/event:8/code:21",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:428/event:2/code:3",
+          "operator": "=",
+          "operand": "1",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:428/event:2/code:20",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:428/event:4/code:34",
+          "operator": "=",
+          "operand": "2",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:428/event:4/code:46",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:428/event:6/code:3",
+          "operator": "=",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:428/event:6/code:20",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:428/event:8/code:6",
+          "operator": "-",
+          "operand": "4",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:428/event:8/code:16",
+          "operator": "+",
+          "operand": "4",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:428/event:8/code:18",
+          "operator": "=",
+          "operand": "4",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:428/event:12/code:3",
+          "operator": "=",
+          "operand": "6",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:428/event:12/code:20",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:429/event:4/code:34",
+          "operator": "=",
+          "operand": "2",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:429/event:4/code:46",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:429/event:8/code:5",
+          "operator": "-",
+          "operand": "40",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:429/event:8/code:14",
+          "operator": "+",
+          "operand": "40",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:429/event:8/code:16",
+          "operator": "=",
+          "operand": "40",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:429/event:12/code:5",
+          "operator": "=",
+          "operand": "6",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:429/event:12/code:4",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        }
+      ],
+      "context_commands": [
+        "OFF",
+        "ON",
+        "SET_LEVEL",
+        "Turn Off",
+        "Turn On"
+      ],
+      "proposed_lifetime": "persistent",
+      "encoding": "arithmetic_components",
+      "assignment_values": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        6,
+        40
+      ],
+      "arithmetic_operands": [
+        4,
+        40
+      ],
+      "feedback_cache_confirmed": false,
+      "basis": "scene/light actions imply logical mode candidate; motor-only actions imply transient bookkeeping candidate; no physical feedback classification inferred",
+      "review_status": "needs_review",
+      "read_count": 16,
+      "write_count": 20
+    },
+    {
+      "id": "450",
+      "name": "休闲室",
+      "source_type": "2",
+      "saved_value_for_reference_only": "3",
+      "initialize_from_saved_value": false,
+      "enabled": false,
+      "reads": [
+        {
+          "source": "device:417/event:6/code:3",
+          "operator": "!=",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:417/event:8/code:4",
+          "operator": "!=",
+          "operand": "4",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:417/event:10/code:4",
+          "operator": "!=",
+          "operand": "1",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:417/event:12/code:2",
+          "operator": "!=",
+          "operand": "4",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:422/event:6/code:3",
+          "operator": "!=",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:423/event:2/code:3",
+          "operator": "!=",
+          "operand": "1",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:423/event:6/code:26",
+          "operator": "!=",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:423/event:8/code:2",
+          "operator": "!=",
+          "operand": "4",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:423/event:10/code:13",
+          "operator": "!=",
+          "operand": "5",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:424/event:2/code:3",
+          "operator": "!=",
+          "operand": "1",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:424/event:6/code:26",
+          "operator": "!=",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:424/event:8/code:2",
+          "operator": "!=",
+          "operand": "4",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:424/event:10/code:14",
+          "operator": "!=",
+          "operand": "5",
+          "operand_type": "int"
+        }
+      ],
+      "writes": [
+        {
+          "source": "device:417/event:6/code:4",
+          "operator": "=",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:417/event:6/code:20",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:417/event:8/code:5",
+          "operator": "=",
+          "operand": "4",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:417/event:8/code:21",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:417/event:10/code:5",
+          "operator": "=",
+          "operand": "1",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:417/event:10/code:21",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:417/event:12/code:3",
+          "operator": "=",
+          "operand": "4",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:417/event:12/code:19",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:422/event:6/code:4",
+          "operator": "=",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:422/event:6/code:20",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:423/event:2/code:4",
+          "operator": "=",
+          "operand": "1",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:423/event:2/code:20",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:423/event:6/code:27",
+          "operator": "=",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:423/event:6/code:43",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:423/event:8/code:3",
+          "operator": "=",
+          "operand": "4",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:423/event:8/code:19",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:423/event:10/code:14",
+          "operator": "=",
+          "operand": "5",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:423/event:10/code:30",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:424/event:2/code:4",
+          "operator": "=",
+          "operand": "1",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:424/event:2/code:20",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:424/event:6/code:27",
+          "operator": "=",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:424/event:6/code:43",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:424/event:8/code:3",
+          "operator": "=",
+          "operand": "4",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:424/event:8/code:19",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:424/event:10/code:15",
+          "operator": "=",
+          "operand": "5",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:424/event:10/code:31",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        }
+      ],
+      "context_commands": [
+        "ACTIVATE_SCENE",
+        "DEACTIVATE_SCENE",
+        "Turn Off",
+        "Turn On"
+      ],
+      "proposed_lifetime": "persistent",
+      "encoding": "enumerated_integer",
+      "assignment_values": [
+        0,
+        1,
+        3,
+        4,
+        5
+      ],
+      "arithmetic_operands": [],
+      "feedback_cache_confirmed": false,
+      "basis": "scene/light actions imply logical mode candidate; motor-only actions imply transient bookkeeping candidate; no physical feedback classification inferred",
+      "review_status": "needs_review",
+      "read_count": 13,
+      "write_count": 26
+    },
+    {
+      "id": "453",
+      "name": "主卧窗帘",
+      "source_type": "2",
+      "saved_value_for_reference_only": "3",
+      "initialize_from_saved_value": false,
+      "enabled": false,
+      "reads": [
+        {
+          "source": "device:59/event:2/code:3",
+          "operator": "==",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:59/event:4/code:3",
+          "operator": "==",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:435/event:2/code:10",
+          "operator": "!=",
+          "operand": "2",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:435/event:2/code:14",
+          "operator": "==",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:435/event:2/code:15",
+          "operator": "==",
+          "operand": "1",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:435/event:6/code:5",
+          "operator": "!=",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:435/event:10/code:12",
+          "operator": "!=",
+          "operand": "1",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:435/event:10/code:16",
+          "operator": "==",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:435/event:10/code:18",
+          "operator": "==",
+          "operand": "2",
+          "operand_type": "int"
+        }
+      ],
+      "writes": [
+        {
+          "source": "device:59/event:2/code:2",
+          "operator": "=",
+          "operand": "1",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:59/event:4/code:2",
+          "operator": "=",
+          "operand": "2",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:435/event:2/code:13",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:435/event:6/code:6",
+          "operator": "=",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:435/event:6/code:8",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:435/event:10/code:17",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        }
+      ],
+      "context_commands": [
+        "SET_LEVEL_TARGET",
+        "STOP",
+        "Turn Off",
+        "Turn On"
+      ],
+      "proposed_lifetime": "temporary",
+      "encoding": "enumerated_integer",
+      "assignment_values": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "arithmetic_operands": [],
+      "feedback_cache_confirmed": false,
+      "basis": "scene/light actions imply logical mode candidate; motor-only actions imply transient bookkeeping candidate; no physical feedback classification inferred",
+      "review_status": "needs_review",
+      "read_count": 9,
+      "write_count": 6
+    },
+    {
+      "id": "454",
+      "name": "阅览室窗帘",
+      "source_type": "2",
+      "saved_value_for_reference_only": "0",
+      "initialize_from_saved_value": false,
+      "enabled": false,
+      "reads": [
+        {
+          "source": "device:430/event:2/code:16",
+          "operator": "!=",
+          "operand": "2",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:430/event:2/code:20",
+          "operator": "==",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:430/event:2/code:23",
+          "operator": "==",
+          "operand": "1",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:430/event:6/code:5",
+          "operator": "!=",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:430/event:10/code:16",
+          "operator": "!=",
+          "operand": "1",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:430/event:10/code:20",
+          "operator": "==",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:430/event:10/code:23",
+          "operator": "==",
+          "operand": "2",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:449/event:2/code:1",
+          "operator": "==",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:449/event:4/code:7",
+          "operator": "==",
+          "operand": "3",
+          "operand_type": "int"
+        }
+      ],
+      "writes": [
+        {
+          "source": "device:430/event:2/code:22",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:430/event:6/code:6",
+          "operator": "=",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:430/event:6/code:8",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:430/event:10/code:22",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:449/event:2/code:5",
+          "operator": "=",
+          "operand": "2",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:449/event:4/code:11",
+          "operator": "=",
+          "operand": "1",
+          "operand_type": "int"
+        }
+      ],
+      "context_commands": [
+        "SET_LEVEL_TARGET",
+        "STOP",
+        "Turn Off",
+        "Turn On"
+      ],
+      "proposed_lifetime": "temporary",
+      "encoding": "enumerated_integer",
+      "assignment_values": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "arithmetic_operands": [],
+      "feedback_cache_confirmed": false,
+      "basis": "scene/light actions imply logical mode candidate; motor-only actions imply transient bookkeeping candidate; no physical feedback classification inferred",
+      "review_status": "needs_review",
+      "read_count": 9,
+      "write_count": 6
+    },
+    {
+      "id": "455",
+      "name": "书房窗帘",
+      "source_type": "2",
+      "saved_value_for_reference_only": "0",
+      "initialize_from_saved_value": false,
+      "enabled": false,
+      "reads": [
+        {
+          "source": "device:63/event:4/code:29",
+          "operator": "!=",
+          "operand": "2",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:63/event:4/code:23",
+          "operator": "==",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:63/event:4/code:26",
+          "operator": "==",
+          "operand": "1",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:63/event:8/code:15",
+          "operator": "!=",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:63/event:12/code:15",
+          "operator": "!=",
+          "operand": "1",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:63/event:12/code:19",
+          "operator": "==",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:63/event:12/code:22",
+          "operator": "==",
+          "operand": "2",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:291/event:2/code:1",
+          "operator": "==",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:291/event:4/code:1",
+          "operator": "==",
+          "operand": "3",
+          "operand_type": "int"
+        }
+      ],
+      "writes": [
+        {
+          "source": "device:63/event:4/code:25",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:63/event:8/code:16",
+          "operator": "=",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:63/event:8/code:18",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:63/event:12/code:20",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:291/event:2/code:5",
+          "operator": "=",
+          "operand": "1",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:291/event:4/code:5",
+          "operator": "=",
+          "operand": "2",
+          "operand_type": "int"
+        }
+      ],
+      "context_commands": [
+        "SET_LEVEL_TARGET",
+        "STOP",
+        "Turn Off",
+        "Turn On"
+      ],
+      "proposed_lifetime": "temporary",
+      "encoding": "enumerated_integer",
+      "assignment_values": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "arithmetic_operands": [],
+      "feedback_cache_confirmed": false,
+      "basis": "scene/light actions imply logical mode candidate; motor-only actions imply transient bookkeeping candidate; no physical feedback classification inferred",
+      "review_status": "needs_review",
+      "read_count": 9,
+      "write_count": 6
+    },
+    {
+      "id": "457",
+      "name": "门厅",
+      "source_type": "2",
+      "saved_value_for_reference_only": "0",
+      "initialize_from_saved_value": false,
+      "enabled": false,
+      "reads": [
+        {
+          "source": "device:456/event:6/code:1",
+          "operator": "!=",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:456/event:8/code:11",
+          "operator": "!=",
+          "operand": "4",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:456/event:10/code:2",
+          "operator": "!=",
+          "operand": "5",
+          "operand_type": "int"
+        }
+      ],
+      "writes": [
+        {
+          "source": "device:456/event:2/code:10",
+          "operator": "=",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:456/event:6/code:10",
+          "operator": "=",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:456/event:6/code:11",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:456/event:8/code:12",
+          "operator": "=",
+          "operand": "4",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:456/event:8/code:20",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:456/event:10/code:3",
+          "operator": "=",
+          "operand": "5",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:456/event:10/code:11",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:456/event:12/code:17",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        }
+      ],
+      "context_commands": [
+        "OFF",
+        "ON",
+        "SET_LEVEL",
+        "Turn Off",
+        "Turn On"
+      ],
+      "proposed_lifetime": "persistent",
+      "encoding": "enumerated_integer",
+      "assignment_values": [
+        0,
+        3,
+        4,
+        5
+      ],
+      "arithmetic_operands": [],
+      "feedback_cache_confirmed": false,
+      "basis": "scene/light actions imply logical mode candidate; motor-only actions imply transient bookkeeping candidate; no physical feedback classification inferred",
+      "review_status": "needs_review",
+      "read_count": 3,
+      "write_count": 8
+    },
+    {
+      "id": "458",
+      "name": "衣帽间窗帘",
+      "source_type": "2",
+      "saved_value_for_reference_only": "2",
+      "initialize_from_saved_value": false,
+      "enabled": false,
+      "reads": [
+        {
+          "source": "device:299/event:2/code:1",
+          "operator": "==",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:299/event:4/code:1",
+          "operator": "==",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:432/event:2/code:5",
+          "operator": "!=",
+          "operand": "2",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:432/event:2/code:9",
+          "operator": "==",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:432/event:2/code:12",
+          "operator": "==",
+          "operand": "1",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:432/event:6/code:5",
+          "operator": "!=",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:432/event:10/code:4",
+          "operator": "!=",
+          "operand": "1",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:432/event:10/code:8",
+          "operator": "==",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:432/event:10/code:11",
+          "operator": "==",
+          "operand": "2",
+          "operand_type": "int"
+        }
+      ],
+      "writes": [
+        {
+          "source": "device:299/event:2/code:5",
+          "operator": "=",
+          "operand": "1",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:299/event:4/code:5",
+          "operator": "=",
+          "operand": "2",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:432/event:2/code:11",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:432/event:6/code:6",
+          "operator": "=",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:432/event:6/code:8",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:432/event:10/code:9",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        }
+      ],
+      "context_commands": [
+        "SET_LEVEL_TARGET",
+        "STOP",
+        "Turn Off",
+        "Turn On"
+      ],
+      "proposed_lifetime": "temporary",
+      "encoding": "enumerated_integer",
+      "assignment_values": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "arithmetic_operands": [],
+      "feedback_cache_confirmed": false,
+      "basis": "scene/light actions imply logical mode candidate; motor-only actions imply transient bookkeeping candidate; no physical feedback classification inferred",
+      "review_status": "needs_review",
+      "read_count": 9,
+      "write_count": 6
+    },
+    {
+      "id": "459",
+      "name": "北卧窗帘",
+      "source_type": "2",
+      "saved_value_for_reference_only": "2",
+      "initialize_from_saved_value": false,
+      "enabled": false,
+      "reads": [
+        {
+          "source": "device:301/event:2/code:2",
+          "operator": "==",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:301/event:4/code:2",
+          "operator": "==",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:429/event:2/code:5",
+          "operator": "!=",
+          "operand": "2",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:429/event:2/code:9",
+          "operator": "==",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:429/event:2/code:12",
+          "operator": "==",
+          "operand": "1",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:429/event:6/code:6",
+          "operator": "!=",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:429/event:10/code:5",
+          "operator": "!=",
+          "operand": "1",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:429/event:10/code:9",
+          "operator": "==",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:429/event:10/code:12",
+          "operator": "==",
+          "operand": "2",
+          "operand_type": "int"
+        }
+      ],
+      "writes": [
+        {
+          "source": "device:301/event:2/code:6",
+          "operator": "=",
+          "operand": "1",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:301/event:4/code:6",
+          "operator": "=",
+          "operand": "2",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:429/event:2/code:11",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:429/event:6/code:7",
+          "operator": "=",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:429/event:6/code:9",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:429/event:10/code:10",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        }
+      ],
+      "context_commands": [
+        "SET_LEVEL_TARGET",
+        "STOP",
+        "Turn Off",
+        "Turn On"
+      ],
+      "proposed_lifetime": "temporary",
+      "encoding": "enumerated_integer",
+      "assignment_values": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "arithmetic_operands": [],
+      "feedback_cache_confirmed": false,
+      "basis": "scene/light actions imply logical mode candidate; motor-only actions imply transient bookkeeping candidate; no physical feedback classification inferred",
+      "review_status": "needs_review",
+      "read_count": 9,
+      "write_count": 6
+    },
+    {
+      "id": "460",
+      "name": "南卧窗帘",
+      "source_type": "2",
+      "saved_value_for_reference_only": "3",
+      "initialize_from_saved_value": false,
+      "enabled": false,
+      "reads": [
+        {
+          "source": "device:433/event:2/code:5",
+          "operator": "!=",
+          "operand": "2",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:433/event:2/code:9",
+          "operator": "==",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:433/event:2/code:12",
+          "operator": "==",
+          "operand": "1",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:433/event:6/code:5",
+          "operator": "!=",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:433/event:10/code:4",
+          "operator": "!=",
+          "operand": "1",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:433/event:10/code:8",
+          "operator": "==",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:433/event:10/code:11",
+          "operator": "==",
+          "operand": "2",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:452/event:2/code:1",
+          "operator": "==",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:452/event:4/code:9",
+          "operator": "==",
+          "operand": "3",
+          "operand_type": "int"
+        }
+      ],
+      "writes": [
+        {
+          "source": "device:433/event:2/code:11",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:433/event:6/code:6",
+          "operator": "=",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:433/event:6/code:8",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:433/event:10/code:9",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:452/event:2/code:5",
+          "operator": "=",
+          "operand": "1",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:452/event:4/code:13",
+          "operator": "=",
+          "operand": "2",
+          "operand_type": "int"
+        }
+      ],
+      "context_commands": [
+        "SET_LEVEL_TARGET",
+        "STOP",
+        "Turn Off",
+        "Turn On"
+      ],
+      "proposed_lifetime": "temporary",
+      "encoding": "enumerated_integer",
+      "assignment_values": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "arithmetic_operands": [],
+      "feedback_cache_confirmed": false,
+      "basis": "scene/light actions imply logical mode candidate; motor-only actions imply transient bookkeeping candidate; no physical feedback classification inferred",
+      "review_status": "needs_review",
+      "read_count": 9,
+      "write_count": 6
+    },
+    {
+      "id": "461",
+      "name": "客厅窗帘",
+      "source_type": "2",
+      "saved_value_for_reference_only": "3",
+      "initialize_from_saved_value": false,
+      "enabled": false,
+      "reads": [
+        {
+          "source": "device:295/event:2/code:1",
+          "operator": "==",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:295/event:4/code:1",
+          "operator": "==",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:438/event:2/code:25",
+          "operator": "!=",
+          "operand": "2",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:438/event:2/code:29",
+          "operator": "==",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:438/event:2/code:32",
+          "operator": "==",
+          "operand": "1",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:438/event:6/code:5",
+          "operator": "!=",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:438/event:10/code:27",
+          "operator": "!=",
+          "operand": "1",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:438/event:10/code:31",
+          "operator": "==",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:438/event:10/code:34",
+          "operator": "==",
+          "operand": "2",
+          "operand_type": "int"
+        }
+      ],
+      "writes": [
+        {
+          "source": "device:295/event:2/code:5",
+          "operator": "=",
+          "operand": "1",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:295/event:4/code:5",
+          "operator": "=",
+          "operand": "2",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:438/event:2/code:31",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:438/event:6/code:6",
+          "operator": "=",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:438/event:6/code:8",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:438/event:10/code:33",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        }
+      ],
+      "context_commands": [
+        "SET_LEVEL_TARGET",
+        "STOP",
+        "Turn Off",
+        "Turn On"
+      ],
+      "proposed_lifetime": "temporary",
+      "encoding": "enumerated_integer",
+      "assignment_values": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "arithmetic_operands": [],
+      "feedback_cache_confirmed": false,
+      "basis": "scene/light actions imply logical mode candidate; motor-only actions imply transient bookkeeping candidate; no physical feedback classification inferred",
+      "review_status": "needs_review",
+      "read_count": 9,
+      "write_count": 6
+    },
+    {
+      "id": "462",
+      "name": "休闲区窗帘",
+      "source_type": "2",
+      "saved_value_for_reference_only": "3",
+      "initialize_from_saved_value": false,
+      "enabled": false,
+      "reads": [
+        {
+          "source": "device:289/event:2/code:1",
+          "operator": "==",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:289/event:4/code:1",
+          "operator": "==",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:416/event:2/code:4",
+          "operator": "!=",
+          "operand": "2",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:416/event:2/code:8",
+          "operator": "==",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:416/event:2/code:11",
+          "operator": "==",
+          "operand": "1",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:416/event:6/code:5",
+          "operator": "!=",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:416/event:10/code:4",
+          "operator": "!=",
+          "operand": "1",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:416/event:10/code:8",
+          "operator": "==",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:416/event:10/code:11",
+          "operator": "==",
+          "operand": "2",
+          "operand_type": "int"
+        }
+      ],
+      "writes": [
+        {
+          "source": "device:289/event:2/code:5",
+          "operator": "=",
+          "operand": "1",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:289/event:4/code:5",
+          "operator": "=",
+          "operand": "2",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:416/event:2/code:10",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:416/event:6/code:6",
+          "operator": "=",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:416/event:6/code:8",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:416/event:10/code:9",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        }
+      ],
+      "context_commands": [
+        "SET_LEVEL_TARGET",
+        "STOP",
+        "Turn Off",
+        "Turn On"
+      ],
+      "proposed_lifetime": "temporary",
+      "encoding": "enumerated_integer",
+      "assignment_values": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "arithmetic_operands": [],
+      "feedback_cache_confirmed": false,
+      "basis": "scene/light actions imply logical mode candidate; motor-only actions imply transient bookkeeping candidate; no physical feedback classification inferred",
+      "review_status": "needs_review",
+      "read_count": 9,
+      "write_count": 6
+    },
+    {
+      "id": "463",
+      "name": "画室窗帘",
+      "source_type": "2",
+      "saved_value_for_reference_only": "1",
+      "initialize_from_saved_value": false,
+      "enabled": false,
+      "reads": [
+        {
+          "source": "device:303/event:2/code:1",
+          "operator": "==",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:303/event:3/code:1",
+          "operator": "==",
+          "operand": "1",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:303/event:3/code:2",
+          "operator": "==",
+          "operand": "2",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:303/event:3/code:4",
+          "operator": "==",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:303/event:4/code:1",
+          "operator": "==",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:425/event:2/code:4",
+          "operator": "!=",
+          "operand": "2",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:425/event:2/code:8",
+          "operator": "==",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:425/event:2/code:11",
+          "operator": "==",
+          "operand": "1",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:425/event:4/code:4",
+          "operator": "!=",
+          "operand": "1",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:425/event:4/code:8",
+          "operator": "==",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:425/event:4/code:11",
+          "operator": "==",
+          "operand": "2",
+          "operand_type": "int"
+        }
+      ],
+      "writes": [
+        {
+          "source": "device:303/event:2/code:5",
+          "operator": "=",
+          "operand": "1",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:303/event:4/code:5",
+          "operator": "=",
+          "operand": "2",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:425/event:2/code:10",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:425/event:4/code:9",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        }
+      ],
+      "context_commands": [
+        "SET_LEVEL_TARGET",
+        "Turn Off",
+        "Turn On"
+      ],
+      "proposed_lifetime": "temporary",
+      "encoding": "enumerated_integer",
+      "assignment_values": [
+        0,
+        1,
+        2
+      ],
+      "arithmetic_operands": [],
+      "feedback_cache_confirmed": false,
+      "basis": "scene/light actions imply logical mode candidate; motor-only actions imply transient bookkeeping candidate; no physical feedback classification inferred",
+      "review_status": "needs_review",
+      "read_count": 11,
+      "write_count": 4
+    },
+    {
+      "id": "464",
+      "name": "客卧窗帘",
+      "source_type": "2",
+      "saved_value_for_reference_only": "1",
+      "initialize_from_saved_value": false,
+      "enabled": false,
+      "reads": [
+        {
+          "source": "device:293/event:2/code:1",
+          "operator": "==",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:293/event:4/code:1",
+          "operator": "==",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:420/event:2/code:4",
+          "operator": "!=",
+          "operand": "2",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:420/event:2/code:8",
+          "operator": "==",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:420/event:2/code:11",
+          "operator": "==",
+          "operand": "1",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:420/event:6/code:5",
+          "operator": "!=",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:420/event:10/code:4",
+          "operator": "!=",
+          "operand": "1",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:420/event:10/code:8",
+          "operator": "==",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:420/event:10/code:11",
+          "operator": "==",
+          "operand": "2",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:421/event:2/code:5",
+          "operator": "!=",
+          "operand": "2",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:421/event:2/code:9",
+          "operator": "==",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:421/event:2/code:12",
+          "operator": "==",
+          "operand": "1",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:421/event:6/code:5",
+          "operator": "!=",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:421/event:10/code:4",
+          "operator": "!=",
+          "operand": "1",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:421/event:10/code:8",
+          "operator": "==",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:421/event:10/code:11",
+          "operator": "==",
+          "operand": "2",
+          "operand_type": "int"
+        }
+      ],
+      "writes": [
+        {
+          "source": "device:293/event:2/code:5",
+          "operator": "=",
+          "operand": "1",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:293/event:4/code:5",
+          "operator": "=",
+          "operand": "2",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:420/event:2/code:10",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:420/event:6/code:6",
+          "operator": "=",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:420/event:6/code:8",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:420/event:10/code:9",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:421/event:2/code:11",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:421/event:6/code:6",
+          "operator": "=",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:421/event:6/code:8",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:421/event:10/code:9",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        }
+      ],
+      "context_commands": [
+        "SET_LEVEL_TARGET",
+        "STOP",
+        "Turn Off",
+        "Turn On"
+      ],
+      "proposed_lifetime": "temporary",
+      "encoding": "enumerated_integer",
+      "assignment_values": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "arithmetic_operands": [],
+      "feedback_cache_confirmed": false,
+      "basis": "scene/light actions imply logical mode candidate; motor-only actions imply transient bookkeeping candidate; no physical feedback classification inferred",
+      "review_status": "needs_review",
+      "read_count": 16,
+      "write_count": 10
+    },
+    {
+      "id": "465",
+      "name": "卧室窗帘",
+      "source_type": "2",
+      "saved_value_for_reference_only": "3",
+      "initialize_from_saved_value": false,
+      "enabled": false,
+      "reads": [
+        {
+          "source": "device:285/event:2/code:1",
+          "operator": "==",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:285/event:4/code:1",
+          "operator": "==",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:441/event:2/code:4",
+          "operator": "!=",
+          "operand": "2",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:441/event:2/code:8",
+          "operator": "==",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:441/event:2/code:11",
+          "operator": "==",
+          "operand": "1",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:441/event:6/code:5",
+          "operator": "!=",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:441/event:10/code:4",
+          "operator": "!=",
+          "operand": "1",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:441/event:10/code:8",
+          "operator": "==",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:441/event:10/code:11",
+          "operator": "==",
+          "operand": "2",
+          "operand_type": "int"
+        }
+      ],
+      "writes": [
+        {
+          "source": "device:285/event:2/code:5",
+          "operator": "=",
+          "operand": "1",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:285/event:4/code:5",
+          "operator": "=",
+          "operand": "2",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:441/event:2/code:10",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:441/event:6/code:6",
+          "operator": "=",
+          "operand": "3",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:441/event:6/code:8",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:441/event:10/code:9",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        }
+      ],
+      "context_commands": [
+        "SET_LEVEL_TARGET",
+        "STOP",
+        "Turn Off",
+        "Turn On"
+      ],
+      "proposed_lifetime": "temporary",
+      "encoding": "enumerated_integer",
+      "assignment_values": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "arithmetic_operands": [],
+      "feedback_cache_confirmed": false,
+      "basis": "scene/light actions imply logical mode candidate; motor-only actions imply transient bookkeeping candidate; no physical feedback classification inferred",
+      "review_status": "needs_review",
+      "read_count": 9,
+      "write_count": 6
+    },
+    {
+      "id": "466",
+      "name": "衣帽间",
+      "source_type": "2",
+      "saved_value_for_reference_only": "0",
+      "initialize_from_saved_value": false,
+      "enabled": false,
+      "reads": [
+        {
+          "source": "device:430/event:12/code:7",
+          "operator": "==",
+          "operand": "6",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:430/event:12/code:18",
+          "operator": "==",
+          "operand": "4",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:432/event:4/code:16",
+          "operator": "==",
+          "operand": "6",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:432/event:4/code:10",
+          "operator": "==",
+          "operand": "4",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:432/event:8/code:1",
+          "operator": "!=",
+          "operand": "4",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:432/event:12/code:20",
+          "operator": "==",
+          "operand": "2",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:432/event:12/code:26",
+          "operator": "==",
+          "operand": "4",
+          "operand_type": "int"
+        }
+      ],
+      "writes": [
+        {
+          "source": "device:430/event:12/code:8",
+          "operator": "=",
+          "operand": "4",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:430/event:12/code:11",
+          "operator": "=",
+          "operand": "2",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:430/event:12/code:19",
+          "operator": "=",
+          "operand": "6",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:430/event:12/code:23",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:432/event:4/code:17",
+          "operator": "=",
+          "operand": "4",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:432/event:4/code:22",
+          "operator": "=",
+          "operand": "2",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:432/event:4/code:11",
+          "operator": "=",
+          "operand": "6",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:432/event:4/code:20",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:432/event:8/code:18",
+          "operator": "=",
+          "operand": "4",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:432/event:8/code:19",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:432/event:12/code:21",
+          "operator": "=",
+          "operand": "4",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:432/event:12/code:34",
+          "operator": "=",
+          "operand": "6",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:432/event:12/code:27",
+          "operator": "=",
+          "operand": "2",
+          "operand_type": "int"
+        },
+        {
+          "source": "device:432/event:12/code:37",
+          "operator": "=",
+          "operand": "0",
+          "operand_type": "int"
+        }
+      ],
+      "context_commands": [
+        "OFF",
+        "ON",
+        "SET_LEVEL",
+        "Turn Off",
+        "Turn On"
+      ],
+      "proposed_lifetime": "persistent",
+      "encoding": "enumerated_integer",
+      "assignment_values": [
+        0,
+        2,
+        4,
+        6
+      ],
+      "arithmetic_operands": [],
+      "feedback_cache_confirmed": false,
+      "basis": "scene/light actions imply logical mode candidate; motor-only actions imply transient bookkeeping candidate; no physical feedback classification inferred",
+      "review_status": "needs_review",
+      "read_count": 7,
+      "write_count": 14
+    }
+  ],
+  "policy": "Only logical modes may persist; motion bookkeeping needs review and must not be treated as physical feedback. Source saved values are not runtime initialization."
+}

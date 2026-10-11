@@ -1,0 +1,23 @@
+{
+  "command": "cargo test --locked --offline --workspace",
+  "date": "2026-10-11",
+  "exit_code": 0,
+  "suite_results": 74,
+  "passed": 334,
+  "failed": 0,
+  "ignored": 0,
+  "scope": "uncommitted stage D snapshot after file hold/timed scene adapters and runtime lint corrections; isolated databases and loopback only; before schema 10 scene lifecycle changes",
+  "log_sha256": "be1db556d560520ab5c82401adddbba6123b6f213efdca3d3cb4ce4df87065cd",
+  "sandbox_note": "Initial sandbox run rejected loopback bind; final complete run used granted local execution permission.",
+  "runtime_clippy": {
+    "command": "cargo clippy --locked --offline -p homesensed --lib -- -D warnings",
+    "exit_code": 0,
+    "dependency_warnings": "vendored hap still reports 52 warnings"
+  },
+  "workspace_clippy": {
+    "command": "cargo clippy --locked --offline --workspace --all-targets -- -D warnings",
+    "passed": false,
+    "remaining": "HAP test helpers use deprecated AEAD APIs; full all-target lint gate is not satisfied."
+  },
+  "stage_d_complete": false
+}

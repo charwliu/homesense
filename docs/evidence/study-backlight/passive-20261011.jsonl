@@ -1,0 +1,4 @@
+{"duration_ms":120000,"event":"capture_started","max_frames":4096,"unix_ms":"1791685978569"}
+{"decoded":{"address":65,"channel":1,"kind":"feedback","observation":"Button { pressed: true }"},"elapsed_ms":19304,"event":"frame","raw":[174,65,209,241,238]}
+{"decoded":{"address":65,"channel":1,"kind":"feedback","observation":"Button { pressed: false }"},"elapsed_ms":19504,"event":"frame","raw":[174,65,209,242,238]}
+{"discarded_bytes":0,"elapsed_ms":120077,"error":null,"event":"capture_finished","frames":2,"incomplete_bytes":0,"malformed_frames":0,"reason":"duration"}
