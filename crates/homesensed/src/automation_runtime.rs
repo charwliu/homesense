@@ -100,6 +100,33 @@ impl AutomationRuntime {
             .start_document(&self.document, id, self.admission.monotonic_ms())
             .await
     }
+    /// Cancel future and queued output; already-writing commands cannot be undone.
+    pub async fn cancel_scene(&mut self, run: u64) -> Result<usize, String> {
+        self.validate().await?;
+        self.scenes.cancel(run).await
+    }
+    pub fn scene_status(&self, run: u64) -> Option<homesense_core::scene::Status> {
+        self.scenes.status(run)
+    }
+    /// Explicit retirement releases bounded scheduler capacity. Durable history
+    /// remains available through Admission after the in-memory handle is retired.
+    pub fn retire_scene(&mut self, run: u64) -> Result<homesense_core::scene::Status, String> {
+        self.scenes.retire(run)
+    }
+    /// Graceful shutdown checkpoints cancellation before disabling admission.
+    /// Dropping this future still disables all subsequent transport dispatch.
+    pub async fn shutdown(&mut self) -> Vec<(u64, Result<usize, String>)> {
+        struct Stop(Admission);
+        impl Drop for Stop {
+            fn drop(&mut self) {
+                self.0.stop_now();
+            }
+        }
+        let _stop = Stop(self.admission.clone());
+        self.panels.disconnect();
+        self.calendar.stop();
+        self.scenes.stop().await
+    }
     pub async fn drive<S: std::io::Read + std::io::Write + Send + 'static>(
         &mut self,
         owner: &mut crate::observed_transport::ObservedTransport<S>,
