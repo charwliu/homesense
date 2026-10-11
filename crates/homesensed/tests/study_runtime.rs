@@ -2744,6 +2744,10 @@ async fn calendar_dispatch_persists_before_rules_and_never_replays_after_restart
     let sql = rusqlite::Connection::open(&db.0).unwrap();
     sql.execute_batch("CREATE TRIGGER fail_calendar BEFORE UPDATE ON calendar_watermark BEGIN SELECT RAISE(ABORT,'fixture'); END;").unwrap();
     assert!(failed.poll(due + 86_400_000, None).await.is_err());
+    let diagnostics = failed.status();
+    assert!(diagnostics.clock.stopped);
+    assert_eq!(diagnostics.clock.watermark_unix_ms, due + 86_400_000);
+    assert_eq!(diagnostics.persisted_watermark_unix_ms, Some(due));
     assert_eq!(
         Store::open(&db.0)
             .unwrap()
@@ -4279,6 +4283,12 @@ async fn running_automation_control_cancels_before_output_and_closes_on_exit() {
     let mut owner=ObservedTransport::new(transport,feedback);
     let (stop,receive)=tokio::sync::watch::channel(false);
     let client=async {
+        let Reply::CalendarStatus { boot, revision, status: Some(calendar) } = control.request(Action::CalendarStatus).await.unwrap() else { panic!("missing calendar status") };
+        assert_eq!(boot, a.boot_id());
+        assert_eq!(revision, 1);
+        assert_eq!(calendar.clock.schedule_count, 0);
+        assert!(!calendar.clock.stopped);
+        // Querying diagnostics must not manufacture a schedule or scene action.
         assert!(control.subscribe("unknown".into()).await.is_err());
         let mut subscription=control.subscribe("light".into()).await.unwrap();
         let mut extra=Vec::new();
