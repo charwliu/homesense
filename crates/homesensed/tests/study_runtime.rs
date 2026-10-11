@@ -5497,3 +5497,54 @@ async fn delayed_fade_inherits_scene_manual_fence_instead_of_reacquiring_control
     assert!(a.dispatch().await.unwrap().is_none());
     a.shutdown().await.unwrap();
 }
+
+#[tokio::test]
+async fn scene_owned_fade_completes_or_cancels_with_durable_partial_status() {
+    use homesensed::{software_fade::SoftwareFade,feedback::Feedback,transport_owner::GatewayRead,scene_runtime::SceneRuntime};
+    use homesense_core::{DeviceId,Percent,Command,LevelTransition,scene::{Step,Status as SceneStatus}};
+    for cancel_after in [None,Some(0),Some(1),Some(2)] {
+        let db=Db(std::env::temp_dir().join(format!("owned-fade-{}.sqlite",Uuid::new_v4())));
+        let devices=include_bytes!("../../../config/simulation.json");
+        Store::open(&db.0).unwrap().publish_configuration(None,devices,ExecutionContext::Simulation,&[]).unwrap();
+        let controller=Uuid::new_v4();let a=actor(&db,controller).await;
+        let config=homesense_config::Configuration::parse(devices,ExecutionContext::Simulation).unwrap();
+        let mut feedback=Feedback::new(&config,ExecutionContext::Simulation,Uuid::parse_str(a.boot_id()).unwrap().as_u128(),1).unwrap();
+        feedback.apply(&GatewayRead{gateway_id:"simulation".into(),transport_epoch:1,received_at_ms:0,result:hb_transport::Receive::Frames{transport_epoch:1,frames:vec![hb_protocol::RawFrame{address:0x15,command:0xd1,value:100}]}}).unwrap();
+        let device=DeviceId::new("simulation:light").unwrap();
+        let target=Percent::new(0).unwrap();
+        let mut scene=SceneRuntime::new(a.clone(),controller,vec![Step{device:device.clone(),command:Command::SetLevel{level:target,transition:LevelTransition::Immediate},delay_ms:0,source:"owned".into()}],0,1000).await.unwrap();
+        let fade=SoftwareFade::start(a.clone(),controller,device,target,200,50,200,4,&feedback,2000).await.unwrap();
+        scene.install_due_fade(fade,0).await.unwrap();
+        let mut written=0;
+        tokio::time::timeout(std::time::Duration::from_secs(2),async {
+            loop {
+                if cancel_after==Some(written) {scene.cancel().await.unwrap();break;}
+                scene.reconcile().await.unwrap();
+                if scene.status()==SceneStatus::CommandsWritten {break;}
+                if let Some(ticket)=a.dispatch().await.unwrap() {
+                    if cancel_after==Some(2) {
+                        assert!(scene.cancel().await.unwrap_err().contains("still in flight"));
+                        assert_eq!(scene.status(),SceneStatus::Running);
+                        a.finish_write(ticket.command.id,true).await.unwrap();
+                        written+=1;
+                        scene.cancel().await.unwrap();
+                        break;
+                    }
+                    a.finish_write(ticket.command.id,true).await.unwrap();
+                    written+=1;
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            }
+        }).await.unwrap();
+        let expected=match cancel_after {None=>SceneStatus::CommandsWritten,Some(0)=>SceneStatus::Cancelled,_=>SceneStatus::Partial};
+        assert_eq!(scene.status(),expected);
+        let store=Store::open(&db.0).unwrap();
+        let audit=store.scene_run(a.boot_id(),scene.audit_id()).unwrap().unwrap();
+        assert_eq!(audit.status,match cancel_after {None=>homesense_storage::scene_run::Status::CommandsWritten,Some(0)=>homesense_storage::scene_run::Status::Cancelled,_=>homesense_storage::scene_run::Status::Partial});
+        assert_eq!(store.scene_commands(a.boot_id(),scene.audit_id(),0,128).unwrap().len(),written);
+        assert!(a.dispatch().await.unwrap().is_none());
+        drop(scene);
+        assert!(a.task_generation().await.is_ok());
+        a.shutdown().await.unwrap();
+    }
+}
