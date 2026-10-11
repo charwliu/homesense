@@ -616,3 +616,58 @@ async fn tcp_long_press_disconnect_does_not_resume_without_new_press() {
     drop(sql);
     std::fs::remove_dir_all(root).unwrap();
 }
+
+#[tokio::test]
+async fn online_publication_queries_new_mapping_before_acknowledgement() {
+    use hap::serde_json::{json, to_vec, Value};
+    for reply in [true, false] {
+    let root=std::env::temp_dir().join(format!("tcp-publication-{}",uuid::Uuid::new_v4()));
+    let bus=TcpListener::bind("127.0.0.1:0").unwrap();
+    let mut devices:Value=hap::serde_json::from_slice(include_bytes!("../../../config/simulation-home.json")).unwrap();
+    devices["gateways"][0]["endpoint"]=bus.local_addr().unwrap().to_string().into();
+    devices["gateways"][0]["modules"][0]["verification"]=json!({"status":"verified","evidence":"loopback","verified_at_unix_ms":1});
+    let rules=|revision|to_vec(&json!({"schema_version":1,"configuration_revision":revision,"variables":[],"rules":[]})).unwrap();
+    let initial=to_vec(&devices).unwrap();
+    devices["revision"]=2.into();
+    devices["devices"][0]["channel"]=2.into();
+    let candidate=to_vec(&devices).unwrap();
+    let (synced,ready)=tokio::sync::oneshot::channel();
+    let server=std::thread::spawn(move || {
+        let (mut old,_)=bus.accept().unwrap();
+        old.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+        let mut frame=[0;5];
+        old.read_exact(&mut frame).unwrap();
+        assert_eq!(frame,[0xAE,0x15,0xA1,0xF2,0xEE]);
+        old.write_all(&[0xAE,0x15,0xD1,30,0xEE]).unwrap();
+        synced.send(()).unwrap();
+        let (mut fresh,_)=bus.accept().unwrap();
+        fresh.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+        fresh.read_exact(&mut frame).unwrap();
+        assert_eq!(frame,[0xAE,0x15,0xA2,0xF2,0xEE]);
+        if reply { fresh.write_all(&[0xAE,0x15,0xD2,40,0xEE]).unwrap(); }
+        assert_eq!(fresh.read(&mut frame).unwrap(),0);
+        assert_eq!(old.read(&mut frame).unwrap(),0);
+    });
+    let (publisher,receiver)=homesensed::automation_publication::channel();
+    let old_rules=to_vec(&json!({"schema_version":1,"configuration_revision":1,"variables":[],
+        "rules":[{"id":"startup","enabled":true,"review_evidence":"loopback","source":"test","trigger":{"kind":"startup_synchronized"},"actions":[{"source":"test","action":{"kind":"scene","id":"later","activate":true}}]}],
+        "timed_scenes":[{"id":"later","enabled":true,"review_evidence":"loopback","max_lateness_ms":1000,"steps":[{"source":"test","offset_ms":300,"device":"simulation:light","command":{"kind":"level","value":90,"ramp":false}}]}]
+    })).unwrap();
+    let service=homesensed::automation_tcp::serve_with_publications(&initial,&old_rules,&root,Duration::from_millis(700),true,0,Some(receiver));
+    let client=async {
+        ready.await.unwrap();
+        tokio::time::sleep(Duration::from_millis(80)).await;
+        assert!(publisher.publish(candidate.clone(),rules(2),99).await.is_err());
+        let outcome=publisher.publish(candidate,rules(2),1).await;
+        if reply { assert_eq!(outcome.unwrap(),2); } else { assert!(outcome.is_err()); }
+    };
+    let (result,())=tokio::join!(service,client);
+    assert_eq!(result.is_ok(),reply,"{result:?}");
+    server.join().unwrap();
+    assert_eq!(homesense_storage::Store::open(root.join("automation-tcp.sqlite")).unwrap().active().unwrap().unwrap().revision,2);
+    let sql=rusqlite::Connection::open(root.join("automation-tcp.sqlite")).unwrap();
+    assert_eq!(sql.query_row("SELECT count(*) FROM scene_run WHERE definition='later' AND status='cancelled'",[],|row|row.get::<_,i64>(0)).unwrap(),1);
+    drop(sql);
+    std::fs::remove_dir_all(root).unwrap();
+    }
+}
