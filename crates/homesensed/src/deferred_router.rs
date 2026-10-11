@@ -239,7 +239,15 @@ impl Router {
             }
         }
         for tick in scheduler.tick_with_feedback(self.admission.monotonic_ms(),feedback).await? {
-            tick.result?;
+            if let Err(error) = tick.result {
+                // Only a durably settled scene can be routed as a failed result.
+                // Unknown output, audit failure or closed admission stays fatal.
+                if !scheduler.settled_terminal(tick.run) {
+                    return Err(error);
+                }
+                self.admission.task_generation().await.map_err(|e|format!("scene failure admission: {e:?}"))?;
+                log::warn!("settled scene run={} failed: {error}",tick.run);
+            }
         }
         let mut outcomes = Vec::new();
         let mut unowned = Vec::new();

@@ -282,6 +282,9 @@ impl SceneScheduler {
         }
         self.runs.get_mut(&id).unwrap().poll(now).await.map(|ids|ids.unwrap_or_default())
     }
+    pub(crate) fn settled_terminal(&self, run:u64)->bool {
+        self.runs.get(&run).is_some_and(SceneRuntime::settled_terminal)
+    }
     pub(crate) fn identity(&self)->Uuid {self.identity}
     pub(crate) fn audit_id(&self,run:u64)->Option<&str> {self.runs.get(&run).map(SceneRuntime::audit_id)}
     pub(crate) fn matches_controller(&self, controller:Uuid)->bool {self.controller==controller}

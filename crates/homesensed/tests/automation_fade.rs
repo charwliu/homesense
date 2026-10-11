@@ -214,3 +214,56 @@ async fn publication_stops_old_fade_before_new_mapping_runs() {
     drop(sql);
     std::fs::remove_dir_all(root).unwrap();
 }
+
+#[tokio::test]
+async fn rejected_fade_capacity_does_not_abort_other_scene_in_service() {
+    let root = std::env::temp_dir().join(format!("fade-capacity-{}", uuid::Uuid::new_v4()));
+    let mut devices: hap::serde_json::Value =
+        hap::serde_json::from_slice(include_bytes!("../../../config/simulation.json")).unwrap();
+    let mut second = devices["devices"][0].clone();
+    second["id"] = "simulation:second".into();
+    second["channel"] = 2.into();
+    devices["devices"].as_array_mut().unwrap().push(second);
+    let scenes:Vec<_>=[("first","simulation:light"),("second","simulation:second")].into_iter().map(|(id,device)|json!({"id":id,"enabled":true,"review_evidence":"synthetic test","max_lateness_ms":1000,"steps":[{"source":"fade","offset_ms":0,"device":device,"command":{"kind":"level","value":60,"ramp":false},"fade":{"duration_ms":300,"interval_ms":50,"lateness_ms":200}}]})).collect();
+    let actions: Vec<_> = ["first", "second"]
+        .into_iter()
+        .map(|id| json!({"source":id,"action":{"kind":"scene","id":id,"activate":true}}))
+        .collect();
+    let document = json!({"schema_version":1,"configuration_revision":1,"variables":[],"rules":[{"id":"start","enabled":true,"review_evidence":"synthetic test","source":"test","trigger":{"kind":"startup_synchronized"},"actions":actions}],"timed_scenes":scenes});
+    homesensed::service::serve_automation_simulation(
+        &hap::serde_json::to_vec(&devices).unwrap(),
+        &hap::serde_json::to_vec(&document).unwrap(),
+        &root,
+        std::time::Duration::from_secs(1),
+        None,
+    )
+    .await
+    .unwrap();
+    let sql = rusqlite::Connection::open(root.join("automation-simulation.sqlite")).unwrap();
+    let states: Vec<(String, String)> = sql
+        .prepare("SELECT definition,status FROM scene_run ORDER BY definition")
+        .unwrap()
+        .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
+        .unwrap()
+        .collect::<Result<_, _>>()
+        .unwrap();
+    assert_eq!(
+        states,
+        vec![
+            ("first".into(), "commands_written".into()),
+            ("second".into(), "cancelled".into())
+        ]
+    );
+    assert_eq!(
+        sql.query_row(
+            "SELECT count(*) FROM command_journal WHERE device_id='simulation:second'",
+            [],
+            |r| r.get::<_, i64>(0)
+        )
+        .unwrap(),
+        0
+    );
+    assert!(sql.query_row("SELECT count(*) FROM command_journal WHERE device_id='simulation:light' AND status='written'",[],|r|r.get::<_,i64>(0)).unwrap()>0);
+    drop(sql);
+    std::fs::remove_dir_all(root).unwrap();
+}
