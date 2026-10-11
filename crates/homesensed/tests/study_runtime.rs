@@ -6325,13 +6325,12 @@ async fn inferred_feedback_session_preserves_lineage_budget_and_terminal_audit()
         let mut session = homesensed::deferred_session::Session::new_for_feedback(a.clone(),controller,&scheduler,budget,duration).await.unwrap();
         let deadline = session.deadline_ms();
         let first = session.start("a",&mut scheduler,None).await.unwrap().remove(0);
-        let candidate = Candidate { cause:first.cause.clone(), command_id:1, written_ms:0 };
+        let candidate = Candidate { correlation:first.cause.correlation_id(), parent_event:first.cause.event_id(), command_id:1, written_ms:0 };
         let sql = rusqlite::Connection::open(&db.0).unwrap();
         assert!(!session.is_closed());
         assert_eq!(session.pending_count(),0);
         assert_eq!(sql.query_row("SELECT count(*) FROM rule_chain_outcome",[],|r|r.get::<_,i64>(0)).unwrap(),0);
-        let mut foreign_chain = homesense_core::rule_chain::Chain::new(99,0,60_000,Default::default(),32).unwrap();
-        let foreign = Candidate { cause:foreign_chain.plan(&foreign_chain.root(),"foreign",&[],&Default::default(),0).unwrap().cause, command_id:99, written_ms:0 };
+        let foreign = Candidate { correlation:99, parent_event:1, command_id:99, written_ms:0 };
         assert!(session.resume_inferred(&["b".into()],&foreign,&mut scheduler,None).await.is_err());
         let future = Candidate { written_ms:u64::MAX, ..candidate.clone() };
         assert!(session.resume_inferred(&["b".into()],&future,&mut scheduler,None).await.is_err());
@@ -6341,7 +6340,7 @@ async fn inferred_feedback_session_preserves_lineage_budget_and_terminal_audit()
         assert_eq!(second.cause.correlation_id(), first.cause.correlation_id());
         assert_eq!(session.deadline_ms(), deadline);
         assert_eq!(sql.query_row("SELECT count(*) FROM rule_admission",[],|r|r.get::<_,i64>(0)).unwrap(),2);
-        let next = Candidate { cause:second.cause, command_id:2, written_ms:0 };
+        let next = Candidate { correlation:second.cause.correlation_id(), parent_event:second.cause.event_id(), command_id:2, written_ms:0 };
         match mode {
             "late-continuation" => {
                 tokio::time::sleep(std::time::Duration::from_millis(210)).await;

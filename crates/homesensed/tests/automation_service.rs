@@ -200,3 +200,46 @@ fn isolated_startup_cycle_does_not_stop_manual_scene_or_successor() {
     let written:i64=sql.query_row("SELECT count(*) FROM command_journal WHERE status='written'",[],|r|r.get(0)).unwrap();assert_eq!(written,1);
     drop(sql);std::fs::remove_dir_all(root).unwrap();
 }
+
+#[tokio::test]
+async fn local_write_feedback_inherits_original_chain_and_stops_cycle() {
+    use std::time::Duration;
+    for (delayed,startup_fault) in [(false,false),(true,false),(false,true)] {
+        let root=std::env::temp_dir().join(format!("inferred-feedback-service-{}",uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&root).unwrap();
+        let devices=root.join("devices.json");let rules=root.join("rules.json");
+        std::fs::write(&devices,include_bytes!("../../../config/simulation.json")).unwrap();
+        let command=|value|hap::serde_json::json!({"kind":"level","value":value,"ramp":false});
+        let output=|value|hap::serde_json::json!({"source":"synthetic:output","action":{"kind":"command","device":"simulation:light","command":command(value)}});
+        let begin=if delayed {hap::serde_json::json!({"source":"synthetic:scene","action":{"kind":"scene","id":"later","activate":true}})} else {output(30)};
+        let mut document=hap::serde_json::json!({"schema_version":1,"configuration_revision":1,"variables":[],
+            "rules":[
+                {"id":"begin","enabled":true,"review_evidence":"simulation","source":"synthetic","trigger":{"kind":"startup_synchronized"},"actions":[begin]},
+                {"id":"feedback","enabled":true,"review_evidence":"simulation","source":"synthetic","trigger":{"kind":"device_changed","device":"simulation:light"},"actions":[output(60)]}
+            ],
+            "timed_scenes":[{"id":"later","enabled":true,"review_evidence":"simulation","max_lateness_ms":1000,"steps":[{"source":"synthetic:step","offset_ms":20,"device":"simulation:light","command":command(30)}]}]
+        });
+        if startup_fault {
+            document["variables"]=hap::serde_json::json!([{"id":"mode","kind":"integer","lifetime":"persistent"}]);
+            let set=|value|hap::serde_json::json!({"source":"synthetic:set","action":{"kind":"set","variable":"mode","value":{"kind":"integer","value":value}}});
+            document["rules"][0]["actions"].as_array_mut().unwrap().push(set(1));
+            document["rules"].as_array_mut().unwrap().push(hap::serde_json::json!({"id":"cycle","enabled":true,"review_evidence":"simulation","source":"synthetic","trigger":{"kind":"variable_changed","variable":"mode"},"actions":[set(2)]}));
+        }
+        std::fs::write(&rules,hap::serde_json::to_vec(&document).unwrap()).unwrap();
+        homesensed::service::serve_automation_simulation(&std::fs::read(&devices).unwrap(),&std::fs::read(&rules).unwrap(),&root,Duration::from_millis(400),None).await.unwrap();
+        let sql=rusqlite::Connection::open(root.join("automation-simulation.sqlite")).unwrap();
+        assert_eq!(sql.query_row("SELECT count(*) FROM command_journal WHERE status='written'",[],|r|r.get::<_,i64>(0)).unwrap(),if startup_fault{1}else{2},"delayed={delayed} fault={startup_fault}");
+        assert_eq!(sql.query_row("SELECT count(*),count(DISTINCT correlation) FROM rule_admission",[],|r|Ok((r.get::<_,i64>(0)?,r.get::<_,i64>(1)?))).unwrap(),(2,1));
+        assert_eq!(sql.query_row("SELECT count(*) FROM rule_chain_outcome WHERE error LIKE '%Cycle%'",[],|r|r.get::<_,i64>(0)).unwrap(),1);
+        assert_eq!(sql.query_row("SELECT count(*) FROM feedback_inference WHERE attribution='inferred'",[],|r|r.get::<_,i64>(0)).unwrap(),if startup_fault{0}else{2});
+        let values=sql.prepare("SELECT observation_value FROM feedback_inference ORDER BY sequence").unwrap().query_map([],|r|r.get::<_,i64>(0)).unwrap().collect::<Result<Vec<_>,_>>().unwrap();
+        assert_eq!(values,if startup_fault{vec![]}else{vec![30,60]},"observed values remain physical feedback, not overwritten targets");
+        if !startup_fault {
+        let parent=sql.query_row("SELECT parent_id FROM rule_admission WHERE rule_id='feedback'",[],|r|r.get::<_,i64>(0)).unwrap();
+        assert_eq!(parent,1);
+        } else {
+            assert_eq!(sql.query_row("SELECT count(*) FROM rule_admission WHERE rule_id='feedback'",[],|r|r.get::<_,i64>(0)).unwrap(),0,"terminal parent must suppress its later matching feedback");
+        }
+        drop(sql);std::fs::remove_dir_all(root).unwrap();
+    }
+}

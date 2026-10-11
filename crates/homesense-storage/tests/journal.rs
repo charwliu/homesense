@@ -1064,10 +1064,19 @@ fn feedback_inference_requires_written_owned_matching_fresh_target_and_claims_on
     let mut cmd=command(1); cmd.origin=Origin::Rule;
     store.accept_queue_batch_with_audits("boot",&[cmd.clone()],&[],10,None,&[],Some(&audit),None).unwrap();
     let i=Inference{sequence:1,epochs:cmd.epochs,correlation:7,parent_event:1,command_id:1,device:cmd.device_id.clone(),observed:Observation::Switch(true),observed_ms:20,window_ms:10};
+    assert!(store.written_feedback_target("boot",1).unwrap().is_none());
     assert!(store.record_feedback_inference("boot",&i).is_err(),"accepted is not written");
     assert!(store.begin_command_write("boot",1,11).unwrap());
     assert!(store.record_feedback_inference("boot",&i).is_err(),"writing is not written");
     store.transition_command("boot",1,Status::Writing,Status::Written,12).unwrap();
+    let written=store.written_feedback_target("boot",1).unwrap().unwrap();
+    assert_eq!(written.candidate.correlation,7);
+    assert_eq!(written.candidate.parent_event,1);
+    assert_eq!(written.candidate.written_ms,12);
+    assert_eq!(written.target,Command::Switch(true));
+    assert_eq!(written.epochs,cmd.epochs);
+    assert_eq!(written.device,cmd.device_id);
+    assert!(store.written_feedback_target("other",1).unwrap().is_none());
     let sql=rusqlite::Connection::open(&db.0).unwrap();
     for variant in 0..12 {
         let mut bad=i.clone();
@@ -1099,6 +1108,7 @@ fn feedback_inference_requires_written_owned_matching_fresh_target_and_claims_on
     assert_eq!(sql.query_row("SELECT attribution,written_ms,observed_ms FROM feedback_inference",[],|r|Ok((r.get::<_,String>(0)?,r.get::<_,i64>(1)?,r.get::<_,i64>(2)?))).unwrap(),("inferred".into(),12,20));
     assert!(sql.execute("UPDATE feedback_inference SET attribution='inferred'",[]).is_err());
     store.finish_rule_chain("boot",1,7,21,None).unwrap();
+    assert!(store.written_feedback_target("boot",1).unwrap().is_some(),"terminal parent remains visible for suppression");
     let mut later=i.clone(); later.sequence=2;
     assert!(store.record_feedback_inference("boot",&later).is_err(),"terminal chain cannot resume");
     drop(store);
@@ -1130,6 +1140,10 @@ fn feedback_inference_migrates_and_resolves_delayed_scene_parent() {
     store.accept_queue_batch_with_audits("boot",&[cmd.clone()],&[],2,None,&[],None,Some(&link)).unwrap();
     store.begin_command_write("boot",1,3).unwrap();
     store.transition_command("boot",1,Status::Writing,Status::Written,4).unwrap();
+    let written=store.written_feedback_target("boot",1).unwrap().unwrap();
+    assert_eq!(written.candidate.correlation,9);
+    assert_eq!(written.candidate.parent_event,1);
+    assert_eq!(written.target,cmd.command);
     let mut i=Inference{sequence:1,epochs:cmd.epochs,correlation:9,parent_event:1,command_id:1,device:cmd.device_id,observed:Observation::Level(Percent::new(36).unwrap()),observed_ms:5,window_ms:10};
     assert!(store.record_feedback_inference("boot",&i).is_err(),"ramp intermediate cannot match final target");
     i.observed=Observation::Level(Percent::new(40).unwrap());
