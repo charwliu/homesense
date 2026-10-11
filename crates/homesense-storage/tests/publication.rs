@@ -252,3 +252,195 @@ fn validated_configuration_is_checked_before_publish_and_again_at_startup() {
         Err(Error::InvalidRevision)
     ));
 }
+
+fn bundle_devices(revision: u64) -> Vec<u8> {
+    String::from_utf8(include_bytes!("../../../config/simulation.json").to_vec())
+        .unwrap()
+        .replace("\"revision\": 1", &format!("\"revision\": {revision}"))
+        .into_bytes()
+}
+fn bundle_rules(revision: u64, kind: &str) -> Vec<u8> {
+    format!(r#"{{"schema_version":1,"configuration_revision":{revision},"variables":[{{"id":"mode","kind":"{kind}","lifetime":"persistent"}},{{"id":"scratch","kind":"integer","lifetime":"temporary"}}],"rules":[]}}"#).into_bytes()
+}
+#[test]
+fn automation_publication_is_atomic_preserves_values_and_blocks_legacy_drop() {
+    use homesense_core::ExecutionContext::Simulation;
+    let db = Database::new();
+    let mut store = Store::open(db.path()).unwrap();
+    store
+        .publish_automation(
+            None,
+            &bundle_devices(1),
+            &bundle_rules(1, "integer"),
+            Simulation,
+            &[],
+        )
+        .unwrap();
+    let sql = rusqlite::Connection::open(db.path()).unwrap();
+    sql.execute(
+        "UPDATE logical_variable SET value=7,version=3 WHERE revision=1 AND name='mode'",
+        [],
+    )
+    .unwrap();
+    assert!(
+        store
+            .publish_configuration(Some(1), &bundle_devices(2), Simulation, &[])
+            .is_err()
+    );
+    assert!(
+        store
+            .publish_automation(
+                Some(1),
+                &bundle_devices(2),
+                &bundle_rules(1, "integer"),
+                Simulation,
+                &[]
+            )
+            .is_err()
+    );
+    assert!(
+        store
+            .publish_automation(
+                Some(1),
+                &bundle_devices(2),
+                &bundle_rules(2, "bool"),
+                Simulation,
+                &[]
+            )
+            .is_err()
+    );
+    assert!(store.revision(2).unwrap().is_none());
+    let count = || {
+        sql.query_row("SELECT count(*) FROM automation_revision", [], |r| {
+            r.get::<_, i64>(0)
+        })
+        .unwrap()
+    };
+    assert_eq!(count(), 1);
+    // Failure after both payload inserts must roll back configuration, rules,
+    // declarations and the active pointer together.
+    sql.execute_batch("CREATE TRIGGER fail_variable BEFORE INSERT ON logical_variable WHEN NEW.revision=2 BEGIN SELECT RAISE(ABORT,'injected'); END;").unwrap();
+    assert!(
+        store
+            .publish_automation(
+                Some(1),
+                &bundle_devices(2),
+                &bundle_rules(2, "integer"),
+                Simulation,
+                &[]
+            )
+            .is_err()
+    );
+    assert_eq!(store.active().unwrap().unwrap().revision, 1);
+    assert!(store.revision(2).unwrap().is_none());
+    assert_eq!(count(), 1);
+    sql.execute_batch("DROP TRIGGER fail_variable;").unwrap();
+    store
+        .publish_automation(
+            Some(1),
+            &bundle_devices(2),
+            &bundle_rules(2, "integer"),
+            Simulation,
+            &[],
+        )
+        .unwrap();
+    assert!(
+        store
+            .publish_automation(
+                Some(1),
+                &bundle_devices(3),
+                &bundle_rules(3, "integer"),
+                Simulation,
+                &[]
+            )
+            .is_err()
+    );
+    assert!(store.revision(3).unwrap().is_none());
+    assert_eq!(
+        sql.query_row(
+            "SELECT value FROM logical_variable WHERE revision=2 AND name='mode'",
+            [],
+            |r| r.get::<_, i64>(0)
+        )
+        .unwrap(),
+        7
+    );
+    assert_eq!(
+        sql.query_row(
+            "SELECT count(*) FROM logical_variable WHERE revision=2",
+            [],
+            |r| r.get::<_, i64>(0)
+        )
+        .unwrap(),
+        1
+    );
+    assert!(
+        sql.execute(
+            "UPDATE automation_revision SET payload=x'00' WHERE revision=2",
+            []
+        )
+        .is_err()
+    );
+    drop(store);
+    let store = Store::open(db.path()).unwrap();
+    let bundle = store.active_bundle(Simulation).unwrap().unwrap();
+    assert_eq!(bundle.configuration.revision(), 2);
+    assert_eq!(bundle.automation.unwrap().revision, 2);
+}
+#[test]
+fn legacy_configuration_has_no_automation_and_migrates_explicitly() {
+    use homesense_core::ExecutionContext::Simulation;
+    let db = Database::new();
+    let mut store = Store::open(db.path()).unwrap();
+    store
+        .publish_configuration(None, &bundle_devices(1), Simulation, &[])
+        .unwrap();
+    assert!(
+        store
+            .active_bundle(Simulation)
+            .unwrap()
+            .unwrap()
+            .automation
+            .is_none()
+    );
+    store
+        .publish_automation(
+            Some(1),
+            &bundle_devices(2),
+            &bundle_rules(2, "integer"),
+            Simulation,
+            &[],
+        )
+        .unwrap();
+    assert!(
+        store
+            .active_bundle(Simulation)
+            .unwrap()
+            .unwrap()
+            .automation
+            .is_some()
+    );
+}
+
+#[test]
+fn corrupted_automation_blocks_legacy_startup_validation() {
+    use homesense_core::ExecutionContext::Simulation;
+    let db = Database::new();
+    let mut store = Store::open(db.path()).unwrap();
+    store
+        .publish_automation(
+            None,
+            &bundle_devices(1),
+            &bundle_rules(1, "integer"),
+            Simulation,
+            &[],
+        )
+        .unwrap();
+    let sql = rusqlite::Connection::open(db.path()).unwrap();
+    sql.execute_batch(
+        "DROP TRIGGER immutable_automation_update; UPDATE automation_revision SET payload=x'00';",
+    )
+    .unwrap();
+    assert!(store.active_bundle(Simulation).is_err());
+    assert!(store.active_configuration(Simulation).is_err());
+}
