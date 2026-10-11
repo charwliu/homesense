@@ -73,7 +73,7 @@ pub async fn drive_with_calendar<S: Read + Write + Send + 'static>(
     wall_clock: impl FnMut() -> Result<i64, String>,
 ) -> Result<(), String> {
     drive_controlled(
-        admission, owner, panels, scenes, calendar, cadence, max_age_ms, stop, wall_clock, None,
+        admission, owner, panels, scenes, calendar, cadence, max_age_ms, stop, wall_clock, None, None,
     )
     .await
     .map(|_| ())
@@ -93,6 +93,7 @@ pub(crate) async fn drive_controlled<S: Read + Write + Send + 'static>(
         &mut crate::automation_control::Receiver,
         &homesense_config::rule_document::Document,
     )>,
+    mut causal: Option<&mut crate::deferred_router::Router>,
 ) -> Result<bool, String> {
     struct Close<'a>(
         Option<(
@@ -170,13 +171,19 @@ pub(crate) async fn drive_controlled<S: Read + Write + Send + 'static>(
                 .await
                 .map_err(|e| e.to_string())?;
             guard.panels.tick_holds(now).await?;
-            for run in guard.scenes.tick(now).await? {
-                if let Err(error) = run.result {
-                    log::warn!("scene run={} failed: {error}", run.run);
+            let results = if let Some(router) = &mut causal {
+                let (_, unowned) = router.poll(guard.scenes, Some((guard.owner.feedback(), max_age_ms))).await?;
+                unowned
+            } else {
+                for run in guard.scenes.tick(now).await? {
+                    if let Err(error) = run.result {
+                        log::warn!("scene run={} failed: {error}", run.run);
+                    }
                 }
-            }
+                if guard.calendar.is_some() { guard.scenes.take_results() } else { Vec::new() }
+            };
             if let Some(calendar) = &mut guard.calendar {
-                for result in guard.scenes.take_results() {
+                for result in results {
                     let report = calendar
                         .scene_result(result, Some((guard.owner.feedback(), max_age_ms)))
                         .await;
@@ -203,6 +210,10 @@ pub(crate) async fn drive_controlled<S: Read + Write + Send + 'static>(
         }
     }
     .await;
+    if let Some(router) = &mut causal
+        && let Err(error) = router.close(guard.scenes).await {
+        log::warn!("causal shutdown failed: {error}");
+    }
     for (id, result) in guard.scenes.stop().await {
         if let Err(error) = result {
             log::warn!("automation shutdown run={id}: {error}");
