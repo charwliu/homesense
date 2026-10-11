@@ -4732,9 +4732,16 @@ async fn deferred_rule_adapter_reserves_before_variables_and_preserves_chain() {
     let (id,_)=router.start("trigger",&mut scheduler,None,Default::default(),60000).await.unwrap();
     assert_eq!(router.retained_count(),1);
     assert!(router.start("trigger",&mut scheduler,None,Default::default(),60000).await.is_err());
+    let admitted_before:i64=sql.query_row("SELECT count(*) FROM rule_admission",[],|r|r.get(0)).unwrap();
+    assert!(router.dispatch_rules(&["trigger".into()],&mut scheduler,None,Default::default(),60000).await.unwrap().is_empty());
+    assert_eq!(sql.query_row("SELECT count(*) FROM rule_admission",[],|r|r.get::<_,i64>(0)).unwrap(),admitted_before);
+    assert_eq!(router.retained_count(),1);
+    assert!(a.task_generation().await.is_ok());
     assert_eq!(router.cancel(id,&mut scheduler).await.unwrap(),1);
     assert!(router.cancel(id,&mut scheduler).await.is_err());
     assert!(router.start("trigger",&mut scheduler,None,Default::default(),60000).await.is_err(),"cancelled results retain bounded capacity");
+    assert!(router.dispatch_rules(&["trigger".into()],&mut scheduler,None,Default::default(),60000).await.unwrap().is_empty());
+    assert_eq!(sql.query_row("SELECT count(*) FROM rule_admission",[],|r|r.get::<_,i64>(0)).unwrap(),admitted_before);
     let terminal=scheduler.take_results().pop().unwrap();
     assert!(router.route(&terminal,&mut scheduler,None).await.unwrap().unwrap().is_empty());
     assert_eq!(router.retained_count(),0);
