@@ -56,6 +56,22 @@ fn key(s: &str) -> Result<(), Error> {
         Ok(())
     }
 }
+/// A durable pending receipt, never a persisted replay plan.
+#[derive(Debug, Clone)]
+pub struct Start {
+    pub run: String,
+    pub revision: u64,
+    pub definition: String,
+}
+pub(crate) fn insert_start(tx:&rusqlite::Transaction<'_>,boot:&str,start:&Start,now:u64,active:Option<i64>)->Result<(),Error> {
+    key(boot)?;key(&start.run)?;
+    if start.definition.is_empty() || start.definition.len()>256 || start.definition.chars().any(char::is_control) {return Err(Error::InvalidAudit);}
+    let revision=sql_revision(start.revision)?;
+    if active!=Some(revision) {return Err(Error::Conflict);}
+    let now=i64::try_from(now).map_err(|_|Error::InvalidAudit)?;
+    tx.execute("INSERT INTO scene_run(boot_id,run_id,revision,definition,started_ms,updated_ms,status,version) VALUES(?1,?2,?3,?4,?5,?5,'pending',0)",params![boot,start.run,revision,start.definition,now])?;
+    Ok(())
+}
 impl Store {
     pub fn begin_scene_run(
         &mut self,

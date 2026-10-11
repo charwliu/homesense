@@ -179,6 +179,19 @@ impl Store {
         audit: Option<&crate::rule_audit::Admission>,
         scene: Option<&crate::scene_run::StepLink>,
     ) -> Result<(), Error> {
+        self.accept_queue_batch_with_scene_starts(boot_id,commands,cancellations,now_ms,study,variables,audit,scene,&[])
+    }
+    /// Variables, immediate commands, rule audit and all deferred run receipts
+    /// commit together. Receipts do not contain executable plans or replay work.
+    #[allow(clippy::too_many_arguments)]
+    pub fn accept_queue_batch_with_scene_starts(
+        &mut self, boot_id:&str, commands:&[QueuedCommand], cancellations:&[Cancellation],
+        now_ms:u64, study:Option<(Option<u8>,u8)>, variables:&[crate::variables::Update],
+        audit:Option<&crate::rule_audit::Admission>, scene:Option<&crate::scene_run::StepLink>,
+        starts:&[crate::scene_run::Start],
+    )->Result<(),Error> {
+        if starts.len()>64 || (!starts.is_empty() && audit.is_none()) {return Err(Error::InvalidAudit);}
+        if starts.iter().any(|s|audit.is_none_or(|a|s.revision!=a.revision)) {return Err(Error::Conflict);}
         boot(boot_id)?;
         if variables.len() > 1024 || (study.is_some() && commands.is_empty()) {
             return Err(Error::InvalidAudit);
@@ -251,6 +264,7 @@ impl Store {
         if let Some(audit) = audit {
             crate::rule_audit::insert(&tx, boot_id, audit, commands, now_ms, active)?;
         }
+        for start in starts {crate::scene_run::insert_start(&tx,boot_id,start,now_ms,active)?;}
         crate::variables::apply(&tx, variables, active)?;
         cancel_in_transaction(&tx, boot_id, cancellations, now)?;
         tx.commit()?;
