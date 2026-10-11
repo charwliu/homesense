@@ -1,0 +1,212 @@
+<event>
+      <deviceid>63</deviceid>
+      <eventid>6</eventid>
+      <codeitem>
+        <id>0</id>
+        <device>0</device>
+        <type>1</type>
+        <display />
+        <cmdcond />
+        <subitems>
+          <codeitem>
+            <id>2</id>
+            <device>100001</device>
+            <type>2</type>
+            <display>If NAME-&gt;书房 NOT EQUAL TO 2</display>
+            <cmdcond>
+              <deviceconditional owneridtype="variable" owneriditem="411" name="!=">
+                <param name="value" type="int">2</param>
+              </deviceconditional>
+            </cmdcond>
+            <subitems>
+              <codeitem>
+                <id>13</id>
+                <device>100001</device>
+                <type>1</type>
+                <display>NAME-&gt;书房 = 2</display>
+                <cmdcond>
+                  <devicecommand owneridtype="variable" owneriditem="411" name="=">
+                    <param name="value" type="int">2</param>
+                  </devicecommand>
+                </cmdcond>
+                <subitems />
+                <creator>0</creator>
+                <creatorstate />
+                <enabled>True</enabled>
+              </codeitem>
+              <codeitem>
+                <id>6</id>
+                <device>3</device>
+                <type>1</type>
+                <display>Activate Lighting Scene "SCENE_ID=6"</display>
+                <cmdcond>
+                  <devicecommand owneridtype="agent" owneriditem="6">
+                    <command>ACTIVATE_SCENE</command>
+                    <params>
+                      <param>
+                        <name>SCENE_ID</name>
+                        <value type="INTEGER">
+                          <static>6</static>
+                        </value>
+                      </param>
+                    </params>
+                  </devicecommand>
+                </cmdcond>
+                <subitems />
+                <creator>0</creator>
+                <creatorstate />
+                <enabled>True</enabled>
+              </codeitem>
+              <codeitem>
+                <id>3</id>
+                <device>63</device>
+                <type>1</type>
+                <display>Turn on LED  3 on NAME</display>
+                <cmdcond>
+                  <devicecommand owneridtype="" owneriditem="-1">
+                    <command>Turn On</command>
+                    <params>
+                      <param>
+                        <name>LED Number</name>
+                        <value type="STRING">
+                          <static>3</static>
+                        </value>
+                      </param>
+                    </params>
+                  </devicecommand>
+                </cmdcond>
+                <subitems />
+                <creator>0</creator>
+                <creatorstate />
+                <enabled>True</enabled>
+              </codeitem>
+              <codeitem>
+                <id>8</id>
+                <device>63</device>
+                <type>1</type>
+                <display>Turn off LED  1 on NAME</display>
+                <cmdcond>
+                  <devicecommand owneridtype="" owneriditem="-1">
+                    <command>Turn Off</command>
+                    <params>
+                      <param>
+                        <name>LED Number</name>
+                        <value type="STRING">
+                          <static>1</static>
+                        </value>
+                      </param>
+                    </params>
+                  </devicecommand>
+                </cmdcond>
+                <subitems />
+                <creator>0</creator>
+                <creatorstate />
+                <enabled>True</enabled>
+              </codeitem>
+              <codeitem>
+                <id>9</id>
+                <device>63</device>
+                <type>1</type>
+                <display>Turn off LED  5 on NAME</display>
+                <cmdcond>
+                  <devicecommand owneridtype="" owneriditem="-1">
+                    <command>Turn Off</command>
+                    <params>
+                      <param>
+                        <name>LED Number</name>
+                        <value type="STRING">
+                          <static>5</static>
+                        </value>
+                      </param>
+                    </params>
+                  </devicecommand>
+                </cmdcond>
+                <subitems />
+                <creator>0</creator>
+                <creatorstate />
+                <enabled>True</enabled>
+              </codeitem>
+            </subitems>
+            <creator>0</creator>
+            <creatorstate />
+            <enabled>True</enabled>
+          </codeitem>
+          <codeitem>
+            <id>4</id>
+            <device>100000</device>
+            <type>4</type>
+            <display>Else</display>
+            <cmdcond />
+            <subitems>
+              <codeitem>
+                <id>14</id>
+                <device>100001</device>
+                <type>1</type>
+                <display>NAME-&gt;书房 = 0</display>
+                <cmdcond>
+                  <devicecommand owneridtype="variable" owneriditem="411" name="=">
+                    <param name="value" type="int">0</param>
+                  </devicecommand>
+                </cmdcond>
+                <subitems />
+                <creator>0</creator>
+                <creatorstate />
+                <enabled>True</enabled>
+              </codeitem>
+              <codeitem>
+                <id>7</id>
+                <device>3</device>
+                <type>1</type>
+                <display>Deactivate Lighting Scene "SCENE_ID=6"</display>
+                <cmdcond>
+                  <devicecommand owneridtype="agent" owneriditem="6">
+                    <command>DEACTIVATE_SCENE</command>
+                    <params>
+                      <param>
+                        <name>SCENE_ID</name>
+                        <value type="INTEGER">
+                          <static>6</static>
+                        </value>
+                      </param>
+                    </params>
+                  </devicecommand>
+                </cmdcond>
+                <subitems />
+                <creator>0</creator>
+                <creatorstate />
+                <enabled>True</enabled>
+              </codeitem>
+              <codeitem>
+                <id>5</id>
+                <device>63</device>
+                <type>1</type>
+                <display>Turn off LED  3 on NAME</display>
+                <cmdcond>
+                  <devicecommand owneridtype="" owneriditem="-1">
+                    <command>Turn Off</command>
+                    <params>
+                      <param>
+                        <name>LED Number</name>
+                        <value type="STRING">
+                          <static>3</static>
+                        </value>
+                      </param>
+                    </params>
+                  </devicecommand>
+                </cmdcond>
+                <subitems />
+                <creator>0</creator>
+                <creatorstate />
+                <enabled>True</enabled>
+              </codeitem>
+            </subitems>
+            <creator>0</creator>
+            <creatorstate />
+            <enabled>True</enabled>
+          </codeitem>
+        </subitems>
+        <creator>0</creator>
+        <creatorstate />
+        <enabled>True</enabled>
+      </codeitem>
+    </event>

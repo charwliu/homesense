@@ -1,5 +1,6 @@
 //! Strict versioned configuration input; immutable, validated runtime mappings.
 //! Parsing never connects, changes hardware or upgrades simulation evidence.
+pub mod rule_document;
 use homesense_core::{
     BusAddress, Channel, DeviceId, ExecutionContext, ModuleKind, ModuleSpec, PanelLedMode, Percent,
     ProtocolProfile, ValidationError, Verification, VerificationRecord,
