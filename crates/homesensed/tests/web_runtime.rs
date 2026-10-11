@@ -148,10 +148,12 @@ async fn web_scope_origin_receipts_and_runtime_admission() {
     let api = Api {
         origin: "http://127.0.0.1:8088".into(),
         tokens: tokens.clone(),
-        control: control.clone(),
-        revision: 1,
-        boot: admission.boot_id().to_owned(),
-        scenes: [("light".into(), "Test".into())].into(),
+        runtime: std::sync::RwLock::new(Some(homesensed::web_api::Runtime {
+            control: control.clone(),
+            revision: 1,
+            boot: admission.boot_id().to_owned(),
+            scenes: [("light".into(), "Test".into())].into(),
+        })),
         drafts: Some((
             ExecutionContext::Simulation,
             Mutex::new(homesensed::web_drafts::Drafts::open(&root.join("drafts.sqlite")).unwrap()),
@@ -379,6 +381,42 @@ async fn web_scope_origin_receipts_and_runtime_admission() {
         let mut no_origin = make_draft();
         no_origin.headers_mut().remove("origin");
         assert_eq!(api.handle(no_origin).await.status(), StatusCode::FORBIDDEN);
+        let saved_runtime = api.runtime.write().unwrap().take().unwrap();
+        let paused = api
+            .handle(make(
+                &api.origin,
+                r#"{"scene":"light","request_id":"during-publication"}"#,
+            ))
+            .await;
+        assert_eq!(paused.status(), StatusCode::SERVICE_UNAVAILABLE);
+        let mut during_read = make(&api.origin, "");
+        *during_read.method_mut() = hyper::Method::GET;
+        *during_read.uri_mut() = "/api/v1/scenes".parse().unwrap();
+        assert_eq!(
+            api.handle(during_read).await.status(),
+            StatusCode::SERVICE_UNAVAILABLE
+        );
+        let mut session_read = make(&api.origin, "");
+        *session_read.method_mut() = hyper::Method::GET;
+        *session_read.uri_mut() = "/api/v1/session".parse().unwrap();
+        assert_eq!(api.handle(session_read).await.status(), StatusCode::OK);
+        let mut logout = make(&api.origin, "");
+        *logout.method_mut() = hyper::Method::DELETE;
+        *logout.uri_mut() = "/api/v1/session".parse().unwrap();
+        assert_eq!(api.handle(logout).await.status(), StatusCode::OK);
+        assert!(
+            api.receipts
+                .lock()
+                .unwrap()
+                .lookup(&caller.to_string(), "during-publication")
+                .unwrap()
+                .is_none()
+        );
+        *api.runtime.write().unwrap() = Some(saved_runtime);
+        let mut resumed = make(&api.origin, "");
+        *resumed.method_mut() = hyper::Method::GET;
+        *resumed.uri_mut() = "/api/v1/devices".parse().unwrap();
+        assert_eq!(api.handle(resumed).await.status(), StatusCode::OK);
         tokens.revoke(token_id).unwrap();
         assert_eq!(
             api.handle(make(&api.origin, body)).await.status(),

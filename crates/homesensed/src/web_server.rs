@@ -16,7 +16,7 @@ pub async fn serve(
     if !address.ip().is_loopback()
         || address.port() == 0
         || api.origin != format!("http://{address}")
-        || api.scenes.len() > 64
+        || api.runtime.read().map_err(|_|"management runtime lock poisoned")?.as_ref().is_none_or(|r|r.scenes.len()>64)
     {
         return Err("loopback address, matching origin and at most 64 scenes required".into());
     }
