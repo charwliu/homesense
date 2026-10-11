@@ -1,12 +1,12 @@
 //! Bounded manual commissioning of the three reviewed study scenes only.
-use homesense_core::{DeviceId, ExecutionContext};
-use homesense_storage::Store;
 use crate::{
     admission::{Admission, Options},
     parameter_probe::{Parameter, Probe, Reply, Value},
     study_runtime::{StudyRuntime, TimingPolicy},
     transport_owner::TransportOwner,
 };
+use homesense_core::{DeviceId, ExecutionContext};
+use homesense_storage::Store;
 use std::{io::Read, path::PathBuf, time::Duration};
 struct Stop(Admission);
 impl Drop for Stop {
@@ -16,12 +16,16 @@ impl Drop for Stop {
 }
 pub async fn run() -> Result<(), String> {
     let args: Vec<_> = std::env::args().collect();
-    if args.len() != 4 || args[3] != "--coexistence-confirmed" {
-        return Err("usage: study-scene STATE_DIR KEY(1|3|5) --coexistence-confirmed".into());
+    if !(4..=5).contains(&args.len()) || args[3] != "--coexistence-confirmed" {
+        return Err("usage: study-scene STATE_DIR KEY(1|3|5) --coexistence-confirmed [activate|toggle|cancel-before|cancel-after-one]".into());
     }
     let key: u8 = args[2].parse().map_err(|_| "invalid key")?;
     if ![1, 3, 5].contains(&key) {
         return Err("unsupported study scene".into());
+    }
+    let action = args.get(4).map(String::as_str).unwrap_or("activate");
+    if !["activate", "toggle", "cancel-before", "cancel-after-one"].contains(&action) {
+        return Err("unsupported commissioning action".into());
     }
     let document = include_bytes!("../../../config/scenes/study-commission.json");
     let config = homesense_config::Configuration::parse(document, ExecutionContext::Live)
@@ -58,7 +62,9 @@ pub async fn run() -> Result<(), String> {
     let mut store = Store::open(&database).map_err(|e| e.to_string())?;
     match store.active().map_err(|e| e.to_string())? {
         Some(a) if a.payload != document => {
-            return Err("state configuration differs; use dedicated commissioning directory".into());
+            return Err(
+                "state configuration differs; use dedicated commissioning directory".into(),
+            );
         }
         Some(_) => (),
         None => {
@@ -82,7 +88,16 @@ pub async fn run() -> Result<(), String> {
         include_bytes!("../../../config/scenes/study.json"),
         TimingPolicy::ModuleNative,
     )?;
-    let run = scene.activate(key).await?;
+    let run = if action == "toggle" {
+        scene.toggle(key).await?
+    } else {
+        scene.activate(key).await?
+    };
+    let write_limit = match action {
+        "cancel-before" => 0,
+        "cancel-after-one" => 1,
+        _ => run.command_ids.len(),
+    };
     let mut owner = TransportOwner::new(
         admission.clone(),
         [(
@@ -92,7 +107,7 @@ pub async fn run() -> Result<(), String> {
         .into(),
     );
     let mut written = Vec::new();
-    for id in &run.command_ids {
+    for id in run.command_ids.iter().take(write_limit) {
         let outcome = owner.step().await?.ok_or("missing scene command")?;
         if outcome.command_id != *id {
             return Err("unexpected dispatch; stopped".into());
@@ -102,6 +117,20 @@ pub async fn run() -> Result<(), String> {
             .map_err(|e| format!("uncertain scene write; no replay: {e:?}"))?;
         written.push(*id);
     }
+    let cancelled = if action.starts_with("cancel-") {
+        let count = scene.cancel().await?;
+        if count != run.command_ids.len() - written.len() {
+            return Err("unexpected cancellation count".into());
+        }
+        // Exercise dispatch again: cancelled commands must not reach the stream.
+        if owner.step().await?.is_some() {
+            return Err("cancelled run unexpectedly dispatched".into());
+        }
+        count
+    } else {
+        0
+    };
+    let boot_id = admission.boot_id().to_owned();
     drain
         .shutdown(std::net::Shutdown::Write)
         .map_err(|e| e.to_string())?;
@@ -117,10 +146,7 @@ pub async fn run() -> Result<(), String> {
                     if matches!(
                         e.kind(),
                         std::io::ErrorKind::TimedOut | std::io::ErrorKind::WouldBlock
-                    ) =>
-                {
-                    ()
-                }
+                    ) => {}
                 Err(_) => break,
             }
         }
@@ -133,7 +159,7 @@ pub async fn run() -> Result<(), String> {
         .map_err(|e| format!("shutdown: {e:?}"))?;
     println!(
         "{}",
-        hap::serde_json::json!({"key":key,"mode":run.mode,"written":written,"physical_confirmation":false,"automatic_execution":false,"ea5_modified":false})
+        hap::serde_json::json!({"action":action,"boot_id":boot_id,"key":key,"mode":run.mode,"written":written,"cancelled":cancelled,"physical_confirmation":false,"automatic_execution":false,"ea5_modified":false})
     );
     Ok(())
 }

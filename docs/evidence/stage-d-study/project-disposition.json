@@ -1,0 +1,6224 @@
+{
+  "source_sha256": "ff8c298fd2c8efa840d572d3ca544860ffbbc4e7176f09e93efdc5464b9ce6ec",
+  "stage_d_complete": false,
+  "counts": {
+    "scenes": 68,
+    "programs": 215,
+    "manual_verified_scenes": 3,
+    "manual_runtime_programs": 3,
+    "source_nodes": 3138
+  },
+  "scenes": [
+    {
+      "id": "0",
+      "name": "卧室-全开",
+      "status": "needs_review",
+      "automatic_enabled": false,
+      "reason": "timing, physical binding and deactivation semantics require review"
+    },
+    {
+      "id": "1",
+      "name": "卧室-全关",
+      "status": "needs_review",
+      "automatic_enabled": false,
+      "reason": "timing, physical binding and deactivation semantics require review"
+    },
+    {
+      "id": "2",
+      "name": "餐厅-日常",
+      "status": "needs_review",
+      "automatic_enabled": false,
+      "reason": "timing, physical binding and deactivation semantics require review"
+    },
+    {
+      "id": "3",
+      "name": "餐厅-全关",
+      "status": "needs_review",
+      "automatic_enabled": false,
+      "reason": "timing, physical binding and deactivation semantics require review"
+    },
+    {
+      "id": "4",
+      "name": "全开",
+      "status": "needs_review",
+      "automatic_enabled": false,
+      "reason": "timing, physical binding and deactivation semantics require review"
+    },
+    {
+      "id": "5",
+      "name": "F1-全开",
+      "status": "needs_review",
+      "automatic_enabled": false,
+      "reason": "timing, physical binding and deactivation semantics require review"
+    },
+    {
+      "id": "6",
+      "name": "书房-日常",
+      "status": "manual_field_verified",
+      "automatic_enabled": false,
+      "reason": "study manual activation and deactivation verified"
+    },
+    {
+      "id": "7",
+      "name": "书房-全关",
+      "status": "needs_review",
+      "automatic_enabled": false,
+      "reason": "timing, physical binding and deactivation semantics require review"
+    },
+    {
+      "id": "8",
+      "name": "书房-节能",
+      "status": "manual_field_verified",
+      "automatic_enabled": false,
+      "reason": "study manual activation and deactivation verified"
+    },
+    {
+      "id": "9",
+      "name": "全关",
+      "status": "needs_review",
+      "automatic_enabled": false,
+      "reason": "timing, physical binding and deactivation semantics require review"
+    },
+    {
+      "id": "10",
+      "name": "书房-阅读",
+      "status": "manual_field_verified",
+      "automatic_enabled": false,
+      "reason": "study manual activation and deactivation verified"
+    },
+    {
+      "id": "11",
+      "name": "F1-全关",
+      "status": "needs_review",
+      "automatic_enabled": false,
+      "reason": "timing, physical binding and deactivation semantics require review"
+    },
+    {
+      "id": "12",
+      "name": "卧室-电视",
+      "status": "needs_review",
+      "automatic_enabled": false,
+      "reason": "timing, physical binding and deactivation semantics require review"
+    },
+    {
+      "id": "13",
+      "name": "餐厅-会客",
+      "status": "needs_review",
+      "automatic_enabled": false,
+      "reason": "timing, physical binding and deactivation semantics require review"
+    },
+    {
+      "id": "14",
+      "name": "餐厅-就餐",
+      "status": "needs_review",
+      "automatic_enabled": false,
+      "reason": "timing, physical binding and deactivation semantics require review"
+    },
+    {
+      "id": "15",
+      "name": "门厅-日常",
+      "status": "needs_review",
+      "automatic_enabled": false,
+      "reason": "timing, physical binding and deactivation semantics require review"
+    },
+    {
+      "id": "16",
+      "name": "客卧-日常",
+      "status": "needs_review",
+      "automatic_enabled": false,
+      "reason": "timing, physical binding and deactivation semantics require review"
+    },
+    {
+      "id": "17",
+      "name": "门厅-全关",
+      "status": "needs_review",
+      "automatic_enabled": false,
+      "reason": "timing, physical binding and deactivation semantics require review"
+    },
+    {
+      "id": "18",
+      "name": "客卧-全关",
+      "status": "needs_review",
+      "automatic_enabled": false,
+      "reason": "timing, physical binding and deactivation semantics require review"
+    },
+    {
+      "id": "19",
+      "name": "客卧-全开",
+      "status": "needs_review",
+      "automatic_enabled": false,
+      "reason": "timing, physical binding and deactivation semantics require review"
+    },
+    {
+      "id": "20",
+      "name": "客卧-电视",
+      "status": "needs_review",
+      "automatic_enabled": false,
+      "reason": "timing, physical binding and deactivation semantics require review"
+    },
+    {
+      "id": "21",
+      "name": "客卧-阅读",
+      "status": "needs_review",
+      "automatic_enabled": false,
+      "reason": "timing, physical binding and deactivation semantics require review"
+    },
+    {
+      "id": "22",
+      "name": "客卧-夜灯",
+      "status": "needs_review",
+      "automatic_enabled": false,
+      "reason": "timing, physical binding and deactivation semantics require review"
+    },
+    {
+      "id": "23",
+      "name": "客厅-日常",
+      "status": "needs_review",
+      "automatic_enabled": false,
+      "reason": "timing, physical binding and deactivation semantics require review"
+    },
+    {
+      "id": "24",
+      "name": "客厅-全关",
+      "status": "needs_review",
+      "automatic_enabled": false,
+      "reason": "timing, physical binding and deactivation semantics require review"
+    },
+    {
+      "id": "25",
+      "name": "影音室-日常",
+      "status": "needs_review",
+      "automatic_enabled": false,
+      "reason": "timing, physical binding and deactivation semantics require review"
+    },
+    {
+      "id": "26",
+      "name": "影音室-全关",
+      "status": "needs_review",
+      "automatic_enabled": false,
+      "reason": "timing, physical binding and deactivation semantics require review"
+    },
+    {
+      "id": "27",
+      "name": "画室-日常",
+      "status": "needs_review",
+      "automatic_enabled": false,
+      "reason": "timing, physical binding and deactivation semantics require review"
+    },
+    {
+      "id": "28",
+      "name": "画室-全关",
+      "status": "needs_review",
+      "automatic_enabled": false,
+      "reason": "timing, physical binding and deactivation semantics require review"
+    },
+    {
+      "id": "29",
+      "name": "画室-阅读",
+      "status": "needs_review",
+      "automatic_enabled": false,
+      "reason": "timing, physical binding and deactivation semantics require review"
+    },
+    {
+      "id": "30",
+      "name": "南卧-日常",
+      "status": "needs_review",
+      "automatic_enabled": false,
+      "reason": "timing, physical binding and deactivation semantics require review"
+    },
+    {
+      "id": "31",
+      "name": "南卧-全开",
+      "status": "needs_review",
+      "automatic_enabled": false,
+      "reason": "timing, physical binding and deactivation semantics require review"
+    },
+    {
+      "id": "32",
+      "name": "南卧-全关",
+      "status": "needs_review",
+      "automatic_enabled": false,
+      "reason": "timing, physical binding and deactivation semantics require review"
+    },
+    {
+      "id": "33",
+      "name": "过道-全开",
+      "status": "needs_review",
+      "automatic_enabled": false,
+      "reason": "timing, physical binding and deactivation semantics require review"
+    },
+    {
+      "id": "34",
+      "name": "过道-全关",
+      "status": "needs_review",
+      "automatic_enabled": false,
+      "reason": "timing, physical binding and deactivation semantics require review"
+    },
+    {
+      "id": "35",
+      "name": "主卧-全开",
+      "status": "needs_review",
+      "automatic_enabled": false,
+      "reason": "timing, physical binding and deactivation semantics require review"
+    },
+    {
+      "id": "36",
+      "name": "主卧-全关",
+      "status": "needs_review",
+      "automatic_enabled": false,
+      "reason": "timing, physical binding and deactivation semantics require review"
+    },
+    {
+      "id": "37",
+      "name": "主卧-日常",
+      "status": "needs_review",
+      "automatic_enabled": false,
+      "reason": "timing, physical binding and deactivation semantics require review"
+    },
+    {
+      "id": "38",
+      "name": "休闲区-日常",
+      "status": "needs_review",
+      "automatic_enabled": false,
+      "reason": "timing, physical binding and deactivation semantics require review"
+    },
+    {
+      "id": "39",
+      "name": "休闲区-全关",
+      "status": "needs_review",
+      "automatic_enabled": false,
+      "reason": "timing, physical binding and deactivation semantics require review"
+    },
+    {
+      "id": "40",
+      "name": "休闲区-全开",
+      "status": "needs_review",
+      "automatic_enabled": false,
+      "reason": "timing, physical binding and deactivation semantics require review"
+    },
+    {
+      "id": "41",
+      "name": "休闲区-会客",
+      "status": "needs_review",
+      "automatic_enabled": false,
+      "reason": "timing, physical binding and deactivation semantics require review"
+    },
+    {
+      "id": "42",
+      "name": "休闲区-节能",
+      "status": "needs_review",
+      "automatic_enabled": false,
+      "reason": "timing, physical binding and deactivation semantics require review"
+    },
+    {
+      "id": "43",
+      "name": "主卧-阅读L",
+      "status": "needs_review",
+      "automatic_enabled": false,
+      "reason": "timing, physical binding and deactivation semantics require review"
+    },
+    {
+      "id": "44",
+      "name": "主卧-阅读R",
+      "status": "needs_review",
+      "automatic_enabled": false,
+      "reason": "timing, physical binding and deactivation semantics require review"
+    },
+    {
+      "id": "45",
+      "name": "主卧-夜灯",
+      "status": "needs_review",
+      "automatic_enabled": false,
+      "reason": "timing, physical binding and deactivation semantics require review"
+    },
+    {
+      "id": "46",
+      "name": "主卧-阳台",
+      "status": "needs_review",
+      "automatic_enabled": false,
+      "reason": "timing, physical binding and deactivation semantics require review"
+    },
+    {
+      "id": "47",
+      "name": "北卧-日常",
+      "status": "needs_review",
+      "automatic_enabled": false,
+      "reason": "timing, physical binding and deactivation semantics require review"
+    },
+    {
+      "id": "48",
+      "name": "北卧-全关",
+      "status": "needs_review",
+      "automatic_enabled": false,
+      "reason": "timing, physical binding and deactivation semantics require review"
+    },
+    {
+      "id": "49",
+      "name": "北卧-阅读R",
+      "status": "needs_review",
+      "automatic_enabled": false,
+      "reason": "timing, physical binding and deactivation semantics require review"
+    },
+    {
+      "id": "50",
+      "name": "北卧-阅读L",
+      "status": "needs_review",
+      "automatic_enabled": false,
+      "reason": "timing, physical binding and deactivation semantics require review"
+    },
+    {
+      "id": "51",
+      "name": "北卧-夜灯",
+      "status": "needs_review",
+      "automatic_enabled": false,
+      "reason": "timing, physical binding and deactivation semantics require review"
+    },
+    {
+      "id": "52",
+      "name": "北卧-电视",
+      "status": "needs_review",
+      "automatic_enabled": false,
+      "reason": "timing, physical binding and deactivation semantics require review"
+    },
+    {
+      "id": "53",
+      "name": "南卧-阅读L",
+      "status": "needs_review",
+      "automatic_enabled": false,
+      "reason": "timing, physical binding and deactivation semantics require review"
+    },
+    {
+      "id": "54",
+      "name": "南卧-阅读R",
+      "status": "needs_review",
+      "automatic_enabled": false,
+      "reason": "timing, physical binding and deactivation semantics require review"
+    },
+    {
+      "id": "55",
+      "name": "南卧-夜灯",
+      "status": "needs_review",
+      "automatic_enabled": false,
+      "reason": "timing, physical binding and deactivation semantics require review"
+    },
+    {
+      "id": "56",
+      "name": "卧室-日常",
+      "status": "needs_review",
+      "automatic_enabled": false,
+      "reason": "timing, physical binding and deactivation semantics require review"
+    },
+    {
+      "id": "57",
+      "name": "卧室-夜灯",
+      "status": "needs_review",
+      "automatic_enabled": false,
+      "reason": "timing, physical binding and deactivation semantics require review"
+    },
+    {
+      "id": "58",
+      "name": "卧室-阅读",
+      "status": "needs_review",
+      "automatic_enabled": false,
+      "reason": "timing, physical binding and deactivation semantics require review"
+    },
+    {
+      "id": "59",
+      "name": "客厅-会客",
+      "status": "needs_review",
+      "automatic_enabled": false,
+      "reason": "timing, physical binding and deactivation semantics require review"
+    },
+    {
+      "id": "60",
+      "name": "客厅-电视",
+      "status": "needs_review",
+      "automatic_enabled": false,
+      "reason": "timing, physical binding and deactivation semantics require review"
+    },
+    {
+      "id": "61",
+      "name": "客厅-节能",
+      "status": "needs_review",
+      "automatic_enabled": false,
+      "reason": "timing, physical binding and deactivation semantics require review"
+    },
+    {
+      "id": "62",
+      "name": "客厅-节能 (Toggle)",
+      "status": "needs_review",
+      "automatic_enabled": false,
+      "reason": "timing, physical binding and deactivation semantics require review"
+    },
+    {
+      "id": "63",
+      "name": "影音室-观影",
+      "status": "needs_review",
+      "automatic_enabled": false,
+      "reason": "timing, physical binding and deactivation semantics require review"
+    },
+    {
+      "id": "64",
+      "name": "影音室-会客",
+      "status": "needs_review",
+      "automatic_enabled": false,
+      "reason": "timing, physical binding and deactivation semantics require review"
+    },
+    {
+      "id": "65",
+      "name": "影音室-节能",
+      "status": "needs_review",
+      "automatic_enabled": false,
+      "reason": "timing, physical binding and deactivation semantics require review"
+    },
+    {
+      "id": "66",
+      "name": "南卧-全关1",
+      "status": "needs_review",
+      "automatic_enabled": false,
+      "reason": "timing, physical binding and deactivation semantics require review"
+    },
+    {
+      "id": "67",
+      "name": "南卧-全关1 (Toggle)",
+      "status": "needs_review",
+      "automatic_enabled": false,
+      "reason": "timing, physical binding and deactivation semantics require review"
+    }
+  ],
+  "programs": [
+    {
+      "device_id": "59",
+      "event_id": "2",
+      "name": "事件 ID 2",
+      "room": "主卧",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 8,
+        "node_types": {
+          "1": 5,
+          "5": 1,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "Turn On": 3,
+          "=": 1
+        },
+        "conditions": {
+          "==": 1
+        }
+      }
+    },
+    {
+      "device_id": "59",
+      "event_id": "3",
+      "name": "事件 ID 3",
+      "room": "主卧",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 2,
+        "node_types": {
+          "1": 2
+        },
+        "commands": {
+          "Turn Off": 1
+        },
+        "conditions": {}
+      }
+    },
+    {
+      "device_id": "59",
+      "event_id": "4",
+      "name": "事件 ID 4",
+      "room": "主卧",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 8,
+        "node_types": {
+          "1": 5,
+          "5": 1,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "Turn On": 3,
+          "=": 1
+        },
+        "conditions": {
+          "==": 1
+        }
+      }
+    },
+    {
+      "device_id": "59",
+      "event_id": "5",
+      "name": "事件 ID 5",
+      "room": "主卧",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 2,
+        "node_types": {
+          "1": 2
+        },
+        "commands": {
+          "Turn On": 1
+        },
+        "conditions": {}
+      }
+    },
+    {
+      "device_id": "63",
+      "event_id": "2",
+      "name": "Button 1 Release",
+      "room": "书房",
+      "status": "study_manual_runtime",
+      "automatic_enabled": false,
+      "reason": "reviewed study release branch; no automatic subscription",
+      "source_inventory": {
+        "source_nodes": 11,
+        "node_types": {
+          "1": 9,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "=": 2,
+          "ACTIVATE_SCENE": 1,
+          "Turn On": 1,
+          "Turn Off": 3,
+          "DEACTIVATE_SCENE": 1
+        },
+        "conditions": {
+          "!=": 1
+        }
+      }
+    },
+    {
+      "device_id": "63",
+      "event_id": "4",
+      "name": "Button 2 Release",
+      "room": "书房",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 13,
+        "node_types": {
+          "1": 7,
+          "5": 1,
+          "2": 4,
+          "6": 1
+        },
+        "commands": {
+          "SET_LEVEL_TARGET": 1,
+          "Turn Off": 4,
+          "=": 1
+        },
+        "conditions": {
+          "IF_STOPPED": 1,
+          "!=": 1,
+          "==": 2
+        }
+      }
+    },
+    {
+      "device_id": "63",
+      "event_id": "6",
+      "name": "Button 3 Release",
+      "room": "书房",
+      "status": "study_manual_runtime",
+      "automatic_enabled": false,
+      "reason": "reviewed study release branch; no automatic subscription",
+      "source_inventory": {
+        "source_nodes": 11,
+        "node_types": {
+          "1": 9,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "=": 2,
+          "ACTIVATE_SCENE": 1,
+          "Turn On": 1,
+          "Turn Off": 3,
+          "DEACTIVATE_SCENE": 1
+        },
+        "conditions": {
+          "!=": 1
+        }
+      }
+    },
+    {
+      "device_id": "63",
+      "event_id": "8",
+      "name": "Button 4 Release",
+      "room": "书房",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 9,
+        "node_types": {
+          "1": 5,
+          "5": 1,
+          "2": 2,
+          "4": 1
+        },
+        "commands": {
+          "Turn Off": 1,
+          "STOP": 1,
+          "=": 2
+        },
+        "conditions": {
+          "IF_MOVING": 1,
+          "!=": 1
+        }
+      }
+    },
+    {
+      "device_id": "63",
+      "event_id": "10",
+      "name": "Button 5 Release",
+      "room": "书房",
+      "status": "study_manual_runtime",
+      "automatic_enabled": false,
+      "reason": "reviewed study release branch; no automatic subscription",
+      "source_inventory": {
+        "source_nodes": 11,
+        "node_types": {
+          "1": 9,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "=": 2,
+          "Turn On": 1,
+          "Turn Off": 3,
+          "ACTIVATE_SCENE": 1,
+          "DEACTIVATE_SCENE": 1
+        },
+        "conditions": {
+          "!=": 1
+        }
+      }
+    },
+    {
+      "device_id": "63",
+      "event_id": "12",
+      "name": "Button 6 Release",
+      "room": "书房",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 13,
+        "node_types": {
+          "1": 7,
+          "5": 1,
+          "2": 4,
+          "6": 1
+        },
+        "commands": {
+          "SET_LEVEL_TARGET": 1,
+          "Turn Off": 4,
+          "=": 1
+        },
+        "conditions": {
+          "IF_STOPPED": 1,
+          "!=": 1,
+          "==": 2
+        }
+      }
+    },
+    {
+      "device_id": "285",
+      "event_id": "2",
+      "name": "事件 ID 2",
+      "room": "卧室",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 7,
+        "node_types": {
+          "1": 5,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "Turn On": 3,
+          "=": 1
+        },
+        "conditions": {
+          "==": 1
+        }
+      }
+    },
+    {
+      "device_id": "285",
+      "event_id": "3",
+      "name": "事件 ID 3",
+      "room": "卧室",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 2,
+        "node_types": {
+          "1": 2
+        },
+        "commands": {
+          "Turn Off": 1
+        },
+        "conditions": {}
+      }
+    },
+    {
+      "device_id": "285",
+      "event_id": "4",
+      "name": "事件 ID 4",
+      "room": "卧室",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 7,
+        "node_types": {
+          "1": 5,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "Turn On": 3,
+          "=": 1
+        },
+        "conditions": {
+          "==": 1
+        }
+      }
+    },
+    {
+      "device_id": "285",
+      "event_id": "5",
+      "name": "事件 ID 5",
+      "room": "卧室",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 2,
+        "node_types": {
+          "1": 2
+        },
+        "commands": {
+          "Turn On": 1
+        },
+        "conditions": {}
+      }
+    },
+    {
+      "device_id": "289",
+      "event_id": "2",
+      "name": "事件 ID 2",
+      "room": "休闲区",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 7,
+        "node_types": {
+          "1": 5,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "Turn On": 3,
+          "=": 1
+        },
+        "conditions": {
+          "==": 1
+        }
+      }
+    },
+    {
+      "device_id": "289",
+      "event_id": "3",
+      "name": "事件 ID 3",
+      "room": "休闲区",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 2,
+        "node_types": {
+          "1": 2
+        },
+        "commands": {
+          "Turn Off": 1
+        },
+        "conditions": {}
+      }
+    },
+    {
+      "device_id": "289",
+      "event_id": "4",
+      "name": "事件 ID 4",
+      "room": "休闲区",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 7,
+        "node_types": {
+          "1": 5,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "Turn On": 3,
+          "=": 1
+        },
+        "conditions": {
+          "==": 1
+        }
+      }
+    },
+    {
+      "device_id": "289",
+      "event_id": "5",
+      "name": "事件 ID 5",
+      "room": "休闲区",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 2,
+        "node_types": {
+          "1": 2
+        },
+        "commands": {
+          "Turn On": 1
+        },
+        "conditions": {}
+      }
+    },
+    {
+      "device_id": "291",
+      "event_id": "2",
+      "name": "事件 ID 2",
+      "room": "书房",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 7,
+        "node_types": {
+          "1": 5,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "Turn On": 3,
+          "=": 1
+        },
+        "conditions": {
+          "==": 1
+        }
+      }
+    },
+    {
+      "device_id": "291",
+      "event_id": "3",
+      "name": "事件 ID 3",
+      "room": "书房",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 2,
+        "node_types": {
+          "1": 2
+        },
+        "commands": {
+          "Turn Off": 1
+        },
+        "conditions": {}
+      }
+    },
+    {
+      "device_id": "291",
+      "event_id": "4",
+      "name": "事件 ID 4",
+      "room": "书房",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 7,
+        "node_types": {
+          "1": 5,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "Turn On": 3,
+          "=": 1
+        },
+        "conditions": {
+          "==": 1
+        }
+      }
+    },
+    {
+      "device_id": "291",
+      "event_id": "5",
+      "name": "事件 ID 5",
+      "room": "书房",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 2,
+        "node_types": {
+          "1": 2
+        },
+        "commands": {
+          "Turn On": 1
+        },
+        "conditions": {}
+      }
+    },
+    {
+      "device_id": "293",
+      "event_id": "2",
+      "name": "事件 ID 2",
+      "room": "客卧",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 7,
+        "node_types": {
+          "1": 5,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "Turn On": 3,
+          "=": 1
+        },
+        "conditions": {
+          "==": 1
+        }
+      }
+    },
+    {
+      "device_id": "293",
+      "event_id": "3",
+      "name": "事件 ID 3",
+      "room": "客卧",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 2,
+        "node_types": {
+          "1": 2
+        },
+        "commands": {
+          "Turn Off": 1
+        },
+        "conditions": {}
+      }
+    },
+    {
+      "device_id": "293",
+      "event_id": "4",
+      "name": "事件 ID 4",
+      "room": "客卧",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 7,
+        "node_types": {
+          "1": 5,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "Turn On": 3,
+          "=": 1
+        },
+        "conditions": {
+          "==": 1
+        }
+      }
+    },
+    {
+      "device_id": "293",
+      "event_id": "5",
+      "name": "事件 ID 5",
+      "room": "客卧",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 2,
+        "node_types": {
+          "1": 2
+        },
+        "commands": {
+          "Turn On": 1
+        },
+        "conditions": {}
+      }
+    },
+    {
+      "device_id": "295",
+      "event_id": "2",
+      "name": "事件 ID 2",
+      "room": "客厅",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 7,
+        "node_types": {
+          "1": 5,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "Turn On": 3,
+          "=": 1
+        },
+        "conditions": {
+          "==": 1
+        }
+      }
+    },
+    {
+      "device_id": "295",
+      "event_id": "3",
+      "name": "事件 ID 3",
+      "room": "客厅",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 2,
+        "node_types": {
+          "1": 2
+        },
+        "commands": {
+          "Turn Off": 1
+        },
+        "conditions": {}
+      }
+    },
+    {
+      "device_id": "295",
+      "event_id": "4",
+      "name": "事件 ID 4",
+      "room": "客厅",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 7,
+        "node_types": {
+          "1": 5,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "Turn On": 3,
+          "=": 1
+        },
+        "conditions": {
+          "==": 1
+        }
+      }
+    },
+    {
+      "device_id": "295",
+      "event_id": "5",
+      "name": "事件 ID 5",
+      "room": "客厅",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 2,
+        "node_types": {
+          "1": 2
+        },
+        "commands": {
+          "Turn On": 1
+        },
+        "conditions": {}
+      }
+    },
+    {
+      "device_id": "299",
+      "event_id": "2",
+      "name": "事件 ID 2",
+      "room": "衣帽间",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 8,
+        "node_types": {
+          "1": 5,
+          "5": 1,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "Turn On": 3,
+          "=": 1
+        },
+        "conditions": {
+          "==": 1
+        }
+      }
+    },
+    {
+      "device_id": "299",
+      "event_id": "3",
+      "name": "事件 ID 3",
+      "room": "衣帽间",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 2,
+        "node_types": {
+          "1": 2
+        },
+        "commands": {
+          "Turn Off": 1
+        },
+        "conditions": {}
+      }
+    },
+    {
+      "device_id": "299",
+      "event_id": "4",
+      "name": "事件 ID 4",
+      "room": "衣帽间",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 8,
+        "node_types": {
+          "1": 5,
+          "5": 1,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "Turn On": 3,
+          "=": 1
+        },
+        "conditions": {
+          "==": 1
+        }
+      }
+    },
+    {
+      "device_id": "299",
+      "event_id": "5",
+      "name": "事件 ID 5",
+      "room": "衣帽间",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 2,
+        "node_types": {
+          "1": 2
+        },
+        "commands": {
+          "Turn On": 1
+        },
+        "conditions": {}
+      }
+    },
+    {
+      "device_id": "301",
+      "event_id": "2",
+      "name": "事件 ID 2",
+      "room": "北卧",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 8,
+        "node_types": {
+          "1": 5,
+          "5": 1,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "Turn On": 3,
+          "=": 1
+        },
+        "conditions": {
+          "==": 1
+        }
+      }
+    },
+    {
+      "device_id": "301",
+      "event_id": "3",
+      "name": "事件 ID 3",
+      "room": "北卧",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 2,
+        "node_types": {
+          "1": 2
+        },
+        "commands": {
+          "Turn Off": 1
+        },
+        "conditions": {}
+      }
+    },
+    {
+      "device_id": "301",
+      "event_id": "4",
+      "name": "事件 ID 4",
+      "room": "北卧",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 8,
+        "node_types": {
+          "1": 5,
+          "5": 1,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "Turn On": 3,
+          "=": 1
+        },
+        "conditions": {
+          "==": 1
+        }
+      }
+    },
+    {
+      "device_id": "301",
+      "event_id": "5",
+      "name": "事件 ID 5",
+      "room": "北卧",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 2,
+        "node_types": {
+          "1": 2
+        },
+        "commands": {
+          "Turn On": 1
+        },
+        "conditions": {}
+      }
+    },
+    {
+      "device_id": "303",
+      "event_id": "2",
+      "name": "事件 ID 2",
+      "room": "画室",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 6,
+        "node_types": {
+          "1": 4,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "Turn On": 2,
+          "=": 1
+        },
+        "conditions": {
+          "==": 1
+        }
+      }
+    },
+    {
+      "device_id": "303",
+      "event_id": "3",
+      "name": "事件 ID 3",
+      "room": "画室",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 10,
+        "node_types": {
+          "1": 7,
+          "2": 3
+        },
+        "commands": {
+          "Turn On": 2,
+          "Turn Off": 4
+        },
+        "conditions": {
+          "==": 3
+        }
+      }
+    },
+    {
+      "device_id": "303",
+      "event_id": "4",
+      "name": "事件 ID 4",
+      "room": "画室",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 6,
+        "node_types": {
+          "1": 4,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "Turn On": 2,
+          "=": 1
+        },
+        "conditions": {
+          "==": 1
+        }
+      }
+    },
+    {
+      "device_id": "409",
+      "event_id": "2",
+      "name": "Button 1 Release",
+      "room": "卧室",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 14,
+        "node_types": {
+          "1": 12,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "=": 2,
+          "ACTIVATE_SCENE": 1,
+          "Turn On": 1,
+          "Turn Off": 6,
+          "DEACTIVATE_SCENE": 1
+        },
+        "conditions": {
+          "!=": 1
+        }
+      }
+    },
+    {
+      "device_id": "409",
+      "event_id": "4",
+      "name": "Button 2 Release",
+      "room": "卧室",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 23,
+        "node_types": {
+          "1": 21,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "=": 2,
+          "Turn Off": 13,
+          "Turn On": 3,
+          "ACTIVATE_SCENE": 1,
+          "DEACTIVATE_SCENE": 1
+        },
+        "conditions": {
+          "!=": 1
+        }
+      }
+    },
+    {
+      "device_id": "409",
+      "event_id": "6",
+      "name": "Button 3 Release",
+      "room": "卧室",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 14,
+        "node_types": {
+          "1": 12,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "=": 2,
+          "ACTIVATE_SCENE": 1,
+          "Turn Off": 6,
+          "Turn On": 1,
+          "DEACTIVATE_SCENE": 1
+        },
+        "conditions": {
+          "!=": 1
+        }
+      }
+    },
+    {
+      "device_id": "409",
+      "event_id": "8",
+      "name": "Button 4 Release",
+      "room": "卧室",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 22,
+        "node_types": {
+          "1": 20,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "=": 2,
+          "Turn Off": 12,
+          "Turn On": 3,
+          "ACTIVATE_SCENE": 1,
+          "DEACTIVATE_SCENE": 1
+        },
+        "conditions": {
+          "!=": 1
+        }
+      }
+    },
+    {
+      "device_id": "409",
+      "event_id": "10",
+      "name": "Button 5 Release",
+      "room": "卧室",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 23,
+        "node_types": {
+          "1": 21,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "=": 2,
+          "Turn Off": 13,
+          "Turn On": 1,
+          "OFF": 2,
+          "SET_LEVEL": 2
+        },
+        "conditions": {
+          "!=": 1
+        }
+      }
+    },
+    {
+      "device_id": "409",
+      "event_id": "12",
+      "name": "Button 6 Release",
+      "room": "卧室",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 22,
+        "node_types": {
+          "1": 20,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "=": 2,
+          "Turn Off": 12,
+          "Turn On": 3,
+          "ACTIVATE_SCENE": 1,
+          "DEACTIVATE_SCENE": 1
+        },
+        "conditions": {
+          "!=": 1
+        }
+      }
+    },
+    {
+      "device_id": "410",
+      "event_id": "2",
+      "name": "Button 1 Release",
+      "room": "餐厅",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 11,
+        "node_types": {
+          "1": 9,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "ACTIVATE_SCENE": 1,
+          "=": 2,
+          "Turn On": 1,
+          "Turn Off": 3,
+          "DEACTIVATE_SCENE": 1
+        },
+        "conditions": {
+          "!=": 1
+        }
+      }
+    },
+    {
+      "device_id": "410",
+      "event_id": "4",
+      "name": "Button 2 Release",
+      "room": "餐厅",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 8,
+        "node_types": {
+          "1": 6,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "TOGGLE": 1,
+          "Turn Off": 2,
+          "Turn On": 2
+        },
+        "conditions": {
+          "LOAD_OFF": 1
+        }
+      }
+    },
+    {
+      "device_id": "410",
+      "event_id": "6",
+      "name": "Button 3 Release",
+      "room": "餐厅",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 11,
+        "node_types": {
+          "1": 9,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "ACTIVATE_SCENE": 1,
+          "=": 2,
+          "Turn Off": 3,
+          "Turn On": 1,
+          "DEACTIVATE_SCENE": 1
+        },
+        "conditions": {
+          "!=": 1
+        }
+      }
+    },
+    {
+      "device_id": "410",
+      "event_id": "8",
+      "name": "Button 4 Release",
+      "room": "餐厅",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 6,
+        "node_types": {
+          "1": 4,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "TOGGLE": 1,
+          "Turn Off": 1,
+          "Turn On": 1
+        },
+        "conditions": {
+          "LOAD_OFF": 1
+        }
+      }
+    },
+    {
+      "device_id": "410",
+      "event_id": "10",
+      "name": "Button 5 Release",
+      "room": "餐厅",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 14,
+        "node_types": {
+          "1": 11,
+          "5": 1,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "=": 2,
+          "Turn Off": 4,
+          "Turn On": 2,
+          "ACTIVATE_SCENE": 1,
+          "DEACTIVATE_SCENE": 1
+        },
+        "conditions": {
+          "!=": 1
+        }
+      }
+    },
+    {
+      "device_id": "410",
+      "event_id": "12",
+      "name": "Button 6 Release",
+      "room": "餐厅",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 7,
+        "node_types": {
+          "1": 5,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "ACTIVATE_SCENE": 1,
+          "Turn On": 1,
+          "DEACTIVATE_SCENE": 1,
+          "Turn Off": 1
+        },
+        "conditions": {
+          "LOAD_OFF": 1
+        }
+      }
+    },
+    {
+      "device_id": "414",
+      "event_id": "2",
+      "name": "Button 1 Release",
+      "room": "设备间",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 6,
+        "node_types": {
+          "1": 4,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "TOGGLE": 1,
+          "Turn On": 1,
+          "Turn Off": 1
+        },
+        "conditions": {
+          "LOAD_ON": 1
+        }
+      }
+    },
+    {
+      "device_id": "414",
+      "event_id": "4",
+      "name": "Button 2 Release",
+      "room": "设备间",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 15,
+        "node_types": {
+          "1": 13,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "=": 2,
+          "ON": 1,
+          "SET_LEVEL": 2,
+          "Turn On": 3,
+          "Turn Off": 3,
+          "OFF": 1
+        },
+        "conditions": {
+          "!=": 1
+        }
+      }
+    },
+    {
+      "device_id": "414",
+      "event_id": "6",
+      "name": "Button 3 Release",
+      "room": "设备间",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 6,
+        "node_types": {
+          "1": 4,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "TOGGLE": 1,
+          "Turn On": 1,
+          "Turn Off": 1
+        },
+        "conditions": {
+          "LOAD_ON": 1
+        }
+      }
+    },
+    {
+      "device_id": "414",
+      "event_id": "8",
+      "name": "Button 4 Release",
+      "room": "设备间",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 6,
+        "node_types": {
+          "1": 4,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "TOGGLE": 1,
+          "Turn On": 1,
+          "Turn Off": 1
+        },
+        "conditions": {
+          "LOAD_ON": 1
+        }
+      }
+    },
+    {
+      "device_id": "414",
+      "event_id": "10",
+      "name": "Button 5 Release",
+      "room": "设备间",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 6,
+        "node_types": {
+          "1": 4,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "TOGGLE": 1,
+          "Turn On": 1,
+          "Turn Off": 1
+        },
+        "conditions": {
+          "LOAD_ON": 1
+        }
+      }
+    },
+    {
+      "device_id": "414",
+      "event_id": "12",
+      "name": "Button 6 Release",
+      "room": "设备间",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 6,
+        "node_types": {
+          "1": 4,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "TOGGLE": 1,
+          "Turn On": 1,
+          "Turn Off": 1
+        },
+        "conditions": {
+          "LOAD_ON": 1
+        }
+      }
+    },
+    {
+      "device_id": "416",
+      "event_id": "2",
+      "name": "Button 1 Release",
+      "room": "休闲区",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 13,
+        "node_types": {
+          "1": 7,
+          "5": 1,
+          "2": 4,
+          "6": 1
+        },
+        "commands": {
+          "SET_LEVEL_TARGET": 1,
+          "Turn Off": 4,
+          "=": 1
+        },
+        "conditions": {
+          "IF_STOPPED": 1,
+          "!=": 1,
+          "==": 2
+        }
+      }
+    },
+    {
+      "device_id": "416",
+      "event_id": "4",
+      "name": "Button 2 Release",
+      "room": "休闲区",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 9,
+        "node_types": {
+          "1": 7,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "Turn On": 2,
+          "ON": 1,
+          "OFF": 1,
+          "Turn Off": 2
+        },
+        "conditions": {
+          "LOAD_OFF": 1
+        }
+      }
+    },
+    {
+      "device_id": "416",
+      "event_id": "6",
+      "name": "Button 3 Release",
+      "room": "休闲区",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 9,
+        "node_types": {
+          "1": 5,
+          "5": 1,
+          "2": 2,
+          "4": 1
+        },
+        "commands": {
+          "STOP": 1,
+          "Turn Off": 1,
+          "=": 2
+        },
+        "conditions": {
+          "IF_MOVING": 1,
+          "!=": 1
+        }
+      }
+    },
+    {
+      "device_id": "416",
+      "event_id": "8",
+      "name": "Button 4 Release",
+      "room": "休闲区",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 12,
+        "node_types": {
+          "1": 9,
+          "5": 1,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "ON": 1,
+          "SET_LEVEL": 2,
+          "Turn On": 2,
+          "OFF": 1,
+          "Turn Off": 2
+        },
+        "conditions": {
+          "LOAD_OFF": 1
+        }
+      }
+    },
+    {
+      "device_id": "416",
+      "event_id": "10",
+      "name": "Button 5 Release",
+      "room": "休闲区",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 13,
+        "node_types": {
+          "1": 7,
+          "5": 1,
+          "2": 4,
+          "6": 1
+        },
+        "commands": {
+          "SET_LEVEL_TARGET": 1,
+          "Turn Off": 4,
+          "=": 1
+        },
+        "conditions": {
+          "IF_STOPPED": 1,
+          "!=": 1,
+          "==": 2
+        }
+      }
+    },
+    {
+      "device_id": "416",
+      "event_id": "12",
+      "name": "Button 6 Release",
+      "room": "休闲区",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 8,
+        "node_types": {
+          "1": 5,
+          "5": 1,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "ON": 1,
+          "Turn On": 1,
+          "Turn Off": 1,
+          "OFF": 1
+        },
+        "conditions": {
+          "LOAD_OFF": 1
+        }
+      }
+    },
+    {
+      "device_id": "417",
+      "event_id": "2",
+      "name": "Button 1 Release",
+      "room": "休闲区",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 26,
+        "node_types": {
+          "1": 22,
+          "5": 2,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "=": 2,
+          "OFF": 2,
+          "SET_LEVEL": 2,
+          "ON": 1,
+          "Turn On": 3,
+          "Turn Off": 10,
+          "RAMP_TO_LEVEL": 1
+        },
+        "conditions": {
+          "!=": 1
+        }
+      }
+    },
+    {
+      "device_id": "417",
+      "event_id": "4",
+      "name": "Button 2 Release",
+      "room": "休闲区",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 12,
+        "node_types": {
+          "1": 9,
+          "5": 1,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "ON": 1,
+          "Turn On": 3,
+          "OFF": 1,
+          "Turn Off": 3
+        },
+        "conditions": {
+          "LOAD_OFF": 1
+        }
+      }
+    },
+    {
+      "device_id": "417",
+      "event_id": "6",
+      "name": "Button 3 Release",
+      "room": "休闲区",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 26,
+        "node_types": {
+          "1": 22,
+          "5": 2,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "=": 2,
+          "ACTIVATE_SCENE": 1,
+          "Turn On": 4,
+          "Turn Off": 13,
+          "DEACTIVATE_SCENE": 1
+        },
+        "conditions": {
+          "!=": 1
+        }
+      }
+    },
+    {
+      "device_id": "417",
+      "event_id": "8",
+      "name": "Button 4 Release",
+      "room": "休闲区",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 23,
+        "node_types": {
+          "1": 19,
+          "5": 2,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "=": 2,
+          "ACTIVATE_SCENE": 1,
+          "Turn Off": 13,
+          "Turn On": 1,
+          "DEACTIVATE_SCENE": 1
+        },
+        "conditions": {
+          "!=": 1
+        }
+      }
+    },
+    {
+      "device_id": "417",
+      "event_id": "10",
+      "name": "Button 5 Release",
+      "room": "休闲区",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 25,
+        "node_types": {
+          "1": 21,
+          "5": 2,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "=": 2,
+          "ACTIVATE_SCENE": 1,
+          "Turn Off": 13,
+          "Turn On": 3,
+          "DEACTIVATE_SCENE": 1
+        },
+        "conditions": {
+          "!=": 1
+        }
+      }
+    },
+    {
+      "device_id": "417",
+      "event_id": "12",
+      "name": "Button 6 Release",
+      "room": "休闲区",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 24,
+        "node_types": {
+          "1": 21,
+          "5": 1,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "=": 2,
+          "ACTIVATE_SCENE": 1,
+          "Turn Off": 13,
+          "Turn On": 3,
+          "DEACTIVATE_SCENE": 1
+        },
+        "conditions": {
+          "!=": 1
+        }
+      }
+    },
+    {
+      "device_id": "420",
+      "event_id": "2",
+      "name": "Button 1 Release",
+      "room": "客卧",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 13,
+        "node_types": {
+          "1": 7,
+          "5": 1,
+          "2": 4,
+          "6": 1
+        },
+        "commands": {
+          "SET_LEVEL_TARGET": 1,
+          "Turn Off": 4,
+          "=": 1
+        },
+        "conditions": {
+          "IF_STOPPED": 1,
+          "!=": 1,
+          "==": 2
+        }
+      }
+    },
+    {
+      "device_id": "420",
+      "event_id": "4",
+      "name": "Button 2 Release",
+      "room": "客卧",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 21,
+        "node_types": {
+          "1": 18,
+          "5": 1,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "=": 2,
+          "ACTIVATE_SCENE": 1,
+          "Turn On": 3,
+          "Turn Off": 10,
+          "DEACTIVATE_SCENE": 1
+        },
+        "conditions": {
+          "!=": 1
+        }
+      }
+    },
+    {
+      "device_id": "420",
+      "event_id": "6",
+      "name": "Button 3 Release",
+      "room": "客卧",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 9,
+        "node_types": {
+          "1": 5,
+          "5": 1,
+          "2": 2,
+          "4": 1
+        },
+        "commands": {
+          "STOP": 1,
+          "Turn Off": 1,
+          "=": 2
+        },
+        "conditions": {
+          "IF_MOVING": 1,
+          "!=": 1
+        }
+      }
+    },
+    {
+      "device_id": "420",
+      "event_id": "8",
+      "name": "Button 4 Release",
+      "room": "客卧",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 26,
+        "node_types": {
+          "1": 23,
+          "5": 1,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "=": 2,
+          "OFF": 3,
+          "ON": 1,
+          "SET_LEVEL": 4,
+          "Turn Off": 10,
+          "Turn On": 2
+        },
+        "conditions": {
+          "!=": 1
+        }
+      }
+    },
+    {
+      "device_id": "420",
+      "event_id": "10",
+      "name": "Button 5 Release",
+      "room": "客卧",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 13,
+        "node_types": {
+          "1": 7,
+          "5": 1,
+          "2": 4,
+          "6": 1
+        },
+        "commands": {
+          "SET_LEVEL_TARGET": 1,
+          "Turn Off": 4,
+          "=": 1
+        },
+        "conditions": {
+          "IF_STOPPED": 1,
+          "!=": 1,
+          "==": 2
+        }
+      }
+    },
+    {
+      "device_id": "420",
+      "event_id": "12",
+      "name": "Button 6 Release",
+      "room": "客卧",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 25,
+        "node_types": {
+          "1": 22,
+          "5": 1,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "=": 2,
+          "SET_LEVEL": 3,
+          "ON": 2,
+          "OFF": 1,
+          "Turn Off": 11,
+          "Turn On": 2
+        },
+        "conditions": {
+          "!=": 1
+        }
+      }
+    },
+    {
+      "device_id": "421",
+      "event_id": "2",
+      "name": "Button 1 Release",
+      "room": "客卧",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 13,
+        "node_types": {
+          "1": 7,
+          "5": 1,
+          "2": 4,
+          "6": 1
+        },
+        "commands": {
+          "SET_LEVEL_TARGET": 1,
+          "Turn Off": 4,
+          "=": 1
+        },
+        "conditions": {
+          "IF_STOPPED": 1,
+          "!=": 1,
+          "==": 2
+        }
+      }
+    },
+    {
+      "device_id": "421",
+      "event_id": "4",
+      "name": "Button 2 Release",
+      "room": "客卧",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 19,
+        "node_types": {
+          "1": 16,
+          "5": 1,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "=": 2,
+          "ACTIVATE_SCENE": 1,
+          "Turn Off": 9,
+          "Turn On": 2,
+          "DEACTIVATE_SCENE": 1
+        },
+        "conditions": {
+          "!=": 1
+        }
+      }
+    },
+    {
+      "device_id": "421",
+      "event_id": "6",
+      "name": "Button 3 Release",
+      "room": "客卧",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 9,
+        "node_types": {
+          "1": 5,
+          "5": 1,
+          "2": 2,
+          "4": 1
+        },
+        "commands": {
+          "STOP": 1,
+          "Turn Off": 1,
+          "=": 2
+        },
+        "conditions": {
+          "IF_MOVING": 1,
+          "!=": 1
+        }
+      }
+    },
+    {
+      "device_id": "421",
+      "event_id": "8",
+      "name": "Button 4 Release",
+      "room": "客卧",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 26,
+        "node_types": {
+          "1": 23,
+          "5": 1,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "=": 2,
+          "OFF": 3,
+          "ON": 1,
+          "SET_LEVEL": 4,
+          "Turn Off": 10,
+          "Turn On": 2
+        },
+        "conditions": {
+          "!=": 1
+        }
+      }
+    },
+    {
+      "device_id": "421",
+      "event_id": "10",
+      "name": "Button 5 Release",
+      "room": "客卧",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 13,
+        "node_types": {
+          "1": 7,
+          "5": 1,
+          "2": 4,
+          "6": 1
+        },
+        "commands": {
+          "SET_LEVEL_TARGET": 1,
+          "Turn Off": 4,
+          "=": 1
+        },
+        "conditions": {
+          "IF_STOPPED": 1,
+          "!=": 1,
+          "==": 2
+        }
+      }
+    },
+    {
+      "device_id": "421",
+      "event_id": "12",
+      "name": "Button 6 Release",
+      "room": "客卧",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 25,
+        "node_types": {
+          "1": 22,
+          "5": 1,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "=": 2,
+          "SET_LEVEL": 3,
+          "ON": 2,
+          "OFF": 1,
+          "Turn Off": 11,
+          "Turn On": 2
+        },
+        "conditions": {
+          "!=": 1
+        }
+      }
+    },
+    {
+      "device_id": "422",
+      "event_id": "2",
+      "name": "Button 1 Release",
+      "room": "阳光房",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 11,
+        "node_types": {
+          "1": 9,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "ON": 1,
+          "SET_LEVEL": 2,
+          "Turn On": 2,
+          "OFF": 1,
+          "Turn Off": 2
+        },
+        "conditions": {
+          "LOAD_OFF": 1
+        }
+      }
+    },
+    {
+      "device_id": "422",
+      "event_id": "4",
+      "name": "Button 2 Release",
+      "room": "阳光房",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 9,
+        "node_types": {
+          "1": 7,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "Turn On": 2,
+          "ON": 1,
+          "OFF": 1,
+          "Turn Off": 2
+        },
+        "conditions": {
+          "LOAD_OFF": 1
+        }
+      }
+    },
+    {
+      "device_id": "422",
+      "event_id": "6",
+      "name": "Button 3 Release",
+      "room": "阳光房",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 26,
+        "node_types": {
+          "1": 22,
+          "5": 2,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "=": 2,
+          "ACTIVATE_SCENE": 1,
+          "Turn On": 4,
+          "Turn Off": 13,
+          "DEACTIVATE_SCENE": 1
+        },
+        "conditions": {
+          "!=": 1
+        }
+      }
+    },
+    {
+      "device_id": "422",
+      "event_id": "8",
+      "name": "Button 4 Release",
+      "room": "阳光房",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 10,
+        "node_types": {
+          "1": 7,
+          "5": 1,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "ON": 1,
+          "Turn On": 2,
+          "OFF": 1,
+          "Turn Off": 2
+        },
+        "conditions": {
+          "LOAD_OFF": 1
+        }
+      }
+    },
+    {
+      "device_id": "422",
+      "event_id": "10",
+      "name": "Button 5 Release",
+      "room": "阳光房",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 19,
+        "node_types": {
+          "1": 11,
+          "5": 2,
+          "2": 4,
+          "6": 1,
+          "4": 1
+        },
+        "commands": {
+          "ON": 2,
+          "Turn On": 3,
+          "OFF": 2,
+          "Turn Off": 3
+        },
+        "conditions": {
+          "LOAD_OFF": 4
+        }
+      }
+    },
+    {
+      "device_id": "422",
+      "event_id": "12",
+      "name": "Button 6 Release",
+      "room": "阳光房",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 3,
+        "node_types": {
+          "1": 3
+        },
+        "commands": {
+          "DEACTIVATE_SCENE": 1,
+          "Turn Off": 1
+        },
+        "conditions": {}
+      }
+    },
+    {
+      "device_id": "423",
+      "event_id": "2",
+      "name": "Button 1 Release",
+      "room": "休闲区",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 25,
+        "node_types": {
+          "1": 21,
+          "5": 2,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "=": 2,
+          "ACTIVATE_SCENE": 1,
+          "Turn Off": 13,
+          "Turn On": 3,
+          "DEACTIVATE_SCENE": 1
+        },
+        "conditions": {
+          "!=": 1
+        }
+      }
+    },
+    {
+      "device_id": "423",
+      "event_id": "4",
+      "name": "Button 2 Release",
+      "room": "休闲区",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 10,
+        "node_types": {
+          "1": 7,
+          "5": 1,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "ON": 1,
+          "Turn On": 2,
+          "OFF": 1,
+          "Turn Off": 2
+        },
+        "conditions": {
+          "LOAD_OFF": 1
+        }
+      }
+    },
+    {
+      "device_id": "423",
+      "event_id": "6",
+      "name": "Button 3 Release",
+      "room": "休闲区",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 26,
+        "node_types": {
+          "1": 22,
+          "5": 2,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "=": 2,
+          "ACTIVATE_SCENE": 1,
+          "Turn On": 4,
+          "Turn Off": 13,
+          "DEACTIVATE_SCENE": 1
+        },
+        "conditions": {
+          "!=": 1
+        }
+      }
+    },
+    {
+      "device_id": "423",
+      "event_id": "8",
+      "name": "Button 4 Release",
+      "room": "休闲区",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 24,
+        "node_types": {
+          "1": 21,
+          "5": 1,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "=": 2,
+          "ACTIVATE_SCENE": 1,
+          "Turn Off": 13,
+          "Turn On": 3,
+          "DEACTIVATE_SCENE": 1
+        },
+        "conditions": {
+          "!=": 1
+        }
+      }
+    },
+    {
+      "device_id": "423",
+      "event_id": "10",
+      "name": "Button 5 Release",
+      "room": "休闲区",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 24,
+        "node_types": {
+          "1": 21,
+          "5": 1,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "=": 2,
+          "ACTIVATE_SCENE": 1,
+          "Turn Off": 13,
+          "Turn On": 3,
+          "DEACTIVATE_SCENE": 1
+        },
+        "conditions": {
+          "!=": 1
+        }
+      }
+    },
+    {
+      "device_id": "423",
+      "event_id": "12",
+      "name": "Button 6 Release",
+      "room": "休闲区",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 12,
+        "node_types": {
+          "1": 9,
+          "5": 1,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "ON": 1,
+          "Turn On": 3,
+          "OFF": 1,
+          "Turn Off": 3
+        },
+        "conditions": {
+          "LOAD_OFF": 1
+        }
+      }
+    },
+    {
+      "device_id": "424",
+      "event_id": "2",
+      "name": "Button 1 Release",
+      "room": "休闲区",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 25,
+        "node_types": {
+          "1": 21,
+          "5": 2,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "=": 2,
+          "ACTIVATE_SCENE": 1,
+          "Turn Off": 13,
+          "Turn On": 3,
+          "DEACTIVATE_SCENE": 1
+        },
+        "conditions": {
+          "!=": 1
+        }
+      }
+    },
+    {
+      "device_id": "424",
+      "event_id": "4",
+      "name": "Button 2 Release",
+      "room": "休闲区",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 15,
+        "node_types": {
+          "1": 13,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "=": 2,
+          "ON": 1,
+          "SET_LEVEL": 2,
+          "Turn On": 3,
+          "Turn Off": 3,
+          "OFF": 1
+        },
+        "conditions": {
+          "!=": 1
+        }
+      }
+    },
+    {
+      "device_id": "424",
+      "event_id": "6",
+      "name": "Button 3 Release",
+      "room": "休闲区",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 26,
+        "node_types": {
+          "1": 22,
+          "5": 2,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "=": 2,
+          "ACTIVATE_SCENE": 1,
+          "Turn On": 4,
+          "Turn Off": 13,
+          "DEACTIVATE_SCENE": 1
+        },
+        "conditions": {
+          "!=": 1
+        }
+      }
+    },
+    {
+      "device_id": "424",
+      "event_id": "8",
+      "name": "Button 4 Release",
+      "room": "休闲区",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 24,
+        "node_types": {
+          "1": 21,
+          "5": 1,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "=": 2,
+          "ACTIVATE_SCENE": 1,
+          "Turn Off": 13,
+          "Turn On": 3,
+          "DEACTIVATE_SCENE": 1
+        },
+        "conditions": {
+          "!=": 1
+        }
+      }
+    },
+    {
+      "device_id": "424",
+      "event_id": "10",
+      "name": "Button 5 Release",
+      "room": "休闲区",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 25,
+        "node_types": {
+          "1": 21,
+          "5": 2,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "=": 2,
+          "ACTIVATE_SCENE": 1,
+          "Turn Off": 13,
+          "Turn On": 3,
+          "DEACTIVATE_SCENE": 1
+        },
+        "conditions": {
+          "!=": 1
+        }
+      }
+    },
+    {
+      "device_id": "424",
+      "event_id": "12",
+      "name": "Button 6 Release",
+      "room": "休闲区",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 11,
+        "node_types": {
+          "1": 9,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "ON": 1,
+          "Turn On": 3,
+          "OFF": 1,
+          "Turn Off": 3
+        },
+        "conditions": {
+          "LOAD_OFF": 1
+        }
+      }
+    },
+    {
+      "device_id": "425",
+      "event_id": "2",
+      "name": "Button 1 Release",
+      "room": "画室",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 12,
+        "node_types": {
+          "1": 6,
+          "5": 1,
+          "2": 4,
+          "6": 1
+        },
+        "commands": {
+          "SET_LEVEL_TARGET": 1,
+          "Turn Off": 3,
+          "=": 1
+        },
+        "conditions": {
+          "IF_STOPPED": 1,
+          "!=": 1,
+          "==": 2
+        }
+      }
+    },
+    {
+      "device_id": "425",
+      "event_id": "4",
+      "name": "Button 2 Release",
+      "room": "画室",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 12,
+        "node_types": {
+          "1": 6,
+          "5": 1,
+          "2": 4,
+          "6": 1
+        },
+        "commands": {
+          "SET_LEVEL_TARGET": 1,
+          "Turn Off": 3,
+          "=": 1
+        },
+        "conditions": {
+          "IF_STOPPED": 1,
+          "!=": 1,
+          "==": 2
+        }
+      }
+    },
+    {
+      "device_id": "425",
+      "event_id": "6",
+      "name": "Button 3 Release",
+      "room": "画室",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 10,
+        "node_types": {
+          "1": 8,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "=": 2,
+          "ACTIVATE_SCENE": 1,
+          "Turn On": 1,
+          "Turn Off": 2,
+          "DEACTIVATE_SCENE": 1
+        },
+        "conditions": {
+          "!=": 1
+        }
+      }
+    },
+    {
+      "device_id": "425",
+      "event_id": "8",
+      "name": "Button 4 Release",
+      "room": "画室",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 10,
+        "node_types": {
+          "1": 8,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "=": 2,
+          "ACTIVATE_SCENE": 1,
+          "Turn Off": 2,
+          "Turn On": 1,
+          "DEACTIVATE_SCENE": 1
+        },
+        "conditions": {
+          "!=": 1
+        }
+      }
+    },
+    {
+      "device_id": "425",
+      "event_id": "10",
+      "name": "Button 5 Release",
+      "room": "画室",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 7,
+        "node_types": {
+          "1": 5,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "ON": 1,
+          "Turn On": 1,
+          "OFF": 1,
+          "Turn Off": 1
+        },
+        "conditions": {
+          "LOAD_OFF": 1
+        }
+      }
+    },
+    {
+      "device_id": "425",
+      "event_id": "12",
+      "name": "Button 6 Release",
+      "room": "画室",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 15,
+        "node_types": {
+          "1": 13,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "=": 2,
+          "ON": 1,
+          "SET_LEVEL": 2,
+          "Turn On": 3,
+          "Turn Off": 3,
+          "OFF": 1
+        },
+        "conditions": {
+          "!=": 1
+        }
+      }
+    },
+    {
+      "device_id": "426",
+      "event_id": "2",
+      "name": "Button 1 Release",
+      "room": "客厅",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 22,
+        "node_types": {
+          "1": 19,
+          "5": 1,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "=": 2,
+          "ACTIVATE_SCENE": 1,
+          "Turn On": 3,
+          "Turn Off": 11,
+          "DEACTIVATE_SCENE": 1
+        },
+        "conditions": {
+          "!=": 1
+        }
+      }
+    },
+    {
+      "device_id": "426",
+      "event_id": "4",
+      "name": "Button 2 Release",
+      "room": "客厅",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 8,
+        "node_types": {
+          "1": 6,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "TOGGLE": 1,
+          "Turn Off": 2,
+          "Turn On": 2
+        },
+        "conditions": {
+          "LOAD_OFF": 1
+        }
+      }
+    },
+    {
+      "device_id": "426",
+      "event_id": "6",
+      "name": "Button 3 Release",
+      "room": "客厅",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 21,
+        "node_types": {
+          "1": 18,
+          "5": 1,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "=": 2,
+          "ACTIVATE_SCENE": 1,
+          "Turn Off": 10,
+          "Turn On": 3,
+          "DEACTIVATE_SCENE": 1
+        },
+        "conditions": {
+          "!=": 1
+        }
+      }
+    },
+    {
+      "device_id": "426",
+      "event_id": "8",
+      "name": "Button 4 Release",
+      "room": "客厅",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 11,
+        "node_types": {
+          "1": 9,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "ON": 1,
+          "Turn On": 3,
+          "OFF": 1,
+          "Turn Off": 3
+        },
+        "conditions": {
+          "LOAD_OFF": 1
+        }
+      }
+    },
+    {
+      "device_id": "426",
+      "event_id": "10",
+      "name": "Button 5 Release",
+      "room": "客厅",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 14,
+        "node_types": {
+          "1": 11,
+          "5": 1,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "=": 2,
+          "Turn Off": 4,
+          "Turn On": 2,
+          "ACTIVATE_SCENE": 1,
+          "DEACTIVATE_SCENE": 1
+        },
+        "conditions": {
+          "!=": 1
+        }
+      }
+    },
+    {
+      "device_id": "426",
+      "event_id": "12",
+      "name": "Button 6 Release",
+      "room": "客厅",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 9,
+        "node_types": {
+          "1": 7,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "ON": 1,
+          "Turn On": 2,
+          "OFF": 1,
+          "Turn Off": 2
+        },
+        "conditions": {
+          "LOAD_OFF": 1
+        }
+      }
+    },
+    {
+      "device_id": "427",
+      "event_id": "2",
+      "name": "Button 1 Release",
+      "room": "楼道",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 19,
+        "node_types": {
+          "1": 15,
+          "5": 1,
+          "2": 2,
+          "4": 1
+        },
+        "commands": {
+          "SET_LEVEL": 4,
+          "ON": 2,
+          "Turn On": 2,
+          "Turn Off": 4,
+          "OFF": 2
+        },
+        "conditions": {
+          "LOAD_OFF": 2
+        }
+      }
+    },
+    {
+      "device_id": "427",
+      "event_id": "4",
+      "name": "Button 2 Release",
+      "room": "楼道",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 25,
+        "node_types": {
+          "1": 17,
+          "5": 1,
+          "2": 4,
+          "6": 1,
+          "4": 2
+        },
+        "commands": {
+          "SET_LEVEL": 3,
+          "ON": 1,
+          "Turn Off": 6,
+          "Turn On": 4,
+          "OFF": 2
+        },
+        "conditions": {
+          "LOAD_OFF": 2,
+          "LOAD_ON": 2
+        }
+      }
+    },
+    {
+      "device_id": "427",
+      "event_id": "6",
+      "name": "Button 3 Release",
+      "room": "楼道",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 10,
+        "node_types": {
+          "1": 7,
+          "5": 1,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "ON": 1,
+          "Turn On": 2,
+          "OFF": 1,
+          "Turn Off": 2
+        },
+        "conditions": {
+          "LOAD_OFF": 1
+        }
+      }
+    },
+    {
+      "device_id": "427",
+      "event_id": "8",
+      "name": "Button 4 Release",
+      "room": "楼道",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 30,
+        "node_types": {
+          "1": 24,
+          "5": 2,
+          "2": 3,
+          "4": 1
+        },
+        "commands": {
+          "SET_LEVEL": 4,
+          "ON": 2,
+          "=": 2,
+          "Turn Off": 10,
+          "Turn On": 3,
+          "OFF": 2
+        },
+        "conditions": {
+          "!=": 1,
+          "LOAD_OFF": 2
+        }
+      }
+    },
+    {
+      "device_id": "427",
+      "event_id": "10",
+      "name": "Button 5 Release",
+      "room": "楼道",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 14,
+        "node_types": {
+          "1": 11,
+          "5": 1,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "ON": 1,
+          "Turn On": 4,
+          "OFF": 1,
+          "Turn Off": 4
+        },
+        "conditions": {
+          "LOAD_OFF": 1
+        }
+      }
+    },
+    {
+      "device_id": "427",
+      "event_id": "12",
+      "name": "Button 6 Release",
+      "room": "楼道",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 14,
+        "node_types": {
+          "1": 11,
+          "5": 1,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "SET_LEVEL": 2,
+          "ON": 1,
+          "Turn On": 3,
+          "OFF": 1,
+          "Turn Off": 3
+        },
+        "conditions": {
+          "LOAD_OFF": 1
+        }
+      }
+    },
+    {
+      "device_id": "428",
+      "event_id": "2",
+      "name": "Button 1 Release",
+      "room": "北卧",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 26,
+        "node_types": {
+          "1": 21,
+          "5": 1,
+          "2": 3,
+          "4": 1
+        },
+        "commands": {
+          "=": 2,
+          "SET_LEVEL": 4,
+          "ON": 2,
+          "Turn Off": 9,
+          "Turn On": 1,
+          "OFF": 2
+        },
+        "conditions": {
+          "!=": 1,
+          "LOAD_OFF": 2
+        }
+      }
+    },
+    {
+      "device_id": "428",
+      "event_id": "4",
+      "name": "Button 2 Release",
+      "room": "北卧",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 29,
+        "node_types": {
+          "1": 24,
+          "5": 1,
+          "2": 3,
+          "4": 1
+        },
+        "commands": {
+          "SET_LEVEL": 4,
+          "ON": 2,
+          "=": 2,
+          "Turn Off": 10,
+          "Turn On": 3,
+          "OFF": 2
+        },
+        "conditions": {
+          "!=": 1,
+          "LOAD_OFF": 2
+        }
+      }
+    },
+    {
+      "device_id": "428",
+      "event_id": "6",
+      "name": "Button 3 Release",
+      "room": "北卧",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 26,
+        "node_types": {
+          "1": 21,
+          "5": 1,
+          "2": 3,
+          "4": 1
+        },
+        "commands": {
+          "=": 2,
+          "SET_LEVEL": 4,
+          "ON": 2,
+          "Turn Off": 9,
+          "Turn On": 1,
+          "OFF": 2
+        },
+        "conditions": {
+          "!=": 1,
+          "LOAD_OFF": 2
+        }
+      }
+    },
+    {
+      "device_id": "428",
+      "event_id": "8",
+      "name": "Button 4 Release",
+      "room": "北卧",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 30,
+        "node_types": {
+          "1": 19,
+          "5": 1,
+          "2": 7,
+          "6": 1,
+          "4": 2
+        },
+        "commands": {
+          "-": 1,
+          "OFF": 3,
+          "Turn Off": 8,
+          "+": 1,
+          "=": 1,
+          "SET_LEVEL": 2,
+          "ON": 1,
+          "Turn On": 1
+        },
+        "conditions": {
+          "==": 4,
+          "LOAD_ON": 2,
+          "LOAD_OFF": 1
+        }
+      }
+    },
+    {
+      "device_id": "428",
+      "event_id": "10",
+      "name": "Button 5 Release",
+      "room": "北卧",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 22,
+        "node_types": {
+          "1": 17,
+          "5": 1,
+          "2": 3,
+          "4": 1
+        },
+        "commands": {
+          "Turn Off": 11,
+          "OFF": 2,
+          "=": 1,
+          "SET_LEVEL": 2
+        },
+        "conditions": {
+          "!=": 1,
+          "LOAD_ON": 2
+        }
+      }
+    },
+    {
+      "device_id": "428",
+      "event_id": "12",
+      "name": "Button 6 Release",
+      "room": "北卧",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 27,
+        "node_types": {
+          "1": 22,
+          "5": 1,
+          "2": 3,
+          "4": 1
+        },
+        "commands": {
+          "=": 2,
+          "ON": 2,
+          "SET_LEVEL": 4,
+          "Turn Off": 9,
+          "Turn On": 2,
+          "OFF": 2
+        },
+        "conditions": {
+          "!=": 1,
+          "LOAD_OFF": 2
+        }
+      }
+    },
+    {
+      "device_id": "429",
+      "event_id": "2",
+      "name": "Button 1 Release",
+      "room": "北卧",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 13,
+        "node_types": {
+          "1": 7,
+          "5": 1,
+          "2": 4,
+          "6": 1
+        },
+        "commands": {
+          "SET_LEVEL_TARGET": 1,
+          "Turn Off": 4,
+          "=": 1
+        },
+        "conditions": {
+          "IF_STOPPED": 1,
+          "!=": 1,
+          "==": 2
+        }
+      }
+    },
+    {
+      "device_id": "429",
+      "event_id": "4",
+      "name": "Button 2 Release",
+      "room": "北卧",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 29,
+        "node_types": {
+          "1": 24,
+          "5": 1,
+          "2": 3,
+          "4": 1
+        },
+        "commands": {
+          "ON": 2,
+          "SET_LEVEL": 4,
+          "=": 2,
+          "Turn Off": 10,
+          "Turn On": 3,
+          "OFF": 2
+        },
+        "conditions": {
+          "!=": 1,
+          "LOAD_OFF": 2
+        }
+      }
+    },
+    {
+      "device_id": "429",
+      "event_id": "6",
+      "name": "Button 3 Release",
+      "room": "北卧",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 9,
+        "node_types": {
+          "1": 5,
+          "5": 1,
+          "2": 2,
+          "4": 1
+        },
+        "commands": {
+          "STOP": 1,
+          "Turn Off": 1,
+          "=": 2
+        },
+        "conditions": {
+          "IF_MOVING": 1,
+          "!=": 1
+        }
+      }
+    },
+    {
+      "device_id": "429",
+      "event_id": "8",
+      "name": "Button 4 Release",
+      "room": "北卧",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 30,
+        "node_types": {
+          "1": 19,
+          "5": 1,
+          "2": 7,
+          "6": 1,
+          "4": 2
+        },
+        "commands": {
+          "-": 1,
+          "OFF": 2,
+          "Turn Off": 8,
+          "SET_LEVEL": 3,
+          "ON": 1,
+          "+": 1,
+          "=": 1,
+          "Turn On": 1
+        },
+        "conditions": {
+          "==": 4,
+          "LOAD_ON": 2,
+          "LOAD_OFF": 1
+        }
+      }
+    },
+    {
+      "device_id": "429",
+      "event_id": "10",
+      "name": "Button 5 Release",
+      "room": "北卧",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 13,
+        "node_types": {
+          "1": 7,
+          "5": 1,
+          "2": 4,
+          "6": 1
+        },
+        "commands": {
+          "SET_LEVEL_TARGET": 1,
+          "Turn Off": 4,
+          "=": 1
+        },
+        "conditions": {
+          "IF_STOPPED": 1,
+          "!=": 1,
+          "==": 2
+        }
+      }
+    },
+    {
+      "device_id": "429",
+      "event_id": "12",
+      "name": "Button 6 Release",
+      "room": "北卧",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 27,
+        "node_types": {
+          "1": 22,
+          "5": 1,
+          "2": 3,
+          "4": 1
+        },
+        "commands": {
+          "=": 2,
+          "ON": 2,
+          "SET_LEVEL": 4,
+          "Turn Off": 9,
+          "Turn On": 2,
+          "OFF": 2
+        },
+        "conditions": {
+          "!=": 1,
+          "LOAD_OFF": 2
+        }
+      }
+    },
+    {
+      "device_id": "430",
+      "event_id": "2",
+      "name": "Button 1 Release",
+      "room": "阅览室",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 13,
+        "node_types": {
+          "1": 7,
+          "5": 1,
+          "2": 4,
+          "6": 1
+        },
+        "commands": {
+          "SET_LEVEL_TARGET": 1,
+          "Turn Off": 4,
+          "=": 1
+        },
+        "conditions": {
+          "IF_STOPPED": 1,
+          "!=": 1,
+          "==": 2
+        }
+      }
+    },
+    {
+      "device_id": "430",
+      "event_id": "4",
+      "name": "Button 2 Release",
+      "room": "阅览室",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 29,
+        "node_types": {
+          "1": 22,
+          "5": 1,
+          "2": 5,
+          "4": 1
+        },
+        "commands": {
+          "=": 2,
+          "Turn Off": 9,
+          "Turn On": 2,
+          "SET_LEVEL": 4,
+          "OFF": 3,
+          "ON": 1
+        },
+        "conditions": {
+          "!=": 1,
+          "LOAD_ON": 3,
+          "LOAD_OFF": 1
+        }
+      }
+    },
+    {
+      "device_id": "430",
+      "event_id": "6",
+      "name": "Button 3 Release",
+      "room": "阅览室",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 9,
+        "node_types": {
+          "1": 5,
+          "5": 1,
+          "2": 2,
+          "4": 1
+        },
+        "commands": {
+          "STOP": 1,
+          "Turn Off": 1,
+          "=": 2
+        },
+        "conditions": {
+          "IF_MOVING": 1,
+          "!=": 1
+        }
+      }
+    },
+    {
+      "device_id": "430",
+      "event_id": "8",
+      "name": "Button 4 Release",
+      "room": "阅览室",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 13,
+        "node_types": {
+          "1": 11,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "SET_LEVEL": 2,
+          "ON": 1,
+          "Turn On": 3,
+          "OFF": 1,
+          "Turn Off": 3
+        },
+        "conditions": {
+          "LOAD_OFF": 1
+        }
+      }
+    },
+    {
+      "device_id": "430",
+      "event_id": "10",
+      "name": "Button 5 Release",
+      "room": "阅览室",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 13,
+        "node_types": {
+          "1": 7,
+          "5": 1,
+          "2": 4,
+          "6": 1
+        },
+        "commands": {
+          "SET_LEVEL_TARGET": 1,
+          "Turn Off": 4,
+          "=": 1
+        },
+        "conditions": {
+          "IF_STOPPED": 1,
+          "!=": 1,
+          "==": 2
+        }
+      }
+    },
+    {
+      "device_id": "430",
+      "event_id": "12",
+      "name": "Button 6 Release",
+      "room": "阅览室",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 24,
+        "node_types": {
+          "1": 17,
+          "5": 1,
+          "2": 3,
+          "4": 3
+        },
+        "commands": {
+          "SET_LEVEL": 2,
+          "ON": 1,
+          "Turn On": 4,
+          "=": 4,
+          "Turn Off": 4,
+          "OFF": 1
+        },
+        "conditions": {
+          "LOAD_OFF": 1,
+          "==": 2
+        }
+      }
+    },
+    {
+      "device_id": "431",
+      "event_id": "2",
+      "name": "Button 1 Release",
+      "room": "楼道",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 31,
+        "node_types": {
+          "1": 25,
+          "5": 2,
+          "2": 3,
+          "4": 1
+        },
+        "commands": {
+          "=": 2,
+          "ON": 1,
+          "OFF": 2,
+          "SET_LEVEL": 6,
+          "Turn On": 3,
+          "Turn Off": 10
+        },
+        "conditions": {
+          "!=": 1,
+          "LOAD_OFF": 1,
+          "LOAD_ON": 1
+        }
+      }
+    },
+    {
+      "device_id": "431",
+      "event_id": "4",
+      "name": "Button 2 Release",
+      "room": "楼道",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 25,
+        "node_types": {
+          "1": 17,
+          "5": 1,
+          "2": 4,
+          "6": 1,
+          "4": 2
+        },
+        "commands": {
+          "SET_LEVEL": 3,
+          "ON": 1,
+          "Turn Off": 6,
+          "Turn On": 4,
+          "OFF": 2
+        },
+        "conditions": {
+          "LOAD_OFF": 2,
+          "LOAD_ON": 2
+        }
+      }
+    },
+    {
+      "device_id": "431",
+      "event_id": "6",
+      "name": "Button 3 Release",
+      "room": "楼道",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 10,
+        "node_types": {
+          "1": 7,
+          "5": 1,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "ON": 1,
+          "Turn On": 2,
+          "OFF": 1,
+          "Turn Off": 2
+        },
+        "conditions": {
+          "LOAD_OFF": 1
+        }
+      }
+    },
+    {
+      "device_id": "431",
+      "event_id": "8",
+      "name": "Button 4 Release",
+      "room": "楼道",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 19,
+        "node_types": {
+          "1": 15,
+          "5": 1,
+          "2": 2,
+          "4": 1
+        },
+        "commands": {
+          "SET_LEVEL": 4,
+          "ON": 2,
+          "Turn On": 2,
+          "Turn Off": 4,
+          "OFF": 2
+        },
+        "conditions": {
+          "LOAD_OFF": 2
+        }
+      }
+    },
+    {
+      "device_id": "431",
+      "event_id": "10",
+      "name": "Button 5 Release",
+      "room": "楼道",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 14,
+        "node_types": {
+          "1": 11,
+          "5": 1,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "ON": 1,
+          "Turn On": 4,
+          "OFF": 1,
+          "Turn Off": 4
+        },
+        "conditions": {
+          "LOAD_OFF": 1
+        }
+      }
+    },
+    {
+      "device_id": "431",
+      "event_id": "12",
+      "name": "Button 6 Release",
+      "room": "楼道",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 14,
+        "node_types": {
+          "1": 11,
+          "5": 1,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "SET_LEVEL": 2,
+          "ON": 1,
+          "Turn On": 3,
+          "OFF": 1,
+          "Turn Off": 3
+        },
+        "conditions": {
+          "LOAD_OFF": 1
+        }
+      }
+    },
+    {
+      "device_id": "432",
+      "event_id": "2",
+      "name": "Button 1 Release",
+      "room": "衣帽间",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 14,
+        "node_types": {
+          "1": 7,
+          "5": 2,
+          "2": 4,
+          "6": 1
+        },
+        "commands": {
+          "SET_LEVEL_TARGET": 1,
+          "Turn Off": 4,
+          "=": 1
+        },
+        "conditions": {
+          "IF_STOPPED": 1,
+          "!=": 1,
+          "==": 2
+        }
+      }
+    },
+    {
+      "device_id": "432",
+      "event_id": "4",
+      "name": "Button 2 Release",
+      "room": "衣帽间",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 24,
+        "node_types": {
+          "1": 17,
+          "5": 1,
+          "2": 3,
+          "4": 3
+        },
+        "commands": {
+          "SET_LEVEL": 2,
+          "ON": 1,
+          "Turn On": 4,
+          "=": 4,
+          "Turn Off": 4,
+          "OFF": 1
+        },
+        "conditions": {
+          "LOAD_OFF": 1,
+          "==": 2
+        }
+      }
+    },
+    {
+      "device_id": "432",
+      "event_id": "6",
+      "name": "Button 3 Release",
+      "room": "衣帽间",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 9,
+        "node_types": {
+          "1": 5,
+          "5": 1,
+          "2": 2,
+          "4": 1
+        },
+        "commands": {
+          "STOP": 1,
+          "Turn Off": 1,
+          "=": 2
+        },
+        "conditions": {
+          "IF_MOVING": 1,
+          "!=": 1
+        }
+      }
+    },
+    {
+      "device_id": "432",
+      "event_id": "8",
+      "name": "Button 4 Release",
+      "room": "衣帽间",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 23,
+        "node_types": {
+          "1": 19,
+          "5": 1,
+          "2": 2,
+          "4": 1
+        },
+        "commands": {
+          "=": 2,
+          "SET_LEVEL": 4,
+          "ON": 2,
+          "Turn On": 4,
+          "OFF": 2,
+          "Turn Off": 4
+        },
+        "conditions": {
+          "!=": 1,
+          "LOAD_OFF": 1
+        }
+      }
+    },
+    {
+      "device_id": "432",
+      "event_id": "10",
+      "name": "Button 5 Release",
+      "room": "衣帽间",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 14,
+        "node_types": {
+          "1": 7,
+          "5": 2,
+          "2": 4,
+          "6": 1
+        },
+        "commands": {
+          "SET_LEVEL_TARGET": 1,
+          "Turn Off": 4,
+          "=": 1
+        },
+        "conditions": {
+          "IF_STOPPED": 1,
+          "!=": 1,
+          "==": 2
+        }
+      }
+    },
+    {
+      "device_id": "432",
+      "event_id": "12",
+      "name": "Button 6 Release",
+      "room": "衣帽间",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 22,
+        "node_types": {
+          "1": 15,
+          "5": 1,
+          "2": 3,
+          "4": 3
+        },
+        "commands": {
+          "SET_LEVEL": 2,
+          "ON": 1,
+          "Turn On": 3,
+          "=": 4,
+          "Turn Off": 3,
+          "OFF": 1
+        },
+        "conditions": {
+          "LOAD_OFF": 1,
+          "==": 2
+        }
+      }
+    },
+    {
+      "device_id": "433",
+      "event_id": "2",
+      "name": "Button 1 Release",
+      "room": "南卧",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 13,
+        "node_types": {
+          "1": 7,
+          "5": 1,
+          "2": 4,
+          "6": 1
+        },
+        "commands": {
+          "SET_LEVEL_TARGET": 1,
+          "Turn Off": 4,
+          "=": 1
+        },
+        "conditions": {
+          "IF_STOPPED": 1,
+          "!=": 1,
+          "==": 2
+        }
+      }
+    },
+    {
+      "device_id": "433",
+      "event_id": "4",
+      "name": "Button 2 Release",
+      "room": "南卧",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 30,
+        "node_types": {
+          "1": 25,
+          "5": 1,
+          "2": 3,
+          "4": 1
+        },
+        "commands": {
+          "=": 2,
+          "ON": 1,
+          "OFF": 2,
+          "SET_LEVEL": 6,
+          "Turn On": 3,
+          "Turn Off": 10
+        },
+        "conditions": {
+          "!=": 1,
+          "LOAD_OFF": 1,
+          "LOAD_ON": 1
+        }
+      }
+    },
+    {
+      "device_id": "433",
+      "event_id": "6",
+      "name": "Button 3 Release",
+      "room": "南卧",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 9,
+        "node_types": {
+          "1": 5,
+          "5": 1,
+          "2": 2,
+          "4": 1
+        },
+        "commands": {
+          "STOP": 1,
+          "Turn Off": 1,
+          "=": 2
+        },
+        "conditions": {
+          "IF_MOVING": 1,
+          "!=": 1
+        }
+      }
+    },
+    {
+      "device_id": "433",
+      "event_id": "8",
+      "name": "Button 4 Release",
+      "room": "南卧",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 31,
+        "node_types": {
+          "1": 21,
+          "5": 1,
+          "2": 6,
+          "6": 1,
+          "4": 2
+        },
+        "commands": {
+          "-": 1,
+          "Turn Off": 9,
+          "OFF": 2,
+          "SET_LEVEL": 4,
+          "ON": 1,
+          "+": 1,
+          "=": 1,
+          "Turn On": 1
+        },
+        "conditions": {
+          "==": 4,
+          "LOAD_OFF": 1,
+          "LOAD_ON": 1
+        }
+      }
+    },
+    {
+      "device_id": "433",
+      "event_id": "10",
+      "name": "Button 5 Release",
+      "room": "南卧",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 13,
+        "node_types": {
+          "1": 7,
+          "5": 1,
+          "2": 4,
+          "6": 1
+        },
+        "commands": {
+          "SET_LEVEL_TARGET": 1,
+          "Turn Off": 4,
+          "=": 1
+        },
+        "conditions": {
+          "IF_STOPPED": 1,
+          "!=": 1,
+          "==": 2
+        }
+      }
+    },
+    {
+      "device_id": "433",
+      "event_id": "12",
+      "name": "Button 6 Release",
+      "room": "南卧",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 30,
+        "node_types": {
+          "1": 25,
+          "5": 1,
+          "2": 3,
+          "4": 1
+        },
+        "commands": {
+          "=": 2,
+          "Turn Off": 10,
+          "Turn On": 2,
+          "SET_LEVEL": 6,
+          "OFF": 3,
+          "ON": 1
+        },
+        "conditions": {
+          "!=": 1,
+          "LOAD_ON": 1,
+          "LOAD_OFF": 1
+        }
+      }
+    },
+    {
+      "device_id": "434",
+      "event_id": "2",
+      "name": "Button 1 Release",
+      "room": "南卧",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 29,
+        "node_types": {
+          "1": 24,
+          "5": 1,
+          "2": 3,
+          "4": 1
+        },
+        "commands": {
+          "=": 2,
+          "Turn On": 2,
+          "Turn Off": 9,
+          "SET_LEVEL": 6,
+          "ON": 2,
+          "OFF": 2
+        },
+        "conditions": {
+          "!=": 1,
+          "LOAD_OFF": 2
+        }
+      }
+    },
+    {
+      "device_id": "434",
+      "event_id": "4",
+      "name": "Button 2 Release",
+      "room": "南卧",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 30,
+        "node_types": {
+          "1": 25,
+          "5": 1,
+          "2": 3,
+          "4": 1
+        },
+        "commands": {
+          "=": 2,
+          "ON": 1,
+          "OFF": 2,
+          "SET_LEVEL": 6,
+          "Turn On": 3,
+          "Turn Off": 10
+        },
+        "conditions": {
+          "!=": 1,
+          "LOAD_OFF": 1,
+          "LOAD_ON": 1
+        }
+      }
+    },
+    {
+      "device_id": "434",
+      "event_id": "6",
+      "name": "Button 3 Release",
+      "room": "南卧",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 29,
+        "node_types": {
+          "1": 24,
+          "5": 1,
+          "2": 3,
+          "4": 1
+        },
+        "commands": {
+          "=": 2,
+          "Turn Off": 10,
+          "Turn On": 1,
+          "SET_LEVEL": 6,
+          "OFF": 3,
+          "ON": 1
+        },
+        "conditions": {
+          "!=": 1,
+          "LOAD_ON": 1,
+          "LOAD_OFF": 1
+        }
+      }
+    },
+    {
+      "device_id": "434",
+      "event_id": "8",
+      "name": "Button 4 Release",
+      "room": "南卧",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 32,
+        "node_types": {
+          "1": 22,
+          "5": 1,
+          "2": 6,
+          "6": 1,
+          "4": 2
+        },
+        "commands": {
+          "Turn Off": 9,
+          "-": 1,
+          "OFF": 2,
+          "SET_LEVEL": 4,
+          "+": 1,
+          "=": 1,
+          "ON": 1,
+          "Turn On": 2
+        },
+        "conditions": {
+          "==": 4,
+          "LOAD_ON": 1,
+          "LOAD_OFF": 1
+        }
+      }
+    },
+    {
+      "device_id": "434",
+      "event_id": "10",
+      "name": "Button 5 Release",
+      "room": "南卧",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 24,
+        "node_types": {
+          "1": 19,
+          "5": 1,
+          "2": 3,
+          "4": 1
+        },
+        "commands": {
+          "Turn Off": 12,
+          "OFF": 2,
+          "=": 1,
+          "SET_LEVEL": 3
+        },
+        "conditions": {
+          "!=": 1,
+          "LOAD_ON": 2
+        }
+      }
+    },
+    {
+      "device_id": "434",
+      "event_id": "12",
+      "name": "Button 6 Release",
+      "room": "南卧",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 30,
+        "node_types": {
+          "1": 25,
+          "5": 1,
+          "2": 3,
+          "4": 1
+        },
+        "commands": {
+          "=": 2,
+          "Turn Off": 10,
+          "Turn On": 2,
+          "SET_LEVEL": 6,
+          "OFF": 3,
+          "ON": 1
+        },
+        "conditions": {
+          "!=": 1,
+          "LOAD_ON": 1,
+          "LOAD_OFF": 1
+        }
+      }
+    },
+    {
+      "device_id": "435",
+      "event_id": "2",
+      "name": "Button 1 Release",
+      "room": "主卧",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 13,
+        "node_types": {
+          "1": 7,
+          "5": 1,
+          "2": 4,
+          "6": 1
+        },
+        "commands": {
+          "SET_LEVEL_TARGET": 1,
+          "Turn Off": 4,
+          "=": 1
+        },
+        "conditions": {
+          "IF_STOPPED": 1,
+          "!=": 1,
+          "==": 2
+        }
+      }
+    },
+    {
+      "device_id": "435",
+      "event_id": "4",
+      "name": "Button 2 Release",
+      "room": "主卧",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 24,
+        "node_types": {
+          "1": 16,
+          "5": 1,
+          "2": 5,
+          "4": 1,
+          "6": 1
+        },
+        "commands": {
+          "+": 1,
+          "ON": 1,
+          "SET_LEVEL": 2,
+          "Turn Off": 8,
+          "Turn On": 1,
+          "-": 1,
+          "OFF": 1
+        },
+        "conditions": {
+          "<": 1,
+          "LOAD_OFF": 1,
+          "==": 3
+        }
+      }
+    },
+    {
+      "device_id": "435",
+      "event_id": "6",
+      "name": "Button 3 Release",
+      "room": "主卧",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 9,
+        "node_types": {
+          "1": 5,
+          "5": 1,
+          "2": 2,
+          "4": 1
+        },
+        "commands": {
+          "STOP": 1,
+          "Turn Off": 1,
+          "=": 2
+        },
+        "conditions": {
+          "IF_MOVING": 1,
+          "!=": 1
+        }
+      }
+    },
+    {
+      "device_id": "435",
+      "event_id": "8",
+      "name": "Button 4 Release",
+      "room": "主卧",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 31,
+        "node_types": {
+          "1": 21,
+          "5": 1,
+          "2": 6,
+          "6": 1,
+          "4": 2
+        },
+        "commands": {
+          "-": 1,
+          "OFF": 2,
+          "Turn Off": 9,
+          "SET_LEVEL": 4,
+          "ON": 1,
+          "+": 1,
+          "=": 1,
+          "Turn On": 1
+        },
+        "conditions": {
+          "==": 4,
+          "LOAD_OFF": 1,
+          "LOAD_ON": 1
+        }
+      }
+    },
+    {
+      "device_id": "435",
+      "event_id": "10",
+      "name": "Button 5 Release",
+      "room": "主卧",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 13,
+        "node_types": {
+          "1": 7,
+          "5": 1,
+          "2": 4,
+          "6": 1
+        },
+        "commands": {
+          "SET_LEVEL_TARGET": 1,
+          "Turn Off": 4,
+          "=": 1
+        },
+        "conditions": {
+          "IF_STOPPED": 1,
+          "!=": 1,
+          "==": 2
+        }
+      }
+    },
+    {
+      "device_id": "435",
+      "event_id": "12",
+      "name": "Button 6 Release",
+      "room": "主卧",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 30,
+        "node_types": {
+          "1": 24,
+          "5": 1,
+          "2": 4,
+          "4": 1
+        },
+        "commands": {
+          "=": 2,
+          "OFF": 3,
+          "ON": 2,
+          "SET_LEVEL": 4,
+          "Turn Off": 10,
+          "Turn On": 2
+        },
+        "conditions": {
+          "!=": 1,
+          "LOAD_ON": 1,
+          "LOAD_OFF": 2
+        }
+      }
+    },
+    {
+      "device_id": "436",
+      "event_id": "2",
+      "name": "Button 1 Release",
+      "room": "主卧",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 25,
+        "node_types": {
+          "1": 22,
+          "5": 1,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "=": 2,
+          "Turn On": 1,
+          "Turn Off": 6,
+          "SET_LEVEL": 6,
+          "ON": 3,
+          "OFF": 3
+        },
+        "conditions": {
+          "!=": 1
+        }
+      }
+    },
+    {
+      "device_id": "436",
+      "event_id": "4",
+      "name": "Button 2 Release",
+      "room": "主卧",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 29,
+        "node_types": {
+          "1": 22,
+          "5": 1,
+          "2": 5,
+          "4": 1
+        },
+        "commands": {
+          "=": 2,
+          "Turn Off": 9,
+          "Turn On": 2,
+          "SET_LEVEL": 4,
+          "OFF": 3,
+          "ON": 1
+        },
+        "conditions": {
+          "!=": 1,
+          "LOAD_ON": 3,
+          "LOAD_OFF": 1
+        }
+      }
+    },
+    {
+      "device_id": "436",
+      "event_id": "6",
+      "name": "Button 3 Release",
+      "room": "主卧",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 26,
+        "node_types": {
+          "1": 19,
+          "2": 6,
+          "4": 1
+        },
+        "commands": {
+          "OFF": 5,
+          "ON": 1,
+          "SET_LEVEL": 2,
+          "Turn Off": 7,
+          "Turn On": 1,
+          "=": 2
+        },
+        "conditions": {
+          "!=": 1,
+          "LOAD_ON": 4,
+          "LOAD_OFF": 1
+        }
+      }
+    },
+    {
+      "device_id": "436",
+      "event_id": "8",
+      "name": "Button 4 Release",
+      "room": "主卧",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 34,
+        "node_types": {
+          "1": 23,
+          "5": 1,
+          "2": 7,
+          "6": 1,
+          "4": 2
+        },
+        "commands": {
+          "-": 1,
+          "OFF": 7,
+          "Turn Off": 9,
+          "+": 1,
+          "=": 1,
+          "SET_LEVEL": 1,
+          "ON": 1,
+          "Turn On": 1
+        },
+        "conditions": {
+          "==": 4,
+          "LOAD_ON": 2,
+          "LOAD_OFF": 1
+        }
+      }
+    },
+    {
+      "device_id": "436",
+      "event_id": "10",
+      "name": "Button 5 Release",
+      "room": "主卧",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 24,
+        "node_types": {
+          "1": 15,
+          "5": 1,
+          "2": 7,
+          "4": 1
+        },
+        "commands": {
+          "OFF": 3,
+          "SET_LEVEL": 3,
+          "Turn Off": 6,
+          "Turn On": 1,
+          "=": 1
+        },
+        "conditions": {
+          "!=": 1,
+          "LOAD_ON": 3,
+          "IS_LEVEL": 3
+        }
+      }
+    },
+    {
+      "device_id": "436",
+      "event_id": "12",
+      "name": "Button 6 Release",
+      "room": "主卧",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 30,
+        "node_types": {
+          "1": 24,
+          "5": 1,
+          "2": 4,
+          "4": 1
+        },
+        "commands": {
+          "=": 2,
+          "OFF": 3,
+          "ON": 2,
+          "SET_LEVEL": 4,
+          "Turn Off": 10,
+          "Turn On": 2
+        },
+        "conditions": {
+          "!=": 1,
+          "LOAD_ON": 1,
+          "LOAD_OFF": 2
+        }
+      }
+    },
+    {
+      "device_id": "437",
+      "event_id": "2",
+      "name": "Button 1 Release",
+      "room": "客厅",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 18,
+        "node_types": {
+          "1": 15,
+          "5": 1,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "=": 2,
+          "ACTIVATE_SCENE": 1,
+          "Turn On": 2,
+          "Turn Off": 8,
+          "DEACTIVATE_SCENE": 1
+        },
+        "conditions": {
+          "!=": 1
+        }
+      }
+    },
+    {
+      "device_id": "437",
+      "event_id": "4",
+      "name": "Button 2 Release",
+      "room": "客厅",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 14,
+        "node_types": {
+          "1": 11,
+          "5": 1,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "=": 2,
+          "ACTIVATE_SCENE": 1,
+          "Turn Off": 5,
+          "Turn On": 1,
+          "DEACTIVATE_SCENE": 1
+        },
+        "conditions": {
+          "!=": 1
+        }
+      }
+    },
+    {
+      "device_id": "437",
+      "event_id": "6",
+      "name": "Button 3 Release",
+      "room": "客厅",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 18,
+        "node_types": {
+          "1": 15,
+          "5": 1,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "=": 2,
+          "ACTIVATE_SCENE": 1,
+          "Turn Off": 8,
+          "Turn On": 2,
+          "DEACTIVATE_SCENE": 1
+        },
+        "conditions": {
+          "!=": 1
+        }
+      }
+    },
+    {
+      "device_id": "437",
+      "event_id": "8",
+      "name": "Button 4 Release",
+      "room": "客厅",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 15,
+        "node_types": {
+          "1": 12,
+          "5": 1,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "=": 2,
+          "ACTIVATE_SCENE": 1,
+          "Turn Off": 6,
+          "Turn On": 1,
+          "DEACTIVATE_SCENE": 1
+        },
+        "conditions": {
+          "!=": 1
+        }
+      }
+    },
+    {
+      "device_id": "437",
+      "event_id": "10",
+      "name": "Button 5 Release",
+      "room": "客厅",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 10,
+        "node_types": {
+          "1": 7,
+          "5": 1,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "ON": 1,
+          "Turn On": 2,
+          "Turn Off": 2,
+          "OFF": 1
+        },
+        "conditions": {
+          "LOAD_OFF": 1
+        }
+      }
+    },
+    {
+      "device_id": "437",
+      "event_id": "12",
+      "name": "Button 6 Release",
+      "room": "客厅",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 12,
+        "node_types": {
+          "1": 9,
+          "5": 1,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "ON": 1,
+          "Turn On": 3,
+          "OFF": 1,
+          "Turn Off": 3
+        },
+        "conditions": {
+          "LOAD_OFF": 1
+        }
+      }
+    },
+    {
+      "device_id": "438",
+      "event_id": "2",
+      "name": "Button 1 Release",
+      "room": "客厅",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 13,
+        "node_types": {
+          "1": 7,
+          "5": 1,
+          "2": 4,
+          "6": 1
+        },
+        "commands": {
+          "SET_LEVEL_TARGET": 1,
+          "Turn Off": 4,
+          "=": 1
+        },
+        "conditions": {
+          "IF_STOPPED": 1,
+          "!=": 1,
+          "==": 2
+        }
+      }
+    },
+    {
+      "device_id": "438",
+      "event_id": "4",
+      "name": "Button 2 Release",
+      "room": "客厅",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 24,
+        "node_types": {
+          "1": 21,
+          "5": 1,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "=": 2,
+          "Turn Off": 13,
+          "Turn On": 3,
+          "ACTIVATE_SCENE": 1,
+          "DEACTIVATE_SCENE": 1
+        },
+        "conditions": {
+          "!=": 1
+        }
+      }
+    },
+    {
+      "device_id": "438",
+      "event_id": "6",
+      "name": "Button 3 Release",
+      "room": "客厅",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 9,
+        "node_types": {
+          "1": 5,
+          "5": 1,
+          "2": 2,
+          "4": 1
+        },
+        "commands": {
+          "STOP": 1,
+          "Turn Off": 1,
+          "=": 2
+        },
+        "conditions": {
+          "IF_MOVING": 1,
+          "!=": 1
+        }
+      }
+    },
+    {
+      "device_id": "438",
+      "event_id": "8",
+      "name": "Button 4 Release",
+      "room": "客厅",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 15,
+        "node_types": {
+          "1": 12,
+          "5": 1,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "=": 2,
+          "ACTIVATE_SCENE": 1,
+          "Turn Off": 5,
+          "Turn On": 2,
+          "DEACTIVATE_SCENE": 1
+        },
+        "conditions": {
+          "!=": 1
+        }
+      }
+    },
+    {
+      "device_id": "438",
+      "event_id": "10",
+      "name": "Button 5 Release",
+      "room": "客厅",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 13,
+        "node_types": {
+          "1": 7,
+          "5": 1,
+          "2": 4,
+          "6": 1
+        },
+        "commands": {
+          "SET_LEVEL_TARGET": 1,
+          "Turn Off": 4,
+          "=": 1
+        },
+        "conditions": {
+          "IF_STOPPED": 1,
+          "!=": 1,
+          "==": 2
+        }
+      }
+    },
+    {
+      "device_id": "438",
+      "event_id": "12",
+      "name": "Button 6 Release",
+      "room": "客厅",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 10,
+        "node_types": {
+          "1": 7,
+          "5": 1,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "ON": 1,
+          "Turn On": 2,
+          "Turn Off": 2,
+          "OFF": 1
+        },
+        "conditions": {
+          "LOAD_OFF": 1
+        }
+      }
+    },
+    {
+      "device_id": "441",
+      "event_id": "2",
+      "name": "Button 1 Release",
+      "room": "卧室",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 13,
+        "node_types": {
+          "1": 7,
+          "5": 1,
+          "2": 4,
+          "6": 1
+        },
+        "commands": {
+          "SET_LEVEL_TARGET": 1,
+          "Turn Off": 4,
+          "=": 1
+        },
+        "conditions": {
+          "IF_STOPPED": 1,
+          "!=": 1,
+          "==": 2
+        }
+      }
+    },
+    {
+      "device_id": "441",
+      "event_id": "4",
+      "name": "Button 2 Release",
+      "room": "卧室",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 23,
+        "node_types": {
+          "1": 21,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "=": 2,
+          "Turn Off": 13,
+          "Turn On": 3,
+          "ACTIVATE_SCENE": 1,
+          "DEACTIVATE_SCENE": 1
+        },
+        "conditions": {
+          "!=": 1
+        }
+      }
+    },
+    {
+      "device_id": "441",
+      "event_id": "6",
+      "name": "Button 3 Release",
+      "room": "卧室",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 9,
+        "node_types": {
+          "1": 5,
+          "5": 1,
+          "2": 2,
+          "4": 1
+        },
+        "commands": {
+          "STOP": 1,
+          "Turn Off": 1,
+          "=": 2
+        },
+        "conditions": {
+          "IF_MOVING": 1,
+          "!=": 1
+        }
+      }
+    },
+    {
+      "device_id": "441",
+      "event_id": "8",
+      "name": "Button 4 Release",
+      "room": "卧室",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 22,
+        "node_types": {
+          "1": 20,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "=": 2,
+          "Turn Off": 12,
+          "Turn On": 3,
+          "ACTIVATE_SCENE": 1,
+          "DEACTIVATE_SCENE": 1
+        },
+        "conditions": {
+          "!=": 1
+        }
+      }
+    },
+    {
+      "device_id": "441",
+      "event_id": "10",
+      "name": "Button 5 Release",
+      "room": "卧室",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 13,
+        "node_types": {
+          "1": 7,
+          "5": 1,
+          "2": 4,
+          "6": 1
+        },
+        "commands": {
+          "SET_LEVEL_TARGET": 1,
+          "Turn Off": 4,
+          "=": 1
+        },
+        "conditions": {
+          "IF_STOPPED": 1,
+          "!=": 1,
+          "==": 2
+        }
+      }
+    },
+    {
+      "device_id": "441",
+      "event_id": "12",
+      "name": "Button 6 Release",
+      "room": "卧室",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 22,
+        "node_types": {
+          "1": 20,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "=": 2,
+          "Turn Off": 12,
+          "Turn On": 3,
+          "ACTIVATE_SCENE": 1,
+          "DEACTIVATE_SCENE": 1
+        },
+        "conditions": {
+          "!=": 1
+        }
+      }
+    },
+    {
+      "device_id": "442",
+      "event_id": "2",
+      "name": "Button 1 Release",
+      "room": "影音室",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 14,
+        "node_types": {
+          "1": 12,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "ACTIVATE_SCENE": 1,
+          "=": 2,
+          "Turn On": 1,
+          "Turn Off": 6,
+          "DEACTIVATE_SCENE": 1
+        },
+        "conditions": {
+          "!=": 1
+        }
+      }
+    },
+    {
+      "device_id": "442",
+      "event_id": "4",
+      "name": "Button 2 Release",
+      "room": "影音室",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 14,
+        "node_types": {
+          "1": 12,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "ACTIVATE_SCENE": 1,
+          "=": 2,
+          "Turn Off": 6,
+          "Turn On": 1,
+          "DEACTIVATE_SCENE": 1
+        },
+        "conditions": {
+          "!=": 1
+        }
+      }
+    },
+    {
+      "device_id": "442",
+      "event_id": "6",
+      "name": "Button 3 Release",
+      "room": "影音室",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 14,
+        "node_types": {
+          "1": 12,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "ACTIVATE_SCENE": 1,
+          "=": 2,
+          "Turn Off": 6,
+          "Turn On": 1,
+          "DEACTIVATE_SCENE": 1
+        },
+        "conditions": {
+          "!=": 1
+        }
+      }
+    },
+    {
+      "device_id": "442",
+      "event_id": "8",
+      "name": "Button 4 Release",
+      "room": "影音室",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 14,
+        "node_types": {
+          "1": 12,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "ACTIVATE_SCENE": 1,
+          "=": 2,
+          "Turn Off": 6,
+          "Turn On": 1,
+          "DEACTIVATE_SCENE": 1
+        },
+        "conditions": {
+          "!=": 1
+        }
+      }
+    },
+    {
+      "device_id": "442",
+      "event_id": "10",
+      "name": "Button 5 Release",
+      "room": "影音室",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 14,
+        "node_types": {
+          "1": 12,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "ACTIVATE_SCENE": 1,
+          "=": 2,
+          "Turn Off": 6,
+          "Turn On": 1,
+          "DEACTIVATE_SCENE": 1
+        },
+        "conditions": {
+          "!=": 1
+        }
+      }
+    },
+    {
+      "device_id": "442",
+      "event_id": "12",
+      "name": "Button 6 Release",
+      "room": "影音室",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 14,
+        "node_types": {
+          "1": 12,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "ACTIVATE_SCENE": 1,
+          "=": 2,
+          "Turn Off": 6,
+          "Turn On": 1,
+          "DEACTIVATE_SCENE": 1
+        },
+        "conditions": {
+          "!=": 1
+        }
+      }
+    },
+    {
+      "device_id": "449",
+      "event_id": "2",
+      "name": "事件 ID 2",
+      "room": "阅览室",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 7,
+        "node_types": {
+          "1": 5,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "Turn On": 3,
+          "=": 1
+        },
+        "conditions": {
+          "==": 1
+        }
+      }
+    },
+    {
+      "device_id": "449",
+      "event_id": "3",
+      "name": "事件 ID 3",
+      "room": "阅览室",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 2,
+        "node_types": {
+          "1": 2
+        },
+        "commands": {
+          "Turn Off": 1
+        },
+        "conditions": {}
+      }
+    },
+    {
+      "device_id": "449",
+      "event_id": "4",
+      "name": "事件 ID 4",
+      "room": "阅览室",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 7,
+        "node_types": {
+          "1": 5,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "Turn On": 3,
+          "=": 1
+        },
+        "conditions": {
+          "==": 1
+        }
+      }
+    },
+    {
+      "device_id": "449",
+      "event_id": "5",
+      "name": "事件 ID 5",
+      "room": "阅览室",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 2,
+        "node_types": {
+          "1": 2
+        },
+        "commands": {
+          "Turn On": 1
+        },
+        "conditions": {}
+      }
+    },
+    {
+      "device_id": "452",
+      "event_id": "2",
+      "name": "事件 ID 2",
+      "room": "南卧",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 8,
+        "node_types": {
+          "1": 5,
+          "5": 1,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "Turn On": 3,
+          "=": 1
+        },
+        "conditions": {
+          "==": 1
+        }
+      }
+    },
+    {
+      "device_id": "452",
+      "event_id": "3",
+      "name": "事件 ID 3",
+      "room": "南卧",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 2,
+        "node_types": {
+          "1": 2
+        },
+        "commands": {
+          "Turn Off": 1
+        },
+        "conditions": {}
+      }
+    },
+    {
+      "device_id": "452",
+      "event_id": "4",
+      "name": "事件 ID 4",
+      "room": "南卧",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 8,
+        "node_types": {
+          "1": 5,
+          "5": 1,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "Turn On": 3,
+          "=": 1
+        },
+        "conditions": {
+          "==": 1
+        }
+      }
+    },
+    {
+      "device_id": "452",
+      "event_id": "5",
+      "name": "事件 ID 5",
+      "room": "南卧",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 2,
+        "node_types": {
+          "1": 2
+        },
+        "commands": {
+          "Turn On": 1
+        },
+        "conditions": {}
+      }
+    },
+    {
+      "device_id": "456",
+      "event_id": "2",
+      "name": "Button 1 Release",
+      "room": "门厅",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 11,
+        "node_types": {
+          "1": 8,
+          "2": 2,
+          "4": 1
+        },
+        "commands": {
+          "ON": 1,
+          "Turn On": 2,
+          "OFF": 1,
+          "Turn Off": 2,
+          "=": 1
+        },
+        "conditions": {
+          "LOAD_OFF": 1,
+          "LOAD_ON": 1
+        }
+      }
+    },
+    {
+      "device_id": "456",
+      "event_id": "4",
+      "name": "Button 2 Release",
+      "room": "门厅",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 7,
+        "node_types": {
+          "1": 5,
+          "2": 1,
+          "4": 1
+        },
+        "commands": {
+          "ON": 1,
+          "Turn On": 1,
+          "OFF": 1,
+          "Turn Off": 1
+        },
+        "conditions": {
+          "LOAD_OFF": 1
+        }
+      }
+    },
+    {
+      "device_id": "456",
+      "event_id": "6",
+      "name": "Button 3 Release",
+      "room": "门厅",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 17,
+        "node_types": {
+          "1": 13,
+          "5": 1,
+          "2": 2,
+          "4": 1
+        },
+        "commands": {
+          "=": 2,
+          "SET_LEVEL": 2,
+          "ON": 1,
+          "Turn On": 2,
+          "Turn Off": 4,
+          "OFF": 1
+        },
+        "conditions": {
+          "!=": 1,
+          "LOAD_OFF": 1
+        }
+      }
+    },
+    {
+      "device_id": "456",
+      "event_id": "8",
+      "name": "Button 4 Release",
+      "room": "门厅",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 18,
+        "node_types": {
+          "1": 13,
+          "5": 1,
+          "2": 3,
+          "4": 1
+        },
+        "commands": {
+          "=": 2,
+          "SET_LEVEL": 2,
+          "ON": 1,
+          "OFF": 2,
+          "Turn Off": 4,
+          "Turn On": 1
+        },
+        "conditions": {
+          "!=": 1,
+          "LOAD_OFF": 1,
+          "LOAD_ON": 1
+        }
+      }
+    },
+    {
+      "device_id": "456",
+      "event_id": "10",
+      "name": "Button 5 Release",
+      "room": "门厅",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 20,
+        "node_types": {
+          "1": 15,
+          "5": 1,
+          "2": 3,
+          "4": 1
+        },
+        "commands": {
+          "=": 2,
+          "SET_LEVEL": 2,
+          "ON": 2,
+          "Turn On": 2,
+          "Turn Off": 4,
+          "OFF": 2
+        },
+        "conditions": {
+          "!=": 1,
+          "LOAD_OFF": 2
+        }
+      }
+    },
+    {
+      "device_id": "456",
+      "event_id": "12",
+      "name": "Button 6 Release",
+      "room": "门厅",
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 17,
+        "node_types": {
+          "1": 12,
+          "5": 1,
+          "2": 4
+        },
+        "commands": {
+          "Turn Off": 6,
+          "OFF": 3,
+          "SET_LEVEL": 1,
+          "=": 1
+        },
+        "conditions": {
+          "LOAD_ON": 3,
+          "IS_LEVEL": 1
+        }
+      }
+    },
+    {
+      "device_id": "100100",
+      "event_id": "1",
+      "name": "Auto Update Driver Agent Event",
+      "room": null,
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 1,
+        "node_types": {
+          "1": 1
+        },
+        "commands": {},
+        "conditions": {}
+      }
+    },
+    {
+      "device_id": "100100",
+      "event_id": "2",
+      "name": "Auto Update Driver Agent Event Forced",
+      "room": null,
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 1,
+        "node_types": {
+          "1": 1
+        },
+        "commands": {},
+        "conditions": {}
+      }
+    },
+    {
+      "device_id": "100100",
+      "event_id": "3",
+      "name": "Component Auto Update Event",
+      "room": null,
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 1,
+        "node_types": {
+          "1": 1
+        },
+        "commands": {},
+        "conditions": {}
+      }
+    },
+    {
+      "device_id": "100100",
+      "event_id": "4",
+      "name": "Component Forced Auto Update Event",
+      "room": null,
+      "status": "disabled_pending",
+      "automatic_enabled": false,
+      "reason": "AST semantic translation and replay not complete",
+      "source_inventory": {
+        "source_nodes": 1,
+        "node_types": {
+          "1": 1
+        },
+        "commands": {},
+        "conditions": {}
+      }
+    }
+  ],
+  "inventory_source": "Original project.xml; all codeitem descendants including expression containers"
+}

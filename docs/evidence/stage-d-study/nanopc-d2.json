@@ -1,0 +1,117 @@
+{
+  "date": "2026-10-11",
+  "release": "20261011-d2-study",
+  "binary_sha256": "62a1c1b770de16d1c0cdc93300bb31baf9c59f4f91e84c02c7e7d310abc89f63",
+  "state_directory": "/users/alarm/apps/homesense/tests/study-scenes-d1",
+  "focused_tests": {
+    "passed": 7,
+    "failed": 0,
+    "ignored": 0
+  },
+  "ea5_modified": false,
+  "automatic_execution": false,
+  "current_symlink": "releases/20261011-a19",
+  "repeated_trigger": [
+    {
+      "key": 1,
+      "name": "阅读",
+      "activate_boot": "de8fbde8-1dd1-47c2-9a7a-adcdb7a06791",
+      "toggle_boot": "5fbc29f9-daac-4bf6-930e-8d032926b50d",
+      "activate_written": 7,
+      "toggle_written": 5,
+      "user_confirmed_on_then_all_off_and_selected_led_green": true
+    },
+    {
+      "key": 3,
+      "name": "日常",
+      "activate_boot": "06ac638c-2415-4978-b9cb-4b87e7684dd1",
+      "toggle_boot": "8d22c727-35e7-4535-a024-f4dc41452e59",
+      "activate_written": 7,
+      "toggle_written": 5,
+      "user_confirmed_on_then_all_off_and_selected_led_green": true
+    },
+    {
+      "key": 5,
+      "name": "节能",
+      "activate_boot": "23e82aa0-1794-42c7-b747-726059e49976",
+      "toggle_boot": "6e80ce5e-c656-4b43-a07b-67cc33926881",
+      "activate_written": 7,
+      "toggle_written": 5,
+      "user_confirmed_on_then_all_off_and_selected_led_green": true
+    }
+  ],
+  "cancellation": [
+    {
+      "key": 1,
+      "action": "cancel-before",
+      "boot_id": "10eee267-7d09-47e9-8341-10b7876e8fbb",
+      "cancelled": 7,
+      "written_at_execution": 0,
+      "dispatch_empty_after_cancel": true,
+      "database_cancelled_count_verified": true
+    },
+    {
+      "key": 3,
+      "action": "cancel-before",
+      "boot_id": "10eee59e-470e-44b1-94d8-677d79d2121a",
+      "cancelled": 7,
+      "written_at_execution": 0,
+      "dispatch_empty_after_cancel": true,
+      "database_cancelled_count_verified": true
+    },
+    {
+      "key": 5,
+      "action": "cancel-before",
+      "boot_id": "693e60da-2b2e-4733-b4ac-1e0acead1021",
+      "cancelled": 7,
+      "written_at_execution": 0,
+      "dispatch_empty_after_cancel": true,
+      "database_cancelled_count_verified": true
+    },
+    {
+      "key": 1,
+      "action": "cancel-after-one",
+      "boot_id": "fa56879d-f56d-499f-96f5-771ca8810217",
+      "cancelled": 6,
+      "written_at_execution": 1,
+      "dispatch_empty_after_cancel": true,
+      "database_cancelled_count_verified": true
+    },
+    {
+      "key": 3,
+      "action": "cancel-after-one",
+      "boot_id": "a95938c3-e0d5-45ee-93a9-41eb22ed3be6",
+      "cancelled": 6,
+      "written_at_execution": 1,
+      "dispatch_empty_after_cancel": true,
+      "database_cancelled_count_verified": true
+    },
+    {
+      "key": 5,
+      "action": "cancel-after-one",
+      "boot_id": "3c9531e2-d932-4502-a057-2bbe1940e29b",
+      "cancelled": 6,
+      "written_at_execution": 1,
+      "dispatch_empty_after_cancel": true,
+      "database_cancelled_count_verified": true
+    }
+  ],
+  "restoration": {
+    "boot_id": "4bf294a5-b0b5-4a40-b9e9-30a8dbae4b73",
+    "written": 5,
+    "mode": 0,
+    "user_confirmed_all_lights_off_and_scene_leds_green": true
+  },
+  "limitations": [
+    "Cancellation is gated at deterministic dispatch boundaries; this does not test mid-frame network cancellation.",
+    "Already written output is not rolled back.",
+    "Local mode retains the selected intent after cancellation; explicit toggle restored mode 0.",
+    "Previous boot written entries become uncertain during recovery by design; this does not replay commands or negate observed field results.",
+    "Relay-only writes during partial cancellation were not individually measured; user confirmed lights stayed off and final LED state.",
+    "Initial five-second reading run was not observed; it was repeated with user-paced activation and deactivation."
+  ],
+  "cancellation_group_observations": {
+    "before": "User confirmed no light or LED change across all three runs.",
+    "after_one": "User confirmed lights remained off, keys 1/3 green and key 5 red; no later light activation."
+  }
+}

@@ -1,0 +1,187 @@
+{
+  "project": "Charlies250801.c4p",
+  "source_sha256": "ff8c298fd2c8efa840d572d3ca544860ffbbc4e7176f09e93efdc5464b9ce6ec",
+  "date": "2026-10-11",
+  "panel": "41",
+  "project_panel_actions": [
+    {
+      "event_device": "63",
+      "event": "Button 1 Release",
+      "action": "Turn on LED  1 on 书房"
+    },
+    {
+      "event_device": "63",
+      "event": "Button 1 Release",
+      "action": "Turn off LED  5 on 书房"
+    },
+    {
+      "event_device": "63",
+      "event": "Button 1 Release",
+      "action": "Turn off LED  3 on 书房"
+    },
+    {
+      "event_device": "63",
+      "event": "Button 1 Release",
+      "action": "Turn off LED  1 on 书房"
+    },
+    {
+      "event_device": "63",
+      "event": "Button 2 Release",
+      "action": "Turn off LED  2 on 书房"
+    },
+    {
+      "event_device": "63",
+      "event": "Button 2 Release",
+      "action": "Turn off LED  4 on 书房"
+    },
+    {
+      "event_device": "63",
+      "event": "Button 2 Release",
+      "action": "Turn off LED  6 on 书房"
+    },
+    {
+      "event_device": "63",
+      "event": "Button 2 Release",
+      "action": "Turn off LED  6 on 书房"
+    },
+    {
+      "event_device": "63",
+      "event": "Button 3 Release",
+      "action": "Turn on LED  3 on 书房"
+    },
+    {
+      "event_device": "63",
+      "event": "Button 3 Release",
+      "action": "Turn off LED  1 on 书房"
+    },
+    {
+      "event_device": "63",
+      "event": "Button 3 Release",
+      "action": "Turn off LED  5 on 书房"
+    },
+    {
+      "event_device": "63",
+      "event": "Button 3 Release",
+      "action": "Turn off LED  3 on 书房"
+    },
+    {
+      "event_device": "63",
+      "event": "Button 4 Release",
+      "action": "Turn off LED  4 on 书房"
+    },
+    {
+      "event_device": "63",
+      "event": "Button 5 Release",
+      "action": "Turn on LED  5 on 书房"
+    },
+    {
+      "event_device": "63",
+      "event": "Button 5 Release",
+      "action": "Turn off LED  1 on 书房"
+    },
+    {
+      "event_device": "63",
+      "event": "Button 5 Release",
+      "action": "Turn off LED  3 on 书房"
+    },
+    {
+      "event_device": "63",
+      "event": "Button 5 Release",
+      "action": "Turn off LED  5 on 书房"
+    },
+    {
+      "event_device": "63",
+      "event": "Button 6 Release",
+      "action": "Turn off LED  4 on 书房"
+    },
+    {
+      "event_device": "63",
+      "event": "Button 6 Release",
+      "action": "Turn off LED  6 on 书房"
+    },
+    {
+      "event_device": "63",
+      "event": "Button 6 Release",
+      "action": "Turn off LED  2 on 书房"
+    },
+    {
+      "event_device": "63",
+      "event": "Button 6 Release",
+      "action": "Turn off LED  2 on 书房"
+    },
+    {
+      "event_device": "285",
+      "event": "事件 ID 2",
+      "action": "Turn on LED  2 on 书房"
+    },
+    {
+      "event_device": "291",
+      "event": "事件 ID 2",
+      "action": "Turn on LED  2 on 书房"
+    },
+    {
+      "event_device": "291",
+      "event": "事件 ID 2",
+      "action": "Turn on LED  6 on 书房"
+    },
+    {
+      "event_device": "291",
+      "event": "事件 ID 2",
+      "action": "Turn on LED  2 on 书房"
+    },
+    {
+      "event_device": "291",
+      "event": "事件 ID 3",
+      "action": "Turn off LED  4 on 书房"
+    },
+    {
+      "event_device": "291",
+      "event": "事件 ID 4",
+      "action": "Turn on LED  2 on 书房"
+    },
+    {
+      "event_device": "291",
+      "event": "事件 ID 4",
+      "action": "Turn on LED  6 on 书房"
+    },
+    {
+      "event_device": "291",
+      "event": "事件 ID 4",
+      "action": "Turn on LED  6 on 书房"
+    },
+    {
+      "event_device": "291",
+      "event": "事件 ID 5",
+      "action": "Turn on LED  4 on 书房"
+    }
+  ],
+  "explicit_backlight_timer_found": false,
+  "driver_lua_encrypted": true,
+  "manual": {
+    "section_8_4": "C5 query / C6 set: 01 dim after 10 seconds; 02 always bright; 03 always dim",
+    "section_8_5": "C7/C8 self-reset feedback indicator mode, separate from brightness"
+  },
+  "previous_mode_query": {
+    "C5": "FF: undefined by this manual, not proof of mode 01",
+    "C7": "02: feedback indicator accepts commands; not brightness timer state"
+  },
+  "observation": "User pressed key 1, observed gradual dimming to apparently off in about 5-8 seconds.",
+  "capture": {
+    "duration_ms": 120077,
+    "frames": 2,
+    "press": "AE41D1F1EE at 19304ms",
+    "release": "AE41D1F2EE at 19504ms",
+    "discarded_bytes": 0,
+    "incomplete_bytes": 0,
+    "malformed_frames": 0
+  },
+  "conclusion": "Panel local brightness timer is the best supported explanation; not conclusively proven.",
+  "limitations": [
+    "Saved project may differ from running EA-5 configuration.",
+    "Encrypted driver internals were not inspected.",
+    "Independent TCP observer sees gateway-delivered traffic, not a verified mirror of EA-5 outbound stream. Absence of frames cannot exclude hidden EA-5 commands.",
+    "No setting query or write was issued in this investigation."
+  ],
+  "ea5_modified": false,
+  "control_frames_sent": 0
+}

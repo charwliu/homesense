@@ -43,7 +43,7 @@ cargo run --locked --offline -p homesense-import --bin study-replay -- config/sc
 
 独立版本 `20261011-d1-study` 的 `study-scene` 已部署，保留原 current 链接。
 执行方式：`study-scene STATE_DIR KEY --coexistence-confirmed`，KEY 仅限 1/3/5。
-配置与迁移文档编入二进制；每次先查询 TS6 C7 手动背光模式，再通过
+配置与迁移文档编入二进制；每次先查询 TS6 C7 按键反馈灯手动模式（与背光亮度定时分开），再通过
 StudyRuntime → Admission → TransportOwner 写出。独立状态目录
 `/users/alarm/apps/homesense/tests/study-scenes-d1` 使用 schema 5，不迁移现有 HAP 状态。
 
@@ -51,3 +51,17 @@ StudyRuntime → Admission → TransportOwner 写出。独立状态目录
 最终保留节能场景。进程执行后退出，自动场景订阅未开启，EA-5 配置及控制范围未修改。
 本轮未测试现场取消、重复按键关闭场景；17% 为命令目标，现场确认明显变暗。
 详见 `evidence/stage-d-study/nanopc-d1.json`。
+
+## 重复触发与运行取消现场验收（2026-10-11）
+
+`20261011-d2-study` 扩展手动入口，支持可选动作 `activate`（默认）、`toggle`、
+`cancel-before`、`cancel-after-one`。取消测试在确定的调度边界调用同一运行时的
+`cancel()`，随后再次调度并要求队列为空；不是网络写入中途打断测试。
+
+- 阅读、日常、节能均由用户先确认激活，再重复触发；各 5 条关闭指令，用户确认全部灯关闭及对应场景键变绿。
+- 三场景分别发送前取消：每轮 0 条写出、7 条取消，用户确认灯光和指示灯未变化。
+- 三场景分别首条写出后取消：每轮 1 条写出、6 条取消。用户确认灯光仍关闭、1/3 键绿而 5 键红，随后没有继续亮灯。继电器首条动作未独立测量。
+- SQLite 只读审计确认六轮取消数量；旧启动的 written 按既有恢复策略转为 uncertain，不重放，取消记录保持 cancelled。
+- 最后显式 toggle 恢复模式 0，用户确认主灯／筒灯全关、1/3/5 键全绿；测试进程退出。
+
+场景专项回归 7 项通过，新增覆盖三个场景重复关闭和发送前取消。EA-5 控制范围不变，自动触发仍关闭，current 仍指向 a19。详见 `evidence/stage-d-study/nanopc-d2.json`。
