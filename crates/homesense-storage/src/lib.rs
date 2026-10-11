@@ -66,7 +66,7 @@ impl Store {
         if app != 0 && app != APPLICATION_ID {
             return Err(Error::ForeignDatabase);
         }
-        if version != 0 && (!(1..=12).contains(&version) || app != APPLICATION_ID) {
+        if version != 0 && (!(1..=13).contains(&version) || app != APPLICATION_ID) {
             return Err(Error::UnsupportedSchema(version));
         }
         if version == 0 {
@@ -145,6 +145,11 @@ impl Store {
             CREATE TRIGGER immutable_automation_update BEFORE UPDATE ON automation_revision BEGIN SELECT RAISE(ABORT, 'immutable automation'); END;
             CREATE TRIGGER immutable_automation_delete BEFORE DELETE ON automation_revision BEGIN SELECT RAISE(ABORT, 'immutable automation'); END;")?;
             tx.pragma_update(None, "user_version", 12)?;
+        }
+        if version <= 12 {
+            tx.execute_batch("CREATE TABLE scene_cause (boot_id TEXT NOT NULL, run_id TEXT NOT NULL, correlation TEXT NOT NULL, event_id INTEGER NOT NULL, action_index INTEGER NOT NULL CHECK(action_index>=0 AND action_index<65536), source TEXT NOT NULL, PRIMARY KEY(boot_id,run_id), UNIQUE(boot_id,correlation,event_id,action_index), FOREIGN KEY(boot_id,run_id) REFERENCES scene_run(boot_id,run_id), FOREIGN KEY(boot_id,correlation,event_id) REFERENCES rule_admission(boot_id,correlation,event_id));
+            CREATE TRIGGER immutable_scene_cause_update BEFORE UPDATE ON scene_cause BEGIN SELECT RAISE(ABORT, 'immutable scene cause'); END;")?;
+            tx.pragma_update(None, "user_version", 13)?;
         }
         tx.commit()?;
         connection.pragma_update(None, "foreign_keys", "ON")?;
