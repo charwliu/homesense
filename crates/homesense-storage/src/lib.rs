@@ -1,6 +1,7 @@
 //! SQLite configuration revisions and atomic active-pointer publication.
 //! A single runtime owner coordinates this store with the arbitration barrier.
 //! Configuration schema validation precedes this opaque payload storage layer.
+pub mod automation;
 pub mod calendar;
 pub mod journal;
 pub mod light_restore;
@@ -65,7 +66,7 @@ impl Store {
         if app != 0 && app != APPLICATION_ID {
             return Err(Error::ForeignDatabase);
         }
-        if version != 0 && (!(1..=11).contains(&version) || app != APPLICATION_ID) {
+        if version != 0 && (!(1..=12).contains(&version) || app != APPLICATION_ID) {
             return Err(Error::UnsupportedSchema(version));
         }
         if version == 0 {
@@ -139,6 +140,12 @@ impl Store {
             CREATE TABLE scene_command (boot_id TEXT NOT NULL, run_id TEXT NOT NULL, step_index INTEGER NOT NULL, command_id INTEGER NOT NULL, PRIMARY KEY(boot_id,command_id), FOREIGN KEY(boot_id,run_id,step_index) REFERENCES scene_step(boot_id,run_id,step_index), FOREIGN KEY(boot_id,command_id) REFERENCES command_journal(boot_id,command_id));")?;
             tx.pragma_update(None, "user_version", 11)?;
         }
+        if version <= 11 {
+            tx.execute_batch("CREATE TABLE automation_revision (revision INTEGER PRIMARY KEY REFERENCES configuration_revision(revision), payload BLOB NOT NULL);
+            CREATE TRIGGER immutable_automation_update BEFORE UPDATE ON automation_revision BEGIN SELECT RAISE(ABORT, 'immutable automation'); END;
+            CREATE TRIGGER immutable_automation_delete BEFORE DELETE ON automation_revision BEGIN SELECT RAISE(ABORT, 'immutable automation'); END;")?;
+            tx.pragma_update(None, "user_version", 12)?;
+        }
         tx.commit()?;
         connection.pragma_update(None, "foreign_keys", "ON")?;
         connection.pragma_update(None, "journal_mode", "WAL")?;
@@ -164,16 +171,9 @@ impl Store {
         &self,
         context: homesense_core::ExecutionContext,
     ) -> Result<Option<homesense_config::Configuration>, Error> {
-        let Some(stored) = self.active()? else {
-            return Ok(None);
-        };
-        let config = homesense_config::Configuration::parse(&stored.payload, context)
-            .map_err(Error::Configuration)?;
-        if config.revision() != stored.revision {
-            return Err(Error::InvalidRevision);
-        }
-        Ok(Some(config))
+        Ok(self.active_bundle(context)?.map(|bundle| bundle.configuration))
     }
+
     pub fn active(&self) -> Result<Option<Configuration>, Error> {
         Ok(self.connection.query_row("SELECT r.revision,r.payload FROM active_configuration a JOIN configuration_revision r ON a.revision=r.revision WHERE a.singleton=1", [], |r| Ok(Configuration { revision: r.get::<_, i64>(0)? as u64, payload: r.get(1)? })).optional()?)
     }
@@ -201,6 +201,16 @@ impl Store {
         revision: u64,
         payload: &[u8],
         cancellations: &[CancellationAudit<'_>],
+    ) -> Result<(), Error> {
+        self.publish_inner(expected, revision, payload, cancellations, None)
+    }
+    fn publish_inner(
+        &mut self,
+        expected: Option<u64>,
+        revision: u64,
+        payload: &[u8],
+        cancellations: &[CancellationAudit<'_>],
+        automation: Option<(&[u8], &homesense_config::rule_document::Document)>,
     ) -> Result<(), Error> {
         let revision = sql_revision(revision)?;
         let expected = expected.map(sql_revision).transpose()?;
@@ -230,6 +240,13 @@ impl Store {
         if active != expected {
             return Err(Error::Conflict);
         }
+        // Legacy device-only publication must not silently discard automation.
+        if automation.is_none() && tx.query_row(
+            "SELECT EXISTS(SELECT 1 FROM automation_revision WHERE revision=?1)",
+            [expected], |r| r.get::<_, bool>(0),
+        )? {
+            return Err(Error::Conflict);
+        }
         let latest: Option<i64> = tx.query_row(
             "SELECT max(revision) FROM configuration_revision",
             [],
@@ -242,6 +259,9 @@ impl Store {
             "INSERT INTO configuration_revision(revision,payload) VALUES (?1,?2)",
             params![revision, payload],
         )?;
+        if let Some((payload, document)) = automation {
+            automation::insert(&tx, expected, revision, payload, document)?;
+        }
         for cancellation in cancellations {
             tx.execute("INSERT INTO publication_cancellation(revision,boot_id,command_id,reason) VALUES (?1,?2,?3,?4)", params![revision,cancellation.boot_id,cancellation.command_id as i64,format!("{:?}", cancellation.reason)])?;
         }
