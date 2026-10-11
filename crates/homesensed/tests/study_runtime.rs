@@ -5325,6 +5325,7 @@ async fn software_fade_manual_override_before_first_sample_preserves_manual_outp
 #[tokio::test]
 async fn fade_group_manual_override_keeps_other_device_running() {
     use homesensed::{fade_group::{FadeGroup,Limits,Request},feedback::Feedback,transport_owner::{GatewayRead}};
+    for queued in [false, true] {
     let db=Db(std::env::temp_dir().join(format!("fade-partial-{}.sqlite",Uuid::new_v4())));
     let devices=br#"{"schema_version":1,"revision":1,"manual_degraded_enabled":false,
       "gateways":[{"id":"simulation","endpoint":"127.0.0.1:50007","modules":[{"address":"15","profile":"gt_d8_rl_v2_2_6_2","verification":{"status":"simulated"}}]}],
@@ -5342,6 +5343,13 @@ async fn fade_group_manual_override_keeps_other_device_running() {
     let request=Request{target:homesense_core::Percent::new(0).unwrap(),duration_ms:400,interval_ms:100,lateness_ms:200};
     group.start(device.clone(),request,&feedback,2000).await.unwrap();
     group.start(homesense_core::DeviceId::new("simulation:second").unwrap(),request,&feedback,2000).await.unwrap();
+    if queued {
+        tokio::time::sleep(std::time::Duration::from_millis(110)).await;
+        let tick=group.tick().await.unwrap();
+        assert!(tick.completed.is_empty());
+        let sql=rusqlite::Connection::open(&db.0).unwrap();
+        assert_eq!(sql.query_row("SELECT count(*) FROM command_journal WHERE status='accepted'",[],|r|r.get::<_,i64>(0)).unwrap(),2);
+    }
     a.submit(homesense_hap::requests::Batch {
         controller,intents:vec![homesense_hap::requests::Intent {
             device:device.clone(),
@@ -5364,5 +5372,9 @@ async fn fade_group_manual_override_keeps_other_device_running() {
     a.finish_write(remaining.command.id,true).await.unwrap();
     group.cancel_all().await.unwrap();
     assert!(a.dispatch().await.unwrap().is_none());
+    let sql=rusqlite::Connection::open(&db.0).unwrap();
+    assert_eq!(sql.query_row("SELECT count(*) FROM command_journal WHERE status='cancelled'",[],|r|r.get::<_,i64>(0)).unwrap(),if queued {1} else {0});
+    assert_eq!(sql.query_row("SELECT count(*) FROM command_journal WHERE status='written'",[],|r|r.get::<_,i64>(0)).unwrap(),2);
     a.shutdown().await.unwrap();
+    }
 }
