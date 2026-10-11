@@ -174,11 +174,11 @@ pub(crate) async fn drive_controlled<S: Read + Write + Send + 'static>(
                 }
             }
             }
-            guard
-                .panels
-                .consume_feedback(guard.owner.feedback(), now, max_age_ms)
-                .await
-                .map_err(|e| e.to_string())?;
+            if let Some(router)=&mut causal {
+                guard.panels.consume_feedback_causal(guard.owner.feedback(),now,max_age_ms,router,guard.scenes).await.map_err(|e|e.to_string())?;
+            } else {
+                guard.panels.consume_feedback(guard.owner.feedback(),now,max_age_ms).await.map_err(|e|e.to_string())?;
+            }
             guard.panels.tick_holds(now).await?;
             let results = if let Some(router) = &mut causal {
                 let (_, unowned) = router.poll(guard.scenes, Some((guard.owner.feedback(), max_age_ms))).await?;
