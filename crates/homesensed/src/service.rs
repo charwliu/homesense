@@ -498,7 +498,7 @@ async fn serve_automation_simulation_options(
             let lights=RuntimeHap::new(&config,owner.snapshot(),&identity,admission.clone(),5000).await?;
             let authorization=identity.clone();
             let scenes=crate::runtime_scene_hap::RuntimeSceneHap::new(&identity,&document,hap.scenes.into_iter().map(|id|homesense_hap::scene_graph::SceneSpec{name:id.clone(),id}).collect(),runtime.control(),move |id,_|authorization.controller_is_paired(id).unwrap_or(false)).await?;
-            let mut graph=crate::unified_hap::UnifiedHap{lights,scenes:Some(scenes)};
+            let mut graph=crate::unified_hap::UnifiedHap{lights,scenes:Some(scenes),motors:None};
             let server=IpServer::new_loopback(settings,identity).await.map_err(error)?;
             graph.install(&server).await?;
             let (ready,started)=tokio::sync::oneshot::channel();
