@@ -11,6 +11,8 @@ use tokio::sync::{mpsc, oneshot};
 use uuid::Uuid;
 #[derive(Debug)]
 pub enum Action {
+    ConfigurationHistory {controller:Uuid,revision:u64,before:Option<u64>,limit:usize},
+    ConfigurationExport {controller:Uuid,revision:u64,selected:u64},
     DeviceEvents {controller:Uuid,revision:u64,ids:Vec<homesense_core::DeviceId>,cursor:Option<crate::management_events::Cursor>,scope:String},
     ConfigurationPreview {controller:Uuid,revision:u64,candidate:homesense_config::Configuration},
     CalendarStatus,
@@ -28,6 +30,8 @@ pub enum Action {
 }
 #[derive(Debug, PartialEq, Eq)]
 pub enum Reply {
+    ConfigurationHistory(homesense_storage::configuration_history::Page),
+    ConfigurationExport(Option<homesense_storage::configuration_history::Export>),
     DeviceEvents(crate::management_events::Update),
     ConfigurationPreview(crate::configuration_preview::Preview),
     Devices(crate::management_devices::DeviceSnapshot),
@@ -169,6 +173,14 @@ impl Receiver {
                     return Err("automation request expired or abandoned".into());
                 }
                 match request.action {
+                    Action::ConfigurationHistory{controller,revision,before,limit}=>{
+                        if revision!=document.revision {return Err("configuration history revision expired".into());}
+                        admission.configuration_history(controller,self.generation.clone(),before,limit).await.map(Reply::ConfigurationHistory).map_err(|e|format!("{e:?}"))
+                    },
+                    Action::ConfigurationExport{controller,revision,selected}=>{
+                        if revision!=document.revision {return Err("configuration export revision expired".into());}
+                        admission.configuration_export(controller,self.generation.clone(),selected).await.map(Reply::ConfigurationExport).map_err(|e|format!("{e:?}"))
+                    },
                     Action::DeviceEvents {controller,revision,ids,cursor,scope} => {
                         if revision!=document.revision{return Err("event configuration changed".into());}
                         crate::management_events::read_scoped(admission,controller,self.generation.clone(),ids,feedback,cursor,&scope).await.map(Reply::DeviceEvents)

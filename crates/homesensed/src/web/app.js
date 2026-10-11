@@ -1,6 +1,7 @@
 'use strict';
 let csrf = '';
 let publicationPreview=null;
+let versionsBefore=null;
 const started = new Map();
 const status = document.getElementById('status');
 const list = document.getElementById('scenes');
@@ -55,7 +56,7 @@ document.getElementById('connect').onclick = async () => {
   } catch (error) { csrf = ''; list.replaceChildren(); status.textContent = error.message; }
 };
 document.getElementById('logout').onclick = async () => {
-  try { await request('/api/v1/session', {method: 'DELETE'}); csrf = ''; clearTimeout(eventRetry); if(eventSocket)eventSocket.close();eventDevices.clear(); document.getElementById('draft-impact').textContent=''; document.getElementById('configuration').hidden=true; for(const id of ['device-document','automation-document','draft-id','base-revision','draft-revision']) document.getElementById(id).value=''; started.clear(); list.replaceChildren(); document.getElementById('devices').replaceChildren(); status.textContent = '已退出'; }
+  try { await request('/api/v1/session', {method: 'DELETE'}); csrf = ''; clearTimeout(eventRetry); if(eventSocket)eventSocket.close();eventDevices.clear(); document.getElementById('draft-impact').textContent=''; document.getElementById('configuration').hidden=true; document.getElementById('versions').replaceChildren(); versionsBefore=null;document.getElementById('more-versions').disabled=true; for(const id of ['device-document','automation-document','draft-id','base-revision','draft-revision']) document.getElementById(id).value=''; started.clear(); list.replaceChildren(); document.getElementById('devices').replaceChildren(); status.textContent = '已退出'; }
   catch (error) { status.textContent = '注销未确认：' + error.message; }
 };
 
@@ -171,3 +172,33 @@ function connectEvents() {
     eventRetry=setTimeout(connectEvents,Math.min(10000,500*2**eventAttempts));
   };
 }
+
+async function loadVersions(before=null) {
+  const first=document.getElementById('load-versions');const more=document.getElementById('more-versions');
+  first.disabled=true;more.disabled=true;
+  try {
+    const page=await request('/api/v1/config/versions?limit=20'+(before===null?'':'&before='+encodeURIComponent(before)));
+    const list=document.getElementById('versions');list.replaceChildren();
+    for(const version of page.versions) {
+      const row=document.createElement('p');
+      const text=document.createElement('span');text.textContent=`版本 ${version.revision}${version.revision===page.active_revision?'（当前）':''} · 设备 ${version.device_bytes} 字节 · 自动化 ${version.automation_bytes??'无'} `;
+      const download=document.createElement('button');download.textContent='导出';
+      download.onclick=async()=>{
+        download.disabled=true;
+        try {
+          const response=await fetch(`/api/v1/config/versions/${version.revision}/export`,{cache:'no-store',credentials:'same-origin'});
+          if(!response.ok)throw new Error('导出失败');
+          const blob=new Blob([await response.text()],{type:'application/json'});
+          const url=URL.createObjectURL(blob);const link=document.createElement('a');link.href=url;link.download=`homesense-config-${version.revision}.json`;document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+          status.textContent='已导出配置；当前运行版本未改变。';
+        } catch(error) {status.textContent=error.message;}
+        finally {download.disabled=false;}
+      };
+      row.append(text,download);list.append(row);
+    }
+    versionsBefore=page.next_before;
+  } catch(error) {status.textContent=error.message;versionsBefore=null;}
+  finally {first.disabled=false;more.disabled=versionsBefore===null;}
+}
+document.getElementById('load-versions').onclick=()=>loadVersions();
+document.getElementById('more-versions').onclick=()=>{if(versionsBefore!==null)loadVersions(versionsBefore);};
