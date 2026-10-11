@@ -223,21 +223,32 @@ pub(crate) async fn drive_controlled<S: Read + Write + Send + 'static>(
         }
     }
     .await;
+    let mut cleanup_errors = Vec::new();
     if let Some(router) = &mut causal
         && let Err(error) = router.close(guard.scenes).await {
-        log::warn!("causal shutdown failed: {error}");
+        cleanup_errors.push(format!("causal shutdown: {error}"));
     }
     for (id, result) in guard.scenes.stop().await {
         if let Err(error) = result {
-            log::warn!("automation shutdown run={id}: {error}");
+            cleanup_errors.push(format!("scene shutdown run={id}: {error}"));
         }
     }
     // Only an acknowledged active barrier permits a soft pause. Cancellation
     // of this future or an unavailable coordinator keeps the fail-closed Drop.
     if admission.publication_in_progress().await.unwrap_or(false) {
+        for error in &cleanup_errors {
+            log::warn!("publication coordinator retains cleanup responsibility: {error}");
+        }
         guard.publication_paused = true;
         Ok(true)
     } else {
+        if !cleanup_errors.is_empty() {
+            let cleanup = cleanup_errors.join("; ");
+            return Err(match result {
+                Ok(()) => cleanup,
+                Err(error) => format!("{error}; {cleanup}"),
+            });
+        }
         result.map(|()| false)
     }
 }
