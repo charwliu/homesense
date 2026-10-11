@@ -1,0 +1,443 @@
+{
+  "source": {
+    "format": "c4p",
+    "project_xml_sha256": "cac7dcdc9db08599e55a22bacb72858035c64e1ac846e2139ead5fc634513748",
+    "sha256": "ff8c298fd2c8efa840d572d3ca544860ffbbc4e7176f09e93efdc5464b9ce6ec"
+  },
+  "automatic_execution": false,
+  "policy": "Motor predicates require verified physical motion evidence; target commands do not establish motion state. Timed ramps require exact duration semantics, not a boolean ramp flag.",
+  "programs": [
+    {
+      "owner": "event:63:4",
+      "first_compiler_blocker": "unsupported device-state condition IF_STOPPED",
+      "enabled": false,
+      "evidence": [
+        {
+          "code_id": "1",
+          "operation": "IF_STOPPED",
+          "source_xml": "<deviceconditional owneridtype=\"\" owneriditem=\"-1\">\n                <name>IF_STOPPED</name>\n              </deviceconditional>"
+        }
+      ]
+    },
+    {
+      "owner": "event:63:8",
+      "first_compiler_blocker": "unsupported device-state condition IF_MOVING",
+      "enabled": false,
+      "evidence": [
+        {
+          "code_id": "1",
+          "operation": "IF_MOVING",
+          "source_xml": "<deviceconditional owneridtype=\"\" owneriditem=\"-1\">\n                <name>IF_MOVING</name>\n              </deviceconditional>"
+        }
+      ]
+    },
+    {
+      "owner": "event:63:12",
+      "first_compiler_blocker": "unsupported device-state condition IF_STOPPED",
+      "enabled": false,
+      "evidence": [
+        {
+          "code_id": "13",
+          "operation": "IF_STOPPED",
+          "source_xml": "<deviceconditional owneridtype=\"\" owneriditem=\"-1\">\n                <name>IF_STOPPED</name>\n              </deviceconditional>"
+        }
+      ]
+    },
+    {
+      "owner": "event:416:2",
+      "first_compiler_blocker": "unsupported device-state condition IF_STOPPED",
+      "enabled": false,
+      "evidence": [
+        {
+          "code_id": "2",
+          "operation": "IF_STOPPED",
+          "source_xml": "<deviceconditional owneridtype=\"\" owneriditem=\"-1\">\n                <name>IF_STOPPED</name>\n              </deviceconditional>"
+        }
+      ]
+    },
+    {
+      "owner": "event:416:6",
+      "first_compiler_blocker": "unsupported device-state condition IF_MOVING",
+      "enabled": false,
+      "evidence": [
+        {
+          "code_id": "2",
+          "operation": "IF_MOVING",
+          "source_xml": "<deviceconditional owneridtype=\"\" owneriditem=\"-1\">\n                <name>IF_MOVING</name>\n              </deviceconditional>"
+        }
+      ]
+    },
+    {
+      "owner": "event:416:10",
+      "first_compiler_blocker": "unsupported device-state condition IF_STOPPED",
+      "enabled": false,
+      "evidence": [
+        {
+          "code_id": "2",
+          "operation": "IF_STOPPED",
+          "source_xml": "<deviceconditional owneridtype=\"\" owneriditem=\"-1\">\n                <name>IF_STOPPED</name>\n              </deviceconditional>"
+        }
+      ]
+    },
+    {
+      "owner": "event:417:2",
+      "first_compiler_blocker": "unsupported typed command RAMP_TO_LEVEL",
+      "enabled": false,
+      "evidence": [
+        {
+          "code_id": "46",
+          "operation": "RAMP_TO_LEVEL",
+          "source_xml": "<devicecommand owneridtype=\"\" owneriditem=\"-1\">\n                    <command>RAMP_TO_LEVEL</command>\n                    <params>\n                      <param>\n                        <name>TIME</name>\n                        <value type=\"INTEGER\">\n                          <static>1000</static>\n                        </value>\n                      </param>\n                      <param>\n                        <name>LEVEL</name>\n                        <value type=\"INTEGER\">\n                          <static>0</static>\n                        </value>\n                      </param>\n                    </params>\n                  </devicecommand>"
+        }
+      ]
+    },
+    {
+      "owner": "event:420:2",
+      "first_compiler_blocker": "unsupported device-state condition IF_STOPPED",
+      "enabled": false,
+      "evidence": [
+        {
+          "code_id": "2",
+          "operation": "IF_STOPPED",
+          "source_xml": "<deviceconditional owneridtype=\"\" owneriditem=\"-1\">\n                <name>IF_STOPPED</name>\n              </deviceconditional>"
+        }
+      ]
+    },
+    {
+      "owner": "event:420:6",
+      "first_compiler_blocker": "unsupported device-state condition IF_MOVING",
+      "enabled": false,
+      "evidence": [
+        {
+          "code_id": "2",
+          "operation": "IF_MOVING",
+          "source_xml": "<deviceconditional owneridtype=\"\" owneriditem=\"-1\">\n                <name>IF_MOVING</name>\n              </deviceconditional>"
+        }
+      ]
+    },
+    {
+      "owner": "event:420:10",
+      "first_compiler_blocker": "unsupported device-state condition IF_STOPPED",
+      "enabled": false,
+      "evidence": [
+        {
+          "code_id": "2",
+          "operation": "IF_STOPPED",
+          "source_xml": "<deviceconditional owneridtype=\"\" owneriditem=\"-1\">\n                <name>IF_STOPPED</name>\n              </deviceconditional>"
+        }
+      ]
+    },
+    {
+      "owner": "event:421:2",
+      "first_compiler_blocker": "unsupported device-state condition IF_STOPPED",
+      "enabled": false,
+      "evidence": [
+        {
+          "code_id": "3",
+          "operation": "IF_STOPPED",
+          "source_xml": "<deviceconditional owneridtype=\"\" owneriditem=\"-1\">\n                <name>IF_STOPPED</name>\n              </deviceconditional>"
+        }
+      ]
+    },
+    {
+      "owner": "event:421:6",
+      "first_compiler_blocker": "unsupported device-state condition IF_MOVING",
+      "enabled": false,
+      "evidence": [
+        {
+          "code_id": "2",
+          "operation": "IF_MOVING",
+          "source_xml": "<deviceconditional owneridtype=\"\" owneriditem=\"-1\">\n                <name>IF_MOVING</name>\n              </deviceconditional>"
+        }
+      ]
+    },
+    {
+      "owner": "event:421:10",
+      "first_compiler_blocker": "unsupported device-state condition IF_STOPPED",
+      "enabled": false,
+      "evidence": [
+        {
+          "code_id": "2",
+          "operation": "IF_STOPPED",
+          "source_xml": "<deviceconditional owneridtype=\"\" owneriditem=\"-1\">\n                <name>IF_STOPPED</name>\n              </deviceconditional>"
+        }
+      ]
+    },
+    {
+      "owner": "event:425:2",
+      "first_compiler_blocker": "unsupported device-state condition IF_STOPPED",
+      "enabled": false,
+      "evidence": [
+        {
+          "code_id": "2",
+          "operation": "IF_STOPPED",
+          "source_xml": "<deviceconditional owneridtype=\"\" owneriditem=\"-1\">\n                <name>IF_STOPPED</name>\n              </deviceconditional>"
+        }
+      ]
+    },
+    {
+      "owner": "event:425:4",
+      "first_compiler_blocker": "unsupported device-state condition IF_STOPPED",
+      "enabled": false,
+      "evidence": [
+        {
+          "code_id": "2",
+          "operation": "IF_STOPPED",
+          "source_xml": "<deviceconditional owneridtype=\"\" owneriditem=\"-1\">\n                <name>IF_STOPPED</name>\n              </deviceconditional>"
+        }
+      ]
+    },
+    {
+      "owner": "event:429:2",
+      "first_compiler_blocker": "unsupported device-state condition IF_STOPPED",
+      "enabled": false,
+      "evidence": [
+        {
+          "code_id": "3",
+          "operation": "IF_STOPPED",
+          "source_xml": "<deviceconditional owneridtype=\"\" owneriditem=\"-1\">\n                <name>IF_STOPPED</name>\n              </deviceconditional>"
+        }
+      ]
+    },
+    {
+      "owner": "event:429:6",
+      "first_compiler_blocker": "unsupported device-state condition IF_MOVING",
+      "enabled": false,
+      "evidence": [
+        {
+          "code_id": "3",
+          "operation": "IF_MOVING",
+          "source_xml": "<deviceconditional owneridtype=\"\" owneriditem=\"-1\">\n                <name>IF_MOVING</name>\n              </deviceconditional>"
+        }
+      ]
+    },
+    {
+      "owner": "event:429:10",
+      "first_compiler_blocker": "unsupported device-state condition IF_STOPPED",
+      "enabled": false,
+      "evidence": [
+        {
+          "code_id": "3",
+          "operation": "IF_STOPPED",
+          "source_xml": "<deviceconditional owneridtype=\"\" owneriditem=\"-1\">\n                <name>IF_STOPPED</name>\n              </deviceconditional>"
+        }
+      ]
+    },
+    {
+      "owner": "event:430:2",
+      "first_compiler_blocker": "unsupported device-state condition IF_STOPPED",
+      "enabled": false,
+      "evidence": [
+        {
+          "code_id": "14",
+          "operation": "IF_STOPPED",
+          "source_xml": "<deviceconditional owneridtype=\"\" owneriditem=\"-1\">\n                <name>IF_STOPPED</name>\n              </deviceconditional>"
+        }
+      ]
+    },
+    {
+      "owner": "event:430:6",
+      "first_compiler_blocker": "unsupported device-state condition IF_MOVING",
+      "enabled": false,
+      "evidence": [
+        {
+          "code_id": "2",
+          "operation": "IF_MOVING",
+          "source_xml": "<deviceconditional owneridtype=\"\" owneriditem=\"-1\">\n                <name>IF_MOVING</name>\n              </deviceconditional>"
+        }
+      ]
+    },
+    {
+      "owner": "event:430:10",
+      "first_compiler_blocker": "unsupported device-state condition IF_STOPPED",
+      "enabled": false,
+      "evidence": [
+        {
+          "code_id": "14",
+          "operation": "IF_STOPPED",
+          "source_xml": "<deviceconditional owneridtype=\"\" owneriditem=\"-1\">\n                <name>IF_STOPPED</name>\n              </deviceconditional>"
+        }
+      ]
+    },
+    {
+      "owner": "event:432:2",
+      "first_compiler_blocker": "unsupported device-state condition IF_STOPPED",
+      "enabled": false,
+      "evidence": [
+        {
+          "code_id": "3",
+          "operation": "IF_STOPPED",
+          "source_xml": "<deviceconditional owneridtype=\"\" owneriditem=\"-1\">\n                <name>IF_STOPPED</name>\n              </deviceconditional>"
+        }
+      ]
+    },
+    {
+      "owner": "event:432:6",
+      "first_compiler_blocker": "unsupported device-state condition IF_MOVING",
+      "enabled": false,
+      "evidence": [
+        {
+          "code_id": "2",
+          "operation": "IF_MOVING",
+          "source_xml": "<deviceconditional owneridtype=\"\" owneriditem=\"-1\">\n                <name>IF_MOVING</name>\n              </deviceconditional>"
+        }
+      ]
+    },
+    {
+      "owner": "event:432:10",
+      "first_compiler_blocker": "unsupported device-state condition IF_STOPPED",
+      "enabled": false,
+      "evidence": [
+        {
+          "code_id": "2",
+          "operation": "IF_STOPPED",
+          "source_xml": "<deviceconditional owneridtype=\"\" owneriditem=\"-1\">\n                <name>IF_STOPPED</name>\n              </deviceconditional>"
+        }
+      ]
+    },
+    {
+      "owner": "event:433:2",
+      "first_compiler_blocker": "unsupported device-state condition IF_STOPPED",
+      "enabled": false,
+      "evidence": [
+        {
+          "code_id": "3",
+          "operation": "IF_STOPPED",
+          "source_xml": "<deviceconditional owneridtype=\"\" owneriditem=\"-1\">\n                <name>IF_STOPPED</name>\n              </deviceconditional>"
+        }
+      ]
+    },
+    {
+      "owner": "event:433:6",
+      "first_compiler_blocker": "unsupported device-state condition IF_MOVING",
+      "enabled": false,
+      "evidence": [
+        {
+          "code_id": "2",
+          "operation": "IF_MOVING",
+          "source_xml": "<deviceconditional owneridtype=\"\" owneriditem=\"-1\">\n                <name>IF_MOVING</name>\n              </deviceconditional>"
+        }
+      ]
+    },
+    {
+      "owner": "event:433:10",
+      "first_compiler_blocker": "unsupported device-state condition IF_STOPPED",
+      "enabled": false,
+      "evidence": [
+        {
+          "code_id": "2",
+          "operation": "IF_STOPPED",
+          "source_xml": "<deviceconditional owneridtype=\"\" owneriditem=\"-1\">\n                <name>IF_STOPPED</name>\n              </deviceconditional>"
+        }
+      ]
+    },
+    {
+      "owner": "event:435:2",
+      "first_compiler_blocker": "unsupported device-state condition IF_STOPPED",
+      "enabled": false,
+      "evidence": [
+        {
+          "code_id": "3",
+          "operation": "IF_STOPPED",
+          "source_xml": "<deviceconditional owneridtype=\"\" owneriditem=\"-1\">\n                <name>IF_STOPPED</name>\n              </deviceconditional>"
+        }
+      ]
+    },
+    {
+      "owner": "event:435:6",
+      "first_compiler_blocker": "unsupported device-state condition IF_MOVING",
+      "enabled": false,
+      "evidence": [
+        {
+          "code_id": "2",
+          "operation": "IF_MOVING",
+          "source_xml": "<deviceconditional owneridtype=\"\" owneriditem=\"-1\">\n                <name>IF_MOVING</name>\n              </deviceconditional>"
+        }
+      ]
+    },
+    {
+      "owner": "event:435:10",
+      "first_compiler_blocker": "unsupported device-state condition IF_STOPPED",
+      "enabled": false,
+      "evidence": [
+        {
+          "code_id": "2",
+          "operation": "IF_STOPPED",
+          "source_xml": "<deviceconditional owneridtype=\"\" owneriditem=\"-1\">\n                <name>IF_STOPPED</name>\n              </deviceconditional>"
+        }
+      ]
+    },
+    {
+      "owner": "event:438:2",
+      "first_compiler_blocker": "unsupported device-state condition IF_STOPPED",
+      "enabled": false,
+      "evidence": [
+        {
+          "code_id": "23",
+          "operation": "IF_STOPPED",
+          "source_xml": "<deviceconditional owneridtype=\"\" owneriditem=\"-1\">\n                <name>IF_STOPPED</name>\n              </deviceconditional>"
+        }
+      ]
+    },
+    {
+      "owner": "event:438:6",
+      "first_compiler_blocker": "unsupported device-state condition IF_MOVING",
+      "enabled": false,
+      "evidence": [
+        {
+          "code_id": "2",
+          "operation": "IF_MOVING",
+          "source_xml": "<deviceconditional owneridtype=\"\" owneriditem=\"-1\">\n                <name>IF_MOVING</name>\n              </deviceconditional>"
+        }
+      ]
+    },
+    {
+      "owner": "event:438:10",
+      "first_compiler_blocker": "unsupported device-state condition IF_STOPPED",
+      "enabled": false,
+      "evidence": [
+        {
+          "code_id": "25",
+          "operation": "IF_STOPPED",
+          "source_xml": "<deviceconditional owneridtype=\"\" owneriditem=\"-1\">\n                <name>IF_STOPPED</name>\n              </deviceconditional>"
+        }
+      ]
+    },
+    {
+      "owner": "event:441:2",
+      "first_compiler_blocker": "unsupported device-state condition IF_STOPPED",
+      "enabled": false,
+      "evidence": [
+        {
+          "code_id": "2",
+          "operation": "IF_STOPPED",
+          "source_xml": "<deviceconditional owneridtype=\"\" owneriditem=\"-1\">\n                <name>IF_STOPPED</name>\n              </deviceconditional>"
+        }
+      ]
+    },
+    {
+      "owner": "event:441:6",
+      "first_compiler_blocker": "unsupported device-state condition IF_MOVING",
+      "enabled": false,
+      "evidence": [
+        {
+          "code_id": "2",
+          "operation": "IF_MOVING",
+          "source_xml": "<deviceconditional owneridtype=\"\" owneriditem=\"-1\">\n                <name>IF_MOVING</name>\n              </deviceconditional>"
+        }
+      ]
+    },
+    {
+      "owner": "event:441:10",
+      "first_compiler_blocker": "unsupported device-state condition IF_STOPPED",
+      "enabled": false,
+      "evidence": [
+        {
+          "code_id": "2",
+          "operation": "IF_STOPPED",
+          "source_xml": "<deviceconditional owneridtype=\"\" owneriditem=\"-1\">\n                <name>IF_STOPPED</name>\n              </deviceconditional>"
+        }
+      ]
+    }
+  ]
+}
