@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Loopback-only management restart regression; no physical gateway access."""
-import tempfile,pathlib,json,subprocess,socket,time,urllib.request,urllib.error,sqlite3,secrets,sys,shutil
+import tempfile,pathlib,json,subprocess,socket,time,urllib.request,urllib.error,sqlite3,secrets,sys,shutil,http.cookiejar
 repo=pathlib.Path(__file__).resolve().parents[1]
 binary=pathlib.Path(sys.argv[1]).resolve() if len(sys.argv)==2 else repo/"target/debug/homesensed"
 root=pathlib.Path(tempfile.mkdtemp(prefix='homesense-web-smoke-'))
@@ -36,6 +36,20 @@ for attempt in range(2):
    assert code==(202 if attempt==0 else 200)
    results.append(result)
    assert get('/api/v1/scenes')[0]==200
+   browser=urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
+   login=urllib.request.Request(origin+'/api/v1/session',data=b'',headers={'Origin':origin,'Authorization':f'Bearer {token}'})
+   with browser.open(login,timeout=2) as response:
+    assert 'HttpOnly' in response.headers['Set-Cookie'];csrf=json.load(response)['csrf']
+   with browser.open(origin+'/api/v1/scenes',timeout=2) as response:assert response.status==200
+   payload=json.dumps({'scene':'demo','request_id':'same'}).encode()
+   forbidden=urllib.request.Request(origin+'/api/v1/scene-actions',data=payload,headers={'Origin':origin,'Content-Type':'application/json'})
+   try:browser.open(forbidden,timeout=2);raise AssertionError('missing CSRF accepted')
+   except urllib.error.HTTPError as e:assert e.code==401
+   forbidden.add_header('X-CSRF-Token',csrf)
+   with browser.open(forbidden,timeout=2) as response:assert response.status==200
+   logout=urllib.request.Request(origin+'/api/v1/session',method='DELETE',headers={'Origin':origin,'X-CSRF-Token':csrf})
+   with browser.open(logout,timeout=2) as response:assert response.status==200
+
    assert p.wait(timeout=12)==0
   finally:
    if p.poll() is None:p.terminate();p.wait()

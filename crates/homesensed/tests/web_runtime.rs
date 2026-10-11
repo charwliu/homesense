@@ -121,6 +121,31 @@ async fn web_scope_origin_receipts_and_runtime_admission() {
                 .body(Bytes::copy_from_slice(body.as_bytes()))
                 .unwrap()
         };
+        let mut login = make(&api.origin, "{}");
+        *login.uri_mut() = "/api/v1/session".parse().unwrap();
+        let login = api.handle(login).await;
+        assert_eq!(login.status(), StatusCode::OK);
+        let cookie = login.headers()["set-cookie"].to_str().unwrap().to_owned();
+        assert!(cookie.contains("HttpOnly") && cookie.contains("SameSite=Strict"));
+        let cookie = cookie.split(';').next().unwrap().to_owned();
+        let session: serde_json::Value =
+            serde_json::from_slice(&login.into_body().collect().await.unwrap().to_bytes()).unwrap();
+        let mut no_csrf = make(&api.origin, r#"{"scene":"light","request_id":"blocked"}"#);
+        no_csrf.headers_mut().remove("authorization");
+        no_csrf
+            .headers_mut()
+            .insert("cookie", cookie.parse().unwrap());
+        assert_eq!(api.handle(no_csrf).await.status(), StatusCode::UNAUTHORIZED);
+        let logout = Request::builder()
+            .method("DELETE")
+            .uri("/api/v1/session")
+            .header("host", "127.0.0.1:8088")
+            .header("origin", &api.origin)
+            .header("cookie", &cookie)
+            .header("x-csrf-token", session["csrf"].as_str().unwrap())
+            .body(Bytes::new())
+            .unwrap();
+        assert_eq!(api.handle(logout).await.status(), StatusCode::OK);
         let body = r#"{"scene":"light","request_id":"one"}"#;
         assert_eq!(
             api.handle(make("http://evil.invalid", body)).await.status(),

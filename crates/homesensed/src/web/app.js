@@ -1,10 +1,10 @@
 'use strict';
-let credential = '';
+let csrf = '';
 const started = new Map();
 const status = document.getElementById('status');
 const list = document.getElementById('scenes');
 async function request(path, options = {}) {
-  const response = await fetch(path, {...options, cache: 'no-store', credentials: 'omit', headers: {...options.headers, Authorization: `Bearer ${credential}`}});
+  const response = await fetch(path, {...options, cache: 'no-store', credentials: 'same-origin', headers: {...options.headers, ...(csrf ? {'X-CSRF-Token': csrf} : {})}});
   const result = await response.json();
   if (!response.ok) throw new Error(result.error || '请求失败');
   return result;
@@ -40,7 +40,14 @@ async function refresh() {
   }
 }
 document.getElementById('connect').onclick = async () => {
-  credential = document.getElementById('token').value; document.getElementById('token').value = '';
-  try { await refresh(); status.textContent = '已连接'; } catch (error) { credential = ''; list.replaceChildren(); status.textContent = error.message; }
+  const credential = document.getElementById('token').value; document.getElementById('token').value = '';
+  try {
+    const response = await fetch('/api/v1/session', {method: 'POST', credentials: 'same-origin', headers: {Authorization: `Bearer ${credential}`}});
+    if (!response.ok) throw new Error('登录失败');
+    csrf = (await response.json()).csrf; await refresh(); status.textContent = '已连接（会话 15 分钟有效）';
+  } catch (error) { csrf = ''; list.replaceChildren(); status.textContent = error.message; }
 };
-document.getElementById('logout').onclick = () => { credential = ''; started.clear(); list.replaceChildren(); status.textContent = '已退出'; };
+document.getElementById('logout').onclick = async () => {
+  try { await request('/api/v1/session', {method: 'DELETE'}); csrf = ''; started.clear(); list.replaceChildren(); status.textContent = '已退出'; }
+  catch (error) { status.textContent = '注销未确认：' + error.message; }
+};
