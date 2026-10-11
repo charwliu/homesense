@@ -24,6 +24,8 @@ pub struct Options {
     pub mailbox_capacity: usize,
     pub command_capacity: usize,
     pub request_ttl: Duration,
+    /// Shared physical write gap, 20 ms..=1 s. Applies to queries and controls.
+    pub write_interval: Duration,
 }
 impl Default for Options {
     fn default() -> Self {
@@ -32,6 +34,7 @@ impl Default for Options {
             mailbox_capacity: 32,
             command_capacity: 128,
             request_ttl: Duration::from_secs(2),
+            write_interval: Duration::from_millis(20),
         }
     }
 }
@@ -226,6 +229,7 @@ enum Message {
 }
 #[derive(Clone)]
 pub struct Admission {
+    pub(crate) write_interval: Duration,
     pub(crate) write_slot: std::sync::Arc<tokio::sync::Mutex<Option<tokio::time::Instant>>>,
     pub(crate) fade_budget: crate::fade_budget::Budget,
     sender: mpsc::SyncSender<Message>,
@@ -250,6 +254,7 @@ impl Admission {
             || !(1..=4096).contains(&options.command_capacity)
             || options.request_ttl.as_millis() == 0
             || options.request_ttl > Duration::from_secs(30)
+            || !(Duration::from_millis(20)..=Duration::from_secs(1)).contains(&options.write_interval)
         {
             return Err("invalid admission bounds".into());
         }
@@ -1119,6 +1124,7 @@ impl Admission {
         Ok(Self {
             fade_budget: Default::default(),
             write_slot: Default::default(),
+            write_interval: options.write_interval,
             sender,
             boot,
             clock,
