@@ -570,3 +570,5 @@ Admission::begin_automation_publication 校验设备、规则、命令编码及�
 延迟规则服务加载闭环：AutomationRuntime 使用完整 deferred 链接校验后生成仅含触发索引的适配器，原动作保留在已发布文档，所有服务执行入口经因果路由读取原规则；旧独立立即适配器不变。发布校验识别启用延迟定义并继续校验其每步编码。66 项运行时、3 项模拟服务测试及 homesensed 库严格 Clippy 通过；新增 CLI 两次启动验证“启动规则→100ms 延迟输出→结果规则”的原相关／父事件继承、各启动一个成功终态、变量落库及不触碰现场数据库。仍不支持反馈缓存变量直接用于规则求值，输出反馈因果关联、完整阶段验收及真实服务部署仍待完成；EA-5 不变。
 
 统一因果服务完整回归：在 52df2fe 及既有未提交代码改动上执行 cargo test --workspace --locked --offline，76 个测试块共 368 项通过、0 失败、0 忽略。证据 causal-service-regression.json 保存源差异及日志 SHA256，schema 13；仅使用隔离数据库、模拟器及本机回环。此次同时更新 README 和阶段 D 顶部当前状态，纠正旧的“循环尚未接通”描述。阶段 D/E 均未完成；全 workspace 严格 Clippy 仍有既有 HAP 警告，现场与 EA-5 未改动。
+
+规则失败分类基础：延迟适配器新增 execute_classified，返回 Planning(core 链／求值错误) 或 Runtime，而原字符串 API 保持兼容。Planning 仅证明当前调用在准入前拒绝，不代表此前同链动作可回滚；容量、准入和安装失败仍保守归为 Runtime。66 项运行时回归及 homesensed 库严格 Clippy 通过，验证预算拒绝与容量故障分类、变量均未提交。当前 Session 仍按原策略关闭准入，链级故障隔离尚待实现，不能将此分类视作隔离验收。未部署，EA-5 不变。
