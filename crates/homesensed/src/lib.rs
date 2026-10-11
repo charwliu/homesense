@@ -68,3 +68,5 @@ pub mod deferred_rule;
 pub mod deferred_session;
 
 pub mod deferred_router;
+
+pub mod automation_tcp;
