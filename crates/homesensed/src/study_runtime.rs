@@ -160,3 +160,71 @@ impl StudyRuntime {
             .map_err(|e| format!("mode: {e:?}"))
     }
 }
+
+/// Feedback-derived scene state, independent of local selection or write success.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SceneActivity {
+    Active,
+    Inactive,
+    Pending,
+    Unknown,
+}
+impl StudyRuntime {
+    /// Use a single feedback snapshot. Stale/missing feedback never proves a
+    /// scene active, and an outstanding command keeps it pending even if the
+    /// previous observation happened to equal the target.
+    pub fn activity(
+        &self,
+        scene_id: &str,
+        snapshot: &homesense_state::Snapshot,
+        now_ms: u64,
+        max_age_ms: u64,
+    ) -> Result<SceneActivity, String> {
+        let targets = homesense_import::study::targets(&self.document, scene_id, true)?;
+        let mut mismatch = false;
+        let mut pending = false;
+        let mut unknown = max_age_ms == 0;
+        for target in targets {
+            let id = DeviceId::new(target.device).map_err(|e| e.to_string())?;
+            let Some(state) = snapshot.devices.get(&id) else {
+                unknown = true;
+                continue;
+            };
+            pending |= state.pending_command.is_some();
+            if state.quality != homesense_state::Quality::Confirmed
+                || !state
+                    .observed_at_ms
+                    .is_some_and(|at| at <= now_ms && now_ms - at < max_age_ms)
+            {
+                unknown = true;
+                continue;
+            }
+            let matches = match state.observed {
+                Some(homesense_core::Observation::Switch(value))
+                    if ["control4:210", "control4:278"].contains(&id.as_str()) =>
+                {
+                    value == (target.level != 0)
+                }
+                Some(homesense_core::Observation::Level(value))
+                    if ["control4:308", "control4:336"].contains(&id.as_str()) =>
+                {
+                    value.get() == target.level
+                }
+                _ => {
+                    unknown = true;
+                    continue;
+                }
+            };
+            mismatch |= !matches;
+        }
+        Ok(if unknown {
+            SceneActivity::Unknown
+        } else if pending {
+            SceneActivity::Pending
+        } else if mismatch {
+            SceneActivity::Inactive
+        } else {
+            SceneActivity::Active
+        })
+    }
+}

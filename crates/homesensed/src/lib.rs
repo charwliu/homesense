@@ -40,3 +40,21 @@ pub mod motor_commission;
 pub mod study_runtime;
 
 pub mod study_commission;
+
+pub mod scene_runtime;
+
+pub mod rule_runtime;
+
+pub mod panel_rules;
+
+pub mod hold_dimming;
+
+pub mod scene_scheduler;
+
+pub mod automation_drive;
+
+pub mod event_rules;
+
+pub mod configured_rules;
+
+pub mod scene_activity;

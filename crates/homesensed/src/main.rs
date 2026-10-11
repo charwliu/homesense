@@ -148,8 +148,14 @@ fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
     match args.first().map(String::as_str) {
         Some("publish-config") if args.len() == 4 => {
             let document = std::fs::read(&args[1])?;
-            let revision = homesensed::configuration_publish::publish(&document, std::path::Path::new(&args[2]), args[3].parse()?)?;
-            println!("Published configuration revision={revision}; no hardware connection; HAP identity unchanged");
+            let revision = homesensed::configuration_publish::publish(
+                &document,
+                std::path::Path::new(&args[2]),
+                args[3].parse()?,
+            )?;
+            println!(
+                "Published configuration revision={revision}; no hardware connection; HAP identity unchanged"
+            );
         }
 
         Some("query-status")
@@ -196,19 +202,44 @@ fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
             }
         }
         Some("motor-test") if args.len() == 6 && args[5] == "--coexistence-confirmed" => {
-            let action = match args[4].as_str() { "open" => homesense_core::MotorAction::Open, "close" => homesense_core::MotorAction::Close, _ => return Err("expected open or close".into()) };
+            let action = match args[4].as_str() {
+                "open" => homesense_core::MotorAction::Open,
+                "close" => homesense_core::MotorAction::Close,
+                _ => return Err("expected open or close".into()),
+            };
             let device = DeviceId::new(args[3].clone())?;
             let mut bytes = Vec::new();
-            std::fs::File::open(&args[1])?.take(4 * 1024 * 1024 + 1).read_to_end(&mut bytes)?;
-            let report = tokio::runtime::Runtime::new()?.block_on(homesensed::motor_commission::run(&bytes, std::path::Path::new(&args[2]), &device, action, true))?;
+            std::fs::File::open(&args[1])?
+                .take(4 * 1024 * 1024 + 1)
+                .read_to_end(&mut bytes)?;
+            let report =
+                tokio::runtime::Runtime::new()?.block_on(homesensed::motor_commission::run(
+                    &bytes,
+                    std::path::Path::new(&args[2]),
+                    &device,
+                    action,
+                    true,
+                ))?;
             println!("{report}");
         }
         Some("panel-led") if args.len() == 6 && args[5] == "--coexistence-confirmed" => {
-            let red = match args[4].as_str() { "red" => true, "green" => false, _ => return Err("LED color must be red or green".into()) };
+            let red = match args[4].as_str() {
+                "red" => true,
+                "green" => false,
+                _ => return Err("LED color must be red or green".into()),
+            };
             let device = DeviceId::new(args[3].clone())?;
             let mut bytes = Vec::new();
-            std::fs::File::open(&args[1])?.take(4 * 1024 * 1024 + 1).read_to_end(&mut bytes)?;
-            let report = tokio::runtime::Runtime::new()?.block_on(homesensed::panel_led::set(&bytes, std::path::Path::new(&args[2]), &device, red, true))?;
+            std::fs::File::open(&args[1])?
+                .take(4 * 1024 * 1024 + 1)
+                .read_to_end(&mut bytes)?;
+            let report = tokio::runtime::Runtime::new()?.block_on(homesensed::panel_led::set(
+                &bytes,
+                std::path::Path::new(&args[2]),
+                &device,
+                red,
+                true,
+            ))?;
             println!("{report}");
         }
         Some("query-parameter")
@@ -281,12 +312,18 @@ fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
         }
         Some("serve-live") if args.len() == 6 && args[5] == "--coexistence-confirmed" => {
             let mut bytes = Vec::new();
-            std::fs::File::open(&args[1])?.take(4 * 1024 * 1024 + 1).read_to_end(&mut bytes)?;
+            std::fs::File::open(&args[1])?
+                .take(4 * 1024 * 1024 + 1)
+                .read_to_end(&mut bytes)?;
             let address: std::net::SocketAddr = args[3].parse()?;
             let seconds: u64 = args[4].parse()?;
             tokio::runtime::Runtime::new()?.block_on(homesensed::live_service::serve_live(
-                &bytes, std::path::Path::new(&args[2]), address,
-                std::time::Duration::from_secs(seconds), true))?;
+                &bytes,
+                std::path::Path::new(&args[2]),
+                address,
+                std::time::Duration::from_secs(seconds),
+                true,
+            ))?;
         }
         Some("serve-simulation-lan") if args.len() == 5 => {
             let mut bytes = Vec::new();
@@ -326,6 +363,101 @@ fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
                     .unwrap_or(30),
             )?;
             simulate_light(level)?;
+        }
+        Some("check-automation")
+            if args.len() == 3 || (args.len() == 4 && args[3] == "--simulation") =>
+        {
+            let context = if args.len() == 4 {
+                ExecutionContext::Simulation
+            } else {
+                ExecutionContext::Live
+            };
+            let read = |path: &str| -> Result<Vec<u8>, Box<dyn Error>> {
+                let mut bytes = vec![];
+                std::fs::File::open(path)?
+                    .take(4 * 1024 * 1024 + 1)
+                    .read_to_end(&mut bytes)?;
+                Ok(bytes)
+            };
+            let config = Configuration::parse(&read(&args[1])?, context)?;
+            let document =
+                homesense_config::rule_document::Document::parse(&read(&args[2])?, &config)?;
+            let linked = document.linked_rules(
+                &document.immediate_scenes,
+                &document.schedules.iter().map(|s| s.id.clone()).collect(),
+            )?;
+            fn commands(
+                nodes: &[homesense_core::rule::Node],
+                config: &Configuration,
+                context: ExecutionContext,
+            ) -> Result<(), Box<dyn Error>> {
+                for node in nodes {
+                    match &node.action {
+                        homesense_core::rule::Action::Command { device, command } => {
+                            let (mapping, module) = config
+                                .binding(device)
+                                .ok_or("enabled rule references disabled output")?;
+                            hb_protocol::encode_in_context(
+                                module,
+                                mapping.channel,
+                                *command,
+                                context,
+                            )?;
+                        }
+                        homesense_core::rule::Action::If {
+                            then_actions,
+                            else_actions,
+                            ..
+                        } => {
+                            commands(then_actions, config, context)?;
+                            commands(else_actions, config, context)?;
+                        }
+                        _ => {}
+                    }
+                }
+                Ok(())
+            }
+            for rule in &linked {
+                if let homesense_config::rule_document::Trigger::Panel { device, event } =
+                    &rule.trigger
+                {
+                    let id = DeviceId::new(device)?;
+                    if config.binding(&id).is_none() {
+                        return Err("enabled panel rule references disabled key".into());
+                    }
+                    let settings = document
+                        .gestures
+                        .get(&id)
+                        .ok_or("enabled panel rule missing gesture settings")?;
+                    if matches!(
+                        event,
+                        homesense_config::rule_document::PanelEvent::DoubleClick
+                    ) && !settings.double_click_enabled
+                    {
+                        return Err("double-click requires deferred single-click mode".into());
+                    }
+                }
+                commands(&rule.actions, &config, context)?;
+            }
+            for scene in document.timed_scenes.values().filter(|s| s.enabled) {
+                for step in &scene.steps {
+                    let (mapping, module) = config
+                        .binding(&step.device)
+                        .ok_or("enabled timed scene references disabled output")?;
+                    hb_protocol::encode_in_context(module, mapping.channel, step.command, context)?;
+                }
+            }
+            println!(
+                "Automation structure and enabled command encoding valid: revision={}, rules={}, enabled={}, variables={}, immediate_scenes={}, schedules={}, gesture_keys={}, context={:?}; no state created or connection opened",
+                document.revision,
+                document.rules.len(),
+                linked.len(),
+                document.variables.len(),
+                document.immediate_scenes.len(),
+                document.schedules.len(),
+                document.gestures.len(),
+                context
+            );
         }
         Some("check-config")
             if args.len() == 2 || (args.len() == 3 && args[2] == "--simulation") =>
@@ -372,7 +504,7 @@ fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
             }
         }
         Some("--help" | "-h") | None => println!(
-            "HomeSense offline tooling\nUsage: homesensed publish-config FILE STATE_DIR EXPECTED_REVISION\n       homesensed serve-live FILE STATE_DIR PRIVATE_IP:PORT SECONDS --coexistence-confirmed\n       homesensed demo [0..100]\n       homesensed check-config FILE [--simulation]\n       homesensed decode 'AE 15 D1 1E EE'\n       homesensed serve-simulation-lan FILE STATE_DIR PRIVATE_IP:PORT SECONDS\n       homesensed serve-simulation FILE STATE_DIR PORT SECONDS\n       homesensed motor-test FILE STATE_DIR DEVICE open|close --coexistence-confirmed (STOP after 3 seconds)\n       homesensed panel-led FILE STATE_DIR DEVICE red|green --coexistence-confirmed\n       homesensed query-parameter FILE GATEWAY HEX_ADDRESS backlight|led-self-reset|motor-interlock --model-confirmed --coexistence-confirmed\n       homesensed observe FILE GATEWAY SECONDS --coexistence-confirmed\n       homesensed query-status FILE GATEWAY HEX_ADDRESS CHANNEL --model-confirmed --coexistence-confirmed\nserve-simulation binds loopback; serve-simulation-lan advertises mDNS on the LAN. Both use only simulated hardware."
+            "HomeSense offline tooling\nUsage: homesensed publish-config FILE STATE_DIR EXPECTED_REVISION\n       homesensed serve-live FILE STATE_DIR PRIVATE_IP:PORT SECONDS --coexistence-confirmed\n       homesensed demo [0..100]\n       homesensed check-config FILE [--simulation]\n       homesensed check-automation DEVICE_FILE AUTOMATION_FILE [--simulation]\n       homesensed decode 'AE 15 D1 1E EE'\n       homesensed serve-simulation-lan FILE STATE_DIR PRIVATE_IP:PORT SECONDS\n       homesensed serve-simulation FILE STATE_DIR PORT SECONDS\n       homesensed motor-test FILE STATE_DIR DEVICE open|close --coexistence-confirmed (STOP after 3 seconds)\n       homesensed panel-led FILE STATE_DIR DEVICE red|green --coexistence-confirmed\n       homesensed query-parameter FILE GATEWAY HEX_ADDRESS backlight|led-self-reset|motor-interlock --model-confirmed --coexistence-confirmed\n       homesensed observe FILE GATEWAY SECONDS --coexistence-confirmed\n       homesensed query-status FILE GATEWAY HEX_ADDRESS CHANNEL --model-confirmed --coexistence-confirmed\nserve-simulation binds loopback; serve-simulation-lan advertises mDNS on the LAN. Both use only simulated hardware."
         ),
         _ => return Err("unknown command; use --help".into()),
     }
