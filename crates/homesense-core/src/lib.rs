@@ -10,6 +10,7 @@ pub mod fade;
 pub mod queue;
 pub mod rule;
 pub mod rule_chain;
+pub mod feedback_cause;
 pub mod scene;
 pub mod scene_expand;
 use std::fmt;
