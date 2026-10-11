@@ -154,3 +154,6 @@ TCP 自动化服务入口：新增 `homesensed::automation_tcp::serve` 库 API�
 
 
 TCP 自动化 CLI 已接入：`homesensed serve-automation-tcp DEVICE_FILE AUTOMATION_FILE STATE_DIR SECONDS --coexistence-confirmed`。此命令会执行审核后启用的规则，使用独立 `automation-tcp.sqlite`，不发布 HAP；SECONDS 为同步完成后的运行时长（1–86400 秒），文件读取上限 4 MiB。仅在准备执行这些规则且已确认 TCP 并发共存时使用，当前尚未在现场启动。4 项专项测试通过，其中回环测试经真正的 CLI 子进程两次启动验证同步门禁、启动动作及独立状态；参数拒绝不创建状态，缺失反馈不执行规则。homesensed 二进制严格 Clippy 通过，vendor/hap 既存警告仍在。自动重连、在线发布与 HAP 合并仍待接入。
+
+
+TCP 断链前置回归：回环网关同步后收到启动规则第一条控制帧即关闭连接；服务返回错误，延迟 1 秒的后续场景动作未入队，持久命令无 accepted/writing、场景无 pending/running 残留。5 项 TCP 服务／CLI 测试全部通过。此证据仅证明当前终止清理路径；自动重连必须另外处理终止后的准入生命周期与启动规则防重复，尚未实现，未连接现场。
