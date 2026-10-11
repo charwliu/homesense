@@ -190,3 +190,6 @@ TCP 自动化面板同步策略：新增显式 `query_automation_recovery`，查
 
 
 TCP 长按恢复端到端回归：回环网关发送 TS6 按下帧，经手势计时与 HoldDimming 输出 30%→35%；断链重连并重新查询后，等待期间无旧按键输出。新按下帧再次从同步的 30% 输出 35%，松开后无继续调光；持久命令总计两条。10 项 TCP 测试通过。此验证覆盖 cancel_pending_only 的 TCP 面板事件流与恢复，现场硬件动作、PauseRamp 策略以及字节级写故障仍不能据此宣称验收。
+
+
+集成复验：db91883 工作树（含既有未提交代码）完整 workspace 测试 384 项通过、0 失败、0 忽略，共 77 个结果块。源码差异和日志指纹见 `docs/evidence/stage-d-study/causal-service-regression.json`。包含本机 TCP／HTTP 回环，不包含现场部署或阶段整体完成证明。
