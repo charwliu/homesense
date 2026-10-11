@@ -169,6 +169,16 @@ pub(crate) async fn drive_controlled<S: Read + Write + Send + 'static>(
                     log::warn!("scene run={} failed: {error}", run.run);
                 }
             }
+            if let Some(calendar) = &mut guard.calendar {
+                for result in guard.scenes.take_results() {
+                    let report = calendar
+                        .scene_result(result, Some((guard.owner.feedback(), max_age_ms)))
+                        .await;
+                    if let Some(error) = report.failure {
+                        log::warn!("scene result rule failed: {error}");
+                    }
+                }
+            }
             if let Some(outcome) = guard.owner.step().await? {
                 outcome
                     .result

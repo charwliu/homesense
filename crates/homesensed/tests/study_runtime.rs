@@ -3768,6 +3768,14 @@ async fn file_timed_scene_preserves_offsets_and_cancels_future_output() {
         homesense_storage::scene_run::Status::Partial
     );
     assert_eq!(page.commands.len(), 1);
+    scheduler.retire(run).unwrap();
+    let results=scheduler.take_results();
+    assert_eq!(results.len(),1);
+    assert_eq!(results[0].run,run);
+    assert_eq!(results[0].definition,"delayed");
+    assert_eq!(results[0].status,homesense_core::scene::Status::Partial);
+    assert!(!results[0].audit_id.is_empty());
+    assert!(scheduler.take_results().is_empty());
     a.shutdown().await.unwrap();
 }
 

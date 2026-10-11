@@ -746,7 +746,10 @@ impl Document {
         let mut linked = vec![];
         for rule in self.rules.iter().filter(|r| r.enabled) {
             match &rule.trigger {
-                Trigger::SceneResult { scene } if !scenes.contains_key(scene) => {
+                Trigger::SceneResult { scene }
+                    if !scenes.contains_key(scene)
+                        && !self.timed_scenes.get(scene).is_some_and(|s| s.enabled) =>
+                {
                     return Err(invalid(format!(
                         "{}: unknown scene trigger {scene}",
                         rule.id

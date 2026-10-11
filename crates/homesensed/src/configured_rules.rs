@@ -177,7 +177,7 @@ impl ConfiguredRules {
                 schedules: vec![],
                 gestures: Default::default(),
                 holds: None,
-                timed_scenes: Default::default(),
+                timed_scenes: document.timed_scenes.clone(),
             },
             scenes,
             schedules,
