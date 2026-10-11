@@ -4479,11 +4479,23 @@ async fn deferred_admission_validates_definition_and_rolls_back_on_storage_fault
             assert_eq!(store.logical_variable(1,"mode").unwrap().unwrap().value,None);
             assert!(a.task_generation().await.is_err());
         } else {
-            assert!(result.unwrap().is_empty());
+            let accepted=result.unwrap();
+            assert!(accepted.command_ids.is_empty());
+            assert_eq!(accepted.scenes.len(),1);
+            let mut installed=homesensed::scene_runtime::SceneRuntime::from_accepted(a.clone(),accepted.scenes.into_iter().next().unwrap()).await.unwrap();
+            assert_eq!(installed.audit_id(),"run");
+            let started=store.scene_run(a.boot_id(),"run").unwrap().unwrap().started_ms;
+            assert!(installed.poll(started).await.unwrap().is_none());
             assert_eq!(store.scene_run(a.boot_id(),"run").unwrap().unwrap().status,homesense_storage::scene_run::Status::Pending);
             assert_eq!(store.scene_cause(a.boot_id(),"run").unwrap().unwrap().event,1);
             assert_eq!(store.logical_variable(1,"mode").unwrap().unwrap().value,Some(homesense_core::rule::Value::Integer(1)));
             assert!(a.dispatch().await.unwrap().is_none());
+            assert_eq!(installed.poll(started+100).await.unwrap().unwrap().len(),1);
+            let queued=a.dispatch().await.unwrap().unwrap();
+            assert_eq!(queued.command.origin,Origin::Rule);
+            assert_eq!(sql.query_row("SELECT count(*) FROM scene_run",[],|r|r.get::<_,i64>(0)).unwrap(),1);
+            assert_eq!(sql.query_row("SELECT source FROM scene_step",[],|r|r.get::<_,String>(0)).unwrap(),"fixture:call -> fixture");
+            a.finish_write(queued.command.id,true).await.unwrap();
         }
         a.shutdown().await.unwrap();
     }
