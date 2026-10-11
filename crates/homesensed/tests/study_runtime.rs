@@ -5064,3 +5064,45 @@ async fn software_fade_requires_feedback_bounds_queue_and_cancels_pending_sample
     assert_eq!(sql.query_row("SELECT status FROM command_journal",[],|r|r.get::<_,String>(0)).unwrap(),"cancelled");
     drop(fade);a.shutdown().await.unwrap();
 }
+
+#[tokio::test]
+async fn software_fade_writes_bounded_monotonic_targets_and_finishes_after_transport() {
+    use homesensed::{software_fade::SoftwareFade,feedback::Feedback,transport_owner::{GatewayRead,TransportOwner}};
+    let db=Db(std::env::temp_dir().join(format!("fade-wire-{}.sqlite",Uuid::new_v4())));
+    let devices=include_bytes!("../../../config/simulation.json");
+    Store::open(&db.0).unwrap().publish_configuration(None,devices,ExecutionContext::Simulation,&[]).unwrap();
+    let controller=Uuid::new_v4();let a=actor(&db,controller).await;
+    let config=homesense_config::Configuration::parse(devices,ExecutionContext::Simulation).unwrap();
+    let mut feedback=Feedback::new(&config,ExecutionContext::Simulation,Uuid::parse_str(a.boot_id()).unwrap().as_u128(),1).unwrap();
+    feedback.apply(&GatewayRead{gateway_id:"simulation".into(),transport_epoch:1,received_at_ms:0,result:hb_transport::Receive::Frames{transport_epoch:1,frames:vec![hb_protocol::RawFrame{address:0x15,command:0xd1,value:100}]}}).unwrap();
+    let wire=std::sync::Arc::new(std::sync::Mutex::new(Vec::<u8>::new()));
+    struct Wire(std::sync::Arc<std::sync::Mutex<Vec<u8>>>);
+    impl std::io::Read for Wire {fn read(&mut self,_:&mut [u8])->std::io::Result<usize>{Err(std::io::ErrorKind::WouldBlock.into())}}
+    impl std::io::Write for Wire {
+        fn write(&mut self,bytes:&[u8])->std::io::Result<usize>{self.0.lock().unwrap().extend_from_slice(bytes);Ok(bytes.len())}
+        fn flush(&mut self)->std::io::Result<()>{Ok(())}
+    }
+    let mut owner=TransportOwner::new(a.clone(),[("simulation".into(),hb_transport::Connection::for_simulation(Wire(wire.clone()),1))].into());
+    let device=homesense_core::DeviceId::new("simulation:light").unwrap();
+    let mut fade=SoftwareFade::start(a.clone(),controller,device.clone(),homesense_core::Percent::new(0).unwrap(),200,50,200,4,&feedback,2000).await.unwrap();
+    tokio::time::timeout(std::time::Duration::from_secs(2),async {
+        loop {
+            if fade.tick().await.unwrap(){break;}
+            if let Some(outcome)=owner.step().await.unwrap(){outcome.result.unwrap();}
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+    }).await.unwrap();
+    let bytes=wire.lock().unwrap().clone();
+    assert_eq!(bytes.len()%5,0);
+    let frames=bytes.chunks_exact(5).collect::<Vec<_>>();
+    assert!(!frames.is_empty() && frames.len()<=4);
+    assert!(frames.iter().all(|f|f[0]==0xae && f[1]==0x15 && f[2]==1 && f[4]==0xee));
+    assert_eq!(frames.last().unwrap()[3],0);
+    assert!(frames.windows(2).all(|w|w[0][3]>w[1][3]));
+    let sql=rusqlite::Connection::open(&db.0).unwrap();
+    assert_eq!(sql.query_row("SELECT count(*) FROM command_journal WHERE status='written'",[],|r|r.get::<_,i64>(0)).unwrap(),frames.len() as i64);
+    assert_eq!(feedback.snapshot().devices[&device].observed,Some(homesense_core::Observation::Level(homesense_core::Percent::new(100).unwrap())));
+    drop(fade);
+    assert!(a.task_generation().await.is_ok(),"completed fade must not stop admission");
+    a.shutdown().await.unwrap();
+}
