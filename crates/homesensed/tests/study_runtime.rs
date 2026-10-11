@@ -4268,6 +4268,8 @@ async fn running_automation_control_cancels_before_output_and_closes_on_exit() {
     let (stop,receive)=tokio::sync::watch::channel(false);
     let client=async {
         assert_eq!(control.request(Action::LastRun("light".into())).await.unwrap(),Reply::LastRun(None));
+        assert_eq!(control.request(Action::SceneActivity("light".into())).await.unwrap(),Reply::Activity(Some(homesensed::scene_activity::SceneActivity::Unknown)));
+        assert!(control.request(Action::SceneActivity("unknown".into())).await.is_err());
         assert!(control.request(Action::LastRun("unknown".into())).await.is_err());
         let Reply::Started(run)=control.request(Action::Start("light".into())).await.unwrap() else {panic!("start response")};
         assert_eq!(control.request(Action::Activity(run)).await.unwrap(),Reply::Activity(Some(homesensed::scene_activity::SceneActivity::Unknown)));
@@ -4283,6 +4285,7 @@ async fn running_automation_control_cancels_before_output_and_closes_on_exit() {
         assert_eq!(control.request(Action::Status(run)).await.unwrap(),Reply::Status(Some(homesense_core::scene::Status::Cancelled)));
         assert_eq!(control.request(Action::Retire(run)).await.unwrap(),Reply::Retired(homesense_core::scene::Status::Cancelled));
         assert_eq!(control.request(Action::Activity(run)).await.unwrap(),Reply::Activity(None));
+        assert_eq!(control.request(Action::SceneActivity("light".into())).await.unwrap(),Reply::Activity(Some(homesensed::scene_activity::SceneActivity::Active)));
         let Reply::LastRun(Some(last))=control.request(Action::LastRun("light".into())).await.unwrap() else {panic!("missing durable receipt")};
         assert_eq!(last.status,homesense_storage::scene_run::Status::Cancelled);
         assert_eq!(last.revision,1);

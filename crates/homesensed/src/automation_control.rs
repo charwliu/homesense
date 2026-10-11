@@ -17,6 +17,7 @@ pub enum Action {
     Retire(u64),
     LastRun(String),
     Activity(u64),
+    SceneActivity(String),
 }
 #[derive(Debug, PartialEq, Eq)]
 pub enum Reply {
@@ -52,7 +53,7 @@ impl Control {
     /// Bounded admission, no retry. A lost response after execution is ambiguous;
     /// callers must inspect history rather than resubmit an action automatically.
     pub async fn request(&self, action: Action) -> Result<Reply, String> {
-        if matches!(&action, Action::Start(id) | Action::LastRun(id) if id.is_empty() || id.len()>256 || id.chars().any(char::is_control)) {
+        if matches!(&action, Action::Start(id) | Action::LastRun(id) | Action::SceneActivity(id) if id.is_empty() || id.len()>256 || id.chars().any(char::is_control)) {
             return Err("invalid scene name".into());
         }
         let (reply, receive) = oneshot::channel();
@@ -124,6 +125,11 @@ impl Receiver {
                     Action::Cancel(run) => scenes.cancel(run).await.map(Reply::Cancelled),
                     Action::Status(run) => Ok(Reply::Status(scenes.status(run))),
                     Action::Activity(run) => scenes.activity(run,feedback,max_age_ms).await.map(Reply::Activity),
+                    Action::SceneActivity(id) => {
+                        let scene=document.timed_scenes.get(&id).ok_or("unknown timed scene")?;
+                        if !scene.enabled || scene.review_evidence.as_ref().is_none_or(|s|s.trim().is_empty()) {return Err("timed scene disabled or unreviewed".into());}
+                        crate::scene_activity::Targets::new(&scene.steps).project(admission,self.controller,&self.generation,feedback,max_age_ms).await.map(|a|Reply::Activity(Some(a)))
+                    },
                     Action::Retire(run) => scenes.retire(run).map(Reply::Retired),
                     Action::LastRun(id) => {
                         if !document.timed_scenes.contains_key(&id) { return Err("unknown timed scene".into()); }
