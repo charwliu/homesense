@@ -397,3 +397,40 @@ fn reconnect_cancels_degraded_stop_instead_of_replaying_on_new_socket() {
     a.storage_recovered(4).unwrap();
     assert!(a.dispatch(1, access).unwrap().command.is_none());
 }
+
+#[test]
+fn publication_recovery_requires_committed_revision_and_fresh_epoch() {
+    let mut a = fixture();
+    let stale = request(&a, 99, false);
+    assert_eq!(a.publication_recovered(2, 4), Err(ArbiterError::NotSynchronized));
+    enqueue(&mut a, 1, false);
+    a.begin_publication(1, 50).unwrap();
+    a.storage_failed().unwrap();
+    assert_eq!(a.publication_recovered(2, 5), Err(ArbiterError::NotSynchronized));
+
+    // A failed pre-commit publication cannot be promoted by recovery.
+    let mut a = fixture();
+    enqueue(&mut a, 1, false);
+    a.begin_publication(1, 50).unwrap();
+    a.begin_commit(2).unwrap();
+    a.record_commit(CommitResult::Committed(5)).unwrap();
+    assert_eq!(a.publication_recovered(2, 5), Err(ArbiterError::NotSynchronized));
+    a.storage_failed().unwrap();
+    let before = a.policy();
+    for (epoch, revision) in [(1, 5), (0, 5), (2, 4), (2, 6)] {
+        assert_eq!(a.publication_recovered(epoch, revision), Err(ArbiterError::NotSynchronized));
+        assert_eq!(a.policy().epochs, before.epochs);
+        assert!(!a.policy().storage_healthy && !a.policy().gateway_ready && a.policy().publishing);
+    }
+    a.publication_recovered(2, 5).unwrap();
+    let policy = a.policy();
+    assert_eq!(policy.epochs.transport, 2);
+    assert_eq!(policy.epochs.configuration, 5);
+    assert!(policy.epochs.control > before.epochs.control);
+    assert!(policy.storage_healthy && policy.gateway_ready && !policy.publishing);
+    assert!(a.submit(stale.clone(), access(&stale), 3).is_err());
+    assert!(a.dispatch(3, access).unwrap().command.is_none());
+    assert_eq!(a.publication_recovered(3, 5), Err(ArbiterError::NotSynchronized));
+    enqueue(&mut a, 2, false);
+    assert_eq!(a.dispatch(4, access).unwrap().command.unwrap().id, 2);
+}
