@@ -507,11 +507,7 @@ impl ScheduledRules {
             watermark,
         })
     }
-    pub async fn poll(
-        &mut self,
-        wall_unix_ms: i64,
-        feedback: Option<(&Feedback, u64)>,
-    ) -> Result<Vec<Report>, String> {
+    async fn occurrences(&mut self, wall_unix_ms:i64)->Result<Vec<String>,String> {
         let poll = self
             .calendar
             .poll(wall_unix_ms, self.rules.admission.monotonic_ms())
@@ -535,16 +531,36 @@ impl ScheduledRules {
                 return Err(format!("calendar checkpoint: {error:?}"));
             }
         }
-        let mut reports = vec![];
-        for occurrence in poll.occurrences {
-            reports.push(
-                self.rules
-                    .dispatch(Trigger::Schedule(occurrence.schedule), feedback)
-                    .await,
-            );
+        Ok(poll.occurrences.into_iter().map(|o|o.schedule).collect())
+    }
+    pub async fn poll_causal(
+        &mut self, wall_unix_ms:i64, feedback:Option<(&Feedback,u64)>,
+        router:&mut crate::deferred_router::Router,
+        scheduler:&mut crate::scene_scheduler::SceneScheduler,
+    )->Result<Vec<crate::deferred_rule::Outcome>,String> {
+        if !router.matches_owner(&self.rules.admission,self.rules.controller) {
+            return Err("foreign calendar causal owner".into());
+        }
+        let mut reports=Vec::new();
+        for schedule in self.occurrences(wall_unix_ms).await? {
+            let ids:Vec<_>=self.rules.bindings.iter().filter(|b|b.trigger==Trigger::Schedule(schedule.clone())).map(|b|b.id.clone()).collect();
+            if !ids.is_empty() {
+                let (_,mut outcomes)=router.start_rules(&ids,scheduler,feedback,self.rules.budget,5000).await?;
+                reports.append(&mut outcomes);
+            }
         }
         Ok(reports)
     }
+    pub async fn poll(
+        &mut self, wall_unix_ms:i64, feedback:Option<(&Feedback,u64)>,
+    )->Result<Vec<Report>,String> {
+        let mut reports=vec![];
+        for schedule in self.occurrences(wall_unix_ms).await? {
+            reports.push(self.rules.dispatch(Trigger::Schedule(schedule),feedback).await);
+        }
+        Ok(reports)
+    }
+
 }
 
 fn cache_value(
