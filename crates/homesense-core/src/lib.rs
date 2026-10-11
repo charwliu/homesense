@@ -6,6 +6,7 @@ pub mod calendar;
 pub mod execution;
 pub mod deferred_plan;
 pub mod gesture;
+pub mod fade;
 pub mod queue;
 pub mod rule;
 pub mod rule_chain;
