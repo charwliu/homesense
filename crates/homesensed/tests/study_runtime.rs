@@ -5687,3 +5687,43 @@ async fn scheduler_drives_owned_fade_and_following_step_with_cancellation() {
         a.shutdown().await.unwrap();
     }
 }
+
+#[tokio::test]
+async fn scheduler_reserves_fade_capacity_across_scenes_and_releases_on_cancel() {
+    use homesensed::{scene_scheduler::SceneScheduler,software_fade::SoftwareFade,feedback::Feedback,transport_owner::{GatewayRead}};
+    let db=Db(std::env::temp_dir().join(format!("fade-partial-{}.sqlite",Uuid::new_v4())));
+    let devices=br#"{"schema_version":1,"revision":1,"manual_degraded_enabled":false,
+      "gateways":[{"id":"simulation","endpoint":"127.0.0.1:50007","modules":[{"address":"15","profile":"gt_d8_rl_v2_2_6_2","verification":{"status":"simulated"}}]}],
+      "devices":[
+        {"id":"simulation:light","name":"First","gateway":"simulation","address":"15","channel":1,"enabled":true},
+        {"id":"simulation:second","name":"Second","gateway":"simulation","address":"15","channel":2,"enabled":true}
+      ]}"#;
+    Store::open(&db.0).unwrap().publish_configuration(None,devices,ExecutionContext::Simulation,&[]).unwrap();
+    let controller=Uuid::new_v4();let a=actor(&db,controller).await;
+    let config=homesense_config::Configuration::parse(devices,ExecutionContext::Simulation).unwrap();
+    let mut feedback=Feedback::new(&config,ExecutionContext::Simulation,Uuid::parse_str(a.boot_id()).unwrap().as_u128(),1).unwrap();
+    feedback.apply(&GatewayRead{gateway_id:"simulation".into(),transport_epoch:1,received_at_ms:0,result:hb_transport::Receive::Frames{transport_epoch:1,frames:vec![hb_protocol::RawFrame{address:0x15,command:0xd1,value:100},hb_protocol::RawFrame{address:0x15,command:0xd2,value:100}]}}).unwrap();
+    let mut scheduler=SceneScheduler::new(a.clone(),controller,4,0).unwrap();
+    let mut runs=vec![];
+    let devices=["simulation:light","simulation:second"].map(|s|homesense_core::DeviceId::new(s).unwrap());
+    let zero=homesense_core::Percent::new(0).unwrap();
+    for device in &devices {
+        runs.push(scheduler.start(vec![homesense_core::scene::Step {
+            device:device.clone(),command:homesense_core::Command::SetLevel{level:zero,transition:homesense_core::LevelTransition::Immediate},
+            delay_ms:0,source:"budget".into(),
+        }],0,1000).await.unwrap());
+    }
+    let first=SoftwareFade::start(a.clone(),controller,devices[0].clone(),zero,300,50,100,6,&feedback,2000).await.unwrap();
+    scheduler.install_due_fade(runs[0],first,0).await.unwrap();
+    let second=SoftwareFade::start(a.clone(),controller,devices[1].clone(),zero,300,50,100,6,&feedback,2000).await.unwrap();
+    assert!(scheduler.install_due_fade(runs[1],second,0).await.unwrap_err().contains("allocation"));
+    assert_eq!(scheduler.status(runs[0]),Some(homesense_core::scene::Status::Running));
+    assert_eq!(scheduler.status(runs[1]),Some(homesense_core::scene::Status::Pending));
+    assert!(a.task_generation().await.is_ok());
+    scheduler.cancel(runs[0]).await.unwrap();
+    let second=SoftwareFade::start(a.clone(),controller,devices[1].clone(),zero,300,50,100,6,&feedback,2000).await.unwrap();
+    scheduler.install_due_fade(runs[1],second,0).await.unwrap();
+    scheduler.cancel(runs[1]).await.unwrap();
+    assert!(a.dispatch().await.unwrap().is_none());
+    a.shutdown().await.unwrap();
+}

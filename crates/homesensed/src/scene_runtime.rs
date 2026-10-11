@@ -403,6 +403,9 @@ impl SceneRuntime {
         if let Some(fade)=&mut self.fade {fade.stopping=true;}
         self.timeline.cancel()
     }
+    pub(crate) fn fade_reservation(&self) -> Option<(u64,u64)> {
+        self.fade.as_ref().map(|fade|fade.driver.reservation())
+    }
     pub(crate) fn has_pending(&self) -> bool {
         self.pending.is_some() || self.fade.is_some()
     }
