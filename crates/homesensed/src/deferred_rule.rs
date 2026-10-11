@@ -27,6 +27,7 @@ pub struct Outcome {
 pub enum ExecutionFailure {
     Planning(Error),
     Runtime(String),
+    BusyBeforeAcceptance,
     Partial {
         completed: Vec<Outcome>,
         error: Box<ExecutionFailure>,
@@ -37,6 +38,7 @@ impl ExecutionFailure {
         matches!(
             self,
             Self::Planning(Error::Budget | Error::Cycle | Error::Rule(_))
+                | Self::BusyBeforeAcceptance
         )
     }
 }
@@ -45,6 +47,9 @@ impl std::fmt::Display for ExecutionFailure {
         match self {
             Self::Planning(error) => write!(f, "{error:?}"),
             Self::Runtime(error) => f.write_str(error),
+            Self::BusyBeforeAcceptance => {
+                f.write_str("deferred admission rejected before acceptance: ResourceBusy")
+            }
             Self::Partial { completed, error } => write!(
                 f,
                 "{} accepted successor rules before failure: {error}",
@@ -232,15 +237,18 @@ pub async fn execute_classified(
     }
     let mut guard = Guard(admission.clone(), false);
     let accepted = match admission
-        .submit_deferred_rule_before(generation, payload, lease, Some(chain.deadline_ms()))
+        .submit_deferred_rule_classified(generation, payload, lease, Some(chain.deadline_ms()))
         .await
     {
         Ok(v) => v,
         Err(e) => {
             guard.1 = true;
-            return Err(ExecutionFailure::Runtime(format!(
-                "deferred admission: {e:?}"
-            )));
+            return Err(match e {
+                crate::admission::DeferredFailure::Rejected(
+                    hap::server::WriteStatus::ResourceBusy,
+                ) => ExecutionFailure::BusyBeforeAcceptance,
+                other => ExecutionFailure::Runtime(format!("deferred admission: {other:?}")),
+            });
         }
     };
     let scene_runs = if let Some(reservation) = &mut reservation {
