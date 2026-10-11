@@ -65,6 +65,17 @@ impl Router {
         budget: Budget,
         duration_ms: u64,
     ) -> Result<(u64, Vec<Outcome>), String> {
+        self.start_rules(&[rule.to_owned()], scheduler, feedback, budget, duration_ms)
+            .await
+    }
+    pub async fn start_rules(
+        &mut self,
+        rules: &[String],
+        scheduler: &mut SceneScheduler,
+        feedback: Option<(&Feedback, u64)>,
+        budget: Budget,
+        duration_ms: u64,
+    ) -> Result<(u64, Vec<Outcome>), String> {
         self.validate(scheduler)?;
         if self.closed {
             return Err("causal router closed".into());
@@ -85,7 +96,7 @@ impl Router {
             duration_ms,
         )
         .await?;
-        let outcomes = session.start(rule, scheduler, feedback).await?;
+        let outcomes = session.start_rules(rules, scheduler, feedback).await?;
         if !session.is_closed() {
             self.entries.insert(id, Entry::Active(Box::new(session)));
         }
