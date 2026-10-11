@@ -429,8 +429,8 @@ impl PanelRules {
             if self.mode == Mode::Execute && let Some((router,scheduler))=causal.as_mut() {
                 let ids:Vec<_>=self.keys[key].bindings.iter().filter(|b|b.event==event).map(|b|b.id.clone()).collect();
                 if !ids.is_empty() {
-                    match router.start_rules(&ids,scheduler,feedback,Budget::default(),5000).await {
-                        Ok((_,outcomes))=>fired.extend(outcomes.into_iter().map(|o|Fired{rule:o.rule,cause:Some(o.cause),causation_id:Some(o.causation_id),event,commands:o.command_ids,observed_only:false})),
+                    match router.dispatch_rules(&ids,scheduler,feedback,Budget::default(),5000).await {
+                        Ok(outcomes)=>fired.extend(outcomes.into_iter().map(|o|Fired{rule:o.rule,cause:Some(o.cause),causation_id:Some(o.causation_id),event,commands:o.command_ids,observed_only:false})),
                         Err(message)=>return Err(Failure{message,completed:fired,failed_rule:None}),
                     }
                 }
