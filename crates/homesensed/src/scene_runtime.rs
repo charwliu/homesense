@@ -13,6 +13,7 @@ pub struct SceneRuntime {
     controller: Uuid,
     generation: TaskGeneration,
     manual_fence: u64,
+    causal_deadline: Option<u64>,
     timeline: Timeline,
     targets: crate::scene_activity::Targets,
     audit_id: String,
@@ -99,6 +100,7 @@ impl SceneRuntime {
             audit_status: homesense_storage::scene_run::Status::Pending,
             audit_failed: false,
             manual_fence,
+            causal_deadline: None,
             admission,
             controller,
             generation,
@@ -124,7 +126,7 @@ impl SceneRuntime {
         }
         let targets=crate::scene_activity::Targets::new(&steps);
         let timeline=Timeline::new(steps,current.epochs,accepted.started_ms,definition.max_lateness_ms).map_err(|e|format!("{e:?}"))?;
-        Ok(Self{admission,controller:accepted.controller,generation:current,manual_fence:accepted.manual_fence,timeline,targets,
+        Ok(Self{admission,controller:accepted.controller,generation:current,manual_fence:accepted.manual_fence,causal_deadline:accepted.causal_deadline,timeline,targets,
             audit_id:accepted.start.run,definition:Some(accepted.start.definition),result_taken:false,audit_version:0,
             audit_status:homesense_storage::scene_run::Status::Pending,audit_failed:false,admitted:vec![],pending:None})
     }
@@ -178,6 +180,7 @@ impl SceneRuntime {
                     index: due.index,
                     source: due.step.source,
                 },
+                self.causal_deadline,
             )
             .await
         {
