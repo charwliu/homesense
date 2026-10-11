@@ -720,6 +720,9 @@ impl Document {
                     if !matches!(command, Command::SetLevel {transition:LevelTransition::Immediate,..}) {
                         return Err(invalid("software fade requires an immediate level target"));
                     }
+                    if scene.enabled && config.binding(&device).is_some_and(|(_,module)| module.profile() == homesense_core::ProtocolProfile::Ad8Din) {
+                        return Err(invalid("AD8 does not support arbitrary immediate levels required for software fade"));
+                    }
                     fades.insert(steps.len(),fade);
                 }
                 steps.push(homesense_core::scene::Step {
