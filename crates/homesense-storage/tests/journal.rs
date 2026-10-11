@@ -757,3 +757,33 @@ fn latest_scene_uses_durable_insertion_order_across_boot_clocks_and_revisions() 
             .is_none()
     );
 }
+
+#[test]
+fn deferred_receipts_variables_and_immediate_commands_commit_atomically() {
+    use homesense_core::rule::{Value,ValueType};
+    let db=Database::new();let mut store=Store::open(&db.0).unwrap();
+    store.publish(None,1,b"config",&[]).unwrap();
+    store.define_logical_variable(1,"mode",ValueType::Integer).unwrap();
+    let update=homesense_storage::variables::Update{revision:1,name:"mode".into(),expected_version:0,value:Some(Value::Integer(2))};
+    let audit=homesense_storage::rule_audit::Admission{revision:1,correlation:1,event:1,parent:0,rule:"rule".into()};
+    let starts=["one","two"].map(|run|homesense_storage::scene_run::Start{revision:1,run:run.into(),definition:"delayed".into()});
+    let mut command=command(1);command.origin=Origin::Rule;
+    let sql=rusqlite::Connection::open(&db.0).unwrap();
+    sql.execute_batch("CREATE TRIGGER fail_deferred BEFORE INSERT ON scene_run WHEN NEW.run_id='two' BEGIN SELECT RAISE(ABORT,'injected'); END;").unwrap();
+    let accept=|store:&mut Store|store.accept_queue_batch_with_scene_starts("boot",std::slice::from_ref(&command),&[],10,None,std::slice::from_ref(&update),Some(&audit),None,&starts);
+    assert!(accept(&mut store).is_err());
+    assert!(store.scene_run("boot","one").unwrap().is_none());
+    assert!(store.command_status("boot",1).unwrap().is_none());
+    assert_eq!(store.logical_variable(1,"mode").unwrap().unwrap().version,0);
+    assert_eq!(sql.query_row("SELECT count(*) FROM rule_admission",[],|r|r.get::<_,i64>(0)).unwrap(),0);
+    sql.execute_batch("DROP TRIGGER fail_deferred; CREATE TRIGGER fail_variable BEFORE UPDATE ON logical_variable BEGIN SELECT RAISE(ABORT,'injected'); END;").unwrap();
+    assert!(accept(&mut store).is_err());
+    assert!(store.scene_run("boot","one").unwrap().is_none());
+    assert!(store.scene_run("boot","two").unwrap().is_none());
+    sql.execute_batch("DROP TRIGGER fail_variable;").unwrap();
+    accept(&mut store).unwrap();
+    for run in ["one","two"] {assert_eq!(store.scene_run("boot",run).unwrap().unwrap().status,homesense_storage::scene_run::Status::Pending);}
+    assert_eq!(store.command_status("boot",1).unwrap(),Some(Status::Accepted));
+    assert_eq!(store.logical_variable(1,"mode").unwrap().unwrap().value,Some(Value::Integer(2)));
+    assert!(accept(&mut store).is_err(),"duplicate acceptance cannot be retried as new work");
+}
