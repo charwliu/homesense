@@ -15,15 +15,20 @@ use std::{
 pub struct Api {
     pub origin: String,
     pub tokens: Arc<Tokens>,
-    pub control: Control,
-    pub revision: u64,
-    pub boot: String,
-    pub scenes: BTreeMap<String, String>,
+    pub runtime: std::sync::RwLock<Option<Runtime>>,
     pub receipts: Mutex<Receipts>,
     pub drafts: Option<(
         homesense_core::ExecutionContext,
         Mutex<crate::web_drafts::Drafts>,
     )>,
+}
+/// Coherent management view installed by the trusted runtime supervisor.
+#[derive(Clone)]
+pub struct Runtime {
+    pub control: Control,
+    pub revision: u64,
+    pub boot: String,
+    pub scenes: BTreeMap<String, String>,
 }
 fn response(code: StatusCode, value: serde_json::Value) -> Response<Full<Bytes>> {
     Response::builder()
@@ -144,6 +149,33 @@ impl Api {
                 json!({"can_manage_configuration":grant.role==crate::web_auth::Role::Administrator && self.drafts.is_some()}),
             );
         }
+        if request.method() == hyper::Method::DELETE && request.uri().path() == "/api/v1/session" {
+            if request
+                .headers()
+                .get("origin")
+                .and_then(|v| v.to_str().ok())
+                != Some(&self.origin)
+            {
+                return deny(StatusCode::FORBIDDEN, "origin_required");
+            }
+            if let Some(cookie) = cookie {
+                self.tokens.logout(cookie);
+            }
+            let mut result = response(StatusCode::OK, json!({"logged_out":true}));
+            result.headers_mut().insert(
+                "set-cookie",
+                "homesense_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0"
+                    .parse()
+                    .unwrap(),
+            );
+            return result;
+        }
+        // Take one coherent snapshot; never hold this lock across an await.
+        // Admission rejects old generations if publication follows this read.
+        let runtime = self.runtime.read().ok().and_then(|state| state.clone());
+        let Some(runtime) = runtime else {
+            return deny(StatusCode::SERVICE_UNAVAILABLE, "runtime_reconfiguring");
+        };
         if let Some(id) = request
             .uri()
             .path()
@@ -181,7 +213,7 @@ impl Api {
             let Some(candidate) = candidate else {
                 return deny(StatusCode::CONFLICT, "invalid_stored_draft");
             };
-            return match self
+            return match runtime
                 .control
                 .request(Action::ConfigurationPreview {
                     controller: grant.controller,
@@ -254,7 +286,7 @@ impl Api {
             let Ok(input) = serde_json::from_slice::<Input>(request.body()) else {
                 return deny(StatusCode::BAD_REQUEST, "invalid_body");
             };
-            if input.expected_revision != self.revision {
+            if input.expected_revision != runtime.revision {
                 return deny(StatusCode::CONFLICT, "configuration_changed");
             }
             let draft = crate::web_drafts::Draft {
@@ -278,34 +310,13 @@ impl Api {
                 Err(_) => deny(StatusCode::SERVICE_UNAVAILABLE, "draft_storage_unavailable"),
             };
         }
-        if request.method() == hyper::Method::DELETE && request.uri().path() == "/api/v1/session" {
-            if request
-                .headers()
-                .get("origin")
-                .and_then(|v| v.to_str().ok())
-                != Some(&self.origin)
-            {
-                return deny(StatusCode::FORBIDDEN, "origin_required");
-            }
-            if let Some(cookie) = cookie {
-                self.tokens.logout(cookie);
-            }
-            let mut result = response(StatusCode::OK, json!({"logged_out":true}));
-            result.headers_mut().insert(
-                "set-cookie",
-                "homesense_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0"
-                    .parse()
-                    .unwrap(),
-            );
-            return result;
-        }
         if request.method() == hyper::Method::GET && request.uri().path() == "/api/v1/scenes" {
             let mut items = vec![];
-            for (id, name) in &self.scenes {
+            for (id, name) in &runtime.scenes {
                 if !grant.may_read(id) {
                     continue;
                 }
-                let activity = match self
+                let activity = match runtime
                     .control
                     .request(Action::SceneActivity(id.clone()))
                     .await
@@ -313,7 +324,7 @@ impl Api {
                     Ok(Reply::Activity(Some(v))) => format!("{v:?}"),
                     _ => "Unknown".into(),
                 };
-                let last = match self.control.request(Action::LastRun(id.clone())).await {
+                let last = match runtime.control.request(Action::LastRun(id.clone())).await {
                     Ok(Reply::LastRun(Some(v))) => {
                         json!({"boot":v.boot,"run":v.run,"status":format!("{:?}",v.status)})
                     }
@@ -332,11 +343,11 @@ impl Api {
             let Ok(ids) = ids else {
                 return deny(StatusCode::SERVICE_UNAVAILABLE, "invalid_device_scope");
             };
-            let Ok(Reply::Devices(snapshot)) = self
+            let Ok(Reply::Devices(snapshot)) = runtime
                 .control
                 .request(Action::Devices {
                     controller: grant.controller,
-                    revision: self.revision,
+                    revision: runtime.revision,
                     ids,
                 })
                 .await
@@ -421,13 +432,13 @@ impl Api {
             {
                 return deny(StatusCode::BAD_REQUEST, "invalid_brightness");
             }
-            let fingerprint=json!({"action":"device","revision":self.revision,"device":body.device,"command":body.command}).to_string();
+            let fingerprint=json!({"action":"device","revision":runtime.revision,"device":body.device,"command":body.command}).to_string();
             (
                 String::new(),
                 body.request_id,
                 Action::DeviceCommand {
                     controller: grant.controller,
-                    revision: self.revision,
+                    revision: runtime.revision,
                     device,
                     action: body.command,
                 },
@@ -438,13 +449,14 @@ impl Api {
                 return deny(StatusCode::BAD_REQUEST, "invalid_body");
             };
             let fingerprint =
-                json!({"revision":self.revision,"scene":body.scene,"action":"start"}).to_string();
+                json!({"revision":runtime.revision,"scene":body.scene,"action":"start"})
+                    .to_string();
             (
                 body.scene.clone(),
                 body.request_id,
                 Action::SceneAction {
                     controller: grant.controller,
-                    revision: self.revision,
+                    revision: runtime.revision,
                     scene: body.scene,
                     execute: true,
                 },
@@ -466,9 +478,9 @@ impl Api {
             let receipt = serde_json::from_str::<serde_json::Value>(&receipt).ok();
             let Some((scene, run)) = parsed.as_ref().zip(receipt.as_ref()).and_then(|(p, r)| {
                 if p["action"] != "start"
-                    || p["revision"] != self.revision
+                    || p["revision"] != runtime.revision
                     || r["outcome"] != "accepted"
-                    || r["boot"] != self.boot
+                    || r["boot"] != runtime.boot
                 {
                     return None;
                 }
@@ -476,19 +488,19 @@ impl Api {
             }) else {
                 return deny(StatusCode::CONFLICT, "start_not_in_current_runtime");
             };
-            let fingerprint=json!({"revision":self.revision,"scene":scene,"action":"cancel","start_request_id":body.start_request_id}).to_string();
+            let fingerprint=json!({"revision":runtime.revision,"scene":scene,"action":"cancel","start_request_id":body.start_request_id}).to_string();
             (
                 scene,
                 body.request_id,
                 Action::SceneCancel {
                     controller: grant.controller,
-                    revision: self.revision,
+                    revision: runtime.revision,
                     run,
                 },
                 fingerprint,
             )
         };
-        if !is_device && (!grant.may_control(&scene) || !self.scenes.contains_key(&scene)) {
+        if !is_device && (!grant.may_control(&scene) || !runtime.scenes.contains_key(&scene)) {
             return deny(StatusCode::FORBIDDEN, "scene_not_permitted");
         }
         let claim = self
@@ -517,12 +529,12 @@ impl Api {
             Err(_) => return deny(StatusCode::SERVICE_UNAVAILABLE, "persistence_unavailable"),
             Ok(Claim::New) => {}
         }
-        let outcome = match self.control.request(action).await {
+        let outcome = match runtime.control.request(action).await {
             Ok(Reply::SceneAccepted(Some(run))) => {
-                json!({"request_id":request_id,"outcome":"accepted","boot":self.boot,"run":run})
+                json!({"request_id":request_id,"outcome":"accepted","boot":runtime.boot,"run":run})
             }
             Ok(Reply::CommandsAccepted(commands)) => {
-                json!({"request_id":request_id,"outcome":"accepted","boot":self.boot,"commands":commands})
+                json!({"request_id":request_id,"outcome":"accepted","boot":runtime.boot,"commands":commands})
             }
             Ok(Reply::Cancelled(count)) => {
                 json!({"request_id":request_id,"outcome":"cancelled","cancelled":count})
