@@ -139,7 +139,7 @@ pub(crate) async fn drive_controlled<S: Read + Write + Send + 'static>(
                 return Ok(());
             }
             if let Some((receiver, document)) = &mut control.0 {
-                receiver.poll(admission, document, guard.scenes).await;
+                receiver.poll(admission, document, guard.scenes, guard.owner.feedback(), max_age_ms).await;
             }
             let now = admission.monotonic_ms();
             if let Some(calendar) = &mut guard.calendar {

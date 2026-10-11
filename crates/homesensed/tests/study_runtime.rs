@@ -4255,21 +4255,34 @@ async fn running_automation_control_cancels_before_output_and_closes_on_exit() {
     // Abandoned requests queued before the loop starts must not create a run.
     assert!(tokio::time::timeout(std::time::Duration::from_millis(1),control.request(Action::Start("light".into()))).await.is_err());
 
-    struct Wire;
-    impl std::io::Read for Wire {fn read(&mut self,_:&mut [u8])->std::io::Result<usize>{Err(std::io::ErrorKind::WouldBlock.into())}}
+    let sample=std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    struct Wire(std::sync::Arc<std::sync::atomic::AtomicBool>);
+    impl std::io::Read for Wire {fn read(&mut self,out:&mut [u8])->std::io::Result<usize>{
+        if self.0.swap(false,std::sync::atomic::Ordering::SeqCst) {out[..5].copy_from_slice(&[0xae,0x15,0xd1,30,0xee]);Ok(5)} else {Err(std::io::ErrorKind::WouldBlock.into())}
+    }}
     impl std::io::Write for Wire {fn write(&mut self,_:&[u8])->std::io::Result<usize>{panic!("cancelled delayed scene wrote to bus")} fn flush(&mut self)->std::io::Result<()>{Ok(())}}
     let config=homesense_config::Configuration::parse(devices,ExecutionContext::Simulation).unwrap();
     let feedback=Feedback::new(&config,ExecutionContext::Simulation,Uuid::parse_str(a.boot_id()).unwrap().as_u128(),1).unwrap();
-    let transport=TransportOwner::new(a.clone(),[("simulation".into(),hb_transport::Connection::for_simulation(Wire,1))].into());
+    let transport=TransportOwner::new(a.clone(),[("simulation".into(),hb_transport::Connection::for_simulation(Wire(sample.clone()),1))].into());
     let mut owner=ObservedTransport::new(transport,feedback);
     let (stop,receive)=tokio::sync::watch::channel(false);
     let client=async {
         assert_eq!(control.request(Action::LastRun("light".into())).await.unwrap(),Reply::LastRun(None));
         assert!(control.request(Action::LastRun("unknown".into())).await.is_err());
         let Reply::Started(run)=control.request(Action::Start("light".into())).await.unwrap() else {panic!("start response")};
+        assert_eq!(control.request(Action::Activity(run)).await.unwrap(),Reply::Activity(Some(homesensed::scene_activity::SceneActivity::Unknown)));
         assert_eq!(control.request(Action::Cancel(run)).await.unwrap(),Reply::Cancelled(1));
         assert_eq!(control.request(Action::Status(run)).await.unwrap(),Reply::Status(Some(homesense_core::scene::Status::Cancelled)));
+        sample.store(true,std::sync::atomic::Ordering::SeqCst);
+        tokio::time::timeout(std::time::Duration::from_secs(1),async {
+            loop {
+                if control.request(Action::Activity(run)).await.unwrap()==Reply::Activity(Some(homesensed::scene_activity::SceneActivity::Active)){break;}
+                tokio::task::yield_now().await;
+            }
+        }).await.unwrap();
+        assert_eq!(control.request(Action::Status(run)).await.unwrap(),Reply::Status(Some(homesense_core::scene::Status::Cancelled)));
         assert_eq!(control.request(Action::Retire(run)).await.unwrap(),Reply::Retired(homesense_core::scene::Status::Cancelled));
+        assert_eq!(control.request(Action::Activity(run)).await.unwrap(),Reply::Activity(None));
         let Reply::LastRun(Some(last))=control.request(Action::LastRun("light".into())).await.unwrap() else {panic!("missing durable receipt")};
         assert_eq!(last.status,homesense_storage::scene_run::Status::Cancelled);
         assert_eq!(last.revision,1);
