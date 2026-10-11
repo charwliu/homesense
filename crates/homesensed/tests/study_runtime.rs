@@ -1515,7 +1515,15 @@ async fn feedback_change_rejects_entire_rule_before_variable_and_command_commit(
     )
     .await
     .unwrap();
-    feedback.expire(0, 5000).unwrap();
+    // No-op expiry no longer changes the feedback snapshot. Use an actual
+    // observation to invalidate the plan before its atomic commit.
+    assert_eq!(feedback.apply(&homesensed::transport_owner::GatewayRead {
+        gateway_id: "hopebeauty".into(), transport_epoch: 1, received_at_ms: 0,
+        result: hb_transport::Receive::Frames {
+            transport_epoch: 1,
+            frames: vec![hb_protocol::RawFrame { address: 0x11, command: 0xd5, value: 30 }],
+        },
+    }).unwrap(), 1);
     assert!(stale.commit(&a).await.is_err());
     assert!(a.dispatch().await.unwrap().is_none());
     assert_eq!(
