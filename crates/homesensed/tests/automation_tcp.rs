@@ -373,6 +373,10 @@ async fn supervised_reconnect_queries_again_without_repeating_startup() {
         devices["gateways"][0]["endpoint"] = bus.local_addr().unwrap().to_string().into();
         devices["gateways"][0]["modules"][0]["verification"] = hap::serde_json::json!({"status":"verified","evidence":"loopback only","verified_at_unix_ms":1});
         let rules=br#"{"schema_version":1,"configuration_revision":1,"variables":[],"rules":[{"id":"startup","enabled":true,"review_evidence":"test","source":"test","trigger":{"kind":"startup_synchronized"},"actions":[{"source":"test","action":{"kind":"command","device":"simulation:light","command":{"kind":"level","value":30,"ramp":false}}}]}]}"#;
+        let mut rules: hap::serde_json::Value = hap::serde_json::from_slice(rules).unwrap();
+        rules["rules"][0]["actions"].as_array_mut().unwrap().push(hap::serde_json::json!({"source":"delayed","action":{"kind":"scene","id":"later","activate":true}}));
+        rules["timed_scenes"] = hap::serde_json::json!([{"id":"later","enabled":true,"review_evidence":"test","max_lateness_ms":1000,"steps":[{"source":"later","offset_ms":500,"device":"simulation:light","command":{"kind":"level","value":60,"ramp":false}}]}]);
+        let rules = hap::serde_json::to_vec(&rules).unwrap();
         let server = std::thread::spawn(move || {
             for round in 0..2 {
                 let (mut socket, _) = bus.accept().unwrap();
@@ -403,7 +407,7 @@ async fn supervised_reconnect_queries_again_without_repeating_startup() {
             let device_file = root.join("devices.json");
             let rule_file = root.join("rules.json");
             std::fs::write(&device_file, hap::serde_json::to_vec(&devices).unwrap()).unwrap();
-            std::fs::write(&rule_file, rules).unwrap();
+            std::fs::write(&rule_file, &rules).unwrap();
             let output = std::process::Command::new(env!("CARGO_BIN_EXE_homesensed"))
                 .arg("serve-automation-tcp")
                 .arg(device_file)
@@ -420,7 +424,7 @@ async fn supervised_reconnect_queries_again_without_repeating_startup() {
         } else {
             homesensed::automation_tcp::serve_supervised(
                 &hap::serde_json::to_vec(&devices).unwrap(),
-                rules,
+                &rules,
                 &root,
                 Duration::from_millis(700),
                 true,
@@ -441,6 +445,24 @@ async fn supervised_reconnect_queries_again_without_repeating_startup() {
             sql.query_row("SELECT count(*) FROM command_journal", [], |r| r
                 .get::<_, i64>(0))
                 .unwrap(),
+            1
+        );
+        assert_eq!(
+            sql.query_row(
+                "SELECT count(*) FROM scene_run WHERE definition='later' AND status='cancelled'",
+                [],
+                |r| r.get::<_, i64>(0)
+            )
+            .unwrap(),
+            1
+        );
+        assert_eq!(
+            sql.query_row(
+                "SELECT count(*) FROM rule_chain_outcome WHERE error='causal session cancelled'",
+                [],
+                |r| r.get::<_, i64>(0)
+            )
+            .unwrap(),
             1
         );
         drop(sql);

@@ -295,7 +295,11 @@ impl Session {
     /// Cancel this chain without deriving scene-result rules. Commands already
     /// writing cannot be undone. Failure or abandonment gates admission.
     pub async fn cancel(&mut self, scheduler: &mut SceneScheduler) -> Result<usize, String> {
-        self.validate(scheduler).await?;
+        // Cancellation must remain possible while transport admission is closed.
+        // Durable cancellation and outcome writes still validate authority/scope.
+        if self.closed || scheduler.identity() != self.scheduler {
+            return Err("causal session expired or foreign scheduler".into());
+        }
         if !self.started {
             return Err("causal root not started".into());
         }
