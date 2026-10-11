@@ -2013,3 +2013,52 @@ async fn old_mapping_feedback_cannot_seed_new_revision_restore_memory() {
     assert!(store.light_restore_levels(2).unwrap().is_empty());
     actor.shutdown().await.unwrap();
 }
+
+#[tokio::test]
+async fn automation_publication_validates_before_barrier_and_commits_one_revision() {
+    for fail in [false,true] {
+        let db=Database::new();
+        let id=Uuid::new_v4();
+        let actor=Admission::open(db.0.clone(),options(),move|v|v==id).await.unwrap();
+        let generation=actor.task_generation().await.unwrap();
+        let command=actor.submit(batch(id)).await.unwrap()[0];
+        let rules=br#"{"schema_version":1,"configuration_revision":2,"variables":[{"id":"mode","kind":"integer","lifetime":"persistent"}],"rules":[]}"#.to_vec();
+        assert!(actor.begin_automation_publication(next_simulation_document(),b"{}".to_vec(),1,Duration::from_secs(3)).await.is_err());
+        assert_eq!(actor.task_generation().await.unwrap(),generation);
+        let store=Store::open(&db.0).unwrap();
+        assert_eq!(store.command_status(actor.boot_id(),command).unwrap(),Some(Status::Accepted));
+        actor.begin_automation_publication(next_simulation_document(),rules.clone(),1,Duration::from_secs(3)).await.unwrap();
+        assert_eq!(store.command_status(actor.boot_id(),command).unwrap(),Some(Status::Cancelled));
+        let sql=rusqlite::Connection::open(&db.0).unwrap();
+        if fail {
+            sql.execute_batch("CREATE TRIGGER reject_bundle BEFORE INSERT ON automation_revision BEGIN SELECT RAISE(ABORT,'injected'); END;").unwrap();
+            assert!(actor.commit_publication().await.is_err());
+            assert_eq!(store.active().unwrap().unwrap().revision,1);
+            assert!(store.revision(2).unwrap().is_none());
+            assert!(store.automation_payload(2).unwrap().is_none());
+            sql.execute_batch("DROP TRIGGER reject_bundle;").unwrap();
+            actor.recover_synchronized(2,1).await.unwrap();
+        } else {
+            assert_eq!(actor.commit_publication().await.unwrap(),2);
+            let bundle=store.active_bundle(ExecutionContext::Simulation).unwrap().unwrap();
+            assert_eq!(bundle.configuration.revision(),2);
+            assert_eq!(bundle.automation.unwrap().revision,2);
+            assert_eq!(store.automation_payload(2).unwrap(),Some(rules));
+            assert!(store.logical_variable(2,"mode").unwrap().is_some());
+            actor.synchronized(1,2).await.unwrap();
+            let current=actor.task_generation().await.unwrap();
+            let mut candidate:hap::serde_json::Value=hap::serde_json::from_slice(&next_simulation_document()).unwrap();
+            candidate["revision"]=3.into();
+            assert!(actor.begin_publication(hap::serde_json::to_vec(&candidate).unwrap(),2,Duration::from_secs(3)).await.is_err());
+            assert_eq!(actor.task_generation().await.unwrap(),current);
+            let incompatible=br#"{"schema_version":1,"configuration_revision":3,"variables":[{"id":"mode","kind":"bool","lifetime":"persistent"}],"rules":[]}"#.to_vec();
+            assert!(actor.begin_automation_publication(hap::serde_json::to_vec(&candidate).unwrap(),incompatible,2,Duration::from_secs(3)).await.is_err());
+            assert_eq!(actor.task_generation().await.unwrap(),current);
+
+        }
+        assert!(actor.submit_delayed(generation,batch(id)).await.is_err());
+        assert!(actor.dispatch().await.unwrap().is_none());
+        assert_eq!(store.command_status(actor.boot_id(),command).unwrap(),Some(Status::Cancelled));
+        actor.shutdown().await.unwrap();
+    }
+}
