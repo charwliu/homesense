@@ -51,6 +51,8 @@ pub struct VariableMigration {
 struct TimedSceneInput {
     id: String,
     #[serde(default)]
+    failure_policy: SceneFailurePolicy,
+    #[serde(default)]
     enabled: bool,
     review_evidence: Option<String>,
     max_lateness_ms: u64,
@@ -79,8 +81,17 @@ impl FadeTiming {
             .map(|fade|fade.reserved_samples()).map_err(|e|invalid(format!("fade timing: {e:?}")))
     }
 }
+/// Supported first-release policy: stop remaining actions after output failure.
+/// No automatic retry or compensation of already written commands.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SceneFailurePolicy {
+    #[default]
+    CancelRemaining,
+}
 #[derive(Debug, Clone)]
 pub struct TimedScene {
+    pub failure_policy: SceneFailurePolicy,
     pub fades: BTreeMap<usize, FadeTiming>,
     pub enabled: bool,
     pub review_evidence: Option<String>,
@@ -746,6 +757,7 @@ impl Document {
             timed_scenes.insert(
                 scene.id,
                 TimedScene {
+                    failure_policy: scene.failure_policy,
                     fades,
                     enabled: scene.enabled,
                     review_evidence: scene.review_evidence,
