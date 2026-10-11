@@ -129,6 +129,22 @@ pub(crate) enum SceneUpdate {
     Begin { run: String, definition: Option<String> },
     Checkpoint { run: String, expected: u64, status: homesense_storage::scene_run::Status, cancellation: Option<homesense_storage::scene_run::Cancellation> },
 }
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum SubmissionFailure {
+    ManualSuperseded,
+    Status(WriteStatus),
+}
+impl From<WriteStatus> for SubmissionFailure {
+    fn from(status: WriteStatus) -> Self { Self::Status(status) }
+}
+impl SubmissionFailure {
+    fn status(self) -> WriteStatus {
+        match self {
+            Self::ManualSuperseded => WriteStatus::InvalidValueInRequest,
+            Self::Status(status) => status,
+        }
+    }
+}
 enum Message {
     PublicationBundle(Uuid, oneshot::Sender<Result<(homesense_storage::automation::Bundle, ExecutionContext, u64), WriteStatus>>),
     PublicationState(oneshot::Sender<bool>),
@@ -222,7 +238,7 @@ enum Message {
         Box<Submission>,
         Option<SubmissionScope>,
         u64,
-        oneshot::Sender<Result<Vec<u64>, WriteStatus>>,
+        oneshot::Sender<Result<Vec<u64>, SubmissionFailure>>,
     ),
     Ready(u64, u64, oneshot::Sender<Result<(), WriteStatus>>),
     Recover(u64, u64, oneshot::Sender<Result<(), WriteStatus>>),
@@ -888,6 +904,7 @@ impl Admission {
                             if reply.is_closed() {
                                 continue;
                             }
+                            let mut manual_superseded = false;
                             let result = (|| {
                                 if failed || millis(clock) >= deadline || generation.as_ref().is_some_and(|scope| match scope {
                                     SubmissionScope::Generation(g) => g.boot != worker_boot || g.epochs != arbiter.policy().epochs,
@@ -902,6 +919,7 @@ impl Admission {
                                             return Err(WriteStatus::InvalidValueInRequest);
                                         }
                                         if manual_fence.is_some_and(|fence|batch.intents.iter().any(|i|manual_versions.get(&i.device).is_some_and(|version|*version>=fence))) {
+                                            manual_superseded = true;
                                             return Err(WriteStatus::InvalidValueInRequest);
                                         }
                                         if !batch.subscriptions.is_empty() || (batch.intents.is_empty() && variables.is_empty() && audit.is_none()) || variables.len()>1024 || variables.iter().any(|v|v.revision!=configuration.revision()) { return Err(WriteStatus::InvalidValueInRequest); }
@@ -1108,6 +1126,9 @@ impl Admission {
                                     }
                                 }
                             })();
+                            let result = result.map_err(|status| if manual_superseded {
+                                SubmissionFailure::ManualSuperseded
+                            } else { SubmissionFailure::Status(status) });
                             let _ = reply.send(result);
                         }
                     }
@@ -1446,8 +1467,8 @@ impl Admission {
         &self, generation: TaskGeneration, batch: Batch, manual_fence: u64,
         scene: homesense_storage::scene_run::StepLink,
         deadline: Option<u64>,
-    ) -> Result<Vec<u64>, WriteStatus> {
-        self.submit_scoped_before(Submission::Automation { software_sample: false, batch, variables: vec![], manual_fence: Some(manual_fence), feedback: None, audit: None, scene: Some(scene), starts: vec![] }, Some(SubmissionScope::Generation(generation)),deadline).await
+    ) -> Result<Vec<u64>, SubmissionFailure> {
+        self.submit_scoped_detailed(Submission::Automation { software_sample: false, batch, variables: vec![], manual_fence: Some(manual_fence), feedback: None, audit: None, scene: Some(scene), starts: vec![] }, Some(SubmissionScope::Generation(generation)),deadline).await
     }
     pub(crate) async fn submit_audited_rule(
         &self,
@@ -1731,6 +1752,9 @@ impl Admission {
         self.submit_scoped_before(submission,generation,None).await
     }
     async fn submit_scoped_before(&self,submission:Submission,generation:Option<SubmissionScope>,limit:Option<u64>)->Result<Vec<u64>,WriteStatus> {
+        self.submit_scoped_detailed(submission,generation,limit).await.map_err(SubmissionFailure::status)
+    }
+    async fn submit_scoped_detailed(&self,submission:Submission,generation:Option<SubmissionScope>,limit:Option<u64>)->Result<Vec<u64>,SubmissionFailure> {
         let deadline = millis(self.clock)
             .checked_add(
                 u64::try_from(self.ttl.as_millis())
@@ -1744,7 +1768,7 @@ impl Admission {
             .map_err(|_| WriteStatus::ResourceBusy)?;
         receive
             .await
-            .map_err(|_| WriteStatus::ServiceCommunicationFailure)?
+            .map_err(|_| SubmissionFailure::Status(WriteStatus::ServiceCommunicationFailure))?
     }
     /// Stop admission and wait until storage and the exclusive lease are released.
     /// Existing nonterminal audit records are handled by the next startup.
@@ -1783,6 +1807,34 @@ impl Admission {
 #[cfg(test)]
 mod lifecycle_tests {
     use super::*;
+
+    #[tokio::test]
+    async fn scene_fence_reports_only_actual_manual_rejection() {
+        let directory=std::env::temp_dir().join(format!("homesense-fence-{}",Uuid::new_v4()));
+        std::fs::create_dir_all(&directory).unwrap();
+        let path=directory.join("runtime.sqlite");
+        Store::open(&path).unwrap().publish_configuration(None,include_bytes!("../../../config/simulation.json"),ExecutionContext::Simulation,&[]).unwrap();
+        let actor=Admission::open(path,Options{context:ExecutionContext::Simulation,..Options::default()}, |_|true).await.unwrap();
+        actor.synchronized(1,1).await.unwrap();
+        let generation=actor.task_generation().await.unwrap();
+        let fence=actor.manual_fence().await.unwrap();
+        let controller=Uuid::new_v4();
+        let batch=||Batch{controller,intents:vec![homesense_hap::requests::Intent{
+            device:homesense_core::DeviceId::new("simulation:light").unwrap(),
+            command:homesense_core::Command::SetLevel {level:homesense_core::Percent::new(70).unwrap(),transition:homesense_core::LevelTransition::Immediate},
+        }],subscriptions:vec![]};
+        actor.submit(batch()).await.unwrap();
+        let link=homesense_storage::scene_run::StepLink{sample:None,run:"not-created".into(),index:0,source:"synthetic".into()};
+        // Actor rejects the old fence before touching the scene record or queue.
+        assert_eq!(actor.submit_scene_step(generation.clone(),batch(),fence,link.clone(),None).await.unwrap_err(),SubmissionFailure::ManualSuperseded);
+        // Expiration is distinct, even if a manual override also exists.
+        assert_eq!(actor.submit_scene_step(generation,batch(),fence,link,Some(0)).await.unwrap_err(),SubmissionFailure::Status(WriteStatus::ServiceCommunicationFailure));
+        let ticket=actor.dispatch().await.unwrap().unwrap();
+        actor.finish_write(ticket.command.id,true).await.unwrap();
+        assert!(actor.dispatch().await.unwrap().is_none());
+        actor.shutdown().await.unwrap();
+        std::fs::remove_dir_all(directory).unwrap();
+    }
 
     #[tokio::test]
     async fn stopping_idle_owner_notifies_generation_subscribers() {
