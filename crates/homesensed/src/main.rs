@@ -155,21 +155,37 @@ fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
             };
             let mut recoveries=None;
             let mut interval=None;
+            let mut web=std::collections::BTreeMap::new();
             let (flags,remainder)=args[6..].as_chunks::<2>();
             for pair in flags {
                 match pair[0].as_str() {
                     "--recoveries" if recoveries.is_none() => recoveries=Some(pair[1].parse::<u8>()?),
                     "--write-interval-ms" if interval.is_none() => interval=Some(pair[1].parse::<u64>()?),
+                    "--web-listen"|"--web-origin"|"--web-cert"|"--web-key"|"--web-token"|"--web-role" => {
+                        if web.insert(pair[0].clone(),pair[1].clone()).is_some(){return Err("duplicate management option".into());}
+                    },
                     _ => return Err("unknown or duplicate automation option".into()),
                 }
             }
             if !remainder.is_empty() {return Err("automation option requires a value".into());}
             let interval=interval.unwrap_or(20);
             if !(20..=1000).contains(&interval) {return Err("write interval must be 20..1000 ms".into());}
-            tokio::runtime::Runtime::new()?.block_on(homesensed::automation_tcp::serve_with_write_interval(
-                &read(&args[1])?, &read(&args[2])?, std::path::Path::new(&args[3]),
-                std::time::Duration::from_secs(args[4].parse()?), true, recoveries.unwrap_or(0), None, std::time::Duration::from_millis(interval),
-            ))?;
+            let management=if web.is_empty(){None}else{
+                let mut required=|name:&str|web.remove(name).ok_or_else(||format!("missing management option {name}"));
+                let address=required("--web-listen")?.parse()?;
+                let origin=required("--web-origin")?;let certificate=required("--web-cert")?;let key=required("--web-key")?;let token=required("--web-token")?;
+                let administrator=match web.remove("--web-role").as_deref().unwrap_or("member") {"member"=>false,"administrator"=>true,_=>return Err("Web role must be member or administrator".into())};
+                let file=std::fs::File::open(token)?;let metadata=file.metadata()?;
+                if !metadata.is_file() || metadata.len()>257{return Err("invalid credential file".into());}
+                #[cfg(unix)]{use std::os::unix::fs::PermissionsExt;if metadata.permissions().mode()&0o077!=0{return Err("credential file must be private".into());}}
+                let mut secret=String::new();file.take(257).read_to_string(&mut secret)?;
+                Some(homesensed::service::WebSettings{address,secret:secret.trim_end().to_owned(),administrator,tls:Some(homesensed::web_tls::Settings::load(origin,std::path::Path::new(&certificate),std::path::Path::new(&key))?)})
+            };
+            let devices=read(&args[1])?;let rules=read(&args[2])?;let directory=std::path::Path::new(&args[3]);let duration=std::time::Duration::from_secs(args[4].parse()?);let write_interval=std::time::Duration::from_millis(interval);
+            tokio::runtime::Runtime::new()?.block_on(async {
+                if let Some(settings)=management {homesensed::automation_tcp::serve_managed(&devices,&rules,directory,duration,true,recoveries.unwrap_or(0),write_interval,settings).await}
+                else {homesensed::automation_tcp::serve_with_write_interval(&devices,&rules,directory,duration,true,recoveries.unwrap_or(0),None,write_interval).await}
+            })?;
             println!("TCP automation stopped; state stored in automation-tcp.sqlite");
         }
         Some("serve-unified-simulation") if args.len()>=7 => {
@@ -531,7 +547,7 @@ fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
             }
         }
         Some("--help" | "-h") | None => println!(
-            "HomeSense offline tooling\nUsage: homesensed serve-web-tls-simulation DEVICE_FILE AUTOMATION_FILE STATE_DIR SECONDS LAN_IP:PORT TOKEN_FILE HTTPS_ORIGIN CERT_PEM KEY_PEM [--administrator]\n       homesensed serve-unified-simulation DEVICE_FILE AUTOMATION_FILE STATE_DIR SECONDS LOOPBACK_IP:PORT SCENE...\n       homesensed serve-web-simulation DEVICE_FILE AUTOMATION_FILE STATE_DIR SECONDS LOOPBACK_IP:PORT TOKEN_FILE [--administrator]\n       homesensed serve-automation-tcp DEVICE_FILE AUTOMATION_FILE STATE_DIR SECONDS --coexistence-confirmed [--recoveries 0..16] [--write-interval-ms 20..1000]\n       homesensed serve-automation-simulation DEVICE_FILE AUTOMATION_FILE STATE_DIR SECONDS [SCENE]\n       homesensed publish-config FILE STATE_DIR EXPECTED_REVISION\n       homesensed publish-automation DEVICE_FILE AUTOMATION_FILE STATE_DIR EXPECTED_REVISION\n       homesensed serve-live FILE STATE_DIR PRIVATE_IP:PORT SECONDS --coexistence-confirmed\n       homesensed demo [0..100]\n       homesensed check-config FILE [--simulation]\n       homesensed check-automation DEVICE_FILE AUTOMATION_FILE [--simulation]\n       homesensed decode 'AE 15 D1 1E EE'\n       homesensed serve-simulation-lan FILE STATE_DIR PRIVATE_IP:PORT SECONDS\n       homesensed serve-simulation FILE STATE_DIR PORT SECONDS\n       homesensed motor-test FILE STATE_DIR DEVICE open|close --coexistence-confirmed (STOP after 3 seconds)\n       homesensed panel-led FILE STATE_DIR DEVICE red|green --coexistence-confirmed\n       homesensed query-parameter FILE GATEWAY HEX_ADDRESS backlight|led-self-reset|motor-interlock --model-confirmed --coexistence-confirmed\n       homesensed observe FILE GATEWAY SECONDS --coexistence-confirmed\n       homesensed query-status FILE GATEWAY HEX_ADDRESS CHANNEL --model-confirmed --coexistence-confirmed\nserve-simulation binds loopback; serve-simulation-lan advertises mDNS on the LAN. Both use only simulated hardware."
+            "HomeSense offline tooling\nUsage: homesensed serve-web-tls-simulation DEVICE_FILE AUTOMATION_FILE STATE_DIR SECONDS LAN_IP:PORT TOKEN_FILE HTTPS_ORIGIN CERT_PEM KEY_PEM [--administrator]\n       homesensed serve-unified-simulation DEVICE_FILE AUTOMATION_FILE STATE_DIR SECONDS LOOPBACK_IP:PORT SCENE...\n       homesensed serve-web-simulation DEVICE_FILE AUTOMATION_FILE STATE_DIR SECONDS LOOPBACK_IP:PORT TOKEN_FILE [--administrator]\n       homesensed serve-automation-tcp DEVICE_FILE AUTOMATION_FILE STATE_DIR SECONDS --coexistence-confirmed [--recoveries 0..16] [--write-interval-ms 20..1000] [--web-listen LAN_IP:PORT --web-origin HTTPS_ORIGIN --web-cert CERT_PEM --web-key KEY_PEM --web-token TOKEN_FILE --web-role member|administrator]\n       homesensed serve-automation-simulation DEVICE_FILE AUTOMATION_FILE STATE_DIR SECONDS [SCENE]\n       homesensed publish-config FILE STATE_DIR EXPECTED_REVISION\n       homesensed publish-automation DEVICE_FILE AUTOMATION_FILE STATE_DIR EXPECTED_REVISION\n       homesensed serve-live FILE STATE_DIR PRIVATE_IP:PORT SECONDS --coexistence-confirmed\n       homesensed demo [0..100]\n       homesensed check-config FILE [--simulation]\n       homesensed check-automation DEVICE_FILE AUTOMATION_FILE [--simulation]\n       homesensed decode 'AE 15 D1 1E EE'\n       homesensed serve-simulation-lan FILE STATE_DIR PRIVATE_IP:PORT SECONDS\n       homesensed serve-simulation FILE STATE_DIR PORT SECONDS\n       homesensed motor-test FILE STATE_DIR DEVICE open|close --coexistence-confirmed (STOP after 3 seconds)\n       homesensed panel-led FILE STATE_DIR DEVICE red|green --coexistence-confirmed\n       homesensed query-parameter FILE GATEWAY HEX_ADDRESS backlight|led-self-reset|motor-interlock --model-confirmed --coexistence-confirmed\n       homesensed observe FILE GATEWAY SECONDS --coexistence-confirmed\n       homesensed query-status FILE GATEWAY HEX_ADDRESS CHANNEL --model-confirmed --coexistence-confirmed\nserve-simulation binds loopback; serve-simulation-lan advertises mDNS on the LAN. Both use only simulated hardware."
         ),
         _ => return Err("unknown command; use --help".into()),
     }
