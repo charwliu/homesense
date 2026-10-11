@@ -66,8 +66,22 @@ pub async fn serve_supervised(
 pub async fn serve_with_publications(
     devices: &[u8], rules: &[u8], directory: &Path, duration: Duration,
     coexistence_confirmed: bool, recovery_limit: u8,
-    mut publications: Option<crate::automation_publication::Receiver>,
+    publications: Option<crate::automation_publication::Receiver>,
 ) -> Result<(), String> {
+    serve_with_write_interval(devices,rules,directory,duration,coexistence_confirmed,recovery_limit,publications,Duration::from_millis(20)).await
+}
+/// The physical write gap is retained across recovery and publication because
+/// all transport generations share the same Admission owner.
+#[allow(clippy::too_many_arguments)]
+pub async fn serve_with_write_interval(
+    devices: &[u8], rules: &[u8], directory: &Path, duration: Duration,
+    coexistence_confirmed: bool, recovery_limit: u8,
+    mut publications: Option<crate::automation_publication::Receiver>,
+    write_interval: Duration,
+) -> Result<(), String> {
+    if !(Duration::from_millis(20)..=Duration::from_secs(1)).contains(&write_interval) {
+        return Err("write interval must be 20..1000 ms".into());
+    }
     if recovery_limit > 16 {
         return Err("recovery limit must be 0..16".into());
     }
@@ -95,7 +109,7 @@ pub async fn serve_with_publications(
     }
     drop(store);
     let controller = Uuid::new_v4();
-    let admission = Admission::open(path, Options::default(), move |id| id == controller).await?;
+    let admission = Admission::open(path, Options {write_interval,..Options::default()}, move |id| id == controller).await?;
     let _guard = Stop(admission.clone());
     let result = async {
         let (_stop, receiver) = tokio::sync::watch::channel(false);
