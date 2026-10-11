@@ -90,6 +90,7 @@ pub(crate) enum SceneUpdate {
     Checkpoint { run: String, expected: u64, status: homesense_storage::scene_run::Status },
 }
 enum Message {
+    PublicationBundle(Uuid, oneshot::Sender<Result<(homesense_storage::automation::Bundle, ExecutionContext, u64), WriteStatus>>),
     PublicationState(oneshot::Sender<bool>),
     AutomationBundle(Uuid, TaskGeneration, oneshot::Sender<Result<homesense_storage::automation::Bundle, WriteStatus>>),
     FeedbackSettled(Uuid, TaskGeneration, crate::feedback::RuleLease, oneshot::Sender<Result<bool, WriteStatus>>),
@@ -329,6 +330,16 @@ impl Admission {
                         Err(mpsc::RecvTimeoutError::Disconnected) => break,
                     };
                     match message {
+                        Message::PublicationBundle(controller,reply) => {
+                            let result=(|| {
+                                if !authorize(controller) {return Err(WriteStatus::InsufficientPrivileges)}
+                                if failed || !arbiter.policy().publishing || publication.is_some() {return Err(WriteStatus::ServiceCommunicationFailure)}
+                                let bundle=store.active_bundle(options.context).map_err(|_|WriteStatus::ServiceCommunicationFailure)?.ok_or(WriteStatus::ServiceCommunicationFailure)?;
+                                if bundle.configuration.revision()!=configuration.revision() {return Err(WriteStatus::ServiceCommunicationFailure)}
+                                Ok((bundle,options.context,arbiter.policy().epochs.transport))
+                            })();
+                            let _=reply.send(result);
+                        }
                         Message::PublicationState(reply) => { let _=reply.send(!failed && arbiter.policy().publishing && publication.is_some()); },
                         Message::AutomationBundle(controller,generation,reply) => {
                             let result=(|| {
@@ -660,9 +671,13 @@ impl Admission {
                                 // Re-run the fault audit before re-enabling dispatch. This
                                 // closes records left behind by a transient database error.
                                 store.fail_transport(&worker_boot, millis(clock)).map_err(|_| failure)?;
-                                arbiter.transport_reconnected(epoch).map_err(|_| failure)?;
-                                arbiter.gateway_resynchronized(epoch, revision).map_err(|_| failure)?;
-                                arbiter.storage_recovered(revision).map_err(|_| failure)?;
+                                if arbiter.policy().publishing {
+                                    arbiter.publication_recovered(epoch, revision).map_err(|_| failure)?;
+                                } else {
+                                    arbiter.transport_reconnected(epoch).map_err(|_| failure)?;
+                                    arbiter.gateway_resynchronized(epoch, revision).map_err(|_| failure)?;
+                                    arbiter.storage_recovered(revision).map_err(|_| failure)?;
+                                }
                                 principals.clear();
                                 failed = false;
                                 Ok(())
@@ -1059,6 +1074,11 @@ impl Admission {
     /// Trusted runtime coordinator only: validate then enter the publication barrier.
     /// The caller must drain STOP via the transport owner, commit, rebuild projections
     /// and synchronize the new mapping before reopening control. Not a HAP endpoint.
+    pub(crate) async fn publication_bundle(&self, controller:Uuid)->Result<(homesense_storage::automation::Bundle,ExecutionContext,u64),WriteStatus> {
+        let (reply,receive)=oneshot::channel();
+        self.sender.try_send(Message::PublicationBundle(controller,reply)).map_err(|_|WriteStatus::ResourceBusy)?;
+        receive.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?
+    }
     pub(crate) async fn publication_in_progress(&self)->Result<bool,WriteStatus> {
         let (reply,receive)=oneshot::channel();
         self.sender.try_send(Message::PublicationState(reply)).map_err(|_|WriteStatus::ResourceBusy)?;

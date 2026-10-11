@@ -4281,6 +4281,7 @@ async fn running_automation_control_cancels_before_output_and_closes_on_exit() {
 #[tokio::test]
 async fn publication_pauses_old_automation_without_closing_admission() {
     use homesensed::{automation_runtime::AutomationRuntime, automation_control::Action, feedback::Feedback, observed_transport::ObservedTransport, transport_owner::TransportOwner};
+    for responds in [false, true] {
     let db=Db(std::env::temp_dir().join(format!("assembly-{}.sqlite",Uuid::new_v4())));
     let devices=include_bytes!("../../../config/simulation.json");
     let rules=br#"{"schema_version":1,"configuration_revision":1,"variables":[{"id":"mode","kind":"integer","lifetime":"persistent"}],"rules":[],"timed_scenes":[{"id":"light","enabled":true,"review_evidence":"simulation","max_lateness_ms":1000,"steps":[{"source":"fixture","offset_ms":100,"device":"simulation:light","command":{"kind":"level","value":30,"ramp":false}}]}]}"#;
@@ -4317,12 +4318,37 @@ async fn publication_pauses_old_automation_without_closing_admission() {
     assert!(owner.drain_publication(&a).await.unwrap().is_none());
     assert_eq!(a.commit_publication().await.unwrap(),2);
     assert!(owner.drain_publication(&a).await.is_err());
-    a.synchronized(1,2).await.unwrap();
-    let next_runtime=AutomationRuntime::load(a.clone(),controller,1_800_000_000_000,1000,8,Default::default()).await.unwrap();
+    struct QueryWire(Vec<u8>,bool);
+    impl std::io::Read for QueryWire {
+        fn read(&mut self, out:&mut [u8])->std::io::Result<usize>{
+            if self.0.is_empty(){return Err(std::io::ErrorKind::WouldBlock.into())}
+            let n=out.len().min(self.0.len()); out[..n].copy_from_slice(&self.0[..n]); self.0.drain(..n); Ok(n)
+        }
+    }
+    impl std::io::Write for QueryWire {
+        fn write(&mut self, bytes:&[u8])->std::io::Result<usize>{
+            assert_eq!(bytes, &[0xae,0x15,0xa1,0xf2,0xee]);
+            if self.1 {self.0.extend([0xae,0x15,0xd1,30,0xee]);} Ok(bytes.len())
+        }
+        fn flush(&mut self)->std::io::Result<()>{Ok(())}
+    }
+    let fresh=TransportOwner::new(a.clone(),[("simulation".into(),hb_transport::Connection::for_simulation(QueryWire(vec![],responds),2))].into());
+    let rebuilt=homesensed::publication_recovery::rebuild(a.clone(),controller,fresh,2,homesensed::publication_recovery::Settings{
+        query_timeout_ms:100,max_age_ms:5000,wall_unix_ms:1_800_000_000_000,calendar_lateness_ms:1000,scene_capacity:8
+    }).await;
+    if !responds {
+        assert!(rebuilt.is_err());
+        assert!(a.synchronized(2,2).await.is_err());
+        assert!(a.dispatch().await.is_err());
+        a.shutdown().await.unwrap();
+        continue;
+    }
+    let (next_runtime,_new_owner)=rebuilt.unwrap();
     assert_eq!(next_runtime.revision(),2);
     assert!(a.dispatch().await.unwrap().is_none());
     drop(next_runtime);
     a.shutdown().await.unwrap();
+    }
 }
 
 #[tokio::test]
