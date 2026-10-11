@@ -13,3 +13,6 @@ pub mod scene_requests;
 pub mod scene_write;
 
 pub mod write_router;
+
+pub mod motor_graph;
+pub mod motor_requests;

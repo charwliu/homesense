@@ -6,12 +6,20 @@ use homesense_core::DeviceId;
 use rusqlite::{OptionalExtension, TransactionBehavior, params};
 use std::collections::{BTreeMap, BTreeSet};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum MotorOperation { Open, Close, Stop }
+impl MotorOperation {
+    pub fn action(self)->homesense_core::MotorAction {match self {Self::Open=>homesense_core::MotorAction::Open,Self::Close=>homesense_core::MotorAction::Close,Self::Stop=>homesense_core::MotorAction::Stop}}
+    pub fn label(self)->&'static str {match self {Self::Open=>"Open",Self::Close=>"Close",Self::Stop=>"Stop"}}
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum AccessoryKey {
     Bridge,
     Device(DeviceId),
     /// Explicit scene action; its identity is independent of display names.
     Scene(String),
+    Motor(DeviceId, MotorOperation),
 }
 impl AccessoryKey {
     fn storage_key(&self) -> String {
@@ -19,6 +27,7 @@ impl AccessoryKey {
             Self::Bridge => "bridge".into(),
             Self::Device(device) => format!("device:{}", device.as_str()),
             Self::Scene(id) => format!("scene:{id}"),
+            Self::Motor(device,action)=>format!("motor:{}:{}:{}",device.as_str().len(),device.as_str(),action.label().to_ascii_lowercase()),
         }
     }
 }
