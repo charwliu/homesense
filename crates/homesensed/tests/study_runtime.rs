@@ -6429,3 +6429,31 @@ async fn inferred_feedback_claim_checks_authority_generation_time_and_storage_fa
         a.shutdown().await.unwrap();
     }
 }
+
+#[tokio::test]
+async fn deferred_unknown_condition_reports_source_without_then_or_else_output() {
+    let db=Db(std::env::temp_dir().join(format!("deferred-unknown-{}.sqlite",Uuid::new_v4())));
+    let command=|value|hap::serde_json::json!({"source":"synthetic:branch-output","action":{"kind":"command","device":"simulation:light","command":{"kind":"level","value":value,"ramp":false}}});
+    let document=hap::serde_json::json!({"schema_version":1,"configuration_revision":1,
+        "variables":[{"id":"unknown","kind":"integer","lifetime":"persistent"},{"id":"marker","kind":"integer","lifetime":"persistent"}],
+        "rules":[{"id":"test","enabled":true,"review_evidence":"synthetic","source":"synthetic","trigger":{"kind":"startup_synchronized"},"actions":[
+            {"source":"synthetic:unknown-condition","action":{"kind":"if","condition":{"kind":"equal","left":{"kind":"variable","id":"unknown"},"right":{"kind":"integer","value":1}},"then_actions":[command(30)],"else_actions":[command(60)]}},
+            {"source":"synthetic:after-branch","action":{"kind":"set","variable":"marker","value":{"kind":"integer","value":1}}}
+        ]}]
+    });
+    Store::open(&db.0).unwrap().publish_automation(None,include_bytes!("../../../config/simulation.json"),&hap::serde_json::to_vec(&document).unwrap(),ExecutionContext::Simulation,&[]).unwrap();
+    let controller=Uuid::new_v4();let a=actor(&db,controller).await;
+    let mut scheduler=homesensed::scene_scheduler::SceneScheduler::new(a.clone(),controller,1,0).unwrap();
+    let mut router=homesensed::deferred_router::Router::new(a.clone(),controller,&scheduler,1).unwrap();
+    let (_,outcomes)=router.start("test",&mut scheduler,None,Default::default(),5000).await.unwrap();
+    assert_eq!(outcomes.len(),1);
+    assert_eq!(outcomes[0].unknown_branches,vec!["synthetic:unknown-condition"]);
+    assert!(outcomes[0].command_ids.is_empty());
+    assert!(outcomes[0].scene_runs.is_empty());
+    assert!(a.dispatch().await.unwrap().is_none());
+    let store=Store::open(&db.0).unwrap();
+    assert_eq!(store.logical_variable(1,"marker").unwrap().unwrap().value,Some(homesense_core::rule::Value::Integer(1)));
+    let sql=rusqlite::Connection::open(&db.0).unwrap();
+    assert_eq!(sql.query_row("SELECT count(*) FROM command_journal",[],|r|r.get::<_,i64>(0)).unwrap(),0);
+    a.shutdown().await.unwrap();
+}
