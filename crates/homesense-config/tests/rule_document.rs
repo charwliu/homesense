@@ -216,3 +216,25 @@ fn embedded_scene_calendar_example_links_and_rejects_invalid_definitions() {
     bad["immediate_scenes"][0]["delay_ms"] = 1000.into();
     assert!(parse(&bad).is_err()); // Never discard unsupported timing.
 }
+
+#[test]
+fn delayed_linking_is_explicit_and_keeps_calls_and_variable_references() {
+    let mut v=fixture();
+    v["rules"][0]["enabled"]=true.into();v["rules"][0]["review_evidence"]="test".into();
+    v["rules"][0]["actions"].as_array_mut().unwrap().push(json!({"source":"call","action":{"kind":"scene","id":"later","activate":true}}));
+    v["timed_scenes"]=json!([{"id":"later","enabled":true,"review_evidence":"test","max_lateness_ms":1000,"steps":[{"source":"step","offset_ms":500,"device":"simulation:light","command":{"kind":"level","value":30,"ramp":false}}]}]);
+    let d=parse(&v).unwrap();
+    assert!(d.linked_rules(&d.immediate_scenes,&Default::default()).is_err());
+    let rules=d.linked_rules_with_deferred().unwrap();
+    let refs=rule::variable_references_with_deferred(&rules[0].actions,&["later".into()].into()).unwrap();
+    assert_eq!(refs,["mode".into()].into());
+    let plan=rule::evaluate(&rules[0].actions,&d.variables,Budget::default()).unwrap();
+    assert_eq!(plan.variables["mode"].value,Some(Value::Integer(5)));
+    assert!(matches!(&plan.actions[1].action,rule::Action::Scene{id,activate:true} if id=="later"));
+    assert!(plan.commands.is_empty());
+    v["timed_scenes"][0]["enabled"]=false.into();
+    assert!(parse(&v).unwrap().linked_rules_with_deferred().is_err());
+    v["timed_scenes"][0]["enabled"]=true.into();
+    v["rules"][0]["actions"][1]["action"]["activate"]=false.into();
+    assert!(parse(&v).unwrap().linked_rules_with_deferred().is_err());
+}
