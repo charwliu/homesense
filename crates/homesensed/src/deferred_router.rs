@@ -15,6 +15,23 @@ enum Entry {
     Active(Box<Session>),
     Cancelled(BTreeMap<u64, String>),
 }
+struct RootFailure {
+    message: String,
+    isolated: bool,
+}
+impl From<String> for RootFailure {
+    fn from(message: String) -> Self {
+        Self {
+            message,
+            isolated: false,
+        }
+    }
+}
+impl From<&str> for RootFailure {
+    fn from(message: &str) -> Self {
+        message.to_owned().into()
+    }
+}
 pub struct Router {
     admission: Admission,
     controller: Uuid,
@@ -54,8 +71,8 @@ impl Router {
         }
         Ok(())
     }
-    pub(crate) fn matches_owner(&self, admission:&Admission, controller:Uuid)->bool {
-        self.admission.boot_id()==admission.boot_id() && self.controller==controller
+    pub(crate) fn matches_owner(&self, admission: &Admission, controller: Uuid) -> bool {
+        self.admission.boot_id() == admission.boot_id() && self.controller == controller
     }
     pub fn retained_count(&self) -> usize {
         self.entries.len()
@@ -79,6 +96,40 @@ impl Router {
         budget: Budget,
         duration_ms: u64,
     ) -> Result<(u64, Vec<Outcome>), String> {
+        self.start_inner(rules, scheduler, feedback, budget, duration_ms)
+            .await
+            .map_err(|e| e.message)
+    }
+    /// Event producer entry: isolated failures are already durable diagnostics.
+    /// Returned outcomes are completed rules, never a success claim for a failed chain.
+    pub async fn dispatch_rules(
+        &mut self,
+        rules: &[String],
+        scheduler: &mut SceneScheduler,
+        feedback: Option<(&Feedback, u64)>,
+        budget: Budget,
+        duration_ms: u64,
+    ) -> Result<Vec<Outcome>, String> {
+        match self
+            .start_inner(rules, scheduler, feedback, budget, duration_ms)
+            .await
+        {
+            Ok((_, outcomes)) => Ok(outcomes),
+            Err(error) if error.isolated => {
+                log::warn!("isolated causal root: {}", error.message);
+                Ok(vec![])
+            }
+            Err(error) => Err(error.message),
+        }
+    }
+    async fn start_inner(
+        &mut self,
+        rules: &[String],
+        scheduler: &mut SceneScheduler,
+        feedback: Option<(&Feedback, u64)>,
+        budget: Budget,
+        duration_ms: u64,
+    ) -> Result<(u64, Vec<Outcome>), RootFailure> {
         self.validate(scheduler)?;
         if self.closed {
             return Err("causal router closed".into());
@@ -99,7 +150,19 @@ impl Router {
             duration_ms,
         )
         .await?;
-        let outcomes = session.start_rules(rules, scheduler, feedback).await?;
+        let outcomes = match session.start_rules(rules, scheduler, feedback).await {
+            Ok(outcomes) => outcomes,
+            Err(message) => {
+                let isolated = session.failure_isolated();
+                if isolated {
+                    let pending = session.pending_identities();
+                    if !pending.is_empty() {
+                        self.entries.insert(id, Entry::Cancelled(pending));
+                    }
+                }
+                return Err(RootFailure { message, isolated });
+            }
+        };
         if !session.is_closed() {
             self.entries.insert(id, Entry::Active(Box::new(session)));
         }
@@ -214,10 +277,17 @@ impl Router {
         }
         let entry = self.entries.get_mut(&id).expect("located entry");
         let (outcomes, done) = match entry {
-            Entry::Active(session) => {
-                let outcomes = session.resume(result, scheduler, feedback).await?;
-                (outcomes, session.is_closed())
-            }
+            Entry::Active(session) => match session.resume(result, scheduler, feedback).await {
+                Ok(outcomes) => (outcomes, session.is_closed()),
+                Err(error) if session.failure_isolated() => {
+                    log::warn!("isolated causal continuation session={id}: {error}");
+                    let pending = session.pending_identities();
+                    let done = pending.is_empty();
+                    *entry = Entry::Cancelled(pending);
+                    (vec![], done)
+                }
+                Err(error) => return Err(error),
+            },
             Entry::Cancelled(pending) => {
                 pending.remove(&result.run);
                 (vec![], pending.is_empty())

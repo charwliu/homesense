@@ -169,3 +169,27 @@ fn startup_calls_delayed_scene_and_resumes_original_cause_in_service() {
     let complete:i64=sql.query_row("SELECT count(*) FROM rule_chain_outcome WHERE error IS NULL",[],|r|r.get(0)).unwrap();assert_eq!(complete,2);
     assert!(!root.join("runtime.sqlite").exists());drop(sql);std::fs::remove_dir_all(root).unwrap();
 }
+
+#[test]
+fn isolated_startup_cycle_does_not_stop_manual_scene_or_successor() {
+    let root=std::env::temp_dir().join(format!("isolated-rule-service-{}",uuid::Uuid::new_v4()));
+    std::fs::create_dir_all(&root).unwrap();
+    let devices=root.join("devices.json");let rules=root.join("rules.json");
+    std::fs::write(&devices,include_bytes!("../../../config/simulation.json")).unwrap();
+    let action=|variable:&str,value:i32|hap::serde_json::json!({"source":"test","action":{"kind":"set","variable":variable,"value":{"kind":"integer","value":value}}});
+    let rule=|id:&str,trigger:hap::serde_json::Value,actions:Vec<hap::serde_json::Value>|hap::serde_json::json!({"id":id,"enabled":true,"review_evidence":"simulation","source":"test","trigger":trigger,"actions":actions});
+    let document=hap::serde_json::json!({"schema_version":1,"configuration_revision":1,
+        "variables":[{"id":"mode","kind":"integer","lifetime":"persistent"},{"id":"done","kind":"integer","lifetime":"persistent"}],
+        "rules":[rule("start",hap::serde_json::json!({"kind":"startup_synchronized"}),vec![action("mode",1)]),rule("cycle",hap::serde_json::json!({"kind":"variable_changed","variable":"mode"}),vec![action("mode",2)]),rule("after",hap::serde_json::json!({"kind":"scene_result","scene":"manual"}),vec![action("done",1)])],
+        "timed_scenes":[{"id":"manual","enabled":true,"review_evidence":"simulation","max_lateness_ms":1000,"steps":[{"source":"step","offset_ms":100,"device":"simulation:light","command":{"kind":"level","value":30,"ramp":false}}]}]
+    });
+    std::fs::write(&rules,hap::serde_json::to_vec(&document).unwrap()).unwrap();
+    let output=Command::new(env!("CARGO_BIN_EXE_homesensed")).arg("serve-automation-simulation").arg(&devices).arg(&rules).arg(&root).arg("1").arg("manual").output().unwrap();
+    assert!(output.status.success(),"{}",String::from_utf8_lossy(&output.stderr));
+    let sql=rusqlite::Connection::open(root.join("automation-simulation.sqlite")).unwrap();
+    let failed:i64=sql.query_row("SELECT count(*) FROM rule_chain_outcome WHERE error IS NOT NULL",[],|r|r.get(0)).unwrap();assert_eq!(failed,1);
+    let succeeded:i64=sql.query_row("SELECT count(*) FROM rule_chain_outcome WHERE error IS NULL",[],|r|r.get(0)).unwrap();assert_eq!(succeeded,1);
+    let done:i64=sql.query_row("SELECT value FROM logical_variable WHERE name='done'",[],|r|r.get(0)).unwrap();assert_eq!(done,1);
+    let written:i64=sql.query_row("SELECT count(*) FROM command_journal WHERE status='written'",[],|r|r.get(0)).unwrap();assert_eq!(written,1);
+    drop(sql);std::fs::remove_dir_all(root).unwrap();
+}

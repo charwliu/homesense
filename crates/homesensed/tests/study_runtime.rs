@@ -4723,7 +4723,7 @@ async fn causal_root_batch_shares_identity_and_node_budget() {
         let store=Store::open(&db.0).unwrap();
         assert_eq!(store.logical_variable(1,"a").unwrap().unwrap().value,Some(homesense_core::rule::Value::Integer(1)),"{:?}",result.as_ref().err());
         if limit==1 {
-            assert!(result.is_err());
+            assert!(result.unwrap().is_empty());
             assert_eq!(store.logical_variable(1,"b").unwrap().unwrap().value,None);
             assert!(a.task_generation().await.is_ok());
         } else {
