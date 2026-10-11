@@ -211,12 +211,21 @@ impl SceneScheduler {
         self.runs.insert(id, scene);
         Ok(id)
     }
-    /// Install explicitly prepared fade work into an existing scene. Budget
-    /// reservation and fresh feedback preparation remain the caller's responsibility.
+    /// Install explicitly prepared fade work into an existing scene. Reserve a
+    /// shared allocation of 8 fades, 1024 samples and 20 targets/second across
+    /// this scheduler. Expanded wire frames and other producers still require
+    /// service-wide budgeting; fresh feedback preparation belongs to the caller.
     pub async fn install_due_fade(&mut self, run: u64, mut fade: crate::software_fade::SoftwareFade, now: u64) -> Result<(), String> {
         if let Err(error)=self.clock(now) {
             fade.cancel().await?;
             return Err(error);
+        }
+        let (samples,rate)=fade.reservation();
+        let active=self.runs.values().filter_map(SceneRuntime::fade_reservation).collect::<Vec<_>>();
+        if active.len()>=8 || active.iter().map(|v|v.0).sum::<u64>()+samples>1024
+            || active.iter().map(|v|v.1).sum::<u64>()+rate>20 {
+            fade.cancel().await?;
+            return Err("scene fade allocation exhausted".into());
         }
         let Some(scene)=self.runs.get_mut(&run) else {
             fade.cancel().await?;
