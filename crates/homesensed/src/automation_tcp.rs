@@ -179,7 +179,7 @@ pub async fn serve_with_publications(
                         for (id,gateway) in candidate.gateways() {
                             let address=gateway.endpoint;
                             let connection=tokio::task::spawn_blocking(move || hb_transport::Connection::connect(address,next,Duration::from_secs(2),Duration::from_millis(100)))
-                                .await.map_err(|e|e.to_string())?.map_err(|e|e.to_string())?;
+                                .await.map_err(|e|format!("publication connect worker for {id}: {e}"))?.map_err(|e|format!("publication connect gateway {id}: {e}"))?;
                             connections.insert(id.clone(),connection);
                         }
                         let transport=crate::transport_owner::TransportOwner::new(admission.clone(),connections);
@@ -201,7 +201,7 @@ pub async fn serve_with_publications(
                         }
                         failure=>{
                             admission.stop_now();
-                            let error=match failure {Ok(Err(error))=>error,_=>"publication exceeded service deadline; inspect active revision".into()};
+                            let error=match failure {Ok(Err(error))=>format!("publication failed; inspect active revision before retrying: {error}"),_=>"publication exceeded service deadline; inspect active revision".into()};
                             request.complete(Err(error.clone()));
                             return Err(error);
                         }

@@ -730,3 +730,57 @@ async fn repeated_publication_then_recovery_uses_latest_endpoint_and_suppresses_
     assert_eq!(homesense_storage::Store::open(root.join("automation-tcp.sqlite")).unwrap().active().unwrap().unwrap().revision,3);
     std::fs::remove_dir_all(root).unwrap();
 }
+
+#[tokio::test]
+async fn publication_partial_connection_set_is_dropped_without_commands() {
+    use hap::serde_json::{json, to_vec, Value};
+    let root=std::env::temp_dir().join(format!("tcp-partial-publish-{}",uuid::Uuid::new_v4()));
+    let bus=TcpListener::bind("127.0.0.1:0").unwrap();
+    let refused=TcpListener::bind("127.0.0.1:0").unwrap();
+    let refused_address=refused.local_addr().unwrap();
+    let mut devices:Value=hap::serde_json::from_slice(include_bytes!("../../../config/simulation-home.json")).unwrap();
+    devices["gateways"][0]["endpoint"]=bus.local_addr().unwrap().to_string().into();
+    devices["gateways"][0]["modules"][0]["verification"]=json!({"status":"verified","evidence":"loopback","verified_at_unix_ms":1});
+    let initial=to_vec(&devices).unwrap();
+    let rules=|revision|to_vec(&json!({"schema_version":1,"configuration_revision":revision,"variables":[],"rules":[]})).unwrap();
+    let mut second_gateway=devices["gateways"][0].clone();
+    second_gateway["id"]="zz-failed".into();
+    second_gateway["endpoint"]=refused_address.to_string().into();
+    devices["gateways"].as_array_mut().unwrap().push(second_gateway);
+    let mut second_device=devices["devices"][0].clone();
+    second_device["id"]="second:light".into();
+    second_device["gateway"]="zz-failed".into();
+    devices["devices"].as_array_mut().unwrap().push(second_device);
+    devices["revision"]=2.into();
+    let (synced,ready)=tokio::sync::oneshot::channel();
+    let server=std::thread::spawn(move || {
+        let (mut old,_)=bus.accept().unwrap();
+        old.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+        let mut frame=[0;5];
+        old.read_exact(&mut frame).unwrap();
+        old.write_all(&[0xAE,0x15,0xD1,30,0xEE]).unwrap();
+        drop(refused);
+        synced.send(()).unwrap();
+        let (mut partial,_)=bus.accept().unwrap();
+        partial.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+        assert_eq!(partial.read(&mut frame).unwrap(),0,"incomplete connection set must not query or write");
+        assert_eq!(old.read(&mut frame).unwrap(),0);
+    });
+    let (publisher,receiver)=homesensed::automation_publication::channel();
+    let old_rules=rules(1);
+    let service=homesensed::automation_tcp::serve_with_publications(&initial,&old_rules,&root,Duration::from_secs(2),true,0,Some(receiver));
+    let client=async {
+        ready.await.unwrap();
+        let error=publisher.publish(to_vec(&devices).unwrap(),rules(2),1).await.unwrap_err();
+        assert!(error.contains("zz-failed"),"{error}");
+        assert!(error.contains("inspect active revision"),"{error}");
+    };
+    let (result,())=tokio::join!(service,client);
+    assert!(result.unwrap_err().contains("zz-failed"));
+    server.join().unwrap();
+    let sql=rusqlite::Connection::open(root.join("automation-tcp.sqlite")).unwrap();
+    assert_eq!(sql.query_row("SELECT count(*) FROM command_journal",[],|r|r.get::<_,i64>(0)).unwrap(),0);
+    drop(sql);
+    assert_eq!(homesense_storage::Store::open(root.join("automation-tcp.sqlite")).unwrap().active().unwrap().unwrap().revision,2);
+    std::fs::remove_dir_all(root).unwrap();
+}
