@@ -146,6 +146,24 @@ fn simulate_light(level: Percent) -> Result<(), Box<dyn Error>> {
 
 fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
     match args.first().map(String::as_str) {
+        Some("publish-automation") if args.len() == 5 => {
+            let read = |path: &str| -> Result<Vec<u8>, Box<dyn Error>> {
+                let mut bytes = vec![];
+                std::fs::File::open(path)?
+                    .take(4 * 1024 * 1024 + 1)
+                    .read_to_end(&mut bytes)?;
+                Ok(bytes)
+            };
+            let revision = homesensed::configuration_publish::publish_automation(
+                &read(&args[1])?,
+                &read(&args[2])?,
+                std::path::Path::new(&args[3]),
+                args[4].parse()?,
+            )?;
+            println!(
+                "Published device and automation configuration revision={revision}; runtime remains stopped; HAP identity unchanged"
+            );
+        }
         Some("publish-config") if args.len() == 4 => {
             let document = std::fs::read(&args[1])?;
             let revision = homesensed::configuration_publish::publish(
@@ -380,73 +398,15 @@ fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
                 Ok(bytes)
             };
             let config = Configuration::parse(&read(&args[1])?, context)?;
-            let document =
-                homesense_config::rule_document::Document::parse(&read(&args[2])?, &config)?;
+            let document = homesensed::configuration_publish::validate_automation(
+                &config,
+                &read(&args[2])?,
+                context,
+            )?;
             let linked = document.linked_rules(
                 &document.immediate_scenes,
                 &document.schedules.iter().map(|s| s.id.clone()).collect(),
             )?;
-            fn commands(
-                nodes: &[homesense_core::rule::Node],
-                config: &Configuration,
-                context: ExecutionContext,
-            ) -> Result<(), Box<dyn Error>> {
-                for node in nodes {
-                    match &node.action {
-                        homesense_core::rule::Action::Command { device, command } => {
-                            let (mapping, module) = config
-                                .binding(device)
-                                .ok_or("enabled rule references disabled output")?;
-                            hb_protocol::encode_in_context(
-                                module,
-                                mapping.channel,
-                                *command,
-                                context,
-                            )?;
-                        }
-                        homesense_core::rule::Action::If {
-                            then_actions,
-                            else_actions,
-                            ..
-                        } => {
-                            commands(then_actions, config, context)?;
-                            commands(else_actions, config, context)?;
-                        }
-                        _ => {}
-                    }
-                }
-                Ok(())
-            }
-            for rule in &linked {
-                if let homesense_config::rule_document::Trigger::Panel { device, event } =
-                    &rule.trigger
-                {
-                    let id = DeviceId::new(device)?;
-                    if config.binding(&id).is_none() {
-                        return Err("enabled panel rule references disabled key".into());
-                    }
-                    let settings = document
-                        .gestures
-                        .get(&id)
-                        .ok_or("enabled panel rule missing gesture settings")?;
-                    if matches!(
-                        event,
-                        homesense_config::rule_document::PanelEvent::DoubleClick
-                    ) && !settings.double_click_enabled
-                    {
-                        return Err("double-click requires deferred single-click mode".into());
-                    }
-                }
-                commands(&rule.actions, &config, context)?;
-            }
-            for scene in document.timed_scenes.values().filter(|s| s.enabled) {
-                for step in &scene.steps {
-                    let (mapping, module) = config
-                        .binding(&step.device)
-                        .ok_or("enabled timed scene references disabled output")?;
-                    hb_protocol::encode_in_context(module, mapping.channel, step.command, context)?;
-                }
-            }
             println!(
                 "Automation structure and enabled command encoding valid: revision={}, rules={}, enabled={}, variables={}, immediate_scenes={}, schedules={}, gesture_keys={}, context={:?}; no state created or connection opened",
                 document.revision,
@@ -504,7 +464,7 @@ fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
             }
         }
         Some("--help" | "-h") | None => println!(
-            "HomeSense offline tooling\nUsage: homesensed publish-config FILE STATE_DIR EXPECTED_REVISION\n       homesensed serve-live FILE STATE_DIR PRIVATE_IP:PORT SECONDS --coexistence-confirmed\n       homesensed demo [0..100]\n       homesensed check-config FILE [--simulation]\n       homesensed check-automation DEVICE_FILE AUTOMATION_FILE [--simulation]\n       homesensed decode 'AE 15 D1 1E EE'\n       homesensed serve-simulation-lan FILE STATE_DIR PRIVATE_IP:PORT SECONDS\n       homesensed serve-simulation FILE STATE_DIR PORT SECONDS\n       homesensed motor-test FILE STATE_DIR DEVICE open|close --coexistence-confirmed (STOP after 3 seconds)\n       homesensed panel-led FILE STATE_DIR DEVICE red|green --coexistence-confirmed\n       homesensed query-parameter FILE GATEWAY HEX_ADDRESS backlight|led-self-reset|motor-interlock --model-confirmed --coexistence-confirmed\n       homesensed observe FILE GATEWAY SECONDS --coexistence-confirmed\n       homesensed query-status FILE GATEWAY HEX_ADDRESS CHANNEL --model-confirmed --coexistence-confirmed\nserve-simulation binds loopback; serve-simulation-lan advertises mDNS on the LAN. Both use only simulated hardware."
+            "HomeSense offline tooling\nUsage: homesensed publish-config FILE STATE_DIR EXPECTED_REVISION\n       homesensed publish-automation DEVICE_FILE AUTOMATION_FILE STATE_DIR EXPECTED_REVISION\n       homesensed serve-live FILE STATE_DIR PRIVATE_IP:PORT SECONDS --coexistence-confirmed\n       homesensed demo [0..100]\n       homesensed check-config FILE [--simulation]\n       homesensed check-automation DEVICE_FILE AUTOMATION_FILE [--simulation]\n       homesensed decode 'AE 15 D1 1E EE'\n       homesensed serve-simulation-lan FILE STATE_DIR PRIVATE_IP:PORT SECONDS\n       homesensed serve-simulation FILE STATE_DIR PORT SECONDS\n       homesensed motor-test FILE STATE_DIR DEVICE open|close --coexistence-confirmed (STOP after 3 seconds)\n       homesensed panel-led FILE STATE_DIR DEVICE red|green --coexistence-confirmed\n       homesensed query-parameter FILE GATEWAY HEX_ADDRESS backlight|led-self-reset|motor-interlock --model-confirmed --coexistence-confirmed\n       homesensed observe FILE GATEWAY SECONDS --coexistence-confirmed\n       homesensed query-status FILE GATEWAY HEX_ADDRESS CHANNEL --model-confirmed --coexistence-confirmed\nserve-simulation binds loopback; serve-simulation-lan advertises mDNS on the LAN. Both use only simulated hardware."
         ),
         _ => return Err("unknown command; use --help".into()),
     }
