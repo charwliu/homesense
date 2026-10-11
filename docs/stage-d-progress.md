@@ -778,3 +778,5 @@ TCP 在线发布前置校验补充：共享候选文档预检已接入启动入�
 取消审计故障回归：注入 `cancel_requested` 写入失败，确认准入关闭、零 Writing、后续轮询拒绝；重开后场景为 interrupted 且无重放。定向用例通过。`9dfc22d` 全量尝试因与工作树共用 target，CLI 被并行构建替换为 schema 16 版本，产生 UnsupportedSchema(16)，该轮不能作为提交快照证据；后续快照验证必须使用独立 target 目录。
 
 调度器停止屏障回归：先调用同步 stop_now，再尝试到期 tick（拒绝），随后两次异步 stop，确认只保存一条 cancel_requested、场景 cancelled 且零命令。定向用例通过，验证计时器屏障与持久清理之间不会丢失取消请求。
+
+提交快照 `f687c40` 使用独立源码及独立 target 完成全 workspace 离线回归：454 项通过，0 失败、0 忽略，84 个结果块。证据见 `docs/evidence/stage-d-study/committed-workspace-f687c40.json`。不含后续 `601bd41` 的单独已通过停止屏障回归；当前 homesensed 库严格 Clippy 通过。此证据覆盖 schema 16 迁移和取消审计，不关闭原项目语义与现场验收缺口。
