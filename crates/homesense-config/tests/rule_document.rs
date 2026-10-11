@@ -258,3 +258,25 @@ fn variable_migration_declarations_require_review_and_persistent_typed_targets()
     doc["variables"][0]["lifetime"]="temporary".into();
     assert!(parse(&doc).is_err());
 }
+
+#[test]
+fn timed_fade_metadata_requires_bounded_timing_and_immediate_level() {
+    let mut v=fixture();
+    v["timed_scenes"]=json!([{"id":"fade","enabled":false,"max_lateness_ms":1000,"steps":[{
+        "source":"source","offset_ms":0,"device":"simulation:light",
+        "command":{"kind":"level","value":0,"ramp":false},
+        "fade":{"duration_ms":1000,"interval_ms":100,"lateness_ms":100}
+    }]}]);
+    let document=parse(&v).unwrap();
+    assert_eq!(document.timed_scenes["fade"].fades[&0].samples().unwrap(),10);
+    assert_eq!(document.timed_scenes["fade"].steps.len(),1);
+    for (field,value) in [("duration_ms",0),("duration_ms",60001),("interval_ms",49),("lateness_ms",5001)] {
+        let mut bad=v.clone();bad["timed_scenes"][0]["steps"][0]["fade"][field]=value.into();
+        assert!(parse(&bad).is_err());
+    }
+    let mut bad=v.clone();
+    bad["timed_scenes"][0]["steps"][0]["command"]["ramp"]=true.into();
+    assert!(parse(&bad).is_err());
+    v["timed_scenes"][0]["steps"][0]["fade"]["unknown"]=true.into();
+    assert!(parse(&v).is_err());
+}

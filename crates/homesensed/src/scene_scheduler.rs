@@ -155,6 +155,9 @@ impl SceneScheduler {
         {
             return Err("timed scene disabled or unreviewed".into());
         }
+        if !scene.fades.is_empty() {
+            return Err("configured fades require feedback preparation support".into());
+        }
         self.start_inner(
             scene.steps.clone(),
             now,
