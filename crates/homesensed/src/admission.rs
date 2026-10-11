@@ -68,6 +68,7 @@ pub struct AcceptedScene {
     pub(crate) manual_fence: u64,
     pub(crate) start: homesense_storage::scene_run::Start,
     pub(crate) started_ms: u64,
+    pub(crate) causal_deadline: Option<u64>,
 }
 pub struct AcceptedDeferred {
     pub command_ids: Vec<u64>,
@@ -1392,8 +1393,9 @@ impl Admission {
     pub(crate) async fn submit_scene_step(
         &self, generation: TaskGeneration, batch: Batch, manual_fence: u64,
         scene: homesense_storage::scene_run::StepLink,
+        deadline: Option<u64>,
     ) -> Result<Vec<u64>, WriteStatus> {
-        self.submit_scoped(Submission::Automation { batch, variables: vec![], manual_fence: Some(manual_fence), feedback: None, audit: None, scene: Some(scene), starts: vec![] }, Some(SubmissionScope::Generation(generation))).await
+        self.submit_scoped_before(Submission::Automation { batch, variables: vec![], manual_fence: Some(manual_fence), feedback: None, audit: None, scene: Some(scene), starts: vec![] }, Some(SubmissionScope::Generation(generation)),deadline).await
     }
     pub(crate) async fn submit_audited_rule(
         &self,
@@ -1445,15 +1447,18 @@ impl Admission {
     }
     /// A planner's exact observed read set stays locked through durable commit.
     pub async fn submit_deferred_rule_with_feedback(&self,generation:TaskGeneration,rule:DeferredRule,feedback:Option<crate::feedback::RuleLease>)->Result<AcceptedDeferred,WriteStatus> {
+        self.submit_deferred_rule_before(generation,rule,feedback,None).await
+    }
+    pub(crate) async fn submit_deferred_rule_before(&self,generation:TaskGeneration,rule:DeferredRule,feedback:Option<crate::feedback::RuleLease>,deadline:Option<u64>)->Result<AcceptedDeferred,WriteStatus> {
         let manual_fence=self.manual_fence().await?;
         let controller=rule.batch.controller;
         let starts=rule.starts.clone();
-        let command_ids=self.submit_scoped(Submission::Automation{batch:rule.batch,variables:rule.variables,audit:Some(rule.audit),starts:rule.starts,feedback:feedback.map(Box::new),manual_fence:None,scene:None},Some(SubmissionScope::Generation(generation.clone()))).await?;
+        let command_ids=self.submit_scoped_before(Submission::Automation{batch:rule.batch,variables:rule.variables,audit:Some(rule.audit),starts:rule.starts,feedback:feedback.map(Box::new),manual_fence:None,scene:None},Some(SubmissionScope::Generation(generation.clone())),deadline).await?;
         let mut scenes=Vec::with_capacity(starts.len());
         for start in starts {
             let page=self.scene_history(controller,generation.clone(),homesense_storage::scene_run::Query::Run{boot:self.boot_id().into(),run:start.run.clone(),after:0,limit:1}).await?.ok_or(WriteStatus::ServiceCommunicationFailure)?;
             if page.record.version!=0 || page.record.status!=homesense_storage::scene_run::Status::Pending || !page.commands.is_empty() {return Err(WriteStatus::ServiceCommunicationFailure);}
-            scenes.push(AcceptedScene{generation:generation.clone(),controller,manual_fence,start,started_ms:page.record.started_ms});
+            scenes.push(AcceptedScene{generation:generation.clone(),controller,manual_fence,start,started_ms:page.record.started_ms,causal_deadline:deadline});
         }
         Ok(AcceptedDeferred{command_ids,scenes})
     }
@@ -1668,12 +1673,16 @@ impl Admission {
         submission: Submission,
         generation: Option<SubmissionScope>,
     ) -> Result<Vec<u64>, WriteStatus> {
+        self.submit_scoped_before(submission,generation,None).await
+    }
+    async fn submit_scoped_before(&self,submission:Submission,generation:Option<SubmissionScope>,limit:Option<u64>)->Result<Vec<u64>,WriteStatus> {
         let deadline = millis(self.clock)
             .checked_add(
                 u64::try_from(self.ttl.as_millis())
                     .map_err(|_| WriteStatus::ServiceCommunicationFailure)?,
             )
             .ok_or(WriteStatus::ServiceCommunicationFailure)?;
+        let deadline=limit.map_or(deadline,|limit|limit.min(deadline));
         let (reply, receive) = oneshot::channel();
         self.sender
             .try_send(Message::Submit(Box::new(submission), generation, deadline, reply))

@@ -232,7 +232,7 @@ pub async fn execute_classified(
     }
     let mut guard = Guard(admission.clone(), false);
     let accepted = match admission
-        .submit_deferred_rule_with_feedback(generation, payload, lease)
+        .submit_deferred_rule_before(generation, payload, lease, Some(chain.deadline_ms()))
         .await
     {
         Ok(v) => v,

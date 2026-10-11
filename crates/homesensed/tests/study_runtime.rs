@@ -4848,3 +4848,27 @@ async fn successor_partial_failure_preserves_accepted_report_and_root_tracking()
     a.shutdown().await.unwrap();
 }
 }
+
+#[tokio::test]
+async fn causal_deadline_bounds_immediate_and_delayed_queued_commands() {
+    for delayed in [false,true] {
+        let db=Db(std::env::temp_dir().join(format!("deadline-queue-{}.sqlite",Uuid::new_v4())));
+        let command=hap::serde_json::json!({"kind":"level","value":30,"ramp":false});
+        let action=if delayed {hap::serde_json::json!({"kind":"scene","id":"later","activate":true})} else {hap::serde_json::json!({"kind":"command","device":"simulation:light","command":command})};
+        let rules=hap::serde_json::json!({"schema_version":1,"configuration_revision":1,"variables":[],"rules":[{"id":"root","enabled":true,"review_evidence":"test","source":"test","trigger":{"kind":"startup_synchronized"},"actions":[{"source":"test","action":action}]}],"timed_scenes":[{"id":"later","enabled":true,"review_evidence":"test","max_lateness_ms":1000,"steps":[{"source":"step","offset_ms":0,"device":"simulation:light","command":command}]}]});
+        Store::open(&db.0).unwrap().publish_automation(None,include_bytes!("../../../config/simulation.json"),&hap::serde_json::to_vec(&rules).unwrap(),ExecutionContext::Simulation,&[]).unwrap();
+        let controller=Uuid::new_v4();let a=actor(&db,controller).await;
+        let mut scheduler=homesensed::scene_scheduler::SceneScheduler::new(a.clone(),controller,2,0).unwrap();
+        let mut chain=homesense_core::rule_chain::Chain::new(42,0,200,Default::default(),32).unwrap();let root=chain.root();
+        homesensed::deferred_rule::execute(&a,controller,"root",&mut chain,&root,&mut scheduler,None).await.unwrap();
+        if delayed {
+            let mut observer=homesensed::deferred_router::Router::new(a.clone(),controller,&scheduler,2).unwrap();
+            observer.poll(&mut scheduler,None).await.unwrap();
+        }
+        let sql=rusqlite::Connection::open(&db.0).unwrap();
+        assert_eq!(sql.query_row("SELECT deadline_ms FROM command_journal",[],|r|r.get::<_,i64>(0)).unwrap(),200);
+        tokio::time::sleep(std::time::Duration::from_millis(220)).await;
+        assert!(a.dispatch().await.unwrap().is_none(),"expired output must not dispatch without another scene poll");
+        a.shutdown().await.unwrap();
+    }
+}
