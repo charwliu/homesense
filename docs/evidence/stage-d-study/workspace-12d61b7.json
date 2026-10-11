@@ -1,0 +1,15 @@
+{
+  "tested_head": "12d61b718f4afababf6699ef12e0c36af5258632",
+  "date": "2026-10-11T10:16:15.316369+00:00",
+  "command": "cargo test --workspace --locked --offline",
+  "scope": "Current working tree including existing uncommitted edits and local-only fixtures. Tests use isolated databases, simulators and localhost. No field actions. This is not a clean-commit reproduction claim.",
+  "exit_code": 0,
+  "suite_results": 84,
+  "passed": 433,
+  "failed": 0,
+  "ignored": 0,
+  "local_log": "/tmp/homesense-12d61b7-workspace.log",
+  "private_fixture_publication": "not included in this evidence file or commit",
+  "stage_d_complete": false,
+  "stage_e_complete": false
+}
