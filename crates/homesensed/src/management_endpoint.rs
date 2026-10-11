@@ -1,4 +1,4 @@
-//! A management listener owned by the TCP supervisor, never a second bus owner.
+//! A management listener sharing its supervisor's runtime and bus owner.
 use crate::{
     admission::Admission,
     automation_runtime::AutomationRuntime,
@@ -29,6 +29,20 @@ impl Endpoint {
         runtime: &AutomationRuntime,
         publisher: crate::automation_publication::Publisher,
     ) -> Result<Self, String> {
+        Self::start_in_context(settings,directory,admission,controller,runtime,Some(publisher),homesense_core::ExecutionContext::Live).await
+    }
+    #[allow(clippy::too_many_arguments)]
+    pub async fn start_in_context(
+        settings: crate::service::WebSettings,
+        directory: &Path,
+        admission: &Admission,
+        controller: Uuid,
+        runtime: &AutomationRuntime,
+        publisher: Option<crate::automation_publication::Publisher>,
+        context: homesense_core::ExecutionContext,
+    ) -> Result<Self, String> {
+        if let Some(tls)=&settings.tls {tls.validate_address(settings.address)?;}
+        else if !settings.address.ip().is_loopback() || settings.address.port()==0 {return Err("plaintext management requires loopback".into());}
         let bundle = admission
             .automation_bundle(
                 controller,
@@ -69,12 +83,12 @@ impl Endpoint {
             origin,
             tokens,
             runtime: RwLock::new(Some(view)),
-            publisher: Some(publisher),
+            publisher,
             receipts: Mutex::new(crate::web_receipts::Receipts::open(
                 &directory.join("web-receipts.sqlite"),
             )?),
             drafts: Some((
-                homesense_core::ExecutionContext::Live,
+                context,
                 Mutex::new(crate::web_drafts::Drafts::open(
                     &directory.join("web-drafts.sqlite"),
                 )?),

@@ -363,6 +363,16 @@ pub async fn serve_web_simulation(devices:&[u8],rules:&[u8],directory:&Path,dura
     serve_automation_simulation_options(devices,rules,directory,duration,None,None,Some(web),None).await
 }
 pub struct UnifiedSimulation {pub address:std::net::SocketAddr,pub scenes:Vec<String>}
+/// Shared HAP/Web simulation. Configuration activation is unavailable until
+/// publication can rebuild the HAP graph as well as the automation runtime.
+pub async fn serve_combined_simulation(devices:&[u8],rules:&[u8],directory:&Path,duration:Duration,hap:UnifiedSimulation,web:WebSettings)->Result<(),String> {
+    if !hap.address.ip().is_loopback() || hap.address.port()==0 || hap.scenes.is_empty() {return Err("unified simulation needs loopback endpoint and selected scenes".into());}
+    if let Some(tls)=&web.tls {tls.validate_address(web.address)?;}
+    else if !web.address.ip().is_loopback() || web.address.port()==0 {return Err("plaintext management requires loopback".into());}
+    if hap.address==web.address {return Err("HAP and Web require distinct endpoints".into());}
+    serve_automation_simulation_options(devices,rules,directory,duration,None,None,Some(web),Some(hap)).await
+}
+
 pub async fn serve_unified_simulation(devices:&[u8],rules:&[u8],directory:&Path,duration:Duration,hap:UnifiedSimulation)->Result<(),String> {
     if !hap.address.ip().is_loopback() || hap.address.port()==0 || hap.scenes.is_empty() {return Err("unified simulation needs loopback endpoint and selected scenes".into());}
     serve_automation_simulation_options(devices,rules,directory,duration,None,None,None,Some(hap)).await
@@ -491,12 +501,17 @@ async fn serve_automation_simulation_options(
             let mut graph=crate::unified_hap::UnifiedHap{lights,scenes:Some(scenes)};
             let server=IpServer::new_loopback(settings,identity).await.map_err(error)?;
             graph.install(&server).await?;
+            let mut management=match web {
+                Some(settings)=>Some(crate::management_endpoint::Endpoint::start_in_context(settings,directory,&admission,controller,&runtime,None,ExecutionContext::Simulation).await?),
+                None=>None,
+            };
             let (stop,receive)=tokio::sync::watch::channel(false);
             let (snapshots,updates)=tokio::sync::watch::channel(owner.snapshot());
             let project=graph.project(updates,receive.clone());
             let drive=runtime.drive_hap(&mut owner,snapshots,receive,wall_ms);
             tokio::pin!(drive,project);
             tokio::select! {
+                result=async {match management.as_mut(){Some(endpoint)=>endpoint.finished().await,None=>std::future::pending().await}}=>{let _=stop.send(true);drive.await?;return Err(result.err().unwrap_or_else(||"management listener ended".into()));},
                 result=server.run_handle()=>{let _=stop.send(true);drive.await?;result.map_err(error)?;},
                 result=&mut project=>{let _=stop.send(true);drive.await?;result?;},
                 result=&mut drive=>{result?;},
