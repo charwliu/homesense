@@ -351,6 +351,21 @@ impl Store {
             .optional()?;
         value.map(|s| Status::parse(&s)).transpose()
     }
+    /// Atomic final scene-lifecycle check at the transport boundary.
+    /// False records cancellation; no bytes may be written for that command.
+    pub fn begin_command_write(&mut self, boot_id: &str, id: u64, now_ms: u64) -> Result<bool, Error> {
+        boot(boot_id)?;
+        let tx=self.connection.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        let ended: bool=tx.query_row(
+            "SELECT EXISTS(SELECT 1 FROM scene_command c JOIN scene_run s USING(boot_id,run_id) WHERE c.boot_id=?1 AND c.command_id=?2 AND s.status NOT IN ('pending','running'))",
+            params![boot_id,integer(id)?],|r|r.get(0))?;
+        let status=if ended {"cancelled"} else {"writing"};
+        let count=tx.execute("UPDATE command_journal SET status=?1,updated_ms=?2 WHERE boot_id=?3 AND command_id=?4 AND status='accepted' AND updated_ms<=?2",
+            params![status,integer(now_ms)?,boot_id,integer(id)?])?;
+        if count!=1 {return Err(Error::Conflict);}
+        tx.commit()?;
+        Ok(!ended)
+    }
     pub fn transition_command(
         &mut self,
         boot_id: &str,

@@ -284,6 +284,15 @@ impl Arbiter {
             return Ok(result);
         }
     }
+    /// Release a selected command rejected before any transport write.
+    /// The caller must first durably record its cancellation.
+    pub fn cancel_selected_before_write(&mut self, id: u64) -> Result<(), ArbiterError> {
+        if self.writing.as_ref().is_none_or(|c| c.id != id) {
+            return Err(ArbiterError::InvalidState);
+        }
+        self.writing.take();
+        Ok(())
+    }
     /// false means the frame boundary was not completed; publication must fail.
     /// Execution outcome/partial byte count must also be recorded by the caller.
     pub fn finish_write(&mut self, id: u64, complete_frame: bool) -> Result<(), ArbiterError> {

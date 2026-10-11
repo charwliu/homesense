@@ -5441,6 +5441,8 @@ async fn software_fade_terminal_scene_cancels_queued_sample_without_stopping_adm
     tokio::time::sleep(std::time::Duration::from_millis(60)).await;
     assert!(!fade.tick().await.unwrap());
     Store::open(&db.0).unwrap().checkpoint_scene_run(a.boot_id(),"scene",0,homesense_storage::scene_run::Status::Cancelled,100).unwrap();
+    // The transport boundary must reject this command even before the fade polls.
+    assert!(a.dispatch().await.unwrap().is_none());
     let error=fade.tick().await.unwrap_err();
     assert!(error.contains("scene no longer active"));
     assert_eq!(fade.tick().await.unwrap_err(),error);
