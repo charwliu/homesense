@@ -290,3 +290,71 @@ async fn shutdown_audit_failure_is_reported_instead_of_success() {
     drop(sql);
     std::fs::remove_dir_all(root).unwrap();
 }
+
+#[tokio::test]
+async fn disconnect_without_pending_work_has_explicit_transport_outcome() {
+    let root = std::env::temp_dir().join(format!(
+        "automation-tcp-classified-{}",
+        uuid::Uuid::new_v4()
+    ));
+    let bus = TcpListener::bind("127.0.0.1:0").unwrap();
+    let mut devices: hap::serde_json::Value =
+        hap::serde_json::from_slice(include_bytes!("../../../config/simulation-home.json"))
+            .unwrap();
+    devices["gateways"][0]["endpoint"] = bus.local_addr().unwrap().to_string().into();
+    devices["gateways"][0]["modules"][0]["verification"] = hap::serde_json::json!({"status":"verified","evidence":"loopback only","verified_at_unix_ms":1});
+    let rules=br#"{"schema_version":1,"configuration_revision":1,"variables":[],"rules":[{"id":"startup","enabled":true,"review_evidence":"loopback","source":"test","trigger":{"kind":"startup_synchronized"},"actions":[{"source":"test","action":{"kind":"command","device":"simulation:light","command":{"kind":"level","value":30,"ramp":false}}},{"source":"delayed","action":{"kind":"scene","id":"later","activate":true}}]}],"timed_scenes":[{"id":"later","enabled":true,"review_evidence":"loopback","max_lateness_ms":1000,"steps":[{"source":"later","offset_ms":1000,"device":"simulation:light","command":{"kind":"level","value":60,"ramp":false}}]}]}"#;
+    let mut document: hap::serde_json::Value = hap::serde_json::from_slice(rules).unwrap();
+    document["rules"][0]["actions"]
+        .as_array_mut()
+        .unwrap()
+        .truncate(1);
+    document["timed_scenes"] = hap::serde_json::json!([]);
+    let rules = hap::serde_json::to_vec(&document).unwrap();
+    let server = std::thread::spawn(move || {
+        let (mut socket, _) = bus.accept().unwrap();
+        socket
+            .set_read_timeout(Some(Duration::from_secs(5)))
+            .unwrap();
+        let mut frame = [0; 5];
+        socket.read_exact(&mut frame).unwrap();
+        assert_eq!(frame, [0xAE, 0x15, 0xA1, 0xF2, 0xEE]);
+        socket.write_all(&[0xAE, 0x15, 0xD1, 42, 0xEE]).unwrap();
+        socket.read_exact(&mut frame).unwrap();
+        assert_eq!(frame, [0xAE, 0x15, 0x01, 30, 0xEE]);
+        socket.shutdown(std::net::Shutdown::Both).unwrap();
+    });
+    let result = homesensed::automation_tcp::serve(
+        &hap::serde_json::to_vec(&devices).unwrap(),
+        &rules,
+        &root,
+        Duration::from_secs(3),
+        true,
+    )
+    .await;
+    assert!(result.unwrap_err().contains("gateway disconnected"));
+    server.join().unwrap();
+    let sql = rusqlite::Connection::open(root.join("automation-tcp.sqlite")).unwrap();
+    let count: i64 = sql
+        .query_row("SELECT count(*) FROM command_journal", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(count, 1, "delayed output must never be admitted");
+    let pending: i64 = sql
+        .query_row(
+            "SELECT count(*) FROM command_journal WHERE status IN ('accepted','writing')",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(pending, 0);
+    let scenes: i64 = sql
+        .query_row(
+            "SELECT count(*) FROM scene_run WHERE status IN ('pending','running')",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(scenes, 0, "disconnect must leave no live scene receipt");
+    drop(sql);
+    std::fs::remove_dir_all(root).unwrap();
+}

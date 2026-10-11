@@ -165,8 +165,22 @@ impl AutomationRuntime {
         stop: tokio::sync::watch::Receiver<bool>,
         wall_clock: impl FnMut() -> Result<i64, String>,
     ) -> Result<(), String> {
+        match self.drive_classified(owner, cadence, max_age_ms, stop, wall_clock).await? {
+            crate::automation_drive::Exit::Disconnected { gateway } => Err(format!("gateway disconnected: {gateway}")),
+            _ => Ok(()),
+        }
+    }
+    /// Distinguishes audited EOF from other failures; the old owner remains stopped.
+    pub async fn drive_classified<S: std::io::Read + std::io::Write + Send + 'static>(
+        &mut self,
+        owner: &mut crate::observed_transport::ObservedTransport<S>,
+        cadence: std::time::Duration,
+        max_age_ms: u64,
+        stop: tokio::sync::watch::Receiver<bool>,
+        wall_clock: impl FnMut() -> Result<i64, String>,
+    ) -> Result<crate::automation_drive::Exit, String> {
         self.validate().await?;
-        let paused = crate::automation_drive::drive_controlled(
+        let outcome = crate::automation_drive::drive_classified(
             &self.admission,
             owner,
             &mut self.panels,
@@ -180,8 +194,8 @@ impl AutomationRuntime {
             Some(&mut self.causal),
         )
         .await?;
-        self.publication_paused = paused;
-        Ok(())
+        self.publication_paused = matches!(outcome, crate::automation_drive::Exit::PublicationPaused);
+        Ok(outcome)
     }
     fn stop(&mut self) {
         self.requests.close();

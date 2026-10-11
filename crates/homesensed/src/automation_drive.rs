@@ -87,6 +87,37 @@ pub(crate) async fn drive_controlled<S: Read + Write + Send + 'static>(
     calendar: Option<&mut crate::event_rules::ScheduledRules>,
     cadence: Duration,
     max_age_ms: u64,
+    stop: tokio::sync::watch::Receiver<bool>,
+    wall_clock: impl FnMut() -> Result<i64, String>,
+    control: Option<(
+        &mut crate::automation_control::Receiver,
+        &homesense_config::rule_document::Document,
+    )>,
+    causal: Option<&mut crate::deferred_router::Router>,
+) -> Result<bool, String> {
+    match drive_classified(admission, owner, panels, scenes, calendar, cadence, max_age_ms, stop, wall_clock, control, causal).await? {
+        Exit::Stopped => Ok(false),
+        Exit::PublicationPaused => Ok(true),
+        Exit::Disconnected { gateway } => Err(format!("gateway disconnected: {gateway}")),
+    }
+}
+/// A transport disconnection is distinct from rule, storage and cleanup errors.
+/// This classification does not reopen the stopped admission owner.
+#[derive(Debug, PartialEq, Eq)]
+pub enum Exit {
+    Stopped,
+    PublicationPaused,
+    Disconnected { gateway: String },
+}
+#[allow(clippy::too_many_arguments)]
+pub(crate) async fn drive_classified<S: Read + Write + Send + 'static>(
+    admission: &Admission,
+    owner: &mut ObservedTransport<S>,
+    panels: &mut PanelRules,
+    scenes: &mut SceneScheduler,
+    calendar: Option<&mut crate::event_rules::ScheduledRules>,
+    cadence: Duration,
+    max_age_ms: u64,
     mut stop: tokio::sync::watch::Receiver<bool>,
     mut wall_clock: impl FnMut() -> Result<i64, String>,
     control: Option<(
@@ -94,7 +125,7 @@ pub(crate) async fn drive_controlled<S: Read + Write + Send + 'static>(
         &homesense_config::rule_document::Document,
     )>,
     mut causal: Option<&mut crate::deferred_router::Router>,
-) -> Result<bool, String> {
+) -> Result<Exit, String> {
     struct Close<'a>(
         Option<(
             &'a mut crate::automation_control::Receiver,
@@ -128,6 +159,7 @@ pub(crate) async fn drive_controlled<S: Read + Write + Send + 'static>(
         calendar,
         publication_paused: false,
     };
+    let mut disconnected = None;
     let result = async {
         let gateways = guard.owner.gateway_ids();
         if gateways.is_empty() {
@@ -213,7 +245,11 @@ pub(crate) async fn drive_controlled<S: Read + Write + Send + 'static>(
             if *stop.borrow() {
                 return Ok(());
             }
-            guard.owner.receive(&gateways[next]).await?;
+            let read = guard.owner.receive(&gateways[next]).await?;
+            if matches!(read.result, hb_transport::Receive::Disconnected { .. }) {
+                disconnected = Some(gateways[next].clone());
+                return Ok(());
+            }
             guard.owner.expire(admission.monotonic_ms(), max_age_ms)?;
             next = (next + 1) % gateways.len();
             tokio::select! {
@@ -240,7 +276,7 @@ pub(crate) async fn drive_controlled<S: Read + Write + Send + 'static>(
             log::warn!("publication coordinator retains cleanup responsibility: {error}");
         }
         guard.publication_paused = true;
-        Ok(true)
+        Ok(Exit::PublicationPaused)
     } else {
         if !cleanup_errors.is_empty() {
             let cleanup = cleanup_errors.join("; ");
@@ -249,6 +285,9 @@ pub(crate) async fn drive_controlled<S: Read + Write + Send + 'static>(
                 Err(error) => format!("{error}; {cleanup}"),
             });
         }
-        result.map(|()| false)
+        result.map(|()| match disconnected {
+            Some(gateway) => Exit::Disconnected { gateway },
+            None => Exit::Stopped,
+        })
     }
 }
