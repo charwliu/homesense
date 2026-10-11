@@ -1,0 +1,1004 @@
+[
+  {
+    "key": 1,
+    "mode": "unknown",
+    "result": {
+      "bus_writes": 0,
+      "status": "unknown_skipped"
+    }
+  },
+  {
+    "key": 1,
+    "mode": "0",
+    "result": {
+      "bus_writes": 0,
+      "next_mode": 1,
+      "physical_state_confirmed": false,
+      "status": "offline_plan",
+      "steps": [
+        {
+          "action": {
+            "kind": "set_mode",
+            "source": "event:63:2/code:14",
+            "value": 1
+          },
+          "members": null
+        },
+        {
+          "action": {
+            "activate": true,
+            "kind": "scene",
+            "scene_id": "10",
+            "source": "event:63:2/code:3"
+          },
+          "members": [
+            {
+              "device": "control4:210",
+              "level": 100,
+              "source_delay": 0,
+              "source_proxy": "211",
+              "source_rate": 1
+            },
+            {
+              "device": "control4:278",
+              "level": 0,
+              "source_delay": 0,
+              "source_proxy": "279",
+              "source_rate": 0
+            },
+            {
+              "device": "control4:308",
+              "level": 0,
+              "source_delay": 0,
+              "source_proxy": "309",
+              "source_rate": 1000
+            },
+            {
+              "device": "control4:336",
+              "level": 100,
+              "source_delay": 0,
+              "source_proxy": "337",
+              "source_rate": 1000
+            }
+          ]
+        },
+        {
+          "action": {
+            "key": 1,
+            "kind": "led",
+            "on": true,
+            "source": "event:63:2/code:7"
+          },
+          "members": null
+        },
+        {
+          "action": {
+            "key": 5,
+            "kind": "led",
+            "on": false,
+            "source": "event:63:2/code:11"
+          },
+          "members": null
+        },
+        {
+          "action": {
+            "key": 3,
+            "kind": "led",
+            "on": false,
+            "source": "event:63:2/code:10"
+          },
+          "members": null
+        }
+      ],
+      "timing_policy": "source units retained; live timing adapter pending"
+    }
+  },
+  {
+    "key": 1,
+    "mode": "1",
+    "result": {
+      "bus_writes": 0,
+      "next_mode": 0,
+      "physical_state_confirmed": false,
+      "status": "offline_plan",
+      "steps": [
+        {
+          "action": {
+            "kind": "set_mode",
+            "source": "event:63:2/code:15",
+            "value": 0
+          },
+          "members": null
+        },
+        {
+          "action": {
+            "activate": false,
+            "kind": "scene",
+            "scene_id": "10",
+            "source": "event:63:2/code:5"
+          },
+          "members": [
+            {
+              "device": "control4:210",
+              "level": 0,
+              "source_delay": 0,
+              "source_proxy": "211",
+              "source_rate": 1
+            },
+            {
+              "device": "control4:278",
+              "level": 0,
+              "source_delay": 0,
+              "source_proxy": "279",
+              "source_rate": 0
+            },
+            {
+              "device": "control4:308",
+              "level": 0,
+              "source_delay": 0,
+              "source_proxy": "309",
+              "source_rate": 1000
+            },
+            {
+              "device": "control4:336",
+              "level": 0,
+              "source_delay": 0,
+              "source_proxy": "337",
+              "source_rate": 1000
+            }
+          ]
+        },
+        {
+          "action": {
+            "key": 1,
+            "kind": "led",
+            "on": false,
+            "source": "event:63:2/code:6"
+          },
+          "members": null
+        }
+      ],
+      "timing_policy": "source units retained; live timing adapter pending"
+    }
+  },
+  {
+    "key": 1,
+    "mode": "2",
+    "result": {
+      "bus_writes": 0,
+      "next_mode": 1,
+      "physical_state_confirmed": false,
+      "status": "offline_plan",
+      "steps": [
+        {
+          "action": {
+            "kind": "set_mode",
+            "source": "event:63:2/code:14",
+            "value": 1
+          },
+          "members": null
+        },
+        {
+          "action": {
+            "activate": true,
+            "kind": "scene",
+            "scene_id": "10",
+            "source": "event:63:2/code:3"
+          },
+          "members": [
+            {
+              "device": "control4:210",
+              "level": 100,
+              "source_delay": 0,
+              "source_proxy": "211",
+              "source_rate": 1
+            },
+            {
+              "device": "control4:278",
+              "level": 0,
+              "source_delay": 0,
+              "source_proxy": "279",
+              "source_rate": 0
+            },
+            {
+              "device": "control4:308",
+              "level": 0,
+              "source_delay": 0,
+              "source_proxy": "309",
+              "source_rate": 1000
+            },
+            {
+              "device": "control4:336",
+              "level": 100,
+              "source_delay": 0,
+              "source_proxy": "337",
+              "source_rate": 1000
+            }
+          ]
+        },
+        {
+          "action": {
+            "key": 1,
+            "kind": "led",
+            "on": true,
+            "source": "event:63:2/code:7"
+          },
+          "members": null
+        },
+        {
+          "action": {
+            "key": 5,
+            "kind": "led",
+            "on": false,
+            "source": "event:63:2/code:11"
+          },
+          "members": null
+        },
+        {
+          "action": {
+            "key": 3,
+            "kind": "led",
+            "on": false,
+            "source": "event:63:2/code:10"
+          },
+          "members": null
+        }
+      ],
+      "timing_policy": "source units retained; live timing adapter pending"
+    }
+  },
+  {
+    "key": 1,
+    "mode": "3",
+    "result": {
+      "bus_writes": 0,
+      "next_mode": 1,
+      "physical_state_confirmed": false,
+      "status": "offline_plan",
+      "steps": [
+        {
+          "action": {
+            "kind": "set_mode",
+            "source": "event:63:2/code:14",
+            "value": 1
+          },
+          "members": null
+        },
+        {
+          "action": {
+            "activate": true,
+            "kind": "scene",
+            "scene_id": "10",
+            "source": "event:63:2/code:3"
+          },
+          "members": [
+            {
+              "device": "control4:210",
+              "level": 100,
+              "source_delay": 0,
+              "source_proxy": "211",
+              "source_rate": 1
+            },
+            {
+              "device": "control4:278",
+              "level": 0,
+              "source_delay": 0,
+              "source_proxy": "279",
+              "source_rate": 0
+            },
+            {
+              "device": "control4:308",
+              "level": 0,
+              "source_delay": 0,
+              "source_proxy": "309",
+              "source_rate": 1000
+            },
+            {
+              "device": "control4:336",
+              "level": 100,
+              "source_delay": 0,
+              "source_proxy": "337",
+              "source_rate": 1000
+            }
+          ]
+        },
+        {
+          "action": {
+            "key": 1,
+            "kind": "led",
+            "on": true,
+            "source": "event:63:2/code:7"
+          },
+          "members": null
+        },
+        {
+          "action": {
+            "key": 5,
+            "kind": "led",
+            "on": false,
+            "source": "event:63:2/code:11"
+          },
+          "members": null
+        },
+        {
+          "action": {
+            "key": 3,
+            "kind": "led",
+            "on": false,
+            "source": "event:63:2/code:10"
+          },
+          "members": null
+        }
+      ],
+      "timing_policy": "source units retained; live timing adapter pending"
+    }
+  },
+  {
+    "key": 3,
+    "mode": "unknown",
+    "result": {
+      "bus_writes": 0,
+      "status": "unknown_skipped"
+    }
+  },
+  {
+    "key": 3,
+    "mode": "0",
+    "result": {
+      "bus_writes": 0,
+      "next_mode": 2,
+      "physical_state_confirmed": false,
+      "status": "offline_plan",
+      "steps": [
+        {
+          "action": {
+            "kind": "set_mode",
+            "source": "event:63:6/code:13",
+            "value": 2
+          },
+          "members": null
+        },
+        {
+          "action": {
+            "activate": true,
+            "kind": "scene",
+            "scene_id": "6",
+            "source": "event:63:6/code:6"
+          },
+          "members": [
+            {
+              "device": "control4:210",
+              "level": 100,
+              "source_delay": 0,
+              "source_proxy": "211",
+              "source_rate": 1
+            },
+            {
+              "device": "control4:278",
+              "level": 100,
+              "source_delay": 0,
+              "source_proxy": "279",
+              "source_rate": 1
+            },
+            {
+              "device": "control4:308",
+              "level": 100,
+              "source_delay": 0,
+              "source_proxy": "309",
+              "source_rate": 1000
+            },
+            {
+              "device": "control4:336",
+              "level": 100,
+              "source_delay": 0,
+              "source_proxy": "337",
+              "source_rate": 1000
+            }
+          ]
+        },
+        {
+          "action": {
+            "key": 3,
+            "kind": "led",
+            "on": true,
+            "source": "event:63:6/code:3"
+          },
+          "members": null
+        },
+        {
+          "action": {
+            "key": 1,
+            "kind": "led",
+            "on": false,
+            "source": "event:63:6/code:8"
+          },
+          "members": null
+        },
+        {
+          "action": {
+            "key": 5,
+            "kind": "led",
+            "on": false,
+            "source": "event:63:6/code:9"
+          },
+          "members": null
+        }
+      ],
+      "timing_policy": "source units retained; live timing adapter pending"
+    }
+  },
+  {
+    "key": 3,
+    "mode": "1",
+    "result": {
+      "bus_writes": 0,
+      "next_mode": 2,
+      "physical_state_confirmed": false,
+      "status": "offline_plan",
+      "steps": [
+        {
+          "action": {
+            "kind": "set_mode",
+            "source": "event:63:6/code:13",
+            "value": 2
+          },
+          "members": null
+        },
+        {
+          "action": {
+            "activate": true,
+            "kind": "scene",
+            "scene_id": "6",
+            "source": "event:63:6/code:6"
+          },
+          "members": [
+            {
+              "device": "control4:210",
+              "level": 100,
+              "source_delay": 0,
+              "source_proxy": "211",
+              "source_rate": 1
+            },
+            {
+              "device": "control4:278",
+              "level": 100,
+              "source_delay": 0,
+              "source_proxy": "279",
+              "source_rate": 1
+            },
+            {
+              "device": "control4:308",
+              "level": 100,
+              "source_delay": 0,
+              "source_proxy": "309",
+              "source_rate": 1000
+            },
+            {
+              "device": "control4:336",
+              "level": 100,
+              "source_delay": 0,
+              "source_proxy": "337",
+              "source_rate": 1000
+            }
+          ]
+        },
+        {
+          "action": {
+            "key": 3,
+            "kind": "led",
+            "on": true,
+            "source": "event:63:6/code:3"
+          },
+          "members": null
+        },
+        {
+          "action": {
+            "key": 1,
+            "kind": "led",
+            "on": false,
+            "source": "event:63:6/code:8"
+          },
+          "members": null
+        },
+        {
+          "action": {
+            "key": 5,
+            "kind": "led",
+            "on": false,
+            "source": "event:63:6/code:9"
+          },
+          "members": null
+        }
+      ],
+      "timing_policy": "source units retained; live timing adapter pending"
+    }
+  },
+  {
+    "key": 3,
+    "mode": "2",
+    "result": {
+      "bus_writes": 0,
+      "next_mode": 0,
+      "physical_state_confirmed": false,
+      "status": "offline_plan",
+      "steps": [
+        {
+          "action": {
+            "kind": "set_mode",
+            "source": "event:63:6/code:14",
+            "value": 0
+          },
+          "members": null
+        },
+        {
+          "action": {
+            "activate": false,
+            "kind": "scene",
+            "scene_id": "6",
+            "source": "event:63:6/code:7"
+          },
+          "members": [
+            {
+              "device": "control4:210",
+              "level": 0,
+              "source_delay": 0,
+              "source_proxy": "211",
+              "source_rate": 1
+            },
+            {
+              "device": "control4:278",
+              "level": 0,
+              "source_delay": 0,
+              "source_proxy": "279",
+              "source_rate": 1
+            },
+            {
+              "device": "control4:308",
+              "level": 0,
+              "source_delay": 0,
+              "source_proxy": "309",
+              "source_rate": 1000
+            },
+            {
+              "device": "control4:336",
+              "level": 0,
+              "source_delay": 0,
+              "source_proxy": "337",
+              "source_rate": 1000
+            }
+          ]
+        },
+        {
+          "action": {
+            "key": 3,
+            "kind": "led",
+            "on": false,
+            "source": "event:63:6/code:5"
+          },
+          "members": null
+        }
+      ],
+      "timing_policy": "source units retained; live timing adapter pending"
+    }
+  },
+  {
+    "key": 3,
+    "mode": "3",
+    "result": {
+      "bus_writes": 0,
+      "next_mode": 2,
+      "physical_state_confirmed": false,
+      "status": "offline_plan",
+      "steps": [
+        {
+          "action": {
+            "kind": "set_mode",
+            "source": "event:63:6/code:13",
+            "value": 2
+          },
+          "members": null
+        },
+        {
+          "action": {
+            "activate": true,
+            "kind": "scene",
+            "scene_id": "6",
+            "source": "event:63:6/code:6"
+          },
+          "members": [
+            {
+              "device": "control4:210",
+              "level": 100,
+              "source_delay": 0,
+              "source_proxy": "211",
+              "source_rate": 1
+            },
+            {
+              "device": "control4:278",
+              "level": 100,
+              "source_delay": 0,
+              "source_proxy": "279",
+              "source_rate": 1
+            },
+            {
+              "device": "control4:308",
+              "level": 100,
+              "source_delay": 0,
+              "source_proxy": "309",
+              "source_rate": 1000
+            },
+            {
+              "device": "control4:336",
+              "level": 100,
+              "source_delay": 0,
+              "source_proxy": "337",
+              "source_rate": 1000
+            }
+          ]
+        },
+        {
+          "action": {
+            "key": 3,
+            "kind": "led",
+            "on": true,
+            "source": "event:63:6/code:3"
+          },
+          "members": null
+        },
+        {
+          "action": {
+            "key": 1,
+            "kind": "led",
+            "on": false,
+            "source": "event:63:6/code:8"
+          },
+          "members": null
+        },
+        {
+          "action": {
+            "key": 5,
+            "kind": "led",
+            "on": false,
+            "source": "event:63:6/code:9"
+          },
+          "members": null
+        }
+      ],
+      "timing_policy": "source units retained; live timing adapter pending"
+    }
+  },
+  {
+    "key": 5,
+    "mode": "unknown",
+    "result": {
+      "bus_writes": 0,
+      "status": "unknown_skipped"
+    }
+  },
+  {
+    "key": 5,
+    "mode": "0",
+    "result": {
+      "bus_writes": 0,
+      "next_mode": 3,
+      "physical_state_confirmed": false,
+      "status": "offline_plan",
+      "steps": [
+        {
+          "action": {
+            "kind": "set_mode",
+            "source": "event:63:10/code:10",
+            "value": 3
+          },
+          "members": null
+        },
+        {
+          "action": {
+            "key": 5,
+            "kind": "led",
+            "on": true,
+            "source": "event:63:10/code:4"
+          },
+          "members": null
+        },
+        {
+          "action": {
+            "key": 1,
+            "kind": "led",
+            "on": false,
+            "source": "event:63:10/code:6"
+          },
+          "members": null
+        },
+        {
+          "action": {
+            "key": 3,
+            "kind": "led",
+            "on": false,
+            "source": "event:63:10/code:7"
+          },
+          "members": null
+        },
+        {
+          "action": {
+            "activate": true,
+            "kind": "scene",
+            "scene_id": "8",
+            "source": "event:63:10/code:8"
+          },
+          "members": [
+            {
+              "device": "control4:210",
+              "level": 0,
+              "source_delay": 0,
+              "source_proxy": "211",
+              "source_rate": 0
+            },
+            {
+              "device": "control4:278",
+              "level": 100,
+              "source_delay": 0,
+              "source_proxy": "279",
+              "source_rate": 1
+            },
+            {
+              "device": "control4:308",
+              "level": 17,
+              "source_delay": 0,
+              "source_proxy": "309",
+              "source_rate": 1000
+            },
+            {
+              "device": "control4:336",
+              "level": 0,
+              "source_delay": 0,
+              "source_proxy": "337",
+              "source_rate": 1000
+            }
+          ]
+        }
+      ],
+      "timing_policy": "source units retained; live timing adapter pending"
+    }
+  },
+  {
+    "key": 5,
+    "mode": "1",
+    "result": {
+      "bus_writes": 0,
+      "next_mode": 3,
+      "physical_state_confirmed": false,
+      "status": "offline_plan",
+      "steps": [
+        {
+          "action": {
+            "kind": "set_mode",
+            "source": "event:63:10/code:10",
+            "value": 3
+          },
+          "members": null
+        },
+        {
+          "action": {
+            "key": 5,
+            "kind": "led",
+            "on": true,
+            "source": "event:63:10/code:4"
+          },
+          "members": null
+        },
+        {
+          "action": {
+            "key": 1,
+            "kind": "led",
+            "on": false,
+            "source": "event:63:10/code:6"
+          },
+          "members": null
+        },
+        {
+          "action": {
+            "key": 3,
+            "kind": "led",
+            "on": false,
+            "source": "event:63:10/code:7"
+          },
+          "members": null
+        },
+        {
+          "action": {
+            "activate": true,
+            "kind": "scene",
+            "scene_id": "8",
+            "source": "event:63:10/code:8"
+          },
+          "members": [
+            {
+              "device": "control4:210",
+              "level": 0,
+              "source_delay": 0,
+              "source_proxy": "211",
+              "source_rate": 0
+            },
+            {
+              "device": "control4:278",
+              "level": 100,
+              "source_delay": 0,
+              "source_proxy": "279",
+              "source_rate": 1
+            },
+            {
+              "device": "control4:308",
+              "level": 17,
+              "source_delay": 0,
+              "source_proxy": "309",
+              "source_rate": 1000
+            },
+            {
+              "device": "control4:336",
+              "level": 0,
+              "source_delay": 0,
+              "source_proxy": "337",
+              "source_rate": 1000
+            }
+          ]
+        }
+      ],
+      "timing_policy": "source units retained; live timing adapter pending"
+    }
+  },
+  {
+    "key": 5,
+    "mode": "2",
+    "result": {
+      "bus_writes": 0,
+      "next_mode": 3,
+      "physical_state_confirmed": false,
+      "status": "offline_plan",
+      "steps": [
+        {
+          "action": {
+            "kind": "set_mode",
+            "source": "event:63:10/code:10",
+            "value": 3
+          },
+          "members": null
+        },
+        {
+          "action": {
+            "key": 5,
+            "kind": "led",
+            "on": true,
+            "source": "event:63:10/code:4"
+          },
+          "members": null
+        },
+        {
+          "action": {
+            "key": 1,
+            "kind": "led",
+            "on": false,
+            "source": "event:63:10/code:6"
+          },
+          "members": null
+        },
+        {
+          "action": {
+            "key": 3,
+            "kind": "led",
+            "on": false,
+            "source": "event:63:10/code:7"
+          },
+          "members": null
+        },
+        {
+          "action": {
+            "activate": true,
+            "kind": "scene",
+            "scene_id": "8",
+            "source": "event:63:10/code:8"
+          },
+          "members": [
+            {
+              "device": "control4:210",
+              "level": 0,
+              "source_delay": 0,
+              "source_proxy": "211",
+              "source_rate": 0
+            },
+            {
+              "device": "control4:278",
+              "level": 100,
+              "source_delay": 0,
+              "source_proxy": "279",
+              "source_rate": 1
+            },
+            {
+              "device": "control4:308",
+              "level": 17,
+              "source_delay": 0,
+              "source_proxy": "309",
+              "source_rate": 1000
+            },
+            {
+              "device": "control4:336",
+              "level": 0,
+              "source_delay": 0,
+              "source_proxy": "337",
+              "source_rate": 1000
+            }
+          ]
+        }
+      ],
+      "timing_policy": "source units retained; live timing adapter pending"
+    }
+  },
+  {
+    "key": 5,
+    "mode": "3",
+    "result": {
+      "bus_writes": 0,
+      "next_mode": 0,
+      "physical_state_confirmed": false,
+      "status": "offline_plan",
+      "steps": [
+        {
+          "action": {
+            "kind": "set_mode",
+            "source": "event:63:10/code:11",
+            "value": 0
+          },
+          "members": null
+        },
+        {
+          "action": {
+            "key": 5,
+            "kind": "led",
+            "on": false,
+            "source": "event:63:10/code:5"
+          },
+          "members": null
+        },
+        {
+          "action": {
+            "activate": false,
+            "kind": "scene",
+            "scene_id": "8",
+            "source": "event:63:10/code:9"
+          },
+          "members": [
+            {
+              "device": "control4:210",
+              "level": 0,
+              "source_delay": 0,
+              "source_proxy": "211",
+              "source_rate": 0
+            },
+            {
+              "device": "control4:278",
+              "level": 0,
+              "source_delay": 0,
+              "source_proxy": "279",
+              "source_rate": 1
+            },
+            {
+              "device": "control4:308",
+              "level": 0,
+              "source_delay": 0,
+              "source_proxy": "309",
+              "source_rate": 1000
+            },
+            {
+              "device": "control4:336",
+              "level": 0,
+              "source_delay": 0,
+              "source_proxy": "337",
+              "source_rate": 1000
+            }
+          ]
+        }
+      ],
+      "timing_policy": "source units retained; live timing adapter pending"
+    }
+  }
+]

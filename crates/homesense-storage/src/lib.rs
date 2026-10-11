@@ -61,7 +61,7 @@ impl Store {
         if app != 0 && app != APPLICATION_ID {
             return Err(Error::ForeignDatabase);
         }
-        if version != 0 && (!(1..=4).contains(&version) || app != APPLICATION_ID) {
+        if version != 0 && (!(1..=5).contains(&version) || app != APPLICATION_ID) {
             return Err(Error::UnsupportedSchema(version));
         }
         if version == 0 {
@@ -104,6 +104,10 @@ impl Store {
         if version <= 3 {
             tx.execute_batch("CREATE TABLE light_restore (revision INTEGER NOT NULL REFERENCES configuration_revision(revision), device_id TEXT NOT NULL, level INTEGER NOT NULL CHECK(level BETWEEN 1 AND 100), PRIMARY KEY(revision,device_id));")?;
             tx.pragma_update(None, "user_version", 4)?;
+        }
+        if version <= 4 {
+            tx.execute_batch("CREATE TABLE study_mode(revision INTEGER PRIMARY KEY REFERENCES configuration_revision(revision), value INTEGER NOT NULL CHECK(value BETWEEN 0 AND 3));")?;
+            tx.pragma_update(None, "user_version", 5)?;
         }
         tx.commit()?;
         connection.pragma_update(None, "foreign_keys", "ON")?;

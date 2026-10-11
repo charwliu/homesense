@@ -134,7 +134,7 @@ fn version_one_database_migrates_without_losing_configuration() {
     let connection = rusqlite::Connection::open(&db.0).unwrap();
     connection
         .execute_batch(
-            "DROP TABLE command_journal; DROP TABLE light_restore; PRAGMA user_version=1;",
+            "DROP TABLE command_journal; DROP TABLE light_restore; DROP TABLE study_mode; PRAGMA user_version=1;",
         )
         .unwrap();
     drop(connection);
