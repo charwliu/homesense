@@ -4332,6 +4332,17 @@ async fn publication_pauses_old_automation_without_closing_admission() {
         }
         fn flush(&mut self)->std::io::Result<()>{Ok(())}
     }
+    let settings=homesensed::publication_recovery::Settings{
+        query_timeout_ms:100,max_age_ms:5000,wall_unix_ms:1_800_000_000_000,calendar_lateness_ms:1000,scene_capacity:8
+    };
+    // Invalid recovery attempts must not consume the committed publication or
+    // reopen admission. The valid attempt below must still be possible.
+    for (principal,epoch,complete) in [(Uuid::new_v4(),2,true),(controller,1,true),(controller,2,false)] {
+        let streams=if complete {[("simulation".into(),hb_transport::Connection::for_simulation(QueryWire(vec![],true),epoch))].into()} else {std::collections::BTreeMap::new()};
+        let rejected=homesensed::publication_recovery::rebuild(a.clone(),principal,TransportOwner::new(a.clone(),streams),epoch,settings).await;
+        assert!(rejected.is_err());
+        assert!(a.task_generation().await.is_err());
+    }
     let fresh=TransportOwner::new(a.clone(),[("simulation".into(),hb_transport::Connection::for_simulation(QueryWire(vec![],responds),2))].into());
     let rebuilt=homesensed::publication_recovery::rebuild(a.clone(),controller,fresh,2,homesensed::publication_recovery::Settings{
         query_timeout_ms:100,max_age_ms:5000,wall_unix_ms:1_800_000_000_000,calendar_lateness_ms:1000,scene_capacity:8
