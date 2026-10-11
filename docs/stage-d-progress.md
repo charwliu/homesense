@@ -783,3 +783,5 @@ TCP 在线发布前置校验补充：共享候选文档预检已接入启动入�
 调度器停止屏障回归：先调用同步 stop_now，再尝试到期 tick（拒绝），随后两次异步 stop，确认只保存一条 cancel_requested、场景 cancelled 且零命令。定向用例通过，验证计时器屏障与持久清理之间不会丢失取消请求。
 
 提交快照 `f687c40` 使用独立源码及独立 target 完成全 workspace 离线回归：454 项通过，0 失败、0 忽略，84 个结果块。证据见 `docs/evidence/stage-d-study/committed-workspace-f687c40.json`。不含后续 `601bd41` 的单独已通过停止屏障回归；当前 homesensed 库严格 Clippy 通过。此证据覆盖 schema 16 迁移和取消审计，不关闭原项目语义与现场验收缺口。
+
+窗帘条件调查的公开协议依据：Control4 Blind Proxy 区分目标命令与 MOVING／STOPPED 通知；`always_send_level` 控制是否忽略当前 level 仍发送目标，文档默认 false。见 [官方代理文档](https://snap-one.github.io/docs-driverworks-proxyprotocol-blind/#always_send_level)。这仅是代理接口依据，不能证明具体驱动的运行状态，也不能把按钮可用性或 last_command 当作物理反馈；IF_MOVING／IF_STOPPED 的迁移审核仍未关闭。
