@@ -5413,11 +5413,43 @@ async fn software_fade_missing_scene_rejects_output_without_replay() {
     fade.bind_scene("missing".into(),0,"test:fade".into()).unwrap();
     tokio::time::sleep(std::time::Duration::from_millis(60)).await;
     let error=fade.tick().await.unwrap_err();
-    assert!(error.contains("fade admission"));
+    assert!(error.contains("scene no longer active"));
     assert_eq!(fade.tick().await.unwrap_err(),error);
     fade.cancel().await.unwrap();
     assert_eq!(fade.tick().await.unwrap_err(),error);
     let sql=rusqlite::Connection::open(&db.0).unwrap();
     assert_eq!(sql.query_row("SELECT count(*) FROM command_journal",[],|r|r.get::<_,i64>(0)).unwrap(),0);
     drop(fade);a.shutdown().await.unwrap();
+}
+
+#[tokio::test]
+async fn software_fade_terminal_scene_cancels_queued_sample_without_stopping_admission() {
+    use homesensed::{software_fade::SoftwareFade,feedback::Feedback,transport_owner::GatewayRead};
+    let db=Db(std::env::temp_dir().join(format!("fade-{}.sqlite",Uuid::new_v4())));
+    let devices=include_bytes!("../../../config/simulation.json");
+    Store::open(&db.0).unwrap().publish_configuration(None,devices,ExecutionContext::Simulation,&[]).unwrap();
+    let controller=Uuid::new_v4();let a=actor(&db,controller).await;
+    let config=homesense_config::Configuration::parse(devices,ExecutionContext::Simulation).unwrap();
+    let mut feedback=Feedback::new(&config,ExecutionContext::Simulation,Uuid::parse_str(a.boot_id()).unwrap().as_u128(),1).unwrap();
+    let device=homesense_core::DeviceId::new("simulation:light").unwrap();
+    let zero=homesense_core::Percent::new(0).unwrap();
+    assert!(SoftwareFade::start(a.clone(),controller,device.clone(),zero,200,50,100,4,&feedback,2000).await.is_err());
+    feedback.apply(&GatewayRead{gateway_id:"simulation".into(),transport_epoch:1,received_at_ms:0,result:hb_transport::Receive::Frames{transport_epoch:1,frames:vec![hb_protocol::RawFrame{address:0x15,command:0xd1,value:100}]}}).unwrap();
+    let mut fade=SoftwareFade::start(a.clone(),controller,device,zero,200,50,100,4,&feedback,2000).await.unwrap();
+    Store::open(&db.0).unwrap().begin_scene_run(a.boot_id(),"scene",1,None,0).unwrap();
+    fade.bind_scene("scene".into(),0,"test:fade".into()).unwrap();
+    tokio::time::sleep(std::time::Duration::from_millis(60)).await;
+    assert!(!fade.tick().await.unwrap());
+    Store::open(&db.0).unwrap().checkpoint_scene_run(a.boot_id(),"scene",0,homesense_storage::scene_run::Status::Cancelled,100).unwrap();
+    let error=fade.tick().await.unwrap_err();
+    assert!(error.contains("scene no longer active"));
+    assert_eq!(fade.tick().await.unwrap_err(),error);
+    fade.cancel().await.unwrap();
+    assert_eq!(fade.tick().await.unwrap_err(),error);
+    let sql=rusqlite::Connection::open(&db.0).unwrap();
+    assert_eq!(sql.query_row("SELECT count(*) FROM command_journal WHERE status='cancelled'",[],|r|r.get::<_,i64>(0)).unwrap(),1);
+    drop(fade);
+    assert!(a.dispatch().await.unwrap().is_none());
+    assert!(a.task_generation().await.is_ok());
+    a.shutdown().await.unwrap();
 }
