@@ -188,6 +188,10 @@ pub(crate) async fn drive_controlled<S: Read + Write + Send + 'static>(
             };
             if let Some(calendar) = &mut guard.calendar {
                 for result in results {
+                    if let Some(router) = &mut causal {
+                        calendar.scene_result_causal(result,Some((guard.owner.feedback(),max_age_ms)),router,guard.scenes).await?;
+                        continue;
+                    }
                     let report = calendar
                         .scene_result(result, Some((guard.owner.feedback(), max_age_ms)))
                         .await;
