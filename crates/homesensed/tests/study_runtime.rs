@@ -5929,3 +5929,56 @@ async fn ad8_software_fade_rejects_before_output_without_disabling_admission() {
     assert!(a.dispatch().await.unwrap().is_none());
     a.shutdown().await.unwrap();
 }
+
+#[tokio::test]
+async fn accepted_batch_overlap_preserves_other_devices_and_gates_audit_failure() {
+    use hap::serde_json::json;
+    use homesensed::{admission::DeferredRule, scene_scheduler::SceneScheduler};
+    for fault in [false, true] {
+        let db=Db(std::env::temp_dir().join(format!("batch-overlap-{}.sqlite",Uuid::new_v4())));
+        let mut devices:hap::serde_json::Value=hap::serde_json::from_slice(include_bytes!("../../../config/simulation.json")).unwrap();
+        let mut second=devices["devices"][0].clone();
+        second["id"]="simulation:second".into(); second["name"]="second".into(); second["channel"]=2.into();
+        devices["devices"].as_array_mut().unwrap().push(second);
+        let step=|device:&str,level:u8|json!({"source":"synthetic","offset_ms":0,"device":device,"command":{"kind":"level","value":level,"ramp":false}});
+        let rules=json!({"schema_version":1,"configuration_revision":1,"variables":[],"rules":[],"timed_scenes":[
+            {"id":"early","enabled":true,"review_evidence":"synthetic","max_lateness_ms":1000,"steps":[step("simulation:light",20),step("simulation:second",40)]},
+            {"id":"late","enabled":true,"review_evidence":"synthetic","max_lateness_ms":1000,"steps":[step("simulation:light",60)]}
+        ]});
+        Store::open(&db.0).unwrap().publish_automation(None,&hap::serde_json::to_vec(&devices).unwrap(),&hap::serde_json::to_vec(&rules).unwrap(),ExecutionContext::Simulation,&[]).unwrap();
+        let controller=Uuid::new_v4(); let a=actor(&db,controller).await;
+        let mut scheduler=SceneScheduler::new(a.clone(),controller,2,0).unwrap();
+        let mut slots=scheduler.reserve_slots(2).unwrap();
+        let accepted=a.submit_deferred_rule(a.task_generation().await.unwrap(),DeferredRule {
+            batch:homesense_hap::requests::Batch{controller,intents:vec![],subscriptions:vec![]},variables:vec![],
+            audit:homesense_storage::rule_audit::Admission{revision:1,correlation:1,event:1,parent:0,rule:"synthetic".into()},
+            starts:["early","late"].into_iter().enumerate().map(|(index,id)|homesense_storage::scene_run::Start{run:id.into(),revision:1,definition:id.into(),action_index:index,source:"synthetic".into()}).collect(),
+        }).await.unwrap();
+        let sql=rusqlite::Connection::open(&db.0).unwrap();
+        if fault {sql.execute_batch("CREATE TRIGGER fail_overlap BEFORE UPDATE ON scene_run BEGIN SELECT RAISE(ABORT,'synthetic'); END;").unwrap();}
+        let now=Store::open(&db.0).unwrap().scene_run(a.boot_id(),"late").unwrap().unwrap().started_ms;
+        let installed=scheduler.install_accepted(&mut slots,accepted.scenes,now).await;
+        if fault {
+            assert!(installed.is_err());
+            assert!(a.task_generation().await.is_err());
+            assert_eq!(sql.query_row("SELECT count(*) FROM command_journal",[],|r|r.get::<_,i64>(0)).unwrap(),0);
+        } else {
+            installed.unwrap();
+            let mut written=Vec::new();
+            for _ in 0..4 {
+                for tick in scheduler.tick(now).await.unwrap() {tick.result.unwrap();}
+                while let Some(ticket)=a.dispatch().await.unwrap() {
+                    written.push((ticket.command.device_id.as_str().to_owned(),ticket.command.command));
+                    a.finish_write(ticket.command.id,true).await.unwrap();
+                }
+            }
+            assert_eq!(written.len(),2);
+            assert!(written.iter().any(|(id,command)|id=="simulation:second" && matches!(command,homesense_core::Command::SetLevel{level,..} if level.get()==40)));
+            assert!(written.iter().any(|(id,command)|id=="simulation:light" && matches!(command,homesense_core::Command::SetLevel{level,..} if level.get()==60)));
+            let store=Store::open(&db.0).unwrap();
+            assert_eq!(store.scene_run(a.boot_id(),"early").unwrap().unwrap().status,homesense_storage::scene_run::Status::Partial);
+            assert_eq!(store.scene_run(a.boot_id(),"late").unwrap().unwrap().status,homesense_storage::scene_run::Status::CommandsWritten);
+        }
+        a.shutdown().await.unwrap();
+    }
+}
