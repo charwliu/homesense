@@ -65,9 +65,44 @@ pub async fn drive_with_calendar<S: Read + Write + Send + 'static>(
     calendar: Option<&mut crate::event_rules::ScheduledRules>,
     cadence: Duration,
     max_age_ms: u64,
+    stop: tokio::sync::watch::Receiver<bool>,
+    wall_clock: impl FnMut() -> Result<i64, String>,
+) -> Result<(), String> {
+    drive_controlled(
+        admission, owner, panels, scenes, calendar, cadence, max_age_ms, stop, wall_clock, None,
+    )
+    .await
+}
+#[allow(clippy::too_many_arguments)]
+pub(crate) async fn drive_controlled<S: Read + Write + Send + 'static>(
+    admission: &Admission,
+    owner: &mut ObservedTransport<S>,
+    panels: &mut PanelRules,
+    scenes: &mut SceneScheduler,
+    calendar: Option<&mut crate::event_rules::ScheduledRules>,
+    cadence: Duration,
+    max_age_ms: u64,
     mut stop: tokio::sync::watch::Receiver<bool>,
     mut wall_clock: impl FnMut() -> Result<i64, String>,
+    control: Option<(
+        &mut crate::automation_control::Receiver,
+        &homesense_config::rule_document::Document,
+    )>,
 ) -> Result<(), String> {
+    struct Close<'a>(
+        Option<(
+            &'a mut crate::automation_control::Receiver,
+            &'a homesense_config::rule_document::Document,
+        )>,
+    );
+    impl Drop for Close<'_> {
+        fn drop(&mut self) {
+            if let Some((receiver, _)) = &mut self.0 {
+                receiver.close();
+            }
+        }
+    }
+    let mut control = Close(control);
     if cadence.is_zero()
         || cadence > Duration::from_secs(1)
         || max_age_ms == 0
@@ -96,6 +131,9 @@ pub async fn drive_with_calendar<S: Read + Write + Send + 'static>(
         loop {
             if *stop.borrow() || stop.has_changed().is_err() {
                 return Ok(());
+            }
+            if let Some((receiver, document)) = &mut control.0 {
+                receiver.poll(admission, document, guard.scenes).await;
             }
             let now = admission.monotonic_ms();
             if let Some(calendar) = &mut guard.calendar {
