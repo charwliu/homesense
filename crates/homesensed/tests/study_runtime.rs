@@ -6103,3 +6103,30 @@ async fn delayed_scene_manual_override_cancels_only_affected_device() {
     assert!(scene.poll(20).await.unwrap().is_none());
     a.shutdown().await.unwrap();
 }
+
+#[tokio::test]
+async fn scene_uncertain_output_cancels_remaining_without_restart_replay() {
+    use homesense_core::{DeviceId,Command,Percent,LevelTransition,scene::{Step,Status as SceneStatus}};
+    let db=Db(std::env::temp_dir().join(format!("scene-wire-failure-{}.sqlite",Uuid::new_v4())));
+    Store::open(&db.0).unwrap().publish_configuration(None,include_bytes!("../../../config/simulation.json"),ExecutionContext::Simulation,&[]).unwrap();
+    let controller=Uuid::new_v4();let a=actor(&db,controller).await;
+    let steps=[30,70].into_iter().enumerate().map(|(i,level)|Step{
+        device:DeviceId::new("simulation:light").unwrap(),
+        command:Command::SetLevel{level:Percent::new(level).unwrap(),transition:LevelTransition::Immediate},
+        delay_ms:i as u64*10,source:"synthetic".into(),
+    }).collect();
+    let mut scene=homesensed::scene_runtime::SceneRuntime::new(a.clone(),controller,steps,0,1000).await.unwrap();
+    scene.poll(0).await.unwrap().unwrap();
+    let ticket=a.dispatch().await.unwrap().unwrap();
+    a.finish_write(ticket.command.id,false).await.unwrap();
+    scene.reconcile().await.unwrap();
+    assert_eq!(scene.status(),SceneStatus::Partial);
+    a.shutdown().await.unwrap();
+    let reopened=actor(&db,controller).await;
+    assert!(reopened.dispatch().await.unwrap().is_none());
+    let sql=rusqlite::Connection::open(&db.0).unwrap();
+    assert_eq!(sql.query_row("SELECT count(*) FROM command_journal",[],|r|r.get::<_,i64>(0)).unwrap(),1);
+    let status:String=sql.query_row("SELECT status FROM scene_run WHERE run_id=?1",[scene.audit_id()],|r|r.get(0)).unwrap();
+    assert_eq!(status,"partial");
+    reopened.shutdown().await.unwrap();
+}
