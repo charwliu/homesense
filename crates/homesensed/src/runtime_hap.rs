@@ -19,6 +19,14 @@ fn error(e: impl std::fmt::Display) -> String {
     e.to_string()
 }
 
+/// Light publication is a view of the shared physical snapshot. Non-light
+/// observations remain with the automation owner and are not HAP light inputs.
+fn light_snapshot(configuration:&Configuration,physical:&Snapshot)->Result<Snapshot,String> {
+    let mut logical=crate::combined_light::project(configuration,physical).map_err(error)?;
+    logical.devices.retain(|id,_|configuration.binding(id).is_some_and(|(_,module)|matches!(module.kind(),ModuleKind::Switch|ModuleKind::Dimmer)));
+    Ok(logical)
+}
+
 pub struct RuntimeHap {
     pub bridge: AccessoryHandle,
     pub lights: Vec<(LightBinding, AccessoryHandle)>,
@@ -72,7 +80,7 @@ impl RuntimeHap {
                 .map_err(|e| format!("restore levels: {e:?}"))?,
         ));
         let physical_snapshot = Arc::new(RwLock::new(initial.clone()));
-        let initial = crate::combined_light::project(configuration, &initial).map_err(error)?;
+        let initial = light_snapshot(configuration, &initial)?;
         let supplies: std::collections::BTreeSet<_> = configuration
             .devices()
             .values()
@@ -88,7 +96,7 @@ impl RuntimeHap {
                 let dimmable = match module.kind() {
                     ModuleKind::Dimmer => true,
                     ModuleKind::Switch => false,
-                    _ => return Err("runtime HAP graph currently supports lights only".into()),
+                    _ => continue,
                 };
                 specs.push(LightSpec {
                     device: id.clone(),
@@ -187,7 +195,7 @@ impl RuntimeHap {
             if physical.cursor.boot_id!=current.cursor.boot_id || physical.cursor.sequence<current.cursor.sequence {return Err("snapshot cursor regressed".into());}
         }
         let saved=self.admission.remember_levels(self.configuration.revision(),physical.clone(),self.max_age_ms).await.map_err(|e|format!("restore levels: {e:?}"))?;
-        let snapshot=crate::combined_light::project(&self.configuration,&physical).map_err(error)?;
+        let snapshot=light_snapshot(&self.configuration,&physical)?;
         {
             let mut current=self.snapshot.write().map_err(|_|"snapshot lock poisoned")?;
             if snapshot.cursor.boot_id!=current.cursor.boot_id || snapshot.cursor.sequence<current.cursor.sequence {return Err("snapshot cursor regressed".into());}
@@ -248,7 +256,7 @@ impl RuntimeHap {
             .write()
             .map_err(|_| "restore lock poisoned")? = saved;
         let snapshot =
-            crate::combined_light::project(&self.configuration, &physical).map_err(error)?;
+            light_snapshot(&self.configuration, &physical)?;
         *self
             .physical_snapshot
             .write()
@@ -272,7 +280,9 @@ impl RuntimeHap {
                 .map_err(error)?,
             Ok(events) if !resync => {
                 for event in events {
-                    self.projection.apply(&event, now).await.map_err(error)?;
+                    if snapshot.devices.contains_key(&event.device_id) {
+                        self.projection.apply(&event, now).await.map_err(error)?;
+                    }
                 }
             }
             _ => self
@@ -576,6 +586,24 @@ impl RuntimeHap {
 #[cfg(test)]
 mod publication_tests {
     use super::*;
+
+    #[test]
+    fn light_view_excludes_motor_and_keypad_without_mutating_physical_snapshot() {
+        let mut value:serde_json::Value=serde_json::from_slice(include_bytes!("../../../config/simulation.json")).unwrap();
+        for (id,address,profile) in [("motor","22","c4_din_pro_v2_7_7"),("key","41","ts6_86_rs485_v2_6_5_6key")] {
+            let mut module=serde_json::json!({"address":address,"profile":profile,"verification":{"status":"simulated"}});
+            if id=="key" {module["led_mode"]="manual".into();}
+            value["gateways"][0]["modules"].as_array_mut().unwrap().push(module);
+            value["devices"].as_array_mut().unwrap().push(serde_json::json!({"id":id,"name":id,"gateway":"simulation","address":address,"channel":1,"enabled":true}));
+        }
+        let config=Configuration::parse(&serde_json::to_vec(&value).unwrap(),homesense_core::ExecutionContext::Simulation).unwrap();
+        let physical=crate::feedback::Feedback::new(&config,homesense_core::ExecutionContext::Simulation,1,1).unwrap().snapshot();
+        let prior=physical.clone();
+        let lights=light_snapshot(&config,&physical).unwrap();
+        assert_eq!(physical,prior);assert_eq!(physical.devices.len(),3);
+        assert_eq!(lights.devices.len(),1);assert!(lights.devices.contains_key(&homesense_core::DeviceId::new("simulation:light").unwrap()));
+        assert_eq!(lights.cursor,physical.cursor);
+    }
 
     #[tokio::test]
     async fn changed_feedback_revision_invalidates_old_hap_projection() {
