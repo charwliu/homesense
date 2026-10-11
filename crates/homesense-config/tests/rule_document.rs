@@ -1,0 +1,218 @@
+use homesense_config::{Configuration, rule_document::Document};
+use homesense_core::{
+    ExecutionContext,
+    rule::{self, Budget, Value},
+};
+use serde_json::{Value as Json, json};
+fn config() -> Configuration {
+    Configuration::parse(
+        include_bytes!("../../../config/simulation.json"),
+        ExecutionContext::Simulation,
+    )
+    .unwrap()
+}
+fn fixture() -> Json {
+    json!({"schema_version":1,"configuration_revision":1,
+        "variables":[{"id":"mode","kind":"integer","lifetime":"persistent"}],
+        "rules":[{"id":"startup","source":"fixture:root","trigger":{"kind":"startup_synchronized"},"actions":[
+            {"source":"fixture:condition","action":{"kind":"if","condition":{"kind":"unknown","value":{"kind":"variable","id":"mode"}},"then_actions":[
+                {"source":"fixture:set","action":{"kind":"set","variable":"mode","value":{"kind":"add","left":{"kind":"integer","value":2},"right":{"kind":"integer","value":3}}}}
+            ],"else_actions":[{"source":"fixture:else","action":{"kind":"set","variable":"mode","value":{"kind":"integer","value":9}}}]}}
+        ]}]
+    })
+}
+fn parse(v: &Json) -> Result<Document, homesense_config::Error> {
+    Document::parse(&serde_json::to_vec(v).unwrap(), &config())
+}
+#[test]
+fn preserves_nested_source_order_and_never_enables_by_default() {
+    let d = parse(&fixture()).unwrap();
+    assert!(!d.rules[0].enabled);
+    let p = rule::evaluate(&d.rules[0].actions, &d.variables, Budget::default()).unwrap();
+    assert_eq!(p.variables["mode"].value, Some(Value::Integer(5)));
+    assert_eq!(p.actions[0].source, "fixture:set");
+    let p = rule::evaluate(&d.rules[0].actions, &p.variables, Budget::default()).unwrap();
+    assert_eq!(p.variables["mode"].value, Some(Value::Integer(9)));
+    assert_eq!(p.actions[0].source, "fixture:else");
+}
+#[test]
+fn requires_matching_revision_review_and_strict_fields() {
+    let mut v = fixture();
+    v["configuration_revision"] = 2.into();
+    assert!(parse(&v).is_err());
+    let mut v = fixture();
+    v["rules"][0]["enabled"] = true.into();
+    assert!(parse(&v).is_err());
+    v["rules"][0]["review_evidence"] = "offline fixture review".into();
+    assert!(parse(&v).unwrap().rules[0].enabled);
+    v["rules"][0]["enable"] = true.into();
+    assert!(parse(&v).is_err());
+    let mut v = fixture();
+    let duplicate = v["rules"][0].clone();
+    v["rules"].as_array_mut().unwrap().push(duplicate);
+    assert!(parse(&v).is_err());
+}
+#[test]
+fn validates_unreachable_branch_types_and_read_only_cache() {
+    let mut v = fixture();
+    v["rules"][0]["actions"][0]["action"]["else_actions"][0]["action"]["value"] =
+        json!({"kind":"bool","value":true});
+    assert!(parse(&v).is_err());
+    let mut v = fixture();
+    v["variables"][0]["lifetime"] = "feedback_cache".into();
+    assert!(parse(&v).is_err());
+    let mut v = fixture();
+    v["rules"][0]["actions"][0]["action"]["condition"]["value"]["id"] = "missing".into();
+    assert!(parse(&v).is_err());
+}
+#[test]
+fn device_commands_and_trigger_kinds_cannot_cross_capabilities() {
+    let mut v = fixture();
+    v["rules"][0]["actions"] = json!([{"source":"fixture:light","action":{"kind":"command","device":"simulation:light","command":{"kind":"level","value":40,"ramp":false}}}]);
+    assert!(parse(&v).is_ok());
+    v["rules"][0]["actions"][0]["action"]["command"] = json!({"kind":"panel_led","on":true});
+    assert!(parse(&v).is_err());
+    v["rules"][0]["actions"] = json!([]);
+    v["rules"][0]["trigger"] =
+        json!({"kind":"panel","device":"simulation:light","event":"pressed"});
+    assert!(parse(&v).is_err());
+    v["rules"][0]["trigger"] = json!({"kind":"device_changed","device":"missing"});
+    assert!(parse(&v).is_err());
+}
+
+#[test]
+fn links_only_enabled_rules_and_checks_scene_shutdown_and_schedule_references() {
+    use homesense_core::scene_expand::Definition;
+    let mut v = fixture();
+    v["rules"][0]["actions"] = json!([{"source":"fixture:call","action":{"kind":"scene","id":"reading","activate":false}}]);
+    let parsed = parse(&v).unwrap();
+    assert!(
+        parsed
+            .linked_rules(&Default::default(), &Default::default())
+            .unwrap()
+            .is_empty()
+    );
+    assert_eq!(parsed.rules.len(), 1); // Disabled source is retained for review.
+    v["rules"][0]["enabled"] = true.into();
+    v["rules"][0]["review_evidence"] = "fixture".into();
+    let parsed = parse(&v).unwrap();
+    let scenes = [(
+        "reading".into(),
+        Definition {
+            activate: vec![],
+            deactivate: None,
+        },
+    )]
+    .into();
+    assert!(parsed.linked_rules(&scenes, &Default::default()).is_err());
+    let scenes = [(
+        "reading".into(),
+        Definition {
+            activate: vec![],
+            deactivate: Some(vec![]),
+        },
+    )]
+    .into();
+    assert_eq!(
+        parsed
+            .linked_rules(&scenes, &Default::default())
+            .unwrap()
+            .len(),
+        1
+    );
+    v["rules"][0]["trigger"] = json!({"kind":"schedule","schedule":"morning"});
+    let parsed = parse(&v).unwrap();
+    assert!(parsed.linked_rules(&scenes, &Default::default()).is_err());
+    assert!(
+        parsed
+            .linked_rules(&scenes, &["morning".into()].into())
+            .is_ok()
+    );
+}
+
+#[test]
+fn feedback_cache_reads_lower_to_fresh_actual_state_and_are_read_only() {
+    use homesense_core::{
+        DeviceId, Percent,
+        rule::{Feedback, FeedbackSnapshot},
+    };
+    let mut v = fixture();
+    v["variables"] = json!([{"id":"cached_level","kind":"integer","lifetime":"feedback_cache","feedback":{"kind":"level","device":"simulation:light"}}]);
+    v["rules"][0]["enabled"] = true.into();
+    v["rules"][0]["review_evidence"] = "fixture".into();
+    v["rules"][0]["actions"] = json!([{"source":"cached-condition","action":{"kind":"if","condition":{"kind":"less","left":{"kind":"integer","value":30},"right":{"kind":"variable","id":"cached_level"}},"then_actions":[{"source":"light","action":{"kind":"command","device":"simulation:light","command":{"kind":"level","value":50,"ramp":false}}}],"else_actions":[]}}]);
+    let document = parse(&v).unwrap();
+    let linked = document
+        .linked_rules(&Default::default(), &Default::default())
+        .unwrap();
+    assert!(
+        rule::variable_references(&linked[0].actions)
+            .unwrap()
+            .is_empty()
+    );
+    let device = DeviceId::new("simulation:light").unwrap();
+    let states = [(
+        device.clone(),
+        Feedback {
+            on: Some(true),
+            level: Some(Percent::new(40).unwrap()),
+            observed_ms: 0,
+        },
+    )]
+    .into();
+    for (now, count) in [(9, 1), (10, 0)] {
+        let plan = rule::evaluate_with_feedback(
+            &linked[0].actions,
+            &Default::default(),
+            Budget::default(),
+            FeedbackSnapshot {
+                devices: &states,
+                now_ms: now,
+                max_age_ms: 10,
+            },
+        )
+        .unwrap();
+        assert_eq!(plan.commands.len(), count);
+        assert!(plan.feedback_reads.contains(&device));
+        if count == 0 {
+            assert_eq!(plan.unknown_branches, ["cached-condition"]);
+        }
+    }
+    v["rules"][0]["actions"] = json!([{"source":"bad","action":{"kind":"set","variable":"cached_level","value":{"kind":"integer","value":0}}}]);
+    assert!(parse(&v).is_err());
+    v["rules"][0]["actions"] = json!([]);
+    v["variables"][0]["kind"] = "bool".into();
+    assert!(parse(&v).is_err());
+}
+
+#[test]
+fn embedded_scene_calendar_example_links_and_rejects_invalid_definitions() {
+    let mut v: Json =
+        serde_json::from_slice(include_bytes!("../../../config/automation.simulation.json"))
+            .unwrap();
+    let d = parse(&v).unwrap();
+    assert_eq!(d.immediate_scenes.len(), 1);
+    assert_eq!(d.schedules.len(), 1);
+    assert!(!d.rules[0].enabled);
+    v["rules"][0]["enabled"] = true.into();
+    v["rules"][0]["review_evidence"] = "test fixture".into();
+    let d = parse(&v).unwrap();
+    let ids = d.schedules.iter().map(|s| s.id.clone()).collect();
+    let linked = d.linked_rules(&d.immediate_scenes, &ids).unwrap();
+    assert_eq!(linked[0].actions.len(), 2);
+    let plan = rule::evaluate(&linked[0].actions, &d.variables, Budget::default()).unwrap();
+    assert_eq!(plan.commands.len(), 1);
+    assert_eq!(plan.variables["mode"].value, Some(Value::Integer(1)));
+    let mut bad = v.clone();
+    bad["schedules"][0]["timezone"] = "UTC".into();
+    assert!(parse(&bad).is_err());
+    let mut bad = v.clone();
+    bad["schedules"][0]["hour"] = 24.into();
+    assert!(parse(&bad).is_err());
+    let mut bad = v.clone();
+    bad["immediate_scenes"][0]["activate"] = json!([{"source":"cycle","action":{"kind":"scene","id":"simulation-evening","activate":true}}]);
+    assert!(parse(&bad).is_err());
+    let mut bad = v;
+    bad["immediate_scenes"][0]["delay_ms"] = 1000.into();
+    assert!(parse(&bad).is_err()); // Never discard unsupported timing.
+}

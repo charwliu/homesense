@@ -67,26 +67,115 @@ pub fn evaluate(
     let Some(rule) = rules.iter().find(|r| r.key == key) else {
         return Ok(Evaluation::Ignored);
     };
-    let Some(mode) = mode else {
-        return Ok(Evaluation::Unknown);
-    };
-    if mode > 3 {
+    use homesense_core::{Command, DeviceId, rule as ast};
+    if mode.is_some_and(|v| v > 3) {
         return Err("invalid study mode".into());
     }
-    let actions = if mode != rule.mode {
-        &rule.then_actions
-    } else {
-        &rule.else_actions
+    let convert = |actions: &[Action]| -> Result<Vec<ast::Node>, String> {
+        actions
+            .iter()
+            .map(|action| {
+                let (source, action) = match action {
+                    Action::SetMode { value, source } => (
+                        source,
+                        ast::Action::Set {
+                            variable: "411".into(),
+                            value: ast::Expr::Literal(ast::Value::Integer(i64::from(*value))),
+                        },
+                    ),
+                    Action::Scene {
+                        scene_id,
+                        activate,
+                        source,
+                    } => (
+                        source,
+                        ast::Action::Scene {
+                            id: scene_id.clone(),
+                            activate: *activate,
+                        },
+                    ),
+                    Action::Led { key, on, source } => (
+                        source,
+                        ast::Action::Command {
+                            device: DeviceId::new(format!("control4:63:key:{key}"))
+                                .map_err(|e| e.to_string())?,
+                            command: Command::PanelLed(*on),
+                        },
+                    ),
+                };
+                Ok(ast::Node {
+                    source: source.clone(),
+                    action,
+                })
+            })
+            .collect()
     };
-    let mut next_mode = mode;
-    for action in actions {
-        if let Action::SetMode { value, .. } = action {
-            next_mode = *value;
-        }
+    let variables = [(
+        "411".into(),
+        ast::Variable {
+            value_type: ast::ValueType::Integer,
+            lifetime: ast::Lifetime::Persistent,
+            value: mode.map(|v| ast::Value::Integer(i64::from(v))),
+        },
+    )]
+    .into();
+    let tree = [ast::Node {
+        source: format!("study/key/{}", rule.key),
+        action: ast::Action::If {
+            condition: ast::Condition::Not(Box::new(ast::Condition::Equal(
+                ast::Expr::Variable("411".into()),
+                ast::Expr::Literal(ast::Value::Integer(i64::from(rule.mode))),
+            ))),
+            then_actions: convert(&rule.then_actions)?,
+            else_actions: convert(&rule.else_actions)?,
+        },
+    }];
+    let plan = ast::evaluate(&tree, &variables, ast::Budget::default())
+        .map_err(|e| format!("rule AST: {e:?}"))?;
+    if !plan.unknown_branches.is_empty() {
+        return Ok(Evaluation::Unknown);
     }
+    let Some(ast::Value::Integer(next_mode)) = plan.variables["411"].value else {
+        return Err("mode unavailable".into());
+    };
+    let actions = plan
+        .actions
+        .into_iter()
+        .map(|node| {
+            Ok(match node.action {
+                ast::Action::Set {
+                    value: ast::Expr::Literal(ast::Value::Integer(value)),
+                    ..
+                } => Action::SetMode {
+                    value: u8::try_from(value).map_err(|_| "invalid mode")?,
+                    source: node.source,
+                },
+                ast::Action::Scene { id, activate } => Action::Scene {
+                    scene_id: id,
+                    activate,
+                    source: node.source,
+                },
+                ast::Action::Command {
+                    device,
+                    command: Command::PanelLed(on),
+                } => Action::Led {
+                    key: device
+                        .as_str()
+                        .rsplit(':')
+                        .next()
+                        .ok_or("missing key")?
+                        .parse()
+                        .map_err(|_| "invalid key")?,
+                    on,
+                    source: node.source,
+                },
+                _ => return Err("unexpected compiled study action".to_owned()),
+            })
+        })
+        .collect::<Result<Vec<_>, String>>()?;
     Ok(Evaluation::Planned {
-        next_mode,
-        actions: actions.clone(),
+        next_mode: u8::try_from(next_mode).map_err(|_| "invalid mode")?,
+        actions,
     })
 }
 

@@ -33,6 +33,7 @@ pub struct Source {
 }
 #[derive(Debug, Serialize)]
 pub struct Report {
+    pub semantic_dispositions: Vec<semantic::Disposition>,
     pub source: Option<Source>,
     pub schema_version: u32,
     pub item_count: usize,
@@ -82,6 +83,7 @@ pub fn project_xml(xml: &str) -> Result<Report, String> {
         }
     }
     let mut report = Report {
+        semantic_dispositions: vec![],
         source: None,
         schema_version: 1,
         item_count: items.len(),
@@ -266,6 +268,7 @@ pub fn project_xml(xml: &str) -> Result<Report, String> {
             });
         }
     }
+    report.semantic_dispositions = semantic::dispositions(&document, &report.devices);
     Ok(report)
 }
 
@@ -326,3 +329,5 @@ fn sha256_hex(bytes: &[u8]) -> String {
 pub mod room;
 
 pub mod study;
+
+pub mod semantic;

@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "configuration_revision": 1,
+  "variables": [
+    {"id": "mode", "kind": "integer", "lifetime": "persistent"}
+  ],
+  "immediate_scenes": [
+    {
+      "id": "simulation-evening",
+      "review_evidence": "Offline simulation example only; no physical device mapping",
+      "activate": [
+        {"source": "example:evening:level", "action": {"kind": "command", "device": "simulation:light", "command": {"kind": "level", "value": 30, "ramp": false}}},
+        {"source": "example:evening:mode", "action": {"kind": "set", "variable": "mode", "value": {"kind": "integer", "value": 1}}}
+      ],
+      "deactivate": [
+        {"source": "example:evening:off", "action": {"kind": "command", "device": "simulation:light", "command": {"kind": "level", "value": 0, "ramp": false}}},
+        {"source": "example:evening:reset", "action": {"kind": "set", "variable": "mode", "value": {"kind": "integer", "value": 0}}}
+      ]
+    }
+  ],
+  "schedules": [
+    {"id": "evening", "timezone": "Asia/Shanghai", "weekdays": [true, true, true, true, true, true, true], "hour": 19, "minute": 0}
+  ],
+  "gestures": [],
+  "rules": [
+    {
+      "id": "simulation-evening-schedule",
+      "enabled": false,
+      "source": "example:schedule",
+      "trigger": {"kind": "schedule", "schedule": "evening"},
+      "actions": [
+        {"source": "example:activate", "action": {"kind": "scene", "id": "simulation-evening", "activate": true}}
+      ]
+    }
+  ]
+}

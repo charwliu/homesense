@@ -239,40 +239,98 @@ fn scene_steps_preserve_order_timing_tracking_and_unknown_field_disposition() {
 #[test]
 fn cli_exports_three_disabled_artifacts_and_refuses_overwrite() {
     use std::{fs, process::Command};
-    let root = std::env::temp_dir().join(format!("homesense-import-export-{}-{}", std::process::id(), std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+    let root = std::env::temp_dir().join(format!(
+        "homesense-import-export-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
     fs::create_dir(&root).unwrap();
     let xml = fixture().replace("<device>999</device>", "<device>210</device>");
     let report = homesense_import::import_bytes(xml.as_bytes()).unwrap();
     let plan = serde_json::json!({"source_sha256":report.source.as_ref().unwrap().sha256,"revision":1,"gateway_id":"fixture","endpoint":"127.0.0.1:50007","modules":[{"address":"03","profile":"r8i8_din_pro_v2_7_7","basis":"offline fixture"}],"control4_ids":["210"]});
-    fs::write(root.join("project.xml"),xml).unwrap();
-    fs::write(root.join("plan.json"),serde_json::to_vec(&plan).unwrap()).unwrap();
-    let run = || Command::new(env!("CARGO_BIN_EXE_homesense-import")).arg(root.join("project.xml")).arg("--config-plan").arg(root.join("plan.json")).arg("--export-dir").arg(root.join("export")).output().unwrap();
-    let result = run(); assert!(result.status.success(),"{}",String::from_utf8_lossy(&result.stderr));
-    let names = ["configuration.json","coverage-report.json","confirmation-checklist.json"];
-    let before: Vec<_> = names.iter().map(|n|fs::read(root.join("export").join(n)).unwrap()).collect();
-    let docs: Vec<serde_json::Value> = before.iter().map(|b|serde_json::from_slice(b).unwrap()).collect();
-    assert_eq!(docs[0]["devices"][0]["enabled"],false);
-    assert_eq!(docs[1]["source"]["sha256"],plan["source_sha256"]);
-    assert_eq!(docs[2]["source"],docs[1]["source"]);
-    assert_eq!(docs[2]["selected_disabled"],serde_json::json!(["210"]));
-    assert!(before.iter().all(|b|!String::from_utf8_lossy(b).contains("DO-NOT-EXPORT")));
+    fs::write(root.join("project.xml"), xml).unwrap();
+    fs::write(root.join("plan.json"), serde_json::to_vec(&plan).unwrap()).unwrap();
+    let run = || {
+        Command::new(env!("CARGO_BIN_EXE_homesense-import"))
+            .arg(root.join("project.xml"))
+            .arg("--config-plan")
+            .arg(root.join("plan.json"))
+            .arg("--export-dir")
+            .arg(root.join("export"))
+            .output()
+            .unwrap()
+    };
+    let result = run();
+    assert!(
+        result.status.success(),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+    let names = [
+        "configuration.json",
+        "coverage-report.json",
+        "confirmation-checklist.json",
+    ];
+    let before: Vec<_> = names
+        .iter()
+        .map(|n| fs::read(root.join("export").join(n)).unwrap())
+        .collect();
+    let docs: Vec<serde_json::Value> = before
+        .iter()
+        .map(|b| serde_json::from_slice(b).unwrap())
+        .collect();
+    assert_eq!(docs[0]["devices"][0]["enabled"], false);
+    assert_eq!(docs[1]["source"]["sha256"], plan["source_sha256"]);
+    assert_eq!(docs[2]["source"], docs[1]["source"]);
+    assert_eq!(docs[2]["selected_disabled"], serde_json::json!(["210"]));
+    assert!(
+        before
+            .iter()
+            .all(|b| !String::from_utf8_lossy(b).contains("DO-NOT-EXPORT"))
+    );
     assert!(!run().status.success());
-    for (name,bytes) in names.iter().zip(before) { assert_eq!(fs::read(root.join("export").join(name)).unwrap(),bytes); }
+    for (name, bytes) in names.iter().zip(before) {
+        assert_eq!(fs::read(root.join("export").join(name)).unwrap(), bytes);
+    }
     fs::remove_dir_all(root).unwrap();
 }
 
 #[test]
 fn room_blockers_keep_cross_room_targets_and_unknown_ownership() {
     let mut report = homesense_import::import_bytes(fixture().as_bytes()).unwrap();
-    let view = homesense_import::room::blockers(&report,"书房").unwrap();
-    assert_eq!(view["programs_pending_translation"][0]["nodes"][0]["target"],"999");
-    assert_eq!(view["unresolved_references_review_required"].as_array().unwrap().len(),1);
-    report.programs[0].owner="event:999:1".into();
-    let view = homesense_import::room::blockers(&report,"书房").unwrap();
-    assert_eq!(view["unassigned_programs_review_required"].as_array().unwrap().len(),1);
-    report.programs[0].nodes[0].target=Some("210".into());
-    let view = homesense_import::room::blockers(&report,"书房").unwrap();
-    assert_eq!(view["programs_pending_translation"].as_array().unwrap().len(),1);
-    assert!(homesense_import::room::blockers(&report,"不存在").is_err());
+    let view = homesense_import::room::blockers(&report, "书房").unwrap();
+    assert_eq!(
+        view["programs_pending_translation"][0]["nodes"][0]["target"],
+        "999"
+    );
+    assert_eq!(
+        view["unresolved_references_review_required"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+    report.programs[0].owner = "event:999:1".into();
+    let view = homesense_import::room::blockers(&report, "书房").unwrap();
+    assert_eq!(
+        view["unassigned_programs_review_required"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+    report.programs[0].nodes[0].target = Some("210".into());
+    let view = homesense_import::room::blockers(&report, "书房").unwrap();
+    assert_eq!(
+        view["programs_pending_translation"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+    assert!(homesense_import::room::blockers(&report, "不存在").is_err());
     assert!(!view.to_string().contains("DO-NOT-EXPORT"));
 }
