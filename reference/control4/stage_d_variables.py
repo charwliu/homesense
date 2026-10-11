@@ -57,6 +57,19 @@ for key, variable in variables.items():
     variable['encoding'] = 'arithmetic_components' if any(w['operator'] in ('+', '-') for w in variable['writes']) else 'enumerated_integer'
     variable['assignment_values'] = sorted({int(w['operand']) for w in variable['writes'] if w['operator'] == '='})
     variable['arithmetic_operands'] = sorted({int(w['operand']) for w in variable['writes'] if w['operator'] in ('+', '-')})
+    # Preserve integer program semantics: observed assignments are a lower bound,
+    # not a complete runtime range when arithmetic can compute further values.
+    arithmetic = bool(variable['arithmetic_operands'])
+    non_boolean = [value for value in variable['assignment_values'] if value not in (0, 1)]
+    variable['type_review'] = {
+        'recommended_runtime_type': 'integer',
+        'requires_integer_program_semantics': arithmetic or bool(non_boolean),
+        'non_boolean_assignments': non_boolean,
+        'assignment_set_is_complete_runtime_range': False,
+        'boolean_conversion_requires_program_rewrite': arithmetic or bool(non_boolean),
+        'automatic_conversion_approved': False,
+        'basis': 'arithmetic or explicit values outside 0/1 prohibit a type-only boolean migration; binary assignments alone do not prove boolean semantics',
+    }
     variable['feedback_cache_confirmed'] = False
     variable['basis'] = 'scene/light actions imply logical mode candidate; motor-only actions imply transient bookkeeping candidate; no physical feedback classification inferred'
     variable['review_status'] = 'study_logic_field_validated' if key == '411' else 'needs_review'
