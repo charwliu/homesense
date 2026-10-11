@@ -88,9 +88,63 @@ impl Feedback {
             .lease_version
             .lock()
             .map_err(|_| "feedback lease poisoned")?;
-        let (plan, read) = self
+        let physical = self
             .states
-            .plan_rule(nodes, variables, budget, self.epoch, now, max_age)?;
+            .rule_feedback(self.epoch, now, max_age)
+            .map_err(|e| e.to_string())?;
+        let mut logical = physical.clone();
+        for (device, relay) in &self.supply_relays {
+            let projected =
+                physical
+                    .get(device)
+                    .zip(physical.get(relay))
+                    .and_then(|(dimmer, supply)| {
+                        let level = dimmer.level?;
+                        let powered = supply.on?;
+                        Some(homesense_core::rule::Feedback {
+                            on: Some(powered && level.get() > 0),
+                            level: Some(if powered {
+                                level
+                            } else {
+                                homesense_core::Percent::new(0).unwrap()
+                            }),
+                            observed_ms: dimmer.observed_ms.min(supply.observed_ms),
+                        })
+                    });
+            if let Some(sample) = projected {
+                logical.insert(device.clone(), sample);
+            } else {
+                logical.remove(device);
+            }
+        }
+        let mut plan = homesense_core::rule::evaluate_with_feedback(
+            nodes,
+            variables,
+            budget,
+            homesense_core::rule::FeedbackSnapshot {
+                devices: &logical,
+                now_ms: now,
+                max_age_ms: max_age,
+            },
+        )
+        .map_err(|e| format!("rule: {e:?}"))?;
+        // A logical read depends on both physical samples, including a missing
+        // relay. Admission must reject pending output on either component.
+        let relays: Vec<_> = plan
+            .feedback_reads
+            .iter()
+            .filter_map(|id| self.supply_relays.get(id).cloned())
+            .collect();
+        plan.feedback_reads.extend(relays);
+        let read = self
+            .states
+            .capture_rule_feedback(
+                &plan.feedback_reads.iter().cloned().collect::<Vec<_>>(),
+                self.epoch,
+                now,
+                max_age,
+            )
+            .map_err(|e| e.to_string())?;
         let observations = plan
             .feedback_reads
             .iter()
@@ -336,6 +390,93 @@ impl Feedback {
 mod lease_tests {
     use super::*;
     use homesense_core::rule::{Action, Budget, Condition, Expr, Node};
+
+    #[test]
+    fn combined_rules_read_logical_state_and_lease_both_physical_samples() {
+        use homesense_core::rule::{Lifetime, Value, ValueType, Variable};
+        let bytes=br#"{"schema_version":1,"revision":1,"gateways":[{"id":"bus","endpoint":"127.0.0.1:50007","modules":[{"address":"12","profile":"ad8_din_rs485_v2_2_1","verification":{"status":"simulated"}},{"address":"03","profile":"r8i8_din_pro_v2_7_7","verification":{"status":"simulated"}}]}],"devices":[{"id":"light","name":"Light","gateway":"bus","address":"12","channel":4,"enabled":true,"default_on_level":100,"supply_relay":"relay"},{"id":"relay","name":"Relay","gateway":"bus","address":"03","channel":4,"enabled":true}]}"#;
+        let config = Configuration::parse(bytes, ExecutionContext::Simulation).unwrap();
+        let mut feedback = Feedback::new(&config, ExecutionContext::Simulation, 123, 1).unwrap();
+        let light = DeviceId::new("light").unwrap();
+        let relay = DeviceId::new("relay").unwrap();
+        let variables = BTreeMap::from([
+            (
+                "on".into(),
+                Variable {
+                    value_type: ValueType::Bool,
+                    lifetime: Lifetime::Temporary,
+                    value: None,
+                },
+            ),
+            (
+                "level".into(),
+                Variable {
+                    value_type: ValueType::Integer,
+                    lifetime: Lifetime::Temporary,
+                    value: None,
+                },
+            ),
+        ]);
+        let nodes = [
+            Node {
+                source: "logical:on".into(),
+                action: Action::Set {
+                    variable: "on".into(),
+                    value: Expr::DeviceOn(light.clone()),
+                },
+            },
+            Node {
+                source: "logical:level".into(),
+                action: Action::Set {
+                    variable: "level".into(),
+                    value: Expr::DeviceLevel(light.clone()),
+                },
+            },
+        ];
+        let sample = |address, value, time| GatewayRead {
+            gateway_id: "bus".into(),
+            transport_epoch: 1,
+            received_at_ms: time,
+            result: Receive::Frames {
+                transport_epoch: 1,
+                frames: vec![hb_protocol::RawFrame {
+                    address,
+                    command: 0xd4,
+                    value,
+                }],
+            },
+        };
+        feedback.apply(&sample(0x12, 30, 10)).unwrap();
+        let (plan, lease) = feedback
+            .plan_rule(&nodes, &variables, Budget::default(), 10, 100)
+            .unwrap();
+        assert_eq!(plan.variables["on"].value, None);
+        assert_eq!(plan.variables["level"].value, None);
+        assert!(plan.feedback_reads.contains(&relay));
+        assert_eq!(lease.observations[&relay], None);
+        feedback.apply(&sample(0x03, 0xf2, 20)).unwrap();
+        assert!(lease.commit(123, 1, 1, 20, || Ok(())).is_err());
+        let (plan, lease) = feedback
+            .plan_rule(&nodes, &variables, Budget::default(), 20, 100)
+            .unwrap();
+        assert_eq!(plan.variables["on"].value, Some(Value::Bool(false)));
+        assert_eq!(plan.variables["level"].value, Some(Value::Integer(0)));
+        assert_eq!(lease.observations[&light], Some(10));
+        assert_eq!(lease.observations[&relay], Some(20));
+        assert!(lease.commit(123, 1, 1, 109, || Ok(())).is_ok());
+        assert!(lease.commit(123, 1, 1, 110, || Ok(())).is_err());
+        feedback.apply(&sample(0x03, 0xf1, 30)).unwrap();
+        let (plan, _) = feedback
+            .plan_rule(&nodes, &variables, Budget::default(), 30, 100)
+            .unwrap();
+        assert_eq!(plan.variables["on"].value, Some(Value::Bool(true)));
+        assert_eq!(plan.variables["level"].value, Some(Value::Integer(30)));
+        let (plan, _) = feedback
+            .plan_rule(&nodes, &variables, Budget::default(), 110, 100)
+            .unwrap();
+        assert_eq!(plan.variables["on"].value, None);
+        assert_eq!(plan.variables["level"].value, None);
+    }
     #[test]
     fn lease_binds_generation_freshness_and_all_mutations() {
         let config = Configuration::parse(
