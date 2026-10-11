@@ -5238,3 +5238,50 @@ async fn software_fade_expiry_remains_failed_after_cleanup() {
     assert_eq!(sql.query_row("SELECT count(*) FROM command_journal",[],|r|r.get::<_,i64>(0)).unwrap(),0);
     drop(fade);a.shutdown().await.unwrap();
 }
+
+#[tokio::test]
+async fn fade_group_partial_failure_cancels_other_device_without_replay() {
+    use homesensed::{fade_group::{FadeGroup,Limits,Request},feedback::Feedback,transport_owner::{GatewayRead,TransportOwner}};
+    let db=Db(std::env::temp_dir().join(format!("fade-partial-{}.sqlite",Uuid::new_v4())));
+    let devices=br#"{"schema_version":1,"revision":1,"manual_degraded_enabled":false,
+      "gateways":[{"id":"simulation","endpoint":"127.0.0.1:50007","modules":[{"address":"15","profile":"gt_d8_rl_v2_2_6_2","verification":{"status":"simulated"}}]}],
+      "devices":[
+        {"id":"simulation:light","name":"First","gateway":"simulation","address":"15","channel":1,"enabled":true},
+        {"id":"simulation:second","name":"Second","gateway":"simulation","address":"15","channel":2,"enabled":true}
+      ]}"#;
+    Store::open(&db.0).unwrap().publish_configuration(None,devices,ExecutionContext::Simulation,&[]).unwrap();
+    let controller=Uuid::new_v4();let a=actor(&db,controller).await;
+    let config=homesense_config::Configuration::parse(devices,ExecutionContext::Simulation).unwrap();
+    let mut feedback=Feedback::new(&config,ExecutionContext::Simulation,Uuid::parse_str(a.boot_id()).unwrap().as_u128(),1).unwrap();
+    feedback.apply(&GatewayRead{gateway_id:"simulation".into(),transport_epoch:1,received_at_ms:0,result:hb_transport::Receive::Frames{transport_epoch:1,frames:vec![hb_protocol::RawFrame{address:0x15,command:0xd1,value:100},hb_protocol::RawFrame{address:0x15,command:0xd2,value:100}]}}).unwrap();
+    let wire=std::sync::Arc::new(std::sync::Mutex::new(Vec::<u8>::new()));
+    struct Wire(std::sync::Arc<std::sync::Mutex<Vec<u8>>>);
+    impl std::io::Read for Wire {fn read(&mut self,_:&mut [u8])->std::io::Result<usize>{Err(std::io::ErrorKind::WouldBlock.into())}}
+    impl std::io::Write for Wire {
+        fn write(&mut self,bytes:&[u8])->std::io::Result<usize>{let mut output=self.0.lock().unwrap();if output.is_empty(){output.extend_from_slice(&bytes[..2]);Ok(2)}else{Err(std::io::ErrorKind::BrokenPipe.into())}}
+        fn flush(&mut self)->std::io::Result<()>{Ok(())}
+    }
+    let mut owner=TransportOwner::new(a.clone(),[("simulation".into(),hb_transport::Connection::for_simulation(Wire(wire.clone()),1))].into());
+    let device=homesense_core::DeviceId::new("simulation:light").unwrap();
+    let mut group=FadeGroup::new(a.clone(),controller,Limits{tasks:2,samples:8,targets_per_second:20}).unwrap();
+    let request=Request{target:homesense_core::Percent::new(0).unwrap(),duration_ms:400,interval_ms:100,lateness_ms:200};
+    group.start(device.clone(),request,&feedback,2000).await.unwrap();
+    group.start(homesense_core::DeviceId::new("simulation:second").unwrap(),request,&feedback,2000).await.unwrap();
+    tokio::time::sleep(std::time::Duration::from_millis(110)).await;
+    assert!(group.tick().await.unwrap().is_empty());
+    let outcome=owner.step().await.unwrap().unwrap();
+    assert!(outcome.result.is_err());
+    assert!(group.tick().await.is_err());
+    assert_eq!(group.active_count(),0);
+    assert!(group.tick().await.is_err());
+    assert!(group.start(device,request,&feedback,2000).await.is_err());
+    group.cancel_all().await.unwrap();
+    assert_eq!(*wire.lock().unwrap(),[0xae,0x15]);
+    let sql=rusqlite::Connection::open(&db.0).unwrap();
+    assert_eq!(sql.query_row("SELECT count(*) FROM command_journal",[],|r|r.get::<_,i64>(0)).unwrap(),2);
+    assert_eq!(sql.query_row("SELECT count(*) FROM command_journal WHERE status IN ('accepted','writing','written')",[],|r|r.get::<_,i64>(0)).unwrap(),0);
+    assert_eq!(sql.query_row("SELECT count(*) FROM command_journal WHERE status='cancelled'",[],|r|r.get::<_,i64>(0)).unwrap(),1);
+    drop(group);
+    a.shutdown().await.unwrap();
+}
+
