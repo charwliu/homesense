@@ -218,6 +218,27 @@ impl AutomationRuntime {
         self.publication_paused = matches!(outcome, crate::automation_drive::Exit::PublicationPaused);
         Ok(outcome)
     }
+    /// Return an audited disconnect without permanently closing Admission.
+    /// The supervisor must replace streams and synchronize fresh feedback before
+    /// loading a new runtime with StartupPolicy::Suppress. Cancellation stays terminal.
+    pub async fn drive_recoverable<S: std::io::Read + std::io::Write + Send + 'static>(
+        &mut self,
+        owner: &mut crate::observed_transport::ObservedTransport<S>,
+        cadence: std::time::Duration,
+        max_age_ms: u64,
+        stop: tokio::sync::watch::Receiver<bool>,
+        wall_clock: impl FnMut() -> Result<i64, String>,
+    ) -> Result<crate::automation_drive::Exit, String> {
+        self.validate().await?;
+        let outcome = crate::automation_drive::drive_with_handoff(
+            &self.admission, owner, &mut self.panels, &mut self.scenes,
+            Some(&mut self.calendar), cadence, max_age_ms, stop, wall_clock,
+            Some((&mut self.requests, &self.document)), Some(&mut self.causal), true,
+        ).await?;
+        self.publication_paused = matches!(outcome,
+            crate::automation_drive::Exit::PublicationPaused | crate::automation_drive::Exit::Disconnected { .. });
+        Ok(outcome)
+    }
     fn stop(&mut self) {
         self.requests.close();
         self.panels.disconnect();
