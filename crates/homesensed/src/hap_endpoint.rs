@@ -11,6 +11,7 @@ use uuid::Uuid;
 pub struct Settings {
     pub address: SocketAddr,
     pub scenes: Vec<String>,
+    pub motors: Vec<homesense_core::DeviceId>,
 }
 impl Settings {
     pub(crate) fn validate(
@@ -38,6 +39,17 @@ impl Settings {
                         .is_some_and(|v| !v.trim().is_empty())
             }) {
                 return Err("published HAP scene missing, disabled or unreviewed".into());
+            }
+        }
+        let unique: std::collections::BTreeSet<_> = self.motors.iter().collect();
+        if unique.len()!=self.motors.len() || self.motors.len()>64 {
+            return Err("invalid HAP motor selection".into());
+        }
+        for id in &self.motors {
+            config.motor_command(id,homesense_core::MotorAction::Stop).map_err(|e|e.to_string())?;
+            let name=&config.devices()[id].name;
+            if name.trim().is_empty() || name.len()>58 || name.chars().any(char::is_control) {
+                return Err("invalid HAP motor name".into());
             }
         }
         // Non-light devices remain in automation but are not implicitly exposed
@@ -133,7 +145,15 @@ impl Endpoint {
                 .await?,
             )
         };
-        let mut graph = crate::unified_hap::UnifiedHap { lights, scenes, motors:None };
+        let motors = if settings.motors.is_empty() {None} else {
+            let authorization=identity.clone();
+            Some(crate::runtime_motor_hap::RuntimeMotorHap::new(
+                &bundle.configuration,identity,admission.clone(),
+                settings.motors.iter().map(|id|homesense_hap::motor_graph::MotorSpec{device:id.clone(),name:bundle.configuration.devices()[id].name.clone()}).collect(),
+                move |id,_|authorization.controller_is_paired(id).unwrap_or(false),
+            ).await?)
+        };
+        let mut graph = crate::unified_hap::UnifiedHap { lights, scenes, motors };
         let config = identity.load_config().await.map_err(|e| e.to_string())?;
         let server = if settings.address.ip().is_loopback() {
             IpServer::new_loopback(config, identity.clone()).await
@@ -171,5 +191,29 @@ impl Endpoint {
     pub async fn shutdown(mut self) {
         self.task.abort();
         let _ = (&mut self.task).await;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn motor_selection_requires_unique_enabled_calibrated_devices() {
+        let mut raw:serde_json::Value=serde_json::from_slice(include_bytes!("../../../config/simulation.json")).unwrap();
+        raw["gateways"][0]["modules"].as_array_mut().unwrap().push(serde_json::json!({"address":"22","profile":"c4_din_pro_v2_7_7","verification":{"status":"simulated"}}));
+        raw["devices"].as_array_mut().unwrap().push(serde_json::json!({"id":"motor","name":"Curtain","gateway":"simulation","address":"22","channel":2,"enabled":true,"motor_calibration":{"open_direction":"down","stop_verified":true,"evidence":"synthetic","verified_at_unix_ms":1}}));
+        let parse=|raw:&serde_json::Value|homesense_config::Configuration::parse(&serde_json::to_vec(raw).unwrap(),homesense_core::ExecutionContext::Simulation).unwrap();
+        let config=parse(&raw);
+        let document=homesense_config::rule_document::Document::parse(br#"{"schema_version":1,"configuration_revision":1,"variables":[],"rules":[]}"#,&config).unwrap();
+        let id=homesense_core::DeviceId::new("motor").unwrap();
+        let mut settings=Settings{address:"127.0.0.1:51826".parse().unwrap(),scenes:vec![],motors:vec![id.clone()]};
+        assert!(settings.validate(&config,&document).is_ok());
+        settings.motors.push(id.clone());assert!(settings.validate(&config,&document).is_err());
+        settings.motors=vec![homesense_core::DeviceId::new("missing").unwrap()];assert!(settings.validate(&config,&document).is_err());
+        settings.motors=vec![homesense_core::DeviceId::new("simulation:light").unwrap()];assert!(settings.validate(&config,&document).is_err());
+        settings.motors=vec![id];
+        let mut invalid=raw.clone();invalid["devices"][1]["enabled"]=false.into();assert!(settings.validate(&parse(&invalid),&document).is_err());
+        let mut invalid=raw.clone();invalid["devices"][1].as_object_mut().unwrap().remove("motor_calibration");assert!(settings.validate(&parse(&invalid),&document).is_err());
+        raw["devices"][1]["name"]="x".repeat(59).into();assert!(settings.validate(&parse(&raw),&document).is_err());
     }
 }
