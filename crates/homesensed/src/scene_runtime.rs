@@ -130,6 +130,18 @@ impl SceneRuntime {
             audit_id:accepted.start.run,definition:Some(accepted.start.definition),result_taken:false,audit_version:0,
             audit_status:homesense_storage::scene_run::Status::Pending,audit_failed:false,admitted:vec![],pending:None})
     }
+    /// Transfer the original scene fences to a delayed fade. This does not
+    /// start the fade or resolve the timeline step; the scheduler owns both.
+    pub fn bind_fade(&self, index: usize, fade: &mut crate::software_fade::SoftwareFade) -> Result<(), String> {
+        if self.audit_failed || self.audit_status.terminal() {
+            return Err("scene no longer accepts fade work".into());
+        }
+        if !matches!(self.timeline.states().get(index), Some(homesense_core::scene::State::Waiting | homesense_core::scene::State::Offered)) {
+            return Err("scene step no longer accepts fade work".into());
+        }
+        let step=self.timeline.step(index).ok_or("unknown fade scene step")?;
+        fade.inherit_scene(&self.generation,self.controller,self.manual_fence,self.causal_deadline,step,self.audit_id.clone(),index)
+    }
     /// Caller uses the same boot-relative monotonic clock for construction and polling.
     pub async fn poll(&mut self, now: u64) -> Result<Option<Vec<u64>>, String> {
         if self.audit_failed {

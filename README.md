@@ -258,3 +258,5 @@ TCP 在线发布协调循环已接入 `serve_with_publications`：可信进程�
 - 渐变绑定场景后每次 tick 核对场景记录：终态／不存在时撤销待发样本，查询失败停止准入；取消不会被后续 tick 当作成功。新增样本排队后结束场景回归，确认旧样本取消且正常取消不关闭整个 Admission，study_runtime 83 项通过。此检查发生于轮询，不能代替统一场景取消与传输调度的原子衔接；已发出的物理命令不会撤回。后续调度器接线仍待完成。
 
 - 写出边界新增原子场景校验：command_journal 从 accepted 进入 writing 的事务内检查关联场景；已终止则改记 cancelled 并释放选中项，不返回传输票据。回归刻意在渐变下一次 tick 之前请求 dispatch，确认无输出；study_runtime 83 项通过。已进入 writing 的命令不承诺撤回。统一渐变配置／调度接线仍未完成，现场不变。
+
+- SceneRuntime 新增渐变绑定入口：继承原场景的 manual fence 和因果 deadline，校验 controller／generation／设备／目标，拒绝已结束步骤。回归确认场景启动后人工调光、随后才创建的渐变不能重新取得控制权；study_runtime 84 项通过。此入口仅关联权限与审计，不启动或解决 timeline 步骤，统一调度接线仍未完成。

@@ -714,3 +714,5 @@ TCP 在线发布前置校验补充：共享候选文档预检已接入启动入�
 - 写出边界新增原子场景校验：command_journal 从 accepted 进入 writing 的事务内检查关联场景；已终止则改记 cancelled 并释放选中项，不返回传输票据。回归刻意在渐变下一次 tick 之前请求 dispatch，确认无输出；study_runtime 83 项通过。已进入 writing 的命令不承诺撤回。统一渐变配置／调度接线仍未完成，现场不变。
 
 完整工作区 schema 14 回归：1a773b8 加既有未提交代码，416 项通过、0 失败、0 忽略，80 个结果块。日志与差异 SHA256 已更新至 causal-service-regression.json；仅模拟、本机回环及隔离数据库，不代表现场验收或阶段 D 完成。
+
+- SceneRuntime 新增渐变绑定入口：继承原场景的 manual fence 和因果 deadline，校验 controller／generation／设备／目标，拒绝已结束步骤。回归确认场景启动后人工调光、随后才创建的渐变不能重新取得控制权；study_runtime 84 项通过。此入口仅关联权限与审计，不启动或解决 timeline 步骤，统一调度接线仍未完成。
