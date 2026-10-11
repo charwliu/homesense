@@ -180,6 +180,8 @@ impl Store {
 
 #[derive(Debug, Clone)]
 pub struct StepLink {
+    /// Contiguous fade sample number; None keeps ordinary single-admission steps.
+    pub sample: Option<u16>,
     pub run: String,
     pub index: usize,
     pub source: String,
@@ -218,10 +220,19 @@ pub(crate) fn insert_step(
     {
         return Err(Error::InvalidAudit);
     }
+    if let Some(sample) = link.sample.filter(|s| *s > 0) {
+        if sample >= 1024 { return Err(Error::InvalidAudit); }
+        let prior: Option<(String, i64)> = tx.query_row(
+            "SELECT s.source,MAX(f.sample_index) FROM scene_step s JOIN scene_sample f USING(boot_id,run_id,step_index) WHERE s.boot_id=?1 AND s.run_id=?2 AND s.step_index=?3 GROUP BY s.source",
+            params![boot,link.run,link.index as i64],|r|Ok((r.get(0)?,r.get(1)?))
+        ).optional()?;
+        if prior != Some((link.source.clone(), i64::from(sample)-1)) { return Err(Error::InvalidAudit); }
+    } else {
     tx.execute(
         "INSERT INTO scene_step(boot_id,run_id,step_index,source) VALUES(?1,?2,?3,?4)",
         params![boot, link.run, link.index as i64, link.source],
     )?;
+    }
     for command in commands {
         tx.execute(
             "INSERT INTO scene_command(boot_id,run_id,step_index,command_id) VALUES(?1,?2,?3,?4)",
@@ -232,6 +243,10 @@ pub(crate) fn insert_step(
                 i64::try_from(command.id).map_err(|_| Error::InvalidAudit)?
             ],
         )?;
+    }
+    if let Some(sample) = link.sample {
+        tx.execute("INSERT INTO scene_sample(boot_id,run_id,step_index,sample_index,first_command) VALUES(?1,?2,?3,?4,?5)",
+            params![boot,link.run,link.index as i64,i64::from(sample),i64::try_from(commands[0].id).map_err(|_|Error::InvalidAudit)?])?;
     }
     Ok(())
 }

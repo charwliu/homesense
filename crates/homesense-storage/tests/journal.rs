@@ -134,7 +134,7 @@ fn version_one_database_migrates_without_losing_configuration() {
     let connection = rusqlite::Connection::open(&db.0).unwrap();
     connection
         .execute_batch(
-            "DROP TABLE scene_cause; DROP TABLE automation_revision; DROP TABLE command_journal; DROP TABLE light_restore; DROP TABLE study_mode; DROP TABLE logical_variable; DROP TABLE calendar_watermark; DROP TABLE rule_command; DROP TABLE rule_admission; DROP TABLE rule_chain_outcome; DROP TABLE scene_command; DROP TABLE scene_step; DROP TABLE scene_run; PRAGMA user_version=1;",
+            "DROP TABLE scene_sample; DROP TABLE scene_cause; DROP TABLE automation_revision; DROP TABLE command_journal; DROP TABLE light_restore; DROP TABLE study_mode; DROP TABLE logical_variable; DROP TABLE calendar_watermark; DROP TABLE rule_command; DROP TABLE rule_admission; DROP TABLE rule_chain_outcome; DROP TABLE scene_command; DROP TABLE scene_step; DROP TABLE scene_run; PRAGMA user_version=1;",
         )
         .unwrap();
     drop(connection);
@@ -671,6 +671,7 @@ fn scene_step_links_commit_atomically_with_all_expanded_commands() {
     store.publish(None, 1, b"config", &[]).unwrap();
     store.begin_scene_run("boot", "scene", 1, None, 0).unwrap();
     let link = StepLink {
+        sample: None,
         run: "scene".into(),
         index: 0,
         source: "combined:light".into(),
@@ -813,11 +814,66 @@ fn schema_twelve_migration_preserves_existing_manual_scene_without_inventing_cau
     store.begin_scene_run("boot","manual",1,Some("scene"),10).unwrap();
     drop(store);
     let sql=rusqlite::Connection::open(&db.0).unwrap();
-    sql.execute_batch("DROP TABLE scene_cause; PRAGMA user_version=12;").unwrap();
+    sql.execute_batch("DROP TABLE scene_sample; DROP TABLE scene_cause; PRAGMA user_version=12;").unwrap();
     drop(sql);
     let store=Store::open(&db.0).unwrap();
     assert_eq!(store.scene_run("boot","manual").unwrap().unwrap().started_ms,10);
     assert!(store.scene_cause("boot","manual").unwrap().is_none());
     let sql=rusqlite::Connection::open(&db.0).unwrap();
-    assert_eq!(sql.pragma_query_value(None,"user_version",|r|r.get::<_,i64>(0)).unwrap(),13);
+    assert_eq!(sql.pragma_query_value(None,"user_version",|r|r.get::<_,i64>(0)).unwrap(),14);
+}
+
+#[test]
+fn fade_samples_append_contiguously_and_rollback_with_commands() {
+    use homesense_storage::scene_run::StepLink;
+    let db=Database::new();
+    let mut store=Store::open(&db.0).unwrap();
+    store.publish(None,1,b"config",&[]).unwrap();
+    store.begin_scene_run("boot","fade",1,None,0).unwrap();
+    let mut link=StepLink{run:"fade".into(),index:0,source:"fade-source".into(),sample:Some(0)};
+    let mut c=command(1);c.origin=Origin::Rule;
+    store.accept_queue_batch_with_audits("boot",&[c],&[],1,None,&[],None,Some(&link)).unwrap();
+    for (sample,source) in [(0,"fade-source"),(2,"fade-source"),(1,"changed"),(1024,"fade-source")] {
+        link.sample=Some(sample);link.source=source.into();
+        let mut c=command(2);c.origin=Origin::Rule;
+        assert!(store.accept_queue_batch_with_audits("boot",&[c],&[],2,None,&[],None,Some(&link)).is_err());
+        assert!(store.command_status("boot",2).unwrap().is_none());
+    }
+    link.sample=Some(1);link.source="fade-source".into();
+    let sql=rusqlite::Connection::open(&db.0).unwrap();
+    sql.execute_batch("CREATE TRIGGER reject_sample BEFORE INSERT ON scene_sample WHEN NEW.sample_index=1 BEGIN SELECT RAISE(ABORT,'sample failure'); END;").unwrap();
+    let mut c=command(2);c.origin=Origin::Rule;
+    assert!(store.accept_queue_batch_with_audits("boot",&[c.clone()],&[],2,None,&[],None,Some(&link)).is_err());
+    assert!(store.command_status("boot",2).unwrap().is_none());
+    assert_eq!(store.scene_commands("boot","fade",0,128).unwrap().len(),1);
+    sql.execute_batch("DROP TRIGGER reject_sample;").unwrap();
+    store.accept_queue_batch_with_audits("boot",&[c],&[],2,None,&[],None,Some(&link)).unwrap();
+    assert_eq!(store.scene_commands("boot","fade",0,128).unwrap().len(),2);
+    assert_eq!(sql.query_row("SELECT count(*) FROM scene_sample",[],|r|r.get::<_,i64>(0)).unwrap(),2);
+    store.checkpoint_scene_run("boot","fade",0,homesense_storage::scene_run::Status::Cancelled,3).unwrap();
+    link.sample=Some(2);
+    let mut c=command(3);c.origin=Origin::Rule;
+    assert!(store.accept_queue_batch_with_audits("boot",&[c],&[],3,None,&[],None,Some(&link)).is_err());
+    assert!(store.command_status("boot",3).unwrap().is_none());
+}
+
+#[test]
+fn schema_thirteen_keeps_scene_links_without_inventing_fade_samples() {
+    use homesense_storage::scene_run::StepLink;
+    let db=Database::new();
+    let mut store=Store::open(&db.0).unwrap();
+    store.publish(None,1,b"config",&[]).unwrap();
+    store.begin_scene_run("boot","scene",1,None,0).unwrap();
+    let link=StepLink{run:"scene".into(),index:0,source:"ordinary".into(),sample:None};
+    let mut c=command(1);c.origin=Origin::Rule;
+    store.accept_queue_batch_with_audits("boot",&[c],&[],1,None,&[],None,Some(&link)).unwrap();
+    drop(store);
+    let sql=rusqlite::Connection::open(&db.0).unwrap();
+    sql.execute_batch("DROP TABLE scene_sample; PRAGMA user_version=13;").unwrap();
+    let store=Store::open(&db.0).unwrap();
+    let rows=store.scene_commands("boot","scene",0,128).unwrap();
+    assert_eq!(rows.len(),1);
+    assert_eq!(rows[0].source,"ordinary");
+    assert_eq!(sql.query_row("SELECT count(*) FROM scene_sample",[],|r|r.get::<_,i64>(0)).unwrap(),0);
+    assert_eq!(sql.pragma_query_value(None,"user_version",|r|r.get::<_,i64>(0)).unwrap(),14);
 }
