@@ -4688,7 +4688,8 @@ async fn deferred_session_records_cycle_failure_and_reports_audit_failure() {
         let error=session.start("cycle",&mut scheduler,None).await.err().expect("cycle rejected");
         assert_eq!(error.contains("failure audit unavailable"),fault,"{error}");
         assert!(session.is_closed());
-        assert!(a.task_generation().await.is_err());
+        assert_eq!(a.task_generation().await.is_err(),fault);
+        assert_eq!(session.failure_isolated(),!fault);
         let store=Store::open(&db.0).unwrap();
         assert_eq!(store.logical_variable(1,"mode").unwrap().unwrap().value,Some(homesense_core::rule::Value::Integer(1)));
         assert_eq!(sql.query_row("SELECT count(*) FROM rule_chain_outcome WHERE error IS NOT NULL",[],|r|r.get::<_,i64>(0)).unwrap(),if fault {0}else{1});
@@ -4724,7 +4725,7 @@ async fn causal_root_batch_shares_identity_and_node_budget() {
         if limit==1 {
             assert!(result.is_err());
             assert_eq!(store.logical_variable(1,"b").unwrap().unwrap().value,None);
-            assert!(a.task_generation().await.is_err());
+            assert!(a.task_generation().await.is_ok());
         } else {
             let reports=result.unwrap();assert_eq!(reports.len(),2);
             assert_eq!(reports[0].cause.correlation_id(),reports[1].cause.correlation_id());
@@ -4802,6 +4803,13 @@ async fn successor_partial_failure_preserves_accepted_report_and_root_tracking()
     let sql=rusqlite::Connection::open(&db.0).unwrap();
     assert_eq!(sql.query_row("SELECT count(*) FROM rule_admission WHERE rule_id='second'",[],|r|r.get::<_,i64>(0)).unwrap(),0);
     scheduler.retire(terminal.run).unwrap();
+    let mut isolated=homesensed::deferred_session::Session::new(a.clone(),controller,&scheduler,homesense_core::rule::Budget{nodes:2,..Default::default()},60000).await.unwrap();
+    assert!(isolated.start_rules(&["begin".into(),"first".into()],&mut scheduler,None).await.is_err());
+    assert!(isolated.failure_isolated());assert_eq!(isolated.pending_count(),1);
+    let cancelled=scheduler.take_results().pop().unwrap();
+    assert_eq!(cancelled.status,homesense_core::scene::Status::Cancelled);
+    scheduler.retire(cancelled.run).unwrap();drop(isolated);
+    assert!(a.task_generation().await.is_ok());assert!(a.dispatch().await.unwrap().is_none());
     let budget=if continuation {homesense_core::rule::Budget{nodes:6,..Default::default()}} else {Default::default()};
     let mut session=homesensed::deferred_session::Session::new(a.clone(),controller,&scheduler,budget,60000).await.unwrap();
     if continuation {
@@ -4816,7 +4824,8 @@ async fn successor_partial_failure_preserves_accepted_report_and_root_tracking()
         assert!(session.start_rules(&["begin".into(),"missing".into()],&mut scheduler,None).await.is_err());
         assert_eq!(session.pending_count(),1,"first accepted root must be tracked before the next root fails");
     }
-    assert!(a.task_generation().await.is_err());
+    assert_eq!(a.task_generation().await.is_err(),!continuation);
+    assert_eq!(session.failure_isolated(),continuation);
     a.shutdown().await.unwrap();
 }
 }

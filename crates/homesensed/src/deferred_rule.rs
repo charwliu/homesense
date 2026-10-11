@@ -32,6 +32,14 @@ pub enum ExecutionFailure {
         error: Box<ExecutionFailure>,
     },
 }
+impl ExecutionFailure {
+    pub fn is_chain_rejection(&self) -> bool {
+        matches!(
+            self,
+            Self::Planning(Error::Budget | Error::Cycle | Error::Rule(_))
+        )
+    }
+}
 impl std::fmt::Display for ExecutionFailure {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
