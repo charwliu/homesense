@@ -4971,3 +4971,30 @@ async fn held_dimming_does_not_resume_old_samples_after_transport_recovery() {
         hold.invalidate();a.shutdown().await.unwrap();
     }
 }
+
+#[tokio::test]
+async fn rejected_lossy_migration_preserves_old_runtime_and_delayed_scene() {
+    use homesensed::automation_runtime::AutomationRuntime;
+    let db=Db(std::env::temp_dir().join(format!("migration-preflight-{}.sqlite",Uuid::new_v4())));
+    let devices=include_bytes!("../../../config/simulation.json");
+    let rules=br#"{"schema_version":1,"configuration_revision":1,"variables":[{"id":"mode","kind":"integer","lifetime":"persistent"}],"rules":[],"timed_scenes":[{"id":"light","enabled":true,"review_evidence":"fixture","max_lateness_ms":1000,"steps":[{"source":"fixture","offset_ms":1000,"device":"simulation:light","command":{"kind":"level","value":30,"ramp":false}}]}]}"#;
+    Store::open(&db.0).unwrap().publish_automation(None,devices,rules,ExecutionContext::Simulation,&[]).unwrap();
+    let sql=rusqlite::Connection::open(&db.0).unwrap();
+    sql.execute("UPDATE logical_variable SET value=17 WHERE name='mode'",[]).unwrap();
+    let controller=Uuid::new_v4();
+    let a=actor(&db,controller).await;
+    let mut runtime=AutomationRuntime::load(a.clone(),controller,1_800_000_000_000,1000,8,Default::default()).await.unwrap();
+    let run=runtime.start_scene("light").await.unwrap();
+    let mut next:hap::serde_json::Value=hap::serde_json::from_slice(devices).unwrap();next["revision"]=2.into();
+    let mut candidate:hap::serde_json::Value=hap::serde_json::from_slice(rules).unwrap();
+    candidate["configuration_revision"]=2.into();candidate["variables"][0]["kind"]="bool".into();
+    candidate["variable_migrations"]=hap::serde_json::json!([{"variable":"mode","source_revision":1,"source_type":"integer","conversion":"integer_zero_one_to_bool","review_evidence":"fixture"}]);
+    assert!(a.begin_automation_publication(hap::serde_json::to_vec(&next).unwrap(),hap::serde_json::to_vec(&candidate).unwrap(),1,std::time::Duration::from_secs(3)).await.is_err());
+    // Rejection must neither invalidate this runtime nor cancel its pending work.
+    assert_eq!(runtime.cancel_scene(run).await.unwrap(),1);
+    assert!(runtime.start_scene("light").await.is_ok());
+    assert_eq!(sql.query_row("SELECT value FROM logical_variable WHERE revision=1 AND name='mode'",[],|r|r.get::<_,i64>(0)).unwrap(),17);
+    assert!(Store::open(&db.0).unwrap().revision(2).unwrap().is_none());
+    drop(runtime);
+    a.shutdown().await.unwrap();
+}
