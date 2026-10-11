@@ -359,6 +359,11 @@ impl Session {
                 }
                 Err(error) => {
                     self.planning_failure = error.is_chain_rejection();
+                    if self.planning_failure {
+                        // Planning errors occur only after receipt verification.
+                        // The scheduler may already have retired this terminal.
+                        self.pending.remove(&result.run);
+                    }
                     return Err(error.to_string());
                 }
             };

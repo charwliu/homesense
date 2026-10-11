@@ -4810,6 +4810,18 @@ async fn successor_partial_failure_preserves_accepted_report_and_root_tracking()
     assert_eq!(cancelled.status,homesense_core::scene::Status::Cancelled);
     scheduler.retire(cancelled.run).unwrap();drop(isolated);
     assert!(a.task_generation().await.is_ok());assert!(a.dispatch().await.unwrap().is_none());
+    let reports=observer.dispatch_rules(&["begin".into(),"first".into()],&mut scheduler,None,homesense_core::rule::Budget{nodes:2,..Default::default()},60000).await.unwrap();
+    assert!(reports.is_empty());assert_eq!(observer.retained_count(),1);
+    let (reports,unowned)=observer.poll(&mut scheduler,None).await.unwrap();
+    assert!(reports.is_empty());assert!(unowned.is_empty());assert_eq!(observer.retained_count(),0);
+    assert!(a.dispatch().await.unwrap().is_none());
+    observer.start("begin",&mut scheduler,None,homesense_core::rule::Budget{nodes:2,..Default::default()},60000).await.unwrap();
+    observer.poll(&mut scheduler,None).await.unwrap();
+    let ticket=a.dispatch().await.unwrap().unwrap();a.finish_write(ticket.command.id,true).await.unwrap();
+    let (reports,unowned)=observer.poll(&mut scheduler,None).await.unwrap();
+    assert!(reports.is_empty());assert!(unowned.is_empty());assert_eq!(observer.retained_count(),0);
+    assert!(a.task_generation().await.is_ok());
+    assert_eq!(observer.dispatch_rules(&["first".into()],&mut scheduler,None,Default::default(),60000).await.unwrap().len(),1);
     let budget=if continuation {homesense_core::rule::Budget{nodes:6,..Default::default()}} else {Default::default()};
     let mut session=homesensed::deferred_session::Session::new(a.clone(),controller,&scheduler,budget,60000).await.unwrap();
     if continuation {
