@@ -184,3 +184,6 @@ TCP 有界重连已接入：`serve_supervised` 与 CLI 可选 `--recoveries 0..1
 
 
 长按任务恢复组件回归：两种 ReleasePolicy 均验证“首个调光样本写出、第二个已排队→传输故障取消→旧任务失效→新代际恢复”后无调光或 PauseRamp 重放，排队样本持久状态为 cancelled。重新按键从新反馈 30% 生成 35%，不沿用旧任务 50% 起点。71 项运行时测试通过。此为 HoldDimming/Admission 组件证据，尚不代表真实 TCP 面板事件流、现场 PauseRamp 或完整服务长按恢复验收。
+
+
+TCP 自动化面板同步策略：新增显式 `query_automation_recovery`，查询输出设备并要求新代际新鲜反馈；已审核 Keypad 校验型号与通道后不发送灯光查询，其状态保持未知直到收到新事件。原 query_recovery／synchronize_recovery 保留完整映射严格反馈门禁，其他不可查询类型仍拒绝，自动化映射仍须包含可查询输出。包含 TS6 六键面板的 CLI 初始同步、断链恢复及不重放测试通过；9 项 TCP、1 项严格恢复、71 项运行时及库严格 Clippy 通过。此改动解除面板配置无法启动的障碍，尚未验收真实按键事件到长按动作的完整 TCP 恢复链路。

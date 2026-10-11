@@ -95,6 +95,9 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
         revision: u64,
         max_age_ms: u64,
     ) -> Result<(), String> {
+        self.synchronize_mapping(revision,max_age_ms,false).await
+    }
+    async fn synchronize_mapping(&mut self,revision:u64,max_age_ms:u64,allow_keypads:bool)->Result<(),String> {
         if revision != self.feedback.configuration_revision() {
             return Err("recovery revision does not match feedback".into());
         }
@@ -108,7 +111,7 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
         self.expire(now, max_age_ms)?;
         let snapshot = self.snapshot();
         if snapshot.devices.is_empty()
-            || snapshot.devices.values().any(|state| {
+            || snapshot.devices.values().filter(|state| !(allow_keypads && state.kind == homesense_core::ModuleKind::Keypad)).any(|state| {
                 state.quality != Quality::Confirmed
                     || state.observed.is_none()
                     || !state
@@ -123,8 +126,8 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
         self.pending_recovery = None;
         Ok(())
     }
-    /// Query a light-only mapping after connection recovery, then reopen control.
-    /// Unsupported/event-only devices are rejected before sending any query.
+    /// Query supported outputs; only the explicit automation policy permits
+    /// verified event-only keypads to remain unknown instead of being queried.
     async fn query_mapping(
         &mut self,
         config: &homesense_config::Configuration,
@@ -132,6 +135,7 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
         timeout_ms: u64,
         max_age_ms: u64,
         selected: Option<&homesense_core::DeviceId>,
+        allow_keypads: bool,
     ) -> Result<(), String> {
         if config.revision() != self.feedback.configuration_revision() {
             return Err("query revision does not match feedback".into());
@@ -140,8 +144,15 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
             return Err("invalid recovery query state or bounds".into());
         }
         let mut plan = Vec::new();
+        let mut keypads = 0;
         for id in config.devices().keys() {
             if let Some((device, module)) = config.binding(id) {
+                if allow_keypads && module.kind() == homesense_core::ModuleKind::Keypad {
+                    module.validate_context(context).map_err(|e|e.to_string())?;
+                    module.validate_channel(device.channel).map_err(|e|e.to_string())?;
+                    keypads += 1;
+                    continue;
+                }
                 hb_protocol::encode_in_context(
                     module,
                     device.channel,
@@ -152,7 +163,7 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
                 plan.push((id.clone(), device, module));
             }
         }
-        if plan.is_empty() || plan.len() != self.snapshot().devices.len() {
+        if plan.is_empty() || plan.len() + keypads != self.snapshot().devices.len() {
             return Err("recovery query mapping does not match feedback".into());
         }
         if let Some(id) = selected
@@ -249,10 +260,20 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
         if self.pending_recovery.is_none() {
             return Err("no recovery pending".into());
         }
-        self.query_mapping(config, context, timeout_ms, max_age_ms, None)
+        self.query_mapping(config, context, timeout_ms, max_age_ms, None, false)
             .await?;
         self.synchronize_recovery(config.revision(), max_age_ms)
             .await
+    }
+    /// Automation synchronizes queryable outputs; verified keypad observations
+    /// remain unknown until fresh events arrive on this connection.
+    pub async fn query_automation_recovery(
+        &mut self, config:&homesense_config::Configuration,
+        context:homesense_core::ExecutionContext, timeout_ms:u64,max_age_ms:u64,
+    )->Result<(),String> {
+        if self.pending_recovery.is_none() {return Err("no recovery pending".into());}
+        self.query_mapping(config,context,timeout_ms,max_age_ms,None,true).await?;
+        self.synchronize_mapping(config.revision(),max_age_ms,true).await
     }
     /// Refresh one observation so the supervisor can dispatch control between queries.
     /// Recovery still queries the complete mapping before reopening admission.
@@ -267,7 +288,7 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
         if self.pending_recovery.is_some() {
             return Err("recovery requires synchronization first".into());
         }
-        self.query_mapping(config, context, timeout_ms, max_age_ms, Some(device))
+        self.query_mapping(config, context, timeout_ms, max_age_ms, Some(device), false)
             .await
     }
     pub(crate) fn invalidate(&mut self) {
