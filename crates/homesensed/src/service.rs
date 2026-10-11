@@ -355,9 +355,10 @@ pub async fn serve_automation_simulation_with_publication(
     serve_automation_simulation_options(devices,rules,directory,duration,scene,publication,None,None).await
 }
 /// Explicit local-only management simulation; credentials are supplied out of band.
-pub struct WebSimulation { pub address:std::net::SocketAddr, pub secret:String, pub administrator:bool }
+pub struct WebSimulation { pub address:std::net::SocketAddr, pub secret:String, pub administrator:bool, pub tls:Option<crate::web_tls::Settings> }
 pub async fn serve_web_simulation(devices:&[u8],rules:&[u8],directory:&Path,duration:Duration,web:WebSimulation)->Result<(),String> {
-    if !web.address.ip().is_loopback() || web.address.port()==0 {return Err("Web simulation requires a loopback address and nonzero port".into());}
+    if let Some(tls)=&web.tls {tls.validate_address(web.address)?;}
+    if (web.tls.is_none() && !web.address.ip().is_loopback()) || web.address.port()==0 {return Err("Web simulation requires a loopback address and nonzero port".into());}
     serve_automation_simulation_options(devices,rules,directory,duration,None,None,Some(web),None).await
 }
 pub struct UnifiedSimulation {pub address:std::net::SocketAddr,pub scenes:Vec<String>}
@@ -507,10 +508,10 @@ async fn serve_automation_simulation_options(
             let tokens=std::sync::Arc::new(crate::web_auth::Tokens::default());
             let selected:std::collections::BTreeMap<String,String>=document.timed_scenes.iter().filter(|(_,s)|s.enabled && s.review_evidence.as_ref().is_some_and(|v|!v.trim().is_empty())).map(|(id,_)|(id.clone(),id.clone())).collect();
             tokens.insert(Uuid::new_v4(),&web.secret,crate::web_auth::Grant{controller,role:if web.administrator {crate::web_auth::Role::Administrator}else{crate::web_auth::Role::Member},scenes:selected.keys().cloned().collect(),devices:config.devices().iter().filter(|(_,d)|d.enabled).map(|(id,_)|id.as_str().to_owned()).collect()})?;
-            let api=std::sync::Arc::new(crate::web_api::Api{publisher:Some(publisher),origin:format!("http://{}",web.address),tokens,runtime:std::sync::RwLock::new(Some(crate::web_api::Runtime{control:runtime.control(),revision:document.revision,boot:admission.boot_id().to_owned(),scenes:selected})),drafts:Some((ExecutionContext::Simulation,std::sync::Mutex::new(crate::web_drafts::Drafts::open(&directory.join("web-drafts.sqlite"))?))),receipts:std::sync::Mutex::new(crate::web_receipts::Receipts::open(&directory.join("web-receipts.sqlite"))?)});
+            let api=std::sync::Arc::new(crate::web_api::Api{publisher:Some(publisher),origin:web.tls.as_ref().map_or_else(||format!("http://{}",web.address),|tls|tls.origin.clone()),tokens,runtime:std::sync::RwLock::new(Some(crate::web_api::Runtime{control:runtime.control(),revision:document.revision,boot:admission.boot_id().to_owned(),scenes:selected})),drafts:Some((ExecutionContext::Simulation,std::sync::Mutex::new(crate::web_drafts::Drafts::open(&directory.join("web-drafts.sqlite"))?))),receipts:std::sync::Mutex::new(crate::web_receipts::Receipts::open(&directory.join("web-receipts.sqlite"))?)});
             let (stop,receive)=tokio::sync::watch::channel(false);
             let drive=crate::web_supervision::run(api.clone(),admission.clone(),controller,runtime,owner,publications,receive.clone(),directory.join("automation-simulation.sqlite"));
-            let server=crate::web_server::serve(api,web.address,receive);
+            let server=crate::web_server::serve_with_tls(api,web.address,receive,web.tls);
             tokio::pin!(drive,server);
             tokio::select! {
                 result=&mut server=>{let _=stop.send(true);drive.await?;result?;return Err("Web listener ended early".into());},
