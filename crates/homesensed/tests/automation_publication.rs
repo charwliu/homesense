@@ -96,4 +96,13 @@ async fn candidate_fades_respect_bus_capacity_but_disabled_drafts_remain_reviewa
     rules["timed_scenes"][0]["steps"][0]["fade"]["interval_ms"]=200.into();
     assert!(check(&rules,200).is_ok());
     assert!(check(&rules,0).is_err());
+    devices["gateways"][0]["modules"].as_array_mut().unwrap().push(json!({"address":"16","profile":"r8i8_din_pro_v2_7_7","verification":{"status":"verified","evidence":"synthetic","verified_at_unix_ms":1}}));
+    devices["devices"][0]["supply_relay"]="simulation:relay".into();
+    devices["devices"][0]["default_on_level"]=50.into();
+    devices["devices"].as_array_mut().unwrap().push(json!({"id":"simulation:relay","name":"relay","gateway":"simulation","address":"16","channel":1,"enabled":true}));
+    let check_combined=|rules:&Value|homesensed::automation_tcp::validate_candidate_with_write_interval(&to_vec(&devices).unwrap(),&to_vec(rules).unwrap(),std::time::Duration::from_millis(200));
+    let error=check_combined(&rules).err().unwrap();
+    assert!(error.contains("fade step"),"{error}");
+    rules["timed_scenes"][0]["steps"][0]["fade"]["interval_ms"]=500.into();
+    assert!(check_combined(&rules).is_ok());
 }
