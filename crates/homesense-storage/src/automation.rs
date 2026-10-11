@@ -79,10 +79,7 @@ impl Store {
 fn validate(bytes: &[u8], config: &homesense_config::Configuration) -> Result<Document, Error> {
     let document = Document::parse(bytes, config).map_err(|_| Error::InvalidPayload)?;
     document
-        .linked_rules(
-            &document.immediate_scenes,
-            &document.schedules.iter().map(|s| s.id.clone()).collect(),
-        )
+.linked_rules_with_deferred()
         .map_err(|_| Error::InvalidPayload)?;
     Ok(document)
 }

@@ -62,3 +62,5 @@ pub mod scene_activity;
 pub mod automation_runtime;
 pub mod automation_control;
 pub mod publication_recovery;
+
+pub mod deferred_rule;
