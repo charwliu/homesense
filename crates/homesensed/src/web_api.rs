@@ -61,7 +61,7 @@ impl Api {
         {
             return deny(StatusCode::FORBIDDEN, "invalid_origin");
         }
-        if request.uri().query().is_some() {
+        if request.uri().query().is_some() && request.uri().path()!="/api/v1/config/versions" {
             return deny(StatusCode::BAD_REQUEST, "query_not_supported");
         }
         if request.method() == hyper::Method::GET && request.uri().path() == "/" {
@@ -177,6 +177,10 @@ impl Api {
         let Some(runtime) = runtime else {
             return deny(StatusCode::SERVICE_UNAVAILABLE, "runtime_reconfiguring");
         };
+        if request.uri().path()=="/api/v1/config/versions" || request.uri().path().starts_with("/api/v1/config/versions/") {
+            let (code,body)=crate::web_history::read(&runtime,&grant,&request).await;
+            return response(code,body);
+        }
         if let Some(id) = request
             .uri()
             .path()
