@@ -98,6 +98,63 @@ impl Session {
         }
         Ok(())
     }
+    async fn cascade(
+        &mut self,
+        mut outcomes: Vec<Outcome>,
+        scheduler: &mut SceneScheduler,
+        feedback: Option<(&Feedback, u64)>,
+    ) -> Result<Vec<Outcome>, String> {
+        let document = self
+            .admission
+            .automation_bundle(self.controller, self.generation.clone())
+            .await
+            .map_err(|e| format!("{e:?}"))?
+            .automation
+            .ok_or("automation missing")?;
+        let rules = document
+            .linked_rules_with_deferred()
+            .map_err(|e| e.to_string())?;
+        for outcome in &outcomes {
+            self.track(outcome, scheduler)?;
+        }
+        let mut index = 0;
+        while index < outcomes.len() {
+            let parent = outcomes[index].cause.clone();
+            let changed = &outcomes[index].changed_variables;
+            let triggered:Vec<_>=rules.iter().filter(|r|matches!(&r.trigger,homesense_config::rule_document::Trigger::VariableChanged{variable} if changed.contains(variable))).map(|r|r.id.clone()).collect();
+            for rule in triggered {
+                if outcomes.len() >= 1024 {
+                    return Err("causal report capacity exceeded".into());
+                }
+                let outcome = deferred_rule::execute(
+                    &self.admission,
+                    self.controller,
+                    &rule,
+                    &mut self.chain,
+                    &parent,
+                    scheduler,
+                    feedback,
+                )
+                .await?;
+                self.track(&outcome, scheduler)?;
+                outcomes.push(outcome);
+            }
+            index += 1;
+        }
+        self.closed = self.pending.is_empty();
+        if self.closed {
+            self.admission
+                .record_rule_outcome(
+                    self.controller,
+                    self.generation.clone(),
+                    self.chain.root().correlation_id(),
+                    None,
+                )
+                .await
+                .map_err(|e| format!("{e:?}"))?;
+        }
+        Ok(outcomes)
+    }
     /// One explicit root rule. Errors/cancellation close the session and gate
     /// admission; accepted actions are not undone or retried.
     pub async fn start(
@@ -105,7 +162,7 @@ impl Session {
         rule: &str,
         scheduler: &mut SceneScheduler,
         feedback: Option<(&Feedback, u64)>,
-    ) -> Result<Outcome, String> {
+    ) -> Result<Vec<Outcome>, String> {
         self.validate(scheduler).await?;
         if self.started {
             return Err("causal root already started".into());
@@ -124,10 +181,9 @@ impl Session {
             feedback,
         )
         .await?;
-        self.track(&outcome, scheduler)?;
-        self.closed = self.pending.is_empty();
+        let outcomes = self.cascade(vec![outcome], scheduler, feedback).await?;
         guard.1 = true;
-        Ok(outcome)
+        Ok(outcomes)
     }
     /// Results are correlated by both scheduler handle and durable run identity.
     pub async fn resume(
@@ -158,10 +214,7 @@ impl Session {
         )
         .await?;
         self.pending.remove(&result.run);
-        for outcome in &outcomes {
-            self.track(outcome, scheduler)?;
-        }
-        self.closed = self.pending.is_empty();
+        let outcomes = self.cascade(outcomes, scheduler, feedback).await?;
         guard.1 = true;
         Ok(outcomes)
     }
