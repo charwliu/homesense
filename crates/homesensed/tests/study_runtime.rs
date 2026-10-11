@@ -4309,6 +4309,7 @@ async fn running_automation_control_cancels_before_output_and_closes_on_exit() {
 #[tokio::test]
 async fn publication_pauses_old_automation_without_closing_admission() {
     use homesensed::{automation_runtime::AutomationRuntime, automation_control::Action, feedback::Feedback, observed_transport::ObservedTransport, transport_owner::TransportOwner};
+    for keypads in [false,true] {
     for responds in [false, true] {
     let db=Db(std::env::temp_dir().join(format!("assembly-{}.sqlite",Uuid::new_v4())));
     let devices=include_bytes!("../../../config/simulation.json");
@@ -4332,6 +4333,11 @@ async fn publication_pauses_old_automation_without_closing_admission() {
     runtime.start_scene("light").await.unwrap();
     let mut next:hap::serde_json::Value=hap::serde_json::from_slice(devices).unwrap();
     next["revision"]=2.into();
+    if keypads {
+        next["gateways"][0]["modules"].as_array_mut().unwrap().push(hap::serde_json::json!({"address":"41","profile":"ts6_86_rs485_v2_6_5_6key","verification":{"status":"simulated"},"led_mode":"manual"}));
+        next["devices"].as_array_mut().unwrap().push(hap::serde_json::json!({"id":"panel:1","name":"keypad","gateway":"simulation","address":"41","channel":1,"enabled":true}));
+    }
+    let policy=if keypads {homesensed::publication_recovery::Synchronization::OutputsAndKeypadEvents} else {homesensed::publication_recovery::Synchronization::CompleteFeedback};
     let mut next_rules:hap::serde_json::Value=hap::serde_json::from_slice(rules).unwrap();
     next_rules["configuration_revision"]=2.into();
     let pause=async {
@@ -4367,14 +4373,14 @@ async fn publication_pauses_old_automation_without_closing_admission() {
     // reopen admission. The valid attempt below must still be possible.
     for (principal,epoch,complete) in [(Uuid::new_v4(),2,true),(controller,1,true),(controller,2,false)] {
         let streams=if complete {[("simulation".into(),hb_transport::Connection::for_simulation(QueryWire(vec![],true),epoch))].into()} else {std::collections::BTreeMap::new()};
-        let rejected=homesensed::publication_recovery::rebuild(a.clone(),principal,TransportOwner::new(a.clone(),streams),epoch,settings).await;
+        let rejected=homesensed::publication_recovery::rebuild_with_policy(a.clone(),principal,TransportOwner::new(a.clone(),streams),epoch,settings,policy).await;
         assert!(rejected.is_err());
         assert!(a.task_generation().await.is_err());
     }
     let fresh=TransportOwner::new(a.clone(),[("simulation".into(),hb_transport::Connection::for_simulation(QueryWire(vec![],responds),2))].into());
-    let rebuilt=homesensed::publication_recovery::rebuild(a.clone(),controller,fresh,2,homesensed::publication_recovery::Settings{
+    let rebuilt=homesensed::publication_recovery::rebuild_with_policy(a.clone(),controller,fresh,2,homesensed::publication_recovery::Settings{
         query_timeout_ms:100,max_age_ms:5000,wall_unix_ms:1_800_000_000_000,calendar_lateness_ms:1000,scene_capacity:8
-    }).await;
+    },policy).await;
     if !responds {
         assert!(rebuilt.is_err());
         assert!(a.synchronized(2,2).await.is_err());
@@ -4382,12 +4388,14 @@ async fn publication_pauses_old_automation_without_closing_admission() {
         a.shutdown().await.unwrap();
         continue;
     }
-    let (next_runtime,_new_owner)=rebuilt.unwrap();
+    let (next_runtime,new_owner)=rebuilt.unwrap();
+    if keypads {assert!(new_owner.snapshot().devices[&homesense_core::DeviceId::new("panel:1").unwrap()].observed.is_none());}
     assert_eq!(next_runtime.revision(),2);
     assert!(a.dispatch().await.unwrap().is_none());
     drop(next_runtime);
     a.shutdown().await.unwrap();
     }
+}
 }
 
 #[tokio::test]

@@ -193,3 +193,6 @@ TCP 长按恢复端到端回归：回环网关发送 TS6 按下帧，经手势�
 
 
 集成复验：db91883 工作树（含既有未提交代码）完整 workspace 测试 384 项通过、0 失败、0 忽略，共 77 个结果块。源码差异和日志指纹见 `docs/evidence/stage-d-study/causal-service-regression.json`。包含本机 TCP／HTTP 回环，不包含现场部署或阶段整体完成证明。
+
+
+发布恢复的面板策略已接通：`publication_recovery::rebuild_with_policy` 可显式选择 OutputsAndKeypadEvents，默认 rebuild 仍要求完整反馈。新配置含 Keypad 时恢复只查询输出，面板 observed 保持 None；未经授权、旧连接代际、缺少网关均拒绝，查询失败保持关闭，成功后版本为新发布版本。扩展原发布屏障回归覆盖灯光／混合面板配置与查询成功／失败四种组合；71 项运行时、4 项模拟服务测试及库严格 Clippy 通过，并专项验证面板未知状态。此为在线发布协调器所需恢复装配接口，TCP 服务在线发布请求入口与协调循环尚未接线。
