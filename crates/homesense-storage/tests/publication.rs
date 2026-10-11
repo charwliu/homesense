@@ -458,6 +458,17 @@ fn explicit_variable_conversion_commits_atomically_and_rejects_stale_or_lossy_so
     assert_eq!(store.active().unwrap().unwrap().revision,1);
     assert!(store.revision(2).unwrap().is_none());
     sql.execute("UPDATE logical_variable SET value=1 WHERE name='mode'",[]).unwrap();
+    let config=homesense_config::Configuration::parse(&bundle_devices(2),Simulation).unwrap();
+    let candidate=homesense_config::rule_document::Document::parse(&rules(1),&config).unwrap();
+    let source=store.logical_variable(1,"mode").unwrap().unwrap();
+    assert_eq!(candidate.published_variable_value(Some(1),"mode",Some((source.kind,source.value.as_ref()))).unwrap(),Some(Value::Bool(true)));
+    // Even a valid preflight cannot authorize a now-lossy source in the transaction.
+    sql.execute("UPDATE logical_variable SET value=2 WHERE name='mode'",[]).unwrap();
+    assert!(store.publish_automation(Some(1),&bundle_devices(2),&rules(1),Simulation,&[]).is_err());
+    assert_eq!(store.active().unwrap().unwrap().revision,1);
+    assert!(store.automation_payload(2).unwrap().is_none());
+    sql.execute("UPDATE logical_variable SET value=1 WHERE name='mode'",[]).unwrap();
+
     sql.execute_batch("CREATE TRIGGER fail_migration BEFORE INSERT ON logical_variable WHEN NEW.revision=2 BEGIN SELECT RAISE(ABORT,'fixture'); END;").unwrap();
     assert!(store.publish_automation(Some(1),&bundle_devices(2),&rules(1),Simulation,&[]).is_err());
     assert!(store.automation_payload(2).unwrap().is_none());
@@ -472,4 +483,19 @@ fn explicit_variable_conversion_commits_atomically_and_rejects_stale_or_lossy_so
     let store=Store::open(db.path()).unwrap();
     assert!(store.active_bundle(Simulation).unwrap().is_some());
     assert_eq!(store.logical_variable(2,"mode").unwrap().unwrap().value,Some(Value::Bool(true)));
+}
+
+#[test]
+fn migration_requires_existing_source_even_for_reset_unknown() {
+    use homesense_core::ExecutionContext::Simulation;
+    let db=Database::new();
+    let mut store=Store::open(db.path()).unwrap();
+    let rules=br#"{"schema_version":1,"configuration_revision":2,"variables":[{"id":"missing","kind":"bool","lifetime":"persistent"}],"variable_migrations":[{"variable":"missing","source_revision":1,"source_type":"integer","conversion":"reset_unknown","review_evidence":"fixture"}],"rules":[]}"#;
+    assert!(store.publish_automation(None,&bundle_devices(2),rules,Simulation,&[]).is_err());
+    assert!(store.active().unwrap().is_none());
+    assert!(store.revision(2).unwrap().is_none());
+    store.publish_automation(None,&bundle_devices(1),&bundle_rules(1,"integer"),Simulation,&[]).unwrap();
+    assert!(store.publish_automation(Some(1),&bundle_devices(2),rules,Simulation,&[]).is_err());
+    assert_eq!(store.active().unwrap().unwrap().revision,1);
+    assert!(store.automation_payload(2).unwrap().is_none());
 }
