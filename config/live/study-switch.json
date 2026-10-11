@@ -1,0 +1,32 @@
+{
+  "devices": [
+    {
+      "address": "03",
+      "channel": 4,
+      "enabled": true,
+      "gateway": "hopebeauty",
+      "id": "control4:210",
+      "name": "书房主灯开关"
+    }
+  ],
+  "gateways": [
+    {
+      "endpoint": "192.168.0.10:50007",
+      "id": "hopebeauty",
+      "modules": [
+        {
+          "address": "03",
+          "profile": "r8i8_din_pro_v2_7_7",
+          "verification": {
+            "status": "verified",
+            "evidence": "用户确认书房 03 为 R8I8-DIN PRO；03/4 查询及开关恢复报文已核对。证据 deployment/nanopc/evidence/20261010-a3/study-switch-03-4-control.jsonl。只授权本配置的 03/4，不表示其他通道已验收；EA-5 范围不变。",
+            "verified_at_unix_ms": 1791647590276
+          }
+        }
+      ]
+    }
+  ],
+  "manual_degraded_enabled": false,
+  "revision": 1,
+  "schema_version": 1
+}

@@ -1,0 +1,91 @@
+[2026-10-10T17:16:56Z INFO  hap::transport::http::server] binding TCP listener on 192.168.4.1:51826
+[2026-10-10T17:17:11Z INFO  hap::transport::http::server] HAP TCP accepted peer=192.168.3.215:49189
+[2026-10-10T17:17:11Z INFO  hap::transport::http::server] HAP request path=/pair-verify authenticated=false
+[2026-10-10T17:17:11Z INFO  hap::transport::http::handler::pair_verify] pair verify M1: received verify start request
+[2026-10-10T17:17:11Z INFO  hap::transport::http::handler::pair_verify] pair verify M2: sending verify start response
+[2026-10-10T17:17:11Z INFO  hap::transport::http::server] HAP response status=200 OK
+[2026-10-10T17:17:11Z INFO  hap::transport::http::server] HAP request path=/pair-verify authenticated=false
+[2026-10-10T17:17:11Z INFO  hap::transport::http::handler::pair_verify] pair verify M3: received verify finish request
+[2026-10-10T17:17:11Z INFO  hap::transport::http::handler::pair_verify] pair verify M4: sending verify finish response
+[2026-10-10T17:17:11Z INFO  hap::transport::http::server] HAP response status=200 OK
+[2026-10-10T17:17:11Z INFO  hap::transport::http::server] HAP request path=/accessories authenticated=true
+[2026-10-10T17:17:11Z INFO  hap::transport::http::handler::accessories] received list accessories request
+[2026-10-10T17:17:11Z INFO  hap::transport::http::server] HAP response status=200 OK
+[2026-10-10T17:17:11Z INFO  hap::transport::http::server] HAP request path=/characteristics authenticated=true
+[2026-10-10T17:17:11Z INFO  hap::transport::http::server] HAP response status=200 OK
+[2026-10-10T17:17:11Z INFO  hap::transport::http::server] HAP request path=/characteristics authenticated=true
+[2026-10-10T17:17:11Z INFO  hap::transport::http::server] HAP response status=204 No Content
+[2026-10-10T17:17:11Z INFO  hap::transport::http::server] HAP request path=/characteristics authenticated=true
+[2026-10-10T17:17:11Z INFO  hap::transport::http::server] HAP response status=204 No Content
+[2026-10-10T17:17:11Z INFO  hap::transport::http::server] HAP request path=/characteristics authenticated=true
+[2026-10-10T17:17:11Z INFO  hap::transport::http::server] HAP response status=204 No Content
+[2026-10-10T17:17:11Z INFO  hap::transport::http::server] HAP request path=/characteristics authenticated=true
+[2026-10-10T17:17:11Z INFO  hap::transport::http::server] HAP response status=200 OK
+[2026-10-10T17:17:11Z INFO  hap::transport::http::server] HAP request path=/characteristics authenticated=true
+[2026-10-10T17:17:11Z INFO  hap::transport::http::server] HAP response status=204 No Content
+[2026-10-10T17:17:25Z INFO  hap::transport::http::server] HAP request path=/characteristics authenticated=true
+[2026-10-10T17:17:25Z INFO  hap::transport::http::server] HAP response status=200 OK
+[2026-10-10T17:18:25Z INFO  hap::transport::http::server] HAP request path=/characteristics authenticated=true
+[2026-10-10T17:18:25Z INFO  hap::transport::http::server] HAP response status=200 OK
+[2026-10-10T17:18:25Z INFO  hap::transport::http::server] HAP request path=/characteristics authenticated=true
+[2026-10-10T17:18:25Z INFO  hap::transport::http::server] HAP response status=204 No Content
+[2026-10-10T17:18:26Z INFO  hap::transport::http::server] HAP request path=/characteristics authenticated=true
+[2026-10-10T17:18:26Z INFO  hap::transport::http::server] HAP response status=204 No Content
+[2026-10-10T17:18:26Z INFO  hap::transport::http::server] HAP request path=/characteristics authenticated=true
+[2026-10-10T17:18:26Z INFO  hap::transport::http::server] HAP response status=204 No Content
+[2026-10-10T17:18:54Z INFO  hap::transport::http::server] HAP request path=/characteristics authenticated=true
+[2026-10-10T17:18:54Z INFO  hap::transport::http::server] HAP response status=200 OK
+[2026-10-10T17:19:05Z INFO  hap::transport::http::server] HAP request path=/characteristics authenticated=true
+[2026-10-10T17:19:05Z INFO  hap::transport::http::server] HAP response status=204 No Content
+[2026-10-10T17:19:25Z INFO  hap::transport::http::server] HAP request path=/characteristics authenticated=true
+[2026-10-10T17:19:25Z INFO  hap::transport::http::server] HAP response status=200 OK
+[2026-10-10T17:20:09Z INFO  hap::transport::http::server] HAP request path=/characteristics authenticated=true
+[2026-10-10T17:20:09Z INFO  hap::transport::http::server] HAP response status=204 No Content
+[2026-10-10T17:20:13Z INFO  hap::transport::http::server] HAP request path=/characteristics authenticated=true
+[2026-10-10T17:20:13Z INFO  hap::transport::http::server] HAP response status=204 No Content
+[2026-10-10T17:20:14Z INFO  hap::transport::http::server] HAP request path=/characteristics authenticated=true
+[2026-10-10T17:20:14Z INFO  hap::transport::http::server] HAP response status=204 No Content
+[2026-10-10T17:20:14Z INFO  hap::transport::http::server] HAP request path=/characteristics authenticated=true
+[2026-10-10T17:20:14Z INFO  hap::transport::http::server] HAP response status=204 No Content
+[2026-10-10T17:20:14Z INFO  hap::transport::http::server] HAP request path=/characteristics authenticated=true
+[2026-10-10T17:20:14Z INFO  hap::transport::http::server] HAP response status=204 No Content
+[2026-10-10T17:20:14Z INFO  hap::transport::http::server] HAP request path=/characteristics authenticated=true
+[2026-10-10T17:20:14Z INFO  hap::transport::http::server] HAP response status=204 No Content
+[2026-10-10T17:20:25Z INFO  hap::transport::http::server] HAP request path=/characteristics authenticated=true
+[2026-10-10T17:20:25Z INFO  hap::transport::http::server] HAP response status=200 OK
+[2026-10-10T17:21:25Z INFO  hap::transport::http::server] HAP request path=/characteristics authenticated=true
+[2026-10-10T17:21:25Z INFO  hap::transport::http::server] HAP response status=200 OK
+[2026-10-10T17:22:25Z INFO  hap::transport::http::server] HAP request path=/characteristics authenticated=true
+[2026-10-10T17:22:25Z INFO  hap::transport::http::server] HAP response status=200 OK
+[2026-10-10T17:23:26Z INFO  hap::transport::http::server] HAP request path=/characteristics authenticated=true
+[2026-10-10T17:23:26Z INFO  hap::transport::http::server] HAP response status=200 OK
+[2026-10-10T17:24:26Z INFO  hap::transport::http::server] HAP request path=/characteristics authenticated=true
+[2026-10-10T17:24:26Z INFO  hap::transport::http::server] HAP response status=200 OK
+[2026-10-10T17:24:58Z INFO  hap::transport::http::server] HAP request path=/characteristics authenticated=true
+[2026-10-10T17:24:58Z INFO  hap::transport::http::server] HAP response status=204 No Content
+[2026-10-10T17:24:58Z INFO  hap::transport::http::server] HAP request path=/characteristics authenticated=true
+[2026-10-10T17:24:58Z INFO  hap::transport::http::server] HAP response status=200 OK
+[2026-10-10T17:25:26Z INFO  hap::transport::http::server] HAP request path=/characteristics authenticated=true
+[2026-10-10T17:25:26Z INFO  hap::transport::http::server] HAP response status=200 OK
+[2026-10-10T17:26:26Z INFO  hap::transport::http::server] HAP request path=/characteristics authenticated=true
+[2026-10-10T17:26:26Z INFO  hap::transport::http::server] HAP response status=200 OK
+[2026-10-10T17:27:26Z INFO  hap::transport::http::server] HAP request path=/characteristics authenticated=true
+[2026-10-10T17:27:26Z INFO  hap::transport::http::server] HAP response status=200 OK
+[2026-10-10T17:28:26Z INFO  hap::transport::http::server] HAP request path=/characteristics authenticated=true
+[2026-10-10T17:28:26Z INFO  hap::transport::http::server] HAP response status=200 OK
+[2026-10-10T17:29:26Z INFO  hap::transport::http::server] HAP request path=/characteristics authenticated=true
+[2026-10-10T17:29:26Z INFO  hap::transport::http::server] HAP response status=200 OK
+[2026-10-10T17:30:26Z INFO  hap::transport::http::server] HAP request path=/characteristics authenticated=true
+[2026-10-10T17:30:26Z INFO  hap::transport::http::server] HAP response status=200 OK
+[2026-10-10T17:31:27Z INFO  hap::transport::http::server] HAP request path=/characteristics authenticated=true
+[2026-10-10T17:31:27Z INFO  hap::transport::http::server] HAP response status=200 OK
+[2026-10-10T17:32:27Z INFO  hap::transport::http::server] HAP request path=/characteristics authenticated=true
+[2026-10-10T17:32:27Z INFO  hap::transport::http::server] HAP response status=200 OK
+[2026-10-10T17:33:27Z INFO  hap::transport::http::server] HAP request path=/characteristics authenticated=true
+[2026-10-10T17:33:27Z INFO  hap::transport::http::server] HAP response status=200 OK
+[2026-10-10T17:34:27Z INFO  hap::transport::http::server] HAP request path=/characteristics authenticated=true
+[2026-10-10T17:34:27Z INFO  hap::transport::http::server] HAP response status=200 OK
+[2026-10-10T17:35:27Z INFO  hap::transport::http::server] HAP request path=/characteristics authenticated=true
+[2026-10-10T17:35:27Z INFO  hap::transport::http::server] HAP response status=200 OK
+[2026-10-10T17:36:27Z INFO  hap::transport::http::server] HAP request path=/characteristics authenticated=true
+[2026-10-10T17:36:27Z INFO  hap::transport::http::server] HAP response status=200 OK

@@ -109,39 +109,49 @@ pub enum ModuleKind {
 /// Versioned manufacturer profiles. Unknown layouts never inherit a known protocol.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProtocolProfile {
+    Ad8Din,
+    R8i8DinPro,
+    C4DinPro,
     GtC8Rl,
     GtE4Rl,
     GtD8Rl,
     GtL8Rl,
     GtM4Rl,
     Bt86cRs485,
+    Ts686Rs485SixKey,
     UnverifiedKeypad,
 }
 impl ProtocolProfile {
     pub const fn id(self) -> &'static str {
         match self {
+            Self::Ad8Din => "ad8_din_rs485_v2_2_1",
+            Self::R8i8DinPro => "r8i8_din_pro_v2_7_7",
+            Self::C4DinPro => "c4_din_pro_v2_7_7",
             Self::GtC8Rl => "gt_c8_rl_v2_8_2_2",
             Self::GtE4Rl => "gt_e4_rl_v3_2_2_2",
             Self::GtD8Rl => "gt_d8_rl_v2_2_6_2",
             Self::GtL8Rl => "gt_l8_rl_v2_0_7_2",
             Self::GtM4Rl => "gt_m4_rl_v2_1_9_2",
             Self::Bt86cRs485 => "bt86c_rs485_v2_9_6_2",
+            Self::Ts686Rs485SixKey => "ts6_86_rs485_v2_6_5_6key",
             Self::UnverifiedKeypad => "unverified_keypad",
         }
     }
     pub const fn kind(self) -> ModuleKind {
         match self {
-            Self::GtC8Rl => ModuleKind::Switch,
-            Self::GtE4Rl | Self::GtD8Rl | Self::GtL8Rl => ModuleKind::Dimmer,
-            Self::GtM4Rl => ModuleKind::Motor,
-            Self::Bt86cRs485 | Self::UnverifiedKeypad => ModuleKind::Keypad,
+            Self::GtC8Rl | Self::R8i8DinPro => ModuleKind::Switch,
+            Self::GtE4Rl | Self::GtD8Rl | Self::GtL8Rl | Self::Ad8Din => ModuleKind::Dimmer,
+            Self::GtM4Rl | Self::C4DinPro => ModuleKind::Motor,
+            Self::Bt86cRs485 | Self::Ts686Rs485SixKey | Self::UnverifiedKeypad => {
+                ModuleKind::Keypad
+            }
         }
     }
     pub const fn channels(self) -> u8 {
         match self {
-            Self::GtC8Rl | Self::GtD8Rl | Self::GtL8Rl => 8,
-            Self::GtE4Rl | Self::GtM4Rl => 4,
-            Self::Bt86cRs485 => 6,
+            Self::GtC8Rl | Self::GtD8Rl | Self::GtL8Rl | Self::R8i8DinPro | Self::Ad8Din => 8,
+            Self::GtE4Rl | Self::GtM4Rl | Self::C4DinPro => 4,
+            Self::Bt86cRs485 | Self::Ts686Rs485SixKey => 6,
             Self::UnverifiedKeypad => 0,
         }
     }
@@ -219,7 +229,10 @@ impl ModuleSpec {
     }
     /// Consuming configuration edit; callers must publish a new runtime revision.
     pub fn with_panel_led_mode(mut self, mode: PanelLedMode) -> Result<Self, ValidationError> {
-        if self.profile != ProtocolProfile::Bt86cRs485 {
+        if !matches!(
+            self.profile,
+            ProtocolProfile::Bt86cRs485 | ProtocolProfile::Ts686Rs485SixKey
+        ) {
             return Err(ValidationError::UnsupportedCapability);
         }
         self.led_mode = mode;
@@ -271,6 +284,13 @@ pub enum LevelTransition {
 pub enum MotorMotion {
     Up,
     Down,
+    Stop,
+}
+/// User intent; resolve with the channel's verified calibration before encoding.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MotorAction {
+    Open,
+    Close,
     Stop,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

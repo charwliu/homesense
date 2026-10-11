@@ -1,0 +1,3 @@
+{"event": "plan", "address_hex": "22", "channel": 2, "motion_hex": "AE 22 02 F1 EE", "stop_hex": "AE 22 02 F0 EE", "pulse_ms": 500, "position_unknown": true, "unix_ns": 1791647796258495277}
+{"event": "stop_written", "elapsed_ms": 500, "physical_stop_verified": false, "unix_ns": 1791647796760406361}
+{"event": "finished", "local_write_complete": true, "physical_motion_unverified": true, "unix_ns": 1791647797362679069}

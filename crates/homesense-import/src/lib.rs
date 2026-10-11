@@ -272,7 +272,6 @@ pub fn project_xml(xml: &str) -> Result<Report, String> {
 /// Import an original C4P ZIP or an extracted XML without extracting archive
 /// paths to disk. Only the exact root project.xml member is read.
 pub fn import_bytes(bytes: &[u8]) -> Result<Report, String> {
-    use sha2::{Digest, Sha256};
     use std::io::{Cursor, Read};
     if bytes.len() > 64 * 1024 * 1024 {
         return Err("input exceeds 64 MiB".into());
@@ -308,8 +307,20 @@ pub fn import_bytes(bytes: &[u8]) -> Result<Report, String> {
     let mut report = project_xml(std::str::from_utf8(&xml).map_err(|e| e.to_string())?)?;
     report.source = Some(Source {
         format,
-        sha256: format!("{:x}", Sha256::digest(bytes)),
-        project_xml_sha256: format!("{:x}", Sha256::digest(&xml)),
+        sha256: sha256_hex(bytes),
+        project_xml_sha256: sha256_hex(&xml),
     });
     Ok(report)
 }
+
+fn sha256_hex(bytes: &[u8]) -> String {
+    use sha2::{Digest, Sha256};
+    use std::fmt::Write;
+    let mut result = String::with_capacity(64);
+    for byte in Sha256::digest(bytes) {
+        write!(&mut result, "{byte:02x}").expect("writing to String cannot fail");
+    }
+    result
+}
+
+pub mod room;

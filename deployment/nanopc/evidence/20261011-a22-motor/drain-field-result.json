@@ -1,0 +1,21 @@
+{
+  "binary_sha256": "ecd2de4df851355fca54bb897836a62d3c2f0e9029153acf80e167bc39dc326b",
+  "hold_seconds": 3,
+  "open": {
+    "boot_id": "5d9f49f7-8653-4e5d-85dd-6745256593d0",
+    "user_result": "明显打开，并在中途停住"
+  },
+  "close": {
+    "boot_id": "61da237f-c15b-4442-b8ed-f86efefeac86",
+    "user_result": "向关闭方向移动，并在中途停住"
+  },
+  "exit_codes": [
+    0,
+    0
+  ],
+  "drained_bytes": [
+    0,
+    0
+  ],
+  "limitations": "No unread feedback in these trials; successful field sequence does not establish cause of earlier no movement. Gateway RST after client FIN remains visible in open capture; no local RST observed there."
+}

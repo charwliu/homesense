@@ -1,5 +1,6 @@
+use crate::transport::http::body::Body;
 use futures::future::{BoxFuture, FutureExt};
-use hyper::{Body, Response, StatusCode, Uri};
+use hyper::{ Response, StatusCode, Uri};
 use log::info;
 
 use crate::{
@@ -139,7 +140,7 @@ mod tests {
             let response = response.unwrap();
             assert_eq!(response.status(), status);
             let json: serde_json::Value =
-                serde_json::from_slice(&hyper::body::to_bytes(response.into_body()).await.unwrap())
+                serde_json::from_slice(&crate::transport::http::body::to_bytes(response.into_body()).await.unwrap())
                     .unwrap();
             if fail {
                 assert_eq!(json, serde_json::json!({"status":-70402}));
@@ -171,7 +172,7 @@ mod tests {
             .unwrap();
         assert_eq!(response.status(), StatusCode::MULTI_STATUS);
         let json: serde_json::Value =
-            serde_json::from_slice(&hyper::body::to_bytes(response.into_body()).await.unwrap())
+            serde_json::from_slice(&crate::transport::http::body::to_bytes(response.into_body()).await.unwrap())
                 .unwrap();
         assert_eq!(json["characteristics"][0]["status"], -70409);
         storage.lock().await.delete_pairing(&id).await.unwrap();

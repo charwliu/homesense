@@ -1,12 +1,12 @@
-use aead::{generic_array::GenericArray, AeadInPlace, NewAead};
+use aead::{array::Array, AeadInPlace, KeyInit};
 use chacha20poly1305::ChaCha20Poly1305;
 use futures::{
     channel::oneshot,
     future::{BoxFuture, FutureExt},
 };
-use hyper::Body;
+use crate::transport::http::body::Body;
 use log::{debug, info};
-use rand::rngs::OsRng;
+use rand::SeedableRng;
 use signature::Signer;
 use std::str;
 use uuid::Uuid;
@@ -134,7 +134,7 @@ async fn handle_start(
     a_pub.copy_from_slice(&a_pub_bytes);
     let a_pub = PublicKey::from(a_pub);
 
-    let mut csprng = OsRng {};
+    let mut csprng = rand::rngs::StdRng::from_rng(&mut rand::rng());
     let b = EphemeralSecret::random_from_rng(&mut csprng);
     let b_pub = PublicKey::from(&b);
     let shared_secret = b.diffie_hellman(&a_pub);
@@ -175,12 +175,12 @@ async fn handle_start(
     let mut nonce = vec![0; 4];
     nonce.extend(b"PV-Msg02");
 
-    let aead = ChaCha20Poly1305::new(GenericArray::from_slice(&session_key));
+    let aead = ChaCha20Poly1305::new(Array::from_slice(&session_key));
 
     let mut encrypted_data = Vec::new();
     encrypted_data.extend_from_slice(&encoded_sub_tlv);
     let auth_tag =
-        aead.encrypt_in_place_detached(GenericArray::from_slice(&nonce), &[], &mut encrypted_data)?;
+        aead.encrypt_in_place_detached(Array::from_slice(&nonce), &[], &mut encrypted_data)?;
     encrypted_data.extend(&auth_tag);
 
     info!("pair verify M2: sending verify start response");
@@ -212,15 +212,15 @@ async fn handle_finish(
             let mut nonce = vec![0; 4];
             nonce.extend(b"PV-Msg03");
 
-            let aead = ChaCha20Poly1305::new(GenericArray::from_slice(&session.session_key));
+            let aead = ChaCha20Poly1305::new(Array::from_slice(&session.session_key));
 
             let mut decrypted_data = Vec::new();
             decrypted_data.extend_from_slice(&encrypted_data);
             aead.decrypt_in_place_detached(
-                GenericArray::from_slice(&nonce),
+                Array::from_slice(&nonce),
                 &[],
                 &mut decrypted_data,
-                GenericArray::from_slice(&auth_tag),
+                Array::from_slice(&auth_tag),
             )?;
 
             let sub_tlv = tlv::try_decode(&decrypted_data)?;
@@ -310,7 +310,7 @@ mod input_tests {
             .await
             .is_err());
         assert!(handler.session.is_none());
-        let secret = EphemeralSecret::random_from_rng(OsRng);
+        let secret = EphemeralSecret::random_from_rng(&mut rand::rngs::StdRng::from_rng(&mut rand::rng()));
         let public = PublicKey::from(&secret);
         assert!(
             handle_start(&mut handler, config, public.as_bytes().to_vec())
@@ -347,7 +347,7 @@ mod exchange_tests {
     // handler's ephemeral/session internals and no direct handle_start/finish calls.
     async fn exchange(fault: u8) {
         let id = Uuid::new_v4();
-        let controller_key = ed25519_dalek::SigningKey::generate(&mut OsRng);
+        let controller_key = ed25519_dalek::SigningKey::generate(&mut rand::rngs::StdRng::from_rng(&mut rand::rng()));
         let path = std::env::temp_dir().join(format!("hap-verify-exchange-{id}"));
         let mut store = FileStorage::new(path.as_os_str())
             .await
@@ -370,7 +370,7 @@ mod exchange_tests {
         let emitter = Arc::new(Mutex::new(EventEmitter::new()));
         let (sender, mut receiver) = oneshot::channel();
         let mut handler = PairVerify::new(sender);
-        let secret = EphemeralSecret::random_from_rng(OsRng);
+        let secret = EphemeralSecret::random_from_rng(&mut rand::rngs::StdRng::from_rng(&mut rand::rng()));
         let public = PublicKey::from(&secret);
         let m1 = vec![
             Value::State(1),
@@ -402,17 +402,17 @@ mod exchange_tests {
         hkdf::Hkdf::<sha2::Sha512>::new(Some(b"Pair-Verify-Encrypt-Salt"), shared.as_bytes())
             .expand(b"Pair-Verify-Encrypt-Info", &mut key)
             .unwrap();
-        let cipher = ChaCha20Poly1305::new(GenericArray::from_slice(&key));
+        let cipher = ChaCha20Poly1305::new(Array::from_slice(&key));
         let encrypted = &m2[&(Type::EncryptedData as u8)];
         let mut plaintext = encrypted[..encrypted.len() - 16].to_vec();
         let mut nonce = [0; 12];
         nonce[4..].copy_from_slice(b"PV-Msg02");
         cipher
             .decrypt_in_place_detached(
-                GenericArray::from_slice(&nonce),
+                Array::from_slice(&nonce),
                 &[],
                 &mut plaintext,
-                GenericArray::from_slice(&encrypted[encrypted.len() - 16..]),
+                Array::from_slice(&encrypted[encrypted.len() - 16..]),
             )
             .unwrap();
         let sub = tlv::try_decode(&plaintext).unwrap();
@@ -435,7 +435,7 @@ mod exchange_tests {
         ]
         .concat();
         let signing_key = if fault == 1 {
-            ed25519_dalek::SigningKey::generate(&mut OsRng)
+            ed25519_dalek::SigningKey::generate(&mut rand::rngs::StdRng::from_rng(&mut rand::rng()))
         } else {
             controller_key
         };
@@ -447,7 +447,7 @@ mod exchange_tests {
         .encode();
         nonce[4..].copy_from_slice(b"PV-Msg03");
         let tag = cipher
-            .encrypt_in_place_detached(GenericArray::from_slice(&nonce), &[], &mut encrypted)
+            .encrypt_in_place_detached(Array::from_slice(&nonce), &[], &mut encrypted)
             .unwrap();
         encrypted.extend(tag);
         if fault == 3 {

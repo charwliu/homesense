@@ -1,0 +1,50 @@
+{
+  "release": "20261011-a6",
+  "listener": "192.168.4.1:51826",
+  "local_mdns_query": {
+    "source": "192.168.4.1:5353",
+    "response_bytes": 216,
+    "instance": "HomeSense Simulation",
+    "advertised_ipv4": [
+      "192.168.4.1"
+    ]
+  },
+  "mac": {
+    "address": "192.168.3.148",
+    "gateway": "192.168.3.1",
+    "interface": "en0",
+    "directed_dns_query_received": true,
+    "response_bytes": 216
+  },
+  "nanopc_ipv4_interfaces": [
+    "127.0.0.1",
+    "192.168.4.1",
+    "111.199.129.91"
+  ],
+  "nanopi5_avahi_active": false,
+  "cross_vlan_automatic_discovery_verified": false,
+  "iphone_pairing": {
+    "persisted_controllers": 1,
+    "discovery_query_seen": true,
+    "tcp_connection_seen": true,
+    "phone_address": "192.168.4.149",
+    "home_ui_confirmation": "pending",
+    "switch_and_brightness": "pending"
+  },
+  "notes": "Local multicast PTR and Mac directed PTR queries received HomeSense answers. No multicast reflector configured on nanopc; nanopi5 avahi inactive. No router configuration changed.",
+  "iphone_dhcp": {
+    "address": "192.168.4.149",
+    "mask": "255.255.255.0",
+    "gateway": "192.168.4.1",
+    "dns": "192.168.4.1",
+    "lease_seconds": 3600,
+    "observed": [
+      "Discover",
+      "Offer",
+      "Request",
+      "ACK"
+    ],
+    "neighbor_state": "REACHABLE",
+    "network_configuration_changed": false
+  }
+}

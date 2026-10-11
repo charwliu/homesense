@@ -1,0 +1,17 @@
+{"event": "intent", "kind": "query", "raw_hex": "AE 03 A4 F2 EE", "unix_ns": 1791647589400787887}
+{"event": "written", "kind": "query", "unix_ns": 1791647589402221720}
+{"event": "received", "raw_hex": "AE 03 D4 F2 EE", "unix_ns": 1791647589421761345}
+{"event": "baseline", "value": 242, "unix_ns": 1791647589422835845}
+{"event": "intent", "kind": "switch_test", "raw_hex": "AE 03 04 F1 EE", "unix_ns": 1791647589423896637}
+{"event": "written", "kind": "switch_test", "unix_ns": 1791647589424892095}
+{"event": "intent", "kind": "query", "raw_hex": "AE 03 A4 F2 EE", "unix_ns": 1791647589926081887}
+{"event": "written", "kind": "query", "unix_ns": 1791647589927498220}
+{"event": "received", "raw_hex": "AE 03 D4 F1 EE", "unix_ns": 1791647589947085970}
+{"event": "test_observation", "expected": 241, "actual": 241, "unix_ns": 1791647589948164554}
+{"event": "intent", "kind": "restore", "raw_hex": "AE 03 04 F2 EE", "unix_ns": 1791647589949229429}
+{"event": "written", "kind": "restore", "unix_ns": 1791647589950256679}
+{"event": "intent", "kind": "query", "raw_hex": "AE 03 A4 F2 EE", "unix_ns": 1791647590251467554}
+{"event": "written", "kind": "query", "unix_ns": 1791647590252801637}
+{"event": "received", "raw_hex": "AE 03 D4 F2 EE", "unix_ns": 1791647590273292387}
+{"event": "restore_observation", "expected": 242, "actual": 242, "unix_ns": 1791647590274390221}
+{"event": "finished", "success": true, "unix_ns": 1791647590276091512}

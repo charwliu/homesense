@@ -1,0 +1,26 @@
+{
+  "source": "nanopc tests/live-study-lan-a18.log",
+  "timestamps": "remote UTC; remote clock trails Mac",
+  "events": [
+    "[2026-10-11T00:22:38Z DEBUG homesense_hap::events] hap_brightness_event device=DeviceId(\"control4:336\") observed=30",
+    "[2026-10-11T00:22:46Z DEBUG homesense_hap::observed] hap_brightness_read device=DeviceId(\"control4:336\") observed=30",
+    "[2026-10-11T00:22:51Z DEBUG homesense_hap::write] hap_light_intent device=DeviceId(\"control4:336\") command=SetLevel { level: Percent(60), transition: Immediate }",
+    "[2026-10-11T00:22:54Z DEBUG homesense_hap::events] hap_brightness_event device=DeviceId(\"control4:336\") observed=60",
+    "[2026-10-11T00:23:01Z DEBUG homesense_hap::write] hap_light_intent device=DeviceId(\"control4:336\") command=SetLevel { level: Percent(0), transition: Immediate }",
+    "[2026-10-11T00:23:02Z DEBUG homesense_hap::events] hap_brightness_event device=DeviceId(\"control4:336\") observed=0",
+    "[2026-10-11T00:23:05Z DEBUG homesense_hap::write] hap_light_intent device=DeviceId(\"control4:336\") command=SetLevel { level: Percent(100), transition: Immediate }",
+    "[2026-10-11T00:23:06Z DEBUG homesense_hap::events] hap_brightness_event device=DeviceId(\"control4:336\") observed=100",
+    "[2026-10-11T00:23:26Z DEBUG homesense_hap::write] hap_light_intent device=DeviceId(\"control4:336\") command=SetLevel { level: Percent(50), transition: Immediate }",
+    "[2026-10-11T00:23:28Z DEBUG homesense_hap::write] hap_light_intent device=DeviceId(\"control4:336\") command=SetLevel { level: Percent(10), transition: Immediate }",
+    "[2026-10-11T00:23:30Z DEBUG homesense_hap::write] hap_light_intent device=DeviceId(\"control4:336\") command=SetLevel { level: Percent(40), transition: Immediate }",
+    "[2026-10-11T00:23:30Z DEBUG homesense_hap::events] hap_brightness_event device=DeviceId(\"control4:336\") observed=40",
+    "[2026-10-11T00:23:30Z DEBUG homesense_hap::events] hap_brightness_event device=DeviceId(\"control4:336\") observed=35",
+    "[2026-10-11T00:23:30Z DEBUG homesense_hap::events] hap_brightness_event device=DeviceId(\"control4:336\") observed=38",
+    "[2026-10-11T00:23:31Z DEBUG homesense_hap::events] hap_brightness_event device=DeviceId(\"control4:336\") observed=40",
+    "[2026-10-11T00:23:35Z DEBUG homesense_hap::write] hap_light_intent device=DeviceId(\"control4:336\") command=SetLevel { level: Percent(0), transition: Immediate }",
+    "[2026-10-11T00:23:35Z DEBUG homesense_hap::events] hap_brightness_event device=DeviceId(\"control4:336\") observed=0",
+    "[2026-10-11T00:23:37Z DEBUG homesense_hap::write] hap_light_intent device=DeviceId(\"control4:336\") command=SetLevel { level: Percent(100), transition: Immediate }",
+    "[2026-10-11T00:23:37Z DEBUG homesense_hap::events] hap_brightness_event device=DeviceId(\"control4:336\") observed=100"
+  ],
+  "interpretation": "Intermediate notifications absent for first target 60. A later normalized On intent was 100; input source is not logged, restoration acceptance remains pending."
+}

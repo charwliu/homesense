@@ -1,0 +1,3 @@
+{"event": "query", "raw_hex": "AE 22 C1 00 EE", "meaning": "interlock_duration_query", "no_control_sent": true}
+{"event": "received", "elapsed_ms": 43, "raw_hex": "B4"}
+{"event": "finished", "elapsed_ms": 2046}

@@ -2,6 +2,7 @@
 //! A single runtime owner coordinates this store with the arbitration barrier.
 //! Configuration schema validation precedes this opaque payload storage layer.
 pub mod journal;
+pub mod light_restore;
 use homesense_core::queue::CancelReason;
 use rusqlite::{Connection, OptionalExtension, TransactionBehavior, params};
 use std::{path::Path, time::Duration};
@@ -60,7 +61,7 @@ impl Store {
         if app != 0 && app != APPLICATION_ID {
             return Err(Error::ForeignDatabase);
         }
-        if version != 0 && (!(1..=3).contains(&version) || app != APPLICATION_ID) {
+        if version != 0 && (!(1..=4).contains(&version) || app != APPLICATION_ID) {
             return Err(Error::UnsupportedSchema(version));
         }
         if version == 0 {
@@ -99,6 +100,10 @@ impl Store {
         if version <= 2 {
             tx.execute_batch("ALTER TABLE command_journal ADD COLUMN cancellation_reason TEXT;")?;
             tx.pragma_update(None, "user_version", 3)?;
+        }
+        if version <= 3 {
+            tx.execute_batch("CREATE TABLE light_restore (revision INTEGER NOT NULL REFERENCES configuration_revision(revision), device_id TEXT NOT NULL, level INTEGER NOT NULL CHECK(level BETWEEN 1 AND 100), PRIMARY KEY(revision,device_id));")?;
+            tx.pragma_update(None, "user_version", 4)?;
         }
         tx.commit()?;
         connection.pragma_update(None, "foreign_keys", "ON")?;

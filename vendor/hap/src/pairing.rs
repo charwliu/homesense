@@ -7,6 +7,9 @@ use crate::{Error, Result};
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Pairing {
     pub id: Uuid,
+    /// Exact controller identifier received over HAP; UUID formatting is not a wire normalization.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub identifier: Option<String>,
     pub permissions: Permissions,
     pub public_key: [u8; 32],
 }
@@ -16,9 +19,20 @@ impl Pairing {
     pub fn new(id: Uuid, permissions: Permissions, public_key: [u8; 32]) -> Pairing {
         Pairing {
             id,
+            identifier: None,
             permissions,
             public_key,
         }
+    }
+
+    /// Creates a pairing without losing the controller's identifier spelling.
+    pub fn from_identifier(identifier: &str, permissions: Permissions, public_key: [u8; 32]) -> std::result::Result<Self, uuid::Error> {
+        let id = Uuid::parse_str(identifier)?;
+        Ok(Self { id, identifier: Some(identifier.to_owned()), permissions, public_key })
+    }
+
+    pub fn wire_identifier(&self) -> String {
+        self.identifier.clone().unwrap_or_else(|| self.id.hyphenated().to_string())
     }
 
     /// Deserializes a [`Pairing`](Pairing) from bytes.
@@ -42,6 +56,7 @@ mod tests {
     fn test_pairing_from_bytes() {
         let pairing = Pairing {
             id: Uuid::parse_str("bc158b86-cabf-432d-aee4-422ef0e3f1d5").unwrap(),
+            identifier: None,
             permissions: Permissions::Admin,
             public_key: [
                 215, 90, 152, 1, 130, 177, 10, 183, 213, 75, 254, 211, 201, 100, 7, 58, 14, 225,
@@ -58,6 +73,7 @@ mod tests {
     fn test_pairing_to_bytes() {
         let pairing = Pairing {
             id: Uuid::parse_str("bc158b86-cabf-432d-aee4-422ef0e3f1d5").unwrap(),
+            identifier: None,
             permissions: Permissions::User,
             public_key: [
                 215, 90, 152, 1, 130, 177, 10, 183, 213, 75, 254, 211, 201, 100, 7, 58, 14, 225,

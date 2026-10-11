@@ -1,0 +1,18 @@
+{
+  "query_interval_seconds": [
+    2.592,
+    2.592,
+    2.596,
+    2.592,
+    2.592
+  ],
+  "response_seconds": [
+    0.03,
+    0.03,
+    0.03,
+    0.035,
+    0.03,
+    0.03
+  ],
+  "scope": "15s passive capture; no control injection"
+}

@@ -1,9 +1,10 @@
+use crate::transport::http::body::Body;
 use futures::{
     channel::oneshot,
     future::{self, BoxFuture, Future, FutureExt, TryFutureExt},
     lock::Mutex,
 };
-use hyper::{server::conn::Http, service::Service, Body, Method, Request, Response, StatusCode};
+use hyper::{server::conn::http1, service::Service, body::Incoming, Method, Request, Response, StatusCode};
 use log::{debug, error, info};
 use std::{
     net::SocketAddr,
@@ -91,18 +92,15 @@ impl Api {
     }
 }
 
-impl Service<Request<Body>> for Api {
+impl Service<Request<Incoming>> for Api {
     type Error = Error;
     type Future =
         Pin<Box<dyn Future<Output = std::result::Result<Self::Response, Self::Error>> + Send>>;
     type Response = Response<Body>;
 
-    fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<std::result::Result<(), Self::Error>> {
-        Poll::Ready(Ok(()))
-    }
-
-    fn call(&mut self, req: Request<Body>) -> Self::Future {
+    fn call(&self, req: Request<Incoming>) -> Self::Future {
         let (parts, body) = req.into_parts();
+        let body = Body::from(body);
         let method = parts.method;
         let uri = parts.uri;
 
@@ -130,7 +128,8 @@ impl Service<Request<Body>> for Api {
         let event_emitter = self.event_emitter.clone();
 
         let fut = async move {
-            match handler.take() {
+            info!("HAP request path={} authenticated={}", uri.path(), controller_id.read().is_ok_and(|id| id.is_some()));
+            let result = match handler.take() {
                 Some(handler) => {
                     handler
                         .lock()
@@ -148,7 +147,12 @@ impl Service<Request<Body>> for Api {
                         .await
                 }
                 None => future::ready(status_response(StatusCode::NOT_FOUND)).await,
+            };
+            match &result {
+                Ok(response) => info!("HAP response status={}", response.status()),
+                Err(_) => error!("HAP request handler failed"),
             }
+            result
         }
         .boxed();
 
@@ -197,7 +201,7 @@ impl Server {
             info!("binding TCP listener on {}", &socket_addr);
             let listener = TcpListener::bind(socket_addr).await?;
 
-            mdns_responder.lock().await.update_records().await;
+            mdns_responder.lock().await.update_records().await?;
 
             let slots = Arc::new(tokio::sync::Semaphore::new(32));
             loop {
@@ -210,7 +214,7 @@ impl Server {
                         continue;
                     }
                 };
-                debug!("incoming TCP stream from {}", stream.peer_addr()?);
+                info!("HAP TCP accepted peer={}", _socket_addr);
 
                 let (
                     encrypted_stream,
@@ -292,17 +296,16 @@ impl Server {
                         .boxed()
                     }));
 
-                let mut http = Http::new();
-                http.http1_only(true);
-                http.http1_half_close(true);
-                http.http1_keep_alive(true);
-                http.http1_preserve_header_case(true);
+                let mut http = http1::Builder::new();
+                http.half_close(true);
+                http.keep_alive(true);
+                http.preserve_header_case(true);
 
                 let emitter = event_emitter.clone();
                 tokio::spawn(async move {
                     let transport = encrypted_stream.map_err(|e| error!("{:?}", e)).map(|_| ());
                     let http = http
-                        .serve_connection(stream_wrapper, api)
+                        .serve_connection(hyper_util::rt::TokioIo::new(stream_wrapper), api)
                         .map_err(|e| error!("{:?}", e))
                         .map(|_| ());
                     supervise_session(
@@ -312,6 +315,7 @@ impl Server {
                         std::time::Duration::from_secs(60),
                     )
                     .await;
+                    info!("HAP TCP closed peer={}", _socket_addr);
                     emitter.lock().await.remove_listener(listener_id);
                     drop(permit);
                 });
@@ -337,8 +341,14 @@ async fn supervise_session<T, H>(
 {
     let io = async move {
         match future::select(Box::pin(transport), Box::pin(http)).await {
-            future::Either::Left(((), remaining)) => drop(remaining),
-            future::Either::Right(((), remaining)) => drop(remaining),
+            future::Either::Left(((), remaining)) => {
+                info!("HAP session transport ended");
+                drop(remaining);
+            }
+            future::Either::Right(((), remaining)) => {
+                info!("HAP session HTTP ended");
+                drop(remaining);
+            }
         }
     };
     let authentication = async move {
@@ -347,6 +357,7 @@ async fn supervise_session<T, H>(
         if authenticated {
             future::pending::<()>().await;
         }
+        info!("HAP session authentication deadline expired");
     };
     match future::select(Box::pin(io), Box::pin(authentication)).await {
         future::Either::Left(((), remaining)) => drop(remaining),
@@ -456,6 +467,41 @@ mod notification_authorization_tests {
     use futures::StreamExt;
     use std::sync::RwLock;
     use uuid::Uuid;
+
+    #[tokio::test]
+    async fn slow_subscriber_overflow_does_not_block_a_healthy_session() {
+        let path = std::env::temp_dir().join(format!("hap-notify-slow-{}", Uuid::new_v4()));
+        let mut store = FileStorage::new(path.as_os_str()).await.unwrap();
+        let pairing = Pairing::new(Uuid::new_v4(), Permissions::Admin, [3; 32]);
+        store.save_pairing(&pairing).await.unwrap();
+        let storage: pointer::Storage = Arc::new(Mutex::new(Box::new(store)));
+        // Two sessions of the same authorized controller have independent output budgets.
+        let controller = Arc::new(RwLock::new(Some(pairing.id)));
+        let (slow, slow_receiver) = OutputSender::channel();
+        let (healthy, mut healthy_receiver) = OutputSender::channel();
+        let mut overflowed = false;
+        tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            for value in 0..128 {
+                let bytes = event_response(vec![EventObject {
+                    aid: 2, iid: 9, value: serde_json::json!(value),
+                }]).unwrap();
+                if send_authorized_event(&controller, &storage, &slow, bytes.clone()).await.is_err() {
+                    overflowed = true;
+                }
+                send_authorized_event(&controller, &storage, &healthy, bytes.clone()).await.unwrap();
+                assert_eq!(&*healthy_receiver.next().await.unwrap(), bytes.as_slice());
+            }
+        }).await.expect("notification path waited for the slow consumer");
+        assert!(overflowed, "unread output must hit its bounded capacity");
+        assert!(slow.try_send(vec![0]).is_err(), "overflow must terminate that session");
+        // Output congestion must neither revoke the controller nor poison another session.
+        assert!(storage.lock().await.load_pairing(&pairing.id).await.is_ok());
+        send_authorized_event(&controller, &storage, &healthy, vec![7]).await.unwrap();
+        assert_eq!(&*healthy_receiver.next().await.unwrap(), &[7]);
+        drop(slow_receiver);
+        drop(storage);
+        std::fs::remove_dir_all(path).unwrap();
+    }
 
     #[tokio::test]
     async fn revoked_subscriber_cannot_receive_another_event() {

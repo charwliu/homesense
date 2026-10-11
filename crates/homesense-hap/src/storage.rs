@@ -67,6 +67,27 @@ impl IdentityStore {
         .await
         .map_err(storage_error)?
     }
+    /// Blocking authorization check for the dedicated admission thread.
+    /// Database errors and malformed records must be denied by the caller.
+    pub fn controller_is_paired(&self, id: Uuid) -> Result<bool> {
+        let db = self.db.lock().map_err(storage_error)?;
+        let bytes: Option<Vec<u8>> = db
+            .query_row(
+                "SELECT value FROM entries WHERE key=?1",
+                [format!("pair:{id}")],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(storage_error)?;
+        let Some(bytes) = bytes else {
+            return Ok(false);
+        };
+        let pairing: Pairing = serde_json::from_slice(&bytes)?;
+        if pairing.id != id {
+            return Err(Error::Storage);
+        }
+        Ok(true)
+    }
     pub async fn has_config(&self) -> Result<bool> {
         self.with(|db| {
             db.query_row(
@@ -77,6 +98,46 @@ impl IdentityStore {
             .map_err(storage_error)
         })
         .await
+    }
+    async fn commit_graph_state(
+        &self,
+        expected_number: u64,
+        config: &Config,
+        aids: &[u64],
+        manifest: Option<Vec<u8>>,
+    ) -> Result<()> {
+        let config = serde_json::to_vec(config)?;
+        let aids = serde_json::to_vec(aids)?;
+        if config.len() > 65536
+            || aids.len() > 65536
+            || manifest
+                .as_ref()
+                .is_some_and(|v| v.is_empty() || v.len() > 65536)
+        {
+            return Err(Error::Storage);
+        }
+        self.with(move |db| {
+            let tx=db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate).map_err(storage_error)?;
+            let old:Vec<u8>=tx.query_row("SELECT value FROM entries WHERE key='config'",[],|r|r.get(0)).map_err(storage_error)?;
+            let old:Config=serde_json::from_slice(&old)?;
+            let new:Config=serde_json::from_slice(&config)?;
+            let ids:Vec<u64>=serde_json::from_slice(&aids)?;
+            let unique:std::collections::BTreeSet<_>=ids.iter().copied().collect();
+            if old.configuration_number!=expected_number || new.configuration_number!=expected_number.checked_add(1).ok_or(Error::Storage)?
+                || old.device_id!=new.device_id || old.device_ed25519_keypair.to_keypair_bytes()!=new.device_ed25519_keypair.to_keypair_bytes()
+                || unique.len()!=ids.len() || unique.contains(&0) { return Err(Error::Storage); }
+            let exists:bool=tx.query_row("SELECT EXISTS(SELECT 1 FROM entries WHERE key='aids')",[],|r|r.get(0)).map_err(storage_error)?;
+            let total:i64=tx.query_row("SELECT count(*) FROM entries",[],|r|r.get(0)).map_err(storage_error)?;
+            let manifest_exists:bool=tx.query_row("SELECT EXISTS(SELECT 1 FROM entries WHERE key='graph_manifest')",[],|r|r.get(0)).map_err(storage_error)?;
+            let needed=i64::from(!exists)+i64::from(manifest.is_some() && !manifest_exists);
+            if total+needed>4096 { return Err(Error::Storage); }
+            tx.execute("UPDATE entries SET value=?1 WHERE key='config'",[config]).map_err(storage_error)?;
+            tx.execute("INSERT INTO entries(key,value) VALUES ('aids',?1) ON CONFLICT(key) DO UPDATE SET value=excluded.value",[aids]).map_err(storage_error)?;
+            if let Some(manifest)=manifest {
+                tx.execute("INSERT INTO entries(key,value) VALUES ('graph_manifest',?1) ON CONFLICT(key) DO UPDATE SET value=excluded.value",[manifest]).map_err(storage_error)?;
+            }
+            tx.commit().map_err(storage_error)
+        }).await
     }
     async fn read(&self, key: String) -> Result<Vec<u8>> {
         self.with(move |db| {
@@ -209,8 +270,58 @@ impl Storage for IdentityStore {
     async fn load_aid_cache(&self) -> Result<Vec<u64>> {
         Ok(serde_json::from_slice(&self.read("aids".into()).await?)?)
     }
+    async fn initialize_aid_cache(&mut self) -> Result<Vec<u64>> {
+        self.with(|db| {
+            let tx=db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate).map_err(storage_error)?;
+            let bytes:Option<Vec<u8>>=tx.query_row("SELECT value FROM entries WHERE key='aids'",[],|r|r.get(0)).optional().map_err(storage_error)?;
+            let aids:Vec<u64>=if let Some(bytes)=bytes { serde_json::from_slice(&bytes)? } else {
+                let prior:bool=tx.query_row("SELECT EXISTS(SELECT 1 FROM entries WHERE key IN ('aids_initialized','graph_manifest') OR key LIKE 'pair:%')",[],|r|r.get(0)).map_err(storage_error)?;
+                if prior { return Err(Error::Storage); }
+                Vec::new()
+            };
+            let unique:std::collections::BTreeSet<_>=aids.iter().copied().collect();
+            if unique.len()!=aids.len() || unique.contains(&0) { return Err(Error::Storage); }
+            let count:i64=tx.query_row("SELECT count(*) FROM entries WHERE key NOT IN ('aids','aids_initialized')",[],|r|r.get(0)).map_err(storage_error)?;
+            if count+2>4096 { return Err(Error::Storage); }
+            tx.execute("INSERT OR IGNORE INTO entries(key,value) VALUES ('aids',?1)",[serde_json::to_vec(&aids)?]).map_err(storage_error)?;
+            tx.execute("INSERT OR IGNORE INTO entries(key,value) VALUES ('aids_initialized',X'01')",[]).map_err(storage_error)?;
+            tx.commit().map_err(storage_error)?;
+            Ok(aids)
+        }).await
+    }
     async fn save_aid_cache(&mut self, aids: &[u64]) -> Result<()> {
         self.write("aids".into(), serde_json::to_vec(aids)?).await
+    }
+    async fn save_graph_state(
+        &mut self,
+        expected_number: u64,
+        config: &Config,
+        aids: &[u64],
+    ) -> Result<()> {
+        self.commit_graph_state(expected_number, config, aids, None)
+            .await
+    }
+    async fn save_graph_manifest(
+        &mut self,
+        expected_number: u64,
+        config: &Config,
+        aids: &[u64],
+        manifest: &[u8],
+    ) -> Result<()> {
+        self.commit_graph_state(expected_number, config, aids, Some(manifest.to_vec()))
+            .await
+    }
+    async fn load_graph_manifest(&self) -> Result<Option<Vec<u8>>> {
+        self.with(|db| {
+            db.query_row(
+                "SELECT value FROM entries WHERE key='graph_manifest'",
+                [],
+                |r| r.get(0),
+            )
+            .optional()
+            .map_err(storage_error)
+        })
+        .await
     }
     async fn delete_aid_cache(&mut self) -> Result<()> {
         self.delete("aids".into()).await

@@ -1,0 +1,51 @@
+{
+  "devices": [
+    {
+      "address": "03",
+      "channel": 4,
+      "enabled": true,
+      "gateway": "hopebeauty",
+      "id": "control4:210",
+      "name": "书房主灯供电"
+    },
+    {
+      "id": "control4:336",
+      "name": "书房主灯",
+      "gateway": "hopebeauty",
+      "address": "12",
+      "channel": 4,
+      "enabled": true,
+      "default_on_level": 100,
+      "supply_relay": "control4:210"
+    }
+  ],
+  "gateways": [
+    {
+      "endpoint": "192.168.0.10:50007",
+      "id": "hopebeauty",
+      "modules": [
+        {
+          "address": "03",
+          "profile": "r8i8_din_pro_v2_7_7",
+          "verification": {
+            "status": "verified",
+            "evidence": "用户确认书房 03 为 R8I8-DIN PRO；03/4 查询及开关恢复报文已核对。证据 deployment/nanopc/evidence/20261010-a3/study-switch-03-4-control.jsonl。只授权本配置的 03/4，不表示其他通道已验收；EA-5 范围不变。",
+            "verified_at_unix_ms": 1791647590276
+          }
+        },
+        {
+          "address": "12",
+          "profile": "ad8_din_rs485_v2_2_1",
+          "verification": {
+            "status": "verified",
+            "evidence": "用户确认 GJ-TECH.CN Dimmer 对应 AD8-DIN；原 Control4 打开主灯后 12/4 由 0% 到 100%，03/4 开关实灯跟随。仅限本配置 12/4；此次启用用于首次 HomeSense 调光验收，不宣称调光写入已通过。证据 deployment/nanopc/evidence/20261011-a13/study-main-light-observation.json。",
+            "verified_at_unix_ms": 1791676963090
+          }
+        }
+      ]
+    }
+  ],
+  "manual_degraded_enabled": false,
+  "revision": 2,
+  "schema_version": 1
+}

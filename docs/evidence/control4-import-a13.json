@@ -1,0 +1,27 @@
+{
+  "checked_at": "2026-10-10T18:15:38.781627+00:00",
+  "source": {
+    "format": "c4p",
+    "project_xml_sha256": "cac7dcdc9db08599e55a22bacb72858035c64e1ac846e2139ead5fc634513748",
+    "sha256": "ff8c298fd2c8efa840d572d3ca544860ffbbc4e7176f09e93efdc5464b9ce6ec"
+  },
+  "report_sha256": "f162770f8eca3cb64038cc485348d7f8f804b59f87dfa8257edcbb92da680bf2",
+  "devices": 136,
+  "scenes": 68,
+  "programs": 215,
+  "code_nodes": 3138,
+  "node_kinds": {
+    "sequence_container": 215,
+    "unsupported": 2923
+  },
+  "references": 3767,
+  "reference_dispositions": {
+    "disabled_pending_scene_translation": 629,
+    "disabled_pending_program_translation": 215,
+    "unsupported_preserve_source": 2923
+  },
+  "unresolved_references": 0,
+  "enabled_objects": 0,
+  "legacy_device_address_channel_map_matches": true,
+  "limitation": "Coverage and source preservation only; unsupported programs and scenes are not executed."
+}

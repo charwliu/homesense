@@ -1,0 +1,22 @@
+{
+  "source": "Charlies250801.c4p",
+  "control4_id": "290",
+  "properties": {
+    "Device ID": "22",
+    "Channel": "2",
+    "Trigger Mode": "Hold",
+    "Pulse Time (milliseconds)": "500",
+    "Stop Method": "Pulse both relays together",
+    "Travel Time (Seconds)": "10",
+    "Fail Safe (Seconds)": "10",
+    "Use Levels": "Off",
+    "Version": "V1.0.5-Release"
+  },
+  "lua": "encrypted; wire behavior not inspected",
+  "user_report": "original Control4 open, close and stop work normally",
+  "user_wiring_report": {
+    "text": "应该是弱电干节点",
+    "certainty": "tentative; physical wiring not verified"
+  },
+  "commissioning_status": "disabled; actual stop sequence and direction remain unverified"
+}

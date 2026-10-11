@@ -1,0 +1,33 @@
+{
+  "device": "control4:290",
+  "address": "22",
+  "group": 2,
+  "initial_position": "nearly fully closed, user reported",
+  "method": "Rust motor_commission -> Admission -> TransportOwner",
+  "hold_seconds": 3,
+  "tests": [
+    {
+      "action": "Open then Stop",
+      "boot_id": "d683c021-9bb1-447a-aa38-6d1a401ba1e8",
+      "command_ids": [
+        1,
+        2
+      ],
+      "exit_code": 0,
+      "user_result": "已明显打开并停住，可以继续关闭",
+      "physical_result_confirmed": true
+    },
+    {
+      "action": "Close then Stop",
+      "boot_id": "59bf6f6d-8566-4342-ad77-6646c152d988",
+      "command_ids": [
+        1,
+        2
+      ],
+      "exit_code": 0,
+      "user_result": "向关闭方向移动，并中途停住",
+      "physical_result_confirmed": true
+    }
+  ],
+  "limitation": "Successful observed sequence does not explain earlier intermittent no movement or establish percentage position."
+}

@@ -1,0 +1,101 @@
+{
+  "address_hex": "22",
+  "group": 2,
+  "initial_position": "middle",
+  "original_control4_stop_available": true,
+  "open_test": {
+    "frames": [
+      "AE2202F1EE",
+      "AE2202F0EE"
+    ],
+    "written_unix_seconds": [
+      1791681275.0839126,
+      1791681277.084137
+    ],
+    "user_result": "向打开方向移动，随后停住",
+    "open_direction": "up",
+    "stop_verified_after_open": false
+  },
+  "close_test": {
+    "frames": [
+      "AE2202F2EE",
+      "AE2202F0EE"
+    ],
+    "written_unix_seconds": [
+      1791681303.9653668,
+      1791681305.9657485
+    ],
+    "user_result": "没有变化；时间再长一点"
+  },
+  "method": "bounded commissioning script; not yet Rust Admission field validation",
+  "position_calibration": false,
+  "close_test_extended": {
+    "frames": [
+      "AE2202F2EE",
+      "AE2202F0EE"
+    ],
+    "written_unix_seconds": [
+      1791681360.9553866,
+      1791681365.9557118
+    ],
+    "hold_seconds": 5,
+    "user_result": "向关闭方向移动，随后停住",
+    "close_direction": "down",
+    "stop_verified_after_close": false
+  },
+  "calibration": {
+    "open_direction": "up",
+    "close_direction": "down",
+    "stop_verified": true,
+    "travel_time_calibrated": false,
+    "limitation": "F0 mid-travel stop user-confirmed after both F1/open and F2/close with 2 second holds. Rust Admission field validation remains pending. Travel time, percentage position and wiring type are not established.",
+    "stop_verified_after_open_mid_travel": true,
+    "stop_verified_after_close_mid_travel": true
+  },
+  "user_correction": "应该是F0发晚了，到位置；自动停了",
+  "mid_travel_stop_tests": [
+    {
+      "initial_position": "middle, set with Control4",
+      "frames": [
+        "AE2202F1EE",
+        "AE2202F0EE"
+      ],
+      "written_unix_seconds": [
+        1791681498.9691386,
+        1791681499.96942
+      ],
+      "hold_seconds": 1,
+      "user_result": "没有明显移动",
+      "stop_verified": false
+    },
+    {
+      "initial_position": "middle, user reconfirmed",
+      "frames": [
+        "AE2202F1EE",
+        "AE2202F0EE"
+      ],
+      "written_unix_seconds": [
+        1791681544.0163045,
+        1791681546.0166006
+      ],
+      "hold_seconds": 2,
+      "user_result": "开始移动，并在中途停住",
+      "stop_verified": true
+    },
+    {
+      "initial_position": "middle after confirmed open-direction mid-travel stop",
+      "frames": [
+        "AE2202F2EE",
+        "AE2202F0EE"
+      ],
+      "written_unix_seconds": [
+        1791681595.808904,
+        1791681597.8092115
+      ],
+      "hold_seconds": 2,
+      "user_result": "向关闭方向移动，并在中途停住",
+      "result_status": "user_confirmed",
+      "stop_verified": true
+    }
+  ]
+}

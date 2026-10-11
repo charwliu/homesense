@@ -1,0 +1,1330 @@
+warning: unused import: `uuid::Uuid`
+  --> vendor/hap/src/transport/http/handler/pair_setup.rs:17:5
+   |
+17 | use uuid::Uuid;
+   |     ^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `rand::SeedableRng`
+ --> vendor/hap/src/transport/http/handler/pairings.rs:1:5
+  |
+1 | use rand::SeedableRng;
+  |     ^^^^^^^^^^^^^^^^^
+
+warning: unused import: `debug`
+ --> vendor/hap/src/transport/http/server.rs:8:11
+  |
+8 | use log::{debug, error, info};
+  |           ^^^^^
+
+warning: unused imports: `Context` and `Poll`
+  --> vendor/hap/src/transport/http/server.rs:13:12
+   |
+13 |     task::{Context, Poll},
+   |            ^^^^^^^  ^^^^
+
+warning: use of deprecated trait `aead::AeadInPlace`: use `AeadInOut` instead
+ --> vendor/hap/src/transport/http/handler/pair_setup.rs:1:26
+  |
+1 | use aead::{array::Array, AeadInPlace, KeyInit};
+  |                          ^^^^^^^^^^^
+  |
+  = note: `#[warn(deprecated)]` on by default
+
+warning: use of deprecated trait `aead::AeadInPlace`: use `AeadInOut` instead
+ --> vendor/hap/src/transport/http/handler/pair_verify.rs:1:26
+  |
+1 | use aead::{array::Array, AeadInPlace, KeyInit};
+  |                          ^^^^^^^^^^^
+
+warning: use of deprecated trait `aead::AeadInPlace`: use `AeadInOut` instead
+ --> vendor/hap/src/transport/tcp.rs:1:26
+  |
+1 | use aead::{array::Array, AeadInPlace, KeyInit};
+  |                          ^^^^^^^^^^^
+
+warning: use of deprecated associated function `aead::hybrid_array::Array::<T, U>::from_slice`: use `TryFrom` instead
+   --> vendor/hap/src/transport/http/handler/pair_setup.rs:299:57
+    |
+299 |                 let aead = ChaCha20Poly1305::new(Array::from_slice(&encryption_key));
+    |                                                         ^^^^^^^^^^
+
+warning: use of deprecated method `aead::AeadInPlace::decrypt_in_place_detached`: use `AeadInOut::decrypt_inout_detached` instead
+   --> vendor/hap/src/transport/http/handler/pair_setup.rs:303:22
+    |
+303 |                 aead.decrypt_in_place_detached(
+    |                      ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: use of deprecated associated function `aead::hybrid_array::Array::<T, U>::from_slice`: use `TryFrom` instead
+   --> vendor/hap/src/transport/http/handler/pair_setup.rs:304:28
+    |
+304 |                     Array::from_slice(&nonce),
+    |                            ^^^^^^^^^^
+
+warning: use of deprecated associated function `aead::hybrid_array::Array::<T, U>::from_slice`: use `TryFrom` instead
+   --> vendor/hap/src/transport/http/handler/pair_setup.rs:307:28
+    |
+307 |                     Array::from_slice(&auth_tag),
+    |                            ^^^^^^^^^^
+
+warning: use of deprecated method `aead::AeadInPlace::encrypt_in_place_detached`: use `AeadInOut::encrypt_inout_detached` instead
+   --> vendor/hap/src/transport/http/handler/pair_setup.rs:394:37
+    |
+394 |                 let auth_tag = aead.encrypt_in_place_detached(
+    |                                     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: use of deprecated associated function `aead::hybrid_array::Array::<T, U>::from_slice`: use `TryFrom` instead
+   --> vendor/hap/src/transport/http/handler/pair_setup.rs:395:28
+    |
+395 |                     Array::from_slice(&nonce),
+    |                            ^^^^^^^^^^
+
+warning: use of deprecated associated function `aead::hybrid_array::Array::<T, U>::from_slice`: use `TryFrom` instead
+   --> vendor/hap/src/transport/http/handler/pair_verify.rs:178:45
+    |
+178 |     let aead = ChaCha20Poly1305::new(Array::from_slice(&session_key));
+    |                                             ^^^^^^^^^^
+
+warning: use of deprecated method `aead::AeadInPlace::encrypt_in_place_detached`: use `AeadInOut::encrypt_inout_detached` instead
+   --> vendor/hap/src/transport/http/handler/pair_verify.rs:183:14
+    |
+183 |         aead.encrypt_in_place_detached(Array::from_slice(&nonce), &[], &mut encrypted_data)?;
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: use of deprecated associated function `aead::hybrid_array::Array::<T, U>::from_slice`: use `TryFrom` instead
+   --> vendor/hap/src/transport/http/handler/pair_verify.rs:183:47
+    |
+183 |         aead.encrypt_in_place_detached(Array::from_slice(&nonce), &[], &mut encrypted_data)?;
+    |                                               ^^^^^^^^^^
+
+warning: use of deprecated associated function `aead::hybrid_array::Array::<T, U>::from_slice`: use `TryFrom` instead
+   --> vendor/hap/src/transport/http/handler/pair_verify.rs:215:53
+    |
+215 |             let aead = ChaCha20Poly1305::new(Array::from_slice(&session.session_key));
+    |                                                     ^^^^^^^^^^
+
+warning: use of deprecated method `aead::AeadInPlace::decrypt_in_place_detached`: use `AeadInOut::decrypt_inout_detached` instead
+   --> vendor/hap/src/transport/http/handler/pair_verify.rs:219:18
+    |
+219 |             aead.decrypt_in_place_detached(
+    |                  ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: use of deprecated associated function `aead::hybrid_array::Array::<T, U>::from_slice`: use `TryFrom` instead
+   --> vendor/hap/src/transport/http/handler/pair_verify.rs:220:24
+    |
+220 |                 Array::from_slice(&nonce),
+    |                        ^^^^^^^^^^
+
+warning: use of deprecated associated function `aead::hybrid_array::Array::<T, U>::from_slice`: use `TryFrom` instead
+   --> vendor/hap/src/transport/http/handler/pair_verify.rs:223:24
+    |
+223 |                 Array::from_slice(&auth_tag),
+    |                        ^^^^^^^^^^
+
+warning: variable does not need to be mutable
+   --> vendor/hap/src/transport/http/handler/pairings.rs:184:9
+    |
+184 |     let mut emitter = event_emitter.lock().await;
+    |         ----^^^^^^^
+    |         |
+    |         help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+   --> vendor/hap/src/transport/http/handler/pairings.rs:220:9
+    |
+220 |     let mut emitter = event_emitter.lock().await;
+    |         ----^^^^^^^
+    |         |
+    |         help: remove this `mut`
+
+warning: use of deprecated associated function `aead::hybrid_array::Array::<T, U>::from_slice`: use `TryFrom` instead
+   --> vendor/hap/src/transport/tcp.rs:450:45
+    |
+450 |     let aead = ChaCha20Poly1305::new(Array::from_slice(&read_key));
+    |                                             ^^^^^^^^^^
+
+warning: use of deprecated method `aead::AeadInPlace::decrypt_in_place_detached`: use `AeadInOut::decrypt_inout_detached` instead
+   --> vendor/hap/src/transport/tcp.rs:460:10
+    |
+460 |     aead.decrypt_in_place_detached(
+    |          ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: use of deprecated associated function `aead::hybrid_array::Array::<T, U>::from_slice`: use `TryFrom` instead
+   --> vendor/hap/src/transport/tcp.rs:461:16
+    |
+461 |         Nonce::from_slice(&nonce),
+    |                ^^^^^^^^^^
+
+warning: use of deprecated associated function `aead::hybrid_array::Array::<T, U>::from_slice`: use `TryFrom` instead
+   --> vendor/hap/src/transport/tcp.rs:464:14
+    |
+464 |         Tag::from_slice(&auth_tag),
+    |              ^^^^^^^^^^
+
+warning: use of deprecated associated function `aead::hybrid_array::Array::<T, U>::from_slice`: use `TryFrom` instead
+   --> vendor/hap/src/transport/tcp.rs:476:45
+    |
+476 |     let aead = ChaCha20Poly1305::new(Array::from_slice(&write_key));
+    |                                             ^^^^^^^^^^
+
+warning: use of deprecated method `aead::AeadInPlace::encrypt_in_place_detached`: use `AeadInOut::encrypt_inout_detached` instead
+   --> vendor/hap/src/transport/tcp.rs:489:25
+    |
+489 |     let auth_tag = aead.encrypt_in_place_detached(Nonce::from_slice(&nonce), &aad, &mut buffer)?;
+    |                         ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: use of deprecated associated function `aead::hybrid_array::Array::<T, U>::from_slice`: use `TryFrom` instead
+   --> vendor/hap/src/transport/tcp.rs:489:58
+    |
+489 |     let auth_tag = aead.encrypt_in_place_detached(Nonce::from_slice(&nonce), &aad, &mut buffer)?;
+    |                                                          ^^^^^^^^^^
+
+warning: use of deprecated method `std::sync::atomic::Atomic::<usize>::fetch_update`: renamed to `try_update` for consistency
+   --> vendor/hap/src/transport/tcp.rs:731:18
+    |
+731 |                 .fetch_update(Ordering::AcqRel, Ordering::Acquire, |used| {
+    |                  ^^^^^^^^^^^^
+    |
+help: replace the use of the deprecated method
+    |
+731 -                 .fetch_update(Ordering::AcqRel, Ordering::Acquire, |used| {
+731 +                 .try_update(Ordering::AcqRel, Ordering::Acquire, |used| {
+    |
+
+warning: function `decode` is never used
+  --> vendor/hap/src/tlv.rs:77:8
+   |
+77 | pub fn decode(tlv: &[u8]) -> HashMap<u8, Vec<u8>> {
+   |        ^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: field `remote` is never read
+  --> vendor/hap/src/transport/http/mod.rs:90:9
+   |
+83 | pub struct WriteObject {
+   |            ----------- field in this struct
+...
+90 |     pub remote: Option<bool>,
+   |         ^^^^^^
+   |
+   = note: `WriteObject` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+
+warning: field `outgoing_waker` is never read
+   --> vendor/hap/src/transport/tcp.rs:193:5
+    |
+185 | pub struct EncryptedStream {
+    |            --------------- field in this struct
+...
+193 |     outgoing_waker: Arc<Mutex<Option<Waker>>>,
+    |     ^^^^^^^^^^^^^^
+    |
+    = note: `EncryptedStream` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+
+warning: hiding a lifetime that's elided elsewhere is confusing
+  --> vendor/hap/src/transport/http/handler/mod.rs:21:9
+   |
+21 |         &mut self,
+   |         ^^^^^^^^^ the lifetime is elided here
+...
+30 |     ) -> BoxFuture<Result<Response<Body>>>;
+   |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the same lifetime is hidden here
+   |
+   = help: the same lifetime is referred to in inconsistent ways, making the signature confusing
+   = note: `#[warn(mismatched_lifetime_syntaxes)]` on by default
+help: use `'_` for type paths
+   |
+30 |     ) -> BoxFuture<'_, Result<Response<Body>>>;
+   |                    +++
+
+warning: hiding a lifetime that's elided elsewhere is confusing
+  --> vendor/hap/src/transport/http/handler/mod.rs:38:9
+   |
+38 |         &self,
+   |         ^^^^^ the lifetime is elided here
+39 |         body: Body,
+40 |     ) -> BoxFuture<std::result::Result<Self::ParseResult, tlv::ErrorContainer>>;
+   |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the same lifetime is hidden here
+   |
+   = help: the same lifetime is referred to in inconsistent ways, making the signature confusing
+help: use `'_` for type paths
+   |
+40 |     ) -> BoxFuture<'_, std::result::Result<Self::ParseResult, tlv::ErrorContainer>>;
+   |                    +++
+
+warning: hiding a lifetime that's elided elsewhere is confusing
+  --> vendor/hap/src/transport/http/handler/mod.rs:42:9
+   |
+42 |         &mut self,
+   |         ^^^^^^^^^ the lifetime is elided here
+...
+48 |     ) -> BoxFuture<std::result::Result<Self::Result, tlv::ErrorContainer>>;
+   |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the same lifetime is hidden here
+   |
+   = help: the same lifetime is referred to in inconsistent ways, making the signature confusing
+help: use `'_` for type paths
+   |
+48 |     ) -> BoxFuture<'_, std::result::Result<Self::Result, tlv::ErrorContainer>>;
+   |                    +++
+
+warning: hiding a lifetime that's elided elsewhere is confusing
+  --> vendor/hap/src/transport/http/handler/mod.rs:62:9
+   |
+62 |         &mut self,
+   |         ^^^^^^^^^ the lifetime is elided here
+...
+71 |     ) -> BoxFuture<Result<Response<Body>>> {
+   |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the same lifetime is hidden here
+   |
+   = help: the same lifetime is referred to in inconsistent ways, making the signature confusing
+help: use `'_` for type paths
+   |
+71 |     ) -> BoxFuture<'_, Result<Response<Body>>> {
+   |                    +++
+
+warning: hiding a lifetime that's elided elsewhere is confusing
+   --> vendor/hap/src/transport/http/handler/mod.rs:92:9
+    |
+ 92 |         &mut self,
+    |         ^^^^^^^^^ the lifetime is elided here
+...
+101 |     ) -> BoxFuture<Result<Response<Body>>>;
+    |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the same lifetime is hidden here
+    |
+    = help: the same lifetime is referred to in inconsistent ways, making the signature confusing
+help: use `'_` for type paths
+    |
+101 |     ) -> BoxFuture<'_, Result<Response<Body>>>;
+    |                    +++
+
+warning: hiding a lifetime that's elided elsewhere is confusing
+   --> vendor/hap/src/transport/http/handler/mod.rs:115:9
+    |
+115 |         &mut self,
+    |         ^^^^^^^^^ the lifetime is elided here
+...
+124 |     ) -> BoxFuture<Result<Response<Body>>> {
+    |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the same lifetime is hidden here
+    |
+    = help: the same lifetime is referred to in inconsistent ways, making the signature confusing
+help: use `'_` for type paths
+    |
+124 |     ) -> BoxFuture<'_, Result<Response<Body>>> {
+    |                    +++
+
+warning: hiding a lifetime that's elided elsewhere is confusing
+  --> vendor/hap/src/transport/http/handler/accessories.rs:25:9
+   |
+25 |         &mut self,
+   |         ^^^^^^^^^ the lifetime is elided here
+...
+34 |     ) -> BoxFuture<Result<Response<Body>>> {
+   |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the same lifetime is hidden here
+   |
+   = help: the same lifetime is referred to in inconsistent ways, making the signature confusing
+help: use `'_` for type paths
+   |
+34 |     ) -> BoxFuture<'_, Result<Response<Body>>> {
+   |                    +++
+
+warning: hiding a lifetime that's elided elsewhere is confusing
+  --> vendor/hap/src/transport/http/handler/characteristics.rs:27:9
+   |
+27 |         &mut self,
+   |         ^^^^^^^^^ the lifetime is elided here
+...
+36 |     ) -> BoxFuture<Result<Response<Body>>> {
+   |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the same lifetime is hidden here
+   |
+   = help: the same lifetime is referred to in inconsistent ways, making the signature confusing
+help: use `'_` for type paths
+   |
+36 |     ) -> BoxFuture<'_, Result<Response<Body>>> {
+   |                    +++
+
+warning: hiding a lifetime that's elided elsewhere is confusing
+   --> vendor/hap/src/transport/http/handler/characteristics.rs:128:9
+    |
+128 |         &mut self,
+    |         ^^^^^^^^^ the lifetime is elided here
+...
+137 |     ) -> BoxFuture<Result<Response<Body>>> {
+    |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the same lifetime is hidden here
+    |
+    = help: the same lifetime is referred to in inconsistent ways, making the signature confusing
+help: use `'_` for type paths
+    |
+137 |     ) -> BoxFuture<'_, Result<Response<Body>>> {
+    |                    +++
+
+warning: hiding a lifetime that's elided elsewhere is confusing
+  --> vendor/hap/src/transport/http/handler/identify.rs:22:9
+   |
+22 |         &mut self,
+   |         ^^^^^^^^^ the lifetime is elided here
+...
+31 |     ) -> BoxFuture<Result<Response<Body>>> {
+   |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the same lifetime is hidden here
+   |
+   = help: the same lifetime is referred to in inconsistent ways, making the signature confusing
+help: use `'_` for type paths
+   |
+31 |     ) -> BoxFuture<'_, Result<Response<Body>>> {
+   |                    +++
+
+warning: hiding a lifetime that's elided elsewhere is confusing
+  --> vendor/hap/src/transport/http/handler/pair_setup.rs:71:14
+   |
+71 |     fn parse(&self, body: Body) -> BoxFuture<Result<Step, tlv::ErrorContainer>> {
+   |              ^^^^^                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the same lifetime is hidden here
+   |              |
+   |              the lifetime is elided here
+   |
+   = help: the same lifetime is referred to in inconsistent ways, making the signature confusing
+help: use `'_` for type paths
+   |
+71 |     fn parse(&self, body: Body) -> BoxFuture<'_, Result<Step, tlv::ErrorContainer>> {
+   |                                              +++
+
+warning: hiding a lifetime that's elided elsewhere is confusing
+   --> vendor/hap/src/transport/http/handler/pair_setup.rs:116:9
+    |
+116 |         &mut self,
+    |         ^^^^^^^^^ the lifetime is elided here
+...
+122 |     ) -> BoxFuture<Result<tlv::Container, tlv::ErrorContainer>> {
+    |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the same lifetime is hidden here
+    |
+    = help: the same lifetime is referred to in inconsistent ways, making the signature confusing
+help: use `'_` for type paths
+    |
+122 |     ) -> BoxFuture<'_, Result<tlv::Container, tlv::ErrorContainer>> {
+    |                    +++
+
+warning: hiding a lifetime that's elided elsewhere is confusing
+  --> vendor/hap/src/transport/http/handler/pair_verify.rs:61:14
+   |
+61 |     fn parse(&self, body: Body) -> BoxFuture<Result<Step, tlv::ErrorContainer>> {
+   |              ^^^^^                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the same lifetime is hidden here
+   |              |
+   |              the lifetime is elided here
+   |
+   = help: the same lifetime is referred to in inconsistent ways, making the signature confusing
+help: use `'_` for type paths
+   |
+61 |     fn parse(&self, body: Body) -> BoxFuture<'_, Result<Step, tlv::ErrorContainer>> {
+   |                                              +++
+
+warning: hiding a lifetime that's elided elsewhere is confusing
+   --> vendor/hap/src/transport/http/handler/pair_verify.rs:99:9
+    |
+ 99 |         &mut self,
+    |         ^^^^^^^^^ the lifetime is elided here
+...
+105 |     ) -> BoxFuture<Result<tlv::Container, tlv::ErrorContainer>> {
+    |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the same lifetime is hidden here
+    |
+    = help: the same lifetime is referred to in inconsistent ways, making the signature confusing
+help: use `'_` for type paths
+    |
+105 |     ) -> BoxFuture<'_, Result<tlv::Container, tlv::ErrorContainer>> {
+    |                    +++
+
+warning: hiding a lifetime that's elided elsewhere is confusing
+  --> vendor/hap/src/transport/http/handler/pairings.rs:53:14
+   |
+53 |     fn parse(&self, body: Body) -> BoxFuture<Result<HandlerType, tlv::ErrorContainer>> {
+   |              ^^^^^                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the same lifetime is hidden here
+   |              |
+   |              the lifetime is elided here
+   |
+   = help: the same lifetime is referred to in inconsistent ways, making the signature confusing
+help: use `'_` for type paths
+   |
+53 |     fn parse(&self, body: Body) -> BoxFuture<'_, Result<HandlerType, tlv::ErrorContainer>> {
+   |                                              +++
+
+warning: hiding a lifetime that's elided elsewhere is confusing
+   --> vendor/hap/src/transport/http/handler/pairings.rs:105:9
+    |
+105 |         &mut self,
+    |         ^^^^^^^^^ the lifetime is elided here
+...
+111 |     ) -> BoxFuture<Result<tlv::Container, tlv::ErrorContainer>> {
+    |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the same lifetime is hidden here
+    |
+    = help: the same lifetime is referred to in inconsistent ways, making the signature confusing
+help: use `'_` for type paths
+    |
+111 |     ) -> BoxFuture<'_, Result<tlv::Container, tlv::ErrorContainer>> {
+    |                    +++
+
+warning: hiding a lifetime that's elided elsewhere is confusing
+   --> vendor/hap/src/transport/http/server.rs:189:23
+    |
+189 |     pub fn run_handle(&self) -> BoxFuture<Result<()>> {
+    |                       ^^^^^     ^^^^^^^^^^^^^^^^^^^^^ the same lifetime is hidden here
+    |                       |
+    |                       the lifetime is elided here
+    |
+    = help: the same lifetime is referred to in inconsistent ways, making the signature confusing
+help: use `'_` for type paths
+    |
+189 |     pub fn run_handle(&self) -> BoxFuture<'_, Result<()>> {
+    |                                           +++
+
+warning: hiding a lifetime that's elided elsewhere is confusing
+  --> vendor/hap/src/server/mod.rs:14:19
+   |
+14 |     fn run_handle(&self) -> BoxFuture<Result<()>>;
+   |                   ^^^^^     ^^^^^^^^^^^^^^^^^^^^^ the same lifetime is hidden here
+   |                   |
+   |                   the lifetime is elided here
+   |
+   = help: the same lifetime is referred to in inconsistent ways, making the signature confusing
+help: use `'_` for type paths
+   |
+14 |     fn run_handle(&self) -> BoxFuture<'_, Result<()>>;
+   |                                       +++
+
+warning: hiding a lifetime that's elided elsewhere is confusing
+   --> vendor/hap/src/server/ip.rs:329:19
+    |
+329 |     fn run_handle(&self) -> BoxFuture<Result<()>> {
+    |                   ^^^^^     ^^^^^^^^^^^^^^^^^^^^^ the same lifetime is hidden here
+    |                   |
+    |                   the lifetime is elided here
+    |
+    = help: the same lifetime is referred to in inconsistent ways, making the signature confusing
+help: use `'_` for type paths
+    |
+329 |     fn run_handle(&self) -> BoxFuture<'_, Result<()>> {
+    |                                       +++
+
+warning: `hap` (lib) generated 52 warnings (run `cargo fix --lib -p hap` to apply 26 suggestions)
+   Compiling homesensed v0.1.0 (/Users/liuwei/works/homesense/crates/homesensed)
+warning: use of deprecated trait `aead::AeadInPlace`: use `AeadInOut` instead
+   --> crates/homesense-hap/tests/http_loopback.rs:165:16
+    |
+165 |     use aead::{AeadInPlace, KeyInit, array::Array};
+    |                ^^^^^^^^^^^
+    |
+    = note: `#[warn(deprecated)]` on by default
+
+warning: use of deprecated trait `aead::AeadInPlace`: use `AeadInOut` instead
+ --> crates/homesense-hap/tests/support/mod.rs:3:30
+  |
+3 | use chacha20poly1305::aead::{AeadInPlace, array::Array};
+  |                              ^^^^^^^^^^^
+
+warning: use of deprecated trait `aead::AeadInPlace`: use `AeadInOut` instead
+  --> crates/homesense-hap/tests/support/mod.rs:85:34
+   |
+85 |     use chacha20poly1305::aead::{AeadInPlace, KeyInit, array::Array};
+   |                                  ^^^^^^^^^^^
+
+warning: use of deprecated associated function `aead::hybrid_array::Array::<T, U>::from_slice`: use `TryFrom` instead
+   --> crates/homesense-hap/tests/http_loopback.rs:294:51
+    |
+294 |         let cipher = ChaCha20Poly1305::new(Array::from_slice(&encryption_key));
+    |                                                   ^^^^^^^^^^
+
+warning: use of deprecated method `aead::AeadInPlace::encrypt_in_place_detached`: use `AeadInOut::encrypt_inout_detached` instead
+   --> crates/homesense-hap/tests/http_loopback.rs:298:14
+    |
+298 |             .encrypt_in_place_detached(Array::from_slice(&nonce), &[], &mut data)
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: use of deprecated associated function `aead::hybrid_array::Array::<T, U>::from_slice`: use `TryFrom` instead
+   --> crates/homesense-hap/tests/http_loopback.rs:298:47
+    |
+298 |             .encrypt_in_place_detached(Array::from_slice(&nonce), &[], &mut data)
+    |                                               ^^^^^^^^^^
+
+warning: use of deprecated method `aead::AeadInPlace::decrypt_in_place_detached`: use `AeadInOut::decrypt_inout_detached` instead
+   --> crates/homesense-hap/tests/http_loopback.rs:308:14
+    |
+308 |             .decrypt_in_place_detached(
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: use of deprecated associated function `aead::hybrid_array::Array::<T, U>::from_slice`: use `TryFrom` instead
+   --> crates/homesense-hap/tests/http_loopback.rs:309:24
+    |
+309 |                 Array::from_slice(&nonce),
+    |                        ^^^^^^^^^^
+
+warning: use of deprecated associated function `aead::hybrid_array::Array::<T, U>::from_slice`: use `TryFrom` instead
+   --> crates/homesense-hap/tests/http_loopback.rs:312:24
+    |
+312 |                 Array::from_slice(&data[data.len() - 16..]),
+    |                        ^^^^^^^^^^
+
+warning: use of deprecated associated function `aead::hybrid_array::Array::<T, U>::from_slice`: use `TryFrom` instead
+   --> crates/homesense-hap/tests/support/mod.rs:105:47
+    |
+105 |     let cipher = ChaCha20Poly1305::new(Array::from_slice(&key));
+    |                                               ^^^^^^^^^^
+
+warning: use of deprecated method `aead::AeadInPlace::decrypt_in_place_detached`: use `AeadInOut::decrypt_inout_detached` instead
+   --> crates/homesense-hap/tests/support/mod.rs:111:10
+    |
+111 |         .decrypt_in_place_detached(
+    |          ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: use of deprecated associated function `aead::hybrid_array::Array::<T, U>::from_slice`: use `TryFrom` instead
+   --> crates/homesense-hap/tests/support/mod.rs:112:20
+    |
+112 |             Array::from_slice(&nonce),
+    |                    ^^^^^^^^^^
+
+warning: use of deprecated associated function `aead::hybrid_array::Array::<T, U>::from_slice`: use `TryFrom` instead
+   --> crates/homesense-hap/tests/support/mod.rs:115:20
+    |
+115 |             Array::from_slice(&encrypted[encrypted.len() - 16..]),
+    |                    ^^^^^^^^^^
+
+warning: use of deprecated method `aead::AeadInPlace::encrypt_in_place_detached`: use `AeadInOut::encrypt_inout_detached` instead
+   --> crates/homesense-hap/tests/support/mod.rs:145:10
+    |
+145 |         .encrypt_in_place_detached(Array::from_slice(&nonce), &[], &mut data)
+    |          ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: use of deprecated associated function `aead::hybrid_array::Array::<T, U>::from_slice`: use `TryFrom` instead
+   --> crates/homesense-hap/tests/support/mod.rs:145:43
+    |
+145 |         .encrypt_in_place_detached(Array::from_slice(&nonce), &[], &mut data)
+    |                                           ^^^^^^^^^^
+
+warning: use of deprecated associated function `aead::hybrid_array::Array::<T, U>::from_slice`: use `TryFrom` instead
+   --> crates/homesense-hap/tests/support/mod.rs:154:47
+    |
+154 |     let writer = ChaCha20Poly1305::new(Array::from_slice(&write_key));
+    |                                               ^^^^^^^^^^
+
+warning: use of deprecated associated function `aead::hybrid_array::Array::<T, U>::from_slice`: use `TryFrom` instead
+   --> crates/homesense-hap/tests/support/mod.rs:155:47
+    |
+155 |     let reader = ChaCha20Poly1305::new(Array::from_slice(&read_key));
+    |                                               ^^^^^^^^^^
+
+warning: use of deprecated method `aead::AeadInPlace::encrypt_in_place_detached`: use `AeadInOut::encrypt_inout_detached` instead
+   --> crates/homesense-hap/tests/support/mod.rs:180:18
+    |
+180 |                 .encrypt_in_place_detached(Array::from_slice(&nonce), &length, &mut data)
+    |                  ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: use of deprecated associated function `aead::hybrid_array::Array::<T, U>::from_slice`: use `TryFrom` instead
+   --> crates/homesense-hap/tests/support/mod.rs:180:51
+    |
+180 |                 .encrypt_in_place_detached(Array::from_slice(&nonce), &length, &mut data)
+    |                                                   ^^^^^^^^^^
+
+warning: use of deprecated method `aead::AeadInPlace::decrypt_in_place_detached`: use `AeadInOut::decrypt_inout_detached` instead
+   --> crates/homesense-hap/tests/support/mod.rs:200:18
+    |
+200 |                 .decrypt_in_place_detached(
+    |                  ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: use of deprecated associated function `aead::hybrid_array::Array::<T, U>::from_slice`: use `TryFrom` instead
+   --> crates/homesense-hap/tests/support/mod.rs:201:28
+    |
+201 |                     Array::from_slice(&nonce),
+    |                            ^^^^^^^^^^
+
+warning: use of deprecated associated function `aead::hybrid_array::Array::<T, U>::from_slice`: use `TryFrom` instead
+   --> crates/homesense-hap/tests/support/mod.rs:204:28
+    |
+204 |                     Array::from_slice(&tag),
+    |                            ^^^^^^^^^^
+
+warning: `homesense-hap` (test "http_loopback") generated 22 warnings
+warning: use of deprecated trait `chacha20poly1305::aead::AeadInPlace`: use `AeadInOut` instead
+ --> crates/homesensed/tests/../../homesense-hap/tests/support/mod.rs:3:30
+  |
+3 | use chacha20poly1305::aead::{AeadInPlace, array::Array};
+  |                              ^^^^^^^^^^^
+  |
+  = note: `#[warn(deprecated)]` on by default
+
+warning: use of deprecated trait `chacha20poly1305::aead::AeadInPlace`: use `AeadInOut` instead
+  --> crates/homesensed/tests/../../homesense-hap/tests/support/mod.rs:85:34
+   |
+85 |     use chacha20poly1305::aead::{AeadInPlace, KeyInit, array::Array};
+   |                                  ^^^^^^^^^^^
+
+warning: use of deprecated associated function `chacha20poly1305::aead::hybrid_array::Array::<T, U>::from_slice`: use `TryFrom` instead
+   --> crates/homesensed/tests/../../homesense-hap/tests/support/mod.rs:105:47
+    |
+105 |     let cipher = ChaCha20Poly1305::new(Array::from_slice(&key));
+    |                                               ^^^^^^^^^^
+
+warning: use of deprecated method `chacha20poly1305::aead::AeadInPlace::decrypt_in_place_detached`: use `AeadInOut::decrypt_inout_detached` instead
+   --> crates/homesensed/tests/../../homesense-hap/tests/support/mod.rs:111:10
+    |
+111 |         .decrypt_in_place_detached(
+    |          ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: use of deprecated associated function `chacha20poly1305::aead::hybrid_array::Array::<T, U>::from_slice`: use `TryFrom` instead
+   --> crates/homesensed/tests/../../homesense-hap/tests/support/mod.rs:112:20
+    |
+112 |             Array::from_slice(&nonce),
+    |                    ^^^^^^^^^^
+
+warning: use of deprecated associated function `chacha20poly1305::aead::hybrid_array::Array::<T, U>::from_slice`: use `TryFrom` instead
+   --> crates/homesensed/tests/../../homesense-hap/tests/support/mod.rs:115:20
+    |
+115 |             Array::from_slice(&encrypted[encrypted.len() - 16..]),
+    |                    ^^^^^^^^^^
+
+warning: use of deprecated method `chacha20poly1305::aead::AeadInPlace::encrypt_in_place_detached`: use `AeadInOut::encrypt_inout_detached` instead
+   --> crates/homesensed/tests/../../homesense-hap/tests/support/mod.rs:145:10
+    |
+145 |         .encrypt_in_place_detached(Array::from_slice(&nonce), &[], &mut data)
+    |          ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: use of deprecated associated function `chacha20poly1305::aead::hybrid_array::Array::<T, U>::from_slice`: use `TryFrom` instead
+   --> crates/homesensed/tests/../../homesense-hap/tests/support/mod.rs:145:43
+    |
+145 |         .encrypt_in_place_detached(Array::from_slice(&nonce), &[], &mut data)
+    |                                           ^^^^^^^^^^
+
+warning: use of deprecated associated function `chacha20poly1305::aead::hybrid_array::Array::<T, U>::from_slice`: use `TryFrom` instead
+   --> crates/homesensed/tests/../../homesense-hap/tests/support/mod.rs:154:47
+    |
+154 |     let writer = ChaCha20Poly1305::new(Array::from_slice(&write_key));
+    |                                               ^^^^^^^^^^
+
+warning: use of deprecated associated function `chacha20poly1305::aead::hybrid_array::Array::<T, U>::from_slice`: use `TryFrom` instead
+   --> crates/homesensed/tests/../../homesense-hap/tests/support/mod.rs:155:47
+    |
+155 |     let reader = ChaCha20Poly1305::new(Array::from_slice(&read_key));
+    |                                               ^^^^^^^^^^
+
+warning: use of deprecated method `chacha20poly1305::aead::AeadInPlace::encrypt_in_place_detached`: use `AeadInOut::encrypt_inout_detached` instead
+   --> crates/homesensed/tests/../../homesense-hap/tests/support/mod.rs:180:18
+    |
+180 |                 .encrypt_in_place_detached(Array::from_slice(&nonce), &length, &mut data)
+    |                  ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: use of deprecated associated function `chacha20poly1305::aead::hybrid_array::Array::<T, U>::from_slice`: use `TryFrom` instead
+   --> crates/homesensed/tests/../../homesense-hap/tests/support/mod.rs:180:51
+    |
+180 |                 .encrypt_in_place_detached(Array::from_slice(&nonce), &length, &mut data)
+    |                                                   ^^^^^^^^^^
+
+warning: use of deprecated method `chacha20poly1305::aead::AeadInPlace::decrypt_in_place_detached`: use `AeadInOut::decrypt_inout_detached` instead
+   --> crates/homesensed/tests/../../homesense-hap/tests/support/mod.rs:200:18
+    |
+200 |                 .decrypt_in_place_detached(
+    |                  ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: use of deprecated associated function `chacha20poly1305::aead::hybrid_array::Array::<T, U>::from_slice`: use `TryFrom` instead
+   --> crates/homesensed/tests/../../homesense-hap/tests/support/mod.rs:201:28
+    |
+201 |                     Array::from_slice(&nonce),
+    |                            ^^^^^^^^^^
+
+warning: use of deprecated associated function `chacha20poly1305::aead::hybrid_array::Array::<T, U>::from_slice`: use `TryFrom` instead
+   --> crates/homesensed/tests/../../homesense-hap/tests/support/mod.rs:204:28
+    |
+204 |                     Array::from_slice(&tag),
+    |                            ^^^^^^^^^^
+
+warning: `homesensed` (test "http_runtime") generated 15 warnings
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 6.00s
+     Running unittests src/lib.rs (target/debug/deps/hb_protocol-252bb685c2e1ae5d)
+
+running 8 tests
+test tests::corrupt_frames_resynchronize_and_disconnect_drops_partial ... ok
+test tests::all_fragment_boundaries_and_coalesced_frames ... ok
+test tests::delimiters_are_legal_payload_bytes ... ok
+test tests::identical_feedback_is_classified_by_registered_module ... ok
+test tests::unknown_frames_are_preserved_without_events ... ok
+test tests::manufacturer_command_vectors ... ok
+test tests::unsupported_commands_and_channels_fail ... ok
+test tests::malformed_input_retains_bounded_memory ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/profiles.rs (target/debug/deps/profiles-94ad9c1a50489770)
+
+running 9 tests
+test bt86_accepts_exactly_six_documented_keys_and_no_extended_events ... ok
+test c4_pro_manual_motion_vectors_do_not_invent_feedback ... ok
+test led_mode_does_not_disable_buttons_but_only_manual_enables_led_writes ... ok
+test pending_profile_never_authorizes_commands_or_events_even_in_simulation ... ok
+test profiles_and_evidence_cannot_be_mutated_into_other_device_capabilities ... ok
+test r8i8_pro_manual_single_channel_vectors ... ok
+test simulator_evidence_cannot_be_used_by_live_encoder_or_registry ... ok
+test ts6_six_key_vectors_and_led_mode_gate ... ok
+test ad8_uses_documented_ramps_and_rejects_unproven_immediate_levels ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/deps/hb_transport-bb03dcd939f086ed)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/stream.rs (target/debug/deps/stream-58a906c90eb0fc2f)
+
+running 4 tests
+test live_transport_rejects_simulation_frame_before_writing ... ok
+test read_timeout_preserves_fragment_but_eof_discards_it ... ok
+test short_writes_complete_but_partial_failures_disconnect_without_replay ... ok
+test stale_and_expired_frames_never_write_and_mid_frame_expiration_closes_stream ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/tcp.rs (target/debug/deps/tcp-acd2ffb000dfd652)
+
+running 1 test
+test localhost_socket_sends_one_frame_and_receives_split_feedback ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/deps/homesense_config-9281cb7244814da2)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/validation.rs (target/debug/deps/validation-eac33f0c0f42ac6f)
+
+running 10 tests
+test sample_only_enables_device_in_explicit_simulation_context ... ok
+test pending_and_unknown_keypad_never_gain_live_control ... ok
+test ts6_requires_explicit_six_key_profile_and_bounds ... ok
+test verified_live_binding_requires_evidence_and_valid_panel_led_mode ... ok
+test duplicate_ids_addresses_endpoints_and_channels_are_rejected ... ok
+test pro_profiles_preserve_channel_limits_and_live_verification_gate ... ok
+test motor_actions_require_per_channel_direction_and_stop_evidence ... ok
+test default_on_level_is_explicit_positive_and_dimmer_only ... ok
+test combined_light_references_are_validated_without_enabling_pending_hardware ... ok
+test invalid_references_ranges_profiles_and_unknown_fields_fail_closed ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/deps/homesense_core-0c6bea127480bea3)
+
+running 15 tests
+test admission::tests::degraded_mode_is_opt_in_and_http_never_bypasses_persistence ... ok
+test admission::tests::degraded_whitelist_excludes_ramps_scenes_and_unverified_bindings ... ok
+test admission::tests::manual_gates_still_apply_and_publication_rejects_stop ... ok
+test admission::tests::readonly_refresh_works_without_control_but_still_needs_authorization ... ok
+test execution::tests::disconnect_never_replays_and_only_unsent_work_is_cancelled ... ok
+test execution::tests::feedback_requires_completed_write_correct_endpoint_epoch_value_and_deadline ... ok
+test execution::tests::partial_write_and_deadline_preserve_uncertainty ... ok
+test queue::tests::coalescing_is_bounded_and_does_not_cross_query_or_run_barriers ... ok
+test queue::tests::priority_is_fifo_within_class_and_respects_device_order ... ok
+test queue::tests::publication_retains_stop_for_explicit_drain_and_cancel_run_keeps_other_runs ... ok
+test queue::tests::stale_epochs_and_expiration_are_cancelled_without_dispatch ... ok
+test queue::tests::stop_has_reserved_capacity_and_prevents_queued_motor_restart ... ok
+test tests::address_is_hex_and_broadcast_is_rejected ... ok
+test tests::feedback_must_match_absolute_target_and_never_acknowledges_motor_or_led ... ok
+test tests::ranges_and_module_capabilities_are_checked ... ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/arbiter.rs (target/debug/deps/arbiter-5351cf61a481240c)
+
+running 13 tests
+test failed_batch_does_not_cancel_preexisting_motor_command_with_stop ... ok
+test failed_stop_or_expired_barrier_cannot_commit ... ok
+test failed_batch_does_not_partially_enqueue_or_consume_ids ... ok
+test new_transport_generation_requires_closed_control_and_fresh_synchronization ... ok
+test opted_in_degradation_revalidates_stop_and_recovery_cancels_other_pending_actions ... ok
+test revision_mismatch_stops_degradation_and_cannot_be_cleared_by_retry ... ok
+test reconnect_cancels_degraded_stop_instead_of_replaying_on_new_socket ... ok
+test revocation_is_checked_again_at_dispatch_and_stop_drain ... ok
+test rollback_does_not_restore_cancelled_work_or_old_producers ... ok
+test storage_fault_during_publication_blocks_commit_and_unknown_outcomes_stay_closed ... ok
+test publication_waits_for_frame_and_drains_stop_with_original_mapping_revision ... ok
+test storage_fault_invalidates_old_commands_and_default_rejects_manual_degradation ... ok
+test unknown_commit_holds_barrier_until_durable_pointer_resolution ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/deps/homesense_hap-f40dc4ee6d18a248)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/events.rs (target/debug/deps/events-282f8a53fa81d432)
+
+running 6 tests
+test gaps_and_duplicate_events_require_snapshot_resynchronization ... ok
+test off_event_reasserts_retained_brightness_instead_of_zero ... ok
+test only_changed_confirmed_feedback_emits_without_control_callbacks ... ok
+test latest_target_wins_off_cancels_and_timeout_reasserts_unchanged_actual ... ok
+test ordinary_snapshot_refresh_does_not_replay_old_brightness_after_target_change ... ok
+test local_ramp_suppresses_intermediate_events_but_releases_target_and_timeout ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/graph.rs (target/debug/deps/graph-9f8fa1c569a3c9ee)
+
+running 3 tests
+test invalid_graph_does_not_allocate_identifiers ... ok
+test bindings_address_actual_characteristics_and_only_expose_supported_light_capabilities ... ok
+test constructed_graph_survives_reorder_rename_extension_and_reopen ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/http_loopback.rs (target/debug/deps/http_loopback-84ffa9815d8b8e6f)
+
+running 4 tests
+test real_http_rejects_unpaired_reads_and_writes_then_releases_listener ... ok
+test real_http_pair_setup_rejects_wrong_proof_without_persisting_a_controller ... ok
+test ipv6_pairing_encrypted_reads_restart_and_revocation ... ok
+test real_http_pair_setup_authenticates_both_sides_and_persists_identity ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.47s
+
+     Running tests/identifiers.rs (target/debug/deps/identifiers-23a388d3577d6ede)
+
+running 5 tests
+test concurrent_connections_share_one_identifier_space ... ok
+test missing_identity_or_mapping_never_recreates_existing_pairing_identifiers ... ok
+test schema_one_migration_preserves_existing_identity_and_pairing ... ok
+test reboot_reorder_removal_and_extension_preserve_identifiers ... ok
+test failed_allocation_rolls_back_all_new_resources_and_aids ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/observed.rs (target/debug/deps/observed-aad595f33f4cedf4)
+
+running 3 tests
+test off_reads_keep_remembered_brightness_without_claiming_power_or_freshness ... ok
+test only_fresh_confirmed_matching_observations_are_readable ... ok
+test actual_hap_reads_ignore_desired_and_reject_individual_writes ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/requests.rs (target/debug/deps/requests-9746846a17882ee5)
+
+running 5 tests
+test subscriptions_do_not_create_control_intents_and_binding_collisions_are_rejected ... ok
+test on_only_uses_confirmed_restore_then_configured_default_and_never_guesses ... ok
+test malformed_duplicate_and_out_of_range_requests_produce_no_batch ... ok
+test grouped_on_and_brightness_are_order_independent_with_off_winning ... ok
+test switch_mapping_and_input_limits_are_enforced ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/storage.rs (target/debug/deps/storage-8dec6809509947f0)
+
+running 13 tests
+test missing_identity_with_existing_pairing_does_not_allow_reinitialization ... ok
+test storage_permissions_are_private_and_insecure_existing_directory_is_rejected ... ok
+test admission_authorization_reads_current_pairing_and_rejects_corrupt_identity ... ok
+test authorized_updates_preserve_keys_and_demoting_last_admin_revokes_all ... ok
+test aid_initialization_never_repairs_corrupt_or_previously_initialized_cache ... ok
+test identity_pairing_and_aids_survive_reopen ... ok
+test manifest_failure_rolls_back_aids_and_number ... ok
+test graph_cache_and_configuration_number_commit_together_or_roll_back ... ok
+test last_admin_removal_is_atomic_and_preserves_accessory_identity ... ok
+test loopback_server_installs_whole_graph_and_preserves_number_on_restart ... ok
+test changing_identity_or_corrupt_storage_never_silently_resets_pairings ... ok
+test namespaces_bounds_and_pairing_limit_are_enforced ... ok
+test busy_database_does_not_acknowledge_lost_write ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.31s
+
+     Running tests/write.rs (target/debug/deps/write-7984c4df0b0815e2)
+
+running 3 tests
+test runtime_backpressure_and_subscription_authorization_are_not_swallowed ... ok
+test grouped_adapter_preserves_principal_and_never_submits_invalid_partial_intent ... ok
+test asynchronous_acceptance_waits_and_preserves_runtime_rejection ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/deps/homesense_import-d3e228c5abd5ac1d)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/main.rs (target/debug/deps/homesense_import-12e4f9d826776517)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/import.rs (target/debug/deps/import-4dd1becf21ebea93)
+
+running 9 tests
+test c4p_rejects_missing_root_truncation_and_corrupted_member ... ok
+test malformed_embedded_state_is_explicitly_reported ... ok
+test imports_disabled_mapping_and_reports_unresolved_code_without_copying_credentials ... ok
+test preserves_code_nested_inside_conditional_expression ... ok
+test explicit_profile_plan_produces_valid_disabled_configuration_and_coverage ... ok
+test rejects_ambiguous_ids_properties_and_invalid_bus_values ... ok
+test preserves_program_tree_but_only_recognizes_exact_root_container ... ok
+test c4p_stored_and_deflated_match_xml_and_record_distinct_source_hashes ... ok
+test scene_steps_preserve_order_timing_tracking_and_unknown_field_disposition ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/deps/homesense_simulator-932a350ed089821a)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/gateway.rs (target/debug/deps/gateway-623c2f4d18163ac1)
+
+running 4 tests
+test motor_does_not_fake_feedback_and_broadcasts_are_rejected ... ok
+test lost_replies_do_not_prevent_physical_state_change_and_disconnect_drops_residual_bytes ... ok
+test delayed_fragmented_duplicate_feedback_is_generated_from_written_value ... ok
+test silent_gateway_and_invalid_commands_never_invent_responses ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/deps/homesense_state-8c074e57f553b4ce)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/state.rs (target/debug/deps/state-60673b4ac4e22801)
+
+running 6 tests
+test command_intent_never_confirms_state_and_old_completions_cannot_clear_new_intent ... ok
+test disconnect_preserves_observation_but_rejects_old_connection_feedback ... ok
+test identical_button_edges_remain_events_for_the_gesture_layer ... ok
+test duplicate_feedback_refreshes_freshness_without_triggering_change_events ... ok
+test invalid_observations_are_atomic_and_motors_never_gain_fake_positions ... ok
+test subscription_gaps_restart_and_future_cursors_require_snapshot ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/deps/homesense_storage-69311e1f019a9d4c)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/journal.rs (target/debug/deps/journal-997a5b7704efa3db)
+
+running 6 tests
+test same_batch_coalescing_and_failed_stop_commit_keep_consistent_audit ... ok
+test acceptance_is_atomic_under_insert_failure_and_revision_conflict ... ok
+test queue_publication_follows_atomic_journal_commit_including_coalescing ... ok
+test publication_cancellation_is_atomic_and_survives_failed_configuration_commit ... ok
+test restart_marks_old_nonterminal_records_uncertain_without_replay ... ok
+test version_one_database_migrates_without_losing_configuration ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/light_restore.rs (target/debug/deps/light_restore-dca4f25ba3211386)
+
+running 1 test
+test restore_survives_restart_ignores_zero_and_does_not_cross_revision ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/publication.rs (target/debug/deps/publication-90ee76a42d45574a)
+
+running 7 tests
+test foreign_databases_are_not_migrated_and_existing_revisions_are_immutable ... ok
+test audit_failure_rolls_back_revision_and_pointer_together ... ok
+test compare_and_swap_rejects_stale_writer_and_nonmonotonic_revision ... ok
+test committed_configuration_and_audit_survive_close_and_reopen ... ok
+test real_sqlite_commit_drives_arbiter_revision_and_restart_truth ... ok
+test validated_configuration_is_checked_before_publish_and_again_at_startup ... ok
+test database_lock_failure_leaves_active_pointer_and_revision_unchanged ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.30s
+
+     Running unittests src/lib.rs (target/debug/deps/homesensed-c23fe388d2ebde4c)
+
+running 4 tests
+test service::tests::simulation_queries_initial_and_periodic_observations_without_control ... ok
+test restore_policy::tests::intermediate_samples_off_and_latest_target_preserve_memory ... ok
+test admission::lifecycle_tests::stopping_idle_owner_notifies_generation_subscribers ... ok
+test runtime_hap::publication_tests::changed_feedback_revision_invalidates_old_hap_projection ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running unittests src/main.rs (target/debug/deps/homesensed-a1cda8602db882fe)
+
+running 1 test
+test tests::hex_input_is_strict_and_accepts_whitespace ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/admission.rs (target/debug/deps/admission-0773a3921b6ce347)
+
+running 36 tests
+test cancelling_blocked_read_emits_stale_and_never_projects_late_bytes ... ok
+test combined_light_admits_both_outputs_and_blocks_direct_supply_writes ... ok
+test cancel_wakes_an_already_waiting_timer_without_waiting_for_deadline ... ok
+test combined_repeated_full_brightness_never_moves_supply_before_dimmer ... ok
+test async_acceptance_is_durable_and_rechecks_authorization ... ok
+test ad8_acceptance_journals_compiled_ramp_not_immediate_target ... ok
+test calibrated_motor_uses_durable_owner_and_stop_cancels_pending_motion ... ok
+test dispatch_rechecks_principal_and_records_write_not_observation ... ok
+test delayed_work_keeps_original_generation_across_recovery_and_restart ... ok
+test combined_restore_ignores_ramp_and_off_supply_until_confirmed_target ... ok
+test failed_publication_keeps_cancelled_work_dead_after_recovery ... ok
+test observed_transport_projects_wire_feedback_and_invalidates_snapshot_on_eof ... ok
+test old_mapping_feedback_cannot_seed_new_revision_restore_memory ... ok
+test delayed_actions_are_bounded_cancelled_and_never_replayed_after_recovery ... ok
+test failed_writing_audit_never_hands_frame_to_transport ... ok
+test cancelled_graph_installation_stops_durable_admission ... ok
+test failed_transport_audit_rolls_back_and_keeps_admission_closed ... ok
+test publication_cancels_old_work_waits_for_frame_and_installs_mapping_after_sync ... ok
+test bounded_mailbox_rejects_overload_and_expired_waiting_request ... ok
+test motor_entry_rejects_missing_calibration_and_raw_light_entry_bypass ... ok
+test partial_motor_write_is_uncertain_and_restart_never_replays_motion ... ok
+test native_runtime_hap_accepts_durably_and_reads_only_published_feedback ... ok
+test publication_drains_stop_against_original_motor_mapping ... ok
+test receive_preserves_gateway_epoch_and_partial_framing_then_stops_on_eof ... ok
+test restore_memory_accepts_only_current_boot_confirmed_fresh_nonzero_feedback ... ok
+test synchronized_recovery_accepts_only_new_work_in_a_fresh_generation ... ok
+test storage_error_stops_subsequent_acceptance ... ok
+test transport_failure_durably_cancels_queue_and_marks_inflight_uncertain ... ok
+test recovery_rejects_changed_configuration_even_with_same_revision ... ok
+test combined_wire_order_and_each_partial_write_boundary_are_audited ... ok
+test panel_led_entry_requires_manual_mode_and_uses_audited_transport ... ok
+test lifecycle_changes_wake_long_delays_without_replay ... ok
+test transport_owner_routes_and_audits_full_and_partial_frames ... ok
+test publication_wakes_timers_and_abort_does_not_restore_them ... ok
+test abandoned_dispatch_expires_without_mailbox_traffic_and_rejects_late_success ... ok
+test incomplete_write_and_lease_expiry_cancel_waiting_commands ... ok
+
+test result: ok. 36 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.24s
+
+     Running tests/cli.rs (target/debug/deps/cli-4900bcb0a071a59b)
+
+running 3 tests
+test check_config_requires_explicit_simulation_for_sample ... ok
+test demo_observes_requested_levels_only_after_gateway_feedback ... ok
+test invalid_levels_fail_before_any_command_is_queued ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.61s
+
+     Running tests/combined_light.rs (target/debug/deps/combined_light-e451ce0473c25298)
+
+running 4 tests
+test external_feedback_and_loss_of_either_component_are_reflected ... ok
+test restore_prepares_dimmer_before_energizing_supply ... ok
+test off_preserves_physical_dimmer_and_never_energizes_relay ... ok
+test projection_hides_supply_and_uses_the_older_feedback_without_mutating_physical_state ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/configuration_publish.rs (target/debug/deps/configuration_publish-3aae1d1c8bd4f1b6)
+
+running 1 test
+test publication_requires_stopped_runtime_and_expected_revision_preserving_identity ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/diagnostics.rs (target/debug/deps/diagnostics-c8a639e7d823ca88)
+
+running 2 tests
+test passive_capture_retains_split_unknown_frames_and_partial_eof ... ok
+test passive_capture_stops_at_frame_limit_and_propagates_sink_failure ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/drive.rs (target/debug/deps/drive-712c0e3abd265ef7)
+
+running 3 tests
+test stopped_drive_never_dispatches_accepted_command ... ok
+test cancelled_drive_invalidates_confirmed_reads_and_stops_admission ... ok
+test drive_sends_observes_and_invalidates_on_eof ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/feedback.rs (target/debug/deps/feedback-6dc6272678757bbb)
+
+running 5 tests
+test explicit_invalidation_emits_one_quality_event_and_is_idempotent ... ok
+test silent_feedback_expires_at_boundary_once_and_fresh_feedback_recovers ... ok
+test configured_feedback_rejects_wrong_source_and_epoch_and_stales_on_disconnect ... ok
+test recovery_preserves_stale_snapshot_and_rejects_prior_generation_feedback ... ok
+test keypad_recovery_requires_fresh_events_and_never_replays_old_press ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/field_capture.rs (target/debug/deps/field_capture-4ec54f9f427f8dcd)
+
+running 1 test
+test recorded_ts6_events_survive_every_fragment_size_without_losing_releases ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/http_runtime.rs (target/debug/deps/http_runtime-372ff31efec0c3d7)
+
+running 2 tests
+test encrypted_write_is_durable_without_fabricating_observed_state ... ok
+test encrypted_combined_light_queues_both_outputs_and_projects_feedback ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+     Running tests/live_service.rs (target/debug/deps/live_service-f2076ac7895aacda)
+
+running 2 tests
+test live_service_rejects_simulated_config_and_missing_coexistence_before_state_creation ... ok
+test live_service_queries_before_serving_and_preserves_identity_across_restart ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.70s
+
+     Running tests/motor_commission.rs (target/debug/deps/motor_commission-224d02ed9cd218da)
+
+running 2 tests
+test broken_stdout_does_not_prevent_scheduled_stop ... ok
+test directions_stop_and_durable_audit ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 6.03s
+
+     Running tests/panel_led.rs (target/debug/deps/panel_led-f96ea81c8d13b935)
+
+running 4 tests
+test unverified_mode_scope_and_missing_coexistence_fail_before_state_creation ... ok
+test delayed_bus_feedback_after_mode_byte_prevents_led_admission ... ok
+test explicit_colors_use_audit_and_restart_does_not_replay ... ok
+test self_reset_unknown_or_interleaved_mode_never_writes_led ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.09s
+
+     Running tests/parameter_probe.rs (target/debug/deps/parameter_probe-52d102a29f8d76cc)
+
+running 3 tests
+test partial_query_is_not_replayed_after_write_failure ... ok
+test full_response_window_rejects_interleaved_or_duplicate_bytes ... ok
+test field_values_preserve_unknown_backlight_and_do_not_claim_led_colors ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/read_probe.rs (target/debug/deps/read_probe-4477f80c0495e796)
+
+running 3 tests
+test partial_write_fails_without_replay_or_reading ... ok
+test query_accepts_only_matching_valid_observation_without_control_frame ... ok
+test idle_query_times_out_after_exactly_one_request ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/reconnect.rs (target/debug/deps/reconnect-e96c98e48606b4ef)
+
+running 3 tests
+test connector_requires_coexistence_and_honors_stop ... ok
+test connector_receives_on_new_epoch_without_reopening_control_or_sending ... ok
+test failed_connects_exhaust_bounded_retries_with_backoff ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+     Running tests/recovery.rs (target/debug/deps/recovery-6736a2c041604ec6)
+
+running 1 test
+test recovery_retains_stale_state_until_fresh_generation_feedback ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/service.rs (target/debug/deps/service-a3fa36c028a38373)
+
+running 4 tests
+test lan_simulation_rejects_wildcard_public_and_loopback_before_creating_state ... ok
+test occupied_port_fails_and_releases_runtime_for_restart ... ok
+test aborted_service_releases_listener_and_runtime_lease ... ok
+test simulation_service_restarts_with_stable_identity_and_releases_listener ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.34s
+
+     Running tests/simulation.rs (target/debug/deps/simulation-fe405beb0c99737f)
+
+running 4 tests
+test rejected_batch_is_atomic_and_does_not_consume_command_ids ... ok
+test deadline_and_monotonic_clock_prevent_late_execution ... ok
+test grouped_hap_write_reaches_configured_bus_and_only_feedback_confirms_state ... ok
+test ad8_hap_target_uses_hardware_ramp_and_feedback_confirms ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/simulation_hap.rs (target/debug/deps/simulation_hap-5038f330a627b596)
+
+running 1 test
+test feedback_updates_native_reads_and_notifications_without_premature_acknowledgment ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/supervisor.rs (target/debug/deps/supervisor-3daa1925dc4efaca)
+
+running 4 tests
+test queued_control_is_dispatched_between_periodic_device_queries ... ok
+test quiet_device_is_refreshed_without_reconnecting ... ok
+test tcp_eof_reconnects_queries_then_sends_only_new_command ... ok
+test query_timeout_reconnects_again_without_sending_control_to_unsynchronized_socket ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.74s
+
+   Doc-tests hb_protocol
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests hb_transport
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests homesense_config
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests homesense_core
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests homesense_hap
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests homesense_import
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests homesense_simulator
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests homesense_state
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests homesense_storage
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests homesensed
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s

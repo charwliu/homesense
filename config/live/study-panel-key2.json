@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "revision": 1,
+  "manual_degraded_enabled": false,
+  "gateways": [
+    {
+      "id": "hopebeauty",
+      "endpoint": "192.168.0.10:50007",
+      "modules": [
+        {
+          "address": "41",
+          "profile": "ts6_86_rs485_v2_6_5_6key",
+          "verification": {
+            "status": "verified",
+            "evidence": "User confirmed TS6-86 RS485 six-key model. Prior C7 raw 02 is a candidate manual-mode reply; panel-led independently rechecks exact 02 before each write. Only key 2 LED is commissioned; no button event or module parameter changes.",
+            "verified_at_unix_ms": 1791679357776
+          },
+          "led_mode": "manual"
+        }
+      ]
+    }
+  ],
+  "devices": [
+    {
+      "id": "control4:63:key:2",
+      "name": "书房面板按键 2",
+      "gateway": "hopebeauty",
+      "address": "41",
+      "channel": 2,
+      "enabled": true
+    }
+  ]
+}

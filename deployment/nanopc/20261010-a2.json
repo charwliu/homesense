@@ -1,0 +1,31 @@
+{
+  "release": "20261010-a2",
+  "base_commit": "1fdbe694530eee571993f616f59d2196bf11ccb4",
+  "uncommitted_worktree": true,
+  "source_sha256": "5071256a5400d52baf2351e69cb0f1d711acea06ff19b7aa0815b6ee87a0f317",
+  "rust": "1.99.0",
+  "target": "aarch64-unknown-linux-gnu",
+  "linker": "LLVM 23.1.2 with nanopc glibc 2.41 sysroot",
+  "binary_sha256": "0fe0e8f9dacb4ebc4f5c8eaf9a3d620af78e4bbe4379a8fe258ae14362657025",
+  "host": "nanopc.lab.vixal.xyz",
+  "address": "192.168.4.1",
+  "directory": "/users/alarm/apps/homesense",
+  "active_release": "releases/20261010-a2",
+  "simulation_smoke": {
+    "passed": true,
+    "restarts": 2,
+    "unpaired_http_status": 401,
+    "identity_stable": true,
+    "listener_released": true,
+    "state_directory": "/users/alarm/apps/homesense/tests/smoke-10i9i4t8"
+  },
+  "passive_capture": {
+    "endpoint": "192.168.0.10:50007",
+    "elapsed_ms": 10085,
+    "frames": 0,
+    "reason": "duration",
+    "remote_log": "/users/alarm/apps/homesense/tests/passive-20261010-a2.jsonl"
+  },
+  "autostart_enabled": false,
+  "running_after_tests": false
+}

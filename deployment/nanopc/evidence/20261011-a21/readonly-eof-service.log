@@ -1,0 +1,9 @@
+[2026-10-11T01:05:21Z INFO  homesensed::reconnect] gateway_connect_attempt epoch=2 attempt=1 gateways=1
+[2026-10-11T01:05:21Z INFO  homesensed::reconnect] gateway_connected gateway="hopebeauty" epoch=2; synchronization pending
+[2026-10-11T01:05:21Z INFO  homesensed::live_service] live_initial_synchronized epoch=2 revision=1 devices=1
+[2026-10-11T01:05:21Z INFO  hap::transport::http::server] binding TCP listener on 127.0.0.1:35105
+[2026-10-11T01:05:21Z WARN  homesensed::runtime_hap] gateway_cycle_failed epoch=2 error="gateway hopebeauty disconnected"
+[2026-10-11T01:05:21Z INFO  homesensed::runtime_hap] gateway_recovery_start previous_epoch=2 recovery=1
+[2026-10-11T01:05:21Z INFO  homesensed::reconnect] gateway_connect_attempt epoch=3 attempt=1 gateways=1
+[2026-10-11T01:05:21Z INFO  homesensed::reconnect] gateway_connected gateway="hopebeauty" epoch=3; synchronization pending
+[2026-10-11T01:05:21Z INFO  homesensed::runtime_hap] gateway_recovery_synchronized epoch=3 revision=1 devices=1

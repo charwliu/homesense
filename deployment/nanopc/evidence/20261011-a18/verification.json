@@ -1,0 +1,22 @@
+{
+  "workspace_tests": 208,
+  "failed": 0,
+  "behavior": [
+    "Intermediate 47 and 36 are suppressed for local target 30; target and timeout are published",
+    "Latest accepted target replaces prior target; off cancels pending brightness notification suppression",
+    "Timeout republishes unchanged actual state to correct optimistic UI",
+    "Unknown/disconnected state still notifies and clears transition",
+    "Encrypted HTTP reads retain actual 27 while events omit it; persisted restore remains 40 and restart On uses 40",
+    "Supply off and ramp feedback do not overwrite confirmed nonzero restore memory"
+  ],
+  "limitations": [
+    "Physical acceptance pending",
+    "HAP reads still report real intermediate values",
+    "Interrupted ramp restores last confirmed level, not unconfirmed requested target",
+    "Cross-VLAN discovery is temporary"
+  ],
+  "user_result": {
+    "brightness_bounce": "resolved per user",
+    "on_restore": "failed; restored 100 instead of 50"
+  }
+}

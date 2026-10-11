@@ -1,0 +1,27 @@
+{
+  "release": "20261011-a8",
+  "base_commit": "1fdbe694530eee571993f616f59d2196bf11ccb4",
+  "uncommitted_worktree": true,
+  "source_sha256": "e6f54e3afd26f936a356c64280b2cfc1c4fc91af4be83daf99f876e192557105",
+  "source_scope": "crates, vendor, Cargo.toml, Cargo.lock; sorted path NUL content NUL",
+  "rust": "1.99.0",
+  "target": "aarch64-unknown-linux-gnu",
+  "binary_sha256": "ebf39cf5975474f7d25c1a92168de8dde7762d9aa00aee20f45d8bd3602efc47",
+  "host": "nanopc.lab.vixal.xyz",
+  "active_release": "releases/20261011-a8",
+  "autostart_enabled": false,
+  "simulation_smoke": {
+    "passed": true,
+    "state_directory": "/users/alarm/apps/homesense/tests/smoke-ffx4h910"
+  },
+  "diagnostics": "TCP peer, HTTP/transport completion and authentication deadline; no bodies or keys",
+  "field_validation": {
+    "hub": "HPLeft",
+    "hub_ip": "192.168.3.215",
+    "hub_tcp_established": true,
+    "authenticated_reads": true,
+    "home_ui": "unresponsive again",
+    "stable_control": false,
+    "pairing_sync": "After list/add/remove, authorization became 401 and Pair Verify failed with Storage; read-only inspection confirmed 0 pairings. Cause of controller removal not conclusively established."
+  }
+}

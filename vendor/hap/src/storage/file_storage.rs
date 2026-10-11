@@ -329,6 +329,7 @@ mod tests {
     #[tokio::test]
     async fn test_pairing_storage() {
         let pairing = Pairing {
+            identifier: None,
             id: Uuid::parse_str("bc158b86-cabf-432d-aee4-422ef0e3f1d5").unwrap(),
             permissions: Permissions::Admin,
             public_key: [

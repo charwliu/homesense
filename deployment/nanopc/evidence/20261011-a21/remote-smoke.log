@@ -1,0 +1,24 @@
+tar: ./SHA256SUMS: time stamp 2026-10-11 09:08:00.6658256 is 209.805913147 s in the future
+tar: ./build.json: time stamp 2026-10-11 09:08:00.6613214 is 209.801272447 s in the future
+tar: ./homesensed: time stamp 2026-10-11 09:07:42.393968 is 191.412805297 s in the future
+build.json: OK
+config/simulation-home.json: OK
+config/simulation.json: OK
+config/study-lights.draft.json: OK
+config/study-main-light.live.json: OK
+config/study-panel-key2.live.json: OK
+config/study-panel.draft.json: OK
+config/study-switch.live.json: OK
+homesensed: OK
+live-smoke.py: OK
+panel-smoke.py: OK
+read-only-reconnect.py: OK
+smoke-test.py: OK
+HomeSense deterministic simulation; no hardware connection
+Queued 1: [AE, 15, 01, 1E, EE]
+Written: observed=None, quality=Unknown
+Feedback: observed=Some(Level(Percent(30))), quality=Confirmed, pending=None
+Configuration valid: revision=1, gateways=1, devices=6, enabled=0, context=Live; no connection opened
+{"simulation_smoke": "passed", "restarts": 2, "unpaired_http_status": 401, "identity_stable": true, "listener_released": true, "state_directory": "/users/alarm/apps/homesense/tests/smoke-yei11ilg"}
+{"live_smoke": "passed", "restarts": 2, "query_before_hap": true, "unpaired_http": 401, "identity_stable": true, "state_directory": "/users/alarm/apps/homesense/tests/live-smoke-dzb4r5w2"}
+{"panel_led_smoke": "passed", "colors": ["green", "red"], "scope": "loopback only", "state_directory": "/users/alarm/apps/homesense/tests/panel-smoke-vmig9m9p"}

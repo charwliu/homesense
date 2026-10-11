@@ -144,6 +144,28 @@ impl Arbiter {
         self.policy.storage_healthy = true;
         Ok(cancelled)
     }
+    /// Install a strictly newer connection generation while control is closed.
+    /// The owner must persist returned cancellations and query the new mapping
+    /// before calling gateway_resynchronized and storage_recovered. This method
+    /// alone never reopens admission or asserts that a socket is healthy.
+    pub fn transport_reconnected(
+        &mut self,
+        transport_epoch: u64,
+    ) -> Result<Vec<Cancellation>, ArbiterError> {
+        if self.policy.storage_healthy || self.publication.is_some() {
+            return Err(ArbiterError::InvalidState);
+        }
+        if self.writing.is_some() {
+            return Err(ArbiterError::Busy);
+        }
+        if transport_epoch <= self.policy.epochs.transport {
+            return Err(ArbiterError::NotSynchronized);
+        }
+        self.policy.epochs.transport = transport_epoch;
+        self.policy.gateway_ready = false;
+        Ok(self.queue.clear(CancelReason::TransportChanged))
+    }
+
     /// Evidence from the connection owner after querying/synchronizing the active
     /// mapping. Does not permit a new connection to reuse an old transport epoch.
     /// Reconnection lifecycle is handled separately from this readiness update.

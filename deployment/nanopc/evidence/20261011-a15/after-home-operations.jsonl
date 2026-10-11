@@ -1,0 +1,6 @@
+{"configuration_unchanged":true,"endpoint":"192.168.0.10:50007","event":"query_plan","profile":"r8i8_din_pro_v2_7_7","raw":[174,3,164,242,238]}
+{"elapsed_ms":27,"event":"frame","raw":[174,3,212,242,238]}
+{"causal_acknowledgment":false,"elapsed_ms":27,"event":"query_finished","outcome":"Observation(Switch(false))"}
+{"configuration_unchanged":true,"endpoint":"192.168.0.10:50007","event":"query_plan","profile":"ad8_din_rs485_v2_2_1","raw":[174,18,164,242,238]}
+{"elapsed_ms":29,"event":"frame","raw":[174,18,212,40,238]}
+{"causal_acknowledgment":false,"elapsed_ms":29,"event":"query_finished","outcome":"Observation(Level(Percent(40)))"}

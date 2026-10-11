@@ -1,0 +1,33 @@
+{
+  "release": "20261011-a20",
+  "device": "control4:63:key:2",
+  "module_address_hex": "41",
+  "channel": 2,
+  "initial_color_user_report": "red; keys 2 and 6",
+  "hold_seconds": 60,
+  "green": {
+    "exit": 0,
+    "boot_id": "f70c063d-7bd4-4964-a937-d9cbf2c2d450",
+    "command_id": 1,
+    "mode_query_raw": [
+      2
+    ]
+  },
+  "red_restore": {
+    "exit": 0,
+    "boot_id": "8e277173-5f7d-4f34-b700-95851bd0c583",
+    "command_id": 1,
+    "mode_query_raw": [
+      2
+    ]
+  },
+  "user_confirmed_green_then_red": true,
+  "user_confirmation": [
+    "变成绿色，没有自动恢复",
+    "恢复了",
+    "刚才时时间没到"
+  ],
+  "key6_command_sent": false,
+  "button_event_sent": false,
+  "limitations": "Physical color verified by user, not protocol readback; mode reply remains a candidate. No curtain movement or STOP validation."
+}

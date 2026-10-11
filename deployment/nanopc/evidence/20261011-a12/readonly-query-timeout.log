@@ -1,0 +1,14 @@
+[2026-10-10T17:57:44Z INFO  homesensed::reconnect] gateway_connect_attempt epoch=2 attempt=1 gateways=1
+[2026-10-10T17:57:44Z INFO  homesensed::reconnect] gateway_connected gateway="hopebeauty" epoch=2; synchronization pending
+[2026-10-10T17:57:44Z INFO  homesensed::live_service] live_initial_synchronized epoch=2 revision=1 devices=1
+[2026-10-10T17:57:45Z INFO  hap::transport::http::server] binding TCP listener on 127.0.0.1:33745
+[2026-10-10T17:57:45Z WARN  homesensed::runtime_hap] gateway_cycle_failed epoch=2 error="gateway hopebeauty disconnected"
+[2026-10-10T17:57:45Z INFO  homesensed::runtime_hap] gateway_recovery_start previous_epoch=2 recovery=1
+[2026-10-10T17:57:45Z INFO  homesensed::reconnect] gateway_connect_attempt epoch=3 attempt=1 gateways=1
+[2026-10-10T17:57:45Z INFO  homesensed::reconnect] gateway_connected gateway="hopebeauty" epoch=3; synchronization pending
+[2026-10-10T17:57:46Z WARN  homesensed::observed_transport] gateway_query_timeout device=DeviceId("control4:210") gateway="hopebeauty" timeout_ms=1000 reads=10
+[2026-10-10T17:57:46Z WARN  homesensed::runtime_hap] gateway_recovery_query_failed epoch=3 error="recovery feedback timeout or read limit"
+[2026-10-10T17:57:46Z INFO  homesensed::runtime_hap] gateway_recovery_start previous_epoch=3 recovery=2
+[2026-10-10T17:57:46Z INFO  homesensed::reconnect] gateway_connect_attempt epoch=4 attempt=1 gateways=1
+[2026-10-10T17:57:46Z INFO  homesensed::reconnect] gateway_connected gateway="hopebeauty" epoch=4; synchronization pending
+[2026-10-10T17:57:46Z INFO  homesensed::runtime_hap] gateway_recovery_synchronized epoch=4 revision=1 devices=1

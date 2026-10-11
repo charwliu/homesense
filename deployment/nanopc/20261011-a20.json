@@ -1,0 +1,17 @@
+{
+  "release": "20261011-a20",
+  "base_commit": "1fdbe694530eee571993f616f59d2196bf11ccb4",
+  "uncommitted_worktree": true,
+  "source_sha256": "2d1b0d3c64bb6d1eab50b956244ca84c9ebe39bfcbf4f46c46c056b0d9318bbe",
+  "source_scope": "git ls-files cached and untracked nonignored: crates, vendor, Cargo.toml, Cargo.lock; sorted unique path NUL content NUL",
+  "rust": "1.99.0",
+  "target": "aarch64-unknown-linux-gnu",
+  "binary_sha256": "61acd0fb8f03626c3b0e687b653315d66d988c7472671d73e88d322bca58bbe8",
+  "host": "nanopc.lab.vixal.xyz",
+  "status": "installed separately; key 2 green/red field confirmed; current remains a19",
+  "database_schema": 4,
+  "workspace_tests": 213,
+  "autostart_enabled": false,
+  "current_switched": false,
+  "field_evidence": "evidence/20261011-a20/panel-key2-field-result.json"
+}

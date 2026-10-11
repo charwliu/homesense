@@ -1,0 +1,17 @@
+{
+  "release": "20261011-a6",
+  "base_commit": "1fdbe694530eee571993f616f59d2196bf11ccb4",
+  "uncommitted_worktree": true,
+  "source_sha256": "e84cc5ae074dbb3989840aa91cd3b5a39b5f57605fcef21ced9596377a989eb0",
+  "source_scope": "crates, vendor, Cargo.toml, Cargo.lock; sorted path NUL content NUL",
+  "rust": "1.99.0",
+  "target": "aarch64-unknown-linux-gnu",
+  "binary_sha256": "153314d702b7d42affa4863d9fab4f8f828e4c38b7b48bc22dce27ed6d7eedb9",
+  "host": "nanopc.lab.vixal.xyz",
+  "active_release": "releases/20261011-a6",
+  "simulation_smoke": {
+    "passed": true,
+    "state_directory": "/users/alarm/apps/homesense/tests/smoke-b29pm5gn"
+  },
+  "autostart_enabled": false
+}
