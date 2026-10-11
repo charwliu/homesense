@@ -4271,6 +4271,13 @@ async fn running_automation_control_cancels_before_output_and_closes_on_exit() {
     let mut owner=ObservedTransport::new(transport,feedback);
     let (stop,receive)=tokio::sync::watch::channel(false);
     let client=async {
+        assert!(control.subscribe("unknown".into()).await.is_err());
+        let mut subscription=control.subscribe("light".into()).await.unwrap();
+        let mut extra=Vec::new();
+        for _ in 0..15 {extra.push(control.subscribe("light".into()).await.unwrap());}
+        assert!(control.subscribe("light".into()).await.unwrap_err().contains("capacity"));
+        drop(extra);
+        drop(control.subscribe("light".into()).await.unwrap());
         assert_eq!(control.request(Action::LastRun("light".into())).await.unwrap(),Reply::LastRun(None));
         assert_eq!(control.request(Action::SceneActivity("light".into())).await.unwrap(),Reply::Activity(Some(homesensed::scene_activity::SceneActivity::Unknown)));
         assert!(control.request(Action::SceneActivity("unknown".into())).await.is_err());
@@ -4296,10 +4303,22 @@ async fn running_automation_control_cancels_before_output_and_closes_on_exit() {
         assert_eq!(last.boot,a.boot_id());
         assert!(!last.run.is_empty());
         assert!(last.updated_ms>=last.started_ms);
+        tokio::time::timeout(std::time::Duration::from_secs(2),async {
+            loop {
+                let ready=subscription.borrow_and_update().as_ref().is_some_and(|result|result.as_ref().is_ok_and(|state|
+                    state.activity==homesensed::scene_activity::SceneActivity::Active && state.last_run.as_ref().is_some_and(|last|last.status==homesense_storage::scene_run::Status::Cancelled)));
+                if ready {break;}
+                subscription.changed().await.unwrap();
+            }
+        }).await.unwrap();
+        tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+        assert!(!subscription.has_changed().unwrap(),"unchanged snapshots must not notify");
         stop.send(true).unwrap();
+        subscription
     };
-    let (result,())=tokio::join!(runtime.drive(&mut owner,std::time::Duration::from_millis(1),5000,receive,||Ok(1_800_000_000_000)),client);
+    let (result,subscription)=tokio::join!(runtime.drive(&mut owner,std::time::Duration::from_millis(1),5000,receive,||Ok(1_800_000_000_000)),client);
     result.unwrap();
+    assert!(subscription.borrow().as_ref().unwrap().as_ref().unwrap_err().contains("stopped"));
     assert!(control.request(Action::Start("light".into())).await.is_err());
     let sql=rusqlite::Connection::open(&db.0).unwrap();
     assert_eq!(sql.query_row("SELECT count(*) FROM scene_run",[],|r|r.get::<_,i64>(0)).unwrap(),1);

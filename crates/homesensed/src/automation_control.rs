@@ -41,8 +41,22 @@ pub struct LastRun {
     pub status: homesense_storage::scene_run::Status,
     pub cause: Option<homesense_storage::scene_run::Cause>,
 }
+/// Coalesced current state, not a lossless event log. Execution history remains
+/// available through LastRun and the persistent journal.
+#[derive(Debug, PartialEq, Eq)]
+pub struct SceneObservation {
+    pub activity: crate::scene_activity::SceneActivity,
+    pub last_run: Option<LastRun>,
+}
+pub type SceneSubscription = tokio::sync::watch::Receiver<Option<Result<SceneObservation,String>>>;
+struct Watcher {
+    scene: String,
+    sender: tokio::sync::watch::Sender<Option<Result<SceneObservation,String>>>,
+    next: Instant,
+}
 struct Request {
     action: Action,
+    watch: Option<tokio::sync::watch::Sender<Option<Result<SceneObservation,String>>>>,
     deadline: Instant,
     reply: oneshot::Sender<Result<Reply, String>>,
 }
@@ -53,7 +67,15 @@ pub struct Control {
 impl Control {
     /// Bounded admission, no retry. A lost response after execution is ambiguous;
     /// callers must inspect history rather than resubmit an action automatically.
+    pub async fn subscribe(&self, scene: String) -> Result<SceneSubscription,String> {
+        let (sender,receiver)=tokio::sync::watch::channel(None);
+        self.request_inner(Action::SceneActivity(scene),Some(sender)).await?;
+        Ok(receiver)
+    }
     pub async fn request(&self, action: Action) -> Result<Reply, String> {
+        self.request_inner(action,None).await
+    }
+    async fn request_inner(&self, action: Action, watch: Option<tokio::sync::watch::Sender<Option<Result<SceneObservation,String>>>>) -> Result<Reply,String> {
         if matches!(&action, Action::Start(id) | Action::LastRun(id) | Action::SceneActivity(id) if id.is_empty() || id.len()>256 || id.chars().any(char::is_control)) {
             return Err("invalid scene name".into());
         }
@@ -61,6 +83,7 @@ impl Control {
         self.sender
             .try_send(Request {
                 action,
+                watch,
                 deadline: Instant::now() + Duration::from_secs(5),
                 reply,
             })
@@ -77,6 +100,7 @@ pub(crate) struct Receiver {
     receiver: mpsc::Receiver<Request>,
     controller: Uuid,
     generation: TaskGeneration,
+    watchers: std::collections::VecDeque<Watcher>,
 }
 pub(crate) fn channel(controller: Uuid, generation: TaskGeneration) -> (Control, Receiver) {
     let (sender, receiver) = mpsc::channel(32);
@@ -86,6 +110,7 @@ pub(crate) fn channel(controller: Uuid, generation: TaskGeneration) -> (Control,
             receiver,
             controller,
             generation,
+            watchers: Default::default(),
         },
     )
 }
@@ -106,7 +131,12 @@ impl Receiver {
             if request.reply.is_closed() {
                 continue;
             }
+            self.watchers.retain(|watcher|!watcher.sender.is_closed());
+            let watch_scene=if request.watch.is_some() {
+                match &request.action {Action::SceneActivity(id)=>Some(id.clone()),_=>None}
+            } else {None};
             let result = async {
+                if request.watch.is_some() && self.watchers.len()>=16 {return Err("scene subscription capacity reached".into());}
                 if Instant::now() >= request.deadline {
                     return Err("automation request expired".into());
                 }
@@ -140,10 +170,34 @@ impl Receiver {
                 }
             }
             .await;
+            if result.is_ok() && !request.reply.is_closed()
+                && let (Some(scene),Some(sender))=(watch_scene,request.watch) {
+                self.watchers.push_back(Watcher{scene,sender,next:Instant::now()});
+            }
             let _ = request.reply.send(result);
+        }
+        // At most one snapshot per cycle, and no more than 10 Hz per watcher.
+        if let Some(mut watcher)=self.watchers.pop_front()
+            && !watcher.sender.is_closed() {
+                if Instant::now()>=watcher.next {
+                    let result=async {
+                        let scene=document.timed_scenes.get(&watcher.scene).ok_or("scene removed")?;
+                        let activity=crate::scene_activity::Targets::new(&scene.steps).project(admission,self.controller,&self.generation,feedback,max_age_ms).await?;
+                        let page=admission.scene_history(self.controller,self.generation.clone(),homesense_storage::scene_run::Query::Latest{definition:watcher.scene.clone()}).await.map_err(|e|format!("{e:?}"))?;
+                        Ok(SceneObservation{activity,last_run:page.map(|p|LastRun{boot:p.boot,run:p.run,revision:p.record.revision,started_ms:p.record.started_ms,updated_ms:p.record.updated_ms,version:p.record.version,status:p.record.status,cause:p.cause})})
+                    }.await;
+                    watcher.sender.send_if_modified(|current| {
+                        if current.as_ref()==Some(&result) {false} else {*current=Some(result);true}
+                    });
+                    watcher.next=Instant::now()+Duration::from_millis(100);
+                }
+                self.watchers.push_back(watcher);
         }
     }
     pub(crate) fn close(&mut self) {
+        for watcher in self.watchers.drain(..) {
+            watcher.sender.send_replace(Some(Err("automation runtime stopped".into())));
+        }
         self.receiver.close();
         while let Ok(request) = self.receiver.try_recv() {
             let _ = request.reply.send(Err("automation runtime stopped".into()));
