@@ -1,0 +1,117 @@
+[
+  {
+    "time_ns": 1791655064978858827,
+    "kind": "connected",
+    "generation": 1
+  },
+  {
+    "time_ns": 1791655064978974618,
+    "kind": "query",
+    "generation": 1,
+    "hex": "ae03a4f2ee"
+  },
+  {
+    "time_ns": 1791655064998977993,
+    "kind": "feedback",
+    "generation": 1,
+    "hex": "ae03d4f2ee"
+  },
+  {
+    "time_ns": 1791655065199253868,
+    "kind": "injected_eof",
+    "generation": 1
+  },
+  {
+    "time_ns": 1791655065206782077,
+    "kind": "connected",
+    "generation": 2
+  },
+  {
+    "time_ns": 1791655065206871035,
+    "kind": "query",
+    "generation": 2,
+    "hex": "ae03a4f2ee"
+  },
+  {
+    "time_ns": 1791655065227173368,
+    "kind": "feedback",
+    "generation": 2,
+    "hex": "ae03d4f2ee"
+  },
+  {
+    "time_ns": 1791655065227178910,
+    "kind": "suppressed_feedback",
+    "generation": 2
+  },
+  {
+    "time_ns": 1791655066497297411,
+    "kind": "connected",
+    "generation": 3
+  },
+  {
+    "time_ns": 1791655066497373827,
+    "kind": "query",
+    "generation": 3,
+    "hex": "ae03a4f2ee"
+  },
+  {
+    "time_ns": 1791655066518020327,
+    "kind": "feedback",
+    "generation": 3,
+    "hex": "ae03d4f2ee"
+  },
+  {
+    "time_ns": 1791655067323421078,
+    "kind": "feedback",
+    "generation": 3,
+    "hex": "ae03d4f2ee"
+  },
+  {
+    "time_ns": 1791655069119056995,
+    "kind": "query",
+    "generation": 3,
+    "hex": "ae03a4f2ee"
+  },
+  {
+    "time_ns": 1791655069142677912,
+    "kind": "feedback",
+    "generation": 3,
+    "hex": "ae03d4f2ee"
+  },
+  {
+    "time_ns": 1791655069953129162,
+    "kind": "feedback",
+    "generation": 3,
+    "hex": "ae03d4f2ee"
+  },
+  {
+    "time_ns": 1791655071747044830,
+    "kind": "query",
+    "generation": 3,
+    "hex": "ae03a4f2ee"
+  },
+  {
+    "time_ns": 1791655071770251288,
+    "kind": "feedback",
+    "generation": 3,
+    "hex": "ae03d4f2ee"
+  },
+  {
+    "time_ns": 1791655072574745247,
+    "kind": "feedback",
+    "generation": 3,
+    "hex": "ae03d4f2ee"
+  },
+  {
+    "time_ns": 1791655074367046831,
+    "kind": "query",
+    "generation": 3,
+    "hex": "ae03a4f2ee"
+  },
+  {
+    "time_ns": 1791655074387026581,
+    "kind": "feedback",
+    "generation": 3,
+    "hex": "ae03d4f2ee"
+  }
+]

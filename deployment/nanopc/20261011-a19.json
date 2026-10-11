@@ -1,0 +1,36 @@
+{
+  "release": "20261011-a19",
+  "base_commit": "1fdbe694530eee571993f616f59d2196bf11ccb4",
+  "uncommitted_worktree": true,
+  "source_sha256": "0592148b864961d07cbc62d6a81de43bb9c655bc5b0441ca04f210b2a3acb875",
+  "source_scope": "git ls-files cached and untracked nonignored: crates, vendor, Cargo.toml, Cargo.lock; sorted unique path NUL content NUL",
+  "rust": "1.99.0",
+  "target": "aarch64-unknown-linux-gnu",
+  "binary_sha256": "89b9c9b18fed80bcfd03c9dbf9666ba9e5d81b6401c9bb168ac537f18beca78a",
+  "host": "nanopc.lab.vixal.xyz",
+  "status": "deployed; user confirmed no bounce and 50% restore; query timeouts remain under investigation",
+  "database_schema": 4,
+  "workspace_tests": 210,
+  "configuration_revision": 2,
+  "hap_configuration_number": 3,
+  "autostart_enabled": false,
+  "backup": "/users/alarm/apps/homesense/backups/stopped-pre-a19-20261011-082727",
+  "simulation_smoke": {
+    "simulation_smoke": "passed",
+    "restarts": 2,
+    "unpaired_http_status": 401,
+    "identity_stable": true,
+    "listener_released": true,
+    "state_directory": "/users/alarm/apps/homesense/tests/smoke-hbx3iyno"
+  },
+  "live_smoke": {
+    "live_smoke": "passed",
+    "restarts": 2,
+    "query_before_hap": true,
+    "unpaired_http": 401,
+    "identity_stable": true,
+    "state_directory": "/users/alarm/apps/homesense/tests/live-smoke-3kpx366v"
+  },
+  "remote_start_utc": "2026-10-11T00:27:32Z",
+  "duration_seconds": 1200
+}

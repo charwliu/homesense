@@ -1,0 +1,237 @@
+[2026-10-10T16:59:35Z INFO  hap::transport::http::server] binding TCP listener on 192.168.4.1:51826
+[2026-10-10T17:00:54Z INFO  hap::transport::http::server] HAP TCP accepted peer=192.168.4.149:57824
+[2026-10-10T17:00:54Z INFO  hap::transport::http::server] HAP request path=/accessories authenticated=false
+[2026-10-10T17:00:54Z INFO  hap::transport::http::handler::accessories] received list accessories request
+[2026-10-10T17:00:54Z INFO  hap::transport::http::server] HAP response status=401 Unauthorized
+[2026-10-10T17:00:58Z INFO  hap::transport::http::server] HAP request path=/accessories authenticated=false
+[2026-10-10T17:00:58Z INFO  hap::transport::http::handler::accessories] received list accessories request
+[2026-10-10T17:00:58Z INFO  hap::transport::http::server] HAP response status=401 Unauthorized
+[2026-10-10T17:00:59Z INFO  hap::transport::http::server] HAP request path=/accessories authenticated=false
+[2026-10-10T17:00:59Z INFO  hap::transport::http::handler::accessories] received list accessories request
+[2026-10-10T17:00:59Z INFO  hap::transport::http::server] HAP response status=401 Unauthorized
+[2026-10-10T17:01:28Z INFO  hap::transport::http::server] HAP session transport ended
+[2026-10-10T17:01:28Z INFO  hap::transport::http::server] HAP TCP closed peer=192.168.4.149:57824
+[2026-10-10T17:04:16Z INFO  hap::transport::http::server] HAP TCP accepted peer=192.168.4.149:58843
+[2026-10-10T17:04:16Z INFO  hap::transport::http::server] HAP request path=/pair-verify authenticated=false
+[2026-10-10T17:04:16Z INFO  hap::transport::http::handler::pair_verify] pair verify M1: received verify start request
+[2026-10-10T17:04:16Z INFO  hap::transport::http::handler::pair_verify] pair verify M2: sending verify start response
+[2026-10-10T17:04:16Z INFO  hap::transport::http::server] HAP response status=200 OK
+[2026-10-10T17:04:16Z INFO  hap::transport::http::server] HAP request path=/pair-verify authenticated=false
+[2026-10-10T17:04:16Z INFO  hap::transport::http::handler::pair_verify] pair verify M3: received verify finish request
+[2026-10-10T17:04:16Z INFO  hap::transport::http::handler::pair_verify] pair verify M4: sending verify finish response
+[2026-10-10T17:04:16Z INFO  hap::transport::http::server] HAP response status=200 OK
+[2026-10-10T17:04:16Z INFO  hap::transport::http::server] HAP request path=/accessories authenticated=true
+[2026-10-10T17:04:16Z INFO  hap::transport::http::handler::accessories] received list accessories request
+[2026-10-10T17:04:16Z INFO  hap::transport::http::server] HAP response status=200 OK
+[2026-10-10T17:04:16Z INFO  hap::transport::http::server] HAP request path=/characteristics authenticated=true
+[2026-10-10T17:04:16Z INFO  hap::transport::http::server] HAP response status=200 OK
+[2026-10-10T17:04:16Z INFO  hap::transport::http::server] HAP request path=/characteristics authenticated=true
+[2026-10-10T17:04:16Z INFO  hap::transport::http::server] HAP response status=204 No Content
+[2026-10-10T17:04:16Z INFO  hap::transport::http::server] HAP request path=/characteristics authenticated=true
+[2026-10-10T17:04:16Z INFO  hap::transport::http::server] HAP response status=200 OK
+[2026-10-10T17:04:16Z INFO  hap::transport::http::server] HAP request path=/characteristics authenticated=true
+[2026-10-10T17:04:16Z INFO  hap::transport::http::server] HAP response status=200 OK
+[2026-10-10T17:04:21Z INFO  hap::transport::http::server] HAP session transport ended
+[2026-10-10T17:04:21Z INFO  hap::transport::http::server] HAP TCP closed peer=192.168.4.149:58843
+[2026-10-10T17:05:02Z INFO  hap::transport::http::server] HAP TCP accepted peer=192.168.4.149:58846
+[2026-10-10T17:05:02Z INFO  hap::transport::http::server] HAP request path=/pair-verify authenticated=false
+[2026-10-10T17:05:02Z INFO  hap::transport::http::handler::pair_verify] pair verify M1: received verify start request
+[2026-10-10T17:05:02Z INFO  hap::transport::http::handler::pair_verify] pair verify M2: sending verify start response
+[2026-10-10T17:05:02Z INFO  hap::transport::http::server] HAP response status=200 OK
+[2026-10-10T17:05:02Z INFO  hap::transport::http::server] HAP request path=/pair-verify authenticated=false
+[2026-10-10T17:05:02Z INFO  hap::transport::http::handler::pair_verify] pair verify M3: received verify finish request
+[2026-10-10T17:05:02Z INFO  hap::transport::http::handler::pair_verify] pair verify M4: sending verify finish response
+[2026-10-10T17:05:02Z INFO  hap::transport::http::server] HAP response status=200 OK
+[2026-10-10T17:05:02Z INFO  hap::transport::http::server] HAP request path=/accessories authenticated=true
+[2026-10-10T17:05:02Z INFO  hap::transport::http::handler::accessories] received list accessories request
+[2026-10-10T17:05:02Z INFO  hap::transport::http::server] HAP response status=200 OK
+[2026-10-10T17:05:02Z INFO  hap::transport::http::server] HAP request path=/characteristics authenticated=true
+[2026-10-10T17:05:02Z INFO  hap::transport::http::server] HAP response status=200 OK
+[2026-10-10T17:05:02Z INFO  hap::transport::http::server] HAP request path=/characteristics authenticated=true
+[2026-10-10T17:05:02Z INFO  hap::transport::http::server] HAP response status=200 OK
+[2026-10-10T17:05:02Z INFO  hap::transport::http::server] HAP request path=/characteristics authenticated=true
+[2026-10-10T17:05:02Z INFO  hap::transport::http::server] HAP response status=204 No Content
+[2026-10-10T17:05:02Z INFO  hap::transport::http::server] HAP request path=/characteristics authenticated=true
+[2026-10-10T17:05:02Z INFO  hap::transport::http::server] HAP response status=200 OK
+[2026-10-10T17:05:04Z INFO  hap::transport::http::server] HAP request path=/characteristics authenticated=true
+[2026-10-10T17:05:04Z INFO  hap::transport::http::server] HAP response status=204 No Content
+[2026-10-10T17:05:09Z INFO  hap::transport::http::server] HAP session transport ended
+[2026-10-10T17:05:09Z INFO  hap::transport::http::server] HAP TCP closed peer=192.168.4.149:58846
+[2026-10-10T17:05:22Z INFO  hap::transport::http::server] HAP TCP accepted peer=192.168.4.149:58874
+[2026-10-10T17:05:22Z INFO  hap::transport::http::server] HAP request path=/pair-verify authenticated=false
+[2026-10-10T17:05:22Z INFO  hap::transport::http::handler::pair_verify] pair verify M1: received verify start request
+[2026-10-10T17:05:22Z INFO  hap::transport::http::handler::pair_verify] pair verify M2: sending verify start response
+[2026-10-10T17:05:22Z INFO  hap::transport::http::server] HAP response status=200 OK
+[2026-10-10T17:05:22Z INFO  hap::transport::http::server] HAP request path=/pair-verify authenticated=false
+[2026-10-10T17:05:22Z INFO  hap::transport::http::handler::pair_verify] pair verify M3: received verify finish request
+[2026-10-10T17:05:22Z INFO  hap::transport::http::handler::pair_verify] pair verify M4: sending verify finish response
+[2026-10-10T17:05:22Z INFO  hap::transport::http::server] HAP response status=200 OK
+[2026-10-10T17:05:22Z INFO  hap::transport::http::server] HAP request path=/accessories authenticated=true
+[2026-10-10T17:05:22Z INFO  hap::transport::http::handler::accessories] received list accessories request
+[2026-10-10T17:05:22Z INFO  hap::transport::http::server] HAP response status=200 OK
+[2026-10-10T17:05:22Z INFO  hap::transport::http::server] HAP request path=/characteristics authenticated=true
+[2026-10-10T17:05:22Z INFO  hap::transport::http::server] HAP response status=204 No Content
+[2026-10-10T17:05:22Z INFO  hap::transport::http::server] HAP request path=/characteristics authenticated=true
+[2026-10-10T17:05:22Z INFO  hap::transport::http::server] HAP response status=200 OK
+[2026-10-10T17:05:22Z INFO  hap::transport::http::server] HAP request path=/characteristics authenticated=true
+[2026-10-10T17:05:22Z INFO  hap::transport::http::server] HAP response status=204 No Content
+[2026-10-10T17:05:22Z INFO  hap::transport::http::server] HAP request path=/characteristics authenticated=true
+[2026-10-10T17:05:22Z INFO  hap::transport::http::server] HAP response status=200 OK
+[2026-10-10T17:05:25Z INFO  hap::transport::http::server] HAP request path=/characteristics authenticated=true
+[2026-10-10T17:05:25Z INFO  hap::transport::http::server] HAP response status=204 No Content
+[2026-10-10T17:05:27Z INFO  hap::transport::http::server] HAP request path=/characteristics authenticated=true
+[2026-10-10T17:05:27Z INFO  hap::transport::http::server] HAP response status=204 No Content
+[2026-10-10T17:05:32Z INFO  hap::transport::http::server] HAP session transport ended
+[2026-10-10T17:05:32Z INFO  hap::transport::http::server] HAP TCP closed peer=192.168.4.149:58874
+[2026-10-10T17:05:33Z INFO  hap::transport::http::server] HAP TCP accepted peer=192.168.3.215:49168
+[2026-10-10T17:05:33Z INFO  hap::transport::http::server] HAP request path=/pair-verify authenticated=false
+[2026-10-10T17:05:33Z INFO  hap::transport::http::handler::pair_verify] pair verify M1: received verify start request
+[2026-10-10T17:05:33Z INFO  hap::transport::http::handler::pair_verify] pair verify M2: sending verify start response
+[2026-10-10T17:05:33Z INFO  hap::transport::http::server] HAP response status=200 OK
+[2026-10-10T17:05:33Z INFO  hap::transport::http::server] HAP request path=/pair-verify authenticated=false
+[2026-10-10T17:05:33Z INFO  hap::transport::http::handler::pair_verify] pair verify M3: received verify finish request
+[2026-10-10T17:05:33Z INFO  hap::transport::http::handler::pair_verify] pair verify M4: sending verify finish response
+[2026-10-10T17:05:33Z INFO  hap::transport::http::server] HAP response status=200 OK
+[2026-10-10T17:05:33Z INFO  hap::transport::http::server] HAP request path=/accessories authenticated=true
+[2026-10-10T17:05:33Z INFO  hap::transport::http::handler::accessories] received list accessories request
+[2026-10-10T17:05:33Z INFO  hap::transport::http::server] HAP response status=200 OK
+[2026-10-10T17:05:33Z INFO  hap::transport::http::server] HAP request path=/characteristics authenticated=true
+[2026-10-10T17:05:33Z INFO  hap::transport::http::server] HAP response status=204 No Content
+[2026-10-10T17:05:33Z INFO  hap::transport::http::server] HAP request path=/characteristics authenticated=true
+[2026-10-10T17:05:33Z INFO  hap::transport::http::server] HAP response status=204 No Content
+[2026-10-10T17:05:33Z INFO  hap::transport::http::server] HAP request path=/characteristics authenticated=true
+[2026-10-10T17:05:33Z INFO  hap::transport::http::server] HAP response status=200 OK
+[2026-10-10T17:05:33Z INFO  hap::transport::http::server] HAP request path=/characteristics authenticated=true
+[2026-10-10T17:05:33Z INFO  hap::transport::http::server] HAP response status=200 OK
+[2026-10-10T17:05:33Z INFO  hap::transport::http::server] HAP request path=/characteristics authenticated=true
+[2026-10-10T17:05:33Z INFO  hap::transport::http::server] HAP response status=200 OK
+[2026-10-10T17:05:33Z INFO  hap::transport::http::server] HAP request path=/characteristics authenticated=true
+[2026-10-10T17:05:33Z INFO  hap::transport::http::server] HAP response status=204 No Content
+[2026-10-10T17:05:33Z INFO  hap::transport::http::server] HAP request path=/characteristics authenticated=true
+[2026-10-10T17:05:33Z INFO  hap::transport::http::server] HAP response status=204 No Content
+[2026-10-10T17:05:33Z INFO  hap::transport::http::server] HAP request path=/characteristics authenticated=true
+[2026-10-10T17:05:33Z INFO  hap::transport::http::server] HAP response status=204 No Content
+[2026-10-10T17:05:33Z INFO  hap::transport::http::server] HAP request path=/characteristics authenticated=true
+[2026-10-10T17:05:33Z INFO  hap::transport::http::server] HAP response status=204 No Content
+[2026-10-10T17:05:33Z INFO  hap::transport::http::server] HAP request path=/characteristics authenticated=true
+[2026-10-10T17:05:33Z INFO  hap::transport::http::server] HAP response status=200 OK
+[2026-10-10T17:05:33Z INFO  hap::transport::http::server] HAP request path=/characteristics authenticated=true
+[2026-10-10T17:05:33Z INFO  hap::transport::http::server] HAP response status=204 No Content
+[2026-10-10T17:05:52Z INFO  hap::transport::http::server] HAP TCP accepted peer=192.168.4.149:58884
+[2026-10-10T17:05:52Z INFO  hap::transport::http::server] HAP request path=/pair-verify authenticated=false
+[2026-10-10T17:05:52Z INFO  hap::transport::http::handler::pair_verify] pair verify M1: received verify start request
+[2026-10-10T17:05:52Z INFO  hap::transport::http::handler::pair_verify] pair verify M2: sending verify start response
+[2026-10-10T17:05:52Z INFO  hap::transport::http::server] HAP response status=200 OK
+[2026-10-10T17:05:53Z INFO  hap::transport::http::server] HAP request path=/pair-verify authenticated=false
+[2026-10-10T17:05:53Z INFO  hap::transport::http::handler::pair_verify] pair verify M3: received verify finish request
+[2026-10-10T17:05:53Z INFO  hap::transport::http::handler::pair_verify] pair verify M4: sending verify finish response
+[2026-10-10T17:05:53Z INFO  hap::transport::http::server] HAP response status=200 OK
+[2026-10-10T17:05:54Z INFO  hap::transport::http::server] HAP request path=/accessories authenticated=true
+[2026-10-10T17:05:54Z INFO  hap::transport::http::handler::accessories] received list accessories request
+[2026-10-10T17:05:54Z INFO  hap::transport::http::server] HAP response status=200 OK
+[2026-10-10T17:05:54Z INFO  hap::transport::http::server] HAP request path=/characteristics authenticated=true
+[2026-10-10T17:05:54Z INFO  hap::transport::http::server] HAP response status=200 OK
+[2026-10-10T17:05:54Z INFO  hap::transport::http::server] HAP request path=/characteristics authenticated=true
+[2026-10-10T17:05:54Z INFO  hap::transport::http::server] HAP response status=200 OK
+[2026-10-10T17:05:54Z INFO  hap::transport::http::server] HAP request path=/characteristics authenticated=true
+[2026-10-10T17:05:54Z INFO  hap::transport::http::server] HAP response status=200 OK
+[2026-10-10T17:05:54Z INFO  hap::transport::http::server] HAP request path=/characteristics authenticated=true
+[2026-10-10T17:05:54Z INFO  hap::transport::http::server] HAP response status=200 OK
+[2026-10-10T17:05:54Z INFO  hap::transport::http::server] HAP request path=/characteristics authenticated=true
+[2026-10-10T17:05:54Z INFO  hap::transport::http::server] HAP response status=204 No Content
+[2026-10-10T17:05:55Z INFO  hap::transport::http::server] HAP request path=/characteristics authenticated=true
+[2026-10-10T17:05:55Z INFO  hap::transport::http::server] HAP response status=204 No Content
+[2026-10-10T17:06:00Z INFO  hap::transport::http::server] HAP session transport ended
+[2026-10-10T17:06:00Z INFO  hap::transport::http::server] HAP TCP closed peer=192.168.4.149:58884
+[2026-10-10T17:06:00Z INFO  hap::transport::http::server] HAP request path=/pairings authenticated=true
+[2026-10-10T17:06:00Z INFO  hap::transport::http::handler::pairings] pairings M1: received list pairings request
+[2026-10-10T17:06:00Z INFO  hap::transport::http::handler::pairings] pairings M2: sending list pairings response
+[2026-10-10T17:06:00Z INFO  hap::transport::http::server] HAP response status=200 OK
+[2026-10-10T17:06:01Z INFO  hap::transport::http::server] HAP request path=/pairings authenticated=true
+[2026-10-10T17:06:01Z INFO  hap::transport::http::handler::pairings] pairings M1: received list pairings request
+[2026-10-10T17:06:01Z INFO  hap::transport::http::handler::pairings] pairings M2: sending list pairings response
+[2026-10-10T17:06:01Z INFO  hap::transport::http::server] HAP response status=200 OK
+[2026-10-10T17:06:02Z INFO  hap::transport::http::server] HAP request path=/pairings authenticated=true
+[2026-10-10T17:06:02Z INFO  hap::transport::http::handler::pairings] pairings M1: received add pairing request
+[2026-10-10T17:06:02Z INFO  hap::transport::http::handler::pairings] pairings M2: sending add pairing response
+[2026-10-10T17:06:02Z INFO  hap::transport::http::server] HAP response status=200 OK
+[2026-10-10T17:06:02Z INFO  hap::transport::http::server] HAP request path=/pairings authenticated=true
+[2026-10-10T17:06:02Z INFO  hap::transport::http::handler::pairings] pairings M1: received remove pairing request
+[2026-10-10T17:06:02Z INFO  hap::transport::http::handler::pairings] pairings M2: sending remove pairing response
+[2026-10-10T17:06:02Z INFO  hap::transport::http::server] HAP response status=200 OK
+[2026-10-10T17:06:02Z INFO  hap::transport::http::server] HAP request path=/pairings authenticated=true
+[2026-10-10T17:06:02Z INFO  hap::transport::http::handler::pairings] pairings M1: received add pairing request
+[2026-10-10T17:06:02Z INFO  hap::transport::http::server] HAP response status=200 OK
+[2026-10-10T17:06:13Z INFO  hap::transport::http::server] HAP request path=/pairings authenticated=true
+[2026-10-10T17:06:13Z INFO  hap::transport::http::handler::pairings] pairings M1: received add pairing request
+[2026-10-10T17:06:13Z INFO  hap::transport::http::server] HAP response status=200 OK
+[2026-10-10T17:06:31Z INFO  hap::transport::http::server] HAP request path=/characteristics authenticated=true
+[2026-10-10T17:06:31Z INFO  hap::transport::http::server] HAP response status=401 Unauthorized
+[2026-10-10T17:06:31Z INFO  hap::transport::http::server] HAP session transport ended
+[2026-10-10T17:06:31Z INFO  hap::transport::http::server] HAP TCP closed peer=192.168.3.215:49168
+[2026-10-10T17:06:32Z INFO  hap::transport::http::server] HAP TCP accepted peer=192.168.3.215:49177
+[2026-10-10T17:06:32Z INFO  hap::transport::http::server] HAP request path=/pair-verify authenticated=false
+[2026-10-10T17:06:32Z INFO  hap::transport::http::handler::pair_verify] pair verify M1: received verify start request
+[2026-10-10T17:06:32Z INFO  hap::transport::http::handler::pair_verify] pair verify M2: sending verify start response
+[2026-10-10T17:06:32Z INFO  hap::transport::http::server] HAP response status=200 OK
+[2026-10-10T17:06:32Z INFO  hap::transport::http::server] HAP request path=/pair-verify authenticated=false
+[2026-10-10T17:06:32Z INFO  hap::transport::http::handler::pair_verify] pair verify M3: received verify finish request
+[2026-10-10T17:06:32Z ERROR hap::tlv] Storage
+[2026-10-10T17:06:32Z INFO  hap::transport::http::server] HAP response status=200 OK
+[2026-10-10T17:06:32Z INFO  hap::transport::http::server] HAP session transport ended
+[2026-10-10T17:06:32Z INFO  hap::transport::http::server] HAP TCP closed peer=192.168.3.215:49177
+[2026-10-10T17:07:32Z INFO  hap::transport::http::server] HAP TCP accepted peer=192.168.3.215:49178
+[2026-10-10T17:07:32Z INFO  hap::transport::http::server] HAP request path=/pair-verify authenticated=false
+[2026-10-10T17:07:32Z INFO  hap::transport::http::handler::pair_verify] pair verify M1: received verify start request
+[2026-10-10T17:07:32Z INFO  hap::transport::http::handler::pair_verify] pair verify M2: sending verify start response
+[2026-10-10T17:07:32Z INFO  hap::transport::http::server] HAP response status=200 OK
+[2026-10-10T17:07:32Z INFO  hap::transport::http::server] HAP request path=/pair-verify authenticated=false
+[2026-10-10T17:07:32Z INFO  hap::transport::http::handler::pair_verify] pair verify M3: received verify finish request
+[2026-10-10T17:07:32Z ERROR hap::tlv] Storage
+[2026-10-10T17:07:32Z INFO  hap::transport::http::server] HAP response status=200 OK
+[2026-10-10T17:07:32Z INFO  hap::transport::http::server] HAP session transport ended
+[2026-10-10T17:07:32Z INFO  hap::transport::http::server] HAP TCP closed peer=192.168.3.215:49178
+[2026-10-10T17:08:32Z INFO  hap::transport::http::server] HAP TCP accepted peer=192.168.3.215:49179
+[2026-10-10T17:08:32Z INFO  hap::transport::http::server] HAP request path=/pair-verify authenticated=false
+[2026-10-10T17:08:32Z INFO  hap::transport::http::handler::pair_verify] pair verify M1: received verify start request
+[2026-10-10T17:08:32Z INFO  hap::transport::http::handler::pair_verify] pair verify M2: sending verify start response
+[2026-10-10T17:08:32Z INFO  hap::transport::http::server] HAP response status=200 OK
+[2026-10-10T17:08:32Z INFO  hap::transport::http::server] HAP request path=/pair-verify authenticated=false
+[2026-10-10T17:08:32Z INFO  hap::transport::http::handler::pair_verify] pair verify M3: received verify finish request
+[2026-10-10T17:08:32Z ERROR hap::tlv] Storage
+[2026-10-10T17:08:32Z INFO  hap::transport::http::server] HAP response status=200 OK
+[2026-10-10T17:08:32Z INFO  hap::transport::http::server] HAP session transport ended
+[2026-10-10T17:08:32Z INFO  hap::transport::http::server] HAP TCP closed peer=192.168.3.215:49179
+[2026-10-10T17:09:32Z INFO  hap::transport::http::server] HAP TCP accepted peer=192.168.3.215:49180
+[2026-10-10T17:09:32Z INFO  hap::transport::http::server] HAP request path=/pair-verify authenticated=false
+[2026-10-10T17:09:32Z INFO  hap::transport::http::handler::pair_verify] pair verify M1: received verify start request
+[2026-10-10T17:09:32Z INFO  hap::transport::http::handler::pair_verify] pair verify M2: sending verify start response
+[2026-10-10T17:09:32Z INFO  hap::transport::http::server] HAP response status=200 OK
+[2026-10-10T17:09:32Z INFO  hap::transport::http::server] HAP request path=/pair-verify authenticated=false
+[2026-10-10T17:09:32Z INFO  hap::transport::http::handler::pair_verify] pair verify M3: received verify finish request
+[2026-10-10T17:09:32Z ERROR hap::tlv] Storage
+[2026-10-10T17:09:32Z INFO  hap::transport::http::server] HAP response status=200 OK
+[2026-10-10T17:09:32Z INFO  hap::transport::http::server] HAP session transport ended
+[2026-10-10T17:09:32Z INFO  hap::transport::http::server] HAP TCP closed peer=192.168.3.215:49180
+[2026-10-10T17:10:32Z INFO  hap::transport::http::server] HAP TCP accepted peer=192.168.3.215:49181
+[2026-10-10T17:10:32Z INFO  hap::transport::http::server] HAP request path=/pair-verify authenticated=false
+[2026-10-10T17:10:32Z INFO  hap::transport::http::handler::pair_verify] pair verify M1: received verify start request
+[2026-10-10T17:10:32Z INFO  hap::transport::http::handler::pair_verify] pair verify M2: sending verify start response
+[2026-10-10T17:10:32Z INFO  hap::transport::http::server] HAP response status=200 OK
+[2026-10-10T17:10:32Z INFO  hap::transport::http::server] HAP request path=/pair-verify authenticated=false
+[2026-10-10T17:10:32Z INFO  hap::transport::http::handler::pair_verify] pair verify M3: received verify finish request
+[2026-10-10T17:10:32Z ERROR hap::tlv] Storage
+[2026-10-10T17:10:32Z INFO  hap::transport::http::server] HAP response status=200 OK
+[2026-10-10T17:10:32Z INFO  hap::transport::http::server] HAP session transport ended
+[2026-10-10T17:10:32Z INFO  hap::transport::http::server] HAP TCP closed peer=192.168.3.215:49181
+[2026-10-10T17:11:32Z INFO  hap::transport::http::server] HAP TCP accepted peer=192.168.3.215:49182
+[2026-10-10T17:11:32Z INFO  hap::transport::http::server] HAP request path=/pair-verify authenticated=false
+[2026-10-10T17:11:32Z INFO  hap::transport::http::handler::pair_verify] pair verify M1: received verify start request
+[2026-10-10T17:11:32Z INFO  hap::transport::http::handler::pair_verify] pair verify M2: sending verify start response
+[2026-10-10T17:11:32Z INFO  hap::transport::http::server] HAP response status=200 OK
+[2026-10-10T17:11:32Z INFO  hap::transport::http::server] HAP request path=/pair-verify authenticated=false
+[2026-10-10T17:11:32Z INFO  hap::transport::http::handler::pair_verify] pair verify M3: received verify finish request
+[2026-10-10T17:11:32Z ERROR hap::tlv] Storage
+[2026-10-10T17:11:32Z INFO  hap::transport::http::server] HAP response status=200 OK
+[2026-10-10T17:11:32Z INFO  hap::transport::http::server] HAP session transport ended
+[2026-10-10T17:11:32Z INFO  hap::transport::http::server] HAP TCP closed peer=192.168.3.215:49182

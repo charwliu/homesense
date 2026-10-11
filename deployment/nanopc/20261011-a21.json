@@ -1,0 +1,64 @@
+{
+  "release": "20261011-a21",
+  "base_commit": "1fdbe694530eee571993f616f59d2196bf11ccb4",
+  "uncommitted_worktree": true,
+  "source_sha256": "5d4ea2cf1100261c01d48c2d707e0a6e37769d5a1159332f90fc6f210a5b95c8",
+  "source_scope": "git ls-files cached and untracked nonignored: crates, vendor, Cargo.toml, Cargo.lock; sorted unique path NUL content NUL",
+  "rust": "1.99.0",
+  "target": "aarch64-unknown-linux-gnu",
+  "binary_sha256": "e76fe12f0268da7889aa5610f5e58370fa06df2689e3c4e4081aae031e77d4c1",
+  "host": "nanopc.lab.vixal.xyz",
+  "status": "installed separately; ARM loopback checks passed; current remains a19",
+  "database_schema": 4,
+  "workspace_tests": 226,
+  "current_switched": false,
+  "autostart_enabled": false,
+  "field_control_started": true,
+  "simulation_smoke": {
+    "simulation_smoke": "passed",
+    "restarts": 2,
+    "unpaired_http_status": 401,
+    "identity_stable": true,
+    "listener_released": true,
+    "state_directory": "/users/alarm/apps/homesense/tests/smoke-yei11ilg"
+  },
+  "live_smoke": {
+    "live_smoke": "passed",
+    "restarts": 2,
+    "query_before_hap": true,
+    "unpaired_http": 401,
+    "identity_stable": true,
+    "state_directory": "/users/alarm/apps/homesense/tests/live-smoke-dzb4r5w2"
+  },
+  "panel_led_smoke": {
+    "panel_led_smoke": "passed",
+    "colors": [
+      "green",
+      "red"
+    ],
+    "scope": "loopback only",
+    "state_directory": "/users/alarm/apps/homesense/tests/panel-smoke-vmig9m9p"
+  },
+  "readonly_field_recovery": [
+    {
+      "result": "passed",
+      "mode": "eof",
+      "state_directory": "/users/alarm/apps/homesense/tests/readonly-reconnect-8wgxt0df",
+      "connections": 2,
+      "injected_eof": 1,
+      "command_journal_rows": 0,
+      "limitation": "proxy injected EOF; not a real gateway outage"
+    },
+    {
+      "result": "passed",
+      "mode": "query-timeout",
+      "state_directory": "/users/alarm/apps/homesense/tests/readonly-reconnect-yims_q7w",
+      "connections": 3,
+      "injected_eof": 1,
+      "command_journal_rows": 0,
+      "limitation": "proxy injected EOF; not a real gateway outage"
+    }
+  ],
+  "main_light_field_result": "passed; user confirmed expected behavior; logs confirm 50 to 30 then off and On-only restores 30",
+  "field_evidence": "evidence/20261011-a21/field-result.json"
+}

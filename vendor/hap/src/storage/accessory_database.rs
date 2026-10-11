@@ -127,27 +127,122 @@ impl AccessoryDatabase {
         Ok(accessory)
     }
 
-    /// Takes a pointer to an accessory and removes the accessory from the `AccessoryDatabase`.
-    pub async fn remove_accessory(&mut self, accessory: &pointer::Accessory) -> Result<()> {
-        let accessory = accessory.lock().await;
-        let mut remove = None;
-
-        for (i, a) in self.accessories.iter_mut().enumerate() {
-            if a.lock().await.get_id() == accessory.get_id() {
-                a.lock().await.set_event_emitter_on_characteristics(None);
-
-                remove = Some(i);
-                break;
+    /// Register an existing graph handle without replacing callbacks or identity.
+    /// Intended for startup before requests are served.
+    pub async fn add_accessory_handle(&mut self, accessory: pointer::Accessory) -> Result<()> {
+        if self
+            .accessories
+            .iter()
+            .any(|stored| Arc::ptr_eq(stored, &accessory))
+        {
+            return Err(Error::DuplicateAccessory);
+        }
+        let mut candidate = accessory.lock().await;
+        let aid = candidate.get_id();
+        for stored in &self.accessories {
+            if stored.lock().await.get_id() == aid {
+                return Err(Error::DuplicateAccessory);
             }
         }
+        candidate.set_event_emitter_on_characteristics(Some(self.event_emitter.clone()));
+        drop(candidate);
+        self.accessories.push(accessory);
+        Ok(())
+    }
 
-        if let Some(i) = remove {
-            self.accessories.remove(i);
-
-            return Ok(());
+    /// Validate the entire startup graph before any database mutation.
+    pub(crate) async fn startup_aids(accessories: &[pointer::Accessory]) -> Result<Vec<u64>> {
+        if accessories.is_empty() || accessories.len() > 4096 {
+            return Err(Error::Storage);
         }
+        let mut aids = std::collections::BTreeSet::new();
+        for accessory in accessories {
+            let accessory = accessory.lock().await;
+            if accessory.get_id() == 0 || !aids.insert(accessory.get_id()) {
+                return Err(Error::DuplicateAccessory);
+            }
+            let mut iids = std::collections::BTreeSet::new();
+            for service in accessory.get_services() {
+                if service.get_id() == 0 || !iids.insert(service.get_id()) {
+                    return Err(Error::DuplicateAccessory);
+                }
+                for characteristic in service.get_characteristics() {
+                    if characteristic.get_id() == 0 || !iids.insert(characteristic.get_id()) {
+                        return Err(Error::DuplicateAccessory);
+                    }
+                }
+            }
+        }
+        Ok(aids.into_iter().collect())
+    }
+    /// Canonical structural schema: volatile values/subscriptions are excluded.
+    pub(crate) fn graph_manifest(mut accessories: Vec<serde_json::Value>) -> Result<Vec<u8>> {
+        let static_types = [
+            crate::HapType::Name,
+            crate::HapType::ConfiguredName,
+            crate::HapType::Manufacturer,
+            crate::HapType::Model,
+            crate::HapType::SerialNumber,
+            crate::HapType::FirmwareRevision,
+            crate::HapType::HardwareRevision,
+            crate::HapType::SoftwareRevision,
+        ]
+        .iter()
+        .map(serde_json::to_value)
+        .collect::<std::result::Result<Vec<_>, _>>()?;
+        for accessory in &mut accessories {
+            let services = accessory
+                .get_mut("services")
+                .and_then(|v| v.as_array_mut())
+                .ok_or(Error::Storage)?;
+            for service in services.iter_mut() {
+                let characteristics = service
+                    .get_mut("characteristics")
+                    .and_then(|v| v.as_array_mut())
+                    .ok_or(Error::Storage)?;
+                for characteristic in characteristics.iter_mut() {
+                    let object = characteristic.as_object_mut().ok_or(Error::Storage)?;
+                    if !object
+                        .get("type")
+                        .is_some_and(|value| static_types.contains(value))
+                    {
+                        object.remove("value");
+                    }
+                    object.remove("ev");
+                    if let Some(perms) = object.get_mut("perms").and_then(|v| v.as_array_mut()) {
+                        perms.sort_by_key(|v| v.to_string());
+                    }
+                }
+                characteristics.sort_by_key(|v| v.get("iid").and_then(|v| v.as_u64()));
+            }
+            services.sort_by_key(|v| v.get("iid").and_then(|v| v.as_u64()));
+        }
+        accessories.sort_by_key(|v| v.get("aid").and_then(|v| v.as_u64()));
+        let bytes = serde_json::to_vec(&json!({"version":2,"accessories":accessories}))?;
+        if bytes.len() > 65536 {
+            return Err(Error::Storage);
+        }
+        Ok(bytes)
+    }
+    pub(crate) fn event_emitter(&self) -> pointer::EventEmitter {
+        self.event_emitter.clone()
+    }
 
-        Err(Error::AccessoryNotFound)
+    /// Takes a pointer to an accessory and removes the accessory from the `AccessoryDatabase`.
+    pub async fn remove_accessory(&mut self, accessory: &pointer::Accessory) -> Result<()> {
+        // Match the registered handle, not merely its AID. Locking the supplied
+        // handle and then the database entry self-deadlocks when they are equal.
+        let index = self
+            .accessories
+            .iter()
+            .position(|stored| Arc::ptr_eq(stored, accessory))
+            .ok_or(Error::AccessoryNotFound)?;
+        self.accessories[index]
+            .lock()
+            .await
+            .set_event_emitter_on_characteristics(None);
+        self.accessories.remove(index);
+        Ok(())
     }
 
     /// Reads the value of a characteristic.
@@ -331,6 +426,121 @@ mod async_acceptance_tests {
     };
     use futures::{channel::oneshot, future::BoxFuture, poll};
     use std::task::Poll;
+    #[tokio::test]
+    async fn removal_releases_exact_registered_handle_without_self_deadlock() {
+        let mut db = AccessoryDatabase::new(Arc::new(Mutex::new(EventEmitter::new())));
+        let handle = db
+            .add_accessory(Box::new(
+                LightbulbAccessory::new(2, AccessoryInformation::default()).unwrap(),
+            ))
+            .unwrap();
+        let impostor: pointer::Accessory = Arc::new(Mutex::new(Box::new(
+            LightbulbAccessory::new(2, AccessoryInformation::default()).unwrap(),
+        )));
+        assert!(db.remove_accessory(&impostor).await.is_err());
+        assert_eq!(db.accessories.len(), 1);
+        tokio::time::timeout(
+            std::time::Duration::from_secs(1),
+            db.remove_accessory(&handle),
+        )
+        .await
+        .expect("remove deadlocked")
+        .unwrap();
+        assert!(db.accessories.is_empty());
+        assert!(db.remove_accessory(&handle).await.is_err());
+    }
+    #[tokio::test]
+    async fn shared_handle_registration_preserves_identity_and_rejects_duplicate_aid() {
+        let mut db = AccessoryDatabase::new(Arc::new(Mutex::new(EventEmitter::new())));
+        let handle: pointer::Accessory = Arc::new(Mutex::new(Box::new(
+            LightbulbAccessory::new(2, AccessoryInformation::default()).unwrap(),
+        )));
+        db.add_accessory_handle(handle.clone()).await.unwrap();
+        assert!(Arc::ptr_eq(&handle, &db.accessories[0]));
+        assert!(db.add_accessory_handle(handle.clone()).await.is_err());
+        let other: pointer::Accessory = Arc::new(Mutex::new(Box::new(
+            LightbulbAccessory::new(2, AccessoryInformation::default()).unwrap(),
+        )));
+        assert!(db.add_accessory_handle(other).await.is_err());
+        assert_eq!(db.accessories.len(), 1);
+        db.remove_accessory(&handle).await.unwrap();
+    }
+    #[tokio::test]
+    async fn startup_graph_checks_all_aids_and_iids_before_registration() {
+        let a: pointer::Accessory = Arc::new(Mutex::new(Box::new(
+            LightbulbAccessory::new(2, AccessoryInformation::default()).unwrap(),
+        )));
+        let b: pointer::Accessory = Arc::new(Mutex::new(Box::new(
+            LightbulbAccessory::new(1, AccessoryInformation::default()).unwrap(),
+        )));
+        assert_eq!(
+            AccessoryDatabase::startup_aids(&[a.clone(), b.clone()])
+                .await
+                .unwrap(),
+            vec![1, 2]
+        );
+        assert!(AccessoryDatabase::startup_aids(&[a.clone(), a.clone()])
+            .await
+            .is_err());
+        b.lock().await.set_id(2);
+        assert!(AccessoryDatabase::startup_aids(&[a.clone(), b])
+            .await
+            .is_err());
+        a.lock().await.get_mut_services()[0].set_id(0);
+        assert!(AccessoryDatabase::startup_aids(&[a]).await.is_err());
+    }
+    #[test]
+    fn graph_manifest_ignores_values_but_tracks_characteristic_structure() {
+        let graph = json!({"aid":1,"services":[{"iid":1,"type":"43","characteristics":[{"iid":2,"type":"25","perms":["pr","pw"],"value":false,"ev":false}]}]});
+        let before = AccessoryDatabase::graph_manifest(vec![graph.clone()]).unwrap();
+        let mut changed = graph;
+        changed["services"][0]["characteristics"][0]["value"] = json!(true);
+        changed["services"][0]["characteristics"][0]["ev"] = json!(true);
+        assert_eq!(
+            before,
+            AccessoryDatabase::graph_manifest(vec![changed.clone()]).unwrap()
+        );
+        changed["services"][0]["characteristics"][0]["type"] = json!("8");
+        assert_ne!(
+            before,
+            AccessoryDatabase::graph_manifest(vec![changed]).unwrap()
+        );
+    }
+    #[tokio::test]
+    async fn real_accessory_manifest_tracks_name_but_not_power() {
+        let mut light = LightbulbAccessory::new(
+            2,
+            AccessoryInformation {
+                name: "Study".into(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let before =
+            AccessoryDatabase::graph_manifest(vec![serde_json::to_value(&light).unwrap()]).unwrap();
+        light
+            .lightbulb
+            .power_state
+            .set_observed_value(json!(true))
+            .await
+            .unwrap();
+        let powered =
+            AccessoryDatabase::graph_manifest(vec![serde_json::to_value(&light).unwrap()]).unwrap();
+        assert_eq!(before, powered);
+        let renamed = LightbulbAccessory::new(
+            2,
+            AccessoryInformation {
+                name: "Study light".into(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_ne!(
+            before,
+            AccessoryDatabase::graph_manifest(vec![serde_json::to_value(&renamed).unwrap()])
+                .unwrap()
+        );
+    }
     struct Gate(std::sync::Mutex<Option<oneshot::Receiver<std::result::Result<(), WriteStatus>>>>);
     impl WriteBatchHandler for Gate {
         fn write(&self, _: uuid::Uuid, _: &[u8]) -> std::result::Result<(), WriteStatus> {

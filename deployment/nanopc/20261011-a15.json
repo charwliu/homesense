@@ -1,0 +1,18 @@
+{
+  "release": "20261011-a15",
+  "base_commit": "1fdbe694530eee571993f616f59d2196bf11ccb4",
+  "uncommitted_worktree": true,
+  "source_sha256": "9f3e7ab833b68ac1cede77961ada35290a16bc6fb3cd45b28f76fbc6aab0a093",
+  "source_scope": "git ls-files cached and untracked nonignored: crates, vendor, Cargo.toml, Cargo.lock; sorted unique path NUL content NUL",
+  "rust": "1.99.0",
+  "target": "aarch64-unknown-linux-gnu",
+  "binary_sha256": "799ff9182cc5b631010198ccd9965267d3d1bddeb7fac430aac4d3a23b8bb861",
+  "host": "nanopc.lab.vixal.xyz",
+  "status": "deployed and selected; 20 minute study combined-light bridge running",
+  "database_schema": 4,
+  "configuration_revision": 2,
+  "hap_configuration_number": 3,
+  "pairings_count": 1,
+  "backup": "/users/alarm/apps/homesense/backups/stopped-pre-a15-20261011-080026",
+  "autostart_enabled": false
+}

@@ -1,5 +1,6 @@
+use crate::transport::http::body::Body;
 use futures::future::{BoxFuture, FutureExt};
-use hyper::{Body, Response, StatusCode, Uri};
+use hyper::{ Response, StatusCode, Uri};
 use serde_json::json;
 
 use crate::{

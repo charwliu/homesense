@@ -1,0 +1,12 @@
+[
+  {
+    "query": "backlight_brightness_mode",
+    "request": "AE 41 C5 00 EE",
+    "response": "FF"
+  },
+  {
+    "query": "led_self_reset_mode",
+    "request": "AE 41 C7 00 EE",
+    "response": "02"
+  }
+]

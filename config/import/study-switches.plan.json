@@ -6,13 +6,13 @@
   "modules": [
     {
       "address": "03",
-      "profile": "gt_c8_rl_v2_8_2_2",
-      "basis": "候选型号，依据厂家 GT-C8-RL 手册；仍需核对实物，不构成现场验证。"
+      "profile": "r8i8_din_pro_v2_7_7",
+      "basis": "2026-10-10 用户确认 Switch (v2) 对应 R8I8-DIN PRO；依据 Ver2.7.7 手册。型号已确认，尚未验证现场通信。"
     },
     {
       "address": "07",
-      "profile": "gt_c8_rl_v2_8_2_2",
-      "basis": "候选型号，依据厂家 GT-C8-RL 手册；仍需核对实物，不构成现场验证。"
+      "profile": "r8i8_din_pro_v2_7_7",
+      "basis": "2026-10-10 用户确认 Switch (v2) 对应 R8I8-DIN PRO；依据 Ver2.7.7 手册。型号已确认，尚未验证现场通信。"
     }
   ],
   "control4_ids": [

@@ -1,0 +1,188 @@
+{
+  "source": "Charlies250801.c4p",
+  "keypad_address_hex": "41",
+  "trigger": "release",
+  "enabled": false,
+  "bindings": [
+    {
+      "key": 1,
+      "scene": {
+        "name": "书房-阅读",
+        "scene_id": "10",
+        "members": [
+          {
+            "device_id": "211",
+            "device_name": "主灯 03-4",
+            "track_level": "1",
+            "elements": [
+              {
+                "delay": "0",
+                "rate": "1",
+                "level": "100"
+              }
+            ]
+          },
+          {
+            "device_id": "279",
+            "device_name": "筒灯 07-6",
+            "track_level": "100",
+            "elements": [
+              {
+                "delay": "0",
+                "rate": "0",
+                "level": "0"
+              }
+            ]
+          },
+          {
+            "device_id": "309",
+            "device_name": "筒灯 11-5",
+            "track_level": "100",
+            "elements": [
+              {
+                "delay": "0",
+                "rate": "1000",
+                "level": "0"
+              }
+            ]
+          },
+          {
+            "device_id": "337",
+            "device_name": "主灯 12-4",
+            "track_level": "1",
+            "elements": [
+              {
+                "delay": "0",
+                "rate": "1000",
+                "level": "100"
+              }
+            ]
+          }
+        ]
+      },
+      "behavior": "toggle according to original study variable; scene LED selection"
+    },
+    {
+      "key": 3,
+      "scene": {
+        "name": "书房-日常",
+        "scene_id": "6",
+        "members": [
+          {
+            "device_id": "211",
+            "device_name": "主灯 03-4",
+            "track_level": "1",
+            "elements": [
+              {
+                "delay": "0",
+                "rate": "1",
+                "level": "100"
+              }
+            ]
+          },
+          {
+            "device_id": "279",
+            "device_name": "筒灯 07-6",
+            "track_level": "1",
+            "elements": [
+              {
+                "delay": "0",
+                "rate": "1",
+                "level": "100"
+              }
+            ]
+          },
+          {
+            "device_id": "309",
+            "device_name": "筒灯 11-5",
+            "track_level": "1",
+            "elements": [
+              {
+                "delay": "0",
+                "rate": "1000",
+                "level": "100"
+              }
+            ]
+          },
+          {
+            "device_id": "337",
+            "device_name": "主灯 12-4",
+            "track_level": "1",
+            "elements": [
+              {
+                "delay": "0",
+                "rate": "1000",
+                "level": "100"
+              }
+            ]
+          }
+        ]
+      },
+      "behavior": "toggle according to original study variable; scene LED selection"
+    },
+    {
+      "key": 5,
+      "scene": {
+        "name": "书房-节能",
+        "scene_id": "8",
+        "members": [
+          {
+            "device_id": "211",
+            "device_name": "主灯 03-4",
+            "track_level": "100",
+            "elements": [
+              {
+                "delay": "0",
+                "rate": "0",
+                "level": "0"
+              }
+            ]
+          },
+          {
+            "device_id": "279",
+            "device_name": "筒灯 07-6",
+            "track_level": "1",
+            "elements": [
+              {
+                "delay": "0",
+                "rate": "1",
+                "level": "100"
+              }
+            ]
+          },
+          {
+            "device_id": "309",
+            "device_name": "筒灯 11-5",
+            "track_level": "1",
+            "elements": [
+              {
+                "delay": "0",
+                "rate": "1000",
+                "level": "17"
+              }
+            ]
+          },
+          {
+            "device_id": "337",
+            "device_name": "主灯 12-4",
+            "track_level": "100",
+            "elements": [
+              {
+                "delay": "0",
+                "rate": "1000",
+                "level": "0"
+              }
+            ]
+          }
+        ]
+      },
+      "behavior": "toggle according to original study variable; scene LED selection"
+    }
+  ],
+  "curtain_keys": {
+    "2": "open",
+    "4": "stop",
+    "6": "close"
+  },
+  "note": "Reference mapping only; no rule execution or EA-5 configuration change."
+}

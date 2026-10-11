@@ -1,0 +1,15 @@
+{
+  "boot_id": "43bd1ce3-6213-44be-9bfa-b6587a021d99",
+  "frames": [
+    "AE2202F2EE",
+    "AE2202F0EE"
+  ],
+  "capture_unix_seconds": [
+    1791682348.324493,
+    1791682351.33011
+  ],
+  "interval_seconds": 3.005617,
+  "tcp_observation": "F2 TCP retransmission after 206ms then ACK; F0 sent, client FIN, gateway RST/ACK. TCP acknowledgment is not actuator acknowledgment.",
+  "physical_result": "向关闭方向移动，并中途停住",
+  "physical_result_confirmed": true
+}

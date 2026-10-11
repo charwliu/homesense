@@ -17,17 +17,17 @@ homesense-state = { path = "crates/homesense-state" }
 homesense-simulator = { path = "crates/homesense-simulator" }
 
 homesense-storage = { path = "crates/homesense-storage" }
-rusqlite = { version = "=0.40.0", features = ["bundled"] }
+rusqlite = { version = "=0.40.2", features = ["bundled"] }
 
 homesense-config = { path = "crates/homesense-config" }
 homesense-hap = { path = "crates/homesense-hap" }
-serde = { version = "=1.0.228", features = ["derive"] }
-serde_json = "=1.0.149"
+serde = { version = "=1.0.229", features = ["derive"] }
+serde_json = "=1.0.151"
 
 hap = { path = "vendor/hap" }
 tokio = { version = "=1.53.2", features = ["rt-multi-thread", "macros", "time", "sync"] }
 async-trait = "=0.1.92"
-uuid = { version = "=0.8.2", features = ["v4", "serde"] }
+uuid = { version = "=1.28.0", features = ["v4", "serde"] }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

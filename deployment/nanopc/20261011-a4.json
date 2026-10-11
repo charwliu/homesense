@@ -1,0 +1,24 @@
+{
+  "release": "20261011-a4",
+  "base_commit": "1fdbe694530eee571993f616f59d2196bf11ccb4",
+  "uncommitted_worktree": true,
+  "source_sha256": "7ed0e739ffa6100d4229e6ef1b149a4b134501c3c229d4f693e4f5c4041c8546",
+  "source_scope": "crates, vendor, Cargo.toml, Cargo.lock; sorted path NUL content NUL",
+  "rust": "1.99.0",
+  "target": "aarch64-unknown-linux-gnu",
+  "binary_sha256": "9ffb699ee257a92b8b16d85a3f38a1b623d4272937bd7cda39471aaa323f2bfd",
+  "host": "nanopc.lab.vixal.xyz",
+  "active_release": "releases/20261011-a4",
+  "simulation_smoke": {
+    "passed": true,
+    "state_directory": "/users/alarm/apps/homesense/tests/smoke-uquhyutz"
+  },
+  "lan_test": {
+    "address": "192.168.4.1:51826",
+    "mac_http_status": 401,
+    "bonjour_discovered": false,
+    "state_directory": "/users/alarm/apps/homesense/tests/home-lan-a4",
+    "process_stopped": true
+  },
+  "autostart_enabled": false
+}

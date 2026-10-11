@@ -1,8 +1,8 @@
 //! Strict versioned configuration input; immutable, validated runtime mappings.
 //! Parsing never connects, changes hardware or upgrades simulation evidence.
 use homesense_core::{
-    BusAddress, Channel, DeviceId, ExecutionContext, ModuleSpec, PanelLedMode, ProtocolProfile,
-    ValidationError, Verification, VerificationRecord,
+    BusAddress, Channel, DeviceId, ExecutionContext, ModuleKind, ModuleSpec, PanelLedMode, Percent,
+    ProtocolProfile, ValidationError, Verification, VerificationRecord,
 };
 use serde::Deserialize;
 use std::{
@@ -84,8 +84,46 @@ struct DeviceInput {
     channel: u8,
     #[serde(default)]
     enabled: bool,
+    #[serde(default)]
+    default_on_level: Option<u8>,
+    #[serde(default)]
+    motor_calibration: Option<MotorCalibrationInput>,
+    #[serde(default)]
+    supply_relay: Option<String>,
 }
-#[derive(Debug)]
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct MotorCalibrationInput {
+    open_direction: OpenDirection,
+    stop_verified: bool,
+    evidence: String,
+    verified_at_unix_ms: u64,
+}
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum OpenDirection {
+    Up,
+    Down,
+}
+#[derive(Debug, Clone)]
+pub struct MotorCalibration {
+    open_direction: OpenDirection,
+    evidence: VerificationRecord,
+}
+impl MotorCalibration {
+    pub fn evidence(&self) -> &VerificationRecord {
+        &self.evidence
+    }
+    pub fn motion(&self, action: homesense_core::MotorAction) -> homesense_core::MotorMotion {
+        use homesense_core::{MotorAction as A, MotorMotion as M};
+        match (action, self.open_direction) {
+            (A::Stop, _) => M::Stop,
+            (A::Open, OpenDirection::Up) | (A::Close, OpenDirection::Down) => M::Up,
+            (A::Close, OpenDirection::Up) | (A::Open, OpenDirection::Down) => M::Down,
+        }
+    }
+}
+#[derive(Debug, Clone)]
 pub struct Gateway {
     pub endpoint: SocketAddr,
     modules: BTreeMap<BusAddress, ModuleSpec>,
@@ -95,15 +133,19 @@ impl Gateway {
         &self.modules
     }
 }
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Device {
     pub name: String,
     pub gateway: String,
     pub address: BusAddress,
     pub channel: Channel,
     pub enabled: bool,
+    pub default_on_level: Option<Percent>,
+    pub motor_calibration: Option<MotorCalibration>,
+    /// Separate physical supply relay for this dimmer; not a second logical light.
+    pub supply_relay: Option<DeviceId>,
 }
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Configuration {
     revision: u64,
     manual_degraded_enabled: bool,
@@ -111,6 +153,25 @@ pub struct Configuration {
     devices: BTreeMap<DeviceId, Device>,
 }
 impl Configuration {
+    /// Does not send or authorize a command. The caller must still pass the
+    /// command through normal admission, verification and transport ownership.
+    pub fn motor_command(
+        &self,
+        id: &DeviceId,
+        action: homesense_core::MotorAction,
+    ) -> Result<homesense_core::Command, Error> {
+        let (device, module) = self
+            .binding(id)
+            .ok_or_else(|| invalid("motor disabled or missing"))?;
+        if module.kind() != ModuleKind::Motor {
+            return Err(invalid("motor action requires a motor binding"));
+        }
+        let calibration = device
+            .motor_calibration
+            .as_ref()
+            .ok_or_else(|| invalid("motor direction and STOP calibration required"))?;
+        Ok(homesense_core::Command::Motor(calibration.motion(action)))
+    }
     pub fn revision(&self) -> u64 {
         self.revision
     }
@@ -151,12 +212,16 @@ impl Configuration {
             return Err(invalid("gateway/device count exceeds limits"));
         }
         let profiles = [
+            ProtocolProfile::Ad8Din,
+            ProtocolProfile::R8i8DinPro,
+            ProtocolProfile::C4DinPro,
             ProtocolProfile::GtC8Rl,
             ProtocolProfile::GtE4Rl,
             ProtocolProfile::GtD8Rl,
             ProtocolProfile::GtL8Rl,
             ProtocolProfile::GtM4Rl,
             ProtocolProfile::Bt86cRs485,
+            ProtocolProfile::Ts686Rs485SixKey,
             ProtocolProfile::UnverifiedKeypad,
         ];
         let mut gateways = BTreeMap::new();
@@ -249,15 +314,79 @@ impl Configuration {
             if !bindings.insert((d.gateway.clone(), address, channel.get())) {
                 return Err(invalid("duplicate physical device channel"));
             }
+            let default_on_level = d.default_on_level.map(Percent::new).transpose()?;
+            if default_on_level
+                .is_some_and(|level| level.get() == 0 || module.kind() != ModuleKind::Dimmer)
+            {
+                return Err(invalid(
+                    "default_on_level requires a dimmer and a value in 1..100",
+                ));
+            }
+            let motor_calibration = match d.motor_calibration {
+                Some(calibration) => {
+                    if module.kind() != ModuleKind::Motor
+                        || !calibration.stop_verified
+                        || calibration.evidence.len() > 4096
+                    {
+                        return Err(invalid(
+                            "motor calibration requires a motor, verified STOP and bounded evidence",
+                        ));
+                    }
+                    Some(MotorCalibration {
+                        open_direction: calibration.open_direction,
+                        evidence: VerificationRecord::new(
+                            calibration.evidence,
+                            calibration.verified_at_unix_ms,
+                        )?,
+                    })
+                }
+                None => None,
+            };
             let device = Device {
                 name: d.name,
                 gateway: d.gateway,
                 address,
                 channel,
                 enabled: d.enabled,
+                default_on_level,
+                motor_calibration,
+                supply_relay: d
+                    .supply_relay
+                    .map(|id| {
+                        identifier(&id)?;
+                        DeviceId::new(id).map_err(Error::from)
+                    })
+                    .transpose()?,
             };
             if devices.insert(id, device).is_some() {
                 return Err(invalid("duplicate device ID"));
+            }
+        }
+        let mut supplies = BTreeSet::new();
+        for (id, device) in &devices {
+            if let Some(relay_id) = &device.supply_relay {
+                let relay = devices
+                    .get(relay_id)
+                    .ok_or_else(|| invalid("unknown supply relay"))?;
+                let dimmer = &gateways[&device.gateway].modules[&device.address];
+                let switch = &gateways[&relay.gateway].modules[&relay.address];
+                if id == relay_id
+                    || dimmer.kind() != ModuleKind::Dimmer
+                    || switch.kind() != ModuleKind::Switch
+                    || relay.supply_relay.is_some()
+                    || device.gateway != relay.gateway
+                    || device.enabled != relay.enabled
+                    || !supplies.insert(relay_id.clone())
+                {
+                    return Err(invalid(
+                        "supply relay requires an exclusive same-gateway switch with matching enabled state",
+                    ));
+                }
+                if device.default_on_level.is_none() {
+                    return Err(invalid(
+                        "combined light requires an explicit nonzero default_on_level",
+                    ));
+                }
             }
         }
         Ok(Self {

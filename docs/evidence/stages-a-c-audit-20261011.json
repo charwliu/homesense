@@ -1,0 +1,124 @@
+{
+  "checked_at": "2026-10-11T01:07:21.012885+00:00",
+  "goal": "实现阶段A-C",
+  "goal_complete": true,
+  "requirements_source": [
+    "docs/design.md sections 20 and 28",
+    "docs/stages-a-c.md"
+  ],
+  "workspace_tests": {
+    "passed": 230,
+    "failed": 0,
+    "ignored": 0,
+    "command": "cargo test --locked --offline --workspace",
+    "log_sha256": "6473f44e48ee9a4e3bd48896d2ef1215cbdf4ebfb16be927ec8ffad83d47201a",
+    "exit_code": 0,
+    "log_path": "docs/evidence/stages-a-c-workspace-20261011.log"
+  },
+  "import_reproduction": {
+    "source": {
+      "format": "c4p",
+      "project_xml_sha256": "cac7dcdc9db08599e55a22bacb72858035c64e1ac846e2139ead5fc634513748",
+      "sha256": "ff8c298fd2c8efa840d572d3ca544860ffbbc4e7176f09e93efdc5464b9ce6ec"
+    },
+    "report_sha256": "f162770f8eca3cb64038cc485348d7f8f804b59f87dfa8257edcbb92da680bf2",
+    "matches_a13_report": true,
+    "legacy_mapping_matches": true,
+    "devices": 136,
+    "scenes": 68,
+    "programs": 215,
+    "references": 3767,
+    "all_references_resolved_and_dispositioned": true,
+    "enabled_objects": 0
+  },
+  "evidence": {
+    "A1_protocol": "crates/hb-protocol/tests/profiles.rs; workspace regression",
+    "A2_offline_arbitration": "crates/homesense-core/tests/arbiter.rs; crates/homesensed/tests/admission.rs; workspace regression",
+    "A3_historical_hardware": "deployment/nanopc/evidence/20261011-a9/server-restart.log; user confirmation recorded in stages-a-c.md",
+    "A4_offline_multi_accessory": "crates/homesense-hap/tests/http_loopback.rs; workspace regression",
+    "B_hardware_queries_and_injected_recovery": "deployment/nanopc/evidence/20261011-a21/readonly-eof-bus.json; readonly-timeout-bus.json",
+    "C_main_light": "deployment/nanopc/evidence/20261011-a21/field-result.json",
+    "C_panel_led": "deployment/nanopc/evidence/20261011-a20/panel-key2-field-result.json",
+    "C_curtain": "deployment/nanopc/evidence/20261011-a22-motor/open-close-3s.json"
+  },
+  "deferred_outside_A_C": [
+    "Control4 program execution translation (D)",
+    "Formal deployment and 72 hour trial (F)",
+    "Whole-house takeover (G)"
+  ],
+  "candidate_release": "deployment/nanopc/20261011-a21.json",
+  "hap_dependency_tests": {
+    "command": "cargo test --locked --offline -p hap --lib",
+    "passed": 52,
+    "failed": 0,
+    "ignored": 0,
+    "log_sha256": "14dbf76c3aa2a9674205dae79a6fe693a044506c3dd9ca1b1324c573b2911d4e",
+    "not_in_workspace_count": true
+  },
+  "A3_A4_review": {
+    "A3_prior_hardware": "a9 user sequence and authenticated post-restart requests verified in manifest and server-restart.log",
+    "A4_stable_identity": "storage tests verify persistent AID/IID graph and configuration number; encrypted lifecycle verifies 3 accessories after restart",
+    "A4_error_state": "observed tests reject unknown/stale and retain brightness without fabricating power",
+    "A4_multi_client": "hap dependency tests independently rerun: slow subscriber overflow isolates session; revocation blocks later events",
+    "limitation": "A3/A4 required gates verified; formal deployment and extended stability remain outside this milestone."
+  },
+  "curtain_rust_field_result": {
+    "device": "control4:290",
+    "open_and_stop": "user confirmed at 2 seconds on repeat",
+    "close_and_stop": "user confirmed at 3 seconds on captured repeat",
+    "limitation": "intermittent no movement remains unexplained; no position calibration or HomeKit curtain graph",
+    "evidence": "deployment/nanopc/evidence/20261011-a22-motor/",
+    "latest": "20261011-a22-motor/drain-field-result.json: revised teardown open and close both user-confirmed mid-travel stops"
+  },
+  "A5_export_review": {
+    "command": "homesense-import PROJECT --config-plan PLAN --export-dir NEW_DIRECTORY",
+    "artifacts": [
+      "configuration.json",
+      "coverage-report.json",
+      "confirmation-checklist.json"
+    ],
+    "real_project_evidence": "deployment/nanopc/evidence/20261011-a22-import-bundle/",
+    "automated_test": "cli_exports_three_disabled_artifacts_and_refuses_overwrite",
+    "verified": [
+      "disabled selection",
+      "source hashes consistent across files",
+      "no activation key or display secret copied",
+      "existing destination refused without modification"
+    ],
+    "import_tests": {
+      "passed": 10,
+      "failed": 0,
+      "ignored": 0
+    },
+    "remaining": "none for export and room blocker view",
+    "room_filter": {
+      "command": "homesense-import PROJECT --room 书房",
+      "evidence": "deployment/nanopc/evidence/20261011-a22-import-bundle/study-blockers.json",
+      "semantics": "owner or target match; unknown ownership and unresolved references retained for global review",
+      "tests_passed": 11
+    }
+  },
+  "requirements_matrix": "docs/evidence/stages-a-c-requirements-20261011.md",
+  "known_issues": [
+    "Earlier intermittent curtain no movement remains unexplained despite successful repeated Rust open/close/stop tests",
+    "Two main-light query timeouts remain unexplained; later capture did not reproduce them"
+  ],
+  "remaining": [],
+  "completion_basis": "Design sections 20 and 28 A1-A6/B/C deliverables verified in requirements matrix. Explicit field sequences passed. Historical intermittent anomalies remain recorded; no claim of root-cause resolution, unattended reliability or stage F acceptance.",
+  "evidence_sha256": {
+    "docs/evidence/stages-a-c-workspace-20261011.log": "6473f44e48ee9a4e3bd48896d2ef1215cbdf4ebfb16be927ec8ffad83d47201a",
+    "deployment/nanopc/20261011-a9.json": "bb3079ff5249f6de0693d918b5576c09431d12a1fbeaad26d511e3b4c5389d69",
+    "deployment/nanopc/evidence/20261011-a9/server-restart.log": "0c94c97b2f680849b331b1fe7827db030711d5476f6ae0d57d393b5a18f4087f",
+    "deployment/nanopc/evidence/20261011-a21/field-result.json": "91618c947ff4697bea966bb4208e7e4a0c6cea99dfa6f5a917e9ff7be6f2c875",
+    "deployment/nanopc/evidence/20261011-a20/panel-key2-field-result.json": "cb3ed0d18d14454536eb9baa8cc8c5615c311dea34986f887c14be7d62550fcb",
+    "deployment/nanopc/evidence/20261011-a22-motor/drain-field-result.json": "595e8374e6515991add659e44cf22beb8d9d194b60ab75952673b78427578253",
+    "deployment/nanopc/evidence/20261011-a22-motor/drain-open.pcap": "064a2e9295a4abd92d790ee521db4dffb1995dc5efb34b5b2f2fc190136fd5a9",
+    "deployment/nanopc/evidence/20261011-a22-motor/drain-close.pcap": "c3cb5fb3995818e6d3669008e068a4db747841414f916b0d90fb186ccb2023ef",
+    "deployment/nanopc/evidence/20261011-a21/readonly-eof-bus.json": "88ad3230cceec050ec25f23ebacee14eab282c9e9a80284f466ea737927b8623",
+    "deployment/nanopc/evidence/20261011-a21/readonly-timeout-bus.json": "0b259d81bfb9e57c1b1c9160151b1b595db37a17fe5559c38cdc8bd9e8e40564",
+    "deployment/nanopc/evidence/20261011-a22-import-bundle/coverage-report.json": "beab0a403bce8743785a0d0da6eee92b19d9bae895e29770bc919d59139860b9",
+    "deployment/nanopc/evidence/20261011-a22-import-bundle/confirmation-checklist.json": "fa62803258d1814921b062fcab825be7dfcc3ebe15849bea3325646507f67a63",
+    "deployment/nanopc/evidence/20261011-a22-import-bundle/configuration.json": "cb748ca474e53a7af1e8fdbf4c8c8be53a6f8426f5424c84dba94f345e17ab13",
+    "deployment/nanopc/evidence/20261011-a22-import-bundle/study-blockers.json": "4e16dca1cf7037c1168e41ef175498076c04fce3163d1a4d34104e7983688159"
+  }
+}

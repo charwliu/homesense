@@ -1,0 +1,3 @@
+{"configuration_unchanged":true,"endpoint":"192.168.0.10:50007","event":"query_plan","profile":"ad8_din_rs485_v2_2_1","raw":[174,18,164,242,238]}
+{"elapsed_ms":30,"event":"frame","raw":[174,18,212,100,238]}
+{"causal_acknowledgment":false,"elapsed_ms":30,"event":"query_finished","outcome":"Observation(Level(Percent(100)))"}

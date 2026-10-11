@@ -107,3 +107,23 @@ fn deadline_and_monotonic_clock_prevent_late_execution() {
     assert_eq!(runtime.snapshot().devices[&id()].observed, None);
     assert_eq!(runtime.queued_len(), 0);
 }
+
+#[test]
+fn ad8_hap_target_uses_hardware_ramp_and_feedback_confirms() {
+    let document = String::from_utf8(CONFIG.to_vec())
+        .unwrap()
+        .replace("gt_d8_rl_v2_2_6_2", "ad8_din_rs485_v2_2_1");
+    let controller = Uuid::new_v4();
+    let mut runtime = SimulationRuntime::new(document.as_bytes(), [controller], 8).unwrap();
+    runtime.submit(batch(controller, level(30)), 0).unwrap();
+    assert_eq!(runtime.snapshot().devices[&id()].quality, Quality::Unknown);
+    runtime.advance(1).unwrap();
+    assert_eq!(
+        runtime.snapshot().devices[&id()].observed,
+        Some(Observation::Level(Percent::new(30).unwrap()))
+    );
+    assert_eq!(
+        runtime.snapshot().devices[&id()].quality,
+        Quality::Confirmed
+    );
+}

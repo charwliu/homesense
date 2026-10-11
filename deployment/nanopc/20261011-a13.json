@@ -1,0 +1,26 @@
+{
+  "release": "20261011-a13",
+  "base_commit": "1fdbe694530eee571993f616f59d2196bf11ccb4",
+  "uncommitted_worktree": true,
+  "source_sha256": "f69ac30e0420bbe9caf258bb6234bdfb4ca41c507c690937341d256247256e27",
+  "source_scope": "git ls-files cached and untracked nonignored: crates, vendor, Cargo.toml, Cargo.lock; sorted unique path NUL content NUL",
+  "rust": "1.99.0",
+  "target": "aarch64-unknown-linux-gnu",
+  "binary_sha256": "3e7c3720462859d8637b7273ce939838b6406da48b7c184ebd6294729738e22b",
+  "host": "nanopc.lab.vixal.xyz",
+  "status": "deployed; current selected; no running service",
+  "workspace_tests": 191,
+  "autostart_enabled": false,
+  "active_release": "releases/20261011-a13",
+  "simulation_smoke": {
+    "passed": true,
+    "restarts": 2,
+    "state_directory": "/users/alarm/apps/homesense/tests/smoke-0wextdbe"
+  },
+  "live_smoke": {
+    "passed": true,
+    "restarts": 2,
+    "state_directory": "/users/alarm/apps/homesense/tests/live-smoke-uz8j1ko5"
+  },
+  "field_validation": "not performed for a13"
+}

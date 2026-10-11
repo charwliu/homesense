@@ -1,0 +1,34 @@
+{
+  "user_result": "恢复，没有回跳",
+  "passed": [
+    "书房主灯调光后显示不回跳",
+    "50% 稳定后关闭，再单独开灯恢复 50%"
+  ],
+  "log_evidence": [
+    "[2026-10-11T00:27:32Z DEBUG homesense_hap::events] hap_brightness_event device=DeviceId(\"control4:336\") observed=100",
+    "[2026-10-11T00:27:42Z DEBUG homesense_hap::requests] hap_light_fields device=DeviceId(\"control4:336\") on=None brightness=Some(Percent(50))",
+    "[2026-10-11T00:27:42Z DEBUG homesense_hap::write] hap_light_intent device=DeviceId(\"control4:336\") command=SetLevel { level: Percent(50), transition: Immediate }",
+    "[2026-10-11T00:27:43Z WARN  homesensed::observed_transport] gateway_query_timeout device=DeviceId(\"control4:336\") gateway=\"hopebeauty\" timeout_ms=1000 reads=10",
+    "[2026-10-11T00:27:44Z INFO  homesensed::runtime_hap] gateway_recovery_synchronized epoch=3 revision=2 devices=2",
+    "[2026-10-11T00:27:44Z DEBUG homesense_hap::events] hap_brightness_event device=DeviceId(\"control4:336\") observed=79",
+    "[2026-10-11T00:27:46Z DEBUG homesense_hap::events] hap_brightness_event device=DeviceId(\"control4:336\") observed=50",
+    "[2026-10-11T00:27:52Z DEBUG homesense_hap::requests] hap_light_fields device=DeviceId(\"control4:336\") on=Some(false) brightness=None",
+    "[2026-10-11T00:27:52Z DEBUG homesense_hap::write] hap_light_intent device=DeviceId(\"control4:336\") command=SetLevel { level: Percent(0), transition: Immediate }",
+    "[2026-10-11T00:27:52Z DEBUG homesense_hap::events] hap_brightness_event device=DeviceId(\"control4:336\") observed=50",
+    "[2026-10-11T00:27:55Z DEBUG homesense_hap::requests] hap_light_fields device=DeviceId(\"control4:336\") on=Some(true) brightness=None",
+    "[2026-10-11T00:27:55Z DEBUG homesense_hap::write] hap_light_intent device=DeviceId(\"control4:336\") command=SetLevel { level: Percent(50), transition: Immediate }",
+    "[2026-10-11T00:27:55Z DEBUG homesense_hap::events] hap_brightness_event device=DeviceId(\"control4:336\") observed=50",
+    "[2026-10-11T00:28:10Z DEBUG homesense_hap::requests] hap_light_fields device=DeviceId(\"control4:336\") on=None brightness=Some(Percent(70))",
+    "[2026-10-11T00:28:10Z DEBUG homesense_hap::write] hap_light_intent device=DeviceId(\"control4:336\") command=SetLevel { level: Percent(70), transition: Immediate }",
+    "[2026-10-11T00:28:12Z DEBUG homesense_hap::events] hap_brightness_event device=DeviceId(\"control4:336\") observed=70",
+    "[2026-10-11T00:28:12Z DEBUG homesense_hap::requests] hap_light_fields device=DeviceId(\"control4:336\") on=None brightness=Some(Percent(10))",
+    "[2026-10-11T00:28:12Z DEBUG homesense_hap::write] hap_light_intent device=DeviceId(\"control4:336\") command=SetLevel { level: Percent(10), transition: Immediate }",
+    "[2026-10-11T00:28:13Z WARN  homesensed::observed_transport] gateway_query_timeout device=DeviceId(\"control4:336\") gateway=\"hopebeauty\" timeout_ms=1000 reads=10",
+    "[2026-10-11T00:28:13Z INFO  homesensed::runtime_hap] gateway_recovery_synchronized epoch=4 revision=2 devices=2",
+    "[2026-10-11T00:28:13Z DEBUG homesense_hap::events] hap_brightness_event device=DeviceId(\"control4:336\") observed=49"
+  ],
+  "limitations": [
+    "本轮观察到两次 12/4 查询超时后自动重连；稳定性仍需排查",
+    "不代表所有设备、连续快速调光、窗帘、LED 或长期运行验收通过"
+  ]
+}

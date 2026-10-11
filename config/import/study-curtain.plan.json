@@ -1,0 +1,16 @@
+{
+  "source_sha256": "ff8c298fd2c8efa840d572d3ca544860ffbbc4e7176f09e93efdc5464b9ce6ec",
+  "revision": 1,
+  "gateway_id": "hopebeauty",
+  "endpoint": "192.168.0.10:50007",
+  "modules": [
+    {
+      "address": "22",
+      "profile": "c4_din_pro_v2_7_7",
+      "basis": "用户提供 C4-DIN Pro Ver2.7.7 手册并授权书房控制测试；原 C4 对象 290 映射组 2；只读 C1 查询返回 B4。运动方向、停止和行程仍待现场验证。"
+    }
+  ],
+  "control4_ids": [
+    "290"
+  ]
+}

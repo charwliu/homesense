@@ -73,6 +73,7 @@ fn pending_profile_never_authorizes_commands_or_events_even_in_simulation() {
     for profile in [
         ProtocolProfile::UnverifiedKeypad,
         ProtocolProfile::Bt86cRs485,
+        ProtocolProfile::Ts686Rs485SixKey,
     ] {
         let module = ModuleSpec::new(address(), profile, Verification::Pending).unwrap();
         for context in [ExecutionContext::Live, ExecutionContext::Simulation] {
@@ -178,4 +179,197 @@ fn profiles_and_evidence_cannot_be_mutated_into_other_device_capabilities() {
     assert!(module.with_panel_led_mode(PanelLedMode::Manual).is_err());
     assert_eq!(ProtocolProfile::Bt86cRs485.channels(), 6);
     assert_eq!(ProtocolProfile::UnverifiedKeypad.channels(), 0);
+}
+
+#[test]
+fn r8i8_pro_manual_single_channel_vectors() {
+    let module = ModuleSpec::new(address(), ProtocolProfile::R8i8DinPro, verified()).unwrap();
+    let mut registry = Registry::default();
+    registry.register(module.clone()).unwrap();
+    for c in 1..=8 {
+        for (on, value) in [(true, 0xF1), (false, 0xF2)] {
+            assert_eq!(
+                encode(&module, channel(c), Command::Switch(on))
+                    .unwrap()
+                    .bytes(),
+                [0xAE, 0x41, c, value, 0xEE]
+            );
+            assert_eq!(
+                registry.decode(RawFrame {
+                    address: 0x41,
+                    command: 0xD0 + c,
+                    value
+                }),
+                Decoded::Feedback {
+                    address: address(),
+                    channel: channel(c),
+                    observation: Observation::Switch(on)
+                }
+            );
+        }
+        assert_eq!(
+            encode(&module, channel(c), Command::Query).unwrap().bytes(),
+            [0xAE, 0x41, 0xA0 + c, 0xF2, 0xEE]
+        );
+    }
+    assert!(encode(&module, channel(9), Command::Switch(true)).is_err());
+    let pending = ModuleSpec::new(
+        address(),
+        ProtocolProfile::R8i8DinPro,
+        Verification::Pending,
+    )
+    .unwrap();
+    assert!(encode(&pending, channel(1), Command::Switch(true)).is_err());
+}
+
+#[test]
+fn c4_pro_manual_motion_vectors_do_not_invent_feedback() {
+    use homesense_core::MotorMotion;
+    let module = ModuleSpec::new(address(), ProtocolProfile::C4DinPro, verified()).unwrap();
+    let mut registry = Registry::default();
+    registry.register(module.clone()).unwrap();
+    for c in 1..=4 {
+        for (motion, value) in [
+            (MotorMotion::Up, 0xF1),
+            (MotorMotion::Down, 0xF2),
+            (MotorMotion::Stop, 0xF0),
+        ] {
+            assert_eq!(
+                encode(&module, channel(c), Command::Motor(motion))
+                    .unwrap()
+                    .bytes(),
+                [0xAE, 0x41, c, value, 0xEE]
+            );
+            assert!(matches!(
+                registry.decode(RawFrame {
+                    address: 0x41,
+                    command: 0xD0 + c,
+                    value
+                }),
+                Decoded::Unknown { .. }
+            ));
+        }
+        assert!(encode(&module, channel(c), Command::Query).is_err());
+    }
+    assert!(encode(&module, channel(5), Command::Motor(MotorMotion::Stop)).is_err());
+}
+
+#[test]
+fn ts6_six_key_vectors_and_led_mode_gate() {
+    let module = ModuleSpec::new(address(), ProtocolProfile::Ts686Rs485SixKey, verified()).unwrap();
+    assert!(encode(&module, channel(1), Command::PanelLed(true)).is_err());
+    let manual = module
+        .clone()
+        .with_panel_led_mode(PanelLedMode::Manual)
+        .unwrap();
+    let mut registry = Registry::default();
+    registry.register(module).unwrap();
+    for c in 1..=6 {
+        for (active, value) in [(true, 0xF1), (false, 0xF2)] {
+            assert_eq!(
+                encode(&manual, channel(c), Command::PanelLed(active))
+                    .unwrap()
+                    .bytes(),
+                [0xAE, 0x41, c, value, 0xEE]
+            );
+            assert_eq!(
+                registry.decode(RawFrame {
+                    address: 0x41,
+                    command: 0xD0 + c,
+                    value
+                }),
+                Decoded::Feedback {
+                    address: address(),
+                    channel: channel(c),
+                    observation: Observation::Button { pressed: active }
+                }
+            );
+        }
+        // F0 controls backlight-off, but is not a documented button event.
+        assert!(matches!(
+            registry.decode(RawFrame {
+                address: 0x41,
+                command: 0xD0 + c,
+                value: 0xF0
+            }),
+            Decoded::Unknown {
+                reason: UnknownReason::InvalidValue,
+                ..
+            }
+        ));
+    }
+    assert!(encode(&manual, channel(7), Command::PanelLed(true)).is_err());
+    assert!(matches!(
+        registry.decode(RawFrame {
+            address: 0x41,
+            command: 0xD7,
+            value: 0xF1
+        }),
+        Decoded::Unknown {
+            reason: UnknownReason::InvalidChannel,
+            ..
+        }
+    ));
+}
+
+#[test]
+fn ad8_uses_documented_ramps_and_rejects_unproven_immediate_levels() {
+    use homesense_core::{LevelTransition, Percent};
+    let module = ModuleSpec::new(address(), ProtocolProfile::Ad8Din, verified()).unwrap();
+    let mut registry = Registry::default();
+    registry.register(module.clone()).unwrap();
+    for c in 1..=8 {
+        for value in 0..=100 {
+            let level = Percent::new(value).unwrap();
+            assert_eq!(
+                encode(
+                    &module,
+                    channel(c),
+                    Command::SetLevel {
+                        level,
+                        transition: LevelTransition::Ramp
+                    }
+                )
+                .unwrap()
+                .bytes(),
+                [0xAE, 0x41, 0xB0 + c, value, 0xEE]
+            );
+            let immediate = encode(
+                &module,
+                channel(c),
+                Command::SetLevel {
+                    level,
+                    transition: LevelTransition::Immediate,
+                },
+            );
+            if matches!(value, 0 | 100) {
+                assert_eq!(immediate.unwrap().bytes(), [0xAE, 0x41, c, value, 0xEE]);
+            } else {
+                assert_eq!(immediate, Err(ProtocolError::UnsupportedCommand));
+            }
+            assert_eq!(
+                registry.decode(RawFrame {
+                    address: 0x41,
+                    command: 0xD0 + c,
+                    value
+                }),
+                Decoded::Feedback {
+                    address: address(),
+                    channel: channel(c),
+                    observation: Observation::Level(level)
+                }
+            );
+        }
+        assert_eq!(
+            encode(&module, channel(c), Command::Query).unwrap().bytes(),
+            [0xAE, 0x41, 0xA0 + c, 0xF2, 0xEE]
+        );
+        assert_eq!(
+            encode(&module, channel(c), Command::PauseRamp)
+                .unwrap()
+                .bytes(),
+            [0xAE, 0x41, 0xA0 + c, 0x05, 0xEE]
+        );
+    }
+    assert!(encode(&module, channel(9), Command::Query).is_err());
 }

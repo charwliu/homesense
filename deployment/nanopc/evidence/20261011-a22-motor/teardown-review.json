@@ -1,0 +1,10 @@
+{
+  "open_capture": "open-wire.pcap",
+  "close_capture": "close-wire.pcap",
+  "observed": "Open repeat: STOP at 1791682193.982063; local RST at 1791682193.983396 with unread inbound data. User confirmed physical stop. Close repeat: motion TCP retransmitted once then ACK; user confirmed success.",
+  "conclusion": "Neither RST nor retransmission proves the cause of earlier no-motion trials. No packet capture exists for those failures.",
+  "fix": "After STOP, half-close write and drain unsolicited bytes bounded by 500ms and 65536 bytes. This does not confirm motor state.",
+  "validation": "2 focused loopback tests passed, including unsolicited inbound feedback and broken stdout",
+  "deployment": "new teardown change not yet deployed",
+  "remote_runtime_check": "No homesensed process present during current read-only inspection"
+}

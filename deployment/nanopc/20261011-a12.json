@@ -1,0 +1,52 @@
+{
+  "release": "20261011-a12",
+  "base_commit": "1fdbe694530eee571993f616f59d2196bf11ccb4",
+  "uncommitted_worktree": true,
+  "source_sha256": "0c37c4ae25bc8e58919a80de510507d95ad4b265ecd49fd103aabda758d2f566",
+  "source_scope": "git ls-files cached and untracked nonignored: crates, vendor, Cargo.toml, Cargo.lock; sorted unique path NUL content NUL",
+  "rust": "1.99.0",
+  "target": "aarch64-unknown-linux-gnu",
+  "binary_sha256": "712a79271513ce7861d59d3275d371f7b5bd3c05eddfefd4e30c3f0b82136d3a",
+  "host": "nanopc.lab.vixal.xyz",
+  "status": "staged and isolated smoke passed; current remains a11",
+  "autostart_enabled": false,
+  "workspace_tests": {
+    "passed": 185,
+    "failed": 0,
+    "ignored": 0
+  },
+  "simulation_smoke": {
+    "passed": true,
+    "restarts": 2,
+    "state_directory": "/users/alarm/apps/homesense/tests/smoke-l0fhemsk"
+  },
+  "live_smoke": {
+    "passed": true,
+    "restarts": 2,
+    "state_directory": "/users/alarm/apps/homesense/tests/live-smoke-ndmg7vut"
+  },
+  "field_validation": {
+    "kind": "readonly proxy-injected EOF with real gateway feedback",
+    "passed": true,
+    "state_directory": "/users/alarm/apps/homesense/tests/readonly-reconnect-v0xl9iy0",
+    "connections": 2,
+    "injected_eof": 1,
+    "command_journal_rows": 0,
+    "outbound_whitelist": "AE03A4F2EE",
+    "scope": "study 03/4 only",
+    "limitation": "not a real gateway outage; no physical control validation",
+    "evidence": "evidence/20261011-a12/readonly-reconnect.log"
+  },
+  "active_release": "releases/20261011-a11",
+  "field_query_timeout": {
+    "passed": true,
+    "method": "proxy discards feedback on second connection only",
+    "state_directory": "/users/alarm/apps/homesense/tests/readonly-reconnect-0wz47j99",
+    "connections": 3,
+    "unsynchronized_epoch": 3,
+    "recovered_epoch": 4,
+    "command_journal_rows": 0,
+    "evidence": "evidence/20261011-a12/readonly-query-timeout.log",
+    "limitation": "injected feedback loss, not physical gateway outage"
+  }
+}

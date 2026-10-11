@@ -1,0 +1,47 @@
+{
+  "release": "20261011-a10",
+  "base_commit": "1fdbe694530eee571993f616f59d2196bf11ccb4",
+  "uncommitted_worktree": true,
+  "source_sha256": "40a318ed3d2cb508b59c51fecf03fdc71c783c26b854462b14b22e71ee325d79",
+  "source_scope": "crates, vendor, Cargo.toml, Cargo.lock; sorted path NUL content NUL",
+  "rust": "1.99.0",
+  "target": "aarch64-unknown-linux-gnu",
+  "binary_sha256": "34c07ba03658e0523200a24ff94bbc74d7b3191129c33a93f51776c5d23e3143",
+  "host": "nanopc.lab.vixal.xyz",
+  "active_release": "releases/20261011-a10",
+  "autostart_enabled": false,
+  "workspace_tests": {
+    "passed": 184,
+    "failed": 0,
+    "ignored": 0
+  },
+  "simulation_smoke": {
+    "passed": true,
+    "restarts": 2,
+    "state_directory": "/users/alarm/apps/homesense/tests/smoke-4pz9mfg9"
+  },
+  "live_loopback_smoke": {
+    "passed": true,
+    "restarts": 2,
+    "query_before_hap": true,
+    "unpaired_http": 401,
+    "identity_stable": true,
+    "state_directory": "/users/alarm/apps/homesense/tests/live-smoke-mhnmp5au"
+  },
+  "physical_scope": {
+    "configuration": "config/study-switch.live.json",
+    "device": "control4:210",
+    "address": "03",
+    "channel": 4,
+    "started": false
+  },
+  "field_readonly_test": {
+    "duration_seconds": 6,
+    "exit_code": 0,
+    "pairings": 0,
+    "command_journal_rows": 0,
+    "query": "AE03A4F2EE",
+    "reply": "AE03D4F2EE",
+    "finding": "unchanged observation did not increment state version; periodic query incorrectly timed out and reconnected; fixed locally using receipt counts"
+  }
+}

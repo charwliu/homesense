@@ -141,13 +141,47 @@ impl Store {
             };
             tx.execute("INSERT INTO command_journal(boot_id,command_id,revision,device_id,origin,intent,transport_epoch,control_epoch,deadline_ms,updated_ms,run_id,status) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,'accepted')",params![boot_id,integer(command.id)?,revision,command.device_id.as_str(),origin,intent(command.command).as_slice(),integer(command.epochs.transport)?,integer(command.epochs.control)?,integer(command.deadline_ms)?,now,command.run_id.map(integer).transpose()?])?;
         }
-        for cancellation in cancellations {
-            let command = &cancellation.command;
-            let count = tx.execute("UPDATE command_journal SET status='cancelled',updated_ms=?1,cancellation_reason=?2 WHERE boot_id=?3 AND command_id=?4 AND status='accepted' AND revision=?5 AND device_id=?6 AND intent=?7 AND updated_ms<=?1", params![now,format!("{:?}",cancellation.reason),boot_id,integer(command.id)?,sql_revision(command.epochs.configuration)?,command.device_id.as_str(),intent(command.command).as_slice()])?;
-            if count != 1 {
-                return Err(Error::Conflict);
-            }
+        cancel_in_transaction(&tx, boot_id, cancellations, now)?;
+        tx.commit()?;
+        Ok(())
+    }
+    /// Persist a publication/run barrier before attempting a configuration commit.
+    /// Every snapshot must still be Accepted; any mismatch rolls back the batch.
+    /// This never cancels Writing/Written commands or changes the active revision.
+    pub fn cancel_queued(
+        &mut self,
+        boot_id: &str,
+        cancellations: &[Cancellation],
+        now_ms: u64,
+    ) -> Result<(), Error> {
+        boot(boot_id)?;
+        if cancellations.len() > 4096 {
+            return Err(Error::InvalidAudit);
         }
+        let now = integer(now_ms)?;
+        let tx = self
+            .connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        cancel_in_transaction(&tx, boot_id, cancellations, now)?;
+        tx.commit()?;
+        Ok(())
+    }
+    /// Close this boot's pending transport work atomically. Written commands
+    /// remain written: loss of feedback is not proof their local write failed.
+    pub fn fail_transport(&mut self, boot_id: &str, now_ms: u64) -> Result<(), Error> {
+        boot(boot_id)?;
+        let now = integer(now_ms)?;
+        let tx = self
+            .connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let future: i64 = tx.query_row(
+            "SELECT count(*) FROM command_journal WHERE boot_id=?1 AND status IN ('accepted','writing') AND updated_ms>?2",
+            params![boot_id, now], |r| r.get(0))?;
+        if future != 0 {
+            return Err(Error::Conflict);
+        }
+        tx.execute("UPDATE command_journal SET status='cancelled',cancellation_reason='TransportFailed',updated_ms=?2 WHERE boot_id=?1 AND status='accepted'", params![boot_id, now])?;
+        tx.execute("UPDATE command_journal SET status='uncertain',updated_ms=?2 WHERE boot_id=?1 AND status='writing'", params![boot_id, now])?;
         tx.commit()?;
         Ok(())
     }
@@ -199,4 +233,24 @@ impl Store {
         boot(current_boot)?;
         Ok(self.connection.execute("UPDATE command_journal SET status='uncertain',recovered_by=?1 WHERE boot_id<>?1 AND status IN ('accepted','writing','written')",[current_boot])?)
     }
+}
+
+fn cancel_in_transaction(
+    tx: &rusqlite::Transaction<'_>,
+    boot_id: &str,
+    cancellations: &[Cancellation],
+    now: i64,
+) -> Result<(), Error> {
+    for cancellation in cancellations {
+        let command = &cancellation.command;
+        let count = tx.execute("UPDATE command_journal SET status='cancelled',updated_ms=?1,cancellation_reason=?2 WHERE boot_id=?3 AND command_id=?4 AND status='accepted' AND revision=?5 AND device_id=?6 AND intent=?7 AND updated_ms<=?1 AND transport_epoch=?8 AND control_epoch=?9 AND deadline_ms=?10 AND run_id IS ?11",
+            params![now, format!("{:?}", cancellation.reason), boot_id, integer(command.id)?,
+                sql_revision(command.epochs.configuration)?, command.device_id.as_str(),
+                intent(command.command).as_slice(), integer(command.epochs.transport)?,
+                integer(command.epochs.control)?, integer(command.deadline_ms)?, command.run_id.map(integer).transpose()?])?;
+        if count != 1 {
+            return Err(Error::Conflict);
+        }
+    }
+    Ok(())
 }

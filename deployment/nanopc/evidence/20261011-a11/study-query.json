@@ -1,0 +1,77 @@
+{
+  "client_connections": [
+    [
+      "192.168.4.1",
+      42184,
+      "192.168.0.10",
+      50007
+    ]
+  ],
+  "application_frames": [
+    {
+      "time": 1791654154.692543,
+      "source": "192.168.4.1",
+      "source_port": 42184,
+      "destination": "192.168.0.10",
+      "destination_port": 50007,
+      "hex": "ae03a4f2ee"
+    },
+    {
+      "time": 1791654154.71222,
+      "source": "192.168.0.10",
+      "source_port": 50007,
+      "destination": "192.168.4.1",
+      "destination_port": 42184,
+      "hex": "ae03d4f2ee"
+    },
+    {
+      "time": 1791654157.278887,
+      "source": "192.168.4.1",
+      "source_port": 42184,
+      "destination": "192.168.0.10",
+      "destination_port": 50007,
+      "hex": "ae03a4f2ee"
+    },
+    {
+      "time": 1791654157.303896,
+      "source": "192.168.0.10",
+      "source_port": 50007,
+      "destination": "192.168.4.1",
+      "destination_port": 42184,
+      "hex": "ae03d4f2ee"
+    },
+    {
+      "time": 1791654159.882891,
+      "source": "192.168.4.1",
+      "source_port": 42184,
+      "destination": "192.168.0.10",
+      "destination_port": 50007,
+      "hex": "ae03a4f2ee"
+    },
+    {
+      "time": 1791654159.902536,
+      "source": "192.168.0.10",
+      "source_port": 50007,
+      "destination": "192.168.4.1",
+      "destination_port": 42184,
+      "hex": "ae03d4f2ee"
+    },
+    {
+      "time": 1791654162.478835,
+      "source": "192.168.4.1",
+      "source_port": 42184,
+      "destination": "192.168.0.10",
+      "destination_port": 50007,
+      "hex": "ae03a4f2ee"
+    },
+    {
+      "time": 1791654162.498211,
+      "source": "192.168.0.10",
+      "source_port": 50007,
+      "destination": "192.168.4.1",
+      "destination_port": 42184,
+      "hex": "ae03d4f2ee"
+    }
+  ],
+  "only_query_and_off_feedback": true
+}

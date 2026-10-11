@@ -1,0 +1,40 @@
+{
+  "release": "20261011-a7",
+  "base_commit": "1fdbe694530eee571993f616f59d2196bf11ccb4",
+  "uncommitted_worktree": true,
+  "source_sha256": "c0829973d8c12cab0398d9a489a7152bb96ec954c6ed4e05e5e2d13eb8254f45",
+  "source_scope": "crates, vendor, Cargo.toml, Cargo.lock; sorted path NUL content NUL",
+  "rust": "1.99.0",
+  "target": "aarch64-unknown-linux-gnu",
+  "binary_sha256": "51c7bc17a274cc283f7063dafaf62ed81932416c0b04e968e2a11bc8083cbe88",
+  "host": "nanopc.lab.vixal.xyz",
+  "active_release": "releases/20261011-a7",
+  "simulation_smoke": {
+    "passed": true,
+    "state_directory": "/users/alarm/apps/homesense/tests/smoke-9uq3qj45"
+  },
+  "autostart_enabled": false,
+  "diagnostics": "HTTP paths/statuses and pairing stages only; bodies and keys excluded",
+  "field_validation": {
+    "iphone_ipv4": "192.168.4.149",
+    "iphone_http_accessories": 401,
+    "home_ui": "intermittent: responsive after hub restart, then user reported unresponsive again",
+    "pair_verify_after_restart_observed": true,
+    "mdns_directed_query": {
+      "service": "HomeSense Simulation",
+      "hostname": "homesense-f022dc82cd27.local.",
+      "address": "192.168.4.1",
+      "port": 51826,
+      "sf": 0,
+      "ci": 2,
+      "configuration_number": 2
+    },
+    "limitation": "Directed query proves responder records only; does not prove Home hub multicast discovery or authenticated control.",
+    "authenticated_accessories_http": 200,
+    "authenticated_characteristics_http": [
+      200,
+      204
+    ],
+    "control_validation": "journal contains written brightness values including 30 percent and off; stable UI/control not accepted"
+  }
+}

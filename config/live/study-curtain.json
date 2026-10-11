@@ -1,0 +1,38 @@
+{
+  "devices": [
+    {
+      "address": "22",
+      "channel": 2,
+      "enabled": true,
+      "gateway": "hopebeauty",
+      "id": "control4:290",
+      "name": "GJ-TECH.CN Blinds (OS 2.9+)",
+      "motor_calibration": {
+        "open_direction": "up",
+        "stop_verified": true,
+        "evidence": "20261011-a21/curtain-direction-test.json: user confirmed both mid-travel stops",
+        "verified_at_unix_ms": 1791682319558
+      }
+    }
+  ],
+  "gateways": [
+    {
+      "endpoint": "192.168.0.10:50007",
+      "id": "hopebeauty",
+      "modules": [
+        {
+          "address": "22",
+          "profile": "c4_din_pro_v2_7_7",
+          "verification": {
+            "status": "verified",
+            "evidence": "C4_Pro V14 firmware query and user-confirmed F1/F2/F0 field tests",
+            "verified_at_unix_ms": 1791682319558
+          }
+        }
+      ]
+    }
+  ],
+  "manual_degraded_enabled": false,
+  "revision": 1,
+  "schema_version": 1
+}

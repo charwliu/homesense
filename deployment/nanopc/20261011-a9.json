@@ -1,0 +1,70 @@
+{
+  "release": "20261011-a9",
+  "base_commit": "1fdbe694530eee571993f616f59d2196bf11ccb4",
+  "uncommitted_worktree": true,
+  "source_sha256": "46856030376668e6e08981b834f4865ee7093890da67fb50a11a9c74ee1a08b2",
+  "source_scope": "crates, vendor, Cargo.toml, Cargo.lock; sorted path NUL content NUL",
+  "rust": "1.99.0",
+  "target": "aarch64-unknown-linux-gnu",
+  "binary_sha256": "c224f5b684c42cdad65915a6c7055652fdea1af7ddf0c962f4ab50abd2ad57aa",
+  "host": "nanopc.lab.vixal.xyz",
+  "active_release": "releases/20261011-a9",
+  "autostart_enabled": false,
+  "tests": {
+    "hap_lib": 51,
+    "storage": 13,
+    "http_loopback": 3,
+    "simulation_smoke_restarts": 2
+  },
+  "simulation_smoke": {
+    "passed": true,
+    "state_directory": "/users/alarm/apps/homesense/tests/smoke-xd5tr2eu"
+  },
+  "field_validation": {
+    "status": "user reports connected; server confirms paired reads/writes after list synchronization",
+    "pairings": 1,
+    "admins": 1,
+    "exact_identifiers": 1,
+    "hub_ip": "192.168.3.215",
+    "pair_setup_remote_utc": "2026-10-10T17:13:24Z",
+    "authenticated_requests_through_remote_utc": "2026-10-10T17:14:33Z",
+    "stable_control": "short control sequence and process restart passed; extended stability pending",
+    "user_control_sequence": "user confirmed performed open, 30 percent, close",
+    "command_evidence": {
+      "30_percent": {
+        "command_id": 34,
+        "intent_hex": "01021E00",
+        "status": "written"
+      },
+      "off": {
+        "command_id": 35,
+        "intent_hex": "01020000",
+        "status": "written"
+      }
+    },
+    "post_pair_auth_errors": 0
+  },
+  "change": "Preserve exact controller identifier in Pair Setup/Add/List; retain legacy deserialization. Log pairing mutation actor/target/counts without keys. No restored revoked credentials.",
+  "post_deploy_regression": {
+    "test": "real_http_pair_setup_authenticates_both_sides_and_persists_identity",
+    "uppercase_pair_setup": true,
+    "encrypted_list_add_remove_list": true,
+    "repeated_after_restart": true,
+    "original_listing_behavior": "fails exact identifier assertion",
+    "fixed_behavior": "3 HTTP loopback tests passed",
+    "field_stable_control": "pending"
+  },
+  "restart_validation": {
+    "before_identity_sha256": "ce138ea3b62e3682448f8889d0ee09f0846dec58d6fcce5b2525e6403075aac9",
+    "before_pairings": 1,
+    "status": "passed: existing HPLeft pairing authenticated after process restart",
+    "after_identity_sha256": "ce138ea3b62e3682448f8889d0ee09f0846dec58d6fcce5b2525e6403075aac9",
+    "after_pairings": 1,
+    "reconnect_seconds": 15,
+    "authenticated_accessories_status": 200,
+    "subscriptions_status": 204,
+    "observed_through_remote_utc": "2026-10-10T17:28:26Z",
+    "error_or_401_count": 0,
+    "pairings_after_observation": 1
+  }
+}

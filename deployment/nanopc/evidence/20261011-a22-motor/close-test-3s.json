@@ -1,0 +1,23 @@
+{
+  "device": "control4:290",
+  "boot_id": "d1aee1e5-2562-45f4-885d-4dc0c3434206",
+  "method": "Rust Admission -> TransportOwner",
+  "binary_sha256": "aec78bfa4f2628821ded98155d1fbf4ce6cd4cae7abfc215ce75468f78a31bd7",
+  "hold_seconds": 3,
+  "commands": [
+    {
+      "action": "Close",
+      "command_id": 1,
+      "status": "Written"
+    },
+    {
+      "action": "Stop",
+      "command_id": 2,
+      "status": "Written"
+    }
+  ],
+  "exit_code": 0,
+  "physical_result": "没有明显移动；仍在中间，没有动作声",
+  "loopback_test": "passed both directions and durable audit",
+  "physical_result_confirmed": false
+}

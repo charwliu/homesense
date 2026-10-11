@@ -1,0 +1,20 @@
+{
+  "boot_id": "d5506ae8-7e11-4760-8e5a-55607048d9be",
+  "device": "control4:290",
+  "method": "Rust Admission -> TransportOwner",
+  "commands": [
+    {
+      "action": "Close",
+      "command_id": 1,
+      "status": "Written"
+    },
+    {
+      "action": "Stop",
+      "command_id": 2,
+      "status": "Written"
+    }
+  ],
+  "hold_seconds": 2,
+  "exit_code": 0,
+  "physical_result": "awaiting user observation"
+}

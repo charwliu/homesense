@@ -1,0 +1,32 @@
+{
+  "user_result": "都按期望实现了",
+  "passed": [
+    "50% to 30% physical dimming follows Home",
+    "no UI bounce reported",
+    "off then On-only restores 30%"
+  ],
+  "log_evidence": [
+    "[2026-10-11T01:10:05Z DEBUG homesense_hap::events] hap_brightness_event device=DeviceId(\"control4:336\") observed=25",
+    "[2026-10-11T01:10:33Z DEBUG homesense_hap::requests] hap_light_fields device=DeviceId(\"control4:336\") on=Some(true) brightness=Some(Percent(60))",
+    "[2026-10-11T01:10:33Z DEBUG homesense_hap::write] hap_light_intent device=DeviceId(\"control4:336\") command=SetLevel { level: Percent(60), transition: Immediate }",
+    "[2026-10-11T01:10:35Z DEBUG homesense_hap::requests] hap_light_fields device=DeviceId(\"control4:336\") on=None brightness=Some(Percent(50))",
+    "[2026-10-11T01:10:35Z DEBUG homesense_hap::write] hap_light_intent device=DeviceId(\"control4:336\") command=SetLevel { level: Percent(50), transition: Immediate }",
+    "[2026-10-11T01:10:37Z DEBUG homesense_hap::events] hap_brightness_event device=DeviceId(\"control4:336\") observed=50",
+    "[2026-10-11T01:10:42Z DEBUG homesense_hap::requests] hap_light_fields device=DeviceId(\"control4:336\") on=None brightness=Some(Percent(30))",
+    "[2026-10-11T01:10:42Z DEBUG homesense_hap::write] hap_light_intent device=DeviceId(\"control4:336\") command=SetLevel { level: Percent(30), transition: Immediate }",
+    "[2026-10-11T01:10:44Z DEBUG homesense_hap::events] hap_brightness_event device=DeviceId(\"control4:336\") observed=30",
+    "[2026-10-11T01:10:51Z DEBUG homesense_hap::requests] hap_light_fields device=DeviceId(\"control4:336\") on=Some(false) brightness=None",
+    "[2026-10-11T01:10:51Z DEBUG homesense_hap::write] hap_light_intent device=DeviceId(\"control4:336\") command=SetLevel { level: Percent(0), transition: Immediate }",
+    "[2026-10-11T01:10:51Z DEBUG homesense_hap::events] hap_brightness_event device=DeviceId(\"control4:336\") observed=30",
+    "[2026-10-11T01:10:56Z DEBUG homesense_hap::requests] hap_light_fields device=DeviceId(\"control4:336\") on=Some(true) brightness=None",
+    "[2026-10-11T01:10:56Z DEBUG homesense_hap::write] hap_light_intent device=DeviceId(\"control4:336\") command=SetLevel { level: Percent(30), transition: Immediate }",
+    "[2026-10-11T01:10:57Z DEBUG homesense_hap::events] hap_brightness_event device=DeviceId(\"control4:336\") observed=30"
+  ],
+  "query_timeout_count_in_captured_log": 0,
+  "captured_log_sha256": "0cdcd7ac26d2e40ca6eb8eb2e0bf50c774f4367ae04e9acbd8485500339a7bf8",
+  "limitations": [
+    "This sequence did not reproduce earlier query timeouts; cause is not established",
+    "Curtain direction and STOP remain unverified",
+    "20 minute service may still run until its limit"
+  ]
+}

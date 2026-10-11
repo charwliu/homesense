@@ -1,0 +1,8 @@
+{"duration_ms":90000,"event":"capture_started","max_frames":4096,"unix_ms":"1791647892843"}
+{"decoded":{"kind":"unknown","reason":"UnverifiedModule"},"elapsed_ms":22978,"event":"frame","raw":[174,65,210,241,238]}
+{"decoded":{"kind":"unknown","reason":"UnverifiedModule"},"elapsed_ms":23121,"event":"frame","raw":[174,65,210,242,238]}
+{"decoded":{"kind":"unknown","reason":"UnverifiedModule"},"elapsed_ms":26092,"event":"frame","raw":[174,65,214,241,238]}
+{"decoded":{"kind":"unknown","reason":"UnverifiedModule"},"elapsed_ms":26296,"event":"frame","raw":[174,65,214,242,238]}
+{"decoded":{"kind":"unknown","reason":"UnverifiedModule"},"elapsed_ms":31607,"event":"frame","raw":[174,65,212,241,238]}
+{"decoded":{"kind":"unknown","reason":"UnverifiedModule"},"elapsed_ms":31781,"event":"frame","raw":[174,65,212,242,238]}
+{"discarded_bytes":0,"elapsed_ms":90032,"error":null,"event":"capture_finished","frames":6,"incomplete_bytes":0,"malformed_frames":0,"reason":"duration"}

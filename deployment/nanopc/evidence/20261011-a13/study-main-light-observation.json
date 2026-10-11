@@ -1,0 +1,53 @@
+{
+  "observed_at": "2026-10-10T23:48:38.217808+00:00",
+  "user_action": "用户通过原 Control4 打开书房主灯后确认已打开",
+  "queries_only": true,
+  "observations": [
+    {
+      "address": "03",
+      "channel": 4,
+      "value": true,
+      "raw_hex": "AE03D4F1EE"
+    },
+    {
+      "address": "07",
+      "channel": 6,
+      "value": false,
+      "raw_hex": "AE07D6F2EE"
+    },
+    {
+      "address": "11",
+      "channel": 5,
+      "level_percent": 0,
+      "raw_hex": "AE11D500EE"
+    },
+    {
+      "address": "12",
+      "channel": 4,
+      "level_percent": 100,
+      "raw_hex": "AE12D464EE"
+    }
+  ],
+  "comparison": "12/4 从 0% 变为 100%；03/4 保持开。支持主灯关联 12/4 调光；未通过隔离测试证明继电器接线关系。",
+  "ea5_modified": false,
+  "homekit_followup": {
+    "user_result": "可以了：原系统调亮后，在 HomeSense 关、开，实灯跟随",
+    "journal": [
+      {
+        "command_id": 4,
+        "device_id": "control4:210",
+        "intent_hex": "01010000",
+        "status": "written",
+        "updated_ms": 368515
+      },
+      {
+        "command_id": 5,
+        "device_id": "control4:210",
+        "intent_hex": "01010100",
+        "status": "written",
+        "updated_ms": 371457
+      }
+    ],
+    "scope": "03/4 实灯开关通过；12/4 亮度由原 Control4 设置，不能作为 HomeSense 调光通过证据"
+  }
+}

@@ -1,5 +1,6 @@
+use crate::transport::http::body::Body;
 use futures::future::{BoxFuture, FutureExt};
-use hyper::{self, Body, Response, StatusCode, Uri};
+use hyper::{self, Response, StatusCode, Uri};
 
 use crate::{
     pointer,
@@ -170,9 +171,9 @@ pub(crate) async fn paired_controller(
 
 /// Bound authentication bodies before decoding attacker-controlled TLV fields.
 pub(crate) async fn read_tlv_body(
-    mut body: hyper::Body,
+    mut body: Body,
 ) -> std::result::Result<std::collections::HashMap<u8, Vec<u8>>, crate::tlv::ErrorContainer> {
-    use hyper::body::HttpBody;
+
     let bytes = tokio::time::timeout(std::time::Duration::from_secs(5), async move {
         let mut bytes = Vec::new();
         while let Some(chunk) = body.data().await {
@@ -193,7 +194,7 @@ pub(crate) async fn read_tlv_body(
 #[cfg(test)]
 mod authentication_input_tests {
     use super::*;
-    use hyper::Body;
+    use crate::transport::http::body::Body;
 
     #[tokio::test]
     async fn setup_and_pairings_reject_malformed_fields() {

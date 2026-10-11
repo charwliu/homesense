@@ -1,0 +1,4 @@
+{"configuration_unchanged":true,"endpoint":"192.168.0.10:50007","event":"parameter_query","raw":[174,65,199,0,238]}
+{"causal_acknowledgment":false,"event":"parameter_response","interpretation":"Ambiguous","raw":[2,174,18,212,65,238]}
+{"configuration_unchanged":true,"endpoint":"192.168.0.10:50007","event":"parameter_query","raw":[174,65,197,0,238]}
+{"causal_acknowledgment":false,"event":"parameter_response","interpretation":"Ambiguous","raw":[255,174,3,212,241,238]}

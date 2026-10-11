@@ -1,0 +1,34 @@
+{
+  "device": "control4:290",
+  "address": "22",
+  "group": 2,
+  "method": "Rust motor_commission -> Admission -> TransportOwner",
+  "binary_sha256": "c2d2a39268b3c3cd50da5e697e5d10452ce98b5e6be37ec530c1e299d2eb2195",
+  "boot_id": "e7d1b419-5030-4947-9e16-6cd86c401dad",
+  "commands": [
+    {
+      "action": "Open",
+      "command_id": 1,
+      "status": "Written"
+    },
+    {
+      "action": "Stop",
+      "command_id": 2,
+      "status": "Written"
+    }
+  ],
+  "hold_seconds": 2,
+  "exit_code": 0,
+  "physical_result": "没有明显移动；仍在中间，能听到动作声",
+  "close_test": "pending",
+  "repeat": {
+    "boot_id": "e3914b92-de62-4717-a700-56632e6ba186",
+    "commands": [
+      "Open",
+      "Stop"
+    ],
+    "hold_seconds": 2,
+    "user_result": "明显向打开方向移动，并中途停住",
+    "physical_result_confirmed": true
+  }
+}

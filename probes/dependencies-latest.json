@@ -1,0 +1,134 @@
+{
+  "checked_on": "2026-10-11",
+  "source": "https://crates.io/api/v1/crates/",
+  "stable_non_yanked": {
+    "aead": {
+      "version": "0.6.1",
+      "rust_version": "1.85"
+    },
+    "async-trait": {
+      "version": "0.1.92",
+      "rust_version": "1.71"
+    },
+    "byteorder": {
+      "version": "1.5.0",
+      "rust_version": "1.60"
+    },
+    "bytes": {
+      "version": "1.12.1",
+      "rust_version": "1.57"
+    },
+    "chacha20poly1305": {
+      "version": "0.11.0",
+      "rust_version": "1.85"
+    },
+    "curve25519-dalek": {
+      "version": "5.0.0",
+      "rust_version": "1.85.0"
+    },
+    "ed25519-dalek": {
+      "version": "3.0.0",
+      "rust_version": "1.85"
+    },
+    "erased-serde": {
+      "version": "0.4.10",
+      "rust_version": "1.68"
+    },
+    "futures": {
+      "version": "0.3.34",
+      "rust_version": "1.71"
+    },
+    "hkdf": {
+      "version": "0.13.0",
+      "rust_version": "1.85"
+    },
+    "hyper": {
+      "version": "1.12.0",
+      "rust_version": "1.63"
+    },
+    "if-addrs": {
+      "version": "0.15.0",
+      "rust_version": null
+    },
+    "log": {
+      "version": "0.4.34",
+      "rust_version": "1.71.0"
+    },
+    "macaddr": {
+      "version": "1.0.1",
+      "rust_version": null
+    },
+    "mdns-sd": {
+      "version": "0.21.5",
+      "rust_version": "1.71.0"
+    },
+    "num": {
+      "version": "0.4.3",
+      "rust_version": "1.60"
+    },
+    "rand": {
+      "version": "0.10.3",
+      "rust_version": "1.85"
+    },
+    "roxmltree": {
+      "version": "0.21.1",
+      "rust_version": "1.60"
+    },
+    "rusqlite": {
+      "version": "0.40.2",
+      "rust_version": null
+    },
+    "serde": {
+      "version": "1.0.229",
+      "rust_version": "1.56"
+    },
+    "serde_json": {
+      "version": "1.0.151",
+      "rust_version": "1.71"
+    },
+    "sha2": {
+      "version": "0.11.0",
+      "rust_version": "1.85"
+    },
+    "signature": {
+      "version": "3.0.0",
+      "rust_version": "1.85"
+    },
+    "srp": {
+      "version": "0.6.0",
+      "rust_version": "1.56"
+    },
+    "thiserror": {
+      "version": "2.0.21",
+      "rust_version": "1.77"
+    },
+    "tokio": {
+      "version": "1.53.2",
+      "rust_version": "1.71"
+    },
+    "url": {
+      "version": "2.5.8",
+      "rust_version": "1.63"
+    },
+    "uuid": {
+      "version": "1.28.0",
+      "rust_version": "1.89.0"
+    },
+    "x25519-dalek": {
+      "version": "3.0.0",
+      "rust_version": "1.85"
+    },
+    "zip": {
+      "version": "9.0.1",
+      "rust_version": "1.88"
+    },
+    "hyper-util": {
+      "version": "0.1.21",
+      "rust_version": null
+    },
+    "http-body-util": {
+      "version": "0.1.5",
+      "rust_version": null
+    }
+  }
+}

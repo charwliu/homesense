@@ -1,0 +1,77 @@
+[
+  {
+    "time_ns": 1791680721394036644,
+    "kind": "connected",
+    "generation": 1
+  },
+  {
+    "time_ns": 1791680721394115685,
+    "kind": "query",
+    "generation": 1,
+    "hex": "ae03a4f2ee"
+  },
+  {
+    "time_ns": 1791680721414096477,
+    "kind": "feedback",
+    "generation": 1,
+    "hex": "ae03d4f2ee"
+  },
+  {
+    "time_ns": 1791680721614356352,
+    "kind": "injected_eof",
+    "generation": 1
+  },
+  {
+    "time_ns": 1791680721617602019,
+    "kind": "connected",
+    "generation": 2
+  },
+  {
+    "time_ns": 1791680721617690102,
+    "kind": "query",
+    "generation": 2,
+    "hex": "ae03a4f2ee"
+  },
+  {
+    "time_ns": 1791680721639121477,
+    "kind": "feedback",
+    "generation": 2,
+    "hex": "ae03d4f2ee"
+  },
+  {
+    "time_ns": 1791680724219189062,
+    "kind": "query",
+    "generation": 2,
+    "hex": "ae03a4f2ee"
+  },
+  {
+    "time_ns": 1791680724240927853,
+    "kind": "feedback",
+    "generation": 2,
+    "hex": "ae03d4f2ee"
+  },
+  {
+    "time_ns": 1791680726823191105,
+    "kind": "query",
+    "generation": 2,
+    "hex": "ae03a4f2ee"
+  },
+  {
+    "time_ns": 1791680726843572188,
+    "kind": "feedback",
+    "generation": 2,
+    "hex": "ae03d4f2ee"
+  },
+  {
+    "time_ns": 1791680729423176606,
+    "kind": "query",
+    "generation": 2,
+    "hex": "ae03a4f2ee"
+  },
+  {
+    "time_ns": 1791680729450240356,
+    "kind": "feedback",
+    "generation": 2,
+    "hex": "ae03d4f2ee"
+  }
+]

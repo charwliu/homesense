@@ -1,0 +1,374 @@
+{
+  "captured_at_remote": "2026-10-11T00:03:14.985910+00:00",
+  "running": true,
+  "revision": 2,
+  "commands": [
+    {
+      "boot_id": "b851f2a3-3818-4e1b-896b-9b20f1d0995e",
+      "command_id": 1,
+      "device_id": "control4:336",
+      "intent_hex": "01026400",
+      "status": "written",
+      "cancellation_reason": null,
+      "updated_ms": 67893
+    },
+    {
+      "boot_id": "b851f2a3-3818-4e1b-896b-9b20f1d0995e",
+      "command_id": 2,
+      "device_id": "control4:210",
+      "intent_hex": "01010100",
+      "status": "written",
+      "cancellation_reason": null,
+      "updated_ms": 68009
+    },
+    {
+      "boot_id": "b851f2a3-3818-4e1b-896b-9b20f1d0995e",
+      "command_id": 3,
+      "device_id": "control4:336",
+      "intent_hex": "01031400",
+      "status": "written",
+      "cancellation_reason": null,
+      "updated_ms": 71104
+    },
+    {
+      "boot_id": "b851f2a3-3818-4e1b-896b-9b20f1d0995e",
+      "command_id": 4,
+      "device_id": "control4:210",
+      "intent_hex": "01010100",
+      "status": "written",
+      "cancellation_reason": null,
+      "updated_ms": 71220
+    },
+    {
+      "boot_id": "b851f2a3-3818-4e1b-896b-9b20f1d0995e",
+      "command_id": 5,
+      "device_id": "control4:336",
+      "intent_hex": "01031600",
+      "status": "written",
+      "cancellation_reason": null,
+      "updated_ms": 72153
+    },
+    {
+      "boot_id": "b851f2a3-3818-4e1b-896b-9b20f1d0995e",
+      "command_id": 6,
+      "device_id": "control4:210",
+      "intent_hex": "01010100",
+      "status": "written",
+      "cancellation_reason": null,
+      "updated_ms": 72298
+    },
+    {
+      "boot_id": "b851f2a3-3818-4e1b-896b-9b20f1d0995e",
+      "command_id": 7,
+      "device_id": "control4:336",
+      "intent_hex": "01033300",
+      "status": "written",
+      "cancellation_reason": null,
+      "updated_ms": 72416
+    },
+    {
+      "boot_id": "b851f2a3-3818-4e1b-896b-9b20f1d0995e",
+      "command_id": 8,
+      "device_id": "control4:210",
+      "intent_hex": "01010100",
+      "status": "written",
+      "cancellation_reason": null,
+      "updated_ms": 72536
+    },
+    {
+      "boot_id": "b851f2a3-3818-4e1b-896b-9b20f1d0995e",
+      "command_id": 9,
+      "device_id": "control4:336",
+      "intent_hex": "01036100",
+      "status": "written",
+      "cancellation_reason": null,
+      "updated_ms": 73848
+    },
+    {
+      "boot_id": "b851f2a3-3818-4e1b-896b-9b20f1d0995e",
+      "command_id": 10,
+      "device_id": "control4:210",
+      "intent_hex": "01010100",
+      "status": "written",
+      "cancellation_reason": null,
+      "updated_ms": 73965
+    },
+    {
+      "boot_id": "b851f2a3-3818-4e1b-896b-9b20f1d0995e",
+      "command_id": 11,
+      "device_id": "control4:336",
+      "intent_hex": "01034C00",
+      "status": "written",
+      "cancellation_reason": null,
+      "updated_ms": 74085
+    },
+    {
+      "boot_id": "b851f2a3-3818-4e1b-896b-9b20f1d0995e",
+      "command_id": 12,
+      "device_id": "control4:210",
+      "intent_hex": "01010100",
+      "status": "written",
+      "cancellation_reason": null,
+      "updated_ms": 74205
+    },
+    {
+      "boot_id": "b851f2a3-3818-4e1b-896b-9b20f1d0995e",
+      "command_id": 13,
+      "device_id": "control4:336",
+      "intent_hex": "01034400",
+      "status": "written",
+      "cancellation_reason": null,
+      "updated_ms": 74324
+    },
+    {
+      "boot_id": "b851f2a3-3818-4e1b-896b-9b20f1d0995e",
+      "command_id": 14,
+      "device_id": "control4:210",
+      "intent_hex": "01010100",
+      "status": "written",
+      "cancellation_reason": null,
+      "updated_ms": 74445
+    },
+    {
+      "boot_id": "b851f2a3-3818-4e1b-896b-9b20f1d0995e",
+      "command_id": 15,
+      "device_id": "control4:336",
+      "intent_hex": "01034000",
+      "status": "written",
+      "cancellation_reason": null,
+      "updated_ms": 74561
+    },
+    {
+      "boot_id": "b851f2a3-3818-4e1b-896b-9b20f1d0995e",
+      "command_id": 16,
+      "device_id": "control4:210",
+      "intent_hex": "01010100",
+      "status": "written",
+      "cancellation_reason": null,
+      "updated_ms": 74676
+    },
+    {
+      "boot_id": "b851f2a3-3818-4e1b-896b-9b20f1d0995e",
+      "command_id": 17,
+      "device_id": "control4:336",
+      "intent_hex": "01033800",
+      "status": "written",
+      "cancellation_reason": null,
+      "updated_ms": 75856
+    },
+    {
+      "boot_id": "b851f2a3-3818-4e1b-896b-9b20f1d0995e",
+      "command_id": 18,
+      "device_id": "control4:210",
+      "intent_hex": "01010100",
+      "status": "written",
+      "cancellation_reason": null,
+      "updated_ms": 75972
+    },
+    {
+      "boot_id": "b851f2a3-3818-4e1b-896b-9b20f1d0995e",
+      "command_id": 19,
+      "device_id": "control4:336",
+      "intent_hex": "01032900",
+      "status": "written",
+      "cancellation_reason": null,
+      "updated_ms": 76089
+    },
+    {
+      "boot_id": "b851f2a3-3818-4e1b-896b-9b20f1d0995e",
+      "command_id": 20,
+      "device_id": "control4:210",
+      "intent_hex": "01010100",
+      "status": "written",
+      "cancellation_reason": null,
+      "updated_ms": 76247
+    },
+    {
+      "boot_id": "b851f2a3-3818-4e1b-896b-9b20f1d0995e",
+      "command_id": 21,
+      "device_id": "control4:336",
+      "intent_hex": "01032800",
+      "status": "written",
+      "cancellation_reason": null,
+      "updated_ms": 76365
+    },
+    {
+      "boot_id": "b851f2a3-3818-4e1b-896b-9b20f1d0995e",
+      "command_id": 22,
+      "device_id": "control4:210",
+      "intent_hex": "01010100",
+      "status": "written",
+      "cancellation_reason": null,
+      "updated_ms": 76480
+    },
+    {
+      "boot_id": "b851f2a3-3818-4e1b-896b-9b20f1d0995e",
+      "command_id": 23,
+      "device_id": "control4:336",
+      "intent_hex": "01032300",
+      "status": "written",
+      "cancellation_reason": null,
+      "updated_ms": 89013
+    },
+    {
+      "boot_id": "b851f2a3-3818-4e1b-896b-9b20f1d0995e",
+      "command_id": 24,
+      "device_id": "control4:210",
+      "intent_hex": "01010100",
+      "status": "written",
+      "cancellation_reason": null,
+      "updated_ms": 89129
+    },
+    {
+      "boot_id": "b851f2a3-3818-4e1b-896b-9b20f1d0995e",
+      "command_id": 25,
+      "device_id": "control4:336",
+      "intent_hex": "01030D00",
+      "status": "written",
+      "cancellation_reason": null,
+      "updated_ms": 89281
+    },
+    {
+      "boot_id": "b851f2a3-3818-4e1b-896b-9b20f1d0995e",
+      "command_id": 26,
+      "device_id": "control4:210",
+      "intent_hex": "01010100",
+      "status": "written",
+      "cancellation_reason": null,
+      "updated_ms": 89397
+    },
+    {
+      "boot_id": "b851f2a3-3818-4e1b-896b-9b20f1d0995e",
+      "command_id": 27,
+      "device_id": "control4:336",
+      "intent_hex": "01030D00",
+      "status": "written",
+      "cancellation_reason": null,
+      "updated_ms": 89513
+    },
+    {
+      "boot_id": "b851f2a3-3818-4e1b-896b-9b20f1d0995e",
+      "command_id": 28,
+      "device_id": "control4:210",
+      "intent_hex": "01010100",
+      "status": "written",
+      "cancellation_reason": null,
+      "updated_ms": 89633
+    },
+    {
+      "boot_id": "b851f2a3-3818-4e1b-896b-9b20f1d0995e",
+      "command_id": 29,
+      "device_id": "control4:336",
+      "intent_hex": "01031400",
+      "status": "written",
+      "cancellation_reason": null,
+      "updated_ms": 101345
+    },
+    {
+      "boot_id": "b851f2a3-3818-4e1b-896b-9b20f1d0995e",
+      "command_id": 30,
+      "device_id": "control4:210",
+      "intent_hex": "01010100",
+      "status": "written",
+      "cancellation_reason": null,
+      "updated_ms": 101465
+    },
+    {
+      "boot_id": "b851f2a3-3818-4e1b-896b-9b20f1d0995e",
+      "command_id": 31,
+      "device_id": "control4:336",
+      "intent_hex": "01033200",
+      "status": "written",
+      "cancellation_reason": null,
+      "updated_ms": 102429
+    },
+    {
+      "boot_id": "b851f2a3-3818-4e1b-896b-9b20f1d0995e",
+      "command_id": 32,
+      "device_id": "control4:210",
+      "intent_hex": "01010100",
+      "status": "written",
+      "cancellation_reason": null,
+      "updated_ms": 102549
+    },
+    {
+      "boot_id": "b851f2a3-3818-4e1b-896b-9b20f1d0995e",
+      "command_id": 33,
+      "device_id": "control4:336",
+      "intent_hex": "01033200",
+      "status": "written",
+      "cancellation_reason": null,
+      "updated_ms": 106225
+    },
+    {
+      "boot_id": "b851f2a3-3818-4e1b-896b-9b20f1d0995e",
+      "command_id": 34,
+      "device_id": "control4:210",
+      "intent_hex": "01010100",
+      "status": "written",
+      "cancellation_reason": null,
+      "updated_ms": 106345
+    },
+    {
+      "boot_id": "b851f2a3-3818-4e1b-896b-9b20f1d0995e",
+      "command_id": 35,
+      "device_id": "control4:210",
+      "intent_hex": "01010000",
+      "status": "written",
+      "cancellation_reason": null,
+      "updated_ms": 108469
+    },
+    {
+      "boot_id": "b851f2a3-3818-4e1b-896b-9b20f1d0995e",
+      "command_id": 36,
+      "device_id": "control4:336",
+      "intent_hex": "01032800",
+      "status": "written",
+      "cancellation_reason": null,
+      "updated_ms": 113325
+    },
+    {
+      "boot_id": "b851f2a3-3818-4e1b-896b-9b20f1d0995e",
+      "command_id": 37,
+      "device_id": "control4:210",
+      "intent_hex": "01010100",
+      "status": "written",
+      "cancellation_reason": null,
+      "updated_ms": 113445
+    },
+    {
+      "boot_id": "b851f2a3-3818-4e1b-896b-9b20f1d0995e",
+      "command_id": 38,
+      "device_id": "control4:210",
+      "intent_hex": "01010000",
+      "status": "written",
+      "cancellation_reason": null,
+      "updated_ms": 137016
+    },
+    {
+      "boot_id": "b851f2a3-3818-4e1b-896b-9b20f1d0995e",
+      "command_id": 39,
+      "device_id": "control4:336",
+      "intent_hex": "01026400",
+      "status": "written",
+      "cancellation_reason": null,
+      "updated_ms": 149900
+    },
+    {
+      "boot_id": "b851f2a3-3818-4e1b-896b-9b20f1d0995e",
+      "command_id": 40,
+      "device_id": "control4:210",
+      "intent_hex": "01010100",
+      "status": "written",
+      "cancellation_reason": null,
+      "updated_ms": 150016
+    }
+  ],
+  "restore": [
+    {
+      "device_id": "control4:336",
+      "level": 100
+    }
+  ],
+  "physical_result": "awaiting user confirmation"
+}

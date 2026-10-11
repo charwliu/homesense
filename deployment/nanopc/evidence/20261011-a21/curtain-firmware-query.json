@@ -1,0 +1,9 @@
+{
+  "address_hex": "22",
+  "request_hex": "ae22cc00ee",
+  "response_hex": "43345f50726f0d0a5631340d0aae12d41eee",
+  "ascii_prefix": "C4_Pro\r\nV14\r\n",
+  "trailing_frame": "ae12d41eee",
+  "interpretation": "candidate firmware response with unrelated dimmer feedback; no motion or STOP verification",
+  "motion_command_sent": false
+}

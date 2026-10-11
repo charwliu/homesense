@@ -1,0 +1,102 @@
+{
+  "release": "20261010-a3",
+  "base_commit": "1fdbe694530eee571993f616f59d2196bf11ccb4",
+  "uncommitted_worktree": true,
+  "source_sha256": "9c0cdcae5094cadc437d8be5d38df8aa63e5e1b9ba00828cba372e0859d3cf88",
+  "source_scope": "crates, vendor, Cargo.toml, Cargo.lock; sorted path NUL content NUL",
+  "rust": "1.99.0",
+  "target": "aarch64-unknown-linux-gnu",
+  "binary_sha256": "1308d38041a845857721b586056b9c150c552e36e626118cc3340510cf2499a9",
+  "host": "nanopc.lab.vixal.xyz",
+  "address": "192.168.4.1",
+  "directory": "/users/alarm/apps/homesense",
+  "active_release": "releases/20261010-a3",
+  "simulation_smoke": {
+    "passed": true,
+    "restarts": 2,
+    "unpaired_http_status": 401,
+    "identity_stable": true,
+    "listener_released": true,
+    "state_directory": "/users/alarm/apps/homesense/tests/smoke-88a3xp1h"
+  },
+  "autostart_enabled": false,
+  "running_after_tests": false,
+  "queries": [
+    {
+      "evidence": "deployment/nanopc/evidence/20261010-a3/query-a3-03-4.jsonl",
+      "request": [
+        174,
+        3,
+        164,
+        242,
+        238
+      ],
+      "response": [
+        174,
+        3,
+        212,
+        241,
+        238
+      ],
+      "elapsed_ms": 27,
+      "outcome": "Observation(Switch(true))"
+    },
+    {
+      "evidence": "deployment/nanopc/evidence/20261010-a3/query-a3-07-6.jsonl",
+      "request": [
+        174,
+        7,
+        166,
+        242,
+        238
+      ],
+      "response": [
+        174,
+        7,
+        214,
+        241,
+        238
+      ],
+      "elapsed_ms": 27,
+      "outcome": "Observation(Switch(true))"
+    },
+    {
+      "evidence": "deployment/nanopc/evidence/20261010-a3/query-a3-11-5.jsonl",
+      "request": [
+        174,
+        17,
+        165,
+        242,
+        238
+      ],
+      "response": [
+        174,
+        17,
+        213,
+        100,
+        238
+      ],
+      "elapsed_ms": 29,
+      "outcome": "Observation(Level(Percent(100)))"
+    },
+    {
+      "evidence": "deployment/nanopc/evidence/20261010-a3/query-a3-12-4.jsonl",
+      "request": [
+        174,
+        18,
+        164,
+        242,
+        238
+      ],
+      "response": [
+        174,
+        18,
+        212,
+        100,
+        238
+      ],
+      "elapsed_ms": 30,
+      "outcome": "Observation(Level(Percent(100)))"
+    }
+  ]
+}

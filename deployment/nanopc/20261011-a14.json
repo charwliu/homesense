@@ -1,0 +1,31 @@
+{
+  "release": "20261011-a14",
+  "base_commit": "1fdbe694530eee571993f616f59d2196bf11ccb4",
+  "uncommitted_worktree": true,
+  "source_sha256": "6105ec83d9bc2b965017180fd9b561dc640525009b8b4b2f6fe73e9cee7ce67c",
+  "source_scope": "git ls-files cached and untracked nonignored: crates, vendor, Cargo.toml, Cargo.lock; sorted unique path NUL content NUL",
+  "rust": "1.99.0",
+  "target": "aarch64-unknown-linux-gnu",
+  "binary_sha256": "496ce9f0f0f7cbf39c12ab767389173505c302928238c2009d00ba0ff7392fc0",
+  "host": "nanopc.lab.vixal.xyz",
+  "status": "staged; isolated remote smoke passed; current not switched",
+  "database_schema": 4,
+  "workspace_tests": 201,
+  "autostart_enabled": false,
+  "simulation_smoke": {
+    "simulation_smoke": "passed",
+    "restarts": 2,
+    "unpaired_http_status": 401,
+    "identity_stable": true,
+    "listener_released": true,
+    "state_directory": "/users/alarm/apps/homesense/tests/smoke-uwxvt6c9"
+  },
+  "live_smoke": {
+    "live_smoke": "passed",
+    "restarts": 2,
+    "query_before_hap": true,
+    "unpaired_http": 401,
+    "identity_stable": true,
+    "state_directory": "/users/alarm/apps/homesense/tests/live-smoke-qeo4nxo9"
+  }
+}

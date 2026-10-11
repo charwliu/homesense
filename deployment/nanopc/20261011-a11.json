@@ -1,0 +1,46 @@
+{
+  "release": "20261011-a11",
+  "base_commit": "1fdbe694530eee571993f616f59d2196bf11ccb4",
+  "uncommitted_worktree": true,
+  "source_sha256": "4cea122ecad8b6097300e9273ccca39c122290654a28d3b12440a6d8ace3179e",
+  "source_scope": "crates, vendor, Cargo.toml, Cargo.lock; sorted path NUL content NUL",
+  "rust": "1.99.0",
+  "target": "aarch64-unknown-linux-gnu",
+  "binary_sha256": "4d8601ba2c664995a4b0b39a9f1f7b8971992adc5ad63ccf7c9710f7ffc832c0",
+  "host": "nanopc.lab.vixal.xyz",
+  "active_release": "releases/20261011-a11",
+  "autostart_enabled": false,
+  "focused_tests": 11,
+  "live_smoke": {
+    "passed": true,
+    "restarts": 2,
+    "state_directory": "/users/alarm/apps/homesense/tests/live-smoke-cfczn96y"
+  },
+  "field_readonly": {
+    "duration_seconds": 10,
+    "exit_code": 0,
+    "tcp_connections": 1,
+    "queries": 4,
+    "feedbacks": 4,
+    "observed": "off",
+    "control_frames": 0,
+    "command_journal_rows": 0,
+    "pairings": 0,
+    "evidence": "evidence/20261011-a11/study-query.json"
+  },
+  "live_home_trial": {
+    "state_directory": "/users/alarm/apps/homesense/tests/live-study-lan-a11",
+    "endpoint": "192.168.4.1:51827",
+    "duration_seconds": 1200,
+    "accessory_id": "3E:D3:49:D8:12:F0",
+    "name": "HomeSense",
+    "devices": [
+      "control4:210"
+    ],
+    "status": "ended; no pairing or control observed",
+    "autostart": false,
+    "temporary_vlan3_discovery": false,
+    "pairings": 0,
+    "command_journal_rows": 0
+  }
+}
