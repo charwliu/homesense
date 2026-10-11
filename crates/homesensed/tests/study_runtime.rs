@@ -4313,10 +4313,25 @@ async fn running_automation_control_cancels_before_output_and_closes_on_exit() {
         }).await.unwrap();
         tokio::time::sleep(std::time::Duration::from_millis(150)).await;
         assert!(!subscription.has_changed().unwrap(),"unchanged snapshots must not notify");
+        tokio::time::timeout(std::time::Duration::from_secs(2),async {
+            loop {
+                if subscription.borrow_and_update().as_ref().is_some_and(|result|result.as_ref().is_ok_and(|state|state.activity==homesensed::scene_activity::SceneActivity::Unknown)) {break;}
+                subscription.changed().await.unwrap();
+            }
+        }).await.unwrap();
+        // A new verified sample revives Activity; execution history stays cancelled.
+        sample.store(true,std::sync::atomic::Ordering::SeqCst);
+        tokio::time::timeout(std::time::Duration::from_secs(2),async {
+            loop {
+                if subscription.borrow_and_update().as_ref().is_some_and(|result|result.as_ref().is_ok_and(|state|
+                    state.activity==homesensed::scene_activity::SceneActivity::Active && state.last_run.as_ref().is_some_and(|last|last.status==homesense_storage::scene_run::Status::Cancelled))) {break;}
+                subscription.changed().await.unwrap();
+            }
+        }).await.unwrap();
         stop.send(true).unwrap();
         subscription
     };
-    let (result,subscription)=tokio::join!(runtime.drive(&mut owner,std::time::Duration::from_millis(1),5000,receive,||Ok(1_800_000_000_000)),client);
+    let (result,subscription)=tokio::join!(runtime.drive(&mut owner,std::time::Duration::from_millis(1),500,receive,||Ok(1_800_000_000_000)),client);
     result.unwrap();
     assert!(subscription.borrow().as_ref().unwrap().as_ref().unwrap_err().contains("stopped"));
     assert!(control.request(Action::Start("light".into())).await.is_err());
