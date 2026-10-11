@@ -591,3 +591,6 @@ Admission::begin_automation_publication 校验设备、规则、命令编码及�
 
 
 反馈读取冲突隔离：延迟规则准入现在区分提交阶段失败和接受后的回执读取失败。仅提交阶段明确返回 ResourceBusy 时，在取消已接受的后续工作并保存失败审计后允许服务继续；回执读取失败仍停止准入。反馈缓存别名沿用现有链接器转换，不写入逻辑变量表。同毫秒或未完成命令的反馈仍可能被拒绝，不自动重放。CLI 回归覆盖缓存别名读取、接受或拒绝审计、两个服务启动和独立场景完成；37 项准入、68 项运行时、4 项模拟服务测试通过，homesensed 库严格 Clippy 通过（vendor/hap 仍有既存警告）。未部署现场，EA-5 不变；阶段 D/E 尚未整体验收。
+
+
+当前工作树集成复验（提交 34dcd3c 加既有未提交代码）：`cargo test --workspace --locked --offline` 共 371 项通过、0 失败、0 忽略，76 个测试结果块。初次执行因沙箱禁止 localhost 监听而中断；获准回环权限后完整重跑成功。证据及代码差异指纹见 `docs/evidence/stage-d-study/causal-service-regression.json`。仅模拟与本机回环，不代表现场部署或阶段 D/E 整体验收。
