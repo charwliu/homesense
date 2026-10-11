@@ -61,3 +61,156 @@ async fn startup_fade_writes_samples_then_resumes_its_causal_rule() {
     drop(sql);
     std::fs::remove_dir_all(root).unwrap();
 }
+
+#[tokio::test]
+async fn service_exit_cancels_partial_fade_and_restart_never_replays_samples() {
+    let root = std::env::temp_dir().join(format!("automation-fade-stop-{}", uuid::Uuid::new_v4()));
+    let devices = include_bytes!("../../../config/simulation.json");
+    let document = hap::serde_json::to_vec(&json!({"schema_version":1,"configuration_revision":1,
+        "variables":[],"rules":[],"timed_scenes":[{"id":"fade","enabled":true,"review_evidence":"synthetic test","max_lateness_ms":1000,"steps":[{"source":"ramp","offset_ms":0,"device":"simulation:light","command":{"kind":"level","value":100,"ramp":false},"fade":{"duration_ms":1000,"interval_ms":100,"lateness_ms":200}}]}]
+    })).unwrap();
+    homesensed::service::serve_automation_simulation(
+        devices,
+        &document,
+        &root,
+        std::time::Duration::from_millis(350),
+        Some("fade"),
+    )
+    .await
+    .unwrap();
+    let sql = rusqlite::Connection::open(root.join("automation-simulation.sqlite")).unwrap();
+    let before: i64 = sql
+        .query_row("SELECT count(*) FROM command_journal", [], |r| r.get(0))
+        .unwrap();
+    assert!(before > 0 && before < 10);
+    let state: String = sql
+        .query_row("SELECT status FROM scene_run", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(state, "partial");
+    let unfinished: i64 = sql
+        .query_row(
+            "SELECT count(*) FROM command_journal WHERE status IN ('accepted','writing')",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(unfinished, 0);
+    drop(sql);
+    homesensed::service::serve_automation_simulation(
+        devices,
+        &document,
+        &root,
+        std::time::Duration::from_millis(1200),
+        None,
+    )
+    .await
+    .unwrap();
+    let sql = rusqlite::Connection::open(root.join("automation-simulation.sqlite")).unwrap();
+    assert_eq!(
+        sql.query_row("SELECT count(*) FROM command_journal", [], |r| r
+            .get::<_, i64>(0))
+            .unwrap(),
+        before
+    );
+    assert_eq!(
+        sql.query_row("SELECT count(*) FROM scene_sample", [], |r| r
+            .get::<_, i64>(0))
+            .unwrap(),
+        before
+    );
+    assert_eq!(
+        sql.query_row("SELECT count(*) FROM scene_run", [], |r| r.get::<_, i64>(0))
+            .unwrap(),
+        1
+    );
+    let state: String = sql
+        .query_row("SELECT status FROM scene_run", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(state, "partial");
+    drop(sql);
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[tokio::test]
+async fn publication_stops_old_fade_before_new_mapping_runs() {
+    use homesensed::service::{
+        SimulationPublication, serve_automation_simulation_with_publication,
+    };
+    use std::time::Duration;
+    let root =
+        std::env::temp_dir().join(format!("automation-fade-publish-{}", uuid::Uuid::new_v4()));
+    let devices = include_bytes!("../../../config/simulation.json");
+    let mut next: hap::serde_json::Value = hap::serde_json::from_slice(devices).unwrap();
+    next["revision"] = 2.into();
+    next["devices"][0]["channel"] = 2.into();
+    let next = hap::serde_json::to_vec(&next).unwrap();
+    let document = |revision, duration| {
+        hap::serde_json::to_vec(&json!({"schema_version":1,"configuration_revision":revision,
+        "variables":[],"rules":[],"timed_scenes":[{"id":"fade","enabled":true,"review_evidence":"synthetic test","max_lateness_ms":1000,"steps":[{"source":"ramp","offset_ms":0,"device":"simulation:light","command":{"kind":"level","value":100,"ramp":false},"fade":{"duration_ms":duration,"interval_ms":100,"lateness_ms":200}}]}]
+    })).unwrap()
+    };
+    let old_rules = document(1, 1000);
+    let new_rules = document(2, 300);
+    serve_automation_simulation_with_publication(
+        devices,
+        &old_rules,
+        &root,
+        Duration::from_millis(1000),
+        Some("fade"),
+        Some(SimulationPublication {
+            devices: &next,
+            rules: &new_rules,
+            after: Duration::from_millis(350),
+            scene: Some("fade"),
+        }),
+    )
+    .await
+    .unwrap();
+    let sql = rusqlite::Connection::open(root.join("automation-simulation.sqlite")).unwrap();
+    let states: Vec<(i64, String)> = sql
+        .prepare("SELECT revision,status FROM scene_run ORDER BY revision")
+        .unwrap()
+        .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
+        .unwrap()
+        .collect::<Result<_, _>>()
+        .unwrap();
+    assert_eq!(
+        states,
+        vec![(1, "partial".into()), (2, "commands_written".into())]
+    );
+    let commands: Vec<(i64, i64, Vec<u8>)> = sql
+        .prepare("SELECT revision,transport_epoch,intent FROM command_journal ORDER BY command_id")
+        .unwrap()
+        .query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))
+        .unwrap()
+        .collect::<Result<_, _>>()
+        .unwrap();
+    assert!(commands.iter().any(|(revision, _, _)| *revision == 1));
+    assert!(
+        commands
+            .iter()
+            .filter(|(revision, _, _)| *revision == 1)
+            .all(|(_, epoch, intent)| *epoch == 1 && intent[2] < 100)
+    );
+    let first_new = commands
+        .iter()
+        .position(|(revision, _, _)| *revision == 2)
+        .unwrap();
+    assert!(
+        commands[first_new..]
+            .iter()
+            .all(|(revision, epoch, _)| *revision == 2 && *epoch == 2)
+    );
+    assert_eq!(commands.last().unwrap().2[2], 100);
+    assert_eq!(
+        sql.query_row(
+            "SELECT count(*) FROM command_journal WHERE status IN ('accepted','writing')",
+            [],
+            |r| r.get::<_, i64>(0)
+        )
+        .unwrap(),
+        0
+    );
+    drop(sql);
+    std::fs::remove_dir_all(root).unwrap();
+}
