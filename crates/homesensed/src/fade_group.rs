@@ -22,6 +22,11 @@ struct Task {
     samples: u64,
     rate: u64,
 }
+#[derive(Debug, Default)]
+pub struct Tick {
+    pub completed: Vec<DeviceId>,
+    pub manually_cancelled: Vec<DeviceId>,
+}
 pub struct FadeGroup {
     admission: Admission,
     controller: Uuid,
@@ -126,26 +131,31 @@ impl FadeGroup {
             Err(errors.join("; "))
         }
     }
-    /// One coalesced sample per task at most. Any failure ends this group and
+    /// One coalesced sample per task at most. Manual override cancels only its
+    /// device. Any other failure ends this group and
     /// attempts cancellation of every other task, never retries the failed target.
-    pub async fn tick(&mut self) -> Result<Vec<DeviceId>, String> {
+    pub async fn tick(&mut self) -> Result<Tick, String> {
         if self.stopped {
             return Err("fade group stopped".into());
         }
-        let mut completed = vec![];
+        let mut result = Tick::default();
         for device in self.tasks.keys().cloned().collect::<Vec<_>>() {
             match self.tasks.get_mut(&device).unwrap().fade.tick().await {
                 Ok(true) => {
                     self.tasks.remove(&device);
-                    completed.push(device);
+                    result.completed.push(device);
                 }
                 Ok(false) => {}
+                Err(_) if self.tasks[&device].fade.manually_cancelled() => {
+                    self.tasks.remove(&device);
+                    result.manually_cancelled.push(device);
+                }
                 Err(error) => {
                     let cleanup = self.cancel_all().await.err();
                     return Err(format!("fade {device:?}: {error}; cleanup={cleanup:?}"));
                 }
             }
         }
-        Ok(completed)
+        Ok(result)
     }
 }

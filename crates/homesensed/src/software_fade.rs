@@ -26,6 +26,7 @@ pub struct SoftwareFade {
     closed: bool,
     in_flight: bool,
     failure: Option<String>,
+    manually_cancelled: bool,
 }
 impl SoftwareFade {
     /// The caller must reserve `ceil(duration/interval)` output slots against
@@ -98,8 +99,10 @@ impl SoftwareFade {
             closed: false,
             in_flight: false,
             failure: None,
+            manually_cancelled: false,
         })
     }
+    pub(crate) fn manually_cancelled(&self) -> bool { self.manually_cancelled }
     /// Returns true when quiescent after successful writes or explicit cancellation. Device
     /// activity must still be derived from fresh physical feedback separately.
     pub async fn tick(&mut self) -> Result<bool, String> {
@@ -123,6 +126,7 @@ impl SoftwareFade {
         if superseded {
             self.failure = Some("fade superseded by manual control".into());
             self.cancel().await?;
+            self.manually_cancelled = true;
             return Err(self.failure.clone().unwrap());
         }
         if !self.pending.is_empty() {
