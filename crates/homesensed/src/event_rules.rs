@@ -482,7 +482,7 @@ impl ScheduledRules {
         for triggers in self.rules.feedback_batches(feedback,max_age).await? {
             let ids:Vec<_>=self.rules.bindings.iter().filter(|b|triggers.contains(&b.trigger)).map(|b|b.id.clone()).collect();
             if !ids.is_empty() {
-                let (_,mut outcomes)=router.start_rules(&ids,scheduler,Some((feedback,max_age)),self.rules.budget,5000).await?;
+                let mut outcomes=router.dispatch_rules(&ids,scheduler,Some((feedback,max_age)),self.rules.budget,5000).await?;
                 reports.append(&mut outcomes);
             }
         }
@@ -502,7 +502,7 @@ impl ScheduledRules {
         self.startup_attempted=true;
         let ids:Vec<_>=self.rules.bindings.iter().filter(|b|b.trigger==Trigger::StartupSynchronized).map(|b|b.id.clone()).collect();
         if ids.is_empty() {return Ok(vec![]);}
-        let (_,outcomes)=router.start_rules(&ids,scheduler,feedback,self.rules.budget,5000).await?;
+        let outcomes=router.dispatch_rules(&ids,scheduler,feedback,self.rules.budget,5000).await?;
         Ok(outcomes)
     }
     pub(crate) async fn scene_result_causal(
@@ -530,7 +530,7 @@ impl ScheduledRules {
         }
         let ids:Vec<_>=self.rules.bindings.iter().filter(|b|b.trigger==Trigger::SceneResult(result.definition.clone())).map(|b|b.id.clone()).collect();
         if ids.is_empty() {return Ok(vec![]);}
-        let (_,outcomes)=router.start_rules(&ids,scheduler,feedback,self.rules.budget,5000).await?;
+        let outcomes=router.dispatch_rules(&ids,scheduler,feedback,self.rules.budget,5000).await?;
         Ok(outcomes)
     }
     pub(crate) async fn scene_result(
@@ -618,7 +618,7 @@ impl ScheduledRules {
         for schedule in self.occurrences(wall_unix_ms).await? {
             let ids:Vec<_>=self.rules.bindings.iter().filter(|b|b.trigger==Trigger::Schedule(schedule.clone())).map(|b|b.id.clone()).collect();
             if !ids.is_empty() {
-                let (_,mut outcomes)=router.start_rules(&ids,scheduler,feedback,self.rules.budget,5000).await?;
+                let mut outcomes=router.dispatch_rules(&ids,scheduler,feedback,self.rules.budget,5000).await?;
                 reports.append(&mut outcomes);
             }
         }
