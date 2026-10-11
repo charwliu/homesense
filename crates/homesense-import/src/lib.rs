@@ -331,3 +331,4 @@ pub mod room;
 pub mod study;
 
 pub mod semantic;
+pub mod event_export;
