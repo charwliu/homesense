@@ -134,6 +134,9 @@ pub(crate) async fn drive_controlled<S: Read + Write + Send + 'static>(
             return Err("automation drive has no gateways".into());
         }
         guard.panels.bind_feedback(guard.owner.feedback())?;
+        if causal.is_some() && let Some(calendar)=&mut guard.calendar {
+            calendar.bind_feedback(guard.owner.feedback())?;
+        }
         let mut next = 0;
         loop {
             if *stop.borrow() || stop.has_changed().is_err() {
@@ -147,6 +150,7 @@ pub(crate) async fn drive_controlled<S: Read + Write + Send + 'static>(
                 if let Some(router) = &mut causal {
                     calendar.startup_causal(Some((guard.owner.feedback(),max_age_ms)),router,guard.scenes).await?;
                     calendar.poll_causal(wall_clock()?,Some((guard.owner.feedback(),max_age_ms)),router,guard.scenes).await?;
+                    calendar.consume_feedback_causal(guard.owner.feedback(),max_age_ms,router,guard.scenes).await?;
                 } else {
                 for report in calendar
                     .poll(wall_clock()?, Some((guard.owner.feedback(), max_age_ms)))
