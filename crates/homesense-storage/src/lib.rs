@@ -1,8 +1,12 @@
 //! SQLite configuration revisions and atomic active-pointer publication.
 //! A single runtime owner coordinates this store with the arbitration barrier.
 //! Configuration schema validation precedes this opaque payload storage layer.
+pub mod calendar;
 pub mod journal;
 pub mod light_restore;
+pub mod rule_audit;
+pub mod scene_run;
+pub mod variables;
 use homesense_core::queue::CancelReason;
 use rusqlite::{Connection, OptionalExtension, TransactionBehavior, params};
 use std::{path::Path, time::Duration};
@@ -61,7 +65,7 @@ impl Store {
         if app != 0 && app != APPLICATION_ID {
             return Err(Error::ForeignDatabase);
         }
-        if version != 0 && (!(1..=5).contains(&version) || app != APPLICATION_ID) {
+        if version != 0 && (!(1..=11).contains(&version) || app != APPLICATION_ID) {
             return Err(Error::UnsupportedSchema(version));
         }
         if version == 0 {
@@ -108,6 +112,32 @@ impl Store {
         if version <= 4 {
             tx.execute_batch("CREATE TABLE study_mode(revision INTEGER PRIMARY KEY REFERENCES configuration_revision(revision), value INTEGER NOT NULL CHECK(value BETWEEN 0 AND 3));")?;
             tx.pragma_update(None, "user_version", 5)?;
+        }
+        if version <= 5 {
+            tx.execute_batch("CREATE TABLE logical_variable (revision INTEGER NOT NULL REFERENCES configuration_revision(revision), name TEXT NOT NULL, kind TEXT NOT NULL CHECK(kind IN ('bool','integer')), value INTEGER, version INTEGER NOT NULL DEFAULT 0 CHECK(version>=0), PRIMARY KEY(revision,name), CHECK(kind!='bool' OR value IS NULL OR value IN (0,1)));")?;
+            tx.pragma_update(None, "user_version", 6)?;
+        }
+        if version <= 6 {
+            tx.execute_batch("CREATE TABLE calendar_watermark (revision INTEGER PRIMARY KEY REFERENCES configuration_revision(revision), unix_ms INTEGER NOT NULL CHECK(unix_ms>=946684800000));")?;
+            tx.pragma_update(None, "user_version", 7)?;
+        }
+        if version <= 7 {
+            tx.execute_batch("CREATE TABLE rule_admission (boot_id TEXT NOT NULL, correlation TEXT NOT NULL, event_id INTEGER NOT NULL CHECK(event_id>0), parent_id INTEGER NOT NULL CHECK(parent_id>=0 AND parent_id<event_id), revision INTEGER NOT NULL REFERENCES configuration_revision(revision), rule_id TEXT NOT NULL, admitted_ms INTEGER NOT NULL, PRIMARY KEY(boot_id,correlation,event_id));
+            CREATE TABLE rule_command (boot_id TEXT NOT NULL, correlation TEXT NOT NULL, event_id INTEGER NOT NULL, command_id INTEGER NOT NULL, PRIMARY KEY(boot_id,command_id), FOREIGN KEY(boot_id,correlation,event_id) REFERENCES rule_admission(boot_id,correlation,event_id), FOREIGN KEY(boot_id,command_id) REFERENCES command_journal(boot_id,command_id));")?;
+            tx.pragma_update(None, "user_version", 8)?;
+        }
+        if version <= 8 {
+            tx.execute_batch("CREATE TABLE rule_chain_outcome (boot_id TEXT NOT NULL, correlation TEXT NOT NULL, revision INTEGER NOT NULL REFERENCES configuration_revision(revision), finished_ms INTEGER NOT NULL, error TEXT, PRIMARY KEY(boot_id,correlation));")?;
+            tx.pragma_update(None, "user_version", 9)?;
+        }
+        if version <= 9 {
+            tx.execute_batch("CREATE TABLE scene_run (boot_id TEXT NOT NULL, run_id TEXT NOT NULL, revision INTEGER NOT NULL REFERENCES configuration_revision(revision), definition TEXT, started_ms INTEGER NOT NULL CHECK(started_ms>=0), updated_ms INTEGER NOT NULL CHECK(updated_ms>=started_ms), status TEXT NOT NULL CHECK(status IN ('pending','running','commands_written','partial','cancelled','failed','interrupted')), version INTEGER NOT NULL CHECK(version>=0), PRIMARY KEY(boot_id,run_id));")?;
+            tx.pragma_update(None, "user_version", 10)?;
+        }
+        if version <= 10 {
+            tx.execute_batch("CREATE TABLE scene_step (boot_id TEXT NOT NULL, run_id TEXT NOT NULL, step_index INTEGER NOT NULL CHECK(step_index>=0 AND step_index<4096), source TEXT NOT NULL, PRIMARY KEY(boot_id,run_id,step_index), FOREIGN KEY(boot_id,run_id) REFERENCES scene_run(boot_id,run_id));
+            CREATE TABLE scene_command (boot_id TEXT NOT NULL, run_id TEXT NOT NULL, step_index INTEGER NOT NULL, command_id INTEGER NOT NULL, PRIMARY KEY(boot_id,command_id), FOREIGN KEY(boot_id,run_id,step_index) REFERENCES scene_step(boot_id,run_id,step_index), FOREIGN KEY(boot_id,command_id) REFERENCES command_journal(boot_id,command_id));")?;
+            tx.pragma_update(None, "user_version", 11)?;
         }
         tx.commit()?;
         connection.pragma_update(None, "foreign_keys", "ON")?;

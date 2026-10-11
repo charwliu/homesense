@@ -28,7 +28,7 @@ impl Status {
             Self::Uncertain => "uncertain",
         }
     }
-    fn parse(text: &str) -> Result<Self, Error> {
+    pub(crate) fn parse(text: &str) -> Result<Self, Error> {
         match text {
             "accepted" => Ok(Self::Accepted),
             "writing" => Ok(Self::Writing),
@@ -121,11 +121,73 @@ impl Store {
         now_ms: u64,
         study: Option<(Option<u8>, u8)>,
     ) -> Result<(), Error> {
+        self.accept_queue_batch_with_variables(boot_id, commands, cancellations, now_ms, study, &[])
+    }
+    /// Logical variable CAS and command acceptance share the same transaction.
+    pub fn accept_queue_batch_with_variables(
+        &mut self,
+        boot_id: &str,
+        commands: &[QueuedCommand],
+        cancellations: &[Cancellation],
+        now_ms: u64,
+        study: Option<(Option<u8>, u8)>,
+        variables: &[crate::variables::Update],
+    ) -> Result<(), Error> {
+        self.accept_queue_batch_with_rule_audit(
+            boot_id,
+            commands,
+            cancellations,
+            now_ms,
+            study,
+            variables,
+            None,
+        )
+    }
+    // One transaction owns the queue, variable CAS and optional causal audit.
+    #[allow(clippy::too_many_arguments)]
+    pub fn accept_queue_batch_with_rule_audit(
+        &mut self,
+        boot_id: &str,
+        commands: &[QueuedCommand],
+        cancellations: &[Cancellation],
+        now_ms: u64,
+        study: Option<(Option<u8>, u8)>,
+        variables: &[crate::variables::Update],
+        audit: Option<&crate::rule_audit::Admission>,
+    ) -> Result<(), Error> {
+        self.accept_queue_batch_with_audits(
+            boot_id,
+            commands,
+            cancellations,
+            now_ms,
+            study,
+            variables,
+            audit,
+            None,
+        )
+    }
+    /// All causal links commit with the command rows, never after admission.
+    #[allow(clippy::too_many_arguments)]
+    pub fn accept_queue_batch_with_audits(
+        &mut self,
+        boot_id: &str,
+        commands: &[QueuedCommand],
+        cancellations: &[Cancellation],
+        now_ms: u64,
+        study: Option<(Option<u8>, u8)>,
+        variables: &[crate::variables::Update],
+        audit: Option<&crate::rule_audit::Admission>,
+        scene: Option<&crate::scene_run::StepLink>,
+    ) -> Result<(), Error> {
         boot(boot_id)?;
+        if variables.len() > 1024 || (study.is_some() && commands.is_empty()) {
+            return Err(Error::InvalidAudit);
+        }
         if cancellations.len() > 4096 {
             return Err(Error::InvalidAudit);
         }
-        if commands.is_empty() || commands.len() > 128 {
+        if (commands.is_empty() && variables.is_empty() && audit.is_none()) || commands.len() > 128
+        {
             return Err(Error::InvalidAudit);
         }
         let now = integer(now_ms)?;
@@ -183,6 +245,13 @@ impl Store {
             }
             tx.execute("INSERT INTO study_mode(revision,value) VALUES(?1,?2) ON CONFLICT(revision) DO UPDATE SET value=excluded.value",params![revision,next])?;
         }
+        if let Some(scene) = scene {
+            crate::scene_run::insert_step(&tx, boot_id, scene, commands, active)?;
+        }
+        if let Some(audit) = audit {
+            crate::rule_audit::insert(&tx, boot_id, audit, commands, now_ms, active)?;
+        }
+        crate::variables::apply(&tx, variables, active)?;
         cancel_in_transaction(&tx, boot_id, cancellations, now)?;
         tx.commit()?;
         Ok(())
@@ -226,6 +295,22 @@ impl Store {
         tx.execute("UPDATE command_journal SET status='uncertain',updated_ms=?2 WHERE boot_id=?1 AND status='writing'", params![boot_id, now])?;
         tx.commit()?;
         Ok(())
+    }
+    /// A feedback-based rule may not read through pending output or use a
+    /// sample at/before the latest completed/ambiguous write. Cancelled output
+    /// did not reach the transport and does not invalidate a prior observation.
+    pub fn feedback_is_settled(
+        &self,
+        boot_id: &str,
+        device: &homesense_core::DeviceId,
+        observed_ms: Option<u64>,
+    ) -> Result<bool, Error> {
+        boot(boot_id)?;
+        let sample = observed_ms.map(integer).transpose()?;
+        let blocked:bool=self.connection.query_row(
+            "SELECT EXISTS(SELECT 1 FROM command_journal WHERE boot_id=?1 AND device_id=?2 AND (status IN ('accepted','writing') OR (status IN ('written','observed','failed','uncertain') AND (?3 IS NULL OR updated_ms>=?3))))",
+            params![boot_id,device.as_str(),sample],|row|row.get(0))?;
+        Ok(!blocked)
     }
     pub fn command_status(&self, boot_id: &str, id: u64) -> Result<Option<Status>, Error> {
         boot(boot_id)?;
