@@ -12,6 +12,7 @@ use homesense_core::{
 };
 use std::collections::{BTreeMap, BTreeSet};
 use uuid::Uuid;
+type Causal<'a> = Option<(&'a mut crate::deferred_router::Router, &'a mut crate::scene_scheduler::SceneScheduler)>;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Mode {
     Observe,
@@ -204,6 +205,13 @@ impl PanelRules {
         now: u64,
         max_age: u64,
     ) -> Result<Vec<Fired>, Failure> {
+        self.consume_feedback_inner(feedback,now,max_age,None).await
+    }
+    pub async fn consume_feedback_causal(&mut self, feedback:&crate::feedback::Feedback,now:u64,max_age:u64,router:&mut crate::deferred_router::Router,scheduler:&mut crate::scene_scheduler::SceneScheduler)->Result<Vec<Fired>,Failure> {
+        if !router.matches_owner(&self.admission,self.controller) {return Err("foreign panel causal owner".into());}
+        self.consume_feedback_inner(feedback,now,max_age,Some((router,scheduler))).await
+    }
+    async fn consume_feedback_inner(&mut self, feedback:&crate::feedback::Feedback,now:u64,max_age:u64,mut causal:Causal<'_>)->Result<Vec<Fired>,Failure> {
         let result = async {
             self.current().await?;
             if !feedback.is_active()
@@ -245,7 +253,7 @@ impl PanelRules {
                     continue;
                 };
                 match self
-                    .edge_with_feedback(&event.device_id, pressed, at, Some((feedback, max_age)))
+                    .edge_inner(&event.device_id, pressed, at, Some((feedback, max_age)), &mut causal)
                     .await
                 {
                     Ok(items) => completed.extend(items),
@@ -257,7 +265,7 @@ impl PanelRules {
                 }
             }
             match self
-                .advance_with_feedback(now, Some((feedback, max_age)))
+                .advance_inner(now, Some((feedback, max_age)), &mut causal)
                 .await
             {
                 Ok(items) => {
@@ -313,6 +321,9 @@ impl PanelRules {
         now: u64,
         feedback: Option<(&crate::feedback::Feedback, u64)>,
     ) -> Result<Vec<Fired>, Failure> {
+        self.edge_inner(key,pressed,now,feedback,&mut None).await
+    }
+    async fn edge_inner(&mut self,key:&DeviceId,pressed:bool,now:u64,feedback:Option<(&crate::feedback::Feedback,u64)>,causal:&mut Causal<'_>)->Result<Vec<Fired>,Failure> {
         self.current().await?;
         let events = self
             .keys
@@ -321,7 +332,7 @@ impl PanelRules {
             .gesture
             .edge(pressed, now)
             .map_err(|e| format!("{e:?}"))?;
-        self.fire(key, events, feedback, now).await
+        self.fire(key, events, feedback, now, causal).await
     }
     pub async fn advance(&mut self, now: u64) -> Result<Vec<Fired>, Failure> {
         self.advance_with_feedback(now, None).await
@@ -331,6 +342,9 @@ impl PanelRules {
         now: u64,
         feedback: Option<(&crate::feedback::Feedback, u64)>,
     ) -> Result<Vec<Fired>, Failure> {
+        self.advance_inner(now,feedback,&mut None).await
+    }
+    async fn advance_inner(&mut self,now:u64,feedback:Option<(&crate::feedback::Feedback,u64)>,causal:&mut Causal<'_>)->Result<Vec<Fired>,Failure> {
         self.current().await?;
         let mut due = vec![];
         for (id, key) in &mut self.keys {
@@ -341,7 +355,7 @@ impl PanelRules {
         }
         let mut fired = vec![];
         for (id, events) in due {
-            match self.fire(&id, events, feedback, now).await {
+            match self.fire(&id, events, feedback, now, causal).await {
                 Ok(items) => fired.extend(items),
                 Err(mut failure) => {
                     fired.append(&mut failure.completed);
@@ -358,6 +372,7 @@ impl PanelRules {
         events: Vec<Event>,
         feedback: Option<(&crate::feedback::Feedback, u64)>,
         now: u64,
+        causal: &mut Causal<'_>,
     ) -> Result<Vec<Fired>, Failure> {
         let mut fired = vec![];
         for event in events {
@@ -410,6 +425,16 @@ impl PanelRules {
                         observed_only: false,
                     });
                 }
+            }
+            if self.mode == Mode::Execute && let Some((router,scheduler))=causal.as_mut() {
+                let ids:Vec<_>=self.keys[key].bindings.iter().filter(|b|b.event==event).map(|b|b.id.clone()).collect();
+                if !ids.is_empty() {
+                    match router.start_rules(&ids,scheduler,feedback,Budget::default(),5000).await {
+                        Ok((_,outcomes))=>fired.extend(outcomes.into_iter().map(|o|Fired{rule:o.rule,cause:Some(o.cause),causation_id:Some(o.causation_id),event,commands:o.command_ids,observed_only:false})),
+                        Err(message)=>return Err(Failure{message,completed:fired,failed_rule:None}),
+                    }
+                }
+                continue;
             }
             let mut chain = homesense_core::rule_chain::Chain::new(
                 Uuid::new_v4().as_u128(),

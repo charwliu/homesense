@@ -13,6 +13,7 @@ use homesense_hap::requests::{Batch, Intent};
 use std::collections::BTreeMap;
 use uuid::Uuid;
 pub struct Outcome {
+    pub rule: String,
     pub cause: Cause,
     pub causation_id: u64,
     pub command_ids: Vec<u64>,
@@ -190,6 +191,7 @@ pub async fn execute(
     };
     guard.1 = true;
     Ok(Outcome {
+        rule: rule_id.into(),
         cause: planned.cause,
         causation_id: planned.causation_id,
         command_ids: accepted.command_ids,
