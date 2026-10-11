@@ -32,6 +32,31 @@ pub async fn rebuild<S: Read + Write + Send + 'static>(
     epoch: u64,
     settings: Settings,
 ) -> Result<(AutomationRuntime, ObservedTransport<S>), String> {
+    rebuild_with_policy(
+        admission,
+        controller,
+        transport,
+        epoch,
+        settings,
+        Synchronization::CompleteFeedback,
+    )
+    .await
+}
+#[derive(Clone, Copy, Debug)]
+pub enum Synchronization {
+    CompleteFeedback,
+    OutputsAndKeypadEvents,
+}
+/// The event policy leaves verified keypads unknown until fresh events arrive.
+/// All other validation and publication barriers match the strict entry point.
+pub async fn rebuild_with_policy<S: Read + Write + Send + 'static>(
+    admission: Admission,
+    controller: Uuid,
+    transport: TransportOwner<S>,
+    epoch: u64,
+    settings: Settings,
+    policy: Synchronization,
+) -> Result<(AutomationRuntime, ObservedTransport<S>), String> {
     if settings.query_timeout_ms == 0
         || settings.query_timeout_ms > 5000
         || settings.max_age_ms == 0
@@ -85,14 +110,28 @@ pub async fn rebuild<S: Read + Write + Send + 'static>(
         epoch,
     )?;
     let mut owner = ObservedTransport::new_recovering(transport, feedback, epoch)?;
-    owner
-        .query_recovery(
-            &bundle.configuration,
-            context,
-            settings.query_timeout_ms,
-            settings.max_age_ms,
-        )
-        .await?;
+    match policy {
+        Synchronization::CompleteFeedback => {
+            owner
+                .query_recovery(
+                    &bundle.configuration,
+                    context,
+                    settings.query_timeout_ms,
+                    settings.max_age_ms,
+                )
+                .await?
+        }
+        Synchronization::OutputsAndKeypadEvents => {
+            owner
+                .query_automation_recovery(
+                    &bundle.configuration,
+                    context,
+                    settings.query_timeout_ms,
+                    settings.max_age_ms,
+                )
+                .await?
+        }
+    }
     let runtime = AutomationRuntime::load(
         admission,
         controller,
