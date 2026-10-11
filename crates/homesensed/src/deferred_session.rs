@@ -301,7 +301,7 @@ impl Session {
         self.closed = true;
         let mut guard = Guard(self.admission.clone(), false);
         let execution: Result<Vec<Outcome>, String> = async {
-            let outcomes = deferred_rule::resume_scene(
+            let continuation = deferred_rule::resume_scene_classified(
                 &self.admission,
                 self.controller,
                 &mut self.chain,
@@ -310,7 +310,22 @@ impl Session {
                 scheduler,
                 feedback,
             )
-            .await?;
+            .await;
+            let outcomes = match continuation {
+                Ok(outcomes) => outcomes,
+                Err(deferred_rule::ExecutionFailure::Partial { completed, error }) => {
+                    // The terminal was verified and claimed before these commits.
+                    self.pending.remove(&result.run);
+                    for outcome in &completed {
+                        self.track(outcome, scheduler)?;
+                    }
+                    return Err(format!(
+                        "{} accepted successor rules before failure: {error}",
+                        completed.len()
+                    ));
+                }
+                Err(error) => return Err(error.to_string()),
+            };
             self.pending.remove(&result.run);
             for outcome in &outcomes {
                 self.track(outcome, scheduler)?;

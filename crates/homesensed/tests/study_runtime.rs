@@ -4775,6 +4775,7 @@ async fn panel_feedback_uses_shared_causal_rules_without_duplicate_edges() {
 
 #[tokio::test]
 async fn successor_partial_failure_preserves_accepted_report_and_root_tracking() {
+    for continuation in [false,true] {
     let db=Db(std::env::temp_dir().join(format!("partial-cause-{}.sqlite",Uuid::new_v4())));
     let rules=br#"{"schema_version":1,"configuration_revision":1,"variables":[{"id":"done","kind":"integer","lifetime":"persistent"}],"rules":[{"id":"begin","enabled":true,"review_evidence":"test","source":"test","trigger":{"kind":"startup_synchronized"},"actions":[{"source":"call","action":{"kind":"scene","id":"later","activate":true}}]},{"id":"first","enabled":true,"review_evidence":"test","source":"test","trigger":{"kind":"scene_result","scene":"later"},"actions":[{"source":"done","action":{"kind":"set","variable":"done","value":{"kind":"integer","value":1}}}]},{"id":"second","enabled":true,"review_evidence":"test","source":"test","trigger":{"kind":"scene_result","scene":"later"},"actions":[]}],"timed_scenes":[{"id":"later","enabled":true,"review_evidence":"test","max_lateness_ms":1000,"steps":[{"source":"step","offset_ms":0,"device":"simulation:light","command":{"kind":"level","value":30,"ramp":false}}]}]}"#;
     Store::open(&db.0).unwrap().publish_automation(None,include_bytes!("../../../config/simulation.json"),rules,ExecutionContext::Simulation,&[]).unwrap();
@@ -4801,9 +4802,21 @@ async fn successor_partial_failure_preserves_accepted_report_and_root_tracking()
     let sql=rusqlite::Connection::open(&db.0).unwrap();
     assert_eq!(sql.query_row("SELECT count(*) FROM rule_admission WHERE rule_id='second'",[],|r|r.get::<_,i64>(0)).unwrap(),0);
     scheduler.retire(terminal.run).unwrap();
-    let mut session=homesensed::deferred_session::Session::new(a.clone(),controller,&scheduler,Default::default(),60000).await.unwrap();
-    assert!(session.start_rules(&["begin".into(),"missing".into()],&mut scheduler,None).await.is_err());
-    assert_eq!(session.pending_count(),1,"first accepted root must be tracked before the next root fails");
+    let budget=if continuation {homesense_core::rule::Budget{nodes:6,..Default::default()}} else {Default::default()};
+    let mut session=homesensed::deferred_session::Session::new(a.clone(),controller,&scheduler,budget,60000).await.unwrap();
+    if continuation {
+        session.start("begin",&mut scheduler,None).await.unwrap();
+        observer.poll(&mut scheduler,None).await.unwrap();
+        let ticket=a.dispatch().await.unwrap().unwrap();a.finish_write(ticket.command.id,true).await.unwrap();
+        let (_,mut unowned)=observer.poll(&mut scheduler,None).await.unwrap();
+        let terminal=unowned.pop().unwrap();
+        assert!(session.resume(&terminal,&mut scheduler,None).await.unwrap_err().contains("1 accepted successor"));
+        assert_eq!(session.pending_count(),0,"consumed parent must not remain pending after partial continuation");
+    } else {
+        assert!(session.start_rules(&["begin".into(),"missing".into()],&mut scheduler,None).await.is_err());
+        assert_eq!(session.pending_count(),1,"first accepted root must be tracked before the next root fails");
+    }
     assert!(a.task_generation().await.is_err());
     a.shutdown().await.unwrap();
+}
 }
