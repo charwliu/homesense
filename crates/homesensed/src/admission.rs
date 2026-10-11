@@ -428,7 +428,8 @@ impl Admission {
                         Message::ManualFence(reply) => { let _ = reply.send(next_id); }
                         Message::RuleOutcome(controller,generation,correlation,error,reply)=>{
                             let result=if !authorize(controller){Err(WriteStatus::InsufficientPrivileges)}
-                            else if failed || generation.boot!=worker_boot || generation.epochs.configuration!=configuration.revision(){Err(WriteStatus::ServiceCommunicationFailure)}
+                            // Terminal audit remains writable after transport closure; it admits no work.
+                            else if generation.boot!=worker_boot || generation.epochs.configuration!=configuration.revision(){Err(WriteStatus::ServiceCommunicationFailure)}
                             else{store.finish_rule_chain(&worker_boot,configuration.revision(),correlation,millis(clock),error.as_deref()).map_err(|error|match error{
                                 homesense_storage::Error::Conflict|homesense_storage::Error::InvalidAudit=>WriteStatus::InvalidValueInRequest,
                                 _=>{failed=true;let _=arbiter.storage_failed();WriteStatus::ServiceCommunicationFailure}
