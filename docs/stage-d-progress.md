@@ -5,14 +5,14 @@
 | 要求 | 当前可核验实现 | 尚未完成的验收条件 |
 | --- | --- | --- |
 | 68 场景／215 程序处置 | project-disposition.json 保留全部对象；semantic-dispositions.json 为 179 可转换／36 阻断，全部禁用 | 65 场景与 212 程序仍待语义审核；不能把候选绑定和语法成功视作迁移验收 |
-| 场景顺序、延迟、取消与 partial | Timeline／SceneRuntime／SceneScheduler 接持久队列与传输循环；人工覆盖屏障、pending 状态对账；书房 d1/d2 现场证据 | 真实服务接入、通用失败策略及持续 last_run 投影 |
-| active 反馈派生 | StudyRuntime／SceneRuntime 区分 Active/Pending/Inactive/Unknown；通用投影校验 boot／配置／连接及持久队列 | 持续服务订阅及对外状态 |
-| 变量生命周期 | schema 12 类型化持久值；设备／规则与变量声明事务发布；Admission 内存临时值与持久提交统一 CAS；重启清空；25 变量处置证据 | 原项目变量分类语义审核；运行中发布监督及变量类型迁移策略 |
+| 场景顺序、延迟、取消与 partial | Timeline／SceneRuntime／SceneScheduler 接持久队列与传输循环；人工覆盖屏障、pending 状态对账；书房 d1/d2 现场证据 | 真实服务接入、通用失败策略及持续订阅；进程内 LastRun 查询已接通 |
+| active 反馈派生 | StudyRuntime／SceneRuntime 区分 Active/Pending/Inactive/Unknown；通用投影校验 boot／配置／连接及持久队列；控制通道支持按运行或定义查询 | 持续服务订阅及 Web／HAP 状态 |
+| 变量生命周期 | schema 12 类型化持久值；设备／规则与变量声明事务发布；Admission 内存临时值与持久提交统一 CAS；重启清空；25 变量处置证据 | 原项目变量分类语义审核；真实服务发布监督及显式变量类型迁移策略 |
 | 条件 AST 与反馈一致性 | 三值求值、算术、嵌套分支、XML AND/OR、LOAD、IS_LEVEL；反馈租约与 Admission 准入锁、持久命令状态校验 | 定时渐变及窗帘状态语义处置 |
 | 规则链 | PanelRules／EventRules→PreparedRule→持久准入；变量变化派生同因果链；设备反馈游标入口；共享预算、部分失败报告及终态场景结果事件 | 自身命令反馈因果关联、延迟场景调用继承原链、完整反馈事件流循环验证 |
-| 手势与长按 | KeyGesture→PanelRules→HoldDimming；自动化循环退出取消，释放／到期跨通道故障隔离 | 发布监督接线及现场停止策略验收 |
+| 手势与长按 | KeyGesture→PanelRules→HoldDimming；自动化循环退出取消，释放／到期跨通道故障隔离 | 真实服务发布监督接线及现场停止策略验收 |
 | 日历计划 | 上海时间日历核心、SQLite 水位、ScheduledRules、统一装配与隔离模拟服务；回拨与重启防重回归 | 真实服务运行中发布与运维状态输出；原项目系统更新任务不转为灯控 |
-| 规则配置 | 严格 AST 文档、立即／延迟场景与长按文件、统一离线校验、停机成组发布与授权运行时装配 | 延迟场景与规则变量联合生命周期、真实服务入口与运行中发布屏障 |
+| 规则配置 | 严格 AST 文档、立即／延迟场景与长按文件、统一离线校验、停机成组发布与授权运行时装配 | 延迟场景与规则变量联合生命周期、真实服务入口；模拟服务发布屏障闭环已验证 |
 | 回放 | 书房三场景、取消、变量分支、面板双击与失败路径 | 全项目常用房间回放、精确渐变、LED 同步（96 路顺序与中途取消已通过本机验证） |
 
 现场约束：EA-5 配置与控制范围保持不变；现有新增自动化不因离线测试通过而自动启用。
@@ -508,3 +508,5 @@ Admission::begin_automation_publication 校验设备、规则、命令编码及�
 场景当前状态查询：控制通道新增 Activity(run)，由运行时当前反馈及有效期派生 Active/Pending/Inactive/Unknown，复用组合灯、反馈租约和待发命令检查。不存在或已释放的运行返回空，不回退到执行结果。60 项运行时回归及库严格 Clippy 通过；补充专项证明无反馈为 Unknown、取消后收到匹配反馈可为 Active 而执行状态仍为 Cancelled、释放后 Activity 为空但 LastRun 仍在。尚未提供按场景定义持续订阅、Web 或 HAP 投影。
 
 按定义查询场景状态：新增 SceneActivity(name)，只接受当前配置中启用且有审核证据的定时场景，复用与运行句柄相同的目标投影、反馈租约及持久准入校验。无需先运行场景，释放句柄后仍可查询；查询不创建执行记录或写出命令。60 项运行时回归及库严格 Clippy 通过，覆盖无反馈 Unknown、未知名称拒绝和释放后匹配反馈 Active。连续订阅与 Web／HAP 接入仍未完成。
+
+集成回归更新：测试 HEAD 650bf51 及当时工作区代码，完整离线 workspace 共 355 项通过、0 失败、0 忽略（75 个结果块）。覆盖最近发布恢复、模拟服务切换和场景查询增量；差异路径及摘要见 evidence/stage-d-study/integrated-regression.json。完整 workspace 严格 Clippy 未通过的历史限制仍保留，不能由本次测试通过推断。阶段 D/E 均未完成。
