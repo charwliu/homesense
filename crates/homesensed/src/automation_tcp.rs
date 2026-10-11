@@ -80,6 +80,11 @@ pub async fn serve_supervised(
     // Reject unsupported initial synchronization before creating state or connecting.
     for id in config.devices().keys() {
         if let Some((device, module)) = config.binding(id) {
+            if module.kind() == homesense_core::ModuleKind::Keypad {
+                module.validate_context(ExecutionContext::Live).map_err(|e|e.to_string())?;
+                module.validate_channel(device.channel).map_err(|e|e.to_string())?;
+                continue;
+            }
             hb_protocol::encode_in_context(
                 module,
                 device.channel,
@@ -137,7 +142,7 @@ pub async fn serve_supervised(
         )?;
         let mut owner = ObservedTransport::new_recovering(transport, feedback, epoch)?;
         owner
-            .query_recovery(&config, ExecutionContext::Live, 1000, 5000)
+            .query_automation_recovery(&config, ExecutionContext::Live, 1000, 5000)
             .await?;
         let deadline=tokio::time::Instant::now()+duration;
         let mut recoveries=0;
@@ -165,7 +170,7 @@ pub async fn serve_supervised(
                         let (transport,next)=reconnect_tcp(admission.clone(),endpoints.clone(),epoch,RetryPolicy::default(),true,receiver.clone()).await?;
                         epoch=next;
                         owner.recover(transport,epoch)?;
-                        owner.query_recovery(&config,ExecutionContext::Live,1000,5000).await
+                        owner.query_automation_recovery(&config,ExecutionContext::Live,1000,5000).await
                     };
                     tokio::select! {
                         result=recovery=>result?,
