@@ -19,6 +19,7 @@ pub struct SoftwareFade {
     device: DeviceId,
     target: Percent,
     output_possible: bool,
+    rate: u64,
     generation: TaskGeneration,
     fence: u64,
     fade: Fade,
@@ -95,6 +96,7 @@ impl SoftwareFade {
             device,
             target,
             output_possible: false,
+            rate: 1000u64.div_ceil(interval),
             generation,
             fence,
             fade,
@@ -135,6 +137,9 @@ impl SoftwareFade {
         self.fence = fence;
         if let Some(deadline) = deadline { self.expires = self.expires.min(deadline); }
         Ok(())
+    }
+    pub(crate) fn reservation(&self) -> (u64,u64) {
+        (self.fade.reserved_samples(),self.rate)
     }
     pub(crate) fn output_possible(&self) -> bool { self.output_possible }
     pub(crate) fn manually_cancelled(&self) -> bool { self.manually_cancelled }
