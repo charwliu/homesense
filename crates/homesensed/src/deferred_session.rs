@@ -215,6 +215,45 @@ impl Session {
             Err(error) => Err(self.record_failure(error).await),
         }
     }
+    /// Cancel this chain without deriving scene-result rules. Commands already
+    /// writing cannot be undone. Failure or abandonment gates admission.
+    pub async fn cancel(&mut self, scheduler: &mut SceneScheduler) -> Result<usize, String> {
+        self.validate(scheduler).await?;
+        if !self.started {
+            return Err("causal root not started".into());
+        }
+        self.closed = true;
+        self.chain.cancel();
+        let mut guard = Guard(self.admission.clone(), false);
+        let execution: Result<usize, String> = async {
+            let mut cancelled = 0;
+            for (run, (audit, _)) in &self.pending {
+                if scheduler.audit_id(*run) != Some(audit.as_str()) {
+                    return Err("cancelled scene identity unavailable".into());
+                }
+                cancelled += scheduler.cancel(*run).await?;
+            }
+            self.admission
+                .record_rule_outcome(
+                    self.controller,
+                    self.generation.clone(),
+                    self.chain.root().correlation_id(),
+                    Some("causal session cancelled".into()),
+                )
+                .await
+                .map_err(|e| format!("cancellation audit unavailable: {e:?}"))?;
+            Ok(cancelled)
+        }
+        .await;
+        match execution {
+            Ok(cancelled) => {
+                self.pending.clear();
+                guard.1 = true;
+                Ok(cancelled)
+            }
+            Err(error) => Err(error),
+        }
+    }
     /// Results are correlated by both scheduler handle and durable run identity.
     pub async fn resume(
         &mut self,
