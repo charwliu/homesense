@@ -12,6 +12,8 @@ fn isolated_automation_cli_runs_scene_restarts_and_preserves_live_files() {
     let mut automation: hap::serde_json::Value = hap::serde_json::from_slice(&std::fs::read(&rules).unwrap()).unwrap();
     automation["variables"] = hap::serde_json::json!([{"id":"completed","kind":"integer","lifetime":"persistent"}]);
     automation["rules"] = hap::serde_json::json!([{"id":"after-demo","enabled":true,"review_evidence":"simulation","source":"fixture","trigger":{"kind":"scene_result","scene":"demo"},"actions":[{"source":"result","action":{"kind":"set","variable":"completed","value":{"kind":"integer","value":7}}}]}]);
+    automation["variables"].as_array_mut().unwrap().push(hap::serde_json::json!({"id":"second","kind":"integer","lifetime":"persistent"}));
+    automation["rules"].as_array_mut().unwrap().push(hap::serde_json::json!({"id":"also-after-demo","enabled":true,"review_evidence":"simulation","source":"fixture","trigger":{"kind":"scene_result","scene":"demo"},"actions":[{"source":"second","action":{"kind":"set","variable":"second","value":{"kind":"integer","value":9}}}]}));
     std::fs::write(&rules,hap::serde_json::to_vec(&automation).unwrap()).unwrap();
     let run = |seconds: &str, scene: &str| {
         Command::new(env!("CARGO_BIN_EXE_homesensed"))
@@ -59,6 +61,11 @@ fn isolated_automation_cli_runs_scene_restarts_and_preserves_live_files() {
     assert_eq!(rules_run,2,"one result rule per run, never every tick");
     let value:i64=sql.query_row("SELECT value FROM logical_variable WHERE name='completed'",[],|r|r.get(0)).unwrap();
     assert_eq!(value,7);
+    let correlations:i64=sql.query_row("SELECT count(DISTINCT correlation) FROM rule_admission WHERE rule_id IN ('after-demo','also-after-demo')",[],|r|r.get(0)).unwrap();
+    assert_eq!(correlations,2,"both matching rules share one root per service run");
+    let second:i64=sql.query_row("SELECT value FROM logical_variable WHERE name='second'",[],|r|r.get(0)).unwrap();
+    assert_eq!(second,9);
+
     std::fs::write(
         &rules,
         br#"{"schema_version":1,"configuration_revision":1,"variables":[],"rules":[]}"#,
