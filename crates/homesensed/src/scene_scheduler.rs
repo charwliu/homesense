@@ -7,6 +7,7 @@ use homesense_core::{
 };
 use std::collections::{BTreeMap, BTreeSet};
 use uuid::Uuid;
+use std::sync::{Arc, atomic::{AtomicUsize, Ordering}};
 
 pub struct SceneScheduler {
     admission: Admission,
@@ -15,8 +16,21 @@ pub struct SceneScheduler {
     next: u64,
     now: u64,
     capacity: usize,
+    reserved: Arc<AtomicUsize>,
     stopped: bool,
     results: Vec<SceneResult>,
+}
+/// Capacity only, never authorization or a durable acceptance. Dropping a token
+/// releases unused slots, including when a surrounding future is cancelled.
+pub struct Reservation {
+    owner: Arc<AtomicUsize>,
+    remaining: usize,
+}
+impl Reservation {
+    pub fn remaining(&self) -> usize {self.remaining}
+}
+impl Drop for Reservation {
+    fn drop(&mut self) {self.owner.fetch_sub(self.remaining, Ordering::SeqCst);}
 }
 #[derive(Debug)]
 pub struct SceneResult {
@@ -48,9 +62,27 @@ impl SceneScheduler {
             next: 1,
             now,
             capacity,
+            reserved: Arc::new(AtomicUsize::new(0)),
             stopped: false,
             results: vec![],
         })
+    }
+    /// Reserve before committing rule variables. Other starts must respect these
+    /// slots; this API alone creates no scene record or physical command.
+    pub fn reserve_slots(&mut self, count:usize) -> Result<Reservation,String> {
+        if self.stopped || count==0 || count>self.capacity || self.runs.len()+self.results.len()+self.reserved.load(Ordering::SeqCst)>self.capacity-count {
+            return Err("scene reservation capacity unavailable".into());
+        }
+        self.reserved.fetch_add(count,Ordering::SeqCst);
+        Ok(Reservation{owner:self.reserved.clone(),remaining:count})
+    }
+    /// Consume one slot exactly once, including on failed or cancelled start.
+    /// This remains a manual start; atomic rule admission is a separate adapter.
+    pub async fn start_reserved(&mut self, reservation:&mut Reservation, steps:Vec<Step>, now:u64, lateness:u64)->Result<u64,String> {
+        if !Arc::ptr_eq(&self.reserved,&reservation.owner) || reservation.remaining==0 || self.stopped {return Err("invalid scene reservation".into());}
+        reservation.remaining-=1;
+        reservation.owner.fetch_sub(1,Ordering::SeqCst);
+        self.start(steps,now,lateness).await
     }
     fn clock(&mut self, now: u64) -> Result<(), String> {
         if self.stopped {
@@ -116,7 +148,7 @@ impl SceneScheduler {
         definition: Option<String>,
     ) -> Result<u64, String> {
         self.clock(now)?;
-        if self.runs.len() + self.results.len() >= self.capacity {
+        if self.runs.len() + self.results.len() + self.reserved.load(Ordering::SeqCst) >= self.capacity {
             return Err("scene capacity reached; retire terminal runs".into());
         }
         let next = self.next.checked_add(1).ok_or("scene id exhausted")?;
