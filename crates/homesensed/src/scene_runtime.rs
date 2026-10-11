@@ -16,6 +16,8 @@ pub struct SceneRuntime {
     timeline: Timeline,
     targets: crate::scene_activity::Targets,
     audit_id: String,
+    definition: Option<String>,
+    result_taken: bool,
     audit_version: u64,
     audit_status: homesense_storage::scene_run::Status,
     audit_failed: bool,
@@ -30,6 +32,22 @@ struct Pending {
     written: usize,
 }
 impl SceneRuntime {
+    pub(crate) fn take_result(&mut self) -> Option<(String, String, Status)> {
+        if self.audit_failed
+            || self.result_taken
+            || self.pending.is_some()
+            || matches!(
+                self.audit_status,
+                homesense_storage::scene_run::Status::Pending
+                    | homesense_storage::scene_run::Status::Running
+            )
+        {
+            return None;
+        }
+        let definition = self.definition.clone()?;
+        self.result_taken = true;
+        Some((definition, self.audit_id.clone(), self.status()))
+    }
     pub(crate) fn configuration_revision(&self) -> u64 {
         self.generation.epochs.configuration
     }
@@ -68,13 +86,15 @@ impl SceneRuntime {
                 generation.clone(),
                 crate::admission::SceneUpdate::Begin {
                     run: audit_id.clone(),
-                    definition,
+                    definition: definition.clone(),
                 },
             )
             .await
             .map_err(|e| format!("scene receipt: {e:?}"))?;
         Ok(Self {
             audit_id,
+            definition,
+            result_taken: false,
             audit_version: 0,
             audit_status: homesense_storage::scene_run::Status::Pending,
             audit_failed: false,
