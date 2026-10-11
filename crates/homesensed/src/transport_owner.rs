@@ -11,7 +11,6 @@ pub struct TransportOwner<S> {
     admission: Admission,
     connections: BTreeMap<String, Connection<S>>,
     failed: bool,
-    next_write: Option<tokio::time::Instant>,
 }
 struct OperationGuard {
     admission: Admission,
@@ -41,18 +40,16 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
             admission,
             connections,
             failed: false,
-            next_write: None,
         }
     }
     /// One shared write slot for queries and expanded control frames. Waiting
     /// precedes dispatch so STOP priority and deadlines are checked afterwards.
-    async fn wait_write_slot(&self) {
-        if let Some(deadline)=self.next_write {
+    async fn wait_write_slot(&self) -> tokio::sync::OwnedMutexGuard<Option<tokio::time::Instant>> {
+        let slot = self.admission.write_slot.clone().lock_owned().await;
+        if let Some(deadline) = *slot {
             tokio::time::sleep_until(deadline).await;
         }
-    }
-    fn wrote_frame(&mut self) {
-        self.next_write=Some(tokio::time::Instant::now()+std::time::Duration::from_millis(20));
+        slot
     }
     pub(crate) fn belongs_to(&self, admission: &Admission) -> bool {
         self.admission.boot_id() == admission.boot_id()
@@ -114,7 +111,7 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
             epoch,
         )
         .map_err(|e| e.to_string())?;
-        self.wait_write_slot().await;
+        let mut slot = self.wait_write_slot().await;
         let deadline = self
             .now_ms()
             .checked_add(timeout_ms)
@@ -131,11 +128,11 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
         let clock = self.admission.clone();
         let (connection, sent) = tokio::task::spawn_blocking(move || {
             let sent = connection.send(&frame, deadline, || clock.monotonic_ms());
+            *slot = Some(tokio::time::Instant::now() + std::time::Duration::from_millis(20));
             (connection, sent)
         })
         .await
         .map_err(|e| format!("query worker: {e}"))?;
-        self.wrote_frame();
         if let Err(error) = sent {
             let _ = self.admission.transport_failed().await;
             guard.complete = true;
@@ -204,7 +201,7 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
         if self.failed {
             return Err("transport owner requires recovery".into());
         }
-        self.wait_write_slot().await;
+        let mut slot = self.wait_write_slot().await;
         let mut guard = OperationGuard {
             admission: self.admission.clone(),
             complete: false,
@@ -232,11 +229,11 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
             let result = connection.send(&ticket.frame, ticket.command.deadline_ms, || {
                 clock.monotonic_ms()
             });
+            *slot = Some(tokio::time::Instant::now() + std::time::Duration::from_millis(20));
             (connection, result)
         })
         .await
         .map_err(|e| format!("transport worker: {e}"))?;
-        self.wrote_frame();
         self.admission
             .finish_write(id, result.is_ok())
             .await
@@ -274,12 +271,13 @@ mod pacing_tests {
             fn flush(&mut self)->std::io::Result<()>{Ok(())}
         }
         let mut owner=TransportOwner::new(admission.clone(),[("simulation".into(),Connection::for_simulation(Stream(writes.clone()),1))].into());
+        let mut other=TransportOwner::new(admission.clone(),[("simulation".into(),Connection::for_simulation(Stream(writes.clone()),1))].into());
         let config=homesense_config::Configuration::parse(bytes,ExecutionContext::Simulation).unwrap();
         let id=DeviceId::new("simulation:light").unwrap();
         let (device,module)=config.binding(&id).unwrap();
         owner.query_status("simulation",module,device.channel,ExecutionContext::Simulation,100).await.unwrap();
         admission.submit(homesense_hap::requests::Batch{controller,intents:vec![homesense_hap::requests::Intent{device:id.clone(),command:Command::SetLevel{level:Percent::new(30).unwrap(),transition:LevelTransition::Immediate}}],subscriptions:vec![]}).await.unwrap();
-        owner.step().await.unwrap().unwrap().result.unwrap();
+        other.step().await.unwrap().unwrap().result.unwrap();
         owner.query_status("simulation",module,device.channel,ExecutionContext::Simulation,100).await.unwrap();
         let times=writes.lock().unwrap();
         assert_eq!(times.len(),3);
