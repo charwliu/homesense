@@ -6160,3 +6160,27 @@ async fn explicit_scene_cancel_records_intent_once_before_settlement() {
         a.shutdown().await.unwrap();
     }
 }
+
+#[tokio::test]
+async fn explicit_cancel_audit_failure_blocks_output_and_restart_replay() {
+    use homesense_core::{DeviceId,Command,Percent,LevelTransition,scene::Step};
+    let db=Db(std::env::temp_dir().join(format!("scene-cancel-failure-{}.sqlite",Uuid::new_v4())));
+    Store::open(&db.0).unwrap().publish_configuration(None,include_bytes!("../../../config/simulation.json"),ExecutionContext::Simulation,&[]).unwrap();
+    let controller=Uuid::new_v4();let a=actor(&db,controller).await;
+    let steps=[0,10].into_iter().map(|delay_ms|Step{device:DeviceId::new("simulation:light").unwrap(),command:Command::SetLevel{level:Percent::new(30).unwrap(),transition:LevelTransition::Immediate},delay_ms,source:"synthetic".into()}).collect();
+    let mut scene=homesensed::scene_runtime::SceneRuntime::new(a.clone(),controller,steps,0,1000).await.unwrap();
+    scene.poll(0).await.unwrap().unwrap();
+    let sql=rusqlite::Connection::open(&db.0).unwrap();
+    sql.execute_batch("CREATE TRIGGER fail_explicit_cancel BEFORE INSERT ON scene_cancellation WHEN NEW.reason='cancel_requested' BEGIN SELECT RAISE(ABORT,'synthetic'); END;").unwrap();
+    assert!(scene.cancel().await.is_err());
+    assert!(a.dispatch().await.is_err());
+    assert!(scene.poll(20).await.is_err());
+    assert_eq!(sql.query_row("SELECT count(*) FROM scene_cancellation",[],|r|r.get::<_,i64>(0)).unwrap(),0);
+    assert_eq!(sql.query_row("SELECT count(*) FROM command_journal WHERE status='writing'",[],|r|r.get::<_,i64>(0)).unwrap(),0);
+    a.shutdown().await.unwrap();
+    sql.execute_batch("DROP TRIGGER fail_explicit_cancel;").unwrap();
+    let reopened=actor(&db,controller).await;
+    assert!(reopened.dispatch().await.unwrap().is_none());
+    assert_eq!(sql.query_row("SELECT status FROM scene_run WHERE run_id=?1",[scene.audit_id()],|r|r.get::<_,String>(0)).unwrap(),"interrupted");
+    reopened.shutdown().await.unwrap();
+}
