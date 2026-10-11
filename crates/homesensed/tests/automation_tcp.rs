@@ -373,6 +373,8 @@ async fn supervised_reconnect_queries_again_without_repeating_startup() {
                     .unwrap();
             devices["gateways"][0]["endpoint"] = bus.local_addr().unwrap().to_string().into();
             devices["gateways"][0]["modules"][0]["verification"] = hap::serde_json::json!({"status":"verified","evidence":"loopback only","verified_at_unix_ms":1});
+            devices["gateways"][0]["modules"].as_array_mut().unwrap().push(hap::serde_json::json!({"address":"41","profile":"ts6_86_rs485_v2_6_5_6key","verification":{"status":"verified","evidence":"loopback keypad","verified_at_unix_ms":1},"led_mode":"manual"}));
+            devices["devices"].as_array_mut().unwrap().push(hap::serde_json::json!({"id":"panel:1","name":"keypad fixture","gateway":"simulation","address":"41","channel":1,"enabled":true}));
             let rules=br#"{"schema_version":1,"configuration_revision":1,"variables":[],"rules":[{"id":"startup","enabled":true,"review_evidence":"test","source":"test","trigger":{"kind":"startup_synchronized"},"actions":[{"source":"test","action":{"kind":"command","device":"simulation:light","command":{"kind":"level","value":30,"ramp":false}}}]}]}"#;
             let mut rules: hap::serde_json::Value = hap::serde_json::from_slice(rules).unwrap();
             rules["rules"][0]["actions"].as_array_mut().unwrap().push(hap::serde_json::json!({"source":"delayed","action":{"kind":"scene","id":"later","activate":true}}));
