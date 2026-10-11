@@ -55,3 +55,24 @@ async fn invalid_sizes_and_revision_do_not_enter_queue() {
     drop(publisher);
     assert!(receiver.receive().await.is_none());
 }
+
+#[test]
+fn tcp_candidate_requires_queryable_outputs_before_publication() {
+    use hap::serde_json::{json, to_vec, Value};
+    let mut devices: Value = hap::serde_json::from_slice(include_bytes!(
+        "../../../config/simulation-home.json"
+    )).unwrap();
+    let rules = to_vec(&json!({"schema_version":1,"configuration_revision":1,
+        "variables":[],"rules":[]})).unwrap();
+    // A simulation-only model must not pass a live publication preflight.
+    assert!(homesensed::automation_tcp::validate_candidate(&to_vec(&devices).unwrap(), &rules).is_err());
+    devices["gateways"][0]["modules"][0]["verification"] = json!({
+        "status":"verified","evidence":"offline fixture","verified_at_unix_ms":1
+    });
+    assert!(homesensed::automation_tcp::validate_candidate(&to_vec(&devices).unwrap(), &rules).is_ok());
+    devices["gateways"][0]["modules"][0]["profile"] = "ts6_86_rs485_v2_6_5_6key".into();
+    devices["gateways"][0]["modules"][0]["led_mode"] = "manual".into();
+    devices["devices"][0].as_object_mut().unwrap().remove("default_on_level");
+    let error = homesensed::automation_tcp::validate_candidate(&to_vec(&devices).unwrap(), &rules).err().unwrap();
+    assert!(error.contains("queryable output"), "{error}");
+}
