@@ -13,7 +13,7 @@ pub enum Role {
     Member,
     Administrator,
 }
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Grant {
     pub controller: Uuid,
     pub role: Role,

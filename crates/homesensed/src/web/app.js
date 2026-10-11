@@ -15,6 +15,9 @@ async function refresh() {
   document.getElementById('configuration').hidden = !capabilities.can_manage_configuration;
   const data = await request('/api/v1/scenes');
   await refreshDevices();
+  renderScenes(data);
+}
+function renderScenes(data) {
   list.replaceChildren();
   for (const scene of data.scenes) {
     const row = document.createElement('article');
@@ -48,18 +51,22 @@ document.getElementById('connect').onclick = async () => {
   try {
     const response = await fetch('/api/v1/session', {method: 'POST', credentials: 'same-origin', headers: {Authorization: `Bearer ${credential}`}});
     if (!response.ok) throw new Error('登录失败');
-    csrf = (await response.json()).csrf; await refresh(); status.textContent = '已连接（会话 15 分钟有效）';
+    csrf = (await response.json()).csrf; eventCursor=null; await refresh(); connectEvents(); status.textContent = '已连接（会话 15 分钟有效）';
   } catch (error) { csrf = ''; list.replaceChildren(); status.textContent = error.message; }
 };
 document.getElementById('logout').onclick = async () => {
-  try { await request('/api/v1/session', {method: 'DELETE'}); csrf = ''; document.getElementById('draft-impact').textContent=''; document.getElementById('configuration').hidden=true; for(const id of ['device-document','automation-document','draft-id','base-revision','draft-revision']) document.getElementById(id).value=''; started.clear(); list.replaceChildren(); document.getElementById('devices').replaceChildren(); status.textContent = '已退出'; }
+  try { await request('/api/v1/session', {method: 'DELETE'}); csrf = ''; clearTimeout(eventRetry); if(eventSocket)eventSocket.close();eventDevices.clear(); document.getElementById('draft-impact').textContent=''; document.getElementById('configuration').hidden=true; for(const id of ['device-document','automation-document','draft-id','base-revision','draft-revision']) document.getElementById(id).value=''; started.clear(); list.replaceChildren(); document.getElementById('devices').replaceChildren(); status.textContent = '已退出'; }
   catch (error) { status.textContent = '注销未确认：' + error.message; }
 };
 
 async function refreshDevices() {
   const data = await request('/api/v1/devices');
+  eventDevices.clear(); for(const device of data.devices) eventDevices.set(device.id,device);
+  renderDevices();
+}
+function renderDevices() {
   const devices = document.getElementById('devices'); devices.replaceChildren();
-  for (const device of data.devices) {
+  for (const device of eventDevices.values()) {
     const row = document.createElement('article');
     const title = document.createElement('h2'); title.textContent = device.name;
     const info = document.createElement('p');
@@ -130,3 +137,30 @@ document.getElementById('activate-draft').onclick = async () => {
     await refresh();
   } catch(error) {status.textContent=error.message+'；发布可能已发生，请核对活动版本，未自动重试。';}
 };
+
+let eventSocket=null, eventCursor=null, eventRetry=null, eventAttempts=0;
+const eventDevices=new Map();
+function connectEvents() {
+  clearTimeout(eventRetry);if(!csrf)return;
+  if(eventSocket){eventSocket.onclose=null;eventSocket.close();}
+  const socket=new WebSocket(location.origin.replace(/^http/,'ws')+'/api/v1/events');eventSocket=socket;
+  socket.onopen=()=>socket.send(JSON.stringify({cursor:eventCursor}));
+  socket.onmessage=event=>{
+    try {
+      const frame=JSON.parse(event.data);
+      if(frame.type==='unavailable') {
+        for(const [id,device] of eventDevices)eventDevices.set(id,{...device,quality:'Stale',can_control:false});
+        renderDevices();status.textContent='配置正在切换，等待状态恢复。';return;
+      }
+      if(frame.type!=='state')return;
+      if(frame.reset)eventDevices.clear();
+      for(const device of frame.devices)eventDevices.set(device.id,device);
+      renderDevices();renderScenes({scenes:frame.scenes});eventCursor=frame.cursor;eventAttempts=0;
+    } catch(error){status.textContent='事件更新失败，请刷新状态。';socket.close();}
+  };
+  socket.onclose=()=>{
+    if(!csrf)return;
+    if(++eventAttempts>6){status.textContent='事件连接已断开，请重新登录。';return;}
+    eventRetry=setTimeout(connectEvents,Math.min(10000,500*2**eventAttempts));
+  };
+}
