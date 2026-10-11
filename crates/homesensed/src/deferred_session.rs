@@ -155,6 +155,27 @@ impl Session {
         }
         Ok(outcomes)
     }
+    async fn record_failure(&mut self, error: String) -> String {
+        self.closed = true;
+        self.chain.cancel();
+        let mut length = error.len().min(8192);
+        while !error.is_char_boundary(length) {
+            length -= 1;
+        }
+        match self
+            .admission
+            .record_rule_outcome(
+                self.controller,
+                self.generation.clone(),
+                self.chain.root().correlation_id(),
+                Some(error[..length].into()),
+            )
+            .await
+        {
+            Ok(()) => error,
+            Err(audit) => format!("{error}; failure audit unavailable: {audit:?}"),
+        }
+    }
     /// One explicit root rule. Errors/cancellation close the session and gate
     /// admission; accepted actions are not undone or retried.
     pub async fn start(
@@ -170,20 +191,29 @@ impl Session {
         self.started = true;
         self.closed = true;
         let mut guard = Guard(self.admission.clone(), false);
-        let parent = self.chain.root();
-        let outcome = deferred_rule::execute(
-            &self.admission,
-            self.controller,
-            rule,
-            &mut self.chain,
-            &parent,
-            scheduler,
-            feedback,
-        )
-        .await?;
-        let outcomes = self.cascade(vec![outcome], scheduler, feedback).await?;
-        guard.1 = true;
-        Ok(outcomes)
+        let execution: Result<Vec<Outcome>, String> = async {
+            let parent = self.chain.root();
+            let outcome = deferred_rule::execute(
+                &self.admission,
+                self.controller,
+                rule,
+                &mut self.chain,
+                &parent,
+                scheduler,
+                feedback,
+            )
+            .await?;
+            let outcomes = self.cascade(vec![outcome], scheduler, feedback).await?;
+            Ok(outcomes)
+        }
+        .await;
+        match execution {
+            Ok(outcomes) => {
+                guard.1 = true;
+                Ok(outcomes)
+            }
+            Err(error) => Err(self.record_failure(error).await),
+        }
     }
     /// Results are correlated by both scheduler handle and durable run identity.
     pub async fn resume(
@@ -203,20 +233,29 @@ impl Session {
         let parent = parent.clone();
         self.closed = true;
         let mut guard = Guard(self.admission.clone(), false);
-        let outcomes = deferred_rule::resume_scene(
-            &self.admission,
-            self.controller,
-            &mut self.chain,
-            &parent,
-            result,
-            scheduler,
-            feedback,
-        )
-        .await?;
-        self.pending.remove(&result.run);
-        let outcomes = self.cascade(outcomes, scheduler, feedback).await?;
-        guard.1 = true;
-        Ok(outcomes)
+        let execution: Result<Vec<Outcome>, String> = async {
+            let outcomes = deferred_rule::resume_scene(
+                &self.admission,
+                self.controller,
+                &mut self.chain,
+                &parent,
+                result,
+                scheduler,
+                feedback,
+            )
+            .await?;
+            self.pending.remove(&result.run);
+            let outcomes = self.cascade(outcomes, scheduler, feedback).await?;
+            Ok(outcomes)
+        }
+        .await;
+        match execution {
+            Ok(outcomes) => {
+                guard.1 = true;
+                Ok(outcomes)
+            }
+            Err(error) => Err(self.record_failure(error).await),
+        }
     }
 }
 struct Guard(Admission, bool);
