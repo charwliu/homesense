@@ -153,8 +153,18 @@ impl SceneRuntime {
     /// Install a prepared fade for the next due step. The runtime owns polling,
     /// cancellation and the step result after this succeeds.
     pub async fn install_due_fade(&mut self, mut fade: crate::software_fade::SoftwareFade, now: u64) -> Result<(), String> {
-        if self.has_pending() || self.audit_failed { return Err("scene already has pending work".into()); }
-        let due=self.timeline.next(now,self.generation.epochs).map_err(|e|format!("{e:?}"))?.ok_or("no scene step due")?;
+        if self.has_pending() || self.audit_failed {
+            fade.cancel().await?;
+            return Err("scene already has pending work".into());
+        }
+        let due=match self.timeline.next(now,self.generation.epochs) {
+            Ok(Some(due))=>due,
+            result=>{
+                fade.cancel().await?;
+                self.checkpoint().await?;
+                return Err(match result {Err(error)=>format!("{error:?}"),_=>"no scene step due".into()});
+            }
+        };
         if let Err(error)=self.bind_fade(due.index,&mut fade) {
             self.timeline.resolve(due.index,false).map_err(|e|format!("{e:?}"))?;
             fade.cancel().await?;

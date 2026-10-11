@@ -5727,3 +5727,34 @@ async fn scheduler_reserves_fade_capacity_across_scenes_and_releases_on_cancel()
     assert!(a.dispatch().await.unwrap().is_none());
     a.shutdown().await.unwrap();
 }
+
+#[tokio::test]
+async fn scene_rejects_early_or_duplicate_fade_without_closing_admission() {
+    use homesensed::{software_fade::SoftwareFade,feedback::Feedback,transport_owner::GatewayRead};
+    let db=Db(std::env::temp_dir().join(format!("fade-{}.sqlite",Uuid::new_v4())));
+    let devices=include_bytes!("../../../config/simulation.json");
+    Store::open(&db.0).unwrap().publish_configuration(None,devices,ExecutionContext::Simulation,&[]).unwrap();
+    let controller=Uuid::new_v4();let a=actor(&db,controller).await;
+    let config=homesense_config::Configuration::parse(devices,ExecutionContext::Simulation).unwrap();
+    let mut feedback=Feedback::new(&config,ExecutionContext::Simulation,Uuid::parse_str(a.boot_id()).unwrap().as_u128(),1).unwrap();
+    let device=homesense_core::DeviceId::new("simulation:light").unwrap();
+    let zero=homesense_core::Percent::new(0).unwrap();
+    assert!(SoftwareFade::start(a.clone(),controller,device.clone(),zero,200,50,100,4,&feedback,2000).await.is_err());
+    feedback.apply(&GatewayRead{gateway_id:"simulation".into(),transport_epoch:1,received_at_ms:0,result:hb_transport::Receive::Frames{transport_epoch:1,frames:vec![hb_protocol::RawFrame{address:0x15,command:0xd1,value:100}]}}).unwrap();
+    let mut scene=homesensed::scene_runtime::SceneRuntime::new(a.clone(),controller,vec![homesense_core::scene::Step {
+        device:device.clone(),command:homesense_core::Command::SetLevel{level:zero,transition:homesense_core::LevelTransition::Immediate},
+        delay_ms:100,source:"late".into(),
+    }],0,1000).await.unwrap();
+    let early=SoftwareFade::start(a.clone(),controller,device.clone(),zero,400,100,100,4,&feedback,2000).await.unwrap();
+    assert!(scene.install_due_fade(early,0).await.unwrap_err().contains("no scene step due"));
+    assert!(a.task_generation().await.is_ok());
+    let fade=SoftwareFade::start(a.clone(),controller,device.clone(),zero,400,100,100,4,&feedback,2000).await.unwrap();
+    scene.install_due_fade(fade,100).await.unwrap();
+    let duplicate=SoftwareFade::start(a.clone(),controller,device,zero,400,100,100,4,&feedback,2000).await.unwrap();
+    assert!(scene.install_due_fade(duplicate,100).await.unwrap_err().contains("pending work"));
+    assert!(a.task_generation().await.is_ok());
+    assert_eq!(scene.status(),homesense_core::scene::Status::Running);
+    scene.cancel().await.unwrap();
+    assert!(a.dispatch().await.unwrap().is_none());
+    a.shutdown().await.unwrap();
+}
