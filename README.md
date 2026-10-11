@@ -186,3 +186,6 @@ TCP 自动化面板同步策略：新增显式 `query_automation_recovery`，查
 
 
 TCP 长按恢复端到端回归：回环网关发送 TS6 按下帧，经手势计时与 HoldDimming 输出 30%→35%；断链重连并重新查询后，等待期间无旧按键输出。新按下帧再次从同步的 30% 输出 35%，松开后无继续调光；持久命令总计两条。10 项 TCP 测试通过。此验证覆盖 cancel_pending_only 的 TCP 面板事件流与恢复，现场硬件动作、PauseRamp 策略以及字节级写故障仍不能据此宣称验收。
+
+
+发布恢复的面板策略已接通：`publication_recovery::rebuild_with_policy` 可显式选择 OutputsAndKeypadEvents，默认 rebuild 仍要求完整反馈。新配置含 Keypad 时恢复只查询输出，面板 observed 保持 None；未经授权、旧连接代际、缺少网关均拒绝，查询失败保持关闭，成功后版本为新发布版本。扩展原发布屏障回归覆盖灯光／混合面板配置与查询成功／失败四种组合；71 项运行时、4 项模拟服务测试及库严格 Clippy 通过，并专项验证面板未知状态。此为在线发布协调器所需恢复装配接口，TCP 服务在线发布请求入口与协调循环尚未接线。
