@@ -66,7 +66,7 @@ impl Store {
         if app != 0 && app != APPLICATION_ID {
             return Err(Error::ForeignDatabase);
         }
-        if version != 0 && (!(1..=16).contains(&version) || app != APPLICATION_ID) {
+        if version != 0 && (!(1..=17).contains(&version) || app != APPLICATION_ID) {
             return Err(Error::UnsupportedSchema(version));
         }
         if version == 0 {
@@ -165,6 +165,10 @@ impl Store {
                 INSERT INTO scene_cancellation SELECT * FROM scene_cancellation_old;
                 DROP TABLE scene_cancellation_old;")?;
             tx.pragma_update(None, "user_version", 16)?;
+        }
+        if version <= 16 {
+            tx.execute_batch("CREATE TABLE scene_expiry (boot_id TEXT NOT NULL, run_id TEXT NOT NULL, step_index INTEGER NOT NULL CHECK(step_index>=0 AND step_index<4096), version INTEGER NOT NULL CHECK(version>0), device_id TEXT NOT NULL, source TEXT NOT NULL, PRIMARY KEY(boot_id,run_id,step_index), FOREIGN KEY(boot_id,run_id) REFERENCES scene_run(boot_id,run_id));")?;
+            tx.pragma_update(None, "user_version", 17)?;
         }
         tx.commit()?;
         connection.pragma_update(None, "foreign_keys", "ON")?;

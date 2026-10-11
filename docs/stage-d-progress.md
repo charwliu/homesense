@@ -785,3 +785,5 @@ TCP 在线发布前置校验补充：共享候选文档预检已接入启动入�
 提交快照 `f687c40` 使用独立源码及独立 target 完成全 workspace 离线回归：454 项通过，0 失败、0 忽略，84 个结果块。证据见 `docs/evidence/stage-d-study/committed-workspace-f687c40.json`。不含后续 `601bd41` 的单独已通过停止屏障回归；当前 homesensed 库严格 Clippy 通过。此证据覆盖 schema 16 迁移和取消审计，不关闭原项目语义与现场验收缺口。
 
 窗帘条件调查的公开协议依据：Control4 Blind Proxy 区分目标命令与 MOVING／STOPPED 通知；`always_send_level` 控制是否忽略当前 level 仍发送目标，文档默认 false。见 [官方代理文档](https://snap-one.github.io/docs-driverworks-proxyprotocol-blind/#always_send_level)。这仅是代理接口依据，不能证明具体驱动的运行状态，也不能把按钮可用性或 last_command 当作物理反馈；IF_MOVING／IF_STOPPED 的迁移审核仍未关闭。
+
+步骤过期审计存储：schema 17 新增按场景／步骤唯一的过期记录，与状态检查点同事务保存，保留设备和来源。已准入步骤拒绝补记过期，已过期步骤拒绝后续准入；重复记录和注入写入失败均回滚检查点。迁移、重开及存储全套 34 项通过。运行时过期接线与授权查询尚未完成；未部署 nanopc，旧二进制不能打开 schema 17。
