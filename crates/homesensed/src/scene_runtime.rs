@@ -201,7 +201,13 @@ impl SceneRuntime {
                 else if fade.driver.manually_cancelled() {self.timeline.cancel_offered(fade.index)}
                 else {self.timeline.resolve(fade.index,false)}
                 .map_err(|e|format!("{e:?}"))?;
+                let manual_device=fade.driver.manually_cancelled().then(||fade.device.clone());
                 self.fade=None;
+                if let Some(device)=manual_device
+                    && self.cancellation_audited.get(&device)!=Some(&true) {
+                    self.persist_checkpoint(homesense_storage::scene_run::Status::Running,Some(homesense_storage::scene_run::Cancellation{device:device.clone(),reason:homesense_storage::scene_run::CancellationReason::ManualOverride})).await?;
+                    self.cancellation_audited.insert(device,true);
+                }
                 self.checkpoint().await?;
                 return Err(error);
             }
