@@ -4612,3 +4612,27 @@ async fn deferred_rule_adapter_reserves_before_variables_and_preserves_chain() {
     drop(abandoned);assert!(a.task_generation().await.is_err());
     a.shutdown().await.unwrap();
 }
+
+#[tokio::test]
+async fn deferred_session_records_cycle_failure_and_reports_audit_failure() {
+    for fault in [false, true] {
+        let db=Db(std::env::temp_dir().join(format!("session-failure-{}.sqlite",Uuid::new_v4())));
+        let devices=include_bytes!("../../../config/simulation.json");
+        let rules=br#"{"schema_version":1,"configuration_revision":1,"variables":[{"id":"mode","kind":"integer","lifetime":"persistent"}],"rules":[{"id":"cycle","enabled":true,"review_evidence":"test","source":"test","trigger":{"kind":"variable_changed","variable":"mode"},"actions":[{"source":"set","action":{"kind":"set","variable":"mode","value":{"kind":"integer","value":1}}}]}]}"#;
+        Store::open(&db.0).unwrap().publish_automation(None,devices,rules,ExecutionContext::Simulation,&[]).unwrap();
+        let controller=Uuid::new_v4();let a=actor(&db,controller).await;
+        let mut scheduler=homesensed::scene_scheduler::SceneScheduler::new(a.clone(),controller,1,0).unwrap();
+        let mut session=homesensed::deferred_session::Session::new(a.clone(),controller,&scheduler,Default::default(),60000).await.unwrap();
+        let sql=rusqlite::Connection::open(&db.0).unwrap();
+        if fault {sql.execute_batch("CREATE TRIGGER injected_outcome BEFORE INSERT ON rule_chain_outcome BEGIN SELECT RAISE(ABORT,'fault'); END;").unwrap();}
+        let error=session.start("cycle",&mut scheduler,None).await.err().expect("cycle rejected");
+        assert_eq!(error.contains("failure audit unavailable"),fault,"{error}");
+        assert!(session.is_closed());
+        assert!(a.task_generation().await.is_err());
+        let store=Store::open(&db.0).unwrap();
+        assert_eq!(store.logical_variable(1,"mode").unwrap().unwrap().value,Some(homesense_core::rule::Value::Integer(1)));
+        assert_eq!(sql.query_row("SELECT count(*) FROM rule_chain_outcome WHERE error IS NOT NULL",[],|r|r.get::<_,i64>(0)).unwrap(),if fault {0}else{1});
+        assert_eq!(sql.query_row("SELECT count(*) FROM rule_admission",[],|r|r.get::<_,i64>(0)).unwrap(),1);
+        a.shutdown().await.unwrap();
+    }
+}
