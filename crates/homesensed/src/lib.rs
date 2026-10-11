@@ -105,3 +105,5 @@ mod web_events;
 pub mod web_tls;
 
 mod management_endpoint;
+
+pub mod hap_endpoint;
