@@ -12,6 +12,7 @@ use uuid::Uuid;
 #[derive(Debug)]
 pub enum Action {
     CalendarStatus,
+    SceneAction { controller: Uuid, revision: u64, scene: String, execute: bool },
     Start(String),
     Cancel(u64),
     Status(u64),
@@ -22,6 +23,7 @@ pub enum Action {
 }
 #[derive(Debug, PartialEq, Eq)]
 pub enum Reply {
+    SceneAccepted(Option<u64>),
     CalendarStatus { boot: String, revision: u64, status: Option<crate::event_rules::CalendarStatus> },
     Started(u64),
     Cancelled(usize),
@@ -81,6 +83,9 @@ impl Control {
     }
     async fn request_inner(&self, action: Action, watch: Option<tokio::sync::watch::Sender<Option<Result<SceneObservation,String>>>>) -> Result<Reply,String> {
         if matches!(&action, Action::Start(id) | Action::LastRun(id) | Action::SceneActivity(id) if id.is_empty() || id.len()>256 || id.chars().any(char::is_control)) {
+            return Err("invalid scene name".into());
+        }
+        if matches!(&action, Action::SceneAction { scene, .. } if scene.trim().is_empty() || scene.len()>250 || scene.chars().any(char::is_control)) {
             return Err("invalid scene name".into());
         }
         let (reply, receive) = oneshot::channel();
@@ -160,6 +165,17 @@ impl Receiver {
                         revision: document.revision,
                         status: calendar.map(|calendar| calendar.status()),
                     }),
+                    Action::SceneAction { controller, revision, scene, execute } => {
+                        if revision != document.revision { return Err("scene action revision expired".into()); }
+                        let definition = document.timed_scenes.get(&scene).ok_or("unknown timed scene")?;
+                        if !definition.enabled || definition.review_evidence.as_ref().is_none_or(|s|s.trim().is_empty()) {
+                            return Err("timed scene disabled or unreviewed".into());
+                        }
+                        admission.variable_snapshot(controller, self.generation.clone(), vec![]).await.map_err(|e|format!("{e:?}"))?;
+                        if request.reply.is_closed() || Instant::now() >= request.deadline { return Err("scene action expired or abandoned".into()); }
+                        if execute { scenes.start_document_as(document, &scene, admission.monotonic_ms(), controller).await.map(|run|Reply::SceneAccepted(Some(run))) }
+                        else { Ok(Reply::SceneAccepted(None)) }
+                    },
                     Action::Start(id) => scenes
                         .start_document(document, &id, admission.monotonic_ms())
                         .await
