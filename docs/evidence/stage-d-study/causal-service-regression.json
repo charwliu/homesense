@@ -1,14 +1,14 @@
 {
   "command": "cargo test --workspace --locked --offline",
-  "date": "2026-10-11T08:38:12.132977+00:00",
-  "tested_head": "804e25430b949e6dcc33346deba767d540a81913",
+  "date": "2026-10-11T09:29:40.883721+00:00",
+  "tested_head": "1a773b81f2bc84094dc394e280e3cf06ab70d7fb",
   "scope": "Current working tree including pre-existing tracked edits; isolated databases, simulators and localhost sockets; no field actions. Only documentation edited during this run.",
   "exit_code": 0,
-  "suite_results": 78,
-  "passed": 392,
+  "suite_results": 80,
+  "passed": 416,
   "failed": 0,
   "ignored": 0,
-  "log_sha256": "e3820935e9b808df23a8c2da2e31568924159ad73234f856694fe3e38e956425",
+  "log_sha256": "9693ecc922701b8870e8c3a2f24bfb52b5a9ba8780a024b88508abfb62cf7748",
   "tracked_code_diff_sha256": "ebf19b5951da742e78a96f83bf5b0d7340688f1ca2a483efe57428b344d6b947",
   "tracked_code_paths": [
     "crates/homesense-hap/src/events.rs",
@@ -40,7 +40,7 @@
     "vendor/hap/src/transport/mdns.rs",
     "vendor/hap/src/transport/tcp.rs"
   ],
-  "schema": 13,
+  "schema": 14,
   "stage_d_complete": false,
   "stage_e_complete": false,
   "workspace_strict_clippy": "not passed; legacy HAP warnings remain; focused homesensed lib passed separately"
