@@ -4404,6 +4404,7 @@ async fn publication_pauses_old_automation_without_closing_admission() {
     assert!(subscription.borrow_and_update().as_ref().unwrap().as_ref().unwrap_err().contains("stopped"));
     assert!(subscription.changed().await.is_err(),"old stream must close at publication barrier");
     assert!(control.request(Action::Start("light".into())).await.is_err());
+    assert!(control.request(Action::CalendarStatus).await.is_err());
     drop(runtime);
     assert!(owner.drain_publication(&a).await.unwrap().is_none());
     assert_eq!(a.commit_publication().await.unwrap(),2);
@@ -4444,10 +4445,24 @@ async fn publication_pauses_old_automation_without_closing_admission() {
         a.shutdown().await.unwrap();
         continue;
     }
-    let (next_runtime,new_owner)=rebuilt.unwrap();
+    let (mut next_runtime,mut new_owner)=rebuilt.unwrap();
     if keypads {assert!(new_owner.snapshot().devices[&homesense_core::DeviceId::new("panel:1").unwrap()].observed.is_none());}
     assert_eq!(next_runtime.revision(),2);
     assert!(a.dispatch().await.unwrap().is_none());
+    let fresh_control=next_runtime.control();
+    let (stop, receive)=tokio::sync::watch::channel(false);
+    let inspect=async {
+        let homesensed::automation_control::Reply::CalendarStatus { boot, revision, status: Some(status) } = fresh_control.request(Action::CalendarStatus).await.unwrap() else { panic!("missing new calendar") };
+        assert_eq!(boot,a.boot_id());
+        assert_eq!(revision,2);
+        assert!(!status.clock.stopped);
+        // The old handle must remain closed even after a replacement is ready.
+        assert!(control.request(Action::CalendarStatus).await.is_err());
+        stop.send(true).unwrap();
+    };
+    let (driven,())=tokio::join!(next_runtime.drive(&mut new_owner,std::time::Duration::from_millis(1),5000,receive,||Ok(1_800_000_000_000)),inspect);
+    driven.unwrap();
+    assert!(fresh_control.request(Action::CalendarStatus).await.is_err());
     drop(next_runtime);
     a.shutdown().await.unwrap();
     }
