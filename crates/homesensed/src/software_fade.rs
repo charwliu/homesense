@@ -14,6 +14,7 @@ use homesense_storage::journal::Status;
 use uuid::Uuid;
 
 pub struct SoftwareFade {
+    allocation: Option<crate::fade_budget::Reservation>,
     admission: Admission,
     controller: Uuid,
     device: DeviceId,
@@ -99,7 +100,9 @@ impl SoftwareFade {
             .and_then(|v| v.checked_add(lateness))
             .ok_or("fade deadline overflow")?;
         let frames_per_sample = if feedback.supply_relay(&device).is_some() { 2 } else { 1 };
+        let allocation = admission.fade_budget.reserve(fade.reserved_samples() * frames_per_sample, 1000u64.div_ceil(interval) * frames_per_sample)?;
         Ok(Self {
+            allocation: Some(allocation),
             admission,
             controller,
             device,
@@ -165,6 +168,7 @@ impl SoftwareFade {
         if self.in_flight {
             self.admission.stop_now();
             self.closed = true;
+            self.allocation.take();
             self.failure = Some("fade admission outcome unknown".into());
             return Err(self.failure.clone().unwrap());
         }
@@ -187,6 +191,7 @@ impl SoftwareFade {
                     self.failure = Some(format!("fade scene lookup: {error:?}"));
                     self.admission.stop_now();
                     self.closed = true;
+                    self.allocation.take();
                     return Err(self.failure.clone().unwrap());
                 }
             }
@@ -240,6 +245,7 @@ impl SoftwareFade {
         }
         if self.fade.finished() {
             self.closed = true;
+            self.allocation.take();
             return Ok(true);
         }
         let sample = self
@@ -293,6 +299,7 @@ impl SoftwareFade {
                         self.admission.stop_now();
                     }
                     self.closed = true;
+                    self.allocation.take();
                     self.failure = Some(format!("fade admission: {error:?}"));
                     return Err(self.failure.clone().unwrap());
                 }
@@ -305,6 +312,7 @@ impl SoftwareFade {
         if self.in_flight {
             self.admission.stop_now();
             self.closed = true;
+            self.allocation.take();
             self.failure = Some("fade admission outcome unknown".into());
             return Err(self.failure.clone().unwrap());
         }
@@ -334,6 +342,7 @@ impl SoftwareFade {
         }
         self.pending.clear();
         self.closed = true;
+        self.allocation.take();
         Ok(())
     }
 }

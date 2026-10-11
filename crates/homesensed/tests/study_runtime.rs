@@ -5723,12 +5723,17 @@ async fn scheduler_reserves_fade_capacity_across_scenes_and_releases_on_cancel()
     }
     let first=SoftwareFade::start(a.clone(),controller,devices[0].clone(),zero,300,50,100,6,&feedback,2000).await.unwrap();
     scheduler.install_due_fade(runs[0],first,0).await.unwrap();
-    let second=SoftwareFade::start(a.clone(),controller,devices[1].clone(),zero,300,50,100,6,&feedback,2000).await.unwrap();
-    assert!(scheduler.install_due_fade(runs[1],second,0).await.unwrap_err().contains("allocation"));
+    assert!(matches!(SoftwareFade::start(a.clone(),controller,devices[1].clone(),zero,300,50,100,6,&feedback,2000).await, Err(e) if e.contains("allocation")));
     assert_eq!(scheduler.status(runs[0]),Some(homesense_core::scene::Status::Running));
     assert_eq!(scheduler.status(runs[1]),Some(homesense_core::scene::Status::Pending));
+    let mut group=homesensed::fade_group::FadeGroup::new(a.clone(),controller,homesensed::fade_group::Limits{tasks:2,samples:20,targets_per_second:20}).unwrap();
+    let request=homesensed::fade_group::Request{target:zero,duration_ms:300,interval_ms:50,lateness_ms:100};
+    assert!(group.start(devices[1].clone(),request,&feedback,2000).await.unwrap_err().contains("allocation"));
+    assert_eq!(group.active_count(),0);
     assert!(a.task_generation().await.is_ok());
     scheduler.cancel(runs[0]).await.unwrap();
+    group.start(devices[1].clone(),request,&feedback,2000).await.unwrap();
+    group.cancel(&devices[1]).await.unwrap();
     let second=SoftwareFade::start(a.clone(),controller,devices[1].clone(),zero,300,50,100,6,&feedback,2000).await.unwrap();
     scheduler.install_due_fade(runs[1],second,0).await.unwrap();
     scheduler.cancel(runs[1]).await.unwrap();
@@ -5858,8 +5863,7 @@ async fn combined_fade_reserves_expanded_frames_in_group_and_scheduler() {
     assert_eq!(group.active_count(),0);
     let mut scheduler=SceneScheduler::new(a.clone(),controller,2,0).unwrap();
     let run=scheduler.start(vec![Step{device:device.clone(),command:Command::SetLevel{level:target,transition:LevelTransition::Immediate},delay_ms:0,source:"synthetic".into()}],0,1000).await.unwrap();
-    let fade=SoftwareFade::start(a.clone(),controller,device.clone(),target,300,50,200,6,&feedback,2000).await.unwrap();
-    assert!(scheduler.install_due_fade(run,fade,0).await.unwrap_err().contains("allocation"));
+    assert!(matches!(SoftwareFade::start(a.clone(),controller,device.clone(),target,300,50,200,6,&feedback,2000).await,Err(e) if e.contains("allocation")));
     assert!(a.task_generation().await.is_ok());
     // At 100 ms, two commands per sample fit the 20-command/s allocation.
     group.start(device.clone(),Request{interval_ms:100,..request},&feedback,2000).await.unwrap();
