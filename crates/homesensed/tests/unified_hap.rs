@@ -17,6 +17,13 @@ use std::{
 use uuid::Uuid;
 #[tokio::test]
 async fn unified_service_publishes_both_graphs_and_does_not_deadlock_writes() {
+    run(false).await;
+}
+#[tokio::test]
+async fn combined_service_shares_feedback_and_identity_between_hap_and_web() {
+    run(true).await;
+}
+async fn run(combined:bool) {
     let root = std::env::temp_dir().join(format!("unified-hap-{}", Uuid::new_v4()));
     std::fs::create_dir(&root).unwrap();
     let reservation = TcpListener::bind("127.0.0.1:0").unwrap();
@@ -92,19 +99,17 @@ async fn unified_service_publishes_both_graphs_and_does_not_deadlock_writes() {
     let devices = include_bytes!("../../../config/simulation.json");
     let rules=br#"{"schema_version":1,"configuration_revision":1,"variables":[],"rules":[],"timed_scenes":[{"id":"demo","enabled":true,"review_evidence":"simulation","max_lateness_ms":1000,"steps":[{"source":"fixture","offset_ms":60000,"device":"simulation:light","command":{"kind":"level","value":30,"ramp":false}}]}]}"#;
     drop(reservation);
+    let web_reservation=TcpListener::bind("127.0.0.1:0").unwrap();
+    let web_address=web_reservation.local_addr().unwrap();
+    drop(web_reservation);
     let directory = root.clone();
     let service = tokio::spawn(async move {
-        homesensed::service::serve_unified_simulation(
-            devices,
-            rules,
-            &directory,
-            Duration::from_secs(5),
-            homesensed::service::UnifiedSimulation {
-                address,
-                scenes: vec!["demo".into()],
-            },
-        )
-        .await
+        let hap=homesensed::service::UnifiedSimulation{address,scenes:vec!["demo".into()]};
+        if combined {
+            homesensed::service::serve_combined_simulation(devices,rules,&directory,Duration::from_secs(5),hap,homesensed::service::WebSettings{address:web_address,secret:"abcdefghijklmnopqrstuvwxyz0123456789".into(),administrator:true,tls:None}).await
+        } else {
+            homesensed::service::serve_unified_simulation(devices,rules,&directory,Duration::from_secs(5),hap).await
+        }
     });
     let client = tokio::task::spawn_blocking(move || {
         let deadline = Instant::now() + Duration::from_secs(3);
@@ -155,6 +160,20 @@ async fn unified_service_publishes_both_graphs_and_does_not_deadlock_writes() {
             );
             assert!(h.starts_with("HTTP/1.1 204"), "{h} {b:?}");
         }
+        if combined {
+            let deadline=Instant::now()+Duration::from_secs(2);
+            loop {
+                let (status,value)=web_request(web_address,"/api/v1/devices",None);
+                assert_eq!(status,200);
+                if value["devices"][0]["observed"]["level"]==30 {break;}
+                assert!(Instant::now()<deadline,"{value}");
+                std::thread::sleep(Duration::from_millis(10));
+            }
+            let (status,value)=web_request(web_address,&format!("/api/v1/config/activations/{}",Uuid::new_v4()),Some(serde_json::json!({"request_id":"no-publication","boot":"test"})));
+            assert_eq!(status,503);assert_eq!(value["error"],"publication_unavailable");
+            let (status,value)=web_request(web_address,"/api/v1/device-commands",Some(serde_json::json!({"request_id":"web-level","device":"simulation:light","command":{"action":"brightness","level":40}})));
+            assert_eq!(status,202,"{value}");
+        }
         let (h, _) = write(
             serde_json::json!([{"aid":light.aid,"iid":light.on_iid,"value":true},{"aid":scene.aid,"iid":scene.on_iid,"value":true}]),
         );
@@ -167,6 +186,16 @@ async fn unified_service_publishes_both_graphs_and_does_not_deadlock_writes() {
         assert!(h.starts_with("HTTP/1.1 200"));
         let value: serde_json::Value = serde_json::from_slice(&b).unwrap();
         assert_eq!(value["characteristics"][0]["value"], false);
+        if combined {
+            let deadline=Instant::now()+Duration::from_secs(2);
+            loop {
+                let request=format!("GET /characteristics?id={}.{} HTTP/1.1\r\nHost: localhost\r\n\r\n",light.aid,light.brightness_iid.unwrap());
+                let (h,b)=session.request(&mut stream,request.as_bytes());assert!(h.starts_with("HTTP/1.1 200"));
+                let value:serde_json::Value=serde_json::from_slice(&b).unwrap();
+                if value["characteristics"][0]["value"]==40 {break;}
+                assert!(Instant::now()<deadline,"{value}");std::thread::sleep(Duration::from_millis(10));
+            }
+        }
         let payload=serde_json::json!({"characteristics":[{"aid":scene.aid,"iid":scene.on_iid,"ev":true,"value":true}]}).to_string();
         let request = format!(
             "PUT /characteristics HTTP/1.1\r\nHost: localhost\r\nContent-Type: application/hap+json\r\nContent-Length: {}\r\n\r\n{}",
@@ -209,4 +238,13 @@ async fn unified_service_publishes_both_graphs_and_does_not_deadlock_writes() {
     drop(sql);
     drop(identity);
     std::fs::remove_dir_all(root).unwrap();
+}
+
+fn web_request(address:std::net::SocketAddr,path:&str,body:Option<serde_json::Value>)->(u16,serde_json::Value) {
+    use std::io::{Read,Write};
+    let mut stream=TcpStream::connect(address).unwrap();stream.set_read_timeout(Some(Duration::from_secs(2))).unwrap();
+    let text=body.as_ref().map_or(String::new(),|v|v.to_string());
+    write!(stream,"{} {path} HTTP/1.1\r\nHost: {address}\r\nOrigin: http://{address}\r\nAuthorization: Bearer abcdefghijklmnopqrstuvwxyz0123456789\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{text}",if body.is_some(){"POST"}else{"GET"},text.len()).unwrap();
+    let mut response=String::new();stream.read_to_string(&mut response).unwrap();let (header,body)=response.split_once("\r\n\r\n").unwrap();
+    (header.split_whitespace().nth(1).unwrap().parse().unwrap(),serde_json::from_str(body).unwrap())
 }
