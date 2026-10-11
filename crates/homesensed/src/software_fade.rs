@@ -55,6 +55,12 @@ impl SoftwareFade {
             .task_generation()
             .await
             .map_err(|e| format!("{e:?}"))?;
+        let bundle = admission.automation_bundle(controller, generation.clone()).await
+            .map_err(|e| format!("fade configuration: {e:?}"))?;
+        let (_, module) = bundle.configuration.binding(&device).ok_or("unknown fade device")?;
+        if module.profile() == homesense_core::ProtocolProfile::Ad8Din {
+            return Err("AD8 does not support arbitrary immediate levels required for software fade".into());
+        }
         let fence = admission
             .manual_fence()
             .await
@@ -267,6 +273,7 @@ impl SoftwareFade {
                     self.lease.take(),
                     Some(self.expires),
                     self.scene.clone(),
+                    true,
                 )
                 .await;
             self.in_flight = false;
