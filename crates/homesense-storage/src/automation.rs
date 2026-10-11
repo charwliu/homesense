@@ -4,7 +4,7 @@ use crate::{CancellationAudit, Error, Store};
 use homesense_config::rule_document::Document;
 use homesense_core::{
     ExecutionContext,
-    rule::{Lifetime, ValueType},
+    rule::{Lifetime, Value, ValueType},
 };
 use rusqlite::{OptionalExtension, Transaction, params};
 
@@ -26,7 +26,7 @@ impl Store {
 
     /// Validate both documents before a single CAS transaction. Same-name,
     /// same-type persistent values survive publication; new values are unknown.
-    /// Type changes require an explicit migration and are rejected here.
+    /// Type changes require an explicit reviewed migration in the document.
     pub fn publish_automation(
         &mut self,
         expected: Option<u64>,
@@ -109,11 +109,15 @@ pub(crate) fn insert(
                 |r| Ok((r.get(0)?, r.get(1)?)),
             )
             .optional()?;
-        let value = match old {
-            Some((old_kind, value)) if old_kind == kind => value,
-            Some(_) => return Err(Error::Conflict),
-            None => None,
-        };
+        let old=old.map(|(kind,value)| -> Result<_,Error> {
+            match kind.as_str() {
+                "bool"=>Ok((ValueType::Bool,match value {None=>None,Some(0)=>Some(Value::Bool(false)),Some(1)=>Some(Value::Bool(true)),_=>return Err(Error::InvalidPayload)})),
+                "integer"=>Ok((ValueType::Integer,value.map(Value::Integer))),
+                _=>Err(Error::InvalidPayload),
+            }
+        }).transpose()?;
+        let converted=document.published_variable_value(previous.map(|v|v as u64),name,old.as_ref().map(|(kind,value)|(*kind,value.as_ref()))).map_err(|_|Error::Conflict)?;
+        let value=converted.map(|value|match value {Value::Bool(v)=>i64::from(v),Value::Integer(v)=>v});
         tx.execute(
             "INSERT INTO logical_variable(revision,name,kind,value) VALUES(?1,?2,?3,?4)",
             params![revision, name, kind, value],

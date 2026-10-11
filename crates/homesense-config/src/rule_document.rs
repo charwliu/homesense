@@ -13,6 +13,8 @@ struct Input {
     schema_version: u32,
     configuration_revision: u64,
     variables: Vec<VariableInput>,
+    #[serde(default)]
+    variable_migrations: Vec<MigrationInput>,
     rules: Vec<RuleInput>,
     #[serde(default)]
     immediate_scenes: Vec<SceneInput>,
@@ -24,6 +26,25 @@ struct Input {
     holds: Option<Holds>,
     #[serde(default)]
     timed_scenes: Vec<TimedSceneInput>,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct MigrationInput {
+    variable: String,
+    source_revision: u64,
+    source_type: Kind,
+    conversion: MigrationConversion,
+    review_evidence: String,
+}
+#[derive(Deserialize)]
+#[serde(rename_all="snake_case")]
+enum MigrationConversion { BoolToInteger, IntegerZeroOneToBool, ResetUnknown }
+#[derive(Debug, Clone)]
+pub struct VariableMigration {
+    pub source_revision: u64,
+    pub source_type: ValueType,
+    pub conversion: homesense_core::variable_migration::Conversion,
+    pub review_evidence: String,
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -247,6 +268,7 @@ pub enum FeedbackBinding {
 pub struct Document {
     pub revision: u64,
     pub variables: BTreeMap<String, Variable>,
+    pub variable_migrations: BTreeMap<String, VariableMigration>,
     pub feedback_bindings: BTreeMap<String, FeedbackBinding>,
     pub rules: Vec<Rule>,
     pub immediate_scenes: BTreeMap<String, homesense_core::scene_expand::Definition>,
@@ -511,6 +533,27 @@ impl Document {
                 return Err(invalid("duplicate variable"));
             }
         }
+        if input.variable_migrations.len()>1024 {return Err(invalid("too many variable migrations"));}
+        let mut variable_migrations=BTreeMap::new();
+        for migration in input.variable_migrations {
+            identifier(&migration.variable)?;
+            let target=variables.get(&migration.variable).ok_or_else(||invalid("migration target missing"))?;
+            if target.lifetime!=Lifetime::Persistent || migration.source_revision==0 || migration.source_revision>=input.configuration_revision
+                || migration.review_evidence.trim().is_empty() || migration.review_evidence.len()>8192 {
+                return Err(invalid("invalid variable migration scope or review"));
+            }
+            let source_type=match migration.source_type {Kind::Bool=>ValueType::Bool,Kind::Integer=>ValueType::Integer};
+            use homesense_core::variable_migration::Conversion;
+            let conversion=match migration.conversion {
+                MigrationConversion::BoolToInteger=>Conversion::BoolToInteger,
+                MigrationConversion::IntegerZeroOneToBool=>Conversion::IntegerZeroOneToBool,
+                MigrationConversion::ResetUnknown=>Conversion::ResetUnknown,
+            };
+            conversion.apply(source_type,target.value_type,None).map_err(|_|invalid("invalid migration direction"))?;
+            if variable_migrations.insert(migration.variable,VariableMigration{source_revision:migration.source_revision,source_type,conversion,review_evidence:migration.review_evidence}).is_some() {
+                return Err(invalid("duplicate variable migration"));
+            }
+        }
         let mut compiler = Compiler {
             config,
             variables: &variables,
@@ -724,6 +767,7 @@ impl Document {
         Ok(Self {
             revision: input.configuration_revision,
             variables,
+            variable_migrations,
             feedback_bindings,
             rules,
             immediate_scenes,
@@ -854,4 +898,24 @@ fn lower_feedback(
         }
     }
     Ok(())
+}
+
+impl Document {
+    /// Pure preflight, repeated inside the publication transaction. An explicit
+    /// migration requires an existing persistent source at the stated revision.
+    pub fn published_variable_value(&self, previous: Option<u64>, name: &str, old: Option<(ValueType,Option<&Value>)>) -> Result<Option<Value>,Error> {
+        let target=self.variables.get(name).ok_or_else(||invalid("unknown variable"))?;
+        if target.lifetime!=Lifetime::Persistent {return Err(invalid("persistent target required"));}
+        if let Some(migration)=self.variable_migrations.get(name) {
+            let (kind,value)=old.ok_or_else(||invalid("migration source missing"))?;
+            if previous!=Some(migration.source_revision) || kind!=migration.source_type {return Err(invalid("migration source changed"));}
+            migration.conversion.apply(kind,target.value_type,value).map_err(|_|invalid("variable conversion rejected"))
+        } else {
+            match old {
+                Some((kind,value)) if kind==target.value_type=>Ok(value.cloned()),
+                Some(_)=>Err(invalid("explicit variable migration required")),
+                None=>Ok(None),
+            }
+        }
+    }
 }

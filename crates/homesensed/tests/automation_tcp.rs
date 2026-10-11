@@ -620,13 +620,21 @@ async fn tcp_long_press_disconnect_does_not_resume_without_new_press() {
 #[tokio::test]
 async fn online_publication_queries_new_mapping_before_acknowledgement() {
     use hap::serde_json::{json, to_vec, Value};
+    for migrate in [false,true] {
     for reply in [true, false] {
     let root=std::env::temp_dir().join(format!("tcp-publication-{}",uuid::Uuid::new_v4()));
     let bus=TcpListener::bind("127.0.0.1:0").unwrap();
     let mut devices:Value=hap::serde_json::from_slice(include_bytes!("../../../config/simulation-home.json")).unwrap();
     devices["gateways"][0]["endpoint"]=bus.local_addr().unwrap().to_string().into();
     devices["gateways"][0]["modules"][0]["verification"]=json!({"status":"verified","evidence":"loopback","verified_at_unix_ms":1});
-    let rules=|revision|to_vec(&json!({"schema_version":1,"configuration_revision":revision,"variables":[{"id":"remember","kind":"integer","lifetime":"persistent"}],"rules":[]})).unwrap();
+    let rules=|revision| {
+        let mut doc=json!({"schema_version":1,"configuration_revision":revision,"variables":[{"id":"remember","kind":"integer","lifetime":"persistent"}],"rules":[]});
+        if migrate {
+            doc["variables"][0]["kind"]="bool".into();
+            doc["variable_migrations"]=json!([{"variable":"remember","source_revision":1,"source_type":"integer","conversion":"reset_unknown","review_evidence":"loopback explicit reset"}]);
+        }
+        to_vec(&doc).unwrap()
+    };
     let initial=to_vec(&devices).unwrap();
     devices["revision"]=2.into();
     devices["devices"][0]["channel"]=2.into();
@@ -660,6 +668,7 @@ async fn online_publication_queries_new_mapping_before_acknowledgement() {
         assert!(publisher.publish(candidate.clone(),rules(2),99).await.is_err());
         let mut incompatible:Value=hap::serde_json::from_slice(&rules(2)).unwrap();
         incompatible["variables"][0]["kind"]="bool".into();
+        incompatible.as_object_mut().unwrap().remove("variable_migrations");
         assert!(publisher.publish(candidate.clone(),to_vec(&incompatible).unwrap(),1).await.is_err());
         let outcome=publisher.publish(candidate,rules(2),1).await;
         if reply { assert_eq!(outcome.unwrap(),2); } else { assert!(outcome.is_err()); }
@@ -671,11 +680,12 @@ async fn online_publication_queries_new_mapping_before_acknowledgement() {
     let sql=rusqlite::Connection::open(root.join("automation-tcp.sqlite")).unwrap();
     assert_eq!(sql.query_row("SELECT count(*) FROM scene_run WHERE definition='later' AND status='cancelled'",[],|row|row.get::<_,i64>(0)).unwrap(),1);
     for revision in [1,2] {
-        let stored:(String,i64)=sql.query_row("SELECT kind,value FROM logical_variable WHERE revision=?1 AND name='remember'",[revision],|r|Ok((r.get(0)?,r.get(1)?))).unwrap();
-        assert_eq!(stored,("integer".into(),17));
+        let stored:(String,Option<i64>)=sql.query_row("SELECT kind,value FROM logical_variable WHERE revision=?1 AND name='remember'",[revision],|r|Ok((r.get(0)?,r.get(1)?))).unwrap();
+        assert_eq!(stored,if migrate && revision==2 {("bool".into(),None)} else {("integer".into(),Some(17))});
     }
     drop(sql);
     std::fs::remove_dir_all(root).unwrap();
+    }
     }
 }
 
