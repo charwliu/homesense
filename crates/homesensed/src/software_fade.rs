@@ -27,6 +27,7 @@ pub struct SoftwareFade {
     in_flight: bool,
     failure: Option<String>,
     manually_cancelled: bool,
+    scene: Option<homesense_storage::scene_run::StepLink>,
 }
 impl SoftwareFade {
     /// The caller must reserve `ceil(duration/interval)` output slots against
@@ -100,7 +101,20 @@ impl SoftwareFade {
             in_flight: false,
             failure: None,
             manually_cancelled: false,
+            scene: None,
         })
+    }
+    /// Associate samples with an already accepted scene before any output.
+    /// The scene owner retains responsibility for its durable lifecycle and
+    /// cancellation. This association never creates or restarts a scene.
+    pub fn bind_scene(&mut self, run: String, index: usize, source: String) -> Result<(), String> {
+        if self.scene.is_some() || self.lease.is_none() || self.closed || self.failure.is_some()
+            || run.is_empty() || run.len()>128 || run.chars().any(char::is_control)
+            || index>=4096 || source.is_empty() || source.len()>8192 {
+            return Err("invalid or late fade scene association".into());
+        }
+        self.scene=Some(homesense_storage::scene_run::StepLink {run,index,source,sample:Some(0)});
+        Ok(())
     }
     pub(crate) fn manually_cancelled(&self) -> bool { self.manually_cancelled }
     /// Returns true when quiescent after successful writes or explicit cancellation. Device
@@ -182,7 +196,7 @@ impl SoftwareFade {
             self.in_flight = true;
             let result = self
                 .admission
-                .submit_scene_with_feedback_before(
+                .submit_scene_sample(
                     self.generation.clone(),
                     Batch {
                         controller: self.controller,
@@ -198,11 +212,17 @@ impl SoftwareFade {
                     self.fence,
                     self.lease.take(),
                     Some(self.expires),
+                    self.scene.clone(),
                 )
                 .await;
             self.in_flight = false;
             match result {
-                Ok(ids) => self.pending = ids,
+                Ok(ids) => {
+                    self.pending = ids;
+                    if let Some(scene) = &mut self.scene {
+                        scene.sample = scene.sample.map(|sample| sample + 1);
+                    }
+                },
                 Err(error) => {
                     self.fade.cancel();
                     self.admission.stop_now();
