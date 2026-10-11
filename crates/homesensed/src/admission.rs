@@ -127,7 +127,7 @@ struct PendingPublication {
 }
 pub(crate) enum SceneUpdate {
     Begin { run: String, definition: Option<String> },
-    Checkpoint { run: String, expected: u64, status: homesense_storage::scene_run::Status },
+    Checkpoint { run: String, expected: u64, status: homesense_storage::scene_run::Status, cancellation: Option<homesense_storage::scene_run::Cancellation> },
 }
 enum Message {
     PublicationBundle(Uuid, oneshot::Sender<Result<(homesense_storage::automation::Bundle, ExecutionContext, u64), WriteStatus>>),
@@ -425,7 +425,7 @@ impl Admission {
                             else {
                                 let stored = match update {
                                     SceneUpdate::Begin{run,definition} => store.begin_scene_run(&worker_boot,&run,generation.epochs.configuration,definition.as_deref(),millis(clock)).map(|()|0),
-                                    SceneUpdate::Checkpoint{run,expected,status} => store.checkpoint_scene_run(&worker_boot,&run,expected,status,millis(clock)),
+                                    SceneUpdate::Checkpoint{run,expected,status,cancellation} => store.checkpoint_scene_run_with_cancellation(&worker_boot,&run,expected,status,millis(clock),cancellation.as_ref()),
                                 };
                                 stored.map_err(|error| match error {
                                     homesense_storage::Error::Conflict | homesense_storage::Error::InvalidAudit => WriteStatus::InvalidValueInRequest,

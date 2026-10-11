@@ -22,6 +22,7 @@ pub struct SceneRuntime {
     audit_version: u64,
     audit_status: homesense_storage::scene_run::Status,
     audit_failed: bool,
+    cancellation_audited: std::collections::BTreeMap<DeviceId,bool>,
     admitted: Vec<u64>,
     pending: Option<Pending>,
     fade: Option<OwnedFade>,
@@ -112,6 +113,7 @@ impl SceneRuntime {
             audit_version: 0,
             audit_status: homesense_storage::scene_run::Status::Pending,
             audit_failed: false,
+            cancellation_audited: Default::default(),
             manual_fence,
             causal_deadline: None,
             admission,
@@ -143,7 +145,7 @@ impl SceneRuntime {
         let timeline=Timeline::new(steps,current.epochs,accepted.started_ms,definition.max_lateness_ms).map_err(|e|format!("{e:?}"))?;
         Ok(Self{admission,controller:accepted.controller,generation:current,manual_fence:accepted.manual_fence,causal_deadline:accepted.causal_deadline,timeline,targets,
             audit_id:accepted.start.run,definition:Some(accepted.start.definition),result_taken:false,audit_version:0,
-            audit_status:homesense_storage::scene_run::Status::Pending,audit_failed:false,admitted:vec![],pending:None,fade:None,configured_fades:definition.fades.clone()})
+            audit_status:homesense_storage::scene_run::Status::Pending,audit_failed:false,cancellation_audited:Default::default(),admitted:vec![],pending:None,fade:None,configured_fades:definition.fades.clone()})
     }
     /// Transfer the original scene fences to a delayed fade. This does not
     /// start the fade or resolve the timeline step; the scheduler owns both.
@@ -373,14 +375,27 @@ impl SceneRuntime {
         self.checkpoint().await
     }
     pub fn cancel_device_timers(&mut self, device: &DeviceId) -> usize {
+        let fading=self.fade.as_ref().is_some_and(|fade| &fade.device==device);
         if let Some(fade)=&mut self.fade && &fade.device==device {fade.stopping=true;}
-        self.timeline.cancel_device(device)
+        let count=self.timeline.cancel_device(device);
+        if count>0 || fading {self.cancellation_audited.entry(device.clone()).or_insert(false);}
+        count
     }
     /// Call after an accepted manual override or before a replacement scene is
     /// started. Invalidate future work before awaiting durable cancellation.
     /// A Writing command cannot be recalled and remains pending until settled.
     pub async fn cancel_device(&mut self, device: &DeviceId) -> Result<usize, String> {
+        self.cancel_device_with_reason(device,homesense_storage::scene_run::CancellationReason::ManualOverride).await
+    }
+    pub(crate) async fn cancel_device_with_reason(&mut self, device: &DeviceId, reason: homesense_storage::scene_run::CancellationReason) -> Result<usize,String> {
         let mut count = self.cancel_device_timers(device);
+        if self.pending.as_ref().is_some_and(|pending| &pending.device==device) {
+            self.cancellation_audited.entry(device.clone()).or_insert(false);
+        }
+        if self.cancellation_audited.get(device)==Some(&false) {
+            self.persist_checkpoint(homesense_storage::scene_run::Status::Running,Some(homesense_storage::scene_run::Cancellation{device:device.clone(),reason})).await?;
+            self.cancellation_audited.insert(device.clone(),true);
+        }
         if self.fade.as_ref().is_some_and(|f|f.stopping) {self.reconcile_fade().await?;}
         if let Some(pending) = &self.pending
             && &pending.device == device
@@ -464,7 +479,11 @@ impl SceneRuntime {
                 Status::Failed => Audit::Failed,
             }
         };
-        if status == self.audit_status {
+        self.persist_checkpoint(status,None).await
+    }
+    async fn persist_checkpoint(&mut self, status: homesense_storage::scene_run::Status, cancellation: Option<homesense_storage::scene_run::Cancellation>) -> Result<(),String> {
+        if self.audit_failed {return Err("scene audit unavailable".into());}
+        if status == self.audit_status && cancellation.is_none() {
             return Ok(());
         }
         // Cancellation of this await leaves the run gated, never resubmitted.
@@ -478,6 +497,7 @@ impl SceneRuntime {
                     run: self.audit_id.clone(),
                     expected: self.audit_version,
                     status,
+                    cancellation,
                 },
             )
             .await
