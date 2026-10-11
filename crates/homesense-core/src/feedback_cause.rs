@@ -1,11 +1,12 @@
 //! Bounded candidate attribution, never an acknowledgement or observed state.
 //! Only completed local writes may be recorded. Callers retain the corresponding
 //! chain budget separately and must reject ambiguous/overflowed attribution.
-use crate::{Command, DeviceId, Observation, queue::Epochs, rule_chain::Cause};
+use crate::{Command, DeviceId, Observation, queue::Epochs};
 
 #[derive(Debug, Clone)]
 pub struct Candidate {
-    pub cause: Cause,
+    pub correlation: u128,
+    pub parent_event: u64,
     pub command_id: u64,
     pub written_ms: u64,
 }
@@ -73,7 +74,7 @@ impl Candidates {
         target: Command,
         candidate: Candidate,
     ) -> Result<(), Error> {
-        if candidate.command_id == 0 || candidate.cause.event_id() == 0 {
+        if candidate.command_id == 0 || candidate.parent_event == 0 || candidate.correlation == 0 {
             return Err(Error::InvalidWrite);
         }
         self.advance(epochs, candidate.written_ms)?;
@@ -120,8 +121,8 @@ impl Candidates {
         // Even two events of the same root have different ancestry. Do not pick
         // whichever happens to appear first and weaken cycle detection.
         if matches.any(|e| {
-            e.candidate.cause.correlation_id() != first.candidate.cause.correlation_id()
-                || e.candidate.cause.event_id() != first.candidate.cause.event_id()
+            e.candidate.correlation != first.candidate.correlation
+                || e.candidate.parent_event != first.candidate.parent_event
         }) {
             return Ok(Attribution::Ambiguous);
         }
@@ -143,7 +144,7 @@ mod tests {
             control: 1,
         }
     }
-    fn cause(root: u128) -> Cause {
+    fn cause(root: u128) -> crate::rule_chain::Cause {
         let mut chain = Chain::new(root, 0, 1000, Budget::default(), 32).unwrap();
         chain
             .plan(
@@ -162,7 +163,8 @@ mod tests {
             DeviceId::new("lamp").unwrap(),
             Command::Switch(true),
             Candidate {
-                cause: cause(root),
+                correlation: root,
+                parent_event: cause(root).event_id(),
                 command_id: id,
                 written_ms: at,
             },
@@ -249,7 +251,8 @@ mod tests {
                 id.clone(),
                 target,
                 Candidate {
-                    cause: cause(1),
+                    correlation: 1,
+                    parent_event: cause(1).event_id(),
                     command_id: 1,
                     written_ms: 0,
                 },
@@ -265,7 +268,8 @@ mod tests {
                 transition: crate::LevelTransition::Ramp,
             },
             Candidate {
-                cause: cause(1),
+                correlation: 1,
+                parent_event: cause(1).event_id(),
                 command_id: 2,
                 written_ms: 0,
             },
@@ -312,7 +316,8 @@ mod tests {
             DeviceId::new("lamp").unwrap(),
             Command::Switch(true),
             Candidate {
-                cause: parent,
+                correlation: parent.correlation_id(),
+                parent_event: parent.event_id(),
                 command_id: 1,
                 written_ms: 1,
             },
@@ -325,8 +330,10 @@ mod tests {
         else {
             panic!("expected inferred attribution")
         };
+        assert_eq!(candidate.correlation, parent.correlation_id());
+        assert_eq!(candidate.parent_event, parent.event_id());
         assert!(matches!(
-            chain.plan(&candidate.cause, "on", &[], &Default::default(), 2),
+            chain.plan(&parent, "on", &[], &Default::default(), 2),
             Err(crate::rule_chain::Error::Cycle)
         ));
         assert_eq!(observed, Observation::Switch(true));

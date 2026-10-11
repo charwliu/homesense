@@ -203,7 +203,7 @@ impl EventRules {
     /// this subscription rather than replaying incomplete history.
     async fn feedback_batches(
         &mut self, feedback:&Feedback, max_age:u64,
-    )->Result<Vec<Vec<Trigger>>,String> {
+    )->Result<Vec<(Vec<Trigger>,homesense_state::Event)>,String> {
         let batch = async {
             self.validate_feedback(feedback)?;
             if max_age == 0
@@ -281,7 +281,7 @@ impl EventRules {
                     }
                 }
                 if !triggers.is_empty() {
-                    batches.push(triggers);
+                    batches.push((triggers,event.clone()));
                 }
             }
             Ok((events.last().map(|e| e.cursor), batches, states))
@@ -305,7 +305,7 @@ impl EventRules {
     )->Result<Vec<Report>,String> {
         let batches=self.feedback_batches(feedback,max_age).await?;
         let mut reports = vec![];
-        for triggers in batches {
+        for (triggers,_) in batches {
             reports.push(
                 self.dispatch_batch(triggers, Some((feedback, max_age)))
                     .await,
@@ -494,10 +494,10 @@ impl ScheduledRules {
             return Err("foreign feedback causal owner".into());
         }
         let mut reports=Vec::new();
-        for triggers in self.rules.feedback_batches(feedback,max_age).await? {
+        for (triggers,event) in self.rules.feedback_batches(feedback,max_age).await? {
             let ids:Vec<_>=self.rules.bindings.iter().filter(|b|triggers.contains(&b.trigger)).map(|b|b.id.clone()).collect();
             if !ids.is_empty() {
-                let mut outcomes=router.dispatch_rules(&ids,scheduler,Some((feedback,max_age)),self.rules.budget,5000).await?;
+                let mut outcomes=router.dispatch_feedback(&ids,&event,scheduler,(feedback,max_age),self.rules.budget).await?;
                 reports.append(&mut outcomes);
             }
         }
