@@ -89,6 +89,7 @@ pub(crate) enum SceneUpdate {
     Checkpoint { run: String, expected: u64, status: homesense_storage::scene_run::Status },
 }
 enum Message {
+    AutomationBundle(Uuid, TaskGeneration, oneshot::Sender<Result<homesense_storage::automation::Bundle, WriteStatus>>),
     FeedbackSettled(Uuid, TaskGeneration, crate::feedback::RuleLease, oneshot::Sender<Result<bool, WriteStatus>>),
 
     SceneQuery(Uuid, TaskGeneration, homesense_storage::scene_run::Query, oneshot::Sender<Result<Option<homesense_storage::scene_run::Page>, WriteStatus>>),
@@ -326,6 +327,16 @@ impl Admission {
                         Err(mpsc::RecvTimeoutError::Disconnected) => break,
                     };
                     match message {
+                        Message::AutomationBundle(controller,generation,reply) => {
+                            let result=(|| {
+                                if !authorize(controller) {return Err(WriteStatus::InsufficientPrivileges)}
+                                if failed || generation.boot!=worker_boot || generation.epochs!=arbiter.policy().epochs {return Err(WriteStatus::ServiceCommunicationFailure)}
+                                let bundle=store.active_bundle(options.context).map_err(|_|WriteStatus::ServiceCommunicationFailure)?.ok_or(WriteStatus::ServiceCommunicationFailure)?;
+                                if bundle.configuration.revision()!=generation.epochs.configuration {return Err(WriteStatus::ServiceCommunicationFailure)}
+                                Ok(bundle)
+                            })();
+                            let _=reply.send(result);
+                        }
                         Message::FeedbackSettled(controller,generation,lease,reply) => {
                             let result = (|| {
                                 if !authorize(controller) {return Err(WriteStatus::InsufficientPrivileges);}
@@ -1137,6 +1148,11 @@ impl Admission {
     pub(crate) async fn feedback_settled(&self,controller:Uuid,generation:TaskGeneration,lease:crate::feedback::RuleLease)->Result<bool,WriteStatus>{
         let (reply,receive)=oneshot::channel();
         self.sender.try_send(Message::FeedbackSettled(controller,generation,lease,reply)).map_err(|_|WriteStatus::ResourceBusy)?;
+        receive.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?
+    }
+    pub(crate) async fn automation_bundle(&self, controller: Uuid, generation: TaskGeneration) -> Result<homesense_storage::automation::Bundle, WriteStatus> {
+        let (reply,receive)=oneshot::channel();
+        self.sender.try_send(Message::AutomationBundle(controller,generation,reply)).map_err(|_|WriteStatus::ResourceBusy)?;
         receive.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?
     }
     pub async fn scene_history(
