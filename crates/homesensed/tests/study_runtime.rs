@@ -5760,20 +5760,45 @@ async fn scene_rejects_early_or_duplicate_fade_without_closing_admission() {
 }
 
 #[tokio::test]
-async fn configured_fade_does_not_fall_back_to_instant_level_before_preparation() {
+async fn configured_fade_prepares_from_feedback_and_never_falls_back() {
+    for fresh in [false,true] {
     let db=Db(std::env::temp_dir().join(format!("fade-config-{}.sqlite",Uuid::new_v4())));
     let devices=include_bytes!("../../../config/simulation.json");
     Store::open(&db.0).unwrap().publish_configuration(None,devices,ExecutionContext::Simulation,&[]).unwrap();
     let controller=Uuid::new_v4();let a=actor(&db,controller).await;
     let config=homesense_config::Configuration::parse(devices,ExecutionContext::Simulation).unwrap();
-    let rules=br#"{"schema_version":1,"configuration_revision":1,"variables":[],"rules":[],"timed_scenes":[{"id":"fade","enabled":true,"review_evidence":"simulation","max_lateness_ms":1000,"steps":[{"source":"test","offset_ms":0,"device":"simulation:light","command":{"kind":"level","value":0,"ramp":false},"fade":{"duration_ms":1000,"interval_ms":100,"lateness_ms":100}}]}]}"#;
+    let rules=br#"{"schema_version":1,"configuration_revision":1,"variables":[],"rules":[],"timed_scenes":[{"id":"fade","enabled":true,"review_evidence":"simulation","max_lateness_ms":1000,"steps":[{"source":"test","offset_ms":0,"device":"simulation:light","command":{"kind":"level","value":0,"ramp":false},"fade":{"duration_ms":200,"interval_ms":50,"lateness_ms":100}}]}]}"#;
     let document=homesense_config::rule_document::Document::parse(rules,&config).unwrap();
     let mut scheduler=homesensed::scene_scheduler::SceneScheduler::new(a.clone(),controller,4,0).unwrap();
-    assert!(scheduler.start_document(&document,"fade",0).await.unwrap_err().contains("feedback preparation"));
-    assert!(scheduler.tick(0).await.unwrap().is_empty());
+    let run=scheduler.start_document(&document,"fade",0).await.unwrap();
+    let mut feedback=homesensed::feedback::Feedback::new(&config,ExecutionContext::Simulation,Uuid::parse_str(a.boot_id()).unwrap().as_u128(),1).unwrap();
+    if fresh {
+        feedback.apply(&homesensed::transport_owner::GatewayRead{gateway_id:"simulation".into(),transport_epoch:1,received_at_ms:0,result:hb_transport::Receive::Frames{transport_epoch:1,frames:vec![hb_protocol::RawFrame{address:0x15,command:0xd1,value:100}]}}).unwrap();
+    }
+    let ticks=scheduler.tick_with_feedback(0,Some((&feedback,2000))).await.unwrap();
+    assert_eq!(ticks.len(),1);
+    assert_eq!(ticks[0].result.is_ok(),fresh);
+    let mut written=0;
+    if fresh {
+        let started=std::time::Instant::now();
+        tokio::time::timeout(std::time::Duration::from_secs(2),async {
+            while scheduler.status(run)==Some(homesense_core::scene::Status::Running) {
+                for tick in scheduler.tick_with_feedback(started.elapsed().as_millis() as u64,Some((&feedback,2000))).await.unwrap() {tick.result.unwrap();}
+                if let Some(ticket)=a.dispatch().await.unwrap() {
+                    a.finish_write(ticket.command.id,true).await.unwrap();written+=1;
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            }
+        }).await.unwrap();
+        assert!((1..=4).contains(&written));
+        assert_eq!(scheduler.status(run),Some(homesense_core::scene::Status::CommandsWritten));
+    } else {
+        assert_eq!(scheduler.status(run),Some(homesense_core::scene::Status::Cancelled));
+    }
     assert!(a.dispatch().await.unwrap().is_none());
     let sql=rusqlite::Connection::open(&db.0).unwrap();
-    assert_eq!(sql.query_row("SELECT count(*) FROM scene_run",[],|r|r.get::<_,i64>(0)).unwrap(),0);
-    assert_eq!(sql.query_row("SELECT count(*) FROM command_journal",[],|r|r.get::<_,i64>(0)).unwrap(),0);
+    assert_eq!(sql.query_row("SELECT count(*) FROM command_journal",[],|r|r.get::<_,i64>(0)).unwrap(),written);
+    assert_eq!(sql.query_row("SELECT count(*) FROM scene_sample",[],|r|r.get::<_,i64>(0)).unwrap(),written);
     a.shutdown().await.unwrap();
+    }
 }

@@ -238,7 +238,7 @@ impl Router {
                 *entry = Entry::Cancelled(pending);
             }
         }
-        for tick in scheduler.tick(self.admission.monotonic_ms()).await? {
+        for tick in scheduler.tick_with_feedback(self.admission.monotonic_ms(),feedback).await? {
             tick.result?;
         }
         let mut outcomes = Vec::new();
