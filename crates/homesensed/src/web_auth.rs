@@ -47,13 +47,14 @@ impl Tokens {
         if entries.len() >= 128 && !entries.contains_key(&id) {
             return Err("credential capacity reached".into());
         }
-        entries.insert(
-            id,
-            Credential {
-                hash: Sha256::digest(secret.as_bytes()).into(),
-                grant,
-            },
-        );
+        let hash: [u8; 32] = Sha256::digest(secret.as_bytes()).into();
+        if entries
+            .iter()
+            .any(|(other, credential)| *other != id && bool::from(hash.ct_eq(&credential.hash)))
+        {
+            return Err("credential already assigned".into());
+        }
+        entries.insert(id, Credential { hash, grant });
         Ok(())
     }
     pub fn revoke(&self, id: Uuid) -> Result<(), String> {

@@ -12,6 +12,7 @@ use uuid::Uuid;
 #[derive(Debug)]
 pub enum Action {
     CalendarStatus,
+    SceneCancel { controller: Uuid, revision: u64, run: u64 },
     SceneAction { controller: Uuid, revision: u64, scene: String, execute: bool },
     Start(String),
     Cancel(u64),
@@ -165,6 +166,12 @@ impl Receiver {
                         revision: document.revision,
                         status: calendar.map(|calendar| calendar.status()),
                     }),
+                    Action::SceneCancel {controller,revision,run} => {
+                        if revision!=document.revision || !scenes.owned_by(run,controller) {return Err("scene cancellation ownership or revision mismatch".into());}
+                        admission.variable_snapshot(controller,self.generation.clone(),vec![]).await.map_err(|e|format!("{e:?}"))?;
+                        if request.reply.is_closed() || Instant::now()>=request.deadline {return Err("cancellation expired or abandoned".into());}
+                        scenes.cancel(run).await.map(Reply::Cancelled)
+                    },
                     Action::SceneAction { controller, revision, scene, execute } => {
                         if revision != document.revision { return Err("scene action revision expired".into()); }
                         let definition = document.timed_scenes.get(&scene).ok_or("unknown timed scene")?;

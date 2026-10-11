@@ -104,6 +104,7 @@ async fn web_scope_origin_receipts_and_runtime_admission() {
         tokens: tokens.clone(),
         control: control.clone(),
         revision: 1,
+        boot: admission.boot_id().to_owned(),
         scenes: [("light".into(), "Test".into())].into(),
         receipts: Mutex::new(Receipts::open(&root.join("web.sqlite")).unwrap()),
     };
@@ -145,10 +146,21 @@ async fn web_scope_origin_receipts_and_runtime_admission() {
             .unwrap(),
             result
         );
+        let mut cancel = make(
+            &api.origin,
+            r#"{"start_request_id":"one","request_id":"cancel-one"}"#,
+        );
+        *cancel.uri_mut() = "/api/v1/scene-cancellations".parse().unwrap();
+        let cancelled = api.handle(cancel).await;
+        assert_eq!(cancelled.status(), StatusCode::ACCEPTED);
+        let cancelled: serde_json::Value =
+            serde_json::from_slice(&cancelled.into_body().collect().await.unwrap().to_bytes())
+                .unwrap();
+        assert_eq!(cancelled["outcome"], "cancelled");
         let run = result["run"].as_u64().unwrap();
         assert_eq!(
-            control.request(Action::Cancel(run)).await.unwrap(),
-            Reply::Cancelled(1)
+            control.request(Action::Status(run)).await.unwrap(),
+            Reply::Status(Some(homesense_core::scene::Status::Cancelled))
         );
         let read = Request::builder()
             .uri("/api/v1/scenes")

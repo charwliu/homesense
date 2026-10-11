@@ -17,6 +17,7 @@ pub struct Api {
     pub tokens: Arc<Tokens>,
     pub control: Control,
     pub revision: u64,
+    pub boot: String,
     pub scenes: BTreeMap<String, String>,
     pub receipts: Mutex<Receipts>,
 }
@@ -101,7 +102,10 @@ impl Api {
             return response(StatusCode::OK, json!({"scenes":items}));
         }
         if request.method() != hyper::Method::POST
-            || request.uri().path() != "/api/v1/scene-actions"
+            || !matches!(
+                request.uri().path(),
+                "/api/v1/scene-actions" | "/api/v1/scene-cancellations"
+            )
         {
             return deny(StatusCode::NOT_FOUND, "not_found");
         }
@@ -129,22 +133,80 @@ impl Api {
             scene: String,
             request_id: String,
         }
-        let Ok(body) = serde_json::from_slice::<Start>(request.body()) else {
-            return deny(StatusCode::BAD_REQUEST, "invalid_body");
-        };
-        if !grant.may_control(&body.scene) || !self.scenes.contains_key(&body.scene) {
-            return deny(StatusCode::FORBIDDEN, "scene_not_permitted");
+        #[derive(serde::Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct Cancel {
+            start_request_id: String,
+            request_id: String,
         }
         let principal = grant.controller.to_string();
-        let fingerprint =
-            json!({"revision":self.revision,"scene":body.scene,"action":"start"}).to_string();
+        let (scene, request_id, action, fingerprint) = if request.uri().path()
+            == "/api/v1/scene-actions"
+        {
+            let Ok(body) = serde_json::from_slice::<Start>(request.body()) else {
+                return deny(StatusCode::BAD_REQUEST, "invalid_body");
+            };
+            let fingerprint =
+                json!({"revision":self.revision,"scene":body.scene,"action":"start"}).to_string();
+            (
+                body.scene.clone(),
+                body.request_id,
+                Action::SceneAction {
+                    controller: grant.controller,
+                    revision: self.revision,
+                    scene: body.scene,
+                    execute: true,
+                },
+                fingerprint,
+            )
+        } else {
+            let Ok(body) = serde_json::from_slice::<Cancel>(request.body()) else {
+                return deny(StatusCode::BAD_REQUEST, "invalid_body");
+            };
+            let record = self
+                .receipts
+                .lock()
+                .ok()
+                .and_then(|r| r.lookup(&principal, &body.start_request_id).ok().flatten());
+            let Some((fingerprint, Some(receipt))) = record else {
+                return deny(StatusCode::NOT_FOUND, "owned_start_not_found");
+            };
+            let parsed = serde_json::from_str::<serde_json::Value>(&fingerprint).ok();
+            let receipt = serde_json::from_str::<serde_json::Value>(&receipt).ok();
+            let Some((scene, run)) = parsed.as_ref().zip(receipt.as_ref()).and_then(|(p, r)| {
+                if p["action"] != "start"
+                    || p["revision"] != self.revision
+                    || r["outcome"] != "accepted"
+                    || r["boot"] != self.boot
+                {
+                    return None;
+                }
+                Some((p["scene"].as_str()?.to_owned(), r["run"].as_u64()?))
+            }) else {
+                return deny(StatusCode::CONFLICT, "start_not_in_current_runtime");
+            };
+            let fingerprint=json!({"revision":self.revision,"scene":scene,"action":"cancel","start_request_id":body.start_request_id}).to_string();
+            (
+                scene,
+                body.request_id,
+                Action::SceneCancel {
+                    controller: grant.controller,
+                    revision: self.revision,
+                    run,
+                },
+                fingerprint,
+            )
+        };
+        if !grant.may_control(&scene) || !self.scenes.contains_key(&scene) {
+            return deny(StatusCode::FORBIDDEN, "scene_not_permitted");
+        }
         let claim = self
             .receipts
             .lock()
             .map_err(|_| ())
             .and_then(|mut receipts| {
                 receipts
-                    .claim(&principal, &body.request_id, &fingerprint)
+                    .claim(&principal, &request_id, &fingerprint)
                     .map_err(|_| ())
             });
         match claim {
@@ -157,27 +219,21 @@ impl Api {
             Ok(Claim::Existing(None)) => {
                 return response(
                     StatusCode::ACCEPTED,
-                    json!({"request_id":body.request_id,"outcome":"unknown","retry":false}),
+                    json!({"request_id":request_id,"outcome":"unknown","retry":false}),
                 );
             }
             Ok(Claim::Conflict) => return deny(StatusCode::CONFLICT, "idempotency_conflict"),
             Err(_) => return deny(StatusCode::SERVICE_UNAVAILABLE, "persistence_unavailable"),
             Ok(Claim::New) => {}
         }
-        let outcome = match self
-            .control
-            .request(Action::SceneAction {
-                controller: grant.controller,
-                revision: self.revision,
-                scene: body.scene,
-                execute: true,
-            })
-            .await
-        {
+        let outcome = match self.control.request(action).await {
             Ok(Reply::SceneAccepted(Some(run))) => {
-                json!({"request_id":body.request_id,"outcome":"accepted","run":run})
+                json!({"request_id":request_id,"outcome":"accepted","boot":self.boot,"run":run})
             }
-            _ => json!({"request_id":body.request_id,"outcome":"unknown","retry":false}),
+            Ok(Reply::Cancelled(count)) => {
+                json!({"request_id":request_id,"outcome":"cancelled","cancelled":count})
+            }
+            _ => json!({"request_id":request_id,"outcome":"unknown","retry":false}),
         };
         if self
             .receipts
@@ -185,7 +241,7 @@ impl Api {
             .map_err(|_| ())
             .and_then(|mut receipts| {
                 receipts
-                    .finish(&principal, &body.request_id, &outcome.to_string())
+                    .finish(&principal, &request_id, &outcome.to_string())
                     .map_err(|_| ())
             })
             .is_err()
