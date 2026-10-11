@@ -1442,8 +1442,8 @@ async fn manual_admission_fence_rejects_stale_delayed_scene_without_notification
     .unwrap();
     let manual = a.dispatch().await.unwrap().unwrap();
     a.finish_write(manual.command.id, true).await.unwrap();
-    // Deliberately omit scheduler.manual_override: actor must close the race.
-    assert!(old.poll(100).await.is_err());
+    // Deliberately omit scheduler.manual_override: polling detects the accepted override.
+    assert!(old.poll(100).await.unwrap().is_none());
     assert!(a.dispatch().await.unwrap().is_none());
     old.poll(100).await.unwrap().unwrap();
     let ticket = a.dispatch().await.unwrap().unwrap();
@@ -6065,5 +6065,41 @@ async fn owned_fade_manual_fence_persists_reason_without_cancelling_manual_outpu
     assert_eq!(ticket.command.origin,Origin::Hap);
     a.finish_write(ticket.command.id,true).await.unwrap();
     assert!(a.dispatch().await.unwrap().is_none());
+    a.shutdown().await.unwrap();
+}
+
+#[tokio::test]
+async fn delayed_scene_manual_override_cancels_only_affected_device() {
+    use homesense_core::{DeviceId, Command, Percent, LevelTransition};
+    use homesense_hap::requests::{Batch, Intent};
+    use homesense_storage::scene_run::{Query, CancellationReason};
+    let db=Db(std::env::temp_dir().join(format!("manual-scene-{}.sqlite",Uuid::new_v4())));
+    let mut config:hap::serde_json::Value=hap::serde_json::from_slice(include_bytes!("../../../config/simulation.json")).unwrap();
+    let mut other=config["devices"][0].clone();
+    other["id"]="simulation:other".into();other["channel"]=2.into();
+    config["devices"].as_array_mut().unwrap().push(other);
+    Store::open(&db.0).unwrap().publish_configuration(None,&hap::serde_json::to_vec(&config).unwrap(),ExecutionContext::Simulation,&[]).unwrap();
+    let controller=Uuid::new_v4();let a=actor(&db,controller).await;
+    let device=DeviceId::new("simulation:light").unwrap();
+    let other=DeviceId::new("simulation:other").unwrap();
+    let command=Command::SetLevel{level:Percent::new(30).unwrap(),transition:LevelTransition::Immediate};
+    let steps=vec![(device.clone(),0),(device.clone(),10),(other.clone(),10)].into_iter().map(|(device,delay_ms)|homesense_core::scene::Step{device,command:command.clone(),delay_ms,source:"synthetic".into()}).collect();
+    let mut scene=homesensed::scene_runtime::SceneRuntime::new(a.clone(),controller,steps,0,1000).await.unwrap();
+    a.submit(Batch{controller,intents:vec![Intent{device:device.clone(),command:Command::SetLevel{level:Percent::new(70).unwrap(),transition:LevelTransition::Immediate}}],subscriptions:vec![]}).await.unwrap();
+    assert!(scene.poll(0).await.unwrap().is_none());
+    assert!(scene.poll(10).await.unwrap().is_some());
+    let page=a.scene_history(controller,a.task_generation().await.unwrap(),Query::Cancellations{boot:a.boot_id().into(),run:scene.audit_id().into(),after:0,limit:128}).await.unwrap().unwrap();
+    assert_eq!(page.cancellations.len(),1);
+    assert_eq!(page.cancellations[0].cancellation.device,device);
+    assert_eq!(page.cancellations[0].cancellation.reason,CancellationReason::ManualOverride);
+    let first=a.dispatch().await.unwrap().unwrap();
+    assert_eq!(first.command.origin,Origin::Hap);
+    a.finish_write(first.command.id,true).await.unwrap();
+    let second=a.dispatch().await.unwrap().unwrap();
+    assert_eq!(second.command.device_id,other);
+    a.finish_write(second.command.id,true).await.unwrap();
+    assert!(a.dispatch().await.unwrap().is_none());
+    scene.reconcile().await.unwrap();
+    assert!(scene.poll(20).await.unwrap().is_none());
     a.shutdown().await.unwrap();
 }
