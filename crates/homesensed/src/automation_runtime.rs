@@ -11,6 +11,13 @@ use homesense_config::rule_document::Document;
 use homesense_core::rule::Budget;
 use uuid::Uuid;
 
+/// Supervisors must distinguish a process start from connection recovery.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum StartupPolicy {
+    Run,
+    Suppress,
+}
+
 pub struct AutomationRuntime {
     admission: Admission,
     control: crate::automation_control::Control,
@@ -32,6 +39,19 @@ impl AutomationRuntime {
         lateness_ms: u32,
         scene_capacity: usize,
         budget: Budget,
+    ) -> Result<Self, String> {
+        Self::load_with_startup(admission, controller, wall_unix_ms, lateness_ms, scene_capacity, budget, StartupPolicy::Run).await
+    }
+    /// Suppress startup actions when rebuilding after a connection recovery.
+    /// This does not recover a stopped Admission or restore previous tasks.
+    pub async fn load_with_startup(
+        admission: Admission,
+        controller: Uuid,
+        wall_unix_ms: i64,
+        lateness_ms: u32,
+        scene_capacity: usize,
+        budget: Budget,
+        startup: StartupPolicy,
     ) -> Result<Self, String> {
         let generation = admission
             .task_generation()
@@ -63,13 +83,14 @@ impl AutomationRuntime {
         let configured =
             ConfiguredRules::load_causal_document(admission.clone(), controller, &document, budget)
                 .await?;
-        let calendar = ScheduledRules::new(
+        let mut calendar = ScheduledRules::new(
             configured.events,
             document.schedules.clone(),
             wall_unix_ms,
             lateness_ms,
         )
         .await?;
+        if startup == StartupPolicy::Suppress { calendar.suppress_startup(); }
         let (control, requests) =
             crate::automation_control::channel(controller, generation.clone());
         let mut result = Self {
