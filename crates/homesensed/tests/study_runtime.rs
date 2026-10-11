@@ -4417,3 +4417,36 @@ async fn automation_control_backpressure_and_shutdown_release_all_waiters() {
     assert!(control.request(Action::Status(1)).await.is_err());
     a.shutdown().await.unwrap();
 }
+
+#[tokio::test]
+async fn scene_capacity_reservations_isolate_owners_and_release_unused_slots() {
+    use homesensed::scene_scheduler::SceneScheduler;
+    let db=database();let controller=Uuid::new_v4();let a=actor(&db,controller).await;
+    let mut scheduler=SceneScheduler::new(a.clone(),controller,2,0).unwrap();
+    let steps=||vec![homesense_core::scene::Step{device:homesense_core::DeviceId::new("control4:210").unwrap(),command:homesense_core::Command::Switch(true),delay_ms:100,source:"reservation".into()}];
+    assert!(scheduler.reserve_slots(0).is_err());
+    assert!(scheduler.reserve_slots(3).is_err());
+    let mut slots=scheduler.reserve_slots(2).unwrap();
+    assert!(scheduler.reserve_slots(1).is_err());
+    assert!(scheduler.start(steps(),0,1000).await.is_err());
+    let mut other=SceneScheduler::new(a.clone(),controller,2,0).unwrap();
+    assert!(other.start_reserved(&mut slots,steps(),0,1000).await.is_err());
+    assert_eq!(slots.remaining(),2);
+    let run=scheduler.start_reserved(&mut slots,steps(),0,1000).await.unwrap();
+    assert_eq!(slots.remaining(),1);
+    assert!(scheduler.start(steps(),0,1000).await.is_err());
+    drop(slots);
+    let mut freed=scheduler.reserve_slots(1).unwrap();
+    assert!(scheduler.reserve_slots(1).is_err());
+    // Failure consumes only the attempted slot; no stale retry token survives.
+    assert!(scheduler.start_reserved(&mut freed,vec![],0,1000).await.is_err());
+    assert_eq!(freed.remaining(),0);
+    assert!(scheduler.start_reserved(&mut freed,steps(),0,1000).await.is_err());
+    let slots=scheduler.reserve_slots(1).unwrap();
+    drop(slots);
+    scheduler.cancel(run).await.unwrap();scheduler.retire(run).unwrap();
+    let slots=scheduler.reserve_slots(2).unwrap();drop(slots);
+    scheduler.stop_now();assert!(scheduler.reserve_slots(1).is_err());
+    assert!(a.dispatch().await.unwrap().is_none());
+    a.shutdown().await.unwrap();
+}
