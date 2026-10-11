@@ -146,16 +146,29 @@ fn simulate_light(level: Percent) -> Result<(), Box<dyn Error>> {
 
 fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
     match args.first().map(String::as_str) {
-        Some("serve-automation-tcp") if (args.len() == 6 || (args.len() == 8 && args[6] == "--recoveries")) && args[5] == "--coexistence-confirmed" => {
+        Some("serve-automation-tcp") if args.len() >= 6 && args[5] == "--coexistence-confirmed" => {
             let read = |path: &str| -> Result<Vec<u8>, Box<dyn Error>> {
                 let mut bytes = vec![];
                 std::fs::File::open(path)?.take(4 * 1024 * 1024 + 1).read_to_end(&mut bytes)?;
                 if bytes.len() > 4 * 1024 * 1024 { return Err("configuration exceeds 4 MiB".into()); }
                 Ok(bytes)
             };
-            tokio::runtime::Runtime::new()?.block_on(homesensed::automation_tcp::serve_supervised(
+            let mut recoveries=None;
+            let mut interval=None;
+            let mut flags=args[6..].chunks_exact(2);
+            for pair in &mut flags {
+                match pair[0].as_str() {
+                    "--recoveries" if recoveries.is_none() => recoveries=Some(pair[1].parse::<u8>()?),
+                    "--write-interval-ms" if interval.is_none() => interval=Some(pair[1].parse::<u64>()?),
+                    _ => return Err("unknown or duplicate automation option".into()),
+                }
+            }
+            if !flags.remainder().is_empty() {return Err("automation option requires a value".into());}
+            let interval=interval.unwrap_or(20);
+            if !(20..=1000).contains(&interval) {return Err("write interval must be 20..1000 ms".into());}
+            tokio::runtime::Runtime::new()?.block_on(homesensed::automation_tcp::serve_with_write_interval(
                 &read(&args[1])?, &read(&args[2])?, std::path::Path::new(&args[3]),
-                std::time::Duration::from_secs(args[4].parse()?), true, args.get(7).map(|v|v.parse::<u8>()).transpose()?.unwrap_or(0),
+                std::time::Duration::from_secs(args[4].parse()?), true, recoveries.unwrap_or(0), None, std::time::Duration::from_millis(interval),
             ))?;
             println!("TCP automation stopped; state stored in automation-tcp.sqlite");
         }
@@ -496,7 +509,7 @@ fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
             }
         }
         Some("--help" | "-h") | None => println!(
-            "HomeSense offline tooling\nUsage: homesensed serve-automation-tcp DEVICE_FILE AUTOMATION_FILE STATE_DIR SECONDS --coexistence-confirmed [--recoveries 0..16]\n       homesensed serve-automation-simulation DEVICE_FILE AUTOMATION_FILE STATE_DIR SECONDS [SCENE]\n       homesensed publish-config FILE STATE_DIR EXPECTED_REVISION\n       homesensed publish-automation DEVICE_FILE AUTOMATION_FILE STATE_DIR EXPECTED_REVISION\n       homesensed serve-live FILE STATE_DIR PRIVATE_IP:PORT SECONDS --coexistence-confirmed\n       homesensed demo [0..100]\n       homesensed check-config FILE [--simulation]\n       homesensed check-automation DEVICE_FILE AUTOMATION_FILE [--simulation]\n       homesensed decode 'AE 15 D1 1E EE'\n       homesensed serve-simulation-lan FILE STATE_DIR PRIVATE_IP:PORT SECONDS\n       homesensed serve-simulation FILE STATE_DIR PORT SECONDS\n       homesensed motor-test FILE STATE_DIR DEVICE open|close --coexistence-confirmed (STOP after 3 seconds)\n       homesensed panel-led FILE STATE_DIR DEVICE red|green --coexistence-confirmed\n       homesensed query-parameter FILE GATEWAY HEX_ADDRESS backlight|led-self-reset|motor-interlock --model-confirmed --coexistence-confirmed\n       homesensed observe FILE GATEWAY SECONDS --coexistence-confirmed\n       homesensed query-status FILE GATEWAY HEX_ADDRESS CHANNEL --model-confirmed --coexistence-confirmed\nserve-simulation binds loopback; serve-simulation-lan advertises mDNS on the LAN. Both use only simulated hardware."
+            "HomeSense offline tooling\nUsage: homesensed serve-automation-tcp DEVICE_FILE AUTOMATION_FILE STATE_DIR SECONDS --coexistence-confirmed [--recoveries 0..16] [--write-interval-ms 20..1000]\n       homesensed serve-automation-simulation DEVICE_FILE AUTOMATION_FILE STATE_DIR SECONDS [SCENE]\n       homesensed publish-config FILE STATE_DIR EXPECTED_REVISION\n       homesensed publish-automation DEVICE_FILE AUTOMATION_FILE STATE_DIR EXPECTED_REVISION\n       homesensed serve-live FILE STATE_DIR PRIVATE_IP:PORT SECONDS --coexistence-confirmed\n       homesensed demo [0..100]\n       homesensed check-config FILE [--simulation]\n       homesensed check-automation DEVICE_FILE AUTOMATION_FILE [--simulation]\n       homesensed decode 'AE 15 D1 1E EE'\n       homesensed serve-simulation-lan FILE STATE_DIR PRIVATE_IP:PORT SECONDS\n       homesensed serve-simulation FILE STATE_DIR PORT SECONDS\n       homesensed motor-test FILE STATE_DIR DEVICE open|close --coexistence-confirmed (STOP after 3 seconds)\n       homesensed panel-led FILE STATE_DIR DEVICE red|green --coexistence-confirmed\n       homesensed query-parameter FILE GATEWAY HEX_ADDRESS backlight|led-self-reset|motor-interlock --model-confirmed --coexistence-confirmed\n       homesensed observe FILE GATEWAY SECONDS --coexistence-confirmed\n       homesensed query-status FILE GATEWAY HEX_ADDRESS CHANNEL --model-confirmed --coexistence-confirmed\nserve-simulation binds loopback; serve-simulation-lan advertises mDNS on the LAN. Both use only simulated hardware."
         ),
         _ => return Err("unknown command; use --help".into()),
     }
