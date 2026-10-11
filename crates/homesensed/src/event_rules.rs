@@ -488,6 +488,7 @@ impl ScheduledRules {
         }
         Ok(reports)
     }
+    pub(crate) fn suppress_startup(&mut self) { self.startup_attempted = true; }
     /// One startup event per assembled synchronized runtime. Mark before await:
     /// ambiguous acceptance is never retried by another loop iteration.
     pub(crate) async fn startup_causal(

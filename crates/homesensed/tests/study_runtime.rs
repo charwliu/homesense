@@ -4872,3 +4872,36 @@ async fn causal_deadline_bounds_immediate_and_delayed_queued_commands() {
         a.shutdown().await.unwrap();
     }
 }
+
+#[tokio::test]
+async fn assembly_can_suppress_startup_without_disabling_manual_scenes() {
+    use homesensed::{automation_runtime::{AutomationRuntime,StartupPolicy},automation_control::{Action,Reply},feedback::Feedback,observed_transport::ObservedTransport,transport_owner::TransportOwner};
+    let db=Db(std::env::temp_dir().join(format!("startup-policy-{}.sqlite",Uuid::new_v4())));
+    let devices=include_bytes!("../../../config/simulation.json");
+    let rules=br#"{"schema_version":1,"configuration_revision":1,"variables":[{"id":"booted","kind":"integer","lifetime":"persistent"}],"rules":[{"id":"boot","enabled":true,"review_evidence":"test","source":"test","trigger":{"kind":"startup_synchronized"},"actions":[{"source":"set","action":{"kind":"set","variable":"booted","value":{"kind":"integer","value":7}}}]}],"timed_scenes":[{"id":"manual","enabled":true,"review_evidence":"test","max_lateness_ms":1000,"steps":[{"source":"test","offset_ms":10000,"device":"simulation:light","command":{"kind":"level","value":30,"ramp":false}}]}]}"#;
+    Store::open(&db.0).unwrap().publish_automation(None,devices,rules,ExecutionContext::Simulation,&[]).unwrap();
+    struct Wire;
+    impl std::io::Read for Wire {fn read(&mut self,_:&mut [u8])->std::io::Result<usize>{Err(std::io::ErrorKind::WouldBlock.into())}}
+    impl std::io::Write for Wire {fn write(&mut self,_:&[u8])->std::io::Result<usize>{panic!("unexpected output")} fn flush(&mut self)->std::io::Result<()>{Ok(())}}
+    for policy in [StartupPolicy::Run,StartupPolicy::Suppress] {
+        let controller=Uuid::new_v4();let a=actor(&db,controller).await;
+        let mut runtime=AutomationRuntime::load_with_startup(a.clone(),controller,1_800_000_000_000,1000,8,Default::default(),policy).await.unwrap();
+        let control=runtime.control();
+        let config=homesense_config::Configuration::parse(devices,ExecutionContext::Simulation).unwrap();
+        let feedback=Feedback::new(&config,ExecutionContext::Simulation,Uuid::parse_str(a.boot_id()).unwrap().as_u128(),1).unwrap();
+        let transport=TransportOwner::new(a.clone(),[("simulation".into(),hb_transport::Connection::for_simulation(Wire,1))].into());
+        let mut owner=ObservedTransport::new(transport,feedback);
+        let (stop,receive)=tokio::sync::watch::channel(false);
+        let client=async {
+            let Reply::Started(run)=control.request(Action::Start("manual".into())).await.unwrap() else {panic!("manual unavailable")};
+            control.request(Action::Cancel(run)).await.unwrap();
+            stop.send(true).unwrap();
+        };
+        let (result,())=tokio::join!(runtime.drive(&mut owner,std::time::Duration::from_millis(1),5000,receive,||Ok(1_800_000_000_000)),client);
+        result.unwrap();drop(runtime);a.shutdown().await.unwrap();
+    }
+    let sql=rusqlite::Connection::open(&db.0).unwrap();
+    assert_eq!(sql.query_row("SELECT count(*) FROM rule_admission WHERE rule_id='boot'",[],|r|r.get::<_,i64>(0)).unwrap(),1);
+    assert_eq!(sql.query_row("SELECT value FROM logical_variable WHERE name='booted'",[],|r|r.get::<_,i64>(0)).unwrap(),7);
+    assert_eq!(sql.query_row("SELECT count(*) FROM scene_run WHERE definition='manual'",[],|r|r.get::<_,i64>(0)).unwrap(),2);
+}
