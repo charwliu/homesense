@@ -1441,10 +1441,14 @@ impl Admission {
     /// Atomically accept variable changes, immediate output and delayed receipts.
     /// No delayed output is scheduled by this call. It is not a network endpoint.
     pub async fn submit_deferred_rule(&self,generation:TaskGeneration,rule:DeferredRule)->Result<AcceptedDeferred,WriteStatus> {
+        self.submit_deferred_rule_with_feedback(generation,rule,None).await
+    }
+    /// A planner's exact observed read set stays locked through durable commit.
+    pub async fn submit_deferred_rule_with_feedback(&self,generation:TaskGeneration,rule:DeferredRule,feedback:Option<crate::feedback::RuleLease>)->Result<AcceptedDeferred,WriteStatus> {
         let manual_fence=self.manual_fence().await?;
         let controller=rule.batch.controller;
         let starts=rule.starts.clone();
-        let command_ids=self.submit_scoped(Submission::Automation{batch:rule.batch,variables:rule.variables,audit:Some(rule.audit),starts:rule.starts,feedback:None,manual_fence:None,scene:None},Some(SubmissionScope::Generation(generation.clone()))).await?;
+        let command_ids=self.submit_scoped(Submission::Automation{batch:rule.batch,variables:rule.variables,audit:Some(rule.audit),starts:rule.starts,feedback:feedback.map(Box::new),manual_fence:None,scene:None},Some(SubmissionScope::Generation(generation.clone()))).await?;
         let mut scenes=Vec::with_capacity(starts.len());
         for start in starts {
             let page=self.scene_history(controller,generation.clone(),homesense_storage::scene_run::Query::Run{boot:self.boot_id().into(),run:start.run.clone(),after:0,limit:1}).await?.ok_or(WriteStatus::ServiceCommunicationFailure)?;
