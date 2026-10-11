@@ -1,0 +1,184 @@
+use homesense_core::ExecutionContext;
+use homesensed::{
+    admission::{Admission, Options},
+    automation_control::{Action, Reply},
+    automation_runtime::AutomationRuntime,
+    feedback::Feedback,
+    observed_transport::ObservedTransport,
+    transport_owner::TransportOwner,
+    web_api::Api,
+    web_auth::{Grant, Role, Tokens},
+    web_receipts::Receipts,
+};
+use http_body_util::BodyExt;
+use hyper::{Request, StatusCode, body::Bytes};
+use std::{
+    sync::{Arc, Mutex},
+    time::Duration,
+};
+use uuid::Uuid;
+struct Wire;
+impl std::io::Read for Wire {
+    fn read(&mut self, _: &mut [u8]) -> std::io::Result<usize> {
+        Err(std::io::ErrorKind::WouldBlock.into())
+    }
+}
+impl std::io::Write for Wire {
+    fn write(&mut self, _: &[u8]) -> std::io::Result<usize> {
+        panic!("Web test must not write output")
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+#[tokio::test]
+async fn web_scope_origin_receipts_and_runtime_admission() {
+    let root = std::env::temp_dir().join(format!("web-runtime-{}", Uuid::new_v4()));
+    std::fs::create_dir(&root).unwrap();
+    let devices = include_bytes!("../../../config/simulation.json");
+    let rules=br#"{"schema_version":1,"configuration_revision":1,"variables":[],"rules":[],"timed_scenes":[{"id":"light","enabled":true,"review_evidence":"simulation","max_lateness_ms":1000,"steps":[{"source":"fixture","offset_ms":60000,"device":"simulation:light","command":{"kind":"level","value":30,"ramp":false}}]}]}"#;
+    let path = root.join("runtime.sqlite");
+    homesense_storage::Store::open(&path)
+        .unwrap()
+        .publish_automation(None, devices, rules, ExecutionContext::Simulation, &[])
+        .unwrap();
+    let caller = Uuid::new_v4();
+    let token_id = Uuid::new_v4();
+    let admission = Admission::open(
+        path.clone(),
+        Options {
+            context: ExecutionContext::Simulation,
+            ..Default::default()
+        },
+        move |id| id == caller,
+    )
+    .await
+    .unwrap();
+    admission.synchronized(1, 1).await.unwrap();
+    let mut runtime = AutomationRuntime::load(
+        admission.clone(),
+        caller,
+        1_800_000_000_000,
+        1000,
+        8,
+        Default::default(),
+    )
+    .await
+    .unwrap();
+    let control = runtime.control();
+    let config =
+        homesense_config::Configuration::parse(devices, ExecutionContext::Simulation).unwrap();
+    let feedback = Feedback::new(
+        &config,
+        ExecutionContext::Simulation,
+        Uuid::parse_str(admission.boot_id()).unwrap().as_u128(),
+        1,
+    )
+    .unwrap();
+    let mut owner = ObservedTransport::new(
+        TransportOwner::new(
+            admission.clone(),
+            [(
+                "simulation".into(),
+                hb_transport::Connection::for_simulation(Wire, 1),
+            )]
+            .into(),
+        ),
+        feedback,
+    );
+    let tokens = Arc::new(Tokens::default());
+    let secret = "abcdefghijklmnopqrstuvwxyz0123456789";
+    tokens
+        .insert(
+            token_id,
+            secret,
+            Grant {
+                controller: caller,
+                role: Role::Member,
+                scenes: ["light".into()].into(),
+            },
+        )
+        .unwrap();
+    let api = Api {
+        origin: "http://127.0.0.1:8088".into(),
+        tokens: tokens.clone(),
+        control: control.clone(),
+        revision: 1,
+        scenes: [("light".into(), "Test".into())].into(),
+        receipts: Mutex::new(Receipts::open(&root.join("web.sqlite")).unwrap()),
+    };
+    let (stop, receive) = tokio::sync::watch::channel(false);
+    let client = async {
+        let make = |origin: &str, body: &str| {
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/scene-actions")
+                .header("host", "127.0.0.1:8088")
+                .header("origin", origin)
+                .header("authorization", format!("Bearer {secret}"))
+                .header("content-type", "application/json")
+                .body(Bytes::copy_from_slice(body.as_bytes()))
+                .unwrap()
+        };
+        let body = r#"{"scene":"light","request_id":"one"}"#;
+        assert_eq!(
+            api.handle(make("http://evil.invalid", body)).await.status(),
+            StatusCode::FORBIDDEN
+        );
+        assert_eq!(
+            api.handle(make(&api.origin, r#"{"scene":"other","request_id":"one"}"#))
+                .await
+                .status(),
+            StatusCode::FORBIDDEN
+        );
+        let first = api.handle(make(&api.origin, body)).await;
+        assert_eq!(first.status(), StatusCode::ACCEPTED);
+        let result: serde_json::Value =
+            serde_json::from_slice(&first.into_body().collect().await.unwrap().to_bytes()).unwrap();
+        assert_eq!(result["outcome"], "accepted");
+        let duplicate = api.handle(make(&api.origin, body)).await;
+        assert_eq!(duplicate.status(), StatusCode::OK);
+        assert_eq!(
+            serde_json::from_slice::<serde_json::Value>(
+                &duplicate.into_body().collect().await.unwrap().to_bytes()
+            )
+            .unwrap(),
+            result
+        );
+        let run = result["run"].as_u64().unwrap();
+        assert_eq!(
+            control.request(Action::Cancel(run)).await.unwrap(),
+            Reply::Cancelled(1)
+        );
+        let read = Request::builder()
+            .uri("/api/v1/scenes")
+            .header("host", "127.0.0.1:8088")
+            .header("authorization", format!("Bearer {secret}"))
+            .body(Bytes::new())
+            .unwrap();
+        assert_eq!(api.handle(read).await.status(), StatusCode::OK);
+        tokens.revoke(token_id).unwrap();
+        assert_eq!(
+            api.handle(make(&api.origin, body)).await.status(),
+            StatusCode::UNAUTHORIZED
+        );
+        stop.send(true).unwrap();
+    };
+    let (result, ()) = tokio::join!(
+        runtime.drive(&mut owner, Duration::from_millis(1), 1000, receive, || Ok(
+            1_800_000_000_000
+        )),
+        client
+    );
+    result.unwrap();
+    let sql = rusqlite::Connection::open(path).unwrap();
+    assert_eq!(
+        sql.query_row("SELECT count(*) FROM scene_run", [], |r| r.get::<_, i64>(0))
+            .unwrap(),
+        1
+    );
+    drop(sql);
+    drop(api);
+    admission.shutdown().await.unwrap();
+    std::fs::remove_dir_all(root).unwrap();
+}
