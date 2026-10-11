@@ -275,7 +275,12 @@ impl SoftwareFade {
                 },
                 Err(error) => {
                     self.fade.cancel();
-                    self.admission.stop_now();
+                    // These replies prove this submission did not commit:
+                    // queue capacity or precondition/transaction validation.
+                    // A lost reply or storage/transport failure remains fatal.
+                    if !matches!(error, hap::server::WriteStatus::ResourceBusy | hap::server::WriteStatus::InvalidValueInRequest) {
+                        self.admission.stop_now();
+                    }
                     self.closed = true;
                     self.failure = Some(format!("fade admission: {error:?}"));
                     return Err(self.failure.clone().unwrap());

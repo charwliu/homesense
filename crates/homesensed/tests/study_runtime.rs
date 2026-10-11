@@ -5810,3 +5810,32 @@ async fn configured_fade_prepares_from_feedback_and_never_falls_back() {
     a.shutdown().await.unwrap();
     }
 }
+
+#[tokio::test]
+async fn rejected_fade_snapshot_does_not_disable_independent_manual_control() {
+    use homesensed::{software_fade::SoftwareFade,feedback::Feedback,transport_owner::GatewayRead};
+    let db=Db(std::env::temp_dir().join(format!("fade-reject-{}.sqlite",Uuid::new_v4())));
+    let devices=include_bytes!("../../../config/simulation.json");
+    Store::open(&db.0).unwrap().publish_configuration(None,devices,ExecutionContext::Simulation,&[]).unwrap();
+    let controller=Uuid::new_v4();let a=actor(&db,controller).await;
+    let config=homesense_config::Configuration::parse(devices,ExecutionContext::Simulation).unwrap();
+    let mut feedback=Feedback::new(&config,ExecutionContext::Simulation,Uuid::parse_str(a.boot_id()).unwrap().as_u128(),1).unwrap();
+    let sample=|level| GatewayRead {gateway_id:"simulation".into(),transport_epoch:1,received_at_ms:0,result:hb_transport::Receive::Frames {transport_epoch:1,frames:vec![hb_protocol::RawFrame{address:0x15,command:0xd1,value:level}]}};
+    feedback.apply(&sample(100)).unwrap();
+    let device=homesense_core::DeviceId::new("simulation:light").unwrap();
+    let mut fade=SoftwareFade::start(a.clone(),controller,device.clone(),homesense_core::Percent::new(0).unwrap(),200,50,100,4,&feedback,2000).await.unwrap();
+    feedback.apply(&sample(80)).unwrap();
+    tokio::time::sleep(std::time::Duration::from_millis(60)).await;
+    let error=fade.tick().await.unwrap_err();
+    assert!(error.contains("InvalidValueInRequest"));
+    assert_eq!(fade.tick().await.unwrap_err(),error);
+    fade.cancel().await.unwrap();drop(fade);
+    assert!(a.task_generation().await.is_ok());
+    assert!(a.dispatch().await.unwrap().is_none());
+    let sql=rusqlite::Connection::open(&db.0).unwrap();
+    assert_eq!(sql.query_row("SELECT count(*) FROM command_journal",[],|r|r.get::<_,i64>(0)).unwrap(),0);
+    let ids=a.submit(homesense_hap::requests::Batch {controller,intents:vec![homesense_hap::requests::Intent {device,command:homesense_core::Command::SetLevel {level:homesense_core::Percent::new(40).unwrap(),transition:homesense_core::LevelTransition::Immediate}}],subscriptions:vec![]}).await.unwrap();
+    let ticket=a.dispatch().await.unwrap().unwrap();assert_eq!(ticket.command.id,ids[0]);
+    a.finish_write(ids[0],true).await.unwrap();
+    a.shutdown().await.unwrap();
+}

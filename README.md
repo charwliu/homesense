@@ -290,3 +290,5 @@ TCP 在线发布协调循环已接入 `serve_with_publications`：可信进程�
 工作区复验发现并修正旧测试假设：d2d7cb7 加本地未提交代码的完整运行在 study_runtime 停止，已运行 73 个结果块，428 通过、1 失败；失败用例把空状态 expire 当作反馈变化。现改为注入并确认收到真实亮度观察，继续验证旧计划整体拒绝、变量与命令不提交。study_runtime 全部 90 项复验通过；本次不能记为完整 workspace 通过，尚需完整重跑。
 
 完整工作区重跑已通过：12d61b7 加既有未提交代码及本地夹具，`cargo test --workspace --locked --offline` 共 433 项通过、0 失败、0 忽略，84 个结果块。汇总见 `docs/evidence/stage-d-study/workspace-12d61b7.json`；该记录只包含测试范围和结果，不公开待确认的私有源资料，也不声称纯提交可独立复现。仅本机模拟／回环验证，阶段 D/E 的剩余审核与现场验收仍未完成。
+
+渐变驱动失败隔离：明确未提交的 InvalidValueInRequest／ResourceBusy 只结束当前驱动并保留失败结果，不再主动关闭整个 Admission；通信／存储异常和回执未知仍关闭准入。新增回归先复现旧行为，再验证起点反馈改变→零命令提交→重复 tick 保持失败→清理后人工命令仍能写出。study_runtime 91 项、渐变服务 3 项和 homesensed 库严格 Clippy 通过（vendor/hap 既有警告保留）。这是驱动级隔离；上层规则链的通用失败分类及服务级拒绝处理仍待完成，未部署现场。
