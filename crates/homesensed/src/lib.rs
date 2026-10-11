@@ -72,3 +72,5 @@ pub mod deferred_router;
 pub mod automation_tcp;
 
 pub mod automation_publication;
+
+pub mod software_fade;

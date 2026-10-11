@@ -1391,7 +1391,13 @@ impl Admission {
         manual_fence: u64,
         feedback: Option<crate::feedback::RuleLease>,
     ) -> Result<Vec<u64>, WriteStatus> {
-        self.submit_scoped(
+        self.submit_scene_with_feedback_before(generation,batch,manual_fence,feedback,None).await
+    }
+    pub(crate) async fn submit_scene_with_feedback_before(
+        &self, generation: TaskGeneration, batch: Batch, manual_fence: u64,
+        feedback: Option<crate::feedback::RuleLease>, deadline: Option<u64>,
+    ) -> Result<Vec<u64>,WriteStatus> {
+        self.submit_scoped_before(
             Submission::Automation {
                 batch,
                 variables: vec![],
@@ -1402,6 +1408,7 @@ impl Admission {
                 starts: vec![],
             },
             Some(SubmissionScope::Generation(generation)),
+            deadline,
         )
         .await
     }
