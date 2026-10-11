@@ -887,3 +887,13 @@ fn cli_rejects_invalid_pacing_flags_before_reading_configuration() {
         assert!(!root.exists());
     }
 }
+
+#[test]
+fn cli_rejects_incomplete_or_duplicate_hap_options_before_configuration_io() {
+    for flags in [vec!["--hap-scene","demo"],vec!["--hap-listen","127.0.0.1:12345"],vec!["--hap-listen","127.0.0.1:12345","--hap-listen","127.0.0.1:12346"],vec!["--hap-scene","demo","--hap-scene","demo"],vec!["--hap-listen"]] {
+        let root=std::env::temp_dir().join(format!("hap-cli-reject-{}",uuid::Uuid::new_v4()));
+        let output=std::process::Command::new(env!("CARGO_BIN_EXE_homesensed")).args(["serve-automation-tcp","missing-devices","missing-rules"]).arg(&root).args(["1","--coexistence-confirmed"]).args(flags).output().unwrap();
+        assert!(!output.status.success());assert!(!root.exists());
+        let error=String::from_utf8_lossy(&output.stderr);assert!(!error.contains("No such file"),"{error}");
+    }
+}
