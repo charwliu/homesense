@@ -24,6 +24,7 @@ pub struct SceneRuntime {
     audit_failed: bool,
     cancellation_audited: std::collections::BTreeMap<DeviceId,bool>,
     cancel_requests: std::collections::BTreeMap<DeviceId,bool>,
+    expiries_audited: std::collections::BTreeSet<usize>,
     admitted: Vec<u64>,
     pending: Option<Pending>,
     fade: Option<OwnedFade>,
@@ -116,6 +117,7 @@ impl SceneRuntime {
             audit_failed: false,
             cancellation_audited: Default::default(),
             cancel_requests: Default::default(),
+            expiries_audited: Default::default(),
             manual_fence,
             causal_deadline: None,
             admission,
@@ -147,7 +149,7 @@ impl SceneRuntime {
         let timeline=Timeline::new(steps,current.epochs,accepted.started_ms,definition.max_lateness_ms).map_err(|e|format!("{e:?}"))?;
         Ok(Self{admission,controller:accepted.controller,generation:current,manual_fence:accepted.manual_fence,causal_deadline:accepted.causal_deadline,timeline,targets,
             audit_id:accepted.start.run,definition:Some(accepted.start.definition),result_taken:false,audit_version:0,
-            audit_status:homesense_storage::scene_run::Status::Pending,audit_failed:false,cancellation_audited:Default::default(),cancel_requests:Default::default(),admitted:vec![],pending:None,fade:None,configured_fades:definition.fades.clone()})
+            audit_status:homesense_storage::scene_run::Status::Pending,audit_failed:false,cancellation_audited:Default::default(),cancel_requests:Default::default(),expiries_audited:Default::default(),admitted:vec![],pending:None,fade:None,configured_fades:definition.fades.clone()})
     }
     /// Transfer the original scene fences to a delayed fade. This does not
     /// start the fade or resolve the timeline step; the scheduler owns both.
@@ -176,6 +178,10 @@ impl SceneRuntime {
                 return Err(match result {Err(error)=>format!("{error:?}"),_=>"no scene step due".into()});
             }
         };
+        if let Err(error) = self.audit_expiries().await {
+            fade.cancel().await?;
+            return Err(error);
+        }
         if let Err(error)=self.bind_fade(due.index,&mut fade) {
             self.timeline.resolve(due.index,false).map_err(|e|format!("{e:?}"))?;
             fade.cancel().await?;
@@ -266,6 +272,7 @@ impl SceneRuntime {
         else {
             return Ok(None);
         };
+        self.audit_expiries().await?;
         let device = due.step.device.clone();
         let batch = Batch {
             controller: self.controller,
@@ -505,7 +512,28 @@ impl SceneRuntime {
     pub fn audit_id(&self) -> &str {
         &self.audit_id
     }
+    async fn audit_expiries(&mut self) -> Result<(), String> {
+        if self.audit_failed { return Err("scene audit unavailable".into()); }
+        let expired: Vec<_> = self.timeline.states().iter().enumerate()
+            .filter(|(index,state)| **state == homesense_core::scene::State::Expired && !self.expiries_audited.contains(index))
+            .map(|(index,_)| {
+                let step=self.timeline.step(index).expect("timeline step");
+                homesense_storage::scene_run::Expiry{index,device:step.device.clone(),source:step.source.clone()}
+            }).collect();
+        for expiry in expired {
+            let index=expiry.index;
+            self.audit_failed=true;
+            self.audit_version=self.admission.scene_update(self.controller,self.generation.clone(),
+                crate::admission::SceneUpdate::Expiry{run:self.audit_id.clone(),expected:self.audit_version,expiry})
+                .await.map_err(|e|format!("scene expiry checkpoint: {e:?}"))?;
+            self.audit_status=homesense_storage::scene_run::Status::Running;
+            self.expiries_audited.insert(index);
+            self.audit_failed=false;
+        }
+        Ok(())
+    }
     async fn checkpoint(&mut self) -> Result<(), String> {
+        self.audit_expiries().await?;
         use homesense_storage::scene_run::Status as Audit;
         if self.audit_failed {
             return Err("scene audit unavailable".into());
