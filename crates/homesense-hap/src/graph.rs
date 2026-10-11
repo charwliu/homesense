@@ -27,7 +27,7 @@ pub struct LightGraph {
     pub lights: BTreeMap<DeviceId, LightbulbAccessory>,
     pub bindings: Vec<LightBinding>,
 }
-fn information(aid: u64, name: &str) -> AccessoryInformation {
+pub(crate) fn information(aid: u64, name: &str) -> AccessoryInformation {
     AccessoryInformation {
         manufacturer: "HomeSense".into(),
         model: "HomeSense".into(),
@@ -56,7 +56,7 @@ fn type_key(kind: HapType) -> Result<String> {
         .map(str::to_owned)
         .ok_or(Error::Storage)
 }
-fn resources(accessory: &dyn HapAccessory) -> Result<Vec<String>> {
+pub(crate) fn resources(accessory: &dyn HapAccessory) -> Result<Vec<String>> {
     let mut result = Vec::new();
     for service in accessory.get_services() {
         let key = format!("service:{}", type_key(service.get_type())?);
@@ -70,7 +70,7 @@ fn resources(accessory: &dyn HapAccessory) -> Result<Vec<String>> {
     }
     Ok(result)
 }
-fn install(accessory: &mut dyn HapAccessory, ids: &AccessoryIds) -> Result<()> {
+pub(crate) fn install(accessory: &mut dyn HapAccessory, ids: &AccessoryIds) -> Result<()> {
     if accessory.get_id() != ids.aid {
         return Err(Error::Storage);
     }
