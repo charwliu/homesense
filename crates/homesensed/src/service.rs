@@ -285,6 +285,12 @@ mod tests {
 fn simulation_connections(
     config: &homesense_config::Configuration,
 ) -> Result<BTreeMap<String, hb_transport::Connection<SimulatedStream>>, String> {
+    simulation_connections_at(config, 1)
+}
+fn simulation_connections_at(
+    config: &homesense_config::Configuration,
+    epoch: u64,
+) -> Result<BTreeMap<String, hb_transport::Connection<SimulatedStream>>, String> {
     let mut connections = BTreeMap::new();
     for (id, gateway) in config.gateways() {
         let mut queries = Vec::new();
@@ -318,7 +324,7 @@ fn simulation_connections(
         };
         connections.insert(
             id.clone(),
-            hb_transport::Connection::for_simulation(stream, 1),
+            hb_transport::Connection::for_simulation(stream, epoch),
         );
     }
     Ok(connections)
@@ -332,6 +338,19 @@ pub async fn serve_automation_simulation(
     directory: &Path,
     duration: Duration,
     scene: Option<&str>,
+) -> Result<(), String> {
+    serve_automation_simulation_with_publication(devices, rules, directory, duration, scene, None).await
+}
+/// Optional single simulated publication. No live endpoints or HAP identities.
+pub struct SimulationPublication<'a> {
+    pub devices: &'a [u8],
+    pub rules: &'a [u8],
+    pub after: Duration,
+    pub scene: Option<&'a str>,
+}
+pub async fn serve_automation_simulation_with_publication(
+    devices: &[u8], rules: &[u8], directory: &Path, duration: Duration,
+    scene: Option<&str>, publication: Option<SimulationPublication<'_>>,
 ) -> Result<(), String> {
     if duration.is_zero() || duration > Duration::from_secs(86400) {
         return Err("duration must be in (0,24h]".into());
@@ -351,6 +370,14 @@ pub async fn serve_automation_simulation(
         && !document.timed_scenes.get(id).is_some_and(|s| s.enabled) {
         return Err("enabled timed scene required".into());
     }
+    let next_config = if let Some(next) = &publication {
+        if next.after.is_zero() || next.after >= duration { return Err("publication time must be inside simulation duration".into()); }
+        let next_config = homesense_config::Configuration::parse(next.devices, ExecutionContext::Simulation).map_err(error)?;
+        if next_config.revision() <= config.revision() || next_config.gateways().is_empty() { return Err("newer nonempty simulation configuration required".into()); }
+        let rules = crate::configuration_publish::validate_automation(&next_config, next.rules, ExecutionContext::Simulation).map_err(error)?;
+        if let Some(id) = next.scene && !rules.timed_scenes.get(id).is_some_and(|s| s.enabled) { return Err("enabled replacement scene required".into()); }
+        Some(next_config)
+    } else {None};
     std::fs::create_dir_all(directory).map_err(error)?;
     let path = directory.join("automation-simulation.sqlite");
     let mut store = Store::open(&path).map_err(error)?;
@@ -413,19 +440,42 @@ pub async fn serve_automation_simulation(
         if let Some(scene) = scene {
             runtime.start_scene(scene).await?;
         }
-        let (stop, receive) = tokio::sync::watch::channel(false);
-        let drive = runtime.drive(
-            &mut owner,
-            Duration::from_millis(10),
-            5000,
-            receive,
-            wall_ms,
-        );
-        tokio::pin!(drive);
-        tokio::select! {
-            result=&mut drive=>result,
-            _=tokio::time::sleep(duration)=>{let _=stop.send(true);drive.await}
+        {
+            let (stop, receive) = tokio::sync::watch::channel(false);
+            let drive = runtime.drive(&mut owner, Duration::from_millis(10), 5000, receive, wall_ms);
+            tokio::pin!(drive);
+            let first_duration=publication.as_ref().map_or(duration, |p|p.after);
+            tokio::select! {
+                result=&mut drive=>{result?;return Err("simulation loop ended before deadline".into())},
+                _=tokio::time::sleep(first_duration)=>{
+                    if let Some(next)=&publication {
+                        admission.begin_automation_publication(next.devices.to_vec(),next.rules.to_vec(),config.revision(),Duration::from_secs(3)).await.map_err(|e|format!("{e:?}"))?;
+                    }
+                    let _=stop.send(true);
+                    drive.await?;
+                }
+            }
         }
+        if let (Some(next),Some(next_config))=(publication,next_config) {
+            if !runtime.publication_paused() {return Err("old runtime did not acknowledge publication".into());}
+            drop(runtime);
+            while owner.drain_publication(&admission).await?.is_some() {}
+            admission.commit_publication().await.map_err(|e|format!("{e:?}"))?;
+            drop(owner);
+            let fresh=TransportOwner::new(admission.clone(),simulation_connections_at(&next_config,2)?);
+            let (mut runtime,mut owner)=crate::publication_recovery::rebuild(admission.clone(),controller,fresh,2,crate::publication_recovery::Settings{
+                query_timeout_ms:1000,max_age_ms:5000,wall_unix_ms:wall_ms()?,calendar_lateness_ms:1000,scene_capacity:64,
+            }).await?;
+            if let Some(scene)=next.scene {runtime.start_scene(scene).await?;}
+            let (stop,receive)=tokio::sync::watch::channel(false);
+            let drive=runtime.drive(&mut owner,Duration::from_millis(10),5000,receive,wall_ms);
+            tokio::pin!(drive);
+            tokio::select! {
+                result=&mut drive=>result?,
+                _=tokio::time::sleep(duration-next.after)=>{let _=stop.send(true);drive.await?;}
+            }
+        }
+        Ok(())
     }
     .await;
     admission.stop_now();
