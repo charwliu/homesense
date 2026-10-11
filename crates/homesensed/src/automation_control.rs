@@ -45,6 +45,8 @@ pub struct LastRun {
 /// available through LastRun and the persistent journal.
 #[derive(Debug, PartialEq, Eq)]
 pub struct SceneObservation {
+    pub boot: String,
+    pub revision: u64,
     pub activity: crate::scene_activity::SceneActivity,
     pub last_run: Option<LastRun>,
 }
@@ -184,7 +186,7 @@ impl Receiver {
                         let scene=document.timed_scenes.get(&watcher.scene).ok_or("scene removed")?;
                         let activity=crate::scene_activity::Targets::new(&scene.steps).project(admission,self.controller,&self.generation,feedback,max_age_ms).await?;
                         let page=admission.scene_history(self.controller,self.generation.clone(),homesense_storage::scene_run::Query::Latest{definition:watcher.scene.clone()}).await.map_err(|e|format!("{e:?}"))?;
-                        Ok(SceneObservation{activity,last_run:page.map(|p|LastRun{boot:p.boot,run:p.run,revision:p.record.revision,started_ms:p.record.started_ms,updated_ms:p.record.updated_ms,version:p.record.version,status:p.record.status,cause:p.cause})})
+                        Ok(SceneObservation{boot:admission.boot_id().to_owned(),revision:document.revision,activity,last_run:page.map(|p|LastRun{boot:p.boot,run:p.run,revision:p.record.revision,started_ms:p.record.started_ms,updated_ms:p.record.updated_ms,version:p.record.version,status:p.record.status,cause:p.cause})})
                     }.await;
                     watcher.sender.send_if_modified(|current| {
                         if current.as_ref()==Some(&result) {false} else {*current=Some(result);true}
