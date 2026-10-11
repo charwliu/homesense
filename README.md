@@ -1,6 +1,8 @@
-# HomeSense
+# HomeSense · 知居
 
-原生 Rust 家庭中控，通过 TCP485 网关控制 HopeBeauty RS485 模块，并通过原生 Rust HAP 接入 Apple 家庭。目标是逐步替代 Control4 EA-5 的灯光、窗帘、场景与事件逻辑。
+<img src="docs/assets/homesense-logo-v3.png" alt="HomeSense 知居 Logo：橙色家庭大脑连接琥珀色照明、蓝色自动化与绿色节能节点" width="160">
+
+HomeSense（中文名：知居）是原生 Rust 家庭中控，通过 TCP485 网关控制 HopeBeauty RS485 模块，并通过原生 Rust HAP 接入 Apple 家庭。目标是逐步替代 Control4 EA-5 的灯光、窗帘、场景与事件逻辑。
 
 ## 当前实现
 
