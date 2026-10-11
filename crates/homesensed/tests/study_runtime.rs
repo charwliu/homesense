@@ -1237,6 +1237,11 @@ async fn device_override_cancels_future_actions_even_after_prior_output_complete
     a.finish_write(ticket.command.id, true).await.unwrap();
     scene.written(ticket.command.id, true).await.unwrap();
     assert_eq!(scene.cancel_device(&device).await.unwrap(), 1);
+    let sql=rusqlite::Connection::open(&db.0).unwrap();
+    assert_eq!(sql.query_row("SELECT reason FROM scene_cancellation WHERE run_id=?1",[scene.audit_id()],|r|r.get::<_,String>(0)).unwrap(),"manual_override");
+    assert_eq!(scene.cancel_device(&device).await.unwrap(),0);
+    assert_eq!(sql.query_row("SELECT count(*) FROM scene_cancellation WHERE run_id=?1",[scene.audit_id()],|r|r.get::<_,i64>(0)).unwrap(),1);
+
     scene.poll(100).await.unwrap().unwrap();
     let ticket = a.dispatch().await.unwrap().unwrap();
     assert_eq!(ticket.command.device_id, other);
@@ -5955,7 +5960,7 @@ async fn accepted_batch_overlap_preserves_other_devices_and_gates_audit_failure(
             starts:["early","late"].into_iter().enumerate().map(|(index,id)|homesense_storage::scene_run::Start{run:id.into(),revision:1,definition:id.into(),action_index:index,source:"synthetic".into()}).collect(),
         }).await.unwrap();
         let sql=rusqlite::Connection::open(&db.0).unwrap();
-        if fault {sql.execute_batch("CREATE TRIGGER fail_overlap BEFORE UPDATE ON scene_run BEGIN SELECT RAISE(ABORT,'synthetic'); END;").unwrap();}
+        if fault {sql.execute_batch("CREATE TRIGGER fail_overlap BEFORE INSERT ON scene_cancellation BEGIN SELECT RAISE(ABORT,'synthetic'); END;").unwrap();}
         let now=Store::open(&db.0).unwrap().scene_run(a.boot_id(),"late").unwrap().unwrap().started_ms;
         let installed=scheduler.install_accepted(&mut slots,accepted.scenes,now).await;
         if fault {
@@ -5964,6 +5969,8 @@ async fn accepted_batch_overlap_preserves_other_devices_and_gates_audit_failure(
             assert_eq!(sql.query_row("SELECT count(*) FROM command_journal",[],|r|r.get::<_,i64>(0)).unwrap(),0);
         } else {
             installed.unwrap();
+            assert_eq!(sql.query_row("SELECT reason FROM scene_cancellation WHERE run_id='early'",[],|r|r.get::<_,String>(0)).unwrap(),"scene_replacement");
+            assert_eq!(sql.query_row("SELECT count(*) FROM scene_cancellation WHERE run_id='late'",[],|r|r.get::<_,i64>(0)).unwrap(),0);
             let mut written=Vec::new();
             for _ in 0..4 {
                 for tick in scheduler.tick(now).await.unwrap() {tick.result.unwrap();}
