@@ -6299,3 +6299,89 @@ async fn fade_install_audits_preceding_expiry_before_sampling() {
         a.shutdown().await.unwrap();
     }
 }
+
+#[tokio::test]
+async fn inferred_feedback_session_preserves_lineage_budget_and_terminal_audit() {
+    use homesense_core::{feedback_cause::Candidate, rule::Budget};
+    for mode in ["cycle", "budget", "expire", "late-continuation", "cancel", "audit-failure", "expiry-audit-failure"] {
+        let db = Db(std::env::temp_dir().join(format!("inferred-session-{}.sqlite", Uuid::new_v4())));
+        let document = hap::serde_json::json!({
+            "schema_version":1,"configuration_revision":1,
+            "variables":[{"id":"value","kind":"integer","lifetime":"persistent"}],
+            "rules": (["a","b","c"].map(|id| hap::serde_json::json!({
+                "id":id,"enabled":true,"review_evidence":"synthetic","source":"synthetic",
+                "trigger":{"kind":"startup_synchronized"},
+                "actions":[{"source":"set","action":{"kind":"set","variable":"value","value":{"kind":"integer","value":1}}}]
+            })))
+        });
+        Store::open(&db.0).unwrap().publish_automation(None,
+            include_bytes!("../../../config/simulation.json"),
+            &hap::serde_json::to_vec(&document).unwrap(), ExecutionContext::Simulation, &[]).unwrap();
+        let controller = Uuid::new_v4();
+        let a = actor(&db, controller).await;
+        let mut scheduler = homesensed::scene_scheduler::SceneScheduler::new(a.clone(),controller,2,0).unwrap();
+        let duration = if matches!(mode, "expire" | "late-continuation" | "expiry-audit-failure") { 200 } else { 60_000 };
+        let budget = Budget { nodes: if mode == "budget" { 6 } else { 128 }, ..Default::default() };
+        let mut session = homesensed::deferred_session::Session::new_for_feedback(a.clone(),controller,&scheduler,budget,duration).await.unwrap();
+        let deadline = session.deadline_ms();
+        let first = session.start("a",&mut scheduler,None).await.unwrap().remove(0);
+        let candidate = Candidate { cause:first.cause.clone(), command_id:1, written_ms:0 };
+        let sql = rusqlite::Connection::open(&db.0).unwrap();
+        assert!(!session.is_closed());
+        assert_eq!(session.pending_count(),0);
+        assert_eq!(sql.query_row("SELECT count(*) FROM rule_chain_outcome",[],|r|r.get::<_,i64>(0)).unwrap(),0);
+        let mut foreign_chain = homesense_core::rule_chain::Chain::new(99,0,60_000,Default::default(),32).unwrap();
+        let foreign = Candidate { cause:foreign_chain.plan(&foreign_chain.root(),"foreign",&[],&Default::default(),0).unwrap().cause, command_id:99, written_ms:0 };
+        assert!(session.resume_inferred(&["b".into()],&foreign,&mut scheduler,None).await.is_err());
+        let future = Candidate { written_ms:u64::MAX, ..candidate.clone() };
+        assert!(session.resume_inferred(&["b".into()],&future,&mut scheduler,None).await.is_err());
+        assert_eq!(sql.query_row("SELECT count(*) FROM rule_admission",[],|r|r.get::<_,i64>(0)).unwrap(),1);
+        let second = session.resume_inferred(&["b".into()],&candidate,&mut scheduler,None).await.unwrap().remove(0);
+        assert_eq!(second.causation_id, first.cause.event_id());
+        assert_eq!(second.cause.correlation_id(), first.cause.correlation_id());
+        assert_eq!(session.deadline_ms(), deadline);
+        assert_eq!(sql.query_row("SELECT count(*) FROM rule_admission",[],|r|r.get::<_,i64>(0)).unwrap(),2);
+        let next = Candidate { cause:second.cause, command_id:2, written_ms:0 };
+        match mode {
+            "late-continuation" => {
+                tokio::time::sleep(std::time::Duration::from_millis(210)).await;
+                let error = session.resume_inferred(&["c".into()],&next,&mut scheduler,None).await.unwrap_err();
+                assert!(error.contains("Budget"),"{error}");
+                assert!(session.failure_isolated());
+            }
+            "expiry-audit-failure" => {
+                sql.execute_batch("CREATE TRIGGER reject_expiry_terminal BEFORE INSERT ON rule_chain_outcome BEGIN SELECT RAISE(ABORT,'injected'); END;").unwrap();
+                tokio::time::sleep(std::time::Duration::from_millis(210)).await;
+                assert!(session.expire(&mut scheduler).await.is_err());
+                assert!(a.task_generation().await.is_err());
+            }
+            "expire" => {
+                tokio::time::sleep(std::time::Duration::from_millis(210)).await;
+                assert!(session.expire(&mut scheduler).await.unwrap());
+                assert!(!session.expire(&mut scheduler).await.unwrap());
+                assert!(session.resume_inferred(&["c".into()],&next,&mut scheduler,None).await.is_err());
+                assert_eq!(sql.query_row("SELECT count(*) FROM rule_chain_outcome WHERE error IS NULL",[],|r|r.get::<_,i64>(0)).unwrap(),1);
+            }
+            "cancel" => {
+                assert_eq!(session.cancel(&mut scheduler).await.unwrap(),0);
+                assert!(session.cancel(&mut scheduler).await.is_err());
+                assert!(session.resume_inferred(&["c".into()],&next,&mut scheduler,None).await.is_err());
+            }
+            _ => {
+                if mode == "audit-failure" {
+                    sql.execute_batch("CREATE TRIGGER reject_inferred_terminal BEFORE INSERT ON rule_chain_outcome BEGIN SELECT RAISE(ABORT,'injected'); END;").unwrap();
+                }
+                let rule = if mode == "budget" { "c" } else { "a" };
+                let error = session.resume_inferred(&[rule.into()],&next,&mut scheduler,None).await.unwrap_err();
+                assert!(error.contains(if mode == "budget" { "Budget" } else { "Cycle" }),"{error}");
+                assert_eq!(session.failure_isolated(),mode != "audit-failure");
+                assert_eq!(a.task_generation().await.is_err(),mode == "audit-failure");
+            }
+        }
+        assert!(session.is_closed());
+        assert_eq!(sql.query_row("SELECT count(*) FROM rule_admission",[],|r|r.get::<_,i64>(0)).unwrap(),2);
+        assert_eq!(sql.query_row("SELECT count(*) FROM rule_chain_outcome",[],|r|r.get::<_,i64>(0)).unwrap(),if mode.ends_with("audit-failure") {0} else {1});
+        if !mode.ends_with("audit-failure") { assert!(a.task_generation().await.is_ok()); }
+        a.shutdown().await.unwrap();
+    }
+}
