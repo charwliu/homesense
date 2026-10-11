@@ -903,3 +903,28 @@ fn expanded_sample_commands_keep_sample_identity_across_pages() {
     }
     assert_eq!(store.scene_commands("boot","fade",0,128).unwrap().len(),4);
 }
+
+#[test]
+fn terminal_scene_preserves_accepted_motor_stop_only() {
+    use homesense_core::MotorMotion;
+    use homesense_storage::scene_run::{StepLink, Status as SceneStatus};
+    let db = Database::new();
+    let mut store = Store::open(&db.0).unwrap();
+    store.publish(None, 1, b"config", &[]).unwrap();
+    store.begin_scene_run("boot", "scene", 1, None, 0).unwrap();
+    for (index, action) in [Command::Motor(MotorMotion::Stop), Command::Motor(MotorMotion::Up), Command::Motor(MotorMotion::Down), Command::Switch(true)].into_iter().enumerate() {
+        let mut c = command(index as u64 + 1);
+        c.origin = Origin::Rule;
+        c.command = action;
+        let link = StepLink { run: "scene".into(), index, source: "synthetic:stop".into(), sample: None };
+        store.accept_queue_batch_with_audits("boot", &[c], &[], 1, None, &[], None, Some(&link)).unwrap();
+    }
+    store.checkpoint_scene_run("boot", "scene", 0, SceneStatus::Cancelled, 2).unwrap();
+    assert!(store.begin_command_write("boot", 1, 3).unwrap());
+    assert_eq!(store.command_status("boot", 1).unwrap(), Some(Status::Writing));
+    for id in 2..=4 {
+        assert!(!store.begin_command_write("boot", id, 3).unwrap());
+        assert_eq!(store.command_status("boot", id).unwrap(), Some(Status::Cancelled));
+    }
+    assert!(store.begin_command_write("boot", 1, 4).is_err());
+}

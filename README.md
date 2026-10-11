@@ -280,3 +280,5 @@ TCP 在线发布协调循环已接入 `serve_with_publications`：可信进程�
 - 离线事件草案导出：`cargo run -p homesense-import --bin compile-event -- EVENT.xml BINDINGS.json 100 100`。绑定文件形如 `{"1":{"device":"simulation:light","kind":"dimmer"}}`；末两项为采样间隔和迟到窗口（毫秒）。标准输出同时保留 actions 与 timed_scenes，全部禁用；输出是待审核片段，需另补触发、变量和原场景定义，不能直接作为运行配置启用。
 
 离线事件导出输入边界回归：使用纯合成数据验证 XML 超过 4 MiB、绑定文件超过 1 MiB、未知设备类型、未知绑定字段和非法 UTF-8 均失败退出，且 stdout 不产生部分草稿。独立 CLI 测试通过；未连接现场设备，EA-5 配置不变。
+
+场景取消 STOP 修复：写出前的持久终态检查现在保留已接受的电机 STOP，与队列取消语义一致；升、降及其他未发命令仍取消，重复写出拒绝，原权限／时限／连接代际检查继续适用。新增回归先复现 STOP 被误取消再修复；存储全套 31 项、渐变终态专项及队列 STOP 保留专项通过，存储库严格 Clippy 通过。仅本机验证，未部署现场或修改 EA-5。
