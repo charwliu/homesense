@@ -23,6 +23,7 @@ pub async fn serve(
     let listener = tokio::net::TcpListener::bind(address)
         .await
         .map_err(|e| e.to_string())?;
+    let event_permits=Arc::new(tokio::sync::Semaphore::new(16));
     let permits = Arc::new(tokio::sync::Semaphore::new(32));
     let mut tasks = tokio::task::JoinSet::new();
     while !*stop.borrow() {
@@ -32,12 +33,13 @@ pub async fn serve(
             accepted=listener.accept()=>{
                 let (stream,_)=accepted.map_err(|e|e.to_string())?;
                 let Ok(permit)=permits.clone().try_acquire_owned() else {continue};
-                let api=api.clone();
+                let api=api.clone();let event_permits=event_permits.clone();let event_stop=stop.clone();
                 tasks.spawn(async move {
                     let _permit=permit;
                     let service=service_fn(move |request:Request<Incoming>| {
-                        let api=api.clone();
+                        let api=api.clone();let event_permits=event_permits.clone();let event_stop=event_stop.clone();
                         async move {
+                            if request.uri().path()=="/api/v1/events" {return Ok::<_,std::convert::Infallible>(crate::web_events::upgrade(api,request,event_stop,event_permits));}
                             let (parts,body)=request.into_parts();
                             let processing_timeout=if parts.uri.path().starts_with("/api/v1/config/activations/"){40}else{8};
                             let limit=if parts.uri.path().starts_with("/api/v1/config/drafts/"){crate::web_drafts::MAX_BYTES}else{4096};
@@ -53,7 +55,7 @@ pub async fn serve(
                     });
                     let mut builder=hyper::server::conn::http1::Builder::new();
                     builder.max_buf_size(16384);
-                    let _=tokio::time::timeout(Duration::from_secs(45),builder.serve_connection(hyper_util::rt::TokioIo::new(stream),service)).await;
+                    let _=tokio::time::timeout(Duration::from_secs(45),builder.serve_connection(hyper_util::rt::TokioIo::new(stream),service).with_upgrades()).await;
                 });
             }
         }

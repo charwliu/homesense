@@ -97,3 +97,7 @@ pub mod configuration_preview;
 pub mod web_activation;
 
 mod web_supervision;
+
+pub mod management_events;
+
+mod web_events;

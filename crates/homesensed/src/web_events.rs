@@ -1,0 +1,169 @@
+//! Authenticated, bounded WebSocket state recovery. No event drives an action.
+use crate::{
+    automation_control::{Action, Reply},
+    management_events::Cursor,
+    web_api::Api,
+    web_auth::Grant,
+};
+use futures_util::{SinkExt, StreamExt};
+use http_body_util::{BodyExt, Full};
+use hyper::{
+    Request, Response, StatusCode,
+    body::{Bytes, Incoming},
+};
+use serde_json::json;
+use std::{sync::Arc, time::Duration};
+use tokio_tungstenite::{
+    WebSocketStream,
+    tungstenite::{
+        Message,
+        protocol::{Role, WebSocketConfig},
+    },
+};
+fn current_grant(api: &Api, headers: &hyper::HeaderMap) -> Option<Grant> {
+    if headers.get_all("host").iter().count() != 1
+        || headers.get_all("origin").iter().count() != 1
+        || headers.get("host")?.to_str().ok()? != api.origin.split_once("://")?.1
+        || headers.get("origin")?.to_str().ok()? != api.origin
+        || ["authorization", "cookie", "x-csrf-token"]
+            .iter()
+            .any(|name| headers.get_all(*name).iter().count() > 1)
+    {
+        return None;
+    }
+    let authorization = headers.get("authorization").and_then(|v| v.to_str().ok());
+    let cookie = headers
+        .get("cookie")
+        .and_then(|v| v.to_str().ok())
+        .and_then(crate::web_api::session_cookie);
+    if authorization.is_some() && cookie.is_some() {
+        return None;
+    }
+    if let Some(auth) = authorization {
+        api.tokens.authenticate(auth)
+    } else {
+        api.tokens.session(cookie?, None, false)
+    }
+}
+fn failure(status: StatusCode) -> Response<Full<Bytes>> {
+    Response::builder()
+        .status(status)
+        .body(Full::new(Bytes::new()))
+        .unwrap()
+}
+pub(crate) fn upgrade(
+    api: Arc<Api>,
+    mut request: Request<Incoming>,
+    mut stop: tokio::sync::watch::Receiver<bool>,
+    permits: Arc<tokio::sync::Semaphore>,
+) -> Response<Full<Bytes>> {
+    if request.method() != hyper::Method::GET
+        || request.uri().query().is_some()
+        || current_grant(&api, request.headers()).is_none()
+    {
+        return failure(StatusCode::UNAUTHORIZED);
+    }
+    if ["sec-websocket-key", "sec-websocket-version", "upgrade"]
+        .iter()
+        .any(|name| request.headers().get_all(*name).iter().count() != 1)
+    {
+        return failure(StatusCode::BAD_REQUEST);
+    }
+    let Ok(permit) = permits.try_acquire_owned() else {
+        return failure(StatusCode::SERVICE_UNAVAILABLE);
+    };
+    let headers = request.headers().clone();
+    let mut handshake = Request::builder()
+        .method(request.method())
+        .uri(request.uri())
+        .version(request.version())
+        .body(())
+        .unwrap();
+    *handshake.headers_mut() = headers.clone();
+    let Ok(response) =
+        tokio_tungstenite::tungstenite::handshake::server::create_response(&handshake)
+    else {
+        return failure(StatusCode::BAD_REQUEST);
+    };
+    let upgraded = hyper::upgrade::on(&mut request);
+    tokio::spawn(async move {
+        let _permit = permit;
+        let Ok(Ok(stream)) = tokio::time::timeout(Duration::from_secs(3), upgraded).await else {
+            return;
+        };
+        let config = WebSocketConfig::default()
+            .max_message_size(Some(8192))
+            .max_frame_size(Some(8192));
+        let mut socket = WebSocketStream::from_raw_socket(
+            hyper_util::rt::TokioIo::new(stream),
+            Role::Server,
+            Some(config),
+        )
+        .await;
+        #[derive(serde::Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct Resume {
+            cursor: Option<Cursor>,
+        }
+        let Ok(Some(Ok(Message::Text(initial)))) =
+            tokio::time::timeout(Duration::from_secs(5), socket.next()).await
+        else {
+            return;
+        };
+        let Ok(resume) = serde_json::from_str::<Resume>(&initial) else {
+            return;
+        };
+        let mut cursor = resume.cursor;
+        let mut scenes = serde_json::Value::Null;
+        let mut interval = tokio::time::interval(Duration::from_millis(500));
+        interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+        let mut unavailable = false;
+        let mut previous_grant = None;
+        let mut last_send = std::time::Instant::now();
+        loop {
+            tokio::select! {
+                changed=stop.changed()=>{if changed.is_err() || *stop.borrow(){break;}},
+                message=socket.next()=>match message {Some(Ok(Message::Ping(_)|Message::Pong(_)))=>{},_=>break},
+                _=interval.tick()=>{
+                    // Resolve current grants, expiry and revocation every tick;
+                    // never preserve the handshake's authorization snapshot.
+                    let Some(grant)=current_grant(&api,&headers) else {break;};
+                    if previous_grant.as_ref().is_some_and(|previous|previous!=&grant) {cursor=None;}
+                    previous_grant=Some(grant.clone());
+                    let runtime=api.runtime.read().ok().and_then(|value|value.clone());
+                    let Some(runtime)=runtime else {
+                        if !unavailable {
+                            if !matches!(tokio::time::timeout(Duration::from_secs(2),socket.send(Message::Text(json!({"type":"unavailable"}).to_string().into()))).await,Ok(Ok(()))){break;}
+                            unavailable=true;cursor=None;
+                        }
+                        continue;
+                    };
+                    let ids=grant.devices.iter().map(homesense_core::DeviceId::new).collect::<Result<Vec<_>,_>>();
+                    let Ok(ids)=ids else{break;};
+                    let Ok(Reply::DeviceEvents(update))=runtime.control.request(Action::DeviceEvents{controller:grant.controller,revision:runtime.revision,ids,cursor:cursor.clone(),scope:format!("{:?}",grant.role)}).await else{continue;};
+                    let mut request=Request::builder().uri("/api/v1/scenes").body(Bytes::new()).unwrap();*request.headers_mut()=headers.clone();
+                    let scene_response=api.handle(request).await;
+                    if scene_response.status()!=StatusCode::OK {continue;}
+                    let body=scene_response.into_body().collect().await.unwrap();
+                    let Ok(next_scenes)=serde_json::from_slice::<serde_json::Value>(&body.to_bytes()) else{break;};
+                    // Publication may have replaced the runtime while the two
+                    // reads awaited. Discard this mixed candidate and resync.
+                    if api.runtime.read().ok().is_none_or(|current|current.as_ref().is_none_or(|current|current.revision!=runtime.revision || current.boot!=runtime.boot)){cursor=None;continue;}
+                    if current_grant(&api,&headers).as_ref()!=Some(&grant) {cursor=None;continue;}
+                    if cursor.as_ref()!=Some(&update.cursor) || next_scenes!=scenes || unavailable {
+                        let devices=update.snapshot.devices.iter().map(|device|crate::web_api::device_json(device,&grant)).collect::<Vec<_>>();
+                        let frame=json!({"type":"state","cursor":update.cursor,"reset":update.reset,"devices":devices,"scenes":next_scenes["scenes"]}).to_string();
+                        if frame.len()>512*1024 || !matches!(tokio::time::timeout(Duration::from_secs(2),socket.send(Message::Text(frame.into()))).await,Ok(Ok(()))){break;}
+                        cursor=Some(update.cursor);scenes=next_scenes;unavailable=false;last_send=std::time::Instant::now();
+                    }
+                    if last_send.elapsed()>=Duration::from_secs(15) {
+                        if !matches!(tokio::time::timeout(Duration::from_secs(2),socket.send(Message::Ping(Bytes::new()))).await,Ok(Ok(()))){break;}
+                        last_send=std::time::Instant::now();
+                    }
+                }
+            }
+        }
+        let _ = tokio::time::timeout(Duration::from_secs(1), socket.close(None)).await;
+    });
+    response.map(|_| Full::new(Bytes::new()))
+}
