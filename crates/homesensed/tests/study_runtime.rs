@@ -6130,3 +6130,33 @@ async fn scene_uncertain_output_cancels_remaining_without_restart_replay() {
     assert_eq!(status,"partial");
     reopened.shutdown().await.unwrap();
 }
+
+#[tokio::test]
+async fn explicit_scene_cancel_records_intent_once_before_settlement() {
+    use homesense_core::{DeviceId,Command,Percent,LevelTransition,scene::Step};
+    use homesense_storage::scene_run::{Query,CancellationReason};
+    for phase in 0..3 {
+        let db=Db(std::env::temp_dir().join(format!("scene-cancel-request-{}.sqlite",Uuid::new_v4())));
+        Store::open(&db.0).unwrap().publish_configuration(None,include_bytes!("../../../config/simulation.json"),ExecutionContext::Simulation,&[]).unwrap();
+        let controller=Uuid::new_v4();let a=actor(&db,controller).await;
+        let device=DeviceId::new("simulation:light").unwrap();
+        let steps=[0,10].into_iter().map(|delay_ms|Step{device:device.clone(),command:Command::SetLevel{level:Percent::new(30).unwrap(),transition:LevelTransition::Immediate},delay_ms,source:"synthetic".into()}).collect();
+        let mut scene=homesensed::scene_runtime::SceneRuntime::new(a.clone(),controller,steps,0,1000).await.unwrap();
+        if phase>0 {scene.poll(0).await.unwrap().unwrap();}
+        let writing=if phase==2 {a.dispatch().await.unwrap()} else {None};
+        scene.cancel().await.unwrap();
+        scene.cancel().await.unwrap();
+        let page=a.scene_history(controller,a.task_generation().await.unwrap(),Query::Cancellations{boot:a.boot_id().into(),run:scene.audit_id().into(),after:0,limit:128}).await.unwrap().unwrap();
+        assert_eq!(page.cancellations.len(),1);
+        assert_eq!(page.cancellations[0].cancellation.reason,CancellationReason::CancelRequested);
+        assert_eq!(page.cancellations[0].cancellation.device,device);
+        if let Some(ticket)=writing {
+            a.finish_write(ticket.command.id,true).await.unwrap();
+            scene.reconcile().await.unwrap();
+            assert_eq!(scene.status(),homesense_core::scene::Status::Partial);
+        } else {assert_eq!(scene.status(),homesense_core::scene::Status::Cancelled);}
+        assert!(a.dispatch().await.unwrap().is_none());
+        assert!(scene.poll(20).await.unwrap().is_none());
+        a.shutdown().await.unwrap();
+    }
+}
