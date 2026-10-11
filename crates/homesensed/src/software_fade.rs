@@ -115,6 +115,16 @@ impl SoftwareFade {
             self.failure = Some("fade admission outcome unknown".into());
             return Err(self.failure.clone().unwrap());
         }
+        let superseded = self.admission.manual_superseded(self.device.clone(), self.fence).await.map_err(|e| {
+            let error = format!("fade manual fence: {e:?}");
+            self.failure = Some(error.clone());
+            error
+        })?;
+        if superseded {
+            self.failure = Some("fade superseded by manual control".into());
+            self.cancel().await?;
+            return Err(self.failure.clone().unwrap());
+        }
         if !self.pending.is_empty() {
             let statuses = self
                 .admission

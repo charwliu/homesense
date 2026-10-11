@@ -170,6 +170,7 @@ enum Message {
         oneshot::Sender<Result<Option<i64>, WriteStatus>>,
     ),
     ManualFence(oneshot::Sender<u64>),
+    ManualSuperseded(homesense_core::DeviceId, u64, oneshot::Sender<bool>),
     CommandStatuses(
         Uuid,
         TaskGeneration,
@@ -426,6 +427,7 @@ impl Admission {
                             let _=reply.send(result);
                         }
                         Message::ManualFence(reply) => { let _ = reply.send(next_id); }
+                        Message::ManualSuperseded(device, fence, reply) => { let _ = reply.send(manual_versions.get(&device).is_some_and(|version| *version >= fence)); }
                         Message::RuleOutcome(controller,generation,correlation,error,reply)=>{
                             let result=if !authorize(controller){Err(WriteStatus::InsufficientPrivileges)}
                             // Terminal audit remains writable after transport closure; it admits no work.
@@ -1365,6 +1367,11 @@ impl Admission {
         receive
             .await
             .map_err(|_| WriteStatus::ServiceCommunicationFailure)?
+    }
+    pub(crate) async fn manual_superseded(&self, device: homesense_core::DeviceId, fence: u64) -> Result<bool, WriteStatus> {
+        let (reply, receive) = oneshot::channel();
+        self.sender.try_send(Message::ManualSuperseded(device, fence, reply)).map_err(|_| WriteStatus::ResourceBusy)?;
+        receive.await.map_err(|_| WriteStatus::ServiceCommunicationFailure)
     }
     pub(crate) async fn manual_fence(&self) -> Result<u64, WriteStatus> {
         let (reply, receive) = oneshot::channel();
