@@ -20,6 +20,31 @@ pub struct Outcome {
     pub scene_runs: Vec<u64>,
     pub changed_variables: Vec<String>,
 }
+/// Only planning rejection proves this invocation performed no admission.
+/// Earlier invocations in the same chain may already have committed.
+#[derive(Debug)]
+pub enum ExecutionFailure {
+    Planning(Error),
+    Runtime(String),
+}
+impl std::fmt::Display for ExecutionFailure {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Planning(error) => write!(f, "{error:?}"),
+            Self::Runtime(error) => f.write_str(error),
+        }
+    }
+}
+impl From<String> for ExecutionFailure {
+    fn from(error: String) -> Self {
+        Self::Runtime(error)
+    }
+}
+impl From<&str> for ExecutionFailure {
+    fn from(error: &str) -> Self {
+        Self::Runtime(error.into())
+    }
+}
 /// Uses the caller's chain, charging future outputs before durable admission.
 /// The returned cause must be retained for subsequent derived events. A command
 /// accepted before a later installation failure is not undone or retried.
@@ -32,6 +57,22 @@ pub async fn execute(
     scheduler: &mut SceneScheduler,
     feedback: Option<(&Feedback, u64)>,
 ) -> Result<Outcome, String> {
+    execute_classified(
+        admission, controller, rule_id, chain, parent, scheduler, feedback,
+    )
+    .await
+    .map_err(|e| e.to_string())
+}
+/// Typed execution entry for supervisors implementing chain-local failure policy.
+pub async fn execute_classified(
+    admission: &Admission,
+    controller: Uuid,
+    rule_id: &str,
+    chain: &mut Chain,
+    parent: &Cause,
+    scheduler: &mut SceneScheduler,
+    feedback: Option<(&Feedback, u64)>,
+) -> Result<Outcome, ExecutionFailure> {
     if !scheduler.matches_admission(admission) || !scheduler.matches_controller(controller) {
         return Err("foreign scene scheduler".into());
     }
@@ -105,7 +146,7 @@ pub async fn execute(
             plan.action_cost = reserved.action_cost;
             Ok(plan)
         })
-        .map_err(|e| format!("{e:?}"))?;
+        .map_err(ExecutionFailure::Planning)?;
     let mut reservation = if invocations.is_empty() {
         None
     } else {
@@ -179,7 +220,9 @@ pub async fn execute(
         Ok(v) => v,
         Err(e) => {
             guard.1 = true;
-            return Err(format!("deferred admission: {e:?}"));
+            return Err(ExecutionFailure::Runtime(format!(
+                "deferred admission: {e:?}"
+            )));
         }
     };
     let scene_runs = if let Some(reservation) = &mut reservation {

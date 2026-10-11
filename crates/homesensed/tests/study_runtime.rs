@@ -4554,7 +4554,7 @@ async fn deferred_rule_adapter_reserves_before_variables_and_preserves_chain() {
     let full=scheduler.reserve_slots(1).unwrap();
     let chain=||homesense_core::rule_chain::Chain::new(77,0,60000,Default::default(),32).unwrap();
     let mut first=chain();let root=first.root();
-    assert!(homesensed::deferred_rule::execute(&a,controller,"trigger",&mut first,&root,&mut scheduler,None).await.is_err());
+    assert!(matches!(homesensed::deferred_rule::execute_classified(&a,controller,"trigger",&mut first,&root,&mut scheduler,None).await,Err(homesensed::deferred_rule::ExecutionFailure::Runtime(_))));
     let store=Store::open(&db.0).unwrap();
     assert_eq!(store.logical_variable(1,"mode").unwrap().unwrap().value,None);
     let sql=rusqlite::Connection::open(&db.0).unwrap();
@@ -4562,7 +4562,7 @@ async fn deferred_rule_adapter_reserves_before_variables_and_preserves_chain() {
     drop(full);
     let mut limited=homesense_core::rule_chain::Chain::new(78,0,60000,homesense_core::rule::Budget{commands:1,..Default::default()},32).unwrap();
     let root=limited.root();
-    assert!(homesensed::deferred_rule::execute(&a,controller,"trigger",&mut limited,&root,&mut scheduler,None).await.is_err());
+    assert!(matches!(homesensed::deferred_rule::execute_classified(&a,controller,"trigger",&mut limited,&root,&mut scheduler,None).await,Err(homesensed::deferred_rule::ExecutionFailure::Planning(_))));
     assert_eq!(store.logical_variable(1,"mode").unwrap().unwrap().value,None);
     let mut chain=chain();let root=chain.root();
     let result=homesensed::deferred_rule::execute(&a,controller,"trigger",&mut chain,&root,&mut scheduler,None).await.unwrap();
