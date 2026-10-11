@@ -1,0 +1,13 @@
+{
+  "commit": "59eff7b6cda65df5d3fd0827af48ae45339f8cb4",
+  "scope": "isolated git archive; dedicated target; no private fixtures or uncommitted changes",
+  "command": "cargo test --locked --offline -p homesensed --test study_runtime --test web_runtime --test web_security --test automation_service",
+  "passed": 115,
+  "failed": 0,
+  "log_sha256": "7f6b13ea537125dec7b6a5fea0012379b9e3aa196495450cf382488fe5941edf",
+  "limitations": [
+    "Focused regression, not full workspace",
+    "Subsequent browser-session changes tested separately",
+    "No physical gateway or EA-5 changes"
+  ]
+}
