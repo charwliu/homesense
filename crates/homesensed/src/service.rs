@@ -352,6 +352,18 @@ pub async fn serve_automation_simulation_with_publication(
     devices: &[u8], rules: &[u8], directory: &Path, duration: Duration,
     scene: Option<&str>, publication: Option<SimulationPublication<'_>>,
 ) -> Result<(), String> {
+    serve_automation_simulation_options(devices,rules,directory,duration,scene,publication,None).await
+}
+/// Explicit local-only management simulation; credentials are supplied out of band.
+pub struct WebSimulation { pub address:std::net::SocketAddr, pub secret:String }
+pub async fn serve_web_simulation(devices:&[u8],rules:&[u8],directory:&Path,duration:Duration,web:WebSimulation)->Result<(),String> {
+    if !web.address.ip().is_loopback() || web.address.port()==0 {return Err("Web simulation requires a loopback address and nonzero port".into());}
+    serve_automation_simulation_options(devices,rules,directory,duration,None,None,Some(web)).await
+}
+#[allow(clippy::too_many_arguments)]
+async fn serve_automation_simulation_options(
+    devices:&[u8],rules:&[u8],directory:&Path,duration:Duration,scene:Option<&str>,publication:Option<SimulationPublication<'_>>,web:Option<WebSimulation>
+)->Result<(),String> {
     if duration.is_zero() || duration > Duration::from_secs(86400) {
         return Err("duration must be in (0,24h]".into());
     }
@@ -401,7 +413,7 @@ pub async fn serve_automation_simulation_with_publication(
             .map_err(error)?;
     }
     drop(store);
-    let controller = Uuid::new_v4();
+    let controller = if web.is_some() { web_controller(directory)? } else { Uuid::new_v4() };
     let admission = Admission::open(
         path,
         Options {
@@ -456,6 +468,22 @@ pub async fn serve_automation_simulation_with_publication(
         if let Some(scene) = scene {
             runtime.start_scene(scene).await?;
         }
+        if let Some(web)=web {
+            let tokens=std::sync::Arc::new(crate::web_auth::Tokens::default());
+            let selected:std::collections::BTreeMap<String,String>=document.timed_scenes.iter().filter(|(_,s)|s.enabled && s.review_evidence.as_ref().is_some_and(|v|!v.trim().is_empty())).map(|(id,_)|(id.clone(),id.clone())).collect();
+            tokens.insert(Uuid::new_v4(),&web.secret,crate::web_auth::Grant{controller,role:crate::web_auth::Role::Member,scenes:selected.keys().cloned().collect()})?;
+            let api=std::sync::Arc::new(crate::web_api::Api{origin:format!("http://{}",web.address),tokens,control:runtime.control(),revision:document.revision,boot:admission.boot_id().to_owned(),scenes:selected,receipts:std::sync::Mutex::new(crate::web_receipts::Receipts::open(&directory.join("web-receipts.sqlite"))?)});
+            let (stop,receive)=tokio::sync::watch::channel(false);
+            let drive=runtime.drive(&mut owner,Duration::from_millis(10),5000,receive.clone(),wall_ms);
+            let server=crate::web_server::serve(api,web.address,receive);
+            tokio::pin!(drive,server);
+            tokio::select! {
+                result=&mut server=>{let _=stop.send(true);drive.await?;result?;return Err("Web listener ended early".into());},
+                result=&mut drive=>{let _=stop.send(true);server.await?;result?;return Err("automation ended early".into());},
+                _=tokio::time::sleep(duration)=>{let _=stop.send(true);let (a,b)=tokio::join!(drive,server);a?;b?;}
+            }
+            return Ok(());
+        }
         {
             let (stop, receive) = tokio::sync::watch::channel(false);
             let drive = runtime.drive(&mut owner, Duration::from_millis(10), 5000, receive, wall_ms);
@@ -506,4 +534,21 @@ fn wall_ms() -> Result<i64, String> {
             .as_millis(),
     )
     .map_err(error)
+}
+
+fn web_controller(directory:&Path)->Result<Uuid,String> {
+    use std::io::Write;
+    let path=directory.join("web-controller-id");
+    if !path.exists() && directory.join("web-receipts.sqlite").exists() {return Err("Web identity missing beside existing receipts; refusing identity replacement".into());}
+    let mut options=std::fs::OpenOptions::new();options.write(true).create_new(true);
+    #[cfg(unix)] {use std::os::unix::fs::OpenOptionsExt;options.mode(0o600);}
+    match options.open(&path) {
+        Ok(mut file)=>{let id=Uuid::new_v4();file.write_all(id.to_string().as_bytes()).map_err(error)?;file.sync_all().map_err(error)?;Ok(id)},
+        Err(e) if e.kind()==std::io::ErrorKind::AlreadyExists=>{
+            let bytes=std::fs::read(&path).map_err(error)?;
+            if bytes.len()!=36 {return Err("invalid persistent Web controller".into());}
+            Uuid::parse_str(std::str::from_utf8(&bytes).map_err(error)?).map_err(error)
+        },
+        Err(e)=>Err(error(e))
+    }
 }

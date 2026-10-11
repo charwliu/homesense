@@ -13,6 +13,9 @@ pub struct Receipts {
 }
 impl Receipts {
     pub fn open(path: &Path) -> Result<Self, String> {
+        let mut options=std::fs::OpenOptions::new();options.write(true).create(true).truncate(false);
+        #[cfg(unix)] {use std::os::unix::fs::OpenOptionsExt;options.mode(0o600);}
+        options.open(path).map_err(|e|e.to_string())?;
         let db = Connection::open(path).map_err(|e| e.to_string())?;
         db.busy_timeout(std::time::Duration::from_secs(1))
             .map_err(|e| e.to_string())?;
@@ -60,6 +63,13 @@ impl Receipts {
         .map_err(|e| e.to_string())?;
         tx.commit().map_err(|e| e.to_string())?;
         Ok(Claim::New)
+    }
+    pub fn lookup(
+        &self,
+        principal: &str,
+        key: &str,
+    ) -> Result<Option<(String, Option<String>)>, String> {
+        self.db.query_row("SELECT fingerprint,response FROM web_receipt WHERE principal=?1 AND request_key=?2",params![principal,key],|r|Ok((r.get(0)?,r.get(1)?))).optional().map_err(|e|e.to_string())
     }
     pub fn finish(&mut self, principal: &str, key: &str, response: &str) -> Result<(), String> {
         if response.len() > 8192 {

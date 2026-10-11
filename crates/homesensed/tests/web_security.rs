@@ -31,6 +31,7 @@ fn token_scope_role_and_revocation_are_independent_of_runtime_identity() {
     assert!(grant.may_read("reading"));
     assert!(!grant.may_control("reading"));
     assert!(!grant.may_read("other"));
+    assert!(tokens.insert(Uuid::new_v4(),secret,Grant{controller:caller,role:Role::Administrator,scenes:["other".into()].into()}).is_err());
     tokens.revoke(id).unwrap();
     assert!(tokens.authenticate(&format!("Bearer {secret}")).is_none());
 }

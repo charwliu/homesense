@@ -47,6 +47,7 @@ pub struct Tick {
     pub status: Status,
 }
 impl SceneScheduler {
+    pub(crate) fn owned_by(&self,run:u64,controller:Uuid)->bool {self.runs.get(&run).is_some_and(|r|r.controller()==controller)}
     pub fn new(
         admission: Admission,
         controller: Uuid,
