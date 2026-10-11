@@ -87,3 +87,16 @@ fn cycles_missing_references_and_expansion_budgets_reject_whole_plan() {
         Some(Error::Budget)
     );
 }
+
+#[test]
+fn deferred_activation_preserves_order_source_and_requires_explicit_link() {
+    let scenes=[("parent".into(),Definition {activate:vec![output("first"),call("later",true),output("last")],deactivate:None})].into();
+    let deferred=["later".into()].into();
+    let result=expand_with_deferred(&[call("parent",true)],&scenes,&deferred,4).unwrap();
+    assert_eq!(result.iter().map(|n|n.source.as_str()).collect::<Vec<_>>(),vec!["caller -> first","caller -> caller","caller -> last"]);
+    assert!(matches!(&result[1].action,Action::Scene{id,activate:true} if id=="later"));
+    assert_eq!(expand_with_deferred(&[call("parent",true)],&scenes,&deferred,3).err(),Some(Error::Budget));
+    assert_eq!(expand(&[call("parent",true)],&scenes,4).err(),Some(Error::MissingScene("later".into())));
+    assert_eq!(expand_with_deferred(&[call("later",false)],&scenes,&deferred,4).err(),Some(Error::UnknownDeactivation("later".into())));
+    assert_eq!(expand_with_deferred(&[],&scenes,&["parent".into()].into(),4).err(),Some(Error::AmbiguousScene("parent".into())));
+}
