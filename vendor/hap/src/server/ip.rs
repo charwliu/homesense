@@ -38,6 +38,25 @@ impl IpServer {
             .set_write_batch_handler(handler);
     }
 
+    /// Run the complete service, acknowledging only after TCP bind and initial
+    /// discovery records succeed. A dropped sender is a startup failure, never
+    /// readiness. The caller must still supervise the returned future.
+    pub fn run_handle_ready(
+        &self,
+        ready: tokio::sync::oneshot::Sender<()>,
+    ) -> BoxFuture<Result<()>> {
+        let http = self.http_server.run_handle_ready(Some(ready));
+        let responder = self.mdns_responder.clone();
+        async move {
+            let discovery = async move {
+                let handle = responder.lock().await.run_handle();
+                handle.await
+            };
+            futures::try_join!(http, discovery)?;
+            Ok(())
+        }.boxed()
+    }
+
     /// Register an existing shared graph during startup. On any failure discard
     /// this server instance; live graph publication needs a separate transaction.
     pub async fn add_accessory_handle(&self, accessory: pointer::Accessory) -> Result<()> {
