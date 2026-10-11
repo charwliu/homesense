@@ -93,8 +93,8 @@ impl Store {
             params![boot,command,correlation,parent], |r| r.get(0),
         )?;
         let terminal: bool = tx.query_row(
-            "SELECT EXISTS(SELECT 1 FROM rule_chain_outcome WHERE boot_id=?1 AND correlation=?2)",
-            params![boot, correlation],
+            "SELECT EXISTS(SELECT 1 FROM rule_chain_outcome WHERE boot_id=?1 AND correlation=?2) OR EXISTS(SELECT 1 FROM feedback_inference WHERE boot_id=?1 AND sequence=?3)",
+            params![boot, correlation, sequence],
             |r| r.get(0),
         )?;
         if !owned || terminal {
