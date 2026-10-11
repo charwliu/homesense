@@ -246,6 +246,17 @@ impl SceneRuntime {
         if self.due_fade(now).is_some() {
             return Err("configured fade requires feedback preparation".into());
         }
+        // Cancel before offering a step: no command has entered admission yet.
+        // Admission still checks the fence atomically for a concurrent override.
+        if let Some((_, step)) = self.timeline.due_step(now) {
+            let device = step.device.clone();
+            if self.admission.manual_superseded(device.clone(), self.manual_fence)
+                .await.map_err(|e| format!("scene manual fence: {e:?}"))?
+            {
+                self.cancel_device(&device).await?;
+                return Ok(None);
+            }
+        }
         let Some(due) = self
             .timeline
             .next(now, current.epochs)
