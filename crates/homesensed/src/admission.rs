@@ -226,6 +226,7 @@ enum Message {
 }
 #[derive(Clone)]
 pub struct Admission {
+    pub(crate) fade_budget: crate::fade_budget::Budget,
     sender: mpsc::SyncSender<Message>,
     boot: String,
     clock: Instant,
@@ -1115,6 +1116,7 @@ impl Admission {
             .map_err(|e| e.to_string())?;
         start.await.map_err(|_| "admission worker exited")??;
         Ok(Self {
+            fade_budget: Default::default(),
             sender,
             boot,
             clock,
