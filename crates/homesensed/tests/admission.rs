@@ -2062,3 +2062,14 @@ async fn automation_publication_validates_before_barrier_and_commits_one_revisio
         actor.shutdown().await.unwrap();
     }
 }
+
+#[tokio::test]
+async fn invalid_write_interval_rejects_before_creating_database() {
+    for interval in [std::time::Duration::ZERO, std::time::Duration::from_millis(19), std::time::Duration::from_millis(1001)] {
+        let path=std::env::temp_dir().join(format!("invalid-pacing-{}.sqlite",Uuid::new_v4()));
+        let result=Admission::open(path.clone(),Options{write_interval:interval,..options()}, |_|true).await;
+        assert!(result.is_err());
+        assert!(!path.exists());
+        assert!(!path.with_extension("runtime.lock").exists());
+    }
+}

@@ -128,7 +128,7 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
         let clock = self.admission.clone();
         let (connection, sent) = tokio::task::spawn_blocking(move || {
             let sent = connection.send(&frame, deadline, || clock.monotonic_ms());
-            *slot = Some(tokio::time::Instant::now() + std::time::Duration::from_millis(20));
+            *slot = Some(tokio::time::Instant::now() + clock.write_interval);
             (connection, sent)
         })
         .await
@@ -229,7 +229,7 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
             let result = connection.send(&ticket.frame, ticket.command.deadline_ms, || {
                 clock.monotonic_ms()
             });
-            *slot = Some(tokio::time::Instant::now() + std::time::Duration::from_millis(20));
+            *slot = Some(tokio::time::Instant::now() + clock.write_interval);
             (connection, result)
         })
         .await
@@ -256,12 +256,13 @@ mod pacing_tests {
     use super::*;
     #[tokio::test]
     async fn queries_and_controls_share_the_same_write_spacing() {
+        for interval_ms in [20, 50] {
         use homesense_core::{ExecutionContext,DeviceId,Command,Percent,LevelTransition};
         let path=std::env::temp_dir().join(format!("pacing-{}.sqlite",uuid::Uuid::new_v4()));
         let bytes=include_bytes!("../../../config/simulation.json");
         homesense_storage::Store::open(&path).unwrap().publish_configuration(None,bytes,ExecutionContext::Simulation,&[]).unwrap();
         let controller=uuid::Uuid::new_v4();
-        let admission=Admission::open(path.clone(),crate::admission::Options{context:ExecutionContext::Simulation,..Default::default()},move |id|id==controller).await.unwrap();
+        let admission=Admission::open(path.clone(),crate::admission::Options{context:ExecutionContext::Simulation,write_interval:std::time::Duration::from_millis(interval_ms),..Default::default()},move |id|id==controller).await.unwrap();
         admission.synchronized(1,1).await.unwrap();
         let writes=std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
         struct Stream(std::sync::Arc<std::sync::Mutex<Vec<std::time::Instant>>>);
@@ -281,12 +282,13 @@ mod pacing_tests {
         owner.query_status("simulation",module,device.channel,ExecutionContext::Simulation,100).await.unwrap();
         let times=writes.lock().unwrap();
         assert_eq!(times.len(),3);
-        assert!(times.windows(2).all(|pair|pair[1].duration_since(pair[0])>=std::time::Duration::from_millis(20)));
+        assert!(times.windows(2).all(|pair|pair[1].duration_since(pair[0])>=std::time::Duration::from_millis(interval_ms)));
         drop(times);
         admission.shutdown().await.unwrap();
         drop(owner);
         for suffix in ["","-wal","-shm"] {let _=std::fs::remove_file(format!("{}{suffix}",path.display()));}
         let _=std::fs::remove_file(path.with_extension("runtime.lock"));
+        }
     }
     #[tokio::test]
     async fn cancelled_query_keeps_slot_until_blocking_writer_finishes() {
