@@ -126,6 +126,7 @@ struct PendingPublication {
     cancellations: Vec<homesense_core::queue::Cancellation>,
 }
 pub(crate) enum SceneUpdate {
+    Expiry { run: String, expected: u64, expiry: homesense_storage::scene_run::Expiry },
     Begin { run: String, definition: Option<String> },
     Checkpoint { run: String, expected: u64, status: homesense_storage::scene_run::Status, cancellation: Option<homesense_storage::scene_run::Cancellation> },
 }
@@ -441,6 +442,7 @@ impl Admission {
                             else {
                                 let stored = match update {
                                     SceneUpdate::Begin{run,definition} => store.begin_scene_run(&worker_boot,&run,generation.epochs.configuration,definition.as_deref(),millis(clock)).map(|()|0),
+                                    SceneUpdate::Expiry{run,expected,expiry} => store.checkpoint_scene_run_with_expiry(&worker_boot,&run,expected,homesense_storage::scene_run::Status::Running,millis(clock),&expiry),
                                     SceneUpdate::Checkpoint{run,expected,status,cancellation} => store.checkpoint_scene_run_with_cancellation(&worker_boot,&run,expected,status,millis(clock),cancellation.as_ref()),
                                 };
                                 stored.map_err(|error| match error {
