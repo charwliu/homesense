@@ -300,6 +300,13 @@ impl SceneRuntime {
                 });
                 Ok(Some(ids))
             }
+            Err(crate::admission::SubmissionFailure::ManualSuperseded) => {
+                // The actor rejected the step before allocating or persisting commands.
+                self.timeline.cancel_offered(due.index).map_err(|e| format!("{e:?}"))?;
+                self.cancellation_audited.entry(device.clone()).or_insert(false);
+                self.cancel_device(&device).await?;
+                Ok(None)
+            }
             Err(e) => {
                 self.timeline
                     .resolve(due.index, false)
