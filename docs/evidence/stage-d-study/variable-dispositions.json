@@ -81,6 +81,18 @@
         3
       ],
       "arithmetic_operands": [],
+      "type_review": {
+        "recommended_runtime_type": "integer",
+        "requires_integer_program_semantics": true,
+        "non_boolean_assignments": [
+          2,
+          3
+        ],
+        "assignment_set_is_complete_runtime_range": false,
+        "boolean_conversion_requires_program_rewrite": true,
+        "automatic_conversion_approved": false,
+        "basis": "arithmetic or explicit values outside 0/1 prohibit a type-only boolean migration; binary assignments alone do not prove boolean semantics"
+      },
       "feedback_cache_confirmed": false,
       "basis": "scene/light actions imply logical mode candidate; motor-only actions imply transient bookkeeping candidate; no physical feedback classification inferred",
       "review_status": "study_logic_field_validated",
@@ -298,6 +310,21 @@
         6
       ],
       "arithmetic_operands": [],
+      "type_review": {
+        "recommended_runtime_type": "integer",
+        "requires_integer_program_semantics": true,
+        "non_boolean_assignments": [
+          2,
+          3,
+          4,
+          5,
+          6
+        ],
+        "assignment_set_is_complete_runtime_range": false,
+        "boolean_conversion_requires_program_rewrite": true,
+        "automatic_conversion_approved": false,
+        "basis": "arithmetic or explicit values outside 0/1 prohibit a type-only boolean migration; binary assignments alone do not prove boolean semantics"
+      },
       "feedback_cache_confirmed": false,
       "basis": "scene/light actions imply logical mode candidate; motor-only actions imply transient bookkeeping candidate; no physical feedback classification inferred",
       "review_status": "needs_review",
@@ -402,6 +429,18 @@
         3
       ],
       "arithmetic_operands": [],
+      "type_review": {
+        "recommended_runtime_type": "integer",
+        "requires_integer_program_semantics": true,
+        "non_boolean_assignments": [
+          2,
+          3
+        ],
+        "assignment_set_is_complete_runtime_range": false,
+        "boolean_conversion_requires_program_rewrite": true,
+        "automatic_conversion_approved": false,
+        "basis": "arithmetic or explicit values outside 0/1 prohibit a type-only boolean migration; binary assignments alone do not prove boolean semantics"
+      },
       "feedback_cache_confirmed": false,
       "basis": "scene/light actions imply logical mode candidate; motor-only actions imply transient bookkeeping candidate; no physical feedback classification inferred",
       "review_status": "needs_review",
@@ -487,6 +526,15 @@
         1
       ],
       "arithmetic_operands": [],
+      "type_review": {
+        "recommended_runtime_type": "integer",
+        "requires_integer_program_semantics": false,
+        "non_boolean_assignments": [],
+        "assignment_set_is_complete_runtime_range": false,
+        "boolean_conversion_requires_program_rewrite": false,
+        "automatic_conversion_approved": false,
+        "basis": "arithmetic or explicit values outside 0/1 prohibit a type-only boolean migration; binary assignments alone do not prove boolean semantics"
+      },
       "feedback_cache_confirmed": false,
       "basis": "scene/light actions imply logical mode candidate; motor-only actions imply transient bookkeeping candidate; no physical feedback classification inferred",
       "review_status": "needs_review",
@@ -649,6 +697,19 @@
         6
       ],
       "arithmetic_operands": [],
+      "type_review": {
+        "recommended_runtime_type": "integer",
+        "requires_integer_program_semantics": true,
+        "non_boolean_assignments": [
+          2,
+          4,
+          6
+        ],
+        "assignment_set_is_complete_runtime_range": false,
+        "boolean_conversion_requires_program_rewrite": true,
+        "automatic_conversion_approved": false,
+        "basis": "arithmetic or explicit values outside 0/1 prohibit a type-only boolean migration; binary assignments alone do not prove boolean semantics"
+      },
       "feedback_cache_confirmed": false,
       "basis": "scene/light actions imply logical mode candidate; motor-only actions imply transient bookkeeping candidate; no physical feedback classification inferred",
       "review_status": "needs_review",
@@ -808,6 +869,19 @@
         4
       ],
       "arithmetic_operands": [],
+      "type_review": {
+        "recommended_runtime_type": "integer",
+        "requires_integer_program_semantics": true,
+        "non_boolean_assignments": [
+          2,
+          3,
+          4
+        ],
+        "assignment_set_is_complete_runtime_range": false,
+        "boolean_conversion_requires_program_rewrite": true,
+        "automatic_conversion_approved": false,
+        "basis": "arithmetic or explicit values outside 0/1 prohibit a type-only boolean migration; binary assignments alone do not prove boolean semantics"
+      },
       "feedback_cache_confirmed": false,
       "basis": "scene/light actions imply logical mode candidate; motor-only actions imply transient bookkeeping candidate; no physical feedback classification inferred",
       "review_status": "needs_review",
@@ -951,6 +1025,21 @@
         6
       ],
       "arithmetic_operands": [],
+      "type_review": {
+        "recommended_runtime_type": "integer",
+        "requires_integer_program_semantics": true,
+        "non_boolean_assignments": [
+          2,
+          3,
+          4,
+          5,
+          6
+        ],
+        "assignment_set_is_complete_runtime_range": false,
+        "boolean_conversion_requires_program_rewrite": true,
+        "automatic_conversion_approved": false,
+        "basis": "arithmetic or explicit values outside 0/1 prohibit a type-only boolean migration; binary assignments alone do not prove boolean semantics"
+      },
       "feedback_cache_confirmed": false,
       "basis": "scene/light actions imply logical mode candidate; motor-only actions imply transient bookkeeping candidate; no physical feedback classification inferred",
       "review_status": "needs_review",
@@ -1018,6 +1107,18 @@
         4
       ],
       "arithmetic_operands": [],
+      "type_review": {
+        "recommended_runtime_type": "integer",
+        "requires_integer_program_semantics": true,
+        "non_boolean_assignments": [
+          3,
+          4
+        ],
+        "assignment_set_is_complete_runtime_range": false,
+        "boolean_conversion_requires_program_rewrite": true,
+        "automatic_conversion_approved": false,
+        "basis": "arithmetic or explicit values outside 0/1 prohibit a type-only boolean migration; binary assignments alone do not prove boolean semantics"
+      },
       "feedback_cache_confirmed": false,
       "basis": "scene/light actions imply logical mode candidate; motor-only actions imply transient bookkeeping candidate; no physical feedback classification inferred",
       "review_status": "needs_review",
@@ -1285,6 +1386,21 @@
         4,
         40
       ],
+      "type_review": {
+        "recommended_runtime_type": "integer",
+        "requires_integer_program_semantics": true,
+        "non_boolean_assignments": [
+          2,
+          3,
+          4,
+          6,
+          40
+        ],
+        "assignment_set_is_complete_runtime_range": false,
+        "boolean_conversion_requires_program_rewrite": true,
+        "automatic_conversion_approved": false,
+        "basis": "arithmetic or explicit values outside 0/1 prohibit a type-only boolean migration; binary assignments alone do not prove boolean semantics"
+      },
       "feedback_cache_confirmed": false,
       "basis": "scene/light actions imply logical mode candidate; motor-only actions imply transient bookkeeping candidate; no physical feedback classification inferred",
       "review_status": "needs_review",
@@ -1565,6 +1681,21 @@
         40,
         100
       ],
+      "type_review": {
+        "recommended_runtime_type": "integer",
+        "requires_integer_program_semantics": true,
+        "non_boolean_assignments": [
+          2,
+          3,
+          4,
+          6,
+          40
+        ],
+        "assignment_set_is_complete_runtime_range": false,
+        "boolean_conversion_requires_program_rewrite": true,
+        "automatic_conversion_approved": false,
+        "basis": "arithmetic or explicit values outside 0/1 prohibit a type-only boolean migration; binary assignments alone do not prove boolean semantics"
+      },
       "feedback_cache_confirmed": false,
       "basis": "scene/light actions imply logical mode candidate; motor-only actions imply transient bookkeeping candidate; no physical feedback classification inferred",
       "review_status": "needs_review",
@@ -1820,6 +1951,21 @@
         4,
         40
       ],
+      "type_review": {
+        "recommended_runtime_type": "integer",
+        "requires_integer_program_semantics": true,
+        "non_boolean_assignments": [
+          2,
+          3,
+          4,
+          6,
+          40
+        ],
+        "assignment_set_is_complete_runtime_range": false,
+        "boolean_conversion_requires_program_rewrite": true,
+        "automatic_conversion_approved": false,
+        "basis": "arithmetic or explicit values outside 0/1 prohibit a type-only boolean migration; binary assignments alone do not prove boolean semantics"
+      },
       "feedback_cache_confirmed": false,
       "basis": "scene/light actions imply logical mode candidate; motor-only actions imply transient bookkeeping candidate; no physical feedback classification inferred",
       "review_status": "needs_review",
@@ -2087,6 +2233,19 @@
         5
       ],
       "arithmetic_operands": [],
+      "type_review": {
+        "recommended_runtime_type": "integer",
+        "requires_integer_program_semantics": true,
+        "non_boolean_assignments": [
+          3,
+          4,
+          5
+        ],
+        "assignment_set_is_complete_runtime_range": false,
+        "boolean_conversion_requires_program_rewrite": true,
+        "automatic_conversion_approved": false,
+        "basis": "arithmetic or explicit values outside 0/1 prohibit a type-only boolean migration; binary assignments alone do not prove boolean semantics"
+      },
       "feedback_cache_confirmed": false,
       "basis": "scene/light actions imply logical mode candidate; motor-only actions imply transient bookkeeping candidate; no physical feedback classification inferred",
       "review_status": "needs_review",
@@ -2209,6 +2368,18 @@
         3
       ],
       "arithmetic_operands": [],
+      "type_review": {
+        "recommended_runtime_type": "integer",
+        "requires_integer_program_semantics": true,
+        "non_boolean_assignments": [
+          2,
+          3
+        ],
+        "assignment_set_is_complete_runtime_range": false,
+        "boolean_conversion_requires_program_rewrite": true,
+        "automatic_conversion_approved": false,
+        "basis": "arithmetic or explicit values outside 0/1 prohibit a type-only boolean migration; binary assignments alone do not prove boolean semantics"
+      },
       "feedback_cache_confirmed": false,
       "basis": "scene/light actions imply logical mode candidate; motor-only actions imply transient bookkeeping candidate; no physical feedback classification inferred",
       "review_status": "needs_review",
@@ -2331,6 +2502,18 @@
         3
       ],
       "arithmetic_operands": [],
+      "type_review": {
+        "recommended_runtime_type": "integer",
+        "requires_integer_program_semantics": true,
+        "non_boolean_assignments": [
+          2,
+          3
+        ],
+        "assignment_set_is_complete_runtime_range": false,
+        "boolean_conversion_requires_program_rewrite": true,
+        "automatic_conversion_approved": false,
+        "basis": "arithmetic or explicit values outside 0/1 prohibit a type-only boolean migration; binary assignments alone do not prove boolean semantics"
+      },
       "feedback_cache_confirmed": false,
       "basis": "scene/light actions imply logical mode candidate; motor-only actions imply transient bookkeeping candidate; no physical feedback classification inferred",
       "review_status": "needs_review",
@@ -2453,6 +2636,18 @@
         3
       ],
       "arithmetic_operands": [],
+      "type_review": {
+        "recommended_runtime_type": "integer",
+        "requires_integer_program_semantics": true,
+        "non_boolean_assignments": [
+          2,
+          3
+        ],
+        "assignment_set_is_complete_runtime_range": false,
+        "boolean_conversion_requires_program_rewrite": true,
+        "automatic_conversion_approved": false,
+        "basis": "arithmetic or explicit values outside 0/1 prohibit a type-only boolean migration; binary assignments alone do not prove boolean semantics"
+      },
       "feedback_cache_confirmed": false,
       "basis": "scene/light actions imply logical mode candidate; motor-only actions imply transient bookkeeping candidate; no physical feedback classification inferred",
       "review_status": "needs_review",
@@ -2552,6 +2747,19 @@
         5
       ],
       "arithmetic_operands": [],
+      "type_review": {
+        "recommended_runtime_type": "integer",
+        "requires_integer_program_semantics": true,
+        "non_boolean_assignments": [
+          3,
+          4,
+          5
+        ],
+        "assignment_set_is_complete_runtime_range": false,
+        "boolean_conversion_requires_program_rewrite": true,
+        "automatic_conversion_approved": false,
+        "basis": "arithmetic or explicit values outside 0/1 prohibit a type-only boolean migration; binary assignments alone do not prove boolean semantics"
+      },
       "feedback_cache_confirmed": false,
       "basis": "scene/light actions imply logical mode candidate; motor-only actions imply transient bookkeeping candidate; no physical feedback classification inferred",
       "review_status": "needs_review",
@@ -2674,6 +2882,18 @@
         3
       ],
       "arithmetic_operands": [],
+      "type_review": {
+        "recommended_runtime_type": "integer",
+        "requires_integer_program_semantics": true,
+        "non_boolean_assignments": [
+          2,
+          3
+        ],
+        "assignment_set_is_complete_runtime_range": false,
+        "boolean_conversion_requires_program_rewrite": true,
+        "automatic_conversion_approved": false,
+        "basis": "arithmetic or explicit values outside 0/1 prohibit a type-only boolean migration; binary assignments alone do not prove boolean semantics"
+      },
       "feedback_cache_confirmed": false,
       "basis": "scene/light actions imply logical mode candidate; motor-only actions imply transient bookkeeping candidate; no physical feedback classification inferred",
       "review_status": "needs_review",
@@ -2796,6 +3016,18 @@
         3
       ],
       "arithmetic_operands": [],
+      "type_review": {
+        "recommended_runtime_type": "integer",
+        "requires_integer_program_semantics": true,
+        "non_boolean_assignments": [
+          2,
+          3
+        ],
+        "assignment_set_is_complete_runtime_range": false,
+        "boolean_conversion_requires_program_rewrite": true,
+        "automatic_conversion_approved": false,
+        "basis": "arithmetic or explicit values outside 0/1 prohibit a type-only boolean migration; binary assignments alone do not prove boolean semantics"
+      },
       "feedback_cache_confirmed": false,
       "basis": "scene/light actions imply logical mode candidate; motor-only actions imply transient bookkeeping candidate; no physical feedback classification inferred",
       "review_status": "needs_review",
@@ -2918,6 +3150,18 @@
         3
       ],
       "arithmetic_operands": [],
+      "type_review": {
+        "recommended_runtime_type": "integer",
+        "requires_integer_program_semantics": true,
+        "non_boolean_assignments": [
+          2,
+          3
+        ],
+        "assignment_set_is_complete_runtime_range": false,
+        "boolean_conversion_requires_program_rewrite": true,
+        "automatic_conversion_approved": false,
+        "basis": "arithmetic or explicit values outside 0/1 prohibit a type-only boolean migration; binary assignments alone do not prove boolean semantics"
+      },
       "feedback_cache_confirmed": false,
       "basis": "scene/light actions imply logical mode candidate; motor-only actions imply transient bookkeeping candidate; no physical feedback classification inferred",
       "review_status": "needs_review",
@@ -3040,6 +3284,18 @@
         3
       ],
       "arithmetic_operands": [],
+      "type_review": {
+        "recommended_runtime_type": "integer",
+        "requires_integer_program_semantics": true,
+        "non_boolean_assignments": [
+          2,
+          3
+        ],
+        "assignment_set_is_complete_runtime_range": false,
+        "boolean_conversion_requires_program_rewrite": true,
+        "automatic_conversion_approved": false,
+        "basis": "arithmetic or explicit values outside 0/1 prohibit a type-only boolean migration; binary assignments alone do not prove boolean semantics"
+      },
       "feedback_cache_confirmed": false,
       "basis": "scene/light actions imply logical mode candidate; motor-only actions imply transient bookkeeping candidate; no physical feedback classification inferred",
       "review_status": "needs_review",
@@ -3162,6 +3418,18 @@
         3
       ],
       "arithmetic_operands": [],
+      "type_review": {
+        "recommended_runtime_type": "integer",
+        "requires_integer_program_semantics": true,
+        "non_boolean_assignments": [
+          2,
+          3
+        ],
+        "assignment_set_is_complete_runtime_range": false,
+        "boolean_conversion_requires_program_rewrite": true,
+        "automatic_conversion_approved": false,
+        "basis": "arithmetic or explicit values outside 0/1 prohibit a type-only boolean migration; binary assignments alone do not prove boolean semantics"
+      },
       "feedback_cache_confirmed": false,
       "basis": "scene/light actions imply logical mode candidate; motor-only actions imply transient bookkeeping candidate; no physical feedback classification inferred",
       "review_status": "needs_review",
@@ -3282,6 +3550,17 @@
         2
       ],
       "arithmetic_operands": [],
+      "type_review": {
+        "recommended_runtime_type": "integer",
+        "requires_integer_program_semantics": true,
+        "non_boolean_assignments": [
+          2
+        ],
+        "assignment_set_is_complete_runtime_range": false,
+        "boolean_conversion_requires_program_rewrite": true,
+        "automatic_conversion_approved": false,
+        "basis": "arithmetic or explicit values outside 0/1 prohibit a type-only boolean migration; binary assignments alone do not prove boolean semantics"
+      },
       "feedback_cache_confirmed": false,
       "basis": "scene/light actions imply logical mode candidate; motor-only actions imply transient bookkeeping candidate; no physical feedback classification inferred",
       "review_status": "needs_review",
@@ -3470,6 +3749,18 @@
         3
       ],
       "arithmetic_operands": [],
+      "type_review": {
+        "recommended_runtime_type": "integer",
+        "requires_integer_program_semantics": true,
+        "non_boolean_assignments": [
+          2,
+          3
+        ],
+        "assignment_set_is_complete_runtime_range": false,
+        "boolean_conversion_requires_program_rewrite": true,
+        "automatic_conversion_approved": false,
+        "basis": "arithmetic or explicit values outside 0/1 prohibit a type-only boolean migration; binary assignments alone do not prove boolean semantics"
+      },
       "feedback_cache_confirmed": false,
       "basis": "scene/light actions imply logical mode candidate; motor-only actions imply transient bookkeeping candidate; no physical feedback classification inferred",
       "review_status": "needs_review",
@@ -3592,6 +3883,18 @@
         3
       ],
       "arithmetic_operands": [],
+      "type_review": {
+        "recommended_runtime_type": "integer",
+        "requires_integer_program_semantics": true,
+        "non_boolean_assignments": [
+          2,
+          3
+        ],
+        "assignment_set_is_complete_runtime_range": false,
+        "boolean_conversion_requires_program_rewrite": true,
+        "automatic_conversion_approved": false,
+        "basis": "arithmetic or explicit values outside 0/1 prohibit a type-only boolean migration; binary assignments alone do not prove boolean semantics"
+      },
       "feedback_cache_confirmed": false,
       "basis": "scene/light actions imply logical mode candidate; motor-only actions imply transient bookkeeping candidate; no physical feedback classification inferred",
       "review_status": "needs_review",
@@ -3751,6 +4054,19 @@
         6
       ],
       "arithmetic_operands": [],
+      "type_review": {
+        "recommended_runtime_type": "integer",
+        "requires_integer_program_semantics": true,
+        "non_boolean_assignments": [
+          2,
+          4,
+          6
+        ],
+        "assignment_set_is_complete_runtime_range": false,
+        "boolean_conversion_requires_program_rewrite": true,
+        "automatic_conversion_approved": false,
+        "basis": "arithmetic or explicit values outside 0/1 prohibit a type-only boolean migration; binary assignments alone do not prove boolean semantics"
+      },
       "feedback_cache_confirmed": false,
       "basis": "scene/light actions imply logical mode candidate; motor-only actions imply transient bookkeeping candidate; no physical feedback classification inferred",
       "review_status": "needs_review",
