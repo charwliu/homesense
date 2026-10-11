@@ -260,3 +260,30 @@ fn dimmer_level_comparison_is_strict_and_off_is_zero() {
     );
     assert!(compile_event(&xml.replace("GREATER_THAN", "UNKNOWN"), &bindings).is_err());
 }
+
+#[test]
+fn source_timed_ramp_retains_duration_and_emits_disabled_scene_definition() {
+    let evidence:serde_json::Value=serde_json::from_str(include_str!("../../../docs/evidence/stage-d-study/remaining-semantics.json")).unwrap();
+    let program=evidence["programs"].as_array().unwrap().iter().find(|v|v["owner"]=="event:417:2").unwrap();
+    let payload=program["evidence"][0]["source_xml"].as_str().unwrap();
+    let xml=format!("<event><deviceid>417</deviceid><eventid>2</eventid><codeitem><id>46</id><enabled>True</enabled><type>1</type><device>1</device><cmdcond>{payload}</cmdcond><subitems/></codeitem></event>");
+    let bindings=[("1".into(),Binding{device:DeviceId::new("simulation:light").unwrap(),kind:ModuleKind::Dimmer})].into();
+    assert!(compile_event(&xml,&bindings).is_err());
+    let output=homesense_import::semantic::compile_event_with_fades(&xml,&bindings,100,100).unwrap();
+    let Action::Scene{id,activate:true}=&output.actions[0].action else {panic!("expected timed scene reference");};
+    let definition=&output.timed_scenes[id];
+    assert_eq!(definition["enabled"],false);
+    assert_eq!(definition["steps"][0]["fade"]["duration_ms"],1000);
+    assert_eq!(definition["steps"][0]["command"]["value"],0);
+    assert_eq!(definition["steps"][0]["command"]["ramp"],false);
+    let config=homesense_config::Configuration::parse(include_bytes!("../../../config/simulation.json"),homesense_core::ExecutionContext::Simulation).unwrap();
+    let document=serde_json::json!({"schema_version":1,"configuration_revision":1,"variables":[],"rules":[],"timed_scenes":[definition]});
+    homesense_config::rule_document::Document::parse(&serde_json::to_vec(&document).unwrap(),&config).unwrap();
+    for bad in [xml.replace("<static>1000</static>","<static>0</static>"),
+                xml.replace("<static>0</static>","<static>101</static>"),
+                xml.replace("<name>TIME</name>","<name>LEVEL</name>"),
+                xml.replace("<static>1000</static>","<variable>1000</variable>")] {
+        assert!(homesense_import::semantic::compile_event_with_fades(&bad,&bindings,100,100).is_err());
+    }
+    assert!(homesense_import::semantic::compile_event_with_fades(&xml,&bindings,0,100).is_err());
+}
