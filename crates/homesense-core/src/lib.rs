@@ -1,8 +1,14 @@
 //! HomeSense device types. Construction validates wire-level ranges.
 pub mod admission;
 pub mod arbiter;
+pub mod calendar;
 pub mod execution;
+pub mod gesture;
 pub mod queue;
+pub mod rule;
+pub mod rule_chain;
+pub mod scene;
+pub mod scene_expand;
 use std::fmt;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
