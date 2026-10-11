@@ -6205,3 +6205,31 @@ async fn scheduler_stop_barrier_preserves_cancellation_request_for_cleanup() {
     assert_eq!(sql.query_row("SELECT count(*) FROM command_journal",[],|r|r.get::<_,i64>(0)).unwrap(),0);
     a.shutdown().await.unwrap();
 }
+
+#[tokio::test]
+async fn scene_expiry_is_saved_before_later_valid_step_admission() {
+    use homesense_core::{DeviceId,Command,Percent,LevelTransition,scene::Step};
+    for fault in [false,true] {
+        let db=Db(std::env::temp_dir().join(format!("scene-expiry-{}.sqlite",Uuid::new_v4())));
+        Store::open(&db.0).unwrap().publish_configuration(None,include_bytes!("../../../config/simulation.json"),ExecutionContext::Simulation,&[]).unwrap();
+        let controller=Uuid::new_v4();let a=actor(&db,controller).await;
+        let steps=[0,10].into_iter().map(|delay_ms|Step{device:DeviceId::new("simulation:light").unwrap(),command:Command::SetLevel{level:Percent::new(30).unwrap(),transition:LevelTransition::Immediate},delay_ms,source:format!("synthetic:{delay_ms}")}).collect();
+        let mut scene=homesensed::scene_runtime::SceneRuntime::new(a.clone(),controller,steps,0,5).await.unwrap();
+        let sql=rusqlite::Connection::open(&db.0).unwrap();
+        if fault {sql.execute_batch("CREATE TRIGGER reject_expiry BEFORE INSERT ON scene_expiry BEGIN SELECT RAISE(ABORT,'synthetic'); END;").unwrap();}
+        let result=scene.poll(10).await;
+        if fault {
+            assert!(result.is_err());assert!(a.dispatch().await.is_err());
+            assert_eq!(sql.query_row("SELECT count(*) FROM command_journal",[],|r|r.get::<_,i64>(0)).unwrap(),0);
+        } else {
+            assert!(result.unwrap().is_some());
+            assert_eq!(sql.query_row("SELECT step_index FROM scene_expiry WHERE run_id=?1",[scene.audit_id()],|r|r.get::<_,i64>(0)).unwrap(),0);
+            assert_eq!(sql.query_row("SELECT step_index FROM scene_step WHERE run_id=?1",[scene.audit_id()],|r|r.get::<_,i64>(0)).unwrap(),1);
+            let ticket=a.dispatch().await.unwrap().unwrap();a.finish_write(ticket.command.id,true).await.unwrap();scene.reconcile().await.unwrap();
+            assert_eq!(scene.status(),homesense_core::scene::Status::Partial);
+            assert!(scene.poll(20).await.unwrap().is_none());
+            assert_eq!(sql.query_row("SELECT count(*) FROM scene_expiry",[],|r|r.get::<_,i64>(0)).unwrap(),1);
+        }
+        a.shutdown().await.unwrap();
+    }
+}
