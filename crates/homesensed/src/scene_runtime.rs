@@ -44,6 +44,7 @@ struct Pending {
     written: usize,
 }
 impl SceneRuntime {
+    pub(crate) fn controller(&self) -> Uuid { self.controller }
     /// A durable terminal with no owned output is safe to deliver as a result.
     pub(crate) fn settled_terminal(&self) -> bool {
         !self.audit_failed && !self.has_pending() && self.audit_status.terminal()

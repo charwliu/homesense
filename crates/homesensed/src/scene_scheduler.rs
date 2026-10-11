@@ -149,6 +149,14 @@ impl SceneScheduler {
         id: &str,
         now: u64,
     ) -> Result<u64, String> {
+        self.start_document_as(document, id, now, self.controller).await
+    }
+    /// Starts under the authenticated caller, preserving its identity for later
+    /// command admission and revocation checks.
+    pub async fn start_document_as(
+        &mut self, document: &homesense_config::rule_document::Document,
+        id: &str, now: u64, controller: Uuid,
+    ) -> Result<u64, String> {
         let generation = self
             .admission
             .task_generation()
@@ -172,6 +180,7 @@ impl SceneScheduler {
             scene.max_lateness_ms,
             Some(document.revision),
             Some(id.to_owned()),
+            controller,
         )
         .await?;
         self.runs.get_mut(&run).unwrap().configured_fades=scene.fades.clone();
@@ -186,7 +195,7 @@ impl SceneScheduler {
         now: u64,
         lateness: u64,
     ) -> Result<u64, String> {
-        self.start_inner(steps, now, lateness, None, None).await
+        self.start_inner(steps, now, lateness, None, None, self.controller).await
     }
     async fn start_inner(
         &mut self,
@@ -195,6 +204,7 @@ impl SceneScheduler {
         lateness: u64,
         revision: Option<u64>,
         definition: Option<String>,
+        controller: Uuid,
     ) -> Result<u64, String> {
         self.clock(now)?;
         if self.runs.len() + self.results.len() + self.reserved.load(Ordering::SeqCst) >= self.capacity {
@@ -204,7 +214,7 @@ impl SceneScheduler {
         let devices: BTreeSet<_> = steps.iter().map(|s| s.device.clone()).collect();
         let scene = SceneRuntime::new_named(
             self.admission.clone(),
-            self.controller,
+            controller,
             steps,
             now,
             lateness,
@@ -277,11 +287,12 @@ impl SceneScheduler {
         let run=self.runs.get_mut(&id).unwrap();
         run.reconcile().await?;
         if run.has_pending() {return Ok(vec![]);}
+        let controller=run.controller();
         if let Some((step,timing))=run.due_fade(now) {
             let prepared=async {
                 let (feedback,max_age)=feedback.ok_or("configured fade requires fresh feedback")?;
                 let homesense_core::Command::SetLevel{level,..}=step.command else {return Err("invalid fade target".into());};
-                let fade=crate::software_fade::SoftwareFade::start(self.admission.clone(),self.controller,step.device,level,
+                let fade=crate::software_fade::SoftwareFade::start(self.admission.clone(),controller,step.device,level,
                     timing.duration_ms,timing.interval_ms,timing.lateness_ms,timing.samples().map_err(|e|e.to_string())?,feedback,max_age).await?;
                 self.install_due_fade(id,fade,now).await
             }.await;
