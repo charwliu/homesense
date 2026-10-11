@@ -743,6 +743,15 @@ impl Document {
         scenes: &BTreeMap<String, homesense_core::scene_expand::Definition>,
         schedules: &std::collections::BTreeSet<String>,
     ) -> Result<Vec<Rule>, Error> {
+        self.link_rules(scenes,schedules,false)
+    }
+    /// Explicit opt-in for adapters that atomically accept and install delayed
+    /// calls. Ordinary immediate adapters must continue using linked_rules.
+    pub fn linked_rules_with_deferred(&self)->Result<Vec<Rule>,Error> {
+        self.link_rules(&self.immediate_scenes,&self.schedules.iter().map(|s|s.id.clone()).collect(),true)
+    }
+    fn link_rules(&self,scenes:&BTreeMap<String,homesense_core::scene_expand::Definition>,schedules:&std::collections::BTreeSet<String>,allow_deferred:bool)->Result<Vec<Rule>,Error> {
+        let deferred=if allow_deferred {self.timed_scenes.iter().filter(|(_,s)|s.enabled).map(|(id,_)|id.clone()).collect()} else {Default::default()};
         let mut linked = vec![];
         for rule in self.rules.iter().filter(|r| r.enabled) {
             match &rule.trigger {
@@ -760,9 +769,9 @@ impl Document {
                 }
                 _ => {}
             }
-            let mut actions = homesense_core::scene_expand::expand(&rule.actions, scenes, 1024)
+            let mut actions = homesense_core::scene_expand::expand_with_deferred(&rule.actions, scenes, &deferred, 1024)
                 .map_err(|e| invalid(format!("{}: {e:?}", rule.id)))?;
-            for variable in homesense_core::rule::variable_references(&actions).map_err(invalid)? {
+            for variable in homesense_core::rule::variable_references_with_deferred(&actions,&deferred).map_err(invalid)? {
                 if !self.variables.contains_key(&variable) {
                     return Err(invalid(format!(
                         "{}: undeclared scene variable {variable}",

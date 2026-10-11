@@ -396,11 +396,17 @@ pub fn restart(variables: &mut BTreeMap<String, Variable>) {
 /// Static read/write set across all branches, including branches that would be
 /// unknown or unreachable for a particular snapshot. Scene calls must be expanded.
 pub fn variable_references(nodes: &[Node]) -> Result<BTreeSet<String>, &'static str> {
-    struct Visitor {
+    variable_references_with_deferred(nodes, &BTreeSet::new())
+}
+/// Explicitly linked timelines contain commands, not variable expressions. Only
+/// their activation calls can remain opaque to this complete branch read scan.
+pub fn variable_references_with_deferred(nodes:&[Node], deferred:&BTreeSet<String>)->Result<BTreeSet<String>, &'static str> {
+    struct Visitor<'a> {
+        deferred: &'a BTreeSet<String>,
         names: BTreeSet<String>,
         remaining: usize,
     }
-    impl Visitor {
+    impl Visitor<'_> {
         fn charge(&mut self, depth: usize) -> Result<(), &'static str> {
             if depth > 64 || self.remaining == 0 {
                 return Err("rule reference budget exceeded");
@@ -456,6 +462,7 @@ pub fn variable_references(nodes: &[Node]) -> Result<BTreeSet<String>, &'static 
                         self.nodes(then_actions, depth + 1)?;
                         self.nodes(else_actions, depth + 1)?;
                     }
+                    Action::Scene { id, activate } if *activate && self.deferred.contains(id) => {},
                     Action::Scene { .. } => return Err("unexpanded scene in reference scan"),
                     Action::Command { .. } => {}
                 }
@@ -464,6 +471,7 @@ pub fn variable_references(nodes: &[Node]) -> Result<BTreeSet<String>, &'static 
         }
     }
     let mut visitor = Visitor {
+        deferred,
         names: BTreeSet::new(),
         remaining: 65536,
     };
