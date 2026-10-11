@@ -211,6 +211,19 @@ impl SceneScheduler {
         self.runs.insert(id, scene);
         Ok(id)
     }
+    /// Install explicitly prepared fade work into an existing scene. Budget
+    /// reservation and fresh feedback preparation remain the caller's responsibility.
+    pub async fn install_due_fade(&mut self, run: u64, mut fade: crate::software_fade::SoftwareFade, now: u64) -> Result<(), String> {
+        if let Err(error)=self.clock(now) {
+            fade.cancel().await?;
+            return Err(error);
+        }
+        let Some(scene)=self.runs.get_mut(&run) else {
+            fade.cancel().await?;
+            return Err("unknown scene run".into());
+        };
+        scene.install_due_fade(fade,now).await
+    }
     /// Called after a manual control has been admitted by the command owner.
     pub async fn manual_override(&mut self, device: &DeviceId) -> Result<usize, String> {
         let mut cancelled = self
