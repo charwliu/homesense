@@ -13,6 +13,8 @@ use uuid::Uuid;
 
 pub struct AutomationRuntime {
     admission: Admission,
+    control: crate::automation_control::Control,
+    requests: crate::automation_control::Receiver,
     generation: TaskGeneration,
     document: Document,
     pub(crate) panels: PanelRules,
@@ -64,7 +66,11 @@ impl AutomationRuntime {
             lateness_ms,
         )
         .await?;
+        let (control, requests) =
+            crate::automation_control::channel(controller, generation.clone());
         let mut result = Self {
+            control,
+            requests,
             admission,
             generation,
             document,
@@ -77,6 +83,9 @@ impl AutomationRuntime {
             return Err(error);
         }
         Ok(result)
+    }
+    pub fn control(&self) -> crate::automation_control::Control {
+        self.control.clone()
     }
     pub fn revision(&self) -> u64 {
         self.document.revision
@@ -123,6 +132,7 @@ impl AutomationRuntime {
             }
         }
         let _stop = Stop(self.admission.clone());
+        self.requests.close();
         self.panels.disconnect();
         self.calendar.stop();
         self.scenes.stop().await
@@ -136,7 +146,7 @@ impl AutomationRuntime {
         wall_clock: impl FnMut() -> Result<i64, String>,
     ) -> Result<(), String> {
         self.validate().await?;
-        crate::automation_drive::drive_with_calendar(
+        crate::automation_drive::drive_controlled(
             &self.admission,
             owner,
             &mut self.panels,
@@ -146,10 +156,12 @@ impl AutomationRuntime {
             max_age_ms,
             stop,
             wall_clock,
+            Some((&mut self.requests, &self.document)),
         )
         .await
     }
     fn stop(&mut self) {
+        self.requests.close();
         self.panels.disconnect();
         self.calendar.stop();
         self.scenes.stop_now();
