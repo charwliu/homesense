@@ -13,6 +13,17 @@ pub struct Bundle {
     pub automation: Option<Document>,
 }
 impl Store {
+    pub fn automation_payload(&self, revision: u64) -> Result<Option<Vec<u8>>, Error> {
+        Ok(self
+            .connection
+            .query_row(
+                "SELECT payload FROM automation_revision WHERE revision=?1",
+                [crate::sql_revision(revision)?],
+                |r| r.get(0),
+            )
+            .optional()?)
+    }
+
     /// Validate both documents before a single CAS transaction. Same-name,
     /// same-type persistent values survive publication; new values are unknown.
     /// Type changes require an explicit migration and are rejected here.

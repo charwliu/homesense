@@ -33,10 +33,13 @@ cargo clippy --locked --offline --workspace --all-targets -- -D warnings
 
 cargo run --locked --offline -p homesensed -- check-config config/simulation.json --simulation
 cargo run --locked --offline -p homesensed -- check-automation config/simulation.json config/automation.simulation.json --simulation
+cargo run --locked --offline -p homesensed -- serve-automation-simulation config/simulation.json config/automation.simulation.json /tmp/homesense-automation-demo 10
 cargo run --locked --offline -p homesensed -- demo 30
 cargo run --locked --offline -p homesensed -- decode 'AE 15 D1 1E EE'
 cargo run --locked --offline -p homesense-import --bin study-replay -- config/scenes/study.json 5 0
 ```
+
+`serve-automation-simulation DEVICE_FILE AUTOMATION_FILE STATE_DIR SECONDS [SCENE]` 使用内存网关和独立的 `automation-simulation.sqlite`，不打开现场运行库或配对目录；可指定已启用的定时场景。重启要求文档完全一致，改变配置请使用新模拟目录。
 
 上述工具不连接真实网关；`check-automation` 只校验结构、引用及启用规则的命令编码，`study-replay` 只输出计划。工作区集成测试需要允许本机回环监听。
 
