@@ -135,7 +135,12 @@ impl Router {
             return Err("causal router closed".into());
         }
         if self.entries.len() >= self.capacity {
-            return Err("causal router full".into());
+            // No session, variable delta or command exists for this trigger.
+            // Isolate overload without closing existing automation or manual control.
+            return Err(RootFailure {
+                message: "causal router full; new root rejected before execution".into(),
+                isolated: true,
+            });
         }
         let id = self.next;
         self.next = self
