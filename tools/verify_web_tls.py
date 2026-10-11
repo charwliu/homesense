@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """Local HTTPS/WSS regression using an ephemeral CA; never installs trust globally."""
+import threading
 import base64, hashlib, http.client, json, os, pathlib, secrets, socket, ssl, struct, subprocess, sys, tempfile, time
 repo=pathlib.Path(__file__).resolve().parents[1];binary=pathlib.Path(sys.argv[1]).resolve()
+combined=len(sys.argv)==3 and sys.argv[2]=='--tcp-combined'
+if len(sys.argv)>3 or (len(sys.argv)==3 and not combined):raise SystemExit('usage: verify_web_tls.py BINARY [--tcp-combined]')
 with tempfile.TemporaryDirectory(prefix='homesense-tls-') as directory:
  root=pathlib.Path(directory)
  def openssl(*args):subprocess.run(['openssl',*map(str,args)],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
@@ -15,6 +18,31 @@ with tempfile.TemporaryDirectory(prefix='homesense-tls-') as directory:
  with socket.socket() as listener:listener.bind(('127.0.0.1',0));port=listener.getsockname()[1]
  origin=f'https://localhost:{port}'
  command=[str(binary),'serve-web-tls-simulation',str(repo/'config/simulation.json'),str(repo/'config/automation.simulation.json'),str(root/'state'),'12',f'127.0.0.1:{port}',str(root/'token'),origin,str(root/'server.pem'),str(root/'server.key')]
+ if combined:
+  bus=socket.socket();bus.bind(('127.0.0.1',0));bus.listen();bus.settimeout(8)
+  errors=[];queries=[]
+  def gateway():
+   try:
+    connection,_=bus.accept()
+    with connection:
+     connection.settimeout(16);buffer=b''
+     while True:
+      chunk=connection.recv(1024)
+      if not chunk:break
+      buffer+=chunk
+      while len(buffer)>=5:
+       frame,buffer=buffer[:5],buffer[5:]
+       assert frame==bytes.fromhex('ae15a1f2ee'),frame.hex()
+       queries.append(frame);connection.sendall(bytes.fromhex('ae15d12aee'))
+   except BaseException as error:errors.append(error)
+   finally:bus.close()
+  worker=threading.Thread(target=gateway,daemon=True);worker.start()
+  devices=json.loads((repo/'config/simulation.json').read_text())
+  devices['gateways'][0]['endpoint']='127.0.0.1:'+str(bus.getsockname()[1])
+  devices['gateways'][0]['modules'][0]['verification']={'status':'verified','evidence':'synthetic loopback fixture','verified_at_unix_ms':1}
+  (root/'devices.json').write_text(json.dumps(devices));(root/'rules.json').write_text(json.dumps({'schema_version':1,'configuration_revision':1,'variables':[],'rules':[]}))
+  with socket.socket() as listener:listener.bind(('127.0.0.1',0));hap_port=listener.getsockname()[1]
+  command=[str(binary),'serve-automation-tcp',str(root/'devices.json'),str(root/'rules.json'),str(root/'state'),'12','--coexistence-confirmed','--hap-listen',f'127.0.0.1:{hap_port}','--web-listen',f'127.0.0.1:{port}','--web-origin',origin,'--web-token',str(root/'token'),'--web-cert',str(root/'server.pem'),'--web-key',str(root/'server.key')]
  context=ssl.create_default_context(cafile=str(root/'ca.pem'))
  def request(method,path,headers):
   connection=http.client.HTTPSConnection('localhost',port,context=context,timeout=3)
@@ -61,7 +89,12 @@ with tempfile.TemporaryDirectory(prefix='homesense-tls-') as directory:
     elif size==127:size=struct.unpack('!Q',exact(8))[0]
     assert size<=512*1024
     frame=json.loads(exact(size));assert frame['type']=='state' and frame['reset']
+   if combined:
+    hap=http.client.HTTPConnection('127.0.0.1',hap_port,timeout=3);hap.request('GET','/accessories');response=hap.getresponse();assert response.status==401;response.read();hap.close()
    process.wait(timeout=15);assert process.returncode==0
+   if combined:
+    worker.join(timeout=3);assert not worker.is_alive();assert not errors,errors;assert queries
+
   finally:
    if process.poll() is None:process.terminate();process.wait(timeout=5)
  (root/'server.key').chmod(0o644)
