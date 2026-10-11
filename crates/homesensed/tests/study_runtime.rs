@@ -4207,7 +4207,7 @@ async fn published_automation_assembly_binds_identity_revision_and_generation() 
     use homesensed::automation_runtime::AutomationRuntime;
     let db=Db(std::env::temp_dir().join(format!("assembly-{}.sqlite",Uuid::new_v4())));
     let devices=include_bytes!("../../../config/simulation.json");
-    let rules=br#"{"schema_version":1,"configuration_revision":1,"variables":[{"id":"mode","kind":"integer","lifetime":"persistent"}],"rules":[],"timed_scenes":[{"id":"light","enabled":true,"review_evidence":"simulation","max_lateness_ms":1000,"steps":[{"source":"fixture","offset_ms":100,"device":"simulation:light","command":{"kind":"level","value":30,"ramp":false}}]}]}"#;
+    let rules=br#"{"schema_version":1,"configuration_revision":1,"variables":[{"id":"mode","kind":"integer","lifetime":"persistent"}],"rules":[{"id":"manual","enabled":true,"review_evidence":"test","source":"test","trigger":{"kind":"startup_synchronized"},"actions":[{"source":"set","action":{"kind":"set","variable":"mode","value":{"kind":"integer","value":3}}}]}],"timed_scenes":[{"id":"light","enabled":true,"review_evidence":"simulation","max_lateness_ms":1000,"steps":[{"source":"fixture","offset_ms":100,"device":"simulation:light","command":{"kind":"level","value":30,"ramp":false}}]}]}"#;
     Store::open(&db.0).unwrap().publish_automation(None,devices,rules,ExecutionContext::Simulation,&[]).unwrap();
     let controller=Uuid::new_v4();
     let a=actor(&db,controller).await;
@@ -4215,6 +4215,10 @@ async fn published_automation_assembly_binds_identity_revision_and_generation() 
     assert!(AutomationRuntime::load(a.clone(),controller,0,1000,8,Default::default()).await.is_err());
     let mut runtime=AutomationRuntime::load(a.clone(),controller,1_800_000_000_000,1000,8,Default::default()).await.unwrap();
     assert_eq!(runtime.revision(),1);
+    assert_eq!(Store::open(&db.0).unwrap().logical_variable(1,"mode").unwrap().unwrap().value,None);
+    let (_,reports)=runtime.start_rule("manual",None).await.unwrap();
+    assert_eq!(reports.len(),1);
+    assert_eq!(Store::open(&db.0).unwrap().logical_variable(1,"mode").unwrap().unwrap().value,Some(homesense_core::rule::Value::Integer(3)));
     assert!(a.dispatch().await.unwrap().is_none());
     assert!(runtime.start_scene("unknown").await.is_err());
     let run = runtime.start_scene("light").await.unwrap();

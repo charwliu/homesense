@@ -21,6 +21,8 @@ pub struct AutomationRuntime {
     pub(crate) panels: PanelRules,
     pub(crate) calendar: ScheduledRules,
     pub(crate) scenes: SceneScheduler,
+    causal: crate::deferred_router::Router,
+    budget: Budget,
 }
 impl AutomationRuntime {
     pub async fn load(
@@ -57,6 +59,7 @@ impl AutomationRuntime {
             scene_capacity,
             admission.monotonic_ms(),
         )?;
+        let causal = crate::deferred_router::Router::new(admission.clone(), controller, &scenes, 64)?;
         let configured =
             ConfiguredRules::load_document(admission.clone(), controller, &document, budget)
                 .await?;
@@ -79,6 +82,8 @@ impl AutomationRuntime {
             panels: configured.panels,
             calendar,
             scenes,
+            causal,
+            budget,
         };
         if let Err(error) = result.validate().await {
             result.stop();
@@ -104,6 +109,15 @@ impl AutomationRuntime {
             return Err("automation assembly generation expired".into());
         }
         Ok(())
+    }
+    /// Explicit rule root using the same bounded causal owner as loop results.
+    pub async fn start_rule(&mut self, id: &str, feedback: Option<(&crate::feedback::Feedback,u64)>) -> Result<(u64,Vec<crate::deferred_rule::Outcome>),String> {
+        self.validate().await?;
+        self.causal.start(id, &mut self.scenes, feedback, self.budget, 60_000).await
+    }
+    pub async fn cancel_rule(&mut self, id:u64)->Result<usize,String> {
+        self.validate().await?;
+        self.causal.cancel(id,&mut self.scenes).await
     }
     /// Explicit manual entry; loading a document never starts any scene.
     pub async fn start_scene(&mut self, id: &str) -> Result<u64, String> {
@@ -138,6 +152,9 @@ impl AutomationRuntime {
         self.requests.close();
         self.panels.disconnect();
         self.calendar.stop();
+        if let Err(error) = self.causal.close(&mut self.scenes).await {
+            log::warn!("causal shutdown failed: {error}");
+        }
         self.scenes.stop().await
     }
     pub async fn drive<S: std::io::Read + std::io::Write + Send + 'static>(
@@ -160,6 +177,7 @@ impl AutomationRuntime {
             stop,
             wall_clock,
             Some((&mut self.requests, &self.document)),
+            Some(&mut self.causal),
         )
         .await?;
         self.publication_paused = paused;
