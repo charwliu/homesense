@@ -31,7 +31,19 @@ fn token_scope_role_and_revocation_are_independent_of_runtime_identity() {
     assert!(grant.may_read("reading"));
     assert!(!grant.may_control("reading"));
     assert!(!grant.may_read("other"));
-    assert!(tokens.insert(Uuid::new_v4(),secret,Grant{controller:caller,role:Role::Administrator,scenes:["other".into()].into()}).is_err());
+    assert!(
+        tokens
+            .insert(
+                Uuid::new_v4(),
+                secret,
+                Grant {
+                    controller: caller,
+                    role: Role::Administrator,
+                    scenes: ["other".into()].into()
+                }
+            )
+            .is_err()
+    );
     tokens.revoke(id).unwrap();
     assert!(tokens.authenticate(&format!("Bearer {secret}")).is_none());
 }
@@ -67,4 +79,43 @@ fn durable_fence_never_replays_unknown_or_completed_requests_after_restart() {
     );
     drop(receipts);
     std::fs::remove_file(path).unwrap();
+}
+#[test]
+fn browser_sessions_require_csrf_and_follow_token_revocation() {
+    let tokens = Tokens::default();
+    let id = Uuid::new_v4();
+    let header = "Bearer abcdefghijklmnopqrstuvwxyz0123456789";
+    tokens
+        .insert(
+            id,
+            &header[7..],
+            Grant {
+                controller: id,
+                role: Role::Member,
+                scenes: ["scene".into()].into(),
+            },
+        )
+        .unwrap();
+    let session = tokens.login(header).unwrap();
+    assert!(tokens.session(&session.cookie, None, false).is_some());
+    assert!(tokens.session(&session.cookie, None, true).is_none());
+    assert!(
+        tokens
+            .session(&session.cookie, Some("wrong"), true)
+            .is_none()
+    );
+    assert!(
+        tokens
+            .session(&session.cookie, Some(&session.csrf), true)
+            .is_some()
+    );
+    tokens.logout(&session.cookie);
+    assert!(tokens.session(&session.cookie, None, false).is_none());
+    let session = tokens.login(header).unwrap();
+    tokens.revoke(id).unwrap();
+    assert!(
+        tokens
+            .session(&session.cookie, Some(&session.csrf), true)
+            .is_none()
+    );
 }

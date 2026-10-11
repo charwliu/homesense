@@ -66,17 +66,95 @@ impl Api {
                 .body(Full::new(Bytes::from_static(include_bytes!("web/app.js"))))
                 .unwrap();
         }
-        if request.headers().get_all("authorization").iter().count() != 1 {
-            return deny(StatusCode::UNAUTHORIZED, "authentication_required");
-        }
-        let Some(grant) = request
+        let authorization = request
             .headers()
             .get("authorization")
+            .and_then(|v| v.to_str().ok());
+        if request.headers().get_all("authorization").iter().count() > 1
+            || request.headers().get_all("cookie").iter().count() > 1
+            || request.headers().get_all("x-csrf-token").iter().count() > 1
+        {
+            return deny(StatusCode::UNAUTHORIZED, "ambiguous_credentials");
+        }
+        let cookie = request
+            .headers()
+            .get("cookie")
             .and_then(|v| v.to_str().ok())
-            .and_then(|h| self.tokens.authenticate(h))
-        else {
+            .and_then(session_cookie);
+        if request.method() == hyper::Method::POST && request.uri().path() == "/api/v1/session" {
+            if request
+                .headers()
+                .get("origin")
+                .and_then(|v| v.to_str().ok())
+                != Some(&self.origin)
+            {
+                return deny(StatusCode::FORBIDDEN, "origin_required");
+            }
+            let Some(session) = authorization.and_then(|h| self.tokens.login(h)) else {
+                return deny(StatusCode::UNAUTHORIZED, "authentication_required");
+            };
+            let mut result = response(
+                StatusCode::OK,
+                json!({"csrf":session.csrf,"expires_in":900}),
+            );
+            let secure = if self.origin.starts_with("https://") {
+                "; Secure"
+            } else {
+                ""
+            };
+            result.headers_mut().insert(
+                "set-cookie",
+                format!(
+                    "homesense_session={}; HttpOnly; SameSite=Strict; Path=/; Max-Age=900{secure}",
+                    session.cookie
+                )
+                .parse()
+                .unwrap(),
+            );
+            return result;
+        }
+        if authorization.is_some() && cookie.is_some() {
+            return deny(StatusCode::UNAUTHORIZED, "ambiguous_credentials");
+        }
+        let write = request.method() != hyper::Method::GET;
+        let grant = if let Some(header) = authorization {
+            self.tokens.authenticate(header)
+        } else {
+            cookie.and_then(|cookie| {
+                self.tokens.session(
+                    cookie,
+                    request
+                        .headers()
+                        .get("x-csrf-token")
+                        .and_then(|v| v.to_str().ok()),
+                    write,
+                )
+            })
+        };
+        let Some(grant) = grant else {
             return deny(StatusCode::UNAUTHORIZED, "authentication_required");
         };
+        if request.method() == hyper::Method::DELETE && request.uri().path() == "/api/v1/session" {
+            if request
+                .headers()
+                .get("origin")
+                .and_then(|v| v.to_str().ok())
+                != Some(&self.origin)
+            {
+                return deny(StatusCode::FORBIDDEN, "origin_required");
+            }
+            if let Some(cookie) = cookie {
+                self.tokens.logout(cookie);
+            }
+            let mut result = response(StatusCode::OK, json!({"logged_out":true}));
+            result.headers_mut().insert(
+                "set-cookie",
+                "homesense_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0"
+                    .parse()
+                    .unwrap(),
+            );
+            return result;
+        }
         if request.method() == hyper::Method::GET && request.uri().path() == "/api/v1/scenes" {
             let mut items = vec![];
             for (id, name) in &self.scenes {
@@ -252,5 +330,17 @@ impl Api {
             );
         }
         response(StatusCode::ACCEPTED, outcome)
+    }
+}
+
+fn session_cookie(header: &str) -> Option<&str> {
+    let mut values = header
+        .split(';')
+        .filter_map(|part| part.trim().strip_prefix("homesense_session="));
+    let value = values.next()?;
+    if values.next().is_some() || value.len() != 64 {
+        None
+    } else {
+        Some(value)
     }
 }
