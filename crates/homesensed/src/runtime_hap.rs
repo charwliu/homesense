@@ -45,6 +45,14 @@ impl Drop for InstallationGuard {
         }
     }
 }
+struct SceneDriveGuard<'a>(Option<&'a mut crate::scene_scheduler::SceneScheduler>);
+impl Drop for SceneDriveGuard<'_> {
+    fn drop(&mut self) {
+        if let Some(scheduler) = &mut self.0 {
+            scheduler.stop_now();
+        }
+    }
+}
 impl RuntimeHap {
     pub async fn new(
         configuration: &Configuration,
@@ -320,8 +328,20 @@ impl RuntimeHap {
         &mut self,
         owner: &mut ObservedTransport<S>,
         cadence: std::time::Duration,
-        mut stop: tokio::sync::watch::Receiver<bool>,
+        stop: tokio::sync::watch::Receiver<bool>,
     ) -> Result<(), String> {
+        self.drive_with_scenes(owner, cadence, stop, None).await
+    }
+    /// Explicit scene-enabled drive; the scheduler must belong to this admission
+    /// owner. Existing service entry points do not opt in automatically.
+    pub async fn drive_with_scenes<S: std::io::Read + std::io::Write + Send + 'static>(
+        &mut self,
+        owner: &mut ObservedTransport<S>,
+        cadence: std::time::Duration,
+        mut stop: tokio::sync::watch::Receiver<bool>,
+        scenes: Option<&mut crate::scene_scheduler::SceneScheduler>,
+    ) -> Result<(), String> {
+        let mut scenes = SceneDriveGuard(scenes);
         let guard = DriveGuard { graph: self, owner };
         let gateways = guard.owner.gateway_ids();
         let result = async {
@@ -331,10 +351,28 @@ impl RuntimeHap {
             {
                 return Err("drive requires gateways and a cadence in (0, 1s]".into());
             }
+            if scenes
+                .0
+                .as_ref()
+                .is_some_and(|s| !s.matches_admission(&guard.graph.admission))
+            {
+                return Err("scene scheduler belongs to another admission owner".into());
+            }
             let mut next = 0;
             loop {
                 if *stop.borrow() || stop.has_changed().is_err() {
                     return Ok(());
+                }
+                if let Some(scheduler) = &mut scenes.0 {
+                    for result in scheduler.tick(guard.graph.admission.monotonic_ms()).await? {
+                        if let Err(error) = result.result {
+                            log::warn!(
+                                "scene run={} status={:?}: {error}",
+                                result.run,
+                                result.status
+                            );
+                        }
+                    }
                 }
                 guard
                     .graph
@@ -350,6 +388,13 @@ impl RuntimeHap {
             }
         }
         .await;
+        if let Some(scheduler) = &mut scenes.0 {
+            for (id, result) in scheduler.stop().await {
+                if let Err(error) = result {
+                    log::warn!("scene shutdown run={id}: {error}");
+                }
+            }
+        }
         guard.graph.admission.stop_now();
         guard.owner.invalidate();
         let publication = guard.graph.publish(guard.owner).await;

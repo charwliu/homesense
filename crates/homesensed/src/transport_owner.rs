@@ -42,6 +42,9 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
             failed: false,
         }
     }
+    pub(crate) fn belongs_to(&self, admission: &Admission) -> bool {
+        self.admission.boot_id() == admission.boot_id()
+    }
     pub(crate) fn gateway_ids(&self) -> Vec<String> {
         self.connections.keys().cloned().collect()
     }

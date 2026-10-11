@@ -35,7 +35,7 @@ impl Write for Stream {
         Ok(())
     }
 }
-async fn exercise(stop_first: bool, cancel: bool) {
+async fn exercise(stop_first: bool, cancel: bool, scenes: bool) {
     use hap::storage::Storage;
     let root = std::env::temp_dir().join(format!("homesense-drive-{}", Uuid::new_v4()));
     std::fs::create_dir_all(&root).unwrap();
@@ -88,20 +88,60 @@ async fn exercise(stop_first: bool, cancel: bool) {
             transition: LevelTransition::Immediate
         }
     );
-    admission
-        .submit(Batch {
-            controller,
-            intents: vec![Intent {
-                device: DeviceId::new("simulation:light").unwrap(),
-                command: Command::SetLevel {
-                    level: Percent::new(30).unwrap(),
-                    transition: LevelTransition::Immediate,
-                },
-            }],
-            subscriptions: vec![],
-        })
-        .await
-        .unwrap();
+    let mut scheduler =
+        homesensed::scene_scheduler::SceneScheduler::new(admission.clone(), controller, 4, 0)
+            .unwrap();
+    if scenes {
+        // One invalid scene must not terminate the transport loop or prevent
+        // the independent valid scene below from writing its command.
+        scheduler
+            .start(
+                vec![homesense_core::scene::Step {
+                    device: DeviceId::new("simulation:missing").unwrap(),
+                    command: Command::Switch(true),
+                    delay_ms: 0,
+                    source: "invalid-scene".into(),
+                }],
+                0,
+                10_000,
+            )
+            .await
+            .unwrap();
+        scheduler
+            .start(
+                [0, 10_000]
+                    .into_iter()
+                    .map(|delay_ms| homesense_core::scene::Step {
+                        device: DeviceId::new("simulation:light").unwrap(),
+                        command: Command::SetLevel {
+                            level: Percent::new(30).unwrap(),
+                            transition: LevelTransition::Immediate,
+                        },
+                        delay_ms,
+                        source: "drive-scene".into(),
+                    })
+                    .collect(),
+                0,
+                10_000,
+            )
+            .await
+            .unwrap();
+    } else {
+        admission
+            .submit(Batch {
+                controller,
+                intents: vec![Intent {
+                    device: DeviceId::new("simulation:light").unwrap(),
+                    command: Command::SetLevel {
+                        level: Percent::new(30).unwrap(),
+                        transition: LevelTransition::Immediate,
+                    },
+                }],
+                subscriptions: vec![],
+            })
+            .await
+            .unwrap();
+    }
     let output = Arc::new(Mutex::new(Vec::new()));
     let stream = Stream {
         input: io::Cursor::new(vec![0xAE, 0x15, 0xD1, 27, 0xEE]),
@@ -139,10 +179,19 @@ async fn exercise(stop_first: bool, cancel: bool) {
             }
         };
         tokio::select! {
-            outcome = graph.drive(&mut owner, Duration::from_secs(1), receiver) => panic!("unexpected exit: {outcome:?}"),
+            outcome = graph.drive_with_scenes(&mut owner, Duration::from_secs(1), receiver, if scenes {Some(&mut scheduler)} else {None}) => panic!("unexpected exit: {outcome:?}"),
             ready = tokio::time::timeout(Duration::from_secs(1), ready) => { ready.unwrap(); }
         }
         Err("cancelled".into())
+    } else if scenes {
+        graph
+            .drive_with_scenes(
+                &mut owner,
+                Duration::from_millis(1),
+                receiver,
+                Some(&mut scheduler),
+            )
+            .await
     } else {
         graph
             .drive(&mut owner, Duration::from_millis(1), receiver)
@@ -153,7 +202,7 @@ async fn exercise(stop_first: bool, cancel: bool) {
         assert!(output.lock().unwrap().is_empty());
         assert_eq!(
             store.command_status(&boot, 1).unwrap(),
-            Some(Status::Accepted)
+            if scenes { None } else { Some(Status::Accepted) }
         );
     } else {
         assert!(
@@ -170,6 +219,9 @@ async fn exercise(stop_first: bool, cancel: bool) {
         let state = &snapshot.devices[&DeviceId::new("simulation:light").unwrap()];
         assert_eq!(state.quality, homesense_state::Quality::Stale);
         assert!(state.observed.is_some());
+    }
+    if scenes {
+        assert!(scheduler.tick(10_000).await.is_err());
     }
     assert!(admission.synchronized(1, 1).await.is_err());
     if cancel {
@@ -194,14 +246,28 @@ async fn exercise(stop_first: bool, cancel: bool) {
 }
 #[tokio::test]
 async fn drive_sends_observes_and_invalidates_on_eof() {
-    exercise(false, false).await;
+    exercise(false, false, false).await;
 }
 #[tokio::test]
 async fn stopped_drive_never_dispatches_accepted_command() {
-    exercise(true, false).await;
+    exercise(true, false, false).await;
 }
 
 #[tokio::test]
 async fn cancelled_drive_invalidates_confirmed_reads_and_stops_admission() {
-    exercise(false, true).await;
+    exercise(false, true, false).await;
+}
+
+#[tokio::test]
+async fn drive_scene_admits_writes_and_stops_scheduler_on_eof() {
+    exercise(false, false, true).await;
+}
+
+#[tokio::test]
+async fn cancelled_scene_drive_invalidates_future_timers() {
+    exercise(false, true, true).await;
+}
+#[tokio::test]
+async fn stopped_scene_drive_never_admits_timed_commands() {
+    exercise(true, false, true).await;
 }
