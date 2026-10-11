@@ -14,6 +14,10 @@ fn isolated_automation_cli_runs_scene_restarts_and_preserves_live_files() {
     automation["rules"] = hap::serde_json::json!([{"id":"after-demo","enabled":true,"review_evidence":"simulation","source":"fixture","trigger":{"kind":"scene_result","scene":"demo"},"actions":[{"source":"result","action":{"kind":"set","variable":"completed","value":{"kind":"integer","value":7}}}]}]);
     automation["variables"].as_array_mut().unwrap().push(hap::serde_json::json!({"id":"second","kind":"integer","lifetime":"persistent"}));
     automation["rules"].as_array_mut().unwrap().push(hap::serde_json::json!({"id":"also-after-demo","enabled":true,"review_evidence":"simulation","source":"fixture","trigger":{"kind":"scene_result","scene":"demo"},"actions":[{"source":"second","action":{"kind":"set","variable":"second","value":{"kind":"integer","value":9}}}]}));
+    automation["variables"].as_array_mut().unwrap().push(hap::serde_json::json!({"id":"booted","kind":"integer","lifetime":"persistent"}));
+    for (id,value) in [("boot-first",1),("boot-second",2)] {
+        automation["rules"].as_array_mut().unwrap().push(hap::serde_json::json!({"id":id,"enabled":true,"review_evidence":"simulation","source":"fixture","trigger":{"kind":"startup_synchronized"},"actions":[{"source":"startup","action":{"kind":"set","variable":"booted","value":{"kind":"integer","value":value}}}]}));
+    }
     std::fs::write(&rules,hap::serde_json::to_vec(&automation).unwrap()).unwrap();
     let run = |seconds: &str, scene: &str| {
         Command::new(env!("CARGO_BIN_EXE_homesensed"))
@@ -65,6 +69,11 @@ fn isolated_automation_cli_runs_scene_restarts_and_preserves_live_files() {
     assert_eq!(correlations,2,"both matching rules share one root per service run");
     let second:i64=sql.query_row("SELECT value FROM logical_variable WHERE name='second'",[],|r|r.get(0)).unwrap();
     assert_eq!(second,9);
+    let startup:(i64,i64)=sql.query_row("SELECT count(*),count(DISTINCT correlation) FROM rule_admission WHERE rule_id IN ('boot-first','boot-second')",[],|r|Ok((r.get(0)?,r.get(1)?))).unwrap();
+    assert_eq!(startup,(4,2),"one shared startup root per run, not per tick");
+    let booted:i64=sql.query_row("SELECT value FROM logical_variable WHERE name='booted'",[],|r|r.get(0)).unwrap();
+    assert_eq!(booted,2);
+
 
     std::fs::write(
         &rules,
