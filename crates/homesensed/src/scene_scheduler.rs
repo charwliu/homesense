@@ -103,14 +103,25 @@ impl SceneScheduler {
         let bundle=self.admission.automation_bundle(self.controller,generation).await.map_err(|e|format!("{e:?}"))?;
         let document=bundle.automation.ok_or("accepted automation missing")?;
         let mut devices=BTreeSet::new();
+        let mut batch_devices=Vec::with_capacity(count);
         for token in &accepted {
             let definition=document.timed_scenes.get(&token.start.definition).ok_or("accepted scene missing")?;
-            devices.extend(definition.steps.iter().map(|s|s.device.clone()));
+            let targets: BTreeSet<_> = definition.steps.iter().map(|s|s.device.clone()).collect();
+            devices.extend(targets.iter().cloned());
+            batch_devices.push(targets);
         }
         let mut constructed=Vec::with_capacity(count);
         for token in accepted {constructed.push(SceneRuntime::from_accepted(self.admission.clone(),token).await?);}
         for old in self.runs.values_mut() {
             for device in &devices {old.cancel_device(device).await?;}
+        }
+        // Batch order is source order: a later scene supersedes only the
+        // overlapping devices of earlier scenes, just like separate starts.
+        // All cancellation audits settle before any new member becomes runnable.
+        for (index, targets) in batch_devices.iter().enumerate().skip(1) {
+            for earlier in &mut constructed[..index] {
+                for device in targets { earlier.cancel_device(device).await?; }
+            }
         }
         let ids=(self.next..end).collect::<Vec<_>>();
         for (id,scene) in ids.iter().copied().zip(constructed) {self.runs.insert(id,scene);}
