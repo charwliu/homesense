@@ -59,6 +59,13 @@ pub struct Cancellation {
     pub device: homesense_core::DeviceId,
     pub reason: CancellationReason,
 }
+/// An unadmitted timeline step skipped after its scheduling deadline.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Expiry {
+    pub index: usize,
+    pub device: homesense_core::DeviceId,
+    pub source: String,
+}
 fn key(s: &str) -> Result<(), Error> {
     if s.is_empty() || s.len() > 128 || s.chars().any(char::is_control) {
         Err(Error::InvalidAudit)
@@ -175,6 +182,24 @@ impl Store {
         &mut self, boot: &str, run: &str, expected: u64, status: Status, now: u64,
         cancellation: Option<&Cancellation>,
     ) -> Result<u64, Error> {
+        self.checkpoint_scene_run_audit(boot,run,expected,status,now,cancellation,None)
+    }
+    #[allow(clippy::too_many_arguments)]
+    pub fn checkpoint_scene_run_with_expiry(
+        &mut self, boot: &str, run: &str, expected: u64, status: Status, now: u64,
+        expiry: &Expiry,
+    ) -> Result<u64, Error> {
+        if expiry.index >= 4096 || expiry.source.is_empty() || expiry.source.len() > 8192
+            || status == Status::CommandsWritten {
+            return Err(Error::InvalidAudit);
+        }
+        self.checkpoint_scene_run_audit(boot,run,expected,status,now,None,Some(expiry))
+    }
+    #[allow(clippy::too_many_arguments)]
+    fn checkpoint_scene_run_audit(
+        &mut self, boot: &str, run: &str, expected: u64, status: Status, now: u64,
+        cancellation: Option<&Cancellation>, expiry: Option<&Expiry>,
+    ) -> Result<u64, Error> {
         key(boot)?;
         key(run)?;
         if status == Status::Pending || status == Status::Interrupted {
@@ -190,6 +215,11 @@ impl Store {
         }
         if let Some(cancellation) = cancellation {
             tx.execute("INSERT INTO scene_cancellation(boot_id,run_id,version,device_id,reason) VALUES(?1,?2,?3,?4,?5)",params![boot,run,next,cancellation.device.as_str(),cancellation.reason.text()])?;
+        }
+        if let Some(expiry) = expiry {
+            let admitted: bool = tx.query_row("SELECT EXISTS(SELECT 1 FROM scene_step WHERE boot_id=?1 AND run_id=?2 AND step_index=?3)",params![boot,run,expiry.index as i64],|r|r.get(0))?;
+            if admitted { return Err(Error::InvalidAudit); }
+            tx.execute("INSERT INTO scene_expiry(boot_id,run_id,step_index,version,device_id,source) VALUES(?1,?2,?3,?4,?5,?6)",params![boot,run,expiry.index as i64,next,expiry.device.as_str(),expiry.source])?;
         }
         tx.commit()?;
         Ok(next as u64)
@@ -218,6 +248,8 @@ pub(crate) fn insert_step(
     active: Option<i64>,
 ) -> Result<(), Error> {
     key(&link.run)?;
+    let expired: bool = tx.query_row("SELECT EXISTS(SELECT 1 FROM scene_expiry WHERE boot_id=?1 AND run_id=?2 AND step_index=?3)",params![boot,link.run,link.index as i64],|r|r.get(0))?;
+    if expired { return Err(Error::InvalidAudit); }
     if link.index >= 4096
         || link.source.is_empty()
         || link.source.len() > 8192
