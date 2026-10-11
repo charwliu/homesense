@@ -288,4 +288,49 @@ mod pacing_tests {
         for suffix in ["","-wal","-shm"] {let _=std::fs::remove_file(format!("{}{suffix}",path.display()));}
         let _=std::fs::remove_file(path.with_extension("runtime.lock"));
     }
+    #[tokio::test]
+    async fn cancelled_query_keeps_slot_until_blocking_writer_finishes() {
+        use homesense_core::{ExecutionContext, DeviceId};
+        let path=std::env::temp_dir().join(format!("pacing-cancel-{}.sqlite",uuid::Uuid::new_v4()));
+        let bytes=include_bytes!("../../../config/simulation.json");
+        homesense_storage::Store::open(&path).unwrap().publish_configuration(None,bytes,ExecutionContext::Simulation,&[]).unwrap();
+        let controller=uuid::Uuid::new_v4();
+        let admission=Admission::open(path.clone(),crate::admission::Options{context:ExecutionContext::Simulation,..Default::default()},move |id|id==controller).await.unwrap();
+        admission.synchronized(1,1).await.unwrap();
+        let (started,ready)=tokio::sync::oneshot::channel();
+        let (release,blocked)=std::sync::mpsc::channel();
+        struct Blocked {
+            started:Option<tokio::sync::oneshot::Sender<()>>,
+            release:std::sync::Mutex<std::sync::mpsc::Receiver<()>>,
+        }
+        impl Read for Blocked {fn read(&mut self,_:&mut [u8])->std::io::Result<usize>{Err(std::io::ErrorKind::WouldBlock.into())}}
+        impl Write for Blocked {
+            fn write(&mut self,bytes:&[u8])->std::io::Result<usize>{
+                if let Some(started)=self.started.take(){let _=started.send(());}
+                self.release.lock().unwrap().recv_timeout(std::time::Duration::from_secs(10)).map_err(std::io::Error::other)?;
+                Ok(bytes.len())
+            }
+            fn flush(&mut self)->std::io::Result<()>{Ok(())}
+        }
+        let mut owner=TransportOwner::new(admission.clone(),[("simulation".into(),Connection::for_simulation(Blocked{started:Some(started),release:std::sync::Mutex::new(blocked)},1))].into());
+        let config=homesense_config::Configuration::parse(bytes,ExecutionContext::Simulation).unwrap();
+        let task=tokio::spawn(async move {
+            let id=DeviceId::new("simulation:light").unwrap();
+            let (device,module)=config.binding(&id).unwrap();
+            owner.query_status("simulation",module,device.channel,ExecutionContext::Simulation,5000).await
+        });
+        tokio::time::timeout(std::time::Duration::from_secs(2),ready).await.unwrap().unwrap();
+        task.abort();
+        assert!(task.await.unwrap_err().is_cancelled());
+        assert!(admission.write_slot.try_lock().is_err(),"writer must retain slot after caller cancellation");
+        release.send(()).unwrap();
+        let slot=tokio::time::timeout(std::time::Duration::from_secs(2),admission.write_slot.clone().lock_owned()).await.unwrap();
+        assert!(slot.is_some(),"completed writer must record the next allowed write time");
+        drop(slot);
+        assert!(admission.task_generation().await.is_err(),"cancelled I/O still closes admission");
+        admission.shutdown().await.unwrap();
+        for suffix in ["","-wal","-shm"] {let _=std::fs::remove_file(format!("{}{suffix}",path.display()));}
+        let _=std::fs::remove_file(path.with_extension("runtime.lock"));
+    }
+
 }
