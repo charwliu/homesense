@@ -190,6 +190,26 @@ impl Session {
         scheduler: &mut SceneScheduler,
         feedback: Option<(&Feedback, u64)>,
     ) -> Result<Vec<Outcome>, String> {
+        self.start_rules(&[rule.to_owned()], scheduler, feedback)
+            .await
+    }
+    /// All rules matching one producer event share the same root and budget.
+    pub async fn start_rules(
+        &mut self,
+        rules: &[String],
+        scheduler: &mut SceneScheduler,
+        feedback: Option<(&Feedback, u64)>,
+    ) -> Result<Vec<Outcome>, String> {
+        if rules.is_empty()
+            || rules.len() > 256
+            || rules
+                .iter()
+                .collect::<std::collections::BTreeSet<_>>()
+                .len()
+                != rules.len()
+        {
+            return Err("invalid causal root rule batch".into());
+        }
         self.validate(scheduler).await?;
         if self.started {
             return Err("causal root already started".into());
@@ -199,17 +219,21 @@ impl Session {
         let mut guard = Guard(self.admission.clone(), false);
         let execution: Result<Vec<Outcome>, String> = async {
             let parent = self.chain.root();
-            let outcome = deferred_rule::execute(
-                &self.admission,
-                self.controller,
-                rule,
-                &mut self.chain,
-                &parent,
-                scheduler,
-                feedback,
-            )
-            .await?;
-            let outcomes = self.cascade(vec![outcome], scheduler, feedback).await?;
+            let mut roots = Vec::new();
+            for rule in rules {
+                let outcome = deferred_rule::execute(
+                    &self.admission,
+                    self.controller,
+                    rule,
+                    &mut self.chain,
+                    &parent,
+                    scheduler,
+                    feedback,
+                )
+                .await?;
+                roots.push(outcome);
+            }
+            let outcomes = self.cascade(roots, scheduler, feedback).await?;
             Ok(outcomes)
         }
         .await;
