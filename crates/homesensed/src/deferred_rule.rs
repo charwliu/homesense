@@ -20,6 +20,8 @@ pub struct Outcome {
     pub command_ids: Vec<u64>,
     pub scene_runs: Vec<u64>,
     pub changed_variables: Vec<String>,
+    /// Source nodes skipped by three-valued evaluation, never treated as Else.
+    pub unknown_branches: Vec<String>,
 }
 /// Only planning rejection proves this invocation performed no admission.
 /// Earlier invocations in the same chain may already have committed.
@@ -203,6 +205,7 @@ pub async fn execute_classified(
             action_index: i.action_index,
         })
         .collect();
+    let unknown_branches = planned.plan.unknown_branches;
     let payload = DeferredRule {
         batch: Batch {
             controller,
@@ -259,6 +262,10 @@ pub async fn execute_classified(
         vec![]
     };
     guard.1 = true;
+    for source in &unknown_branches {
+        log::warn!("rule unknown branch skipped correlation={} event={} rule={:?} source={:?}",
+            planned.cause.correlation_id(), planned.cause.event_id(), rule_id, source);
+    }
     Ok(Outcome {
         rule: rule_id.into(),
         cause: planned.cause,
@@ -266,6 +273,7 @@ pub async fn execute_classified(
         command_ids: accepted.command_ids,
         scene_runs,
         changed_variables,
+        unknown_branches,
     })
 }
 
