@@ -5839,3 +5839,32 @@ async fn rejected_fade_snapshot_does_not_disable_independent_manual_control() {
     a.finish_write(ids[0],true).await.unwrap();
     a.shutdown().await.unwrap();
 }
+
+#[tokio::test]
+async fn combined_fade_reserves_expanded_frames_in_group_and_scheduler() {
+    use homesensed::{fade_group::{FadeGroup,Limits,Request},feedback::Feedback,software_fade::SoftwareFade,scene_scheduler::SceneScheduler,transport_owner::GatewayRead};
+    use homesense_core::{DeviceId,Percent,Command,LevelTransition,scene::Step};
+    let devices=br#"{"schema_version":1,"revision":1,"gateways":[{"id":"bus","endpoint":"127.0.0.1:50007","modules":[{"address":"12","profile":"ad8_din_rs485_v2_2_1","verification":{"status":"simulated"}},{"address":"03","profile":"r8i8_din_pro_v2_7_7","verification":{"status":"simulated"}}]}],"devices":[{"id":"light","name":"Light","gateway":"bus","address":"12","channel":4,"enabled":true,"default_on_level":100,"supply_relay":"relay"},{"id":"relay","name":"Relay","gateway":"bus","address":"03","channel":4,"enabled":true}]}"#;
+    let db=Db(std::env::temp_dir().join(format!("fade-expanded-{}.sqlite",Uuid::new_v4())));
+    Store::open(&db.0).unwrap().publish_configuration(None,devices,ExecutionContext::Simulation,&[]).unwrap();
+    let controller=Uuid::new_v4();let a=actor(&db,controller).await;
+    let config=homesense_config::Configuration::parse(devices,ExecutionContext::Simulation).unwrap();
+    let mut feedback=Feedback::new(&config,ExecutionContext::Simulation,Uuid::parse_str(a.boot_id()).unwrap().as_u128(),1).unwrap();
+    feedback.apply(&GatewayRead{gateway_id:"bus".into(),transport_epoch:1,received_at_ms:0,result:hb_transport::Receive::Frames{transport_epoch:1,frames:vec![hb_protocol::RawFrame{address:0x12,command:0xd4,value:100},hb_protocol::RawFrame{address:0x03,command:0xd4,value:0xf1}]}}).unwrap();
+    let device=DeviceId::new("light").unwrap();let target=Percent::new(50).unwrap();
+    let request=Request{target,duration_ms:300,interval_ms:50,lateness_ms:200};
+    let mut group=FadeGroup::new(a.clone(),controller,Limits{tasks:2,samples:20,targets_per_second:20}).unwrap();
+    assert!(group.start(device.clone(),request,&feedback,2000).await.unwrap_err().contains("allocation"));
+    assert_eq!(group.active_count(),0);
+    let mut scheduler=SceneScheduler::new(a.clone(),controller,2,0).unwrap();
+    let run=scheduler.start(vec![Step{device:device.clone(),command:Command::SetLevel{level:target,transition:LevelTransition::Immediate},delay_ms:0,source:"synthetic".into()}],0,1000).await.unwrap();
+    let fade=SoftwareFade::start(a.clone(),controller,device.clone(),target,300,50,200,6,&feedback,2000).await.unwrap();
+    assert!(scheduler.install_due_fade(run,fade,0).await.unwrap_err().contains("allocation"));
+    assert!(a.task_generation().await.is_ok());
+    // At 100 ms, two commands per sample fit the 20-command/s allocation.
+    group.start(device.clone(),Request{interval_ms:100,..request},&feedback,2000).await.unwrap();
+    group.cancel(&device).await.unwrap();
+    scheduler.cancel(run).await.unwrap();
+    assert!(a.dispatch().await.unwrap().is_none());
+    a.shutdown().await.unwrap();
+}

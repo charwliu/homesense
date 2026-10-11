@@ -20,6 +20,7 @@ pub struct SoftwareFade {
     target: Percent,
     output_possible: bool,
     rate: u64,
+    frames_per_sample: u64,
     generation: TaskGeneration,
     fence: u64,
     fade: Fade,
@@ -33,8 +34,9 @@ pub struct SoftwareFade {
     scene: Option<homesense_storage::scene_run::StepLink>,
 }
 impl SoftwareFade {
-    /// The caller must reserve `ceil(duration/interval)` output slots against
-    /// the bus-wide budget before starting. This component permits one in-flight
+    /// The caller must reserve the expanded command count/rate returned by
+    /// `reservation` (combined lights need up to two commands per sample).
+    /// The `budget` argument bounds logical samples. This permits one in-flight
     /// sample; the service must prevent multiple owners for the same device.
     #[allow(clippy::too_many_arguments)]
     pub async fn start(
@@ -90,13 +92,15 @@ impl SoftwareFade {
             .checked_add(duration)
             .and_then(|v| v.checked_add(lateness))
             .ok_or("fade deadline overflow")?;
+        let frames_per_sample = if feedback.supply_relay(&device).is_some() { 2 } else { 1 };
         Ok(Self {
             admission,
             controller,
             device,
             target,
             output_possible: false,
-            rate: 1000u64.div_ceil(interval),
+            rate: 1000u64.div_ceil(interval) * frames_per_sample,
+            frames_per_sample,
             generation,
             fence,
             fade,
@@ -139,7 +143,7 @@ impl SoftwareFade {
         Ok(())
     }
     pub(crate) fn reservation(&self) -> (u64,u64) {
-        (self.fade.reserved_samples(),self.rate)
+        (self.fade.reserved_samples() * self.frames_per_sample,self.rate)
     }
     pub(crate) fn output_possible(&self) -> bool { self.output_possible }
     pub(crate) fn manually_cancelled(&self) -> bool { self.manually_cancelled }
