@@ -807,15 +807,11 @@ impl Admission {
                                     command.epochs.transport,
                                 )
                                 .map_err(|e| e.to_string())?;
-                                store
-                                    .transition_command(
-                                        &worker_boot,
-                                        command.id,
-                                        Status::Accepted,
-                                        Status::Writing,
-                                        now,
-                                    )
-                                    .map_err(|e| e.to_string())?;
+                                if !store.begin_command_write(&worker_boot,command.id,now).map_err(|e|e.to_string())? {
+                                    arbiter.cancel_selected_before_write(command.id).map_err(|e|e.to_string())?;
+                                    principals.remove(&command.id);
+                                    return Ok(None);
+                                }
                                 principals.remove(&command.id);
                                 in_flight = Some(command.id);
                                 write_deadline = Some(command.deadline_ms);
