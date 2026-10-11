@@ -5758,3 +5758,22 @@ async fn scene_rejects_early_or_duplicate_fade_without_closing_admission() {
     assert!(a.dispatch().await.unwrap().is_none());
     a.shutdown().await.unwrap();
 }
+
+#[tokio::test]
+async fn configured_fade_does_not_fall_back_to_instant_level_before_preparation() {
+    let db=Db(std::env::temp_dir().join(format!("fade-config-{}.sqlite",Uuid::new_v4())));
+    let devices=include_bytes!("../../../config/simulation.json");
+    Store::open(&db.0).unwrap().publish_configuration(None,devices,ExecutionContext::Simulation,&[]).unwrap();
+    let controller=Uuid::new_v4();let a=actor(&db,controller).await;
+    let config=homesense_config::Configuration::parse(devices,ExecutionContext::Simulation).unwrap();
+    let rules=br#"{"schema_version":1,"configuration_revision":1,"variables":[],"rules":[],"timed_scenes":[{"id":"fade","enabled":true,"review_evidence":"simulation","max_lateness_ms":1000,"steps":[{"source":"test","offset_ms":0,"device":"simulation:light","command":{"kind":"level","value":0,"ramp":false},"fade":{"duration_ms":1000,"interval_ms":100,"lateness_ms":100}}]}]}"#;
+    let document=homesense_config::rule_document::Document::parse(rules,&config).unwrap();
+    let mut scheduler=homesensed::scene_scheduler::SceneScheduler::new(a.clone(),controller,4,0).unwrap();
+    assert!(scheduler.start_document(&document,"fade",0).await.unwrap_err().contains("feedback preparation"));
+    assert!(scheduler.tick(0).await.unwrap().is_empty());
+    assert!(a.dispatch().await.unwrap().is_none());
+    let sql=rusqlite::Connection::open(&db.0).unwrap();
+    assert_eq!(sql.query_row("SELECT count(*) FROM scene_run",[],|r|r.get::<_,i64>(0)).unwrap(),0);
+    assert_eq!(sql.query_row("SELECT count(*) FROM command_journal",[],|r|r.get::<_,i64>(0)).unwrap(),0);
+    a.shutdown().await.unwrap();
+}

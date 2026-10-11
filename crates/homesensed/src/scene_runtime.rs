@@ -127,6 +127,7 @@ impl SceneRuntime {
         let document=bundle.automation.ok_or("accepted automation missing")?;
         let definition=document.timed_scenes.get(&accepted.start.definition).ok_or("accepted scene missing")?;
         if !definition.enabled {return Err("accepted scene disabled".into());}
+        if !definition.fades.is_empty() {return Err("configured fades require feedback preparation support".into());}
         let mut steps=definition.steps.clone();
         for step in &mut steps {
             step.source=format!("{} -> {}",accepted.start.source,step.source);
