@@ -8,3 +8,6 @@ pub mod requests;
 pub mod storage;
 pub mod write;
 pub mod scene_graph;
+
+pub mod scene_requests;
+pub mod scene_write;
