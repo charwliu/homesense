@@ -59,13 +59,22 @@ pub async fn serve_supervised(
     coexistence_confirmed: bool,
     recovery_limit: u8,
 ) -> Result<(), String> {
+    serve_with_publications(devices, rules, directory, duration, coexistence_confirmed, recovery_limit, None).await
+}
+/// Trusted in-process publication entry point. The receiver is an administrative
+/// capability; external adapters must authenticate before handing out its sender.
+pub async fn serve_with_publications(
+    devices: &[u8], rules: &[u8], directory: &Path, duration: Duration,
+    coexistence_confirmed: bool, recovery_limit: u8,
+    mut publications: Option<crate::automation_publication::Receiver>,
+) -> Result<(), String> {
     if recovery_limit > 16 {
         return Err("recovery limit must be 0..16".into());
     }
     if !coexistence_confirmed || duration.is_zero() || duration > Duration::from_secs(86400) {
         return Err("automation TCP requires confirmed coexistence and duration in (0,24h]".into());
     }
-    let config = validate_candidate(devices, rules)?;
+    let mut config = validate_candidate(devices, rules)?;
     std::fs::create_dir_all(directory).map_err(|e| e.to_string())?;
     let path = directory.join("automation-tcp.sqlite");
     let mut store = Store::open(&path).map_err(|e| e.to_string())?;
@@ -89,8 +98,8 @@ pub async fn serve_supervised(
     let admission = Admission::open(path, Options::default(), move |id| id == controller).await?;
     let _guard = Stop(admission.clone());
     let result = async {
-        let (stop, receiver) = tokio::sync::watch::channel(false);
-        let endpoints: std::collections::BTreeMap<_,_> = config
+        let (_stop, receiver) = tokio::sync::watch::channel(false);
+        let mut endpoints: std::collections::BTreeMap<_,_> = config
             .gateways()
             .iter()
             .map(|(id, g)| (id.clone(), g.endpoint))
@@ -118,22 +127,86 @@ pub async fn serve_supervised(
             .await?;
         let deadline=tokio::time::Instant::now()+duration;
         let mut recoveries=0;
+        let mut prepared_runtime = None;
         loop {
             use crate::{automation_drive::Exit,automation_runtime::StartupPolicy};
             let startup=if recoveries==0 {StartupPolicy::Run} else {StartupPolicy::Suppress};
-            let mut runtime=AutomationRuntime::load_with_startup(admission.clone(),controller,wall_ms()?,1000,64,Default::default(),startup).await?;
+            let (runtime_stop, runtime_receive) = tokio::sync::watch::channel(false);
+            let mut pending = None;
+            let mut runtime=match prepared_runtime.take() {
+                Some(runtime) => runtime,
+                None => AutomationRuntime::load_with_startup(admission.clone(),controller,wall_ms()?,1000,64,Default::default(),startup).await?,
+            };
             let outcome={
-                let drive=runtime.drive_recoverable(&mut owner,Duration::from_millis(10),5000,receiver.clone(),wall_ms);
+                let drive=runtime.drive_recoverable(&mut owner,Duration::from_millis(10),5000,runtime_receive,wall_ms);
                 tokio::pin!(drive);
-                tokio::select! {
-                    result=&mut drive=>result?,
-                    _=tokio::time::sleep_until(deadline)=>{let _=stop.send(true);drive.await?},
+                loop {
+                    tokio::select! {
+                        result=&mut drive=>break result?,
+                        _=tokio::time::sleep_until(deadline)=>{let _=runtime_stop.send(true);break drive.await?},
+                        request=async {
+                            match publications.as_mut() {
+                                Some(receiver) => receiver.receive().await,
+                                None => std::future::pending().await,
+                            }
+                        } => {
+                            let Some(request)=request else { publications=None; continue; };
+                            let candidate=match validate_candidate(request.devices(),request.rules()) {
+                                Ok(config)=>config,
+                                Err(error)=>{request.complete(Err(error));continue;}
+                            };
+                            if request.abandoned() {request.complete(Err("publication abandoned before barrier".into()));continue;}
+                            if let Err(error)=admission.begin_automation_publication(request.devices().to_vec(),request.rules().to_vec(),request.expected_revision(),Duration::from_secs(3)).await {
+                                request.complete(Err(format!("publication rejected: {error:?}")));continue;
+                            }
+                            pending=Some((request,candidate));
+                            let _=runtime_stop.send(true);
+                            break drive.await?;
+                        }
+                    }
                 }
             };
             drop(runtime);
             match outcome {
                 Exit::Stopped => return Ok(()),
-                Exit::PublicationPaused => return Err("TCP publication coordinator not installed".into()),
+                Exit::PublicationPaused => {
+                    let (request, candidate)=pending.take().ok_or("publication paused without request")?;
+                    let transition=async {
+                        while owner.drain_publication(&admission).await?.is_some() {}
+                        let revision=admission.commit_publication().await.map_err(|e|format!("publication commit: {e:?}"))?;
+                        let next=epoch.checked_add(1).ok_or("transport epoch exhausted")?;
+                        let mut connections=std::collections::BTreeMap::new();
+                        for (id,gateway) in candidate.gateways() {
+                            let address=gateway.endpoint;
+                            let connection=tokio::task::spawn_blocking(move || hb_transport::Connection::connect(address,next,Duration::from_secs(2),Duration::from_millis(100)))
+                                .await.map_err(|e|e.to_string())?.map_err(|e|e.to_string())?;
+                            connections.insert(id.clone(),connection);
+                        }
+                        let transport=crate::transport_owner::TransportOwner::new(admission.clone(),connections);
+                        let (runtime,fresh)=crate::publication_recovery::rebuild_with_policy(
+                            admission.clone(),controller,transport,next,
+                            crate::publication_recovery::Settings{query_timeout_ms:1000,max_age_ms:5000,wall_unix_ms:wall_ms()?,calendar_lateness_ms:1000,scene_capacity:64},
+                            crate::publication_recovery::Synchronization::OutputsAndKeypadEvents,
+                        ).await?;
+                        Ok::<_,String>((revision,next,runtime,fresh))
+                    };
+                    match tokio::time::timeout_at(deadline,transition).await {
+                        Ok(Ok((revision,next,runtime,fresh)))=>{
+                            owner=fresh;
+                            epoch=next;
+                            endpoints=candidate.gateways().iter().map(|(id,g)|(id.clone(),g.endpoint)).collect();
+                            config=candidate;
+                            prepared_runtime=Some(runtime);
+                            request.complete(Ok(revision));
+                        }
+                        failure=>{
+                            admission.stop_now();
+                            let error=match failure {Ok(Err(error))=>error,_=>"publication exceeded service deadline; inspect active revision".into()};
+                            request.complete(Err(error.clone()));
+                            return Err(error);
+                        }
+                    }
+                },
                 Exit::Disconnected {gateway} => {
                     if recoveries>=recovery_limit {return Err(format!("gateway disconnected: {gateway}; recovery limit reached"));}
                     recoveries+=1;
