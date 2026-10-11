@@ -542,3 +542,77 @@ async fn supervision_stops_at_limit_or_failed_recovery_sync() {
         std::fs::remove_dir_all(root).unwrap();
     }
 }
+
+#[tokio::test]
+async fn tcp_long_press_disconnect_does_not_resume_without_new_press() {
+    let root = std::env::temp_dir().join(format!("automation-tcp-hold-{}", uuid::Uuid::new_v4()));
+    let bus = TcpListener::bind("127.0.0.1:0").unwrap();
+    let mut devices: hap::serde_json::Value =
+        hap::serde_json::from_slice(include_bytes!("../../../config/simulation-home.json"))
+            .unwrap();
+    devices["gateways"][0]["endpoint"] = bus.local_addr().unwrap().to_string().into();
+    devices["gateways"][0]["modules"][0]["verification"] = hap::serde_json::json!({"status":"verified","evidence":"loopback only","verified_at_unix_ms":1});
+    devices["gateways"][0]["modules"].as_array_mut().unwrap().push(hap::serde_json::json!({"address":"41","profile":"ts6_86_rs485_v2_6_5_6key","verification":{"status":"verified","evidence":"loopback only","verified_at_unix_ms":1},"led_mode":"manual"}));
+    devices["devices"].as_array_mut().unwrap().push(hap::serde_json::json!({"id":"panel:1","name":"key","gateway":"simulation","address":"41","channel":1,"enabled":true}));
+    let rules=hap::serde_json::to_vec(&hap::serde_json::json!({"schema_version":1,"configuration_revision":1,"variables":[],"rules":[],"gestures":[{"device":"panel:1","debounce_ms":30,"long_press_ms":600,"double_click_ms":300,"max_hold_ms":10000,"double_click_enabled":false}],"holds":{"interval_ms":100,"increment":5,"bindings":[{"key":"panel:1","device":"simulation:light","up":true,"release":"cancel_pending_only","enabled":true,"review_evidence":"loopback only"}]}})).unwrap();
+    let server = std::thread::spawn(move || {
+        for round in 0..2 {
+            let (mut socket, _) = bus.accept().unwrap();
+            socket
+                .set_read_timeout(Some(Duration::from_secs(4)))
+                .unwrap();
+            let mut frame = [0; 5];
+            socket.read_exact(&mut frame).unwrap();
+            assert_eq!(frame, [0xae, 0x15, 0xa1, 0xf2, 0xee]);
+            socket.write_all(&[0xae, 0x15, 0xd1, 30, 0xee]).unwrap();
+            if round == 0 {
+                std::thread::sleep(Duration::from_millis(100));
+                socket.write_all(&[0xae, 0x41, 0xd1, 0xf1, 0xee]).unwrap();
+                socket.read_exact(&mut frame).unwrap();
+                assert_eq!(frame, [0xae, 0x15, 1, 35, 0xee]);
+                socket.shutdown(std::net::Shutdown::Both).unwrap();
+            } else {
+                socket
+                    .set_read_timeout(Some(Duration::from_millis(250)))
+                    .unwrap();
+                let error = socket.read(&mut frame).unwrap_err();
+                assert!(matches!(
+                    error.kind(),
+                    std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
+                ));
+                socket
+                    .set_read_timeout(Some(Duration::from_secs(4)))
+                    .unwrap();
+                socket.write_all(&[0xae, 0x41, 0xd1, 0xf1, 0xee]).unwrap();
+                socket.read_exact(&mut frame).unwrap();
+                assert_eq!(frame, [0xae, 0x15, 1, 35, 0xee]);
+                socket.write_all(&[0xae, 0x41, 0xd1, 0xf2, 0xee]).unwrap();
+                assert_eq!(
+                    socket.read(&mut frame).unwrap(),
+                    0,
+                    "released new hold must stop"
+                );
+            }
+        }
+    });
+    homesensed::automation_tcp::serve_supervised(
+        &hap::serde_json::to_vec(&devices).unwrap(),
+        &rules,
+        &root,
+        Duration::from_millis(2500),
+        true,
+        1,
+    )
+    .await
+    .unwrap();
+    server.join().unwrap();
+    let sql = rusqlite::Connection::open(root.join("automation-tcp.sqlite")).unwrap();
+    assert_eq!(
+        sql.query_row("SELECT count(*) FROM command_journal", [], |r| r
+            .get::<_, i64>(0))
+            .unwrap(),
+        2
+    );
+    drop(sql);
+    std::fs::remove_dir_all(root).unwrap();
+}
