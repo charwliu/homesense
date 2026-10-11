@@ -59,13 +59,29 @@ struct TimedSceneInput {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct TimedStepInput {
+    fade: Option<FadeTiming>,
     source: String,
     offset_ms: u64,
     device: String,
     command: CommandInput,
 }
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct FadeTiming {
+    pub duration_ms: u64,
+    pub interval_ms: u64,
+    pub lateness_ms: u64,
+}
+impl FadeTiming {
+    pub fn samples(&self) -> Result<u64, Error> {
+        homesense_core::fade::Fade::new(Percent::new(0).unwrap(),Percent::new(100).unwrap(),0,
+            self.duration_ms,self.interval_ms,self.lateness_ms,1024)
+            .map(|fade|fade.reserved_samples()).map_err(|e|invalid(format!("fade timing: {e:?}")))
+    }
+}
 #[derive(Debug, Clone)]
 pub struct TimedScene {
+    pub fades: BTreeMap<usize, FadeTiming>,
     pub enabled: bool,
     pub review_evidence: Option<String>,
     pub max_lateness_ms: u64,
@@ -679,6 +695,7 @@ impl Document {
                 return Err(invalid("enabled timed scene requires review evidence"));
             }
             let mut steps = vec![];
+            let mut fades = BTreeMap::new();
             for step in scene.steps {
                 let node = compiler
                     .nodes(
@@ -697,6 +714,13 @@ impl Document {
                 };
                 if scene.enabled && config.binding(&device).is_none() {
                     return Err(invalid("enabled timed scene references disabled output"));
+                }
+                if let Some(fade)=step.fade {
+                    fade.samples()?;
+                    if !matches!(command, Command::SetLevel {transition:LevelTransition::Immediate,..}) {
+                        return Err(invalid("software fade requires an immediate level target"));
+                    }
+                    fades.insert(steps.len(),fade);
                 }
                 steps.push(homesense_core::scene::Step {
                     device,
@@ -719,6 +743,7 @@ impl Document {
             timed_scenes.insert(
                 scene.id,
                 TimedScene {
+                    fades,
                     enabled: scene.enabled,
                     review_evidence: scene.review_evidence,
                     max_lateness_ms: scene.max_lateness_ms,
