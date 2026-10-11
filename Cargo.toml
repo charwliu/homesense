@@ -17,7 +17,7 @@ homesense-state = { path = "crates/homesense-state" }
 homesense-simulator = { path = "crates/homesense-simulator" }
 
 homesense-storage = { path = "crates/homesense-storage" }
-rusqlite = { version = "=0.40.2", features = ["bundled"] }
+rusqlite = { version = "=0.40.2", features = ["bundled", "backup"] }
 
 homesense-config = { path = "crates/homesense-config" }
 homesense-hap = { path = "crates/homesense-hap" }
