@@ -23,6 +23,7 @@ pub struct SceneRuntime {
     audit_status: homesense_storage::scene_run::Status,
     audit_failed: bool,
     cancellation_audited: std::collections::BTreeMap<DeviceId,bool>,
+    cancel_requests: std::collections::BTreeMap<DeviceId,bool>,
     admitted: Vec<u64>,
     pending: Option<Pending>,
     fade: Option<OwnedFade>,
@@ -114,6 +115,7 @@ impl SceneRuntime {
             audit_status: homesense_storage::scene_run::Status::Pending,
             audit_failed: false,
             cancellation_audited: Default::default(),
+            cancel_requests: Default::default(),
             manual_fence,
             causal_deadline: None,
             admission,
@@ -145,7 +147,7 @@ impl SceneRuntime {
         let timeline=Timeline::new(steps,current.epochs,accepted.started_ms,definition.max_lateness_ms).map_err(|e|format!("{e:?}"))?;
         Ok(Self{admission,controller:accepted.controller,generation:current,manual_fence:accepted.manual_fence,causal_deadline:accepted.causal_deadline,timeline,targets,
             audit_id:accepted.start.run,definition:Some(accepted.start.definition),result_taken:false,audit_version:0,
-            audit_status:homesense_storage::scene_run::Status::Pending,audit_failed:false,cancellation_audited:Default::default(),admitted:vec![],pending:None,fade:None,configured_fades:definition.fades.clone()})
+            audit_status:homesense_storage::scene_run::Status::Pending,audit_failed:false,cancellation_audited:Default::default(),cancel_requests:Default::default(),admitted:vec![],pending:None,fade:None,configured_fades:definition.fades.clone()})
     }
     /// Transfer the original scene fences to a delayed fade. This does not
     /// start the fade or resolve the timeline step; the scheduler owns both.
@@ -438,6 +440,16 @@ impl SceneRuntime {
         // Invalidate volatile timers even if durable cancellation fails; caller
         // may retry cancellation, but no further timed action can be admitted.
         let mut count = self.cancel_timers();
+        let devices: Vec<_> = self.cancel_requests.iter()
+            .filter(|(_, saved)| !**saved).map(|(device, _)| device.clone()).collect();
+        for device in devices {
+            self.persist_checkpoint(homesense_storage::scene_run::Status::Running,
+                Some(homesense_storage::scene_run::Cancellation {
+                    device: device.clone(),
+                    reason: homesense_storage::scene_run::CancellationReason::CancelRequested,
+                })).await?;
+            self.cancel_requests.insert(device, true);
+        }
         // A transport failure may already have made every in-flight command terminal.
         self.reconcile().await?;
         for run in &self.admitted {
@@ -464,6 +476,14 @@ impl SceneRuntime {
         Ok(count)
     }
     pub(crate) fn cancel_timers(&mut self) -> usize {
+        // Retain requests across the scheduler's synchronous timer barrier.
+        // Offered work may already be writing; this records intent, not recall.
+        for (index, state) in self.timeline.states().iter().enumerate() {
+            if matches!(state, homesense_core::scene::State::Waiting | homesense_core::scene::State::Offered) {
+                let device = self.timeline.step(index).expect("timeline step").device.clone();
+                self.cancel_requests.entry(device).or_insert(false);
+            }
+        }
         if let Some(fade)=&mut self.fade {fade.stopping=true;}
         self.timeline.cancel()
     }
