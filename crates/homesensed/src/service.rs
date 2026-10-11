@@ -355,7 +355,7 @@ pub async fn serve_automation_simulation_with_publication(
     serve_automation_simulation_options(devices,rules,directory,duration,scene,publication,None,None).await
 }
 /// Explicit local-only management simulation; credentials are supplied out of band.
-pub struct WebSimulation { pub address:std::net::SocketAddr, pub secret:String }
+pub struct WebSimulation { pub address:std::net::SocketAddr, pub secret:String, pub administrator:bool }
 pub async fn serve_web_simulation(devices:&[u8],rules:&[u8],directory:&Path,duration:Duration,web:WebSimulation)->Result<(),String> {
     if !web.address.ip().is_loopback() || web.address.port()==0 {return Err("Web simulation requires a loopback address and nonzero port".into());}
     serve_automation_simulation_options(devices,rules,directory,duration,None,None,Some(web),None).await
@@ -505,8 +505,8 @@ async fn serve_automation_simulation_options(
         if let Some(web)=web {
             let tokens=std::sync::Arc::new(crate::web_auth::Tokens::default());
             let selected:std::collections::BTreeMap<String,String>=document.timed_scenes.iter().filter(|(_,s)|s.enabled && s.review_evidence.as_ref().is_some_and(|v|!v.trim().is_empty())).map(|(id,_)|(id.clone(),id.clone())).collect();
-            tokens.insert(Uuid::new_v4(),&web.secret,crate::web_auth::Grant{controller,role:crate::web_auth::Role::Member,scenes:selected.keys().cloned().collect(),devices:config.devices().iter().filter(|(_,d)|d.enabled).map(|(id,_)|id.as_str().to_owned()).collect()})?;
-            let api=std::sync::Arc::new(crate::web_api::Api{origin:format!("http://{}",web.address),tokens,control:runtime.control(),revision:document.revision,boot:admission.boot_id().to_owned(),scenes:selected,receipts:std::sync::Mutex::new(crate::web_receipts::Receipts::open(&directory.join("web-receipts.sqlite"))?)});
+            tokens.insert(Uuid::new_v4(),&web.secret,crate::web_auth::Grant{controller,role:if web.administrator {crate::web_auth::Role::Administrator}else{crate::web_auth::Role::Member},scenes:selected.keys().cloned().collect(),devices:config.devices().iter().filter(|(_,d)|d.enabled).map(|(id,_)|id.as_str().to_owned()).collect()})?;
+            let api=std::sync::Arc::new(crate::web_api::Api{origin:format!("http://{}",web.address),tokens,control:runtime.control(),revision:document.revision,boot:admission.boot_id().to_owned(),scenes:selected,drafts:Some((ExecutionContext::Simulation,std::sync::Mutex::new(crate::web_drafts::Drafts::open(&directory.join("web-drafts.sqlite"))?))),receipts:std::sync::Mutex::new(crate::web_receipts::Receipts::open(&directory.join("web-receipts.sqlite"))?)});
             let (stop,receive)=tokio::sync::watch::channel(false);
             let drive=runtime.drive(&mut owner,Duration::from_millis(10),5000,receive.clone(),wall_ms);
             let server=crate::web_server::serve(api,web.address,receive);

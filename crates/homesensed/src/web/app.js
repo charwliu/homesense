@@ -10,6 +10,8 @@ async function request(path, options = {}) {
   return result;
 }
 async function refresh() {
+  const capabilities = await request('/api/v1/session');
+  document.getElementById('configuration').hidden = !capabilities.can_manage_configuration;
   const data = await request('/api/v1/scenes');
   await refreshDevices();
   list.replaceChildren();
@@ -49,7 +51,7 @@ document.getElementById('connect').onclick = async () => {
   } catch (error) { csrf = ''; list.replaceChildren(); status.textContent = error.message; }
 };
 document.getElementById('logout').onclick = async () => {
-  try { await request('/api/v1/session', {method: 'DELETE'}); csrf = ''; started.clear(); list.replaceChildren(); document.getElementById('devices').replaceChildren(); status.textContent = '已退出'; }
+  try { await request('/api/v1/session', {method: 'DELETE'}); csrf = ''; document.getElementById('configuration').hidden=true; for(const id of ['device-document','automation-document','draft-id','base-revision','draft-revision']) document.getElementById(id).value=''; started.clear(); list.replaceChildren(); document.getElementById('devices').replaceChildren(); status.textContent = '已退出'; }
   catch (error) { status.textContent = '注销未确认：' + error.message; }
 };
 
@@ -85,3 +87,24 @@ async function refreshDevices() {
 }
 
 document.getElementById('refresh').onclick = () => refresh().catch(error => {status.textContent=error.message;});
+
+document.getElementById('save-draft').onclick = async () => {
+  const button=document.getElementById('save-draft'); button.disabled=true;
+  try {
+    const id=crypto.randomUUID(); document.getElementById('draft-id').value=id;
+    const body={expected_revision:Number(document.getElementById('base-revision').value),revision:Number(document.getElementById('draft-revision').value),devices:JSON.parse(document.getElementById('device-document').value),automation:JSON.parse(document.getElementById('automation-document').value)};
+    await request('/api/v1/config/drafts/'+id,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    status.textContent='草稿已验证并保存；当前运行配置未改变。';
+  } catch(error) {status.textContent=error.message+'；未自动重试，可按草稿 ID 核对。';}
+  finally {button.disabled=false;}
+};
+document.getElementById('load-draft').onclick = async () => {
+  try {
+    const draft=await request('/api/v1/config/drafts/'+encodeURIComponent(document.getElementById('draft-id').value.trim()));
+    document.getElementById('base-revision').value=draft.expected_revision;
+    document.getElementById('draft-revision').value=draft.revision;
+    document.getElementById('device-document').value=JSON.stringify(draft.devices,null,2);
+    document.getElementById('automation-document').value=JSON.stringify(draft.automation,null,2);
+    status.textContent='已读取草稿；当前运行配置未改变。';
+  } catch(error) {status.textContent=error.message;}
+};
