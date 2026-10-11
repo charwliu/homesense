@@ -124,3 +124,5 @@ cargo run --locked --offline -p homesensed -- serve-simulation config/simulation
 规则失败分类基础：延迟适配器新增 execute_classified，返回 Planning(core 链／求值错误) 或 Runtime，而原字符串 API 保持兼容。Planning 仅证明当前调用在准入前拒绝，不代表此前同链动作可回滚；容量、准入和安装失败仍保守归为 Runtime。66 项运行时回归及 homesensed 库严格 Clippy 通过，验证预算拒绝与容量故障分类、变量均未提交。当前 Session 仍按原策略关闭准入，链级故障隔离尚待实现，不能将此分类视作隔离验收。未部署，EA-5 不变。
 
 延迟续接失败分类：新增 resume_scene_classified，结果领取的预算／时钟等链错误保留类型，后继执行复用 execute_classified；若已有后继接受后再失败，以 Partial 携带已接受报告及底层错误，避免后续隔离逻辑误判为整批未执行。原字符串入口兼容且停止策略未放宽。66 项运行时回归及 homesensed 库严格 Clippy 通过，专项验证原链节点预算耗尽时返回 Planning(Budget) 且后继未执行。Partial 清理与链级隔离仍需进一步接入验证，未部署、EA-5 不变。
+
+部分接受记账修复：Session 每接受一个根规则立即登记其安装场景，不再等全部根完成后才登记，后续根失败也保留此前任务清单。新增真实准入／调度回归：延迟终态续接时第一条规则变量已提交、第二条预算拒绝，Partial 报告与持久记录一致；另验证首根已安装任务在次根失败后仍被会话跟踪。67 项运行时测试及 homesensed 库严格 Clippy 通过。当前失败仍关闭准入；类型化错误的会话传播、清理与链级隔离仍待接入，未部署、EA-5 不变。

@@ -4772,3 +4772,38 @@ async fn panel_feedback_uses_shared_causal_rules_without_duplicate_edges() {
     assert_eq!(Store::open(&db.0).unwrap().logical_variable(1,"mode").unwrap().unwrap().value,Some(homesense_core::rule::Value::Integer(2)));
     assert!(a.dispatch().await.unwrap().is_none());a.shutdown().await.unwrap();
 }
+
+#[tokio::test]
+async fn successor_partial_failure_preserves_accepted_report_and_root_tracking() {
+    let db=Db(std::env::temp_dir().join(format!("partial-cause-{}.sqlite",Uuid::new_v4())));
+    let rules=br#"{"schema_version":1,"configuration_revision":1,"variables":[{"id":"done","kind":"integer","lifetime":"persistent"}],"rules":[{"id":"begin","enabled":true,"review_evidence":"test","source":"test","trigger":{"kind":"startup_synchronized"},"actions":[{"source":"call","action":{"kind":"scene","id":"later","activate":true}}]},{"id":"first","enabled":true,"review_evidence":"test","source":"test","trigger":{"kind":"scene_result","scene":"later"},"actions":[{"source":"done","action":{"kind":"set","variable":"done","value":{"kind":"integer","value":1}}}]},{"id":"second","enabled":true,"review_evidence":"test","source":"test","trigger":{"kind":"scene_result","scene":"later"},"actions":[]}],"timed_scenes":[{"id":"later","enabled":true,"review_evidence":"test","max_lateness_ms":1000,"steps":[{"source":"step","offset_ms":0,"device":"simulation:light","command":{"kind":"level","value":30,"ramp":false}}]}]}"#;
+    Store::open(&db.0).unwrap().publish_automation(None,include_bytes!("../../../config/simulation.json"),rules,ExecutionContext::Simulation,&[]).unwrap();
+    let controller=Uuid::new_v4();let a=actor(&db,controller).await;
+    let mut scheduler=homesensed::scene_scheduler::SceneScheduler::new(a.clone(),controller,2,0).unwrap();
+    let mut chain=homesense_core::rule_chain::Chain::new(42,0,60000,homesense_core::rule::Budget{nodes:6,..Default::default()},32).unwrap();
+    let root=chain.root();
+    let outcome=homesensed::deferred_rule::execute_classified(&a,controller,"begin",&mut chain,&root,&mut scheduler,None).await.unwrap();
+    let store=Store::open(&db.0).unwrap();
+    let mut observer=homesensed::deferred_router::Router::new(a.clone(),controller,&scheduler,2).unwrap();
+    observer.poll(&mut scheduler,None).await.unwrap();
+    let ticket=a.dispatch().await.unwrap().unwrap();a.finish_write(ticket.command.id,true).await.unwrap();
+    let (_,mut unowned)=observer.poll(&mut scheduler,None).await.unwrap();
+    let terminal=unowned.pop().unwrap();
+    let failure=homesensed::deferred_rule::resume_scene_classified(&a,controller,&mut chain,&outcome.cause,&terminal,&mut scheduler,None).await.unwrap_err();
+    match failure {
+        homesensed::deferred_rule::ExecutionFailure::Partial{completed,error}=>{
+            assert_eq!(completed.len(),1);assert_eq!(completed[0].rule,"first");
+            assert_eq!(completed[0].cause.correlation_id(),42);
+            assert!(matches!(*error,homesensed::deferred_rule::ExecutionFailure::Planning(homesense_core::rule_chain::Error::Budget)));
+        },other=>panic!("unexpected: {other:?}"),
+    }
+    assert_eq!(store.logical_variable(1,"done").unwrap().unwrap().value,Some(homesense_core::rule::Value::Integer(1)));
+    let sql=rusqlite::Connection::open(&db.0).unwrap();
+    assert_eq!(sql.query_row("SELECT count(*) FROM rule_admission WHERE rule_id='second'",[],|r|r.get::<_,i64>(0)).unwrap(),0);
+    scheduler.retire(terminal.run).unwrap();
+    let mut session=homesensed::deferred_session::Session::new(a.clone(),controller,&scheduler,Default::default(),60000).await.unwrap();
+    assert!(session.start_rules(&["begin".into(),"missing".into()],&mut scheduler,None).await.is_err());
+    assert_eq!(session.pending_count(),1,"first accepted root must be tracked before the next root fails");
+    assert!(a.task_generation().await.is_err());
+    a.shutdown().await.unwrap();
+}
