@@ -1,5 +1,6 @@
 'use strict';
 let csrf = '';
+let publicationPreview=null;
 const started = new Map();
 const status = document.getElementById('status');
 const list = document.getElementById('scenes');
@@ -113,6 +114,19 @@ document.getElementById('preview-draft').onclick = async () => {
   try {
     const result=await request('/api/v1/config/previews/'+encodeURIComponent(document.getElementById('draft-id').value.trim()));
     const impact=result.impact;
+    publicationPreview={id:result.draft,boot:impact.boot}; document.getElementById('activate-draft').disabled=false;
     document.getElementById('draft-impact').textContent=`版本 ${impact.active_revision} → ${impact.candidate_revision}\n需要重建网关连接：${impact.connection_rebuild_required?'是':'否'}\n发布将结束旧版本规则和定时任务。\n受影响场景：\n` + (impact.interrupted_runs.map(run=>`${run.definition || run.audit_id} · ${run.status}`).join('\n') || '当前无未结束场景') + '\n此为当前快照，不锁定运行状态；尚未激活。';
   } catch(error) {document.getElementById('draft-impact').textContent='';status.textContent=error.message;}
+};
+
+document.getElementById('activate-draft').onclick = async () => {
+  const preview=publicationPreview;
+  if(!preview || preview.id!==document.getElementById('draft-id').value.trim()) {status.textContent='请先预览当前草稿。';return;}
+  if(!window.confirm('激活将结束旧版本规则和未执行动作。已执行动作不会回滚。继续激活？'))return;
+  document.getElementById('activate-draft').disabled=true; publicationPreview=null;
+  try {
+    const result=await request('/api/v1/config/activations/'+preview.id,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({request_id:crypto.randomUUID(),boot:preview.boot})});
+    status.textContent=result.outcome==='activated'?`版本 ${result.revision} 已激活。`:'发布结果未知，请检查活动版本，不要重复激活。';
+    await refresh();
+  } catch(error) {status.textContent=error.message+'；发布可能已发生，请核对活动版本，未自动重试。';}
 };
