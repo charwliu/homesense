@@ -609,3 +609,6 @@ TCP 断链前置回归：回环网关同步后收到启动规则第一条控制�
 
 
 自动化退出分类：新增 `AutomationRuntime::drive_classified`，区分正常停止、发布暂停和明确的网关断开；接收 Disconnected 后立即结束事件循环。规则／存储／清理失败仍为 Err，不能据错误字符串重试；原 drive 接口仍把断链返回错误。旧 Admission 仍保持终止，不因新分类而自动恢复。7 项 TCP、4 项模拟服务、68 项运行时测试及库严格 Clippy 通过，包含无待处理动作的 EOF 分类及取消审计失败不能伪装为断链成功。重连监督仍需实现运行时重建及启动事件防重复，现场未启用。
+
+
+运行时启动策略：`AutomationRuntime::load_with_startup` 接受显式 `StartupPolicy::Run/Suppress`，原 load 继续默认 Run。Suppress 只跳过本次装配的 startup_synchronized，不禁用手动场景、日历或反馈路由，也不恢复终止的 Admission。新增同配置先 Run 再 Suppress 的重新装配回归：启动规则总计一次、持久变量保持、两次手动场景均可启动取消；69 项运行时测试与库严格 Clippy 通过。此为重连监督器装配能力，尚未接入自动重连，不能据此声称重连期间临时变量或旧任务生命周期已完成验证。
