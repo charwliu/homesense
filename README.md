@@ -41,7 +41,7 @@ HAP 监听退出时现会通知全部既有会话关闭，避免后续配件图�
 homesensed serve-combined-simulation DEVICE_FILE AUTOMATION_FILE STATE_DIR SECONDS HAP_LOOPBACK_IP:PORT WEB_LOOPBACK_IP:PORT TOKEN_FILE SCENE...
 ```
 
-两个地址必须是不同的本机回环端点；令牌文件权限须为 0600，Web 角色为 member。该命令使用模拟硬件，在同一运行时发布灯光与指定场景，同时提供 Web 灯光和场景控制。它不支持配置激活；现有 HTTPS/WSS 与 TCP 管理入口不受影响。可执行 `python3 tools/verify_web_simulation.py /path/to/homesensed --combined` 验证会话、重启幂等及错误参数拒绝。
+服务先确认 HAP 端口绑定和初始发现记录就绪，再启动自动化；端口占用不会执行启动规则。两个地址必须是不同的本机回环端点；令牌文件权限须为 0600，Web 角色为 member。该命令使用模拟硬件，在同一运行时发布灯光与指定场景，同时提供 Web 灯光和场景控制。它不支持配置激活；现有 HTTPS/WSS 与 TCP 管理入口不受影响。可执行 `python3 tools/verify_web_simulation.py /path/to/homesensed --combined` 验证会话、重启幂等及错误参数拒绝。
 
 ## TCP 服务的 Web 管理
 

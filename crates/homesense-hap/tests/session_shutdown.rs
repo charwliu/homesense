@@ -125,3 +125,26 @@ async fn stopping_listener_closes_authenticated_and_unpaired_connections() {
         std::fs::remove_dir_all(root).unwrap();
     }
 }
+
+#[tokio::test]
+async fn readiness_requires_successful_bind_and_preserves_retry() {
+    let root=std::env::temp_dir().join(format!("hap-ready-{}",Uuid::new_v4()));
+    let occupied=TcpListener::bind("127.0.0.1:0").unwrap();
+    let address=occupied.local_addr().unwrap();
+    let mut store=IdentityStore::open(&root).await.unwrap();
+    let config=hap::Config{host:address.ip(),port:address.port(),..Default::default()};
+    store.save_config(&config).await.unwrap();
+    let server=IpServer::new_loopback(config,store.clone()).await.unwrap();
+    let (ready,started)=tokio::sync::oneshot::channel();
+    assert!(tokio::time::timeout(Duration::from_secs(2),server.run_handle_ready(ready)).await.unwrap().is_err());
+    assert!(started.await.is_err(),"failed bind must never acknowledge readiness");
+    drop(occupied);
+    let (ready,started)=tokio::sync::oneshot::channel();
+    let active=server.clone();
+    let task=tokio::spawn(async move {active.run_handle_ready(ready).await});
+    tokio::time::timeout(Duration::from_secs(2),started).await.unwrap().unwrap();
+    let stream=tokio::net::TcpStream::connect(address).await.unwrap();drop(stream);
+    task.abort();let _=task.await;
+    assert!(TcpListener::bind(address).is_ok());
+    drop(server);drop(store);std::fs::remove_dir_all(root).unwrap();
+}

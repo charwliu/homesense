@@ -187,6 +187,13 @@ impl Server {
     }
 
     pub fn run_handle(&self) -> BoxFuture<Result<()>> {
+        self.run_handle_ready(None)
+    }
+
+    pub(crate) fn run_handle_ready(
+        &self,
+        ready: Option<tokio::sync::oneshot::Sender<()>>,
+    ) -> BoxFuture<Result<()>> {
         let config = self.config.clone();
         let storage = self.storage.clone();
         let accessory_database = self.accessory_database.clone();
@@ -202,6 +209,7 @@ impl Server {
             let listener = TcpListener::bind(socket_addr).await?;
 
             mdns_responder.lock().await.update_records().await?;
+            if let Some(ready) = ready { let _ = ready.send(()); }
 
             // Closing the listener future also ends every accepted session.
             // Sessions retain receivers only, so no task can prolong this scope.

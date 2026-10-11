@@ -501,6 +501,13 @@ async fn serve_automation_simulation_options(
             let mut graph=crate::unified_hap::UnifiedHap{lights,scenes:Some(scenes)};
             let server=IpServer::new_loopback(settings,identity).await.map_err(error)?;
             graph.install(&server).await?;
+            let (ready,started)=tokio::sync::oneshot::channel();
+            let listener=server.run_handle_ready(ready);
+            tokio::pin!(listener);
+            tokio::select! {
+                result=&mut listener=>{result.map_err(error)?;return Err("HAP listener ended before readiness".into());},
+                result=started=>result.map_err(|_|"HAP listener failed before readiness")?,
+            }
             let mut management=match web {
                 Some(settings)=>Some(crate::management_endpoint::Endpoint::start_in_context(settings,directory,&admission,controller,&runtime,None,ExecutionContext::Simulation).await?),
                 None=>None,
@@ -512,7 +519,7 @@ async fn serve_automation_simulation_options(
             tokio::pin!(drive,project);
             tokio::select! {
                 result=async {match management.as_mut(){Some(endpoint)=>endpoint.finished().await,None=>std::future::pending().await}}=>{let _=stop.send(true);drive.await?;return Err(result.err().unwrap_or_else(||"management listener ended".into()));},
-                result=server.run_handle()=>{let _=stop.send(true);drive.await?;result.map_err(error)?;},
+                result=&mut listener=>{let _=stop.send(true);drive.await?;result.map_err(error)?;},
                 result=&mut project=>{let _=stop.send(true);drive.await?;result?;},
                 result=&mut drive=>{result?;},
                 _=tokio::time::sleep(duration)=>{let _=stop.send(true);drive.await?;}
