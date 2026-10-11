@@ -341,6 +341,8 @@ impl Store {
 
 #[derive(Debug, Clone)]
 pub enum Query {
+    /// `after` and the returned cursor refer to checkpoint versions.
+    Cancellations { boot: String, run: String, after: u64, limit: usize },
     Latest {
         definition: String,
     },
@@ -362,12 +364,8 @@ impl Query {
                     return Err(Error::InvalidAudit);
                 }
             }
-            Self::Run {
-                boot,
-                run,
-                after,
-                limit,
-            } => {
+            Self::Run { boot, run, after, limit }
+            | Self::Cancellations { boot, run, after, limit } => {
                 key(boot)?;
                 key(run)?;
                 if *after > i64::MAX as u64 || !(1..=128).contains(limit) {
@@ -378,6 +376,11 @@ impl Query {
         Ok(())
     }
 }
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CancellationRecord {
+    pub version: u64,
+    pub cancellation: Cancellation,
+}
 #[derive(Debug)]
 pub struct Page {
     pub boot: String,
@@ -385,6 +388,7 @@ pub struct Page {
     pub record: Record,
     pub cause: Option<Cause>,
     pub commands: Vec<CommandRecord>,
+    pub cancellations: Vec<CancellationRecord>,
     pub next_after: Option<u64>,
 }
 impl Store {
@@ -398,16 +402,24 @@ impl Store {
             Query::Latest {definition} => {
                 tx.query_row("SELECT boot_id,run_id FROM scene_run WHERE revision=?1 AND definition=?2 ORDER BY rowid DESC LIMIT 1",params![revision,definition],|r|Ok((r.get::<_,String>(0)?,r.get::<_,String>(1)?,0,128))).optional()?
             }
-            Query::Run {boot,run,after,limit} => Some((boot.clone(),run.clone(),*after,*limit)),
+            Query::Run {boot,run,after,limit} | Query::Cancellations {boot,run,after,limit} => Some((boot.clone(),run.clone(),*after,*limit)),
         };
         let result = if let Some((boot, run, after, limit)) = identity {
             if let Some(record) = self.scene_run(&boot, &run)?.filter(|r|r.revision==revision as u64) {
                 let cause=self.scene_cause(&boot,&run)?;
-                let commands = self.scene_commands(&boot, &run, after, limit)?;
-                let next_after = if commands.len() == limit {
-                    commands.last().map(|c| c.command_id)
+                let (commands,cancellations,next_after) = if matches!(query,Query::Cancellations{..}) {
+                    let mut statement=tx.prepare("SELECT version,device_id,reason FROM scene_cancellation WHERE boot_id=?1 AND run_id=?2 AND version>?3 ORDER BY version LIMIT ?4")?;
+                    let rows=statement.query_map(params![boot,run,after as i64,limit as i64],|row|Ok((row.get::<_,i64>(0)?,row.get::<_,String>(1)?,row.get::<_,String>(2)?)))?.collect::<Result<Vec<_>,_>>()?;
+                    let records=rows.into_iter().map(|(version,device,reason)|{
+                        let reason=match reason.as_str() {"manual_override"=>CancellationReason::ManualOverride,"scene_replacement"=>CancellationReason::SceneReplacement,_=>return Err(Error::InvalidAudit)};
+                        Ok(CancellationRecord{version:u64::try_from(version).map_err(|_|Error::InvalidAudit)?,cancellation:Cancellation{device:homesense_core::DeviceId::new(device).map_err(|_|Error::InvalidAudit)?,reason}})
+                    }).collect::<Result<Vec<_>,Error>>()?;
+                    let cursor=if records.len()==limit {records.last().map(|r|r.version)} else {None};
+                    (vec![],records,cursor)
                 } else {
-                    None
+                    let commands=self.scene_commands(&boot,&run,after,limit)?;
+                    let cursor=if commands.len()==limit {commands.last().map(|c|c.command_id)} else {None};
+                    (commands,vec![],cursor)
                 };
                 Some(Page {
                     boot,
@@ -415,6 +427,7 @@ impl Store {
                     record,
                     cause,
                     commands,
+                    cancellations,
                     next_after,
                 })
             } else {
