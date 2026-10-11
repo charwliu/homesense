@@ -4397,6 +4397,7 @@ async fn running_automation_control_cancels_before_output_and_closes_on_exit() {
 #[tokio::test]
 async fn publication_pauses_old_automation_without_closing_admission() {
     use homesensed::{automation_runtime::AutomationRuntime, automation_control::Action, feedback::Feedback, observed_transport::ObservedTransport, transport_owner::TransportOwner};
+    for projected in [false,true] {
     for keypads in [false,true] {
     for responds in [false, true] {
     let db=Db(std::env::temp_dir().join(format!("assembly-{}.sqlite",Uuid::new_v4())));
@@ -4428,14 +4429,29 @@ async fn publication_pauses_old_automation_without_closing_admission() {
     let policy=if keypads {homesensed::publication_recovery::Synchronization::OutputsAndKeypadEvents} else {homesensed::publication_recovery::Synchronization::CompleteFeedback};
     let mut next_rules:hap::serde_json::Value=hap::serde_json::from_slice(rules).unwrap();
     next_rules["configuration_revision"]=2.into();
+    let (projection,mut updates)=tokio::sync::watch::channel(owner.snapshot());
     let pause=async {
+        if projected {
+            tokio::time::timeout(std::time::Duration::from_secs(1),updates.changed()).await.unwrap().unwrap();
+            assert_eq!(updates.borrow().devices.len(),1);
+        }
         let subscription=control.subscribe("light".into()).await.unwrap();
         a.begin_automation_publication(hap::serde_json::to_vec(&next).unwrap(),hap::serde_json::to_vec(&next_rules).unwrap(),1,std::time::Duration::from_secs(3)).await.unwrap();
         stop.send(true).unwrap();
         subscription
     };
-    let (result,mut subscription)=tokio::join!(runtime.drive(&mut owner,std::time::Duration::from_millis(1),5000,receive,||Ok(1_800_000_000_000)),pause);
+    let drive=async {
+        if projected {
+            let exit=runtime.drive_recoverable_projected(&mut owner,std::time::Duration::from_millis(1),5000,receive,||Ok(1_800_000_000_000),None,Some(projection)).await?;
+            assert_eq!(exit,homesensed::automation_drive::Exit::PublicationPaused);
+            Ok::<(),String>(())
+        } else {runtime.drive(&mut owner,std::time::Duration::from_millis(1),5000,receive,||Ok(1_800_000_000_000)).await}
+    };
+    let (result,mut subscription)=tokio::join!(drive,pause);
     result.unwrap();
+    // A retired projection cannot deliver updates from the replacement owner.
+    updates.borrow_and_update();
+    assert!(updates.changed().await.is_err());
     assert!(runtime.publication_paused());
     assert!(subscription.borrow_and_update().as_ref().unwrap().as_ref().unwrap_err().contains("stopped"));
     assert!(subscription.changed().await.is_err(),"old stream must close at publication barrier");
@@ -4502,6 +4518,7 @@ async fn publication_pauses_old_automation_without_closing_admission() {
     drop(next_runtime);
     a.shutdown().await.unwrap();
     }
+}
 }
 }
 
@@ -5037,6 +5054,10 @@ async fn assembly_can_suppress_startup_without_disabling_manual_scenes() {
 
 #[tokio::test]
 async fn explicit_disconnect_handoff_keeps_boot_variables_but_retires_old_runtime() {
+    disconnect_handoff(false).await;
+    disconnect_handoff(true).await;
+}
+async fn disconnect_handoff(projected: bool) {
     use homesensed::{automation_runtime::{AutomationRuntime,StartupPolicy},feedback::Feedback,observed_transport::ObservedTransport,transport_owner::TransportOwner};
     let db=Db(std::env::temp_dir().join(format!("handoff-{}.sqlite",Uuid::new_v4())));
     let devices=include_bytes!("../../../config/simulation.json");
@@ -5052,7 +5073,13 @@ async fn explicit_disconnect_handoff_keeps_boot_variables_but_retires_old_runtim
     let transport=TransportOwner::new(a.clone(),[("simulation".into(),hb_transport::Connection::for_simulation(Eof,1))].into());
     let mut owner=ObservedTransport::new(transport,feedback);
     let (_stop,receive)=tokio::sync::watch::channel(false);
-    let outcome=runtime.drive_recoverable(&mut owner,std::time::Duration::from_millis(1),5000,receive,||Ok(1_800_000_000_000)).await.unwrap();
+    let (projection,updates)=tokio::sync::watch::channel(owner.snapshot());
+    let outcome=if projected {
+        runtime.drive_recoverable_projected(&mut owner,std::time::Duration::from_millis(1),5000,receive,||Ok(1_800_000_000_000),None,Some(projection)).await.unwrap()
+    } else {
+        runtime.drive_recoverable(&mut owner,std::time::Duration::from_millis(1),5000,receive,||Ok(1_800_000_000_000)).await.unwrap()
+    };
+    drop(updates);
     assert_eq!(outcome,homesensed::automation_drive::Exit::Disconnected{gateway:"simulation".into()});
     assert!(runtime.start_rule("boot",None).await.is_err());
     drop(runtime);
