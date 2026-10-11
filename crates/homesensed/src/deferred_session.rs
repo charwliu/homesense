@@ -120,9 +120,6 @@ impl Session {
         let rules = document
             .linked_rules_with_deferred()
             .map_err(|e| e.to_string())?;
-        for outcome in &outcomes {
-            self.track(outcome, scheduler)?;
-        }
         let mut index = 0;
         while index < outcomes.len() {
             let parent = outcomes[index].cause.clone();
@@ -231,6 +228,7 @@ impl Session {
                     feedback,
                 )
                 .await?;
+                self.track(&outcome, scheduler)?;
                 roots.push(outcome);
             }
             let outcomes = self.cascade(roots, scheduler, feedback).await?;
@@ -314,6 +312,9 @@ impl Session {
             )
             .await?;
             self.pending.remove(&result.run);
+            for outcome in &outcomes {
+                self.track(outcome, scheduler)?;
+            }
             let outcomes = self.cascade(outcomes, scheduler, feedback).await?;
             Ok(outcomes)
         }
