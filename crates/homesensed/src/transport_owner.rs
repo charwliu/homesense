@@ -11,6 +11,7 @@ pub struct TransportOwner<S> {
     admission: Admission,
     connections: BTreeMap<String, Connection<S>>,
     failed: bool,
+    next_write: Option<tokio::time::Instant>,
 }
 struct OperationGuard {
     admission: Admission,
@@ -40,7 +41,18 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
             admission,
             connections,
             failed: false,
+            next_write: None,
         }
+    }
+    /// One shared write slot for queries and expanded control frames. Waiting
+    /// precedes dispatch so STOP priority and deadlines are checked afterwards.
+    async fn wait_write_slot(&self) {
+        if let Some(deadline)=self.next_write {
+            tokio::time::sleep_until(deadline).await;
+        }
+    }
+    fn wrote_frame(&mut self) {
+        self.next_write=Some(tokio::time::Instant::now()+std::time::Duration::from_millis(20));
     }
     pub(crate) fn belongs_to(&self, admission: &Admission) -> bool {
         self.admission.boot_id() == admission.boot_id()
@@ -102,6 +114,7 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
             epoch,
         )
         .map_err(|e| e.to_string())?;
+        self.wait_write_slot().await;
         let deadline = self
             .now_ms()
             .checked_add(timeout_ms)
@@ -122,6 +135,7 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
         })
         .await
         .map_err(|e| format!("query worker: {e}"))?;
+        self.wrote_frame();
         if let Err(error) = sent {
             let _ = self.admission.transport_failed().await;
             guard.complete = true;
@@ -190,6 +204,7 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
         if self.failed {
             return Err("transport owner requires recovery".into());
         }
+        self.wait_write_slot().await;
         let mut guard = OperationGuard {
             admission: self.admission.clone(),
             complete: false,
@@ -221,6 +236,7 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
         })
         .await
         .map_err(|e| format!("transport worker: {e}"))?;
+        self.wrote_frame();
         self.admission
             .finish_write(id, result.is_ok())
             .await
@@ -235,5 +251,43 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
             device_id,
             result,
         }))
+    }
+}
+
+#[cfg(test)]
+mod pacing_tests {
+    use super::*;
+    #[tokio::test]
+    async fn queries_and_controls_share_the_same_write_spacing() {
+        use homesense_core::{ExecutionContext,DeviceId,Command,Percent,LevelTransition};
+        let path=std::env::temp_dir().join(format!("pacing-{}.sqlite",uuid::Uuid::new_v4()));
+        let bytes=include_bytes!("../../../config/simulation.json");
+        homesense_storage::Store::open(&path).unwrap().publish_configuration(None,bytes,ExecutionContext::Simulation,&[]).unwrap();
+        let controller=uuid::Uuid::new_v4();
+        let admission=Admission::open(path.clone(),crate::admission::Options{context:ExecutionContext::Simulation,..Default::default()},move |id|id==controller).await.unwrap();
+        admission.synchronized(1,1).await.unwrap();
+        let writes=std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        struct Stream(std::sync::Arc<std::sync::Mutex<Vec<std::time::Instant>>>);
+        impl Read for Stream {fn read(&mut self,_:&mut [u8])->std::io::Result<usize>{Err(std::io::ErrorKind::WouldBlock.into())}}
+        impl Write for Stream {
+            fn write(&mut self,bytes:&[u8])->std::io::Result<usize>{self.0.lock().unwrap().push(std::time::Instant::now());Ok(bytes.len())}
+            fn flush(&mut self)->std::io::Result<()>{Ok(())}
+        }
+        let mut owner=TransportOwner::new(admission.clone(),[("simulation".into(),Connection::for_simulation(Stream(writes.clone()),1))].into());
+        let config=homesense_config::Configuration::parse(bytes,ExecutionContext::Simulation).unwrap();
+        let id=DeviceId::new("simulation:light").unwrap();
+        let (device,module)=config.binding(&id).unwrap();
+        owner.query_status("simulation",module,device.channel,ExecutionContext::Simulation,100).await.unwrap();
+        admission.submit(homesense_hap::requests::Batch{controller,intents:vec![homesense_hap::requests::Intent{device:id.clone(),command:Command::SetLevel{level:Percent::new(30).unwrap(),transition:LevelTransition::Immediate}}],subscriptions:vec![]}).await.unwrap();
+        owner.step().await.unwrap().unwrap().result.unwrap();
+        owner.query_status("simulation",module,device.channel,ExecutionContext::Simulation,100).await.unwrap();
+        let times=writes.lock().unwrap();
+        assert_eq!(times.len(),3);
+        assert!(times.windows(2).all(|pair|pair[1].duration_since(pair[0])>=std::time::Duration::from_millis(20)));
+        drop(times);
+        admission.shutdown().await.unwrap();
+        drop(owner);
+        for suffix in ["","-wal","-shm"] {let _=std::fs::remove_file(format!("{}{suffix}",path.display()));}
+        let _=std::fs::remove_file(path.with_extension("runtime.lock"));
     }
 }
