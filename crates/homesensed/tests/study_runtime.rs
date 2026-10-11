@@ -4579,6 +4579,10 @@ async fn deferred_rule_adapter_reserves_before_variables_and_preserves_chain() {
     let terminal=scheduler.take_results().pop().unwrap();
     assert!(homesensed::deferred_rule::resume_scene(&a,controller,&mut chain,&root,&terminal,&mut scheduler,None).await.is_err());
     assert_eq!(store.logical_variable(1,"mode").unwrap().unwrap().value,Some(homesense_core::rule::Value::Integer(1)));
+    let mut exhausted=homesense_core::rule_chain::Chain::new(77,0,60000,homesense_core::rule::Budget{nodes:1,..Default::default()},32).unwrap();
+    let root=exhausted.root();
+    let parent=exhausted.plan(&root,"trigger",&[],&Default::default(),0).unwrap().cause;
+    assert!(matches!(homesensed::deferred_rule::resume_scene_classified(&a,controller,&mut exhausted,&parent,&terminal,&mut scheduler,None).await,Err(homesensed::deferred_rule::ExecutionFailure::Planning(homesense_core::rule_chain::Error::Budget))));
     let resumed=homesensed::deferred_rule::resume_scene(&a,controller,&mut chain,&result.cause,&terminal,&mut scheduler,None).await.unwrap();
     assert_eq!(resumed.len(),1);assert_eq!(resumed[0].cause.correlation_id(),77);
     assert_eq!(resumed[0].causation_id,result.cause.event_id());

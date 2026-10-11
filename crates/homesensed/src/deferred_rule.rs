@@ -12,6 +12,7 @@ use homesense_core::{
 use homesense_hap::requests::{Batch, Intent};
 use std::collections::BTreeMap;
 use uuid::Uuid;
+#[derive(Debug)]
 pub struct Outcome {
     pub rule: String,
     pub cause: Cause,
@@ -26,12 +27,21 @@ pub struct Outcome {
 pub enum ExecutionFailure {
     Planning(Error),
     Runtime(String),
+    Partial {
+        completed: Vec<Outcome>,
+        error: Box<ExecutionFailure>,
+    },
 }
 impl std::fmt::Display for ExecutionFailure {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Planning(error) => write!(f, "{error:?}"),
             Self::Runtime(error) => f.write_str(error),
+            Self::Partial { completed, error } => write!(
+                f,
+                "{} accepted successor rules before failure: {error}",
+                completed.len()
+            ),
         }
     }
 }
@@ -255,6 +265,22 @@ pub async fn resume_scene(
     scheduler: &mut SceneScheduler,
     feedback: Option<(&Feedback, u64)>,
 ) -> Result<Vec<Outcome>, String> {
+    resume_scene_classified(
+        admission, controller, chain, parent, result, scheduler, feedback,
+    )
+    .await
+    .map_err(|e| e.to_string())
+}
+/// Typed continuation preserves already accepted successors when a later one fails.
+pub async fn resume_scene_classified(
+    admission: &Admission,
+    controller: Uuid,
+    chain: &mut Chain,
+    parent: &Cause,
+    result: &crate::scene_scheduler::SceneResult,
+    scheduler: &mut SceneScheduler,
+    feedback: Option<(&Feedback, u64)>,
+) -> Result<Vec<Outcome>, ExecutionFailure> {
     use homesense_core::scene::Status;
     use homesense_storage::scene_run::{Query, Status as Stored};
     let expected = match result.status {
@@ -301,15 +327,15 @@ pub async fn resume_scene(
         .map_err(|e| e.to_string())?;
     if !chain
         .claim_completion(parent, &result.audit_id, admission.monotonic_ms())
-        .map_err(|e| format!("{e:?}"))?
+        .map_err(ExecutionFailure::Planning)?
     {
         return Ok(vec![]);
     }
     let mut outcomes = vec![];
     for rule in rules.iter().filter(|r|matches!(&r.trigger,homesense_config::rule_document::Trigger::SceneResult{scene} if scene==&result.definition)) {
-        match execute(admission,controller,&rule.id,chain,parent,scheduler,feedback).await {
+        match execute_classified(admission,controller,&rule.id,chain,parent,scheduler,feedback).await {
             Ok(outcome)=>outcomes.push(outcome),
-            Err(error)=>{chain.cancel();return Err(error);}
+            Err(error)=>{chain.cancel();return Err(if outcomes.is_empty() {error} else {ExecutionFailure::Partial {completed:outcomes,error:Box::new(error)}});}
         }
     }
     Ok(outcomes)
