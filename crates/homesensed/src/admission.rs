@@ -395,7 +395,7 @@ impl Admission {
                                 for (device,observed) in &lease.observations {
                                     // Every combined light read must cover its power supply too.
                                     if configuration.devices().get(device).and_then(|d|d.supply_relay.as_ref()).is_some_and(|relay|!lease.observations.contains_key(relay)) {return Err(WriteStatus::ResourceBusy);}
-                                    if !store.feedback_is_settled(&worker_boot,device,*observed).map_err(|_|WriteStatus::ServiceCommunicationFailure)? {return Ok(false);}
+                                    if !store.feedback_is_settled_in_epoch(&worker_boot,device,*observed,arbiter.policy().epochs.transport).map_err(|_|WriteStatus::ServiceCommunicationFailure)? {return Ok(false);}
                                 }
                                 Ok(true)
                             })();
@@ -934,7 +934,7 @@ impl Admission {
                                     .map_err(|_|WriteStatus::InvalidValueInRequest)).transpose()?;
                                 if let Some(lease) = &feedback {
                                     for (device, observed) in &lease.observations {
-                                        if !store.feedback_is_settled(&worker_boot,device,*observed).map_err(|_|WriteStatus::ServiceCommunicationFailure)? {
+                                        if !store.feedback_is_settled_in_epoch(&worker_boot,device,*observed,arbiter.policy().epochs.transport).map_err(|_|WriteStatus::ServiceCommunicationFailure)? {
                                             return Err(WriteStatus::ResourceBusy);
                                         }
                                     }
