@@ -412,10 +412,6 @@ pub async fn serve_automation_simulation_with_publication(
     )
     .await?;
     let result = async {
-        admission
-            .synchronized(1, config.revision())
-            .await
-            .map_err(|e| format!("{e:?}"))?;
         let mut runtime = crate::automation_runtime::AutomationRuntime::load(
             admission.clone(),
             controller,
@@ -437,6 +433,26 @@ pub async fn serve_automation_simulation_with_publication(
             TransportOwner::new(admission.clone(), simulation_connections(&config)?),
             feedback,
         );
+        // A startup rule can need feedback immediately (for example a fade).
+        // Gather simulator observations before opening admission or firing it.
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(1);
+        loop {
+            for gateway in owner.gateway_ids() {
+                owner.receive(&gateway).await?;
+            }
+            if owner.snapshot().devices.values().all(|state| {
+                state.kind == homesense_core::ModuleKind::Keypad
+                    || state.quality == homesense_state::Quality::Confirmed
+            }) {
+                break;
+            }
+            if tokio::time::Instant::now() >= deadline {
+                return Err("simulation initial feedback timed out".into());
+            }
+            tokio::time::sleep(Duration::from_millis(5)).await;
+        }
+        admission.synchronized(1, config.revision()).await
+            .map_err(|e| format!("{e:?}"))?;
         if let Some(scene) = scene {
             runtime.start_scene(scene).await?;
         }
