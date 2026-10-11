@@ -229,7 +229,17 @@ impl AutomationRuntime {
         stop: tokio::sync::watch::Receiver<bool>,
         wall_clock: impl FnMut() -> Result<i64, String>,
     ) -> Result<crate::automation_drive::Exit, String> {
+        self.drive_recoverable_ready(owner,cadence,max_age_ms,stop,wall_clock,None).await
+    }
+    pub(crate) async fn drive_recoverable_ready<S: std::io::Read + std::io::Write + Send + 'static>(
+        &mut self, owner: &mut crate::observed_transport::ObservedTransport<S>,
+        cadence: std::time::Duration, max_age_ms: u64,
+        stop: tokio::sync::watch::Receiver<bool>, wall_clock: impl FnMut() -> Result<i64,String>,
+        ready: Option<tokio::sync::oneshot::Sender<()>>,
+    ) -> Result<crate::automation_drive::Exit,String> {
         self.validate().await?;
+        if let Some(ready)=ready {let _=ready.send(());}
+
         let outcome = crate::automation_drive::drive_with_handoff(
             &self.admission, owner, &mut self.panels, &mut self.scenes,
             Some(&mut self.calendar), cadence, max_age_ms, stop, wall_clock,
