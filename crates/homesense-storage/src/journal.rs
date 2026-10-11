@@ -101,6 +101,26 @@ impl Store {
         cancellations: &[Cancellation],
         now_ms: u64,
     ) -> Result<(), Error> {
+        self.accept_queue_batch_with_study(boot_id, commands, cancellations, now_ms, None)
+    }
+    pub fn study_mode(&self, revision: u64) -> Result<Option<u8>, Error> {
+        Ok(self
+            .connection
+            .query_row(
+                "SELECT value FROM study_mode WHERE revision=?1",
+                [sql_revision(revision)?],
+                |r| r.get(0),
+            )
+            .optional()?)
+    }
+    pub fn accept_queue_batch_with_study(
+        &mut self,
+        boot_id: &str,
+        commands: &[QueuedCommand],
+        cancellations: &[Cancellation],
+        now_ms: u64,
+        study: Option<(Option<u8>, u8)>,
+    ) -> Result<(), Error> {
         boot(boot_id)?;
         if cancellations.len() > 4096 {
             return Err(Error::InvalidAudit);
@@ -140,6 +160,28 @@ impl Store {
                 Origin::Background => "background",
             };
             tx.execute("INSERT INTO command_journal(boot_id,command_id,revision,device_id,origin,intent,transport_epoch,control_epoch,deadline_ms,updated_ms,run_id,status) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,'accepted')",params![boot_id,integer(command.id)?,revision,command.device_id.as_str(),origin,intent(command.command).as_slice(),integer(command.epochs.transport)?,integer(command.epochs.control)?,integer(command.deadline_ms)?,now,command.run_id.map(integer).transpose()?])?;
+        }
+        if let Some((expected, next)) = study {
+            if next > 3
+                || expected.is_some_and(|v| v > 3)
+                || commands
+                    .iter()
+                    .any(|c| c.origin != Origin::Rule || c.run_id != Some(commands[0].id))
+            {
+                return Err(Error::InvalidAudit);
+            }
+            let revision = sql_revision(commands[0].epochs.configuration)?;
+            let current: Option<u8> = tx
+                .query_row(
+                    "SELECT value FROM study_mode WHERE revision=?1",
+                    [revision],
+                    |r| r.get(0),
+                )
+                .optional()?;
+            if current != expected {
+                return Err(Error::Conflict);
+            }
+            tx.execute("INSERT INTO study_mode(revision,value) VALUES(?1,?2) ON CONFLICT(revision) DO UPDATE SET value=excluded.value",params![revision,next])?;
         }
         cancel_in_transaction(&tx, boot_id, cancellations, now)?;
         tx.commit()?;

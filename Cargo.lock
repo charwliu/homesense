@@ -805,6 +805,7 @@ dependencies = [
  "homesense-config",
  "homesense-core",
  "homesense-hap",
+ "homesense-import",
  "homesense-simulator",
  "homesense-state",
  "homesense-storage",

@@ -243,6 +243,18 @@ impl Arbiter {
         self.queue = staged;
         Ok(cancelled)
     }
+    /// Persist cancellation before replacing the queue. In-flight writes are not undone.
+    pub fn cancel_run_committed<E>(
+        &mut self,
+        run: u64,
+        commit: impl FnOnce(&[Cancellation]) -> Result<(), E>,
+    ) -> Result<Vec<Cancellation>, E> {
+        let mut staged = self.queue.clone();
+        let cancelled = staged.cancel_run(run);
+        commit(&cancelled)?;
+        self.queue = staged;
+        Ok(cancelled)
+    }
     /// Resolve current access for every candidate. Only one write may be in flight.
     /// A returned command must be encoded against its unchanged configuration.
     pub fn dispatch(
