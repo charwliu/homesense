@@ -58,3 +58,5 @@ pub mod event_rules;
 pub mod configured_rules;
 
 pub mod scene_activity;
+
+pub mod automation_runtime;
