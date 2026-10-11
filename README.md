@@ -278,3 +278,5 @@ TCP 在线发布协调循环已接入 `serve_with_publications`：可信进程�
 - 新增 compile_event_with_fades 显式导入接口，同时返回 AST 场景引用及禁用的定时场景定义，保留 RAMP_TO_LEVEL 的 TIME／LEVEL；采样间隔和迟到窗口由调用方指定，场景启动迟到上限暂用生成器默认 1000 ms。以 event:417:2 的原命令报文和模拟设备绑定验证 1000 ms→0% 配置可解析，非法／动态／重复参数拒绝。导入器 19 项测试及库严格 Clippy 通过。旧接口仍拒绝定时渐变，CLI 尚未切换新接口；原事件完整语义与现场绑定未验收，179／36 处置统计未改，现场全部保持禁用。
 
 - 离线事件草案导出：`cargo run -p homesense-import --bin compile-event -- EVENT.xml BINDINGS.json 100 100`。绑定文件形如 `{"1":{"device":"simulation:light","kind":"dimmer"}}`；末两项为采样间隔和迟到窗口（毫秒）。标准输出同时保留 actions 与 timed_scenes，全部禁用；输出是待审核片段，需另补触发、变量和原场景定义，不能直接作为运行配置启用。
+
+离线事件导出输入边界回归：使用纯合成数据验证 XML 超过 4 MiB、绑定文件超过 1 MiB、未知设备类型、未知绑定字段和非法 UTF-8 均失败退出，且 stdout 不产生部分草稿。独立 CLI 测试通过；未连接现场设备，EA-5 配置不变。
