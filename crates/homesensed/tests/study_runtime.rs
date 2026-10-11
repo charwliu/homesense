@@ -4496,6 +4496,26 @@ async fn deferred_admission_validates_definition_and_rolls_back_on_storage_fault
             assert_eq!(sql.query_row("SELECT count(*) FROM scene_run",[],|r|r.get::<_,i64>(0)).unwrap(),1);
             assert_eq!(sql.query_row("SELECT source FROM scene_step",[],|r|r.get::<_,String>(0)).unwrap(),"fixture:call -> fixture");
             a.finish_write(queued.command.id,true).await.unwrap();
+            let mut scheduler=homesensed::scene_scheduler::SceneScheduler::new(a.clone(),controller,2,0).unwrap();
+            let mut slots=scheduler.reserve_slots(2).unwrap();
+            let mut batch=request(controller,"light");batch.variables.clear();batch.audit.event=2;
+            batch.starts[0].run="two".into();
+            let mut second=batch.starts[0].clone();second.run="three".into();second.action_index=2;batch.starts.push(second);
+            let accepted=a.submit_deferred_rule(a.task_generation().await.unwrap(),batch).await.unwrap();
+            let now=store.scene_run(a.boot_id(),"two").unwrap().unwrap().started_ms;
+            let ids=scheduler.install_accepted(&mut slots,accepted.scenes,now).await.unwrap();
+            assert_eq!(ids.len(),2);assert_eq!(slots.remaining(),0);
+            assert!(scheduler.reserve_slots(1).is_err());
+            assert!(scheduler.tick(now).await.unwrap().iter().all(|t|t.result.as_ref().unwrap().is_empty()));
+            assert!(a.dispatch().await.unwrap().is_none());
+            for id in ids {scheduler.cancel(id).await.unwrap();scheduler.retire(id).unwrap();}
+            scheduler.take_results();
+            let mut slots=scheduler.reserve_slots(1).unwrap();
+            let mut batch=request(controller,"light");batch.variables.clear();batch.audit.event=3;batch.starts[0].run="expired".into();
+            let accepted=a.submit_deferred_rule(a.task_generation().await.unwrap(),batch).await.unwrap();
+            a.transport_failed().await.unwrap();
+            assert!(scheduler.install_accepted(&mut slots,accepted.scenes,now).await.is_err());
+            assert!(scheduler.status(3).is_none());
         }
         a.shutdown().await.unwrap();
     }
