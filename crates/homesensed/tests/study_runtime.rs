@@ -5203,7 +5203,7 @@ async fn fade_group_reserves_budget_and_releases_cancelled_device() {
     assert_eq!(group.active_count(),0);
     group.start(device.clone(),request,&feedback,2000).await.unwrap();
     tokio::time::sleep(std::time::Duration::from_millis(110)).await;
-    assert!(group.tick().await.unwrap().is_empty());
+    assert!(group.tick().await.unwrap().completed.is_empty());
     group.cancel_all().await.unwrap();
     assert_eq!(group.active_count(),0);
     assert!(group.tick().await.is_err());
@@ -5268,7 +5268,7 @@ async fn fade_group_partial_failure_cancels_other_device_without_replay() {
     group.start(device.clone(),request,&feedback,2000).await.unwrap();
     group.start(homesense_core::DeviceId::new("simulation:second").unwrap(),request,&feedback,2000).await.unwrap();
     tokio::time::sleep(std::time::Duration::from_millis(110)).await;
-    assert!(group.tick().await.unwrap().is_empty());
+    assert!(group.tick().await.unwrap().completed.is_empty());
     let outcome=owner.step().await.unwrap().unwrap();
     assert!(outcome.result.is_err());
     assert!(group.tick().await.is_err());
@@ -5318,6 +5318,51 @@ async fn software_fade_manual_override_before_first_sample_preserves_manual_outp
     let ticket=a.dispatch().await.unwrap().unwrap();
     assert_eq!(ticket.command.origin,Origin::Hap);
     a.finish_write(ticket.command.id,true).await.unwrap();
+    assert!(a.dispatch().await.unwrap().is_none());
+    a.shutdown().await.unwrap();
+}
+
+#[tokio::test]
+async fn fade_group_manual_override_keeps_other_device_running() {
+    use homesensed::{fade_group::{FadeGroup,Limits,Request},feedback::Feedback,transport_owner::{GatewayRead}};
+    let db=Db(std::env::temp_dir().join(format!("fade-partial-{}.sqlite",Uuid::new_v4())));
+    let devices=br#"{"schema_version":1,"revision":1,"manual_degraded_enabled":false,
+      "gateways":[{"id":"simulation","endpoint":"127.0.0.1:50007","modules":[{"address":"15","profile":"gt_d8_rl_v2_2_6_2","verification":{"status":"simulated"}}]}],
+      "devices":[
+        {"id":"simulation:light","name":"First","gateway":"simulation","address":"15","channel":1,"enabled":true},
+        {"id":"simulation:second","name":"Second","gateway":"simulation","address":"15","channel":2,"enabled":true}
+      ]}"#;
+    Store::open(&db.0).unwrap().publish_configuration(None,devices,ExecutionContext::Simulation,&[]).unwrap();
+    let controller=Uuid::new_v4();let a=actor(&db,controller).await;
+    let config=homesense_config::Configuration::parse(devices,ExecutionContext::Simulation).unwrap();
+    let mut feedback=Feedback::new(&config,ExecutionContext::Simulation,Uuid::parse_str(a.boot_id()).unwrap().as_u128(),1).unwrap();
+    feedback.apply(&GatewayRead{gateway_id:"simulation".into(),transport_epoch:1,received_at_ms:0,result:hb_transport::Receive::Frames{transport_epoch:1,frames:vec![hb_protocol::RawFrame{address:0x15,command:0xd1,value:100},hb_protocol::RawFrame{address:0x15,command:0xd2,value:100}]}}).unwrap();
+    let device=homesense_core::DeviceId::new("simulation:light").unwrap();
+    let mut group=FadeGroup::new(a.clone(),controller,Limits{tasks:2,samples:8,targets_per_second:20}).unwrap();
+    let request=Request{target:homesense_core::Percent::new(0).unwrap(),duration_ms:400,interval_ms:100,lateness_ms:200};
+    group.start(device.clone(),request,&feedback,2000).await.unwrap();
+    group.start(homesense_core::DeviceId::new("simulation:second").unwrap(),request,&feedback,2000).await.unwrap();
+    a.submit(homesense_hap::requests::Batch {
+        controller,intents:vec![homesense_hap::requests::Intent {
+            device:device.clone(),
+            command:homesense_core::Command::SetLevel {level:homesense_core::Percent::new(70).unwrap(),transition:homesense_core::LevelTransition::Immediate}
+        }],subscriptions:vec![],
+    }).await.unwrap();
+    let result=group.tick().await.unwrap();
+    assert_eq!(result.manually_cancelled,vec![device.clone()]);
+    assert!(result.completed.is_empty());
+    assert_eq!(group.active_count(),1);
+    let manual=a.dispatch().await.unwrap().unwrap();
+    assert_eq!(manual.command.origin,Origin::Hap);
+    a.finish_write(manual.command.id,true).await.unwrap();
+    tokio::time::sleep(std::time::Duration::from_millis(110)).await;
+    let result=group.tick().await.unwrap();
+    assert!(result.manually_cancelled.is_empty());
+    let remaining=a.dispatch().await.unwrap().unwrap();
+    assert_eq!(remaining.command.device_id.as_str(),"simulation:second");
+    assert_eq!(remaining.command.origin,Origin::Rule);
+    a.finish_write(remaining.command.id,true).await.unwrap();
+    group.cancel_all().await.unwrap();
     assert!(a.dispatch().await.unwrap().is_none());
     a.shutdown().await.unwrap();
 }
