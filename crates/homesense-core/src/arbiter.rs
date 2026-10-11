@@ -432,6 +432,25 @@ impl Arbiter {
         }
         Ok(())
     }
+    /// Complete a committed publication after querying its mapping on fresh streams.
+    /// No dispatch becomes possible between installing the epoch and readiness.
+    pub fn publication_recovered(&mut self, epoch: u64, revision: u64) -> Result<(), ArbiterError> {
+        if self.policy.storage_healthy
+            || !self.publication.as_ref().is_some_and(|p| p.committed)
+            || !self.policy.valid_configuration_loaded
+            || revision != self.policy.epochs.configuration
+            || epoch <= self.policy.epochs.transport
+        { return Err(ArbiterError::NotSynchronized); }
+        if self.writing.is_some() || self.queue.has_stop() { return Err(ArbiterError::Busy); }
+        let control = self.policy.epochs.control.checked_add(1).ok_or(ArbiterError::CounterExhausted)?;
+        self.policy.epochs.control = control;
+        self.policy.epochs.transport = epoch;
+        self.policy.storage_healthy = true;
+        self.policy.gateway_ready = true;
+        self.policy.publishing = false;
+        self.publication = None;
+        Ok(())
+    }
     /// Caller installs immutable mappings and completes synchronization first.
     pub fn synchronized(&mut self, revision: u64) -> Result<(), ArbiterError> {
         if !self.policy.storage_healthy {
