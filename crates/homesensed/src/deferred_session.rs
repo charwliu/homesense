@@ -24,6 +24,7 @@ pub struct Session {
     planning_failure: bool,
     isolated_failure: bool,
     retain_for_feedback: bool,
+    causes: BTreeMap<u64, Cause>,
 }
 impl Session {
     pub async fn new(
@@ -64,6 +65,7 @@ impl Session {
             planning_failure: false,
             isolated_failure: false,
             retain_for_feedback: false,
+            causes: BTreeMap::new(),
         })
     }
     /// Retain the original budget until its original deadline, even when all
@@ -76,6 +78,7 @@ impl Session {
         session.retain_for_feedback = true;
         Ok(session)
     }
+    pub(crate) fn correlation(&self) -> u128 { self.chain.root().correlation_id() }
     pub fn deadline_ms(&self) -> u64 { self.chain.deadline_ms() }
     pub async fn expire(&mut self, scheduler: &mut SceneScheduler) -> Result<bool, String> {
         if self.closed || self.admission.monotonic_ms() < self.chain.deadline_ms() {
@@ -103,6 +106,16 @@ impl Session {
         } else {
             Err(error)
         }
+    }
+    pub(crate) async fn finish_retained_idle(&mut self, scheduler:&SceneScheduler) -> Result<bool,String> {
+        if !self.retain_for_feedback || self.closed || !self.started || !self.pending.is_empty() {return Ok(false);}
+        if scheduler.identity()!=self.scheduler {return Err("foreign causal scheduler".into());}
+        let mut guard=Guard(self.admission.clone(),false);
+        self.closed=true;
+        self.chain.cancel();
+        self.admission.record_rule_outcome(self.controller,self.generation.clone(),self.chain.root().correlation_id(),None).await.map_err(|e|format!("feedback close audit: {e:?}"))?;
+        guard.1=true;
+        Ok(true)
     }
     pub fn failure_isolated(&self) -> bool {
         self.isolated_failure
@@ -137,6 +150,7 @@ impl Session {
         if self.pending.len() + outcome.scene_runs.len() > 64 {
             return Err("causal session capacity exceeded".into());
         }
+        if self.retain_for_feedback { self.causes.insert(outcome.cause.event_id(), outcome.cause.clone()); }
         for run in &outcome.scene_runs {
             let audit = scheduler
                 .audit_id(*run)
@@ -287,14 +301,15 @@ impl Session {
         Self::validate_rules(rules)?;
         self.validate(scheduler).await?;
         if !self.retain_for_feedback || !self.started || candidate.command_id == 0
-            || candidate.cause.event_id() == 0
-            || candidate.cause.correlation_id() != self.chain.root().correlation_id()
+            || candidate.parent_event == 0
+            || candidate.correlation != self.chain.root().correlation_id()
             || candidate.written_ms > self.admission.monotonic_ms() {
             return Err("invalid inferred feedback continuation".into());
         }
+        let parent = self.causes.get(&candidate.parent_event).cloned().ok_or("unknown inferred parent")?;
         log::info!("inferred feedback continuation correlation={} parent={} command={}",
-            candidate.cause.correlation_id(), candidate.cause.event_id(), candidate.command_id);
-        self.execute_rules(rules, &candidate.cause, scheduler, feedback).await
+            candidate.correlation, candidate.parent_event, candidate.command_id);
+        self.execute_rules(rules, &parent, scheduler, feedback).await
     }
     async fn execute_rules(
         &mut self, rules: &[String], parent: &Cause,

@@ -151,6 +151,7 @@ enum Message {
     PublicationState(oneshot::Sender<bool>),
     AutomationBundle(Uuid, TaskGeneration, oneshot::Sender<Result<homesense_storage::automation::Bundle, WriteStatus>>),
     FeedbackSettled(Uuid, TaskGeneration, crate::feedback::RuleLease, oneshot::Sender<Result<bool, WriteStatus>>),
+    WrittenFeedbackTarget(Uuid, TaskGeneration, u64, oneshot::Sender<Result<Option<homesense_storage::feedback_inference::WrittenTarget>, WriteStatus>>),
     FeedbackInference(Uuid, TaskGeneration, homesense_storage::feedback_inference::Inference, oneshot::Sender<Result<(), WriteStatus>>),
 
     SceneQuery(Uuid, TaskGeneration, homesense_storage::scene_run::Query, oneshot::Sender<Result<Option<homesense_storage::scene_run::Page>, WriteStatus>>),
@@ -426,6 +427,12 @@ impl Admission {
                                 }
                                 Ok(true)
                             })();
+                            let _=reply.send(result);
+                        }
+                        Message::WrittenFeedbackTarget(controller,generation,id,reply) => {
+                            let result=if !authorize(controller) {Err(WriteStatus::InsufficientPrivileges)}
+                            else if failed || generation.boot!=worker_boot || generation.epochs!=arbiter.policy().epochs {Err(WriteStatus::ServiceCommunicationFailure)}
+                            else {store.written_feedback_target(&worker_boot,id).map_err(|_|WriteStatus::ServiceCommunicationFailure)};
                             let _=reply.send(result);
                         }
                         Message::FeedbackInference(controller,generation,inference,reply) => {
@@ -1346,6 +1353,11 @@ impl Admission {
         receive
             .await
             .map_err(|_| WriteStatus::ServiceCommunicationFailure)?
+    }
+    pub(crate) async fn written_feedback_target(&self, controller:Uuid, generation:TaskGeneration, id:u64) -> Result<Option<homesense_storage::feedback_inference::WrittenTarget>,WriteStatus> {
+        let (reply,receive)=oneshot::channel();
+        self.sender.try_send(Message::WrittenFeedbackTarget(controller,generation,id,reply)).map_err(|_|WriteStatus::ResourceBusy)?;
+        receive.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?
     }
     /// Claim a candidate observation before dispatching any derived rule.
     /// This is an inferred link only; the actor rechecks authority, generation,

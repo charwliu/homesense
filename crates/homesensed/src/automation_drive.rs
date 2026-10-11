@@ -185,6 +185,7 @@ pub(crate) async fn drive_with_handoff<S: Read + Write + Send + 'static>(
         if gateways.is_empty() {
             return Err("automation drive has no gateways".into());
         }
+        if let Some(router)=&mut causal {router.enable_feedback_candidates().await?;}
         guard.panels.bind_feedback(guard.owner.feedback())?;
         if causal.is_some() && let Some(calendar)=&mut guard.calendar {
             calendar.bind_feedback(guard.owner.feedback())?;
@@ -261,6 +262,7 @@ pub(crate) async fn drive_with_handoff<S: Read + Write + Send + 'static>(
                 outcome
                     .result
                     .map_err(|e| format!("automation write: {e:?}"))?;
+                if let Some(router)=&mut causal {router.observe_written(outcome.command_id).await?;}
             }
             if *stop.borrow() {
                 return Ok(());
