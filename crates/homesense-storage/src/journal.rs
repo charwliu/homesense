@@ -264,7 +264,10 @@ impl Store {
         if let Some(audit) = audit {
             crate::rule_audit::insert(&tx, boot_id, audit, commands, now_ms, active)?;
         }
-        for start in starts {crate::scene_run::insert_start(&tx,boot_id,start,now_ms,active)?;}
+        for start in starts {
+            crate::scene_run::insert_start(&tx,boot_id,start,now_ms,active)?;
+            crate::scene_run::insert_cause(&tx,boot_id,start,audit.ok_or(Error::InvalidAudit)?)?;
+        }
         crate::variables::apply(&tx, variables, active)?;
         cancel_in_transaction(&tx, boot_id, cancellations, now)?;
         tx.commit()?;

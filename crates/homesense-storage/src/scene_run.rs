@@ -59,6 +59,8 @@ fn key(s: &str) -> Result<(), Error> {
 /// A durable pending receipt, never a persisted replay plan.
 #[derive(Debug, Clone)]
 pub struct Start {
+    pub action_index: usize,
+    pub source: String,
     pub run: String,
     pub revision: u64,
     pub definition: String,
@@ -71,6 +73,25 @@ pub(crate) fn insert_start(tx:&rusqlite::Transaction<'_>,boot:&str,start:&Start,
     let now=i64::try_from(now).map_err(|_|Error::InvalidAudit)?;
     tx.execute("INSERT INTO scene_run(boot_id,run_id,revision,definition,started_ms,updated_ms,status,version) VALUES(?1,?2,?3,?4,?5,?5,'pending',0)",params![boot,start.run,revision,start.definition,now])?;
     Ok(())
+}
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Cause {
+    pub correlation: u128,
+    pub event: u64,
+    pub action_index: usize,
+    pub source: String,
+}
+pub(crate) fn insert_cause(tx:&rusqlite::Transaction<'_>,boot:&str,start:&Start,audit:&crate::rule_audit::Admission)->Result<(),Error> {
+    if start.action_index>=65536 || start.source.is_empty() || start.source.len()>8192 {return Err(Error::InvalidAudit);}
+    tx.execute("INSERT INTO scene_cause(boot_id,run_id,correlation,event_id,action_index,source) VALUES(?1,?2,?3,?4,?5,?6)",params![boot,start.run,format!("{:032x}",audit.correlation),i64::try_from(audit.event).map_err(|_|Error::InvalidAudit)?,start.action_index as i64,start.source])?;
+    Ok(())
+}
+impl Store {
+    pub fn scene_cause(&self,boot:&str,run:&str)->Result<Option<Cause>,Error> {
+        key(boot)?;key(run)?;
+        let row=self.connection.query_row("SELECT correlation,event_id,action_index,source FROM scene_cause WHERE boot_id=?1 AND run_id=?2",params![boot,run],|r|Ok((r.get::<_,String>(0)?,r.get::<_,i64>(1)?,r.get::<_,i64>(2)?,r.get::<_,String>(3)?))).optional()?;
+        row.map(|(correlation,event,index,source)|Ok(Cause{correlation:u128::from_str_radix(&correlation,16).map_err(|_|Error::InvalidAudit)?,event:u64::try_from(event).map_err(|_|Error::InvalidAudit)?,action_index:usize::try_from(index).map_err(|_|Error::InvalidAudit)?,source})).transpose()
+    }
 }
 impl Store {
     pub fn begin_scene_run(
