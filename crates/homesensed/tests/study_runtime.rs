@@ -4581,5 +4581,25 @@ async fn deferred_rule_adapter_reserves_before_variables_and_preserves_chain() {
     assert!(homesensed::deferred_rule::resume_scene(&a,controller,&mut chain,&result.cause,&terminal,&mut scheduler,None).await.unwrap().is_empty());
     assert_eq!(store.logical_variable(1,"mode").unwrap().unwrap().version,version);
     assert!(homesensed::deferred_rule::execute(&a,controller,"trigger",&mut chain,&result.cause,&mut scheduler,None).await.is_err(),"same-rule causal cycle must remain rejected");
+    scheduler.retire(result.scene_runs[0]).unwrap();
+    tokio::time::sleep(std::time::Duration::from_millis(110)).await;
+    let mut session=homesensed::deferred_session::Session::new(a.clone(),controller,&scheduler,Default::default(),60000).await.unwrap();
+    session.start("trigger",&mut scheduler,None).await.unwrap();
+    assert_eq!(session.pending_count(),1);assert!(!session.is_closed());
+    assert!(session.resume(&terminal,&mut scheduler,None).await.is_err());
+    let next=store.query_scene(1,&homesense_storage::scene_run::Query::Latest{definition:"later".into()}).unwrap().unwrap();
+    tokio::time::sleep(std::time::Duration::from_millis(110)).await;
+    scheduler.tick(next.record.started_ms+100).await.unwrap();
+    let ticket=a.dispatch().await.unwrap().unwrap();a.finish_write(ticket.command.id,true).await.unwrap();
+    scheduler.tick(next.record.started_ms+101).await.unwrap();
+    let complete=scheduler.take_results().pop().unwrap();
+    assert_eq!(session.resume(&complete,&mut scheduler,None).await.unwrap().len(),1);
+    assert_eq!(session.pending_count(),0);assert!(session.is_closed());
+    assert!(session.resume(&complete,&mut scheduler,None).await.is_err());
+    drop(session);assert!(a.task_generation().await.is_ok());
+    scheduler.retire(complete.run).unwrap();
+    let mut abandoned=homesensed::deferred_session::Session::new(a.clone(),controller,&scheduler,Default::default(),60000).await.unwrap();
+    abandoned.start("trigger",&mut scheduler,None).await.unwrap();
+    drop(abandoned);assert!(a.task_generation().await.is_err());
     a.shutdown().await.unwrap();
 }
