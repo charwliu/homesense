@@ -280,3 +280,17 @@ fn timed_fade_metadata_requires_bounded_timing_and_immediate_level() {
     v["timed_scenes"][0]["steps"][0]["fade"]["unknown"]=true.into();
     assert!(parse(&v).is_err());
 }
+
+#[test]
+fn ad8_fade_draft_cannot_be_enabled_but_module_ramp_remains_valid() {
+    let mut devices:Json=serde_json::from_slice(include_bytes!("../../../config/simulation.json")).unwrap();
+    devices["gateways"][0]["modules"][0]["profile"]="ad8_din_rs485_v2_2_1".into();
+    let config=Configuration::parse(&serde_json::to_vec(&devices).unwrap(),ExecutionContext::Simulation).unwrap();
+    let mut document=json!({"schema_version":1,"configuration_revision":1,"variables":[],"rules":[],"timed_scenes":[{"id":"fade","enabled":false,"review_evidence":"synthetic","max_lateness_ms":1000,"steps":[{"source":"synthetic","offset_ms":0,"device":"simulation:light","command":{"kind":"level","value":0,"ramp":false},"fade":{"duration_ms":1000,"interval_ms":100,"lateness_ms":100}}]}]});
+    assert!(Document::parse(&serde_json::to_vec(&document).unwrap(),&config).is_ok());
+    document["timed_scenes"][0]["enabled"]=true.into();
+    assert!(matches!(Document::parse(&serde_json::to_vec(&document).unwrap(),&config),Err(e) if e.to_string().contains("AD8")));
+    document["timed_scenes"][0]["steps"][0].as_object_mut().unwrap().remove("fade");
+    document["timed_scenes"][0]["steps"][0]["command"]=json!({"kind":"level","value":50,"ramp":true});
+    assert!(Document::parse(&serde_json::to_vec(&document).unwrap(),&config).is_ok());
+}
