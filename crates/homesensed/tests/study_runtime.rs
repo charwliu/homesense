@@ -4935,3 +4935,31 @@ async fn explicit_disconnect_handoff_keeps_boot_variables_but_retires_old_runtim
     let replacement=AutomationRuntime::load_with_startup(a.clone(),controller,1_800_000_000_000,1000,8,Default::default(),StartupPolicy::Suppress).await.unwrap();
     drop(replacement);a.shutdown().await.unwrap();
 }
+
+#[tokio::test]
+async fn held_dimming_does_not_resume_old_samples_after_transport_recovery() {
+    use homesense_core::{DeviceId,ModuleKind,Observation,Percent};
+    use homesense_state::{DeviceState,Quality};
+    use homesensed::hold_dimming::{HoldDimming,ReleasePolicy};
+    for policy in [ReleasePolicy::CancelPendingOnly,ReleasePolicy::PauseRampFieldVerified] {
+        let db=database();let controller=Uuid::new_v4();let a=actor(&db,controller).await;
+        let key=DeviceId::new("control4:63:key:1").unwrap();let light=DeviceId::new("control4:336").unwrap();
+        let state=|level,time|DeviceState{kind:ModuleKind::Dimmer,desired:None,observed:Some(Observation::Level(Percent::new(level).unwrap())),quality:Quality::Confirmed,observed_at_ms:Some(time),last_command_id:None,pending_command:None,version:1};
+        let mut hold=HoldDimming::new(a.clone(),controller,0,100,5).unwrap();
+        hold.start(key.clone(),light.clone(),true,&state(50,0),0,policy).await.unwrap();
+        hold.tick(0).await.unwrap();
+        let first=a.dispatch().await.unwrap().unwrap();a.finish_write(first.command.id,true).await.unwrap();
+        let pending=hold.tick(100).await.unwrap();assert_eq!(pending.len(),1);
+        a.transport_failed().await.unwrap();hold.invalidate();
+        a.recover_synchronized(2,1).await.unwrap();
+        assert!(hold.tick(200).await.unwrap().is_empty());assert_eq!(hold.active_count(),0);
+        assert!(a.dispatch().await.unwrap().is_none(),"neither old dimming nor pause may replay");
+        assert_eq!(Store::open(&db.0).unwrap().command_status(a.boot_id(),pending[0]).unwrap(),Some(Status::Cancelled));
+        hold.start(key.clone(),light,true,&state(30,200),200,policy).await.unwrap();
+        hold.tick(200).await.unwrap();
+        let fresh=a.dispatch().await.unwrap().unwrap();
+        assert!(matches!(fresh.command.command,homesense_core::Command::SetLevel{level,..} if level.get()==35));
+        a.finish_write(fresh.command.id,true).await.unwrap();
+        hold.invalidate();a.shutdown().await.unwrap();
+    }
+}
