@@ -78,3 +78,5 @@ pub mod software_fade;
 pub mod fade_group;
 
 mod fade_budget;
+
+pub mod runtime_scene_hap;

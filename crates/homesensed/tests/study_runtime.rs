@@ -4313,7 +4313,30 @@ async fn running_automation_control_cancels_before_output_and_closes_on_exit() {
         assert_eq!(control.request(Action::SceneActivity("light".into())).await.unwrap(),Reply::Activity(Some(homesensed::scene_activity::SceneActivity::Unknown)));
         assert!(control.request(Action::SceneActivity("unknown".into())).await.is_err());
         assert!(control.request(Action::LastRun("unknown".into())).await.is_err());
-        let Reply::Started(run)=control.request(Action::Start("light".into())).await.unwrap() else {panic!("start response")};
+        // External action checks happen in the owner, before any run exists.
+        for (caller,revision,scene) in [(Uuid::new_v4(),1,"light"),(controller,2,"light"),(controller,1,"unknown")] {
+            assert!(control.request(Action::SceneAction{controller:caller,revision,scene:scene.into(),execute:true}).await.is_err());
+        }
+        assert_eq!(control.request(Action::SceneAction{controller,revision:1,scene:"light".into(),execute:false}).await.unwrap(),Reply::SceneAccepted(None));
+        assert_eq!(control.request(Action::LastRun("light".into())).await.unwrap(),Reply::LastRun(None));
+        use hap::storage::Storage;
+        let identity_path=db.0.with_extension("hap");
+        let mut identity=homesense_hap::storage::IdentityStore::open(&identity_path).await.unwrap();
+        identity.save_config(&hap::Config::default()).await.unwrap();
+        let document=homesense_config::rule_document::Document::parse(rules,&config).unwrap();
+        let mut hap=homesensed::runtime_scene_hap::RuntimeSceneHap::new(&identity,&document,vec![homesense_hap::scene_graph::SceneSpec{id:"light".into(),name:"Test scene".into()}],control.clone(),move |id,scene|id==controller && scene=="light").await.unwrap();
+        let binding=&hap.accessories[0].0;
+        let body=hap::serde_json::to_vec(&hap::serde_json::json!({"characteristics":[{"aid":binding.aid,"iid":binding.on_iid,"value":true}]})).unwrap();
+        assert!(hap.write_handler.write_async(Uuid::new_v4(),&body).await.is_err());
+        assert_eq!(hap.flush_resets().await.unwrap(),0);
+        hap.write_handler.write_async(controller,&body).await.unwrap();
+        assert_eq!(hap.flush_resets().await.unwrap(),1);
+        assert_eq!(hap.flush_resets().await.unwrap(),0);
+        let run=1;
+        assert!(matches!(control.request(Action::LastRun("light".into())).await.unwrap(),Reply::LastRun(Some(_))));
+        drop(identity);
+        std::fs::remove_dir_all(identity_path).unwrap();
+
         assert_eq!(control.request(Action::Activity(run)).await.unwrap(),Reply::Activity(Some(homesensed::scene_activity::SceneActivity::Unknown)));
         assert_eq!(control.request(Action::Cancel(run)).await.unwrap(),Reply::Cancelled(1));
         assert_eq!(control.request(Action::Status(run)).await.unwrap(),Reply::Status(Some(homesense_core::scene::Status::Cancelled)));
