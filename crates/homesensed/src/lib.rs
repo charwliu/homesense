@@ -60,3 +60,4 @@ pub mod configured_rules;
 pub mod scene_activity;
 
 pub mod automation_runtime;
+pub mod automation_control;

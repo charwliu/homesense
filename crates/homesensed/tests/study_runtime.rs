@@ -4231,3 +4231,41 @@ async fn published_automation_assembly_binds_identity_revision_and_generation() 
     drop(runtime);
     a.shutdown().await.unwrap();
 }
+
+#[tokio::test]
+async fn running_automation_control_cancels_before_output_and_closes_on_exit() {
+    use homesensed::{automation_runtime::AutomationRuntime, automation_control::{Action,Reply}, feedback::Feedback, observed_transport::ObservedTransport, transport_owner::TransportOwner};
+    let db=Db(std::env::temp_dir().join(format!("assembly-{}.sqlite",Uuid::new_v4())));
+    let devices=include_bytes!("../../../config/simulation.json");
+    let rules=br#"{"schema_version":1,"configuration_revision":1,"variables":[{"id":"mode","kind":"integer","lifetime":"persistent"}],"rules":[],"timed_scenes":[{"id":"light","enabled":true,"review_evidence":"simulation","max_lateness_ms":1000,"steps":[{"source":"fixture","offset_ms":100,"device":"simulation:light","command":{"kind":"level","value":30,"ramp":false}}]}]}"#;
+    Store::open(&db.0).unwrap().publish_automation(None,devices,rules,ExecutionContext::Simulation,&[]).unwrap();
+    let controller=Uuid::new_v4();
+    let a=actor(&db,controller).await;
+
+    let mut runtime=AutomationRuntime::load(a.clone(),controller,1_800_000_000_000,1000,8,Default::default()).await.unwrap();
+    let control=runtime.control();
+    // Abandoned requests queued before the loop starts must not create a run.
+    assert!(tokio::time::timeout(std::time::Duration::from_millis(1),control.request(Action::Start("light".into()))).await.is_err());
+
+    struct Wire;
+    impl std::io::Read for Wire {fn read(&mut self,_:&mut [u8])->std::io::Result<usize>{Err(std::io::ErrorKind::WouldBlock.into())}}
+    impl std::io::Write for Wire {fn write(&mut self,_:&[u8])->std::io::Result<usize>{panic!("cancelled delayed scene wrote to bus")} fn flush(&mut self)->std::io::Result<()>{Ok(())}}
+    let config=homesense_config::Configuration::parse(devices,ExecutionContext::Simulation).unwrap();
+    let feedback=Feedback::new(&config,ExecutionContext::Simulation,Uuid::parse_str(a.boot_id()).unwrap().as_u128(),1).unwrap();
+    let transport=TransportOwner::new(a.clone(),[("simulation".into(),hb_transport::Connection::for_simulation(Wire,1))].into());
+    let mut owner=ObservedTransport::new(transport,feedback);
+    let (stop,receive)=tokio::sync::watch::channel(false);
+    let client=async {
+        let Reply::Started(run)=control.request(Action::Start("light".into())).await.unwrap() else {panic!("start response")};
+        assert_eq!(control.request(Action::Cancel(run)).await.unwrap(),Reply::Cancelled(1));
+        assert_eq!(control.request(Action::Status(run)).await.unwrap(),Reply::Status(Some(homesense_core::scene::Status::Cancelled)));
+        assert_eq!(control.request(Action::Retire(run)).await.unwrap(),Reply::Retired(homesense_core::scene::Status::Cancelled));
+        stop.send(true).unwrap();
+    };
+    let (result,())=tokio::join!(runtime.drive(&mut owner,std::time::Duration::from_millis(1),5000,receive,||Ok(1_800_000_000_000)),client);
+    result.unwrap();
+    assert!(control.request(Action::Start("light".into())).await.is_err());
+    let sql=rusqlite::Connection::open(&db.0).unwrap();
+    assert_eq!(sql.query_row("SELECT count(*) FROM scene_run",[],|r|r.get::<_,i64>(0)).unwrap(),1);
+    a.shutdown().await.unwrap();
+}
