@@ -27,7 +27,24 @@ fn publication_requires_stopped_runtime_and_expected_revision_preserving_identit
     lock.unlock().unwrap();
     drop(lock);
     assert!(publish(&next, &directory, 9).is_err());
+    std::fs::write(
+        directory.join("publication-backups"),
+        b"block backup directory",
+    )
+    .unwrap();
+    assert!(publish(&next, &directory, 1).is_err());
+    assert_eq!(store.active().unwrap().unwrap().revision, 1);
+    std::fs::remove_file(directory.join("publication-backups")).unwrap();
     assert_eq!(publish(&next, &directory, 1).unwrap(), 2);
+    let backups = std::fs::read_dir(directory.join("publication-backups"))
+        .unwrap()
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
+    assert_eq!(backups.len(), 1);
+    let snapshot = homesense_storage::Store::open(&backups[0].path()).unwrap();
+    assert_eq!(snapshot.active().unwrap().unwrap().revision, 1);
+    assert_eq!(snapshot.active().unwrap().unwrap().payload, document);
+    drop(snapshot);
     assert_eq!(store.active().unwrap().unwrap().payload, next);
     assert!(publish(document, &directory, 2).is_err());
     assert_eq!(
