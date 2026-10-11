@@ -53,6 +53,20 @@ enum SubmissionScope {
     Generation(TaskGeneration),
     Configuration(u64),
 }
+// Only Rejected(ResourceBusy) proves that admission did not accept work.
+// Failures while reading receipts after acceptance must remain fatal.
+#[derive(Debug)]
+pub(crate) enum DeferredFailure {
+    Rejected(WriteStatus),
+    Uncertain(WriteStatus),
+}
+impl DeferredFailure {
+    fn status(self) -> WriteStatus {
+        match self {
+            Self::Rejected(status) | Self::Uncertain(status) => status,
+        }
+    }
+}
 /// Trusted in-process acceptance payload. It reserves durable pending receipts;
 /// the runtime must reserve capacity beforehand and install timelines afterward.
 pub struct DeferredRule {
@@ -1450,14 +1464,17 @@ impl Admission {
         self.submit_deferred_rule_before(generation,rule,feedback,None).await
     }
     pub(crate) async fn submit_deferred_rule_before(&self,generation:TaskGeneration,rule:DeferredRule,feedback:Option<crate::feedback::RuleLease>,deadline:Option<u64>)->Result<AcceptedDeferred,WriteStatus> {
-        let manual_fence=self.manual_fence().await?;
+        self.submit_deferred_rule_classified(generation,rule,feedback,deadline).await.map_err(DeferredFailure::status)
+    }
+    pub(crate) async fn submit_deferred_rule_classified(&self,generation:TaskGeneration,rule:DeferredRule,feedback:Option<crate::feedback::RuleLease>,deadline:Option<u64>)->Result<AcceptedDeferred,DeferredFailure> {
+        let manual_fence=self.manual_fence().await.map_err(DeferredFailure::Rejected)?;
         let controller=rule.batch.controller;
         let starts=rule.starts.clone();
-        let command_ids=self.submit_scoped_before(Submission::Automation{batch:rule.batch,variables:rule.variables,audit:Some(rule.audit),starts:rule.starts,feedback:feedback.map(Box::new),manual_fence:None,scene:None},Some(SubmissionScope::Generation(generation.clone())),deadline).await?;
+        let command_ids=self.submit_scoped_before(Submission::Automation{batch:rule.batch,variables:rule.variables,audit:Some(rule.audit),starts:rule.starts,feedback:feedback.map(Box::new),manual_fence:None,scene:None},Some(SubmissionScope::Generation(generation.clone())),deadline).await.map_err(DeferredFailure::Rejected)?;
         let mut scenes=Vec::with_capacity(starts.len());
         for start in starts {
-            let page=self.scene_history(controller,generation.clone(),homesense_storage::scene_run::Query::Run{boot:self.boot_id().into(),run:start.run.clone(),after:0,limit:1}).await?.ok_or(WriteStatus::ServiceCommunicationFailure)?;
-            if page.record.version!=0 || page.record.status!=homesense_storage::scene_run::Status::Pending || !page.commands.is_empty() {return Err(WriteStatus::ServiceCommunicationFailure);}
+            let page=self.scene_history(controller,generation.clone(),homesense_storage::scene_run::Query::Run{boot:self.boot_id().into(),run:start.run.clone(),after:0,limit:1}).await.map_err(DeferredFailure::Uncertain)?.ok_or(DeferredFailure::Uncertain(WriteStatus::ServiceCommunicationFailure))?;
+            if page.record.version!=0 || page.record.status!=homesense_storage::scene_run::Status::Pending || !page.commands.is_empty() {return Err(DeferredFailure::Uncertain(WriteStatus::ServiceCommunicationFailure));}
             scenes.push(AcceptedScene{generation:generation.clone(),controller,manual_fence,start,started_ms:page.record.started_ms,causal_deadline:deadline});
         }
         Ok(AcceptedDeferred{command_ids,scenes})

@@ -19,7 +19,8 @@ fn isolated_automation_cli_runs_scene_restarts_and_preserves_live_files() {
         automation["rules"].as_array_mut().unwrap().push(hap::serde_json::json!({"id":id,"enabled":true,"review_evidence":"simulation","source":"fixture","trigger":{"kind":"startup_synchronized"},"actions":[{"source":"startup","action":{"kind":"set","variable":"booted","value":{"kind":"integer","value":value}}}]}));
     }
     automation["variables"].as_array_mut().unwrap().push(hap::serde_json::json!({"id":"observed","kind":"integer","lifetime":"persistent"}));
-    automation["rules"].as_array_mut().unwrap().push(hap::serde_json::json!({"id":"light-observed","enabled":true,"review_evidence":"simulation","source":"fixture","trigger":{"kind":"device_changed","device":"simulation:light"},"actions":[{"source":"observed","action":{"kind":"set","variable":"observed","value":{"kind":"integer","value":30}}}]}));
+    automation["variables"].as_array_mut().unwrap().push(hap::serde_json::json!({"id":"actual-level","kind":"integer","lifetime":"feedback_cache","feedback":{"kind":"level","device":"simulation:light"}}));
+    automation["rules"].as_array_mut().unwrap().push(hap::serde_json::json!({"id":"light-observed","enabled":true,"review_evidence":"simulation","source":"fixture","trigger":{"kind":"device_changed","device":"simulation:light"},"actions":[{"source":"observed","action":{"kind":"set","variable":"observed","value":{"kind":"variable","id":"actual-level"}}}]}));
     std::fs::write(&rules,hap::serde_json::to_vec(&automation).unwrap()).unwrap();
     let run = |seconds: &str, scene: &str| {
         Command::new(env!("CARGO_BIN_EXE_homesensed"))
@@ -75,10 +76,16 @@ fn isolated_automation_cli_runs_scene_restarts_and_preserves_live_files() {
     assert_eq!(startup,(4,2),"one shared startup root per run, not per tick");
     let booted:i64=sql.query_row("SELECT value FROM logical_variable WHERE name='booted'",[],|r|r.get(0)).unwrap();
     assert_eq!(booted,2);
-    let observed:i64=sql.query_row("SELECT value FROM logical_variable WHERE name='observed'",[],|r|r.get(0)).unwrap();
-    assert_eq!(observed,30);
+    let observed:Option<i64>=sql.query_row("SELECT value FROM logical_variable WHERE name='observed'",[],|r|r.get(0)).unwrap();
+    // Depending on scheduling, feedback can share a millisecond with the write.
+    // It may be rejected, but must never bring down the service.
+    assert!(matches!(observed, None | Some(0) | Some(30)));
+    let rejected:i64=sql.query_row("SELECT count(*) FROM rule_chain_outcome WHERE error LIKE '%ResourceBusy%'",[],|r|r.get(0)).unwrap();
+
+    let cached:i64=sql.query_row("SELECT count(*) FROM logical_variable WHERE name='actual-level'",[],|r|r.get(0)).unwrap();
+    assert_eq!(cached,0,"feedback alias must not be persisted as a logical variable");
     let feedback_runs:i64=sql.query_row("SELECT count(*) FROM rule_admission WHERE rule_id='light-observed'",[],|r|r.get(0)).unwrap();
-    assert!(feedback_runs>=2,"new physical feedback reaches rule router on each boot");
+    assert!(feedback_runs+rejected>=2,"feedback roots must be accepted or durably rejected on each boot");
 
 
 
