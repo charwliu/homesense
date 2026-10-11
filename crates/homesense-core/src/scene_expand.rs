@@ -1,7 +1,7 @@
 //! Reviewed immediate scene definitions. No implicit off policy and no timing
 //! conversion. Delayed source members must use the timeline adapter instead.
 use crate::rule::{Action, Node};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 #[derive(Debug, Clone)]
 pub struct Definition {
     pub activate: Vec<Node>,
@@ -14,18 +14,35 @@ pub enum Error {
     Cycle(String),
     Budget,
     MissingSource,
+    AmbiguousScene(String),
 }
 pub fn expand(
     nodes: &[Node],
     scenes: &BTreeMap<String, Definition>,
     max_nodes: usize,
 ) -> Result<Vec<Node>, Error> {
+    expand_with_deferred(nodes, scenes, &BTreeSet::new(), max_nodes)
+}
+/// Retain explicitly linked deferred activations as AST actions. This does not
+/// schedule them or authorize execution; the caller must durably accept their
+/// variables, causal budget and delayed work together. Deactivation is rejected
+/// until an explicit policy exists, never inferred as cancelling or turning off.
+pub fn expand_with_deferred(
+    nodes: &[Node],
+    scenes: &BTreeMap<String, Definition>,
+    deferred: &BTreeSet<String>,
+    max_nodes: usize,
+) -> Result<Vec<Node>, Error> {
+    if let Some(id) = deferred.iter().find(|id| scenes.contains_key(*id)) {
+        return Err(Error::AmbiguousScene(id.clone()));
+    }
     if max_nodes == 0 || max_nodes > 65536 {
         return Err(Error::Budget);
     }
     fn visit(
         nodes: &[Node],
         scenes: &BTreeMap<String, Definition>,
+        deferred: &BTreeSet<String>,
         remaining: &mut usize,
         path: &mut Vec<String>,
         depth: usize,
@@ -56,6 +73,11 @@ pub fn expand(
                     if path.contains(id) {
                         return Err(Error::Cycle(id.clone()));
                     }
+                    if deferred.contains(id) {
+                        if !activate {return Err(Error::UnknownDeactivation(id.clone()));}
+                        result.push(Node {source,action:node.action.clone()});
+                        continue;
+                    }
                     let scene = scenes
                         .get(id)
                         .ok_or_else(|| Error::MissingScene(id.clone()))?;
@@ -68,7 +90,7 @@ pub fn expand(
                             .ok_or_else(|| Error::UnknownDeactivation(id.clone()))?
                     };
                     path.push(id.clone());
-                    result.extend(visit(members, scenes, remaining, path, depth + 1, &source)?);
+                    result.extend(visit(members, scenes, deferred, remaining, path, depth + 1, &source)?);
                     path.pop();
                 }
                 Action::If {
@@ -82,6 +104,7 @@ pub fn expand(
                         then_actions: visit(
                             then_actions,
                             scenes,
+                            deferred,
                             remaining,
                             path,
                             depth + 1,
@@ -90,6 +113,7 @@ pub fn expand(
                         else_actions: visit(
                             else_actions,
                             scenes,
+                            deferred,
                             remaining,
                             path,
                             depth + 1,
@@ -105,5 +129,5 @@ pub fn expand(
         }
         Ok(result)
     }
-    visit(nodes, scenes, &mut max_nodes.clone(), &mut vec![], 0, "")
+    visit(nodes, scenes, deferred, &mut max_nodes.clone(), &mut vec![], 0, "")
 }
