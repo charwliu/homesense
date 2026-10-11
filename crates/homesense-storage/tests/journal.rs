@@ -957,4 +957,17 @@ fn scene_cancellation_is_atomic_with_checkpoint_and_survives_schema_upgrade() {
     let mut stmt=sql.prepare("SELECT version,device_id,reason FROM scene_cancellation ORDER BY version").unwrap();
     let rows=stmt.query_map([],|r|Ok((r.get::<_,i64>(0)?,r.get::<_,String>(1)?,r.get::<_,String>(2)?))).unwrap().collect::<Result<Vec<_>,_>>().unwrap();
     assert_eq!(rows,vec![(1,"synthetic:light".into(),"scene_replacement".into()),(2,"synthetic:light".into(),"manual_override".into())]);
+    let query=|after,limit|homesense_storage::scene_run::Query::Cancellations{boot:"boot".into(),run:"scene".into(),after,limit};
+    let first=reopened.query_scene(1,&query(0,1)).unwrap().unwrap();
+    assert!(first.commands.is_empty());
+    assert_eq!(first.cancellations.len(),1);
+    assert_eq!(first.cancellations[0].cancellation.reason,CancellationReason::SceneReplacement);
+    assert_eq!(first.next_after,Some(1));
+    let second=reopened.query_scene(1,&query(first.next_after.unwrap(),1)).unwrap().unwrap();
+    assert_eq!(second.cancellations[0].cancellation.reason,CancellationReason::ManualOverride);
+    assert_eq!(second.next_after,Some(2));
+    assert!(reopened.query_scene(1,&query(2,1)).unwrap().unwrap().cancellations.is_empty());
+    assert!(reopened.query_scene(2,&query(0,1)).unwrap().is_none());
+    for (after,limit) in [(0,0),(0,129),(u64::MAX,1)] {assert!(reopened.query_scene(1,&query(after,limit)).is_err());}
+
 }
