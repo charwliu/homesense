@@ -18,6 +18,8 @@ fn isolated_automation_cli_runs_scene_restarts_and_preserves_live_files() {
     for (id,value) in [("boot-first",1),("boot-second",2)] {
         automation["rules"].as_array_mut().unwrap().push(hap::serde_json::json!({"id":id,"enabled":true,"review_evidence":"simulation","source":"fixture","trigger":{"kind":"startup_synchronized"},"actions":[{"source":"startup","action":{"kind":"set","variable":"booted","value":{"kind":"integer","value":value}}}]}));
     }
+    automation["variables"].as_array_mut().unwrap().push(hap::serde_json::json!({"id":"observed","kind":"integer","lifetime":"persistent"}));
+    automation["rules"].as_array_mut().unwrap().push(hap::serde_json::json!({"id":"light-observed","enabled":true,"review_evidence":"simulation","source":"fixture","trigger":{"kind":"device_changed","device":"simulation:light"},"actions":[{"source":"observed","action":{"kind":"set","variable":"observed","value":{"kind":"integer","value":30}}}]}));
     std::fs::write(&rules,hap::serde_json::to_vec(&automation).unwrap()).unwrap();
     let run = |seconds: &str, scene: &str| {
         Command::new(env!("CARGO_BIN_EXE_homesensed"))
@@ -73,6 +75,11 @@ fn isolated_automation_cli_runs_scene_restarts_and_preserves_live_files() {
     assert_eq!(startup,(4,2),"one shared startup root per run, not per tick");
     let booted:i64=sql.query_row("SELECT value FROM logical_variable WHERE name='booted'",[],|r|r.get(0)).unwrap();
     assert_eq!(booted,2);
+    let observed:i64=sql.query_row("SELECT value FROM logical_variable WHERE name='observed'",[],|r|r.get(0)).unwrap();
+    assert_eq!(observed,30);
+    let feedback_runs:i64=sql.query_row("SELECT count(*) FROM rule_admission WHERE rule_id='light-observed'",[],|r|r.get(0)).unwrap();
+    assert!(feedback_runs>=2,"new physical feedback reaches rule router on each boot");
+
 
 
     std::fs::write(
