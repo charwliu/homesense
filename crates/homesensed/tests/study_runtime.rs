@@ -5141,3 +5141,38 @@ async fn software_fade_partial_wire_failure_does_not_admit_successor() {
     drop(fade);
     a.shutdown().await.unwrap();
 }
+
+#[tokio::test]
+async fn dropping_unfinished_software_fade_closes_output_admission() {
+    use homesensed::{software_fade::SoftwareFade,feedback::Feedback,transport_owner::GatewayRead};
+    let db=Db(std::env::temp_dir().join(format!("fade-drop-{}.sqlite",Uuid::new_v4())));
+    let devices=include_bytes!("../../../config/simulation.json");
+    Store::open(&db.0).unwrap().publish_configuration(None,devices,ExecutionContext::Simulation,&[]).unwrap();
+    let controller=Uuid::new_v4();let a=actor(&db,controller).await;
+    let config=homesense_config::Configuration::parse(devices,ExecutionContext::Simulation).unwrap();
+    let mut feedback=Feedback::new(&config,ExecutionContext::Simulation,Uuid::parse_str(a.boot_id()).unwrap().as_u128(),1).unwrap();
+    let device=homesense_core::DeviceId::new("simulation:light").unwrap();
+    let zero=homesense_core::Percent::new(0).unwrap();
+    assert!(SoftwareFade::start(a.clone(),controller,device.clone(),zero,200,50,100,4,&feedback,2000).await.is_err());
+    feedback.apply(&GatewayRead{gateway_id:"simulation".into(),transport_epoch:1,received_at_ms:0,result:hb_transport::Receive::Frames{transport_epoch:1,frames:vec![hb_protocol::RawFrame{address:0x15,command:0xd1,value:100}]}}).unwrap();
+    let mut fade=SoftwareFade::start(a.clone(),controller,device,zero,200,50,100,4,&feedback,2000).await.unwrap();
+    tokio::time::sleep(std::time::Duration::from_millis(60)).await;
+    assert!(!fade.tick().await.unwrap());
+    // No transport is driven: a second tick must not build a queue of samples.
+    tokio::time::sleep(std::time::Duration::from_millis(60)).await;
+    assert!(!fade.tick().await.unwrap());
+    let sql=rusqlite::Connection::open(&db.0).unwrap();
+    let (count,deadline):(i64,i64)=sql.query_row("SELECT count(*),max(deadline_ms-updated_ms) FROM command_journal",[],|r|Ok((r.get(0)?,r.get(1)?))).unwrap();
+    assert_eq!(count,1);assert!((1..=300).contains(&deadline));
+    drop(fade);
+    struct NoWrite;
+    impl std::io::Read for NoWrite {fn read(&mut self,_:&mut [u8])->std::io::Result<usize>{Err(std::io::ErrorKind::WouldBlock.into())}}
+    impl std::io::Write for NoWrite {
+        fn write(&mut self,_:&[u8])->std::io::Result<usize>{panic!("abandoned fade reached transport")}
+        fn flush(&mut self)->std::io::Result<()>{Ok(())}
+    }
+    let mut owner=homesensed::transport_owner::TransportOwner::new(a.clone(),[("simulation".into(),hb_transport::Connection::for_simulation(NoWrite,1))].into());
+    assert!(owner.step().await.is_err());
+    a.shutdown().await.unwrap();
+    assert_eq!(sql.query_row("SELECT count(*) FROM command_journal WHERE status='written'",[],|r|r.get::<_,i64>(0)).unwrap(),0);
+}
