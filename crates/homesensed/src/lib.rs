@@ -76,3 +76,5 @@ pub mod automation_publication;
 pub mod software_fade;
 
 pub mod fade_group;
+
+mod fade_budget;
