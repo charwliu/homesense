@@ -17,6 +17,7 @@ fn token_scope_role_and_revocation_are_independent_of_runtime_identity() {
                 controller: caller,
                 role: Role::Viewer,
                 scenes: ["reading".into()].into(),
+                devices: ["lamp".into()].into(),
             },
         )
         .unwrap();
@@ -31,6 +32,9 @@ fn token_scope_role_and_revocation_are_independent_of_runtime_identity() {
     assert!(grant.may_read("reading"));
     assert!(!grant.may_control("reading"));
     assert!(!grant.may_read("other"));
+    assert!(grant.may_read_device("lamp"));
+    assert!(!grant.may_control_device("lamp"));
+    assert!(!grant.may_read_device("other"));
     assert!(
         tokens
             .insert(
@@ -39,7 +43,8 @@ fn token_scope_role_and_revocation_are_independent_of_runtime_identity() {
                 Grant {
                     controller: caller,
                     role: Role::Administrator,
-                    scenes: ["other".into()].into()
+                    scenes: ["other".into()].into(),
+                    devices: Default::default()
                 }
             )
             .is_err()
@@ -93,6 +98,7 @@ fn browser_sessions_require_csrf_and_follow_token_revocation() {
                 controller: id,
                 role: Role::Member,
                 scenes: ["scene".into()].into(),
+                devices: Default::default(),
             },
         )
         .unwrap();

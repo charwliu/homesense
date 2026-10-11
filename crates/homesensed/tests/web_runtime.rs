@@ -24,8 +24,8 @@ impl std::io::Read for Wire {
     }
 }
 impl std::io::Write for Wire {
-    fn write(&mut self, _: &[u8]) -> std::io::Result<usize> {
-        panic!("Web test must not write output")
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        Ok(bytes.len()) // In-memory simulation sink; no gateway connection.
     }
     fn flush(&mut self) -> std::io::Result<()> {
         Ok(())
@@ -75,6 +75,51 @@ async fn web_scope_origin_receipts_and_runtime_admission() {
         1,
     )
     .unwrap();
+    // An unobserved dimmer without a default must never invent 100% on power-on.
+    let device = homesense_core::DeviceId::new("simulation:light").unwrap();
+    let generation = admission.task_generation().await.unwrap();
+    assert!(
+        homesensed::management_devices::prepare(
+            &admission,
+            caller,
+            generation.clone(),
+            device.clone(),
+            homesensed::management_devices::LightAction::Power { on: true },
+            &feedback,
+            1000
+        )
+        .await
+        .is_err()
+    );
+    assert!(
+        homesensed::management_devices::prepare(
+            &admission,
+            Uuid::new_v4(),
+            generation.clone(),
+            device.clone(),
+            homesensed::management_devices::LightAction::Brightness { level: 40 },
+            &feedback,
+            1000
+        )
+        .await
+        .is_err()
+    );
+    let batch = homesensed::management_devices::prepare(
+        &admission,
+        caller,
+        generation,
+        device,
+        homesensed::management_devices::LightAction::Brightness { level: 40 },
+        &feedback,
+        1000,
+    )
+    .await
+    .unwrap();
+    assert_eq!(batch.controller, caller);
+    assert_eq!(batch.intents.len(), 1);
+    assert!(
+        matches!(batch.intents[0].command,homesense_core::Command::SetLevel{level,..} if level.get()==40)
+    );
     let mut owner = ObservedTransport::new(
         TransportOwner::new(
             admission.clone(),
@@ -96,6 +141,7 @@ async fn web_scope_origin_receipts_and_runtime_admission() {
                 controller: caller,
                 role: Role::Member,
                 scenes: ["light".into()].into(),
+                devices: ["simulation:light".into()].into(),
             },
         )
         .unwrap();
@@ -194,6 +240,55 @@ async fn web_scope_origin_receipts_and_runtime_admission() {
             .body(Bytes::new())
             .unwrap();
         assert_eq!(api.handle(read).await.status(), StatusCode::OK);
+        let read = Request::builder()
+            .uri("/api/v1/devices")
+            .header("host", "127.0.0.1:8088")
+            .header("authorization", format!("Bearer {secret}"))
+            .body(Bytes::new())
+            .unwrap();
+        let snapshot = api.handle(read).await;
+        assert_eq!(snapshot.status(), StatusCode::OK);
+        let snapshot: serde_json::Value =
+            serde_json::from_slice(&snapshot.into_body().collect().await.unwrap().to_bytes())
+                .unwrap();
+        assert_eq!(snapshot["devices"].as_array().unwrap().len(), 1);
+        assert_eq!(snapshot["devices"][0]["id"], "simulation:light");
+        assert!(snapshot["devices"][0]["observed"].is_null());
+        for (body, expected) in [
+            (
+                r#"{"device":"other","request_id":"device-one","command":{"action":"power","on":true}}"#,
+                StatusCode::FORBIDDEN,
+            ),
+            (
+                r#"{"device":"simulation:light","request_id":"device-one","command":{"action":"brightness","level":101}}"#,
+                StatusCode::BAD_REQUEST,
+            ),
+        ] {
+            let mut command = make(&api.origin, body);
+            *command.uri_mut() = "/api/v1/device-commands".parse().unwrap();
+            assert_eq!(api.handle(command).await.status(), expected);
+        }
+        let device_body = r#"{"device":"simulation:light","request_id":"device-one","command":{"action":"brightness","level":40}}"#;
+        let mut accepted = None;
+        for expected in [StatusCode::ACCEPTED, StatusCode::OK] {
+            let mut command = make(&api.origin, device_body);
+            *command.uri_mut() = "/api/v1/device-commands".parse().unwrap();
+            let result = api.handle(command).await;
+            assert_eq!(result.status(), expected);
+            let result: serde_json::Value =
+                serde_json::from_slice(&result.into_body().collect().await.unwrap().to_bytes())
+                    .unwrap();
+            assert_eq!(result["outcome"], "accepted");
+            assert_eq!(result["commands"].as_array().unwrap().len(), 1);
+            if let Some(previous) = accepted.as_ref() {
+                assert_eq!(previous, &result);
+            } else {
+                accepted = Some(result);
+            }
+        }
+        let mut conflict = make(&api.origin, &device_body.replace("40", "30"));
+        *conflict.uri_mut() = "/api/v1/device-commands".parse().unwrap();
+        assert_eq!(api.handle(conflict).await.status(), StatusCode::CONFLICT);
         tokens.revoke(token_id).unwrap();
         assert_eq!(
             api.handle(make(&api.origin, body)).await.status(),
@@ -211,6 +306,12 @@ async fn web_scope_origin_receipts_and_runtime_admission() {
     let sql = rusqlite::Connection::open(path).unwrap();
     assert_eq!(
         sql.query_row("SELECT count(*) FROM scene_run", [], |r| r.get::<_, i64>(0))
+            .unwrap(),
+        1
+    );
+    assert_eq!(
+        sql.query_row("SELECT count(*) FROM command_journal", [], |r| r
+            .get::<_, i64>(0))
             .unwrap(),
         1
     );

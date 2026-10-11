@@ -12,6 +12,8 @@ use uuid::Uuid;
 #[derive(Debug)]
 pub enum Action {
     CalendarStatus,
+    Devices {controller:Uuid,revision:u64,ids:Vec<homesense_core::DeviceId>},
+    DeviceCommand {controller:Uuid,revision:u64,device:homesense_core::DeviceId,action:crate::management_devices::LightAction},
     SceneCancel { controller: Uuid, revision: u64, run: u64 },
     SceneAction { controller: Uuid, revision: u64, scene: String, execute: bool },
     Start(String),
@@ -24,6 +26,8 @@ pub enum Action {
 }
 #[derive(Debug, PartialEq, Eq)]
 pub enum Reply {
+    Devices(crate::management_devices::DeviceSnapshot),
+    CommandsAccepted(Vec<u64>),
     SceneAccepted(Option<u64>),
     CalendarStatus { boot: String, revision: u64, status: Option<crate::event_rules::CalendarStatus> },
     Started(u64),
@@ -161,6 +165,16 @@ impl Receiver {
                     return Err("automation request expired or abandoned".into());
                 }
                 match request.action {
+                    Action::Devices {controller,revision,ids} => {
+                        if revision!=document.revision {return Err("device query revision expired".into());}
+                        crate::management_devices::snapshot(admission,controller,self.generation.clone(),ids,feedback).await.map(Reply::Devices)
+                    },
+                    Action::DeviceCommand {controller,revision,device,action} => {
+                        if revision!=document.revision {return Err("device command revision expired".into());}
+                        let batch=crate::management_devices::prepare(admission,controller,self.generation.clone(),device,action,feedback,max_age_ms).await?;
+                        if request.reply.is_closed() || Instant::now()>=request.deadline {return Err("device command expired or abandoned".into());}
+                        admission.submit_for_revision(revision,batch).await.map(Reply::CommandsAccepted).map_err(|e|format!("{e:?}"))
+                    },
                     Action::CalendarStatus => Ok(Reply::CalendarStatus {
                         boot: admission.boot_id().to_owned(),
                         revision: document.revision,

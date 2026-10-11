@@ -179,10 +179,47 @@ impl Api {
             }
             return response(StatusCode::OK, json!({"scenes":items}));
         }
+        if request.method() == hyper::Method::GET && request.uri().path() == "/api/v1/devices" {
+            let ids = grant
+                .devices
+                .iter()
+                .map(|id| homesense_core::DeviceId::new(id.clone()))
+                .collect::<Result<Vec<_>, _>>();
+            let Ok(ids) = ids else {
+                return deny(StatusCode::SERVICE_UNAVAILABLE, "invalid_device_scope");
+            };
+            let Ok(Reply::Devices(snapshot)) = self
+                .control
+                .request(Action::Devices {
+                    controller: grant.controller,
+                    revision: self.revision,
+                    ids,
+                })
+                .await
+            else {
+                return deny(
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    "device_snapshot_unavailable",
+                );
+            };
+            let devices = snapshot.devices.into_iter().map(|device| {
+                let observed = match device.state.observed {
+                    Some(homesense_core::Observation::Switch(on)) => json!({"on":on}),
+                    Some(homesense_core::Observation::Level(level)) => json!({"level":level.get(),"on":level.get()>0}),
+                    _ => serde_json::Value::Null,
+                };
+                let light = matches!(device.state.kind, homesense_core::ModuleKind::Switch | homesense_core::ModuleKind::Dimmer);
+                json!({"id":device.id.as_str(),"name":device.name,"kind":format!("{:?}",device.state.kind),"observed":observed,"quality":format!("{:?}",device.state.quality),"observed_at_ms":device.state.observed_at_ms,"pending":device.state.pending_command,"version":device.state.version,"can_control":light && grant.may_control_device(device.id.as_str())})
+            }).collect::<Vec<_>>();
+            return response(
+                StatusCode::OK,
+                json!({"boot":snapshot.boot,"revision":snapshot.revision,"sequence":snapshot.sequence,"devices":devices}),
+            );
+        }
         if request.method() != hyper::Method::POST
             || !matches!(
                 request.uri().path(),
-                "/api/v1/scene-actions" | "/api/v1/scene-cancellations"
+                "/api/v1/scene-actions" | "/api/v1/scene-cancellations" | "/api/v1/device-commands"
             )
         {
             return deny(StatusCode::NOT_FOUND, "not_found");
@@ -218,9 +255,41 @@ impl Api {
             request_id: String,
         }
         let principal = grant.controller.to_string();
-        let (scene, request_id, action, fingerprint) = if request.uri().path()
-            == "/api/v1/scene-actions"
-        {
+        let is_device = request.uri().path() == "/api/v1/device-commands";
+        let (scene, request_id, action, fingerprint) = if is_device {
+            #[derive(serde::Deserialize)]
+            #[serde(deny_unknown_fields)]
+            struct DeviceCommand {
+                device: String,
+                request_id: String,
+                command: crate::management_devices::LightAction,
+            }
+            let Ok(body) = serde_json::from_slice::<DeviceCommand>(request.body()) else {
+                return deny(StatusCode::BAD_REQUEST, "invalid_body");
+            };
+            if !grant.may_control_device(&body.device) {
+                return deny(StatusCode::FORBIDDEN, "device_not_permitted");
+            }
+            let Ok(device) = homesense_core::DeviceId::new(body.device.clone()) else {
+                return deny(StatusCode::BAD_REQUEST, "invalid_device");
+            };
+            if matches!(body.command, crate::management_devices::LightAction::Brightness {level} if level>100)
+            {
+                return deny(StatusCode::BAD_REQUEST, "invalid_brightness");
+            }
+            let fingerprint=json!({"action":"device","revision":self.revision,"device":body.device,"command":body.command}).to_string();
+            (
+                String::new(),
+                body.request_id,
+                Action::DeviceCommand {
+                    controller: grant.controller,
+                    revision: self.revision,
+                    device,
+                    action: body.command,
+                },
+                fingerprint,
+            )
+        } else if request.uri().path() == "/api/v1/scene-actions" {
             let Ok(body) = serde_json::from_slice::<Start>(request.body()) else {
                 return deny(StatusCode::BAD_REQUEST, "invalid_body");
             };
@@ -275,7 +344,7 @@ impl Api {
                 fingerprint,
             )
         };
-        if !grant.may_control(&scene) || !self.scenes.contains_key(&scene) {
+        if !is_device && (!grant.may_control(&scene) || !self.scenes.contains_key(&scene)) {
             return deny(StatusCode::FORBIDDEN, "scene_not_permitted");
         }
         let claim = self
@@ -307,6 +376,9 @@ impl Api {
         let outcome = match self.control.request(action).await {
             Ok(Reply::SceneAccepted(Some(run))) => {
                 json!({"request_id":request_id,"outcome":"accepted","boot":self.boot,"run":run})
+            }
+            Ok(Reply::CommandsAccepted(commands)) => {
+                json!({"request_id":request_id,"outcome":"accepted","boot":self.boot,"commands":commands})
             }
             Ok(Reply::Cancelled(count)) => {
                 json!({"request_id":request_id,"outcome":"cancelled","cancelled":count})

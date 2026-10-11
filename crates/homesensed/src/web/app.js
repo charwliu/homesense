@@ -11,6 +11,7 @@ async function request(path, options = {}) {
 }
 async function refresh() {
   const data = await request('/api/v1/scenes');
+  await refreshDevices();
   list.replaceChildren();
   for (const scene of data.scenes) {
     const row = document.createElement('article');
@@ -48,6 +49,39 @@ document.getElementById('connect').onclick = async () => {
   } catch (error) { csrf = ''; list.replaceChildren(); status.textContent = error.message; }
 };
 document.getElementById('logout').onclick = async () => {
-  try { await request('/api/v1/session', {method: 'DELETE'}); csrf = ''; started.clear(); list.replaceChildren(); status.textContent = '已退出'; }
+  try { await request('/api/v1/session', {method: 'DELETE'}); csrf = ''; started.clear(); list.replaceChildren(); document.getElementById('devices').replaceChildren(); status.textContent = '已退出'; }
   catch (error) { status.textContent = '注销未确认：' + error.message; }
 };
+
+async function refreshDevices() {
+  const data = await request('/api/v1/devices');
+  const devices = document.getElementById('devices'); devices.replaceChildren();
+  for (const device of data.devices) {
+    const row = document.createElement('article');
+    const title = document.createElement('h2'); title.textContent = device.name;
+    const info = document.createElement('p');
+    info.textContent = device.observed === null ? '状态未知' : `${device.observed.on ? '开' : '关'}${device.observed.level === undefined ? '' : ' · ' + device.observed.level + '%'}`;
+    info.textContent += ` · ${device.quality}${device.pending === null ? '' : ' · 等待反馈'}`;
+    row.append(title, info);
+    const send = async command => {
+      try {
+        const result = await request('/api/v1/device-commands', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({device:device.id, request_id:crypto.randomUUID(), command})});
+        status.textContent = result.outcome === 'accepted' ? '控制已接受，等待设备反馈。' : '结果未知，请核对设备；不要重复点击。';
+        await refreshDevices();
+      } catch(error) {status.textContent = `${error.message}；未自动重试。`;}
+    };
+    for (const on of [true,false]) {
+      const button=document.createElement('button'); button.textContent=on?'开':'关'; button.disabled=!device.can_control;
+      button.onclick=async()=>{button.disabled=true;await send({action:'power',on});}; row.append(button);
+    }
+    if(device.kind==='Dimmer') {
+      const level=document.createElement('input'); level.type='number';level.min='0';level.max='100';level.step='1';level.setAttribute('aria-label',device.name+'亮度');
+      level.value=device.observed?.level ?? '';
+      const apply=document.createElement('button');apply.textContent='设置亮度';apply.disabled=!device.can_control;
+      apply.onclick=async()=>{if(level.value===''||!level.checkValidity())return;apply.disabled=true;await send({action:'brightness',level:Number(level.value)});};row.append(level,apply);
+    }
+    devices.append(row);
+  }
+}
+
+document.getElementById('refresh').onclick = () => refresh().catch(error => {status.textContent=error.message;});
