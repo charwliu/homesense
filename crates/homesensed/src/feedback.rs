@@ -265,9 +265,8 @@ impl Feedback {
     pub fn expire(&mut self, now: u64, max_age_ms: u64) -> Result<(), String> {
         let version = self.lease_version.clone();
         let mut lease_guard = version.lock().map_err(|_| "feedback lease poisoned")?;
-        *lease_guard = lease_guard
-            .checked_add(1)
-            .ok_or("feedback lease exhausted")?;
+        let before = self.states.cursor();
+        let next_version = lease_guard.checked_add(1).ok_or("feedback lease exhausted")?;
 
         if self.stopped || now < self.now || max_age_ms == 0 {
             return Err("inactive feedback, backwards time or invalid maximum age".into());
@@ -275,6 +274,7 @@ impl Feedback {
         self.states
             .mark_stale(now, max_age_ms)
             .map_err(|e| e.to_string())?;
+        if self.states.cursor() != before { *lease_guard = next_version; }
         self.now = now;
         Ok(())
     }
@@ -328,9 +328,10 @@ impl Feedback {
     pub fn apply(&mut self, read: &GatewayRead) -> Result<usize, String> {
         let version = self.lease_version.clone();
         let mut lease_guard = version.lock().map_err(|_| "feedback lease poisoned")?;
-        *lease_guard = lease_guard
-            .checked_add(1)
-            .ok_or("feedback lease exhausted")?;
+        // Idle polling changes no observation; lease expiry is checked at use.
+        if !matches!(read.result, Receive::Idle) {
+            *lease_guard = lease_guard.checked_add(1).ok_or("feedback lease exhausted")?;
+        }
 
         if self.stopped || read.transport_epoch != self.epoch || read.received_at_ms < self.now {
             return Err("inactive feedback, stale epoch or backwards time".into());
@@ -537,6 +538,13 @@ mod lease_tests {
                     .is_err()
             );
         }
+        feedback.apply(&GatewayRead {
+            gateway_id: "simulation".into(), transport_epoch: 1,
+            received_at_ms: 11, result: Receive::Idle,
+        }).unwrap();
+        feedback.expire(11, 10).unwrap();
+        assert_eq!(lease.commit::<i32>(123, config.revision(), 1, 11, || Ok(7)).unwrap(), 7);
+        // An actual fresh observation still invalidates the original snapshot.
         feedback.apply(&sample(12)).unwrap();
         assert!(
             lease
@@ -548,10 +556,13 @@ mod lease_tests {
         let (_, lease) = feedback
             .plan_rule(&nodes, &Default::default(), Budget::default(), 12, 10)
             .unwrap();
+        feedback.expire(13, 1).unwrap();
+        assert!(lease.commit::<i32>(123, config.revision(), 1, 13, || panic!("stale state committed")).is_err());
+        let (_, lease) = feedback.plan_rule(&nodes, &Default::default(), Budget::default(), 13, 10).unwrap();
         feedback.invalidate().unwrap();
         assert!(
             lease
-                .commit::<i32>(123, config.revision(), 1, 12, || panic!(
+                .commit::<i32>(123, config.revision(), 1, 13, || panic!(
                     "stopped lease committed"
                 ))
                 .is_err()
