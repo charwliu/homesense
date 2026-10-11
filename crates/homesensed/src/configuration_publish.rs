@@ -63,6 +63,13 @@ fn publish_inner(
     if old.revision != expected {
         return Err("active revision changed".into());
     }
+    // Snapshot the committed pre-publication state before command recovery or
+    // revision mutation. Failure keeps the active configuration untouched.
+    let backups=directory.join("publication-backups");
+    let mut builder=std::fs::DirBuilder::new();builder.recursive(true);
+    #[cfg(unix)] {use std::os::unix::fs::DirBuilderExt;builder.mode(0o700);}
+    builder.create(&backups).map_err(|e|e.to_string())?;
+    homesense_storage::backup::create(&path,&backups.join(format!("before-{expected}-{}.sqlite",uuid::Uuid::new_v4())),std::time::Duration::from_secs(10))?;
     // The stopped process has no authoritative in-memory queue. Preserve all
     // incomplete old commands as uncertain; none will be replayed on restart.
     store
