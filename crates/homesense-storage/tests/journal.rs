@@ -134,7 +134,7 @@ fn version_one_database_migrates_without_losing_configuration() {
     let connection = rusqlite::Connection::open(&db.0).unwrap();
     connection
         .execute_batch(
-            "DROP TABLE automation_revision; DROP TABLE command_journal; DROP TABLE light_restore; DROP TABLE study_mode; DROP TABLE logical_variable; DROP TABLE calendar_watermark; DROP TABLE rule_command; DROP TABLE rule_admission; DROP TABLE rule_chain_outcome; DROP TABLE scene_command; DROP TABLE scene_step; DROP TABLE scene_run; PRAGMA user_version=1;",
+            "DROP TABLE scene_cause; DROP TABLE automation_revision; DROP TABLE command_journal; DROP TABLE light_restore; DROP TABLE study_mode; DROP TABLE logical_variable; DROP TABLE calendar_watermark; DROP TABLE rule_command; DROP TABLE rule_admission; DROP TABLE rule_chain_outcome; DROP TABLE scene_command; DROP TABLE scene_step; DROP TABLE scene_run; PRAGMA user_version=1;",
         )
         .unwrap();
     drop(connection);
@@ -766,7 +766,7 @@ fn deferred_receipts_variables_and_immediate_commands_commit_atomically() {
     store.define_logical_variable(1,"mode",ValueType::Integer).unwrap();
     let update=homesense_storage::variables::Update{revision:1,name:"mode".into(),expected_version:0,value:Some(Value::Integer(2))};
     let audit=homesense_storage::rule_audit::Admission{revision:1,correlation:1,event:1,parent:0,rule:"rule".into()};
-    let starts=["one","two"].map(|run|homesense_storage::scene_run::Start{revision:1,run:run.into(),definition:"delayed".into()});
+    let starts=["one","two"].into_iter().enumerate().map(|(action_index,run)|homesense_storage::scene_run::Start{action_index,source:"rule:call".into(),revision:1,run:run.into(),definition:"delayed".into()}).collect::<Vec<_>>();
     let mut command=command(1);command.origin=Origin::Rule;
     let sql=rusqlite::Connection::open(&db.0).unwrap();
     sql.execute_batch("CREATE TRIGGER fail_deferred BEFORE INSERT ON scene_run WHEN NEW.run_id='two' BEGIN SELECT RAISE(ABORT,'injected'); END;").unwrap();
@@ -786,4 +786,29 @@ fn deferred_receipts_variables_and_immediate_commands_commit_atomically() {
     assert_eq!(store.command_status("boot",1).unwrap(),Some(Status::Accepted));
     assert_eq!(store.logical_variable(1,"mode").unwrap().unwrap().value,Some(Value::Integer(2)));
     assert!(accept(&mut store).is_err(),"duplicate acceptance cannot be retried as new work");
+    drop(store);
+    let store=Store::open(&db.0).unwrap();
+    for run in ["one","two"] {
+        let cause=store.scene_cause("boot",run).unwrap().unwrap();
+        assert_eq!(cause.correlation,1);assert_eq!(cause.event,1);
+        assert_eq!(cause.source,"rule:call");
+    }
+    assert!(store.scene_cause("boot","missing").unwrap().is_none());
+}
+
+#[test]
+fn schema_twelve_migration_preserves_existing_manual_scene_without_inventing_cause() {
+    let db=Database::new();
+    let mut store=Store::open(&db.0).unwrap();
+    store.publish(None,1,b"config",&[]).unwrap();
+    store.begin_scene_run("boot","manual",1,Some("scene"),10).unwrap();
+    drop(store);
+    let sql=rusqlite::Connection::open(&db.0).unwrap();
+    sql.execute_batch("DROP TABLE scene_cause; PRAGMA user_version=12;").unwrap();
+    drop(sql);
+    let store=Store::open(&db.0).unwrap();
+    assert_eq!(store.scene_run("boot","manual").unwrap().unwrap().started_ms,10);
+    assert!(store.scene_cause("boot","manual").unwrap().is_none());
+    let sql=rusqlite::Connection::open(&db.0).unwrap();
+    assert_eq!(sql.pragma_query_value(None,"user_version",|r|r.get::<_,i64>(0)).unwrap(),13);
 }
