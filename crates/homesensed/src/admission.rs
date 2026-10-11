@@ -82,6 +82,7 @@ enum Submission {
 type RestoreLevels = BTreeMap<homesense_core::DeviceId, homesense_core::Percent>;
 struct PendingPublication {
     document: Vec<u8>,
+    rules: Option<Vec<u8>>,
     cancellations: Vec<homesense_core::queue::Cancellation>,
 }
 pub(crate) enum SceneUpdate {
@@ -159,7 +160,7 @@ enum Message {
         u64,
         oneshot::Sender<Result<usize, WriteStatus>>,
     ),
-    BeginPublication(Vec<u8>, u64, u64, oneshot::Sender<Result<(), WriteStatus>>),
+    BeginPublication(Vec<u8>, Option<Vec<u8>>, u64, u64, oneshot::Sender<Result<(), WriteStatus>>),
     CommitPublication(oneshot::Sender<Result<u64, WriteStatus>>),
     AbortPublication(oneshot::Sender<Result<(), WriteStatus>>),
     Wake,
@@ -493,7 +494,7 @@ impl Admission {
                             let _ = reply.send(result);
                         }
                         Message::Wake => {},
-                        Message::BeginPublication(document, expected, deadline, reply) => {
+                        Message::BeginPublication(document, rules, expected, deadline, reply) => {
                             if reply.is_closed() { continue; }
                             let result = (|| {
                                 if failed || arbiter.policy().publishing || expected != configuration.revision() {
@@ -505,6 +506,17 @@ impl Admission {
                                 if store.active().map_err(|_| WriteStatus::ServiceCommunicationFailure)?.as_ref() != Some(&durable_configuration) {
                                     return Err(WriteStatus::ServiceCommunicationFailure);
                                 }
+                                if let Some(rules) = &rules {
+                                    let automation=crate::configuration_publish::validate_automation(&candidate,rules,options.context).map_err(|_|WriteStatus::InvalidValueInRequest)?;
+                                    for (name, variable) in &automation.variables {
+                                        if variable.lifetime == homesense_core::rule::Lifetime::Persistent {
+                                            let old=store.logical_variable(configuration.revision(),name).map_err(|_|WriteStatus::ServiceCommunicationFailure)?;
+                                            if old.is_some_and(|v|v.kind!=variable.value_type) {return Err(WriteStatus::InvalidValueInRequest)}
+                                        }
+                                    }
+                                } else if store.automation_payload(configuration.revision()).map_err(|_|WriteStatus::ServiceCommunicationFailure)?.is_some() {
+                                    return Err(WriteStatus::InvalidValueInRequest);
+                                }
                                 let cancelled = arbiter.begin_publication(millis(clock), deadline)
                                     .map_err(|_| WriteStatus::ServiceCommunicationFailure)?;
                                 if store.cancel_queued(&worker_boot, &cancelled, millis(clock)).is_err() {
@@ -513,7 +525,7 @@ impl Admission {
                                     return Err(WriteStatus::ServiceCommunicationFailure);
                                 }
                                 for c in &cancelled { principals.remove(&c.command.id); }
-                                publication = Some(PendingPublication { document, cancellations: cancelled });
+                                publication = Some(PendingPublication { document, rules, cancellations: cancelled });
                                 Ok(())
                             })();
                             let _ = reply.send(result);
@@ -543,11 +555,15 @@ impl Admission {
                                 let audit: Vec<_> = pending.cancellations.iter().map(|c| homesense_storage::CancellationAudit {
                                     boot_id: &worker_boot, command_id: c.command.id, reason: c.reason,
                                 }).collect();
-                                let attempted = store.publish_configuration(Some(configuration.revision()), &pending.document, options.context, &audit);
+                                let attempted = if let Some(rules)=&pending.rules {
+                                    store.publish_automation(Some(configuration.revision()), &pending.document, rules, options.context, &audit).map(|b|b.configuration)
+                                } else {
+                                    store.publish_configuration(Some(configuration.revision()), &pending.document, options.context, &audit)
+                                };
                                 // Read back durable truth even on transaction failure. Never
                                 // infer rollback, restore a queue, or retry a physical action.
                                 let current = store.active();
-                                let committed = current.as_ref().ok().and_then(|v| v.as_ref()).filter(|v| v.payload == pending.document);
+                                let committed = current.as_ref().ok().and_then(|v| v.as_ref()).filter(|v| v.payload == pending.document && store.automation_payload(v.revision).ok().is_some_and(|rules|rules==pending.rules));
                                 if let Some(active) = committed {
                                     let next = homesense_config::Configuration::parse(&active.payload, options.context)
                                         .map_err(|_| WriteStatus::ServiceCommunicationFailure)?;
@@ -1047,9 +1063,17 @@ impl Admission {
         expected: u64,
         timeout: Duration,
     ) -> Result<(), WriteStatus> {
+        self.begin_publication_inner(document,None,expected,timeout).await
+    }
+    /// Trusted coordinator: validates both documents before invalidating old work.
+    pub async fn begin_automation_publication(&self, document:Vec<u8>, rules:Vec<u8>, expected:u64, timeout:Duration)->Result<(),WriteStatus> {
+        self.begin_publication_inner(document,Some(rules),expected,timeout).await
+    }
+    async fn begin_publication_inner(&self, document:Vec<u8>, rules:Option<Vec<u8>>, expected:u64, timeout:Duration)->Result<(),WriteStatus> {
         if timeout.is_zero()
             || timeout > Duration::from_secs(30)
             || document.len() > 4 * 1024 * 1024
+            || rules.as_ref().is_some_and(|bytes|bytes.len()>4*1024*1024)
         {
             return Err(WriteStatus::InvalidValueInRequest);
         }
@@ -1059,7 +1083,7 @@ impl Admission {
         let (reply, receive) = oneshot::channel();
         self.sender
             .try_send(Message::BeginPublication(
-                document, expected, deadline, reply,
+                document, rules, expected, deadline, reply,
             ))
             .map_err(|_| WriteStatus::ResourceBusy)?;
         receive
