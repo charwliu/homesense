@@ -65,35 +65,7 @@ pub async fn serve_supervised(
     if !coexistence_confirmed || duration.is_zero() || duration > Duration::from_secs(86400) {
         return Err("automation TCP requires confirmed coexistence and duration in (0,24h]".into());
     }
-    let config = homesense_config::Configuration::parse(devices, ExecutionContext::Live)
-        .map_err(|e| e.to_string())?;
-    crate::configuration_publish::validate_automation(&config, rules, ExecutionContext::Live)
-        .map_err(|e| e.to_string())?;
-    if config.gateways().is_empty()
-        || !config
-            .devices()
-            .keys()
-            .any(|id| config.binding(id).is_some())
-    {
-        return Err("enabled verified devices required".into());
-    }
-    // Reject unsupported initial synchronization before creating state or connecting.
-    for id in config.devices().keys() {
-        if let Some((device, module)) = config.binding(id) {
-            if module.kind() == homesense_core::ModuleKind::Keypad {
-                module.validate_context(ExecutionContext::Live).map_err(|e|e.to_string())?;
-                module.validate_channel(device.channel).map_err(|e|e.to_string())?;
-                continue;
-            }
-            hb_protocol::encode_in_context(
-                module,
-                device.channel,
-                homesense_core::Command::Query,
-                ExecutionContext::Live,
-            )
-            .map_err(|e| e.to_string())?;
-        }
-    }
+    let config = validate_candidate(devices, rules)?;
     std::fs::create_dir_all(directory).map_err(|e| e.to_string())?;
     let path = directory.join("automation-tcp.sqlite");
     let mut store = Store::open(&path).map_err(|e| e.to_string())?;
@@ -187,4 +159,49 @@ pub async fn serve_supervised(
         .await
         .map_err(|e| format!("automation shutdown: {e:?}"));
     result.and(shutdown)
+}
+
+/// Validate both documents and the TCP synchronization policy without opening
+/// storage or connections. Publication coordinators must call this before
+/// cancelling the old runtime; semantic validity alone does not prove that the
+/// new mapping can pass the feedback recovery gate.
+pub fn validate_candidate(
+    devices: &[u8],
+    rules: &[u8],
+) -> Result<homesense_config::Configuration, String> {
+    let config = homesense_config::Configuration::parse(devices, ExecutionContext::Live)
+        .map_err(|e| e.to_string())?;
+    crate::configuration_publish::validate_automation(&config, rules, ExecutionContext::Live)
+        .map_err(|e| e.to_string())?;
+    if config.gateways().is_empty()
+        || !config
+            .devices()
+            .keys()
+            .any(|id| config.binding(id).is_some())
+    {
+        return Err("enabled verified devices required".into());
+    }
+    // Reject unsupported synchronization before entering a publication barrier.
+    let mut outputs = 0;
+    for id in config.devices().keys() {
+        if let Some((device, module)) = config.binding(id) {
+            if module.kind() == homesense_core::ModuleKind::Keypad {
+                module.validate_context(ExecutionContext::Live).map_err(|e|e.to_string())?;
+                module.validate_channel(device.channel).map_err(|e|e.to_string())?;
+                continue;
+            }
+            outputs += 1;
+            hb_protocol::encode_in_context(
+                module,
+                device.channel,
+                homesense_core::Command::Query,
+                ExecutionContext::Live,
+            )
+            .map_err(|e| e.to_string())?;
+        }
+    }
+    if outputs == 0 {
+        return Err("automation TCP requires at least one queryable output".into());
+    }
+    Ok(config)
 }
