@@ -176,6 +176,7 @@ impl SceneRuntime {
                 batch,
                 self.manual_fence,
                 homesense_storage::scene_run::StepLink {
+        sample: None,
                     run: self.audit_id.clone(),
                     index: due.index,
                     source: due.step.source,
