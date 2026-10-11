@@ -70,3 +70,5 @@ pub mod deferred_session;
 pub mod deferred_router;
 
 pub mod automation_tcp;
+
+pub mod automation_publication;
