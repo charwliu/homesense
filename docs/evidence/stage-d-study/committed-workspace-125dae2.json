@@ -1,0 +1,14 @@
+{
+  "tested_head": "125dae20f2d82395caefd831f0f3a9dd9cdfda19",
+  "scope": "Isolated git archive snapshot; no working-tree modifications or local-only fixtures. Offline tests with isolated databases and localhost; no field actions.",
+  "command": "cargo test --workspace --locked --offline",
+  "date": "2026-10-11T11:39:51.361315+00:00",
+  "exit_code": 0,
+  "suite_results": 84,
+  "passed": 448,
+  "failed": 0,
+  "ignored": 0,
+  "log_sha256": "9f7dd7b4efec1c3ca20ffc4182dcb3be2e26b49eb9b7f62895d8f8c23214b98e",
+  "stage_d_complete": false,
+  "stage_e_complete": false
+}
