@@ -4306,7 +4306,7 @@ async fn running_automation_control_cancels_before_output_and_closes_on_exit() {
         tokio::time::timeout(std::time::Duration::from_secs(2),async {
             loop {
                 let ready=subscription.borrow_and_update().as_ref().is_some_and(|result|result.as_ref().is_ok_and(|state|
-                    state.activity==homesensed::scene_activity::SceneActivity::Active && state.last_run.as_ref().is_some_and(|last|last.status==homesense_storage::scene_run::Status::Cancelled)));
+                    state.boot==a.boot_id() && state.revision==1 && state.activity==homesensed::scene_activity::SceneActivity::Active && state.last_run.as_ref().is_some_and(|last|last.status==homesense_storage::scene_run::Status::Cancelled)));
                 if ready {break;}
                 subscription.changed().await.unwrap();
             }
@@ -4360,12 +4360,16 @@ async fn publication_pauses_old_automation_without_closing_admission() {
     let mut next_rules:hap::serde_json::Value=hap::serde_json::from_slice(rules).unwrap();
     next_rules["configuration_revision"]=2.into();
     let pause=async {
+        let subscription=control.subscribe("light".into()).await.unwrap();
         a.begin_automation_publication(hap::serde_json::to_vec(&next).unwrap(),hap::serde_json::to_vec(&next_rules).unwrap(),1,std::time::Duration::from_secs(3)).await.unwrap();
         stop.send(true).unwrap();
+        subscription
     };
-    let (result,())=tokio::join!(runtime.drive(&mut owner,std::time::Duration::from_millis(1),5000,receive,||Ok(1_800_000_000_000)),pause);
+    let (result,mut subscription)=tokio::join!(runtime.drive(&mut owner,std::time::Duration::from_millis(1),5000,receive,||Ok(1_800_000_000_000)),pause);
     result.unwrap();
     assert!(runtime.publication_paused());
+    assert!(subscription.borrow_and_update().as_ref().unwrap().as_ref().unwrap_err().contains("stopped"));
+    assert!(subscription.changed().await.is_err(),"old stream must close at publication barrier");
     assert!(control.request(Action::Start("light".into())).await.is_err());
     drop(runtime);
     assert!(owner.drain_publication(&a).await.unwrap().is_none());
