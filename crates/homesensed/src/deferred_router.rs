@@ -230,6 +230,14 @@ impl Router {
             }
         }
         let mut guard = Guard(self.admission.clone(), false);
+        for entry in self.entries.values_mut() {
+            if let Entry::Active(session) = entry
+                && session.expire(scheduler).await?
+            {
+                let pending = session.pending_identities();
+                *entry = Entry::Cancelled(pending);
+            }
+        }
         for tick in scheduler.tick(self.admission.monotonic_ms()).await? {
             tick.result?;
         }
