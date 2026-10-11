@@ -1,0 +1,199 @@
+//! Explicit delayed-rule adapter. No subscriptions or startup actions are enabled.
+use crate::{
+    admission::{Admission, DeferredRule},
+    feedback::Feedback,
+    scene_scheduler::SceneScheduler,
+};
+use homesense_core::{
+    deferred_plan,
+    rule::{self, Variable},
+    rule_chain::{Cause, Chain, Error},
+};
+use homesense_hap::requests::{Batch, Intent};
+use std::collections::BTreeMap;
+use uuid::Uuid;
+pub struct Outcome {
+    pub cause: Cause,
+    pub causation_id: u64,
+    pub command_ids: Vec<u64>,
+    pub scene_runs: Vec<u64>,
+    pub changed_variables: Vec<String>,
+}
+/// Uses the caller's chain, charging future outputs before durable admission.
+/// The returned cause must be retained for subsequent derived events. A command
+/// accepted before a later installation failure is not undone or retried.
+pub async fn execute(
+    admission: &Admission,
+    controller: Uuid,
+    rule_id: &str,
+    chain: &mut Chain,
+    parent: &Cause,
+    scheduler: &mut SceneScheduler,
+    feedback: Option<(&Feedback, u64)>,
+) -> Result<Outcome, String> {
+    if !scheduler.matches_admission(admission) || !scheduler.matches_controller(controller) {
+        return Err("foreign scene scheduler".into());
+    }
+    let generation = admission
+        .task_generation()
+        .await
+        .map_err(|e| format!("{e:?}"))?;
+    let bundle = admission
+        .automation_bundle(controller, generation.clone())
+        .await
+        .map_err(|e| format!("{e:?}"))?;
+    let document = bundle.automation.ok_or("automation document missing")?;
+    let linked = document
+        .linked_rules_with_deferred()
+        .map_err(|e| e.to_string())?;
+    let rule = linked
+        .iter()
+        .find(|r| r.id == rule_id)
+        .ok_or("enabled rule missing")?;
+    let definitions: BTreeMap<_, _> = document
+        .timed_scenes
+        .iter()
+        .filter(|(_, s)| s.enabled)
+        .map(|(id, s)| (id.clone(), s.steps.clone()))
+        .collect();
+    let names = rule::variable_references_with_deferred(
+        &rule.actions,
+        &definitions.keys().cloned().collect(),
+    )
+    .map_err(str::to_owned)?;
+    let snapshot = admission
+        .variable_snapshot(controller, generation.clone(), names.into_iter().collect())
+        .await
+        .map_err(|e| format!("{e:?}"))?;
+    let variables = snapshot
+        .iter()
+        .map(|(name, v)| {
+            (
+                name.clone(),
+                Variable {
+                    value_type: v.kind,
+                    lifetime: v.lifetime,
+                    value: v.value.clone(),
+                },
+            )
+        })
+        .collect();
+    let mut lease = None;
+    let mut invocations = vec![];
+    let planned = chain
+        .plan_using(parent, rule_id, admission.monotonic_ms(), |budget| {
+            let plan = if let Some((feedback, max_age)) = feedback {
+                let (plan, read) = feedback
+                    .plan_rule(
+                        &rule.actions,
+                        &variables,
+                        budget,
+                        admission.monotonic_ms(),
+                        max_age,
+                    )
+                    .map_err(Error::Planning)?;
+                lease = Some(read);
+                plan
+            } else {
+                rule::evaluate(&rule.actions, &variables, budget).map_err(Error::Rule)?
+            };
+            let reserved = deferred_plan::reserve(plan, &definitions, budget.commands)
+                .map_err(|e| Error::Planning(format!("{e:?}")))?;
+            invocations = reserved.invocations;
+            let mut plan = reserved.plan;
+            plan.action_cost = reserved.action_cost;
+            Ok(plan)
+        })
+        .map_err(|e| format!("{e:?}"))?;
+    let mut reservation = if invocations.is_empty() {
+        None
+    } else {
+        Some(scheduler.reserve_slots(invocations.len())?)
+    };
+    let changed_variables = snapshot
+        .iter()
+        .filter(|(name, v)| planned.plan.variables[*name].value != v.value)
+        .map(|(name, _)| name.clone())
+        .collect();
+    let updates = if planned.plan.actions.is_empty() {
+        vec![]
+    } else {
+        snapshot
+            .into_iter()
+            .map(|(name, v)| homesense_storage::variables::Update {
+                revision: document.revision,
+                expected_version: v.version,
+                value: planned.plan.variables[&name].value.clone(),
+                name,
+            })
+            .collect()
+    };
+    let starts = invocations
+        .into_iter()
+        .map(|i| homesense_storage::scene_run::Start {
+            run: Uuid::new_v4().to_string(),
+            revision: document.revision,
+            definition: i.definition,
+            source: i.source,
+            action_index: i.action_index,
+        })
+        .collect();
+    let payload = DeferredRule {
+        batch: Batch {
+            controller,
+            intents: planned
+                .plan
+                .commands
+                .into_iter()
+                .map(|c| Intent {
+                    device: c.device,
+                    command: c.command,
+                })
+                .collect(),
+            subscriptions: vec![],
+        },
+        variables: updates,
+        starts,
+        audit: homesense_storage::rule_audit::Admission {
+            revision: document.revision,
+            correlation: planned.cause.correlation_id(),
+            event: planned.cause.event_id(),
+            parent: planned.causation_id,
+            rule: rule_id.into(),
+        },
+    };
+    struct Guard(Admission, bool);
+    impl Drop for Guard {
+        fn drop(&mut self) {
+            if !self.1 {
+                self.0.stop_now();
+            }
+        }
+    }
+    let mut guard = Guard(admission.clone(), false);
+    let accepted = match admission
+        .submit_deferred_rule_with_feedback(generation, payload, lease)
+        .await
+    {
+        Ok(v) => v,
+        Err(e) => {
+            guard.1 = true;
+            return Err(format!("deferred admission: {e:?}"));
+        }
+    };
+    let scene_runs = if let Some(reservation) = &mut reservation {
+        scheduler
+            .install_accepted(reservation, accepted.scenes, admission.monotonic_ms())
+            .await?
+    } else {
+        vec![]
+    };
+    guard.1 = true;
+    Ok(Outcome {
+        cause: planned.cause,
+        causation_id: planned.causation_id,
+        command_ids: accepted.command_ids,
+        scene_runs,
+        changed_variables,
+    })
+}

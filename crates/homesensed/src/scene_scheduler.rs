@@ -243,6 +243,7 @@ impl SceneScheduler {
         }
         Ok(results)
     }
+    pub(crate) fn matches_controller(&self, controller:Uuid)->bool {self.controller==controller}
     pub(crate) fn matches_admission(&self, admission: &Admission) -> bool {
         self.admission.boot_id() == admission.boot_id()
     }

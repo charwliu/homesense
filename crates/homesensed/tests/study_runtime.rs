@@ -4533,3 +4533,39 @@ async fn deferred_admission_validates_definition_and_rolls_back_on_storage_fault
         a.shutdown().await.unwrap();
     }
 }
+
+#[tokio::test]
+async fn deferred_rule_adapter_reserves_before_variables_and_preserves_chain() {
+    let db=Db(std::env::temp_dir().join(format!("deferred-adapter-{}.sqlite",Uuid::new_v4())));
+    let devices=include_bytes!("../../../config/simulation.json");
+    let rules=br#"{"schema_version":1,"configuration_revision":1,"variables":[{"id":"mode","kind":"integer","lifetime":"persistent"}],"rules":[{"id":"trigger","enabled":true,"review_evidence":"test","source":"test","trigger":{"kind":"startup_synchronized"},"actions":[{"source":"set","action":{"kind":"set","variable":"mode","value":{"kind":"integer","value":1}}},{"source":"call","action":{"kind":"scene","id":"later","activate":true}}]}],"timed_scenes":[{"id":"later","enabled":true,"review_evidence":"test","max_lateness_ms":1000,"steps":[{"source":"step","offset_ms":100,"device":"simulation:light","command":{"kind":"level","value":30,"ramp":false}}]}]}"#;
+    Store::open(&db.0).unwrap().publish_automation(None,devices,rules,ExecutionContext::Simulation,&[]).unwrap();
+    let controller=Uuid::new_v4();let a=actor(&db,controller).await;
+    let mut scheduler=homesensed::scene_scheduler::SceneScheduler::new(a.clone(),controller,1,0).unwrap();
+    let full=scheduler.reserve_slots(1).unwrap();
+    let chain=||homesense_core::rule_chain::Chain::new(77,0,60000,Default::default(),32).unwrap();
+    let mut first=chain();let root=first.root();
+    assert!(homesensed::deferred_rule::execute(&a,controller,"trigger",&mut first,&root,&mut scheduler,None).await.is_err());
+    let store=Store::open(&db.0).unwrap();
+    assert_eq!(store.logical_variable(1,"mode").unwrap().unwrap().value,None);
+    let sql=rusqlite::Connection::open(&db.0).unwrap();
+    assert_eq!(sql.query_row("SELECT count(*) FROM scene_run",[],|r|r.get::<_,i64>(0)).unwrap(),0);
+    drop(full);
+    let mut limited=homesense_core::rule_chain::Chain::new(78,0,60000,homesense_core::rule::Budget{commands:1,..Default::default()},32).unwrap();
+    let root=limited.root();
+    assert!(homesensed::deferred_rule::execute(&a,controller,"trigger",&mut limited,&root,&mut scheduler,None).await.is_err());
+    assert_eq!(store.logical_variable(1,"mode").unwrap().unwrap().value,None);
+    let mut chain=chain();let root=chain.root();
+    let result=homesensed::deferred_rule::execute(&a,controller,"trigger",&mut chain,&root,&mut scheduler,None).await.unwrap();
+    assert_eq!(result.cause.correlation_id(),77);assert_eq!(result.causation_id,0);
+    assert_eq!(result.changed_variables,vec!["mode"]);assert!(result.command_ids.is_empty());
+    assert_eq!(result.scene_runs.len(),1);assert!(a.dispatch().await.unwrap().is_none());
+    let page=store.query_scene(1,&homesense_storage::scene_run::Query::Latest{definition:"later".into()}).unwrap().unwrap();
+    let cause=store.scene_cause(&page.boot,&page.run).unwrap().unwrap();
+    assert_eq!(cause.correlation,77);assert_eq!(cause.event,result.cause.event_id());
+    scheduler.tick(page.record.started_ms+100).await.unwrap();
+    let ticket=a.dispatch().await.unwrap().unwrap();
+    assert_eq!(ticket.command.origin,Origin::Rule);a.finish_write(ticket.command.id,true).await.unwrap();
+    assert!(homesensed::deferred_rule::execute(&a,controller,"trigger",&mut chain,&result.cause,&mut scheduler,None).await.is_err(),"same-rule causal cycle must remain rejected");
+    a.shutdown().await.unwrap();
+}
