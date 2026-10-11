@@ -238,3 +238,23 @@ fn delayed_linking_is_explicit_and_keeps_calls_and_variable_references() {
     v["rules"][0]["actions"][1]["action"]["activate"]=false.into();
     assert!(parse(&v).unwrap().linked_rules_with_deferred().is_err());
 }
+
+#[test]
+fn variable_migration_declarations_require_review_and_persistent_typed_targets() {
+    let devices=String::from_utf8(include_bytes!("../../../config/simulation.json").to_vec()).unwrap().replace("\"revision\": 1","\"revision\": 2");
+    let config=Configuration::parse(devices.as_bytes(),ExecutionContext::Simulation).unwrap();
+    let mut doc=json!({"schema_version":1,"configuration_revision":2,"variables":[{"id":"mode","kind":"integer","lifetime":"persistent"}],"rules":[],"variable_migrations":[{"variable":"mode","source_revision":1,"source_type":"bool","conversion":"bool_to_integer","review_evidence":"fixture"}]});
+    let parse=|v:&Json| Document::parse(&serde_json::to_vec(v).unwrap(),&config);
+    let parsed=parse(&doc).unwrap();
+    assert_eq!(parsed.published_variable_value(Some(1),"mode",Some((rule::ValueType::Bool,Some(&Value::Bool(true))))).unwrap(),Some(Value::Integer(1)));
+    assert!(parsed.published_variable_value(Some(1),"mode",None).is_err());
+    for (field,value) in [("review_evidence",json!("")),("source_revision",json!(2)),("source_type",json!("integer")),("variable",json!("missing"))] {
+        let mut bad=doc.clone();bad["variable_migrations"][0][field]=value;assert!(parse(&bad).is_err());
+    }
+    let duplicate=doc["variable_migrations"][0].clone();
+    doc["variable_migrations"].as_array_mut().unwrap().push(duplicate);
+    assert!(parse(&doc).is_err());
+    doc["variable_migrations"].as_array_mut().unwrap().pop();
+    doc["variables"][0]["lifetime"]="temporary".into();
+    assert!(parse(&doc).is_err());
+}

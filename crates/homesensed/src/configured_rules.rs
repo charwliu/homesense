@@ -37,7 +37,7 @@ impl ConfiguredRules {
             rule.actions.clear();
         }
         let index=Document {
-            revision:document.revision,variables:document.variables.clone(),
+            revision:document.revision,variables:document.variables.clone(),variable_migrations:document.variable_migrations.clone(),
             feedback_bindings:document.feedback_bindings.clone(),rules,
             immediate_scenes:Default::default(),schedules:document.schedules.clone(),
             gestures:document.gestures.clone(),holds:document.holds.clone(),
@@ -196,6 +196,7 @@ impl ConfiguredRules {
             &Document {
                 revision: document.revision,
                 variables: document.variables.clone(),
+                variable_migrations: document.variable_migrations.clone(),
                 feedback_bindings: document.feedback_bindings.clone(),
                 rules: non_panel,
                 immediate_scenes: Default::default(),

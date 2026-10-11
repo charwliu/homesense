@@ -444,3 +444,32 @@ fn corrupted_automation_blocks_legacy_startup_validation() {
     assert!(store.active_bundle(Simulation).is_err());
     assert!(store.active_configuration(Simulation).is_err());
 }
+
+#[test]
+fn explicit_variable_conversion_commits_atomically_and_rejects_stale_or_lossy_source() {
+    use homesense_core::{ExecutionContext::Simulation,rule::Value};
+    let db=Database::new();
+    let mut store=Store::open(db.path()).unwrap();
+    store.publish_automation(None,&bundle_devices(1),&bundle_rules(1,"integer"),Simulation,&[]).unwrap();
+    let sql=rusqlite::Connection::open(db.path()).unwrap();
+    sql.execute("UPDATE logical_variable SET value=2 WHERE name='mode'",[]).unwrap();
+    let rules=|source| format!(r#"{{"schema_version":1,"configuration_revision":2,"variables":[{{"id":"mode","kind":"bool","lifetime":"persistent"}}],"variable_migrations":[{{"variable":"mode","source_revision":{source},"source_type":"integer","conversion":"integer_zero_one_to_bool","review_evidence":"fixture reviewed"}}],"rules":[]}}"#).into_bytes();
+    assert!(store.publish_automation(Some(1),&bundle_devices(2),&rules(1),Simulation,&[]).is_err());
+    assert_eq!(store.active().unwrap().unwrap().revision,1);
+    assert!(store.revision(2).unwrap().is_none());
+    sql.execute("UPDATE logical_variable SET value=1 WHERE name='mode'",[]).unwrap();
+    sql.execute_batch("CREATE TRIGGER fail_migration BEFORE INSERT ON logical_variable WHEN NEW.revision=2 BEGIN SELECT RAISE(ABORT,'fixture'); END;").unwrap();
+    assert!(store.publish_automation(Some(1),&bundle_devices(2),&rules(1),Simulation,&[]).is_err());
+    assert!(store.automation_payload(2).unwrap().is_none());
+    assert_eq!(store.logical_variable(1,"mode").unwrap().unwrap().value,Some(Value::Integer(1)));
+    sql.execute_batch("DROP TRIGGER fail_migration;").unwrap();
+    store.publish_automation(Some(1),&bundle_devices(2),&rules(1),Simulation,&[]).unwrap();
+    assert_eq!(store.logical_variable(2,"mode").unwrap().unwrap().value,Some(Value::Bool(true)));
+    let third=String::from_utf8(rules(1)).unwrap().replace("\"configuration_revision\":2","\"configuration_revision\":3");
+    assert!(store.publish_automation(Some(2),&bundle_devices(3),third.as_bytes(),Simulation,&[]).is_err());
+    assert_eq!(store.active().unwrap().unwrap().revision,2);
+    drop(store);
+    let store=Store::open(db.path()).unwrap();
+    assert!(store.active_bundle(Simulation).unwrap().is_some());
+    assert_eq!(store.logical_variable(2,"mode").unwrap().unwrap().value,Some(Value::Bool(true)));
+}

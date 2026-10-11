@@ -561,7 +561,7 @@ impl Admission {
                                     for (name, variable) in &automation.variables {
                                         if variable.lifetime == homesense_core::rule::Lifetime::Persistent {
                                             let old=store.logical_variable(configuration.revision(),name).map_err(|_|WriteStatus::ServiceCommunicationFailure)?;
-                                            if old.is_some_and(|v|v.kind!=variable.value_type) {return Err(WriteStatus::InvalidValueInRequest)}
+                                            automation.published_variable_value(Some(configuration.revision()),name,old.as_ref().map(|v|(v.kind,v.value.as_ref()))).map_err(|_|WriteStatus::InvalidValueInRequest)?;
                                         }
                                     }
                                 } else if store.automation_payload(configuration.revision()).map_err(|_|WriteStatus::ServiceCommunicationFailure)?.is_some() {
