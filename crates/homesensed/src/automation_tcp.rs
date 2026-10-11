@@ -39,6 +39,29 @@ pub async fn serve(
     duration: Duration,
     coexistence_confirmed: bool,
 ) -> Result<(), String> {
+    serve_supervised(
+        devices,
+        rules,
+        directory,
+        duration,
+        coexistence_confirmed,
+        0,
+    )
+    .await
+}
+/// Opt-in bounded recovery after an explicitly classified, fully cleaned disconnect.
+/// The duration is shared by all connections after initial synchronization.
+pub async fn serve_supervised(
+    devices: &[u8],
+    rules: &[u8],
+    directory: &Path,
+    duration: Duration,
+    coexistence_confirmed: bool,
+    recovery_limit: u8,
+) -> Result<(), String> {
+    if recovery_limit > 16 {
+        return Err("recovery limit must be 0..16".into());
+    }
     if !coexistence_confirmed || duration.is_zero() || duration > Duration::from_secs(86400) {
         return Err("automation TCP requires confirmed coexistence and duration in (0,24h]".into());
     }
@@ -90,14 +113,14 @@ pub async fn serve(
     let _guard = Stop(admission.clone());
     let result = async {
         let (stop, receiver) = tokio::sync::watch::channel(false);
-        let endpoints = config
+        let endpoints: std::collections::BTreeMap<_,_> = config
             .gateways()
             .iter()
             .map(|(id, g)| (id.clone(), g.endpoint))
             .collect();
-        let (transport, epoch) = reconnect_tcp(
+        let (transport, mut epoch) = reconnect_tcp(
             admission.clone(),
-            endpoints,
+            endpoints.clone(),
             1,
             RetryPolicy::default(),
             true,
@@ -116,26 +139,40 @@ pub async fn serve(
         owner
             .query_recovery(&config, ExecutionContext::Live, 1000, 5000)
             .await?;
-        let mut runtime = AutomationRuntime::load(
-            admission.clone(),
-            controller,
-            wall_ms()?,
-            1000,
-            64,
-            Default::default(),
-        )
-        .await?;
-        let drive = runtime.drive(
-            &mut owner,
-            Duration::from_millis(10),
-            5000,
-            receiver,
-            wall_ms,
-        );
-        tokio::pin!(drive);
-        tokio::select! {
-            result=&mut drive=>result,
-            _=tokio::time::sleep(duration)=>{let _=stop.send(true);drive.await},
+        let deadline=tokio::time::Instant::now()+duration;
+        let mut recoveries=0;
+        loop {
+            use crate::{automation_drive::Exit,automation_runtime::StartupPolicy};
+            let startup=if recoveries==0 {StartupPolicy::Run} else {StartupPolicy::Suppress};
+            let mut runtime=AutomationRuntime::load_with_startup(admission.clone(),controller,wall_ms()?,1000,64,Default::default(),startup).await?;
+            let outcome={
+                let drive=runtime.drive_recoverable(&mut owner,Duration::from_millis(10),5000,receiver.clone(),wall_ms);
+                tokio::pin!(drive);
+                tokio::select! {
+                    result=&mut drive=>result?,
+                    _=tokio::time::sleep_until(deadline)=>{let _=stop.send(true);drive.await?},
+                }
+            };
+            drop(runtime);
+            match outcome {
+                Exit::Stopped => return Ok(()),
+                Exit::PublicationPaused => return Err("TCP publication coordinator not installed".into()),
+                Exit::Disconnected {gateway} => {
+                    if recoveries>=recovery_limit {return Err(format!("gateway disconnected: {gateway}; recovery limit reached"));}
+                    recoveries+=1;
+                    log::info!("automation recovery={recoveries} gateway={gateway:?} previous_epoch={epoch}");
+                    let recovery=async {
+                        let (transport,next)=reconnect_tcp(admission.clone(),endpoints.clone(),epoch,RetryPolicy::default(),true,receiver.clone()).await?;
+                        epoch=next;
+                        owner.recover(transport,epoch)?;
+                        owner.query_recovery(&config,ExecutionContext::Live,1000,5000).await
+                    };
+                    tokio::select! {
+                        result=recovery=>result?,
+                        _=tokio::time::sleep_until(deadline)=>return Ok(()),
+                    }
+                }
+            }
         }
     }
     .await;
