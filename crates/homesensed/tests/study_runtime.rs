@@ -4647,6 +4647,17 @@ async fn deferred_rule_adapter_reserves_before_variables_and_preserves_chain() {
     assert_eq!(router.retained_count(),0);
     assert!(scheduler.status(run).is_none());
     assert!(scheduler.reserve_slots(1).is_ok());
+    let (_,outcomes)=router.start("trigger",&mut scheduler,None,Default::default(),60000).await.unwrap();
+    let closing_run=outcomes[0].scene_runs[0];
+    router.close(&mut scheduler).await.unwrap();
+    router.close(&mut scheduler).await.unwrap();
+    assert!(router.start("trigger",&mut scheduler,None,Default::default(),60000).await.is_err());
+    assert_eq!(scheduler.status(closing_run),Some(homesense_core::scene::Status::Cancelled));
+    assert!(a.dispatch().await.unwrap().is_none());
+    let terminal=scheduler.take_results().pop().unwrap();
+    assert!(router.route(&terminal,&mut scheduler,None).await.unwrap().unwrap().is_empty());
+    assert_eq!(router.retained_count(),0);
+    scheduler.retire(closing_run).unwrap();
     drop(router);assert!(a.task_generation().await.is_ok());
     let mut abandoned=homesensed::deferred_session::Session::new(a.clone(),controller,&scheduler,Default::default(),60000).await.unwrap();
     abandoned.start("trigger",&mut scheduler,None).await.unwrap();
