@@ -84,6 +84,40 @@ impl SceneScheduler {
         reservation.owner.fetch_sub(1,Ordering::SeqCst);
         self.start(steps,now,lateness).await
     }
+    /// Install an entire accepted batch under a prior capacity reservation.
+    /// No member is made runnable before every member is constructed. A failed
+    /// or abandoned installation gates the admission owner; receipts are never
+    /// replayed automatically after that failure.
+    pub async fn install_accepted(&mut self, reservation:&mut Reservation, accepted:Vec<crate::admission::AcceptedScene>, now:u64)->Result<Vec<u64>,String> {
+        self.clock(now)?;
+        if !Arc::ptr_eq(&self.reserved,&reservation.owner) || accepted.is_empty() || accepted.len()>reservation.remaining {return Err("invalid batch reservation".into());}
+        struct Guard(Admission,bool);
+        impl Drop for Guard {fn drop(&mut self){if !self.1 {self.0.stop_now();}}}
+        let mut guard=Guard(self.admission.clone(),false);
+        let count=accepted.len();
+        let end=self.next.checked_add(count as u64).ok_or("scene id exhausted")?;
+        let generation=self.admission.task_generation().await.map_err(|e|format!("{e:?}"))?;
+        if accepted.iter().any(|a|a.controller!=self.controller || a.generation!=generation) {return Err("accepted batch owner or generation mismatch".into());}
+        let bundle=self.admission.automation_bundle(self.controller,generation).await.map_err(|e|format!("{e:?}"))?;
+        let document=bundle.automation.ok_or("accepted automation missing")?;
+        let mut devices=BTreeSet::new();
+        for token in &accepted {
+            let definition=document.timed_scenes.get(&token.start.definition).ok_or("accepted scene missing")?;
+            devices.extend(definition.steps.iter().map(|s|s.device.clone()));
+        }
+        let mut constructed=Vec::with_capacity(count);
+        for token in accepted {constructed.push(SceneRuntime::from_accepted(self.admission.clone(),token).await?);}
+        for old in self.runs.values_mut() {
+            for device in &devices {old.cancel_device(device).await?;}
+        }
+        let ids=(self.next..end).collect::<Vec<_>>();
+        for (id,scene) in ids.iter().copied().zip(constructed) {self.runs.insert(id,scene);}
+        self.next=end;
+        reservation.remaining-=count;
+        reservation.owner.fetch_sub(count,Ordering::SeqCst);
+        guard.1=true;
+        Ok(ids)
+    }
     fn clock(&mut self, now: u64) -> Result<(), String> {
         if self.stopped {
             return Err("scene scheduler stopped".into());
