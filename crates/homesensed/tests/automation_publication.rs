@@ -76,3 +76,24 @@ fn tcp_candidate_requires_queryable_outputs_before_publication() {
     let error = homesensed::automation_tcp::validate_candidate(&to_vec(&devices).unwrap(), &rules).err().unwrap();
     assert!(error.contains("queryable output"), "{error}");
 }
+
+#[tokio::test]
+async fn candidate_fades_respect_bus_capacity_but_disabled_drafts_remain_reviewable() {
+    use hap::serde_json::{json,to_vec,Value};
+    let mut devices:Value=hap::serde_json::from_slice(include_bytes!("../../../config/simulation.json")).unwrap();
+    devices["gateways"][0]["modules"][0]["verification"]=json!({"status":"verified","evidence":"synthetic","verified_at_unix_ms":1});
+    let mut rules=json!({"schema_version":1,"configuration_revision":1,"variables":[],"rules":[],"timed_scenes":[{"id":"fade","enabled":true,"review_evidence":"synthetic","max_lateness_ms":1000,"steps":[{"source":"synthetic","offset_ms":0,"device":"simulation:light","command":{"kind":"level","value":50,"ramp":false},"fade":{"duration_ms":1000,"interval_ms":100,"lateness_ms":100}}]}]});
+    let check=|rules:&Value,interval|homesensed::automation_tcp::validate_candidate_with_write_interval(&to_vec(&devices).unwrap(),&to_vec(rules).unwrap(),std::time::Duration::from_millis(interval));
+    assert!(check(&rules,20).is_ok());
+    assert!(check(&rules,200).err().unwrap().contains("fade step"));
+    let root=std::env::temp_dir().join(format!("fade-preflight-{}",uuid::Uuid::new_v4()));
+    let error=homesensed::automation_tcp::serve_with_write_interval(&to_vec(&devices).unwrap(),&to_vec(&rules).unwrap(),&root,std::time::Duration::from_secs(1),true,0,None,std::time::Duration::from_millis(200)).await.unwrap_err();
+    assert!(error.contains("fade step"));
+    assert!(!root.exists(),"invalid startup must not create state");
+    rules["timed_scenes"][0]["enabled"]=false.into();
+    assert!(check(&rules,200).is_ok());
+    rules["timed_scenes"][0]["enabled"]=true.into();
+    rules["timed_scenes"][0]["steps"][0]["fade"]["interval_ms"]=200.into();
+    assert!(check(&rules,200).is_ok());
+    assert!(check(&rules,0).is_err());
+}

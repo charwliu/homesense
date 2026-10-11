@@ -88,7 +88,7 @@ pub async fn serve_with_write_interval(
     if !coexistence_confirmed || duration.is_zero() || duration > Duration::from_secs(86400) {
         return Err("automation TCP requires confirmed coexistence and duration in (0,24h]".into());
     }
-    let mut config = validate_candidate(devices, rules)?;
+    let mut config = validate_candidate_with_write_interval(devices, rules, write_interval)?;
     std::fs::create_dir_all(directory).map_err(|e| e.to_string())?;
     let path = directory.join("automation-tcp.sqlite");
     let mut store = Store::open(&path).map_err(|e| e.to_string())?;
@@ -168,7 +168,7 @@ pub async fn serve_with_write_interval(
                             }
                         }, if running => {
                             let Some(request)=request else { publications=None; continue; };
-                            let candidate=match validate_candidate(request.devices(),request.rules()) {
+                            let candidate=match validate_candidate_with_write_interval(request.devices(),request.rules(),write_interval) {
                                 Ok(config)=>config,
                                 Err(error)=>{request.complete(Err(error));continue;}
                             };
@@ -268,10 +268,33 @@ pub fn validate_candidate(
     devices: &[u8],
     rules: &[u8],
 ) -> Result<homesense_config::Configuration, String> {
+    validate_candidate_with_write_interval(devices,rules,Duration::from_millis(20))
+}
+/// Reject individually impossible enabled fades before storage or transport I/O.
+/// Concurrent allocations still require the runtime's shared reservation budget.
+pub fn validate_candidate_with_write_interval(
+    devices: &[u8], rules: &[u8], write_interval: Duration,
+) -> Result<homesense_config::Configuration, String> {
+    if !(Duration::from_millis(20)..=Duration::from_secs(1)).contains(&write_interval) {
+        return Err("write interval must be 20..1000 ms".into());
+    }
     let config = homesense_config::Configuration::parse(devices, ExecutionContext::Live)
         .map_err(|e| e.to_string())?;
-    crate::configuration_publish::validate_automation(&config, rules, ExecutionContext::Live)
+    let document = crate::configuration_publish::validate_automation(&config, rules, ExecutionContext::Live)
         .map_err(|e| e.to_string())?;
+    let budget = crate::fade_budget::Budget::for_write_interval(write_interval);
+    for (id, scene) in &document.timed_scenes {
+        if !scene.enabled { continue; }
+        for (index, timing) in &scene.fades {
+            let device = config.devices().get(&scene.steps[*index].device).ok_or("fade device missing")?;
+            let frames = if device.supply_relay.is_some() { 2 } else { 1 };
+            let samples = timing.samples().map_err(|e|e.to_string())?;
+            // Drop each trial reservation: this checks one step, not an assumed
+            // simultaneous execution of every configured scene.
+            drop(budget.reserve(samples * frames, 1000u64.div_ceil(timing.interval_ms) * frames)
+                .map_err(|e|format!("scene {id} fade step {index}: {e}"))?);
+        }
+    }
     if config.gateways().is_empty()
         || !config
             .devices()
