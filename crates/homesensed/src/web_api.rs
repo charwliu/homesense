@@ -13,6 +13,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 pub struct Api {
+    pub publisher: Option<crate::automation_publication::Publisher>,
     pub origin: String,
     pub tokens: Arc<Tokens>,
     pub runtime: std::sync::RwLock<Option<Runtime>>,
@@ -176,6 +177,15 @@ impl Api {
         let Some(runtime) = runtime else {
             return deny(StatusCode::SERVICE_UNAVAILABLE, "runtime_reconfiguring");
         };
+        if let Some(id) = request
+            .uri()
+            .path()
+            .strip_prefix("/api/v1/config/activations/")
+        {
+            let (code, body) =
+                crate::web_activation::activate(self, &runtime, &grant, id, &request).await;
+            return response(code, body);
+        }
         if let Some(id) = request
             .uri()
             .path()

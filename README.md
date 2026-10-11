@@ -395,3 +395,5 @@ Web 模拟管理入口：`homesensed serve-web-simulation config/simulation.json
 管理运行时切换：Web 每个请求捕获同一份控制句柄、配置版本、boot 和场景目录；监督器可在发布期间将其置为不可用，控制／状态请求返回 503 且不占用幂等键，登录和退出仍可用。恢复后重新接入完整视图。6 项 Web／草稿回归通过；实际发布监督器接线和备份仍待完成。
 
 发布前备份：停机 `publish-config`／`publish-automation` 现在先通过 SQLite online backup 保存 `publication-backups/before-版本-UUID.sqlite`，成功后才恢复旧命令和切换版本。快照包含已提交 WAL、排除未提交事务，0600 创建且拒绝覆盖；失败保持活动配置不变。备份专项 1、停机发布 2、自动化服务 5 项通过。运行中 Web 发布仍待接线，备份保留策略尚未自动化。
+
+Web 模拟激活：管理员先保存草稿并预览，再点击“激活已预览草稿”。`POST /api/v1/config/activations/{draft_id}` 使用 `request_id` 和预览的 `boot`，先保存持久回执，再经一致性备份、原发布屏障、旧运行取消和新反馈同步恢复管理入口。备份失败恢复旧入口；进入屏障后的失败关闭控制并保留不确定结果，不自动重试。重复请求在新版本和进程重启后仍返回原回执。`tools/verify_web_publication.py BINARY` 验证完整 HTTP 发布及重启；恢复进程仍要求 CLI 提供与已发布数据库完全一致的两份文档。当前仅模拟入口，真实 TCP/HAP 联合服务、版本导出与备份保留策略继续实现。

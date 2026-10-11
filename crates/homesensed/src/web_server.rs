@@ -39,9 +39,10 @@ pub async fn serve(
                         let api=api.clone();
                         async move {
                             let (parts,body)=request.into_parts();
+                            let processing_timeout=if parts.uri.path().starts_with("/api/v1/config/activations/"){40}else{8};
                             let limit=if parts.uri.path().starts_with("/api/v1/config/drafts/"){crate::web_drafts::MAX_BYTES}else{4096};
                             let response=match tokio::time::timeout(Duration::from_secs(3),Limited::new(body,limit).collect()).await {
-                                Ok(Ok(body))=>match tokio::time::timeout(Duration::from_secs(8),api.handle(Request::from_parts(parts,body.to_bytes()))).await {
+                                Ok(Ok(body))=>match tokio::time::timeout(Duration::from_secs(processing_timeout),api.handle(Request::from_parts(parts,body.to_bytes()))).await {
                                     Ok(response)=>response,
                                     Err(_)=>failure(StatusCode::SERVICE_UNAVAILABLE)
                                 },
@@ -52,7 +53,7 @@ pub async fn serve(
                     });
                     let mut builder=hyper::server::conn::http1::Builder::new();
                     builder.max_buf_size(16384);
-                    let _=tokio::time::timeout(Duration::from_secs(15),builder.serve_connection(hyper_util::rt::TokioIo::new(stream),service)).await;
+                    let _=tokio::time::timeout(Duration::from_secs(45),builder.serve_connection(hyper_util::rt::TokioIo::new(stream),service)).await;
                 });
             }
         }
