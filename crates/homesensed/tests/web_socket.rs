@@ -64,6 +64,7 @@ async fn websocket_cookie_resume_origin_and_logout() {
                 address,
                 secret: secret.into(),
                 administrator: false,
+                tls:None,
             },
         )
         .await
