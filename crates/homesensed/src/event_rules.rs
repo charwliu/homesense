@@ -462,6 +462,34 @@ impl ScheduledRules {
     pub(crate) fn matches_admission(&self, admission: &Admission) -> bool {
         self.rules.admission.boot_id() == admission.boot_id()
     }
+    pub(crate) async fn scene_result_causal(
+        &mut self, result: crate::scene_scheduler::SceneResult,
+        feedback: Option<(&Feedback,u64)>, router:&mut crate::deferred_router::Router,
+        scheduler:&mut crate::scene_scheduler::SceneScheduler,
+    )->Result<Vec<crate::deferred_rule::Outcome>,String> {
+        use homesense_core::scene::Status;
+        use homesense_storage::scene_run::{Query,Status as Stored};
+        if !router.matches_owner(&self.rules.admission,self.rules.controller) {
+            return Err("foreign scene causal owner".into());
+        }
+        let expected=match result.status {
+            Status::CommandsWritten=>Stored::CommandsWritten,
+            Status::Partial=>Stored::Partial,
+            Status::Cancelled=>Stored::Cancelled,
+            Status::Failed=>Stored::Failed,
+            _=>return Err("nonterminal manual scene result".into()),
+        };
+        let page=self.rules.admission.scene_history(self.rules.controller,self.rules.generation.clone(),Query::Run {
+            boot:self.rules.admission.boot_id().into(),run:result.audit_id.clone(),after:0,limit:1,
+        }).await.map_err(|e|format!("{e:?}"))?.ok_or("manual scene receipt missing")?;
+        if page.cause.is_some() || page.record.status!=expected || page.record.definition.as_deref()!=Some(result.definition.as_str()) {
+            return Err("manual scene receipt mismatch or orphaned causal result".into());
+        }
+        let ids:Vec<_>=self.rules.bindings.iter().filter(|b|b.trigger==Trigger::SceneResult(result.definition.clone())).map(|b|b.id.clone()).collect();
+        if ids.is_empty() {return Ok(vec![]);}
+        let (_,outcomes)=router.start_rules(&ids,scheduler,feedback,self.rules.budget,5000).await?;
+        Ok(outcomes)
+    }
     pub(crate) async fn scene_result(
         &mut self,
         result: crate::scene_scheduler::SceneResult,
