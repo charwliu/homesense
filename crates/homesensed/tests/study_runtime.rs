@@ -4277,3 +4277,50 @@ async fn running_automation_control_cancels_before_output_and_closes_on_exit() {
     assert_eq!(sql.query_row("SELECT count(*) FROM scene_run",[],|r|r.get::<_,i64>(0)).unwrap(),1);
     a.shutdown().await.unwrap();
 }
+
+#[tokio::test]
+async fn publication_pauses_old_automation_without_closing_admission() {
+    use homesensed::{automation_runtime::AutomationRuntime, automation_control::Action, feedback::Feedback, observed_transport::ObservedTransport, transport_owner::TransportOwner};
+    let db=Db(std::env::temp_dir().join(format!("assembly-{}.sqlite",Uuid::new_v4())));
+    let devices=include_bytes!("../../../config/simulation.json");
+    let rules=br#"{"schema_version":1,"configuration_revision":1,"variables":[{"id":"mode","kind":"integer","lifetime":"persistent"}],"rules":[],"timed_scenes":[{"id":"light","enabled":true,"review_evidence":"simulation","max_lateness_ms":1000,"steps":[{"source":"fixture","offset_ms":100,"device":"simulation:light","command":{"kind":"level","value":30,"ramp":false}}]}]}"#;
+    Store::open(&db.0).unwrap().publish_automation(None,devices,rules,ExecutionContext::Simulation,&[]).unwrap();
+    let controller=Uuid::new_v4();
+    let a=actor(&db,controller).await;
+
+    let mut runtime=AutomationRuntime::load(a.clone(),controller,1_800_000_000_000,1000,8,Default::default()).await.unwrap();
+    let control=runtime.control();
+
+    struct Wire;
+    impl std::io::Read for Wire {fn read(&mut self,_:&mut [u8])->std::io::Result<usize>{Err(std::io::ErrorKind::WouldBlock.into())}}
+    impl std::io::Write for Wire {fn write(&mut self,_:&[u8])->std::io::Result<usize>{panic!("cancelled delayed scene wrote to bus")} fn flush(&mut self)->std::io::Result<()>{Ok(())}}
+    let config=homesense_config::Configuration::parse(devices,ExecutionContext::Simulation).unwrap();
+    let feedback=Feedback::new(&config,ExecutionContext::Simulation,Uuid::parse_str(a.boot_id()).unwrap().as_u128(),1).unwrap();
+    let transport=TransportOwner::new(a.clone(),[("simulation".into(),hb_transport::Connection::for_simulation(Wire,1))].into());
+    let mut owner=ObservedTransport::new(transport,feedback);
+    let (stop,receive)=tokio::sync::watch::channel(false);
+
+    runtime.start_scene("light").await.unwrap();
+    let mut next:hap::serde_json::Value=hap::serde_json::from_slice(devices).unwrap();
+    next["revision"]=2.into();
+    let mut next_rules:hap::serde_json::Value=hap::serde_json::from_slice(rules).unwrap();
+    next_rules["configuration_revision"]=2.into();
+    let pause=async {
+        a.begin_automation_publication(hap::serde_json::to_vec(&next).unwrap(),hap::serde_json::to_vec(&next_rules).unwrap(),1,std::time::Duration::from_secs(3)).await.unwrap();
+        stop.send(true).unwrap();
+    };
+    let (result,())=tokio::join!(runtime.drive(&mut owner,std::time::Duration::from_millis(1),5000,receive,||Ok(1_800_000_000_000)),pause);
+    result.unwrap();
+    assert!(runtime.publication_paused());
+    assert!(control.request(Action::Start("light".into())).await.is_err());
+    drop(runtime);
+    assert!(owner.drain_publication(&a).await.unwrap().is_none());
+    assert_eq!(a.commit_publication().await.unwrap(),2);
+    assert!(owner.drain_publication(&a).await.is_err());
+    a.synchronized(1,2).await.unwrap();
+    let next_runtime=AutomationRuntime::load(a.clone(),controller,1_800_000_000_000,1000,8,Default::default()).await.unwrap();
+    assert_eq!(next_runtime.revision(),2);
+    assert!(a.dispatch().await.unwrap().is_none());
+    drop(next_runtime);
+    a.shutdown().await.unwrap();
+}

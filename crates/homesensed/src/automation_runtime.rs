@@ -16,6 +16,7 @@ pub struct AutomationRuntime {
     control: crate::automation_control::Control,
     requests: crate::automation_control::Receiver,
     generation: TaskGeneration,
+    publication_paused: bool,
     document: Document,
     pub(crate) panels: PanelRules,
     pub(crate) calendar: ScheduledRules,
@@ -73,6 +74,7 @@ impl AutomationRuntime {
             requests,
             admission,
             generation,
+            publication_paused: false,
             document,
             panels: configured.panels,
             calendar,
@@ -87,6 +89,7 @@ impl AutomationRuntime {
     pub fn control(&self) -> crate::automation_control::Control {
         self.control.clone()
     }
+    pub fn publication_paused(&self) -> bool {self.publication_paused}
     pub fn revision(&self) -> u64 {
         self.document.revision
     }
@@ -146,7 +149,7 @@ impl AutomationRuntime {
         wall_clock: impl FnMut() -> Result<i64, String>,
     ) -> Result<(), String> {
         self.validate().await?;
-        crate::automation_drive::drive_controlled(
+        let paused = crate::automation_drive::drive_controlled(
             &self.admission,
             owner,
             &mut self.panels,
@@ -158,14 +161,18 @@ impl AutomationRuntime {
             wall_clock,
             Some((&mut self.requests, &self.document)),
         )
-        .await
+        .await?;
+        self.publication_paused = paused;
+        Ok(())
     }
     fn stop(&mut self) {
         self.requests.close();
         self.panels.disconnect();
         self.calendar.stop();
         self.scenes.stop_now();
-        self.admission.stop_now();
+        if !self.publication_paused {
+            self.admission.stop_now();
+        }
     }
 }
 impl Drop for AutomationRuntime {

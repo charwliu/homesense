@@ -323,6 +323,14 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
         operation.complete = true;
         Ok(read)
     }
+    /// Trusted publication coordinator only. The old mapping/streams remain
+    /// available for the arbiter's reserved STOP queue after feedback invalidation.
+    pub async fn drain_publication(&mut self, admission: &crate::admission::Admission) -> Result<Option<WriteOutcome>,String> {
+        if !self.belongs_to(admission) || !admission.publication_in_progress().await.map_err(|e|format!("{e:?}"))? {
+            return Err("active publication barrier required".into());
+        }
+        self.transport.step().await
+    }
     pub async fn step(&mut self) -> Result<Option<WriteOutcome>, String> {
         if self.unavailable {
             return Err("observed transport requires recovery".into());

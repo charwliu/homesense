@@ -90,6 +90,7 @@ pub(crate) enum SceneUpdate {
     Checkpoint { run: String, expected: u64, status: homesense_storage::scene_run::Status },
 }
 enum Message {
+    PublicationState(oneshot::Sender<bool>),
     AutomationBundle(Uuid, TaskGeneration, oneshot::Sender<Result<homesense_storage::automation::Bundle, WriteStatus>>),
     FeedbackSettled(Uuid, TaskGeneration, crate::feedback::RuleLease, oneshot::Sender<Result<bool, WriteStatus>>),
 
@@ -328,6 +329,7 @@ impl Admission {
                         Err(mpsc::RecvTimeoutError::Disconnected) => break,
                     };
                     match message {
+                        Message::PublicationState(reply) => { let _=reply.send(!failed && arbiter.policy().publishing && publication.is_some()); },
                         Message::AutomationBundle(controller,generation,reply) => {
                             let result=(|| {
                                 if !authorize(controller) {return Err(WriteStatus::InsufficientPrivileges)}
@@ -1057,6 +1059,11 @@ impl Admission {
     /// Trusted runtime coordinator only: validate then enter the publication barrier.
     /// The caller must drain STOP via the transport owner, commit, rebuild projections
     /// and synchronize the new mapping before reopening control. Not a HAP endpoint.
+    pub(crate) async fn publication_in_progress(&self)->Result<bool,WriteStatus> {
+        let (reply,receive)=oneshot::channel();
+        self.sender.try_send(Message::PublicationState(reply)).map_err(|_|WriteStatus::ResourceBusy)?;
+        receive.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)
+    }
     pub async fn begin_publication(
         &self,
         document: Vec<u8>,
