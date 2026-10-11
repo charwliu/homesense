@@ -201,11 +201,9 @@ impl EventRules {
     /// Read only actual switch/level changes. Duplicate polls produce no event.
     /// Validate the entire batch before dispatch; a gap or stale batch invalidates
     /// this subscription rather than replaying incomplete history.
-    pub async fn consume_feedback(
-        &mut self,
-        feedback: &Feedback,
-        max_age: u64,
-    ) -> Result<Vec<Report>, String> {
+    async fn feedback_batches(
+        &mut self, feedback:&Feedback, max_age:u64,
+    )->Result<Vec<Vec<Trigger>>,String> {
         let batch = async {
             self.validate_feedback(feedback)?;
             if max_age == 0
@@ -300,6 +298,12 @@ impl EventRules {
             self.feedback_cursor = Some(cursor);
         }
         self.cache_states = states;
+        Ok(batches)
+    }
+    pub async fn consume_feedback(
+        &mut self, feedback:&Feedback, max_age:u64,
+    )->Result<Vec<Report>,String> {
+        let batches=self.feedback_batches(feedback,max_age).await?;
         let mut reports = vec![];
         for triggers in batches {
             reports.push(
@@ -462,6 +466,27 @@ pub struct ScheduledRules {
 impl ScheduledRules {
     pub(crate) fn matches_admission(&self, admission: &Admission) -> bool {
         self.rules.admission.boot_id() == admission.boot_id()
+    }
+    pub(crate) fn bind_feedback(&mut self, feedback:&Feedback)->Result<(),String> {
+        self.rules.bind_feedback(feedback)
+    }
+    pub(crate) async fn consume_feedback_causal(
+        &mut self, feedback:&Feedback, max_age:u64,
+        router:&mut crate::deferred_router::Router,
+        scheduler:&mut crate::scene_scheduler::SceneScheduler,
+    )->Result<Vec<crate::deferred_rule::Outcome>,String> {
+        if !router.matches_owner(&self.rules.admission,self.rules.controller) {
+            return Err("foreign feedback causal owner".into());
+        }
+        let mut reports=Vec::new();
+        for triggers in self.rules.feedback_batches(feedback,max_age).await? {
+            let ids:Vec<_>=self.rules.bindings.iter().filter(|b|triggers.contains(&b.trigger)).map(|b|b.id.clone()).collect();
+            if !ids.is_empty() {
+                let (_,mut outcomes)=router.start_rules(&ids,scheduler,Some((feedback,max_age)),self.rules.budget,5000).await?;
+                reports.append(&mut outcomes);
+            }
+        }
+        Ok(reports)
     }
     /// One startup event per assembled synchronized runtime. Mark before await:
     /// ambiguous acceptance is never retried by another loop iteration.
