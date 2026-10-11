@@ -5285,3 +5285,39 @@ async fn fade_group_partial_failure_cancels_other_device_without_replay() {
     a.shutdown().await.unwrap();
 }
 
+#[tokio::test]
+async fn software_fade_manual_override_before_first_sample_preserves_manual_output() {
+    use homesensed::{software_fade::SoftwareFade,feedback::Feedback,transport_owner::GatewayRead};
+    let db=Db(std::env::temp_dir().join(format!("fade-{}.sqlite",Uuid::new_v4())));
+    let devices=include_bytes!("../../../config/simulation.json");
+    Store::open(&db.0).unwrap().publish_configuration(None,devices,ExecutionContext::Simulation,&[]).unwrap();
+    let controller=Uuid::new_v4();let a=actor(&db,controller).await;
+    let config=homesense_config::Configuration::parse(devices,ExecutionContext::Simulation).unwrap();
+    let mut feedback=Feedback::new(&config,ExecutionContext::Simulation,Uuid::parse_str(a.boot_id()).unwrap().as_u128(),1).unwrap();
+    let device=homesense_core::DeviceId::new("simulation:light").unwrap();
+    let zero=homesense_core::Percent::new(0).unwrap();
+    assert!(SoftwareFade::start(a.clone(),controller,device.clone(),zero,200,50,100,4,&feedback,2000).await.is_err());
+    feedback.apply(&GatewayRead{gateway_id:"simulation".into(),transport_epoch:1,received_at_ms:0,result:hb_transport::Receive::Frames{transport_epoch:1,frames:vec![hb_protocol::RawFrame{address:0x15,command:0xd1,value:100}]}}).unwrap();
+    let mut fade=SoftwareFade::start(a.clone(),controller,device,zero,500,100,100,5,&feedback,2000).await.unwrap();
+    a.submit(homesense_hap::requests::Batch {
+        controller,
+        intents:vec![homesense_hap::requests::Intent {
+            device:homesense_core::DeviceId::new("simulation:light").unwrap(),
+            command:homesense_core::Command::SetLevel { level:homesense_core::Percent::new(70).unwrap(), transition:homesense_core::LevelTransition::Immediate },
+        }],
+        subscriptions:vec![],
+    }).await.unwrap();
+    let error=fade.tick().await.unwrap_err();
+    assert!(error.contains("superseded by manual"));
+    assert_eq!(fade.tick().await.unwrap_err(),error);
+    fade.cancel().await.unwrap();
+    assert_eq!(fade.tick().await.unwrap_err(),error);
+    let sql=rusqlite::Connection::open(&db.0).unwrap();
+    assert_eq!(sql.query_row("SELECT count(*) FROM command_journal",[],|r|r.get::<_,i64>(0)).unwrap(),1);
+    drop(fade);
+    let ticket=a.dispatch().await.unwrap().unwrap();
+    assert_eq!(ticket.command.origin,Origin::Hap);
+    a.finish_write(ticket.command.id,true).await.unwrap();
+    assert!(a.dispatch().await.unwrap().is_none());
+    a.shutdown().await.unwrap();
+}
