@@ -1,5 +1,6 @@
+use crate::transport::http::body::Body;
 use futures::future::{BoxFuture, FutureExt};
-use hyper::{body::HttpBody, Body, Response, StatusCode, Uri};
+use hyper::{Response, StatusCode, Uri};
 use log::error;
 use std::collections::HashMap;
 use url::form_urlencoded;
@@ -400,7 +401,7 @@ mod write_body_tests {
             assert_eq!(response.status(), status);
             if reject {
                 let value: serde_json::Value = serde_json::from_slice(
-                    &hyper::body::to_bytes(response.into_body()).await.unwrap(),
+                    &crate::transport::http::body::to_bytes(response.into_body()).await.unwrap(),
                 )
                 .unwrap();
                 assert!(value["characteristics"]

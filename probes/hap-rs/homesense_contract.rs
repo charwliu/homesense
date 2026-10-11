@@ -1,4 +1,5 @@
 //! Characterization tests for the fixed upstream candidate, not acceptance tests.
+use rand::SeedableRng;
 use hap::characteristic::{Characteristic, brightness::BrightnessCharacteristic, HapCharacteristic};
 use std::sync::{Arc, atomic::{AtomicUsize, Ordering}};
 
@@ -56,8 +57,8 @@ fn ed25519_rfc8032_vector_and_changed_message_rejection() {
 }
 #[test]
 fn x25519_peers_derive_identical_secret() {
-    let a = x25519_dalek::EphemeralSecret::random_from_rng(rand::rngs::OsRng);
-    let b = x25519_dalek::EphemeralSecret::random_from_rng(rand::rngs::OsRng);
+    let a = x25519_dalek::EphemeralSecret::random_from_rng(&mut rand::rngs::StdRng::from_rng(&mut rand::rng()));
+    let b = x25519_dalek::EphemeralSecret::random_from_rng(&mut rand::rngs::StdRng::from_rng(&mut rand::rng()));
     let ap = x25519_dalek::PublicKey::from(&a);
     let bp = x25519_dalek::PublicKey::from(&b);
     assert_eq!(a.diffie_hellman(&bp).as_bytes(), b.diffie_hellman(&ap).as_bytes());

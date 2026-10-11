@@ -1,16 +1,16 @@
-use aead::{generic_array::GenericArray, AeadInPlace, NewAead};
+use aead::{array::Array, AeadInPlace, KeyInit};
 use chacha20poly1305::ChaCha20Poly1305;
 use futures::future::{BoxFuture, FutureExt};
-use hyper::Body;
+use crate::transport::http::body::Body;
 use log::{debug, info};
 use num::BigUint;
-use rand::{rngs::OsRng, RngCore};
+use rand::{Rng, SeedableRng};
 use sha2::{digest::Digest, Sha512};
 use signature::Signer;
 use srp::{
-    client::{srp_private_key, SrpClient},
+    client::SrpClient,
     groups::G_3072,
-    server::{SrpServer, UserRecord},
+    server::SrpServer,
     types::SrpGroup,
 };
 use std::{ops::BitXor, str};
@@ -193,7 +193,7 @@ async fn handle_start(
     // kTLVType_State <M2>
     // kTLVType_Error <kTLVError_Busy>
 
-    let mut csprng = OsRng {};
+    let mut csprng = rand::rngs::StdRng::from_rng(&mut rand::rng());
     let mut salt = [0; 16]; // s
     let mut b = [0; 64];
     csprng.fill_bytes(&mut salt);
@@ -201,21 +201,10 @@ async fn handle_start(
 
     // TODO - respect pairing flags (specification p. 35 - 7.) for split pair setup
 
-    let private_key = srp_private_key::<Sha512>(
-        b"Pair-Setup",
-        &config.lock().await.pin.to_string().as_bytes(),
-        &salt,
-    ); // x = H(s | H(I | ":" | P))
-    let srp_client = SrpClient::<Sha512>::new(&private_key, &G_3072);
-    let verifier = srp_client.get_password_verifier(&private_key); // v = g^x
-
-    let user = UserRecord {
-        username: b"Pair-Setup",
-        salt: &salt,
-        verifier: &verifier,
-    };
-    let srp_server = SrpServer::<Sha512>::new(&user, b"foo", &b, &G_3072)?;
-    let b_pub = srp_server.get_b_pub();
+    let srp_client = SrpClient::<sha2_srp::Sha512>::new(&G_3072);
+    let verifier = srp_client.compute_verifier(b"Pair-Setup", config.lock().await.pin.to_string().as_bytes(), &salt);
+    let srp_server = SrpServer::<sha2_srp::Sha512>::new(&G_3072);
+    let b_pub = srp_server.compute_public_ephemeral(&b, &verifier);
 
     handler.session = Some(Session {
         salt,
@@ -251,13 +240,10 @@ async fn handle_verify(
             {
                 return Err(tlv::Error::Authentication);
             }
-            let user = UserRecord {
-                username: b"Pair-Setup",
-                salt: &session.salt,
-                verifier: &session.verifier,
-            };
-            let srp_server = SrpServer::<Sha512>::new(&user, a_pub, &session.b, &G_3072)?;
-            let shared_secret = srp_server.get_key();
+            let srp_server = SrpServer::<sha2_srp::Sha512>::new(&G_3072);
+            let verifier = srp_server.process_reply(&session.b, &session.verifier, a_pub)?;
+            // SRP 0.6 exposes the premaster S; HomeKit uses K = SHA512(S).
+            let shared_secret = Sha512::digest(verifier.key()).to_vec();
 
             let b_proof = verify_client_proof::<Sha512>(
                 &session.b_pub,
@@ -310,15 +296,15 @@ async fn handle_exchange(
                 let mut nonce = vec![0; 4];
                 nonce.extend(b"PS-Msg05");
 
-                let aead = ChaCha20Poly1305::new(GenericArray::from_slice(&encryption_key));
+                let aead = ChaCha20Poly1305::new(Array::from_slice(&encryption_key));
 
                 let mut decrypted_data = Vec::new();
                 decrypted_data.extend_from_slice(&encrypted_data);
                 aead.decrypt_in_place_detached(
-                    GenericArray::from_slice(&nonce),
+                    Array::from_slice(&nonce),
                     &[],
                     &mut decrypted_data,
-                    GenericArray::from_slice(&auth_tag),
+                    Array::from_slice(&auth_tag),
                 )?;
 
                 let sub_tlv = tlv::try_decode(&decrypted_data)?;
@@ -356,12 +342,11 @@ async fn handle_exchange(
                 }
 
                 let uuid_str = str::from_utf8(device_pairing_id)?;
-                let pairing_uuid = Uuid::parse_str(uuid_str)?;
                 let mut pairing_ltpk = [0; 32];
                 pairing_ltpk[..32].copy_from_slice(&device_ltpk.as_bytes()[..32]);
 
                 let pairing =
-                    Pairing::new(pairing_uuid, Permissions::Admin, device_ltpk.to_bytes());
+                    Pairing::from_identifier(uuid_str, Permissions::Admin, device_ltpk.to_bytes())?;
 
                 debug!("pairing: {:?}", &pairing);
 
@@ -407,7 +392,7 @@ async fn handle_exchange(
                 let mut encrypted_data = Vec::new();
                 encrypted_data.extend_from_slice(&encoded_sub_tlv);
                 let auth_tag = aead.encrypt_in_place_detached(
-                    GenericArray::from_slice(&nonce),
+                    Array::from_slice(&nonce),
                     &[],
                     &mut encrypted_data,
                 )?;
@@ -663,17 +648,17 @@ mod complete_exchange_tests {
         assert_eq!(m2[&(Type::State as u8)], vec![2]);
         let salt = &m2[&(Type::Salt as u8)];
         let mut ephemeral = [0; 64];
-        OsRng.fill_bytes(&mut ephemeral);
-        let client = SrpClient::<Sha512>::new(&ephemeral, &G_3072);
-        let public = client.get_a_pub();
-        let private = srp_private_key::<Sha512>(b"Pair-Setup", pin.as_bytes(), salt);
+        rand::rngs::StdRng::from_rng(&mut rand::rng()).fill_bytes(&mut ephemeral);
+        let client = SrpClient::<sha2_srp::Sha512>::new(&G_3072);
+        let public = client.compute_public_ephemeral(&ephemeral);
         // The HAP candidate uses unpadded g in the proof transcript, unlike
-        // srp 0.5's generic username-and-salt proof helper. Derive the client
+        // srp 0.6's generic proof helper. Derive the client
         // secret with SRP, then build and verify the wire transcript here.
         let key = client
-            .process_reply(&private, &m2[&(Type::PublicKey as u8)])
+            .process_reply(&ephemeral, b"Pair-Setup", pin.as_bytes(), salt, &m2[&(Type::PublicKey as u8)])
             .unwrap()
-            .get_key();
+            .key().to_vec();
+        let key = Sha512::digest(&key).to_vec();
         let hn = Sha512::digest(&G_3072.n.to_bytes_be());
         let hg = Sha512::digest(&G_3072.g.to_bytes_be());
         let xor: Vec<u8> = hn.iter().zip(hg.iter()).map(|(n, g)| n ^ g).collect();
@@ -720,10 +705,10 @@ mod complete_exchange_tests {
             assert_eq!(m4[&(Type::Proof as u8)], server_proof.as_slice());
         };
         let id = Uuid::new_v4();
-        let signing = ed25519_dalek::SigningKey::generate(&mut OsRng);
+        let signing = ed25519_dalek::SigningKey::generate(&mut rand::rngs::StdRng::from_rng(&mut rand::rng()));
         let derive = |salt: &[u8], info: &[u8]| {
             let mut output = [0; 32];
-            hkdf::Hkdf::<Sha512>::new(Some(salt), &key)
+            hkdf::Hkdf::<sha2::Sha512>::new(Some(salt), &key)
                 .expand(info, &mut output)
                 .unwrap();
             output
@@ -745,11 +730,11 @@ mod complete_exchange_tests {
         ]
         .encode();
         let encryption_key = derive(b"Pair-Setup-Encrypt-Salt", b"Pair-Setup-Encrypt-Info");
-        let cipher = ChaCha20Poly1305::new(GenericArray::from_slice(&encryption_key));
+        let cipher = ChaCha20Poly1305::new(Array::from_slice(&encryption_key));
         let mut nonce = [0; 12];
         nonce[4..].copy_from_slice(b"PS-Msg05");
         let tag = cipher
-            .encrypt_in_place_detached(GenericArray::from_slice(&nonce), &[], &mut data)
+            .encrypt_in_place_detached(Array::from_slice(&nonce), &[], &mut data)
             .unwrap();
         data.extend(tag);
         let m5 = vec![Value::State(5), Value::EncryptedData(data)].encode();
@@ -778,10 +763,10 @@ mod complete_exchange_tests {
             nonce[4..].copy_from_slice(b"PS-Msg06");
             cipher
                 .decrypt_in_place_detached(
-                    GenericArray::from_slice(&nonce),
+                    Array::from_slice(&nonce),
                     &[],
                     &mut plaintext,
-                    GenericArray::from_slice(&data[data.len() - 16..]),
+                    Array::from_slice(&data[data.len() - 16..]),
                 )
                 .unwrap();
             let sub = tlv::try_decode(&plaintext).unwrap();

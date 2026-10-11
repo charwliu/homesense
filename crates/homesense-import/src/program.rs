@@ -1,7 +1,6 @@
 //! Disabled source structure. Unknown actions are never translated to no-ops.
 use roxmltree::Node;
 use serde::Serialize;
-use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 #[derive(Debug, Serialize)]
 pub struct Program {
@@ -75,10 +74,7 @@ pub(crate) fn code(
         },
         target: if container { None } else { Some(target.into()) },
         payload_sha256: payload.map(|n| {
-            format!(
-                "{:x}",
-                Sha256::digest(&n.document().input_text().as_bytes()[n.range()])
-            )
+            super::sha256_hex(&n.document().input_text().as_bytes()[n.range()])
         }),
         children,
     })

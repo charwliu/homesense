@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "revision": 1,
+  "manual_degraded_enabled": false,
+  "gateways": [{
+    "id": "simulation",
+    "endpoint": "127.0.0.1:50007",
+    "modules": [{
+      "address": "15",
+      "profile": "gt_d8_rl_v2_2_6_2",
+      "verification": {"status": "simulated"}
+    }]
+  }],
+  "devices": [{
+    "id": "simulation:light",
+    "name": "模拟调光灯",
+    "gateway": "simulation",
+    "address": "15",
+    "channel": 1,
+    "enabled": true,
+    "default_on_level": 100
+  }]
+}

@@ -1,4 +1,4 @@
-use aead::{generic_array::GenericArray, AeadInPlace, NewAead};
+use aead::{array::Array, AeadInPlace, KeyInit};
 use byteorder::{ByteOrder, LittleEndian};
 use bytes::{Buf, BytesMut};
 use chacha20poly1305::{ChaCha20Poly1305, Nonce, Tag};
@@ -158,20 +158,20 @@ impl AsyncWrite for StreamWrapper {
         Poll::Ready(Ok(w_len))
     }
 
-    fn poll_flush(
-        self: Pin<&mut Self>,
-        _cx: &mut Context,
-    ) -> Poll<std::result::Result<(), io::Error>> {
-        // let stream_wrapper = Pin::into_inner(self);
-        // Poll::Ready(Write::flush(stream_wrapper))
-        Poll::Ready(Ok(()))
+    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context) -> Poll<io::Result<()>> {
+        let sender = &self.get_mut().outgoing_sender;
+        sender.drain_waker.register(cx.waker());
+        if sender.aborted.load(std::sync::atomic::Ordering::Acquire) {
+            return Poll::Ready(Err(io::ErrorKind::BrokenPipe.into()));
+        }
+        if sender.used.load(std::sync::atomic::Ordering::Acquire) == 0 {
+            Poll::Ready(Ok(()))
+        } else {
+            Poll::Pending
+        }
     }
-
-    fn poll_shutdown(
-        self: Pin<&mut Self>,
-        _cx: &mut Context,
-    ) -> Poll<std::result::Result<(), io::Error>> {
-        Poll::Ready(Ok(()))
+    fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context) -> Poll<io::Result<()>> {
+        self.poll_flush(cx)
     }
 }
 
@@ -447,7 +447,7 @@ fn decrypt_chunk(
     count: &mut u64,
 ) -> Result<Vec<u8>> {
     let read_key = compute_read_key(shared_secret)?;
-    let aead = ChaCha20Poly1305::new(GenericArray::from_slice(&read_key));
+    let aead = ChaCha20Poly1305::new(Array::from_slice(&read_key));
 
     let mut nonce = vec![0; 4];
     let mut suffix = vec![0; 8];
@@ -473,7 +473,7 @@ fn encrypt_chunk(
     count: &mut u64,
 ) -> Result<([u8; 2], Vec<u8>, [u8; 16])> {
     let write_key = compute_write_key(shared_secret)?;
-    let aead = ChaCha20Poly1305::new(GenericArray::from_slice(&write_key));
+    let aead = ChaCha20Poly1305::new(Array::from_slice(&write_key));
 
     let mut nonce = vec![0; 4];
     let mut suffix = vec![0; 8];
@@ -604,7 +604,7 @@ mod record_tests {
         assert!(writer.pending.is_none());
         // Independent record parsing/decryption checks lengths, byte order and
         // nonce sequence, not merely equivalence to this writer's own encoder.
-        let cipher = ChaCha20Poly1305::new(GenericArray::from_slice(
+        let cipher = ChaCha20Poly1305::new(Array::from_slice(
             &compute_write_key(&secret).unwrap(),
         ));
         let mut position = 0;
@@ -672,6 +672,7 @@ const OUTPUT_MESSAGE_BYTES: usize = 256 * 1024;
 pub(crate) struct QueuedOutput {
     data: Vec<u8>,
     used: Arc<std::sync::atomic::AtomicUsize>,
+    drain_waker: Arc<futures::task::AtomicWaker>,
 }
 impl std::ops::Deref for QueuedOutput {
     type Target = [u8];
@@ -683,6 +684,7 @@ impl Drop for QueuedOutput {
     fn drop(&mut self) {
         self.used
             .fetch_sub(self.data.len(), std::sync::atomic::Ordering::AcqRel);
+        self.drain_waker.wake();
     }
 }
 #[derive(Clone, Debug)]
@@ -690,6 +692,7 @@ pub struct OutputSender {
     // Clones share ONE channel sender: no extra reserved slots per event clone.
     sender: Arc<Mutex<mpsc::Sender<QueuedOutput>>>,
     used: Arc<std::sync::atomic::AtomicUsize>,
+    drain_waker: Arc<futures::task::AtomicWaker>,
     aborted: Arc<std::sync::atomic::AtomicBool>,
     abort_waker: Arc<futures::task::AtomicWaker>,
 }
@@ -701,6 +704,7 @@ impl OutputSender {
             Self {
                 sender: Arc::new(Mutex::new(sender)),
                 used: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
+                drain_waker: Arc::new(futures::task::AtomicWaker::new()),
                 aborted: Arc::new(std::sync::atomic::AtomicBool::new(false)),
                 abort_waker: Arc::new(futures::task::AtomicWaker::new()),
             },
@@ -711,6 +715,7 @@ impl OutputSender {
         self.aborted
             .store(true, std::sync::atomic::Ordering::Release);
         self.abort_waker.wake();
+        self.drain_waker.wake();
     }
     pub fn try_send(&self, data: Vec<u8>) -> io::Result<()> {
         use std::sync::atomic::Ordering;
@@ -738,6 +743,7 @@ impl OutputSender {
         let packet = QueuedOutput {
             data,
             used: self.used.clone(),
+            drain_waker: self.drain_waker.clone(),
         };
         let sent = self
             .sender
@@ -943,7 +949,7 @@ mod read_record_tests {
     }
     fn encoded(secret: &[u8; 32], messages: &[Vec<u8>]) -> Vec<u8> {
         let cipher =
-            ChaCha20Poly1305::new(GenericArray::from_slice(&compute_read_key(secret).unwrap()));
+            ChaCha20Poly1305::new(Array::from_slice(&compute_read_key(secret).unwrap()));
         let mut wire = Vec::new();
         for (count, message) in messages.iter().enumerate() {
             let mut aad = [0; 2];
@@ -1091,7 +1097,7 @@ mod socket_tests {
     }
     fn client_records(secret: &[u8; 32], plaintext: &[u8]) -> Vec<u8> {
         let cipher =
-            ChaCha20Poly1305::new(GenericArray::from_slice(&compute_read_key(secret).unwrap()));
+            ChaCha20Poly1305::new(Array::from_slice(&compute_read_key(secret).unwrap()));
         let mut wire = Vec::new();
         for (counter, chunk) in plaintext.chunks(1024).enumerate() {
             let mut aad = [0; 2];
@@ -1157,7 +1163,7 @@ mod socket_tests {
             client.read_exact(&mut body).await.unwrap();
             let mut tag = [0; 16];
             client.read_exact(&mut tag).await.unwrap();
-            ChaCha20Poly1305::new(GenericArray::from_slice(
+            ChaCha20Poly1305::new(Array::from_slice(
                 &compute_write_key(&secret).unwrap(),
             ))
             .decrypt_in_place_detached(
@@ -1222,7 +1228,7 @@ mod socket_tests {
             }
             assert_eq!(received, plaintext);
             outgoing.try_send(plaintext.clone()).unwrap();
-            let cipher = ChaCha20Poly1305::new(GenericArray::from_slice(
+            let cipher = ChaCha20Poly1305::new(Array::from_slice(
                 &compute_write_key(&secret).unwrap(),
             ));
             let mut received = Vec::new();

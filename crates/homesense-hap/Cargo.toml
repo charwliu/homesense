@@ -7,6 +7,7 @@ publish.workspace = true
 
 [dependencies]
 hap.workspace = true
+log = "=0.4.34"
 homesense-core.workspace = true
 homesense-state.workspace = true
 serde.workspace = true
@@ -18,3 +19,16 @@ uuid.workspace = true
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+aead = "=0.6.1"
+chacha20poly1305 = "=0.11.0"
+ed25519-dalek = "=3.0.0"
+hkdf = "=0.13.0"
+rand = "=0.10.3"
+sha2 = "=0.11.0"
+srp = "=0.6.0"
+x25519-dalek = "=3.0.0"
+
+# SRP 0.6 requires digest 0.10; isolate its hash adapter.
+sha2_srp = { package = "sha2", version = "=0.10.9" }

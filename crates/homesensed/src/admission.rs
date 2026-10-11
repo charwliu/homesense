@@ -1,19 +1,22 @@
 //! Dedicated bounded admission owner. No transport is dispatched by this actor.
 use hap::server::WriteStatus;
 use homesense_core::{
-    Command, ExecutionContext, LevelTransition,
+    ExecutionContext,
     admission::{Access, RuntimePolicy},
     arbiter::{Arbiter, ArbiterError, BatchCommitError},
     queue::{Epochs, Origin, QueuedCommand},
 };
 use homesense_hap::requests::Batch;
-use homesense_storage::Store;
+use homesense_storage::{Store, journal::Status};
+use std::collections::BTreeMap;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc;
 use std::{
     path::PathBuf,
     sync::Arc,
     time::{Duration, Instant},
 };
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::oneshot;
 use uuid::Uuid;
 #[derive(Clone, Copy)]
 pub struct Options {
@@ -32,17 +35,75 @@ impl Default for Options {
         }
     }
 }
+/// Issued only after durable Writing. The owner must report the write result;
+/// dropping a ticket is never permission to retry it.
+pub struct DispatchTicket {
+    pub gateway_id: String,
+    pub command: QueuedCommand,
+    pub frame: hb_transport::PreparedFrame,
+}
+/// Captured before a delayed task starts. Private fields prevent callers from
+/// relabeling old work as belonging to the current runtime generation.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TaskGeneration {
+    boot: String,
+    epochs: Epochs,
+}
+enum SubmissionScope {
+    Generation(TaskGeneration),
+    Configuration(u64),
+}
+enum Submission {
+    Lights(Batch),
+    PanelLed {
+        controller: Uuid,
+        device: homesense_core::DeviceId,
+        active: bool,
+    },
+    Motor {
+        controller: Uuid,
+        device: homesense_core::DeviceId,
+        action: homesense_core::MotorAction,
+    },
+}
+type RestoreLevels = BTreeMap<homesense_core::DeviceId, homesense_core::Percent>;
+struct PendingPublication {
+    document: Vec<u8>,
+    cancellations: Vec<homesense_core::queue::Cancellation>,
+}
 enum Message {
+    BeginPublication(Vec<u8>, u64, u64, oneshot::Sender<Result<(), WriteStatus>>),
+    CommitPublication(oneshot::Sender<Result<u64, WriteStatus>>),
+    AbortPublication(oneshot::Sender<Result<(), WriteStatus>>),
+    Wake,
+    Generation(oneshot::Sender<Result<TaskGeneration, WriteStatus>>),
+    Remember(
+        u64,
+        homesense_state::Snapshot,
+        u64,
+        oneshot::Sender<Result<RestoreLevels, WriteStatus>>,
+    ),
+    TransportFailed(oneshot::Sender<Result<(), WriteStatus>>),
+    Dispatch(oneshot::Sender<Result<Option<DispatchTicket>, WriteStatus>>),
+    Finished(u64, bool, oneshot::Sender<Result<(), WriteStatus>>),
     Shutdown(oneshot::Sender<()>),
-    Submit(Batch, u64, oneshot::Sender<Result<Vec<u64>, WriteStatus>>),
+    Submit(
+        Submission,
+        Option<SubmissionScope>,
+        u64,
+        oneshot::Sender<Result<Vec<u64>, WriteStatus>>,
+    ),
     Ready(u64, u64, oneshot::Sender<Result<(), WriteStatus>>),
+    Recover(u64, u64, oneshot::Sender<Result<(), WriteStatus>>),
 }
 #[derive(Clone)]
 pub struct Admission {
-    sender: mpsc::Sender<Message>,
+    sender: mpsc::SyncSender<Message>,
     boot: String,
     clock: Instant,
     ttl: Duration,
+    stop_requested: Arc<AtomicBool>,
+    generations: tokio::sync::watch::Receiver<Option<TaskGeneration>>,
 }
 fn millis(clock: Instant) -> u64 {
     u64::try_from(clock.elapsed().as_millis()).unwrap_or(u64::MAX)
@@ -62,12 +123,15 @@ impl Admission {
         {
             return Err("invalid admission bounds".into());
         }
-        let (sender, mut receiver) = mpsc::channel(options.mailbox_capacity);
+        let (sender, receiver) = mpsc::sync_channel(options.mailbox_capacity);
+        let (generation_updates, generations) = tokio::sync::watch::channel(None);
         let (started, start) = oneshot::channel();
         let boot = Uuid::new_v4().to_string();
         let worker_boot = boot.clone();
         let clock = Instant::now();
         let authorize = Arc::new(authorize);
+        let stop_requested = Arc::new(AtomicBool::new(false));
+        let worker_stop = stop_requested.clone();
         std::thread::Builder::new()
             .name("homesense-admission".into())
             .spawn(move || {
@@ -110,9 +174,10 @@ impl Admission {
                         2,
                     )
                     .map_err(|e| e.to_string())?;
-                    Ok((lease, store, configuration, arbiter))
+                    let durable_configuration = store.active().map_err(|e| e.to_string())?.ok_or("active configuration required")?;
+                    Ok((lease, store, configuration, durable_configuration, arbiter))
                 };
-                let (lease, mut store, configuration, mut arbiter) = match initialize() {
+                let (lease, mut store, mut configuration, mut durable_configuration, mut arbiter) = match initialize() {
                     Ok(v) => {
                         let _ = started.send(Ok(()));
                         v
@@ -122,18 +187,222 @@ impl Admission {
                         return;
                     }
                 };
+                let mut restore_policy = crate::restore_policy::RestorePolicy::default();
+                let mut principals = BTreeMap::<u64, Uuid>::new();
+                let mut in_flight: Option<u64> = None;
+                let mut write_deadline: Option<u64> = None;
                 let mut next_id = 1u64;
                 let mut failed = false;
                 let mut stopped = None;
-                while let Some(message) = receiver.blocking_recv() {
+                let mut publication: Option<PendingPublication> = None;
+                loop {
+                    let current = if failed || worker_stop.load(Ordering::Acquire)
+                        || !arbiter.policy().gateway_ready || arbiter.policy().publishing {
+                        None
+                    } else {
+                        Some(TaskGeneration { boot: worker_boot.clone(), epochs: arbiter.policy().epochs })
+                    };
+                    generation_updates.send_if_modified(|previous| {
+                        if *previous == current { false } else { *previous = current; true }
+                    });
+                    let pending = match write_deadline {
+                        Some(deadline) => receiver.recv_timeout(Duration::from_millis(
+                            deadline.saturating_sub(millis(clock)),
+                        )),
+                        None => receiver
+                            .recv()
+                            .map_err(|_| mpsc::RecvTimeoutError::Disconnected),
+                    };
+                    let now = millis(clock);
+                    if worker_stop.load(Ordering::Acquire) && !failed {
+                        failed = true;
+                        let _ = arbiter.storage_failed();
+                    }
+                    if let Some(id) =
+                        in_flight.filter(|_| write_deadline.is_some_and(|deadline| now >= deadline))
+                    {
+                        // The old transport may have written some bytes. Never retry or
+                        // accept a late success after the dispatch lease expires.
+                        let _ = store.fail_transport(&worker_boot, now);
+                        principals.clear();
+                        let _ = arbiter.finish_write(id, false);
+                        let _ = arbiter.storage_failed();
+                        in_flight = None;
+                        write_deadline = None;
+                        failed = true;
+                    }
+                    let message = match pending {
+                        Ok(message) => message,
+                        Err(mpsc::RecvTimeoutError::Timeout) => continue,
+                        Err(mpsc::RecvTimeoutError::Disconnected) => break,
+                    };
                     match message {
+                        Message::Wake => {},
+                        Message::BeginPublication(document, expected, deadline, reply) => {
+                            if reply.is_closed() { continue; }
+                            let result = (|| {
+                                if failed || arbiter.policy().publishing || expected != configuration.revision() {
+                                    return Err(WriteStatus::ServiceCommunicationFailure);
+                                }
+                                let candidate = homesense_config::Configuration::parse(&document, options.context)
+                                    .map_err(|_| WriteStatus::InvalidValueInRequest)?;
+                                if candidate.revision() <= expected { return Err(WriteStatus::InvalidValueInRequest); }
+                                if store.active().map_err(|_| WriteStatus::ServiceCommunicationFailure)?.as_ref() != Some(&durable_configuration) {
+                                    return Err(WriteStatus::ServiceCommunicationFailure);
+                                }
+                                let cancelled = arbiter.begin_publication(millis(clock), deadline)
+                                    .map_err(|_| WriteStatus::ServiceCommunicationFailure)?;
+                                if store.cancel_queued(&worker_boot, &cancelled, millis(clock)).is_err() {
+                                    failed = true;
+                                    let _ = arbiter.storage_failed();
+                                    return Err(WriteStatus::ServiceCommunicationFailure);
+                                }
+                                for c in &cancelled { principals.remove(&c.command.id); }
+                                publication = Some(PendingPublication { document, cancellations: cancelled });
+                                Ok(())
+                            })();
+                            let _ = reply.send(result);
+                        }
+                        Message::AbortPublication(reply) => {
+                            let result = (|| {
+                                let cancelled = arbiter.abort_before_commit().map_err(|_| WriteStatus::ResourceBusy)?;
+                                publication = None;
+                                if store.cancel_queued(&worker_boot, &cancelled, millis(clock)).is_err() {
+                                    failed = true;
+                                    let _ = arbiter.storage_failed();
+                                    return Err(WriteStatus::ServiceCommunicationFailure);
+                                }
+                                for c in &cancelled { principals.remove(&c.command.id); }
+                                Ok(())
+                            })();
+                            let _ = reply.send(result);
+                        }
+                        Message::CommitPublication(reply) => {
+                            if reply.is_closed() { continue; }
+                            let result = (|| {
+                                if failed { return Err(WriteStatus::ServiceCommunicationFailure); }
+                                let pending = publication.as_ref().ok_or(WriteStatus::ServiceCommunicationFailure)?;
+                                arbiter.begin_commit(millis(clock)).map_err(|e| if e == ArbiterError::Busy {
+                                    WriteStatus::ResourceBusy
+                                } else { WriteStatus::ServiceCommunicationFailure })?;
+                                let audit: Vec<_> = pending.cancellations.iter().map(|c| homesense_storage::CancellationAudit {
+                                    boot_id: &worker_boot, command_id: c.command.id, reason: c.reason,
+                                }).collect();
+                                let attempted = store.publish_configuration(Some(configuration.revision()), &pending.document, options.context, &audit);
+                                // Read back durable truth even on transaction failure. Never
+                                // infer rollback, restore a queue, or retry a physical action.
+                                let current = store.active();
+                                let committed = current.as_ref().ok().and_then(|v| v.as_ref()).filter(|v| v.payload == pending.document);
+                                if let Some(active) = committed {
+                                    let next = homesense_config::Configuration::parse(&active.payload, options.context)
+                                        .map_err(|_| WriteStatus::ServiceCommunicationFailure)?;
+                                    arbiter.record_commit(homesense_core::arbiter::CommitResult::Committed(active.revision))
+                                        .map_err(|_| WriteStatus::ServiceCommunicationFailure)?;
+                                    configuration = next;
+                                    durable_configuration = active.clone();
+                                    publication = None;
+                                    restore_policy = crate::restore_policy::RestorePolicy::default();
+                                    return Ok(configuration.revision());
+                                }
+                                let rolled_back = attempted.is_err() && current.as_ref().ok().and_then(|v| v.as_ref()) == Some(&durable_configuration);
+                                let _ = arbiter.record_commit(if rolled_back {
+                                    homesense_core::arbiter::CommitResult::RolledBack
+                                } else { homesense_core::arbiter::CommitResult::Unknown });
+                                publication = None;
+                                failed = true;
+                                let _ = arbiter.storage_failed();
+                                Err(WriteStatus::ServiceCommunicationFailure)
+                            })();
+                            let _ = reply.send(result);
+                        }
+
+                        Message::Remember(revision, snapshot, max_age, reply) => {
+                            let result = (|| {
+                                if revision != configuration.revision() || arbiter.policy().publishing {
+                                    return Err(WriteStatus::ServiceCommunicationFailure);
+                                }
+                                if max_age == 0 || snapshot.cursor.boot_id != Uuid::parse_str(&worker_boot).unwrap().as_u128() {
+                                    return Err(WriteStatus::InvalidValueInRequest);
+                                }
+                                let mut saved = store.light_restore_levels(configuration.revision()).map_err(|_| WriteStatus::ServiceCommunicationFailure)?;
+                                let levels: Vec<_> = snapshot.devices.iter().filter_map(|(id,state)| {
+                                    let (device,module) = configuration.binding(id)?;
+                                    if module.kind()!=homesense_core::ModuleKind::Dimmer || state.quality!=homesense_state::Quality::Confirmed || !state.observed_at_ms.and_then(|at| now.checked_sub(at)).is_some_and(|age| age<max_age) { return None; }
+                                    let Some(homesense_core::Observation::Level(mut level)) = state.observed else { return None; };
+                                    if let Some(relay) = &device.supply_relay {
+                                        let supply = snapshot.devices.get(relay)?;
+                                        if supply.quality != homesense_state::Quality::Confirmed || !supply.observed_at_ms.and_then(|at| now.checked_sub(at)).is_some_and(|age| age < max_age) { return None; }
+                                        match supply.observed {
+                                            Some(homesense_core::Observation::Switch(false)) => level = homesense_core::Percent::new(0).unwrap(),
+                                            Some(homesense_core::Observation::Switch(true)) => {},
+                                            _ => return None,
+                                        }
+                                    }
+                                    match restore_policy.remember(id, level, now) {
+                                        true if saved.get(id)!=Some(&level) => Some((id.clone(),level)),
+                                        _ => None,
+                                    }
+                                }).collect();
+                                if !levels.is_empty() {
+                                    store.remember_light_levels(configuration.revision(), &levels).map_err(|_| WriteStatus::ServiceCommunicationFailure)?;
+                                    saved.extend(levels);
+                                }
+                                Ok(saved)
+                            })();
+                            let _ = reply.send(result);
+                        }
+                        Message::TransportFailed(reply) => {
+                            // Disable dispatch before attempting durable audit. A failed
+                            // transaction must never reopen control or permit replay.
+                            failed = true;
+                            if let Some(id) = in_flight.take() {
+                                let _ = arbiter.finish_write(id, false);
+                            }
+                            write_deadline = None;
+                            let _ = arbiter.storage_failed();
+                            principals.clear();
+                            let result = store.fail_transport(&worker_boot, millis(clock))
+                                .map_err(|_| WriteStatus::ServiceCommunicationFailure);
+                            let _ = reply.send(result);
+                        }
                         Message::Shutdown(reply) => {
                             stopped = Some(reply);
                             break;
                         }
+                        Message::Recover(epoch, revision, reply) => {
+                            if reply.is_closed() { continue; }
+                            let result = (|| -> Result<(), WriteStatus> {
+                                let failure = WriteStatus::ServiceCommunicationFailure;
+                                if !failed || worker_stop.load(Ordering::Acquire)
+                                    || in_flight.is_some() || revision != configuration.revision()
+                                    || epoch <= arbiter.policy().epochs.transport {
+                                    return Err(failure);
+                                }
+                                let current = store.active().map_err(|_| failure)?;
+                                if current.as_ref() != Some(&durable_configuration) { return Err(failure); }
+                                store.active_configuration(options.context).map_err(|_| failure)?
+                                    .ok_or(failure)?;
+                                // Re-run the fault audit before re-enabling dispatch. This
+                                // closes records left behind by a transient database error.
+                                store.fail_transport(&worker_boot, millis(clock)).map_err(|_| failure)?;
+                                arbiter.transport_reconnected(epoch).map_err(|_| failure)?;
+                                arbiter.gateway_resynchronized(epoch, revision).map_err(|_| failure)?;
+                                arbiter.storage_recovered(revision).map_err(|_| failure)?;
+                                principals.clear();
+                                failed = false;
+                                Ok(())
+                            })();
+                            let _ = reply.send(result);
+                        }
                         Message::Ready(epoch, revision, reply) => {
                             let result = if failed {
                                 Err(WriteStatus::ServiceCommunicationFailure)
+                            } else if arbiter.policy().publishing {
+                                if epoch != arbiter.policy().epochs.transport {
+                                    Err(WriteStatus::ServiceCommunicationFailure)
+                                } else {
+                                    arbiter.synchronized(revision).map_err(|_| WriteStatus::ServiceCommunicationFailure)
+                                }
                             } else {
                                 arbiter
                                     .gateway_resynchronized(epoch, revision)
@@ -141,14 +410,199 @@ impl Admission {
                             };
                             let _ = reply.send(result);
                         }
-                        Message::Submit(batch, deadline, reply) => {
+                        Message::Dispatch(reply) => {
+                            if reply.is_closed() {
+                                continue;
+                            }
+                            if failed || in_flight.is_some() {
+                                let _ = reply.send(Err(WriteStatus::ResourceBusy));
+                                continue;
+                            }
+                            let now = millis(clock);
+                            let result = (|| -> Result<Option<DispatchTicket>, String> {
+                                let access = |command: &QueuedCommand| {
+                                        let binding = configuration.binding(&command.device_id);
+                                        Access {
+                                            authorized: principals
+                                                .get(&command.id)
+                                                .is_some_and(|id| authorize(*id)),
+                                            device_exists: binding.is_some(),
+                                            device_verified: binding.is_some_and(|(_, m)| {
+                                                matches!(
+                                                    m.verification(),
+                                                    homesense_core::Verification::Verified(_)
+                                                )
+                                            }),
+                                            existing_direct_manual: false,
+                                        }
+                                    };
+                                let dispatch = if arbiter.policy().publishing {
+                                    if publication.is_none() { return Ok(None); }
+                                    homesense_core::arbiter::Dispatch {
+                                        command: arbiter.drain_stop(now, access).map_err(|e| e.to_string())?,
+                                        ..Default::default()
+                                    }
+                                } else {
+                                    arbiter.dispatch(now, access).map_err(|e| e.to_string())?
+                                };
+                                if !dispatch.cancelled.is_empty() {
+                                    store.cancel_queued(&worker_boot, &dispatch.cancelled, now)
+                                        .map_err(|e| e.to_string())?;
+                                }
+                                for cancelled in &dispatch.cancelled {
+                                    principals.remove(&cancelled.command.id);
+                                }
+                                for (command, _) in &dispatch.rejected {
+                                    store
+                                        .transition_command(
+                                            &worker_boot,
+                                            command.id,
+                                            Status::Accepted,
+                                            Status::Cancelled,
+                                            now,
+                                        )
+                                        .map_err(|e| e.to_string())?;
+                                    principals.remove(&command.id);
+                                }
+                                let Some(command) = dispatch.command else {
+                                    return Ok(None);
+                                };
+                                let (device, module) = configuration
+                                    .binding(&command.device_id)
+                                    .ok_or("missing binding")?;
+                                let frame = hb_transport::PreparedFrame::prepare(
+                                    module,
+                                    device.channel,
+                                    command.command,
+                                    options.context,
+                                    command.epochs.transport,
+                                )
+                                .map_err(|e| e.to_string())?;
+                                store
+                                    .transition_command(
+                                        &worker_boot,
+                                        command.id,
+                                        Status::Accepted,
+                                        Status::Writing,
+                                        now,
+                                    )
+                                    .map_err(|e| e.to_string())?;
+                                principals.remove(&command.id);
+                                in_flight = Some(command.id);
+                                write_deadline = Some(command.deadline_ms);
+                                Ok(Some(DispatchTicket {
+                                    gateway_id: device.gateway.clone(),
+                                    command,
+                                    frame,
+                                }))
+                            })();
+                            match result {
+                                Ok(ticket) => {
+                                    if reply.send(Ok(ticket)).is_err() && in_flight.is_some() {
+                                        // Delivery raced caller cancellation. Stop; startup recovery
+                                        // marks Writing uncertain and never replays the frame.
+                                        failed = true;
+                                        let _ = arbiter.storage_failed();
+                                    }
+                                }
+                                Err(_) => {
+                                    failed = true;
+                                    let _ = arbiter.storage_failed();
+                                    let _ =
+                                        reply.send(Err(WriteStatus::ServiceCommunicationFailure));
+                                }
+                            }
+                        }
+                        Message::Finished(id, complete, reply) => {
+                            let result = if failed || in_flight != Some(id) {
+                                Err(WriteStatus::ServiceCommunicationFailure)
+                            } else {
+                                let audit = if complete {
+                                    store.transition_command(&worker_boot, id, Status::Writing,
+                                        Status::Written, millis(clock))
+                                } else {
+                                    store.fail_transport(&worker_boot, millis(clock))
+                                };
+                                if audit.is_err()
+                                    || arbiter.finish_write(id, complete).is_err()
+                                {
+                                    failed = true;
+                                    let _ = arbiter.storage_failed();
+                                    Err(WriteStatus::ServiceCommunicationFailure)
+                                } else {
+                                    in_flight = None;
+                                    write_deadline = None;
+                                    if !complete {
+                                        principals.clear();
+                                        failed = true;
+                                        let _ = arbiter.storage_failed();
+                                    }
+                                    Ok(())
+                                }
+                            };
+                            let _ = reply.send(result);
+                        }
+                        Message::Generation(reply) => {
+                            let result = if failed || !arbiter.policy().gateway_ready || arbiter.policy().publishing {
+                                Err(WriteStatus::ServiceCommunicationFailure)
+                            } else {
+                                Ok(TaskGeneration { boot: worker_boot.clone(), epochs: arbiter.policy().epochs })
+                            };
+                            generation_updates.send_replace(result.as_ref().ok().cloned());
+                            let _ = reply.send(result);
+                        }
+                        Message::Submit(submission, generation, deadline, reply) => {
                             if reply.is_closed() {
                                 continue;
                             }
                             let result = (|| {
-                                if failed || millis(clock) >= deadline {
+                                if failed || millis(clock) >= deadline || generation.as_ref().is_some_and(|scope| match scope {
+                                    SubmissionScope::Generation(g) => g.boot != worker_boot || g.epochs != arbiter.policy().epochs,
+                                    SubmissionScope::Configuration(revision) => *revision != configuration.revision(),
+                                }) {
                                     return Err(WriteStatus::ServiceCommunicationFailure);
                                 }
+                                let mut restore_intents = Vec::new();
+                                let (batch, compiled) = match submission {
+                                    Submission::Lights(mut batch) => {
+                                        if !authorize(batch.controller) { return Err(WriteStatus::InsufficientPrivileges); }
+                                        restore_intents = batch.intents.iter().map(|i| (i.device.clone(), i.command)).collect();
+                                        let mut expanded = Vec::new();
+                                        let mut seen = std::collections::BTreeSet::new();
+                                        for intent in batch.intents {
+                                            if !seen.insert(intent.device.clone()) || configuration.devices().values().any(|d| d.enabled && d.supply_relay.as_ref() == Some(&intent.device)) {
+                                                return Err(WriteStatus::InvalidValueInRequest);
+                                            }
+                                            let (device, module) = configuration.binding(&intent.device).ok_or(WriteStatus::ResourceDoesNotExist)?;
+                                            if let Some(relay) = &device.supply_relay {
+                                                // HAP normalization must resolve restoration before admission.
+                                                if matches!(intent.command, homesense_core::Command::Switch(true)) {
+                                                    return Err(WriteStatus::InvalidValueInRequest);
+                                                }
+                                                for (output, command) in crate::combined_light::plan(intent.command, None, device.default_on_level).map_err(|_| WriteStatus::InvalidValueInRequest)? {
+                                                    expanded.push(homesense_hap::requests::Intent { device: match output {
+                                                        crate::combined_light::Output::Relay => relay.clone(),
+                                                        crate::combined_light::Output::Dimmer => intent.device.clone(),
+                                                    }, command });
+                                                }
+                                            } else {
+                                                expanded.push(homesense_hap::requests::Intent { device: intent.device, command: crate::light_command::plan(module, intent.command).map_err(|_| WriteStatus::InvalidValueInRequest)? });
+                                            }
+                                        }
+                                        batch.intents = expanded;
+                                        (batch, true)
+                                    },
+                                    Submission::PanelLed { controller, device, active } => (
+                                        Batch { controller, intents: vec![homesense_hap::requests::Intent {
+                                            device, command: homesense_core::Command::PanelLed(active)
+                                        }], subscriptions: vec![] }, true),
+                                    Submission::Motor { controller, device, action } => {
+                                        if !authorize(controller) { return Err(WriteStatus::InsufficientPrivileges); }
+                                        let command = configuration.motor_command(&device, action)
+                                            .map_err(|_| WriteStatus::InvalidValueInRequest)?;
+                                        (Batch { controller, intents: vec![homesense_hap::requests::Intent { device, command }], subscriptions: vec![] }, true)
+                                    }
+                                };
                                 if !authorize(batch.controller) {
                                     return Err(WriteStatus::InsufficientPrivileges);
                                 }
@@ -164,23 +618,17 @@ impl Admission {
                                     .ok_or(WriteStatus::ServiceCommunicationFailure)?;
                                 let mut commands = Vec::new();
                                 for (offset, intent) in batch.intents.into_iter().enumerate() {
-                                    if !matches!(
-                                        intent.command,
-                                        Command::Switch(_)
-                                            | Command::SetLevel {
-                                                transition: LevelTransition::Immediate,
-                                                ..
-                                            }
-                                    ) {
-                                        return Err(WriteStatus::InvalidValueInRequest);
-                                    }
                                     let (device, module) = configuration
                                         .binding(&intent.device)
                                         .ok_or(WriteStatus::ResourceDoesNotExist)?;
+                                    let command = if compiled { intent.command } else {
+                                        crate::light_command::plan(module, intent.command)
+                                            .map_err(|_| WriteStatus::InvalidValueInRequest)?
+                                    };
                                     hb_protocol::encode_in_context(
                                         module,
                                         device.channel,
-                                        intent.command,
+                                        command,
                                         options.context,
                                     )
                                     .map_err(|_| WriteStatus::InvalidValueInRequest)?;
@@ -188,7 +636,7 @@ impl Admission {
                                         QueuedCommand {
                                             id: next_id + offset as u64,
                                             device_id: intent.device,
-                                            command: intent.command,
+                                            command,
                                             origin: Origin::Hap,
                                             epochs: arbiter.policy().epochs,
                                             deadline_ms: deadline,
@@ -219,7 +667,16 @@ impl Admission {
                                     },
                                 );
                                 match result {
-                                    Ok(_) => {
+                                    Ok(cancelled) => {
+                                        for (device, command) in restore_intents {
+                                            restore_policy.accepted(device, command, now);
+                                        }
+                                        for id in next_id..end {
+                                            principals.insert(id, batch.controller);
+                                        }
+                                        for cancellation in cancelled {
+                                            principals.remove(&cancellation.command.id);
+                                        }
                                         let ids = (next_id..end).collect();
                                         next_id = end;
                                         Ok(ids)
@@ -241,6 +698,7 @@ impl Admission {
                         }
                     }
                 }
+                generation_updates.send_replace(None);
                 drop(store);
                 drop(lease);
                 if let Some(reply) = stopped {
@@ -254,12 +712,196 @@ impl Admission {
             boot,
             clock,
             ttl: options.request_ttl,
+            stop_requested,
+            generations,
         })
+    }
+    /// Trusted runtime coordinator only: validate then enter the publication barrier.
+    /// The caller must drain STOP via the transport owner, commit, rebuild projections
+    /// and synchronize the new mapping before reopening control. Not a HAP endpoint.
+    pub async fn begin_publication(
+        &self,
+        document: Vec<u8>,
+        expected: u64,
+        timeout: Duration,
+    ) -> Result<(), WriteStatus> {
+        if timeout.is_zero()
+            || timeout > Duration::from_secs(30)
+            || document.len() > 4 * 1024 * 1024
+        {
+            return Err(WriteStatus::InvalidValueInRequest);
+        }
+        let deadline = millis(self.clock)
+            .checked_add(timeout.as_millis() as u64)
+            .ok_or(WriteStatus::InvalidValueInRequest)?;
+        let (reply, receive) = oneshot::channel();
+        self.sender
+            .try_send(Message::BeginPublication(
+                document, expected, deadline, reply,
+            ))
+            .map_err(|_| WriteStatus::ResourceBusy)?;
+        receive
+            .await
+            .map_err(|_| WriteStatus::ServiceCommunicationFailure)?
+    }
+    pub async fn commit_publication(&self) -> Result<u64, WriteStatus> {
+        let (reply, receive) = oneshot::channel();
+        self.sender
+            .try_send(Message::CommitPublication(reply))
+            .map_err(|_| WriteStatus::ResourceBusy)?;
+        receive
+            .await
+            .map_err(|_| WriteStatus::ServiceCommunicationFailure)?
+    }
+    /// Before commit only; never revives cancelled work or old task generations.
+    pub async fn abort_publication(&self) -> Result<(), WriteStatus> {
+        let (reply, receive) = oneshot::channel();
+        self.sender
+            .try_send(Message::AbortPublication(reply))
+            .map_err(|_| WriteStatus::ResourceBusy)?;
+        receive
+            .await
+            .map_err(|_| WriteStatus::ServiceCommunicationFailure)?
+    }
+    /// Only the feedback owner supplies snapshots; never call with desired state.
+    pub async fn remember_levels(
+        &self,
+        revision: u64,
+        snapshot: homesense_state::Snapshot,
+        max_age: u64,
+    ) -> Result<RestoreLevels, WriteStatus> {
+        let (reply, receive) = oneshot::channel();
+        self.sender
+            .try_send(Message::Remember(revision, snapshot, max_age, reply))
+            .map_err(|_| WriteStatus::ResourceBusy)?;
+        receive
+            .await
+            .map_err(|_| WriteStatus::ServiceCommunicationFailure)?
+    }
+    /// Called by the sole transport owner. No socket is opened here.
+    pub async fn dispatch(&self) -> Result<Option<DispatchTicket>, WriteStatus> {
+        let (reply, receive) = oneshot::channel();
+        self.sender
+            .try_send(Message::Dispatch(reply))
+            .map_err(|_| WriteStatus::ResourceBusy)?;
+        receive
+            .await
+            .map_err(|_| WriteStatus::ServiceCommunicationFailure)?
+    }
+    /// Full local write is Written, never Observed. Any incomplete result is uncertain.
+    pub async fn finish_write(&self, id: u64, complete: bool) -> Result<(), WriteStatus> {
+        let (reply, receive) = oneshot::channel();
+        self.sender
+            .try_send(Message::Finished(id, complete, reply))
+            .map_err(|_| WriteStatus::ResourceBusy)?;
+        receive
+            .await
+            .map_err(|_| WriteStatus::ServiceCommunicationFailure)?
+    }
+    pub async fn transport_failed(&self) -> Result<(), WriteStatus> {
+        let (reply, receive) = oneshot::channel();
+        self.sender
+            .try_send(Message::TransportFailed(reply))
+            .map_err(|_| WriteStatus::ResourceBusy)?;
+        receive
+            .await
+            .map_err(|_| WriteStatus::ServiceCommunicationFailure)?
+    }
+    pub(crate) fn stop_now(&self) {
+        self.stop_requested.store(true, Ordering::Release);
+        // An idle worker may be blocked in recv. Full means queued work already
+        // wakes it; disconnected means it has stopped. Neither needs a retry.
+        let _ = self.sender.try_send(Message::Wake);
+    }
+    pub(crate) fn monotonic_ms(&self) -> u64 {
+        millis(self.clock)
     }
     pub fn boot_id(&self) -> &str {
         &self.boot
     }
     pub async fn submit(&self, batch: Batch) -> Result<Vec<u64>, WriteStatus> {
+        self.submit_request(Submission::Lights(batch)).await
+    }
+    /// Trusted authenticated adapter entry. Resolve logical direction from the
+    /// persisted per-channel calibration on the admission worker, never from a
+    /// client-supplied electrical direction. This does not publish HAP accessories.
+    pub async fn submit_motor(
+        &self,
+        controller: Uuid,
+        device: homesense_core::DeviceId,
+        action: homesense_core::MotorAction,
+    ) -> Result<Vec<u64>, WriteStatus> {
+        self.submit_request(Submission::Motor {
+            controller,
+            device,
+            action,
+        })
+        .await
+    }
+    /// Manual LED control only; encoding checks the persisted panel profile,
+    /// verification and Manual LED mode before any command is accepted.
+    pub async fn submit_panel_led(
+        &self,
+        controller: Uuid,
+        device: homesense_core::DeviceId,
+        active: bool,
+    ) -> Result<Vec<u64>, WriteStatus> {
+        self.submit_request(Submission::PanelLed {
+            controller,
+            device,
+            active,
+        })
+        .await
+    }
+    pub(crate) fn generation_updates(
+        &self,
+    ) -> tokio::sync::watch::Receiver<Option<TaskGeneration>> {
+        self.generations.clone()
+    }
+    /// Capture before starting a timer or other delayed producer. This is not
+    /// authorization; controller permissions are still checked on submission.
+    pub async fn task_generation(&self) -> Result<TaskGeneration, WriteStatus> {
+        let (reply, receive) = oneshot::channel();
+        self.sender
+            .try_send(Message::Generation(reply))
+            .map_err(|_| WriteStatus::ResourceBusy)?;
+        receive
+            .await
+            .map_err(|_| WriteStatus::ServiceCommunicationFailure)?
+    }
+    /// Delayed producers must retain the original generation across awaits.
+    pub async fn submit_delayed(
+        &self,
+        generation: TaskGeneration,
+        batch: Batch,
+    ) -> Result<Vec<u64>, WriteStatus> {
+        self.submit_scoped(
+            Submission::Lights(batch),
+            Some(SubmissionScope::Generation(generation)),
+        )
+        .await
+    }
+    /// Bind a graph's interpretation to its immutable configuration revision.
+    /// Reconnection preserves this binding; publication invalidates the old graph.
+    pub async fn submit_for_revision(
+        &self,
+        revision: u64,
+        batch: Batch,
+    ) -> Result<Vec<u64>, WriteStatus> {
+        self.submit_scoped(
+            Submission::Lights(batch),
+            Some(SubmissionScope::Configuration(revision)),
+        )
+        .await
+    }
+    async fn submit_request(&self, submission: Submission) -> Result<Vec<u64>, WriteStatus> {
+        self.submit_scoped(submission, None).await
+    }
+    async fn submit_scoped(
+        &self,
+        submission: Submission,
+        generation: Option<SubmissionScope>,
+    ) -> Result<Vec<u64>, WriteStatus> {
         let deadline = millis(self.clock)
             .checked_add(
                 u64::try_from(self.ttl.as_millis())
@@ -268,7 +910,7 @@ impl Admission {
             .ok_or(WriteStatus::ServiceCommunicationFailure)?;
         let (reply, receive) = oneshot::channel();
         self.sender
-            .try_send(Message::Submit(batch, deadline, reply))
+            .try_send(Message::Submit(submission, generation, deadline, reply))
             .map_err(|_| WriteStatus::ResourceBusy)?;
         receive
             .await
@@ -285,6 +927,18 @@ impl Admission {
             .await
             .map_err(|_| WriteStatus::ServiceCommunicationFailure)
     }
+    /// Trusted transport supervisor only: all replacement streams must be bounded,
+    /// share this fresh epoch, and have completed queries for the active mapping.
+    /// Cancelled owners are terminal and cannot use this to reset stop_now.
+    pub async fn recover_synchronized(&self, epoch: u64, revision: u64) -> Result<(), WriteStatus> {
+        let (reply, receive) = oneshot::channel();
+        self.sender
+            .try_send(Message::Recover(epoch, revision, reply))
+            .map_err(|_| WriteStatus::ResourceBusy)?;
+        receive
+            .await
+            .map_err(|_| WriteStatus::ServiceCommunicationFailure)?
+    }
     pub async fn synchronized(&self, epoch: u64, revision: u64) -> Result<(), WriteStatus> {
         let (reply, receive) = oneshot::channel();
         self.sender
@@ -293,5 +947,51 @@ impl Admission {
         receive
             .await
             .map_err(|_| WriteStatus::ServiceCommunicationFailure)?
+    }
+}
+
+#[cfg(test)]
+mod lifecycle_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn stopping_idle_owner_notifies_generation_subscribers() {
+        let directory =
+            std::env::temp_dir().join(format!("homesense-idle-stop-{}", Uuid::new_v4()));
+        std::fs::create_dir_all(&directory).unwrap();
+        let path = directory.join("runtime.sqlite");
+        let mut store = Store::open(&path).unwrap();
+        store
+            .publish_configuration(
+                None,
+                include_bytes!("../../../config/simulation.json"),
+                ExecutionContext::Simulation,
+                &[],
+            )
+            .unwrap();
+        drop(store);
+        let actor = Admission::open(
+            path,
+            Options {
+                context: ExecutionContext::Simulation,
+                ..Options::default()
+            },
+            |_| true,
+        )
+        .await
+        .unwrap();
+        let generation = actor.task_generation().await.unwrap();
+        let mut updates = actor.generation_updates();
+        actor.stop_now();
+        tokio::time::timeout(
+            Duration::from_secs(1),
+            updates.wait_for(|v| v.as_ref() != Some(&generation)),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        assert!(actor.task_generation().await.is_err());
+        actor.shutdown().await.unwrap();
+        std::fs::remove_dir_all(directory).unwrap();
     }
 }

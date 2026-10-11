@@ -276,7 +276,7 @@ where
 
     /// Publish device feedback without calling control callbacks.
     pub async fn set_observed_value(&mut self, val: T) -> Result<()> {
-        if self.event_notifications == Some(true) {
+        if self.perms.contains(&Perm::Events) {
             if let Some(ref event_emitter) = self.event_emitter {
                 event_emitter
                     .lock()
@@ -292,6 +292,25 @@ where
 
         self.value = val;
 
+        Ok(())
+    }
+
+    /// Notify loss of an observation without changing cached typed values or
+    /// running any command callback. Runtime read callbacks must report failure.
+    pub async fn notify_unavailable(&self) -> Result<()> {
+        if self.perms.contains(&Perm::Events) {
+            if let Some(ref emitter) = self.event_emitter {
+                emitter
+                    .lock()
+                    .await
+                    .emit(&Event::CharacteristicValueChanged {
+                        aid: self.accessory_id,
+                        iid: self.id,
+                        value: serde_json::Value::Null,
+                    })
+                    .await;
+            }
+        }
         Ok(())
     }
 
@@ -585,7 +604,8 @@ pub trait HapCharacteristic:
     async fn get_value(&mut self) -> Result<serde_json::Value>;
     /// Sets the value of the characteristic.
     async fn set_value(&mut self, value: serde_json::Value) -> Result<()>;
-    /// Device feedback path; never submits a control command.
+    /// Device feedback path; never submits a control command. Null emits an
+    /// unavailable notification without changing the cached typed value.
     async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()>;
     /// Returns the [`Unit`](Unit) of the characteristic.
     fn get_unit(&self) -> Option<Unit>;
@@ -836,6 +856,9 @@ where
     }
 
     async fn set_observed_value(&mut self, value: serde_json::Value) -> Result<()> {
+        if value.is_null() {
+            return Characteristic::notify_unavailable(self).await;
+        }
         let value = serde_json::from_value(value)
             .map_err(|_| Error::InvalidValue(Characteristic::get_format(self)))?;
         Characteristic::set_observed_value(self, value).await

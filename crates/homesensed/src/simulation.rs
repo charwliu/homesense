@@ -119,27 +119,16 @@ impl SimulationRuntime {
         let deadline = now.checked_add(1000).ok_or("deadline overflow")?;
         let mut commands = Vec::new();
         for (offset, intent) in batch.intents.into_iter().enumerate() {
-            if !matches!(
-                intent.command,
-                homesense_core::Command::Switch(_)
-                    | homesense_core::Command::SetLevel {
-                        transition: homesense_core::LevelTransition::Immediate,
-                        ..
-                    }
-            ) {
-                return Err(
-                    "simulation HAP admission accepts immediate light commands only".into(),
-                );
-            }
             let (device, module) = self
                 .configuration
                 .binding(&intent.device)
                 .ok_or("unknown or disabled device")?;
+            let command = crate::light_command::plan(module, intent.command)?;
             // All capabilities are checked before queue mutation.
             encode_in_context(
                 module,
                 device.channel,
-                intent.command,
+                command,
                 ExecutionContext::Simulation,
             )
             .map_err(error)?;
@@ -147,7 +136,7 @@ impl SimulationRuntime {
                 QueuedCommand {
                     id: self.next_id + offset as u64,
                     device_id: intent.device,
-                    command: intent.command,
+                    command,
                     origin: Origin::Hap,
                     epochs: self.arbiter.policy().epochs,
                     deadline_ms: deadline,

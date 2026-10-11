@@ -1,0 +1,12 @@
+[package]
+name = "homesense-srp-compat"
+version = "0.1.0"
+edition = "2024"
+[dependencies]
+srp_old = { package = "srp", version = "=0.5.0" }
+srp_new = { package = "srp", version = "=0.6.0" }
+sha_old = { package = "sha2", version = "=0.9.9" }
+sha_new = { package = "sha2", version = "=0.10.9" }
+
+# Standalone offline compatibility probe; not a production dependency.
+[workspace]

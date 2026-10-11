@@ -25,9 +25,40 @@ struct Target {
     binding: LightBinding,
     accessory: AccessoryHandle,
     last: Option<Observation>,
+    last_brightness: Option<homesense_core::Percent>,
+}
+/// Bounded notification suppression for locally accepted dimmer transitions.
+/// Physical observations and authenticated reads remain unchanged.
+#[derive(Clone, Default)]
+pub struct BrightnessTransitions(
+    std::sync::Arc<std::sync::Mutex<BTreeMap<DeviceId, (homesense_core::Percent, u64)>>>,
+);
+impl BrightnessTransitions {
+    pub fn accepted(&self, device: DeviceId, command: homesense_core::Command, now: u64) {
+        let mut pending = self.0.lock().unwrap();
+        pending.remove(&device);
+        if let homesense_core::Command::SetLevel { level, .. } = command {
+            pending.insert(device, (level, now.saturating_add(16_000)));
+        }
+    }
+    fn suppress(&self, device: &DeviceId, value: Option<Observation>, now: u64) -> (bool, bool) {
+        let mut pending = self.0.lock().unwrap();
+        let Some(&(target, deadline)) = pending.get(device) else {
+            return (false, false);
+        };
+        if let Some(Observation::Level(level)) = value {
+            if now < deadline && level != target {
+                return (true, false);
+            }
+        }
+        pending.remove(device);
+        (false, true)
+    }
 }
 pub struct ObservedEvents {
     targets: BTreeMap<DeviceId, Target>,
+    transitions: BrightnessTransitions,
+    restore_levels: Option<crate::observed::RestoreLevels>,
     cursor: Option<Cursor>,
     max_age_ms: u64,
     now: u64,
@@ -74,6 +105,7 @@ impl ObservedEvents {
                         binding,
                         accessory,
                         last: None,
+                        last_brightness: None,
                     },
                 )
                 .is_some()
@@ -83,11 +115,19 @@ impl ObservedEvents {
         }
         Ok(Self {
             targets,
+            transitions: BrightnessTransitions::default(),
+            restore_levels: None,
             cursor: None,
             max_age_ms,
             now: 0,
             resync_required: true,
         })
+    }
+    pub fn set_restore_levels(&mut self, levels: crate::observed::RestoreLevels) {
+        self.restore_levels = Some(levels);
+    }
+    pub fn transitions(&self) -> BrightnessTransitions {
+        self.transitions.clone()
     }
     fn observed(
         state: &DeviceState,
@@ -121,11 +161,12 @@ impl ObservedEvents {
     async fn publish(
         target: &mut Target,
         value: Option<Observation>,
+        force: bool,
+        retained: Option<homesense_core::Percent>,
     ) -> Result<(), ProjectionError> {
-        let Some(value) = value else {
-            target.last = None;
+        if !force && value.is_none() && target.last.is_none() {
             return Ok(());
-        };
+        }
         let power = |v: Observation| match v {
             Observation::Switch(v) => v,
             Observation::Level(v) => v.get() > 0,
@@ -149,7 +190,27 @@ impl ObservedEvents {
         {
             return Err(ProjectionError::InvalidBinding);
         }
-        if target.last.map(power) != Some(power(value)) {
+        let Some(value) = value else {
+            service
+                .get_mut_characteristic(HapType::PowerState)
+                .ok_or(ProjectionError::InvalidBinding)?
+                .set_observed_value(serde_json::Value::Null)
+                .await
+                .map_err(|_| ProjectionError::PublishFailed)?;
+            if target.binding.brightness_iid.is_some() {
+                service
+                    .get_mut_characteristic(HapType::Brightness)
+                    .ok_or(ProjectionError::InvalidBinding)?
+                    .set_observed_value(serde_json::Value::Null)
+                    .await
+                    .map_err(|_| ProjectionError::PublishFailed)?;
+            }
+            target.last = None;
+            target.last_brightness = None;
+            return Ok(());
+        };
+        let power_changed = target.last.map(power) != Some(power(value));
+        if power_changed {
             service
                 .get_mut_characteristic(HapType::PowerState)
                 .ok_or(ProjectionError::InvalidBinding)?
@@ -157,15 +218,28 @@ impl ObservedEvents {
                 .await
                 .map_err(|_| ProjectionError::PublishFailed)?;
         }
-        if target.last != Some(value)
-            && let Observation::Level(level) = value
-        {
-            service
-                .get_mut_characteristic(HapType::Brightness)
-                .ok_or(ProjectionError::InvalidBinding)?
-                .set_observed_value(serde_json::json!(level.get()))
-                .await
-                .map_err(|_| ProjectionError::PublishFailed)?;
+        if let Observation::Level(level) = value {
+            let level = if level.get() == 0 {
+                retained.unwrap_or(level)
+            } else {
+                level
+            };
+            // Reassert the retained setting on an On transition, even if unchanged.
+            // Home may have optimistically set Brightness=0 as part of turning off.
+            if force || power_changed || target.last_brightness != Some(level) {
+                log::debug!(
+                    "hap_brightness_event device={:?} observed={}",
+                    target.binding.device,
+                    level.get()
+                );
+                service
+                    .get_mut_characteristic(HapType::Brightness)
+                    .ok_or(ProjectionError::InvalidBinding)?
+                    .set_observed_value(serde_json::json!(level.get()))
+                    .await
+                    .map_err(|_| ProjectionError::PublishFailed)?;
+            }
+            target.last_brightness = Some(level);
         }
         target.last = Some(value);
         Ok(())
@@ -174,6 +248,23 @@ impl ObservedEvents {
         &mut self,
         snapshot: &Snapshot,
         now: u64,
+    ) -> Result<(), ProjectionError> {
+        self.publish_snapshot(snapshot, now, true).await
+    }
+    /// Normal full-snapshot projection without replaying unchanged values.
+    pub async fn refresh_snapshot(
+        &mut self,
+        snapshot: &Snapshot,
+        now: u64,
+    ) -> Result<(), ProjectionError> {
+        self.publish_snapshot(snapshot, now, self.resync_required)
+            .await
+    }
+    async fn publish_snapshot(
+        &mut self,
+        snapshot: &Snapshot,
+        now: u64,
+        force: bool,
     ) -> Result<(), ProjectionError> {
         if snapshot.cursor.boot_id == 0 || snapshot.state_version != snapshot.cursor.sequence {
             return Err(ProjectionError::InvalidState);
@@ -203,8 +294,24 @@ impl ObservedEvents {
         self.resync_required = true;
         for (id, value) in values {
             let target = self.targets.get_mut(&id).unwrap();
-            target.last = None;
-            Self::publish(target, value).await?;
+            if force && value.is_some() {
+                target.last = None;
+            }
+            let (suppressed, completed) = self.transitions.suppress(&id, value, now);
+            if completed && value.is_some() {
+                target.last = None;
+            }
+            if !suppressed {
+                Self::publish(
+                    target,
+                    value,
+                    completed,
+                    self.restore_levels
+                        .as_ref()
+                        .and_then(|levels| levels.read().ok()?.get(&id).copied()),
+                )
+                .await?;
+            }
         }
         self.cursor = Some(snapshot.cursor);
         self.now = now;
@@ -237,7 +344,22 @@ impl ObservedEvents {
                 now,
                 self.max_age_ms,
             )?;
-            Self::publish(target, observed).await?;
+            let (suppressed, completed) =
+                self.transitions.suppress(&event.device_id, observed, now);
+            if completed && observed.is_some() {
+                target.last = None;
+            }
+            if !suppressed {
+                Self::publish(
+                    target,
+                    observed,
+                    completed,
+                    self.restore_levels
+                        .as_ref()
+                        .and_then(|levels| levels.read().ok()?.get(&event.device_id).copied()),
+                )
+                .await?;
+            }
         }
         self.cursor = Some(event.cursor);
         self.now = now;

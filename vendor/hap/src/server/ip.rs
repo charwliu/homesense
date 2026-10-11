@@ -38,6 +38,92 @@ impl IpServer {
             .set_write_batch_handler(handler);
     }
 
+    /// Register an existing shared graph during startup. On any failure discard
+    /// this server instance; live graph publication needs a separate transaction.
+    pub async fn add_accessory_handle(&self, accessory: pointer::Accessory) -> Result<()> {
+        let aid = accessory.lock().await.get_id();
+        self.accessory_database
+            .lock()
+            .await
+            .add_accessory_handle(accessory)
+            .await?;
+        let mut aid_cache = self.aid_cache.lock().await;
+        if !aid_cache.contains(&aid) {
+            let mut next_aids = aid_cache.clone();
+            next_aids.push(aid);
+            let mut config = self.config.lock().await;
+            let mut next: Config = serde_json::from_slice(&serde_json::to_vec(&*config)?)?;
+            next.configuration_number = config
+                .configuration_number
+                .checked_add(1)
+                .ok_or(crate::Error::Storage)?;
+            self.storage
+                .lock()
+                .await
+                .save_graph_state(config.configuration_number, &next, &next_aids)
+                .await?;
+            *config = next;
+            *aid_cache = next_aids;
+        }
+        Ok(())
+    }
+
+    /// Install a complete graph into an empty, not-yet-serving server.
+    /// Persist the complete AID set once; publish handles only after commit.
+    pub async fn install_startup_graph(
+        &self,
+        accessories: Vec<pointer::Accessory>,
+        handler: Arc<dyn super::WriteBatchHandler>,
+    ) -> Result<()> {
+        let aids = AccessoryDatabase::startup_aids(&accessories).await?;
+        let mut db = self.accessory_database.lock().await;
+        if !db.accessories.is_empty() {
+            return Err(crate::Error::DuplicateAccessory);
+        }
+        let mut guards = Vec::new();
+        for accessory in &accessories {
+            guards.push(accessory.lock().await);
+        }
+        // Recheck IDs while holding all graph locks across persistence.
+        let mut locked_aids: Vec<_> = guards.iter().map(|a| a.get_id()).collect();
+        locked_aids.sort_unstable();
+        if locked_aids != aids {
+            return Err(crate::Error::Storage);
+        }
+        let manifest = AccessoryDatabase::graph_manifest(
+            guards
+                .iter()
+                .map(|a| serde_json::to_value(&**a))
+                .collect::<std::result::Result<Vec<_>, _>>()?,
+        )?;
+        let mut cache = self.aid_cache.lock().await;
+        let mut old = cache.clone();
+        old.sort_unstable();
+        let prior = self.storage.lock().await.load_graph_manifest().await?;
+        if old != aids || prior.as_deref() != Some(manifest.as_slice()) {
+            let mut config = self.config.lock().await;
+            let mut next: Config = serde_json::from_slice(&serde_json::to_vec(&*config)?)?;
+            next.configuration_number = config
+                .configuration_number
+                .checked_add(1)
+                .ok_or(crate::Error::Storage)?;
+            self.storage
+                .lock()
+                .await
+                .save_graph_manifest(config.configuration_number, &next, &aids, &manifest)
+                .await?;
+            *config = next;
+            *cache = aids;
+        }
+        for accessory in &mut guards {
+            accessory.set_event_emitter_on_characteristics(Some(db.event_emitter()));
+        }
+        drop(guards);
+        db.accessories = accessories;
+        db.set_write_batch_handler(handler);
+        Ok(())
+    }
+
     /// Creates a new [`IpServer`](IpServer).
     ///
     /// # Examples
@@ -97,6 +183,23 @@ impl IpServer {
         config: Config,
         storage: S,
     ) -> Result<Self> {
+        Self::new_with_advertising(config, storage, true).await
+    }
+    /// Local integration tests only: no mDNS sockets or advertisements.
+    pub async fn new_loopback<S: Storage + Send + Sync + 'static>(
+        config: Config,
+        storage: S,
+    ) -> Result<Self> {
+        if !config.host.is_loopback() {
+            return Err(crate::Error::Storage);
+        }
+        Self::new_with_advertising(config, storage, false).await
+    }
+    async fn new_with_advertising<S: Storage + Send + Sync + 'static>(
+        config: Config,
+        storage: S,
+        advertise: bool,
+    ) -> Result<Self> {
         let config = Arc::new(Mutex::new(config));
         let storage: pointer::Storage = Arc::new(Mutex::new(Box::new(storage)));
 
@@ -122,7 +225,11 @@ impl IpServer {
         }
         drop(s);
 
-        let mdns_responder = Arc::new(Mutex::new(MdnsResponder::new(config.clone()).await));
+        let mdns_responder = Arc::new(Mutex::new(if advertise {
+            MdnsResponder::new(config.clone()).await?
+        } else {
+            MdnsResponder::disabled(config.clone())
+        }));
         let mdns_responder_ = mdns_responder.clone();
 
         event_emitter.add_listener(Box::new(move |event| {
@@ -152,7 +259,7 @@ impl IpServer {
 
                                 drop(c);
 
-                                mdns_responder_.lock().await.update_records().await;
+                                if let Err(error) = mdns_responder_.lock().await.update_records().await { log::error!("mDNS update: {error}"); }
                             }
                         }
                     },
@@ -178,7 +285,7 @@ impl IpServer {
 
                                 drop(c);
 
-                                mdns_responder_.lock().await.update_records().await;
+                                if let Err(error) = mdns_responder_.lock().await.update_records().await { log::error!("mDNS update: {error}"); }
                             }
                         }
                     },
@@ -201,15 +308,7 @@ impl IpServer {
         );
 
         let mut storage_lock = storage.lock().await;
-        let aid_cache = Arc::new(Mutex::new(match storage_lock.load_aid_cache().await {
-            Ok(aid_cache) => aid_cache,
-            Err(_) => {
-                storage_lock.delete_aid_cache().await.ok();
-                let aid_cache = Vec::new();
-                storage_lock.save_aid_cache(&aid_cache).await?;
-                aid_cache
-            }
-        }));
+        let aid_cache = Arc::new(Mutex::new(storage_lock.initialize_aid_cache().await?));
         drop(storage_lock);
 
         let server = IpServer {
@@ -234,7 +333,7 @@ impl Server for IpServer {
         let handle = async move {
             let mdns_handle = mdns_responder.lock().await.run_handle();
 
-            futures::try_join!(http_handle, mdns_handle.map(|_| Ok(())))?;
+            futures::try_join!(http_handle, mdns_handle)?;
 
             Ok(())
         }

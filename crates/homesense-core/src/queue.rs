@@ -139,14 +139,16 @@ impl CommandQueue {
             return Err(QueueError::StaleEpoch);
         }
         let stop = request.is_stop();
-        // Coalesce only the last action for a device, never across STOP/query/ramp barriers.
+        // Coalesce only adjacent actions. Crossing another device can remove a
+        // prerequisite, e.g. dimmer preparation before a supply relay activation.
         let replace = self
             .commands
             .iter()
             .rposition(|old| old.device_id == request.device_id)
             .filter(|&i| {
                 let old = &self.commands[i];
-                request.is_immediate_level()
+                i + 1 == self.commands.len()
+                    && request.is_immediate_level()
                     && old.is_immediate_level()
                     && old.origin == request.origin
                     && old.run_id == request.run_id

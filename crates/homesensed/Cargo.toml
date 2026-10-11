@@ -14,11 +14,21 @@ uuid.workspace = true
 hap.workspace = true
 tokio.workspace = true
 hb-protocol.workspace = true
+hb-transport.workspace = true
 homesense-state.workspace = true
 homesense-simulator.workspace = true
+
+env_logger = "=0.11.10"
+log = "=0.4.34"
 
 [lints]
 workspace = true
 
 [dev-dependencies]
 rusqlite.workspace = true
+chacha20poly1305 = "=0.11.0"
+ed25519-dalek = "=3.0.0"
+hkdf = "=0.13.0"
+rand = "=0.10.3"
+sha2 = "=0.11.0"
+x25519-dalek = "=3.0.0"

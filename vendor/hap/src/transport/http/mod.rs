@@ -1,6 +1,7 @@
+use crate::transport::http::body::Body;
 use hyper::{
     header::{CONTENT_LENGTH, CONTENT_TYPE},
-    Body, Response, StatusCode,
+    Response, StatusCode,
 };
 use serde::{Deserialize, Serialize};
 
@@ -10,6 +11,7 @@ use crate::{
 };
 
 mod handler;
+mod body;
 
 pub(crate) mod server;
 
@@ -122,7 +124,7 @@ pub fn event_response(event_objects: Vec<EventObject>) -> Result<Vec<u8>> {
         characteristics: event_objects,
     })?;
     let response = format!(
-        "EVENT/1.0 200 OK\nContent-Type: {}\nContent-Length: {}\n\n{}",
+        "EVENT/1.0 200 OK\r\nContent-Type: {}\r\nContent-Length: {}\r\n\r\n{}",
         ContentType::HapJson.to_string(),
         body.len(),
         body,

@@ -41,7 +41,7 @@ async fn identity_pairing_and_aids_survive_reopen() {
     store.save_config(&config).await.unwrap();
     config.name = "HomeSense renamed".into();
     store.save_config(&config).await.unwrap();
-    let pairing = Pairing::new(Uuid::new_v4(), Permissions::Admin, [7; 32]);
+    let pairing = Pairing::from_identifier("BC158B86-CABF-432D-AEE4-422EF0E3F1D5", Permissions::Admin, [7; 32]).unwrap();
     store.save_pairing(&pairing).await.unwrap();
     store.save_aid_cache(&[1, 2, 5]).await.unwrap();
     drop(store);
@@ -333,4 +333,188 @@ async fn authorized_updates_preserve_keys_and_demoting_last_admin_revokes_all() 
     assert_eq!(revoked.len(), 2);
     assert!(revoked.contains(&admin.id) && revoked.contains(&user.id));
     assert_eq!(store.count_pairings().await.unwrap(), 0);
+}
+
+#[tokio::test]
+async fn graph_cache_and_configuration_number_commit_together_or_roll_back() {
+    let root = Root::new();
+    let mut store = IdentityStore::open(root.identity()).await.unwrap();
+    let config = Config::default();
+    store.save_config(&config).await.unwrap();
+    store.save_aid_cache(&[1]).await.unwrap();
+    let mut next: Config =
+        hap::serde_json::from_slice(&hap::serde_json::to_vec(&config).unwrap()).unwrap();
+    next.configuration_number += 1;
+    let db = rusqlite::Connection::open(root.identity().join("identity.sqlite")).unwrap();
+    db.execute_batch("CREATE TRIGGER fail_aids BEFORE UPDATE ON entries WHEN NEW.key='aids' BEGIN SELECT RAISE(ABORT,'injected'); END;").unwrap();
+    assert!(
+        store
+            .save_graph_state(config.configuration_number, &next, &[1, 2])
+            .await
+            .is_err()
+    );
+    assert_eq!(
+        store.load_config().await.unwrap().configuration_number,
+        config.configuration_number
+    );
+    assert_eq!(store.load_aid_cache().await.unwrap(), vec![1]);
+    db.execute_batch("DROP TRIGGER fail_aids;").unwrap();
+    store
+        .save_graph_state(config.configuration_number, &next, &[1, 2])
+        .await
+        .unwrap();
+    assert!(
+        store
+            .save_graph_state(config.configuration_number, &next, &[1, 3])
+            .await
+            .is_err()
+    );
+    drop(store);
+    let store = IdentityStore::open(root.identity()).await.unwrap();
+    assert_eq!(
+        store.load_config().await.unwrap().configuration_number,
+        next.configuration_number
+    );
+    assert_eq!(store.load_aid_cache().await.unwrap(), vec![1, 2]);
+}
+
+#[tokio::test]
+async fn manifest_failure_rolls_back_aids_and_number() {
+    let root = Root::new();
+    let mut store = IdentityStore::open(root.identity()).await.unwrap();
+    let mut config = Config::default();
+    store.save_config(&config).await.unwrap();
+    store.save_aid_cache(&[1]).await.unwrap();
+    let expected = config.configuration_number;
+    config.configuration_number += 1;
+    let db = rusqlite::Connection::open(root.identity().join("identity.sqlite")).unwrap();
+    db.execute_batch("CREATE TRIGGER fail_manifest BEFORE INSERT ON entries WHEN NEW.key='graph_manifest' BEGIN SELECT RAISE(ABORT,'injected'); END;").unwrap();
+    assert!(
+        store
+            .save_graph_manifest(expected, &config, &[1, 2], b"schema-v1")
+            .await
+            .is_err()
+    );
+    assert_eq!(
+        store.load_config().await.unwrap().configuration_number,
+        expected
+    );
+    assert_eq!(store.load_aid_cache().await.unwrap(), vec![1]);
+    assert!(store.load_graph_manifest().await.unwrap().is_none());
+    db.execute_batch("DROP TRIGGER fail_manifest;").unwrap();
+    store
+        .save_graph_manifest(expected, &config, &[1, 2], b"schema-v1")
+        .await
+        .unwrap();
+    drop(store);
+    let store = IdentityStore::open(root.identity()).await.unwrap();
+    assert_eq!(
+        store.load_graph_manifest().await.unwrap().unwrap(),
+        b"schema-v1"
+    );
+    assert_eq!(
+        store.load_config().await.unwrap().configuration_number,
+        expected + 1
+    );
+}
+
+#[tokio::test]
+async fn aid_initialization_never_repairs_corrupt_or_previously_initialized_cache() {
+    let root = Root::new();
+    let mut store = IdentityStore::open(root.identity()).await.unwrap();
+    store.save_config(&Config::default()).await.unwrap();
+    assert!(store.initialize_aid_cache().await.unwrap().is_empty());
+    let db = rusqlite::Connection::open(root.identity().join("identity.sqlite")).unwrap();
+    db.execute("UPDATE entries SET value=X'FF' WHERE key='aids'", [])
+        .unwrap();
+    assert!(store.initialize_aid_cache().await.is_err());
+    let bytes: Vec<u8> = db
+        .query_row("SELECT value FROM entries WHERE key='aids'", [], |r| {
+            r.get(0)
+        })
+        .unwrap();
+    assert_eq!(bytes, vec![255]);
+    db.execute("DELETE FROM entries WHERE key='aids'", [])
+        .unwrap();
+    assert!(store.initialize_aid_cache().await.is_err());
+}
+
+#[tokio::test]
+async fn loopback_server_installs_whole_graph_and_preserves_number_on_restart() {
+    use hap::{
+        accessory::{AccessoryInformation, lightbulb::LightbulbAccessory},
+        server::{AccessoryHandle, IpServer, Server, WriteBatchHandler, WriteStatus},
+    };
+    use std::sync::Arc;
+    struct Reject;
+    impl WriteBatchHandler for Reject {
+        fn write(&self, _: Uuid, _: &[u8]) -> Result<(), WriteStatus> {
+            Err(WriteStatus::InsufficientPrivileges)
+        }
+    }
+    let root = Root::new();
+    let mut store = IdentityStore::open(root.identity()).await.unwrap();
+    let config = Config {
+        host: "127.0.0.1".parse().unwrap(),
+        ..Default::default()
+    };
+    let initial = config.configuration_number;
+    store.save_config(&config).await.unwrap();
+    for (name, increment) in [("Study", 1), ("Study", 1), ("Renamed", 2)] {
+        let config = store.load_config().await.unwrap();
+        let server = IpServer::new_loopback(config, store.clone()).await.unwrap();
+        let handle: AccessoryHandle = Arc::new(hap::futures::lock::Mutex::new(Box::new(
+            LightbulbAccessory::new(
+                1,
+                AccessoryInformation {
+                    name: name.into(),
+                    ..Default::default()
+                },
+            )
+            .unwrap(),
+        )));
+        server
+            .install_startup_graph(vec![handle.clone()], Arc::new(Reject))
+            .await
+            .unwrap();
+        assert_eq!(
+            server.config_pointer().lock().await.configuration_number,
+            initial + increment
+        );
+        assert_eq!(
+            store.load_config().await.unwrap().configuration_number,
+            initial + increment
+        );
+        assert_eq!(store.load_aid_cache().await.unwrap(), vec![1]);
+        assert!(store.load_graph_manifest().await.unwrap().is_some());
+        assert!(
+            server
+                .install_startup_graph(vec![handle], Arc::new(Reject))
+                .await
+                .is_err()
+        );
+        drop(server);
+    }
+}
+
+#[tokio::test]
+async fn admission_authorization_reads_current_pairing_and_rejects_corrupt_identity() {
+    let root = Root::new();
+    let mut store = IdentityStore::open(root.identity()).await.unwrap();
+    let id = Uuid::new_v4();
+    assert!(!store.controller_is_paired(id).unwrap());
+    store
+        .save_pairing(&Pairing::new(id, Permissions::Admin, [7; 32]))
+        .await
+        .unwrap();
+    assert!(store.controller_is_paired(id).unwrap());
+    store.delete_pairing(&id).await.unwrap();
+    assert!(!store.controller_is_paired(id).unwrap());
+    let db = rusqlite::Connection::open(root.identity().join("identity.sqlite")).unwrap();
+    db.execute(
+        "INSERT INTO entries(key,value) VALUES (?1,?2)",
+        rusqlite::params![format!("pair:{id}"), b"corrupt".as_slice()],
+    )
+    .unwrap();
+    assert!(store.controller_is_paired(id).is_err());
 }

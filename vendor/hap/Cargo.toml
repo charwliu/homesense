@@ -22,30 +22,35 @@ exclude = [
 ]
 
 [dependencies]
-aead = "0.4"
-async-trait = "0.1"
-byteorder = "1.3"
-bytes = "1.0"
-chacha20poly1305 = "0.8"
-ed25519-dalek = { version = "=2.2.0", features = ["std", "serde", "rand_core"] }
-curve25519-dalek = "=4.1.3"
-erased-serde = "0.3"
+aead = "=0.6.1"
+async-trait = "=0.1.92"
+byteorder = "=1.5.0"
+bytes = "=1.12.1"
+chacha20poly1305 = "=0.11.0"
+ed25519-dalek = { version = "=3.0.0", features = ["serde", "rand_core"] }
+curve25519-dalek = "=5.0.0"
+erased-serde = "=0.4.10"
 macaddr = { version = "1.0.1", features = ["serde"] }
-futures = "0.3"
-get_if_addrs = { package = "if-addrs", version = "0.6" }
-hkdf = "0.11"
-hyper = { version = "0.14", features = ["server", "http1"] }
-libmdns = "0.6"
-log = "0.4"
-num = "0.2"
-rand = "0.8"
-serde = { version = "1.0", features = ["rc", "derive"] }
-serde_json = "1.0"
-sha2 = "0.9"
-signature = "2.2"
-srp = "0.5"
-thiserror = "1.0"
-tokio = { version = "1.8", features = ["time", "io-util", "sync"] }
-url = "2.1"
-uuid = { version = "0.8", features = ["v4", "serde"] }
-x25519-dalek = "=2.0.1"
+futures = "=0.3.34"
+get_if_addrs = { package = "if-addrs", version = "=0.15.0" }
+hkdf = "=0.13.0"
+hyper = { version = "=1.12.0", features = ["server", "http1"] }
+hyper-util = { version = "=0.1.21", features = ["tokio"] }
+http-body-util = "=0.1.5"
+mdns-sd = "=0.21.5"
+log = "=0.4.34"
+num = "=0.4.3"
+rand = "=0.10.3"
+serde = { version = "=1.0.229", features = ["rc", "derive"] }
+serde_json = "=1.0.151"
+sha2 = "=0.11.0"
+signature = "=3.0.0"
+srp = "=0.6.0"
+thiserror = "=2.0.21"
+tokio = { version = "=1.53.2", features = ["time", "io-util", "sync", "net", "rt-multi-thread", "macros"] }
+url = "=2.5.8"
+uuid = { version = "=1.28.0", features = ["v4", "serde"] }
+x25519-dalek = "=3.0.0"
+
+# SRP 0.6 requires digest 0.10; isolate its hash adapter.
+sha2_srp = { package = "sha2", version = "=0.10.9" }

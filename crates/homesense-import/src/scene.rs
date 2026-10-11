@@ -1,7 +1,6 @@
 //! Preserve disabled lighting scenes before translating timing or tracking rules.
 use roxmltree::Node;
 use serde::Serialize;
-use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 #[derive(Debug, Serialize)]
 pub struct Scene {
@@ -138,9 +137,6 @@ pub(crate) fn parse(node: Node<'_, '_>, owner: &str) -> Result<Scene, String> {
         metadata,
         members,
         unhandled_fields,
-        source_sha256: format!(
-            "{:x}",
-            Sha256::digest(&node.document().input_text().as_bytes()[node.range()])
-        ),
+        source_sha256: super::sha256_hex(&node.document().input_text().as_bytes()[node.range()]),
     })
 }

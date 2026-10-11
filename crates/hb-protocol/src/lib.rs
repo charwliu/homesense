@@ -74,6 +74,13 @@ pub fn encode_in_context(
     {
         return Err(ValidationError::LedModeNotManual.into());
     }
+    // AD8 manual 7.3 documents only immediate off/full-on; arbitrary
+    // percentages are documented under the Bx ramp command in section 7.4.
+    if module.profile() == homesense_core::ProtocolProfile::Ad8Din
+        && matches!(command, Command::SetLevel { level, transition: LevelTransition::Immediate } if !matches!(level.get(), 0 | 100))
+    {
+        return Err(ProtocolError::UnsupportedCommand);
+    }
     let c = channel.get();
     let (command, value) = match (module.kind(), command) {
         (ModuleKind::Switch, Command::Switch(on)) | (ModuleKind::Keypad, Command::PanelLed(on)) => {

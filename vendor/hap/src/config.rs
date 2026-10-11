@@ -1,7 +1,7 @@
 use ed25519_dalek::SigningKey as Ed25519Keypair;
 //use eui48::MacAddress;
 use macaddr::MacAddr6 as MacAddress;
-use rand::{rngs::OsRng, Rng};
+use rand::{RngExt, SeedableRng};
 use serde::{Deserialize, Serialize};
 use std::net::IpAddr;
 
@@ -115,14 +115,14 @@ impl Default for Config {
 
 /// Generates a random MAC address.
 fn generate_random_mac_address() -> MacAddress {
-    let mut csprng = OsRng {};
-    let eui = csprng.gen::<[u8; 6]>();
+    let mut csprng = rand::rngs::StdRng::from_rng(&mut rand::rng());
+    let eui = csprng.random::<[u8; 6]>();
     MacAddress::from(eui)
 }
 
 /// Generates an Ed25519 keypair.
 fn generate_ed25519_keypair() -> Ed25519Keypair {
-    let mut csprng = OsRng {};
+    let mut csprng = rand::rngs::StdRng::from_rng(&mut rand::rng());
     Ed25519Keypair::generate(&mut csprng)
 }
 

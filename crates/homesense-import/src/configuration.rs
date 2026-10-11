@@ -54,6 +54,9 @@ pub fn generate(report: &Report, plan: Plan) -> Result<Draft, String> {
     }
     let mut modules = BTreeMap::new();
     let profiles = [
+        ProtocolProfile::Ad8Din,
+        ProtocolProfile::R8i8DinPro,
+        ProtocolProfile::C4DinPro,
         ProtocolProfile::GtC8Rl,
         ProtocolProfile::GtE4Rl,
         ProtocolProfile::GtD8Rl,

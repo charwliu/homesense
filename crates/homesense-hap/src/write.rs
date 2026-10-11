@@ -77,6 +77,9 @@ where
                     RequestError::MissingRestoreLevel => WriteStatus::ServiceCommunicationFailure,
                     _ => WriteStatus::InvalidValueInRequest,
                 })?;
+            for intent in &batch.intents {
+                log::debug!("hap_light_intent device={:?} command={:?}", intent.device, intent.command);
+            }
             (self.submit)(batch).await
         })
     }

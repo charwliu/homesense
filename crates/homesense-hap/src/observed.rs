@@ -18,9 +18,12 @@ impl std::fmt::Display for ReadError {
     }
 }
 impl std::error::Error for ReadError {}
+pub type RestoreLevels = Arc<RwLock<std::collections::BTreeMap<DeviceId, Percent>>>;
+
 #[derive(Clone)]
 pub struct ObservedView {
     snapshot: Arc<RwLock<Snapshot>>,
+    restore_levels: Option<RestoreLevels>,
     max_age_ms: u64,
     now: Arc<dyn Fn() -> u64 + Send + Sync>,
 }
@@ -37,9 +40,16 @@ impl ObservedView {
         }
         Ok(Self {
             snapshot,
+            restore_levels: None,
             max_age_ms,
             now: Arc::new(now),
         })
+    }
+    /// Brightness is a retained setting when On=false; it is not emitted light.
+    /// Freshness still comes from the actual observation, never this memory.
+    pub fn with_restore_levels(mut self, levels: RestoreLevels) -> Self {
+        self.restore_levels = Some(levels);
+        self
     }
     fn observation(&self, device: &DeviceId, dimmable: bool) -> Result<Observation, ReadError> {
         let snapshot = self
@@ -68,7 +78,23 @@ impl ObservedView {
     }
     pub fn brightness(&self, device: &DeviceId) -> Result<Percent, ReadError> {
         match self.observation(device, true)? {
-            Observation::Level(value) => Ok(value),
+            Observation::Level(mut value) => {
+                if value.get() == 0
+                    && let Some(levels) = &self.restore_levels
+                {
+                    value = levels
+                        .try_read()
+                        .map_err(|_| ReadError::Unavailable)?
+                        .get(device)
+                        .copied()
+                        .unwrap_or(value);
+                }
+                log::debug!(
+                    "hap_brightness_read device={device:?} observed={}",
+                    value.get()
+                );
+                Ok(value)
+            }
             _ => Err(ReadError::Unavailable),
         }
     }
