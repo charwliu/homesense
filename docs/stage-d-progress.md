@@ -572,3 +572,5 @@ Admission::begin_automation_publication 校验设备、规则、命令编码及�
 统一因果服务完整回归：在 52df2fe 及既有未提交代码改动上执行 cargo test --workspace --locked --offline，76 个测试块共 368 项通过、0 失败、0 忽略。证据 causal-service-regression.json 保存源差异及日志 SHA256，schema 13；仅使用隔离数据库、模拟器及本机回环。此次同时更新 README 和阶段 D 顶部当前状态，纠正旧的“循环尚未接通”描述。阶段 D/E 均未完成；全 workspace 严格 Clippy 仍有既有 HAP 警告，现场与 EA-5 未改动。
 
 规则失败分类基础：延迟适配器新增 execute_classified，返回 Planning(core 链／求值错误) 或 Runtime，而原字符串 API 保持兼容。Planning 仅证明当前调用在准入前拒绝，不代表此前同链动作可回滚；容量、准入和安装失败仍保守归为 Runtime。66 项运行时回归及 homesensed 库严格 Clippy 通过，验证预算拒绝与容量故障分类、变量均未提交。当前 Session 仍按原策略关闭准入，链级故障隔离尚待实现，不能将此分类视作隔离验收。未部署，EA-5 不变。
+
+延迟续接失败分类：新增 resume_scene_classified，结果领取的预算／时钟等链错误保留类型，后继执行复用 execute_classified；若已有后继接受后再失败，以 Partial 携带已接受报告及底层错误，避免后续隔离逻辑误判为整批未执行。原字符串入口兼容且停止策略未放宽。66 项运行时回归及 homesensed 库严格 Clippy 通过，专项验证原链节点预算耗尽时返回 Planning(Budget) 且后继未执行。Partial 清理与链级隔离仍需进一步接入验证，未部署、EA-5 不变。
