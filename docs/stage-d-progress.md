@@ -506,3 +506,5 @@ Admission::begin_automation_publication 校验设备、规则、命令编码及�
 运行中最后执行查询：进程内控制入口新增 LastRun，复用权限／代次检查及持久场景查询，返回 boot、run、配置版本、单调起止时间、记录版本和状态。未知场景拒绝，尚未执行返回空，释放内存句柄后仍可读取取消结果。它不把 CommandsWritten 等同于 observed，仍无 Web／HAP 投影。62 项运行时及服务测试通过，相关库与服务测试严格 Clippy 通过；同时验证发布后旧输入重启拒绝、新输入重启不重放场景。
 
 场景当前状态查询：控制通道新增 Activity(run)，由运行时当前反馈及有效期派生 Active/Pending/Inactive/Unknown，复用组合灯、反馈租约和待发命令检查。不存在或已释放的运行返回空，不回退到执行结果。60 项运行时回归及库严格 Clippy 通过；补充专项证明无反馈为 Unknown、取消后收到匹配反馈可为 Active 而执行状态仍为 Cancelled、释放后 Activity 为空但 LastRun 仍在。尚未提供按场景定义持续订阅、Web 或 HAP 投影。
+
+按定义查询场景状态：新增 SceneActivity(name)，只接受当前配置中启用且有审核证据的定时场景，复用与运行句柄相同的目标投影、反馈租约及持久准入校验。无需先运行场景，释放句柄后仍可查询；查询不创建执行记录或写出命令。60 项运行时回归及库严格 Clippy 通过，覆盖无反馈 Unknown、未知名称拒绝和释放后匹配反馈 Active。连续订阅与 Web／HAP 接入仍未完成。
