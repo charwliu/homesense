@@ -248,3 +248,20 @@ fn web_request(address:std::net::SocketAddr,path:&str,body:Option<serde_json::Va
     let mut response=String::new();stream.read_to_string(&mut response).unwrap();let (header,body)=response.split_once("\r\n\r\n").unwrap();
     (header.split_whitespace().nth(1).unwrap().parse().unwrap(),serde_json::from_str(body).unwrap())
 }
+
+#[tokio::test]
+async fn occupied_hap_listener_prevents_startup_rule_execution() {
+    let root=std::env::temp_dir().join(format!("hap-startup-gate-{}",Uuid::new_v4()));
+    let occupied=TcpListener::bind("127.0.0.1:0").unwrap();
+    let address=occupied.local_addr().unwrap();
+    let rules=serde_json::json!({"schema_version":1,"configuration_revision":1,
+        "variables":[{"id":"booted","kind":"integer","lifetime":"persistent"}],
+        "rules":[{"id":"boot","enabled":true,"review_evidence":"synthetic","source":"fixture","trigger":{"kind":"startup_synchronized"},"actions":[{"source":"fixture","action":{"kind":"set","variable":"booted","value":{"kind":"integer","value":1}}}]}],
+        "timed_scenes":[{"id":"demo","enabled":true,"review_evidence":"synthetic","max_lateness_ms":1000,"steps":[{"source":"fixture","offset_ms":0,"device":"simulation:light","command":{"kind":"level","value":30,"ramp":false}}]}]});
+    let result=homesensed::service::serve_unified_simulation(include_bytes!("../../../config/simulation.json"),&serde_json::to_vec(&rules).unwrap(),&root,Duration::from_secs(1),homesensed::service::UnifiedSimulation{address,scenes:vec!["demo".into()]}).await;
+    assert!(result.is_err());
+    let sql=rusqlite::Connection::open(root.join("automation-simulation.sqlite")).unwrap();
+    assert_eq!(sql.query_row("SELECT count(*) FROM rule_admission",[],|r|r.get::<_,i64>(0)).unwrap(),0);
+    assert_eq!(sql.query_row("SELECT count(*) FROM command_journal",[],|r|r.get::<_,i64>(0)).unwrap(),0);
+    drop(sql);drop(occupied);std::fs::remove_dir_all(root).unwrap();
+}
