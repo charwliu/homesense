@@ -4655,6 +4655,13 @@ async fn deferred_rule_adapter_reserves_before_variables_and_preserves_chain() {
     assert_eq!(router.retained_count(),0);
     assert!(scheduler.status(run).is_none());
     assert!(scheduler.reserve_slots(1).is_ok());
+    router.start("trigger",&mut scheduler,None,Default::default(),50).await.unwrap();
+    tokio::time::sleep(std::time::Duration::from_millis(110)).await;
+    let (expired,unowned)=router.poll(&mut scheduler,None).await.unwrap();
+    assert!(expired.is_empty());assert!(unowned.is_empty());assert_eq!(router.retained_count(),0);
+    assert!(a.dispatch().await.unwrap().is_none(),"expired chain must cancel before overdue scene output");
+    assert!(a.task_generation().await.is_ok());
+    assert_eq!(sql.query_row("SELECT count(*) FROM rule_chain_outcome WHERE error='causal deadline exceeded'",[],|r|r.get::<_,i64>(0)).unwrap(),1);
     let (_,outcomes)=router.start("trigger",&mut scheduler,None,Default::default(),60000).await.unwrap();
     let closing_run=outcomes[0].scene_runs[0];
     router.close(&mut scheduler).await.unwrap();

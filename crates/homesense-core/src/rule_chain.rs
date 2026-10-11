@@ -75,6 +75,7 @@ impl Chain {
             completions: BTreeSet::new(),
         })
     }
+    pub fn deadline_ms(&self) -> u64 { self.deadline }
     pub fn root(&self) -> Cause {
         Cause {
             correlation: self.correlation,
