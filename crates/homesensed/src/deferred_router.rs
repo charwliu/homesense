@@ -100,6 +100,47 @@ impl Router {
         self.entries.insert(id, Entry::Cancelled(pending));
         Ok(count)
     }
+    /// Advance scenes, route owned terminals, and release their scheduler slots.
+    /// Unowned (for example manually started) results must be handled by caller.
+    pub async fn poll(
+        &mut self,
+        scheduler: &mut SceneScheduler,
+        feedback: Option<(&Feedback, u64)>,
+    ) -> Result<(Vec<Outcome>, Vec<SceneResult>), String> {
+        self.validate(scheduler)?;
+        struct Guard(Admission, bool);
+        impl Drop for Guard {
+            fn drop(&mut self) {
+                if !self.1 {
+                    self.0.stop_now();
+                }
+            }
+        }
+        let mut guard = Guard(self.admission.clone(), false);
+        for tick in scheduler.tick(self.admission.monotonic_ms()).await? {
+            tick.result?;
+        }
+        let mut outcomes = Vec::new();
+        let mut unowned = Vec::new();
+        for result in scheduler.take_results() {
+            let owned = self.entries.values().any(|entry| match entry {
+                Entry::Active(session) => {
+                    session.pending_identities().get(&result.run) == Some(&result.audit_id)
+                }
+                Entry::Cancelled(pending) => pending.get(&result.run) == Some(&result.audit_id),
+            });
+            if owned {
+                // Release the terminal slot before a successor reserves capacity.
+                scheduler.retire(result.run)?;
+            }
+            match self.route(&result, scheduler, feedback).await? {
+                Some(mut completed) => outcomes.append(&mut completed),
+                None => unowned.push(result),
+            }
+        }
+        guard.1 = true;
+        Ok((outcomes, unowned))
+    }
     /// Some(empty) consumes a cancelled chain's result. None is unowned.
     pub async fn route(
         &mut self,
