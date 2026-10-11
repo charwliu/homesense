@@ -174,6 +174,7 @@ impl Timeline {
         }
         n
     }
+    pub fn step(&self, index: usize) -> Option<&Step> { self.steps.get(index) }
     pub fn states(&self) -> &[State] {
         &self.states
     }

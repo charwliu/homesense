@@ -17,6 +17,7 @@ pub struct SoftwareFade {
     admission: Admission,
     controller: Uuid,
     device: DeviceId,
+    target: Percent,
     generation: TaskGeneration,
     fence: u64,
     fade: Fade,
@@ -91,6 +92,7 @@ impl SoftwareFade {
             admission,
             controller,
             device,
+            target,
             generation,
             fence,
             fade,
@@ -114,6 +116,22 @@ impl SoftwareFade {
             return Err("invalid or late fade scene association".into());
         }
         self.scene=Some(homesense_storage::scene_run::StepLink {run,index,source,sample:Some(0)});
+        Ok(())
+    }
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn inherit_scene(
+        &mut self, generation: &TaskGeneration, controller: Uuid,
+        fence: u64, deadline: Option<u64>, step: &homesense_core::scene::Step,
+        run: String, index: usize,
+    ) -> Result<(), String> {
+        if &self.generation != generation || self.controller != controller
+            || self.device != step.device
+            || !matches!(step.command, Command::SetLevel {level, ..} if level == self.target) {
+            return Err("fade does not match owning scene step".into());
+        }
+        self.bind_scene(run,index,step.source.clone())?;
+        self.fence = fence;
+        if let Some(deadline) = deadline { self.expires = self.expires.min(deadline); }
         Ok(())
     }
     pub(crate) fn manually_cancelled(&self) -> bool { self.manually_cancelled }
