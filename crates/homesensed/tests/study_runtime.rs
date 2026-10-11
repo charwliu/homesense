@@ -4142,3 +4142,54 @@ async fn combined_scene_activity_requires_relay_and_dimmer_but_off_retains_brigh
     );
     a.shutdown().await.unwrap();
 }
+
+#[tokio::test]
+async fn combined_feedback_events_follow_logical_light_and_share_cause() {
+    use homesensed::{configured_rules::ConfiguredRules, feedback::Feedback, transport_owner::GatewayRead};
+    let bytes=br#"{"schema_version":1,"revision":1,"gateways":[{"id":"bus","endpoint":"127.0.0.1:50007","modules":[{"address":"12","profile":"ad8_din_rs485_v2_2_1","verification":{"status":"simulated"}},{"address":"03","profile":"r8i8_din_pro_v2_7_7","verification":{"status":"simulated"}}]}],"devices":[{"id":"light","name":"Light","gateway":"bus","address":"12","channel":4,"enabled":true,"default_on_level":100,"supply_relay":"relay"},{"id":"relay","name":"Relay","gateway":"bus","address":"03","channel":4,"enabled":true}]}"#;
+    let db = Db(std::env::temp_dir().join(format!("combined-events-{}.sqlite", Uuid::new_v4())));
+    Store::open(&db.0).unwrap().publish_configuration(None, bytes, ExecutionContext::Simulation, &[]).unwrap();
+    let controller = Uuid::new_v4();
+    let a = actor(&db, controller).await;
+    let config = homesense_config::Configuration::parse(bytes, ExecutionContext::Simulation).unwrap();
+    let rule = |id, trigger| hap::serde_json::json!({"id":id,"enabled":true,"review_evidence":"simulation","source":"test","trigger":trigger,"actions":[]});
+    let input = hap::serde_json::json!({"schema_version":1,"configuration_revision":1,"variables":[
+        {"id":"on","kind":"bool","lifetime":"feedback_cache","feedback":{"kind":"on","device":"light"}},
+        {"id":"level","kind":"integer","lifetime":"feedback_cache","feedback":{"kind":"level","device":"light"}}
+    ],"rules":[
+        rule("on",hap::serde_json::json!({"kind":"variable_changed","variable":"on"})),
+        rule("level",hap::serde_json::json!({"kind":"variable_changed","variable":"level"})),
+        rule("device",hap::serde_json::json!({"kind":"device_changed","device":"light"}))
+    ]});
+    let doc = homesense_config::rule_document::Document::parse(&hap::serde_json::to_vec(&input).unwrap(), &config).unwrap();
+    let mut runtime = ConfiguredRules::load_document(a.clone(), controller, &doc, Default::default()).await.unwrap();
+    let mut feedback = Feedback::new(&config, ExecutionContext::Simulation, Uuid::parse_str(a.boot_id()).unwrap().as_u128(), 1).unwrap();
+    let sample = |address, value| GatewayRead {gateway_id:"bus".into(),transport_epoch:1,received_at_ms:0,result:hb_transport::Receive::Frames{transport_epoch:1,frames:vec![hb_protocol::RawFrame{address,command:0xd4,value}]}};
+    feedback.apply(&sample(0x12,30)).unwrap();
+    runtime.events.bind_feedback(&feedback).unwrap();
+    let expected = |reports: Vec<homesensed::event_rules::Report>, mut names: Vec<&str>| {
+        assert_eq!(reports.len(),1);
+        assert!(reports[0].failure.is_none(), "{:?}", reports[0].failure);
+        let mut actual: Vec<_> = reports[0].completed.iter().map(|r|r.rule.as_str()).collect();
+        actual.sort(); names.sort(); assert_eq!(actual,names);
+        assert!(reports[0].completed.iter().all(|r|r.cause.correlation_id()==reports[0].correlation_id && r.causation_id==0));
+    };
+    feedback.apply(&sample(0x03,0xf2)).unwrap();
+    expected(runtime.events.consume_feedback(&feedback,5000).await.unwrap(),vec!["on","level","device"]);
+    // The unpowered dimmer changes its retained value; logical light stays off.
+    feedback.apply(&sample(0x12,50)).unwrap();
+    assert!(runtime.events.consume_feedback(&feedback,5000).await.unwrap().is_empty());
+    feedback.apply(&sample(0x03,0xf1)).unwrap();
+    expected(runtime.events.consume_feedback(&feedback,5000).await.unwrap(),vec!["on","level","device"]);
+    feedback.apply(&sample(0x12,60)).unwrap();
+    expected(runtime.events.consume_feedback(&feedback,5000).await.unwrap(),vec!["level","device"]);
+    feedback.apply(&sample(0x12,60)).unwrap();
+    assert!(runtime.events.consume_feedback(&feedback,5000).await.unwrap().is_empty());
+    feedback.apply(&sample(0x03,0xf2)).unwrap();
+    expected(runtime.events.consume_feedback(&feedback,5000).await.unwrap(),vec!["on","level","device"]);
+    tokio::time::sleep(std::time::Duration::from_millis(12)).await;
+    feedback.expire(10,10).unwrap();
+    expected(runtime.events.consume_feedback(&feedback,10).await.unwrap(),vec!["on","level"]);
+    assert!(a.dispatch().await.unwrap().is_none());
+    a.shutdown().await.unwrap();
+}
