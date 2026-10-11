@@ -22,6 +22,7 @@ pub struct Router {
     entries: BTreeMap<u64, Entry>,
     next: u64,
     capacity: usize,
+    closed: bool,
 }
 impl Router {
     pub fn new(
@@ -44,6 +45,7 @@ impl Router {
             entries: BTreeMap::new(),
             next: 1,
             capacity,
+            closed: false,
         })
     }
     fn validate(&self, scheduler: &SceneScheduler) -> Result<(), String> {
@@ -64,6 +66,9 @@ impl Router {
         duration_ms: u64,
     ) -> Result<(u64, Vec<Outcome>), String> {
         self.validate(scheduler)?;
+        if self.closed {
+            return Err("causal router closed".into());
+        }
         if self.entries.len() >= self.capacity {
             return Err("causal router full".into());
         }
@@ -99,6 +104,37 @@ impl Router {
         let count = session.cancel(scheduler).await?;
         self.entries.insert(id, Entry::Cancelled(pending));
         Ok(count)
+    }
+    /// Close root admission and attempt every active cancellation. Does not tick
+    /// scenes or execute result rules; caller still owns transport shutdown.
+    pub async fn close(&mut self, scheduler: &mut SceneScheduler) -> Result<(), String> {
+        self.validate(scheduler)?;
+        self.closed = true;
+        struct Guard(Admission, bool);
+        impl Drop for Guard {
+            fn drop(&mut self) {
+                if !self.1 {
+                    self.0.stop_now();
+                }
+            }
+        }
+        let mut guard = Guard(self.admission.clone(), false);
+        let active: Vec<_> = self
+            .entries
+            .iter()
+            .filter_map(|(id, entry)| matches!(entry, Entry::Active(_)).then_some(*id))
+            .collect();
+        let mut failures = Vec::new();
+        for id in active {
+            if let Err(error) = self.cancel(id, scheduler).await {
+                failures.push(format!("session {id}: {error}"));
+            }
+        }
+        if !failures.is_empty() {
+            return Err(failures.join("; "));
+        }
+        guard.1 = true;
+        Ok(())
     }
     /// Advance scenes, route owned terminals, and release their scheduler slots.
     /// Unowned (for example manually started) results must be handled by caller.
