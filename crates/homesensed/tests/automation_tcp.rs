@@ -358,3 +358,92 @@ async fn disconnect_without_pending_work_has_explicit_transport_outcome() {
     drop(sql);
     std::fs::remove_dir_all(root).unwrap();
 }
+
+#[tokio::test]
+async fn supervised_reconnect_queries_again_without_repeating_startup() {
+    for recovery_feedback in [true, false] {
+        let root = std::env::temp_dir().join(format!(
+            "automation-tcp-supervised-{}",
+            uuid::Uuid::new_v4()
+        ));
+        let bus = TcpListener::bind("127.0.0.1:0").unwrap();
+        let mut devices: hap::serde_json::Value =
+            hap::serde_json::from_slice(include_bytes!("../../../config/simulation-home.json"))
+                .unwrap();
+        devices["gateways"][0]["endpoint"] = bus.local_addr().unwrap().to_string().into();
+        devices["gateways"][0]["modules"][0]["verification"] = hap::serde_json::json!({"status":"verified","evidence":"loopback only","verified_at_unix_ms":1});
+        let rules=br#"{"schema_version":1,"configuration_revision":1,"variables":[],"rules":[{"id":"startup","enabled":true,"review_evidence":"test","source":"test","trigger":{"kind":"startup_synchronized"},"actions":[{"source":"test","action":{"kind":"command","device":"simulation:light","command":{"kind":"level","value":30,"ramp":false}}}]}]}"#;
+        let server = std::thread::spawn(move || {
+            for round in 0..2 {
+                let (mut socket, _) = bus.accept().unwrap();
+                socket
+                    .set_read_timeout(Some(Duration::from_secs(5)))
+                    .unwrap();
+                let mut frame = [0; 5];
+                socket.read_exact(&mut frame).unwrap();
+                assert_eq!(frame, [0xae, 0x15, 0xa1, 0xf2, 0xee]);
+                if recovery_feedback || round == 0 {
+                    socket.write_all(&[0xae, 0x15, 0xd1, 42, 0xee]).unwrap();
+                }
+                if round == 0 {
+                    socket.read_exact(&mut frame).unwrap();
+                    assert_eq!(frame, [0xae, 0x15, 1, 30, 0xee]);
+                    socket.shutdown(std::net::Shutdown::Both).unwrap();
+                } else {
+                    assert_eq!(
+                        socket.read(&mut frame).unwrap(),
+                        0,
+                        "recovery must not repeat startup output"
+                    );
+                }
+            }
+        });
+        if recovery_feedback {
+            std::fs::create_dir_all(&root).unwrap();
+            let device_file = root.join("devices.json");
+            let rule_file = root.join("rules.json");
+            std::fs::write(&device_file, hap::serde_json::to_vec(&devices).unwrap()).unwrap();
+            std::fs::write(&rule_file, rules).unwrap();
+            let output = std::process::Command::new(env!("CARGO_BIN_EXE_homesensed"))
+                .arg("serve-automation-tcp")
+                .arg(device_file)
+                .arg(rule_file)
+                .arg(&root)
+                .args(["1", "--coexistence-confirmed", "--recoveries", "1"])
+                .output()
+                .unwrap();
+            assert!(
+                output.status.success(),
+                "{}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+        } else {
+            homesensed::automation_tcp::serve_supervised(
+                &hap::serde_json::to_vec(&devices).unwrap(),
+                rules,
+                &root,
+                Duration::from_millis(700),
+                true,
+                1,
+            )
+            .await
+            .unwrap();
+        }
+        server.join().unwrap();
+        let sql = rusqlite::Connection::open(root.join("automation-tcp.sqlite")).unwrap();
+        assert_eq!(
+            sql.query_row("SELECT count(*) FROM rule_admission", [], |r| r
+                .get::<_, i64>(0))
+                .unwrap(),
+            1
+        );
+        assert_eq!(
+            sql.query_row("SELECT count(*) FROM command_journal", [], |r| r
+                .get::<_, i64>(0))
+                .unwrap(),
+            1
+        );
+        drop(sql);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+}
