@@ -76,7 +76,7 @@ impl Store {
         }))
     }
 }
-fn validate(bytes: &[u8], config: &homesense_config::Configuration) -> Result<Document, Error> {
+pub(crate) fn validate(bytes: &[u8], config: &homesense_config::Configuration) -> Result<Document, Error> {
     let document = Document::parse(bytes, config).map_err(|_| Error::InvalidPayload)?;
     document
 .linked_rules_with_deferred()
