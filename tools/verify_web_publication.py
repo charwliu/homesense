@@ -1,0 +1,59 @@
+#!/usr/bin/env python3
+"""Real loopback HTTP publication regression; synthetic devices only."""
+import json, pathlib, secrets, socket, sqlite3, subprocess, sys, tempfile, time, urllib.request, urllib.error, uuid
+repo=pathlib.Path(__file__).resolve().parents[1]
+binary=pathlib.Path(sys.argv[1]).resolve()
+with tempfile.TemporaryDirectory(prefix='homesense-publication-') as directory:
+ root=pathlib.Path(directory);state=root/'state';secret=secrets.token_urlsafe(32)
+ token=root/'token';token.write_text(secret);token.chmod(0o600)
+ devices=json.loads((repo/'config/simulation.json').read_text())
+ rules={'schema_version':1,'configuration_revision':1,'variables':[],'rules':[],'timed_scenes':[{'id':'demo','enabled':True,'review_evidence':'synthetic test','max_lateness_ms':1000,'steps':[{'source':'fixture','offset_ms':60000,'device':'simulation:light','command':{'kind':'level','value':30,'ramp':False}}]}]}
+ device_file=root/'devices.json';rule_file=root/'rules.json'
+ device_file.write_text(json.dumps(devices));rule_file.write_text(json.dumps(rules))
+ with socket.socket() as sock:sock.bind(('127.0.0.1',0));port=sock.getsockname()[1]
+ origin=f'http://127.0.0.1:{port}'
+ def request(path,body=None):
+  req=urllib.request.Request(origin+path,data=None if body is None else json.dumps(body).encode(),headers={'Authorization':'Bearer '+secret,'Origin':origin,'Content-Type':'application/json'})
+  try:
+   with urllib.request.urlopen(req,timeout=25) as response:return response.status,json.load(response)
+  except urllib.error.HTTPError as e:return e.code,json.load(e)
+ activation=None;draft_id=str(uuid.uuid4())
+ for attempt in range(2):
+  command=[str(binary),'serve-web-simulation',str(device_file),str(rule_file),str(state),'15',f'127.0.0.1:{port}',str(token),'--administrator']
+  with (root/f'run-{attempt}.log').open('w') as log:
+   process=subprocess.Popen(command,stdout=log,stderr=log)
+   try:
+    for _ in range(250):
+     if process.poll() is not None:raise AssertionError((root/f'run-{attempt}.log').read_text()[-1500:])
+     try:
+      if request('/api/v1/devices')[0]==200:break
+     except (urllib.error.URLError,ConnectionError):pass
+     time.sleep(.02)
+    else:raise AssertionError('listener startup timeout')
+    if attempt==0:
+     assert request('/api/v1/scene-actions',{'scene':'demo','request_id':'before-publication'})[1]['outcome']=='accepted'
+     devices['revision']=2;devices['devices'][0]['name']='Renamed simulation light';rules['configuration_revision']=2
+     assert request('/api/v1/config/drafts/'+draft_id,{'expected_revision':1,'revision':2,'devices':devices,'automation':rules})[0]==200
+     code,preview=request('/api/v1/config/previews/'+draft_id);assert code==200
+     assert len(preview['impact']['interrupted_runs'])==1
+     activation={'request_id':'activate-once','boot':preview['impact']['boot']}
+     blocker=state/'publication-backups';blocker.write_text('block backup directory')
+     failed={'request_id':'failed-backup','boot':activation['boot']}
+     assert request('/api/v1/config/activations/'+draft_id,failed)[1]['outcome']=='unknown'
+     assert request('/api/v1/devices')[1]['revision']==1
+     blocker.unlink()
+     code,result=request('/api/v1/config/activations/'+draft_id,activation);assert code==202 and result['outcome']=='activated',(code,result)
+     code,snapshot=request('/api/v1/devices');assert code==200 and snapshot['revision']==2 and snapshot['devices'][0]['name']=='Renamed simulation light'
+     assert request('/api/v1/config/activations/'+draft_id,{'request_id':'different-key','boot':activation['boot']})[0]==409
+    code,duplicate=request('/api/v1/config/activations/'+draft_id,activation);assert code==200 and duplicate['revision']==2,(code,duplicate)
+    process.wait(timeout=20);assert process.returncode==0
+   finally:
+    if process.poll() is None:process.terminate();process.wait(timeout=5)
+  with sqlite3.connect(state/'automation-simulation.sqlite') as db:
+   assert db.execute('SELECT count(*) FROM scene_run').fetchone()[0]==1
+   assert db.execute('SELECT status FROM scene_run').fetchone()[0]=='cancelled'
+   # Read authoritative published bytes for explicit restart; do not replace or replay them.
+   device_file.write_bytes(db.execute('SELECT payload FROM configuration_revision WHERE revision=2').fetchone()[0])
+   rule_file.write_bytes(db.execute('SELECT payload FROM automation_revision WHERE revision=2').fetchone()[0])
+  backups=list((state/'publication-backups').glob('*.sqlite'));assert len(backups)==1
+ print(json.dumps({'publication':'passed','restart_replay':'none','backups':1,'scene_runs':1}))

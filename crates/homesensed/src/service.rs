@@ -25,7 +25,7 @@ use uuid::Uuid;
 fn error(e: impl std::fmt::Display) -> String {
     e.to_string()
 }
-struct SimulatedStream {
+pub(crate) struct SimulatedStream {
     gateway: Gateway,
     clock: Instant,
     pending: VecDeque<u8>,
@@ -287,7 +287,7 @@ fn simulation_connections(
 ) -> Result<BTreeMap<String, hb_transport::Connection<SimulatedStream>>, String> {
     simulation_connections_at(config, 1)
 }
-fn simulation_connections_at(
+pub(crate) fn simulation_connections_at(
     config: &homesense_config::Configuration,
     epoch: u64,
 ) -> Result<BTreeMap<String, hb_transport::Connection<SimulatedStream>>, String> {
@@ -503,12 +503,13 @@ async fn serve_automation_simulation_options(
             return Ok(());
         }
         if let Some(web)=web {
+            let (publisher,publications)=crate::automation_publication::channel();
             let tokens=std::sync::Arc::new(crate::web_auth::Tokens::default());
             let selected:std::collections::BTreeMap<String,String>=document.timed_scenes.iter().filter(|(_,s)|s.enabled && s.review_evidence.as_ref().is_some_and(|v|!v.trim().is_empty())).map(|(id,_)|(id.clone(),id.clone())).collect();
             tokens.insert(Uuid::new_v4(),&web.secret,crate::web_auth::Grant{controller,role:if web.administrator {crate::web_auth::Role::Administrator}else{crate::web_auth::Role::Member},scenes:selected.keys().cloned().collect(),devices:config.devices().iter().filter(|(_,d)|d.enabled).map(|(id,_)|id.as_str().to_owned()).collect()})?;
-            let api=std::sync::Arc::new(crate::web_api::Api{origin:format!("http://{}",web.address),tokens,runtime:std::sync::RwLock::new(Some(crate::web_api::Runtime{control:runtime.control(),revision:document.revision,boot:admission.boot_id().to_owned(),scenes:selected})),drafts:Some((ExecutionContext::Simulation,std::sync::Mutex::new(crate::web_drafts::Drafts::open(&directory.join("web-drafts.sqlite"))?))),receipts:std::sync::Mutex::new(crate::web_receipts::Receipts::open(&directory.join("web-receipts.sqlite"))?)});
+            let api=std::sync::Arc::new(crate::web_api::Api{publisher:Some(publisher),origin:format!("http://{}",web.address),tokens,runtime:std::sync::RwLock::new(Some(crate::web_api::Runtime{control:runtime.control(),revision:document.revision,boot:admission.boot_id().to_owned(),scenes:selected})),drafts:Some((ExecutionContext::Simulation,std::sync::Mutex::new(crate::web_drafts::Drafts::open(&directory.join("web-drafts.sqlite"))?))),receipts:std::sync::Mutex::new(crate::web_receipts::Receipts::open(&directory.join("web-receipts.sqlite"))?)});
             let (stop,receive)=tokio::sync::watch::channel(false);
-            let drive=runtime.drive(&mut owner,Duration::from_millis(10),5000,receive.clone(),wall_ms);
+            let drive=crate::web_supervision::run(api.clone(),admission.clone(),controller,runtime,owner,publications,receive.clone(),directory.join("automation-simulation.sqlite"));
             let server=crate::web_server::serve(api,web.address,receive);
             tokio::pin!(drive,server);
             tokio::select! {
@@ -560,7 +561,7 @@ async fn serve_automation_simulation_options(
     let _ = admission.shutdown().await;
     result
 }
-fn wall_ms() -> Result<i64, String> {
+pub(crate) fn wall_ms() -> Result<i64, String> {
     i64::try_from(
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)

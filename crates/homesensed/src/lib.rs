@@ -93,3 +93,7 @@ pub mod management_devices;
 pub mod web_drafts;
 
 pub mod configuration_preview;
+
+pub mod web_activation;
+
+mod web_supervision;

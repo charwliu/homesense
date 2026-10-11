@@ -275,12 +275,15 @@ pub fn validate_candidate(
 pub fn validate_candidate_with_write_interval(
     devices: &[u8], rules: &[u8], write_interval: Duration,
 ) -> Result<homesense_config::Configuration, String> {
+    validate_candidate_in_context(devices,rules,write_interval,ExecutionContext::Live)
+}
+pub(crate) fn validate_candidate_in_context(devices:&[u8],rules:&[u8],write_interval:Duration,context:ExecutionContext)->Result<homesense_config::Configuration,String> {
     if !(Duration::from_millis(20)..=Duration::from_secs(1)).contains(&write_interval) {
         return Err("write interval must be 20..1000 ms".into());
     }
-    let config = homesense_config::Configuration::parse(devices, ExecutionContext::Live)
+    let config = homesense_config::Configuration::parse(devices, context)
         .map_err(|e| e.to_string())?;
-    let document = crate::configuration_publish::validate_automation(&config, rules, ExecutionContext::Live)
+    let document = crate::configuration_publish::validate_automation(&config, rules, context)
         .map_err(|e| e.to_string())?;
     let budget = crate::fade_budget::Budget::for_write_interval(write_interval);
     for (id, scene) in &document.timed_scenes {
@@ -307,8 +310,8 @@ pub fn validate_candidate_with_write_interval(
     let mut outputs = 0;
     for id in config.devices().keys() {
         if let Some((device, module)) = config.binding(id) {
-            if module.kind() == homesense_core::ModuleKind::Keypad {
-                module.validate_context(ExecutionContext::Live).map_err(|e|e.to_string())?;
+            if context == ExecutionContext::Live && module.kind() == homesense_core::ModuleKind::Keypad {
+                module.validate_context(context).map_err(|e|e.to_string())?;
                 module.validate_channel(device.channel).map_err(|e|e.to_string())?;
                 continue;
             }
@@ -317,7 +320,7 @@ pub fn validate_candidate_with_write_interval(
                 module,
                 device.channel,
                 homesense_core::Command::Query,
-                ExecutionContext::Live,
+                context,
             )
             .map_err(|e| e.to_string())?;
         }

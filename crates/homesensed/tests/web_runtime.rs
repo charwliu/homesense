@@ -146,6 +146,7 @@ async fn web_scope_origin_receipts_and_runtime_admission() {
         )
         .unwrap();
     let api = Api {
+        publisher:None,
         origin: "http://127.0.0.1:8088".into(),
         tokens: tokens.clone(),
         runtime: std::sync::RwLock::new(Some(homesensed::web_api::Runtime {
@@ -346,6 +347,8 @@ async fn web_scope_origin_receipts_and_runtime_admission() {
             api.handle(make_draft()).await.status(),
             StatusCode::FORBIDDEN
         );
+        let mut activation=make_draft();*activation.uri_mut()=format!("/api/v1/config/activations/{draft_id}").parse().unwrap();
+        assert_eq!(api.handle(activation).await.status(),StatusCode::FORBIDDEN);
         let mut administrator = tokens.authenticate(&format!("Bearer {secret}")).unwrap();
         administrator.role = Role::Administrator;
         tokens.insert(token_id, secret, administrator).unwrap();
