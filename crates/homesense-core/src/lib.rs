@@ -3,6 +3,7 @@ pub mod admission;
 pub mod arbiter;
 pub mod calendar;
 pub mod execution;
+pub mod deferred_plan;
 pub mod gesture;
 pub mod queue;
 pub mod rule;
