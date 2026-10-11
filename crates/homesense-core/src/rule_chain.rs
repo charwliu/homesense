@@ -2,7 +2,7 @@
 //! Tokens carry lineage; the runtime must persist admission separately and must
 //! not use planning success as proof of execution.
 use crate::rule::{self, Budget, Node, Plan, Variable};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap,BTreeSet};
 #[derive(Debug, Clone)]
 pub struct Cause {
     correlation: u128,
@@ -42,6 +42,7 @@ pub struct Chain {
     remaining: Budget,
     max_path: usize,
     stopped: bool,
+    completions: BTreeSet<String>,
 }
 impl Chain {
     pub fn new(
@@ -71,6 +72,7 @@ impl Chain {
             remaining: budget,
             max_path,
             stopped: false,
+            completions: BTreeSet::new(),
         })
     }
     pub fn root(&self) -> Cause {
@@ -82,6 +84,21 @@ impl Chain {
     }
     pub fn cancel(&mut self) {
         self.stopped = true;
+    }
+    /// Claim one persisted asynchronous result without resetting this chain's
+    /// deadline, ancestry or budgets. Duplicate delivery is a no-op.
+    pub fn claim_completion(&mut self,parent:&Cause,key:&str,now:u64)->Result<bool,Error> {
+        if self.stopped {return Err(Error::Stopped);}
+        if parent.correlation!=self.correlation || parent.id==0 || parent.id>=self.next {return Err(Error::ForeignCause);}
+        if key.is_empty() || key.len()>128 || key.chars().any(char::is_control) {return Err(Error::InvalidLimits);}
+        if now<self.now {self.stopped=true;return Err(Error::Clock);}
+        self.now=now;
+        if now>=self.deadline {self.stopped=true;return Err(Error::Budget);}
+        if self.completions.contains(key) {return Ok(false);}
+        if self.remaining.nodes==0 {self.stopped=true;return Err(Error::Budget);}
+        self.remaining.nodes-=1;
+        self.completions.insert(key.into());
+        Ok(true)
     }
     pub fn plan(
         &mut self,
