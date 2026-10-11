@@ -24,6 +24,7 @@ fn publication_requires_stopped_runtime_and_expected_revision_preserving_identit
     lock.try_lock().unwrap();
     assert!(publish(&next, &directory, 1).is_err());
     assert_eq!(store.active().unwrap().unwrap().revision, 1);
+    lock.unlock().unwrap();
     drop(lock);
     assert!(publish(&next, &directory, 9).is_err());
     assert_eq!(publish(&next, &directory, 1).unwrap(), 2);
@@ -77,6 +78,7 @@ fn automation_cli_publishes_both_documents_only_after_runtime_stops() {
     lock.try_lock().unwrap();
     assert!(!run("1").status.success());
     assert_eq!(store.active().unwrap().unwrap().revision, 1);
+    lock.unlock().unwrap();
     drop(lock);
     assert!(!run("9").status.success());
     std::fs::write(&rules_path, b"{}").unwrap();

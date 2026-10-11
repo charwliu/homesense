@@ -6,6 +6,15 @@ use homesense_storage::Store;
 use std::error::Error;
 use std::path::Path;
 
+// Explicitly release the lock: closing this descriptor alone can leave a
+// fork-inherited descriptor holding the same lock until the child execs.
+struct PublicationLease(std::fs::File);
+impl Drop for PublicationLease {
+    fn drop(&mut self) {
+        let _ = self.0.unlock();
+    }
+}
+
 pub fn publish(document: &[u8], directory: &Path, expected: u64) -> Result<u64, String> {
     publish_inner(document, None, directory, expected)
 }
@@ -45,6 +54,7 @@ fn publish_inner(
     lease
         .try_lock()
         .map_err(|e| format!("runtime must be stopped: {e}"))?;
+    let _lease = PublicationLease(lease);
     let mut store = Store::open(&path).map_err(|e| e.to_string())?;
     let old = store
         .active()
@@ -133,4 +143,36 @@ pub fn validate_automation(
         }
     }
     Ok(document)
+}
+
+#[cfg(all(test, unix))]
+mod lease_tests {
+    #[test]
+    fn lease_releases_even_when_a_duplicate_descriptor_survives() {
+        let path = std::env::temp_dir().join(format!(
+            "homesense-publication-lease-{}",
+            uuid::Uuid::new_v4()
+        ));
+        let file = std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create_new(true)
+            .open(&path)
+            .unwrap();
+        file.try_lock().unwrap();
+        let duplicate = file.try_clone().unwrap();
+        let contender = std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(&path)
+            .unwrap();
+        let lease = super::PublicationLease(file);
+        assert!(contender.try_lock().is_err());
+        drop(lease);
+        contender.try_lock().unwrap();
+        contender.unlock().unwrap();
+        drop(duplicate);
+        drop(contender);
+        std::fs::remove_file(path).unwrap();
+    }
 }
