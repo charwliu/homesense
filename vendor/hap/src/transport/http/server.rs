@@ -203,6 +203,9 @@ impl Server {
 
             mdns_responder.lock().await.update_records().await?;
 
+            // Closing the listener future also ends every accepted session.
+            // Sessions retain receivers only, so no task can prolong this scope.
+            let (session_scope, _) = tokio::sync::watch::channel(());
             let slots = Arc::new(tokio::sync::Semaphore::new(32));
             loop {
                 let (stream, _socket_addr) = listener.accept().await?;
@@ -302,19 +305,23 @@ impl Server {
                 http.preserve_header_case(true);
 
                 let emitter = event_emitter.clone();
+                let mut listener_closed = session_scope.subscribe();
                 tokio::spawn(async move {
                     let transport = encrypted_stream.map_err(|e| error!("{:?}", e)).map(|_| ());
                     let http = http
                         .serve_connection(hyper_util::rt::TokioIo::new(stream_wrapper), api)
                         .map_err(|e| error!("{:?}", e))
                         .map(|_| ());
-                    supervise_session(
-                        transport,
-                        http,
-                        session_controller,
-                        std::time::Duration::from_secs(60),
-                    )
-                    .await;
+                    tokio::select! {
+                        biased;
+                        _ = listener_closed.changed() => {},
+                        _ = supervise_session(
+                            transport,
+                            http,
+                            session_controller,
+                            std::time::Duration::from_secs(60),
+                        ) => {},
+                    }
                     info!("HAP TCP closed peer={}", _socket_addr);
                     emitter.lock().await.remove_listener(listener_id);
                     drop(permit);
