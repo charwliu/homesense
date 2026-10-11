@@ -1122,7 +1122,7 @@ impl Admission {
             .map_err(|e| e.to_string())?;
         start.await.map_err(|_| "admission worker exited")??;
         Ok(Self {
-            fade_budget: Default::default(),
+            fade_budget: crate::fade_budget::Budget::for_write_interval(options.write_interval),
             write_slot: Default::default(),
             write_interval: options.write_interval,
             sender,
