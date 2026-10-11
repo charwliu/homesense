@@ -148,3 +148,6 @@ schema 12 新增不可变 automation_revision，与设备配置共用版本和�
 
 
 当前工作树集成复验（提交 34dcd3c 加既有未提交代码）：`cargo test --workspace --locked --offline` 共 371 项通过、0 失败、0 忽略，76 个测试结果块。初次执行因沙箱禁止 localhost 监听而中断；获准回环权限后完整重跑成功。证据及代码差异指纹见 `docs/evidence/stage-d-study/causal-service-regression.json`。仅模拟与本机回环，不代表现场部署或阶段 D/E 整体验收。
+
+
+TCP 自动化服务入口：新增 `homesensed::automation_tcp::serve` 库 API，显式共存确认、Live 配置与规则校验后使用独立 `automation-tcp.sqlite`；先建立 TCP 并完成新代际全量查询同步，再装配统一 AutomationRuntime。运行时限为同步完成后的时长；初始化连接／查询使用各自有界超时。退出或故障关闭准入，不复用 HAP 身份库，不重放旧命令。3 项 localhost 测试验证同步先于启动动作、两次启动各一次规则、既有 runtime.sqlite 保持原样、未审核／未确认配置零状态创建、无初始反馈零规则提交；homesensed 库严格 Clippy 通过。当前仅支持可查询的启用设备；CLI、自动重连、在线发布监督、HAP 合并及现场运行仍未接入，不能视作阶段 D 真实服务验收。
