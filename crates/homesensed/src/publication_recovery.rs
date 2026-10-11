@@ -42,11 +42,7 @@ pub async fn rebuild<S: Read + Write + Send + 'static>(
     )
     .await
 }
-#[derive(Clone, Copy, Debug)]
-pub enum Synchronization {
-    CompleteFeedback,
-    OutputsAndKeypadEvents,
-}
+pub use crate::observed_transport::Synchronization;
 /// The event policy leaves verified keypads unknown until fresh events arrive.
 /// All other validation and publication barriers match the strict entry point.
 pub async fn rebuild_with_policy<S: Read + Write + Send + 'static>(
@@ -120,6 +116,9 @@ pub async fn rebuild_with_policy<S: Read + Write + Send + 'static>(
                     settings.max_age_ms,
                 )
                 .await?
+        }
+        Synchronization::OutputsAndCalibratedMotors => {
+            owner.query_recovery_with_policy(&bundle.configuration,context,settings.query_timeout_ms,settings.max_age_ms,policy).await?
         }
         Synchronization::OutputsAndKeypadEvents => {
             owner

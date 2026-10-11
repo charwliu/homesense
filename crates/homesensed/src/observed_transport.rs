@@ -6,6 +6,24 @@ use crate::{
 use homesense_state::{Cursor, Event, Quality, Snapshot};
 use std::io::{Read, Write};
 
+/// Explicit recovery contracts. Exempt devices remain unobserved; this does not
+/// infer motor position, direction, completion or original-controller state.
+#[derive(Clone, Copy, Debug)]
+pub enum Synchronization {
+    CompleteFeedback,
+    OutputsAndKeypadEvents,
+    OutputsAndCalibratedMotors,
+}
+impl Synchronization {
+    fn exempt(self, kind: homesense_core::ModuleKind) -> bool {
+        match self {
+            Self::CompleteFeedback => false,
+            Self::OutputsAndKeypadEvents => kind == homesense_core::ModuleKind::Keypad,
+            Self::OutputsAndCalibratedMotors => matches!(kind, homesense_core::ModuleKind::Keypad | homesense_core::ModuleKind::Motor),
+        }
+    }
+}
+
 pub struct ObservedTransport<S> {
     transport: TransportOwner<S>,
     gateways: Vec<String>,
@@ -95,9 +113,9 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
         revision: u64,
         max_age_ms: u64,
     ) -> Result<(), String> {
-        self.synchronize_mapping(revision,max_age_ms,false).await
+        self.synchronize_mapping(revision,max_age_ms,Synchronization::CompleteFeedback).await
     }
-    async fn synchronize_mapping(&mut self,revision:u64,max_age_ms:u64,allow_keypads:bool)->Result<(),String> {
+    async fn synchronize_mapping(&mut self,revision:u64,max_age_ms:u64,policy:Synchronization)->Result<(),String> {
         if revision != self.feedback.configuration_revision() {
             return Err("recovery revision does not match feedback".into());
         }
@@ -111,7 +129,7 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
         self.expire(now, max_age_ms)?;
         let snapshot = self.snapshot();
         if snapshot.devices.is_empty()
-            || snapshot.devices.values().filter(|state| !(allow_keypads && state.kind == homesense_core::ModuleKind::Keypad)).any(|state| {
+            || snapshot.devices.values().filter(|state| !policy.exempt(state.kind)).any(|state| {
                 state.quality != Quality::Confirmed
                     || state.observed.is_none()
                     || !state
@@ -126,8 +144,8 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
         self.pending_recovery = None;
         Ok(())
     }
-    /// Query supported outputs; only the explicit automation policy permits
-    /// verified event-only keypads to remain unknown instead of being queried.
+    /// Validate the complete plan before querying; exempt devices retain unknown
+    /// observations and at least one queryable output is required.
     async fn query_mapping(
         &mut self,
         config: &homesense_config::Configuration,
@@ -135,7 +153,7 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
         timeout_ms: u64,
         max_age_ms: u64,
         selected: Option<&homesense_core::DeviceId>,
-        allow_keypads: bool,
+        policy: Synchronization,
     ) -> Result<(), String> {
         if config.revision() != self.feedback.configuration_revision() {
             return Err("query revision does not match feedback".into());
@@ -144,13 +162,17 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
             return Err("invalid recovery query state or bounds".into());
         }
         let mut plan = Vec::new();
-        let mut keypads = 0;
+        let mut exempt = 0;
         for id in config.devices().keys() {
             if let Some((device, module)) = config.binding(id) {
-                if allow_keypads && module.kind() == homesense_core::ModuleKind::Keypad {
+                if policy.exempt(module.kind()) {
                     module.validate_context(context).map_err(|e|e.to_string())?;
                     module.validate_channel(device.channel).map_err(|e|e.to_string())?;
-                    keypads += 1;
+                    if module.kind() == homesense_core::ModuleKind::Motor {
+                        let stop = config.motor_command(id, homesense_core::MotorAction::Stop).map_err(|e|e.to_string())?;
+                        hb_protocol::encode_in_context(module,device.channel,stop,context).map_err(|e|e.to_string())?;
+                    }
+                    exempt += 1;
                     continue;
                 }
                 hb_protocol::encode_in_context(
@@ -163,7 +185,7 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
                 plan.push((id.clone(), device, module));
             }
         }
-        if plan.is_empty() || plan.len() + keypads != self.snapshot().devices.len() {
+        if plan.is_empty() || plan.len() + exempt != self.snapshot().devices.len() {
             return Err("recovery query mapping does not match feedback".into());
         }
         if let Some(id) = selected
@@ -260,7 +282,7 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
         if self.pending_recovery.is_none() {
             return Err("no recovery pending".into());
         }
-        self.query_mapping(config, context, timeout_ms, max_age_ms, None, false)
+        self.query_mapping(config, context, timeout_ms, max_age_ms, None, Synchronization::CompleteFeedback)
             .await?;
         self.synchronize_recovery(config.revision(), max_age_ms)
             .await
@@ -271,9 +293,18 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
         &mut self, config:&homesense_config::Configuration,
         context:homesense_core::ExecutionContext, timeout_ms:u64,max_age_ms:u64,
     )->Result<(),String> {
+        self.query_recovery_with_policy(config,context,timeout_ms,max_age_ms,Synchronization::OutputsAndKeypadEvents).await
+    }
+    /// The calibrated motor policy still requires fresh queryable outputs and
+    /// verified profiles. No query or state synthesis is performed for motors.
+    pub async fn query_recovery_with_policy(
+        &mut self, config:&homesense_config::Configuration,
+        context:homesense_core::ExecutionContext, timeout_ms:u64,max_age_ms:u64,
+        policy:Synchronization,
+    )->Result<(),String> {
         if self.pending_recovery.is_none() {return Err("no recovery pending".into());}
-        self.query_mapping(config,context,timeout_ms,max_age_ms,None,true).await?;
-        self.synchronize_mapping(config.revision(),max_age_ms,true).await
+        self.query_mapping(config,context,timeout_ms,max_age_ms,None,policy).await?;
+        self.synchronize_mapping(config.revision(),max_age_ms,policy).await
     }
     /// Refresh one observation so the supervisor can dispatch control between queries.
     /// Recovery still queries the complete mapping before reopening admission.
@@ -288,7 +319,7 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
         if self.pending_recovery.is_some() {
             return Err("recovery requires synchronization first".into());
         }
-        self.query_mapping(config, context, timeout_ms, max_age_ms, Some(device), false)
+        self.query_mapping(config, context, timeout_ms, max_age_ms, Some(device), Synchronization::CompleteFeedback)
             .await
     }
     pub(crate) fn invalidate(&mut self) {
