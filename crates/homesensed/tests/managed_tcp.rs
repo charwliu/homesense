@@ -32,12 +32,14 @@ async fn request(
     )
 }
 #[tokio::test]
-async fn managed_tcp_uses_one_owner_and_recovers_view_after_publication() { run_managed(false,false).await; }
+async fn managed_tcp_uses_one_owner_and_recovers_view_after_publication() { run_managed(false,false,false).await; }
 #[tokio::test]
-async fn combined_tcp_rebuilds_hap_and_retires_old_sessions_after_publication() { run_managed(true,false).await; }
+async fn combined_tcp_rebuilds_hap_and_retires_old_sessions_after_publication() { run_managed(true,false,false).await; }
 #[tokio::test]
-async fn combined_tcp_recovers_hap_with_fresh_feedback_without_replaying_startup() {run_managed(true,true).await;}
-async fn run_managed(combined:bool,recover:bool) {
+async fn combined_tcp_recovers_hap_with_fresh_feedback_without_replaying_startup() {run_managed(true,true,false).await;}
+#[tokio::test]
+async fn combined_tcp_keeps_keypad_internal_across_hap_publication() {run_managed(true,false,true).await;}
+async fn run_managed(combined:bool,recover:bool,mixed:bool) {
     let root = std::env::temp_dir().join(format!("homesense-managed-{}", Uuid::new_v4()));
     let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
     let address = listener.local_addr().unwrap();
@@ -47,6 +49,10 @@ async fn run_managed(combined:bool,recover:bool) {
         serde_json::from_slice(include_bytes!("../../../config/simulation.json")).unwrap();
     devices["gateways"][0]["endpoint"] = bus.local_addr().unwrap().to_string().into();
     devices["gateways"][0]["modules"][0]["verification"] = serde_json::json!({"status":"verified","evidence":"synthetic loopback fixture","verified_at_unix_ms":1});
+    if mixed {
+        devices["gateways"][0]["modules"].as_array_mut().unwrap().push(serde_json::json!({"address":"41","profile":"ts6_86_rs485_v2_6_5_6key","verification":{"status":"verified","evidence":"synthetic keypad","verified_at_unix_ms":1},"led_mode":"manual"}));
+        devices["devices"].as_array_mut().unwrap().push(serde_json::json!({"id":"zz:panel","name":"Internal keypad","gateway":"simulation","address":"41","channel":1,"enabled":true}));
+    }
     let mut rules = serde_json::json!({"schema_version":1,"configuration_revision":1,"variables":[],"rules":[]});
     if combined {rules["timed_scenes"]=serde_json::json!([{"id":"demo","enabled":true,"review_evidence":"synthetic","max_lateness_ms":1000,"steps":[{"source":"fixture","offset_ms":60000,"device":"simulation:light","command":{"kind":"level","value":90,"ramp":false}}]}]);}
     if recover {
@@ -85,6 +91,7 @@ async fn run_managed(combined:bool,recover:bool) {
                     stream
                         .write_all(&[0xae, 0x15, 0xd1, level.load(Ordering::SeqCst), 0xee])
                         .unwrap();
+                    if mixed {stream.write_all(&[0xae,0x41,0xd1,0xf1,0xee,0xae,0x41,0xd1,0xf2,0xee]).unwrap();}
                     if recover && connection==0 && frame[2]==0x01 {break;}
                 }
             }));
@@ -141,6 +148,7 @@ async fn run_managed(combined:bool,recover:bool) {
     let (code, snapshot) = request(address, "/api/v1/devices", None).await;
     assert_eq!(code, 200);
     assert_eq!(snapshot["devices"][0]["observed"]["level"], 42);
+    if mixed {assert_eq!(snapshot["devices"].as_array().unwrap().len(),2);}
     let mut old_session=None;
     let mut old_number=None;
     if let Some(store)=&identity {

@@ -40,21 +40,9 @@ impl Settings {
                 return Err("published HAP scene missing, disabled or unreviewed".into());
             }
         }
-        // Motor and keypad graphs require their own explicit publication policy.
-        // Reject unsupported candidates before retiring the current graph.
-        for (id, device) in config.devices() {
-            if device.enabled
-                && !config.binding(id).is_some_and(|(_, module)| {
-                    matches!(
-                        module.kind(),
-                        homesense_core::ModuleKind::Switch | homesense_core::ModuleKind::Dimmer
-                    )
-                })
-            {
-                return Err("combined HAP currently requires light-only enabled devices".into());
-            }
-        }
-        if !config.devices().values().any(|d| d.enabled) {
+        // Non-light devices remain in automation but are not implicitly exposed
+        // as light characteristics. Their own publication policy is separate.
+        if !config.devices().keys().any(|id|config.binding(id).is_some_and(|(_,module)|matches!(module.kind(),homesense_core::ModuleKind::Switch|homesense_core::ModuleKind::Dimmer))) {
             return Err("HAP requires an enabled light".into());
         }
         Ok(())
