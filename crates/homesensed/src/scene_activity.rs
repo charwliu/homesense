@@ -24,6 +24,67 @@ impl Targets {
         }
         Self((!targets.is_empty()).then_some(targets))
     }
+    pub(crate) async fn project(
+        &self,
+        admission: &crate::admission::Admission,
+        controller: uuid::Uuid,
+        generation: &crate::admission::TaskGeneration,
+        feedback: &crate::feedback::Feedback,
+        max_age: u64,
+    ) -> Result<SceneActivity,String> {
+        use crate::scene_activity::SceneActivity as Activity;
+        use homesense_core::rule::{Budget, Lifetime, Value, ValueType, Variable};
+        if max_age == 0
+            || !feedback.is_active()
+            || !admission
+                .task_generation()
+                .await
+                .is_ok_and(|current| current == *generation)
+        {
+            return Ok(Activity::Unknown);
+        }
+        let Some(nodes) = self.nodes(feedback) else {
+            return Ok(Activity::Unknown);
+        };
+        let variables = ["unknown", "mismatch"]
+            .into_iter()
+            .map(|name| {
+                (
+                    name.into(),
+                    Variable {
+                        value_type: ValueType::Bool,
+                        lifetime: Lifetime::Temporary,
+                        value: Some(Value::Bool(false)),
+                    },
+                )
+            })
+            .collect();
+        let (plan, lease) = feedback.plan_rule(
+            &nodes,
+            &variables,
+            Budget::default(),
+            admission.monotonic_ms(),
+            max_age,
+        )?;
+        if plan.variables["unknown"].value == Some(Value::Bool(true)) {
+            return Ok(Activity::Unknown);
+        }
+        match admission
+            .feedback_settled(controller, generation.clone(), lease)
+            .await
+        {
+            Ok(false) => Ok(Activity::Pending),
+            Ok(true) => Ok(
+                if plan.variables["mismatch"].value == Some(Value::Bool(true)) {
+                    Activity::Inactive
+                } else {
+                    Activity::Active
+                },
+            ),
+            Err(hap::server::WriteStatus::ResourceBusy) => Ok(Activity::Unknown),
+            Err(error) => Err(format!("scene activity: {error:?}")),
+        }
+    }
     pub fn nodes(&self, feedback: &crate::feedback::Feedback) -> Option<Vec<Node>> {
         self.0.as_ref().map(|targets| {
             let mut checks = vec![];

@@ -319,61 +319,9 @@ impl SceneRuntime {
         feedback: &crate::feedback::Feedback,
         max_age: u64,
     ) -> Result<crate::scene_activity::SceneActivity, String> {
-        use crate::scene_activity::SceneActivity as Activity;
-        use homesense_core::rule::{Budget, Lifetime, Value, ValueType, Variable};
-        if max_age == 0
-            || !feedback.is_active()
-            || !self
-                .admission
-                .task_generation()
-                .await
-                .is_ok_and(|generation| generation == self.generation)
-        {
-            return Ok(Activity::Unknown);
-        }
-        let Some(nodes) = self.targets.nodes(feedback) else {
-            return Ok(Activity::Unknown);
-        };
-        let variables = ["unknown", "mismatch"]
-            .into_iter()
-            .map(|name| {
-                (
-                    name.into(),
-                    Variable {
-                        value_type: ValueType::Bool,
-                        lifetime: Lifetime::Temporary,
-                        value: Some(Value::Bool(false)),
-                    },
-                )
-            })
-            .collect();
-        let (plan, lease) = feedback.plan_rule(
-            &nodes,
-            &variables,
-            Budget::default(),
-            self.admission.monotonic_ms(),
-            max_age,
-        )?;
-        if plan.variables["unknown"].value == Some(Value::Bool(true)) {
-            return Ok(Activity::Unknown);
-        }
-        match self
-            .admission
-            .feedback_settled(self.controller, self.generation.clone(), lease)
-            .await
-        {
-            Ok(false) => Ok(Activity::Pending),
-            Ok(true) => Ok(
-                if plan.variables["mismatch"].value == Some(Value::Bool(true)) {
-                    Activity::Inactive
-                } else {
-                    Activity::Active
-                },
-            ),
-            Err(hap::server::WriteStatus::ResourceBusy) => Ok(Activity::Unknown),
-            Err(error) => Err(format!("scene activity: {error:?}")),
-        }
+        self.targets.project(&self.admission,self.controller,&self.generation,feedback,max_age).await
     }
+
     pub fn audit_id(&self) -> &str {
         &self.audit_id
     }
