@@ -20,6 +20,10 @@ pub struct Api {
     pub boot: String,
     pub scenes: BTreeMap<String, String>,
     pub receipts: Mutex<Receipts>,
+    pub drafts: Option<(
+        homesense_core::ExecutionContext,
+        Mutex<crate::web_drafts::Drafts>,
+    )>,
 }
 fn response(code: StatusCode, value: serde_json::Value) -> Response<Full<Bytes>> {
     Response::builder()
@@ -134,6 +138,93 @@ impl Api {
         let Some(grant) = grant else {
             return deny(StatusCode::UNAUTHORIZED, "authentication_required");
         };
+        if request.method() == hyper::Method::GET && request.uri().path() == "/api/v1/session" {
+            return response(
+                StatusCode::OK,
+                json!({"can_manage_configuration":grant.role==crate::web_auth::Role::Administrator && self.drafts.is_some()}),
+            );
+        }
+        if let Some(id) = request.uri().path().strip_prefix("/api/v1/config/drafts/") {
+            if grant.role != crate::web_auth::Role::Administrator {
+                return deny(StatusCode::FORBIDDEN, "administrator_required");
+            }
+            let Ok(id) = uuid::Uuid::parse_str(id) else {
+                return deny(StatusCode::BAD_REQUEST, "invalid_draft_id");
+            };
+            let Some((context, drafts)) = &self.drafts else {
+                return deny(
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    "configuration_management_unavailable",
+                );
+            };
+            if request.method() == hyper::Method::GET {
+                return match drafts
+                    .lock()
+                    .map_err(|_| ())
+                    .and_then(|d| d.get(grant.controller, id).map_err(|_| ()))
+                {
+                    Ok(Some(draft)) => {
+                        response(StatusCode::OK, serde_json::to_value(draft).unwrap())
+                    }
+                    Ok(None) => deny(StatusCode::NOT_FOUND, "draft_not_found"),
+                    Err(_) => deny(StatusCode::SERVICE_UNAVAILABLE, "draft_storage_unavailable"),
+                };
+            }
+            if request.method() != hyper::Method::POST {
+                return deny(StatusCode::METHOD_NOT_ALLOWED, "method_not_allowed");
+            }
+            if request
+                .headers()
+                .get("origin")
+                .and_then(|v| v.to_str().ok())
+                != Some(&self.origin)
+            {
+                return deny(StatusCode::FORBIDDEN, "origin_required");
+            }
+            if request
+                .headers()
+                .get("content-type")
+                .and_then(|v| v.to_str().ok())
+                != Some("application/json")
+                || request.body().len() > crate::web_drafts::MAX_BYTES
+            {
+                return deny(StatusCode::BAD_REQUEST, "invalid_body");
+            }
+            #[derive(serde::Deserialize)]
+            #[serde(deny_unknown_fields)]
+            struct Input {
+                expected_revision: u64,
+                revision: u64,
+                devices: serde_json::Value,
+                automation: serde_json::Value,
+            }
+            let Ok(input) = serde_json::from_slice::<Input>(request.body()) else {
+                return deny(StatusCode::BAD_REQUEST, "invalid_body");
+            };
+            if input.expected_revision != self.revision {
+                return deny(StatusCode::CONFLICT, "configuration_changed");
+            }
+            let draft = crate::web_drafts::Draft {
+                id,
+                expected_revision: input.expected_revision,
+                revision: input.revision,
+                devices: input.devices,
+                automation: input.automation,
+            };
+            return match drafts.lock() {
+                Ok(mut drafts) => match drafts.save(grant.controller, &draft, *context) {
+                    Ok(()) => response(
+                        StatusCode::OK,
+                        json!({"draft":id,"revision":draft.revision,"active":false}),
+                    ),
+                    Err(_) => deny(
+                        StatusCode::UNPROCESSABLE_ENTITY,
+                        "draft_invalid_conflicting_or_unavailable",
+                    ),
+                },
+                Err(_) => deny(StatusCode::SERVICE_UNAVAILABLE, "draft_storage_unavailable"),
+            };
+        }
         if request.method() == hyper::Method::DELETE && request.uri().path() == "/api/v1/session" {
             if request
                 .headers()

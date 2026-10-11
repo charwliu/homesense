@@ -152,6 +152,10 @@ async fn web_scope_origin_receipts_and_runtime_admission() {
         revision: 1,
         boot: admission.boot_id().to_owned(),
         scenes: [("light".into(), "Test".into())].into(),
+        drafts: Some((
+            ExecutionContext::Simulation,
+            Mutex::new(homesensed::web_drafts::Drafts::open(&root.join("drafts.sqlite")).unwrap()),
+        )),
         receipts: Mutex::new(Receipts::open(&root.join("web.sqlite")).unwrap()),
     };
     let (stop, receive) = tokio::sync::watch::channel(false);
@@ -289,6 +293,35 @@ async fn web_scope_origin_receipts_and_runtime_admission() {
         let mut conflict = make(&api.origin, &device_body.replace("40", "30"));
         *conflict.uri_mut() = "/api/v1/device-commands".parse().unwrap();
         assert_eq!(api.handle(conflict).await.status(), StatusCode::CONFLICT);
+        let draft_id = Uuid::new_v4();
+        let mut definition: serde_json::Value = serde_json::from_slice(devices).unwrap();
+        definition["revision"] = 2.into();
+        let draft_body=serde_json::json!({"expected_revision":1,"revision":2,"devices":definition,"automation":{"schema_version":1,"configuration_revision":2,"variables":[],"rules":[],"timed_scenes":[]}}).to_string();
+        let make_draft = || {
+            let mut r = make(&api.origin, &draft_body);
+            *r.uri_mut() = format!("/api/v1/config/drafts/{draft_id}").parse().unwrap();
+            r
+        };
+        assert_eq!(
+            api.handle(make_draft()).await.status(),
+            StatusCode::FORBIDDEN
+        );
+        let mut administrator = tokens.authenticate(&format!("Bearer {secret}")).unwrap();
+        administrator.role = Role::Administrator;
+        tokens.insert(token_id, secret, administrator).unwrap();
+        assert_eq!(api.handle(make_draft()).await.status(), StatusCode::OK);
+        assert_eq!(api.handle(make_draft()).await.status(), StatusCode::OK);
+        let mut read = make_draft();
+        *read.method_mut() = hyper::Method::GET;
+        *read.body_mut() = Bytes::new();
+        let saved = api.handle(read).await;
+        assert_eq!(saved.status(), StatusCode::OK);
+        let saved: serde_json::Value =
+            serde_json::from_slice(&saved.into_body().collect().await.unwrap().to_bytes()).unwrap();
+        assert_eq!(saved["revision"], 2);
+        let mut no_origin = make_draft();
+        no_origin.headers_mut().remove("origin");
+        assert_eq!(api.handle(no_origin).await.status(), StatusCode::FORBIDDEN);
         tokens.revoke(token_id).unwrap();
         assert_eq!(
             api.handle(make(&api.origin, body)).await.status(),
