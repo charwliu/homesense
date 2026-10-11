@@ -18,6 +18,7 @@ pub struct SoftwareFade {
     controller: Uuid,
     device: DeviceId,
     target: Percent,
+    output_possible: bool,
     generation: TaskGeneration,
     fence: u64,
     fade: Fade,
@@ -93,6 +94,7 @@ impl SoftwareFade {
             controller,
             device,
             target,
+            output_possible: false,
             generation,
             fence,
             fade,
@@ -134,6 +136,7 @@ impl SoftwareFade {
         if let Some(deadline) = deadline { self.expires = self.expires.min(deadline); }
         Ok(())
     }
+    pub(crate) fn output_possible(&self) -> bool { self.output_possible }
     pub(crate) fn manually_cancelled(&self) -> bool { self.manually_cancelled }
     /// Returns true when quiescent after successful writes or explicit cancellation. Device
     /// activity must still be derived from fresh physical feedback separately.
@@ -198,6 +201,7 @@ impl SoftwareFade {
                     self.failure = Some(error.clone());
                     error
                 })?;
+            self.output_possible |= statuses.iter().any(|s| matches!(s, Status::Writing | Status::Written | Status::Observed | Status::Failed | Status::Uncertain));
             if statuses
                 .iter()
                 .any(|s| matches!(s, Status::Failed | Status::Uncertain | Status::Cancelled))
@@ -293,6 +297,7 @@ impl SoftwareFade {
                 )
                 .await
                 .map_err(|e| format!("fade cancellation status: {e:?}"))?;
+            self.output_possible |= statuses.iter().any(|s| matches!(s, Status::Writing | Status::Written | Status::Observed | Status::Failed | Status::Uncertain));
             if statuses
                 .iter()
                 .any(|s| matches!(s, Status::Accepted | Status::Writing))
@@ -301,6 +306,9 @@ impl SoftwareFade {
                     .cancel_scene_run(self.controller, self.generation.clone(), run)
                     .await
                     .map_err(|e| format!("fade cancel: {e:?}"))?;
+            }
+            if statuses.contains(&Status::Writing) {
+                return Err("fade write still in flight".into());
             }
         }
         self.pending.clear();
