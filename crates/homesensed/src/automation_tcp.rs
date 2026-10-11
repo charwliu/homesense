@@ -157,7 +157,7 @@ async fn serve_inner(devices:&[u8],rules:&[u8],directory:&Path,duration:Duration
         )?;
         let mut owner = ObservedTransport::new_recovering(transport, feedback, epoch)?;
         owner
-            .query_automation_recovery(&config, ExecutionContext::Live, 1000, 5000)
+            .query_recovery_with_policy(&config, ExecutionContext::Live, 1000, 5000, crate::observed_transport::Synchronization::OutputsAndCalibratedMotors)
             .await?;
         let deadline=tokio::time::Instant::now()+duration;
         let mut recoveries=0;
@@ -270,7 +270,7 @@ async fn serve_inner(devices:&[u8],rules:&[u8],directory:&Path,duration:Duration
                         let (runtime,fresh)=crate::publication_recovery::rebuild_with_policy(
                             admission.clone(),controller,transport,next,
                             crate::publication_recovery::Settings{query_timeout_ms:1000,max_age_ms:5000,wall_unix_ms:wall_ms()?,calendar_lateness_ms:1000,scene_capacity:64},
-                            crate::publication_recovery::Synchronization::OutputsAndKeypadEvents,
+                            crate::publication_recovery::Synchronization::OutputsAndCalibratedMotors,
                         ).await?;
                         Ok::<_,String>((revision,next,runtime,fresh))
                     };
@@ -301,7 +301,7 @@ async fn serve_inner(devices:&[u8],rules:&[u8],directory:&Path,duration:Duration
                         let (transport,next)=reconnect_tcp(admission.clone(),endpoints.clone(),epoch,RetryPolicy::default(),true,receiver.clone()).await?;
                         epoch=next;
                         owner.recover(transport,epoch)?;
-                        owner.query_automation_recovery(&config,ExecutionContext::Live,1000,5000).await
+                        owner.query_recovery_with_policy(&config,ExecutionContext::Live,1000,5000,crate::observed_transport::Synchronization::OutputsAndCalibratedMotors).await
                     };
                     tokio::select! {
                         result=recovery=>result?,
@@ -373,6 +373,11 @@ pub(crate) fn validate_candidate_in_context(devices:&[u8],rules:&[u8],write_inte
             if context == ExecutionContext::Live && module.kind() == homesense_core::ModuleKind::Keypad {
                 module.validate_context(context).map_err(|e|e.to_string())?;
                 module.validate_channel(device.channel).map_err(|e|e.to_string())?;
+                continue;
+            }
+            if module.kind() == homesense_core::ModuleKind::Motor {
+                let stop=config.motor_command(id,homesense_core::MotorAction::Stop).map_err(|e|e.to_string())?;
+                hb_protocol::encode_in_context(module,device.channel,stop,context).map_err(|e|e.to_string())?;
                 continue;
             }
             outputs += 1;
