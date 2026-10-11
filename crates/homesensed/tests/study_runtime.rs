@@ -4735,3 +4735,36 @@ async fn causal_root_batch_shares_identity_and_node_budget() {
         a.shutdown().await.unwrap();
     }
 }
+
+#[tokio::test]
+async fn panel_feedback_uses_shared_causal_rules_without_duplicate_edges() {
+    let source=database();
+    let payload=Store::open(&source.0).unwrap().active().unwrap().unwrap().payload;
+    let db=Db(std::env::temp_dir().join(format!("panel-causal-{}.sqlite",Uuid::new_v4())));
+    let document=hap::serde_json::json!({"schema_version":1,"configuration_revision":1,
+        "variables":[{"id":"mode","kind":"integer","lifetime":"persistent"}],
+        "gestures":[{"device":"control4:63:key:1","debounce_ms":30,"long_press_ms":600,"double_click_ms":300,"max_hold_ms":10000,"double_click_enabled":false}],
+        "rules":([("first",1),("second",2)].map(|(id,value)|hap::serde_json::json!({"id":id,"enabled":true,"review_evidence":"test","source":"test","trigger":{"kind":"panel","device":"control4:63:key:1","event":"pressed"},"actions":[{"source":"set","action":{"kind":"set","variable":"mode","value":{"kind":"integer","value":value}}}]})))
+    });
+    let bytes=hap::serde_json::to_vec(&document).unwrap();
+    Store::open(&db.0).unwrap().publish_automation(None,&payload,&bytes,ExecutionContext::Simulation,&[]).unwrap();
+    let config=homesense_config::Configuration::parse(&payload,ExecutionContext::Simulation).unwrap();
+    let document=homesense_config::rule_document::Document::parse(&bytes,&config).unwrap();
+    let controller=Uuid::new_v4();let a=actor(&db,controller).await;
+    let mut configured=homesensed::configured_rules::ConfiguredRules::load_document(a.clone(),controller,&document,Default::default()).await.unwrap();
+    let mut scheduler=homesensed::scene_scheduler::SceneScheduler::new(a.clone(),controller,2,0).unwrap();
+    let mut router=homesensed::deferred_router::Router::new(a.clone(),controller,&scheduler,2).unwrap();
+    let mut feedback=homesensed::feedback::Feedback::new(&config,ExecutionContext::Live,Uuid::parse_str(a.boot_id()).unwrap().as_u128(),1).unwrap();
+    let sample=|time,value|homesensed::transport_owner::GatewayRead{gateway_id:"hopebeauty".into(),transport_epoch:1,received_at_ms:time,result:hb_transport::Receive::Frames{transport_epoch:1,frames:vec![hb_protocol::RawFrame{address:0x41,command:0xd1,value}]}};
+    tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+    feedback.apply(&sample(100,0xf1)).unwrap();configured.panels.bind_feedback(&feedback).unwrap();
+    assert!(configured.panels.consume_feedback_causal(&feedback,100,1000,&mut router,&mut scheduler).await.unwrap().is_empty());
+    feedback.apply(&sample(101,0xf2)).unwrap();configured.panels.consume_feedback_causal(&feedback,101,1000,&mut router,&mut scheduler).await.unwrap();
+    feedback.apply(&sample(140,0xf1)).unwrap();
+    let fired=configured.panels.consume_feedback_causal(&feedback,140,1000,&mut router,&mut scheduler).await.unwrap();
+    assert_eq!(fired.len(),2);
+    assert_eq!(fired[0].cause.as_ref().unwrap().correlation_id(),fired[1].cause.as_ref().unwrap().correlation_id());
+    assert!(configured.panels.consume_feedback_causal(&feedback,140,1000,&mut router,&mut scheduler).await.unwrap().is_empty());
+    assert_eq!(Store::open(&db.0).unwrap().logical_variable(1,"mode").unwrap().unwrap().value,Some(homesense_core::rule::Value::Integer(2)));
+    assert!(a.dispatch().await.unwrap().is_none());a.shutdown().await.unwrap();
+}
