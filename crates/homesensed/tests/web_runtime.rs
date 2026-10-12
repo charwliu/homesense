@@ -397,13 +397,20 @@ async fn web_scope_origin_receipts_and_runtime_admission() {
         );
         let mut activation=make_draft();*activation.uri_mut()=format!("/api/v1/config/activations/{draft_id}").parse().unwrap();
         assert_eq!(api.handle(activation).await.status(),StatusCode::FORBIDDEN);
-        for path in ["/api/v1/diagnostics/calendar","/api/v1/config/drafts","/api/v1/config/versions","/api/v1/config/versions/1/export"] {
+        for path in ["/api/v1/diagnostics","/api/v1/diagnostics/calendar","/api/v1/config/drafts","/api/v1/config/versions","/api/v1/config/versions/1/export"] {
             let mut read=make(&api.origin,"");*read.method_mut()=hyper::Method::GET;*read.uri_mut()=path.parse().unwrap();
             assert_eq!(api.handle(read).await.status(),StatusCode::FORBIDDEN);
         }
         let mut administrator = tokens.authenticate(&format!("Bearer {secret}")).unwrap();
         administrator.role = Role::Administrator;
         tokens.insert(token_id, secret, administrator).unwrap();
+        for (method,body,status) in [(hyper::Method::GET,"",StatusCode::OK),(hyper::Method::GET,"{}",StatusCode::BAD_REQUEST),(hyper::Method::POST,"{}",StatusCode::METHOD_NOT_ALLOWED)] {
+            let mut read=make(&api.origin,body);*read.method_mut()=method;*read.uri_mut()="/api/v1/diagnostics".parse().unwrap();
+            let result=api.handle(read).await;assert_eq!(result.status(),status);
+            if status==StatusCode::OK {let value:serde_json::Value=serde_json::from_slice(&result.into_body().collect().await.unwrap().to_bytes()).unwrap();assert_eq!(value["revision"],"1");assert_eq!(value["failed"],false);assert_eq!(value["gateway_ready"],true);assert_eq!(value["storage_healthy"],true);}
+        }
+        assert!(control.request(Action::Diagnostics{controller:Uuid::new_v4(),revision:1}).await.is_err());
+        assert!(control.request(Action::Diagnostics{controller:caller,revision:2}).await.is_err());
         for (method,body,status) in [(hyper::Method::GET,"",StatusCode::OK),(hyper::Method::GET,"{}",StatusCode::BAD_REQUEST),(hyper::Method::POST,"{}",StatusCode::METHOD_NOT_ALLOWED)] {
             let mut read=make(&api.origin,body);*read.method_mut()=method;*read.uri_mut()="/api/v1/diagnostics/calendar".parse().unwrap();
             let result=api.handle(read).await;assert_eq!(result.status(),status);
