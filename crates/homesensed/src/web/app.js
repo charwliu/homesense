@@ -43,6 +43,7 @@ async function request(path, options = {}) {
   return result;
 }
 async function refresh() {
+  if(!csrf)throw new Error('请在本页重新登录后刷新状态。');
   const capabilities = await request('/api/v1/session');
   document.getElementById('configuration').hidden = !capabilities.can_manage_configuration;
   document.getElementById('diagnostics').hidden = !capabilities.can_view_diagnostics;
@@ -194,7 +195,10 @@ function renderDevices() {
   }
 }
 
-document.getElementById('refresh').onclick = () => refresh().catch(error => {status.textContent=error.message;});
+document.getElementById('refresh').onclick = () => {
+  const epoch=sessionEpoch;
+  return refresh().catch(error => {if(epoch===sessionEpoch)status.textContent=error.message;});
+};
 
 document.getElementById('save-draft').onclick = async () => {
   invalidatePreview();
