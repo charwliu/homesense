@@ -182,6 +182,7 @@ enum Message {
 
     SceneQuery(Uuid, TaskGeneration, homesense_storage::scene_run::Query, oneshot::Sender<Result<Option<homesense_storage::scene_run::Page>, WriteStatus>>),
 
+    ManualScenes(Uuid, TaskGeneration, Vec<String>, oneshot::Sender<Result<Vec<AcceptedScene>, WriteStatus>>),
     SceneUpdate(Uuid, TaskGeneration, SceneUpdate, oneshot::Sender<Result<u64, WriteStatus>>),
 
     RuleOutcome(
@@ -515,6 +516,47 @@ impl Admission {
                                 _ => WriteStatus::ServiceCommunicationFailure,
                             })};
                             let _=reply.send(result);
+                        }
+                        Message::ManualScenes(controller,generation,definitions,reply) => {
+                            if reply.is_closed() { continue; }
+                            let result = (|| {
+                                if !authorize(controller) { return Err(WriteStatus::InsufficientPrivileges); }
+                                let policy = arbiter.policy();
+                                if failed || worker_stop.load(Ordering::Acquire) || policy.publishing
+                                    || !policy.gateway_ready || !policy.controller || !policy.storage_healthy
+                                    || !policy.valid_configuration_loaded || generation.boot != worker_boot
+                                    || generation.epochs != policy.epochs {
+                                    return Err(WriteStatus::ServiceCommunicationFailure);
+                                }
+                                if definitions.is_empty() || definitions.len()>64
+                                    || definitions.iter().collect::<std::collections::BTreeSet<_>>().len()!=definitions.len() {
+                                    return Err(WriteStatus::InvalidValueInRequest);
+                                }
+                                let bundle=store.active_bundle(options.context).map_err(|_|WriteStatus::ServiceCommunicationFailure)?
+                                    .ok_or(WriteStatus::ServiceCommunicationFailure)?;
+                                let document=bundle.automation.ok_or(WriteStatus::InvalidValueInRequest)?;
+                                for id in &definitions {
+                                    let scene=document.timed_scenes.get(id).ok_or(WriteStatus::InvalidValueInRequest)?;
+                                    if !scene.enabled || scene.review_evidence.as_ref().is_none_or(|s|s.trim().is_empty()) {
+                                        return Err(WriteStatus::InvalidValueInRequest);
+                                    }
+                                }
+                                let starts=definitions.into_iter().map(|definition|homesense_storage::scene_run::ManualStart {
+                                    run:Uuid::new_v4().to_string(), definition,
+                                }).collect::<Vec<_>>();
+                                let now=millis(clock);
+                                store.begin_manual_scene_batch(&worker_boot,generation.epochs.configuration,&starts,now)
+                                    .map_err(|error|match error {
+                                        homesense_storage::Error::Conflict|homesense_storage::Error::InvalidAudit=>WriteStatus::InvalidValueInRequest,
+                                        _=>{failed=true;let _=arbiter.storage_failed();WriteStatus::ServiceCommunicationFailure}
+                                    })?;
+                                Ok(starts.into_iter().map(|start|AcceptedScene {
+                                    generation:generation.clone(),controller,manual_fence:next_id,started_ms:now,causal_deadline:None,
+                                    start:homesense_storage::scene_run::Start {action_index:0,source:"manual".into(),run:start.run,
+                                        revision:generation.epochs.configuration,definition:start.definition},
+                                }).collect())
+                            })();
+                            if reply.send(result).is_err() { failed=true;let _=arbiter.storage_failed(); }
                         }
                         Message::SceneUpdate(controller,generation,update,reply) => {
                             let result = if !authorize(controller) { Err(WriteStatus::InsufficientPrivileges) }
@@ -1631,6 +1673,21 @@ impl Admission {
             Some(SubmissionScope::Generation(generation)),
         )
         .await
+    }
+    /// Accept named manual scenes together; reserve scheduler slots first.
+    /// Dropping an in-flight request closes admission because acceptance may
+    /// already be durable. Returned capabilities must be installed, not replayed.
+    pub async fn accept_manual_scenes(&self, controller:Uuid, generation:TaskGeneration, definitions:Vec<String>)
+        -> Result<Vec<AcceptedScene>,WriteStatus> {
+        struct Guard(Admission,bool);
+        impl Drop for Guard { fn drop(&mut self) { if !self.1 { self.0.stop_now(); } } }
+        let (reply,receive)=oneshot::channel();
+        self.sender.try_send(Message::ManualScenes(controller,generation,definitions,reply))
+            .map_err(|_|WriteStatus::ResourceBusy)?;
+        let mut guard=Guard(self.clone(),false);
+        let result=receive.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?;
+        guard.1=true;
+        result
     }
     /// Atomically accept variable changes, immediate output and delayed receipts.
     /// No delayed output is scheduled by this call. It is not a network endpoint.
