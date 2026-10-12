@@ -1,4 +1,4 @@
-//! Daily online snapshots. No activation, replay, pruning, or gateway access.
+//! Daily online snapshots. No activation, replay, or gateway access.
 use homesense_core::ExecutionContext;
 use std::{path::{Path,PathBuf},time::Duration};
 #[derive(Debug,Clone,PartialEq,Eq)]
@@ -16,14 +16,32 @@ pub fn once(source:&Path,context:ExecutionContext,utc_day:u64)->Result<bool,Stri
     builder.create(&directory).map_err(|e|e.to_string())?;
     if !std::fs::symlink_metadata(&directory).map_err(|e|e.to_string())?.is_dir(){return Err("daily source directory must not be a symlink".into());}
     let destination=directory.join(format!("daily-{utc_day}.sqlite"));
-    match std::fs::symlink_metadata(&destination) {
+    let created=match std::fs::symlink_metadata(&destination) {
         Ok(_)=>{homesense_storage::backup::inspect(&destination,context)?;Ok(false)},
         Err(e) if e.kind()==std::io::ErrorKind::NotFound=>{
             homesense_storage::backup::create(source,&destination,Duration::from_secs(10))?;
             homesense_storage::backup::inspect(&destination,context)?;Ok(true)
         },
         Err(e)=>Err(e.to_string()),
+    }?;
+    prune(&directory,context,utc_day)?;
+    Ok(created)
+}
+/// Retain the current UTC day and preceding 29 days. Only canonical,
+/// independently verified snapshots are eligible; unknown files remain intact.
+fn prune(directory:&Path,context:ExecutionContext,day:u64)->Result<(),String> {
+    let entries=homesense_storage::backup::catalog(directory)?;
+    for entry in entries {
+        let Some(raw)=entry.name.strip_prefix("daily-").and_then(|v|v.strip_suffix(".sqlite")) else {continue;};
+        let Ok(saved)=raw.parse::<u64>() else {continue;};
+        if !entry.regular_file || saved.to_string()!=raw || day.saturating_sub(saved)<30 || saved>day {continue;}
+        let path=directory.join(&entry.name);
+        // Never delete corrupt, foreign-schema or sidecar-dependent files.
+        if homesense_storage::backup::inspect(&path,context).is_ok() {
+            std::fs::remove_file(path).map_err(|e|e.to_string())?;
+        }
     }
+    Ok(())
 }
 /// Start immediately, then check once per minute. Successful days never repeat
 /// within a process. Failures retry next minute; blocking SQLite work is awaited
