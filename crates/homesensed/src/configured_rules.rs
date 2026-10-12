@@ -41,7 +41,7 @@ impl ConfiguredRules {
             feedback_bindings:document.feedback_bindings.clone(),rules,
             immediate_scenes:Default::default(),schedules:document.schedules.clone(),
             gestures:document.gestures.clone(),holds:document.holds.clone(),
-            timed_scenes:document.timed_scenes.clone(),
+            timed_scenes:document.timed_scenes.clone(),scene_switch_groups:document.scene_switch_groups.clone(),
         };
         Self::load_document(admission,controller,&index,budget).await
     }
@@ -204,6 +204,7 @@ impl ConfiguredRules {
                 gestures: Default::default(),
                 holds: None,
                 timed_scenes: document.timed_scenes.clone(),
+                scene_switch_groups: document.scene_switch_groups.clone(),
             },
             scenes,
             schedules,

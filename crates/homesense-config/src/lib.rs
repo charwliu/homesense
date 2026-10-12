@@ -437,3 +437,5 @@ fn identifier(value: &str) -> Result<(), Error> {
         Ok(())
     }
 }
+
+pub mod scene_switches;
