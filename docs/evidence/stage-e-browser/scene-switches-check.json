@@ -1,0 +1,73 @@
+{
+  "base_commit": "0f5d65509324499ac055ffbaa3b45387c0c2c4f8",
+  "source_sha256": {
+    "crates/homesensed/src/automation_control.rs": "fab98f4f41ba58a0d0be5e213a1f163b8ec66a54fbd1e0fbfb0778fcac34cffb",
+    "crates/homesensed/src/web_api.rs": "fb01e6706576ebff4a3252753f75fce9a5214383852cb7efaaeaeb175502ba90",
+    "crates/homesensed/src/web_events.rs": "f32a3842f89ce11f42c8026340a7c96a761afbb2db2585dae5ec2ebf3972d8ca",
+    "crates/homesensed/src/web/app.js": "62f269e54afaea4a9e3fc7c73d62ad95b2e8d57ff009b9211eb27c4f500065cf",
+    "crates/homesensed/tests/scene_switch_web.rs": "122298a812a414e358be3c5fb9dd4c7965425f3a5b8b20dfe80d642ba005baa2",
+    "tools/verify_scene_switches.cjs": "f68c71c3e6202b12b564d340d57c7014c4436133a1567207eb3df6f0e31c3934"
+  },
+  "fixture": "synthetic only; no field gateway or private Control4 bindings",
+  "browser": "Codex in-app browser",
+  "initial_selection": "unknown; no automatic scene execution",
+  "operations": [
+    {
+      "action": "daily on",
+      "selected": "daily",
+      "level": 60
+    },
+    {
+      "action": "eco on",
+      "selected": "eco",
+      "level": 17,
+      "daily_selected": false
+    },
+    {
+      "action": "eco off",
+      "selected": null,
+      "level": 0
+    }
+  ],
+  "audit": {
+    "scene_definitions": [
+      "daily",
+      "eco",
+      "off"
+    ],
+    "commands_written": 3
+  },
+  "layout": {
+    "390": "screenshot reviewed",
+    "320": {
+      "scroll_width": 320,
+      "viewport": 320,
+      "card_width": 292
+    }
+  },
+  "after_service_exit": {
+    "selection": "unknown",
+    "controls": "disabled"
+  },
+  "screenshot": "scene-switches-mobile.png",
+  "limitations": [
+    "synthetic browser and simulated transport only",
+    "real phone and EA-5 external synchronization remain pending",
+    "logout was not verified; service reached its normal 180-second deadline"
+  ],
+  "regression": {
+    "rust_unique_passed": 17,
+    "front_end_scripts_passed": 13,
+    "strict_clippy": "homesensed all targets passed",
+    "tls": {
+      "https": "passed",
+      "wss": "passed",
+      "csrf_and_session_revocation": "passed",
+      "revoked_wss": "closed",
+      "untrusted_and_wrong_name": "rejected",
+      "plaintext": "rejected",
+      "unsafe_key_permissions_and_mismatch": "rejected",
+      "transport": "synthetic tcp combined only"
+    }
+  }
+}

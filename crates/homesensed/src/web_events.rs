@@ -140,10 +140,22 @@ pub(crate) fn upgrade(
                     };
                     let ids=grant.devices.iter().map(homesense_core::DeviceId::new).collect::<Result<Vec<_>,_>>();
                     let Ok(ids)=ids else{break;};
-                    let Ok(Reply::DeviceEvents(update))=runtime.control.request(Action::DeviceEvents{controller:grant.controller,revision:runtime.revision,ids,cursor:cursor.clone(),scope:format!("{:?}",grant.role)}).await else{continue;};
+                    let Ok(Reply::DeviceEvents(update))=runtime.control.request(Action::DeviceEvents{controller:grant.controller,revision:runtime.revision,ids,cursor:cursor.clone(),scope:format!("{:?}",grant.role)}).await else{
+                        if !unavailable {
+                            if !matches!(tokio::time::timeout(Duration::from_secs(2),socket.send(Message::Text(json!({"type":"unavailable"}).to_string().into()))).await,Ok(Ok(()))){break;}
+                            unavailable=true;cursor=None;
+                        }
+                        continue;
+                    };
                     let mut request=Request::builder().uri("/api/v1/scenes").body(Bytes::new()).unwrap();*request.headers_mut()=headers.clone();
                     let scene_response=api.handle(request).await;
-                    if scene_response.status()!=StatusCode::OK {continue;}
+                    if scene_response.status()!=StatusCode::OK {
+                        if !unavailable {
+                            if !matches!(tokio::time::timeout(Duration::from_secs(2),socket.send(Message::Text(json!({"type":"unavailable"}).to_string().into()))).await,Ok(Ok(()))){break;}
+                            unavailable=true;cursor=None;
+                        }
+                        continue;
+                    }
                     let body=scene_response.into_body().collect().await.unwrap();
                     let Ok(next_scenes)=serde_json::from_slice::<serde_json::Value>(&body.to_bytes()) else{break;};
                     // Publication may have replaced the runtime while the two

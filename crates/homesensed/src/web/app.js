@@ -13,6 +13,7 @@ let calibrationBinding=null;
 let observedRevision=null;
 let deviceSnapshotEpoch=0;
 let lastSceneSnapshot=null;
+let sceneActionBusy=false;
 let sceneSnapshotEpoch=0;
 let publicationPreview=null;
 let publicationConfirmation=null;
@@ -74,7 +75,9 @@ function renderScenes(data) {
   for (const scene of data.scenes) {
     const row = document.createElement('article');
     const title = document.createElement('h2'); title.textContent = scene.name;
-    const info = document.createElement('p'); info.textContent = `当前状态：${scene.activity}；最近执行：${scene.last_run?.status || '无记录'}`;
+    const stateful=scene.switch_kind==='selection';
+    const selected=scene.selected===true?'开启':scene.selected===false?'关闭':'未知';
+    const info = document.createElement('p'); info.textContent = `${stateful ? `当前选择：${selected}（不代表负载到位）；` : ''}负载反馈：${scene.activity}；${stateful?'最近开启执行':'最近执行'}：${scene.last_run?.status || '无记录'}`;
     if(scene.last_run) {
       const details=document.createElement('button');details.textContent='查看最近执行';
       const receipt=document.createElement('p');
@@ -86,25 +89,33 @@ function renderScenes(data) {
       };
       row.append(details,receipt);
     }
-    const button = document.createElement('button'); button.textContent = '执行场景'; button.disabled = !scene.can_control;
+    const button = document.createElement('button'); button.textContent = stateful ? (scene.selected===true?'关闭场景':'开启场景') : '执行场景'; button.disabled = !scene.can_control || sceneActionBusy;
     button.onclick = async () => {
-      button.disabled = true;
+      if(sceneActionBusy || !scene.can_control)return;
+      sceneActionBusy=true;const epoch=sessionEpoch;
+      if(lastSceneSnapshot)renderScenes(lastSceneSnapshot);
       try {
         const requestId = crypto.randomUUID();
-        const result = await request('/api/v1/scene-actions', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({scene: scene.id, request_id: requestId})});
+        const body={scene: scene.id, request_id: requestId};
+        if(stateful)body.on=scene.selected!==true;
+        const result = await request('/api/v1/scene-actions', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
         if (result.outcome === 'accepted') started.set(scene.id, requestId);
         status.textContent = result.outcome === 'accepted' ? '请求已接受，请核对执行记录和设备反馈。' : result.outcome === 'unchanged' ? '场景选择已是目标值，本次未执行新的动作。' : '结果尚不明确，请核对记录；不要重复点击。';
         await refresh();
-      } catch (error) { status.textContent = `${error.message}；未自动重试。`; }
+      } catch (error) { if(epoch===sessionEpoch)status.textContent = `${error.message}；未自动重试。`; }
+      finally {if(epoch===sessionEpoch){sceneActionBusy=false;if(lastSceneSnapshot)renderScenes(lastSceneSnapshot);}}
     };
-    const cancel = document.createElement('button'); cancel.textContent = '取消剩余动作'; cancel.disabled = !scene.can_control || !started.has(scene.id);
+    const cancel = document.createElement('button'); cancel.textContent = '取消剩余动作'; cancel.disabled = !scene.can_control || !started.has(scene.id) || sceneActionBusy;
     cancel.onclick = async () => {
-      cancel.disabled = true;
+      if(sceneActionBusy || !scene.can_control || !started.has(scene.id))return;
+      sceneActionBusy=true;const epoch=sessionEpoch;
+      if(lastSceneSnapshot)renderScenes(lastSceneSnapshot);
       try {
         const result = await request('/api/v1/scene-cancellations', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({start_request_id: started.get(scene.id), request_id: crypto.randomUUID()})});
         status.textContent = result.outcome === 'cancelled' ? '剩余动作已取消；已执行动作不回滚。' : '取消结果未知，请核对记录。';
         started.delete(scene.id); await refresh();
-      } catch (error) { status.textContent = error.message; }
+      } catch (error) { if(epoch===sessionEpoch)status.textContent = error.message; }
+      finally {if(epoch===sessionEpoch){sceneActionBusy=false;if(lastSceneSnapshot)renderScenes(lastSceneSnapshot);}}
     };
     const history=document.createElement('button');history.textContent='执行历史';history.disabled=!data.revision;
     history.onclick=()=>loadSceneHistory(scene.id,data.revision);
@@ -124,7 +135,7 @@ document.getElementById('connect').onclick = async () => {
   finally {sessionBusy=false;}
 };
 function clearLocalSession() {
-  ++sessionEpoch;clearCredentialCreation();invalidatePreview();
+  ++sessionEpoch;sceneActionBusy=false;clearCredentialCreation();invalidatePreview();
   csrf = ''; observedRevision=null;lastSceneSnapshot=null; clearTimeout(eventRetry); if(eventSocket)eventSocket.close();eventDevices.clear(); selectedRoom='';document.getElementById('room-filter').replaceChildren();document.getElementById('room-filter').value=''; document.getElementById('draft-impact').textContent=''; document.getElementById('configuration').hidden=true;document.getElementById('diagnostics').hidden=true;historyEpoch++;detailEpoch++;document.getElementById('run-details').replaceChildren();document.getElementById('scene-history').hidden=true;document.getElementById('history-runs').replaceChildren();document.getElementById('history-title').textContent='';document.getElementById('history-next').disabled=true; document.getElementById('runtime-result').textContent='';document.getElementById('calendar-result').textContent='';document.getElementById('credential-list').textContent='';document.getElementById('revoke-credential-id').value='';document.getElementById('revoke-credential-confirm').checked=false;document.getElementById('revoke-credential-result').textContent='';document.getElementById('backup-result').textContent='';document.getElementById('backup-actions').replaceChildren();backupInspectionEpoch++;document.getElementById('backup-inspection').textContent='';document.getElementById('versions').replaceChildren();document.getElementById('draft-list').replaceChildren(); versionsBefore=null;document.getElementById('more-versions').disabled=true; metadataSource=null;clearCalibration();document.getElementById('binding-enabled').checked=false;for(const id of ['binding-gateway','binding-address','binding-channel'])document.getElementById(id).value='';document.getElementById('metadata-device').replaceChildren();document.getElementById('metadata-room').replaceChildren();document.getElementById('edit-room-select').replaceChildren();document.getElementById('metadata-name').value=''; for(const id of ['device-document','automation-document','draft-id','base-revision','draft-revision','edit-room-id','edit-room-name','edit-room-floor']) document.getElementById(id).value=''; started.clear(); list.replaceChildren(); document.getElementById('devices').replaceChildren();
 }
 document.getElementById('logout').onclick = async () => {
@@ -276,7 +287,7 @@ function markEventStateUnavailable(message) {
   deviceSnapshotEpoch++;sceneSnapshotEpoch++;invalidatePreview();
   for(const [id,device] of eventDevices)eventDevices.set(id,{...device,quality:'Stale',can_control:false});
   renderDevices();
-  if(lastSceneSnapshot)renderScenes({...lastSceneSnapshot,scenes:lastSceneSnapshot.scenes.map(scene=>({...scene,activity:'Unknown',can_control:false}))});
+  if(lastSceneSnapshot)renderScenes({...lastSceneSnapshot,scenes:lastSceneSnapshot.scenes.map(scene=>({...scene,selected:null,activity:'Unknown',can_control:false}))});
   status.textContent=message;
 }
 function connectEvents() {
@@ -291,7 +302,7 @@ function connectEvents() {
     try {
       const frame=JSON.parse(event.data);
       if(frame.type==='unavailable') {
-        markEventStateUnavailable('配置正在切换，等待状态恢复。');return;
+        markEventStateUnavailable('状态暂时不可用，等待有效快照恢复。');return;
       }
       if(frame.type!=='state')return;
       if(!observeRevision(frame.revision))return;
