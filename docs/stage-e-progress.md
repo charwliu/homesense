@@ -650,3 +650,6 @@ Web 服务持久权限启动：模拟和统一管理入口改用 `web-credential
 
 
 当前集成回归（`67735a9`）：从 Git 已提交内容导出干净快照，workspace 538 项通过、0 失败、0 忽略，11 项前端脚本通过；TCP 组合 HTTPS/WSS 和配置发布／历史恢复脚本通过。证据见 `docs/evidence/stage-e-browser/clean-credential-management-regression.json`。README 能力概览和 E 当前边界已同步，历史检查点仅代表当时状态。现场配对／Siri、窗帘条件与全项目语义仍挂起；D/E 未标记完成，EA-5 未修改。
+
+
+权限变更与事件恢复的网络验收：新增真实回环 HTTP/WebSocket 测试，经管理 API 缩小凭证范围后，已有订阅关闭且旧 Cookie 重连被拒；新登录携带旧游标得到 reset 快照，已移除设备不再返回。管理 API 撤销凭证后同样关闭订阅并拒绝重连。两项 WebSocket 集成测试通过，补齐持久凭证变更到事件通道的端到端证据；不是现场 LAN 验收，EA-5 未改变。
