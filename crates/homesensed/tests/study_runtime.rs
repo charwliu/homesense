@@ -4837,6 +4837,7 @@ async fn deferred_rule_adapter_reserves_before_variables_and_preserves_chain() {
     let closing_run=outcomes[0].scene_runs[0];
     router.close(&mut scheduler).await.unwrap();
     router.close(&mut scheduler).await.unwrap();
+    assert_eq!(sql.query_row("SELECT count(*) FROM scene_cancellation WHERE reason='service_stopped'",[],|row|row.get::<_,i64>(0)).unwrap(),1);
     assert!(router.start("trigger",&mut scheduler,None,Default::default(),60000).await.is_err());
     assert_eq!(scheduler.status(closing_run),Some(homesense_core::scene::Status::Cancelled));
     assert!(a.dispatch().await.unwrap().is_none());
