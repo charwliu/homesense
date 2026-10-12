@@ -237,6 +237,9 @@ async fn web_scope_origin_receipts_and_runtime_admission() {
         assert_eq!(result["outcome"], "accepted");
         let Reply::LastRun(Some(last))=control.request(Action::LastRun("light".into())).await.unwrap() else {panic!("missing run")};
         let run_path=format!("/api/v1/runs/{}/{}",last.boot,last.run);
+        let Reply::SceneHistory(history)=control.request(Action::SceneHistory{controller:caller,revision:1,scene:"light".into(),before:None,limit:20}).await.unwrap() else {panic!("missing history")};assert_eq!(history.runs.len(),1);assert_eq!(history.runs[0].identity.run,last.run);
+        for (controller,revision,scene,limit) in [(Uuid::new_v4(),1,"light",20),(caller,2,"light",20),(caller,1,"missing",20),(caller,1,"light",101)] {assert!(control.request(Action::SceneHistory{controller,revision,scene:scene.into(),before:None,limit}).await.is_err());}
+
         let mut read=make(&api.origin,"");*read.method_mut()=hyper::Method::GET;*read.uri_mut()=run_path.parse().unwrap();
         let read=api.handle(read).await;assert_eq!(read.status(),StatusCode::OK);
         let summary:serde_json::Value=serde_json::from_slice(&read.into_body().collect().await.unwrap().to_bytes()).unwrap();assert_eq!(summary["scene"],"light");assert_eq!(summary["revision"],"1");assert!(summary["started_ms"].as_str().unwrap().parse::<u64>().is_ok());assert!(summary.get("cause").is_none());

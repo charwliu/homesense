@@ -11,6 +11,7 @@ use tokio::sync::{mpsc, oneshot};
 use uuid::Uuid;
 #[derive(Debug)]
 pub enum Action {
+    SceneHistory {controller:Uuid,revision:u64,scene:String,before:Option<homesense_storage::scene_history::Cursor>,limit:usize},
     RunSummary {controller:Uuid,revision:u64,boot:String,run:String},
     Diagnostics {controller:Uuid,revision:u64},
     ConfigurationHistory {controller:Uuid,revision:u64,before:Option<u64>,limit:usize},
@@ -33,6 +34,7 @@ pub enum Action {
 }
 #[derive(Debug, PartialEq, Eq)]
 pub enum Reply {
+    SceneHistory(homesense_storage::scene_history::Page),
     RunSummary(Option<(String,LastRun)>),
     Diagnostics(crate::admission::Diagnostics),
     ConfigurationHistory(homesense_storage::configuration_history::Page),
@@ -268,6 +270,10 @@ impl Receiver {
                         crate::scene_activity::Targets::new(&scene.steps).project(admission,self.controller,&self.generation,feedback,max_age_ms).await.map(|a|Reply::Activity(Some(a)))
                     },
                     Action::Retire(run) => scenes.retire(run).map(Reply::Retired),
+                    Action::SceneHistory {controller,revision,scene,before,limit} => {
+                        if revision!=document.revision || !document.timed_scenes.contains_key(&scene) {return Err("scene history revision or definition mismatch".into());}
+                        admission.scene_history_page(controller,self.generation.clone(),scene,before,limit).await.map(Reply::SceneHistory).map_err(|e|format!("{e:?}"))
+                    },
                     Action::RunSummary {controller,revision,boot,run} => {
                         if revision!=document.revision {return Err("run query revision expired".into());}
                         let page=admission.scene_history(controller,self.generation.clone(),homesense_storage::scene_run::Query::Run{boot,run,after:0,limit:1}).await.map_err(|e|format!("{e:?}"))?;
