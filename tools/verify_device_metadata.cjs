@@ -7,7 +7,7 @@ vm.runInContext(fs.readFileSync(require('node:path').join(__dirname,'../crates/h
 (async()=>{
  const raw='{"revision":9007199254740993,"devices":[{"id":"light","name":"Original"}],"rooms":[{"id":"study","name":"Study"}]}';
  context.renderMetadata(raw,'source-id');assert.equal(element('metadata-name').value,'Original');element('metadata-name').value='New';element('metadata-room').value='study';element('base-revision').value='9007199254740993';element('draft-revision').value='9007199254740994';element('draft-id').value='source-id';element('device-document').value=raw;
- const done=element('save-metadata').onclick();assert.equal(pending[0].path,'/api/v1/config/drafts/source-id/device-metadata');
+ const done=element('save-metadata').onclick();assert.equal(pending[0].path,'/api/v1/config/drafts/source-id/device-metadata');assert.equal(pending[0].options.headers['Content-Type'],'application/json');
  assert.deepEqual(JSON.parse(pending[0].options.body),{id:'new-id',expected_revision:'9007199254740993',revision:'9007199254740994',device:'light',name:'New',room:'study'});
  pending.shift().resolve({ok:false,json:async()=>({error:'synthetic rejection'})});await done;assert.equal(element('device-document').value,raw);assert.equal(element('activate-draft').disabled,true);
  // An edited source ID must not silently apply old form values to another draft.

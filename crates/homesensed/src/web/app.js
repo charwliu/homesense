@@ -22,7 +22,7 @@ const status = document.getElementById('status');
 const list = document.getElementById('scenes');
 async function request(path, options = {}) {
   const epoch=sessionEpoch;
-  const response = await fetch(path, {...options, cache: 'no-store', credentials: 'same-origin', headers: {...options.headers, ...(csrf ? {'X-CSRF-Token': csrf} : {})}});
+  const response = await fetch(path, {...options, cache: 'no-store', credentials: 'same-origin', headers: {...(options.body!==undefined ? {'Content-Type':'application/json'} : {}), ...options.headers, ...(csrf ? {'X-CSRF-Token': csrf} : {})}});
   const result = await response.json();
   if(epoch!==sessionEpoch)throw new Error('会话已切换，已忽略旧响应');
   if (!response.ok) throw new Error(result.error || '请求失败');
