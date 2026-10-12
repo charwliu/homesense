@@ -14,9 +14,8 @@ async fn run(occupied:bool) {
     tokio::time::timeout(Duration::from_secs(2),async {
         loop {
             assert!(!service.is_finished());
-            if let Ok((200,data))=http(web,"/api/v1/diagnostics",None).await {
-                if data["hap"]=="degraded" {break;}
-            }
+            if let Ok((200,data))=http(web,"/api/v1/diagnostics",None).await
+                && data["hap"]=="degraded" {break;}
             tokio::time::sleep(Duration::from_millis(10)).await;
         }
     }).await.unwrap();

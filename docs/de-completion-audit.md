@@ -33,7 +33,11 @@
 - 12 个前端脚本均通过；中文冲突提示增量重新构建后再次通过全部脚本，并在 Safari 与应用内浏览器复验。
 - HTTPS/WSS：组合 TCP 与模拟两种模式通过；HTTP 配置发布、历史恢复和双会话竞争通过。
 - 独立浏览器各保存／预览同一基准版本的竞争草稿，一方发布后另一方旧预览失效、发布禁用、草稿保留，中文提示指引重新核对版本。这是交错编辑和顺序发布，未声称两个最终 HTTP 发布请求同时发生。
-- 全部使用合成回环实例，测试服务已退出；没有连接现场总线或升级 nanopc 数据库。完整 workspace 严格 Clippy 未在本次审计运行，既有依赖警告仍保留。
+- 全部使用合成回环实例，测试服务已退出；没有连接现场总线或升级 nanopc 数据库。本次最初基线未运行完整 workspace 严格 Clippy，后续质量检查补齐工作区成员门槛，见下。
+
+后续质量检查使用 `061c3c2` 干净快照，仅叠加 9 个限定代码修复。测试控制器切换 `AeadInOut`，保持实际 nonce／AAD／tag 与密钥派生；测试锁改为明确词法作用域，其他为等价 lint 修复。完整 workspace 579 项再次通过，所有工作区目标严格 Clippy 通过，未新增放行。`vendor/hap` 为被排除的依赖，仍有 54 条警告，不能宣称 vendor 严格门槛通过。首次测试遇到沙箱拒绝回环 TCP 绑定，获准环境重跑通过，失败不计为通过。见 [质量检查](evidence/stage-e-browser/clean-workspace-quality-061c3c2.json)。
+
+36 个原标准接口阻断细分为 24 个 `IF_STOPPED`、11 个 `IF_MOVING` 和 1 个 `RAMP_TO_LEVEL`；后者已有显式禁用渐变导出接口，仍缺原事件语义和实物能力审核。统计不因换用新导出接口自动标为审核通过。
 
 证据：[集成结果](evidence/stage-e-browser/clean-de-regression-ea236d6.json)、[独立浏览器结果](evidence/stage-e-browser/independent-publication-check.json)、[冲突提示截图](evidence/stage-e-browser/independent-publication-conflict.png)。详细跟踪：[阶段 D](stage-d-progress.md)、[阶段 E](stage-e-progress.md)。
 

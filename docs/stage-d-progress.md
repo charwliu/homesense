@@ -26,6 +26,8 @@
 
 最新集成证据：`ea236d6` 已提交源码的独立快照完整 workspace 579 项通过，覆盖停止分类、字节级故障、面板 HAP 及普通流量预留；不含私有原项目夹具，不能代替 65 场景／212 程序的语义审核。详见 [D/E 完成审计](de-completion-audit.md) 和 [回归记录](evidence/stage-e-browser/clean-de-regression-ea236d6.json)。
 
+标准语法接口的 36 个阻断为 IF_STOPPED 24、IF_MOVING 11、RAMP_TO_LEVEL 1；渐变显式导出已实现，仍不代表完整原事件和实物能力审核。35 个窗帘条件继续挂起。基于 `061c3c2` 的限定质量修复后，干净 workspace 579 项再次通过、工作区所有目标严格 Clippy 通过；被排除的 vendor 依赖仍有 54 条警告。详见 [质量证据](evidence/stage-e-browser/clean-workspace-quality-061c3c2.json)。
+
 以下为实现过程记录，其中早期测试数量与缺口描述仅对应当时版本；当前状态以上表为准。
 
 2026-10-11：新增反馈派生场景状态：完整新鲜匹配为 Active；待发命令为 Pending；已确认不匹配为 Inactive；缺失、过期或未来时间反馈为 Unknown。该纯投影 API 尚未接入常驻服务，不能声称现场 active 已实现。专项测试 8 项通过。
