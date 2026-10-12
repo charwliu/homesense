@@ -1,0 +1,36 @@
+{
+  "date": "2026-10-12",
+  "base_commit": "cb0296691d64763b27d96f8f8bb64a962bd8b312",
+  "scope": "reviewed scene key release timing, separate from external selection baseline",
+  "clean_source_overlays": {
+    "crates/homesense-core/src/scene_observer.rs": "5fc343e995faf83f435dbbdf1c746af2d0b0f682f15e08b277c083b79f13867e",
+    "crates/homesense-core/tests/scene_observer.rs": "34c5105c56448a877ec00f498dd9ba5fb32060b30d73d43797459985f8954203",
+    "crates/homesense-config/src/scene_observation.rs": "76aaeed2c7efaadbef8b63b635d4d1a64779029d2991a15f78038d50dcb8bed4",
+    "crates/homesensed/src/scene_observation_owner.rs": "3afe4454eccf5fa1e838aced3865963a16d3c0f31f8915686445e6bb0f65b286",
+    "crates/homesensed/src/scene_observation_tests.rs": "025c3e9f4876cd4d8f7cb0731a308c1fd195efb4712f2ec82962cd7e167b0c88"
+  },
+  "validation": {
+    "workspace_passed": 648,
+    "failed": 0,
+    "ignored": 0,
+    "core_observer_tests": 9,
+    "runtime_observer_tests": 19,
+    "new_regressions": 5,
+    "strict_all_target_clippy": "passed",
+    "test_log_sha256": "4529754eaa4f0b8a179e8ea4e4650fda9fb81b1faa1e76298f71124b5a0216ca",
+    "clippy_log_sha256": "ccd0f04bc4f7dcf1745eb6d9284d41a16039998d453df9d60eeaf14abc37bf78"
+  },
+  "guarantees": [
+    "explicit released edge requires accepted press in current stream",
+    "held key does not select early",
+    "initial hold, orphan release, stale frame and gap do not infer selection",
+    "LED feedback cutoff uses release receive time",
+    "omitted trigger_edge retains pressed compatibility"
+  ],
+  "limitations": [
+    "external EA selection baseline is still unresolved",
+    "local Recorded selection is not evidence of EA variable",
+    "observation field enablement remains blocked",
+    "no field deployment or EA configuration changes"
+  ]
+}
