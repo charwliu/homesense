@@ -1,0 +1,23 @@
+{
+  "commit": "48b0eec4c6977edafe03a382a4151f279c2e440f",
+  "environment": "isolated loopback simulation, real in-app browser",
+  "checks": [
+    "login and create synthetic motor draft",
+    "load device binding, change channel 2 to 3, save derived draft",
+    "record synthetic direction and STOP evidence",
+    "record saved, input verification fields cleared",
+    "preview lists motor addition and light removal",
+    "missing evidence rejected",
+    "remove calibration in derived draft",
+    "logout hides configuration and clears evidence fields"
+  ],
+  "active_revision_after": 1,
+  "physical_commands": "none; candidate never activated",
+  "service": "stopped",
+  "limitations": [
+    "desktop form capture only; heading partly above viewport",
+    "no mobile visual acceptance",
+    "synthetic evidence is not field calibration",
+    "no real motor or EA-5 access"
+  ]
+}
