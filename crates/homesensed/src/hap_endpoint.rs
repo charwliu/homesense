@@ -96,6 +96,7 @@ impl Settings {
 pub(crate) struct Endpoint {
     pub projection: tokio::sync::watch::Sender<homesense_state::Snapshot>,
     task: Option<tokio::task::JoinHandle<Result<(), String>>>,
+    pub panel_feed: Option<crate::runtime_panel_hap::Feed>,
 }
 impl Drop for Endpoint {
     fn drop(&mut self) {
@@ -121,6 +122,16 @@ impl Endpoint {
         controller:Uuid,runtime:&AutomationRuntime,initial:homesense_state::Snapshot,
         allow_listener_failure:bool,
         lights:Option<std::collections::BTreeSet<homesense_core::DeviceId>>,
+    )->Result<Option<Self>,String> {
+        Self::start_selected_panels(settings,identity,admission,controller,runtime,initial,allow_listener_failure,lights,&[]).await
+    }
+    #[allow(clippy::too_many_arguments)]
+    pub async fn start_selected_panels(
+        settings:&Settings,identity:&IdentityStore,admission:&Admission,
+        controller:Uuid,runtime:&AutomationRuntime,initial:homesense_state::Snapshot,
+        allow_listener_failure:bool,
+        lights:Option<std::collections::BTreeSet<homesense_core::DeviceId>>,
+        selected_panels:&[homesense_core::DeviceId],
     )->Result<Option<Self>,String> {
         let bundle = admission
             .automation_bundle(
@@ -181,7 +192,11 @@ impl Endpoint {
             IpServer::new(config, identity.clone()).await
         }
         .map_err(|e| e.to_string())?;
-        graph.install(&server).await?;
+        let panels = if selected_panels.is_empty() { None } else {
+            Some(crate::runtime_panel_hap::RuntimePanelHap::new(&bundle.configuration,document,identity,admission.clone(),selected_panels,initial.cursor).await?)
+        };
+        graph.install_with_panels(&server,panels.as_ref()).await?;
+        let panel_feed = panels.as_ref().map(|panels|panels.feed.clone());
         let (projection, updates) = tokio::sync::watch::channel(initial);
         let (ready, started) = tokio::sync::oneshot::channel();
         let task = tokio::spawn(async move {
@@ -189,9 +204,10 @@ impl Endpoint {
             tokio::select! {
                 result=server.run_handle_ready(ready)=>result.map_err(|e|e.to_string()),
                 result=graph.project(updates,receive)=>result.and(Err("HAP projection ended".into())),
+                result=async { match panels {Some(panels)=>panels.run().await,None=>std::future::pending().await} }=>result.and(Err("HAP panel delivery ended".into())),
             }
         });
-        let mut endpoint = Self { projection, task:Some(task) };
+        let mut endpoint = Self { projection, task:Some(task), panel_feed };
         let failure=match tokio::time::timeout(std::time::Duration::from_secs(5), started).await {
             Ok(Ok(())) => return Ok(Some(endpoint)),
             Ok(Err(_)) => endpoint.finished().await.err().unwrap_or_else(||"HAP failed before readiness".into()),
@@ -210,7 +226,7 @@ impl Endpoint {
     #[cfg(test)]
     pub(crate) fn synthetic(initial: homesense_state::Snapshot) -> Self {
         let (projection, _) = tokio::sync::watch::channel(initial);
-        Self { projection, task: Some(tokio::spawn(std::future::pending())) }
+        Self { projection, task: Some(tokio::spawn(std::future::pending())), panel_feed:None }
     }
     pub async fn finished(&mut self) -> Result<(), String> {
         let task=self.task.as_mut().ok_or("HAP endpoint result already consumed")?;
@@ -233,7 +249,7 @@ mod tests {
     async fn consumed_task_result_can_be_cleaned_up_without_polling_again() {
         for failure in [false,true] {
             let (projection,_)=tokio::sync::watch::channel(homesense_state::Snapshot{cursor:homesense_state::Cursor{boot_id:1,sequence:0},state_version:0,devices:Default::default()});
-            let mut endpoint=Endpoint{projection,task:Some(tokio::spawn(async move {
+            let mut endpoint=Endpoint{projection,panel_feed:None,task:Some(tokio::spawn(async move {
                 if failure {Err("synthetic endpoint failure".into())}else{Ok(())}
             }))};
             assert_eq!(endpoint.finished().await.is_err(),failure);
@@ -244,7 +260,7 @@ mod tests {
     #[tokio::test]
     async fn cancelled_wait_keeps_task_owned_until_shutdown() {
         let (projection,_)=tokio::sync::watch::channel(homesense_state::Snapshot{cursor:homesense_state::Cursor{boot_id:1,sequence:0},state_version:0,devices:Default::default()});
-        let mut endpoint=Endpoint{projection,task:Some(tokio::spawn(std::future::pending()))};
+        let mut endpoint=Endpoint{projection,panel_feed:None,task:Some(tokio::spawn(std::future::pending()))};
         let handle=endpoint.task.as_ref().unwrap().abort_handle();
         assert!(tokio::time::timeout(std::time::Duration::from_millis(1),endpoint.finished()).await.is_err());
         assert!(endpoint.task.is_some());

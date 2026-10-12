@@ -23,6 +23,8 @@ pub struct Bridge {
     pub scenes: Vec<String>,
     #[serde(deserialize_with = "device_ids")]
     pub motors: Vec<DeviceId>,
+    #[serde(default, deserialize_with = "device_ids")]
+    pub panels: Vec<DeviceId>,
 }
 fn device_ids<'de, D: serde::Deserializer<'de>>(
     deserializer: D,
@@ -36,8 +38,7 @@ fn device_ids<'de, D: serde::Deserializer<'de>>(
 }
 /// Resolve explicit logical keys against the active, verified configuration.
 /// Key numbers and display names come from the binding, never caller guesses.
-/// This is the validation primitive for future panel publication; schema 1
-/// continues to reject panel fields until the service event stream is wired.
+/// Panel publication never infers keys from a module or exposes an entire panel.
 pub fn panel_specs(
     selected: &[DeviceId],
     config: &homesense_config::Configuration,
@@ -73,6 +74,15 @@ pub fn panel_specs(
         });
     }
     Ok(result)
+}
+
+pub(crate) fn validate_panel_ownership(selected:&[DeviceId],document:&homesense_config::rule_document::Document)->Result<(),String> {
+    let selected:BTreeSet<_>=selected.iter().map(|id|id.as_str()).collect();
+    if document.rules.iter().any(|rule|rule.enabled && matches!(&rule.trigger,homesense_config::rule_document::Trigger::Panel{device,..} if selected.contains(device.as_str())))
+        || document.holds.as_ref().is_some_and(|holds|holds.bindings.iter().any(|hold|hold.enabled && selected.contains(hold.key.as_str()))) {
+        return Err("HAP panel key already executes a Rust rule or hold action".into());
+    }
+    Ok(())
 }
 
 impl Plan {
@@ -120,7 +130,7 @@ impl Plan {
             if !ids.insert(&bridge.id) || !addresses.insert(bridge.address) {
                 return Err("duplicate HAP bridge id or endpoint".into());
             }
-            if bridge.lights.is_empty() && bridge.scenes.is_empty() && bridge.motors.is_empty() {
+            if bridge.lights.is_empty() && bridge.scenes.is_empty() && bridge.motors.is_empty() && bridge.panels.is_empty() {
                 return Err("empty HAP bridge publication".into());
             }
             let settings = crate::hap_endpoint::Settings {
@@ -138,7 +148,9 @@ impl Plan {
                     return Err("HAP light selection is not an enabled logical light".into());
                 }
             }
-            for id in bridge.lights.iter().chain(&bridge.motors) {
+            panel_specs(&bridge.panels, config)?;
+            validate_panel_ownership(&bridge.panels,document)?;
+            for id in bridge.lights.iter().chain(&bridge.motors).chain(&bridge.panels) {
                 if !devices.insert(id) {
                     return Err("device published by multiple HAP bridges".into());
                 }
@@ -189,6 +201,23 @@ mod tests {
         let specs = panel_specs(&[id("key-six"), id("key-two")], &config).unwrap();
         assert_eq!(specs.iter().map(|s| s.key).collect::<Vec<_>>(), vec![6, 2]);
         assert_eq!(specs[0].name, "key-six");
+        let plan=serde_json::json!({"schema_version":1,"bridges":[{"id":"panel","name":"Panel","address":"127.0.0.1:51826","lights":[],"scenes":[],"motors":[],"panels":["key-two"]}]});
+        let document=homesense_config::rule_document::Document::parse(br#"{"schema_version":1,"configuration_revision":1,"variables":[],"rules":[]}"#,&config).unwrap();
+        assert!(Plan::parse(&serde_json::to_vec(&plan).unwrap(),&config,&document).is_ok());
+        let mut duplicate=plan.clone();
+        let mut second=plan["bridges"][0].clone();second["id"]="other".into();second["address"]="127.0.0.1:51827".into();duplicate["bridges"].as_array_mut().unwrap().push(second);
+        assert!(Plan::parse(&serde_json::to_vec(&duplicate).unwrap(),&config,&document).unwrap_err().contains("multiple"));
+
+        let mut document=document;
+        document.rules.push(homesense_config::rule_document::Rule {id:"active-panel".into(),enabled:true,review_evidence:Some("synthetic".into()),source:"synthetic".into(),trigger:homesense_config::rule_document::Trigger::Panel{device:"key-two".into(),event:homesense_config::rule_document::PanelEvent::Click},actions:vec![]});
+        assert!(Plan::parse(&serde_json::to_vec(&plan).unwrap(),&config,&document).unwrap_err().contains("already executes"));
+        document.rules[0].enabled=false;
+        assert!(Plan::parse(&serde_json::to_vec(&plan).unwrap(),&config,&document).is_ok());
+        document.holds=Some(homesense_config::rule_document::Holds{interval_ms:100,increment:10,bindings:vec![homesense_config::rule_document::Hold{key:"key-two".into(),device:"simulation:light".into(),up:true,enabled:true,review_evidence:Some("synthetic".into()),release:homesense_config::rule_document::HoldRelease::CancelPendingOnly}]});
+        assert!(Plan::parse(&serde_json::to_vec(&plan).unwrap(),&config,&document).unwrap_err().contains("already executes"));
+        document.holds.as_mut().unwrap().bindings[0].enabled=false;
+        assert!(Plan::parse(&serde_json::to_vec(&plan).unwrap(),&config,&document).is_ok());
+
         assert!(panel_specs(&[], &config).unwrap().is_empty());
         for selection in [
             vec![id("missing")],

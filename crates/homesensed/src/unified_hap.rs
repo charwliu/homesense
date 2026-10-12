@@ -9,6 +9,9 @@ pub struct UnifiedHap {
 }
 impl UnifiedHap {
     pub async fn install(&self, server: &IpServer) -> Result<(), String> {
+        self.install_with_panels(server,None).await
+    }
+    pub(crate) async fn install_with_panels(&self, server:&IpServer, panels:Option<&crate::runtime_panel_hap::RuntimePanelHap>)->Result<(),String> {
         let mut handles = vec![self.lights.bridge.clone()];
         let mut groups = vec![];
         let mut addresses = vec![];
@@ -35,6 +38,10 @@ impl UnifiedHap {
             let addresses=motors.accessories.iter().map(|(b,_)|(b.aid,b.on_iid)).collect();
             handles.extend(motors.accessories.iter().map(|(_,h)|h.clone()));
             groups.push((addresses,motors.write_handler.clone()));
+        }
+        if let Some(panels)=panels {
+            handles.extend(panels.handles.iter().cloned());
+            groups.push((panels.addresses.clone(),panels.handler.clone()));
         }
         let handler: Arc<dyn WriteBatchHandler> = Arc::new(
             homesense_hap::write_router::WriteRouter::new(groups).map_err(|e| format!("{e:?}"))?,

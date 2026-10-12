@@ -157,6 +157,27 @@ pub(crate) async fn drive_with_projection<S: Read + Write + Send + 'static>(
     calendar: Option<&mut crate::event_rules::ScheduledRules>,
     cadence: Duration,
     max_age_ms: u64,
+    stop: tokio::sync::watch::Receiver<bool>,
+    wall_clock: impl FnMut() -> Result<i64, String>,
+    control: Option<(
+        &mut crate::automation_control::Receiver,
+        &homesense_config::rule_document::Document,
+    )>,
+    causal: Option<&mut crate::deferred_router::Router>,
+    allow_handoff: bool,
+    projection: Option<tokio::sync::watch::Sender<homesense_state::Snapshot>>,
+) -> Result<Exit, String> {
+    drive_with_panel_feeds(admission,owner,panels,scenes,calendar,cadence,max_age_ms,stop,wall_clock,control,causal,allow_handoff,projection,vec![]).await
+}
+#[allow(clippy::too_many_arguments)]
+pub(crate) async fn drive_with_panel_feeds<S: Read + Write + Send + 'static>(
+    admission: &Admission,
+    owner: &mut ObservedTransport<S>,
+    panels: &mut PanelRules,
+    scenes: &mut SceneScheduler,
+    calendar: Option<&mut crate::event_rules::ScheduledRules>,
+    cadence: Duration,
+    max_age_ms: u64,
     mut stop: tokio::sync::watch::Receiver<bool>,
     mut wall_clock: impl FnMut() -> Result<i64, String>,
     control: Option<(
@@ -166,6 +187,7 @@ pub(crate) async fn drive_with_projection<S: Read + Write + Send + 'static>(
     mut causal: Option<&mut crate::deferred_router::Router>,
     allow_handoff: bool,
     projection: Option<tokio::sync::watch::Sender<homesense_state::Snapshot>>,
+    panel_feeds:Vec<crate::runtime_panel_hap::Feed>,
 ) -> Result<Exit, String> {
     struct Close<'a>(
         Option<(
@@ -192,6 +214,13 @@ pub(crate) async fn drive_with_projection<S: Read + Write + Send + 'static>(
     {
         return Err("invalid automation drive scope or cadence".into());
     }
+    struct PanelFeeds(Vec<crate::runtime_panel_hap::Feed>);
+    impl Drop for PanelFeeds {
+        fn drop(&mut self) { for feed in &self.0 {feed.invalidate();} }
+    }
+    let mut panel_feeds=PanelFeeds(panel_feeds);
+    let mut panel_cursor=owner.snapshot().cursor;
+    let panel_generation=homesense_hap::panel_input::Generation {configuration:owner.feedback().configuration_revision(),transport:owner.feedback().transport_epoch()};
     let mut guard = Guard {
         admission,
         owner,
@@ -297,6 +326,20 @@ pub(crate) async fn drive_with_projection<S: Read + Write + Send + 'static>(
             }
             guard.owner.expire(admission.monotonic_ms(), max_age_ms)?;
             if let Some(projection)=&projection {projection.send_replace(guard.owner.snapshot());}
+            if !panel_feeds.0.is_empty() {
+                match guard.owner.feedback().events_since(panel_cursor) {
+                    Ok(events)=>{
+                        if let Some(last)=events.last() {panel_cursor=last.cursor;}
+                        let now=admission.monotonic_ms();
+                        for feed in &panel_feeds.0 {feed.publish(panel_generation,&events,now);}
+                    }
+                    Err(error)=>{
+                        log::error!("HAP panel feed lost: {error}");
+                        for feed in &panel_feeds.0 {feed.invalidate();}
+                        panel_feeds.0.clear();
+                    }
+                }
+            }
             next = (next + 1) % gateways.len();
             tokio::select! {
                 _=tokio::time::sleep(cadence)=>{},
