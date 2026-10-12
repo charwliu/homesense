@@ -82,6 +82,7 @@ mod fade_budget;
 pub mod runtime_scene_hap;
 
 pub mod web_auth;
+pub mod web_credentials;
 pub mod web_receipts;
 pub mod web_api;
 pub mod web_server;
