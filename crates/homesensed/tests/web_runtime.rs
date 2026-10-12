@@ -456,6 +456,15 @@ async fn web_scope_origin_receipts_and_runtime_admission() {
         for (method,body,expected) in [(hyper::Method::POST,"",StatusCode::CONFLICT),(hyper::Method::GET,"",StatusCode::METHOD_NOT_ALLOWED),(hyper::Method::POST,"{}",StatusCode::BAD_REQUEST)] {
             let mut revoke=make(&api.origin,body);*revoke.method_mut()=method;*revoke.uri_mut()=format!("/api/v1/credentials/{token_id}/revoke").parse().unwrap();assert_eq!(api.handle(revoke).await.status(),expected);
         }
+        for (body,expected) in [(r#"{"role":"Viewer","devices":[],"scenes":[],"secret":"client"}"#,StatusCode::BAD_REQUEST),(r#"{"role":"Viewer","devices":["outside-scope"],"scenes":[]}"#,StatusCode::FORBIDDEN),(r#"{"role":"Viewer","devices":[],"scenes":[]}"#,StatusCode::CREATED)] {
+            let mut issue=make(&api.origin,body);*issue.method_mut()=hyper::Method::POST;*issue.uri_mut()="/api/v1/credentials".parse().unwrap();
+            let result=api.handle(issue).await;assert_eq!(result.status(),expected);assert_eq!(result.headers()["cache-control"],"no-store");
+            if expected==StatusCode::CREATED {
+                let issued:serde_json::Value=serde_json::from_slice(&result.into_body().collect().await.unwrap().to_bytes()).unwrap();
+                let issued_header=format!("Bearer {}",issued["secret"].as_str().unwrap());assert_eq!(tokens.authenticate(&issued_header).unwrap().role,Role::Viewer);
+                let mut revoke=make(&api.origin,"");*revoke.method_mut()=hyper::Method::POST;*revoke.uri_mut()=format!("/api/v1/credentials/{}/revoke",issued["id"].as_str().unwrap()).parse().unwrap();assert_eq!(api.handle(revoke).await.status(),StatusCode::OK);assert!(tokens.authenticate(&issued_header).is_none());
+            }
+        }
         let saved_drafts=api.drafts.take();
         let mut capability=make(&api.origin,"");*capability.method_mut()=hyper::Method::GET;*capability.uri_mut()="/api/v1/session".parse().unwrap();
         let capability:serde_json::Value=serde_json::from_slice(&api.handle(capability).await.into_body().collect().await.unwrap().to_bytes()).unwrap();assert_eq!(capability["can_view_diagnostics"],true);assert_eq!(capability["can_manage_configuration"],false);

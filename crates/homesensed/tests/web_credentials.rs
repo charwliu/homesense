@@ -80,3 +80,21 @@ fn managed_revocation_rechecks_admin_preserves_last_admin_and_invalidates_sessio
     assert_eq!(tokens.revoke_managed(member,Some(&header),None,None),Err("credential_not_found"));
     drop(tokens);let tokens=Tokens::open(&path).unwrap();assert!(tokens.authenticate(&member_header).is_none());assert!(tokens.authenticate(&header).is_some());drop(tokens);drop(sql);std::fs::remove_dir_all(root).unwrap();
 }
+
+#[test]
+fn issuance_is_scoped_persistent_and_never_returns_a_secret_on_storage_failure() {
+    use homesensed::web_auth::{Tokens,CredentialRequest};
+    let root=std::env::temp_dir().join(format!("issue-{}",Uuid::new_v4()));std::fs::create_dir(&root).unwrap();let path=root.join("credentials.sqlite");
+    let tokens=Tokens::open(&path).unwrap();let id=Uuid::new_v4();let secret="abcdefghijklmnopqrstuvwxyz0123456789";let header=format!("Bearer {secret}");
+    tokens.insert(id,secret,Grant{controller:id,role:Role::Administrator,devices:["lamp".into()].into(),scenes:["read".into()].into()}).unwrap();
+    let input=||CredentialRequest{role:Role::Member,devices:["lamp".into()].into(),scenes:Default::default()};
+    let mut expanded=input();expanded.devices.insert("other".into());assert!(matches!(tokens.issue(expanded,Some(&header),None,None),Err("scope_expansion_forbidden")));
+    let sql=rusqlite::Connection::open(&path).unwrap();sql.execute_batch("CREATE TRIGGER reject_issue BEFORE INSERT ON web_credential BEGIN SELECT RAISE(ABORT,'failure'); END;").unwrap();
+    assert!(matches!(tokens.issue(input(),Some(&header),None,None),Err("credential_store_unavailable")));assert_eq!(tokens.summaries().unwrap().len(),1);
+    sql.execute_batch("DROP TRIGGER reject_issue").unwrap();let session=tokens.login(&header).unwrap();
+    let issued=tokens.issue(input(),None,Some(&session.cookie),Some(&session.csrf)).unwrap();assert_eq!(issued.secret.len(),64);assert_eq!(issued.grant.controller,id);assert_eq!(issued.grant.role,Role::Member);
+    let issued_header=format!("Bearer {}",issued.secret);assert!(matches!(tokens.issue(input(),Some(&issued_header),None,None),Err("administrator_required")));
+    let stored:String=sql.query_row("SELECT grant_json FROM web_credential WHERE id=?1",[issued.id.to_string()],|row|row.get(0)).unwrap();assert!(!stored.contains(&issued.secret));
+    drop(tokens);let tokens=Tokens::open(&path).unwrap();assert_eq!(tokens.authenticate(&issued_header),Some(issued.grant));assert_eq!(tokens.summaries().unwrap().len(),2);
+    drop(tokens);drop(sql);std::fs::remove_dir_all(root).unwrap();
+}
