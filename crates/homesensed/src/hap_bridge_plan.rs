@@ -34,6 +34,47 @@ fn device_ids<'de, D: serde::Deserializer<'de>>(
         })
         .collect()
 }
+/// Resolve explicit logical keys against the active, verified configuration.
+/// Key numbers and display names come from the binding, never caller guesses.
+/// This is the validation primitive for future panel publication; schema 1
+/// continues to reject panel fields until the service event stream is wired.
+pub fn panel_specs(
+    selected: &[DeviceId],
+    config: &homesense_config::Configuration,
+) -> Result<Vec<homesense_hap::panel_graph::PanelKeySpec>, String> {
+    if selected.len() > 256 {
+        return Err("HAP panel selection exceeds 256 keys".into());
+    }
+    let mut devices = BTreeSet::new();
+    let mut physical = BTreeSet::new();
+    let mut result = Vec::new();
+    for id in selected {
+        let (device, module) = config
+            .binding(id)
+            .ok_or("HAP panel key missing or disabled")?;
+        if module.profile() != homesense_core::ProtocolProfile::Ts686Rs485SixKey {
+            return Err("HAP panel requires a confirmed TS6 six-key profile".into());
+        }
+        if !devices.insert(id)
+            || !physical.insert((&device.gateway, device.address, device.channel.get()))
+        {
+            return Err("duplicate HAP panel key".into());
+        }
+        if device.name.trim().is_empty()
+            || device.name.len() > 64
+            || device.name.chars().any(char::is_control)
+        {
+            return Err("invalid HAP panel key name".into());
+        }
+        result.push(homesense_hap::panel_graph::PanelKeySpec {
+            device: id.clone(),
+            key: device.channel.get(),
+            name: device.name.clone(),
+        });
+    }
+    Ok(result)
+}
+
 impl Plan {
     pub fn parse(
         bytes: &[u8],
@@ -127,6 +168,38 @@ impl Plan {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn panel_selection_uses_verified_logical_bindings_and_rejects_other_devices() {
+        let mut raw: serde_json::Value =
+            serde_json::from_slice(include_bytes!("../../../config/simulation.json")).unwrap();
+        raw["gateways"][0]["modules"].as_array_mut().unwrap().push(serde_json::json!({"address":"41","profile":"ts6_86_rs485_v2_6_5_6key","verification":{"status":"simulated"}}));
+        for (id, channel, enabled) in [
+            ("key-two", 2, true),
+            ("key-six", 6, true),
+            ("disabled", 1, false),
+        ] {
+            raw["devices"].as_array_mut().unwrap().push(serde_json::json!({"id":id,"name":id,"gateway":"simulation","address":"41","channel":channel,"enabled":enabled}));
+        }
+        let config = homesense_config::Configuration::parse(
+            &serde_json::to_vec(&raw).unwrap(),
+            homesense_core::ExecutionContext::Simulation,
+        )
+        .unwrap();
+        let id = |v: &str| DeviceId::new(v).unwrap();
+        let specs = panel_specs(&[id("key-six"), id("key-two")], &config).unwrap();
+        assert_eq!(specs.iter().map(|s| s.key).collect::<Vec<_>>(), vec![6, 2]);
+        assert_eq!(specs[0].name, "key-six");
+        assert!(panel_specs(&[], &config).unwrap().is_empty());
+        for selection in [
+            vec![id("missing")],
+            vec![id("disabled")],
+            vec![id("simulation:light")],
+            vec![id("key-two"), id("key-two")],
+            vec![id("key-two"); 257],
+        ] {
+            assert!(panel_specs(&selection, &config).is_err());
+        }
+    }
     #[test]
     fn disjoint_bridges_have_stable_separate_directories() {
         let mut raw: serde_json::Value =
