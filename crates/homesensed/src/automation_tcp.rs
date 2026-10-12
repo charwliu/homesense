@@ -408,4 +408,4 @@ pub(crate) fn validate_candidate_in_context(devices:&[u8],rules:&[u8],write_inte
 
 #[cfg(test)]
 #[path = "automation_tcp_fault_tests.rs"]
-mod fault_tests;
+pub(crate) mod fault_tests;
