@@ -5,6 +5,7 @@ let sessionBusy=false;
 let backupInspectionEpoch=0;
 let metadataSource=null;
 let observedRevision=null;
+let deviceSnapshotEpoch=0;
 let publicationPreview=null;
 let publicationConfirmation=null;
 let previewEpoch=0;
@@ -111,7 +112,9 @@ document.getElementById('logout').onclick = async () => {
 };
 
 async function refreshDevices() {
+  const epoch=++deviceSnapshotEpoch;
   const data = await request('/api/v1/devices');
+  if(epoch!==deviceSnapshotEpoch)return;
   const revision=data.revision_text ?? (Number.isSafeInteger(data.revision)?String(data.revision):null);
   if(revision===null || !observeRevision(revision))return;
   eventDevices.clear(); for(const device of data.devices) eventDevices.set(device.id,device);
@@ -238,7 +241,7 @@ document.getElementById('confirm-publication').onclick=async()=>{
 let eventSocket=null, eventCursor=null, eventRetry=null, eventAttempts=0;
 const eventDevices=new Map();
 function markEventStateUnavailable(message) {
-  invalidatePreview();
+  deviceSnapshotEpoch++;invalidatePreview();
   for(const [id,device] of eventDevices)eventDevices.set(id,{...device,quality:'Stale',can_control:false});
   renderDevices();status.textContent=message;
 }
@@ -258,6 +261,7 @@ function connectEvents() {
       }
       if(frame.type!=='state')return;
       if(!observeRevision(frame.revision))return;
+      deviceSnapshotEpoch++;
       if(frame.reset)eventDevices.clear();
       for(const device of frame.devices)eventDevices.set(device.id,device);
       renderDevices();renderScenes({scenes:frame.scenes,revision:frame.revision});eventCursor=frame.cursor;eventAttempts=0;
