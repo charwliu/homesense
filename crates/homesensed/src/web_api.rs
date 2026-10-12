@@ -355,7 +355,7 @@ impl Api {
                 let edit=match serde_json::from_slice::<crate::web_drafts::RoomEdit>(request.body()){Ok(edit)=>edit,Err(_)=>return deny(StatusCode::BAD_REQUEST,"invalid_room_edit")};
                 if edit.expected_revision!=runtime.revision.to_string(){return deny(StatusCode::CONFLICT,"stale_revision");}
                 return match drafts.lock() {
-                    Ok(mut drafts)=>match drafts.edit_room(grant.controller,id,edit,*context){Ok(id)=>response(StatusCode::OK,json!({"draft":id,"active":false})),Err(_)=>deny(StatusCode::BAD_REQUEST,"invalid_room_edit")},
+                    Ok(mut drafts)=>match drafts.edit_room(grant.controller,id,edit,*context){Ok(id)=>response(StatusCode::OK,json!({"draft":id,"active":false})),Err(e) if e=="room_in_use"=>deny(StatusCode::BAD_REQUEST,"room_in_use"),Err(_)=>deny(StatusCode::BAD_REQUEST,"invalid_room_edit")},
                     Err(_)=>deny(StatusCode::SERVICE_UNAVAILABLE,"draft_storage_unavailable"),
                 };
             }
