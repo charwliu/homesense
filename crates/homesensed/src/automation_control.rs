@@ -159,6 +159,8 @@ pub(crate) fn channel(controller: Uuid, generation: TaskGeneration) -> (Control,
     )
 }
 impl Receiver {
+    pub(crate) fn controller(&self)->Uuid {self.controller}
+
     #[allow(clippy::too_many_arguments)]
     pub(crate) async fn poll(
         &mut self,
@@ -285,9 +287,12 @@ impl Receiver {
                         }
                         admission.variable_snapshot(controller,self.generation.clone(),vec![]).await.map_err(|e|format!("{e:?}"))?;
                         if request.reply.is_closed() || Instant::now()>=request.deadline {return Err("scene batch expired or abandoned".into());}
-                        let starts=actions.into_iter().filter_map(|(id,execute)|execute.then_some(id)).collect::<Vec<_>>();
-                        if starts.is_empty() {Ok(Reply::ScenesAccepted(vec![]))}
-                        else {scenes.start_documents_as(revision,starts,admission.monotonic_ms(),controller).await.map(Reply::ScenesAccepted)}
+                        let writes=actions.into_iter().map(|(id,execute)|(id,execute.then_some(true))).collect::<Vec<_>>();
+                        let snapshot=admission.variable_snapshot(controller,self.generation.clone(),crate::scene_switches::variable_names(document)).await.map_err(|e|format!("{e:?}"))?;
+                        let plan=crate::scene_switches::plan(document,&writes,&snapshot)?;
+                        if request.reply.is_closed()||Instant::now()>=request.deadline {return Err("scene batch expired or abandoned".into());}
+                        if plan.definitions.is_empty(){Ok(Reply::ScenesAccepted(vec![]))}
+                        else{scenes.start_documents_with_variables_as(revision,plan.definitions,admission.monotonic_ms(),controller,plan.updates).await.map(Reply::ScenesAccepted)}
                     },
                     Action::SceneAction { controller, revision, scene, execute } => {
                         if revision != document.revision { return Err("scene action revision expired".into()); }
@@ -297,13 +302,25 @@ impl Receiver {
                         }
                         admission.variable_snapshot(controller, self.generation.clone(), vec![]).await.map_err(|e|format!("{e:?}"))?;
                         if request.reply.is_closed() || Instant::now() >= request.deadline { return Err("scene action expired or abandoned".into()); }
-                        if execute { scenes.start_document_as(document, &scene, admission.monotonic_ms(), controller).await.map(|run|Reply::SceneAccepted(Some(run))) }
+                        if crate::scene_switches::related(document,&scene) {
+                            let snapshot=admission.variable_snapshot(controller,self.generation.clone(),crate::scene_switches::variable_names(document)).await.map_err(|e|format!("{e:?}"))?;
+                            let plan=crate::scene_switches::plan(document,&[(scene,Some(execute))],&snapshot)?;
+                            if request.reply.is_closed()||Instant::now()>=request.deadline {return Err("scene action expired or abandoned".into());}
+                            if plan.definitions.is_empty(){Ok(Reply::SceneAccepted(None))}
+                            else{scenes.start_documents_with_variables_as(revision,plan.definitions,admission.monotonic_ms(),controller,plan.updates).await.map(|runs|Reply::SceneAccepted(runs.into_iter().next()))}
+                        }else if execute { scenes.start_document_as(document, &scene, admission.monotonic_ms(), controller).await.map(|run|Reply::SceneAccepted(Some(run))) }
                         else { Ok(Reply::SceneAccepted(None)) }
                     },
-                    Action::Start(id) => scenes
-                        .start_document(document, &id, admission.monotonic_ms())
-                        .await
-                        .map(Reply::Started),
+                    Action::Start(id) => {
+                        if crate::scene_switches::related(document,&id){
+                            let snapshot=admission.variable_snapshot(self.controller,self.generation.clone(),crate::scene_switches::variable_names(document)).await.map_err(|e|format!("{e:?}"))?;
+                            let plan=crate::scene_switches::forced_plan(document,&id,&snapshot)?;
+                            if request.reply.is_closed()||Instant::now()>=request.deadline {return Err("scene start expired or abandoned".into());}
+                            let runs=scenes.start_documents_with_variables_as(document.revision,plan.definitions,admission.monotonic_ms(),self.controller,plan.updates).await?;
+                            runs.into_iter().next().map(Reply::Started).ok_or("manual activation receipt missing".into())
+                        }
+                        else{scenes.start_document(document,&id,admission.monotonic_ms()).await.map(Reply::Started)}
+                    },
                     Action::Cancel(run) => scenes.cancel(run).await.map(Reply::Cancelled),
                     Action::Status(run) => Ok(Reply::Status(scenes.status(run))),
                     Action::Activity(run) => scenes.activity(run,feedback,max_age_ms).await.map(Reply::Activity),

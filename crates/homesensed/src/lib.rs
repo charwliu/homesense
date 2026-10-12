@@ -126,3 +126,5 @@ pub mod runtime_panel_hap;
 pub use fade_budget::Capacity as WireCapacity;
 
 pub mod scene_switches;
+
+mod scene_selection_hap;

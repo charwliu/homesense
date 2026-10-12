@@ -93,7 +93,7 @@ function renderScenes(data) {
         const requestId = crypto.randomUUID();
         const result = await request('/api/v1/scene-actions', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({scene: scene.id, request_id: requestId})});
         if (result.outcome === 'accepted') started.set(scene.id, requestId);
-        status.textContent = result.outcome === 'accepted' ? '请求已接受，请核对执行记录和设备反馈。' : '结果尚不明确，请核对记录；不要重复点击。';
+        status.textContent = result.outcome === 'accepted' ? '请求已接受，请核对执行记录和设备反馈。' : result.outcome === 'unchanged' ? '场景选择已是目标值，本次未执行新的动作。' : '结果尚不明确，请核对记录；不要重复点击。';
         await refresh();
       } catch (error) { status.textContent = `${error.message}；未自动重试。`; }
     };
