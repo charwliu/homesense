@@ -219,8 +219,18 @@ impl AccessoryDatabase {
         }
         accessories.sort_by_key(|v| v.get("aid").and_then(|v| v.as_u64()));
         let bytes = serde_json::to_vec(&json!({"version":2,"accessories":accessories}))?;
-        if bytes.len() > 65536 {
+        // Keep existing small manifests byte-compatible. Large installations
+        // persist a domain/version-tagged digest, not an oversized SQLite entry.
+        // The digest covers exactly the same canonical structural document.
+        if bytes.len() > 4 * 1024 * 1024 {
             return Err(Error::Storage);
+        }
+        if bytes.len() > 65536 {
+            use sha2::{Digest, Sha256};
+            return Ok(serde_json::to_vec(&json!({
+                "version":3,"canonical_version":2,"algorithm":"sha256",
+                "digest":Sha256::digest(&bytes).to_vec()
+            }))?);
         }
         Ok(bytes)
     }
@@ -505,6 +515,24 @@ mod async_acceptance_tests {
             before,
             AccessoryDatabase::graph_manifest(vec![changed]).unwrap()
         );
+    }
+    #[test]
+    fn large_manifest_digest_preserves_structure_and_size_boundary() {
+        let mut graph=json!({"aid":1,"services":[{"iid":1,"type":"43","characteristics":[
+            {"iid":2,"type":"23","value":"n".repeat(70_000),"perms":["pr"]},
+            {"iid":3,"type":"25","value":false,"perms":["pr","pw"],"ev":false}
+        ]}]});
+        let before=AccessoryDatabase::graph_manifest(vec![graph.clone()]).unwrap();
+        assert!(before.len()<65536);
+        assert_eq!(serde_json::from_slice::<serde_json::Value>(&before).unwrap()["version"],3);
+        graph["services"][0]["characteristics"][1]["value"]=json!(true);
+        graph["services"][0]["characteristics"][1]["ev"]=json!(true);
+        graph["services"][0]["characteristics"][1]["perms"]=json!(["pw","pr"]);
+        assert_eq!(before,AccessoryDatabase::graph_manifest(vec![graph.clone()]).unwrap());
+        graph["services"][0]["characteristics"][0]["value"]=json!("m".repeat(70_000));
+        assert_ne!(before,AccessoryDatabase::graph_manifest(vec![graph.clone()]).unwrap());
+        graph["services"][0]["characteristics"][0]["value"]=json!("n".repeat(4*1024*1024));
+        assert!(AccessoryDatabase::graph_manifest(vec![graph]).is_err());
     }
     #[tokio::test]
     async fn real_accessory_manifest_tracks_name_but_not_power() {
