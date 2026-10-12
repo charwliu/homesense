@@ -110,3 +110,4 @@ pub mod hap_endpoint;
 pub mod runtime_motor_hap;
 
 mod web_history;
+mod web_scene_history;

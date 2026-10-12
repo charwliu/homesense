@@ -61,7 +61,7 @@ impl Api {
         {
             return deny(StatusCode::FORBIDDEN, "invalid_origin");
         }
-        if request.uri().query().is_some() && request.uri().path()!="/api/v1/config/versions" {
+        if request.uri().query().is_some() && !matches!(request.uri().path(),"/api/v1/config/versions"|"/api/v1/scene-history") {
             return deny(StatusCode::BAD_REQUEST, "query_not_supported");
         }
         // Minimal liveness reveals no runtime configuration or credentials.
@@ -386,6 +386,10 @@ impl Api {
                 Err(_) => deny(StatusCode::SERVICE_UNAVAILABLE, "draft_storage_unavailable"),
             };
         }
+        if request.uri().path()=="/api/v1/scene-history" {
+            let (code,body)=crate::web_scene_history::read(&runtime,&grant,&request).await;
+            return response(code,body);
+        }
         if let Some(key)=request.uri().path().strip_prefix("/api/v1/runs/") {
             if request.method()!=hyper::Method::GET {return deny(StatusCode::METHOD_NOT_ALLOWED,"method_not_allowed");}
             if !request.body().is_empty(){return deny(StatusCode::BAD_REQUEST,"unexpected_body");}
@@ -419,7 +423,7 @@ impl Api {
                 };
                 items.push(json!({"id":id,"name":name,"activity":activity,"last_run":last,"can_control":grant.may_control(id)}));
             }
-            return response(StatusCode::OK, json!({"scenes":items}));
+            return response(StatusCode::OK, json!({"revision":runtime.revision.to_string(),"scenes":items}));
         }
         if request.method() == hyper::Method::GET && matches!(request.uri().path(), "/api/v1/devices" | "/api/v1/rooms") {
             let ids = grant
