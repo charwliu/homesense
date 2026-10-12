@@ -267,6 +267,7 @@ impl Receiver {
                     Action::SceneSwitchStates {controller,revision}=>{
                         if revision!=document.revision {return Err("scene state revision expired".into());}
                         let snapshot=admission.variable_snapshot(controller,self.generation.clone(),crate::scene_switches::variable_names(document)).await.map_err(|e|format!("{e:?}"))?;
+                        if !admission.diagnostics(controller,self.generation.clone()).await.map_err(|e|format!("{e:?}"))?.ready() {return Err("scene selection runtime not ready".into());}
                         crate::scene_switches::states(document,&snapshot).map(Reply::SceneSwitchStates)
                     },
                     Action::SceneWrites {controller,revision,scenes:writes}=>{

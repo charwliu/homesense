@@ -54,6 +54,7 @@ fn response(code: StatusCode, value: serde_json::Value) -> Response<Full<Bytes>>
         .body(Full::new(Bytes::from(value.to_string())))
         .unwrap()
 }
+fn default_scene_on() -> bool { true }
 impl Api {
     pub async fn handle(&self, request: Request<Bytes>) -> Response<Full<Bytes>> {
         let deny = |code, message| response(code, json!({"error":message}));
@@ -550,6 +551,10 @@ impl Api {
             };
         }
         if request.method() == hyper::Method::GET && request.uri().path() == "/api/v1/scenes" {
+            let selection = match runtime.control.request(Action::SceneSwitchStates {controller:grant.controller,revision:runtime.revision}).await {
+                Ok(Reply::SceneSwitchStates(states)) => states,
+                _ => return deny(StatusCode::SERVICE_UNAVAILABLE, "scene_selection_unavailable"),
+            };
             let mut items = vec![];
             for (id, name) in &runtime.scenes {
                 if !grant.may_read(id) {
@@ -569,7 +574,7 @@ impl Api {
                     }
                     _ => serde_json::Value::Null,
                 };
-                items.push(json!({"id":id,"name":name,"activity":activity,"last_run":last,"can_control":grant.may_control(id)}));
+                items.push(json!({"id":id,"name":name,"activity":activity,"last_run":last,"can_control":grant.may_control(id),"switch_kind":if selection.contains_key(id){"selection"}else{"momentary"},"selected":selection.get(id).copied().flatten()}));
             }
             return response(StatusCode::OK, json!({"revision":runtime.revision.to_string(),"scenes":items}));
         }
@@ -641,6 +646,8 @@ impl Api {
         struct Start {
             scene: String,
             request_id: String,
+            #[serde(default = "default_scene_on")]
+            on: bool,
         }
         #[derive(serde::Deserialize)]
         #[serde(deny_unknown_fields)]
@@ -688,7 +695,7 @@ impl Api {
                 return deny(StatusCode::BAD_REQUEST, "invalid_body");
             };
             let fingerprint =
-                json!({"revision":runtime.revision,"scene":body.scene,"action":"start"})
+                json!({"revision":runtime.revision,"scene":body.scene,"action":if body.on {"start"} else {"off"}})
                     .to_string();
             (
                 body.scene.clone(),
@@ -697,7 +704,7 @@ impl Api {
                     controller: grant.controller,
                     revision: runtime.revision,
                     scene: body.scene,
-                    execute: true,
+                    execute: body.on,
                 },
                 fingerprint,
             )
@@ -716,7 +723,7 @@ impl Api {
             let parsed = serde_json::from_str::<serde_json::Value>(&fingerprint).ok();
             let receipt = serde_json::from_str::<serde_json::Value>(&receipt).ok();
             let Some((scene, run)) = parsed.as_ref().zip(receipt.as_ref()).and_then(|(p, r)| {
-                if p["action"] != "start"
+                if !matches!(p["action"].as_str(), Some("start" | "off"))
                     || p["revision"] != runtime.revision
                     || r["outcome"] != "accepted"
                     || r["boot"] != runtime.boot
