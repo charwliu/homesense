@@ -820,3 +820,6 @@ hap_capacity 构建 56 路开关和 40 路调光，在真实加密连接中确�
 可选面板 HAP 图基础：新增显式 TS6 按键选择，每键独立 Stateless Programmable Switch，稳定身份按设备 ID／键号保存，改名、重排、移除再加入和重开均不换 AID/IID；与灯光／场景身份分离。只公开事件能力，不提供按键写控制、LED 或内部变量。手势映射仅将 Click／DoubleClick／LongStart 转为事件，忽略按下、松开、长按结束和取消，避免把边沿重复当点击。此增量仅构造离线图，尚未接入实时事件、去重游标、HAP 读取空值语义、桥清单和服务发布，不能视作面板接入已完成。EA-5 不变。
 
 基于 `332e6e8` 的独立源码快照仅叠加该增量，面板图 2 项、场景图 1 项、身份分配 5 项测试全部通过；vendor 既有警告保留。独立浏览器配置竞争验证因 Safari 屏幕捕获连续失败仍待完成，本轮合成 Web 服务已停止。
+
+
+面板事件读取边界：vendor HAP 的 ProgrammableSwitchEvent 在特征读取和配件 JSON 中均返回 null，避免默认 0 或上次点击冒充可读取状态；实时通知保留 0／1／2。专项测试验证启动零通知、相同点击／长按连续通知、读取不发通知、普通开关仍可读 true。与 [HAP-NodeJS 的事件读取实现](https://github.com/homebridge/HAP-NodeJS/blob/latest/src/lib/Characteristic.ts)核对一致。独立源码快照的事件 1 项、面板图 2 项、场景图 1 项通过，vendor 既有警告保留。实时输入游标去重、桥清单和服务装配仍待接入；此证据尚不覆盖加密 HTTP 面板读订阅。未连接现场，EA-5 不变。
