@@ -14,6 +14,7 @@ for(const id of ['draft-id','base-revision','draft-revision','device-document','
   document.getElementById(id).addEventListener('input',invalidatePreview);
 }
 let versionsBefore=null;
+let selectedRoom='';
 const started = new Map();
 const status = document.getElementById('status');
 const list = document.getElementById('scenes');
@@ -76,7 +77,7 @@ document.getElementById('connect').onclick = async () => {
 document.getElementById('logout').onclick = async () => {
   if(sessionBusy)return;sessionBusy=true;++sessionEpoch;
   invalidatePreview();
-  try { await request('/api/v1/session', {method: 'DELETE'}); csrf = ''; clearTimeout(eventRetry); if(eventSocket)eventSocket.close();eventDevices.clear(); document.getElementById('draft-impact').textContent=''; document.getElementById('configuration').hidden=true; document.getElementById('runtime-result').textContent='';document.getElementById('calendar-result').textContent='';document.getElementById('versions').replaceChildren();document.getElementById('draft-list').replaceChildren(); versionsBefore=null;document.getElementById('more-versions').disabled=true; for(const id of ['device-document','automation-document','draft-id','base-revision','draft-revision']) document.getElementById(id).value=''; started.clear(); list.replaceChildren(); document.getElementById('devices').replaceChildren(); status.textContent = '已退出'; }
+  try { await request('/api/v1/session', {method: 'DELETE'}); csrf = ''; clearTimeout(eventRetry); if(eventSocket)eventSocket.close();eventDevices.clear(); selectedRoom='';document.getElementById('room-filter').replaceChildren();document.getElementById('room-filter').value=''; document.getElementById('draft-impact').textContent=''; document.getElementById('configuration').hidden=true; document.getElementById('runtime-result').textContent='';document.getElementById('calendar-result').textContent='';document.getElementById('versions').replaceChildren();document.getElementById('draft-list').replaceChildren(); versionsBefore=null;document.getElementById('more-versions').disabled=true; for(const id of ['device-document','automation-document','draft-id','base-revision','draft-revision']) document.getElementById(id).value=''; started.clear(); list.replaceChildren(); document.getElementById('devices').replaceChildren(); status.textContent = '已退出'; }
   catch (error) { status.textContent = '注销未确认：' + error.message; }
   finally {sessionBusy=false;}
 };
@@ -86,9 +87,26 @@ async function refreshDevices() {
   eventDevices.clear(); for(const device of data.devices) eventDevices.set(device.id,device);
   renderDevices();
 }
+document.getElementById('room-filter').onchange=()=>{
+  selectedRoom=document.getElementById('room-filter').value;renderDevices();
+};
 function renderDevices() {
+  const filter=document.getElementById('room-filter');
+  const rooms=new Map();let unassigned=false;
+  for(const device of eventDevices.values()) {
+    if(device.room) rooms.set('room:'+device.room.id,device.room);else unassigned=true;
+  }
+  if(selectedRoom && selectedRoom!=='none' && !rooms.has(selectedRoom))selectedRoom='';
+  if(selectedRoom==='none'&&!unassigned)selectedRoom='';
+  filter.replaceChildren();
+  const add=(value,label)=>{const option=document.createElement('option');option.value=value;option.textContent=label;filter.append(option);};
+  add('','全部房间');
+  for(const [id,room] of [...rooms.entries()].sort((a,b)=>a[0].localeCompare(b[0])))add(id,[room.floor,room.name].filter(Boolean).join(' · '));
+  if(unassigned)add('none','未分配房间');
+  filter.value=selectedRoom;
   const devices = document.getElementById('devices'); devices.replaceChildren();
   for (const device of eventDevices.values()) {
+    if(selectedRoom && selectedRoom!==(device.room ? 'room:'+device.room.id : 'none'))continue;
     const row = document.createElement('article');
     const title = document.createElement('h2'); title.textContent = device.name;
     const info = document.createElement('p');

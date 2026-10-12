@@ -5,13 +5,13 @@ main { max-width: 1040px; margin: 0 auto; padding: 28px 24px 64px; }
 h1 { margin: 0 0 8px; font-size: 2rem; letter-spacing: -.04em; }
 h2 { font-size: 1.2rem; margin: 0 0 12px; }
 p { margin: 8px 0 16px; }
-button, input, textarea { font: inherit; }
+button, input, textarea, select { font: inherit; }
 button { background: #fff; color: #17302b; border: 1px solid #8baba0; border-radius: 7px; min-height: 42px; padding: 7px 14px; margin: 4px 6px 4px 0; cursor: pointer; }
 button:hover:not(:disabled) { background: #e6f1eb; border-color: #28664c; }
 button:disabled { opacity: .5; cursor: default; }
-button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px solid #39865d; outline-offset: 2px; }
+button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible { outline: 3px solid #39865d; outline-offset: 2px; }
 #connect, #save-draft { color: #fff; background: #246149; border-color: #246149; }
-input, textarea { border: 1px solid #9eafa7; background: #fff; border-radius: 6px; padding: 8px 10px; max-width: 100%; }
+input, textarea, select { border: 1px solid #9eafa7; background: #fff; border-radius: 6px; padding: 8px 10px; max-width: 100%; }
 input[type=number] { width: 140px; }
 #token { width: min(100%, 320px); margin: 0 8px; }
 #status { min-height: 28px; color: #315c48; overflow-wrap: anywhere; }
