@@ -71,7 +71,9 @@ function renderScenes(data) {
         started.delete(scene.id); await refresh();
       } catch (error) { status.textContent = error.message; }
     };
-    row.append(title, info, button, cancel); list.append(row);
+    const history=document.createElement('button');history.textContent='执行历史';history.disabled=!data.revision;
+    history.onclick=()=>loadSceneHistory(scene.id,data.revision);
+    row.append(title, info, button, cancel,history); list.append(row);
   }
 }
 document.getElementById('connect').onclick = async () => {
@@ -89,7 +91,7 @@ document.getElementById('connect').onclick = async () => {
 document.getElementById('logout').onclick = async () => {
   if(sessionBusy)return;sessionBusy=true;++sessionEpoch;
   invalidatePreview();
-  try { await request('/api/v1/session', {method: 'DELETE'}); csrf = ''; clearTimeout(eventRetry); if(eventSocket)eventSocket.close();eventDevices.clear(); selectedRoom='';document.getElementById('room-filter').replaceChildren();document.getElementById('room-filter').value=''; document.getElementById('draft-impact').textContent=''; document.getElementById('configuration').hidden=true;document.getElementById('diagnostics').hidden=true; document.getElementById('runtime-result').textContent='';document.getElementById('calendar-result').textContent='';document.getElementById('versions').replaceChildren();document.getElementById('draft-list').replaceChildren(); versionsBefore=null;document.getElementById('more-versions').disabled=true; for(const id of ['device-document','automation-document','draft-id','base-revision','draft-revision']) document.getElementById(id).value=''; started.clear(); list.replaceChildren(); document.getElementById('devices').replaceChildren(); status.textContent = '已退出'; }
+  try { await request('/api/v1/session', {method: 'DELETE'}); csrf = ''; clearTimeout(eventRetry); if(eventSocket)eventSocket.close();eventDevices.clear(); selectedRoom='';document.getElementById('room-filter').replaceChildren();document.getElementById('room-filter').value=''; document.getElementById('draft-impact').textContent=''; document.getElementById('configuration').hidden=true;document.getElementById('diagnostics').hidden=true;historyEpoch++;document.getElementById('scene-history').hidden=true;document.getElementById('history-runs').replaceChildren();document.getElementById('history-title').textContent='';document.getElementById('history-next').disabled=true; document.getElementById('runtime-result').textContent='';document.getElementById('calendar-result').textContent='';document.getElementById('versions').replaceChildren();document.getElementById('draft-list').replaceChildren(); versionsBefore=null;document.getElementById('more-versions').disabled=true; for(const id of ['device-document','automation-document','draft-id','base-revision','draft-revision']) document.getElementById(id).value=''; started.clear(); list.replaceChildren(); document.getElementById('devices').replaceChildren(); status.textContent = '已退出'; }
   catch (error) { status.textContent = '注销未确认：' + error.message; }
   finally {sessionBusy=false;}
 };
@@ -226,7 +228,7 @@ function connectEvents() {
       if(frame.type!=='state')return;
       if(frame.reset)eventDevices.clear();
       for(const device of frame.devices)eventDevices.set(device.id,device);
-      renderDevices();renderScenes({scenes:frame.scenes});eventCursor=frame.cursor;eventAttempts=0;
+      renderDevices();renderScenes({scenes:frame.scenes,revision:frame.revision});eventCursor=frame.cursor;eventAttempts=0;
     } catch(error){status.textContent='事件更新失败，请刷新状态。';socket.close();}
   };
   socket.onclose=()=>{
@@ -310,3 +312,19 @@ document.getElementById('runtime-status').onclick = async () => {
     output.textContent=`控制准入就绪：${s.ready}\n配置版本：${s.revision}\n传输代次：${s.transport_epoch}\n排队：${s.queued}；正在写出：${s.in_flight}\n网关已同步：${s.gateway_ready}\n存储健康：${s.storage_healthy}\n准入失败：${s.failed}；停止中：${s.stopping}；发布中：${s.publishing}\n这是读取时刻的准入状态，不证明设备已到达目标状态。`;
   } catch(error) {if(epoch===sessionEpoch)output.textContent=error.message;}
 };
+
+let historyEpoch=0;
+async function loadSceneHistory(scene,revision,before=null) {
+  const epoch=++historyEpoch;
+  const panel=document.getElementById('scene-history'),runs=document.getElementById('history-runs'),next=document.getElementById('history-next');
+  panel.hidden=false;runs.replaceChildren();next.disabled=true;document.getElementById('history-title').textContent='读取执行历史…';
+  try {
+    let path='/api/v1/scene-history?scene='+encodeURIComponent(scene)+'&revision='+encodeURIComponent(revision)+'&limit=20';
+    if(before)path+='&before_boot='+encodeURIComponent(before.boot)+'&before_run='+encodeURIComponent(before.run);
+    const page=await request(path);if(epoch!==historyEpoch)return;
+    document.getElementById('history-title').textContent=`${page.scene} · 配置版本 ${page.revision} · 按创建顺序倒序`;
+    for(const run of page.runs){const item=document.createElement('p');item.textContent=`${run.status} · ${run.boot} / ${run.run} · 开始 ${run.started_ms} ms · 更新 ${run.updated_ms} ms`;runs.append(item);}
+    if(!page.runs.length)runs.textContent='没有运行记录';
+    next.disabled=page.next_before===null;next.onclick=()=>loadSceneHistory(scene,revision,page.next_before);
+  } catch(error){if(epoch===historyEpoch)document.getElementById('history-title').textContent=error.message;}
+}
