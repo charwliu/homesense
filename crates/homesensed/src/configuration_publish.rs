@@ -95,6 +95,29 @@ pub fn validate_automation(
 ) -> Result<homesense_config::rule_document::Document, Box<dyn Error>> {
     let document = homesense_config::rule_document::Document::parse(bytes, config)?;
     let linked = document.linked_rules_with_deferred()?;
+    fn command(
+        device: &DeviceId,
+        target: homesense_core::Command,
+        config: &Configuration,
+        context: ExecutionContext,
+    ) -> Result<(), Box<dyn Error>> {
+        let (mapping, module) = config.binding(device).ok_or("enabled automation references disabled output")?;
+        if let Some(supply) = &mapping.supply_relay {
+            // Validate the wire plan the admission actor actually uses, rather
+            // than encoding a logical target directly as a physical AD8 frame.
+            for (output, physical) in crate::combined_light::plan(target, None, mapping.default_on_level)? {
+                let id = match output {
+                    crate::combined_light::Output::Relay => supply,
+                    crate::combined_light::Output::Dimmer => device,
+                };
+                let (mapping, module) = config.binding(id).ok_or("combined output unavailable")?;
+                hb_protocol::encode_in_context(module, mapping.channel, physical, context)?;
+            }
+        } else {
+            hb_protocol::encode_in_context(module, mapping.channel, target, context)?;
+        }
+        Ok(())
+    }
     fn commands(
         nodes: &[homesense_core::rule::Node],
         config: &Configuration,
@@ -102,11 +125,8 @@ pub fn validate_automation(
     ) -> Result<(), Box<dyn Error>> {
         for node in nodes {
             match &node.action {
-                homesense_core::rule::Action::Command { device, command } => {
-                    let (mapping, module) = config
-                        .binding(device)
-                        .ok_or("enabled rule references disabled output")?;
-                    hb_protocol::encode_in_context(module, mapping.channel, *command, context)?;
+                homesense_core::rule::Action::Command { device, command: target } => {
+                    command(device, *target, config, context)?;
                 }
                 homesense_core::rule::Action::If {
                     then_actions,
@@ -143,10 +163,7 @@ pub fn validate_automation(
     }
     for scene in document.timed_scenes.values().filter(|s| s.enabled) {
         for step in &scene.steps {
-            let (mapping, module) = config
-                .binding(&step.device)
-                .ok_or("enabled timed scene references disabled output")?;
-            hb_protocol::encode_in_context(module, mapping.channel, step.command, context)?;
+            command(&step.device, step.command, config, context)?;
         }
     }
     Ok(document)
