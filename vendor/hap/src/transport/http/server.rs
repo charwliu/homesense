@@ -5,13 +5,14 @@ use futures::{
     lock::Mutex,
 };
 use hyper::{server::conn::http1, service::Service, body::Incoming, Method, Request, Response, StatusCode};
-use log::{debug, error, info};
+use log::{error, info};
 use std::{
     net::SocketAddr,
     pin::Pin,
     sync::Arc,
-    task::{Context, Poll},
 };
+#[cfg(test)]
+use std::task::{Context, Poll};
 use tokio::net::TcpListener;
 
 use crate::{
@@ -186,14 +187,14 @@ impl Server {
         }
     }
 
-    pub fn run_handle(&self) -> BoxFuture<Result<()>> {
+    pub fn run_handle(&self) -> BoxFuture<'_, Result<()>> {
         self.run_handle_ready(None)
     }
 
     pub(crate) fn run_handle_ready(
         &self,
         ready: Option<tokio::sync::oneshot::Sender<()>>,
-    ) -> BoxFuture<Result<()>> {
+    ) -> BoxFuture<'_, Result<()>> {
         let config = self.config.clone();
         let storage = self.storage.clone();
         let accessory_database = self.accessory_database.clone();

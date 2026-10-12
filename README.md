@@ -15,7 +15,9 @@ HomeSense（中文名：知居）是原生 Rust 家庭中控，通过 TCP485 网
 
 上一次完整回归以已提交源码 `ea236d6` 的独立快照为准：**579 项通过、0 失败、0 忽略**；12 项前端脚本、两种模式 HTTPS/WSS、真实回环 HTTP 发布／历史恢复和会话竞争通过。本轮之后仅叠加配置冲突中文提示及对应前端测试，重新构建并在两个浏览器复验，12 项前端脚本再次通过。范围见 [回归记录](docs/evidence/stage-e-browser/clean-de-regression-ea236d6.json) 和 [独立浏览器记录](docs/evidence/stage-e-browser/independent-publication-check.json)。此次基线尚未运行完整 workspace 严格 Clippy；后续质量检查见下。
 
-最新质量检查基于 `061c3c2` 干净源码加 9 个限定修复：测试控制器改用当前 `AeadInOut` API，保留密钥派生、nonce、AAD 和报文格式；修复测试锁作用域及等价 lint。**完整 workspace 回归再次 579 项通过，工作区所有目标严格 Clippy 通过**，未新增 lint 放行。`vendor/hap` 被排除在 workspace 外，依赖仍产生 54 条警告；这不是 vendor 无警告结论。初次回归因沙箱禁止本机 TCP 绑定失败，获准回环环境重跑后通过。见 [质量检查证据](docs/evidence/stage-e-browser/clean-workspace-quality-061c3c2.json)。
+上一次质量检查基于 `061c3c2` 干净源码加 9 个限定修复：测试控制器改用当前 `AeadInOut` API，保留密钥派生、nonce、AAD 和报文格式；修复测试锁作用域及等价 lint。**完整 workspace 回归再次 579 项通过，工作区所有目标严格 Clippy 通过**，未新增 lint 放行。`vendor/hap` 被排除在 workspace 外，依赖仍产生 54 条警告；这不是 vendor 无警告结论。初次回归因沙箱禁止本机 TCP 绑定失败，获准回环环境重跑后通过。见 [质量检查证据](docs/evidence/stage-e-browser/clean-workspace-quality-061c3c2.json)。
+
+HAP 依赖维护：基于 `9e5b9a7` 独立源码，显式标注原有 future 生命周期、整理测试专用导入、移除无调用的私有旧 TLV 解码器，并保持 `remote` 的 JSON 字段映射及 waker 所有权；生产认证与加密算法未改。生产依赖警告由 54 条降至 **23 条**，剩余为加密 API 弃用。完整工作区 **579 项**、额外 HAP 依赖库 **53 项**测试均通过，工作区成员严格 Clippy 通过；未声称完整 vendor 严格 Clippy 通过。见 [HAP 维护证据](docs/evidence/stage-e-browser/hap-noncrypto-quality-9e5b9a7.json)。
 
 剩余：65 个场景、212 个程序以及 24 个变量的原项目语义审核；窗帘条件确认继续挂起。阶段 E 尚需当前集成版 Apple 客户端、现场停止／面板事件、真实手机 Web 与 LAN TLS 验收。正式部署、全量恢复演练和 72 小时运行属于 F；整屋接管属于 G。EA-5 配置与控制范围保持不变，私有项目资料只保留本地。
 

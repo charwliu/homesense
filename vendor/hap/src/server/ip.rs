@@ -44,7 +44,7 @@ impl IpServer {
     pub fn run_handle_ready(
         &self,
         ready: tokio::sync::oneshot::Sender<()>,
-    ) -> BoxFuture<Result<()>> {
+    ) -> BoxFuture<'_, Result<()>> {
         let http = self.http_server.run_handle_ready(Some(ready));
         let responder = self.mdns_responder.clone();
         async move {
@@ -345,7 +345,7 @@ impl IpServer {
 
 #[async_trait]
 impl Server for IpServer {
-    fn run_handle(&self) -> BoxFuture<Result<()>> {
+    fn run_handle(&self) -> BoxFuture<'_, Result<()>> {
         let http_handle = self.http_server.run_handle();
         let mdns_responder = self.mdns_responder.clone();
 
