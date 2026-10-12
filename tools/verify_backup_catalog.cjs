@@ -1,9 +1,9 @@
 // Synthetic browser model: backup metadata, text rendering, and session fencing.
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const elements=new Map();
-const element=id=>{if(!elements.has(id))elements.set(id,{value:'',textContent:'',addEventListener(){},replaceChildren(){this.textContent='';}});return elements.get(id);};
+const element=id=>{if(!elements.has(id))elements.set(id,{value:'',textContent:'',addEventListener(){},append(){},replaceChildren(){this.textContent='';}});return elements.get(id);};
 const pending=[];
-const context=vm.createContext({document:{getElementById:element},fetch:path=>new Promise(resolve=>pending.push({path,resolve})),clearTimeout(){},setTimeout(){},location:{origin:'http://127.0.0.1:1'}});
+const context=vm.createContext({document:{getElementById:element,createElement:()=>({})},fetch:path=>new Promise(resolve=>pending.push({path,resolve})),clearTimeout(){},setTimeout(){},location:{origin:'http://127.0.0.1:1'}});
 vm.runInContext(fs.readFileSync(require('node:path').join(__dirname,'../crates/homesensed/src/web/app.js'),'utf8'),context);
 (async()=>{
  vm.runInContext("csrf='synthetic'",context);
