@@ -171,3 +171,10 @@ E13 固定同一 `c184e65` 产品二进制，独立控制器通过网络完成�
 [官方 ALS 异步命令说明](https://snap-one.github.io/docs-driverworks-proxyprotocol-lightv2/#asynchronous-commands)定义 DEACTIVATE_SCENE 为执行原场景 Toggle ID 所指目标；不能通用解释为取消或将原成员全部设0。根完整源扫描发现48个启用调用、来自48程序，引用28条有效一跳边；所有目标均全关，成员集合及顺序与原场景相同，但9次调用的目标rate序列不同。后续源转换必须使用目标场景完整记录，不继承原rate。未解析的17个65535元数据不猜测默认行为。
 
 68场景的629成员均单元素，delay均0；rate有0／1／750／1000，每个场景至少一项非零，因此不能用“纯零rate子集”关闭其余场景语义门槛。此盘点不确定存档rate单位，也不证明驱动执行。当前core显式deactivation策略和未知拒绝仍保留，未生成／启用运行定义；手动书房all_members_off策略不被提升为全项目源ALS等价。见 [源契约与结构盘点](evidence/stage-d-study/scene-deactivation-source-contract.json)。
+
+
+### 2026-10-13 原灯光驱动公开 XML 能力核查
+
+629个场景成员的直接代理均为 light_v2.c4i。沿源驱动链核对：Switch_V2 对应 rate0／1共338项，Dimmer_V2 对应1000／750共291项。根只读原c4p中的两个c4z的公开driver.xml，二者均声明 advanced_scene_support=True、reduced_als_support=False；因此不能依据[官方简化ALS的单独target命令行为](https://snap-one.github.io/docs-driverworks-proxyprotocol-lightv2/#advanced-lighting-scene-agent)解释这两个完整ALS驱动的实际处理。Dimmer公开Ramp Timer为LIST，默认400、选项100至900，没有明确单位。
+
+两包脚本条目均为driver.lua.encrypted、公开script属性encryption=2；未读取脚本内容、未解密。接口能力声明与存档数值分类已明确，原PUSH_SCENE处理、实际rate单位、Ramp Timer关联和驱动执行仍无直接证据；不以数值看似毫秒替代审核。未生成运行定义、未修改原项目或现场。见 [驱动元数据证据](evidence/stage-d-study/lighting-driver-metadata-audit.json)。

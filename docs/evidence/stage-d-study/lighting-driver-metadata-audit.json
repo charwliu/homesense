@@ -1,0 +1,77 @@
+{
+  "source_archive_sha256": "ff8c298fd2c8efa840d572d3ca544860ffbbc4e7176f09e93efdc5464b9ce6ec",
+  "source_xml_sha256": "cac7dcdc9db08599e55a22bacb72858035c64e1ac846e2139ead5fc634513748",
+  "all_629_scene_members_use_proxy": "light_v2.c4i",
+  "driver_metadata": [
+    {
+      "protocol_driver_descriptor": "GJ-TECH.CN_Dimmer_V2.c4z",
+      "archive_sha256": "9983e31f6b9a0e0ab347faa90f23da24f0981393ed8ecdeaae03ffc81e249f6c",
+      "driver_xml_sha256": "a6bbfcab2c79f0eae74b2f2ba0a1780ad515cc0124f3da296391273700723635",
+      "public_declared_capabilities": {
+        "dimmer": "True",
+        "set_level": "True",
+        "ramp_level": "True",
+        "advanced_scene_support": "True",
+        "reduced_als_support": "False",
+        "load_group_support": "True"
+      },
+      "source_rate_literals": {
+        "1000": 288,
+        "750": 3
+      },
+      "ramp_timer_property": {
+        "type": "LIST",
+        "default_literal": "400",
+        "option_literals": [
+          "100",
+          "200",
+          "300",
+          "400",
+          "500",
+          "600",
+          "700",
+          "800",
+          "900"
+        ],
+        "explicit_unit_declared": false
+      },
+      "script_archive_entry": "driver.lua.encrypted",
+      "script_encryption_attribute": "2",
+      "script_bytes_read": false,
+      "script_decryption_attempted": false
+    },
+    {
+      "protocol_driver_descriptor": "GJ-TECH.CN_Switch_V2.c4z",
+      "archive_sha256": "7715b7cad50c6244c39865528d3ecb668860107c8b7742510bf6fcccfc152abd",
+      "driver_xml_sha256": "b834a103bfc675958a55916ab314ca4ddef2527790feaae86a7455db731d6a30",
+      "public_declared_capabilities": {
+        "dimmer": "False",
+        "set_level": "False",
+        "ramp_level": "False",
+        "advanced_scene_support": "True",
+        "reduced_als_support": "False",
+        "load_group_support": "False"
+      },
+      "source_rate_literals": {
+        "0": 318,
+        "1": 20
+      },
+      "ramp_timer_property": null,
+      "script_archive_entry": "driver.lua.encrypted",
+      "script_encryption_attribute": "2",
+      "script_bytes_read": false,
+      "script_decryption_attempted": false
+    }
+  ],
+  "primary_interface_reference": "https://snap-one.github.io/docs-driverworks-proxyprotocol-lightv2/#advanced-lighting-scene-agent",
+  "conclusion": "Both archived protocol drivers declare full ALS support; reduced-ALS target-command behavior cannot establish these drivers actual scene behavior",
+  "still_unproven": [
+    "serialized AdvScene rate unit and interpretation in archived full-ALS driver",
+    "actual Ramp Timer property unit and relation to scene rate",
+    "driver execution and live project equivalence"
+  ],
+  "metadata_only_review": true,
+  "runtime_definitions_generated": false,
+  "field_enablement": false,
+  "original_project_changed": false
+}
