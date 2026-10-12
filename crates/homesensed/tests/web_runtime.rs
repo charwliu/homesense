@@ -183,6 +183,10 @@ async fn web_scope_origin_receipts_and_runtime_admission() {
                 .body(Bytes::copy_from_slice(body.as_bytes()))
                 .unwrap()
         };
+        for (path,status) in [("/health/live",StatusCode::OK),("/health/ready",StatusCode::UNAUTHORIZED)] {
+            let mut read=make(&api.origin,"");*read.method_mut()=hyper::Method::GET;*read.uri_mut()=path.parse().unwrap();read.headers_mut().remove("authorization");
+            assert_eq!(api.handle(read).await.status(),status);
+        }
         let mut login = make(&api.origin, "{}");
         *login.uri_mut() = "/api/v1/session".parse().unwrap();
         let login = api.handle(login).await;
@@ -397,13 +401,16 @@ async fn web_scope_origin_receipts_and_runtime_admission() {
         );
         let mut activation=make_draft();*activation.uri_mut()=format!("/api/v1/config/activations/{draft_id}").parse().unwrap();
         assert_eq!(api.handle(activation).await.status(),StatusCode::FORBIDDEN);
-        for path in ["/api/v1/diagnostics","/api/v1/diagnostics/calendar","/api/v1/config/drafts","/api/v1/config/versions","/api/v1/config/versions/1/export"] {
+        for path in ["/health/ready","/api/v1/diagnostics","/api/v1/diagnostics/calendar","/api/v1/config/drafts","/api/v1/config/versions","/api/v1/config/versions/1/export"] {
             let mut read=make(&api.origin,"");*read.method_mut()=hyper::Method::GET;*read.uri_mut()=path.parse().unwrap();
             assert_eq!(api.handle(read).await.status(),StatusCode::FORBIDDEN);
         }
         let mut administrator = tokens.authenticate(&format!("Bearer {secret}")).unwrap();
         administrator.role = Role::Administrator;
         tokens.insert(token_id, secret, administrator).unwrap();
+        for (path,method,body,status) in [("/health/ready",hyper::Method::GET,"",StatusCode::OK),("/health/ready",hyper::Method::GET,"{}",StatusCode::BAD_REQUEST),("/health/ready",hyper::Method::POST,"{}",StatusCode::METHOD_NOT_ALLOWED),("/health/live",hyper::Method::POST,"",StatusCode::METHOD_NOT_ALLOWED),("/health/live",hyper::Method::GET,"{}",StatusCode::BAD_REQUEST),("/health/ready?token=x",hyper::Method::GET,"",StatusCode::BAD_REQUEST)] {
+            let mut read=make(&api.origin,body);*read.method_mut()=method;*read.uri_mut()=path.parse().unwrap();assert_eq!(api.handle(read).await.status(),status);
+        }
         for (method,body,status) in [(hyper::Method::GET,"",StatusCode::OK),(hyper::Method::GET,"{}",StatusCode::BAD_REQUEST),(hyper::Method::POST,"{}",StatusCode::METHOD_NOT_ALLOWED)] {
             let mut read=make(&api.origin,body);*read.method_mut()=method;*read.uri_mut()="/api/v1/diagnostics".parse().unwrap();
             let result=api.handle(read).await;assert_eq!(result.status(),status);
@@ -492,6 +499,10 @@ async fn web_scope_origin_receipts_and_runtime_admission() {
         no_origin.headers_mut().remove("origin");
         assert_eq!(api.handle(no_origin).await.status(), StatusCode::FORBIDDEN);
         let saved_runtime = api.runtime.write().unwrap().take().unwrap();
+        for (path,status) in [("/health/live",StatusCode::OK),("/health/ready",StatusCode::SERVICE_UNAVAILABLE)] {
+            let mut read=make(&api.origin,"");*read.method_mut()=hyper::Method::GET;*read.uri_mut()=path.parse().unwrap();assert_eq!(api.handle(read).await.status(),status);
+        }
+
         let paused = api
             .handle(make(
                 &api.origin,

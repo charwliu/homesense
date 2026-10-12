@@ -264,6 +264,6 @@ document.getElementById('runtime-status').onclick = async () => {
   const output=document.getElementById('runtime-result');output.textContent='读取中…';
   try {
     const s=await request('/api/v1/diagnostics');
-    output.textContent=`配置版本：${s.revision}\n传输代次：${s.transport_epoch}\n排队：${s.queued}；正在写出：${s.in_flight}\n网关已同步：${s.gateway_ready}\n存储健康：${s.storage_healthy}\n准入失败：${s.failed}；停止中：${s.stopping}；发布中：${s.publishing}\n这是读取时刻的准入状态，不证明设备已到达目标状态。`;
+    output.textContent=`控制准入就绪：${s.ready}\n配置版本：${s.revision}\n传输代次：${s.transport_epoch}\n排队：${s.queued}；正在写出：${s.in_flight}\n网关已同步：${s.gateway_ready}\n存储健康：${s.storage_healthy}\n准入失败：${s.failed}；停止中：${s.stopping}；发布中：${s.publishing}\n这是读取时刻的准入状态，不证明设备已到达目标状态。`;
   } catch(error) {if(epoch===sessionEpoch)output.textContent=error.message;}
 };
