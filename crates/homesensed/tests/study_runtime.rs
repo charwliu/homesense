@@ -6527,3 +6527,42 @@ async fn deferred_unknown_condition_reports_source_without_then_or_else_output()
     assert_eq!(sql.query_row("SELECT count(*) FROM command_journal",[],|r|r.get::<_,i64>(0)).unwrap(),0);
     a.shutdown().await.unwrap();
 }
+
+#[tokio::test]
+async fn manual_scene_batch_admission_is_atomic_and_installable() {
+    for fault in [false,true] {
+        let db=Db(std::env::temp_dir().join(format!("manual-batch-{}.sqlite",Uuid::new_v4())));
+        let devices=include_bytes!("../../../config/simulation.json");
+        let rules=br#"{"schema_version":1,"configuration_revision":1,"variables":[],"rules":[],"timed_scenes":[{"id":"first","enabled":true,"review_evidence":"simulation","max_lateness_ms":1000,"steps":[{"source":"fixture","offset_ms":100,"device":"simulation:light","command":{"kind":"level","value":30,"ramp":false}}]},{"id":"second","enabled":true,"review_evidence":"simulation","max_lateness_ms":1000,"steps":[{"source":"fixture","offset_ms":100,"device":"simulation:light","command":{"kind":"level","value":40,"ramp":false}}]}]}"#;
+        Store::open(&db.0).unwrap().publish_automation(None,devices,rules,ExecutionContext::Simulation,&[]).unwrap();
+        let controller=Uuid::new_v4();let a=actor(&db,controller).await;
+        let generation=a.task_generation().await.unwrap();
+        let names=||vec!["first".into(),"second".into()];
+        assert!(a.accept_manual_scenes(Uuid::new_v4(),generation.clone(),names()).await.is_err());
+        assert!(a.accept_manual_scenes(controller,generation.clone(),vec!["first".into(),"missing".into()]).await.is_err());
+        assert!(a.accept_manual_scenes(controller,generation.clone(),vec!["first".into(),"first".into()]).await.is_err());
+        let sql=rusqlite::Connection::open(&db.0).unwrap();
+        assert_eq!(sql.query_row("SELECT count(*) FROM scene_run",[],|r|r.get::<_,i64>(0)).unwrap(),0);
+        let mut scheduler=homesensed::scene_scheduler::SceneScheduler::new(a.clone(),controller,2,0).unwrap();
+        let mut slots=scheduler.reserve_slots(2).unwrap();
+        if fault {sql.execute_batch("CREATE TRIGGER fail_manual BEFORE INSERT ON scene_run WHEN NEW.definition='second' BEGIN SELECT RAISE(ABORT,'injected'); END;").unwrap();}
+        let accepted=a.accept_manual_scenes(controller,generation.clone(),names()).await;
+        if fault {
+            assert!(accepted.is_err());
+            assert_eq!(sql.query_row("SELECT count(*) FROM scene_run",[],|r|r.get::<_,i64>(0)).unwrap(),0);
+            assert!(a.task_generation().await.is_err());
+        } else {
+            let accepted=accepted.unwrap();assert_eq!(accepted.len(),2);
+            let now=sql.query_row("SELECT max(started_ms) FROM scene_run",[],|r|r.get::<_,i64>(0)).unwrap() as u64;
+            assert_eq!(sql.query_row("SELECT count(*) FROM scene_cause",[],|r|r.get::<_,i64>(0)).unwrap(),0);
+            assert!(a.dispatch().await.unwrap().is_none());
+            let runs=scheduler.install_accepted(&mut slots,accepted,now).await.unwrap();
+            assert_eq!(runs.len(),2);assert_eq!(slots.remaining(),0);
+            assert_eq!(scheduler.status(runs[0]),Some(homesense_core::scene::Status::Cancelled));
+            assert!(a.dispatch().await.unwrap().is_none());
+            a.transport_failed().await.unwrap();
+            assert!(a.accept_manual_scenes(controller,generation,names()).await.is_err());
+        }
+        a.shutdown().await.unwrap();
+    }
+}
