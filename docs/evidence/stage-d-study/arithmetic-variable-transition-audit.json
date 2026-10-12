@@ -1,0 +1,131 @@
+{
+  "date": "2026-10-13",
+  "product_commit": "c184e65eb7adfa284bf26b1978dcb392ab762351",
+  "committed_product_files_compared": 891,
+  "committed_product_file_mismatches": 0,
+  "source_xml_sha256": "cac7dcdc9db08599e55a22bacb72858035c64e1ac846e2139ead5fc634513748",
+  "private_manifest_sha256": "dfb17b54c2c7a92e2e3f6b713f88aee63d5f0224f027911a20e66a31f347d891",
+  "private_artifact_hash_manifest_sha256": "44cc528b46606a19e149744927dc7b53cb1461916cf5069a98a0777c689a9ecf",
+  "independent_oracle_sha256": "0c7424ee548014f64166a62919533a8b0776b30ce2a7f3100cd80fbb93a6d4ba",
+  "differential_test_sha256": "83404a8f8820febff7e668292b980bfeb02e837205d92bc0c9fabcbca2ffa090",
+  "test_log_sha256": "6bab4f4db6f63b8e595467449689ba00c3a48cf85ac1143fe31c539935a96080",
+  "method": "Independent XML variable-transition interpreter compared with production XML converter plus core evaluator; no product source overlays",
+  "variables": [
+    {
+      "writer_programs": 11,
+      "explicit_assignment_seed_literals": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        6,
+        40
+      ],
+      "closed_state_set": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        6,
+        40,
+        44
+      ],
+      "closure_rounds": 2,
+      "closure_transition_evaluations": 936,
+      "maximum_distinct_feedback_fields": 2
+    },
+    {
+      "writer_programs": 10,
+      "explicit_assignment_seed_literals": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        6,
+        40
+      ],
+      "closed_state_set": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        6,
+        40,
+        44,
+        100,
+        101,
+        102,
+        103,
+        104,
+        106,
+        140,
+        144
+      ],
+      "closure_rounds": 3,
+      "closure_transition_evaluations": 60256,
+      "maximum_distinct_feedback_fields": 6
+    },
+    {
+      "writer_programs": 9,
+      "explicit_assignment_seed_literals": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        6,
+        40
+      ],
+      "closed_state_set": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        6,
+        40,
+        44
+      ],
+      "closure_rounds": 2,
+      "closure_transition_evaluations": 648,
+      "maximum_distinct_feedback_fields": 2
+    }
+  ],
+  "writer_program_invocations_audited": 30,
+  "differential_cases": 65804,
+  "target_test_results": {
+    "passed": 1,
+    "failed": 0,
+    "ignored": 0
+  },
+  "checked_behavior": [
+    "complete sequential variable updates for all referenced variables",
+    "nested comparison and Else paths",
+    "fixed-snapshot Load On/Off and level comparison truth partitions",
+    "unknown branch count and no input mutation"
+  ],
+  "assumptions": [
+    "explicit event writers only",
+    "fixed feedback snapshot during invocation",
+    "sequential variable updates",
+    "seed from explicit assignment literals without claiming boot initialization"
+  ],
+  "scope_limits": [
+    "closure seeded from union of explicit assignment literals; no original initialization or reachability claim",
+    "synthetic binding kinds used only to compile logical source projection; no physical binding approval",
+    "feedback snapshots are fixed during invocation; original driver notification and action timing remain unverified",
+    "hidden or live external writers not covered",
+    "command outputs and physical execution not approved",
+    "source type and variable lifetime remain independently unapproved"
+  ],
+  "new_full_program_approvals": 0,
+  "new_full_variable_approvals": 0,
+  "runtime_definitions_generated": false,
+  "field_enablement": false,
+  "saved_values_inspected": false,
+  "driver_script_bytes_read": false
+}
