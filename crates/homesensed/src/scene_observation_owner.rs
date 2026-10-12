@@ -80,6 +80,7 @@ impl Owner {
         let mut groups = vec![];
         let mut keys = vec![];
         let mut held = vec![];
+        let mut released = vec![];
         let mut versions = BTreeMap::new();
         let mut devices = BTreeMap::new();
         for binding in &settings.bindings {
@@ -110,6 +111,9 @@ impl Owner {
             }) {
                 held.push(device.clone());
             }
+            if binding.trigger_edge == homesense_config::scene_observation::TriggerEdge::Released {
+                released.push(device.clone());
+            }
             devices.insert(device.clone(), group.id.clone());
             keys.push(Key {
                 device,
@@ -127,6 +131,9 @@ impl Owner {
             settings.max_age_ms,
         )
         .map_err(|_| Error::InvalidAudit)?;
+        observer
+            .released_keys(&released)
+            .map_err(|_| Error::InvalidAudit)?;
         observer
             .initially_held(&held)
             .map_err(|_| Error::InvalidAudit)?;
