@@ -37,6 +37,26 @@ pub struct DeviceBindingEdit {
 }
 #[derive(serde::Deserialize)]
 #[serde(deny_unknown_fields)]
+pub struct MotorCalibrationEdit {
+    pub id:Uuid,
+    pub expected_revision:String,
+    pub revision:String,
+    pub device:String,
+    pub gateway:String,
+    pub address:String,
+    pub channel:u8,
+    pub calibration:Option<MotorCalibrationRecord>,
+}
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MotorCalibrationRecord {
+    pub open_direction:String,
+    pub stop_verified:bool,
+    pub evidence:String,
+    pub verified_at_unix_ms:String,
+}
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct RoomEdit {
     pub id:Uuid,
     pub expected_revision:String,
@@ -184,6 +204,25 @@ impl Drafts {
         if changed {device.remove("motor_calibration");}
         device.insert("gateway".into(),edit.gateway.into());device.insert("address".into(),edit.address.into());
         device.insert("channel".into(),edit.channel.into());device.insert("enabled".into(),edit.enabled.into());
+        draft.devices["revision"]=draft.revision.into();draft.automation["configuration_revision"]=draft.revision.into();
+        self.save(principal,&draft,context)?;Ok(draft.id)
+    }
+    /// Record evidence for exactly the selected binding; this never tests a motor.
+    pub fn edit_motor_calibration(&mut self,principal:Uuid,source:Uuid,edit:MotorCalibrationEdit,context:ExecutionContext)->Result<Uuid,String> {
+        if edit.id==source{return Err("new draft id required".into());}
+        let mut draft=self.get(principal,source)?.ok_or("draft not found")?;
+        draft.id=edit.id;draft.expected_revision=edit.expected_revision.parse().map_err(|_|"invalid revision")?;draft.revision=edit.revision.parse().map_err(|_|"invalid revision")?;
+        if edit.expected_revision!=draft.expected_revision.to_string() || edit.revision!=draft.revision.to_string(){return Err("invalid revision".into());}
+        let devices=draft.devices.get_mut("devices").and_then(|v|v.as_array_mut()).ok_or("devices missing")?;
+        let device=devices.iter_mut().find(|v|v["id"]==edit.device).and_then(|v|v.as_object_mut()).ok_or("device not found")?;
+        if device.get("gateway").and_then(|v|v.as_str())!=Some(edit.gateway.as_str())
+            || device.get("address").and_then(|v|v.as_str())!=Some(edit.address.as_str())
+            || device.get("channel").and_then(|v|v.as_u64())!=Some(u64::from(edit.channel)) {return Err("binding changed".into());}
+        if let Some(record)=edit.calibration {
+            let time=record.verified_at_unix_ms.parse::<u64>().map_err(|_|"invalid verification time")?;
+            if time.to_string()!=record.verified_at_unix_ms {return Err("invalid verification time".into());}
+            device.insert("motor_calibration".into(),serde_json::json!({"open_direction":record.open_direction,"stop_verified":record.stop_verified,"evidence":record.evidence,"verified_at_unix_ms":time}));
+        } else {device.remove("motor_calibration");}
         draft.devices["revision"]=draft.revision.into();draft.automation["configuration_revision"]=draft.revision.into();
         self.save(principal,&draft,context)?;Ok(draft.id)
     }
