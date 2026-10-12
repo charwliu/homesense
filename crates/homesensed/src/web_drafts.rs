@@ -41,7 +41,8 @@ impl Drafts {
         CREATE TABLE IF NOT EXISTS configuration_draft (
           id TEXT PRIMARY KEY, principal TEXT NOT NULL, expected_revision INTEGER NOT NULL,
           revision INTEGER NOT NULL, devices BLOB NOT NULL, automation BLOB NOT NULL
-        );",
+        );
+        CREATE TABLE IF NOT EXISTS archived_draft(id TEXT PRIMARY KEY);",
         )
         .map_err(|e| e.to_string())?;
         Ok(Self(db))
@@ -72,6 +73,8 @@ impl Drafts {
             .0
             .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
             .map_err(|e| e.to_string())?;
+        let archived:bool=tx.query_row("SELECT EXISTS(SELECT 1 FROM archived_draft WHERE id=?1)",[draft.id.to_string()],|r|r.get(0)).map_err(|e|e.to_string())?;
+        if archived{return Err("draft is archived; use a new id".into());}
         let existing:Option<StoredDraft>=tx.query_row("SELECT principal,expected_revision,revision,devices,automation FROM configuration_draft WHERE id=?1",[draft.id.to_string()],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?))).optional().map_err(|e|e.to_string())?;
         if let Some(old) = existing {
             if old
@@ -88,7 +91,7 @@ impl Drafts {
             return Ok(());
         }
         let count: i64 = tx
-            .query_row("SELECT count(*) FROM configuration_draft", [], |r| r.get(0))
+            .query_row("SELECT count(*) FROM configuration_draft WHERE id NOT IN (SELECT id FROM archived_draft)", [], |r| r.get(0))
             .map_err(|e| e.to_string())?;
         if count >= 128 {
             return Err("draft capacity exceeded".into());
@@ -109,7 +112,7 @@ impl Drafts {
     }
     /// Bounded metadata only, scoped to the same principal as get/save.
     pub fn list(&self, principal:Uuid)->Result<Vec<Summary>,String> {
-        let mut query=self.0.prepare("SELECT id,expected_revision,revision FROM configuration_draft WHERE principal=?1 ORDER BY revision DESC,id ASC LIMIT 129").map_err(|e|e.to_string())?;
+        let mut query=self.0.prepare("SELECT id,expected_revision,revision FROM configuration_draft WHERE principal=?1 AND id NOT IN (SELECT id FROM archived_draft) ORDER BY revision DESC,id ASC LIMIT 129").map_err(|e|e.to_string())?;
         let rows=query.query_map([principal.to_string()],|r|Ok((r.get::<_,String>(0)?,r.get::<_,i64>(1)?,r.get::<_,i64>(2)?))).map_err(|e|e.to_string())?;
         let mut result=vec![];
         for row in rows {
@@ -119,8 +122,16 @@ impl Drafts {
         }
         Ok(result)
     }
+    /// Hide a draft without deleting its immutable source or recycling its ID.
+    /// Already admitted publication requests are independent and are not cancelled.
+    pub fn archive(&self,principal:Uuid,id:Uuid)->Result<bool,String> {
+        let owned:bool=self.0.query_row("SELECT EXISTS(SELECT 1 FROM configuration_draft WHERE principal=?1 AND id=?2)",params![principal.to_string(),id.to_string()],|r|r.get(0)).map_err(|e|e.to_string())?;
+        if !owned{return Ok(false);}
+        self.0.execute("INSERT OR IGNORE INTO archived_draft(id) VALUES (?1)",[id.to_string()]).map_err(|e|e.to_string())?;
+        Ok(true)
+    }
     pub fn get(&self, principal: Uuid, id: Uuid) -> Result<Option<Draft>, String> {
-        let row:Option<(i64,i64,Vec<u8>,Vec<u8>)>=self.0.query_row("SELECT expected_revision,revision,devices,automation FROM configuration_draft WHERE principal=?1 AND id=?2",params![principal.to_string(),id.to_string()],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?))).optional().map_err(|e|e.to_string())?;
+        let row:Option<(i64,i64,Vec<u8>,Vec<u8>)>=self.0.query_row("SELECT expected_revision,revision,devices,automation FROM configuration_draft WHERE principal=?1 AND id=?2 AND id NOT IN (SELECT id FROM archived_draft)",params![principal.to_string(),id.to_string()],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?))).optional().map_err(|e|e.to_string())?;
         row.map(|(expected_revision, revision, devices, automation)| {
             Ok(Draft {
                 id,

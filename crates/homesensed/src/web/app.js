@@ -289,7 +289,11 @@ document.getElementById('list-drafts').onclick=async()=>{
     if(!result.drafts.length)list.textContent='暂无已保存草稿。';
     for(const draft of result.drafts) {
       const row=document.createElement('p');const label=document.createElement('span');label.textContent=`草稿 ${draft.id} · ${draft.expected_revision} → ${draft.revision} `;
-      const load=document.createElement('button');load.textContent='载入此草稿';load.onclick=()=>loadDraft(draft.id);row.append(label,load);list.append(row);
+      const load=document.createElement('button');load.textContent='载入此草稿';load.onclick=()=>loadDraft(draft.id);const archive=document.createElement('button');archive.textContent='归档';archive.onclick=async()=>{
+        const epoch=sessionEpoch;archive.disabled=true;
+        try {await request('/api/v1/config/drafts/'+encodeURIComponent(draft.id)+'/archive',{method:'POST'});if(document.getElementById('draft-id').value===draft.id){invalidatePreview();document.getElementById('draft-id').value='';}row.remove();status.textContent='草稿已归档；已受理的发布不受影响。';}
+        catch(e){if(epoch===sessionEpoch){status.textContent=e.message;archive.disabled=false;}}
+      };row.append(label,load,archive);list.append(row);
     }
   } catch(error) {status.textContent=error.message;}
   finally {button.disabled=false;}
