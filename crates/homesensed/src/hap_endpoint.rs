@@ -185,6 +185,10 @@ impl Endpoint {
         }
         Ok(endpoint)
     }
+    #[cfg(test)]
+    pub(crate) fn abort_handle(&self)->tokio::task::AbortHandle {
+        self.task.as_ref().expect("active endpoint").abort_handle()
+    }
     pub async fn finished(&mut self) -> Result<(), String> {
         let task=self.task.as_mut().ok_or("HAP endpoint result already consumed")?;
         let result=task.await.map_err(|e| e.to_string());
