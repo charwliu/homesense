@@ -17,6 +17,15 @@
 
 现场约束：EA-5 配置与控制范围保持不变。阶段 E 不包含阶段 F 的正式部署、72 小时运行或阶段 G 的整屋接管；现场验收需要单独安排。当前阶段 E 未完成。
 
+## 当前验收边界复核
+
+以 design.md 第 20 节为准，E 仍需证明当前集成版本的 HAP 配件、场景、Web 管理、鉴权，以及配对／反馈／Siri／断线恢复／权限。备份清单与校验作为 Web 管理增量已实现，但不能代替上述验收；正式部署、全量数据库恢复演练和 72 小时运行属于 F，不单独阻塞 E。
+
+- 统一 HAP/Web 代码证据：`tests/unified_hap.rs` 覆盖共用身份／反馈及端口失败时禁止启动动作；多场景原子接受仍需独立核对，不能用单场景成功代替。
+- Web 代码证据：`tests/web_runtime.rs`、`web_security.rs`、`web_socket.rs` 覆盖范围、持久请求回执、会话撤销和事件恢复；专用设备／校准管理、持久用户管理及真实浏览器端到端验收仍未闭合。
+- LAN TLS 证据：`tools/verify_web_tls.py` 两种服务模式已覆盖证书拒绝、HTTPS/WSS、CSRF、退出撤销；实际 LAN 证书信任、浏览器与家庭中枢路径仍需现场证据。
+- D 原项目语义审核、窗帘条件，以及 E 当前集成版 iPhone／Siri、可选按键范围和现场停止继续挂起。任何回环或单元回归都不替代这些确认。
+
 以下检查点按实现时间保留；其中测试数量和缺口描述只对应当时版本。当前范围以上表及最新集成回归记录为准。
 
 ## 配置与导入检查点
@@ -524,3 +533,6 @@ Node 编码器回归验证正负大整数、i64 最大版本逐字保留，非�
 
 
 TLS 会话撤销回归：`tools/verify_web_tls.py` 及 `--tcp-combined` 均通过，覆盖独立模拟 Web 与合成 TCP＋HAP＋Web 统一服务。缺少 CSRF 的退出返回 401 且原会话仍有效；合法退出后 Cookie 访问返回 401、已有 WSS 连接关闭、旧 Cookie 无法建立新订阅。原有证书信任／名称错误、明文访问、私钥权限及密钥不匹配拒绝继续通过。仅使用进程内信任的临时 CA，未安装系统证书、未连接现场设备；当前工作树测试不等于干净公开快照或真实 LAN／浏览器验收。证据：`docs/evidence/stage-e-browser/tls-session-revocation.json`。
+
+
+公开干净快照集成验证：`261c6bb` 的 `git archive` 未包含未提交改动及本地私有资料，完整离线 workspace 回归 522 项通过、0 失败、0 忽略（104 个结果块）。同一快照的 `verify_web_tls.py --tcp-combined` 通过 HTTPS/WSS、CSRF、会话撤销及证书／明文拒绝回归，补齐此前工作树测试的来源限制。依赖警告仍存在；此证据不替代 iPhone、Siri 或现场设备验收。详见 `docs/evidence/stage-e-browser/clean-e-regression.json`。

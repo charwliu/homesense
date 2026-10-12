@@ -1,0 +1,24 @@
+{
+  "commit": "261c6bb2b2ac53444f13a89086c55f09c4b206e4",
+  "source": "git archive HEAD; no uncommitted or private files",
+  "command": "cargo test --workspace --locked --offline",
+  "exit_code": 0,
+  "passed": 522,
+  "failed": 0,
+  "ignored": 0,
+  "result_blocks": 104,
+  "tls_combined": {
+    "https": "passed",
+    "wss": "passed",
+    "csrf_and_session_revocation": "passed",
+    "revoked_wss": "closed",
+    "untrusted_and_wrong_name": "rejected",
+    "plaintext": "rejected",
+    "unsafe_key_permissions_and_mismatch": "rejected"
+  },
+  "limitations": [
+    "synthetic and loopback only",
+    "does not prove iPhone Siri or physical device acceptance",
+    "dependency warnings remain"
+  ]
+}
