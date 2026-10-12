@@ -435,7 +435,7 @@ async fn web_scope_origin_receipts_and_runtime_admission() {
         );
         let mut activation=make_draft();*activation.uri_mut()=format!("/api/v1/config/activations/{draft_id}").parse().unwrap();
         assert_eq!(api.handle(activation).await.status(),StatusCode::FORBIDDEN);
-        for path in ["/api/v1/backups","/api/v1/config/versions/1/restore-draft","/health/ready","/api/v1/diagnostics","/api/v1/diagnostics/calendar","/api/v1/config/drafts","/api/v1/config/versions","/api/v1/config/versions/1/export"] {
+        for path in ["/api/v1/backups/inspect","/api/v1/backups","/api/v1/config/versions/1/restore-draft","/health/ready","/api/v1/diagnostics","/api/v1/diagnostics/calendar","/api/v1/config/drafts","/api/v1/config/versions","/api/v1/config/versions/1/export"] {
             let mut read=make(&api.origin,"");*read.method_mut()=hyper::Method::GET;*read.uri_mut()=path.parse().unwrap();
             assert_eq!(api.handle(read).await.status(),StatusCode::FORBIDDEN);
         }
@@ -455,6 +455,13 @@ async fn web_scope_origin_receipts_and_runtime_admission() {
         let catalog:serde_json::Value=serde_json::from_slice(&backups.into_body().collect().await.unwrap().to_bytes()).unwrap();assert_eq!(catalog["verified"],false);assert_eq!(catalog["groups"].as_array().unwrap().len(),2);
         let mut diagnostic=make(&api.origin,"");*diagnostic.method_mut()=hyper::Method::GET;*diagnostic.uri_mut()="/api/v1/diagnostics".parse().unwrap();assert_eq!(api.handle(diagnostic).await.status(),StatusCode::OK);
         api.drafts=saved_drafts;
+        std::fs::create_dir_all(root.join("publication-backups")).unwrap();
+        homesense_storage::backup::create(&path,&root.join("publication-backups/check.sqlite"),Duration::from_secs(2)).unwrap();
+        for (method,body,expected) in [(hyper::Method::POST,r#"{"kind":"publication","name":"check.sqlite"}"#,StatusCode::OK),(hyper::Method::POST,r#"{"kind":"daily","name":"../check.sqlite"}"#,StatusCode::BAD_REQUEST),(hyper::Method::GET,"",StatusCode::METHOD_NOT_ALLOWED),(hyper::Method::POST,r#"{"kind":"daily","name":"missing.sqlite"}"#,StatusCode::SERVICE_UNAVAILABLE)] {
+            let mut request=make(&api.origin,body);*request.method_mut()=method;*request.uri_mut()="/api/v1/backups/inspect".parse().unwrap();let result=api.handle(request).await;assert_eq!(result.status(),expected);
+            if expected==StatusCode::OK {let value:serde_json::Value=serde_json::from_slice(&result.into_body().collect().await.unwrap().to_bytes()).unwrap();assert_eq!(value["verified"],true);}
+        }
+
 
         for (path,method,body,status) in [("/health/ready",hyper::Method::GET,"",StatusCode::OK),("/health/ready",hyper::Method::GET,"{}",StatusCode::BAD_REQUEST),("/health/ready",hyper::Method::POST,"{}",StatusCode::METHOD_NOT_ALLOWED),("/health/live",hyper::Method::POST,"",StatusCode::METHOD_NOT_ALLOWED),("/health/live",hyper::Method::GET,"{}",StatusCode::BAD_REQUEST),("/health/ready?token=x",hyper::Method::GET,"",StatusCode::BAD_REQUEST)] {
             let mut read=make(&api.origin,body);*read.method_mut()=method;*read.uri_mut()=path.parse().unwrap();assert_eq!(api.handle(read).await.status(),status);

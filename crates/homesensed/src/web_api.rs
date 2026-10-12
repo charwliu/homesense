@@ -200,6 +200,20 @@ impl Api {
         let Some(runtime) = runtime else {
             return deny(StatusCode::SERVICE_UNAVAILABLE, "runtime_reconfiguring");
         };
+        if request.uri().path() == "/api/v1/backups/inspect" {
+            if grant.role != crate::web_auth::Role::Administrator {return deny(StatusCode::FORBIDDEN,"administrator_required");}
+            if request.method()!=hyper::Method::POST {return deny(StatusCode::METHOD_NOT_ALLOWED,"method_not_allowed");}
+            if request.headers().get("origin").and_then(|v|v.to_str().ok())!=Some(&self.origin) {return deny(StatusCode::FORBIDDEN,"origin_required");}
+            if request.body().len()>1024 {return deny(StatusCode::PAYLOAD_TOO_LARGE,"selection_too_large");}
+            let selection=match serde_json::from_slice::<crate::web_backups::Selection>(request.body()) {Ok(s) if s.validate().is_ok()=>s,_=>return deny(StatusCode::BAD_REQUEST,"invalid_backup_selection")};
+            if !matches!(runtime.control.request(Action::Diagnostics{controller:grant.controller,revision:runtime.revision}).await,Ok(Reply::Diagnostics(_))) {return deny(StatusCode::SERVICE_UNAVAILABLE,"runtime_unavailable");}
+            let Some(source)=self.backup_source.clone() else {return deny(StatusCode::SERVICE_UNAVAILABLE,"backups_unavailable");};
+            let Some((context,_))=&self.drafts else {return deny(StatusCode::SERVICE_UNAVAILABLE,"backup_context_unavailable");};let context=*context;
+            return match tokio::task::spawn_blocking(move||crate::web_backups::inspect(&source,context,selection)).await {
+                Ok(Ok(value))=>response(StatusCode::OK,value),
+                _=>deny(StatusCode::SERVICE_UNAVAILABLE,"backup_inspection_failed"),
+            };
+        }
         if request.uri().path() == "/api/v1/backups" {
             if grant.role != crate::web_auth::Role::Administrator {return deny(StatusCode::FORBIDDEN,"administrator_required");}
             if request.method()!=hyper::Method::GET {return deny(StatusCode::METHOD_NOT_ALLOWED,"method_not_allowed");}

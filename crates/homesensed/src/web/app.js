@@ -2,6 +2,7 @@
 let csrf = '';
 let sessionEpoch=0;
 let sessionBusy=false;
+let backupInspectionEpoch=0;
 let publicationPreview=null;
 let previewEpoch=0;
 function invalidatePreview() {
@@ -91,7 +92,7 @@ document.getElementById('connect').onclick = async () => {
 document.getElementById('logout').onclick = async () => {
   if(sessionBusy)return;sessionBusy=true;++sessionEpoch;
   invalidatePreview();
-  try { await request('/api/v1/session', {method: 'DELETE'}); csrf = ''; clearTimeout(eventRetry); if(eventSocket)eventSocket.close();eventDevices.clear(); selectedRoom='';document.getElementById('room-filter').replaceChildren();document.getElementById('room-filter').value=''; document.getElementById('draft-impact').textContent=''; document.getElementById('configuration').hidden=true;document.getElementById('diagnostics').hidden=true;historyEpoch++;detailEpoch++;document.getElementById('run-details').replaceChildren();document.getElementById('scene-history').hidden=true;document.getElementById('history-runs').replaceChildren();document.getElementById('history-title').textContent='';document.getElementById('history-next').disabled=true; document.getElementById('runtime-result').textContent='';document.getElementById('calendar-result').textContent='';document.getElementById('backup-result').textContent='';document.getElementById('versions').replaceChildren();document.getElementById('draft-list').replaceChildren(); versionsBefore=null;document.getElementById('more-versions').disabled=true; for(const id of ['device-document','automation-document','draft-id','base-revision','draft-revision']) document.getElementById(id).value=''; started.clear(); list.replaceChildren(); document.getElementById('devices').replaceChildren(); status.textContent = '已退出'; }
+  try { await request('/api/v1/session', {method: 'DELETE'}); csrf = ''; clearTimeout(eventRetry); if(eventSocket)eventSocket.close();eventDevices.clear(); selectedRoom='';document.getElementById('room-filter').replaceChildren();document.getElementById('room-filter').value=''; document.getElementById('draft-impact').textContent=''; document.getElementById('configuration').hidden=true;document.getElementById('diagnostics').hidden=true;historyEpoch++;detailEpoch++;document.getElementById('run-details').replaceChildren();document.getElementById('scene-history').hidden=true;document.getElementById('history-runs').replaceChildren();document.getElementById('history-title').textContent='';document.getElementById('history-next').disabled=true; document.getElementById('runtime-result').textContent='';document.getElementById('calendar-result').textContent='';document.getElementById('backup-result').textContent='';document.getElementById('backup-actions').replaceChildren();backupInspectionEpoch++;document.getElementById('backup-inspection').textContent='';document.getElementById('versions').replaceChildren();document.getElementById('draft-list').replaceChildren(); versionsBefore=null;document.getElementById('more-versions').disabled=true; for(const id of ['device-document','automation-document','draft-id','base-revision','draft-revision']) document.getElementById(id).value=''; started.clear(); list.replaceChildren(); document.getElementById('devices').replaceChildren(); status.textContent = '已退出'; }
   catch (error) { status.textContent = '注销未确认：' + error.message; }
   finally {sessionBusy=false;}
 };
@@ -348,6 +349,17 @@ document.getElementById('backup-status').onclick = async () => {
   const output=document.getElementById('backup-result');output.textContent='读取中…';
   try {
     const data=await request('/api/v1/backups');
+    const actions=document.getElementById('backup-actions');actions.replaceChildren();backupInspectionEpoch++;document.getElementById('backup-inspection').textContent='';
+    for(const group of data.groups)for(const item of group.entries)if(item.regular_file){
+      const button=document.createElement('button');button.textContent=`校验 ${item.name}`;
+      button.onclick=async()=>{
+        const selectedEpoch=sessionEpoch,inspectionEpoch=++backupInspectionEpoch;button.disabled=true;
+        const result=document.getElementById('backup-inspection');result.textContent='校验中…';
+        try {const value=await request('/api/v1/backups/inspect',{method:'POST',body:JSON.stringify({kind:group.kind,name:item.name})});if(inspectionEpoch!==backupInspectionEpoch)return;result.textContent=`${value.name}：校验通过\nSchema ${value.schema} · 活动版本 ${value.active_revision??'无'}\n此结果不代表历史版本全部通过语义校验，也不执行恢复。`;}
+        catch(e){if(selectedEpoch===sessionEpoch && inspectionEpoch===backupInspectionEpoch)result.textContent=e.message;}
+        finally {if(selectedEpoch===sessionEpoch)button.disabled=false;}
+      };actions.append(button);
+    }
     output.textContent=data.groups.map(group=>`${group.kind==='daily'?'每日备份':'发布前备份'}（未校验）\n`+(group.entries.length?group.entries.map(item=>`${item.name} · ${item.bytes} 字节 · ${item.regular_file?'普通文件':'非普通文件'}`).join('\n'):'暂无备份')).join('\n\n');
   } catch(e) {if(epoch===sessionEpoch)output.textContent=e.message;}
 };
