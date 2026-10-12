@@ -16,16 +16,18 @@ input[type=number] { width: 140px; }
 #token { width: min(100%, 320px); margin: 0 8px; }
 #status { min-height: 28px; color: #315c48; overflow-wrap: anywhere; }
 #devices, #scenes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 16px; margin: 16px 0; }
-article, #configuration { background: #fff; border: 1px solid #d6e1da; border-radius: 12px; padding: 22px; }
+article, #configuration, #diagnostics { background: #fff; border: 1px solid #d6e1da; border-radius: 12px; padding: 22px; }
 article input { margin-right: 8px; }
-#configuration { margin-top: 28px; }
-#configuration h2:not(:first-child) { border-top: 1px solid #d6e1da; padding-top: 24px; margin-top: 28px; }
+#configuration, #diagnostics { margin-top: 28px; }
+#configuration h2:not(:first-child), #diagnostics h2:not(:first-child) { border-top: 1px solid #d6e1da; padding-top: 24px; margin-top: 28px; }
 #configuration label { display: block; margin: 16px 0; font-weight: 600; }
 #configuration label input, #configuration textarea { display: block; margin-top: 6px; }
 #configuration textarea { width: 100%; resize: vertical; font: .9rem/1.5 ui-monospace, monospace; font-weight: 400; }
 #draft-id { width: min(100%, 430px); }
 #draft-impact { white-space: pre-wrap; overflow-wrap: anywhere; }
 #versions p { padding: 10px 0; border-bottom: 1px solid #e0e8e2; }
-@media (max-width: 520px) { main { padding: 20px 14px 40px; } article, #configuration { padding: 16px; } #token { display: block; margin: 6px 0; width: 100%; } }
+@media (max-width: 520px) { main { padding: 20px 14px 40px; } article, #configuration, #diagnostics { padding: 16px; } #token { display: block; margin: 6px 0; width: 100%; } }
 
 #draft-list { overflow-wrap: anywhere; }
+
+#runtime-result, #calendar-result { white-space: pre-wrap; overflow-wrap: anywhere; }

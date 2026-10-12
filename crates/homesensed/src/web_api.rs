@@ -159,7 +159,7 @@ impl Api {
         if request.method() == hyper::Method::GET && request.uri().path() == "/api/v1/session" {
             return response(
                 StatusCode::OK,
-                json!({"can_manage_configuration":grant.role==crate::web_auth::Role::Administrator && self.drafts.is_some()}),
+                json!({"can_view_diagnostics":grant.role==crate::web_auth::Role::Administrator,"can_manage_configuration":grant.role==crate::web_auth::Role::Administrator && self.drafts.is_some()}),
             );
         }
         if request.method() == hyper::Method::DELETE && request.uri().path() == "/api/v1/session" {

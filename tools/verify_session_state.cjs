@@ -13,7 +13,7 @@ vm.runInContext(fs.readFileSync(require('node:path').join(__dirname,'../crates/h
  // Concurrent login cannot race the server's cookie replacement.
  await element('connect').onclick();assert.equal(pending.length,2);
  pending[1].resolve({ok:true,json:async()=>({logged_out:true})});await logout;
- assert.equal(element('configuration').hidden,true);
+ assert.equal(element('configuration').hidden,true);assert.equal(element('diagnostics').hidden,true);
  pending[0].resolve({ok:true,json:async()=>({versions:[{revision:'private'}]})});await rejected;
  oldSocket.onmessage({data:JSON.stringify({type:'state',reset:true,devices:[{id:'old-device'}],scenes:[]})});oldSocket.onclose();
  assert.equal(vm.runInContext('eventDevices.size',context),0);
