@@ -1,4 +1,6 @@
 //! Multi-bridge encrypted controllers against one synthetic reconnecting bus.
+#[path = "support/pair_setup.rs"]
+mod pair_setup;
 #[path = "../../homesense-hap/tests/support/mod.rs"]
 mod support;
 use hap::storage::Storage;
@@ -55,6 +57,13 @@ async fn exercise(
 }
 #[tokio::test]
 async fn independent_encrypted_bridges_recover_without_replaying_commands() {
+    run_pairing(false).await;
+}
+#[tokio::test]
+async fn fresh_pair_setup_on_both_bridges_survives_recovery_and_restart() {
+    run_pairing(true).await;
+}
+async fn run_pairing(fresh: bool) {
     let root =
         std::env::temp_dir().join(format!("homesense-multiple-encrypted-{}", Uuid::new_v4()));
     let bus = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -103,15 +112,17 @@ async fn independent_encrypted_bridges_recover_without_replaying_commands() {
         )
         .await
         .unwrap();
-        bridge
-            .identity
-            .save_pairing(&hap::pairing::Pairing::new(
-                controllers[index],
-                hap::pairing::Permissions::Admin,
-                keys[index].verifying_key().to_bytes(),
-            ))
-            .await
-            .unwrap();
+        if !fresh {
+            bridge
+                .identity
+                .save_pairing(&hap::pairing::Pairing::new(
+                    controllers[index],
+                    hap::pairing::Permissions::Admin,
+                    keys[index].verifying_key().to_bytes(),
+                ))
+                .await
+                .unwrap();
+        }
         initial.push(bridge.identity.load_config().await.unwrap());
         assert!(
             !bridge
@@ -124,7 +135,7 @@ async fn independent_encrypted_bridges_recover_without_replaying_commands() {
     let received = writes.clone();
     let (disconnect, mut disconnected) = tokio::sync::oneshot::channel();
     let gateway = tokio::spawn(async move {
-        for epoch in 0..2 {
+        for epoch in 0..if fresh { 3 } else { 2 } {
             let (mut socket, _) = bus.accept().await.unwrap();
             let mut levels = if epoch == 0 { [20, 21] } else { [60, 61] };
             loop {
@@ -152,6 +163,8 @@ async fn independent_encrypted_bridges_recover_without_replaying_commands() {
             }
         }
     });
+    let restart_devices = devices.clone();
+    let restart_plan = plan.clone();
     let directory = root.clone();
     let service = tokio::spawn(async move {
         homesensed::automation_tcp::serve_bridges(
@@ -180,6 +193,38 @@ async fn independent_encrypted_bridges_recover_without_replaying_commands() {
     })
     .await
     .unwrap();
+    if fresh {
+        for index in 0..2 {
+            let config = prepared[index].identity.load_config().await.unwrap();
+            assert_eq!(prepared[index].identity.count_pairings().await.unwrap(), 0);
+            let address = addresses[index];
+            let id = controllers[index];
+            let signing = keys[index].clone();
+            tokio::task::spawn_blocking(move || {
+                let mut stream = std::net::TcpStream::connect(address).unwrap();
+                stream
+                    .set_read_timeout(Some(Duration::from_secs(3)))
+                    .unwrap();
+                stream
+                    .set_write_timeout(Some(Duration::from_secs(3)))
+                    .unwrap();
+                pair_setup::setup(
+                    &mut stream,
+                    &config.pin.to_string(),
+                    id,
+                    &signing,
+                    &config.device_id.to_string(),
+                    &config.device_ed25519_keypair.verifying_key(),
+                );
+            })
+            .await
+            .unwrap();
+            let paired = prepared[index].identity.load_pairing(&id).await.unwrap();
+            assert_eq!(paired.public_key, keys[index].verifying_key().to_bytes());
+            assert_eq!(paired.permissions, hap::pairing::Permissions::Admin);
+            assert_eq!(prepared[index].identity.count_pairings().await.unwrap(), 1);
+        }
+    }
     // A controller paired only with the other bridge must not authenticate,
     // even though both bridges share the runtime admission owner.
     for index in 0..2 {
@@ -306,10 +351,81 @@ async fn independent_encrypted_bridges_recover_without_replaying_commands() {
         );
     }
     service.await.unwrap().unwrap();
+    if fresh {
+        let directory = root.clone();
+        let restarted = tokio::spawn(async move {
+            homesensed::automation_tcp::serve_bridges(
+                &restart_devices,
+                rules,
+                &directory,
+                Duration::from_secs(3),
+                true,
+                0,
+                Duration::from_millis(20),
+                homesensed::service::WebSettings {
+                    address: web,
+                    secret: "abcdefghijklmnopqrstuvwxyz0123456789".into(),
+                    administrator: true,
+                    tls: None,
+                },
+                restart_plan,
+            )
+            .await
+        });
+        tokio::time::timeout(Duration::from_secs(2), async {
+            while view(web).await.is_none() {
+                assert!(!restarted.is_finished());
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .unwrap();
+        for index in 0..2 {
+            let reopened = homesense_hap::storage::IdentityStore::open(
+                root.join("hap-bridges")
+                    .join(if index == 0 { "one" } else { "two" })
+                    .join("identity"),
+            )
+            .await
+            .unwrap();
+            assert_eq!(reopened.count_pairings().await.unwrap(), 1);
+            drop(
+                exercise(
+                    &reopened,
+                    addresses[index],
+                    controllers[index],
+                    keys[index].clone(),
+                    index,
+                    60 + index as u8,
+                    50 + index as u8,
+                )
+                .await,
+            );
+            let saved = reopened.load_config().await.unwrap();
+            assert_eq!(saved.device_id, initial[index].device_id);
+            assert_eq!(
+                saved.device_ed25519_keypair.to_bytes(),
+                initial[index].device_ed25519_keypair.to_bytes()
+            );
+            assert_eq!(saved.configuration_number, numbers[index]);
+        }
+        restarted.await.unwrap().unwrap();
+    }
     gateway.await.unwrap();
     assert_eq!(
         *writes.lock().unwrap(),
-        vec![(0, 0, 30), (0, 1, 31), (1, 0, 40), (1, 1, 41)]
+        if fresh {
+            vec![
+                (0, 0, 30),
+                (0, 1, 31),
+                (1, 0, 40),
+                (1, 1, 41),
+                (2, 0, 50),
+                (2, 1, 51),
+            ]
+        } else {
+            vec![(0, 0, 30), (0, 1, 31), (1, 0, 40), (1, 1, 41)]
+        }
     );
     std::fs::remove_dir_all(root).unwrap();
 }

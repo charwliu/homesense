@@ -46,3 +46,7 @@ hkdf = "=0.13.0"
 rand = "=0.10.3"
 sha2 = "=0.11.0"
 x25519-dalek = "=3.0.0"
+
+# Test-only controller SRP digest adapter; same pinned versions as HAP tests.
+srp = "=0.6.0"
+sha2_srp = { package = "sha2", version = "=0.10.9" }
