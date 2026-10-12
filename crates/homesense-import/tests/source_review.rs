@@ -46,6 +46,201 @@ fn command(name: &str, params: &str) -> String {
 }
 
 #[test]
+fn straight_led_source_requests_match_production_ast_order_and_preserve_pending_gates() {
+    let request = |on, key| {
+        code(
+            &format!("{key}"),
+            "1",
+            "78",
+            &command(
+                if on { "Turn On" } else { "Turn Off" },
+                &format!(
+                    "<param><name>LED Number</name><value type=\"INTEGER\"><static>{key}</static></value></param>"
+                ),
+            ),
+            "",
+        )
+    };
+    let xml = project(&event(
+        1,
+        &code("0", "1", "0", "", &(request(true, 2) + &request(false, 6))),
+    ));
+    let proofs = source_review::direct_led_requests(&xml, &devices("keypad")).unwrap();
+    assert_eq!(proofs.len(), 1);
+    assert_eq!(
+        proofs[0].source_request_sequence,
+        vec![
+            source_review::LedRequest {
+                device: "simulation:device:key:2".into(),
+                on: true
+            },
+            source_review::LedRequest {
+                device: "simulation:device:key:6".into(),
+                on: false
+            }
+        ]
+    );
+    assert!(proofs[0].ordered_ast_request_equivalent);
+    assert!(!proofs[0].semantic_approved);
+    assert!(!proofs[0].runtime_rule_enabled);
+    assert!(proofs[0].pending_gates.contains(&"trigger semantics"));
+    assert!(proofs[0].pending_gates.contains(&"driver LED behavior"));
+}
+
+#[test]
+fn source_led_subset_does_not_promote_disabled_branches_conditions_or_scene_calls() {
+    let led = code(
+        "1",
+        "1",
+        "78",
+        &command(
+            "Turn On",
+            "<param><name>LED Number</name><value type=\"INTEGER\"><static>1</static></value></param>",
+        ),
+        "",
+    );
+    for body in [
+        led.replace("True", "False"),
+        code("2", "2", "78", &condition("IF_STOPPED"), &led),
+        code("3", "1", "78", &command("ACTIVATE_SCENE", ""), ""),
+    ] {
+        let xml = project(&event(1, &code("0", "1", "0", "", &body)));
+        assert!(
+            source_review::direct_led_requests(&xml, &devices("keypad"))
+                .unwrap()
+                .is_empty()
+        );
+    }
+}
+
+#[test]
+fn led_source_proof_rejects_extra_fields_dynamic_values_and_wrong_profiles() {
+    let led = code(
+        "1",
+        "1",
+        "78",
+        &command(
+            "Turn Off",
+            "<param><name>LED Number</name><value type=\"INTEGER\"><static>3</static></value></param>",
+        ),
+        "",
+    );
+    for body in [
+        led.replace("</codeitem>", "<opaque>unreviewed</opaque></codeitem>"),
+        led.replace("<static>3</static>", "<variable>3</variable>"),
+        led.replace(
+            "owneriditem=\"-1\"",
+            "owneriditem=\"-1\" opaque=\"unreviewed\"",
+        ),
+        led.replace("INTEGER", "BOOLEAN"),
+    ] {
+        let xml = project(&event(1, &code("0", "1", "0", "", &body)));
+        assert!(
+            source_review::direct_led_requests(&xml, &devices("keypad"))
+                .unwrap()
+                .is_empty()
+        );
+    }
+    let xml = project(&event(1, &code("0", "1", "0", "", &led)));
+    assert!(
+        source_review::direct_led_requests(&xml, &devices("switch"))
+            .unwrap()
+            .is_empty()
+    );
+}
+
+#[test]
+fn ledger_request_proof_accepts_source_string_selectors_and_rejects_mixed_containers() {
+    let led = code(
+        "1",
+        "1",
+        "78",
+        &command(
+            "Turn On",
+            "<param><name>LED Number</name><value type=\"STRING\"><static>3</static></value></param>",
+        ),
+        "",
+    );
+    let root = code("0", "1", "0", "", &led);
+    assert_eq!(
+        source_review::direct_led_requests(&project(&event(1, &root)), &devices("keypad"))
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        source_review::direct_led_requests(&project(&event(1, &led)), &devices("keypad"))
+            .unwrap()
+            .len(),
+        1
+    );
+    for source in [
+        root.replace("<subitems>", "<subitems opaque=\"unreviewed\">"),
+        root.replace("<cmdcond>", "<cmdcond opaque=\"unreviewed\">"),
+        root.replace("<subitems>", "<subitems>unmodeled-text"),
+        root.replace("<cmdcond>", "<cmdcond>unmodeled-text"),
+        root.replace("<params>", "<params>unmodeled-text"),
+        root.replace(
+            "<static>3</static>",
+            "<static opaque=\"unreviewed\">3</static>",
+        ),
+    ] {
+        assert!(
+            source_review::direct_led_requests(&project(&event(1, &source)), &devices("keypad"))
+                .unwrap()
+                .is_empty()
+        );
+    }
+}
+
+#[test]
+fn strict_source_proof_rejects_each_isolated_root_or_leaf_container_boundary() {
+    let leaf = code(
+        "1",
+        "1",
+        "78",
+        &command(
+            "Turn Off",
+            "<param><name>LED Number</name><value type=\"INTEGER\"><static>3</static></value></param>",
+        ),
+        "",
+    );
+    let xml = project(&event(1, &code("0", "1", "0", "", &leaf)));
+    assert_eq!(
+        source_review::direct_led_requests(&xml, &devices("keypad"))
+            .unwrap()
+            .len(),
+        1
+    );
+    for input in [
+        xml.replacen(
+            "<cmdcond></cmdcond><subitems>",
+            "<cmdcond></cmdcond><subitems opaque=\"unmodeled\">",
+            1,
+        ),
+        xml.replace(
+            "<cmdcond><devicecommand",
+            "<cmdcond opaque=\"unmodeled\"><devicecommand",
+        ),
+        xml.replacen(
+            "<cmdcond></cmdcond><subitems>",
+            "<cmdcond></cmdcond><subitems>unmodeled",
+            1,
+        ),
+        xml.replace(
+            "<cmdcond><devicecommand",
+            "<cmdcond>unmodeled<devicecommand",
+        ),
+    ] {
+        assert!(
+            source_review::direct_led_requests(&input, &devices("keypad"))
+                .unwrap()
+                .is_empty()
+        );
+    }
+}
+
+#[test]
 fn only_exact_empty_root_is_disposed_and_every_event_is_retained() {
     let empty = code("0", "1", "0", " \n", " \n");
     let disabled = code("9", "1", "78", &command("UNKNOWN", ""), "").replace("True", "False");
