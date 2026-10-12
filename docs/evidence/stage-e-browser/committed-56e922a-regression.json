@@ -1,0 +1,156 @@
+{
+  "source_commit": "56e922aac088a73815dd0d735ad84a8c86aadde3",
+  "scope": "git archive of committed source only; no worktree overlays or private fixtures",
+  "rust": "rustc 1.99.0 (b940084d7 2026-09-28)",
+  "source_archive_sha256": "d766af92bbed98fb5091dd99909c954b0d665030bb4fd68f77ed9cb95f796c32",
+  "workspace": {
+    "passed": 612,
+    "failed": 0,
+    "ignored": 0,
+    "result_blocks": 124
+  },
+  "vendor_hap_separately": {
+    "passed": 53,
+    "failed": 0,
+    "ignored": 0,
+    "result_blocks": 1
+  },
+  "workspace_all_targets_clippy": "passed",
+  "frontend_checks": [
+    {
+      "script": "verify_backup_catalog.cjs",
+      "exit_code": 0
+    },
+    {
+      "script": "verify_channel_diagnostics.cjs",
+      "exit_code": 0
+    },
+    {
+      "script": "verify_credentials.cjs",
+      "exit_code": 0
+    },
+    {
+      "script": "verify_device_metadata.cjs",
+      "exit_code": 0
+    },
+    {
+      "script": "verify_device_refresh.cjs",
+      "exit_code": 0
+    },
+    {
+      "script": "verify_draft_archive.cjs",
+      "exit_code": 0
+    },
+    {
+      "script": "verify_draft_json.cjs",
+      "exit_code": 0
+    },
+    {
+      "script": "verify_event_disconnect.cjs",
+      "exit_code": 0
+    },
+    {
+      "script": "verify_light_policy.cjs",
+      "exit_code": 0
+    },
+    {
+      "script": "verify_preview_state.cjs",
+      "exit_code": 0
+    },
+    {
+      "script": "verify_room_filter.cjs",
+      "exit_code": 0
+    },
+    {
+      "script": "verify_scene_history.cjs",
+      "exit_code": 0
+    },
+    {
+      "script": "verify_scene_switches.cjs",
+      "exit_code": 0
+    },
+    {
+      "script": "verify_session_state.cjs",
+      "exit_code": 0
+    }
+  ],
+  "loopback_http": {
+    "tls-simulation": {
+      "https": "passed",
+      "wss": "passed",
+      "csrf_and_session_revocation": "passed",
+      "revoked_wss": "closed",
+      "untrusted_and_wrong_name": "rejected",
+      "plaintext": "rejected",
+      "unsafe_key_permissions_and_mismatch": "rejected"
+    },
+    "tls-tcp": {
+      "https": "passed",
+      "wss": "passed",
+      "csrf_and_session_revocation": "passed",
+      "revoked_wss": "closed",
+      "untrusted_and_wrong_name": "rejected",
+      "plaintext": "rejected",
+      "unsafe_key_permissions_and_mismatch": "rejected"
+    },
+    "publication": {
+      "publication": "passed",
+      "restart_replay": "none",
+      "backups": 2,
+      "scene_runs": 1,
+      "historical_restore": "passed",
+      "restored_revision": 3,
+      "http_backup_inspections": 6,
+      "snapshot_bytes": "unchanged",
+      "room_removal": "derived draft only; missing and referenced rejected"
+    },
+    "history": {
+      "history_pages": [
+        20,
+        1
+      ],
+      "cancelled_runs": 21,
+      "written_commands": 1,
+      "restart_replay": "none",
+      "private_source": "omitted",
+      "command_statuses": [
+        "Written",
+        "Uncertain"
+      ]
+    },
+    "sessions": {
+      "concurrent_cookie_updates": "one committed, one stale rejected",
+      "old_target_session": "revoked",
+      "renewed_target_session": "accepted",
+      "logout_isolation": "passed",
+      "devices": "synthetic loopback only"
+    }
+  },
+  "browser_artifact": "previous light-state-policy screenshot UI source hashes still match; no new browser claim",
+  "linux_candidate": {
+    "target": "x86_64 Linux ngr",
+    "rust": "1.99.0",
+    "release_sha256": "2a5edbf02f5f34ffa1a8ce11eee7d36915e9203a32d7a7107baedb078766c404",
+    "build": "locked offline release passed",
+    "combined_simulation": "two launches; request receipt replay and HTTP authorization passed",
+    "tls_simulation": "passed",
+    "tls_fake_tcp_combined": "passed",
+    "processes_after_tests": "none",
+    "real_release_replaced": false,
+    "pairing_or_runtime_database_migrated": false,
+    "real_service_started": false
+  },
+  "study_candidate_validation": "Live offline structure/encoding validation passed; no state created and no connection opened",
+  "ea5_modified": false,
+  "private_source_published": false,
+  "completion": {
+    "D": "incomplete",
+    "E": "incomplete"
+  },
+  "remaining": [
+    "full original project semantics and physical bindings",
+    "motor predicates IF_MOVING and IF_STOPPED",
+    "current integrated field HAP, Web, LAN TLS and recovery acceptance",
+    "external selection observation approved but not implemented in this source commit"
+  ]
+}

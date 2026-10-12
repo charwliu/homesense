@@ -19,7 +19,7 @@ LED 联动的暂忙与 CAS 竞争已隔离：明确未接受时延期并重新�
 - **Web 与管理**：设备／房间／校准、场景、凭证授权、草稿预览／发布、历史导出、备份检查及事件恢复已接入；HTTPS/WSS、会话撤销、CSRF 和范围权限经回环验证。Safari 与应用内浏览器的独立会话已验证竞争草稿、旧预览失效和草稿保留；实体手机和 LAN 证书信任仍待验证。
 - **容量与恢复**：普通流量规划预留与软件渐变共用物理帧预算，管理员诊断显示 `wire_capacity`；发布和断线恢复先同步新代次，不重放旧动作。规划预留不承诺固定响应延迟，现场容量仍待测试。
 
-上一次完整回归以已提交源码 `ea236d6` 的独立快照为准：**579 项通过、0 失败、0 忽略**；12 项前端脚本、两种模式 HTTPS/WSS、真实回环 HTTP 发布／历史恢复和会话竞争通过。本轮之后仅叠加配置冲突中文提示及对应前端测试，重新构建并在两个浏览器复验，12 项前端脚本再次通过。范围见 [回归记录](docs/evidence/stage-e-browser/clean-de-regression-ea236d6.json) 和 [独立浏览器记录](docs/evidence/stage-e-browser/independent-publication-check.json)。此次基线尚未运行完整 workspace 严格 Clippy；后续质量检查见下。
+最新完整回归使用已提交 `56e922a` 的独立干净快照：**612 项工作区测试通过、0 失败、0 忽略**，另有 53 项 HAP 库测试；工作区全部目标严格 Clippy、14 项前端检查，以及两种模式 HTTPS/WSS、配置发布、历史恢复与会话竞争检查通过。ngr 的隔离 Linux release 已完成离线构建、合成重启和 TLS 冒烟，真实服务仍停止，旧配对／运行库未动。证据见 [当前完整回归](docs/evidence/stage-e-browser/committed-56e922a-regression.json)。这些结果不替代原项目语义和实机验收；新确认的场景按键观察推断尚待实现。
 
 上一次质量检查基于 `061c3c2` 干净源码加 9 个限定修复：测试控制器改用当前 `AeadInOut` API，保留密钥派生、nonce、AAD 和报文格式；修复测试锁作用域及等价 lint。**完整 workspace 回归再次 579 项通过，工作区所有目标严格 Clippy 通过**，未新增 lint 放行。`vendor/hap` 被排除在 workspace 外，依赖仍产生 54 条警告；这不是 vendor 无警告结论。初次回归因沙箱禁止本机 TCP 绑定失败，获准回环环境重跑后通过。见 [质量检查证据](docs/evidence/stage-e-browser/clean-workspace-quality-061c3c2.json)。
 
