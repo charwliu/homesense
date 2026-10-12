@@ -513,3 +513,5 @@ Web 窗帘控制：`POST /api/v1/device-commands` 的 command 现在支持 `{"ac
 历史进程级回归脚本 `tools/verify_web_history.py`：真实回环 HTTP 创建并取消 21 次延迟模拟场景，验证 20＋1 分页和重启后相同记录；另执行一次即时场景，核对命令详情及数据库命令数始终为 1，内部源位置不出现在响应。重启会把旧实例未确认的 Written 命令标为 Uncertain（Observed 保留），场景的 CommandsWritten 回执不因此等同于物理确认；脚本显式检查此转换，不要求历史命令保留 Written。所有数据为合成配置，现场未运行。
 
 公开快照验证：基于 `d2d7ea3` 的 git archive，仅叠加 HAP 亮度过渡条件的等价 let-chain 修复，完整 workspace 测试 513 项通过、0 失败、0 忽略；未带入本地私有测试及其他未提交修改。`homesensed`、`homesense-storage`、`homesense-config` 库严格 Clippy 通过；vendor HAP 依赖仍有警告，因此不是整个依赖树零警告。证据见 `docs/evidence/stage-e-browser/clean-runtime-regression.json`。
+
+备份检查入口：`homesensed inspect-backup SNAPSHOT.sqlite [--simulation]`。只读检查独立 SQLite 备份（最大 1 GiB、当前 schema 18），拒绝活动 WAL、伴随日志、符号链接和未知 schema；执行 quick_check、外键检查及活动配置／自动化语义验证，输出活动版本、版本数量和字节数，不迁移、不激活、不恢复队列。默认按真实环境验证，模拟备份必须显式使用 `--simulation`。备份必须在检查期间保持不变；历史非活动版本未逐一做语义校验。两项备份测试及真实 CLI 测试通过，核验检查前后文件字节不变。备份目录清单、定时备份及保留策略仍待接入，EA-5 不变。
