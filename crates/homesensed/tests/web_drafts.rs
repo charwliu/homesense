@@ -111,3 +111,19 @@ fn archive_releases_capacity_without_recycling_ids() {
     let db=rusqlite::Connection::open(&path).unwrap();let total:i64=db.query_row("SELECT count(*) FROM configuration_draft",[],|r|r.get(0)).unwrap();assert_eq!(total,129);
     drop(db);drop(store);std::fs::remove_dir_all(root).unwrap();
 }
+
+#[test]
+fn metadata_edit_derives_draft_preserving_bindings_and_large_numbers() {
+    use homesensed::web_drafts::DeviceMetadataEdit;
+    let root=std::env::temp_dir().join(format!("metadata-edit-{}",Uuid::new_v4()));std::fs::create_dir(&root).unwrap();let mut store=Drafts::open(&root.join("drafts.sqlite")).unwrap();let owner=Uuid::new_v4();
+    let mut devices:serde_json::Value=serde_json::from_slice(include_bytes!("../../../config/simulation.json")).unwrap();devices["revision"]=9007199254740993u64.into();devices["rooms"]=serde_json::json!([{"id":"study","name":"书房"}]);
+    let draft=Draft{id:Uuid::new_v4(),expected_revision:1,revision:9007199254740993,devices,automation:serde_json::json!({"schema_version":1,"configuration_revision":9007199254740993u64,"variables":[],"rules":[]})};store.save(owner,&draft,ExecutionContext::Simulation).unwrap();
+    let make=|room:Option<&str>|DeviceMetadataEdit{id:Uuid::new_v4(),expected_revision:"1".into(),revision:"9007199254740994".into(),device:"simulation:light".into(),name:"书房灯".into(),room:room.map(str::to_owned)};
+    assert!(store.edit_device(Uuid::new_v4(),draft.id,make(Some("study")),ExecutionContext::Simulation).is_err());
+    assert!(store.edit_device(owner,draft.id,make(Some("missing")),ExecutionContext::Simulation).is_err());
+    let id=store.edit_device(owner,draft.id,make(Some("study")),ExecutionContext::Simulation).unwrap();let new=store.get(owner,id).unwrap().unwrap();
+    let mut expected=draft.devices.clone();expected["revision"]=9007199254740994u64.into();expected["devices"][0]["name"]="书房灯".into();expected["devices"][0]["room"]="study".into();assert_eq!(new.devices,expected);
+    assert_eq!(store.get(owner,draft.id).unwrap(),Some(draft));assert_eq!(new.automation["configuration_revision"],9007199254740994u64);
+    let id2=store.edit_device(owner,id,make(None),ExecutionContext::Simulation).unwrap();assert!(store.get(owner,id2).unwrap().unwrap().devices["devices"][0].get("room").is_none());
+    drop(store);std::fs::remove_dir_all(root).unwrap();
+}
