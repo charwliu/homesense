@@ -190,6 +190,17 @@ impl Store {
         audit:Option<&crate::rule_audit::Admission>, scene:Option<&crate::scene_run::StepLink>,
         starts:&[crate::scene_run::Start],
     )->Result<(),Error> {
+        self.accept_queue_batch_with_read_checks(boot_id,commands,cancellations,now_ms,study,variables,audit,scene,starts,&[])
+    }
+    /// Output and actual variable changes share a transaction with condition-only
+    /// version guards. An unchanged read never detaches its inferred provenance.
+    #[allow(clippy::too_many_arguments)]
+    pub fn accept_queue_batch_with_read_checks(
+        &mut self, boot_id:&str, commands:&[QueuedCommand], cancellations:&[Cancellation],
+        now_ms:u64, study:Option<(Option<u8>,u8)>, variables:&[crate::variables::Update],
+        audit:Option<&crate::rule_audit::Admission>, scene:Option<&crate::scene_run::StepLink>,
+        starts:&[crate::scene_run::Start], reads:&[crate::variables::ReadCheck],
+    )->Result<(),Error> {
         if starts.len()>64 || (!starts.is_empty() && audit.is_none()) {return Err(Error::InvalidAudit);}
         if starts.iter().any(|s|audit.is_none_or(|a|s.revision!=a.revision)) {return Err(Error::Conflict);}
         boot(boot_id)?;
@@ -214,6 +225,7 @@ impl Store {
                 |r| r.get(0),
             )
             .optional()?;
+        crate::variables::check_reads(&tx, reads, active)?;
         for command in commands {
             let revision = sql_revision(command.epochs.configuration)?;
             if active != Some(revision) {

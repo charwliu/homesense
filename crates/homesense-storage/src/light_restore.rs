@@ -23,6 +23,12 @@ impl Store {
         }
         Ok(result)
     }
+    /// Same-boot monotonic evidence for a completed setting used to cancel a
+    /// newly inferred selection. A previous boot's timestamp is incomparable.
+    pub fn dimmer_setting_written_after(&self, revision:u64, device:&DeviceId, boot:&str, after_ms:u64) -> Result<bool,Error> {
+        let count:i64=self.connection.query_row("SELECT count(*) FROM light_setting s JOIN command_journal j ON j.rowid=s.journal_row WHERE s.revision=?1 AND s.device_id=?2 AND j.boot_id=?3 AND s.level=0 AND j.status='written' AND j.updated_ms>?4",params![sql_revision(revision)?,device.as_str(),boot,i64::try_from(after_ms).map_err(|_|Error::InvalidAudit)?],|r|r.get(0))?;
+        Ok(count==1)
+    }
     /// The runtime must supply only fresh, confirmed physical feedback.
     /// A zero observation intentionally preserves the previous nonzero value.
     pub fn remember_light_levels(

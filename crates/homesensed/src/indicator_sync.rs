@@ -172,19 +172,20 @@ impl Synchronizer {
             }];
             let mut lease = None;
             let mut off = false;
-            let prepared = PreparedRule::prepare_using_status(
+            let prepared = PreparedRule::prepare_indicator(
                 admission,
                 controller,
                 generation.clone(),
                 names,
-                |variables| {
-                    let (plan, read) = feedback.plan_rule_with_levels(
+                |variables, _selections, policy| {
+                    let (plan, read) = feedback.plan_indicator_rule(
                         &nodes,
                         variables,
                         Budget::default(),
                         admission.monotonic_ms(),
                         max_age,
                         &recorded,
+                        policy,
                     )?;
                     // Unknown lights never authorize output; an unknown selection
                     // stays unknown even when known-off loads clear their LEDs.
