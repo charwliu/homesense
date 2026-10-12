@@ -21,3 +21,12 @@ async fn daily_snapshot_is_unique_verified_and_worker_stops_without_replay() {
     tokio::time::timeout(std::time::Duration::from_secs(5),reports.wait_for(|s|matches!(s,Status::Failed))).await.unwrap().unwrap();stop.send(true).unwrap();worker.await.unwrap();assert!(!root.join("missing.sqlite").exists());
     assert_eq!(store.active().unwrap().unwrap().revision,1);drop(store);std::fs::remove_dir_all(root).unwrap();
 }
+
+#[tokio::test]
+async fn supervisor_preserves_service_result_even_when_backup_fails() {
+    let root=std::env::temp_dir().join(format!("daily-supervisor-{}",uuid::Uuid::new_v4()));std::fs::create_dir(&root).unwrap();
+    let result=daily_backup::supervise(root.join("missing.sqlite"),ExecutionContext::Simulation,async {
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;Err("synthetic service failure".into())
+    }).await;
+    assert_eq!(result,Err("synthetic service failure".into()));assert!(!root.join("missing.sqlite").exists());std::fs::remove_dir_all(root).unwrap();
+}
