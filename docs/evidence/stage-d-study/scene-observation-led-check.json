@@ -1,0 +1,82 @@
+{
+  "base_commit": "9d186924daa8b47ffae6b18e1caee163c47f4d65",
+  "source_scope": "git archive base commit plus exactly 10 public source overlays; no unrelated working-tree changes, private configuration or source data",
+  "source_sha256": {
+    "crates/homesense-storage/src/variables.rs": "4efa194cda6523af5418fd4ce229b63ab57fa2a209c40225f0c7c5363e1b1b8d",
+    "crates/homesense-storage/src/journal.rs": "bf844b9c4be2fc6c39db475c8ac7b8b981ce83aff5c3fbf825839375e67cbc4d",
+    "crates/homesense-storage/src/light_restore.rs": "8eb010aa60ac28d2fba470612494f49d2b52dcc7c4cb6c73fc8c4d049d954593",
+    "crates/homesense-storage/tests/scene_observation.rs": "86291f75513b2ca2077b798f55ecaad904fb9cbd082a53a47cd756244a112330",
+    "crates/homesensed/src/admission.rs": "3b45a0135cec11ceb4add4fc4b44ab49ac59108d8951843dd4a8b71bb2c35369",
+    "crates/homesensed/src/indicator_sync.rs": "26c245dc83ad1dca80c84899d2bb06a8fc061945ccea29c2cfd9bcc3aecaf695",
+    "crates/homesensed/src/rule_runtime.rs": "b12a5228811fc7c20756e503629fe2f0bd0ff68f12cf9f80a126bf55d53a3f5d",
+    "crates/homesensed/src/feedback.rs": "6bba15fea9d993eea6646465e9994dff83cb19971463f5955226de73987ea672",
+    "crates/homesensed/src/scene_observation_tests.rs": "10894fb955ce15de9e7c37f8865e788db3e56fbd4d8016c374ad53fc18667c2e",
+    "crates/homesensed/tests/indicator_sync.rs": "684275ca1c1ac30d885b9ec1f08313f776fa7ea6a8c826c96168ea3d9bdee6b3"
+  },
+  "reproduced_original_failures": {
+    "result_blocks": 1,
+    "passed": 0,
+    "failed": 2,
+    "ignored": 0,
+    "log_sha256": "93eba49fdefe96253411d89313e1fe6b072e3021dd4eb1baf83ee620f1a61319"
+  },
+  "reproduced_mixed_state_failure": {
+    "result_blocks": 1,
+    "passed": 1,
+    "failed": 1,
+    "ignored": 0,
+    "log_sha256": "f936e5631bd65c0cb76bd22050000af51f4f0d6fd3b21055648d9d1179b5e06a"
+  },
+  "intermediate_workspace_old_assertion_failure": {
+    "result": {
+      "result_blocks": 85,
+      "passed": 444,
+      "failed": 1,
+      "ignored": 0,
+      "log_sha256": "ebf926cbca13e59d2cd10dad453d9160885e3cfe7bf6b4325096a7f2184c2411"
+    },
+    "test": "cas_rejection_replans_led_cleanup_without_clearing_another_scene",
+    "reason": "old test required unchanged condition-only selection version to advance; changed to exact equality with the newer raced selection while retaining rejection and retry assertions"
+  },
+  "final_workspace": {
+    "result_blocks": 126,
+    "passed": 643,
+    "failed": 0,
+    "ignored": 0,
+    "log_sha256": "bc965e5ffc2038250fe6ece247a018fced3c80657609ab186951095108fd2c3d"
+  },
+  "final_observation_led_regressions": {
+    "passed": 16,
+    "failed": 0,
+    "new_since_base": 8,
+    "log_sha256": "b7c12d430577f191e84fa24130c2308c61f22bff3537ac97278c70206884757e",
+    "scope": "synthetic raw key -> Consumer -> Admission -> SQLite plus production Synchronizer; no physical write"
+  },
+  "new_storage_regressions": 1,
+  "strict_clippy": {
+    "command": "cargo clippy --workspace --all-targets --locked --offline -- -D warnings",
+    "exit_code": 0,
+    "log_sha256": "17e601d691cbdd3e0d984d0a45d89b0e77a1c051c6673844a082ec1c2fb709f4"
+  },
+  "behavior": [
+    "partial expected-On off clears the matching selection and all explicitly linked LEDs without running a scene or other lamp-off sequence",
+    "clearing a different scene indicator preserves selection value, version and inferred provenance",
+    "condition-only persistent reads are checked inside the output transaction without rewriting values",
+    "stream invalidation and newer local selection reject old LED plans with no accepted LED receipt",
+    "pre-key and same-millisecond light feedback are Unknown for inferred cancellation",
+    "prior or prior-boot dimmer zero settings cannot cancel a new inference; current zero must be completed after the key",
+    "unusable old dimmer zero does not block independent fresh Switch Off, and another unknown load does not veto a valid partial off",
+    "ordinary automated rules still cannot consume inferred selections"
+  ],
+  "limitations": [
+    "host receive time does not establish remote device emission time or actual EA-5 program execution",
+    "this check does not include the separately supplied TCP observation audit fixture or its vendor overlay",
+    "current integrated Apple clients, physical LED/load feedback, real-phone Web and LAN TLS acceptance remain pending",
+    "manual scene planning stream-scope concurrency audit is separate from the newly guarded LED acceptance path"
+  ],
+  "schema_version": 22,
+  "schema_changed": false,
+  "field_observation_default_enabled": false,
+  "field_deployed_or_started": false,
+  "ea5_configuration_or_control_scope_changed": false
+}

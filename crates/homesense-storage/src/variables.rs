@@ -17,6 +17,42 @@ pub struct Update {
     pub expected_version: u64,
     pub value: Option<Value>,
 }
+/// Validate a condition-only persistent read without changing its value,
+/// version, or version-bound provenance. Checked in the output transaction.
+#[derive(Debug, Clone)]
+pub struct ReadCheck {
+    pub revision: u64,
+    pub name: String,
+    pub expected_version: u64,
+}
+pub(crate) fn check_reads(
+    tx: &Transaction<'_>,
+    reads: &[ReadCheck],
+    active: Option<i64>,
+) -> Result<(), Error> {
+    if reads.len() > 1024 {
+        return Err(Error::InvalidAudit);
+    }
+    let mut seen = std::collections::BTreeSet::new();
+    for read in reads {
+        let revision = sql_revision(read.revision)?;
+        if active != Some(revision) || !name_valid(&read.name) || !seen.insert(&read.name) {
+            return Err(Error::Conflict);
+        }
+        let expected = i64::try_from(read.expected_version).map_err(|_| Error::InvalidAudit)?;
+        let actual: Option<i64> = tx
+            .query_row(
+                "SELECT version FROM logical_variable WHERE revision=?1 AND name=?2",
+                params![revision, read.name],
+                |r| r.get(0),
+            )
+            .optional()?;
+        if actual != Some(expected) {
+            return Err(Error::Conflict);
+        }
+    }
+    Ok(())
+}
 fn name_valid(name: &str) -> bool {
     !name.is_empty() && name.len() <= 256 && !name.chars().any(char::is_control)
 }

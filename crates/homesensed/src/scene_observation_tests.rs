@@ -8,11 +8,15 @@ use std::{path::PathBuf, time::Duration};
 fn devices() -> Vec<u8> {
     serde_json::to_vec(&json!({"schema_version":1,"revision":1,"gateways":[{"id":"bus","endpoint":"127.0.0.1:50007","modules":[
         {"address":"15","profile":"gt_d8_rl_v2_2_6_2","verification":{"status":"simulated"}},
-        {"address":"41","profile":"ts6_86_rs485_v2_6_5_6key","led_mode":"manual","verification":{"status":"simulated"}}]}],"devices":[
+        {"address":"03","profile":"r8i8_din_pro_v2_7_7","verification":{"status":"simulated"}},
+        {"address":"41","profile":"ts6_86_rs485_v2_6_5_6key","led_mode":"manual","verification":{"status":"simulated"}},
+        {"address":"42","profile":"ts6_86_rs485_v2_6_5_6key","led_mode":"manual","verification":{"status":"simulated"}}]}],"devices":[
         {"id":"light","name":"Synthetic light","gateway":"bus","address":"15","channel":1,"enabled":true},
+        {"id":"switch","name":"Synthetic secondary light","gateway":"bus","address":"03","channel":1,"enabled":true},
         {"id":"key1","name":"Synthetic first key","gateway":"bus","address":"41","channel":1,"enabled":true},
         {"id":"key3","name":"Synthetic second key","gateway":"bus","address":"41","channel":3,"enabled":true},
-        {"id":"key5","name":"Synthetic third key","gateway":"bus","address":"41","channel":5,"enabled":true}]})).unwrap()
+        {"id":"key5","name":"Synthetic third key","gateway":"bus","address":"41","channel":5,"enabled":true},
+        {"id":"other-led","name":"Synthetic second panel","gateway":"bus","address":"42","channel":1,"enabled":true}]})).unwrap()
 }
 fn automation() -> Json {
     let scenes=[("first",100),("second",60),("third",17),("off",0)].map(|(id,level)|json!({"id":id,"enabled":true,"review_evidence":"synthetic only","max_lateness_ms":1000,"steps":[{"source":"synthetic","offset_ms":60000,"device":"light","command":{"kind":"level","value":level,"ramp":false}}]}));
@@ -633,5 +637,580 @@ async fn hap_source_web_metadata_and_manual_off_share_one_scoped_selection() {
     ); // explicitly scheduled Off is delayed; no physical sink
     scenes.stop_now();
     drop(api);
+    h.close().await;
+}
+
+// Independent completion audit: only the test fixture adds a second light.
+// Observe a real raw-key inference through Consumer/Admission/SQLite, then
+// submit the production indicator synchronizer against fresh physical feedback.
+async fn audit_led_partial_off(selected_key: u8, expected: i64) {
+    let mut input = automation();
+    input["timed_scenes"][0]["steps"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!({
+            "source":"synthetic secondary light", "offset_ms":60000,
+            "device":"switch", "command":{"kind":"switch","on":true}
+        }));
+    input["indicator_links"] = json!([{
+        "id":"first-off", "enabled":true, "review_evidence":"synthetic audit only",
+        "scene":"first", "lights":["light","switch"], "leds":["key1","other-led"]
+    }]);
+    let mut h = Harness::new(Some(0), input, true).await;
+    h.press(selected_key).await;
+    let before = h.selection().await;
+    assert!(before.evidence_current);
+    h.no_output();
+    tokio::time::sleep(Duration::from_millis(3)).await;
+    let now = h.actor.monotonic_ms();
+    h.feedback
+        .apply(&GatewayRead {
+            gateway_id: "bus".into(),
+            transport_epoch: h.generation.epochs.transport,
+            received_at_ms: now,
+            result: hb_transport::Receive::Frames {
+                transport_epoch: h.generation.epochs.transport,
+                frames: vec![
+                    hb_protocol::RawFrame {
+                        address: 0x15,
+                        command: 0xd1,
+                        value: 100,
+                    },
+                    hb_protocol::RawFrame {
+                        address: 0x03,
+                        command: 0xd1,
+                        value: 0xf2,
+                    },
+                ],
+            },
+        })
+        .unwrap();
+    let scenes =
+        crate::scene_scheduler::SceneScheduler::new(h.actor.clone(), h.controller, 8, now).unwrap();
+    crate::indicator_sync::Synchronizer::default()
+        .tick(
+            &h.actor,
+            h.controller,
+            &h.document,
+            &scenes,
+            &h.feedback,
+            60000,
+        )
+        .await
+        .unwrap();
+    let after = h.selection().await;
+    let ledger = h.sql();
+    let scenes_created: i64 = ledger
+        .query_row("SELECT count(*) FROM scene_run", [], |r| r.get(0))
+        .unwrap();
+    let commands: Vec<String> = ledger
+        .prepare("SELECT device_id FROM command_journal")
+        .unwrap()
+        .query_map([], |r| r.get(0))
+        .unwrap()
+        .collect::<Result<_, _>>()
+        .unwrap();
+    drop(ledger);
+    drop(scenes);
+    h.close().await;
+    assert_eq!(
+        scenes_created, 0,
+        "independent LED sync must not execute a scene"
+    );
+    assert_eq!(
+        commands,
+        vec!["key1", "other-led"],
+        "exactly the two reviewed panels, with no lighting commands"
+    );
+    assert_eq!(
+        after.stored.value,
+        Some(Value::Integer(expected)),
+        "partial-off reconciliation must clear only the inferred selected member; before={before:?}, after={after:?}"
+    );
+    if selected_key == 3 {
+        assert_eq!(
+            after.stored.version, before.stored.version,
+            "unrelated LED clearing must not rewrite the active inferred selection"
+        );
+        assert!(
+            after.evidence_current,
+            "unrelated LED clearing must preserve provenance"
+        );
+    }
+}
+#[tokio::test]
+async fn audit_led_partial_off_clears_the_inferred_selected_member() {
+    audit_led_partial_off(1, 0).await;
+}
+#[tokio::test]
+async fn audit_led_partial_off_preserves_a_different_inferred_member() {
+    audit_led_partial_off(3, 2).await;
+}
+
+fn linked_automation() -> Json {
+    let mut input = automation();
+    input["indicator_links"] = json!([{"id":"first-off","enabled":true,"review_evidence":"synthetic only","scene":"first","lights":["light"],"leds":["key1"]}]);
+    input
+}
+fn light_sample(h: &mut Harness, at: u64, level: u8) {
+    h.feedback
+        .apply(&GatewayRead {
+            gateway_id: "bus".into(),
+            transport_epoch: h.generation.epochs.transport,
+            received_at_ms: at,
+            result: hb_transport::Receive::Frames {
+                transport_epoch: h.generation.epochs.transport,
+                frames: vec![hb_protocol::RawFrame {
+                    address: 0x15,
+                    command: 0xd1,
+                    value: level,
+                }],
+            },
+        })
+        .unwrap();
+}
+async fn off_plan(h: &Harness) -> crate::rule_runtime::PreparedRule {
+    use homesense_core::rule::{Action, Budget, Condition, Expr, Node};
+    let nodes = vec![Node {
+        source: "synthetic off".into(),
+        action: Action::If {
+            condition: Condition::Equal(
+                Expr::DeviceOn(homesense_core::DeviceId::new("light").unwrap()),
+                Expr::Literal(Value::Bool(false)),
+            ),
+            then_actions: vec![Node {
+                source: "synthetic led".into(),
+                action: Action::Command {
+                    device: homesense_core::DeviceId::new("key1").unwrap(),
+                    command: homesense_core::Command::PanelLed(false),
+                },
+            }],
+            else_actions: vec![],
+        },
+    }];
+    let mut lease = None;
+    let mut plan = crate::rule_runtime::PreparedRule::prepare_indicator(
+        &h.actor,
+        h.controller,
+        h.generation.clone(),
+        vec!["selection".into()],
+        |variables, _, policy| {
+            let (plan, read) = h.feedback.plan_indicator_rule(
+                &nodes,
+                variables,
+                Budget::default(),
+                h.actor.monotonic_ms(),
+                60000,
+                &std::collections::BTreeMap::new(),
+                policy,
+            )?;
+            lease = Some(read);
+            Ok(plan)
+        },
+    )
+    .await
+    .map_err(|_| "preparation failed")
+    .unwrap();
+    plan.attach_feedback(lease);
+    plan
+}
+#[tokio::test]
+async fn indicator_inference_rejects_old_feedback_then_clears_with_post_key_feedback() {
+    let mut h = Harness::new(Some(0), linked_automation(), true).await;
+    let old = h.actor.monotonic_ms();
+    light_sample(&mut h, old, 0);
+    tokio::time::sleep(Duration::from_millis(3)).await;
+    h.press(1).await;
+    let before = h.selection().await;
+    let scenes = crate::scene_scheduler::SceneScheduler::new(
+        h.actor.clone(),
+        h.controller,
+        8,
+        h.actor.monotonic_ms(),
+    )
+    .unwrap();
+    let mut sync = crate::indicator_sync::Synchronizer::default();
+    sync.tick(
+        &h.actor,
+        h.controller,
+        &h.document,
+        &scenes,
+        &h.feedback,
+        60000,
+    )
+    .await
+    .unwrap();
+    assert_eq!(h.selection().await.stored, before.stored);
+    h.no_output();
+    // Same-millisecond input cannot prove that the sample followed the key.
+    let key_time = before.evidence.as_ref().unwrap().observed_ms;
+    light_sample(&mut h, key_time, 0);
+    sync.tick(
+        &h.actor,
+        h.controller,
+        &h.document,
+        &scenes,
+        &h.feedback,
+        60000,
+    )
+    .await
+    .unwrap();
+    h.no_output();
+    tokio::time::sleep(Duration::from_millis(3)).await;
+    let now = h.actor.monotonic_ms();
+    light_sample(&mut h, now, 0);
+    sync.tick(
+        &h.actor,
+        h.controller,
+        &h.document,
+        &scenes,
+        &h.feedback,
+        60000,
+    )
+    .await
+    .unwrap();
+    let after = h.selection().await;
+    assert_eq!(after.stored.value, Some(Value::Integer(0)));
+    assert_eq!(after.stored.version, before.stored.version + 1);
+    assert!(after.evidence.is_none());
+    let count: i64 = h
+        .sql()
+        .query_row("SELECT count(*) FROM command_journal", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(count, 1);
+    sync.tick(
+        &h.actor,
+        h.controller,
+        &h.document,
+        &scenes,
+        &h.feedback,
+        60000,
+    )
+    .await
+    .unwrap();
+    let count: i64 = h
+        .sql()
+        .query_row("SELECT count(*) FROM command_journal", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(count, 1, "settled repeated off is not replayed");
+    drop(scenes);
+    h.close().await;
+}
+#[tokio::test]
+async fn indicator_source_guard_rejects_stream_invalidation_and_newer_local_choice() {
+    for invalidate in [true, false] {
+        let mut h = Harness::new(Some(0), linked_automation(), true).await;
+        h.press(1).await;
+        tokio::time::sleep(Duration::from_millis(3)).await;
+        let now = h.actor.monotonic_ms();
+        light_sample(&mut h, now, 0);
+        let plan = off_plan(&h).await;
+        if invalidate {
+            h.actor.invalidate_scene_observation_now().unwrap();
+        } else {
+            let before = h.selection().await;
+            h.actor
+                .submit_rule_update(
+                    h.generation.clone(),
+                    homesense_hap::requests::Batch {
+                        controller: h.controller,
+                        intents: vec![],
+                        subscriptions: vec![],
+                    },
+                    vec![Update {
+                        revision: 1,
+                        name: "selection".into(),
+                        expected_version: before.stored.version,
+                        value: Some(Value::Integer(2)),
+                    }],
+                )
+                .await
+                .unwrap();
+        }
+        let before = h.selection().await;
+        assert_eq!(
+            plan.commit_status(&h.actor).await,
+            Err(hap::server::WriteStatus::InvalidValueInRequest)
+        );
+        let after = h.selection().await;
+        assert_eq!(after.stored, before.stored);
+        assert_eq!(after.evidence, before.evidence);
+        h.no_output();
+        h.close().await;
+    }
+}
+
+// Synthetic dispatch receipts only: no socket, gateway or physical write.
+async fn completed_zero_setting(h: &Harness) {
+    h.actor
+        .submit_rule_update(
+            h.generation.clone(),
+            homesense_hap::requests::Batch {
+                controller: h.controller,
+                intents: vec![homesense_hap::requests::Intent {
+                    device: homesense_core::DeviceId::new("light").unwrap(),
+                    command: homesense_core::Command::SetLevel {
+                        level: homesense_core::Percent::new(0).unwrap(),
+                        transition: homesense_core::LevelTransition::Immediate,
+                    },
+                }],
+                subscriptions: vec![],
+            },
+            vec![],
+        )
+        .await
+        .unwrap();
+    let mut written = false;
+    for _ in 0..100 {
+        if let Some(ticket) = h.actor.dispatch().await.unwrap() {
+            h.actor.finish_write(ticket.command.id, true).await.unwrap();
+            written = true;
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(5)).await;
+    }
+    assert!(written);
+}
+#[tokio::test]
+async fn inference_off_requires_new_completed_dimmer_setting_not_a_prior_zero() {
+    let mut h = Harness::new(Some(0), linked_automation(), true).await;
+    completed_zero_setting(&h).await;
+    tokio::time::sleep(Duration::from_millis(3)).await;
+    h.press(1).await;
+    let before = h.selection().await;
+    tokio::time::sleep(Duration::from_millis(3)).await;
+    let now = h.actor.monotonic_ms();
+    light_sample(&mut h, now, 100);
+    let scenes =
+        crate::scene_scheduler::SceneScheduler::new(h.actor.clone(), h.controller, 8, now).unwrap();
+    let mut sync = crate::indicator_sync::Synchronizer::default();
+    sync.tick(
+        &h.actor,
+        h.controller,
+        &h.document,
+        &scenes,
+        &h.feedback,
+        60000,
+    )
+    .await
+    .unwrap();
+    let after = h.selection().await;
+    assert_eq!(after.stored, before.stored);
+    assert_eq!(after.evidence, before.evidence);
+    assert_eq!(
+        h.sql()
+            .query_row(
+                "SELECT count(*) FROM command_journal WHERE device_id='key1'",
+                [],
+                |r| r.get::<_, i64>(0)
+            )
+            .unwrap(),
+        0
+    );
+    completed_zero_setting(&h).await;
+    tokio::time::sleep(Duration::from_millis(3)).await;
+    let now = h.actor.monotonic_ms();
+    light_sample(&mut h, now, 100);
+    sync.tick(
+        &h.actor,
+        h.controller,
+        &h.document,
+        &scenes,
+        &h.feedback,
+        60000,
+    )
+    .await
+    .unwrap();
+    assert_eq!(h.selection().await.stored.value, Some(Value::Integer(0)));
+    assert_eq!(
+        h.sql()
+            .query_row(
+                "SELECT count(*) FROM command_journal WHERE device_id='key1'",
+                [],
+                |r| r.get::<_, i64>(0)
+            )
+            .unwrap(),
+        1
+    );
+    drop(scenes);
+    h.close().await;
+}
+
+fn audit_led_linked_document() -> Json {
+    let mut input = automation();
+    input["timed_scenes"][0]["steps"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!({
+            "source":"synthetic secondary light", "offset_ms":60000,
+            "device":"switch", "command":{"kind":"switch","on":true}
+        }));
+    input["indicator_links"] = json!([{"id":"first-off","enabled":true,"review_evidence":"synthetic audit only","scene":"first","lights":["light","switch"],"leds":["key1"]}]);
+    input
+}
+async fn audit_led_prior_zero_with_fresh_switch_off(switch_on: bool) {
+    use homesense_core::{Command, DeviceId, LevelTransition, Percent};
+    use homesense_hap::requests::{Batch, Intent};
+    let mut h = Harness::new(Some(0), audit_led_linked_document(), true).await;
+    h.actor
+        .submit_rule_update(
+            h.generation.clone(),
+            Batch {
+                controller: h.controller,
+                intents: vec![Intent {
+                    device: DeviceId::new("light").unwrap(),
+                    command: Command::SetLevel {
+                        level: Percent::new(0).unwrap(),
+                        transition: LevelTransition::Immediate,
+                    },
+                }],
+                subscriptions: vec![],
+            },
+            vec![],
+        )
+        .await
+        .unwrap();
+    let ticket = h.actor.dispatch().await.unwrap().unwrap();
+    h.actor.finish_write(ticket.command.id, true).await.unwrap();
+    tokio::time::sleep(Duration::from_millis(5)).await;
+    h.press(1).await;
+    let before = h.selection().await;
+    assert_eq!(before.stored.value, Some(Value::Integer(1)));
+    assert!(before.evidence_current);
+    tokio::time::sleep(Duration::from_millis(5)).await;
+    let now = h.actor.monotonic_ms();
+    assert!(now > before.evidence.as_ref().unwrap().observed_ms);
+    h.feedback
+        .apply(&GatewayRead {
+            gateway_id: "bus".into(),
+            transport_epoch: h.generation.epochs.transport,
+            received_at_ms: now,
+            result: hb_transport::Receive::Frames {
+                transport_epoch: h.generation.epochs.transport,
+                frames: vec![
+                    hb_protocol::RawFrame {
+                        address: 0x15,
+                        command: 0xd1,
+                        value: 100,
+                    },
+                    hb_protocol::RawFrame {
+                        address: 0x03,
+                        command: 0xd1,
+                        value: if switch_on { 0xf1 } else { 0xf2 },
+                    },
+                ],
+            },
+        })
+        .unwrap();
+    let scenes =
+        crate::scene_scheduler::SceneScheduler::new(h.actor.clone(), h.controller, 8, now).unwrap();
+    crate::indicator_sync::Synchronizer::default()
+        .tick(
+            &h.actor,
+            h.controller,
+            &h.document,
+            &scenes,
+            &h.feedback,
+            60000,
+        )
+        .await
+        .unwrap();
+    let after = h.selection().await;
+    let led_count: i64 = h
+        .sql()
+        .query_row(
+            "SELECT count(*) FROM command_journal WHERE device_id='key1'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    let runs: i64 = h
+        .sql()
+        .query_row("SELECT count(*) FROM scene_run", [], |r| r.get(0))
+        .unwrap();
+    drop(scenes);
+    h.close().await;
+    assert_eq!(runs, 0);
+    if switch_on {
+        assert_eq!(
+            after.stored, before.stored,
+            "an old dimmer zero alone is not post-key off evidence"
+        );
+        assert_eq!(after.evidence, before.evidence);
+        assert_eq!(led_count, 0);
+    } else {
+        assert_eq!(
+            after.stored.value,
+            Some(Value::Integer(0)),
+            "the independent fresh Switch(false) must cancel the selected scene even when a dimmer's old zero is unusable; before={before:?}, after={after:?}, led_count={led_count}"
+        );
+        assert_eq!(led_count, 1);
+    }
+}
+#[tokio::test]
+async fn audit_led_prior_zero_does_not_block_fresh_switch_off_reconciliation() {
+    audit_led_prior_zero_with_fresh_switch_off(false).await;
+}
+#[tokio::test]
+async fn audit_led_prior_zero_alone_does_not_cancel_new_inference() {
+    audit_led_prior_zero_with_fresh_switch_off(true).await;
+}
+
+#[tokio::test]
+async fn one_fresh_switch_off_cancels_inference_while_other_light_is_unknown() {
+    let mut h = Harness::new(Some(0), audit_led_linked_document(), true).await;
+    h.press(1).await;
+    tokio::time::sleep(Duration::from_millis(5)).await;
+    let now = h.actor.monotonic_ms();
+    h.feedback
+        .apply(&GatewayRead {
+            gateway_id: "bus".into(),
+            transport_epoch: h.generation.epochs.transport,
+            received_at_ms: now,
+            result: hb_transport::Receive::Frames {
+                transport_epoch: h.generation.epochs.transport,
+                frames: vec![hb_protocol::RawFrame {
+                    address: 3,
+                    command: 0xd1,
+                    value: 0xf2,
+                }],
+            },
+        })
+        .unwrap();
+    let scenes =
+        crate::scene_scheduler::SceneScheduler::new(h.actor.clone(), h.controller, 8, now).unwrap();
+    crate::indicator_sync::Synchronizer::default()
+        .tick(
+            &h.actor,
+            h.controller,
+            &h.document,
+            &scenes,
+            &h.feedback,
+            60000,
+        )
+        .await
+        .unwrap();
+    assert_eq!(h.selection().await.stored.value, Some(Value::Integer(0)));
+    assert_eq!(
+        h.sql()
+            .query_row(
+                "SELECT count(*) FROM command_journal WHERE device_id='key1'",
+                [],
+                |r| r.get::<_, i64>(0)
+            )
+            .unwrap(),
+        1
+    );
+    assert_eq!(
+        h.sql()
+            .query_row(
+                "SELECT count(*) FROM command_journal WHERE device_id!='key1'",
+                [],
+                |r| r.get::<_, i64>(0)
+            )
+            .unwrap(),
+        0
+    );
+    drop(scenes);
     h.close().await;
 }

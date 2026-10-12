@@ -115,6 +115,12 @@ pub struct AcceptedDeferred {
     pub scenes: Vec<AcceptedScene>,
 }
 enum Submission {
+    Indicator {
+        batch: Batch,
+        variables: Vec<homesense_storage::variables::Update>,
+        feedback: Box<crate::feedback::RuleLease>,
+        reads: BTreeMap<String, homesense_storage::scene_observation::Snapshot>,
+    },
     Automation {
         software_sample: bool,
         batch: Batch,
@@ -182,6 +188,7 @@ enum Message {
     AutomationBundle(Uuid, TaskGeneration, oneshot::Sender<Result<homesense_storage::automation::Bundle, WriteStatus>>),
     FeedbackSettled(Uuid, TaskGeneration, crate::feedback::RuleLease, oneshot::Sender<Result<bool, WriteStatus>>),
     RecordedLevels(Uuid, TaskGeneration, oneshot::Sender<Result<RestoreLevels, WriteStatus>>),
+    RecentDimmerOff(Uuid,TaskGeneration,u64,oneshot::Sender<Result<std::collections::BTreeSet<homesense_core::DeviceId>,WriteStatus>>),
     ProjectionLevels(u64, u128, oneshot::Sender<Result<RestoreLevels, WriteStatus>>),
     WrittenFeedbackTarget(Uuid, TaskGeneration, u64, oneshot::Sender<Result<Option<homesense_storage::feedback_inference::WrittenTarget>, WriteStatus>>),
     FeedbackInference(Uuid, TaskGeneration, homesense_storage::feedback_inference::Inference, oneshot::Sender<Result<(), WriteStatus>>),
@@ -499,6 +506,17 @@ impl Admission {
                                 store.recorded_dimmer_levels(configuration.revision(),&ids).map_err(|_|WriteStatus::ServiceCommunicationFailure)
                             })();
                             let _=reply.send(result);
+                        }
+                        Message::RecentDimmerOff(controller,generation,after,reply) => {
+                            let result=(|| {
+                                if !authorize(controller) {return Err(WriteStatus::InsufficientPrivileges);}
+                                if failed || generation.boot!=worker_boot || generation.epochs!=arbiter.policy().epochs || !arbiter.policy().gateway_ready || arbiter.policy().publishing {return Err(WriteStatus::ServiceCommunicationFailure);}
+                                let mut recent=std::collections::BTreeSet::new();
+                                for id in configuration.devices().keys().filter(|id|configuration.binding(id).is_some_and(|(_,m)|m.kind()==homesense_core::ModuleKind::Dimmer)) {
+                                    if store.dimmer_setting_written_after(configuration.revision(),id,&worker_boot,after).map_err(|_|WriteStatus::ServiceCommunicationFailure)? {recent.insert(id.clone());}
+                                }
+                                Ok(recent)
+                            })();let _=reply.send(result);
                         }
                         Message::FeedbackSettled(controller,generation,lease,reply) => {
                             let result = (|| {
@@ -1117,6 +1135,7 @@ impl Admission {
                                 }) {
                                     return Err(WriteStatus::ServiceCommunicationFailure);
                                 }
+                                let mut selection_checks = vec![];
                                 let software_sample = matches!(&*submission, Submission::Automation { software_sample: true, .. });
                                 let (submission, study, automation, variables, feedback, audit, scene, starts) = match *submission {
                                     Submission::Automation { batch, variables, manual_fence, feedback, audit, scene, starts, .. } => {
@@ -1129,6 +1148,26 @@ impl Admission {
                                         }
                                         if !batch.subscriptions.is_empty() || (batch.intents.is_empty() && variables.is_empty() && audit.is_none()) || variables.len()>1024 || variables.iter().any(|v|v.revision!=configuration.revision()) { return Err(WriteStatus::InvalidValueInRequest); }
                                         (Submission::Lights(batch), None, true, variables, feedback, audit, scene, starts)
+                                    },
+                                    Submission::Indicator { batch, variables, feedback, reads } => {
+                                        if !authorize(batch.controller) { return Err(WriteStatus::InsufficientPrivileges); }
+                                        if !batch.subscriptions.is_empty() || batch.intents.is_empty() || feedback.observations.is_empty() || reads.len()>64 || variables.iter().any(|u| !reads.contains_key(&u.name) || u.value!=Some(homesense_core::rule::Value::Integer(0))) {return Err(WriteStatus::InvalidValueInRequest);}
+                                        let document=store.active_bundle(options.context).map_err(|_|WriteStatus::ServiceCommunicationFailure)?.and_then(|b|b.automation).ok_or(WriteStatus::InvalidValueInRequest)?;
+                                        if batch.intents.iter().any(|i| i.command!=homesense_core::Command::PanelLed(false) || !document.indicator_links.iter().any(|l|l.enabled && l.leds.contains(&i.device))) {return Err(WriteStatus::InvalidValueInRequest);}
+                                        if worker_observation_invalidation.load(Ordering::Acquire)!=observation_fence {scene_observer.invalidate();}
+                                        for (name, expected) in &reads {
+                                            if !document.scene_switch_groups.iter().any(|g|g.variable==*name && g.members.iter().any(|m|document.indicator_links.iter().any(|l|l.enabled && l.scene.as_ref()==Some(&m.scene)))) {return Err(WriteStatus::InvalidValueInRequest);}
+                                            let current=store.scene_selection(configuration.revision(),name,scene_observer.scope()).map_err(|_|WriteStatus::ServiceCommunicationFailure)?.ok_or(WriteStatus::InvalidValueInRequest)?;
+                                            if current.stored!=expected.stored || current.evidence!=expected.evidence || current.evidence_current!=expected.evidence_current {return Err(WriteStatus::InvalidValueInRequest);}
+                                            if expected.evidence_current && let Some(e)=&expected.evidence && feedback.indicator_after.is_none_or(|after|after<e.observed_ms) {return Err(WriteStatus::InvalidValueInRequest);}
+                                            if expected.evidence_current && let Some(e)=&expected.evidence {
+                                                for device in &feedback.recorded_off_reads {
+                                                    if !store.dimmer_setting_written_after(configuration.revision(),device,&worker_boot,e.observed_ms).map_err(|_|WriteStatus::ServiceCommunicationFailure)? {return Err(WriteStatus::InvalidValueInRequest);}
+                                                }
+                                            }
+                                            selection_checks.push(homesense_storage::variables::ReadCheck {revision:configuration.revision(),name:name.clone(),expected_version:expected.stored.version});
+                                        }
+                                        (Submission::Lights(batch),None,true,variables,Some(feedback),None,None,vec![])
                                     },
                                     Submission::Study { batch, expected_mode, next_mode } => {
                                         if batch.intents.iter().any(|i| !["control4:210","control4:278","control4:308","control4:336","control4:63:key:1","control4:63:key:3","control4:63:key:5"].contains(&i.device.as_str())) || batch.intents.is_empty() || batch.intents.len()>16 || !batch.subscriptions.is_empty() {return Err(WriteStatus::InvalidValueInRequest);}
@@ -1174,7 +1213,7 @@ impl Admission {
                                 }
                                 let mut restore_intents = Vec::new();
                                 let (batch, compiled) = match submission {
-                                    Submission::Study { .. } | Submission::Automation { .. } => unreachable!(),
+                                    Submission::Study { .. } | Submission::Automation { .. } | Submission::Indicator { .. } => unreachable!(),
                                     Submission::Lights(mut batch) => {
                                         if !authorize(batch.controller) { return Err(WriteStatus::InsufficientPrivileges); }
                                         restore_intents = batch.intents.iter().map(|i| (i.device.clone(), i.command)).collect();
@@ -1226,7 +1265,7 @@ impl Admission {
                                 // Subscription-only requests still require authorization.
                                 if batch.intents.is_empty() {
                                     if !variables.is_empty() || audit.is_some() {
-                                        match store.accept_queue_batch_with_scene_starts(&worker_boot,&[],&[],millis(clock),None,&variables,audit.as_ref(),None,&starts) {
+                                        match store.accept_queue_batch_with_read_checks(&worker_boot,&[],&[],millis(clock),None,&variables,audit.as_ref(),None,&starts,&selection_checks) {
                                             Ok(()) => {},
                                             Err(homesense_storage::Error::Conflict | homesense_storage::Error::InvalidAudit) => return Err(WriteStatus::InvalidValueInRequest),
                                             Err(_) => {
@@ -1285,7 +1324,7 @@ impl Admission {
                                     commands,
                                     now,
                                     |commands, cancelled| {
-                                        store.accept_queue_batch_with_scene_starts(
+                                        store.accept_queue_batch_with_read_checks(
                                             &worker_boot,
                                             commands,
                                             cancelled,
@@ -1295,6 +1334,7 @@ impl Admission {
                                             audit.as_ref(),
                                             scene.as_ref(),
                                             &starts,
+                                            &selection_checks,
                                         )
                                     },
                                 );
@@ -1488,6 +1528,10 @@ impl Admission {
     pub(crate) async fn feedback_settled(&self,controller:Uuid,generation:TaskGeneration,lease:crate::feedback::RuleLease)->Result<bool,WriteStatus>{
         let (reply,receive)=oneshot::channel();
         self.sender.try_send(Message::FeedbackSettled(controller,generation,lease,reply)).map_err(|_|WriteStatus::ResourceBusy)?;
+        receive.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?
+    }
+    pub(crate) async fn recent_dimmer_off(&self,controller:Uuid,generation:TaskGeneration,after:u64)->Result<std::collections::BTreeSet<homesense_core::DeviceId>,WriteStatus> {
+        let (reply,receive)=oneshot::channel();self.sender.try_send(Message::RecentDimmerOff(controller,generation,after,reply)).map_err(|_|WriteStatus::ResourceBusy)?;
         receive.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?
     }
     pub(crate) async fn recorded_dimmer_levels(&self,controller:Uuid,generation:TaskGeneration)->Result<RestoreLevels,WriteStatus>{
@@ -1789,6 +1833,13 @@ impl Admission {
             Some(SubmissionScope::Generation(generation)),
         )
         .await
+    }
+    pub(crate) async fn submit_indicator_rule(
+        &self, generation: TaskGeneration, batch: Batch,
+        variables: Vec<homesense_storage::variables::Update>, feedback: crate::feedback::RuleLease,
+        reads: BTreeMap<String, homesense_storage::scene_observation::Snapshot>,
+    ) -> Result<Vec<u64>,WriteStatus> {
+        self.submit_scoped(Submission::Indicator {batch,variables,feedback:Box::new(feedback),reads},Some(SubmissionScope::Generation(generation))).await
     }
     /// Accept named manual scenes together; reserve scheduler slots first.
     /// Dropping an in-flight request closes admission because acceptance may

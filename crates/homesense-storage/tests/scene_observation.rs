@@ -407,3 +407,132 @@ fn schema21_migration_and_online_backup_preserve_recorded_values_and_inferred_or
         22
     );
 }
+
+#[test]
+fn condition_read_guards_preserve_inference_and_roll_back_outputs_on_conflict() {
+    use homesense_core::{
+        Command,
+        queue::{Origin, QueuedCommand},
+    };
+    use homesense_storage::variables::ReadCheck;
+    let db = Database::new();
+    let mut store = db.store();
+    recorded(&mut store, 0, Some(0));
+    let evidence = inference(1, 1, Some(2), Basis::SelectMember);
+    store
+        .record_scene_inference(1, "selection", &evidence)
+        .unwrap();
+    let before = store
+        .scene_selection(1, "selection", Some(scope()))
+        .unwrap()
+        .unwrap();
+    let check = ReadCheck {
+        revision: 1,
+        name: "selection".into(),
+        expected_version: 2,
+    };
+    let command = |id| QueuedCommand {
+        id,
+        device_id: DeviceId::new("synthetic-led").unwrap(),
+        command: Command::PanelLed(false),
+        origin: Origin::Rule,
+        epochs: scope().epochs,
+        deadline_ms: 1000,
+        run_id: Some(id),
+    };
+    store
+        .accept_queue_batch_with_read_checks(
+            "led",
+            &[command(1)],
+            &[],
+            101,
+            None,
+            &[],
+            None,
+            None,
+            &[],
+            std::slice::from_ref(&check),
+        )
+        .unwrap();
+    let unchanged = store
+        .scene_selection(1, "selection", Some(scope()))
+        .unwrap()
+        .unwrap();
+    assert_eq!(unchanged.stored, before.stored);
+    assert_eq!(unchanged.evidence, before.evidence);
+    recorded(&mut store, 2, Some(1));
+    assert!(matches!(
+        store.accept_queue_batch_with_read_checks(
+            "led",
+            &[command(2)],
+            &[],
+            102,
+            None,
+            &[Update {
+                revision: 1,
+                name: "selection".into(),
+                expected_version: 3,
+                value: Some(Value::Integer(0))
+            }],
+            None,
+            None,
+            &[],
+            std::slice::from_ref(&check)
+        ),
+        Err(Error::Conflict)
+    ));
+    assert_eq!(
+        store
+            .scene_selection(1, "selection", Some(scope()))
+            .unwrap()
+            .unwrap()
+            .stored
+            .value,
+        Some(Value::Integer(1))
+    );
+    let sql = rusqlite::Connection::open(db.path()).unwrap();
+    assert_eq!(
+        sql.query_row("SELECT count(*) FROM command_journal", [], |r| r
+            .get::<_, i64>(0))
+            .unwrap(),
+        1
+    );
+    assert_eq!(
+        sql.query_row("SELECT count(*) FROM scene_observation", [], |r| r
+            .get::<_, i64>(0))
+            .unwrap(),
+        1
+    );
+    drop(sql);
+    let current = ReadCheck {
+        revision: 1,
+        name: "selection".into(),
+        expected_version: 3,
+    };
+    store
+        .accept_queue_batch_with_read_checks(
+            "led",
+            &[command(2)],
+            &[],
+            103,
+            None,
+            &[Update {
+                revision: 1,
+                name: "selection".into(),
+                expected_version: 3,
+                value: Some(Value::Integer(0)),
+            }],
+            None,
+            None,
+            &[],
+            &[current],
+        )
+        .unwrap();
+    let cleared = store
+        .scene_selection(1, "selection", Some(scope()))
+        .unwrap()
+        .unwrap();
+    assert_eq!(cleared.stored.value, Some(Value::Integer(0)));
+    assert_eq!(cleared.stored.version, 4);
+    assert!(cleared.evidence.is_none());
+}
