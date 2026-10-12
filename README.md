@@ -672,3 +672,6 @@ Web 服务持久权限启动：模拟和统一管理入口改用 `web-credential
 
 
 场景字节级写失败回归：注入 0／1／2／3／4 字节后 BrokenPipe，经过真实 TransportOwner 与 SceneRuntime，验证精确写出字节数、持久 Uncertain、场景 Partial、通信故障门禁拒绝后续调度、故障 owner 拒绝再次写出；重开运行时不派发旧命令且保留不确定收据。新增测试与既有软件渐变短写测试均通过（2 项）。这是受控流故障注入，现场线路和 TCP 内核缓冲时序仍未验收；EA-5 不变。
+
+
+停止原因存储基础：schema 19 扩展场景取消原因为 service_stopped、configuration_published、transport_failure、preparation_failed，保留已有三类原因和历史记录；读取路径支持新类型，备份检查兼容 schema 18／19。存储完整回归及 homesensed 编译检查通过，覆盖从 schema 18 迁移后保留旧记录并写入四类新原因。运行时来源接线尚待完成；未升级现场数据库。旧版本程序不能直接打开 schema 19 数据库，回滚需使用升级前备份。EA-5 未改变。
