@@ -438,13 +438,16 @@ document.getElementById('save-metadata').onclick=async()=>{
   finally{button.disabled=false;}
 };
 
-document.getElementById('save-room').onclick=async()=>{
-  const epoch=invalidatePreview(),button=document.getElementById('save-room');button.disabled=true;
+async function saveRoom(remove) {
+  const epoch=invalidatePreview(),button=document.getElementById(remove?'remove-room':'save-room');button.disabled=true;
   try {
     if(!metadataSource || metadataSource!==document.getElementById('draft-id').value)throw new Error('请先读取此草稿，再编辑房间。');
-    const body={id:crypto.randomUUID(),expected_revision:document.getElementById('base-revision').value,revision:document.getElementById('draft-revision').value,room:{id:document.getElementById('edit-room-id').value,name:document.getElementById('edit-room-name').value,floor:document.getElementById('edit-room-floor').value||null}};
+    const body={id:crypto.randomUUID(),expected_revision:document.getElementById('base-revision').value,revision:document.getElementById('draft-revision').value,remove,room:{id:document.getElementById('edit-room-id').value,name:document.getElementById('edit-room-name').value,floor:document.getElementById('edit-room-floor').value||null}};
     const result=await request('/api/v1/config/drafts/'+encodeURIComponent(metadataSource)+'/room',{method:'POST',body:JSON.stringify(body)});
     if(epoch!==previewEpoch)return;await loadDraft(result.draft);
   } catch(e){if(epoch===previewEpoch)status.textContent=e.message;}
   finally {button.disabled=false;}
 };
+
+document.getElementById('save-room').onclick=()=>saveRoom(false);
+document.getElementById('remove-room').onclick=()=>saveRoom(true);
