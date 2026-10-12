@@ -60,19 +60,27 @@ impl Settings {
         Ok(())
     }
     pub(crate) async fn identity(&self, directory: &Path) -> Result<IdentityStore, String> {
+        self.identity_with_name(directory,"HomeSense",false).await
+    }
+    pub(crate) async fn identity_named(&self,directory:&Path,name:&str)->Result<IdentityStore,String> {
+        self.identity_with_name(directory,name,true).await
+    }
+    async fn identity_with_name(&self,directory:&Path,name:&str,rename:bool)->Result<IdentityStore,String> {
+        if name.trim().is_empty() || name.len()>64 || name.chars().any(char::is_control) {return Err("invalid HAP bridge name".into());}
         let mut store = IdentityStore::open(directory.join("identity"))
             .await
             .map_err(|e| e.to_string())?;
         if store.has_config().await.map_err(|e| e.to_string())? {
-            let saved = store.load_config().await.map_err(|e| e.to_string())?;
+            let mut saved = store.load_config().await.map_err(|e| e.to_string())?;
             if saved.host != self.address.ip() || saved.port != self.address.port() {
                 return Err("stored HAP endpoint differs".into());
             }
+            if rename && saved.name!=name {saved.name=name.to_owned();store.save_config(&saved).await.map_err(|e|e.to_string())?;}
         } else {
             let config = hap::Config {
                 host: self.address.ip(),
                 port: self.address.port(),
-                name: "HomeSense".into(),
+                name: name.into(),
                 category: hap::accessory::AccessoryCategory::Bridge,
                 pin: crate::service::random_pin(),
                 ..Default::default()
