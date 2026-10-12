@@ -164,3 +164,10 @@ E12 保留原组合灯映射及三条 LED links，实际 Linux 二进制通过13
 E13 固定同一 `c184e65` 产品二进制，独立控制器通过网络完成一次 SRP Pair Setup、三次 Pair Verify 和三次显式订阅，未向身份库注入配对。根核对控制器使用的两份协议 helper 与已提交源码指纹一致，产品及控制器指纹、全部私有清单一致。13个检查点包含8次未知／歧义／失效：HAP读取返回207、三个场景均为-70402且无value；5次已知选择／关闭读取返回正确布尔值，并有11条加密EVENT。EOF及保留身份重启后重新认证、订阅和收敛通知均通过，Web选择／来源失效逐项一致。
 
 全程保留三条 LED links，零控制命令和场景；根另外分类全部40条发送报文，均为读取查询。实际运行库／配对库未变，服务和测试控制器已退出，现场仍关闭。首次测试工具因SQLite u64不支持而编译失败，修正为i64后通过；产品二进制未变。这是加密模拟控制器的端到端证据，HAP布尔值不携带来源标签，不能替代iPhone／HomePod现场或证明实时writer完整。见 [加密 HAP 证据](evidence/stage-e-browser/scene-observation-encrypted-hap-check.json)。
+
+
+### 2026-10-13 场景 deactivation 源契约补证
+
+[官方 ALS 异步命令说明](https://snap-one.github.io/docs-driverworks-proxyprotocol-lightv2/#asynchronous-commands)定义 DEACTIVATE_SCENE 为执行原场景 Toggle ID 所指目标；不能通用解释为取消或将原成员全部设0。根完整源扫描发现48个启用调用、来自48程序，引用28条有效一跳边；所有目标均全关，成员集合及顺序与原场景相同，但9次调用的目标rate序列不同。后续源转换必须使用目标场景完整记录，不继承原rate。未解析的17个65535元数据不猜测默认行为。
+
+68场景的629成员均单元素，delay均0；rate有0／1／750／1000，每个场景至少一项非零，因此不能用“纯零rate子集”关闭其余场景语义门槛。此盘点不确定存档rate单位，也不证明驱动执行。当前core显式deactivation策略和未知拒绝仍保留，未生成／启用运行定义；手动书房all_members_off策略不被提升为全项目源ALS等价。见 [源契约与结构盘点](evidence/stage-d-study/scene-deactivation-source-contract.json)。

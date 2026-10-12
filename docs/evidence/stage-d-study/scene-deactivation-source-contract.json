@@ -1,0 +1,49 @@
+{
+  "source_xml_sha256": "cac7dcdc9db08599e55a22bacb72858035c64e1ac846e2139ead5fc634513748",
+  "reviewed_on": "2026-10-13",
+  "primary_reference": "https://snap-one.github.io/docs-driverworks-proxyprotocol-lightv2/#asynchronous-commands",
+  "documented_deactivation_contract": "DEACTIVATE_SCENE activates the referenced Toggle ID target scene, including when that target is already active",
+  "source_scene_inventory": {
+    "scenes": 68,
+    "members": 629,
+    "elements": 629,
+    "multi_element_members": 0,
+    "all_delays_zero": true,
+    "rate_literals": {
+      "0": 318,
+      "1": 20,
+      "750": 3,
+      "1000": 288
+    },
+    "scenes_with_any_nonzero_rate": 68
+  },
+  "toggle_inventory": {
+    "resolved_targets": 51,
+    "unresolved_sentinel_65535": 17,
+    "self_links": 0,
+    "paired_toggle_metadata_not_in_itself_recursive_execution": true
+  },
+  "actual_deactivation_requests": {
+    "total": 48,
+    "enabled": 48,
+    "source_programs": 48,
+    "unique_referenced_edges": 28,
+    "target_resolved": 48,
+    "target_all_zero_levels": 48,
+    "same_member_set_and_order_as_source": 48,
+    "same_rate_sequence_as_source": 39,
+    "different_rate_sequence_than_source": 9
+  },
+  "conversion_requirement": "Resolve one explicit toggle target and preserve that target full member/delay/rate sequence; do not flatten source members to zero with the source rate or replace with cancel",
+  "unit_limits": [
+    "RAMP_TO_LEVEL TIME API units already evidenced separately",
+    "this inventory alone does not establish serialized AdvScene rate units",
+    "no inferred behavior for unresolved 65535 metadata"
+  ],
+  "existing_core_guard": "scene_expand requires explicit reviewed deactivation definition; deferred unknown deactivation rejected",
+  "no_runtime_definition_generated": true,
+  "program_full_semantic_approval": false,
+  "original_project_changed": false,
+  "field_enablement": false,
+  "actual_driver_or_load_behavior_verified": false
+}
