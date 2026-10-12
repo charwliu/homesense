@@ -1,0 +1,84 @@
+{
+  "base_commit": "ef1290cc00e40d92aba0f1abec25d958b1e9a26f",
+  "scope": "Independent committed-source snapshot plus three AEAD API updates; unrelated dirty edits and private Control4 fixtures excluded",
+  "overlay_paths": [
+    "vendor/hap/src/transport/http/handler/pair_setup.rs",
+    "vendor/hap/src/transport/http/handler/pair_verify.rs",
+    "vendor/hap/src/transport/tcp.rs"
+  ],
+  "api_versions": {
+    "aead": "0.6.1",
+    "chacha20poly1305": "0.11.0"
+  },
+  "invariants": [
+    "HKDF salts/info, signing and pairing permissions unchanged",
+    "Nonce construction, little-endian counter and increment placement unchanged",
+    "AAD, tag lengths, record limits and protocol rejection paths unchanged",
+    "New inout buffers alias the same mutable slice; no algorithm rewrite",
+    "Checked fixed-size conversion preserves existing guaranteed-length preconditions"
+  ],
+  "compatibility": {
+    "source": "tools/verify_aead_api.rs",
+    "executed_cases": 64,
+    "payload_lengths": [
+      0,
+      1,
+      15,
+      16,
+      17,
+      1023,
+      1024,
+      1025
+    ],
+    "counters": [
+      0,
+      1,
+      255,
+      "u64::MAX-1"
+    ],
+    "aad_forms": [
+      "empty",
+      "two-byte little-endian length"
+    ],
+    "ciphertext_and_tag_equality": true,
+    "cross_decrypt": true,
+    "wrong_tag_and_wrong_aad": "both interfaces reject",
+    "scope": "Primitive API compatibility; does not widen HAP record limits",
+    "build": "rustc --edition=2024 tools/verify_aead_api.rs -L dependency=TARGET/debug/deps --extern chacha20poly1305=RLIB -o OUT",
+    "run": "OUT",
+    "note": "Old comparison side intentionally calls deprecated wrappers; witness is outside product/workspace targets and has no lint allowance"
+  },
+  "vendor_unit_tests": {
+    "command": "cargo test -p hap --lib --locked --offline",
+    "exit_code": 0,
+    "passed": 53,
+    "failed": 0,
+    "ignored": 0,
+    "result_blocks": 1
+  },
+  "workspace_tests": {
+    "command": "cargo test --workspace --locked --offline",
+    "exit_code": 0,
+    "passed": 579,
+    "failed": 0,
+    "ignored": 0,
+    "result_blocks": 115
+  },
+  "clippy": {
+    "command": "cargo clippy --workspace --all-targets --locked --offline -- -D warnings",
+    "exit_code": 0,
+    "warnings": 0,
+    "vendor_strict_clippy_claimed": false
+  },
+  "compiler_warnings": {
+    "production_dependency_before": 23,
+    "production_dependency_after": 0,
+    "vendor_unit_build_after": 0,
+    "workspace_build_after": 0
+  },
+  "limitations": [
+    "Full vendor standalone strict Clippy has generated-style lint issues; not claimed passed",
+    "No iPhone, HomePod, Siri, physical bus, LAN trust or nanopc deployment verification",
+    "D/E semantic and field gates remain open; EA-5 control scope unchanged"
+  ]
+}
