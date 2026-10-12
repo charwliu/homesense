@@ -6,6 +6,8 @@ HomeSense（中文名：知居）是原生 Rust 家庭中控，通过 TCP485 网
 
 ## 当前实现
 
+新增[Control4 场景／LED 核查](docs/control4-indicator-audit.md)：导入报告保留词法分支和条件证据，比较不同面板入口的指示灯集合；禁用分支、动态参数和歧义不会成为可执行绑定。具体家庭报告仅保留本地，候选不自动启用。
+
 新增[灯光状态与 LED 联动](docs/state-and-indicator-policy.md)：开关以新鲜读回状态为准，Dimmer 以 HomeSense 完整写出的持久设定为准；组合灯的供电继电器读回关闭时仍视为熄灯。场景原本应亮的任意一路关闭，就取消对应选择并关闭显式关联的多个面板 LED，原本要求关闭的负载不参与取消判断。Web 保留实际反馈与控制状态两个字段；联动只改变选择和指示灯。候选家庭配置和 Control4 核查资料保留本地；本轮未部署，EA-5 不变。
 
 本地数据库格式为 **schema 21**。阶段 A–C 的限定验收已完成；D/E 仍在推进，尚未通过全部原项目语义审核和当前集成版现场验收。当前结论见 [D/E 完成审计](docs/de-completion-audit.md)、[阶段 D](docs/stage-d-progress.md) 和 [阶段 E](docs/stage-e-progress.md)。下方早期记录中的版本、测试数量和待办仅对应当时检查点。
