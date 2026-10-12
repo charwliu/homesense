@@ -56,7 +56,7 @@ document.getElementById('connect').onclick = async () => {
   } catch (error) { csrf = ''; list.replaceChildren(); status.textContent = error.message; }
 };
 document.getElementById('logout').onclick = async () => {
-  try { await request('/api/v1/session', {method: 'DELETE'}); csrf = ''; clearTimeout(eventRetry); if(eventSocket)eventSocket.close();eventDevices.clear(); document.getElementById('draft-impact').textContent=''; document.getElementById('configuration').hidden=true; document.getElementById('versions').replaceChildren(); versionsBefore=null;document.getElementById('more-versions').disabled=true; for(const id of ['device-document','automation-document','draft-id','base-revision','draft-revision']) document.getElementById(id).value=''; started.clear(); list.replaceChildren(); document.getElementById('devices').replaceChildren(); status.textContent = '已退出'; }
+  try { await request('/api/v1/session', {method: 'DELETE'}); csrf = ''; clearTimeout(eventRetry); if(eventSocket)eventSocket.close();eventDevices.clear(); document.getElementById('draft-impact').textContent=''; document.getElementById('configuration').hidden=true; document.getElementById('versions').replaceChildren();document.getElementById('draft-list').replaceChildren(); versionsBefore=null;document.getElementById('more-versions').disabled=true; for(const id of ['device-document','automation-document','draft-id','base-revision','draft-revision']) document.getElementById(id).value=''; started.clear(); list.replaceChildren(); document.getElementById('devices').replaceChildren(); status.textContent = '已退出'; }
   catch (error) { status.textContent = '注销未确认：' + error.message; }
 };
 
@@ -114,9 +114,11 @@ document.getElementById('save-draft').onclick = async () => {
   } catch(error) {status.textContent=error.message+'；未自动重试，可按草稿 ID 核对。';}
   finally {button.disabled=false;}
 };
-document.getElementById('load-draft').onclick = async () => {
+async function loadDraft(id) {
+  publicationPreview=null;document.getElementById('activate-draft').disabled=true;
   try {
-    const draft=await request('/api/v1/config/drafts/'+encodeURIComponent(document.getElementById('draft-id').value.trim()));
+    const draft=await request('/api/v1/config/drafts/'+encodeURIComponent(id));
+    document.getElementById('draft-id').value=draft.id;
     document.getElementById('base-revision').value=draft.expected_revision;
     document.getElementById('draft-revision').value=draft.revision;
     document.getElementById('device-document').value=JSON.stringify(draft.devices,null,2);
@@ -124,6 +126,8 @@ document.getElementById('load-draft').onclick = async () => {
     status.textContent='已读取草稿；当前运行配置未改变。';
   } catch(error) {status.textContent=error.message;}
 };
+
+document.getElementById('load-draft').onclick=()=>loadDraft(document.getElementById('draft-id').value.trim());
 
 document.getElementById('preview-draft').onclick = async () => {
   try {
@@ -202,3 +206,16 @@ async function loadVersions(before=null) {
 }
 document.getElementById('load-versions').onclick=()=>loadVersions();
 document.getElementById('more-versions').onclick=()=>{if(versionsBefore!==null)loadVersions(versionsBefore);};
+
+document.getElementById('list-drafts').onclick=async()=>{
+  const button=document.getElementById('list-drafts');button.disabled=true;
+  try {
+    const result=await request('/api/v1/config/drafts');const list=document.getElementById('draft-list');list.replaceChildren();
+    if(!result.drafts.length)list.textContent='暂无已保存草稿。';
+    for(const draft of result.drafts) {
+      const row=document.createElement('p');const label=document.createElement('span');label.textContent=`草稿 ${draft.id} · ${draft.expected_revision} → ${draft.revision} `;
+      const load=document.createElement('button');load.textContent='载入此草稿';load.onclick=()=>loadDraft(draft.id);row.append(label,load);list.append(row);
+    }
+  } catch(error) {status.textContent=error.message;}
+  finally {button.disabled=false;}
+};
