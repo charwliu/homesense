@@ -110,3 +110,30 @@ pub fn inspect(path:&Path,context:homesense_core::ExecutionContext)->Result<Insp
     let active=store.active_bundle(context).map_err(|e|e.to_string())?;
     Ok(Inspection{bytes:metadata.len(),schema,active_revision:active.map(|b|b.configuration.revision()),configuration_versions:versions as u64,automation_versions:automations as u64})
 }
+
+/// Metadata only. A catalog entry is not evidence of a valid/restorable backup.
+#[derive(Debug,PartialEq,Eq)]
+pub struct CatalogEntry {
+    pub name:String,
+    pub regular_file:bool,
+    pub bytes:u64,
+    pub modified_unix_ms:Option<u64>,
+}
+/// Nonrecursive and bounded; neither directory nor file symlinks are followed.
+/// All directory entries count toward the 1024-entry scan limit.
+pub fn catalog(directory:&Path)->Result<Vec<CatalogEntry>,String> {
+    let metadata=std::fs::symlink_metadata(directory).map_err(|e|e.to_string())?;
+    if !metadata.is_dir(){return Err("backup catalog requires a real directory".into());}
+    let mut result=Vec::new();
+    for (index,entry) in std::fs::read_dir(directory).map_err(|e|e.to_string())?.enumerate() {
+        if index>=1024{return Err("backup catalog scan exceeds 1024 entries".into());}
+        let entry=entry.map_err(|e|e.to_string())?;
+        if entry.path().extension().is_none_or(|v|v!="sqlite"){continue;}
+        let name=entry.file_name().into_string().map_err(|_|"backup filename is not UTF-8")?;
+        if name.chars().any(char::is_control){return Err("backup filename contains control characters".into());}
+        let metadata=std::fs::symlink_metadata(entry.path()).map_err(|e|e.to_string())?;
+        let modified_unix_ms=metadata.modified().ok().and_then(|v|v.duration_since(std::time::UNIX_EPOCH).ok()).and_then(|v|u64::try_from(v.as_millis()).ok());
+        result.push(CatalogEntry{name,regular_file:metadata.is_file(),bytes:metadata.len(),modified_unix_ms});
+    }
+    result.sort_by(|a,b|a.name.cmp(&b.name));Ok(result)
+}
