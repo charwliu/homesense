@@ -15,6 +15,7 @@ pub enum Status {
 pub struct Group {
     pub projection: watch::Sender<Snapshot>,
     pub statuses: watch::Receiver<BTreeMap<String, Status>>,
+    pub panel_feeds: Vec<crate::runtime_panel_hap::Feed>,
     stop: watch::Sender<bool>,
     task: Option<JoinHandle<()>>,
 }
@@ -48,7 +49,7 @@ impl Group {
         let mut endpoints = BTreeMap::new();
         let mut statuses = BTreeMap::new();
         for bridge in prepared {
-            match Endpoint::start_selected(
+            match Endpoint::start_selected_panels(
                 &bridge.settings,
                 &bridge.identity,
                 admission,
@@ -57,6 +58,7 @@ impl Group {
                 initial.clone(),
                 true,
                 Some(bridge.lights),
+                &bridge.panels,
             )
             .await
             {
@@ -82,6 +84,7 @@ impl Group {
         statuses: BTreeMap<String, Status>,
         initial: Snapshot,
     ) -> Self {
+        let panel_feeds=endpoints.values().filter_map(|endpoint|endpoint.panel_feed.clone()).collect();
         let (projection, mut snapshots) = watch::channel(initial);
         let (status_tx, statuses) = watch::channel(statuses);
         let (stop, mut stopped) = watch::channel(false);
@@ -114,6 +117,7 @@ impl Group {
         Self {
             projection,
             statuses,
+            panel_feeds,
             stop,
             task: Some(task),
         }

@@ -120,3 +120,5 @@ mod web_run_details;
 pub mod daily_backup;
 
 pub mod web_backups;
+
+pub mod runtime_panel_hap;
