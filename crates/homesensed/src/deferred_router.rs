@@ -273,6 +273,9 @@ impl Router {
     /// Close root admission and attempt every active cancellation. Does not tick
     /// scenes or execute result rules; caller still owns transport shutdown.
     pub async fn close(&mut self, scheduler: &mut SceneScheduler) -> Result<(), String> {
+        self.close_with_reason(scheduler,homesense_storage::scene_run::CancellationReason::ServiceStopped).await
+    }
+    pub(crate) async fn close_with_reason(&mut self,scheduler:&mut SceneScheduler,reason:homesense_storage::scene_run::CancellationReason)->Result<(),String> {
         self.validate(scheduler)?;
         self.closed = true;
         struct Guard(Admission, bool);
@@ -298,7 +301,7 @@ impl Router {
                     Ok(false)=>{},
                 }
             }
-            if let Err(error) = self.cancel_with_reason(id, scheduler,homesense_storage::scene_run::CancellationReason::ServiceStopped).await {
+            if let Err(error) = self.cancel_with_reason(id, scheduler,reason).await {
                 failures.push(format!("session {id}: {error}"));
             }
         }
