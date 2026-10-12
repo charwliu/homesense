@@ -1,0 +1,74 @@
+{
+  "binary_sha256": "10fbdbd51ff0dbef2ebb5cc9840fc4a7be6a5abd0883814f0e0ec5345312c00c",
+  "source_base_commit": "a8f5371",
+  "product_overlays": "E07 Web JS/CSS only, not a clean commit build",
+  "configuration_scope": "three reviewed scene members and all three independent indicator links, observation disabled",
+  "private_results_sha256": "ccb57720eead5aaa5de28e691ca31ac12e152a4cdc1c02efead487a6516cddff",
+  "private_probe_sha256": "32754333ebd3d045d7d1b9d310261657095bbbbf04573eefd855aa8d6fdd551d",
+  "cases": [
+    {
+      "case": "main_off_down18",
+      "led_off_keys": [
+        1,
+        3
+      ],
+      "command_count": 2,
+      "selection": null,
+      "variable_version": 0,
+      "scene_runs": 0,
+      "light_relay_motor_commands": 0,
+      "service_exit": 0
+    },
+    {
+      "case": "all_off",
+      "led_off_keys": [
+        1,
+        3,
+        5
+      ],
+      "command_count": 3,
+      "selection": 0,
+      "variable_version": 1,
+      "scene_runs": 0,
+      "light_relay_motor_commands": 0,
+      "service_exit": 0
+    },
+    {
+      "case": "all_on",
+      "led_off_keys": [],
+      "command_count": 0,
+      "selection": null,
+      "variable_version": 0,
+      "scene_runs": 0,
+      "light_relay_motor_commands": 0,
+      "service_exit": 0
+    }
+  ],
+  "diagnosis": {
+    "absolute_zero_command_startup_assertion_incorrect": true,
+    "unknown_to_zero_on_all_off_reproduced": true,
+    "initial_null_publication_does_not_prove_runtime_null": true,
+    "source_audit_limit": "journal origin=rule with exact LED intents; per-link cause not persisted, not claimed verified",
+    "hap_only_candidate_template": "rejected before gateway connection; existing CLI requires Web TLS options",
+    "hap_only_product_support_not_required_for_this_acceptance": true
+  },
+  "accepted_policy": "Allow only existing explicitly linked PanelLed(false) corrections under fresh feedback and admission guards; reject light/relay/motor/scene automatic outputs. Preserve unknown selection.",
+  "field_status": "manual confirmation and physical operations suspended by user; execute entry blocked before publication",
+  "new_binary_reverification_required": true,
+  "field_deployed": false,
+  "global_trust_changed": false,
+  "temporary_credential_issued": false,
+  "original_identity_used": false,
+  "candidate_script_revision_review": {
+    "supported_combined_hap_web_command_present": true,
+    "field_enablement_gate": true,
+    "startup_contract_gate": true,
+    "script_sha256": "f8a30a35d507413610769190079f10d554077c436537ca941a036ee3498eddc8",
+    "audit_module_sha256": "b339a11ae159daeba64e58b97cdd9b5f360ce7ff04ebf9f96b4b375297272037",
+    "tests_sha256": "a1f67b709bd5c385eedb47a504f0b7b2a9d24cc838f6d1a90d0880a242616f69",
+    "independent_local_four_test_methods_passed": true,
+    "captured_old_all_off_still_rejected": true,
+    "remaining_health_guard": "new LED status and actual ready/queue/health diagnostic required; preparation in progress",
+    "field_executed": false
+  }
+}

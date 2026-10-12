@@ -1,0 +1,106 @@
+{
+  "recorded_utc": "2026-10-12T15:30:35.314133+00:00",
+  "scope": "Limited existing study bridge and original field configuration; does not prove full D/E acceptance",
+  "legacy_field": {
+    "source_commit": "062cf9d",
+    "runtime_schema": 20,
+    "configuration_revision": 2,
+    "physical_confirmations": [
+      "main light 50% -> 30% -> Off -> On restores 30%",
+      "reading/daily/eco/all-off light targets and panel LED colors",
+      "EA-5 wall key operation with matching light status and continued response",
+      "curtain opens and stops midway",
+      "Home recovers after retained-pairing process restart"
+    ],
+    "restart_no_replay": "No commands or scene runs immediately after restart; later brightness write explicitly confirmed as a fresh human operation",
+    "stop_latency_not_established": true,
+    "source": "human responses and private same-boot command/scene/identity evidence"
+  },
+  "clean_integrated_field": {
+    "source_commit": "a8f53717cc336e8b43b9b595931ab6ff61f4bb08",
+    "binary_sha256": "cb535e4bb5e0bc3d9817e1eea1daa1e1da17458922318d1159c088c9c105e3ee",
+    "numeric_input_result": "failed: human retracted initial positive report; both 30->17->30 and 17->30->17 observed"
+  },
+  "slider_field": {
+    "source_base_commit": "a8f53717cc336e8b43b9b595931ab6ff61f4bb08",
+    "product_overlays": {
+      "crates/homesensed/src/web/app.js": "f96935a48d2a6e33a3d47bf01c130f0ade6b254b82dd61bc57e05f83ca8eaf86",
+      "crates/homesensed/src/web/style.css": "13a1796fb1d8684a8d25ba588e4af7d594d55891ea1a365800e943bba7aeca0e"
+    },
+    "binary_sha256": "10fbdbd51ff0dbef2ebb5cc9840fc4a7be6a5abd0883814f0e0ec5345312c00c",
+    "configuration_revision": 2,
+    "runtime_schema": 22,
+    "source_is_clean_commit": false,
+    "served_assets_match_source": true,
+    "frontend_verifiers_passed": 15,
+    "human_confirmations": [
+      "smooth drag and correct physical light response",
+      "no slider or target percentage bounce",
+      "no layout obstruction or horizontal overflow",
+      "0% turns light off; power on restores prior brightness; Web and Home state correct"
+    ],
+    "final_server_evidence": {
+      "ready": true,
+      "gateway_ready": true,
+      "queued": 0,
+      "in_flight": false,
+      "commands_this_boot": 18,
+      "all_commands_written": true,
+      "scene_runs_this_boot": 0
+    },
+    "window_result": {
+      "ended_normally": true,
+      "end_utc": "2026-10-12T15:38:13Z",
+      "all_commands_written": true,
+      "commands_this_boot": 18,
+      "automatic_restart": false
+    },
+    "matching_later_commit": "cb02966",
+    "field_build_was_overlay": true
+  },
+  "phone_web": {
+    "limited_role_login": true,
+    "soft_keyboard_and_layout": true,
+    "foreground_home_notifications": "human confirmed automatic 30% then 17% updates without refresh",
+    "logout_clears_and_refresh_stays_logged_out": true,
+    "temporary_member_credentials_revoked": true,
+    "revoked_new_session_http_status": 401,
+    "temporary_root_installation_and_ssl_trust_explicitly_authorized": true,
+    "safari_without_privacy_warning_after_trust": true,
+    "temporary_certificate_profile_removed": "human confirmed",
+    "home_background_return_anomaly": "Old state corrected after Home reopen; root cause unproven, not counted as recovery acceptance"
+  },
+  "configuration_boundaries": {
+    "automatic_rules": 0,
+    "scene_switch_groups": 0,
+    "indicator_links": 0,
+    "scene_observation_enabled": false,
+    "ea5_configuration_and_control_scope_unchanged": true,
+    "service_has_autostart": false,
+    "field_window_seconds": 1200,
+    "field_window_result": {
+      "ended_normally": true,
+      "end_utc": "2026-10-12T15:38:13Z",
+      "all_commands_written": true,
+      "commands_this_boot": 18,
+      "automatic_restart": false
+    }
+  },
+  "remaining": [
+    "current configured scene switch groups, observation and independent LED links field acceptance",
+    "current configuration publication and recovery with identity retained",
+    "actual transport disconnect and recovery, beyond process restart",
+    "additional explicitly scoped panel/multibridge client acceptance",
+    "complete original project D semantic review"
+  ],
+  "operations_note": {
+    "daily_backup_phase": "failed",
+    "daily_backup_failure": "snapshot_verification",
+    "old_snapshot_preserved": true,
+    "not_replaced_by_before_start_checkpoints": true,
+    "formal_backup_restore_and_72h_operation_belong_to_stage_F": true
+  },
+  "evidence_privacy": "Detailed identifiers, source project, configuration, server logs and device command records remain in ignored private directories; no secrets included here",
+  "stage_d_complete": false,
+  "stage_e_complete": false
+}

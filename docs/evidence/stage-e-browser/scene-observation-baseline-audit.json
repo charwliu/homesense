@@ -1,0 +1,48 @@
+{
+  "base_commit": "cb0296691d64763b27d96f8f8bb64a962bd8b312",
+  "scope": "Isolated clean committed production core and actual source-derived study AST evaluator; no runtime or gateway connection",
+  "source_sha256": {
+    "crates/homesense-core/src/scene_observer.rs": "7f0e0cfe7631384df324d3fd3884b1177df723b2114e5798f0a9228d09d454e8",
+    "crates/homesense-import/src/study.rs": "0969c0ff67b5da926752c2346629c1bbe61b5205e8c90eb1872a87d7a26540e5",
+    "config/scenes/study.json": "6d6a649d917a16929fc12ff6b062f3f09fddf09360596f99481a27b7222db14e"
+  },
+  "command": "cargo run --locked --offline -p homesense-import --example audit_local_vs_external",
+  "probe_sha256": "39ebe682d6490931e4855a26e204683819ebc87adea7276cf67cc4923fe1ffbd",
+  "log_sha256": "9312f40423781457f6b6ece01ba03e824502ee165a1a31362ac825a7c3648d22",
+  "cases": [
+    {
+      "local_selection": 2,
+      "external_prior": 0,
+      "external_source_release_next": 2,
+      "observer_next": 0
+    },
+    {
+      "local_selection": 2,
+      "external_prior": 3,
+      "external_source_release_next": 2,
+      "observer_next": 0
+    }
+  ],
+  "conclusion": "Local recorded selection is not a sufficient external toggle baseline when the two control owners differ",
+  "relationship_to_edge_fix": "The counterexample concerns the selection baseline, independently of press/release timing; current probe uses the committed press-only observer",
+  "source_semantics_reviewed": true,
+  "scenario_is_possible_not_field_reproduced": true,
+  "no_proof_local_intent_updates_external_variable": true,
+  "default_unknown_cannot_be_seeded_from_lamp_levels": true,
+  "field_observation_enablement_pending": true,
+  "resolved": true,
+  "fix_commit": "c184e65eb7adfa284bf26b1978dcb392ab762351",
+  "code_verification": {
+    "exact_ten_file_committed_manifest_match": true,
+    "full_workspace_log_fingerprint_verified": true,
+    "workspace_passed": 663,
+    "workspace_failed": 0,
+    "workspace_ignored": 0,
+    "strict_clippy_log_fingerprint_verified": true,
+    "independent_clean_commit_core_tests_passed": 13,
+    "independent_core_log_sha256": "f46585f9d4d8340997ef947b6e894c201b06b0ad97801190de40bde9ad614e12"
+  },
+  "resolution": "independent external candidates never seeded from local intents, local LED clearing or persistent values; reviewed distinct keys can converge",
+  "field_accepted": false,
+  "linux_candidate_reverification_pending": true
+}

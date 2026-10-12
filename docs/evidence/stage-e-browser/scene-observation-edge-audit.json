@@ -1,0 +1,39 @@
+{
+  "base_commit": "cb0296691d64763b27d96f8f8bb64a962bd8b312",
+  "production_core_sha256": "7f0e0cfe7631384df324d3fd3884b1177df723b2114e5798f0a9228d09d454e8",
+  "source_event_review": {
+    "count": 3,
+    "all_selected_original_events_are_release": true,
+    "private_details_omitted": true
+  },
+  "isolated_probe": {
+    "command": "cargo run --locked --offline -p homesense-core --example audit_scene_observer_edge",
+    "actual": [
+      "press at100ms: Some(Some(1))",
+      "held at1100ms: None",
+      "release at2100ms: None"
+    ],
+    "source_scope": "clean cb02966 archive plus one audit-only example, excluded from product source",
+    "log_sha256": "ba54e36fd53cd27aaeae4b99f70e85ba890bd1617f650e4ffa773b79a3e2522e",
+    "no_gateway_connection": true
+  },
+  "conclusion": "current press-only observer does not align with reviewed release-triggered original scene branches",
+  "held_press_led_interference": "plausible consequence; joint regression requested, not established by this core-only probe",
+  "field_observation_remains_disabled": true,
+  "fix_owner": "功能开发",
+  "field_preparation_owner": "部署",
+  "fixed": true,
+  "fix_commit": "bd98415cddc77033466c0abd476428b2fb85ad49",
+  "field_enabled": false,
+  "independent_fix_probe": {
+    "result": "passed: held press has no inference; release commits actual sequence and timestamp",
+    "log_sha256": "3f3eef7c23e2b4018eea9f9c9804c83ffe456ad02534662f90d93aa61e0ad111",
+    "exact_five_file_manifest_match": true,
+    "workspace_passed": 648,
+    "workspace_failed": 0,
+    "workspace_ignored": 0,
+    "workspace_log_fingerprint_verified": true,
+    "strict_clippy_log_fingerprint_verified": true
+  },
+  "baseline_problem_remains_separate": true
+}
