@@ -235,6 +235,20 @@ async fn web_scope_origin_receipts_and_runtime_admission() {
         let result: serde_json::Value =
             serde_json::from_slice(&first.into_body().collect().await.unwrap().to_bytes()).unwrap();
         assert_eq!(result["outcome"], "accepted");
+        let Reply::LastRun(Some(last))=control.request(Action::LastRun("light".into())).await.unwrap() else {panic!("missing run")};
+        let run_path=format!("/api/v1/runs/{}/{}",last.boot,last.run);
+        let mut read=make(&api.origin,"");*read.method_mut()=hyper::Method::GET;*read.uri_mut()=run_path.parse().unwrap();
+        let read=api.handle(read).await;assert_eq!(read.status(),StatusCode::OK);
+        let summary:serde_json::Value=serde_json::from_slice(&read.into_body().collect().await.unwrap().to_bytes()).unwrap();assert_eq!(summary["scene"],"light");assert_eq!(summary["revision"],"1");assert!(summary["started_ms"].as_str().unwrap().parse::<u64>().is_ok());assert!(summary.get("cause").is_none());
+        let allowed=tokens.authenticate(&format!("Bearer {secret}")).unwrap();let mut denied=allowed.clone();denied.scenes.clear();tokens.insert(token_id,secret,denied).unwrap();
+        let mut read=make(&api.origin,"");*read.method_mut()=hyper::Method::GET;*read.uri_mut()=run_path.parse().unwrap();assert_eq!(api.handle(read).await.status(),StatusCode::NOT_FOUND);
+        tokens.insert(token_id,secret,allowed).unwrap();
+        for (path,body,status) in [("/api/v1/runs/not-a-boot/run","",StatusCode::BAD_REQUEST),(run_path.as_str(),"{}",StatusCode::BAD_REQUEST)] {
+            let mut read=make(&api.origin,body);*read.method_mut()=hyper::Method::GET;*read.uri_mut()=path.parse().unwrap();assert_eq!(api.handle(read).await.status(),status);
+        }
+        assert!(control.request(Action::RunSummary{controller:caller,revision:2,boot:last.boot.clone(),run:last.run.clone()}).await.is_err());
+        assert!(control.request(Action::RunSummary{controller:Uuid::new_v4(),revision:1,boot:last.boot,run:last.run}).await.is_err());
+
         let mut next: serde_json::Value = serde_json::from_slice(devices).unwrap();
         next["revision"] = 2.into();
         let candidate = homesense_config::Configuration::parse(
