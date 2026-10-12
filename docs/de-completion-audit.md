@@ -37,6 +37,8 @@
 
 后续质量检查使用 `061c3c2` 干净快照，仅叠加 9 个限定代码修复。测试控制器切换 `AeadInOut`，保持实际 nonce／AAD／tag 与密钥派生；测试锁改为明确词法作用域，其他为等价 lint 修复。完整 workspace 579 项再次通过，所有工作区目标严格 Clippy 通过，未新增放行。`vendor/hap` 为被排除的依赖，仍有 54 条警告，不能宣称 vendor 严格门槛通过。首次测试遇到沙箱拒绝回环 TCP 绑定，获准环境重跑通过，失败不计为通过。见 [质量检查](evidence/stage-e-browser/clean-workspace-quality-061c3c2.json)。
 
+HAP 依赖维护进一步消除 31 条非加密警告，生产依赖仍有 23 条加密 API 弃用警告；工作区严格 Clippy 通过，完整 workspace 再次 579 项通过。显式选择 HAP 库单独运行的 53 项单元测试也通过，它们此前不在 workspace 计数内；覆盖认证错误、记录边界及通知故障。生产认证／加密实现未改，完整 vendor 严格 Clippy 未通过证明，不能被工作区结果替代。`remote` 兼容性依据是源码中的 Serde 映射，未新增专门字段测试。见 [维护证据](evidence/stage-e-browser/hap-noncrypto-quality-9e5b9a7.json)。
+
 36 个原标准接口阻断细分为 24 个 `IF_STOPPED`、11 个 `IF_MOVING` 和 1 个 `RAMP_TO_LEVEL`；后者已有显式禁用渐变导出接口，仍缺原事件语义和实物能力审核。统计不因换用新导出接口自动标为审核通过。
 
 证据：[集成结果](evidence/stage-e-browser/clean-de-regression-ea236d6.json)、[独立浏览器结果](evidence/stage-e-browser/independent-publication-check.json)、[冲突提示截图](evidence/stage-e-browser/independent-publication-conflict.png)。详细跟踪：[阶段 D](stage-d-progress.md)、[阶段 E](stage-e-progress.md)。

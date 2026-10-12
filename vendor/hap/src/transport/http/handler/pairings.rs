@@ -1,3 +1,4 @@
+#[cfg(test)]
 use rand::SeedableRng;
 use futures::future::{BoxFuture, FutureExt};
 use crate::transport::http::body::Body;
@@ -50,7 +51,7 @@ impl TlvHandlerExt for Pairings {
     type ParseResult = HandlerType;
     type Result = tlv::Container;
 
-    fn parse(&self, body: Body) -> BoxFuture<Result<HandlerType, tlv::ErrorContainer>> {
+    fn parse(&self, body: Body) -> BoxFuture<'_, Result<HandlerType, tlv::ErrorContainer>> {
         async {
             let mut decoded = super::read_tlv_body(body).await?;
             if decoded.get(&(Type::State as u8)) != Some(&vec![1]) {
@@ -108,7 +109,7 @@ impl TlvHandlerExt for Pairings {
         config: pointer::Config,
         storage: pointer::Storage,
         event_emitter: pointer::EventEmitter,
-    ) -> BoxFuture<Result<tlv::Container, tlv::ErrorContainer>> {
+    ) -> BoxFuture<'_, Result<tlv::Container, tlv::ErrorContainer>> {
         async move {
             match handler {
                 HandlerType::Add {
@@ -181,7 +182,7 @@ async fn handle_add(
         .await?;
     info!("pairing mutation actor={} target={} revoked_count={} remaining={:?}", actor, pairing_uuid, revoked.len(), s.count_pairings().await.ok());
     drop(s);
-    let mut emitter = event_emitter.lock().await;
+    let emitter = event_emitter.lock().await;
     if revoked.is_empty() {
         emitter
             .emit(&Event::ControllerPaired { id: pairing.id })
@@ -217,7 +218,7 @@ async fn handle_remove(
     let revoked = s.remove_pairing_authorized(&actor, &pairing_uuid).await?;
     info!("pairing mutation actor={} target={} revoked_count={} remaining={:?}", actor, pairing_uuid, revoked.len(), s.count_pairings().await.ok());
     drop(s);
-    let mut emitter = event_emitter.lock().await;
+    let emitter = event_emitter.lock().await;
     for id in revoked {
         emitter.emit(&Event::ControllerUnpaired { id }).await;
     }

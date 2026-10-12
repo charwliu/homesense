@@ -1,0 +1,65 @@
+{
+  "base_commit": "9e5b9a71198be1b6c916b2018fd88323d21037ac",
+  "scope": "Independent committed-source snapshot plus listed non-crypto HAP maintenance; unrelated dirty edits excluded",
+  "overlay_paths": [
+    "vendor/hap/src/server/ip.rs",
+    "vendor/hap/src/server/mod.rs",
+    "vendor/hap/src/storage/accessory_database.rs",
+    "vendor/hap/src/tlv.rs",
+    "vendor/hap/src/transport/http/handler/accessories.rs",
+    "vendor/hap/src/transport/http/handler/characteristics.rs",
+    "vendor/hap/src/transport/http/handler/identify.rs",
+    "vendor/hap/src/transport/http/handler/mod.rs",
+    "vendor/hap/src/transport/http/handler/pair_setup.rs",
+    "vendor/hap/src/transport/http/handler/pair_verify.rs",
+    "vendor/hap/src/transport/http/handler/pairings.rs",
+    "vendor/hap/src/transport/http/mod.rs",
+    "vendor/hap/src/transport/http/server.rs",
+    "vendor/hap/src/transport/tcp.rs"
+  ],
+  "changes": [
+    "Explicit elided BoxFuture lifetimes",
+    "Test-only imports gated without removing test dependencies; unused mut/log imports removed",
+    "Private unused unchecked TLV decoder removed; active try_decode and its error behavior unchanged",
+    "Ignored controller remote hint retains serde wire name; internal test constructor updated",
+    "EncryptedStream retains the same outgoing waker Arc ownership under an explicit unused-field name",
+    "Atomic fetch_update renamed to its Rust 1.99 try_update equivalent"
+  ],
+  "warning_scope": {
+    "production_dependency_before": 54,
+    "production_dependency_after": 23,
+    "removed": 31,
+    "remaining": "AeadInPlace, detached in-place calls and from_slice deprecated APIs",
+    "crypto_implementation_changed": false
+  },
+  "clippy": {
+    "command": "cargo clippy --workspace --all-targets --locked --offline -- -D warnings",
+    "exit_code": 0,
+    "scope": "Workspace members; vendor remains a capped dependency",
+    "vendor_strict_clippy_pass_claimed": false,
+    "lint_allowances_added": false
+  },
+  "workspace_tests": {
+    "command": "cargo test --workspace --locked --offline",
+    "exit_code": 0,
+    "passed": 579,
+    "failed": 0,
+    "ignored": 0,
+    "result_blocks": 115
+  },
+  "vendor_unit_tests": {
+    "command": "cargo test -p hap --lib --locked --offline",
+    "exit_code": 0,
+    "passed": 53,
+    "failed": 0,
+    "ignored": 0,
+    "result_blocks": 1,
+    "coverage": "Bad proofs/tags, pairings, encrypted record boundaries, notification/queue failure, body limits and lifecycle"
+  },
+  "remote_wire_compatibility_basis": "Source serde(rename = remote) mapping; no dedicated new JSON-field test added",
+  "limitations": [
+    "Full standalone vendor strict Clippy remains unproven; generated style lint failures are not suppressed",
+    "No physical bus, iPhone, HomePod, Siri, LAN trust or nanopc migration tested",
+    "D/E original semantic and field gates remain open; EA-5 unchanged"
+  ]
+}

@@ -74,35 +74,6 @@ pub fn try_decode(bytes: &[u8]) -> Result<HashMap<u8, Vec<u8>>, Error> {
     Ok(result)
 }
 
-pub fn decode(tlv: &[u8]) -> HashMap<u8, Vec<u8>> {
-    let mut hm = HashMap::new();
-    let mut buf: Vec<u8> = Vec::new();
-    let mut p = 0;
-    let mut pt = 0;
-    while p < tlv.len() {
-        let t = tlv[p];
-        let l = tlv[p + 1];
-        if l < 255 {
-            if t != pt && !buf.is_empty() {
-                hm.insert(t, buf.clone());
-                buf.clear();
-            }
-            buf.extend_from_slice(&tlv[p + 2..p + 2 + l as usize]);
-            hm.insert(t, buf.clone());
-            buf.clear();
-        } else {
-            buf.extend_from_slice(&tlv[p + 2..p + 2 + l as usize]);
-        }
-        pt = t;
-        p = p + 2 + l as usize;
-    }
-    if !buf.is_empty() {
-        hm.insert(pt, buf.clone());
-        buf.clear();
-    }
-    hm
-}
-
 /// `Encodable` is implemented by types that can be encoded to a to a `Vec<u8>` of concatenated
 /// TLVs.
 pub trait Encodable {

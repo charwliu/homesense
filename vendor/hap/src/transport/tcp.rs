@@ -190,7 +190,7 @@ pub struct EncryptedStream {
     outgoing_pending: Option<(QueuedOutput, usize)>,
     record_writer: RecordWriter,
     incoming_waker: Arc<Mutex<Option<Waker>>>,
-    outgoing_waker: Arc<Mutex<Option<Waker>>>,
+    _outgoing_waker: Arc<Mutex<Option<Waker>>>,
     session_receiver: oneshot::Receiver<Session>,
     pub controller_id: Arc<RwLock<Option<Uuid>>>,
     shared_secret: Option<[u8; 32]>,
@@ -227,7 +227,7 @@ impl EncryptedStream {
                 outgoing_pending: None,
                 record_writer: RecordWriter::default(),
                 incoming_waker: incoming_waker.clone(),
-                outgoing_waker: outgoing_waker.clone(),
+                _outgoing_waker: outgoing_waker.clone(),
                 session_receiver: receiver,
                 controller_id: Arc::new(RwLock::new(None)),
                 shared_secret: None,
@@ -728,7 +728,7 @@ impl OutputSender {
         if data.len() > OUTPUT_MESSAGE_BYTES
             || self
                 .used
-                .fetch_update(Ordering::AcqRel, Ordering::Acquire, |used| {
+                .try_update(Ordering::AcqRel, Ordering::Acquire, |used| {
                     used.checked_add(data.len())
                         .filter(|size| *size <= OUTPUT_BYTES)
                 })

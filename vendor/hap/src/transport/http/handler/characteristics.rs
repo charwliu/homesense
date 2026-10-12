@@ -33,7 +33,7 @@ impl JsonHandlerExt for GetCharacteristics {
         storage: pointer::Storage,
         accessory_database: pointer::AccessoryDatabase,
         _: pointer::EventEmitter,
-    ) -> BoxFuture<Result<Response<Body>>> {
+    ) -> BoxFuture<'_, Result<Response<Body>>> {
         async move {
             super::paired_controller(&controller, &storage).await?;
             if let Some(query) = uri.query() {
@@ -134,7 +134,7 @@ impl JsonHandlerExt for UpdateCharacteristics {
         storage: pointer::Storage,
         accessories: pointer::AccessoryDatabase,
         _: pointer::EventEmitter,
-    ) -> BoxFuture<Result<Response<Body>>> {
+    ) -> BoxFuture<'_, Result<Response<Body>>> {
         async move {
             let controller = *controller_id
                 .read()
