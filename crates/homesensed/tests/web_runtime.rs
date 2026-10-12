@@ -243,6 +243,10 @@ async fn web_scope_origin_receipts_and_runtime_admission() {
         let mut read=make(&api.origin,"");*read.method_mut()=hyper::Method::GET;*read.uri_mut()=run_path.parse().unwrap();
         let read=api.handle(read).await;assert_eq!(read.status(),StatusCode::OK);
         let summary:serde_json::Value=serde_json::from_slice(&read.into_body().collect().await.unwrap().to_bytes()).unwrap();assert_eq!(summary["scene"],"light");assert_eq!(summary["revision"],"1");assert!(summary["started_ms"].as_str().unwrap().parse::<u64>().is_ok());assert!(summary.get("cause").is_none());
+        for (path,status) in [("/api/v1/scene-history?scene=light&revision=1&limit=1",StatusCode::OK),("/api/v1/scene-history?scene=other&revision=1",StatusCode::FORBIDDEN),("/api/v1/scene-history?scene=light&revision=2",StatusCode::CONFLICT),("/api/v1/scene-history?scene=light&revision=1&limit=0",StatusCode::BAD_REQUEST),("/api/v1/scene-history?scene=light&revision=1&scene=light",StatusCode::BAD_REQUEST)] {
+            let mut read=make(&api.origin,"");*read.method_mut()=hyper::Method::GET;*read.uri_mut()=path.parse().unwrap();let response=api.handle(read).await;assert_eq!(response.status(),status);
+            if status==StatusCode::OK {let page:serde_json::Value=serde_json::from_slice(&response.into_body().collect().await.unwrap().to_bytes()).unwrap();assert_eq!(page["runs"].as_array().unwrap().len(),1);assert_eq!(page["revision"],"1");assert!(page["next_before"].is_null());}
+        }
         let allowed=tokens.authenticate(&format!("Bearer {secret}")).unwrap();let mut denied=allowed.clone();denied.scenes.clear();tokens.insert(token_id,secret,denied).unwrap();
         let mut read=make(&api.origin,"");*read.method_mut()=hyper::Method::GET;*read.uri_mut()=run_path.parse().unwrap();assert_eq!(api.handle(read).await.status(),StatusCode::NOT_FOUND);
         tokens.insert(token_id,secret,allowed).unwrap();

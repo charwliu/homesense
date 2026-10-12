@@ -152,7 +152,7 @@ pub(crate) fn upgrade(
                     if current_grant(&api,&headers).as_ref()!=Some(&grant) {cursor=None;continue;}
                     if cursor.as_ref()!=Some(&update.cursor) || next_scenes!=scenes || unavailable {
                         let devices=update.snapshot.devices.iter().map(|device|crate::web_api::device_json(device,&grant)).collect::<Vec<_>>();
-                        let frame=json!({"type":"state","cursor":update.cursor,"reset":update.reset,"devices":devices,"scenes":next_scenes["scenes"]}).to_string();
+                        let frame=json!({"type":"state","cursor":update.cursor,"reset":update.reset,"devices":devices,"scenes":next_scenes["scenes"],"revision":next_scenes["revision"]}).to_string();
                         if frame.len()>512*1024 || !matches!(tokio::time::timeout(Duration::from_secs(2),socket.send(Message::Text(frame.into()))).await,Ok(Ok(()))){break;}
                         cursor=Some(update.cursor);scenes=next_scenes;unavailable=false;last_send=std::time::Instant::now();
                     }
