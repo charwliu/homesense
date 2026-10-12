@@ -18,6 +18,9 @@ async function refreshReply(snapshot) {
  await drain();assert.equal(pending[0].path,'/api/v1/devices');respond({revision:'1',devices:[],rooms:[]});await drain();
 }
 (async()=>{
+ context.renderScenes({revision:'1',scenes:[{...scene('reading',true),selection_source:'inferred',observation_current:true}]});assert.match(rows()[0].children[1].textContent,/当前选择：开启.*按键推断/);
+ context.markEventStateUnavailable('stale');assert.match(rows()[0].children[1].textContent,/当前选择：未知.*按键推断已失效/);assert.equal(button(0).disabled,true);
+ context.renderScenes({revision:'1',scenes:[{...scene('reading',null),selection_source:'unknown'}]});assert.match(rows()[0].children[1].textContent,/当前选择：未知.*来源未知/);
  context.renderScenes(snapshot());assert.equal(button(1).textContent,'关闭场景');assert.equal(button(0).textContent,'开启场景');assert.equal(button(3).textContent,'执行场景');assert.match(rows()[1].children[1].textContent,/当前选择：开启.*不代表负载到位/);
  const old=button(1),close=old.onclick();assert.equal(pending.length,1);assert.equal(JSON.parse(pending[0].options.body).on,false);
  // Incoming events cannot reopen scene controls while an accepted write is pending.

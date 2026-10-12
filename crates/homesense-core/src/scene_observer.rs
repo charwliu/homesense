@@ -70,6 +70,7 @@ struct Registered {
     last_press: Option<u64>,
 }
 pub struct Observer {
+    started: bool,
     scope: Scope,
     cursor: u64,
     last_now: u64,
@@ -135,6 +136,7 @@ impl Observer {
             }
         }
         Ok(Self {
+            started: false,
             scope,
             cursor,
             last_now: now,
@@ -143,6 +145,23 @@ impl Observer {
             groups: registered_groups,
             keys: registered_keys,
         })
+    }
+    /// Suppress keys known held at a new stream's initial snapshot. Call only on construction, before consuming events.
+    pub fn initially_held(&mut self, devices: &[DeviceId]) -> Result<(), Error> {
+        if self.started || devices.len() > 256 {
+            return Err(Error::InvalidConfiguration);
+        }
+        let mut seen = BTreeSet::new();
+        if devices
+            .iter()
+            .any(|id| !seen.insert(id) || !self.keys.contains_key(id))
+        {
+            return Err(Error::InvalidConfiguration);
+        }
+        for id in devices {
+            self.keys.get_mut(id).unwrap().down = true;
+        }
+        Ok(())
     }
     /// Caller supplies a fresh selection snapshot and commits any inference with
     /// CAS plus this source evidence. Unknown does not default to "none".
@@ -159,6 +178,7 @@ impl Observer {
         if event.scope != self.scope || event.sequence <= self.cursor {
             return Ok(None);
         }
+        self.started = true;
         // Consume stale/future frames too; they may not become valid on replay.
         self.cursor = event.sequence;
         let Some(registered) = self.keys.get_mut(&event.device) else {

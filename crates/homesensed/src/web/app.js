@@ -77,7 +77,8 @@ function renderScenes(data) {
     const title = document.createElement('h2'); title.textContent = scene.name;
     const stateful=scene.switch_kind==='selection';
     const selected=scene.selected===true?'开启':scene.selected===false?'关闭':'未知';
-    const info = document.createElement('p'); info.textContent = `${stateful ? `当前选择：${selected}（不代表负载到位）；` : ''}负载反馈：${scene.activity}；${stateful?'最近开启执行':'最近执行'}：${scene.last_run?.status || '无记录'}`;
+    const source=scene.selection_source==='inferred'?(scene.observation_current===false?'按键推断已失效':'按键推断'):scene.selection_source==='unknown'?'来源未知':'本地选择意图';
+    const info = document.createElement('p'); info.textContent = `${stateful ? `当前选择：${selected}（${source}，不代表负载到位）；` : ''}负载反馈：${scene.activity}；${stateful?'最近开启执行':'最近执行'}：${scene.last_run?.status || '无记录'}`;
     if(scene.last_run) {
       const details=document.createElement('button');details.textContent='查看最近执行';
       const receipt=document.createElement('p');
@@ -289,7 +290,7 @@ function markEventStateUnavailable(message) {
   deviceSnapshotEpoch++;sceneSnapshotEpoch++;invalidatePreview();
   for(const [id,device] of eventDevices)eventDevices.set(id,{...device,quality:'Stale',can_control:false});
   renderDevices();
-  if(lastSceneSnapshot)renderScenes({...lastSceneSnapshot,scenes:lastSceneSnapshot.scenes.map(scene=>({...scene,selected:null,activity:'Unknown',can_control:false}))});
+  if(lastSceneSnapshot)renderScenes({...lastSceneSnapshot,scenes:lastSceneSnapshot.scenes.map(scene=>({...scene,selected:null,observation_current:scene.selection_source==='inferred'?false:scene.observation_current,activity:'Unknown',can_control:false}))});
   status.textContent=message;
 }
 function connectEvents() {

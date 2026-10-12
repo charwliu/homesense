@@ -441,3 +441,5 @@ fn identifier(value: &str) -> Result<(), Error> {
 pub mod scene_switches;
 
 pub mod indicator_links;
+
+pub mod scene_observation;

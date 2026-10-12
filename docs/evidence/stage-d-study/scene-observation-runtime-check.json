@@ -1,0 +1,156 @@
+{
+  "base_commit": "78aa811f1aa5a147af067aeb0870b758b3d30bc3",
+  "scope": "git archive baseline plus exactly the listed public source overlays; no private configuration or unrelated working tree changes",
+  "source_sha256": {
+    "crates/homesense-config/src/lib.rs": "28c9d9e8210a191cf327fa7e010b2ae64c025d97348deea35007702c86f90fad",
+    "crates/homesense-config/src/rule_document.rs": "9b258e92be51e82c82303afbc308f34922fc5532cd5bd87a4225605a6e45e726",
+    "crates/homesense-config/src/scene_observation.rs": "3993396792e40417df27211ea3eaa512b29d28eee4bdbdb288c311a98d0e53bb",
+    "crates/homesense-core/src/scene_observer.rs": "7f0e0cfe7631384df324d3fd3884b1177df723b2114e5798f0a9228d09d454e8",
+    "crates/homesense-core/tests/scene_observer.rs": "1f8fa8436f9ebf22ac62f34f554a142e6733ebf876975ec54d0c432180834200",
+    "crates/homesense-storage/src/scene_observation.rs": "32b8fc254ccd4be5f278f142767a31f1c3da5d9e5644071d82acdf200dae1d8d",
+    "crates/homesensed/src/admission.rs": "f628aae678a0a0dcf1c85c94e14be4de8e24d08dcf34b04f442f54122fbe712a",
+    "crates/homesensed/src/automation_control.rs": "4495ab2f567f29d82b551b775da7a9ed662cd4fab4527b825fd606560dab6d4f",
+    "crates/homesensed/src/automation_drive.rs": "496c0ce04b5d690f7cdf61a7d7a7cf88b529ec4d83c51f97ad8a49a52cc16d6c",
+    "crates/homesensed/src/configured_rules.rs": "b6f54628614a01b65d82d6f27735e6d6efc53f8698c3097a6a22810921fe54c8",
+    "crates/homesensed/src/feedback.rs": "3a43b5d4cc21b83b9c22f44a8074f0880ba1288b2abec060eb424e79191978d9",
+    "crates/homesensed/src/lib.rs": "0a3847e668afdea06d47868385f49f60353dfa7d54f5f507483f74ffc40116bc",
+    "crates/homesensed/src/scene_selection_hap.rs": "007b9d46a2d6bebca54ac4867244c0fff33b704fca6f18b3b01bad9364ed3b54",
+    "crates/homesensed/src/scene_switches.rs": "72c58c4804c6b959b8c41223862259350c9232e3b150599512f424214f6838ea",
+    "crates/homesensed/src/web_api.rs": "cf78f26332df81b313785f86535b13c98934ddf69df2ce455915e21065a28cda",
+    "crates/homesensed/src/web/app.js": "e8cc7c500b7079210add08813806b1e456434ee3a5fbb6452170f6a9e51f676a",
+    "crates/homesensed/src/scene_observation_owner.rs": "ebe74444c54aaa3810bd438b35773e8a15620de413f9e20ede106af45dd8fab4",
+    "crates/homesensed/src/scene_observation_runtime.rs": "c15234d46a3b17d880230356372287988c89297f45e74878448fbd88c892d7bb",
+    "crates/homesensed/src/scene_observation_tests.rs": "66d08f3d0d9c45f2bb586ccbaf5d8c7d4adac6c247f8657c128049921399bc28",
+    "tools/verify_scene_switches.cjs": "e1c68867c352eed6136eb61c489291959b5e82d7a94d00ffcba39209de387bd2"
+  },
+  "workspace_final": {
+    "log_sha256": "0a2d661aa9539e5a67c5bfb8401ee2420bd207a62cd46c51f6022aeeb528cc33",
+    "result_blocks": 126,
+    "passed": 634,
+    "failed": 0,
+    "ignored": 0
+  },
+  "workspace_first": {
+    "log_sha256": "f7a67ac25d8d7f1f8324e94d7ed2638e69b0f335fd359a91d4fc0d671911f625",
+    "result_blocks": 92,
+    "passed": 455,
+    "failed": 1,
+    "ignored": 0
+  },
+  "first_failure": {
+    "test": "multiple_hap::fresh_pair_setup_on_both_bridges_survives_recovery_and_restart",
+    "reason": "three-second recovery state wait timed out at line 326",
+    "cause": "not established",
+    "subsequent_exact_test": {
+      "passed": 1,
+      "failed": 0
+    },
+    "subsequent_full_multiple_hap_file": {
+      "passed": 3,
+      "failed": 0
+    }
+  },
+  "strict_clippy": {
+    "command": "cargo clippy --workspace --all-targets --locked --offline -- -D warnings",
+    "passed": true,
+    "log_sha256": "1f226bf77f1b3acf15435e756b96c6301281ebc298c68b72389ac56395daa584"
+  },
+  "frontend_checks": [
+    {
+      "file": "tools/verify_backup_catalog.cjs",
+      "exit_code": 0,
+      "output": "Backup metadata and logout fencing: passed",
+      "stderr": ""
+    },
+    {
+      "file": "tools/verify_channel_diagnostics.cjs",
+      "exit_code": 0,
+      "output": "Channel lifecycle is distinct from control readiness and field reachability: passed",
+      "stderr": ""
+    },
+    {
+      "file": "tools/verify_credentials.cjs",
+      "exit_code": 0,
+      "output": "Credential listing and session fencing: passed",
+      "stderr": ""
+    },
+    {
+      "file": "tools/verify_device_metadata.cjs",
+      "exit_code": 0,
+      "output": "Device and room source binding, precision and in-flight edits: passed",
+      "stderr": ""
+    },
+    {
+      "file": "tools/verify_device_refresh.cjs",
+      "exit_code": 0,
+      "output": "HTTP refresh rejects old graphs, earlier requests and pre-disconnect replies: passed",
+      "stderr": ""
+    },
+    {
+      "file": "tools/verify_draft_archive.cjs",
+      "exit_code": 0,
+      "output": "Draft archive clears selected preview: passed",
+      "stderr": ""
+    },
+    {
+      "file": "tools/verify_draft_json.cjs",
+      "exit_code": 0,
+      "output": "Draft JSON precision, bounds, malformed input: passed",
+      "stderr": ""
+    },
+    {
+      "file": "tools/verify_event_disconnect.cjs",
+      "exit_code": 0,
+      "output": "Disconnect marks stale, revokes preview, and fresh reconnect restores: passed",
+      "stderr": ""
+    },
+    {
+      "file": "tools/verify_light_policy.cjs",
+      "exit_code": 0,
+      "output": "Recorded dimmer settings, measured switch state, diagnostic mismatch and unknown projection: passed",
+      "stderr": ""
+    },
+    {
+      "file": "tools/verify_preview_state.cjs",
+      "exit_code": 0,
+      "output": "Preview failure, edit, revision change and out-of-order invalidation: passed",
+      "stderr": ""
+    },
+    {
+      "file": "tools/verify_room_filter.cjs",
+      "exit_code": 0,
+      "output": "Room filter updates, removed scope, unassigned and text rendering: passed",
+      "stderr": ""
+    },
+    {
+      "file": "tools/verify_scene_history.cjs",
+      "exit_code": 0,
+      "output": "Scene history/detail pagination, integer precision and stale response isolation: passed",
+      "stderr": ""
+    },
+    {
+      "file": "tools/verify_scene_switches.cjs",
+      "exit_code": 0,
+      "output": "Scene targets, busy guards, cancellation, unknown/stale values and session isolation: passed",
+      "stderr": ""
+    },
+    {
+      "file": "tools/verify_session_state.cjs",
+      "exit_code": 0,
+      "output": "Late HTTP/WebSocket responses and overlapping session changes: passed",
+      "stderr": ""
+    }
+  ],
+  "new_runtime_regressions": 8,
+  "new_core_regressions": 1,
+  "remaining_code": [
+    "independent partial-off LED reconciliation must use scoped inference and preserve provenance for unchanged selections",
+    "review invalidated inference planning at acceptance against production owner concurrency",
+    "post-key fresh off evidence must not immediately cancel new inference using old lamp state"
+  ],
+  "remaining_field": "integrated Apple clients, physical loads, LED reconciliation, real-phone Web and LAN TLS acceptance remain pending",
+  "field_enabled": false,
+  "field_deployed_or_started_this_checkpoint": false,
+  "ea5_configuration_and_scope_changed": false,
+  "limitations": "passing workspace does not cover the newly independently reproduced LED/inference joint failures; observer remains disabled"
+}

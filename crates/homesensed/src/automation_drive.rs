@@ -242,12 +242,14 @@ pub(crate) async fn drive_with_panel_feeds<S: Read + Write + Send + 'static>(
             calendar.bind_feedback(guard.owner.feedback())?;
         }
         let mut indicators=crate::indicator_sync::Synchronizer::default();
+        let mut scene_observations=crate::scene_observation_runtime::Consumer::default();
         let mut next = 0;
         loop {
             if *stop.borrow() || stop.has_changed().is_err() {
                 return Ok(());
             }
             if let Some((receiver, document)) = &mut control.0 {
+                scene_observations.tick(admission,receiver.controller(),document,guard.owner.feedback()).await?;
                 receiver.poll(admission, document, guard.scenes, guard.owner.feedback(), max_age_ms, guard.calendar.as_deref()).await;
             }
             let now = admission.monotonic_ms();
@@ -333,6 +335,7 @@ pub(crate) async fn drive_with_panel_feeds<S: Read + Write + Send + 'static>(
             }
             guard.owner.expire(admission.monotonic_ms(), max_age_ms)?;
             if let Some((receiver,document))=&control.0 {
+                scene_observations.tick(admission,receiver.controller(),document,guard.owner.feedback()).await?;
                 indicators.tick(admission,receiver.controller(),document,guard.scenes,guard.owner.feedback(),max_age_ms).await?;
             }
             if let Some(projection)=&projection {projection.send_replace(guard.owner.snapshot());}

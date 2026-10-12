@@ -25,6 +25,7 @@ pub enum Action {
     DeviceCommand {controller:Uuid,revision:u64,device:homesense_core::DeviceId,action:crate::management_devices::DeviceAction},
     SceneCancel { controller: Uuid, revision: u64, run: u64 },
     SceneSwitchStates {controller:Uuid,revision:u64},
+    SceneSelectionDetails {controller:Uuid,revision:u64},
     SceneWrites {controller:Uuid,revision:u64,scenes:Vec<(String,Option<bool>)>},
     SceneActions { controller: Uuid, revision: u64, scenes: Vec<(String,bool)> },
     SceneAction { controller: Uuid, revision: u64, scene: String, execute: bool },
@@ -51,6 +52,7 @@ pub enum Reply {
     SceneAccepted(Option<u64>),
     ScenesAccepted(Vec<u64>),
     SceneSwitchStates(std::collections::BTreeMap<String,Option<bool>>),
+    SceneSelectionDetails(std::collections::BTreeMap<String,crate::scene_switches::Details>),
     CalendarStatus { boot: String, revision: u64, status: Option<crate::event_rules::CalendarStatus> },
     Started(u64),
     Cancelled(usize),
@@ -264,15 +266,21 @@ impl Receiver {
                         if request.reply.is_closed() || Instant::now()>=request.deadline {return Err("cancellation expired or abandoned".into());}
                         scenes.cancel(run).await.map(Reply::Cancelled)
                     },
+                    Action::SceneSelectionDetails {controller,revision}=>{
+                        if revision!=document.revision {return Err("scene state revision expired".into());}
+                        let snapshot=admission.scene_selection_snapshot(controller,self.generation.clone(),crate::scene_switches::variable_names(document)).await.map_err(|e|format!("{e:?}"))?;
+                        if !admission.diagnostics(controller,self.generation.clone()).await.map_err(|e|format!("{e:?}"))?.ready() {return Err("scene selection runtime not ready".into());}
+                        crate::scene_switches::details(document,&snapshot).map(Reply::SceneSelectionDetails)
+                    },
                     Action::SceneSwitchStates {controller,revision}=>{
                         if revision!=document.revision {return Err("scene state revision expired".into());}
-                        let snapshot=admission.variable_snapshot(controller,self.generation.clone(),crate::scene_switches::variable_names(document)).await.map_err(|e|format!("{e:?}"))?;
+                        let snapshot=admission.scene_selection_values(controller,self.generation.clone(),crate::scene_switches::variable_names(document)).await.map_err(|e|format!("{e:?}"))?;
                         if !admission.diagnostics(controller,self.generation.clone()).await.map_err(|e|format!("{e:?}"))?.ready() {return Err("scene selection runtime not ready".into());}
                         crate::scene_switches::states(document,&snapshot).map(Reply::SceneSwitchStates)
                     },
                     Action::SceneWrites {controller,revision,scenes:writes}=>{
                         if revision!=document.revision {return Err("scene write revision expired".into());}
-                        let snapshot=admission.variable_snapshot(controller,self.generation.clone(),crate::scene_switches::variable_names(document)).await.map_err(|e|format!("{e:?}"))?;
+                        let snapshot=admission.scene_selection_values(controller,self.generation.clone(),crate::scene_switches::variable_names(document)).await.map_err(|e|format!("{e:?}"))?;
                         let plan=crate::scene_switches::plan(document,&writes,&snapshot)?;
                         if request.reply.is_closed()||Instant::now()>=request.deadline {return Err("scene writes expired or abandoned".into());}
                         if plan.definitions.is_empty(){Ok(Reply::ScenesAccepted(vec![]))}
@@ -289,7 +297,7 @@ impl Receiver {
                         admission.variable_snapshot(controller,self.generation.clone(),vec![]).await.map_err(|e|format!("{e:?}"))?;
                         if request.reply.is_closed() || Instant::now()>=request.deadline {return Err("scene batch expired or abandoned".into());}
                         let writes=actions.into_iter().map(|(id,execute)|(id,execute.then_some(true))).collect::<Vec<_>>();
-                        let snapshot=admission.variable_snapshot(controller,self.generation.clone(),crate::scene_switches::variable_names(document)).await.map_err(|e|format!("{e:?}"))?;
+                        let snapshot=admission.scene_selection_values(controller,self.generation.clone(),crate::scene_switches::variable_names(document)).await.map_err(|e|format!("{e:?}"))?;
                         let plan=crate::scene_switches::plan(document,&writes,&snapshot)?;
                         if request.reply.is_closed()||Instant::now()>=request.deadline {return Err("scene batch expired or abandoned".into());}
                         if plan.definitions.is_empty(){Ok(Reply::ScenesAccepted(vec![]))}
@@ -304,7 +312,7 @@ impl Receiver {
                         admission.variable_snapshot(controller, self.generation.clone(), vec![]).await.map_err(|e|format!("{e:?}"))?;
                         if request.reply.is_closed() || Instant::now() >= request.deadline { return Err("scene action expired or abandoned".into()); }
                         if crate::scene_switches::related(document,&scene) {
-                            let snapshot=admission.variable_snapshot(controller,self.generation.clone(),crate::scene_switches::variable_names(document)).await.map_err(|e|format!("{e:?}"))?;
+                            let snapshot=admission.scene_selection_values(controller,self.generation.clone(),crate::scene_switches::variable_names(document)).await.map_err(|e|format!("{e:?}"))?;
                             let plan=crate::scene_switches::plan(document,&[(scene,Some(execute))],&snapshot)?;
                             if request.reply.is_closed()||Instant::now()>=request.deadline {return Err("scene action expired or abandoned".into());}
                             if plan.definitions.is_empty(){Ok(Reply::SceneAccepted(None))}
@@ -314,7 +322,7 @@ impl Receiver {
                     },
                     Action::Start(id) => {
                         if crate::scene_switches::related(document,&id){
-                            let snapshot=admission.variable_snapshot(self.controller,self.generation.clone(),crate::scene_switches::variable_names(document)).await.map_err(|e|format!("{e:?}"))?;
+                            let snapshot=admission.scene_selection_values(self.controller,self.generation.clone(),crate::scene_switches::variable_names(document)).await.map_err(|e|format!("{e:?}"))?;
                             let plan=crate::scene_switches::forced_plan(document,&id,&snapshot)?;
                             if request.reply.is_closed()||Instant::now()>=request.deadline {return Err("scene start expired or abandoned".into());}
                             let runs=scenes.start_documents_with_variables_as(document.revision,plan.definitions,admission.monotonic_ms(),self.controller,plan.updates).await?;

@@ -5,6 +5,49 @@ use homesense_core::rule::Value;
 use homesense_storage::variables::{Stored, Update};
 use std::collections::{BTreeMap, BTreeSet};
 
+/// Source for a selection, not physical completion or EA-5 variable proof.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct Details {
+    pub selected: Option<bool>,
+    pub selection_source: &'static str,
+    pub observation_current: Option<bool>,
+    pub observation_boot: Option<String>,
+    pub observed_ms: Option<String>,
+}
+pub(crate) fn details(
+    document: &Document,
+    snapshot: &BTreeMap<String, homesense_storage::scene_observation::Snapshot>,
+) -> Result<BTreeMap<String, Details>, String> {
+    let values = snapshot
+        .iter()
+        .map(|(name, state)| (name.clone(), state.stored.clone()))
+        .collect();
+    let selected = states(document, &values)?;
+    let mut result = BTreeMap::new();
+    for group in &document.scene_switch_groups {
+        let state = &snapshot[&group.variable];
+        let inferred = state.evidence.as_ref();
+        for member in &group.members {
+            result.insert(
+                member.scene.clone(),
+                Details {
+                    selected: selected[&member.scene],
+                    selection_source: if inferred.is_some() {
+                        "inferred"
+                    } else if state.stored.value.is_some() {
+                        "local_intent"
+                    } else {
+                        "unknown"
+                    },
+                    observation_current: inferred.map(|_| state.evidence_current),
+                    observation_boot: inferred.map(|e| format!("{:032x}", e.scope.boot_id)),
+                    observed_ms: inferred.map(|e| e.observed_ms.to_string()),
+                },
+            );
+        }
+    }
+    Ok(result)
+}
 pub struct Plan {
     pub definitions: Vec<String>,
     pub updates: Vec<Update>,
