@@ -1,0 +1,25 @@
+{
+  "base_commit": "b2953a48eb391319ce756852b21996ab82c56163",
+  "source_scope": "independent clean git archive plus three explicit implementation/test paths; other worktree changes excluded",
+  "source_sha256": {
+    "crates/homesense-import/src/lib.rs": "70ce82c8caeef39da69f72c092bc62496f55ce5e9f5c714a6404b54f75d995ea",
+    "crates/homesense-import/src/indicators.rs": "581f9e57719241e8b668a5020bb91674016e633029061b6a35ddab8d0c71e5aa",
+    "crates/homesense-import/tests/indicators.rs": "dcabc2a177efc06d88c37949bc34159468523efd2e68cb33a411d2b0e07b6d2c"
+  },
+  "tests": {
+    "importer_all_targets_passed": 26,
+    "failed": 0,
+    "ignored": 0,
+    "new_indicator_tests": 5
+  },
+  "clippy": "homesense-import all targets -D warnings passed",
+  "local_source_check": "reimported original source read-only; lexical candidates match prior local audit; details and identifiers kept in ignored private directory",
+  "automatic_enable": false,
+  "field_deployed": false,
+  "ea5_modified": false,
+  "limits": [
+    "lexical co-occurrence does not prove a binding or source behavior",
+    "driver internals not inspected",
+    "stage D and E remain incomplete"
+  ]
+}

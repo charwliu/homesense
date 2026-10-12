@@ -1,6 +1,7 @@
 //! Read-only Control4 project XML inventory. No imported object is enabled;
 //! driver category is not evidence of a verified physical protocol profile.
 pub mod configuration;
+pub mod indicators;
 pub mod program;
 pub mod scene;
 use roxmltree::{Document, Node};
@@ -33,6 +34,7 @@ pub struct Source {
 }
 #[derive(Debug, Serialize)]
 pub struct Report {
+    pub indicators: indicators::Inventory,
     pub semantic_dispositions: Vec<semantic::Disposition>,
     pub source: Option<Source>,
     pub schema_version: u32,
@@ -83,6 +85,7 @@ pub fn project_xml(xml: &str) -> Result<Report, String> {
         }
     }
     let mut report = Report {
+        indicators: indicators::Inventory::default(),
         semantic_dispositions: vec![],
         source: None,
         schema_version: 1,
@@ -269,6 +272,13 @@ pub fn project_xml(xml: &str) -> Result<Report, String> {
         }
     }
     report.semantic_dispositions = semantic::dispositions(&document, &report.devices);
+    let keypads = report
+        .devices
+        .iter()
+        .filter(|d| d.kind == "keypad")
+        .map(|d| d.control4_id.clone())
+        .collect();
+    report.indicators = indicators::inspect(&document, &keypads);
     Ok(report)
 }
 
