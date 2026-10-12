@@ -128,8 +128,15 @@ impl Store {
         starts: &[ManualStart],
         now: u64,
     ) -> Result<(), Error> {
+        self.begin_manual_scene_batch_with_variables(boot,revision,starts,now,&[])
+    }
+    /// Selection CAS and all execution receipts share a transaction. Selection
+    /// is an accepted local mode, never proof that physical output completed.
+    pub fn begin_manual_scene_batch_with_variables(
+        &mut self,boot:&str,revision:u64,starts:&[ManualStart],now:u64,updates:&[crate::variables::Update],
+    )->Result<(),Error> {
         key(boot)?;
-        if starts.is_empty() || starts.len() > 64 {
+        if updates.len()>32||starts.is_empty() || starts.len() > 64 {
             return Err(Error::InvalidAudit);
         }
         let revision_sql = sql_revision(revision)?;
@@ -141,6 +148,7 @@ impl Store {
             [], |r| r.get(0),
         ).optional()?;
         if active != Some(revision_sql) { return Err(Error::Conflict); }
+        crate::variables::apply(&tx,updates,active)?;
         for start in starts {
             insert_start(&tx, boot, &Start {
                 action_index: 0,

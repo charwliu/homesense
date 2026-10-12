@@ -124,3 +124,5 @@ pub mod web_backups;
 pub mod runtime_panel_hap;
 
 pub use fade_budget::Capacity as WireCapacity;
+
+pub mod scene_switches;

@@ -24,6 +24,8 @@ pub enum Action {
     Devices {controller:Uuid,revision:u64,ids:Vec<homesense_core::DeviceId>},
     DeviceCommand {controller:Uuid,revision:u64,device:homesense_core::DeviceId,action:crate::management_devices::DeviceAction},
     SceneCancel { controller: Uuid, revision: u64, run: u64 },
+    SceneSwitchStates {controller:Uuid,revision:u64},
+    SceneWrites {controller:Uuid,revision:u64,scenes:Vec<(String,Option<bool>)>},
     SceneActions { controller: Uuid, revision: u64, scenes: Vec<(String,bool)> },
     SceneAction { controller: Uuid, revision: u64, scene: String, execute: bool },
     Start(String),
@@ -48,6 +50,7 @@ pub enum Reply {
     CommandsAccepted(Vec<u64>),
     SceneAccepted(Option<u64>),
     ScenesAccepted(Vec<u64>),
+    SceneSwitchStates(std::collections::BTreeMap<String,Option<bool>>),
     CalendarStatus { boot: String, revision: u64, status: Option<crate::event_rules::CalendarStatus> },
     Started(u64),
     Cancelled(usize),
@@ -117,6 +120,9 @@ impl Control {
                 || scenes.iter().map(|(id,_)|id).collect::<std::collections::BTreeSet<_>>().len()!=scenes.len()) {
                 return Err("invalid scene batch".into());
         }
+        if let Action::SceneWrites{scenes,..}=&action
+            && (scenes.is_empty()||scenes.len()>64||scenes.iter().any(|(id,_)|id.trim().is_empty()||id.len()>250||id.chars().any(char::is_control))
+                ||scenes.iter().map(|(id,_)|id).collect::<std::collections::BTreeSet<_>>().len()!=scenes.len()) {return Err("invalid scene write batch".into());}
         let (reply, receive) = oneshot::channel();
         self.sender
             .try_send(Request {
@@ -255,6 +261,19 @@ impl Receiver {
                         admission.variable_snapshot(controller,self.generation.clone(),vec![]).await.map_err(|e|format!("{e:?}"))?;
                         if request.reply.is_closed() || Instant::now()>=request.deadline {return Err("cancellation expired or abandoned".into());}
                         scenes.cancel(run).await.map(Reply::Cancelled)
+                    },
+                    Action::SceneSwitchStates {controller,revision}=>{
+                        if revision!=document.revision {return Err("scene state revision expired".into());}
+                        let snapshot=admission.variable_snapshot(controller,self.generation.clone(),crate::scene_switches::variable_names(document)).await.map_err(|e|format!("{e:?}"))?;
+                        crate::scene_switches::states(document,&snapshot).map(Reply::SceneSwitchStates)
+                    },
+                    Action::SceneWrites {controller,revision,scenes:writes}=>{
+                        if revision!=document.revision {return Err("scene write revision expired".into());}
+                        let snapshot=admission.variable_snapshot(controller,self.generation.clone(),crate::scene_switches::variable_names(document)).await.map_err(|e|format!("{e:?}"))?;
+                        let plan=crate::scene_switches::plan(document,&writes,&snapshot)?;
+                        if request.reply.is_closed()||Instant::now()>=request.deadline {return Err("scene writes expired or abandoned".into());}
+                        if plan.definitions.is_empty(){Ok(Reply::ScenesAccepted(vec![]))}
+                        else{scenes.start_documents_with_variables_as(revision,plan.definitions,admission.monotonic_ms(),controller,plan.updates).await.map(Reply::ScenesAccepted)}
                     },
                     Action::SceneActions {controller,revision,scenes:actions} => {
                         if revision!=document.revision {return Err("scene batch revision expired".into());}
