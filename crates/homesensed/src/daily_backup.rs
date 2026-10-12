@@ -48,3 +48,23 @@ pub async fn run(source:PathBuf,context:ExecutionContext,mut stop:tokio::sync::w
         }
     }
 }
+
+/// Own both futures in the service scope; normal and error exits stop and join
+/// maintenance. Backup failure is reported without turning off device control.
+pub async fn supervise<F>(source:PathBuf,context:ExecutionContext,service:F)->Result<(),String>
+where F:std::future::Future<Output=Result<(),String>> {
+    let (stop,receive)=tokio::sync::watch::channel(false);
+    let (status,mut reports)=tokio::sync::watch::channel(Status::Idle);
+    let maintenance=run(source,context,receive,status);
+    let mut service=Box::pin(service);
+    tokio::pin!(maintenance);
+    loop {
+        tokio::select! {
+            result=&mut service=>{let _=stop.send(true);maintenance.await;return result;},
+            _=&mut maintenance=>return Err("daily backup worker stopped unexpectedly".into()),
+            changed=reports.changed()=>{
+                if changed.is_ok() && matches!(*reports.borrow_and_update(),Status::Failed){eprintln!("HomeSense daily backup failed; device service continues; retry in one minute");}
+            }
+        }
+    }
+}

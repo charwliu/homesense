@@ -579,8 +579,8 @@ async fn serve_automation_simulation_options(
             }
         }
         Ok(())
-    }
-    .await;
+    };
+    let result=crate::daily_backup::supervise(directory.join("automation-simulation.sqlite"),ExecutionContext::Simulation,result).await;
     admission.stop_now();
     let _ = admission.shutdown().await;
     result

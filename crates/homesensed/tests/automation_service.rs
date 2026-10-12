@@ -36,6 +36,7 @@ fn isolated_automation_cli_runs_scene_restarts_and_preserves_live_files() {
     assert!(!run("0", "demo").status.success());
     assert!(!run("1", "missing").status.success());
     assert!(!root.join("automation-simulation.sqlite").exists());
+    let mut first_backup = None;
     for _ in 0..2 {
         let output = run("1", "demo");
         assert!(
@@ -43,6 +44,13 @@ fn isolated_automation_cli_runs_scene_restarts_and_preserves_live_files() {
             "{}",
             String::from_utf8_lossy(&output.stderr)
         );
+    let backup_dir = root.join("daily-backups/automation-simulation.sqlite");
+    let files: Vec<_> = std::fs::read_dir(&backup_dir).unwrap().map(|v|v.unwrap().path()).collect();
+    assert_eq!(files.len(), 1);
+    homesense_storage::backup::inspect(&files[0], homesense_core::ExecutionContext::Simulation).unwrap();
+    let bytes = std::fs::read(&files[0]).unwrap();
+    if let Some(previous) = &first_backup { assert_eq!(previous, &bytes, "restart must reuse the daily snapshot"); }
+    first_backup = Some(bytes);
     }
     let sql = rusqlite::Connection::open(root.join("automation-simulation.sqlite")).unwrap();
     let count: i64 = sql
