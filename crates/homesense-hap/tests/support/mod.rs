@@ -81,6 +81,18 @@ pub fn verify(
     accessory_id: &str,
     accessory_key: &ed25519_dalek::VerifyingKey,
 ) -> Session {
+    verify_outcome(stream, id, signing, accessory_id, accessory_key)
+        .unwrap_or_else(|error| panic!("pair verify rejected: {error:?}"))
+}
+/// Preserve a protocol error for negative authentication tests; malformed
+/// transcripts and accessory signature failures still fail the test.
+pub fn verify_outcome(
+    stream: &mut TcpStream,
+    id: Uuid,
+    signing: &ed25519_dalek::SigningKey,
+    accessory_id: &str,
+    accessory_key: &ed25519_dalek::VerifyingKey,
+) -> Result<Session, Vec<u8>> {
     use chacha20poly1305::ChaCha20Poly1305;
     use chacha20poly1305::aead::{AeadInPlace, KeyInit, array::Array};
     use ed25519_dalek::Signer;
@@ -148,17 +160,19 @@ pub fn verify(
     let m3 = encode_tlv(&[(6, &[3]), (5, &data)]);
     let m4 = tlv_items(&post_tlv_path(stream, "/pair-verify", &m3).unwrap()).unwrap();
     assert_eq!(m4[&6], [4]);
-    assert!(!m4.contains_key(&7));
+    if let Some(error) = m4.get(&7) {
+        return Err(error.clone());
+    }
     let write_key = derive(b"Control-Salt", b"Control-Write-Encryption-Key");
     let read_key = derive(b"Control-Salt", b"Control-Read-Encryption-Key");
     let writer = ChaCha20Poly1305::new(Array::from_slice(&write_key));
     let reader = ChaCha20Poly1305::new(Array::from_slice(&read_key));
-    Session {
+    Ok(Session {
         writer,
         reader,
         sent: 0,
         received: 0,
-    }
+    })
 }
 
 pub struct Session {
