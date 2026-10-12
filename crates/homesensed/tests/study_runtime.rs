@@ -6638,3 +6638,29 @@ async fn hap_multiple_scenes_use_one_runtime_batch() {
     let (result,())=tokio::join!(runtime.drive(&mut owner,std::time::Duration::from_millis(1),500,receive,||Ok(1_800_000_000_000)),client);
     result.unwrap();drop(hap);drop(identity);std::fs::remove_dir_all(path).unwrap();a.shutdown().await.unwrap();
 }
+
+#[tokio::test]
+async fn partial_wire_failure_is_uncertain_cancels_scene_and_never_replays_after_restart() {
+    use homesense_core::{Command,DeviceId,scene::{Step,Status as SceneStatus}};
+    use homesensed::{scene_runtime::SceneRuntime,transport_owner::TransportOwner};
+    use std::{io::{Read,Write},sync::{Arc,Mutex}};
+    struct FaultWire { bytes:Arc<Mutex<Vec<u8>>>,limit:usize }
+    impl Read for FaultWire {fn read(&mut self,_:&mut [u8])->std::io::Result<usize>{Err(std::io::ErrorKind::WouldBlock.into())}}
+    impl Write for FaultWire {
+        fn write(&mut self,bytes:&[u8])->std::io::Result<usize>{let mut output=self.bytes.lock().unwrap();if output.len()>=self.limit{return Err(std::io::ErrorKind::BrokenPipe.into());}let count=bytes.len().min(self.limit-output.len());output.extend_from_slice(&bytes[..count]);Ok(count)}
+        fn flush(&mut self)->std::io::Result<()>{Ok(())}
+    }
+    for limit in [0,1,2,3,4] {
+        let db=Db(std::env::temp_dir().join(format!("partial-scene-{}.sqlite",Uuid::new_v4())));
+        Store::open(&db.0).unwrap().publish_configuration(None,include_bytes!("../../../config/simulation.json"),ExecutionContext::Simulation,&[]).unwrap();
+        let controller=Uuid::new_v4();let a=actor(&db,controller).await;let boot=a.boot_id().to_owned();let bytes=Arc::new(Mutex::new(Vec::new()));
+        let mut owner=TransportOwner::new(a.clone(),[("simulation".into(),hb_transport::Connection::for_simulation(FaultWire{bytes:bytes.clone(),limit},1))].into());
+        let steps=[30,60].into_iter().map(|value|Step{device:DeviceId::new("simulation:light").unwrap(),command:Command::SetLevel{level:homesense_core::Percent::new(value).unwrap(),transition:homesense_core::LevelTransition::Immediate},delay_ms:0,source:"synthetic partial write".into()}).collect();
+        let mut scene=SceneRuntime::new(a.clone(),controller,steps,0,1000).await.unwrap();let ids=scene.poll(0).await.unwrap().unwrap();
+        let result=owner.step().await.unwrap().unwrap();assert_eq!(result.command_id,ids[0]);assert_eq!(result.result.unwrap_err().bytes_written,limit);assert_eq!(bytes.lock().unwrap().len(),limit);
+        assert_eq!(Store::open(&db.0).unwrap().command_status(&boot,ids[0]).unwrap(),Some(Status::Uncertain));
+        scene.reconcile().await.unwrap();assert_eq!(scene.status(),SceneStatus::Partial);assert_eq!(scene.poll(0).await.unwrap_err(),"ServiceCommunicationFailure");assert!(owner.step().await.is_err());
+        a.shutdown().await.unwrap();drop(owner);drop(scene);
+        let restarted=actor(&db,controller).await;assert!(restarted.dispatch().await.unwrap().is_none());assert_eq!(bytes.lock().unwrap().len(),limit);assert_eq!(Store::open(&db.0).unwrap().command_status(&boot,ids[0]).unwrap(),Some(Status::Uncertain));restarted.shutdown().await.unwrap();
+    }
+}
