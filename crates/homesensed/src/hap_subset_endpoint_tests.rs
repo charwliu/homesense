@@ -21,7 +21,7 @@ async fn two_listeners_publish_only_selected_lights_with_independent_identity() 
         let address=crate::automation_tcp::fault_tests::free_address();
         let settings=Settings{address,scenes:vec![],motors:vec![]};
         let directory=root.join(format!("bridge-{index}"));std::fs::create_dir(&directory).unwrap();
-        let mut identity=settings.identity(&directory).await.unwrap();
+        let mut identity=settings.identity_named(&directory,&format!("Floor {index}")).await.unwrap();
         let config=identity.load_config().await.unwrap();let accessory_id=config.device_id.to_string();let accessory_key=config.device_ed25519_keypair.verifying_key();assert!(identities.insert(accessory_id.clone()));
         identity.initialize_aid_cache().await.unwrap();
         // Seed a valid graph before importing a synthetic pairing, as a real
@@ -36,7 +36,7 @@ async fn two_listeners_publish_only_selected_lights_with_independent_identity() 
             let mut session=support::verify(&mut socket,controller,&signing,&accessory_id,&accessory_key);
             let (headers,body)=session.request(&mut socket,b"GET /accessories HTTP/1.1\r\nHost: localhost\r\n\r\n");assert!(headers.starts_with("HTTP/1.1 200"),"{headers} {body:?}");
             let graph:serde_json::Value=serde_json::from_slice(&body).unwrap();assert_eq!(graph["accessories"].as_array().unwrap().len(),2);
-            let text=String::from_utf8(body).unwrap();assert!(text.contains(if index==0 {"First selected light"}else{"Second selected light"}));assert!(!text.contains(if index==0 {"Second selected light"}else{"First selected light"}));
+            let text=String::from_utf8(body).unwrap();assert!(text.contains(&format!("Floor {index}")));assert!(text.contains(if index==0 {"First selected light"}else{"Second selected light"}));assert!(!text.contains(if index==0 {"Second selected light"}else{"First selected light"}));
         }).await.unwrap();
     }
     for endpoint in endpoints {endpoint.shutdown().await;}
