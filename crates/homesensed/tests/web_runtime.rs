@@ -462,8 +462,10 @@ async fn web_scope_origin_receipts_and_runtime_admission() {
             if expected==StatusCode::CREATED {
                 let issued:serde_json::Value=serde_json::from_slice(&result.into_body().collect().await.unwrap().to_bytes()).unwrap();
                 let issued_header=format!("Bearer {}",issued["secret"].as_str().unwrap());assert_eq!(tokens.authenticate(&issued_header).unwrap().role,Role::Viewer);
-                let mut update=make(&api.origin,r#"{"role":"Member","devices":[],"scenes":[]}"#);*update.method_mut()=hyper::Method::PATCH;*update.uri_mut()=format!("/api/v1/credentials/{}",issued["id"].as_str().unwrap()).parse().unwrap();
+                let update_body=serde_json::json!({"expected":issued["grant"],"role":"Member","devices":[],"scenes":[]}).to_string();
+                let mut update=make(&api.origin,&update_body);*update.method_mut()=hyper::Method::PATCH;*update.uri_mut()=format!("/api/v1/credentials/{}",issued["id"].as_str().unwrap()).parse().unwrap();
                 let updated=api.handle(update).await;assert_eq!(updated.status(),StatusCode::OK);let projection:serde_json::Value=serde_json::from_slice(&updated.into_body().collect().await.unwrap().to_bytes()).unwrap();assert!(projection.get("secret").is_none());assert_eq!(tokens.authenticate(&issued_header).unwrap().role,Role::Member);
+                let mut stale=make(&api.origin,&update_body);*stale.method_mut()=hyper::Method::PATCH;*stale.uri_mut()=format!("/api/v1/credentials/{}",issued["id"].as_str().unwrap()).parse().unwrap();assert_eq!(api.handle(stale).await.status(),StatusCode::CONFLICT);
                 let mut revoke=make(&api.origin,"");*revoke.method_mut()=hyper::Method::POST;*revoke.uri_mut()=format!("/api/v1/credentials/{}/revoke",issued["id"].as_str().unwrap()).parse().unwrap();assert_eq!(api.handle(revoke).await.status(),StatusCode::OK);assert!(tokens.authenticate(&issued_header).is_none());
             }
         }

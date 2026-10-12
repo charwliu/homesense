@@ -34,6 +34,14 @@ pub struct CredentialRequest {
     pub scenes:BTreeSet<String>,
     pub devices:BTreeSet<String>,
 }
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CredentialUpdate {
+    pub expected:Grant,
+    pub role:Role,
+    pub scenes:BTreeSet<String>,
+    pub devices:BTreeSet<String>,
+}
 #[derive(serde::Serialize)]
 pub struct IssuedCredential {pub id:Uuid,pub secret:String,pub grant:Grant}
 struct Credential {
@@ -188,13 +196,14 @@ impl Tokens {
     }
     /// Replace a grant without rotating its secret or actor identity.
     /// All existing sessions are invalidated after the durable update succeeds.
-    pub fn update_grant(&self,id:Uuid,request:CredentialRequest,bearer:Option<&str>,cookie:Option<&str>,csrf:Option<&str>)->Result<CredentialSummary,&'static str> {
+    pub fn update_grant(&self,id:Uuid,request:CredentialUpdate,bearer:Option<&str>,cookie:Option<&str>,csrf:Option<&str>)->Result<CredentialSummary,&'static str> {
         let mut entries=self.entries.write().map_err(|_|"credential_store_unavailable")?;
         let mut sessions=self.sessions.write().map_err(|_|"credential_store_unavailable")?;
         let parent=administrator(&entries,&sessions,bearer,cookie,csrf).ok_or("administrator_required")?;
         if !request.devices.is_subset(&parent.devices)||!request.scenes.is_subset(&parent.scenes){return Err("scope_expansion_forbidden");}
         let previous=entries.get(&id).ok_or("credential_not_found")?;
         if previous.grant.controller!=parent.controller {return Err("controller_mismatch");}
+        if previous.grant!=request.expected {return Err("credential_changed");}
         if previous.grant.role==Role::Administrator && request.role!=Role::Administrator && entries.values().filter(|entry|entry.grant.role==Role::Administrator).count()==1 {return Err("last_administrator");}
         let grant=Grant{controller:previous.grant.controller,role:request.role,devices:request.devices,scenes:request.scenes};
         crate::web_credentials::validate(&grant).map_err(|_|"invalid_credential_scope")?;
