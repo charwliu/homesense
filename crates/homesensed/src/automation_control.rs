@@ -11,6 +11,7 @@ use tokio::sync::{mpsc, oneshot};
 use uuid::Uuid;
 #[derive(Debug)]
 pub enum Action {
+    RunSummary {controller:Uuid,revision:u64,boot:String,run:String},
     Diagnostics {controller:Uuid,revision:u64},
     ConfigurationHistory {controller:Uuid,revision:u64,before:Option<u64>,limit:usize},
     ConfigurationExport {controller:Uuid,revision:u64,selected:u64},
@@ -32,6 +33,7 @@ pub enum Action {
 }
 #[derive(Debug, PartialEq, Eq)]
 pub enum Reply {
+    RunSummary(Option<(String,LastRun)>),
     Diagnostics(crate::admission::Diagnostics),
     ConfigurationHistory(homesense_storage::configuration_history::Page),
     ConfigurationExport(Option<homesense_storage::configuration_history::Export>),
@@ -266,6 +268,11 @@ impl Receiver {
                         crate::scene_activity::Targets::new(&scene.steps).project(admission,self.controller,&self.generation,feedback,max_age_ms).await.map(|a|Reply::Activity(Some(a)))
                     },
                     Action::Retire(run) => scenes.retire(run).map(Reply::Retired),
+                    Action::RunSummary {controller,revision,boot,run} => {
+                        if revision!=document.revision {return Err("run query revision expired".into());}
+                        let page=admission.scene_history(controller,self.generation.clone(),homesense_storage::scene_run::Query::Run{boot,run,after:0,limit:1}).await.map_err(|e|format!("{e:?}"))?;
+                        Ok(Reply::RunSummary(page.and_then(|p|p.record.definition.clone().map(|scene|(scene,LastRun{boot:p.boot,run:p.run,revision:p.record.revision,started_ms:p.record.started_ms,updated_ms:p.record.updated_ms,version:p.record.version,status:p.record.status,cause:p.cause})))))
+                    },
                     Action::LastRun(id) => {
                         if !document.timed_scenes.contains_key(&id) { return Err("unknown timed scene".into()); }
                         let page=admission.scene_history(self.controller,self.generation.clone(),homesense_storage::scene_run::Query::Latest{definition:id}).await.map_err(|e|format!("{e:?}"))?;
