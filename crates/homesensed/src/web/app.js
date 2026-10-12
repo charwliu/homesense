@@ -2,6 +2,7 @@
 let csrf = '';
 let sessionEpoch=0;
 let sessionBusy=false;
+let credentialIssueBusy=false;
 let backupInspectionEpoch=0;
 let metadataSource=null;
 let calibrationBinding=null;
@@ -97,7 +98,7 @@ function renderScenes(data) {
   }
 }
 document.getElementById('connect').onclick = async () => {
-  if(sessionBusy)return;sessionBusy=true;const epoch=++sessionEpoch;
+  if(sessionBusy)return;sessionBusy=true;const epoch=++sessionEpoch;clearCredentialCreation();
   invalidatePreview();
   const credential = document.getElementById('token').value; document.getElementById('token').value = '';
   try {
@@ -109,7 +110,7 @@ document.getElementById('connect').onclick = async () => {
   finally {sessionBusy=false;}
 };
 document.getElementById('logout').onclick = async () => {
-  if(sessionBusy)return;sessionBusy=true;++sessionEpoch;
+  if(sessionBusy)return;sessionBusy=true;++sessionEpoch;clearCredentialCreation();
   invalidatePreview();
   try { await request('/api/v1/session', {method: 'DELETE'}); csrf = ''; observedRevision=null;lastSceneSnapshot=null; clearTimeout(eventRetry); if(eventSocket)eventSocket.close();eventDevices.clear(); selectedRoom='';document.getElementById('room-filter').replaceChildren();document.getElementById('room-filter').value=''; document.getElementById('draft-impact').textContent=''; document.getElementById('configuration').hidden=true;document.getElementById('diagnostics').hidden=true;historyEpoch++;detailEpoch++;document.getElementById('run-details').replaceChildren();document.getElementById('scene-history').hidden=true;document.getElementById('history-runs').replaceChildren();document.getElementById('history-title').textContent='';document.getElementById('history-next').disabled=true; document.getElementById('runtime-result').textContent='';document.getElementById('calendar-result').textContent='';document.getElementById('credential-list').textContent='';document.getElementById('revoke-credential-id').value='';document.getElementById('revoke-credential-confirm').checked=false;document.getElementById('revoke-credential-result').textContent='';document.getElementById('backup-result').textContent='';document.getElementById('backup-actions').replaceChildren();backupInspectionEpoch++;document.getElementById('backup-inspection').textContent='';document.getElementById('versions').replaceChildren();document.getElementById('draft-list').replaceChildren(); versionsBefore=null;document.getElementById('more-versions').disabled=true; metadataSource=null;clearCalibration();document.getElementById('binding-enabled').checked=false;for(const id of ['binding-gateway','binding-address','binding-channel'])document.getElementById(id).value='';document.getElementById('metadata-device').replaceChildren();document.getElementById('metadata-room').replaceChildren();document.getElementById('edit-room-select').replaceChildren();document.getElementById('metadata-name').value=''; for(const id of ['device-document','automation-document','draft-id','base-revision','draft-revision','edit-room-id','edit-room-name','edit-room-floor']) document.getElementById(id).value=''; started.clear(); list.replaceChildren(); document.getElementById('devices').replaceChildren(); status.textContent = '已退出'; }
   catch (error) { status.textContent = '注销未确认：' + error.message; }
@@ -528,4 +529,31 @@ document.getElementById('revoke-credential').onclick=async()=>{
     document.getElementById('credential-list').textContent='授权已变化，请重新读取清单';
   }catch(e){if(epoch===sessionEpoch)output.textContent=e.message;}
   finally {button.disabled=false;}
+};
+
+function clearCredentialCreation() {
+  document.getElementById('issue-result').textContent='';
+  document.getElementById('issue-role').value='Viewer';
+  document.getElementById('issue-devices').value='';document.getElementById('issue-scenes').value='';
+  document.getElementById('issue-confirm').checked=false;
+}
+document.getElementById('clear-issued-secret').onclick=()=>{document.getElementById('issue-result').textContent='';};
+document.getElementById('issue-credential').onclick=async()=>{
+  if(credentialIssueBusy)return;
+  const epoch=sessionEpoch,output=document.getElementById('issue-result'),button=document.getElementById('issue-credential');
+  if(!document.getElementById('issue-confirm').checked){output.textContent='请先核对并确认角色和范围';return;}
+  const scope=id=>[...new Set(document.getElementById(id).value.split(/\r?\n/).map(value=>value.trim()).filter(Boolean))];
+  const body={role:document.getElementById('issue-role').value,devices:scope('issue-devices'),scenes:scope('issue-scenes')};
+  if(!['Viewer','Member','Administrator'].includes(body.role)||body.devices.length>256||body.scenes.length>4095||[...body.devices,...body.scenes].some(id=>id.length>256||/[\u0000-\u001f\u007f]/.test(id))) {output.textContent='角色或授权范围格式不正确';return;}
+  const encoded=JSON.stringify(body);
+  if(new TextEncoder().encode(encoded).length>65536){output.textContent='授权范围过大，请减少条目';return;}
+  credentialIssueBusy=true;button.disabled=true;output.textContent='正在创建…';
+  try {
+    const issued=await request('/api/v1/credentials',{method:'POST',body:encoded});
+    if(epoch!==sessionEpoch)return;
+    output.textContent=`凭证 ID：${issued.id}\n令牌（仅显示一次）：${issued.secret}`;
+    document.getElementById('issue-confirm').checked=false;
+    document.getElementById('credential-list').textContent='授权已变化，请重新读取清单';
+  }catch(e){if(epoch===sessionEpoch)output.textContent=e.message+'；若连接中断，创建可能已成功，请先读取清单核对，再决定是否撤销或重试。';}
+  finally {credentialIssueBusy=false;button.disabled=false;}
 };
