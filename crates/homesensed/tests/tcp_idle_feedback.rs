@@ -30,6 +30,9 @@ async fn missing_periodic_response_stops_at_recovery_limit_without_control_write
         socket.read_exact(&mut frame).unwrap();
         assert_eq!(frame, [0xae, 0x15, 0xa1, 0xf2, 0xee]);
         // The fresh query receives no answer: the old observation is not renewed.
+        socket.read_exact(&mut frame).unwrap();
+        assert_eq!(frame, [0xae, 0x15, 0xa1, 0xf2, 0xee]);
+        // One bounded read-only retry is also unanswered; control remains gated.
         assert_eq!(socket.read(&mut frame).unwrap(), 0);
     });
     let started = std::time::Instant::now();
@@ -251,5 +254,66 @@ async fn idle_combined_light_stays_readable_over_encrypted_hap_and_web() {
     assert!(controls.lock().unwrap().is_empty());
     drop(queries);
     drop(identity);
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[tokio::test]
+async fn lost_periodic_reply_requeries_same_connection_and_requires_new_observation() {
+    let root = std::env::temp_dir().join(format!("idle-feedback-retry-{}", Uuid::new_v4()));
+    std::fs::create_dir(&root).unwrap();
+    let bus = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let web = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let web_address = web.local_addr().unwrap();
+    drop(web);
+    let mut raw: serde_json::Value = serde_json::from_slice(include_bytes!("../../../config/simulation.json")).unwrap();
+    raw["gateways"][0]["endpoint"] = bus.local_addr().unwrap().to_string().into();
+    raw["gateways"][0]["modules"][0]["verification"] = serde_json::json!({"status":"verified","evidence":"synthetic loopback only","verified_at_unix_ms":1});
+    let server = std::thread::spawn(move || {
+        let (mut socket, _) = bus.accept().unwrap();
+        socket.set_read_timeout(Some(Duration::from_secs(8))).unwrap();
+        let mut frame = [0; 5];
+        for index in 0..3 {
+            socket.read_exact(&mut frame).unwrap();
+            assert_eq!(frame, [0xae, 0x15, 0xa1, 0xf2, 0xee], "only status reads may retry");
+            match index {
+                0 => socket.write_all(&[0xae, 0x15, 0xd1, 42, 0xee]).unwrap(),
+                1 => {}, // lose exactly the first periodic reply
+                _ => socket.write_all(&[0xae, 0x15, 0xd1, 43, 0xee]).unwrap(),
+            }
+        }
+        loop {
+            let n = socket.read(&mut frame).unwrap();
+            if n == 0 {break;}
+            let mut filled = n;
+            while filled < frame.len() {let n=socket.read(&mut frame[filled..]).unwrap();assert!(n>0,"EOF within query frame");filled+=n;}
+            assert_eq!(frame, [0xae, 0x15, 0xa1, 0xf2, 0xee], "later periodic queries are allowed, controls are not");
+            socket.write_all(&[0xae, 0x15, 0xd1, 43, 0xee]).unwrap();
+        }
+    });
+    let bytes = serde_json::to_vec(&raw).unwrap();
+    let directory = root.clone();
+    let service = tokio::spawn(async move {
+        homesensed::automation_tcp::serve_managed(&bytes,
+            br#"{"schema_version":1,"configuration_revision":1,"variables":[],"rules":[]}"#,
+            &directory, Duration::from_secs(6), true, 0, Duration::from_millis(20),
+            homesensed::service::WebSettings {address:web_address,secret:"abcdefghijklmnopqrstuvwxyz0123456789".into(),administrator:true,tls:None}).await
+    });
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
+    loop {
+        if tokio::net::TcpStream::connect(web_address).await.is_ok() {break;}
+        assert!(tokio::time::Instant::now() < deadline);
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    loop {
+        let state = devices(web_address).await;
+        if state["devices"][0]["observed"]["level"] == 43 {break;}
+        assert!(tokio::time::Instant::now() < deadline, "new response not projected: {state}");
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    assert!(service.await.unwrap().is_ok());
+    server.join().unwrap();
+    let db = rusqlite::Connection::open(root.join("automation-tcp.sqlite")).unwrap();
+    assert_eq!(db.query_row("SELECT count(*) FROM command_journal", [], |row|row.get::<_,i64>(0)).unwrap(), 0);
+    drop(db);
     std::fs::remove_dir_all(root).unwrap();
 }
