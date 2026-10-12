@@ -1,0 +1,25 @@
+{
+  "base_commit": "e39dc55",
+  "scope": "synthetic loopback only",
+  "browser_passed": [
+    "load saved metadata draft",
+    "preview",
+    "open inline confirmation",
+    "cancel confirmation",
+    "confirm publication",
+    "revision 2 activated",
+    "device card renamed and moved to living room",
+    "logout clears device and metadata controls and hides confirmation"
+  ],
+  "active_revision": 2,
+  "viewport_check": {
+    "width": 390,
+    "document_scroll_width": 390,
+    "visual_mobile_acceptance": false
+  },
+  "screenshot": "device-published-desktop.jpg",
+  "limitations": [
+    "mobile screenshot capture did not provide a usable visual proof",
+    "not physical device or Siri acceptance"
+  ]
+}
