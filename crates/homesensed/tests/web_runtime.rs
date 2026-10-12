@@ -436,7 +436,7 @@ async fn web_scope_origin_receipts_and_runtime_admission() {
         );
         let mut activation=make_draft();*activation.uri_mut()=format!("/api/v1/config/activations/{draft_id}").parse().unwrap();
         assert_eq!(api.handle(activation).await.status(),StatusCode::FORBIDDEN);
-        for path in ["/api/v1/backups/inspect","/api/v1/backups","/api/v1/config/versions/1/restore-draft","/health/ready","/api/v1/diagnostics","/api/v1/diagnostics/calendar","/api/v1/config/drafts","/api/v1/config/versions","/api/v1/config/versions/1/export"] {
+        for path in ["/api/v1/credentials","/api/v1/backups/inspect","/api/v1/backups","/api/v1/config/versions/1/restore-draft","/health/ready","/api/v1/diagnostics","/api/v1/diagnostics/calendar","/api/v1/config/drafts","/api/v1/config/versions","/api/v1/config/versions/1/export"] {
             let mut read=make(&api.origin,"");*read.method_mut()=hyper::Method::GET;*read.uri_mut()=path.parse().unwrap();
             assert_eq!(api.handle(read).await.status(),StatusCode::FORBIDDEN);
         }
@@ -445,6 +445,14 @@ async fn web_scope_origin_receipts_and_runtime_admission() {
         let mut administrator = tokens.authenticate(&format!("Bearer {secret}")).unwrap();
         administrator.role = Role::Administrator;
         tokens.insert(token_id, secret, administrator).unwrap();
+        let mut credentials=make(&api.origin,"");*credentials.method_mut()=hyper::Method::GET;*credentials.uri_mut()="/api/v1/credentials".parse().unwrap();
+        let result=api.handle(credentials).await;assert_eq!(result.status(),StatusCode::OK);
+        let credential_body=result.into_body().collect().await.unwrap().to_bytes();
+        let listed:serde_json::Value=serde_json::from_slice(&credential_body).unwrap();
+        assert_eq!(listed["credentials"][0]["id"],token_id.to_string());
+        assert_eq!(listed["credentials"][0]["grant"]["role"],"Administrator");
+        assert_eq!(listed["credentials"][0].as_object().unwrap().keys().cloned().collect::<Vec<_>>(),vec!["grant","id"]);
+        assert!(!String::from_utf8_lossy(&credential_body).contains(secret));
         let saved_drafts=api.drafts.take();
         let mut capability=make(&api.origin,"");*capability.method_mut()=hyper::Method::GET;*capability.uri_mut()="/api/v1/session".parse().unwrap();
         let capability:serde_json::Value=serde_json::from_slice(&api.handle(capability).await.into_body().collect().await.unwrap().to_bytes()).unwrap();assert_eq!(capability["can_view_diagnostics"],true);assert_eq!(capability["can_manage_configuration"],false);
