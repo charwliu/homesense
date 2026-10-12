@@ -1,0 +1,21 @@
+{
+  "commit": "2a05c09",
+  "source": "git archive HEAD; excludes uncommitted and private files",
+  "workspace": {
+    "passed": 543,
+    "failed": 0,
+    "ignored": 0,
+    "result_blocks": 107,
+    "exit_code": 0
+  },
+  "frontend_scripts": 11,
+  "tls_tcp_combined": "passed: HTTPS/WSS, CSRF, revocation, invalid certificates, plaintext and unsafe key rejection",
+  "publication": "passed: publish, restart without replay, historical restore, 6 read-only backup inspections",
+  "binary_sha256": "d45baea51a226653b79c115e7d7dd586baf578599e48c8d421588ac8238aad4c",
+  "limits": [
+    "synthetic loopback only",
+    "not field iPhone/Siri acceptance",
+    "not LAN certificate trust acceptance",
+    "EA-5 unchanged"
+  ]
+}
