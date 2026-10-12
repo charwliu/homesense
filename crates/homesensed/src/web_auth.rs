@@ -22,6 +22,11 @@ pub struct Grant {
     pub scenes: BTreeSet<String>,
     pub devices: BTreeSet<String>,
 }
+#[derive(serde::Serialize)]
+pub struct CredentialSummary {
+    pub id:Uuid,
+    pub grant:Grant,
+}
 struct Credential {
     generation: Uuid,
     hash: [u8; 32],
@@ -48,6 +53,11 @@ fn digest(value: &str) -> [u8; 32] {
     Sha256::digest(value.as_bytes()).into()
 }
 impl Tokens {
+    /// Administrative projection; intentionally excludes hashes and session material.
+    pub fn summaries(&self)->Result<Vec<CredentialSummary>,String> {
+        let entries=self.entries.read().map_err(|_|"credential lock unavailable")?;
+        Ok(entries.iter().map(|(id,c)|CredentialSummary{id:*id,grant:c.grant.clone()}).collect())
+    }
     /// Load a private credential database owned by this service instance.
     /// Sessions are deliberately process-local and require login after restart.
     pub fn open(path:&std::path::Path)->Result<Self,String> {
