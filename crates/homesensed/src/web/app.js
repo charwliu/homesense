@@ -4,6 +4,7 @@ let sessionEpoch=0;
 let sessionBusy=false;
 let backupInspectionEpoch=0;
 let metadataSource=null;
+let observedRevision=null;
 let publicationPreview=null;
 let publicationConfirmation=null;
 let previewEpoch=0;
@@ -38,7 +39,16 @@ async function refresh() {
   await refreshDevices();
   renderScenes(data);
 }
+function observeRevision(revision) {
+  if(typeof revision!=='string'||!/^[1-9][0-9]*$/.test(revision))return true;
+  if(observedRevision!==null && BigInt(revision)<BigInt(observedRevision))return false;
+  if(observedRevision!==null && revision!==observedRevision) {
+    invalidatePreview();status.textContent='运行配置已切换；请重新核对草稿版本并预览。';
+  }
+  observedRevision=revision;return true;
+}
 function renderScenes(data) {
+  if(!observeRevision(data.revision))return;
   list.replaceChildren();
   for (const scene of data.scenes) {
     const row = document.createElement('article');
@@ -95,7 +105,7 @@ document.getElementById('connect').onclick = async () => {
 document.getElementById('logout').onclick = async () => {
   if(sessionBusy)return;sessionBusy=true;++sessionEpoch;
   invalidatePreview();
-  try { await request('/api/v1/session', {method: 'DELETE'}); csrf = ''; clearTimeout(eventRetry); if(eventSocket)eventSocket.close();eventDevices.clear(); selectedRoom='';document.getElementById('room-filter').replaceChildren();document.getElementById('room-filter').value=''; document.getElementById('draft-impact').textContent=''; document.getElementById('configuration').hidden=true;document.getElementById('diagnostics').hidden=true;historyEpoch++;detailEpoch++;document.getElementById('run-details').replaceChildren();document.getElementById('scene-history').hidden=true;document.getElementById('history-runs').replaceChildren();document.getElementById('history-title').textContent='';document.getElementById('history-next').disabled=true; document.getElementById('runtime-result').textContent='';document.getElementById('calendar-result').textContent='';document.getElementById('backup-result').textContent='';document.getElementById('backup-actions').replaceChildren();backupInspectionEpoch++;document.getElementById('backup-inspection').textContent='';document.getElementById('versions').replaceChildren();document.getElementById('draft-list').replaceChildren(); versionsBefore=null;document.getElementById('more-versions').disabled=true; metadataSource=null;document.getElementById('metadata-device').replaceChildren();document.getElementById('metadata-room').replaceChildren();document.getElementById('metadata-name').value=''; for(const id of ['device-document','automation-document','draft-id','base-revision','draft-revision']) document.getElementById(id).value=''; started.clear(); list.replaceChildren(); document.getElementById('devices').replaceChildren(); status.textContent = '已退出'; }
+  try { await request('/api/v1/session', {method: 'DELETE'}); csrf = ''; observedRevision=null; clearTimeout(eventRetry); if(eventSocket)eventSocket.close();eventDevices.clear(); selectedRoom='';document.getElementById('room-filter').replaceChildren();document.getElementById('room-filter').value=''; document.getElementById('draft-impact').textContent=''; document.getElementById('configuration').hidden=true;document.getElementById('diagnostics').hidden=true;historyEpoch++;detailEpoch++;document.getElementById('run-details').replaceChildren();document.getElementById('scene-history').hidden=true;document.getElementById('history-runs').replaceChildren();document.getElementById('history-title').textContent='';document.getElementById('history-next').disabled=true; document.getElementById('runtime-result').textContent='';document.getElementById('calendar-result').textContent='';document.getElementById('backup-result').textContent='';document.getElementById('backup-actions').replaceChildren();backupInspectionEpoch++;document.getElementById('backup-inspection').textContent='';document.getElementById('versions').replaceChildren();document.getElementById('draft-list').replaceChildren(); versionsBefore=null;document.getElementById('more-versions').disabled=true; metadataSource=null;document.getElementById('metadata-device').replaceChildren();document.getElementById('metadata-room').replaceChildren();document.getElementById('metadata-name').value=''; for(const id of ['device-document','automation-document','draft-id','base-revision','draft-revision']) document.getElementById(id).value=''; started.clear(); list.replaceChildren(); document.getElementById('devices').replaceChildren(); status.textContent = '已退出'; }
   catch (error) { status.textContent = '注销未确认：' + error.message; }
   finally {sessionBusy=false;}
 };
@@ -237,10 +247,12 @@ function connectEvents() {
     try {
       const frame=JSON.parse(event.data);
       if(frame.type==='unavailable') {
+        invalidatePreview();
         for(const [id,device] of eventDevices)eventDevices.set(id,{...device,quality:'Stale',can_control:false});
         renderDevices();status.textContent='配置正在切换，等待状态恢复。';return;
       }
       if(frame.type!=='state')return;
+      if(!observeRevision(frame.revision))return;
       if(frame.reset)eventDevices.clear();
       for(const device of frame.devices)eventDevices.set(device.id,device);
       renderDevices();renderScenes({scenes:frame.scenes,revision:frame.revision});eventCursor=frame.cursor;eventAttempts=0;
