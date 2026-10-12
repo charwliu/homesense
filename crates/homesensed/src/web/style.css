@@ -27,3 +27,5 @@ article input { margin-right: 8px; }
 #draft-impact { white-space: pre-wrap; overflow-wrap: anywhere; }
 #versions p { padding: 10px 0; border-bottom: 1px solid #e0e8e2; }
 @media (max-width: 520px) { main { padding: 20px 14px 40px; } article, #configuration { padding: 16px; } #token { display: block; margin: 6px 0; width: 100%; } }
+
+#draft-list { overflow-wrap: anywhere; }

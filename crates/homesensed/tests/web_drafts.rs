@@ -43,6 +43,12 @@ fn validated_drafts_are_immutable_private_and_survive_restart() {
             automation: draft.automation.clone()
         })
     );
+    let catalog=store.list(owner).unwrap();assert_eq!(catalog.len(),1);assert_eq!(catalog[0].id,draft.id);assert_eq!(catalog[0].revision,2);
+    assert!(store.list(Uuid::new_v4()).unwrap().is_empty());
+    let other=Uuid::new_v4();
+    let foreign=Draft{id:Uuid::new_v4(),expected_revision:1,revision:2,devices:draft.devices.clone(),automation:draft.automation.clone()};
+    store.save(other,&foreign,ExecutionContext::Simulation).unwrap();
+    assert_eq!(store.list(owner).unwrap(),catalog);assert_eq!(store.list(other).unwrap()[0].id,foreign.id);
     draft.devices["devices"][0]["name"] = "changed".into();
     assert!(
         store

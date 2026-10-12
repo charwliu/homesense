@@ -246,6 +246,15 @@ impl Api {
                 _ => deny(StatusCode::CONFLICT, "configuration_changed_or_unavailable"),
             };
         }
+        if request.uri().path()=="/api/v1/config/drafts" {
+            if grant.role!=crate::web_auth::Role::Administrator {return deny(StatusCode::FORBIDDEN,"administrator_required");}
+            if request.method()!=hyper::Method::GET {return deny(StatusCode::METHOD_NOT_ALLOWED,"method_not_allowed");}
+            let Some((_,drafts))=&self.drafts else {return deny(StatusCode::SERVICE_UNAVAILABLE,"configuration_management_unavailable");};
+            return match drafts.lock().map_err(|_|()).and_then(|d|d.list(grant.controller).map_err(|_|())) {
+                Ok(drafts)=>response(StatusCode::OK,json!({"drafts":drafts.iter().map(|d|json!({"id":d.id,"expected_revision":d.expected_revision.to_string(),"revision":d.revision.to_string()})).collect::<Vec<_>>()})),
+                Err(_)=>deny(StatusCode::SERVICE_UNAVAILABLE,"draft_storage_unavailable"),
+            };
+        }
         if let Some(id) = request.uri().path().strip_prefix("/api/v1/config/drafts/") {
             if grant.role != crate::web_auth::Role::Administrator {
                 return deny(StatusCode::FORBIDDEN, "administrator_required");

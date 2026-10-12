@@ -14,6 +14,12 @@ pub struct Draft {
     pub automation: serde_json::Value,
 }
 type StoredDraft = (String, i64, i64, Vec<u8>, Vec<u8>);
+#[derive(Debug, PartialEq, Eq)]
+pub struct Summary {
+    pub id: Uuid,
+    pub expected_revision: u64,
+    pub revision: u64,
+}
 pub struct Drafts(Connection);
 impl Drafts {
     pub fn open(path: &Path) -> Result<Self, String> {
@@ -100,6 +106,18 @@ impl Drafts {
         )
         .map_err(|e| e.to_string())?;
         tx.commit().map_err(|e| e.to_string())
+    }
+    /// Bounded metadata only, scoped to the same principal as get/save.
+    pub fn list(&self, principal:Uuid)->Result<Vec<Summary>,String> {
+        let mut query=self.0.prepare("SELECT id,expected_revision,revision FROM configuration_draft WHERE principal=?1 ORDER BY revision DESC,id ASC LIMIT 129").map_err(|e|e.to_string())?;
+        let rows=query.query_map([principal.to_string()],|r|Ok((r.get::<_,String>(0)?,r.get::<_,i64>(1)?,r.get::<_,i64>(2)?))).map_err(|e|e.to_string())?;
+        let mut result=vec![];
+        for row in rows {
+            let (id,expected,revision)=row.map_err(|e|e.to_string())?;
+            if expected<=0 || revision<=expected || result.len()==128 {return Err("invalid draft catalog".into());}
+            result.push(Summary{id:Uuid::parse_str(&id).map_err(|e|e.to_string())?,expected_revision:expected as u64,revision:revision as u64});
+        }
+        Ok(result)
     }
     pub fn get(&self, principal: Uuid, id: Uuid) -> Result<Option<Draft>, String> {
         let row:Option<(i64,i64,Vec<u8>,Vec<u8>)>=self.0.query_row("SELECT expected_revision,revision,devices,automation FROM configuration_draft WHERE principal=?1 AND id=?2",params![principal.to_string(),id.to_string()],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?))).optional().map_err(|e|e.to_string())?;
