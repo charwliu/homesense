@@ -1,0 +1,24 @@
+{
+  "base_commit": "d2d7ea35564ca95d7e6674f04253b979b8bf1c06",
+  "snapshot": "git archive HEAD plus only crates/homesense-hap/src/events.rs from worktree",
+  "patch_sha256": "a32c31e82514c4d5f86e6279543843f088a972e142d702caad0014f11aecc2a3",
+  "strict_clippy": {
+    "packages": [
+      "homesensed",
+      "homesense-storage",
+      "homesense-config"
+    ],
+    "target": "lib",
+    "exit_code": 0,
+    "dependency_warning_count": 54,
+    "log_sha256": "90bc1078ed33a3cdd92ebc8076b224a311be26eea32fad78b388e0eab0106b3f"
+  },
+  "workspace_tests": {
+    "passed": 513,
+    "failed": 0,
+    "ignored": 0,
+    "result_blocks": 102,
+    "exit_code": 0,
+    "log_sha256": "cd9e95b0f0a8ece822f1e15e1a36cbda8ed7eebe014d49cde26bb7f17747bf16"
+  }
+}

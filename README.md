@@ -511,3 +511,5 @@ Web 窗帘控制：`POST /api/v1/device-commands` 的 command 现在支持 `{"ac
 运行详情接入：`GET /api/v1/runs/{boot}/{run}/details?revision=...&kind=commands|cancellations|expiries&after=0&limit=20` 提供独立分页（最大 100）。命令按持久命令 ID、取消和过期按记录版本续页；游标以字符串返回。场景权限过滤后再按设备范围隐藏记录，`redacted` 提示隐藏项，空可见页仍保留下一页入口。响应剔除内部源位置和指令载荷，不把 Written 当作物理完成。历史面板提供三类详情入口，切换历史或退出使迟到详情失效。17 项库测试、运行时 Web 集成和前端分页／会话等回归通过；真实浏览器及现场验收仍待补齐，EA-5 不变。
 
 历史进程级回归脚本 `tools/verify_web_history.py`：真实回环 HTTP 创建并取消 21 次延迟模拟场景，验证 20＋1 分页和重启后相同记录；另执行一次即时场景，核对命令详情及数据库命令数始终为 1，内部源位置不出现在响应。重启会把旧实例未确认的 Written 命令标为 Uncertain（Observed 保留），场景的 CommandsWritten 回执不因此等同于物理确认；脚本显式检查此转换，不要求历史命令保留 Written。所有数据为合成配置，现场未运行。
+
+公开快照验证：基于 `d2d7ea3` 的 git archive，仅叠加 HAP 亮度过渡条件的等价 let-chain 修复，完整 workspace 测试 513 项通过、0 失败、0 忽略；未带入本地私有测试及其他未提交修改。`homesensed`、`homesense-storage`、`homesense-config` 库严格 Clippy 通过；vendor HAP 依赖仍有警告，因此不是整个依赖树零警告。证据见 `docs/evidence/stage-e-browser/clean-runtime-regression.json`。

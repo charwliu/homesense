@@ -46,10 +46,11 @@ impl BrightnessTransitions {
         let Some(&(target, deadline)) = pending.get(device) else {
             return (false, false);
         };
-        if let Some(Observation::Level(level)) = value {
-            if now < deadline && level != target {
-                return (true, false);
-            }
+        if let Some(Observation::Level(level)) = value
+            && now < deadline
+            && level != target
+        {
+            return (true, false);
         }
         pending.remove(device);
         (false, true)
