@@ -24,6 +24,14 @@ pub struct Binding {
     #[serde(default)]
     pub trigger_edge: TriggerEdge,
 }
+/// Review of the complete external writer inventory, distinct from a local
+/// scene group or an individual panel mapping. Never a confirmed runtime value.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ExternalToggleReview {
+    pub group: String,
+    pub review_evidence: String,
+}
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Settings {
@@ -32,6 +40,8 @@ pub struct Settings {
     pub debounce_ms: u64,
     pub max_age_ms: u64,
     pub bindings: Vec<Binding>,
+    #[serde(default)]
+    pub external_toggle_reviews: Vec<ExternalToggleReview>,
 }
 impl Settings {
     /// Expanded rules must not turn an unknown/inferred selection into an
@@ -120,6 +130,21 @@ impl Settings {
         }
         let mut devices = BTreeSet::new();
         let mut observed_variables = BTreeSet::new();
+        let mut reviewed_groups = BTreeSet::new();
+        if self.external_toggle_reviews.len() > 64 {
+            return Err(invalid("too many external toggle reviews"));
+        }
+        for review in &self.external_toggle_reviews {
+            if review.review_evidence.trim().is_empty()
+                || review.review_evidence.len() > 8192
+                || review.review_evidence.chars().any(char::is_control)
+                || !reviewed_groups.insert(review.group.as_str())
+                || !groups.iter().any(|g| g.id == review.group)
+                || !self.bindings.iter().any(|b| b.group == review.group)
+            {
+                return Err(invalid("invalid external toggle writer review"));
+            }
+        }
         for binding in &self.bindings {
             let id = DeviceId::new(&binding.device)?;
             if binding.device.len() > 256
@@ -139,6 +164,18 @@ impl Settings {
                 ));
             }
             if self.enabled {
+                if !reviewed_groups.contains(group.id.as_str())
+                    || group.members.iter().any(|member| {
+                        !self
+                            .bindings
+                            .iter()
+                            .any(|b| b.group == group.id && b.member == member.value)
+                    })
+                {
+                    return Err(invalid(
+                        "enabled scene observation requires a complete external toggle writer review and all member keys",
+                    ));
+                }
                 if binding.review_evidence.as_ref().is_none_or(|v| {
                     v.trim().is_empty() || v.len() > 8192 || v.chars().any(char::is_control)
                 }) {

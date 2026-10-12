@@ -22,7 +22,7 @@ fn automation() -> Json {
     let scenes=[("first",100),("second",60),("third",17),("off",0)].map(|(id,level)|json!({"id":id,"enabled":true,"review_evidence":"synthetic only","max_lateness_ms":1000,"steps":[{"source":"synthetic","offset_ms":60000,"device":"light","command":{"kind":"level","value":level,"ramp":false}}]}));
     json!({"schema_version":1,"configuration_revision":1,"variables":[{"id":"selection","kind":"integer","lifetime":"persistent"}],"rules":[],"timed_scenes":scenes,
         "scene_switch_groups":[{"id":"group","variable":"selection","review_evidence":"synthetic toggle group","members":[{"scene":"first","value":1,"off_scene":"off"},{"scene":"second","value":2,"off_scene":"off"},{"scene":"third","value":3,"off_scene":"off"}]}],
-        "scene_observation":{"enabled":true,"debounce_ms":30,"max_age_ms":5000,"bindings":[
+        "scene_observation":{"enabled":true,"debounce_ms":30,"max_age_ms":5000,"external_toggle_reviews":[{"group":"group","review_evidence":"synthetic complete external writer inventory"}],"bindings":[
             {"device":"key1","group":"group","member":1,"review_evidence":"synthetic raw key mapping"},
             {"device":"key3","group":"group","member":2,"review_evidence":"synthetic raw key mapping"},
             {"device":"key5","group":"group","member":3,"review_evidence":"synthetic raw key mapping"}]}})
@@ -71,6 +71,22 @@ fn strict_reviewed_observation_defaults_off_and_rejects_execution_overlap() {
         item["scene_observation"]["bindings"][0][field] = value;
         invalid.push(item);
     }
+    for reviews in [
+        json!([]),
+        json!([{ "group":"group", "review_evidence":"" }]),
+        json!([{ "group":"missing", "review_evidence":"synthetic" }]),
+        json!([{ "group":"group", "review_evidence":"synthetic" }, { "group":"group", "review_evidence":"duplicate" }]),
+    ] {
+        let mut item = base.clone();
+        item["scene_observation"]["external_toggle_reviews"] = reviews;
+        invalid.push(item);
+    }
+    let mut partial = base.clone();
+    partial["scene_observation"]["bindings"]
+        .as_array_mut()
+        .unwrap()
+        .pop();
+    invalid.push(partial);
     let mut item = base.clone();
     item["scene_observation"]["bindings"][1]["device"] = json!("key1");
     invalid.push(item);
@@ -243,6 +259,12 @@ impl Harness {
         self.sample(key, true);
         self.tick().await;
     }
+    // Start unknown, then converge through two distinct reviewed keys. This
+    // never seeds EA state from the local fixture's recorded value.
+    async fn select_external(&mut self, key: u8) {
+        self.press(if key == 1 { 3 } else { 1 }).await;
+        self.press(key).await;
+    }
     fn sql(&self) -> rusqlite::Connection {
         rusqlite::Connection::open(self.directory.join("runtime.sqlite")).unwrap()
     }
@@ -265,7 +287,10 @@ impl Harness {
 #[tokio::test]
 async fn current_raw_keys_infer_toggle_and_exclusion_with_no_commands_or_confirmed_rule_value() {
     let mut h = Harness::new(Some(0), automation(), true).await;
-    for (key, expected) in [(1, 1), (3, 2), (5, 3)] {
+    h.press(1).await;
+    assert_eq!(h.selection().await.stored.value, None);
+    for (key, expected) in [(3, 2), (1, 1), (5, 3)] {
+        tokio::time::sleep(Duration::from_millis(35)).await;
         h.press(key).await;
         let state = h.selection().await;
         assert_eq!(state.stored.value, Some(Value::Integer(expected)));
@@ -291,7 +316,7 @@ async fn current_raw_keys_infer_toggle_and_exclusion_with_no_commands_or_confirm
             .query_row("SELECT count(*) FROM scene_observation", [], |r| r
                 .get::<_, i64>(0))
             .unwrap(),
-        4
+        5
     );
     assert!(
         h.actor
@@ -320,10 +345,7 @@ async fn unknown_selection_stays_unknown_but_only_known_held_keys_are_suppressed
     let mut fresh = Harness::new(Some(0), automation(), false).await;
     fresh.sample(1, true);
     fresh.tick().await;
-    assert_eq!(
-        fresh.selection().await.stored.value,
-        Some(Value::Integer(1))
-    );
+    assert_eq!(fresh.selection().await.stored.value, None);
     fresh.no_output();
     fresh.close().await;
     let mut held = Harness::new_with_initial(Some(0), automation(), true, Some(1)).await;
@@ -332,7 +354,9 @@ async fn unknown_selection_stays_unknown_but_only_known_held_keys_are_suppressed
     assert_eq!(held.selection().await.stored.value, Some(Value::Integer(0)));
     assert!(held.selection().await.evidence.is_none());
     held.press(1).await;
-    assert_eq!(held.selection().await.stored.value, Some(Value::Integer(1)));
+    assert_eq!(held.selection().await.stored.value, None);
+    held.press(3).await;
+    assert_eq!(held.selection().await.stored.value, Some(Value::Integer(2)));
     held.no_output();
     held.close().await;
 }
@@ -348,7 +372,8 @@ async fn stale_keys_are_consumed_and_forged_or_changed_event_proofs_rejected() {
     h.sample(1, true);
     h.tick().await;
     assert_eq!(h.selection().await.stored.value, Some(Value::Integer(0)));
-    h.press(1).await;
+    h.tick().await;
+    h.select_external(1).await;
     assert_eq!(h.selection().await.stored.value, Some(Value::Integer(1)));
     let before = h.feedback.snapshot().cursor;
     h.sample(3, true);
@@ -408,14 +433,16 @@ async fn a_new_manual_choice_fences_a_previously_received_key_without_clearing_i
     assert!(state.evidence.is_none());
     tokio::time::sleep(Duration::from_millis(35)).await;
     h.press(1).await;
-    assert_eq!(h.selection().await.stored.value, Some(Value::Integer(1)));
+    assert_eq!(h.selection().await.stored.value, None);
+    h.press(3).await;
+    assert_eq!(h.selection().await.stored.value, Some(Value::Integer(2)));
     h.no_output();
     h.close().await;
 }
 #[tokio::test]
 async fn stream_gaps_invalidate_old_inference_and_do_not_replay_buffered_keys() {
     let mut h = Harness::new(Some(0), automation(), true).await;
-    h.press(3).await;
+    h.select_external(3).await;
     let old = h.consumer.scope.unwrap();
     assert_eq!(h.selection().await.stored.value, Some(Value::Integer(2)));
     for _ in 0..300 {
@@ -454,7 +481,7 @@ async fn disabled_observation_has_no_session_and_transport_generation_drops_old_
     disabled.no_output();
     disabled.close().await;
     let mut h = Harness::new(Some(0), automation(), true).await;
-    h.press(1).await;
+    h.select_external(1).await;
     assert_eq!(h.selection().await.stored.value, Some(Value::Integer(1)));
     let old_generation = h.generation.clone();
     h.actor.transport_failed().await.unwrap();
@@ -511,7 +538,7 @@ async fn hap_source_web_metadata_and_manual_off_share_one_scoped_selection() {
     use crate::web_auth::{Grant, Role, Tokens};
     use http_body_util::BodyExt;
     let mut h = Harness::new(Some(0), automation(), true).await;
-    h.press(3).await;
+    h.select_external(3).await;
     let source = crate::scene_selection_hap::Source::new(
         h.actor.clone(),
         h.controller,
@@ -657,7 +684,7 @@ async fn audit_led_partial_off(selected_key: u8, expected: i64) {
         "scene":"first", "lights":["light","switch"], "leds":["key1","other-led"]
     }]);
     let mut h = Harness::new(Some(0), input, true).await;
-    h.press(selected_key).await;
+    h.select_external(selected_key).await;
     let before = h.selection().await;
     assert!(before.evidence_current);
     h.no_output();
@@ -820,7 +847,7 @@ async fn indicator_inference_rejects_old_feedback_then_clears_with_post_key_feed
     let old = h.actor.monotonic_ms();
     light_sample(&mut h, old, 0);
     tokio::time::sleep(Duration::from_millis(3)).await;
-    h.press(1).await;
+    h.select_external(1).await;
     let before = h.selection().await;
     let scenes = crate::scene_scheduler::SceneScheduler::new(
         h.actor.clone(),
@@ -893,6 +920,22 @@ async fn indicator_inference_rejects_old_feedback_then_clears_with_post_key_feed
         .query_row("SELECT count(*) FROM command_journal", [], |r| r.get(0))
         .unwrap();
     assert_eq!(count, 1, "settled repeated off is not replayed");
+    tokio::time::sleep(Duration::from_millis(35)).await;
+    h.press(1).await;
+    let after_key = h.selection().await;
+    assert_eq!(after_key.stored.value, Some(Value::Integer(0)));
+    assert_eq!(
+        after_key.evidence.unwrap().basis,
+        homesense_core::scene_observer::Basis::ToggleOff,
+        "LED cleared the local selection, but EA's independent selection was still first"
+    );
+    assert_eq!(
+        h.sql()
+            .query_row("SELECT count(*) FROM command_journal", [], |r| r
+                .get::<_, i64>(0))
+            .unwrap(),
+        1
+    );
     drop(scenes);
     h.close().await;
 }
@@ -900,7 +943,7 @@ async fn indicator_inference_rejects_old_feedback_then_clears_with_post_key_feed
 async fn indicator_source_guard_rejects_stream_invalidation_and_newer_local_choice() {
     for invalidate in [true, false] {
         let mut h = Harness::new(Some(0), linked_automation(), true).await;
-        h.press(1).await;
+        h.select_external(1).await;
         tokio::time::sleep(Duration::from_millis(3)).await;
         let now = h.actor.monotonic_ms();
         light_sample(&mut h, now, 0);
@@ -976,7 +1019,7 @@ async fn inference_off_requires_new_completed_dimmer_setting_not_a_prior_zero() 
     let mut h = Harness::new(Some(0), linked_automation(), true).await;
     completed_zero_setting(&h).await;
     tokio::time::sleep(Duration::from_millis(3)).await;
-    h.press(1).await;
+    h.select_external(1).await;
     let before = h.selection().await;
     tokio::time::sleep(Duration::from_millis(3)).await;
     let now = h.actor.monotonic_ms();
@@ -1073,7 +1116,7 @@ async fn audit_led_prior_zero_with_fresh_switch_off(switch_on: bool) {
     let ticket = h.actor.dispatch().await.unwrap().unwrap();
     h.actor.finish_write(ticket.command.id, true).await.unwrap();
     tokio::time::sleep(Duration::from_millis(5)).await;
-    h.press(1).await;
+    h.select_external(1).await;
     let before = h.selection().await;
     assert_eq!(before.stored.value, Some(Value::Integer(1)));
     assert!(before.evidence_current);
@@ -1159,7 +1202,7 @@ async fn audit_led_prior_zero_alone_does_not_cancel_new_inference() {
 #[tokio::test]
 async fn one_fresh_switch_off_cancels_inference_while_other_light_is_unknown() {
     let mut h = Harness::new(Some(0), audit_led_linked_document(), true).await;
-    h.press(1).await;
+    h.select_external(1).await;
     tokio::time::sleep(Duration::from_millis(5)).await;
     let now = h.actor.monotonic_ms();
     h.feedback
@@ -1253,6 +1296,10 @@ fn release_edge_config_is_explicit_and_legacy_bindings_default_to_pressed() {
 async fn held_press_old_lamp_feedback_then_reviewed_release_does_not_prematurely_select_or_cancel()
 {
     let mut h = Harness::new(Some(0), release_automation(), true).await;
+    h.sample(3, true);
+    h.tick().await;
+    h.sample(3, false);
+    h.tick().await;
     let initial = h.selection().await;
     h.sample(1, true);
     h.tick().await;
@@ -1262,7 +1309,7 @@ async fn held_press_old_lamp_feedback_then_reviewed_release_does_not_prematurely
     h.tick().await;
     let held = h.selection().await;
     assert_eq!(held.stored, initial.stored);
-    assert!(held.evidence.is_none());
+    assert_eq!(held.evidence, initial.evidence);
     h.no_output();
     tokio::time::sleep(Duration::from_millis(5)).await;
     h.sample(1, false);
@@ -1346,7 +1393,143 @@ async fn reviewed_release_after_initial_hold_and_stream_gap_requires_new_press()
     h.tick().await;
     h.sample(1, false);
     h.tick().await;
+    assert_eq!(h.selection().await.stored.value, None);
+    h.sample(3, true);
+    h.tick().await;
+    h.sample(3, false);
+    h.tick().await;
+    assert_eq!(h.selection().await.stored.value, Some(Value::Integer(2)));
+    h.no_output();
+    h.close().await;
+}
+
+#[tokio::test]
+async fn local_manual_choice_does_not_seed_or_override_external_toggle_candidates() {
+    let mut h = Harness::new(Some(2), automation(), true).await;
+    h.press(3).await;
+    assert_eq!(
+        h.selection().await.stored.value,
+        None,
+        "local second is not EA second"
+    );
+    h.press(1).await;
+    assert_eq!(h.selection().await.stored.value, Some(Value::Integer(1)));
+    let version = h.selection().await.stored.version;
+    h.actor
+        .submit_rule_update(
+            h.generation.clone(),
+            homesense_hap::requests::Batch {
+                controller: h.controller,
+                intents: vec![],
+                subscriptions: vec![],
+            },
+            vec![Update {
+                revision: 1,
+                name: "selection".into(),
+                expected_version: version,
+                value: Some(Value::Integer(2)),
+            }],
+        )
+        .await
+        .unwrap();
+    tokio::time::sleep(Duration::from_millis(35)).await;
+    h.press(1).await;
+    let off = h.selection().await;
+    assert_eq!(off.stored.value, Some(Value::Integer(0)));
+    assert_eq!(
+        off.evidence.unwrap().basis,
+        homesense_core::scene_observer::Basis::ToggleOff
+    );
+    h.press(3).await;
+    assert_eq!(h.selection().await.stored.value, Some(Value::Integer(2)));
+    h.actor.invalidate_scene_observation_now().unwrap();
+    h.consumer = Consumer::default();
+    h.tick().await;
+    tokio::time::sleep(Duration::from_millis(35)).await;
+    h.press(3).await;
+    assert_eq!(
+        h.selection().await.stored.value,
+        None,
+        "new stream does not restore external possibilities from persistent value"
+    );
+    h.press(1).await;
     assert_eq!(h.selection().await.stored.value, Some(Value::Integer(1)));
     h.no_output();
+    h.close().await;
+}
+
+#[tokio::test]
+async fn missed_stale_external_transition_invalidates_known_published_selection() {
+    let mut input = automation();
+    input["scene_observation"]["max_age_ms"] = json!(30);
+    let mut h = Harness::new(Some(0), input, true).await;
+    h.select_external(1).await;
+    assert_eq!(h.selection().await.stored.value, Some(Value::Integer(1)));
+    h.sample(3, false);
+    h.sample(3, true);
+    tokio::time::sleep(Duration::from_millis(35)).await;
+    h.tick().await;
+    assert!(h.consumer.scope.is_none());
+    assert_eq!(h.selection().await.stored.value, None);
+    h.tick().await; // synchronize new stream without replaying the old key
+    h.press(1).await;
+    assert_eq!(h.selection().await.stored.value, None);
+    h.no_output();
+    h.close().await;
+}
+
+#[tokio::test]
+async fn observed_unknown_startup_full_off_clears_leds_without_seeding_selection() {
+    let mut h = Harness::new(None, linked_automation(), true).await;
+    let now = h.actor.monotonic_ms();
+    light_sample(&mut h, now, 0);
+    let scenes =
+        crate::scene_scheduler::SceneScheduler::new(h.actor.clone(), h.controller, 8, now).unwrap();
+    let mut sync = crate::indicator_sync::Synchronizer::default();
+    sync.tick(
+        &h.actor,
+        h.controller,
+        &h.document,
+        &scenes,
+        &h.feedback,
+        60000,
+    )
+    .await
+    .unwrap();
+    let selection = h.selection().await;
+    assert_eq!(selection.stored.value, None);
+    assert_eq!(selection.stored.version, 0);
+    assert!(selection.evidence.is_none());
+    assert_eq!(
+        h.sql()
+            .query_row(
+                "SELECT count(*) FROM command_journal WHERE device_id='key1'",
+                [],
+                |r| r.get::<_, i64>(0)
+            )
+            .unwrap(),
+        1
+    );
+    assert_eq!(
+        h.sql()
+            .query_row(
+                "SELECT count(*) FROM command_journal WHERE device_id!='key1'",
+                [],
+                |r| r.get::<_, i64>(0)
+            )
+            .unwrap(),
+        0
+    );
+    assert_eq!(
+        h.sql()
+            .query_row("SELECT count(*) FROM scene_run", [], |r| r.get::<_, i64>(0))
+            .unwrap(),
+        0
+    );
+    h.press(1).await;
+    assert_eq!(h.selection().await.stored.value, None);
+    h.press(3).await;
+    assert_eq!(h.selection().await.stored.value, Some(Value::Integer(2)));
+    drop(scenes);
     h.close().await;
 }
