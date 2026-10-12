@@ -94,6 +94,21 @@ with tempfile.TemporaryDirectory(prefix='homesense-publication-') as directory:
      code,result=request('/api/v1/config/drafts/'+restore_id+'/room',room_edit);assert code==200 and result['active'] is False,(code,result)
      code,room_source=request('/api/v1/config/drafts/'+room_edit['id']+'/source');assert code==200
      assert json.loads(room_source['devices'])['rooms']==[room_edit['room']]
+     removal={**room_edit,'id':str(uuid.uuid4()),'remove':True}
+     code,result=request('/api/v1/config/drafts/'+room_edit['id']+'/room',removal);assert code==200 and result['active'] is False,(code,result)
+     code,removed=request('/api/v1/config/drafts/'+removal['id']+'/source');assert code==200
+     assert json.loads(removed['devices'])['rooms']==[]
+     assert request('/api/v1/config/drafts/'+room_edit['id']+'/source')[1]==room_source,'removal changed source draft'
+     missing={**removal,'id':str(uuid.uuid4())}
+     assert request('/api/v1/config/drafts/'+removal['id']+'/room',missing)[0]==400
+     assert request('/api/v1/config/drafts/'+missing['id']+'/source')[0]==404
+     member={**edit,'id':str(uuid.uuid4()),'expected_revision':'3','room':'synthetic-room'}
+     code,result=request('/api/v1/config/drafts/'+room_edit['id']+'/device-metadata',member);assert code==200,(code,result)
+     referenced={**removal,'id':str(uuid.uuid4())}
+     code,result=request('/api/v1/config/drafts/'+member['id']+'/room',referenced)
+     assert code==400 and result['error']=='room_in_use',(code,result)
+     assert request('/api/v1/config/drafts/'+referenced['id']+'/source')[0]==404
+
      assert request('/api/v1/devices')[1]['revision']==3
      archive_path='/api/v1/config/drafts/'+restore_id+'/archive'
      assert request(archive_path, {})[0]==400
@@ -127,4 +142,4 @@ with tempfile.TemporaryDirectory(prefix='homesense-publication-') as directory:
     backup_versions.append(db.execute('SELECT max(revision) FROM configuration_revision').fetchone()[0])
   assert sorted(backup_versions)==[1,2]
 
- print(json.dumps({'publication':'passed','restart_replay':'none','backups':2,'scene_runs':1,'historical_restore':'passed','restored_revision':3,'http_backup_inspections':len(first_inspected)*2,'snapshot_bytes':'unchanged'}))
+ print(json.dumps({'publication':'passed','restart_replay':'none','backups':2,'scene_runs':1,'historical_restore':'passed','restored_revision':3,'http_backup_inspections':len(first_inspected)*2,'snapshot_bytes':'unchanged','room_removal':'derived draft only; missing and referenced rejected'}))

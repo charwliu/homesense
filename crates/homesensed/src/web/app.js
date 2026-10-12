@@ -31,7 +31,7 @@ async function request(path, options = {}) {
   const response = await fetch(path, {...options, cache: 'no-store', credentials: 'same-origin', headers: {...(options.body!==undefined ? {'Content-Type':'application/json'} : {}), ...options.headers, ...(csrf ? {'X-CSRF-Token': csrf} : {})}});
   const result = await response.json();
   if(epoch!==sessionEpoch)throw new Error('会话已切换，已忽略旧响应');
-  if (!response.ok) throw new Error(result.error || '请求失败');
+  if (!response.ok) throw new Error(result.error==='room_in_use'?'此房间仍有设备，请先在草稿中调整设备归属。':(result.error || '请求失败'));
   return result;
 }
 async function refresh() {
