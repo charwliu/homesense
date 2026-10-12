@@ -551,8 +551,8 @@ impl Api {
             };
         }
         if request.method() == hyper::Method::GET && request.uri().path() == "/api/v1/scenes" {
-            let selection = match runtime.control.request(Action::SceneSwitchStates {controller:grant.controller,revision:runtime.revision}).await {
-                Ok(Reply::SceneSwitchStates(states)) => states,
+            let selection = match runtime.control.request(Action::SceneSelectionDetails {controller:grant.controller,revision:runtime.revision}).await {
+                Ok(Reply::SceneSelectionDetails(states)) => states,
                 _ => return deny(StatusCode::SERVICE_UNAVAILABLE, "scene_selection_unavailable"),
             };
             let mut items = vec![];
@@ -574,7 +574,7 @@ impl Api {
                     }
                     _ => serde_json::Value::Null,
                 };
-                items.push(json!({"id":id,"name":name,"activity":activity,"last_run":last,"can_control":grant.may_control(id),"switch_kind":if selection.contains_key(id){"selection"}else{"momentary"},"selected":selection.get(id).copied().flatten()}));
+                items.push(json!({"id":id,"name":name,"activity":activity,"last_run":last,"can_control":grant.may_control(id),"switch_kind":if selection.contains_key(id){"selection"}else{"momentary"},"selected":selection.get(id).and_then(|s|s.selected),"selection_source":selection.get(id).map(|s|s.selection_source),"observation_current":selection.get(id).and_then(|s|s.observation_current),"observation_boot":selection.get(id).and_then(|s|s.observation_boot.as_ref()),"observed_ms":selection.get(id).and_then(|s|s.observed_ms.as_ref())}));
             }
             return response(StatusCode::OK, json!({"revision":runtime.revision.to_string(),"scenes":items}));
         }

@@ -30,6 +30,8 @@ struct Input {
     scene_switch_groups: Vec<crate::scene_switches::Group>,
     #[serde(default)]
     indicator_links: Vec<crate::indicator_links::Link>,
+    #[serde(default)]
+    scene_observation: Option<crate::scene_observation::Settings>,
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -309,6 +311,7 @@ pub struct Document {
     pub timed_scenes: BTreeMap<String, TimedScene>,
     pub scene_switch_groups: Vec<crate::scene_switches::Group>,
     pub indicator_links: Vec<crate::indicator_links::Link>,
+    pub scene_observation: Option<crate::scene_observation::Settings>,
 }
 struct Compiler<'a> {
     config: &'a Configuration,
@@ -824,7 +827,10 @@ impl Document {
                 actions: compiler.nodes(rule.actions, 0)?,
             });
         }
-        Ok(Self {
+        if let Some(settings)=&input.scene_observation {
+            settings.validate(config,&input.scene_switch_groups,&rules,input.holds.as_ref())?;
+        }
+        let document=Self {
             revision: input.configuration_revision,
             variables,
             variable_migrations,
@@ -837,7 +843,10 @@ impl Document {
             timed_scenes,
             scene_switch_groups:input.scene_switch_groups,
             indicator_links:input.indicator_links,
-        })
+            scene_observation:input.scene_observation,
+        };
+        if let Some(settings)=&document.scene_observation {settings.validate_linked(&document)?;}
+        Ok(document)
     }
 }
 
