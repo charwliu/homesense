@@ -843,3 +843,6 @@ Admission actor 在持久认领前复核控制器权限、进程及完整运行�
 
 
 当前边界复核（`c858562`）：修正顶部关于管理网络适配的过时状态。证据：`tests/management_events.rs::state_resume_coalesces_and_resets_on_gap_boot_revision_or_scope_change`、`tests/web_runtime.rs` 的场景及管理员日历诊断，`tests/managed_tcp.rs` 的发布视图恢复、HAP 重建和无启动重放；这些测试已包含在 `67735a9` 的干净回归中。此修正不扩大 D 完成范围：原项目语义审核、窗帘条件及现场反馈仍挂起；传输写失败及停止分类继续按具体实现和回归检查。未改变本地原项目资料、候选启用状态或 EA-5。
+
+
+场景字节级写失败回归：注入 0／1／2／3／4 字节后 BrokenPipe，经过真实 TransportOwner 与 SceneRuntime，验证精确写出字节数、持久 Uncertain、场景 Partial、通信故障门禁拒绝后续调度、故障 owner 拒绝再次写出；重开运行时不派发旧命令且保留不确定收据。新增测试与既有软件渐变短写测试均通过（2 项）。这是受控流故障注入，现场线路和 TCP 内核缓冲时序仍未验收；EA-5 不变。
