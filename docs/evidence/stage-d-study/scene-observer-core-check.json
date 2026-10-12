@@ -1,0 +1,25 @@
+{
+  "base_commit": "50683252d271178b46a704ea68cd49b0128bcb7b",
+  "source_scope": "clean git archive plus three scoped core source/test files; no private data",
+  "source_sha256": {
+    "crates/homesense-core/src/lib.rs": "1bcb450949f6192a7a749b048c7a7e19542caea0334cd1175ffbd3e97e856f03",
+    "crates/homesense-core/src/scene_observer.rs": "39f0795d0653fdadc1af903b5c9bac197f2060f5c6f0ce7905e1d52b11a127e8",
+    "crates/homesense-core/tests/scene_observer.rs": "4b66cd2a52b3f97f37b56d1be8d0a9f338344a128f44cb3241c4e12dcf6a18f3"
+  },
+  "core_tests": {
+    "passed": 77,
+    "failed": 0,
+    "ignored": 0,
+    "new_observer_tests": 6
+  },
+  "core_all_targets_clippy": "passed",
+  "runtime_connected": false,
+  "field_enabled": false,
+  "command_output_type_present": false,
+  "remaining": [
+    "reviewed configuration",
+    "atomic inferred provenance and version CAS",
+    "event runtime with gap and epoch handling",
+    "HAP/Web selection snapshot and source presentation"
+  ]
+}
