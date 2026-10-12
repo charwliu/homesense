@@ -143,9 +143,8 @@ impl AutomationRuntime {
     /// Explicit manual entry; loading a document never starts any scene.
     pub async fn start_scene(&mut self, id: &str) -> Result<u64, String> {
         self.validate().await?;
-        self.scenes
-            .start_document(&self.document, id, self.admission.monotonic_ms())
-            .await
+        if crate::scene_switches::related(&self.document,id){crate::scene_switches::activate_forced(&self.document,id,&self.admission,&mut self.scenes,self.requests.controller()).await}
+        else{self.scenes.start_document(&self.document,id,self.admission.monotonic_ms()).await}
     }
     /// Cancel future and queued output; already-writing commands cannot be undone.
     pub async fn cancel_scene(&mut self, run: u64) -> Result<usize, String> {

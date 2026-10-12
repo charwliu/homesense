@@ -299,6 +299,32 @@ async fn runtime_accepts_exclusive_scene_writes_and_restores_selection_without_r
         .await
         .unwrap();
         let control = runtime.control();
+        let mut identity = homesense_hap::storage::IdentityStore::open(root.join("identity"))
+            .await
+            .unwrap();
+        if !identity.has_config().await.unwrap() {
+            hap::storage::Storage::save_config(&mut identity, &hap::Config::default())
+                .await
+                .unwrap();
+        }
+        let document = parse(&fixture()).unwrap();
+        let specs = ["reading", "daily", "eco", "off"]
+            .map(|id| homesense_hap::scene_graph::SceneSpec {
+                id: id.into(),
+                name: id.into(),
+            })
+            .into();
+        let mut bridge = homesensed::runtime_scene_hap::RuntimeSceneHap::new_with_admission(
+            &identity,
+            &document,
+            specs,
+            control.clone(),
+            a.clone(),
+            caller,
+            move |id, scene| id == caller && scene != "daily",
+        )
+        .await
+        .unwrap();
         let config = homesense_config::Configuration::parse(
             include_bytes!("../../../config/simulation.json"),
             ExecutionContext::Simulation,
@@ -331,6 +357,34 @@ async fn runtime_accepts_exclusive_scene_writes_and_restores_selection_without_r
                 .await
         });
         if !restarting {
+            let bodies = [
+                vec![("daily", Some(true), None)],
+                vec![("daily", Some(false), None)],
+                vec![("daily", None, Some(true))],
+                vec![("reading", Some(true), None), ("daily", Some(false), None)],
+            ];
+            for items in bodies {
+                let body = serde_json::to_vec(
+                    &json!({"characteristics": items.into_iter().map(|(id, value, ev)| {
+                    let b = &bridge.accessories.iter().find(|(b, _)| b.scene == id).unwrap().0;
+                    let mut v = json!({"aid":b.aid,"iid":b.on_iid});
+                    if let Some(value) = value {v["value"] = json!(value);}
+                    if let Some(ev) = ev {v["ev"] = json!(ev);}
+                    v
+                }).collect::<Vec<_>>()}),
+                )
+                .unwrap();
+                assert_eq!(
+                    bridge.write_handler.write_async(caller, &body).await,
+                    Err(hap::server::WriteStatus::InsufficientPrivileges)
+                );
+            }
+            let db = rusqlite::Connection::open(&path).unwrap();
+            assert_eq!(
+                db.query_row("SELECT count(*) FROM scene_run", [], |r| r.get::<_, i64>(0))
+                    .unwrap(),
+                0
+            );
             let write = |scene: &str, on: Option<bool>| Action::SceneWrites {
                 controller: caller,
                 revision: 1,
@@ -366,6 +420,34 @@ async fn runtime_accepts_exclusive_scene_writes_and_restores_selection_without_r
                     .await
                     .is_err()
             );
+            assert_eq!(
+                control
+                    .request(Action::SceneAction {
+                        controller: caller,
+                        revision: 1,
+                        scene: "eco".into(),
+                        execute: true
+                    })
+                    .await
+                    .unwrap(),
+                Reply::SceneAccepted(None)
+            );
+            assert_eq!(
+                control
+                    .request(Action::SceneAction {
+                        controller: caller,
+                        revision: 1,
+                        scene: "reading".into(),
+                        execute: false
+                    })
+                    .await
+                    .unwrap(),
+                Reply::SceneAccepted(None)
+            );
+            assert!(matches!(
+                control.request(Action::Start("eco".into())).await.unwrap(),
+                Reply::Started(_)
+            ));
         }
         let Reply::SceneSwitchStates(states) = control
             .request(Action::SceneSwitchStates {
@@ -398,8 +480,43 @@ async fn runtime_accepts_exclusive_scene_writes_and_restores_selection_without_r
                 .await
                 .is_err()
         );
+        bridge.flush_resets().await.unwrap();
+        let (binding, handle) = bridge
+            .accessories
+            .iter()
+            .find(|(b, _)| b.scene == "eco")
+            .unwrap();
+        let iid = binding.on_iid;
+        let handle = handle.clone();
+        let read = async {
+            let mut accessory = handle.lock().await;
+            let characteristic = accessory
+                .get_mut_services()
+                .into_iter()
+                .flat_map(|s| s.get_mut_characteristics())
+                .find(|c| c.get_id() == iid)
+                .unwrap();
+            characteristic.get_value().await
+        };
+        assert_eq!(read.await.unwrap(), json!(true));
         stop.send(true).unwrap();
         drive.await.unwrap().unwrap();
+        tokio::time::sleep(Duration::from_millis(110)).await;
+        bridge.flush_resets().await.unwrap();
+        let mut accessory = handle.lock().await;
+        let characteristic = accessory
+            .get_mut_services()
+            .into_iter()
+            .flat_map(|s| s.get_mut_characteristics())
+            .find(|c| c.get_id() == iid)
+            .unwrap();
+        assert!(
+            characteristic.get_value().await.is_err(),
+            "failed admission cannot keep a cached selected value"
+        );
+        drop(accessory);
+        drop(bridge);
+        drop(identity);
         a.shutdown().await.unwrap();
     }
     let sql = rusqlite::Connection::open(path).unwrap();

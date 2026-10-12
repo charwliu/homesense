@@ -159,7 +159,7 @@ impl Endpoint {
             None
         } else {
             Some(
-                crate::runtime_scene_hap::RuntimeSceneHap::new(
+                crate::runtime_scene_hap::RuntimeSceneHap::new_with_admission(
                     identity,
                     document,
                     settings
@@ -171,6 +171,7 @@ impl Endpoint {
                         })
                         .collect(),
                     runtime.control(),
+                    admission.clone(),controller,
                     move |id, _| authorization.controller_is_paired(id).unwrap_or(false),
                 )
                 .await?,

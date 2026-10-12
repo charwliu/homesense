@@ -772,6 +772,7 @@ impl Api {
             Ok(Reply::SceneAccepted(Some(run))) => {
                 json!({"request_id":request_id,"outcome":"accepted","boot":runtime.boot,"run":run})
             }
+            Ok(Reply::SceneAccepted(None))=>json!({"request_id":request_id,"outcome":"unchanged","retry":false}),
             Ok(Reply::CommandsAccepted(commands)) => {
                 json!({"request_id":request_id,"outcome":"accepted","boot":runtime.boot,"commands":commands})
             }

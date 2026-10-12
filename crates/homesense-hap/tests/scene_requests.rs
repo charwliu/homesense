@@ -15,6 +15,7 @@ fn actions_are_explicit_and_reset_and_subscriptions_still_require_authorization(
         let batch = requests.normalize(controller, body.as_bytes()).unwrap();
         assert_eq!(batch.controller, controller);
         assert_eq!(batch.addressed, vec!["reading"]);
+        assert_eq!(batch.values["reading"], value == "true" || value == "1");
         assert_eq!(
             batch.starts.len(),
             usize::from(value == "true" || value == "1")
@@ -27,6 +28,7 @@ fn actions_are_explicit_and_reset_and_subscriptions_still_require_authorization(
         )
         .unwrap();
     assert!(batch.starts.is_empty());
+    assert!(batch.values.is_empty());
     assert_eq!(batch.addressed, vec!["reading"]);
     assert_eq!(batch.subscriptions.len(), 1);
     for (body, expected) in [

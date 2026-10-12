@@ -13,6 +13,8 @@ pub struct SceneBatch {
     /// All addressed scenes, including resets, for permission checks.
     pub addressed: Vec<String>,
     pub starts: Vec<String>,
+    /// Explicit values only. A subscription is never an implicit false write.
+    pub values: BTreeMap<String, bool>,
     pub subscriptions: Vec<Subscription>,
 }
 #[derive(Deserialize)]
@@ -72,6 +74,7 @@ impl SceneRequests {
             controller,
             addressed: vec![],
             starts: vec![],
+            values: BTreeMap::new(),
             subscriptions: vec![],
         };
         for w in body.characteristics {
@@ -106,6 +109,7 @@ impl SceneRequests {
                     },
                     _ => return Err(RequestError::InvalidValue),
                 };
+                batch.values.insert(scene.clone(), on);
                 if on {
                     batch.starts.push(scene.clone());
                 }
