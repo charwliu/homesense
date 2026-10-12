@@ -5,7 +5,7 @@ const elements=new Map(),element=id=>{if(!elements.has(id))elements.set(id,make(
 const pending=[];const context=vm.createContext({document:{getElementById:element,createElement:make},crypto:{randomUUID:()=> 'new-id'},fetch:(path,options)=>new Promise(resolve=>pending.push({path,options,resolve})),clearTimeout(){},setTimeout(){},location:{origin:'http://127.0.0.1:1'}});
 vm.runInContext(fs.readFileSync(require('node:path').join(__dirname,'../crates/homesensed/src/web/app.js'),'utf8'),context);
 (async()=>{
- const raw='{"revision":9007199254740993,"devices":[{"id":"light","name":"Original"}],"rooms":[{"id":"study","name":"Study"}]}';
+ const raw='{"revision":9007199254740993,"devices":[{"id":"light","name":"Original","gateway":"simulation","address":"15","channel":1,"enabled":true}],"rooms":[{"id":"study","name":"Study"}]}';
  context.renderMetadata(raw,'source-id');
  element('edit-room-select').value='study';element('edit-room-select').onchange();assert.equal(element('edit-room-id').value,'study');assert.equal(element('edit-room-name').value,'Study');assert.equal(element('edit-room-floor').value,'');
  element('edit-room-select').value='';element('edit-room-select').onchange();assert.equal(element('edit-room-id').value,'');assert.equal(element('edit-room-name').value,'');
@@ -24,5 +24,14 @@ assert.equal(element('metadata-name').value,'Original');element('metadata-name')
  element('edit-room-floor').handlers.input();pending.shift().resolve({ok:true,json:async()=>({draft:'late-room-id'})});await roomEdit;assert.equal(pending.length,0);
  const removeRoom=element('remove-room').onclick();assert.equal(JSON.parse(pending[0].options.body).remove,true);pending.shift().resolve({ok:false,json:async()=>({error:'room_in_use'})});await removeRoom;assert.equal(element('device-document').value,raw);assert.equal(element('activate-draft').disabled,true);
  assert.match(element('status').textContent,/此房间仍有设备/);
+ assert.equal(element('binding-gateway').value,'simulation');assert.equal(element('binding-address').value,'15');assert.equal(element('binding-channel').value,1);assert.equal(element('binding-enabled').checked,true);
+ element('binding-channel').value='2';element('binding-enabled').checked=false;
+ const binding=element('save-binding').onclick();assert.equal(pending[0].path,'/api/v1/config/drafts/source-id/device-binding');
+ assert.deepEqual(JSON.parse(pending[0].options.body),{id:'new-id',expected_revision:'9007199254740993',revision:'9007199254740994',device:'light',gateway:'simulation',address:'15',channel:2,enabled:false});
+ element('binding-channel').value='3';element('binding-channel').handlers.input();
+ pending.shift().resolve({ok:true,json:async()=>({draft:'late-binding'})});await binding;assert.equal(pending.length,0);assert.equal(element('binding-channel').value,'3');
+ for(const invalid of ['', '0','1.5','256','1e2']) {element('binding-channel').value=invalid;await element('save-binding').onclick();assert.equal(pending.length,0);}
+ element('binding-channel').value='2';element('draft-id').value='different';await element('save-binding').onclick();assert.equal(pending.length,0);
+ context.renderMetadata('{"devices":[],"rooms":[]}','empty');assert.equal(element('binding-gateway').value,'');assert.equal(element('binding-channel').value,'');assert.equal(element('binding-enabled').checked,false);
  console.log('Device and room source binding, precision and in-flight edits: passed');
 })().catch(e=>{console.error(e);process.exitCode=1});
