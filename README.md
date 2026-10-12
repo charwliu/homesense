@@ -534,3 +534,6 @@ Web 窗帘控制：`POST /api/v1/device-commands` 的 command 现在支持 `{"ac
 
 
 TLS 会话撤销回归：`tools/verify_web_tls.py` 及 `--tcp-combined` 均通过，覆盖独立模拟 Web 与合成 TCP＋HAP＋Web 统一服务。缺少 CSRF 的退出返回 401 且原会话仍有效；合法退出后 Cookie 访问返回 401、已有 WSS 连接关闭、旧 Cookie 无法建立新订阅。原有证书信任／名称错误、明文访问、私钥权限及密钥不匹配拒绝继续通过。仅使用进程内信任的临时 CA，未安装系统证书、未连接现场设备；当前工作树测试不等于干净公开快照或真实 LAN／浏览器验收。证据：`docs/evidence/stage-e-browser/tls-session-revocation.json`。
+
+
+公开干净快照集成验证：`261c6bb` 的 `git archive` 未包含未提交改动及本地私有资料，完整离线 workspace 回归 522 项通过、0 失败、0 忽略（104 个结果块）。同一快照的 `verify_web_tls.py --tcp-combined` 通过 HTTPS/WSS、CSRF、会话撤销及证书／明文拒绝回归，补齐此前工作树测试的来源限制。依赖警告仍存在；此证据不替代 iPhone、Siri 或现场设备验收。详见 `docs/evidence/stage-e-browser/clean-e-regression.json`。
