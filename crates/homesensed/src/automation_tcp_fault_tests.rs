@@ -38,7 +38,7 @@ async fn run(occupied:bool) {
     let web=free_address();let reserved=occupied.then(||std::net::TcpListener::bind("127.0.0.1:0").unwrap());let hap=reserved.as_ref().map_or_else(free_address,|listener|listener.local_addr().unwrap());let directory=root.clone();
     let (publisher,receiver)=crate::automation_publication::channel();
     let service=tokio::spawn(async move {
-        serve_inner(&serde_json::to_vec(&devices).unwrap(),&serde_json::to_vec(&rules).unwrap(),&directory,Duration::from_secs(4),true,0,Some(receiver),Duration::from_millis(20),Some(crate::service::WebSettings{address:web,secret:"abcdefghijklmnopqrstuvwxyz0123456789".into(),administrator:true,tls:None}),Some(publisher),Some(crate::hap_endpoint::Settings{address:hap,scenes:vec!["later".into()],motors:vec![]}),(!occupied).then_some(Duration::from_millis(800))).await
+        serve_inner(&serde_json::to_vec(&devices).unwrap(),&serde_json::to_vec(&rules).unwrap(),&directory,Duration::from_secs(4),true,0,Some(receiver),Duration::from_millis(20),Some(crate::service::WebSettings{address:web,secret:"abcdefghijklmnopqrstuvwxyz0123456789".into(),administrator:true,tls:None}),Some(publisher),Some(crate::hap_endpoint::Settings{address:hap,scenes:vec!["later".into()],motors:vec![]}),None,(!occupied).then_some(Duration::from_millis(800))).await
     });
     tokio::time::timeout(Duration::from_secs(3),async {
         loop {

@@ -21,6 +21,11 @@ impl Drop for Endpoint {
     }
 }
 impl Endpoint {
+    pub fn set_hap_bridges(&self,statuses:std::collections::BTreeMap<String,crate::hap_bridge_group::Status>)->Result<(),String> {
+        let degraded=statuses.values().any(|s|*s==crate::hap_bridge_group::Status::Degraded);
+        *self.api.hap_bridges.write().map_err(|_|"HAP bridge status lock unavailable")?=statuses;
+        self.set_hap_status(if degraded {crate::web_api::HapStatus::Degraded}else{crate::web_api::HapStatus::Listening})
+    }
     pub fn set_hap_status(&self,status:crate::web_api::HapStatus)->Result<(),String> {
         *self.api.hap_status.write().map_err(|_|"HAP status lock unavailable")?=status;
         Ok(())
@@ -84,7 +89,7 @@ impl Endpoint {
             |tls| tls.origin.clone(),
         );
         let api = Arc::new(Api {
-            hap_status: Default::default(),
+            hap_bridges:Default::default(),hap_status: Default::default(),
             backup_source: Some(directory.join(match context {homesense_core::ExecutionContext::Simulation=>"automation-simulation.sqlite",homesense_core::ExecutionContext::Live=>"automation-tcp.sqlite"})),
             origin,
             tokens,

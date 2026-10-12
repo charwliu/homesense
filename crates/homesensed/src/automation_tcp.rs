@@ -79,23 +79,37 @@ pub async fn serve_with_write_interval(
     publications: Option<crate::automation_publication::Receiver>,
     write_interval: Duration,
 ) -> Result<(), String> {
-    serve_inner(devices,rules,directory,duration,coexistence_confirmed,recovery_limit,publications,write_interval,None,None,None,#[cfg(test)] None).await
+    serve_inner(devices,rules,directory,duration,coexistence_confirmed,recovery_limit,publications,write_interval,None,None,None,None,#[cfg(test)] None).await
 }
 #[allow(clippy::too_many_arguments)]
 pub async fn serve_managed(devices:&[u8],rules:&[u8],directory:&Path,duration:Duration,coexistence_confirmed:bool,recovery_limit:u8,write_interval:Duration,settings:crate::service::WebSettings)->Result<(),String> {
     if let Some(tls)=&settings.tls {tls.validate_address(settings.address)?;} else if !settings.address.ip().is_loopback() || settings.address.port()==0 {return Err("plaintext management requires loopback".into());}
     let (publisher,receiver)=crate::automation_publication::channel();
-    serve_inner(devices,rules,directory,duration,coexistence_confirmed,recovery_limit,Some(receiver),write_interval,Some(settings),Some(publisher),None,#[cfg(test)] None).await
+    serve_inner(devices,rules,directory,duration,coexistence_confirmed,recovery_limit,Some(receiver),write_interval,Some(settings),Some(publisher),None,None,#[cfg(test)] None).await
 }
 #[allow(clippy::too_many_arguments)]
 pub async fn serve_combined(devices:&[u8],rules:&[u8],directory:&Path,duration:Duration,coexistence_confirmed:bool,recovery_limit:u8,write_interval:Duration,web:crate::service::WebSettings,hap:crate::hap_endpoint::Settings)->Result<(),String> {
     if let Some(tls)=&web.tls {tls.validate_address(web.address)?;} else if !web.address.ip().is_loopback() || web.address.port()==0 {return Err("plaintext management requires loopback".into());}
     if hap.address==web.address {return Err("HAP and Web require distinct endpoints".into());}
     let (publisher,receiver)=crate::automation_publication::channel();
-    serve_inner(devices,rules,directory,duration,coexistence_confirmed,recovery_limit,Some(receiver),write_interval,Some(web),Some(publisher),Some(hap),#[cfg(test)] None).await
+    serve_inner(devices,rules,directory,duration,coexistence_confirmed,recovery_limit,Some(receiver),write_interval,Some(web),Some(publisher),Some(hap),None,#[cfg(test)] None).await
+}
+/// Publish explicitly selected independent bridges using one transport/runtime.
+#[allow(clippy::too_many_arguments)]
+pub async fn serve_bridges(devices:&[u8],rules:&[u8],directory:&Path,duration:Duration,coexistence_confirmed:bool,recovery_limit:u8,write_interval:Duration,web:crate::service::WebSettings,plan:Vec<u8>)->Result<(),String> {
+    if let Some(tls)=&web.tls {tls.validate_address(web.address)?;} else if !web.address.ip().is_loopback() || web.address.port()==0 {return Err("plaintext management requires loopback".into());}
+    let (publisher,receiver)=crate::automation_publication::channel();
+    serve_inner(devices,rules,directory,duration,coexistence_confirmed,recovery_limit,Some(receiver),write_interval,Some(web),Some(publisher),None,Some(plan),#[cfg(test)] None).await
+}
+fn validate_bridge_plan(plan:&[u8],config:&homesense_config::Configuration,rules:&[u8],web:Option<std::net::SocketAddr>)->Result<(),String> {
+    let document=crate::configuration_publish::validate_automation(config,rules,ExecutionContext::Live).map_err(|e|e.to_string())?;
+    let parsed=crate::hap_bridge_plan::Plan::parse(plan,config,&document)?;
+    if parsed.bridges.iter().any(|b|b.lights.is_empty()) {return Err("each bridge currently requires at least one logical light".into());}
+    if parsed.bridges.iter().any(|b|Some(b.address)==web) {return Err("HAP and Web require distinct endpoints".into());}
+    Ok(())
 }
 #[allow(clippy::too_many_arguments)]
-async fn serve_inner(devices:&[u8],rules:&[u8],directory:&Path,duration:Duration,coexistence_confirmed:bool,recovery_limit:u8,mut publications:Option<crate::automation_publication::Receiver>,write_interval:Duration,mut management_settings:Option<crate::service::WebSettings>,publisher:Option<crate::automation_publication::Publisher>,hap_settings:Option<crate::hap_endpoint::Settings>,#[cfg(test)] hap_failure_after:Option<Duration>)->Result<(),String> {
+async fn serve_inner(devices:&[u8],rules:&[u8],directory:&Path,duration:Duration,coexistence_confirmed:bool,recovery_limit:u8,mut publications:Option<crate::automation_publication::Receiver>,write_interval:Duration,mut management_settings:Option<crate::service::WebSettings>,publisher:Option<crate::automation_publication::Publisher>,hap_settings:Option<crate::hap_endpoint::Settings>,hap_plan:Option<Vec<u8>>,#[cfg(test)] hap_failure_after:Option<Duration>)->Result<(),String> {
     if !(Duration::from_millis(20)..=Duration::from_secs(1)).contains(&write_interval) {
         return Err("write interval must be 20..1000 ms".into());
     }
@@ -107,6 +121,8 @@ async fn serve_inner(devices:&[u8],rules:&[u8],directory:&Path,duration:Duration
     }
     let mut config = validate_candidate_with_write_interval(devices, rules, write_interval)?;
     if let Some(settings)=&hap_settings {settings.validate(&config,&crate::configuration_publish::validate_automation(&config,rules,ExecutionContext::Live).map_err(|e|e.to_string())?)?;}
+    if hap_settings.is_some() && hap_plan.is_some() {return Err("single and multiple HAP publication are exclusive".into());}
+    if let Some(plan)=&hap_plan {validate_bridge_plan(plan,&config,rules,management_settings.as_ref().map(|s|s.address))?;}
     std::fs::create_dir_all(directory).map_err(|e| e.to_string())?;
     let path = directory.join("automation-tcp.sqlite");
     let mut store = Store::open(&path).map_err(|e| e.to_string())?;
@@ -128,8 +144,12 @@ async fn serve_inner(devices:&[u8],rules:&[u8],directory:&Path,duration:Duration
     drop(store);
     let controller = if management_settings.is_some(){crate::service::web_controller(directory)?}else{Uuid::new_v4()};
     let identity=match &hap_settings {Some(settings)=>Some(settings.identity(directory).await?),None=>None};
-    let paired=identity.clone();
-    let admission = Admission::open(path.clone(), Options {write_interval,..Options::default()}, move |id| id == controller || paired.as_ref().is_some_and(|store|store.controller_is_paired(id).unwrap_or(false))).await?;
+    let mut paired=identity.clone().into_iter().collect::<Vec<_>>();
+    if let Some(plan)=&hap_plan {
+        let document=crate::configuration_publish::validate_automation(&config,rules,ExecutionContext::Live).map_err(|e|e.to_string())?;
+        paired.extend(crate::hap_bridges::prepare(plan,&config,&document,directory).await?.into_iter().map(|bridge|bridge.identity));
+    }
+    let admission = Admission::open(path.clone(), Options {write_interval,..Options::default()}, move |id| id == controller || paired.iter().any(|store|store.controller_is_paired(id).unwrap_or(false))).await?;
     let _guard = Stop(admission.clone());
     let result = async {
         let (_stop, receiver) = tokio::sync::watch::channel(false);
@@ -163,6 +183,7 @@ async fn serve_inner(devices:&[u8],rules:&[u8],directory:&Path,duration:Duration
         let mut recoveries=0;
         let mut prepared_runtime = None;
         let mut hap:Option<crate::hap_endpoint::Endpoint>=None;
+        let mut bridges:Option<crate::hap_bridge_group::Group>=None;
         let mut management:Option<crate::management_endpoint::Endpoint>=None;
         loop {
             use crate::{automation_drive::Exit,automation_runtime::StartupPolicy};
@@ -174,6 +195,7 @@ async fn serve_inner(devices:&[u8],rules:&[u8],directory:&Path,duration:Duration
                 None => AutomationRuntime::load_with_startup(admission.clone(),controller,wall_ms()?,1000,64,Default::default(),startup).await?,
             };
             if hap.is_none() && let (Some(settings),Some(identity))=(&hap_settings,&identity) {hap=crate::hap_endpoint::Endpoint::start(settings,identity,&admission,controller,&runtime,owner.snapshot(),management.is_some() || management_settings.is_some()).await?;}
+            if bridges.is_none() && let Some(plan)=&hap_plan {bridges=Some(crate::hap_bridge_group::Group::start(plan,directory,&admission,controller,&runtime,owner.snapshot()).await?);}
             #[cfg(test)]
             if let (Some(delay),Some(endpoint))=(hap_failure_after,&hap) {
                 let handle=endpoint.abort_handle();
@@ -183,14 +205,25 @@ async fn serve_inner(devices:&[u8],rules:&[u8],directory:&Path,duration:Duration
                 management=Some(crate::management_endpoint::Endpoint::start(settings,directory,&admission,controller,&runtime,publisher.clone().ok_or("management publisher missing")?).await?);
             } else if let Some(endpoint)=&management {endpoint.install(&admission,controller,&runtime).await?;}
             if let Some(endpoint)=&management {endpoint.set_hap_status(if hap.is_some(){crate::web_api::HapStatus::Listening}else if hap_settings.is_some(){crate::web_api::HapStatus::Degraded}else{crate::web_api::HapStatus::Disabled})?;}
+            if let (Some(endpoint),Some(group))=(&management,&bridges) {endpoint.set_hap_bridges(group.statuses.borrow().clone())?;}
             let outcome={
                 let (ready,mut started)=tokio::sync::oneshot::channel();
                 let mut running=false;
-                let drive=runtime.drive_recoverable_projected(&mut owner,Duration::from_millis(10),5000,runtime_receive,wall_ms,Some(ready),hap.as_ref().map(|endpoint|endpoint.projection.clone()));
+                let drive=runtime.drive_recoverable_projected(&mut owner,Duration::from_millis(10),5000,runtime_receive,wall_ms,Some(ready),hap.as_ref().map(|endpoint|endpoint.projection.clone()).or_else(||bridges.as_ref().map(|group|group.projection.clone())));
                 tokio::pin!(drive);
                 loop {
                     tokio::select! {
                         result=&mut drive=>break result,
+                        changed=async {match bridges.as_mut(){Some(group)=>group.statuses.changed().await,None=>std::future::pending().await}}=>{
+                            if changed.is_err() {
+                                if let Some(group)=bridges.take() {
+                                    let mut statuses=group.statuses.borrow().clone();
+                                    for status in statuses.values_mut() {*status=crate::hap_bridge_group::Status::Degraded;}
+                                    group.shutdown().await;
+                                    if let Some(endpoint)=&management {endpoint.set_hap_bridges(statuses)?;}
+                                }
+                            } else if let (Some(endpoint),Some(group))=(&management,&bridges) {endpoint.set_hap_bridges(group.statuses.borrow().clone())?;}
+                        },
                         result=async {match hap.as_mut(){Some(endpoint)=>endpoint.finished().await,None=>std::future::pending().await}}=>{
                             log::error!("HAP channel degraded: {}",result.err().unwrap_or_else(||"HAP listener ended".into()));
                             // Retire sessions/projection without cancelling the shared automation
@@ -220,6 +253,7 @@ async fn serve_inner(devices:&[u8],rules:&[u8],directory:&Path,duration:Duration
                                 let validation=crate::configuration_publish::validate_automation(&candidate,request.rules(),ExecutionContext::Live).map_err(|e|e.to_string()).and_then(|document|settings.validate(&candidate,&document));
                                 if let Err(error)=validation {request.complete(Err(error));continue;}
                             }
+                            if let Some(plan)=&hap_plan && let Err(error)=validate_bridge_plan(plan,&candidate,request.rules(),None) {request.complete(Err(error));continue;}
                             if request.abandoned() {request.complete(Err("publication abandoned before barrier".into()));continue;}
                             if management.is_some() {
                                 let document=crate::configuration_publish::validate_automation(&candidate,request.rules(),ExecutionContext::Live).map_err(|e|e.to_string())?;
@@ -249,8 +283,9 @@ async fn serve_inner(devices:&[u8],rules:&[u8],directory:&Path,duration:Duration
                     }
                 }
             };
-            if let Some(endpoint)=&management {endpoint.pause()?;if hap_settings.is_some(){endpoint.set_hap_status(crate::web_api::HapStatus::Reconfiguring)?;}}
+            if let Some(endpoint)=&management {endpoint.pause()?;if hap_settings.is_some() || hap_plan.is_some(){endpoint.set_hap_status(crate::web_api::HapStatus::Reconfiguring)?;}}
             if let Some(endpoint)=hap.take() {endpoint.shutdown().await;}
+            if let Some(group)=bridges.take() {group.shutdown().await;}
             drop(runtime);
             let outcome=match outcome {
                 Ok(outcome)=>outcome,
@@ -291,6 +326,7 @@ async fn serve_inner(devices:&[u8],rules:&[u8],directory:&Path,duration:Duration
                             endpoints=candidate.gateways().iter().map(|(id,g)|(id.clone(),g.endpoint)).collect();
                             config=candidate;
                             if let (Some(settings),Some(identity))=(&hap_settings,&identity) {hap=crate::hap_endpoint::Endpoint::start(settings,identity,&admission,controller,&runtime,owner.snapshot(),management.is_some() || management_settings.is_some()).await?;}
+                            if let Some(plan)=&hap_plan {bridges=Some(crate::hap_bridge_group::Group::start(plan,directory,&admission,controller,&runtime,owner.snapshot()).await?);}
                             if let Some(endpoint)=&management {endpoint.install(&admission,controller,&runtime).await?;}
                             prepared_runtime=Some(runtime);
                             request.complete(Ok(revision));
@@ -409,3 +445,7 @@ pub(crate) fn validate_candidate_in_context(devices:&[u8],rules:&[u8],write_inte
 #[cfg(test)]
 #[path = "automation_tcp_fault_tests.rs"]
 pub(crate) mod fault_tests;
+
+#[cfg(test)]
+#[path = "automation_tcp_bridge_tests.rs"]
+mod bridge_tests;
