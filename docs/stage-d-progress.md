@@ -882,3 +882,8 @@ Admission actor 在持久认领前复核控制器权限、进程及完整运行�
 
 
 最新完整基线 `56e922a`：612 项工作区测试和另行 53 项 HAP 库测试通过，工作区所有目标严格 Clippy 通过。完整源语义／现场证据仍挂起；已确认的按键观察推断为下一项运行时开发，未在此基线实现。见 [证据](evidence/stage-e-browser/committed-56e922a-regression.json)。
+
+
+### 已确认的场景观察：状态机基础
+
+新增无命令输出的按键选择推断；记录 CAS 版本、按键来源及完整代次，未知初值不猜测同键结果。6 项专项涵盖三个互斥成员、未知、重复／去抖／短松开、过期／未来帧消耗、旧流来源失效、错误配置与倒退时钟；核心完整 77 项和严格 Clippy 通过。尚未接入配置、来源事务、服务或用户入口，不启用现场功能。见 [接线契约](scene-observation.md) 与 [证据](evidence/stage-d-study/scene-observer-core-check.json)。
