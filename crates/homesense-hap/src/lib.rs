@@ -16,3 +16,5 @@ pub mod write_router;
 
 pub mod motor_graph;
 pub mod motor_requests;
+
+pub mod panel_graph;
