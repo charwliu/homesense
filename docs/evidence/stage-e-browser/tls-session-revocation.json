@@ -1,0 +1,26 @@
+{
+  "base_commit": "2776e0c",
+  "scope": "synthetic loopback; no system trust installation or live gateways",
+  "standalone": {
+    "https": "passed",
+    "wss": "passed",
+    "csrf_and_session_revocation": "passed",
+    "revoked_wss": "closed",
+    "untrusted_and_wrong_name": "rejected",
+    "plaintext": "rejected",
+    "unsafe_key_permissions_and_mismatch": "rejected"
+  },
+  "tcp_hap_web_combined": {
+    "https": "passed",
+    "wss": "passed",
+    "csrf_and_session_revocation": "passed",
+    "revoked_wss": "closed",
+    "untrusted_and_wrong_name": "rejected",
+    "plaintext": "rejected",
+    "unsafe_key_permissions_and_mismatch": "rejected"
+  },
+  "limitations": [
+    "working tree includes unrelated local changes; not a clean archive verification",
+    "not real browser or LAN device acceptance"
+  ]
+}
