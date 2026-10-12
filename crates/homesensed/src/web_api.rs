@@ -61,7 +61,7 @@ impl Api {
         {
             return deny(StatusCode::FORBIDDEN, "invalid_origin");
         }
-        if request.uri().query().is_some() && !matches!(request.uri().path(),"/api/v1/config/versions"|"/api/v1/scene-history") {
+        if request.uri().query().is_some() && !matches!(request.uri().path(),"/api/v1/config/versions"|"/api/v1/scene-history") && !(request.uri().path().starts_with("/api/v1/runs/") && request.uri().path().ends_with("/details")) {
             return deny(StatusCode::BAD_REQUEST, "query_not_supported");
         }
         // Minimal liveness reveals no runtime configuration or credentials.
@@ -388,6 +388,10 @@ impl Api {
         }
         if request.uri().path()=="/api/v1/scene-history" {
             let (code,body)=crate::web_scene_history::read(&runtime,&grant,&request).await;
+            return response(code,body);
+        }
+        if request.uri().path().starts_with("/api/v1/runs/") && request.uri().path().ends_with("/details") {
+            let (code,body)=crate::web_run_details::read(&runtime,&grant,&request).await;
             return response(code,body);
         }
         if let Some(key)=request.uri().path().strip_prefix("/api/v1/runs/") {
