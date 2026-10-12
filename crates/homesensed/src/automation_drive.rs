@@ -305,7 +305,10 @@ pub(crate) async fn drive_with_projection<S: Read + Write + Send + 'static>(
         }
     }
     .await;
-    let reason=if transport_failure {homesense_storage::scene_run::CancellationReason::TransportFailure} else {homesense_storage::scene_run::CancellationReason::ServiceStopped};
+    let publication_barrier=admission.publication_in_progress().await.unwrap_or(false);
+    let reason=if transport_failure {homesense_storage::scene_run::CancellationReason::TransportFailure}
+        else if publication_barrier {homesense_storage::scene_run::CancellationReason::PublicationBarrier}
+        else {homesense_storage::scene_run::CancellationReason::ServiceStopped};
     let mut cleanup_errors = Vec::new();
     if let Some(router) = &mut causal
         && let Err(error) = router.close_with_reason(guard.scenes,reason).await {

@@ -684,3 +684,6 @@ Web 服务持久权限启动：模拟和统一管理入口改用 `web-credential
 
 
 传输故障来源接线：自动化驱动在明确 SendError 或已分类网关断链时，向 Router／Session／SceneScheduler 传递 transport_failure；其他正常退出仍为 service_stopped，不从场景状态猜测原因。TCP 延迟场景断链回归确认故障取消记录存在、无 cancel_requested，旧动作不重放；TCP 与全部 111 项场景回归、库严格 Clippy 通过。配置发布发生于提交前屏障，不能标为“已发布”，其原因命名／迁移待修正；未部署现场，EA-5 不变。
+
+
+发布屏障原因已接入：schema 20 新增 publication_barrier，旧 configuration_published 历史原值保留、不重标。驱动在取消清理前确认活动发布屏障后使用新原因；明确传输故障优先，最终软暂停仍重新核对屏障。记录仅说明为切换停止，不证明提交成功。45 项存储测试、发布暂停矩阵及库严格 Clippy 通过；迁移覆盖 schema 19 旧记录与新屏障记录并存，备份检查支持 schema 18–20。未升级现场数据库，旧程序回滚需使用升级前备份，EA-5 不变。

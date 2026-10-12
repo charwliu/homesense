@@ -820,7 +820,7 @@ fn schema_twelve_migration_preserves_existing_manual_scene_without_inventing_cau
     assert_eq!(store.scene_run("boot","manual").unwrap().unwrap().started_ms,10);
     assert!(store.scene_cause("boot","manual").unwrap().is_none());
     let sql=rusqlite::Connection::open(&db.0).unwrap();
-    assert_eq!(sql.pragma_query_value(None,"user_version",|r|r.get::<_,i64>(0)).unwrap(),19);
+    assert_eq!(sql.pragma_query_value(None,"user_version",|r|r.get::<_,i64>(0)).unwrap(),20);
 }
 
 #[test]
@@ -879,7 +879,7 @@ fn schema_thirteen_keeps_scene_links_without_inventing_fade_samples() {
     assert_eq!(rows.len(),1);
     assert_eq!(rows[0].source,"ordinary");
     assert_eq!(sql.query_row("SELECT count(*) FROM scene_sample",[],|r|r.get::<_,i64>(0)).unwrap(),0);
-    assert_eq!(sql.pragma_query_value(None,"user_version",|r|r.get::<_,i64>(0)).unwrap(),19);
+    assert_eq!(sql.pragma_query_value(None,"user_version",|r|r.get::<_,i64>(0)).unwrap(),20);
 }
 
 #[test]
@@ -998,7 +998,7 @@ fn schema_fifteen_preserves_cancellation_history_and_accepts_cancel_request() {
     let page=store.query_scene(1,&Query::Cancellations{boot:"boot".into(),run:"scene".into(),after:0,limit:128}).unwrap().unwrap();
     assert_eq!(page.cancellations.iter().map(|v|v.cancellation.reason).collect::<Vec<_>>(),vec![CancellationReason::ManualOverride,CancellationReason::CancelRequested]);
     assert_eq!(store.scene_run("boot","scene").unwrap().unwrap().status,Scene::Cancelled);
-    assert_eq!(sql.pragma_query_value(None,"user_version",|r|r.get::<_,i64>(0)).unwrap(),19);
+    assert_eq!(sql.pragma_query_value(None,"user_version",|r|r.get::<_,i64>(0)).unwrap(),20);
 }
 
 #[test]
@@ -1030,7 +1030,7 @@ fn expired_scene_step_migrates_atomically_and_cannot_be_admitted() {
     drop(store);let store=Store::open(&db.0).unwrap();
     assert_eq!(store.scene_run("boot","scene").unwrap().unwrap().version,1);
     assert_eq!(sql.query_row("SELECT source FROM scene_expiry",[],|r|r.get::<_,String>(0)).unwrap(),expiry.source);
-    assert_eq!(sql.pragma_query_value(None,"user_version",|r|r.get::<_,i64>(0)).unwrap(),19);
+    assert_eq!(sql.pragma_query_value(None,"user_version",|r|r.get::<_,i64>(0)).unwrap(),20);
 }
 
 #[test]
@@ -1130,7 +1130,7 @@ fn feedback_inference_migrates_and_resolves_delayed_scene_parent() {
     let sql=rusqlite::Connection::open(&db.0).unwrap();
     sql.execute_batch("DROP TABLE feedback_inference; PRAGMA user_version=17;").unwrap();
     let mut store=Store::open(&db.0).unwrap();
-    assert_eq!(sql.pragma_query_value(None,"user_version",|r|r.get::<_,i64>(0)).unwrap(),19);
+    assert_eq!(sql.pragma_query_value(None,"user_version",|r|r.get::<_,i64>(0)).unwrap(),20);
     let audit=homesense_storage::rule_audit::Admission{revision:1,correlation:9,event:1,parent:0,rule:"synthetic".into()};
     let start=Start{run:"later".into(),revision:1,definition:"scene".into(),source:"synthetic:scene".into(),action_index:0};
     store.accept_queue_batch_with_scene_starts("boot",&[],&[],1,None,&[],Some(&audit),None,&[start]).unwrap();
@@ -1162,5 +1162,16 @@ fn schema_eighteen_preserves_history_and_records_system_cancellation_causes() {
     let mut store=Store::open(&db.0).unwrap();let reasons=[Reason::ServiceStopped,Reason::ConfigurationPublished,Reason::TransportFailure,Reason::PreparationFailed];
     for (i,reason) in reasons.iter().enumerate(){store.checkpoint_scene_run_with_cancellation("boot","scene",i as u64+1,Scene::Running,i as u64+2,Some(&Cancellation{device:device.clone(),reason:*reason})).unwrap();}
     drop(store);let store=Store::open(&db.0).unwrap();let page=store.query_scene(1,&Query::Cancellations{boot:"boot".into(),run:"scene".into(),after:0,limit:128}).unwrap().unwrap();
-    assert_eq!(page.cancellations.iter().map(|c|c.cancellation.reason).collect::<Vec<_>>(),[vec![Reason::CancelRequested],reasons.to_vec()].concat());assert_eq!(sql.pragma_query_value(None,"user_version",|r|r.get::<_,i64>(0)).unwrap(),19);
+    assert_eq!(page.cancellations.iter().map(|c|c.cancellation.reason).collect::<Vec<_>>(),[vec![Reason::CancelRequested],reasons.to_vec()].concat());assert_eq!(sql.pragma_query_value(None,"user_version",|r|r.get::<_,i64>(0)).unwrap(),20);
+}
+
+#[test]
+fn schema_nineteen_retains_legacy_publication_reason_without_claiming_barrier_commit() {
+    use homesense_storage::scene_run::{Cancellation,CancellationReason as Reason,Query,Status as Scene};
+    let db=Database::new();let mut store=Store::open(&db.0).unwrap();store.publish(None,1,b"config",&[]).unwrap();store.begin_scene_run("boot","scene",1,None,0).unwrap();
+    let device=DeviceId::new("synthetic:light").unwrap();store.checkpoint_scene_run_with_cancellation("boot","scene",0,Scene::Running,1,Some(&Cancellation{device:device.clone(),reason:Reason::ConfigurationPublished})).unwrap();drop(store);
+    let sql=rusqlite::Connection::open(&db.0).unwrap();let schema:String=sql.query_row("SELECT sql FROM sqlite_master WHERE name='scene_cancellation'",[],|row|row.get(0)).unwrap();
+    sql.execute_batch("ALTER TABLE scene_cancellation RENAME TO newer").unwrap();sql.execute_batch(&schema.replace(",'publication_barrier'","")).unwrap();sql.execute_batch("INSERT INTO scene_cancellation SELECT * FROM newer; DROP TABLE newer; PRAGMA user_version=19;").unwrap();
+    let mut store=Store::open(&db.0).unwrap();store.checkpoint_scene_run_with_cancellation("boot","scene",1,Scene::Cancelled,2,Some(&Cancellation{device,reason:Reason::PublicationBarrier})).unwrap();
+    let page=store.query_scene(1,&Query::Cancellations{boot:"boot".into(),run:"scene".into(),after:0,limit:128}).unwrap().unwrap();assert_eq!(page.cancellations.iter().map(|c|c.cancellation.reason).collect::<Vec<_>>(),vec![Reason::ConfigurationPublished,Reason::PublicationBarrier]);assert_eq!(sql.pragma_query_value(None,"user_version",|row|row.get::<_,i64>(0)).unwrap(),20);
 }

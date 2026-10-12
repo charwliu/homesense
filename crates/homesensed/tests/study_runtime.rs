@@ -4471,6 +4471,9 @@ async fn publication_pauses_old_automation_without_closing_admission() {
     updates.borrow_and_update();
     assert!(updates.changed().await.is_err());
     assert!(runtime.publication_paused());
+    let audit=rusqlite::Connection::open(&db.0).unwrap();
+    assert_eq!(audit.query_row("SELECT count(*) FROM scene_cancellation WHERE reason='publication_barrier'",[],|row|row.get::<_,i64>(0)).unwrap(),1);
+    assert_eq!(audit.query_row("SELECT count(*) FROM scene_cancellation WHERE reason='configuration_published'",[],|row|row.get::<_,i64>(0)).unwrap(),0);
     assert!(subscription.borrow_and_update().as_ref().unwrap().as_ref().unwrap_err().contains("stopped"));
     assert!(subscription.changed().await.is_err(),"old stream must close at publication barrier");
     assert!(control.request(Action::Start("light".into())).await.is_err());
