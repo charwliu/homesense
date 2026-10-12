@@ -178,3 +178,10 @@ E13 固定同一 `c184e65` 产品二进制，独立控制器通过网络完成�
 629个场景成员的直接代理均为 light_v2.c4i。沿源驱动链核对：Switch_V2 对应 rate0／1共338项，Dimmer_V2 对应1000／750共291项。根只读原c4p中的两个c4z的公开driver.xml，二者均声明 advanced_scene_support=True、reduced_als_support=False；因此不能依据[官方简化ALS的单独target命令行为](https://snap-one.github.io/docs-driverworks-proxyprotocol-lightv2/#advanced-lighting-scene-agent)解释这两个完整ALS驱动的实际处理。Dimmer公开Ramp Timer为LIST，默认400、选项100至900，没有明确单位。
 
 两包脚本条目均为driver.lua.encrypted、公开script属性encryption=2；未读取脚本内容、未解密。接口能力声明与存档数值分类已明确，原PUSH_SCENE处理、实际rate单位、Ramp Timer关联和驱动执行仍无直接证据；不以数值看似毫秒替代审核。未生成运行定义、未修改原项目或现场。见 [驱动元数据证据](evidence/stage-d-study/lighting-driver-metadata-audit.json)。
+
+
+### 2026-10-13 窗帘事件名义接口补证
+
+[官方 Blind Events](https://snap-one.github.io/docs-driverworks-proxyprotocol-blind/#blind-events)将2.9.0及以后代理的事件3定义为收到停止通知时触发，事件5定义为收到移动通知时触发。根从权威XML独立核对43个窗帘事件的源owner及ID与私有账本完全一致；其中20个已证明顺序LED请求转换的程序恰为事件3／5各10个。源事件的名义接口已有直接依据；这不证明GJ驱动发通知的条件或时序，也不把中控命令accepted或last-command当作物理运动反馈。
+
+归档blind.c4i描述符的version=3是驱动字段，不能当作运行OS版本；modified日期也不足以确认现行接口适用。原运行代理适用性、通知与实物／估计值的关系、迁移触发来源、LED执行、绑定和所有权策略仍保留。20个程序只关闭局部转换与名义接口项，本次新增完整程序批准为0；D仍有65场景／208程序／24变量待完整语义审核，现场与人工确认继续挂起。见[窗帘接口证据](evidence/stage-d-study/blind-event-interface-audit.json)。
