@@ -6566,3 +6566,75 @@ async fn manual_scene_batch_admission_is_atomic_and_installable() {
         a.shutdown().await.unwrap();
     }
 }
+
+#[tokio::test]
+async fn manual_scene_batch_scheduler_preserves_caller_and_reserves_capacity() {
+    let db=Db(std::env::temp_dir().join(format!("manual-scheduler-{}.sqlite",Uuid::new_v4())));
+    let devices=include_bytes!("../../../config/simulation.json");
+    let rules=br#"{"schema_version":1,"configuration_revision":1,"variables":[],"rules":[],"timed_scenes":[{"id":"first","enabled":true,"review_evidence":"simulation","max_lateness_ms":1000,"steps":[{"source":"fixture","offset_ms":100,"device":"simulation:light","command":{"kind":"level","value":30,"ramp":false}}]},{"id":"second","enabled":true,"review_evidence":"simulation","max_lateness_ms":1000,"steps":[{"source":"fixture","offset_ms":100,"device":"simulation:light","command":{"kind":"level","value":40,"ramp":false}}]}]}"#;
+    Store::open(&db.0).unwrap().publish_automation(None,devices,rules,ExecutionContext::Simulation,&[]).unwrap();
+    let caller=Uuid::new_v4();let owner=Uuid::new_v4();let a=actor(&db,caller).await;
+    let mut scheduler=homesensed::scene_scheduler::SceneScheduler::new(a.clone(),owner,2,0).unwrap();
+    let names=||vec!["first".into(),"second".into()];
+    let held=scheduler.reserve_slots(1).unwrap();
+    assert!(scheduler.start_documents_as(1,names(),0,caller).await.is_err());
+    drop(held);
+    assert!(scheduler.start_documents_as(2,names(),0,caller).await.is_err());
+    assert!(scheduler.start_documents_as(1,names(),0,owner).await.is_err());
+    let sql=rusqlite::Connection::open(&db.0).unwrap();
+    assert_eq!(sql.query_row("SELECT count(*) FROM scene_run",[],|r|r.get::<_,i64>(0)).unwrap(),0);
+    let runs=scheduler.start_documents_as(1,names(),0,caller).await.unwrap();
+    for run in &runs {assert!(scheduler.owned_by(*run,caller));assert!(!scheduler.owned_by(*run,owner));}
+    assert_eq!(runs.len(),2);
+    assert_eq!(scheduler.status(runs[0]),Some(homesense_core::scene::Status::Cancelled));
+    assert!(scheduler.start_documents_as(1,names(),0,caller).await.is_err());
+    assert_eq!(sql.query_row("SELECT count(*) FROM scene_run",[],|r|r.get::<_,i64>(0)).unwrap(),2);
+    assert!(a.dispatch().await.unwrap().is_none());
+    a.shutdown().await.unwrap();
+}
+
+#[tokio::test]
+async fn hap_multiple_scenes_use_one_runtime_batch() {
+    use homesensed::{automation_runtime::AutomationRuntime,feedback::Feedback,observed_transport::ObservedTransport,transport_owner::TransportOwner};
+    use hap::storage::Storage;
+    let db=Db(std::env::temp_dir().join(format!("hap-batch-{}.sqlite",Uuid::new_v4())));
+    let devices=include_bytes!("../../../config/simulation.json");
+    let rules=br#"{"schema_version":1,"configuration_revision":1,"variables":[],"rules":[],"timed_scenes":[{"id":"first","enabled":true,"review_evidence":"simulation","max_lateness_ms":1000,"steps":[{"source":"fixture","offset_ms":10000,"device":"simulation:light","command":{"kind":"level","value":30,"ramp":false}}]},{"id":"second","enabled":true,"review_evidence":"simulation","max_lateness_ms":1000,"steps":[{"source":"fixture","offset_ms":10000,"device":"simulation:light","command":{"kind":"level","value":40,"ramp":false}}]}]}"#;
+    Store::open(&db.0).unwrap().publish_automation(None,devices,rules,ExecutionContext::Simulation,&[]).unwrap();
+    let caller=Uuid::new_v4();let a=actor(&db,caller).await;
+    let mut runtime=AutomationRuntime::load(a.clone(),caller,1_800_000_000_000,1000,8,Default::default()).await.unwrap();
+    let config=homesense_config::Configuration::parse(devices,ExecutionContext::Simulation).unwrap();
+    let document=homesense_config::rule_document::Document::parse(rules,&config).unwrap();
+    struct Wire;
+    impl std::io::Read for Wire {fn read(&mut self,_:&mut [u8])->std::io::Result<usize>{Err(std::io::ErrorKind::WouldBlock.into())}}
+    impl std::io::Write for Wire {fn write(&mut self,_:&[u8])->std::io::Result<usize>{panic!("batch must stay delayed")} fn flush(&mut self)->std::io::Result<()>{Ok(())}}
+    let feedback=Feedback::new(&config,ExecutionContext::Simulation,Uuid::parse_str(a.boot_id()).unwrap().as_u128(),1).unwrap();
+    let transport=TransportOwner::new(a.clone(),[("simulation".into(),hb_transport::Connection::for_simulation(Wire,1))].into());
+    let mut owner=ObservedTransport::new(transport,feedback);
+    let path=db.0.with_extension("hap");let mut identity=homesense_hap::storage::IdentityStore::open(&path).await.unwrap();
+    identity.save_config(&hap::Config::default()).await.unwrap();
+    let allowed=std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));let permission=allowed.clone();
+    let specs=["first","second"].into_iter().map(|id|homesense_hap::scene_graph::SceneSpec{id:id.into(),name:id.into()}).collect();
+    let mut hap=homesensed::runtime_scene_hap::RuntimeSceneHap::new(&identity,&document,specs,runtime.control(),move |id,scene|id==caller && (scene=="first" || permission.load(std::sync::atomic::Ordering::SeqCst))).await.unwrap();
+    let body=hap::serde_json::to_vec(&hap::serde_json::json!({"characteristics":hap.accessories.iter().map(|(b,_)|hap::serde_json::json!({"aid":b.aid,"iid":b.on_iid,"value":true})).collect::<Vec<_>>()})).unwrap();
+    let (stop,receive)=tokio::sync::watch::channel(false);
+    let client=async {
+        assert!(hap.write_handler.write_async(caller,&body).await.is_err());
+        let sql=rusqlite::Connection::open(&db.0).unwrap();
+        assert_eq!(sql.query_row("SELECT count(*) FROM scene_run",[],|r|r.get::<_,i64>(0)).unwrap(),0);
+        assert_eq!(hap.flush_resets().await.unwrap(),0);
+        allowed.store(true,std::sync::atomic::Ordering::SeqCst);
+        hap.write_handler.write_async(caller,&body).await.unwrap();
+        assert_eq!(sql.query_row("SELECT count(*) FROM scene_run",[],|r|r.get::<_,i64>(0)).unwrap(),2);
+        assert_eq!(hap.flush_resets().await.unwrap(),2);
+        assert_eq!(hap.flush_resets().await.unwrap(),0);
+        let resets=hap::serde_json::to_vec(&hap::serde_json::json!({"characteristics":hap.accessories.iter().map(|(b,_)|hap::serde_json::json!({"aid":b.aid,"iid":b.on_iid,"value":false})).collect::<Vec<_>>()})).unwrap();
+        hap.write_handler.write_async(caller,&resets).await.unwrap();
+        assert_eq!(hap.flush_resets().await.unwrap(),0);
+        assert_eq!(sql.query_row("SELECT count(*) FROM scene_run",[],|r|r.get::<_,i64>(0)).unwrap(),2);
+
+        stop.send(true).unwrap();
+    };
+    let (result,())=tokio::join!(runtime.drive(&mut owner,std::time::Duration::from_millis(1),500,receive,||Ok(1_800_000_000_000)),client);
+    result.unwrap();drop(hap);drop(identity);std::fs::remove_dir_all(path).unwrap();a.shutdown().await.unwrap();
+}
