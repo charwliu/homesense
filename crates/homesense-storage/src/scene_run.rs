@@ -73,6 +73,13 @@ fn key(s: &str) -> Result<(), Error> {
         Ok(())
     }
 }
+/// One manually requested named scene. No inferred rule provenance is stored.
+#[derive(Debug, Clone)]
+pub struct ManualStart {
+    pub run: String,
+    pub definition: String,
+}
+
 /// A durable pending receipt, never a persisted replay plan.
 #[derive(Debug, Clone)]
 pub struct Start {
@@ -111,6 +118,42 @@ impl Store {
     }
 }
 impl Store {
+    /// Atomically persist a manual batch at one active configuration revision.
+    /// These are receipts only: callers must separately authorize and reserve
+    /// scheduler capacity before acceptance, and must never replay on restart.
+    pub fn begin_manual_scene_batch(
+        &mut self,
+        boot: &str,
+        revision: u64,
+        starts: &[ManualStart],
+        now: u64,
+    ) -> Result<(), Error> {
+        key(boot)?;
+        if starts.is_empty() || starts.len() > 64 {
+            return Err(Error::InvalidAudit);
+        }
+        let revision_sql = sql_revision(revision)?;
+        let tx = self.connection.transaction_with_behavior(
+            rusqlite::TransactionBehavior::Immediate,
+        )?;
+        let active: Option<i64> = tx.query_row(
+            "SELECT revision FROM active_configuration WHERE singleton=1",
+            [], |r| r.get(0),
+        ).optional()?;
+        if active != Some(revision_sql) { return Err(Error::Conflict); }
+        for start in starts {
+            insert_start(&tx, boot, &Start {
+                action_index: 0,
+                source: String::new(),
+                run: start.run.clone(),
+                revision,
+                definition: start.definition.clone(),
+            }, now, active)?;
+        }
+        tx.commit()?;
+        Ok(())
+    }
+
     pub fn begin_scene_run(
         &mut self,
         boot: &str,
