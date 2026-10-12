@@ -1,0 +1,39 @@
+{
+  "base_commit": "cb0296691d64763b27d96f8f8bb64a962bd8b312",
+  "proof_scope": "actual source-derived study AST; finite valid source prior states; candidate transition inference only, not product implementation",
+  "source_ast_sha256": "6d6a649d917a16929fc12ff6b062f3f09fddf09360596f99481a27b7222db14e",
+  "evaluator_sha256": "0969c0ff67b5da926752c2346629c1bbe61b5205e8c90eb1872a87d7a26540e5",
+  "probe_sha256": "a7d96a72783ccc302f2f0700f7f9031884997c44b3dac7d72a8bb9699c2af3a3",
+  "log_sha256": "2ae86d1cf77850eb85d61c78db85dfb5aab3210cd169fe2f512a8b89b5e669b1",
+  "first_key_ambiguities_checked": 3,
+  "same_key_ambiguities_checked": 3,
+  "distinct_key_sequences_checked": 6,
+  "valid_source_prior_states_per_sequence": 4,
+  "source_evaluations_in_distinct_pair_cross_check": 48,
+  "all_checks_passed": true,
+  "source_writer_inventory": {
+    "archived_program_references": 9,
+    "conditions": 3,
+    "assignments": 6,
+    "writer_events": 3,
+    "all_writer_events_in_reviewed_scene_keys": true,
+    "driver_internal_or_live_project_hidden_writes_not_proven_absent": true
+  },
+  "proposed_contract": [
+    "Keep independent external possible values, never seed from local intent or light match",
+    "Unknown first key and repeated same key remain ambiguous",
+    "Distinct reviewed source key transition collapses possible values to one member",
+    "Local HAP/Web intent or LED cancellation must not change the external possible values",
+    "Freshness/edge/stream gaps and generation changes invalidate external evidence",
+    "Commit displayed inference with current variable CAS and complete scope; keep inferred label"
+  ],
+  "no_gateway_connection": true,
+  "no_physical_commands": true,
+  "product_convergence_implemented": true,
+  "field_accepted": false,
+  "implementation_commit": "c184e65eb7adfa284bf26b1978dcb392ab762351",
+  "independent_committed_core_tests_passed": 13,
+  "implementation_full_model_sequences": 363,
+  "implementation_all_off_unknown_preserved_in_workspace_regression": true,
+  "linux_binary_and_field_acceptance_pending": true
+}
