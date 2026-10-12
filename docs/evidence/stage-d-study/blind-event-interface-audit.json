@@ -1,0 +1,51 @@
+{
+  "date": "2026-10-13",
+  "source_xml_sha256": "cac7dcdc9db08599e55a22bacb72858035c64e1ac846e2139ead5fc634513748",
+  "ledger_sha256": "560f67507f2fad8149714ed74566755979c0b0b549bf1fc7d94312973539d1e4",
+  "nominal_interface_reference": "https://snap-one.github.io/docs-driverworks-proxyprotocol-blind/#blind-events",
+  "documented_applicability": "Control4 Blind Proxy 2.9.0 and later",
+  "event_definitions": {
+    "3": {
+      "name": "Stopped",
+      "trigger": "protocol STOPPED notification arrives at proxy"
+    },
+    "5": {
+      "name": "Moving",
+      "trigger": "protocol MOVING notification arrives at proxy"
+    }
+  },
+  "archived_blind_program_counts_by_event": {
+    "2": 11,
+    "3": 11,
+    "4": 11,
+    "5": 10
+  },
+  "straight_line_led_request_proof_counts_by_event": {
+    "3": 10,
+    "5": 10
+  },
+  "archived_proxy_metadata": {
+    "descriptor": "blind.c4i",
+    "sha256": "f8fae499b8a6415fd7fc6b4414a8f70b9f0d20a8e78ee3becaad542e4a0b0863",
+    "descriptor_version_literal": "3",
+    "descriptor_modified_literal": "03/11/2016 10:00 AM",
+    "descriptor_version_is_os_version": false,
+    "documented_runtime_applicability_verified": false
+  },
+  "closed_subgates": [
+    "published nominal proxy event identity",
+    "20 ordered source LED request conversions (independently reviewed elsewhere)"
+  ],
+  "still_unproven": [
+    "archived runtime proxy applicability",
+    "protocol driver notification generation, order and timing",
+    "whether notifications use estimated or physical feedback",
+    "migration trigger mapping and LED execution",
+    "binding and ownership policy"
+  ],
+  "full_programs_newly_approved": 0,
+  "runtime_definitions_generated": false,
+  "field_enablement": false,
+  "encrypted_script_bytes_read": false,
+  "root_independent_source_event_coverage": "43 XML owners and event IDs match private ledger exactly"
+}
