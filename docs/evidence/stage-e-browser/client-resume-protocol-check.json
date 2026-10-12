@@ -1,0 +1,41 @@
+{
+  "source_commit": "c184e65eb7adfa284bf26b1978dcb392ab762351",
+  "test_path": "crates/homesensed/tests/client_resume_audit.rs",
+  "test_sha256": "bdf6ec8a67cd0efb011a83bca05d4438fdebbf40d63a5f2ecb7683b3b15e05e6",
+  "all_original_archive_files_unchanged": 891,
+  "source_overlay": "one new integration test only; product sources unchanged",
+  "test_result": {
+    "passed": 1,
+    "failed": 0,
+    "ignored": 0
+  },
+  "focused_strict_clippy": "passed",
+  "test_log_sha256": "ad2bcc381a2054c160da955a7b6bcf7389c4cf95d2e94b35161f14bdcd3d0f08",
+  "clippy_log_sha256": "ef8d2f03b66f33201c5a9ca8a0d1d45b63f20451e79ef191faa5e980c79f3e5e",
+  "protocol_steps": [
+    "paired encrypted session subscribes On and Brightness",
+    "client disconnects while simulation service remains running",
+    "Web explicitly sets synthetic dimmer to 17 percent",
+    "same paired controller reauthenticates with new encrypted session",
+    "authenticated characteristic read returns On=true and Brightness=17",
+    "new session explicitly re-establishes subscriptions",
+    "Web 30 then 17 triggers corresponding encrypted EVENT notifications without HAP control or refresh"
+  ],
+  "persistent_checks": {
+    "paired_controller_preserved": true,
+    "scene_run_count": 0,
+    "command_journal_count": 3,
+    "expected_commands": "only the three explicit localhost Web dimmer requests"
+  },
+  "environment": "localhost simulated standalone dimmer and synthetic identity; Web HTTP only, HAP actual pair-verify and encrypted transport",
+  "preserved_first_failure": "sandbox denied loopback bind; authorized execution passed",
+  "field_service_started": false,
+  "actual_phone_test": false,
+  "real_gateway_used": false,
+  "phone_background_stale_root_cause_resolved": false,
+  "limits": [
+    "standalone synthetic dimmer; not the field relay/dimmer combination",
+    "disconnect and explicit reauthentication/resubscription; not actual iOS background lifecycle",
+    "no physical-load or LAN TLS recovery claim"
+  ]
+}
