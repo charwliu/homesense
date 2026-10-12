@@ -11,6 +11,7 @@ pub mod rule_audit;
 pub mod scene_run;
 pub mod scene_history;
 pub mod variables;
+pub mod scene_observation;
 use homesense_core::queue::CancelReason;
 use rusqlite::{Connection, OptionalExtension, TransactionBehavior, params};
 use std::{path::Path, time::Duration};
@@ -69,7 +70,7 @@ impl Store {
         if app != 0 && app != APPLICATION_ID {
             return Err(Error::ForeignDatabase);
         }
-        if version != 0 && (!(1..=21).contains(&version) || app != APPLICATION_ID) {
+        if version != 0 && (!(1..=22).contains(&version) || app != APPLICATION_ID) {
             return Err(Error::UnsupportedSchema(version));
         }
         if version == 0 {
@@ -211,6 +212,22 @@ impl Store {
                   AND j.rowid=(SELECT max(k.rowid) FROM command_journal k WHERE k.revision=j.revision AND k.device_id=j.device_id AND k.status IN ('written','observed') AND substr(k.intent,1,2) IN (x'0102',x'0103'))
                 ON CONFLICT(revision,device_id) DO NOTHING;")?;
             tx.pragma_update(None, "user_version", 21)?;
+        }
+        if version <= 21 {
+            tx.execute_batch("CREATE TABLE IF NOT EXISTS scene_observation (
+                revision INTEGER NOT NULL, name TEXT NOT NULL, variable_version INTEGER NOT NULL CHECK(variable_version>0),
+                authority TEXT NOT NULL CHECK(authority='inferred'), group_id TEXT NOT NULL,
+                boot_id TEXT NOT NULL CHECK(length(boot_id)=32), transport_epoch INTEGER NOT NULL CHECK(transport_epoch>0),
+                control_epoch INTEGER NOT NULL CHECK(control_epoch>0), stream_generation INTEGER NOT NULL CHECK(stream_generation>0),
+                event_sequence INTEGER NOT NULL CHECK(event_sequence>0), device_id TEXT NOT NULL,
+                observed_ms INTEGER NOT NULL CHECK(observed_ms>=0), basis TEXT NOT NULL CHECK(basis IN ('unknown_initial','select_member','toggle_off')),
+                value INTEGER CHECK(value IS NULL OR value>=0),
+                PRIMARY KEY(boot_id,revision,transport_epoch,control_epoch,stream_generation,event_sequence),
+                UNIQUE(revision,name,variable_version),
+                FOREIGN KEY(revision,name) REFERENCES logical_variable(revision,name));
+                CREATE TRIGGER IF NOT EXISTS immutable_scene_observation_update BEFORE UPDATE ON scene_observation BEGIN SELECT RAISE(ABORT, 'immutable scene observation'); END;
+                CREATE TRIGGER IF NOT EXISTS immutable_scene_observation_delete BEFORE DELETE ON scene_observation BEGIN SELECT RAISE(ABORT, 'immutable scene observation'); END;")?;
+            tx.pragma_update(None, "user_version", 22)?;
         }
         tx.commit()?;
         connection.pragma_update(None, "foreign_keys", "ON")?;

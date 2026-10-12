@@ -65,3 +65,5 @@ LED 联动拒绝恢复增量：已复现并修正暂满队列、反馈检查暂�
 
 
 最新完整证据：[已提交 56e922a 回归](evidence/stage-e-browser/committed-56e922a-regression.json)。Linux 候选只在独立目录构建和做合成测试，未替换真实 release 或启动现场服务；旧身份与运行库没有迁移。外部选择同步不是仅缺现场测试：观察推断接线仍未实现，不能把熄灯取消当作完整外部同步。
+
+观察模式增量：状态机及 schema 22 来源持久化已完成，53 项存储回归、严格 Clippy 和实际旧版升级前备份恢复通过。配置／按键事件、HAP/Web 与手动规划仍待接线，不能记为外部选择同步完成；现场数据库未升级。见 [存储证据](evidence/stage-d-study/scene-observation-storage-check.json)。
