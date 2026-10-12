@@ -386,6 +386,17 @@ impl Api {
                 Err(_) => deny(StatusCode::SERVICE_UNAVAILABLE, "draft_storage_unavailable"),
             };
         }
+        if let Some(key)=request.uri().path().strip_prefix("/api/v1/runs/") {
+            if request.method()!=hyper::Method::GET {return deny(StatusCode::METHOD_NOT_ALLOWED,"method_not_allowed");}
+            if !request.body().is_empty(){return deny(StatusCode::BAD_REQUEST,"unexpected_body");}
+            let Some((boot,run))=key.split_once('/') else {return deny(StatusCode::BAD_REQUEST,"invalid_run");};
+            if uuid::Uuid::parse_str(boot).is_err() || run.is_empty() || run.len()>128 || !run.bytes().all(|c|c.is_ascii_alphanumeric()||c==b'-'||c==b'_') {return deny(StatusCode::BAD_REQUEST,"invalid_run");}
+            return match runtime.control.request(Action::RunSummary{controller:grant.controller,revision:runtime.revision,boot:boot.into(),run:run.into()}).await {
+                Ok(Reply::RunSummary(Some((scene,v)))) if runtime.scenes.contains_key(&scene) && grant.may_read(&scene)=>response(StatusCode::OK,json!({"scene":scene,"boot":v.boot,"run":v.run,"revision":v.revision.to_string(),"started_ms":v.started_ms.to_string(),"updated_ms":v.updated_ms.to_string(),"version":v.version.to_string(),"status":format!("{:?}",v.status)})),
+                Ok(Reply::RunSummary(_))=>deny(StatusCode::NOT_FOUND,"run_not_found"),
+                _=>deny(StatusCode::SERVICE_UNAVAILABLE,"run_summary_unavailable"),
+            };
+        }
         if request.method() == hyper::Method::GET && request.uri().path() == "/api/v1/scenes" {
             let mut items = vec![];
             for (id, name) in &runtime.scenes {

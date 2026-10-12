@@ -40,6 +40,17 @@ function renderScenes(data) {
     const row = document.createElement('article');
     const title = document.createElement('h2'); title.textContent = scene.name;
     const info = document.createElement('p'); info.textContent = `当前状态：${scene.activity}；最近执行：${scene.last_run?.status || '无记录'}`;
+    if(scene.last_run) {
+      const details=document.createElement('button');details.textContent='查看最近执行';
+      const receipt=document.createElement('p');
+      details.onclick=async()=>{
+        const epoch=sessionEpoch;details.disabled=true;
+        try {const run=await request('/api/v1/runs/'+encodeURIComponent(scene.last_run.boot)+'/'+encodeURIComponent(scene.last_run.run));receipt.textContent=`结果：${run.status}；配置版本：${run.revision}；记录版本：${run.version}；开始／更新：${run.started_ms}／${run.updated_ms} ms（该进程启动后的单调时间）。命令写出不代表物理动作完成。`;}
+        catch(error){if(epoch===sessionEpoch)receipt.textContent=error.message;}
+        finally{details.disabled=false;}
+      };
+      row.append(details,receipt);
+    }
     const button = document.createElement('button'); button.textContent = '执行场景'; button.disabled = !scene.can_control;
     button.onclick = async () => {
       button.disabled = true;
