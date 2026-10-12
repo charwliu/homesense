@@ -241,6 +241,7 @@ pub(crate) async fn drive_with_panel_feeds<S: Read + Write + Send + 'static>(
         if causal.is_some() && let Some(calendar)=&mut guard.calendar {
             calendar.bind_feedback(guard.owner.feedback())?;
         }
+        let mut indicators=crate::indicator_sync::Synchronizer::default();
         let mut next = 0;
         loop {
             if *stop.borrow() || stop.has_changed().is_err() {
@@ -331,6 +332,9 @@ pub(crate) async fn drive_with_panel_feeds<S: Read + Write + Send + 'static>(
                 return Ok(());
             }
             guard.owner.expire(admission.monotonic_ms(), max_age_ms)?;
+            if let Some((receiver,document))=&control.0 {
+                indicators.tick(admission,receiver.controller(),document,guard.scenes,guard.owner.feedback(),max_age_ms).await?;
+            }
             if let Some(projection)=&projection {projection.send_replace(guard.owner.snapshot());}
             if !panel_feeds.0.is_empty() {
                 match guard.owner.feedback().events_since(panel_cursor) {

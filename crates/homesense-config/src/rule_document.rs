@@ -28,6 +28,8 @@ struct Input {
     timed_scenes: Vec<TimedSceneInput>,
     #[serde(default)]
     scene_switch_groups: Vec<crate::scene_switches::Group>,
+    #[serde(default)]
+    indicator_links: Vec<crate::indicator_links::Link>,
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -306,6 +308,7 @@ pub struct Document {
     pub holds: Option<Holds>,
     pub timed_scenes: BTreeMap<String, TimedScene>,
     pub scene_switch_groups: Vec<crate::scene_switches::Group>,
+    pub indicator_links: Vec<crate::indicator_links::Link>,
 }
 struct Compiler<'a> {
     config: &'a Configuration,
@@ -782,6 +785,7 @@ impl Document {
             );
         }
         crate::scene_switches::validate(&input.scene_switch_groups,&variables,&timed_scenes)?;
+        crate::indicator_links::validate(&input.indicator_links,config,&input.scene_switch_groups,&timed_scenes)?;
         let mut ids = std::collections::BTreeSet::new();
         let mut rules = vec![];
         for rule in input.rules {
@@ -832,6 +836,7 @@ impl Document {
             holds: input.holds,
             timed_scenes,
             scene_switch_groups:input.scene_switch_groups,
+            indicator_links:input.indicator_links,
         })
     }
 }

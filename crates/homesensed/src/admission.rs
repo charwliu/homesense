@@ -178,6 +178,8 @@ enum Message {
     PublicationState(oneshot::Sender<bool>),
     AutomationBundle(Uuid, TaskGeneration, oneshot::Sender<Result<homesense_storage::automation::Bundle, WriteStatus>>),
     FeedbackSettled(Uuid, TaskGeneration, crate::feedback::RuleLease, oneshot::Sender<Result<bool, WriteStatus>>),
+    RecordedLevels(Uuid, TaskGeneration, oneshot::Sender<Result<RestoreLevels, WriteStatus>>),
+    ProjectionLevels(u64, u128, oneshot::Sender<Result<RestoreLevels, WriteStatus>>),
     WrittenFeedbackTarget(Uuid, TaskGeneration, u64, oneshot::Sender<Result<Option<homesense_storage::feedback_inference::WrittenTarget>, WriteStatus>>),
     FeedbackInference(Uuid, TaskGeneration, homesense_storage::feedback_inference::Inference, oneshot::Sender<Result<(), WriteStatus>>),
 
@@ -463,6 +465,23 @@ impl Admission {
                                 let bundle=store.active_bundle(options.context).map_err(|_|WriteStatus::ServiceCommunicationFailure)?.ok_or(WriteStatus::ServiceCommunicationFailure)?;
                                 if bundle.configuration.revision()!=generation.epochs.configuration {return Err(WriteStatus::ServiceCommunicationFailure)}
                                 Ok(bundle)
+                            })();
+                            let _=reply.send(result);
+                        }
+                        Message::ProjectionLevels(revision,boot,reply) => {
+                            let result=(|| {
+                                if revision!=configuration.revision() || boot!=Uuid::parse_str(&worker_boot).map_err(|_|WriteStatus::ServiceCommunicationFailure)?.as_u128() || arbiter.policy().publishing {return Err(WriteStatus::ServiceCommunicationFailure);}
+                                let ids=configuration.devices().keys().filter(|id|configuration.binding(id).is_some_and(|(_,m)|m.kind()==homesense_core::ModuleKind::Dimmer)).cloned().collect::<Vec<_>>();
+                                store.recorded_dimmer_levels(revision,&ids).map_err(|_|WriteStatus::ServiceCommunicationFailure)
+                            })();
+                            let _=reply.send(result);
+                        }
+                        Message::RecordedLevels(controller,generation,reply) => {
+                            let result=(|| {
+                                if !authorize(controller) {return Err(WriteStatus::InsufficientPrivileges);}
+                                if failed || generation.boot!=worker_boot || generation.epochs!=arbiter.policy().epochs || !arbiter.policy().gateway_ready || arbiter.policy().publishing {return Err(WriteStatus::ServiceCommunicationFailure);}
+                                let ids=configuration.devices().keys().filter(|id|configuration.binding(id).is_some_and(|(_,m)|m.kind()==homesense_core::ModuleKind::Dimmer)).cloned().collect::<Vec<_>>();
+                                store.recorded_dimmer_levels(configuration.revision(),&ids).map_err(|_|WriteStatus::ServiceCommunicationFailure)
                             })();
                             let _=reply.send(result);
                         }
@@ -799,10 +818,13 @@ impl Admission {
                                     return Err(WriteStatus::InvalidValueInRequest);
                                 }
                                 let mut saved = store.light_restore_levels(configuration.revision()).map_err(|_| WriteStatus::ServiceCommunicationFailure)?;
+                                let ids=configuration.devices().keys().filter(|id|configuration.binding(id).is_some_and(|(_,m)|m.kind()==homesense_core::ModuleKind::Dimmer)).cloned().collect::<Vec<_>>();
+                                let recorded=store.recorded_dimmer_levels(revision,&ids).map_err(|_|WriteStatus::ServiceCommunicationFailure)?;
                                 let levels: Vec<_> = snapshot.devices.iter().filter_map(|(id,state)| {
                                     let (device,module) = configuration.binding(id)?;
                                     if module.kind()!=homesense_core::ModuleKind::Dimmer || state.quality!=homesense_state::Quality::Confirmed || !state.observed_at_ms.and_then(|at| now.checked_sub(at)).is_some_and(|age| age<max_age) { return None; }
                                     let Some(homesense_core::Observation::Level(mut level)) = state.observed else { return None; };
+                                    if let Some(setting)=recorded.get(id) {level = *setting;}
                                     if let Some(relay) = &device.supply_relay {
                                         let supply = snapshot.devices.get(relay)?;
                                         if supply.quality != homesense_state::Quality::Confirmed || !supply.observed_at_ms.and_then(|at| now.checked_sub(at)).is_some_and(|age| age < max_age) { return None; }
@@ -1407,6 +1429,18 @@ impl Admission {
     pub(crate) async fn feedback_settled(&self,controller:Uuid,generation:TaskGeneration,lease:crate::feedback::RuleLease)->Result<bool,WriteStatus>{
         let (reply,receive)=oneshot::channel();
         self.sender.try_send(Message::FeedbackSettled(controller,generation,lease,reply)).map_err(|_|WriteStatus::ResourceBusy)?;
+        receive.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?
+    }
+    pub(crate) async fn recorded_dimmer_levels(&self,controller:Uuid,generation:TaskGeneration)->Result<RestoreLevels,WriteStatus>{
+        let (reply,receive)=oneshot::channel();
+        self.sender.try_send(Message::RecordedLevels(controller,generation,reply)).map_err(|_|WriteStatus::ResourceBusy)?;
+        receive.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?
+    }
+    // Same trusted snapshot publisher boundary as remember_levels; no external
+    // request or device action uses this route to bypass controller checks.
+    pub(crate) async fn projection_levels(&self,revision:u64,boot:u128)->Result<RestoreLevels,WriteStatus>{
+        let (reply,receive)=oneshot::channel();
+        self.sender.try_send(Message::ProjectionLevels(revision,boot,reply)).map_err(|_|WriteStatus::ResourceBusy)?;
         receive.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?
     }
     pub(crate) async fn scene_history_page(&self,controller:Uuid,generation:TaskGeneration,definition:String,before:Option<homesense_storage::scene_history::Cursor>,limit:usize)->Result<homesense_storage::scene_history::Page,WriteStatus> {

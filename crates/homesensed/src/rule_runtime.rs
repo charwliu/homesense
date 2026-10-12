@@ -16,6 +16,8 @@ pub struct PreparedRule {
     pub(crate) changed_variables: Vec<String>,
 }
 impl PreparedRule {
+    pub(crate) fn input_versions(&self)->Vec<(String,u64)> {self.updates.iter().map(|u|(u.name.clone(),u.expected_version)).collect()}
+
     pub(crate) fn attach_cause(
         &mut self,
         rule: &str,
