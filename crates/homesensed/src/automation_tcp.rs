@@ -150,6 +150,7 @@ async fn serve_inner(devices:&[u8],rules:&[u8],directory:&Path,duration:Duration
     }
     let admission = Admission::open(path.clone(), Options {write_interval,..Options::default()}, move |id| id == controller || paired.iter().any(|store|store.controller_is_paired(id).unwrap_or(false))).await?;
     let _guard = Stop(admission.clone());
+    let daily_backup=crate::daily_backup::Monitor::default();
     let result = async {
         let (_stop, receiver) = tokio::sync::watch::channel(false);
         let mut endpoints: std::collections::BTreeMap<_,_> = config
@@ -202,7 +203,7 @@ async fn serve_inner(devices:&[u8],rules:&[u8],directory:&Path,duration:Duration
                 tokio::spawn(async move {tokio::time::sleep(delay).await;handle.abort();});
             }
             if let Some(settings)=management_settings.take() {
-                management=Some(crate::management_endpoint::Endpoint::start(settings,directory,&admission,controller,&runtime,publisher.clone().ok_or("management publisher missing")?).await?);
+                management=Some(crate::management_endpoint::Endpoint::start(settings,directory,&admission,controller,&runtime,publisher.clone().ok_or("management publisher missing")?,daily_backup.clone()).await?);
             } else if let Some(endpoint)=&management {endpoint.install(&admission,controller,&runtime).await?;}
             if let Some(endpoint)=&management {endpoint.set_hap_status(if hap.is_some(){crate::web_api::HapStatus::Listening}else if hap_settings.is_some(){crate::web_api::HapStatus::Degraded}else{crate::web_api::HapStatus::Disabled})?;}
             if let (Some(endpoint),Some(group))=(&management,&bridges) {endpoint.set_hap_bridges(group.statuses.borrow().clone())?;}
@@ -357,7 +358,7 @@ async fn serve_inner(devices:&[u8],rules:&[u8],directory:&Path,duration:Duration
             }
         }
     };
-    let result=crate::daily_backup::supervise(path.clone(),ExecutionContext::Live,result).await;
+    let result=crate::daily_backup::supervise_monitored(path.clone(),ExecutionContext::Live,result,daily_backup.clone()).await;
     admission.stop_now();
     let shutdown = admission
         .shutdown()

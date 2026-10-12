@@ -382,6 +382,16 @@ document.getElementById('calendar-status').onclick = async () => {
   } catch(error) {if(epoch===sessionEpoch)output.textContent=error.message;}
 };
 
+function dailyBackupLabel(report) {
+  const phases={unavailable:'尚无任务状态',waiting:'等待检查',checking:'正在检查',complete:'本轮完成',failed:'失败（设备服务继续运行）',stopped:'维护任务已停止'};
+  const failures={clock:'无法确定 UTC 日期',directory:'备份目录不可用',snapshot_creation:'创建快照失败',snapshot_verification:'快照未通过校验（保留原文件）',retention:'保留清理失败',worker:'备份工作任务失败'};
+  const phase=report&&Object.prototype.hasOwnProperty.call(phases,report.phase)?phases[report.phase]:phases.unavailable;
+  const date=value=>Number.isSafeInteger(value)&&value>=0&&value<=100000000?new Date(value*86400000).toISOString().slice(0,10):'未记录';
+  const failure=report&&Object.prototype.hasOwnProperty.call(failures,report.failure)?failures[report.failure]:null;
+  const created=report?.created===true?'新建':report?.created===false?'复用已校验文件':'未确认';
+  return `每日备份：${phase}${failure?'；'+failure:''}\n最近检查日期（UTC）：${date(report?.attempted_utc_day)}；最近成功日期（UTC）：${date(report?.last_success_utc_day)}；本轮文件：${created}`;
+}
+
 document.getElementById('runtime-status').onclick = async () => {
   const epoch=sessionEpoch;
   const output=document.getElementById('runtime-result');output.textContent='读取中…';
@@ -390,7 +400,7 @@ document.getElementById('runtime-status').onclick = async () => {
     const hapLabels={unknown:'未知',disabled:'未启用',listening:'监听中（不代表已配对或客户端可达）',degraded:'已降级（查看各桥状态）',reconfiguring:'正在重建'};
     const hap=Object.prototype.hasOwnProperty.call(hapLabels,s.hap)?hapLabels[s.hap]:'未知';
     const bridges=Object.entries(s.hap_bridges||{}).map(([id,status])=>`${id}：${status==='listening'?'监听中':status==='degraded'?'已降级':'未知'}`).join('；');
-    output.textContent=`Apple 家庭入口：${hap}${bridges?'\n各桥：'+bridges:''}\n控制准入就绪：${s.ready}\n配置版本：${s.revision}\n传输代次：${s.transport_epoch}\n排队：${s.queued}；正在写出：${s.in_flight}\n网关已同步：${s.gateway_ready}\n存储健康：${s.storage_healthy}\n准入失败：${s.failed}；停止中：${s.stopping}；发布中：${s.publishing}\n这是读取时刻的准入状态，不证明设备已到达目标状态。`;
+    output.textContent=`Apple 家庭入口：${hap}${bridges?'\n各桥：'+bridges:''}\n${dailyBackupLabel(s.daily_backup)}\n控制准入就绪：${s.ready}\n配置版本：${s.revision}\n传输代次：${s.transport_epoch}\n排队：${s.queued}；正在写出：${s.in_flight}\n网关已同步：${s.gateway_ready}\n存储健康：${s.storage_healthy}\n准入失败：${s.failed}；停止中：${s.stopping}；发布中：${s.publishing}\n这是读取时刻的准入状态，不证明设备已到达目标状态。`;
   } catch(error) {if(epoch===sessionEpoch)output.textContent=error.message;}
 };
 

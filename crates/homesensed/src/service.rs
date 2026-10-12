@@ -442,6 +442,7 @@ async fn serve_automation_simulation_options(
         move |id| id == controller || paired.as_ref().is_some_and(|identity|identity.controller_is_paired(id).unwrap_or(false)),
     )
     .await?;
+    let daily_backup=crate::daily_backup::Monitor::default();
     let result = async {
         let mut runtime = crate::automation_runtime::AutomationRuntime::load(
             admission.clone(),
@@ -507,7 +508,7 @@ async fn serve_automation_simulation_options(
             let snapshots=endpoint.as_ref().map(|endpoint|endpoint.projection.clone()).unwrap_or_else(||tokio::sync::watch::channel(owner.snapshot()).0);
             let mut endpoint=endpoint;
             let mut management=match web {
-                Some(settings)=>Some(crate::management_endpoint::Endpoint::start_in_context(settings,directory,&admission,controller,&runtime,None,ExecutionContext::Simulation).await?),
+                Some(settings)=>Some(crate::management_endpoint::Endpoint::start_in_context(settings,directory,&admission,controller,&runtime,None,ExecutionContext::Simulation,daily_backup.clone()).await?),
                 None=>None,
             };
             if let Some(management)=&management {management.set_hap_status(if endpoint.is_some(){crate::web_api::HapStatus::Listening}else{crate::web_api::HapStatus::Degraded})?;}
@@ -534,7 +535,7 @@ async fn serve_automation_simulation_options(
             let (publisher,publications)=crate::automation_publication::channel();
             let selected:std::collections::BTreeMap<String,String>=document.timed_scenes.iter().filter(|(_,s)|s.enabled && s.review_evidence.as_ref().is_some_and(|v|!v.trim().is_empty())).map(|(id,_)|(id.clone(),id.clone())).collect();
             let tokens=std::sync::Arc::new(crate::web_auth::Tokens::open_bootstrapped(&directory.join("web-credentials.sqlite"),&web.secret,crate::web_auth::Grant{controller,role:if web.administrator {crate::web_auth::Role::Administrator}else{crate::web_auth::Role::Member},scenes:selected.keys().cloned().collect(),devices:config.devices().iter().filter(|(_,d)|d.enabled).map(|(id,_)|id.as_str().to_owned()).collect()})?);
-            let api=std::sync::Arc::new(crate::web_api::Api{hap_bridges:Default::default(),hap_status:std::sync::RwLock::new(crate::web_api::HapStatus::Disabled),backup_source:Some(directory.join("automation-simulation.sqlite")),publisher:Some(publisher),origin:web.tls.as_ref().map_or_else(||format!("http://{}",web.address),|tls|tls.origin.clone()),tokens,runtime:std::sync::RwLock::new(Some(crate::web_api::Runtime{control:runtime.control(),revision:document.revision,boot:admission.boot_id().to_owned(),scenes:selected})),drafts:Some((ExecutionContext::Simulation,std::sync::Mutex::new(crate::web_drafts::Drafts::open(&directory.join("web-drafts.sqlite"))?))),receipts:std::sync::Mutex::new(crate::web_receipts::Receipts::open(&directory.join("web-receipts.sqlite"))?)});
+            let api=std::sync::Arc::new(crate::web_api::Api{daily_backup:daily_backup.clone(),hap_bridges:Default::default(),hap_status:std::sync::RwLock::new(crate::web_api::HapStatus::Disabled),backup_source:Some(directory.join("automation-simulation.sqlite")),publisher:Some(publisher),origin:web.tls.as_ref().map_or_else(||format!("http://{}",web.address),|tls|tls.origin.clone()),tokens,runtime:std::sync::RwLock::new(Some(crate::web_api::Runtime{control:runtime.control(),revision:document.revision,boot:admission.boot_id().to_owned(),scenes:selected})),drafts:Some((ExecutionContext::Simulation,std::sync::Mutex::new(crate::web_drafts::Drafts::open(&directory.join("web-drafts.sqlite"))?))),receipts:std::sync::Mutex::new(crate::web_receipts::Receipts::open(&directory.join("web-receipts.sqlite"))?)});
             let (stop,receive)=tokio::sync::watch::channel(false);
             let drive=crate::web_supervision::run(api.clone(),admission.clone(),controller,runtime,owner,publications,receive.clone(),directory.join("automation-simulation.sqlite"));
             let server=crate::web_server::serve_with_tls(api,web.address,receive,web.tls);
@@ -583,7 +584,7 @@ async fn serve_automation_simulation_options(
         }
         Ok(())
     };
-    let result=crate::daily_backup::supervise(directory.join("automation-simulation.sqlite"),ExecutionContext::Simulation,result).await;
+    let result=crate::daily_backup::supervise_monitored(directory.join("automation-simulation.sqlite"),ExecutionContext::Simulation,result,daily_backup.clone()).await;
     admission.stop_now();
     let _ = admission.shutdown().await;
     result
