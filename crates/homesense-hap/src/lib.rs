@@ -18,3 +18,5 @@ pub mod motor_graph;
 pub mod motor_requests;
 
 pub mod panel_graph;
+
+pub mod panel_input;
