@@ -479,7 +479,10 @@ async fn web_scope_origin_receipts_and_runtime_admission() {
         let mut backups=make(&api.origin,"");*backups.method_mut()=hyper::Method::GET;*backups.uri_mut()="/api/v1/backups".parse().unwrap();
         let backups=api.handle(backups).await;assert_eq!(backups.status(),StatusCode::OK);
         let catalog:serde_json::Value=serde_json::from_slice(&backups.into_body().collect().await.unwrap().to_bytes()).unwrap();assert_eq!(catalog["verified"],false);assert_eq!(catalog["groups"].as_array().unwrap().len(),2);
-        let mut diagnostic=make(&api.origin,"");*diagnostic.method_mut()=hyper::Method::GET;*diagnostic.uri_mut()="/api/v1/diagnostics".parse().unwrap();assert_eq!(api.handle(diagnostic).await.status(),StatusCode::OK);
+        let mut diagnostic=make(&api.origin,"");*diagnostic.method_mut()=hyper::Method::GET;*diagnostic.uri_mut()="/api/v1/diagnostics".parse().unwrap();
+        let result=api.handle(diagnostic).await;assert_eq!(result.status(),StatusCode::OK);
+        let value:serde_json::Value=serde_json::from_slice(&result.into_body().collect().await.unwrap().to_bytes()).unwrap();
+        assert_eq!(value["wire_capacity"],serde_json::json!({"physical_frames_per_second":50,"ordinary_reserved_frames_per_second":30,"fade_frames_per_second":20}));
         api.drafts=saved_drafts;
         std::fs::create_dir_all(root.join("publication-backups")).unwrap();
         homesense_storage::backup::create(&path,&root.join("publication-backups/check.sqlite"),Duration::from_secs(2)).unwrap();

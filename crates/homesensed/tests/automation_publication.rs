@@ -94,6 +94,8 @@ async fn candidate_fades_respect_bus_capacity_but_disabled_drafts_remain_reviewa
     assert!(check(&rules,200).is_ok());
     rules["timed_scenes"][0]["enabled"]=true.into();
     rules["timed_scenes"][0]["steps"][0]["fade"]["interval_ms"]=200.into();
+    assert!(check(&rules,200).is_err(),"leave ordinary traffic headroom");
+    rules["timed_scenes"][0]["steps"][0]["fade"]["interval_ms"]=500.into();
     assert!(check(&rules,200).is_ok());
     assert!(check(&rules,0).is_err());
     devices["gateways"][0]["modules"].as_array_mut().unwrap().push(json!({"address":"16","profile":"r8i8_din_pro_v2_7_7","verification":{"status":"verified","evidence":"synthetic","verified_at_unix_ms":1}}));
@@ -104,5 +106,7 @@ async fn candidate_fades_respect_bus_capacity_but_disabled_drafts_remain_reviewa
     let error=check_combined(&rules).err().unwrap();
     assert!(error.contains("fade step"),"{error}");
     rules["timed_scenes"][0]["steps"][0]["fade"]["interval_ms"]=500.into();
+    assert!(check_combined(&rules).is_err(),"count both expanded physical frames");
+    rules["timed_scenes"][0]["steps"][0]["fade"]["interval_ms"]=1000.into();
     assert!(check_combined(&rules).is_ok());
 }
