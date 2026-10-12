@@ -397,7 +397,7 @@ async fn web_scope_origin_receipts_and_runtime_admission() {
         );
         let mut activation=make_draft();*activation.uri_mut()=format!("/api/v1/config/activations/{draft_id}").parse().unwrap();
         assert_eq!(api.handle(activation).await.status(),StatusCode::FORBIDDEN);
-        for path in ["/api/v1/config/versions","/api/v1/config/versions/1/export"] {
+        for path in ["/api/v1/config/drafts","/api/v1/config/versions","/api/v1/config/versions/1/export"] {
             let mut read=make(&api.origin,"");*read.method_mut()=hyper::Method::GET;*read.uri_mut()=path.parse().unwrap();
             assert_eq!(api.handle(read).await.status(),StatusCode::FORBIDDEN);
         }
@@ -434,6 +434,10 @@ async fn web_scope_origin_receipts_and_runtime_admission() {
         assert!(control.request(Action::ConfigurationExport{controller:caller,revision:2,selected:1}).await.is_err());
         assert_eq!(api.handle(make_draft()).await.status(), StatusCode::OK);
         assert_eq!(api.handle(make_draft()).await.status(), StatusCode::OK);
+        let mut catalog=make(&api.origin,"");*catalog.method_mut()=hyper::Method::GET;*catalog.uri_mut()="/api/v1/config/drafts".parse().unwrap();
+        let catalog=api.handle(catalog).await;assert_eq!(catalog.status(),StatusCode::OK);
+        let catalog:serde_json::Value=serde_json::from_slice(&catalog.into_body().collect().await.unwrap().to_bytes()).unwrap();
+        assert_eq!(catalog["drafts"].as_array().unwrap().len(),1);assert_eq!(catalog["drafts"][0]["id"],draft_id.to_string());assert_eq!(catalog["drafts"][0]["revision"],"2");assert!(catalog["drafts"][0].get("devices").is_none());
         let mut read = make_draft();
         *read.method_mut() = hyper::Method::GET;
         *read.body_mut() = Bytes::new();
