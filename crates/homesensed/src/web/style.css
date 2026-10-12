@@ -1,0 +1,29 @@
+:root { font-family: system-ui, -apple-system, sans-serif; color: #17302b; background: #f3f6f4; line-height: 1.55; }
+* { box-sizing: border-box; }
+body { margin: 0; }
+main { max-width: 1040px; margin: 0 auto; padding: 28px 24px 64px; }
+h1 { margin: 0 0 8px; font-size: 2rem; letter-spacing: -.04em; }
+h2 { font-size: 1.2rem; margin: 0 0 12px; }
+p { margin: 8px 0 16px; }
+button, input, textarea { font: inherit; }
+button { background: #fff; color: #17302b; border: 1px solid #8baba0; border-radius: 7px; min-height: 42px; padding: 7px 14px; margin: 4px 6px 4px 0; cursor: pointer; }
+button:hover:not(:disabled) { background: #e6f1eb; border-color: #28664c; }
+button:disabled { opacity: .5; cursor: default; }
+button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px solid #39865d; outline-offset: 2px; }
+#connect, #save-draft { color: #fff; background: #246149; border-color: #246149; }
+input, textarea { border: 1px solid #9eafa7; background: #fff; border-radius: 6px; padding: 8px 10px; max-width: 100%; }
+input[type=number] { width: 140px; }
+#token { width: min(100%, 320px); margin: 0 8px; }
+#status { min-height: 28px; color: #315c48; overflow-wrap: anywhere; }
+#devices, #scenes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 16px; margin: 16px 0; }
+article, #configuration { background: #fff; border: 1px solid #d6e1da; border-radius: 12px; padding: 22px; }
+article input { margin-right: 8px; }
+#configuration { margin-top: 28px; }
+#configuration h2:not(:first-child) { border-top: 1px solid #d6e1da; padding-top: 24px; margin-top: 28px; }
+#configuration label { display: block; margin: 16px 0; font-weight: 600; }
+#configuration label input, #configuration textarea { display: block; margin-top: 6px; }
+#configuration textarea { width: 100%; resize: vertical; font: .9rem/1.5 ui-monospace, monospace; font-weight: 400; }
+#draft-id { width: min(100%, 430px); }
+#draft-impact { white-space: pre-wrap; overflow-wrap: anywhere; }
+#versions p { padding: 10px 0; border-bottom: 1px solid #e0e8e2; }
+@media (max-width: 520px) { main { padding: 20px 14px 40px; } article, #configuration { padding: 16px; } #token { display: block; margin: 6px 0; width: 100%; } }

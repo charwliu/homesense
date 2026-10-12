@@ -69,6 +69,9 @@ impl Api {
                 .header("content-security-policy","default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'")
                 .body(Full::new(Bytes::from_static(include_bytes!("web/index.html")))).unwrap();
         }
+        if request.method() == hyper::Method::GET && request.uri().path() == "/style.css" {
+            return Response::builder().header("content-type","text/css; charset=utf-8").header("cache-control","no-store").header("x-content-type-options","nosniff").body(Full::new(Bytes::from_static(include_bytes!("web/style.css")))).unwrap();
+        }
         if request.method() == hyper::Method::GET && request.uri().path() == "/app.js" {
             return Response::builder()
                 .header("content-type", "text/javascript")
