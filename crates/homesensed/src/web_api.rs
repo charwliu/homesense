@@ -330,6 +330,8 @@ impl Api {
             if grant.role != crate::web_auth::Role::Administrator {
                 return deny(StatusCode::FORBIDDEN, "administrator_required");
             }
+            let room_edit=id.ends_with("/room");
+            let id=id.strip_suffix("/room").unwrap_or(id);
             let metadata=id.ends_with("/device-metadata");
             let id=id.strip_suffix("/device-metadata").unwrap_or(id);
             let archive=id.ends_with("/archive");
@@ -346,6 +348,17 @@ impl Api {
                     "configuration_management_unavailable",
                 );
             };
+            if room_edit {
+                if request.method()!=hyper::Method::POST {return deny(StatusCode::METHOD_NOT_ALLOWED,"method_not_allowed");}
+                if request.headers().get("origin").and_then(|v|v.to_str().ok())!=Some(&self.origin) {return deny(StatusCode::FORBIDDEN,"origin_required");}
+                if request.body().len()>2048 {return deny(StatusCode::PAYLOAD_TOO_LARGE,"edit_too_large");}
+                let edit=match serde_json::from_slice::<crate::web_drafts::RoomEdit>(request.body()){Ok(edit)=>edit,Err(_)=>return deny(StatusCode::BAD_REQUEST,"invalid_room_edit")};
+                if edit.expected_revision!=runtime.revision.to_string(){return deny(StatusCode::CONFLICT,"stale_revision");}
+                return match drafts.lock() {
+                    Ok(mut drafts)=>match drafts.edit_room(grant.controller,id,edit,*context){Ok(id)=>response(StatusCode::OK,json!({"draft":id,"active":false})),Err(_)=>deny(StatusCode::BAD_REQUEST,"invalid_room_edit")},
+                    Err(_)=>deny(StatusCode::SERVICE_UNAVAILABLE,"draft_storage_unavailable"),
+                };
+            }
             if metadata {
                 if request.method()!=hyper::Method::POST {return deny(StatusCode::METHOD_NOT_ALLOWED,"method_not_allowed");}
                 if request.headers().get("origin").and_then(|v|v.to_str().ok())!=Some(&self.origin) {return deny(StatusCode::FORBIDDEN,"origin_required");}
