@@ -95,6 +95,7 @@ impl Drop for Endpoint {
     }
 }
 impl Endpoint {
+    #[allow(clippy::too_many_arguments)]
     pub async fn start(
         settings: &Settings,
         identity: &IdentityStore,
@@ -102,7 +103,8 @@ impl Endpoint {
         controller: Uuid,
         runtime: &AutomationRuntime,
         initial: homesense_state::Snapshot,
-    ) -> Result<Self, String> {
+        allow_listener_failure: bool,
+    ) -> Result<Option<Self>, String> {
         let bundle = admission
             .automation_bundle(
                 controller,
@@ -172,18 +174,16 @@ impl Endpoint {
             }
         });
         let mut endpoint = Self { projection, task:Some(task) };
-        match tokio::time::timeout(std::time::Duration::from_secs(5), started).await {
-            Ok(Ok(())) => {}
-            Ok(Err(_)) => {
-                return Err(endpoint
-                    .finished()
-                    .await
-                    .err()
-                    .unwrap_or_else(|| "HAP failed before readiness".into()));
-            }
-            Err(_) => return Err("HAP startup deadline exceeded".into()),
-        }
-        Ok(endpoint)
+        let failure=match tokio::time::timeout(std::time::Duration::from_secs(5), started).await {
+            Ok(Ok(())) => return Ok(Some(endpoint)),
+            Ok(Err(_)) => endpoint.finished().await.err().unwrap_or_else(||"HAP failed before readiness".into()),
+            Err(_) => "HAP startup deadline exceeded".into(),
+        };
+        endpoint.shutdown().await;
+        if allow_listener_failure {
+            log::error!("HAP channel degraded during listener startup: {failure}");
+            Ok(None)
+        } else {Err(failure)}
     }
     #[cfg(test)]
     pub(crate) fn abort_handle(&self)->tokio::task::AbortHandle {

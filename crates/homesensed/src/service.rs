@@ -497,20 +497,20 @@ async fn serve_automation_simulation_options(
             };
             let endpoint=crate::hap_endpoint::Endpoint::start(
                 &crate::hap_endpoint::Settings{address:hap.address,scenes:hap.scenes,motors:vec![]},
-                &identity,&admission,controller,&runtime,owner.snapshot(),
+                &identity,&admission,controller,&runtime,owner.snapshot(),web.is_some(),
             ).await?;
             #[cfg(test)]
-            if let Some(delay)=hap_failure_after {
+            if let (Some(delay),Some(endpoint))=(hap_failure_after,&endpoint) {
                 let handle=endpoint.abort_handle();
                 tokio::spawn(async move {tokio::time::sleep(delay).await;handle.abort();});
             }
-            let snapshots=endpoint.projection.clone();
-            let mut endpoint=Some(endpoint);
+            let snapshots=endpoint.as_ref().map(|endpoint|endpoint.projection.clone()).unwrap_or_else(||tokio::sync::watch::channel(owner.snapshot()).0);
+            let mut endpoint=endpoint;
             let mut management=match web {
                 Some(settings)=>Some(crate::management_endpoint::Endpoint::start_in_context(settings,directory,&admission,controller,&runtime,None,ExecutionContext::Simulation).await?),
                 None=>None,
             };
-            if let Some(endpoint)=&management {endpoint.set_hap_status(crate::web_api::HapStatus::Listening)?;}
+            if let Some(management)=&management {management.set_hap_status(if endpoint.is_some(){crate::web_api::HapStatus::Listening}else{crate::web_api::HapStatus::Degraded})?;}
             let (stop,receive)=tokio::sync::watch::channel(false);
             let drive=runtime.drive_hap(&mut owner,snapshots,receive,wall_ms);
             tokio::pin!(drive);
