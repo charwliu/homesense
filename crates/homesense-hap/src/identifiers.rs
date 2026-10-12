@@ -20,10 +20,13 @@ pub enum AccessoryKey {
     /// Explicit scene action; its identity is independent of display names.
     Scene(String),
     Motor(DeviceId, MotorOperation),
+    /// An explicitly selected physical panel key; independent of its label.
+    PanelKey(DeviceId, u8),
 }
 impl AccessoryKey {
     fn storage_key(&self) -> String {
         match self {
+            Self::PanelKey(device, key) => format!("panel:{}:{}:{key}", device.as_str().len(), device.as_str()),
             Self::Bridge => "bridge".into(),
             Self::Device(device) => format!("device:{}", device.as_str()),
             Self::Scene(id) => format!("scene:{id}"),
@@ -60,6 +63,7 @@ impl IdentityStore {
         let mut total = 0usize;
         for definition in definitions {
             if matches!(&definition.key, AccessoryKey::Scene(id) if id.trim().is_empty() || id.chars().any(char::is_control))
+                || matches!(&definition.key, AccessoryKey::PanelKey(device, key) if *key == 0 || *key > 6 || device.as_str().chars().any(char::is_control))
                 || definition.key.storage_key().len() > 256
                 || definition.resources.is_empty()
                 || definition.resources.len() > 128
