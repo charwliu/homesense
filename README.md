@@ -443,3 +443,5 @@ Web 窗帘控制：`POST /api/v1/device-commands` 的 command 现在支持 `{"ac
 草稿浏览：管理员可通过 `GET /api/v1/config/drafts` 或“浏览我的草稿”查看本人保存的草稿，目录仅含 ID 和版本，不含配置正文；上限沿用 128 条。点击载入复用原读取权限，并清除旧发布预览，不触发激活。用户隔离、重启保留及 API 回归通过；该新增页面操作尚待浏览器专项验收。
 
 草稿编辑保留整数精度：页面直接提交经 JSON 语法检查的文档文本，不将解析后的浮点数重新序列化；版本输入用 BigInt 检查正整数、递增及 i64 上限。`GET /api/v1/config/drafts/ID/source` 返回文本形式的文档与版本，供编辑器精确载入。新增 `node tools/verify_draft_json.cjs` 验证大整数与非法输入；Rust 草稿／API 回归通过，真实浏览器保存—载入专项仍待复验。
+
+集成复验（代码提交 `2c093bf`）：当前工作区 509 项、独立 `git archive` 公开快照 508 项全部通过，均 0 失败／忽略；差额为保留本地的私有事件测试。已提交快照 HTTPS/WSS 与模拟配置发布／重启脚本通过，草稿精度脚本通过。独立快照严格 Clippy 未通过：`homesense-hap/src/events.rs:49` 的 collapsible_if 修正仅存在于既有未提交改动，未混入本轮提交。完整证据见 `docs/evidence/stage-e-browser/integrated-regression.json`；不代表现场或 D/E 完成。
