@@ -1,0 +1,53 @@
+{
+  "date": "2026-10-13",
+  "base_commit": "4a68471548c1e6686b0a6c3bf13eba7112e90f07",
+  "clean_source_overlays": {
+    "crates/homesense-config/src/scene_observation.rs": "3ed61d58e7e6b09eac69b850c3ada06485168e9a902e7e0fa73a29e91ad955ff",
+    "crates/homesense-core/src/scene_observer.rs": "c083604239359fdc96e365630945444ed393527a7c4fc8517082ac798ef9f86b",
+    "crates/homesense-core/tests/scene_observer.rs": "aeb63a5cd6f94696b7e8506725aa6678db303f8fb7f1509b25464923112ce18b",
+    "crates/homesense-storage/src/scene_observation.rs": "4cd8545f105f2073c497e2367ac0a520888f9fc918626fae2eaaffca11fc41a9",
+    "crates/homesense-storage/tests/scene_observation.rs": "2e94fdee031b226b21d27468048696d6219f787ab5b8ad6836477efa5908a958",
+    "crates/homesensed/src/scene_observation_owner.rs": "cd3ef9f53d289bb9356db932fef431278200076c54d9cf6bfd4d587d3f6a5b99",
+    "crates/homesensed/src/scene_observation_runtime.rs": "6fedcd389aed36da4996e884fa2c2065090a021754cd9cc9ee26b9207e872cc9",
+    "crates/homesensed/src/scene_observation_tests.rs": "858b416e45d17e717e23412dd54b7398a0d0694a5b9c3b7121179f32b87609d8",
+    "crates/homesensed/src/indicator_sync.rs": "4ed4965ddcee8500948580522db85084fa5ecfd32c368a0bb421f85dd57b7f5c",
+    "crates/homesensed/tests/indicator_sync.rs": "a3ccdf4b98807296eb708ff98cfd640de743ac493e3826c2d6c5a211b232f2be"
+  },
+  "validation": {
+    "workspace_passed": 663,
+    "failed": 0,
+    "ignored": 0,
+    "strict_all_target_clippy": "passed",
+    "core_observer_tests": 13,
+    "runtime_observer_led_tests": 22,
+    "storage_observation_tests": 9,
+    "indicator_sync_tests": 7,
+    "new_regressions": 8,
+    "model_sequences": 363,
+    "model_initial_states": 4,
+    "test_log_sha256": "6614f1cbace3eedcda347bc0125074eea124d10ebeb4d9094b534cbfec4e8833",
+    "clippy_log_sha256": "7d9c789ebe82a29798a3a01423e905e9d261a19ede28928d32b1da3ee8679b9e"
+  },
+  "guarantees": [
+    "external candidates are independent of local intent and LED clearing",
+    "initial repeated same-key remains unknown, reviewed distinct keys converge",
+    "local values only guard CAS and never seed external candidates",
+    "release timing, source lease, authorization and generation guards retained",
+    "stale or uncertain key input invalidates published inference and external baseline",
+    "restart and stream gap do not restore candidates from persistent value",
+    "startup all-off retains NULL selection and unchanged version while reviewed LED Off commands remain allowed",
+    "inferred values remain masked from ordinary automatic rule inputs"
+  ],
+  "configuration": {
+    "enabled_requires": "complete external_toggle_reviews for every observed group plus all member key bindings",
+    "released_source_requires": "explicit trigger_edge released",
+    "default_enabled": false,
+    "storage_schema": 22
+  },
+  "limitations": [
+    "synthetic offline integration and exhaustive model checks, not field acceptance",
+    "complete observable source writer review cannot prove absent implicit driver writes",
+    "no field deployment, service start or EA scope change",
+    "D/E full source semantics and field gates remain incomplete"
+  ]
+}

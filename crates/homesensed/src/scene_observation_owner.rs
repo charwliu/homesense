@@ -132,6 +132,9 @@ impl Owner {
         )
         .map_err(|_| Error::InvalidAudit)?;
         observer
+            .external_toggle_groups(&variables.keys().cloned().collect::<Vec<_>>())
+            .map_err(|_| Error::InvalidAudit)?;
+        observer
             .released_keys(&released)
             .map_err(|_| Error::InvalidAudit)?;
         observer
@@ -194,13 +197,18 @@ impl Owner {
         } else {
             stored.selection()
         };
-        if let Some(inference) = session
-            .observer
-            .observe(&press, selection, now)
-            .map_err(|_| Error::InvalidAudit)?
+        let result = session.observer.observe(&press, selection, now);
+        let inference = match result {
+            Ok(inference) => inference,
+            Err(_) => {
+                self.session = None;
+                return Err(Error::InvalidAudit);
+            }
+        };
+        if let Some(inference) = inference
             && !fenced
         {
-            store.record_scene_inference(revision, variable, &inference)?;
+            store.record_external_scene_inference(revision, variable, &inference)?;
             log::info!(
                 "scene selection source=inferred group={} basis={:?} event={}",
                 inference.group,
