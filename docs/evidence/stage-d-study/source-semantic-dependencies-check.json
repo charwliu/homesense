@@ -1,0 +1,99 @@
+{
+  "date": "2026-10-13",
+  "base_commit": "2efd3574b71f8f507529781056a19bab6b7296f8",
+  "audited_source_sha256": {
+    "crates/homesense-import/src/source_review.rs": "fcc8361f6fbb7c8631e1016d898c3cd127add1f3aa209dcef4a2cc2f58f10dda",
+    "crates/homesense-import/tests/source_review.rs": "60dd55cfb0579ee99fb01497ce97d64bcc9a5fda4e5f262ba5a88978925272ce",
+    "tools/review_source_semantics.py": "52e9e822f093aa299a1c5ee8cb9c13c10f7ad2cf6e2e53d667f624104f162ea2",
+    "tools/test_review_source_semantics.py": "033a5b409ba3a2858786b67f62e17c11fdf512f2a4ac91c620fe1159a5072bb1"
+  },
+  "validation": {
+    "importer_passed": 38,
+    "failed": 0,
+    "ignored": 0,
+    "new_rust_tests": 5,
+    "strict_importer_all_target_clippy": "passed",
+    "python_tests_passed": 14,
+    "workspace_not_repeated": true,
+    "test_log_sha256": "613aacabeb5053116db57fe213ba43f364743a872857292c65d0040e799c94ba",
+    "python_log_sha256": "db17e5267fdff9ef1b0457bdd9cbdd72d8c5d255ffa26febed7d645491ed2379",
+    "clippy_log_sha256": "63e9f3c98d3dd1ee3cd4bcf68451404dc5cb0ee34d0776b7ceb45797a4f8eacd"
+  },
+  "source_aggregate": {
+    "scenes": 68,
+    "programs": 215,
+    "variables": 25,
+    "calendar_entries": 4,
+    "embedded_agent_schedules": 1,
+    "source_empty_noops": 4,
+    "explicit_variable_reads": 224,
+    "explicit_variable_writes": 263,
+    "arithmetic_variables": 3,
+    "closed_source_led_request_sequences": 20,
+    "led_source_sequences_with_nominal_blind_event_identity": 20,
+    "closed_ramp_time_api_units": 1,
+    "scene_members": 629,
+    "scene_elements": 629,
+    "scene_delay_literals": {
+      "0": 629
+    },
+    "scene_rate_literals_by_descriptor": {
+      "light_v2_descriptor": {
+        "0": 318,
+        "1": 20,
+        "1000": 288,
+        "750": 3
+      }
+    },
+    "scene_rate_literals_by_protocol_source": {
+      "dimmer_package": {
+        "1000": 288,
+        "750": 3
+      },
+      "switch_package": {
+        "0": 318,
+        "1": 20
+      }
+    },
+    "member_ignore_ramp_literals": {
+      "False": 629
+    },
+    "scenes_with_nonzero_source_rate": 68,
+    "resolved_source_toggle_destinations": 51,
+    "unresolved_source_toggle_destinations": 17,
+    "resolved_deactivate_calls": 48,
+    "unresolved_deactivate_calls": 0,
+    "deactivate_target_all_zero_calls": 48,
+    "deactivate_same_member_order_calls": 48,
+    "deactivate_differing_source_target_rate_calls": 9,
+    "plaintext_protocol_full_als_declarations": 2,
+    "unresolved_dependencies": 0,
+    "prior_limited_evidence_is_full_semantic_approval": false,
+    "automatic_execution": false
+  },
+  "remaining_full_source_review": {
+    "scenes": 65,
+    "programs": 208,
+    "variables": 24
+  },
+  "scope": [
+    "20 straight-line LED request conversion subgates closed; callback/driver/binding/policy gates retained",
+    "1 RAMP_TO_LEVEL TIME API unit closed; no archive rate/driver execution claim",
+    "51 source toggle destinations resolved; 48 actual deactivate calls have complete target records",
+    "9 deactivate calls have target rate differences that forbid inheriting source rate",
+    "plaintext full ALS declarations are not runtime conformance evidence",
+    "variable lifecycle and calendar/agent semantics remain unapproved"
+  ],
+  "references": {
+    "ramp_time": "https://snap-one.github.io/docs-driverworks-api/#sendtodevice",
+    "als_deactivation": "https://snap-one.github.io/docs-driverworks-proxyprotocol-lightv2/#asynchronous-commands",
+    "blind_types": "https://snap-one.github.io/docs-driverworks-proxyprotocol-blind/"
+  },
+  "privacy": {
+    "individual_source_reports": "local_ignored_private_directory_only",
+    "source_ids_names_saved_values_fingerprints_published": false
+  },
+  "field_operations": false,
+  "ea_configuration_or_scope_changed": false,
+  "stage_d_complete": false
+}
