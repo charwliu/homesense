@@ -1,5 +1,7 @@
 'use strict';
 let csrf = '';
+let sessionEpoch=0;
+let sessionBusy=false;
 let publicationPreview=null;
 let previewEpoch=0;
 function invalidatePreview() {
@@ -16,8 +18,10 @@ const started = new Map();
 const status = document.getElementById('status');
 const list = document.getElementById('scenes');
 async function request(path, options = {}) {
+  const epoch=sessionEpoch;
   const response = await fetch(path, {...options, cache: 'no-store', credentials: 'same-origin', headers: {...options.headers, ...(csrf ? {'X-CSRF-Token': csrf} : {})}});
   const result = await response.json();
+  if(epoch!==sessionEpoch)throw new Error('会话已切换，已忽略旧响应');
   if (!response.ok) throw new Error(result.error || '请求失败');
   return result;
 }
@@ -58,18 +62,23 @@ function renderScenes(data) {
   }
 }
 document.getElementById('connect').onclick = async () => {
+  if(sessionBusy)return;sessionBusy=true;const epoch=++sessionEpoch;
   invalidatePreview();
   const credential = document.getElementById('token').value; document.getElementById('token').value = '';
   try {
     const response = await fetch('/api/v1/session', {method: 'POST', credentials: 'same-origin', headers: {Authorization: `Bearer ${credential}`}});
     if (!response.ok) throw new Error('登录失败');
-    csrf = (await response.json()).csrf; eventCursor=null; await refresh(); connectEvents(); status.textContent = '已连接（会话 15 分钟有效）';
-  } catch (error) { csrf = ''; list.replaceChildren(); status.textContent = error.message; }
+    const session=await response.json();if(epoch!==sessionEpoch)return;
+    csrf = session.csrf; eventCursor=null; await refresh(); connectEvents(); status.textContent = '已连接（会话 15 分钟有效）';
+  } catch (error) { if(epoch===sessionEpoch){csrf = ''; list.replaceChildren(); status.textContent = error.message;} }
+  finally {sessionBusy=false;}
 };
 document.getElementById('logout').onclick = async () => {
+  if(sessionBusy)return;sessionBusy=true;++sessionEpoch;
   invalidatePreview();
   try { await request('/api/v1/session', {method: 'DELETE'}); csrf = ''; clearTimeout(eventRetry); if(eventSocket)eventSocket.close();eventDevices.clear(); document.getElementById('draft-impact').textContent=''; document.getElementById('configuration').hidden=true; document.getElementById('versions').replaceChildren();document.getElementById('draft-list').replaceChildren(); versionsBefore=null;document.getElementById('more-versions').disabled=true; for(const id of ['device-document','automation-document','draft-id','base-revision','draft-revision']) document.getElementById(id).value=''; started.clear(); list.replaceChildren(); document.getElementById('devices').replaceChildren(); status.textContent = '已退出'; }
   catch (error) { status.textContent = '注销未确认：' + error.message; }
+  finally {sessionBusy=false;}
 };
 
 async function refreshDevices() {
@@ -171,9 +180,12 @@ const eventDevices=new Map();
 function connectEvents() {
   clearTimeout(eventRetry);if(!csrf)return;
   if(eventSocket){eventSocket.onclose=null;eventSocket.close();}
+  const epoch=sessionEpoch;
   const socket=new WebSocket(location.origin.replace(/^http/,'ws')+'/api/v1/events');eventSocket=socket;
-  socket.onopen=()=>socket.send(JSON.stringify({cursor:eventCursor}));
+  const current=()=>epoch===sessionEpoch && eventSocket===socket && !!csrf;
+  socket.onopen=()=>{if(current())socket.send(JSON.stringify({cursor:eventCursor}));};
   socket.onmessage=event=>{
+    if(!current())return;
     try {
       const frame=JSON.parse(event.data);
       if(frame.type==='unavailable') {
@@ -187,9 +199,9 @@ function connectEvents() {
     } catch(error){status.textContent='事件更新失败，请刷新状态。';socket.close();}
   };
   socket.onclose=()=>{
-    if(!csrf)return;
+    if(!current())return;
     if(++eventAttempts>6){status.textContent='事件连接已断开，请重新登录。';return;}
-    eventRetry=setTimeout(connectEvents,Math.min(10000,500*2**eventAttempts));
+    eventRetry=setTimeout(()=>{if(current())connectEvents();},Math.min(10000,500*2**eventAttempts));
   };
 }
 
@@ -204,11 +216,12 @@ async function loadVersions(before=null) {
       const text=document.createElement('span');text.textContent=`版本 ${version.revision}${version.revision===page.active_revision?'（当前）':''} · 设备 ${version.device_bytes} 字节 · 自动化 ${version.automation_bytes??'无'} `;
       const download=document.createElement('button');download.textContent='导出';
       download.onclick=async()=>{
-        download.disabled=true;
+        download.disabled=true;const epoch=sessionEpoch;
         try {
           const response=await fetch(`/api/v1/config/versions/${version.revision}/export`,{cache:'no-store',credentials:'same-origin'});
           if(!response.ok)throw new Error('导出失败');
-          const blob=new Blob([await response.text()],{type:'application/json'});
+          const text=await response.text();if(epoch!==sessionEpoch)return;
+          const blob=new Blob([text],{type:'application/json'});
           const url=URL.createObjectURL(blob);const link=document.createElement('a');link.href=url;link.download=`homesense-config-${version.revision}.json`;document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
           status.textContent='已导出配置；当前运行版本未改变。';
         } catch(error) {status.textContent=error.message;}
