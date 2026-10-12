@@ -900,3 +900,8 @@ schema 22 已接入选择／来源同事务 CAS、不可变按键证据和重复
 
 
 最终限定快照完整工作区 **643 通过、0 失败、0 忽略**，全部目标严格 Clippy 通过；16 项观察／LED 联合回归含本次新增 8 项，新增存储事务条件保护 1 项。旧 Dimmer 零值不能取消新推断，但也不能阻断另一路有效的 Switch Off；其他负载未知仍允许独立明确的部分熄灯取消。证据见 [推断与 LED 联动检查](evidence/stage-d-study/scene-observation-led-check.json)。现场及原项目语义门槛未关闭，EA-5 不变。
+
+
+2026-10-12 源事件边沿核查：书房三个已审核源分支属于 Release，观察新增显式边沿与持按／松开时间回归，旧配置默认 Press 保留。现场仍禁用；本地 HomeSense 选择与 EA-5 变量不同主体的反例另待修复，不能把按键边沿通过认定为外部选择完成。原项目覆盖再次核对为 68 场景／215 程序／25 变量，仍需逐项语义处置；未把语法可编译或 disabled 候选当成完成。
+
+该触发边沿增量已在 `cb02966` 干净快照上叠加五个源码文件验证：workspace 648 passed / 0 failed / 0 ignored，所有目标严格 Clippy 通过；核心观察器 9 项和运行时观察／LED 19 项回归通过。证据见 `docs/evidence/stage-d-study/scene-observation-release-check.json`。这些结果只覆盖触发时机，不消除独立外部基线缺口，不构成现场观察模式启用许可。

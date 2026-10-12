@@ -7,6 +7,13 @@ use homesense_core::{DeviceId, ModuleKind};
 use serde::Deserialize;
 use std::collections::BTreeSet;
 
+#[derive(Debug, Clone, Copy, Default, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum TriggerEdge {
+    #[default]
+    Pressed,
+    Released,
+}
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Binding {
@@ -14,6 +21,8 @@ pub struct Binding {
     pub group: String,
     pub member: i64,
     pub review_evidence: Option<String>,
+    #[serde(default)]
+    pub trigger_edge: TriggerEdge,
 }
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]

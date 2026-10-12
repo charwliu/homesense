@@ -1214,3 +1214,139 @@ async fn one_fresh_switch_off_cancels_inference_while_other_light_is_unknown() {
     drop(scenes);
     h.close().await;
 }
+
+fn release_automation() -> Json {
+    let mut input = linked_automation();
+    for binding in input["scene_observation"]["bindings"]
+        .as_array_mut()
+        .unwrap()
+    {
+        binding["trigger_edge"] = json!("released");
+    }
+    input
+}
+#[test]
+fn release_edge_config_is_explicit_and_legacy_bindings_default_to_pressed() {
+    let legacy = parse(&automation()).unwrap();
+    assert!(
+        legacy
+            .scene_observation
+            .unwrap()
+            .bindings
+            .iter()
+            .all(|b| b.trigger_edge == homesense_config::scene_observation::TriggerEdge::Pressed)
+    );
+    assert!(
+        parse(&release_automation())
+            .unwrap()
+            .scene_observation
+            .unwrap()
+            .bindings
+            .iter()
+            .all(|b| b.trigger_edge == homesense_config::scene_observation::TriggerEdge::Released)
+    );
+    let mut invalid = release_automation();
+    invalid["scene_observation"]["bindings"][0]["trigger_edge"] = json!("clicked");
+    assert!(parse(&invalid).is_err());
+}
+#[tokio::test]
+async fn held_press_old_lamp_feedback_then_reviewed_release_does_not_prematurely_select_or_cancel()
+{
+    let mut h = Harness::new(Some(0), release_automation(), true).await;
+    let initial = h.selection().await;
+    h.sample(1, true);
+    h.tick().await;
+    tokio::time::sleep(Duration::from_millis(5)).await;
+    let now = h.actor.monotonic_ms();
+    light_sample(&mut h, now, 0);
+    h.tick().await;
+    let held = h.selection().await;
+    assert_eq!(held.stored, initial.stored);
+    assert!(held.evidence.is_none());
+    h.no_output();
+    tokio::time::sleep(Duration::from_millis(5)).await;
+    h.sample(1, false);
+    h.tick().await;
+    let released = h.selection().await;
+    assert_eq!(released.stored.value, Some(Value::Integer(1)));
+    assert!(released.evidence_current);
+    assert!(released.evidence.as_ref().unwrap().observed_ms > now);
+    let scenes = crate::scene_scheduler::SceneScheduler::new(
+        h.actor.clone(),
+        h.controller,
+        8,
+        h.actor.monotonic_ms(),
+    )
+    .unwrap();
+    let mut sync = crate::indicator_sync::Synchronizer::default();
+    sync.tick(
+        &h.actor,
+        h.controller,
+        &h.document,
+        &scenes,
+        &h.feedback,
+        60000,
+    )
+    .await
+    .unwrap();
+    assert_eq!(h.selection().await.stored, released.stored);
+    h.no_output();
+    // A fresh post-release off may now cancel, preserving the off policy.
+    tokio::time::sleep(Duration::from_millis(5)).await;
+    let now = h.actor.monotonic_ms();
+    light_sample(&mut h, now, 0);
+    sync.tick(
+        &h.actor,
+        h.controller,
+        &h.document,
+        &scenes,
+        &h.feedback,
+        60000,
+    )
+    .await
+    .unwrap();
+    assert_eq!(h.selection().await.stored.value, Some(Value::Integer(0)));
+    assert_eq!(
+        h.sql()
+            .query_row(
+                "SELECT count(*) FROM command_journal WHERE device_id='key1'",
+                [],
+                |r| r.get::<_, i64>(0)
+            )
+            .unwrap(),
+        1
+    );
+    assert_eq!(
+        h.sql()
+            .query_row("SELECT count(*) FROM scene_run", [], |r| r.get::<_, i64>(0))
+            .unwrap(),
+        0
+    );
+    drop(scenes);
+    h.close().await;
+}
+#[tokio::test]
+async fn reviewed_release_after_initial_hold_and_stream_gap_requires_new_press() {
+    let mut h = Harness::new_with_initial(Some(0), release_automation(), true, Some(1)).await;
+    h.sample(1, false);
+    h.tick().await;
+    assert!(h.selection().await.evidence.is_none());
+    h.sample(1, true);
+    h.tick().await;
+    assert!(h.selection().await.evidence.is_none());
+    h.actor.invalidate_scene_observation_now().unwrap();
+    h.consumer = Consumer::default();
+    h.tick().await;
+    h.sample(1, false);
+    h.tick().await;
+    assert!(h.selection().await.evidence.is_none());
+    h.no_output();
+    tokio::time::sleep(Duration::from_millis(35)).await;
+    h.sample(1, true);
+    h.tick().await;
+    h.sample(1, false);
+    h.tick().await;
+    assert_eq!(h.selection().await.stored.value, Some(Value::Integer(1)));
+    h.no_output();
+    h.close().await;
+}

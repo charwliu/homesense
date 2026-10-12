@@ -67,6 +67,8 @@ pub enum Error {
 struct Registered {
     key: Key,
     down: bool,
+    on_release: bool,
+    release_armed: bool,
     last_press: Option<u64>,
 }
 pub struct Observer {
@@ -127,6 +129,8 @@ impl Observer {
                         Registered {
                             key,
                             down: false,
+                            on_release: false,
+                            release_armed: false,
                             last_press: None,
                         },
                     )
@@ -145,6 +149,25 @@ impl Observer {
             groups: registered_groups,
             keys: registered_keys,
         })
+    }
+    /// Select reviewed release-triggered keys before consuming any events.
+    /// Existing callers retain press-triggered behavior. A release requires a
+    /// fresh accepted press in this stream; initial holds never arm a release.
+    pub fn released_keys(&mut self, devices: &[DeviceId]) -> Result<(), Error> {
+        if self.started || devices.len() > 256 {
+            return Err(Error::InvalidConfiguration);
+        }
+        let mut seen = BTreeSet::new();
+        if devices
+            .iter()
+            .any(|id| !seen.insert(id) || !self.keys.contains_key(id))
+        {
+            return Err(Error::InvalidConfiguration);
+        }
+        for id in devices {
+            self.keys.get_mut(id).unwrap().on_release = true;
+        }
+        Ok(())
     }
     /// Suppress keys known held at a new stream's initial snapshot. Call only on construction, before consuming events.
     pub fn initially_held(&mut self, devices: &[DeviceId]) -> Result<(), Error> {
@@ -184,28 +207,48 @@ impl Observer {
         let Some(registered) = self.keys.get_mut(&event.device) else {
             return Ok(None);
         };
+        let fresh = now
+            .checked_sub(event.observed_ms)
+            .is_some_and(|age| age < self.max_age_ms);
         if !event.down {
+            let armed = registered.down && registered.release_armed;
+            registered.release_armed = false;
             if event.observed_ms <= now {
                 registered.down = false;
             }
-            return Ok(None);
-        }
-        let held = registered.down;
-        registered.down = true;
-        if held
-            || !now
-                .checked_sub(event.observed_ms)
-                .is_some_and(|age| age < self.max_age_ms)
-            || registered.last_press.is_some_and(|at| {
+            if !registered.on_release
+                || !armed
+                || !fresh
+                || registered
+                    .last_press
+                    .is_none_or(|at| event.observed_ms < at)
+            {
+                return Ok(None);
+            }
+        } else {
+            let held = registered.down;
+            registered.down = true;
+            if !fresh {
+                registered.release_armed = false;
+                return Ok(None);
+            }
+            if held {
+                return Ok(None);
+            }
+            if registered.last_press.is_some_and(|at| {
                 !event
                     .observed_ms
                     .checked_sub(at)
                     .is_some_and(|elapsed| elapsed >= self.debounce_ms)
-            })
-        {
-            return Ok(None);
+            }) {
+                return Ok(None);
+            }
+            registered.last_press = Some(event.observed_ms);
+            if registered.on_release {
+                registered.release_armed = true;
+                return Ok(None);
+            }
         }
-        registered.last_press = Some(event.observed_ms);
         let value = match selection.authority {
             Authority::Recorded => selection.value,
             Authority::Inferred(scope) if scope == self.scope => selection.value,
