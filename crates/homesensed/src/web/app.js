@@ -227,7 +227,19 @@ async function loadVersions(before=null) {
         } catch(error) {status.textContent=error.message;}
         finally {download.disabled=false;}
       };
-      row.append(text,download);list.append(row);
+      const restore=document.createElement('button');restore.textContent='创建恢复草稿';restore.disabled=version.automation_bytes===null;
+      restore.onclick=async()=>{
+        const revision=document.getElementById('draft-revision').value.trim();
+        if(!/^[1-9][0-9]{0,18}$/.test(revision)||BigInt(revision)>9223372036854775807n||BigInt(revision)<=BigInt(page.active_revision)){status.textContent='请先在新版本输入框填写大于活动版本的整数';return;}
+        restore.disabled=true;const epoch=invalidatePreview();
+        try {
+          const result=await request(`/api/v1/config/versions/${version.revision}/restore-draft`,{method:'POST',body:JSON.stringify({id:crypto.randomUUID(),expected_revision:page.active_revision,revision})});
+          if(epoch!==previewEpoch)return;
+          await loadDraft(result.draft);
+        } catch(error) {if(epoch===previewEpoch)status.textContent=error.message;}
+        finally {restore.disabled=false;}
+      };
+      row.append(text,download,restore);list.append(row);
     }
     versionsBefore=page.next_before;
   } catch(error) {status.textContent=error.message;versionsBefore=null;}

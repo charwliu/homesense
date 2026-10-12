@@ -401,7 +401,7 @@ async fn web_scope_origin_receipts_and_runtime_admission() {
         );
         let mut activation=make_draft();*activation.uri_mut()=format!("/api/v1/config/activations/{draft_id}").parse().unwrap();
         assert_eq!(api.handle(activation).await.status(),StatusCode::FORBIDDEN);
-        for path in ["/health/ready","/api/v1/diagnostics","/api/v1/diagnostics/calendar","/api/v1/config/drafts","/api/v1/config/versions","/api/v1/config/versions/1/export"] {
+        for path in ["/api/v1/config/versions/1/restore-draft","/health/ready","/api/v1/diagnostics","/api/v1/diagnostics/calendar","/api/v1/config/drafts","/api/v1/config/versions","/api/v1/config/versions/1/export"] {
             let mut read=make(&api.origin,"");*read.method_mut()=hyper::Method::GET;*read.uri_mut()=path.parse().unwrap();
             assert_eq!(api.handle(read).await.status(),StatusCode::FORBIDDEN);
         }
@@ -498,6 +498,19 @@ async fn web_scope_origin_receipts_and_runtime_admission() {
         let mut no_origin = make_draft();
         no_origin.headers_mut().remove("origin");
         assert_eq!(api.handle(no_origin).await.status(), StatusCode::FORBIDDEN);
+        let restore_id=Uuid::new_v4();
+        let restore_body=serde_json::json!({"id":restore_id,"expected_revision":"1","revision":"9223372036854775807"}).to_string();
+        for _ in 0..2 {
+            let mut request=make(&api.origin,&restore_body);*request.uri_mut()="/api/v1/config/versions/1/restore-draft".parse().unwrap();
+            assert_eq!(api.handle(request).await.status(),StatusCode::OK);
+        }
+        let restored=api.drafts.as_ref().unwrap().1.lock().unwrap().get(caller,restore_id).unwrap().unwrap();
+        assert_eq!(restored.revision,i64::MAX as u64);assert_eq!(restored.devices["revision"],serde_json::json!(i64::MAX));assert_eq!(restored.automation["configuration_revision"],serde_json::json!(i64::MAX));
+        let mut original:serde_json::Value=serde_json::from_slice(devices).unwrap();original["revision"]=serde_json::json!(i64::MAX);assert_eq!(original,restored.devices);
+        let mut original:serde_json::Value=serde_json::from_slice(rules).unwrap();original["configuration_revision"]=serde_json::json!(i64::MAX);assert_eq!(original,restored.automation);
+        for (expected,revision,status) in [("2","3",StatusCode::CONFLICT),("1","1",StatusCode::BAD_REQUEST),("1","9223372036854775808",StatusCode::BAD_REQUEST),("1","2",StatusCode::CONFLICT)] {
+            let mut request=make(&api.origin,&serde_json::json!({"id":restore_id,"expected_revision":expected,"revision":revision}).to_string());*request.uri_mut()="/api/v1/config/versions/1/restore-draft".parse().unwrap();assert_eq!(api.handle(request).await.status(),status);
+        }
         let saved_runtime = api.runtime.write().unwrap().take().unwrap();
         for (path,status) in [("/health/live",StatusCode::OK),("/health/ready",StatusCode::SERVICE_UNAVAILABLE)] {
             let mut read=make(&api.origin,"");*read.method_mut()=hyper::Method::GET;*read.uri_mut()=path.parse().unwrap();assert_eq!(api.handle(read).await.status(),status);

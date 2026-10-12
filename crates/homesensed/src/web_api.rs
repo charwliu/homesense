@@ -221,6 +221,10 @@ impl Api {
                 _ => deny(StatusCode::SERVICE_UNAVAILABLE,"calendar_diagnostics_unavailable"),
             };
         }
+        if request.uri().path().starts_with("/api/v1/config/versions/") && request.uri().path().ends_with("/restore-draft") {
+            let (code,body)=crate::web_history::restore(self,&runtime,&grant,&request).await;
+            return response(code,body);
+        }
         if request.uri().path()=="/api/v1/config/versions" || request.uri().path().starts_with("/api/v1/config/versions/") {
             let (code,body)=crate::web_history::read(&runtime,&grant,&request).await;
             return response(code,body);

@@ -96,6 +96,40 @@ pub async fn read(
         }
     }
 }
+/// Copy a published pair into a new private draft; never activate it.
+pub async fn restore(api:&crate::web_api::Api,runtime:&Runtime,grant:&Grant,request:&Request<Bytes>)->(StatusCode,Value) {
+    let error=|code,message|(code,json!({"error":message}));
+    if grant.role!=Role::Administrator {return error(StatusCode::FORBIDDEN,"administrator_required");}
+    if request.method()!=hyper::Method::POST {return error(StatusCode::METHOD_NOT_ALLOWED,"method_not_allowed");}
+    if request.headers().get("origin").and_then(|v|v.to_str().ok())!=Some(&api.origin) {return error(StatusCode::FORBIDDEN,"origin_required");}
+    if request.headers().get("content-type").and_then(|v|v.to_str().ok())!=Some("application/json") || request.body().len()>1024 {return error(StatusCode::BAD_REQUEST,"invalid_body");}
+    #[derive(serde::Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct Input {id:uuid::Uuid,expected_revision:String,revision:String}
+    let Ok(input)=serde_json::from_slice::<Input>(request.body()) else {return error(StatusCode::BAD_REQUEST,"invalid_body");};
+    let (Some(expected),Some(revision))=(number(&input.expected_revision),number(&input.revision)) else {return error(StatusCode::BAD_REQUEST,"invalid_revision");};
+    if expected!=runtime.revision {return error(StatusCode::CONFLICT,"configuration_changed");}
+    if revision<=expected {return error(StatusCode::BAD_REQUEST,"invalid_revision");}
+    let Some(selected)=request.uri().path().strip_prefix("/api/v1/config/versions/").and_then(|s|s.strip_suffix("/restore-draft")).and_then(number) else {return error(StatusCode::BAD_REQUEST,"invalid_revision");};
+    let Some((context,drafts))=&api.drafts else {return error(StatusCode::SERVICE_UNAVAILABLE,"configuration_management_unavailable");};
+    let export=match runtime.control.request(Action::ConfigurationExport{controller:grant.controller,revision:expected,selected}).await {
+        Ok(Reply::ConfigurationExport(Some(export)))=>export,
+        Ok(Reply::ConfigurationExport(None))=>return error(StatusCode::NOT_FOUND,"revision_not_found"),
+        _=>return error(StatusCode::SERVICE_UNAVAILABLE,"configuration_export_unavailable"),
+    };
+    let Some(automation)=export.automation else {return error(StatusCode::CONFLICT,"historical_automation_missing");};
+    let documents=(serde_json::from_slice::<Value>(&export.devices),serde_json::from_slice::<Value>(&automation));
+    let (Ok(mut devices),Ok(mut automation))=documents else {return error(StatusCode::SERVICE_UNAVAILABLE,"invalid_historical_documents");};
+    devices["revision"]=json!(revision);automation["configuration_revision"]=json!(revision);
+    let draft=crate::web_drafts::Draft{id:input.id,expected_revision:expected,revision,devices,automation};
+    match drafts.lock() {
+        Ok(mut drafts)=>match drafts.save(grant.controller,&draft,*context) {
+            Ok(())=>(StatusCode::OK,json!({"draft":input.id,"revision":revision.to_string(),"active":false})),
+            Err(_)=>error(StatusCode::CONFLICT,"draft_rejected"),
+        },
+        Err(_)=>error(StatusCode::SERVICE_UNAVAILABLE,"draft_store_unavailable"),
+    }
+}
 fn number(value: &str) -> Option<u64> {
     if value.is_empty() || value.len() > 19 || !value.bytes().all(|v| v.is_ascii_digit()) {
         return None;
