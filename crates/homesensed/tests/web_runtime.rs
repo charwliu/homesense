@@ -37,6 +37,9 @@ async fn web_scope_origin_receipts_and_runtime_admission() {
     let root = std::env::temp_dir().join(format!("web-runtime-{}", Uuid::new_v4()));
     std::fs::create_dir(&root).unwrap();
     let mut definition:serde_json::Value=serde_json::from_slice(include_bytes!("../../../config/simulation.json")).unwrap();
+    definition["rooms"]=serde_json::json!([{"id":"visible","name":"Visible room","floor":"Test floor"},{"id":"hidden","name":"Unassigned room"}]);
+    definition["devices"][0]["room"]=serde_json::json!("visible");
+
     definition["gateways"][0]["modules"].as_array_mut().unwrap().push(serde_json::json!({"address":"22","profile":"c4_din_pro_v2_7_7","verification":{"status":"simulated"}}));
     for (id,channel) in [("z:motor",2),("z:uncalibrated",3)] {
         let mut device=serde_json::json!({"id":id,"name":"Curtain","gateway":"simulation","address":"22","channel":channel,"enabled":true});
@@ -187,6 +190,10 @@ async fn web_scope_origin_receipts_and_runtime_admission() {
             let mut read=make(&api.origin,"");*read.method_mut()=hyper::Method::GET;*read.uri_mut()=path.parse().unwrap();read.headers_mut().remove("authorization");
             assert_eq!(api.handle(read).await.status(),status);
         }
+        let mut rooms=make(&api.origin,"");*rooms.method_mut()=hyper::Method::GET;*rooms.uri_mut()="/api/v1/rooms".parse().unwrap();
+        let rooms=api.handle(rooms).await;assert_eq!(rooms.status(),StatusCode::OK);
+        let rooms:serde_json::Value=serde_json::from_slice(&rooms.into_body().collect().await.unwrap().to_bytes()).unwrap();
+        assert_eq!(rooms["rooms"],serde_json::json!([{"id":"visible","name":"Visible room","floor":"Test floor"}]));
         let mut login = make(&api.origin, "{}");
         *login.uri_mut() = "/api/v1/session".parse().unwrap();
         let login = api.handle(login).await;

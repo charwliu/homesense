@@ -38,8 +38,19 @@ struct Document {
     revision: u64,
     #[serde(default)]
     manual_degraded_enabled: bool,
+    #[serde(default)]
+    rooms: Vec<Room>,
     gateways: Vec<GatewayInput>,
     devices: Vec<DeviceInput>,
+}
+/// Optional display metadata; room membership never grants control permission.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Room {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub floor: Option<String>,
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -78,6 +89,8 @@ enum LedMode {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct DeviceInput {
+    #[serde(default)]
+    room: Option<String>,
     id: String,
     name: String,
     gateway: String,
@@ -136,6 +149,7 @@ impl Gateway {
 }
 #[derive(Debug, Clone)]
 pub struct Device {
+    pub room: Option<String>,
     pub name: String,
     pub gateway: String,
     pub address: BusAddress,
@@ -152,6 +166,7 @@ pub struct Configuration {
     manual_degraded_enabled: bool,
     gateways: BTreeMap<String, Gateway>,
     devices: BTreeMap<DeviceId, Device>,
+    rooms: BTreeMap<String, Room>,
 }
 impl Configuration {
     /// Does not send or authorize a command. The caller must still pass the
@@ -182,6 +197,7 @@ impl Configuration {
     pub fn gateways(&self) -> &BTreeMap<String, Gateway> {
         &self.gateways
     }
+    pub fn rooms(&self) -> &BTreeMap<String, Room> { &self.rooms }
     pub fn devices(&self) -> &BTreeMap<DeviceId, Device> {
         &self.devices
     }
@@ -288,6 +304,15 @@ impl Configuration {
                 },
             );
         }
+        if input.rooms.len()>256 {return Err(invalid("room count exceeds limit"));}
+        let mut rooms=BTreeMap::new();
+        for room in input.rooms {
+            identifier(&room.id)?;
+            for label in std::iter::once(&room.name).chain(room.floor.iter()) {
+                if label.trim().is_empty() || label.len()>256 || label.chars().any(char::is_control) {return Err(invalid("invalid room or floor label"));}
+            }
+            if rooms.insert(room.id.clone(),room).is_some() {return Err(invalid("duplicate room id"));}
+        }
         let mut devices = BTreeMap::new();
         let mut bindings = BTreeSet::new();
         for d in input.devices {
@@ -343,7 +368,9 @@ impl Configuration {
                 }
                 None => None,
             };
+            if d.room.as_ref().is_some_and(|id| !rooms.contains_key(id)) {return Err(invalid("unknown room reference"));}
             let device = Device {
+                room: d.room,
                 name: d.name,
                 gateway: d.gateway,
                 address,
@@ -393,6 +420,7 @@ impl Configuration {
         Ok(Self {
             revision: input.revision,
             manual_degraded_enabled: input.manual_degraded_enabled,
+            rooms,
             gateways,
             devices,
         })
