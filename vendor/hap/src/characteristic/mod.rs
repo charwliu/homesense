@@ -464,7 +464,13 @@ impl<T: fmt::Debug + Default + Clone + Serialize + Send + Sync> Serialize for Ch
         }
 
         if self.perms.contains(&Perm::PairedRead) {
-            state.serialize_field("value", &self.value)?;
+            // Event-only switches have no retained readable state. In particular,
+            // their default numeric zero must not look like a historical click.
+            if self.hap_type == HapType::ProgrammableSwitchEvent {
+                state.serialize_field("value", &serde_json::Value::Null)?;
+            } else {
+                state.serialize_field("value", &self.value)?;
+            }
         }
         if let Some(ref unit) = self.unit {
             state.serialize_field("unit", unit)?;
@@ -832,6 +838,9 @@ where
     }
 
     async fn get_value(&mut self) -> Result<serde_json::Value> {
+        if self.hap_type == HapType::ProgrammableSwitchEvent {
+            return Ok(serde_json::Value::Null);
+        }
         let value = Characteristic::get_value(self).await?;
         Ok(json!(value))
     }
