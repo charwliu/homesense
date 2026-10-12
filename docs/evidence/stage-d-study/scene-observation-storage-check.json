@@ -1,0 +1,43 @@
+{
+  "base_commit": "028349bbdcb40c59eeed5fc5537def63a9373161",
+  "source_scope": "clean git archive plus eight explicitly scoped storage files; synthetic data only",
+  "source_sha256": {
+    "crates/homesense-storage/src/lib.rs": "7ddc95d0103cdde6812e040a0ab0948123d325f7160fa8edc21f28b4398cf00b",
+    "crates/homesense-storage/src/automation.rs": "6bbb1445986da38a0b4befb17590ea5d591ae4c1a0a92a392dc030bac849995b",
+    "crates/homesense-storage/src/backup.rs": "67aae39d270c49ea00577c3d7f89552a24954301295e2dd55bcfa75adc877cdd",
+    "crates/homesense-storage/src/variables.rs": "249275ab9215361878ac6e9fe1d4515a281987b4c39b72e5552c549a2a6b8081",
+    "crates/homesense-storage/src/scene_observation.rs": "574fb3d740b637f568dd27ebead63c41b82e2b52280f9dfd8ed8106e81b86516",
+    "crates/homesense-storage/tests/backup.rs": "1fc7f92b6fa882a0c16f044afca85d48be68aea302437d1b164ee2af6605546c",
+    "crates/homesense-storage/tests/journal.rs": "810b1b49c67ea3d340c16bd59efed53f521bc7b0dd7623a758983d62a79b5fab",
+    "crates/homesense-storage/tests/scene_observation.rs": "388ea06ce3724cf4b8152f1ea87d9bece6572a637116d9fc9746aa722ae7c14d"
+  },
+  "storage_tests": {
+    "passed": 53,
+    "failed": 0,
+    "ignored": 0,
+    "new_observation_tests": 7
+  },
+  "storage_all_targets_clippy": "passed",
+  "schema": 22,
+  "rollback_compatibility": {
+    "old_binary_source": "56e922a",
+    "old_schema21_backup_created_by_old_binary": true,
+    "new_binary_migration_and_schema22_backup_inspection": "passed",
+    "old_binary_rejects_schema22_without_mutation": "passed",
+    "old_binary_restores_preupgrade_schema21_snapshot": "passed",
+    "helpers_sha256": {
+      "prepare_scene_rollback.rs": "eb9ef24e48851ae0f0478e17d596eed447535105dda80cc318fd674677d670cf",
+      "upgrade_scene_rollback.rs": "123c23ee05738d8423267f586dbd94fe79dd2a55d1ea903045ee6d8931687307",
+      "verify_scene_rollback.rs": "70d969c42c05c5a2d62f78fc1bf7fd196e5583671f6b943f1bfde82c6c1ed3b1"
+    }
+  },
+  "runtime_connected": false,
+  "field_enabled": false,
+  "production_databases_migrated": false,
+  "remaining": [
+    "reviewed disabled-by-default configuration",
+    "authorized event runtime with gap and epoch handling",
+    "scoped HAP/Web and manual selection snapshot",
+    "independent LED reconciliation with inferred selections"
+  ]
+}
