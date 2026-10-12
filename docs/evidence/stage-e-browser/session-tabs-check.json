@@ -1,0 +1,21 @@
+{
+  "base_commit": "7ab4251",
+  "build": "clean 2a05c09 source plus current app.js; intervening commits documentation/test only",
+  "app_js_sha256": "e34cfb60c31e48ed88cbabaeed757b4298ff5f70793108fae2ea0b89c0701d95",
+  "browser": "Codex in-app browser, two same-origin tabs",
+  "checks": [
+    "second tab login immediately clears first tab UI",
+    "first tab asks for login",
+    "logout announces session change",
+    "no secret in broadcast payload (code and regression)"
+  ],
+  "frontend_scripts": 11,
+  "screenshot": "session-tabs.jpg",
+  "limits": [
+    "same browser shared cookie jar",
+    "not independent browser configuration race",
+    "synthetic loopback only",
+    "not field acceptance"
+  ],
+  "service": "stopped"
+}
