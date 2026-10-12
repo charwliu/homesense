@@ -69,6 +69,7 @@ with tempfile.TemporaryDirectory(prefix='homesense-tls-') as directory:
     try:assert not plain.recv(1024).startswith(b'HTTP/')
     except (ConnectionResetError,TimeoutError):pass
    code,headers,body=request('POST','/api/v1/session',{'Authorization':'Bearer '+token});assert code==200
+   csrf=json.loads(body)['csrf']
    cookie=headers['set-cookie'];assert 'Secure' in cookie and 'HttpOnly' in cookie;cookie=cookie.split(';')[0]
    assert request('GET','/api/v1/devices',{'Cookie':cookie})[0]==200
    key=base64.b64encode(os.urandom(16)).decode()
@@ -89,6 +90,28 @@ with tempfile.TemporaryDirectory(prefix='homesense-tls-') as directory:
     elif size==127:size=struct.unpack('!Q',exact(8))[0]
     assert size<=512*1024
     frame=json.loads(exact(size));assert frame['type']=='state' and frame['reset']
+    # Cookie writes require CSRF. A rejected logout must keep this session alive.
+    assert request('DELETE','/api/v1/session',{'Cookie':cookie})[0]==401
+    assert request('GET','/api/v1/devices',{'Cookie':cookie})[0]==200
+    assert request('DELETE','/api/v1/session',{'Cookie':cookie,'X-CSRF-Token':csrf})[0]==200
+    assert request('GET','/api/v1/devices',{'Cookie':cookie})[0]==401
+    # A pre-authenticated WSS subscription must also observe revocation.
+    ws.settimeout(3);deadline=time.monotonic()+3;closed=False
+    while time.monotonic()<deadline:
+     try:
+      header=ws.recv(2)
+      if not header:closed=True;break
+      if len(header)<2:header+=exact(2-len(header))
+      size=header[1]&127
+      if size==126:size=struct.unpack('!H',exact(2))[0]
+      elif size==127:size=struct.unpack('!Q',exact(8))[0]
+      assert size<=512*1024
+      if size:exact(size)
+      if header[0]&15==8:closed=True;break
+     except (ConnectionResetError,ssl.SSLEOFError):closed=True;break
+    assert closed,'revoked WSS session remained open'
+    assert request('GET','/api/v1/events',{'Cookie':cookie,'Upgrade':'websocket','Connection':'Upgrade','Sec-WebSocket-Version':'13','Sec-WebSocket-Key':key})[0]==401
+
    if combined:
     hap=http.client.HTTPConnection('127.0.0.1',hap_port,timeout=3);hap.request('GET','/accessories');response=hap.getresponse();assert response.status==401;response.read();hap.close()
    process.wait(timeout=15);assert process.returncode==0
@@ -101,4 +124,4 @@ with tempfile.TemporaryDirectory(prefix='homesense-tls-') as directory:
  assert subprocess.run(command,capture_output=True,timeout=5).returncode!=0
  (root/'server.key').chmod(0o600)
  command[-1]=str(root/'ca.key');assert subprocess.run(command,capture_output=True,timeout=5).returncode!=0
- print(json.dumps({'https':'passed','wss':'passed','untrusted_and_wrong_name':'rejected','plaintext':'rejected','unsafe_key_permissions_and_mismatch':'rejected'}))
+ print(json.dumps({'https':'passed','wss':'passed','csrf_and_session_revocation':'passed','revoked_wss':'closed','untrusted_and_wrong_name':'rejected','plaintext':'rejected','unsafe_key_permissions_and_mismatch':'rejected'}))
