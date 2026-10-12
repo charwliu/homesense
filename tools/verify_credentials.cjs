@@ -1,6 +1,6 @@
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const elements=new Map();const element=id=>{if(!elements.has(id))elements.set(id,{value:'',textContent:'',addEventListener(){}});return elements.get(id)};
-const pending=[];const context=vm.createContext({document:{getElementById:element},fetch:(path,options)=>new Promise(resolve=>pending.push({path,options,resolve}))});
+const pending=[];const context=vm.createContext({TextEncoder,document:{getElementById:element},fetch:(path,options)=>new Promise(resolve=>pending.push({path,options,resolve}))});
 vm.runInContext(fs.readFileSync(require('node:path').join(__dirname,'../crates/homesensed/src/web/app.js'),'utf8'),context);
 (async()=>{
  const task=element('read-credentials').onclick();assert.equal(pending[0].path,'/api/v1/credentials');pending.shift().resolve({ok:true,json:async()=>({credentials:[{id:'fixture',grant:{role:'Member',devices:['lamp'],scenes:[]}}]})});await task;
@@ -10,5 +10,11 @@ vm.runInContext(fs.readFileSync(require('node:path').join(__dirname,'../crates/h
  element('revoke-credential-id').value='00000000-0000-4000-8000-000000000001';await revoke.onclick();assert.equal(pending.length,0);
  element('revoke-credential-confirm').checked=true;const mutation=revoke.onclick();assert.equal(pending[0].options.method,'POST');assert.equal(pending[0].path,'/api/v1/credentials/00000000-0000-4000-8000-000000000001/revoke');pending.shift().resolve({ok:true,json:async()=>({revoked:true})});await mutation;
  assert.equal(element('revoke-credential-confirm').checked,false);assert.equal(element('revoke-credential-id').value,'');assert.match(element('revoke-credential-result').textContent,/已撤销/);
+ const issue=element('issue-credential');await issue.onclick();assert.equal(pending.length,0);
+ element('issue-role').value='Member';element('issue-devices').value='lamp\nlamp\n';element('issue-scenes').value='';element('issue-confirm').checked=true;
+ const created=issue.onclick();await issue.onclick();assert.equal(pending.length,1);assert.deepEqual(JSON.parse(pending[0].options.body),{role:'Member',devices:['lamp'],scenes:[]});
+ pending.shift().resolve({ok:true,json:async()=>({id:'new-id',secret:'one-time-secret'})});await created;assert.match(element('issue-result').textContent,/one-time-secret/);assert.equal(element('issue-confirm').checked,false);
+ element('clear-issued-secret').onclick();assert.equal(element('issue-result').textContent,'');
+ element('issue-confirm').checked=true;const stale=issue.onclick();vm.runInContext('sessionEpoch++;clearCredentialCreation()',context);pending.shift().resolve({ok:true,json:async()=>({id:'old',secret:'must-not-reappear'})});await stale;assert.equal(element('issue-result').textContent,'');assert.equal(element('issue-role').value,'Viewer');
  console.log('Credential listing and session fencing: passed');
 })().catch(e=>{console.error(e);process.exitCode=1});
