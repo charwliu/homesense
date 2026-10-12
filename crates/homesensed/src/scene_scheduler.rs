@@ -352,6 +352,9 @@ impl SceneScheduler {
     /// timers are invalidated even if cancellation fails or this future is dropped.
     /// Call again to retry cleanup; reopening requires a fresh scheduler.
     pub async fn stop(&mut self) -> Vec<(u64, Result<usize, String>)> {
+        self.stop_with_reason(homesense_storage::scene_run::CancellationReason::ServiceStopped).await
+    }
+    pub(crate) async fn stop_with_reason(&mut self,reason:homesense_storage::scene_run::CancellationReason)->Vec<(u64,Result<usize,String>)> {
         self.stopped = true;
         let mut counts = BTreeMap::new();
         for (id, run) in &mut self.runs {
@@ -359,7 +362,7 @@ impl SceneScheduler {
         }
         let mut results = vec![];
         for (id, run) in &mut self.runs {
-            let cancelled = run.cancel_with_reason(homesense_storage::scene_run::CancellationReason::ServiceStopped).await.map(|count| count + counts[id]);
+            let cancelled = run.cancel_with_reason(reason).await.map(|count| count + counts[id]);
             // A changed generation may reject cancellation after the transport
             // owner already made the commands terminal. Still settle from audit.
             let reconciled = run.reconcile().await;
