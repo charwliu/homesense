@@ -137,3 +137,52 @@ async fn invalid_graph_does_not_allocate_identifiers() {
         0
     );
 }
+
+#[tokio::test]
+async fn ninety_six_lights_keep_unique_identity_and_capabilities_after_reopen() {
+    let root = Root::new();
+    let mut store = IdentityStore::open(&root.0).await.unwrap();
+    store.save_config(&Config::default()).await.unwrap();
+    let specs: Vec<_> = (0..96)
+        .map(|index| spec(&format!("capacity:{index:02}"), index >= 56))
+        .collect();
+    let graph = LightGraph::build(&store, "Capacity fixture", specs.clone())
+        .await
+        .unwrap();
+    assert_eq!(graph.lights.len(), 96);
+    assert_eq!(graph.bindings.len(), 96);
+    let mut aids = BTreeSet::from([graph.bridge.get_id()]);
+    let mut addresses = BTreeSet::new();
+    let mut original = BTreeMap::new();
+    for binding in &graph.bindings {
+        let light = &graph.lights[&binding.device];
+        assert!(aids.insert(binding.aid));
+        assert!(addresses.insert((binding.aid, binding.on_iid)));
+        assert_eq!(light.get_id(), binding.aid);
+        assert_eq!(light.lightbulb.power_state.get_id(), binding.on_iid);
+        assert_eq!(light.lightbulb.brightness.as_ref().map(|c| c.get_id()), binding.brightness_iid);
+        if let Some(iid) = binding.brightness_iid {
+            assert!(addresses.insert((binding.aid, iid)));
+        }
+        original.insert(binding.device.clone(), (binding.aid, structure(light)));
+    }
+    assert_eq!(aids.len(), 97);
+    assert_eq!(addresses.len(), 136);
+    assert_eq!(graph.bindings.iter().filter(|b| b.brightness_iid.is_some()).count(), 40);
+    assert_eq!(graph.bindings.iter().filter(|b| b.brightness_iid.is_none()).count(), 56);
+    LightRequests::new(graph.bindings.clone()).unwrap();
+    drop(graph);
+    drop(store);
+    let store = IdentityStore::open(&root.0).await.unwrap();
+    let renamed = specs.into_iter().rev().map(|mut spec| {
+        spec.name = format!("Renamed {}", spec.name);
+        spec
+    }).collect();
+    let restored = LightGraph::build(&store, "Renamed capacity fixture", renamed)
+        .await.unwrap();
+    assert_eq!(restored.lights.len(), 96);
+    for (device, light) in &restored.lights {
+        assert_eq!((light.get_id(), structure(light)), original[device]);
+    }
+    LightRequests::new(restored.bindings).unwrap();
+}
