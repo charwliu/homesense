@@ -271,12 +271,18 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
                 self.invalidate();
                 return Err(error);
             }
-            let deadline = self
+            let mut deadline = self
                 .transport
                 .now_ms()
                 .checked_add(timeout_ms)
                 .ok_or("query deadline overflow")?;
             let mut reads = 0;
+            let mut attempt_reads = 0;
+            // A periodic read can lose one reply on a shared bus. Retry only
+            // this idempotent status query, once, on the existing generation.
+            // Initial/recovery synchronization and physical control writes
+            // retain their original no-retry contracts.
+            let mut retry_available = selected.is_some();
             let mut idle_reads = 0;
             let mut empty_frame_reads = 0;
             let mut frame_count = 0;
@@ -285,7 +291,21 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
             let mut recent_frames = std::collections::VecDeque::with_capacity(16);
             let started = self.transport.now_ms();
             loop {
-                if self.transport.now_ms() >= deadline || reads >= 128 {
+                if self.transport.now_ms() >= deadline || attempt_reads >= 128 {
+                    if retry_available {
+                        retry_available = false;
+                        // Leave room within the default 2-second control TTL
+                        // for manual work accepted during this status read.
+                        let retry_timeout_ms = timeout_ms.min(500);
+                        log::warn!("gateway_query_retry device={id:?} gateway={:?}; fresh feedback still required", device.gateway);
+                        if let Err(error) = self.transport.query_status(&device.gateway, module, device.channel, context, retry_timeout_ms).await {
+                            self.invalidate();
+                            return Err(error);
+                        }
+                        deadline = self.transport.now_ms().checked_add(retry_timeout_ms).ok_or("query deadline overflow")?;
+                        attempt_reads = 0;
+                        continue;
+                    }
                     self.invalidate();
                     log::warn!(
                         "gateway_query_timeout device={id:?} gateway={:?} timeout_ms={timeout_ms} elapsed_ms={} reads={reads} idle_reads={idle_reads} empty_frame_reads={empty_frame_reads} decoded_frames={frame_count} matching_address_frames={matching_address_frames} recent_module_frames={recent_frames:02X?}",
@@ -295,6 +315,7 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
                     return Err("recovery feedback timeout or read limit".into());
                 }
                 reads += 1;
+                attempt_reads += 1;
                 let read = self.receive(&device.gateway).await?;
                 match &read.result {
                     hb_transport::Receive::Idle => idle_reads += 1,
