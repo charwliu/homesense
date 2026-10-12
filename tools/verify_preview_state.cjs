@@ -22,8 +22,13 @@ const reply=(index,id,ok=true)=>pending[index].resolve({ok,json:async()=>ok?{dra
  // Accepted activation also removes the now-obsolete impact text.
  vm.runInContext('refresh=async()=>{}',context);context.crypto={randomUUID:()=>"fixture"};
  task=preview();reply(5,'b');await task;
- const activated=element('activate-draft').onclick();assert.equal(element('draft-impact').textContent,'');
- pending[6].resolve({ok:true,json:async()=>({outcome:'activated',revision:2})});await activated;
+ await element('activate-draft').onclick();assert.equal(pending.length,6);assert.equal(element('publication-confirmation').hidden,false);
+ element('cancel-publication').onclick();await element('confirm-publication').onclick();assert.equal(pending.length,6);
+ task=preview();reply(6,'b');await task;await element('activate-draft').onclick();element('metadata-name').listeners.input();await element('confirm-publication').onclick();assert.equal(pending.length,7);
+ task=preview();reply(7,'b');await task;await element('activate-draft').onclick();
+ const activated=element('confirm-publication').onclick();assert.equal(element('draft-impact').textContent,'');assert.equal(element('publication-confirmation').hidden,true);
+ await element('confirm-publication').onclick();assert.equal(pending.length,9,'double confirmation must not resubmit');
+ pending[8].resolve({ok:true,json:async()=>({outcome:'activated',revision:2})});await activated;
  assert.equal(element('activate-draft').disabled,true);
  console.log('Preview failure, edit and out-of-order response invalidation: passed');
 })().catch(error=>{console.error(error);process.exitCode=1;});
