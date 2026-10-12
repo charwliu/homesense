@@ -10,6 +10,12 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+/// Private policy proof for LED planning only. Old evidence becomes Unknown,
+/// allowing a separate fresh Switch Off to satisfy an Any condition.
+pub(crate) struct IndicatorPolicy {
+    pub(crate) after_ms: u64,
+    pub(crate) recent_off: std::collections::BTreeSet<DeviceId>,
+}
 /// A lease is validated while holding the same lock used by every feedback
 /// mutation. The commit closure must be synchronous and must not call Feedback.
 #[derive(Clone)]
@@ -22,6 +28,10 @@ pub struct RuleLease {
     captured_ms: u64,
     expires_ms: Option<u64>,
     pub(crate) observations: BTreeMap<DeviceId, Option<u64>>,
+    /// Zero readings supplied by durable dimmer policy, rather than an actual
+    /// supply relay Off. Inferred selections require a post-key completed write.
+    pub(crate) recorded_off_reads: std::collections::BTreeSet<DeviceId>,
+    pub(crate) indicator_after: Option<u64>,
 }
 impl RuleLease {
     #[cfg(test)]
@@ -124,6 +134,13 @@ impl Feedback {
         max_age: u64,
         recorded: &BTreeMap<DeviceId, homesense_core::Percent>,
     ) -> Result<(homesense_core::rule::Plan, RuleLease), String> {
+        self.plan_indicator_rule(nodes,variables,budget,now,max_age,recorded,None)
+    }
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn plan_indicator_rule(
+        &self, nodes:&[homesense_core::rule::Node],variables:&BTreeMap<String,homesense_core::rule::Variable>,
+        budget:homesense_core::rule::Budget,now:u64,max_age:u64,recorded:&BTreeMap<DeviceId,homesense_core::Percent>,policy:Option<&IndicatorPolicy>,
+    )->Result<(homesense_core::rule::Plan,RuleLease),String> {
         if self.stopped {
             return Err("feedback stopped".into());
         }
@@ -131,10 +148,11 @@ impl Feedback {
             .lease_version
             .lock()
             .map_err(|_| "feedback lease poisoned")?;
-        let physical = self
+        let mut physical = self
             .states
             .rule_feedback(self.epoch, now, max_age)
             .map_err(|e| e.to_string())?;
+        if let Some(policy)=policy {physical.retain(|_,s|s.observed_ms>policy.after_ms);}
         let mut logical = physical.clone();
         for (device, relay) in &self.supply_relays {
             let projected =
@@ -160,10 +178,15 @@ impl Feedback {
                 logical.remove(device);
             }
         }
+        let mut recorded_off_reads = std::collections::BTreeSet::new();
         for (id, level) in recorded {
             if let Some(sample)=logical.get_mut(id) {
                 let supply_off=self.supply_relays.get(id).and_then(|relay|physical.get(relay)).is_some_and(|s|s.on==Some(false));
                 let effective=if supply_off {homesense_core::Percent::new(0).unwrap()} else {*level};
+                if !supply_off && effective.get()==0 && policy.is_some_and(|p|!p.recent_off.contains(id)) {
+                    sample.on=None;sample.level=None;continue;
+                }
+                if !supply_off && effective.get()==0 {recorded_off_reads.insert(id.clone());}
                 sample.level=Some(effective);
                 sample.on=Some(effective.get()>0);
             }
@@ -209,9 +232,12 @@ impl Feedback {
                 )
             })
             .collect();
+        let recorded_off_reads = recorded_off_reads.into_iter().filter(|id|plan.feedback_reads.contains(id)).collect();
         Ok((
             plan,
             RuleLease {
+                recorded_off_reads,
+                indicator_after: policy.map(|p|p.after_ms),
                 observations,
                 version: self.lease_version.clone(),
                 expected: *version,
@@ -371,7 +397,7 @@ impl Feedback {
         if self.stopped {return Err("scene observation feedback stopped".into())}
         Ok(SceneObservationStart {snapshot:self.states.snapshot(),lease:RuleLease {
             version:self.lease_version.clone(),expected:*version,boot:self.boot,revision:self.revision,epoch:self.epoch,
-            captured_ms:now,expires_ms:None,observations:BTreeMap::new(),
+            captured_ms:now,expires_ms:None,observations:BTreeMap::new(),recorded_off_reads:std::collections::BTreeSet::new(),indicator_after:None,
         }})
     }
     pub(crate) fn scene_key_observation(&self,event:&homesense_state::Event,now:u64)->Result<SceneKeyObservation,String> {
@@ -386,7 +412,7 @@ impl Feedback {
         if recorded.first()!=Some(event) {return Err("scene key is not in the current feedback stream".into())}
         Ok(SceneKeyObservation {event:event.clone(),lease:RuleLease {
             version:self.lease_version.clone(),expected:*version,boot:self.boot,revision:self.revision,epoch:self.epoch,
-            captured_ms:now,expires_ms:None,observations:BTreeMap::new(),
+            captured_ms:now,expires_ms:None,observations:BTreeMap::new(),recorded_off_reads:std::collections::BTreeSet::new(),indicator_after:None,
         }})
     }
     pub fn apply(&mut self, read: &GatewayRead) -> Result<usize, String> {

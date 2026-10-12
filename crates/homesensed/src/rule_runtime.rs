@@ -24,11 +24,19 @@ pub struct PreparedRule {
     generation: TaskGeneration,
     batch: Batch,
     updates: Vec<Update>,
+    indicator_reads:
+        Option<std::collections::BTreeMap<String, homesense_storage::scene_observation::Snapshot>>,
     pub unknown_branches: Vec<String>,
     pub(crate) changed_variables: Vec<String>,
 }
 impl PreparedRule {
     pub(crate) fn input_versions(&self) -> Vec<(String, u64)> {
+        if let Some(reads) = &self.indicator_reads {
+            return reads
+                .iter()
+                .map(|(name, s)| (name.clone(), s.stored.version))
+                .collect();
+        }
         self.updates
             .iter()
             .map(|u| (u.name.clone(), u.expected_version))
@@ -107,6 +115,62 @@ impl PreparedRule {
             .variable_snapshot(controller, generation.clone(), names)
             .await
             .map_err(PreparationFailure::Admission)?;
+        Self::from_snapshot(controller, generation, snapshot, planner)
+    }
+    /// Trusted LED-only reconciliation may read current inferred selections.
+    /// All inputs are still guarded at acceptance; unchanged values are not writes.
+    pub(crate) async fn prepare_indicator(
+        admission: &Admission,
+        controller: Uuid,
+        generation: TaskGeneration,
+        names: Vec<String>,
+        planner: impl FnOnce(
+            &std::collections::BTreeMap<String, Variable>,
+            &std::collections::BTreeMap<String, homesense_storage::scene_observation::Snapshot>,
+            Option<&crate::feedback::IndicatorPolicy>,
+        ) -> Result<rule::Plan, String>,
+    ) -> Result<Self, PreparationFailure> {
+        let reads = admission
+            .scene_selection_snapshot(controller, generation.clone(), names)
+            .await
+            .map_err(PreparationFailure::Admission)?;
+        let after = reads
+            .values()
+            .filter(|s| s.evidence_current)
+            .filter_map(|s| s.evidence.as_ref().map(|e| e.observed_ms))
+            .max();
+        let policy = if let Some(after_ms) = after {
+            Some(crate::feedback::IndicatorPolicy {
+                after_ms,
+                recent_off: admission
+                    .recent_dimmer_off(controller, generation.clone(), after_ms)
+                    .await
+                    .map_err(PreparationFailure::Admission)?,
+            })
+        } else {
+            None
+        };
+        let snapshot = reads
+            .iter()
+            .map(|(n, s)| (n.clone(), s.stored.clone()))
+            .collect();
+        let mut prepared = Self::from_snapshot(controller, generation, snapshot, |variables| {
+            planner(variables, &reads, policy.as_ref())
+        })?;
+        prepared
+            .updates
+            .retain(|u| reads[&u.name].stored.value != u.value);
+        prepared.indicator_reads = Some(reads);
+        Ok(prepared)
+    }
+    fn from_snapshot(
+        controller: Uuid,
+        generation: TaskGeneration,
+        snapshot: std::collections::BTreeMap<String, homesense_storage::variables::Stored>,
+        planner: impl FnOnce(
+            &std::collections::BTreeMap<String, Variable>,
+        ) -> Result<rule::Plan, String>,
+    ) -> Result<Self, PreparationFailure> {
         let variables = snapshot
             .iter()
             .map(|(name, v)| {
@@ -168,6 +232,7 @@ impl PreparedRule {
                 subscriptions: vec![],
             },
             updates,
+            indicator_reads: None,
             unknown_branches: plan.unknown_branches,
             changed_variables,
         })
@@ -224,6 +289,14 @@ impl PreparedRule {
         self,
         admission: &Admission,
     ) -> Result<Vec<u64>, hap::server::WriteStatus> {
+        if let Some(reads) = self.indicator_reads {
+            let feedback = self
+                .feedback
+                .ok_or(hap::server::WriteStatus::InvalidValueInRequest)?;
+            return admission
+                .submit_indicator_rule(self.generation, self.batch, self.updates, feedback, reads)
+                .await;
+        }
         if let Some(audit) = self.audit {
             return admission
                 .submit_audited_rule(

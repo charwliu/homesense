@@ -748,7 +748,8 @@ async fn cas_rejection_replans_led_cleanup_without_clearing_another_scene() {
         .unwrap();
     let reconciled = store.logical_variable(1, "mode").unwrap().unwrap();
     assert_eq!(reconciled.value, Some(Value::Integer(2)));
-    assert_eq!(reconciled.version, 3);
+    // Condition-only reconciliation preserves the newer selection version.
+    assert_eq!(reconciled, raced);
     assert_eq!(
         store.command_status(admission.boot_id(), 1).unwrap(),
         Some(Status::Accepted)
