@@ -1,0 +1,40 @@
+{
+  "commit": "48b0eec4c6977edafe03a382a4151f279c2e440f",
+  "source": "git archive HEAD; excludes uncommitted and private files",
+  "command": "cargo test --locked --offline --workspace",
+  "exit_code": 0,
+  "passed": 531,
+  "failed": 0,
+  "ignored": 0,
+  "result_blocks": 106,
+  "frontend_scripts": 10,
+  "tls_combined": {
+    "https": "passed",
+    "wss": "passed",
+    "csrf_and_session_revocation": "passed",
+    "revoked_wss": "closed",
+    "untrusted_and_wrong_name": "rejected",
+    "plaintext": "rejected",
+    "unsafe_key_permissions_and_mismatch": "rejected"
+  },
+  "publication": {
+    "publication": "passed",
+    "restart_replay": "none",
+    "backups": 2,
+    "scene_runs": 1,
+    "historical_restore": "passed",
+    "restored_revision": 3,
+    "http_backup_inspections": 6,
+    "snapshot_bytes": "unchanged",
+    "room_removal": "derived draft only; missing and referenced rejected"
+  },
+  "additional_http_checks": [
+    "device binding draft and invalid channel rejection",
+    "motor calibration draft and binding mismatch rejection"
+  ],
+  "limitations": [
+    "synthetic and loopback only",
+    "not real browser visual or iPhone Siri or physical device acceptance",
+    "dependency warnings remain"
+  ]
+}
