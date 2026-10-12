@@ -21,6 +21,7 @@ pub struct Grant {
     pub devices: BTreeSet<String>,
 }
 struct Credential {
+    generation: Uuid,
     hash: [u8; 32],
     grant: Grant,
 }
@@ -31,6 +32,7 @@ pub struct Tokens {
 }
 #[derive(Clone)]
 struct Session {
+    generation: Uuid,
     credential: [u8; 32],
     csrf: [u8; 32],
     expires: std::time::Instant,
@@ -70,19 +72,29 @@ impl Tokens {
         {
             return Err("credential already assigned".into());
         }
-        entries.insert(id, Credential { hash, grant });
+        let mut sessions=self.sessions.write().map_err(|_|"session lock unavailable")?;
+        if let Some(previous)=entries.get(&id) {sessions.retain(|_,session|session.generation!=previous.generation);}
+        entries.insert(id, Credential { generation:Uuid::new_v4(), hash, grant });
         Ok(())
     }
     pub fn revoke(&self, id: Uuid) -> Result<(), String> {
-        self.entries
-            .write()
-            .map_err(|_| "credential lock unavailable")?
-            .remove(&id);
+        let mut entries=self.entries.write().map_err(|_|"credential lock unavailable")?;
+        let mut sessions=self.sessions.write().map_err(|_|"session lock unavailable")?;
+        if let Some(previous)=entries.remove(&id) {sessions.retain(|_,session|session.generation!=previous.generation);}
         Ok(())
     }
     pub fn login(&self, header: &str) -> Option<SessionSecret> {
-        self.authenticate(header)?;
-        let credential = digest(header.strip_prefix("Bearer ")?);
+        let secret=header.strip_prefix("Bearer ")?;
+        if !(32..=256).contains(&secret.len()) {return None;}
+        let credential=digest(secret);
+        // Hold the credential read lock through session insertion so revocation
+        // cannot interleave between authentication and session creation.
+        let entries=self.entries.read().ok()?;
+        let mut generation=None;
+        for entry in entries.values() {
+            if bool::from(entry.hash.ct_eq(&credential)) {generation=Some(entry.generation);}
+        }
+        let generation=generation?;
         let mut sessions = self.sessions.write().ok()?;
         let now = std::time::Instant::now();
         sessions.retain(|_, s| s.expires > now);
@@ -94,6 +106,7 @@ impl Tokens {
         sessions.insert(
             digest(&cookie),
             Session {
+                generation,
                 credential,
                 csrf: digest(&csrf),
                 expires: now + std::time::Duration::from_secs(900),
@@ -114,7 +127,7 @@ impl Tokens {
         let entries = self.entries.read().ok()?;
         entries
             .values()
-            .find(|v| bool::from(v.hash.ct_eq(&session.credential)))
+            .find(|v| v.generation==session.generation && bool::from(v.hash.ct_eq(&session.credential)))
             .map(|v| v.grant.clone())
     }
     pub fn logout(&self, cookie: &str) {
