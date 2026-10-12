@@ -158,6 +158,7 @@ async fn web_scope_origin_receipts_and_runtime_admission() {
         )
         .unwrap();
     let mut api = Api {
+        hap_status: Default::default(),
         backup_source:None,
         publisher:None,
         origin: "http://127.0.0.1:8088".into(),
