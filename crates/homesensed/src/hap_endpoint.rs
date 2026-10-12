@@ -87,11 +87,11 @@ impl Settings {
 }
 pub(crate) struct Endpoint {
     pub projection: tokio::sync::watch::Sender<homesense_state::Snapshot>,
-    task: tokio::task::JoinHandle<Result<(), String>>,
+    task: Option<tokio::task::JoinHandle<Result<(), String>>>,
 }
 impl Drop for Endpoint {
     fn drop(&mut self) {
-        self.task.abort();
+        if let Some(task)=&self.task {task.abort();}
     }
 }
 impl Endpoint {
@@ -171,7 +171,7 @@ impl Endpoint {
                 result=graph.project(updates,receive)=>result.and(Err("HAP projection ended".into())),
             }
         });
-        let mut endpoint = Self { projection, task };
+        let mut endpoint = Self { projection, task:Some(task) };
         match tokio::time::timeout(std::time::Duration::from_secs(5), started).await {
             Ok(Ok(())) => {}
             Ok(Err(_)) => {
@@ -186,17 +186,45 @@ impl Endpoint {
         Ok(endpoint)
     }
     pub async fn finished(&mut self) -> Result<(), String> {
-        (&mut self.task).await.map_err(|e| e.to_string())?
+        let task=self.task.as_mut().ok_or("HAP endpoint result already consumed")?;
+        let result=task.await.map_err(|e| e.to_string());
+        self.task=None;
+        result?
     }
     pub async fn shutdown(mut self) {
-        self.task.abort();
-        let _ = (&mut self.task).await;
+        if let Some(task)=self.task.take() {
+            task.abort();
+            let _ = task.await;
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[tokio::test]
+    async fn consumed_task_result_can_be_cleaned_up_without_polling_again() {
+        for failure in [false,true] {
+            let (projection,_)=tokio::sync::watch::channel(homesense_state::Snapshot{cursor:homesense_state::Cursor{boot_id:1,sequence:0},state_version:0,devices:Default::default()});
+            let mut endpoint=Endpoint{projection,task:Some(tokio::spawn(async move {
+                if failure {Err("synthetic endpoint failure".into())}else{Ok(())}
+            }))};
+            assert_eq!(endpoint.finished().await.is_err(),failure);
+            assert!(endpoint.finished().await.unwrap_err().contains("already consumed"));
+            endpoint.shutdown().await;
+        }
+    }
+    #[tokio::test]
+    async fn cancelled_wait_keeps_task_owned_until_shutdown() {
+        let (projection,_)=tokio::sync::watch::channel(homesense_state::Snapshot{cursor:homesense_state::Cursor{boot_id:1,sequence:0},state_version:0,devices:Default::default()});
+        let mut endpoint=Endpoint{projection,task:Some(tokio::spawn(std::future::pending()))};
+        let handle=endpoint.task.as_ref().unwrap().abort_handle();
+        assert!(tokio::time::timeout(std::time::Duration::from_millis(1),endpoint.finished()).await.is_err());
+        assert!(endpoint.task.is_some());
+        assert!(!handle.is_finished());
+        endpoint.shutdown().await;
+        assert!(handle.is_finished());
+    }
     #[test]
     fn motor_selection_requires_unique_enabled_calibrated_devices() {
         let mut raw:serde_json::Value=serde_json::from_slice(include_bytes!("../../../config/simulation.json")).unwrap();
