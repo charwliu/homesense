@@ -125,3 +125,24 @@ fn browser_sessions_require_csrf_and_follow_token_revocation() {
             .is_none()
     );
 }
+
+#[test]
+fn reissued_credentials_never_resurrect_old_browser_sessions() {
+    let tokens=Tokens::default();let id=Uuid::new_v4();
+    let secret="abcdefghijklmnopqrstuvwxyz0123456789";let header=format!("Bearer {secret}");
+    let grant=Grant{controller:id,role:Role::Member,scenes:["scene".into()].into(),devices:Default::default()};
+    tokens.insert(id,secret,grant.clone()).unwrap();
+    let original=tokens.login(&header).unwrap();
+    assert!(tokens.session(&original.cookie,Some(&original.csrf),true).is_some());
+    tokens.revoke(id).unwrap();tokens.insert(id,secret,grant.clone()).unwrap();
+    assert!(tokens.session(&original.cookie,None,false).is_none());
+    assert!(tokens.session(&original.cookie,Some(&original.csrf),true).is_none());
+    let renewed=tokens.login(&header).unwrap();
+    let mut elevated=grant.clone();elevated.role=Role::Administrator;
+    tokens.insert(id,secret,elevated).unwrap();
+    assert!(tokens.session(&renewed.cookie,None,false).is_none());
+    assert_eq!(tokens.session(&tokens.login(&header).unwrap().cookie,None,false).unwrap().role,Role::Administrator);
+    tokens.revoke(id).unwrap();tokens.insert(Uuid::new_v4(),secret,grant).unwrap();
+    assert!(tokens.session(&original.cookie,None,false).is_none());
+    assert!(tokens.session(&renewed.cookie,None,false).is_none());
+}
