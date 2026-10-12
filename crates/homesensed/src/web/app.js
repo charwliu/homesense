@@ -379,6 +379,11 @@ document.getElementById('runtime-status').onclick = async () => {
   } catch(error) {if(epoch===sessionEpoch)output.textContent=error.message;}
 };
 
+function executionLabel(value) {
+  const labels={Pending:'等待执行',Running:'正在执行',CommandsWritten:'命令已写出（非到位确认）',Partial:'部分执行／可能已有输出',Cancelled:'已取消剩余动作',Failed:'执行失败',Interrupted:'运行中断（不自动重放）',Accepted:'已接受',Writing:'正在写出',Written:'已写出（非到位确认）',Observed:'已观测到匹配反馈',Uncertain:'执行结果不确定',ManualOverride:'人工控制接管',SceneReplacement:'被后续场景覆盖',CancelRequested:'收到取消请求',ServiceStopped:'服务停止',ConfigurationPublished:'旧记录：配置已发布',TransportFailure:'传输故障',PreparationFailed:'动作准备失败',PublicationBarrier:'进入配置发布屏障（不代表提交成功）'};
+  return Object.prototype.hasOwnProperty.call(labels,value)?`${labels[value]} · ${value}`:`未知状态／原因：${String(value)}`;
+}
+
 let historyEpoch=0,detailEpoch=0;
 async function loadSceneHistory(scene,revision,before=null) {
   const epoch=++historyEpoch;detailEpoch++;document.getElementById('run-details').replaceChildren();
@@ -389,7 +394,7 @@ async function loadSceneHistory(scene,revision,before=null) {
     if(before)path+='&before_boot='+encodeURIComponent(before.boot)+'&before_run='+encodeURIComponent(before.run);
     const page=await request(path);if(epoch!==historyEpoch)return;
     document.getElementById('history-title').textContent=`${page.scene} · 配置版本 ${page.revision} · 按创建顺序倒序`;
-    for(const run of page.runs){const item=document.createElement('p');item.textContent=`${run.status} · ${run.boot} / ${run.run} · 开始 ${run.started_ms} ms · 更新 ${run.updated_ms} ms`;
+    for(const run of page.runs){const item=document.createElement('p');item.textContent=`${executionLabel(run.status)} · ${run.boot} / ${run.run} · 开始 ${run.started_ms} ms · 更新 ${run.updated_ms} ms`;
       for(const [kind,label] of [['commands','命令记录'],['cancellations','取消记录'],['expiries','过期记录']]){const button=document.createElement('button');button.textContent=label;button.onclick=()=>loadRunDetails(run,revision,kind);item.append(button);}
       runs.append(item);}
     if(!page.runs.length)runs.textContent='没有运行记录';
@@ -402,8 +407,8 @@ async function loadRunDetails(run,revision,kind,after='0') {
   try {
     const page=await request(`/api/v1/runs/${encodeURIComponent(run.boot)}/${encodeURIComponent(run.run)}/details?revision=${encodeURIComponent(revision)}&kind=${kind}&after=${encodeURIComponent(after)}&limit=20`);
     if(epoch!==detailEpoch)return;box.replaceChildren();
-    const title=document.createElement('p');title.textContent=`${page.scene} · ${page.status} · ${page.redacted?'部分记录因设备权限隐藏':'当前页可见记录'}；写出不代表物理动作完成。`;box.append(title);
-    for(const record of page[kind]) {const row=document.createElement('p');row.textContent=`设备 ${record.device} · ${record.status??record.reason??'调度过期'}${record.step===undefined?'':' · 步骤 '+record.step}${record.command===undefined?'':' · 命令 '+record.command}`;box.append(row);}
+    const title=document.createElement('p');title.textContent=`${page.scene} · ${executionLabel(page.status)} · ${page.redacted?'部分记录因设备权限隐藏':'当前页可见记录'}；写出不代表物理动作完成。`;box.append(title);
+    for(const record of page[kind]) {const row=document.createElement('p');row.textContent=`设备 ${record.device} · ${record.status!==undefined?executionLabel(record.status):record.reason!==undefined?executionLabel(record.reason):'调度过期'}${record.step===undefined?'':' · 步骤 '+record.step}${record.command===undefined?'':' · 命令 '+record.command}`;box.append(row);}
     if(!page[kind].length){const empty=document.createElement('p');empty.textContent='当前页没有可见记录';box.append(empty);}
     if(page.next_after!==null){const next=document.createElement('button');next.textContent='下一页详情';next.onclick=()=>loadRunDetails(run,revision,kind,page.next_after);box.append(next);}
   } catch(error){if(epoch===detailEpoch)box.textContent=error.message;}
