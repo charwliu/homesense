@@ -39,7 +39,14 @@ async function request(path, options = {}) {
   if(response.status===401){clearLocalSession();status.textContent='会话已失效，请重新登录。';throw new Error('会话已失效，请重新登录。');}
   const result = await response.json();
   if(epoch!==sessionEpoch)throw new Error('会话已切换，已忽略旧响应');
-  if (!response.ok) throw new Error(result.error==='room_in_use'?'此房间仍有设备，请先在草稿中调整设备归属。':(result.error==='credential_changed'?'授权已被其他操作修改，请重新读取。':(result.error || '请求失败')));
+  if (!response.ok) {
+    const messages=new Map([
+      ['room_in_use','此房间仍有设备，请先在草稿中调整设备归属。'],
+      ['credential_changed','授权已被其他操作修改，请重新读取。'],
+      ['configuration_changed_or_unavailable','运行配置已改变，或服务暂时不可用。请刷新状态并核对草稿版本后重新预览。']
+    ]);
+    throw new Error(messages.get(result.error) || result.error || '请求失败');
+  }
   return result;
 }
 async function refresh() {

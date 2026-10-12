@@ -1,0 +1,25 @@
+{
+  "base_commit": "ea236d6",
+  "frontend_overlay": "Chinese configuration conflict message",
+  "environment": "synthetic loopback only",
+  "browsers": [
+    "Safari",
+    "Codex in-app browser"
+  ],
+  "independent_cookie_sessions": true,
+  "scenario": "Both saved and previewed revision 2 drafts against active revision 1; IAB published first.",
+  "active_revision_after": 2,
+  "active_name_after": "IAB winning lamp",
+  "other_preview_invalidated": true,
+  "stale_preview_rejected": true,
+  "stale_draft_retained": true,
+  "stale_base_revision_retained": "1",
+  "activation_disabled_after_conflict": true,
+  "conflict_message": "运行配置已改变，或服务暂时不可用。请刷新状态并核对草稿版本后重新预览。",
+  "message_verified_after_rebuild_in_both_browsers": true,
+  "proof": "independent-publication-conflict.png",
+  "limitations": [
+    "Overlapping browser edits with ordered publication, not simultaneous final HTTP requests",
+    "No phone, LAN certificate trust, or physical-device validation"
+  ]
+}

@@ -1,0 +1,115 @@
+{
+  "base_commit": "ea236d6eb6dfb88859c2cf42a36f52fab3f1ffeb",
+  "scope": "Git archive of committed source; excludes unrelated worktree modifications and private Control4 fixtures",
+  "workspace": {
+    "command": "cargo test --workspace --locked --offline",
+    "exit_code": 0,
+    "passed": 579,
+    "failed": 0,
+    "ignored": 0,
+    "result_blocks": 115
+  },
+  "frontend_overlay": {
+    "paths": [
+      "crates/homesensed/src/web/app.js",
+      "tools/verify_preview_state.cjs"
+    ],
+    "behavior": "Chinese stale-configuration message preserves draft inputs and invalidates publication confirmation",
+    "scripts": [
+      {
+        "script": "verify_backup_catalog.cjs",
+        "exit_code": 0
+      },
+      {
+        "script": "verify_channel_diagnostics.cjs",
+        "exit_code": 0
+      },
+      {
+        "script": "verify_credentials.cjs",
+        "exit_code": 0
+      },
+      {
+        "script": "verify_device_metadata.cjs",
+        "exit_code": 0
+      },
+      {
+        "script": "verify_device_refresh.cjs",
+        "exit_code": 0
+      },
+      {
+        "script": "verify_draft_archive.cjs",
+        "exit_code": 0
+      },
+      {
+        "script": "verify_draft_json.cjs",
+        "exit_code": 0
+      },
+      {
+        "script": "verify_event_disconnect.cjs",
+        "exit_code": 0
+      },
+      {
+        "script": "verify_preview_state.cjs",
+        "exit_code": 0
+      },
+      {
+        "script": "verify_room_filter.cjs",
+        "exit_code": 0
+      },
+      {
+        "script": "verify_scene_history.cjs",
+        "exit_code": 0
+      },
+      {
+        "script": "verify_session_state.cjs",
+        "exit_code": 0
+      }
+    ],
+    "verification": "Rebuilt homesensed and both independent browsers verified the updated message"
+  },
+  "loopback_http": {
+    "tls_tcp_combined": {
+      "https": "passed",
+      "wss": "passed",
+      "csrf_and_session_revocation": "passed",
+      "revoked_wss": "closed",
+      "untrusted_and_wrong_name": "rejected",
+      "plaintext": "rejected",
+      "unsafe_key_permissions_and_mismatch": "rejected"
+    },
+    "tls_simulation": {
+      "https": "passed",
+      "wss": "passed",
+      "csrf_and_session_revocation": "passed",
+      "revoked_wss": "closed",
+      "untrusted_and_wrong_name": "rejected",
+      "plaintext": "rejected",
+      "unsafe_key_permissions_and_mismatch": "rejected"
+    },
+    "http_publication": {
+      "publication": "passed",
+      "restart_replay": "none",
+      "backups": 2,
+      "scene_runs": 1,
+      "historical_restore": "passed",
+      "restored_revision": 3,
+      "http_backup_inspections": 6,
+      "snapshot_bytes": "unchanged",
+      "room_removal": "derived draft only; missing and referenced rejected"
+    },
+    "http_sessions": {
+      "concurrent_cookie_updates": "one committed, one stale rejected",
+      "old_target_session": "revoked",
+      "renewed_target_session": "accepted",
+      "logout_isolation": "passed",
+      "devices": "synthetic loopback only"
+    }
+  },
+  "browser_evidence": "independent-publication-check.json",
+  "limitations": [
+    "579 Rust tests cover the base commit before the later frontend text/test overlay",
+    "HTTP scripts use the base-commit binary and synthetic loopback fixtures",
+    "No physical-device, Apple-client, LAN trust, nanopc migration, or EA-5 configuration changes",
+    "Full workspace strict Clippy was not run in this audit; existing dependency warnings remain"
+  ]
+}
