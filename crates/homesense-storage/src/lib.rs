@@ -9,6 +9,7 @@ pub mod feedback_inference;
 pub mod light_restore;
 pub mod rule_audit;
 pub mod scene_run;
+pub mod scene_history;
 pub mod variables;
 use homesense_core::queue::CancelReason;
 use rusqlite::{Connection, OptionalExtension, TransactionBehavior, params};

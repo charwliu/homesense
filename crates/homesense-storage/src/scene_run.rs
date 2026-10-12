@@ -24,7 +24,7 @@ impl Status {
             Self::Interrupted => "interrupted",
         }
     }
-    fn parse(s: &str) -> Result<Self, Error> {
+    pub(crate) fn parse(s: &str) -> Result<Self, Error> {
         Ok(match s {
             "pending" => Self::Pending,
             "running" => Self::Running,
