@@ -537,3 +537,6 @@ TLS 会话撤销回归：`tools/verify_web_tls.py` 及 `--tcp-combined` 均通�
 
 
 公开干净快照集成验证：`261c6bb` 的 `git archive` 未包含未提交改动及本地私有资料，完整离线 workspace 回归 522 项通过、0 失败、0 忽略（104 个结果块）。同一快照的 `verify_web_tls.py --tcp-combined` 通过 HTTPS/WSS、CSRF、会话撤销及证书／明文拒绝回归，补齐此前工作树测试的来源限制。依赖警告仍存在；此证据不替代 iPhone、Siri 或现场设备验收。详见 `docs/evidence/stage-e-browser/clean-e-regression.json`。
+
+
+设备元数据管理：读取已保存草稿后，可通过设备选择、名称和房间表单生成新的不可变草稿。`POST /api/v1/config/drafts/{id}/device-metadata` 只接受设备 ID、名称、房间、新草稿 UUID 和字符串版本；管理员同源访问，预期版本必须匹配当前运行版本。Rust 修改目标名称／房间及文档版本，保留网关、地址、通道、启用状态和自动化内容，并执行完整配置校验。空房间表示移除归属，未知房间拒绝。表单不合并 JSON 编辑框的未保存修改，不激活配置，仍需预览／发布。4 项草稿测试、Web 集成、真实 HTTP 编辑／陈旧版本拒绝及前端精度／预览／会话脚本通过；涵盖大整数、跨所有者拒绝、原稿不变。真实浏览器验收、专用协议绑定与校准管理仍待完成，EA-5 不变。

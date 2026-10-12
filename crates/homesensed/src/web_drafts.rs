@@ -13,6 +13,16 @@ pub struct Draft {
     pub devices: serde_json::Value,
     pub automation: serde_json::Value,
 }
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DeviceMetadataEdit {
+    pub id:Uuid,
+    pub expected_revision:String,
+    pub revision:String,
+    pub device:String,
+    pub name:String,
+    pub room:Option<String>,
+}
 type StoredDraft = (String, i64, i64, Vec<u8>, Vec<u8>);
 #[derive(Debug, PartialEq, Eq)]
 pub struct Summary {
@@ -121,6 +131,22 @@ impl Drafts {
             result.push(Summary{id:Uuid::parse_str(&id).map_err(|e|e.to_string())?,expected_revision:expected as u64,revision:revision as u64});
         }
         Ok(result)
+    }
+    /// Derive a new immutable draft; transport bindings and automation remain intact.
+    pub fn edit_device(&mut self,principal:Uuid,source:Uuid,edit:DeviceMetadataEdit,context:ExecutionContext)->Result<Uuid,String> {
+        if edit.id==source || edit.name.trim().is_empty() || edit.name.len()>256 || edit.name.chars().any(char::is_control) {return Err("invalid device metadata".into());}
+        let mut draft=self.get(principal,source)?.ok_or("draft not found")?;
+        let integer=|value:&str|->Result<u64,String>{
+            if value.is_empty()||value.starts_with('0')||!value.bytes().all(|v|v.is_ascii_digit()){return Err("invalid revision".into());}
+            value.parse::<u64>().map_err(|_|"invalid revision".into())
+        };
+        draft.id=edit.id;draft.expected_revision=integer(&edit.expected_revision)?;draft.revision=integer(&edit.revision)?;
+        let devices=draft.devices.get_mut("devices").and_then(|v|v.as_array_mut()).ok_or("devices missing")?;
+        let device=devices.iter_mut().find(|v|v["id"]==edit.device).and_then(|v|v.as_object_mut()).ok_or("device not found")?;
+        device.insert("name".into(),edit.name.into());
+        if let Some(room)=edit.room {device.insert("room".into(),room.into());} else {device.remove("room");}
+        draft.devices["revision"]=draft.revision.into();draft.automation["configuration_revision"]=draft.revision.into();
+        self.save(principal,&draft,context)?;Ok(draft.id)
     }
     /// Hide a draft without deleting its immutable source or recycling its ID.
     /// Already admitted publication requests are independent and are not cancelled.

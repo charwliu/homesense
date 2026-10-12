@@ -84,6 +84,12 @@ with tempfile.TemporaryDirectory(prefix='homesense-publication-') as directory:
     assert request('/api/v1/backups/inspect',{'kind':'daily','name':'missing.sqlite'})[0]==503
     assert request('/api/v1/devices')[1]['revision']==3,'inspection activated old configuration'
     if attempt==1:
+     edit={'id':str(uuid.uuid4()),'expected_revision':'3','revision':'4','device':'simulation:light','name':'Edited through metadata form','room':None}
+     code,result=request('/api/v1/config/drafts/'+restore_id+'/device-metadata',edit);assert code==200 and result['active'] is False,(code,result)
+     code,edited=request('/api/v1/config/drafts/'+edit['id']+'/source');assert code==200
+     assert json.loads(edited['devices'])['devices'][0]['name']==edit['name']
+     assert request('/api/v1/devices')[1]['devices'][0]['name']==original_name
+     edit['expected_revision']='2';assert request('/api/v1/config/drafts/'+restore_id+'/device-metadata',edit)[0]==409
      archive_path='/api/v1/config/drafts/'+restore_id+'/archive'
      assert request(archive_path, {})[0]==400
      # Archive requires an empty POST body, not a JSON object.

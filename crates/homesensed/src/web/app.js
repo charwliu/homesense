@@ -92,7 +92,7 @@ document.getElementById('connect').onclick = async () => {
 document.getElementById('logout').onclick = async () => {
   if(sessionBusy)return;sessionBusy=true;++sessionEpoch;
   invalidatePreview();
-  try { await request('/api/v1/session', {method: 'DELETE'}); csrf = ''; clearTimeout(eventRetry); if(eventSocket)eventSocket.close();eventDevices.clear(); selectedRoom='';document.getElementById('room-filter').replaceChildren();document.getElementById('room-filter').value=''; document.getElementById('draft-impact').textContent=''; document.getElementById('configuration').hidden=true;document.getElementById('diagnostics').hidden=true;historyEpoch++;detailEpoch++;document.getElementById('run-details').replaceChildren();document.getElementById('scene-history').hidden=true;document.getElementById('history-runs').replaceChildren();document.getElementById('history-title').textContent='';document.getElementById('history-next').disabled=true; document.getElementById('runtime-result').textContent='';document.getElementById('calendar-result').textContent='';document.getElementById('backup-result').textContent='';document.getElementById('backup-actions').replaceChildren();backupInspectionEpoch++;document.getElementById('backup-inspection').textContent='';document.getElementById('versions').replaceChildren();document.getElementById('draft-list').replaceChildren(); versionsBefore=null;document.getElementById('more-versions').disabled=true; for(const id of ['device-document','automation-document','draft-id','base-revision','draft-revision']) document.getElementById(id).value=''; started.clear(); list.replaceChildren(); document.getElementById('devices').replaceChildren(); status.textContent = '已退出'; }
+  try { await request('/api/v1/session', {method: 'DELETE'}); csrf = ''; clearTimeout(eventRetry); if(eventSocket)eventSocket.close();eventDevices.clear(); selectedRoom='';document.getElementById('room-filter').replaceChildren();document.getElementById('room-filter').value=''; document.getElementById('draft-impact').textContent=''; document.getElementById('configuration').hidden=true;document.getElementById('diagnostics').hidden=true;historyEpoch++;detailEpoch++;document.getElementById('run-details').replaceChildren();document.getElementById('scene-history').hidden=true;document.getElementById('history-runs').replaceChildren();document.getElementById('history-title').textContent='';document.getElementById('history-next').disabled=true; document.getElementById('runtime-result').textContent='';document.getElementById('calendar-result').textContent='';document.getElementById('backup-result').textContent='';document.getElementById('backup-actions').replaceChildren();backupInspectionEpoch++;document.getElementById('backup-inspection').textContent='';document.getElementById('versions').replaceChildren();document.getElementById('draft-list').replaceChildren(); versionsBefore=null;document.getElementById('more-versions').disabled=true; document.getElementById('metadata-device').replaceChildren();document.getElementById('metadata-room').replaceChildren();document.getElementById('metadata-name').value=''; for(const id of ['device-document','automation-document','draft-id','base-revision','draft-revision']) document.getElementById(id).value=''; started.clear(); list.replaceChildren(); document.getElementById('devices').replaceChildren(); status.textContent = '已退出'; }
   catch (error) { status.textContent = '注销未确认：' + error.message; }
   finally {sessionBusy=false;}
 };
@@ -180,6 +180,7 @@ async function loadDraft(id) {
     document.getElementById('draft-revision').value=draft.revision;
     document.getElementById('device-document').value=draft.devices;
     document.getElementById('automation-document').value=draft.automation;
+    renderMetadata(draft.devices);
     status.textContent='已读取草稿；当前运行配置未改变。';
   } catch(error) {status.textContent=error.message;}
 };
@@ -366,4 +367,21 @@ document.getElementById('backup-status').onclick = async () => {
     }
     output.textContent=data.groups.map(group=>`${group.kind==='daily'?'每日备份':'发布前备份'}（未校验）\n`+(group.entries.length?group.entries.map(item=>`${item.name} · ${item.bytes} 字节 · ${item.regular_file?'普通文件':'非普通文件'}`).join('\n'):'暂无备份')).join('\n\n');
   } catch(e) {if(epoch===sessionEpoch)output.textContent=e.message;}
+};
+
+function renderMetadata(text) {
+  const config=JSON.parse(text),devices=document.getElementById('metadata-device'),rooms=document.getElementById('metadata-room');devices.replaceChildren();rooms.replaceChildren();
+  for(const room of [{id:'',name:'未分配'},...(config.rooms||[])]){const option=document.createElement('option');option.value=room.id;option.textContent=room.name;rooms.append(option);}
+  for(const device of config.devices){const option=document.createElement('option');option.value=device.id;option.textContent=device.name+' · '+device.id;devices.append(option);}
+  devices.onchange=()=>{const device=config.devices.find(d=>d.id===devices.value);document.getElementById('metadata-name').value=device?.name||'';rooms.value=device?.room||'';};
+  devices.onchange();
+}
+document.getElementById('save-metadata').onclick=async()=>{
+  const epoch=invalidatePreview(),button=document.getElementById('save-metadata');button.disabled=true;
+  try {
+    const body={id:crypto.randomUUID(),expected_revision:document.getElementById('base-revision').value,revision:document.getElementById('draft-revision').value,device:document.getElementById('metadata-device').value,name:document.getElementById('metadata-name').value,room:document.getElementById('metadata-room').value||null};
+    const result=await request('/api/v1/config/drafts/'+encodeURIComponent(document.getElementById('draft-id').value)+'/device-metadata',{method:'POST',body:JSON.stringify(body)});
+    if(epoch!==previewEpoch)return;await loadDraft(result.draft);
+  } catch(e){if(epoch===previewEpoch)status.textContent=e.message;}
+  finally{button.disabled=false;}
 };
