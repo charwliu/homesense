@@ -27,6 +27,15 @@ pub struct CredentialSummary {
     pub id:Uuid,
     pub grant:Grant,
 }
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CredentialRequest {
+    pub role:Role,
+    pub scenes:BTreeSet<String>,
+    pub devices:BTreeSet<String>,
+}
+#[derive(serde::Serialize)]
+pub struct IssuedCredential {pub id:Uuid,pub secret:String,pub grant:Grant}
 struct Credential {
     generation: Uuid,
     hash: [u8; 32],
@@ -51,6 +60,24 @@ pub struct SessionSecret {
 }
 fn digest(value: &str) -> [u8; 32] {
     Sha256::digest(value.as_bytes()).into()
+}
+fn administrator<'a>(entries:&'a BTreeMap<Uuid,Credential>, sessions:&BTreeMap<[u8;32],Session>, bearer:Option<&str>,cookie:Option<&str>,csrf:Option<&str>)->Option<&'a Grant> {
+    let credential=match (bearer,cookie) {
+        (Some(header),None)=>{
+            let secret=header.strip_prefix("Bearer ")?;
+            if !(32..=256).contains(&secret.len()){return None;}
+            let hash=digest(secret);
+            entries.values().find(|entry|bool::from(entry.hash.ct_eq(&hash)))?
+        },
+        (None,Some(cookie))=>{
+            if cookie.len()!=64{return None;}
+            let session=sessions.get(&digest(cookie))?;
+            if session.expires<=std::time::Instant::now() || !bool::from(session.csrf.ct_eq(&digest(csrf?))){return None;}
+            entries.values().find(|entry|entry.generation==session.generation && bool::from(entry.hash.ct_eq(&session.credential)))?
+        },
+        _=>return None,
+    };
+    (credential.grant.role==Role::Administrator).then_some(&credential.grant)
 }
 impl Tokens {
     /// Administrative projection; intentionally excludes hashes and session material.
@@ -133,17 +160,7 @@ impl Tokens {
     pub fn revoke_managed(&self, id: Uuid, bearer: Option<&str>, cookie: Option<&str>, csrf: Option<&str>) -> Result<(), &'static str> {
         let mut entries=self.entries.write().map_err(|_|"credential_store_unavailable")?;
         let mut sessions=self.sessions.write().map_err(|_|"credential_store_unavailable")?;
-        let authorized=match (bearer,cookie) {
-            (Some(header),None)=>header.strip_prefix("Bearer ").filter(|s|(32..=256).contains(&s.len()))
-                .is_some_and(|secret|entries.values().any(|entry|entry.grant.role==Role::Administrator && bool::from(entry.hash.ct_eq(&digest(secret))))),
-            (None,Some(cookie))=>sessions.get(&digest(cookie)).is_some_and(|session| {
-                cookie.len()==64 && session.expires>std::time::Instant::now()
-                    && csrf.is_some_and(|csrf|bool::from(session.csrf.ct_eq(&digest(csrf))))
-                    && entries.values().any(|entry|entry.generation==session.generation && entry.grant.role==Role::Administrator && bool::from(entry.hash.ct_eq(&session.credential)))
-            }),
-            _=>false,
-        };
-        if !authorized {return Err("administrator_required");}
+        if administrator(&entries,&sessions,bearer,cookie,csrf).is_none() {return Err("administrator_required");}
         let target=entries.get(&id).ok_or("credential_not_found")?;
         if target.grant.role==Role::Administrator && entries.values().filter(|entry|entry.grant.role==Role::Administrator).count()==1 {return Err("last_administrator");}
         if let Some(store)=&self.persistence {
@@ -152,6 +169,22 @@ impl Tokens {
         let previous=entries.remove(&id).ok_or("credential_not_found")?;
         sessions.retain(|_,session|session.generation!=previous.generation);
         Ok(())
+    }
+    /// Issue a server-generated secret once; persist only its digest.
+    /// Delegation inherits the actor identity and cannot expand the caller's scope.
+    pub fn issue(&self, request: CredentialRequest, bearer: Option<&str>, cookie: Option<&str>, csrf: Option<&str>) -> Result<IssuedCredential, &'static str> {
+        let mut entries=self.entries.write().map_err(|_|"credential_store_unavailable")?;
+        let sessions=self.sessions.read().map_err(|_|"credential_store_unavailable")?;
+        let parent=administrator(&entries,&sessions,bearer,cookie,csrf).ok_or("administrator_required")?;
+        if !request.devices.is_subset(&parent.devices) || !request.scenes.is_subset(&parent.scenes) {return Err("scope_expansion_forbidden");}
+        let grant=Grant{controller:parent.controller,role:request.role,devices:request.devices,scenes:request.scenes};
+        crate::web_credentials::validate(&grant).map_err(|_|"invalid_credential_scope")?;
+        if entries.len()>=128 {return Err("credential_capacity_reached");}
+        let id=Uuid::new_v4();let secret=format!("{}{}",Uuid::new_v4().simple(),Uuid::new_v4().simple());let hash=digest(&secret);
+        if entries.contains_key(&id) || entries.values().any(|entry|bool::from(entry.hash.ct_eq(&hash))) {return Err("credential_collision");}
+        if let Some(store)=&self.persistence {store.lock().map_err(|_|"credential_store_unavailable")?.save(&crate::web_credentials::Record{id,digest:hash,grant:grant.clone()}).map_err(|_|"credential_store_unavailable")?;}
+        entries.insert(id,Credential{generation:Uuid::new_v4(),hash,grant:grant.clone()});
+        Ok(IssuedCredential{id,secret,grant})
     }
     pub fn login(&self, header: &str) -> Option<SessionSecret> {
         let secret=header.strip_prefix("Bearer ")?;

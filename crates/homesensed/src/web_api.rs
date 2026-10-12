@@ -197,6 +197,15 @@ impl Api {
         }
         if request.uri().path()=="/api/v1/credentials" {
             if grant.role!=crate::web_auth::Role::Administrator {return deny(StatusCode::FORBIDDEN,"administrator_required");}
+            if request.method()==hyper::Method::POST {
+                if request.headers().get("origin").and_then(|v|v.to_str().ok())!=Some(&self.origin) {return deny(StatusCode::FORBIDDEN,"origin_required");}
+                if request.body().len()>65536 {return deny(StatusCode::PAYLOAD_TOO_LARGE,"credential_request_too_large");}
+                let input=match serde_json::from_slice::<crate::web_auth::CredentialRequest>(request.body()) {Ok(input)=>input,Err(_)=>return deny(StatusCode::BAD_REQUEST,"invalid_credential_request")};
+                return match self.tokens.issue(input,authorization,cookie,request.headers().get("x-csrf-token").and_then(|v|v.to_str().ok())) {
+                    Ok(issued)=>response(StatusCode::CREATED,json!(issued)),
+                    Err(code)=>deny(match code {"administrator_required"|"scope_expansion_forbidden"=>StatusCode::FORBIDDEN,"invalid_credential_scope"=>StatusCode::BAD_REQUEST,"credential_capacity_reached"=>StatusCode::CONFLICT,_=>StatusCode::SERVICE_UNAVAILABLE},code),
+                };
+            }
             if request.method()!=hyper::Method::GET {return deny(StatusCode::METHOD_NOT_ALLOWED,"method_not_allowed");}
             if !request.body().is_empty() {return deny(StatusCode::BAD_REQUEST,"unexpected_body");}
             return match self.tokens.summaries() {
