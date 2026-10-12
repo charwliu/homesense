@@ -1,0 +1,41 @@
+{
+  "base_commit": "12a7c4d455762032ee0d61b38561d156e004e3fc",
+  "source_scope": "independent git archive plus three scoped code/test paths; private fixtures and unrelated worktree changes excluded",
+  "source_sha256": {
+    "crates/homesensed/src/rule_runtime.rs": "f5956a002602f0664e6b56f51f9603d5a11da7e027d1e2d7a4b962de63eaa59d",
+    "crates/homesensed/src/indicator_sync.rs": "6ee5a0eac5ea73e45b9a88e409a836319e8187094913ee22a069b1aede3e652f",
+    "crates/homesensed/tests/indicator_sync.rs": "b3c16610ea85f6fb3352971020547a155150bb1e7114dcd18b7ce10e25c18c19"
+  },
+  "baseline_reproductions": [
+    "queue pressure: old mode remained selected after capacity returned",
+    "feedback precheck expiry: old tick returned ResourceBusy",
+    "selection CAS conflict: old LED cleanup stayed suppressed"
+  ],
+  "related_tests": {
+    "passed": 169,
+    "failed": 0,
+    "ignored": 0,
+    "result_blocks": 7,
+    "indicator_tests": 7
+  },
+  "targets": [
+    "homesensed library",
+    "drive",
+    "indicator_sync",
+    "scene_switches",
+    "scene_switch_hap",
+    "scene_switch_web",
+    "study_runtime"
+  ],
+  "strict_clippy": "homesensed all targets -D warnings passed",
+  "sandbox_first_attempt": "localhost listeners denied; not counted as a pass; same selected regression rerun with permission",
+  "physical_gateway_connected": false,
+  "field_deployed": false,
+  "ea5_modified": false,
+  "private_source_published": false,
+  "limits": [
+    "focused regression, not full workspace",
+    "current integrated field acceptance remains pending",
+    "ambiguous or cancelled admission still must not be blindly retried"
+  ]
+}

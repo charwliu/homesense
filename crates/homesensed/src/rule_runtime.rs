@@ -6,6 +6,18 @@ use homesense_core::rule::{self, Action, Budget, Node, Variable};
 use homesense_hap::requests::{Batch, Intent};
 use homesense_storage::variables::Update;
 use uuid::Uuid;
+pub(crate) enum PreparationFailure {
+    Admission(hap::server::WriteStatus),
+    Planning(String),
+}
+impl PreparationFailure {
+    fn message(self) -> String {
+        match self {
+            Self::Admission(status) => format!("snapshot: {status:?}"),
+            Self::Planning(message) => message,
+        }
+    }
+}
 pub struct PreparedRule {
     audit: Option<homesense_storage::rule_audit::Admission>,
     feedback: Option<crate::feedback::RuleLease>,
@@ -16,7 +28,12 @@ pub struct PreparedRule {
     pub(crate) changed_variables: Vec<String>,
 }
 impl PreparedRule {
-    pub(crate) fn input_versions(&self)->Vec<(String,u64)> {self.updates.iter().map(|u|(u.name.clone(),u.expected_version)).collect()}
+    pub(crate) fn input_versions(&self) -> Vec<(String, u64)> {
+        self.updates
+            .iter()
+            .map(|u| (u.name.clone(), u.expected_version))
+            .collect()
+    }
 
     pub(crate) fn attach_cause(
         &mut self,
@@ -73,10 +90,23 @@ impl PreparedRule {
             &std::collections::BTreeMap<String, Variable>,
         ) -> Result<rule::Plan, String>,
     ) -> Result<Self, String> {
+        Self::prepare_using_status(admission, controller, generation, names, planner)
+            .await
+            .map_err(PreparationFailure::message)
+    }
+    pub(crate) async fn prepare_using_status(
+        admission: &Admission,
+        controller: Uuid,
+        generation: TaskGeneration,
+        names: Vec<String>,
+        planner: impl FnOnce(
+            &std::collections::BTreeMap<String, Variable>,
+        ) -> Result<rule::Plan, String>,
+    ) -> Result<Self, PreparationFailure> {
         let snapshot = admission
             .variable_snapshot(controller, generation.clone(), names)
             .await
-            .map_err(|e| format!("snapshot: {e:?}"))?;
+            .map_err(PreparationFailure::Admission)?;
         let variables = snapshot
             .iter()
             .map(|(name, v)| {
@@ -90,13 +120,15 @@ impl PreparedRule {
                 )
             })
             .collect();
-        let plan = planner(&variables)?;
+        let plan = planner(&variables).map_err(PreparationFailure::Planning)?;
         if plan
             .actions
             .iter()
             .any(|a| matches!(a.action, Action::Scene { .. }))
         {
-            return Err("scene expansion required before immediate admission".into());
+            return Err(PreparationFailure::Planning(
+                "scene expansion required before immediate admission".into(),
+            ));
         }
         let changed_variables = snapshot
             .iter()
@@ -184,6 +216,14 @@ impl PreparedRule {
     }
     /// Consumes the plan: failed/ambiguous admission is not automatically replayed.
     pub async fn commit(self, admission: &Admission) -> Result<Vec<u64>, String> {
+        self.commit_status(admission)
+            .await
+            .map_err(|e| format!("rule admission: {e:?}"))
+    }
+    pub(crate) async fn commit_status(
+        self,
+        admission: &Admission,
+    ) -> Result<Vec<u64>, hap::server::WriteStatus> {
         if let Some(audit) = self.audit {
             return admission
                 .submit_audited_rule(
@@ -193,8 +233,7 @@ impl PreparedRule {
                     self.feedback,
                     audit,
                 )
-                .await
-                .map_err(|e| format!("rule admission: {e:?}"));
+                .await;
         }
         if self.batch.intents.is_empty() && self.updates.is_empty() {
             return Ok(vec![]);
@@ -202,12 +241,10 @@ impl PreparedRule {
         if let Some(feedback) = self.feedback {
             return admission
                 .submit_feedback_rule(self.generation, self.batch, self.updates, feedback)
-                .await
-                .map_err(|e| format!("rule admission: {e:?}"));
+                .await;
         }
         admission
             .submit_rule_update(self.generation, self.batch, self.updates)
             .await
-            .map_err(|e| format!("rule admission: {e:?}"))
     }
 }
