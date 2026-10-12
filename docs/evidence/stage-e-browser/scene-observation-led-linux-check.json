@@ -1,0 +1,201 @@
+{
+  "source_commit": "c184e65eb7adfa284bf26b1978dcb392ab762351",
+  "binary_sha256": "7596e17aa0e61d9b20768918213e1c4a2152ddd52d7277fd4e954eafaafd8315",
+  "scope": "actual clean Linux binary and closed-world localhost gateway; original combination mapping and separate standalone dimmer fixture",
+  "private_results_sha256": {
+    "primary-results.json": "7e35a0738a2dd2f7df291ef2eeebb1865ec1533cd108da1e4e5337ad34415fc8",
+    "dimmer-results.json": "2827de07eed111a1a1536c78dd611326952d75131d124e29f2f01b0c3c891e10",
+    "preparation.json": "9aabc3cf28281adb2d9550ad10752a013242d3a48659cd040eaaf056aa577a54",
+    "final-readonly-audit.json": "2c192a182229046d956c5433d7cfb3960ff98c13c94cf267f6fc8d237ca7a715",
+    "probe-joint-v2.py": "52d26f810d98cae83bae9108c6ef850800f71caf34928c3b01dd8a7903b41462",
+    "probe-standalone-dimmer-v2.py": "e5db34063ebfb439895280d50ceb17ceeb23ec427c68048c4f4be01c8532c5ab"
+  },
+  "root_independent_record_and_manifest_assertions_passed": true,
+  "original_combination_mapping": {
+    "all_three_indicator_links_preserved": true,
+    "checks": [
+      {
+        "case": "initial_unknown",
+        "expected_visible_selection": null,
+        "persisted_selection": null,
+        "version": 0,
+        "commands": 0,
+        "scene_runs": 0
+      },
+      {
+        "case": "first_key3_ambiguous",
+        "expected_visible_selection": null,
+        "persisted_selection": null,
+        "version": 1,
+        "commands": 0,
+        "scene_runs": 0
+      },
+      {
+        "case": "held_old_main_off_preserves_unknown",
+        "expected_visible_selection": null,
+        "persisted_selection": null,
+        "version": 1,
+        "commands": 2,
+        "scene_runs": 0
+      },
+      {
+        "case": "release_selects_1_old_off_cannot_cancel",
+        "expected_visible_selection": 1,
+        "persisted_selection": 1,
+        "version": 2,
+        "commands": 2,
+        "scene_runs": 0
+      },
+      {
+        "case": "fresh_post_release_supply_off_cancels",
+        "expected_visible_selection": 0,
+        "persisted_selection": 0,
+        "version": 3,
+        "commands": 3,
+        "scene_runs": 0
+      },
+      {
+        "case": "same_external_key_toggles_off_after_local_cancel",
+        "expected_visible_selection": 0,
+        "persisted_selection": 0,
+        "version": 4,
+        "commands": 3,
+        "scene_runs": 0
+      },
+      {
+        "case": "before_gap_external2",
+        "expected_visible_selection": 2,
+        "persisted_selection": 2,
+        "version": 5,
+        "commands": 3,
+        "scene_runs": 0
+      },
+      {
+        "case": "EOF_invalidates_without_scene_or_light_replay",
+        "expected_visible_selection": null,
+        "persisted_selection": 2,
+        "version": 5,
+        "commands": 3,
+        "scene_runs": 0
+      },
+      {
+        "case": "first_after_gap_ambiguous",
+        "expected_visible_selection": null,
+        "persisted_selection": null,
+        "version": 6,
+        "commands": 3,
+        "scene_runs": 0
+      },
+      {
+        "case": "different_after_gap_converges_1",
+        "expected_visible_selection": 1,
+        "persisted_selection": 1,
+        "version": 7,
+        "commands": 3,
+        "scene_runs": 0
+      },
+      {
+        "case": "restart_invalidates_without_scene_or_light_replay",
+        "expected_visible_selection": null,
+        "persisted_selection": 1,
+        "version": 7,
+        "commands": 3,
+        "scene_runs": 0
+      },
+      {
+        "case": "first_after_restart_ambiguous",
+        "expected_visible_selection": null,
+        "persisted_selection": null,
+        "version": 8,
+        "commands": 3,
+        "scene_runs": 0
+      },
+      {
+        "case": "different_after_restart_converges_2",
+        "expected_visible_selection": 2,
+        "persisted_selection": 2,
+        "version": 9,
+        "commands": 3,
+        "scene_runs": 0
+      }
+    ],
+    "total_linked_led_off_commands": 3,
+    "light_supply_motor_commands": 0,
+    "scene_runs": 0,
+    "new_outputs_on_gap_or_restart": 0,
+    "cancellation_output_at_checkpoint": "written",
+    "final_old_boot_journal_statuses": [
+      "uncertain",
+      "uncertain",
+      "uncertain"
+    ],
+    "historical_status_limit": "old Written rows become Uncertain on boot recovery; no physical ACK is claimed",
+    "held_off_behavior": "linked LED cleanup allowed; selection and version stay unknown until release"
+  },
+  "supplemental_standalone_dimmer": {
+    "fixture_difference": "remove main lamp supply relay association only in localhost fixture; not field combination topology",
+    "all_three_indicator_links_preserved": true,
+    "checks": [
+      {
+        "case": "initial_unknown",
+        "selection": null,
+        "version": 0,
+        "commands": 0,
+        "scene_runs": 0
+      },
+      {
+        "case": "first_key_ambiguous_after_old_zero",
+        "selection": null,
+        "version": 1,
+        "commands": 3,
+        "scene_runs": 0
+      },
+      {
+        "case": "different_key_selects_1_after_old_zero",
+        "selection": 1,
+        "version": 2,
+        "commands": 3,
+        "scene_runs": 0
+      },
+      {
+        "case": "old_written_zero_with_fresh_zero_queries_does_not_cancel",
+        "selection": 1,
+        "version": 2,
+        "commands": 3,
+        "scene_runs": 0
+      },
+      {
+        "case": "new_completed_zero_validly_cancels_after_release",
+        "selection": 0,
+        "version": 3,
+        "commands": 6,
+        "scene_runs": 0
+      },
+      {
+        "case": "same_external_key_still_toggles_off_after_local_LED_cancel",
+        "selection": 0,
+        "version": 4,
+        "commands": 6,
+        "scene_runs": 0
+      }
+    ],
+    "old_written_zero_ms": 2000,
+    "selection_release_observed_ms": 4440,
+    "new_written_zero_ms": 9805,
+    "fresh_zero_query_replies_before_new_write": 1,
+    "old_zero_did_not_cancel": true,
+    "new_zero_cancelled_and_led_off_written": true,
+    "initial_attempt_with_original_topology": "brightness=0 writes supply relay Off, not completed Dimmer zero; failed assertion retained"
+  },
+  "field_enablement": false,
+  "field_observation_enabled": false,
+  "real_runtime_identity_unchanged": true,
+  "actual_phone_test": false,
+  "actual_gateway_used": false,
+  "real_service_running": false,
+  "remaining_gates": [
+    "actual combined-light mapping cannot manufacture a completed Dimmer zero through current Web brightness=0; standalone proof is supplemental, not field-topology proof",
+    "archived writer inventory is not proof of live project/implicit writer completeness",
+    "field acceptance and human window remain deferred"
+  ]
+}
