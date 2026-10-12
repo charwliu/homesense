@@ -169,6 +169,7 @@ impl SubmissionFailure {
     }
 }
 enum Message {
+    SceneHistory(Uuid, TaskGeneration, String, Option<homesense_storage::scene_history::Cursor>, usize, oneshot::Sender<Result<homesense_storage::scene_history::Page, WriteStatus>>),
     Diagnostics(Uuid, TaskGeneration, oneshot::Sender<Result<Diagnostics, WriteStatus>>),
     ConfigurationExport(Uuid, TaskGeneration, u64, oneshot::Sender<Result<Option<homesense_storage::configuration_history::Export>, WriteStatus>>),
     ConfigurationHistory(Uuid, TaskGeneration, Option<u64>, usize, oneshot::Sender<Result<homesense_storage::configuration_history::Page, WriteStatus>>),
@@ -498,6 +499,12 @@ impl Admission {
                                     _ => { failed=true; let _=arbiter.storage_failed(); WriteStatus::ServiceCommunicationFailure }
                                 })
                             };
+                            let _=reply.send(result);
+                        }
+                        Message::SceneHistory(controller,generation,definition,before,limit,reply) => {
+                            let result=if !authorize(controller) {Err(WriteStatus::InsufficientPrivileges)}
+                            else if generation.boot!=worker_boot || generation.epochs.configuration!=configuration.revision() {Err(WriteStatus::ServiceCommunicationFailure)}
+                            else {store.scene_history(configuration.revision(),&definition,before.as_ref(),limit).map_err(|e|match e {homesense_storage::Error::InvalidAudit=>WriteStatus::InvalidValueInRequest,_=>WriteStatus::ServiceCommunicationFailure})};
                             let _=reply.send(result);
                         }
                         Message::SceneQuery(controller,generation,query,reply) => {
@@ -1357,6 +1364,11 @@ impl Admission {
     pub(crate) async fn feedback_settled(&self,controller:Uuid,generation:TaskGeneration,lease:crate::feedback::RuleLease)->Result<bool,WriteStatus>{
         let (reply,receive)=oneshot::channel();
         self.sender.try_send(Message::FeedbackSettled(controller,generation,lease,reply)).map_err(|_|WriteStatus::ResourceBusy)?;
+        receive.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?
+    }
+    pub(crate) async fn scene_history_page(&self,controller:Uuid,generation:TaskGeneration,definition:String,before:Option<homesense_storage::scene_history::Cursor>,limit:usize)->Result<homesense_storage::scene_history::Page,WriteStatus> {
+        let (reply,receive)=oneshot::channel();
+        self.sender.try_send(Message::SceneHistory(controller,generation,definition,before,limit,reply)).map_err(|_|WriteStatus::ResourceBusy)?;
         receive.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?
     }
     pub(crate) async fn diagnostics(&self,controller:Uuid,generation:TaskGeneration)->Result<Diagnostics,WriteStatus> {
