@@ -404,7 +404,18 @@ impl AccessoryDatabase {
                     // with a snapshot read without invoking writes or notifications.
                     object.remove("value");
                     if characteristic.get_perms().contains(&Perm::PairedRead) {
-                        object.insert("value".into(), characteristic.get_value().await?);
+                        // Discovery must retain the graph when a bridged value is
+                        // unavailable. Apple HomeKit ADK HAPIPAccessory.c emits
+                        // null (empty string for TLV8) on a failed discovery read.
+                        // Explicit /characteristics reads still return an error.
+                        let value = characteristic.get_value().await.unwrap_or_else(|_| {
+                            if characteristic.get_format() == crate::characteristic::Format::Tlv8 {
+                                json!("")
+                            } else {
+                                serde_json::Value::Null
+                            }
+                        });
+                        object.insert("value".into(), value);
                     }
                 }
             }

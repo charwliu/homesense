@@ -63,7 +63,7 @@ mod tests {
         Arc, RwLock,
     };
     #[tokio::test]
-    async fn discovery_reads_snapshots_and_fails_without_cached_fallback_or_control_side_effects() {
+    async fn discovery_keeps_graph_without_cached_fallback_or_control_side_effects() {
         let id = uuid::Uuid::new_v4();
         let path = std::env::temp_dir().join(format!("hap-discovery-{id}"));
         let mut store = FileStorage::new(path.as_os_str()).await.unwrap();
@@ -113,7 +113,7 @@ mod tests {
         for (authenticated, fail, status) in [
             (false, false, StatusCode::UNAUTHORIZED),
             (true, false, StatusCode::OK),
-            (true, true, StatusCode::SERVICE_UNAVAILABLE),
+            (true, true, StatusCode::OK),
         ] {
             *controller.write().unwrap() = authenticated.then_some(id);
             unavailable.store(fail, Ordering::SeqCst);
@@ -142,21 +142,25 @@ mod tests {
             let json: serde_json::Value =
                 serde_json::from_slice(&crate::transport::http::body::to_bytes(response.into_body()).await.unwrap())
                     .unwrap();
-            if fail {
-                assert_eq!(json, serde_json::json!({"status":-70402}));
-            } else {
-                let characteristic = json["accessories"][0]["services"]
+            let characteristic = json["accessories"][0]["services"]
                     .as_array()
                     .unwrap()
                     .iter()
                     .flat_map(|s| s["characteristics"].as_array().unwrap())
                     .find(|c| c["iid"] == iid)
                     .unwrap();
-                assert_eq!(characteristic["value"], 73);
-            }
+            assert_eq!(characteristic["value"], if fail { serde_json::Value::Null } else { serde_json::json!(73) });
         }
         assert_eq!(writes.load(Ordering::SeqCst), 0);
         let mut reader = super::super::characteristics::GetCharacteristics::new();
+        let response = reader.handle(
+            format!("/characteristics?id=2.{iid}").parse().unwrap(), Body::empty(),
+            controller.clone(), subscriptions.clone(), config.clone(), storage.clone(), db.clone(), emitter.clone(),
+        ).await.unwrap();
+        assert_eq!(response.status(), StatusCode::MULTI_STATUS);
+        let value: serde_json::Value = serde_json::from_slice(&crate::transport::http::body::to_bytes(response.into_body()).await.unwrap()).unwrap();
+        assert_eq!(value["characteristics"][0]["status"], -70402);
+        assert!(value["characteristics"][0].get("value").is_none());
         let response = reader
             .handle(
                 "/characteristics?id=999.1".parse().unwrap(),
