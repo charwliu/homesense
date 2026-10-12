@@ -1,9 +1,12 @@
 //! Reviewed off reconciliation, separate from button automation. No light
 //! command or scene replay is emitted; only linked LEDs and local selection.
 use crate::{
-    admission::Admission, feedback::Feedback, rule_runtime::PreparedRule,
+    admission::Admission,
+    feedback::Feedback,
+    rule_runtime::{PreparationFailure, PreparedRule},
     scene_scheduler::SceneScheduler,
 };
+use hap::server::WriteStatus;
 use homesense_config::rule_document::Document;
 use homesense_core::{
     Command,
@@ -29,14 +32,19 @@ impl Synchronizer {
         if !document.indicator_links.iter().any(|l| l.enabled) {
             return Ok(());
         }
-        let generation = admission
-            .task_generation()
-            .await
-            .map_err(|e| format!("{e:?}"))?;
-        let recorded = admission
+        let generation = match admission.task_generation().await {
+            Ok(value) => value,
+            Err(WriteStatus::ResourceBusy) => return Ok(()),
+            Err(error) => return Err(format!("{error:?}")),
+        };
+        let recorded = match admission
             .recorded_dimmer_levels(controller, generation.clone())
             .await
-            .map_err(|e| format!("{e:?}"))?;
+        {
+            Ok(value) => value,
+            Err(WriteStatus::ResourceBusy) => return Ok(()),
+            Err(error) => return Err(format!("{error:?}")),
+        };
         // Delayed scene/fade output is not yet a settled off observation.
         // Conservatively defer while any scheduled scene is still active.
         if !scenes.publication_impact().is_empty() {
@@ -164,7 +172,7 @@ impl Synchronizer {
             }];
             let mut lease = None;
             let mut off = false;
-            let mut prepared = PreparedRule::prepare_using(
+            let prepared = PreparedRule::prepare_using_status(
                 admission,
                 controller,
                 generation.clone(),
@@ -185,15 +193,24 @@ impl Synchronizer {
                     Ok(plan)
                 },
             )
-            .await?;
+            .await;
+            let mut prepared = match prepared {
+                Ok(value) => value,
+                Err(PreparationFailure::Admission(WriteStatus::ResourceBusy)) => return Ok(()),
+                Err(PreparationFailure::Admission(error)) => {
+                    return Err(format!("indicator snapshot: {error:?}"));
+                }
+                Err(PreparationFailure::Planning(error)) => return Err(error),
+            };
             let lease = lease.ok_or("indicator feedback lease missing")?;
             // An unsettled sample must not change dedup state (off->on->off).
-            if !admission
+            match admission
                 .feedback_settled(controller, generation.clone(), lease.clone())
                 .await
-                .map_err(|e| format!("{e:?}"))?
             {
-                continue;
+                Ok(true) => {}
+                Ok(false) | Err(WriteStatus::ResourceBusy) => continue,
+                Err(error) => return Err(format!("{error:?}")),
             }
             if !off {
                 if prepared.unknown_branches.is_empty() {
@@ -211,13 +228,26 @@ impl Synchronizer {
                 continue;
             }
             prepared.attach_feedback(Some(lease));
-            self.attempted.insert(link.id.clone(), (true, versions));
-            // An uncertain result is never blindly replayed on every query.
-            if let Err(error) = prepared.commit(admission).await {
-                log::warn!(
-                    "indicator {} admission failed: {error}; no automatic replay",
-                    link.id
-                );
+            // Record before awaiting so dropping the future cannot retry an
+            // admission that may already be durable. Undo only known rejection.
+            let previous = self.attempted.insert(link.id.clone(), (true, versions));
+            match prepared.commit_status(admission).await {
+                // Both statuses are definite rejection before durable acceptance.
+                // Do not reuse this plan: the next tick captures fresh state/CAS.
+                Err(WriteStatus::ResourceBusy | WriteStatus::InvalidValueInRequest) => {
+                    if let Some(previous) = previous {
+                        self.attempted.insert(link.id.clone(), previous);
+                    } else {
+                        self.attempted.remove(&link.id);
+                    }
+                }
+                Ok(_) => {}
+                Err(error) => {
+                    log::warn!(
+                        "indicator {} admission failed: {error:?}; no automatic replay",
+                        link.id
+                    );
+                }
             }
         }
         Ok(())
