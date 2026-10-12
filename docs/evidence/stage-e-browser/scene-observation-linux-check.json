@@ -1,0 +1,261 @@
+{
+  "source_commit": "c184e65eb7adfa284bf26b1978dcb392ab762351",
+  "binary_sha256": "7596e17aa0e61d9b20768918213e1c4a2152ddd52d7277fd4e954eafaafd8315",
+  "scope": "actual Linux binary with archive closed-world localhost TCP emulator; not a real EA-5 or physical load test",
+  "private_artifact_sha256": {
+    "results.json": "6de9e2d364d17b9aeb7fe28e11fcf2e640cd2043c9472dfc3e4b7fc082fcf917",
+    "source-writer-review.json": "421a0edaa86bc31bd439c916dbc18355d04edf7d673a3d4448bf65d922de5926",
+    "preparation.json": "c7b13b296b84df7e4cf353ae89d4ff9fc95ab8e9aeef8c06ac932a1c6008e9b2",
+    "final-readonly-audit.json": "2a6a5c6c09fba25c1842f53e6e33112dcfd2acc9486148a4cbce550e4b5dfdcd",
+    "probe-observer.py": "11c9e53207cd79af24bd4f166cdf55da7d732fb497dc5271f06ef1f0823c7aeb"
+  },
+  "independent_root_record_checks_passed": true,
+  "checkpoints": [
+    {
+      "case": "initial_unknown",
+      "expected_visible_selection": null,
+      "persisted_selection": null,
+      "persisted_version": 0,
+      "new_commands": 0,
+      "new_scenes": 0,
+      "selection_sources": [
+        "unknown"
+      ],
+      "observation_current": null
+    },
+    {
+      "case": "held_before_release_unknown",
+      "expected_visible_selection": null,
+      "persisted_selection": null,
+      "persisted_version": 0,
+      "new_commands": 0,
+      "new_scenes": 0,
+      "selection_sources": [
+        "unknown"
+      ],
+      "observation_current": null
+    },
+    {
+      "case": "first_release_ambiguous",
+      "expected_visible_selection": null,
+      "persisted_selection": null,
+      "persisted_version": 1,
+      "new_commands": 0,
+      "new_scenes": 0,
+      "selection_sources": [
+        "inferred"
+      ],
+      "observation_current": true
+    },
+    {
+      "case": "same_key_still_ambiguous",
+      "expected_visible_selection": null,
+      "persisted_selection": null,
+      "persisted_version": 2,
+      "new_commands": 0,
+      "new_scenes": 0,
+      "selection_sources": [
+        "inferred"
+      ],
+      "observation_current": true
+    },
+    {
+      "case": "manual_local_selection_2",
+      "expected_visible_selection": 2,
+      "persisted_selection": 2,
+      "persisted_version": 3,
+      "new_commands": 7,
+      "new_scenes": 1,
+      "selection_sources": [
+        "local_intent"
+      ],
+      "observation_current": null
+    },
+    {
+      "case": "manual_does_not_seed_ambiguous_external",
+      "expected_visible_selection": null,
+      "persisted_selection": null,
+      "persisted_version": 4,
+      "new_commands": 0,
+      "new_scenes": 0,
+      "selection_sources": [
+        "inferred"
+      ],
+      "observation_current": true
+    },
+    {
+      "case": "different_key_converges_2",
+      "expected_visible_selection": 2,
+      "persisted_selection": 2,
+      "persisted_version": 5,
+      "new_commands": 0,
+      "new_scenes": 0,
+      "selection_sources": [
+        "inferred"
+      ],
+      "observation_current": true
+    },
+    {
+      "case": "same_key_toggles_off",
+      "expected_visible_selection": 0,
+      "persisted_selection": 0,
+      "persisted_version": 6,
+      "new_commands": 0,
+      "new_scenes": 0,
+      "selection_sources": [
+        "inferred"
+      ],
+      "observation_current": true
+    },
+    {
+      "case": "external_selects_3",
+      "expected_visible_selection": 3,
+      "persisted_selection": 3,
+      "persisted_version": 7,
+      "new_commands": 0,
+      "new_scenes": 0,
+      "selection_sources": [
+        "inferred"
+      ],
+      "observation_current": true
+    },
+    {
+      "case": "manual_changes_local_only_to_2",
+      "expected_visible_selection": 2,
+      "persisted_selection": 2,
+      "persisted_version": 8,
+      "new_commands": 7,
+      "new_scenes": 1,
+      "selection_sources": [
+        "local_intent"
+      ],
+      "observation_current": null
+    },
+    {
+      "case": "external_3_toggles_off_despite_local_2",
+      "expected_visible_selection": 0,
+      "persisted_selection": 0,
+      "persisted_version": 9,
+      "new_commands": 0,
+      "new_scenes": 0,
+      "selection_sources": [
+        "inferred"
+      ],
+      "observation_current": true
+    },
+    {
+      "case": "before_gap_inferred_1",
+      "expected_visible_selection": 1,
+      "persisted_selection": 1,
+      "persisted_version": 10,
+      "new_commands": 0,
+      "new_scenes": 0,
+      "selection_sources": [
+        "inferred"
+      ],
+      "observation_current": true
+    },
+    {
+      "case": "gap_invalidates_visible_inference",
+      "expected_visible_selection": null,
+      "persisted_selection": 1,
+      "persisted_version": 10,
+      "new_commands": 0,
+      "new_scenes": 0,
+      "selection_sources": [
+        "inferred"
+      ],
+      "observation_current": false
+    },
+    {
+      "case": "first_after_gap_ambiguous",
+      "expected_visible_selection": null,
+      "persisted_selection": null,
+      "persisted_version": 11,
+      "new_commands": 0,
+      "new_scenes": 0,
+      "selection_sources": [
+        "inferred"
+      ],
+      "observation_current": true
+    },
+    {
+      "case": "different_after_gap_converges_2",
+      "expected_visible_selection": 2,
+      "persisted_selection": 2,
+      "persisted_version": 12,
+      "new_commands": 0,
+      "new_scenes": 0,
+      "selection_sources": [
+        "inferred"
+      ],
+      "observation_current": true
+    },
+    {
+      "case": "restart_invalidates_persisted_inference",
+      "expected_visible_selection": null,
+      "persisted_selection": 2,
+      "persisted_version": 12,
+      "new_commands": 0,
+      "new_scenes": 0,
+      "selection_sources": [
+        "inferred"
+      ],
+      "observation_current": false
+    },
+    {
+      "case": "first_after_restart_ambiguous",
+      "expected_visible_selection": null,
+      "persisted_selection": null,
+      "persisted_version": 13,
+      "new_commands": 0,
+      "new_scenes": 0,
+      "selection_sources": [
+        "inferred"
+      ],
+      "observation_current": true
+    },
+    {
+      "case": "different_after_restart_converges_3",
+      "expected_visible_selection": 3,
+      "persisted_selection": 3,
+      "persisted_version": 14,
+      "new_commands": 0,
+      "new_scenes": 0,
+      "selection_sources": [
+        "inferred"
+      ],
+      "observation_current": true
+    }
+  ],
+  "healthy_before_after_gap_and_restart": true,
+  "source_review": {
+    "archived_typed_references": 9,
+    "archived_toggle_branches": 3,
+    "release_edge_explicit": true,
+    "external_toggle_reviews_explicit": true,
+    "live_project_matches_archive": false,
+    "implicit_writers_excluded": false,
+    "continuous_live_writer_observation_proven": false
+  },
+  "negative_config_checks": [
+    "missing writer review rejected",
+    "missing member key binding rejected"
+  ],
+  "observation_generated_commands": 0,
+  "observation_generated_scene_runs": 0,
+  "explicit_local_scene_controls_only_to_loopback": {
+    "commands": 14,
+    "scene_runs": 2
+  },
+  "field_enablement": false,
+  "field_observation_enabled": false,
+  "real_runtime_and_identity_unchanged": true,
+  "real_service_running": false,
+  "remaining_gates": [
+    "live EA-5 project matches archived snapshot",
+    "driver/internal or additional writers excluded or observable",
+    "real event mapping and continuous writer observation field acceptance",
+    "human field window remains deferred"
+  ]
+}
