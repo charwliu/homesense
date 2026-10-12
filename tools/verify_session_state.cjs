@@ -18,5 +18,9 @@ vm.runInContext(fs.readFileSync(require('node:path').join(__dirname,'../crates/h
  oldSocket.onmessage({data:JSON.stringify({type:'state',reset:true,devices:[{id:'old-device'}],scenes:[]})});oldSocket.onclose();
  assert.equal(vm.runInContext('eventDevices.size',context),0);
  assert.equal(element('versions').textContent,'');assert.equal(vm.runInContext('csrf',context),'');
+ vm.runInContext("csrf='new-session';connectEvents()",context);
+ element('issue-result').textContent='synthetic-secret';element('device-document').value='private-config';element('configuration').hidden=false;element('diagnostics').hidden=false;
+ const unauthorized=context.request('/api/v1/devices');const expired=assert.rejects(unauthorized,/会话已失效/);pending[2].resolve({ok:false,status:401,json:async()=>{throw Error('malformed body')}});await expired;
+ assert.equal(element('issue-result').textContent,'');assert.equal(element('device-document').value,'');assert.equal(element('configuration').hidden,true);assert.equal(element('diagnostics').hidden,true);assert.equal(vm.runInContext('csrf',context),'');
  console.log('Late HTTP/WebSocket responses and overlapping session changes: passed');
 })().catch(error=>{console.error(error);process.exitCode=1});
