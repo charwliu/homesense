@@ -495,3 +495,5 @@ Node 编码器回归验证正负大整数、i64 最大版本逐字保留，非�
 公开快照验证：基于 `d2d7ea3` 的 git archive，仅叠加 HAP 亮度过渡条件的等价 let-chain 修复，完整 workspace 测试 513 项通过、0 失败、0 忽略；未带入本地私有测试及其他未提交修改。`homesensed`、`homesense-storage`、`homesense-config` 库严格 Clippy 通过；vendor HAP 依赖仍有警告，因此不是整个依赖树零警告。证据见 `docs/evidence/stage-e-browser/clean-runtime-regression.json`。
 
 备份检查入口：`homesensed inspect-backup SNAPSHOT.sqlite [--simulation]`。只读检查独立 SQLite 备份（最大 1 GiB、当前 schema 18），拒绝活动 WAL、伴随日志、符号链接和未知 schema；执行 quick_check、外键检查及活动配置／自动化语义验证，输出活动版本、版本数量和字节数，不迁移、不激活、不恢复队列。默认按真实环境验证，模拟备份必须显式使用 `--simulation`。备份必须在检查期间保持不变；历史非活动版本未逐一做语义校验。两项备份测试及真实 CLI 测试通过，核验检查前后文件字节不变。备份目录清单、定时备份及保留策略仍待接入，EA-5 不变。
+
+备份清单：`homesensed list-backups DIRECTORY` 只读取当前目录中 `.sqlite` 条目的元数据，按文件名排序，返回 `verified: false`，不把文件存在等同于备份有效。非递归，最多扫描 1024 个目录条目（含其他扩展名），拒绝目录符号链接，文件符号链接仅标为非普通文件且不读取目标。字节数与修改时间为十进制字符串；需校验时逐个运行 `inspect-backup`。三项备份测试和 CLI 回归通过，包含断链、目录链接、非数据库文件和容量限制。定时备份／保留策略及 Web 备份入口仍待接入，EA-5 不变。
