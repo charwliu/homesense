@@ -208,7 +208,7 @@ async fn serve_inner(devices:&[u8],rules:&[u8],directory:&Path,duration:Duration
             let outcome={
                 let (ready,mut started)=tokio::sync::oneshot::channel();
                 let mut running=false;
-                let drive=runtime.drive_recoverable_projected(&mut owner,Duration::from_millis(10),5000,runtime_receive,wall_ms,Some(ready),hap.as_ref().map(|endpoint|endpoint.projection.clone()).or_else(||bridges.as_ref().map(|group|group.projection.clone())));
+                let drive=runtime.drive_recoverable_published(&mut owner,Duration::from_millis(10),5000,runtime_receive,wall_ms,Some(ready),hap.as_ref().map(|endpoint|endpoint.projection.clone()).or_else(||bridges.as_ref().map(|group|group.projection.clone())),bridges.as_ref().map(|group|group.panel_feeds.clone()).unwrap_or_default());
                 tokio::pin!(drive);
                 loop {
                     tokio::select! {

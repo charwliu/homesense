@@ -249,13 +249,24 @@ impl AutomationRuntime {
         ready: Option<tokio::sync::oneshot::Sender<()>>,
         projection: Option<tokio::sync::watch::Sender<homesense_state::Snapshot>>,
     ) -> Result<crate::automation_drive::Exit,String> {
+        self.drive_recoverable_published(owner,cadence,max_age_ms,stop,wall_clock,ready,projection,vec![]).await
+    }
+    #[allow(clippy::too_many_arguments)]
+    pub async fn drive_recoverable_published<S: std::io::Read + std::io::Write + Send + 'static>(
+        &mut self, owner: &mut crate::observed_transport::ObservedTransport<S>,
+        cadence: std::time::Duration, max_age_ms: u64,
+        stop: tokio::sync::watch::Receiver<bool>, wall_clock: impl FnMut() -> Result<i64,String>,
+        ready: Option<tokio::sync::oneshot::Sender<()>>,
+        projection: Option<tokio::sync::watch::Sender<homesense_state::Snapshot>>,
+        panel_feeds:Vec<crate::runtime_panel_hap::Feed>,
+    ) -> Result<crate::automation_drive::Exit,String> {
         self.validate().await?;
         if let Some(ready)=ready {let _=ready.send(());}
 
-        let outcome = crate::automation_drive::drive_with_projection(
+        let outcome = crate::automation_drive::drive_with_panel_feeds(
             &self.admission, owner, &mut self.panels, &mut self.scenes,
             Some(&mut self.calendar), cadence, max_age_ms, stop, wall_clock,
-            Some((&mut self.requests, &self.document)), Some(&mut self.causal), true, projection,
+            Some((&mut self.requests, &self.document)), Some(&mut self.causal), true, projection, panel_feeds,
         ).await?;
         self.publication_paused = matches!(outcome,
             crate::automation_drive::Exit::PublicationPaused | crate::automation_drive::Exit::Disconnected { .. });
