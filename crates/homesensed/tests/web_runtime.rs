@@ -157,7 +157,7 @@ async fn web_scope_origin_receipts_and_runtime_admission() {
             },
         )
         .unwrap();
-    let api = Api {
+    let mut api = Api {
         publisher:None,
         origin: "http://127.0.0.1:8088".into(),
         tokens: tokens.clone(),
@@ -412,9 +412,17 @@ async fn web_scope_origin_receipts_and_runtime_admission() {
             let mut read=make(&api.origin,"");*read.method_mut()=hyper::Method::GET;*read.uri_mut()=path.parse().unwrap();
             assert_eq!(api.handle(read).await.status(),StatusCode::FORBIDDEN);
         }
+        let mut capability=make(&api.origin,"");*capability.method_mut()=hyper::Method::GET;*capability.uri_mut()="/api/v1/session".parse().unwrap();
+        let capability:serde_json::Value=serde_json::from_slice(&api.handle(capability).await.into_body().collect().await.unwrap().to_bytes()).unwrap();assert_eq!(capability["can_view_diagnostics"],false);
         let mut administrator = tokens.authenticate(&format!("Bearer {secret}")).unwrap();
         administrator.role = Role::Administrator;
         tokens.insert(token_id, secret, administrator).unwrap();
+        let saved_drafts=api.drafts.take();
+        let mut capability=make(&api.origin,"");*capability.method_mut()=hyper::Method::GET;*capability.uri_mut()="/api/v1/session".parse().unwrap();
+        let capability:serde_json::Value=serde_json::from_slice(&api.handle(capability).await.into_body().collect().await.unwrap().to_bytes()).unwrap();assert_eq!(capability["can_view_diagnostics"],true);assert_eq!(capability["can_manage_configuration"],false);
+        let mut diagnostic=make(&api.origin,"");*diagnostic.method_mut()=hyper::Method::GET;*diagnostic.uri_mut()="/api/v1/diagnostics".parse().unwrap();assert_eq!(api.handle(diagnostic).await.status(),StatusCode::OK);
+        api.drafts=saved_drafts;
+
         for (path,method,body,status) in [("/health/ready",hyper::Method::GET,"",StatusCode::OK),("/health/ready",hyper::Method::GET,"{}",StatusCode::BAD_REQUEST),("/health/ready",hyper::Method::POST,"{}",StatusCode::METHOD_NOT_ALLOWED),("/health/live",hyper::Method::POST,"",StatusCode::METHOD_NOT_ALLOWED),("/health/live",hyper::Method::GET,"{}",StatusCode::BAD_REQUEST),("/health/ready?token=x",hyper::Method::GET,"",StatusCode::BAD_REQUEST)] {
             let mut read=make(&api.origin,body);*read.method_mut()=method;*read.uri_mut()=path.parse().unwrap();assert_eq!(api.handle(read).await.status(),status);
         }

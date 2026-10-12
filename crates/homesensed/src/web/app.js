@@ -29,6 +29,7 @@ async function request(path, options = {}) {
 async function refresh() {
   const capabilities = await request('/api/v1/session');
   document.getElementById('configuration').hidden = !capabilities.can_manage_configuration;
+  document.getElementById('diagnostics').hidden = !capabilities.can_view_diagnostics;
   const data = await request('/api/v1/scenes');
   await refreshDevices();
   renderScenes(data);
@@ -77,7 +78,7 @@ document.getElementById('connect').onclick = async () => {
 document.getElementById('logout').onclick = async () => {
   if(sessionBusy)return;sessionBusy=true;++sessionEpoch;
   invalidatePreview();
-  try { await request('/api/v1/session', {method: 'DELETE'}); csrf = ''; clearTimeout(eventRetry); if(eventSocket)eventSocket.close();eventDevices.clear(); selectedRoom='';document.getElementById('room-filter').replaceChildren();document.getElementById('room-filter').value=''; document.getElementById('draft-impact').textContent=''; document.getElementById('configuration').hidden=true; document.getElementById('runtime-result').textContent='';document.getElementById('calendar-result').textContent='';document.getElementById('versions').replaceChildren();document.getElementById('draft-list').replaceChildren(); versionsBefore=null;document.getElementById('more-versions').disabled=true; for(const id of ['device-document','automation-document','draft-id','base-revision','draft-revision']) document.getElementById(id).value=''; started.clear(); list.replaceChildren(); document.getElementById('devices').replaceChildren(); status.textContent = '已退出'; }
+  try { await request('/api/v1/session', {method: 'DELETE'}); csrf = ''; clearTimeout(eventRetry); if(eventSocket)eventSocket.close();eventDevices.clear(); selectedRoom='';document.getElementById('room-filter').replaceChildren();document.getElementById('room-filter').value=''; document.getElementById('draft-impact').textContent=''; document.getElementById('configuration').hidden=true;document.getElementById('diagnostics').hidden=true; document.getElementById('runtime-result').textContent='';document.getElementById('calendar-result').textContent='';document.getElementById('versions').replaceChildren();document.getElementById('draft-list').replaceChildren(); versionsBefore=null;document.getElementById('more-versions').disabled=true; for(const id of ['device-document','automation-document','draft-id','base-revision','draft-revision']) document.getElementById(id).value=''; started.clear(); list.replaceChildren(); document.getElementById('devices').replaceChildren(); status.textContent = '已退出'; }
   catch (error) { status.textContent = '注销未确认：' + error.message; }
   finally {sessionBusy=false;}
 };
