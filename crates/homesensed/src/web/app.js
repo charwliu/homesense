@@ -109,8 +109,9 @@ document.getElementById('connect').onclick = async () => {
   try {
     const response = await fetch('/api/v1/session', {method: 'POST', credentials: 'same-origin', headers: {Authorization: `Bearer ${credential}`}});
     if (!response.ok) throw new Error('登录失败');
+    announceSessionChange();
     const session=await response.json();if(epoch!==sessionEpoch)return;
-    csrf = session.csrf;pendingLogoutCsrf=''; eventCursor=null; await refresh(); connectEvents(); status.textContent = '已连接（会话 15 分钟有效）';
+    csrf = session.csrf;pendingLogoutCsrf=''; eventCursor=null; await refresh(); if(epoch!==sessionEpoch)return; connectEvents(); status.textContent = '已连接（会话 15 分钟有效）';
   } catch (error) { if(epoch===sessionEpoch){clearLocalSession();status.textContent = error.message;} }
   finally {sessionBusy=false;}
 };
@@ -120,7 +121,7 @@ function clearLocalSession() {
 }
 document.getElementById('logout').onclick = async () => {
   if(sessionBusy)return;sessionBusy=true;
-  const logoutCsrf=csrf||pendingLogoutCsrf;pendingLogoutCsrf=logoutCsrf;clearLocalSession();status.textContent='本机内容已清除，正在注销服务端会话…';
+  const logoutCsrf=csrf||pendingLogoutCsrf;pendingLogoutCsrf=logoutCsrf;clearLocalSession();announceSessionChange();status.textContent='本机内容已清除，正在注销服务端会话…';
   try {
     const response=await fetch('/api/v1/session',{method:'DELETE',cache:'no-store',credentials:'same-origin',headers:{'X-CSRF-Token':logoutCsrf}});
     if(!response.ok && response.status!==401)throw new Error('服务端注销未确认');
@@ -621,3 +622,19 @@ document.getElementById('save-credential').onclick=async()=>{
   }catch(e){if(epoch===sessionEpoch&&editEpoch===credentialEditEpoch)output.textContent=e.message+'；请重新读取授权核对结果，未自动重试。';}
   finally{credentialEditBusy=false;button.disabled=false;}
 };
+
+// Cookie replacement is origin-wide; do not leave other tabs with obsolete CSRF/UI state.
+let sessionChannel=null;
+try {
+  if(typeof BroadcastChannel!=='undefined') {
+    sessionChannel=new BroadcastChannel('homesense-session');
+    sessionChannel.onmessage=event=>{
+      if(event.data!=='session-changed')return;
+      clearLocalSession();pendingLogoutCsrf='';
+      status.textContent='其他标签页已更改登录状态，请在本页重新登录。';
+    };
+  }
+}catch(_) { /* HTTP authorization remains authoritative when messaging is unavailable. */ }
+function announceSessionChange() {
+  try {sessionChannel?.postMessage('session-changed');}catch(_) {}
+}
