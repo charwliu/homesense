@@ -30,6 +30,8 @@ pub struct RoomEdit {
     pub expected_revision:String,
     pub revision:String,
     pub room:homesense_config::Room,
+    #[serde(default)]
+    pub remove:bool,
 }
 type StoredDraft = (String, i64, i64, Vec<u8>, Vec<u8>);
 #[derive(Debug, PartialEq, Eq)]
@@ -163,8 +165,13 @@ impl Drafts {
         draft.id=edit.id;draft.expected_revision=edit.expected_revision.parse().map_err(|_|"invalid revision")?;draft.revision=edit.revision.parse().map_err(|_|"invalid revision")?;
         if edit.expected_revision!=draft.expected_revision.to_string() || edit.revision!=draft.revision.to_string(){return Err("invalid revision".into());}
         let rooms=draft.devices.as_object_mut().ok_or("invalid device document")?.entry("rooms").or_insert_with(||serde_json::json!([])).as_array_mut().ok_or("invalid rooms")?;
-        let value=serde_json::to_value(&edit.room).map_err(|e|e.to_string())?;
-        if let Some(old)=rooms.iter_mut().find(|r|r["id"]==edit.room.id){*old=value;}else{rooms.push(value);}
+        if edit.remove {
+            let index=rooms.iter().position(|r|r["id"]==edit.room.id).ok_or("room not found")?;
+            rooms.remove(index);
+        } else {
+            let value=serde_json::to_value(&edit.room).map_err(|e|e.to_string())?;
+            if let Some(old)=rooms.iter_mut().find(|r|r["id"]==edit.room.id){*old=value;}else{rooms.push(value);}
+        }
         draft.devices["revision"]=draft.revision.into();draft.automation["configuration_revision"]=draft.revision.into();
         self.save(principal,&draft,context)?;Ok(draft.id)
     }

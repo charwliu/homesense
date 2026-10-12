@@ -134,9 +134,13 @@ fn room_edits_preserve_membership_and_original_draft() {
     let root=std::env::temp_dir().join(format!("room-edit-{}",Uuid::new_v4()));std::fs::create_dir(&root).unwrap();let mut store=Drafts::open(&root.join("drafts.sqlite")).unwrap();let owner=Uuid::new_v4();
     let mut devices:serde_json::Value=serde_json::from_slice(include_bytes!("../../../config/simulation.json")).unwrap();devices["revision"]=2.into();
     let draft=Draft{id:Uuid::new_v4(),expected_revision:1,revision:2,devices,automation:serde_json::json!({"schema_version":1,"configuration_revision":2,"variables":[],"rules":[]})};store.save(owner,&draft,ExecutionContext::Simulation).unwrap();
-    let make=|name:&str|RoomEdit{id:Uuid::new_v4(),expected_revision:"1".into(),revision:"9007199254740993".into(),room:homesense_config::Room{id:"study".into(),name:name.into(),floor:Some("二层".into())}};
+    let make=|name:&str|RoomEdit{id:Uuid::new_v4(),expected_revision:"1".into(),revision:"9007199254740993".into(),room:homesense_config::Room{id:"study".into(),name:name.into(),floor:Some("二层".into())},remove:false};
     assert!(store.edit_room(Uuid::new_v4(),draft.id,make("书房"),ExecutionContext::Simulation).is_err());assert!(store.edit_room(owner,draft.id,make(""),ExecutionContext::Simulation).is_err());
     let id=store.edit_room(owner,draft.id,make("书房"),ExecutionContext::Simulation).unwrap();let updated=store.get(owner,id).unwrap().unwrap();assert_eq!(updated.devices["devices"],draft.devices["devices"]);assert_eq!(updated.devices["revision"],9007199254740993u64);
     let next=store.edit_room(owner,id,make("工作室"),ExecutionContext::Simulation).unwrap();let updated=store.get(owner,next).unwrap().unwrap();assert_eq!(updated.devices["rooms"].as_array().unwrap().len(),1);assert_eq!(updated.devices["rooms"][0]["name"],"工作室");assert_eq!(store.get(owner,draft.id).unwrap(),Some(draft));
+    let mut remove=make("ignored");remove.remove=true;
+    let removed=store.edit_room(owner,next,remove,ExecutionContext::Simulation).unwrap();assert!(store.get(owner,removed).unwrap().unwrap().devices["rooms"].as_array().unwrap().is_empty());
+    let mut referenced=store.get(owner,next).unwrap().unwrap();referenced.id=Uuid::new_v4();referenced.devices["devices"][0]["room"]="study".into();store.save(owner,&referenced,ExecutionContext::Simulation).unwrap();
+    let mut remove=make("ignored");remove.remove=true;let refused=remove.id;assert!(store.edit_room(owner,referenced.id,remove,ExecutionContext::Simulation).is_err());assert!(store.get(owner,refused).unwrap().is_none());assert_eq!(store.get(owner,referenced.id).unwrap(),Some(referenced));
     drop(store);std::fs::remove_dir_all(root).unwrap();
 }
