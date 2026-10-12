@@ -5,6 +5,24 @@ use homesense_core::{DeviceId, Percent};
 use rusqlite::params;
 use std::collections::BTreeMap;
 impl Store {
+    /// Durable HomeSense settings, distinct from measured output and restore
+    /// preferences. Only completed writes count; cancelled/queued/uncertain
+    /// targets cannot become settings. Row order spans process boots.
+    pub fn recorded_dimmer_levels(
+        &self,
+        revision: u64,
+        devices: &[DeviceId],
+    ) -> Result<BTreeMap<DeviceId, Percent>, Error> {
+        if devices.len() > 4096 { return Err(Error::InvalidPayload); }
+        use rusqlite::OptionalExtension;
+        let mut query = self.connection.prepare("SELECT level FROM light_setting WHERE revision=?1 AND device_id=?2")?;
+        let mut result = BTreeMap::new();
+        for id in devices {
+            let level: Option<u8> = query.query_row(params![sql_revision(revision)?,id.as_str()], |row| row.get(0)).optional()?;
+            if let Some(level) = level { result.insert(id.clone(), Percent::new(level).map_err(|_|Error::InvalidAudit)?); }
+        }
+        Ok(result)
+    }
     /// The runtime must supply only fresh, confirmed physical feedback.
     /// A zero observation intentionally preserves the previous nonzero value.
     pub fn remember_light_levels(

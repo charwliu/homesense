@@ -97,7 +97,7 @@ pub(crate) async fn read_scoped(
         // Relay observations affect their logical combined lights too. Project
         // the latest coherent physical snapshot instead of inventing old pairs.
         snapshot.devices.retain(|view| {
-            physical.contains(&view.id)
+            view.recorded || physical.contains(&view.id)
                 || bundle
                     .configuration
                     .devices()

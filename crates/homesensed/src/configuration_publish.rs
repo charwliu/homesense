@@ -166,6 +166,11 @@ pub fn validate_automation(
             command(&step.device, step.command, config, context)?;
         }
     }
+    for link in document.indicator_links.iter().filter(|l|l.enabled) {
+        for led in &link.leds {
+            command(led, homesense_core::Command::PanelLed(false), config, context)?;
+        }
+    }
     Ok(document)
 }
 

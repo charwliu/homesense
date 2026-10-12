@@ -1,0 +1,79 @@
+{
+  "base_commit": "435cfe1d5a449db53b0ee1c92f173391d38897dc",
+  "source_sha256": {
+    "crates/homesense-config/src/lib.rs": "aad0a725214e6deab6c2df346b4a5360ce7620a8e7d04bf15ab0cec426f630cb",
+    "crates/homesense-config/src/rule_document.rs": "4c5097c2d014465ae0132ddc625c52a5dfb09ac03a66bf9e2d5534a0bf7701b7",
+    "crates/homesense-config/src/indicator_links.rs": "7d27e36cd26c6779eea0a6166f054224aae7c0882f5501f62b2d6197ae404565",
+    "crates/homesense-storage/src/lib.rs": "d892410393da1b6ff42eeface1880aa2eee43d5754f540d7f649f0a8577c2eb7",
+    "crates/homesense-storage/src/journal.rs": "9c6ad76b5801c2dc819d6c6ae759a6aa8b826c2c5610f37de00fad7b3be0292a",
+    "crates/homesense-storage/src/light_restore.rs": "23ab2ed92b16a5a71f5871032062441ce3352998feeda8aa948328d347cebc35",
+    "crates/homesense-storage/src/backup.rs": "1aa2c9b05c05958575c0200bc793041ac25d03c33ce85f2b4eb03e96fbdcc110",
+    "crates/homesense-storage/tests/backup.rs": "7735041d490527cb2ee1cced9ff484fd08632786e508bb7894d3ed099ed6e463",
+    "crates/homesense-storage/tests/journal.rs": "e5245ca6174157371eece65088a8a9b17c700c685b66d26321ab0be2a86e0288",
+    "crates/homesense-storage/tests/light_restore.rs": "48ec2f8f2319857f825e542f5d39d1ec36ef2eb49fbcb79397bde503abe02eae",
+    "crates/homesensed/src/admission.rs": "6efe49d600926e8889c49a5352c082a1175b29f54cf37d6bd7fb4f7450933d7d",
+    "crates/homesensed/src/automation_drive.rs": "fde64a441300a64fa40bef8900a443210dc2d064d708924ab567b5f1c2e1de91",
+    "crates/homesensed/src/configuration_publish.rs": "cbe791671e73be23e8ac53257a2a9ab538e011acfa6d93be161efbfba30a53e4",
+    "crates/homesensed/src/configured_rules.rs": "2c7a316b3c01958ba9bf18b418348efcc83db45b356a131a5a7063b5510cb785",
+    "crates/homesensed/src/feedback.rs": "c9126234f8247cc2708c3da49b4f8aac527c7412627a43b6c0322995f82edfc7",
+    "crates/homesensed/src/lib.rs": "0bdcfb49adaa416a434b92264cf3b7ce7efa4de23c9be7de279a09cedfb74155",
+    "crates/homesensed/src/management_devices.rs": "ea261fc375c640d7e461d07e09944655b90e5e07b4f48f738eb48a29ae8e87da",
+    "crates/homesensed/src/management_events.rs": "ac6feb8f686603391cd3b43c4dfd0a642a01025c798bbfe0187c96ad57426c43",
+    "crates/homesensed/src/rule_runtime.rs": "7a3e7bc2938ac2815ab2788985ffbfbe414031bfbfd814014454e86ffe5bd3d5",
+    "crates/homesensed/src/runtime_hap.rs": "3e225f58baf41a5f00ab2fc60202d09708076ce4700cd333a47c63eb568b188e",
+    "crates/homesensed/src/web/app.js": "c8db85a72b9b6dcc8bd0cbe3e50abe94144c27f125140ad8af8630cc5cec58d1",
+    "crates/homesensed/src/web_api.rs": "26eb59d65ebd6e8072a9d417ad5e54495a3d70d67141aac523e633d54ad3d307",
+    "crates/homesensed/src/indicator_sync.rs": "e4c9ab93a8f80aedfb846cb5e9c61126f61202162bb177e96fd82cfe93d3c71b",
+    "crates/homesensed/src/light_state.rs": "06189e92e6f727e74ee6a0bf25c6547b5ea4c999f24d398748b8617c0344c4dc",
+    "crates/homesensed/tests/indicator_sync.rs": "c3cb817ec7b7747d38102b94931f95101803abfac83661ad99bb36547eb686f2",
+    "tools/verify_light_policy.cjs": "f7a51d1613bf53226f1b32bc2c531cdef15e624a67404c2260c819891d9127fa",
+    "crates/homesensed/tests/drive.rs": "0ee165b1d5983f83beec29647c8dcb1e69bf0815474128f2904feb274c3cdc65",
+    "crates/homesensed/tests/multiple_hap.rs": "acaa7eb38cf1374d69d9ad531d997b0b91c80dfb7567096a1dc9e33bef4f8967"
+  },
+  "rust": "rustc 1.99.0 (b940084d7 2026-09-28)",
+  "source_scope": "independent clean HEAD snapshot plus these scoped code/test paths; no private Control4 fixtures",
+  "regression": {
+    "storage_and_homesensed_full_run": {
+      "blocks": 62,
+      "passed": 390,
+      "failed": 2,
+      "ignored": 0
+    },
+    "initial_failures": "two multiple_hap assertions expected measured 60%; revised to retain recorded 30%/40%, while Web actual feedback remains 60%",
+    "corrected_multiple_hap_run": {
+      "blocks": 1,
+      "passed": 3,
+      "failed": 0,
+      "ignored": 0
+    },
+    "configuration_run": {
+      "blocks": 3,
+      "passed": 23,
+      "failed": 0,
+      "ignored": 0
+    },
+    "final_unique_passed": 415,
+    "front_end_scripts_passed": 14,
+    "strict_clippy": "homesensed, homesense-storage and homesense-config all targets passed"
+  },
+  "browser": {
+    "fixture": "synthetic local Web simulation only",
+    "setting": 30,
+    "display": "开 · 30% · HomeSense设定 · Confirmed",
+    "logout": "verified; states cleared",
+    "screenshot": "light-state-policy.png",
+    "ui_source_hashes": {
+      "crates/homesensed/src/web/app.js": "c8db85a72b9b6dcc8bd0cbe3e50abe94144c27f125140ad8af8630cc5cec58d1",
+      "crates/homesensed/src/web_api.rs": "26eb59d65ebd6e8072a9d417ad5e54495a3d70d67141aac523e633d54ad3d307"
+    }
+  },
+  "physical_gateway_connected": false,
+  "field_deployed": false,
+  "ea5_modified": false,
+  "private_source_published": false,
+  "limits": [
+    "LED behavior and multi-panel relationships outside reviewed study scope await field confirmation",
+    "complete Stage D/E acceptance remains pending",
+    "schema 21 has not been applied on field hosts"
+  ]
+}

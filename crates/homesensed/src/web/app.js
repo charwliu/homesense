@@ -181,7 +181,9 @@ function renderDevices() {
     const row = document.createElement('article');
     const title = document.createElement('h2'); title.textContent = device.name;
     const info = document.createElement('p');
-    info.textContent = device.observed === null ? '状态未知' : `${device.observed.on ? '开' : '关'}${device.observed.level === undefined ? '' : ' · ' + device.observed.level + '%'}`;
+    const reported=Object.hasOwn(device,'reported') ? device.reported : device.observed;
+    info.textContent = reported == null ? '状态未知' : `${reported.on ? '开' : '关'}${reported.level === undefined ? '' : ' · ' + reported.level + '%'}${device.state_authority==='homesense_setting' ? ' · HomeSense设定' : ''}`;
+    if(device.state_authority==='homesense_setting' && device.observed?.level!==undefined && reported?.level!==device.observed.level)info.textContent += ` · 读回 ${device.observed.level}%`;
     info.textContent += ` · ${device.quality}${device.pending === null ? '' : ' · 等待反馈'}`;
     if(device.room) {const location=document.createElement('p');location.textContent=[device.room.floor,device.room.name].filter(Boolean).join(' · ');row.append(location);}
     row.append(title, info);
@@ -205,7 +207,7 @@ function renderDevices() {
     }
     if(device.kind==='Dimmer') {
       const level=document.createElement('input'); level.type='number';level.min='0';level.max='100';level.step='1';level.setAttribute('aria-label',device.name+'亮度');
-      level.value=device.observed?.level ?? '';
+      level.value=reported?.level ?? '';
       const apply=document.createElement('button');apply.textContent='设置亮度';apply.disabled=!device.can_control;
       apply.onclick=async()=>{if(level.value===''||!level.checkValidity())return;apply.disabled=true;await send({action:'brightness',level:Number(level.value)});};row.append(level,apply);
     }

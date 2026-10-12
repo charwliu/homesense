@@ -392,10 +392,17 @@ impl Store {
         ) {
             return Err(Error::InvalidAudit);
         }
-        let count = self.connection.execute("UPDATE command_journal SET status=?1,updated_ms=?2 WHERE boot_id=?3 AND command_id=?4 AND status=?5 AND updated_ms<=?2",params![to.text(),integer(now_ms)?,boot_id,integer(id)?,from.text()])?;
-        if count != 1 {
-            return Err(Error::Conflict);
+        let tx=self.connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let count = tx.execute("UPDATE command_journal SET status=?1,updated_ms=?2 WHERE boot_id=?3 AND command_id=?4 AND status=?5 AND updated_ms<=?2",params![to.text(),integer(now_ms)?,boot_id,integer(id)?,from.text()])?;
+        if count != 1 {return Err(Error::Conflict);}
+        if to==Status::Written {
+            let (revision,device,bytes,row):(i64,String,Vec<u8>,i64)=tx.query_row("SELECT revision,device_id,intent,rowid FROM command_journal WHERE boot_id=?1 AND command_id=?2",params![boot_id,integer(id)?],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?)))?;
+            if bytes.len()==4 && bytes[0]==1 && matches!(bytes[1],2|3) && bytes[3]==0 {
+                let level=homesense_core::Percent::new(bytes[2]).map_err(|_|Error::InvalidAudit)?;
+                tx.execute("INSERT INTO light_setting(revision,device_id,level,journal_row) VALUES(?1,?2,?3,?4) ON CONFLICT(revision,device_id) DO UPDATE SET level=excluded.level,journal_row=excluded.journal_row WHERE light_setting.journal_row<excluded.journal_row",params![revision,device,level.get(),row])?;
+            }
         }
+        tx.commit()?;
         Ok(())
     }
     /// Call during exclusive startup with a fresh boot ID. Returns only an audit

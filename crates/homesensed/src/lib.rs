@@ -128,3 +128,7 @@ pub use fade_budget::Capacity as WireCapacity;
 pub mod scene_switches;
 
 mod scene_selection_hap;
+
+pub mod light_state;
+
+pub mod indicator_sync;

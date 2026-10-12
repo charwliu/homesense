@@ -315,7 +315,7 @@ async fn run_pairing(fresh: bool) {
                     .as_array()
                     .unwrap()
                     .iter()
-                    .any(|d| d["observed"]["level"] == 60)
+                    .any(|d| d["observed"]["level"] == 60 && d["reported"]["level"] == 30)
             {
                 break;
             }
@@ -332,7 +332,7 @@ async fn run_pairing(fresh: bool) {
                 controllers[index],
                 keys[index].clone(),
                 index,
-                60 + index as u8,
+                30 + index as u8,
                 40 + index as u8,
             )
             .await,
@@ -397,7 +397,7 @@ async fn run_pairing(fresh: bool) {
                     controllers[index],
                     keys[index].clone(),
                     index,
-                    60 + index as u8,
+                    40 + index as u8,
                     50 + index as u8,
                 )
                 .await,

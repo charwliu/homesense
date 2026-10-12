@@ -172,7 +172,7 @@ async fn exercise(stop_first: bool, cancel: bool, scenes: bool) {
                     .unwrap()
                     .get_value()
                     .await;
-                if value.is_ok_and(|value| value == hap::serde_json::json!(27)) {
+                if value.is_ok_and(|value| value == hap::serde_json::json!(30)) {
                     break;
                 }
                 tokio::time::sleep(Duration::from_millis(1)).await;
@@ -218,7 +218,8 @@ async fn exercise(stop_first: bool, cancel: bool, scenes: bool) {
         let snapshot = owner.snapshot();
         let state = &snapshot.devices[&DeviceId::new("simulation:light").unwrap()];
         assert_eq!(state.quality, homesense_state::Quality::Stale);
-        assert!(state.observed.is_some());
+        assert_eq!(state.observed,Some(homesense_core::Observation::Level(Percent::new(27).unwrap())));
+        // Raw measurement remains 27%; HAP publishes the written 30% setting.
     }
     if scenes {
         assert!(scheduler.tick(10_000).await.is_err());

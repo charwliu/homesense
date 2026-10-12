@@ -22,6 +22,8 @@ pub struct DeviceView {
     pub name: String,
     pub motor_calibrated: bool,
     pub state: homesense_state::DeviceState,
+    pub reported: Option<homesense_core::Observation>,
+    pub recorded: bool,
 }
 #[derive(Debug, PartialEq, Eq)]
 pub struct DeviceSnapshot {
@@ -41,11 +43,13 @@ pub async fn snapshot(
         return Err("device query limit exceeded".into());
     }
     let bundle = admission
-        .automation_bundle(controller, generation)
+        .automation_bundle(controller, generation.clone())
         .await
         .map_err(|e| format!("{e:?}"))?;
     let snapshot = crate::combined_light::project(&bundle.configuration, &feedback.snapshot())
         .map_err(|e| e.to_string())?;
+    let recorded=admission.recorded_dimmer_levels(controller,generation).await.map_err(|e|format!("recorded levels: {e:?}"))?;
+    let published=crate::light_state::project(&bundle.configuration,&feedback.snapshot(),&recorded).map_err(str::to_owned)?;
     let supplies: std::collections::BTreeSet<_> = bundle
         .configuration
         .devices()
@@ -83,9 +87,11 @@ pub async fn snapshot(
                 .as_ref()
                 .and_then(|id| bundle.configuration.rooms().get(id))
                 .cloned(),
-            id,
+            id: id.clone(),
             name: device.name.clone(),
             motor_calibrated,
+            reported: published.devices.get(&id).and_then(|s|s.observed),
+            recorded: recorded.contains_key(&id),
             state,
         });
     }
