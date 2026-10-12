@@ -438,6 +438,15 @@ async fn web_scope_origin_receipts_and_runtime_admission() {
         let catalog=api.handle(catalog).await;assert_eq!(catalog.status(),StatusCode::OK);
         let catalog:serde_json::Value=serde_json::from_slice(&catalog.into_body().collect().await.unwrap().to_bytes()).unwrap();
         assert_eq!(catalog["drafts"].as_array().unwrap().len(),1);assert_eq!(catalog["drafts"][0]["id"],draft_id.to_string());assert_eq!(catalog["drafts"][0]["revision"],"2");assert!(catalog["drafts"][0].get("devices").is_none());
+        let precise_id=Uuid::new_v4();let mut precise:serde_json::Value=serde_json::from_slice(devices).unwrap();precise["revision"]=serde_json::json!(9223372036854775807u64);
+        let precise_body=serde_json::json!({"expected_revision":1,"revision":9223372036854775807u64,"devices":precise,"automation":{"schema_version":1,"configuration_revision":9223372036854775807u64,"variables":[],"rules":[]}}).to_string();
+        let mut save=make(&api.origin,&precise_body);*save.uri_mut()=format!("/api/v1/config/drafts/{precise_id}").parse().unwrap();assert_eq!(api.handle(save).await.status(),StatusCode::OK);
+        let mut source=make(&api.origin,"");*source.method_mut()=hyper::Method::GET;*source.uri_mut()=format!("/api/v1/config/drafts/{precise_id}/source").parse().unwrap();
+        let source=api.handle(source).await;assert_eq!(source.status(),StatusCode::OK);
+        let source:serde_json::Value=serde_json::from_slice(&source.into_body().collect().await.unwrap().to_bytes()).unwrap();
+        assert_eq!(source["revision"],"9223372036854775807");assert_eq!(source["expected_revision"],"1");
+        assert!(source["devices"].as_str().unwrap().contains("9223372036854775807"));assert!(source["automation"].as_str().unwrap().contains("9223372036854775807"));
+        let mut source_write=make(&api.origin,"{}");*source_write.uri_mut()=format!("/api/v1/config/drafts/{precise_id}/source").parse().unwrap();assert_eq!(api.handle(source_write).await.status(),StatusCode::METHOD_NOT_ALLOWED);
         let mut read = make_draft();
         *read.method_mut() = hyper::Method::GET;
         *read.body_mut() = Bytes::new();
