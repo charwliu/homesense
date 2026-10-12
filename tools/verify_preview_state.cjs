@@ -39,5 +39,11 @@ const reply=(index,id,ok=true)=>pending[index].resolve({ok,json:async()=>ok?{dra
  assert.equal(context.observeRevision('9007199254740992'),false);assert.equal(element('publication-confirmation').hidden,false);
  context.observeRevision('9007199254740994');assert.equal(element('publication-confirmation').hidden,true);assert.equal(element('activate-draft').disabled,true);
  await element('confirm-publication').onclick();assert.equal(pending.length,9);
+ // A stale configuration conflict has an actionable message and preserves edits.
+ element('draft-id').value='retained';element('base-revision').value='1';element('device-document').value='unsaved device text';
+ const stale=preview();pending[9].resolve({ok:false,status:409,json:async()=>({error:'configuration_changed_or_unavailable'})});await stale;
+ assert.match(element('status').textContent,/运行配置已改变/);assert.match(element('status').textContent,/核对草稿版本/);
+ assert.equal(element('draft-id').value,'retained');assert.equal(element('base-revision').value,'1');assert.equal(element('device-document').value,'unsaved device text');
+ assert.equal(element('activate-draft').disabled,true);assert.equal(vm.runInContext('publicationPreview',context),null);
  console.log('Preview failure, edit, revision change and out-of-order invalidation: passed');
 })().catch(error=>{console.error(error);process.exitCode=1;});
