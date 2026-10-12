@@ -1,0 +1,27 @@
+{
+  "scope": "isolated loopback simulation only",
+  "base_commit": "8fe0221",
+  "changes": "responsive management CSS and static route",
+  "browser": "Codex in-app browser",
+  "checks": {
+    "administrator_login": "passed",
+    "configuration_history": "revision 1 visible",
+    "download": "downloaded file compared exactly against synthetic device and automation JSON",
+    "mobile_width": 390,
+    "mobile_scroll_width": 390,
+    "logout": "configuration hidden; devices, versions and token cleared"
+  },
+  "not_covered": [
+    "scene activation in browser",
+    "draft publication in browser",
+    "motor controls in browser",
+    "LAN TLS browser trust",
+    "physical equipment"
+  ],
+  "first_download_attempt": "unverified: initial bounded simulation expired; restarted only after process exit confirmed",
+  "service_cleanup": "replacement simulation interrupted and exit 130 confirmed",
+  "screenshots": [
+    "management-desktop.jpg",
+    "management-mobile.jpg"
+  ]
+}

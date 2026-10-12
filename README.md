@@ -437,3 +437,5 @@ Web 窗帘控制：`POST /api/v1/device-commands` 的 command 现在支持 `{"ac
 配置历史底层支持每页 1–100 条的版本游标列表，以及按版本导出匹配的设备／自动化原文。读取在同一 SQLite 快照内完成，导出按当前执行环境重新校验，最多各 4 MiB；不会激活历史版本或恢复旧命令。存储全套回归和严格 Clippy 通过；管理员 HTTP 接口与页面接线继续实现。
 
 管理员配置历史已接线：`GET /api/v1/config/versions?limit=20&before=REVISION` 返回只读分页，`GET /api/v1/config/versions/REVISION/export` 导出该版设备／自动化文档。版本号与游标使用十进制字符串，缺失版本返回 404；成员／只读角色拒绝，响应 no-store。管理页面增加版本浏览和本机下载，不激活历史版本；下载保留服务端 JSON 原文，避免浏览器大整数舍入。15 项库／Web 运行时回归、严格 Clippy、JS 语法检查通过；浏览器视觉与下载验收待补。
+
+管理页浏览器验收：补充同源 CSS 与响应式表单布局；真实浏览器完成管理员登录、版本列表、本地导出并比对源文档、退出清空内容。390 像素窄屏无横向溢出，截图及范围见 `docs/evidence/stage-e-browser/management-check.json`。本轮只使用隔离模拟服务；场景／草稿发布、窗帘页面操作和 LAN TLS 浏览器信任仍需独立验收。
