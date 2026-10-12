@@ -1,0 +1,279 @@
+{
+  "source_commit": "c184e65eb7adfa284bf26b1978dcb392ab762351",
+  "product_binary_sha256": "7596e17aa0e61d9b20768918213e1c4a2152ddd52d7277fd4e954eafaafd8315",
+  "controller_binary_sha256": "2a9b962855266b08bd9feeee1254e0b06aeef4334b84cf58c5367b89347892b5",
+  "controller_source_sha256": "39f7e1773ae5be36e7b2bd806ac6b18d77ec1e32997cfc656904926115095cfd",
+  "root_independent_manifest_protocol_and_record_checks": true,
+  "scope": "actual Linux binary, synthetic SRP pairing and encrypted HAP over localhost, closed-world fake gateway",
+  "checkpoints": [
+    {
+      "case": "initial_unknown_unavailable",
+      "expected_selection": null,
+      "http_status": 207,
+      "characteristic_values": [
+        null,
+        null,
+        null
+      ],
+      "characteristic_statuses": [
+        -70402,
+        -70402,
+        -70402
+      ],
+      "event_messages": 0,
+      "persisted_selection": null,
+      "persisted_version": 0
+    },
+    {
+      "case": "held_unknown_unavailable",
+      "expected_selection": null,
+      "http_status": 207,
+      "characteristic_values": [
+        null,
+        null,
+        null
+      ],
+      "characteristic_statuses": [
+        -70402,
+        -70402,
+        -70402
+      ],
+      "event_messages": 0,
+      "persisted_selection": null,
+      "persisted_version": 0
+    },
+    {
+      "case": "first_release_ambiguous_unavailable",
+      "expected_selection": null,
+      "http_status": 207,
+      "characteristic_values": [
+        null,
+        null,
+        null
+      ],
+      "characteristic_statuses": [
+        -70402,
+        -70402,
+        -70402
+      ],
+      "event_messages": 0,
+      "persisted_selection": null,
+      "persisted_version": 1
+    },
+    {
+      "case": "same_key_ambiguous_unavailable",
+      "expected_selection": null,
+      "http_status": 207,
+      "characteristic_values": [
+        null,
+        null,
+        null
+      ],
+      "characteristic_statuses": [
+        -70402,
+        -70402,
+        -70402
+      ],
+      "event_messages": 0,
+      "persisted_selection": null,
+      "persisted_version": 2
+    },
+    {
+      "case": "different_key_converges_2_read_and_event",
+      "expected_selection": 2,
+      "http_status": 200,
+      "characteristic_values": [
+        false,
+        true,
+        false
+      ],
+      "characteristic_statuses": [
+        0,
+        0,
+        0
+      ],
+      "event_messages": 3,
+      "persisted_selection": 2,
+      "persisted_version": 3
+    },
+    {
+      "case": "same_key_off_read_and_event",
+      "expected_selection": 0,
+      "http_status": 200,
+      "characteristic_values": [
+        false,
+        false,
+        false
+      ],
+      "characteristic_statuses": [
+        0,
+        0,
+        0
+      ],
+      "event_messages": 1,
+      "persisted_selection": 0,
+      "persisted_version": 4
+    },
+    {
+      "case": "before_EOF_selected_1_read_and_event",
+      "expected_selection": 1,
+      "http_status": 200,
+      "characteristic_values": [
+        true,
+        false,
+        false
+      ],
+      "characteristic_statuses": [
+        0,
+        0,
+        0
+      ],
+      "event_messages": 1,
+      "persisted_selection": 1,
+      "persisted_version": 5
+    },
+    {
+      "case": "EOF_unknown_unavailable_after_pair_verify",
+      "expected_selection": null,
+      "http_status": 207,
+      "characteristic_values": [
+        null,
+        null,
+        null
+      ],
+      "characteristic_statuses": [
+        -70402,
+        -70402,
+        -70402
+      ],
+      "event_messages": 0,
+      "persisted_selection": 1,
+      "persisted_version": 5
+    },
+    {
+      "case": "first_after_EOF_ambiguous_unavailable",
+      "expected_selection": null,
+      "http_status": 207,
+      "characteristic_values": [
+        null,
+        null,
+        null
+      ],
+      "characteristic_statuses": [
+        -70402,
+        -70402,
+        -70402
+      ],
+      "event_messages": 0,
+      "persisted_selection": null,
+      "persisted_version": 6
+    },
+    {
+      "case": "different_after_EOF_converges_3_event_after_resubscription",
+      "expected_selection": 3,
+      "http_status": 200,
+      "characteristic_values": [
+        false,
+        false,
+        true
+      ],
+      "characteristic_statuses": [
+        0,
+        0,
+        0
+      ],
+      "event_messages": 3,
+      "persisted_selection": 3,
+      "persisted_version": 7
+    },
+    {
+      "case": "restart_unknown_unavailable_after_pair_verify",
+      "expected_selection": null,
+      "http_status": 207,
+      "characteristic_values": [
+        null,
+        null,
+        null
+      ],
+      "characteristic_statuses": [
+        -70402,
+        -70402,
+        -70402
+      ],
+      "event_messages": 0,
+      "persisted_selection": 3,
+      "persisted_version": 7
+    },
+    {
+      "case": "first_after_restart_ambiguous_unavailable",
+      "expected_selection": null,
+      "http_status": 207,
+      "characteristic_values": [
+        null,
+        null,
+        null
+      ],
+      "characteristic_statuses": [
+        -70402,
+        -70402,
+        -70402
+      ],
+      "event_messages": 0,
+      "persisted_selection": null,
+      "persisted_version": 8
+    },
+    {
+      "case": "different_after_restart_converges_2_event_after_resubscription",
+      "expected_selection": 2,
+      "http_status": 200,
+      "characteristic_values": [
+        false,
+        true,
+        false
+      ],
+      "characteristic_statuses": [
+        0,
+        0,
+        0
+      ],
+      "event_messages": 3,
+      "persisted_selection": 2,
+      "persisted_version": 9
+    }
+  ],
+  "counts": {
+    "unavailable_no_value": 8,
+    "known_boolean": 5,
+    "encrypted_event_messages": 11,
+    "network_pair_setup": 1,
+    "network_pair_verify": 3,
+    "explicit_ev_subscriptions": 3,
+    "control_commands": 0,
+    "scene_runs": 0,
+    "wire_frames_other_than_read_queries": 0
+  },
+  "all_three_indicator_links_preserved": true,
+  "recovery_uses_existing_pairing": true,
+  "explicit_resubscription_after_eof_and_restart": true,
+  "HAP_source_labels_supported": false,
+  "Web_source_and_selected_independently_consistent": true,
+  "private_artifact_sha256": {
+    "results.json": "45f267cc790511eab4f337c3bed695d99ac30e2618f5beb512eb6d416e2c0684",
+    "preparation.json": "9ac695f435e92e445220255950e0a2faaad90bcc8d0c1e899eef5ac7c0fab6ff"
+  },
+  "controller_helpers_match_committed_sources": {
+    "crates/homesense-hap/tests/support/mod.rs": "abd0cada13b4519def23d3f20624ddc1c5be2e258e86a2cc54e3e597d2a8f0c9",
+    "crates/homesensed/tests/support/pair_setup.rs": "fb306235124760c3ce91090ee39c1e7cae36647b8e1396c937f917e48dd5db9c"
+  },
+  "initial_controller_compile_failure_preserved": "SQLite u64 unsupported; tool changed to i64 then built; product binary unchanged",
+  "actual_phone_test": false,
+  "field_enablement": false,
+  "real_runtime_identity_unchanged": true,
+  "real_service_running": false,
+  "limits": [
+    "encrypted synthetic controller is not an iPhone/HomePod field acceptance",
+    "HAP booleans/status carry no inferred-source label; source verified independently against Web",
+    "archived writer closed-world assumption still does not establish complete live writers",
+    "human field window remains deferred"
+  ]
+}
