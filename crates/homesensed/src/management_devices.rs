@@ -46,6 +46,13 @@ pub async fn snapshot(
         .map_err(|e| format!("{e:?}"))?;
     let snapshot = crate::combined_light::project(&bundle.configuration, &feedback.snapshot())
         .map_err(|e| e.to_string())?;
+    let supplies: std::collections::BTreeSet<_> = bundle
+        .configuration
+        .devices()
+        .values()
+        .filter(|device| device.enabled)
+        .filter_map(|device| device.supply_relay.as_ref())
+        .collect();
     let mut devices = vec![];
     let mut seen = std::collections::BTreeSet::new();
     for id in ids {
@@ -56,14 +63,26 @@ pub async fn snapshot(
             .configuration
             .binding(&id)
             .ok_or("unknown or disabled device")?;
+        // Supply relays belong to their logical light, even when an administrator
+        // scope includes all enabled physical bindings. Never expose them twice.
+        if supplies.contains(&id) {
+            continue;
+        }
         let state = snapshot
             .devices
             .get(&id)
             .ok_or("missing device state")?
             .clone();
-        let motor_calibrated=bundle.configuration.motor_command(&id,homesense_core::MotorAction::Stop).is_ok();
+        let motor_calibrated = bundle
+            .configuration
+            .motor_command(&id, homesense_core::MotorAction::Stop)
+            .is_ok();
         devices.push(DeviceView {
-            room: device.room.as_ref().and_then(|id|bundle.configuration.rooms().get(id)).cloned(),
+            room: device
+                .room
+                .as_ref()
+                .and_then(|id| bundle.configuration.rooms().get(id))
+                .cloned(),
             id,
             name: device.name.clone(),
             motor_calibrated,
@@ -94,6 +113,14 @@ pub async fn prepare(
         .configuration
         .binding(&id)
         .ok_or("unknown or disabled device")?;
+    if bundle
+        .configuration
+        .devices()
+        .values()
+        .any(|binding| binding.enabled && binding.supply_relay.as_ref() == Some(&id))
+    {
+        return Err("supply relay is controlled through its logical light".into());
+    }
     let dimmable = match module.kind() {
         ModuleKind::Dimmer => true,
         ModuleKind::Switch => false,
