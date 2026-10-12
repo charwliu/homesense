@@ -114,3 +114,5 @@ mod web_scene_history;
 mod web_run_details;
 
 pub mod daily_backup;
+
+pub mod web_backups;

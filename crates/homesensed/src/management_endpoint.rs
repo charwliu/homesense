@@ -80,6 +80,7 @@ impl Endpoint {
             |tls| tls.origin.clone(),
         );
         let api = Arc::new(Api {
+            backup_source: Some(directory.join(match context {homesense_core::ExecutionContext::Simulation=>"automation-simulation.sqlite",homesense_core::ExecutionContext::Live=>"automation-tcp.sqlite"})),
             origin,
             tokens,
             runtime: RwLock::new(Some(view)),
