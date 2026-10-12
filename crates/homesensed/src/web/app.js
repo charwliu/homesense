@@ -237,6 +237,11 @@ document.getElementById('confirm-publication').onclick=async()=>{
 
 let eventSocket=null, eventCursor=null, eventRetry=null, eventAttempts=0;
 const eventDevices=new Map();
+function markEventStateUnavailable(message) {
+  invalidatePreview();
+  for(const [id,device] of eventDevices)eventDevices.set(id,{...device,quality:'Stale',can_control:false});
+  renderDevices();status.textContent=message;
+}
 function connectEvents() {
   clearTimeout(eventRetry);if(!csrf)return;
   if(eventSocket){eventSocket.onclose=null;eventSocket.close();}
@@ -249,9 +254,7 @@ function connectEvents() {
     try {
       const frame=JSON.parse(event.data);
       if(frame.type==='unavailable') {
-        invalidatePreview();
-        for(const [id,device] of eventDevices)eventDevices.set(id,{...device,quality:'Stale',can_control:false});
-        renderDevices();status.textContent='配置正在切换，等待状态恢复。';return;
+        markEventStateUnavailable('配置正在切换，等待状态恢复。');return;
       }
       if(frame.type!=='state')return;
       if(!observeRevision(frame.revision))return;
@@ -262,6 +265,8 @@ function connectEvents() {
   };
   socket.onclose=()=>{
     if(!current())return;
+    eventCursor=null;
+    markEventStateUnavailable('事件连接已断开，正在重新连接；设备状态待确认。');
     if(++eventAttempts>6){status.textContent='事件连接已断开，请重新登录。';return;}
     eventRetry=setTimeout(()=>{if(current())connectEvents();},Math.min(10000,500*2**eventAttempts));
   };
