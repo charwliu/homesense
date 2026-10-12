@@ -1,0 +1,116 @@
+{
+  "base_commit": "a8f53717cc336e8b43b9b595931ab6ff61f4bb08",
+  "source_sha256": {
+    "crates/homesensed/src/web/app.js": "f96935a48d2a6e33a3d47bf01c130f0ade6b254b82dd61bc57e05f83ca8eaf86",
+    "crates/homesensed/src/web/style.css": "13a1796fb1d8684a8d25ba588e4af7d594d55891ea1a365800e943bba7aeca0e",
+    "tools/verify_light_policy.cjs": "3f4d62b136234d1f919f7bb4f48a77375b64ed4458532c75d1ad339a89043009",
+    "tools/verify_brightness_slider.cjs": "a134d832b0d72dcc593c8391832231525cc6b16cc9c0a8559c88c1e1ff81e0b2"
+  },
+  "frontend_checks": [
+    {
+      "file": "tools/verify_backup_catalog.cjs",
+      "exit_code": 0,
+      "output": "Backup metadata and logout fencing: passed",
+      "stderr": ""
+    },
+    {
+      "file": "tools/verify_brightness_slider.cjs",
+      "exit_code": 0,
+      "output": "Slider: one command per release, stable drag/accepted target, confirmed feedback, no replay/retry and session/scope isolation: passed",
+      "stderr": ""
+    },
+    {
+      "file": "tools/verify_channel_diagnostics.cjs",
+      "exit_code": 0,
+      "output": "Channel lifecycle is distinct from control readiness and field reachability: passed",
+      "stderr": ""
+    },
+    {
+      "file": "tools/verify_credentials.cjs",
+      "exit_code": 0,
+      "output": "Credential listing and session fencing: passed",
+      "stderr": ""
+    },
+    {
+      "file": "tools/verify_device_metadata.cjs",
+      "exit_code": 0,
+      "output": "Device and room source binding, precision and in-flight edits: passed",
+      "stderr": ""
+    },
+    {
+      "file": "tools/verify_device_refresh.cjs",
+      "exit_code": 0,
+      "output": "HTTP refresh rejects old graphs, earlier requests and pre-disconnect replies: passed",
+      "stderr": ""
+    },
+    {
+      "file": "tools/verify_draft_archive.cjs",
+      "exit_code": 0,
+      "output": "Draft archive clears selected preview: passed",
+      "stderr": ""
+    },
+    {
+      "file": "tools/verify_draft_json.cjs",
+      "exit_code": 0,
+      "output": "Draft JSON precision, bounds, malformed input: passed",
+      "stderr": ""
+    },
+    {
+      "file": "tools/verify_event_disconnect.cjs",
+      "exit_code": 0,
+      "output": "Disconnect marks stale, revokes preview, and fresh reconnect restores: passed",
+      "stderr": ""
+    },
+    {
+      "file": "tools/verify_light_policy.cjs",
+      "exit_code": 0,
+      "output": "Recorded dimmer settings, measured switch state, diagnostic mismatch and unknown projection: passed",
+      "stderr": ""
+    },
+    {
+      "file": "tools/verify_preview_state.cjs",
+      "exit_code": 0,
+      "output": "Preview failure, edit, revision change and out-of-order invalidation: passed",
+      "stderr": ""
+    },
+    {
+      "file": "tools/verify_room_filter.cjs",
+      "exit_code": 0,
+      "output": "Room filter updates, removed scope, unassigned and text rendering: passed",
+      "stderr": ""
+    },
+    {
+      "file": "tools/verify_scene_history.cjs",
+      "exit_code": 0,
+      "output": "Scene history/detail pagination, integer precision and stale response isolation: passed",
+      "stderr": ""
+    },
+    {
+      "file": "tools/verify_scene_switches.cjs",
+      "exit_code": 0,
+      "output": "Scene targets, busy guards, cancellation, unknown/stale values and session isolation: passed",
+      "stderr": ""
+    },
+    {
+      "file": "tools/verify_session_state.cjs",
+      "exit_code": 0,
+      "output": "Late HTTP/WebSocket responses and overlapping session changes: passed",
+      "stderr": ""
+    }
+  ],
+  "syntax_check_passed": true,
+  "review": "stable card and native slider; input previews only; change sends one command; current session and card ownership checked before applying results; no automatic retry",
+  "field_summary": {
+    "source": "private acceptance record verified locally, with matching four source fingerprints",
+    "served_assets_match_source": true,
+    "slider_and_physical_light": "passed",
+    "zero_then_power_on_restores_brightness": true,
+    "configuration_changed": false,
+    "automatic_rules_enabled": false,
+    "observation_enabled": false,
+    "ea5_unchanged": true
+  },
+  "scope": "isolated slider overlay on existing study configuration; not integrated observation/selection/LED acceptance or full D/E completion",
+  "privacy": "private source, household identifiers, network addresses, credentials and raw acceptance records remain local",
+  "deployment_this_checkpoint": false
+}

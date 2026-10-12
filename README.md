@@ -1,5 +1,7 @@
 # HomeSense · 知居
 
+Web 灯光亮度控制已改为 0–100% 滑动条：拖动时显示目标，松手后提交一次；实时反馈保留控件和未确认目标，防止旧设定短暂拉回。网络／会话失效不重发旧手势，断线和退出时清除旧目标。新增回归覆盖 17→30→17、30→17→30 两种旧反馈回跳场景，15 项前端检查通过；真实 iPhone 已确认滑动及灯光正常、无回跳或布局问题，0% 关灯后点“开”恢复原亮度且 Web／家庭状态正常。此结果限于书房原配置的滑动条候选，改动形成独立检查点，见[滑动条验证记录](docs/evidence/stage-e-browser/brightness-slider-check.json)；不代表 D/E 综合验收完成。
+
 <img src="docs/assets/homesense-logo-v3.png" alt="HomeSense 知居 Logo：橙色家庭大脑连接琥珀色照明、蓝色自动化与绿色节能节点" width="160">
 
 HomeSense（中文名：知居）是原生 Rust 家庭中控，通过 TCP485 网关控制 RS485 模块，并通过原生 Rust HAP 接入 Apple 家庭。目标是逐步替代现有的Control4 EA-5 的灯光、窗帘、场景与事件逻辑。
