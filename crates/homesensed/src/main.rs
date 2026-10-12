@@ -195,7 +195,8 @@ fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
             };
             let devices=read(&args[1])?;let rules=read(&args[2])?;let directory=std::path::Path::new(&args[3]);let duration=std::time::Duration::from_secs(args[4].parse()?);let write_interval=std::time::Duration::from_millis(interval);
             tokio::runtime::Runtime::new()?.block_on(async {
-                if let Some(settings)=management {if let Some(plan)=hap_plan {return homesensed::automation_tcp::serve_bridges(&devices,&rules,directory,duration,true,recoveries.unwrap_or(0),write_interval,settings,plan).await;}if let Some(hap)=hap {return homesensed::automation_tcp::serve_combined(&devices,&rules,directory,duration,true,recoveries.unwrap_or(0),write_interval,settings,hap).await;}homesensed::automation_tcp::serve_managed(&devices,&rules,directory,duration,true,recoveries.unwrap_or(0),write_interval,settings).await}
+                if let Some(settings)=management {if let Some(plan)=hap_plan {return homesensed::automation_tcp::serve_bridges(&devices,&rules,directory,duration,true,recoveries.unwrap_or(0),write_interval,settings,plan).await;}
+            if let Some(hap)=hap {return homesensed::automation_tcp::serve_combined(&devices,&rules,directory,duration,true,recoveries.unwrap_or(0),write_interval,settings,hap).await;}homesensed::automation_tcp::serve_managed(&devices,&rules,directory,duration,true,recoveries.unwrap_or(0),write_interval,settings).await}
                 else {homesensed::automation_tcp::serve_with_write_interval(&devices,&rules,directory,duration,true,recoveries.unwrap_or(0),None,write_interval).await}
             })?;
             println!("TCP automation stopped; state stored in automation-tcp.sqlite");

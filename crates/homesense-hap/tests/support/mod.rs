@@ -1,6 +1,6 @@
 //! Test-only HAP controller: actual HTTP and encrypted records.
 use chacha20poly1305::ChaCha20Poly1305;
-use chacha20poly1305::aead::{AeadInPlace, array::Array};
+use chacha20poly1305::aead::{AeadInOut};
 use rand::SeedableRng;
 use std::{
     io::{Read, Write},
@@ -94,7 +94,7 @@ pub fn verify_outcome(
     accessory_key: &ed25519_dalek::VerifyingKey,
 ) -> Result<Session, Vec<u8>> {
     use chacha20poly1305::ChaCha20Poly1305;
-    use chacha20poly1305::aead::{AeadInPlace, KeyInit, array::Array};
+    use chacha20poly1305::aead::{AeadInOut, KeyInit};
     use ed25519_dalek::Signer;
     use x25519_dalek::{EphemeralSecret, PublicKey};
     let secret =
@@ -114,17 +114,17 @@ pub fn verify_outcome(
         key
     };
     let key = derive(b"Pair-Verify-Encrypt-Salt", b"Pair-Verify-Encrypt-Info");
-    let cipher = ChaCha20Poly1305::new(Array::from_slice(&key));
+    let cipher = ChaCha20Poly1305::new((&key).into());
     let encrypted = &m2[&5];
     let mut plaintext = encrypted[..encrypted.len() - 16].to_vec();
     let mut nonce = [0; 12];
     nonce[4..].copy_from_slice(b"PV-Msg02");
     cipher
-        .decrypt_in_place_detached(
-            Array::from_slice(&nonce),
+        .decrypt_inout_detached(
+            (&nonce).into(),
             &[],
-            &mut plaintext,
-            Array::from_slice(&encrypted[encrypted.len() - 16..]),
+            plaintext.as_mut_slice().into(),
+            encrypted[encrypted.len() - 16..].try_into().unwrap(),
         )
         .unwrap();
     let sub = tlv_items(&plaintext).unwrap();
@@ -154,7 +154,7 @@ pub fn verify_outcome(
     ]);
     nonce[4..].copy_from_slice(b"PV-Msg03");
     let tag = cipher
-        .encrypt_in_place_detached(Array::from_slice(&nonce), &[], &mut data)
+        .encrypt_inout_detached((&nonce).into(), &[], data.as_mut_slice().into())
         .unwrap();
     data.extend(tag);
     let m3 = encode_tlv(&[(6, &[3]), (5, &data)]);
@@ -165,8 +165,8 @@ pub fn verify_outcome(
     }
     let write_key = derive(b"Control-Salt", b"Control-Write-Encryption-Key");
     let read_key = derive(b"Control-Salt", b"Control-Read-Encryption-Key");
-    let writer = ChaCha20Poly1305::new(Array::from_slice(&write_key));
-    let reader = ChaCha20Poly1305::new(Array::from_slice(&read_key));
+    let writer = ChaCha20Poly1305::new((&write_key).into());
+    let reader = ChaCha20Poly1305::new((&read_key).into());
     Ok(Session {
         writer,
         reader,
@@ -191,7 +191,7 @@ impl Session {
             nonce[4..].copy_from_slice(&self.sent.to_le_bytes());
             let tag = self
                 .writer
-                .encrypt_in_place_detached(Array::from_slice(&nonce), &length, &mut data)
+                .encrypt_inout_detached((&nonce).into(), &length, data.as_mut_slice().into())
                 .unwrap();
             stream.write_all(&length).unwrap();
             stream.write_all(&data).unwrap();
@@ -211,11 +211,11 @@ impl Session {
             let mut nonce = [0; 12];
             nonce[4..].copy_from_slice(&self.received.to_le_bytes());
             self.reader
-                .decrypt_in_place_detached(
-                    Array::from_slice(&nonce),
+                .decrypt_inout_detached(
+                    (&nonce).into(),
                     &length,
-                    &mut data,
-                    Array::from_slice(&tag),
+                    data.as_mut_slice().into(),
+                    (&tag).into(),
                 )
                 .unwrap();
             self.received += 1;

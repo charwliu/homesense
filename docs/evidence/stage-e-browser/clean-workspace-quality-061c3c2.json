@@ -1,0 +1,53 @@
+{
+  "base_commit": "061c3c240f1151c30299494efb321bf91dbe5c54",
+  "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)",
+  "scope": "Independent Git archive plus the nine listed quality fixes; unrelated dirty files and private source data excluded",
+  "overlay_paths": [
+    "crates/homesense-hap/tests/support/mod.rs",
+    "crates/homesense-hap/tests/http_loopback.rs",
+    "crates/homesensed/src/transport_owner.rs",
+    "crates/homesensed/src/simulation_hap_fault_tests.rs",
+    "crates/homesensed/src/automation_tcp_bridge_tests.rs",
+    "crates/homesensed/tests/support/pair_setup.rs",
+    "crates/homesensed/tests/configuration_publish.rs",
+    "crates/homesensed/src/main.rs",
+    "crates/homesensed/tests/study_runtime.rs"
+  ],
+  "changes": [
+    "Test controller uses AeadInOut and checked/fixed-size array conversions; production HAP authentication unchanged",
+    "Test mutex guard ends in a lexical scope before shutdown await",
+    "Equivalent lint fixes in test assertions and CLI branch layout; no changed control behavior"
+  ],
+  "clippy": {
+    "command": "cargo clippy --workspace --all-targets --locked --offline -- -D warnings",
+    "exit_code": 0,
+    "workspace_member_errors": 0,
+    "lint_allowances_added": false,
+    "dependency_warnings": {
+      "package": "hap",
+      "count": 54,
+      "excluded_from_workspace": true,
+      "scope": "Dependency warnings are not denied by the workspace command; not a warning-free vendor audit"
+    }
+  },
+  "workspace_tests": {
+    "command": "cargo test --workspace --locked --offline",
+    "exit_code": 0,
+    "passed": 579,
+    "failed": 0,
+    "ignored": 0,
+    "result_blocks": 115
+  },
+  "environment_retry": {
+    "initial_exit_code": 101,
+    "cause": "Sandbox denied localhost TCP bind with Operation not permitted",
+    "authorized_loopback_rerun_exit_code": 0,
+    "not_counted_as_pass": true
+  },
+  "wire_compatibility_basis": "The installed aead 0.6.1 deprecated detached methods forward to AeadInOut with the same nonce, AAD, tag and in-place slice; encrypted lifecycle regressions pass",
+  "limitations": [
+    "No physical bus, iPhone, HomePod, Siri, LAN certificate trust or nanopc database migration tested",
+    "35 source motor-condition blockers remain; explicit timed-fade export does not establish source semantics",
+    "D/E incomplete; EA-5 configuration and control scope unchanged"
+  ]
+}

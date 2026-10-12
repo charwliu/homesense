@@ -162,7 +162,7 @@ async fn ipv6_pairing_encrypted_reads_restart_and_revocation() {
 }
 
 async fn exercise_authenticated_lifecycle(bind: &str) {
-    use aead::{AeadInPlace, KeyInit, array::Array};
+    use aead::{AeadInOut, KeyInit};
     use chacha20poly1305::ChaCha20Poly1305;
     use ed25519_dalek::Signer;
     use rand::{Rng, SeedableRng};
@@ -243,8 +243,8 @@ async fn exercise_authenticated_lifecycle(bind: &str) {
             .key()
             .to_vec();
         let key = Sha512::digest(&key).to_vec();
-        let hn = Sha512::digest(&G_3072.n.to_bytes_be());
-        let hg = Sha512::digest(&G_3072.g.to_bytes_be());
+        let hn = Sha512::digest(G_3072.n.to_bytes_be());
+        let hg = Sha512::digest(G_3072.g.to_bytes_be());
         let xor: Vec<u8> = hn.iter().zip(hg.iter()).map(|(n, g)| n ^ g).collect();
         let mut transcript = Sha512::new();
         transcript.update(&xor);
@@ -291,11 +291,11 @@ async fn exercise_authenticated_lifecycle(bind: &str) {
             (10, &signing.sign(&signed).to_bytes()),
         ]);
         let encryption_key = derive(b"Pair-Setup-Encrypt-Salt", b"Pair-Setup-Encrypt-Info");
-        let cipher = ChaCha20Poly1305::new(Array::from_slice(&encryption_key));
+        let cipher = ChaCha20Poly1305::new((&encryption_key).into());
         let mut nonce = [0; 12];
         nonce[4..].copy_from_slice(b"PS-Msg05");
         let tag = cipher
-            .encrypt_in_place_detached(Array::from_slice(&nonce), &[], &mut data)
+            .encrypt_inout_detached((&nonce).into(), &[], data.as_mut_slice().into())
             .unwrap();
         data.extend(tag);
         let m5 = encode_tlv(&[(6, &[5]), (5, &data)]);
@@ -305,11 +305,11 @@ async fn exercise_authenticated_lifecycle(bind: &str) {
         let mut plaintext = data[..data.len() - 16].to_vec();
         nonce[4..].copy_from_slice(b"PS-Msg06");
         cipher
-            .decrypt_in_place_detached(
-                Array::from_slice(&nonce),
+            .decrypt_inout_detached(
+                (&nonce).into(),
                 &[],
-                &mut plaintext,
-                Array::from_slice(&data[data.len() - 16..]),
+                plaintext.as_mut_slice().into(),
+                data[data.len() - 16..].try_into().unwrap(),
             )
             .unwrap();
         let sub = tlv_items(&plaintext).unwrap();
