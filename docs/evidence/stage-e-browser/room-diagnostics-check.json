@@ -1,0 +1,26 @@
+{
+  "code_commit": "faa9ae3",
+  "fixture": "synthetic simulation light in one room; no real gateway",
+  "viewport": {
+    "width": 390,
+    "height": 844,
+    "scroll_width": 390
+  },
+  "checks": {
+    "login": true,
+    "room_selected_after_refresh": true,
+    "runtime_diagnostics_ready": true,
+    "calendar_status_read": true,
+    "logout": {
+      "devices": 0,
+      "room_options": 0,
+      "configuration_hidden": true,
+      "diagnostics_cleared": true
+    }
+  },
+  "screenshot_sha256": "e0cc19629791ff705659848aaf31bec1839842dffd62cbbf4f9cbf5bbd10f154",
+  "limitations": [
+    "single-room browser fixture; scope removal and unassigned covered by offline renderer test",
+    "not LAN TLS or physical acceptance"
+  ]
+}
