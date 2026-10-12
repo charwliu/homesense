@@ -118,3 +118,28 @@ fn grant_updates_are_atomic_scoped_and_force_reauthentication() {
     let new_grant=tokens.authenticate(&user_header).unwrap();assert_eq!(new_grant.role,Role::Viewer);assert!(new_grant.devices.is_empty());assert_eq!(new_grant.controller,admin);
     drop(tokens);let tokens=Tokens::open(&path).unwrap();assert_eq!(tokens.authenticate(&user_header),Some(new_grant));drop(tokens);drop(sql);std::fs::remove_dir_all(root).unwrap();
 }
+
+#[test]
+fn concurrent_administrators_cannot_remove_or_demote_the_last_administrator() {
+    use homesensed::web_auth::{CredentialUpdate,Tokens};
+    use std::sync::{Arc,Barrier};
+    for mode in ["self-revoke","cross-revoke","self-demote"] {
+        let root=std::env::temp_dir().join(format!("admin-race-{}",Uuid::new_v4()));std::fs::create_dir(&root).unwrap();let path=root.join("credentials.sqlite");
+        let tokens=Arc::new(Tokens::open(&path).unwrap());let ids=[Uuid::new_v4(),Uuid::new_v4()];let secrets=["abcdefghijklmnopqrstuvwxyz0123456789","0123456789abcdefghijklmnopqrstuvwxyz"];
+        let grant=Grant{controller:ids[0],role:Role::Administrator,devices:Default::default(),scenes:Default::default()};
+        for i in 0..2 {tokens.insert(ids[i],secrets[i],grant.clone()).unwrap();}
+        let barrier=Arc::new(Barrier::new(3));
+        let tasks=(0..2).map(|i|{let tokens=tokens.clone();let barrier=barrier.clone();let grant=grant.clone();std::thread::spawn(move||{
+            let header=format!("Bearer {}",secrets[i]);barrier.wait();
+            match mode {
+                "self-demote"=>tokens.update_grant(ids[i],CredentialUpdate{expected:grant,role:Role::Viewer,devices:Default::default(),scenes:Default::default()},Some(&header),None,None).map(|_|()),
+                "cross-revoke"=>tokens.revoke_managed(ids[1-i],Some(&header),None,None),
+                _=>tokens.revoke_managed(ids[i],Some(&header),None,None),
+            }
+        })}).collect::<Vec<_>>();barrier.wait();
+        let results=tasks.into_iter().map(|task|task.join().unwrap()).collect::<Vec<_>>();assert_eq!(results.iter().filter(|r|r.is_ok()).count(),1,"{mode}: {results:?}");
+        assert!(results.iter().any(|r|matches!(r,Err("last_administrator"|"administrator_required"))));
+        assert_eq!(tokens.summaries().unwrap().iter().filter(|c|c.grant.role==Role::Administrator).count(),1);
+        drop(tokens);let reopened=Tokens::open(&path).unwrap();assert_eq!(reopened.summaries().unwrap().iter().filter(|c|c.grant.role==Role::Administrator).count(),1);drop(reopened);std::fs::remove_dir_all(root).unwrap();
+    }
+}
