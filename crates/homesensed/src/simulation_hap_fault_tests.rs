@@ -1,12 +1,15 @@
 use super::*;
 use crate::automation_tcp::fault_tests::{http,free_address};
 #[tokio::test]
-async fn simulation_hap_failure_keeps_web_and_scene_execution_alive() {
+async fn simulation_hap_failure_keeps_web_and_scene_execution_alive() {run(false).await;}
+#[tokio::test]
+async fn occupied_simulation_hap_port_preserves_web_control() {run(true).await;}
+async fn run(occupied:bool) {
     let root=std::env::temp_dir().join(format!("homesense-simulation-hap-fault-{}",Uuid::new_v4()));
-    let web=free_address();let hap=free_address();let directory=root.clone();
+    let web=free_address();let reserved=occupied.then(||std::net::TcpListener::bind("127.0.0.1:0").unwrap());let hap=reserved.as_ref().map_or_else(free_address,|listener|listener.local_addr().unwrap());let directory=root.clone();
     let rules=serde_json::json!({"schema_version":1,"configuration_revision":1,"variables":[],"rules":[],"timed_scenes":[{"id":"later","enabled":true,"review_evidence":"synthetic","max_lateness_ms":1000,"steps":[{"source":"fixture","offset_ms":500,"device":"simulation:light","command":{"kind":"level","value":60,"ramp":false}}]}]});
     let service=tokio::spawn(async move {
-        serve_automation_simulation_options(include_bytes!("../../../config/simulation.json"),&serde_json::to_vec(&rules).unwrap(),&directory,Duration::from_secs(3),None,None,Some(WebSettings{address:web,secret:"abcdefghijklmnopqrstuvwxyz0123456789".into(),administrator:true,tls:None}),Some(UnifiedSimulation{address:hap,scenes:vec!["later".into()]}),Some(Duration::from_millis(500))).await
+        serve_automation_simulation_options(include_bytes!("../../../config/simulation.json"),&serde_json::to_vec(&rules).unwrap(),&directory,Duration::from_secs(3),None,None,Some(WebSettings{address:web,secret:"abcdefghijklmnopqrstuvwxyz0123456789".into(),administrator:true,tls:None}),Some(UnifiedSimulation{address:hap,scenes:vec!["later".into()]}),(!occupied).then_some(Duration::from_millis(500))).await
     });
     tokio::time::timeout(Duration::from_secs(2),async {
         loop {
@@ -18,7 +21,7 @@ async fn simulation_hap_failure_keeps_web_and_scene_execution_alive() {
         }
     }).await.unwrap();
     assert!(!service.is_finished());
-    assert!(tokio::net::TcpStream::connect(hap).await.is_err());
+    if !occupied {assert!(tokio::net::TcpStream::connect(hap).await.is_err());}
     assert_eq!(http(web,"/health/ready",None).await.unwrap().0,200);
     let accepted=http(web,"/api/v1/scene-actions",Some(serde_json::json!({"scene":"later","request_id":"after-fault"}))).await.unwrap();
     assert_eq!(accepted.1["outcome"],"accepted");

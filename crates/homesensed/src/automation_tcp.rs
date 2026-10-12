@@ -173,7 +173,7 @@ async fn serve_inner(devices:&[u8],rules:&[u8],directory:&Path,duration:Duration
                 Some(runtime) => runtime,
                 None => AutomationRuntime::load_with_startup(admission.clone(),controller,wall_ms()?,1000,64,Default::default(),startup).await?,
             };
-            if hap.is_none() && let (Some(settings),Some(identity))=(&hap_settings,&identity) {hap=Some(crate::hap_endpoint::Endpoint::start(settings,identity,&admission,controller,&runtime,owner.snapshot()).await?);}
+            if hap.is_none() && let (Some(settings),Some(identity))=(&hap_settings,&identity) {hap=crate::hap_endpoint::Endpoint::start(settings,identity,&admission,controller,&runtime,owner.snapshot(),management.is_some() || management_settings.is_some()).await?;}
             #[cfg(test)]
             if let (Some(delay),Some(endpoint))=(hap_failure_after,&hap) {
                 let handle=endpoint.abort_handle();
@@ -182,7 +182,7 @@ async fn serve_inner(devices:&[u8],rules:&[u8],directory:&Path,duration:Duration
             if let Some(settings)=management_settings.take() {
                 management=Some(crate::management_endpoint::Endpoint::start(settings,directory,&admission,controller,&runtime,publisher.clone().ok_or("management publisher missing")?).await?);
             } else if let Some(endpoint)=&management {endpoint.install(&admission,controller,&runtime).await?;}
-            if let Some(endpoint)=&management {endpoint.set_hap_status(if hap.is_some(){crate::web_api::HapStatus::Listening}else{crate::web_api::HapStatus::Disabled})?;}
+            if let Some(endpoint)=&management {endpoint.set_hap_status(if hap.is_some(){crate::web_api::HapStatus::Listening}else if hap_settings.is_some(){crate::web_api::HapStatus::Degraded}else{crate::web_api::HapStatus::Disabled})?;}
             let outcome={
                 let (ready,mut started)=tokio::sync::oneshot::channel();
                 let mut running=false;
@@ -290,7 +290,7 @@ async fn serve_inner(devices:&[u8],rules:&[u8],directory:&Path,duration:Duration
                             epoch=next;
                             endpoints=candidate.gateways().iter().map(|(id,g)|(id.clone(),g.endpoint)).collect();
                             config=candidate;
-                            if let (Some(settings),Some(identity))=(&hap_settings,&identity) {hap=Some(crate::hap_endpoint::Endpoint::start(settings,identity,&admission,controller,&runtime,owner.snapshot()).await?);}
+                            if let (Some(settings),Some(identity))=(&hap_settings,&identity) {hap=crate::hap_endpoint::Endpoint::start(settings,identity,&admission,controller,&runtime,owner.snapshot(),management.is_some() || management_settings.is_some()).await?;}
                             if let Some(endpoint)=&management {endpoint.install(&admission,controller,&runtime).await?;}
                             prepared_runtime=Some(runtime);
                             request.complete(Ok(revision));
