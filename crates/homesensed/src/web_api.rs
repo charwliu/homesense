@@ -184,6 +184,15 @@ impl Api {
             );
             return result;
         }
+        if request.uri().path()=="/api/v1/credentials" {
+            if grant.role!=crate::web_auth::Role::Administrator {return deny(StatusCode::FORBIDDEN,"administrator_required");}
+            if request.method()!=hyper::Method::GET {return deny(StatusCode::METHOD_NOT_ALLOWED,"method_not_allowed");}
+            if !request.body().is_empty() {return deny(StatusCode::BAD_REQUEST,"unexpected_body");}
+            return match self.tokens.summaries() {
+                Ok(credentials)=>response(StatusCode::OK,json!({"credentials":credentials})),
+                Err(_)=>deny(StatusCode::SERVICE_UNAVAILABLE,"credential_store_unavailable"),
+            };
+        }
         if request.uri().path() == "/health/ready" {
             if grant.role!=crate::web_auth::Role::Administrator {return deny(StatusCode::FORBIDDEN,"administrator_required");}
             if request.method()!=hyper::Method::GET {return deny(StatusCode::METHOD_NOT_ALLOWED,"method_not_allowed");}
