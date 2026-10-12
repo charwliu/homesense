@@ -22,6 +22,7 @@ assert.equal(element('metadata-name').value,'Original');element('metadata-name')
  element('edit-room-id').value='study';element('edit-room-name').value='Study';element('edit-room-floor').value='F2';
  const roomEdit=element('save-room').onclick();assert.equal(pending[0].path,'/api/v1/config/drafts/source-id/room');const roomBody=JSON.parse(pending[0].options.body);assert.equal(roomBody.revision,'9007199254740994');assert.deepEqual(roomBody.room,{id:'study',name:'Study',floor:'F2'});
  element('edit-room-floor').handlers.input();pending.shift().resolve({ok:true,json:async()=>({draft:'late-room-id'})});await roomEdit;assert.equal(pending.length,0);
- const removeRoom=element('remove-room').onclick();assert.equal(JSON.parse(pending[0].options.body).remove,true);pending.shift().resolve({ok:false,json:async()=>({error:'invalid_room_edit'})});await removeRoom;assert.equal(element('device-document').value,raw);assert.equal(element('activate-draft').disabled,true);
+ const removeRoom=element('remove-room').onclick();assert.equal(JSON.parse(pending[0].options.body).remove,true);pending.shift().resolve({ok:false,json:async()=>({error:'room_in_use'})});await removeRoom;assert.equal(element('device-document').value,raw);assert.equal(element('activate-draft').disabled,true);
+ assert.match(element('status').textContent,/此房间仍有设备/);
  console.log('Device and room source binding, precision and in-flight edits: passed');
 })().catch(e=>{console.error(e);process.exitCode=1});
