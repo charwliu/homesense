@@ -310,8 +310,8 @@ async fn serve_inner(devices:&[u8],rules:&[u8],directory:&Path,duration:Duration
                 }
             }
         }
-    }
-    .await;
+    };
+    let result=crate::daily_backup::supervise(path.clone(),ExecutionContext::Live,result).await;
     admission.stop_now();
     let shutdown = admission
         .shutdown()
