@@ -324,6 +324,12 @@ pub(crate) async fn drive_with_panel_feeds<S: Read + Write + Send + 'static>(
                 disconnected = Some(gateways[next].clone());
                 return Ok(());
             }
+            if let Err((gateway,error))=guard.owner.refresh_outputs_if_due().await {
+                log::warn!("periodic output query failed gateway={gateway}: {error}");
+                transport_failure=true;
+                disconnected=Some(gateway);
+                return Ok(());
+            }
             guard.owner.expire(admission.monotonic_ms(), max_age_ms)?;
             if let Some(projection)=&projection {projection.send_replace(guard.owner.snapshot());}
             if !panel_feeds.0.is_empty() {

@@ -1,0 +1,24 @@
+{
+  "source_base": "06e2705",
+  "prior_committed_web_fix": "08f7db9",
+  "workspace": {
+    "passed": 582,
+    "failed": 0,
+    "ignored": 0,
+    "result_blocks": 117
+  },
+  "homesensed_all_target_clippy": "passed",
+  "architecture": "aarch64-unknown-linux-gnu",
+  "arm_binary_sha256": "f9bb2c8e6633ffdd8978a8115361e8c37d57c460f6c885cec4fd9045adcce885",
+  "arm_combined_tls_smoke": "passed",
+  "field_gate": "Apple addition and load behavior pending",
+  "ea5_scope_changed": false,
+  "private_field_data": "local only",
+  "tests": [
+    "idle encrypted HAP and Web feedback",
+    "periodic query timeout without control writes",
+    "publication and recovery",
+    "event-only panel remains unknown"
+  ],
+  "initial_failures": "Sandbox loopback restrictions and outdated bounded test fixtures; final rerun passed"
+}
