@@ -681,3 +681,6 @@ Web 服务持久权限启动：模拟和统一管理入口改用 `web-credential
 
 
 因果链停止原因接线：Router 关闭通过 Session 和 SceneScheduler 向场景传递 service_stopped，显式取消链／场景仍使用 cancel_requested。111 项场景运行时回归及库严格 Clippy 通过，覆盖重复关闭仅保存一次服务停止记录、关闭后不再派发。配置发布和传输故障的特定原因仍需由上层监督器传入；未部署现场，EA-5 不变。
+
+
+传输故障来源接线：自动化驱动在明确 SendError 或已分类网关断链时，向 Router／Session／SceneScheduler 传递 transport_failure；其他正常退出仍为 service_stopped，不从场景状态猜测原因。TCP 延迟场景断链回归确认故障取消记录存在、无 cancel_requested，旧动作不重放；TCP 与全部 111 项场景回归、库严格 Clippy 通过。配置发布发生于提交前屏障，不能标为“已发布”，其原因命名／迁移待修正；未部署现场，EA-5 不变。

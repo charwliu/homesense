@@ -211,6 +211,8 @@ async fn disconnect_after_write_cancels_delayed_scene_without_replay() {
     assert!(result.is_err(), "disconnect must end this unsupervised run");
     server.join().unwrap();
     let sql = rusqlite::Connection::open(root.join("automation-tcp.sqlite")).unwrap();
+    assert_eq!(sql.query_row("SELECT count(*) FROM scene_cancellation WHERE reason='transport_failure'",[],|row|row.get::<_,i64>(0)).unwrap(),1);
+    assert_eq!(sql.query_row("SELECT count(*) FROM scene_cancellation WHERE reason='cancel_requested'",[],|row|row.get::<_,i64>(0)).unwrap(),0);
     let count: i64 = sql
         .query_row("SELECT count(*) FROM command_journal", [], |r| r.get(0))
         .unwrap();

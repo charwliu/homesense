@@ -201,6 +201,7 @@ pub(crate) async fn drive_with_projection<S: Read + Write + Send + 'static>(
         publication_paused: false,
     };
     let mut disconnected = None;
+    let mut transport_failure=false;
     let result = async {
         let gateways = guard.owner.gateway_ids();
         if gateways.is_empty() {
@@ -282,7 +283,7 @@ pub(crate) async fn drive_with_projection<S: Read + Write + Send + 'static>(
             if let Some(outcome) = guard.owner.step().await? {
                 outcome
                     .result
-                    .map_err(|e| format!("automation write: {e:?}"))?;
+                    .map_err(|e| {transport_failure=true;format!("automation write: {e:?}")})?;
                 if let Some(router)=&mut causal {router.observe_written(outcome.command_id).await?;}
             }
             if *stop.borrow() {
@@ -290,6 +291,7 @@ pub(crate) async fn drive_with_projection<S: Read + Write + Send + 'static>(
             }
             let read = guard.owner.receive(&gateways[next]).await?;
             if matches!(read.result, hb_transport::Receive::Disconnected { .. }) {
+                transport_failure=true;
                 disconnected = Some(gateways[next].clone());
                 return Ok(());
             }
@@ -303,12 +305,13 @@ pub(crate) async fn drive_with_projection<S: Read + Write + Send + 'static>(
         }
     }
     .await;
+    let reason=if transport_failure {homesense_storage::scene_run::CancellationReason::TransportFailure} else {homesense_storage::scene_run::CancellationReason::ServiceStopped};
     let mut cleanup_errors = Vec::new();
     if let Some(router) = &mut causal
-        && let Err(error) = router.close(guard.scenes).await {
+        && let Err(error) = router.close_with_reason(guard.scenes,reason).await {
         cleanup_errors.push(format!("causal shutdown: {error}"));
     }
-    for (id, result) in guard.scenes.stop().await {
+    for (id, result) in guard.scenes.stop_with_reason(reason).await {
         if let Err(error) = result {
             cleanup_errors.push(format!("scene shutdown run={id}: {error}"));
         }
