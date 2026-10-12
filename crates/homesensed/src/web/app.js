@@ -36,7 +36,7 @@ async function request(path, options = {}) {
   const response = await fetch(path, {...options, cache: 'no-store', credentials: 'same-origin', headers: {...(options.body!==undefined ? {'Content-Type':'application/json'} : {}), ...options.headers, ...(csrf ? {'X-CSRF-Token': csrf} : {})}});
   const result = await response.json();
   if(epoch!==sessionEpoch)throw new Error('会话已切换，已忽略旧响应');
-  if (!response.ok) throw new Error(result.error==='room_in_use'?'此房间仍有设备，请先在草稿中调整设备归属。':(result.error || '请求失败'));
+  if (!response.ok) throw new Error(result.error==='room_in_use'?'此房间仍有设备，请先在草稿中调整设备归属。':(result.error==='credential_changed'?'授权已被其他操作修改，请重新读取。':(result.error || '请求失败')));
   return result;
 }
 async function refresh() {
@@ -583,17 +583,17 @@ document.getElementById('load-credential').onclick=async()=>{
     document.getElementById('edit-credential-role').value=credential.grant.role;
     document.getElementById('edit-credential-devices').value=credential.grant.devices.join('\n');
     document.getElementById('edit-credential-scenes').value=credential.grant.scenes.join('\n');
-    credentialEditSource=id;output.textContent='已读取，请核对后修改；保存会替换完整范围';
+    credentialEditSource={id,grant:credential.grant};output.textContent='已读取，请核对后修改；保存会替换完整范围';
   }catch(e){if(epoch===sessionEpoch&&editEpoch===credentialEditEpoch)output.textContent=e.message;}
 };
 document.getElementById('save-credential').onclick=async()=>{
   if(credentialEditBusy)return;
   const epoch=sessionEpoch,editEpoch=credentialEditEpoch,output=document.getElementById('edit-credential-result'),button=document.getElementById('save-credential');
   const id=document.getElementById('edit-credential-id').value.trim();
-  if(!credentialEditSource||credentialEditSource!==id){output.textContent='请先读取此凭证的原授权';return;}
+  if(!credentialEditSource||credentialEditSource.id!==id){output.textContent='请先读取此凭证的原授权';return;}
   if(!document.getElementById('edit-credential-confirm').checked){output.textContent='请确认替换完整范围并退出已有会话';return;}
   const scope=id=>[...new Set(document.getElementById(id).value.split(/\r?\n/).map(value=>value.trim()).filter(Boolean))];
-  const body={role:document.getElementById('edit-credential-role').value,devices:scope('edit-credential-devices'),scenes:scope('edit-credential-scenes')};
+  const body={expected:credentialEditSource.grant,role:document.getElementById('edit-credential-role').value,devices:scope('edit-credential-devices'),scenes:scope('edit-credential-scenes')};
   const encoded=JSON.stringify(body);
   if(new TextEncoder().encode(encoded).length>65536){output.textContent='授权范围过大';return;}
   credentialEditBusy=true;button.disabled=true;
