@@ -108,6 +108,7 @@ pub mod web_tls;
 mod management_endpoint;
 
 pub mod hap_endpoint;
+pub mod hap_bridge_plan;
 pub mod runtime_motor_hap;
 
 mod web_history;
