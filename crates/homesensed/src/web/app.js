@@ -158,7 +158,7 @@ document.getElementById('activate-draft').onclick = async () => {
   const preview=publicationPreview;
   if(!preview || preview.id!==document.getElementById('draft-id').value.trim()) {status.textContent='请先预览当前草稿。';return;}
   if(!window.confirm('激活将结束旧版本规则和未执行动作。已执行动作不会回滚。继续激活？'))return;
-  document.getElementById('activate-draft').disabled=true; publicationPreview=null;
+  invalidatePreview();
   try {
     const result=await request('/api/v1/config/activations/'+preview.id,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({request_id:crypto.randomUUID(),boot:preview.boot})});
     status.textContent=result.outcome==='activated'?`版本 ${result.revision} 已激活。`:'发布结果未知，请检查活动版本，不要重复激活。';
