@@ -6099,10 +6099,10 @@ async fn slow_bus_rejects_excess_fade_rate_without_output_and_releases_capacity(
     let device=homesense_core::DeviceId::new("simulation:light").unwrap();
     let target=homesense_core::Percent::new(50).unwrap();
     assert!(SoftwareFade::start(a.clone(),controller,device.clone(),target,1000,100,100,10,&feedback,5000).await.is_err());
-    let mut allowed=SoftwareFade::start(a.clone(),controller,device.clone(),target,1000,200,100,5,&feedback,5000).await.unwrap();
-    assert!(SoftwareFade::start(a.clone(),controller,device.clone(),target,1000,200,100,5,&feedback,5000).await.is_err());
+    let mut allowed=SoftwareFade::start(a.clone(),controller,device.clone(),target,1000,500,100,2,&feedback,5000).await.unwrap();
+    assert!(SoftwareFade::start(a.clone(),controller,device.clone(),target,1000,500,100,2,&feedback,5000).await.is_err());
     allowed.cancel().await.unwrap();
-    let mut replacement=SoftwareFade::start(a.clone(),controller,device,target,1000,200,100,5,&feedback,5000).await.unwrap();
+    let mut replacement=SoftwareFade::start(a.clone(),controller,device,target,1000,500,100,2,&feedback,5000).await.unwrap();
     replacement.cancel().await.unwrap();
     assert!(a.task_generation().await.is_ok());
     assert!(a.dispatch().await.unwrap().is_none());
