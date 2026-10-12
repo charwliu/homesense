@@ -1,0 +1,60 @@
+{
+  "date": "2026-10-13",
+  "source_xml_sha256": "cac7dcdc9db08599e55a22bacb72858035c64e1ac846e2139ead5fc634513748",
+  "private_audit_sha256": "d528780b97466cae8a9d701aef44852f27dbf049753a2e2d7c0a0de41326d2e1",
+  "independent_xml_counts": {
+    "variables": 25,
+    "explicit_reads": 224,
+    "explicit_writes": 263,
+    "assignment_only_variables": 22,
+    "arithmetic_variables": 3,
+    "variables_with_comparison_literal_not_explicitly_assigned": 1
+  },
+  "specific_difference": {
+    "assignment_literals": [
+      0,
+      1,
+      2
+    ],
+    "unassigned_comparison_literal": 3,
+    "comparison_operation": "==",
+    "comparison_sites": 4,
+    "all_comparison_sites_enabled": true,
+    "distinct_comparison_event_owners": 4,
+    "explicit_assignment_sites": 4,
+    "all_assignment_sites_enabled": true
+  },
+  "conclusion": "Under an explicit-writer-only model started within 0/1/2, assignment closure cannot reach 3; this does not prove the branch dead in the original runtime",
+  "required_followup": [
+    "retain equality-to-3 branches during conversion",
+    "review declared initialization and external/implicit writer sources",
+    "do not import saved value as approved initialization or narrow runtime domain to assigned literals"
+  ],
+  "saved_values_read": false,
+  "driver_script_bytes_read": false,
+  "new_full_semantic_approvals": 0,
+  "runtime_definitions_generated": false,
+  "field_enablement": false,
+  "source_ast_replay": {
+    "product_commit": "c184e65eb7adfa284bf26b1978dcb392ab762351",
+    "committed_files_compared": 891,
+    "committed_file_mismatches": 0,
+    "source_programs_replayed": 2,
+    "initial_values_per_program": [
+      "unknown",
+      0,
+      1,
+      2,
+      3
+    ],
+    "cases_checked": 10,
+    "target_test_passed": 1,
+    "failed": 0,
+    "ignored": 0,
+    "test_log_sha256": "852599e93c2b99d869e5803fb050610cdd3605cd7192f8ad31d5e079e8e18534",
+    "additional_files": "isolated private test and two display-redacted source fixtures only",
+    "result": "Equality-to-3 path preserves 3; 0/1/2 execute original Else assignment; unknown skips Then and Else",
+    "physical_execution_verified": false,
+    "original_reachability_of_3_verified": false
+  }
+}
