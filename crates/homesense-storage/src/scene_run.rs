@@ -50,9 +50,9 @@ pub struct Record {
     pub status: Status,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CancellationReason { ManualOverride, SceneReplacement, CancelRequested, ServiceStopped, ConfigurationPublished, TransportFailure, PreparationFailed }
+pub enum CancellationReason { ManualOverride, SceneReplacement, CancelRequested, ServiceStopped, ConfigurationPublished, TransportFailure, PreparationFailed, PublicationBarrier }
 impl CancellationReason {
-    fn text(self) -> &'static str { match self { Self::ManualOverride => "manual_override", Self::SceneReplacement => "scene_replacement", Self::CancelRequested => "cancel_requested", Self::ServiceStopped => "service_stopped", Self::ConfigurationPublished => "configuration_published", Self::TransportFailure => "transport_failure", Self::PreparationFailed => "preparation_failed" } }
+    fn text(self) -> &'static str { match self { Self::ManualOverride => "manual_override", Self::SceneReplacement => "scene_replacement", Self::CancelRequested => "cancel_requested", Self::ServiceStopped => "service_stopped", Self::ConfigurationPublished => "configuration_published", Self::TransportFailure => "transport_failure", Self::PreparationFailed => "preparation_failed", Self::PublicationBarrier => "publication_barrier" } }
 }
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Cancellation {
@@ -495,7 +495,7 @@ impl Store {
                     let mut statement=tx.prepare("SELECT version,device_id,reason FROM scene_cancellation WHERE boot_id=?1 AND run_id=?2 AND version>?3 ORDER BY version LIMIT ?4")?;
                     let rows=statement.query_map(params![boot,run,after as i64,limit as i64],|row|Ok((row.get::<_,i64>(0)?,row.get::<_,String>(1)?,row.get::<_,String>(2)?)))?.collect::<Result<Vec<_>,_>>()?;
                     let records=rows.into_iter().map(|(version,device,reason)|{
-                        let reason=match reason.as_str() {"manual_override"=>CancellationReason::ManualOverride,"scene_replacement"=>CancellationReason::SceneReplacement,"cancel_requested"=>CancellationReason::CancelRequested,"service_stopped"=>CancellationReason::ServiceStopped,"configuration_published"=>CancellationReason::ConfigurationPublished,"transport_failure"=>CancellationReason::TransportFailure,"preparation_failed"=>CancellationReason::PreparationFailed,_=>return Err(Error::InvalidAudit)};
+                        let reason=match reason.as_str() {"manual_override"=>CancellationReason::ManualOverride,"scene_replacement"=>CancellationReason::SceneReplacement,"cancel_requested"=>CancellationReason::CancelRequested,"service_stopped"=>CancellationReason::ServiceStopped,"configuration_published"=>CancellationReason::ConfigurationPublished,"transport_failure"=>CancellationReason::TransportFailure,"preparation_failed"=>CancellationReason::PreparationFailed,"publication_barrier"=>CancellationReason::PublicationBarrier,_=>return Err(Error::InvalidAudit)};
                         Ok(CancellationRecord{version:u64::try_from(version).map_err(|_|Error::InvalidAudit)?,cancellation:Cancellation{device:homesense_core::DeviceId::new(device).map_err(|_|Error::InvalidAudit)?,reason}})
                     }).collect::<Result<Vec<_>,Error>>()?;
                     let cursor=if records.len()==limit {records.last().map(|r|r.version)} else {None};
