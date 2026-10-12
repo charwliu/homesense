@@ -6,6 +6,8 @@ let backupInspectionEpoch=0;
 let metadataSource=null;
 let observedRevision=null;
 let deviceSnapshotEpoch=0;
+let lastSceneSnapshot=null;
+let sceneSnapshotEpoch=0;
 let publicationPreview=null;
 let publicationConfirmation=null;
 let previewEpoch=0;
@@ -36,9 +38,10 @@ async function refresh() {
   const capabilities = await request('/api/v1/session');
   document.getElementById('configuration').hidden = !capabilities.can_manage_configuration;
   document.getElementById('diagnostics').hidden = !capabilities.can_view_diagnostics;
+  const epoch=sceneSnapshotEpoch;
   const data = await request('/api/v1/scenes');
   await refreshDevices();
-  renderScenes(data);
+  if(epoch===sceneSnapshotEpoch)renderScenes(data);
 }
 function observeRevision(revision) {
   if(typeof revision!=='string'||!/^[1-9][0-9]*$/.test(revision))return true;
@@ -50,6 +53,7 @@ function observeRevision(revision) {
 }
 function renderScenes(data) {
   if(!observeRevision(data.revision))return;
+  sceneSnapshotEpoch++;lastSceneSnapshot=data;
   list.replaceChildren();
   for (const scene of data.scenes) {
     const row = document.createElement('article');
@@ -106,7 +110,7 @@ document.getElementById('connect').onclick = async () => {
 document.getElementById('logout').onclick = async () => {
   if(sessionBusy)return;sessionBusy=true;++sessionEpoch;
   invalidatePreview();
-  try { await request('/api/v1/session', {method: 'DELETE'}); csrf = ''; observedRevision=null; clearTimeout(eventRetry); if(eventSocket)eventSocket.close();eventDevices.clear(); selectedRoom='';document.getElementById('room-filter').replaceChildren();document.getElementById('room-filter').value=''; document.getElementById('draft-impact').textContent=''; document.getElementById('configuration').hidden=true;document.getElementById('diagnostics').hidden=true;historyEpoch++;detailEpoch++;document.getElementById('run-details').replaceChildren();document.getElementById('scene-history').hidden=true;document.getElementById('history-runs').replaceChildren();document.getElementById('history-title').textContent='';document.getElementById('history-next').disabled=true; document.getElementById('runtime-result').textContent='';document.getElementById('calendar-result').textContent='';document.getElementById('backup-result').textContent='';document.getElementById('backup-actions').replaceChildren();backupInspectionEpoch++;document.getElementById('backup-inspection').textContent='';document.getElementById('versions').replaceChildren();document.getElementById('draft-list').replaceChildren(); versionsBefore=null;document.getElementById('more-versions').disabled=true; metadataSource=null;document.getElementById('metadata-device').replaceChildren();document.getElementById('metadata-room').replaceChildren();document.getElementById('edit-room-select').replaceChildren();document.getElementById('metadata-name').value=''; for(const id of ['device-document','automation-document','draft-id','base-revision','draft-revision','edit-room-id','edit-room-name','edit-room-floor']) document.getElementById(id).value=''; started.clear(); list.replaceChildren(); document.getElementById('devices').replaceChildren(); status.textContent = '已退出'; }
+  try { await request('/api/v1/session', {method: 'DELETE'}); csrf = ''; observedRevision=null;lastSceneSnapshot=null; clearTimeout(eventRetry); if(eventSocket)eventSocket.close();eventDevices.clear(); selectedRoom='';document.getElementById('room-filter').replaceChildren();document.getElementById('room-filter').value=''; document.getElementById('draft-impact').textContent=''; document.getElementById('configuration').hidden=true;document.getElementById('diagnostics').hidden=true;historyEpoch++;detailEpoch++;document.getElementById('run-details').replaceChildren();document.getElementById('scene-history').hidden=true;document.getElementById('history-runs').replaceChildren();document.getElementById('history-title').textContent='';document.getElementById('history-next').disabled=true; document.getElementById('runtime-result').textContent='';document.getElementById('calendar-result').textContent='';document.getElementById('backup-result').textContent='';document.getElementById('backup-actions').replaceChildren();backupInspectionEpoch++;document.getElementById('backup-inspection').textContent='';document.getElementById('versions').replaceChildren();document.getElementById('draft-list').replaceChildren(); versionsBefore=null;document.getElementById('more-versions').disabled=true; metadataSource=null;document.getElementById('metadata-device').replaceChildren();document.getElementById('metadata-room').replaceChildren();document.getElementById('edit-room-select').replaceChildren();document.getElementById('metadata-name').value=''; for(const id of ['device-document','automation-document','draft-id','base-revision','draft-revision','edit-room-id','edit-room-name','edit-room-floor']) document.getElementById(id).value=''; started.clear(); list.replaceChildren(); document.getElementById('devices').replaceChildren(); status.textContent = '已退出'; }
   catch (error) { status.textContent = '注销未确认：' + error.message; }
   finally {sessionBusy=false;}
 };
@@ -241,9 +245,11 @@ document.getElementById('confirm-publication').onclick=async()=>{
 let eventSocket=null, eventCursor=null, eventRetry=null, eventAttempts=0;
 const eventDevices=new Map();
 function markEventStateUnavailable(message) {
-  deviceSnapshotEpoch++;invalidatePreview();
+  deviceSnapshotEpoch++;sceneSnapshotEpoch++;invalidatePreview();
   for(const [id,device] of eventDevices)eventDevices.set(id,{...device,quality:'Stale',can_control:false});
-  renderDevices();status.textContent=message;
+  renderDevices();
+  if(lastSceneSnapshot)renderScenes({...lastSceneSnapshot,scenes:lastSceneSnapshot.scenes.map(scene=>({...scene,activity:'Unknown',can_control:false}))});
+  status.textContent=message;
 }
 function connectEvents() {
   clearTimeout(eventRetry);if(!csrf)return;
