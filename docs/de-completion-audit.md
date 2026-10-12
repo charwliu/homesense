@@ -157,3 +157,10 @@ E12 保留原组合灯映射及三条 LED links，实际 Linux 二进制通过13
 ### 2026-10-13 原 RAMP_TO_LEVEL 时间单位补证
 
 [厂商 DriverWorks API 的 SendToDevice 示例](https://snap-one.github.io/docs-driverworks-api/#sendtodevice)明确将 RAMP_TO_LEVEL 的 TIME=3000 描述为3秒。根核对权威 XML 中唯一同名节点为 TIME／INTEGER／static=1000、LEVEL／INTEGER／static=0，故该参数按毫秒解释为1秒。这项接口单位缺口已有直接依据；它不证明当前原驱动正确执行或整个程序已审核，也不能类推 AdvScene rate／单独 Ramp Timer 字段。原禁用状态、现场配置和D整体剩余门槛保持原结论。见 [单位补证](evidence/stage-d-study/ramp-time-primary-reference.json)。
+
+
+### 2026-10-13 实际 Linux 加密 HAP 观察投影核查
+
+E13 固定同一 `c184e65` 产品二进制，独立控制器通过网络完成一次 SRP Pair Setup、三次 Pair Verify 和三次显式订阅，未向身份库注入配对。根核对控制器使用的两份协议 helper 与已提交源码指纹一致，产品及控制器指纹、全部私有清单一致。13个检查点包含8次未知／歧义／失效：HAP读取返回207、三个场景均为-70402且无value；5次已知选择／关闭读取返回正确布尔值，并有11条加密EVENT。EOF及保留身份重启后重新认证、订阅和收敛通知均通过，Web选择／来源失效逐项一致。
+
+全程保留三条 LED links，零控制命令和场景；根另外分类全部40条发送报文，均为读取查询。实际运行库／配对库未变，服务和测试控制器已退出，现场仍关闭。首次测试工具因SQLite u64不支持而编译失败，修正为i64后通过；产品二进制未变。这是加密模拟控制器的端到端证据，HAP布尔值不携带来源标签，不能替代iPhone／HomePod现场或证明实时writer完整。见 [加密 HAP 证据](evidence/stage-e-browser/scene-observation-encrypted-hap-check.json)。
