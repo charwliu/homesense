@@ -53,7 +53,7 @@ impl SceneScheduler {
         }).collect()
     }
 
-    pub(crate) fn owned_by(&self,run:u64,controller:Uuid)->bool {self.runs.get(&run).is_some_and(|r|r.controller()==controller)}
+    pub fn owned_by(&self,run:u64,controller:Uuid)->bool {self.runs.get(&run).is_some_and(|r|r.controller()==controller)}
     pub fn new(
         admission: Admission,
         controller: Uuid,
@@ -98,6 +98,9 @@ impl SceneScheduler {
     /// or abandoned installation gates the admission owner; receipts are never
     /// replayed automatically after that failure.
     pub async fn install_accepted(&mut self, reservation:&mut Reservation, accepted:Vec<crate::admission::AcceptedScene>, now:u64)->Result<Vec<u64>,String> {
+        self.install_accepted_as(reservation,accepted,now,self.controller).await
+    }
+    async fn install_accepted_as(&mut self, reservation:&mut Reservation, accepted:Vec<crate::admission::AcceptedScene>, now:u64, controller:Uuid)->Result<Vec<u64>,String> {
         self.clock(now)?;
         if !Arc::ptr_eq(&self.reserved,&reservation.owner) || accepted.is_empty() || accepted.len()>reservation.remaining {return Err("invalid batch reservation".into());}
         struct Guard(Admission,bool);
@@ -106,8 +109,8 @@ impl SceneScheduler {
         let count=accepted.len();
         let end=self.next.checked_add(count as u64).ok_or("scene id exhausted")?;
         let generation=self.admission.task_generation().await.map_err(|e|format!("{e:?}"))?;
-        if accepted.iter().any(|a|a.controller!=self.controller || a.generation!=generation) {return Err("accepted batch owner or generation mismatch".into());}
-        let bundle=self.admission.automation_bundle(self.controller,generation).await.map_err(|e|format!("{e:?}"))?;
+        if accepted.iter().any(|a|a.controller!=controller || a.generation!=generation) {return Err("accepted batch owner or generation mismatch".into());}
+        let bundle=self.admission.automation_bundle(controller,generation).await.map_err(|e|format!("{e:?}"))?;
         let document=bundle.automation.ok_or("accepted automation missing")?;
         let mut devices=BTreeSet::new();
         let mut batch_devices=Vec::with_capacity(count);
@@ -192,6 +195,25 @@ impl SceneScheduler {
         .await?;
         self.runs.get_mut(&run).unwrap().configured_fades=scene.fades.clone();
         Ok(run)
+    }
+    /// Reserve all slots before durable acceptance; retain the actual caller.
+    /// No scene can become runnable until the complete batch is installed.
+    pub async fn start_documents_as(&mut self, revision:u64, definitions:Vec<String>, now:u64, controller:Uuid)->Result<Vec<u64>,String> {
+        self.clock(now)?;
+        self.next.checked_add(definitions.len() as u64).ok_or("scene id exhausted")?;
+        let mut slots=self.reserve_slots(definitions.len())?;
+        let generation=self.admission.task_generation().await.map_err(|e|format!("{e:?}"))?;
+        if generation.epochs.configuration!=revision {return Err("scene batch revision expired".into());}
+        struct Guard(Admission,bool);
+        impl Drop for Guard {fn drop(&mut self){if !self.1 {self.0.stop_now();}}}
+        let mut guard=Guard(self.admission.clone(),false);
+        let accepted=match self.admission.accept_manual_scenes(controller,generation,definitions).await {
+            Ok(accepted)=>accepted,
+            Err(error)=>{guard.1=true;return Err(format!("{error:?}"));}
+        };
+        let runs=self.install_accepted_as(&mut slots,accepted,now,controller).await?;
+        guard.1=true;
+        Ok(runs)
     }
     /// New scene targets supersede future and queued output for the same device.
     /// Cancellation failure prevents installation of the new scene; already

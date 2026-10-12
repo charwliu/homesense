@@ -61,36 +61,20 @@ impl RuntimeSceneHap {
                 let writes = writes.clone();
                 async move {
                     let _guard = writes.lock().await;
-                    // Multi-scene atomic acceptance is not yet supported; reject the
-                    // entire request before any effect instead of partial execution.
-                    if batch.addressed.len() != 1 {
-                        return Err(WriteStatus::InvalidValueInRequest);
-                    }
-                    let scene = &batch.addressed[0];
-                    if !authorize(batch.controller, scene) {
+                    if batch.addressed.iter().any(|scene|!authorize(batch.controller,scene)) {
                         return Err(WriteStatus::InsufficientPrivileges);
                     }
-                    let execute = !batch.starts.is_empty();
-                    let permit = if execute {
-                        Some(send.try_reserve().map_err(|_| WriteStatus::ResourceBusy)?)
-                    } else {
-                        None
-                    };
-                    let reply = control
-                        .request(Action::SceneAction {
-                            controller: batch.controller,
-                            revision,
-                            scene: scene.clone(),
-                            execute,
-                        })
-                        .await
-                        .map_err(|_| WriteStatus::ServiceCommunicationFailure)?;
-                    if !matches!(reply, Reply::SceneAccepted(_)) {
+                    let permits=send.try_reserve_many(batch.starts.len())
+                        .map_err(|_|WriteStatus::ResourceBusy)?;
+                    let actions=batch.addressed.iter().map(|scene|
+                        (scene.clone(),batch.starts.contains(scene))).collect();
+                    let reply=control.request(Action::SceneActions {
+                        controller:batch.controller,revision,scenes:actions,
+                    }).await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?;
+                    if !matches!(reply,Reply::ScenesAccepted(ref runs) if runs.len()==batch.starts.len()) {
                         return Err(WriteStatus::ServiceCommunicationFailure);
                     }
-                    if let Some(permit) = permit {
-                        permit.send(scene.clone());
-                    }
+                    for (permit,scene) in permits.zip(batch.starts) {permit.send(scene);}
                     Ok(())
                 }
             },
