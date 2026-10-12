@@ -136,7 +136,8 @@ impl RuntimeHap {
         let view = ObservedView::new(snapshot.clone(), max_age_ms, move || clock.monotonic_ms())
             .map_err(error)?
             .with_restore_levels(restore_levels.clone());
-        let mut graph = LightGraph::build(store, "HomeSense", specs)
+        let bridge_name=hap::storage::Storage::load_config(store).await.map_err(error)?.name;
+        let mut graph = LightGraph::build(store, &bridge_name, specs)
             .await
             .map_err(error)?;
         graph.install_observed_reads(view.clone());
