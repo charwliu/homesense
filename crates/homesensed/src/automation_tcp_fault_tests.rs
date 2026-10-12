@@ -1,7 +1,7 @@
 use super::*;
 use tokio::io::{AsyncReadExt,AsyncWriteExt};
 
-async fn http(address:std::net::SocketAddr, path:&str, body:Option<serde_json::Value>)->Result<(u16,serde_json::Value),String> {
+pub(crate) async fn http(address:std::net::SocketAddr, path:&str, body:Option<serde_json::Value>)->Result<(u16,serde_json::Value),String> {
     let mut socket=tokio::net::TcpStream::connect(address).await.map_err(|e|e.to_string())?;
     let body=body.map(|v|v.to_string());
     let method=if body.is_some(){"POST"}else{"GET"};
@@ -12,7 +12,7 @@ async fn http(address:std::net::SocketAddr, path:&str, body:Option<serde_json::V
     let text=String::from_utf8(bytes).unwrap();let (header,body)=text.split_once("\r\n\r\n").unwrap();
     Ok((header.split_whitespace().nth(1).unwrap().parse().unwrap(),serde_json::from_str(body).unwrap()))
 }
-fn free_address()->std::net::SocketAddr {
+pub(crate) fn free_address()->std::net::SocketAddr {
     std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap()
 }
 #[tokio::test]
