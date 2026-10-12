@@ -54,9 +54,8 @@ impl Endpoint {
             .await
             .map_err(|e| format!("{e:?}"))?;
         let view = view(admission, runtime, &bundle)?;
-        let tokens = Arc::new(crate::web_auth::Tokens::default());
-        tokens.insert(
-            Uuid::new_v4(),
+        let tokens = Arc::new(crate::web_auth::Tokens::open_bootstrapped(
+            &directory.join("web-credentials.sqlite"),
             &settings.secret,
             crate::web_auth::Grant {
                 controller,
@@ -74,7 +73,7 @@ impl Endpoint {
                     .map(|(id, _)| id.as_str().to_owned())
                     .collect(),
             },
-        )?;
+        )?);
         let origin = settings.tls.as_ref().map_or_else(
             || format!("http://{}", settings.address),
             |tls| tls.origin.clone(),

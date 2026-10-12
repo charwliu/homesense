@@ -29,8 +29,22 @@ impl Credentials {
           CREATE TABLE IF NOT EXISTS web_credential (
             id TEXT PRIMARY KEY, digest BLOB NOT NULL UNIQUE CHECK(length(digest)=32),
             grant_json TEXT NOT NULL
-          );").map_err(|e|e.to_string())?;
+          );
+          CREATE TABLE IF NOT EXISTS web_credential_initialized(singleton INTEGER PRIMARY KEY CHECK(singleton=1));
+          INSERT OR IGNORE INTO web_credential_initialized SELECT 1 WHERE EXISTS(SELECT 1 FROM web_credential);
+          ").map_err(|e|e.to_string())?;
         let result=Self(db);result.list()?;Ok(result)
+    }
+    /// First-use initialization only. Empty after revocation is still initialized.
+    pub fn bootstrap(&mut self,record:&Record)->Result<bool,String> {
+        validate(&record.grant)?;
+        let encoded=serde_json::to_string(&record.grant).map_err(|e|e.to_string())?;
+        let tx=self.0.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate).map_err(|e|e.to_string())?;
+        let initialized:bool=tx.query_row("SELECT EXISTS(SELECT 1 FROM web_credential_initialized)",[],|r|r.get(0)).map_err(|e|e.to_string())?;
+        if initialized {return Ok(false);}
+        tx.execute("INSERT INTO web_credential(id,digest,grant_json) VALUES(?1,?2,?3)",params![record.id.to_string(),record.digest.as_slice(),encoded]).map_err(|e|e.to_string())?;
+        tx.execute("INSERT INTO web_credential_initialized VALUES(1)",[]).map_err(|e|e.to_string())?;
+        tx.commit().map_err(|e|e.to_string())?;Ok(true)
     }
     pub fn save(&mut self,record:&Record)->Result<(),String> {
         validate(&record.grant)?;
@@ -39,6 +53,7 @@ impl Credentials {
         let count:i64=tx.query_row("SELECT count(*) FROM web_credential WHERE id<>?1",[record.id.to_string()],|r|r.get(0)).map_err(|e|e.to_string())?;
         if count>=128 {return Err("credential capacity reached".into());}
         tx.execute("INSERT INTO web_credential(id,digest,grant_json) VALUES(?1,?2,?3) ON CONFLICT(id) DO UPDATE SET digest=excluded.digest,grant_json=excluded.grant_json",params![record.id.to_string(),record.digest.as_slice(),encoded]).map_err(|e|e.to_string())?;
+        tx.execute("INSERT OR IGNORE INTO web_credential_initialized VALUES(1)",[]).map_err(|e|e.to_string())?;
         tx.commit().map_err(|e|e.to_string())
     }
     pub fn revoke(&mut self,id:Uuid)->Result<(),String> {
