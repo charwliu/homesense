@@ -400,10 +400,13 @@ impl SceneScheduler {
         self.runs.get(&id).map(SceneRuntime::status)
     }
     pub async fn cancel(&mut self, id: u64) -> Result<usize, String> {
+        self.cancel_with_reason(id,homesense_storage::scene_run::CancellationReason::CancelRequested).await
+    }
+    pub(crate) async fn cancel_with_reason(&mut self,id:u64,reason:homesense_storage::scene_run::CancellationReason)->Result<usize,String> {
         self.runs
             .get_mut(&id)
             .ok_or("unknown scene run")?
-            .cancel()
+            .cancel_with_reason(reason)
             .await
     }
     /// Explicit retirement prevents silently losing a terminal run's result.
