@@ -313,3 +313,159 @@ async fn independent_encrypted_bridges_recover_without_replaying_commands() {
     );
     std::fs::remove_dir_all(root).unwrap();
 }
+
+#[tokio::test]
+async fn scene_only_and_motor_only_bridges_control_without_exposing_lights() {
+    let root = std::env::temp_dir().join(format!("homesense-actions-only-{}", Uuid::new_v4()));
+    let bus = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let mut raw: serde_json::Value =
+        serde_json::from_slice(include_bytes!("../../../config/simulation.json")).unwrap();
+    raw["gateways"][0]["endpoint"] = bus.local_addr().unwrap().to_string().into();
+    let verified = serde_json::json!({"status":"verified","evidence":"synthetic loopback","verified_at_unix_ms":1});
+    raw["gateways"][0]["modules"][0]["verification"] = verified.clone();
+    raw["gateways"][0]["modules"].as_array_mut().unwrap().push(
+        serde_json::json!({"address":"22","profile":"c4_din_pro_v2_7_7","verification":verified}),
+    );
+    raw["devices"].as_array_mut().unwrap().push(serde_json::json!({"id":"motor","name":"Curtain","gateway":"simulation","address":"22","channel":2,"enabled":true,"motor_calibration":{"open_direction":"up","stop_verified":true,"evidence":"synthetic","verified_at_unix_ms":1}}));
+    let devices = serde_json::to_vec(&raw).unwrap();
+    let rules=serde_json::to_vec(&serde_json::json!({"schema_version":1,"configuration_revision":1,"variables":[],"rules":[],"timed_scenes":[{"id":"demo","enabled":true,"review_evidence":"synthetic","max_lateness_ms":1000,"steps":[{"source":"fixture","offset_ms":0,"device":"simulation:light","command":{"kind":"level","value":55,"ramp":false}}]}]})).unwrap();
+    let config =
+        homesense_config::Configuration::parse(&devices, homesense_core::ExecutionContext::Live)
+            .unwrap();
+    let document = homesense_config::rule_document::Document::parse(&rules, &config).unwrap();
+    let addresses = [free_address(), free_address()];
+    let web = free_address();
+    let plan=serde_json::to_vec(&serde_json::json!({"schema_version":1,"bridges":[
+        {"id":"scenes","name":"Scenes","address":addresses[0],"lights":[],"scenes":["demo"],"motors":[]},
+        {"id":"motors","name":"Motors","address":addresses[1],"lights":[],"scenes":[],"motors":["motor"]}
+    ]})).unwrap();
+    let mut prepared = homesensed::hap_bridges::prepare(&plan, &config, &document, &root)
+        .await
+        .unwrap();
+    let controller = Uuid::new_v4();
+    let signing = ed25519_dalek::SigningKey::from_bytes(&[27; 32]);
+    for bridge in &mut prepared {
+        bridge.identity.initialize_aid_cache().await.unwrap();
+        homesense_hap::graph::LightGraph::build(&bridge.identity, &bridge.name, vec![])
+            .await
+            .unwrap();
+        if bridge.id == "scenes" {
+            homesense_hap::scene_graph::SceneGraph::build(
+                &bridge.identity,
+                vec![homesense_hap::scene_graph::SceneSpec {
+                    id: "demo".into(),
+                    name: "demo".into(),
+                }],
+            )
+            .await
+            .unwrap();
+        } else {
+            homesense_hap::motor_graph::MotorGraph::build(
+                &bridge.identity,
+                vec![homesense_hap::motor_graph::MotorSpec {
+                    device: homesense_core::DeviceId::new("motor").unwrap(),
+                    name: "Curtain".into(),
+                }],
+            )
+            .await
+            .unwrap();
+        }
+        bridge
+            .identity
+            .save_pairing(&hap::pairing::Pairing::new(
+                controller,
+                hap::pairing::Permissions::Admin,
+                signing.verifying_key().to_bytes(),
+            ))
+            .await
+            .unwrap();
+    }
+    let writes = Arc::new(Mutex::new(vec![]));
+    let received = writes.clone();
+    let gateway = tokio::spawn(async move {
+        let (mut socket, _) = bus.accept().await.unwrap();
+        let mut level = 0;
+        loop {
+            let mut frame = [0; 5];
+            if socket.read_exact(&mut frame).await.is_err() {
+                break;
+            }
+            if frame[1] == 0x22 {
+                received.lock().unwrap().push(frame);
+                continue;
+            }
+            if frame[2] == 1 {
+                level = frame[3];
+                received.lock().unwrap().push(frame);
+            } else {
+                assert_eq!(frame[2], 0xa1);
+            }
+            if socket
+                .write_all(&[0xae, 0x15, 0xd1, level, 0xee])
+                .await
+                .is_err()
+            {
+                break;
+            }
+        }
+    });
+    let directory = root.clone();
+    let service = tokio::spawn(async move {
+        homesensed::automation_tcp::serve_bridges(
+            &devices,
+            &rules,
+            &directory,
+            Duration::from_secs(5),
+            true,
+            0,
+            Duration::from_millis(20),
+            homesensed::service::WebSettings {
+                address: web,
+                secret: "abcdefghijklmnopqrstuvwxyz0123456789".into(),
+                administrator: true,
+                tls: None,
+            },
+            plan,
+        )
+        .await
+    });
+    tokio::time::timeout(Duration::from_secs(3), async {
+        while view(web).await.is_none() {
+            assert!(!service.is_finished());
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .unwrap();
+    for (index, bridge) in prepared.iter().enumerate() {
+        let config = bridge.identity.load_config().await.unwrap();
+        let address = addresses[index];
+        let signing = signing.clone();
+        let writes = writes.clone();
+        tokio::task::spawn_blocking(move || {
+            let mut socket=std::net::TcpStream::connect(address).unwrap();socket.set_read_timeout(Some(Duration::from_secs(2))).unwrap();socket.set_write_timeout(Some(Duration::from_secs(2))).unwrap();
+            let mut session=support::verify(&mut socket,controller,&signing,&config.device_id.to_string(),&config.device_ed25519_keypair.verifying_key());
+            let (header,body)=session.request(&mut socket,b"GET /accessories HTTP/1.1\r\nHost: localhost\r\n\r\n");assert!(header.starts_with("HTTP/1.1 200"));
+            let graph:serde_json::Value=serde_json::from_slice(&body).unwrap();let accessories=graph["accessories"].as_array().unwrap();assert_eq!(accessories.len(),if index==0 {2}else{4});assert!(!String::from_utf8(body).unwrap().contains("模拟调光灯"));
+            for accessory in accessories.iter().skip(1) {
+                let before=writes.lock().unwrap().len();
+                let iid=accessory["services"].as_array().unwrap().iter().flat_map(|s|s["characteristics"].as_array().unwrap()).find(|c|c["type"]=="25").unwrap()["iid"].as_u64().unwrap();
+                let body=serde_json::json!({"characteristics":[{"aid":accessory["aid"],"iid":iid,"value":true}]}).to_string();let request=format!("PUT /characteristics HTTP/1.1\r\nHost: localhost\r\nContent-Type: application/hap+json\r\nContent-Length: {}\r\n\r\n{body}",body.len());
+                let (header,body)=session.request(&mut socket,request.as_bytes());assert!(header.starts_with("HTTP/1.1 204"),"{header} {body:?}");
+                let deadline=std::time::Instant::now()+Duration::from_secs(2);while writes.lock().unwrap().len()==before {assert!(std::time::Instant::now()<deadline);std::thread::sleep(Duration::from_millis(5));}
+            }
+        }).await.unwrap();
+    }
+    service.await.unwrap().unwrap();
+    gateway.await.unwrap();
+    assert_eq!(
+        *writes.lock().unwrap(),
+        vec![
+            [0xae, 0x15, 1, 55, 0xee],
+            [0xae, 0x22, 2, 0xf1, 0xee],
+            [0xae, 0x22, 2, 0xf2, 0xee],
+            [0xae, 0x22, 2, 0xf0, 0xee]
+        ]
+    );
+    std::fs::remove_dir_all(root).unwrap();
+}

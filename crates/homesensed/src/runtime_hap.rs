@@ -44,6 +44,14 @@ pub struct RuntimeHap {
     restore_levels:
         Arc<RwLock<std::collections::BTreeMap<homesense_core::DeviceId, homesense_core::Percent>>>,
 }
+// Empty light subsets route no write addresses. Keep the standalone handler
+// fail-closed too, should it be invoked without UnifiedHap's router.
+struct NoLightWrites;
+impl WriteBatchHandler for NoLightWrites {
+    fn write(&self,_controller:uuid::Uuid,_body:&[u8])->Result<(),hap::server::WriteStatus> {
+        Err(hap::server::WriteStatus::InvalidValueInRequest)
+    }
+}
 struct InstallationGuard {
     admission: Admission,
     installed: bool,
@@ -73,7 +81,7 @@ impl RuntimeHap {
     ) -> Result<Self, String> {
         Self::new_selected(configuration,initial,store,admission,max_age_ms,None).await
     }
-    /// Publish an explicit nonempty logical light subset while retaining the full
+    /// Publish an explicit logical light subset (including an empty subset) while retaining the full
     /// physical snapshot for combined-light writes and shared admission.
     pub async fn new_selected(
         configuration:&Configuration,initial:Snapshot,store:&IdentityStore,
@@ -82,7 +90,7 @@ impl RuntimeHap {
     )->Result<Self,String> {
         if let Some(selected)=&selected {
             let supplies:std::collections::BTreeSet<_>=configuration.devices().values().filter(|d|d.enabled).filter_map(|d|d.supply_relay.as_ref()).collect();
-            if selected.is_empty() || selected.iter().any(|id|supplies.contains(id) || !configuration.binding(id).is_some_and(|(_,module)|matches!(module.kind(),ModuleKind::Switch|ModuleKind::Dimmer))) {
+            if selected.iter().any(|id|supplies.contains(id) || !configuration.binding(id).is_some_and(|(_,module)|matches!(module.kind(),ModuleKind::Switch|ModuleKind::Dimmer))) {
                 return Err("HAP selection requires enabled logical lights".into());
             }
         }
@@ -141,7 +149,10 @@ impl RuntimeHap {
             .await
             .map_err(error)?;
         graph.install_observed_reads(view.clone());
-        let requests = LightRequests::new(graph.bindings.clone()).map_err(error)?;
+        if graph.bindings.is_empty() && selected.is_none() {
+            return Err("HAP light publication requires enabled logical lights".into());
+        }
+        let requests = if graph.bindings.is_empty() {None} else {Some(LightRequests::new(graph.bindings.clone()).map_err(error)?)};
         let revision = configuration.revision();
         let owner = admission.clone();
         let restore = restore_levels.clone();
@@ -160,7 +171,7 @@ impl RuntimeHap {
         projection.set_restore_levels(restore_levels.clone());
         let transitions = projection.transitions();
         let writes = Arc::new(tokio::sync::Mutex::new(()));
-        let write_handler = Arc::new(AsyncLightWriteHandler::new(
+        let write_handler: Arc<dyn WriteBatchHandler> = if let Some(requests)=requests {Arc::new(AsyncLightWriteHandler::new(
             requests,
             move |id: &homesense_core::DeviceId| restore.read().ok()?.get(id).copied(),
             move |batch: homesense_hap::requests::Batch| {
@@ -181,7 +192,7 @@ impl RuntimeHap {
                     Ok(())
                 }
             },
-        ));
+        ))} else {Arc::new(NoLightWrites)};
         let initial = snapshot
             .read()
             .map_err(|_| "snapshot lock poisoned")?
@@ -623,7 +634,7 @@ mod publication_tests {
         for id in [&a,&b] {
             let mut identity=IdentityStore::open(dir.join(if id==&a {"a"}else{"b"})).await.unwrap();
             hap::storage::Storage::save_config(&mut identity,&hap::Config::default()).await.unwrap();
-            for invalid in [std::collections::BTreeSet::new(),[homesense_core::DeviceId::new("missing").unwrap()].into()] {
+            for invalid in [[homesense_core::DeviceId::new("missing").unwrap()].into()] {
                 assert!(RuntimeHap::new_selected(&config,physical.clone(),&identity,admission.clone(),5000,Some(invalid)).await.is_err());
             }
             let graph=RuntimeHap::new_selected(&config,physical.clone(),&identity,admission.clone(),5000,Some([id.clone()].into())).await.unwrap();
