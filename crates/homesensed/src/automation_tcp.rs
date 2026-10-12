@@ -79,23 +79,23 @@ pub async fn serve_with_write_interval(
     publications: Option<crate::automation_publication::Receiver>,
     write_interval: Duration,
 ) -> Result<(), String> {
-    serve_inner(devices,rules,directory,duration,coexistence_confirmed,recovery_limit,publications,write_interval,None,None,None).await
+    serve_inner(devices,rules,directory,duration,coexistence_confirmed,recovery_limit,publications,write_interval,None,None,None,#[cfg(test)] None).await
 }
 #[allow(clippy::too_many_arguments)]
 pub async fn serve_managed(devices:&[u8],rules:&[u8],directory:&Path,duration:Duration,coexistence_confirmed:bool,recovery_limit:u8,write_interval:Duration,settings:crate::service::WebSettings)->Result<(),String> {
     if let Some(tls)=&settings.tls {tls.validate_address(settings.address)?;} else if !settings.address.ip().is_loopback() || settings.address.port()==0 {return Err("plaintext management requires loopback".into());}
     let (publisher,receiver)=crate::automation_publication::channel();
-    serve_inner(devices,rules,directory,duration,coexistence_confirmed,recovery_limit,Some(receiver),write_interval,Some(settings),Some(publisher),None).await
+    serve_inner(devices,rules,directory,duration,coexistence_confirmed,recovery_limit,Some(receiver),write_interval,Some(settings),Some(publisher),None,#[cfg(test)] None).await
 }
 #[allow(clippy::too_many_arguments)]
 pub async fn serve_combined(devices:&[u8],rules:&[u8],directory:&Path,duration:Duration,coexistence_confirmed:bool,recovery_limit:u8,write_interval:Duration,web:crate::service::WebSettings,hap:crate::hap_endpoint::Settings)->Result<(),String> {
     if let Some(tls)=&web.tls {tls.validate_address(web.address)?;} else if !web.address.ip().is_loopback() || web.address.port()==0 {return Err("plaintext management requires loopback".into());}
     if hap.address==web.address {return Err("HAP and Web require distinct endpoints".into());}
     let (publisher,receiver)=crate::automation_publication::channel();
-    serve_inner(devices,rules,directory,duration,coexistence_confirmed,recovery_limit,Some(receiver),write_interval,Some(web),Some(publisher),Some(hap)).await
+    serve_inner(devices,rules,directory,duration,coexistence_confirmed,recovery_limit,Some(receiver),write_interval,Some(web),Some(publisher),Some(hap),#[cfg(test)] None).await
 }
 #[allow(clippy::too_many_arguments)]
-async fn serve_inner(devices:&[u8],rules:&[u8],directory:&Path,duration:Duration,coexistence_confirmed:bool,recovery_limit:u8,mut publications:Option<crate::automation_publication::Receiver>,write_interval:Duration,mut management_settings:Option<crate::service::WebSettings>,publisher:Option<crate::automation_publication::Publisher>,hap_settings:Option<crate::hap_endpoint::Settings>)->Result<(),String> {
+async fn serve_inner(devices:&[u8],rules:&[u8],directory:&Path,duration:Duration,coexistence_confirmed:bool,recovery_limit:u8,mut publications:Option<crate::automation_publication::Receiver>,write_interval:Duration,mut management_settings:Option<crate::service::WebSettings>,publisher:Option<crate::automation_publication::Publisher>,hap_settings:Option<crate::hap_endpoint::Settings>,#[cfg(test)] hap_failure_after:Option<Duration>)->Result<(),String> {
     if !(Duration::from_millis(20)..=Duration::from_secs(1)).contains(&write_interval) {
         return Err("write interval must be 20..1000 ms".into());
     }
@@ -174,6 +174,11 @@ async fn serve_inner(devices:&[u8],rules:&[u8],directory:&Path,duration:Duration
                 None => AutomationRuntime::load_with_startup(admission.clone(),controller,wall_ms()?,1000,64,Default::default(),startup).await?,
             };
             if hap.is_none() && let (Some(settings),Some(identity))=(&hap_settings,&identity) {hap=Some(crate::hap_endpoint::Endpoint::start(settings,identity,&admission,controller,&runtime,owner.snapshot()).await?);}
+            #[cfg(test)]
+            if let (Some(delay),Some(endpoint))=(hap_failure_after,&hap) {
+                let handle=endpoint.abort_handle();
+                tokio::spawn(async move {tokio::time::sleep(delay).await;handle.abort();});
+            }
             if let Some(settings)=management_settings.take() {
                 management=Some(crate::management_endpoint::Endpoint::start(settings,directory,&admission,controller,&runtime,publisher.clone().ok_or("management publisher missing")?).await?);
             } else if let Some(endpoint)=&management {endpoint.install(&admission,controller,&runtime).await?;}
@@ -186,8 +191,11 @@ async fn serve_inner(devices:&[u8],rules:&[u8],directory:&Path,duration:Duration
                     tokio::select! {
                         result=&mut drive=>break result,
                         result=async {match hap.as_mut(){Some(endpoint)=>endpoint.finished().await,None=>std::future::pending().await}}=>{
-                            let _=runtime_stop.send(true);let cleanup=drive.await;
-                            break cleanup.and_then(|_|Err(result.err().unwrap_or_else(||"HAP listener ended".into())));
+                            log::error!("HAP channel degraded: {}",result.err().unwrap_or_else(||"HAP listener ended".into()));
+                            // Retire sessions/projection without cancelling the shared automation
+                            // owner. It retains its bounded watch sender until this generation ends.
+                            if let Some(endpoint)=hap.take() {endpoint.shutdown().await;}
+
                         },
                         result=async {match management.as_mut(){Some(endpoint)=>endpoint.finished().await,None=>std::future::pending().await}}=>{
                             let _=runtime_stop.send(true);let cleanup=drive.await;
@@ -395,3 +403,7 @@ pub(crate) fn validate_candidate_in_context(devices:&[u8],rules:&[u8],write_inte
     }
     Ok(config)
 }
+
+#[cfg(test)]
+#[path = "automation_tcp_fault_tests.rs"]
+mod fault_tests;
