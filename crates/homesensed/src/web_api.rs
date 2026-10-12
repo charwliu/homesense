@@ -330,6 +330,8 @@ impl Api {
             if grant.role != crate::web_auth::Role::Administrator {
                 return deny(StatusCode::FORBIDDEN, "administrator_required");
             }
+            let binding=id.ends_with("/device-binding");
+            let id=id.strip_suffix("/device-binding").unwrap_or(id);
             let room_edit=id.ends_with("/room");
             let id=id.strip_suffix("/room").unwrap_or(id);
             let metadata=id.ends_with("/device-metadata");
@@ -356,6 +358,17 @@ impl Api {
                 if edit.expected_revision!=runtime.revision.to_string(){return deny(StatusCode::CONFLICT,"stale_revision");}
                 return match drafts.lock() {
                     Ok(mut drafts)=>match drafts.edit_room(grant.controller,id,edit,*context){Ok(id)=>response(StatusCode::OK,json!({"draft":id,"active":false})),Err(e) if e=="room_in_use"=>deny(StatusCode::BAD_REQUEST,"room_in_use"),Err(_)=>deny(StatusCode::BAD_REQUEST,"invalid_room_edit")},
+                    Err(_)=>deny(StatusCode::SERVICE_UNAVAILABLE,"draft_storage_unavailable"),
+                };
+            }
+            if binding {
+                if request.method()!=hyper::Method::POST {return deny(StatusCode::METHOD_NOT_ALLOWED,"method_not_allowed");}
+                if request.headers().get("origin").and_then(|v|v.to_str().ok())!=Some(&self.origin) {return deny(StatusCode::FORBIDDEN,"origin_required");}
+                if request.body().len()>2048 {return deny(StatusCode::PAYLOAD_TOO_LARGE,"edit_too_large");}
+                let edit=match serde_json::from_slice::<crate::web_drafts::DeviceBindingEdit>(request.body()){Ok(edit)=>edit,Err(_)=>return deny(StatusCode::BAD_REQUEST,"invalid_device_binding")};
+                if edit.expected_revision!=runtime.revision.to_string(){return deny(StatusCode::CONFLICT,"stale_revision");}
+                return match drafts.lock() {
+                    Ok(mut drafts)=>match drafts.edit_binding(grant.controller,id,edit,*context){Ok(id)=>response(StatusCode::OK,json!({"draft":id,"active":false})),Err(_)=>deny(StatusCode::BAD_REQUEST,"invalid_device_binding")},
                     Err(_)=>deny(StatusCode::SERVICE_UNAVAILABLE,"draft_storage_unavailable"),
                 };
             }

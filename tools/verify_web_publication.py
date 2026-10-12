@@ -90,6 +90,15 @@ with tempfile.TemporaryDirectory(prefix='homesense-publication-') as directory:
      assert json.loads(edited['devices'])['devices'][0]['name']==edit['name']
      assert request('/api/v1/devices')[1]['devices'][0]['name']==original_name
      edit['expected_revision']='2';assert request('/api/v1/config/drafts/'+restore_id+'/device-metadata',edit)[0]==409
+     binding={'id':str(uuid.uuid4()),'expected_revision':'3','revision':'4','device':'simulation:light','gateway':'simulation','address':'15','channel':2,'enabled':True}
+     code,result=request('/api/v1/config/drafts/'+restore_id+'/device-binding',binding);assert code==200 and result['active'] is False,(code,result)
+     code,bound=request('/api/v1/config/drafts/'+binding['id']+'/source');assert code==200
+     assert json.loads(bound['devices'])['devices'][0]['channel']==2
+     bad={**binding,'id':str(uuid.uuid4()),'channel':255}
+     assert request('/api/v1/config/drafts/'+restore_id+'/device-binding',bad)[0]==400
+     assert request('/api/v1/config/drafts/'+bad['id']+'/source')[0]==404
+     stale={**binding,'id':str(uuid.uuid4()),'expected_revision':'2'}
+     assert request('/api/v1/config/drafts/'+restore_id+'/device-binding',stale)[0]==409
      room_edit={'id':str(uuid.uuid4()),'expected_revision':'3','revision':'4','room':{'id':'synthetic-room','name':'Study','floor':'F2'}}
      code,result=request('/api/v1/config/drafts/'+restore_id+'/room',room_edit);assert code==200 and result['active'] is False,(code,result)
      code,room_source=request('/api/v1/config/drafts/'+room_edit['id']+'/source');assert code==200

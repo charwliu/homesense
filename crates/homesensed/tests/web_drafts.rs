@@ -144,3 +144,32 @@ fn room_edits_preserve_membership_and_original_draft() {
     let mut remove=make("ignored");remove.remove=true;let refused=remove.id;assert!(store.edit_room(owner,referenced.id,remove,ExecutionContext::Simulation).is_err());assert!(store.get(owner,refused).unwrap().is_none());assert_eq!(store.get(owner,referenced.id).unwrap(),Some(referenced));
     drop(store);std::fs::remove_dir_all(root).unwrap();
 }
+
+#[test]
+fn binding_edits_preserve_source_and_invalidate_changed_motor_calibration() {
+    use homesensed::web_drafts::DeviceBindingEdit;
+    let root=std::env::temp_dir().join(format!("binding-draft-{}",Uuid::new_v4()));std::fs::create_dir(&root).unwrap();
+    let mut store=Drafts::open(&root.join("drafts.sqlite")).unwrap();let principal=Uuid::new_v4();
+    let draft=Draft{id:Uuid::new_v4(),expected_revision:1,revision:2,
+        devices:serde_json::json!({"schema_version":1,"revision":2,"gateways":[{"id":"test","endpoint":"127.0.0.1:50007","modules":[{"address":"22","profile":"c4_din_pro_v2_7_7","verification":{"status":"simulated"}}]}],"devices":[{"id":"motor","name":"Motor fixture","gateway":"test","address":"22","channel":2,"enabled":true,"motor_calibration":{"open_direction":"up","stop_verified":true,"evidence":"offline fixture","verified_at_unix_ms":1}}]}),
+        automation:serde_json::json!({"schema_version":1,"configuration_revision":2,"variables":[],"rules":[],"timed_scenes":[]})};
+    store.save(principal,&draft,ExecutionContext::Simulation).unwrap();
+    let edit=|channel|DeviceBindingEdit{id:Uuid::new_v4(),expected_revision:"1".into(),revision:"3".into(),device:"motor".into(),gateway:"test".into(),address:"22".into(),channel,enabled:true};
+    let same=store.edit_binding(principal,draft.id,edit(2),ExecutionContext::Simulation).unwrap();
+    assert!(store.get(principal,same).unwrap().unwrap().devices["devices"][0].get("motor_calibration").is_some());
+    let changed=store.edit_binding(principal,draft.id,edit(3),ExecutionContext::Simulation).unwrap();
+    let changed=store.get(principal,changed).unwrap().unwrap();
+    assert_eq!(changed.devices["devices"][0]["channel"],3);
+    assert!(changed.devices["devices"][0].get("motor_calibration").is_none());
+    assert_eq!(changed.devices["devices"][0]["name"],"Motor fixture");
+    assert_eq!(store.get(principal,draft.id).unwrap().unwrap(),draft);
+    let bad=edit(5);let candidate=bad.id;
+    assert!(store.edit_binding(principal,draft.id,bad,ExecutionContext::Simulation).is_err());
+    assert!(store.get(principal,candidate).unwrap().is_none());
+    assert!(store.edit_binding(Uuid::new_v4(),draft.id,edit(3),ExecutionContext::Simulation).is_err());
+    let mut bad=edit(3);bad.gateway="unknown".into();assert!(store.edit_binding(principal,draft.id,bad,ExecutionContext::Simulation).is_err());
+    let mut disabled=edit(2);disabled.enabled=false;
+    let id=store.edit_binding(principal,draft.id,disabled,ExecutionContext::Simulation).unwrap();
+    assert_eq!(store.get(principal,id).unwrap().unwrap().devices["devices"][0]["enabled"],false);
+    drop(store);std::fs::remove_dir_all(root).unwrap();
+}
