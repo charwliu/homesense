@@ -1,5 +1,6 @@
 'use strict';
 let csrf = '';
+let pendingLogoutCsrf='';
 let sessionEpoch=0;
 let sessionBusy=false;
 let credentialIssueBusy=false;
@@ -103,15 +104,14 @@ function renderScenes(data) {
   }
 }
 document.getElementById('connect').onclick = async () => {
-  if(sessionBusy)return;sessionBusy=true;const epoch=++sessionEpoch;clearCredentialCreation();
-  invalidatePreview();
+  if(sessionBusy)return;sessionBusy=true;clearLocalSession();const epoch=sessionEpoch;
   const credential = document.getElementById('token').value; document.getElementById('token').value = '';
   try {
     const response = await fetch('/api/v1/session', {method: 'POST', credentials: 'same-origin', headers: {Authorization: `Bearer ${credential}`}});
     if (!response.ok) throw new Error('登录失败');
     const session=await response.json();if(epoch!==sessionEpoch)return;
-    csrf = session.csrf; eventCursor=null; await refresh(); connectEvents(); status.textContent = '已连接（会话 15 分钟有效）';
-  } catch (error) { if(epoch===sessionEpoch){csrf = ''; list.replaceChildren(); status.textContent = error.message;} }
+    csrf = session.csrf;pendingLogoutCsrf=''; eventCursor=null; await refresh(); connectEvents(); status.textContent = '已连接（会话 15 分钟有效）';
+  } catch (error) { if(epoch===sessionEpoch){clearLocalSession();status.textContent = error.message;} }
   finally {sessionBusy=false;}
 };
 function clearLocalSession() {
@@ -119,10 +119,13 @@ function clearLocalSession() {
   csrf = ''; observedRevision=null;lastSceneSnapshot=null; clearTimeout(eventRetry); if(eventSocket)eventSocket.close();eventDevices.clear(); selectedRoom='';document.getElementById('room-filter').replaceChildren();document.getElementById('room-filter').value=''; document.getElementById('draft-impact').textContent=''; document.getElementById('configuration').hidden=true;document.getElementById('diagnostics').hidden=true;historyEpoch++;detailEpoch++;document.getElementById('run-details').replaceChildren();document.getElementById('scene-history').hidden=true;document.getElementById('history-runs').replaceChildren();document.getElementById('history-title').textContent='';document.getElementById('history-next').disabled=true; document.getElementById('runtime-result').textContent='';document.getElementById('calendar-result').textContent='';document.getElementById('credential-list').textContent='';document.getElementById('revoke-credential-id').value='';document.getElementById('revoke-credential-confirm').checked=false;document.getElementById('revoke-credential-result').textContent='';document.getElementById('backup-result').textContent='';document.getElementById('backup-actions').replaceChildren();backupInspectionEpoch++;document.getElementById('backup-inspection').textContent='';document.getElementById('versions').replaceChildren();document.getElementById('draft-list').replaceChildren(); versionsBefore=null;document.getElementById('more-versions').disabled=true; metadataSource=null;clearCalibration();document.getElementById('binding-enabled').checked=false;for(const id of ['binding-gateway','binding-address','binding-channel'])document.getElementById(id).value='';document.getElementById('metadata-device').replaceChildren();document.getElementById('metadata-room').replaceChildren();document.getElementById('edit-room-select').replaceChildren();document.getElementById('metadata-name').value=''; for(const id of ['device-document','automation-document','draft-id','base-revision','draft-revision','edit-room-id','edit-room-name','edit-room-floor']) document.getElementById(id).value=''; started.clear(); list.replaceChildren(); document.getElementById('devices').replaceChildren();
 }
 document.getElementById('logout').onclick = async () => {
-  if(sessionBusy)return;sessionBusy=true;++sessionEpoch;clearCredentialCreation();
-  invalidatePreview();
-  try { await request('/api/v1/session', {method: 'DELETE'}); clearLocalSession(); status.textContent = '已退出'; }
-  catch (error) { status.textContent = '注销未确认：' + error.message; }
+  if(sessionBusy)return;sessionBusy=true;
+  const logoutCsrf=csrf||pendingLogoutCsrf;pendingLogoutCsrf=logoutCsrf;clearLocalSession();status.textContent='本机内容已清除，正在注销服务端会话…';
+  try {
+    const response=await fetch('/api/v1/session',{method:'DELETE',cache:'no-store',credentials:'same-origin',headers:{'X-CSRF-Token':logoutCsrf}});
+    if(!response.ok && response.status!==401)throw new Error('服务端注销未确认');
+    pendingLogoutCsrf='';status.textContent='已退出';
+  }catch(error){status.textContent='本机内容已清除；服务端注销未确认，请恢复网络后重试退出。';}
   finally {sessionBusy=false;}
 };
 
