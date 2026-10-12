@@ -105,6 +105,15 @@ impl Endpoint {
         initial: homesense_state::Snapshot,
         allow_listener_failure: bool,
     ) -> Result<Option<Self>, String> {
+        Self::start_selected(settings,identity,admission,controller,runtime,initial,allow_listener_failure,None).await
+    }
+    #[allow(clippy::too_many_arguments)]
+    pub async fn start_selected(
+        settings:&Settings,identity:&IdentityStore,admission:&Admission,
+        controller:Uuid,runtime:&AutomationRuntime,initial:homesense_state::Snapshot,
+        allow_listener_failure:bool,
+        lights:Option<std::collections::BTreeSet<homesense_core::DeviceId>>,
+    )->Result<Option<Self>,String> {
         let bundle = admission
             .automation_bundle(
                 controller,
@@ -117,12 +126,13 @@ impl Endpoint {
             .map_err(|e| format!("{e:?}"))?;
         let document = bundle.automation.as_ref().ok_or("automation missing")?;
         settings.validate(&bundle.configuration, document)?;
-        let lights = crate::runtime_hap::RuntimeHap::new(
+        let lights = crate::runtime_hap::RuntimeHap::new_selected(
             &bundle.configuration,
             initial.clone(),
             identity,
             admission.clone(),
             5000,
+            lights,
         )
         .await?;
         let authorization = identity.clone();
@@ -249,3 +259,7 @@ mod tests {
         raw["devices"][1]["name"]="x".repeat(59).into();assert!(settings.validate(&parse(&raw),&document).is_err());
     }
 }
+
+#[cfg(test)]
+#[path = "hap_subset_endpoint_tests.rs"]
+mod subset_tests;
