@@ -104,7 +104,6 @@ pub async fn serve_bridges(devices:&[u8],rules:&[u8],directory:&Path,duration:Du
 fn validate_bridge_plan(plan:&[u8],config:&homesense_config::Configuration,rules:&[u8],web:Option<std::net::SocketAddr>)->Result<(),String> {
     let document=crate::configuration_publish::validate_automation(config,rules,ExecutionContext::Live).map_err(|e|e.to_string())?;
     let parsed=crate::hap_bridge_plan::Plan::parse(plan,config,&document)?;
-    if parsed.bridges.iter().any(|b|b.lights.is_empty()) {return Err("each bridge currently requires at least one logical light".into());}
     if parsed.bridges.iter().any(|b|Some(b.address)==web) {return Err("HAP and Web require distinct endpoints".into());}
     Ok(())
 }

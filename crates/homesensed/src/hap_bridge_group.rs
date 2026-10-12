@@ -43,11 +43,6 @@ impl Group {
             .await
             .map_err(|e| format!("{e:?}"))?;
         let document = bundle.automation.as_ref().ok_or("automation missing")?;
-        let parsed = crate::hap_bridge_plan::Plan::parse(plan, &bundle.configuration, document)?;
-        // Until an empty light route is supported, reject before preparing identities/listeners.
-        if parsed.bridges.iter().any(|bridge| bridge.lights.is_empty()) {
-            return Err("each bridge currently requires at least one logical light".into());
-        }
         let prepared =
             crate::hap_bridges::prepare(plan, &bundle.configuration, document, base).await?;
         let mut endpoints = BTreeMap::new();
