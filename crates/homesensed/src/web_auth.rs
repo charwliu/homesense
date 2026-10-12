@@ -7,13 +7,15 @@ use std::{
 };
 use subtle::ConstantTimeEq;
 use uuid::Uuid;
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub enum Role {
     Viewer,
     Member,
     Administrator,
 }
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Grant {
     pub controller: Uuid,
     pub role: Role,
