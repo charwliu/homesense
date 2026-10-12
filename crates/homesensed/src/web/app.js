@@ -112,6 +112,8 @@ document.getElementById('logout').onclick = async () => {
 
 async function refreshDevices() {
   const data = await request('/api/v1/devices');
+  const revision=data.revision_text ?? (Number.isSafeInteger(data.revision)?String(data.revision):null);
+  if(revision===null || !observeRevision(revision))return;
   eventDevices.clear(); for(const device of data.devices) eventDevices.set(device.id,device);
   renderDevices();
 }

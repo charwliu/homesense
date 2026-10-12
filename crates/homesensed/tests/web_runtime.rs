@@ -345,6 +345,7 @@ async fn web_scope_origin_receipts_and_runtime_admission() {
                 .unwrap();
         assert_eq!(snapshot["devices"].as_array().unwrap().len(), 3);
         assert_eq!(snapshot["devices"][1]["can_control"],true);
+        assert_eq!(snapshot["revision_text"],"1");
         assert_eq!(snapshot["devices"][2]["can_control"],false);
         assert!(snapshot["devices"][1]["observed"].is_null());
         assert_eq!(snapshot["devices"][0]["id"], "simulation:light");
