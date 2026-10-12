@@ -7,7 +7,7 @@
 
 | 要求 | 当前可核验实现 | 尚未完成的验收条件 |
 | --- | --- | --- |
-| 68 场景／215 程序处置 | project-disposition.json 保留全部对象；semantic-dispositions.json 为 179 可转换／36 阻断，全部禁用 | 65 场景与 212 程序仍待语义审核；不能把候选绑定和语法成功视作迁移验收 |
+| 68 场景／215 程序处置 | project-disposition.json 保留全部对象；semantic-dispositions.json 为 179 可转换／36 阻断，全部禁用 | 65 场景与 208 程序仍待语义审核；4 个精确源空根作为 source_empty_noop 纳入处置且不创建运行时规则，不能把候选绑定和语法成功视作迁移验收 |
 | 场景顺序、延迟、取消与 partial | Timeline／SceneRuntime／SceneScheduler 接持久队列和传输；TCP 断链取消且重连不重放；schema 17 原子记录人工接管／场景覆盖／取消请求及未准入步骤过期，支持授权分页；并发人工接管拒绝类型化。首期 `cancel_remaining` 已实现，输出不确定保存 partial，重启不重放；未支持的失败策略在解析时拒绝 | schema 20 已补齐服务停止／传输故障／准备失败／发布屏障分类，字节级短写故障注入已通过；现场线路故障与完整原场景行为验收仍待完成 |
 | active 反馈派生 | StudyRuntime／SceneRuntime 区分 Active/Pending/Inactive/Unknown；通用投影校验 boot／配置／连接及持久队列；控制通道支持按运行或定义查询 | 进程内订阅、Web 状态／事件恢复及 HAP 投影已接入；当前集成版本的原场景反馈与现场交互仍需验收 |
 | 变量生命周期 | schema 14 类型化持久值；设备／规则与变量声明事务发布；Admission 内存临时值与持久提交统一 CAS；重启清空；25 变量处置证据 | 在线发布及显式类型迁移已接通；25 个变量中 1 个有书房逻辑限定现场证据，24 个仍需原项目分类语义审核和现场验收 |
@@ -905,3 +905,7 @@ schema 22 已接入选择／来源同事务 CAS、不可变按键证据和重复
 2026-10-12 源事件边沿核查：书房三个已审核源分支属于 Release，观察新增显式边沿与持按／松开时间回归，旧配置默认 Press 保留。现场仍禁用；本地 HomeSense 选择与 EA-5 变量不同主体的反例另待修复，不能把按键边沿通过认定为外部选择完成。原项目覆盖再次核对为 68 场景／215 程序／25 变量，仍需逐项语义处置；未把语法可编译或 disabled 候选当成完成。
 
 该触发边沿增量已在 `cb02966` 干净快照上叠加五个源码文件验证：workspace 648 passed / 0 failed / 0 ignored，所有目标严格 Clippy 通过；核心观察器 9 项和运行时观察／LED 19 项回归通过。证据见 `docs/evidence/stage-d-study/scene-observation-release-check.json`。这些结果只覆盖触发时机，不消除独立外部基线缺口，不构成现场观察模式启用许可。
+
+2026-10-13 完整源站点审查增量：新增只读 `homesense_import::source_review`，逐事件保留完整编译首错误，同时递归列出全部启用 typed 站点，避免前序条件阻断遮蔽后续动作。已从权威 XML 精确识别 4 个空根事件，作为纳入处置的 `source_empty_noop`，不转换为家庭自动化或排除源对象；与已有 3 个书房程序限定审核合计 7/215，仍待 208 个程序、65 个场景与 24 个变量。
+
+标准整事件仍为 179 个语法成功、36 个首阻断；全部站点显示除 IF_STOPPED 24／IF_MOVING 11 外，还有 SET_LEVEL_TARGET 24／STOP 11 个动作阻断，不能仅补条件便声称窗帘程序可执行。RAMP_TO_LEVEL 1 的独立 opt-in 转换成功，生成定义仍禁用，原始渐变单位和完整源行为待审核。43 个 blind 代理回调的触发语义、其余场景非零 rate 和变量分类均保留审核门槛。原始事件、绑定、指纹及逐项报告仅存本地忽略目录。限定干净快照 importer 33 passed / 0 failed / 0 ignored（新增 7 项）、所有目标严格 Clippy 通过；见 [源审查证据](evidence/stage-d-study/source-review-check.json)。EA-5 未改动，D/E 未完成。

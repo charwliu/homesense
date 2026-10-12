@@ -45,7 +45,7 @@ fn parameter(n: Xml<'_, '_>, name: &str) -> Result<String, String> {
     }
     Ok(text(value, "static")?.to_owned())
 }
-fn condition(
+pub(crate) fn condition(
     n: Xml<'_, '_>,
     target: &str,
     bindings: &BTreeMap<String, Binding>,
@@ -141,7 +141,7 @@ fn compound_condition(
         _ => Err("unknown compound operator".into()),
     }
 }
-fn action(
+pub(crate) fn action(
     n: Xml<'_, '_>,
     target: &str,
     bindings: &BTreeMap<String, Binding>,
@@ -259,6 +259,18 @@ struct FadeContext {
     definitions: BTreeMap<String, serde_json::Value>,
     interval_ms: u64,
     lateness_ms: u64,
+}
+/// Isolated typed-site audit; uses the same fade converter as whole-event export.
+pub(crate) fn compile_fade_site(
+    payload: Xml<'_, '_>,
+    target: &str,
+    bindings: &BTreeMap<String, Binding>,
+    interval_ms: u64,
+    lateness_ms: u64,
+) -> Result<CompiledEvent, String> {
+    let mut context = FadeContext { definitions: Default::default(), interval_ms, lateness_ms };
+    let action = timed_fade(payload, target, bindings, "source-review-site", &mut context)?;
+    Ok(CompiledEvent { actions: vec![Node { source: "source-review-site".into(), action }], timed_scenes: context.definitions })
 }
 fn timed_fade(n:Xml<'_, '_>,target:&str,bindings:&BTreeMap<String,Binding>,source:&str,context:&mut FadeContext)->Result<Action,String> {
     let binding=bindings.get(target).ok_or("unreviewed fade target")?;
@@ -432,6 +444,37 @@ pub(crate) fn dispositions(
     document: &roxmltree::Document<'_>,
     devices: &[crate::Device],
 ) -> Vec<Disposition> {
+    let bindings = candidate_bindings(document, devices);
+    fn count(nodes: &[Node]) -> usize {
+        nodes
+            .iter()
+            .map(|n| {
+                1 + match &n.action {
+                    Action::If {
+                        then_actions,
+                        else_actions,
+                        ..
+                    } => count(then_actions) + count(else_actions),
+                    _ => 0,
+                }
+            })
+            .sum()
+    }
+    document.root_element().children().find(|n|n.has_tag_name("event_mgr")).into_iter()
+        .flat_map(|m|m.children().filter(|n|n.has_tag_name("event")))
+        .map(|event| {
+            let owner=format!("event:{}:{}",crate::text(event,"deviceid").unwrap_or("?"),crate::text(event,"eventid").unwrap_or("?"));
+            let result=compile_event(&document.input_text()[event.range()],&bindings);
+            let (syntax_compiled,compiled_nodes,blocker)=match result {Ok(nodes)=>(true,count(&nodes),None),Err(e)=>(false,0,Some(e))};
+            Disposition {owner,syntax_compiled,compiled_nodes,blocker,enabled:false,binding_basis:"source hierarchy only; physical bindings and scene semantics need review"}
+        }).collect()
+}
+
+/// Source-hierarchy candidates for read-only audits, never verified bindings.
+pub(crate) fn candidate_bindings(
+    document: &roxmltree::Document<'_>,
+    devices: &[crate::Device],
+) -> BTreeMap<String, Binding> {
     let mut bindings = BTreeMap::new();
     for device in devices {
         let kind = match device.kind.as_str() {
@@ -464,27 +507,5 @@ pub(crate) fn dispositions(
             bindings.insert(id.into(), Binding { device, kind });
         }
     }
-    fn count(nodes: &[Node]) -> usize {
-        nodes
-            .iter()
-            .map(|n| {
-                1 + match &n.action {
-                    Action::If {
-                        then_actions,
-                        else_actions,
-                        ..
-                    } => count(then_actions) + count(else_actions),
-                    _ => 0,
-                }
-            })
-            .sum()
-    }
-    document.root_element().children().find(|n|n.has_tag_name("event_mgr")).into_iter()
-        .flat_map(|m|m.children().filter(|n|n.has_tag_name("event")))
-        .map(|event| {
-            let owner=format!("event:{}:{}",crate::text(event,"deviceid").unwrap_or("?"),crate::text(event,"eventid").unwrap_or("?"));
-            let result=compile_event(&document.input_text()[event.range()],&bindings);
-            let (syntax_compiled,compiled_nodes,blocker)=match result {Ok(nodes)=>(true,count(&nodes),None),Err(e)=>(false,0,Some(e))};
-            Disposition {owner,syntax_compiled,compiled_nodes,blocker,enabled:false,binding_basis:"source hierarchy only; physical bindings and scene semantics need review"}
-        }).collect()
+    bindings
 }
