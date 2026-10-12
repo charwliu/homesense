@@ -26,6 +26,8 @@ struct Input {
     holds: Option<Holds>,
     #[serde(default)]
     timed_scenes: Vec<TimedSceneInput>,
+    #[serde(default)]
+    scene_switch_groups: Vec<crate::scene_switches::Group>,
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -303,6 +305,7 @@ pub struct Document {
     pub gestures: BTreeMap<DeviceId, homesense_core::gesture::Settings>,
     pub holds: Option<Holds>,
     pub timed_scenes: BTreeMap<String, TimedScene>,
+    pub scene_switch_groups: Vec<crate::scene_switches::Group>,
 }
 struct Compiler<'a> {
     config: &'a Configuration,
@@ -778,6 +781,7 @@ impl Document {
                 },
             );
         }
+        crate::scene_switches::validate(&input.scene_switch_groups,&variables,&timed_scenes)?;
         let mut ids = std::collections::BTreeSet::new();
         let mut rules = vec![];
         for rule in input.rules {
@@ -827,6 +831,7 @@ impl Document {
             gestures,
             holds: input.holds,
             timed_scenes,
+            scene_switch_groups:input.scene_switch_groups,
         })
     }
 }

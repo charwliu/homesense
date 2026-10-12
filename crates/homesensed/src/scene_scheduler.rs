@@ -199,6 +199,9 @@ impl SceneScheduler {
     /// Reserve all slots before durable acceptance; retain the actual caller.
     /// No scene can become runnable until the complete batch is installed.
     pub async fn start_documents_as(&mut self, revision:u64, definitions:Vec<String>, now:u64, controller:Uuid)->Result<Vec<u64>,String> {
+        self.start_documents_with_variables_as(revision,definitions,now,controller,vec![]).await
+    }
+    pub(crate) async fn start_documents_with_variables_as(&mut self,revision:u64,definitions:Vec<String>,now:u64,controller:Uuid,updates:Vec<homesense_storage::variables::Update>)->Result<Vec<u64>,String> {
         self.clock(now)?;
         self.next.checked_add(definitions.len() as u64).ok_or("scene id exhausted")?;
         let mut slots=self.reserve_slots(definitions.len())?;
@@ -207,7 +210,7 @@ impl SceneScheduler {
         struct Guard(Admission,bool);
         impl Drop for Guard {fn drop(&mut self){if !self.1 {self.0.stop_now();}}}
         let mut guard=Guard(self.admission.clone(),false);
-        let accepted=match self.admission.accept_manual_scenes(controller,generation,definitions).await {
+        let accepted=match self.admission.accept_manual_scenes_with_variables(controller,generation,definitions,updates).await {
             Ok(accepted)=>accepted,
             Err(error)=>{guard.1=true;return Err(format!("{error:?}"));}
         };

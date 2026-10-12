@@ -183,7 +183,7 @@ enum Message {
 
     SceneQuery(Uuid, TaskGeneration, homesense_storage::scene_run::Query, oneshot::Sender<Result<Option<homesense_storage::scene_run::Page>, WriteStatus>>),
 
-    ManualScenes(Uuid, TaskGeneration, Vec<String>, oneshot::Sender<Result<Vec<AcceptedScene>, WriteStatus>>),
+    ManualScenes(Uuid, TaskGeneration, Vec<String>, Vec<homesense_storage::variables::Update>, oneshot::Sender<Result<Vec<AcceptedScene>, WriteStatus>>),
     SceneUpdate(Uuid, TaskGeneration, SceneUpdate, oneshot::Sender<Result<u64, WriteStatus>>),
 
     RuleOutcome(
@@ -518,7 +518,7 @@ impl Admission {
                             })};
                             let _=reply.send(result);
                         }
-                        Message::ManualScenes(controller,generation,definitions,reply) => {
+                        Message::ManualScenes(controller,generation,definitions,updates,reply) => {
                             if reply.is_closed() { continue; }
                             let result = (|| {
                                 if !authorize(controller) { return Err(WriteStatus::InsufficientPrivileges); }
@@ -546,7 +546,7 @@ impl Admission {
                                     run:Uuid::new_v4().to_string(), definition,
                                 }).collect::<Vec<_>>();
                                 let now=millis(clock);
-                                store.begin_manual_scene_batch(&worker_boot,generation.epochs.configuration,&starts,now)
+                                store.begin_manual_scene_batch_with_variables(&worker_boot,generation.epochs.configuration,&starts,now,&updates)
                                     .map_err(|error|match error {
                                         homesense_storage::Error::Conflict|homesense_storage::Error::InvalidAudit=>WriteStatus::InvalidValueInRequest,
                                         _=>{failed=true;let _=arbiter.storage_failed();WriteStatus::ServiceCommunicationFailure}
@@ -1680,10 +1680,13 @@ impl Admission {
     /// already be durable. Returned capabilities must be installed, not replayed.
     pub async fn accept_manual_scenes(&self, controller:Uuid, generation:TaskGeneration, definitions:Vec<String>)
         -> Result<Vec<AcceptedScene>,WriteStatus> {
+        self.accept_manual_scenes_with_variables(controller,generation,definitions,vec![]).await
+    }
+    pub(crate) async fn accept_manual_scenes_with_variables(&self,controller:Uuid,generation:TaskGeneration,definitions:Vec<String>,updates:Vec<homesense_storage::variables::Update>)->Result<Vec<AcceptedScene>,WriteStatus> {
         struct Guard(Admission,bool);
         impl Drop for Guard { fn drop(&mut self) { if !self.1 { self.0.stop_now(); } } }
         let (reply,receive)=oneshot::channel();
-        self.sender.try_send(Message::ManualScenes(controller,generation,definitions,reply))
+        self.sender.try_send(Message::ManualScenes(controller,generation,definitions,updates,reply))
             .map_err(|_|WriteStatus::ResourceBusy)?;
         let mut guard=Guard(self.clone(),false);
         let result=receive.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?;
