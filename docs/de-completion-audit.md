@@ -152,3 +152,8 @@ E11 使用同一干净 `c184e65` Linux 二进制在闭世界归档模拟器中�
 E12 保留原组合灯映射及三条 LED links，实际 Linux 二进制通过13个回环检查点：按住期间旧 Off 可以清理关联 LED，但选择仍为 NULL／版本不变；松开才推断，新鲜供电 Off 才取消选择并关闭关联 LED。随后同外部键仍按独立外部基线 toggle，EOF／重启使旧推断不可见，首键重新未知、异键收敛；没有灯光、供电、电机或场景输出。共3条 LED-Off，检查点时为 written；重启后旧 boot 的 written 记录按恢复契约改为 uncertain，不将其当作物理 ACK 或当前新输出失败。
 
 另6项 Dimmer 专项仅在 localhost 夹具移除主灯供电关联，保留三条 links，实际完成旧零写出→松开推断→收到新零查询回复但不取消；新的零命令在松开后完整写出才取消并关闭 LED。本地取消不改外部基线。原组合灯 Web 0% 只写供电 Off，首轮无法生成 Dimmer 零值的断言失败保留；专项证明有拓扑差异，不能替代原组合灯或实物验收。根审计核对19条记录、输出类别、旧/观察/新时间顺序、健康和全部私有证据指纹通过。实际库／身份未变，观察及现场启用仍关闭；归档模型未证明实时完整 writer。见 [联合 Linux 证据](evidence/stage-e-browser/scene-observation-led-linux-check.json)。
+
+
+### 2026-10-13 原 RAMP_TO_LEVEL 时间单位补证
+
+[厂商 DriverWorks API 的 SendToDevice 示例](https://snap-one.github.io/docs-driverworks-api/#sendtodevice)明确将 RAMP_TO_LEVEL 的 TIME=3000 描述为3秒。根核对权威 XML 中唯一同名节点为 TIME／INTEGER／static=1000、LEVEL／INTEGER／static=0，故该参数按毫秒解释为1秒。这项接口单位缺口已有直接依据；它不证明当前原驱动正确执行或整个程序已审核，也不能类推 AdvScene rate／单独 Ramp Timer 字段。原禁用状态、现场配置和D整体剩余门槛保持原结论。见 [单位补证](evidence/stage-d-study/ramp-time-primary-reference.json)。
