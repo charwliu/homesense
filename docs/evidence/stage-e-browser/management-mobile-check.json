@@ -1,0 +1,31 @@
+{
+  "base_commit": "fe338ff",
+  "change": "management form CSS in this commit",
+  "environment": "loopback simulation",
+  "viewports": [
+    {
+      "width": 390,
+      "height": 844,
+      "document_width": 390,
+      "overflowing_controls": []
+    },
+    {
+      "width": 320,
+      "height": 740,
+      "document_width": 320,
+      "overflowing_controls": []
+    }
+  ],
+  "verified": [
+    "login",
+    "credential list read",
+    "long ID wrapping",
+    "logout clears management regions",
+    "viewport reset"
+  ],
+  "limits": [
+    "desktop browser viewport emulation, not physical iPhone",
+    "does not verify all device interactions or native keyboard"
+  ],
+  "screenshot": "management-mobile.jpg"
+}
