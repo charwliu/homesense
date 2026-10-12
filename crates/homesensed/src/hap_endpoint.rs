@@ -207,6 +207,11 @@ impl Endpoint {
     pub(crate) fn abort_handle(&self)->tokio::task::AbortHandle {
         self.task.as_ref().expect("active endpoint").abort_handle()
     }
+    #[cfg(test)]
+    pub(crate) fn synthetic(initial: homesense_state::Snapshot) -> Self {
+        let (projection, _) = tokio::sync::watch::channel(initial);
+        Self { projection, task: Some(tokio::spawn(std::future::pending())) }
+    }
     pub async fn finished(&mut self) -> Result<(), String> {
         let task=self.task.as_mut().ok_or("HAP endpoint result already consumed")?;
         let result=task.await.map_err(|e| e.to_string());
