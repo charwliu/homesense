@@ -56,6 +56,6 @@ impl Credentials {
         if result.len()>128 {return Err("credential capacity exceeded".into());}Ok(result)
     }
 }
-fn validate(grant:&Grant)->Result<(),String> {
+pub(crate) fn validate(grant:&Grant)->Result<(),String> {
     if grant.scenes.len()>4095 || grant.devices.len()>256 || grant.scenes.iter().chain(&grant.devices).any(|s|s.is_empty() || s.len()>256 || s.chars().any(char::is_control)) {return Err("invalid grant scope".into());}Ok(())
 }
