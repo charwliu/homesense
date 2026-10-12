@@ -158,6 +158,7 @@ async fn web_scope_origin_receipts_and_runtime_admission() {
         )
         .unwrap();
     let mut api = Api {
+        daily_backup:Default::default(),
         hap_bridges:Default::default(),hap_status: Default::default(),
         backup_source:None,
         publisher:None,
@@ -482,6 +483,7 @@ async fn web_scope_origin_receipts_and_runtime_admission() {
         let mut diagnostic=make(&api.origin,"");*diagnostic.method_mut()=hyper::Method::GET;*diagnostic.uri_mut()="/api/v1/diagnostics".parse().unwrap();
         let result=api.handle(diagnostic).await;assert_eq!(result.status(),StatusCode::OK);
         let value:serde_json::Value=serde_json::from_slice(&result.into_body().collect().await.unwrap().to_bytes()).unwrap();
+        assert_eq!(value["daily_backup"]["phase"],"unavailable");
         assert_eq!(value["wire_capacity"],serde_json::json!({"physical_frames_per_second":50,"ordinary_reserved_frames_per_second":30,"fade_frames_per_second":20}));
         api.drafts=saved_drafts;
         std::fs::create_dir_all(root.join("publication-backups")).unwrap();
