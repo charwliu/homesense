@@ -44,6 +44,7 @@ async fn hap_task_failure_preserves_web_delayed_scene_and_single_startup() {
             tokio::time::sleep(Duration::from_millis(10)).await;
         }
     }).await.unwrap();
+    assert_eq!(http(web,"/api/v1/diagnostics",None).await.unwrap().1["hap"],"listening");
     // Keep a real HAP session open and submit delayed work before the fault.
     let mut old_hap=tokio::net::TcpStream::connect(hap).await.unwrap();
     let accepted=http(web,"/api/v1/scene-actions",Some(serde_json::json!({"scene":"later","request_id":"before-fault"}))).await.unwrap();
@@ -55,6 +56,12 @@ async fn hap_task_failure_preserves_web_delayed_scene_and_single_startup() {
     assert!(tokio::net::TcpStream::connect(hap).await.is_err());
     assert_eq!(http(web,"/api/v1/devices",None).await.unwrap().0,200);
     assert_eq!(http(web,"/health/ready",None).await.unwrap().0,200);
+    tokio::time::timeout(Duration::from_secs(1),async {
+        loop {
+            if http(web,"/api/v1/diagnostics",None).await.unwrap().1["hap"]=="degraded" {break;}
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    }).await.unwrap();
     tokio::time::timeout(Duration::from_secs(2),async {
         while !writes.lock().unwrap().contains(&60) {
             tokio::time::sleep(Duration::from_millis(10)).await;

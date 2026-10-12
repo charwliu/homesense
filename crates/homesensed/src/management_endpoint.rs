@@ -21,6 +21,11 @@ impl Drop for Endpoint {
     }
 }
 impl Endpoint {
+    pub fn set_hap_status(&self,status:crate::web_api::HapStatus)->Result<(),String> {
+        *self.api.hap_status.write().map_err(|_|"HAP status lock unavailable")?=status;
+        Ok(())
+    }
+
     pub async fn start(
         settings: crate::service::WebSettings,
         directory: &Path,
@@ -79,6 +84,7 @@ impl Endpoint {
             |tls| tls.origin.clone(),
         );
         let api = Arc::new(Api {
+            hap_status: Default::default(),
             backup_source: Some(directory.join(match context {homesense_core::ExecutionContext::Simulation=>"automation-simulation.sqlite",homesense_core::ExecutionContext::Live=>"automation-tcp.sqlite"})),
             origin,
             tokens,

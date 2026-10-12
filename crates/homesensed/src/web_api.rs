@@ -12,7 +12,18 @@ use std::{
     collections::BTreeMap,
     sync::{Arc, Mutex},
 };
+#[derive(Debug, Clone, Copy, Default, serde::Serialize)]
+#[serde(rename_all="snake_case")]
+pub enum HapStatus {
+    #[default]
+    Unknown,
+    Disabled,
+    Listening,
+    Degraded,
+    Reconfiguring,
+}
 pub struct Api {
+    pub hap_status: std::sync::RwLock<HapStatus>,
     pub backup_source: Option<std::path::PathBuf>,
     pub publisher: Option<crate::automation_publication::Publisher>,
     pub origin: String,
@@ -271,7 +282,7 @@ impl Api {
             if request.method()!=hyper::Method::GET {return deny(StatusCode::METHOD_NOT_ALLOWED,"method_not_allowed");}
             if !request.body().is_empty() {return deny(StatusCode::BAD_REQUEST,"unexpected_body");}
             return match runtime.control.request(Action::Diagnostics{controller:grant.controller,revision:runtime.revision}).await {
-                Ok(Reply::Diagnostics(s))=>response(StatusCode::OK,json!({"boot":s.boot,"revision":s.epochs.configuration.to_string(),"transport_epoch":s.epochs.transport.to_string(),"control_epoch":s.epochs.control.to_string(),"queued":s.queued,"in_flight":s.in_flight,"failed":s.failed,"stopping":s.stopping,"publishing":s.publishing,"gateway_ready":s.gateway_ready,"controller_enabled":s.controller_enabled,"ready":s.ready(),"storage_healthy":s.storage_healthy,"valid_configuration_loaded":s.valid_configuration_loaded})),
+                Ok(Reply::Diagnostics(s))=>response(StatusCode::OK,json!({"boot":s.boot,"revision":s.epochs.configuration.to_string(),"transport_epoch":s.epochs.transport.to_string(),"control_epoch":s.epochs.control.to_string(),"queued":s.queued,"in_flight":s.in_flight,"failed":s.failed,"stopping":s.stopping,"publishing":s.publishing,"gateway_ready":s.gateway_ready,"controller_enabled":s.controller_enabled,"ready":s.ready(),"storage_healthy":s.storage_healthy,"valid_configuration_loaded":s.valid_configuration_loaded,"hap":self.hap_status.read().map(|state|*state).unwrap_or_default()})),
                 _=>deny(StatusCode::SERVICE_UNAVAILABLE,"diagnostics_unavailable"),
             };
         }
