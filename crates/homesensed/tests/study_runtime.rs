@@ -1393,6 +1393,11 @@ async fn scheduler_stop_reconciles_transport_cancelled_runs_and_invalidates_time
     assert!(results.iter().all(|(_, result)| result.is_ok()), "transport audit already cancelled pending output");
     assert_eq!(scheduler.status(first), Some(Status::Cancelled));
     assert_eq!(scheduler.status(second), Some(Status::Cancelled));
+    let sql=rusqlite::Connection::open(&db.0).unwrap();
+    let reasons=sql.prepare("SELECT reason FROM scene_cancellation").unwrap().query_map([],|row|row.get::<_,String>(0)).unwrap().collect::<Result<Vec<_>,_>>().unwrap();
+    assert!(!reasons.is_empty());assert!(reasons.iter().all(|reason|reason=="service_stopped"));
+    scheduler.stop().await;
+    assert_eq!(sql.query_row("SELECT count(*) FROM scene_cancellation",[],|row|row.get::<_,i64>(0)).unwrap(),reasons.len() as i64,"retry must not duplicate cancellation causes");
     assert!(scheduler.tick(100).await.is_err());
     a.recover_synchronized(2, 1).await.unwrap();
     assert!(
@@ -6277,7 +6282,7 @@ async fn scheduler_stop_barrier_preserves_cancellation_request_for_cleanup() {
         assert!(a.dispatch().await.unwrap().is_none());
     }
     let sql=rusqlite::Connection::open(&db.0).unwrap();
-    assert_eq!(sql.query_row("SELECT count(*) FROM scene_cancellation WHERE reason='cancel_requested'",[],|r|r.get::<_,i64>(0)).unwrap(),1);
+    assert_eq!(sql.query_row("SELECT count(*) FROM scene_cancellation WHERE reason='service_stopped'",[],|r|r.get::<_,i64>(0)).unwrap(),1);
     assert_eq!(sql.query_row("SELECT status FROM scene_run",[],|r|r.get::<_,String>(0)).unwrap(),"cancelled");
     assert_eq!(sql.query_row("SELECT count(*) FROM command_journal",[],|r|r.get::<_,i64>(0)).unwrap(),0);
     a.shutdown().await.unwrap();
