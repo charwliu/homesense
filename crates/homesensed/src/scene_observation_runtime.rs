@@ -100,7 +100,11 @@ impl Consumer {
                     return Ok(());
                 }
                 Err(WriteStatus::InvalidValueInRequest) => {
-                    log::warn!("scene key inference rejected; event discarded");
+                    log::warn!("scene key inference rejected; external baseline invalidated");
+                    admission.invalidate_scene_observation_now()?;
+                    self.scope = None;
+                    self.cursor = None;
+                    return Ok(());
                 }
                 Err(error) => return Err(format!("scene observation commit: {error:?}")),
             }

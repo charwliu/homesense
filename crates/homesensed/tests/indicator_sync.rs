@@ -339,7 +339,7 @@ async fn one_expected_on_light_off_fans_out_once_and_clears_only_its_selected_sc
 }
 
 #[tokio::test]
-async fn fresh_full_off_establishes_known_none_without_guessing_an_active_scene() {
+async fn fresh_full_off_keeps_selection_unknown_and_clears_only_reviewed_leds() {
     let root = std::env::temp_dir().join(format!("indicator-bootstrap-{}", uuid::Uuid::new_v4()));
     std::fs::create_dir(&root).unwrap();
     let path = root.join("runtime.sqlite");
@@ -401,8 +401,46 @@ async fn fresh_full_off_establishes_known_none_without_guessing_an_active_scene(
         .unwrap();
     assert_eq!(
         store.logical_variable(1, "mode").unwrap().unwrap().value,
-        Some(Value::Integer(0))
+        None
     );
+    let before = store.logical_variable(1, "mode").unwrap().unwrap();
+    assert_eq!(
+        before.version, 0,
+        "LED output cannot establish a logical baseline"
+    );
+    let mut leds = vec![];
+    for _ in 0..2 {
+        loop {
+            if let Some(ticket) = admission.dispatch().await.unwrap() {
+                assert_eq!(ticket.command.command, Command::PanelLed(false));
+                leds.push(ticket.command.device_id.clone());
+                admission
+                    .finish_write(ticket.command.id, true)
+                    .await
+                    .unwrap();
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(5)).await;
+        }
+    }
+    leds.sort();
+    assert_eq!(leds, [id("ledA"), id("ledB")]);
+    assert!(admission.dispatch().await.unwrap().is_none());
+    sync.tick(&admission, controller, &document, &scenes, &feedback, 60000)
+        .await
+        .unwrap();
+    assert!(
+        admission.dispatch().await.unwrap().is_none(),
+        "LED cleanup is not replayed"
+    );
+    assert_eq!(store.logical_variable(1, "mode").unwrap().unwrap(), before);
+    let sql = rusqlite::Connection::open(root.join("runtime.sqlite")).unwrap();
+    assert_eq!(
+        sql.query_row("SELECT count(*) FROM scene_run", [], |r| r.get::<_, i64>(0))
+            .unwrap(),
+        0
+    );
+    drop(sql);
     admission.shutdown().await.unwrap();
     drop(store);
     std::fs::remove_dir_all(root).unwrap();
@@ -626,7 +664,7 @@ async fn expiring_feedback_precheck_does_not_exit_or_admit_output() {
         .unwrap();
     assert_eq!(
         store.logical_variable(1, "mode").unwrap().unwrap().value,
-        Some(Value::Integer(0))
+        None
     );
     assert_eq!(
         store.command_status(admission.boot_id(), 1).unwrap(),

@@ -63,6 +63,7 @@ pub enum Error {
     InvalidConfiguration,
     InvalidSelection,
     ClockWentBackwards,
+    UncertainExternalStream,
 }
 struct Registered {
     key: Key,
@@ -79,6 +80,8 @@ pub struct Observer {
     debounce_ms: u64,
     max_age_ms: u64,
     groups: BTreeMap<String, BTreeSet<i64>>,
+    /// Independent external toggle possibilities, never seeded by local intent.
+    external: BTreeMap<String, BTreeSet<i64>>,
     keys: BTreeMap<DeviceId, Registered>,
 }
 impl Observer {
@@ -147,8 +150,30 @@ impl Observer {
             debounce_ms,
             max_age_ms,
             groups: registered_groups,
+            external: BTreeMap::new(),
             keys: registered_keys,
         })
+    }
+    /// Opt in only after reviewing the external toggle branches and every
+    /// observable writer. Each stream starts with all legal values possible.
+    /// Local selection snapshots provide a CAS version, never an EA baseline.
+    pub fn external_toggle_groups(&mut self, groups: &[String]) -> Result<(), Error> {
+        if self.started || groups.len() > 64 {
+            return Err(Error::InvalidConfiguration);
+        }
+        let mut seen = BTreeSet::new();
+        if groups
+            .iter()
+            .any(|id| !seen.insert(id) || !self.groups.contains_key(id))
+        {
+            return Err(Error::InvalidConfiguration);
+        }
+        for id in groups {
+            let mut possibilities = self.groups[id].clone();
+            possibilities.insert(0);
+            self.external.insert(id.clone(), possibilities);
+        }
+        Ok(())
     }
     /// Select reviewed release-triggered keys before consuming any events.
     /// Existing callers retain press-triggered behavior. A release requires a
@@ -210,6 +235,11 @@ impl Observer {
         let fresh = now
             .checked_sub(event.observed_ms)
             .is_some_and(|age| age < self.max_age_ms);
+        // An untrusted-age key may hide an external transition. The caller must
+        // invalidate the published inference and start a new unknown stream.
+        if !fresh && self.external.contains_key(&registered.key.group) {
+            return Err(Error::UncertainExternalStream);
+        }
         if !event.down {
             let armed = registered.down && registered.release_armed;
             registered.release_armed = false;
@@ -223,6 +253,15 @@ impl Observer {
                     .last_press
                     .is_none_or(|at| event.observed_ms < at)
             {
+                if registered.on_release
+                    && !armed
+                    && self
+                        .external
+                        .get(&registered.key.group)
+                        .is_some_and(|s| s.len() == 1)
+                {
+                    return Err(Error::UncertainExternalStream);
+                }
                 return Ok(None);
             }
         } else {
@@ -241,6 +280,9 @@ impl Observer {
                     .checked_sub(at)
                     .is_some_and(|elapsed| elapsed >= self.debounce_ms)
             }) {
+                if self.external.contains_key(&registered.key.group) {
+                    return Err(Error::UncertainExternalStream);
+                }
                 return Ok(None);
             }
             registered.last_press = Some(event.observed_ms);
@@ -249,18 +291,46 @@ impl Observer {
                 return Ok(None);
             }
         }
-        let value = match selection.authority {
-            Authority::Recorded => selection.value,
-            Authority::Inferred(scope) if scope == self.scope => selection.value,
-            Authority::Inferred(_) => None,
-        };
-        if value.is_some_and(|v| v != 0 && !self.groups[&registered.key.group].contains(&v)) {
-            return Err(Error::InvalidSelection);
-        }
-        let (value, basis) = match value {
-            None => (None, Basis::UnknownInitial),
-            Some(value) if value == registered.key.member => (Some(0), Basis::ToggleOff),
-            Some(_) => (Some(registered.key.member), Basis::SelectMember),
+        let (value, basis) = if let Some(possibilities) =
+            self.external.get_mut(&registered.key.group)
+        {
+            *possibilities = possibilities
+                .iter()
+                .map(|value| {
+                    if *value == registered.key.member {
+                        0
+                    } else {
+                        registered.key.member
+                    }
+                })
+                .collect();
+            if possibilities.len() == 1 {
+                let value = *possibilities.first().unwrap();
+                (
+                    Some(value),
+                    if value == 0 {
+                        Basis::ToggleOff
+                    } else {
+                        Basis::SelectMember
+                    },
+                )
+            } else {
+                (None, Basis::UnknownInitial)
+            }
+        } else {
+            let value = match selection.authority {
+                Authority::Recorded => selection.value,
+                Authority::Inferred(scope) if scope == self.scope => selection.value,
+                Authority::Inferred(_) => None,
+            };
+            if value.is_some_and(|v| v != 0 && !self.groups[&registered.key.group].contains(&v)) {
+                return Err(Error::InvalidSelection);
+            }
+            match value {
+                None => (None, Basis::UnknownInitial),
+                Some(value) if value == registered.key.member => (Some(0), Basis::ToggleOff),
+                Some(_) => (Some(registered.key.member), Basis::SelectMember),
+            }
         };
         Ok(Some(Inference {
             group: registered.key.group.clone(),

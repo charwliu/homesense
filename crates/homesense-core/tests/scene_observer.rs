@@ -453,3 +453,154 @@ fn release_edge_initial_holds_stale_cycles_and_debounce_cannot_create_inferences
     assert!(other.released_keys(&[id("missing")]).is_err());
     assert!(other.released_keys(&[id("key1"), id("key1")]).is_err());
 }
+
+#[test]
+fn independent_external_candidates_converge_and_ignore_all_local_intents() {
+    for local in [None, Some(0), Some(1), Some(2), Some(3)] {
+        for first in ["key1", "key3", "key5"] {
+            for (second, member) in [("key1", 1), ("key3", 2), ("key5", 3)] {
+                let mut observer = make_observer(1, 0);
+                observer.external_toggle_groups(&["room".into()]).unwrap();
+                let a = observer
+                    .observe(&event(1, first, true, 100), selected(local), 100)
+                    .unwrap()
+                    .unwrap();
+                assert_eq!(a.value, None);
+                observer
+                    .observe(&event(2, first, false, 110), selected(local), 110)
+                    .unwrap();
+                let b = observer
+                    .observe(&event(3, second, true, 200), selected(local), 200)
+                    .unwrap()
+                    .unwrap();
+                assert_eq!(b.value, if first == second { None } else { Some(member) });
+                if first != second {
+                    observer
+                        .observe(&event(4, second, false, 210), selected(Some(0)), 210)
+                        .unwrap();
+                    let c = observer
+                        .observe(&event(5, second, true, 300), selected(Some(0)), 300)
+                        .unwrap()
+                        .unwrap();
+                    assert_eq!(
+                        c.value,
+                        Some(0),
+                        "local LED clear cannot change external baseline"
+                    );
+                    assert_eq!(c.basis, Basis::ToggleOff);
+                    observer
+                        .observe(&event(6, second, false, 310), selected(Some(3)), 310)
+                        .unwrap();
+                    let d = observer
+                        .observe(&event(7, second, true, 400), selected(Some(3)), 400)
+                        .unwrap()
+                        .unwrap();
+                    assert_eq!(
+                        d.value,
+                        Some(member),
+                        "local manual scene cannot change external baseline"
+                    );
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn independent_release_candidates_use_only_accepted_release_and_reset_on_new_stream() {
+    let mut observer = make_observer(1, 0);
+    observer.external_toggle_groups(&["room".into()]).unwrap();
+    observer.released_keys(&[id("key1"), id("key3")]).unwrap();
+    for (sequence, key, at, expected) in [
+        (1, "key1", 100, None),
+        (3, "key3", 200, Some(2)),
+        (5, "key3", 300, Some(0)),
+    ] {
+        assert!(
+            observer
+                .observe(&event(sequence, key, true, at), selected(Some(2)), at)
+                .unwrap()
+                .is_none()
+        );
+        let inference = observer
+            .observe(
+                &event(sequence + 1, key, false, at + 10),
+                selected(Some(2)),
+                at + 10,
+            )
+            .unwrap()
+            .unwrap();
+        assert_eq!(inference.value, expected);
+        assert_eq!(inference.observed_ms, at + 10);
+    }
+    let mut next = make_observer(2, 6);
+    next.external_toggle_groups(&["room".into()]).unwrap();
+    let mut press = event(7, "key1", true, 400);
+    press.scope = scope(2);
+    assert_eq!(
+        next.observe(&press, selected(Some(0)), 400)
+            .unwrap()
+            .unwrap()
+            .value,
+        None
+    );
+}
+
+#[test]
+fn independent_external_builder_and_missed_edges_are_fail_closed() {
+    let mut observer = make_observer(1, 0);
+    assert_eq!(
+        observer.external_toggle_groups(&["missing".into()]),
+        Err(Error::InvalidConfiguration)
+    );
+    assert_eq!(
+        observer.external_toggle_groups(&["room".into(), "room".into()]),
+        Err(Error::InvalidConfiguration)
+    );
+    observer.external_toggle_groups(&["room".into()]).unwrap();
+    assert_eq!(
+        observer.observe(&event(1, "key1", true, 0), selected(Some(0)), 5000),
+        Err(Error::UncertainExternalStream)
+    );
+    assert_eq!(
+        observer.external_toggle_groups(&["room".into()]),
+        Err(Error::InvalidConfiguration)
+    );
+}
+
+#[test]
+fn external_candidates_match_every_initial_state_through_all_short_key_sequences() {
+    for length in 1..=5_u32 {
+        for mut encoded in 0..3_usize.pow(length) {
+            let mut observer = make_observer(1, 0);
+            observer.external_toggle_groups(&["room".into()]).unwrap();
+            let mut actual = [0, 1, 2, 3];
+            for step in 0..length {
+                let member = (encoded % 3 + 1) as i64;
+                encoded /= 3;
+                let key = ["key1", "key3", "key5"][(member - 1) as usize];
+                for value in &mut actual {
+                    *value = if *value == member { 0 } else { member };
+                }
+                let at = u64::from(step) * 100;
+                let inference = observer
+                    .observe(
+                        &event(u64::from(step) * 2 + 1, key, true, at),
+                        selected(Some(99)),
+                        at,
+                    )
+                    .unwrap()
+                    .unwrap();
+                let expected = actual.iter().all(|v| *v == actual[0]).then_some(actual[0]);
+                assert_eq!(inference.value, expected);
+                observer
+                    .observe(
+                        &event(u64::from(step) * 2 + 2, key, false, at + 1),
+                        selected(Some(0)),
+                        at + 1,
+                    )
+                    .unwrap();
+            }
+        }
+    }
+}

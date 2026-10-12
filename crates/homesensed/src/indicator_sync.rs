@@ -80,37 +80,16 @@ impl Synchronizer {
                     .find(|g| g.members.iter().any(|m| &m.scene == scene))
                     .ok_or("indicator scene missing")?;
                 let member = group.members.iter().find(|m| &m.scene == scene).unwrap();
-                // Deselect this member, or establish known-none only when
-                // the entire group's light scope is confirmed off.
-                let all_off = Condition::All(
-                    group
-                        .members
-                        .iter()
-                        .flat_map(|m| document.timed_scenes[&m.scene].steps.iter())
-                        .filter(|s| {
-                            matches!(s.command, Command::Switch(_) | Command::SetLevel { .. })
-                        })
-                        .map(|s| s.device.clone())
-                        .collect::<std::collections::BTreeSet<_>>()
-                        .into_iter()
-                        .map(|id| {
-                            Condition::Equal(Expr::DeviceOn(id), Expr::Literal(Value::Bool(false)))
-                        })
-                        .collect(),
-                );
+                // Clear an actually selected member only. Physical all-off
+                // can clear reviewed LEDs, but cannot establish an external
+                // controller's logical toggle baseline from unknown.
                 actions.push(Node {
                     source: format!("indicator:{}:selection", link.id),
                     action: Action::If {
-                        condition: Condition::Any(vec![
-                            Condition::Equal(
-                                Expr::Variable(group.variable.clone()),
-                                Expr::Literal(Value::Integer(member.value)),
-                            ),
-                            Condition::All(vec![
-                                Condition::Unknown(Expr::Variable(group.variable.clone())),
-                                all_off,
-                            ]),
-                        ]),
+                        condition: Condition::Equal(
+                            Expr::Variable(group.variable.clone()),
+                            Expr::Literal(Value::Integer(member.value)),
+                        ),
                         then_actions: vec![Node {
                             source: format!("indicator:{}:clear", link.id),
                             action: Action::Set {

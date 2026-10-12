@@ -123,6 +123,29 @@ impl Store {
         name: &str,
         inference: &Inference,
     ) -> Result<(), Error> {
+        self.record_scene_inference_inner(revision, name, inference, false)
+    }
+
+    /// Commit a reviewed external toggle result. The admission owner validates
+    /// the independent candidate transition, mapping and fresh stream first.
+    /// Local variables (including LED clears) are only CAS guards: they are not
+    /// the external controller's prior state. Still stored as inferred evidence.
+    pub fn record_external_scene_inference(
+        &mut self,
+        revision: u64,
+        name: &str,
+        inference: &Inference,
+    ) -> Result<(), Error> {
+        self.record_scene_inference_inner(revision, name, inference, true)
+    }
+
+    fn record_scene_inference_inner(
+        &mut self,
+        revision: u64,
+        name: &str,
+        inference: &Inference,
+        external: bool,
+    ) -> Result<(), Error> {
         let scope = inference.scope;
         if scope.boot_id == 0
             || scope.epochs.configuration != revision
@@ -166,11 +189,19 @@ impl Store {
         if previous.stored.version != inference.expected_version {
             return Err(Error::Conflict);
         }
-        let valid = match (inference.basis, previous.selection().value, inference.value) {
-            (Basis::UnknownInitial, None, None) => true,
-            (Basis::SelectMember, Some(old), Some(next)) => old >= 0 && next > 0 && old != next,
-            (Basis::ToggleOff, Some(old), Some(0)) => old > 0,
-            _ => false,
+        let valid = if external {
+            match (inference.basis, inference.value) {
+                (Basis::UnknownInitial, None) | (Basis::ToggleOff, Some(0)) => true,
+                (Basis::SelectMember, Some(next)) => next > 0,
+                _ => false,
+            }
+        } else {
+            match (inference.basis, previous.selection().value, inference.value) {
+                (Basis::UnknownInitial, None, None) => true,
+                (Basis::SelectMember, Some(old), Some(next)) => old >= 0 && next > 0 && old != next,
+                (Basis::ToggleOff, Some(old), Some(0)) => old > 0,
+                _ => false,
+            }
         };
         if !valid {
             return Err(Error::InvalidAudit);

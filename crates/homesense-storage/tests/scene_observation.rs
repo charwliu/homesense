@@ -536,3 +536,72 @@ fn condition_read_guards_preserve_inference_and_roll_back_outputs_on_conflict() 
     assert_eq!(cleared.stored.version, 4);
     assert!(cleared.evidence.is_none());
 }
+
+#[test]
+fn external_transition_cas_never_uses_the_local_selection_as_external_baseline() {
+    let db = Database::new();
+    let mut store = db.store();
+    recorded(&mut store, 0, Some(2));
+    store
+        .record_external_scene_inference(
+            1,
+            "selection",
+            &inference(1, 1, None, Basis::UnknownInitial),
+        )
+        .unwrap();
+    store
+        .record_external_scene_inference(
+            1,
+            "selection",
+            &inference(2, 2, Some(2), Basis::SelectMember),
+        )
+        .unwrap();
+    recorded(&mut store, 3, Some(0)); // local LED reconciliation, not external state
+    store
+        .record_external_scene_inference(
+            1,
+            "selection",
+            &inference(4, 3, Some(0), Basis::ToggleOff),
+        )
+        .unwrap();
+    let before = store
+        .scene_selection(1, "selection", Some(scope()))
+        .unwrap()
+        .unwrap();
+    assert_eq!(before.stored.value, Some(Value::Integer(0)));
+    assert!(before.evidence_current);
+    assert_eq!(
+        store
+            .logical_variable(1, "selection")
+            .unwrap()
+            .unwrap()
+            .value,
+        None
+    );
+    for invalid in [
+        inference(5, 4, Some(0), Basis::SelectMember),
+        inference(5, 4, Some(2), Basis::UnknownInitial),
+        inference(5, 4, Some(2), Basis::ToggleOff),
+    ] {
+        assert!(matches!(
+            store.record_external_scene_inference(1, "selection", &invalid),
+            Err(Error::InvalidAudit)
+        ));
+    }
+    assert!(matches!(
+        store.record_external_scene_inference(
+            1,
+            "selection",
+            &inference(4, 4, Some(2), Basis::SelectMember)
+        ),
+        Err(Error::Conflict)
+    ));
+    assert_eq!(
+        store
+            .scene_selection(1, "selection", Some(scope()))
+            .unwrap()
+            .unwrap()
+            .stored,
+        before.stored
+    );
+}
