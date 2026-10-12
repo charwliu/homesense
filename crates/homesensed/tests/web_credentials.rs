@@ -98,3 +98,21 @@ fn issuance_is_scoped_persistent_and_never_returns_a_secret_on_storage_failure()
     drop(tokens);let tokens=Tokens::open(&path).unwrap();assert_eq!(tokens.authenticate(&issued_header),Some(issued.grant));assert_eq!(tokens.summaries().unwrap().len(),2);
     drop(tokens);drop(sql);std::fs::remove_dir_all(root).unwrap();
 }
+
+#[test]
+fn grant_updates_are_atomic_scoped_and_force_reauthentication() {
+    use homesensed::web_auth::{Tokens,CredentialRequest};
+    let root=std::env::temp_dir().join(format!("grant-update-{}",Uuid::new_v4()));std::fs::create_dir(&root).unwrap();let path=root.join("credentials.sqlite");
+    let tokens=Tokens::open(&path).unwrap();let admin=Uuid::new_v4();let secret="abcdefghijklmnopqrstuvwxyz0123456789";let header=format!("Bearer {secret}");
+    tokens.insert(admin,secret,Grant{controller:admin,role:Role::Administrator,devices:["lamp".into()].into(),scenes:Default::default()}).unwrap();
+    let input=||CredentialRequest{role:Role::Viewer,devices:Default::default(),scenes:Default::default()};
+    assert!(matches!(tokens.update_grant(admin,input(),Some(&header),None,None),Err("last_administrator")));
+    let issued=tokens.issue(CredentialRequest{role:Role::Member,devices:["lamp".into()].into(),scenes:Default::default()},Some(&header),None,None).unwrap();let user_header=format!("Bearer {}",issued.secret);let session=tokens.login(&user_header).unwrap();
+    let mut expanded=input();expanded.devices.insert("outside".into());assert!(matches!(tokens.update_grant(issued.id,expanded,Some(&header),None,None),Err("scope_expansion_forbidden")));
+    assert!(matches!(tokens.update_grant(issued.id,input(),Some(&user_header),None,None),Err("administrator_required")));
+    let sql=rusqlite::Connection::open(&path).unwrap();sql.execute_batch("CREATE TRIGGER reject_grant BEFORE UPDATE ON web_credential BEGIN SELECT RAISE(ABORT,'failure'); END;").unwrap();
+    assert!(matches!(tokens.update_grant(issued.id,input(),Some(&header),None,None),Err("credential_store_unavailable")));assert_eq!(tokens.session(&session.cookie,None,false).unwrap().role,Role::Member);
+    sql.execute_batch("DROP TRIGGER reject_grant").unwrap();tokens.update_grant(issued.id,input(),Some(&header),None,None).unwrap();assert!(tokens.session(&session.cookie,None,false).is_none());
+    let new_grant=tokens.authenticate(&user_header).unwrap();assert_eq!(new_grant.role,Role::Viewer);assert!(new_grant.devices.is_empty());assert_eq!(new_grant.controller,admin);
+    drop(tokens);let tokens=Tokens::open(&path).unwrap();assert_eq!(tokens.authenticate(&user_header),Some(new_grant));drop(tokens);drop(sql);std::fs::remove_dir_all(root).unwrap();
+}
