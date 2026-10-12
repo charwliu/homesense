@@ -66,6 +66,7 @@ pub struct Diagnostics {
     pub controller_enabled: bool,
     pub storage_healthy: bool,
     pub valid_configuration_loaded: bool,
+    pub wire_capacity:crate::WireCapacity,
 }
 impl Diagnostics {
     /// Current admission readiness, not end-to-end physical device reachability.
@@ -435,7 +436,7 @@ impl Admission {
                             let policy=arbiter.policy();
                             let result=if !authorize(controller) {Err(WriteStatus::InsufficientPrivileges)}
                             else if generation.boot!=worker_boot || generation.epochs.configuration!=policy.epochs.configuration {Err(WriteStatus::ServiceCommunicationFailure)}
-                            else {Ok(Diagnostics {boot:worker_boot.clone(),epochs:policy.epochs,queued:arbiter.queued_len(),in_flight:in_flight.is_some(),failed,stopping:worker_stop.load(Ordering::Acquire),publishing:policy.publishing,gateway_ready:policy.gateway_ready,controller_enabled:policy.controller,storage_healthy:policy.storage_healthy,valid_configuration_loaded:policy.valid_configuration_loaded})};
+                            else {Ok(Diagnostics {boot:worker_boot.clone(),epochs:policy.epochs,queued:arbiter.queued_len(),in_flight:in_flight.is_some(),failed,stopping:worker_stop.load(Ordering::Acquire),publishing:policy.publishing,gateway_ready:policy.gateway_ready,controller_enabled:policy.controller,storage_healthy:policy.storage_healthy,valid_configuration_loaded:policy.valid_configuration_loaded,wire_capacity:crate::WireCapacity::for_write_interval(options.write_interval)})};
                             let _=reply.send(result);
                         }
                         Message::PublicationState(reply) => { let _=reply.send(!failed && arbiter.policy().publishing && publication.is_some()); },
@@ -2034,6 +2035,7 @@ mod lifecycle_tests {
         actor.synchronized(1,1).await.unwrap();
         let generation=actor.task_generation().await.unwrap();
         let initial=actor.diagnostics(controller,generation.clone()).await.unwrap();
+        assert_eq!(initial.wire_capacity,crate::WireCapacity{physical_frames_per_second:50,ordinary_reserved_frames_per_second:30,fade_frames_per_second:20});
         assert!(initial.gateway_ready && initial.storage_healthy && !initial.failed);
         assert!(initial.ready());
         for flag in 0..7 {
