@@ -83,6 +83,17 @@ with tempfile.TemporaryDirectory(prefix='homesense-publication-') as directory:
     assert request('/api/v1/backups/inspect',{'kind':'daily','name':'../automation-simulation.sqlite'})[0]==400
     assert request('/api/v1/backups/inspect',{'kind':'daily','name':'missing.sqlite'})[0]==503
     assert request('/api/v1/devices')[1]['revision']==3,'inspection activated old configuration'
+    if attempt==1:
+     archive_path='/api/v1/config/drafts/'+restore_id+'/archive'
+     assert request(archive_path, {})[0]==400
+     # Archive requires an empty POST body, not a JSON object.
+     req=urllib.request.Request(origin+archive_path,data=b'',headers={'Authorization':'Bearer '+secret,'Origin':origin})
+     for _ in range(2):
+      with urllib.request.urlopen(req,timeout=10) as response:assert response.status==200 and json.load(response)['archived'] is True
+     assert request('/api/v1/config/drafts/'+restore_id+'/source')[0]==404
+     assert request('/api/v1/config/previews/'+restore_id)[0]==404
+     assert all(d['id']!=restore_id for d in request('/api/v1/config/drafts')[1]['drafts'])
+     assert request('/api/v1/devices')[1]['revision']==3
     assert request('/health/ready')==(200,{'ready':True})
     process.wait(timeout=20);assert process.returncode==0
    finally:

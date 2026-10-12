@@ -93,3 +93,21 @@ fn publication_preview_distinguishes_names_from_connection_changes() {
     source["gateways"][0]["endpoint"] = "127.0.0.1:50008".into();
     assert!(homesensed::configuration_preview::connection_rebuild_required(&old, &parse(&source)));
 }
+
+#[test]
+fn archive_releases_capacity_without_recycling_ids() {
+    let root=std::env::temp_dir().join(format!("draft-archive-{}",Uuid::new_v4()));std::fs::create_dir(&root).unwrap();let path=root.join("drafts.sqlite");
+    let mut store=Drafts::open(&path).unwrap();let owner=Uuid::new_v4();let foreign=Uuid::new_v4();
+    let mut devices:serde_json::Value=serde_json::from_slice(include_bytes!("../../../config/simulation.json")).unwrap();devices["revision"]=2.into();
+    let mut draft=Draft{id:Uuid::new_v4(),expected_revision:1,revision:2,devices,automation:serde_json::json!({"schema_version":1,"configuration_revision":2,"variables":[],"rules":[]})};
+    let first=draft.id;
+    for _ in 0..128 {store.save(owner,&draft,ExecutionContext::Simulation).unwrap();draft.id=Uuid::new_v4();}
+    assert!(store.save(owner,&draft,ExecutionContext::Simulation).is_err());
+    assert!(!store.archive(foreign,first).unwrap());assert_eq!(store.list(owner).unwrap().len(),128);
+    assert!(store.archive(owner,first).unwrap());assert!(store.archive(owner,first).unwrap());assert!(store.get(owner,first).unwrap().is_none());
+    store.save(owner,&draft,ExecutionContext::Simulation).unwrap();draft.id=first;
+    assert!(store.save(owner,&draft,ExecutionContext::Simulation).is_err());drop(store);
+    let mut store=Drafts::open(&path).unwrap();assert_eq!(store.list(owner).unwrap().len(),128);assert!(store.get(owner,first).unwrap().is_none());assert!(store.save(owner,&draft,ExecutionContext::Simulation).is_err());
+    let db=rusqlite::Connection::open(&path).unwrap();let total:i64=db.query_row("SELECT count(*) FROM configuration_draft",[],|r|r.get(0)).unwrap();assert_eq!(total,129);
+    drop(db);drop(store);std::fs::remove_dir_all(root).unwrap();
+}

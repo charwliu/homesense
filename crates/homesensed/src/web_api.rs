@@ -330,6 +330,8 @@ impl Api {
             if grant.role != crate::web_auth::Role::Administrator {
                 return deny(StatusCode::FORBIDDEN, "administrator_required");
             }
+            let archive=id.ends_with("/archive");
+            let id=id.strip_suffix("/archive").unwrap_or(id);
             let source=id.ends_with("/source");
             let id=id.strip_suffix("/source").unwrap_or(id);
             if source && request.method()!=hyper::Method::GET {return deny(StatusCode::METHOD_NOT_ALLOWED,"method_not_allowed");}
@@ -342,6 +344,16 @@ impl Api {
                     "configuration_management_unavailable",
                 );
             };
+            if archive {
+                if request.method()!=hyper::Method::POST {return deny(StatusCode::METHOD_NOT_ALLOWED,"method_not_allowed");}
+                if request.headers().get("origin").and_then(|v|v.to_str().ok())!=Some(&self.origin) {return deny(StatusCode::FORBIDDEN,"origin_required");}
+                if !request.body().is_empty() {return deny(StatusCode::BAD_REQUEST,"unexpected_body");}
+                return match drafts.lock().map_err(|_|()).and_then(|d|d.archive(grant.controller,id).map_err(|_|())) {
+                    Ok(true)=>response(StatusCode::OK,json!({"archived":true,"id":id})),
+                    Ok(false)=>deny(StatusCode::NOT_FOUND,"draft_not_found"),
+                    Err(_)=>deny(StatusCode::SERVICE_UNAVAILABLE,"draft_storage_unavailable"),
+                };
+            }
             if request.method() == hyper::Method::GET {
                 return match drafts
                     .lock()
