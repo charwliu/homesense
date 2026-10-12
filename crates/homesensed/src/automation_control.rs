@@ -214,6 +214,7 @@ impl Receiver {
                             boot:admission.boot_id().to_owned(),active_revision:revision,candidate_revision:candidate.revision(),
                             connection_rebuild_required:crate::configuration_preview::connection_rebuild_required(&current.configuration,&candidate),
                             interrupted_runs:scenes.publication_impact(),invalidates_old_rules_and_timers:true,
+                            device_changes:crate::configuration_preview::device_changes(&current.configuration,&candidate),
                         }))
                     },
 

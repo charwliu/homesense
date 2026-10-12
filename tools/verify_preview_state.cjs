@@ -6,9 +6,10 @@ const pending=[];
 const context=vm.createContext({document:{getElementById:element},fetch:(path)=>new Promise(resolve=>pending.push({path,resolve})),window:{confirm:()=>true},console});
 vm.runInContext(fs.readFileSync(require('node:path').join(__dirname,'../crates/homesensed/src/web/app.js'),'utf8'),context);
 const preview=()=>element('preview-draft').onclick();
-const reply=(index,id,ok=true)=>pending[index].resolve({ok,json:async()=>ok?{draft:id,impact:{boot:'test',active_revision:1,candidate_revision:2,connection_rebuild_required:false,interrupted_runs:[]}}:{error:'failed'}});
+const reply=(index,id,ok=true)=>pending[index].resolve({ok,json:async()=>ok?{draft:id,impact:{boot:'test',active_revision:1,candidate_revision:2,connection_rebuild_required:false,interrupted_runs:[],device_changes:[{device:"fixture:motor",changes:["binding","motor_calibration"]}]}}:{error:'failed'}});
 (async()=>{
  element('draft-id').value='a';let task=preview();reply(0,'a');await task;assert.equal(element('activate-draft').disabled,false);
+ assert.match(element('draft-impact').textContent,/fixture:motor：物理绑定、电机校准/);
  // A failed refresh must revoke the previously successful preview.
  task=preview();assert.equal(element('activate-draft').disabled,true);reply(1,'a',false);await task;
  await element('activate-draft').onclick();assert.equal(pending.length,2);assert.equal(element('activate-draft').disabled,true);
