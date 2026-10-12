@@ -125,8 +125,8 @@ cargo run --locked --offline -p homesensed -- serve-simulation config/simulation
 - [实施记录](docs/implementation.md)：实现过程、测试与历史待办；当前阶段结论以上述审计为准。
 - [nanopc 部署记录](deployment/nanopc/README.md)：候选版本、隔离测试、身份与回退边界；实时运行状态须另查进程。
 - [协议核对记录](reference/control4/hb-protocol-notes.txt)：厂家报文依据和未验证事项。
-- `reference/control4/`：Control4 解析器、解析 JSON、报告、HopeBeauty 地址映射、手册文本与原页截图。
-- `reference/manifest.json`：每份资料的来源、复制时 SHA-256 和当前 SHA-256。设计文档及协议笔记更新后的哈希单独记录，原始复制哈希继续保留。
+- `reference/control4/`：Control4 解析器、HopeBeauty 地址映射和协议核对笔记；私有解析 JSON 与报告仅在本地保留。第三方手册、提取文本和原页截图已移出版本管理。
+- `reference/manifest.json`：资料来源与哈希记录；`removed_third_party_documents` 记录已移除的第三方资料。保留范围与资料管理方式见 [参考资料说明](reference/README.md)。
 
 原始项目仍在 `/Volumes/m4work/aiml/Control4/Projects/Charlies250801.c4p`；参考目录是离线快照，不是运行配置。完整解析 JSON/报告包含私人住宅资料，默认列入 `.gitignore`，发布前需另行审阅。旧资料保持原位，复制时逐文件核对哈希。
 

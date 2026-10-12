@@ -4,3 +4,8 @@
 # Private source snapshots remain local unless explicitly reviewed for publication.
 /reference/control4/Charlies250801.parsed.json
 /reference/control4/Charlies250801.report.txt
+
+# Third-party manuals and derived copies are kept outside version control.
+/docs/产品手册/
+/reference/control4/manual-pages/
+/reference/control4/manual-text/
