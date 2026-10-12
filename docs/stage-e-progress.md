@@ -1029,3 +1029,10 @@ Control4 私有核查和书房修正配置仅留本地。现场仍挂起，EA-5 
 固定 `c184e65` 的 E10 release 指纹为 `7596e17aa0e61d9b20768918213e1c4a2152ddd52d7277fd4e954eafaafd8315`。根审计逐文件核对源码归档 891 个文件与该提交一致，归档和构建日志指纹匹配，另只读核对 ngr 二进制指纹一致。三种实际 Linux 假 TCP 网关初态均保留全部关联：主灯关／筒灯18%仅 LED1／3 Off，全关仅 LED1／3／5 Off，全开无输出；三例选择均保持 NULL／版本0、零场景，输出均 written，实际 TLS diagnostics 就绪且队列及在途清空。根审计另外独立通过 8 项启动检查器回归，包含旧全关错误归零拒绝、输出失败／不确定、就绪失败及有界等待。
 
 模拟和假 TCP 两种 TLS 冒烟、Live 配置校验、副本 Python／Rust 锁互斥、schema22 revision2→3 发布、配对与 AID/IID 保持，以及独立 revision2 回退和三份 standalone 快照检查通过。首次过早检查初始化、Host/Origin 不一致及 WAL 格式快照拒绝作为测试脚本失败保留，未计为通过。此候选完全关闭观察，未发布真实库，field_enablement=false，现场窗口和人工确认仍挂起。新观察候选及完整外部写入审核继续由部署／功能开发推进，不以本轮模拟结果关闭 D/E。见 [启动契约与当前候选证据](evidence/stage-e-browser/indicator-startup-contract-audit.json)。
+
+
+### 2026-10-13 观察候选与加密客户端恢复隔离核查
+
+E11 使用同一干净 `c184e65` Linux 二进制在闭世界归档模拟器中完成 18 个实际 API／SQLite 检查点：首键歧义、异键收敛、本地意图不 seed 外部集合、网关 EOF 后可见推断失效、保留身份／库重启后仍重新未知。根审计逐记录核对：所有观察步骤零新增命令和场景；两个明确的本地场景请求仅在 localhost 产生 14 条命令、2 条场景。缺少 writer review 或成员键绑定的配置被拒绝。现场配置保持关闭，真实库和身份未变；归档中的三条件／六赋值不证明实时项目一致或驱动无隐式写入。观察与独立 LED 联动同时启用的 Linux 集成边界继续验证，现场完整观察仍挂起。见 [Linux 观察证据](evidence/stage-e-browser/scene-observation-linux-check.json)。
+
+另新增单项加密 HAP 协议回归：原会话已订阅后断开，Web 改为17%，同一配对控制器重新认证读取 On=true／17%；重新订阅后，Web 的30%→17%分别产生正确加密通知，无 HAP 控制或刷新。固定干净产品源码仅添加该测试，原891个归档文件均未变；1项通过、0失败／忽略，限定目标严格 Clippy 通过。首轮沙箱拒绝回环监听保留，获准执行通过。此测试使用独立模拟调光灯，不解释真实 iOS 后台生命周期或现场组合灯问题；家庭 App 后台返回旧值的实际原因仍未确定，不能关闭现场恢复门槛。见 [协议恢复回归](evidence/stage-e-browser/client-resume-protocol-check.json)。
