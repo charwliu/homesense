@@ -1,0 +1,50 @@
+{
+  "date": "2026-10-13",
+  "base_commit": "bd98415cddc77033466c0abd476428b2fb85ad49",
+  "source_hashes": {
+    "crates/homesense-import/src/source_review.rs": "36b8f0cdacb8c888187e9b91d3e19830771bf80fa7b5dc90d97ded198aaf5b02",
+    "crates/homesense-import/src/lib.rs": "d6fafbe53dcf1409e5d43ad2b1855cdafe226bfc6ea159d76722273ddfdf876c",
+    "crates/homesense-import/src/semantic.rs": "0611ebb7988910552002a6d074de6335963a4d35e5a3cdbee108e36298db8df9",
+    "crates/homesense-import/tests/source_review.rs": "35ed9405611429f2f81fcbf75d2d4fbadb34553de3e79a9bd5c928c1912e5baf"
+  },
+  "validation": {
+    "importer_passed": 33,
+    "failed": 0,
+    "ignored": 0,
+    "new_synthetic_tests": 7,
+    "all_target_strict_clippy": "passed",
+    "test_log_sha256": "de294d6b80ea966e6bc6e90d7a18ddb40e1025071c6116e566615f6407da976b",
+    "clippy_log_sha256": "e9dc068d9c01c3e722573e945e61fde0234fa116f742c04d1ad6600bbd74c492"
+  },
+  "source_aggregate": {
+    "scenes": 68,
+    "programs": 215,
+    "variables": 25,
+    "standard_syntax_success": 179,
+    "standard_first_error_events": 36,
+    "precise_source_empty_noops": 4,
+    "new_noop_disposition": "included_source_empty_noop_no_runtime_rule",
+    "programs_with_existing_limited_study_review": 3,
+    "remaining_semantic_review": {
+      "scenes": 65,
+      "programs": 208,
+      "variables": 24
+    },
+    "all_enabled_typed_blocker_sites": {
+      "IF_STOPPED": 24,
+      "SET_LEVEL_TARGET": 24,
+      "IF_MOVING": 11,
+      "STOP": 11,
+      "RAMP_TO_LEVEL": 1
+    },
+    "independent_disabled_ramp_sites": 1
+  },
+  "limitations": [
+    "syntactic capability does not mean original semantic review or field acceptance",
+    "unsupported curtain conditions and motor actions remain suspended",
+    "fade timing and proxy callback semantics remain unreviewed",
+    "all audit-generated definitions are disabled",
+    "private event identifiers and project fingerprints remain local",
+    "EA configuration and control scope unchanged"
+  ]
+}
