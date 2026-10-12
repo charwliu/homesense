@@ -1,0 +1,24 @@
+{
+  "base_commit": "ac58650",
+  "fix": "default application/json for JSON request bodies",
+  "browser_passed": [
+    "login",
+    "read configuration history",
+    "create restore draft",
+    "load draft",
+    "rename device",
+    "change room",
+    "save derived draft",
+    "preview revision 1 to 2"
+  ],
+  "storage_verified": {
+    "drafts": 2,
+    "active_revision": 1
+  },
+  "not_completed": [
+    "publication confirmation: browser control timed out",
+    "narrow viewport verification",
+    "screenshot capture: browser control timed out"
+  ],
+  "scope": "synthetic loopback only"
+}
