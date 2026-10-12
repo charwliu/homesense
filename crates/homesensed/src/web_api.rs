@@ -514,7 +514,7 @@ impl Api {
                 .collect::<Vec<_>>();
             return response(
                 StatusCode::OK,
-                json!({"boot":snapshot.boot,"revision":snapshot.revision,"sequence":snapshot.sequence,"devices":devices}),
+                json!({"boot":snapshot.boot,"revision":snapshot.revision,"revision_text":snapshot.revision.to_string(),"sequence":snapshot.sequence,"devices":devices}),
             );
         }
         if request.method() != hyper::Method::POST
