@@ -21,9 +21,10 @@ fn error(e: impl std::fmt::Display) -> String {
 
 /// Light publication is a view of the shared physical snapshot. Non-light
 /// observations remain with the automation owner and are not HAP light inputs.
-fn light_snapshot(configuration:&Configuration,physical:&Snapshot)->Result<Snapshot,String> {
+fn light_snapshot(configuration:&Configuration,physical:&Snapshot,selected:Option<&std::collections::BTreeSet<homesense_core::DeviceId>>)->Result<Snapshot,String> {
     let mut logical=crate::combined_light::project(configuration,physical).map_err(error)?;
     logical.devices.retain(|id,_|configuration.binding(id).is_some_and(|(_,module)|matches!(module.kind(),ModuleKind::Switch|ModuleKind::Dimmer)));
+    if let Some(selected)=selected {logical.devices.retain(|id,_|selected.contains(id));}
     Ok(logical)
 }
 
@@ -37,6 +38,7 @@ pub struct RuntimeHap {
     projection_interrupted: bool,
     max_age_ms: u64,
     configuration: Configuration,
+    selected: Option<std::collections::BTreeSet<homesense_core::DeviceId>>,
     physical_snapshot: Arc<RwLock<Snapshot>>,
     combined: bool,
     restore_levels:
@@ -69,6 +71,21 @@ impl RuntimeHap {
         admission: Admission,
         max_age_ms: u64,
     ) -> Result<Self, String> {
+        Self::new_selected(configuration,initial,store,admission,max_age_ms,None).await
+    }
+    /// Publish an explicit nonempty logical light subset while retaining the full
+    /// physical snapshot for combined-light writes and shared admission.
+    pub async fn new_selected(
+        configuration:&Configuration,initial:Snapshot,store:&IdentityStore,
+        admission:Admission,max_age_ms:u64,
+        selected:Option<std::collections::BTreeSet<homesense_core::DeviceId>>,
+    )->Result<Self,String> {
+        if let Some(selected)=&selected {
+            let supplies:std::collections::BTreeSet<_>=configuration.devices().values().filter(|d|d.enabled).filter_map(|d|d.supply_relay.as_ref()).collect();
+            if selected.is_empty() || selected.iter().any(|id|supplies.contains(id) || !configuration.binding(id).is_some_and(|(_,module)|matches!(module.kind(),ModuleKind::Switch|ModuleKind::Dimmer))) {
+                return Err("HAP selection requires enabled logical lights".into());
+            }
+        }
         let combined = configuration
             .devices()
             .values()
@@ -80,7 +97,7 @@ impl RuntimeHap {
                 .map_err(|e| format!("restore levels: {e:?}"))?,
         ));
         let physical_snapshot = Arc::new(RwLock::new(initial.clone()));
-        let initial = light_snapshot(configuration, &initial)?;
+        let initial = light_snapshot(configuration, &initial, selected.as_ref())?;
         let supplies: std::collections::BTreeSet<_> = configuration
             .devices()
             .values()
@@ -89,7 +106,7 @@ impl RuntimeHap {
             .collect();
         let mut specs = Vec::new();
         for id in configuration.devices().keys() {
-            if supplies.contains(id) {
+            if supplies.contains(id) || selected.as_ref().is_some_and(|selected|!selected.contains(id)) {
                 continue;
             }
             if let Some((device, module)) = configuration.binding(id) {
@@ -182,6 +199,7 @@ impl RuntimeHap {
             projection_interrupted: false,
             max_age_ms,
             configuration: configuration.clone(),
+            selected,
             physical_snapshot,
             combined,
             restore_levels,
@@ -195,7 +213,7 @@ impl RuntimeHap {
             if physical.cursor.boot_id!=current.cursor.boot_id || physical.cursor.sequence<current.cursor.sequence {return Err("snapshot cursor regressed".into());}
         }
         let saved=self.admission.remember_levels(self.configuration.revision(),physical.clone(),self.max_age_ms).await.map_err(|e|format!("restore levels: {e:?}"))?;
-        let snapshot=light_snapshot(&self.configuration,&physical)?;
+        let snapshot=light_snapshot(&self.configuration,&physical,self.selected.as_ref())?;
         {
             let mut current=self.snapshot.write().map_err(|_|"snapshot lock poisoned")?;
             if snapshot.cursor.boot_id!=current.cursor.boot_id || snapshot.cursor.sequence<current.cursor.sequence {return Err("snapshot cursor regressed".into());}
@@ -256,7 +274,7 @@ impl RuntimeHap {
             .write()
             .map_err(|_| "restore lock poisoned")? = saved;
         let snapshot =
-            light_snapshot(&self.configuration, &physical)?;
+            light_snapshot(&self.configuration, &physical,self.selected.as_ref())?;
         *self
             .physical_snapshot
             .write()
@@ -587,6 +605,42 @@ impl RuntimeHap {
 mod publication_tests {
     use super::*;
 
+    #[tokio::test]
+    async fn selected_bridges_share_physical_feedback_without_exposing_each_other() {
+        let dir=std::env::temp_dir().join(format!("homesense-selected-{}",uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let mut raw:serde_json::Value=serde_json::from_slice(include_bytes!("../../../config/simulation.json")).unwrap();
+        let mut second=raw["devices"][0].clone();second["id"]="second".into();second["channel"]=2.into();raw["devices"].as_array_mut().unwrap().push(second);
+        let mut store=homesense_storage::Store::open(dir.join("runtime.sqlite")).unwrap();
+        let config=store.publish_configuration(None,&serde_json::to_vec(&raw).unwrap(),homesense_core::ExecutionContext::Simulation,&[]).unwrap();drop(store);
+        let admission=Admission::open(dir.join("runtime.sqlite"),crate::admission::Options{context:homesense_core::ExecutionContext::Simulation,..Default::default()},|_|true).await.unwrap();
+        let boot=uuid::Uuid::parse_str(admission.boot_id()).unwrap().as_u128();
+        let mut physical=crate::feedback::Feedback::new(&config,homesense_core::ExecutionContext::Simulation,boot,1).unwrap().snapshot();
+        for state in physical.devices.values_mut() {state.quality=homesense_state::Quality::Confirmed;state.observed=Some(homesense_core::Observation::Level(homesense_core::Percent::new(30).unwrap()));state.observed_at_ms=Some(0);}
+        let a=homesense_core::DeviceId::new("simulation:light").unwrap();let b=homesense_core::DeviceId::new("second").unwrap();
+        let mut graphs=Vec::new();
+        for id in [&a,&b] {
+            let mut identity=IdentityStore::open(dir.join(if id==&a {"a"}else{"b"})).await.unwrap();
+            hap::storage::Storage::save_config(&mut identity,&hap::Config::default()).await.unwrap();
+            for invalid in [std::collections::BTreeSet::new(),[homesense_core::DeviceId::new("missing").unwrap()].into()] {
+                assert!(RuntimeHap::new_selected(&config,physical.clone(),&identity,admission.clone(),5000,Some(invalid)).await.is_err());
+            }
+            let graph=RuntimeHap::new_selected(&config,physical.clone(),&identity,admission.clone(),5000,Some([id.clone()].into())).await.unwrap();
+            assert_eq!(graph.lights.len(),1);assert_eq!(&graph.lights[0].0.device,id);
+            assert_eq!(graph.snapshot.read().unwrap().devices.len(),1);
+            assert_eq!(graph.physical_snapshot.read().unwrap().devices.len(),2);
+            graphs.push(graph);
+        }
+        physical.cursor.sequence+=1;physical.state_version=physical.cursor.sequence;
+        physical.devices.get_mut(&b).unwrap().observed=Some(homesense_core::Observation::Level(homesense_core::Percent::new(70).unwrap()));
+        for graph in &mut graphs {graph.publish_snapshot(physical.clone()).await.unwrap();}
+        assert_eq!(graphs[0].snapshot.read().unwrap().devices[&a].observed,Some(homesense_core::Observation::Level(homesense_core::Percent::new(30).unwrap())));
+        assert!(!graphs[0].snapshot.read().unwrap().devices.contains_key(&b));
+        assert_eq!(graphs[1].snapshot.read().unwrap().devices[&b].observed,Some(homesense_core::Observation::Level(homesense_core::Percent::new(70).unwrap())));
+        assert!(!graphs[1].snapshot.read().unwrap().devices.contains_key(&a));
+        drop(graphs);admission.shutdown().await.unwrap();std::fs::remove_dir_all(dir).unwrap();
+    }
+
     #[test]
     fn light_view_excludes_motor_and_keypad_without_mutating_physical_snapshot() {
         let mut value:serde_json::Value=serde_json::from_slice(include_bytes!("../../../config/simulation.json")).unwrap();
@@ -599,7 +653,7 @@ mod publication_tests {
         let config=Configuration::parse(&serde_json::to_vec(&value).unwrap(),homesense_core::ExecutionContext::Simulation).unwrap();
         let physical=crate::feedback::Feedback::new(&config,homesense_core::ExecutionContext::Simulation,1,1).unwrap().snapshot();
         let prior=physical.clone();
-        let lights=light_snapshot(&config,&physical).unwrap();
+        let lights=light_snapshot(&config,&physical,None).unwrap();
         assert_eq!(physical,prior);assert_eq!(physical.devices.len(),3);
         assert_eq!(lights.devices.len(),1);assert!(lights.devices.contains_key(&homesense_core::DeviceId::new("simulation:light").unwrap()));
         assert_eq!(lights.cursor,physical.cursor);
