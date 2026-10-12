@@ -173,3 +173,46 @@ fn binding_edits_preserve_source_and_invalidate_changed_motor_calibration() {
     assert_eq!(store.get(principal,id).unwrap().unwrap().devices["devices"][0]["enabled"],false);
     drop(store);std::fs::remove_dir_all(root).unwrap();
 }
+
+#[test]
+fn motor_calibration_drafts_require_matching_binding_and_valid_evidence() {
+    use homesensed::web_drafts::{MotorCalibrationEdit,MotorCalibrationRecord};
+    let root=std::env::temp_dir().join(format!("calibration-draft-{}",Uuid::new_v4()));std::fs::create_dir(&root).unwrap();
+    let mut store=Drafts::open(&root.join("drafts.sqlite")).unwrap();let principal=Uuid::new_v4();
+    let draft=Draft{id:Uuid::new_v4(),expected_revision:1,revision:2,
+        devices:serde_json::json!({"schema_version":1,"revision":2,"gateways":[{"id":"test","endpoint":"127.0.0.1:50007","modules":[{"address":"22","profile":"c4_din_pro_v2_7_7","verification":{"status":"simulated"}}]}],"devices":[{"id":"motor","name":"Motor fixture","gateway":"test","address":"22","channel":2,"enabled":true,"motor_calibration":{"open_direction":"up","stop_verified":true,"evidence":"offline fixture","verified_at_unix_ms":1}}]}),
+        automation:serde_json::json!({"schema_version":1,"configuration_revision":2,"variables":[],"rules":[],"timed_scenes":[]})};
+
+    store.save(principal,&draft,ExecutionContext::Simulation).unwrap();
+    let edit=||MotorCalibrationEdit{id:Uuid::new_v4(),expected_revision:"1".into(),revision:"3".into(),device:"motor".into(),gateway:"test".into(),address:"22".into(),channel:2,
+        calibration:Some(MotorCalibrationRecord{open_direction:"down".into(),stop_verified:true,evidence:"offline synthetic direction and STOP evidence".into(),verified_at_unix_ms:"9007199254740993".into()})};
+    let id=store.edit_motor_calibration(principal,draft.id,edit(),ExecutionContext::Simulation).unwrap();
+    let result=store.get(principal,id).unwrap().unwrap();
+    assert_eq!(result.devices["devices"][0]["motor_calibration"]["open_direction"],"down");
+    assert_eq!(result.devices["devices"][0]["motor_calibration"]["verified_at_unix_ms"].as_u64(),Some(9007199254740993));
+    assert_eq!(store.get(principal,draft.id).unwrap().unwrap(),draft);
+    for case in 0..7 {
+        let mut bad=edit();
+        match case {
+            0=>bad.channel=3,
+            1=>bad.calibration.as_mut().unwrap().stop_verified=false,
+            2=>bad.calibration.as_mut().unwrap().open_direction="sideways".into(),
+            3=>bad.calibration.as_mut().unwrap().evidence.clear(),
+            4=>bad.calibration.as_mut().unwrap().verified_at_unix_ms="0".into(),
+            5=>bad.calibration.as_mut().unwrap().verified_at_unix_ms="01".into(),
+            _=>bad.gateway="different".into(),
+        }
+        let candidate=bad.id;assert!(store.edit_motor_calibration(principal,draft.id,bad,ExecutionContext::Simulation).is_err());
+        assert!(store.get(principal,candidate).unwrap().is_none());
+    }
+    assert!(store.edit_motor_calibration(Uuid::new_v4(),draft.id,edit(),ExecutionContext::Simulation).is_err());
+    let mut light=Draft{id:Uuid::new_v4(),expected_revision:1,revision:2,
+        devices:serde_json::from_slice(include_bytes!("../../../config/simulation.json")).unwrap(),automation:draft.automation.clone()};
+    light.devices["revision"]=2.into();store.save(principal,&light,ExecutionContext::Simulation).unwrap();
+    let mut bad=edit();bad.device="simulation:light".into();bad.gateway="simulation".into();bad.address="15".into();bad.channel=1;
+    assert!(store.edit_motor_calibration(principal,light.id,bad,ExecutionContext::Simulation).is_err());
+    let mut remove=edit();remove.calibration=None;
+    let id=store.edit_motor_calibration(principal,draft.id,remove,ExecutionContext::Simulation).unwrap();
+    assert!(store.get(principal,id).unwrap().unwrap().devices["devices"][0].get("motor_calibration").is_none());
+    drop(store);std::fs::remove_dir_all(root).unwrap();
+}
