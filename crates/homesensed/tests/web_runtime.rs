@@ -158,6 +158,7 @@ async fn web_scope_origin_receipts_and_runtime_admission() {
         )
         .unwrap();
     let mut api = Api {
+        backup_source:None,
         publisher:None,
         origin: "http://127.0.0.1:8088".into(),
         tokens: tokens.clone(),
@@ -434,7 +435,7 @@ async fn web_scope_origin_receipts_and_runtime_admission() {
         );
         let mut activation=make_draft();*activation.uri_mut()=format!("/api/v1/config/activations/{draft_id}").parse().unwrap();
         assert_eq!(api.handle(activation).await.status(),StatusCode::FORBIDDEN);
-        for path in ["/api/v1/config/versions/1/restore-draft","/health/ready","/api/v1/diagnostics","/api/v1/diagnostics/calendar","/api/v1/config/drafts","/api/v1/config/versions","/api/v1/config/versions/1/export"] {
+        for path in ["/api/v1/backups","/api/v1/config/versions/1/restore-draft","/health/ready","/api/v1/diagnostics","/api/v1/diagnostics/calendar","/api/v1/config/drafts","/api/v1/config/versions","/api/v1/config/versions/1/export"] {
             let mut read=make(&api.origin,"");*read.method_mut()=hyper::Method::GET;*read.uri_mut()=path.parse().unwrap();
             assert_eq!(api.handle(read).await.status(),StatusCode::FORBIDDEN);
         }
@@ -446,6 +447,12 @@ async fn web_scope_origin_receipts_and_runtime_admission() {
         let saved_drafts=api.drafts.take();
         let mut capability=make(&api.origin,"");*capability.method_mut()=hyper::Method::GET;*capability.uri_mut()="/api/v1/session".parse().unwrap();
         let capability:serde_json::Value=serde_json::from_slice(&api.handle(capability).await.into_body().collect().await.unwrap().to_bytes()).unwrap();assert_eq!(capability["can_view_diagnostics"],true);assert_eq!(capability["can_manage_configuration"],false);
+        let mut backups=make(&api.origin,"");*backups.method_mut()=hyper::Method::GET;*backups.uri_mut()="/api/v1/backups".parse().unwrap();
+        assert_eq!(api.handle(backups).await.status(),StatusCode::SERVICE_UNAVAILABLE);
+        api.backup_source=Some(root.join("catalog-test.sqlite"));
+        let mut backups=make(&api.origin,"");*backups.method_mut()=hyper::Method::GET;*backups.uri_mut()="/api/v1/backups".parse().unwrap();
+        let backups=api.handle(backups).await;assert_eq!(backups.status(),StatusCode::OK);
+        let catalog:serde_json::Value=serde_json::from_slice(&backups.into_body().collect().await.unwrap().to_bytes()).unwrap();assert_eq!(catalog["verified"],false);assert_eq!(catalog["groups"].as_array().unwrap().len(),2);
         let mut diagnostic=make(&api.origin,"");*diagnostic.method_mut()=hyper::Method::GET;*diagnostic.uri_mut()="/api/v1/diagnostics".parse().unwrap();assert_eq!(api.handle(diagnostic).await.status(),StatusCode::OK);
         api.drafts=saved_drafts;
 

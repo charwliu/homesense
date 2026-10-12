@@ -13,6 +13,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 pub struct Api {
+    pub backup_source: Option<std::path::PathBuf>,
     pub publisher: Option<crate::automation_publication::Publisher>,
     pub origin: String,
     pub tokens: Arc<Tokens>,
@@ -199,6 +200,17 @@ impl Api {
         let Some(runtime) = runtime else {
             return deny(StatusCode::SERVICE_UNAVAILABLE, "runtime_reconfiguring");
         };
+        if request.uri().path() == "/api/v1/backups" {
+            if grant.role != crate::web_auth::Role::Administrator {return deny(StatusCode::FORBIDDEN,"administrator_required");}
+            if request.method()!=hyper::Method::GET {return deny(StatusCode::METHOD_NOT_ALLOWED,"method_not_allowed");}
+            if !request.body().is_empty() {return deny(StatusCode::BAD_REQUEST,"unexpected_body");}
+            if !matches!(runtime.control.request(Action::Diagnostics{controller:grant.controller,revision:runtime.revision}).await,Ok(Reply::Diagnostics(_))) {return deny(StatusCode::SERVICE_UNAVAILABLE,"runtime_unavailable");}
+            let Some(source)=self.backup_source.clone() else {return deny(StatusCode::SERVICE_UNAVAILABLE,"backups_unavailable");};
+            return match tokio::task::spawn_blocking(move||crate::web_backups::catalog(&source)).await {
+                Ok(Ok(value))=>response(StatusCode::OK,value),
+                _=>deny(StatusCode::SERVICE_UNAVAILABLE,"backup_catalog_unavailable"),
+            };
+        }
         if request.uri().path() == "/api/v1/diagnostics" {
             if grant.role != crate::web_auth::Role::Administrator {return deny(StatusCode::FORBIDDEN,"administrator_required");}
             if request.method()!=hyper::Method::GET {return deny(StatusCode::METHOD_NOT_ALLOWED,"method_not_allowed");}
