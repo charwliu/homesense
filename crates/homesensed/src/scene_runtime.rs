@@ -24,6 +24,7 @@ pub struct SceneRuntime {
     audit_failed: bool,
     cancellation_audited: std::collections::BTreeMap<DeviceId,bool>,
     cancel_requests: std::collections::BTreeMap<DeviceId,bool>,
+    stop_reason: Option<homesense_storage::scene_run::CancellationReason>,
     expiries_audited: std::collections::BTreeSet<usize>,
     admitted: Vec<u64>,
     pending: Option<Pending>,
@@ -118,6 +119,7 @@ impl SceneRuntime {
             audit_failed: false,
             cancellation_audited: Default::default(),
             cancel_requests: Default::default(),
+            stop_reason: None,
             expiries_audited: Default::default(),
             manual_fence,
             causal_deadline: None,
@@ -150,7 +152,7 @@ impl SceneRuntime {
         let timeline=Timeline::new(steps,current.epochs,accepted.started_ms,definition.max_lateness_ms).map_err(|e|format!("{e:?}"))?;
         Ok(Self{admission,controller:accepted.controller,generation:current,manual_fence:accepted.manual_fence,causal_deadline:accepted.causal_deadline,timeline,targets,
             audit_id:accepted.start.run,definition:Some(accepted.start.definition),result_taken:false,audit_version:0,
-            audit_status:homesense_storage::scene_run::Status::Pending,audit_failed:false,cancellation_audited:Default::default(),cancel_requests:Default::default(),expiries_audited:Default::default(),admitted:vec![],pending:None,fade:None,configured_fades:definition.fades.clone()})
+            audit_status:homesense_storage::scene_run::Status::Pending,audit_failed:false,cancellation_audited:Default::default(),cancel_requests:Default::default(),stop_reason:None,expiries_audited:Default::default(),admitted:vec![],pending:None,fade:None,configured_fades:definition.fades.clone()})
     }
     /// Transfer the original scene fences to a delayed fade. This does not
     /// start the fade or resolve the timeline step; the scheduler owns both.
@@ -445,6 +447,10 @@ impl SceneRuntime {
         Ok(count)
     }
     pub async fn cancel(&mut self) -> Result<usize, String> {
+        self.cancel_with_reason(homesense_storage::scene_run::CancellationReason::CancelRequested).await
+    }
+    pub(crate) async fn cancel_with_reason(&mut self, reason: homesense_storage::scene_run::CancellationReason) -> Result<usize,String> {
+        let reason=*self.stop_reason.get_or_insert(reason);
         // Invalidate volatile timers even if durable cancellation fails; caller
         // may retry cancellation, but no further timed action can be admitted.
         let mut count = self.cancel_timers();
@@ -454,7 +460,7 @@ impl SceneRuntime {
             self.persist_checkpoint(homesense_storage::scene_run::Status::Running,
                 Some(homesense_storage::scene_run::Cancellation {
                     device: device.clone(),
-                    reason: homesense_storage::scene_run::CancellationReason::CancelRequested,
+                    reason,
                 })).await?;
             self.cancel_requests.insert(device, true);
         }

@@ -326,7 +326,7 @@ impl SceneScheduler {
                 self.install_due_fade(id,fade,now).await
             }.await;
             if let Err(error)=prepared {
-                self.runs.get_mut(&id).unwrap().cancel().await?;
+                self.runs.get_mut(&id).unwrap().cancel_with_reason(homesense_storage::scene_run::CancellationReason::PreparationFailed).await?;
                 return Err(error);
             }
             return Ok(vec![]);
@@ -359,7 +359,7 @@ impl SceneScheduler {
         }
         let mut results = vec![];
         for (id, run) in &mut self.runs {
-            let cancelled = run.cancel().await.map(|count| count + counts[id]);
+            let cancelled = run.cancel_with_reason(homesense_storage::scene_run::CancellationReason::ServiceStopped).await.map(|count| count + counts[id]);
             // A changed generation may reject cancellation after the transport
             // owner already made the commands terminal. Still settle from audit.
             let reconciled = run.reconcile().await;

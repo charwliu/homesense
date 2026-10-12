@@ -675,3 +675,6 @@ Web 服务持久权限启动：模拟和统一管理入口改用 `web-credential
 
 
 停止原因存储基础：schema 19 扩展场景取消原因为 service_stopped、configuration_published、transport_failure、preparation_failed，保留已有三类原因和历史记录；读取路径支持新类型，备份检查兼容 schema 18／19。存储完整回归及 homesensed 编译检查通过，覆盖从 schema 18 迁移后保留旧记录并写入四类新原因。运行时来源接线尚待完成；未升级现场数据库。旧版本程序不能直接打开 schema 19 数据库，回滚需使用升级前备份。EA-5 未改变。
+
+
+停止原因运行时首批接线：SceneRuntime 保留首次整体取消原因，重试不改写；调度器 stop 写 service_stopped，渐变准备失败写 preparation_failed，显式用户取消仍为 cancel_requested。111 项场景运行时回归及库严格 Clippy 通过，验证同步停止屏障后仍可保存原因、重试不重复记录。因果链关闭以及配置发布／传输故障的详细来源传播仍待接入，不能把此检查点视为全部停止分类完成。未部署或升级现场数据库，EA-5 不变。
