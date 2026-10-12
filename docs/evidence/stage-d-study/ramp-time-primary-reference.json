@@ -1,0 +1,22 @@
+{
+  "primary_reference": "https://snap-one.github.io/docs-driverworks-api/#sendtodevice",
+  "reviewed_on": "2026-10-13",
+  "document_contract": "Official SendToDevice example describes RAMP_TO_LEVEL TIME=3000 as three seconds; TIME is milliseconds",
+  "source_xml_sha256": "cac7dcdc9db08599e55a22bacb72858035c64e1ac846e2139ead5fc634513748",
+  "matching_source_node_count": 1,
+  "source_command": "RAMP_TO_LEVEL",
+  "static_integer_time": 1000,
+  "static_integer_level": 0,
+  "derived_duration_ms": 1000,
+  "derived_duration_seconds": 1,
+  "unit_contract_resolved": true,
+  "source_program_fully_reviewed": false,
+  "driver_actual_execution_proven": false,
+  "field_enabled": false,
+  "other_fields_not_established": [
+    "AdvScene serialized rate",
+    "separate Ramp Timer variable units"
+  ],
+  "no_runtime_or_source_project_change": true,
+  "verbatim_source_quote_words": 0
+}
