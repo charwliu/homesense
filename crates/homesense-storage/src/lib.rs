@@ -69,7 +69,7 @@ impl Store {
         if app != 0 && app != APPLICATION_ID {
             return Err(Error::ForeignDatabase);
         }
-        if version != 0 && (!(1..=20).contains(&version) || app != APPLICATION_ID) {
+        if version != 0 && (!(1..=21).contains(&version) || app != APPLICATION_ID) {
             return Err(Error::UnsupportedSchema(version));
         }
         if version == 0 {
@@ -202,6 +202,15 @@ impl Store {
                 INSERT INTO scene_cancellation SELECT * FROM scene_cancellation_v19;
                 DROP TABLE scene_cancellation_v19;")?;
             tx.pragma_update(None, "user_version", 20)?;
+        }
+        if version <= 20 {
+            tx.execute_batch("CREATE TABLE IF NOT EXISTS light_setting (revision INTEGER NOT NULL REFERENCES configuration_revision(revision),device_id TEXT NOT NULL,level INTEGER NOT NULL CHECK(level BETWEEN 0 AND 100),journal_row INTEGER NOT NULL CHECK(journal_row>0),PRIMARY KEY(revision,device_id));
+                INSERT INTO light_setting(revision,device_id,level,journal_row)
+                SELECT j.revision,j.device_id,((instr('0123456789ABCDEF',substr(hex(j.intent),5,1))-1)*16+instr('0123456789ABCDEF',substr(hex(j.intent),6,1))-1),j.rowid FROM command_journal j
+                WHERE j.status IN ('written','observed') AND substr(j.intent,1,2) IN (x'0102',x'0103')
+                  AND j.rowid=(SELECT max(k.rowid) FROM command_journal k WHERE k.revision=j.revision AND k.device_id=j.device_id AND k.status IN ('written','observed') AND substr(k.intent,1,2) IN (x'0102',x'0103'))
+                ON CONFLICT(revision,device_id) DO NOTHING;")?;
+            tx.pragma_update(None, "user_version", 21)?;
         }
         tx.commit()?;
         connection.pragma_update(None, "foreign_keys", "ON")?;

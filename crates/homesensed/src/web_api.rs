@@ -824,16 +824,18 @@ pub(crate) fn device_json(
     device: &crate::management_devices::DeviceView,
     grant: &crate::web_auth::Grant,
 ) -> serde_json::Value {
-    let observed = match device.state.observed {
+    let value_json = |value| match value {
         Some(homesense_core::Observation::Switch(on)) => json!({"on":on}),
         Some(homesense_core::Observation::Level(level)) => {
             json!({"level":level.get(),"on":level.get()>0})
         }
         _ => serde_json::Value::Null,
     };
+    let observed=value_json(device.state.observed);
+    let reported=value_json(device.reported);
     let light = matches!(
         device.state.kind,
         homesense_core::ModuleKind::Switch | homesense_core::ModuleKind::Dimmer
     );
-    json!({"id":device.id.as_str(),"name":device.name,"room":device.room,"kind":format!("{:?}",device.state.kind),"observed":observed,"quality":format!("{:?}",device.state.quality),"observed_at_ms":device.state.observed_at_ms,"pending":device.state.pending_command,"version":device.state.version,"motor_calibrated":device.motor_calibrated,"can_control":(light || device.motor_calibrated) && grant.may_control_device(device.id.as_str())})
+    json!({"id":device.id.as_str(),"name":device.name,"room":device.room,"kind":format!("{:?}",device.state.kind),"observed":observed,"reported":reported,"state_authority":if device.recorded {"homesense_setting"} else {"feedback"},"quality":format!("{:?}",device.state.quality),"observed_at_ms":device.state.observed_at_ms,"pending":device.state.pending_command,"version":device.state.version,"motor_calibrated":device.motor_calibrated,"can_control":(light || device.motor_calibrated) && grant.may_control_device(device.id.as_str())})
 }

@@ -12,6 +12,7 @@ use std::{
 
 /// A lease is validated while holding the same lock used by every feedback
 /// mutation. The commit closure must be synchronous and must not call Feedback.
+#[derive(Clone)]
 pub struct RuleLease {
     version: Arc<Mutex<u64>>,
     expected: u64,
@@ -91,6 +92,20 @@ impl Feedback {
         now: u64,
         max_age: u64,
     ) -> Result<(homesense_core::rule::Plan, RuleLease), String> {
+        self.plan_rule_with_levels(nodes, variables, budget, now, max_age, &BTreeMap::new())
+    }
+    /// Policy reads for indicator reconciliation only. Physical rule predicates
+    /// and diagnostic feedback remain actual observations.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn plan_rule_with_levels(
+        &self,
+        nodes: &[homesense_core::rule::Node],
+        variables: &BTreeMap<String, homesense_core::rule::Variable>,
+        budget: homesense_core::rule::Budget,
+        now: u64,
+        max_age: u64,
+        recorded: &BTreeMap<DeviceId, homesense_core::Percent>,
+    ) -> Result<(homesense_core::rule::Plan, RuleLease), String> {
         if self.stopped {
             return Err("feedback stopped".into());
         }
@@ -125,6 +140,14 @@ impl Feedback {
                 logical.insert(device.clone(), sample);
             } else {
                 logical.remove(device);
+            }
+        }
+        for (id, level) in recorded {
+            if let Some(sample)=logical.get_mut(id) {
+                let supply_off=self.supply_relays.get(id).and_then(|relay|physical.get(relay)).is_some_and(|s|s.on==Some(false));
+                let effective=if supply_off {homesense_core::Percent::new(0).unwrap()} else {*level};
+                sample.level=Some(effective);
+                sample.on=Some(effective.get()>0);
             }
         }
         let mut plan = homesense_core::rule::evaluate_with_feedback(

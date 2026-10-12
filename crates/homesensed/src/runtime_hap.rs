@@ -21,8 +21,8 @@ fn error(e: impl std::fmt::Display) -> String {
 
 /// Light publication is a view of the shared physical snapshot. Non-light
 /// observations remain with the automation owner and are not HAP light inputs.
-fn light_snapshot(configuration:&Configuration,physical:&Snapshot,selected:Option<&std::collections::BTreeSet<homesense_core::DeviceId>>)->Result<Snapshot,String> {
-    let mut logical=crate::combined_light::project(configuration,physical).map_err(error)?;
+fn light_snapshot(configuration:&Configuration,physical:&Snapshot,selected:Option<&std::collections::BTreeSet<homesense_core::DeviceId>>,recorded:&std::collections::BTreeMap<homesense_core::DeviceId,homesense_core::Percent>)->Result<Snapshot,String> {
+    let mut logical=crate::light_state::project(configuration,physical,recorded).map_err(error)?;
     logical.devices.retain(|id,_|configuration.binding(id).is_some_and(|(_,module)|matches!(module.kind(),ModuleKind::Switch|ModuleKind::Dimmer)));
     if let Some(selected)=selected {logical.devices.retain(|id,_|selected.contains(id));}
     Ok(logical)
@@ -40,7 +40,6 @@ pub struct RuntimeHap {
     configuration: Configuration,
     selected: Option<std::collections::BTreeSet<homesense_core::DeviceId>>,
     physical_snapshot: Arc<RwLock<Snapshot>>,
-    combined: bool,
     restore_levels:
         Arc<RwLock<std::collections::BTreeMap<homesense_core::DeviceId, homesense_core::Percent>>>,
 }
@@ -94,10 +93,6 @@ impl RuntimeHap {
                 return Err("HAP selection requires enabled logical lights".into());
             }
         }
-        let combined = configuration
-            .devices()
-            .values()
-            .any(|d| d.enabled && d.supply_relay.is_some());
         let restore_levels = Arc::new(RwLock::new(
             admission
                 .remember_levels(configuration.revision(), initial.clone(), max_age_ms)
@@ -105,7 +100,8 @@ impl RuntimeHap {
                 .map_err(|e| format!("restore levels: {e:?}"))?,
         ));
         let physical_snapshot = Arc::new(RwLock::new(initial.clone()));
-        let initial = light_snapshot(configuration, &initial, selected.as_ref())?;
+        let recorded = admission.projection_levels(configuration.revision(), initial.cursor.boot_id).await.map_err(|e|format!("recorded levels: {e:?}"))?;
+        let initial = light_snapshot(configuration, &initial, selected.as_ref(), &recorded)?;
         let supplies: std::collections::BTreeSet<_> = configuration
             .devices()
             .values()
@@ -213,7 +209,6 @@ impl RuntimeHap {
             configuration: configuration.clone(),
             selected,
             physical_snapshot,
-            combined,
             restore_levels,
         })
     }
@@ -225,7 +220,8 @@ impl RuntimeHap {
             if physical.cursor.boot_id!=current.cursor.boot_id || physical.cursor.sequence<current.cursor.sequence {return Err("snapshot cursor regressed".into());}
         }
         let saved=self.admission.remember_levels(self.configuration.revision(),physical.clone(),self.max_age_ms).await.map_err(|e|format!("restore levels: {e:?}"))?;
-        let snapshot=light_snapshot(&self.configuration,&physical,self.selected.as_ref())?;
+        let recorded=self.admission.projection_levels(self.configuration.revision(),physical.cursor.boot_id).await.map_err(|e|format!("recorded levels: {e:?}"))?;
+        let snapshot=light_snapshot(&self.configuration,&physical,self.selected.as_ref(),&recorded)?;
         {
             let mut current=self.snapshot.write().map_err(|_|"snapshot lock poisoned")?;
             if snapshot.cursor.boot_id!=current.cursor.boot_id || snapshot.cursor.sequence<current.cursor.sequence {return Err("snapshot cursor regressed".into());}
@@ -285,8 +281,8 @@ impl RuntimeHap {
             .restore_levels
             .write()
             .map_err(|_| "restore lock poisoned")? = saved;
-        let snapshot =
-            light_snapshot(&self.configuration, &physical,self.selected.as_ref())?;
+        let recorded=self.admission.projection_levels(self.configuration.revision(),physical.cursor.boot_id).await.map_err(|e|format!("recorded levels: {e:?}"))?;
+        let snapshot=light_snapshot(&self.configuration,&physical,self.selected.as_ref(),&recorded)?;
         *self
             .physical_snapshot
             .write()
@@ -294,32 +290,16 @@ impl RuntimeHap {
         if snapshot.cursor.boot_id != cursor.boot_id || snapshot.cursor.sequence < cursor.sequence {
             return Err("snapshot boot changed or cursor moved backwards".into());
         }
-        let events = owner.events_since(cursor);
         let now = self.admission.monotonic_ms();
-        *self
-            .snapshot
-            .write()
-            .map_err(|_| "snapshot lock poisoned")? = snapshot.clone();
+        *self.snapshot.write().map_err(|_| "snapshot lock poisoned")? = snapshot.clone();
         let resync = self.projection_interrupted;
         self.projection_interrupted = true;
-        match events {
-            _ if self.combined && !resync => self
-                .projection
-                .refresh_snapshot(&snapshot, now)
-                .await
-                .map_err(error)?,
-            Ok(events) if !resync => {
-                for event in events {
-                    if snapshot.devices.contains_key(&event.device_id) {
-                        self.projection.apply(&event, now).await.map_err(error)?;
-                    }
-                }
-            }
-            _ => self
-                .projection
-                .resynchronize(&snapshot, now)
-                .await
-                .map_err(error)?,
+        if resync {
+            self.projection.resynchronize(&snapshot, now).await.map_err(error)?;
+        } else {
+            // Events and reads must publish the same policy projection. Raw
+            // dimmer events cannot overwrite a recorded setting.
+            self.projection.refresh_snapshot(&snapshot, now).await.map_err(error)?;
         }
         self.projection_interrupted = false;
         Ok(())
@@ -665,7 +645,7 @@ mod publication_tests {
         let config=Configuration::parse(&serde_json::to_vec(&value).unwrap(),homesense_core::ExecutionContext::Simulation).unwrap();
         let physical=crate::feedback::Feedback::new(&config,homesense_core::ExecutionContext::Simulation,1,1).unwrap().snapshot();
         let prior=physical.clone();
-        let lights=light_snapshot(&config,&physical,None).unwrap();
+        let lights=light_snapshot(&config,&physical,None,&Default::default()).unwrap();
         assert_eq!(physical,prior);assert_eq!(physical.devices.len(),3);
         assert_eq!(lights.devices.len(),1);assert!(lights.devices.contains_key(&homesense_core::DeviceId::new("simulation:light").unwrap()));
         assert_eq!(lights.cursor,physical.cursor);
