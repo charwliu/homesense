@@ -31,6 +31,19 @@ pub struct ObservedTransport<S> {
     unavailable: bool,
     projection_failed: bool,
     pending_recovery: Option<u64>,
+    output_refresh: Option<OutputRefresh>,
+}
+struct OutputRefresh {
+    configuration: homesense_config::Configuration,
+    devices: Vec<homesense_core::DeviceId>,
+    controller: uuid::Uuid,
+    generation: crate::admission::TaskGeneration,
+    context: homesense_core::ExecutionContext,
+    timeout_ms: u64,
+    max_age_ms: u64,
+    interval_ms: u64,
+    next: usize,
+    due: u64,
 }
 struct Operation<'a> {
     feedback: &'a mut Feedback,
@@ -58,7 +71,56 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
             unavailable: false,
             projection_failed: false,
             pending_recovery: None,
+            output_refresh: None,
         }
+    }
+    /// Opt-in periodic queries for output channels only. Event-only panels and
+    /// motors retain their actual unknown/event state; no position is synthesized.
+    pub(crate) fn configure_output_refresh(
+        &mut self, configuration: &homesense_config::Configuration,
+        controller: uuid::Uuid, generation: crate::admission::TaskGeneration,
+        context: homesense_core::ExecutionContext, timeout_ms: u64, max_age_ms: u64,
+    ) -> Result<(), String> {
+        if configuration.revision()!=self.feedback.configuration_revision()
+            || self.pending_recovery.is_some() || self.unavailable
+            || timeout_ms==0 || timeout_ms>5000 || max_age_ms==0 {
+            return Err("invalid output refresh generation or bounds".into());
+        }
+        let devices:Vec<_>=configuration.devices().keys().filter(|id|configuration.binding(id)
+            .is_some_and(|(_,module)|matches!(module.kind(),homesense_core::ModuleKind::Switch|homesense_core::ModuleKind::Dimmer))).cloned().collect();
+        if devices.is_empty() {return Err("output refresh requires queryable outputs".into());}
+        for id in &devices {
+            let (device,module)=configuration.binding(id).ok_or("missing output refresh binding")?;
+            hb_protocol::encode_in_context(module,device.channel,homesense_core::Command::Query,context).map_err(|e|e.to_string())?;
+        }
+        let interval_ms=(max_age_ms/2/devices.len() as u64).max(1)
+            .max(self.transport.write_interval_ms().saturating_mul(2));
+        if interval_ms.saturating_mul(devices.len() as u64)>=max_age_ms {
+            return Err("output refresh mapping exceeds configured freshness and wire capacity".into());
+        }
+        self.output_refresh=Some(OutputRefresh {configuration:configuration.clone(),devices,
+            controller,generation,context,timeout_ms,max_age_ms,interval_ms,next:0,
+            due:self.transport.now_ms().saturating_add(interval_ms)});
+        Ok(())
+    }
+    /// One query per due cycle, after queued controls. Queries share the existing
+    /// wire gap and require a fresh matching response. Failed refreshes hand off
+    /// to the transport supervisor rather than extending observation timestamps.
+    pub(crate) async fn refresh_outputs_if_due(&mut self)->Result<(),(String,String)> {
+        let Some(mut plan)=self.output_refresh.take() else {return Ok(());};
+        if self.transport.now_ms()<plan.due {
+            self.output_refresh=Some(plan);return Ok(());
+        }
+        let available=self.transport.idle_for_refresh(plan.controller,plan.generation.clone()).await;
+        if !available {self.output_refresh=Some(plan);return Ok(());}
+        let id=&plan.devices[plan.next];
+        let gateway=plan.configuration.devices()[id].gateway.clone();
+        let result=self.query_mapping(&plan.configuration,plan.context,plan.timeout_ms,
+            plan.max_age_ms,Some(id),Synchronization::OutputsAndCalibratedMotors).await;
+        plan.next=(plan.next+1)%plan.devices.len();
+        plan.due=self.transport.now_ms().saturating_add(plan.interval_ms);
+        self.output_refresh=Some(plan);
+        result.map_err(|error|(gateway,error))
     }
     /// Initial live startup after the connector has faulted admission. No state
     /// is considered ready until query_recovery completes on these streams.

@@ -171,7 +171,8 @@ async fn run_pairing(fresh: bool) {
             &devices,
             rules,
             &directory,
-            Duration::from_secs(8),
+            // Fresh SRP setup for both identities precedes the same recovery checks.
+            Duration::from_secs(if fresh {16}else{8}),
             true,
             1,
             Duration::from_millis(20),

@@ -85,6 +85,13 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
         guard.complete = true;
         result
     }
+    pub(crate) fn write_interval_ms(&self)->u64 {
+        self.admission.write_interval.as_millis() as u64
+    }
+    pub(crate) async fn idle_for_refresh(&self,controller:uuid::Uuid,generation:crate::admission::TaskGeneration)->bool {
+        self.admission.diagnostics(controller,generation).await
+            .is_ok_and(|state|state.ready() && state.queued==0 && !state.in_flight)
+    }
     /// Internal synchronization query only. PreparedFrame validates capability,
     /// channel, verification and execution context before any bytes are sent.
     pub(crate) async fn query_status(

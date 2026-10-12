@@ -66,6 +66,7 @@ async fn selected_panel_reads_subscribes_and_recovers_without_old_gestures() {
     let gateway = tokio::spawn(async move {
         for epoch in 0..2 {
             let (mut socket, _) = bus.accept().await.unwrap();
+            let mut announced=false;
             loop {
                 let mut frame = [0; 5];
                 tokio::select! {
@@ -74,7 +75,8 @@ async fn selected_panel_reads_subscribes_and_recovers_without_old_gestures() {
                         assert_eq!(frame,[0xae,0x15,0xa1,0xf2,0xee],"unexpected control/query {frame:?}");
                         writes.lock().unwrap().push(frame);
                         socket.write_all(&[0xae,0x15,0xd1,30,0xee]).await.unwrap();
-                        connected.send(epoch).await.unwrap();
+                        // Announce transport generations, not each periodic query.
+                        if !announced {connected.send(epoch).await.unwrap();announced=true;}
                     }
                     action=commands.recv()=>match action {
                         Some(Action::Clicks)=>for _ in 0..2 {
@@ -245,7 +247,10 @@ async fn selected_panel_reads_subscribes_and_recovers_without_old_gestures() {
     service.await.unwrap().unwrap();
     drop(keep_actions);
     gateway.await.unwrap();
-    assert_eq!(controls.lock().unwrap().len(), 2);
+    let queries=controls.lock().unwrap();
+    assert!(queries.len()>=2);
+    assert!(queries.iter().all(|frame|frame==&[0xae,0x15,0xa1,0xf2,0xee]),"non-query control written");
+    drop(queries);
     drop(identity);
     std::fs::remove_dir_all(root).unwrap();
 }

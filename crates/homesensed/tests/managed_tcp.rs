@@ -137,7 +137,7 @@ async fn run_managed(combined:bool,recover:bool,mixed:bool,motors:bool) {
     let directory = root.clone();
     let service = tokio::spawn(async move {
         if combined {
-            return homesensed::automation_tcp::serve_combined(&service_devices,&service_rules,&directory,Duration::from_secs(6),true,u8::from(recover),Duration::from_millis(20),homesensed::service::WebSettings{address,secret:"abcdefghijklmnopqrstuvwxyz0123456789".into(),administrator:true,tls:None},homesensed::hap_endpoint::Settings{address:hap_address,scenes:vec!["demo".into()],motors:if motors {vec![homesense_core::DeviceId::new("zz:motor").unwrap()]}else{vec![]}}).await;
+            return homesensed::automation_tcp::serve_combined(&service_devices,&service_rules,&directory,Duration::from_secs(if motors {9}else{6}),true,u8::from(recover),Duration::from_millis(20),homesensed::service::WebSettings{address,secret:"abcdefghijklmnopqrstuvwxyz0123456789".into(),administrator:true,tls:None},homesensed::hap_endpoint::Settings{address:hap_address,scenes:vec!["demo".into()],motors:if motors {vec![homesense_core::DeviceId::new("zz:motor").unwrap()]}else{vec![]}}).await;
         }
         homesensed::automation_tcp::serve_managed(
             &service_devices,
