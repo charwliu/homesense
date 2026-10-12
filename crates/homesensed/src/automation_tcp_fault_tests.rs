@@ -16,7 +16,10 @@ pub(crate) fn free_address()->std::net::SocketAddr {
     std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap()
 }
 #[tokio::test]
-async fn hap_task_failure_preserves_web_delayed_scene_and_single_startup() {
+async fn hap_task_failure_preserves_web_delayed_scene_and_single_startup() {run(false).await;}
+#[tokio::test]
+async fn occupied_tcp_hap_port_preserves_web_and_single_startup() {run(true).await;}
+async fn run(occupied:bool) {
     let root=std::env::temp_dir().join(format!("homesense-hap-fault-{}",Uuid::new_v4()));
     let bus=tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let mut devices:serde_json::Value=serde_json::from_slice(include_bytes!("../../../config/simulation.json")).unwrap();
@@ -32,10 +35,10 @@ async fn hap_task_failure_preserves_web_delayed_scene_and_single_startup() {
             if socket.write_all(&[0xae,0x15,0xd1,level,0xee]).await.is_err(){break;}
         }
     });
-    let web=free_address();let hap=free_address();let directory=root.clone();
+    let web=free_address();let reserved=occupied.then(||std::net::TcpListener::bind("127.0.0.1:0").unwrap());let hap=reserved.as_ref().map_or_else(free_address,|listener|listener.local_addr().unwrap());let directory=root.clone();
     let (publisher,receiver)=crate::automation_publication::channel();
     let service=tokio::spawn(async move {
-        serve_inner(&serde_json::to_vec(&devices).unwrap(),&serde_json::to_vec(&rules).unwrap(),&directory,Duration::from_secs(4),true,0,Some(receiver),Duration::from_millis(20),Some(crate::service::WebSettings{address:web,secret:"abcdefghijklmnopqrstuvwxyz0123456789".into(),administrator:true,tls:None}),Some(publisher),Some(crate::hap_endpoint::Settings{address:hap,scenes:vec!["later".into()],motors:vec![]}),Some(Duration::from_millis(800))).await
+        serve_inner(&serde_json::to_vec(&devices).unwrap(),&serde_json::to_vec(&rules).unwrap(),&directory,Duration::from_secs(4),true,0,Some(receiver),Duration::from_millis(20),Some(crate::service::WebSettings{address:web,secret:"abcdefghijklmnopqrstuvwxyz0123456789".into(),administrator:true,tls:None}),Some(publisher),Some(crate::hap_endpoint::Settings{address:hap,scenes:vec!["later".into()],motors:vec![]}),(!occupied).then_some(Duration::from_millis(800))).await
     });
     tokio::time::timeout(Duration::from_secs(3),async {
         loop {
@@ -44,16 +47,18 @@ async fn hap_task_failure_preserves_web_delayed_scene_and_single_startup() {
             tokio::time::sleep(Duration::from_millis(10)).await;
         }
     }).await.unwrap();
-    assert_eq!(http(web,"/api/v1/diagnostics",None).await.unwrap().1["hap"],"listening");
+    assert_eq!(http(web,"/api/v1/diagnostics",None).await.unwrap().1["hap"],if occupied {"degraded"}else{"listening"});
     // Keep a real HAP session open and submit delayed work before the fault.
-    let mut old_hap=tokio::net::TcpStream::connect(hap).await.unwrap();
+    let mut old_hap=if occupied {None}else{Some(tokio::net::TcpStream::connect(hap).await.unwrap())};
     let accepted=http(web,"/api/v1/scene-actions",Some(serde_json::json!({"scene":"later","request_id":"before-fault"}))).await.unwrap();
     assert_eq!(accepted.1["outcome"],"accepted");
     let mut byte=[0];
-    let closed=tokio::time::timeout(Duration::from_secs(2),old_hap.read(&mut byte)).await.unwrap();
-    assert!(matches!(closed,Ok(0)|Err(_)),"old HAP session remained open");
+    if let Some(socket)=&mut old_hap {
+        let closed=tokio::time::timeout(Duration::from_secs(2),socket.read(&mut byte)).await.unwrap();
+        assert!(matches!(closed,Ok(0)|Err(_)),"old HAP session remained open");
+    }
     assert!(!service.is_finished());
-    assert!(tokio::net::TcpStream::connect(hap).await.is_err());
+    if !occupied {assert!(tokio::net::TcpStream::connect(hap).await.is_err());}
     assert_eq!(http(web,"/api/v1/devices",None).await.unwrap().0,200);
     assert_eq!(http(web,"/health/ready",None).await.unwrap().0,200);
     tokio::time::timeout(Duration::from_secs(1),async {
