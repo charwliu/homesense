@@ -31,10 +31,15 @@ vm.runInContext(fs.readFileSync(require('node:path').join(__dirname,'../crates/h
  channels[0].onmessage({data:'unknown'});assert.equal(vm.runInContext('sessionEpoch',context),priorEpoch);
  channels[0].onmessage({data:'session-changed'});assert.equal(element('device-document').value,'');assert.equal(vm.runInContext('csrf',context),'');assert.equal(vm.runInContext('pendingLogoutCsrf',context),'');assert.match(element('status').textContent,/其他标签页/);
  assert.ok(channels[0].messages.length>0);assert.ok(channels[0].messages.every(value=>value==='session-changed'));
+ const pendingBeforeRefresh=pending.length;await element('refresh').onclick();
+ assert.equal(pending.length,pendingBeforeRefresh);assert.match(element('status').textContent,/本页重新登录/);assert.equal(element('device-document').value,'');
  let finishRefresh;context.refresh=()=>new Promise(resolve=>{finishRefresh=resolve;});
  const loginDuringChange=element('connect').onclick();pending.at(-1).resolve({ok:true,json:async()=>({csrf:'temporary'})});
  await new Promise(resolve=>setImmediate(resolve));const socketCount=sockets.length;
  channels[0].onmessage({data:'session-changed'});finishRefresh();await loginDuringChange;
  assert.equal(sockets.length,socketCount);assert.equal(vm.runInContext('csrf',context),'');assert.match(element('status').textContent,/其他标签页/);
+ let rejectRefresh;context.refresh=()=>new Promise((resolve,reject)=>{rejectRefresh=reject;});
+ const staleRefresh=element('refresh').onclick();channels[0].onmessage({data:'session-changed'});
+ rejectRefresh(new Error('obsolete failure'));await staleRefresh;assert.match(element('status').textContent,/其他标签页/);
  console.log('Late HTTP/WebSocket responses and overlapping session changes: passed');
 })().catch(error=>{console.error(error);process.exitCode=1});
