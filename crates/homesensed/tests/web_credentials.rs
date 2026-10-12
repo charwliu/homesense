@@ -40,3 +40,23 @@ fn persistent_tokens_commit_before_memory_and_restart_without_sessions() {
     drop(tokens);let tokens=Tokens::open(&path).unwrap();assert_eq!(tokens.authenticate(&header),Some(elevated));tokens.revoke(id).unwrap();drop(tokens);
     let tokens=Tokens::open(&path).unwrap();assert!(tokens.authenticate(&header).is_none());drop(tokens);drop(sql);std::fs::remove_dir_all(root).unwrap();
 }
+
+#[test]
+fn bootstrap_never_reinstates_revoked_credentials_or_overwrites_scopes() {
+    use homesensed::web_auth::Tokens;
+    let root=std::env::temp_dir().join(format!("bootstrap-{}",Uuid::new_v4()));std::fs::create_dir(&root).unwrap();let path=root.join("credentials.sqlite");
+    let secret="abcdefghijklmnopqrstuvwxyz0123456789";let header=format!("Bearer {secret}");
+    let grant=Grant{controller:Uuid::new_v4(),role:Role::Member,scenes:["one".into()].into(),devices:Default::default()};
+    drop(Credentials::open(&path).unwrap());
+    let sql=rusqlite::Connection::open(&path).unwrap();
+    sql.execute_batch("CREATE TRIGGER fail_initialization BEFORE INSERT ON web_credential_initialized BEGIN SELECT RAISE(ABORT,'injected'); END;").unwrap();
+    assert!(Tokens::open_bootstrapped(&path,secret,grant.clone()).is_err());
+    assert!(Credentials::open(&path).unwrap().list().unwrap().is_empty());
+    sql.execute_batch("DROP TRIGGER fail_initialization").unwrap();drop(sql);
+    let first=Tokens::open_bootstrapped(&path,secret,grant.clone()).unwrap();assert_eq!(first.authenticate(&header),Some(grant.clone()));drop(first);
+    let mut expanded=grant.clone();expanded.role=Role::Administrator;expanded.scenes.insert("two".into());
+    let second=Tokens::open_bootstrapped(&path,secret,expanded.clone()).unwrap();assert_eq!(second.authenticate(&header),Some(grant));
+    let id=Credentials::open(&path).unwrap().list().unwrap()[0].id;second.revoke(id).unwrap();drop(second);
+    let third=Tokens::open_bootstrapped(&path,secret,expanded).unwrap();assert!(third.authenticate(&header).is_none());drop(third);
+    std::fs::remove_dir_all(root).unwrap();
+}

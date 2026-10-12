@@ -52,11 +52,24 @@ impl Tokens {
     /// Sessions are deliberately process-local and require login after restart.
     pub fn open(path:&std::path::Path)->Result<Self,String> {
         let store=crate::web_credentials::Credentials::open(path)?;
+        Self::from_store(store)
+    }
+    fn from_store(store:crate::web_credentials::Credentials)->Result<Self,String> {
         let records=store.list()?;
         let entries=records.into_iter().map(|r|(r.id,Credential {
             generation:Uuid::new_v4(),hash:r.digest,grant:r.grant,
         })).collect();
         Ok(Self{entries:RwLock::new(entries),sessions:RwLock::new(BTreeMap::new()),persistence:Some(std::sync::Mutex::new(store))})
+    }
+
+    /// The supplied grant is used only on first initialization, never on restart.
+    pub fn open_bootstrapped(path:&std::path::Path,secret:&str,grant:Grant)->Result<Self,String> {
+        let id=Uuid::new_v4();
+        // Reuse exactly the same secret and scope validation as ordinary inserts.
+        Self::default().insert(id,secret,grant.clone())?;
+        let mut store=crate::web_credentials::Credentials::open(path)?;
+        store.bootstrap(&crate::web_credentials::Record{id,digest:digest(secret),grant})?;
+        Self::from_store(store)
     }
 
     /// Caller obtains a random secret out of band; only its digest is retained.
