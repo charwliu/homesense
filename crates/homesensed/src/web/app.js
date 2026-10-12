@@ -12,6 +12,7 @@ let metadataSource=null;
 let calibrationBinding=null;
 let observedRevision=null;
 let deviceSnapshotEpoch=0;
+const deviceCards=new Map();
 let lastSceneSnapshot=null;
 let sceneActionBusy=false;
 let sceneSnapshotEpoch=0;
@@ -64,6 +65,7 @@ function observeRevision(revision) {
   if(typeof revision!=='string'||!/^[1-9][0-9]*$/.test(revision))return true;
   if(observedRevision!==null && BigInt(revision)<BigInt(observedRevision))return false;
   if(observedRevision!==null && revision!==observedRevision) {
+    deviceCards.clear();
     invalidatePreview();status.textContent='运行配置已切换；请重新核对草稿版本并预览。';
   }
   observedRevision=revision;return true;
@@ -136,7 +138,7 @@ document.getElementById('connect').onclick = async () => {
   finally {sessionBusy=false;}
 };
 function clearLocalSession() {
-  ++sessionEpoch;sceneActionBusy=false;clearCredentialCreation();invalidatePreview();
+  ++sessionEpoch;deviceCards.clear();sceneActionBusy=false;clearCredentialCreation();invalidatePreview();
   csrf = ''; observedRevision=null;lastSceneSnapshot=null; clearTimeout(eventRetry); if(eventSocket)eventSocket.close();eventDevices.clear(); selectedRoom='';document.getElementById('room-filter').replaceChildren();document.getElementById('room-filter').value=''; document.getElementById('draft-impact').textContent=''; document.getElementById('configuration').hidden=true;document.getElementById('diagnostics').hidden=true;historyEpoch++;detailEpoch++;document.getElementById('run-details').replaceChildren();document.getElementById('scene-history').hidden=true;document.getElementById('history-runs').replaceChildren();document.getElementById('history-title').textContent='';document.getElementById('history-next').disabled=true; document.getElementById('runtime-result').textContent='';document.getElementById('calendar-result').textContent='';document.getElementById('credential-list').textContent='';document.getElementById('revoke-credential-id').value='';document.getElementById('revoke-credential-confirm').checked=false;document.getElementById('revoke-credential-result').textContent='';document.getElementById('backup-result').textContent='';document.getElementById('backup-actions').replaceChildren();backupInspectionEpoch++;document.getElementById('backup-inspection').textContent='';document.getElementById('versions').replaceChildren();document.getElementById('draft-list').replaceChildren(); versionsBefore=null;document.getElementById('more-versions').disabled=true; metadataSource=null;clearCalibration();document.getElementById('binding-enabled').checked=false;for(const id of ['binding-gateway','binding-address','binding-channel'])document.getElementById(id).value='';document.getElementById('metadata-device').replaceChildren();document.getElementById('metadata-room').replaceChildren();document.getElementById('edit-room-select').replaceChildren();document.getElementById('metadata-name').value=''; for(const id of ['device-document','automation-document','draft-id','base-revision','draft-revision','edit-room-id','edit-room-name','edit-room-floor']) document.getElementById(id).value=''; started.clear(); list.replaceChildren(); document.getElementById('devices').replaceChildren();
 }
 document.getElementById('logout').onclick = async () => {
@@ -162,11 +164,64 @@ async function refreshDevices() {
 document.getElementById('room-filter').onchange=()=>{
   selectedRoom=document.getElementById('room-filter').value;renderDevices();
 };
+function createDeviceCard(device) {
+  const card={device,row:document.createElement('article'),title:document.createElement('h2'),info:document.createElement('p'),buttons:[],busy:false,target:null};
+  if(device.room) {card.location=document.createElement('p');card.row.append(card.location);}
+  card.row.append(card.title,card.info);
+  const current=()=>deviceCards.get(device.id)===card;
+  const send=async command=>{
+    if(!current() || !card.device.can_control || (card.busy && card.device.kind!=='Motor'))return;
+    const epoch=sessionEpoch;
+    if(card.device.kind!=='Motor')card.busy=true;
+    renderDevices();
+    try {
+      const result=await request('/api/v1/device-commands',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({device:device.id,request_id:crypto.randomUUID(),command})});
+      if(epoch!==sessionEpoch || !current())return;
+      if(command.action==='brightness' && card.target)card.target.phase=result.outcome==='accepted'?'submitted':'uncertain';
+      status.textContent=result.outcome==='accepted'?(card.device.kind==='Motor'?'动作已接受；请观察实际移动和停止，位置仍未知。':'控制已接受，等待设备反馈。'):'结果未知，请核对设备；不要重复点击。';
+      await refreshDevices();
+    } catch(error) {
+      if(epoch!==sessionEpoch || !current())return;
+      if(command.action==='brightness' && card.target)card.target.phase='uncertain';
+      status.textContent=`${error.message}；未自动重试。`;
+    } finally {
+      if(epoch===sessionEpoch && current()) {card.busy=false;renderDevices();}
+    }
+  };
+  const button=(label,command)=>{
+    const node=document.createElement('button');node.textContent=label;
+    node.onclick=()=>send(command);card.buttons.push(node);card.row.append(node);
+  };
+  if(device.kind==='Motor') {
+    for(const [action,label] of [['open','打开'],['close','关闭'],['stop','停止']])button(label,{action});
+  }
+  if(device.kind==='Switch'||device.kind==='Dimmer') {
+    for(const on of [true,false])button(on?'开':'关',{action:'power',on});
+  }
+  if(device.kind==='Dimmer') {
+    card.slider=document.createElement('input');card.slider.type='range';card.slider.min='0';card.slider.max='100';card.slider.step='1';
+    card.slider.setAttribute('aria-label',device.name+'亮度');
+    card.value=document.createElement('output');card.value.className='brightness-value';
+    card.slider.oninput=()=>{
+      if(!current() || card.slider.disabled)return;
+      card.target={level:Number(card.slider.value),phase:'editing'};renderDevices();
+    };
+    card.slider.onchange=async()=>{
+      if(!current() || card.slider.disabled)return;
+      const level=Number(card.slider.value);
+      if(!Number.isInteger(level)||level<0||level>100)return;
+      card.target={level,phase:'sending'};
+      await send({action:'brightness',level});
+    };
+    card.row.append(card.slider,card.value);
+  }
+  return card;
+}
 function renderDevices() {
   const filter=document.getElementById('room-filter');
   const rooms=new Map();let unassigned=false;
   for(const device of eventDevices.values()) {
-    if(device.room) rooms.set('room:'+device.room.id,device.room);else unassigned=true;
+    if(device.room)rooms.set('room:'+device.room.id,device.room);else unassigned=true;
   }
   if(selectedRoom && selectedRoom!=='none' && !rooms.has(selectedRoom))selectedRoom='';
   if(selectedRoom==='none'&&!unassigned)selectedRoom='';
@@ -174,46 +229,36 @@ function renderDevices() {
   const add=(value,label)=>{const option=document.createElement('option');option.value=value;option.textContent=label;filter.append(option);};
   add('','全部房间');
   for(const [id,room] of [...rooms.entries()].sort((a,b)=>a[0].localeCompare(b[0])))add(id,[room.floor,room.name].filter(Boolean).join(' · '));
-  if(unassigned)add('none','未分配房间');
-  filter.value=selectedRoom;
-  const devices = document.getElementById('devices'); devices.replaceChildren();
-  for (const device of eventDevices.values()) {
-    if(selectedRoom && selectedRoom!==(device.room ? 'room:'+device.room.id : 'none'))continue;
-    const row = document.createElement('article');
-    const title = document.createElement('h2'); title.textContent = device.name;
-    const info = document.createElement('p');
-    const reported=Object.hasOwn(device,'reported') ? device.reported : device.observed;
-    info.textContent = reported == null ? '状态未知' : `${reported.on ? '开' : '关'}${reported.level === undefined ? '' : ' · ' + reported.level + '%'}${device.state_authority==='homesense_setting' ? ' · HomeSense设定' : ''}`;
-    if(device.state_authority==='homesense_setting' && device.observed?.level!==undefined && reported?.level!==device.observed.level)info.textContent += ` · 读回 ${device.observed.level}%`;
-    info.textContent += ` · ${device.quality}${device.pending === null ? '' : ' · 等待反馈'}`;
-    if(device.room) {const location=document.createElement('p');location.textContent=[device.room.floor,device.room.name].filter(Boolean).join(' · ');row.append(location);}
-    row.append(title, info);
-    const send = async command => {
-      try {
-        const result = await request('/api/v1/device-commands', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({device:device.id, request_id:crypto.randomUUID(), command})});
-        status.textContent = result.outcome === 'accepted' ? (device.kind==='Motor'?'动作已接受；请观察实际移动和停止，位置仍未知。':'控制已接受，等待设备反馈。') : '结果未知，请核对设备；不要重复点击。';
-        await refreshDevices();
-      } catch(error) {status.textContent = `${error.message}；未自动重试。`;}
-    };
-    if(device.kind==='Motor') {
-      info.textContent='位置未知 · '+(device.motor_calibrated?'方向和停止已校准':'尚未校准');
-      for(const [action,label] of [['open','打开'],['close','关闭'],['stop','停止']]) {
-        const button=document.createElement('button');button.textContent=label;button.disabled=!device.can_control;
-        button.onclick=async()=>{button.disabled=true;await send({action});};row.append(button);
-      }
+  if(unassigned)add('none','未分配房间');filter.value=selectedRoom;
+  for(const id of deviceCards.keys())if(!eventDevices.has(id))deviceCards.delete(id);
+  const rows=[];
+  for(const device of eventDevices.values()) {
+    let card=deviceCards.get(device.id);
+    if(!card || card.device.kind!==device.kind || !!card.location!==!!device.room) {
+      card=createDeviceCard(device);deviceCards.set(device.id,card);
     }
-    if(device.kind==='Switch'||device.kind==='Dimmer') for (const on of [true,false]) {
-      const button=document.createElement('button'); button.textContent=on?'开':'关'; button.disabled=!device.can_control;
-      button.onclick=async()=>{button.disabled=true;await send({action:'power',on});}; row.append(button);
+    card.device=device;card.title.textContent=device.name;
+    if(card.location)card.location.textContent=[device.room.floor,device.room.name].filter(Boolean).join(' · ');
+    const reported=Object.hasOwn(device,'reported')?device.reported:device.observed;
+    card.info.textContent=reported==null?'状态未知':`${reported.on?'开':'关'}${reported.level===undefined?'':' · '+reported.level+'%'}${device.state_authority==='homesense_setting'?' · HomeSense设定':''}`;
+    if(device.state_authority==='homesense_setting' && device.observed?.level!==undefined && reported?.level!==device.observed.level)card.info.textContent+=` · 读回 ${device.observed.level}%`;
+    card.info.textContent+=` · ${device.quality}${device.pending===null?'':' · 等待反馈'}`;
+    if(device.kind==='Motor')card.info.textContent='位置未知 · '+(device.motor_calibrated?'方向和停止已校准':'尚未校准');
+    for(const button of card.buttons)button.disabled=!device.can_control || card.busy;
+    if(card.slider) {
+      if(card.target?.phase==='submitted' && device.pending===null && reported?.level===card.target.level)card.target=null;
+      const level=card.target?.level ?? reported?.level;
+      card.slider.value=level ?? 0;card.slider.disabled=!device.can_control || card.busy;
+      card.slider.setAttribute('aria-label',device.name+'亮度');
+      const suffix=card.target?.phase==='uncertain'?'（结果待核对）':card.target && card.target.phase!=='editing'?'（待确认）':'';
+      card.value.textContent=level===undefined?'亮度未知':`${card.target?'目标亮度':'亮度'} ${level}%${suffix}`;
+      card.slider.setAttribute('aria-valuetext',card.value.textContent);
     }
-    if(device.kind==='Dimmer') {
-      const level=document.createElement('input'); level.type='number';level.min='0';level.max='100';level.step='1';level.setAttribute('aria-label',device.name+'亮度');
-      level.value=reported?.level ?? '';
-      const apply=document.createElement('button');apply.textContent='设置亮度';apply.disabled=!device.can_control;
-      apply.onclick=async()=>{if(level.value===''||!level.checkValidity())return;apply.disabled=true;await send({action:'brightness',level:Number(level.value)});};row.append(level,apply);
-    }
-    devices.append(row);
+    if(!selectedRoom || selectedRoom===(device.room?'room:'+device.room.id:'none'))rows.push(card.row);
   }
+  // Keep the native slider attached during live feedback so touch dragging is not cancelled.
+  const devices=document.getElementById('devices');
+  if(devices.children.length!==rows.length || rows.some((row,index)=>devices.children[index]!==row))devices.replaceChildren(...rows);
 }
 
 document.getElementById('refresh').onclick = () => {
@@ -287,7 +332,7 @@ document.getElementById('confirm-publication').onclick=async()=>{
 let eventSocket=null, eventCursor=null, eventRetry=null, eventAttempts=0;
 const eventDevices=new Map();
 function markEventStateUnavailable(message) {
-  deviceSnapshotEpoch++;sceneSnapshotEpoch++;invalidatePreview();
+  deviceSnapshotEpoch++;sceneSnapshotEpoch++;deviceCards.clear();invalidatePreview();
   for(const [id,device] of eventDevices)eventDevices.set(id,{...device,quality:'Stale',can_control:false});
   renderDevices();
   if(lastSceneSnapshot)renderScenes({...lastSceneSnapshot,scenes:lastSceneSnapshot.scenes.map(scene=>({...scene,selected:null,observation_current:scene.selection_source==='inferred'?false:scene.observation_current,activity:'Unknown',can_control:false}))});
