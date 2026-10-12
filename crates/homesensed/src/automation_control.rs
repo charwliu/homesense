@@ -16,6 +16,7 @@ pub enum Action {
     DeviceEvents {controller:Uuid,revision:u64,ids:Vec<homesense_core::DeviceId>,cursor:Option<crate::management_events::Cursor>,scope:String},
     ConfigurationPreview {controller:Uuid,revision:u64,candidate:homesense_config::Configuration},
     CalendarStatus,
+    ManagedCalendarStatus { controller: Uuid, revision: u64 },
     Devices {controller:Uuid,revision:u64,ids:Vec<homesense_core::DeviceId>},
     DeviceCommand {controller:Uuid,revision:u64,device:homesense_core::DeviceId,action:crate::management_devices::DeviceAction},
     SceneCancel { controller: Uuid, revision: u64, run: u64 },
@@ -216,6 +217,11 @@ impl Receiver {
                         let batch=crate::management_devices::prepare(admission,controller,self.generation.clone(),device,action,feedback,max_age_ms).await?;
                         if request.reply.is_closed() || Instant::now()>=request.deadline {return Err("device command expired or abandoned".into());}
                         admission.submit_for_revision(revision,batch).await.map(Reply::CommandsAccepted).map_err(|e|format!("{e:?}"))
+                    },
+                    Action::ManagedCalendarStatus { controller, revision } => {
+                        if revision != document.revision { return Err("calendar query revision expired".into()); }
+                        admission.variable_snapshot(controller,self.generation.clone(),vec![]).await.map_err(|e|format!("{e:?}"))?;
+                        Ok(Reply::CalendarStatus { boot: admission.boot_id().to_owned(), revision: document.revision, status: calendar.map(|calendar|calendar.status()) })
                     },
                     Action::CalendarStatus => Ok(Reply::CalendarStatus {
                         boot: admission.boot_id().to_owned(),

@@ -183,6 +183,19 @@ impl Api {
         let Some(runtime) = runtime else {
             return deny(StatusCode::SERVICE_UNAVAILABLE, "runtime_reconfiguring");
         };
+        if request.uri().path() == "/api/v1/diagnostics/calendar" {
+            if grant.role != crate::web_auth::Role::Administrator { return deny(StatusCode::FORBIDDEN,"administrator_required"); }
+            if request.method() != hyper::Method::GET { return deny(StatusCode::METHOD_NOT_ALLOWED,"method_not_allowed"); }
+            if !request.body().is_empty() { return deny(StatusCode::BAD_REQUEST,"unexpected_body"); }
+            return match runtime.control.request(Action::ManagedCalendarStatus { controller: grant.controller, revision: runtime.revision }).await {
+                Ok(Reply::CalendarStatus { boot, revision, status }) => response(StatusCode::OK,json!({"boot":boot,"revision":revision.to_string(),"calendar":status.map(|s|json!({
+                    "schedule_count":s.clock.schedule_count,"wall_unix_ms":s.clock.wall_unix_ms.to_string(),"monotonic_ms":s.clock.monotonic_ms.to_string(),
+                    "watermark_unix_ms":s.clock.watermark_unix_ms.to_string(),"stopped":s.clock.stopped,"last_clock_jump":s.clock.last_clock_jump,
+                    "persisted_watermark_unix_ms":s.persisted_watermark_unix_ms.map(|v|v.to_string()),"startup_attempted":s.startup_attempted
+                }))})),
+                _ => deny(StatusCode::SERVICE_UNAVAILABLE,"calendar_diagnostics_unavailable"),
+            };
+        }
         if request.uri().path()=="/api/v1/config/versions" || request.uri().path().starts_with("/api/v1/config/versions/") {
             let (code,body)=crate::web_history::read(&runtime,&grant,&request).await;
             return response(code,body);
