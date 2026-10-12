@@ -75,3 +75,18 @@ fn inspection_validates_standalone_backup_without_migration_or_activation() {
     let missing=root.join("missing.sqlite");assert!(homesense_storage::backup::inspect(&missing,ExecutionContext::Simulation).is_err());assert!(!missing.exists());
     drop(store);std::fs::remove_dir_all(root).unwrap();
 }
+
+#[test]
+fn catalog_is_bounded_sorted_and_never_follows_symlinks() {
+    let root=std::env::temp_dir().join(format!("homesense-catalog-{}-{}",std::process::id(),std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+    std::fs::create_dir(&root).unwrap();
+    std::fs::write(root.join("z.sqlite"),b"not a database").unwrap();std::fs::write(root.join("a.sqlite"),b"123").unwrap();std::fs::write(root.join("ignored.txt"),b"x").unwrap();
+    let list=homesense_storage::backup::catalog(&root).unwrap();assert_eq!(list.iter().map(|v|v.name.as_str()).collect::<Vec<_>>(),vec!["a.sqlite","z.sqlite"]);assert_eq!(list[0].bytes,3);assert!(list.iter().all(|v|v.regular_file));
+    #[cfg(unix)] {
+        std::os::unix::fs::symlink(root.join("missing"),root.join("link.sqlite")).unwrap();
+        assert!(!homesense_storage::backup::catalog(&root).unwrap().iter().find(|v|v.name=="link.sqlite").unwrap().regular_file);
+        let alias=root.join("alias");std::os::unix::fs::symlink(&root,&alias).unwrap();assert!(homesense_storage::backup::catalog(&alias).is_err());
+    }
+    for n in 0..1025 {std::fs::write(root.join(format!("ignored-{n}.txt")),b"").unwrap();}
+    assert!(homesense_storage::backup::catalog(&root).is_err());std::fs::remove_dir_all(root).unwrap();
+}
