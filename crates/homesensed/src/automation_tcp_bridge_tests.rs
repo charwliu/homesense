@@ -48,9 +48,8 @@ async fn multiple_bridges_rebuild_and_isolate_occupied_listener() {
     assert_eq!(publisher.publish(serde_json::to_vec(&devices).unwrap(),serde_json::to_vec(&rules).unwrap(),1).await.unwrap(),2);
     let mut byte=[0];assert!(matches!(tokio::time::timeout(Duration::from_secs(1),old.read(&mut byte)).await.unwrap(),Ok(0)|Err(_)));
     tokio::time::timeout(Duration::from_secs(2),async {loop {
-        if let Ok((200,value))=http(web,"/api/v1/diagnostics",None).await {
-            if value["revision"]=="2" && value["hap"]=="listening" {assert_eq!(value["hap_bridges"]["two"],"listening");break;}
-        }
+        if let Ok((200,value))=http(web,"/api/v1/diagnostics",None).await
+            && value["revision"]=="2" && value["hap"]=="listening" {assert_eq!(value["hap_bridges"]["two"],"listening");break;}
         tokio::time::sleep(Duration::from_millis(10)).await;
     }}).await.unwrap();
     let one=tokio::net::TcpStream::connect(first).await.unwrap();let two=tokio::net::TcpStream::connect(second).await.unwrap();

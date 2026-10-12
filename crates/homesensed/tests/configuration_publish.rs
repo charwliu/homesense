@@ -41,7 +41,7 @@ fn publication_requires_stopped_runtime_and_expected_revision_preserving_identit
         .collect::<Result<Vec<_>, _>>()
         .unwrap();
     assert_eq!(backups.len(), 1);
-    let snapshot = homesense_storage::Store::open(&backups[0].path()).unwrap();
+    let snapshot = homesense_storage::Store::open(backups[0].path()).unwrap();
     assert_eq!(snapshot.active().unwrap().unwrap().revision, 1);
     assert_eq!(snapshot.active().unwrap().unwrap().payload, document);
     drop(snapshot);

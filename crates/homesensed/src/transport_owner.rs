@@ -280,10 +280,11 @@ mod pacing_tests {
         admission.submit(homesense_hap::requests::Batch{controller,intents:vec![homesense_hap::requests::Intent{device:id.clone(),command:Command::SetLevel{level:Percent::new(30).unwrap(),transition:LevelTransition::Immediate}}],subscriptions:vec![]}).await.unwrap();
         other.step().await.unwrap().unwrap().result.unwrap();
         owner.query_status("simulation",module,device.channel,ExecutionContext::Simulation,100).await.unwrap();
-        let times=writes.lock().unwrap();
-        assert_eq!(times.len(),3);
-        assert!(times.windows(2).all(|pair|pair[1].duration_since(pair[0])>=std::time::Duration::from_millis(interval_ms)));
-        drop(times);
+        {
+            let times=writes.lock().unwrap();
+            assert_eq!(times.len(),3);
+            assert!(times.windows(2).all(|pair|pair[1].duration_since(pair[0])>=std::time::Duration::from_millis(interval_ms)));
+        }
         admission.shutdown().await.unwrap();
         drop(owner);
         for suffix in ["","-wal","-shm"] {let _=std::fs::remove_file(format!("{}{suffix}",path.display()));}

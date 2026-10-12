@@ -4867,7 +4867,7 @@ async fn deferred_session_records_cycle_failure_and_reports_audit_failure() {
         let mut session=homesensed::deferred_session::Session::new(a.clone(),controller,&scheduler,Default::default(),60000).await.unwrap();
         let sql=rusqlite::Connection::open(&db.0).unwrap();
         if fault {sql.execute_batch("CREATE TRIGGER injected_outcome BEFORE INSERT ON rule_chain_outcome BEGIN SELECT RAISE(ABORT,'fault'); END;").unwrap();}
-        let error=session.start("cycle",&mut scheduler,None).await.err().expect("cycle rejected");
+        let error=session.start("cycle",&mut scheduler,None).await.expect_err("cycle rejected");
         assert_eq!(error.contains("failure audit unavailable"),fault,"{error}");
         assert!(session.is_closed());
         assert_eq!(a.task_generation().await.is_err(),fault);
@@ -5239,7 +5239,7 @@ async fn software_fade_writes_bounded_monotonic_targets_and_finishes_after_trans
     }).await.unwrap();
     let bytes=wire.lock().unwrap().clone();
     assert_eq!(bytes.len()%5,0);
-    let frames=bytes.chunks_exact(5).collect::<Vec<_>>();
+    let frames=bytes.as_chunks::<5>().0.iter().collect::<Vec<_>>();
     assert!(!frames.is_empty() && frames.len()<=4);
     assert!(frames.iter().all(|f|f[0]==0xae && f[1]==0x15 && f[2]==1 && f[4]==0xee));
     assert_eq!(frames.last().unwrap()[3],0);
@@ -6169,7 +6169,7 @@ async fn delayed_scene_manual_override_cancels_only_affected_device() {
     let device=DeviceId::new("simulation:light").unwrap();
     let other=DeviceId::new("simulation:other").unwrap();
     let command=Command::SetLevel{level:Percent::new(30).unwrap(),transition:LevelTransition::Immediate};
-    let steps=vec![(device.clone(),0),(device.clone(),10),(other.clone(),10)].into_iter().map(|(device,delay_ms)|homesense_core::scene::Step{device,command:command.clone(),delay_ms,source:"synthetic".into()}).collect();
+    let steps=vec![(device.clone(),0),(device.clone(),10),(other.clone(),10)].into_iter().map(|(device,delay_ms)|homesense_core::scene::Step{device,command,delay_ms,source:"synthetic".into()}).collect();
     let mut scene=homesensed::scene_runtime::SceneRuntime::new(a.clone(),controller,steps,0,1000).await.unwrap();
     a.submit(Batch{controller,intents:vec![Intent{device:device.clone(),command:Command::SetLevel{level:Percent::new(70).unwrap(),transition:LevelTransition::Immediate}}],subscriptions:vec![]}).await.unwrap();
     assert!(scene.poll(0).await.unwrap().is_none());

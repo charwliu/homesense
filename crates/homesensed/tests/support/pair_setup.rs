@@ -12,7 +12,7 @@ pub fn setup(
 ) {
     use chacha20poly1305::{
         ChaCha20Poly1305,
-        aead::{AeadInPlace, KeyInit, array::Array},
+        aead::{AeadInOut, KeyInit},
     };
     use ed25519_dalek::Signer;
     use rand::{Rng, SeedableRng};
@@ -78,11 +78,11 @@ pub fn setup(
         (10, &signing.sign(&signed).to_bytes()),
     ]);
     let encryption_key = derive(b"Pair-Setup-Encrypt-Salt", b"Pair-Setup-Encrypt-Info");
-    let cipher = ChaCha20Poly1305::new(Array::from_slice(&encryption_key));
+    let cipher = ChaCha20Poly1305::new((&encryption_key).into());
     let mut nonce = [0; 12];
     nonce[4..].copy_from_slice(b"PS-Msg05");
     let tag = cipher
-        .encrypt_in_place_detached(Array::from_slice(&nonce), &[], &mut data)
+        .encrypt_inout_detached((&nonce).into(), &[], data.as_mut_slice().into())
         .unwrap();
     data.extend(tag);
     let m5 = encode_tlv(&[(6, &[5]), (5, &data)]);
@@ -92,11 +92,11 @@ pub fn setup(
     let mut plaintext = data[..data.len() - 16].to_vec();
     nonce[4..].copy_from_slice(b"PS-Msg06");
     cipher
-        .decrypt_in_place_detached(
-            Array::from_slice(&nonce),
+        .decrypt_inout_detached(
+            (&nonce).into(),
             &[],
-            &mut plaintext,
-            Array::from_slice(&data[data.len() - 16..]),
+            plaintext.as_mut_slice().into(),
+            data[data.len() - 16..].try_into().unwrap(),
         )
         .unwrap();
     let sub = tlv_items(&plaintext).unwrap();
