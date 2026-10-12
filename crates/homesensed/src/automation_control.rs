@@ -11,6 +11,7 @@ use tokio::sync::{mpsc, oneshot};
 use uuid::Uuid;
 #[derive(Debug)]
 pub enum Action {
+    RunDetails {controller:Uuid,revision:u64,query:homesense_storage::scene_run::Query},
     SceneHistory {controller:Uuid,revision:u64,scene:String,before:Option<homesense_storage::scene_history::Cursor>,limit:usize},
     RunSummary {controller:Uuid,revision:u64,boot:String,run:String},
     Diagnostics {controller:Uuid,revision:u64},
@@ -34,6 +35,7 @@ pub enum Action {
 }
 #[derive(Debug, PartialEq, Eq)]
 pub enum Reply {
+    RunDetails(Option<(String,serde_json::Value)>),
     SceneHistory(homesense_storage::scene_history::Page),
     RunSummary(Option<(String,LastRun)>),
     Diagnostics(crate::admission::Diagnostics),
@@ -273,6 +275,16 @@ impl Receiver {
                     Action::SceneHistory {controller,revision,scene,before,limit} => {
                         if revision!=document.revision || !document.timed_scenes.contains_key(&scene) {return Err("scene history revision or definition mismatch".into());}
                         admission.scene_history_page(controller,self.generation.clone(),scene,before,limit).await.map(Reply::SceneHistory).map_err(|e|format!("{e:?}"))
+                    },
+                    Action::RunDetails {controller,revision,query} => {
+                        if revision!=document.revision || matches!(query,homesense_storage::scene_run::Query::Latest{..}) {return Err("run detail query invalid".into());}
+                        let page=admission.scene_history(controller,self.generation.clone(),query).await.map_err(|e|format!("{e:?}"))?;
+                        Ok(Reply::RunDetails(page.and_then(|p|p.record.definition.map(|scene|{
+                            let commands=p.commands.into_iter().map(|r|serde_json::json!({"device":r.device,"command":r.command_id.to_string(),"step":r.step,"sample":r.sample,"status":format!("{:?}",r.status)})).collect::<Vec<_>>();
+                            let cancellations=p.cancellations.into_iter().map(|r|serde_json::json!({"device":r.cancellation.device.as_str(),"version":r.version.to_string(),"reason":format!("{:?}",r.cancellation.reason)})).collect::<Vec<_>>();
+                            let expiries=p.expiries.into_iter().map(|r|serde_json::json!({"device":r.expiry.device.as_str(),"version":r.version.to_string(),"step":r.expiry.index})).collect::<Vec<_>>();
+                            (scene,serde_json::json!({"boot":p.boot,"run":p.run,"revision":p.record.revision.to_string(),"record_version":p.record.version.to_string(),"status":format!("{:?}",p.record.status),"commands":commands,"cancellations":cancellations,"expiries":expiries,"next_after":p.next_after.map(|v|v.to_string())}))
+                        }))))
                     },
                     Action::RunSummary {controller,revision,boot,run} => {
                         if revision!=document.revision {return Err("run query revision expired".into());}

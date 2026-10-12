@@ -32,4 +32,4 @@ article input { margin-right: 8px; }
 
 #runtime-result, #calendar-result { white-space: pre-wrap; overflow-wrap: anywhere; }
 
-#history-runs, #history-title { overflow-wrap: anywhere; }
+#history-runs, #history-title, #run-details { overflow-wrap: anywhere; }

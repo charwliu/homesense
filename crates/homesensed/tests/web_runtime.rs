@@ -247,8 +247,13 @@ async fn web_scope_origin_receipts_and_runtime_admission() {
             let mut read=make(&api.origin,"");*read.method_mut()=hyper::Method::GET;*read.uri_mut()=path.parse().unwrap();let response=api.handle(read).await;assert_eq!(response.status(),status);
             if status==StatusCode::OK {let page:serde_json::Value=serde_json::from_slice(&response.into_body().collect().await.unwrap().to_bytes()).unwrap();assert_eq!(page["runs"].as_array().unwrap().len(),1);assert_eq!(page["revision"],"1");assert!(page["next_before"].is_null());}
         }
+        for kind in ["commands","cancellations","expiries"] {
+            let mut read=make(&api.origin,"");*read.method_mut()=hyper::Method::GET;*read.uri_mut()=format!("{run_path}/details?revision=1&kind={kind}").parse().unwrap();let response=api.handle(read).await;assert_eq!(response.status(),StatusCode::OK);
+            let page:serde_json::Value=serde_json::from_slice(&response.into_body().collect().await.unwrap().to_bytes()).unwrap();assert_eq!(page["scene"],"light");assert_eq!(page["revision"],"1");assert!(page["next_after"].is_null());assert!(page.get("source").is_none());
+        }
         let allowed=tokens.authenticate(&format!("Bearer {secret}")).unwrap();let mut denied=allowed.clone();denied.scenes.clear();tokens.insert(token_id,secret,denied).unwrap();
         let mut read=make(&api.origin,"");*read.method_mut()=hyper::Method::GET;*read.uri_mut()=run_path.parse().unwrap();assert_eq!(api.handle(read).await.status(),StatusCode::NOT_FOUND);
+        let mut denied_details=make(&api.origin,"");*denied_details.method_mut()=hyper::Method::GET;*denied_details.uri_mut()=format!("{run_path}/details?revision=1&kind=commands").parse().unwrap();assert_eq!(api.handle(denied_details).await.status(),StatusCode::NOT_FOUND);
         tokens.insert(token_id,secret,allowed).unwrap();
         for (path,body,status) in [("/api/v1/runs/not-a-boot/run","",StatusCode::BAD_REQUEST),(run_path.as_str(),"{}",StatusCode::BAD_REQUEST)] {
             let mut read=make(&api.origin,body);*read.method_mut()=hyper::Method::GET;*read.uri_mut()=path.parse().unwrap();assert_eq!(api.handle(read).await.status(),status);

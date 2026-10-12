@@ -91,7 +91,7 @@ document.getElementById('connect').onclick = async () => {
 document.getElementById('logout').onclick = async () => {
   if(sessionBusy)return;sessionBusy=true;++sessionEpoch;
   invalidatePreview();
-  try { await request('/api/v1/session', {method: 'DELETE'}); csrf = ''; clearTimeout(eventRetry); if(eventSocket)eventSocket.close();eventDevices.clear(); selectedRoom='';document.getElementById('room-filter').replaceChildren();document.getElementById('room-filter').value=''; document.getElementById('draft-impact').textContent=''; document.getElementById('configuration').hidden=true;document.getElementById('diagnostics').hidden=true;historyEpoch++;document.getElementById('scene-history').hidden=true;document.getElementById('history-runs').replaceChildren();document.getElementById('history-title').textContent='';document.getElementById('history-next').disabled=true; document.getElementById('runtime-result').textContent='';document.getElementById('calendar-result').textContent='';document.getElementById('versions').replaceChildren();document.getElementById('draft-list').replaceChildren(); versionsBefore=null;document.getElementById('more-versions').disabled=true; for(const id of ['device-document','automation-document','draft-id','base-revision','draft-revision']) document.getElementById(id).value=''; started.clear(); list.replaceChildren(); document.getElementById('devices').replaceChildren(); status.textContent = '已退出'; }
+  try { await request('/api/v1/session', {method: 'DELETE'}); csrf = ''; clearTimeout(eventRetry); if(eventSocket)eventSocket.close();eventDevices.clear(); selectedRoom='';document.getElementById('room-filter').replaceChildren();document.getElementById('room-filter').value=''; document.getElementById('draft-impact').textContent=''; document.getElementById('configuration').hidden=true;document.getElementById('diagnostics').hidden=true;historyEpoch++;detailEpoch++;document.getElementById('run-details').replaceChildren();document.getElementById('scene-history').hidden=true;document.getElementById('history-runs').replaceChildren();document.getElementById('history-title').textContent='';document.getElementById('history-next').disabled=true; document.getElementById('runtime-result').textContent='';document.getElementById('calendar-result').textContent='';document.getElementById('versions').replaceChildren();document.getElementById('draft-list').replaceChildren(); versionsBefore=null;document.getElementById('more-versions').disabled=true; for(const id of ['device-document','automation-document','draft-id','base-revision','draft-revision']) document.getElementById(id).value=''; started.clear(); list.replaceChildren(); document.getElementById('devices').replaceChildren(); status.textContent = '已退出'; }
   catch (error) { status.textContent = '注销未确认：' + error.message; }
   finally {sessionBusy=false;}
 };
@@ -313,9 +313,9 @@ document.getElementById('runtime-status').onclick = async () => {
   } catch(error) {if(epoch===sessionEpoch)output.textContent=error.message;}
 };
 
-let historyEpoch=0;
+let historyEpoch=0,detailEpoch=0;
 async function loadSceneHistory(scene,revision,before=null) {
-  const epoch=++historyEpoch;
+  const epoch=++historyEpoch;detailEpoch++;document.getElementById('run-details').replaceChildren();
   const panel=document.getElementById('scene-history'),runs=document.getElementById('history-runs'),next=document.getElementById('history-next');
   panel.hidden=false;runs.replaceChildren();next.disabled=true;document.getElementById('history-title').textContent='读取执行历史…';
   try {
@@ -323,8 +323,22 @@ async function loadSceneHistory(scene,revision,before=null) {
     if(before)path+='&before_boot='+encodeURIComponent(before.boot)+'&before_run='+encodeURIComponent(before.run);
     const page=await request(path);if(epoch!==historyEpoch)return;
     document.getElementById('history-title').textContent=`${page.scene} · 配置版本 ${page.revision} · 按创建顺序倒序`;
-    for(const run of page.runs){const item=document.createElement('p');item.textContent=`${run.status} · ${run.boot} / ${run.run} · 开始 ${run.started_ms} ms · 更新 ${run.updated_ms} ms`;runs.append(item);}
+    for(const run of page.runs){const item=document.createElement('p');item.textContent=`${run.status} · ${run.boot} / ${run.run} · 开始 ${run.started_ms} ms · 更新 ${run.updated_ms} ms`;
+      for(const [kind,label] of [['commands','命令记录'],['cancellations','取消记录'],['expiries','过期记录']]){const button=document.createElement('button');button.textContent=label;button.onclick=()=>loadRunDetails(run,revision,kind);item.append(button);}
+      runs.append(item);}
     if(!page.runs.length)runs.textContent='没有运行记录';
     next.disabled=page.next_before===null;next.onclick=()=>loadSceneHistory(scene,revision,page.next_before);
   } catch(error){if(epoch===historyEpoch)document.getElementById('history-title').textContent=error.message;}
+}
+
+async function loadRunDetails(run,revision,kind,after='0') {
+  const epoch=++detailEpoch,box=document.getElementById('run-details');box.replaceChildren();box.textContent='读取运行详情…';
+  try {
+    const page=await request(`/api/v1/runs/${encodeURIComponent(run.boot)}/${encodeURIComponent(run.run)}/details?revision=${encodeURIComponent(revision)}&kind=${kind}&after=${encodeURIComponent(after)}&limit=20`);
+    if(epoch!==detailEpoch)return;box.replaceChildren();
+    const title=document.createElement('p');title.textContent=`${page.scene} · ${page.status} · ${page.redacted?'部分记录因设备权限隐藏':'当前页可见记录'}；写出不代表物理动作完成。`;box.append(title);
+    for(const record of page[kind]) {const row=document.createElement('p');row.textContent=`设备 ${record.device} · ${record.status??record.reason??'调度过期'}${record.step===undefined?'':' · 步骤 '+record.step}${record.command===undefined?'':' · 命令 '+record.command}`;box.append(row);}
+    if(!page[kind].length){const empty=document.createElement('p');empty.textContent='当前页没有可见记录';box.append(empty);}
+    if(page.next_after!==null){const next=document.createElement('button');next.textContent='下一页详情';next.onclick=()=>loadRunDetails(run,revision,kind,page.next_after);box.append(next);}
+  } catch(error){if(epoch===detailEpoch)box.textContent=error.message;}
 }
