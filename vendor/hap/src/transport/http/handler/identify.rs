@@ -28,7 +28,7 @@ impl JsonHandlerExt for Identify {
         storage: pointer::Storage,
         accessory_database: pointer::AccessoryDatabase,
         _: pointer::EventEmitter,
-    ) -> BoxFuture<Result<Response<Body>>> {
+    ) -> BoxFuture<'_, Result<Response<Body>>> {
         let storage = storage.clone();
         let accessory_database = accessory_database.clone();
 

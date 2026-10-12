@@ -600,7 +600,7 @@ mod async_acceptance_tests {
                 ev: Some(true),
                 value: Some(json!(true)),
                 auth_data: None,
-                remote: None,
+                _remote: None,
             }];
             let mut pending =
                 Box::pin(db.write_batch(uuid::Uuid::new_v4(), b"request", &writes, &subscriptions));

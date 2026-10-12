@@ -87,7 +87,9 @@ pub struct WriteObject {
     pub value: Option<serde_json::Value>,
     #[serde(rename = "authData")]
     pub auth_data: Option<String>,
-    pub remote: Option<bool>,
+    // Controller routing hint is parsed but does not replace authenticated identity.
+    #[serde(rename = "remote")]
+    pub _remote: Option<bool>,
 }
 
 #[derive(Debug, Serialize)]
