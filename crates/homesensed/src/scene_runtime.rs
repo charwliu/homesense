@@ -319,6 +319,19 @@ impl SceneRuntime {
                 self.cancel_device(&device).await?;
                 Ok(None)
             }
+            Err(crate::admission::SubmissionFailure::Status(
+                hap::server::WriteStatus::InvalidValueInRequest
+                | hap::server::WriteStatus::ResourceDoesNotExist,
+            )) => {
+                // Rejected admission produced no command. End only this run,
+                // preserve any earlier written output as Partial, and durably
+                // checkpoint via poll(). Storage/generation/transport failures
+                // still propagate and gate the service.
+                log::warn!("scene step rejected run={} step={}; remaining steps cancelled", self.audit_id, due.index);
+                self.timeline.resolve(due.index, false).map_err(|e| format!("{e:?}"))?;
+                self.timeline.cancel();
+                Ok(None)
+            }
             Err(e) => {
                 self.timeline
                     .resolve(due.index, false)

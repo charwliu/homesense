@@ -479,10 +479,22 @@ impl Compiler<'_> {
                                 (ModuleKind::Motor, Command::Motor(MotorMotion::Stop))
                             }
                         };
-                        Action::Command {
-                            device: self.device(&device, &[kind])?,
-                            command,
+                        let device = self.device(&device, &[kind])?;
+                        // Automation uses the same logical targets as manual
+                        // control. A supply is owned by its enabled combined
+                        // light; accepting it here would defer rejection until
+                        // after earlier scene steps have already been written.
+                        if self.config.devices().values().any(|d| {
+                            d.enabled && d.supply_relay.as_ref() == Some(&device)
+                        }) {
+                            return Err(invalid("automation must target the logical light, not its supply relay"));
                         }
+                        if self.config.devices()[&device].supply_relay.is_some()
+                            && !matches!(command, Command::SetLevel { transition: LevelTransition::Immediate, .. })
+                        {
+                            return Err(invalid("combined light automation requires a normalized level target"));
+                        }
+                        Action::Command { device, command }
                     }
                 };
                 Ok(Node {
