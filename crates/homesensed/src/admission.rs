@@ -63,8 +63,16 @@ pub struct Diagnostics {
     pub stopping: bool,
     pub publishing: bool,
     pub gateway_ready: bool,
+    pub controller_enabled: bool,
     pub storage_healthy: bool,
     pub valid_configuration_loaded: bool,
+}
+impl Diagnostics {
+    /// Current admission readiness, not end-to-end physical device reachability.
+    pub fn ready(&self) -> bool {
+        !self.failed && !self.stopping && !self.publishing && self.gateway_ready
+            && self.controller_enabled && self.storage_healthy && self.valid_configuration_loaded
+    }
 }
 enum SubmissionScope {
     Generation(TaskGeneration),
@@ -425,7 +433,7 @@ impl Admission {
                             let policy=arbiter.policy();
                             let result=if !authorize(controller) {Err(WriteStatus::InsufficientPrivileges)}
                             else if generation.boot!=worker_boot || generation.epochs.configuration!=policy.epochs.configuration {Err(WriteStatus::ServiceCommunicationFailure)}
-                            else {Ok(Diagnostics {boot:worker_boot.clone(),epochs:policy.epochs,queued:arbiter.queued_len(),in_flight:in_flight.is_some(),failed,stopping:worker_stop.load(Ordering::Acquire),publishing:policy.publishing,gateway_ready:policy.gateway_ready,storage_healthy:policy.storage_healthy,valid_configuration_loaded:policy.valid_configuration_loaded})};
+                            else {Ok(Diagnostics {boot:worker_boot.clone(),epochs:policy.epochs,queued:arbiter.queued_len(),in_flight:in_flight.is_some(),failed,stopping:worker_stop.load(Ordering::Acquire),publishing:policy.publishing,gateway_ready:policy.gateway_ready,controller_enabled:policy.controller,storage_healthy:policy.storage_healthy,valid_configuration_loaded:policy.valid_configuration_loaded})};
                             let _=reply.send(result);
                         }
                         Message::PublicationState(reply) => { let _=reply.send(!failed && arbiter.policy().publishing && publication.is_some()); },
@@ -1958,6 +1966,13 @@ mod lifecycle_tests {
         let generation=actor.task_generation().await.unwrap();
         let initial=actor.diagnostics(controller,generation.clone()).await.unwrap();
         assert!(initial.gateway_ready && initial.storage_healthy && !initial.failed);
+        assert!(initial.ready());
+        for flag in 0..7 {
+            let mut state=initial.clone();
+            match flag {0=>state.failed=true,1=>state.stopping=true,2=>state.publishing=true,3=>state.gateway_ready=false,4=>state.controller_enabled=false,5=>state.storage_healthy=false,_=>state.valid_configuration_loaded=false}
+            assert!(!state.ready(),"readiness must reject flag {flag}");
+        }
+
         assert_eq!(initial.queued,0);assert!(!initial.in_flight);
         assert!(actor.diagnostics(Uuid::new_v4(),generation.clone()).await.is_err());
         let mut old=generation.clone();old.epochs.configuration+=1;
@@ -1973,7 +1988,7 @@ mod lifecycle_tests {
         let writing=actor.diagnostics(controller,generation.clone()).await.unwrap();assert_eq!(writing.queued,0);assert!(writing.in_flight);
         actor.transport_failed().await.unwrap();
         let failed=actor.diagnostics(controller,generation).await.unwrap();
-        assert!(failed.failed);assert!(!failed.storage_healthy);
+        assert!(failed.failed);assert!(!failed.storage_healthy);assert!(!failed.ready());
         assert!(actor.task_generation().await.is_err());
         assert_eq!(failed.queued,0);assert!(!failed.in_flight);
         actor.shutdown().await.unwrap();std::fs::remove_dir_all(directory).unwrap();
