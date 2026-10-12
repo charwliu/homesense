@@ -16,5 +16,12 @@ vm.runInContext(fs.readFileSync(require('node:path').join(__dirname,'../crates/h
  pending.shift().resolve({ok:true,json:async()=>({id:'new-id',secret:'one-time-secret'})});await created;assert.match(element('issue-result').textContent,/one-time-secret/);assert.equal(element('issue-confirm').checked,false);
  element('clear-issued-secret').onclick();assert.equal(element('issue-result').textContent,'');
  element('issue-confirm').checked=true;const stale=issue.onclick();vm.runInContext('sessionEpoch++;clearCredentialCreation()',context);pending.shift().resolve({ok:true,json:async()=>({id:'old',secret:'must-not-reappear'})});await stale;assert.equal(element('issue-result').textContent,'');assert.equal(element('issue-role').value,'Viewer');
+ await element('save-credential').onclick();assert.equal(pending.length,0);
+ element('edit-credential-id').value='target';const load=element('load-credential').onclick();pending.shift().resolve({ok:true,json:async()=>({credentials:[{id:'target',grant:{role:'Member',devices:['lamp'],scenes:[]}}]})});await load;
+ assert.equal(element('edit-credential-role').value,'Member');assert.equal(element('edit-credential-devices').value,'lamp');
+ await element('save-credential').onclick();assert.equal(pending.length,0);element('edit-credential-confirm').checked=true;element('edit-credential-role').value='Viewer';
+ const save=element('save-credential').onclick();await element('save-credential').onclick();assert.equal(pending.length,1);assert.equal(pending[0].options.method,'PATCH');assert.equal(pending[0].path,'/api/v1/credentials/target');assert.equal(JSON.parse(pending[0].options.body).role,'Viewer');
+ pending.shift().resolve({ok:true,json:async()=>({})});await save;assert.equal(element('edit-credential-confirm').checked,false);await element('save-credential').onclick();assert.equal(pending.length,0);
+ const lateLoad=element('load-credential').onclick();vm.runInContext('sessionEpoch++;clearCredentialCreation()',context);pending.shift().resolve({ok:true,json:async()=>({credentials:[{id:'target',grant:{role:'Administrator',devices:['secret'],scenes:[]}}]})});await lateLoad;assert.equal(element('edit-credential-devices').value,'');assert.equal(element('edit-credential-role').value,'Viewer');
  console.log('Credential listing and session fencing: passed');
 })().catch(e=>{console.error(e);process.exitCode=1});
