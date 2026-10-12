@@ -135,11 +135,13 @@ impl Store {
         tx.commit()?;
         Ok(())
     }
+    /// Ordinary rules see matching inferred selections as unknown. Use the
+    /// scoped scene-selection snapshot only for observation and explicit UI actions.
     pub fn logical_variable(&self, revision: u64, name: &str) -> Result<Option<Stored>, Error> {
         let row: Option<(String, Option<i64>, i64)> = self
             .connection
             .query_row(
-                "SELECT kind,value,version FROM logical_variable WHERE revision=?1 AND name=?2",
+                "SELECT v.kind,CASE WHEN EXISTS(SELECT 1 FROM scene_observation o WHERE o.revision=v.revision AND o.name=v.name AND o.variable_version=v.version) THEN NULL ELSE v.value END,v.version FROM logical_variable v WHERE v.revision=?1 AND v.name=?2",
                 params![sql_revision(revision)?, name],
                 |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
             )

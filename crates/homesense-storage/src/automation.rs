@@ -104,7 +104,7 @@ pub(crate) fn insert(
         };
         let old: Option<(String, Option<i64>)> = tx
             .query_row(
-                "SELECT kind,value FROM logical_variable WHERE revision=?1 AND name=?2",
+                "SELECT v.kind,CASE WHEN EXISTS(SELECT 1 FROM scene_observation o WHERE o.revision=v.revision AND o.name=v.name AND o.variable_version=v.version) THEN NULL ELSE v.value END FROM logical_variable v WHERE v.revision=?1 AND v.name=?2",
                 params![previous, name],
                 |r| Ok((r.get(0)?, r.get(1)?)),
             )
