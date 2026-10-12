@@ -72,6 +72,9 @@ impl Api {
         if request.method() == hyper::Method::GET && request.uri().path() == "/style.css" {
             return Response::builder().header("content-type","text/css; charset=utf-8").header("cache-control","no-store").header("x-content-type-options","nosniff").body(Full::new(Bytes::from_static(include_bytes!("web/style.css")))).unwrap();
         }
+        if request.method() == hyper::Method::GET && request.uri().path() == "/draft-json.js" {
+            return Response::builder().header("content-type","text/javascript").header("x-content-type-options","nosniff").body(Full::new(Bytes::from_static(include_bytes!("web/draft-json.js")))).unwrap();
+        }
         if request.method() == hyper::Method::GET && request.uri().path() == "/app.js" {
             return Response::builder()
                 .header("content-type", "text/javascript")
@@ -259,6 +262,9 @@ impl Api {
             if grant.role != crate::web_auth::Role::Administrator {
                 return deny(StatusCode::FORBIDDEN, "administrator_required");
             }
+            let source=id.ends_with("/source");
+            let id=id.strip_suffix("/source").unwrap_or(id);
+            if source && request.method()!=hyper::Method::GET {return deny(StatusCode::METHOD_NOT_ALLOWED,"method_not_allowed");}
             let Ok(id) = uuid::Uuid::parse_str(id) else {
                 return deny(StatusCode::BAD_REQUEST, "invalid_draft_id");
             };
@@ -275,7 +281,9 @@ impl Api {
                     .and_then(|d| d.get(grant.controller, id).map_err(|_| ()))
                 {
                     Ok(Some(draft)) => {
-                        response(StatusCode::OK, serde_json::to_value(draft).unwrap())
+                        if source {
+                            response(StatusCode::OK,json!({"id":draft.id,"expected_revision":draft.expected_revision.to_string(),"revision":draft.revision.to_string(),"devices":draft.devices.to_string(),"automation":draft.automation.to_string()}))
+                        } else {response(StatusCode::OK, serde_json::to_value(draft).unwrap())}
                     }
                     Ok(None) => deny(StatusCode::NOT_FOUND, "draft_not_found"),
                     Err(_) => deny(StatusCode::SERVICE_UNAVAILABLE, "draft_storage_unavailable"),

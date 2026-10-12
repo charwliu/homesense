@@ -108,8 +108,8 @@ document.getElementById('save-draft').onclick = async () => {
   const button=document.getElementById('save-draft'); button.disabled=true;
   try {
     const id=crypto.randomUUID(); document.getElementById('draft-id').value=id;
-    const body={expected_revision:Number(document.getElementById('base-revision').value),revision:Number(document.getElementById('draft-revision').value),devices:JSON.parse(document.getElementById('device-document').value),automation:JSON.parse(document.getElementById('automation-document').value)};
-    await request('/api/v1/config/drafts/'+id,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const body=encodeDraftJson(document.getElementById('base-revision').value,document.getElementById('draft-revision').value,document.getElementById('device-document').value,document.getElementById('automation-document').value);
+    await request('/api/v1/config/drafts/'+id,{method:'POST',headers:{'Content-Type':'application/json'},body});
     status.textContent='草稿已验证并保存；当前运行配置未改变。';
   } catch(error) {status.textContent=error.message+'；未自动重试，可按草稿 ID 核对。';}
   finally {button.disabled=false;}
@@ -117,12 +117,12 @@ document.getElementById('save-draft').onclick = async () => {
 async function loadDraft(id) {
   publicationPreview=null;document.getElementById('activate-draft').disabled=true;
   try {
-    const draft=await request('/api/v1/config/drafts/'+encodeURIComponent(id));
+    const draft=await request('/api/v1/config/drafts/'+encodeURIComponent(id)+'/source');
     document.getElementById('draft-id').value=draft.id;
     document.getElementById('base-revision').value=draft.expected_revision;
     document.getElementById('draft-revision').value=draft.revision;
-    document.getElementById('device-document').value=JSON.stringify(draft.devices,null,2);
-    document.getElementById('automation-document').value=JSON.stringify(draft.automation,null,2);
+    document.getElementById('device-document').value=draft.devices;
+    document.getElementById('automation-document').value=draft.automation;
     status.textContent='已读取草稿；当前运行配置未改变。';
   } catch(error) {status.textContent=error.message;}
 };
