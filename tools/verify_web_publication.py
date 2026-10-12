@@ -99,6 +99,18 @@ with tempfile.TemporaryDirectory(prefix='homesense-publication-') as directory:
      assert request('/api/v1/config/drafts/'+bad['id']+'/source')[0]==404
      stale={**binding,'id':str(uuid.uuid4()),'expected_revision':'2'}
      assert request('/api/v1/config/drafts/'+restore_id+'/device-binding',stale)[0]==409
+     motor_source=str(uuid.uuid4())
+     motor_devices={'schema_version':1,'revision':4,'gateways':[{'id':'fixture','endpoint':'127.0.0.1:50007','modules':[{'address':'22','profile':'c4_din_pro_v2_7_7','verification':{'status':'simulated'}}]}],'devices':[{'id':'motor','name':'Synthetic motor','gateway':'fixture','address':'22','channel':2,'enabled':True}]}
+     motor_rules={'schema_version':1,'configuration_revision':4,'variables':[],'rules':[],'timed_scenes':[]}
+     code,result=request('/api/v1/config/drafts/'+motor_source,{'expected_revision':3,'revision':4,'devices':motor_devices,'automation':motor_rules});assert code==200,(code,result)
+     calibration={'id':str(uuid.uuid4()),'expected_revision':'3','revision':'4','device':'motor','gateway':'fixture','address':'22','channel':2,'calibration':{'open_direction':'up','stop_verified':True,'evidence':'synthetic HTTP fixture, not field evidence','verified_at_unix_ms':'1'}}
+     code,result=request('/api/v1/config/drafts/'+motor_source+'/motor-calibration',calibration);assert code==200 and result['active'] is False,(code,result)
+     code,calibrated=request('/api/v1/config/drafts/'+calibration['id']+'/source');assert code==200
+     assert json.loads(calibrated['devices'])['devices'][0]['motor_calibration']['stop_verified'] is True
+     assert 'motor_calibration' not in json.loads(request('/api/v1/config/drafts/'+motor_source+'/source')[1]['devices'])['devices'][0]
+     wrong={**calibration,'id':str(uuid.uuid4()),'channel':3}
+     assert request('/api/v1/config/drafts/'+motor_source+'/motor-calibration',wrong)[0]==400
+     assert request('/api/v1/config/drafts/'+wrong['id']+'/source')[0]==404
      room_edit={'id':str(uuid.uuid4()),'expected_revision':'3','revision':'4','room':{'id':'synthetic-room','name':'Study','floor':'F2'}}
      code,result=request('/api/v1/config/drafts/'+restore_id+'/room',room_edit);assert code==200 and result['active'] is False,(code,result)
      code,room_source=request('/api/v1/config/drafts/'+room_edit['id']+'/source');assert code==200
