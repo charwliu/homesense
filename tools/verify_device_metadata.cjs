@@ -16,5 +16,8 @@ vm.runInContext(fs.readFileSync(require('node:path').join(__dirname,'../crates/h
  element('metadata-name').value='Later edit';element('metadata-name').handlers.input();
  pending.shift().resolve({ok:true,json:async()=>({draft:'returned-id'})});await inflight;
  assert.equal(pending.length,0,'stale completion must not load over current editing');assert.equal(element('metadata-name').value,'Later edit');
- console.log('Metadata source binding, precision and in-flight edits: passed');
+ element('edit-room-id').value='study';element('edit-room-name').value='Study';element('edit-room-floor').value='F2';
+ const roomEdit=element('save-room').onclick();assert.equal(pending[0].path,'/api/v1/config/drafts/source-id/room');const roomBody=JSON.parse(pending[0].options.body);assert.equal(roomBody.revision,'9007199254740994');assert.deepEqual(roomBody.room,{id:'study',name:'Study',floor:'F2'});
+ element('edit-room-floor').handlers.input();pending.shift().resolve({ok:true,json:async()=>({draft:'late-room-id'})});await roomEdit;assert.equal(pending.length,0);
+ console.log('Device and room source binding, precision and in-flight edits: passed');
 })().catch(e=>{console.error(e);process.exitCode=1});

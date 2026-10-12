@@ -90,6 +90,11 @@ with tempfile.TemporaryDirectory(prefix='homesense-publication-') as directory:
      assert json.loads(edited['devices'])['devices'][0]['name']==edit['name']
      assert request('/api/v1/devices')[1]['devices'][0]['name']==original_name
      edit['expected_revision']='2';assert request('/api/v1/config/drafts/'+restore_id+'/device-metadata',edit)[0]==409
+     room_edit={'id':str(uuid.uuid4()),'expected_revision':'3','revision':'4','room':{'id':'synthetic-room','name':'Study','floor':'F2'}}
+     code,result=request('/api/v1/config/drafts/'+restore_id+'/room',room_edit);assert code==200 and result['active'] is False,(code,result)
+     code,room_source=request('/api/v1/config/drafts/'+room_edit['id']+'/source');assert code==200
+     assert json.loads(room_source['devices'])['rooms']==[room_edit['room']]
+     assert request('/api/v1/devices')[1]['revision']==3
      archive_path='/api/v1/config/drafts/'+restore_id+'/archive'
      assert request(archive_path, {})[0]==400
      # Archive requires an empty POST body, not a JSON object.

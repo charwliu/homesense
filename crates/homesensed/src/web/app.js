@@ -16,7 +16,7 @@ function invalidatePreview() {
   document.getElementById('draft-impact').textContent='';
   return previewEpoch;
 }
-for(const id of ['draft-id','base-revision','draft-revision','device-document','automation-document','metadata-device','metadata-name','metadata-room']) {
+for(const id of ['draft-id','base-revision','draft-revision','device-document','automation-document','metadata-device','metadata-name','metadata-room','edit-room-id','edit-room-name','edit-room-floor']) {
   document.getElementById(id).addEventListener('input',invalidatePreview);
 }
 let versionsBefore=null;
@@ -106,7 +106,7 @@ document.getElementById('connect').onclick = async () => {
 document.getElementById('logout').onclick = async () => {
   if(sessionBusy)return;sessionBusy=true;++sessionEpoch;
   invalidatePreview();
-  try { await request('/api/v1/session', {method: 'DELETE'}); csrf = ''; observedRevision=null; clearTimeout(eventRetry); if(eventSocket)eventSocket.close();eventDevices.clear(); selectedRoom='';document.getElementById('room-filter').replaceChildren();document.getElementById('room-filter').value=''; document.getElementById('draft-impact').textContent=''; document.getElementById('configuration').hidden=true;document.getElementById('diagnostics').hidden=true;historyEpoch++;detailEpoch++;document.getElementById('run-details').replaceChildren();document.getElementById('scene-history').hidden=true;document.getElementById('history-runs').replaceChildren();document.getElementById('history-title').textContent='';document.getElementById('history-next').disabled=true; document.getElementById('runtime-result').textContent='';document.getElementById('calendar-result').textContent='';document.getElementById('backup-result').textContent='';document.getElementById('backup-actions').replaceChildren();backupInspectionEpoch++;document.getElementById('backup-inspection').textContent='';document.getElementById('versions').replaceChildren();document.getElementById('draft-list').replaceChildren(); versionsBefore=null;document.getElementById('more-versions').disabled=true; metadataSource=null;document.getElementById('metadata-device').replaceChildren();document.getElementById('metadata-room').replaceChildren();document.getElementById('metadata-name').value=''; for(const id of ['device-document','automation-document','draft-id','base-revision','draft-revision']) document.getElementById(id).value=''; started.clear(); list.replaceChildren(); document.getElementById('devices').replaceChildren(); status.textContent = '已退出'; }
+  try { await request('/api/v1/session', {method: 'DELETE'}); csrf = ''; observedRevision=null; clearTimeout(eventRetry); if(eventSocket)eventSocket.close();eventDevices.clear(); selectedRoom='';document.getElementById('room-filter').replaceChildren();document.getElementById('room-filter').value=''; document.getElementById('draft-impact').textContent=''; document.getElementById('configuration').hidden=true;document.getElementById('diagnostics').hidden=true;historyEpoch++;detailEpoch++;document.getElementById('run-details').replaceChildren();document.getElementById('scene-history').hidden=true;document.getElementById('history-runs').replaceChildren();document.getElementById('history-title').textContent='';document.getElementById('history-next').disabled=true; document.getElementById('runtime-result').textContent='';document.getElementById('calendar-result').textContent='';document.getElementById('backup-result').textContent='';document.getElementById('backup-actions').replaceChildren();backupInspectionEpoch++;document.getElementById('backup-inspection').textContent='';document.getElementById('versions').replaceChildren();document.getElementById('draft-list').replaceChildren(); versionsBefore=null;document.getElementById('more-versions').disabled=true; metadataSource=null;document.getElementById('metadata-device').replaceChildren();document.getElementById('metadata-room').replaceChildren();document.getElementById('metadata-name').value=''; for(const id of ['device-document','automation-document','draft-id','base-revision','draft-revision','edit-room-id','edit-room-name','edit-room-floor']) document.getElementById(id).value=''; started.clear(); list.replaceChildren(); document.getElementById('devices').replaceChildren(); status.textContent = '已退出'; }
   catch (error) { status.textContent = '注销未确认：' + error.message; }
   finally {sessionBusy=false;}
 };
@@ -422,4 +422,15 @@ document.getElementById('save-metadata').onclick=async()=>{
     if(epoch!==previewEpoch)return;await loadDraft(result.draft);
   } catch(e){if(epoch===previewEpoch)status.textContent=e.message;}
   finally{button.disabled=false;}
+};
+
+document.getElementById('save-room').onclick=async()=>{
+  const epoch=invalidatePreview(),button=document.getElementById('save-room');button.disabled=true;
+  try {
+    if(!metadataSource || metadataSource!==document.getElementById('draft-id').value)throw new Error('请先读取此草稿，再编辑房间。');
+    const body={id:crypto.randomUUID(),expected_revision:document.getElementById('base-revision').value,revision:document.getElementById('draft-revision').value,room:{id:document.getElementById('edit-room-id').value,name:document.getElementById('edit-room-name').value,floor:document.getElementById('edit-room-floor').value||null}};
+    const result=await request('/api/v1/config/drafts/'+encodeURIComponent(metadataSource)+'/room',{method:'POST',body:JSON.stringify(body)});
+    if(epoch!==previewEpoch)return;await loadDraft(result.draft);
+  } catch(e){if(epoch===previewEpoch)status.textContent=e.message;}
+  finally {button.disabled=false;}
 };
