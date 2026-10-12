@@ -4,6 +4,7 @@ let sessionEpoch=0;
 let sessionBusy=false;
 let backupInspectionEpoch=0;
 let metadataSource=null;
+let calibrationBinding=null;
 let observedRevision=null;
 let deviceSnapshotEpoch=0;
 let lastSceneSnapshot=null;
@@ -18,7 +19,7 @@ function invalidatePreview() {
   document.getElementById('draft-impact').textContent='';
   return previewEpoch;
 }
-for(const id of ['draft-id','base-revision','draft-revision','device-document','automation-document','metadata-device','metadata-name','metadata-room','binding-gateway','binding-address','binding-channel','binding-enabled','edit-room-id','edit-room-name','edit-room-floor','edit-room-select']) {
+for(const id of ['draft-id','base-revision','draft-revision','device-document','automation-document','metadata-device','metadata-name','metadata-room','binding-gateway','binding-address','binding-channel','binding-enabled','calibration-direction','calibration-stop','calibration-evidence','calibration-time','edit-room-id','edit-room-name','edit-room-floor','edit-room-select']) {
   document.getElementById(id).addEventListener('input',invalidatePreview);
 }
 let versionsBefore=null;
@@ -110,7 +111,7 @@ document.getElementById('connect').onclick = async () => {
 document.getElementById('logout').onclick = async () => {
   if(sessionBusy)return;sessionBusy=true;++sessionEpoch;
   invalidatePreview();
-  try { await request('/api/v1/session', {method: 'DELETE'}); csrf = ''; observedRevision=null;lastSceneSnapshot=null; clearTimeout(eventRetry); if(eventSocket)eventSocket.close();eventDevices.clear(); selectedRoom='';document.getElementById('room-filter').replaceChildren();document.getElementById('room-filter').value=''; document.getElementById('draft-impact').textContent=''; document.getElementById('configuration').hidden=true;document.getElementById('diagnostics').hidden=true;historyEpoch++;detailEpoch++;document.getElementById('run-details').replaceChildren();document.getElementById('scene-history').hidden=true;document.getElementById('history-runs').replaceChildren();document.getElementById('history-title').textContent='';document.getElementById('history-next').disabled=true; document.getElementById('runtime-result').textContent='';document.getElementById('calendar-result').textContent='';document.getElementById('backup-result').textContent='';document.getElementById('backup-actions').replaceChildren();backupInspectionEpoch++;document.getElementById('backup-inspection').textContent='';document.getElementById('versions').replaceChildren();document.getElementById('draft-list').replaceChildren(); versionsBefore=null;document.getElementById('more-versions').disabled=true; metadataSource=null;document.getElementById('binding-enabled').checked=false;for(const id of ['binding-gateway','binding-address','binding-channel'])document.getElementById(id).value='';document.getElementById('metadata-device').replaceChildren();document.getElementById('metadata-room').replaceChildren();document.getElementById('edit-room-select').replaceChildren();document.getElementById('metadata-name').value=''; for(const id of ['device-document','automation-document','draft-id','base-revision','draft-revision','edit-room-id','edit-room-name','edit-room-floor']) document.getElementById(id).value=''; started.clear(); list.replaceChildren(); document.getElementById('devices').replaceChildren(); status.textContent = '已退出'; }
+  try { await request('/api/v1/session', {method: 'DELETE'}); csrf = ''; observedRevision=null;lastSceneSnapshot=null; clearTimeout(eventRetry); if(eventSocket)eventSocket.close();eventDevices.clear(); selectedRoom='';document.getElementById('room-filter').replaceChildren();document.getElementById('room-filter').value=''; document.getElementById('draft-impact').textContent=''; document.getElementById('configuration').hidden=true;document.getElementById('diagnostics').hidden=true;historyEpoch++;detailEpoch++;document.getElementById('run-details').replaceChildren();document.getElementById('scene-history').hidden=true;document.getElementById('history-runs').replaceChildren();document.getElementById('history-title').textContent='';document.getElementById('history-next').disabled=true; document.getElementById('runtime-result').textContent='';document.getElementById('calendar-result').textContent='';document.getElementById('backup-result').textContent='';document.getElementById('backup-actions').replaceChildren();backupInspectionEpoch++;document.getElementById('backup-inspection').textContent='';document.getElementById('versions').replaceChildren();document.getElementById('draft-list').replaceChildren(); versionsBefore=null;document.getElementById('more-versions').disabled=true; metadataSource=null;clearCalibration();document.getElementById('binding-enabled').checked=false;for(const id of ['binding-gateway','binding-address','binding-channel'])document.getElementById(id).value='';document.getElementById('metadata-device').replaceChildren();document.getElementById('metadata-room').replaceChildren();document.getElementById('edit-room-select').replaceChildren();document.getElementById('metadata-name').value=''; for(const id of ['device-document','automation-document','draft-id','base-revision','draft-revision','edit-room-id','edit-room-name','edit-room-floor']) document.getElementById(id).value=''; started.clear(); list.replaceChildren(); document.getElementById('devices').replaceChildren(); status.textContent = '已退出'; }
   catch (error) { status.textContent = '注销未确认：' + error.message; }
   finally {sessionBusy=false;}
 };
@@ -411,6 +412,32 @@ document.getElementById('backup-status').onclick = async () => {
   } catch(e) {if(epoch===sessionEpoch)output.textContent=e.message;}
 };
 
+function clearCalibration() {
+  calibrationBinding=null;
+  for(const id of ['calibration-direction','calibration-evidence','calibration-time'])document.getElementById(id).value='';
+  document.getElementById('calibration-stop').checked=false;
+  document.getElementById('calibration-binding').textContent='';
+}
+async function saveCalibration(remove) {
+  const epoch=invalidatePreview(),button=document.getElementById(remove?'remove-calibration':'save-calibration');button.disabled=true;
+  try {
+    if(!metadataSource || metadataSource!==document.getElementById('draft-id').value || !calibrationBinding || calibrationBinding.device!==document.getElementById('metadata-device').value)throw new Error('请先读取此草稿并选择设备。');
+    if(calibrationBinding.gateway!==document.getElementById('binding-gateway').value || calibrationBinding.address!==document.getElementById('binding-address').value || String(calibrationBinding.channel)!==String(document.getElementById('binding-channel').value))throw new Error('物理绑定有未保存修改，请先生成并读取绑定草稿。');
+    let calibration=null;
+    if(!remove){
+      const direction=document.getElementById('calibration-direction').value,evidence=document.getElementById('calibration-evidence').value,time=document.getElementById('calibration-time').value;
+      if(!['up','down'].includes(direction) || !document.getElementById('calibration-stop').checked || !evidence.trim() || !/^[1-9][0-9]*$/.test(time))throw new Error('请完整填写方向、STOP 验证、证据和验证时间。');
+      calibration={open_direction:direction,stop_verified:true,evidence,verified_at_unix_ms:time};
+    }
+    const body={id:crypto.randomUUID(),expected_revision:document.getElementById('base-revision').value,revision:document.getElementById('draft-revision').value,...calibrationBinding,calibration};
+    const result=await request('/api/v1/config/drafts/'+encodeURIComponent(metadataSource)+'/motor-calibration',{method:'POST',body:JSON.stringify(body)});
+    if(epoch!==previewEpoch)return;await loadDraft(result.draft);
+  }catch(e){if(epoch===previewEpoch)status.textContent=e.message;}
+  finally{button.disabled=false;}
+}
+document.getElementById('save-calibration').onclick=()=>saveCalibration(false);
+document.getElementById('remove-calibration').onclick=()=>saveCalibration(true);
+
 function renderMetadata(text,source) {
   metadataSource=source;
   const config=JSON.parse(text),devices=document.getElementById('metadata-device'),rooms=document.getElementById('metadata-room');devices.replaceChildren();rooms.replaceChildren();
@@ -421,6 +448,9 @@ function renderMetadata(text,source) {
     document.getElementById('binding-address').value=device?.address||'';
     document.getElementById('binding-channel').value=device?.channel??'';
     document.getElementById('binding-enabled').checked=device?.enabled===true;
+    clearCalibration();
+    if(device){calibrationBinding={device:device.id,gateway:device.gateway,address:device.address,channel:device.channel};document.getElementById('calibration-binding').textContent=`${device.gateway} / ${device.address} / 通道 ${device.channel} · ${device.motor_calibration?'已有校准记录':'无校准记录'}`;}
+
   };
   devices.onchange();
   const editRooms=document.getElementById('edit-room-select');editRooms.replaceChildren();
