@@ -1,0 +1,91 @@
+{
+  "source": {
+    "commit": "2c093bf20799c5a039bd74d7a266762f5b27a9fc",
+    "worktree_diff_sha256": "1a86223702b525a43b348ea04d55ed71553aec21812f26cfea8e83cb67f39df8",
+    "worktree_modified_paths": [
+      "crates/homesense-hap/src/events.rs",
+      "crates/homesense-hap/src/requests.rs",
+      "crates/homesense-hap/src/write.rs",
+      "crates/homesense-hap/tests/events.rs",
+      "crates/homesense-hap/tests/http_loopback.rs",
+      "crates/homesense-hap/tests/observed.rs",
+      "crates/homesense-hap/tests/storage.rs",
+      "crates/homesense-import/src/main.rs",
+      "crates/homesense-import/src/program.rs",
+      "crates/homesense-import/src/room.rs",
+      "crates/homesensed/src/motor_commission.rs",
+      "crates/homesensed/src/reconnect.rs",
+      "crates/homesensed/tests/combined_light.rs",
+      "crates/homesensed/tests/http_runtime.rs",
+      "crates/homesensed/tests/motor_commission.rs",
+      "vendor/hap/src/pairing.rs",
+      "vendor/hap/src/transport/http/body.rs",
+      "vendor/hap/src/transport/http/handler/accessories.rs",
+      "vendor/hap/src/transport/http/handler/characteristics.rs",
+      "vendor/hap/src/transport/http/handler/identify.rs",
+      "vendor/hap/src/transport/http/handler/mod.rs",
+      "vendor/hap/src/transport/http/handler/pair_setup.rs",
+      "vendor/hap/src/transport/http/handler/pair_verify.rs",
+      "vendor/hap/src/transport/http/handler/pairings.rs",
+      "vendor/hap/src/transport/http/mod.rs",
+      "vendor/hap/src/transport/http/server.rs",
+      "vendor/hap/src/transport/mdns.rs",
+      "vendor/hap/src/transport/tcp.rs"
+    ],
+    "archive_sha256": "c8f2e68e3d26634bc07d0c788b0fbb23a12e06d2acd95fa309898f7373257e9d"
+  },
+  "commands": {
+    "workspace": "cargo test --workspace --locked --offline",
+    "clippy": "cargo clippy --locked --offline -p homesensed -p homesense-storage --lib -- -D warnings"
+  },
+  "results": {
+    "current": {
+      "exit_code": 0,
+      "test_blocks": 102,
+      "passed": 509,
+      "failed": 0,
+      "ignored": 0,
+      "log_sha256": "baa03e938cae4f93795975cfb8fb4bc89ba6c73273c4c75807cdcae93b8a35f5"
+    },
+    "committed": {
+      "exit_code": 0,
+      "test_blocks": 101,
+      "passed": 508,
+      "failed": 0,
+      "ignored": 0,
+      "log_sha256": "6ab814b385a939f5e6ff80ea0e115def1a8cadb9cd685a3f56cee390f21e5c91"
+    },
+    "tls": {
+      "exit_code": 0,
+      "summary": {
+        "https": "passed",
+        "wss": "passed",
+        "untrusted_and_wrong_name": "rejected",
+        "plaintext": "rejected",
+        "unsafe_key_permissions_and_mismatch": "rejected"
+      },
+      "log_sha256": "e33e2204000d22e3711a7dafd401d0bac122d4e7591dcad1c765a2b31f6cb320"
+    },
+    "publication": {
+      "exit_code": 0,
+      "summary": {
+        "publication": "passed",
+        "restart_replay": "none",
+        "backups": 1,
+        "scene_runs": 1
+      },
+      "log_sha256": "b498cc2344a3dd1895a1cfd3a72233d05a2710ae2af2738a7dc5eab2eda0bafe"
+    },
+    "committed_clippy": {
+      "exit_code": 101,
+      "error": "clippy::collapsible_if",
+      "file": "crates/homesense-hap/src/events.rs",
+      "line": 49,
+      "note": "matching correction exists only among preexisting uncommitted changes; those changes were not swept into this checkpoint",
+      "log_sha256": "9903839bd6d0464a5884bf5cc22cc9fba71f47fedac05bc1fbec8e89eeac1140"
+    },
+    "draft_json": "passed from committed snapshot"
+  },
+  "scope": "offline synthetic tests and loopback only; no physical deployment",
+  "worktree_only_test": "local private event regression excluded from public git archive"
+}
