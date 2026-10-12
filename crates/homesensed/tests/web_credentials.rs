@@ -60,3 +60,23 @@ fn bootstrap_never_reinstates_revoked_credentials_or_overwrites_scopes() {
     let third=Tokens::open_bootstrapped(&path,secret,expanded).unwrap();assert!(third.authenticate(&header).is_none());drop(third);
     std::fs::remove_dir_all(root).unwrap();
 }
+
+#[test]
+fn managed_revocation_rechecks_admin_preserves_last_admin_and_invalidates_sessions() {
+    use homesensed::web_auth::Tokens;
+    let root=std::env::temp_dir().join(format!("managed-revoke-{}",Uuid::new_v4()));std::fs::create_dir(&root).unwrap();let path=root.join("credentials.sqlite");
+    let tokens=Tokens::open(&path).unwrap();let admin=Uuid::new_v4();let member=Uuid::new_v4();
+    let secret="abcdefghijklmnopqrstuvwxyz0123456789";let member_secret="0123456789abcdefghijklmnopqrstuvwxyz";let header=format!("Bearer {secret}");let member_header=format!("Bearer {member_secret}");
+    let grant=Grant{controller:admin,role:Role::Administrator,scenes:Default::default(),devices:Default::default()};
+    tokens.insert(admin,secret,grant.clone()).unwrap();let mut member_grant=grant;member_grant.role=Role::Member;tokens.insert(member,member_secret,member_grant).unwrap();
+    let session=tokens.login(&header).unwrap();let member_session=tokens.login(&member_header).unwrap();
+    assert_eq!(tokens.revoke_managed(member,Some(&member_header),None,None),Err("administrator_required"));
+    assert_eq!(tokens.revoke_managed(member,None,Some(&session.cookie),Some("bad")),Err("administrator_required"));
+    assert_eq!(tokens.revoke_managed(admin,Some(&header),None,None),Err("last_administrator"));
+    let sql=rusqlite::Connection::open(&path).unwrap();sql.execute_batch("CREATE TRIGGER fail_revoke BEFORE DELETE ON web_credential BEGIN SELECT RAISE(ABORT,'failure'); END;").unwrap();
+    assert_eq!(tokens.revoke_managed(member,Some(&header),None,None),Err("credential_store_unavailable"));assert!(tokens.session(&member_session.cookie,None,false).is_some());
+    sql.execute_batch("DROP TRIGGER fail_revoke").unwrap();
+    tokens.revoke_managed(member,None,Some(&session.cookie),Some(&session.csrf)).unwrap();assert!(tokens.session(&member_session.cookie,None,false).is_none());
+    assert_eq!(tokens.revoke_managed(member,Some(&header),None,None),Err("credential_not_found"));
+    drop(tokens);let tokens=Tokens::open(&path).unwrap();assert!(tokens.authenticate(&member_header).is_none());assert!(tokens.authenticate(&header).is_some());drop(tokens);drop(sql);std::fs::remove_dir_all(root).unwrap();
+}

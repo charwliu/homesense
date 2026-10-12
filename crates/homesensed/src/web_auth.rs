@@ -128,6 +128,31 @@ impl Tokens {
         if let Some(previous)=entries.remove(&id) {sessions.retain(|_,session|session.generation!=previous.generation);}
         Ok(())
     }
+    /// Recheck the requesting credential while holding the mutation lock.
+    /// The last administrator cannot be removed through the management API.
+    pub fn revoke_managed(&self, id: Uuid, bearer: Option<&str>, cookie: Option<&str>, csrf: Option<&str>) -> Result<(), &'static str> {
+        let mut entries=self.entries.write().map_err(|_|"credential_store_unavailable")?;
+        let mut sessions=self.sessions.write().map_err(|_|"credential_store_unavailable")?;
+        let authorized=match (bearer,cookie) {
+            (Some(header),None)=>header.strip_prefix("Bearer ").filter(|s|(32..=256).contains(&s.len()))
+                .is_some_and(|secret|entries.values().any(|entry|entry.grant.role==Role::Administrator && bool::from(entry.hash.ct_eq(&digest(secret))))),
+            (None,Some(cookie))=>sessions.get(&digest(cookie)).is_some_and(|session| {
+                cookie.len()==64 && session.expires>std::time::Instant::now()
+                    && csrf.is_some_and(|csrf|bool::from(session.csrf.ct_eq(&digest(csrf))))
+                    && entries.values().any(|entry|entry.generation==session.generation && entry.grant.role==Role::Administrator && bool::from(entry.hash.ct_eq(&session.credential)))
+            }),
+            _=>false,
+        };
+        if !authorized {return Err("administrator_required");}
+        let target=entries.get(&id).ok_or("credential_not_found")?;
+        if target.grant.role==Role::Administrator && entries.values().filter(|entry|entry.grant.role==Role::Administrator).count()==1 {return Err("last_administrator");}
+        if let Some(store)=&self.persistence {
+            store.lock().map_err(|_|"credential_store_unavailable")?.revoke(id).map_err(|_|"credential_store_unavailable")?;
+        }
+        let previous=entries.remove(&id).ok_or("credential_not_found")?;
+        sessions.retain(|_,session|session.generation!=previous.generation);
+        Ok(())
+    }
     pub fn login(&self, header: &str) -> Option<SessionSecret> {
         let secret=header.strip_prefix("Bearer ")?;
         if !(32..=256).contains(&secret.len()) {return None;}
