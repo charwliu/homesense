@@ -217,7 +217,9 @@ document.getElementById('preview-draft').onclick = async () => {
     if(epoch!==previewEpoch || id!==document.getElementById('draft-id').value.trim())return;
     const impact=result.impact;
     publicationPreview={id:result.draft,boot:impact.boot}; document.getElementById('activate-draft').disabled=false;
-    document.getElementById('draft-impact').textContent=`版本 ${impact.active_revision} → ${impact.candidate_revision}\n需要重建网关连接：${impact.connection_rebuild_required?'是':'否'}\n发布将结束旧版本规则和定时任务。\n受影响场景：\n` + (impact.interrupted_runs.map(run=>`${run.definition || run.audit_id} · ${run.status}`).join('\n') || '当前无未结束场景') + '\n此为当前快照，不锁定运行状态；尚未激活。';
+    const labels={added:'新增',removed:'移除',metadata:'名称／房间',enabled:'启用',disabled:'禁用',binding:'物理绑定',supply_relay:'供电继电器',default_on_level:'默认开启亮度',motor_calibration:'电机校准',gateway_or_module:'网关／模块'};
+    const deviceChanges=(impact.device_changes||[]).map(item=>`${item.device}：${item.changes.map(change=>labels[change]||change).join('、')}`).join('\n')||'无设备字段变化';
+    document.getElementById('draft-impact').textContent=`版本 ${impact.active_revision} → ${impact.candidate_revision}\n需要重建网关连接：${impact.connection_rebuild_required?'是':'否'}\n发布将结束旧版本规则和定时任务。\n设备变化：\n${deviceChanges}\n受影响场景：\n` + (impact.interrupted_runs.map(run=>`${run.definition || run.audit_id} · ${run.status}`).join('\n') || '当前无未结束场景') + '\n此为当前快照，不锁定运行状态；尚未激活。';
   } catch(error) {if(epoch===previewEpoch){invalidatePreview();status.textContent=error.message;}}
 };
 
