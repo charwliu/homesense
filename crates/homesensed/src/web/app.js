@@ -380,7 +380,9 @@ document.getElementById('runtime-status').onclick = async () => {
   const output=document.getElementById('runtime-result');output.textContent='读取中…';
   try {
     const s=await request('/api/v1/diagnostics');
-    output.textContent=`控制准入就绪：${s.ready}\n配置版本：${s.revision}\n传输代次：${s.transport_epoch}\n排队：${s.queued}；正在写出：${s.in_flight}\n网关已同步：${s.gateway_ready}\n存储健康：${s.storage_healthy}\n准入失败：${s.failed}；停止中：${s.stopping}；发布中：${s.publishing}\n这是读取时刻的准入状态，不证明设备已到达目标状态。`;
+    const hapLabels={unknown:'未知',disabled:'未启用',listening:'监听中（不代表已配对或客户端可达）',degraded:'已降级，HAP 入口已停止',reconfiguring:'正在重建'};
+    const hap=Object.prototype.hasOwnProperty.call(hapLabels,s.hap)?hapLabels[s.hap]:'未知';
+    output.textContent=`Apple 家庭入口：${hap}\n控制准入就绪：${s.ready}\n配置版本：${s.revision}\n传输代次：${s.transport_epoch}\n排队：${s.queued}；正在写出：${s.in_flight}\n网关已同步：${s.gateway_ready}\n存储健康：${s.storage_healthy}\n准入失败：${s.failed}；停止中：${s.stopping}；发布中：${s.publishing}\n这是读取时刻的准入状态，不证明设备已到达目标状态。`;
   } catch(error) {if(epoch===sessionEpoch)output.textContent=error.message;}
 };
 

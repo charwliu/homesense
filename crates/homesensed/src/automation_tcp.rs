@@ -182,6 +182,7 @@ async fn serve_inner(devices:&[u8],rules:&[u8],directory:&Path,duration:Duration
             if let Some(settings)=management_settings.take() {
                 management=Some(crate::management_endpoint::Endpoint::start(settings,directory,&admission,controller,&runtime,publisher.clone().ok_or("management publisher missing")?).await?);
             } else if let Some(endpoint)=&management {endpoint.install(&admission,controller,&runtime).await?;}
+            if let Some(endpoint)=&management {endpoint.set_hap_status(if hap.is_some(){crate::web_api::HapStatus::Listening}else{crate::web_api::HapStatus::Disabled})?;}
             let outcome={
                 let (ready,mut started)=tokio::sync::oneshot::channel();
                 let mut running=false;
@@ -195,6 +196,7 @@ async fn serve_inner(devices:&[u8],rules:&[u8],directory:&Path,duration:Duration
                             // Retire sessions/projection without cancelling the shared automation
                             // owner. It retains its bounded watch sender until this generation ends.
                             if let Some(endpoint)=hap.take() {endpoint.shutdown().await;}
+                            if let Some(endpoint)=&management {endpoint.set_hap_status(crate::web_api::HapStatus::Degraded)?;}
 
                         },
                         result=async {match management.as_mut(){Some(endpoint)=>endpoint.finished().await,None=>std::future::pending().await}}=>{
@@ -247,7 +249,7 @@ async fn serve_inner(devices:&[u8],rules:&[u8],directory:&Path,duration:Duration
                     }
                 }
             };
-            if let Some(endpoint)=&management {endpoint.pause()?;}
+            if let Some(endpoint)=&management {endpoint.pause()?;if hap_settings.is_some(){endpoint.set_hap_status(crate::web_api::HapStatus::Reconfiguring)?;}}
             if let Some(endpoint)=hap.take() {endpoint.shutdown().await;}
             drop(runtime);
             let outcome=match outcome {
