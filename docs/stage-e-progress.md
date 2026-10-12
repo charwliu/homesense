@@ -40,6 +40,8 @@ Safari 与应用内浏览器使用独立 Cookie 会话，各保存并预览基�
 
 HAP 依赖非加密维护：显式 future 生命周期、测试导入和未使用内部字段；删除无调用的私有旧 TLV 解码器，保留现有严格解码路径。生产依赖警告从 54 降为 23；未改认证／加密算法，余下弃用 API 留待单独验证。工作区 579 项与显式选择 HAP 库的 53 项单元测试通过；后者不在工作区测试计数内，覆盖坏证明／标签、配对、会话边界和故障隔离。工作区严格 Clippy 通过，完整 vendor 严格门槛未宣称通过。见 [证据](evidence/stage-e-browser/hap-noncrypto-quality-9e5b9a7.json)。EA-5 与现场范围保持不变。
 
+AEAD API 迁移已覆盖 Pair Setup、Pair Verify、加密记录及库内模拟控制器，保留 HKDF、签名、nonce、AAD、标签和计数顺序。离线旧／新 API 64 组对比通过；现有 53 项 HAP 库测试与 579 项工作区回归通过，工作区严格 Clippy 通过，产品／库单元构建均无警告。旧接口只是当前接口的包装，比较见 [程序](../tools/verify_aead_api.rs) 与 [证据](evidence/stage-e-browser/hap-aead-quality-ef1290c.json)。离线工具旧侧故意调用弃用 API；完整 vendor 生成式风格 lint 门槛未宣称通过。EA-5、现场设备与配对数据库未改。
+
 以下检查点按实现时间保留；其中测试数量和缺口描述只对应当时版本。当前范围以上表及最新集成回归记录为准。
 
 ## 配置与导入检查点

@@ -1,4 +1,4 @@
-use aead::{array::Array, AeadInPlace, KeyInit};
+use aead::{AeadInOut, KeyInit};
 use chacha20poly1305::ChaCha20Poly1305;
 use futures::{
     channel::oneshot,
@@ -175,12 +175,12 @@ async fn handle_start(
     let mut nonce = vec![0; 4];
     nonce.extend(b"PV-Msg02");
 
-    let aead = ChaCha20Poly1305::new(Array::from_slice(&session_key));
+    let aead = ChaCha20Poly1305::new((&session_key).into());
 
     let mut encrypted_data = Vec::new();
     encrypted_data.extend_from_slice(&encoded_sub_tlv);
     let auth_tag =
-        aead.encrypt_in_place_detached(Array::from_slice(&nonce), &[], &mut encrypted_data)?;
+        aead.encrypt_inout_detached(nonce.as_slice().try_into().expect("12-byte HAP nonce"), &[], encrypted_data.as_mut_slice().into())?;
     encrypted_data.extend(&auth_tag);
 
     info!("pair verify M2: sending verify start response");
@@ -212,15 +212,15 @@ async fn handle_finish(
             let mut nonce = vec![0; 4];
             nonce.extend(b"PV-Msg03");
 
-            let aead = ChaCha20Poly1305::new(Array::from_slice(&session.session_key));
+            let aead = ChaCha20Poly1305::new((&session.session_key).into());
 
             let mut decrypted_data = Vec::new();
             decrypted_data.extend_from_slice(&encrypted_data);
-            aead.decrypt_in_place_detached(
-                Array::from_slice(&nonce),
+            aead.decrypt_inout_detached(
+                nonce.as_slice().try_into().expect("12-byte HAP nonce"),
                 &[],
-                &mut decrypted_data,
-                Array::from_slice(&auth_tag),
+                decrypted_data.as_mut_slice().into(),
+                auth_tag.as_slice().try_into().expect("16-byte HAP tag"),
             )?;
 
             let sub_tlv = tlv::try_decode(&decrypted_data)?;
@@ -402,17 +402,17 @@ mod exchange_tests {
         hkdf::Hkdf::<sha2::Sha512>::new(Some(b"Pair-Verify-Encrypt-Salt"), shared.as_bytes())
             .expand(b"Pair-Verify-Encrypt-Info", &mut key)
             .unwrap();
-        let cipher = ChaCha20Poly1305::new(Array::from_slice(&key));
+        let cipher = ChaCha20Poly1305::new((&key).into());
         let encrypted = &m2[&(Type::EncryptedData as u8)];
         let mut plaintext = encrypted[..encrypted.len() - 16].to_vec();
         let mut nonce = [0; 12];
         nonce[4..].copy_from_slice(b"PV-Msg02");
         cipher
-            .decrypt_in_place_detached(
-                Array::from_slice(&nonce),
+            .decrypt_inout_detached(
+                (&nonce).into(),
                 &[],
-                &mut plaintext,
-                Array::from_slice(&encrypted[encrypted.len() - 16..]),
+                plaintext.as_mut_slice().into(),
+                encrypted[encrypted.len() - 16..].try_into().unwrap(),
             )
             .unwrap();
         let sub = tlv::try_decode(&plaintext).unwrap();
@@ -447,7 +447,7 @@ mod exchange_tests {
         .encode();
         nonce[4..].copy_from_slice(b"PV-Msg03");
         let tag = cipher
-            .encrypt_in_place_detached(Array::from_slice(&nonce), &[], &mut encrypted)
+            .encrypt_inout_detached((&nonce).into(), &[], encrypted.as_mut_slice().into())
             .unwrap();
         encrypted.extend(tag);
         if fault == 3 {

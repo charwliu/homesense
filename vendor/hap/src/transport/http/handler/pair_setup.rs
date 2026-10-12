@@ -1,4 +1,4 @@
-use aead::{array::Array, AeadInPlace, KeyInit};
+use aead::{AeadInOut, KeyInit};
 use chacha20poly1305::ChaCha20Poly1305;
 use futures::future::{BoxFuture, FutureExt};
 use crate::transport::http::body::Body;
@@ -297,15 +297,15 @@ async fn handle_exchange(
                 let mut nonce = vec![0; 4];
                 nonce.extend(b"PS-Msg05");
 
-                let aead = ChaCha20Poly1305::new(Array::from_slice(&encryption_key));
+                let aead = ChaCha20Poly1305::new((&encryption_key).into());
 
                 let mut decrypted_data = Vec::new();
                 decrypted_data.extend_from_slice(&encrypted_data);
-                aead.decrypt_in_place_detached(
-                    Array::from_slice(&nonce),
+                aead.decrypt_inout_detached(
+                    nonce.as_slice().try_into().expect("12-byte HAP nonce"),
                     &[],
-                    &mut decrypted_data,
-                    Array::from_slice(&auth_tag),
+                    decrypted_data.as_mut_slice().into(),
+                    auth_tag.as_slice().try_into().expect("16-byte HAP tag"),
                 )?;
 
                 let sub_tlv = tlv::try_decode(&decrypted_data)?;
@@ -392,10 +392,10 @@ async fn handle_exchange(
 
                 let mut encrypted_data = Vec::new();
                 encrypted_data.extend_from_slice(&encoded_sub_tlv);
-                let auth_tag = aead.encrypt_in_place_detached(
-                    Array::from_slice(&nonce),
+                let auth_tag = aead.encrypt_inout_detached(
+                    nonce.as_slice().try_into().expect("12-byte HAP nonce"),
                     &[],
-                    &mut encrypted_data,
+                    encrypted_data.as_mut_slice().into(),
                 )?;
                 encrypted_data.extend(&auth_tag);
 
@@ -731,11 +731,11 @@ mod complete_exchange_tests {
         ]
         .encode();
         let encryption_key = derive(b"Pair-Setup-Encrypt-Salt", b"Pair-Setup-Encrypt-Info");
-        let cipher = ChaCha20Poly1305::new(Array::from_slice(&encryption_key));
+        let cipher = ChaCha20Poly1305::new((&encryption_key).into());
         let mut nonce = [0; 12];
         nonce[4..].copy_from_slice(b"PS-Msg05");
         let tag = cipher
-            .encrypt_in_place_detached(Array::from_slice(&nonce), &[], &mut data)
+            .encrypt_inout_detached((&nonce).into(), &[], data.as_mut_slice().into())
             .unwrap();
         data.extend(tag);
         let m5 = vec![Value::State(5), Value::EncryptedData(data)].encode();
@@ -763,11 +763,11 @@ mod complete_exchange_tests {
             let mut plaintext = data[..data.len() - 16].to_vec();
             nonce[4..].copy_from_slice(b"PS-Msg06");
             cipher
-                .decrypt_in_place_detached(
-                    Array::from_slice(&nonce),
+                .decrypt_inout_detached(
+                    (&nonce).into(),
                     &[],
-                    &mut plaintext,
-                    Array::from_slice(&data[data.len() - 16..]),
+                    plaintext.as_mut_slice().into(),
+                    data[data.len() - 16..].try_into().unwrap(),
                 )
                 .unwrap();
             let sub = tlv::try_decode(&plaintext).unwrap();

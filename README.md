@@ -17,7 +17,9 @@ HomeSense（中文名：知居）是原生 Rust 家庭中控，通过 TCP485 网
 
 上一次质量检查基于 `061c3c2` 干净源码加 9 个限定修复：测试控制器改用当前 `AeadInOut` API，保留密钥派生、nonce、AAD 和报文格式；修复测试锁作用域及等价 lint。**完整 workspace 回归再次 579 项通过，工作区所有目标严格 Clippy 通过**，未新增 lint 放行。`vendor/hap` 被排除在 workspace 外，依赖仍产生 54 条警告；这不是 vendor 无警告结论。初次回归因沙箱禁止本机 TCP 绑定失败，获准回环环境重跑后通过。见 [质量检查证据](docs/evidence/stage-e-browser/clean-workspace-quality-061c3c2.json)。
 
-HAP 依赖维护：基于 `9e5b9a7` 独立源码，显式标注原有 future 生命周期、整理测试专用导入、移除无调用的私有旧 TLV 解码器，并保持 `remote` 的 JSON 字段映射及 waker 所有权；生产认证与加密算法未改。生产依赖警告由 54 条降至 **23 条**，剩余为加密 API 弃用。完整工作区 **579 项**、额外 HAP 依赖库 **53 项**测试均通过，工作区成员严格 Clippy 通过；未声称完整 vendor 严格 Clippy 通过。见 [HAP 维护证据](docs/evidence/stage-e-browser/hap-noncrypto-quality-9e5b9a7.json)。
+上一批 HAP 依赖维护：基于 `9e5b9a7` 独立源码，显式标注原有 future 生命周期、整理测试专用导入、移除无调用的私有旧 TLV 解码器，并保持 `remote` 的 JSON 字段映射及 waker 所有权；生产认证与加密算法未改。生产依赖警告由 54 条降至 **23 条**，剩余为加密 API 弃用。完整工作区 **579 项**、额外 HAP 依赖库 **53 项**测试均通过，工作区成员严格 Clippy 通过；未声称完整 vendor 严格 Clippy 通过。见 [HAP 维护证据](docs/evidence/stage-e-browser/hap-noncrypto-quality-9e5b9a7.json)。
+
+最新 AEAD 迁移：Pair Setup、Pair Verify 与加密记录使用 `AeadInOut` 和当前定长转换，保持原密钥派生、nonce／AAD／标签和计数顺序。旧／新接口 **64 组**密文／标签一致、交叉解密和错误标签／AAD 拒绝通过；工作区 **579 项**、HAP 库 **53 项**测试通过，工作区严格 Clippy 通过，以上产品构建均无警告。完整 vendor 单独严格 Clippy 的生成式风格问题仍不宣称通过。比较程序的旧侧有意使用弃用 API，仅作为离线证据工具，不进入产品目标。见 [迁移证据](docs/evidence/stage-e-browser/hap-aead-quality-ef1290c.json) 和 [比较程序](tools/verify_aead_api.rs)。本轮未部署现场。
 
 剩余：65 个场景、212 个程序以及 24 个变量的原项目语义审核；窗帘条件确认继续挂起。阶段 E 尚需当前集成版 Apple 客户端、现场停止／面板事件、真实手机 Web 与 LAN TLS 验收。正式部署、全量恢复演练和 72 小时运行属于 F；整屋接管属于 G。EA-5 配置与控制范围保持不变，私有项目资料只保留本地。
 

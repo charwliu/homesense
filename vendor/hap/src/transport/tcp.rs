@@ -1,7 +1,7 @@
-use aead::{array::Array, AeadInPlace, KeyInit};
+use aead::{AeadInOut, KeyInit};
 use byteorder::{ByteOrder, LittleEndian};
 use bytes::{Buf, BytesMut};
-use chacha20poly1305::{ChaCha20Poly1305, Nonce, Tag};
+use chacha20poly1305::ChaCha20Poly1305;
 use futures::{
     channel::{
         mpsc::{self, Receiver, Sender},
@@ -447,7 +447,7 @@ fn decrypt_chunk(
     count: &mut u64,
 ) -> Result<Vec<u8>> {
     let read_key = compute_read_key(shared_secret)?;
-    let aead = ChaCha20Poly1305::new(Array::from_slice(&read_key));
+    let aead = ChaCha20Poly1305::new((&read_key).into());
 
     let mut nonce = vec![0; 4];
     let mut suffix = vec![0; 8];
@@ -457,11 +457,11 @@ fn decrypt_chunk(
 
     let mut buffer = Vec::new();
     buffer.extend_from_slice(data);
-    aead.decrypt_in_place_detached(
-        Nonce::from_slice(&nonce),
+    aead.decrypt_inout_detached(
+        nonce.as_slice().try_into().expect("12-byte HAP nonce"),
         aad,
-        &mut buffer,
-        Tag::from_slice(&auth_tag),
+        buffer.as_mut_slice().into(),
+        auth_tag.try_into().expect("16-byte HAP tag"),
     )?;
 
     Ok(buffer)
@@ -473,7 +473,7 @@ fn encrypt_chunk(
     count: &mut u64,
 ) -> Result<([u8; 2], Vec<u8>, [u8; 16])> {
     let write_key = compute_write_key(shared_secret)?;
-    let aead = ChaCha20Poly1305::new(Array::from_slice(&write_key));
+    let aead = ChaCha20Poly1305::new((&write_key).into());
 
     let mut nonce = vec![0; 4];
     let mut suffix = vec![0; 8];
@@ -486,7 +486,7 @@ fn encrypt_chunk(
 
     let mut buffer = Vec::new();
     buffer.extend_from_slice(data);
-    let auth_tag = aead.encrypt_in_place_detached(Nonce::from_slice(&nonce), &aad, &mut buffer)?;
+    let auth_tag = aead.encrypt_inout_detached(nonce.as_slice().try_into().expect("12-byte HAP nonce"), &aad, buffer.as_mut_slice().into())?;
 
     Ok((aad, buffer, auth_tag.into()))
 }
@@ -604,9 +604,7 @@ mod record_tests {
         assert!(writer.pending.is_none());
         // Independent record parsing/decryption checks lengths, byte order and
         // nonce sequence, not merely equivalence to this writer's own encoder.
-        let cipher = ChaCha20Poly1305::new(Array::from_slice(
-            &compute_write_key(&secret).unwrap(),
-        ));
+        let cipher = ChaCha20Poly1305::new((&compute_write_key(&secret).unwrap()).into());
         let mut position = 0;
         let mut decoded = Vec::new();
         let mut nonce_count = 0u64;
@@ -619,11 +617,11 @@ mod record_tests {
             let mut nonce = [0u8; 12];
             LittleEndian::write_u64(&mut nonce[4..], nonce_count);
             cipher
-                .decrypt_in_place_detached(
-                    Nonce::from_slice(&nonce),
+                .decrypt_inout_detached(
+                    (&nonce).into(),
                     aad,
-                    &mut value,
-                    Tag::from_slice(tag),
+                    value.as_mut_slice().into(),
+                    tag.try_into().unwrap(),
                 )
                 .unwrap();
             decoded.extend(value);
@@ -949,7 +947,7 @@ mod read_record_tests {
     }
     fn encoded(secret: &[u8; 32], messages: &[Vec<u8>]) -> Vec<u8> {
         let cipher =
-            ChaCha20Poly1305::new(Array::from_slice(&compute_read_key(secret).unwrap()));
+            ChaCha20Poly1305::new((&compute_read_key(secret).unwrap()).into());
         let mut wire = Vec::new();
         for (count, message) in messages.iter().enumerate() {
             let mut aad = [0; 2];
@@ -958,7 +956,7 @@ mod read_record_tests {
             LittleEndian::write_u64(&mut nonce[4..], count as u64);
             let mut value = message.clone();
             let tag = cipher
-                .encrypt_in_place_detached(Nonce::from_slice(&nonce), &aad, &mut value)
+                .encrypt_inout_detached((&nonce).into(), &aad, value.as_mut_slice().into())
                 .unwrap();
             wire.extend(aad);
             wire.extend(value);
@@ -1097,7 +1095,7 @@ mod socket_tests {
     }
     fn client_records(secret: &[u8; 32], plaintext: &[u8]) -> Vec<u8> {
         let cipher =
-            ChaCha20Poly1305::new(Array::from_slice(&compute_read_key(secret).unwrap()));
+            ChaCha20Poly1305::new((&compute_read_key(secret).unwrap()).into());
         let mut wire = Vec::new();
         for (counter, chunk) in plaintext.chunks(1024).enumerate() {
             let mut aad = [0; 2];
@@ -1106,7 +1104,7 @@ mod socket_tests {
             LittleEndian::write_u64(&mut nonce[4..], counter as u64);
             let mut value = chunk.to_vec();
             let tag = cipher
-                .encrypt_in_place_detached(Nonce::from_slice(&nonce), &aad, &mut value)
+                .encrypt_inout_detached((&nonce).into(), &aad, value.as_mut_slice().into())
                 .unwrap();
             wire.extend(aad);
             wire.extend(value);
@@ -1163,14 +1161,12 @@ mod socket_tests {
             client.read_exact(&mut body).await.unwrap();
             let mut tag = [0; 16];
             client.read_exact(&mut tag).await.unwrap();
-            ChaCha20Poly1305::new(Array::from_slice(
-                &compute_write_key(&secret).unwrap(),
-            ))
-            .decrypt_in_place_detached(
-                Nonce::from_slice(&[0; 12]),
+            ChaCha20Poly1305::new((&compute_write_key(&secret).unwrap()).into())
+            .decrypt_inout_detached(
+                (&[0u8; 12]).into(),
                 &aad,
-                &mut body,
-                Tag::from_slice(&tag),
+                body.as_mut_slice().into(),
+                (&tag).into(),
             )
             .unwrap();
             assert_eq!(body, b"encrypted response");
@@ -1228,9 +1224,7 @@ mod socket_tests {
             }
             assert_eq!(received, plaintext);
             outgoing.try_send(plaintext.clone()).unwrap();
-            let cipher = ChaCha20Poly1305::new(Array::from_slice(
-                &compute_write_key(&secret).unwrap(),
-            ));
+            let cipher = ChaCha20Poly1305::new((&compute_write_key(&secret).unwrap()).into());
             let mut received = Vec::new();
             for counter in 0..3u64 {
                 let mut aad = [0; 2];
@@ -1244,11 +1238,11 @@ mod socket_tests {
                 let mut nonce = [0; 12];
                 LittleEndian::write_u64(&mut nonce[4..], counter);
                 cipher
-                    .decrypt_in_place_detached(
-                        Nonce::from_slice(&nonce),
+                    .decrypt_inout_detached(
+                        (&nonce).into(),
                         &aad,
-                        &mut body,
-                        Tag::from_slice(&tag),
+                        body.as_mut_slice().into(),
+                        (&tag).into(),
                     )
                     .unwrap();
                 received.extend(body);
