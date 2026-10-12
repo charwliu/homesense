@@ -23,6 +23,14 @@ pub struct DeviceMetadataEdit {
     pub name:String,
     pub room:Option<String>,
 }
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RoomEdit {
+    pub id:Uuid,
+    pub expected_revision:String,
+    pub revision:String,
+    pub room:homesense_config::Room,
+}
 type StoredDraft = (String, i64, i64, Vec<u8>, Vec<u8>);
 #[derive(Debug, PartialEq, Eq)]
 pub struct Summary {
@@ -145,6 +153,18 @@ impl Drafts {
         let device=devices.iter_mut().find(|v|v["id"]==edit.device).and_then(|v|v.as_object_mut()).ok_or("device not found")?;
         device.insert("name".into(),edit.name.into());
         if let Some(room)=edit.room {device.insert("room".into(),room.into());} else {device.remove("room");}
+        draft.devices["revision"]=draft.revision.into();draft.automation["configuration_revision"]=draft.revision.into();
+        self.save(principal,&draft,context)?;Ok(draft.id)
+    }
+    /// Upsert room metadata while keeping device membership and bindings intact.
+    pub fn edit_room(&mut self,principal:Uuid,source:Uuid,edit:RoomEdit,context:ExecutionContext)->Result<Uuid,String> {
+        if edit.id==source{return Err("new draft id required".into());}
+        let mut draft=self.get(principal,source)?.ok_or("draft not found")?;
+        draft.id=edit.id;draft.expected_revision=edit.expected_revision.parse().map_err(|_|"invalid revision")?;draft.revision=edit.revision.parse().map_err(|_|"invalid revision")?;
+        if edit.expected_revision!=draft.expected_revision.to_string() || edit.revision!=draft.revision.to_string(){return Err("invalid revision".into());}
+        let rooms=draft.devices.as_object_mut().ok_or("invalid device document")?.entry("rooms").or_insert_with(||serde_json::json!([])).as_array_mut().ok_or("invalid rooms")?;
+        let value=serde_json::to_value(&edit.room).map_err(|e|e.to_string())?;
+        if let Some(old)=rooms.iter_mut().find(|r|r["id"]==edit.room.id){*old=value;}else{rooms.push(value);}
         draft.devices["revision"]=draft.revision.into();draft.automation["configuration_revision"]=draft.revision.into();
         self.save(principal,&draft,context)?;Ok(draft.id)
     }
