@@ -7,6 +7,7 @@ with tempfile.TemporaryDirectory(prefix='homesense-publication-') as directory:
  root=pathlib.Path(directory);state=root/'state';secret=secrets.token_urlsafe(32)
  token=root/'token';token.write_text(secret);token.chmod(0o600)
  devices=json.loads((repo/'config/simulation.json').read_text())
+ original_name=devices['devices'][0]['name']
  rules={'schema_version':1,'configuration_revision':1,'variables':[],'rules':[],'timed_scenes':[{'id':'demo','enabled':True,'review_evidence':'synthetic test','max_lateness_ms':1000,'steps':[{'source':'fixture','offset_ms':60000,'device':'simulation:light','command':{'kind':'level','value':30,'ramp':False}}]}]}
  device_file=root/'devices.json';rule_file=root/'rules.json'
  device_file.write_text(json.dumps(devices));rule_file.write_text(json.dumps(rules))
@@ -17,7 +18,7 @@ with tempfile.TemporaryDirectory(prefix='homesense-publication-') as directory:
   try:
    with urllib.request.urlopen(req,timeout=25) as response:return response.status,json.load(response)
   except urllib.error.HTTPError as e:return e.code,json.load(e)
- activation=None;draft_id=str(uuid.uuid4())
+ activation=None;draft_id=str(uuid.uuid4());restore_id=str(uuid.uuid4());restore_activation=None
  for attempt in range(2):
   command=[str(binary),'serve-web-simulation',str(device_file),str(rule_file),str(state),'15',f'127.0.0.1:{port}',str(token),'--administrator']
   with (root/f'run-{attempt}.log').open('w') as log:
@@ -46,14 +47,39 @@ with tempfile.TemporaryDirectory(prefix='homesense-publication-') as directory:
      code,snapshot=request('/api/v1/devices');assert code==200 and snapshot['revision']==2 and snapshot['devices'][0]['name']=='Renamed simulation light'
      assert request('/api/v1/config/activations/'+draft_id,{'request_id':'different-key','boot':activation['boot']})[0]==409
     code,duplicate=request('/api/v1/config/activations/'+draft_id,activation);assert code==200 and duplicate['revision']==2,(code,duplicate)
+    if attempt==0:
+     restore={'id':restore_id,'expected_revision':'2','revision':'3'}
+     for _ in range(2):
+      code,result=request('/api/v1/config/versions/1/restore-draft',restore);assert code==200 and result['active'] is False,(code,result)
+     assert request('/api/v1/devices')[1]['revision']==2
+     code,source=request('/api/v1/config/drafts/'+restore_id+'/source');assert code==200
+     assert source['expected_revision']=='2' and source['revision']=='3'
+     assert json.loads(source['devices'])['devices'][0]['name']==original_name
+     code,preview=request('/api/v1/config/previews/'+restore_id);assert code==200
+     restore_activation={'request_id':'restore-once','boot':preview['impact']['boot']}
+     code,result=request('/api/v1/config/activations/'+restore_id,restore_activation);assert code==202 and result['outcome']=='activated',(code,result)
+    code,snapshot=request('/api/v1/devices');assert code==200 and snapshot['revision']==3 and snapshot['devices'][0]['name']==original_name,(code,snapshot)
+    code,duplicate=request('/api/v1/config/activations/'+restore_id,restore_activation);assert code==200 and duplicate['revision']==3,(code,duplicate)
+    assert request('/health/ready')==(200,{'ready':True})
     process.wait(timeout=20);assert process.returncode==0
    finally:
     if process.poll() is None:process.terminate();process.wait(timeout=5)
   with sqlite3.connect(state/'automation-simulation.sqlite') as db:
    assert db.execute('SELECT count(*) FROM scene_run').fetchone()[0]==1
    assert db.execute('SELECT status FROM scene_run').fetchone()[0]=='cancelled'
+   for table,field in [('configuration_revision','revision'),('automation_revision','configuration_revision')]:
+    old=json.loads(db.execute(f'SELECT payload FROM {table} WHERE revision=1').fetchone()[0])
+    restored=json.loads(db.execute(f'SELECT payload FROM {table} WHERE revision=3').fetchone()[0])
+    old[field]=3;assert restored==old
+
    # Read authoritative published bytes for explicit restart; do not replace or replay them.
-   device_file.write_bytes(db.execute('SELECT payload FROM configuration_revision WHERE revision=2').fetchone()[0])
-   rule_file.write_bytes(db.execute('SELECT payload FROM automation_revision WHERE revision=2').fetchone()[0])
-  backups=list((state/'publication-backups').glob('*.sqlite'));assert len(backups)==1
- print(json.dumps({'publication':'passed','restart_replay':'none','backups':1,'scene_runs':1}))
+   device_file.write_bytes(db.execute('SELECT payload FROM configuration_revision WHERE revision=3').fetchone()[0])
+   rule_file.write_bytes(db.execute('SELECT payload FROM automation_revision WHERE revision=3').fetchone()[0])
+  backups=list((state/'publication-backups').glob('*.sqlite'));assert len(backups)==2
+  backup_versions=[]
+  for backup in backups:
+   with sqlite3.connect(backup) as db:
+    backup_versions.append(db.execute('SELECT max(revision) FROM configuration_revision').fetchone()[0])
+  assert sorted(backup_versions)==[1,2]
+
+ print(json.dumps({'publication':'passed','restart_replay':'none','backups':2,'scene_runs':1,'historical_restore':'passed','restored_revision':3}))
