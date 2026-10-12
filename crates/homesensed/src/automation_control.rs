@@ -11,6 +11,7 @@ use tokio::sync::{mpsc, oneshot};
 use uuid::Uuid;
 #[derive(Debug)]
 pub enum Action {
+    Diagnostics {controller:Uuid,revision:u64},
     ConfigurationHistory {controller:Uuid,revision:u64,before:Option<u64>,limit:usize},
     ConfigurationExport {controller:Uuid,revision:u64,selected:u64},
     DeviceEvents {controller:Uuid,revision:u64,ids:Vec<homesense_core::DeviceId>,cursor:Option<crate::management_events::Cursor>,scope:String},
@@ -31,6 +32,7 @@ pub enum Action {
 }
 #[derive(Debug, PartialEq, Eq)]
 pub enum Reply {
+    Diagnostics(crate::admission::Diagnostics),
     ConfigurationHistory(homesense_storage::configuration_history::Page),
     ConfigurationExport(Option<homesense_storage::configuration_history::Export>),
     DeviceEvents(crate::management_events::Update),
@@ -165,6 +167,11 @@ impl Receiver {
                 if Instant::now() >= request.deadline {
                     return Err("automation request expired".into());
                 }
+                // A diagnostic read must remain possible after admission closes.
+                if let Action::Diagnostics {controller,revision}=&request.action {
+                    if *revision!=document.revision {return Err("diagnostic revision expired".into());}
+                    return admission.diagnostics(*controller,self.generation.clone()).await.map(Reply::Diagnostics).map_err(|e|format!("{e:?}"));
+                }
                 admission
                     .variable_snapshot(self.controller, self.generation.clone(), vec![])
                     .await
@@ -218,6 +225,7 @@ impl Receiver {
                         if request.reply.is_closed() || Instant::now()>=request.deadline {return Err("device command expired or abandoned".into());}
                         admission.submit_for_revision(revision,batch).await.map(Reply::CommandsAccepted).map_err(|e|format!("{e:?}"))
                     },
+                    Action::Diagnostics {..} => unreachable!("handled before admission guard"),
                     Action::ManagedCalendarStatus { controller, revision } => {
                         if revision != document.revision { return Err("calendar query revision expired".into()); }
                         admission.variable_snapshot(controller,self.generation.clone(),vec![]).await.map_err(|e|format!("{e:?}"))?;

@@ -183,6 +183,15 @@ impl Api {
         let Some(runtime) = runtime else {
             return deny(StatusCode::SERVICE_UNAVAILABLE, "runtime_reconfiguring");
         };
+        if request.uri().path() == "/api/v1/diagnostics" {
+            if grant.role != crate::web_auth::Role::Administrator {return deny(StatusCode::FORBIDDEN,"administrator_required");}
+            if request.method()!=hyper::Method::GET {return deny(StatusCode::METHOD_NOT_ALLOWED,"method_not_allowed");}
+            if !request.body().is_empty() {return deny(StatusCode::BAD_REQUEST,"unexpected_body");}
+            return match runtime.control.request(Action::Diagnostics{controller:grant.controller,revision:runtime.revision}).await {
+                Ok(Reply::Diagnostics(s))=>response(StatusCode::OK,json!({"boot":s.boot,"revision":s.epochs.configuration.to_string(),"transport_epoch":s.epochs.transport.to_string(),"control_epoch":s.epochs.control.to_string(),"queued":s.queued,"in_flight":s.in_flight,"failed":s.failed,"stopping":s.stopping,"publishing":s.publishing,"gateway_ready":s.gateway_ready,"storage_healthy":s.storage_healthy,"valid_configuration_loaded":s.valid_configuration_loaded})),
+                _=>deny(StatusCode::SERVICE_UNAVAILABLE,"diagnostics_unavailable"),
+            };
+        }
         if request.uri().path() == "/api/v1/diagnostics/calendar" {
             if grant.role != crate::web_auth::Role::Administrator { return deny(StatusCode::FORBIDDEN,"administrator_required"); }
             if request.method() != hyper::Method::GET { return deny(StatusCode::METHOD_NOT_ALLOWED,"method_not_allowed"); }

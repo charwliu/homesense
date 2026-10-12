@@ -52,6 +52,20 @@ pub struct TaskGeneration {
     boot: String,
     pub(crate) epochs: Epochs,
 }
+/// One owner-thread snapshot; readiness does not prove physical device state.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Diagnostics {
+    pub boot: String,
+    pub epochs: Epochs,
+    pub queued: usize,
+    pub in_flight: bool,
+    pub failed: bool,
+    pub stopping: bool,
+    pub publishing: bool,
+    pub gateway_ready: bool,
+    pub storage_healthy: bool,
+    pub valid_configuration_loaded: bool,
+}
 enum SubmissionScope {
     Generation(TaskGeneration),
     Configuration(u64),
@@ -147,6 +161,7 @@ impl SubmissionFailure {
     }
 }
 enum Message {
+    Diagnostics(Uuid, TaskGeneration, oneshot::Sender<Result<Diagnostics, WriteStatus>>),
     ConfigurationExport(Uuid, TaskGeneration, u64, oneshot::Sender<Result<Option<homesense_storage::configuration_history::Export>, WriteStatus>>),
     ConfigurationHistory(Uuid, TaskGeneration, Option<u64>, usize, oneshot::Sender<Result<homesense_storage::configuration_history::Page, WriteStatus>>),
     PublicationBundle(Uuid, oneshot::Sender<Result<(homesense_storage::automation::Bundle, ExecutionContext, u64), WriteStatus>>),
@@ -404,6 +419,13 @@ impl Admission {
                                 if bundle.configuration.revision()!=configuration.revision() {return Err(WriteStatus::ServiceCommunicationFailure)}
                                 Ok((bundle,options.context,arbiter.policy().epochs.transport))
                             })();
+                            let _=reply.send(result);
+                        }
+                        Message::Diagnostics(controller,generation,reply) => {
+                            let policy=arbiter.policy();
+                            let result=if !authorize(controller) {Err(WriteStatus::InsufficientPrivileges)}
+                            else if generation.boot!=worker_boot || generation.epochs.configuration!=policy.epochs.configuration {Err(WriteStatus::ServiceCommunicationFailure)}
+                            else {Ok(Diagnostics {boot:worker_boot.clone(),epochs:policy.epochs,queued:arbiter.queued_len(),in_flight:in_flight.is_some(),failed,stopping:worker_stop.load(Ordering::Acquire),publishing:policy.publishing,gateway_ready:policy.gateway_ready,storage_healthy:policy.storage_healthy,valid_configuration_loaded:policy.valid_configuration_loaded})};
                             let _=reply.send(result);
                         }
                         Message::PublicationState(reply) => { let _=reply.send(!failed && arbiter.policy().publishing && publication.is_some()); },
@@ -1329,6 +1351,11 @@ impl Admission {
         self.sender.try_send(Message::FeedbackSettled(controller,generation,lease,reply)).map_err(|_|WriteStatus::ResourceBusy)?;
         receive.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?
     }
+    pub(crate) async fn diagnostics(&self,controller:Uuid,generation:TaskGeneration)->Result<Diagnostics,WriteStatus> {
+        let (reply,receive)=oneshot::channel();
+        self.sender.try_send(Message::Diagnostics(controller,generation,reply)).map_err(|_|WriteStatus::ResourceBusy)?;
+        receive.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?
+    }
     pub(crate) async fn configuration_history(&self,controller:Uuid,generation:TaskGeneration,before:Option<u64>,limit:usize)->Result<homesense_storage::configuration_history::Page,WriteStatus>{
         let (reply,receive)=oneshot::channel();
         self.sender.try_send(Message::ConfigurationHistory(controller,generation,before,limit,reply)).map_err(|_|WriteStatus::ResourceBusy)?;
@@ -1917,6 +1944,39 @@ mod lifecycle_tests {
         assert!(actor.dispatch().await.unwrap().is_none());
         actor.shutdown().await.unwrap();
         std::fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[tokio::test]
+    async fn diagnostics_remain_readable_after_failure_without_reopening_admission() {
+        let directory=std::env::temp_dir().join(format!("homesense-diagnostics-{}",Uuid::new_v4()));
+        std::fs::create_dir_all(&directory).unwrap();
+        let path=directory.join("runtime.sqlite");
+        Store::open(&path).unwrap().publish_configuration(None,include_bytes!("../../../config/simulation.json"),ExecutionContext::Simulation,&[]).unwrap();
+        let controller=Uuid::new_v4();
+        let actor=Admission::open(path,Options{context:ExecutionContext::Simulation,..Options::default()},move |id|id==controller).await.unwrap();
+        actor.synchronized(1,1).await.unwrap();
+        let generation=actor.task_generation().await.unwrap();
+        let initial=actor.diagnostics(controller,generation.clone()).await.unwrap();
+        assert!(initial.gateway_ready && initial.storage_healthy && !initial.failed);
+        assert_eq!(initial.queued,0);assert!(!initial.in_flight);
+        assert!(actor.diagnostics(Uuid::new_v4(),generation.clone()).await.is_err());
+        let mut old=generation.clone();old.epochs.configuration+=1;
+        assert!(actor.diagnostics(controller,old).await.is_err());
+        let mut foreign=generation.clone();foreign.boot=Uuid::new_v4().to_string();
+        assert!(actor.diagnostics(controller,foreign).await.is_err());
+        actor.submit(Batch{controller,intents:vec![homesense_hap::requests::Intent{
+            device:homesense_core::DeviceId::new("simulation:light").unwrap(),
+            command:homesense_core::Command::SetLevel{level:homesense_core::Percent::new(30).unwrap(),transition:homesense_core::LevelTransition::Immediate},
+        }],subscriptions:vec![]}).await.unwrap();
+        let queued=actor.diagnostics(controller,generation.clone()).await.unwrap();assert_eq!(queued.queued,1);assert!(!queued.in_flight);
+        let _ticket=actor.dispatch().await.unwrap().unwrap();
+        let writing=actor.diagnostics(controller,generation.clone()).await.unwrap();assert_eq!(writing.queued,0);assert!(writing.in_flight);
+        actor.transport_failed().await.unwrap();
+        let failed=actor.diagnostics(controller,generation).await.unwrap();
+        assert!(failed.failed);assert!(!failed.storage_healthy);
+        assert!(actor.task_generation().await.is_err());
+        assert_eq!(failed.queued,0);assert!(!failed.in_flight);
+        actor.shutdown().await.unwrap();std::fs::remove_dir_all(directory).unwrap();
     }
 
     #[tokio::test]

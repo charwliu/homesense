@@ -76,7 +76,7 @@ document.getElementById('connect').onclick = async () => {
 document.getElementById('logout').onclick = async () => {
   if(sessionBusy)return;sessionBusy=true;++sessionEpoch;
   invalidatePreview();
-  try { await request('/api/v1/session', {method: 'DELETE'}); csrf = ''; clearTimeout(eventRetry); if(eventSocket)eventSocket.close();eventDevices.clear(); document.getElementById('draft-impact').textContent=''; document.getElementById('configuration').hidden=true; document.getElementById('calendar-result').textContent='';document.getElementById('versions').replaceChildren();document.getElementById('draft-list').replaceChildren(); versionsBefore=null;document.getElementById('more-versions').disabled=true; for(const id of ['device-document','automation-document','draft-id','base-revision','draft-revision']) document.getElementById(id).value=''; started.clear(); list.replaceChildren(); document.getElementById('devices').replaceChildren(); status.textContent = '已退出'; }
+  try { await request('/api/v1/session', {method: 'DELETE'}); csrf = ''; clearTimeout(eventRetry); if(eventSocket)eventSocket.close();eventDevices.clear(); document.getElementById('draft-impact').textContent=''; document.getElementById('configuration').hidden=true; document.getElementById('runtime-result').textContent='';document.getElementById('calendar-result').textContent='';document.getElementById('versions').replaceChildren();document.getElementById('draft-list').replaceChildren(); versionsBefore=null;document.getElementById('more-versions').disabled=true; for(const id of ['device-document','automation-document','draft-id','base-revision','draft-revision']) document.getElementById(id).value=''; started.clear(); list.replaceChildren(); document.getElementById('devices').replaceChildren(); status.textContent = '已退出'; }
   catch (error) { status.textContent = '注销未确认：' + error.message; }
   finally {sessionBusy=false;}
 };
@@ -256,5 +256,14 @@ document.getElementById('calendar-status').onclick = async () => {
     const data=await request('/api/v1/diagnostics/calendar');
     const state=data.calendar;
     output.textContent=state ? `配置版本：${data.revision}\n计划数量：${state.schedule_count}\n调度已停止：${state.stopped}\n最近时钟跳变：${state.last_clock_jump === null ? '尚未轮询' : state.last_clock_jump}\n内存水位（Unix ms）：${state.watermark_unix_ms}\n持久化水位（Unix ms）：${state.persisted_watermark_unix_ms ?? '尚未保存'}` : '当前运行时未安装日历调度器';
+  } catch(error) {if(epoch===sessionEpoch)output.textContent=error.message;}
+};
+
+document.getElementById('runtime-status').onclick = async () => {
+  const epoch=sessionEpoch;
+  const output=document.getElementById('runtime-result');output.textContent='读取中…';
+  try {
+    const s=await request('/api/v1/diagnostics');
+    output.textContent=`配置版本：${s.revision}\n传输代次：${s.transport_epoch}\n排队：${s.queued}；正在写出：${s.in_flight}\n网关已同步：${s.gateway_ready}\n存储健康：${s.storage_healthy}\n准入失败：${s.failed}；停止中：${s.stopping}；发布中：${s.publishing}\n这是读取时刻的准入状态，不证明设备已到达目标状态。`;
   } catch(error) {if(epoch===sessionEpoch)output.textContent=error.message;}
 };
