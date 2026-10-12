@@ -44,137 +44,280 @@
       "sha256_current": "64b9d725c9559494b2a4023167d3451cd9b6d43b4c29151ea7546196bf6ac040"
     },
     {
-      "path": "reference/control4/manual-pages/BT-86.png",
-      "source": "/Users/liuwei/.codex/visualizations/2026/10/10/01a1233b-ff40-7971-b40d-806595943d96/control4/manual-pages/BT-86.png",
-      "sha256_at_copy": "57c37065b4c167855c5fa5a772e72a87def8933e7e152ab1168365e95fbfaf05",
-      "sha256_current": "57c37065b4c167855c5fa5a772e72a87def8933e7e152ab1168365e95fbfaf05"
-    },
-    {
-      "path": "reference/control4/manual-pages/GT-C8.png",
-      "source": "/Users/liuwei/.codex/visualizations/2026/10/10/01a1233b-ff40-7971-b40d-806595943d96/control4/manual-pages/GT-C8.png",
-      "sha256_at_copy": "8c9d30c913f796a17521de9eaf03bb7e7465f489c546bbac7990cb8e3aad09a2",
-      "sha256_current": "8c9d30c913f796a17521de9eaf03bb7e7465f489c546bbac7990cb8e3aad09a2"
-    },
-    {
-      "path": "reference/control4/manual-pages/GT-D8.png",
-      "source": "/Users/liuwei/.codex/visualizations/2026/10/10/01a1233b-ff40-7971-b40d-806595943d96/control4/manual-pages/GT-D8.png",
-      "sha256_at_copy": "f6bbd588476bce5760a2e37e29eb0cbf7106d44dda0ba0f61b3197e779216617",
-      "sha256_current": "f6bbd588476bce5760a2e37e29eb0cbf7106d44dda0ba0f61b3197e779216617"
-    },
-    {
-      "path": "reference/control4/manual-pages/GT-E4.png",
-      "source": "/Users/liuwei/.codex/visualizations/2026/10/10/01a1233b-ff40-7971-b40d-806595943d96/control4/manual-pages/GT-E4.png",
-      "sha256_at_copy": "cfef09aef7e5e0dd392bce0f223f78614e852c67ab1f57545239a0788977afd6",
-      "sha256_current": "cfef09aef7e5e0dd392bce0f223f78614e852c67ab1f57545239a0788977afd6"
-    },
-    {
-      "path": "reference/control4/manual-pages/GT-L8.png",
-      "source": "/Users/liuwei/.codex/visualizations/2026/10/10/01a1233b-ff40-7971-b40d-806595943d96/control4/manual-pages/GT-L8.png",
-      "sha256_at_copy": "9852e8ccd6ef9d08d1d1f3076f0ac5f7965f2f92eeacd37624e9632c52ab563b",
-      "sha256_current": "9852e8ccd6ef9d08d1d1f3076f0ac5f7965f2f92eeacd37624e9632c52ab563b"
-    },
-    {
-      "path": "reference/control4/manual-pages/GT-M4.png",
-      "source": "/Users/liuwei/.codex/visualizations/2026/10/10/01a1233b-ff40-7971-b40d-806595943d96/control4/manual-pages/GT-M4.png",
-      "sha256_at_copy": "7b655b4f32856c96d38aee0a01064304ed6a8bcf25a3dfe8e5d198673b846578",
-      "sha256_current": "7b655b4f32856c96d38aee0a01064304ed6a8bcf25a3dfe8e5d198673b846578"
-    },
-    {
-      "path": "reference/control4/manual-pages/TCP485.png",
-      "source": "/Users/liuwei/.codex/visualizations/2026/10/10/01a1233b-ff40-7971-b40d-806595943d96/control4/manual-pages/TCP485.png",
-      "sha256_at_copy": "9c8b1e42f99223d866f62073e346419655ed98d859f73cf3ece8b8921436d46e",
-      "sha256_current": "9c8b1e42f99223d866f62073e346419655ed98d859f73cf3ece8b8921436d46e"
-    },
-    {
-      "path": "reference/control4/manual-text/6进6出控制面板接口模块IO6(RS485)使用手册 V2.7.7.2.txt",
-      "source": "/Users/liuwei/.codex/visualizations/2026/10/10/01a1233b-ff40-7971-b40d-806595943d96/control4/manual-text/6进6出控制面板接口模块IO6(RS485)使用手册 V2.7.7.2.txt",
-      "sha256_at_copy": "66dbfa037ce0e049b1d4a15f9f4629d92e23ff957964f9b218e54e3ac5fe9eac",
-      "sha256_current": "66dbfa037ce0e049b1d4a15f9f4629d92e23ff957964f9b218e54e3ac5fe9eac"
-    },
-    {
-      "path": "reference/control4/manual-text/86按键式智能场景面板BT-86-C(RS485)用户手册 Ver2.9.6-2.txt",
-      "source": "/Users/liuwei/.codex/visualizations/2026/10/10/01a1233b-ff40-7971-b40d-806595943d96/control4/manual-text/86按键式智能场景面板BT-86-C(RS485)用户手册 Ver2.9.6-2.txt",
-      "sha256_at_copy": "11fb1396e8563858e26e47f6ed5e84203cef83a978cee1d69d16b2fd176d03ec",
-      "sha256_current": "11fb1396e8563858e26e47f6ed5e84203cef83a978cee1d69d16b2fd176d03ec"
-    },
-    {
-      "path": "reference/control4/manual-text/86触摸式POE场景面板TS6-86(TCP)使用手册 Ver2.4.5.txt",
-      "source": "/Users/liuwei/.codex/visualizations/2026/10/10/01a1233b-ff40-7971-b40d-806595943d96/control4/manual-text/86触摸式POE场景面板TS6-86(TCP)使用手册 Ver2.4.5.txt",
-      "sha256_at_copy": "fd2ae36c7706ce5b8da0aec599d1bb86ce450fe4a5e6740ec4426778bd9327f3",
-      "sha256_current": "fd2ae36c7706ce5b8da0aec599d1bb86ce450fe4a5e6740ec4426778bd9327f3"
-    },
-    {
-      "path": "reference/control4/manual-text/串口分配器RS-232 COM 用户手册 Ver2.2.7.txt",
-      "source": "/Users/liuwei/.codex/visualizations/2026/10/10/01a1233b-ff40-7971-b40d-806595943d96/control4/manual-text/串口分配器RS-232 COM 用户手册 Ver2.2.7.txt",
-      "sha256_at_copy": "7398c9c55aa75651c5b4c7e27fda13b5941ceb95f8f7fee5fee701901d06d83a",
-      "sha256_current": "7398c9c55aa75651c5b4c7e27fda13b5941ceb95f8f7fee5fee701901d06d83a"
-    },
-    {
-      "path": "reference/control4/manual-text/导轨式16通道干接点输入模块IN16-DIN Pro(RS485)用户手册Ver2.0.4.txt",
-      "source": "/Users/liuwei/.codex/visualizations/2026/10/10/01a1233b-ff40-7971-b40d-806595943d96/control4/manual-text/导轨式16通道干接点输入模块IN16-DIN Pro(RS485)用户手册Ver2.0.4.txt",
-      "sha256_at_copy": "fd5ee086b11259812e871b043436aa3e111738f997fa7de7e84314d27c54d8b4",
-      "sha256_current": "fd5ee086b11259812e871b043436aa3e111738f997fa7de7e84314d27c54d8b4"
-    },
-    {
-      "path": "reference/control4/manual-text/导轨式4组电机控制模块GT-M4-RL 产品手册 Ver2.1.9-2.txt",
-      "source": "/Users/liuwei/.codex/visualizations/2026/10/10/01a1233b-ff40-7971-b40d-806595943d96/control4/manual-text/导轨式4组电机控制模块GT-M4-RL 产品手册 Ver2.1.9-2.txt",
-      "sha256_at_copy": "ff424977e46dd7b11fae785b46cfb74905501a505d7ea3eeee1c0952ee07afd9",
-      "sha256_current": "ff424977e46dd7b11fae785b46cfb74905501a505d7ea3eeee1c0952ee07afd9"
-    },
-    {
-      "path": "reference/control4/manual-text/导轨式4通道前切调光模块GT-E4-RL 产品手册Ver3.2.2-2.txt",
-      "source": "/Users/liuwei/.codex/visualizations/2026/10/10/01a1233b-ff40-7971-b40d-806595943d96/control4/manual-text/导轨式4通道前切调光模块GT-E4-RL 产品手册Ver3.2.2-2.txt",
-      "sha256_at_copy": "075a21f8df15d7c769be51a9b5bbbf832eac380c846b35652f022931d2202fe9",
-      "sha256_current": "075a21f8df15d7c769be51a9b5bbbf832eac380c846b35652f022931d2202fe9"
-    },
-    {
-      "path": "reference/control4/manual-text/导轨式8通道0-10V模拟输出模块GT-D8-RL 产品手册Ver2.2.6-2.txt",
-      "source": "/Users/liuwei/.codex/visualizations/2026/10/10/01a1233b-ff40-7971-b40d-806595943d96/control4/manual-text/导轨式8通道0-10V模拟输出模块GT-D8-RL 产品手册Ver2.2.6-2.txt",
-      "sha256_at_copy": "303d03f93ed330ddfa8975cc90935e389267d71d13ba970a3341d2226ba9036b",
-      "sha256_current": "303d03f93ed330ddfa8975cc90935e389267d71d13ba970a3341d2226ba9036b"
-    },
-    {
-      "path": "reference/control4/manual-text/导轨式8通道LED灯带调光模块GT-L8-RL用户手册 Vev2.0.7-2.txt",
-      "source": "/Users/liuwei/.codex/visualizations/2026/10/10/01a1233b-ff40-7971-b40d-806595943d96/control4/manual-text/导轨式8通道LED灯带调光模块GT-L8-RL用户手册 Vev2.0.7-2.txt",
-      "sha256_at_copy": "f659ee18e119e752b8fbf10a669b5fee1c1b20da8f9e4399c6bca039808dc0bd",
-      "sha256_current": "f659ee18e119e752b8fbf10a669b5fee1c1b20da8f9e4399c6bca039808dc0bd"
-    },
-    {
-      "path": "reference/control4/manual-text/导轨式8通道开关模块GT-C8-RL 产品手册 Ver2.8.2-2.txt",
-      "source": "/Users/liuwei/.codex/visualizations/2026/10/10/01a1233b-ff40-7971-b40d-806595943d96/control4/manual-text/导轨式8通道开关模块GT-C8-RL 产品手册 Ver2.8.2-2.txt",
-      "sha256_at_copy": "cfd50c24f8b3532b1138b4fee1f810e45e57d20f8d7958caaf0b1a484988974c",
-      "sha256_current": "cfd50c24f8b3532b1138b4fee1f810e45e57d20f8d7958caaf0b1a484988974c"
-    },
-    {
-      "path": "reference/control4/manual-text/导轨式GSM智能电话报警模块GSM-DIN Pro(RS485) 用户手册 Ver8.0.txt",
-      "source": "/Users/liuwei/.codex/visualizations/2026/10/10/01a1233b-ff40-7971-b40d-806595943d96/control4/manual-text/导轨式GSM智能电话报警模块GSM-DIN Pro(RS485) 用户手册 Ver8.0.txt",
-      "sha256_at_copy": "4ff7fa9bb642d45eacd6deac2458a7caba93ea9ac0996fba1789971b9c00f9ee",
-      "sha256_current": "4ff7fa9bb642d45eacd6deac2458a7caba93ea9ac0996fba1789971b9c00f9ee"
-    },
-    {
-      "path": "reference/control4/manual-text/导轨式RF433无线传感模组RFM-DIN PRO.(RS485)使用手册Ver2.0.5.txt",
-      "source": "/Users/liuwei/.codex/visualizations/2026/10/10/01a1233b-ff40-7971-b40d-806595943d96/control4/manual-text/导轨式RF433无线传感模组RFM-DIN PRO.(RS485)使用手册Ver2.0.5.txt",
-      "sha256_at_copy": "d14c42ca220524d5d62b512ff32972e38729e33544673281d792f84955376e9a",
-      "sha256_current": "d14c42ca220524d5d62b512ff32972e38729e33544673281d792f84955376e9a"
-    },
-    {
-      "path": "reference/control4/manual-text/导轨式TCP485通信转换模块TCP485-DIN使用手册  Ver2.4.4.txt",
-      "source": "/Users/liuwei/.codex/visualizations/2026/10/10/01a1233b-ff40-7971-b40d-806595943d96/control4/manual-text/导轨式TCP485通信转换模块TCP485-DIN使用手册  Ver2.4.4.txt",
-      "sha256_at_copy": "83ae5e188589ac18b9abf879273cebd9a5837f48bc372a0a4ca98f06ac5474bb",
-      "sha256_current": "83ae5e188589ac18b9abf879273cebd9a5837f48bc372a0a4ca98f06ac5474bb"
-    },
-    {
-      "path": "reference/control4/manual-text/广角可编程中控主机GT-A5-RL产品手册Ver2.7.7.3.txt",
-      "source": "/Users/liuwei/.codex/visualizations/2026/10/10/01a1233b-ff40-7971-b40d-806595943d96/control4/manual-text/广角可编程中控主机GT-A5-RL产品手册Ver2.7.7.3.txt",
-      "sha256_at_copy": "62b9f4153f0a5ed1a4927351e36696cc47adbf93c3b29b094ca46d1cf60a7d75",
-      "sha256_current": "62b9f4153f0a5ed1a4927351e36696cc47adbf93c3b29b094ca46d1cf60a7d75"
-    },
-    {
       "path": "reference/control4/parse_project.py",
       "source": "/Users/liuwei/.codex/visualizations/2026/10/10/01a1233b-ff40-7971-b40d-806595943d96/control4/parse_project.py",
       "sha256_at_copy": "9f2cdd6879b298df734d0a4e8cc8b4ae8e22275d46233ab8481644907c57657f",
       "sha256_current": "9f2cdd6879b298df734d0a4e8cc8b4ae8e22275d46233ab8481644907c57657f"
     }
   ],
-  "maintenance_note": "2026-10-10: HopeBeauty branding with hb prefix; design updated to v1.7 with verified panel profiles, publication cancellation and storage degradation rules. source and sha256_at_copy preserve original provenance; sha256_current tracks maintained contents."
+  "maintenance_note": "2026-10-10: HopeBeauty branding with hb prefix; design updated to v1.7 with verified panel profiles, publication cancellation and storage degradation rules. source and sha256_at_copy preserve original provenance; sha256_current tracks maintained contents. 2026-10-12: Third-party manuals, extracted text and page images removed from the working tree; removed_third_party_documents retains provenance and hashes, not local availability. The same directories are purged from local and remote branch history as part of this cleanup.",
+  "removed_third_party_documents": [
+    {
+      "former_path": "docs/产品手册/6进6出控制面板接口模块IO6(RS485)使用手册 V2.7.5.pdf",
+      "sha256_at_removal": "5a44c8bced8a0a904409a3b3aed33f61d1be7f1e1ad0c98bab2017d464b6f29d",
+      "removed_on": "2026-10-12",
+      "source_note": "用户提供的厂家产品资料；未记录官方下载地址。"
+    },
+    {
+      "former_path": "docs/产品手册/86按键式智能场景面板BT-86-B(RS485)使用手册 Ver2.8.2.pdf",
+      "sha256_at_removal": "e45b6494686c063b89bb4c4ca501903dea3ffef6118ecdab500d543789cf3469",
+      "removed_on": "2026-10-12",
+      "source_note": "用户提供的厂家产品资料；未记录官方下载地址。"
+    },
+    {
+      "former_path": "docs/产品手册/86触摸式POE场景面板TS6-86(TCP)使用手册 Ver2.6.5.pdf",
+      "sha256_at_removal": "4715bd59fca9a97564fa323aebe11e1874e532ae120280e226ed114ab0f097a9",
+      "removed_on": "2026-10-12",
+      "source_note": "用户提供的厂家产品资料；未记录官方下载地址。"
+    },
+    {
+      "former_path": "docs/产品手册/86触摸式WiFi场景面板-内置继电器 TS6R2-86(WiFi)使用手册 Ver2.4.3.pdf",
+      "sha256_at_removal": "cecddc876388bda09ab22b641fed42b97dfcf8d726ce961461d627ae99f83e8b",
+      "removed_on": "2026-10-12",
+      "source_note": "用户提供的厂家产品资料；未记录官方下载地址。"
+    },
+    {
+      "former_path": "docs/产品手册/86触摸式智能场景面板(标准版)TS6-86-B(RS485)使用手册 Ver1.8.pdf",
+      "sha256_at_removal": "56d1afc5294fc92e0b8b86fab25cac0cd13e8c537963bdde317d83d221f6945d",
+      "removed_on": "2026-10-12",
+      "source_note": "用户提供的厂家产品资料；未记录官方下载地址。"
+    },
+    {
+      "former_path": "docs/产品手册/86触摸式智能场景面板TS6-86(RS485)使用手册 Ver2.6.5.pdf",
+      "sha256_at_removal": "34e60d79c5b377caf56c24e58eee5c4880b5c4f9b92379378783608cb35fb3c8",
+      "removed_on": "2026-10-12",
+      "source_note": "用户提供的厂家产品资料；未记录官方下载地址。"
+    },
+    {
+      "former_path": "docs/产品手册/APP下载.jpg",
+      "sha256_at_removal": "00105f083e6d90513609df0f2526e92d4bf21d94a3589d56a2919be3610a42cf",
+      "removed_on": "2026-10-12",
+      "source_note": "用户提供的厂家产品资料；未记录官方下载地址。"
+    },
+    {
+      "former_path": "docs/产品手册/TCP485使用手册-APP配置说明 Ver2.4.4.pdf",
+      "sha256_at_removal": "373a55879ae7934da905ac38176f29dab32f40ca46afc8e003892911021fd124",
+      "removed_on": "2026-10-12",
+      "source_note": "用户提供的厂家产品资料；未记录官方下载地址。"
+    },
+    {
+      "former_path": "docs/产品手册/可编程按键面板CL-BT-86-B(RS485)使用手册 Ver2.8.2.pdf",
+      "sha256_at_removal": "117aa69f9a73021ca607f8f04e0cfa0807c4d72e065c7b860784a0e9ece8a146",
+      "removed_on": "2026-10-12",
+      "source_note": "用户提供的厂家产品资料；未记录官方下载地址。"
+    },
+    {
+      "former_path": "docs/产品手册/可编程触摸面板CL-TS-86(RS485)使用手册 Ver2.6.6.pdf",
+      "sha256_at_removal": "ae8baaf0419ffa2ba1cac0cb6d811f98569cf5569e2536d8898499329b1776aa",
+      "removed_on": "2026-10-12",
+      "source_note": "用户提供的厂家产品资料；未记录官方下载地址。"
+    },
+    {
+      "former_path": "docs/产品手册/可编程输入输出接口模块CL-IO6(RS485)使用手册 Ver2.7.5.pdf",
+      "sha256_at_removal": "f68a2e09ed19a152622ee2964d4a3c33852b6ded4bb3565ef41f955f5663aa99",
+      "removed_on": "2026-10-12",
+      "source_note": "用户提供的厂家产品资料；未记录官方下载地址。"
+    },
+    {
+      "former_path": "docs/产品手册/导轨式4组窗帘控制模块(专业版)C4-DIN Pro使用手册Ver2.7.7.pdf",
+      "sha256_at_removal": "0539ac0b128e4ed9f2f0f558826f99ee51c84cfc5e34d5ba8ad1ed0dfaa2530a",
+      "removed_on": "2026-10-12",
+      "source_note": "用户提供的厂家产品资料；未记录官方下载地址。"
+    },
+    {
+      "former_path": "docs/产品手册/导轨式4组窗帘控制模块(标准版)C4-DIN使用手册Ver2.2.7.pdf",
+      "sha256_at_removal": "83d9923cf058d17af3e5f91e270fc146deaa4f4fe7ffbc5f3e6cf1c2a9e5181e",
+      "removed_on": "2026-10-12",
+      "source_note": "用户提供的厂家产品资料；未记录官方下载地址。"
+    },
+    {
+      "former_path": "docs/产品手册/导轨式4通道前切调光模块(专业版)PD4-DIN Pro.使用手册Ver2.8.9.pdf",
+      "sha256_at_removal": "6d75cbfb7267526fe99027c98854451e605ed29bc81bd064ddf77b56cb5097d2",
+      "removed_on": "2026-10-12",
+      "source_note": "用户提供的厂家产品资料；未记录官方下载地址。"
+    },
+    {
+      "former_path": "docs/产品手册/导轨式8路0-10V模拟输出模块AD8-DIN(RS485)使用手册Ver2.2.1.pdf",
+      "sha256_at_removal": "fe309828fae4fe31e846a8ec531cc7165812f0e40628efff024f7ed5801fe030",
+      "removed_on": "2026-10-12",
+      "source_note": "用户提供的厂家产品资料；未记录官方下载地址。"
+    },
+    {
+      "former_path": "docs/产品手册/导轨式8通道开关模块(专业版)R8I8-DIN PRO.(RS485)使用手册Ver2.7.7.pdf",
+      "sha256_at_removal": "d9f3d9396a23433537e2d4124031ce5ae5dbe8ed7f568f958f8f0cc07ddd46fe",
+      "removed_on": "2026-10-12",
+      "source_note": "用户提供的厂家产品资料；未记录官方下载地址。"
+    },
+    {
+      "former_path": "docs/产品手册/导轨式8通道开关模块(标准版)R8I8-DIN (RS485)使用手册Ver2.2.5.pdf",
+      "sha256_at_removal": "5464bfae7cf25330476d4800d89bc62c4cc0fee3713560a25c3634d8de7d4619",
+      "removed_on": "2026-10-12",
+      "source_note": "用户提供的厂家产品资料；未记录官方下载地址。"
+    },
+    {
+      "former_path": "docs/产品手册/零火线智能灯光面板(100W×4路)86-L4使用手册Ver2.1.7.pdf",
+      "sha256_at_removal": "fc2f1afdc7d6f3cb2fc673965688e6da1442fb8dcd9ea1e65a2de13523577c28",
+      "removed_on": "2026-10-12",
+      "source_note": "用户提供的厂家产品资料；未记录官方下载地址。"
+    },
+    {
+      "former_path": "docs/产品手册/零火线智能灯光面板(500W×2路)86-L2使用手册Ver2.1.9.pdf",
+      "sha256_at_removal": "2b3a8a7734440c3fa503773ade3b52ad89c0368d736d74529e5c27bf3fa198b9",
+      "removed_on": "2026-10-12",
+      "source_note": "用户提供的厂家产品资料；未记录官方下载地址。"
+    },
+    {
+      "former_path": "docs/产品手册/零火线智能窗帘控制面板86-C2使用手册Ver2.1.7.pdf",
+      "sha256_at_removal": "27fb5631a3e66135ffce33849066dd0fec8c60f82b4a3095667b4527d6381634",
+      "removed_on": "2026-10-12",
+      "source_note": "用户提供的厂家产品资料；未记录官方下载地址。"
+    },
+    {
+      "source": "/Users/liuwei/.codex/visualizations/2026/10/10/01a1233b-ff40-7971-b40d-806595943d96/control4/manual-pages/BT-86.png",
+      "sha256_at_copy": "57c37065b4c167855c5fa5a772e72a87def8933e7e152ab1168365e95fbfaf05",
+      "former_path": "reference/control4/manual-pages/BT-86.png",
+      "sha256_at_removal": "57c37065b4c167855c5fa5a772e72a87def8933e7e152ab1168365e95fbfaf05",
+      "removed_on": "2026-10-12"
+    },
+    {
+      "source": "/Users/liuwei/.codex/visualizations/2026/10/10/01a1233b-ff40-7971-b40d-806595943d96/control4/manual-pages/GT-C8.png",
+      "sha256_at_copy": "8c9d30c913f796a17521de9eaf03bb7e7465f489c546bbac7990cb8e3aad09a2",
+      "former_path": "reference/control4/manual-pages/GT-C8.png",
+      "sha256_at_removal": "8c9d30c913f796a17521de9eaf03bb7e7465f489c546bbac7990cb8e3aad09a2",
+      "removed_on": "2026-10-12"
+    },
+    {
+      "source": "/Users/liuwei/.codex/visualizations/2026/10/10/01a1233b-ff40-7971-b40d-806595943d96/control4/manual-pages/GT-D8.png",
+      "sha256_at_copy": "f6bbd588476bce5760a2e37e29eb0cbf7106d44dda0ba0f61b3197e779216617",
+      "former_path": "reference/control4/manual-pages/GT-D8.png",
+      "sha256_at_removal": "f6bbd588476bce5760a2e37e29eb0cbf7106d44dda0ba0f61b3197e779216617",
+      "removed_on": "2026-10-12"
+    },
+    {
+      "source": "/Users/liuwei/.codex/visualizations/2026/10/10/01a1233b-ff40-7971-b40d-806595943d96/control4/manual-pages/GT-E4.png",
+      "sha256_at_copy": "cfef09aef7e5e0dd392bce0f223f78614e852c67ab1f57545239a0788977afd6",
+      "former_path": "reference/control4/manual-pages/GT-E4.png",
+      "sha256_at_removal": "cfef09aef7e5e0dd392bce0f223f78614e852c67ab1f57545239a0788977afd6",
+      "removed_on": "2026-10-12"
+    },
+    {
+      "source": "/Users/liuwei/.codex/visualizations/2026/10/10/01a1233b-ff40-7971-b40d-806595943d96/control4/manual-pages/GT-L8.png",
+      "sha256_at_copy": "9852e8ccd6ef9d08d1d1f3076f0ac5f7965f2f92eeacd37624e9632c52ab563b",
+      "former_path": "reference/control4/manual-pages/GT-L8.png",
+      "sha256_at_removal": "9852e8ccd6ef9d08d1d1f3076f0ac5f7965f2f92eeacd37624e9632c52ab563b",
+      "removed_on": "2026-10-12"
+    },
+    {
+      "source": "/Users/liuwei/.codex/visualizations/2026/10/10/01a1233b-ff40-7971-b40d-806595943d96/control4/manual-pages/GT-M4.png",
+      "sha256_at_copy": "7b655b4f32856c96d38aee0a01064304ed6a8bcf25a3dfe8e5d198673b846578",
+      "former_path": "reference/control4/manual-pages/GT-M4.png",
+      "sha256_at_removal": "7b655b4f32856c96d38aee0a01064304ed6a8bcf25a3dfe8e5d198673b846578",
+      "removed_on": "2026-10-12"
+    },
+    {
+      "source": "/Users/liuwei/.codex/visualizations/2026/10/10/01a1233b-ff40-7971-b40d-806595943d96/control4/manual-pages/TCP485.png",
+      "sha256_at_copy": "9c8b1e42f99223d866f62073e346419655ed98d859f73cf3ece8b8921436d46e",
+      "former_path": "reference/control4/manual-pages/TCP485.png",
+      "sha256_at_removal": "9c8b1e42f99223d866f62073e346419655ed98d859f73cf3ece8b8921436d46e",
+      "removed_on": "2026-10-12"
+    },
+    {
+      "source": "/Users/liuwei/.codex/visualizations/2026/10/10/01a1233b-ff40-7971-b40d-806595943d96/control4/manual-text/6进6出控制面板接口模块IO6(RS485)使用手册 V2.7.7.2.txt",
+      "sha256_at_copy": "66dbfa037ce0e049b1d4a15f9f4629d92e23ff957964f9b218e54e3ac5fe9eac",
+      "former_path": "reference/control4/manual-text/6进6出控制面板接口模块IO6(RS485)使用手册 V2.7.7.2.txt",
+      "sha256_at_removal": "66dbfa037ce0e049b1d4a15f9f4629d92e23ff957964f9b218e54e3ac5fe9eac",
+      "removed_on": "2026-10-12"
+    },
+    {
+      "source": "/Users/liuwei/.codex/visualizations/2026/10/10/01a1233b-ff40-7971-b40d-806595943d96/control4/manual-text/86按键式智能场景面板BT-86-C(RS485)用户手册 Ver2.9.6-2.txt",
+      "sha256_at_copy": "11fb1396e8563858e26e47f6ed5e84203cef83a978cee1d69d16b2fd176d03ec",
+      "former_path": "reference/control4/manual-text/86按键式智能场景面板BT-86-C(RS485)用户手册 Ver2.9.6-2.txt",
+      "sha256_at_removal": "11fb1396e8563858e26e47f6ed5e84203cef83a978cee1d69d16b2fd176d03ec",
+      "removed_on": "2026-10-12"
+    },
+    {
+      "source": "/Users/liuwei/.codex/visualizations/2026/10/10/01a1233b-ff40-7971-b40d-806595943d96/control4/manual-text/86触摸式POE场景面板TS6-86(TCP)使用手册 Ver2.4.5.txt",
+      "sha256_at_copy": "fd2ae36c7706ce5b8da0aec599d1bb86ce450fe4a5e6740ec4426778bd9327f3",
+      "former_path": "reference/control4/manual-text/86触摸式POE场景面板TS6-86(TCP)使用手册 Ver2.4.5.txt",
+      "sha256_at_removal": "fd2ae36c7706ce5b8da0aec599d1bb86ce450fe4a5e6740ec4426778bd9327f3",
+      "removed_on": "2026-10-12"
+    },
+    {
+      "source": "/Users/liuwei/.codex/visualizations/2026/10/10/01a1233b-ff40-7971-b40d-806595943d96/control4/manual-text/串口分配器RS-232 COM 用户手册 Ver2.2.7.txt",
+      "sha256_at_copy": "7398c9c55aa75651c5b4c7e27fda13b5941ceb95f8f7fee5fee701901d06d83a",
+      "former_path": "reference/control4/manual-text/串口分配器RS-232 COM 用户手册 Ver2.2.7.txt",
+      "sha256_at_removal": "7398c9c55aa75651c5b4c7e27fda13b5941ceb95f8f7fee5fee701901d06d83a",
+      "removed_on": "2026-10-12"
+    },
+    {
+      "source": "/Users/liuwei/.codex/visualizations/2026/10/10/01a1233b-ff40-7971-b40d-806595943d96/control4/manual-text/导轨式16通道干接点输入模块IN16-DIN Pro(RS485)用户手册Ver2.0.4.txt",
+      "sha256_at_copy": "fd5ee086b11259812e871b043436aa3e111738f997fa7de7e84314d27c54d8b4",
+      "former_path": "reference/control4/manual-text/导轨式16通道干接点输入模块IN16-DIN Pro(RS485)用户手册Ver2.0.4.txt",
+      "sha256_at_removal": "fd5ee086b11259812e871b043436aa3e111738f997fa7de7e84314d27c54d8b4",
+      "removed_on": "2026-10-12"
+    },
+    {
+      "source": "/Users/liuwei/.codex/visualizations/2026/10/10/01a1233b-ff40-7971-b40d-806595943d96/control4/manual-text/导轨式4组电机控制模块GT-M4-RL 产品手册 Ver2.1.9-2.txt",
+      "sha256_at_copy": "ff424977e46dd7b11fae785b46cfb74905501a505d7ea3eeee1c0952ee07afd9",
+      "former_path": "reference/control4/manual-text/导轨式4组电机控制模块GT-M4-RL 产品手册 Ver2.1.9-2.txt",
+      "sha256_at_removal": "ff424977e46dd7b11fae785b46cfb74905501a505d7ea3eeee1c0952ee07afd9",
+      "removed_on": "2026-10-12"
+    },
+    {
+      "source": "/Users/liuwei/.codex/visualizations/2026/10/10/01a1233b-ff40-7971-b40d-806595943d96/control4/manual-text/导轨式4通道前切调光模块GT-E4-RL 产品手册Ver3.2.2-2.txt",
+      "sha256_at_copy": "075a21f8df15d7c769be51a9b5bbbf832eac380c846b35652f022931d2202fe9",
+      "former_path": "reference/control4/manual-text/导轨式4通道前切调光模块GT-E4-RL 产品手册Ver3.2.2-2.txt",
+      "sha256_at_removal": "075a21f8df15d7c769be51a9b5bbbf832eac380c846b35652f022931d2202fe9",
+      "removed_on": "2026-10-12"
+    },
+    {
+      "source": "/Users/liuwei/.codex/visualizations/2026/10/10/01a1233b-ff40-7971-b40d-806595943d96/control4/manual-text/导轨式8通道0-10V模拟输出模块GT-D8-RL 产品手册Ver2.2.6-2.txt",
+      "sha256_at_copy": "303d03f93ed330ddfa8975cc90935e389267d71d13ba970a3341d2226ba9036b",
+      "former_path": "reference/control4/manual-text/导轨式8通道0-10V模拟输出模块GT-D8-RL 产品手册Ver2.2.6-2.txt",
+      "sha256_at_removal": "303d03f93ed330ddfa8975cc90935e389267d71d13ba970a3341d2226ba9036b",
+      "removed_on": "2026-10-12"
+    },
+    {
+      "source": "/Users/liuwei/.codex/visualizations/2026/10/10/01a1233b-ff40-7971-b40d-806595943d96/control4/manual-text/导轨式8通道LED灯带调光模块GT-L8-RL用户手册 Vev2.0.7-2.txt",
+      "sha256_at_copy": "f659ee18e119e752b8fbf10a669b5fee1c1b20da8f9e4399c6bca039808dc0bd",
+      "former_path": "reference/control4/manual-text/导轨式8通道LED灯带调光模块GT-L8-RL用户手册 Vev2.0.7-2.txt",
+      "sha256_at_removal": "f659ee18e119e752b8fbf10a669b5fee1c1b20da8f9e4399c6bca039808dc0bd",
+      "removed_on": "2026-10-12"
+    },
+    {
+      "source": "/Users/liuwei/.codex/visualizations/2026/10/10/01a1233b-ff40-7971-b40d-806595943d96/control4/manual-text/导轨式8通道开关模块GT-C8-RL 产品手册 Ver2.8.2-2.txt",
+      "sha256_at_copy": "cfd50c24f8b3532b1138b4fee1f810e45e57d20f8d7958caaf0b1a484988974c",
+      "former_path": "reference/control4/manual-text/导轨式8通道开关模块GT-C8-RL 产品手册 Ver2.8.2-2.txt",
+      "sha256_at_removal": "cfd50c24f8b3532b1138b4fee1f810e45e57d20f8d7958caaf0b1a484988974c",
+      "removed_on": "2026-10-12"
+    },
+    {
+      "source": "/Users/liuwei/.codex/visualizations/2026/10/10/01a1233b-ff40-7971-b40d-806595943d96/control4/manual-text/导轨式GSM智能电话报警模块GSM-DIN Pro(RS485) 用户手册 Ver8.0.txt",
+      "sha256_at_copy": "4ff7fa9bb642d45eacd6deac2458a7caba93ea9ac0996fba1789971b9c00f9ee",
+      "former_path": "reference/control4/manual-text/导轨式GSM智能电话报警模块GSM-DIN Pro(RS485) 用户手册 Ver8.0.txt",
+      "sha256_at_removal": "4ff7fa9bb642d45eacd6deac2458a7caba93ea9ac0996fba1789971b9c00f9ee",
+      "removed_on": "2026-10-12"
+    },
+    {
+      "source": "/Users/liuwei/.codex/visualizations/2026/10/10/01a1233b-ff40-7971-b40d-806595943d96/control4/manual-text/导轨式RF433无线传感模组RFM-DIN PRO.(RS485)使用手册Ver2.0.5.txt",
+      "sha256_at_copy": "d14c42ca220524d5d62b512ff32972e38729e33544673281d792f84955376e9a",
+      "former_path": "reference/control4/manual-text/导轨式RF433无线传感模组RFM-DIN PRO.(RS485)使用手册Ver2.0.5.txt",
+      "sha256_at_removal": "d14c42ca220524d5d62b512ff32972e38729e33544673281d792f84955376e9a",
+      "removed_on": "2026-10-12"
+    },
+    {
+      "source": "/Users/liuwei/.codex/visualizations/2026/10/10/01a1233b-ff40-7971-b40d-806595943d96/control4/manual-text/导轨式TCP485通信转换模块TCP485-DIN使用手册  Ver2.4.4.txt",
+      "sha256_at_copy": "83ae5e188589ac18b9abf879273cebd9a5837f48bc372a0a4ca98f06ac5474bb",
+      "former_path": "reference/control4/manual-text/导轨式TCP485通信转换模块TCP485-DIN使用手册  Ver2.4.4.txt",
+      "sha256_at_removal": "83ae5e188589ac18b9abf879273cebd9a5837f48bc372a0a4ca98f06ac5474bb",
+      "removed_on": "2026-10-12"
+    },
+    {
+      "source": "/Users/liuwei/.codex/visualizations/2026/10/10/01a1233b-ff40-7971-b40d-806595943d96/control4/manual-text/广角可编程中控主机GT-A5-RL产品手册Ver2.7.7.3.txt",
+      "sha256_at_copy": "62b9f4153f0a5ed1a4927351e36696cc47adbf93c3b29b094ca46d1cf60a7d75",
+      "former_path": "reference/control4/manual-text/广角可编程中控主机GT-A5-RL产品手册Ver2.7.7.3.txt",
+      "sha256_at_removal": "62b9f4153f0a5ed1a4927351e36696cc47adbf93c3b29b094ca46d1cf60a7d75",
+      "removed_on": "2026-10-12"
+    }
+  ]
 }
