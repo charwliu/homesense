@@ -49,3 +49,15 @@ fn check_config_requires_explicit_simulation_for_sample() {
             .contains("enabled=1, context=Simulation; no connection opened")
     );
 }
+
+#[test]
+fn bridge_plan_cli_requires_management_and_excludes_legacy_options() {
+    let root=std::env::temp_dir().join(format!("homesense-bridge-cli-{}",uuid::Uuid::new_v4()));
+    std::fs::create_dir(&root).unwrap();let plan=root.join("plan.json");std::fs::write(&plan,b"{}").unwrap();
+    let state=root.join("state");
+    for (extra,expected) in [(vec![],"Web TLS"),(vec!["--hap-listen","127.0.0.1:51826"],"cannot be combined"),(vec!["--hap-plan",plan.to_str().unwrap()],"duplicate")] {
+        let output=Command::new(env!("CARGO_BIN_EXE_homesensed")).args(["serve-automation-tcp","missing-device","missing-rules",state.to_str().unwrap(),"1","--coexistence-confirmed","--hap-plan",plan.to_str().unwrap()]).args(extra).output().unwrap();
+        assert!(!output.status.success());assert!(String::from_utf8_lossy(&output.stderr).contains(expected),"{:?}",output);assert!(!state.exists());
+    }
+    std::fs::remove_dir_all(root).unwrap();
+}
