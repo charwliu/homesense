@@ -10,5 +10,9 @@ vm.runInContext(fs.readFileSync(require('node:path').join(__dirname,'../crates/h
  assert.equal(vm.runInContext("eventDevices.has('new')",context),true);assert.equal(vm.runInContext("eventDevices.has('old')",context),false);
  const ambiguous=context.refreshDevices();pending[2]({ok:true,json:async()=>({revision:9007199254740996,devices:[]})});await ambiguous;
  assert.equal(vm.runInContext('eventDevices.size',context),1);
- console.log('HTTP refresh rejects old graphs and unsafe numeric revisions: passed');
+ const beforeDisconnect=context.refreshDevices();context.markEventStateUnavailable('disconnected');pending[3](response('9007199254740994','late'));await beforeDisconnect;
+ assert.equal(vm.runInContext("eventDevices.has('late')",context),false);assert.equal(vm.runInContext("eventDevices.get('new').quality",context),'Stale');
+ const earlier=context.refreshDevices(),newer=context.refreshDevices();pending[5](response('9007199254740994','newest'));await newer;pending[4](response('9007199254740994','earlier'));await earlier;
+ assert.equal(vm.runInContext("eventDevices.has('newest')",context),true);assert.equal(vm.runInContext("eventDevices.has('earlier')",context),false);
+ console.log('HTTP refresh rejects old graphs, earlier requests and pre-disconnect replies: passed');
 })().catch(e=>{console.error(e);process.exitCode=1});
