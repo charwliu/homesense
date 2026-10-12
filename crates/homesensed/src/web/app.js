@@ -5,9 +5,11 @@ let sessionBusy=false;
 let backupInspectionEpoch=0;
 let metadataSource=null;
 let publicationPreview=null;
+let publicationConfirmation=null;
 let previewEpoch=0;
 function invalidatePreview() {
-  publicationPreview=null;previewEpoch++;
+  publicationPreview=null;publicationConfirmation=null;previewEpoch++;
+  document.getElementById('publication-confirmation').hidden=true;
   document.getElementById('activate-draft').disabled=true;
   document.getElementById('draft-impact').textContent='';
   return previewEpoch;
@@ -202,13 +204,23 @@ document.getElementById('preview-draft').onclick = async () => {
 document.getElementById('activate-draft').onclick = async () => {
   const preview=publicationPreview;
   if(!preview || preview.id!==document.getElementById('draft-id').value.trim()) {status.textContent='请先预览当前草稿。';return;}
-  if(!window.confirm('激活将结束旧版本规则和未执行动作。已执行动作不会回滚。继续激活？'))return;
+  publicationConfirmation={preview,epoch:previewEpoch};
+  document.getElementById('publication-confirmation').hidden=false;
+  document.getElementById('publication-confirmation-detail').textContent=document.getElementById('draft-impact').textContent;
+};
+document.getElementById('cancel-publication').onclick=()=>{
+  publicationConfirmation=null;document.getElementById('publication-confirmation').hidden=true;
+};
+document.getElementById('confirm-publication').onclick=async()=>{
+  const confirmation=publicationConfirmation;
+  if(!confirmation || confirmation.epoch!==previewEpoch || confirmation.preview!==publicationPreview || confirmation.preview.id!==document.getElementById('draft-id').value.trim()) {invalidatePreview();status.textContent='确认已失效，请重新预览。';return;}
+  const preview=confirmation.preview,epoch=sessionEpoch;
   invalidatePreview();
   try {
     const result=await request('/api/v1/config/activations/'+preview.id,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({request_id:crypto.randomUUID(),boot:preview.boot})});
     status.textContent=result.outcome==='activated'?`版本 ${result.revision} 已激活。`:'发布结果未知，请检查活动版本，不要重复激活。';
     await refresh();
-  } catch(error) {status.textContent=error.message+'；发布可能已发生，请核对活动版本，未自动重试。';}
+  } catch(error) {if(epoch===sessionEpoch)status.textContent=error.message+'；发布可能已发生，请核对活动版本，未自动重试。';}
 };
 
 let eventSocket=null, eventCursor=null, eventRetry=null, eventAttempts=0;
