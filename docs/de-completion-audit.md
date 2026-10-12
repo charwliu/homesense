@@ -46,3 +46,6 @@ HAP 依赖维护进一步消除 31 条非加密警告，生产依赖仍有 23 �
 证据：[集成结果](evidence/stage-e-browser/clean-de-regression-ea236d6.json)、[独立浏览器结果](evidence/stage-e-browser/independent-publication-check.json)、[冲突提示截图](evidence/stage-e-browser/independent-publication-conflict.png)。详细跟踪：[阶段 D](stage-d-progress.md)、[阶段 E](stage-e-progress.md)。
 
 下一步先做能够独立完成的代码／证据核查，按依赖补原项目转换缺口；用户与现场确认继续挂起。后续实机验收使用受控房间范围，保留 EA-5 既有控制。正式部署、全量恢复演练和 72 小时运行属于 F；分区／整屋接管属于 G，不能混入 D/E 的完成声明。
+
+
+2026-10-12 当前集成版书房限定现场验收启动：真实 iPhone 已完成配对和认证，但反馈过期使配件读取返回 503，未完成添加；未发送控制命令。已修复统一 TCP 周期输出查询以及 Web 隐藏供电列表／直接控制边界，最终 582 项完整回归和服务严格 Clippy 通过，ARM 候选 TLS 冒烟通过。真实客户端与负载验收继续，不能因这次修复关闭 E；旧身份、数据库备份及现场详细配置保留本地。
