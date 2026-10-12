@@ -3,6 +3,9 @@ let csrf = '';
 let sessionEpoch=0;
 let sessionBusy=false;
 let credentialIssueBusy=false;
+let credentialEditSource=null;
+let credentialEditEpoch=0;
+let credentialEditBusy=false;
 let backupInspectionEpoch=0;
 let metadataSource=null;
 let calibrationBinding=null;
@@ -532,6 +535,7 @@ document.getElementById('revoke-credential').onclick=async()=>{
 };
 
 function clearCredentialCreation() {
+  clearCredentialEdit();
   document.getElementById('issue-result').textContent='';
   document.getElementById('issue-role').value='Viewer';
   document.getElementById('issue-devices').value='';document.getElementById('issue-scenes').value='';
@@ -556,4 +560,48 @@ document.getElementById('issue-credential').onclick=async()=>{
     document.getElementById('credential-list').textContent='授权已变化，请重新读取清单';
   }catch(e){if(epoch===sessionEpoch)output.textContent=e.message+'；若连接中断，创建可能已成功，请先读取清单核对，再决定是否撤销或重试。';}
   finally {credentialIssueBusy=false;button.disabled=false;}
+};
+
+function clearCredentialEdit() {
+  credentialEditSource=null;credentialEditEpoch++;
+  for(const id of ['edit-credential-id','edit-credential-devices','edit-credential-scenes'])document.getElementById(id).value='';
+  document.getElementById('edit-credential-role').value='Viewer';
+  document.getElementById('edit-credential-confirm').checked=false;
+  document.getElementById('edit-credential-result').textContent='';
+}
+for(const id of ['edit-credential-id','edit-credential-role','edit-credential-devices','edit-credential-scenes'])document.getElementById(id).addEventListener('input',()=>{
+  credentialEditEpoch++;document.getElementById('edit-credential-confirm').checked=false;
+  if(id==='edit-credential-id')credentialEditSource=null;
+});
+document.getElementById('load-credential').onclick=async()=>{
+  const epoch=sessionEpoch,editEpoch=++credentialEditEpoch,id=document.getElementById('edit-credential-id').value.trim(),output=document.getElementById('edit-credential-result');
+  credentialEditSource=null;document.getElementById('edit-credential-confirm').checked=false;
+  try {
+    const result=await request('/api/v1/credentials');
+    if(epoch!==sessionEpoch||editEpoch!==credentialEditEpoch)return;
+    const credential=result.credentials.find(item=>item.id===id);if(!credential)throw new Error('未找到此凭证，请核对清单');
+    document.getElementById('edit-credential-role').value=credential.grant.role;
+    document.getElementById('edit-credential-devices').value=credential.grant.devices.join('\n');
+    document.getElementById('edit-credential-scenes').value=credential.grant.scenes.join('\n');
+    credentialEditSource=id;output.textContent='已读取，请核对后修改；保存会替换完整范围';
+  }catch(e){if(epoch===sessionEpoch&&editEpoch===credentialEditEpoch)output.textContent=e.message;}
+};
+document.getElementById('save-credential').onclick=async()=>{
+  if(credentialEditBusy)return;
+  const epoch=sessionEpoch,editEpoch=credentialEditEpoch,output=document.getElementById('edit-credential-result'),button=document.getElementById('save-credential');
+  const id=document.getElementById('edit-credential-id').value.trim();
+  if(!credentialEditSource||credentialEditSource!==id){output.textContent='请先读取此凭证的原授权';return;}
+  if(!document.getElementById('edit-credential-confirm').checked){output.textContent='请确认替换完整范围并退出已有会话';return;}
+  const scope=id=>[...new Set(document.getElementById(id).value.split(/\r?\n/).map(value=>value.trim()).filter(Boolean))];
+  const body={role:document.getElementById('edit-credential-role').value,devices:scope('edit-credential-devices'),scenes:scope('edit-credential-scenes')};
+  const encoded=JSON.stringify(body);
+  if(new TextEncoder().encode(encoded).length>65536){output.textContent='授权范围过大';return;}
+  credentialEditBusy=true;button.disabled=true;
+  try {
+    await request('/api/v1/credentials/'+encodeURIComponent(id),{method:'PATCH',body:encoded});
+    if(epoch!==sessionEpoch)return;
+    if(editEpoch===credentialEditEpoch){credentialEditSource=null;document.getElementById('edit-credential-confirm').checked=false;output.textContent='授权已更新，对应会话需重新登录；继续编辑前请重新读取';}
+    document.getElementById('credential-list').textContent='授权已变化，请重新读取清单';
+  }catch(e){if(epoch===sessionEpoch&&editEpoch===credentialEditEpoch)output.textContent=e.message+'；请重新读取授权核对结果，未自动重试。';}
+  finally{credentialEditBusy=false;button.disabled=false;}
 };
