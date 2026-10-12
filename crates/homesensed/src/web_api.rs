@@ -184,6 +184,17 @@ impl Api {
             );
             return result;
         }
+        if let Some(id)=request.uri().path().strip_prefix("/api/v1/credentials/").and_then(|path|path.strip_suffix("/revoke")) {
+            if grant.role!=crate::web_auth::Role::Administrator {return deny(StatusCode::FORBIDDEN,"administrator_required");}
+            if request.method()!=hyper::Method::POST {return deny(StatusCode::METHOD_NOT_ALLOWED,"method_not_allowed");}
+            if request.headers().get("origin").and_then(|v|v.to_str().ok())!=Some(&self.origin) {return deny(StatusCode::FORBIDDEN,"origin_required");}
+            if !request.body().is_empty() {return deny(StatusCode::BAD_REQUEST,"unexpected_body");}
+            let id=match uuid::Uuid::parse_str(id) {Ok(id)=>id,Err(_)=>return deny(StatusCode::BAD_REQUEST,"invalid_credential_id")};
+            return match self.tokens.revoke_managed(id,authorization,cookie,request.headers().get("x-csrf-token").and_then(|v|v.to_str().ok())) {
+                Ok(())=>response(StatusCode::OK,json!({"revoked":id})),
+                Err(code)=>deny(match code {"last_administrator"=>StatusCode::CONFLICT,"credential_not_found"=>StatusCode::NOT_FOUND,"administrator_required"=>StatusCode::FORBIDDEN,_=>StatusCode::SERVICE_UNAVAILABLE},code),
+            };
+        }
         if request.uri().path()=="/api/v1/credentials" {
             if grant.role!=crate::web_auth::Role::Administrator {return deny(StatusCode::FORBIDDEN,"administrator_required");}
             if request.method()!=hyper::Method::GET {return deny(StatusCode::METHOD_NOT_ALLOWED,"method_not_allowed");}

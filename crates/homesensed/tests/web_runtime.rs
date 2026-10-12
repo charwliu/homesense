@@ -453,6 +453,9 @@ async fn web_scope_origin_receipts_and_runtime_admission() {
         assert_eq!(listed["credentials"][0]["grant"]["role"],"Administrator");
         assert_eq!(listed["credentials"][0].as_object().unwrap().keys().cloned().collect::<Vec<_>>(),vec!["grant","id"]);
         assert!(!String::from_utf8_lossy(&credential_body).contains(secret));
+        for (method,body,expected) in [(hyper::Method::POST,"",StatusCode::CONFLICT),(hyper::Method::GET,"",StatusCode::METHOD_NOT_ALLOWED),(hyper::Method::POST,"{}",StatusCode::BAD_REQUEST)] {
+            let mut revoke=make(&api.origin,body);*revoke.method_mut()=method;*revoke.uri_mut()=format!("/api/v1/credentials/{token_id}/revoke").parse().unwrap();assert_eq!(api.handle(revoke).await.status(),expected);
+        }
         let saved_drafts=api.drafts.take();
         let mut capability=make(&api.origin,"");*capability.method_mut()=hyper::Method::GET;*capability.uri_mut()="/api/v1/session".parse().unwrap();
         let capability:serde_json::Value=serde_json::from_slice(&api.handle(capability).await.into_body().collect().await.unwrap().to_bytes()).unwrap();assert_eq!(capability["can_view_diagnostics"],true);assert_eq!(capability["can_manage_configuration"],false);
