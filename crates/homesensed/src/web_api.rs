@@ -64,6 +64,12 @@ impl Api {
         if request.uri().query().is_some() && request.uri().path()!="/api/v1/config/versions" {
             return deny(StatusCode::BAD_REQUEST, "query_not_supported");
         }
+        // Minimal liveness reveals no runtime configuration or credentials.
+        if request.uri().path() == "/health/live" {
+            if request.method()!=hyper::Method::GET {return deny(StatusCode::METHOD_NOT_ALLOWED,"method_not_allowed");}
+            if !request.body().is_empty() {return deny(StatusCode::BAD_REQUEST,"unexpected_body");}
+            return response(StatusCode::OK,json!({"live":true}));
+        }
         if request.method() == hyper::Method::GET && request.uri().path() == "/" {
             return Response::builder().header("content-type","text/html; charset=utf-8").header("cache-control","no-store")
                 .header("content-security-policy","default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'")
@@ -177,6 +183,16 @@ impl Api {
             );
             return result;
         }
+        if request.uri().path() == "/health/ready" {
+            if grant.role!=crate::web_auth::Role::Administrator {return deny(StatusCode::FORBIDDEN,"administrator_required");}
+            if request.method()!=hyper::Method::GET {return deny(StatusCode::METHOD_NOT_ALLOWED,"method_not_allowed");}
+            if !request.body().is_empty() {return deny(StatusCode::BAD_REQUEST,"unexpected_body");}
+            let runtime=self.runtime.read().ok().and_then(|state|state.clone());
+            let ready=if let Some(runtime)=runtime {
+                matches!(runtime.control.request(Action::Diagnostics{controller:grant.controller,revision:runtime.revision}).await,Ok(Reply::Diagnostics(s)) if s.ready())
+            } else {false};
+            return response(if ready {StatusCode::OK} else {StatusCode::SERVICE_UNAVAILABLE},json!({"ready":ready}));
+        }
         // Take one coherent snapshot; never hold this lock across an await.
         // Admission rejects old generations if publication follows this read.
         let runtime = self.runtime.read().ok().and_then(|state| state.clone());
@@ -188,7 +204,7 @@ impl Api {
             if request.method()!=hyper::Method::GET {return deny(StatusCode::METHOD_NOT_ALLOWED,"method_not_allowed");}
             if !request.body().is_empty() {return deny(StatusCode::BAD_REQUEST,"unexpected_body");}
             return match runtime.control.request(Action::Diagnostics{controller:grant.controller,revision:runtime.revision}).await {
-                Ok(Reply::Diagnostics(s))=>response(StatusCode::OK,json!({"boot":s.boot,"revision":s.epochs.configuration.to_string(),"transport_epoch":s.epochs.transport.to_string(),"control_epoch":s.epochs.control.to_string(),"queued":s.queued,"in_flight":s.in_flight,"failed":s.failed,"stopping":s.stopping,"publishing":s.publishing,"gateway_ready":s.gateway_ready,"storage_healthy":s.storage_healthy,"valid_configuration_loaded":s.valid_configuration_loaded})),
+                Ok(Reply::Diagnostics(s))=>response(StatusCode::OK,json!({"boot":s.boot,"revision":s.epochs.configuration.to_string(),"transport_epoch":s.epochs.transport.to_string(),"control_epoch":s.epochs.control.to_string(),"queued":s.queued,"in_flight":s.in_flight,"failed":s.failed,"stopping":s.stopping,"publishing":s.publishing,"gateway_ready":s.gateway_ready,"controller_enabled":s.controller_enabled,"ready":s.ready(),"storage_healthy":s.storage_healthy,"valid_configuration_loaded":s.valid_configuration_loaded})),
                 _=>deny(StatusCode::SERVICE_UNAVAILABLE,"diagnostics_unavailable"),
             };
         }
