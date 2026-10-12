@@ -312,3 +312,19 @@ fn combined_light_references_are_validated_without_enabling_pending_hardware() {
     v["devices"][1]["supply_relay"] = json!("simulation:light");
     assert!(!parse(&v, ExecutionContext::Simulation));
 }
+
+#[test]
+fn optional_rooms_validate_labels_unique_ids_and_references() {
+    let mut value=document();
+    assert!(Configuration::parse(SAMPLE,ExecutionContext::Simulation).unwrap().rooms().is_empty());
+    value["rooms"]=json!([{"id":"study","name":"书房","floor":"二层"}]);
+    value["devices"][0]["room"]=json!("study");
+    let config=Configuration::parse(&serde_json::to_vec(&value).unwrap(),ExecutionContext::Simulation).unwrap();
+    assert_eq!(config.rooms()["study"].floor.as_deref(),Some("二层"));
+    assert_eq!(config.devices().values().next().unwrap().room.as_deref(),Some("study"));
+    for rooms in [json!([{"id":"study","name":""}]),json!([{"id":"study","name":"Study","floor":"\n"}]),json!([{"id":"study","name":"A"},{"id":"study","name":"B"}]),json!([{"id":"other","name":"Other"}]),json!([{"id":"study","name":"A","unknown":true}])] {
+        let mut bad=value.clone();bad["rooms"]=rooms;assert!(!parse(&bad,ExecutionContext::Simulation));
+    }
+    value["rooms"]=json!((0..257).map(|i|json!({"id":format!("r{i}"),"name":"Room"})).collect::<Vec<_>>());
+    value["devices"][0].as_object_mut().unwrap().remove("room");assert!(!parse(&value,ExecutionContext::Simulation));
+}

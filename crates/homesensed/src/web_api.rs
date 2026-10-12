@@ -410,7 +410,7 @@ impl Api {
             }
             return response(StatusCode::OK, json!({"scenes":items}));
         }
-        if request.method() == hyper::Method::GET && request.uri().path() == "/api/v1/devices" {
+        if request.method() == hyper::Method::GET && matches!(request.uri().path(), "/api/v1/devices" | "/api/v1/rooms") {
             let ids = grant
                 .devices
                 .iter()
@@ -433,6 +433,10 @@ impl Api {
                     "device_snapshot_unavailable",
                 );
             };
+            if request.uri().path()=="/api/v1/rooms" {
+                let rooms:std::collections::BTreeMap<_,_>=snapshot.devices.iter().filter_map(|d|d.room.as_ref()).map(|r|(r.id.clone(),r)).collect();
+                return response(StatusCode::OK,json!({"boot":snapshot.boot,"revision":snapshot.revision.to_string(),"rooms":rooms.values().collect::<Vec<_>>()}));
+            }
             let devices = snapshot
                 .devices
                 .iter()
@@ -660,5 +664,5 @@ pub(crate) fn device_json(
         device.state.kind,
         homesense_core::ModuleKind::Switch | homesense_core::ModuleKind::Dimmer
     );
-    json!({"id":device.id.as_str(),"name":device.name,"kind":format!("{:?}",device.state.kind),"observed":observed,"quality":format!("{:?}",device.state.quality),"observed_at_ms":device.state.observed_at_ms,"pending":device.state.pending_command,"version":device.state.version,"motor_calibrated":device.motor_calibrated,"can_control":(light || device.motor_calibrated) && grant.may_control_device(device.id.as_str())})
+    json!({"id":device.id.as_str(),"name":device.name,"room":device.room,"kind":format!("{:?}",device.state.kind),"observed":observed,"quality":format!("{:?}",device.state.quality),"observed_at_ms":device.state.observed_at_ms,"pending":device.state.pending_command,"version":device.state.version,"motor_calibrated":device.motor_calibrated,"can_control":(light || device.motor_calibrated) && grant.may_control_device(device.id.as_str())})
 }

@@ -94,6 +94,7 @@ function renderDevices() {
     const info = document.createElement('p');
     info.textContent = device.observed === null ? '状态未知' : `${device.observed.on ? '开' : '关'}${device.observed.level === undefined ? '' : ' · ' + device.observed.level + '%'}`;
     info.textContent += ` · ${device.quality}${device.pending === null ? '' : ' · 等待反馈'}`;
+    if(device.room) {const location=document.createElement('p');location.textContent=[device.room.floor,device.room.name].filter(Boolean).join(' · ');row.append(location);}
     row.append(title, info);
     const send = async command => {
       try {

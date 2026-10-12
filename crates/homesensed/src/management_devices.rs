@@ -17,6 +17,7 @@ pub enum DeviceAction {
 }
 #[derive(Debug, PartialEq, Eq)]
 pub struct DeviceView {
+    pub room: Option<homesense_config::Room>,
     pub id: DeviceId,
     pub name: String,
     pub motor_calibrated: bool,
@@ -62,6 +63,7 @@ pub async fn snapshot(
             .clone();
         let motor_calibrated=bundle.configuration.motor_command(&id,homesense_core::MotorAction::Stop).is_ok();
         devices.push(DeviceView {
+            room: device.room.as_ref().and_then(|id|bundle.configuration.rooms().get(id)).cloned(),
             id,
             name: device.name.clone(),
             motor_calibrated,
