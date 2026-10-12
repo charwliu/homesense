@@ -54,7 +54,7 @@
   },
   "accepted_policy": "Allow only existing explicitly linked PanelLed(false) corrections under fresh feedback and admission guards; reject light/relay/motor/scene automatic outputs. Preserve unknown selection.",
   "field_status": "manual confirmation and physical operations suspended by user; execute entry blocked before publication",
-  "new_binary_reverification_required": true,
+  "new_binary_reverification_required": false,
   "field_deployed": false,
   "global_trust_changed": false,
   "temporary_credential_issued": false,
@@ -69,6 +69,107 @@
     "independent_local_four_test_methods_passed": true,
     "captured_old_all_off_still_rejected": true,
     "remaining_health_guard": "new LED status and actual ready/queue/health diagnostic required; preparation in progress",
-    "field_executed": false
+    "field_executed": false,
+    "historical": true,
+    "superseded_by": "E10 adds bounded runtime health and new LED output status checks"
+  },
+  "clean_candidate_verification": {
+    "source_commit": "c184e65eb7adfa284bf26b1978dcb392ab762351",
+    "binary_sha256": "7596e17aa0e61d9b20768918213e1c4a2152ddd52d7277fd4e954eafaafd8315",
+    "source_overlays": [],
+    "archive_all_891_files_independently_matched_to_commit": true,
+    "archive_sha256": "6ccc3e3c3d2e25d3d5595a82064aa925a042155dc0ac1242866f957d4042a67b",
+    "build_log_sha256": "dd51db5045f4d778591df6ad49f991e22c0b5a5bc5e87c0ee9a6da961e305429",
+    "remote_binary_sha256_independently_matched": true,
+    "private_artifact_hashes": {
+      "verified-results/startup.json": "ef068a71c7d98e1c4c225ce246e668f4adfa3327edc0e26d8e77e4e5bf812707",
+      "verified-results/publication.json": "b936d1552eaed152fe2c5e3a8f3f8d105bf65a3c8c7e8c67b979b296533000a8",
+      "tls-results.json": "2823db118a61b4a850aec8a10b02729e5b197c55c8f3cc8afb94e632f8378048",
+      "source-manifest.json": "bebf1f6af991fb2e5789652b4f8075561fc2ff8ca982a34adb91db2055fb9140"
+    },
+    "cases": [
+      {
+        "case": "main_off_down18",
+        "led_off_keys": [
+          1,
+          3
+        ],
+        "new_command_count": 2,
+        "all_new_commands_written": true,
+        "selection": null,
+        "variable_version": 0,
+        "scene_runs": 0,
+        "service_exit": 0,
+        "ready": true,
+        "gateway_ready": true,
+        "storage_healthy": true,
+        "failed": false,
+        "queued": 0,
+        "in_flight": false
+      },
+      {
+        "case": "all_off",
+        "led_off_keys": [
+          1,
+          3,
+          5
+        ],
+        "new_command_count": 3,
+        "all_new_commands_written": true,
+        "selection": null,
+        "variable_version": 0,
+        "scene_runs": 0,
+        "service_exit": 0,
+        "ready": true,
+        "gateway_ready": true,
+        "storage_healthy": true,
+        "failed": false,
+        "queued": 0,
+        "in_flight": false
+      },
+      {
+        "case": "all_on",
+        "led_off_keys": [],
+        "new_command_count": 0,
+        "all_new_commands_written": true,
+        "selection": null,
+        "variable_version": 0,
+        "scene_runs": 0,
+        "service_exit": 0,
+        "ready": true,
+        "gateway_ready": true,
+        "storage_healthy": true,
+        "failed": false,
+        "queued": 0,
+        "in_flight": false
+      }
+    ],
+    "startup_audit_independent_tests": {
+      "passed": 8,
+      "failed": 0,
+      "includes_status_health_bounded_wait_and_old_failure_fixture": true
+    },
+    "tls_simulation": "passed",
+    "tls_tcp_combined": "passed",
+    "publication_and_rollback": "isolated schema22 revision2 -> 3 -> independent revision2 rollback",
+    "python_rust_lock_exclusion": "passed",
+    "identity_pairing_aid_iid": "unchanged in independent copies",
+    "snapshot_inspect": "three standalone copied snapshots passed",
+    "harness_failures_preserved": [
+      "initialization checked too early",
+      "Host/Origin mismatch",
+      "non-standalone WAL snapshot rejected"
+    ],
+    "field_enablement": false,
+    "field_execute_invoked": false,
+    "observation_enabled": false,
+    "actual_source_revision": 2,
+    "global_trust_changed": false,
+    "temporary_field_credential_issued": false,
+    "limits": [
+      "no actual-client or physical-load proof",
+      "no observation candidate proof",
+      "journal has origin=rule, not per-link provenance"
+    ]
   }
 }
