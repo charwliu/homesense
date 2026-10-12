@@ -852,3 +852,6 @@ Admission actor 在持久认领前复核控制器权限、进程及完整运行�
 
 
 停止原因运行时首批接线：SceneRuntime 保留首次整体取消原因，重试不改写；调度器 stop 写 service_stopped，渐变准备失败写 preparation_failed，显式用户取消仍为 cancel_requested。111 项场景运行时回归及库严格 Clippy 通过，验证同步停止屏障后仍可保存原因、重试不重复记录。因果链关闭以及配置发布／传输故障的详细来源传播仍待接入，不能把此检查点视为全部停止分类完成。未部署或升级现场数据库，EA-5 不变。
+
+
+因果链停止原因接线：Router 关闭通过 Session 和 SceneScheduler 向场景传递 service_stopped，显式取消链／场景仍使用 cancel_requested。111 项场景运行时回归及库严格 Clippy 通过，覆盖重复关闭仅保存一次服务停止记录、关闭后不再派发。配置发布和传输故障的特定原因仍需由上层监督器传入；未部署现场，EA-5 不变。

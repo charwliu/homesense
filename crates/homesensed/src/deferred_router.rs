@@ -258,12 +258,15 @@ impl Router {
         id: u64,
         scheduler: &mut SceneScheduler,
     ) -> Result<usize, String> {
+        self.cancel_with_reason(id,scheduler,homesense_storage::scene_run::CancellationReason::CancelRequested).await
+    }
+    async fn cancel_with_reason(&mut self,id:u64,scheduler:&mut SceneScheduler,reason:homesense_storage::scene_run::CancellationReason)->Result<usize,String> {
         self.validate(scheduler)?;
         let Some(Entry::Active(session)) = self.entries.get_mut(&id) else {
             return Err("unknown or cancelled causal session".into());
         };
         let pending = session.pending_identities();
-        let count = session.cancel(scheduler).await?;
+        let count = session.cancel_with_reason(scheduler,reason).await?;
         self.entries.insert(id, Entry::Cancelled(pending));
         Ok(count)
     }
@@ -295,7 +298,7 @@ impl Router {
                     Ok(false)=>{},
                 }
             }
-            if let Err(error) = self.cancel(id, scheduler).await {
+            if let Err(error) = self.cancel_with_reason(id, scheduler,homesense_storage::scene_run::CancellationReason::ServiceStopped).await {
                 failures.push(format!("session {id}: {error}"));
             }
         }

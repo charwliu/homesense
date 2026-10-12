@@ -356,6 +356,9 @@ impl Session {
     /// Cancel this chain without deriving scene-result rules. Commands already
     /// writing cannot be undone. Failure or abandonment gates admission.
     pub async fn cancel(&mut self, scheduler: &mut SceneScheduler) -> Result<usize, String> {
+        self.cancel_with_reason(scheduler,homesense_storage::scene_run::CancellationReason::CancelRequested).await
+    }
+    pub(crate) async fn cancel_with_reason(&mut self,scheduler:&mut SceneScheduler,reason:homesense_storage::scene_run::CancellationReason)->Result<usize,String> {
         // Cancellation must remain possible while transport admission is closed.
         // Durable cancellation and outcome writes still validate authority/scope.
         if self.closed || scheduler.identity() != self.scheduler {
@@ -373,7 +376,7 @@ impl Session {
                 if scheduler.audit_id(*run) != Some(audit.as_str()) {
                     return Err("cancelled scene identity unavailable".into());
                 }
-                cancelled += scheduler.cancel(*run).await?;
+                cancelled += scheduler.cancel_with_reason(*run,reason).await?;
             }
             self.admission
                 .record_rule_outcome(
