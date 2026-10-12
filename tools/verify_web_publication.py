@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Real loopback HTTP publication regression; synthetic devices only."""
-import json, pathlib, secrets, socket, sqlite3, subprocess, sys, tempfile, time, urllib.request, urllib.error, uuid
+import hashlib, json, pathlib, secrets, socket, sqlite3, subprocess, sys, tempfile, time, urllib.request, urllib.error, uuid
 repo=pathlib.Path(__file__).resolve().parents[1]
 binary=pathlib.Path(sys.argv[1]).resolve()
 with tempfile.TemporaryDirectory(prefix='homesense-publication-') as directory:
@@ -60,6 +60,29 @@ with tempfile.TemporaryDirectory(prefix='homesense-publication-') as directory:
      code,result=request('/api/v1/config/activations/'+restore_id,restore_activation);assert code==202 and result['outcome']=='activated',(code,result)
     code,snapshot=request('/api/v1/devices');assert code==200 and snapshot['revision']==3 and snapshot['devices'][0]['name']==original_name,(code,snapshot)
     code,duplicate=request('/api/v1/config/activations/'+restore_id,restore_activation);assert code==200 and duplicate['revision']==3,(code,duplicate)
+    # Exercise the actual management endpoint against daily and publication files.
+    for _ in range(100):
+     code,catalog=request('/api/v1/backups');assert code==200,(code,catalog)
+     if all(group['entries'] for group in catalog['groups']):break
+     time.sleep(.02)
+    else:raise AssertionError('daily or publication snapshot missing')
+    assert catalog['verified'] is False and str(state) not in json.dumps(catalog)
+    inspected=[]
+    for group in catalog['groups']:
+     for item in group['entries']:
+      assert item['regular_file'] is True
+      folder=state/'publication-backups' if group['kind']=='publication' else state/'daily-backups'/'automation-simulation.sqlite'
+      snapshot=folder/item['name'];before=hashlib.sha256(snapshot.read_bytes()).hexdigest()
+      code,checked=request('/api/v1/backups/inspect',{'kind':group['kind'],'name':item['name']})
+      assert code==200 and checked['verified'] is True,(code,checked)
+      assert checked['active_revision'] in ('1','2')
+      assert hashlib.sha256(snapshot.read_bytes()).hexdigest()==before,'inspection changed snapshot'
+      inspected.append((group['kind'],item['name']))
+    if attempt==0:first_inspected=inspected
+    else:assert inspected==first_inspected,'restart replaced same-day backup catalog'
+    assert request('/api/v1/backups/inspect',{'kind':'daily','name':'../automation-simulation.sqlite'})[0]==400
+    assert request('/api/v1/backups/inspect',{'kind':'daily','name':'missing.sqlite'})[0]==503
+    assert request('/api/v1/devices')[1]['revision']==3,'inspection activated old configuration'
     assert request('/health/ready')==(200,{'ready':True})
     process.wait(timeout=20);assert process.returncode==0
    finally:
@@ -82,4 +105,4 @@ with tempfile.TemporaryDirectory(prefix='homesense-publication-') as directory:
     backup_versions.append(db.execute('SELECT max(revision) FROM configuration_revision').fetchone()[0])
   assert sorted(backup_versions)==[1,2]
 
- print(json.dumps({'publication':'passed','restart_replay':'none','backups':2,'scene_runs':1,'historical_restore':'passed','restored_revision':3}))
+ print(json.dumps({'publication':'passed','restart_replay':'none','backups':2,'scene_runs':1,'historical_restore':'passed','restored_revision':3,'http_backup_inspections':len(first_inspected)*2,'snapshot_bytes':'unchanged'}))
