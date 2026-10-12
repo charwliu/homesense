@@ -15,6 +15,8 @@ pub struct Snapshot {
     pub stored: crate::variables::Stored,
     /// Retained even when invalidated, so unknown never loses its source label.
     pub evidence: Option<Inference>,
+    /// Whether that evidence belongs to the caller's current complete scope.
+    pub evidence_current: bool,
 }
 impl Snapshot {
     pub fn selection(&self) -> Selection {
@@ -84,7 +86,9 @@ fn snapshot(
             value = None;
         }
     }
+    let evidence_current = evidence.as_ref().is_some_and(|e| Some(e.scope) == scope);
     Ok(Some(Snapshot {
+        evidence_current,
         stored: crate::variables::Stored {
             lifetime: Lifetime::Persistent,
             kind: ValueType::Integer,

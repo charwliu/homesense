@@ -294,3 +294,33 @@ fn invalid_configuration_selection_and_backwards_clock_are_rejected() {
         Err(Error::ClockWentBackwards)
     );
 }
+
+#[test]
+fn stream_start_holds_do_not_become_new_presses_until_release() {
+    let mut observer = make_observer(1, 0);
+    observer.initially_held(&[id("key1")]).unwrap();
+    assert!(
+        observer
+            .observe(&event(1, "key1", true, 50), selected(Some(0)), 50)
+            .unwrap()
+            .is_none()
+    );
+    assert!(observer.initially_held(&[id("key3")]).is_err());
+    assert!(
+        observer
+            .observe(&event(2, "key1", false, 51), selected(Some(0)), 51)
+            .unwrap()
+            .is_none()
+    );
+    assert_eq!(
+        observer
+            .observe(&event(3, "key1", true, 52), selected(Some(0)), 52)
+            .unwrap()
+            .unwrap()
+            .value,
+        Some(1)
+    );
+    let mut other = make_observer(1, 0);
+    assert!(other.initially_held(&[id("unknown")]).is_err());
+    assert!(other.initially_held(&[id("key1"), id("key1")]).is_err());
+}

@@ -70,7 +70,7 @@ impl Source {
         tokio::time::timeout(Duration::from_millis(500), async {
             let snapshot = self
                 .admission
-                .variable_snapshot(self.controller, self.generation.clone(), names)
+                .scene_selection_values(self.controller, self.generation.clone(), names)
                 .await
                 .map_err(|_| "scene selection read unavailable")?;
             let state = self

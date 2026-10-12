@@ -9,7 +9,7 @@ use homesense_core::{
 use homesense_hap::requests::Batch;
 use homesense_storage::{Store, journal::Status};
 use std::collections::BTreeMap;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc;
 use std::{
     path::PathBuf,
@@ -170,6 +170,9 @@ impl SubmissionFailure {
     }
 }
 enum Message {
+    BeginSceneObservation(Uuid,TaskGeneration,u64,crate::feedback::SceneObservationStart,oneshot::Sender<Result<homesense_core::scene_observer::Scope,WriteStatus>>),
+    ObserveSceneKey(Uuid,TaskGeneration,homesense_core::scene_observer::Scope,crate::feedback::SceneKeyObservation,oneshot::Sender<Result<(),WriteStatus>>),
+    SceneSelections(Uuid,TaskGeneration,Vec<String>,oneshot::Sender<Result<BTreeMap<String,homesense_storage::scene_observation::Snapshot>,WriteStatus>>),
     SceneHistory(Uuid, TaskGeneration, String, Option<homesense_storage::scene_history::Cursor>, usize, oneshot::Sender<Result<homesense_storage::scene_history::Page, WriteStatus>>),
     Diagnostics(Uuid, TaskGeneration, oneshot::Sender<Result<Diagnostics, WriteStatus>>),
     ConfigurationExport(Uuid, TaskGeneration, u64, oneshot::Sender<Result<Option<homesense_storage::configuration_history::Export>, WriteStatus>>),
@@ -287,6 +290,7 @@ pub struct Admission {
     ttl: Duration,
     stop_requested: Arc<AtomicBool>,
     generations: tokio::sync::watch::Receiver<Option<TaskGeneration>>,
+    observation_invalidation: Arc<AtomicU64>,
 }
 fn millis(clock: Instant) -> u64 {
     u64::try_from(clock.elapsed().as_millis()).unwrap_or(u64::MAX)
@@ -316,6 +320,8 @@ impl Admission {
         let authorize = Arc::new(authorize);
         let stop_requested = Arc::new(AtomicBool::new(false));
         let worker_stop = stop_requested.clone();
+        let observation_invalidation=Arc::new(AtomicU64::new(1));
+        let worker_observation_invalidation=observation_invalidation.clone();
         std::thread::Builder::new()
             .name("homesense-admission".into())
             .spawn(move || {
@@ -380,6 +386,9 @@ impl Admission {
                 let mut write_deadline: Option<u64> = None;
                 let mut next_id = 1u64;
                 let mut failed = false;
+                let mut scene_observer=crate::scene_observation_owner::Owner::default();
+                let observer_boot=Uuid::parse_str(&worker_boot).unwrap().as_u128();
+                let mut observation_fence=worker_observation_invalidation.load(Ordering::Acquire);
                 let mut stopped = None;
                 let mut publication: Option<PendingPublication> = None;
                 loop {
@@ -389,6 +398,12 @@ impl Admission {
                     } else {
                         Some(TaskGeneration { boot: worker_boot.clone(), epochs: arbiter.policy().epochs })
                     };
+                    let fence=worker_observation_invalidation.load(Ordering::Acquire);
+                    if current.is_none() || scene_observer.scope().is_some_and(|s|s.epochs!=arbiter.policy().epochs) || fence!=observation_fence {scene_observer.invalidate();}
+                    observation_fence=fence;
+                    if scene_observer.refresh_local_versions(&store,millis(clock)).is_err() {
+                        failed=true;let _=arbiter.storage_failed();scene_observer.invalidate();
+                    }
                     generation_updates.send_if_modified(|previous| {
                         if *previous == current { false } else { *previous = current; true }
                     });
@@ -673,6 +688,49 @@ impl Admission {
                                 Ok(())
                             })();
                             let _=reply.send(result);
+                        }
+                        Message::BeginSceneObservation(controller,generation,fence,proof,reply)=>{
+                            if reply.is_closed() {continue;}
+                            let result=(||{
+                                if !authorize(controller) {return Err(WriteStatus::InsufficientPrivileges)}
+                                if failed || generation.boot!=worker_boot || generation.epochs!=arbiter.policy().epochs || !arbiter.policy().gateway_ready || arbiter.policy().publishing {return Err(WriteStatus::ServiceCommunicationFailure)}
+                                let _lease=proof.lease().lock(observer_boot,configuration.revision(),arbiter.policy().epochs.transport,now).map_err(|_|WriteStatus::ResourceBusy)?;
+                                let bundle=store.active_bundle(options.context).map_err(|_|WriteStatus::ServiceCommunicationFailure)?.ok_or(WriteStatus::ResourceDoesNotExist)?;
+                                let document=bundle.automation.ok_or(WriteStatus::ResourceDoesNotExist)?;
+                                if worker_observation_invalidation.load(Ordering::Acquire)!=fence {return Err(WriteStatus::ResourceBusy)}
+                                let scope=scene_observer.begin(&store,&document,proof.snapshot(),observer_boot,arbiter.policy().epochs,now).map_err(|error|match error {
+                                    homesense_storage::Error::Conflict|homesense_storage::Error::InvalidAudit=>WriteStatus::InvalidValueInRequest,
+                                    _=>{failed=true;let _=arbiter.storage_failed();WriteStatus::ServiceCommunicationFailure}
+                                })?;
+                                if worker_observation_invalidation.load(Ordering::Acquire)!=fence {scene_observer.invalidate();return Err(WriteStatus::ResourceBusy)}
+                                observation_fence=fence;Ok(scope)
+                            })();let _=reply.send(result);
+                        }
+                        Message::ObserveSceneKey(controller,generation,scope,proof,reply)=>{
+                            if reply.is_closed() {continue;}
+                            let result=(||{
+                                if !authorize(controller) {return Err(WriteStatus::InsufficientPrivileges)}
+                                if failed || generation.boot!=worker_boot || generation.epochs!=arbiter.policy().epochs || !arbiter.policy().gateway_ready || arbiter.policy().publishing {return Err(WriteStatus::ServiceCommunicationFailure)}
+                                if worker_observation_invalidation.load(Ordering::Acquire)!=observation_fence {scene_observer.invalidate();return Err(WriteStatus::InvalidValueInRequest)}
+                                let _lease=proof.lease().lock(observer_boot,configuration.revision(),arbiter.policy().epochs.transport,now).map_err(|_|WriteStatus::ResourceBusy)?;
+                                scene_observer.observe(&mut store,scope,proof.event(),now).map_err(|error|match error {
+                                    homesense_storage::Error::Conflict|homesense_storage::Error::InvalidAudit=>WriteStatus::InvalidValueInRequest,
+                                    _=>{failed=true;let _=arbiter.storage_failed();WriteStatus::ServiceCommunicationFailure}
+                                })
+                            })();let _=reply.send(result);
+                        }
+                        Message::SceneSelections(controller,generation,names,reply)=>{
+                            let result=(||{
+                                if !authorize(controller) {return Err(WriteStatus::InsufficientPrivileges)}
+                                if failed || generation.boot!=worker_boot || generation.epochs!=arbiter.policy().epochs {return Err(WriteStatus::ServiceCommunicationFailure)}
+                                if worker_observation_invalidation.load(Ordering::Acquire)!=observation_fence {scene_observer.invalidate();}
+                                let mut values=BTreeMap::new();
+                                for name in names {
+                                    let value=store.scene_selection(configuration.revision(),&name,scene_observer.scope()).map_err(|_|WriteStatus::ServiceCommunicationFailure)?.ok_or(WriteStatus::ResourceDoesNotExist)?;
+                                    if values.insert(name,value).is_some() {return Err(WriteStatus::InvalidValueInRequest)}
+                                }
+                                Ok(values)
+                            })();let _=reply.send(result);
                         }
                         Message::VariableSnapshot(controller, generation, names, reply) => {
                             let result = (|| {
@@ -1299,6 +1357,7 @@ impl Admission {
             ttl: options.request_ttl,
             stop_requested,
             generations,
+            observation_invalidation,
         })
     }
     /// Trusted runtime coordinator only: validate then enter the publication barrier.
@@ -1579,6 +1638,28 @@ impl Admission {
         receive
             .await
             .map_err(|_| WriteStatus::ServiceCommunicationFailure)?
+    }
+    /// Trusted stream owner invalidation works even while the mailbox is full.
+    pub(crate) fn invalidate_scene_observation_now(&self)->Result<(),String> {
+        self.observation_invalidation.try_update(Ordering::AcqRel,Ordering::Acquire,|v|v.checked_add(1)).map(|_|()).map_err(|_|"scene observation fence exhausted".into())
+    }
+    pub(crate) async fn begin_scene_observation(&self,controller:Uuid,generation:TaskGeneration,proof:crate::feedback::SceneObservationStart)->Result<homesense_core::scene_observer::Scope,WriteStatus> {
+        let (reply,receive)=oneshot::channel();self.sender.try_send(Message::BeginSceneObservation(controller,generation,self.observation_invalidation.load(Ordering::Acquire),proof,reply)).map_err(|_|WriteStatus::ResourceBusy)?;
+        receive.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?
+    }
+    pub(crate) async fn observe_scene_key(&self,controller:Uuid,generation:TaskGeneration,scope:homesense_core::scene_observer::Scope,proof:crate::feedback::SceneKeyObservation)->Result<(),WriteStatus> {
+        let (reply,receive)=oneshot::channel();self.sender.try_send(Message::ObserveSceneKey(controller,generation,scope,proof,reply)).map_err(|_|WriteStatus::ResourceBusy)?;
+        receive.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?
+    }
+    /// Selection consumers may use current inferred values with their source.
+    /// Ordinary rule snapshots deliberately continue to mask them as unknown.
+    pub async fn scene_selection_snapshot(&self,controller:Uuid,generation:TaskGeneration,names:Vec<String>)->Result<BTreeMap<String,homesense_storage::scene_observation::Snapshot>,WriteStatus> {
+        if names.len()>64 || names.iter().any(|n|n.is_empty() || n.len()>256) {return Err(WriteStatus::InvalidValueInRequest)}
+        let (reply,receive)=oneshot::channel();self.sender.try_send(Message::SceneSelections(controller,generation,names,reply)).map_err(|_|WriteStatus::ResourceBusy)?;
+        receive.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?
+    }
+    pub(crate) async fn scene_selection_values(&self,controller:Uuid,generation:TaskGeneration,names:Vec<String>)->Result<BTreeMap<String,homesense_storage::variables::Stored>,WriteStatus> {
+        Ok(self.scene_selection_snapshot(controller,generation,names).await?.into_iter().map(|(name,snapshot)|(name,snapshot.stored)).collect())
     }
     pub async fn variable_snapshot(
         &self,

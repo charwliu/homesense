@@ -56,6 +56,24 @@ impl RuleLease {
         Ok(version)
     }
 }
+/// These proofs can only be constructed by the configured feedback owner.
+/// Their lease is checked by Admission before consuming a raw key or stream cut.
+pub(crate) struct SceneObservationStart {
+    snapshot: Snapshot,
+    lease: RuleLease,
+}
+impl SceneObservationStart {
+    pub(crate) fn snapshot(&self)->&Snapshot {&self.snapshot}
+    pub(crate) fn lease(&self)->&RuleLease {&self.lease}
+}
+pub(crate) struct SceneKeyObservation {
+    event: homesense_state::Event,
+    lease: RuleLease,
+}
+impl SceneKeyObservation {
+    pub(crate) fn event(&self)->&homesense_state::Event {&self.event}
+    pub(crate) fn lease(&self)->&RuleLease {&self.lease}
+}
 pub struct Feedback {
     lease_version: Arc<Mutex<u64>>,
     boot: u128,
@@ -347,6 +365,29 @@ impl Feedback {
     }
     pub fn snapshot(&self) -> Snapshot {
         self.states.snapshot()
+    }
+    pub(crate) fn scene_observation_start(&self,now:u64)->Result<SceneObservationStart,String> {
+        let version=self.lease_version.lock().map_err(|_|"feedback lease poisoned")?;
+        if self.stopped {return Err("scene observation feedback stopped".into())}
+        Ok(SceneObservationStart {snapshot:self.states.snapshot(),lease:RuleLease {
+            version:self.lease_version.clone(),expected:*version,boot:self.boot,revision:self.revision,epoch:self.epoch,
+            captured_ms:now,expires_ms:None,observations:BTreeMap::new(),
+        }})
+    }
+    pub(crate) fn scene_key_observation(&self,event:&homesense_state::Event,now:u64)->Result<SceneKeyObservation,String> {
+        let version=self.lease_version.lock().map_err(|_|"feedback lease poisoned")?;
+        if self.stopped || event.cursor.boot_id!=self.boot || event.change!=homesense_state::Change::Button
+            || event.state.kind!=homesense_core::ModuleKind::Keypad || event.state.quality!=homesense_state::Quality::Confirmed
+            || event.state.observed_at_ms.is_none() || !matches!(event.state.observed,Some(homesense_core::Observation::Button{..})) {
+            return Err("invalid scene key observation".into())
+        }
+        let sequence=event.cursor.sequence.checked_sub(1).ok_or("invalid scene key cursor")?;
+        let recorded=self.states.events_since(homesense_state::Cursor{boot_id:self.boot,sequence}).map_err(|e|e.to_string())?;
+        if recorded.first()!=Some(event) {return Err("scene key is not in the current feedback stream".into())}
+        Ok(SceneKeyObservation {event:event.clone(),lease:RuleLease {
+            version:self.lease_version.clone(),expected:*version,boot:self.boot,revision:self.revision,epoch:self.epoch,
+            captured_ms:now,expires_ms:None,observations:BTreeMap::new(),
+        }})
     }
     pub fn apply(&mut self, read: &GatewayRead) -> Result<usize, String> {
         let version = self.lease_version.clone();
