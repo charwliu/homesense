@@ -195,6 +195,18 @@ impl Api {
                 Err(code)=>deny(match code {"last_administrator"=>StatusCode::CONFLICT,"credential_not_found"=>StatusCode::NOT_FOUND,"administrator_required"=>StatusCode::FORBIDDEN,_=>StatusCode::SERVICE_UNAVAILABLE},code),
             };
         }
+        if let Some(id)=request.uri().path().strip_prefix("/api/v1/credentials/") {
+            if grant.role!=crate::web_auth::Role::Administrator {return deny(StatusCode::FORBIDDEN,"administrator_required");}
+            if request.method()!=hyper::Method::PATCH {return deny(StatusCode::METHOD_NOT_ALLOWED,"method_not_allowed");}
+            if request.headers().get("origin").and_then(|v|v.to_str().ok())!=Some(&self.origin) {return deny(StatusCode::FORBIDDEN,"origin_required");}
+            let id=match uuid::Uuid::parse_str(id) {Ok(id)=>id,Err(_)=>return deny(StatusCode::BAD_REQUEST,"invalid_credential_id")};
+            if request.body().len()>65536 {return deny(StatusCode::PAYLOAD_TOO_LARGE,"credential_request_too_large");}
+            let input=match serde_json::from_slice::<crate::web_auth::CredentialRequest>(request.body()) {Ok(input)=>input,Err(_)=>return deny(StatusCode::BAD_REQUEST,"invalid_credential_request")};
+            return match self.tokens.update_grant(id,input,authorization,cookie,request.headers().get("x-csrf-token").and_then(|v|v.to_str().ok())) {
+                Ok(updated)=>response(StatusCode::OK,json!(updated)),
+                Err(code)=>deny(match code {"administrator_required"|"scope_expansion_forbidden"|"controller_mismatch"=>StatusCode::FORBIDDEN,"last_administrator"=>StatusCode::CONFLICT,"credential_not_found"=>StatusCode::NOT_FOUND,"invalid_credential_scope"=>StatusCode::BAD_REQUEST,_=>StatusCode::SERVICE_UNAVAILABLE},code),
+            };
+        }
         if request.uri().path()=="/api/v1/credentials" {
             if grant.role!=crate::web_auth::Role::Administrator {return deny(StatusCode::FORBIDDEN,"administrator_required");}
             if request.method()==hyper::Method::POST {

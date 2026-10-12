@@ -186,6 +186,24 @@ impl Tokens {
         entries.insert(id,Credential{generation:Uuid::new_v4(),hash,grant:grant.clone()});
         Ok(IssuedCredential{id,secret,grant})
     }
+    /// Replace a grant without rotating its secret or actor identity.
+    /// All existing sessions are invalidated after the durable update succeeds.
+    pub fn update_grant(&self,id:Uuid,request:CredentialRequest,bearer:Option<&str>,cookie:Option<&str>,csrf:Option<&str>)->Result<CredentialSummary,&'static str> {
+        let mut entries=self.entries.write().map_err(|_|"credential_store_unavailable")?;
+        let mut sessions=self.sessions.write().map_err(|_|"credential_store_unavailable")?;
+        let parent=administrator(&entries,&sessions,bearer,cookie,csrf).ok_or("administrator_required")?;
+        if !request.devices.is_subset(&parent.devices)||!request.scenes.is_subset(&parent.scenes){return Err("scope_expansion_forbidden");}
+        let previous=entries.get(&id).ok_or("credential_not_found")?;
+        if previous.grant.controller!=parent.controller {return Err("controller_mismatch");}
+        if previous.grant.role==Role::Administrator && request.role!=Role::Administrator && entries.values().filter(|entry|entry.grant.role==Role::Administrator).count()==1 {return Err("last_administrator");}
+        let grant=Grant{controller:previous.grant.controller,role:request.role,devices:request.devices,scenes:request.scenes};
+        crate::web_credentials::validate(&grant).map_err(|_|"invalid_credential_scope")?;
+        let hash=previous.hash;let generation=previous.generation;
+        if let Some(store)=&self.persistence {store.lock().map_err(|_|"credential_store_unavailable")?.save(&crate::web_credentials::Record{id,digest:hash,grant:grant.clone()}).map_err(|_|"credential_store_unavailable")?;}
+        entries.insert(id,Credential{generation:Uuid::new_v4(),hash,grant:grant.clone()});
+        sessions.retain(|_,session|session.generation!=generation);
+        Ok(CredentialSummary{id,grant})
+    }
     pub fn login(&self, header: &str) -> Option<SessionSecret> {
         let secret=header.strip_prefix("Bearer ")?;
         if !(32..=256).contains(&secret.len()) {return None;}
