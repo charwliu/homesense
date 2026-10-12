@@ -1,6 +1,16 @@
 'use strict';
 let csrf = '';
 let publicationPreview=null;
+let previewEpoch=0;
+function invalidatePreview() {
+  publicationPreview=null;previewEpoch++;
+  document.getElementById('activate-draft').disabled=true;
+  document.getElementById('draft-impact').textContent='';
+  return previewEpoch;
+}
+for(const id of ['draft-id','base-revision','draft-revision','device-document','automation-document']) {
+  document.getElementById(id).addEventListener('input',invalidatePreview);
+}
 let versionsBefore=null;
 const started = new Map();
 const status = document.getElementById('status');
@@ -48,6 +58,7 @@ function renderScenes(data) {
   }
 }
 document.getElementById('connect').onclick = async () => {
+  invalidatePreview();
   const credential = document.getElementById('token').value; document.getElementById('token').value = '';
   try {
     const response = await fetch('/api/v1/session', {method: 'POST', credentials: 'same-origin', headers: {Authorization: `Bearer ${credential}`}});
@@ -56,6 +67,7 @@ document.getElementById('connect').onclick = async () => {
   } catch (error) { csrf = ''; list.replaceChildren(); status.textContent = error.message; }
 };
 document.getElementById('logout').onclick = async () => {
+  invalidatePreview();
   try { await request('/api/v1/session', {method: 'DELETE'}); csrf = ''; clearTimeout(eventRetry); if(eventSocket)eventSocket.close();eventDevices.clear(); document.getElementById('draft-impact').textContent=''; document.getElementById('configuration').hidden=true; document.getElementById('versions').replaceChildren();document.getElementById('draft-list').replaceChildren(); versionsBefore=null;document.getElementById('more-versions').disabled=true; for(const id of ['device-document','automation-document','draft-id','base-revision','draft-revision']) document.getElementById(id).value=''; started.clear(); list.replaceChildren(); document.getElementById('devices').replaceChildren(); status.textContent = '已退出'; }
   catch (error) { status.textContent = '注销未确认：' + error.message; }
 };
@@ -105,6 +117,7 @@ function renderDevices() {
 document.getElementById('refresh').onclick = () => refresh().catch(error => {status.textContent=error.message;});
 
 document.getElementById('save-draft').onclick = async () => {
+  invalidatePreview();
   const button=document.getElementById('save-draft'); button.disabled=true;
   try {
     const id=crypto.randomUUID(); document.getElementById('draft-id').value=id;
@@ -115,9 +128,10 @@ document.getElementById('save-draft').onclick = async () => {
   finally {button.disabled=false;}
 };
 async function loadDraft(id) {
-  publicationPreview=null;document.getElementById('activate-draft').disabled=true;
+  const epoch=invalidatePreview();
   try {
     const draft=await request('/api/v1/config/drafts/'+encodeURIComponent(id)+'/source');
+    if(epoch!==previewEpoch)return;
     document.getElementById('draft-id').value=draft.id;
     document.getElementById('base-revision').value=draft.expected_revision;
     document.getElementById('draft-revision').value=draft.revision;
@@ -130,12 +144,14 @@ async function loadDraft(id) {
 document.getElementById('load-draft').onclick=()=>loadDraft(document.getElementById('draft-id').value.trim());
 
 document.getElementById('preview-draft').onclick = async () => {
+  const epoch=invalidatePreview();const id=document.getElementById('draft-id').value.trim();
   try {
-    const result=await request('/api/v1/config/previews/'+encodeURIComponent(document.getElementById('draft-id').value.trim()));
+    const result=await request('/api/v1/config/previews/'+encodeURIComponent(id));
+    if(epoch!==previewEpoch || id!==document.getElementById('draft-id').value.trim())return;
     const impact=result.impact;
     publicationPreview={id:result.draft,boot:impact.boot}; document.getElementById('activate-draft').disabled=false;
     document.getElementById('draft-impact').textContent=`版本 ${impact.active_revision} → ${impact.candidate_revision}\n需要重建网关连接：${impact.connection_rebuild_required?'是':'否'}\n发布将结束旧版本规则和定时任务。\n受影响场景：\n` + (impact.interrupted_runs.map(run=>`${run.definition || run.audit_id} · ${run.status}`).join('\n') || '当前无未结束场景') + '\n此为当前快照，不锁定运行状态；尚未激活。';
-  } catch(error) {document.getElementById('draft-impact').textContent='';status.textContent=error.message;}
+  } catch(error) {if(epoch===previewEpoch){invalidatePreview();status.textContent=error.message;}}
 };
 
 document.getElementById('activate-draft').onclick = async () => {

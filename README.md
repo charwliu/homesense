@@ -445,3 +445,5 @@ Web 窗帘控制：`POST /api/v1/device-commands` 的 command 现在支持 `{"ac
 草稿编辑保留整数精度：页面直接提交经 JSON 语法检查的文档文本，不将解析后的浮点数重新序列化；版本输入用 BigInt 检查正整数、递增及 i64 上限。`GET /api/v1/config/drafts/ID/source` 返回文本形式的文档与版本，供编辑器精确载入。新增 `node tools/verify_draft_json.cjs` 验证大整数与非法输入；Rust 草稿／API 回归通过，真实浏览器保存—载入专项仍待复验。
 
 集成复验（代码提交 `2c093bf`）：当前工作区 509 项、独立 `git archive` 公开快照 508 项全部通过，均 0 失败／忽略；差额为保留本地的私有事件测试。已提交快照 HTTPS/WSS 与模拟配置发布／重启脚本通过，草稿精度脚本通过。独立快照严格 Clippy 未通过：`homesense-hap/src/events.rs:49` 的 collapsible_if 修正仅存在于既有未提交改动，未混入本轮提交。完整证据见 `docs/evidence/stage-e-browser/integrated-regression.json`；不代表现场或 D/E 完成。
+
+配置预览失效保护：重新预览、编辑、载入、保存或切换会话时清除旧预览并禁用激活；旧请求迟到不覆盖新选择。`node tools/verify_preview_state.cjs` 覆盖刷新失败、编辑中响应和乱序响应，避免失败后继续使用旧发布预览。此为离线页面状态回归，浏览器完整发布验收仍待完成。
