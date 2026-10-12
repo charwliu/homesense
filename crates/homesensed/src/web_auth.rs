@@ -30,6 +30,7 @@ struct Credential {
 #[derive(Default)]
 pub struct Tokens {
     entries: RwLock<BTreeMap<Uuid, Credential>>,
+    persistence: Option<std::sync::Mutex<crate::web_credentials::Credentials>>,
     sessions: RwLock<BTreeMap<[u8; 32], Session>>,
 }
 #[derive(Clone)]
@@ -47,9 +48,21 @@ fn digest(value: &str) -> [u8; 32] {
     Sha256::digest(value.as_bytes()).into()
 }
 impl Tokens {
+    /// Load a private credential database owned by this service instance.
+    /// Sessions are deliberately process-local and require login after restart.
+    pub fn open(path:&std::path::Path)->Result<Self,String> {
+        let store=crate::web_credentials::Credentials::open(path)?;
+        let records=store.list()?;
+        let entries=records.into_iter().map(|r|(r.id,Credential {
+            generation:Uuid::new_v4(),hash:r.digest,grant:r.grant,
+        })).collect();
+        Ok(Self{entries:RwLock::new(entries),sessions:RwLock::new(BTreeMap::new()),persistence:Some(std::sync::Mutex::new(store))})
+    }
+
     /// Caller obtains a random secret out of band; only its digest is retained.
     /// Minimum 32 bytes is an input bound, not a claim of password strength.
     pub fn insert(&self, id: Uuid, secret: &str, grant: Grant) -> Result<(), String> {
+        crate::web_credentials::validate(&grant)?;
         if secret.len() < 32
             || secret.len() > 256
             || !secret
@@ -75,6 +88,10 @@ impl Tokens {
             return Err("credential already assigned".into());
         }
         let mut sessions=self.sessions.write().map_err(|_|"session lock unavailable")?;
+        if let Some(store)=&self.persistence {
+            store.lock().map_err(|_|"credential storage lock unavailable")?
+                .save(&crate::web_credentials::Record{id,digest:hash,grant:grant.clone()})?;
+        }
         if let Some(previous)=entries.get(&id) {sessions.retain(|_,session|session.generation!=previous.generation);}
         entries.insert(id, Credential { generation:Uuid::new_v4(), hash, grant });
         Ok(())
@@ -82,6 +99,9 @@ impl Tokens {
     pub fn revoke(&self, id: Uuid) -> Result<(), String> {
         let mut entries=self.entries.write().map_err(|_|"credential lock unavailable")?;
         let mut sessions=self.sessions.write().map_err(|_|"session lock unavailable")?;
+        if let Some(store)=&self.persistence {
+            store.lock().map_err(|_|"credential storage lock unavailable")?.revoke(id)?;
+        }
         if let Some(previous)=entries.remove(&id) {sessions.retain(|_,session|session.generation!=previous.generation);}
         Ok(())
     }
