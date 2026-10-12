@@ -30,5 +30,13 @@ const reply=(index,id,ok=true)=>pending[index].resolve({ok,json:async()=>ok?{dra
  await element('confirm-publication').onclick();assert.equal(pending.length,9,'double confirmation must not resubmit');
  pending[8].resolve({ok:true,json:async()=>({outcome:'activated',revision:2})});await activated;
  assert.equal(element('activate-draft').disabled,true);
- console.log('Preview failure, edit and out-of-order response invalidation: passed');
+ // External publication must revoke confirmation, including >2^53 versions.
+ context.observeRevision('9007199254740993');
+ vm.runInContext("publicationPreview={id:'b',boot:'test'}",context);
+ await element('activate-draft').onclick();assert.equal(element('publication-confirmation').hidden,false);
+ context.observeRevision('9007199254740993');assert.equal(element('publication-confirmation').hidden,false);
+ assert.equal(context.observeRevision('9007199254740992'),false);assert.equal(element('publication-confirmation').hidden,false);
+ context.observeRevision('9007199254740994');assert.equal(element('publication-confirmation').hidden,true);assert.equal(element('activate-draft').disabled,true);
+ await element('confirm-publication').onclick();assert.equal(pending.length,9);
+ console.log('Preview failure, edit, revision change and out-of-order invalidation: passed');
 })().catch(error=>{console.error(error);process.exitCode=1;});
