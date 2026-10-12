@@ -20,8 +20,14 @@ pub fn states(
     document: &Document,
     snapshot: &BTreeMap<String, Stored>,
 ) -> Result<BTreeMap<String, Option<bool>>, String> {
+    states_in_groups(&document.scene_switch_groups, snapshot)
+}
+pub(crate) fn states_in_groups(
+    groups: &[homesense_config::scene_switches::Group],
+    snapshot: &BTreeMap<String, Stored>,
+) -> Result<BTreeMap<String, Option<bool>>, String> {
     let mut states = BTreeMap::new();
-    for group in &document.scene_switch_groups {
+    for group in groups {
         let selected = selection(group, snapshot)?;
         for member in &group.members {
             states.insert(member.scene.clone(), selected.map(|v| v == member.value));
@@ -152,4 +158,51 @@ pub fn plan(
         definitions: ordered,
         updates,
     })
+}
+
+/// Only explicit group members and reset actions alter local selection.
+pub(crate) fn related(document: &Document, scene: &str) -> bool {
+    document.scene_switch_groups.iter().any(|g| {
+        g.members.iter().any(|m| m.scene == scene) || g.reset_scenes.iter().any(|id| id == scene)
+    })
+}
+pub(crate) async fn activate_forced(
+    document: &Document,
+    scene: &str,
+    admission: &crate::admission::Admission,
+    scheduler: &mut crate::scene_scheduler::SceneScheduler,
+    controller: uuid::Uuid,
+) -> Result<u64, String> {
+    let generation = admission
+        .task_generation()
+        .await
+        .map_err(|e| format!("{e:?}"))?;
+    let snapshot = admission
+        .variable_snapshot(controller, generation, variable_names(document))
+        .await
+        .map_err(|e| format!("{e:?}"))?;
+    let plan = forced_plan(document, scene, &snapshot)?;
+    let runs = scheduler
+        .start_documents_with_variables_as(
+            document.revision,
+            plan.definitions,
+            admission.monotonic_ms(),
+            controller,
+            plan.updates,
+        )
+        .await?;
+    runs.into_iter()
+        .next()
+        .ok_or("manual activation receipt missing".into())
+}
+pub(crate) fn forced_plan(
+    document: &Document,
+    scene: &str,
+    snapshot: &BTreeMap<String, Stored>,
+) -> Result<Plan, String> {
+    let mut plan = plan(document, &[(scene.into(), Some(true))], snapshot)?;
+    if plan.definitions.is_empty() {
+        plan.definitions.push(scene.into());
+    }
+    Ok(plan)
 }
