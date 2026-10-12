@@ -31,6 +31,7 @@ impl Endpoint {
         Ok(())
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn start(
         settings: crate::service::WebSettings,
         directory: &Path,
@@ -38,8 +39,9 @@ impl Endpoint {
         controller: Uuid,
         runtime: &AutomationRuntime,
         publisher: crate::automation_publication::Publisher,
+        daily_backup: crate::daily_backup::Monitor,
     ) -> Result<Self, String> {
-        Self::start_in_context(settings,directory,admission,controller,runtime,Some(publisher),homesense_core::ExecutionContext::Live).await
+        Self::start_in_context(settings,directory,admission,controller,runtime,Some(publisher),homesense_core::ExecutionContext::Live,daily_backup).await
     }
     #[allow(clippy::too_many_arguments)]
     pub async fn start_in_context(
@@ -50,6 +52,7 @@ impl Endpoint {
         runtime: &AutomationRuntime,
         publisher: Option<crate::automation_publication::Publisher>,
         context: homesense_core::ExecutionContext,
+        daily_backup: crate::daily_backup::Monitor,
     ) -> Result<Self, String> {
         if let Some(tls)=&settings.tls {tls.validate_address(settings.address)?;}
         else if !settings.address.ip().is_loopback() || settings.address.port()==0 {return Err("plaintext management requires loopback".into());}
@@ -89,6 +92,7 @@ impl Endpoint {
             |tls| tls.origin.clone(),
         );
         let api = Arc::new(Api {
+            daily_backup,
             hap_bridges:Default::default(),hap_status: Default::default(),
             backup_source: Some(directory.join(match context {homesense_core::ExecutionContext::Simulation=>"automation-simulation.sqlite",homesense_core::ExecutionContext::Live=>"automation-tcp.sqlite"})),
             origin,

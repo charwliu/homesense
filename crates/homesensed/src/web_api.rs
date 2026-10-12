@@ -23,6 +23,7 @@ pub enum HapStatus {
     Reconfiguring,
 }
 pub struct Api {
+    pub daily_backup: crate::daily_backup::Monitor,
     pub hap_bridges: std::sync::RwLock<BTreeMap<String,crate::hap_bridge_group::Status>>,
     pub hap_status: std::sync::RwLock<HapStatus>,
     pub backup_source: Option<std::path::PathBuf>,
@@ -283,7 +284,7 @@ impl Api {
             if request.method()!=hyper::Method::GET {return deny(StatusCode::METHOD_NOT_ALLOWED,"method_not_allowed");}
             if !request.body().is_empty() {return deny(StatusCode::BAD_REQUEST,"unexpected_body");}
             return match runtime.control.request(Action::Diagnostics{controller:grant.controller,revision:runtime.revision}).await {
-                Ok(Reply::Diagnostics(s))=>response(StatusCode::OK,json!({"boot":s.boot,"revision":s.epochs.configuration.to_string(),"transport_epoch":s.epochs.transport.to_string(),"control_epoch":s.epochs.control.to_string(),"queued":s.queued,"in_flight":s.in_flight,"failed":s.failed,"stopping":s.stopping,"publishing":s.publishing,"gateway_ready":s.gateway_ready,"controller_enabled":s.controller_enabled,"ready":s.ready(),"storage_healthy":s.storage_healthy,"valid_configuration_loaded":s.valid_configuration_loaded,"wire_capacity":s.wire_capacity,"hap_bridges":self.hap_bridges.read().map(|s|s.clone()).unwrap_or_default(),"hap":self.hap_status.read().map(|state|*state).unwrap_or_default()})),
+                Ok(Reply::Diagnostics(s))=>response(StatusCode::OK,json!({"boot":s.boot,"revision":s.epochs.configuration.to_string(),"transport_epoch":s.epochs.transport.to_string(),"control_epoch":s.epochs.control.to_string(),"queued":s.queued,"in_flight":s.in_flight,"failed":s.failed,"stopping":s.stopping,"publishing":s.publishing,"gateway_ready":s.gateway_ready,"controller_enabled":s.controller_enabled,"ready":s.ready(),"storage_healthy":s.storage_healthy,"valid_configuration_loaded":s.valid_configuration_loaded,"wire_capacity":s.wire_capacity,"daily_backup":self.daily_backup.report(),"hap_bridges":self.hap_bridges.read().map(|s|s.clone()).unwrap_or_default(),"hap":self.hap_status.read().map(|state|*state).unwrap_or_default()})),
                 _=>deny(StatusCode::SERVICE_UNAVAILABLE,"diagnostics_unavailable"),
             };
         }
