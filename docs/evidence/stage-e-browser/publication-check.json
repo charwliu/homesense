@@ -1,0 +1,24 @@
+{
+  "base_commit": "1d03276",
+  "scope": "browser against isolated loopback simulation; no physical gateway",
+  "checks": {
+    "draft_save": "passed",
+    "private_catalog_load": "passed",
+    "preview": "version 1 to 2; no connection rebuild",
+    "edit_invalidates_activation": true,
+    "publication": "browser status and database active revision 2",
+    "backup": "one backup with active revision 1",
+    "command_journal_count": 0,
+    "integer_precision": "9223372036854775807 preserved in browser fields and both SQLite draft documents",
+    "large_draft_activated": false
+  },
+  "interaction_timeout": "activation click control timed out; no resubmission; later DOM and SQLite independently confirmed success",
+  "followup_fix": "invalidate preview text on activation; offline UI regression passed; screenshot precedes this small fix",
+  "service_stopped": true,
+  "not_covered": [
+    "physical devices",
+    "LAN deployment",
+    "iPhone or Siri",
+    "browser motor operation"
+  ]
+}
