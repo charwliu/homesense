@@ -1,0 +1,62 @@
+{
+  "recorded_utc": "2026-10-13T01:06:28.036378+00:00",
+  "product_commit": "e580caaadd47380be9f9463ba5a1b935d33afbe6",
+  "verified_source_files": 9,
+  "verified_log_files": 9,
+  "unique_rust_tests_passed": 32,
+  "successful_test_executions": 33,
+  "repeated_test_names": [
+    "encrypted_scene_switches_keep_selection_exclude_peers_and_restart_without_replay"
+  ],
+  "authoritative_final_encrypted_hap_log": "hap_final",
+  "rust_result_blocks": [
+    {
+      "log": "unit",
+      "passed": 2
+    },
+    {
+      "log": "integration",
+      "passed": 1
+    },
+    {
+      "log": "integration",
+      "passed": 3
+    },
+    {
+      "log": "integration",
+      "passed": 4
+    },
+    {
+      "log": "hap_final",
+      "passed": 1
+    },
+    {
+      "log": "observer",
+      "passed": 22
+    }
+  ],
+  "failed_final": 0,
+  "ignored": 0,
+  "strict_service_all_target_clippy": "log and fingerprint verified",
+  "independent_shipped_websocket_handler_checks": [
+    "ready_unknown_keeps_explicit_on",
+    "late_http_503_cannot_override_new_websocket_state",
+    "current_http_503_invalidates_controls",
+    "fresh_websocket_recovers_false",
+    "socket_failure_reason_visible",
+    "unknown_recovers_without_false",
+    "old_session_503_cannot_override_new_login"
+  ],
+  "web_app_matches_committed_tested_bytes": true,
+  "root_review_fix": "Identified late HTTP503 overwriting new WebSocket selection; corrected with snapshot epoch guard and independently exercised via actual production socket handler",
+  "field_actions": 0,
+  "initialization_policy_implemented": false,
+  "current_field_binary_remains": "c184e65",
+  "complete_workspace_not_repeated": true,
+  "stage_d_complete": false,
+  "stage_e_complete": false,
+  "evidence_sha256": {
+    "author_validation": "edff92a4cd28271bffab62bbec141346004ca7f34653be49e3b21e7f7efbdf6c",
+    "root_frontend": "3ed8c1da7ac6523b4cbeae21aaa54977743c3f3bf3a80e89e4099b5c6663ba65"
+  }
+}
