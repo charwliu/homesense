@@ -4,7 +4,7 @@ use hb_protocol::{Decoded, Registry};
 use hb_transport::Receive;
 use homesense_config::Configuration;
 use homesense_core::{DeviceId, ExecutionContext};
-use homesense_state::{Snapshot, StateStore};
+use homesense_state::Snapshot;
 use std::{
     collections::BTreeMap,
     sync::{Arc, Mutex},
@@ -92,15 +92,12 @@ pub struct Feedback {
     boot: u128,
     revision: u64,
     registries: BTreeMap<String, Registry>,
-    bindings: BTreeMap<(String, u8, u8), DeviceId>,
-    states: StateStore,
-    observation_counts: BTreeMap<DeviceId, u64>,
+    states: crate::module_truth::ModuleTruth,
     supply_relays: BTreeMap<DeviceId, DeviceId>,
     epoch: u64,
     state_epoch: u64,
     now: u64,
     stopped: bool,
-    invalid_light_reads: std::collections::BTreeSet<DeviceId>,
 }
 type NativeSceneCapture = (
     BTreeMap<DeviceId, Option<bool>>,
@@ -119,8 +116,8 @@ impl Feedback {
         let mut levels=BTreeMap::new();
         for id in physical {
             let state=snapshot.devices.get(&id).ok_or("relative device missing")?;
-            if self.invalid_light_reads.contains(&id) {return Err("relative feedback response invalid".into());}
-            let initial=state.quality==Quality::Unknown && state.observed.is_none() && state.observed_at_ms.is_none() && self.observation_counts.get(&id)==Some(&0);
+            if self.states.invalid_alias(&id) {return Err("relative feedback response invalid".into());}
+            let initial=state.quality==Quality::Unknown && state.observed.is_none() && state.observed_at_ms.is_none() && self.states.observation_count(&id)==Some(0);
             let fresh=state.quality==Quality::Confirmed && state.observed_at_ms.and_then(|at|now.checked_sub(at)).is_some_and(|age|age<max_age);
             if !initial && !fresh {return Err("relative feedback stale or failed".into());}
             if fresh {match (state.kind,state.observed) {
@@ -297,10 +294,8 @@ impl Feedback {
         boot: u128,
         epoch: u64,
     ) -> Result<Self, String> {
-        let mut states = StateStore::new(boot, epoch, config.devices().len().max(1), 256)
-            .map_err(|e| e.to_string())?;
+        let states=crate::module_truth::ModuleTruth::new(config,boot,epoch)?;
         let mut registries = BTreeMap::new();
-        let mut bindings = BTreeMap::new();
         for (name, gateway) in config.gateways() {
             let mut registry = if context == ExecutionContext::Simulation {
                 Registry::for_simulation()
@@ -314,27 +309,10 @@ impl Feedback {
             }
             registries.insert(name.clone(), registry);
         }
-        for id in config.devices().keys() {
-            if let Some((device, module)) = config.binding(id) {
-                states
-                    .register(id.clone(), module.kind())
-                    .map_err(|e| e.to_string())?;
-                bindings.insert(
-                    (
-                        device.gateway.clone(),
-                        device.address.get(),
-                        device.channel.get(),
-                    ),
-                    id.clone(),
-                );
-            }
-        }
-        let observation_counts = bindings.values().cloned().map(|id| (id, 0)).collect();
         Ok(Self {
             lease_version: Arc::new(Mutex::new(0)),
             boot,
             revision: config.revision(),
-            observation_counts,
             supply_relays: config
                 .devices()
                 .iter()
@@ -342,13 +320,11 @@ impl Feedback {
                 .filter_map(|(id, d)| d.supply_relay.clone().map(|relay| (id.clone(), relay)))
                 .collect(),
             registries,
-            bindings,
             states,
             epoch,
             state_epoch: epoch,
             now: 0,
             stopped: false,
-            invalid_light_reads: Default::default(),
         })
     }
     /// Stop synchronously, including from an async operation cancellation guard.
@@ -421,11 +397,14 @@ impl Feedback {
     /// Counts valid received observations, including unchanged values. State
     /// event versions intentionally deduplicate values and are not query receipts.
     pub(crate) fn observation_count(&self, id: &DeviceId) -> Option<u64> {
-        self.observation_counts.get(id).copied()
+        self.states.observation_count(id)
     }
     pub(crate) fn transport_epoch(&self) -> u64 {
         self.epoch
     }
+    /// Immutable access to canonical module-channel truth, including unbound
+    /// and disabled slots. This does not expose a mutable logical state store.
+    pub fn module_truth(&self)->&crate::module_truth::ModuleTruth{&self.states}
     pub fn snapshot(&self) -> Snapshot {
         self.states.snapshot()
     }
@@ -478,33 +457,15 @@ impl Feedback {
                 let mut count = 0;
                 for frame in frames {
                     if let Decoded::Unknown { reason: hb_protocol::UnknownReason::InvalidValue, .. }=registry.decode(*frame)
-                        && let Some(channel)=frame.command.checked_sub(0xd0)
-                        && let Some(id)=self.bindings.get(&(read.gateway_id.clone(),frame.address,channel)) {
-                        self.invalid_light_reads.insert(id.clone());
+                        && homesense_core::BusAddress::new(frame.address).ok()
+                            .and_then(|address|registry.module(address))
+                            .is_some_and(|module|matches!(module.kind(),homesense_core::ModuleKind::Switch|homesense_core::ModuleKind::Dimmer))
+                        && let Some(channel)=frame.command.checked_sub(0xd0) {
+                        self.states.invalidate_port(&read.gateway_id,frame.address,channel).map_err(|e|e.to_string())?;
                     }
-                    if let Decoded::Feedback {
-                        address,
-                        channel,
-                        observation,
-                    } = registry.decode(*frame)
-                        && let Some(id) = self.bindings.get(&(
-                            read.gateway_id.clone(),
-                            address.get(),
-                            channel.get(),
-                        ))
-                    {
-                        let next = self
-                            .observation_counts
-                            .get(id)
-                            .ok_or("missing observation counter")?
-                            .checked_add(1)
-                            .ok_or("observation counter exhausted")?;
-                        self.states
-                            .observe(id, observation, self.epoch, read.received_at_ms)
-                            .map_err(|e| e.to_string())?;
-                        self.observation_counts.insert(id.clone(), next);
-                        self.invalid_light_reads.remove(id);
-                        count += 1;
+                    if let Decoded::Feedback {address,channel,observation}=registry.decode(*frame)
+                        && self.states.observe(&read.gateway_id,address.get(),channel.get(),observation,self.epoch,read.received_at_ms).map_err(|e|e.to_string())? {
+                        count+=1;
                     }
                 }
                 self.now = read.received_at_ms;

@@ -1,0 +1,89 @@
+{
+  "date": "2026-10-13",
+  "base_commit": "f1b2e8aef58bf6b129e39a253f6fe9531d8d2e0c",
+  "scope": "git archive of fixed base plus exact source paths below, dedicated target; synthetic memory wire only; unrelated edits excluded",
+  "source_sha256": {
+    "crates/homesense-config/src/lib.rs": "479d288c2b529d233f920e4c29670d304230d593471ff03183266940524f43f4",
+    "crates/homesensed/src/lib.rs": "debd6a9a9cffd1d9a87e87f5d8cfc7d11284e11195772c4474d3f157eeddc357",
+    "crates/homesensed/src/module_truth.rs": "5509f7ce1ff87b314c13235077bee44b9325e50afda68d7a6aa70760fd84581c",
+    "crates/homesensed/src/feedback.rs": "a4bb6e580fb580d74ce895403b8f289d50b849e01f22da1a7b5f859591019ba7",
+    "crates/homesensed/src/management_modules.rs": "39f3cb3645f54ebd2760c52227a3e0270f4e401f5b199f4f9b89fd8017e0cf0b",
+    "crates/homesensed/src/module_object_tests.rs": "4d0e6780ef5eec6c285a9a440eb4e10b3d6ab2b28669e679b20032f83a1476c4",
+    "crates/homesensed/src/web/app.js": "9c06ff8e3596d3d99f5278c4e2ed45f615f6a0cfb911ce58e102d5790fbeb64b",
+    "crates/homesensed/src/module_truth_tests.rs": "b6f716177f3f79ca2d384378af85f5c8f922bb76be1a7cbbc463f4d30129fc5e",
+    "tools/verify_module_management.cjs": "62700642c838c287da37f327645db8d7744906147302ad064b7bf36dca30e810",
+    "crates/homesense-storage/tests/native_scene.rs": "1c4ecc359aa6284944b6504e2b15901474fa84f126650f9a8a74dafd5dc55f55"
+  },
+  "validation": {
+    "unique_rust_tests_passed": 223,
+    "counts": {
+      "runtime_library": {
+        "passed": 107,
+        "failed": 0,
+        "ignored": 0
+      },
+      "config_storage": {
+        "passed": 87,
+        "failed": 0,
+        "ignored": 0
+      },
+      "runtime_integrations": {
+        "passed": 29,
+        "failed": 0,
+        "ignored": 0
+      }
+    },
+    "runtime_library_filtered": 9,
+    "new_module_truth_tests": 8,
+    "native_runtime_tests_included": 10,
+    "manual_takeover_scenarios": 8,
+    "frontend": [
+      "verify_module_management.cjs",
+      "verify_scene_switches.cjs",
+      "verify_device_metadata.cjs",
+      "verify_draft_json.cjs"
+    ],
+    "strict_clippy": "homesense-config homesense-storage homesensed --all-targets -- -D warnings passed",
+    "full_workspace_rerun": false,
+    "full_loopback_rerun_passed": false
+  },
+  "log_sha256": {
+    "runtime_library": "1c042fdb2d65b6112ffc2a0efd57da0e1ecde48b016f31a68c5c6f4ccd355607",
+    "config_storage": "fec3a3ee631db9fff3621dd7f5b73bc3241e933521fe31c5af8f2581c7e22842",
+    "runtime_integrations": "c25b20ff521e1c30235c029306a226cd9161e92e1f35554b25f54f20f7561aba",
+    "strict_clippy": "c79ed1780bdd521222751d835131780d9ec54db8209348790c93223846c269c2",
+    "initial_library_failure": "5a7f188769dbe03df34a790db748f92b95e633a4883e2e9f732fe14edffa6c63",
+    "initial_admission_failure": "db4a152c892685c657281716e37be2e80f66c84f7945ddb68e8a8c9d8a09ef1e",
+    "committed_native_recheck": "883bcc831c4e206072eec01cd0f27235697e386e1df84caaecdfde92c375022d",
+    "committed_native_clippy": "65a8ce2024730044a40f316ce4daed23a54b53700223bf02324e29762dfc442a"
+  },
+  "behavior": [
+    "canonical private port state exists for every registered module/channel, including unbound and disabled slots",
+    "logical devices are readonly projections; combined supply and level use same owned physical samples",
+    "schema2 LogicalDevice has only stable references; current immutable physical ResolvedBinding adapter retains legacy transport ABI",
+    "management slots expose canonical actual/quality/time without new control grants; summary is explicitly enabled-bindings only",
+    "invalid output raw feedback preserves last actual sample with Unknown quality; rule/native eligibility rejects it; invalid keypad frame semantics preserved",
+    "replacement rejects old locator, revision projection and epoch; restart observations remain unknown",
+    "bulk physical event overflow produces explicit logical resync; unbound samples do not create logical cursor gaps",
+    "native scene takeover guards remain effective without new feedback, across eight standalone/combined/variable/manual/light/phase cases",
+    "storage native test directory includes atomic sequence to prevent concurrent timestamp collisions"
+  ],
+  "attempt_notes": [
+    "All-library sandbox attempt: 107 passed, seven PermissionDenied socket failures and two HAP InvalidState failures. Nine socket/HAP tests are explicitly filtered in final scoped library run; no complete library pass claimed.",
+    "Two automatic escalation reviews timed out before offline loopback command execution; full test command did not launch.",
+    "Initial config/storage native fixture encountered AlreadyExists during parallel directory creation; atomic sequence added, all 87 config/storage tests passed after fix.",
+    "Expanded admission attempt had 38 pass and two HAP InvalidState failures; excluded from final count.",
+    "Initial feedback regression found invalid keypad frame changed Stale to Unknown; only output modules invalidate on bad output values, existing recovery test passes unchanged.",
+    "Initial frontend assertion used raw enum text while UI translates quality; assertion uses Chinese label, UI unknown label corrected to avoid claiming no prior sample.",
+    "Two nonexistent frontend script names were attempted; final four exact scripts above passed."
+  ],
+  "remaining": [
+    "Administrator whole-module and single-channel Query endpoints remain unimplemented.",
+    "Nine filtered socket/HAP library tests and complete integration/Apple client validation pending appropriate loopback environment.",
+    "No permanent module observation persistence or inferred keypad LED/motor-position state."
+  ],
+  "field_actions": 0,
+  "ea5_changed": false,
+  "deployed": false,
+  "pushed": false
+}

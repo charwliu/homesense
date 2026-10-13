@@ -33,7 +33,17 @@ fn physical_module_truth_is_raw_once_while_combined_light_is_a_derived_projectio
     sample(&mut feedback, 2, 0x15, 0xd1, 30, 10);
     sample(&mut feedback, 2, 3, 0xd1, 0xf2, 10);
     let raw = feedback.snapshot();
-    let view = project(&config, &raw, 11, 5000, true, 0, 64).unwrap();
+    let view = project(
+        &config,
+        &raw,
+        Some(feedback.module_truth()),
+        11,
+        5000,
+        true,
+        0,
+        64,
+    )
+    .unwrap();
     let dim = view
         .iter()
         .find(|m| m.module_id.as_deref() == Some("dimmer-module"))
@@ -67,7 +77,17 @@ fn physical_module_truth_is_raw_once_while_combined_light_is_a_derived_projectio
 fn capability_configuration_and_actual_fresh_responses_are_distinct() {
     let config = config(&document());
     let mut feedback = Feedback::new(&config, ExecutionContext::Simulation, 7, 2).unwrap();
-    let view = project(&config, &feedback.snapshot(), 1, 100, true, 0, 64).unwrap();
+    let view = project(
+        &config,
+        &feedback.snapshot(),
+        Some(feedback.module_truth()),
+        1,
+        100,
+        true,
+        0,
+        64,
+    )
+    .unwrap();
     assert!(
         view.iter()
             .filter(|m| m.queryable_bindings > 0)
@@ -80,7 +100,17 @@ fn capability_configuration_and_actual_fresh_responses_are_distinct() {
                 && m.slots[0].binding.as_ref().unwrap().actual.is_none())
     );
     sample(&mut feedback, 2, 0x15, 0xd1, 40, 10);
-    let fresh = project(&config, &feedback.snapshot(), 11, 100, true, 0, 64).unwrap();
+    let fresh = project(
+        &config,
+        &feedback.snapshot(),
+        Some(feedback.module_truth()),
+        11,
+        100,
+        true,
+        0,
+        64,
+    )
+    .unwrap();
     assert_eq!(
         fresh
             .iter()
@@ -89,7 +119,17 @@ fn capability_configuration_and_actual_fresh_responses_are_distinct() {
             .response,
         "fresh"
     );
-    let stale = project(&config, &feedback.snapshot(), 110, 100, true, 0, 64).unwrap();
+    let stale = project(
+        &config,
+        &feedback.snapshot(),
+        Some(feedback.module_truth()),
+        110,
+        100,
+        true,
+        0,
+        64,
+    )
+    .unwrap();
     assert_eq!(
         stale
             .iter()
@@ -102,7 +142,17 @@ fn capability_configuration_and_actual_fresh_responses_are_distinct() {
             .quality,
         "stale"
     );
-    let stopped = project(&config, &feedback.snapshot(), 11, 100, false, 0, 64).unwrap();
+    let stopped = project(
+        &config,
+        &feedback.snapshot(),
+        Some(feedback.module_truth()),
+        11,
+        100,
+        false,
+        0,
+        64,
+    )
+    .unwrap();
     assert_eq!(
         stopped
             .iter()
@@ -111,11 +161,32 @@ fn capability_configuration_and_actual_fresh_responses_are_distinct() {
             .response,
         "unavailable"
     );
-    assert!(project(&config, &feedback.snapshot(), 11, 100, true, 0, 65).is_err());
+    assert!(
+        project(
+            &config,
+            &feedback.snapshot(),
+            Some(feedback.module_truth()),
+            11,
+            100,
+            true,
+            0,
+            65
+        )
+        .is_err()
+    );
     assert_eq!(
-        project(&config, &feedback.snapshot(), 11, 100, true, 1, 1)
-            .unwrap()
-            .len(),
+        project(
+            &config,
+            &feedback.snapshot(),
+            Some(feedback.module_truth()),
+            11,
+            100,
+            true,
+            1,
+            1
+        )
+        .unwrap()
+        .len(),
         1
     );
 }
@@ -167,7 +238,17 @@ fn replaced_physical_mapping_rejects_old_address_and_old_epoch_feedback() {
         feedback.observation_count(&DeviceId::new("main").unwrap()),
         Some(1)
     );
-    let view = project(&new, &feedback.snapshot(), 13, 5000, true, 0, 64).unwrap();
+    let view = project(
+        &new,
+        &feedback.snapshot(),
+        Some(feedback.module_truth()),
+        13,
+        5000,
+        true,
+        0,
+        64,
+    )
+    .unwrap();
     assert_eq!(
         view.iter()
             .find(|m| m.module_id.as_deref() == Some("dimmer-module"))
