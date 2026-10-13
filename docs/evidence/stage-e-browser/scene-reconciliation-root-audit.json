@@ -1,0 +1,27 @@
+{
+  "product_commit": "1cd94a44dc222b7d7b4cbc92bac9fad2f1115907",
+  "source_paths_verified": 15,
+  "author_unique_rust_tests": 134,
+  "author_test_counts": {
+    "runtime": 41,
+    "config_storage": 83,
+    "integration": 8,
+    "feedback_lease": 2
+  },
+  "source_and_all_logs_match": true,
+  "strict_clippy_and_frontend_verified": true,
+  "root_independent_joint_tests": {
+    "passed": 2,
+    "failed": 0,
+    "ignored": 0
+  },
+  "root_tested_snapshot_matches_commit": true,
+  "root_original_non_overlay_files_unchanged": 916,
+  "field_enabled": false,
+  "no_real_network_or_hardware": true,
+  "remaining": [
+    "independent candidate Linux/runtime/HAP startup gates",
+    "unknown scene native relative runtime/Web operation",
+    "actual client and original Control4 full migration acceptance"
+  ]
+}
