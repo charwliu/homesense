@@ -132,6 +132,16 @@ impl Gateway {
     fn apply(&mut self, frame: RawFrame, now_ms: u64) -> Result<(), SimError> {
         let address = BusAddress::new(frame.address).map_err(|_| SimError::UnknownModule)?;
         let module = self.modules.get(&address).ok_or(SimError::UnknownModule)?;
+        if frame.command == 0xA0 && frame.value == 0xF2 {
+            if !hb_protocol::supports_module_query(module.profile()) {
+                return Err(SimError::UnsupportedCommand);
+            }
+            let channels = module.channels();
+            for channel in 1..=channels {
+                self.apply(RawFrame { command: 0xA0 + channel, ..frame }, now_ms)?;
+            }
+            return Ok(());
+        }
         let (channel, query, ramp, pause, toggle) = match frame.command {
             c @ 1..=8 => (c, false, false, false, false),
             c @ 0xA1..=0xA8 if frame.value == 0xF2 => (c - 0xA0, true, false, false, false),

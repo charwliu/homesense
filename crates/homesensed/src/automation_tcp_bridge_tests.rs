@@ -16,8 +16,11 @@ async fn multiple_bridges_rebuild_and_isolate_occupied_listener() {
             tokio::spawn(async move {
                 loop {
                     let mut frame=[0;5];if socket.read_exact(&mut frame).await.is_err(){break;}
-                    assert!([0xa1,0xa2].contains(&frame[2]),"unexpected control write: {frame:?}");
-                    if socket.write_all(&[0xae,0x15,frame[2]+0x30,0,0xee]).await.is_err(){break;}
+                    assert!([0xa0,0xa1,0xa2].contains(&frame[2]),"unexpected control write: {frame:?}");
+                    assert_eq!(frame[3],0xf2);
+                    let channels:Vec<_>=if frame[2]==0xa0 {(1..=8).collect()} else {vec![frame[2]-0xa0]};
+                    let replies:Vec<_>=channels.into_iter().flat_map(|c|[0xae,0x15,0xd0+c,0,0xee]).collect();
+                    if socket.write_all(&replies).await.is_err(){break;}
                 }
             });
         }
