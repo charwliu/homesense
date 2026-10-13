@@ -254,12 +254,13 @@ impl Receiver {
                         let bundle=admission.automation_bundle(controller,self.generation.clone()).await.map_err(|e|format!("{e:?}"))?;
                         let records=admission.module_query_records(controller,self.generation.clone(),commands.clone()).await.map_err(|e|format!("{e:?}"))?;
                         let diagnostics=admission.diagnostics(controller,self.generation.clone()).await.map_err(|e|format!("{e:?}"))?;
-                        let modules=crate::management_modules::project(&bundle.configuration,&feedback.snapshot(),Some(feedback.module_truth()),admission.monotonic_ms(),max_age_ms,diagnostics.ready()&&feedback.is_active(),0,64)?;
+                        let captured_ms=admission.monotonic_ms();
+                        let modules=crate::management_modules::project(&bundle.configuration,&feedback.snapshot(),Some(feedback.module_truth()),captured_ms,max_age_ms,diagnostics.ready()&&feedback.is_active(),0,64)?;
                         // Locate independently of pagination; the module registry can exceed 64.
                         let (location,_)=bundle.configuration.module(&module_id).ok_or("module missing")?;
                         let index=bundle.configuration.gateways().iter().flat_map(|(gateway,g)|g.modules().keys().map(move|address|(gateway,address))).position(|(gateway,address)|gateway==&location.gateway&&*address==location.address).ok_or("module missing")?;
-                        let module=if index<64 {modules.into_iter().find(|m|m.module_id.as_deref()==Some(&module_id)).ok_or("module missing")?} else {crate::management_modules::project(&bundle.configuration,&feedback.snapshot(),Some(feedback.module_truth()),admission.monotonic_ms(),max_age_ms,diagnostics.ready()&&feedback.is_active(),index,1)?.pop().ok_or("module missing")?};
-                        crate::module_queries::project_status(records,&module,&scope,self.generation.epochs.transport,&commands).map(Reply::ModuleQueryStatus)
+                        let module=if index<64 {modules.into_iter().find(|m|m.module_id.as_deref()==Some(&module_id)).ok_or("module missing")?} else {crate::management_modules::project(&bundle.configuration,&feedback.snapshot(),Some(feedback.module_truth()),captured_ms,max_age_ms,diagnostics.ready()&&feedback.is_active(),index,1)?.pop().ok_or("module missing")?};
+                        crate::module_queries::project_status(records,module,&scope,self.generation.epochs.transport,&commands,captured_ms).map(Reply::ModuleQueryStatus)
                     },
                     Action::Modules {controller,revision,offset,limit} => {
                         if revision!=document.revision {return Err("module inventory revision expired".into());}

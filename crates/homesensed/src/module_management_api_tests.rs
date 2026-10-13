@@ -38,7 +38,8 @@ async fn administrator_module_controls_use_stable_ids_and_cannot_select_physical
     let tokens = std::sync::Arc::new(Tokens::default());
     let admin = "abcdefghijklmnopqrstuvwxyz0123456789";
     let viewer = "abcdefghijklmnopqrstuvwxyz9876543210";
-    for (secret, role) in [(admin, Role::Administrator), (viewer, Role::Viewer)] {
+    let restricted = "abcdefghijklmnopqrstuvwxyz5555555555";
+    for (secret, role) in [(admin, Role::Administrator), (viewer, Role::Viewer), (restricted, Role::Administrator)] {
         tokens
             .insert(
                 uuid::Uuid::new_v4(),
@@ -47,7 +48,7 @@ async fn administrator_module_controls_use_stable_ids_and_cannot_select_physical
                     controller: h.controller,
                     role,
                     scenes: Default::default(),
-                    devices: ["light".into()].into(),
+                    devices: if secret == restricted { Default::default() } else { ["light".into()].into() },
                 },
             )
             .unwrap();
@@ -423,6 +424,12 @@ async fn administrator_module_controls_use_stable_ids_and_cannot_select_physical
     assert_eq!(received["status"]["channels"][0]["actual"]["level"], 37);
     assert_eq!(received["status"]["atomic_snapshot"], false);
     assert_eq!(received["status"]["feedback_causality"], "not_established");
+    assert_eq!(received["status"]["module"]["module_id"], id);
+    assert_eq!(received["status"]["module"]["fresh_channels"], 1);
+    assert_eq!(received["status"]["module"]["slots"].as_array().unwrap().len(), 8);
+    assert_eq!(received["status"]["module"]["slots"][2]["actual"]["level"], 37);
+    assert_eq!(received["status"]["transport_epoch"], h.generation.epochs.transport.to_string());
+    assert!(received["status"]["captured_ms"].as_str().unwrap().parse::<u64>().is_ok());
     let denied = json!({"module_id":id,"channel":3,"revision":"2","request_id":"unbound-control","command":{"action":"brightness","level":30}});
     assert_eq!(
         poll_request(
@@ -453,6 +460,35 @@ async fn administrator_module_controls_use_stable_ids_and_cannot_select_physical
         vec![0xae, 0x15, 0xa0, 0xf2, 0xee]
     );
     assert_eq!(h.feedback.snapshot().devices.len(), 6);
+    // Read capability does not advertise control capability, including full-module
+    // metadata attached to a single-channel receipt. Actual control remains 403.
+    let restricted_page = json(poll_request(&h, &mut receiver, &mut scenes,
+        api.handle(req("/api/v1/modules", restricted, None))).await).await;
+    assert!(restricted_page["modules"].as_array().unwrap().iter()
+        .flat_map(|m| m["slots"].as_array().unwrap())
+        .filter(|slot| !slot["binding"].is_null())
+        .all(|slot| slot["binding"]["actions"].as_array().unwrap().is_empty()));
+    let restricted_query = json!({"module_id":id,"scope":{"kind":"channel","channel":1},"revision":"2","request_id":"restricted-query"});
+    let accepted = json(poll_request(&h, &mut receiver, &mut scenes,
+        api.handle(req("/api/v1/module-queries", restricted, Some(restricted_query)))).await).await;
+    assert_eq!(accepted["outcome"], "accepted");
+    let restricted_status = json(poll_request(&h, &mut receiver, &mut scenes,
+        api.handle(req("/api/v1/module-queries/restricted-query", restricted, None))).await).await;
+    assert_eq!(restricted_status["status"]["channels"][0]["binding"]["id"], "light");
+    assert!(restricted_status["status"]["channels"][0]["binding"]["actions"].as_array().unwrap().is_empty());
+    assert!(restricted_status["status"]["module"]["slots"].as_array().unwrap().iter()
+        .filter(|slot| !slot["binding"].is_null())
+        .all(|slot| slot["binding"]["actions"].as_array().unwrap().is_empty()));
+    assert_eq!(restricted_status["status"]["fresh_channels"], 0, "accepted is not feedback");
+    assert_eq!(restricted_status["status"]["feedback_causality"], "not_established");
+    let before_denied: i64 = h.sql().query_row("SELECT count(*) FROM command_journal", [], |r| r.get(0)).unwrap();
+    let denied = poll_request(&h, &mut receiver, &mut scenes,
+        api.handle(req("/api/v1/module-commands", restricted,
+        Some(json!({"module_id":id,"channel":channel,"revision":"2","request_id":"restricted-control","command":{"action":"brightness","level":80}}))))).await;
+    assert_eq!(denied.status(), hyper::StatusCode::FORBIDDEN);
+    assert_eq!(json(denied).await["error"], "device_not_permitted");
+    let after_denied: i64 = h.sql().query_row("SELECT count(*) FROM command_journal", [], |r| r.get(0)).unwrap();
+    assert_eq!(after_denied, before_denied, "denied control creates no write ticket");
     h.actor.transport_failed().await.unwrap();
     assert_eq!(
         poll_request(

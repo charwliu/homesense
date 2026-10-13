@@ -1,0 +1,55 @@
+{
+  "date": "2026-10-13",
+  "base_commit": "99d036a2cb0b9e0a2751f8e5c8dc8908142691d4",
+  "scope": "Refresh current module cards from query receipts and mask control-action metadata using device grants",
+  "source_sha256": {
+    "crates/homesensed/src/module_queries.rs": "c7c1e2ebb67f510dca7493fc10ecbcf269c1b7c31c6fd189c692b92342243672",
+    "crates/homesensed/src/automation_control.rs": "367baf6ec89e715dfdc85daa5cc24c7f6b033b2c5b0e07e64656b7c443b28a69",
+    "crates/homesensed/src/web_api.rs": "60d7f957ed9c3ff57c513f7d9e9a9c856d6d4299c1d44c84e458d0997e77a614",
+    "crates/homesensed/src/web/app.js": "19b37c71a5d7caaebf08d53202e6311dc541dc3fb28a13783961380eaeb66310",
+    "crates/homesensed/src/module_management_api_tests.rs": "56013fe7a912f6a98bb00a4855d4ddc4a85d2c90f488a9ded4d676c14b4ac92f",
+    "tools/verify_module_management.cjs": "826ce972e55946b1a034d1a73182bc273bcff5775409ada0529d61b3fd4fd468"
+  },
+  "validation": {
+    "module_rust_tests_passed": 32,
+    "failed": 0,
+    "ignored": 0,
+    "other_library_tests_filtered": 98,
+    "frontend_scripts_passed": 4,
+    "full_library_rerun": false,
+    "real_gateway_or_field_test": false,
+    "strict_clippy": "homesense-config homesense-storage homesensed --all-targets -D warnings passed"
+  },
+  "log_sha256": {
+    "module_regressions": "c26e389b80e7b80c91ff8c0b6a0d3b531a130ba9d9a834e7c6c920241cf92017",
+    "initial_test_failure": "57b1493579eac5eb28efe1189f8f6b454d89894f74cdbe3b84a229f79a009af3",
+    "frontend": "868d096d2befc801a4edc7d50ec03da154234dd70ad5a940f084ada40db75efe",
+    "strict_clippy": "098fc30f724127bd6764ec5869d8fa7547c5b2ef0a98ac55a01f030f8b0c0a00"
+  },
+  "invariants": [
+    "Requested channels and whole-module current snapshot remain distinct",
+    "Query acceptance and written status never establish feedback confirmation or causal ACK",
+    "Current sample remains non-atomic and feedback causality not established",
+    "Card updates require matching boot, revision, transport epoch, session, page, current read generation and module identity",
+    "Older timestamps and older concurrent receipt responses cannot overwrite a newer card",
+    "Earlier list requests cannot erase a newer receipt snapshot",
+    "Receipt displays are retained while current module statistics and slots refresh",
+    "Inventory, requested receipt channels and full module snapshot use the same device control-action mask",
+    "Restricted administrator can query but actuator control returns 403 device_not_permitted with no new journal ticket"
+  ],
+  "attempts": [
+    {
+      "log": "initial_test_failure",
+      "passed": 31,
+      "failed": 1,
+      "reason": "New denied-control test awaited Api directly without driving its ModuleBinding receiver; corrected the test to use the existing poll_request owner pump, retaining exact 403 and device_not_permitted assertions."
+    }
+  ],
+  "limitations": [
+    "Focused synthetic API, memory bus and localhost regressions; no new complete workspace claim",
+    "Frontend verified with actual app.js and delayed request fixtures; independent browser audit remains separate",
+    "No deployment, real service start, field publication or push",
+    "Private Control4 evidence and sensitive state remain local",
+    "EA-5 configuration and control scope unchanged"
+  ]
+}
