@@ -32,8 +32,10 @@ with tempfile.TemporaryDirectory(prefix='homesense-tls-') as directory:
       buffer+=chunk
       while len(buffer)>=5:
        frame,buffer=buffer[:5],buffer[5:]
-       assert frame==bytes.fromhex('ae15a1f2ee'),frame.hex()
-       queries.append(frame);connection.sendall(bytes.fromhex('ae15d12aee'))
+       assert frame==bytes.fromhex('ae15a0f2ee'),('only whole-module Query allowed',frame.hex())
+       queries.append(frame)
+       # Supply every registered physical channel, even the seven without aliases.
+       connection.sendall(b''.join(bytes([0xae,0x15,0xd0+channel,42,0xee]) for channel in range(1,9)))
    except BaseException as error:errors.append(error)
    finally:bus.close()
   worker=threading.Thread(target=gateway,daemon=True);worker.start()
@@ -71,7 +73,11 @@ with tempfile.TemporaryDirectory(prefix='homesense-tls-') as directory:
    code,headers,body=request('POST','/api/v1/session',{'Authorization':'Bearer '+token});assert code==200
    csrf=json.loads(body)['csrf']
    cookie=headers['set-cookie'];assert 'Secure' in cookie and 'HttpOnly' in cookie;cookie=cookie.split(';')[0]
-   assert request('GET','/api/v1/devices',{'Cookie':cookie})[0]==200
+   code,_,state=request('GET','/api/v1/devices',{'Cookie':cookie});assert code==200
+   if combined:
+    devices=json.loads(state)['devices'];assert len(devices)==1
+    assert devices[0]['quality']=='Confirmed' and devices[0]['observed']['level']==42
+    assert request('GET','/health/ready',{'Cookie':cookie})[0]==403  # Member cannot inspect administrator readiness
    key=base64.b64encode(os.urandom(16)).decode()
    with context.wrap_socket(socket.create_connection(('127.0.0.1',port),timeout=3),server_hostname='localhost') as ws:
     ws.sendall(f'GET /api/v1/events HTTP/1.1\r\nHost: localhost:{port}\r\nOrigin: {origin}\r\nCookie: {cookie}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Key: {key}\r\n\r\n'.encode())
@@ -124,4 +130,4 @@ with tempfile.TemporaryDirectory(prefix='homesense-tls-') as directory:
  assert subprocess.run(command,capture_output=True,timeout=5).returncode!=0
  (root/'server.key').chmod(0o600)
  command[-1]=str(root/'ca.key');assert subprocess.run(command,capture_output=True,timeout=5).returncode!=0
- print(json.dumps({'https':'passed','wss':'passed','csrf_and_session_revocation':'passed','revoked_wss':'closed','untrusted_and_wrong_name':'rejected','plaintext':'rejected','unsafe_key_permissions_and_mismatch':'rejected'}))
+ print(json.dumps({'https':'passed','wss':'passed','csrf_and_session_revocation':'passed','revoked_wss':'closed','untrusted_and_wrong_name':'rejected','plaintext':'rejected','unsafe_key_permissions_and_mismatch':'rejected','mode':'tcp-combined' if combined else 'simulation','whole_module_query_frames':len(queries) if combined else None,'synthetic_query_channels':8 if combined else None,'actuator_frames':0 if combined else None,'readiness_role_boundary':'member_403' if combined else None}))
