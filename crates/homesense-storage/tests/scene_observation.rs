@@ -343,7 +343,7 @@ fn schema21_migration_and_online_backup_preserve_recorded_values_and_inferred_or
     recorded(&mut store, 0, Some(0));
     drop(store);
     let sql = rusqlite::Connection::open(db.path()).unwrap();
-    sql.execute_batch("DROP TABLE scene_observation; PRAGMA user_version=21;")
+    sql.execute_batch("DROP TABLE scene_observation; ALTER TABLE rule_command DROP COLUMN source; PRAGMA user_version=21;")
         .unwrap();
     drop(sql);
     let mut store = Store::open(db.path()).unwrap();
@@ -404,7 +404,7 @@ fn schema21_migration_and_online_backup_preserve_recorded_values_and_inferred_or
             .unwrap()
             .pragma_query_value(None, "user_version", |r| r.get::<_, i64>(0))
             .unwrap(),
-        24
+        25
     );
 }
 

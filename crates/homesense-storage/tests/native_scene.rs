@@ -264,7 +264,7 @@ fn schema23_upgrade_preserves_historical_selection_and_starts_with_no_relative_r
         .unwrap();
     drop(store);
     let sql = rusqlite::Connection::open(db.0.join("runtime.sqlite")).unwrap();
-    sql.execute_batch("DROP TABLE native_scene_request; PRAGMA user_version=23;")
+    sql.execute_batch("DROP TABLE native_scene_request; ALTER TABLE rule_command DROP COLUMN source; PRAGMA user_version=23;")
         .unwrap();
     drop(sql);
     let store = Store::open(db.0.join("runtime.sqlite")).unwrap();
@@ -286,6 +286,6 @@ fn schema23_upgrade_preserves_historical_selection_and_starts_with_no_relative_r
     assert_eq!(
         sql.pragma_query_value(None, "user_version", |r| r.get::<_, i64>(0))
             .unwrap(),
-        24
+        25
     );
 }

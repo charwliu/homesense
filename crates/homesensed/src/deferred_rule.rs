@@ -206,6 +206,7 @@ pub async fn execute_classified(
         })
         .collect();
     let unknown_branches = planned.plan.unknown_branches;
+    let command_sources = planned.plan.commands.iter().map(|c| c.source.clone()).collect();
     let payload = DeferredRule {
         batch: Batch {
             controller,
@@ -240,7 +241,7 @@ pub async fn execute_classified(
     }
     let mut guard = Guard(admission.clone(), false);
     let accepted = match admission
-        .submit_deferred_rule_classified(generation, payload, lease, Some(chain.deadline_ms()))
+        .submit_deferred_rule_classified_with_sources(generation, payload, lease, Some(chain.deadline_ms()), Some(command_sources))
         .await
     {
         Ok(v) => v,

@@ -125,6 +125,7 @@ enum Submission {
     },
     Automation {
         software_sample: bool,
+        command_sources: Option<Vec<String>>,
         batch: Batch,
         variables: Vec<homesense_storage::variables::Update>,
         manual_fence: Option<u64>,
@@ -1274,6 +1275,7 @@ impl Admission {
                                     return Err(WriteStatus::ServiceCommunicationFailure);
                                 }
                                 let mut selection_checks = vec![];
+                                let mut command_sources = None;
                                 let software_sample = matches!(&*submission, Submission::Automation { software_sample: true, .. });
                                 let (submission, study, automation, variables, feedback, audit, scene, starts) = match *submission {
                                     Submission::Native(prepared)=>{
@@ -1297,7 +1299,10 @@ impl Admission {
                                         native_accepted=Some((permit.request,permit.phase,permit.fence,permit.batch.intents.iter().any(|i|i.command!=homesense_core::Command::Query)));
                                         (Submission::NativePhysical(permit.batch),None,false,vec![],Some(Box::new(permit.lease)),None,None,vec![])
                                     },
-                                    Submission::Automation { batch, variables, manual_fence, feedback, audit, scene, starts, .. } => {
+                                    Submission::Automation { batch, variables, manual_fence, feedback, audit, scene, starts, command_sources: sources, .. } => {
+                                        homesense_storage::rule_audit::validate_sources(sources.as_deref(), batch.intents.len()).map_err(|_|WriteStatus::InvalidValueInRequest)?;
+                                        if sources.is_some() && audit.is_none() {return Err(WriteStatus::InvalidValueInRequest);}
+                                        command_sources = sources;
                                         if software_sample && batch.intents.iter().any(|intent| !matches!(intent.command, homesense_core::Command::SetLevel { transition: homesense_core::LevelTransition::Immediate, .. })) {
                                             return Err(WriteStatus::InvalidValueInRequest);
                                         }
@@ -1393,8 +1398,9 @@ impl Admission {
                                         if !authorize(batch.controller) { return Err(WriteStatus::InsufficientPrivileges); }
                                         restore_intents = batch.intents.iter().map(|i| (i.device.clone(), i.command)).collect();
                                         let mut expanded = Vec::new();
+                                        let mut expanded_sources = command_sources.as_ref().map(|_| Vec::new());
                                         let mut seen = std::collections::BTreeSet::new();
-                                        for intent in batch.intents {
+                                        for (index, intent) in batch.intents.into_iter().enumerate() {
                                             if !seen.insert(intent.device.clone()) || configuration.devices().values().any(|d| d.enabled && d.supply_relay.as_ref() == Some(&intent.device)) {
                                                 return Err(WriteStatus::InvalidValueInRequest);
                                             }
@@ -1408,15 +1414,18 @@ impl Admission {
                                                     if software_sample && let homesense_core::Command::SetLevel { level, .. } = command {
                                                         command = homesense_core::Command::SetLevel { level, transition: homesense_core::LevelTransition::Immediate };
                                                     }
+                                                    if let Some(labels) = &mut expanded_sources {labels.push(command_sources.as_ref().expect("validated labels")[index].clone());}
                                                     expanded.push(homesense_hap::requests::Intent { device: match output {
                                                         crate::combined_light::Output::Relay => relay.clone(),
                                                         crate::combined_light::Output::Dimmer => intent.device.clone(),
                                                     }, command });
                                                 }
                                             } else {
+                                                if let Some(labels) = &mut expanded_sources {labels.push(command_sources.as_ref().expect("validated labels")[index].clone());}
                                                 expanded.push(homesense_hap::requests::Intent { device: intent.device, command: if software_sample || automation && matches!(intent.command, homesense_core::Command::PanelLed(_) | homesense_core::Command::PauseRamp) {intent.command} else {crate::light_command::plan(module, intent.command).map_err(|_| WriteStatus::InvalidValueInRequest)?} });
                                             }
                                         }
+                                        command_sources = expanded_sources;
                                         batch.intents = expanded;
                                         (batch, true)
                                     },
@@ -1440,7 +1449,7 @@ impl Admission {
                                 // Subscription-only requests still require authorization.
                                 if batch.intents.is_empty() {
                                     if !variables.is_empty() || audit.is_some() {
-                                        match store.accept_queue_batch_with_read_checks(&worker_boot,&[],&[],millis(clock),None,&variables,audit.as_ref(),None,&starts,&selection_checks) {
+                                        match store.accept_queue_batch_with_read_checks_and_sources(&worker_boot,&[],&[],millis(clock),None,&variables,audit.as_ref(),None,&starts,&selection_checks,command_sources.as_deref()) {
                                             Ok(()) => {},
                                             Err(homesense_storage::Error::Conflict | homesense_storage::Error::InvalidAudit) => return Err(WriteStatus::InvalidValueInRequest),
                                             Err(_) => {
@@ -1499,7 +1508,7 @@ impl Admission {
                                     commands,
                                     now,
                                     |commands, cancelled| {
-                                        store.accept_queue_batch_with_read_checks(
+                                        store.accept_queue_batch_with_read_checks_and_sources(
                                             &worker_boot,
                                             commands,
                                             cancelled,
@@ -1510,6 +1519,7 @@ impl Admission {
                                             scene.as_ref(),
                                             &starts,
                                             &selection_checks,
+                                            command_sources.as_deref(),
                                         )
                                     },
                                 );
@@ -1989,7 +1999,7 @@ impl Admission {
         software_sample: bool,
     ) -> Result<Vec<u64>,WriteStatus> {
         self.submit_scoped_before(
-            Submission::Automation { software_sample,
+            Submission::Automation { software_sample, command_sources: None,
                 batch,
                 variables: vec![],
                 manual_fence: Some(manual_fence),
@@ -2008,8 +2018,9 @@ impl Admission {
         scene: homesense_storage::scene_run::StepLink,
         deadline: Option<u64>,
     ) -> Result<Vec<u64>, SubmissionFailure> {
-        self.submit_scoped_detailed(Submission::Automation { software_sample: false, batch, variables: vec![], manual_fence: Some(manual_fence), feedback: None, audit: None, scene: Some(scene), starts: vec![] }, Some(SubmissionScope::Generation(generation)),deadline).await
+        self.submit_scoped_detailed(Submission::Automation { software_sample: false, command_sources: None, batch, variables: vec![], manual_fence: Some(manual_fence), feedback: None, audit: None, scene: Some(scene), starts: vec![] }, Some(SubmissionScope::Generation(generation)),deadline).await
     }
+    #[allow(clippy::too_many_arguments)]
     pub(crate) async fn submit_audited_rule(
         &self,
         generation: TaskGeneration,
@@ -2017,9 +2028,10 @@ impl Admission {
         variables: Vec<homesense_storage::variables::Update>,
         feedback: Option<crate::feedback::RuleLease>,
         audit: homesense_storage::rule_audit::Admission,
+        command_sources: Vec<String>,
     ) -> Result<Vec<u64>, WriteStatus> {
         self.submit_scoped(
-            Submission::Automation { software_sample: false,
+            Submission::Automation { software_sample: false, command_sources: Some(command_sources),
                 batch,
                 variables,
                 feedback: feedback.map(Box::new),
@@ -2040,7 +2052,7 @@ impl Admission {
         feedback: crate::feedback::RuleLease,
     ) -> Result<Vec<u64>, WriteStatus> {
         self.submit_scoped(
-            Submission::Automation { software_sample: false,
+            Submission::Automation { software_sample: false, command_sources: None,
                 batch,
                 variables,
                 manual_fence: None,
@@ -2091,10 +2103,13 @@ impl Admission {
         self.submit_deferred_rule_classified(generation,rule,feedback,deadline).await.map_err(DeferredFailure::status)
     }
     pub(crate) async fn submit_deferred_rule_classified(&self,generation:TaskGeneration,rule:DeferredRule,feedback:Option<crate::feedback::RuleLease>,deadline:Option<u64>)->Result<AcceptedDeferred,DeferredFailure> {
+        self.submit_deferred_rule_classified_with_sources(generation,rule,feedback,deadline,None).await
+    }
+    pub(crate) async fn submit_deferred_rule_classified_with_sources(&self,generation:TaskGeneration,rule:DeferredRule,feedback:Option<crate::feedback::RuleLease>,deadline:Option<u64>,command_sources:Option<Vec<String>>)->Result<AcceptedDeferred,DeferredFailure> {
         let manual_fence=self.manual_fence().await.map_err(DeferredFailure::Rejected)?;
         let controller=rule.batch.controller;
         let starts=rule.starts.clone();
-        let command_ids=self.submit_scoped_before(Submission::Automation{software_sample:false,batch:rule.batch,variables:rule.variables,audit:Some(rule.audit),starts:rule.starts,feedback:feedback.map(Box::new),manual_fence:None,scene:None},Some(SubmissionScope::Generation(generation.clone())),deadline).await.map_err(DeferredFailure::Rejected)?;
+        let command_ids=self.submit_scoped_before(Submission::Automation{software_sample:false,command_sources,batch:rule.batch,variables:rule.variables,audit:Some(rule.audit),starts:rule.starts,feedback:feedback.map(Box::new),manual_fence:None,scene:None},Some(SubmissionScope::Generation(generation.clone())),deadline).await.map_err(DeferredFailure::Rejected)?;
         let mut scenes=Vec::with_capacity(starts.len());
         for start in starts {
             let page=self.scene_history(controller,generation.clone(),homesense_storage::scene_run::Query::Run{boot:self.boot_id().into(),run:start.run.clone(),after:0,limit:1}).await.map_err(DeferredFailure::Uncertain)?.ok_or(DeferredFailure::Uncertain(WriteStatus::ServiceCommunicationFailure))?;
@@ -2110,7 +2125,7 @@ impl Admission {
         variables: Vec<homesense_storage::variables::Update>,
     ) -> Result<Vec<u64>, WriteStatus> {
         self.submit_scoped(
-            Submission::Automation { software_sample: false,
+            Submission::Automation { software_sample: false, command_sources: None,
                 batch,
                 variables,
                 manual_fence: None,
