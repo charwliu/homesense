@@ -27,6 +27,8 @@
 
 最新完整工作区证据为固定 `bfe61f2` 干净提交：735项通过、0失败、0忽略，全部目标严格Clippy通过；Linux串行运行时库103项通过。AD8／GT-E4／GT-D8／GT-L8已接整模块查询，R8 PRO／GT-C8保留单路门禁；修正读取等待、刷新节拍漂移与控制排队饥饿。96端点20ms实际Linux服务循环35秒，最大重复查询间隔2.85秒、113份状态采样全为Confirmed、0 Stale，919条Query／0 Control，正常退出。此前12.29秒反例保留为修复历史；本结果不代表100ms混合映射或真实总线通过。见[模块查询与容量验证](evidence/stage-d-study/module-query-capacity-check.json)。全源独立差分已核对179项归一化AST，原范围65场景／208程序／24变量的完整语义审核及现场容量仍未完成；27项独立相对场景夹具未另行完成验收。其他未提交工作区改动不包含在此证据中。
 
+2026-10-13源追踪补证：固定`bfe61f2`从实际`compile_event`导出带source的完整AST；独立按权威XML事件／节点／Then／Else路径重建期望，179程序的2246节点标签与动作树同时一致，0差异，同事件重复标签0；含16个生成Toggle分支标签。六种缺标签、错事件／节点路径、分支标签交换、空树及重复事件变体均被拒绝，1项实际导出通过，949归档原文件未变，原C4P与project.xml输入指纹匹配。只补源标签，不执行运行时TraceLabel消费链，不关闭36个阻断或原65场景／208程序／24变量完整语义审核。见[源标签根审计](evidence/stage-d-study/source-trace-root-check.json)。
+
 默认语法接口的36个首阻断为IF_STOPPED24、IF_MOVING11、RAMP_TO_LEVEL1；显式渐变导出已实现，唯一RAMP参数TIME=1000的毫秒单位已有官方依据，但完整事件及实物执行仍需核对。35个窗帘条件还遮蔽了24个SET_LEVEL_TARGET和11个STOP动作，不能只补条件而遗漏动作。基于 `061c3c2` 的限定质量修复后，干净 workspace 579 项再次通过、工作区所有目标严格 Clippy 通过；被排除的 vendor 依赖仍有 54 条警告。详见 [质量证据](evidence/stage-e-browser/clean-workspace-quality-061c3c2.json)。
 
 以下为实现过程记录，其中早期测试数量与缺口描述仅对应当时版本；当前状态以上表为准。

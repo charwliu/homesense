@@ -1,0 +1,61 @@
+{
+  "date": "2026-10-13",
+  "status": "fixed_converter_source_labels_independently_verified_runtime_trace_consumer_pending",
+  "commit": "bfe61f28aa0070904f248ee418b542ffdde9bbeb",
+  "source_archive_sha256": "fec7242edfadfe5515db46b81b12ecd55fb57dd377ddb98e21f9361c494324a9",
+  "source_c4p_sha256": "ff8c298fd2c8efa840d572d3ca544860ffbbc4e7176f09e93efdc5464b9ce6ec",
+  "source_xml_sha256": "cac7dcdc9db08599e55a22bacb72858035c64e1ac846e2139ead5fc634513748",
+  "scope": {
+    "commit": "bfe61f28aa0070904f248ee418b542ffdde9bbeb",
+    "events": 215,
+    "labeled_ast_equivalent": 179,
+    "independent_source_unreviewed": 36,
+    "mismatch": 0,
+    "labeled_nodes": 2246,
+    "node_types": {
+      "if": 275,
+      "command": 1661,
+      "set": 215,
+      "scene": 95
+    },
+    "generated_toggle_branch_nodes": 16,
+    "duplicate_labels_within_one_event": 0,
+    "negative_mutations_rejected": 6,
+    "original_files_unchanged": 949,
+    "automatic_execution": false,
+    "runtime_definitions": [],
+    "full_semantic_approval": false,
+    "scope": "actual converter labeled AST versus independent XML paths; no runtime or TraceLabel consumer execution"
+  },
+  "actual_export_test": {
+    "passed": 1,
+    "failed": 0,
+    "ignored": 0,
+    "private_test_only": true
+  },
+  "source_input_authoritative_zip_member_matched": true,
+  "original_product_source_files_unchanged": 949,
+  "source_labels_are_not_approval": true,
+  "source_refactor_or_runtime_enablement": false,
+  "field_enablement": false,
+  "limitations": [
+    "Only the179 default-convertible source programs;36 blocked programs remain independently unreviewed.",
+    "2246 AST labels match XML event/code paths including16 generated Toggle branch labels; this does not execute downstream runtime TraceLabel consumers.",
+    "No trigger mapping, asynchronous variables, original driver/rate behavior, physical binding, or runtime admission/transport acceptance inferred.",
+    "Source-only label evidence does not change full65-scene/208-program/24-variable semantic disposition counts.",
+    "No source Lua, identity database, real gateway, credentials, deployment or device controls."
+  ],
+  "evidence_sha256": {
+    "source.json": "8ca2a8ce927788d47feec574aad945aba40593fc3407030c2bd14f1040464e1d",
+    "project.xml": "cac7dcdc9db08599e55a22bacb72858035c64e1ac846e2139ead5fc634513748",
+    "bindings.json": "af959edca5cdbe6bd20b6b073feb4e23c923fe1d7fcd37a4df100b3ce548a0d6",
+    "export.rs": "2d6d33ab0c25dad9e26ba851bcb9efa54b12cd811063f3cb203202a9ddd2dec4",
+    "export.log": "b97e6132ab5c6afdefe46e2182d08900380d288d39808cc2c41a26a117ab8714",
+    "production-trace.json": "9d39d04bb2ddbb17202e73f82249b048b238b8b4d5bbb2c95f93c827b19b0e77",
+    "check.py": "4e5f4645514aa88ede0db62c164ee0bdea397d7ae654156dfe8889ef472d7909",
+    "check.log": "7e7a77dbb8110e55d4619ce140879dc8ecf4e3419b0b1e96686e524a1a5faedc",
+    "differential.json": "d60b3a3c9ed6aa6e98c3b6811e236533a2f727140bee5b685276f69f6101a088",
+    "root-audit.json": "77d8b6c62888d592c84a18ffdccd0b58a0bc33d67a31d0f9f54edd68b37b6c79"
+  },
+  "independent_model_sha256": "08bf6db5c13c5fb40050365f482cd692c97f9a648afd4a14808e2476e3ff7a20"
+}
