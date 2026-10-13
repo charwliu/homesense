@@ -1,0 +1,21 @@
+{
+  "baseline_commit": "35efe20747c9fcbad67d6d0f6511f02f74c26ad5",
+  "original_archive_files_unchanged": 915,
+  "source_archive_sha256": "3a376ada0b1d0533a5563bb9ef7138733b64eb8de7864e19fc7237f19b46aba9",
+  "test_count": 1,
+  "passed": 1,
+  "failed": 0,
+  "ignored": 0,
+  "test_scope": "Actual existing recovery query path over synthetic in-memory stream; no TCP, no scene ground-truth revalidation implementation tested",
+  "physical_frames_sent": 0,
+  "synthetic_queries": 4,
+  "synthetic_control_frames": 0,
+  "enabled_endpoints": 6,
+  "disabled_endpoint_queried": false,
+  "hidden_supply_queried": true,
+  "default_100_not_used_as_observation": true,
+  "combined_supply_off_projects_actual_zero": true,
+  "unsupported_query_endpoints_keep_unknown": "event-only panel and calibrated motor; no query capability",
+  "evidence_sha256": "87772b086f4dcddb6864056852196d05a7997b431c41c4c174701602b770c5e3",
+  "runtime_changed": false
+}

@@ -363,10 +363,10 @@ impl StateStore {
         let state = self.devices.get(id).ok_or(StateError::UnknownDevice)?;
         let valid = matches!(
             (state.kind, command),
-            (ModuleKind::Switch, Command::Switch(_))
+            (ModuleKind::Switch, Command::Switch(_) | Command::Toggle)
                 | (
                     ModuleKind::Dimmer,
-                    Command::SetLevel { .. } | Command::PauseRamp
+                    Command::SetLevel { .. } | Command::PauseRamp | Command::Toggle
                 )
                 | (ModuleKind::Motor, Command::Motor(_))
                 | (ModuleKind::Keypad, Command::PanelLed(_))
@@ -483,5 +483,36 @@ impl StateStore {
             self.emit(&id, Change::Quality);
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod native_toggle_tests {
+    use super::*;
+    #[test]
+    fn relative_intent_does_not_guess_state_and_is_limited_to_lights() {
+        for kind in [ModuleKind::Switch, ModuleKind::Dimmer] {
+            let id = DeviceId::new("synthetic").unwrap();
+            let mut state = StateStore::new(1, 1, 1, 8).unwrap();
+            state.register(id.clone(), kind).unwrap();
+            state.set_desired(&id, 1, Command::Toggle, 1).unwrap();
+            assert_eq!(state.get(&id).unwrap().observed, None);
+            assert_eq!(state.get(&id).unwrap().quality, Quality::Unknown);
+            assert_eq!(state.get(&id).unwrap().pending_command, Some(1));
+            let observed = if kind == ModuleKind::Switch { Observation::Switch(false) }
+                else { Observation::Level(homesense_core::Percent::new(17).unwrap()) };
+            state.observe(&id, observed, 1, 2).unwrap();
+            assert_eq!(state.get(&id).unwrap().observed, Some(observed));
+            assert_eq!(state.get(&id).unwrap().pending_command, Some(1));
+            assert!(!Command::Toggle.target_matches(observed));
+            state.finish_pending(&id, 1, 3).unwrap();
+            assert_eq!(state.get(&id).unwrap().observed, Some(observed));
+        }
+        for kind in [ModuleKind::Motor, ModuleKind::Keypad] {
+            let id = DeviceId::new("unsupported").unwrap();
+            let mut state = StateStore::new(1, 1, 1, 8).unwrap();
+            state.register(id.clone(), kind).unwrap();
+            assert_eq!(state.set_desired(&id, 1, Command::Toggle, 1), Err(StateError::WrongKind));
+        }
     }
 }
