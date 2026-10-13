@@ -1,0 +1,102 @@
+{
+  "date": "2026-10-13",
+  "status": "ordered_same_target_rule_nodes_rejected_repair_pending",
+  "source_commit": "884850dbfdafec3133749fe0c1380dfc65cda98a",
+  "committed_source_files_verified_unchanged": 1026,
+  "new_probe_only": "crates/homesensed/tests/source_rule_order_root.rs",
+  "requirements": [
+    "design section7: same-device constrained order",
+    "design section7: rule nodes must not be arbitrarily coalesced",
+    "design section10: preserve original hierarchy, order and Else branches"
+  ],
+  "previous_source_scan": {
+    "source_xml_sha256": "cac7dcdc9db08599e55a22bacb72858035c64e1ac846e2139ead5fc634513748",
+    "observed_file_sha256": "ef61f4aaff335b3c01b7a0ac1b5dbcf38514256a05f4f504c88b1bfea88552e7",
+    "total_vectors": 7652,
+    "distinct_programs_with_repeated_direct_target": 3,
+    "vectors_with_repeated_direct_target": 76,
+    "typed_value_patterns": [
+      {
+        "sequence": [
+          [
+            "led",
+            "False"
+          ],
+          [
+            "led",
+            "False"
+          ]
+        ],
+        "occurrences": 30
+      },
+      {
+        "sequence": [
+          [
+            "led",
+            "False"
+          ],
+          [
+            "led",
+            "True"
+          ]
+        ],
+        "occurrences": 31
+      },
+      {
+        "sequence": [
+          [
+            "level",
+            "0"
+          ],
+          [
+            "level",
+            "0"
+          ]
+        ],
+        "occurrences": 15
+      }
+    ],
+    "scope": "Prior actual compiler/planner output; not original program runtime or semantic approval"
+  },
+  "source_repeat_kind_counts": {
+    "led_vectors": 61,
+    "level_vectors": 15
+  },
+  "synthetic_reproducer": {
+    "commands": [
+      "PanelLed(true)",
+      "PanelLed(false)"
+    ],
+    "target": "one stable module_id/channel reference",
+    "pipeline": "EventRules -> PreparedRule -> Admission",
+    "exit_code": 101,
+    "passed": 0,
+    "failed": 1,
+    "completed_rules": 0,
+    "command_journal_rows": 0,
+    "failure": "InvalidValueInRequest",
+    "actor_write_gate_open": true,
+    "transport_owner_created": false
+  },
+  "static_rejection": "Admission Lights normalization rejects second occurrence of a logical device even in trusted Automation before queue/source audit transaction",
+  "evidence_root": "deployment/ngr/private/20261013-source-runtime-order-root",
+  "evidence_sha256": {
+    "source.tar": "5bbc511c4b9e8d42928146763ddf7d4405912358eb2f59a292b9a2f5aa8e61f7",
+    "source.json": "145ce3dae921bca99e4b425187df12b6f77e1c5ab8e7d21d74db82d9c71d048e",
+    "probe.rs": "eda467be1bc05f073555519bfa09fb7d53b83d7066951eb9e2296fca686acefa",
+    "probe.json": "10e28f19b690db77f9d13b82dfeeefb69e44d44644c6048266527d4b36b9166e",
+    "baseline.log": "0c76d05e3380f27e91365c4090ee70b01b5c58860bc907d4ed65bb8e52efddb7",
+    "baseline-test-binary": "1d89542a6b1a16d974d4baba6d50140b75ee623094eb8b6b5821b62bca163d93",
+    "execution.json": "511970cfe93b4365ca97ddfc424ffa7e99bbbb6246e419899cd631d2e2729210",
+    "scan.json": "7ba4f97c34e3432fa3a2c41a6699661b032d3e2f386eadff960aff0f63f09723",
+    "admission-observed.json": "69244f753beac2a485fe81c07253a5a0042c9d267ac8a3b5e630f61a754b28d2"
+  },
+  "limitations": [
+    "Synthetic valid two-node LED pattern only, not execution or approval of original three programs",
+    "Original repeated targets include LED Off->Off/Off->On and Level0->Level0; synthetic True->False tests generic required order support",
+    "Previous7652 outputs are actual pure compiler/planner evidence, not runtime or physical execution",
+    "External HAP/HTTP duplicate-intent rejection and hidden supply access remain required boundaries",
+    "No real gateway, network service, identity, credential, control, deployment or original source publication"
+  ],
+  "next": "Existing authorized 功能开发 task received executable regression; generic trusted rule order repair and independent recheck pending"
+}
