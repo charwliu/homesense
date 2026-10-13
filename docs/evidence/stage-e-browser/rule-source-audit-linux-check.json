@@ -1,0 +1,120 @@
+{
+  "date": "2026-10-13",
+  "scope": "Native Linux rule_sources only; two integration targets, three storage and four runtime cases",
+  "source_commit": "884850dbfdafec3133749fe0c1380dfc65cda98a",
+  "source_files_verified_unchanged": 1026,
+  "tested_overlay_sha256": {
+    "crates/homesense-storage/src/backup.rs": "98087ce9b3bc4f3981c78eef9b4e3f613056634d9e580bea97a22325afa47bab",
+    "crates/homesense-storage/src/journal.rs": "0c7e585c83bae79c42232e60d00e8a94f5eccf384bb641c08285974ae1fc2a67",
+    "crates/homesense-storage/src/lib.rs": "cb3afce5adf336caaf04d654bc55b150696f80099768eace7750b5ecaf3a2e2d",
+    "crates/homesense-storage/src/rule_audit.rs": "25fc30e2f559ecf7061c90ed7ff6930535125ae7ebd0e4fae3c71c18f4dd141b",
+    "crates/homesense-storage/tests/backup.rs": "b36dad7c369e3ba79253b3dfa620cb2acce2846ffc0ee3c20efc87907c0d9c78",
+    "crates/homesense-storage/tests/journal.rs": "e73702368de726aaff48484eb52346f02510d483b3934b65b77bfa49d6efaaaf",
+    "crates/homesense-storage/tests/light_restore.rs": "c82cbc2af2bc923c8745b8fb0e7af7cc1ce58fbe92158f1a6ae733cd33494b51",
+    "crates/homesense-storage/tests/native_scene.rs": "8d89cde6288f548cf110b6b66b27d47995aa60239a7f4552f8db0a3662485a7d",
+    "crates/homesense-storage/tests/scene_initialization.rs": "1c6b9a9b6ba57c7d932cc6067d71414f20dc51772637e63584356bd7f7b2f1f3",
+    "crates/homesense-storage/tests/scene_observation.rs": "525c0eaebda085e10da0f92da95ea8760da27230322e70267bd3c8424e82c41c",
+    "crates/homesense-storage/tests/rule_sources.rs": "3cee7288a494e0220bfdace83ac6951a50ae439cf3f9356ccbc7b3fa6ac076eb",
+    "crates/homesensed/src/admission.rs": "17efbf0b761d2d55c5a2984f34bedc0a99a39a4a1ed905c099bb029f0f824cb1",
+    "crates/homesensed/src/deferred_rule.rs": "969d6f2ff7cecb41edbfb3a78eb0e09ccc77130d13d7def19346eedbc2b2ef7e",
+    "crates/homesensed/src/rule_runtime.rs": "a76e73253c1ad19d058f3383d0fb367f6659d1b4933e8a12949f8cd8f8e0ce32",
+    "crates/homesensed/tests/rule_sources.rs": "88d6434b411fd3eea740878faa01c8a849a8f937a366584a4d26b53175eb9610"
+  },
+  "host": {
+    "architecture": "x86_64",
+    "glibc": "glibc 2.44",
+    "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)",
+    "cargo": "cargo 1.99.0 (5f94df478 2026-08-27)"
+  },
+  "run": {
+    "command": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-p",
+      "homesense-storage",
+      "-p",
+      "homesensed",
+      "--test",
+      "rule_sources",
+      "--",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "exit_code": 0,
+    "counts": [
+      [
+        3,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        4,
+        0,
+        0,
+        0,
+        0
+      ]
+    ],
+    "passed": 7,
+    "failed": 0,
+    "ignored": 0,
+    "filtered": 0,
+    "elapsed_seconds": 47.25390936000622,
+    "exact_test_ids": [
+      "invalid_or_misaligned_labels_never_accept_any_receipt",
+      "schema_24_backup_and_migration_keep_historical_sources_unknown",
+      "source_labels_variables_and_cancellations_rollback_together_on_sql_or_cas_failure",
+      "combined_expansion_copies_source_to_each_output_without_shifting_next_node",
+      "mixed_deferred_rule_retains_immediate_and_existing_call_member_sources",
+      "panel_click_retains_audited_source_labels",
+      "two_same_kind_independent_channels_keep_exact_node_labels_after_reopen"
+    ]
+  },
+  "actual_elfs": [
+    {
+      "target": "homesense-storage",
+      "name": "rule_sources-7a63212c60059ac8",
+      "sha256": "ccd3f730db4b51aa7ac8e197c73dd0c8208888d21f811664781e17555c771571",
+      "format": "ELF 64-bit LSB x86-64"
+    },
+    {
+      "target": "homesensed",
+      "name": "rule_sources-870c17d40df68603",
+      "sha256": "80e20d8425d7490f889d01fb64b1450d09a0f67b6d323eeebd8a249c02276212",
+      "format": "ELF 64-bit LSB x86-64"
+    }
+  ],
+  "isolation": {
+    "source": "New independent subdirectory under existing authorized ngr tmp test root",
+    "cargo_home_target_vendor": "Previously dedicated isolated paths only; 221 public locked dependencies reused",
+    "cargo_lock_sha256": "bf8b446b0d8abbe7a3da1f359e2d0a0a2e116d82d4d2f5bb7b4b7c91bb080fbd",
+    "lockfile_unchanged_since_prior_linux_archive": true,
+    "source_files_changed": 0,
+    "additional_temporary_config_sha256": "f77b30146e3b95309f9e2c740391ae139bfe74478a82c2814f3c392abe8ac499",
+    "temporary_store_files": 0,
+    "remaining_test_processes_after_exit": 0
+  },
+  "evidence_sha256": {
+    "source.tar": "5bbc511c4b9e8d42928146763ddf7d4405912358eb2f59a292b9a2f5aa8e61f7",
+    "source.json": "5d9f76e5106c41af79ed9299e19494912335d98f8d1c07e7826e16e5e3ae302b",
+    "run.py": "4149e6a7618cfd03d8863e139ff2c6dbf719d9b0cef065e5f4c876bbb97c006f",
+    "isolated-cargo-config.toml": "f77b30146e3b95309f9e2c740391ae139bfe74478a82c2814f3c392abe8ac499",
+    "evidence/host.json": "36bc6ce52af16a218c1264c9a95feed1ac5ac78e9a92dcfe8e198ca41a57d046",
+    "evidence/tests.log": "ecdb118fe5925deea04aad9edb299bba1f1a8099a6367d58a97d604ae29475d6",
+    "evidence/execution.json": "397557eedf58fca81e148a86c6f95e5803d567b8d0e0846a13489baa58fdf3ac",
+    "verification.json": "587e7bca1a5c16255d1523b9181e0c831a9bb6c1c011c580bcd9e5f731afd905",
+    "evidence/test-binaries/rule_sources-7a63212c60059ac8": "ccd3f730db4b51aa7ac8e197c73dd0c8208888d21f811664781e17555c771571",
+    "evidence/test-binaries/rule_sources-870c17d40df68603": "80e20d8425d7490f889d01fb64b1450d09a0f67b6d323eeebd8a249c02276212"
+  },
+  "limitations": [
+    "Seven new source cases only; old132, six indicator cases, TLS, fullworkspace and release were not rerun or counted",
+    "Not full Linux workspace, release or Clippy acceptance",
+    "Synthetic actors and stores only; no real gateway, LAN discovery or physical outputs",
+    "Current Apple client, LED, curtain and phone TLS field confirmations remain pending; Siri tests cancelled",
+    "No production deployment, identity/credential/config/network changes; EA-5 configuration and control scope unchanged"
+  ]
+}
