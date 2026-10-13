@@ -4403,7 +4403,7 @@ async fn running_automation_control_cancels_before_output_and_closes_on_exit() {
 async fn publication_pauses_old_automation_without_closing_admission() {
     use homesensed::{automation_runtime::AutomationRuntime, automation_control::Action, feedback::Feedback, observed_transport::ObservedTransport, transport_owner::TransportOwner};
     for projected in [false,true] {
-    for policy_index in 0..6 {
+    for policy_index in 0..7 {
     let keypads=matches!(policy_index,1..=3);
     for responds in [false, true] {
     let db=Db(std::env::temp_dir().join(format!("assembly-{}.sqlite",Uuid::new_v4())));
@@ -4439,14 +4439,19 @@ async fn publication_pauses_old_automation_without_closing_admission() {
     if policy_index==3 {
         next["devices"].as_array_mut().unwrap().last_mut().unwrap().as_object_mut().unwrap().remove("motor_calibration");
     }
-    if policy_index==5 {
+    if policy_index>=5 {
         next["devices"].as_array_mut().unwrap().retain(|d|d["id"]=="motor");
+    }
+    if policy_index==6 {
+        // Unlike the unbound AD8 in case 5, this leaves no queryable physical
+        // output module at all and must reject before touching the transport.
+        next["gateways"][0]["modules"].as_array_mut().unwrap().retain(|m|m["address"]=="22");
     }
     use homesensed::publication_recovery::Synchronization;
     let policy=match policy_index {0=>Synchronization::CompleteFeedback,1=>Synchronization::OutputsAndKeypadEvents,4=>Synchronization::CompleteFeedback,_=>Synchronization::OutputsAndCalibratedMotors};
     let mut next_rules:hap::serde_json::Value=hap::serde_json::from_slice(rules).unwrap();
     next_rules["configuration_revision"]=2.into();
-    if policy_index==5 { next_rules["timed_scenes"]=hap::serde_json::json!([]); }
+    if policy_index>=5 { next_rules["timed_scenes"]=hap::serde_json::json!([]); }
     let (projection,mut updates)=tokio::sync::watch::channel(owner.snapshot());
     let pause=async {
         if projected {
@@ -4492,8 +4497,8 @@ async fn publication_pauses_old_automation_without_closing_admission() {
     impl std::io::Write for QueryWire {
         fn write(&mut self, bytes:&[u8])->std::io::Result<usize>{
             assert!(!self.2,"invalid recovery policy must reject before any query");
-            assert_eq!(bytes, &[0xae,0x15,0xa1,0xf2,0xee]);
-            if self.1 {self.0.extend([0xae,0x15,0xd1,30,0xee]);} Ok(bytes.len())
+            assert_eq!(bytes, &[0xae,0x15,0xa0,0xf2,0xee]);
+            if self.1 {for channel in 1..=8 {self.0.extend([0xae,0x15,0xd0+channel,30,0xee]);}} Ok(bytes.len())
         }
         fn flush(&mut self)->std::io::Result<()>{Ok(())}
     }
@@ -4503,16 +4508,16 @@ async fn publication_pauses_old_automation_without_closing_admission() {
     // Invalid recovery attempts must not consume the committed publication or
     // reopen admission. The valid attempt below must still be possible.
     for (principal,epoch,complete) in [(Uuid::new_v4(),2,true),(controller,1,true),(controller,2,false)] {
-        let streams=if complete {[("simulation".into(),hb_transport::Connection::for_simulation(QueryWire(vec![],true,policy_index>=3),epoch))].into()} else {std::collections::BTreeMap::new()};
+        let streams=if complete {[("simulation".into(),hb_transport::Connection::for_simulation(QueryWire(vec![],true,matches!(policy_index,3|4|6)),epoch))].into()} else {std::collections::BTreeMap::new()};
         let rejected=homesensed::publication_recovery::rebuild_with_policy(a.clone(),principal,TransportOwner::new(a.clone(),streams),epoch,settings,policy).await;
         assert!(rejected.is_err());
         assert!(a.task_generation().await.is_err());
     }
-    let fresh=TransportOwner::new(a.clone(),[("simulation".into(),hb_transport::Connection::for_simulation(QueryWire(vec![],responds,policy_index>=3),2))].into());
+    let fresh=TransportOwner::new(a.clone(),[("simulation".into(),hb_transport::Connection::for_simulation(QueryWire(vec![],responds,matches!(policy_index,3|4|6)),2))].into());
     let rebuilt=homesensed::publication_recovery::rebuild_with_policy(a.clone(),controller,fresh,2,homesensed::publication_recovery::Settings{
         query_timeout_ms:100,max_age_ms:5000,wall_unix_ms:1_800_000_000_000,calendar_lateness_ms:1000,scene_capacity:8
     },policy).await;
-    if !responds || policy_index>=3 {
+    if !responds || matches!(policy_index,3|4|6) {
         assert!(rebuilt.is_err());
         assert!(a.synchronized(2,2).await.is_err());
         assert!(a.dispatch().await.is_err());
@@ -4527,6 +4532,13 @@ async fn publication_pauses_old_automation_without_closing_admission() {
         assert_ne!(state.quality,homesense_state::Quality::Confirmed);
         assert!(state.observed_at_ms.is_none());
     }
+    if policy_index==5 {
+        assert_eq!(new_owner.snapshot().devices.len(),1,"readback must not create aliases for unbound ports");
+        let motor=&new_owner.snapshot().devices[&homesense_core::DeviceId::new("motor").unwrap()];
+        assert!(motor.observed.is_none());
+        assert_ne!(motor.quality,homesense_state::Quality::Confirmed);
+        assert!(motor.observed_at_ms.is_none());
+    }
     assert_eq!(next_runtime.revision(),2);
     assert!(a.dispatch().await.unwrap().is_none());
     let fresh_control=next_runtime.control();
@@ -4536,6 +4548,19 @@ async fn publication_pauses_old_automation_without_closing_admission() {
         assert_eq!(boot,a.boot_id());
         assert_eq!(revision,2);
         assert!(!status.clock.stopped);
+        if policy_index==5 {
+            let homesensed::automation_control::Reply::Modules(page)=fresh_control.request(Action::Modules{controller,revision:2,offset:0,limit:64}).await.unwrap() else {panic!("missing current module inventory")};
+            let module=page.modules.iter().find(|module|module.address=="15").unwrap();
+            assert_eq!(module.queryable_bindings,0);
+            assert_eq!(module.fresh_channels,8);
+            assert_eq!(module.slots.len(),8);
+            for slot in &module.slots {
+                assert_eq!(slot.quality,"confirmed");
+                assert_eq!(slot.actual,Some(hap::serde_json::json!({"level":30,"on":true})));
+                assert!(slot.observed_ms.is_some());
+                assert!(slot.binding.is_none(),"reading an unbound port must not grant control");
+            }
+        }
         // The old handle must remain closed even after a replacement is ready.
         assert!(control.request(Action::CalendarStatus).await.is_err());
         stop.send(true).unwrap();
