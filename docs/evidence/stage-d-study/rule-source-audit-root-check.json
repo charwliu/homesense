@@ -1,0 +1,141 @@
+{
+  "date": "2026-10-13",
+  "status": "committed_immediate_rule_command_source_gap_independently_verified",
+  "commit": "884850dbfdafec3133749fe0c1380dfc65cda98a",
+  "scope": "Five root tests on exact committed source plus independent verification of retained two-package regression; no whole-project semantic approval",
+  "committed_archive_files_verified_unchanged": 1026,
+  "new_root_probes_only": 5,
+  "root_run": {
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "--locked",
+      "-p",
+      "homesensed",
+      "--test",
+      "source_runtime_trace_root",
+      "--test",
+      "source_scene_boundary_root",
+      "--test",
+      "source_trace_rollback_root",
+      "--test",
+      "source_trace_legacy_root",
+      "--test",
+      "source_combo_mapping_root",
+      "--",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "exit_code": 0,
+    "passed": 5,
+    "failed": 0,
+    "ignored": 0,
+    "filtered": 0,
+    "exact_test_ids": [
+      "combined_source_fanout_keeps_order_across_reverse_and_two_off_branches",
+      "audited_rule_commands_retain_each_source_node_after_store_reopen",
+      "deferred_scene_call_and_member_sources_survive_reopened_store",
+      "actual_old_schema24_audit_keeps_unknown_sources_and_backup_compatibility",
+      "second_source_insert_failure_rolls_back_commands_variables_and_rule_audit"
+    ],
+    "actual_retained_binaries": 5
+  },
+  "combined_mapping": {
+    "subcases": [
+      "combo-first-on",
+      "independent-first-on",
+      "switch-off",
+      "level-zero"
+    ],
+    "ordered_command_counts": [
+      3,
+      3,
+      2,
+      2
+    ],
+    "source_and_encoded_journal_intents_match": true,
+    "total_occurrences": 10,
+    "not_four_additional_tests": true
+  },
+  "owner_recheck": {
+    "commit": "884850dbfdafec3133749fe0c1380dfc65cda98a",
+    "owner_baseline": "0f150269a99a8a2f7220be73f6293e3b1a6408cd",
+    "unchanged_original_files_verified": 1008,
+    "overlays_match_final_commit": 15,
+    "package_tests": 531,
+    "unique_target_scoped_test_ids": 531,
+    "result_blocks": 72,
+    "actual_retained_binaries_verified": 70,
+    "strict_two_package_clippy_log_verified": true,
+    "new_test_executions": 0,
+    "limitations": [
+      "Two packages only, not current full workspace/Linux or frontend",
+      "Retained test failures remain separate; no new remote or field operations"
+    ]
+  },
+  "preserved_boundaries": [
+    "Delayed call/member source chain remains intact after Store reopen",
+    "Second source row insertion fault rolls back command, variable and rule-admission transaction and closes actor write gate",
+    "Actual previous b31ddeb schema24 data migrates to25 without fabricated sources or changed command values/status",
+    "Schema24/25 readonly backup checks leave bytes unchanged; schema25 snapshot opens successfully"
+  ],
+  "actual_root_binary_sha256": [
+    {
+      "name": "source_combo_mapping_root-0c4f41b79e2a53f0",
+      "sha256": "880ccaba36bb2b81557106ca9f3e16ed6ffc30996648e3e92da63be6eb00fe7e"
+    },
+    {
+      "name": "source_runtime_trace_root-29c442a93d565fbe",
+      "sha256": "072083619647f0a35fc200a24aa3a4746cf67fd9ad86fd292b856bdc6111cc8c"
+    },
+    {
+      "name": "source_scene_boundary_root-4da23caec4bfe638",
+      "sha256": "98c663b93bcb73aa376aa7cd754fdb7c09b03cb395880a702c2935048bb8c152"
+    },
+    {
+      "name": "source_trace_legacy_root-47826318db78d674",
+      "sha256": "7f90aee9f3a50930e7431a2674d84d3510fd22ebf2ec5156b546369bec564e74"
+    },
+    {
+      "name": "source_trace_rollback_root-f3de80e73b95f5ab",
+      "sha256": "efa46a0c19a4dc3913805591af43f20c676b4c058220aade372cb58a476b787c"
+    }
+  ],
+  "owner_report_sha256": "7a00f4adc8dc7d2d59410c2a628fe462b9f7323406fb0f67e781cc2ed104005e",
+  "evidence_roots": {
+    "root": "deployment/ngr/private/20261013-rule-source-final-root",
+    "owner": "deployment/ngr/private/20261013-rule-source-audit"
+  },
+  "evidence_sha256": {
+    "root/source.tar": "5bbc511c4b9e8d42928146763ddf7d4405912358eb2f59a292b9a2f5aa8e61f7",
+    "root/source.json": "267f541b8675a0c35e097de5d0ef44ba6cb5014a1d17df4bbf14fbf63889ac5f",
+    "root/probes.json": "ea2dd052a987cef552d536075c3aacc2e366caa91af22ec3c650a856d0a8bca3",
+    "root/source_runtime_trace_root.rs": "d2173863bb23ecb1f98c444ee38f57d2638b598cfd5d80e4c60382fc561e3c12",
+    "root/source_scene_boundary_root.rs": "846e3ebc4534556e7c7a6d35309f049503e9c327079b99b9f36cbb470d851a2b",
+    "root/source_trace_rollback_root.rs": "07133c91b29465f8a0c89439fabd6594fe65235c45038a7170100d5d715aa0a1",
+    "root/source_trace_legacy_root.rs": "47285bd23d2d8e3aaecef379bcac39666caf17e6db2c9de6974ba051433acbda",
+    "root/source_combo_mapping_root.rs": "c2cb7d7a6f1c9c30428181b00f80b48bc38a2b6a0a896f9fdcfbe298e1720b1e",
+    "root/tests.log": "f8630c3310a7e26140f6ffd23dccf29135ecbe80728c9efe90f068394d875696",
+    "root/binaries.json": "0c96b93c23f1f8d3a5eb8707e183d633369ad0543fd0b1b1a4c8dbf7ce06b477",
+    "root/root-execution.json": "3e73746e18f4db270cfbc42336c70233f7018b863654666d282114a0f2c7f55b",
+    "root/owner-root-audit.json": "cc19a5110851dc71c9ff82fe016e24d0f71ccb9fd10a040d74e21aa0a76ba98a",
+    "root/repaired-original/observed.json": "c97eb935da45793b89dfb2dbe1ada82ff541e665942f8555d90c11833425712c",
+    "root/scene-boundary/observed.json": "16503e5321c852c43b4b3e50976c25538bcd10bfc258027c5aa690e6e6679856",
+    "root/rollback/observed.json": "d8d007812173c9a4c37edbd1c2345f9a39ea6e9539029d66eb2aa4ede54d2752",
+    "root/legacy/observed.json": "0673ce792c1c1edb23cdde0b9bb160a7e01d219f8398ff676690f11afd451846",
+    "root/combo/observed.json": "7ac093156d11a087e32a89fdeb07e0272f5af763662d617cfb33f019121eb7a6",
+    "owner/candidate-source-manifest.json": "fe140067ef9baefeacb903c39878c9624c257d199e93fa45b1bfb99fb4429553",
+    "owner/committed-source-check.json": "eddf3935720b3c5a21413ab5ced049ff6700c604b1ea1f7e9b09fe8202542e19",
+    "owner/test-binary-manifest.json": "1560d2d553dfc684ba16c95acf9deb6f05da8893fd565277192c2e39926e37b9",
+    "owner/packages-final.log": "bb2052a976ec6bafc4f7f50c9348e52d8e48d014740754dcde43545c7b992318",
+    "owner/clippy-final.log": "9a22bce59427f03dfaf5adfe3f2ce5e78eb3c679b63e7765df246a579c830025",
+    "owner/focused-final.log": "ac63698c0dae726afa0ff220d73f86f64c32432ef10058d3f9ae50ff1fe9431a"
+  },
+  "limitations": [
+    "Five root tests and existing531 two-package tests are separate executions; not current full workspace/Linux/frontend checks",
+    "Source receipts prove accepted node association, not physical actuation or feedback causality",
+    "No current Apple client, HomePod, real LED/curtain, TLS trust or original Control4 program approval",
+    "No real gateway, production deployment, identity, credential or certificate changes"
+  ]
+}
