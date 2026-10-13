@@ -161,7 +161,7 @@ cargo run --locked --offline -p homesensed -- serve-simulation config/simulation
 - [完整设计](docs/design.md)：v1.7，系统边界、协议契约、迁移方案及阶段 A–G 计划。
 - [家庭网络架构设计](docs/network-architecture.md)：五个业务 VLAN（1/3 走 A、2/4 走 B、5 为 AC/AP 管理；A组终端直接接3，B组终端接2，4仅基础设施）＋一个维护 VLAN100（192.168.0.0/24）；涵盖华为核心、双栈出口分流、两台 485 网关迁移、桌面换口切换 WAN、x86 HomeSense 双聚合接入及迁移验收。
   现有 .0.x 设备全部迁移并确认无依赖后，再关闭 VLAN100 常驻网关和路由。维护 SSID 仅在指定 AP 按需开启；核心临时 DHCP 需要受限 SVI，必须验证隔离及实际不下发网关/DNS/静态路由，结束后关闭 SVI、SSID、DHCP 和临时标签。
-- [核心、QNAP 与 AC 配置步骤](docs/network-configuration-runbook.md)：离线操作手册及华为 DHCP 模板；VLAN1/2/100 用核心 DHCPv4，3/4 保留 systemd-networkd DHCPv4 与 rdhcpd DHCPv6/PD/前缀 RA，终端默认网关仍为核心。A组直接使用 VLAN3 的 LAN /64，B侧从 /60 池自动向核心 VLANIF4 委派 /64，用于 VLAN2；VLAN1 保持 IPv4；旧核心 B侧 /64 绑定已生效；rdhcpd Renew/Rebind 与 RouterLifetime=0 已提交并本地验证（独立修复28项、合并静态租约31项通过）；新核心绑定兼容性及实际续租/RA验收仍待完成，未部署、未下发现网。
+- [核心、QNAP 与 AC 配置步骤](docs/network-configuration-runbook.md)：离线操作手册及华为 DHCP 模板；VLAN1/2/100 用核心 DHCPv4，3/4 保留 systemd-networkd DHCPv4 与 rdhcpd DHCPv6/PD/前缀 RA，终端默认网关仍为核心。A组直接使用 VLAN3 的 LAN /64，B侧从 /60 池自动向核心 VLANIF4 委派 /64，用于 VLAN2；VLAN1 保持 IPv4；旧核心 B侧 /64 绑定已生效；rdhcpd Renew/Rebind 与 RouterLifetime=0 源码已提交；此前基线在nanopi通过31项单测＋18项Linux隔离验收；DAD地址就绪筛选与RA恢复版 `1368cf2` 另通过39项单测＋23项隔离验收（真实DAD/组播/RA/PD回程），已部署 nanopc 并验证 RA、PD 回程及真实 Rebind。nanopi5 尚未更新；新核心兼容性与完整实际设备验收仍待完成，核心配置未下发。
 - [A–C 验收跟踪](docs/stages-a-c.md) 与 [逐项证据](docs/evidence/stages-a-c-requirements-20261011.md)：限定验收结论及未关闭问题。
 - [阶段 D 完成审计](docs/stage-d-progress.md)：当前实现、验收缺口和增量验证记录。
 - [书房场景迁移](docs/stage-d-study.md)：源规则、离线回放及手动场景现场证据。

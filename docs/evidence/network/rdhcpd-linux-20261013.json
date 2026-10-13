@@ -1,0 +1,94 @@
+{
+  "date": "2026-10-13",
+  "source_commit": "c3caaa1def555c963922d183dd89d726a3cd2aa1",
+  "host": "nanopi",
+  "architecture": "aarch64",
+  "distribution": "Debian GNU/Linux 13.7",
+  "kernel": "Linux 7.2.10-1-nano-00004-ge73c5e64ad9c aarch64 GNU/Linux",
+  "build": "Rust 1.95 cross compile on macOS; actual ARM Linux execution; no native Linux compile claim",
+  "unit_tests": {
+    "passed": 31,
+    "failed": 0,
+    "ignored": 0,
+    "filtered": 0
+  },
+  "isolated_acceptance": {
+    "passed": 18,
+    "failed": 0,
+    "cases": [
+      "two_disconnected_network_namespaces",
+      "ra_zero_on_wire_and_kernel_slaac_without_default",
+      "prefix_ra_coexists_with_simulated_core_default_only_ra",
+      "multicast_solicit_advertise_request_reply_pd_na",
+      "rapid_grant_pd_na_and_actual_return_path",
+      "renew_preserves_pd_na_and_refreshes_persisted_lifetimes",
+      "renew_reinstalls_missing_kernel_return_route",
+      "rebind_changes_next_hop_and_preserves_ospf_policy_routes",
+      "restart_reload_and_renew_keep_prefix_address_gateway",
+      "unknown_rebind_no_binding_without_new_allocation",
+      "wrong_server_renew_ignored",
+      "malformed_second_ia_no_partial_renew",
+      "mixed_known_unknown_ias_processed_independently",
+      "conflicting_nonowned_route_prevents_success_reply",
+      "persistence_failure_no_reply_with_route_file_partial_commit",
+      "same_rebind_retry_recovers_after_persistence_failure",
+      "ra_default_1800_preserves_legacy_kernel_behavior",
+      "expired_pd_na_rebind_no_binding_on_wire"
+    ]
+  },
+  "test_harness_sha256": "d6a29981fd2c4d9bf162ef76e7cd6f3cd067466c0525958cf60fb21a39f4dec9",
+  "binary_sha256": "f01668b2f8349179b0d703cb4213603d41212476c78338e86f9da4c5cce7c0ce",
+  "cleanup": {
+    "test_processes_remaining": [],
+    "test_namespace_owners_remaining": [],
+    "namespace_inodes_destroyed": true,
+    "named_namespaces_created": false,
+    "temporary_test_directory_removed": true,
+    "removed_directory": "/tmp/rdhcpd-linux-20261013-c3caaa1"
+  },
+  "host_network_unchanged": true,
+  "host_network_sha256": "b4ff671a40d708da3b142e52051032e2ef17c770a5c8d5a01707e95eb9eb32b0",
+  "production_deployed": false,
+  "production_source_modified": false,
+  "attempts": [
+    {
+      "id": 1,
+      "outcome": "failed before daemon startup",
+      "reason": "sysfs inventory does not follow the anonymous netns; guard changed to namespace-aware ip link query"
+    },
+    {
+      "id": 2,
+      "outcome": "RA startup failed",
+      "reason": "automatic link-local address still tentative during DAD; daemon binds first LL address without checking readiness",
+      "production_issue_unfixed": true
+    },
+    {
+      "id": 3,
+      "outcome": "harness assertion failed",
+      "reason": "simulated core alias was selected as daemon RA source; isolate alias to emission window"
+    },
+    {
+      "id": 4,
+      "outcome": "16 cases passed",
+      "counted_in_final_total": false
+    },
+    {
+      "id": 5,
+      "outcome": "18 cases passed",
+      "final": true
+    }
+  ],
+  "limitations": [
+    "Actual wire fixtures drive messages immediately; no 1800/2700-second timer or long-running lease-cycle test.",
+    "Core default-only RA is simulated; no Huawei firmware or physical VLAN/NAS/WAN interoperability acceptance.",
+    "Interface must have ready, non-tentative link-local addresses. Tentative-address startup failure is retained and not fixed by this test task.",
+    "Route update and lease-file persistence are not a cross-resource atomic transaction; persistence failure can leave the kernel route updated, tested retry from the same source recovers.",
+    "Release, automatic PD route reclamation, upstream prefix changes and remaining upstream authorization are not implemented or accepted here.",
+    "No production binary deployment, service restart, physical interface/route/DHCP/SSID change or real gateway control."
+  ],
+  "rproxy_evidence": {
+    "repository": "rproxy",
+    "path": "rdhcpd/tests/evidence/2026-10-13-nanopi/check.json",
+    "sha256": "6bdf8d9fb64d53b3f00f69e97ba36e863ce4c5fdfa2b3edec52039c7b0cc92f8"
+  }
+}
