@@ -2,7 +2,7 @@
 
 目标依据 design.md 第 20、23–25 节：完成原生 Rust HAP 配件公开、场景入口、Web 管理和鉴权，验证配对、反馈、断线恢复与权限；用户已取消后续 Siri 验收。阶段 D 的未完成项继续保留在 stage-d-progress.md，不能因目标扩展而视为完成。
 
-2026-10-13当前证据边界：最近限定现场仍为 `c184e65`，schema22／revision3，窗口已结束；新版候选为schema24。固定 `bfe61f2` 干净提交完整workspace735项、全部目标严格Clippy及Linux串行运行时库103项通过，包含原生场景及整模块查询集成。96路20ms独立假网关的真实服务循环35秒，最大重复查询间隔2.85秒、113份状态采样无Stale，已关闭此前12.29秒的隔离容量反例；100ms混合映射及真实总线尚未验收。27项独立相对场景夹具、新版Apple客户端／LED／窗帘及手机Web仍待验证。本轮未部署或连接真实网关。见[模块查询与容量验证](evidence/stage-d-study/module-query-capacity-check.json)；下文旧版本数量保留为历史，D/E综合结论仍未完成。
+2026-10-13当前证据边界：最近限定现场仍为 `c184e65`，schema22／revision3，窗口已结束；新版候选为schema24。固定 `bfe61f2` 干净提交完整workspace735项、全部目标严格Clippy及Linux串行运行时库103项通过，包含原生场景及整模块查询集成。96路20ms独立假网关的真实服务循环35秒，最大重复查询间隔2.85秒、113份状态采样无Stale，已关闭此前12.29秒的隔离容量反例；100ms混合映射及真实总线尚未验收。27项独立相对场景夹具已通过隔离软件验收；新版Apple客户端／LED／窗帘及手机Web仍待验证。本轮未部署或连接真实网关。见[模块查询与容量验证](evidence/stage-d-study/module-query-capacity-check.json)；下文旧版本数量保留为历史，D/E综合结论仍未完成。
 
 | 范围 | 已有基础 | 完成所需证据 |
 | --- | --- | --- |
@@ -1097,4 +1097,13 @@ Mac Safari已到登录页。为本轮书房两灯／四场景签发临时Member�
 
 完整workspace735项、所有目标严格Clippy通过，Linux串行运行时库103项通过。Linux假网关真实服务使用独立debug二进制、独立状态、既有隔离TLS，仅GET diagnostics/devices：96物理端点由61种请求覆盖，35秒共919查询／0控制，首次就绪1.67秒，最大重复间隔2.85秒，113份状态采样全部Confirmed、0 Stale；正常退出且PID不存在。首次Linux多桥并行失败、同源码独立和串行重跑结果均保留，未归因于具体原因。
 
-该证据关闭20ms匿名混合映射的隔离容量缺口；未验证真实固件、100ms混合映射、现场长期稳定性或实际Apple客户端。27项独立相对夹具仍单列待验，不能把现有原生场景回归提升为27项全部通过。本轮未部署、未连接真实网关、未修改现场身份／数据库，也未新签凭据。见[聚合证据](evidence/stage-d-study/module-query-capacity-check.json)。阶段E保持未完成。
+该证据关闭20ms匿名混合映射的隔离容量缺口；未验证真实固件、100ms混合映射、现场长期稳定性或实际Apple客户端。此容量检查点当时尚未单独执行27项相对夹具；现已由下节独立矩阵完成，不能把容量回归本身计为27项验收。本轮未部署、未连接真实网关、未修改现场身份／数据库，也未新签凭据。见[聚合证据](evidence/stage-d-study/module-query-capacity-check.json)。阶段E保持未完成。
+
+
+### 2026-10-13 相对场景软件矩阵与绝对入口边界
+
+固定 `bfe61f2` 的27项私有矩阵实际执行全部通过，0失败／忽略；12个对照子例形成39份轨迹，不增加为39项测试或不同输入。生产SceneWriteHandler／SceneRequests／Control／SceneScheduler验证未知选择的绝对Off拒绝、明确On以及已知选择Off，零原生Toggle；相对请求的Pending／重复收据、旧反馈拒绝、写出后仍未知与最终新反馈投影另行核对。歧义组合的持久请求可为Observed而selected仍为NULL，不能把读取完成当成已知选择；故障RPC不可用也不能冒充合法未知。
+
+此次HAP仅验证解码后生产适配链路，不包含加密网络／会话或实际Apple客户端。原三条LED链接保留并验证配置范围，但完整LED同步、面板物理颜色、真实模块／总线，以及后续稳定模块ID架构的最终集成版仍待验。103个原库测试被过滤，没有新增全工作区／Clippy／Linux／长期服务结论。详见[27项矩阵证据](evidence/stage-d-study/native-scene-relative-matrix-check.json)和[独立根审计](evidence/stage-d-study/native-scene-relative-matrix-root-check.json)。
+
+本轮未部署或连接真实网关，未创建凭据或修改现场身份／数据库；最近限定现场仍为已结束的schema22／revision3窗口。仅关闭固定版本的27项软件矩阵待验，阶段E整体仍未完成。
