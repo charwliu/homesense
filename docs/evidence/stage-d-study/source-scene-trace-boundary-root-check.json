@@ -1,0 +1,70 @@
+{
+  "date": "2026-10-13",
+  "status": "existing_deferred_scene_source_boundary_verified_immediate_gap_still_open",
+  "source_commit": "b31ddeb34f04494bcfee6ea3fe23fe4259aca305",
+  "scope": "One independent synthetic deferred scene call with two ordered members and reopened Store; not fix verification",
+  "unchanged_committed_source_files": 1015,
+  "run": {
+    "passed": 1,
+    "failed": 0,
+    "ignored": 0,
+    "measured": 0,
+    "filtered": 0,
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "--locked",
+      "-p",
+      "homesensed",
+      "--test",
+      "source_scene_boundary_root",
+      "--",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "exit_code": 0
+  },
+  "persisted_sources": [
+    "synthetic-event:1/node:scene-call -> synthetic-scene/member:0",
+    "synthetic-event:1/node:scene-call -> synthetic-scene/member:1"
+  ],
+  "command_ids": [
+    1,
+    2
+  ],
+  "stable_module_reference": {
+    "module_id": "synthetic-relay",
+    "channels": [
+      1,
+      2
+    ]
+  },
+  "existing_fade_assertion": {
+    "test": "software_fade_writes_bounded_monotonic_targets_and_finishes_after_transport",
+    "asserts": "All persisted scene_commands have step3 and source test:fade",
+    "evidence": "Previously retained complete b31ddeb Mac779 log and source; no repeat execution in this check",
+    "prior_workspace_report_sha256": "6a95aa69886e916c99d622975c5583e8c6837ed059fc655d00f98ebedcc07679",
+    "prior_workspace_log_sha256": "9f1c119d2402fc53a2d099baa650be067145e47c4904109a26085c64d7b7ae85",
+    "matching_source_test_file_sha256": "95c2489098946dc201ebf6334702b1d8d90693d2d5407933d5a1eb2d14c6cfa5"
+  },
+  "initial_fixture_failure": "Attempted scheduler tick before its captured current clock; clock-backwards rejection retained, corrected explicit ticks remain within lateness budget",
+  "evidence_root": "deployment/ngr/private/20261013-source-runtime-trace-root",
+  "evidence_sha256": {
+    "source.tar": "5ef04fd053963abcfefcb8acead17496fe8450a9ee52b46fda5546dcda5b8db0",
+    "source.json": "7d4047091aa7b9ab4255084b85e0db7bca4ee61da68392da70ad209d4093210e",
+    "scene-boundary/probe-initial.rs": "a32e9408bcedf9f1f4274a7f20d9bbd18985e2f4e1ddb7eb46d1c0630ad0ab04",
+    "scene-boundary/fixture-initial.log": "1b7e5b97118d4326a4087a61406439ded5a76328658c6d9b2ccc73ede892789c",
+    "scene-boundary/probe.rs": "846e3ebc4534556e7c7a6d35309f049503e9c327079b99b9f36cbb470d851a2b",
+    "scene-boundary/test.log": "4df3a0b3c1b711f36619ed5af289aa912424408da35580e8908969de539f5f1c",
+    "scene-boundary/test-binary": "f15e87ec1fbc598e78bf16eedfdef61ecd91e204b600c3c0a6faf4ee9e951a4e",
+    "scene-boundary/execution.json": "7b52cff6d83fe50e5d6340e5cf57a581788b7d156daa8b934b93d2c2560a001d",
+    "scene-boundary/corrected-fixture/observed.json": "16503e5321c852c43b4b3e50976c25538bcd10bfc258027c5aa690e6e6679856"
+  },
+  "limitations": [
+    "No TransportOwner or wire created; two synthetic actor write receipts marked finished, no physical outputs confirmed",
+    "Existing delayed scene call/member labels remain intact; immediate audited source-node loss repair still pending",
+    "One scoped positive test, not all original179 runtime programs, migration semantic approval or current fix full regression",
+    "No production gateway, service, identity, credential, deployment or configuration changes"
+  ]
+}
