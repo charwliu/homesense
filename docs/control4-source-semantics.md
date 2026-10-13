@@ -4,6 +4,8 @@
 
 2026-10-13 新增运行时源节点追踪反例：固定 `b31ddeb` 的独立副本原1,015文件未变，只新增一项合成探针。两个不同源标签的独立模块通道命令经实际 EventRules／PreparedRule／Admission 成功准入，重开 Store 后两条 Accepted 命令和规则关联仍在，但现有 rule_admission／rule_command／command_journal 没有任何节点标签；保留标签的断言实际0通过／1失败、退出101。静态链路在 from_snapshot 转为 Intent 时丢弃 source，当前审计只保留规则／事件／命令关联。最初重复设备批次被正确拒绝的夹具失败另保留，不算产品反例；全程未创建 TransportOwner 或网络服务。已交现有「功能开发」修复，独立复验待完成；延迟／渐变／场景展开边界仍需核对。此项不否定已有779项结果，但原完整回归未覆盖这个新增反例；完整原项目语义及现场门槛不变。见[运行时源标签缺口证据](evidence/stage-d-study/source-runtime-trace-gap-root-check.json)。
 
+2026-10-13 同一固定提交的边界正例另实际通过1项：独立 schema2 的两通道延迟场景经 deferred_rule／SceneScheduler／Admission 执行合成接纳，重开 Store 后两条命令分别保留「调用节点 → 成员节点」完整来源。原1,015源码未改，只有新增探针；最初向调度器传入倒退时钟的夹具拒绝单独保留，修正后通过。既有完整779日志中的渐变专项也确实断言所有持久样本保留来源，本轮不重复执行或增加该旧数量。因此即时审计标签缺口不扩大为延迟成员／渐变来源全部丢失；即时及混合规则的即时命令修复仍待独立验收。见[延迟来源边界证据](evidence/stage-d-study/source-scene-trace-boundary-root-check.json)。
+
 ## 已关闭的限定子项
 
 | 子项 | 当前结论 | 仍保留的门槛 |
