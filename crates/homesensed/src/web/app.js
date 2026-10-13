@@ -763,6 +763,27 @@ function clearModules() {
   for(const id of ['replacement-address','replacement-profile','replacement-evidence','replacement-time'])document.getElementById(id).value='';
   document.getElementById('replacement-verification').value='pending';
 }
+const moduleQueryBusy=new Set();
+async function moduleQueryAction(button,module,scope,page,renderEpoch,display,row) {
+  if(renderEpoch!==sessionEpoch)return;
+  const key=JSON.stringify([renderEpoch,module.module_id,scope]);if(moduleQueryBusy.has(key))return;
+  moduleQueryBusy.add(key);button.disabled=true;
+  try {
+    const receipt=await request('/api/v1/module-queries',{method:'POST',body:JSON.stringify({module_id:module.module_id,scope,revision:page.revision,request_id:crypto.randomUUID()})});
+    if(renderEpoch!==sessionEpoch)return;
+    display.textContent='查询请求：'+JSON.stringify(receipt)+'；已接受不代表反馈已收到。';
+    if(receipt.outcome==='accepted') {
+      const inspect=document.createElement('button');inspect.textContent='查看查询写出与当前反馈';
+      inspect.onclick=async()=>{
+        if(renderEpoch!==sessionEpoch)return;inspect.disabled=true;
+        try {const state=await request('/api/v1/module-queries/'+receipt.request_id);if(renderEpoch===sessionEpoch)display.textContent=JSON.stringify(state)+'；反馈无请求因果保证／非原子快照。';}
+        catch(error){if(renderEpoch===sessionEpoch)display.textContent=error.message;}
+        finally{inspect.disabled=false;}
+      };row.append(inspect);
+    }
+  } catch(error) {if(renderEpoch===sessionEpoch)display.textContent=error.message;}
+  finally {moduleQueryBusy.delete(key);if(renderEpoch===sessionEpoch)button.disabled=!page.ready;}
+}
 function renderModules(page) {
   if(!observeRevision(page.revision))return;
   modulePage=page;const renderEpoch=sessionEpoch,list=document.getElementById('module-list');list.replaceChildren();
@@ -770,12 +791,21 @@ function renderModules(page) {
   for(const module of page.modules) {
     const row=document.createElement('article'),title=document.createElement('h3'),info=document.createElement('p');
     title.textContent=`${module.module_id||"旧配置：需迁移模块ID"} · ${module.gateway} / 0x${module.address} · ${module.profile}`;
-    info.textContent=`${module.kind}；验证：${module.verification}；启用绑定回复：${module.response}（${module.fresh_responses}/${module.queryable_bindings}）；完整通道反馈见下方槽位`;
+    info.textContent=`${module.kind}；验证：${module.verification}；启用绑定回复：${module.response}（${module.fresh_responses}/${module.queryable_bindings}）；完整通道反馈见下方槽位；当前新鲜 ${module.fresh_channels??0}/${module.channels??module.slots.length}，已有反馈 ${module.observed_channels??0}，最近 ${module.latest_observed_ms??'未知'} ms`;
     row.append(title,info);
+    const queryable=module.module_id&&['whole_module','individual_channels'].includes(module.query_mode);
+    if(queryable) {
+      const button=document.createElement('button'),display=document.createElement('pre');button.textContent=module.query_mode==='whole_module'?'查询整模块':'查询全部通道（逐路）';button.disabled=!page.ready;
+      button.onclick=()=>moduleQueryAction(button,module,{kind:'whole_module'},page,renderEpoch,display,row);row.append(button,display);
+    }
     for(const slot of module.slots) {
       const line=document.createElement('p'),binding=slot.binding;
       line.textContent=`通道 ${slot.channel}：${binding?binding.name+' · '+binding.id:'未绑定（不可控制）'}；${quality[slot.quality]||slot.quality||'未知'}；模块反馈 ${slot.actual?JSON.stringify(slot.actual):'未知'}；时间 ${slot.observed_ms??'未知'} ms；${binding?.supply_for.length?'供电关联 '+binding.supply_for.join(', '):''}`;
       row.append(line);
+      if(queryable) {
+        const button=document.createElement('button'),display=document.createElement('pre');button.textContent='查询通道 '+slot.channel;button.disabled=!page.ready;
+        button.onclick=()=>moduleQueryAction(button,module,{kind:'channel',channel:slot.channel},page,renderEpoch,display,row);row.append(button,display);
+      }
       if(!binding)continue;
       const history=document.createElement('p');history.textContent='本次启动命令记录：'+(page.commands||[]).filter(command=>command.device===binding.id).map(command=>`#${command.command} ${JSON.stringify(command.requested)} ${command.status} @${command.updated_ms}ms`).join('；');row.append(history);
       for(const action of binding.actions) {

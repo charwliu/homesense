@@ -13,6 +13,33 @@ pub struct Record {
     pub updated_ms: u64,
 }
 impl Store {
+    /// Exact queued read-ticket receipts; the trusted adapter supplies owned IDs.
+    pub fn module_query_records(
+        &self,
+        boot: &str,
+        revision: u64,
+        commands: &[u64],
+    ) -> Result<Vec<Record>, Error> {
+        if commands.is_empty() || commands.len() > 16 {
+            return Err(Error::InvalidAudit);
+        }
+        let mut rows = Vec::new();
+        for command in commands {
+            let mut found = self.recent_device_commands(
+                boot,
+                revision,
+                &[
+                    homesense_core::DeviceId::new(format!("module-query-ticket:{command}"))
+                        .map_err(|_| Error::InvalidAudit)?,
+                ],
+                1,
+            )?;
+            if let Some(row) = found.pop() {
+                rows.push(row);
+            }
+        }
+        Ok(rows)
+    }
     pub fn recent_device_commands(
         &self,
         boot: &str,

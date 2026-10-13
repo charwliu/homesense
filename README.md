@@ -937,3 +937,16 @@ Feedback 内的 `ModuleTruth` 现在按注册表建立所有模块通道，唯�
 逻辑快照现在保证 `state_version == cursor.sequence`，每个逻辑事件保证 `event.state.version == event.cursor.sequence`，别名状态版本按最后一次投影事件保存。这个版本表只记录只读投影元数据，没有第二份可变观测；模块实际样本的值、质量、时间和物理版本完全保留。未绑定反馈不推进逻辑事件游标；显式失效与质量恢复仍产生连续逻辑事件，大量过期触发 resync 后可从新快照继续。HAP 原有严格校验和既有失败测试断言未改。
 
 限定回归 **138 项通过、0 失败、0 忽略**（109 项运行时库、29 项集成；另 9 项回环／HAP 明确排除），三个包所有目标严格 Clippy 通过。新增 2 项测试直接使用真实 `ObservedEvents` 和灯光配件，核查稀疏绑定初始化、未绑定反馈、合法输出反馈、显式失效／恢复，以及 320 通道过期后的重同步／后续事件。验证范围与独立 localhost 补验状态见[修复证据](docs/evidence/stage-e-browser/module-hap-projection-version-check.json)。查询入口的在途实现单独保留，不进入此修复检查点；没有部署、现场配置发布或 EA-5 修改。
+
+
+## 管理员模块主动查询
+
+已接入 `POST /api/v1/module-queries` 与主体持有的 `GET /api/v1/module-queries/{request_id}` 回执，管理页提供整模块／逐通道按钮。请求只用稳定 module_id、明确 scope、版本与 request_id；真实地址和任意报文不可输入。请求持久去重、角色／Origin、boot／配置／transport／执行上下文及期限在服务端核对，写出仍由同一 Arbiter／TransportOwner 和原写间隔负责。合法未绑定、禁用、隐藏供电通道可以读取，不能因此控制或产生逻辑配件。
+
+AD8、GT-E4、GT-D8、GT-L8 使用已确认的全模块查询，PRO／C8 保持合法逐路展开；不支持的型号明确拒绝。接受、写出及当前通道新鲜反馈分开显示；query 写出不修改 canonical 观测，不声称请求因果关系或全模块原子快照。取消／过期／撤权／发布屏障／短写和重启沿用持久回执，不重放。当前完整通道覆盖与启用绑定统计分别显示，inventory GET 保持纯读。
+
+固定 `1e35add` 的独立授权补验已闭合此前 HAP 缺口：118 项库、40 项 Admission、原独立反例 1 项，共 159 项通过、0 失败／忽略／过滤，旧失败逐项通过；[独立证据](docs/evidence/stage-e-browser/module-truth-projection-repair-root-check.json)保留原失败、同一探针源码及真实物理版本不变验证。该结论仅属于固定修复提交，Query 增量另行验证。
+
+Query 增量的限定回归 **272 项通过、0 失败、0 忽略**（116 项运行时库、40 项 Admission、87 项配置／存储、29 项其他集成；库另有 9 项明确排除），7 项新查询测试与扩展管理员实际 API 测试包含在其中；4 项前端检查和三个包所有目标严格 Clippy 通过。见[本轮查询证据](docs/evidence/stage-e-browser/module-query-management-check.json)。未推送、未部署或启用现场配置。
+
+**启动／重连／周期读取的物理范围仍有缺口。** 现有规划按启用逻辑绑定建立范围，没有覆盖所有已注册可读输出通道和无别名模块；不能称所有模块 ground truth 已就绪。主动 Query 完成后继续修正此项，电机位置／面板 LED 仍保持真实未知，EA-5 的配置和控制范围不变。

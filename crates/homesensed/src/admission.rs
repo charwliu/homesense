@@ -178,6 +178,8 @@ impl SubmissionFailure {
     }
 }
 enum Message {
+    ModuleQuery(Uuid,TaskGeneration,String,crate::module_queries::Scope,Instant,bool,oneshot::Sender<Result<crate::module_queries::Accepted,WriteStatus>>),
+    ModuleQueryRecords(Uuid,TaskGeneration,Vec<u64>,oneshot::Sender<Result<Vec<homesense_storage::module_history::Record>,WriteStatus>>),
     RecentDeviceCommands(Uuid,TaskGeneration,Vec<homesense_core::DeviceId>,usize,oneshot::Sender<Result<Vec<homesense_storage::module_history::Record>,WriteStatus>>),
     BeginSceneObservation(Uuid,TaskGeneration,u64,crate::feedback::SceneObservationStart,oneshot::Sender<Result<homesense_core::scene_observer::Scope,WriteStatus>>),
     ObserveSceneKey(Uuid,TaskGeneration,homesense_core::scene_observer::Scope,crate::feedback::SceneKeyObservation,oneshot::Sender<Result<(),WriteStatus>>),
@@ -395,6 +397,7 @@ impl Admission {
                 };
                 let mut restore_policy = crate::restore_policy::RestorePolicy::default();
                 let mut principals = BTreeMap::<u64, Uuid>::new();
+                let mut module_queries = BTreeMap::<u64,crate::module_queries::Target>::new();
                 let mut manual_versions = BTreeMap::new();
                 let mut temporary = BTreeMap::<String, homesense_storage::variables::Stored>::new();
                 let mut in_flight: Option<u64> = None;
@@ -414,6 +417,7 @@ impl Admission {
                     } else {
                         Some(TaskGeneration { boot: worker_boot.clone(), epochs: arbiter.policy().epochs })
                     };
+                    module_queries.retain(|id,_| principals.contains_key(id) || in_flight==Some(*id));
                     let fence=worker_observation_invalidation.load(Ordering::Acquire);
                     if current.is_none() || scene_observer.scope().is_some_and(|s|s.epochs!=arbiter.policy().epochs) || fence!=observation_fence {scene_observer.invalidate();}
                     observation_fence=fence;
@@ -759,6 +763,40 @@ impl Admission {
                             if result==Err(WriteStatus::ServiceCommunicationFailure) {failed=true;let _=arbiter.storage_failed();}
                             let _=reply.send(result);
                         }
+                        Message::ModuleQuery(controller,generation,module_id,scope,deadline,submit,reply)=>{
+                            let result=(||{
+                                if reply.is_closed() || Instant::now()>=deadline {return Err(WriteStatus::ResourceBusy);}
+                                if !authorize(controller) {return Err(WriteStatus::InsufficientPrivileges);}
+                                let policy=arbiter.policy();
+                                if failed || worker_stop.load(Ordering::Acquire) || generation.boot!=worker_boot || generation.epochs!=policy.epochs || policy.publishing || !policy.gateway_ready || !policy.controller || !policy.storage_healthy || !policy.valid_configuration_loaded {return Err(WriteStatus::ResourceBusy);}
+                                let targets=crate::module_queries::plan(&configuration,options.context,&module_id,&scope).map_err(|_|WriteStatus::InvalidValueInRequest)?;
+                                let now=millis(clock);
+                                let end=next_id.checked_add(targets.len() as u64).ok_or(WriteStatus::ServiceCommunicationFailure)?;
+                                let deadline_ms=now.checked_add(u64::try_from(deadline.saturating_duration_since(Instant::now()).as_millis()).map_err(|_|WriteStatus::InvalidValueInRequest)?).ok_or(WriteStatus::InvalidValueInRequest)?;
+                                let commands=targets.iter().enumerate().map(|(offset,_)|{
+                                    let id=next_id+offset as u64;
+                                    (QueuedCommand{id,device_id:crate::module_queries::receipt_device(id),command:homesense_core::Command::Query,origin:Origin::Background,epochs:policy.epochs,deadline_ms,run_id:None},Access{authorized:true,device_exists:true,device_verified:true,existing_direct_manual:false})
+                                }).collect::<Vec<_>>();
+                                if commands.iter().any(|(c,_)|configuration.devices().contains_key(&c.device_id)) {return Err(WriteStatus::InvalidValueInRequest);}
+                                let mut accepted=vec![];
+                                if submit {
+                                    match arbiter.submit_batch_committed(commands,now,|commands,cancelled|store.accept_queue_batch(&worker_boot,commands,cancelled,now)) {
+                                        Ok(cancelled)=>{for c in cancelled {principals.remove(&c.command.id);}},
+                                        Err(BatchCommitError::Admission(_))=>return Err(WriteStatus::ResourceBusy),
+                                        Err(BatchCommitError::Persistence(_))=>{failed=true;let _=arbiter.storage_failed();return Err(WriteStatus::ServiceCommunicationFailure);}
+                                    }
+                                    for (id,target) in (next_id..end).zip(targets) {principals.insert(id,controller);module_queries.insert(id,target);accepted.push(id.to_string());}
+                                    next_id=end;
+                                }
+                                Ok(crate::module_queries::Accepted{boot:worker_boot.clone(),revision:configuration.revision().to_string(),transport_epoch:policy.epochs.transport.to_string(),commands:accepted})
+                            })();let _=reply.send(result);
+                        }
+                        Message::ModuleQueryRecords(controller,generation,ids,reply)=>{
+                            let result=if !authorize(controller){Err(WriteStatus::InsufficientPrivileges)}
+                                else if generation.boot!=worker_boot || generation.epochs!=arbiter.policy().epochs {Err(WriteStatus::InvalidValueInRequest)}
+                                else {store.module_query_records(&worker_boot,configuration.revision(),&ids).map_err(|_|WriteStatus::ServiceCommunicationFailure)};
+                            let _=reply.send(result);
+                        }
                         Message::RecentDeviceCommands(controller,generation,ids,limit,reply)=>{
                             let result=(||{
                                 if !authorize(controller){return Err(WriteStatus::InsufficientPrivileges);}
@@ -1102,8 +1140,8 @@ impl Admission {
                                             authorized: principals
                                                 .get(&command.id)
                                                 .is_some_and(|id| authorize(*id)),
-                                            device_exists: binding.is_some(),
-                                            device_verified: binding.is_some_and(|(_, m)| {
+                                            device_exists: binding.is_some() || module_queries.get(&command.id).is_some_and(|q|q.frame(&configuration,options.context,command.epochs.transport).is_ok()),
+                                            device_verified: module_queries.contains_key(&command.id) || binding.is_some_and(|(_, m)| {
                                                 matches!(
                                                     m.verification(),
                                                     homesense_core::Verification::Verified(_)
@@ -1143,17 +1181,13 @@ impl Admission {
                                 let Some(command) = dispatch.command else {
                                     return Ok(None);
                                 };
-                                let (device, module) = configuration
-                                    .binding(&command.device_id)
-                                    .ok_or("missing binding")?;
-                                let frame = hb_transport::PreparedFrame::prepare(
-                                    module,
-                                    device.channel,
-                                    command.command,
-                                    options.context,
-                                    command.epochs.transport,
-                                )
-                                .map_err(|e| e.to_string())?;
+                                let (gateway_id,frame) = if let Some(target)=module_queries.get(&command.id) {
+                                    if command.command!=homesense_core::Command::Query {return Err("read ticket command mismatch".into());}
+                                    target.frame(&configuration,options.context,command.epochs.transport)?
+                                } else {
+                                    let (device,module)=configuration.binding(&command.device_id).ok_or("missing binding")?;
+                                    (device.gateway.clone(),hb_transport::PreparedFrame::prepare(module,device.channel,command.command,options.context,command.epochs.transport).map_err(|e|e.to_string())?)
+                                };
                                 if !store.begin_command_write(&worker_boot,command.id,now).map_err(|e|e.to_string())? {
                                     arbiter.cancel_selected_before_write(command.id).map_err(|e|e.to_string())?;
                                     principals.remove(&command.id);
@@ -1163,7 +1197,7 @@ impl Admission {
                                 in_flight = Some(command.id);
                                 write_deadline = Some(command.deadline_ms);
                                 Ok(Some(DispatchTicket {
-                                    gateway_id: device.gateway.clone(),
+                                    gateway_id,
                                     command,
                                     frame,
                                 }))
@@ -1853,6 +1887,20 @@ impl Admission {
     pub async fn scene_selection_snapshot(&self,controller:Uuid,generation:TaskGeneration,names:Vec<String>)->Result<BTreeMap<String,homesense_storage::scene_observation::Snapshot>,WriteStatus> {
         if names.len()>64 || names.iter().any(|n|n.is_empty() || n.len()>256) {return Err(WriteStatus::InvalidValueInRequest)}
         let (reply,receive)=oneshot::channel();self.sender.try_send(Message::SceneSelections(controller,generation,names,reply)).map_err(|_|WriteStatus::ResourceBusy)?;
+        receive.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?
+    }
+    #[cfg(test)]
+    pub(crate) async fn module_query(&self,controller:Uuid,generation:TaskGeneration,module_id:String,scope:crate::module_queries::Scope,submit:bool)->Result<crate::module_queries::Accepted,WriteStatus>{
+        self.module_query_until(controller,generation,module_id,scope,submit,Instant::now()+self.ttl).await
+    }
+    pub(crate) async fn module_query_until(&self,controller:Uuid,generation:TaskGeneration,module_id:String,scope:crate::module_queries::Scope,submit:bool,deadline:Instant)->Result<crate::module_queries::Accepted,WriteStatus>{
+        let (reply,receive)=oneshot::channel();
+        self.sender.try_send(Message::ModuleQuery(controller,generation,module_id,scope,deadline.min(Instant::now()+self.ttl),submit,reply)).map_err(|_|WriteStatus::ResourceBusy)?;
+        receive.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?
+    }
+    pub(crate) async fn module_query_records(&self,controller:Uuid,generation:TaskGeneration,commands:Vec<u64>)->Result<Vec<homesense_storage::module_history::Record>,WriteStatus>{
+        let (reply,receive)=oneshot::channel();
+        self.sender.try_send(Message::ModuleQueryRecords(controller,generation,commands,reply)).map_err(|_|WriteStatus::ResourceBusy)?;
         receive.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?
     }
     pub(crate) async fn recent_device_commands(&self,controller:Uuid,generation:TaskGeneration,ids:Vec<homesense_core::DeviceId>,limit:usize)->Result<Vec<homesense_storage::module_history::Record>,WriteStatus>{
