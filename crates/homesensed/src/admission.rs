@@ -178,6 +178,7 @@ impl SubmissionFailure {
     }
 }
 enum Message {
+    RecentDeviceCommands(Uuid,TaskGeneration,Vec<homesense_core::DeviceId>,usize,oneshot::Sender<Result<Vec<homesense_storage::module_history::Record>,WriteStatus>>),
     BeginSceneObservation(Uuid,TaskGeneration,u64,crate::feedback::SceneObservationStart,oneshot::Sender<Result<homesense_core::scene_observer::Scope,WriteStatus>>),
     ObserveSceneKey(Uuid,TaskGeneration,homesense_core::scene_observer::Scope,crate::feedback::SceneKeyObservation,oneshot::Sender<Result<(),WriteStatus>>),
     SceneSelections(Uuid,TaskGeneration,Vec<String>,oneshot::Sender<Result<BTreeMap<String,homesense_storage::scene_observation::Snapshot>,WriteStatus>>),
@@ -757,6 +758,13 @@ impl Admission {
                             })();
                             if result==Err(WriteStatus::ServiceCommunicationFailure) {failed=true;let _=arbiter.storage_failed();}
                             let _=reply.send(result);
+                        }
+                        Message::RecentDeviceCommands(controller,generation,ids,limit,reply)=>{
+                            let result=(||{
+                                if !authorize(controller){return Err(WriteStatus::InsufficientPrivileges);}
+                                if failed || generation.boot!=worker_boot || generation.epochs!=arbiter.policy().epochs{return Err(WriteStatus::ServiceCommunicationFailure);}
+                                store.recent_device_commands(&worker_boot,configuration.revision(),&ids,limit).map_err(|_|WriteStatus::ServiceCommunicationFailure)
+                            })();let _=reply.send(result);
                         }
                         Message::NativeStatus(controller,generation,key,reply)=>{
                             let result=(||{
@@ -1846,6 +1854,10 @@ impl Admission {
         if names.len()>64 || names.iter().any(|n|n.is_empty() || n.len()>256) {return Err(WriteStatus::InvalidValueInRequest)}
         let (reply,receive)=oneshot::channel();self.sender.try_send(Message::SceneSelections(controller,generation,names,reply)).map_err(|_|WriteStatus::ResourceBusy)?;
         receive.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?
+    }
+    pub(crate) async fn recent_device_commands(&self,controller:Uuid,generation:TaskGeneration,ids:Vec<homesense_core::DeviceId>,limit:usize)->Result<Vec<homesense_storage::module_history::Record>,WriteStatus>{
+        if ids.len()>128 || !(1..=64).contains(&limit){return Err(WriteStatus::InvalidValueInRequest);}
+        let (reply,receive)=oneshot::channel();self.sender.try_send(Message::RecentDeviceCommands(controller,generation,ids,limit,reply)).map_err(|_|WriteStatus::ResourceBusy)?;receive.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?
     }
     pub(crate) async fn native_scene_status(&self,controller:Uuid,generation:TaskGeneration,key:String)->Result<Option<homesense_storage::native_scene::Record>,WriteStatus>{let (reply,receive)=oneshot::channel();self.sender.try_send(Message::NativeStatus(controller,generation,key,reply)).map_err(|_|WriteStatus::ResourceBusy)?;receive.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?}
     pub(crate) async fn fail_native_scene(&self,controller:Uuid,generation:TaskGeneration,key:String)->Result<(),WriteStatus>{let (reply,receive)=oneshot::channel();self.sender.try_send(Message::NativeFail(controller,generation,key,reply)).map_err(|_|WriteStatus::ResourceBusy)?;receive.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?}

@@ -1,0 +1,81 @@
+{
+  "date": "2026-10-13",
+  "base_commit": "bfe61f28aa0070904f248ee418b542ffdde9bbeb",
+  "scope": "reference and management checkpoint only; isolated source archive plus explicitly listed overlays; synthetic modules and localhost fixtures; mutable module-channel ownership not yet migrated",
+  "source_sha256": {
+    "crates/homesensed/src/management_modules.rs": "ab8b40a8c27f8a5cecac7dc474576826bf6499a5c4b674b6ab9f672fc003254b",
+    "crates/homesensed/src/module_replace.rs": "cbab4cedb24af88f7b3c3a23b46147dc17817a6c8d755bbe1f170ed482ba5eb0",
+    "crates/homesensed/src/lib.rs": "482a9f9b2e7e9405097b176c9186588e4edf23147cc31087996b686fe85d695a",
+    "crates/homesensed/src/web_drafts.rs": "56074591e954bbdc6778d3efed81fd3709bc5352980f0bd8efc153fa59e29692",
+    "crates/homesensed/src/automation_control.rs": "9e7a74f6fe456be837df0889b06a85e22b463a6474e40c976de3f6a349afb07c",
+    "crates/homesensed/src/web_api.rs": "0db991d22fd33cfec0ead981716c7a8761ceb1450ed2d16ae9e2e3298e33be09",
+    "crates/homesensed/src/web/app.js": "2d7f88abff0ecd041490b0fe82c60b35ab69fd00d04efa4292308bab19d3fbe1",
+    "crates/homesensed/src/web/index.html": "61cca8f42c8ad95159a89383495e3117e537da114e3b43e51811360abd5e0af7",
+    "crates/homesensed/src/admission.rs": "1d126f9113211edd007b528a64bcce5c99d2a4f1bbd322a540c0ffbdc5700ee6",
+    "crates/homesense-storage/src/lib.rs": "8b745cfb1c53a66ca177946bd69505ff5a06ec408251612f117494abe50a4196",
+    "crates/homesense-storage/src/module_history.rs": "f1b7ffbffdc68be3bb5fe9a4a0a64bba5987c5b63807a0916f6808f79added4c",
+    "crates/homesense-config/src/lib.rs": "4c88b87085d1b943d9a84b1f202d2574fda1f99a658e5aa4eb4a47d1084462ba",
+    "crates/homesensed/src/module_migration.rs": "0d5cc8dc59fe73dd224bf976ca6ff6c50692333e48f7e18dd3c77fab0be9d6af",
+    "crates/homesensed/src/configuration_preview.rs": "039eb42000919f88e66b7518c6855fb25516608d7c294c711eeefa1db8122b00",
+    "crates/homesensed/tests/module_replacement.rs": "857518d223c987c1401915a478225ee38f8684c4fc77a25ab71dc98f98df98ed",
+    "crates/homesensed/src/module_object_tests.rs": "6c516a9f8326db3512eb0ab6fd5963457264dfbd39c94a930f464c3ed8cf6d55",
+    "crates/homesensed/src/module_management_api_tests.rs": "645e9f1f5d9500a5cf317f863267e8fcb35f7ed8a90eb435690c2d04be1d9ba8",
+    "crates/homesensed/src/scene_initialization_tests.rs": "c7807451fc9802b339d74ef309c3cce3dc5e909f6fe7e2f9e1f650baf27e29cb",
+    "tools/verify_module_management.cjs": "a52fd155f337900aa85050b13d9c947b8c8a41669fe4704aea6ffb66d75b6863"
+  },
+  "validation": {
+    "unique_rust_tests_passed": 211,
+    "counts": {
+      "runtime": {
+        "passed": 124,
+        "failed": 0,
+        "ignored": 0
+      },
+      "config_storage": {
+        "passed": 87,
+        "failed": 0,
+        "ignored": 0
+      }
+    },
+    "new_module_replacement_migration_calibration_tests": 8,
+    "module_view_and_reference_tests": 4,
+    "actual_api_test": 1,
+    "frontend_scripts": [
+      "verify_module_management.cjs",
+      "verify_device_metadata.cjs",
+      "verify_preview_state.cjs",
+      "verify_scene_switches.cjs"
+    ],
+    "strict_clippy": "homesense-config, homesense-storage and homesensed all targets passed",
+    "full_workspace_rerun": false
+  },
+  "log_sha256": {
+    "runtime": "d577edcf6d3ea253a8d7132cdbb5da73e0367b0dfea1ffaa8fab9317227c2f2f",
+    "config_storage": "442ddfee35caf2a6788c36c5a7c3ff5d3fbaaf0a212190c09d5f12ef8ba03561",
+    "clippy": "332a7944d91990d9cc311a2458c91c630a3dbd47a6206d19ed4f2ff8dd4bd657"
+  },
+  "guarantees": [
+    "schema2 module IDs are explicit persistent independent identifiers; module registry alone owns physical addresses",
+    "logical device and combined supply references are module_id + channel; no physical addresses in schema2 device documents",
+    "explicit private immutable legacy migration saves assigned UUIDs; parse/restart/replacement never regenerates IDs",
+    "module replacement changes physical mapping and clears address-bound motor calibration; IDs, names, rooms and program references remain",
+    "configuration CAS atomically rejects schema2 downgrade; address collision, broadcast, incompatible type/capacity and invalid evidence rejected",
+    "administrative control targets are stable module ID/channel/revision and must resolve an enabled granted logical binding; hidden supply, unbound and stale/physical-address requests do not authorize output",
+    "requested control and queue receipts stay separate from observed physical samples; scope includes current boot/config/transport/control",
+    "all sources verified equal to tested snapshot; unrelated working-tree files excluded"
+  ],
+  "attempt_notes": [
+    "initial synthetic timed scene fixture omitted required max_lateness_ms; fixed fixture, preserved failure log, no production validation relaxed",
+    "initial runtime library run could not bind localhost TCP in sandbox; seven PermissionDenied tests were rerun with authorized loopback access and passed",
+    "duplicate configuration_revision getter was caught during compilation and removed; existing public getter reused"
+  ],
+  "remaining": [
+    "canonical module_id/channel mutable ground-truth owner and unbound/disabled channel observations; existing Feedback still stores bound DeviceId states",
+    "module management whole-module and single-channel query action integration",
+    "complete fixed-checkpoint independent audit and real acceptance; no deployment or field configuration activation"
+  ],
+  "field_actions": 0,
+  "ea5_changed": false,
+  "deployed": false,
+  "pushed": false
+}

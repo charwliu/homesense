@@ -138,3 +138,8 @@ pub mod native_scene;
 
 mod scene_observation_owner;
 mod scene_observation_runtime;
+
+pub mod management_modules;
+pub mod module_replace;
+
+pub mod module_migration;
