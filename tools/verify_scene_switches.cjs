@@ -8,7 +8,7 @@ vm.runInContext(fs.readFileSync(require('node:path').join(__dirname,'../crates/h
 vm.runInContext("csrf='synthetic'",context);
 const scene=(id,selected,control=true)=>({id,name:id,switch_kind:'selection',selected,selection_state:selected===null?{state:'unknown'}:{state:'known',value:selected},activity:'Unknown',last_run:null,can_control:control});
 const snapshot=(selected='daily')=>({revision:'1',scenes:[scene('reading',selected==='reading'),scene('daily',selected==='daily'),scene('eco',selected==='eco'),{id:'off',name:'off',switch_kind:'momentary',selected:null,activity:'Unknown',last_run:null,can_control:true}]});
-const rows=()=>get('scenes').children,button=index=>rows()[index].children.find(x=>['开启场景','关闭场景','执行场景'].includes(x.textContent));
+const rows=()=>get('scenes').children,button=index=>rows()[index].children.find(x=>['开启场景','关闭场景','执行场景','相对切换场景'].includes(x.textContent));
 const cancel=index=>rows()[index].children.find(x=>x.textContent==='取消剩余动作');
 const respond=(result,status=200)=>{const p=pending.shift();assert(p);p.resolve({ok:status<400,status,json:async()=>result});return p};
 const drain=()=>new Promise(resolve=>setImmediate(resolve));
@@ -45,6 +45,12 @@ async function refreshReply(snapshot) {
  // Newer state wins over a delayed failure from an older read.
  const lateFailure=context.request('/api/v1/scenes');context.renderScenes(snapshot('eco'));respond({error:'scene_selection_unavailable',selection_state:{state:'unavailable',value:'read_failed'}},503);await assert.rejects(lateFailure,/选择读取失败/);assert.equal(vm.runInContext('lastSceneSnapshot.scenes[2].selected',context),true);assert.equal(button(2).disabled,false);
  const oldSessionFailure=context.request('/api/v1/scenes');context.clearLocalSession();vm.runInContext("csrf='latest'",context);context.renderScenes(snapshot('daily'));respond({error:'scene_selection_unavailable',selection_state:{state:'unavailable',value:'read_timed_out'}},503);await assert.rejects(oldSessionFailure,/会话已切换/);assert.equal(vm.runInContext('lastSceneSnapshot.scenes[1].selected',context),true);assert.equal(button(1).disabled,false);
+ context.renderScenes({revision:'1',scenes:[{...scene('reading',null),relative_unknown_allowed:true}]});assert.equal(button(0).textContent,'相对切换场景');
+ const relative=button(0).onclick();assert.equal(pending[0].path,'/api/v1/scene-relative-actions');assert.equal(Object.hasOwn(JSON.parse(pending[0].options.body),'on'),false);await button(0).onclick();assert.equal(pending.length,1);
+ respond({outcome:'accepted',status:'pending',retry:false},202);await refreshReply({revision:'1',scenes:[{...scene('reading',null),relative_unknown_allowed:false,pending_relative:true}]});await relative;
+ assert.equal(button(0).disabled,true);assert.match(rows()[0].children[1].textContent,/等待读回/);await button(0).onclick();assert.equal(pending.length,0);
+ context.markEventStateUnavailable('disconnected');assert.equal(button(0).disabled,true);assert.match(rows()[0].children[1].textContent,/不可用/);
+ assert.equal(requests.filter(r=>r.path==='/api/v1/scene-relative-actions').length,1);
  assert.equal(pending.length,0);assert.equal(requests.filter(r=>r.path==='/api/v1/scene-actions').length,3);
  console.log('Scene targets, busy guards, cancellation, unknown/stale values and session isolation: passed');
 })().catch(error=>{console.error(error);process.exitCode=1});

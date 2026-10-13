@@ -711,3 +711,6 @@ async fn stale_feedback_generation_and_readiness_guards_prevent_initialization()
 
 #[path = "scene_reconciliation_tests.rs"]
 mod reconciliation;
+
+#[path = "native_scene_tests.rs"]
+mod native;
