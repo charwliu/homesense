@@ -10,11 +10,13 @@ use homesense_storage::{
     variables::Update,
 };
 struct Database(std::path::PathBuf);
+static DATABASE_SEQUENCE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 impl Database {
     fn new() -> (Self, Store) {
         let path = std::env::temp_dir().join(format!(
-            "native-store-{}-{}",
+            "native-store-{}-{}-{}",
             std::process::id(),
+            DATABASE_SEQUENCE.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap()

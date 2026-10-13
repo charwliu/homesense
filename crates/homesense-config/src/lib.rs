@@ -159,21 +159,25 @@ impl Gateway {
 #[serde(deny_unknown_fields)]
 pub struct ModuleChannel {pub module_id:String,pub channel:u8}
 #[derive(Debug, Clone)]
-pub struct Device {
+pub struct LogicalDevice {
     /// Stable module reference in schema 2; legacy schema 1 has no fabricated ID.
     pub module_id: Option<String>,
     pub supply_channel: Option<ModuleChannel>,
     pub room: Option<String>,
     pub name: String,
-    pub gateway: String,
-    pub address: BusAddress,
     pub channel: Channel,
     pub enabled: bool,
     pub default_on_level: Option<Percent>,
     pub motor_calibration: Option<MotorCalibration>,
-    /// Separate physical supply relay for this dimmer; not a second logical light.
-    pub supply_relay: Option<DeviceId>,
+
 }
+/// Current-revision transport adapter. Logical Device has no physical locator.
+#[derive(Debug,Clone)]
+pub struct ResolvedBinding {pub gateway:String,pub address:BusAddress,pub supply_relay:Option<DeviceId>,logical:LogicalDevice}
+/// Source-compatible name for the immutable transport adapter. New runtime
+/// domain objects use LogicalDevice and stable ModuleChannel references.
+pub type Device=ResolvedBinding;
+impl std::ops::Deref for ResolvedBinding {type Target=LogicalDevice;fn deref(&self)->&LogicalDevice{&self.logical}}
 #[derive(Debug,Clone,PartialEq,Eq)]
 pub struct ModuleLocation {pub gateway:String,pub address:BusAddress}
 #[derive(Debug, Clone)]
@@ -183,7 +187,8 @@ pub struct Configuration {
     revision: u64,
     manual_degraded_enabled: bool,
     gateways: BTreeMap<String, Gateway>,
-    devices: BTreeMap<DeviceId, Device>,
+    devices: BTreeMap<DeviceId, LogicalDevice>,
+    resolved_bindings:BTreeMap<DeviceId,ResolvedBinding>,
     rooms: BTreeMap<String, Room>,
 }
 impl Configuration {
@@ -221,11 +226,15 @@ impl Configuration {
         &self.gateways
     }
     pub fn rooms(&self) -> &BTreeMap<String, Room> { &self.rooms }
-    pub fn devices(&self) -> &BTreeMap<DeviceId, Device> {
-        &self.devices
+    /// Logical domain objects contain stable module references, never addresses.
+    pub fn logical_devices(&self)->&BTreeMap<DeviceId,LogicalDevice>{&self.devices}
+    /// Compatibility enumeration for transport adapters in the current immutable
+    /// revision. New domain code should use logical_devices/module/channel.
+    pub fn devices(&self) -> &BTreeMap<DeviceId, ResolvedBinding> {
+        &self.resolved_bindings
     }
-    pub fn binding(&self, id: &DeviceId) -> Option<(&Device, &ModuleSpec)> {
-        let device = self.devices.get(id)?;
+    pub fn binding(&self, id: &DeviceId) -> Option<(&ResolvedBinding, &ModuleSpec)> {
+        let device = self.resolved_bindings.get(id)?;
         if !device.enabled {
             return None;
         }
@@ -345,6 +354,7 @@ impl Configuration {
         }
         let mut devices = BTreeMap::new();
         let mut pending_supplies=Vec::new();
+        let mut resolved_bindings=BTreeMap::new();
         let mut bindings = BTreeSet::new();
         for d in input.devices {
             identifier(&d.id)?;
@@ -406,46 +416,41 @@ impl Configuration {
             if d.room.as_ref().is_some_and(|id| !rooms.contains_key(id)) {return Err(invalid("unknown room reference"));}
             if (input.schema_version==1 && d.supply.is_some()) || (input.schema_version==2 && d.supply_relay.is_some()){return Err(invalid("schema 2 supply references require module_id + channel"));}
             if let Some(port)=&d.supply {identifier(&port.module_id)?;let location=module_registry.get(&port.module_id).ok_or_else(||invalid("supply module missing"))?;gateways[&location.gateway].modules[&location.address].validate_channel(Channel::new(port.channel)?)?;pending_supplies.push((id.clone(),port.clone()));}
-            let device = Device {
+            let device = LogicalDevice {
                 module_id,
                 supply_channel:d.supply,
                 room: d.room,
                 name: d.name,
-                gateway: gateway_id,
-                address,
                 channel,
                 enabled: d.enabled,
                 default_on_level,
                 motor_calibration,
-                supply_relay: d
-                    .supply_relay
-                    .map(|id| {
-                        identifier(&id)?;
-                        DeviceId::new(id).map_err(Error::from)
-                    })
-                    .transpose()?,
+
             };
+            let legacy_supply=d.supply_relay.map(|id|{identifier(&id)?;DeviceId::new(id).map_err(Error::from)}).transpose()?;
+            resolved_bindings.insert(id.clone(),ResolvedBinding{gateway:gateway_id,address,supply_relay:legacy_supply,logical:device.clone()});
             if devices.insert(id, device).is_some() {
                 return Err(invalid("duplicate device ID"));
             }
         }
         for (id,port) in pending_supplies {
             let relay_id=devices.iter().find(|(_,binding)|binding.module_id.as_deref()==Some(port.module_id.as_str()) && binding.channel.get()==port.channel).map(|(id,_)|id.clone()).ok_or_else(||invalid("supply module channel requires a registered physical binding"))?;
-            devices.get_mut(&id).unwrap().supply_relay=Some(relay_id);
+            resolved_bindings.get_mut(&id).unwrap().supply_relay=Some(relay_id);
         }
         let mut supplies = BTreeSet::new();
-        for (id, device) in &devices {
+        for (id, device) in &resolved_bindings {
             if let Some(relay_id) = &device.supply_relay {
-                let relay = devices
+                let relay = resolved_bindings
                     .get(relay_id)
                     .ok_or_else(|| invalid("unknown supply relay"))?;
-                let dimmer = &gateways[&device.gateway].modules[&device.address];
-                let switch = &gateways[&relay.gateway].modules[&relay.address];
+                let physical=&resolved_bindings[id];let relay_physical=&resolved_bindings[relay_id];
+                let dimmer = &gateways[&physical.gateway].modules[&physical.address];
+                let switch = &gateways[&relay_physical.gateway].modules[&relay_physical.address];
                 if id == relay_id
                     || dimmer.kind() != ModuleKind::Dimmer
                     || switch.kind() != ModuleKind::Switch
                     || relay.supply_relay.is_some()
-                    || device.gateway != relay.gateway
+                    || physical.gateway != relay_physical.gateway
                     || device.enabled != relay.enabled
                     || !supplies.insert(relay_id.clone())
                 {
@@ -468,6 +473,7 @@ impl Configuration {
             rooms,
             gateways,
             devices,
+            resolved_bindings,
         })
     }
 }
