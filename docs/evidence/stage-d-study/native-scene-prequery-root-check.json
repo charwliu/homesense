@@ -1,0 +1,51 @@
+{
+  "date": "2026-10-13",
+  "status": "passed_on_frozen_draft_not_committed_product_acceptance",
+  "snapshot_original_files": 938,
+  "all_original_bytes_verified_except_single_test_only_append": true,
+  "tests": {
+    "unique_passed": 1,
+    "failed": 0,
+    "ignored": 0,
+    "initial_execution_passed": 1,
+    "final_with_positive_control_passed": 1,
+    "counts_overlap": true
+  },
+  "checks": [
+    "Unknown positive standalone dimmer produces exactly one native Toggle",
+    "Two final individual Queries are queued before both channel frames arrive",
+    "No post-query feedback:request remains Pending and selection None",
+    "New complete fresh frames after both Queries are written:request Observed and selection1",
+    "Completion emits no further commands"
+  ],
+  "observations": [
+    "ROOT_PREWRITE status=Pending selected=None query_frames=2 new_post_query_feedback=0",
+    "ROOT_POSTWRITE status=Observed selected=Some(1)"
+  ],
+  "source_file_hashes": {
+    "crates/homesensed/src/native_scene.rs": "196b7ab1188dad51d7f333a027b1a55512bcf2fd51f0de208bc02beee1c517ce",
+    "crates/homesensed/src/admission.rs": "faeae8c34df8be617abbf5f0b374715652d976d71d867d4eb9d369a34f6e3959",
+    "crates/homesensed/src/feedback.rs": "793f04d49f00eaf68b4cfcfe1498a241d6da72ffbb980430345896a00f6b88f2",
+    "crates/homesensed/src/scene_reconciliation.rs": "764bc5a38ca94c94846196a35b1e90e3b9262138eb28531800ef486db55dc998",
+    "crates/homesensed/src/scene_initialization_tests.rs": "9c1bc53e3ba1524c457f7022cffa27af4eac6d5ff2e6281f7611fa118c19080b",
+    "crates/homesensed/src/native_scene_tests.rs": "a1d13888a86fbf6b3f0d3612b5e161c7bd5cba570a7a5191ec1efd8f3b637ce2",
+    "crates/homesense-storage/src/native_scene.rs": "ebe5eb639da56ac15b632169a93076c2864e8ff6c5faa88ecfd4da6d0910f1f8",
+    "crates/homesense-storage/src/scene_observation.rs": "edadba5341df568afd39ef1a1804e38f4a27ea8c76abe3653c40aebd91e6cfec",
+    "crates/homesense-config/src/scene_switches.rs": "baaa2987fe9d594acb85a4d2350e10e646dcf531768d3d2f9f405a359b5b9946"
+  },
+  "private_artifact_sha256": {
+    "probe.rs": "2872117d23b48579323d495d2ba1dc5db80c3c9eae9f18dfc3423a605ba3e76f",
+    "snapshot.json": "a4bfb83632b94467310d5d4281d77553aabd6a2ec38bb6215f7ce5299be8f47b",
+    "test.log": "a84159aebbd17fd579053e0027cbbc43b163fbc694b67b2d5cb59be1eb581703",
+    "test-final.log": "352f079f6fbc472e289da034db7e04c1426b2bd5df65cff19c64151b789b5e2f"
+  },
+  "scope": "Actual draft Manager,Admission andStore with synthetic in-memory wire and frames; no real gateway,TCP,HAP orWeb client",
+  "limitations": [
+    "Frozen draft has no final product commit; compare hashes after development checkpoint",
+    "One independent timing boundary,not whole native workflow or all27 relative cases",
+    "Standalone AD8 profile fixture,not hardware capability or combined lamp acceptance",
+    "No query transaction ID:guard proves temporal barriers,not exclusive causal attribution of received frames",
+    "Existing draft compile warnings; no new strict Clippy claim"
+  ],
+  "field_enablement": false
+}
