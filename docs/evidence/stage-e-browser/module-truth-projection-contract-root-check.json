@@ -1,0 +1,160 @@
+{
+  "date": "2026-10-13",
+  "fixed_commit": "8685b0b92d3732698de87a72b00c5d62c34a3ccc",
+  "scope": "exact fixed 8685b0b archive; original library and admission tests; one private version-contract regression; synthetic devices and local loopback only",
+  "source": {
+    "archive_sha256": "a41ad7d5cab3901a040371279fbb45b7562eb5880ff3b2ee82b7dc074b33f3ea",
+    "manifest_sha256": "515026dfed64f5e7efd7ad6ed568f15b3cf411f85ee9f5401e54de94bdc8b87b",
+    "original_files_verified_unchanged": 978,
+    "owner_tested_source_hashes_match": true,
+    "private_probe_sha256": "a400c6de2d033c3396a7837e1822902debaff6e85239a6c6ec0d7aff82e46ef7",
+    "shared_product_source_edits": 0
+  },
+  "original_tests": {
+    "runtime_library": {
+      "counts": {
+        "passed": 108,
+        "failed": 8,
+        "ignored": 0,
+        "filtered": 0
+      },
+      "log_sha256": "c0ee9821f8ca76885f7e23ec1b5efb6c84d56c07f62c13169ed32c653ea6d391",
+      "test_binary_sha256": "597979f7de80d6f926a1d48637ad7ec36857326b3697ffd8f2ea0888fe033462",
+      "failed_tests": [
+        "automation_tcp::bridge_tests::multiple_bridges_rebuild_and_isolate_occupied_listener",
+        "automation_tcp::fault_tests::hap_task_failure_preserves_web_delayed_scene_and_single_startup",
+        "automation_tcp::fault_tests::occupied_tcp_hap_port_preserves_web_and_single_startup",
+        "hap_endpoint::subset_tests::two_listeners_publish_only_selected_lights_with_independent_identity",
+        "runtime_hap::publication_tests::changed_feedback_revision_invalidates_old_hap_projection",
+        "runtime_hap::publication_tests::selected_bridges_share_physical_feedback_without_exposing_each_other",
+        "service::hap_fault_tests::occupied_simulation_hap_port_preserves_web_control",
+        "service::hap_fault_tests::simulation_hap_failure_keeps_web_and_scene_execution_alive"
+      ]
+    },
+    "admission": {
+      "counts": {
+        "passed": 38,
+        "failed": 2,
+        "ignored": 0,
+        "filtered": 0
+      },
+      "log_sha256": "6179ca0347e1e71bd09f77465dce203d1cd2e834c2c574d446d0c722e5f516bd",
+      "test_binary_sha256": "a0d8dd248392ff5a8ff32886c5f1baff2ec786862ca149b4a5aed370eef19307",
+      "failed_tests": [
+        "cancelled_graph_installation_stops_durable_admission",
+        "native_runtime_hap_accepts_durably_and_reads_only_published_feedback"
+      ]
+    }
+  },
+  "previously_filtered_nine": [
+    {
+      "id": "automation_tcp::bridge_tests::multiple_bridges_rebuild_and_isolate_occupied_listener",
+      "outcome": "FAILED"
+    },
+    {
+      "id": "automation_tcp::fault_tests::hap_task_failure_preserves_web_delayed_scene_and_single_startup",
+      "outcome": "FAILED"
+    },
+    {
+      "id": "automation_tcp::fault_tests::occupied_tcp_hap_port_preserves_web_and_single_startup",
+      "outcome": "FAILED"
+    },
+    {
+      "id": "hap_endpoint::subset_tests::two_listeners_publish_only_selected_lights_with_independent_identity",
+      "outcome": "FAILED"
+    },
+    {
+      "id": "observed_transport::module_query_tests::actual_tcp96_mixed_idle_polling_has_bounded_steady_refresh",
+      "outcome": "ok"
+    },
+    {
+      "id": "runtime_hap::publication_tests::changed_feedback_revision_invalidates_old_hap_projection",
+      "outcome": "FAILED"
+    },
+    {
+      "id": "runtime_hap::publication_tests::selected_bridges_share_physical_feedback_without_exposing_each_other",
+      "outcome": "FAILED"
+    },
+    {
+      "id": "service::hap_fault_tests::occupied_simulation_hap_port_preserves_web_control",
+      "outcome": "FAILED"
+    },
+    {
+      "id": "service::hap_fault_tests::simulation_hap_failure_keeps_web_and_scene_execution_alive",
+      "outcome": "FAILED"
+    }
+  ],
+  "private_projection_contract_regression": {
+    "counts": {
+      "passed": 0,
+      "failed": 1,
+      "ignored": 0,
+      "filtered": 0
+    },
+    "log_sha256": "b3c14e39cbd6b59b14a8b1f978c5e8598bb956cef97bc793c96553215623f4b1",
+    "test_binary_sha256": "298565122b5b5d9ef5727096fe6b843a65eaded0a0eecf34a225058ec3b58cdc",
+    "counterexample": [
+      {
+        "canonical_device_version": 1,
+        "label": "initial",
+        "logical_cursor": 1,
+        "logical_device_version": 1,
+        "logical_state_version": 8,
+        "observed": "None"
+      },
+      {
+        "canonical_device_version": 1,
+        "label": "unbound_feedback",
+        "logical_cursor": 1,
+        "logical_device_version": 1,
+        "logical_state_version": 9,
+        "observed": "None"
+      },
+      {
+        "canonical_device_version": 10,
+        "label": "bound_feedback",
+        "logical_cursor": 2,
+        "logical_device_version": 10,
+        "logical_state_version": 10,
+        "observed": "Some(Level(Percent(30)))"
+      },
+      {
+        "canonical_device_version": 10,
+        "label": "explicit_invalidation",
+        "logical_cursor": 3,
+        "logical_device_version": 10,
+        "logical_state_version": 10,
+        "observed": "Some(Level(Percent(30)))"
+      }
+    ]
+  },
+  "source_boundary": {
+    "logical_device_has_no_physical_locator": true,
+    "physical_mapping_in_current_revision_resolved_binding_only": true,
+    "schema2_reference_is_module_id_and_channel": true,
+    "canonical_samples_and_logical_projection_have_distinct_version_domains": true,
+    "canonical_snapshot_version_must_not_be_copied_as_logical_snapshot_version": true,
+    "hap_strict_projection_validation_unchanged": true
+  },
+  "findings": [
+    "Five tests directly returned HAP InvalidState; five service tests ended before readiness. No root run contains PermissionDenied.",
+    "ModuleTruth logical snapshots mix alias cursor with physical StateStore state_version; projected Event states also retain incompatible physical versions. The independent four-step trace reproduces both inconsistencies.",
+    "The original author 223 scoped passes remain historical; this root run does not establish a complete library pass. All 107 previously passing library cases still pass; only the actual TCP96 polling case passes among the nine previously excluded cases."
+  ],
+  "artifacts_sha256": {
+    "root_audit": "e74354b2771d08e0714014315e0f4e1992aa907b688946e3cbe683017015f5b3",
+    "verifier": "b24ec293d4cb3cf5f47dcbee74fd7c7025c524ad8bdb0cd7d23d16edd327be26",
+    "execution": "bcfea1dbc96e01a085aef8a94f51301357f5c05923a9da402dad30964053c2d8",
+    "initial_probe_wrong_directory_attempt": "111d4976673db628b20715ebcf187a132018b229d9303b25726dffaa8ab132ce"
+  },
+  "remaining": [
+    "Repair logical snapshot and event version metadata while preserving canonical physical samples and strict HAP validation.",
+    "Repeat exact failing tests and the same private regression against a fixed repaired checkpoint.",
+    "Administrator module Query and actual Apple/field integration are not accepted by this audit."
+  ],
+  "field_actions": 0,
+  "real_credentials_created": false,
+  "deployment": false,
+  "push": false,
+  "complete_library_passed": false
+}

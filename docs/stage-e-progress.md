@@ -1119,3 +1119,12 @@ Mac Safari已到登录页。为本轮书房两灯／四场景签发临时Member�
 此次HAP仅验证解码后生产适配链路，不包含加密网络／会话或实际Apple客户端。原三条LED链接保留并验证配置范围，但完整LED同步、面板物理颜色、真实模块／总线，以及后续稳定模块ID架构的最终集成版仍待验。103个原库测试被过滤，没有新增全工作区／Clippy／Linux／长期服务结论。详见[27项矩阵证据](evidence/stage-d-study/native-scene-relative-matrix-check.json)和[独立根审计](evidence/stage-d-study/native-scene-relative-matrix-root-check.json)。
 
 本轮未部署或连接真实网关，未创建凭据或修改现场身份／数据库；最近限定现场仍为已结束的schema22／revision3窗口。仅关闭固定版本的27项软件矩阵待验，阶段E整体仍未完成。
+
+
+### 2026-10-13 固定模块真值检查点的 HAP 集成反例
+
+固定 `8685b0b` 的 978 个归档文件逐字核对，受测模块源码与作者限定回归指纹一致；原运行时库和 Admission 测试均在本机获准回环环境串行执行。库 116 项中 108 通过、8 失败，Admission 40 项中 38 通过、2 失败，0 忽略／过滤，未出现 PermissionDenied。之前排除的 9 项中，实际 TCP96 查询刷新测试通过，另 8 项失败；作者此前 107 项库通过的用例均继续通过。这不构成完整库或现场通过。
+
+5 项直接返回 HAP `InvalidState`，另 5 项服务在就绪前退出。独立私有回归在同一归档仅新增测试文件，复现逻辑 snapshot 的 cursor／state_version 为初始化 `(1,8)`、未绑定反馈后 `(1,9)`、绑定反馈后 `(2,10)`，并复现 Event 的 state.version 与 alias cursor 不等。物理端口状态与逻辑投影使用不同版本域，不能直接把物理版本填入逻辑快照／事件；既有 HAP 严格检查保持不变。该新增回归当前 0 通过、1 失败，保留原失败，不计成功。
+
+逻辑设备只引用模块 ID／通道的结构约束已经实现，但模块真值检查点仍有上述实际集成缺口。已通知功能开发优先修复后复验；本轮没有修改共享产品源码、发布配置、部署或操作真实设备。管理 Query、真实 Apple 客户端及原 D/E 综合门槛继续挂起。见 [固定检查点反例与指纹](evidence/stage-e-browser/module-truth-projection-contract-root-check.json)。
