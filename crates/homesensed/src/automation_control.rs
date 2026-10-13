@@ -11,6 +11,9 @@ use tokio::sync::{mpsc, oneshot};
 use uuid::Uuid;
 #[derive(Debug)]
 pub enum Action {
+    ModuleBinding {controller:Uuid,revision:u64,module_id:String,channel:u8},
+    ModuleCommand {controller:Uuid,revision:u64,module_id:String,channel:u8,allowed_devices:std::collections::BTreeSet<String>,action:crate::management_devices::DeviceAction},
+    Modules {controller:Uuid,revision:u64,offset:usize,limit:usize},
     RunDetails {controller:Uuid,revision:u64,query:homesense_storage::scene_run::Query},
     SceneHistory {controller:Uuid,revision:u64,scene:String,before:Option<homesense_storage::scene_history::Cursor>,limit:usize},
     RunSummary {controller:Uuid,revision:u64,boot:String,run:String},
@@ -41,6 +44,8 @@ pub enum Action {
 }
 #[derive(Debug, PartialEq, Eq)]
 pub enum Reply {
+    ModuleBinding(homesense_core::DeviceId),
+    Modules(crate::management_modules::Page),
     RunDetails(Option<(String,serde_json::Value)>),
     SceneHistory(homesense_storage::scene_history::Page),
     RunSummary(Option<(String,LastRun)>),
@@ -236,9 +241,36 @@ impl Receiver {
                         }))
                     },
 
+                    Action::Modules {controller,revision,offset,limit} => {
+                        if revision!=document.revision {return Err("module inventory revision expired".into());}
+                        crate::management_modules::snapshot(admission,controller,self.generation.clone(),feedback,max_age_ms,offset,limit).await.map(Reply::Modules)
+                    },
                     Action::Devices {controller,revision,ids} => {
                         if revision!=document.revision {return Err("device query revision expired".into());}
                         crate::management_devices::snapshot(admission,controller,self.generation.clone(),ids,feedback).await.map(Reply::Devices)
+                    },
+                    Action::ModuleBinding{controller,revision,module_id,channel}=>{
+                        if revision!=document.revision{return Err("module binding revision expired".into());}
+                        let bundle=admission.automation_bundle(controller,self.generation.clone()).await.map_err(|e|format!("{e:?}"))?;
+                        crate::management_modules::control_device(&bundle.configuration,&module_id,channel).map(Reply::ModuleBinding)
+                    },
+                    Action::ModuleCommand{controller,revision,module_id,channel,allowed_devices,action} => {
+                        if revision!=document.revision{return Err("module command revision expired".into());}
+                        let bundle=admission.automation_bundle(controller,self.generation.clone()).await.map_err(|e|format!("{e:?}"))?;
+                        let device=crate::management_modules::control_device(&bundle.configuration,&module_id,channel)?;
+                        if !allowed_devices.contains(device.as_str()){return Err("module channel not permitted".into());}
+                        if request.reply.is_closed() || Instant::now()>=request.deadline{return Err("module command expired or abandoned".into());}
+                        match action {
+                            crate::management_devices::DeviceAction::Open|crate::management_devices::DeviceAction::Close|crate::management_devices::DeviceAction::Stop=>{
+                                let action=match action{crate::management_devices::DeviceAction::Open=>homesense_core::MotorAction::Open,crate::management_devices::DeviceAction::Close=>homesense_core::MotorAction::Close,_=>homesense_core::MotorAction::Stop};
+                                admission.submit_motor_for_revision(revision,controller,device,action).await.map(Reply::CommandsAccepted).map_err(|e|format!("{e:?}"))
+                            },
+                            action=>{
+                                let batch=crate::management_devices::prepare(admission,controller,self.generation.clone(),device,action,feedback,max_age_ms).await?;
+                                if request.reply.is_closed() || Instant::now()>=request.deadline{return Err("module command expired or abandoned".into());}
+                                admission.submit_for_revision(revision,batch).await.map(Reply::CommandsAccepted).map_err(|e|format!("{e:?}"))
+                            },
+                        }
                     },
                     Action::DeviceCommand {controller,revision,device,action} => {
                         if revision!=document.revision {return Err("device command revision expired".into());}

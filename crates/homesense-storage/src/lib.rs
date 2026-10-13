@@ -348,6 +348,10 @@ impl Store {
         if active != expected {
             return Err(Error::Conflict);
         }
+        if let Some(active_revision)=active {
+            let previous:Vec<u8>=tx.query_row("SELECT payload FROM configuration_revision WHERE revision=?1",[active_revision],|r|r.get(0))?;
+            if homesense_config::document_schema_version(&previous)==Some(2) && homesense_config::document_schema_version(payload)!=Some(2){return Err(Error::InvalidPayload);}
+        }
         // Legacy device-only publication must not silently discard automation.
         if automation.is_none() && tx.query_row(
             "SELECT EXISTS(SELECT 1 FROM automation_revision WHERE revision=?1)",
@@ -387,3 +391,5 @@ impl Store {
 }
 
 pub mod backup;
+
+pub mod module_history;

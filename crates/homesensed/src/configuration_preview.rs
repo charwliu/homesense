@@ -43,7 +43,8 @@ pub fn device_changes(current:&Configuration,candidate:&Configuration)->Vec<Devi
                 if old.name!=new.name || old.room!=new.room {changes.push("metadata");}
                 if old.enabled!=new.enabled {changes.push(if new.enabled {"enabled"} else {"disabled"});}
                 if old.gateway!=new.gateway || old.address!=new.address || old.channel!=new.channel {changes.push("binding");}
-                if old.supply_relay!=new.supply_relay {changes.push("supply_relay");}
+                if old.module_id!=new.module_id{changes.push("module_reference");}
+                if old.supply_relay!=new.supply_relay || old.supply_channel!=new.supply_channel {changes.push("supply_relay");}
                 if old.default_on_level!=new.default_on_level {changes.push("default_on_level");}
                 let calibration=|d:&homesense_config::Device| d.motor_calibration.as_ref().map(|c|
                     (c.motion(homesense_core::MotorAction::Open),c.evidence().evidence().to_owned(),c.evidence().verified_at_unix_ms()));
