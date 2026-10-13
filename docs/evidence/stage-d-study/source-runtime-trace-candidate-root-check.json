@@ -1,0 +1,149 @@
+{
+  "date": "2026-10-13",
+  "status": "preliminary_source_audit_candidate_four_root_cases_passed_final_recheck_pending",
+  "scope": "Four independent root cases on an isolated seven-production-overlay candidate; not committed final fix or full quality gate",
+  "base_commit": "b31ddeb34f04494bcfee6ea3fe23fe4259aca305",
+  "source_originals": 1015,
+  "unchanged_originals": 1008,
+  "production_overlay_sha256": {
+    "crates/homesense-storage/src/backup.rs": "98087ce9b3bc4f3981c78eef9b4e3f613056634d9e580bea97a22325afa47bab",
+    "crates/homesense-storage/src/journal.rs": "0c7e585c83bae79c42232e60d00e8a94f5eccf384bb641c08285974ae1fc2a67",
+    "crates/homesense-storage/src/lib.rs": "cb3afce5adf336caaf04d654bc55b150696f80099768eace7750b5ecaf3a2e2d",
+    "crates/homesense-storage/src/rule_audit.rs": "df623b582172492524653fc5a7624914e1f6db75d27bee0e337eb8bdb7ed9a27",
+    "crates/homesensed/src/admission.rs": "17efbf0b761d2d55c5a2984f34bedc0a99a39a4a1ed905c099bb029f0f824cb1",
+    "crates/homesensed/src/deferred_rule.rs": "969d6f2ff7cecb41edbfb3a78eb0e09ccc77130d13d7def19346eedbc2b2ef7e",
+    "crates/homesensed/src/rule_runtime.rs": "a76e73253c1ad19d058f3383d0fb367f6659d1b4933e8a12949f8cd8f8e0ce32"
+  },
+  "runs": [
+    {
+      "log": "tests.log",
+      "exit_code": 0,
+      "result_blocks": [
+        [
+          1,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          1,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          1,
+          0,
+          0,
+          0,
+          0
+        ]
+      ],
+      "exact_test_ids": [
+        "audited_rule_commands_retain_each_source_node_after_store_reopen",
+        "deferred_scene_call_and_member_sources_survive_reopened_store",
+        "second_source_insert_failure_rolls_back_commands_variables_and_rule_audit"
+      ],
+      "log_sha256": "399972b93380f00cbcea4a2ad7a146586e1eadb566d281f25023ed34c01da58d",
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "homesensed",
+        "--test",
+        "source_runtime_trace_root",
+        "--test",
+        "source_scene_boundary_root",
+        "--test",
+        "source_trace_rollback_root",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ]
+    },
+    {
+      "log": "legacy.log",
+      "exit_code": 0,
+      "result_blocks": [
+        [
+          1,
+          0,
+          0,
+          0,
+          0
+        ]
+      ],
+      "exact_test_ids": [
+        "actual_old_schema24_audit_keeps_unknown_sources_and_backup_compatibility"
+      ],
+      "log_sha256": "3814c02ce127ac85d345f9bfded065b0cfdc2acdc389181b628bdcf9267afa52",
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "homesensed",
+        "--test",
+        "source_trace_legacy_root",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ]
+    }
+  ],
+  "verified": {
+    "original_failure_repaired_and_exact_source_per_command": true,
+    "delayed_source_boundary_preserved": true,
+    "second_source_row_failure_rolls_back_commands_variables_rule_admission": true,
+    "storage_failure_closes_write_gate": true,
+    "actual_old24_upgrade_does_not_invent_labels_or_rewrite_journal": true,
+    "old24_and_new25_backup_inspection_preserves_bytes": true
+  },
+  "actual_retained_binaries": [
+    {
+      "name": "source_runtime_trace_root-29c442a93d565fbe",
+      "sha256": "955e10f5289c665308d3341f9fba2630d7594fcb2c0b867a15099984d8d3d7dd"
+    },
+    {
+      "name": "source_scene_boundary_root-4da23caec4bfe638",
+      "sha256": "20bb2696994c329be3dc494fb00b29440d105d108d8a2d8efbf5c19376d003e7"
+    },
+    {
+      "name": "source_trace_rollback_root-f3de80e73b95f5ab",
+      "sha256": "e2261e1270808114fc8af6395b7199d61c782f8fe9888105b1ee5a97adf68f71"
+    },
+    {
+      "name": "source_trace_legacy_root-47826318db78d674",
+      "sha256": "088deb2689da987c7f5769484b4158fdcc90e0c2b59850da24c6a4dbfe4a51a9"
+    }
+  ],
+  "evidence_root": "deployment/ngr/private/20261013-source-runtime-trace-candidate-root",
+  "evidence_sha256": {
+    "source.tar": "5ef04fd053963abcfefcb8acead17496fe8450a9ee52b46fda5546dcda5b8db0",
+    "source.json": "7d14fab9c5655ca9019e0c424c3e7dfd9480680daceb5076ac579aa92cf80022",
+    "probes.json": "f27158a78fee895591e2c9e69b77575c8146ee63d3c7f3741fdecca1bf725002",
+    "source_runtime_trace_root.rs": "d2173863bb23ecb1f98c444ee38f57d2638b598cfd5d80e4c60382fc561e3c12",
+    "source_scene_boundary_root.rs": "846e3ebc4534556e7c7a6d35309f049503e9c327079b99b9f36cbb470d851a2b",
+    "source_trace_rollback_root.rs": "07133c91b29465f8a0c89439fabd6594fe65235c45038a7170100d5d715aa0a1",
+    "source_trace_legacy_root.rs": "47285bd23d2d8e3aaecef379bcac39666caf17e6db2c9de6974ba051433acbda",
+    "tests.log": "399972b93380f00cbcea4a2ad7a146586e1eadb566d281f25023ed34c01da58d",
+    "legacy.log": "3814c02ce127ac85d345f9bfded065b0cfdc2acdc389181b628bdcf9267afa52",
+    "binaries.json": "3ba79c59ec38c5989dc4cd14bcb19075da06e083f46dd3211e3e5001f9bd46d2",
+    "verification.json": "fddf63122db34dd629e483f2f306f63f47c8633a8307086dea49c4450edc9c42",
+    "repaired-original/observed.json": "c97eb935da45793b89dfb2dbe1ada82ff541e665942f8555d90c11833425712c",
+    "scene-boundary/observed.json": "16503e5321c852c43b4b3e50976c25538bcd10bfc258027c5aa690e6e6679856",
+    "rollback/observed.json": "d8d007812173c9a4c37edbd1c2345f9a39ea6e9539029d66eb2aa4ede54d2752",
+    "legacy/observed.json": "0673ce792c1c1edb23cdde0b9bb160a7e01d219f8398ff676690f11afd451846"
+  },
+  "limitations": [
+    "Seven captured production overlays only; final committed candidate hash correspondence still required",
+    "Combined-light fan-out and panel/mixed-deferred source association still require independent candidate verification",
+    "Not full workspace/Clippy/Linux, actual Control4 program execution or semantic approval",
+    "No transport owner, live gateway, network service, real identity, credential or deployment operations"
+  ]
+}
