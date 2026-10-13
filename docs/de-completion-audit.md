@@ -36,6 +36,8 @@
 
 原生场景草稿另通过根独立时序探针：冻结938文件，只有一份测试追加，逐文件原始字节核对；实际Manager／Admission／Store与内存线缆产生一次原生Toggle、两条最终Query。完整当前代次反馈在Query入队但尚未写出时到达，写出后无新反馈仍Pending／选择None；随后新的完整反馈才Observed／选择1，完成无额外输出。初次边界和增加正向对照后的两次执行是同一项独立测试，不重复计数；无真实TCP／HAP／Web或实物。这是尚无最终产品提交的冻结草稿，开发侧完整相对案例和严格Clippy尚未完成，最终检查点须重比源码指纹，不把此项作为整体native通过。见[查询前反馈边界](evidence/stage-d-study/native-scene-prequery-root-check.json)。
 
+原项目唯一RAMP所属26代码项程序新增完整结构补证：固定`1cd94a4`实际`compile_event_with_fades`的有序AST与独立XML模型一致，生成一份禁用定义，TIME=1000ms、LEVEL=0，显式interval／lateness均100ms。1项实际生产导出通过，六种错误定义／动作变体被模型拒绝，932原文件未变。默认compile_event仍将RAMP列为白名单外，不改变179／36默认口径，也不把整条事件视为完整批准；原触发、异步变量、驱动及实物渐变仍待验证。见[完整RAMP程序结构补证](evidence/stage-d-study/source-ramp-branch-differential-check.json)。
+
 ## 阶段 D
 
 | 要求 | 当前证据 | 剩余门槛 |
