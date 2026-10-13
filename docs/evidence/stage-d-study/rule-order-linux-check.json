@@ -1,0 +1,125 @@
+{
+  "date": "2026-10-13",
+  "scope": "Native Linux ordered_rule_batch4 plus rule_order9 only; no previous Linux suite rerun",
+  "source_commit": "0be525f40978b4fce441f6142bd41b43e071df49",
+  "source_files_verified_unchanged": 1035,
+  "tested_overlay_sha256": {
+    "crates/homesense-core/src/queue.rs": "185d5cd6a206b41eb454d98291cd533db2441ab33e5a28967575a450bdd37bf8",
+    "crates/homesense-core/src/arbiter.rs": "30f0fce66b75958ade8e78a2915b422820446c2376e9d9fd72dfad1f83259248",
+    "crates/homesense-core/tests/ordered_rule_batch.rs": "2543768828dc2dd5f82a9b3e795c21a78e6272dcdc2fba1dc728b96c7bec7da1",
+    "crates/homesensed/src/admission.rs": "a209d3a46e2a7e9ae455cc48fccd1ae0af85e3271cbef2029af3b5153d9c0b55",
+    "crates/homesensed/tests/rule_order.rs": "4155eaa8fbf6087782f7d9f2658f033e1ac61885e639d6dba663e5fee56c7127"
+  },
+  "host": {
+    "architecture": "x86_64",
+    "glibc": "glibc 2.44",
+    "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)",
+    "cargo": "cargo 1.99.0 (5f94df478 2026-08-27)"
+  },
+  "run": {
+    "command": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-p",
+      "homesense-core",
+      "--test",
+      "ordered_rule_batch",
+      "-p",
+      "homesensed",
+      "--test",
+      "rule_order",
+      "--",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "exit_code": 0,
+    "counts": [
+      [
+        4,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        9,
+        0,
+        0,
+        0,
+        0
+      ]
+    ],
+    "passed": 13,
+    "failed": 0,
+    "ignored": 0,
+    "filtered": 0,
+    "elapsed_seconds": 50.60945778500172,
+    "exact_test_ids": [
+      "capacity_or_persistence_failure_keeps_all_queue_effects_and_ids_unpublished",
+      "manual_override_and_explicit_run_cancel_remove_every_pending_repeated_node",
+      "ordered_entry_rejects_non_rule_mixed_run_authority_and_stale_epochs_without_commit",
+      "ordered_rule_preserves_equal_nodes_while_default_slider_still_coalesces",
+      "cancellation_and_manual_override_remove_all_pending_repeat_nodes_without_replay",
+      "external_duplicate_and_audited_hidden_supply_controls_remain_rejected",
+      "invalid_later_node_and_expanded_capacity_rejection_accept_nothing",
+      "partial_wire_failure_preserves_first_written_node_and_never_replays_tail",
+      "repeated_combined_nodes_preserve_each_expanded_source_and_wire_order",
+      "repeated_dimmer_zero_nodes_and_endpoint_changes_remain_distinct",
+      "repeated_node_source_insert_failure_rolls_back_variables_and_closes_gate",
+      "same_key_led_nodes_include_off_off_and_off_on_without_deduplication",
+      "two_immediate_scene_calls_with_overlapping_targets_keep_call_member_sources"
+    ]
+  },
+  "actual_elfs": [
+    {
+      "target": "homesense-core",
+      "name": "ordered_rule_batch-70a47e74ffb916d8",
+      "sha256": "144c7f71aea8928a320dbc19436a7dea46b9834640085e1db861f8066e1502ef",
+      "format": "ELF 64-bit LSB x86-64"
+    },
+    {
+      "target": "homesensed",
+      "name": "rule_order-efc11d989ac0c12b",
+      "sha256": "47f57c817f370e26c7f3a88523d1d02861b46679f2b1a387776a337b0e3ac0cf",
+      "format": "ELF 64-bit LSB x86-64"
+    }
+  ],
+  "logical_binding_contract": {
+    "fixture_schema": 2,
+    "device_count": 5,
+    "device_and_combination_supply_references": "stable module_id plus channel only",
+    "physical_addresses": "module registry and transport resolution only; golden frames are simulated expectations"
+  },
+  "isolation": {
+    "source": "Independent fixed0be525f source directory under prior authorized ngr tmp test root",
+    "dependencies": "Reuse dedicated vendor/target/Cargo home only",
+    "cargo_lock_sha256": "bf8b446b0d8abbe7a3da1f359e2d0a0a2e116d82d4d2f5bb7b4b7c91bb080fbd",
+    "lockfile_unchanged_since_previous_linux_archive": true,
+    "source_files_changed": 0,
+    "temporary_cargo_config_sha256": "f77b30146e3b95309f9e2c740391ae139bfe74478a82c2814f3c392abe8ac499",
+    "temporary_store_files_after_exit": 0,
+    "remaining_processes_after_exit": 0
+  },
+  "evidence_sha256": {
+    "source.tar": "400946f3c855bf902211fa35881960ff73689d926ad28d5e85f32e4b157a4e8d",
+    "source.json": "6bb5291acc7d5f49055a3298733058a741902af13d481fdc4b020f0b9fb31320",
+    "run.py": "8ebd7d499571d06281e649610fc6e59d9a6a381cf36741dafdc9a2fab1076bc6",
+    "post-exit-remote.json": "13d3864a77e4acc53b48805194caa8e6f9b5e39316e342918a160c473cd09d9f",
+    "isolated-cargo-config.toml": "f77b30146e3b95309f9e2c740391ae139bfe74478a82c2814f3c392abe8ac499",
+    "evidence/host.json": "36bc6ce52af16a218c1264c9a95feed1ac5ac78e9a92dcfe8e198ca41a57d046",
+    "evidence/tests.log": "1d8130991905725e2c5ff6cd4923062d1a08d52b54f6505c5df0547cb2a6a9b3",
+    "evidence/execution.json": "56606659b7570f7df2c0cb9582995e32ee23ba0b3840ea79e5e799339712a114",
+    "verification.json": "7ae4eaf4018bca1bced9c7dc49131eb025da21974975a468995c979d55410e6f",
+    "evidence/test-binaries/ordered_rule_batch-70a47e74ffb916d8": "144c7f71aea8928a320dbc19436a7dea46b9834640085e1db861f8066e1502ef",
+    "evidence/test-binaries/rule_order-efc11d989ac0c12b": "47f57c817f370e26c7f3a88523d1d02861b46679f2b1a387776a337b0e3ac0cf"
+  },
+  "limitations": [
+    "Exactly13 new tests only; not new full Linux workspace, release or Clippy",
+    "Old132, six indicator, seven source, TLS and fullworkspace were not rerun or counted",
+    "Synthetic memory wire and temporary Store only; no real bus, identity, credential, service or network changes",
+    "Not approval of original Control4 program/condition/variable/scene semantics or physical LED action",
+    "Field confirmations remain pending; EA-5 configuration and control scope unchanged"
+  ]
+}
