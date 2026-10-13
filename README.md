@@ -864,3 +864,10 @@ HAP 配件目录读取修复：`GET /accessories` 在个别可读状态不可用
 17 项相关 Rust 回归、13 项前端脚本及全部目标严格 Clippy 通过。实际浏览器用合成负载验证未知→日常→节能→关闭、390／320 像素布局及服务正常退出后的状态撤销；审计仅三次场景、三条模拟命令。证据见 [浏览器记录](docs/evidence/stage-e-browser/scene-switches-check.json)。此增量未部署；真实手机、家庭中枢、外部 EA-5 模式同步与其他原项目语义仍待验收，D/E 未完成，EA-5 不变。
 
 独立源码的配置／存储／homesensed 回归最终 **415 项通过**，14 项前端脚本及三个包所有目标严格 Clippy 通过。多桥的两项旧测量值预期已按新优先级更新，仍核对原始 Web 反馈独立保留；专项重跑 3 项通过。浏览器验证显示设定值并验证退出清空状态。范围见 [状态与 LED 联动证据](docs/evidence/stage-e-browser/state-indicator-policy-check.json)；本轮未部署，现场多面板关系与联动仍需验收。
+
+
+## 场景选择未知与不可用
+
+选择投影区分 `Known(bool)`、`Unknown` 和 `Unavailable(reason)`。运行时就绪而选择为 NULL 时，Web 显示“尚未建立有效选择”，允许已有权限下明确开启；读取超时、运行时失效或事件断开时清除旧选择显示并禁用控制，恢复有效快照后沿原门禁恢复。Web 的就绪诊断与选择读取共享 500 ms 限制；HAP 缓存另保留 3 秒过期原因。迟到的 HTTP 503 不覆盖更新的状态快照，旧会话响应不影响新登录。
+
+HAP 未知仍返回 `-70402`，目录仍保留 null；没有默认初始化为 false／0，没有新增配件、改变身份或动作语义。32 项相关 Rust 回归、前端定向检查和 homesensed 全部目标严格 Clippy 通过；[验证范围](docs/evidence/stage-d-study/scene-selection-projection-check.json)记录干净源码指纹及尝试限制。本地检查点未推送、未部署；物理反馈初始化和 LED 瞬时时序分别继续核查，EA-5 不变。

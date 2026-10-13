@@ -267,6 +267,17 @@ async fn encrypted_scene_switches_keep_selection_exclude_peers_and_restart_witho
             let (h, g) = c.request("GET", "/accessories", None);
             assert!(h.starts_with("HTTP/1.1 200"));
             assert_eq!(g["accessories"].as_array().unwrap().len(), 6);
+            if !restarting {
+                for id in ["reading", "daily", "eco"] {
+                    let binding = &c.bindings[id];
+                    let accessory = g["accessories"].as_array().unwrap().iter()
+                        .find(|a| a["aid"] == binding.aid).unwrap();
+                    let characteristic = accessory["services"].as_array().unwrap().iter()
+                        .flat_map(|service| service["characteristics"].as_array().unwrap())
+                        .find(|characteristic| characteristic["iid"] == binding.on_iid).unwrap();
+                    assert_eq!(characteristic.get("value"), Some(&Value::Null), "unknown directory value must remain null");
+                }
+            }
             if restarting {
                 c.selected(Some("eco"));
                 assert_eq!(

@@ -5,10 +5,44 @@ use homesense_core::rule::Value;
 use homesense_storage::variables::{Stored, Update};
 use std::collections::{BTreeMap, BTreeSet};
 
+/// A healthy but unknown selection is different from a failed observation.
+/// Neither state is a boolean Off or permission to initialize the variable.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[serde(tag = "state", content = "value", rename_all = "snake_case")]
+pub enum SelectionState {
+    Known(bool),
+    Unknown,
+    Unavailable(UnavailableReason),
+}
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UnavailableReason {
+    #[default]
+    NotSampled,
+    Invalidated,
+    CacheExpired,
+    RuntimeUnavailable,
+    RuntimeNotReady,
+    ReadFailed,
+    ReadTimedOut,
+}
+impl SelectionState {
+    pub fn from_selected(value: Option<bool>) -> Self {
+        value.map_or(Self::Unknown, Self::Known)
+    }
+    pub fn selected(self) -> Option<bool> {
+        match self {
+            Self::Known(value) => Some(value),
+            Self::Unknown | Self::Unavailable(_) => None,
+        }
+    }
+}
+
 /// Source for a selection, not physical completion or EA-5 variable proof.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct Details {
     pub selected: Option<bool>,
+    pub selection_state: SelectionState,
     pub selection_source: &'static str,
     pub observation_current: Option<bool>,
     pub observation_boot: Option<String>,
@@ -32,6 +66,7 @@ pub(crate) fn details(
                 member.scene.clone(),
                 Details {
                     selected: selected[&member.scene],
+                    selection_state: SelectionState::from_selected(selected[&member.scene]),
                     selection_source: if inferred.is_some() {
                         "inferred"
                     } else if state.stored.value.is_some() {
