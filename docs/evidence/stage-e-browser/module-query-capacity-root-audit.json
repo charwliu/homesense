@@ -1,0 +1,134 @@
+{
+  "commit": "bfe61f28aa0070904f248ee418b542ffdde9bbeb",
+  "status": "independent_fixed_source_raw_logs_frames_samples_and_remote_digests_verified",
+  "source": {
+    "archive_sha256": "fec7242edfadfe5515db46b81b12ecd55fb57dd377ddb98e21f9361c494324a9",
+    "archive_manifest_files": 949,
+    "local_snapshot_originals_unchanged": true,
+    "changed_product_paths_verified": 10
+  },
+  "logs": {
+    "workspace": {
+      "passed": 735,
+      "failed": 0,
+      "ignored": 0,
+      "result_blocks": 131,
+      "unique_qualified_successes": 735,
+      "failures": []
+    },
+    "linux_serial": {
+      "passed": 103,
+      "failed": 0,
+      "ignored": 0,
+      "result_blocks": 1,
+      "unique_qualified_successes": 103,
+      "failures": []
+    },
+    "linux_initial_parallel": {
+      "passed": 102,
+      "failed": 1,
+      "ignored": 0,
+      "result_blocks": 1,
+      "unique_qualified_successes": 102,
+      "failures": [
+        [
+          "unittests src/lib.rs (../target/debug/deps/homesensed-9d4d668b98b86f7a)",
+          "automation_tcp::bridge_tests::multiple_bridges_rebuild_and_isolate_occupied_listener"
+        ]
+      ]
+    },
+    "linux_bridge_recheck": {
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0,
+      "result_blocks": 1,
+      "unique_qualified_successes": 1,
+      "failures": []
+    },
+    "clippy_log_success": true,
+    "new_test_executions": false,
+    "failure_cause": "not established"
+  },
+  "service": {
+    "build_profile": "debug",
+    "binary_sha256": "6e913a0d8a39ab0bbef1263e1f72c3bb128352793dca6e2a097fb5cdf43f3672",
+    "ready_seconds_recorded": 1.6734427030023653,
+    "query_frames_recomputed": 919,
+    "unique_query_frames_recomputed": 61,
+    "physical_endpoint_coverage_recomputed": 96,
+    "control_frames_recomputed": 0,
+    "http_200_samples_recomputed": 113,
+    "complete_confirmed_rows_recomputed": 10848,
+    "stale_rows_recomputed": 0,
+    "single_boot_and_revision": true,
+    "feedback_times_nondecreasing": true,
+    "repeat_intervals_recomputed": 858,
+    "max_repeat_seconds": 2.851588985999115,
+    "median_repeat_seconds": 2.4458627109997906,
+    "steady_excluding_first_repeat_count": 797,
+    "steady_max_repeat_seconds": 2.851588985999115,
+    "steady_median_repeat_seconds": 2.446912704006536,
+    "child_exit_recorded": 0,
+    "gateway_thread_stopped_recorded": true
+  },
+  "evidence_sha256": {
+    "workspace.log": "46ea237be2760df5c7401e828e57c7e8ea475b7a6a58aa37ae8c052f1cf52459",
+    "clippy.log": "726695efd8438841f817b8b319f92d4050868e1a86cf5b8fcc192f8f7ba61c8d",
+    "linux-evidence/linux-source-audit.json": "244914042f1b169104034a588594cb180ac48458e647a63078c6755926dac0f9",
+    "linux-evidence/service96-final/results.json": "cca78d144597f5e21dddaa2507974d2a1a2b7ea561bd8016721204fcdd32e484",
+    "probe-service96.py": "1c7ce29f911415d8c14419a97d7d006dae1c2f48f7906c3cdd6ae58dbdbe0589",
+    "linux-evidence/final-lib-serial.log": "2a6568bd1ff86393b57bf2ad441865b759fbe6be24a72490f877c34df83fb758",
+    "final-source.json": "ab036265bb15bcb17d1a89004db686ccb01a52e9d524a1782649a9f682aa8d2b",
+    "linux-evidence/final-build.log": "acdd95e2f9262b3b42b263641273dd59588a1602ac5d04ccc03e9784a70b295d",
+    "linux-evidence/final-lib-tests.log": "013dd95a540469df740a7a67bb09baff0a759b10d3ce630812f7dd2a0daf708f",
+    "linux-evidence/service96-final/exit.json": "d982c4b190dc2261cc8ab2f849f6430624b8d2f94b67a8be4a877354ce30e37e",
+    "linux-evidence/linux-bridge-recheck.log": "989c94cf9e06aac64c5c382758505300ba1f439ba825fbd12dcfbebb62c52df1",
+    "linux-evidence/service96-final/devices.json": "370a9c4850efdb443818d0f7b86cdca4597d734dd95c962359cfbd99877a1041",
+    "linux-evidence/service96-final/automation.json": "698ddc6ad880451a4cfabacb00a0c2efe42136f4671538a119b86c06e2ecdfce",
+    "root-audit.py": "e5fd973a9f0bedf1d6cc35a13ea35ac687884d77226600312acfe4c74d9bbcf8",
+    "root-remote-audit.py": "7c96c996e4a143530f8a6faae2321137493bd5d45b61ac9bff33442ae87b125a",
+    "root-capacity-audit.json": "6e8cf8d494f891ebc44c32626d473ccf03fa2ba024849c41b1a142ad2d67b0f0",
+    "root-remote-audit.json": "476790cae6a34645b30b7be1f5a0b7e637ce02e83d6a584d29eeb63e4277730e"
+  },
+  "limitations": [
+    "Independent reconstruction of existing runs, not additional test coverage.",
+    "Raw HTTP exposes boot/revision but not transport epoch or sample capture-clock age; no additional epoch/age claim inferred.",
+    "Readiness time comes from probe diagnostics record; raw diagnostics samples are not retained.",
+    "Debug Linux localhost synthetic immediate responses; no real firmware, bus, client or release deployment acceptance.",
+    "20ms mixed61-request configuration only; no100ms mixed configuration acceptance.",
+    "No transaction ID or atomic whole-module snapshot; protocol feedback cannot prove query causation.",
+    "Initial Linux parallel failure retained with cause unknown; serial recheck does not erase it.",
+    "Independent27 relative-case matrix and stable module-ID ground-truth architecture remain separate gates."
+  ],
+  "field_enablement": false,
+  "new_credentials": false,
+  "date": "2026-10-13",
+  "remote_verification": {
+    "commit": "bfe61f28aa0070904f248ee418b542ffdde9bbeb",
+    "remote_original_files_verified": 949,
+    "source_mismatches": [],
+    "service_pid_absent": true,
+    "child_exit": 0,
+    "remote_artifact_sha256": {
+      "final-source.tar": "fec7242edfadfe5515db46b81b12ecd55fb57dd377ddb98e21f9361c494324a9",
+      "target/debug/homesensed": "6e913a0d8a39ab0bbef1263e1f72c3bb128352793dca6e2a097fb5cdf43f3672",
+      "service96-final/results.json": "cca78d144597f5e21dddaa2507974d2a1a2b7ea561bd8016721204fcdd32e484",
+      "service96-final/exit.json": "d982c4b190dc2261cc8ab2f849f6430624b8d2f94b67a8be4a877354ce30e37e",
+      "final-lib-serial.log": "2a6568bd1ff86393b57bf2ad441865b759fbe6be24a72490f877c34df83fb758",
+      "final-lib-tests.log": "013dd95a540469df740a7a67bb09baff0a759b10d3ce630812f7dd2a0daf708f",
+      "linux-bridge-recheck.log": "989c94cf9e06aac64c5c382758505300ba1f439ba825fbd12dcfbebb62c52df1",
+      "probe-service96.py": "1c7ce29f911415d8c14419a97d7d006dae1c2f48f7906c3cdd6ae58dbdbe0589"
+    },
+    "read_only": true,
+    "real_gateway_connected": false,
+    "credentials_or_identity_read": false
+  },
+  "previous_isolated_counterexample": {
+    "commit": "1cd94a4",
+    "physical_endpoints": 96,
+    "write_interval_ms": 20,
+    "median_repeat_seconds": 12.28872,
+    "status": "closed_for_same_physical_coverage_in_new_isolated20ms_loopback_case",
+    "historical_evidence_retained": "query-capacity-gap-root-check.json"
+  }
+}
