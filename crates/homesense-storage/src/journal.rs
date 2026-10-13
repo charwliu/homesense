@@ -202,6 +202,20 @@ impl Store {
         audit:Option<&crate::rule_audit::Admission>, scene:Option<&crate::scene_run::StepLink>,
         starts:&[crate::scene_run::Start], reads:&[crate::variables::ReadCheck],
     )->Result<(),Error> {
+        self.accept_queue_batch_with_read_checks_and_sources(boot_id,commands,cancellations,now_ms,study,variables,audit,scene,starts,reads,None)
+    }
+    /// Exact source labels follow expanded physical commands by ordinal. They
+    /// commit atomically with queue receipts, rule audit and variable updates.
+    #[allow(clippy::too_many_arguments)]
+    pub fn accept_queue_batch_with_read_checks_and_sources(
+        &mut self, boot_id:&str, commands:&[QueuedCommand], cancellations:&[Cancellation],
+        now_ms:u64, study:Option<(Option<u8>,u8)>, variables:&[crate::variables::Update],
+        audit:Option<&crate::rule_audit::Admission>, scene:Option<&crate::scene_run::StepLink>,
+        starts:&[crate::scene_run::Start], reads:&[crate::variables::ReadCheck],
+        sources:Option<&[String]>,
+    )->Result<(),Error> {
+        crate::rule_audit::validate_sources(sources, commands.len())?;
+        if sources.is_some() && audit.is_none() {return Err(Error::InvalidAudit);}
         if starts.len()>64 || (!starts.is_empty() && audit.is_none()) {return Err(Error::InvalidAudit);}
         if starts.iter().any(|s|audit.is_none_or(|a|s.revision!=a.revision)) {return Err(Error::Conflict);}
         boot(boot_id)?;
@@ -275,7 +289,7 @@ impl Store {
             crate::scene_run::insert_step(&tx, boot_id, scene, commands, active)?;
         }
         if let Some(audit) = audit {
-            crate::rule_audit::insert(&tx, boot_id, audit, commands, now_ms, active)?;
+            crate::rule_audit::insert(&tx, boot_id, audit, commands, sources, now_ms, active)?;
         }
         for start in starts {
             crate::scene_run::insert_start(&tx,boot_id,start,now_ms,active)?;

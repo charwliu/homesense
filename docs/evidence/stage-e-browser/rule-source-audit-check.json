@@ -1,0 +1,97 @@
+{
+  "date": "2026-10-13",
+  "scope": "Immediate audited rule node sources; no field control or deployment",
+  "baseline_commit": "0f150269a99a8a2f7220be73f6293e3b1a6408cd",
+  "source_overlay_sha256": {
+    "crates/homesense-storage/src/backup.rs": "98087ce9b3bc4f3981c78eef9b4e3f613056634d9e580bea97a22325afa47bab",
+    "crates/homesense-storage/src/journal.rs": "0c7e585c83bae79c42232e60d00e8a94f5eccf384bb641c08285974ae1fc2a67",
+    "crates/homesense-storage/src/lib.rs": "cb3afce5adf336caaf04d654bc55b150696f80099768eace7750b5ecaf3a2e2d",
+    "crates/homesense-storage/src/rule_audit.rs": "25fc30e2f559ecf7061c90ed7ff6930535125ae7ebd0e4fae3c71c18f4dd141b",
+    "crates/homesense-storage/tests/backup.rs": "b36dad7c369e3ba79253b3dfa620cb2acce2846ffc0ee3c20efc87907c0d9c78",
+    "crates/homesense-storage/tests/journal.rs": "e73702368de726aaff48484eb52346f02510d483b3934b65b77bfa49d6efaaaf",
+    "crates/homesense-storage/tests/light_restore.rs": "c82cbc2af2bc923c8745b8fb0e7af7cc1ce58fbe92158f1a6ae733cd33494b51",
+    "crates/homesense-storage/tests/native_scene.rs": "8d89cde6288f548cf110b6b66b27d47995aa60239a7f4552f8db0a3662485a7d",
+    "crates/homesense-storage/tests/scene_initialization.rs": "1c6b9a9b6ba57c7d932cc6067d71414f20dc51772637e63584356bd7f7b2f1f3",
+    "crates/homesense-storage/tests/scene_observation.rs": "525c0eaebda085e10da0f92da95ea8760da27230322e70267bd3c8424e82c41c",
+    "crates/homesense-storage/tests/rule_sources.rs": "3cee7288a494e0220bfdace83ac6951a50ae439cf3f9356ccbc7b3fa6ac076eb",
+    "crates/homesensed/src/admission.rs": "17efbf0b761d2d55c5a2984f34bedc0a99a39a4a1ed905c099bb029f0f824cb1",
+    "crates/homesensed/src/deferred_rule.rs": "969d6f2ff7cecb41edbfb3a78eb0e09ccc77130d13d7def19346eedbc2b2ef7e",
+    "crates/homesensed/src/rule_runtime.rs": "a76e73253c1ad19d058f3383d0fb367f6659d1b4933e8a12949f8cd8f8e0ce32",
+    "crates/homesensed/tests/rule_sources.rs": "88d6434b411fd3eea740878faa01c8a849a8f937a366584a4d26b53175eb9610"
+  },
+  "unchanged_non_overlay_files_before_and_after_tests": 1008,
+  "rust_version": "1.99.0",
+  "cargo_locked": true,
+  "cargo_offline": true,
+  "final_test_command": "cargo test --offline --locked -p homesense-storage -p homesensed",
+  "final_tests": {
+    "passed": 531,
+    "failed": 0,
+    "ignored": 0,
+    "filtered": 0,
+    "result_blocks": 72,
+    "exit_code": 0,
+    "new_source_tests": 7,
+    "test_binaries": 70
+  },
+  "strict_clippy": {
+    "command": "cargo clippy --offline --locked -p homesense-storage -p homesensed --all-targets -- -D warnings",
+    "exit_code": 0
+  },
+  "schema": {
+    "current": 25,
+    "previous": 24,
+    "old_source_rows": "NULL; no reconstruction",
+    "readonly_backup_inspection": "18 through 25"
+  },
+  "coverage": [
+    "two independent switch channels and exact node labels after Store reopen",
+    "combined dimmer plus supply relay source duplication with correct subsequent independent node",
+    "actual panel click through audited PreparedRule path",
+    "mixed deferred rule immediate provenance plus existing call/member chain",
+    "second-source insert failure rolls back commands, audit, variables and cancellation",
+    "variable CAS failure rolls back already inserted source rows",
+    "empty, oversized byte strings, vector mismatch and unaudited labels rejected",
+    "schema 24 readonly backup, migration, reopen and new schema 25 backup"
+  ],
+  "preserved_failures": [
+    {
+      "stage": "first focused run",
+      "detail": "unknown synthetic panel profile in fixture; storage 3 passed, runtime 4 rejected before execution"
+    },
+    {
+      "stage": "second focused run",
+      "detail": "combined fixture used legacy supply_relay in schema 2; storage 3 and runtime 3 passed, combined fixture rejected"
+    },
+    {
+      "stage": "first full runtime run",
+      "detail": "sandbox prevented seven localhost bindings; 129 library tests passed, 7 PermissionDenied failures"
+    },
+    {
+      "stage": "first Clippy",
+      "detail": "collapsible_if in new source validator; corrected without suppression"
+    }
+  ],
+  "private_log_sha256": {
+    "build": "8b2132f5ffc99183eede96b24068476f7eba395bf911f4cf155ee46b88807dbf",
+    "focused": "be67710341539d31934e73dc31b7116c9f33e7e95cd2ce69c22e67023a7b1da7",
+    "focused-final": "ac63698c0dae726afa0ff220d73f86f64c32432ef10058d3f9ae50ff1fe9431a",
+    "focused-v3": "aecd09f87cf9b3eee77fbd65417f11a0b2ecdba1239fa9bf2c235b4de7e6b4c4",
+    "storage": "9e9c612f2edde6687f5d73e9e2121f2b009189c77ef72de80f28aba9b4c0cc23",
+    "runtime": "00f4aff6770f14c20563e5a8f322846a92f0dd8b1207d6e8f305469461477972",
+    "clippy": "da9731890ce386a32366ace83e511eebacac9ef5e87a6e0312edfcada7a5590c",
+    "clippy-final": "9a22bce59427f03dfaf5adfe3f2ce5e78eb3c679b63e7765df246a579c830025",
+    "packages-final": "bb2052a976ec6bafc4f7f50c9348e52d8e48d014740754dcde43545c7b992318"
+  },
+  "network_scope": "synthetic localhost tests only; no real gateway, LAN advertisement, service deployment or credentials migration",
+  "excluded": [
+    "full workspace rerun",
+    "Linux rerun",
+    "frontend rerun",
+    "real Apple client and HomePod acceptance",
+    "physical scene/LED/curtain/TLS validation",
+    "approval of original Control4 program semantics"
+  ],
+  "ea5_configuration_and_control_scope": "unchanged",
+  "private_family_sources": "not staged or published"
+}

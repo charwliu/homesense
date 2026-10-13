@@ -97,7 +97,7 @@ pub fn inspect(path:&Path,context:homesense_core::ExecutionContext)->Result<Insp
     connection.busy_timeout(Duration::ZERO).map_err(|e|e.to_string())?;
     let app:i64=connection.pragma_query_value(None,"application_id",|r|r.get(0)).map_err(|e|e.to_string())?;
     let schema:i64=connection.pragma_query_value(None,"user_version",|r|r.get(0)).map_err(|e|e.to_string())?;
-    if app!=crate::APPLICATION_ID || !(18..=24).contains(&schema) {return Err("foreign or unsupported backup schema".into());}
+    if app!=crate::APPLICATION_ID || !(18..=25).contains(&schema) {return Err("foreign or unsupported backup schema".into());}
     let tx=connection.unchecked_transaction().map_err(|e|e.to_string())?;
     let integrity:String=tx.query_row("PRAGMA quick_check",[],|r|r.get(0)).map_err(|e|e.to_string())?;
     if integrity!="ok" {return Err("backup integrity check failed".into());}

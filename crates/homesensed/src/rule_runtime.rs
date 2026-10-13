@@ -23,6 +23,7 @@ pub struct PreparedRule {
     feedback: Option<crate::feedback::RuleLease>,
     generation: TaskGeneration,
     batch: Batch,
+    command_sources: Vec<String>,
     updates: Vec<Update>,
     indicator_reads:
         Option<std::collections::BTreeMap<String, homesense_storage::scene_observation::Snapshot>>,
@@ -203,6 +204,7 @@ impl PreparedRule {
             .filter(|(name, before)| plan.variables[*name].value != before.value)
             .map(|(name, _)| name.clone())
             .collect();
+        let command_sources = plan.commands.iter().map(|c| c.source.clone()).collect();
         let intents = plan
             .commands
             .into_iter()
@@ -235,6 +237,7 @@ impl PreparedRule {
                 intents,
                 subscriptions: vec![],
             },
+            command_sources,
             updates,
             indicator_reads: None,
             unknown_branches: plan.unknown_branches,
@@ -309,6 +312,7 @@ impl PreparedRule {
                     self.updates,
                     self.feedback,
                     audit,
+                    self.command_sources,
                 )
                 .await;
         }
