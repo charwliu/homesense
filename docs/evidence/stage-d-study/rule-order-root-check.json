@@ -1,0 +1,81 @@
+{
+  "date": "2026-10-13",
+  "source_commit": "0be525f40978b4fce441f6142bd41b43e071df49",
+  "scope": "Independent verification of ordered audited rule fix, direct source output projections and zero-device-command audit paths; software only",
+  "source_correspondence": {
+    "owner_baseline_unchanged_files": 1029,
+    "owner_production_and_test_overlays_match_commit": 5,
+    "root_original_files": 1026,
+    "root_production_overlays_match_commit": 3,
+    "root_execution_matches_final_production_bytes": true
+  },
+  "owner_mac_regressions": {
+    "core": 94,
+    "selected_runtime_targets": 300,
+    "distinct_tests": 394,
+    "result_blocks": 20,
+    "retained_actual_binaries_verified": 19,
+    "failed": 0,
+    "ignored": 0,
+    "filtered": 0,
+    "strict_clippy": "core and runtime all targets; original successful terminal command and log verified",
+    "scope": "Complete core package and five selected runtime targets; not full workspace"
+  },
+  "root_tests": {
+    "passed": 4,
+    "failed": 0,
+    "ignored": 0,
+    "filtered": 0,
+    "retained_actual_binaries": 3,
+    "minimal_order": "Same-key LED On then Off; two source-labelled Written command rows and exact F1/F2 frames",
+    "direct_projection": {
+      "tests": 1,
+      "subcases": 6,
+      "commands_and_frames": 65,
+      "existing_planner_vectors_represented": 76,
+      "exact_frame_source_and_intent_match": true,
+      "original_conditions_variables_and_scene_calls_omitted": true
+    },
+    "zero_output": {
+      "tests": 2,
+      "variable_only": "Integer17/value version1; one rule audit; zero command rows",
+      "unselected_condition": "Unchanged None/version0; one rule audit; zero command rows",
+      "write_gate_remains_open": true,
+      "owner_or_network_created": false,
+      "regression_found": false
+    }
+  },
+  "implementation_review": {
+    "only_persistently_audited_batches_allow_repeated_logical_targets": true,
+    "nonempty_ordered_core_entry_requires_rule_origin_and_same_nonzero_run": true,
+    "ordered_level_nodes_not_coalesced": true,
+    "external_duplicate_and_hidden_supply_rejection_preserved": true,
+    "zero_commands_use_existing_authorized_transaction_early_return": true,
+    "logical_references_remain_stable_module_id_and_channel": true
+  },
+  "preserved_failed_attempts": "Original duplicate-target baseline and owner fixture/lint failures retained; initial parallel 96-channel runtime failure and same-source serial pass retained; first failure cause not established",
+  "evidence_sha256": {
+    "root-audit.json": "59ce3b2f2087fda97bb42644acdd1c14e3fc64123ce34cdfc62b5f327217ab5e",
+    "owner-terminal-records.json": "f010da46feb9a41d383e75d9bb61d74f79ce6ac6d96cb0f0bff98106c66a2eb8",
+    "owner-check.json": "3267e4832f9033ff15b7e0cbf7bbe7c2206d81578721d93c22d6f0c23a05a288",
+    "ordered-candidate-source.json": "4e586730e98864ea474302fc64c518ac94311500f2d5208eea9ab0ace5840d28",
+    "ordered-candidate-root-execution.json": "7c32ed292a080c1ef4814c4ad3a1a797f81095474db995d77ceb29e3986560db",
+    "ordered-candidate-tests.log": "ec00e5bd49055d4f2c28fdd0f530c0152c90f58ee5590ff95715cc5c65afe3b6",
+    "direct-projection-inputs.json": "616b776c3756e2b357100805c4a6c9535971975985ba1e70c51b48dd9f606a48",
+    "direct-projection-observed.json": "b08df25883fcbdda27d7d0ff481d01c9434d189a066796bdff1c7545a95367b4",
+    "minimal-wire-observed.json": "525a546ad74bc54724158ad1687bd06645887400de98d3374aef66255e164d30",
+    "ordered-candidate-binaries.json": "4a999a8ee4fb766665b19e46d23d674010af6a0c5b9091b001c16a2c2c510692",
+    "zero-output-probe.rs": "b2d9f25e7402eee944f27216278aaac415a971fc7442ed845ffa4cf2d3930baf",
+    "zero-output-tests.log": "03ee9753a9161adaae7b26346f56dc186986d0ac9ef44f04574f1f940dd1e142",
+    "variable-only-observed.json": "80f72f597412d9de6c60ec9b233ce9955d5182ca1f3e8ff11f83ed152eab1c8c",
+    "condition-empty-observed.json": "b7415312c958dd2a41779ef6710a1f30c28eda22c6befbf64a1e4c0081a1e66f"
+  },
+  "not_proven": [
+    "Complete original 65 scenes / 208 programs / 24 variables semantic acceptance",
+    "Full original program replay by six bounded direct-output projections",
+    "Current Linux or release acceptance",
+    "Current physical device/client/field acceptance"
+  ],
+  "field_control_performed": false,
+  "ea5_configuration_and_control_scope": "unchanged"
+}
