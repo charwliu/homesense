@@ -27,6 +27,8 @@ pub enum Action {
     SceneSwitchStates {controller:Uuid,revision:u64},
     SceneSelectionDetails {controller:Uuid,revision:u64},
     SceneWrites {controller:Uuid,revision:u64,scenes:Vec<(String,Option<bool>)>},
+    SceneRelative {controller:Uuid,revision:u64,scene:String,request_id:String},
+    SceneRelativeStatus {controller:Uuid,revision:u64,request_id:String},
     SceneActions { controller: Uuid, revision: u64, scenes: Vec<(String,bool)> },
     SceneAction { controller: Uuid, revision: u64, scene: String, execute: bool },
     Start(String),
@@ -53,6 +55,7 @@ pub enum Reply {
     ScenesAccepted(Vec<u64>),
     SceneSwitchStates(std::collections::BTreeMap<String,Option<bool>>),
     SceneSelectionDetails(std::collections::BTreeMap<String,crate::scene_switches::Details>),
+    SceneRelative(crate::native_scene::Receipt),
     CalendarStatus { boot: String, revision: u64, status: Option<crate::event_rules::CalendarStatus> },
     Started(u64),
     Cancelled(usize),
@@ -125,6 +128,8 @@ impl Control {
         if let Action::SceneWrites{scenes,..}=&action
             && (scenes.is_empty()||scenes.len()>64||scenes.iter().any(|(id,_)|id.trim().is_empty()||id.len()>250||id.chars().any(char::is_control))
                 ||scenes.iter().map(|(id,_)|id).collect::<std::collections::BTreeSet<_>>().len()!=scenes.len()) {return Err("invalid scene write batch".into());}
+        if let Action::SceneRelative{scene,request_id,..}=&action
+            && (scene.trim().is_empty() || scene.len()>250 || scene.chars().any(char::is_control) || request_id.is_empty() || request_id.len()>128 || !request_id.bytes().all(|b|b.is_ascii_alphanumeric()||b==b'-'||b==b'_')) {return Err("invalid relative request".into());}
         let (reply, receive) = oneshot::channel();
         self.sender
             .try_send(Request {
@@ -147,6 +152,7 @@ pub(crate) struct Receiver {
     controller: Uuid,
     generation: TaskGeneration,
     watchers: std::collections::VecDeque<Watcher>,
+    relative: crate::native_scene::Manager,
 }
 pub(crate) fn channel(controller: Uuid, generation: TaskGeneration) -> (Control, Receiver) {
     let (sender, receiver) = mpsc::channel(32);
@@ -157,6 +163,7 @@ pub(crate) fn channel(controller: Uuid, generation: TaskGeneration) -> (Control,
             controller,
             generation,
             watchers: Default::default(),
+            relative: Default::default(),
         },
     )
 }
@@ -173,6 +180,7 @@ impl Receiver {
         max_age_ms: u64,
         calendar: Option<&crate::event_rules::ScheduledRules>,
     ) {
+        self.relative.tick(admission,document,feedback).await;
         // Bound per-cycle work so incoming control cannot starve bus processing.
         for _ in 0..8 {
             let Ok(request) = self.receiver.try_recv() else {
@@ -277,6 +285,16 @@ impl Receiver {
                         let snapshot=admission.scene_selection_values(controller,self.generation.clone(),crate::scene_switches::variable_names(document)).await.map_err(|e|format!("{e:?}"))?;
                         if !admission.diagnostics(controller,self.generation.clone()).await.map_err(|e|format!("{e:?}"))?.ready() {return Err("scene selection runtime not ready".into());}
                         crate::scene_switches::states(document,&snapshot).map(Reply::SceneSwitchStates)
+                    },
+                    Action::SceneRelative{controller,revision,scene,request_id}=>{
+                        if revision!=document.revision {return Err("relative revision expired".into());}
+                        if request.reply.is_closed() || Instant::now()>=request.deadline {return Err("relative request expired".into());}
+                        self.relative.start(admission,controller,self.generation.clone(),document,scene,request_id,feedback).await.map(Reply::SceneRelative)
+                    },
+                    Action::SceneRelativeStatus{controller,revision,request_id}=>{
+                        if revision!=document.revision {return Err("relative status revision expired".into());}
+                        let row=admission.native_scene_status(controller,self.generation.clone(),request_id).await.map_err(|e|format!("{e:?}"))?.ok_or("relative request not found")?;
+                        Ok(Reply::SceneRelative(crate::native_scene::receipt(&row,document)))
                     },
                     Action::SceneWrites {controller,revision,scenes:writes}=>{
                         if revision!=document.revision {return Err("scene write revision expired".into());}

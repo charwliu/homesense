@@ -1,0 +1,90 @@
+{
+  "date": "2026-10-13",
+  "base_commit": "2a546a6e04d4ab4371b928630d773d00baffed89",
+  "scope": "committed archive plus exactly listed 22 source/test overlays, dedicated target; synthetic memory wire and localhost integration only; unrelated working-tree edits excluded",
+  "source_sha256": {
+    "crates/homesense-config/src/scene_switches.rs": "baaa2987fe9d594acb85a4d2350e10e646dcf531768d3d2f9f405a359b5b9946",
+    "crates/homesense-storage/src/lib.rs": "2b18c74493dd5ef6b17a9b6b991a7cd29011fa6ebb3ddac2037593d3c90a700c",
+    "crates/homesense-storage/src/backup.rs": "5558121d8219d8e711b852cf8a59e1c62b62dbc2d7a65a2fb5867359871ce9f7",
+    "crates/homesense-storage/src/native_scene.rs": "ebe5eb639da56ac15b632169a93076c2864e8ff6c5faa88ecfd4da6d0910f1f8",
+    "crates/homesense-storage/src/scene_observation.rs": "edadba5341df568afd39ef1a1804e38f4a27ea8c76abe3653c40aebd91e6cfec",
+    "crates/homesense-storage/tests/backup.rs": "a8ec3fe3f0d808f14bdc6473d9f8180d2b03348fcca12a93af693f7484bea485",
+    "crates/homesense-storage/tests/journal.rs": "91e77f8f231de5e643977d2df4c18fa04a564d447aeff487b8dd413c571a8728",
+    "crates/homesense-storage/tests/scene_observation.rs": "d65388a351038c4c596c8962db131b199730b1d40ba989ac3972db6077a9735e",
+    "crates/homesense-storage/tests/scene_initialization.rs": "c45b227d1a740d21053816f06f9eddad043ed745ba4419542133f8a91b9efc1a",
+    "crates/homesensed/src/lib.rs": "03b418fd900c287ab2966095e1bb5a1e1cda2d1aa6370806786ff69f3be74548",
+    "crates/homesensed/src/feedback.rs": "4cfdc259f56da2db2bdd2ade7c0c8e6bbc263724d1aafe2a44208c76f2fea087",
+    "crates/homesensed/src/native_scene.rs": "ec81ccd42eb73668404a8dc91387d9900086f6329f63c4a263cdfb55ba9e715f",
+    "crates/homesensed/src/admission.rs": "cd7c1a727d46208dba2191a8b3c8400201041a763493a693124009b30327a7a5",
+    "crates/homesensed/src/automation_control.rs": "94698e43c010ff508f0142fe62ee666455c4969e4f8d367b2f5ceab588bbce33",
+    "crates/homesensed/src/scene_reconciliation.rs": "764bc5a38ca94c94846196a35b1e90e3b9262138eb28531800ef486db55dc998",
+    "crates/homesensed/src/scene_switches.rs": "3d56589d4df29df367a6b663febe9f9020d023463dca3d9041e7d5e4ddcd5708",
+    "crates/homesensed/src/web_api.rs": "9b7133d47169f67b606cdbe3001afeb93000211fd6247dff5236bf72f3ff30f4",
+    "crates/homesensed/src/web/app.js": "e9eca8359b8cfc2dfd4106a8f343c49f4ae2d9e308082eec98b4d0c5e970391e",
+    "crates/homesensed/src/scene_initialization_tests.rs": "9c1bc53e3ba1524c457f7022cffa27af4eac6d5ff2e6281f7611fa118c19080b",
+    "crates/homesensed/src/native_scene_tests.rs": "f553cb3c7c6eb2b776722f670d2b358155916166a902e35f3061a4a1f0e258e6",
+    "tools/verify_scene_switches.cjs": "f5afae933df885006cbff3844a375c18f621b00b72749b582a4e1c92f0fbbf51",
+    "crates/homesense-storage/tests/native_scene.rs": "5e7eb3d7386bcf89e51925409b9270eb8a15a66607527e827ba58129fd8f4334"
+  },
+  "validation": {
+    "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)",
+    "unique_rust_tests_passed": 490,
+    "counts": {
+      "homesensed_all_tests": {
+        "passed": 403,
+        "failed": 0,
+        "ignored": 0
+      },
+      "config_storage_all_tests": {
+        "passed": 87,
+        "failed": 0,
+        "ignored": 0
+      }
+    },
+    "new_native_runtime_web_tests": 10,
+    "manual_takeover_scenarios": 8,
+    "new_native_storage_tests": 4,
+    "frontend": "passed",
+    "strict_clippy": "homesense-config, homesense-storage and homesensed --all-targets -D warnings passed",
+    "full_workspace_rerun": false
+  },
+  "log_sha256": {
+    "homesensed_all_tests": "4539f972613acdbe83e87b1bf8ad6a6721d08e1d51d7b6ae4d909185708de720",
+    "config_storage_all_tests": "22a812cdafa39b7424e5bb97d821300c6e2251e477b2d39bb5df2d42a40798c2",
+    "frontend": "45c07662b3ef9ea2bdc9cdc7f5a15738097b790ac3489654a716c7bd036b1461",
+    "strict_clippy": "ae253a90f2fcb4f703714e5684e481407930490ffe75b70d6af23e5cd73ee57d"
+  },
+  "behavior": [
+    "relative operation is a separate reviewed runtime/Web action for unknown current physical scene selection; ordinary HAP true/false stay absolute and idempotent",
+    "fresh known positive lights use absolute targets; healthy never-observed positive lights issue native Toggle once; negative/unused targets are explicit Off only inside reviewed member union",
+    "stale/invalid/stopped/not-ready/unauthorized or pending feedback is not legitimate initial unknown",
+    "combined unknown flips only the supply relay; a fresh post-query On permits absolute scene dimmer target, Off preserves restore level; final queries require both components",
+    "standalone native dimmer level is actual fresh query feedback, not historical/default brightness; actual setting and observed receipt commit atomically",
+    "durable request and phase consumption prevents replay after duplicate requests, short write, disconnect, timeout or restart; current selection stays unknown while pending",
+    "manual light commands or persistent selection version changes terminate initial and waiting-query phases across standalone and combined fixtures, cancel queued continuation and never retry Toggle",
+    "query receipt must be Written in the same scope and all physical outputs freshly settled; partial or pre-query feedback cannot confirm selection",
+    "Web exact-origin, typed body, role and scene grants, persistent duplicate fingerprints, explicit status and pending UI guards covered",
+    "schema24 migration preserves schema23 historical selection; inference candidate baseline and existing LED reconciliation regression retained"
+  ],
+  "attempt_notes": [
+    "initial compile found a non-Clone Intent; recipe now stores Clone device-command pairs, with no HAP API visibility relaxation",
+    "manual takeover draft test used an automation rule entry which does not establish manual ownership; corrected to actual manual admission and added actor-side waiting-phase invalidation instead of weakening assertion",
+    "initial strict Clippy rejected large enum variants, complex capture tuple, nested conditionals and unused test bindings; boxed payloads, named capture alias and targeted cleanup now pass",
+    "intermediate/rerun tests are not added to unique final count; separate root draft pre-query probe is not claimed as final independent acceptance"
+  ],
+  "initial_failure_log_sha256": {
+    "homesense-native-scene-runtime-v2.log": "58acab406966ba50caab19f63b5afc6fd6a9b06a1db49de82a8d5de6a1a168a8",
+    "homesense-native-scene-clippy-initial.log": "73b7ee2ef279a47045d305a698b6de5544bd9f97fed08f7f0c981ab494d8911c",
+    "homesense-native-scene-check.log": "07c7f1ccadfd7097f90d4fe0ee484a708fea8a6266bb11da96ccbee03dcb6840"
+  },
+  "schema_version": 24,
+  "field_actions": 0,
+  "ea5_changed": false,
+  "deployed": false,
+  "pushed": false,
+  "remaining": [
+    "independent fixed-commit audit and actual Apple/LED/load acceptance outside this offline checkpoint",
+    "query refresh capacity gaps remain a separate task; old samples are not promoted to Known",
+    "paused curtain conditions and complete original Control4 semantic migration remain independent gates"
+  ]
+}

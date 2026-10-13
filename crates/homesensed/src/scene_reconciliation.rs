@@ -30,6 +30,7 @@ pub(crate) struct Prepared {
     actual: Observations,
     max_age_ms: u64,
     lease: RuleLease,
+    relative_eligible: bool,
 }
 impl Prepared {
     pub(crate) async fn prepare(
@@ -114,6 +115,7 @@ impl Prepared {
                 (id.clone(), value)
             })
             .collect();
+        let relative_eligible=feedback.native_scene_capture(&first.keys().cloned().collect::<Vec<_>>(),admission.monotonic_ms(),policy.max_age_ms).is_ok();
         Ok(Some(Self {
             controller,
             boot: admission.boot_id().to_owned(),
@@ -125,6 +127,7 @@ impl Prepared {
             actual,
             max_age_ms: policy.max_age_ms,
             lease,
+            relative_eligible,
         }))
     }
     pub(crate) fn variable(&self) -> &str {
@@ -187,6 +190,8 @@ impl Prepared {
             .lease
             .lock(boot_id, document.revision, epochs.transport, now)
             .map_err(|_| WriteStatus::ResourceBusy)?;
+        if let Some(after)=store.native_scene_failure_after(boot,epochs,&self.group).map_err(|_|WriteStatus::ServiceCommunicationFailure)?
+            && self.lease.observations.values().any(|observed|observed.is_none_or(|at|at<=after)) {return Err(WriteStatus::ResourceBusy)}
         if store
             .has_pending_scene(boot, document.revision)
             .map_err(|_| WriteStatus::ServiceCommunicationFailure)?
@@ -233,12 +238,15 @@ pub(crate) fn project(
     if !group.reconciliation.as_ref().is_some_and(|p| p.enabled) {
         return Ok(());
     }
+    let mut relative_eligible=false;
     let mut selected = None;
     let mut observed_ms = None;
-    if ready && let Some(proof) = proof {
+    let pending_relative=store.native_scene_pending(boot,epochs,&group.id).map_err(|_|WriteStatus::ServiceCommunicationFailure)?;
+    if ready && !pending_relative && let Some(proof) = proof {
         match proof.validate(store, config, document, boot, epochs, now) {
             Ok((value, observed)) => {
                 selected = value;
+                relative_eligible=proof.relative_eligible;
                 observed_ms = observed
             }
             Err(WriteStatus::ResourceBusy | WriteStatus::InvalidValueInRequest) => {}
@@ -252,6 +260,8 @@ pub(crate) fn project(
         epochs,
         observed_ms,
         history_value: snapshot.stored.value.clone(),
+        pending_relative,
+        relative_eligible,
     });
     snapshot.stored.value = selected.map(Value::Integer);
     Ok(())

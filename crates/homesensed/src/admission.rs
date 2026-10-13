@@ -115,6 +115,8 @@ pub struct AcceptedDeferred {
     pub scenes: Vec<AcceptedScene>,
 }
 enum Submission {
+     Native(Box<crate::native_scene::Submission>),
+    NativePhysical(Batch),
     Indicator {
         batch: Batch,
         variables: Vec<homesense_storage::variables::Update>,
@@ -181,6 +183,9 @@ enum Message {
     SceneSelections(Uuid,TaskGeneration,Vec<String>,oneshot::Sender<Result<BTreeMap<String,homesense_storage::scene_observation::Snapshot>,WriteStatus>>),
     InitializeSceneSelection(Uuid,TaskGeneration,crate::scene_initialization::Prepared,oneshot::Sender<Result<(),WriteStatus>>),
     ReconcileSceneSelection(Uuid,TaskGeneration,crate::scene_reconciliation::Prepared,oneshot::Sender<Result<(),WriteStatus>>),
+    NativeStatus(Uuid,TaskGeneration,String,oneshot::Sender<Result<Option<homesense_storage::native_scene::Record>,WriteStatus>>),
+    NativeFail(Uuid,TaskGeneration,String,oneshot::Sender<Result<(),WriteStatus>>),
+    NativeFinish(Uuid,Box<crate::native_scene::Completion>,oneshot::Sender<Result<(),WriteStatus>>),
     SceneHistory(Uuid, TaskGeneration, String, Option<homesense_storage::scene_history::Cursor>, usize, oneshot::Sender<Result<homesense_storage::scene_history::Page, WriteStatus>>),
     Diagnostics(Uuid, TaskGeneration, oneshot::Sender<Result<Diagnostics, WriteStatus>>),
     ConfigurationExport(Uuid, TaskGeneration, u64, oneshot::Sender<Result<Option<homesense_storage::configuration_history::Export>, WriteStatus>>),
@@ -753,6 +758,55 @@ impl Admission {
                             if result==Err(WriteStatus::ServiceCommunicationFailure) {failed=true;let _=arbiter.storage_failed();}
                             let _=reply.send(result);
                         }
+                        Message::NativeStatus(controller,generation,key,reply)=>{
+                            let result=(||{
+                                if !authorize(controller) {return Err(WriteStatus::InsufficientPrivileges);}
+                                if generation.boot!=worker_boot {return Err(WriteStatus::InvalidValueInRequest);}
+                                store.expire_native_scenes(&worker_boot,arbiter.policy().epochs,millis(clock)).map_err(|_|WriteStatus::ServiceCommunicationFailure)?;
+                                let mut row=store.native_scene_request(&controller.to_string(),&key).map_err(|_|WriteStatus::ServiceCommunicationFailure)?;
+                                if let Some(current)=row.as_ref().filter(|r|r.status==homesense_storage::native_scene::Status::Pending) {
+                                    let version=store.logical_variable(current.request.epochs.configuration,&current.request.variable).map_err(|_|WriteStatus::ServiceCommunicationFailure)?;
+                                    let document=store.active_bundle(options.context).map_err(|_|WriteStatus::ServiceCommunicationFailure)?.and_then(|b|b.automation).ok_or(WriteStatus::InvalidValueInRequest)?;
+                                    let group=document.scene_switch_groups.iter().find(|g|g.id==current.request.group).ok_or(WriteStatus::InvalidValueInRequest)?;
+                                    let targets=group.absolute_light_targets(&document.timed_scenes).map_err(|_|WriteStatus::InvalidValueInRequest)?;
+                                    let physical=targets.values().flat_map(|targets|targets.keys()).flat_map(|id|std::iter::once(id).chain(configuration.binding(id).and_then(|(d,_)|d.supply_relay.as_ref())));
+                                    if version.is_none_or(|v|v.version!=current.request.variable_version)
+                                        || (current.fence>0 && physical.into_iter().any(|id|manual_versions.get(id).is_some_and(|v|*v>=current.fence))) {
+                                        if let Some(first)=current.initial_commands.first() {
+                                            arbiter.cancel_run_committed((1u64<<62)+first,|items|store.cancel_queued(&worker_boot,items,millis(clock))).map_err(|_|WriteStatus::ServiceCommunicationFailure)?;
+                                        }
+                                        store.fail_native_scene(&controller.to_string(),&key,millis(clock)).map_err(|_|WriteStatus::ServiceCommunicationFailure)?;
+                                        row=store.native_scene_request(&controller.to_string(),&key).map_err(|_|WriteStatus::ServiceCommunicationFailure)?;
+                                    }
+                                }
+                                Ok(row)
+                            })();let _=reply.send(result);
+                        }
+                        Message::NativeFail(controller,generation,key,reply)=>{
+                            let result=(||{
+                                if !authorize(controller) {return Err(WriteStatus::InsufficientPrivileges);}
+                                if generation.boot!=worker_boot {return Err(WriteStatus::InvalidValueInRequest);}
+                                if let Some(row)=store.native_scene_request(&controller.to_string(),&key).map_err(|_|WriteStatus::ServiceCommunicationFailure)? && let Some(first)=row.initial_commands.first() {
+                                    arbiter.cancel_run_committed((1u64<<62)+first,|items|store.cancel_queued(&worker_boot,items,millis(clock))).map_err(|_|WriteStatus::ServiceCommunicationFailure)?;
+                                }
+                                store.fail_native_scene(&controller.to_string(),&key,millis(clock)).map_err(|_|WriteStatus::ServiceCommunicationFailure)
+                            })();let _=reply.send(result);
+                        }
+                        Message::NativeFinish(controller,completion,reply)=>{
+                            let result=(||{
+                                if !authorize(controller) {return Err(WriteStatus::InsufficientPrivileges);}
+                                let policy=arbiter.policy();let now=millis(clock);
+                                if failed || worker_stop.load(Ordering::Acquire) || !policy.gateway_ready || policy.publishing || !policy.controller || !policy.storage_healthy || completion.generation.boot!=worker_boot || completion.generation.epochs!=policy.epochs {return Err(WriteStatus::ServiceCommunicationFailure);}
+                                let row=store.native_scene_request(&controller.to_string(),&completion.request.key).map_err(|_|WriteStatus::ServiceCommunicationFailure)?.ok_or(WriteStatus::InvalidValueInRequest)?;
+                                if row.request!=completion.request || row.status!=homesense_storage::native_scene::Status::Pending || row.phase!=completion.phase || now>=row.request.deadline_ms || completion.physical.iter().any(|id|manual_versions.get(id).is_some_and(|v|*v>=row.fence)) || completion.levels.iter().any(|(id,command,_)|!row.initial_commands.contains(command) || configuration.binding(id).is_none_or(|(d,m)|d.supply_relay.is_some() || m.kind()!=homesense_core::ModuleKind::Dimmer)) {return Err(WriteStatus::InvalidValueInRequest);}
+                                if store.native_written_query_devices(&row.request,&row.commands).map_err(|_|WriteStatus::ServiceCommunicationFailure)?!=Some(completion.physical.clone()) {return Err(WriteStatus::ResourceBusy);}
+                                let document=store.active_bundle(options.context).map_err(|_|WriteStatus::ServiceCommunicationFailure)?.and_then(|b|b.automation).ok_or(WriteStatus::InvalidValueInRequest)?;
+                                let (selected,_)=completion.projection.validate(&store,&configuration,&document,&worker_boot,policy.epochs,now)?;
+                                store.finish_native_scene(&row.request,row.phase,selected,&completion.levels,now).map_err(|e|match e {homesense_storage::Error::Conflict|homesense_storage::Error::InvalidAudit=>WriteStatus::InvalidValueInRequest,_=>WriteStatus::ServiceCommunicationFailure})?;
+                                scene_projections.insert(completion.projection.variable().to_owned(),completion.projection);
+                                Ok(())
+                            })();if result==Err(WriteStatus::ServiceCommunicationFailure){failed=true;let _=arbiter.storage_failed();}let _=reply.send(result);
+                        }
                         Message::ReconcileSceneSelection(controller,generation,prepared,reply)=>{
                             let result=(||{
                                 if !authorize(controller) {return Err(WriteStatus::InsufficientPrivileges);}
@@ -773,6 +827,7 @@ impl Admission {
                                 if !authorize(controller) {return Err(WriteStatus::InsufficientPrivileges)}
                                 if failed || generation.boot!=worker_boot || generation.epochs!=arbiter.policy().epochs {return Err(WriteStatus::ServiceCommunicationFailure)}
                                 if worker_observation_invalidation.load(Ordering::Acquire)!=observation_fence {scene_observer.invalidate();}
+                                store.expire_native_scenes(&worker_boot,arbiter.policy().epochs,millis(clock)).map_err(|_|WriteStatus::ServiceCommunicationFailure)?;
                                 let document=store.active_bundle(options.context).map_err(|_|WriteStatus::ServiceCommunicationFailure)?.and_then(|b|b.automation);
                                 let policy=arbiter.policy();
                                 let ready=!failed && !worker_stop.load(Ordering::Acquire) && !policy.publishing && policy.gateway_ready && policy.controller && policy.storage_healthy && policy.valid_configuration_loaded;
@@ -1165,6 +1220,10 @@ impl Admission {
                                 continue;
                             }
                             let mut manual_superseded = false;
+                            let native_mode=matches!(&*submission,Submission::Native(_));
+                            let mut native_attempt:Option<(homesense_storage::native_scene::Request,Option<u64>)>=None;
+                            let mut native_accepted:Option<(homesense_storage::native_scene::Request,u64,u64,bool)>=None;
+                            let mut native_run=None;let mut native_deadline=None;
                             let result = (|| {
                                 if failed || millis(clock) >= deadline || generation.as_ref().is_some_and(|scope| match scope {
                                     SubmissionScope::Generation(g) => g.boot != worker_boot || g.epochs != arbiter.policy().epochs,
@@ -1175,6 +1234,27 @@ impl Admission {
                                 let mut selection_checks = vec![];
                                 let software_sample = matches!(&*submission, Submission::Automation { software_sample: true, .. });
                                 let (submission, study, automation, variables, feedback, audit, scene, starts) = match *submission {
+                                    Submission::Native(prepared)=>{
+                                        let policy=arbiter.policy();
+                                        let request=prepared.request().clone();
+                                        if next_id>=(1u64<<62) {return Err(WriteStatus::ResourceBusy);}
+                                        native_deadline=Some(request.deadline_ms);
+                                        if !authorize(Uuid::parse_str(&request.controller).map_err(|_|WriteStatus::InvalidValueInRequest)?) {return Err(WriteStatus::InsufficientPrivileges);}
+                                        if prepared.generation()!=&(TaskGeneration{boot:worker_boot.clone(),epochs:policy.epochs}) || !policy.gateway_ready || policy.publishing || !policy.controller || !policy.storage_healthy || !policy.valid_configuration_loaded {return Err(WriteStatus::ResourceBusy);}
+                                        store.expire_native_scenes(&worker_boot,policy.epochs,millis(clock)).map_err(|_|WriteStatus::ServiceCommunicationFailure)?;
+                                        let old=store.native_scene_request(&request.controller,&request.key).map_err(|_|WriteStatus::ServiceCommunicationFailure)?;
+                                        native_run=Some((1u64<<62)+old.as_ref().and_then(|r|r.initial_commands.first().copied()).unwrap_or(next_id));
+                                        let before=old.map(|r|r.phase);
+                                        native_attempt=Some((request.clone(),before));
+                                        let document=store.active_bundle(options.context).map_err(|_|WriteStatus::ServiceCommunicationFailure)?.and_then(|b|b.automation).ok_or(WriteStatus::InvalidValueInRequest)?;
+                                        let group=document.scene_switch_groups.iter().find(|g|g.id==request.group).ok_or(WriteStatus::InvalidValueInRequest)?;
+                                        let mut current=store.scene_selection(configuration.revision(),&request.variable,scene_observer.scope()).map_err(|_|WriteStatus::ServiceCommunicationFailure)?.ok_or(WriteStatus::InvalidValueInRequest)?;
+                                        crate::scene_reconciliation::project(&mut current,scene_projections.get(&request.variable),group,&store,&configuration,&document,&worker_boot,policy.epochs,millis(clock),true)?;
+                                        let permit=prepared.admit(&mut store,&configuration,&document,&worker_boot,policy.epochs,millis(clock),current.stored.value.is_none(),&manual_versions)?;
+                                        selection_checks.push(homesense_storage::variables::ReadCheck{revision:configuration.revision(),name:request.variable.clone(),expected_version:request.variable_version});
+                                        native_accepted=Some((permit.request,permit.phase,permit.fence,permit.batch.intents.iter().any(|i|i.command!=homesense_core::Command::Query)));
+                                        (Submission::NativePhysical(permit.batch),None,false,vec![],Some(Box::new(permit.lease)),None,None,vec![])
+                                    },
                                     Submission::Automation { batch, variables, manual_fence, feedback, audit, scene, starts, .. } => {
                                         if software_sample && batch.intents.iter().any(|intent| !matches!(intent.command, homesense_core::Command::SetLevel { transition: homesense_core::LevelTransition::Immediate, .. })) {
                                             return Err(WriteStatus::InvalidValueInRequest);
@@ -1265,7 +1345,8 @@ impl Admission {
                                 }
                                 let mut restore_intents = Vec::new();
                                 let (batch, compiled) = match submission {
-                                    Submission::Study { .. } | Submission::Automation { .. } | Submission::Indicator { .. } => unreachable!(),
+                                    Submission::Study { .. } | Submission::Automation { .. } | Submission::Indicator { .. } | Submission::Native(_) => unreachable!(),
+                                    Submission::NativePhysical(batch)=>{restore_intents=batch.intents.iter().filter(|i|!matches!(i.command,homesense_core::Command::Query|homesense_core::Command::Toggle)).map(|i|(i.device.clone(),i.command)).collect();(batch,true)},
                                     Submission::Lights(mut batch) => {
                                         if !authorize(batch.controller) { return Err(WriteStatus::InsufficientPrivileges); }
                                         restore_intents = batch.intents.iter().map(|i| (i.device.clone(), i.command)).collect();
@@ -1333,7 +1414,7 @@ impl Admission {
                                 let end = next_id
                                     .checked_add(batch.intents.len() as u64)
                                     .ok_or(WriteStatus::ServiceCommunicationFailure)?;
-                                let manual_devices: Vec<_> = if automation {vec![]} else {batch.intents.iter().map(|i|i.device.clone()).collect()};
+                                let manual_devices: Vec<_> = if automation {vec![]} else {batch.intents.iter().filter(|i|!native_mode || i.command!=homesense_core::Command::Query).map(|i|i.device.clone()).collect()};
                                 let mut commands = Vec::new();
                                 for (offset, intent) in batch.intents.into_iter().enumerate() {
                                     let (device, module) = configuration
@@ -1357,8 +1438,8 @@ impl Admission {
                                             command,
                                             origin: if automation { Origin::Rule } else { Origin::Hap },
                                             epochs: arbiter.policy().epochs,
-                                            deadline_ms: deadline,
-                                            run_id: automation.then_some(next_id),
+                                            deadline_ms: deadline.min(native_deadline.unwrap_or(deadline)),
+                                            run_id: native_run.or_else(||automation.then_some(next_id)),
                                         },
                                         Access {
                                             authorized: true,
@@ -1423,6 +1504,18 @@ impl Admission {
                                     }
                                 }
                             })();
+                            let result=result.and_then(|ids:Vec<u64>|{
+                                if let Some((request,phase,fence,physical))=&native_accepted {
+                                    let fence=if *physical {ids.last().and_then(|id|id.checked_add(1)).unwrap_or(*fence)} else {*fence};
+                                    store.native_phase_accepted(request,*phase,&ids,fence,millis(clock)).map_err(|_|{failed=true;let _=arbiter.storage_failed();WriteStatus::ServiceCommunicationFailure})?;
+                                }Ok(ids)
+                            });
+                            if result.is_err() && let Some((request,before))=&native_attempt
+                                && let Ok(Some(row))=store.native_scene_request(&request.controller,&request.key)
+                                && before.is_none_or(|phase|row.phase>phase)
+                                && store.fail_native_scene(&request.controller,&request.key,millis(clock)).is_err() {
+                                failed=true;let _=arbiter.storage_failed();
+                            }
                             let result = result.map_err(|status| if manual_superseded {
                                 SubmissionFailure::ManualSuperseded
                             } else { SubmissionFailure::Status(status) });
@@ -1754,6 +1847,10 @@ impl Admission {
         let (reply,receive)=oneshot::channel();self.sender.try_send(Message::SceneSelections(controller,generation,names,reply)).map_err(|_|WriteStatus::ResourceBusy)?;
         receive.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?
     }
+    pub(crate) async fn native_scene_status(&self,controller:Uuid,generation:TaskGeneration,key:String)->Result<Option<homesense_storage::native_scene::Record>,WriteStatus>{let (reply,receive)=oneshot::channel();self.sender.try_send(Message::NativeStatus(controller,generation,key,reply)).map_err(|_|WriteStatus::ResourceBusy)?;receive.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?}
+    pub(crate) async fn fail_native_scene(&self,controller:Uuid,generation:TaskGeneration,key:String)->Result<(),WriteStatus>{let (reply,receive)=oneshot::channel();self.sender.try_send(Message::NativeFail(controller,generation,key,reply)).map_err(|_|WriteStatus::ResourceBusy)?;receive.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?}
+    pub(crate) async fn finish_native_scene(&self,controller:Uuid,completion:crate::native_scene::Completion)->Result<(),WriteStatus>{let (reply,receive)=oneshot::channel();self.sender.try_send(Message::NativeFinish(controller,Box::new(completion),reply)).map_err(|_|WriteStatus::ResourceBusy)?;receive.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?}
+    pub(crate) async fn submit_native_scene(&self,generation:TaskGeneration,submission:crate::native_scene::Submission)->Result<Vec<u64>,WriteStatus>{self.submit_scoped_before(Submission::Native(Box::new(submission)),Some(SubmissionScope::Generation(generation)),None).await}
     pub(crate) async fn reconcile_scene_selection(&self,controller:Uuid,generation:TaskGeneration,prepared:crate::scene_reconciliation::Prepared)->Result<(),WriteStatus> {
         let (reply,receive)=oneshot::channel();
         self.sender.try_send(Message::ReconcileSceneSelection(controller,generation,prepared,reply)).map_err(|_|WriteStatus::ResourceBusy)?;

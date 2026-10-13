@@ -606,7 +606,7 @@ impl Api {
                     }
                     _ => serde_json::Value::Null,
                 };
-                items.push(json!({"id":id,"name":name,"activity":activity,"last_run":last,"can_control":grant.may_control(id),"switch_kind":if selection.contains_key(id){"selection"}else{"momentary"},"selected":selection.get(id).and_then(|s|s.selected),"selection_state":selection.get(id).map(|s|s.selection_state),"selection_source":selection.get(id).map(|s|s.selection_source),"historical_selected":selection.get(id).and_then(|s|s.historical_selected),"observation_current":selection.get(id).and_then(|s|s.observation_current),"observation_boot":selection.get(id).and_then(|s|s.observation_boot.as_ref()),"observed_ms":selection.get(id).and_then(|s|s.observed_ms.as_ref())}));
+                items.push(json!({"id":id,"name":name,"activity":activity,"last_run":last,"can_control":grant.may_control(id) && !selection.get(id).is_some_and(|s|s.pending_relative),"switch_kind":if selection.contains_key(id){"selection"}else{"momentary"},"selected":selection.get(id).and_then(|s|s.selected),"selection_state":selection.get(id).map(|s|s.selection_state),"selection_source":selection.get(id).map(|s|s.selection_source),"historical_selected":selection.get(id).and_then(|s|s.historical_selected),"pending_relative":selection.get(id).is_some_and(|s|s.pending_relative),"relative_unknown_allowed":selection.get(id).is_some_and(|s|s.relative_unknown_allowed),"observation_current":selection.get(id).and_then(|s|s.observation_current),"observation_boot":selection.get(id).and_then(|s|s.observation_boot.as_ref()),"observed_ms":selection.get(id).and_then(|s|s.observed_ms.as_ref())}));
             }
             return response(StatusCode::OK, json!({"revision":runtime.revision.to_string(),"scenes":items}));
         }
@@ -647,10 +647,18 @@ impl Api {
                 json!({"boot":snapshot.boot,"revision":snapshot.revision,"revision_text":snapshot.revision.to_string(),"sequence":snapshot.sequence,"devices":devices}),
             );
         }
+        if request.method()==hyper::Method::GET && let Some(key)=request.uri().path().strip_prefix("/api/v1/scene-relative-requests/") {
+            if key.is_empty() || key.len()>128 || !key.bytes().all(|b|b.is_ascii_alphanumeric()||b==b'-'||b==b'_') {return deny(StatusCode::BAD_REQUEST,"invalid_request_id");}
+            let result=runtime.control.request(Action::SceneRelativeStatus{controller:grant.controller,revision:runtime.revision,request_id:key.to_owned()}).await;
+            return match result {
+                Ok(Reply::SceneRelative(receipt)) if grant.may_read(&receipt.scene) && runtime.scenes.contains_key(&receipt.scene)=>response(StatusCode::OK,json!({"request_id":receipt.key,"scene":receipt.scene,"boot":receipt.boot,"status":receipt.status,"selected":receipt.selected,"retry":false})),
+                _=>deny(StatusCode::NOT_FOUND,"relative_request_not_found"),
+            };
+        }
         if request.method() != hyper::Method::POST
             || !matches!(
                 request.uri().path(),
-                "/api/v1/scene-actions" | "/api/v1/scene-cancellations" | "/api/v1/device-commands"
+                "/api/v1/scene-actions" | "/api/v1/scene-cancellations" | "/api/v1/device-commands" | "/api/v1/scene-relative-actions"
             )
         {
             return deny(StatusCode::NOT_FOUND, "not_found");
@@ -722,6 +730,13 @@ impl Api {
                 },
                 fingerprint,
             )
+        } else if request.uri().path()=="/api/v1/scene-relative-actions" {
+            #[derive(serde::Deserialize)]
+            #[serde(deny_unknown_fields)]
+            struct Relative {scene:String,request_id:String}
+            let Ok(body)=serde_json::from_slice::<Relative>(request.body()) else {return deny(StatusCode::BAD_REQUEST,"invalid_body");};
+            let fingerprint=json!({"revision":runtime.revision,"scene":body.scene,"action":"relative"}).to_string();
+            (body.scene.clone(),body.request_id.clone(),Action::SceneRelative{controller:grant.controller,revision:runtime.revision,scene:body.scene,request_id:body.request_id},fingerprint)
         } else if request.uri().path() == "/api/v1/scene-actions" {
             let Ok(body) = serde_json::from_slice::<Start>(request.body()) else {
                 return deny(StatusCode::BAD_REQUEST, "invalid_body");
@@ -807,10 +822,13 @@ impl Api {
             Err(_) => return deny(StatusCode::SERVICE_UNAVAILABLE, "persistence_unavailable"),
             Ok(Claim::New) => {}
         }
+        let relative=request.uri().path()=="/api/v1/scene-relative-actions";
         let outcome = match runtime.control.request(action).await {
             Ok(Reply::SceneAccepted(Some(run))) => {
                 json!({"request_id":request_id,"outcome":"accepted","boot":runtime.boot,"run":run})
             }
+            Ok(Reply::SceneRelative(receipt))=>json!({"request_id":request_id,"outcome":"accepted","status":receipt.status,"boot":receipt.boot,"selected":receipt.selected,"retry":false}),
+            Err(error) if relative=>json!({"request_id":request_id,"outcome":"unknown","error":error,"retry":false}),
             Ok(Reply::SceneAccepted(None))=>json!({"request_id":request_id,"outcome":"unchanged","retry":false}),
             Ok(Reply::CommandsAccepted(commands)) => {
                 json!({"request_id":request_id,"outcome":"accepted","boot":runtime.boot,"commands":commands})

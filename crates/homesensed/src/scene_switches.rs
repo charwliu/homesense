@@ -48,6 +48,8 @@ pub struct Details {
     pub observation_boot: Option<String>,
     pub observed_ms: Option<String>,
     pub historical_selected: Option<bool>,
+    pub pending_relative: bool,
+    pub relative_unknown_allowed: bool,
 }
 pub(crate) fn details(
     document: &Document,
@@ -83,6 +85,8 @@ pub(crate) fn details(
                     observation_boot: state.physical.as_ref().map(|p|format!("{:032x}",p.boot_id)).or_else(||inferred.map(|e| format!("{:032x}", e.scope.boot_id))),
                     observed_ms: state.physical.as_ref().and_then(|p|p.observed_ms).map(|v|v.to_string()).or_else(||state.physical.is_none().then(||inferred.map(|e|e.observed_ms.to_string())).flatten()),
                     historical_selected: state.physical.as_ref().and_then(|p|match p.history_value {Some(Value::Integer(value))=>Some(value==member.value),_=>None}),
+                    pending_relative: state.physical.as_ref().is_some_and(|p|p.pending_relative),
+                    relative_unknown_allowed: state.physical.as_ref().is_some_and(|p|!p.pending_relative && p.relative_eligible) && selected[&member.scene].is_none(),
                 },
             );
         }
