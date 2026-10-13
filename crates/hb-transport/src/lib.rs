@@ -12,6 +12,18 @@ pub struct PreparedFrame {
     context: ExecutionContext,
 }
 impl PreparedFrame {
+    pub fn prepare_module_query(
+        module: &ModuleSpec,
+        context: ExecutionContext,
+        transport_epoch: u64,
+    ) -> Result<Self, ProtocolError> {
+        Ok(Self {
+            bytes: hb_protocol::encode_module_query(module, context)?.bytes(),
+            transport_epoch,
+            context,
+        })
+    }
+
     pub fn prepare(
         module: &ModuleSpec,
         channel: Channel,
@@ -77,7 +89,10 @@ impl Connection<std::net::TcpStream> {
             ));
         }
         let stream = std::net::TcpStream::connect_timeout(&address, connect_timeout)?;
-        stream.set_read_timeout(Some(io_timeout))?;
+        // Reads are polling operations in the single transport owner. A long idle
+        // wait on each loop starves refresh and controls despite fast replies.
+        // Logical query deadlines remain independent of this polling bound.
+        stream.set_read_timeout(Some(io_timeout.min(std::time::Duration::from_millis(1))))?;
         stream.set_write_timeout(Some(io_timeout))?;
         stream.set_nodelay(true)?;
         Ok(Self::new(stream, epoch))

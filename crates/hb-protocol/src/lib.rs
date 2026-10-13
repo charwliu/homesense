@@ -51,6 +51,35 @@ impl fmt::Display for ProtocolError {
 }
 impl std::error::Error for ProtocolError {}
 
+/// Only profiles whose same-model manuals explicitly document A0 F2.
+/// R8 PRO's ambiguous A8 entry and GT-C8's individual-only table are excluded.
+pub fn supports_module_query(profile: homesense_core::ProtocolProfile) -> bool {
+    matches!(
+        profile,
+        homesense_core::ProtocolProfile::Ad8Din
+            | homesense_core::ProtocolProfile::GtE4Rl
+            | homesense_core::ProtocolProfile::GtD8Rl
+            | homesense_core::ProtocolProfile::GtL8Rl
+    )
+}
+
+/// Addressed read only; BusAddress excludes broadcast. No channel-zero escape
+/// through the ordinary command encoder, and no relaxation of verification.
+pub fn encode_module_query(
+    module: &ModuleSpec,
+    context: ExecutionContext,
+) -> Result<RawFrame, ProtocolError> {
+    module.validate_context(context)?;
+    if !supports_module_query(module.profile()) {
+        return Err(ProtocolError::UnsupportedCommand);
+    }
+    Ok(RawFrame {
+        address: module.address().get(),
+        command: 0xA0,
+        value: 0xF2,
+    })
+}
+
 pub fn encode(
     module: &ModuleSpec,
     channel: Channel,

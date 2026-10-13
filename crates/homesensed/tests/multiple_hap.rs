@@ -144,6 +144,14 @@ async fn run_pairing(fresh: bool) {
                     result=socket.read_exact(&mut frame)=>if result.is_err(){break;},
                     _=&mut disconnected,if epoch==0=>break,
                 }
+                if frame[2] == 0xa0 {
+                    assert_eq!(frame[3], 0xf2);
+                    let replies: Vec<_> = (0..8).flat_map(|index| {
+                        [0xae, 0x15, 0xd1 + index, levels.get(index as usize).copied().unwrap_or(0), 0xee]
+                    }).collect();
+                    if socket.write_all(&replies).await.is_err() { break; }
+                    continue;
+                }
                 let channel = match frame[2] {
                     0xa1 | 0x01 => 0,
                     0xa2 | 0x02 => 1,
