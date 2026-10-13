@@ -1,0 +1,65 @@
+{
+  "date": "2026-10-13",
+  "status": "nominal_custom_variable_lifecycle_documented_source_initialization_not_approved",
+  "source_archive_sha256": "ff8c298fd2c8efa840d572d3ca544860ffbbc4e7176f09e93efdc5464b9ce6ec",
+  "source_xml_sha256": "cac7dcdc9db08599e55a22bacb72858035c64e1ac846e2139ead5fc634513748",
+  "source_root_tag": "currentstate",
+  "source_declared_project_version": {
+    "majorversion": "3",
+    "minorversion": "2",
+    "buildnumber": "3",
+    "buildrevision": "606460"
+  },
+  "source_variable_declaration_counts": {
+    "deviceid": {
+      "100001": 25
+    },
+    "type": {
+      "2": 25
+    },
+    "readonly": {
+      "0": 25
+    },
+    "hidden": {
+      "0": 25
+    }
+  },
+  "source_program_count": 215,
+  "source_project_root_event_program_count": 0,
+  "official_sources": [
+    {
+      "url": "https://docs.control4.com/help/c4/software/cpro/dealer-composer-help/content/composerpro_userguide/variable_handling.htm",
+      "claims": [
+        "User-defined variable values are normally retained across ordinary system restart.",
+        "Abnormal shutdown may fail to preserve those values.",
+        "Explicit project-loaded event programming can initialize variables."
+      ],
+      "claim_scope": "Documented custom-variable interface only; not a guarantee of this archive runtime or numeric owner/type encoding."
+    },
+    {
+      "url": "https://docs.control4.com/help/c4/software/cpro/dealer-composer-help/content/composerpro_userguide/example_using_a_custom_number.htm",
+      "claims": [
+        "The custom Number-variable example explicitly enters zero and uses arithmetic and comparison commands."
+      ],
+      "claim_scope": "A worked example does not declare zero as a universal initialization default."
+    }
+  ],
+  "consequences": [
+    "Do not map all original variables to fresh zero-valued temporary state on each HomeSense restart.",
+    "Archive current-state or saved values remain ineligible as approved initial defaults.",
+    "No source event owned by the project root is present among the 215 archived event programs; no project-loaded initialization program can be inferred from this event list.",
+    "Keep integer comparisons and arithmetic domains intact; retained or externally initialized values cannot be restricted to explicit assignment literals."
+  ],
+  "remaining": [
+    "Authoritative identification of source variable owner 100001 and type code 2, including source interface applicability.",
+    "Per-variable reviewed lifetime, initial value, allowed external/implicit writers and real startup behavior.",
+    "Abnormal-shutdown retention and original driver asynchronous behavior; no runtime-variable approval follows from nominal documentation."
+  ],
+  "saved_values_inspected": false,
+  "driver_script_entries_read": false,
+  "runtime_definitions_generated": false,
+  "full_variable_approvals_added": 0,
+  "full_program_approvals_added": 0,
+  "field_actions": 0,
+  "audit_script_sha256": "22df692223415202235325865701baef02fc993f7591d6c7a9276334b54562ab"
+}
