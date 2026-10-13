@@ -1,0 +1,105 @@
+{
+  "commit": "5c37f9d0318065fafd39881150d390872a66cdd4",
+  "all_original_files_unchanged": 947,
+  "test_only_appends": "original timing probe plus four partition/scope/ambiguity tests in native_scene_tests.rs",
+  "final_tests": {
+    "passed": 5,
+    "failed": 0,
+    "ignored": 0,
+    "new_independent_tests_beyond_prior_timing_probe": 4,
+    "runtime_cases": 16,
+    "intermediate_runs_not_added": true
+  },
+  "mixed_known_unknown_cases": [
+    [
+      0,
+      0,
+      1
+    ],
+    [
+      0,
+      17,
+      2
+    ],
+    [
+      0,
+      100,
+      2
+    ],
+    [
+      30,
+      0,
+      1
+    ],
+    [
+      30,
+      17,
+      2
+    ],
+    [
+      30,
+      100,
+      2
+    ],
+    [
+      100,
+      0,
+      1
+    ],
+    [
+      100,
+      17,
+      2
+    ],
+    [
+      100,
+      100,
+      2
+    ]
+  ],
+  "two_unknown_positive_cases": [
+    [
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      17,
+      3
+    ],
+    [
+      30,
+      0,
+      1
+    ],
+    [
+      30,
+      17,
+      2
+    ]
+  ],
+  "other_assertions": [
+    "Unused unknown lamp explicitly Off",
+    "Outside binding receives neither control nor final Query",
+    "Complete ambiguous binary pattern retains unknown selection despite observed request",
+    "No duplicate relative commands or extra output after completion",
+    "Final selection follows actual reply vector,may differ from requested scene",
+    "Standalone native unknown dimmer setting equals actual readback"
+  ],
+  "scope": "Actual fixed Manager/Admission/Store;synthetic in-memory wire and frames;no physical orHTTP/HAP client",
+  "limits": [
+    "16 runtime cases overlap prior core/input values,not16 new domain values",
+    "Five final tests include previously audited timing test;only four newly added",
+    "Does not independently close all27 prepared relative cases",
+    "No combined relay,old-boot/reconnect,Web/HAP permission orLinux acceptance claim from this subset",
+    "No strictClippy claim for private appended probes"
+  ],
+  "field_enablement": false,
+  "artifact_sha256": {
+    "partition-probe.rs": "e373763397b3296e9fa01d940e4940a4bb29dc3e75f0c2f646c9dcb629b6eefc",
+    "partition-tests.log": "bdff7bbe787a8ab91c691ed29350ea0816c335f05059c9efe1255fb2148413b2",
+    "partition-final.log": "a7176c0ea00c9c7b9a423ba56137c69dd72fd25a0dd7a3ec733136cc29db50e7",
+    "fixed-commit-input.json": "0565e696a1d3666ffa509d85a1387db4a7c8960a62ca068b2e1405e0f90d3630"
+  }
+}
