@@ -1,0 +1,47 @@
+{
+  "status": "requirement_counterexample_reproduced",
+  "baseline_commit": "b02ee4029179e216f5fb3f0bb8a033a078a2dc35",
+  "baseline_archive_sha256": "ce430e9dcefa075084d5c879190eaace5d1b9b0dcdb59f6451be474e43bfd374",
+  "uncommitted_author_overlay_paths": 18,
+  "author_overlay_before_probe_hashes_match": 18,
+  "original_non_overlay_files_unchanged": 900,
+  "probe_sha256": "af2e854889ee59ebebef9af6a9481b81e58ed068778a9dd8a1e88386d0e9d7ef",
+  "tested_scene_initialization_tests_sha256": "2fb86932a9a538d7aa6a14e24fbf3d330002ca640156aa6ddfd76b7aed6b4f72",
+  "log_sha256": "409f69ad62e80d78669cfb13f856e2ef4196f266599142f9991943aa6759e05e",
+  "result_sha256": "8c715715c448e9ec90b3738a51bb7bc149b2426e3969b0f2c7ed396b8a4d7e92",
+  "build": "successful, dedicated Cargo target directory",
+  "tests": {
+    "passed": 0,
+    "failed": 1,
+    "ignored": 0
+  },
+  "counterexample": "persisted reading selection survives restart even after current boot fresh all-off feedback; HAP returns reading true instead of false",
+  "commands": 0,
+  "scene_runs": 0,
+  "limitations": [
+    "draft one-time unique_light_targets implementation, not current committed new startup-ground-truth feature",
+    "in-memory Feedback.apply plus actual HAP Source.sample, no TCP or iPhone",
+    "intentional failing test checks newest requirement; not counted as passing regression"
+  ],
+  "observed": {
+    "actual_fresh_lights": [
+      0,
+      0
+    ],
+    "actual_selected": {
+      "first": true,
+      "second": false,
+      "third": false
+    },
+    "commands": 0,
+    "expected_selected": [
+      false,
+      false,
+      false
+    ],
+    "raw_value": 1,
+    "scene_runs": 0,
+    "scope": "synthetic current boot Feedback.apply + actual Source.sample, not real TCP or iPhone"
+  },
+  "latest_selection_requirement": "complete fresh binary on/off pattern; brightness shown separately; old persistent selection is historical until revalidated each boot"
+}

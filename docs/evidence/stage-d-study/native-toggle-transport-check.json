@@ -1,0 +1,81 @@
+{
+  "product_commit": "5e7d78b7e88698ae30953f2e2179b08d715b3c13",
+  "archive_sha256": "e903beb5e9f511983a06d555e7fb70908511631d34322b664918fd81e249bb5e",
+  "original_source_files_verified_unchanged": 917,
+  "source_mismatches": [],
+  "six_public_native_source_hashes_match": true,
+  "existing_root_private_evidence_and_seven_log_hashes_verified": true,
+  "tests": {
+    "transport": {
+      "passed": 6,
+      "failed": 0,
+      "ignored": 0
+    },
+    "storage": {
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0
+    }
+  },
+  "transport_profiles": [
+    "Ad8Din",
+    "R8i8DinPro"
+  ],
+  "covered": [
+    "PreparedFrame capability/context path and Connection with in-memory Read+Write",
+    "Full native frame exactly five bytes in one accepting write; Query differs F2 vs Toggle F1",
+    "Short writes continue remaining suffix only, not repeated full relative frames",
+    "BrokenPipe and write TimedOut at offsets 0/2/4 disconnect; second send returns Disconnected without new stream writes",
+    "WriteZero and logical midframe expiry terminal at two bytes",
+    "Receive timeout after completed write causes Idle only, no retransmission",
+    "EOF after successful write disconnects; no resend",
+    "Fresh connection contains no output; old epoch frame rejected before write",
+    "Toggle in accepted/writing/written history recovered as Uncertain; recovery returns count only and repeated recovery count zero",
+    "Existing durable dimmer level37 and restore preference29 unchanged by Toggle and restart recovery"
+  ],
+  "limitations": [
+    "Pure in-memory streams; zero real TCP or physical devices",
+    "Transport send allows explicit caller re-invocation while connected; no claim of end-to-end deduplication",
+    "A short successful write is completed within one send, not treated as a failed frame retry",
+    "EOF detection is exercised through receive; real socket scheduling not tested",
+    "No upper Admission relative API bypass or product changes",
+    "AD8 real toggle-on brightness remains unverified",
+    "15 startup and27 relative scene cases remain pending",
+    "No new strict Clippy claim for private probes"
+  ],
+  "files": {
+    "native_storage_probe.rs": "834dce6e0fa6ce5475b81d36787ce4d2e2067f86da02feaeb08e3536db0db7f8",
+    "native_transport_probe.rs": "d964d4af8e2aa065582dcd0a92d05f11c7cb837810a0b525128fcdd60ff72206",
+    "source.json": "306fb279c4abd22e35c42de3ca552963d6d3c4358c78890b952396194902f826",
+    "storage.log": "ae6f3a54443899ae1c2e001fc3c576419d4438de2411eb3c68cb9172098df6ae",
+    "transport.log": "a8fa5a5082324515614ec500dab57f09a5aa0b757a2b6398672e93d26ec6dfe7"
+  },
+  "field_enablement": false,
+  "credentials_issued": false,
+  "root_audit": {
+    "product_commit": "5e7d78b7e88698ae30953f2e2179b08d715b3c13",
+    "archive_sha256": "e903beb5e9f511983a06d555e7fb70908511631d34322b664918fd81e249bb5e",
+    "original_source_files": 917,
+    "source_mismatches": [],
+    "probe_and_log_hashes_verified": true,
+    "test_results": {
+      "transport.log": [
+        [
+          6,
+          0,
+          0
+        ]
+      ],
+      "storage.log": [
+        [
+          1,
+          0,
+          0
+        ]
+      ]
+    },
+    "root_reviewed_probes": true,
+    "no_real_network_or_hardware": true,
+    "scope": "transport memory streams and storage recovery only; upper relative admission and startup projection remain pending"
+  }
+}
