@@ -8,12 +8,14 @@
 | --- | --- | --- |
 | 20 个直线 LED 请求程序 | 独立解码源参数和顺序，与生产转换器的有序 AST 请求一致 | 均为 blind 代理回调；名义事件身份已有文档，原版本适用／通知来源、驱动行为、六键布局、绑定及所有权未验收 |
 | 179 个可转换程序的归一化 AST 结构 | 独立 XML 模型逐事件核对字面量条件、AND／OR、嵌套 If／Else、变量表达式、场景引用和动作顺序，0 差异 | 含上述20个LED程序和4个源空程序；不是179个完整批准，源追踪标签、异步变量、触发／驱动／时序／物理执行另行审核 |
-| 唯一 `RAMP_TO_LEVEL` 节点的 `TIME` | API 参数单位为毫秒，源静态参数已核对 | 完整分支、原驱动渐变实现、实物执行；不用于推导其他 rate 字段 |
+| 唯一 `RAMP_TO_LEVEL` 程序的显式渐变转换 | API参数单位为毫秒；固定生产接口的完整程序有序AST与独立XML模型一致，生成禁用定义保留TIME=1000／LEVEL=0 | 触发／异步变量／原驱动渐变实现／实物执行仍未审核；默认编译器的179／36计数不变，不用于推导其他rate字段 |
 | 51 个场景的 Toggle 目标 | 源目标存在且唯一；48 条实际关闭调用全部有可解析目标 | 目标场景的完整时序、跟踪、绑定与执行仍待审核 |
 
 LED 子集只允许启用的直线请求和明确的字面量键号；整数或字符串声明的规范数字选择器均保留源类型。未知代码字段、条件、禁用分支、动态值、未知容器属性或混合文本不获得该等价证据。结果仍为 `semantic_approved=false`、`runtime_rule_enabled=false`；这 20 个程序继续计入未完成全语义的范围。
 
 官方 `SendToDevice` 示例把 `RAMP_TO_LEVEL` 的 `TIME=3000` 说明为 3 秒。这关闭命令参数单位问题，不证明驱动执行或存档字段的单位。[官方 API](https://snap-one.github.io/docs-driverworks-api/#sendtodevice)
+
+该命令所属26代码项程序另通过独立完整结构核对：固定`1cd94a4`的实际`compile_event_with_fades`导出程序AST及一份禁用渐变定义，独立XML白名单模型解码条件／嵌套分支／变量表达式及动作顺序，RAMP扩展独立读取两个静态INTEGER参数，结果一致。错误单位、自动启用、错误目标、错误采样间隔、缺失定义及空动作六种变体均被拒绝。审计参数interval100ms／lateness100ms是显式转换选项，不冒充源字段；源TIME为1000ms、LEVEL为0。932原文件未变，1项生产导出测试通过，没有发布任何运行定义或发送命令；默认编译器仍拒绝RAMP，因此上项179归一化结构核对与36白名单外计数保持原口径。见[完整RAMP程序结构补证](evidence/stage-d-study/source-ramp-branch-differential-check.json)。
 
 ALS 的 `DEACTIVATE_SCENE` 激活 Toggle ID 指向的目标，即使目标已活动；不等同取消运行。A/B 相互指向时只执行当前一跳的目标激活，不递归遍历 toggle 图。[官方 ALS 契约](https://snap-one.github.io/docs-driverworks-proxyprotocol-lightv2/#asynchronous-commands)
 
