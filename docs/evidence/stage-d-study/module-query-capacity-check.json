@@ -1,0 +1,131 @@
+{
+  "date": "2026-10-13",
+  "commit": "bfe61f28aa0070904f248ee418b542ffdde9bbeb",
+  "status": "isolated_acceptance_passed_field_validation_pending",
+  "source": {
+    "clean_git_archive": true,
+    "original_files": 949,
+    "archive_sha256": "fec7242edfadfe5515db46b81b12ecd55fb57dd377ddb98e21f9361c494324a9",
+    "changed_source_sha256": {
+      "crates/hb-protocol/src/lib.rs": "f5433a90fa8ab21311fe0c69320fd8190e636e4f2001dace00e8c0c4f39e7124",
+      "crates/hb-protocol/tests/profiles.rs": "9895c034f7bab7b42058fa5ca10939c343a843436b4a145b300fbab6934d343f",
+      "crates/hb-transport/src/lib.rs": "49d69727fe394c369af7cbe0954bc9f6b0a86fd82c902498d7679451876e6a5b",
+      "crates/homesense-simulator/src/lib.rs": "38e2be9cac9fb3d8377ecb2e4bb6e0b37ec32d3b052cf302602419223484de23",
+      "crates/homesensed/src/observed_transport.rs": "ad829530ace7334a9492b77f55e2e175abc8f69d2bf99f44437052cf84490a29",
+      "crates/homesensed/src/transport_owner.rs": "ede8f269668062333f3482f56cb87e35b8432b44673344d58bf1780110727329",
+      "crates/homesensed/src/module_query_tests.rs": "1dde84a3f608fe9087a8093c57b8e0b4ce8391e966f7ff628f919e644dae989a",
+      "crates/homesensed/src/automation_tcp_bridge_tests.rs": "aa99e36c31f98dd5a99d6a950983208c3bc0a1cbc5a772f0c7bb47c6c22888d8",
+      "crates/homesensed/tests/multiple_hap.rs": "50b275d06789e5bdb78abff7a32bdbda220d8a439c0e693d4443d5e9d40db334",
+      "crates/homesensed/tests/supervisor.rs": "f628a04e188c645d08d4e7715ccc1fad1126a6aed04f167372627908fa1f237b"
+    }
+  },
+  "capabilities": {
+    "module_query_profiles": [
+      "ad8_din_rs485_v2_2_1",
+      "gt_e4_rl_v3_2_2_2",
+      "gt_d8_rl_v2_2_6_2",
+      "gt_l8_rl_v2_0_7_2"
+    ],
+    "not_enabled": [
+      "r8i8_din_pro_v2_7_7: ambiguous manual",
+      "gt_c8_rl_v2_8_2_2: no documented module query"
+    ],
+    "grouping": [
+      "gateway",
+      "nonzero module address",
+      "exact profile"
+    ],
+    "required_coverage": "all enabled physical endpoints including hidden supply relays",
+    "disabled_channels_create_bindings": false
+  },
+  "changes": [
+    "capability-checked addressed module query encoding",
+    "per-channel new observation, generation, quality and freshness checks",
+    "cadence anchored to scheduled time rather than response completion",
+    "bounded TCP idle polling",
+    "queries interleaved with queued controls on the existing write slot",
+    "one bounded periodic query retry; no startup or control replay"
+  ],
+  "workspace": {
+    "passed": 735,
+    "failed": 0,
+    "ignored": 0,
+    "result_blocks": 131
+  },
+  "strict_clippy": {
+    "scope": "workspace all targets",
+    "passed": true,
+    "new_allowances": false
+  },
+  "linux_runtime_library": {
+    "passed": 103,
+    "failed": 0,
+    "ignored": 0,
+    "same_product_source": true
+  },
+  "new_tests": {
+    "runtime": 13,
+    "protocol": 1,
+    "included_in_total_counts": true,
+    "synthetic_vector_groups": 16,
+    "execution_note": "vector groups covered by new and existing tests, not16 independent test functions"
+  },
+  "linux_service": {
+    "duration_seconds": 35,
+    "physical_endpoints": 96,
+    "profiles": "56 R8 PRO individual channels +40 AD8 channels grouped into5 module requests",
+    "write_interval_ms": 20,
+    "query_frames": 919,
+    "unique_query_frames": 61,
+    "physical_endpoint_coverage": 96,
+    "control_frames": 0,
+    "http_state_samples": 113,
+    "confirmed_observations": 10848,
+    "stale_samples": 0,
+    "ready_seconds": 1.6734427030023653,
+    "max_query_repeat_seconds": 2.851588985999115,
+    "median_query_repeat_seconds": 2.4458627109997906,
+    "exit_code": 0,
+    "pid_absent": true,
+    "binary_sha256": "6e913a0d8a39ab0bbef1263e1f72c3bb128352793dca6e2a097fb5cdf43f3672"
+  },
+  "attempts": {
+    "initial_parallel_linux_library": {
+      "passed": 102,
+      "failed": 1,
+      "failure": "multiple_bridges_rebuild_and_isolate_occupied_listener; exited before diagnostics ready; cause not established"
+    },
+    "independent_bridge_recheck": {
+      "passed": 1,
+      "same_source": true
+    },
+    "full_serial_recheck": {
+      "passed": 103,
+      "failed": 0,
+      "ignored": 0,
+      "same_product_source": true
+    },
+    "initial_loopback_permission_failure": "retained; not counted as pass"
+  },
+  "limitations": [
+    "No physical gateway or firmware verification; R8 PRO and GT-C8 remain individual queries",
+    "100ms cannot serve the mixed61-request mapping inside5s; this acceptance uses20ms",
+    "No protocol transaction ID: late/unsolicited feedback remains observation, never proof of query causation or atomic snapshot",
+    "Queries may retry once on periodic timeout; controls/native Toggle are never retried",
+    "Control fairness is bounded interleaving, not hard real-time preemption of an in-flight read",
+    "Linux production entrypoint tested using isolated debug binary; no deployment or release-performance claim",
+    "27 relative-case fixture was not separately executed as27 independent cases; existing native-scene tests are included in fixed workspace/Linux library regression"
+  ],
+  "field_enablement": false,
+  "real_gateway_connected": false,
+  "live_database_or_pairing_modified": false,
+  "new_credentials": false,
+  "evidence_sha256": {
+    "workspace.log": "46ea237be2760df5c7401e828e57c7e8ea475b7a6a58aa37ae8c052f1cf52459",
+    "clippy.log": "726695efd8438841f817b8b319f92d4050868e1a86cf5b8fcc192f8f7ba61c8d",
+    "linux-evidence/linux-source-audit.json": "244914042f1b169104034a588594cb180ac48458e647a63078c6755926dac0f9",
+    "linux-evidence/service96-final/results.json": "cca78d144597f5e21dddaa2507974d2a1a2b7ea561bd8016721204fcdd32e484",
+    "probe-service96.py": "1c7ce29f911415d8c14419a97d7d006dae1c2f48f7906c3cdd6ae58dbdbe0589",
+    "linux-evidence/final-lib-serial.log": "2a6568bd1ff86393b57bf2ad441865b759fbe6be24a72490f877c34df83fb758"
+  }
+}
