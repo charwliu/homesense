@@ -151,6 +151,7 @@ impl Synchronizer {
             }];
             let mut lease = None;
             let mut off = false;
+            let mut relative_pending = false;
             // Scene truth under the new policy is physical On/Off. Historical
             // dimmer intent remains the policy for ordinary light-only links.
             let physical_scene = link.scene.as_ref().is_some_and(|scene|document.scene_switch_groups.iter().any(|g|g.members.iter().any(|m|&m.scene==scene) && g.reconciliation.as_ref().is_some_and(|p|p.enabled)));
@@ -160,7 +161,10 @@ impl Synchronizer {
                 controller,
                 generation.clone(),
                 names,
-                |variables, _selections, policy| {
+                |variables, selections, policy| {
+                    relative_pending = selections.values().any(|selection| {
+                        selection.physical.as_ref().is_some_and(|physical| physical.pending_relative)
+                    });
                     let (plan, read) = feedback.plan_indicator_rule(
                         &nodes,
                         variables,
@@ -186,6 +190,13 @@ impl Synchronizer {
                 }
                 Err(PreparationFailure::Planning(error)) => return Err(error),
             };
+            // A fresh intermediate Off can precede the remaining native phase's
+            // query replies. Defer this group's LEDs/selection until that phase
+            // is observed; independent light links keep their normal scope.
+            // Do not change dedup state while waiting for complete feedback.
+            if relative_pending {
+                continue;
+            }
             let lease = lease.ok_or("indicator feedback lease missing")?;
             // An unsettled sample must not change dedup state (off->on->off).
             match admission
