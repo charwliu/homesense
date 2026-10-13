@@ -1,0 +1,63 @@
+{
+  "date": "2026-10-13",
+  "status": "fixed_schema2_downgrade_guard_shared_by_three_storage_routes_verified",
+  "fixed_commit": "f1b2e8aef58bf6b129e39a253f6fe9531d8d2e0c",
+  "archive_sha256": "055b43935edfbcf276d17d82054608431f60ef44ffb2d4ea37a85cf315f781b4",
+  "original_files_verified_unchanged": 968,
+  "private_test_added": "crates/homesensed/tests/root_module_publication.rs",
+  "actual_tests": {
+    "passed": 1,
+    "failed": 0,
+    "ignored": 0
+  },
+  "observations": {
+    "active_unchanged_after_each_rejection": true,
+    "device_definitions_equal": true,
+    "positive_cancellation_rows": 1,
+    "positive_module_id": "stable-dimmer",
+    "positive_schema2_revision": 2,
+    "rejected_attempts": 6,
+    "rejected_automation_rows": 0,
+    "rejected_cancellation_rows": 0,
+    "rejected_configuration_rows": 0,
+    "reopen_preserved_rejected_state": true,
+    "routes": [
+      "publish",
+      "publish_configuration",
+      "publish_automation"
+    ]
+  },
+  "independent_saved_sql_check": {
+    "successful_fixture_count": 1,
+    "failed_attempt_fixture_count": 1,
+    "schema2_module_id_retained_in_all_saved_revisions": true,
+    "only_positive_publication_has_automation_and_cancellation_row": true
+  },
+  "actual_test_binary_sha256": "76bf49cd457bd658376aba85bd2ab1f9703cfcba4f02ef0a44be3be71853c158",
+  "evidence_sha256": {
+    "source.json": "d75a21d78fbebd69e3af6e658d2aa70145bb8a32c893667198bd652ce7edeaf5",
+    "probe.rs": "5df69388e22d6f0ae7b349acbf042932c1fed9378e3b8f4fdb221661a5a92605",
+    "test.log": "1c5badefe35363ba97373e41c62d015439d8e24a34a7efbf826e3b7c3b5343e4",
+    "observations.json": "2785a6f583e05c35b2c44e1da3e6168be1ed7b71c59f1b65e834266838adc0d7",
+    "attempt-01.log": "0e0be1b76bfeb93934dc5beed8558f47672b5f563e5a460733ec027e9b376444",
+    "attempt-01-probe.rs": "31c1f23923145152f237915101a0d7d03c1715e047a1b6bc3db039295e7b8d35",
+    "attempt-02.log": "a3a31c369acdefad2ab834aa826ca7c5feda7792ee5ba9cd960da503e29bc2e4",
+    "attempt-02-probe.rs": "31c1f23923145152f237915101a0d7d03c1715e047a1b6bc3db039295e7b8d35",
+    "verify.py": "f7be02540afd82c45505ceba51f577f1e1ea9c70f0735de867bf8fd91013b0e1"
+  },
+  "attempt_notes": [
+    "Initial private test placed in storage crate, which has no direct serde_json dependency; moved test to existing runtime integration-test harness, with all production Cargo/source files unchanged.",
+    "Initial stale-CAS fixture used expected revision zero, rejected by positive-revision validation before CAS; corrected to valid but mismatched expected revision 7. No production behavior changed."
+  ],
+  "limitations": [
+    "One actual integration test covers six rejected attempts and a valid schema2 CAS publication; these are not six distinct test functions.",
+    "Shared Store transaction guard is verified through publish, publish_configuration and publish_automation. This does not prohibit an intentional valid schema2 module-identity edit.",
+    "Offline storage, re-open and saved-SQL checks only; no online supervisor activation or transport generation transition.",
+    "No canonical module-channel ground-truth, query action, real HAP client or original project semantic approval is added."
+  ],
+  "network": false,
+  "physical_controls": 0,
+  "credentials_created": false,
+  "product_source_changed": false,
+  "deployed": false
+}
