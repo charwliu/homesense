@@ -90,7 +90,7 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
     }
     pub(crate) async fn idle_for_refresh(&self,controller:uuid::Uuid,generation:crate::admission::TaskGeneration)->bool {
         self.admission.diagnostics(controller,generation).await
-            .is_ok_and(|state|state.ready() && state.queued==0 && !state.in_flight)
+            .is_ok_and(|state|state.ready() && !state.in_flight)
     }
     /// Internal synchronization query only. PreparedFrame validates capability,
     /// channel, verification and execution context before any bytes are sent.
@@ -102,6 +102,13 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
         context: homesense_core::ExecutionContext,
         timeout_ms: u64,
     ) -> Result<(), String> {
+        self.query_status_scope(gateway, module, channel, context, timeout_ms, false).await
+    }
+    pub(crate) async fn query_status_scope(
+        &mut self, gateway: &str, module: &homesense_core::ModuleSpec,
+        channel: homesense_core::Channel, context: homesense_core::ExecutionContext,
+        timeout_ms: u64, whole_module: bool,
+    ) -> Result<(), String> {
         if self.failed || timeout_ms == 0 || timeout_ms > 5000 {
             return Err("invalid query owner or timeout".into());
         }
@@ -110,13 +117,15 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
             .get(gateway)
             .ok_or("missing query gateway")?
             .epoch();
-        let frame = hb_transport::PreparedFrame::prepare(
+        let frame = if whole_module {
+            hb_transport::PreparedFrame::prepare_module_query(module, context, epoch)
+        } else { hb_transport::PreparedFrame::prepare(
             module,
             channel,
             homesense_core::Command::Query,
             context,
             epoch,
-        )
+        ) }
         .map_err(|e| e.to_string())?;
         let mut slot = self.wait_write_slot().await;
         let deadline = self

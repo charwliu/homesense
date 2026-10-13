@@ -373,3 +373,38 @@ fn ad8_uses_documented_ramps_and_rejects_unproven_immediate_levels() {
     }
     assert!(encode(&module, channel(9), Command::Query).is_err());
 }
+
+#[test]
+fn whole_module_query_requires_explicit_same_model_capability_and_verification() {
+    for profile in [
+        ProtocolProfile::Ad8Din,
+        ProtocolProfile::GtE4Rl,
+        ProtocolProfile::GtD8Rl,
+        ProtocolProfile::GtL8Rl,
+    ] {
+        let module = ModuleSpec::new(address(), profile, verified()).unwrap();
+        assert_eq!(
+            hb_protocol::encode_module_query(&module, ExecutionContext::Live)
+                .unwrap()
+                .bytes(),
+            [0xAE, 0x41, 0xA0, 0xF2, 0xEE]
+        );
+        let module = ModuleSpec::new(address(), profile, Verification::Simulated).unwrap();
+        assert!(hb_protocol::encode_module_query(&module, ExecutionContext::Live).is_err());
+        assert!(hb_protocol::encode_module_query(&module, ExecutionContext::Simulation).is_ok());
+    }
+    for profile in [
+        ProtocolProfile::R8i8DinPro,
+        ProtocolProfile::GtC8Rl,
+        ProtocolProfile::C4DinPro,
+        ProtocolProfile::GtM4Rl,
+        ProtocolProfile::Bt86cRs485,
+    ] {
+        let module = ModuleSpec::new(address(), profile, verified()).unwrap();
+        assert_eq!(
+            hb_protocol::encode_module_query(&module, ExecutionContext::Live),
+            Err(ProtocolError::UnsupportedCommand)
+        );
+    }
+    assert!(BusAddress::new(0).is_err());
+}
