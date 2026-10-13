@@ -1,0 +1,34 @@
+{
+  "fixed_commit": "1cd94a44dc222b7d7b4cbc92bac9fad2f1115907",
+  "archive_sha256": "e52c570762a1bc34aa270793faf1bd0870f654600c590d00bd2b9190a8011cf1",
+  "original_source_files_verified_unchanged": 932,
+  "tests": {
+    "passed": 1,
+    "failed": 0,
+    "ignored": 0,
+    "matrix_cases": 288
+  },
+  "covered": [
+    "actual native Command::Toggle ledger in Accepted/Writing/Written/Failed/Uncertain/Cancelled states",
+    "pending writes block samples in every tested epoch",
+    "same/current-epoch terminal write needs sample strictly after its completion time",
+    "validated newer epoch may supersede previous terminal writes; missing sample is still blocked",
+    "cancelled-before-write does not invalidate previous feedback",
+    "feedback settlement never mutates native receipt to Observed or supplies absolute target ACK"
+  ],
+  "files": {
+    "probe.rs": "3cc091f6b334f0d01a3966ffa4c4c9ed20f02f27fa4d3385469857cbf45a9c8d",
+    "test.log": "3f466ff5e36f8fbfeb91353bf9d03e6af8f66b274d84690c8bd6755e891c27e8",
+    "observations.json": "fa97a791cfbc5de06b9697ab765b7b2e8b4943ac633ab504ca06feb8e98c2b70"
+  },
+  "limitations": [
+    "storage barrier API only; caller still validates actual boot, generation, freshness and query provenance",
+    "no upper deduplication/combined-light/native API or real network/hardware claim",
+    "two synthetic device IDs do not simulate two protocol profiles",
+    "initial probe JSON dependency compilation failure preserved, excluded from pass",
+    "no strict Clippy claim for the private probe"
+  ],
+  "feedback_settlement_is_not_native_ack": true,
+  "root_source_and_probe_hashes_reverified": true,
+  "startup_query_current_probe_passed": true
+}
