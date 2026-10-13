@@ -1,6 +1,6 @@
 # 知居家庭网络架构设计
 
-版本 1.7，日期 2026 年 10 月 13 日。状态：核心改造仍是待实机验收、尚未下发的目标架构；第 9.4 节另记录现有 VLAN 3 的测试 TCP485 和 DHCP 保留，第 9.5 节记录两台家庭网关的目标迁移。VLAN 100 的现有网关和路由须等现有设备全部迁移并确认无依赖后再关闭，之后保留为二层维护 VLAN。IPv4/IPv6 双流策略同时应用是核心部署前的关键验证项。
+版本 1.10，日期 2026 年 10 月 13 日。状态：核心改造仍是待实机验收、尚未下发的目标架构；第 9.4 节另记录现有 VLAN 3 的测试 TCP485 和 DHCP 保留，第 9.5 节记录两台家庭网关的目标迁移。VLAN 100 的现有网关和路由须等现有设备全部迁移并确认无依赖后再关闭，之后保留为二层维护 VLAN。IPv4/IPv6 双流策略同时应用是核心部署前的关键验证项。
 
 逐设备操作见[华为核心、QNAP 与 AC 配置操作手册](network-configuration-runbook.md)，含业务端口标签、管理 VLAN/PVID 分支、VLAN100 维护 SSID、交换机临时 DHCP 示例及恢复步骤；全部为离线草案，尚未下发现网。
 
@@ -245,7 +245,7 @@ Vlanif4 的完整配置已确认：`dhcpv6 client pd ng4prefix`、`ipv6 address 
 
 此前本地源码未定义或处理 Renew/Rebind，是接口 REBIND 的候选原因。2026-10-13 已在 rproxy 提交 `63f464b` 修复：校验 Client/Server DUID、IAID 与原绑定，保留 PD 前缀及 IA_NA 地址，刷新 T1/T2 和租期；未知、过期或不匹配绑定返回 IA 内的 `NoBinding`。PD 回程路由恢复/下一跳更新及租约持久化成功后才回复，不在续租中分配新资源。旧 PD JSON 可读取，单个明确 IA_PD 续租时补齐 IAID。静态 IA_NA 功能另提交为 `d95c3a9`，与续租校验衔接。
 
-续租/RA 独立提交快照 28 项测试通过；包含静态 IA_NA 的版本 31 项通过、0失败、0忽略，严格 Clippy、格式检查及 Linux ARM64 全目标编译检查通过。覆盖 Renew/Rebind、混合/多个 IA、畸形报文、过期/未知绑定、旧租约、下一跳变化和路由/持久化失败。本次没有部署二进制或修改现网；生产运行版本与报文仍待核对，不能据此认定现网续租已恢复。没有进行 Linux 内核路由更新或真实 UDP/RA 收发验收。已获租前缀尚未到期不表示长期稳定；继续核查 ng3prefix 的实际引用、Vlanif3 完整前缀和回程，不以重启或强制续租掩盖现象。Release、自动 PD 路由回收、上游 PD 变化跟踪与剩余授权期衔接尚未补齐，须分别验收。
+此前续租/RA 独立提交快照28项本地测试通过；此前基线 rproxy `c3caaa1`（包含静态 IA_NA）已在 nanopi 的两个匿名网络命名空间实际执行31项单元测试与18项隔离验收，最终均通过、0失败、0忽略。严格 Clippy、格式检查及 Linux ARM64 编译检查此前已通过；本次 ARM 二进制由 macOS Rust 1.95 交叉编译，在 Debian 13.7/Linux ARM64 实际运行，不是 Linux 原生编译结论。验收覆盖 DHCPv6 组播四步获租、Rapid Commit、Renew/Rebind、混合/未知/过期 IA、报文校验、重启重载、真实 PD 回程恢复与下一跳替换、回程 ping、OSPF/策略表保留，以及路由/持久化失败。宿主接口与路由指纹不变，自有进程和命名空间已清理；本次没有部署二进制或修改现网，生产运行版本及实际续租仍待核对。[Linux 隔离证据](evidence/network/rdhcpd-linux-20261013.json)保留初始失败与最终范围。已获租前缀尚未到期不表示长期稳定；继续核查 ng3prefix 的实际引用、Vlanif3 完整前缀和回程，不以重启或强制续租掩盖现象。Release、自动 PD 路由回收、上游 PD 变化跟踪与剩余授权期衔接尚未补齐，须分别验收。
 
 ### 5.2 RA 职责与候选模板
 
@@ -258,7 +258,11 @@ Vlanif4 的完整配置已确认：`dhcpv6 client pd ng4prefix`、`ipv6 address 
 
 终端的 IPv6 默认网关是核心链路本地地址。RA 发布者可以有两个，但只有核心通告默认路由；两者 M/O 标志和 DNS 信息须一致。保留边界 WAN PD 客户端，不让边界自身默认路由指回核心，也不让核心从边界 RA 学到绕过出口策略的默认路由。
 
-**rdhcpd 的前缀 RA 模式已本地实现，尚未部署：** rproxy `63f464b` 新增 `--ra-router-lifetime-secs 0`；默认仍为1800，设0保留 PIO、MTU、RDNSS/DNSSL，只取消边界的默认路由器身份，不等于 `--disable-ra`。本地序列化、PIO/DNS 保留和独立 ICMPv6 校验和测试通过。未来先在隔离环境确认核心发出的默认路由 RA 不含 PIO，再合并此参数到两边现有服务；按实际 DHCPv6 服务统一双方 M/O 标志及 DNS。真实抓包和客户端默认路由仍待验证，不能靠提高核心 RA 优先级代替边界 lifetime=0。本次只提交源码和文档，未下发配置或部署。
+**rdhcpd 的前缀 RA 模式已在 nanopc 部署，但 RouterLifetime=0 尚未启用：** rproxy `63f464b` 新增 `--ra-router-lifetime-secs 0`；默认仍为1800，设0保留 PIO、MTU、RDNSS/DNSSL，只取消边界的默认路由器身份，不等于 `--disable-ra`。序列化与 Linux 实际 veth 收包均验证 PIO/DNS 保留、IPv6 hop limit=255 和独立 ICMPv6 校验和。Linux 客户端在 lifetime=0 时获得 SLAAC 地址但不学习边界默认路由；加入模拟核心的不含 PIO 的默认路由 RA 后，只学习模拟核心默认路由；1800旧行为亦通过。未来仍需验证实际华为 RA，再合并此参数到两边服务，并统一 M/O 标志及 DNS；不能靠提高核心 RA 优先级代替边界 lifetime=0。nanopc 本轮仅部署 DAD/RA 恢复版二进制，保持原 RouterLifetime=1800 和原启动参数；核心配置与 nanopi5 服务未改。
+
+**DAD/RA 恢复版已通过 Linux 隔离验证并部署到 nanopc：** 此前基线曾选择 DAD tentative 链路本地地址，导致 RA 绑定失败后永久退出；原始失败证据保留。本轮候选合并内核地址头及扩展标志，排除 tentative、DAD failed、deprecated 及首选期/有效期为0的地址。RA 查询、绑定或运行报错后以1、2、4、8、16、30秒退避重试，每次重新查询接口和就绪源地址、创建套接字。显式配置 DNS 时，RA 等待期间 DHCP 继续服务；省略 DNS 时最多等30秒取得就绪链路本地地址作为默认 DNS，超时仍退出启动。
+
+nanopi 实际执行39项单元测试和23项隔离验收全部通过，新增真实 DAD 完成、就绪/暂定地址共存、链路本地地址缺失后出现、实际 RA 启动发送错误恢复和默认 DNS 等待用例；测试实例无需重启，原有续租、RA lifetime=0 与 PD 回程验收也通过。验收时源码为 `c3caaa1` 加未提交补丁，随后提交为 rproxy `1368cf2`；证据记录补丁及二进制哈希，详见[DAD/RA 恢复隔离记录](evidence/network/rdhcpd-dad-linux-20261013.json)。nanopc 已安装同哈希二进制并重启 rdhcpd：RA 响应、两条 PD 回程与真实客户端 Rebind Reply 已核对，详见[部署记录](evidence/network/rdhcpd-dad-linux-20261013.json)。绑定瞬间地址消失的微小竞态没有通过真实报文强制复现，重试、重新取源和取消由单元测试覆盖；不宣称主动监听运行中地址变化。nanopc 启动已验收；nanopi5 与目标华为核心互通仍待验收。持久化失败还可能留下已更新的内核回程；本次验证无成功 Reply及同来源重试恢复，不宣称路由与文件可完整事务回滚。
 
 以下只展示核心 Vlanif3 的默认路由 RA 候选；先清除该接口已有的显式 PIO，否则 `default no-advertise` 不会隐藏它们。所有 RA 启用命令在能力和包级验证完成后才执行：
 
@@ -535,7 +539,7 @@ homesensed check-automation config/test/tcp485-vlan3.devices.json config/test/tc
 - ACL/PBR 组合资源、URPF 和 Redirect 配置；管理协议与来源限制。
 - 光模块/DAC、NAS 原光连接兼容性；机柜深度与散热；SR-ST3005 的 Tagged/Untagged、PVID、管理 VLAN、配置持久化，以及桌面摆放时的风扇噪声和散热。
 - 旧 AC 对现有 AP 的兼容性、本地转发、SSID 与管理标签；维护 SSID 的指定 AP 发布、VLAN 100 映射、独立启停及客户端到维护设备的访问规则。
-- 真实固定 /60、PD 生命周期、到货固件 /64 PD→/64 接口绑定能力；rdhcpd 续租及 RouterLifetime=0 的隔离收发与现网验收（源码已本地验证）、上游前缀/授权期衔接、租约到策略/回程同步；边界持久配置方式与 2.5G 网卡能力。
+- 真实固定 /60、PD 生命周期、到货固件 /64 PD→/64 接口绑定能力；rdhcpd 续租及 RouterLifetime=0 的现网验收（Linux隔离收发与回程已验证）、DAD/RA恢复版在 nanopc 已部署并完成启动/RA/真实 Rebind 核查（nanopi5 尚未部署）、上游前缀/授权期衔接、租约到策略/回程同步；边界持久配置方式与 2.5G 网卡能力。
 - x86 操作系统、CPU/内存/磁盘、两组聚合现行模式、实际接口和服务 IP、容器使用情况；HomeSense 版本及双接口发现验证。
 
 本文已纳入用户确定的接线和 VLAN 选择，但上述固件行为与现场参数仍待验证。所有模板只描述目标配置，不代表已实施或已通过硬件转发验收。

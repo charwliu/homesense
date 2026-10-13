@@ -1,0 +1,124 @@
+{
+  "date": "2026-10-13",
+  "source_base_commit": "c3caaa1def555c963922d183dd89d726a3cd2aa1",
+  "source_status": "uncommitted DAD recovery candidate",
+  "source_patch_sha256": "993943b57c38a05418d01fa79a914f5ac730f5f3f28ac8a7946fbab368b88840",
+  "source_files": {
+    "rdhcpd/src/bin/rdisc6.rs": "a9390d26d6bc45465fda4e457b8e93b456f176390c34684398841f866feef777",
+    "rdhcpd/src/dhcp.rs": "6385dfed584b21b487e5e2b6b3b91fe51e58cfecea2dc90a5a58d45bb4684a26",
+    "rdhcpd/src/lease.rs": "37abf64c76d009de6115daafb16ec96ad89822efe3f9f0d3cfcbe84e3e42d244",
+    "rdhcpd/src/main.rs": "bfc7c82e1a4b2168b6f3adf6e56ba055841841cfdc0dc09028dee292a11fee93",
+    "rdhcpd/src/netlink.rs": "5636d275b75099828558967cd9d54c7123402d30bd9292edcadbfe950f0df2b5",
+    "rdhcpd/src/prefix.rs": "c95b57d1f174204e6ebca675da242e6b3d7bc340d997d8aeb9ceb879d6ac4450",
+    "rdhcpd/src/ra.rs": "136cbe68874197ba28afab542e30d02804e07578ab54c9f72c9a85e9ea01f498",
+    "rdhcpd/src/renewal.rs": "b8590c886af22679e6b14a36f3ccef948185d4c1cd01dd3466373e255e94f306",
+    "rdhcpd/src/socket.rs": "7bba4647d9d438f4a47e38d1e9232bfcaf51ad1fd1c061193430a10bd91f64d0",
+    "rdhcpd/src/static_leases.rs": "2677833060c4a11895bfb38ce4b81163e9fb677cc7429bd74c49111b0ea8d526",
+    "rdhcpd/Cargo.toml": "f2ee38afb6033d6ad8dfbf8657db864f980101329ce7df5da0675c6041ea7f04"
+  },
+  "host": "nanopi",
+  "architecture": "aarch64",
+  "distribution": "Debian GNU/Linux 13.7",
+  "kernel": "Linux 7.2.10-1-nano-00004-ge73c5e64ad9c aarch64 GNU/Linux",
+  "build": "macOS Rust 1.95 cross compile; actual ARM Linux execution; not native Linux compilation",
+  "unit_tests_linux": {
+    "passed": 39,
+    "failed": 0,
+    "ignored": 0,
+    "filtered": 0
+  },
+  "unit_tests_macos": {
+    "passed": 35,
+    "failed": 0,
+    "ignored": 0,
+    "filtered": 0
+  },
+  "linux_acceptance": {
+    "passed": 23,
+    "failed": 0,
+    "cases": [
+      "two_disconnected_network_namespaces",
+      "ready_source_selected_over_lower_tentative_address",
+      "dad_completion_starts_ra_without_restart_and_dhcp_stays_live",
+      "missing_link_local_source_recovers_after_address_appears",
+      "actual_ra_startup_send_failure_recovers_without_dhcp_restart",
+      "implicit_dns_waits_for_ready_address_then_starts",
+      "ra_zero_on_wire_and_kernel_slaac_without_default",
+      "prefix_ra_coexists_with_simulated_core_default_only_ra",
+      "multicast_solicit_advertise_request_reply_pd_na",
+      "rapid_grant_pd_na_and_actual_return_path",
+      "renew_preserves_pd_na_and_refreshes_persisted_lifetimes",
+      "renew_reinstalls_missing_kernel_return_route",
+      "rebind_changes_next_hop_and_preserves_ospf_policy_routes",
+      "restart_reload_and_renew_keep_prefix_address_gateway",
+      "unknown_rebind_no_binding_without_new_allocation",
+      "wrong_server_renew_ignored",
+      "malformed_second_ia_no_partial_renew",
+      "mixed_known_unknown_ias_processed_independently",
+      "conflicting_nonowned_route_prevents_success_reply",
+      "persistence_failure_no_reply_with_route_file_partial_commit",
+      "same_rebind_retry_recovers_after_persistence_failure",
+      "ra_default_1800_preserves_legacy_kernel_behavior",
+      "expired_pd_na_rebind_no_binding_on_wire"
+    ]
+  },
+  "strict_clippy": {
+    "macos": "passed",
+    "linux_arm64": "passed with matched Rust 1.95 cargo/clippy-driver in isolated target directory",
+    "initial_tooling_failures": [
+      "Mixed Homebrew/rustup compiler cache; no Linux test ran from this lint invocation",
+      "Homebrew clippy driver selected despite stable cargo; corrected PATH to matching installed stable tools"
+    ]
+  },
+  "binary_sha256": "171f74aaefb4e8a37606f0d32a83b4c4520372d4bf248b81516cc24300b0ef88",
+  "harness_sha256": "389d2ce0fcfe694657d59b72c3f9f5e9c6f83b1b99f63d0d24a8e8735676eb85",
+  "host_network_unchanged": true,
+  "host_network_sha256": "70f0f8765aa88c0b16b68bed0b34acaf84fa1abf34be5d84ea9ec2541cc21603",
+  "cleanup": {
+    "test_processes_remaining": [],
+    "test_namespace_owners_remaining": [],
+    "namespace_inodes_destroyed": true,
+    "named_namespaces_created": false,
+    "temporary_test_directory_removed": true,
+    "removed_directory": "/tmp/rdhcpd-linux-dad-20261013"
+  },
+  "production_deployed": false,
+  "changes": [
+    "Reject tentative, DAD-failed, deprecated or expired/nonpreferred link-local source addresses, combining header and extended flags.",
+    "RA errors retry after 1/2/4/8/16/30 seconds; requery interface and source, reset backoff after 30 seconds of worker uptime.",
+    "Explicit DNS starts DHCP independently of missing RA source; implicit DNS waits at most 30 seconds for a ready link-local address."
+  ],
+  "failed_attempt": {
+    "outcome": "fixture recovery command failed after successful DAD cases and actual RA send-error/DHCP-live observation",
+    "reason": "regular IPv6 route add could not restore deleted kernel multicast route; replaced with lab-only interface down/up and address restoration",
+    "production_code_changed_between_attempts": false
+  },
+  "limitations": [
+    "No forced on-wire dump/bind micro-race: real DAD/address availability and kernel send errors exercised; retry/cancellation/fresh-source policy also covered by paused-clock unit tests.",
+    "IPv6 DAD-failed/deprecated/cache-lifetime rejection covered by actual Linux netlink-structure unit tests; no real duplicate address injected.",
+    "Long-lived active source changes and default-DNS changes are not proactively monitored; recovery reselects source after reported worker error.",
+    "Default DNS still fails startup after 30 seconds with no ready link-local address; explicit valid DNS avoids this dependency.",
+    "No real Huawei, physical VLAN, upstream PD or long-running T1/T2 test; previous route/file partial-commit and upstream lifecycle limitations remain.",
+    "No production deployment/configuration/service/interface changes."
+  ],
+  "rproxy_evidence": {
+    "repository": "rproxy",
+    "path": "rdhcpd/tests/evidence/2026-10-13-nanopi-dad/check.json",
+    "sha256": "a1e5d086a40ba89409e7bbd73e959755d0729942be93796f46ebd4d247918371"
+  },
+  "deployment": {
+    "host": "nanopc",
+    "source_commit": "1368cf2",
+    "binary_sha256": "171f74aaefb4e8a37606f0d32a83b4c4520372d4bf248b81516cc24300b0ef88",
+    "service_active": true,
+    "ra_response_observed": true,
+    "pd_return_routes_retained": 2,
+    "live_rebind_reply_observed": true,
+    "router_lifetime_seconds": 1800,
+    "nanopi5_deployed": false,
+    "rproxy_record": {
+      "path": "rdhcpd/tests/evidence/2026-10-13-nanopc-deploy.json",
+      "sha256": "03a58f04c11e33d3d0d0359ac1b6c8f182543d544ad3c2004ce23da6219582dc"
+    }
+  }
+}
