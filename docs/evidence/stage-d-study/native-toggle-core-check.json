@@ -1,0 +1,46 @@
+{
+  "validation_basis": "Fixed 35efe20 source archive plus six exact overlaid source files; unrelated shared worktree modifications excluded",
+  "baseline_commit": "35efe20747c9fcbad67d6d0f6511f02f74c26ad5",
+  "baseline_source_archive_sha256": "3a376ada0b1d0533a5563bb9ef7138733b64eb8de7864e19fc7237f19b46aba9",
+  "baseline_files_unchanged_outside_overlay": 909,
+  "source_files": {
+    "crates/homesense-core/src/lib.rs": "129b34532f0e6a8945baf08ae989ed656a261edebd4c44c84c7b55051d2d0bf1",
+    "crates/homesense-core/src/queue.rs": "a31a628995a05cf441f773c25bb04b93e29a7528ad5dd164fd92b036ec5e6a2e",
+    "crates/hb-protocol/src/lib.rs": "308c55477fa6f3d2d84a699e64ca7c41dcbcaf8fb565864e0eb82fdd4482e168",
+    "crates/homesense-state/src/lib.rs": "07043847531259ae3347c0fb8c7aaf95e2871c9924e365eb3a8c7b9831ee8e57",
+    "crates/homesense-storage/src/journal.rs": "8c4b9f24f8d7d5f959817a535f5e5c4bf48c1e61c7b31c729cef1af361b41f0f",
+    "crates/homesense-simulator/src/lib.rs": "f02661a5bf51eada36d1acf6ff5d809e58c356a886f1745e997c930e085729af"
+  },
+  "tests": {
+    "passed": 178,
+    "failed": 0,
+    "ignored": 0,
+    "result_blocks": 27,
+    "new_native_tests": 9,
+    "initial_runs_not_counted_again": true,
+    "packages": [
+      "homesense-core",
+      "hb-protocol",
+      "homesense-state",
+      "homesense-storage",
+      "homesense-simulator"
+    ]
+  },
+  "strict_clippy": "five affected packages all targets passed",
+  "workspace_all_targets": "compile check passed; no full workspace test claim",
+  "audit_encoding": [
+    1,
+    7,
+    0,
+    0
+  ],
+  "capability": "Six documented Switch/Dimmer profiles only, per-channel and existing verification/context gates",
+  "no_absolute_target_match": true,
+  "queue_epoch_change_cancels": true,
+  "journal_restart_uncertain_history_only": true,
+  "simulator": "Explicit synthetic last-nonzero/default100 policy; real AD8 toggle-on level not established",
+  "physical_controls_sent": 0,
+  "upper_scene_relative_path": "pending separate implementation",
+  "startup_scene_revalidation": "pending separate implementation",
+  "private_evidence_sha256": "d5267ac749013c4fb9ccfa7684c7afc5256fb636ceea0ba21307845feaf172d8"
+}

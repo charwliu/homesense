@@ -94,6 +94,19 @@ pub fn encode_in_context(
             level.get(),
         ),
         (ModuleKind::Switch | ModuleKind::Dimmer, Command::Query) => (0xA0 + c, 0xF2),
+        (ModuleKind::Switch | ModuleKind::Dimmer, Command::Toggle)
+            if matches!(
+                module.profile(),
+                homesense_core::ProtocolProfile::R8i8DinPro
+                    | homesense_core::ProtocolProfile::Ad8Din
+                    | homesense_core::ProtocolProfile::GtC8Rl
+                    | homesense_core::ProtocolProfile::GtE4Rl
+                    | homesense_core::ProtocolProfile::GtD8Rl
+                    | homesense_core::ProtocolProfile::GtL8Rl
+            ) =>
+        {
+            (0xA0 + c, 0xF1)
+        }
         (ModuleKind::Dimmer, Command::PauseRamp) => (0xA0 + c, 0x05),
         (ModuleKind::Motor, Command::Motor(motion)) => (
             c,
@@ -292,6 +305,78 @@ mod tests {
     }
     fn ch(n: u8) -> Channel {
         Channel::new(n).unwrap()
+    }
+    #[test]
+    fn native_toggle_vectors_are_distinct_from_query_for_all_reviewed_channels() {
+        for profile in [
+            ProtocolProfile::R8i8DinPro,
+            ProtocolProfile::Ad8Din,
+            ProtocolProfile::GtC8Rl,
+            ProtocolProfile::GtE4Rl,
+            ProtocolProfile::GtD8Rl,
+            ProtocolProfile::GtL8Rl,
+        ] {
+            let module = ModuleSpec::new(
+                BusAddress::new(0x15).unwrap(),
+                profile,
+                Verification::Verified(
+                    VerificationRecord::new("manufacturer vector fixture", 1).unwrap(),
+                ),
+            )
+            .unwrap();
+            for channel in 1..=module.channels() {
+                assert_eq!(
+                    encode(&module, ch(channel), Command::Toggle)
+                        .unwrap()
+                        .bytes(),
+                    [0xae, 0x15, 0xa0 + channel, 0xf1, 0xee]
+                );
+                assert_eq!(
+                    encode(&module, ch(channel), Command::Query)
+                        .unwrap()
+                        .bytes(),
+                    [0xae, 0x15, 0xa0 + channel, 0xf2, 0xee]
+                );
+            }
+            assert!(encode(&module, ch(module.channels() + 1), Command::Toggle).is_err());
+        }
+    }
+    #[test]
+    fn native_toggle_keeps_verification_context_and_capability_gates() {
+        for profile in [ProtocolProfile::R8i8DinPro, ProtocolProfile::Ad8Din] {
+            let pending =
+                ModuleSpec::new(BusAddress::new(1).unwrap(), profile, Verification::Pending)
+                    .unwrap();
+            assert_eq!(
+                encode(&pending, ch(1), Command::Toggle),
+                Err(ProtocolError::Validation(ValidationError::UnverifiedModule))
+            );
+            let simulated = ModuleSpec::new(
+                BusAddress::new(1).unwrap(),
+                profile,
+                Verification::Simulated,
+            )
+            .unwrap();
+            assert_eq!(
+                encode(&simulated, ch(1), Command::Toggle),
+                Err(ProtocolError::Validation(ValidationError::SimulationOnly))
+            );
+            assert!(
+                encode_in_context(
+                    &simulated,
+                    ch(1),
+                    Command::Toggle,
+                    ExecutionContext::Simulation
+                )
+                .is_ok()
+            );
+        }
+        for (kind, count) in [(ModuleKind::Motor, 4), (ModuleKind::Keypad, 6)] {
+            assert_eq!(
+                encode(&spec(kind, count), ch(1), Command::Toggle),
+                Err(ProtocolError::UnsupportedCommand)
+            );
+        }
     }
     #[test]
     fn manufacturer_command_vectors() {
