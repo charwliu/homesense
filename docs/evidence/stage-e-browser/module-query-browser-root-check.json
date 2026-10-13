@@ -1,0 +1,71 @@
+{
+  "date": "2026-10-13",
+  "fixed_commit": "bcc0d2f4de1958adc4a1e6898e4797f9f98cbf67",
+  "scope": "Actual desktop browser on localhost HTTP with fixed production app.js, API, AutomationRuntime and TransportOwner; fake serial stream only",
+  "original_source_files": 988,
+  "all_original_files_unchanged": true,
+  "private_fixture_test": {
+    "passed": 1,
+    "failed": 0,
+    "ignored": 0,
+    "filtered": 0
+  },
+  "browser_entry_modes": [
+    "PRO whole-module request expanded to eight individual queries",
+    "AD8 whole-module request",
+    "AD8 channel 3 request"
+  ],
+  "successful_query_posts": 5,
+  "query_frames": 12,
+  "actuator_frames": 0,
+  "journal_rows": 12,
+  "journal_query_intent_only": true,
+  "feedback": {
+    "relay": "4 confirmed / 8; even-channel F0 fake inputs are invalid, remain unknown; no claim of valid off feedback",
+    "dimmer": "8 confirmed / 8, levels 10..80",
+    "single_channel": "channel 3 confirmed level 30"
+  },
+  "query_causality": "not_established",
+  "atomic_snapshot": false,
+  "findings": [
+    {
+      "id": "card-refresh",
+      "status": "open_at_fixed_commit",
+      "observed": "Query receipt has 8 fresh channels while main module card retains current fresh 0/8 and old unknown/stale slots",
+      "fix": "Refresh current module card without erasing the receipt; reject stale generation/revision/session responses"
+    },
+    {
+      "id": "receipt-action-mask",
+      "status": "open_at_fixed_commit",
+      "observed": "Admin with no device grant sees power/brightness action metadata in Query status while inventory actions are empty",
+      "actual_control": "403 device_not_permitted; no privilege escalation",
+      "fix": "Apply the same grant filter used by module inventory"
+    }
+  ],
+  "cleanup": {
+    "cookie_logout": "已退出",
+    "synthetic_token_revoked": true,
+    "server_stopped": true,
+    "process_and_listener_absent": true
+  },
+  "attempt_history": "Attempt 1 invalid 60000ms age configuration timed out without queries; attempt 2 240s watchdog timed out after 9 queries; both revoked/stopped and retained; attempt 3 manual stop succeeded with 600s watchdog",
+  "limitations": [
+    "Findings recorded against bcc0d2f; later startup-query change is separate",
+    "No mobile layout, HTTPS, real Apple Home or physical field acceptance",
+    "No deployment, real credential, physical IO, EA-5 change or full D/E completion"
+  ],
+  "private_artifact_sha256": {
+    "probe.rs": "b782718107eb771e447d0fdc91f9d4ab09a255b32b445127a3cde817519cf9d1",
+    "server.log": "3a6cd6a4571b9d8b467e06fd9a8d81089386d9529f795ee394b5f3e0b72aafb2",
+    "source.json": "6e7eb91b125fca27e7a707155497b771f476f4c81a51d05bb9c26324a4a3e30d",
+    "ready.json": "3256ce64a96a18f37b372e2fc2d88211da478f32248e1b44e79c7d5498efa3c3",
+    "result.json": "d8ed93a216e6a5e5865a096a4105592a49700e65e70881a76c366ff4c364d3e8",
+    "browser-dom.json": "5f7e3cc9781a1d420d5b2136dde464235115df4208a344ed8d0dcb6cb1f8958f",
+    "fourth-dom.txt": "889da3fb799f3c1335eb27223c8e4ad42438ded99194f1e91bf633dc9f84ea22",
+    "logout.txt": "899df7e244729296464ba59238d77ebc27963fa48eb0dd76d7a940ebb68a3126",
+    "denied-control.json": "d8e3191e1882700954e52b774f4d7d2fe97925e1e86f2f1c6e20b5266e4db713",
+    "query-full.jpg": "495122222139f728bf853b5df7a74aef17958de9f68f570bc791bb3d6e9d413e",
+    "test-binary/browser-fixture": "59dbcf03580245dd9e93baedda51de3e7a6daea1ea96627712c64f2586998031"
+  },
+  "public_screenshot_sha256": "495122222139f728bf853b5df7a74aef17958de9f68f570bc791bb3d6e9d413e"
+}

@@ -1,0 +1,174 @@
+{
+  "date": "2026-10-13",
+  "fixed_commit": "99d036a2cb0b9e0a2751f8e5c8dc8908142691d4",
+  "scope": "Independent unchanged startup scope counterexample plus complete fixed runtime library and Admission tests",
+  "original_source_files": 992,
+  "original_files_unchanged": 991,
+  "only_original_edit": "module_query_tests.rs appends private include; original bytes retained",
+  "private_probe_change": "Only embedded fixed commit label changed; assertions and fake bus fixture unchanged",
+  "old_counterexample": {
+    "commit": "1e35addaab2caa4ead5232e8574b1d6b46a39d1f",
+    "confirmed_ports": 1,
+    "registered_ports": 16,
+    "controls": 0,
+    "test_failed": true
+  },
+  "new_result": {
+    "confirmed_ports": 16,
+    "controls": 0,
+    "fixed_commit": "99d036a2cb0b9e0a2751f8e5c8dc8908142691d4",
+    "logical_devices": 1,
+    "physical_io": false,
+    "registered_modules": 2,
+    "registered_ports": 16,
+    "slots": [
+      {
+        "channel": 1,
+        "module_id": "module-bound",
+        "observed": "Some(Level(Percent(10)))",
+        "quality": "Confirmed"
+      },
+      {
+        "channel": 2,
+        "module_id": "module-bound",
+        "observed": "Some(Level(Percent(20)))",
+        "quality": "Confirmed"
+      },
+      {
+        "channel": 3,
+        "module_id": "module-bound",
+        "observed": "Some(Level(Percent(30)))",
+        "quality": "Confirmed"
+      },
+      {
+        "channel": 4,
+        "module_id": "module-bound",
+        "observed": "Some(Level(Percent(40)))",
+        "quality": "Confirmed"
+      },
+      {
+        "channel": 5,
+        "module_id": "module-bound",
+        "observed": "Some(Level(Percent(50)))",
+        "quality": "Confirmed"
+      },
+      {
+        "channel": 6,
+        "module_id": "module-bound",
+        "observed": "Some(Level(Percent(60)))",
+        "quality": "Confirmed"
+      },
+      {
+        "channel": 7,
+        "module_id": "module-bound",
+        "observed": "Some(Level(Percent(70)))",
+        "quality": "Confirmed"
+      },
+      {
+        "channel": 8,
+        "module_id": "module-bound",
+        "observed": "Some(Level(Percent(80)))",
+        "quality": "Confirmed"
+      },
+      {
+        "channel": 1,
+        "module_id": "module-unbound",
+        "observed": "Some(Level(Percent(10)))",
+        "quality": "Confirmed"
+      },
+      {
+        "channel": 2,
+        "module_id": "module-unbound",
+        "observed": "Some(Level(Percent(20)))",
+        "quality": "Confirmed"
+      },
+      {
+        "channel": 3,
+        "module_id": "module-unbound",
+        "observed": "Some(Level(Percent(30)))",
+        "quality": "Confirmed"
+      },
+      {
+        "channel": 4,
+        "module_id": "module-unbound",
+        "observed": "Some(Level(Percent(40)))",
+        "quality": "Confirmed"
+      },
+      {
+        "channel": 5,
+        "module_id": "module-unbound",
+        "observed": "Some(Level(Percent(50)))",
+        "quality": "Confirmed"
+      },
+      {
+        "channel": 6,
+        "module_id": "module-unbound",
+        "observed": "Some(Level(Percent(60)))",
+        "quality": "Confirmed"
+      },
+      {
+        "channel": 7,
+        "module_id": "module-unbound",
+        "observed": "Some(Level(Percent(70)))",
+        "quality": "Confirmed"
+      },
+      {
+        "channel": 8,
+        "module_id": "module-unbound",
+        "observed": "Some(Level(Percent(80)))",
+        "quality": "Confirmed"
+      }
+    ],
+    "synchronization_returned_ok": true,
+    "writes": [
+      [
+        174,
+        1,
+        160,
+        242,
+        238
+      ],
+      [
+        174,
+        2,
+        160,
+        242,
+        238
+      ]
+    ]
+  },
+  "validation": {
+    "product_library": 130,
+    "private_same_counterexample": 1,
+    "admission": 40,
+    "unique_tests_passed": 171,
+    "failed": 0,
+    "ignored": 0,
+    "filtered": 0,
+    "separate_initial_probe_run": "1 passed; 130 filtered; not added again to unique total"
+  },
+  "physical_query_frames": 2,
+  "actuator_frames": 0,
+  "all_registered_ports_confirmed": true,
+  "logical_device_count_unchanged": 1,
+  "limitations": [
+    "Recovery synchronization uses the same shared query helper as startup; test uses fake transport in Simulation",
+    "Live services, field startup/reconnect, periodic timing and real Apple Home not newly accepted by this private probe",
+    "Author 214 related tests and strict Clippy are separate; not added to 171 executions",
+    "Native 27 matrix passed at prior bcc0d2f; unchanged private matrix at new 99d036a still pending",
+    "Full D source semantics and current E field/client gates remain open"
+  ],
+  "private_artifact_sha256": {
+    "source.tar": "41352768f0a9f7cb7663997ca4e6effe705ca683314d66d15f4803a65b59a691",
+    "source.json": "9f6a972e4e93c4bee653ca533932b4bae4a189d64611fb6b421d8ff3a524f97d",
+    "probe.rs": "12bac812b01fc1d64e1b9ac615f007066172eaf31c68bf1ca5a122992688651b",
+    "result.json": "2a0e844dfcfc479eb5db0028b4a63d89ae700c14337bf28ef286f1cf89d97307",
+    "test.log": "f24877b26306392e6bb8af147f1e4c74946ad03a41989312ad7e233b2f873cde",
+    "library.log": "0db7ad9984ada50ba88572200400935bfbace04ec1a687a2963fd3a6ec02afe8",
+    "admission.log": "a6320e36222c4d6598ee40c005d215430bc237a53eda3aff7621ce605ec85592",
+    "execution.json": "37cc132591525d4fc41b0690476398acd76d44840b0e6d81decea2fc61f6e9c2",
+    "full-execution.json": "722c175a776ac033d32495ae76acb38133a9ae3a6a9e501460d4b2eb673d8e0a",
+    "test-binary/library": "d95a58a7f02dd3158d9677cea6608d72d7df965bbd5e0bfe5e80cb7681124388",
+    "test-binary/admission": "cd3897ec5f3e15070f1504b766033accf65ce4df1f91efd5796eac853cd3ee14"
+  }
+}
