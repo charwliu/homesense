@@ -34,6 +34,8 @@
 
 用户提出按模块一次查询8路。根再次核对原PDF命令表：AD8-DIN Ver2.2.1 §7.6及R8I8-DIN标准版Ver2.2.5 §7.3均明确`AE ID A0 F2 EE`；PRO Ver2.7.7 §7.3将全路写成与第8路相同的`A8 F2`，很可能笔误，但标准版旁证尚不等于PRO实际能力通过。当前编码器仍只有单路Query，模块聚合、反馈收集及完整96端点时序验收尚待实现；不能以少发请求代替逐通道boot／代次／新鲜稳定反馈。协议资料核对已分给部署，容量修复依据已交功能开发，真实Query及现场窗口均未开启。见[整模块查询协议补证](evidence/stage-d-study/module-query-protocol-source-check.json)。
 
+原生场景草稿另通过根独立时序探针：冻结938文件，只有一份测试追加，逐文件原始字节核对；实际Manager／Admission／Store与内存线缆产生一次原生Toggle、两条最终Query。完整当前代次反馈在Query入队但尚未写出时到达，写出后无新反馈仍Pending／选择None；随后新的完整反馈才Observed／选择1，完成无额外输出。初次边界和增加正向对照后的两次执行是同一项独立测试，不重复计数；无真实TCP／HAP／Web或实物。这是尚无最终产品提交的冻结草稿，开发侧完整相对案例和严格Clippy尚未完成，最终检查点须重比源码指纹，不把此项作为整体native通过。见[查询前反馈边界](evidence/stage-d-study/native-scene-prequery-root-check.json)。
+
 ## 阶段 D
 
 | 要求 | 当前证据 | 剩余门槛 |
