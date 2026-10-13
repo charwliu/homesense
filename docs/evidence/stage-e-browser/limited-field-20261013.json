@@ -1,0 +1,110 @@
+{
+  "recorded_utc": "2026-10-13T00:52:57.081610+00:00",
+  "scope": "Current clean E10 limited study field window; does not prove full D/E or observer acceptance",
+  "source_commit": "c184e65eb7adfa284bf26b1978dcb392ab762351",
+  "binary_sha256": "7596e17aa0e61d9b20768918213e1c4a2152ddd52d7277fd4e954eafaafd8315",
+  "configuration_revision": 3,
+  "schema": 22,
+  "configuration": {
+    "persistent_scene_members": 3,
+    "indicator_links": 3,
+    "observer_enabled": false,
+    "identity_unchanged_except_configuration_number": true
+  },
+  "startup": {
+    "new_commands": 3,
+    "only_reviewed_led_off": true,
+    "selection_remained_unknown": true,
+    "new_scene_runs": 0,
+    "healthy_and_ready": true
+  },
+  "human_field_confirmations": [
+    "existing lights and original gateways responded for one minute after Home reopen; curtain remained stopped",
+    "explicit all-off established known closed selections and turned lights off",
+    "reading On then Off: lights, mutually exclusive selections and LEDs matched",
+    "Mac manual daily then all-off: lights, Web, Home and LEDs matched"
+  ],
+  "mac_ui": {
+    "login_confirmed_by_human_and_native_safari": true,
+    "device_count": 2,
+    "scene_count": 4,
+    "scope_get_statuses": [
+      200,
+      200
+    ],
+    "credential_and_config_get_statuses": [
+      403,
+      403
+    ],
+    "logout_visible": true,
+    "device_and_scene_cards_cleared": true,
+    "phone_web_not_retested": true
+  },
+  "closing": {
+    "normal_stop_log": true,
+    "os_exit_status_captured": false,
+    "stopped_utc": "2026-10-13T00:44:45Z",
+    "process_absent": true,
+    "scene_runs": 7,
+    "scene_statuses": {
+      "commands_written": 7
+    },
+    "commands": 47,
+    "command_statuses": {
+      "written": 47
+    },
+    "selection_value": 0,
+    "selection_version": 7,
+    "no_renewal": true
+  },
+  "command_provenance": {
+    "scene_step_linked_commands": 39,
+    "outside_scene_commands": 8,
+    "outside_scene_all_led_off": true,
+    "outside_scene_has_per_link_rule_provenance": false,
+    "led_off_commands": 26,
+    "led_on_commands": 3,
+    "no_home_sense_on_to_reported_residual_indicator": true,
+    "cannot_attribute_external_sender_or_physical_color": true
+  },
+  "retained_findings": {
+    "initial_scene_unknown_display": "Home reported unavailable while selection NULL; code intentionally returns -70402 for unknown; explicit all-off restored readability",
+    "scene_unknown_read_errors": 39,
+    "first_unknown_read_error_utc": "2026-10-13T00:26:25Z",
+    "last_unknown_read_error_utc": "2026-10-13T00:36:40Z",
+    "later_characteristic_read_errors": 0,
+    "residual_indicator": "initial red report followed by green confirmation; cause not established"
+  },
+  "credential_cleanup": {
+    "temporary_member_explicitly_authorized": true,
+    "online_attempt_failed_at_service_expiry": true,
+    "revoked_offline_after_process_stop_and_exclusive_runtime_lock": true,
+    "exact_id_digest_and_scope_matched": true,
+    "other_credentials_unchanged": true,
+    "integrity_ok": true,
+    "plaintext_file_replaced_with_revoked_notice": true,
+    "new_http_401_not_tested_after_stop": true
+  },
+  "pending": [
+    "eco selection toggle",
+    "independent load off cancels selection and linked LEDs",
+    "current configured process restart and Home foreground/background recovery",
+    "current configured curtain stop and repeated direction cases",
+    "observer complete writer review and field validation",
+    "broader rooms, panel exposure and actual-client multi-bridge scope",
+    "full original scene/program/variable semantics"
+  ],
+  "private_evidence_sha256": {
+    "window_final": "b70f92ec3207130198d7d0d24ffe0ee66844954424f09af796dbcf8ffdad810a",
+    "service_log": "1150cb646dfa211617a9cc5d40df9ebcc0aaf9ab3035f13f99ffa51e42784499",
+    "startup_audit": "f23ea85e544e262471282b411e6567ec818eeb942072900613dc278786429604",
+    "publication": "86d29c76359ce5c12b705349d1c8ba71cad3d35259a890b2702262661eae8243",
+    "closing": "186a80851fbb3aeb08249bc44f157905d5829a24daf8d8de9ec8d78061afb9fa",
+    "command_provenance": "c08db9b509062fa405013b88c9d174b538cd78d242f8ff531d34fd3e9dca06fc",
+    "member_scope": "778f1617eb8aecb59bbaedf46b9433a222548bfc310d08471da23e7f29a83f00",
+    "revocation": "5b66610591cc4c266dacd635aef51e19cab6a222e9ae8046bb690f44f98dee50"
+  },
+  "physical_confirmation_rule": "Written and CommandsWritten do not establish physical completion; field results are explicit human observations",
+  "stage_d_complete": false,
+  "stage_e_complete": false
+}
