@@ -1,0 +1,149 @@
+{
+  "date": "2026-10-13",
+  "scope": "Source-derived branch witnesses and actual frozen production AST/planner comparison; no activation or semantic approval",
+  "source_commit": "f7c2b22c9bbe03f1743e9672b35355431f5cbd2a",
+  "original_committed_and_snapshot_files_unchanged": 1008,
+  "source_xml_sha256": "cac7dcdc9db08599e55a22bacb72858035c64e1ac846e2139ead5fc634513748",
+  "source_events": 215,
+  "supported_programs": 179,
+  "default_blocked_programs": 36,
+  "conditional_nodes": 275,
+  "original_uniform_vectors": 7518,
+  "additional_branch_witness_vectors": 49,
+  "independent_two_variable_vectors": 84,
+  "total_planner_vectors": 7652,
+  "actual_test": {
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "--locked",
+      "-p",
+      "homesense-import",
+      "--test",
+      "source_branch_path_root",
+      "--",
+      "--nocapture"
+    ],
+    "passed": 1,
+    "failed": 0,
+    "ignored": 0,
+    "filtered": 0,
+    "exit_code": 0,
+    "binary_sha256": "6dc47776176463a434fc0e795f144f5f56e0e33277de25924b6a5e0ba29b7d5d"
+  },
+  "branch_evidence": {
+    "original_nodes_missing_true_or_false": 43,
+    "nodes_newly_witnessed": 41,
+    "remaining_nodes": [
+      {
+        "key": "event:427:4",
+        "source": "device:427/event:4/code:0/code:29/code:37/code:38",
+        "outcomes": [
+          "true"
+        ]
+      },
+      {
+        "key": "event:431:4",
+        "source": "device:431/event:4/code:0/code:26/code:41/code:40",
+        "outcomes": [
+          "true"
+        ]
+      }
+    ],
+    "inverse_write_inputs_included": [
+      102,
+      103
+    ],
+    "search_candidates": 5509,
+    "coverage_source": "Independently reconstructed source model, not direct branch instrumentation of the production evaluator",
+    "snapshot_only_boolean_proofs": [
+      {
+        "key": "event:427:4",
+        "source": "device:427/event:4/code:0/code:29/code:37/code:38",
+        "tri_state_assignments": 9,
+        "reachable_target_outcomes": [
+          "true"
+        ]
+      },
+      {
+        "key": "event:431:4",
+        "source": "device:431/event:4/code:0/code:26/code:41/code:40",
+        "tri_state_assignments": 9,
+        "reachable_target_outcomes": [
+          "true"
+        ]
+      }
+    ]
+  },
+  "independent_root_recheck": {
+    "original_files_unchanged": 1008,
+    "source_events_reconstructed": 215,
+    "supported_programs": 179,
+    "default_blocked_programs": 36,
+    "conditional_nodes": 275,
+    "initial_missing_true_false": 43,
+    "newly_witnessed_nodes": 41,
+    "snapshot_boolean_proofs": 2,
+    "vectors": {
+      "original_uniform": 7518,
+      "branch_witness": 49,
+      "independent_variables": 84,
+      "affine_boundary": 1
+    },
+    "actual_rust_tests": {
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0
+    },
+    "input_and_output_rows_rechecked": 7652,
+    "semantic_approvals_added": 0,
+    "automatic_execution": false
+  },
+  "earlier_attempts": {
+    "literal_only_search": "Retained; missed inverse self-affine writes; not called unreachable",
+    "first_planner_run": "Retained 7567-vector success before the 84 independent-variable vectors; not counted as extra unique tests",
+    "verifier_initial_failure": "Did not register empty outcomes for a never-reached source node; verifier corrected, original retained; production and expected plans unchanged",
+    "prior_7651_run": "Retained success before explicitly retaining affine input 103; superseded by actual 7652-vector run, not added to test counts"
+  },
+  "semantic_approvals_added": 0,
+  "automatic_execution": false,
+  "real_commands": 0,
+  "evidence_sha256": {
+    "source.tar": "c7144c88c9067ff670668770769d928fffa7ae107daad1b4ce86900849f54e10",
+    "source.json": "8ec6da5c29b8ddac54eac2706f0807345e21564ee79adb3fe9c9de5bcf72f064",
+    "inputs.json": "e346a308ed29c0fce32bf8f0037490cc023934c78b2a62c4865784de81d38399",
+    "project.xml": "cac7dcdc9db08599e55a22bacb72858035c64e1ac846e2139ead5fc634513748",
+    "bindings.json": "af959edca5cdbe6bd20b6b073feb4e23c923fe1d7fcd37a4df100b3ce548a0d6",
+    "initial-coverage.json": "7689b404b67e0eb07837dbd8510fea2baf2f5b8175e0bea6255b817570303103",
+    "generate.py": "5b06baa302aa491d3f18cdba324c9b22450bfdd7ecef3c1bbf5fa233a62f815d",
+    "cases.json": "9b5e1df58f34a83c621fffaa9cde56e41fc9295760a1924a39c817502aebe70a",
+    "coverage.json": "1198f6c535b319ebac4f778e4caaa3bb3612b4e5413c0b2a1118eb059f359b30",
+    "prove_boolean_paths.py": "515f7790476267642838c4de8fd9783813c952e14ac31adf429d58efcafac7a2",
+    "boolean-path-proof.json": "b0e36db5d86d807ec7adb36a7c755124975b796fd8463286f83e253819afb005",
+    "probe.rs": "e8000644ceaca0fb54a608c47948d20e0194e2d4c0f016feda3c3307eb41253e",
+    "execution.json": "3e1267a78fc87c04e7ffdb0f1b49cc09f63a2676d21429fe06ad34e19a1d79ee",
+    "test.log": "28406d53f23e54ea896a9753359788c826c3fe663aab537eaf8e2266734da37e",
+    "observed.json": "ef61f4aaff335b3c01b7a0ac1b5dbcf38514256a05f4f504c88b1bfea88552e7",
+    "test-binary": "6dc47776176463a434fc0e795f144f5f56e0e33277de25924b6a5e0ba29b7d5d",
+    "verify.py": "5c9ded80abc01d6eb08ec179d6802643cb209129707b908f1c0190b5059ddb24",
+    "verify-initial.py": "9cddb45019a3b511e1a29b7f4df8724e57fd938e0b0b120b2c17ac46212dcf65",
+    "root-audit.json": "5ebe78297f4f4e251a94059ca9b507cd8508559e4ea1a3fdb4e3f93a03c732d0",
+    "first-7567-execution.json": "09d065878594b249643881a4ce3f2c99ea8157968ba8a7f9fbfb30de3ad1884e",
+    "first-7567-test.log": "04123a089a086b32ebde04af978af58b7a310e14c68274d3f7ceea4b9f149778",
+    "prior-7651-cases.json": "03acb2e4853bc49e67b8d1624df78c2301be9c51077a4ce6ba4d35968632c329",
+    "prior-7651-execution.json": "ba62b935b9cc6d5e2bff72147a92edbd6cfe63c0bcf9f46579ac7cad93216e61",
+    "prior-7651-test.log": "ed42b93b55db3395ec7f653abc8a3f64957a13f195ae142aece73aa1b40e69dd",
+    "prior-7651-observed.json": "3def2128bb92086968e06436686a03b7c2ac854ee415de5e9702750777af1455"
+  },
+  "limitations": [
+    "7652 vectors are inputs in one actual Rust integration test, not 7652 test cases or migration approvals.",
+    "Planning and compilation only; no Admission execution, hardware control, source-driver runtime equivalence or feedback timing proof.",
+    "The two remaining target paths are forced true only under a coherent immutable tri-state feedback snapshot; Control4 cached feedback mutations and asynchronous timing remain unproved.",
+    "Synthetic Integer/Persistent snapshots do not approve source type2, retained values, variable lifetimes or external writers.",
+    "Default 36 blocked programs remain blocked. Full 68-scene/215-program/25-variable disposition and field acceptance remain incomplete.",
+    "Frozen f7c2b22 sources exclude unrelated current worktree edits; no production source modification or deployment."
+  ],
+  "additional_affine_boundary_vectors": 1
+}
