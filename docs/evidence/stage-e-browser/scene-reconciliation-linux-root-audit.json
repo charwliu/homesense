@@ -90,7 +90,7 @@
     "EOF_requery_and_pair_verify": true,
     "restart_requery_and_pair_verify": true,
     "synthetic_identity_full_dump_unchanged": true,
-    "notification_delivery_after_resubscription": "separate supplementary run pending"
+    "notification_delivery_after_resubscription": "passed separate synthetic encrypted EVENT assertions after EOF and retained-identity restart"
   },
   "wire_outputs": {
     "supported_physical_query_endpoints": 4,
@@ -169,7 +169,11 @@
     "core37.log": "3c2d88fa4a9904f5d6abb455fe405792392055faccc3300b0e80e25a52930b2e",
     "reconciliation.log": "2b42fb82efe78c8b493d415cf0c8404a260f2b1d44c0216f8dabb65891fe56b2",
     "joint-led.log": "df228988785355b9f271791ca6b216bcea8a4263e10a127b8b84ebdb242a7a96",
-    "remaining-two.log": "183f478f6ea39c200d068bbecaa45bf1f3f261d31270743813a0378207aa5608"
+    "remaining-two.log": "183f478f6ea39c200d068bbecaa45bf1f3f261d31270743813a0378207aa5608",
+    "notifications-audit.json": "40af3e46acf16d82b0297d7ab011aa5649f71084e4bac8909d58fe44bc3b2d47",
+    "probe-notifications.py": "00518146d43aadf4f6babeb646911640681ec3335ff4ac5ee1312651ccd136ba",
+    "notification-evidence/results.json": "7182e4df8415bf40a8cd82186272d31c4819dd18565f6426ae9cdad65b550167",
+    "notification-evidence/exit-check.json": "092f1a3c0057cf25c04d6af909eb685a8891140966cbb944482b3d642019702f"
   },
   "core_probe_sha256": "542a89dee588d3788f3d4d1f88e56237e4a582e16c9b448249aab442d4d9d08c",
   "limitations": [
@@ -179,5 +183,129 @@
     "Native unknown per-light upper scene path still being implemented;27case gate remains",
     "No new actual field window, real credentials, or device controls"
   ],
-  "field_enablement": false
+  "field_enablement": false,
+  "supplementary_notification_run": {
+    "stages": [
+      "initial_subscription",
+      "EOF_reverify_and_resubscribe",
+      "restart_reverify_and_resubscribe"
+    ],
+    "asserted_member_on_off_pairs": 18,
+    "assertions": [
+      {
+        "checkpoint": "initial_reading_on",
+        "member_value": 1,
+        "on": true,
+        "matching_EVENT_count": 1
+      },
+      {
+        "checkpoint": "initial_reading_off",
+        "member_value": 1,
+        "on": false,
+        "matching_EVENT_count": 1
+      },
+      {
+        "checkpoint": "initial_daily_on",
+        "member_value": 2,
+        "on": true,
+        "matching_EVENT_count": 1
+      },
+      {
+        "checkpoint": "initial_daily_off",
+        "member_value": 2,
+        "on": false,
+        "matching_EVENT_count": 1
+      },
+      {
+        "checkpoint": "initial_eco_on",
+        "member_value": 3,
+        "on": true,
+        "matching_EVENT_count": 1
+      },
+      {
+        "checkpoint": "initial_eco_off",
+        "member_value": 3,
+        "on": false,
+        "matching_EVENT_count": 1
+      },
+      {
+        "checkpoint": "EOF_reading_on",
+        "member_value": 1,
+        "on": true,
+        "matching_EVENT_count": 1
+      },
+      {
+        "checkpoint": "EOF_reading_off",
+        "member_value": 1,
+        "on": false,
+        "matching_EVENT_count": 1
+      },
+      {
+        "checkpoint": "EOF_daily_on",
+        "member_value": 2,
+        "on": true,
+        "matching_EVENT_count": 1
+      },
+      {
+        "checkpoint": "EOF_daily_off",
+        "member_value": 2,
+        "on": false,
+        "matching_EVENT_count": 1
+      },
+      {
+        "checkpoint": "EOF_eco_on",
+        "member_value": 3,
+        "on": true,
+        "matching_EVENT_count": 1
+      },
+      {
+        "checkpoint": "EOF_eco_off",
+        "member_value": 3,
+        "on": false,
+        "matching_EVENT_count": 1
+      },
+      {
+        "checkpoint": "restart_reading_on",
+        "member_value": 1,
+        "on": true,
+        "matching_EVENT_count": 1
+      },
+      {
+        "checkpoint": "restart_reading_off",
+        "member_value": 1,
+        "on": false,
+        "matching_EVENT_count": 1
+      },
+      {
+        "checkpoint": "restart_daily_on",
+        "member_value": 2,
+        "on": true,
+        "matching_EVENT_count": 1
+      },
+      {
+        "checkpoint": "restart_daily_off",
+        "member_value": 2,
+        "on": false,
+        "matching_EVENT_count": 1
+      },
+      {
+        "checkpoint": "restart_eco_on",
+        "member_value": 3,
+        "on": true,
+        "matching_EVENT_count": 1
+      },
+      {
+        "checkpoint": "restart_eco_off",
+        "member_value": 3,
+        "on": false,
+        "matching_EVENT_count": 1
+      }
+    ],
+    "paired_identity_full_dump_unchanged": true,
+    "scene_runs": 0,
+    "LED_off_journal_rows": 23,
+    "light_or_motor_control_frames": 0,
+    "all_test_processes_exited": true,
+    "scope": "same fixed candidate; Linux loopback synthetic controller, actual encrypted EVENT AID/IID/value matched, not actual Apple Home"
+  }
 }
