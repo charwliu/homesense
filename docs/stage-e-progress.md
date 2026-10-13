@@ -12,6 +12,8 @@
 
 固定`f1b2e8a`引用层又与原27项相对场景矩阵实际集成通过，12对照保留，共39轨迹；所有运行夹具和旧boot反馈重建均使用schema2，四个模块的固定角色ID、组合供电ModuleChannel和78次Store重开保持。根独立重建完整配置并对比124个中间状态的原帧／日志／选择／反馈计数，全部与bfe基线一致；967原文件不变，一文件只追加私有include，无原断言删减。没有覆盖在线换址、canonical模块真值或真实Apple客户端；HAP绝对入口与三条LED链接保持原限定范围。见[集成结果](evidence/stage-d-study/native-scene-relative-schema2-check.json)、[根核查](evidence/stage-d-study/native-scene-schema2-matrix-root-check.json)。
 
+模块真值初版已有冻结草稿正向补证，尚未成为固定功能验收：基于f1b2e8a的六份覆盖和新增module_truth源码，962原文件不变，3项独立根测试通过。真实Registry→Feedback路径接受256／257个合成通道反馈且只有一个逻辑别名，批量过期均成功；257路超出内部事件窗口时明确要求旧订阅重同步，读取当前Stale快照后可从新cursor继续。独立ModuleTruth API另保留禁用通道41%／未绑定通道37%，不创建对应逻辑别名；显式失效只使质量未知而保留旧观测，新有效反馈恢复，旧epoch被拒绝，新epoch未绑定50%不会确认仍陈旧的绑定灯。这一失效检查直接调用invalidate_port，没有注入非法原帧。最初探针误用了不存在的方法、又错误要求溢出后保持增量连续，两次夹具失败保留，均未修改产品。没有证明管理页／权限／查询接口或最终集成，旧版本反例继续保留为历史，固定新检查点仍待验。见[模块真值草稿核查](evidence/stage-e-browser/module-truth-draft-core-root-check.json)。
+
 2026-10-13模块状态层反例：在固定`bfe61f2`运行时加一份冻结schema2配置草稿的独立副本中，8路AD8模块已注册，通道2／37%被协议解码为有效反馈，但因未绑定逻辑设备，Feedback.apply返回0且完整公开状态快照未变；绑定通道1／30%的正向对照返回1并正常更新。948个非覆盖原文件未变，只有配置草稿覆盖及新增私有测试，单项测试通过是在证明现有绑定依赖缺口，不是模块真值验收通过，也不是新固定功能版本回归。稳定module_id引用层已形成上述限定检查点；每模块独立通道状态、未绑定／禁用反馈不自动授予控制、逻辑投影及旧映射隔离仍须完成。已将可运行探针交功能开发，无真实网络或控制。见[模块通道真值反例](evidence/stage-e-browser/module-channel-truth-gap-root-check.json)。
 
 | 范围 | 已有基础 | 完成所需证据 |
