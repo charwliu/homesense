@@ -1,0 +1,166 @@
+{
+  "date": "2026-10-13",
+  "fixed_commit": "1e35addaab2caa4ead5232e8574b1d6b46a39d1f",
+  "status": "sparse_module_recovery_scope_gap_reproduced",
+  "scope": "Actual Simulation query_recovery_with_policy over private synthetic nonblocking streams; live startup uses same helper by source inspection only",
+  "source": {
+    "archive_sha256": "963c7ce966ab97076c3857ba59cca1d1432280f231eb073506fa6a69fd4db22a",
+    "original_files_verified": 980,
+    "unchanged_original_files": 979,
+    "private_test_append_only_files": 1,
+    "probe_sha256": "e821035e3bfe6f20f60eb64ed78b805173e3b44dbeecf56f0cb4e8d5f45da58b",
+    "observed_transport_sha256": "ad829530ace7334a9492b77f55e2e175abc8f69d2bf99f44437052cf84490a29",
+    "automation_tcp_sha256": "dbc7652a4603f108397ddfcac174d4ea27b63bc5524f4611acff015e4b101627"
+  },
+  "actual_test": {
+    "passed": 0,
+    "failed": 1,
+    "ignored": 0,
+    "filtered_original_tests": 118,
+    "log_sha256": "e466d1547cbb7f7e9c26913a9f5643e2da6ce70d19063dee0d33f92de53c3551",
+    "test_binary_sha256": "6ba68cc30174f9fb22122fa01ea5b1ad5bd906a1e9deed38043a38289af1c502",
+    "failure": "expected all 16 registered supported output ports confirmed; actual 1"
+  },
+  "observations": {
+    "confirmed_ports": 1,
+    "controls": 0,
+    "fixed_commit": "1e35addaab2caa4ead5232e8574b1d6b46a39d1f",
+    "logical_devices": 1,
+    "physical_io": false,
+    "registered_modules": 2,
+    "registered_ports": 16,
+    "slots": [
+      {
+        "channel": 1,
+        "module_id": "module-bound",
+        "observed": "Some(Level(Percent(10)))",
+        "quality": "Confirmed"
+      },
+      {
+        "channel": 2,
+        "module_id": "module-bound",
+        "observed": "None",
+        "quality": "Unknown"
+      },
+      {
+        "channel": 3,
+        "module_id": "module-bound",
+        "observed": "None",
+        "quality": "Unknown"
+      },
+      {
+        "channel": 4,
+        "module_id": "module-bound",
+        "observed": "None",
+        "quality": "Unknown"
+      },
+      {
+        "channel": 5,
+        "module_id": "module-bound",
+        "observed": "None",
+        "quality": "Unknown"
+      },
+      {
+        "channel": 6,
+        "module_id": "module-bound",
+        "observed": "None",
+        "quality": "Unknown"
+      },
+      {
+        "channel": 7,
+        "module_id": "module-bound",
+        "observed": "None",
+        "quality": "Unknown"
+      },
+      {
+        "channel": 8,
+        "module_id": "module-bound",
+        "observed": "None",
+        "quality": "Unknown"
+      },
+      {
+        "channel": 1,
+        "module_id": "module-unbound",
+        "observed": "None",
+        "quality": "Unknown"
+      },
+      {
+        "channel": 2,
+        "module_id": "module-unbound",
+        "observed": "None",
+        "quality": "Unknown"
+      },
+      {
+        "channel": 3,
+        "module_id": "module-unbound",
+        "observed": "None",
+        "quality": "Unknown"
+      },
+      {
+        "channel": 4,
+        "module_id": "module-unbound",
+        "observed": "None",
+        "quality": "Unknown"
+      },
+      {
+        "channel": 5,
+        "module_id": "module-unbound",
+        "observed": "None",
+        "quality": "Unknown"
+      },
+      {
+        "channel": 6,
+        "module_id": "module-unbound",
+        "observed": "None",
+        "quality": "Unknown"
+      },
+      {
+        "channel": 7,
+        "module_id": "module-unbound",
+        "observed": "None",
+        "quality": "Unknown"
+      },
+      {
+        "channel": 8,
+        "module_id": "module-unbound",
+        "observed": "None",
+        "quality": "Unknown"
+      }
+    ],
+    "synchronization_returned_ok": true,
+    "writes": [
+      [
+        174,
+        1,
+        161,
+        242,
+        238
+      ]
+    ]
+  },
+  "finding": "Shared startup/recovery and periodic output query planners enumerate enabled logical bindings. A registered module with no binding is omitted, and an AD8 module with one binding uses only that channel query. Canonical storage is present but has no queried samples for remaining ports.",
+  "source_linkage": {
+    "actual_execution_helper": "ObservedTransport::query_recovery_with_policy",
+    "live_startup_and_reconnect_call_same_helper": true,
+    "periodic_planner_binding_scope_checked_in_source_only": true,
+    "periodic_refresh_executed_by_this_probe": false,
+    "live_service_executed_by_this_probe": false
+  },
+  "repair_target": "Plan reads by registered module objects and authorized protocol-capable ports; preserve control permissions, transport ownership/generation, write pacing and capacity bounds. Unsupported motor/panel state must stay unknown.",
+  "remaining": [
+    "Repair and repeat this identical regression on a fixed checkpoint.",
+    "Administrator Query entrypoints remain separate work.",
+    "Actual firmware, physical bus and Apple clients not verified."
+  ],
+  "artifacts_sha256": {
+    "source.json": "7aab51a7e6ada7ba9ccb9fa8d6b1709abe4e7b928a1202ab58c321e1fd5ce5af",
+    "test-include.json": "2b6ce1a6653b6fff4507c3777bad697e11c84d23e7ec9d5e683d4bc575e1d442",
+    "result.json": "d029a3982b52da04752537b549e8d1ff65783f54a46308e23695d24876b24c14",
+    "verify.py": "2dba1780999816fc5807e09e0cf6918bd50fb4d76b9653aee61d6bdc14d4d76a"
+  },
+  "field_actions": 0,
+  "shared_product_edits": 0,
+  "credentials_created": false,
+  "deployment": false,
+  "push": false
+}

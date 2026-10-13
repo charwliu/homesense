@@ -1,0 +1,342 @@
+{
+  "fixed_commit": "1e35addaab2caa4ead5232e8574b1d6b46a39d1f",
+  "status": "management_integration_reverified_after_logical_version_fix",
+  "actual_tests": 6,
+  "passed": 6,
+  "failed": 0,
+  "filtered_existing_library_tests": 118,
+  "actual_api_calls": 25,
+  "actual_api_pages_rendered": 14,
+  "cases": [
+    {
+      "id": "accepted_intent_never_substitutes_observed",
+      "status": "passed",
+      "actual_api_calls": 2,
+      "trace_sha256": "f040bc1b019330afe027b84997ddeb5d5ee3c52f90261d9c2dd89b88f802521a",
+      "response_statuses": [
+        {
+          "path": "/api/v1/module-commands",
+          "grant": "admin",
+          "http": 202,
+          "outcome": "accepted",
+          "error": null
+        },
+        {
+          "path": "/api/v1/modules",
+          "grant": "admin",
+          "http": 200,
+          "outcome": null,
+          "error": null
+        }
+      ],
+      "final_journal": [
+        {
+          "device": "light",
+          "intent": "01032300",
+          "status": "accepted"
+        }
+      ]
+    },
+    {
+      "id": "canonical_slots_and_bound_response_semantics",
+      "status": "passed",
+      "actual_api_calls": 3,
+      "trace_sha256": "ade36445a89d57d8db3b8d095c8b3cef683dd26f79f3a9ac4281311d6f6e2857",
+      "response_statuses": [
+        {
+          "path": "/api/v1/modules",
+          "grant": "admin",
+          "http": 200,
+          "outcome": null,
+          "error": null
+        },
+        {
+          "path": "/api/v1/modules",
+          "grant": "admin",
+          "http": 200,
+          "outcome": null,
+          "error": null
+        },
+        {
+          "path": "/api/v1/modules",
+          "grant": "admin",
+          "http": 200,
+          "outcome": null,
+          "error": null
+        }
+      ],
+      "final_journal": []
+    },
+    {
+      "id": "observed_ports_do_not_create_control_permissions_or_query_api",
+      "status": "passed",
+      "actual_api_calls": 12,
+      "trace_sha256": "57d11cfc969e2e20a1a086f05003ee2ac79e9c647305c4ccbaa8b9bdc8b62acf",
+      "response_statuses": [
+        {
+          "path": "/api/v1/modules",
+          "grant": "admin",
+          "http": 200,
+          "outcome": null,
+          "error": null
+        },
+        {
+          "path": "/api/v1/module-commands",
+          "grant": "admin",
+          "http": 400,
+          "outcome": null,
+          "error": "module_channel_unavailable"
+        },
+        {
+          "path": "/api/v1/module-commands",
+          "grant": "admin",
+          "http": 400,
+          "outcome": null,
+          "error": "module_channel_unavailable"
+        },
+        {
+          "path": "/api/v1/module-commands",
+          "grant": "admin",
+          "http": 400,
+          "outcome": null,
+          "error": "module_channel_unavailable"
+        },
+        {
+          "path": "/api/v1/module-commands",
+          "grant": "admin",
+          "http": 400,
+          "outcome": null,
+          "error": "module_channel_unavailable"
+        },
+        {
+          "path": "/api/v1/module-commands",
+          "grant": "admin",
+          "http": 202,
+          "outcome": "unknown",
+          "error": null
+        },
+        {
+          "path": "/api/v1/module-commands",
+          "grant": "no-grant",
+          "http": 403,
+          "outcome": null,
+          "error": "device_not_permitted"
+        },
+        {
+          "path": "/api/v1/module-commands",
+          "grant": "viewer",
+          "http": 403,
+          "outcome": null,
+          "error": "administrator_required"
+        },
+        {
+          "path": "/api/v1/modules",
+          "grant": "no-grant",
+          "http": 200,
+          "outcome": null,
+          "error": null
+        },
+        {
+          "path": "/api/v1/modules",
+          "grant": "viewer",
+          "http": 403,
+          "outcome": null,
+          "error": "administrator_required"
+        },
+        {
+          "path": "/api/v1/module-commands",
+          "grant": "admin",
+          "http": 400,
+          "outcome": null,
+          "error": "invalid_body"
+        },
+        {
+          "path": "/api/v1/module-queries",
+          "grant": "admin",
+          "http": 404,
+          "outcome": null,
+          "error": "not_found"
+        }
+      ],
+      "final_journal": []
+    },
+    {
+      "id": "old_mapping_and_epoch_never_current_confirmed",
+      "status": "passed",
+      "actual_api_calls": 4,
+      "trace_sha256": "dfb4d52faa1e43dc534790afeb85e0bbba7fdc7d6a19b382af59eb966d0135b9",
+      "response_statuses": [
+        {
+          "path": "/api/v1/modules",
+          "grant": "admin",
+          "http": 200,
+          "outcome": null,
+          "error": null
+        },
+        {
+          "path": "/api/v1/modules",
+          "grant": "admin",
+          "http": 200,
+          "outcome": null,
+          "error": null
+        },
+        {
+          "path": "/api/v1/modules",
+          "grant": "admin",
+          "http": 200,
+          "outcome": null,
+          "error": null
+        },
+        {
+          "path": "/api/v1/modules",
+          "grant": "admin",
+          "http": 200,
+          "outcome": null,
+          "error": null
+        }
+      ],
+      "final_journal": []
+    },
+    {
+      "id": "panel_events_are_not_led_state_and_motor_has_no_position",
+      "status": "passed",
+      "actual_api_calls": 1,
+      "trace_sha256": "26e2a1b07103c13efbd5df97a453faf348f749ee51558339c814fb09b70700b8",
+      "response_statuses": [
+        {
+          "path": "/api/v1/modules",
+          "grant": "admin",
+          "http": 200,
+          "outcome": null,
+          "error": null
+        }
+      ],
+      "final_journal": []
+    },
+    {
+      "id": "unknown_stale_invalid_and_unavailable_api",
+      "status": "passed",
+      "actual_api_calls": 3,
+      "trace_sha256": "e99a1cb985613d22667aaee3f680636e6bae5fcee66cc957b9294fbce51a9fd3",
+      "response_statuses": [
+        {
+          "path": "/api/v1/modules",
+          "grant": "admin",
+          "http": 200,
+          "outcome": null,
+          "error": null
+        },
+        {
+          "path": "/api/v1/modules",
+          "grant": "admin",
+          "http": 200,
+          "outcome": null,
+          "error": null
+        },
+        {
+          "path": "/api/v1/modules",
+          "grant": "admin",
+          "http": 200,
+          "outcome": null,
+          "error": null
+        }
+      ],
+      "final_journal": []
+    }
+  ],
+  "query_entrypoints": {
+    "status": "not_implemented_in_fixed_commit",
+    "single_channel_action_query_http": 400,
+    "single_channel_action_query_error": "invalid_body",
+    "whole_module_route_http": 404,
+    "whole_module_route_error": "not_found",
+    "counted_as_implemented_query_tests": false
+  },
+  "bound_response_meaning": "response/fresh_responses/queryable_bindings count enabled Switch/Dimmer bindings only; do not assert all slots confirmed from response=fresh",
+  "ui_summary_label": "启用绑定回复；完整通道反馈见下方槽位",
+  "runtime_sources_verified": 980,
+  "unchanged_original_source_files": 979,
+  "private_test_append_only": 1,
+  "test_binary_sha256": "1ae02cb1d6415bb1ac29ec372033289152a15c1fd96e6c51e44c131e0b52b432",
+  "new_root_core_test_coverage_claim": false,
+  "physical_io": false,
+  "real_credentials_created": false,
+  "deployment": false,
+  "git_commit": false,
+  "git_push": false,
+  "date": "2026-10-13",
+  "product_commit": "1e35addaab2caa4ead5232e8574b1d6b46a39d1f",
+  "source_archive_sha256": "963c7ce966ab97076c3857ba59cca1d1432280f231eb073506fa6a69fd4db22a",
+  "source_manifest_sha256": "5757f0b201193ffbba0f6c5e83c76fa76236777c99bf7b47a9a770272c3801bd",
+  "probe_sha256": "59f94e1571ecb952d0863e400065e5c374d26be41209f7eb9ff9408f48bb6abb",
+  "test_log_sha256": "8ec5ceedfcf2482ad37a0a58ca087b38c8b99e4a3672217d24fab982a3a6ddff",
+  "exit_code": 0,
+  "actual_test_result": {
+    "passed": 6,
+    "failed": 0,
+    "ignored": 0,
+    "measured": 0,
+    "filtered": 118
+  },
+  "previous_fixed_commit": "8685b0b92d3732698de87a72b00c5d62c34a3ccc",
+  "previous_probe_sha256": "56b43fd295f48e151f0b1aedddf1373f150ecb8b312e03a9459236bd4382f65c",
+  "probe_migration": "One diagnostic source_scope literal 8685b0b to 1e35add only; six test bodies, inputs and assertions byte unchanged.",
+  "previous_management_six_passes_and_root_full_library_108_pass_8_fail_preserved": true,
+  "previous_public_evidence_sha256": "792aed9a4485aa6a1365b13c39a1b8aefeb0bcceb4e437d3b59a1d94d3400e79",
+  "logical_version_contract": {
+    "actual_captured_logical_snapshots_checked": 11,
+    "all_captured_snapshot_state_version_equals_cursor_sequence": true,
+    "alias_state_versions_bounded_by_logical_snapshot": true,
+    "existing_batch_cursor_before": 8,
+    "existing_batch_cursor_after": 8,
+    "existing_batch_accepted_physical_observations": 12,
+    "new_unbound_ports_confirmed_without_cursor_advance": 9,
+    "batch_includes_repeated_enabled_disabled_and_unbound_feedback": true,
+    "disabled_only_new_value_cursor_test_executed": false,
+    "unbound_only_separate_frame_test_executed": false,
+    "read_only_reconstruction_adds_no_test_execution": true
+  },
+  "renderer": {
+    "actual_api_pages_rendered": 14,
+    "network_calls": 0,
+    "scope": "Actual frozen app.js renderModules with captured actual API payloads and fake DOM; no browser/lifecycle/physical control coverage"
+  },
+  "limitations": [
+    "Only the 11 logical snapshots already captured after raw feedback were inspected; no new instrumentation or private test inputs were added.",
+    "The cursor comparison is one existing mixed batch with unchanged enabled feedback and repeated disabled feedback plus nine newly observed unbound ports. No independent disabled-only new-value or unbound-only frame test was added.",
+    "API pages do not expose logical cursor/state_version; actual payload renderer checks remain separate.",
+    "This is read-only reconstruction and source inspection; no additional Rust test functions or full-library/HAP/Apple coverage.",
+    "Six management tests and 25 actual Api.handle calls do not establish a full library, workspace, encrypted HAP or actual Apple client pass for this version. Root owns separate full-library/HAP repair acceptance.",
+    "Module query routes are not implemented in this fixed commit; existing 400 invalid_body / 404 not_found remain gap checks, not implementation acceptance.",
+    "Panel pressed feedback is not LED state/color; motor feedback remains unsupported and does not infer position.",
+    "The single accepted brightness command is persisted and not dispatched; no network sockets or actual devices were used.",
+    "Synthetic in-memory grants only; no real credentials, deployment, shared product/doc changes, commit or push."
+  ],
+  "evidence_sha256": {
+    "source.json": "5757f0b201193ffbba0f6c5e83c76fa76236777c99bf7b47a9a770272c3801bd",
+    "final-source-audit.json": "bbbe6b9b0e0a80c8508524953c82bdfbe16f3ccb0e493f3f50fb04ab1b086b4d",
+    "execution.json": "5d67cb50af5b4f1ea3894e7db6998d64869614e5e9fbbf65957dfe229f5a2beb",
+    "final-run.log": "8ec5ceedfcf2482ad37a0a58ca087b38c8b99e4a3672217d24fab982a3a6ddff",
+    "probe.rs": "59f94e1571ecb952d0863e400065e5c374d26be41209f7eb9ff9408f48bb6abb",
+    "run_acceptance.py": "40bd6a3836ddc259b62bb276ee7e17cb8f9c8d3546bda7e6654853ca239884e5",
+    "verify_evidence.py": "c621e0dbb9455fc86853d149010ff49dd18c2c1703628d61fadd545d678faa41",
+    "verification-results.json": "bac7a2275e6e3e8aa3fb7e78b1bcbc2836ea0a11a761b61c0e8303e427bc71a3",
+    "verification.log": "ef1c4d4c338e35dc8de70a4fe10f017c70caa7c54749d76158d435daf90ee769",
+    "verify_renderer.cjs": "7257852f4fe4e5ef7c07435a6e579c26a3627843c4064bf366be55ceb9faedd9",
+    "renderer-results.json": "adf519c4c8831b255555c7c96abe1922d4f92cb6bca9617b0173ff0b06de1dfe",
+    "renderer-final.log": "0542d8bc34eb13a20373ed8e3ebaafbec68e67584696e9b216128a69409e69e4",
+    "verify_version_contract.py": "c4091c4f3210b2da7ee85ca14ef07f77a4ba55d31736f46e67b4bb4c28b6d620",
+    "version-contract-results.json": "bf9f4bd89da665a1a30ebc2d3b71c3077c70045312540bbeb3f589ed552540c6",
+    "version-contract.log": "fc8ab1cc0ce1bfa507ed7a79798c4d9d956adcdbaaa454482048c3e69e847a4c",
+    "old-history-preservation-check.json": "7b946dfd521aa3f9f233f80761c45ef859530794e10ff71f79e327d4107a7986",
+    "target-reuse-note.json": "67e3e1af7f7b3b1b0560cabc14fb5b655d1ec151e8927883a0c7e2e3bb8a5f6b"
+  },
+  "historical_evidence_preservation": {
+    "previous_artifact_files_hash_verified_unchanged": 81,
+    "previous_public_evidence_byte_unchanged": true,
+    "scratch_target_reused": true,
+    "previous_historical_binary_fingerprint_unchanged": true,
+    "old_cached_executable_byte_for_byte_preserved": false,
+    "cache_limitation": "Authorized exclusive Cargo target reuse overwrote the previous executable; no-run rebuild of the old archive did not reproduce historical binary bytes. Old logs/probe/source/results/public evidence and recorded fingerprint remain unchanged. New actual executed binary is preserved separately."
+  }
+}
