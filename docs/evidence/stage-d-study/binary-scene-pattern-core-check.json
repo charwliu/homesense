@@ -1,0 +1,40 @@
+{
+  "baseline_commit": "0127c13d6e2204bbd688a67a862ec3f6a35de8a8",
+  "archive_sha256": "027f56b3141e58cb86cefea6590520b094e07a27498ee5ce61c2dd5806f3fe8d",
+  "overlay": {
+    "crates/homesense-core/src/lib.rs": "5267772e9ccf1c4f64056dfc4a6933a6d4c7f57fb2a9ad87d2c540fc16527ff2",
+    "crates/homesense-core/src/scene_pattern.rs": "b6e43abd1f14d725c07709282299cabd3d7b99db6a9a6e4da094d25b5dd7d794",
+    "crates/homesense-core/tests/scene_pattern.rs": "c274bbdef65f435cd978373465cd2107749f4a7b28175f896be117b437dac5b5"
+  },
+  "original_non_overlay_files_unchanged": 918,
+  "dedicated_target_directory": true,
+  "test_scope": "homesense-core --tests",
+  "test_results": {
+    "passed": 90,
+    "failed": 0,
+    "ignored": 0,
+    "result_blocks": 13,
+    "new_tests": 5,
+    "binary_level_unknown_cases": 10404
+  },
+  "strict_clippy": "homesense-core --all-targets -D warnings passed",
+  "logs": {
+    "tests.log": "b932964a33527981e318ac4144f4de3a8d6488263cf0c1b2b0230c8daf204e73",
+    "clippy.log": "80d936a4714a2b8f31fd6eff0d39a3a3e5a26331eea1c5b3d13abffa1fb5ad03"
+  },
+  "implemented": [
+    "validated bool/Percent conversion to On/Off without storing brightness",
+    "all group member vectors must cover the same nonempty explicit light set",
+    "all actual lamps must be present and known",
+    "all Off yields selection0",
+    "exactly one matching complete binary pattern yields its positive member",
+    "same On/Off pattern ambiguity never uses brightness to select",
+    "unmatched/missing/unknown/inconsistent observations remain unknown"
+  ],
+  "limitations": [
+    "pure core matching only; runtime call sites not yet connected",
+    "caller validates boot/connection epoch, fresh and settled physical feedback",
+    "no startup persistence/HAP/Web fixes proven here",
+    "zero real network, hardware or credentials; no deployment"
+  ]
+}
