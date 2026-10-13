@@ -20,13 +20,13 @@
 | 回放 | 书房三场景、取消、变量分支、面板双击与失败路径 | 全项目常用房间回放、精确渐变、LED 同步（96 路顺序与中途取消已通过本机验证） |
 
 现场约束：EA-5 配置与控制范围保持不变；现有新增自动化不因离线测试通过而自动启用。
-当前本地数据库格式为 schema 22；本轮未部署或核验 nanopc 原配对数据库的格式。阶段 D 仍未完成。
+最近一次限定现场二进制为`c184e65`，schema22／配置revision3，窗口已正常结束。固定`1cd94a4`隔离候选的schema23发布／回退及启动当前反馈对账已审核；工作树schema24原生相对场景仍为未提交草稿，不称已部署。阶段D仍未完成。
 
 当前集成已打通模拟服务的自动事件与延迟规则，TCP CLI 已支持显式启用有界重连和同步门禁；等待／部分执行场景及 cancel_pending_only 长按恢复已有回环证据；在线发布已具备进程内接入与多网关回环证据，管理网络入口已完成回环集成；字节级写失败的持久 uncertain／partial 与不重放已通过受控故障注入，现场线路及原语义仍待验收；反馈候选因果约束已有运行时及模拟证据，仍受协议来源不明和匹配窗口限制。
 
-最新集成证据：`9d18692` 加 10 个 LED／推断联动限定源码文件的独立快照，完整 workspace 643 项及全部目标严格 Clippy 通过；不含私有原项目夹具，不能代替 65 场景／212 程序的语义审核。详见 [D/E 完成审计](de-completion-audit.md) 和 [联动回归](evidence/stage-d-study/scene-observation-led-check.json)。早期回归记录保留为历史。
+最近一次完整工作区证据为固定`c184e65`独立快照663项及严格Clippy通过；较新的`1cd94a4`只有限定源码／Linux／加密客户端证据，不把旧完整回归覆盖到当前未提交修改。全源独立差分已核对179项归一化AST，仍保留36项白名单外语义；原范围65场景／208程序／24变量的完整审核未完成。96端点20ms实际Linux刷新周期约12.29秒，不能维持5秒新鲜度；整模块查询及调度修复待验。详见[D/E完成审计](de-completion-audit.md)、[全源差分](evidence/stage-d-study/source-branch-differential-check.json)和[容量审计](evidence/stage-e-browser/query-capacity-gap-root-check.json)。早期回归记录保留为历史。
 
-标准语法接口的 36 个阻断为 IF_STOPPED 24、IF_MOVING 11、RAMP_TO_LEVEL 1；渐变显式导出已实现，仍不代表完整原事件和实物能力审核。35 个窗帘条件继续挂起。基于 `061c3c2` 的限定质量修复后，干净 workspace 579 项再次通过、工作区所有目标严格 Clippy 通过；被排除的 vendor 依赖仍有 54 条警告。详见 [质量证据](evidence/stage-e-browser/clean-workspace-quality-061c3c2.json)。
+默认语法接口的36个首阻断为IF_STOPPED24、IF_MOVING11、RAMP_TO_LEVEL1；显式渐变导出已实现，唯一RAMP参数TIME=1000的毫秒单位已有官方依据，但完整事件及实物执行仍需核对。35个窗帘条件还遮蔽了24个SET_LEVEL_TARGET和11个STOP动作，不能只补条件而遗漏动作。基于 `061c3c2` 的限定质量修复后，干净 workspace 579 项再次通过、工作区所有目标严格 Clippy 通过；被排除的 vendor 依赖仍有 54 条警告。详见 [质量证据](evidence/stage-e-browser/clean-workspace-quality-061c3c2.json)。
 
 以下为实现过程记录，其中早期测试数量与缺口描述仅对应当时版本；当前状态以上表为准。
 
