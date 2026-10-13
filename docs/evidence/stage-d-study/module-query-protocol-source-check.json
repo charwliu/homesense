@@ -1,0 +1,56 @@
+{
+  "date": "2026-10-13",
+  "status": "document_checked_implementation_and_hardware_validation_pending",
+  "manuals": [
+    {
+      "model": "AD8-DIN RS485",
+      "version": "2.2.1",
+      "sha256": "fe309828fae4fe31e846a8ec531cc7165812f0e40628efff024f7ed5801fe030",
+      "section": "7.6",
+      "pdf_page_one_based": 2,
+      "printed_page": 5,
+      "module_query_hex_template": "AE ID A0 F2 EE",
+      "channel_feedback_hex_template": "AE ID (D0+c) level EE; c=1..8; level=0..100",
+      "evidence": "explicit_same_model_document"
+    },
+    {
+      "model": "R8I8-DIN RS485 standard",
+      "version": "2.2.5",
+      "sha256": "5464bfae7cf25330476d4800d89bc62c4cc0fee3713560a25c3634d8de7d4619",
+      "section": "7.3",
+      "pdf_page_one_based": 2,
+      "printed_page": 4,
+      "module_query_hex_template": "AE ID A0 F2 EE",
+      "channel_feedback_hex_template": "AE ID (D0+c) F1/F2 EE; c=1..8; F1=on,F2=off",
+      "evidence": "explicit_same_model_document_not_PRO_capability_proof"
+    },
+    {
+      "model": "R8I8-DIN PRO RS485",
+      "version": "2.7.7",
+      "sha256": "d9f3d9396a23433537e2d4124031ce5ae5dbe8ed7f568f958f8f0cc07ddd46fe",
+      "section": "7.3",
+      "pdf_page_one_based": 2,
+      "printed_page": 4,
+      "module_query_as_printed": "AE ID A8 F2 EE",
+      "channel8_query_as_printed": "AE ID A8 F2 EE",
+      "candidate_module_query": "AE ID A0 F2 EE",
+      "candidate_evidence": "likely_typographical_error_inferred_from_same_series_standard_and_AD8_not_verified_on_PRO",
+      "enablement": "pending_same_model_confirmation"
+    }
+  ],
+  "all_original_sha256_match_repository_removal_manifest": true,
+  "all_relevant_original_pages_visually_checked": true,
+  "current_encoder_scope": "individual_query_only_not_module_query",
+  "field_enablement": false,
+  "physical_query_or_control_sent": false,
+  "constraints": [
+    "Use a specific nonzero module address; do not use bus broadcast",
+    "Group by gateway,module address and supported verified protocol profile",
+    "Collect individual channel feedback; no documented atomic snapshot or transaction correlation ID",
+    "Preserve independent enabled binding coverage, boot, transport epoch, freshness and settled feedback barriers",
+    "Missing or stale channels remain unknown; do not establish unconfigured channel bindings",
+    "Documented command is not firmware or full-house capacity acceptance",
+    "Revalidate timing with all96 endpoints and control scheduling; do not claim8x measured speedup",
+    "Preserve no replay semantics for control and native Toggle"
+  ]
+}
