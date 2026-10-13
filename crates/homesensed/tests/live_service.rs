@@ -30,9 +30,14 @@ async fn live_service_queries_before_serving_and_preserves_identity_across_resta
                 .unwrap();
             let mut frame = [0; 5];
             socket.read_exact(&mut frame).unwrap();
-            assert_eq!(frame, [0xAE, 0x15, 0xA1, 0xF2, 0xEE]);
+            assert_eq!(frame, [0xAE, 0x15, 0xA0, 0xF2, 0xEE]);
             count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-            socket.write_all(&[0xAE, 0x15, 0xD1, 42, 0xEE]).unwrap();
+            // Startup requires current feedback for every registered output,
+            // including channels with no logical alias. This verified AD8 model
+            // reads all eight channels in one A0 F2 request.
+            for channel in 1..=8 {
+                socket.write_all(&[0xAE, 0x15, 0xD0 + channel, 42, 0xEE]).unwrap();
+            }
             assert_eq!(
                 socket.read(&mut frame).unwrap(),
                 0,

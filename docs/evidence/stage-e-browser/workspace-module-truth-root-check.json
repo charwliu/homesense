@@ -1,0 +1,104 @@
+{
+  "date": "2026-10-13",
+  "base_commit": "960c7ebda398d33ffa3cebce48ce438225a02a59",
+  "scope": "Complete frozen workspace, only two old output-query test fixtures corrected; no production code edit; later online-publication test source separately executed",
+  "source_files": 997,
+  "original_files_unchanged": 995,
+  "test_only_overlay": {
+    "base_commit": "960c7ebda398d33ffa3cebce48ce438225a02a59",
+    "files": {
+      "crates/homesensed/tests/live_service.rs": "477480aedc2e5c3607612731be857822435bba9b0838074dee424da84d9c349a",
+      "crates/homesensed/tests/study_runtime.rs": "95c2489098946dc201ebf6334702b1d8d90693d2d5407933d5a1eb2d14c6cfa5"
+    },
+    "patch_sha256": "b037b5898ce8b17f9a1cb7d2af1cf58c03e68343f58bd690490f99c4d7335c82",
+    "production_source_changes": false
+  },
+  "complete_workspace": {
+    "passed": 771,
+    "failed": 0,
+    "ignored": 0,
+    "measured": 0,
+    "filtered": 0,
+    "result_blocks": 132,
+    "test_binaries": 122,
+    "command_exit_code": 0
+  },
+  "strict_clippy": {
+    "workspace_all_targets": true,
+    "exit_code": 0,
+    "vendor_hap": "Excluded dependency; no independent vendor strict-lint claim"
+  },
+  "frontend": {
+    "scripts_passed": 16,
+    "failed": 0
+  },
+  "additional_online_tests": {
+    "source_commit": "638a1c166fc0f27a694e6e7b93e871f36310fd72",
+    "passed": 2,
+    "failed": 0,
+    "ignored": 0,
+    "filtered": 0,
+    "unique_with_workspace": 773,
+    "not_part_of_771_workspace_command": true
+  },
+  "fixture_repairs": [
+    "live_service: expect documented AD8 A0 F2 and provide all eight replies; 401, zero control, query counts and identity/PIN/configuration number across two restarts preserved",
+    "study_runtime publication: whole-module reply; registered AD8 without logical aliases succeeds with all eight current samples and no new bindings; only calibrated motor logical alias remains unknown",
+    "Added genuinely no-queryable-module case retaining zero-query rejection; wrong principal, old epoch, missing streams/feedback, unsupported strict policy, uncalibrated motor and cancellation/old-stream closure guards preserved"
+  ],
+  "failure_history": [
+    {
+      "stage": "unmodified_960_workspace",
+      "passed": 568,
+      "failed": 1,
+      "reason": "Old live_service fake gateway asserts A1, production correctly sends whole-module A0"
+    },
+    {
+      "stage": "live_service_fixture_only_no_fail_fast",
+      "passed": 770,
+      "failed": 1,
+      "reason": "Old study_runtime fake gateway asserts A1; missing registered/unbound coverage"
+    },
+    {
+      "stage": "first_repair_compile",
+      "tests_executed": 0,
+      "reason": "New assertion called crate-private feedback method; switched to existing management read action without opening production API"
+    },
+    {
+      "stage": "corrected_fixture_targets",
+      "passed": 113,
+      "not_added_again_to_unique_total": true
+    }
+  ],
+  "test_functions_preserved": true,
+  "production_source_changes": false,
+  "limitations": [
+    "Mac localhost and fake IO only; no current Linux/real firmware/Apple Home/field acceptance",
+    "Actual 960 browser result stays valid because production app/API code unchanged; no new browser claim from these Rust tests",
+    "Full original D semantics and E physical client gates remain open; no deployment, field configuration change, credential issuance, EA-5 change or push"
+  ],
+  "artifact_sha256": {
+    "source.tar": "5127e6d506ee63c10996d25aa98f4fae5eb9aa1b7278276629429e08327ec457",
+    "source.json": "78e803ffdf2d3a1ccad2f7e05e22128db3e3ffad2c60eec51602558225c1c73e",
+    "overlay.json": "ec4086d743bc916a2ea2d8a25756e5b9574711fc24513b205b0369915525c734",
+    "fixture.patch": "b037b5898ce8b17f9a1cb7d2af1cf58c03e68343f58bd690490f99c4d7335c82",
+    "workspace.log": "272c288b8c2f805c28431b968a2ecd24487e4b8072c2d9462baa9db26c9fbb28",
+    "execution.json": "683aaf11857524c25509c93a6c257848abf7ca96b7b672ae9e6f0ffa2408f399",
+    "workspace-final.log": "995c53a2328bdd0419741ac95b316c302e9f40be45c93a6c4920e848231d1435",
+    "final-execution.json": "72814974f688ce3727eeb2bead951ec8d6abd3067f206c4c4b617fcec8a30657",
+    "fixture-repair-initial-compile.log": "1f48766d8546b35ef25b116cc4a849a6d527fe2c01d84362d7a5edcf24390b53",
+    "repair-initial-compile-execution.json": "b822a2728f95edb53539658fc491ca36eae5d22b1a83a03eefc0be447f88d42d",
+    "fixture-repair.log": "f1a74bf30af97e29f09bf9ac199cb4cf667aeb3e1e7185fb132bcd23590268b8",
+    "repair-execution.json": "6790bca83b631e7109356e6672aa474834f3a7cd8500869357b3add552d1ba1f",
+    "workspace-green.log": "49a2453fce29ad597e7478c523be6f58e51118b8e4de25a41b9f6445ca8e8a9b",
+    "green-execution.json": "1b995ddb4d27dced8978d35fd61b4091bede65f7d141ba535b0e9d97ecb8717a",
+    "clippy.log": "64491b8cdebc8b20a04d751d6ccbb5da35d6c27332ca39eb2c9e64ad4fef130e",
+    "clippy-execution.json": "1063e6cb6589cb0cedd9884f5db23f2e738d715acdec1765fefdf57522762b49",
+    "frontend-execution.json": "37e71312ccf0517d27f0a6dd582a398eb1e151fb5d2f8e8545e8a9884e737a0e",
+    "online-test-source.rs": "569eed507a84c54369e552bc3ef1aeda96fb4b1e50958836fb6e275fb3694da4",
+    "online.log": "e25399bf196c53ebf36d62df4e40bbe113c225694c9d099c4e080052c871890d",
+    "online-execution.json": "ce11cf9ba2a2f51060d4de675d8003083e77839fd114871dc419797c33dd292a",
+    "online-test-binary": "76be6d3f5358caebe33c15cc61be2eebfe17e0361aaeab3b8cfbc4ed9f00128a",
+    "verify.py": "335be9a49abb9cdc3403f62613a8d9a4b477047431877fc892139c45dadac95f"
+  }
+}
