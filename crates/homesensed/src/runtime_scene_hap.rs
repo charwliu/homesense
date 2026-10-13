@@ -87,7 +87,7 @@ impl RuntimeSceneHap {
         let source = if stateful.is_empty() { None } else { source };
         let selection = Cache::default();
         if let Some(source) = &source {
-            selection.install(source.sample().await?)?;
+            selection.install(source.sample().await.map_err(|reason| format!("{reason:?}"))?)?;
         }
         for spec in &specs {
             let scene = document
@@ -173,8 +173,8 @@ impl RuntimeSceneHap {
                             Ok(values) => cache
                                 .install(values)
                                 .map_err(|_| WriteStatus::ServiceCommunicationFailure)?,
-                            Err(_) => {
-                                cache.invalidate();
+                            Err(reason) => {
+                                cache.unavailable(reason);
                                 return Err(WriteStatus::ServiceCommunicationFailure);
                             }
                         }
@@ -202,7 +202,7 @@ impl RuntimeSceneHap {
                 let cache = selection.clone();
                 let id = binding.scene.clone();
                 accessory.switch.power_state.on_read(Some(move || {
-                    cache.read(&id).map(Some).ok_or_else(|| {
+                    cache.read(&id).selected().map(Some).ok_or_else(|| {
                         Box::new(std::io::Error::other("scene selection unknown or stale"))
                             as Box<dyn std::error::Error + Send + Sync>
                     })
@@ -270,7 +270,7 @@ impl RuntimeSceneHap {
                 let _guard = self.writes.lock().await;
                 match source.sample().await {
                     Ok(values) => self.selection.install(values)?,
-                    Err(_) => self.selection.invalidate(),
+                    Err(reason) => self.selection.unavailable(reason),
                 }
                 self.refreshed = Some(Instant::now());
             }
@@ -278,7 +278,7 @@ impl RuntimeSceneHap {
             // and the value is rechecked after each accessory lock is acquired.
             let mut values = handles
                 .keys()
-                .filter_map(|id| self.selection.read(id).map(|value| (id.clone(), value)))
+                .filter_map(|id| self.selection.read(id).selected().map(|value| (id.clone(), value)))
                 .collect::<Vec<_>>();
             values.sort_by_key(|(_, on)| *on);
             for (scene, on) in values {
@@ -287,7 +287,7 @@ impl RuntimeSceneHap {
                 }
                 let (iid, handle) = &handles[&scene];
                 let mut accessory = handle.lock().await;
-                if self.selection.read(&scene) != Some(on) {
+                if self.selection.read(&scene).selected() != Some(on) {
                     continue;
                 }
                 let characteristic = accessory

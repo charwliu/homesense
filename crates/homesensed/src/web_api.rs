@@ -55,6 +55,35 @@ fn response(code: StatusCode, value: serde_json::Value) -> Response<Full<Bytes>>
         .unwrap()
 }
 fn default_scene_on() -> bool { true }
+fn selection_unavailable(reason: crate::scene_switches::UnavailableReason) -> Response<Full<Bytes>> {
+    response(StatusCode::SERVICE_UNAVAILABLE, json!({
+        "error":"scene_selection_unavailable",
+        "selection_state":crate::scene_switches::SelectionState::Unavailable(reason),
+    }))
+}
+async fn selection_details(
+    control: &Control,
+    controller: uuid::Uuid,
+    revision: u64,
+) -> Result<BTreeMap<String, crate::scene_switches::Details>, crate::scene_switches::UnavailableReason> {
+    use crate::scene_switches::UnavailableReason;
+    // A read-only request may complete late, but can never dispatch an action.
+    match tokio::time::timeout(std::time::Duration::from_millis(500), async {
+        match control.request(Action::Diagnostics { controller, revision }).await {
+            Ok(Reply::Diagnostics(state)) if state.ready() => {},
+            Ok(Reply::Diagnostics(_)) => return Err(UnavailableReason::RuntimeNotReady),
+            _ => return Err(UnavailableReason::ReadFailed),
+        }
+        match control.request(Action::SceneSelectionDetails { controller, revision }).await {
+            Ok(Reply::SceneSelectionDetails(states)) => Ok(states),
+            Err(error) if error == "scene selection runtime not ready" => Err(UnavailableReason::RuntimeNotReady),
+            _ => Err(UnavailableReason::ReadFailed),
+        }
+    }).await {
+        Ok(result) => result,
+        Err(_) => Err(UnavailableReason::ReadTimedOut),
+    }
+}
 impl Api {
     pub async fn handle(&self, request: Request<Bytes>) -> Response<Full<Bytes>> {
         let deny = |code, message| response(code, json!({"error":message}));
@@ -253,6 +282,9 @@ impl Api {
         // Admission rejects old generations if publication follows this read.
         let runtime = self.runtime.read().ok().and_then(|state| state.clone());
         let Some(runtime) = runtime else {
+            if request.method() == hyper::Method::GET && request.uri().path() == "/api/v1/scenes" {
+                return selection_unavailable(crate::scene_switches::UnavailableReason::RuntimeUnavailable);
+            }
             return deny(StatusCode::SERVICE_UNAVAILABLE, "runtime_reconfiguring");
         };
         if request.uri().path() == "/api/v1/backups/inspect" {
@@ -551,9 +583,9 @@ impl Api {
             };
         }
         if request.method() == hyper::Method::GET && request.uri().path() == "/api/v1/scenes" {
-            let selection = match runtime.control.request(Action::SceneSelectionDetails {controller:grant.controller,revision:runtime.revision}).await {
-                Ok(Reply::SceneSelectionDetails(states)) => states,
-                _ => return deny(StatusCode::SERVICE_UNAVAILABLE, "scene_selection_unavailable"),
+            let selection = match selection_details(&runtime.control, grant.controller, runtime.revision).await {
+                Ok(states) => states,
+                Err(reason) => return selection_unavailable(reason),
             };
             let mut items = vec![];
             for (id, name) in &runtime.scenes {
@@ -574,7 +606,7 @@ impl Api {
                     }
                     _ => serde_json::Value::Null,
                 };
-                items.push(json!({"id":id,"name":name,"activity":activity,"last_run":last,"can_control":grant.may_control(id),"switch_kind":if selection.contains_key(id){"selection"}else{"momentary"},"selected":selection.get(id).and_then(|s|s.selected),"selection_source":selection.get(id).map(|s|s.selection_source),"observation_current":selection.get(id).and_then(|s|s.observation_current),"observation_boot":selection.get(id).and_then(|s|s.observation_boot.as_ref()),"observed_ms":selection.get(id).and_then(|s|s.observed_ms.as_ref())}));
+                items.push(json!({"id":id,"name":name,"activity":activity,"last_run":last,"can_control":grant.may_control(id),"switch_kind":if selection.contains_key(id){"selection"}else{"momentary"},"selected":selection.get(id).and_then(|s|s.selected),"selection_state":selection.get(id).map(|s|s.selection_state),"selection_source":selection.get(id).map(|s|s.selection_source),"observation_current":selection.get(id).and_then(|s|s.observation_current),"observation_boot":selection.get(id).and_then(|s|s.observation_boot.as_ref()),"observed_ms":selection.get(id).and_then(|s|s.observed_ms.as_ref())}));
             }
             return response(StatusCode::OK, json!({"revision":runtime.revision.to_string(),"scenes":items}));
         }

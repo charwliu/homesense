@@ -133,7 +133,7 @@ pub(crate) fn upgrade(
                     let runtime=api.runtime.read().ok().and_then(|value|value.clone());
                     let Some(runtime)=runtime else {
                         if !unavailable {
-                            if !matches!(tokio::time::timeout(Duration::from_secs(2),socket.send(Message::Text(json!({"type":"unavailable"}).to_string().into()))).await,Ok(Ok(()))){break;}
+                            if !matches!(tokio::time::timeout(Duration::from_secs(2),socket.send(Message::Text(json!({"type":"unavailable","selection_state":crate::scene_switches::SelectionState::Unavailable(crate::scene_switches::UnavailableReason::RuntimeUnavailable)}).to_string().into()))).await,Ok(Ok(()))){break;}
                             unavailable=true;cursor=None;
                         }
                         continue;
@@ -142,7 +142,7 @@ pub(crate) fn upgrade(
                     let Ok(ids)=ids else{break;};
                     let Ok(Reply::DeviceEvents(update))=runtime.control.request(Action::DeviceEvents{controller:grant.controller,revision:runtime.revision,ids,cursor:cursor.clone(),scope:format!("{:?}",grant.role)}).await else{
                         if !unavailable {
-                            if !matches!(tokio::time::timeout(Duration::from_secs(2),socket.send(Message::Text(json!({"type":"unavailable"}).to_string().into()))).await,Ok(Ok(()))){break;}
+                            if !matches!(tokio::time::timeout(Duration::from_secs(2),socket.send(Message::Text(json!({"type":"unavailable","selection_state":crate::scene_switches::SelectionState::Unavailable(crate::scene_switches::UnavailableReason::ReadFailed)}).to_string().into()))).await,Ok(Ok(()))){break;}
                             unavailable=true;cursor=None;
                         }
                         continue;
@@ -151,7 +151,9 @@ pub(crate) fn upgrade(
                     let scene_response=api.handle(request).await;
                     if scene_response.status()!=StatusCode::OK {
                         if !unavailable {
-                            if !matches!(tokio::time::timeout(Duration::from_secs(2),socket.send(Message::Text(json!({"type":"unavailable"}).to_string().into()))).await,Ok(Ok(()))){break;}
+                            let body=scene_response.into_body().collect().await.unwrap();
+                            let detail=serde_json::from_slice::<serde_json::Value>(&body.to_bytes()).ok().and_then(|body|body.get("selection_state").cloned()).unwrap_or_else(||json!(crate::scene_switches::SelectionState::Unavailable(crate::scene_switches::UnavailableReason::ReadFailed)));
+                            if !matches!(tokio::time::timeout(Duration::from_secs(2),socket.send(Message::Text(json!({"type":"unavailable","selection_state":detail}).to_string().into()))).await,Ok(Ok(()))){break;}
                             unavailable=true;cursor=None;
                         }
                         continue;

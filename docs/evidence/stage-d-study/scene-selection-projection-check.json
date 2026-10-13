@@ -1,0 +1,67 @@
+{
+  "date": "2026-10-13",
+  "base_commit": "d15bc88518a3bdae9233d837dc4faf2bf995edc3",
+  "scope": "clean source snapshot with only the listed product and test overlays; synthetic local fixtures; no real gateway or Apple client",
+  "source_sha256": {
+    "crates/homesensed/src/scene_switches.rs": "6a18d03ee9d56ac4bd2413e9dbd40f2e8891a054ca69614bcf6fc2df55c03763",
+    "crates/homesensed/src/scene_selection_hap.rs": "37d76b31367e8b4e3921217d0fdff0c523c0eea583ecc2451970eb1c759d991a",
+    "crates/homesensed/src/runtime_scene_hap.rs": "042a832b485e051a88a93af7d6d4163576a28c009ad049c0713533986a6125ef",
+    "crates/homesensed/src/web_api.rs": "5c66af21b9eef806e6ab057ac606f9557cb6e8c9851a8aef4edd38e823bdbe8a",
+    "crates/homesensed/src/web_events.rs": "105f6b9eac57eed5f8c04c08eb9208271717e6ef67c5772fdb3cda3b1983dbfa",
+    "crates/homesensed/src/web/app.js": "f694cd7a27b1b0f4320be0661581311f5fe3a2c6222478c10d7d5ca42ed478b9",
+    "crates/homesensed/tests/scene_switch_web.rs": "3ca7f45f8e288443986ae89e4d94f0b08f771c4d607939f1c8be4ac6f9ad6313",
+    "tools/verify_scene_switches.cjs": "af47140f26fd7ede6a5aca07a2ec98fe3d486692646c48f7f88441b03baa2e41",
+    "crates/homesensed/tests/scene_switch_hap.rs": "12e0eb66c6e9f8660ace9bfcf36e0070636390f534c53bf481067ecc4759ed18"
+  },
+  "validation": {
+    "rustc": "1.99.0",
+    "unit_selection_projection": 2,
+    "runtime_observer_led": 22,
+    "scene_planning_and_runtime": 4,
+    "web_api_and_stream": 3,
+    "encrypted_hap": 1,
+    "unique_rust_tests_passed": 32,
+    "failed_final": 0,
+    "ignored": 0,
+    "frontend_script": "verify_scene_switches.cjs passed",
+    "strict_all_target_clippy": "passed",
+    "full_workspace_rerun": false
+  },
+  "log_sha256": {
+    "unit": "392a1bca5696d77e6c18d4b3ab7d1d2e3dae5a90b468cf98be0d11edb22a0627",
+    "integration": "ebf07d20ca58a353f1d3dab85a082cc014ac3cda53d89d9950388b44ed47233c",
+    "hap_final": "3cef8f5cd459dbb1f102a988cfde3a113562a2c954a1b56d83e010aaab82a418",
+    "observer": "33e309ca538a6015533b999c6666db116ceda1f7c5555d383e9c26feb99b4def",
+    "frontend": "45c07662b3ef9ea2bdc9cdc7f5a15738097b790ac3489654a716c7bd036b1461",
+    "clippy": "33e403c3a8c310c749e7460fedce4f3a015a7cee347c4a29c61d8c35eff0a504",
+    "initial_fixture_failure": "ae22a1bba1a29fdebefe82f6e431224deba81e82670cf7b091ac6fde69cc24f2",
+    "sandbox_loopback_denial": "a9716c34fcf419562d44a22653b31b712e99d38952c5cecda9d1da22af999c6b",
+    "discarded_zero_match": "415cfb6d547d9462e31ba20a18d76a2c14a852c3df4130598c542f4c09716e20"
+  },
+  "guarantees": [
+    "healthy NULL is Unknown, never false or zero",
+    "unavailable reasons distinguish unsampled, invalidated, expired cache, missing runtime, not-ready runtime, failed and timed-out reads",
+    "Web selection reads have a shared 500ms diagnostic and selection deadline; permissions and actor readiness guards retained",
+    "current HTTP 503 and stream failure clear displayed selection and disable actions; later valid snapshots restore the existing gate",
+    "late HTTP 503 cannot invalidate newer state; old-session errors cannot affect new login",
+    "HAP unknown retains -70402 and accessory-directory null; known booleans and Off-before-On events unchanged",
+    "explicit On/reset and off rejection from unknown unchanged; no initialization, action replay or accessory graph changes",
+    "external observer candidate and LED regressions retained"
+  ],
+  "attempt_notes": [
+    "initial Source fixture assumed Simulation starts not ready; assertion failed and fixture now induces a real transport failure; failure log retained",
+    "sandbox refused localhost binding; tests rerun with permission for synthetic loopback only",
+    "zero-match observer filter discarded; corrected namespace ran all 22 tests",
+    "one unit rerun used dirty cwd accidentally; result discarded, authoritative clean unit log and source hashes used"
+  ],
+  "field_actions": 0,
+  "runtime_definitions_added": 0,
+  "bootstrap_policy_added": false,
+  "ea5_changed": false,
+  "pushed": false,
+  "remaining": [
+    "unknown remains unavailable in Apple Home; this increment improves state distinction and Web usability",
+    "transient physical LED color timing and real client acceptance remain separate gates",
+    "physical-feedback initialization is a separate requested increment, not part of this checkpoint"
+  ]
+}

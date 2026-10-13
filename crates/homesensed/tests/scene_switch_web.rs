@@ -228,6 +228,8 @@ async fn scene_stream_invalidates_stopped_selection_and_recovers_on_same_socket(
     assert_eq!(initial["type"], "state");
     assert_eq!(initial["scenes"].as_array().unwrap().len(), 1);
     assert!(initial["scenes"][0]["selected"].is_null());
+    assert_eq!(initial["scenes"][0]["selection_state"], json!({"state":"unknown"}));
+    assert_eq!(initial["scenes"][0]["can_control"], true);
     assert_eq!(initial["scenes"][0]["switch_kind"], "selection");
     let (status, v) = request(
         &api,
@@ -240,11 +242,12 @@ async fn scene_stream_invalidates_stopped_selection_and_recovers_on_same_socket(
     assert_eq!(v["outcome"], "accepted");
     let active = next(&mut socket).await;
     assert_eq!(active["scenes"][0]["selected"], true);
+    assert_eq!(active["scenes"][0]["selection_state"], json!({"state":"known","value":true}));
     assert_eq!(active["scenes"].as_array().unwrap().len(), 1);
     stop.send(true).unwrap();
     drive.await.unwrap().unwrap();
     let invalid = next(&mut socket).await;
-    assert_eq!(invalid, json!({"type":"unavailable"}));
+    assert_eq!(invalid, json!({"type":"unavailable","selection_state":{"state":"unavailable","value":"read_failed"}}));
     a.shutdown().await.unwrap();
     let (a, control, stop, drive) = owner(&path, caller).await;
     *api.runtime.write().unwrap() = Some(view(&a, control.clone()));
@@ -293,6 +296,7 @@ async fn selected(api: &Api, secret: &str, expected: Option<&str>) -> Value {
             .unwrap();
         assert_eq!(scene["switch_kind"], "selection");
         assert_eq!(scene["selected"], json!(expected == Some(id)));
+        assert_eq!(scene["selection_state"], json!({"state":"known","value":expected == Some(id)}));
     }
     let off = v["scenes"]
         .as_array()
@@ -439,6 +443,12 @@ async fn web_selection_targets_preserve_scope_legacy_receipts_and_off_cancellati
                     .iter()
                     .all(|s| s["selected"].is_null())
             );
+            for scene in v["scenes"].as_array().unwrap() {
+                if scene["switch_kind"] == "selection" {
+                    assert_eq!(scene["selection_state"], json!({"state":"unknown"}));
+                    assert_eq!(scene["can_control"], true);
+                }
+            }
             let (status, v) = request(&api, observer, "/api/v1/scenes", None).await;
             assert_eq!(status, StatusCode::OK);
             assert_eq!(v["scenes"].as_array().unwrap().len(), 1);
@@ -598,5 +608,55 @@ async fn web_selection_targets_preserve_scope_legacy_receipts_and_off_cancellati
         0
     );
     drop(db);
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[tokio::test]
+async fn unavailable_selection_reads_distinguish_timeout_absent_and_closed_runtime_without_actions() {
+    let root = std::env::temp_dir().join(format!("scene-unavailable-{}", Uuid::new_v4()));
+    std::fs::create_dir_all(&root).unwrap();
+    let path = root.join("runtime.sqlite");
+    homesense_storage::Store::open(&path).unwrap().publish_automation(
+        None, include_bytes!("../../../config/simulation.json"), &rules(), ExecutionContext::Simulation, &[],
+    ).unwrap();
+    let caller = Uuid::new_v4();
+    let a = Admission::open(path.clone(), Options { context: ExecutionContext::Simulation, ..Default::default() }, move |id| id == caller).await.unwrap();
+    a.synchronized(1, 1).await.unwrap();
+    // Keep a real runtime alive without polling its control mailbox.
+    let runtime = AutomationRuntime::load(a.clone(), caller, 1_800_000_000_000, 1000, 16, Default::default()).await.unwrap();
+    let control = runtime.control();
+    let tokens = Arc::new(Tokens::default());
+    let secret = "abcdefghijklmnopqrstuvwxyz0123456789";
+    tokens.insert(Uuid::new_v4(), secret, Grant { controller: caller, role: Role::Member, scenes: ["reading".into()].into(), devices: Default::default() }).unwrap();
+    let view = Runtime { control, revision: 1, boot: a.boot_id().into(), scenes: [("reading".into(), "reading".into())].into() };
+    let api = Api {
+        daily_backup: Default::default(), hap_bridges: Default::default(), hap_status: Default::default(),
+        backup_source: None, publisher: None, origin: "http://127.0.0.1:8088".into(), tokens,
+        runtime: std::sync::RwLock::new(Some(view.clone())),
+        receipts: Mutex::new(Receipts::open(&root.join("web.sqlite")).unwrap()), drafts: None,
+    };
+    let start = std::time::Instant::now();
+    let (status, body) = request(&api, secret, "/api/v1/scenes", None).await;
+    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(body, json!({"error":"scene_selection_unavailable","selection_state":{"state":"unavailable","value":"read_timed_out"}}));
+    assert!(start.elapsed() < Duration::from_secs(2), "read must not await the five-second action deadline");
+    *api.runtime.write().unwrap() = None;
+    let (status, body) = request(&api, secret, "/api/v1/scenes", None).await;
+    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(body["selection_state"], json!({"state":"unavailable","value":"runtime_unavailable"}));
+    *api.runtime.write().unwrap() = Some(view);
+    drop(runtime);
+    let (status, body) = request(&api, secret, "/api/v1/scenes", None).await;
+    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(body["selection_state"], json!({"state":"unavailable","value":"read_failed"}));
+    a.shutdown().await.unwrap();
+    let db = rusqlite::Connection::open(&path).unwrap();
+    for table in ["command_journal", "scene_run"] {
+        assert_eq!(db.query_row(&format!("SELECT count(*) FROM {table}"), [], |row| row.get::<_, i64>(0)).unwrap(), 0);
+    }
+    let value: Option<String> = db.query_row("SELECT value FROM logical_variable WHERE name='selection'", [], |row| row.get(0)).unwrap();
+    assert!(value.is_none(), "unavailable reads must never seed an unknown variable");
+    drop(db);
+    drop(api);
     std::fs::remove_dir_all(root).unwrap();
 }
