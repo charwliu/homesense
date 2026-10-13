@@ -1,6 +1,6 @@
 {
   "date": "2026-10-13",
-  "status": "document_checked_implementation_and_hardware_validation_pending",
+  "status": "same_model_document_checked_fixed_software_implementation_verified_hardware_pending",
   "manuals": [
     {
       "model": "AD8-DIN RS485",
@@ -43,7 +43,7 @@
       "sha256": "274ffe6962ffabf8149be7095fddff2828442b4af4602785db6d38b71904832b",
       "profile": "gt_c8_rl_v2_8_2_2",
       "channels": 8,
-      "section": "\u63a7\u5236\u6307\u4ee4 / \u516b\u8def\u7ee7\u7535\u5668",
+      "section": "控制指令 / 八路继电器",
       "pdf_page_one_based": 2,
       "printed_page": 4,
       "document_capability": "not_documented",
@@ -64,7 +64,7 @@
       "sha256": "b396364e135da689acbd7688135d93536ff408ec270bf1f623eab7aee5954906",
       "profile": "gt_e4_rl_v3_2_2_2",
       "channels": 4,
-      "section": "\u63a7\u5236\u6307\u4ee4 / \u5e38\u7528\u547d\u4ee4 / \u8f93\u51fa\u72b6\u6001\u67e5\u8be2",
+      "section": "控制指令 / 常用命令 / 输出状态查询",
       "pdf_page_one_based": 2,
       "printed_page": 4,
       "document_capability": "explicit",
@@ -84,7 +84,7 @@
       "sha256": "eba2c5b38e77f19a0da3d5e809b0496192370fdf347e40a76aa4297c6da4c505",
       "profile": "gt_d8_rl_v2_2_6_2",
       "channels": 8,
-      "section": "\u63a7\u5236\u6307\u4ee4 / \u8f93\u51fa\u72b6\u6001\u67e5\u8be2",
+      "section": "控制指令 / 输出状态查询",
       "pdf_page_one_based": 2,
       "printed_page": null,
       "document_capability": "explicit",
@@ -105,7 +105,7 @@
       "sha256": "d4092bb94d633a01c5cf30b62bb05184e52ee4b4ddbd57986188c16318e46e74",
       "profile": "gt_l8_rl_v2_0_7_2",
       "channels": 8,
-      "section": "\u63a7\u5236\u6307\u4ee4 / \u8f93\u51fa\u72b6\u6001\u67e5\u8be2",
+      "section": "控制指令 / 输出状态查询",
       "pdf_page_one_based": 2,
       "printed_page": null,
       "document_capability": "explicit",
@@ -157,5 +157,20 @@
       "audit.json": "2d1635d2215c0824721822b3087f7c87ed12d18ad1c9292073da2b967b0ee59c",
       "REPORT.md": "cb93554e3ace9955d9efc19207dd07f7ee123b8a525597b5902856296e955b5e"
     }
+  },
+  "fixed_implementation_followup": {
+    "commit": "bfe61f28aa0070904f248ee418b542ffdde9bbeb",
+    "module_query_profiles": [
+      "ad8_din_rs485_v2_2_1",
+      "gt_e4_rl_v3_2_2_2",
+      "gt_d8_rl_v2_2_6_2",
+      "gt_l8_rl_v2_0_7_2"
+    ],
+    "pro_and_c8_remain_individual": true,
+    "source_files_independently_verified": 949,
+    "synthetic_software_tests_and_linux_loopback_verified": true,
+    "hardware_verified": false,
+    "root_evidence": "../stage-e-browser/module-query-capacity-root-audit.json",
+    "prior_baseline_encoder_description_is_historical": true
   }
 }
