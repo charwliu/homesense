@@ -1,0 +1,100 @@
+{
+  "date": "2026-10-13",
+  "status": "current_linux_seven_source_cases_independently_verified",
+  "scope": "Independent retained source/log/binary audit, no new test execution or remote operation",
+  "source_commit": "884850dbfdafec3133749fe0c1380dfc65cda98a",
+  "archive_files_equal_commit": 1026,
+  "mac_final_overlay_sha256_equal": 15,
+  "run": {
+    "command": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-p",
+      "homesense-storage",
+      "-p",
+      "homesensed",
+      "--test",
+      "rule_sources",
+      "--",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "exit_code": 0,
+    "passed": 7,
+    "failed": 0,
+    "ignored": 0,
+    "filtered": 0,
+    "result_blocks": [
+      [
+        3,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        4,
+        0,
+        0,
+        0,
+        0
+      ]
+    ],
+    "exact_test_ids": [
+      "invalid_or_misaligned_labels_never_accept_any_receipt",
+      "schema_24_backup_and_migration_keep_historical_sources_unknown",
+      "source_labels_variables_and_cancellations_rollback_together_on_sql_or_cas_failure",
+      "combined_expansion_copies_source_to_each_output_without_shifting_next_node",
+      "mixed_deferred_rule_retains_immediate_and_existing_call_member_sources",
+      "panel_click_retains_audited_source_labels",
+      "two_same_kind_independent_channels_keep_exact_node_labels_after_reopen"
+    ]
+  },
+  "actual_retained_elfs": [
+    {
+      "name": "rule_sources-7a63212c60059ac8",
+      "sha256": "ccd3f730db4b51aa7ac8e197c73dd0c8208888d21f811664781e17555c771571",
+      "format": "ELF64 little-endian x86_64"
+    },
+    {
+      "name": "rule_sources-870c17d40df68603",
+      "sha256": "80e20d8425d7490f889d01fb64b1450d09a0f67b6d323eeebd8a249c02276212",
+      "format": "ELF64 little-endian x86_64"
+    }
+  ],
+  "host": {
+    "architecture": "x86_64",
+    "glibc": "glibc 2.44",
+    "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)",
+    "cargo": "cargo 1.99.0 (5f94df478 2026-08-27)"
+  },
+  "cleanup_scope": "Execution and post-exit records only; current remote processes not queried",
+  "new_test_executions": 0,
+  "owner_report_sha256": "38d272473f93b45ee7dac9f7e88530befff922369c300c1ff852f660c217b759",
+  "evidence_roots": {
+    "root": "deployment/ngr/private/20261013-rule-source-linux-root",
+    "owner": "deployment/ngr/private/20261013-rule-source-linux-884850d"
+  },
+  "evidence_sha256": {
+    "root/verify.py": "4468dba686e53becde910efccae819d03518bc89f6a4b584261aba03a7ea4c07",
+    "root/root-audit.json": "335f0ea893dcc379f1dc3bdf1dec61890d0fb584eebbdfc3116971d17fb7046f",
+    "owner/source.tar": "5bbc511c4b9e8d42928146763ddf7d4405912358eb2f59a292b9a2f5aa8e61f7",
+    "owner/source.json": "5d9f76e5106c41af79ed9299e19494912335d98f8d1c07e7826e16e5e3ae302b",
+    "owner/run.py": "4149e6a7618cfd03d8863e139ff2c6dbf719d9b0cef065e5f4c876bbb97c006f",
+    "owner/isolated-cargo-config.toml": "f77b30146e3b95309f9e2c740391ae139bfe74478a82c2814f3c392abe8ac499",
+    "owner/evidence/host.json": "36bc6ce52af16a218c1264c9a95feed1ac5ac78e9a92dcfe8e198ca41a57d046",
+    "owner/evidence/tests.log": "ecdb118fe5925deea04aad9edb299bba1f1a8099a6367d58a97d604ae29475d6",
+    "owner/evidence/execution.json": "397557eedf58fca81e148a86c6f95e5803d567b8d0e0846a13489baa58fdf3ac",
+    "owner/verification.json": "587e7bca1a5c16255d1523b9181e0c831a9bb6c1c011c580bcd9e5f731afd905",
+    "owner/evidence/test-binaries/rule_sources-7a63212c60059ac8": "ccd3f730db4b51aa7ac8e197c73dd0c8208888d21f811664781e17555c771571",
+    "owner/evidence/test-binaries/rule_sources-870c17d40df68603": "80e20d8425d7490f889d01fb64b1450d09a0f67b6d323eeebd8a249c02276212"
+  },
+  "limitations": [
+    "Seven source integration cases only: not whole library, full package/workspace, Clippy, release, TLS or frontend Linux gate",
+    "Previous ea524bb132, b31ddeb indicator6 and Mac531 remain separate scopes",
+    "Synthetic actors and stores do not prove real client, physical execution or original program approval",
+    "No real gateway, production service, identity, credential, configuration or network changes by this audit"
+  ]
+}
