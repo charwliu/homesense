@@ -1,0 +1,210 @@
+{
+  "fixed_commit": "3d9a067ca8d248b6ffc99670f52be13010d6fdf9",
+  "archive_sha256": "3b496c3bc8a37746b875824ba056298a10cf200efed13ead102a755fe8c80250",
+  "original_source_files_verified_unchanged": 922,
+  "actual_core_vectors_passed": 37,
+  "cases": [
+    {
+      "id": "levels-0",
+      "selection": null,
+      "executed": true
+    },
+    {
+      "id": "levels-1",
+      "selection": null,
+      "executed": true
+    },
+    {
+      "id": "levels-2",
+      "selection": null,
+      "executed": true
+    },
+    {
+      "id": "levels-3",
+      "selection": null,
+      "executed": true
+    },
+    {
+      "id": "levels-4",
+      "selection": null,
+      "executed": true
+    },
+    {
+      "id": "levels-5",
+      "selection": null,
+      "executed": true
+    },
+    {
+      "id": "levels-6",
+      "selection": null,
+      "executed": true
+    },
+    {
+      "id": "levels-7",
+      "selection": 0,
+      "executed": true
+    },
+    {
+      "id": "levels-8",
+      "selection": 3,
+      "executed": true
+    },
+    {
+      "id": "levels-9",
+      "selection": 3,
+      "executed": true
+    },
+    {
+      "id": "levels-10",
+      "selection": 3,
+      "executed": true
+    },
+    {
+      "id": "levels-11",
+      "selection": 3,
+      "executed": true
+    },
+    {
+      "id": "levels-12",
+      "selection": null,
+      "executed": true
+    },
+    {
+      "id": "levels-13",
+      "selection": 1,
+      "executed": true
+    },
+    {
+      "id": "levels-14",
+      "selection": 2,
+      "executed": true
+    },
+    {
+      "id": "levels-15",
+      "selection": 2,
+      "executed": true
+    },
+    {
+      "id": "levels-16",
+      "selection": 2,
+      "executed": true
+    },
+    {
+      "id": "levels-17",
+      "selection": 2,
+      "executed": true
+    },
+    {
+      "id": "levels-18",
+      "selection": null,
+      "executed": true
+    },
+    {
+      "id": "levels-19",
+      "selection": 1,
+      "executed": true
+    },
+    {
+      "id": "levels-20",
+      "selection": 2,
+      "executed": true
+    },
+    {
+      "id": "levels-21",
+      "selection": 2,
+      "executed": true
+    },
+    {
+      "id": "levels-22",
+      "selection": 2,
+      "executed": true
+    },
+    {
+      "id": "levels-23",
+      "selection": 2,
+      "executed": true
+    },
+    {
+      "id": "levels-24",
+      "selection": null,
+      "executed": true
+    },
+    {
+      "id": "levels-25",
+      "selection": 1,
+      "executed": true
+    },
+    {
+      "id": "levels-26",
+      "selection": 2,
+      "executed": true
+    },
+    {
+      "id": "levels-27",
+      "selection": 2,
+      "executed": true
+    },
+    {
+      "id": "levels-28",
+      "selection": 2,
+      "executed": true
+    },
+    {
+      "id": "levels-29",
+      "selection": 2,
+      "executed": true
+    },
+    {
+      "id": "levels-30",
+      "selection": null,
+      "executed": true
+    },
+    {
+      "id": "levels-31",
+      "selection": 1,
+      "executed": true
+    },
+    {
+      "id": "levels-32",
+      "selection": 2,
+      "executed": true
+    },
+    {
+      "id": "levels-33",
+      "selection": 2,
+      "executed": true
+    },
+    {
+      "id": "levels-34",
+      "selection": 2,
+      "executed": true
+    },
+    {
+      "id": "levels-35",
+      "selection": 2,
+      "executed": true
+    },
+    {
+      "id": "same-pattern-different-brightness",
+      "selection": null,
+      "executed": true
+    }
+  ],
+  "private_source_probe_log_hashes_verified": true,
+  "checker_reexecuted": true,
+  "pending_cases": [
+    "hap-before-first-tick",
+    "restart-old-reading-actual-alloff"
+  ],
+  "limitations": [
+    "pure matcher and Percent conversion only; not startup/HAP/runtime or freshness validation",
+    "one private test target with37 test functions; cases overlap the root exhaustive vectors and do not enlarge distinct input coverage",
+    "no real network, devices or credentials"
+  ],
+  "rust_tests": {
+    "passed": 37,
+    "failed": 0,
+    "ignored": 0
+  },
+  "probe_reviewed_and_matches_tested_file": true
+}

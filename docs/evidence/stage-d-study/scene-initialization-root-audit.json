@@ -1,0 +1,19 @@
+{
+  "product_commit": "6a8bb773e0ae0148c330f87362612b252b285af7",
+  "test_baseline_commit": "0127c13d6e2204bbd688a67a862ec3f6a35de8a8",
+  "source_paths_verified_against_commit": 20,
+  "non_overlay_archive_files_verified_unchanged": 903,
+  "test_counts": {
+    "runtime": 32,
+    "storage": 60,
+    "config": 23,
+    "integration": 8
+  },
+  "unique_successful_tests": 123,
+  "all_log_hashes_match": true,
+  "strict_clippy_and_frontend_logs_verified": true,
+  "verification_scope": "20 tested source overlays match 6a8bb77; test snapshot based on0127c13; independent core module added in parent3d9a067 has its own90-test proof",
+  "partial": true,
+  "latest_every_boot_binary_policy_implemented": false,
+  "field_actions": 0
+}
