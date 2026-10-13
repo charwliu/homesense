@@ -336,6 +336,7 @@ pub(crate) async fn drive_with_panel_feeds<S: Read + Write + Send + 'static>(
             guard.owner.expire(admission.monotonic_ms(), max_age_ms)?;
             if let Some((receiver,document))=&control.0 {
                 scene_observations.tick(admission,receiver.controller(),document,guard.owner.feedback()).await?;
+                crate::scene_initialization::tick(admission,receiver.controller(),document,guard.scenes,guard.owner.feedback()).await?;
                 indicators.tick(admission,receiver.controller(),document,guard.scenes,guard.owner.feedback(),max_age_ms).await?;
             }
             if let Some(projection)=&projection {projection.send_replace(guard.owner.snapshot());}

@@ -1533,3 +1533,6 @@ async fn observed_unknown_startup_full_off_clears_leds_without_seeding_selection
     drop(scenes);
     h.close().await;
 }
+
+#[path = "scene_initialization_tests.rs"]
+mod initialization;

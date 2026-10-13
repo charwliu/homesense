@@ -787,7 +787,7 @@ impl Document {
                 },
             );
         }
-        crate::scene_switches::validate(&input.scene_switch_groups,&variables,&timed_scenes)?;
+        crate::scene_switches::validate(&input.scene_switch_groups,&variables,&timed_scenes,config)?;
         crate::indicator_links::validate(&input.indicator_links,config,&input.scene_switch_groups,&timed_scenes)?;
         let mut ids = std::collections::BTreeSet::new();
         let mut rules = vec![];

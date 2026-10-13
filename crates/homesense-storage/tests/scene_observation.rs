@@ -404,7 +404,7 @@ fn schema21_migration_and_online_backup_preserve_recorded_values_and_inferred_or
             .unwrap()
             .pragma_query_value(None, "user_version", |r| r.get::<_, i64>(0))
             .unwrap(),
-        22
+        23
     );
 }
 

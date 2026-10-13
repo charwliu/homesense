@@ -18,6 +18,7 @@ async function refreshReply(snapshot) {
  await drain();assert.equal(pending[0].path,'/api/v1/devices');respond({revision:'1',devices:[],rooms:[]});await drain();
 }
 (async()=>{
+ context.renderScenes({revision:'1',scenes:[{...scene('reading',true),selection_source:'light_initialization'}]});assert.match(rows()[0].children[1].textContent,/当前选择：开启.*灯光初始化记录/);
  context.renderScenes({revision:'1',scenes:[{...scene('reading',true),selection_source:'inferred',observation_current:true}]});assert.match(rows()[0].children[1].textContent,/当前选择：开启.*按键推断/);
  context.markEventStateUnavailable('stale');assert.match(rows()[0].children[1].textContent,/当前选择：不可用.*按键推断已失效/);assert.equal(button(0).disabled,true);
  context.renderScenes({revision:'1',scenes:[{...scene('reading',null),selection_source:'unknown'}]});assert.match(rows()[0].children[1].textContent,/当前选择：未知.*来源未知/);
