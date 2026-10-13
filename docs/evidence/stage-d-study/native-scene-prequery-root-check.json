@@ -47,5 +47,13 @@
     "No query transaction ID:guard proves temporal barriers,not exclusive causal attribution of received frames",
     "Existing draft compile warnings; no new strict Clippy claim"
   ],
-  "field_enablement": false
+  "field_enablement": false,
+  "fixed_commit_followup": {
+    "commit": "5c37f9d0318065fafd39881150d390872a66cdd4",
+    "result": "same_independent_probe_passed_on_unmodified_committed_source_plus_test_append",
+    "fixed_original_files": 947,
+    "private_audit_sha256": "5efa04dc34be1025b8f6523f080d54591e5668ae1dc9daab72dae66ac1dab060",
+    "root_audit_document": "native-scene-relative-root-audit.json",
+    "draft_run_not_added_as_extra_unique_test": true
+  }
 }
