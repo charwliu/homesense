@@ -129,6 +129,24 @@ impl CommandQueue {
         now_ms: u64,
         current: Epochs,
     ) -> Result<Vec<Cancellation>, QueueError> {
+        self.enqueue_with_coalescing(request, now_ms, current, true)
+    }
+    /// Only the arbiter's validated, audited-rule batch path uses this entry.
+    /// A repeated node is an instruction, including an identical Level(0).
+    pub(crate) fn enqueue_ordered_rule(
+        &mut self,
+        request: QueuedCommand,
+        now_ms: u64,
+        current: Epochs,
+    ) -> Result<Vec<Cancellation>, QueueError> {
+        self.enqueue_with_coalescing(request, now_ms, current, false)
+    }
+    fn enqueue_with_coalescing(
+        &mut self,
+        request: QueuedCommand,
+        now_ms: u64,
+        current: Epochs, coalesce: bool,
+    ) -> Result<Vec<Cancellation>, QueueError> {
         if request.id <= self.last_id {
             return Err(QueueError::InvalidCommandId);
         }
@@ -147,7 +165,8 @@ impl CommandQueue {
             .rposition(|old| old.device_id == request.device_id)
             .filter(|&i| {
                 let old = &self.commands[i];
-                i + 1 == self.commands.len()
+                coalesce
+                    && i + 1 == self.commands.len()
                     && request.is_immediate_level()
                     && old.is_immediate_level()
                     && old.origin == request.origin

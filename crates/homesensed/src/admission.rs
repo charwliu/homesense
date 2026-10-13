@@ -1354,6 +1354,9 @@ impl Admission {
                                     },
                                     other => (other,None,false,vec![],None,None,None,vec![]),
                                 };
+                                // Only trusted rule adapters attach this persistent audit.
+                                // External HAP/HTTP light batches never select ordered mode.
+                                let ordered_rule = audit.is_some();
                                 if audit.as_ref().is_some_and(|a|a.revision!=configuration.revision()){return Err(WriteStatus::InvalidValueInRequest);}
                                 if !starts.is_empty() {
                                     if starts.len()>64 || audit.is_none() || scene.is_some() {return Err(WriteStatus::InvalidValueInRequest);}
@@ -1401,7 +1404,7 @@ impl Admission {
                                         let mut expanded_sources = command_sources.as_ref().map(|_| Vec::new());
                                         let mut seen = std::collections::BTreeSet::new();
                                         for (index, intent) in batch.intents.into_iter().enumerate() {
-                                            if !seen.insert(intent.device.clone()) || configuration.devices().values().any(|d| d.enabled && d.supply_relay.as_ref() == Some(&intent.device)) {
+                                            if (!ordered_rule && !seen.insert(intent.device.clone())) || configuration.devices().values().any(|d| d.enabled && d.supply_relay.as_ref() == Some(&intent.device)) {
                                                 return Err(WriteStatus::InvalidValueInRequest);
                                             }
                                             let (device, module) = configuration.binding(&intent.device).ok_or(WriteStatus::ResourceDoesNotExist)?;
@@ -1504,25 +1507,26 @@ impl Admission {
                                     ));
                                 }
                                 let now = millis(clock);
-                                let result = arbiter.submit_batch_committed(
-                                    commands,
-                                    now,
-                                    |commands, cancelled| {
-                                        store.accept_queue_batch_with_read_checks_and_sources(
-                                            &worker_boot,
-                                            commands,
-                                            cancelled,
-                                            now,
-                                            study,
-                                            &variables,
-                                            audit.as_ref(),
-                                            scene.as_ref(),
-                                            &starts,
-                                            &selection_checks,
-                                            command_sources.as_deref(),
-                                        )
-                                    },
-                                );
+                                let persist = |commands: &[QueuedCommand], cancelled: &[homesense_core::queue::Cancellation]| {
+                                    store.accept_queue_batch_with_read_checks_and_sources(
+                                        &worker_boot,
+                                        commands,
+                                        cancelled,
+                                        now,
+                                        study,
+                                        &variables,
+                                        audit.as_ref(),
+                                        scene.as_ref(),
+                                        &starts,
+                                        &selection_checks,
+                                        command_sources.as_deref(),
+                                    )
+                                };
+                                let result = if ordered_rule {
+                                    arbiter.submit_ordered_rule_batch_committed(commands, now, persist)
+                                } else {
+                                    arbiter.submit_batch_committed(commands, now, persist)
+                                };
                                 match result {
                                     Ok(cancelled) => {
                                         temporary.extend(memory_updates);
