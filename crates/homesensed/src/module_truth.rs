@@ -276,6 +276,16 @@ impl ModuleTruth {
     pub fn observation_count(&self, id: &DeviceId) -> Option<u64> {
         self.counts.get(self.aliases.get(id)?).copied()
     }
+    pub(crate) fn port_observation_count(
+        &self,
+        gateway: &str,
+        address: u8,
+        channel: u8,
+    ) -> Option<u64> {
+        self.counts
+            .get(self.locators.get(&(gateway.to_owned(), address, channel))?)
+            .copied()
+    }
     pub fn invalid_alias(&self, id: &DeviceId) -> bool {
         self.aliases
             .get(id)

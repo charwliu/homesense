@@ -25,13 +25,13 @@ async fn missing_periodic_response_stops_at_recovery_limit_without_control_write
             .unwrap();
         let mut frame = [0; 5];
         socket.read_exact(&mut frame).unwrap();
-        assert_eq!(frame, [0xae, 0x15, 0xa1, 0xf2, 0xee]);
-        socket.write_all(&[0xae, 0x15, 0xd1, 42, 0xee]).unwrap();
+        assert_eq!(frame, [0xae, 0x15, 0xa0, 0xf2, 0xee]);
+        socket.write_all(&module_levels(0x15, 42)).unwrap();
         socket.read_exact(&mut frame).unwrap();
-        assert_eq!(frame, [0xae, 0x15, 0xa1, 0xf2, 0xee]);
+        assert_eq!(frame, [0xae, 0x15, 0xa0, 0xf2, 0xee]);
         // The fresh query receives no answer: the old observation is not renewed.
         socket.read_exact(&mut frame).unwrap();
-        assert_eq!(frame, [0xae, 0x15, 0xa1, 0xf2, 0xee]);
+        assert_eq!(frame, [0xae, 0x15, 0xa0, 0xf2, 0xee]);
         // One bounded read-only retry is also unanswered; control remains gated.
         assert_eq!(socket.read(&mut frame).unwrap(), 0);
     });
@@ -128,7 +128,7 @@ async fn idle_combined_light_stays_readable_over_encrypted_hap_and_web() {
                 matches!(frame[1], 0x03 | 0x15),
                 "queried event-only panel or motor: {frame:?}"
             );
-            if frame[2] == 0xa1 {
+            if (0xa0..=0xa8).contains(&frame[2]) {
                 assert_eq!(frame[3], 0xf2);
                 received_queries.lock().unwrap().push(frame[1]);
             } else {
@@ -138,9 +138,14 @@ async fn idle_combined_light_stays_readable_over_encrypted_hap_and_web() {
                 }
             }
             let value = if frame[1] == 0x03 { 0xf1 } else { level };
-            socket
-                .write_all(&[0xae, frame[1], 0xd1, value, 0xee])
-                .unwrap();
+            let reply = if frame[2] == 0xa0 {
+                assert_eq!(frame[1], 0x15, "PRO relay must use individual queries");
+                module_levels(frame[1], value)
+            } else {
+                let channel = if frame[2] >= 0xa1 { frame[2] - 0xa0 } else { 1 };
+                vec![0xae, frame[1], 0xd0 + channel, value, 0xee]
+            };
+            socket.write_all(&reply).unwrap();
         }
     });
     let mut identity = homesense_hap::storage::IdentityStore::open(root.join("identity"))
@@ -274,11 +279,11 @@ async fn lost_periodic_reply_requeries_same_connection_and_requires_new_observat
         let mut frame = [0; 5];
         for index in 0..3 {
             socket.read_exact(&mut frame).unwrap();
-            assert_eq!(frame, [0xae, 0x15, 0xa1, 0xf2, 0xee], "only status reads may retry");
+            assert_eq!(frame, [0xae, 0x15, 0xa0, 0xf2, 0xee], "only status reads may retry");
             match index {
-                0 => socket.write_all(&[0xae, 0x15, 0xd1, 42, 0xee]).unwrap(),
+                0 => socket.write_all(&module_levels(0x15, 42)).unwrap(),
                 1 => {}, // lose exactly the first periodic reply
-                _ => socket.write_all(&[0xae, 0x15, 0xd1, 43, 0xee]).unwrap(),
+                _ => socket.write_all(&module_levels(0x15, 43)).unwrap(),
             }
         }
         loop {
@@ -286,8 +291,8 @@ async fn lost_periodic_reply_requeries_same_connection_and_requires_new_observat
             if n == 0 {break;}
             let mut filled = n;
             while filled < frame.len() {let n=socket.read(&mut frame[filled..]).unwrap();assert!(n>0,"EOF within query frame");filled+=n;}
-            assert_eq!(frame, [0xae, 0x15, 0xa1, 0xf2, 0xee], "later periodic queries are allowed, controls are not");
-            socket.write_all(&[0xae, 0x15, 0xd1, 43, 0xee]).unwrap();
+            assert_eq!(frame, [0xae, 0x15, 0xa0, 0xf2, 0xee], "later periodic queries are allowed, controls are not");
+            socket.write_all(&module_levels(0x15, 43)).unwrap();
         }
     });
     let bytes = serde_json::to_vec(&raw).unwrap();
@@ -316,4 +321,8 @@ async fn lost_periodic_reply_requeries_same_connection_and_requires_new_observat
     assert_eq!(db.query_row("SELECT count(*) FROM command_journal", [], |row|row.get::<_,i64>(0)).unwrap(), 0);
     drop(db);
     std::fs::remove_dir_all(root).unwrap();
+}
+
+fn module_levels(address: u8, level: u8) -> Vec<u8> {
+    (1..=8).flat_map(|channel| [0xae, address, 0xd0 + channel, level, 0xee]).collect()
 }

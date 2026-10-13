@@ -405,16 +405,12 @@ pub(crate) fn validate_candidate_in_context(devices:&[u8],rules:&[u8],write_inte
                 .map_err(|e|format!("scene {id} fade step {index}: {e}"))?);
         }
     }
-    if config.gateways().is_empty()
-        || !config
-            .devices()
-            .keys()
-            .any(|id| config.binding(id).is_some())
-    {
-        return Err("enabled verified devices required".into());
+    if config.gateways().is_empty() {
+        return Err("registered gateways required".into());
     }
+    let targets = crate::physical_queries::plan(&config, context)?;
+    crate::physical_queries::interval(&targets, write_interval.as_millis() as u64, 5000)?;
     // Reject unsupported synchronization before entering a publication barrier.
-    let mut outputs = 0;
     for id in config.devices().keys() {
         if let Some((device, module)) = config.binding(id) {
             if context == ExecutionContext::Live && module.kind() == homesense_core::ModuleKind::Keypad {
@@ -427,7 +423,6 @@ pub(crate) fn validate_candidate_in_context(devices:&[u8],rules:&[u8],write_inte
                 hb_protocol::encode_in_context(module,device.channel,stop,context).map_err(|e|e.to_string())?;
                 continue;
             }
-            outputs += 1;
             hb_protocol::encode_in_context(
                 module,
                 device.channel,
@@ -436,9 +431,6 @@ pub(crate) fn validate_candidate_in_context(devices:&[u8],rules:&[u8],write_inte
             )
             .map_err(|e| e.to_string())?;
         }
-    }
-    if outputs == 0 {
-        return Err("automation TCP requires at least one queryable output".into());
     }
     Ok(config)
 }

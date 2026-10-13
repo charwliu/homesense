@@ -1,0 +1,65 @@
+{
+  "date": "2026-10-13",
+  "base_commit": "bcc0d2f4de1958adc4a1e6898e4797f9f98cbf67",
+  "scope": "Complete registered readable output scope for startup, reconnect, publication and periodic refresh",
+  "source_sha256": {
+    "crates/homesensed/src/physical_queries.rs": "f9806a00538f45db96bd7ea5b93860f56243b2bb20328af9a259d4fc8cf9a046",
+    "crates/homesensed/src/lib.rs": "970be261526a06cf530226674d2f55acfff6cae5f89d3a87ced3cc56684f5c88",
+    "crates/homesensed/src/module_truth.rs": "b037c7b37babcf5b2bafa3a7bc181994627d5950b83cbe1add1df81be9b4ce8e",
+    "crates/homesensed/src/observed_transport.rs": "b5a66b465e454179863e03078d39ea18fdddc2abc38d91a1fc4d13b88c572a86",
+    "crates/homesensed/src/runtime_hap.rs": "421a3d96bca0ecd707a7e7f8bfabe87318adb7aa5bc610c16befe00f6a4d5acf",
+    "crates/homesensed/src/physical_startup_tests.rs": "78d0cc4bee846325cf2d931fc0f53f0d5c85b2fbebc804e2cdccaf92a7735dbb",
+    "crates/homesensed/src/module_query_tests.rs": "f62cb7a043b68ce4af775fc8de99e2f6cacbdb684ea0ada783bbf8dc068c7d96",
+    "crates/homesensed/src/automation_tcp.rs": "7d2e20932bfcdafa720c8bd33acffdd1342de503be91c29f5630c3aa57f105a3",
+    "crates/homesensed/src/automation_tcp_fault_tests.rs": "48e9fad05a5b8c1238dbd88d45e3ecdee032870360bdf865d0a5ab53b734364a",
+    "crates/homesensed/tests/recovery.rs": "855bc193304886894ecdd0cd37173649065b673cc0fec46d3772bd1943be4eea",
+    "crates/homesensed/tests/supervisor.rs": "304580b69fce6b4a6eb6e58fb125b2de72d67a21d1a22bf56e08034a361f1eb9",
+    "crates/homesensed/tests/managed_tcp.rs": "7e4855965244919b56b6d5acbfe23bb2acb23e2b11b7306b018ffe0a0e8fbff3",
+    "crates/homesensed/tests/automation_tcp.rs": "be40a5c23d71bee0afcd5e42268fc4137cc400c460efa0d1af16af91477c449d",
+    "crates/homesensed/tests/tcp_idle_feedback.rs": "ae5b2fe7be0310f16d178a3e27ce1395f07a0131071ec30cbc29760ac7e77f1b",
+    "crates/homesensed/tests/multiple_hap.rs": "73fe4004bbe8a20d8a9458e6982f53a3aa122bf3c034886593038ed7d960acb8",
+    "crates/homesensed/tests/automation_publication.rs": "9c42494f54c0c0df4d32a16791bda164f61dab1d3b949defcffb9a3fbe2326c3",
+    "crates/homesensed/tests/panel_hap.rs": "7a6638c8e0bff6a214a1b4359632da14f92d75dbddff8a76e8c15206b7063f9d"
+  },
+  "validation": {
+    "runtime_library": 130,
+    "admission": 40,
+    "automation_tcp": 16,
+    "managed_tcp": 7,
+    "multiple_hap": 3,
+    "supervisor": 4,
+    "tcp_idle_feedback": 3,
+    "unified_hap": 3,
+    "automation_publication": 6,
+    "recovery": 1,
+    "panel_hap": 1,
+    "unique_rust_tests_passed": 214,
+    "failed": 0,
+    "ignored": 0,
+    "filtered": 0,
+    "strict_clippy": "homesense-config homesense-storage homesensed --all-targets -D warnings passed",
+    "complete_workspace": false
+  },
+  "log_sha256": {
+    "library_and_loopback": "4b27820f99789df0118727e3ffcf6d9e101569c0c96b3b1ae9f5af094d4bf2b4",
+    "publication_and_recovery": "aa2aa29eb4059809e5fdb21d037bd891724c71f72ca742b05cd3d3204475a197",
+    "encrypted_panel": "3ee0963a1dd9aef6fe36c77082fd168792a7d01d031beee86e6fc6ff0e1d6f20",
+    "strict_clippy": "3a7d69ffb6f6b5388fd0ee54daf53e569b62d2237d1cc9279a4504e9b90f5a67"
+  },
+  "invariants": [
+    "Every registered readable port must have fresh generation-matched feedback before readiness",
+    "AD8 and supported legacy models use whole-module query; PRO/C8 models use individual channel queries",
+    "Unbound and disabled ports remain outside logical control grants",
+    "Panel LED and motor position without readback remain unknown",
+    "Partial feedback never opens readiness",
+    "Freshness capacity counts physical frames, including modules with no aliases",
+    "Manual takeover, pacing, expiry and HAP version guards remain intact"
+  ],
+  "test_fixture_changes": "Loopback fixtures now supply all eight registered channels and assert whole-module queries; actuator, recovery, no-replay and encryption assertions retained",
+  "limitations": [
+    "Synthetic memory bus and localhost only",
+    "No deployment, real gateway connection, field configuration publication or push",
+    "EA-5 configuration and control scope unchanged",
+    "Management receipt refresh and action metadata masking tracked separately"
+  ]
+}
