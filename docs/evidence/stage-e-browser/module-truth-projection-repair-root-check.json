@@ -1,0 +1,217 @@
+{
+  "date": "2026-10-13",
+  "fixed_commit": "1e35addaab2caa4ead5232e8574b1d6b46a39d1f",
+  "scope": "full fixed 1e35add archive, original runtime library and Admission integration tests, unchanged private regression from the failed 8685b0b run; local synthetic devices/loopback only",
+  "source": {
+    "archive_sha256": "963c7ce966ab97076c3857ba59cca1d1432280f231eb073506fa6a69fd4db22a",
+    "source_manifest_sha256": "b2884b788ae1d5a9e3acf9f143ec64d2a3842dce99e58aba81fffd6ceeb0b9a3",
+    "original_files_verified_unchanged": 980,
+    "private_test_only_additions": 1,
+    "private_probe_sha256": "a400c6de2d033c3396a7837e1822902debaff6e85239a6c6ec0d7aff82e46ef7",
+    "same_probe_as_failed_checkpoint": true,
+    "owner_two_source_and_four_log_fingerprints_verified": true,
+    "query_wip_excluded": true
+  },
+  "validation": {
+    "counts": {
+      "runtime_library": {
+        "passed": 118,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0
+      },
+      "admission": {
+        "passed": 40,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0
+      },
+      "probe": {
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0
+      }
+    },
+    "unique_executed_tests": 159,
+    "complete_runtime_library": true,
+    "full_workspace": false,
+    "complete_library_filtered": 0,
+    "previously_filtered_nine_now_pass": [
+      {
+        "id": "automation_tcp::bridge_tests::multiple_bridges_rebuild_and_isolate_occupied_listener",
+        "old_outcome": "FAILED",
+        "outcome": "ok"
+      },
+      {
+        "id": "automation_tcp::fault_tests::hap_task_failure_preserves_web_delayed_scene_and_single_startup",
+        "old_outcome": "FAILED",
+        "outcome": "ok"
+      },
+      {
+        "id": "automation_tcp::fault_tests::occupied_tcp_hap_port_preserves_web_and_single_startup",
+        "old_outcome": "FAILED",
+        "outcome": "ok"
+      },
+      {
+        "id": "hap_endpoint::subset_tests::two_listeners_publish_only_selected_lights_with_independent_identity",
+        "old_outcome": "FAILED",
+        "outcome": "ok"
+      },
+      {
+        "id": "observed_transport::module_query_tests::actual_tcp96_mixed_idle_polling_has_bounded_steady_refresh",
+        "old_outcome": "ok",
+        "outcome": "ok"
+      },
+      {
+        "id": "runtime_hap::publication_tests::changed_feedback_revision_invalidates_old_hap_projection",
+        "old_outcome": "FAILED",
+        "outcome": "ok"
+      },
+      {
+        "id": "runtime_hap::publication_tests::selected_bridges_share_physical_feedback_without_exposing_each_other",
+        "old_outcome": "FAILED",
+        "outcome": "ok"
+      },
+      {
+        "id": "service::hap_fault_tests::occupied_simulation_hap_port_preserves_web_control",
+        "old_outcome": "FAILED",
+        "outcome": "ok"
+      },
+      {
+        "id": "service::hap_fault_tests::simulation_hap_failure_keeps_web_and_scene_execution_alive",
+        "old_outcome": "FAILED",
+        "outcome": "ok"
+      }
+    ],
+    "same_ten_original_failures_now_pass": [
+      {
+        "target": "runtime_library",
+        "test": "automation_tcp::bridge_tests::multiple_bridges_rebuild_and_isolate_occupied_listener",
+        "before": "FAILED",
+        "after": "ok"
+      },
+      {
+        "target": "runtime_library",
+        "test": "automation_tcp::fault_tests::hap_task_failure_preserves_web_delayed_scene_and_single_startup",
+        "before": "FAILED",
+        "after": "ok"
+      },
+      {
+        "target": "runtime_library",
+        "test": "automation_tcp::fault_tests::occupied_tcp_hap_port_preserves_web_and_single_startup",
+        "before": "FAILED",
+        "after": "ok"
+      },
+      {
+        "target": "runtime_library",
+        "test": "hap_endpoint::subset_tests::two_listeners_publish_only_selected_lights_with_independent_identity",
+        "before": "FAILED",
+        "after": "ok"
+      },
+      {
+        "target": "runtime_library",
+        "test": "runtime_hap::publication_tests::changed_feedback_revision_invalidates_old_hap_projection",
+        "before": "FAILED",
+        "after": "ok"
+      },
+      {
+        "target": "runtime_library",
+        "test": "runtime_hap::publication_tests::selected_bridges_share_physical_feedback_without_exposing_each_other",
+        "before": "FAILED",
+        "after": "ok"
+      },
+      {
+        "target": "runtime_library",
+        "test": "service::hap_fault_tests::occupied_simulation_hap_port_preserves_web_control",
+        "before": "FAILED",
+        "after": "ok"
+      },
+      {
+        "target": "runtime_library",
+        "test": "service::hap_fault_tests::simulation_hap_failure_keeps_web_and_scene_execution_alive",
+        "before": "FAILED",
+        "after": "ok"
+      },
+      {
+        "target": "admission",
+        "test": "cancelled_graph_installation_stops_durable_admission",
+        "before": "FAILED",
+        "after": "ok"
+      },
+      {
+        "target": "admission",
+        "test": "native_runtime_hap_accepts_durably_and_reads_only_published_feedback",
+        "before": "FAILED",
+        "after": "ok"
+      }
+    ]
+  },
+  "version_contract_trace": [
+    {
+      "canonical_device_version": 1,
+      "label": "initial",
+      "logical_cursor": 1,
+      "logical_device_version": 1,
+      "logical_state_version": 1,
+      "observed": "None"
+    },
+    {
+      "canonical_device_version": 1,
+      "label": "unbound_feedback",
+      "logical_cursor": 1,
+      "logical_device_version": 1,
+      "logical_state_version": 1,
+      "observed": "None"
+    },
+    {
+      "canonical_device_version": 10,
+      "label": "bound_feedback",
+      "logical_cursor": 2,
+      "logical_device_version": 2,
+      "logical_state_version": 2,
+      "observed": "Some(Level(Percent(30)))"
+    },
+    {
+      "canonical_device_version": 10,
+      "label": "explicit_invalidation",
+      "logical_cursor": 3,
+      "logical_device_version": 3,
+      "logical_state_version": 3,
+      "observed": "Some(Level(Percent(30)))"
+    }
+  ],
+  "canonical_samples_and_versions_match_failed_checkpoint_trace": true,
+  "log_sha256": {
+    "runtime_library": "efe595a9d95fbc3343b57d7c7ca9c59ded9eeb6ebbbe40566b442163f43c4a93",
+    "admission": "bd47137222d43dea3d8231e9062fd71251d7b19fbd88cbde6936c7e4613d5191",
+    "probe": "918f7e915c1a6aa1c5204d9bdf41198f750f547319aa102d5d891a707901cb5f"
+  },
+  "test_binary_sha256": {
+    "runtime_library": "4f9e7c37a0fc523a191743b11ad0abfcba40b6f7b8c7ed7e83a75a9a61237c65",
+    "admission": "142950bf6b2a62c379b3e6ea7b2de0caed5eb47bceecf29dc15616aa2a718c4f",
+    "probe": "e09ab50ce13490c30d8fa855b1fc51348633341b1d2737ac8877650ea838432c"
+  },
+  "artifacts_sha256": {
+    "root-audit.json": "94037ea633be045cf84120b2c63dfb278a12a11a81941d501ecbdbf70c91b18a",
+    "execution.json": "64f164caac6e86f974bf6ae8c7bbec839432f110ee042b8834c6de170a1c0d9e",
+    "verify.py": "1db06076f31ba5b6a73cca0c52688128604575e71c83c4b38643c99b47beba6d",
+    "run.py": "e40a0bd7ea2427622abbac8d9a140e0de95c13fc72aae4381e763ad7b37de9a4",
+    "verify-attempt01.py": "6f88e453eb428327444a5e16ad474d7bb25625e178726885f69cfa3bdb08cf16"
+  },
+  "behavior": [
+    "Logical snapshots and events use their own consistent cursor and version metadata; canonical module samples and versions are preserved.",
+    "Unbound feedback does not advance the logical cursor; explicit invalidation advances only logical projection metadata.",
+    "All original library/Admission failures reproduced in fixed 8685b0b now pass in fixed 1e35add, with original test bodies retained.",
+    "Schema2 logical objects retain module ID and channel references; physical address resolution remains in module registry/current-revision transport adapters."
+  ],
+  "verification_note": "Initial execution helper parsed only single-line statuses; final verifier accounts for nocapture multi-line test output and verifies all 118/40/1 actual case headers and outcomes. No Rust test failed in the repaired run.",
+  "remaining": [
+    "Module Query administrator endpoint work is not included in this checkpoint.",
+    "Full workspace, actual Apple clients/field validation, firmware behavior and original D/E source semantic gates remain open."
+  ],
+  "field_actions": 0,
+  "real_credentials_created": false,
+  "deployment": false,
+  "push": false
+}
