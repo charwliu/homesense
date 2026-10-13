@@ -1,0 +1,1178 @@
+{
+  "date": "2026-10-13",
+  "product_commit": "f1b2e8aef58bf6b129e39a253f6fe9531d8d2e0c",
+  "baseline_product_commit": "bfe61f28aa0070904f248ee418b542ffdde9bbeb",
+  "status": "schema2_reference_layer_native_scene_integration_passed",
+  "configuration_schema_version": 2,
+  "scope": "Stable module references with unchanged native scene semantics. Canonical module-channel truth architecture is not claimed complete.",
+  "execution": {
+    "actual_test_functions": 27,
+    "passed": 27,
+    "failed": 0,
+    "ignored": 0,
+    "additional_subcase_traces": 12,
+    "result_artifacts": 39,
+    "filtered_existing_library_tests": 108,
+    "exit_code": 0,
+    "command": [
+      "cargo",
+      "test",
+      "-p",
+      "homesensed",
+      "--lib",
+      "relative_matrix",
+      "--offline",
+      "--locked",
+      "--",
+      "--test-threads=1"
+    ],
+    "distinct_input_count_not_claimed": true
+  },
+  "source": {
+    "original_files": 968,
+    "byte_unchanged_original_files": 967,
+    "test_only_append_files": 1,
+    "new_test_only_files": [
+      "private probe",
+      "frozen explicit module registry"
+    ],
+    "archive_sha256": "055b43935edfbcf276d17d82054608431f60ef44ffb2d4ea37a85cf315f781b4",
+    "probe_sha256": "03a4df8d2f69fb0a83434770d7d4e106db8cf3413d2ed58f34d36e0a6e47c59c",
+    "registry_sha256": "0e6560c99f8968af07c4d0fb08d8f87a3151e5b6b72d22828e9abf1c61f632c4",
+    "test_binary_sha256": "57e8a31079e583eed83837621a0d0006f5b0e83a1ab34f1f143bb895b1e02f10",
+    "original_case_body_sha256": "ae44b9911dadf3cd8a92aa2b7287405d141067216efabb803fcc2d853ab3f12c"
+  },
+  "conversion": {
+    "runtime_schema2_fixtures": 39,
+    "actual_conversion_checks": 40,
+    "actual_store_reopen_checks": 78,
+    "module_registry": {
+      "schema_version": 2,
+      "registry_assignment": "Explicit fixture roles persisted before configuration conversion; never derived from gateway/address or regenerated on reload/replacement",
+      "modules": [
+        {
+          "slot": 0,
+          "id": "study-dimmer-stable",
+          "profile": "ad8_din_rs485_v2_2_1"
+        },
+        {
+          "slot": 1,
+          "id": "study-supply-stable",
+          "profile": "r8i8_din_pro_v2_7_7"
+        },
+        {
+          "slot": 2,
+          "id": "study-panel-stable",
+          "profile": "ts6_86_rs485_v2_6_5_6key"
+        },
+        {
+          "slot": 3,
+          "id": "secondary-panel-stable",
+          "profile": "ts6_86_rs485_v2_6_5_6key"
+        }
+      ],
+      "logical_refs": {
+        "light": "study-dimmer-stable",
+        "down": "study-dimmer-stable",
+        "outside": "study-dimmer-stable",
+        "extra-off": "study-dimmer-stable",
+        "switch": "study-supply-stable",
+        "key1": "study-panel-stable",
+        "key3": "study-panel-stable",
+        "key5": "study-panel-stable",
+        "other-led": "secondary-panel-stable"
+      }
+    },
+    "original_logical_ids_and_channels_unchanged": true,
+    "all_logical_gateway_address_supply_relay_fields_removed": true,
+    "combined_light_supply_is_ModuleChannel": true,
+    "schema1_parsing_used_only_as_conversion_comparison_not_runtime_input": true,
+    "old_boot_feedback_reconstruction_uses_schema2": true,
+    "module_ids_persisted_and_not_derived_from_current_addresses": true,
+    "parse_only_remap_checks_preserve_logical_refs": true,
+    "physical_remap_applied_to_runtime": false
+  },
+  "comparison_to_bfe61f2": {
+    "actual_trace_count": 39,
+    "original_fixture_inputs_before_conversion_equal": true,
+    "automation_inputs_equal": true,
+    "synthetic_feedback_input_sequence_equal": true,
+    "final_raw_bytes_equal": true,
+    "final_journal_devices_intents_status_equal": true,
+    "projected_selection_and_version_equal": true,
+    "native_request_status_and_selected_equal": true,
+    "all_original_case_bodies_preserved_except_schema2_feedback_bootstrap": true,
+    "original_assertions_removed_or_weakened": false
+  },
+  "cases": [
+    {
+      "id": "unknown_positive_targets_toggle_once",
+      "assertion": "Only positive lights with legitimate unknown state receive native toggle once; scene-level unknown alone cannot flip all positive lights",
+      "executed_test": "scene_observation_runtime::tests::initialization::native::relative_matrix::case_unknown_positive_targets_toggle_once",
+      "status": "passed",
+      "traces": [
+        {
+          "id": "unknown_positive_targets_toggle_once",
+          "sha256": "7d3d14d8d38f5444a998e55098a6d1f5e0fab0589a888f6ec4c8fdb04935cd3a",
+          "queries": 2,
+          "native_toggle_frames": 1,
+          "complete_frames": 4,
+          "partial_trailing_bytes": 0,
+          "projected_selection": {
+            "value": "Some(Integer(1))",
+            "version": 0
+          },
+          "final_request": {
+            "status": "Observed",
+            "selected": "Some(1)"
+          },
+          "journal_statuses": [
+            "written",
+            "written",
+            "written",
+            "written"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "combo_light_deduplicated",
+      "assertion": "Classify a combination light as one logical target using reviewed feedback rules; known uses absolute scene mapping, unknown one reviewed native action, Off targets established Off mapping",
+      "executed_test": "scene_observation_runtime::tests::initialization::native::relative_matrix::case_combo_light_deduplicated",
+      "status": "passed",
+      "traces": [
+        {
+          "id": "combo_light_deduplicated",
+          "sha256": "aee6eacf8c6472637dc4d1a4424f2ae840ba7f318976af59b6b4bcbb82bfdca2",
+          "queries": 4,
+          "native_toggle_frames": 1,
+          "complete_frames": 7,
+          "partial_trailing_bytes": 0,
+          "projected_selection": {
+            "value": "Some(Integer(1))",
+            "version": 0
+          },
+          "final_request": {
+            "status": "Observed",
+            "selected": "Some(1)"
+          },
+          "journal_statuses": [
+            "written",
+            "written",
+            "written",
+            "written",
+            "written",
+            "written",
+            "written"
+          ]
+        },
+        {
+          "id": "combo_light_deduplicated--known-absolute",
+          "sha256": "90ac79db3f730a71af4fd0ca7b6469084e85593452d4780d583ea3bca1d67ec1",
+          "queries": 3,
+          "native_toggle_frames": 0,
+          "complete_frames": 6,
+          "partial_trailing_bytes": 0,
+          "projected_selection": {
+            "value": "Some(Integer(1))",
+            "version": 0
+          },
+          "final_request": {
+            "status": "Observed",
+            "selected": "Some(1)"
+          },
+          "journal_statuses": [
+            "written",
+            "written",
+            "written",
+            "written",
+            "written",
+            "written"
+          ]
+        },
+        {
+          "id": "combo_light_deduplicated--relay-off-no-dimmer-target",
+          "sha256": "46b43ea3dfa09fa53a72d0b9646a7d690876f8c502c9020a7892721b1fec9664",
+          "queries": 4,
+          "native_toggle_frames": 1,
+          "complete_frames": 6,
+          "partial_trailing_bytes": 0,
+          "projected_selection": {
+            "value": "Some(Integer(0))",
+            "version": 0
+          },
+          "final_request": {
+            "status": "Observed",
+            "selected": "Some(0)"
+          },
+          "journal_statuses": [
+            "written",
+            "written",
+            "written",
+            "written",
+            "written",
+            "written"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ad8_native_support",
+      "assertion": "Use explicitly reviewed AD8 protocol mapping, never derive byte codes from assumed similarity",
+      "executed_test": "scene_observation_runtime::tests::initialization::native::relative_matrix::case_ad8_native_support",
+      "status": "passed",
+      "traces": [
+        {
+          "id": "ad8_native_support",
+          "sha256": "41a57fb4dea1206081eb9a33ef2fa17ccf2516306f5808c1bbb1c6d2a0be650a",
+          "queries": 2,
+          "native_toggle_frames": 1,
+          "complete_frames": 4,
+          "partial_trailing_bytes": 0,
+          "projected_selection": {
+            "value": "Some(Integer(1))",
+            "version": 0
+          },
+          "final_request": {
+            "status": "Observed",
+            "selected": "Some(1)"
+          },
+          "journal_statuses": [
+            "written",
+            "written",
+            "written",
+            "written"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "query_after_relative",
+      "assertion": "Queries occur after relative write, and no pre-write query reply establishes selection",
+      "executed_test": "scene_observation_runtime::tests::initialization::native::relative_matrix::case_query_after_relative",
+      "status": "passed",
+      "traces": [
+        {
+          "id": "query_after_relative",
+          "sha256": "8e2294b853aa3245e6bc103e7d7d0899247dc9610bccaf478e468981850f766a",
+          "queries": 2,
+          "native_toggle_frames": 1,
+          "complete_frames": 4,
+          "partial_trailing_bytes": 0,
+          "projected_selection": {
+            "value": "Some(Integer(1))",
+            "version": 0
+          },
+          "final_request": {
+            "status": "Observed",
+            "selected": "Some(1)"
+          },
+          "journal_statuses": [
+            "written",
+            "written",
+            "written",
+            "written"
+          ]
+        },
+        {
+          "id": "query_after_relative--precontrol-feedback",
+          "sha256": "1ece4c30c33bda7dc66023e1454a0583a065b56c9f0df1fdafacb8d9bf494fd8",
+          "queries": 2,
+          "native_toggle_frames": 1,
+          "complete_frames": 4,
+          "partial_trailing_bytes": 0,
+          "projected_selection": {
+            "value": "Some(Integer(1))",
+            "version": 0
+          },
+          "final_request": {
+            "status": "Observed",
+            "selected": "Some(1)"
+          },
+          "journal_statuses": [
+            "written",
+            "written",
+            "written",
+            "written"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "fresh_unique_match",
+      "assertion": "Complete same-boot same-epoch post-action fresh logical On/Off vector resolves unique member; exact level is not selection criterion",
+      "executed_test": "scene_observation_runtime::tests::initialization::native::relative_matrix::case_fresh_unique_match",
+      "status": "passed",
+      "traces": [
+        {
+          "id": "fresh_unique_match",
+          "sha256": "b1254c5f2bf270e5982fe1dd6c57f5e3c4392b748c2cc7cc9f9e888603346fb9",
+          "queries": 2,
+          "native_toggle_frames": 1,
+          "complete_frames": 4,
+          "partial_trailing_bytes": 0,
+          "projected_selection": {
+            "value": "Some(Integer(1))",
+            "version": 0
+          },
+          "final_request": {
+            "status": "Observed",
+            "selected": "Some(1)"
+          },
+          "journal_statuses": [
+            "written",
+            "written",
+            "written",
+            "written"
+          ]
+        },
+        {
+          "id": "fresh_unique_match--eco30",
+          "sha256": "b7cbe6a13a7bd45b8daf4b143f78977316b5df9d974e4527478ef118dd3d40b2",
+          "queries": 2,
+          "native_toggle_frames": 1,
+          "complete_frames": 4,
+          "partial_trailing_bytes": 0,
+          "projected_selection": {
+            "value": "Some(Integer(3))",
+            "version": 0
+          },
+          "final_request": {
+            "status": "Observed",
+            "selected": "Some(3)"
+          },
+          "journal_statuses": [
+            "written",
+            "written",
+            "written",
+            "written"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "fresh_all_off",
+      "assertion": "Complete fresh all-off feedback resolves 0 under reviewed policy",
+      "executed_test": "scene_observation_runtime::tests::initialization::native::relative_matrix::case_fresh_all_off",
+      "status": "passed",
+      "traces": [
+        {
+          "id": "fresh_all_off",
+          "sha256": "4b40738a9f8494ff05a8ebd825850196dba548d3c5780c3a8b3a9832391e11ca",
+          "queries": 2,
+          "native_toggle_frames": 1,
+          "complete_frames": 4,
+          "partial_trailing_bytes": 0,
+          "projected_selection": {
+            "value": "Some(Integer(0))",
+            "version": 0
+          },
+          "final_request": {
+            "status": "Observed",
+            "selected": "Some(0)"
+          },
+          "journal_statuses": [
+            "written",
+            "written",
+            "written",
+            "written"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "old_boot_epoch",
+      "assertion": "Previous boot or connection feedback remains unusable",
+      "executed_test": "scene_observation_runtime::tests::initialization::native::relative_matrix::case_old_boot_epoch",
+      "status": "passed",
+      "traces": [
+        {
+          "id": "old_boot_epoch",
+          "sha256": "243febe84bd03586ba603272c9d2f6eaf411b2f1a43695919298786ae8650756",
+          "queries": 2,
+          "native_toggle_frames": 1,
+          "complete_frames": 4,
+          "partial_trailing_bytes": 0,
+          "projected_selection": {
+            "value": "None",
+            "version": 0
+          },
+          "final_request": {
+            "status": "Unknown",
+            "selected": "None"
+          },
+          "journal_statuses": [
+            "uncertain",
+            "uncertain",
+            "uncertain",
+            "uncertain"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "stale_same_value",
+      "assertion": "Cached identical values without a new observation cannot resolve selection",
+      "executed_test": "scene_observation_runtime::tests::initialization::native::relative_matrix::case_stale_same_value",
+      "status": "passed",
+      "traces": [
+        {
+          "id": "stale_same_value",
+          "sha256": "36a76376fab3020ff0fe53b17fa1faf829593aa4472f4242427c241bca33d118",
+          "queries": 2,
+          "native_toggle_frames": 1,
+          "complete_frames": 4,
+          "partial_trailing_bytes": 0,
+          "projected_selection": {
+            "value": "Some(Integer(1))",
+            "version": 0
+          },
+          "final_request": {
+            "status": "Observed",
+            "selected": "Some(1)"
+          },
+          "journal_statuses": [
+            "written",
+            "written",
+            "written",
+            "written"
+          ]
+        },
+        {
+          "id": "stale_same_value--stale-preaction",
+          "sha256": "36a59fe1b83b4660e9be3c93b91f0d4163e87816a7faed08c0b028cecdae6067",
+          "queries": 0,
+          "native_toggle_frames": 0,
+          "complete_frames": 0,
+          "partial_trailing_bytes": 0,
+          "projected_selection": {
+            "value": "None",
+            "version": 0
+          },
+          "final_request": {
+            "status": null,
+            "selected": null
+          },
+          "journal_statuses": []
+        }
+      ]
+    },
+    {
+      "id": "partial_write",
+      "assertion": "Some relative writes completed then failure: no rollback, retry or falsely resolved selection",
+      "executed_test": "scene_observation_runtime::tests::initialization::native::relative_matrix::case_partial_write",
+      "status": "passed",
+      "traces": [
+        {
+          "id": "partial_write",
+          "sha256": "f75d9d2632b392c64c13de6a9cd4338dca02683fbb15435e047ff19341d5935e",
+          "queries": 0,
+          "native_toggle_frames": 1,
+          "complete_frames": 1,
+          "partial_trailing_bytes": 2,
+          "projected_selection": {
+            "unavailable": "Err(ServiceCommunicationFailure)"
+          },
+          "final_request": {
+            "status": "Unknown",
+            "selected": "None"
+          },
+          "journal_statuses": [
+            "written",
+            "uncertain"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "mixed_feedback",
+      "assertion": "Partial/uncertain or nonunique On/Off vector keeps unknown; complete both-On vector uniquely matching daily is daily regardless of positive brightness values",
+      "executed_test": "scene_observation_runtime::tests::initialization::native::relative_matrix::case_mixed_feedback",
+      "status": "passed",
+      "traces": [
+        {
+          "id": "mixed_feedback",
+          "sha256": "c6313ffd4468f7eff4281f9ee6bebe3c7d50a3ead3e65e9be0a7d2c94111317d",
+          "queries": 2,
+          "native_toggle_frames": 2,
+          "complete_frames": 4,
+          "partial_trailing_bytes": 0,
+          "projected_selection": {
+            "value": "Some(Integer(2))",
+            "version": 0
+          },
+          "final_request": {
+            "status": "Observed",
+            "selected": "Some(2)"
+          },
+          "journal_statuses": [
+            "written",
+            "written",
+            "written",
+            "written"
+          ]
+        },
+        {
+          "id": "mixed_feedback--nonunique",
+          "sha256": "a7483fcb9ad4189627870fe9f58e52c51f318630edcbbbf4fec60314a103604e",
+          "queries": 2,
+          "native_toggle_frames": 2,
+          "complete_frames": 4,
+          "partial_trailing_bytes": 0,
+          "projected_selection": {
+            "value": "None",
+            "version": 0
+          },
+          "final_request": {
+            "status": "Observed",
+            "selected": "None"
+          },
+          "journal_statuses": [
+            "written",
+            "written",
+            "written",
+            "written"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "missing_timeout",
+      "assertion": "Missing feedback or query timeout keeps selection unknown",
+      "executed_test": "scene_observation_runtime::tests::initialization::native::relative_matrix::case_missing_timeout",
+      "status": "passed",
+      "traces": [
+        {
+          "id": "missing_timeout",
+          "sha256": "6924d36db4d89369fea0ca91ac124667029d13c0b20772d3605dd4e10440860c",
+          "queries": 2,
+          "native_toggle_frames": 1,
+          "complete_frames": 4,
+          "partial_trailing_bytes": 0,
+          "projected_selection": {
+            "value": "None",
+            "version": 0
+          },
+          "final_request": {
+            "status": "Unknown",
+            "selected": "None"
+          },
+          "journal_statuses": [
+            "written",
+            "written",
+            "written",
+            "written"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "repeat_pending",
+      "assertion": "Duplicate click while pending is rejected or reuses original receipt; relative output count does not increase",
+      "executed_test": "scene_observation_runtime::tests::initialization::native::relative_matrix::case_repeat_pending",
+      "status": "passed",
+      "traces": [
+        {
+          "id": "repeat_pending",
+          "sha256": "def682cccf5341f6518dcba1da994196313f8acbb0bfb64ad136d9613ab8afd8",
+          "queries": 2,
+          "native_toggle_frames": 1,
+          "complete_frames": 4,
+          "partial_trailing_bytes": 0,
+          "projected_selection": {
+            "value": "Some(Integer(1))",
+            "version": 0
+          },
+          "final_request": {
+            "status": "Observed",
+            "selected": "Some(1)"
+          },
+          "journal_statuses": [
+            "written",
+            "written",
+            "written",
+            "written"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "disconnect_before_write",
+      "assertion": "Queued stale relative actions are cancelled and never replayed after reconnect",
+      "executed_test": "scene_observation_runtime::tests::initialization::native::relative_matrix::case_disconnect_before_write",
+      "status": "passed",
+      "traces": [
+        {
+          "id": "disconnect_before_write",
+          "sha256": "bd71e05c8cc1ebf76ab30acc2bfbcd8cd0c0b0a0ee370646d6cdeaa02bf9c822",
+          "queries": 0,
+          "native_toggle_frames": 0,
+          "complete_frames": 0,
+          "partial_trailing_bytes": 0,
+          "projected_selection": {
+            "value": "None",
+            "version": 0
+          },
+          "final_request": {
+            "status": "Unknown",
+            "selected": "None"
+          },
+          "journal_statuses": [
+            "cancelled",
+            "cancelled"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "disconnect_after_write",
+      "assertion": "Unknown write outcome is never retried; reconnect does not repeat flip",
+      "executed_test": "scene_observation_runtime::tests::initialization::native::relative_matrix::case_disconnect_after_write",
+      "status": "passed",
+      "traces": [
+        {
+          "id": "disconnect_after_write",
+          "sha256": "a54bdad3ba9001139ced108ba35fd31dba66d6703e47bb82c5c753cc11887e41",
+          "queries": 0,
+          "native_toggle_frames": 1,
+          "complete_frames": 2,
+          "partial_trailing_bytes": 0,
+          "projected_selection": {
+            "value": "None",
+            "version": 0
+          },
+          "final_request": {
+            "status": "Unknown",
+            "selected": "None"
+          },
+          "journal_statuses": [
+            "written",
+            "written"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "known_on_off",
+      "assertion": "Known scene ON/OFF retains established absolute behavior",
+      "executed_test": "scene_observation_runtime::tests::initialization::native::relative_matrix::case_known_on_off",
+      "status": "passed",
+      "traces": [
+        {
+          "id": "known_on_off",
+          "sha256": "b02b538e8be5bb79675eb649e2eb34cd40e4ecf655c880aea637396c8b1587db",
+          "queries": 0,
+          "native_toggle_frames": 0,
+          "complete_frames": 4,
+          "partial_trailing_bytes": 0,
+          "projected_selection": {
+            "value": "None",
+            "version": 2
+          },
+          "final_request": {
+            "status": null,
+            "selected": null
+          },
+          "journal_statuses": [
+            "written",
+            "written",
+            "written",
+            "written"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "hap_absolute",
+      "assertion": "HomeKit absolute writes retain explicit intent; no fallback to relative toggle",
+      "executed_test": "scene_observation_runtime::tests::initialization::native::relative_matrix::case_hap_absolute",
+      "status": "passed",
+      "traces": [
+        {
+          "id": "hap_absolute",
+          "sha256": "a548fedd69ac7505db0d8c335c8c5c50fc593c7024dc40a627d0d55a10a24399",
+          "queries": 0,
+          "native_toggle_frames": 0,
+          "complete_frames": 4,
+          "partial_trailing_bytes": 0,
+          "projected_selection": {
+            "value": "None",
+            "version": 2
+          },
+          "final_request": {
+            "status": null,
+            "selected": null
+          },
+          "journal_statuses": [
+            "written",
+            "written",
+            "written",
+            "written"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "observation_baseline",
+      "assertion": "Local relative action does not seed EA external candidate set",
+      "executed_test": "scene_observation_runtime::tests::initialization::native::relative_matrix::case_observation_baseline",
+      "status": "passed",
+      "traces": [
+        {
+          "id": "observation_baseline",
+          "sha256": "827bc12458e95788cfc5abf54b5618a1743f8da02ef38bff16b037e134dbe365",
+          "queries": 2,
+          "native_toggle_frames": 1,
+          "complete_frames": 4,
+          "partial_trailing_bytes": 0,
+          "projected_selection": {
+            "value": "None",
+            "version": 2
+          },
+          "final_request": {
+            "status": "Observed",
+            "selected": "Some(1)"
+          },
+          "journal_statuses": [
+            "written",
+            "written",
+            "written",
+            "written"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "initializer_independent",
+      "assertion": "Initialization remains zero-output and is not repurposed to perform relative actions",
+      "executed_test": "scene_observation_runtime::tests::initialization::native::relative_matrix::case_initializer_independent",
+      "status": "passed",
+      "traces": [
+        {
+          "id": "initializer_independent",
+          "sha256": "3880fca42f490f3547dbbe08241769e9f269f7e6853de26f0141b0c4dd2906e4",
+          "queries": 0,
+          "native_toggle_frames": 0,
+          "complete_frames": 0,
+          "partial_trailing_bytes": 0,
+          "projected_selection": {
+            "value": "Some(Integer(0))",
+            "version": 1
+          },
+          "final_request": {
+            "status": null,
+            "selected": null
+          },
+          "journal_statuses": []
+        }
+      ]
+    },
+    {
+      "id": "negative_targets_explicit_off",
+      "assertion": "Every explicit Off/zero target uses deterministic Off even if actual state is unknown or already Off; never native toggle",
+      "executed_test": "scene_observation_runtime::tests::initialization::native::relative_matrix::case_negative_targets_explicit_off",
+      "status": "passed",
+      "traces": [
+        {
+          "id": "negative_targets_explicit_off",
+          "sha256": "687f806c3f9d3098f8606c9a3c27585fc9d27d7562f48bc2a4350d15641cfe6d",
+          "queries": 2,
+          "native_toggle_frames": 1,
+          "complete_frames": 4,
+          "partial_trailing_bytes": 0,
+          "projected_selection": {
+            "value": "Some(Integer(1))",
+            "version": 0
+          },
+          "final_request": {
+            "status": "Observed",
+            "selected": "Some(1)"
+          },
+          "journal_statuses": [
+            "written",
+            "written",
+            "written",
+            "written"
+          ]
+        },
+        {
+          "id": "negative_targets_explicit_off--already-off",
+          "sha256": "c1bd09601cc7fa72238c60309019302d2e054336904e11164abe1ebb8ed684aa",
+          "queries": 2,
+          "native_toggle_frames": 1,
+          "complete_frames": 4,
+          "partial_trailing_bytes": 0,
+          "projected_selection": {
+            "value": "Some(Integer(1))",
+            "version": 0
+          },
+          "final_request": {
+            "status": "Observed",
+            "selected": "Some(1)"
+          },
+          "journal_statuses": [
+            "written",
+            "written",
+            "written",
+            "written"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "unused_group_lights_explicit_off",
+      "assertion": "Reviewed group lamp union minus current positive targets and explicit negative targets receives explicit Off, each logical light once",
+      "executed_test": "scene_observation_runtime::tests::initialization::native::relative_matrix::case_unused_group_lights_explicit_off",
+      "status": "passed",
+      "traces": [
+        {
+          "id": "unused_group_lights_explicit_off",
+          "sha256": "9cb4da26603d65b6f6e03b52ef48f535fc4874513dbf24d2fdd3c3208708fecb",
+          "queries": 2,
+          "native_toggle_frames": 1,
+          "complete_frames": 4,
+          "partial_trailing_bytes": 0,
+          "projected_selection": {
+            "value": "Some(Integer(1))",
+            "version": 0
+          },
+          "final_request": {
+            "status": "Observed",
+            "selected": "Some(1)"
+          },
+          "journal_statuses": [
+            "written",
+            "written",
+            "written",
+            "written"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "unrelated_devices_untouched",
+      "assertion": "No control action outside reviewed group lamp union; do not expand to all rooms or all configured devices",
+      "executed_test": "scene_observation_runtime::tests::initialization::native::relative_matrix::case_unrelated_devices_untouched",
+      "status": "passed",
+      "traces": [
+        {
+          "id": "unrelated_devices_untouched",
+          "sha256": "1c351a6f4a12131753d9c49e95567b823e9837005fbb9f87aedd3605188cde24",
+          "queries": 2,
+          "native_toggle_frames": 1,
+          "complete_frames": 4,
+          "partial_trailing_bytes": 0,
+          "projected_selection": {
+            "value": "Some(Integer(1))",
+            "version": 0
+          },
+          "final_request": {
+            "status": "Observed",
+            "selected": "Some(1)"
+          },
+          "journal_statuses": [
+            "written",
+            "written",
+            "written",
+            "written"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "partition_unique_and_complete",
+      "assertion": "Fresh-known-positive absolute, legitimate-unknown-positive toggle and explicit-Off sets are pairwise disjoint and cover reviewed group lamp union; invalid membership rejected before outputs",
+      "executed_test": "scene_observation_runtime::tests::initialization::native::relative_matrix::case_partition_unique_and_complete",
+      "status": "passed",
+      "traces": [
+        {
+          "id": "partition_unique_and_complete",
+          "sha256": "3a8284aa69152868dc674311d5bbfbe1367bac2995345ad3ddc8c43feb8a48bc",
+          "queries": 2,
+          "native_toggle_frames": 1,
+          "complete_frames": 4,
+          "partial_trailing_bytes": 0,
+          "projected_selection": {
+            "value": "Some(Integer(1))",
+            "version": 0
+          },
+          "final_request": {
+            "status": "Observed",
+            "selected": "Some(1)"
+          },
+          "journal_statuses": [
+            "written",
+            "written",
+            "written",
+            "written"
+          ]
+        },
+        {
+          "id": "partition_unique_and_complete--invalid-membership",
+          "sha256": "140fccecf1252580f58ec66afc087828916f0a61f69685dfc0bd3f606d793ec7",
+          "queries": 0,
+          "native_toggle_frames": 0,
+          "complete_frames": 0,
+          "partial_trailing_bytes": 0,
+          "projected_selection": {
+            "value": "None",
+            "version": 0
+          },
+          "final_request": {
+            "status": null,
+            "selected": null
+          },
+          "journal_statuses": []
+        },
+        {
+          "id": "partition_unique_and_complete--three-disjoint-sets",
+          "sha256": "cc44c48562850b359cc535a46cf5bc4ca4c523189d178cad12a62edb192596b9",
+          "queries": 0,
+          "native_toggle_frames": 1,
+          "complete_frames": 3,
+          "partial_trailing_bytes": 0,
+          "projected_selection": {
+            "value": "None",
+            "version": 0
+          },
+          "final_request": {
+            "status": "Pending",
+            "selected": "None"
+          },
+          "journal_statuses": [
+            "written",
+            "written",
+            "written"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "known_positive_absolute_level",
+      "assertion": "Scene unknown but positive light fresh-known: apply exact scene absolute target including brightness, never toggle even if already On",
+      "executed_test": "scene_observation_runtime::tests::initialization::native::relative_matrix::case_known_positive_absolute_level",
+      "status": "passed",
+      "traces": [
+        {
+          "id": "known_positive_absolute_level",
+          "sha256": "3a3c6572ea9c3ed4b84510570e8ce9ae3bc5ae4dc716be081ad9c4f124841730",
+          "queries": 2,
+          "native_toggle_frames": 0,
+          "complete_frames": 4,
+          "partial_trailing_bytes": 0,
+          "projected_selection": {
+            "value": "Some(Integer(1))",
+            "version": 0
+          },
+          "final_request": {
+            "status": "Observed",
+            "selected": "Some(1)"
+          },
+          "journal_statuses": [
+            "written",
+            "written",
+            "written",
+            "written"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "mixed_known_unknown_positive",
+      "assertion": "Within one request known positive gets absolute scene target while only unknown positive gets native toggle; no scene-global fallback",
+      "executed_test": "scene_observation_runtime::tests::initialization::native::relative_matrix::case_mixed_known_unknown_positive",
+      "status": "passed",
+      "traces": [
+        {
+          "id": "mixed_known_unknown_positive",
+          "sha256": "735dae6e8e448ae35736236e2772ff74df46745bbd05ec2af9c65955b5e5ab95",
+          "queries": 2,
+          "native_toggle_frames": 1,
+          "complete_frames": 4,
+          "partial_trailing_bytes": 0,
+          "projected_selection": {
+            "value": "Some(Integer(2))",
+            "version": 0
+          },
+          "final_request": {
+            "status": "Observed",
+            "selected": "Some(2)"
+          },
+          "journal_statuses": [
+            "written",
+            "written",
+            "written",
+            "written"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "runtime_unready_rejected",
+      "assertion": "Unready runtime produces unavailable/rejection with zero actions, not legitimate per-device unknown",
+      "executed_test": "scene_observation_runtime::tests::initialization::native::relative_matrix::case_runtime_unready_rejected",
+      "status": "passed",
+      "traces": [
+        {
+          "id": "runtime_unready_rejected",
+          "sha256": "c341c394a15cc7368fbe23d7cf6453d458c60793e38dc13d1eb6bfe3d7e329ab",
+          "queries": 0,
+          "native_toggle_frames": 0,
+          "complete_frames": 0,
+          "partial_trailing_bytes": 0,
+          "projected_selection": {
+            "unavailable": "Err(ServiceCommunicationFailure)"
+          },
+          "final_request": {
+            "status": null,
+            "selected": null
+          },
+          "journal_statuses": []
+        }
+      ]
+    },
+    {
+      "id": "read_failure_rejected",
+      "assertion": "Read/storage/projection failure is not legitimate unknown and cannot authorize relative output",
+      "executed_test": "scene_observation_runtime::tests::initialization::native::relative_matrix::case_read_failure_rejected",
+      "status": "passed",
+      "traces": [
+        {
+          "id": "read_failure_rejected",
+          "sha256": "74abc152f1890bb64c7d3426148d4221020b90b4733d4e87eb7f9331e65a65aa",
+          "queries": 0,
+          "native_toggle_frames": 0,
+          "complete_frames": 0,
+          "partial_trailing_bytes": 0,
+          "projected_selection": {
+            "unavailable": "Err(ServiceCommunicationFailure)"
+          },
+          "final_request": {
+            "status": null,
+            "selected": null
+          },
+          "journal_statuses": []
+        },
+        {
+          "id": "read_failure_rejected--malformed-feedback",
+          "sha256": "618765b4aec2a7a37f74cb056c92e5da350e97e9e97e683b94f30b018d5d2689",
+          "queries": 0,
+          "native_toggle_frames": 0,
+          "complete_frames": 0,
+          "partial_trailing_bytes": 0,
+          "projected_selection": {
+            "value": "None",
+            "version": 0
+          },
+          "final_request": {
+            "status": null,
+            "selected": null
+          },
+          "journal_statuses": []
+        },
+        {
+          "id": "read_failure_rejected--projection",
+          "sha256": "4265ed88ee90923ada374bf9d20d0b7ad49414ba3af66bc3d494c6e5a979bb5d",
+          "queries": 0,
+          "native_toggle_frames": 0,
+          "complete_frames": 0,
+          "partial_trailing_bytes": 0,
+          "projected_selection": {
+            "value": "None",
+            "version": 0
+          },
+          "final_request": {
+            "status": null,
+            "selected": null
+          },
+          "journal_statuses": []
+        },
+        {
+          "id": "read_failure_rejected--storage",
+          "sha256": "f8aafd18fa19fcde55a55f54fe9a8485ba3d2859cc9640733cdf306600b72be9",
+          "queries": 0,
+          "native_toggle_frames": 0,
+          "complete_frames": 0,
+          "partial_trailing_bytes": 0,
+          "projected_selection": {
+            "value": "None",
+            "version": 0
+          },
+          "final_request": {
+            "status": null,
+            "selected": null
+          },
+          "journal_statuses": []
+        }
+      ]
+    },
+    {
+      "id": "selection_after_feedback_only",
+      "assertion": "Acceptance or written result cannot mark selection known; only qualifying post-action/query feedback resolves final selection",
+      "executed_test": "scene_observation_runtime::tests::initialization::native::relative_matrix::case_selection_after_feedback_only",
+      "status": "passed",
+      "traces": [
+        {
+          "id": "selection_after_feedback_only",
+          "sha256": "944ef408c7f91dd078fbf19060b27c8e6457e758e612437ddc001f68590eed0d",
+          "queries": 2,
+          "native_toggle_frames": 1,
+          "complete_frames": 4,
+          "partial_trailing_bytes": 0,
+          "projected_selection": {
+            "value": "Some(Integer(1))",
+            "version": 0
+          },
+          "final_request": {
+            "status": "Observed",
+            "selected": "Some(1)"
+          },
+          "journal_statuses": [
+            "written",
+            "written",
+            "written",
+            "written"
+          ]
+        }
+      ]
+    }
+  ],
+  "evidence_sha256": {
+    "source.json": "233b70cf443af1414d968972767f1494e64c8dd71918be547ffe14191c6381a4",
+    "final-source-audit.json": "f10e7af8aca8272fbd96ea8e55c3dbecf8e39d3ec74648b668a7a02876bdaebf",
+    "probe.rs": "03a4df8d2f69fb0a83434770d7d4e106db8cf3413d2ed58f34d36e0a6e47c59c",
+    "module-registry.json": "0e6560c99f8968af07c4d0fb08d8f87a3151e5b6b72d22828e9abf1c61f632c4",
+    "baseline-probe-bfe61f2.rs": "3da7e2eadb0557bc0c8f07c8c6b26150677c372374d8b24e588aa1a2d603b159",
+    "probe-changes.diff": "a40ef325fe10db1503c5f851000cfb8505743be83e77bdf65194604e5086309b",
+    "assertion-preservation.json": "9068ee0e1db864eedd6ebb4fdf0e11f1b0e840ba4bafe9cb63e60152a667cb97",
+    "final-run.log": "da5a57b6aca112040541603b34adce3b42b17ce2970f2e63634ba19b4295efc3",
+    "execution.json": "20e1dae85690a74cb1da563f1d57e08f8b67d0d42eebbf491aa975b01b2aa827",
+    "conversion-audit.json": "f4fad0bf8ae4028617aa45414b3d9962d8ede93efe8c16ea63c0a9a370b9b1aa",
+    "coverage-matrix.json": "5e236cfe32d4a7d74430ef052efdb7deab3a0b13ee39ee89d1a7657288a0f2ae",
+    "run_acceptance.py": "f528a8404fa79018b62c40a07ae29b67d3e1dca9aeedee36c35a12cf9939206b",
+    "verify_evidence.py": "6dfc6b668dc3823d44d7da2c67520ad0786c35826d9620e6180967b0e5e6a85d",
+    "verification.log": "e9f0912c5a792fa65e4e5ce50de31f0b83dba90f7157e3c7140172429fe6c14e",
+    "attempts/attempt-01.log": "1116fd4f9acc0bdbe872b85acb16e179c1b7e7a4be67d3365beef7342a777ee7",
+    "attempts/comparison-01.log": "4ff748b0a0885e12fe36b480ae0e31663851024fefe73bb73a3670c04847043c"
+  },
+  "retained_attempts": {
+    "first_rust_run": "27 passed, 0 failed, 0 ignored; all 39 traces retained",
+    "comparison_script_initial": "Failed due to regex fallback comparing whole debug projection including differing boot/time; original log retained, corrected leading Stored value/version parser passes",
+    "final_run": "27 passed, 0 failed, 0 ignored; exit0; source and artifact hashes verified"
+  },
+  "indicator_links_preserved": 3,
+  "limitations": [
+    "Only fixed f1b2e8a reference-layer integration; later canonical module-channel truth changes need their own acceptance",
+    "Stable role ID persistence and pure parse-only remap counterfactual do not prove live replacement, migration or whole-module mapping deployment",
+    "All output uses in-memory TapWire with explicit synthetic feedback, not real TCP, module firmware, bus timing, physical turn-on brightness or LED colors",
+    "Absolute HAP cases use production SceneWriteHandler/SceneRequests/Control semantics, not encrypted HAP sessions or actual Apple clients",
+    "Three original LED links are preserved and config validated; full indicator_sync integration is not driven by these probes",
+    "Targeted 27 library test functions only; no new full-workspace, strict Clippy, Linux or long-running service claim",
+    "39 trace artifacts contain supplemental and repeated fixture inputs; not 39 independent test functions or unique inputs"
+  ],
+  "physical_io": false,
+  "credentials_created": false,
+  "deployment": false,
+  "git_push": false,
+  "private_raw_evidence_published": false
+}
