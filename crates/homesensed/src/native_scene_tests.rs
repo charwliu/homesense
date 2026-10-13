@@ -1,4 +1,6 @@
 //! Synthetic native frames and query provenance. No physical IO or network.
+#[path = "native_scene_indicator_tests.rs"]
+mod indicator_joint;
 use super::*;
 use crate::native_scene::Manager;
 use homesense_core::{Command, DeviceId, LevelTransition, Percent};

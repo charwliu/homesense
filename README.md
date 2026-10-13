@@ -1000,3 +1000,11 @@ TLS 组合服务的假网关已从只读启用别名改为 A0F2 整模块查询�
 固定 `ea524bb` 在新的 Linux `/tmp` 目录完成实际验收：原生编译的运行时库 130 项、在线模块发布 2 项，共 **132 项通过、0 失败、0 忽略、0 过滤**；两种 HTTPS/WSS 模式也在 Linux 实际执行通过。TLS 使用已记录的交叉 release 候选，动态依赖可解析；组合模式五条整模块查询、零执行器报文，鉴权／撤销和证书拒绝保持。全部假网关与服务只监听 localhost，不发布 LAN HAP 发现记录。
 
 首轮原生 Cargo 因离线缓存缺包而未执行测试，失败保留；补充锁定的 221 个公开 vendored 依赖后重跑，没有修改系统 Cargo 缓存或生产代码。1009 个归档文件、两份实际测试二进制及 22 份日志／清单指纹已独立核对，退出后无测试进程、临时密钥／身份或凭据文件。见[实际 Linux 限定证据](docs/evidence/stage-e-browser/linux-isolated-runtime-check.json)；不计为完整 Linux workspace、原生 Linux release 构建或现场通过，EA-5、现网配置、身份和运行库不变。
+
+## 相对场景与多面板 LED 的联合门禁
+
+新的真实 Admission／Store／TransportOwner／canonical Feedback／Synchronizer 联合回归复现了部分反馈缺陷：原生相对操作仍等待完整查询时，一路暂时 Off 就提前写出两面板 LED-Off。同步器现在从同一选择快照读取 pending 标记，仅延期该场景组的 LED／选择清理，不改变去重状态；独立灯光链接仍能同步。捕获计划后才启动相对操作的竞争由既有 actor 完整物理快照比较拒绝，未放宽鉴权、协议或持久化校验。
+
+最终六项联合测试覆盖单路 AD8 与隐藏供电组合灯：应关闭灯明确 Off、供电 Toggle→供电 Query→条件调光→最终完整 Query、等反馈不误清 LED、供电 Off 保留亮度记忆、完成后独立熄灯清对应两个面板、未知／陈旧不重放，以及无关灯／LED 保留。schema2 引用预先固定的角色 module_id；供电和无关灯位于同模块不同通道。
+
+相关旧夹具 **144 项通过**，最终固定角色／组合夹具 **6 项通过**（另 130 项库测试明确过滤），去除重复后为 147 个不同 Rust 测试函数；它们不是同一次完整工作区或最终完整库命令。最终源码的 homesensed 所有目标严格 Clippy 通过。[限定证据](docs/evidence/stage-e-browser/native-relative-indicator-joint-check.json)保存初始夹具错误、真实产品反例、全部精确源码／帧／日志／二进制及提交竞争结果。LED 仅证明假总线写出，未证明实物应用；本增量没有新的 Linux、Apple 客户端或现场验收，EA-5 配置和控制范围不变。

@@ -1,0 +1,153 @@
+{
+  "date": "2026-10-13",
+  "base_commit": "83f291075f0a5c271a3113216fbba66f53829498",
+  "scope": "Real Admission/Store/TransportOwner/canonical Feedback/native Manager/indicator Synchronizer; memory wire and related localhost Web/HAP only",
+  "source": {
+    "original_files": 1012,
+    "original_files_unchanged": 1010,
+    "product_file_changed": "crates/homesensed/src/indicator_sync.rs",
+    "existing_native_test_bodies_preserved": true,
+    "final_source_sha256": {
+      "crates/homesensed/src/indicator_sync.rs": "b0a28c1972725ced7105a204ea17c2262eb06c5c2097252fee2df5231f67dcd5",
+      "crates/homesensed/src/native_scene_tests.rs": "b67f1deef4717bde9fc196bc9dd10c389bb09ba61cee7cb0b590a3f92455ef5b",
+      "crates/homesensed/src/native_scene_indicator_tests.rs": "d296f351a3aeb6b3fb70a8797df64139cba250e4411f489beb8e5f6555e36111"
+    },
+    "fixed_role_module_ids": [
+      "dimmer-module",
+      "supply-module",
+      "primary-panel",
+      "secondary-panel"
+    ],
+    "combined_supply_reference": {
+      "module_id": "supply-module",
+      "channel": 2
+    },
+    "independent_switch_channel": 1
+  },
+  "failure_history": [
+    {
+      "stage": "initial_fixture",
+      "passed": 0,
+      "failed": 2,
+      "filtered": 130,
+      "reason": "Test bus wrongly decoded direct panel command as A0 offset; fixed decoder and explicit dimmer-Off frame expectation without product change"
+    },
+    {
+      "stage": "product_baseline",
+      "passed": 1,
+      "failed": 1,
+      "filtered": 130,
+      "reason": "Fresh partial Off before full native query completion writes two LED-Off frames prematurely; original counterexample/binary retained"
+    },
+    {
+      "stage": "fixture_identity_review",
+      "reason": "Address-derived fixture IDs replaced by predetermined logical role IDs before final race/composite tests"
+    },
+    {
+      "stage": "audit_initial_check",
+      "reason": "Audit incorrectly expected zero filters for four-case library command; corrected expected 130 exclusions, not a test/product failure"
+    }
+  ],
+  "repair": "Read the same scoped scene-selection snapshot during indicator planning; defer only linked groups with pending relative operations, keeping dedup untouched. Existing actor revalidation of full physical snapshot rejects a pre-captured plan after native pending begins. No Admission/protocol/authentication change.",
+  "related_run": {
+    "passed": 144,
+    "failed": 0,
+    "ignored": 0,
+    "filtered": 0,
+    "runtime_library": 133,
+    "indicator_integration": 7,
+    "encrypted_scene_hap": 1,
+    "scene_web": 3,
+    "source_note": "Previous three-case fixture; same product fix, before fixed role-ID review and three added cases. Exact source and four binaries retained.",
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "--locked",
+      "-p",
+      "homesensed",
+      "--lib",
+      "--test",
+      "indicator_sync",
+      "--test",
+      "scene_switch_web",
+      "--test",
+      "scene_switch_hap",
+      "--",
+      "--test-threads=1"
+    ]
+  },
+  "final_joint_run": {
+    "passed": 6,
+    "failed": 0,
+    "ignored": 0,
+    "filtered": 130,
+    "standalone_cases": 4,
+    "combined_cases": 2,
+    "source_note": "Final fixed-role schema2 fixture; initial four execution bodies preserved while adding combined helper and two cases.",
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "--locked",
+      "-p",
+      "homesensed",
+      "--lib",
+      "indicator_joint",
+      "--",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "binary_sha256": "5a2b32790503bfc9388011b9c6e112f6c3434e70d7c9d0fa04c403eb891afee8"
+  },
+  "distinct_rust_test_functions": 147,
+  "not_a_single_full_workspace_or_latest_full_library_run": true,
+  "strict_clippy": "homesensed --all-targets -D warnings passed on final six-case source",
+  "verified_contracts": [
+    "Source-unused dimmer explicitly receives Off and final canonical zero feedback",
+    "Partial post-query Off keeps native request pending, both panel LEDs and local history preserved",
+    "Full fresh observations establish scene selection, then independent expected-on load Off clears matching scene view and both linked LEDs once",
+    "Invalid/stale feedback and repeated ticks do not replay relative controls or clear unrelated On load/LED",
+    "Independent light-Off link still operates while another scene group is pending",
+    "Indicator plan captured before native start rejected at commit by existing physical snapshot comparison",
+    "Hidden supply Toggle uses channel 2; relay query precedes conditional AD8 level command and three final queries",
+    "Supply On branch alone writes level 100; Off branch preserves remembered 60 percent without dimmer write",
+    "Waiting for supply/final complete feedback preserves both panel LEDs; observed Supply Off clears only those LEDs; unrelated switch channel 1 remains On",
+    "Each standalone AD8 or composite relay Toggle appears once; no new control scope or real IO"
+  ],
+  "evidence_sha256": {
+    "source.tar": "82f1d5d21d913a71c2b025b196c4f674482717769f2db3812aa2e0620d0f2e4f",
+    "source.json": "1465ce78c6fc96c767b7955475808f4c1be776b237f47298a34f74a36bd95011",
+    "initial.log": "e2f7010b5bd54fe39aeea3550b0b6e294fdf78a400eec717887f76ce3e3a4322",
+    "initial-execution.json": "d854b0bd08f0d275fb52ad12af2ac295711d26815d4e8761ea048fddd6101bf1",
+    "baseline.log": "59ad425d3c7edb2a38c6f252791cd2b775020a90d91048f9c57424b116d5d859",
+    "baseline-execution.json": "1305a896768abba7a08fa651742f17fb22ce6a535f75850a6925dbdf3cfdfdf0",
+    "baseline-verification.json": "09723056d35f4ef96b411158605b6d4783f6283adf73ea46ed84d5d3eceadd59",
+    "baseline-test-source.rs": "089d3346fcfc41ff1d46d2ec5c3ecda4dbef8476568b3a032b25647aac389192",
+    "baseline-test-binary": "7657e0fd0c2c3cb26c7e5ad50e9a9303da2fd81f69d0b31d7b6ea2f22973fc43",
+    "fixed-joint.log": "d06e3be4d38f40ac98f492b50db256200c53d8ccc6d9790b1ef1ba47403b27e2",
+    "fixed-joint-execution.json": "1a69f09d09037f40139f7baebf0fff4d94cf2214ea94059c700f2d8636d57b21",
+    "fixed-source.json": "ec2744dda6f367d89cc3759cac6a38b742ae96ef33621d7db91faa01b13696fb",
+    "related-test-source.rs": "8696a7593e623cf49cbf13fc1912ab69ae99c5ccdce72346ad9981f4a020d18f",
+    "related.log": "41ff400589555f00aab29fb8c8db967d0e46d2e7c52d6063c5ba6dcd08db60dc",
+    "related-execution.json": "d06069c99eb712dfc0bacdc8a4322e66d37cd857b6a9152897a67c5674412237",
+    "final-joint.log": "9f27acf56d96bd4b7e5f4ae19840af71d37d38ca46c947b43ebef58550bfe781",
+    "final-joint-execution.json": "ed0aa3f4966b38858fa7fdf644ecce1e517664652936e38816d68defa00b6bc2",
+    "final-test-source.rs": "45347154334e8177948e8a53f043e179e93a68611928e6e7a939821881fc57a1",
+    "combined-test-source.rs": "d296f351a3aeb6b3fb70a8797df64139cba250e4411f489beb8e5f6555e36111",
+    "combined-joint.log": "38d364b84feeb1d8c678844af52180e1214e20aa482e8b13eac3ee82e6c32478",
+    "combined-joint-execution.json": "e1bc39e641a6ef27312f46549498ecaa15ecabc425c86a228a35b73cfc83032e",
+    "combined-joint-test-binary": "5a2b32790503bfc9388011b9c6e112f6c3434e70d7c9d0fa04c403eb891afee8",
+    "frames-final.json": "9c38cfbbd2eebe3cfae797410fd23c1edd1d13a3272680b6597026083b5be611",
+    "clippy.log": "bd2485d9955dedf3e81b78488b179d62db3588af2d608723fd39b2050fec9f5a",
+    "clippy-execution.json": "6c27983c31e69f29e903b6ffb73ca2105e51db692d1ff32fbec803f859e045df",
+    "verification-final.json": "3212c7f47b2a16fa2d5fcde34e87ac1a89acffd517a175f258e41017e16c36f6",
+    "audit-initial-error.json": "6591edb1de732138f7e0588bc44d6902695e130be99707e9f8aace854221bddc"
+  },
+  "limitations": [
+    "Memory bus LED state derives from outgoing frames, not proof of physical LED application",
+    "No current complete workspace/Linux rerun or Apple Home/real firmware/field acceptance",
+    "Original D scene/program/variable semantics and field confirmation remain pending",
+    "No live gateway, production deployment, real credentials, network change or EA-5 configuration/scope change"
+  ]
+}
