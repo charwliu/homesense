@@ -72,7 +72,7 @@ impl Store {
         if app != 0 && app != APPLICATION_ID {
             return Err(Error::ForeignDatabase);
         }
-        if version != 0 && (!(1..=24).contains(&version) || app != APPLICATION_ID) {
+        if version != 0 && (!(1..=25).contains(&version) || app != APPLICATION_ID) {
             return Err(Error::UnsupportedSchema(version));
         }
         if version == 0 {
@@ -253,6 +253,12 @@ impl Store {
                 PRIMARY KEY(controller,request_key),FOREIGN KEY(revision,variable_name) REFERENCES logical_variable(revision,name));")?;
             tx.execute_batch("CREATE INDEX IF NOT EXISTS native_scope ON native_scene_request(boot_id,revision,transport_epoch,control_epoch,group_id,status); CREATE INDEX IF NOT EXISTS native_expiry ON native_scene_request(status,deadline_ms);")?;
             tx.pragma_update(None, "user_version", 24)?;
+        }
+        if version <= 24 {
+            // Existing commands retain NULL: a migration cannot reconstruct
+            // source nodes that were discarded by an older runtime.
+            tx.execute_batch("ALTER TABLE rule_command ADD COLUMN source TEXT CHECK(source IS NULL OR length(CAST(source AS BLOB)) BETWEEN 1 AND 8192);")?;
+            tx.pragma_update(None, "user_version", 25)?;
         }
         tx.commit()?;
         connection.pragma_update(None, "foreign_keys", "ON")?;

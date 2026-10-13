@@ -134,7 +134,7 @@ fn version22_migration_preserves_raw_values_and_adds_empty_origin_table() {
         .unwrap();
     drop(store);
     let sql = rusqlite::Connection::open(path.join("runtime.sqlite")).unwrap();
-    sql.execute_batch("DROP TRIGGER immutable_scene_initialization_update;DROP TRIGGER immutable_scene_initialization_delete;DROP TABLE scene_initialization;PRAGMA user_version=22;").unwrap();
+    sql.execute_batch("DROP TRIGGER immutable_scene_initialization_update;DROP TRIGGER immutable_scene_initialization_delete;DROP TABLE scene_initialization;ALTER TABLE rule_command DROP COLUMN source; PRAGMA user_version=22;").unwrap();
     drop(sql);
     let store = Store::open(path.join("runtime.sqlite")).unwrap();
     let state = store
@@ -147,7 +147,7 @@ fn version22_migration_preserves_raw_values_and_adds_empty_origin_table() {
     assert_eq!(
         sql.pragma_query_value(None, "user_version", |row| row.get::<_, i64>(0))
             .unwrap(),
-        24
+        25
     );
     drop(sql);
     drop(store);

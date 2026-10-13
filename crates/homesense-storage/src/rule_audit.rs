@@ -2,6 +2,17 @@
 use crate::{Error, sql_revision};
 use homesense_core::queue::{Origin, QueuedCommand};
 use rusqlite::{OptionalExtension, Transaction, params};
+/// One exact source label per resulting physical command. NULL remains valid
+/// for legacy callers/records; labels are never inferred from command kinds.
+pub fn validate_sources(sources: Option<&[String]>, commands: usize) -> Result<(), Error> {
+    if let Some(sources) = sources
+        && (commands > 128 || sources.len() != commands
+            || sources.iter().any(|s| s.is_empty() || s.len() > 8192))
+    {
+        return Err(Error::InvalidAudit);
+    }
+    Ok(())
+}
 #[derive(Debug, Clone)]
 pub struct Admission {
     pub revision: u64,
@@ -10,14 +21,17 @@ pub struct Admission {
     pub parent: u64,
     pub rule: String,
 }
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn insert(
     tx: &Transaction<'_>,
     boot: &str,
     audit: &Admission,
     commands: &[QueuedCommand],
+    sources: Option<&[String]>,
     now: u64,
     active: Option<i64>,
 ) -> Result<(), Error> {
+    validate_sources(sources, commands.len())?;
     let revision = sql_revision(audit.revision)?;
     if active != Some(revision) {
         return Err(Error::Conflict);
@@ -45,14 +59,15 @@ pub(crate) fn insert(
         }
     }
     tx.execute("INSERT INTO rule_admission(boot_id,correlation,event_id,parent_id,revision,rule_id,admitted_ms) VALUES(?1,?2,?3,?4,?5,?6,?7)",params![boot,correlation,event,parent,revision,audit.rule,now])?;
-    for command in commands {
+    for (index, command) in commands.iter().enumerate() {
         tx.execute(
-            "INSERT INTO rule_command(boot_id,correlation,event_id,command_id) VALUES(?1,?2,?3,?4)",
+            "INSERT INTO rule_command(boot_id,correlation,event_id,command_id,source) VALUES(?1,?2,?3,?4,?5)",
             params![
                 boot,
                 correlation,
                 event,
-                i64::try_from(command.id).map_err(|_| Error::InvalidAudit)?
+                i64::try_from(command.id).map_err(|_| Error::InvalidAudit)?,
+                sources.map(|labels| labels[index].as_str())
             ],
         )?;
     }
@@ -64,6 +79,8 @@ pub struct CommandResult {
     pub id: u64,
     pub device: String,
     pub status: crate::journal::Status,
+    /// Exact accepted node label; None denotes an untraced historical caller.
+    pub source: Option<String>,
 }
 #[derive(Debug, Clone)]
 pub struct Record {
@@ -117,13 +134,14 @@ impl crate::Store {
         let unsigned = |value: i64| u64::try_from(value).map_err(|_| Error::InvalidAudit);
         let mut records = vec![];
         for (event, parent, revision, rule, time) in rows {
-            let mut statement=tx.prepare("SELECT j.command_id,j.device_id,j.status FROM rule_command r JOIN command_journal j ON j.boot_id=r.boot_id AND j.command_id=r.command_id WHERE r.boot_id=?1 AND r.correlation=?2 AND r.event_id=?3 ORDER BY j.command_id LIMIT 129")?;
+            let mut statement=tx.prepare("SELECT j.command_id,j.device_id,j.status,r.source FROM rule_command r JOIN command_journal j ON j.boot_id=r.boot_id AND j.command_id=r.command_id WHERE r.boot_id=?1 AND r.correlation=?2 AND r.event_id=?3 ORDER BY j.command_id LIMIT 129")?;
             let values = statement
                 .query_map(params![boot, key, event], |r| {
                     Ok((
                         r.get::<_, i64>(0)?,
                         r.get::<_, String>(1)?,
                         r.get::<_, String>(2)?,
+                        r.get::<_, Option<String>>(3)?,
                     ))
                 })?
                 .collect::<Result<Vec<_>, _>>()?;
@@ -132,11 +150,15 @@ impl crate::Store {
             }
             let commands = values
                 .into_iter()
-                .map(|(id, device, status)| {
+                .map(|(id, device, status, source)| {
+                    if source.as_ref().is_some_and(|s| s.is_empty() || s.len() > 8192) {
+                        return Err(Error::InvalidAudit);
+                    }
                     Ok(CommandResult {
                         id: unsigned(id)?,
                         device,
                         status: crate::journal::Status::parse(&status)?,
+                        source,
                     })
                 })
                 .collect::<Result<_, Error>>()?;
