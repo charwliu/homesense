@@ -1,0 +1,480 @@
+{
+  "date": "2026-10-13",
+  "scope": "Independent source/binary/log/frame recheck of final committed LED repair; no additional targeted test executions",
+  "fixed_commit": "b31ddeb34f04494bcfee6ea3fe23fe4259aca305",
+  "base_commit": "83f291075f0a5c271a3113216fbba66f53829498",
+  "original_archive_files_verified": 1012,
+  "unchanged_non_overlay_original_files": 1010,
+  "final_source_sha256": {
+    "crates/homesensed/src/indicator_sync.rs": "b0a28c1972725ced7105a204ea17c2262eb06c5c2097252fee2df5231f67dcd5",
+    "crates/homesensed/src/native_scene_tests.rs": "b67f1deef4717bde9fc196bc9dd10c389bb09ba61cee7cb0b590a3f92455ef5b",
+    "crates/homesensed/src/native_scene_indicator_tests.rs": "d296f351a3aeb6b3fb70a8797df64139cba250e4411f489beb8e5f6555e36111"
+  },
+  "baseline_product_failure": {
+    "passed": 1,
+    "failed": 1,
+    "linked_led_off_frames": [
+      [
+        174,
+        65,
+        1,
+        242,
+        238
+      ],
+      [
+        174,
+        66,
+        1,
+        242,
+        238
+      ]
+    ]
+  },
+  "initial_fixture_failure": {
+    "passed": 0,
+    "failed": 2,
+    "cause": "MemoryWire arithmetic underflow"
+  },
+  "final_joint_tests": {
+    "passed": 6,
+    "failed": 0,
+    "ignored": 0,
+    "filtered": 130
+  },
+  "earlier_related_tests": {
+    "passed": 144,
+    "failed": 0,
+    "ignored": 0,
+    "filtered": 0
+  },
+  "distinct_functions_across_runs": 147,
+  "not_same_source_or_single_full_suite": true,
+  "fixed_role_module_ids": [
+    "dimmer-module",
+    "supply-module",
+    "primary-panel",
+    "secondary-panel"
+  ],
+  "four_original_joint_bodies_byte_identical": true,
+  "frame_traces": {
+    "rejected-captured-plan": [
+      [
+        174,
+        65,
+        1,
+        241,
+        238
+      ],
+      [
+        174,
+        66,
+        1,
+        241,
+        238
+      ],
+      [
+        174,
+        65,
+        5,
+        241,
+        238
+      ],
+      [
+        174,
+        21,
+        2,
+        0,
+        238
+      ],
+      [
+        174,
+        21,
+        1,
+        100,
+        238
+      ]
+    ],
+    "combined-supply-off": [
+      [
+        174,
+        65,
+        1,
+        241,
+        238
+      ],
+      [
+        174,
+        66,
+        1,
+        241,
+        238
+      ],
+      [
+        174,
+        65,
+        5,
+        241,
+        238
+      ],
+      [
+        174,
+        21,
+        2,
+        0,
+        238
+      ],
+      [
+        174,
+        3,
+        162,
+        241,
+        238
+      ],
+      [
+        174,
+        3,
+        162,
+        242,
+        238
+      ],
+      [
+        174,
+        21,
+        162,
+        242,
+        238
+      ],
+      [
+        174,
+        21,
+        161,
+        242,
+        238
+      ],
+      [
+        174,
+        3,
+        162,
+        242,
+        238
+      ],
+      [
+        174,
+        65,
+        1,
+        242,
+        238
+      ],
+      [
+        174,
+        66,
+        1,
+        242,
+        238
+      ]
+    ],
+    "combined-on-then-supply-off": [
+      [
+        174,
+        65,
+        1,
+        241,
+        238
+      ],
+      [
+        174,
+        66,
+        1,
+        241,
+        238
+      ],
+      [
+        174,
+        65,
+        5,
+        241,
+        238
+      ],
+      [
+        174,
+        21,
+        2,
+        0,
+        238
+      ],
+      [
+        174,
+        3,
+        162,
+        241,
+        238
+      ],
+      [
+        174,
+        3,
+        162,
+        242,
+        238
+      ],
+      [
+        174,
+        21,
+        1,
+        100,
+        238
+      ],
+      [
+        174,
+        21,
+        162,
+        242,
+        238
+      ],
+      [
+        174,
+        21,
+        161,
+        242,
+        238
+      ],
+      [
+        174,
+        3,
+        162,
+        242,
+        238
+      ],
+      [
+        174,
+        65,
+        1,
+        242,
+        238
+      ],
+      [
+        174,
+        66,
+        1,
+        242,
+        238
+      ]
+    ],
+    "observed-off": [
+      [
+        174,
+        65,
+        1,
+        241,
+        238
+      ],
+      [
+        174,
+        66,
+        1,
+        241,
+        238
+      ],
+      [
+        174,
+        65,
+        5,
+        241,
+        238
+      ],
+      [
+        174,
+        21,
+        2,
+        0,
+        238
+      ],
+      [
+        174,
+        21,
+        161,
+        241,
+        238
+      ],
+      [
+        174,
+        21,
+        162,
+        242,
+        238
+      ],
+      [
+        174,
+        21,
+        161,
+        242,
+        238
+      ],
+      [
+        174,
+        65,
+        1,
+        242,
+        238
+      ],
+      [
+        174,
+        66,
+        1,
+        242,
+        238
+      ]
+    ],
+    "independent-off-while-pending": [
+      [
+        174,
+        65,
+        1,
+        241,
+        238
+      ],
+      [
+        174,
+        66,
+        1,
+        241,
+        238
+      ],
+      [
+        174,
+        65,
+        5,
+        241,
+        238
+      ],
+      [
+        174,
+        21,
+        2,
+        0,
+        238
+      ],
+      [
+        174,
+        21,
+        161,
+        241,
+        238
+      ],
+      [
+        174,
+        21,
+        162,
+        242,
+        238
+      ],
+      [
+        174,
+        21,
+        161,
+        242,
+        238
+      ],
+      [
+        174,
+        65,
+        5,
+        242,
+        238
+      ]
+    ],
+    "partial-pending": [
+      [
+        174,
+        65,
+        1,
+        241,
+        238
+      ],
+      [
+        174,
+        66,
+        1,
+        241,
+        238
+      ],
+      [
+        174,
+        65,
+        5,
+        241,
+        238
+      ],
+      [
+        174,
+        21,
+        2,
+        0,
+        238
+      ],
+      [
+        174,
+        21,
+        161,
+        241,
+        238
+      ],
+      [
+        174,
+        21,
+        162,
+        242,
+        238
+      ],
+      [
+        174,
+        21,
+        161,
+        242,
+        238
+      ]
+    ]
+  },
+  "race_scope": "Captured LED plan rejects after a native-manager pending scene begins; this known-Off positive lamp uses explicit On, not an additional native Toggle",
+  "combined_path_scope": "Hidden supply channel2 queried before conditional dimming; On emits one explicit100 target, Off emits no dimmer target and preserves restore60; incomplete final feedback defers LEDs; external supply Off clears linked LEDs once; unrelated supply channel1 unchanged",
+  "production_patch_scope": "Indicator planning reads existing scoped physical pending marker and defers linked group only, before changing dedup; existing Admission full snapshot comparison unchanged",
+  "strict_clippy": {
+    "scope": "homesensed --all-targets -D warnings on final six-case source",
+    "exit_code": 0,
+    "log_sha256": "bd2485d9955dedf3e81b78488b179d62db3588af2d608723fd39b2050fec9f5a"
+  },
+  "new_targeted_test_executions": 0,
+  "owner_report_sha256": "00a7da94112517be8f0b75551099c364e2095f138cd72db7c49821f949027f08",
+  "evidence_sha256": {
+    "owner/source.tar": "82f1d5d21d913a71c2b025b196c4f674482717769f2db3812aa2e0620d0f2e4f",
+    "owner/source.json": "1465ce78c6fc96c767b7955475808f4c1be776b237f47298a34f74a36bd95011",
+    "owner/baseline-verification.json": "09723056d35f4ef96b411158605b6d4783f6283adf73ea46ed84d5d3eceadd59",
+    "owner/baseline-test-source.rs": "089d3346fcfc41ff1d46d2ec5c3ecda4dbef8476568b3a032b25647aac389192",
+    "owner/baseline-test-binary": "7657e0fd0c2c3cb26c7e5ad50e9a9303da2fd81f69d0b31d7b6ea2f22973fc43",
+    "owner/baseline.log": "59ad425d3c7edb2a38c6f252791cd2b775020a90d91048f9c57424b116d5d859",
+    "owner/baseline-execution.json": "1305a896768abba7a08fa651742f17fb22ce6a535f75850a6925dbdf3cfdfdf0",
+    "owner/combined-test-source.rs": "d296f351a3aeb6b3fb70a8797df64139cba250e4411f489beb8e5f6555e36111",
+    "owner/combined-joint.log": "38d364b84feeb1d8c678844af52180e1214e20aa482e8b13eac3ee82e6c32478",
+    "owner/combined-joint-execution.json": "e1bc39e641a6ef27312f46549498ecaa15ecabc425c86a228a35b73cfc83032e",
+    "owner/combined-joint-test-binary": "5a2b32790503bfc9388011b9c6e112f6c3434e70d7c9d0fa04c403eb891afee8",
+    "owner/related.log": "41ff400589555f00aab29fb8c8db967d0e46d2e7c52d6063c5ba6dcd08db60dc",
+    "owner/related-execution.json": "d06069c99eb712dfc0bacdc8a4322e66d37cd857b6a9152897a67c5674412237",
+    "owner/clippy.log": "bd2485d9955dedf3e81b78488b179d62db3588af2d608723fd39b2050fec9f5a",
+    "owner/clippy-execution.json": "6c27983c31e69f29e903b6ffb73ca2105e51db692d1ff32fbec803f859e045df",
+    "owner/verification-final.json": "3212c7f47b2a16fa2d5fcde34e87ac1a89acffd517a175f258e41017e16c36f6",
+    "root/verify-six.py": "8fa88a27c1b518f8e4dc532d7e50cf4ccd18859edae2bd37f6c099ecaba0f13d",
+    "root/six-root-audit.json": "b90d626bcc20c7ff7cb335d766ddbe6bf75ca48849fe6dcfbd9947e5732cd300",
+    "root/four-bodies-unchanged.json": "d788ceb31cf2d07f1fb52ad3df4a9ccd6d0f0981bf429416927d36edbd14d4c5",
+    "root/baseline-root-audit.json": "76abcc669b9789ea4f09a12ba0c01dd4f23eeac4ddaa984357eb96028a5a43cd"
+  },
+  "limitations": [
+    "Actual memory TransportOwner/Admission with synthetic state; outgoing LED frames are not physical LED feedback.",
+    "Earlier 144-case run precedes fixed-role/fourth/composite fixture changes; final six and old three overlap, not 150 distinct tests.",
+    "The race case has a known-Off positive lamp and uses explicit On, not another native Toggle.",
+    "Separate full workspace evidence records current 779 result; no new Linux, real firmware, Apple client or field acceptance here.",
+    "No original source semantic approvals, live credentials, deployment or EA-5/network change."
+  ],
+  "evidence_roots": {
+    "owner": "deployment/ngr/private/20261013-native-indicator-joint",
+    "root": "deployment/ngr/private/20261013-native-indicator-joint-root"
+  }
+}

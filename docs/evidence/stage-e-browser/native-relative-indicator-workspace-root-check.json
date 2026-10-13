@@ -1,0 +1,60 @@
+{
+  "date": "2026-10-13",
+  "scope": "Actual complete Mac workspace test run after committed LED repair, isolated sources and localhost/simulated fixtures",
+  "base_commit": "93bc55d3f93e54311938ed5bd985fd6c61a4f1ee",
+  "production_and_test_sources_match_commit": "b31ddeb34f04494bcfee6ea3fe23fe4259aca305",
+  "original_files": 1013,
+  "unchanged_original_files_except_two_overlays": 1011,
+  "overlay_sha256": {
+    "crates/homesensed/src/indicator_sync.rs": "b0a28c1972725ced7105a204ea17c2262eb06c5c2097252fee2df5231f67dcd5",
+    "crates/homesensed/src/native_scene_tests.rs": "b67f1deef4717bde9fc196bc9dd10c389bb09ba61cee7cb0b590a3f92455ef5b",
+    "crates/homesensed/src/native_scene_indicator_tests.rs": "d296f351a3aeb6b3fb70a8797df64139cba250e4411f489beb8e5f6555e36111"
+  },
+  "new_test_source": "crates/homesensed/src/native_scene_indicator_tests.rs",
+  "shared_dirty_sources_included": false,
+  "actual_workspace_run": {
+    "command": [
+      "cargo",
+      "test",
+      "--workspace",
+      "--no-fail-fast",
+      "--offline",
+      "--locked",
+      "--",
+      "--test-threads=1"
+    ],
+    "exit_code": 0,
+    "passed": 779,
+    "failed": 0,
+    "ignored": 0,
+    "filtered": 0,
+    "measured": 0,
+    "result_blocks": 133,
+    "actual_retained_test_binaries": 123,
+    "elapsed_seconds": 405.3532696249895
+  },
+  "independent_recheck": {
+    "exact_binary_scoped_test_ids": 779,
+    "retained_binary_hashes": 123,
+    "source_files_unchanged_during_run": true,
+    "includes_final_six_joint_tests": true,
+    "includes_two_online_module_publication_tests": true
+  },
+  "runtime_strict_clippy": "Existing final six-case homesensed --all-targets record rechecked; no new full-workspace Clippy command",
+  "binary_manifest_sha256": "0aeed6b95729b16964fdb5bdb7e9bcb9aa93123f2de585260b72bedb088ff8c8",
+  "evidence_sha256": {
+    "source.tar": "e6a5adae7328ddd6264bdd31620727c83fa0af104ddfaebe88888970de60078e",
+    "source.json": "8e4b4a412fd24e2cf6935a6a0e360e45fd06d488b275a24e0f0b209eb79b7879",
+    "run.py": "73dccf3ab01fb6ba0bd3def249c750a4a3a7d3fedd109d86769d39d53b240fb6",
+    "execution.json": "c76fbc6d69e9e0d0fb560866bf160c8d53535a7f2734199fc986a8687c4b09bc",
+    "workspace.log": "9f1c119d2402fc53a2d099baa650be067145e47c4904109a26085c64d7b7ae85",
+    "verify.py": "4e66bada1d7b8dbdad135abd02acad57958eb7d939d6fcfe7f44f0a746609e2f",
+    "root-audit.json": "7f646c4f0222c2d65b271d4fad879a4ce46eefa4bc302f8ae956a56eb67537fe"
+  },
+  "limitations": [
+    "Source archive base is93bc55d plus three explicit tested overlays; all product/test/config/tool bytes match b31ddeb. Doc-only differences are not called a pure initial base run.",
+    "779 is one actual workspace command; prior144/6/147 results are not added to it.",
+    "No new JavaScript/browser, full-workspace strict Clippy or Linux run. Previous source-scoped records remain separate.",
+    "No real hardware, Apple client, current field acceptance, original full D semantic approval or production deployment."
+  ]
+}
