@@ -1,0 +1,91 @@
+{
+  "date": "2026-10-13",
+  "source_commit": "0be525f40978b4fce441f6142bd41b43e071df49",
+  "scope": "Independent native Linux verification of added ordered-rule tests only",
+  "source_verification": {
+    "archive_bytes_equal_fixed_git_archive": true,
+    "archive_sha256": "400946f3c855bf902211fa35881960ff73689d926ad28d5e85f32e4b157a4e8d",
+    "original_files": 1035,
+    "before_and_after_execution_file_hashes_unchanged": true,
+    "five_mac_tested_source_and_test_hashes_match": true,
+    "cargo_lock_sha256": "bf8b446b0d8abbe7a3da1f359e2d0a0a2e116d82d4d2f5bb7b4b7c91bb080fbd"
+  },
+  "command": [
+    "cargo",
+    "test",
+    "--locked",
+    "--offline",
+    "-p",
+    "homesense-core",
+    "--test",
+    "ordered_rule_batch",
+    "-p",
+    "homesensed",
+    "--test",
+    "rule_order",
+    "--",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "result": {
+    "core_ordered_rule_batch": 4,
+    "runtime_rule_order": 9,
+    "passed": 13,
+    "failed": 0,
+    "ignored": 0,
+    "filtered": 0,
+    "result_blocks": 2,
+    "exit_code": 0,
+    "elapsed_seconds": 50.60945778500172,
+    "exact_ids_independently_matched_to_fixed_test_sources": true
+  },
+  "actual_retained_elfs": [
+    {
+      "name": "ordered_rule_batch-70a47e74ffb916d8",
+      "sha256": "144c7f71aea8928a320dbc19436a7dea46b9834640085e1db861f8066e1502ef",
+      "bytes": 12542280,
+      "elf_machine": 62
+    },
+    {
+      "name": "rule_order-efc11d989ac0c12b",
+      "sha256": "47f57c817f370e26c7f3a88523d1d02861b46679f2b1a387776a337b0e3ac0cf",
+      "bytes": 238413200,
+      "elf_machine": 62
+    }
+  ],
+  "host": {
+    "architecture": "x86_64",
+    "glibc": "glibc 2.44",
+    "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)",
+    "cargo": "cargo 1.99.0 (5f94df478 2026-08-27)"
+  },
+  "cleanup": {
+    "execution_and_post_exit_records_reconciled": true,
+    "changed_source_files": 0,
+    "remaining_owned_processes_in_record": 0,
+    "scratch_entries_in_post_exit_record": 0,
+    "root_performed_new_remote_query": false,
+    "scope": "Only recorded execution and post-exit state; not an assertion about every current host process."
+  },
+  "evidence_sha256": {
+    "source.json": "6bb5291acc7d5f49055a3298733058a741902af13d481fdc4b020f0b9fb31320",
+    "run.py": "8ebd7d499571d06281e649610fc6e59d9a6a381cf36741dafdc9a2fab1076bc6",
+    "isolated-cargo-config.toml": "f77b30146e3b95309f9e2c740391ae139bfe74478a82c2814f3c392abe8ac499",
+    "evidence/host.json": "36bc6ce52af16a218c1264c9a95feed1ac5ac78e9a92dcfe8e198ca41a57d046",
+    "evidence/tests.log": "1d8130991905725e2c5ff6cd4923062d1a08d52b54f6505c5df0547cb2a6a9b3",
+    "evidence/execution.json": "56606659b7570f7df2c0cb9582995e32ee23ba0b3840ea79e5e799339712a114",
+    "post-exit-remote.json": "13d3864a77e4acc53b48805194caa8e6f9b5e39316e342918a160c473cd09d9f",
+    "source-precheck.json": "9c65152a70217ccdaec46f5b17a8ddd48599ad5b7e2d53097f6bbc89260c3a41",
+    "root-audit.json": "155a54e0d6bfbd0192050611dd897f99e9241cb788c77bf7de2edf84c2df90d8",
+    "verify.py": "3290179ac0790ac3a74d2dc0cce82234b63910d7d71914fd54c42e25a4541304",
+    "verification.log": "643e8586510a746123c3df9928398c29a1c3e0d31e2a02aba2c0448298745882"
+  },
+  "limits": [
+    "13 new ordered-rule test IDs only; no full Linux workspace or release run.",
+    "No additional Mac, old Linux132, LED6, source7 or TLS counts merged.",
+    "Memory wire and synthetic configuration only; no real device or client acceptance.",
+    "Original full project semantics and held human decisions remain unapproved."
+  ],
+  "field_control_performed": false,
+  "ea5_configuration_and_control_scope": "unchanged"
+}
