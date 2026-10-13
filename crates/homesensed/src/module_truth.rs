@@ -18,6 +18,7 @@ pub struct ModuleTruth {
     locators: BTreeMap<(String, u8, u8), DeviceId>,
     aliases: BTreeMap<DeviceId, DeviceId>,
     reverse: BTreeMap<DeviceId, DeviceId>,
+    alias_versions: BTreeMap<DeviceId, u64>,
     counts: BTreeMap<DeviceId, u64>,
     invalid: BTreeSet<DeviceId>,
     boot: u128,
@@ -97,6 +98,7 @@ impl ModuleTruth {
             locators,
             aliases: BTreeMap::new(),
             reverse: BTreeMap::new(),
+            alias_versions: BTreeMap::new(),
             counts,
             invalid: BTreeSet::new(),
             boot,
@@ -172,18 +174,28 @@ impl ModuleTruth {
         let aliases = self.alias_ports(config)?;
         Ok(Snapshot {
             cursor: self.cursor(),
-            state_version: self.states.snapshot().state_version,
+            state_version: self.sequence,
             devices: aliases
                 .into_iter()
-                .filter_map(|(alias, key)| self.port_state(&key).map(|state| (alias, state)))
+                .filter_map(|(alias, key)| {
+                    self.projected_state(&alias, &key)
+                        .map(|state| (alias, state))
+                })
                 .collect(),
         })
     }
-    fn emit(&mut self, id: DeviceId, change: Change, state: DeviceState) -> Result<(), StateError> {
+    fn emit(
+        &mut self,
+        id: DeviceId,
+        change: Change,
+        mut state: DeviceState,
+    ) -> Result<(), StateError> {
         self.sequence = self
             .sequence
             .checked_add(1)
             .ok_or(StateError::CounterExhausted)?;
+        state.version = self.sequence;
+        self.alias_versions.insert(id.clone(), self.sequence);
         if self.events.len() == 256 {
             self.events.pop_front();
         }
@@ -250,7 +262,16 @@ impl ModuleTruth {
         Some(state)
     }
     pub fn alias_state(&self, id: &DeviceId) -> Option<DeviceState> {
-        self.port_state(self.aliases.get(id)?)
+        self.projected_state(id, self.aliases.get(id)?)
+    }
+    fn projected_state(&self, alias: &DeviceId, key: &DeviceId) -> Option<DeviceState> {
+        let mut state = self.port_state(key)?;
+        state.version = self
+            .alias_versions
+            .get(alias)
+            .copied()
+            .unwrap_or(self.sequence);
+        Some(state)
     }
     pub fn observation_count(&self, id: &DeviceId) -> Option<u64> {
         self.counts.get(self.aliases.get(id)?).copied()
@@ -322,14 +343,16 @@ impl ModuleTruth {
         }
     }
     pub fn snapshot(&self) -> Snapshot {
-        let raw = self.states.snapshot();
         Snapshot {
             cursor: self.cursor(),
-            state_version: raw.state_version,
+            state_version: self.sequence,
             devices: self
                 .aliases
                 .iter()
-                .filter_map(|(alias, key)| self.port_state(key).map(|state| (alias.clone(), state)))
+                .filter_map(|(alias, key)| {
+                    self.projected_state(alias, key)
+                        .map(|state| (alias.clone(), state))
+                })
                 .collect(),
         }
     }

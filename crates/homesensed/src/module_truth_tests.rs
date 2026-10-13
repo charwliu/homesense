@@ -4,6 +4,170 @@ use serde_json::{Value, json};
 fn input() -> Value {
     json!({"schema_version":2,"revision":1,"gateways":[{"id":"bus","endpoint":"127.0.0.1:50007","modules":[{"id":"stable-dimmer","address":"15","profile":"ad8_din_rs485_v2_2_1","verification":{"status":"simulated"}},{"id":"stable-supply","address":"03","profile":"r8i8_din_pro_v2_7_7","verification":{"status":"simulated"}}]}],"devices":[{"id":"light","name":"Synthetic light","module_id":"stable-dimmer","channel":1,"enabled":true,"default_on_level":50,"supply":{"module_id":"stable-supply","channel":1}},{"id":"supply","name":"Synthetic supply","module_id":"stable-supply","channel":1,"enabled":true}]})
 }
+async fn hap_projector() -> homesense_hap::events::ObservedEvents {
+    use hap::{
+        accessory::{AccessoryInformation, lightbulb::LightbulbAccessory},
+        characteristic::HapCharacteristic,
+        server::AccessoryHandle,
+    };
+    let light = LightbulbAccessory::new(8, AccessoryInformation::default()).unwrap();
+    let binding = homesense_hap::requests::LightBinding {
+        device: DeviceId::new("light").unwrap(),
+        aid: 8,
+        on_iid: light.lightbulb.power_state.get_id(),
+        brightness_iid: Some(light.lightbulb.brightness.as_ref().unwrap().get_id()),
+        default_on_level: None,
+    };
+    let handle: AccessoryHandle =
+        std::sync::Arc::new(hap::futures::lock::Mutex::new(Box::new(light)));
+    homesense_hap::events::ObservedEvents::new(vec![(binding, handle)], 5000)
+        .await
+        .unwrap()
+}
+#[tokio::test]
+async fn actual_hap_snapshot_and_events_use_logical_versions_without_rewriting_physical_versions() {
+    let mut value = input();
+    value["devices"].as_array_mut().unwrap().truncate(1);
+    value["devices"][0]
+        .as_object_mut()
+        .unwrap()
+        .remove("supply");
+    let config = config(&value);
+    let mut truth = ModuleTruth::new(&config, 7, 2).unwrap();
+    let mut publisher = hap_projector().await;
+    let initial = truth.snapshot();
+    assert_eq!(initial.cursor.sequence, 1);
+    assert_eq!(initial.state_version, initial.cursor.sequence);
+    publisher.resynchronize(&initial, 0).await.unwrap();
+    let mut cursor = initial.cursor;
+    for channel in 2..=8 {
+        truth
+            .observe(
+                "bus",
+                0x15,
+                channel,
+                Observation::Level(Percent::new(37).unwrap()),
+                2,
+                10,
+            )
+            .unwrap();
+    }
+    assert_eq!(truth.snapshot(), initial);
+    publisher
+        .refresh_snapshot(&truth.snapshot(), 10)
+        .await
+        .unwrap();
+    for (at, level) in [(11, 30), (12, 50)] {
+        truth
+            .observe(
+                "bus",
+                0x15,
+                1,
+                Observation::Level(Percent::new(level).unwrap()),
+                2,
+                at,
+            )
+            .unwrap();
+        let physical = truth.module_state("stable-dimmer", 1).unwrap();
+        let events = truth.events_since(cursor).unwrap();
+        assert_eq!(events.len(), 1);
+        let event = &events[0];
+        assert_eq!(event.state.version, event.cursor.sequence);
+        assert!(physical.version > event.state.version);
+        publisher.apply(event, at).await.unwrap();
+        publisher
+            .refresh_snapshot(&truth.snapshot(), at)
+            .await
+            .unwrap();
+        assert_eq!(truth.module_state("stable-dimmer", 1).unwrap(), physical);
+        cursor = truth.cursor();
+    }
+    truth.invalidate_port("bus", 0x15, 1).unwrap();
+    for event in truth.events_since(cursor).unwrap() {
+        publisher.apply(&event, 13).await.unwrap();
+    }
+    cursor = truth.cursor();
+    truth
+        .observe(
+            "bus",
+            0x15,
+            1,
+            Observation::Level(Percent::new(50).unwrap()),
+            2,
+            14,
+        )
+        .unwrap();
+    for event in truth.events_since(cursor).unwrap() {
+        publisher.apply(&event, 14).await.unwrap();
+    }
+    publisher
+        .refresh_snapshot(&truth.snapshot(), 14)
+        .await
+        .unwrap();
+    assert_eq!(truth.snapshot().state_version, truth.cursor().sequence);
+}
+#[tokio::test]
+async fn actual_hap_resync_after_large_quality_batch_accepts_subsequent_logical_event() {
+    let mut value = input();
+    value["devices"].as_array_mut().unwrap().truncate(1);
+    value["devices"][0]
+        .as_object_mut()
+        .unwrap()
+        .remove("supply");
+    let modules = value["gateways"][0]["modules"].as_array_mut().unwrap();
+    modules.clear();
+    for address in 1..=40 {
+        modules.push(json!({"id":format!("m{address}"),"address":format!("{address:02X}"),"profile":"ad8_din_rs485_v2_2_1","verification":{"status":"simulated"}}));
+    }
+    value["devices"][0]["module_id"] = "m1".into();
+    let config = config(&value);
+    let mut truth = ModuleTruth::new(&config, 7, 2).unwrap();
+    let mut publisher = hap_projector().await;
+    publisher.resynchronize(&truth.snapshot(), 0).await.unwrap();
+    let mut cursor = truth.cursor();
+    for address in 1..=40 {
+        for channel in 1..=8 {
+            truth
+                .observe(
+                    "bus",
+                    address,
+                    channel,
+                    Observation::Level(Percent::new(30).unwrap()),
+                    2,
+                    10,
+                )
+                .unwrap();
+        }
+    }
+    for event in truth.events_since(cursor).unwrap() {
+        publisher.apply(&event, 10).await.unwrap();
+    }
+    cursor = truth.cursor();
+    truth.mark_stale(20, 1).unwrap();
+    assert_eq!(
+        truth.events_since(cursor),
+        Err(homesense_state::StateError::ResyncRequired)
+    );
+    let resync = truth.snapshot();
+    publisher.resynchronize(&resync, 20).await.unwrap();
+    truth
+        .observe(
+            "bus",
+            1,
+            1,
+            Observation::Level(Percent::new(50).unwrap()),
+            2,
+            21,
+        )
+        .unwrap();
+    for event in truth.events_since(resync.cursor).unwrap() {
+        publisher.apply(&event, 21).await.unwrap();
+    }
+    publisher
+        .refresh_snapshot(&truth.snapshot(), 21)
+        .await
+        .unwrap();
+}
 fn config(input: &Value) -> Configuration {
     Configuration::parse(
         &serde_json::to_vec(input).unwrap(),
