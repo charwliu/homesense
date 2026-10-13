@@ -159,7 +159,8 @@ cargo run --locked --offline -p homesensed -- serve-simulation config/simulation
 ## 资料
 
 - [完整设计](docs/design.md)：v1.7，系统边界、协议契约、迁移方案及阶段 A–G 计划。
-- [家庭网络架构设计](docs/network-architecture.md)：华为核心、五个业务 VLAN（1/3 走 A、2/4 走 B、5 为 AC/AP 管理）＋维护 VLAN100（192.168.0.0/24）、双栈出口分流、两台 485 网关迁移、桌面换口切换 WAN、x86 HomeSense 双聚合接入及迁移验收。现有 .0.x 设备全部迁移并确认无依赖后，再关闭 VLAN100 的网关和路由；保留二层维护用途，不启用 DHCP/RA 或公网出口。
+- [家庭网络架构设计](docs/network-architecture.md)：五个业务 VLAN（1/3 走 A、2/4 走 B、5 为 AC/AP 管理）＋一个维护 VLAN100（192.168.0.0/24）；涵盖华为核心、双栈出口分流、两台 485 网关迁移、桌面换口切换 WAN、x86 HomeSense 双聚合接入及迁移验收。
+  现有 .0.x 设备全部迁移并确认无依赖后，再关闭 VLAN100 的网关和路由；保留二层维护用途，日常关闭 DHCP、不启用 RA 或公网出口。维护时可临时开启 DHCP，仅下发地址和掩码，不下发默认网关、DNS 或静态路由，完成后关闭；缺省地址设备优先同 VLAN 访问，远程维护需核对回程后临时恢复受限路由。
 - [A–C 验收跟踪](docs/stages-a-c.md) 与 [逐项证据](docs/evidence/stages-a-c-requirements-20261011.md)：限定验收结论及未关闭问题。
 - [阶段 D 完成审计](docs/stage-d-progress.md)：当前实现、验收缺口和增量验证记录。
 - [书房场景迁移](docs/stage-d-study.md)：源规则、离线回放及手动场景现场证据。
