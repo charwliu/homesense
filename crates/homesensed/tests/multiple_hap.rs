@@ -519,6 +519,12 @@ async fn scene_only_and_motor_only_bridges_control_without_exposing_lights() {
                 received.lock().unwrap().push(frame);
                 continue;
             }
+            if frame[2] == 0xa0 {
+                assert_eq!(frame, [0xae, 0x15, 0xa0, 0xf2, 0xee]);
+                let replies: Vec<_> = (1..=8).flat_map(|channel| [0xae, 0x15, 0xd0 + channel, level, 0xee]).collect();
+                if socket.write_all(&replies).await.is_err() { break; }
+                continue;
+            }
             if frame[2] == 1 {
                 level = frame[3];
                 received.lock().unwrap().push(frame);

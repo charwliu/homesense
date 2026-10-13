@@ -110,3 +110,19 @@ async fn candidate_fades_respect_bus_capacity_but_disabled_drafts_remain_reviewa
     rules["timed_scenes"][0]["steps"][0]["fade"]["interval_ms"]=1000.into();
     assert!(check_combined(&rules).is_ok());
 }
+
+#[test]
+fn tcp_candidate_counts_registered_ports_without_logical_bindings() {
+    use hap::serde_json::{json, to_vec, Value};
+    let mut devices: Value = hap::serde_json::from_slice(include_bytes!("../../../config/simulation.json")).unwrap();
+    devices["devices"] = json!([]);
+    devices["gateways"][0]["modules"][0]["verification"] = json!({"status":"verified","evidence":"offline fixture","verified_at_unix_ms":1});
+    let rules = to_vec(&json!({"schema_version":1,"configuration_revision":1,"variables":[],"rules":[]})).unwrap();
+    let check = |doc: &Value, gap| homesensed::automation_tcp::validate_candidate_with_write_interval(&to_vec(doc).unwrap(), &rules, std::time::Duration::from_millis(gap));
+    assert!(check(&devices, 20).is_ok(), "unbound registry remains readable without grants");
+    devices["gateways"][0]["modules"][0]["profile"] = "r8i8_din_pro_v2_7_7".into();
+    assert!(check(&devices, 200).is_ok(), "eight physical queries fit the freshness window");
+    assert!(check(&devices, 400).unwrap_err().contains("wire capacity"), "count eight queries despite zero aliases");
+    devices["gateways"][0]["modules"][0]["verification"] = json!({"status":"pending"});
+    assert!(check(&devices, 20).is_err(), "unbound registration does not bypass live verification");
+}

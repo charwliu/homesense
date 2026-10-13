@@ -88,7 +88,7 @@ async fn exercise(fail_query: bool, periodic: bool, multiple: bool) {
                 .unwrap();
             let mut bytes = [0; 5];
             unresponsive.read_exact(&mut bytes).unwrap();
-            assert_eq!(bytes, [0xAE, 0x15, 0xA1, 0xF2, 0xEE]);
+            assert_eq!(bytes, [0xAE, 0x15, 0xA0, 0xF2, 0xEE]);
             // A connection without its queried feedback must never receive control.
             assert_eq!(unresponsive.read(&mut bytes).unwrap(), 0);
         }
@@ -97,13 +97,10 @@ async fn exercise(fail_query: bool, periodic: bool, multiple: bool) {
             .set_read_timeout(Some(Duration::from_secs(3)))
             .unwrap();
         let mut bytes = [0; 5];
-        let query = if multiple { 0xA0 } else { 0xA1 };
+        let query = 0xA0;
         recovered.read_exact(&mut bytes).unwrap();
         assert_eq!(bytes, [0xAE, 0x15, query, 0xF2, 0xEE]);
-        recovered.write_all(&[0xAE, 0x15, 0xD1, 42, 0xEE]).unwrap();
-        if multiple {
-            recovered.write_all(&[0xAE, 0x15, 0xD2, 42, 0xEE]).unwrap();
-        }
+        recovered.write_all(&module_levels(42)).unwrap();
         if periodic {
             // A quiet device emits no unsolicited events. It must be queried
             // again before the previous observation expires.
@@ -115,8 +112,7 @@ async fn exercise(fail_query: bool, periodic: bool, multiple: bool) {
                 queried.take().unwrap().send(()).unwrap();
                 queued.recv_timeout(Duration::from_secs(1)).unwrap();
             }
-            recovered.write_all(&[0xAE, 0x15, 0xD1, 42, 0xEE]).unwrap();
-            if multiple { recovered.write_all(&[0xAE,0x15,0xD2,42,0xEE]).unwrap(); }
+            recovered.write_all(&module_levels(42)).unwrap();
         }
         if let Some(queried) = queried {
             queried.send(()).unwrap();
@@ -129,13 +125,12 @@ async fn exercise(fail_query: bool, periodic: bool, multiple: bool) {
         // A post-write query must not wait for the normal 2.5-second refresh.
         recovered.read_exact(&mut bytes).unwrap();
         assert_eq!(bytes, [0xAE, 0x15, query, 0xF2, 0xEE]);
-        recovered.write_all(&[0xAE, 0x15, 0xD1, 35, 0xEE]).unwrap();
-        if multiple { recovered.write_all(&[0xAE,0x15,0xD2,42,0xEE]).unwrap(); }
+        recovered.write_all(&module_levels(35)).unwrap();
         if !periodic {
             // Continue observing the hardware transition during the burst.
             recovered.read_exact(&mut bytes).unwrap();
-            assert_eq!(bytes, [0xAE, 0x15, 0xA1, 0xF2, 0xEE]);
-            recovered.write_all(&[0xAE, 0x15, 0xD1, 30, 0xEE]).unwrap();
+            assert_eq!(bytes, [0xAE, 0x15, 0xA0, 0xF2, 0xEE]);
+            recovered.write_all(&module_levels(30)).unwrap();
         }
         stop.send(true).unwrap();
         std::thread::sleep(Duration::from_millis(50));
@@ -227,4 +222,8 @@ async fn quiet_device_is_refreshed_without_reconnecting() {
 #[tokio::test]
 async fn queued_control_is_dispatched_between_periodic_device_queries() {
     exercise(false, true, true).await;
+}
+
+fn module_levels(first: u8) -> Vec<u8> {
+    (1..=8).flat_map(|channel| [0xae, 0x15, 0xd0 + channel, if channel == 1 { first } else { 42 }, 0xee]).collect()
 }

@@ -708,8 +708,30 @@ async fn hidden_supply_is_queried_even_when_not_a_separate_logical_light() {
     assert_eq!(o.snapshot().devices.len(), 9);
     assert_eq!(
         h.w.lock().unwrap().writes,
-        vec![[0xAE, 1, 0xA1, 0xF2, 0xEE], [0xAE, 2, 0xA0, 0xF2, 0xEE]]
+        (1..=8)
+            .map(|channel| [0xAE, 1, 0xA0 + channel, 0xF2, 0xEE])
+            .chain(std::iter::once([0xAE, 2, 0xA0, 0xF2, 0xEE]))
+            .collect::<Vec<_>>()
     );
+    // Disabled relay ports now have truth, but remain absent from logical state
+    // and retain the original disabled-binding control gate.
+    for address in [1, 2] {
+        for channel in 1..=8 {
+            assert_eq!(
+                o.feedback()
+                    .module_truth()
+                    .located_state("bus", address, channel)
+                    .unwrap()
+                    .quality,
+                Quality::Confirmed
+            );
+        }
+    }
+    for i in 1..8 {
+        let id = DeviceId::new(format!("lamp{i:03}")).unwrap();
+        assert!(!o.snapshot().devices.contains_key(&id));
+        assert!(c.binding(&id).is_none());
+    }
     drop(o);
     h.close().await;
 }

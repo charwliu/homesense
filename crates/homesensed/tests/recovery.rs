@@ -37,7 +37,11 @@ impl std::io::Read for ReplyStream {
 }
 impl std::io::Write for ReplyStream {
     fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
-        if bytes == [0xAE, 0x15, 0xA1, 0xF2, 0xEE] {
+        if bytes == [0xAE, 0x15, 0xA0, 0xF2, 0xEE] {
+            for channel in 1..=8 {
+                self.input.extend([0xAE, 0x15, 0xD0 + channel, self.level, 0xEE]);
+            }
+        } else if bytes == [0xAE, 0x15, 0xA1, 0xF2, 0xEE] {
             self.input.extend([0xAE, 0x15, 0xD1, self.level, 0xEE]);
         } else {
             assert_eq!(bytes, [0xAE, 0x15, 0x01, 30, 0xEE]);

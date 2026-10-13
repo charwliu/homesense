@@ -492,12 +492,8 @@ impl RuntimeHap {
             let mut epoch = options.initial_epoch;
             let mut recoveries = 0;
             let mut next = 0;
-            let refresh_devices: Vec<_> = config.devices().keys()
-                .filter(|id| config.binding(id).is_some()).cloned().collect();
-            if refresh_devices.is_empty() {
-                return Err("supervisor requires enabled devices".into());
-            }
-            let refresh_interval = (guard.graph.max_age_ms / 2 / refresh_devices.len() as u64).max(1);
+            let refresh_targets=crate::physical_queries::plan(config,homesense_core::ExecutionContext::Live)?;
+            let refresh_interval=crate::physical_queries::interval(&refresh_targets,guard.owner.write_interval_ms(),guard.graph.max_age_ms)?;
             let mut refresh_next = 0;
             let mut interactive_until = 0u64;
             let mut refresh_at = guard.graph.admission.monotonic_ms().saturating_add(refresh_interval);
@@ -507,7 +503,7 @@ impl RuntimeHap {
                 }
                 let cycle = async {
                     let written = guard.graph.drive_cycle(guard.owner, &gateways[next], &stop).await?;
-                    if let Some(device) = written {
+                    if let Some(device) = written.filter(|id|config.binding(id).is_some()) {
                         let now = guard.graph.admission.monotonic_ms();
                         // AD8 supports hardware ramps up to 15 seconds. Observe
                         // the transition at a bounded higher rate, then back off.
@@ -523,12 +519,12 @@ impl RuntimeHap {
 
                     if guard.graph.admission.monotonic_ms() >= refresh_at {
                         tokio::select! {
-                            result = guard.owner.refresh(&refresh_devices[refresh_next], config, homesense_core::ExecutionContext::Live,
+                            result = guard.owner.refresh_physical(config, &refresh_targets[refresh_next], homesense_core::ExecutionContext::Live,
                                 options.query_timeout_ms, guard.graph.max_age_ms) => result?,
                             _ = stop.changed() => return Ok(()),
                         }
                         guard.graph.publish(guard.owner).await?;
-                        refresh_next = (refresh_next + 1) % refresh_devices.len();
+                        refresh_next = (refresh_next + 1) % refresh_targets.len();
                         let now = guard.graph.admission.monotonic_ms();
                         let interval = if now < interactive_until { refresh_interval.min(250) } else { refresh_interval };
                         refresh_at = now.saturating_add(interval);
@@ -560,7 +556,7 @@ impl RuntimeHap {
                             _ = stop.changed() => return Ok(()),
                         };
                         match synchronization {
-                            Ok(()) => { log::info!("gateway_recovery_synchronized epoch={epoch} revision={} devices={}", config.revision(), refresh_devices.len()); guard.graph.publish(guard.owner).await?; interactive_until = 0; refresh_next = 0; refresh_at = guard.graph.admission.monotonic_ms().saturating_add(refresh_interval); break; }
+                            Ok(()) => { log::info!("gateway_recovery_synchronized epoch={epoch} revision={} query_frames={}", config.revision(), refresh_targets.len()); guard.graph.publish(guard.owner).await?; interactive_until = 0; refresh_next = 0; refresh_at = guard.graph.admission.monotonic_ms().saturating_add(refresh_interval); break; }
                             Err(error) => { log::warn!("gateway_recovery_query_failed epoch={epoch} error={error:?}"); last_error = error; }
                         }
                         tokio::select! {
