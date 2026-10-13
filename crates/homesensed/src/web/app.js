@@ -766,15 +766,15 @@ function clearModules() {
 function renderModules(page) {
   if(!observeRevision(page.revision))return;
   modulePage=page;const renderEpoch=sessionEpoch,list=document.getElementById('module-list');list.replaceChildren();
-  const quality={confirmed:'新鲜反馈',stale:'过期反馈',unknown:'未收到反馈',disabled:'禁用',unavailable:'运行时不可用',unsupported_feedback:'不支持状态读回'};
+  const quality={confirmed:'新鲜反馈',stale:'过期反馈',unknown:'未知反馈',disabled:'禁用',unavailable:'运行时不可用',unsupported_feedback:'不支持状态读回'};
   for(const module of page.modules) {
     const row=document.createElement('article'),title=document.createElement('h3'),info=document.createElement('p');
     title.textContent=`${module.module_id||"旧配置：需迁移模块ID"} · ${module.gateway} / 0x${module.address} · ${module.profile}`;
-    info.textContent=`${module.kind}；验证：${module.verification}；模块回复：${module.response}（${module.fresh_responses}/${module.queryable_bindings}）`;
+    info.textContent=`${module.kind}；验证：${module.verification}；启用绑定回复：${module.response}（${module.fresh_responses}/${module.queryable_bindings}）；完整通道反馈见下方槽位`;
     row.append(title,info);
     for(const slot of module.slots) {
       const line=document.createElement('p'),binding=slot.binding;
-      line.textContent=binding?`通道 ${slot.channel}：${binding.name} · ${binding.id}；${quality[binding.quality]||binding.quality}；最后反馈 ${binding.actual?JSON.stringify(binding.actual):'未知'}；时间 ${binding.observed_ms??'未知'} ms；${binding.supply_for.length?'供电关联 '+binding.supply_for.join(', '):''}`:`通道 ${slot.channel}：未绑定（不可控制）`;
+      line.textContent=`通道 ${slot.channel}：${binding?binding.name+' · '+binding.id:'未绑定（不可控制）'}；${quality[slot.quality]||slot.quality||'未知'}；模块反馈 ${slot.actual?JSON.stringify(slot.actual):'未知'}；时间 ${slot.observed_ms??'未知'} ms；${binding?.supply_for.length?'供电关联 '+binding.supply_for.join(', '):''}`;
       row.append(line);
       if(!binding)continue;
       const history=document.createElement('p');history.textContent='本次启动命令记录：'+(page.commands||[]).filter(command=>command.device===binding.id).map(command=>`#${command.command} ${JSON.stringify(command.requested)} ${command.status} @${command.updated_ms}ms`).join('；');row.append(history);

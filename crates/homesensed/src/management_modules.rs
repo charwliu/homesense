@@ -24,6 +24,9 @@ pub struct Binding {
 #[derive(Debug, Serialize, PartialEq, Eq)]
 pub struct Slot {
     pub channel: u8,
+    pub actual: Option<serde_json::Value>,
+    pub quality: &'static str,
+    pub observed_ms: Option<String>,
     pub binding: Option<Binding>,
 }
 #[derive(Debug, Serialize, PartialEq, Eq)]
@@ -69,6 +72,7 @@ pub struct Page {
 pub(crate) fn project(
     config: &homesense_config::Configuration,
     raw: &homesense_state::Snapshot,
+    truth: Option<&crate::module_truth::ModuleTruth>,
     now: u64,
     max_age: u64,
     ready: bool,
@@ -110,6 +114,45 @@ pub(crate) fn project(
         let mut fresh_count = 0;
         let supported = matches!(module.kind(), ModuleKind::Switch | ModuleKind::Dimmer);
         for channel in 1..=module.channels() {
+            let owned = truth
+                .and_then(|truth| truth.located_state(gateway, module.address().get(), channel));
+            let port_fresh = ready
+                && owned.as_ref().is_some_and(|s| {
+                    s.quality == homesense_state::Quality::Confirmed
+                        && s.observed_at_ms
+                            .and_then(|at| now.checked_sub(at))
+                            .is_some_and(|age| age < max_age)
+                });
+            let port_actual = owned
+                .as_ref()
+                .and_then(|s| s.observed)
+                .map(|sample| match sample {
+                    Observation::Switch(on) => serde_json::json!({"on":on}),
+                    Observation::Level(level) => {
+                        serde_json::json!({"on":level.get()>0,"level":level.get()})
+                    }
+                    Observation::Button { pressed } => serde_json::json!({"pressed":pressed}),
+                });
+            let port_quality = if !ready {
+                "unavailable"
+            } else if port_fresh {
+                "confirmed"
+            } else if owned
+                .as_ref()
+                .is_some_and(|s| s.quality == homesense_state::Quality::Unknown)
+            {
+                "unknown"
+            } else if owned.as_ref().is_some_and(|s| {
+                s.quality == homesense_state::Quality::Stale || s.observed_at_ms.is_some()
+            }) {
+                "stale"
+            } else {
+                "unknown"
+            };
+            let port_observed_ms = owned
+                .as_ref()
+                .and_then(|s| s.observed_at_ms)
+                .map(|at| at.to_string());
             let binding = bindings
                 .get(&(gateway.as_str(), module.address(), channel))
                 .map(|(id, device)| {
@@ -117,7 +160,7 @@ pub(crate) fn project(
                     if device.enabled && supported {
                         queryable += 1;
                     }
-                    let state = raw.devices.get(id);
+                    let state = owned.as_ref().or_else(|| raw.devices.get(id));
                     let at = state.and_then(|s| s.observed_at_ms);
                     let age = at.and_then(|at| now.checked_sub(at));
                     let fresh = ready
@@ -172,6 +215,10 @@ pub(crate) fn project(
                             "unavailable"
                         } else if fresh {
                             "confirmed"
+                        } else if state
+                            .is_some_and(|s| s.quality == homesense_state::Quality::Unknown)
+                        {
+                            "unknown"
                         } else if at.is_some() {
                             "stale"
                         } else {
@@ -182,7 +229,13 @@ pub(crate) fn project(
                         actions,
                     }
                 });
-            slots.push(Slot { channel, binding });
+            slots.push(Slot {
+                channel,
+                actual: port_actual,
+                quality: port_quality,
+                observed_ms: port_observed_ms,
+                binding,
+            });
         }
         let response = if !supported {
             "unsupported_feedback"
@@ -256,6 +309,7 @@ pub async fn snapshot(
     let modules = project(
         &bundle.configuration,
         &raw,
+        mapping_current.then_some(feedback.module_truth()),
         now,
         max_age,
         ready,

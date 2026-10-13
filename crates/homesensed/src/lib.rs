@@ -143,3 +143,5 @@ pub mod management_modules;
 pub mod module_replace;
 
 pub mod module_migration;
+
+pub mod module_truth;
