@@ -21,7 +21,7 @@ async fn administrator_module_controls_use_stable_ids_and_cannot_select_physical
         ExecutionContext::Simulation,
     )
     .unwrap();
-    let h = harness(
+    let mut h = harness(
         serde_json::to_vec(&draft.devices).unwrap(),
         draft.automation,
     )
@@ -116,10 +116,7 @@ async fn administrator_module_controls_use_stable_ids_and_cannot_select_physical
     assert_eq!(response.status(), hyper::StatusCode::OK);
     let page = json(response).await;
     assert_eq!(page["revision"], "2");
-    assert_eq!(
-        page["truth_source"],
-        "single_feedback_owner_physical_bindings"
-    );
+    assert_eq!(page["truth_source"], "canonical_module_channels");
     let module = page["modules"]
         .as_array()
         .unwrap()
@@ -218,5 +215,256 @@ async fn administrator_module_controls_use_stable_ids_and_cannot_select_physical
         .unwrap();
     assert_eq!(lamp["binding"]["actual"], Json::Null);
     assert_eq!(lamp["binding"]["quality"], "unknown");
+    let query = json!({"module_id":id,"scope":{"kind":"channel","channel":3},"revision":"2","request_id":"query-once"});
+    assert_eq!(
+        api.handle(req("/api/v1/module-queries", viewer, Some(query.clone())))
+            .await
+            .status(),
+        hyper::StatusCode::FORBIDDEN
+    );
+    for value in [None, Some("http://untrusted.invalid")] {
+        let mut request = req("/api/v1/module-queries", admin, Some(query.clone()));
+        request.headers_mut().remove("origin");
+        if let Some(value) = value {
+            request
+                .headers_mut()
+                .insert("origin", value.parse().unwrap());
+        }
+        assert_eq!(
+            api.handle(request).await.status(),
+            hyper::StatusCode::FORBIDDEN
+        );
+    }
+    let mut invalid_key = query.clone();
+    invalid_key["request_id"] = "../unsafe".into();
+    assert_eq!(
+        api.handle(req("/api/v1/module-queries", admin, Some(invalid_key)))
+            .await
+            .status(),
+        hyper::StatusCode::BAD_REQUEST
+    );
+    for extra in ["address", "gateway", "hex"] {
+        let mut bad = query.clone();
+        bad[extra] = "untrusted".into();
+        assert_eq!(
+            api.handle(req("/api/v1/module-queries", admin, Some(bad)))
+                .await
+                .status(),
+            hyper::StatusCode::BAD_REQUEST
+        );
+    }
+    let mut stale = query.clone();
+    stale["revision"] = "1".into();
+    assert_eq!(
+        api.handle(req("/api/v1/module-queries", admin, Some(stale)))
+            .await
+            .status(),
+        hyper::StatusCode::CONFLICT
+    );
+    let mut zero = query.clone();
+    zero["scope"]["channel"] = 0.into();
+    assert_eq!(
+        poll_request(
+            &h,
+            &mut receiver,
+            &mut scenes,
+            api.handle(req("/api/v1/module-queries", admin, Some(zero)))
+        )
+        .await
+        .status(),
+        hyper::StatusCode::BAD_REQUEST
+    );
+    let panel = page["modules"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|m| m["kind"] == "Keypad")
+        .unwrap()["module_id"]
+        .clone();
+    let bad = json!({"module_id":panel,"scope":{"kind":"whole_module"},"revision":"2","request_id":"unsupported-panel"});
+    assert_eq!(
+        poll_request(
+            &h,
+            &mut receiver,
+            &mut scenes,
+            api.handle(req("/api/v1/module-queries", admin, Some(bad)))
+        )
+        .await
+        .status(),
+        hyper::StatusCode::BAD_REQUEST
+    );
+    let accepted = json(
+        poll_request(
+            &h,
+            &mut receiver,
+            &mut scenes,
+            api.handle(req("/api/v1/module-queries", admin, Some(query.clone()))),
+        )
+        .await,
+    )
+    .await;
+    assert_eq!(accepted["outcome"], "accepted");
+    assert!(accepted["commands"][0].is_string());
+    let duplicate = json(
+        poll_request(
+            &h,
+            &mut receiver,
+            &mut scenes,
+            api.handle(req("/api/v1/module-queries", admin, Some(query.clone()))),
+        )
+        .await,
+    )
+    .await;
+    assert_eq!(duplicate, accepted);
+    let mut conflict = query.clone();
+    conflict["scope"]["channel"] = 4.into();
+    assert_eq!(
+        poll_request(
+            &h,
+            &mut receiver,
+            &mut scenes,
+            api.handle(req("/api/v1/module-queries", admin, Some(conflict)))
+        )
+        .await
+        .status(),
+        hyper::StatusCode::CONFLICT
+    );
+    let endpoint = "/api/v1/module-queries/query-once";
+    assert_eq!(
+        api.handle(req(endpoint, viewer, None)).await.status(),
+        hyper::StatusCode::FORBIDDEN
+    );
+    let before = json(
+        poll_request(
+            &h,
+            &mut receiver,
+            &mut scenes,
+            api.handle(req(endpoint, admin, None)),
+        )
+        .await,
+    )
+    .await;
+    assert_eq!(before["status"]["writes"][0]["status"], "accepted");
+    assert_eq!(before["status"]["fresh_channels"], 0);
+    struct Wire(std::sync::Arc<std::sync::Mutex<Vec<Vec<u8>>>>);
+    impl std::io::Read for Wire {
+        fn read(&mut self, _: &mut [u8]) -> std::io::Result<usize> {
+            Err(std::io::ErrorKind::WouldBlock.into())
+        }
+    }
+    impl std::io::Write for Wire {
+        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+            self.0.lock().unwrap().push(bytes.to_vec());
+            Ok(bytes.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+    let writes = std::sync::Arc::new(std::sync::Mutex::new(vec![]));
+    let mut owner = crate::transport_owner::TransportOwner::new(
+        h.actor.clone(),
+        [(
+            "bus".into(),
+            hb_transport::Connection::for_simulation(
+                Wire(writes.clone()),
+                h.generation.epochs.transport,
+            ),
+        )]
+        .into(),
+    );
+    for _ in 0..2 {
+        owner.step().await.unwrap().unwrap().result.unwrap();
+    }
+    assert_eq!(
+        writes.lock().unwrap()[1],
+        vec![0xae, 0x15, 0xa3, 0xf2, 0xee]
+    );
+    let written = json(
+        poll_request(
+            &h,
+            &mut receiver,
+            &mut scenes,
+            api.handle(req(endpoint, admin, None)),
+        )
+        .await,
+    )
+    .await;
+    assert_eq!(written["status"]["writes"][0]["status"], "written");
+    assert_eq!(written["status"]["fresh_channels"], 0);
+    h.feedback
+        .apply(&crate::transport_owner::GatewayRead {
+            gateway_id: "bus".into(),
+            transport_epoch: h.generation.epochs.transport,
+            received_at_ms: h.actor.monotonic_ms(),
+            result: hb_transport::Receive::Frames {
+                transport_epoch: h.generation.epochs.transport,
+                frames: vec![hb_protocol::RawFrame {
+                    address: 0x15,
+                    command: 0xd3,
+                    value: 37,
+                }],
+            },
+        })
+        .unwrap();
+    let received = json(
+        poll_request(
+            &h,
+            &mut receiver,
+            &mut scenes,
+            api.handle(req(endpoint, admin, None)),
+        )
+        .await,
+    )
+    .await;
+    assert_eq!(received["status"]["fresh_channels"], 1);
+    assert_eq!(received["status"]["requested_channels"], 1);
+    assert_eq!(received["status"]["channels"][0]["binding"], Json::Null);
+    assert_eq!(received["status"]["channels"][0]["actual"]["level"], 37);
+    assert_eq!(received["status"]["atomic_snapshot"], false);
+    assert_eq!(received["status"]["feedback_causality"], "not_established");
+    let denied = json!({"module_id":id,"channel":3,"revision":"2","request_id":"unbound-control","command":{"action":"brightness","level":30}});
+    assert_eq!(
+        poll_request(
+            &h,
+            &mut receiver,
+            &mut scenes,
+            api.handle(req("/api/v1/module-commands", admin, Some(denied)))
+        )
+        .await
+        .status(),
+        hyper::StatusCode::BAD_REQUEST
+    );
+    let whole = json!({"module_id":id,"scope":{"kind":"whole_module"},"revision":"2","request_id":"whole-query"});
+    let whole = json(
+        poll_request(
+            &h,
+            &mut receiver,
+            &mut scenes,
+            api.handle(req("/api/v1/module-queries", admin, Some(whole))),
+        )
+        .await,
+    )
+    .await;
+    assert_eq!(whole["commands"].as_array().unwrap().len(), 1);
+    owner.step().await.unwrap().unwrap().result.unwrap();
+    assert_eq!(
+        writes.lock().unwrap()[2],
+        vec![0xae, 0x15, 0xa0, 0xf2, 0xee]
+    );
+    assert_eq!(h.feedback.snapshot().devices.len(), 6);
+    h.actor.transport_failed().await.unwrap();
+    assert_eq!(
+        poll_request(
+            &h,
+            &mut receiver,
+            &mut scenes,
+            api.handle(req(endpoint, admin, None))
+        )
+        .await
+        .status(),
+        hyper::StatusCode::CONFLICT
+    );
+    drop(owner);
     h.close().await;
 }

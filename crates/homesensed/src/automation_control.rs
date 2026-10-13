@@ -11,6 +11,8 @@ use tokio::sync::{mpsc, oneshot};
 use uuid::Uuid;
 #[derive(Debug)]
 pub enum Action {
+    ModuleQuery{controller:Uuid,revision:u64,module_id:String,scope:crate::module_queries::Scope,submit:bool},
+    ModuleQueryStatus{controller:Uuid,revision:u64,module_id:String,scope:crate::module_queries::Scope,commands:Vec<u64>},
     ModuleBinding {controller:Uuid,revision:u64,module_id:String,channel:u8},
     ModuleCommand {controller:Uuid,revision:u64,module_id:String,channel:u8,allowed_devices:std::collections::BTreeSet<String>,action:crate::management_devices::DeviceAction},
     Modules {controller:Uuid,revision:u64,offset:usize,limit:usize},
@@ -44,6 +46,8 @@ pub enum Action {
 }
 #[derive(Debug, PartialEq, Eq)]
 pub enum Reply {
+    ModuleQuery(crate::module_queries::Accepted),
+    ModuleQueryStatus(crate::module_queries::Status),
     ModuleBinding(homesense_core::DeviceId),
     Modules(crate::management_modules::Page),
     RunDetails(Option<(String,serde_json::Value)>),
@@ -241,6 +245,22 @@ impl Receiver {
                         }))
                     },
 
+                    Action::ModuleQuery{controller,revision,module_id,scope,submit}=>{
+                        if revision!=document.revision || request.reply.is_closed() || Instant::now()>=request.deadline || !crate::module_queries::matches_feedback(admission,&self.generation,feedback,revision) {return Err("module query expired or feedback generation changed".into());}
+                        admission.module_query_until(controller,self.generation.clone(),module_id,scope,submit,request.deadline).await.map(Reply::ModuleQuery).map_err(|e|format!("module query rejected: {e:?}"))
+                    },
+                    Action::ModuleQueryStatus{controller,revision,module_id,scope,commands}=>{
+                        if revision!=document.revision || !crate::module_queries::matches_feedback(admission,&self.generation,feedback,revision) {return Err("query status generation changed".into());}
+                        let bundle=admission.automation_bundle(controller,self.generation.clone()).await.map_err(|e|format!("{e:?}"))?;
+                        let records=admission.module_query_records(controller,self.generation.clone(),commands.clone()).await.map_err(|e|format!("{e:?}"))?;
+                        let diagnostics=admission.diagnostics(controller,self.generation.clone()).await.map_err(|e|format!("{e:?}"))?;
+                        let modules=crate::management_modules::project(&bundle.configuration,&feedback.snapshot(),Some(feedback.module_truth()),admission.monotonic_ms(),max_age_ms,diagnostics.ready()&&feedback.is_active(),0,64)?;
+                        // Locate independently of pagination; the module registry can exceed 64.
+                        let (location,_)=bundle.configuration.module(&module_id).ok_or("module missing")?;
+                        let index=bundle.configuration.gateways().iter().flat_map(|(gateway,g)|g.modules().keys().map(move|address|(gateway,address))).position(|(gateway,address)|gateway==&location.gateway&&*address==location.address).ok_or("module missing")?;
+                        let module=if index<64 {modules.into_iter().find(|m|m.module_id.as_deref()==Some(&module_id)).ok_or("module missing")?} else {crate::management_modules::project(&bundle.configuration,&feedback.snapshot(),Some(feedback.module_truth()),admission.monotonic_ms(),max_age_ms,diagnostics.ready()&&feedback.is_active(),index,1)?.pop().ok_or("module missing")?};
+                        crate::module_queries::project_status(records,&module,&scope,self.generation.epochs.transport,&commands).map(Reply::ModuleQueryStatus)
+                    },
                     Action::Modules {controller,revision,offset,limit} => {
                         if revision!=document.revision {return Err("module inventory revision expired".into());}
                         crate::management_modules::snapshot(admission,controller,self.generation.clone(),feedback,max_age_ms,offset,limit).await.map(Reply::Modules)

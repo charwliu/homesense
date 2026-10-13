@@ -7,7 +7,7 @@ use homesense_core::{DeviceId, ModuleKind, Observation, Verification};
 use serde::Serialize;
 use std::collections::BTreeMap;
 use uuid::Uuid;
-#[derive(Debug, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 pub struct Binding {
     pub id: String,
     pub name: String,
@@ -21,7 +21,7 @@ pub struct Binding {
     pub age_ms: Option<String>,
     pub actions: Vec<&'static str>,
 }
-#[derive(Debug, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 pub struct Slot {
     pub channel: u8,
     pub actual: Option<serde_json::Value>,
@@ -40,6 +40,10 @@ pub struct Module {
     pub enabled: bool,
     pub channels: u8,
     pub response: &'static str,
+    pub query_mode: &'static str,
+    pub fresh_channels: usize,
+    pub observed_channels: usize,
+    pub latest_observed_ms: Option<String>,
     pub queryable_bindings: usize,
     pub fresh_responses: usize,
     pub slots: Vec<Slot>,
@@ -250,6 +254,33 @@ pub(crate) fn project(
         } else {
             "unknown_or_stale"
         };
+        let fresh_channels = slots.iter().filter(|s| s.quality == "confirmed").count();
+        let observed_channels = slots.iter().filter(|s| s.observed_ms.is_some()).count();
+        let latest_observed_ms = slots
+            .iter()
+            .filter_map(|s| s.observed_ms.as_ref()?.parse::<u64>().ok())
+            .max()
+            .map(|at| at.to_string());
+        let query_mode = if let Some(id) = config.module_id(gateway, module.address()) {
+            if crate::module_queries::plan(
+                config,
+                homesense_core::ExecutionContext::Simulation,
+                id,
+                &crate::module_queries::Scope::WholeModule,
+            )
+            .is_ok()
+            {
+                if hb_protocol::supports_module_query(module.profile()) {
+                    "whole_module"
+                } else {
+                    "individual_channels"
+                }
+            } else {
+                "unsupported"
+            }
+        } else {
+            "requires_migration"
+        };
         modules.push(Module {
             module_id: config
                 .module_id(gateway, module.address())
@@ -266,6 +297,10 @@ pub(crate) fn project(
             enabled,
             channels: module.channels(),
             response,
+            query_mode,
+            fresh_channels,
+            observed_channels,
+            latest_observed_ms,
             queryable_bindings: queryable,
             fresh_responses: fresh_count,
             slots,
@@ -367,7 +402,7 @@ pub async fn snapshot(
         transport_epoch: generation.epochs.transport.to_string(),
         control_epoch: generation.epochs.control.to_string(),
         observed_transport_epoch: feedback.transport_epoch().to_string(),
-        truth_source: "single_feedback_owner_physical_bindings",
+        truth_source: "canonical_module_channels",
         captured_ms: now.to_string(),
         ready,
         modules,
