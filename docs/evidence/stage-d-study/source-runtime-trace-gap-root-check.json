@@ -1,0 +1,73 @@
+{
+  "date": "2026-10-13",
+  "status": "confirmed_immediate_audited_rule_source_node_loss_fix_pending",
+  "source_commit": "b31ddeb34f04494bcfee6ea3fe23fe4259aca305",
+  "source_files_verified_unchanged": 1015,
+  "new_test_file_only": "crates/homesensed/tests/source_runtime_trace_root.rs",
+  "scope": "Two synthetic source-labelled direct commands through EventRules, PreparedRule, Admission and reopened Store; no transport owner or TCP service",
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "--locked",
+    "-p",
+    "homesensed",
+    "--test",
+    "source_runtime_trace_root",
+    "--",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "exit_code": 101,
+  "results": {
+    "passed": 0,
+    "failed": 1,
+    "ignored": 0,
+    "measured": 0,
+    "filtered": 0
+  },
+  "planner_labels": 2,
+  "audited_commands_after_reopen": 2,
+  "persisted_node_labels_in_audit_tables": 0,
+  "reopened_commands_status": [
+    "Accepted",
+    "Accepted"
+  ],
+  "logical_bindings": [
+    {
+      "module_id": "synthetic-supply",
+      "channel": 1
+    },
+    {
+      "module_id": "synthetic-supply",
+      "channel": 2
+    }
+  ],
+  "static_loss_point": "PreparedRule::from_snapshot maps each planned command to Intent without source; rule_audit current records contain rule/event/command association but no per-node label",
+  "tables_checked": [
+    "command_journal",
+    "rule_admission",
+    "rule_command"
+  ],
+  "initial_fixture_failure": "Two duplicate-device intents were rejected before audit; separate failed fixture record, not claimed as this product failure",
+  "evidence_root": "deployment/ngr/private/20261013-source-runtime-trace-root",
+  "evidence_sha256": {
+    "source.tar": "5ef04fd053963abcfefcb8acead17496fe8450a9ee52b46fda5546dcda5b8db0",
+    "source.json": "7d4047091aa7b9ab4255084b85e0db7bca4ee61da68392da70ad209d4093210e",
+    "probe-initial.rs": "df8346a807a83f67fe59470c701288fe8d84a3657bb9f68d53efc62fc3f5885f",
+    "fixture-initial.log": "d0a3683361bc59d8b24dfd797fe0b345782a1819abb5bc3a0e0cda2b4c963940",
+    "probe.rs": "39583d0f5cb4eb8ce4f88e42bf9a21995b5a5d562a68190de0863b568f87c168",
+    "probe.json": "797e4c2b7a7ae5a008f2ee26b210bedd7258978a64221ce325e0d72856ba0d0a",
+    "baseline.log": "16326d1e8c5ba54f6dd439cd95d5c24a7e5be3e1035ec7b9e7e1f6d62c5d741e",
+    "baseline-test-binary": "a6544ce3fae4a37357fe712d7366be4429c754435b20f89d989e9d0a6496b36e",
+    "execution.json": "1f329f2c9f71a2425450c4e0a0b694068e0f6ce2b196bdf2ab1af4d95cba553d",
+    "corrected-fixture/observed.json": "bbdae6c386c52ee330bd9934e426a2a13bddafa69e551bc1017a2fbb523fe1dd"
+  },
+  "limitations": [
+    "Synthetic immediate two-channel audited rule only; not original179 program execution or semantic approval",
+    "No conclusions yet on other runtime tables or delayed, faded and expanded scene mappings; fix audit remains open",
+    "Accepted command audit is not physical actuation; no TransportOwner created or dispatched",
+    "No current field deployment, private identity or credential changes"
+  ],
+  "next": "Existing authorized 功能开发 thread received runnable probe and repair request; root independent verification pending"
+}
