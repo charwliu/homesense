@@ -38,6 +38,8 @@
 
 原项目唯一RAMP所属26代码项程序新增完整结构补证：固定`1cd94a4`实际`compile_event_with_fades`的有序AST与独立XML模型一致，生成一份禁用定义，TIME=1000ms、LEVEL=0，显式interval／lateness均100ms。1项实际生产导出通过，六种错误定义／动作变体被模型拒绝，932原文件未变。默认compile_event仍将RAMP列为白名单外，不改变179／36默认口径，也不把整条事件视为完整批准；原触发、异步变量、驱动及实物渐变仍待验证。见[完整RAMP程序结构补证](evidence/stage-d-study/source-ramp-branch-differential-check.json)。
 
+原生相对场景已固定提交`5c37f9d`：根核对22份受测源码／测试与提交一致，隔离基线917非覆盖文件未变；按测试目标限定名称重算490个独立Rust成功结果，四份最终日志指纹相符，前端和三个包全部目标严格Clippy通过。相对入口与HAP绝对开关分离，逐灯已知用明确目标、合法未知才单次翻转，组合灯仅翻供电；持久请求／阶段消费及人工接管不重放，schema24保留历史选择。先前人工接管Pending反例及初次Clippy失败已保留为历史，当前固定回归通过；根在新固定提交另复验同一查询时序探针，947原文件未变、仅测试追加，Pending→Observed／选择1且零追加命令。它不增加此前草稿的独立输入数量，也不代替27项独立相对夹具、完整工作区或Linux／真实客户端验收。容量修复与模块管理继续，现场二进制仍c184e65，D/E未完成。见[原生上层实现](evidence/stage-d-study/native-scene-relative-check.json)、[固定提交根审计](evidence/stage-d-study/native-scene-relative-root-audit.json)。
+
 ## 阶段 D
 
 | 要求 | 当前证据 | 剩余门槛 |

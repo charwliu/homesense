@@ -1,0 +1,34 @@
+{
+  "commit": "5c37f9d0318065fafd39881150d390872a66cdd4",
+  "tested_source_hashes_match_commit": 22,
+  "base_nonoverlay_files_unchanged": 917,
+  "log_summaries": {
+    "homesensed_all_tests": 403,
+    "config_storage_all_tests": 87
+  },
+  "unique_target_qualified_test_results": 490,
+  "four_final_log_hashes_verified": true,
+  "fixed_root_snapshot": "/tmp/homesense-native-prequery-root-5c37f9d",
+  "fixed_root_archive_sha256": "a271f7144029f47cc5c13c53e85a602524a489581ab4b5f6c0b169b810f35234",
+  "root_probe_sha256": "2872117d23b48579323d495d2ba1dc5db80c3c9eae9f18dfc3423a605ba3e76f",
+  "fixed_root_original_files_unchanged": 947,
+  "test_only_append": "crates/homesensed/src/native_scene_tests.rs",
+  "root_test": {
+    "passed": 1,
+    "failed": 0,
+    "ignored": 0,
+    "overlaps_prior_draft_boundary": true
+  },
+  "observations": [
+    "ROOT_PREWRITE status=Pending selected=None query_frames=2 new_post_query_feedback=0",
+    "ROOT_POSTWRITE status=Observed selected=Some(1)"
+  ],
+  "scope": "author490 tests verified by target-qualified names plus independent fixed-commit in-memory query-timing probe; no new whole-workspace or hardware acceptance",
+  "field_enabled": false,
+  "all_actual_query_control_devices_are_synthetic": true,
+  "artifact_sha256": {
+    "fixed-commit-input.json": "0565e696a1d3666ffa509d85a1387db4a7c8960a62ca068b2e1405e0f90d3630",
+    "fixed-test.log": "599bc04edde8f9f466757d7363f50f69ab50de56efd7bdd91d0b446bcbbc731b",
+    "probe.rs": "2872117d23b48579323d495d2ba1dc5db80c3c9eae9f18dfc3423a605ba3e76f"
+  }
+}
