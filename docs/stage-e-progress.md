@@ -10,6 +10,8 @@
 
 三个Store发布入口的schema2防降级门禁又通过1项固定提交根测试，包含6次旧格式／错误CAS拒绝和一次合法schema2正向发布：拒绝均不改变活动配置或插入配置／自动化／取消记录，重开保持；成功发布保留逻辑引用并只写入自身记录。968原文件未改，失败夹具尝试保留；只验证离线存储，不新增在线监督、真实设备或模块独立状态批准。见[发布入口事务补证](evidence/stage-e-browser/module-publication-guard-root-check.json)。
 
+固定`f1b2e8a`引用层又与原27项相对场景矩阵实际集成通过，12对照保留，共39轨迹；所有运行夹具和旧boot反馈重建均使用schema2，四个模块的固定角色ID、组合供电ModuleChannel和78次Store重开保持。根独立重建完整配置并对比124个中间状态的原帧／日志／选择／反馈计数，全部与bfe基线一致；967原文件不变，一文件只追加私有include，无原断言删减。没有覆盖在线换址、canonical模块真值或真实Apple客户端；HAP绝对入口与三条LED链接保持原限定范围。见[集成结果](evidence/stage-d-study/native-scene-relative-schema2-check.json)、[根核查](evidence/stage-d-study/native-scene-schema2-matrix-root-check.json)。
+
 2026-10-13模块状态层反例：在固定`bfe61f2`运行时加一份冻结schema2配置草稿的独立副本中，8路AD8模块已注册，通道2／37%被协议解码为有效反馈，但因未绑定逻辑设备，Feedback.apply返回0且完整公开状态快照未变；绑定通道1／30%的正向对照返回1并正常更新。948个非覆盖原文件未变，只有配置草稿覆盖及新增私有测试，单项测试通过是在证明现有绑定依赖缺口，不是模块真值验收通过，也不是新固定功能版本回归。稳定module_id引用层已形成上述限定检查点；每模块独立通道状态、未绑定／禁用反馈不自动授予控制、逻辑投影及旧映射隔离仍须完成。已将可运行探针交功能开发，无真实网络或控制。见[模块通道真值反例](evidence/stage-e-browser/module-channel-truth-gap-root-check.json)。
 
 | 范围 | 已有基础 | 完成所需证据 |
