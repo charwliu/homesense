@@ -99,16 +99,19 @@ async fn run_managed(combined:bool,recover:bool,mixed:bool,motors:bool) {
                         continue;
                     }
                     match frame[2] {
-                        0xa1 => assert_eq!(frame, [0xae, 0x15, 0xa1, 0xf2, 0xee]),
+                        0xa0 => assert_eq!(frame, [0xae, 0x15, 0xa0, 0xf2, 0xee]),
                         0x01 => {
                             writes.lock().unwrap().push(frame[3]);
                             level.store(frame[3], Ordering::SeqCst);
                         }
                         _ => panic!("unexpected bus command"),
                     }
-                    stream
-                        .write_all(&[0xae, 0x15, 0xd1, level.load(Ordering::SeqCst), 0xee])
-                        .unwrap();
+                    let reply = if frame[2] == 0xa0 {
+                        module_levels(0x15, level.load(Ordering::SeqCst))
+                    } else {
+                        vec![0xae, 0x15, 0xd1, level.load(Ordering::SeqCst), 0xee]
+                    };
+                    stream.write_all(&reply).unwrap();
                     if mixed {stream.write_all(&[0xae,0x41,0xd1,0xf1,0xee,0xae,0x41,0xd1,0xf2,0xee]).unwrap();}
                     if recover && connection==0 && frame[2]==0x01 {break;}
                 }
@@ -286,8 +289,8 @@ async fn occupied_management_port_never_runs_startup_actions() {
             .unwrap();
         let mut frame = [0; 5];
         stream.read_exact(&mut frame).unwrap();
-        assert_eq!(frame, [0xae, 0x15, 0xa1, 0xf2, 0xee]);
-        stream.write_all(&[0xae, 0x15, 0xd1, 42, 0xee]).unwrap();
+        assert_eq!(frame, [0xae, 0x15, 0xa0, 0xf2, 0xee]);
+        stream.write_all(&module_levels(0x15, 42)).unwrap();
         assert_eq!(stream.read(&mut frame).unwrap(), 0);
     });
     let rules = serde_json::json!({"schema_version":1,"configuration_revision":1,"variables":[],"rules":[{"id":"startup","enabled":true,"review_evidence":"synthetic","source":"fixture","trigger":{"kind":"startup_synchronized"},"actions":[{"source":"fixture","action":{"kind":"command","device":"simulation:light","command":{"kind":"level","value":30,"ramp":false}}}]}]});
@@ -351,4 +354,8 @@ async fn hap_write(store:&homesense_hap::storage::IdentityStore,address:std::net
         let (header,body)=session.request(&mut stream,request.as_bytes());assert!(header.starts_with("HTTP/1.1 204"),"{header} {body:?}");
         stream
     }).await.unwrap()
+}
+
+fn module_levels(address: u8, level: u8) -> Vec<u8> {
+    (1..=8).flat_map(|channel| [0xae, address, 0xd0 + channel, level, 0xee]).collect()
 }

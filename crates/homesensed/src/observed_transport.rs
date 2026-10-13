@@ -38,7 +38,7 @@ pub struct ObservedTransport<S> {
 }
 struct OutputRefresh {
     configuration: homesense_config::Configuration,
-    devices: Vec<homesense_core::DeviceId>,
+    targets: Vec<crate::physical_queries::Target>,
     controller: uuid::Uuid,
     generation: crate::admission::TaskGeneration,
     context: homesense_core::ExecutionContext,
@@ -89,6 +89,8 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
         max_age_ms: u64,
     ) -> Result<(), String> {
         if configuration.revision() != self.feedback.configuration_revision()
+            || generation.epochs.configuration != configuration.revision()
+            || generation.epochs.transport != self.feedback.transport_epoch()
             || self.pending_recovery.is_some()
             || self.unavailable
             || timeout_ms == 0
@@ -97,57 +99,18 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
         {
             return Err("invalid output refresh generation or bounds".into());
         }
-        let mut devices: Vec<_> = configuration
-            .devices()
-            .keys()
-            .filter(|id| {
-                configuration.binding(id).is_some_and(|(_, module)| {
-                    matches!(
-                        module.kind(),
-                        homesense_core::ModuleKind::Switch | homesense_core::ModuleKind::Dimmer
-                    )
-                })
-            })
-            .cloned()
-            .collect();
-        if devices.is_empty() {
-            return Err("output refresh requires queryable outputs".into());
-        }
-        for id in &devices {
-            let (device, module) = configuration
-                .binding(id)
-                .ok_or("missing output refresh binding")?;
-            hb_protocol::encode_in_context(
-                module,
-                device.channel,
-                homesense_core::Command::Query,
-                context,
-            )
-            .map_err(|e| e.to_string())?;
-        }
-        // One representative per documented module; unsupported profiles retain
-        // individual channel reads. Binding validation already rejects collisions.
-        let mut groups = std::collections::BTreeSet::new();
-        devices.retain(|id| {
-            let (device, module) = configuration.binding(id).expect("validated binding");
-            !hb_protocol::supports_module_query(module.profile())
-                || groups.insert((
-                    device.gateway.clone(),
-                    device.address.get(),
-                    module.profile().id(),
-                ))
-        });
-        let interval_ms = (max_age_ms / 2 / devices.len() as u64)
-            .max(1)
-            .max(self.transport.write_interval_ms().saturating_mul(2));
-        if interval_ms.saturating_mul(devices.len() as u64) >= max_age_ms {
-            return Err(
-                "output refresh mapping exceeds configured freshness and wire capacity".into(),
-            );
-        }
+        self.feedback
+            .module_truth()
+            .project_logical(configuration)?;
+        let targets = crate::physical_queries::plan(configuration, context)?;
+        let interval_ms = crate::physical_queries::interval(
+            &targets,
+            self.transport.write_interval_ms(),
+            max_age_ms,
+        )?;
         self.output_refresh = Some(OutputRefresh {
             configuration: configuration.clone(),
-            devices,
+            targets,
             controller,
             generation,
             context,
@@ -178,19 +141,19 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
             self.output_refresh = Some(plan);
             return Ok(());
         }
-        let id = &plan.devices[plan.next];
-        let gateway = plan.configuration.devices()[id].gateway.clone();
+        let target = plan.targets[plan.next].clone();
+        let gateway = target.gateway.clone();
         let result = self
-            .query_mapping(
+            .query_physical(
                 &plan.configuration,
+                &target,
                 plan.context,
                 plan.timeout_ms,
                 plan.max_age_ms,
-                Some(id),
-                Synchronization::OutputsAndCalibratedMotors,
+                true,
             )
             .await;
-        plan.next = (plan.next + 1) % plan.devices.len();
+        plan.next = (plan.next + 1) % plan.targets.len();
         // Anchor cadence to the scheduled start, not response completion. Skip
         // overdue slots rather than burst catch-up; wire spacing remains enforced.
         let now = self.transport.now_ms();
@@ -223,6 +186,9 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
     }
     pub(crate) fn belongs_to(&self, admission: &crate::admission::Admission) -> bool {
         self.transport.belongs_to(admission)
+    }
+    pub(crate) fn write_interval_ms(&self) -> u64 {
+        self.transport.write_interval_ms()
     }
     pub(crate) fn gateway_ids(&self) -> Vec<String> {
         self.gateways.clone()
@@ -274,22 +240,52 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
         }
         let now = self.transport.now_ms();
         self.expire(now, max_age_ms)?;
-        let snapshot = self.snapshot();
-        if snapshot.devices.is_empty()
-            || snapshot
-                .devices
-                .values()
-                .filter(|state| !policy.exempt(state.kind))
-                .any(|state| {
-                    state.quality != Quality::Confirmed
-                        || state.observed.is_none()
-                        || !state
-                            .observed_at_ms
-                            .and_then(|at| now.checked_sub(at))
-                            .is_some_and(|age| age < max_age_ms)
+        let truth = self.feedback.module_truth();
+        let modules = truth.module_objects();
+        let readable = modules
+            .iter()
+            .filter(|object| {
+                matches!(
+                    object.spec.kind(),
+                    homesense_core::ModuleKind::Switch | homesense_core::ModuleKind::Dimmer
+                )
+            })
+            .collect::<Vec<_>>();
+        if readable.is_empty()
+            || readable.iter().any(|object| {
+                (1..=object.spec.channels()).any(|channel| {
+                    truth
+                        .located_state(&object.gateway, object.spec.address().get(), channel)
+                        .is_none_or(|state| {
+                            state.quality != Quality::Confirmed
+                                || state.observed.is_none()
+                                || state
+                                    .observed_at_ms
+                                    .and_then(|at| now.checked_sub(at))
+                                    .is_none_or(|age| age >= max_age_ms)
+                        })
                 })
+            })
         {
-            return Err("fresh feedback required for the complete configured mapping".into());
+            return Err(
+                "fresh feedback required for every registered output module channel".into(),
+            );
+        }
+        if self
+            .snapshot()
+            .devices
+            .values()
+            .filter(|state| !policy.exempt(state.kind))
+            .any(|state| {
+                state.quality != Quality::Confirmed
+                    || state.observed.is_none()
+                    || state
+                        .observed_at_ms
+                        .and_then(|at| now.checked_sub(at))
+                        .is_none_or(|age| age >= max_age_ms)
+            })
+        {
+            return Err("fresh logical feedback or explicit event/motor exemption required".into());
         }
         self.transport.authorize_recovery(epoch, revision).await?;
         self.pending_recovery = None;
@@ -312,160 +308,197 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
         if self.unavailable || timeout_ms == 0 || timeout_ms > 5000 || max_age_ms == 0 {
             return Err("invalid recovery query state or bounds".into());
         }
-        let mut plan = Vec::new();
-        let mut exempt = 0;
+        self.feedback.module_truth().project_logical(config)?;
+        if !self.transport.matches_generation(
+            &config.gateways().keys().cloned().collect::<Vec<_>>(),
+            self.feedback.transport_epoch(),
+        ) {
+            return Err("physical query transport generation mismatch".into());
+        }
+        // Keep original explicit event/motor exemption and calibration gates.
         for id in config.devices().keys() {
-            if let Some((device, module)) = config.binding(id) {
-                if policy.exempt(module.kind()) {
-                    module
-                        .validate_context(context)
+            if let Some((device, module)) = config.binding(id)
+                && !matches!(
+                    module.kind(),
+                    homesense_core::ModuleKind::Switch | homesense_core::ModuleKind::Dimmer
+                )
+            {
+                if !policy.exempt(module.kind()) {
+                    return Err("binding has no queryable output feedback".into());
+                }
+                module
+                    .validate_context(context)
+                    .map_err(|e| e.to_string())?;
+                if module.kind() == homesense_core::ModuleKind::Motor {
+                    let stop = config
+                        .motor_command(id, homesense_core::MotorAction::Stop)
                         .map_err(|e| e.to_string())?;
-                    module
-                        .validate_channel(device.channel)
+                    hb_protocol::encode_in_context(module, device.channel, stop, context)
                         .map_err(|e| e.to_string())?;
-                    if module.kind() == homesense_core::ModuleKind::Motor {
-                        let stop = config
-                            .motor_command(id, homesense_core::MotorAction::Stop)
-                            .map_err(|e| e.to_string())?;
-                        hb_protocol::encode_in_context(module, device.channel, stop, context)
-                            .map_err(|e| e.to_string())?;
+                }
+            }
+        }
+        let mut targets = crate::physical_queries::plan(config, context)?;
+        if let Some(id) = selected {
+            let (binding, _) = config.binding(id).ok_or("refresh device not enabled")?;
+            targets.retain(|target| {
+                target.gateway == binding.gateway
+                    && target.module.address() == binding.address
+                    && target.channels.contains(&binding.channel.get())
+            });
+            if targets.is_empty() {
+                return Err("refresh device has no readable output target".into());
+            }
+        } else {
+            crate::physical_queries::interval(
+                &targets,
+                self.transport.write_interval_ms(),
+                max_age_ms,
+            )?;
+        }
+        for target in targets {
+            self.query_physical(
+                config,
+                &target,
+                context,
+                timeout_ms,
+                max_age_ms,
+                selected.is_some(),
+            )
+            .await?;
+        }
+        self.expire(self.transport.now_ms(), max_age_ms)?;
+        Ok(())
+    }
+    pub(crate) async fn refresh_physical(
+        &mut self,
+        config: &homesense_config::Configuration,
+        target: &crate::physical_queries::Target,
+        context: homesense_core::ExecutionContext,
+        timeout_ms: u64,
+        max_age_ms: u64,
+    ) -> Result<(), String> {
+        self.query_physical(config, target, context, timeout_ms, max_age_ms, true)
+            .await
+    }
+    async fn query_physical(
+        &mut self,
+        config: &homesense_config::Configuration,
+        target: &crate::physical_queries::Target,
+        context: homesense_core::ExecutionContext,
+        timeout_ms: u64,
+        max_age_ms: u64,
+        periodic: bool,
+    ) -> Result<(), String> {
+        if config.revision() != self.feedback.configuration_revision()
+            || self.unavailable
+            || timeout_ms == 0
+            || timeout_ms > 5000
+            || max_age_ms == 0
+            || !self.transport.matches_generation(
+                &config.gateways().keys().cloned().collect::<Vec<_>>(),
+                self.feedback.transport_epoch(),
+            )
+            || config
+                .gateways()
+                .get(&target.gateway)
+                .and_then(|g| g.modules().get(&target.module.address()))
+                != Some(&target.module)
+        {
+            return Err("physical query mapping or generation changed".into());
+        }
+        let before = target
+            .channels
+            .iter()
+            .map(|channel| {
+                self.feedback
+                    .module_truth()
+                    .port_observation_count(
+                        &target.gateway,
+                        target.module.address().get(),
+                        *channel,
+                    )
+                    .map(|count| (*channel, count))
+                    .ok_or("physical query port missing".to_owned())
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let sent = if target.whole {
+            self.transport
+                .query_status_scope(
+                    &target.gateway,
+                    &target.module,
+                    target.first_channel(),
+                    context,
+                    timeout_ms,
+                    true,
+                )
+                .await
+        } else {
+            self.transport
+                .query_status(
+                    &target.gateway,
+                    &target.module,
+                    target.first_channel(),
+                    context,
+                    timeout_ms,
+                )
+                .await
+        };
+        if let Err(error) = sent {
+            self.invalidate();
+            return Err(error);
+        }
+        let mut deadline = self
+            .transport
+            .now_ms()
+            .checked_add(timeout_ms)
+            .ok_or("query deadline overflow")?;
+        let mut retry_available = periodic;
+        loop {
+            if self.transport.now_ms() >= deadline {
+                if retry_available {
+                    retry_available = false;
+                    let retry_timeout = timeout_ms.min(500);
+                    if let Err(error) = self
+                        .transport
+                        .query_status_scope(
+                            &target.gateway,
+                            &target.module,
+                            target.first_channel(),
+                            context,
+                            retry_timeout,
+                            target.whole,
+                        )
+                        .await
+                    {
+                        self.invalidate();
+                        return Err(error);
                     }
-                    exempt += 1;
+                    deadline = self
+                        .transport
+                        .now_ms()
+                        .checked_add(retry_timeout)
+                        .ok_or("query deadline overflow")?;
                     continue;
                 }
-                hb_protocol::encode_in_context(
-                    module,
-                    device.channel,
-                    homesense_core::Command::Query,
-                    context,
-                )
-                .map_err(|e| e.to_string())?;
-                plan.push((id.clone(), device, module));
-            }
-        }
-        if plan.is_empty() || plan.len() + exempt != self.snapshot().devices.len() {
-            return Err("recovery query mapping does not match feedback".into());
-        }
-        if let Some(id) = selected
-            && !plan.iter().any(|(candidate, _, _)| candidate == id)
-        {
-            return Err("refresh device is not enabled in the mapping".into());
-        }
-        let mut groups: Vec<
-            Vec<(
-                homesense_core::DeviceId,
-                &homesense_config::Device,
-                &homesense_core::ModuleSpec,
-            )>,
-        > = Vec::new();
-        for entry in plan {
-            if hb_protocol::supports_module_query(entry.2.profile())
-                && let Some(group) = groups.iter_mut().find(|g| {
-                    let first = &g[0];
-                    first.1.gateway == entry.1.gateway
-                        && first.1.address == entry.1.address
-                        && first.2.profile() == entry.2.profile()
-                })
-            {
-                group.push(entry);
-                continue;
-            }
-            groups.push(vec![entry]);
-        }
-        for group in groups {
-            if selected.is_some_and(|id| !group.iter().any(|entry| &entry.0 == id)) {
-                continue;
-            }
-            let (_, device, module) = &group[0];
-            let before: Vec<_> = group
-                .iter()
-                .map(|(id, _, _)| {
-                    self.feedback
-                        .observation_count(id)
-                        .map(|count| (id.clone(), count))
-                        .ok_or_else(|| "unknown recovery device".to_string())
-                })
-                .collect::<Result<_, _>>()?;
-            let sent = if group.len() > 1 {
-                self.transport
-                    .query_status_scope(
-                        &device.gateway,
-                        module,
-                        device.channel,
-                        context,
-                        timeout_ms,
-                        true,
-                    )
-                    .await
-            } else {
-                self.transport
-                    .query_status(&device.gateway, module, device.channel, context, timeout_ms)
-                    .await
-            };
-            if let Err(error) = sent {
                 self.invalidate();
-                return Err(error);
+                return Err("physical recovery feedback timeout".into());
             }
-            let mut deadline = self
-                .transport
-                .now_ms()
-                .checked_add(timeout_ms)
-                .ok_or("query deadline overflow")?;
-            // Preserve one bounded idempotent retry for periodic reads only.
-            // Untagged feedback is an observation, never a transaction ACK.
-            // Startup/recovery and all control writes retain no-retry semantics.
-            let mut retry_available = selected.is_some();
-            loop {
-                if self.transport.now_ms() >= deadline {
-                    if retry_available {
-                        retry_available = false;
-                        let retry_timeout = timeout_ms.min(500);
-                        if let Err(error) = self
-                            .transport
-                            .query_status_scope(
-                                &device.gateway,
-                                module,
-                                device.channel,
-                                context,
-                                retry_timeout,
-                                group.len() > 1,
-                            )
-                            .await
-                        {
-                            self.invalidate();
-                            return Err(error);
-                        }
-                        deadline = self
-                            .transport
-                            .now_ms()
-                            .checked_add(retry_timeout)
-                            .ok_or("query deadline overflow")?;
-                        continue;
-                    }
-                    self.invalidate();
-                    return Err("recovery feedback timeout or read limit".into());
-                }
-                self.receive(&device.gateway).await?;
-                let snapshot = self.snapshot();
-                let now = self.transport.now_ms();
-                if before.iter().all(|(id, count)| {
-                    self.feedback
-                        .observation_count(id)
-                        .is_some_and(|current| current > *count)
-                        && snapshot.devices.get(id).is_some_and(|state| {
-                            state.quality == Quality::Confirmed
-                                && state.observed.is_some()
-                                && state
-                                    .observed_at_ms
-                                    .and_then(|at| now.checked_sub(at))
-                                    .is_some_and(|age| age < max_age_ms)
-                        })
-                }) {
-                    break;
-                }
-                // Generic in-memory/nonblocking streams may return Idle immediately.
-                tokio::task::yield_now().await;
+            self.receive(&target.gateway).await?;
+            let truth = self.feedback.module_truth();
+            if before.iter().all(|(channel, count)| {
+                truth
+                    .port_observation_count(
+                        &target.gateway,
+                        target.module.address().get(),
+                        *channel,
+                    )
+                    .is_some_and(|current| current > *count)
+            }) && target.fresh(truth, self.transport.now_ms(), max_age_ms)
+            {
+                break;
             }
+            tokio::task::yield_now().await;
         }
         self.expire(self.transport.now_ms(), max_age_ms)?;
         Ok(())
@@ -641,3 +674,7 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
 #[cfg(test)]
 #[path = "module_query_tests.rs"]
 mod module_query_tests;
+
+#[cfg(test)]
+#[path = "physical_startup_tests.rs"]
+mod physical_startup_tests;

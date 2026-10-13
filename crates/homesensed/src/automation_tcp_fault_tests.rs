@@ -31,6 +31,12 @@ async fn run(occupied:bool) {
         let (mut socket,_)=bus.accept().await.unwrap();let mut level=0;
         loop {
             let mut frame=[0;5];if socket.read_exact(&mut frame).await.is_err(){break;}
+            if frame[2] == 0xa0 {
+                assert_eq!(frame, [0xae, 0x15, 0xa0, 0xf2, 0xee]);
+                let replies: Vec<_> = (1..=8).flat_map(|channel| [0xae, 0x15, 0xd0 + channel, level, 0xee]).collect();
+                if socket.write_all(&replies).await.is_err() { break; }
+                continue;
+            }
             match frame[2] {0xa1=>assert_eq!(frame,[0xae,0x15,0xa1,0xf2,0xee]),0x01=>{level=frame[3];observed.lock().unwrap().push(level);},_=>panic!("unexpected frame")}
             if socket.write_all(&[0xae,0x15,0xd1,level,0xee]).await.is_err(){break;}
         }

@@ -25,8 +25,8 @@ async fn tcp_automation_synchronizes_before_startup_and_preserves_other_state() 
                 .unwrap();
             let mut frame = [0; 5];
             socket.read_exact(&mut frame).unwrap();
-            assert_eq!(frame, [0xAE, 0x15, 0xA1, 0xF2, 0xEE]);
-            socket.write_all(&[0xAE, 0x15, 0xD1, 42, 0xEE]).unwrap();
+            assert_eq!(frame, [0xAE, 0x15, 0xA0, 0xF2, 0xEE]);
+            socket.write_all(&module_levels(0x15, 42)).unwrap();
             socket.read_exact(&mut frame).unwrap();
             assert_eq!(frame, [0xAE, 0x15, 0x01, 30, 0xEE]);
             assert_eq!(
@@ -113,7 +113,7 @@ async fn missing_initial_feedback_never_executes_startup() {
             .unwrap();
         let mut frame = [0; 5];
         socket.read_exact(&mut frame).unwrap();
-        assert_eq!(frame, [0xAE, 0x15, 0xA1, 0xF2, 0xEE]);
+        assert_eq!(frame, [0xAE, 0x15, 0xA0, 0xF2, 0xEE]);
         assert_eq!(
             socket.read(&mut frame).unwrap(),
             0,
@@ -194,8 +194,8 @@ async fn disconnect_after_write_cancels_delayed_scene_without_replay() {
             .unwrap();
         let mut frame = [0; 5];
         socket.read_exact(&mut frame).unwrap();
-        assert_eq!(frame, [0xAE, 0x15, 0xA1, 0xF2, 0xEE]);
-        socket.write_all(&[0xAE, 0x15, 0xD1, 42, 0xEE]).unwrap();
+        assert_eq!(frame, [0xAE, 0x15, 0xA0, 0xF2, 0xEE]);
+        socket.write_all(&module_levels(0x15, 42)).unwrap();
         socket.read_exact(&mut frame).unwrap();
         assert_eq!(frame, [0xAE, 0x15, 0x01, 30, 0xEE]);
         socket.shutdown(std::net::Shutdown::Both).unwrap();
@@ -256,8 +256,8 @@ async fn shutdown_audit_failure_is_reported_instead_of_success() {
             .unwrap();
         let mut frame = [0; 5];
         socket.read_exact(&mut frame).unwrap();
-        assert_eq!(frame, [0xAE, 0x15, 0xA1, 0xF2, 0xEE]);
-        socket.write_all(&[0xAE, 0x15, 0xD1, 42, 0xEE]).unwrap();
+        assert_eq!(frame, [0xAE, 0x15, 0xA0, 0xF2, 0xEE]);
+        socket.write_all(&module_levels(0x15, 42)).unwrap();
         socket.read_exact(&mut frame).unwrap();
         assert_eq!(frame, [0xAE, 0x15, 0x01, 30, 0xEE]);
         let sql = rusqlite::Connection::open(database).unwrap();
@@ -320,8 +320,8 @@ async fn disconnect_without_pending_work_has_explicit_transport_outcome() {
             .unwrap();
         let mut frame = [0; 5];
         socket.read_exact(&mut frame).unwrap();
-        assert_eq!(frame, [0xAE, 0x15, 0xA1, 0xF2, 0xEE]);
-        socket.write_all(&[0xAE, 0x15, 0xD1, 42, 0xEE]).unwrap();
+        assert_eq!(frame, [0xAE, 0x15, 0xA0, 0xF2, 0xEE]);
+        socket.write_all(&module_levels(0x15, 42)).unwrap();
         socket.read_exact(&mut frame).unwrap();
         assert_eq!(frame, [0xAE, 0x15, 0x01, 30, 0xEE]);
         socket.shutdown(std::net::Shutdown::Both).unwrap();
@@ -397,10 +397,10 @@ async fn supervised_reconnect_queries_again_without_repeating_startup() {
                         .unwrap();
                     let mut frame = [0; 5];
                     socket.read_exact(&mut frame).unwrap();
-                    assert_eq!(frame, [0xae, 0x15, 0xa1, 0xf2, 0xee]);
+                    assert_eq!(frame, [0xae, 0x15, 0xa0, 0xf2, 0xee]);
                     let query_seen=std::time::Instant::now();
                     if recovery_feedback || round == 0 {
-                        socket.write_all(&[0xae, 0x15, 0xd1, 42, 0xee]).unwrap();
+                        socket.write_all(&module_levels(0x15, 42)).unwrap();
                     }
                     if round == 0 {
                         socket.read_exact(&mut frame).unwrap();
@@ -507,9 +507,9 @@ async fn supervision_stops_at_limit_or_failed_recovery_sync() {
                     .unwrap();
                 let mut frame = [0; 5];
                 socket.read_exact(&mut frame).unwrap();
-                assert_eq!(frame, [0xae, 0x15, 0xa1, 0xf2, 0xee]);
+                assert_eq!(frame, [0xae, 0x15, 0xa0, 0xf2, 0xee]);
                 if round == 0 || synchronized {
-                    socket.write_all(&[0xae, 0x15, 0xd1, 42, 0xee]).unwrap();
+                    socket.write_all(&module_levels(0x15, 42)).unwrap();
                 }
                 socket.shutdown(std::net::Shutdown::Both).unwrap();
             }
@@ -567,8 +567,8 @@ async fn tcp_long_press_disconnect_does_not_resume_without_new_press() {
                 .unwrap();
             let mut frame = [0; 5];
             socket.read_exact(&mut frame).unwrap();
-            assert_eq!(frame, [0xae, 0x15, 0xa1, 0xf2, 0xee]);
-            socket.write_all(&[0xae, 0x15, 0xd1, 30, 0xee]).unwrap();
+            assert_eq!(frame, [0xae, 0x15, 0xa0, 0xf2, 0xee]);
+            socket.write_all(&module_levels(0x15, 30)).unwrap();
             if round == 0 {
                 std::thread::sleep(Duration::from_millis(100));
                 socket.write_all(&[0xae, 0x41, 0xd1, 0xf1, 0xee]).unwrap();
@@ -649,14 +649,14 @@ async fn online_publication_queries_new_mapping_before_acknowledgement() {
         old.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
         let mut frame=[0;5];
         old.read_exact(&mut frame).unwrap();
-        assert_eq!(frame,[0xAE,0x15,0xA1,0xF2,0xEE]);
-        old.write_all(&[0xAE,0x15,0xD1,30,0xEE]).unwrap();
+        assert_eq!(frame,[0xAE,0x15,0xA0,0xF2,0xEE]);
+        old.write_all(&module_levels(0x15, 30)).unwrap();
         synced.send(()).unwrap();
         let (mut fresh,_)=bus.accept().unwrap();
         fresh.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
         fresh.read_exact(&mut frame).unwrap();
-        assert_eq!(frame,[0xAE,0x15,0xA2,0xF2,0xEE]);
-        if reply { fresh.write_all(&[0xAE,0x15,0xD2,40,0xEE]).unwrap(); }
+        assert_eq!(frame,[0xAE,0x15,0xA0,0xF2,0xEE]);
+        if reply { fresh.write_all(&module_levels(0x15, 40)).unwrap(); }
         assert_eq!(fresh.read(&mut frame).unwrap(),0);
         assert_eq!(old.read(&mut frame).unwrap(),0);
     });
@@ -722,8 +722,8 @@ async fn repeated_publication_then_recovery_uses_latest_endpoint_and_suppresses_
             socket.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
             let mut frame=[0;5];
             socket.read_exact(&mut frame).unwrap();
-            assert_eq!(frame,[0xAE,0x15,0xA0+channel,0xF2,0xEE]);
-            socket.write_all(&[0xAE,0x15,0xD0+channel,30,0xEE]).unwrap();
+            assert_eq!(frame,[0xAE,0x15,0xA0,0xF2,0xEE]);
+            socket.write_all(&module_levels(0x15, 30)).unwrap();
             if index<3 {
                 socket.read_exact(&mut frame).unwrap();
                 assert_eq!(frame,[0xAE,0x15,channel,channel*11,0xEE]);
@@ -785,7 +785,7 @@ async fn publication_partial_connection_set_is_dropped_without_commands() {
         old.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
         let mut frame=[0;5];
         old.read_exact(&mut frame).unwrap();
-        old.write_all(&[0xAE,0x15,0xD1,30,0xEE]).unwrap();
+        old.write_all(&module_levels(0x15, 30)).unwrap();
         drop(refused);
         synced.send(()).unwrap();
         let (mut partial,_)=bus.accept().unwrap();
@@ -839,17 +839,17 @@ async fn publication_partial_feedback_never_enables_startup() {
         old.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
         let mut frame=[0;5];
         old.read_exact(&mut frame).unwrap();
-        old.write_all(&[0xAE,0x15,0xD1,30,0xEE]).unwrap();
+        old.write_all(&module_levels(0x15, 30)).unwrap();
         synced.send(()).unwrap();
         let (mut partial,_)=bus.accept().unwrap();
         partial.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
         let (mut silent,_)=refused.accept().unwrap();
         silent.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
         partial.read_exact(&mut frame).unwrap();
-        assert_eq!(frame,[0xAE,0x15,0xA1,0xF2,0xEE]);
-        partial.write_all(&[0xAE,0x15,0xD1,40,0xEE]).unwrap();
+        assert_eq!(frame,[0xAE,0x15,0xA0,0xF2,0xEE]);
+        partial.write_all(&module_levels(0x15, 40)).unwrap();
         silent.read_exact(&mut frame).unwrap();
-        assert_eq!(frame,[0xAE,0x15,0xA1,0xF2,0xEE]);
+        assert_eq!(frame,[0xAE,0x15,0xA0,0xF2,0xEE]);
         assert_eq!(silent.read(&mut frame).unwrap(),0,"missing feedback must close new connections");
         assert_eq!(partial.read(&mut frame).unwrap(),0,"partial feedback must not enable startup");
         assert_eq!(old.read(&mut frame).unwrap(),0);
@@ -898,4 +898,8 @@ fn cli_rejects_incomplete_or_duplicate_hap_options_before_configuration_io() {
         assert!(!output.status.success());assert!(!root.exists());
         let error=String::from_utf8_lossy(&output.stderr);assert!(!error.contains("No such file"),"{error}");
     }
+}
+
+fn module_levels(address: u8, level: u8) -> Vec<u8> {
+    (1..=8).flat_map(|channel| [0xae, address, 0xd0 + channel, level, 0xee]).collect()
 }

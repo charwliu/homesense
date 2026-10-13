@@ -146,3 +146,4 @@ pub mod module_migration;
 
 pub mod module_truth;
 pub mod module_queries;
+mod physical_queries;
