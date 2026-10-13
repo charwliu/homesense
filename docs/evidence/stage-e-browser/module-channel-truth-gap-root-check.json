@@ -1,0 +1,51 @@
+{
+  "date": "2026-10-13",
+  "status": "module_channel_ground_truth_gap_reproduced_in_frozen_reference_draft",
+  "fixed_base_commit": "bfe61f28aa0070904f248ee418b542ffdde9bbeb",
+  "scope": "fixed bfe base plus one frozen configuration schema2 draft overlay; not final whole module feature candidate",
+  "original_files": 949,
+  "unchanged_non_overlay_original_files": 948,
+  "draft_overlay_sha256": {
+    "crates/homesense-config/src/lib.rs": "4c88b87085d1b943d9a84b1f202d2574fda1f99a658e5aa4eb4a47d1084462ba"
+  },
+  "archive_sha256": "fec7242edfadfe5515db46b81b12ecd55fb57dd377ddb98e21f9361c494324a9",
+  "test": {
+    "passed": 1,
+    "failed": 0,
+    "ignored": 0,
+    "meaning": "passes by asserting current gap, not module ground-truth acceptance"
+  },
+  "observations": {
+    "schema": 2,
+    "registered_module_channels": 8,
+    "protocol_valid_unbound_channel": 2,
+    "unbound_observed_level": 37,
+    "feedback_updates": 0,
+    "exposed_snapshot_unchanged": true,
+    "bound_channel_positive_control": 1,
+    "bound_level": 30,
+    "bound_feedback_updates": 1,
+    "logical_devices_created": 0,
+    "control_commands": 0
+  },
+  "root_action": "fixed-snapshot test only; no shared product changes",
+  "requirements_remaining": [
+    "Module-channel state exists independently of logical binding.",
+    "Logical devices project a single module-owned truth rather than owning another mutable physical observation.",
+    "Unbound/disabled channel observations never create logical devices or authorize control.",
+    "Replacement invalidates old mapped observations and rejects old generation/address feedback."
+  ],
+  "limitations": [
+    "Fixed bfe runtime plus one frozen schema2 configuration draft, not the complete current feature snapshot or an accepted product commit.",
+    "Decoder/Feedback memory path only; no actual gateway, transport, credentials, deployment or physical control.",
+    "Current public Snapshot unchanged plus known binding-only owner proves this path discards the unbound observation; new module-state APIs must be separately tested after implementation."
+  ],
+  "field_enablement": false,
+  "evidence_sha256": {
+    "source.json": "9033e35ccd496231e044a0317e0fd0e3e161d96d045d0b78762bd2b4f7f40586",
+    "configuration-draft.rs": "4c88b87085d1b943d9a84b1f202d2574fda1f99a658e5aa4eb4a47d1084462ba",
+    "probe.rs": "57cb7156e499a4259034420dd4e400f404b967f85693afd375bc418bb0c73033",
+    "test.log": "5eae9dce719d33ab959b6769b85804eeccfd04f4043d8762ab20edbd03c48fe4",
+    "root-audit.json": "ee9e497759956805a201a8df05c4b87270d63a0d3ed0e19d504b17af226e16f7"
+  }
+}
