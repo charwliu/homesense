@@ -1,0 +1,51 @@
+{
+  "date": "2026-10-13",
+  "base_commit": "8685b0b92d3732698de87a72b00c5d62c34a3ccc",
+  "scope": "fixed archive plus exactly two product/test overlays; query work and unrelated edits excluded",
+  "source_sha256": {
+    "crates/homesensed/src/module_truth.rs": "10f20feb5e3040f208fb26bc0aef90e1949b97a7c9e58d6981b0ef313e59ac55",
+    "crates/homesensed/src/module_truth_tests.rs": "4a47f8d849f9777ae2e271302191856195829e6869a75ac16808e2191c9c657c"
+  },
+  "validation": {
+    "unique_tests_passed": 138,
+    "counts": {
+      "library": {
+        "passed": 109,
+        "failed": 0,
+        "ignored": 0
+      },
+      "integration": {
+        "passed": 29,
+        "failed": 0,
+        "ignored": 0
+      }
+    },
+    "new_actual_hap_projection_tests": 2,
+    "library_filtered": 9,
+    "strict_clippy": "homesense-config homesense-storage homesensed all targets -D warnings passed",
+    "complete_loopback_library": false,
+    "field_tests": false
+  },
+  "behavior": [
+    "logical snapshots state_version == logical cursor.sequence",
+    "logical event state.version == event.cursor.sequence, per-alias last projection versions",
+    "canonical physical observations and versions never rewritten by HAP projection",
+    "unbound feedback leaves logical snapshot/cursor unchanged; explicit invalidation and recovery produce correct versions",
+    "320-channel stale event overflow explicitly resynchronizes actual HAP publisher; subsequent event accepted"
+  ],
+  "previous_failure": "Independent fixed 8685b0b authorized loopback run found eight genuine integration failures; original projection version mismatch retained in module-truth-projection-contract-root-check.json; not all sandbox failures were permission errors.",
+  "root_failure_evidence": "module-truth-projection-contract-root-check.json",
+  "log_sha256": {
+    "library": "bec142a912755ac77ee130ca2fcc6a924d65cb184c1fcc857cae3a4d56fa9453",
+    "integration": "8c4dd9af62876c4c80015a1cbbfbe5d4ff27b6dde81b7df02080725cecf8d00e",
+    "strict_clippy": "88af706b79b911ff7e8c0f1561f273814a4a38d93c17448e232ab95550953352",
+    "focused": "7d09641ca1939ff6df373e4aaa39a029ccfb67e5240cce72a539d5f707850fa5"
+  },
+  "remaining": [
+    "root authorized fixed-commit complete library/admission/minimal probe rerun",
+    "administrator Query endpoints remain separate WIP, excluded from this checkpoint"
+  ],
+  "deployed": false,
+  "pushed": false,
+  "ea5_changed": false
+}
