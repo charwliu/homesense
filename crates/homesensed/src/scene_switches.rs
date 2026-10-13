@@ -47,6 +47,7 @@ pub struct Details {
     pub observation_current: Option<bool>,
     pub observation_boot: Option<String>,
     pub observed_ms: Option<String>,
+    pub historical_selected: Option<bool>,
 }
 pub(crate) fn details(
     document: &Document,
@@ -67,7 +68,9 @@ pub(crate) fn details(
                 Details {
                     selected: selected[&member.scene],
                     selection_state: SelectionState::from_selected(selected[&member.scene]),
-                    selection_source: if inferred.is_some() {
+                    selection_source: if state.physical.is_some() {
+                        "physical_feedback"
+                    } else if inferred.is_some() {
                         "inferred"
                     } else if state.initialization.is_some() {
                         "light_initialization"
@@ -76,9 +79,10 @@ pub(crate) fn details(
                     } else {
                         "unknown"
                     },
-                    observation_current: inferred.map(|_| state.evidence_current),
-                    observation_boot: inferred.map(|e| format!("{:032x}", e.scope.boot_id)),
-                    observed_ms: inferred.map(|e| e.observed_ms.to_string()),
+                    observation_current: state.physical.as_ref().map(|p|p.observed_ms.is_some()).or_else(||inferred.map(|_| state.evidence_current)),
+                    observation_boot: state.physical.as_ref().map(|p|format!("{:032x}",p.boot_id)).or_else(||inferred.map(|e| format!("{:032x}", e.scope.boot_id))),
+                    observed_ms: state.physical.as_ref().and_then(|p|p.observed_ms).map(|v|v.to_string()).or_else(||state.physical.is_none().then(||inferred.map(|e|e.observed_ms.to_string())).flatten()),
+                    historical_selected: state.physical.as_ref().and_then(|p|match p.history_value {Some(Value::Integer(value))=>Some(value==member.value),_=>None}),
                 },
             );
         }

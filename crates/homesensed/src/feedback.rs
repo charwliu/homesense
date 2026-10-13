@@ -14,6 +14,9 @@ use std::{
 /// allowing a separate fresh Switch Off to satisfy an Any condition.
 pub(crate) struct IndicatorPolicy {
     pub(crate) after_ms: u64,
+    /// A validated physical projection may reuse its very same observation;
+    /// external key/initialization fences still require strictly later samples.
+    pub(crate) include_boundary: bool,
     pub(crate) recent_off: std::collections::BTreeSet<DeviceId>,
 }
 /// A lease is validated while holding the same lock used by every feedback
@@ -152,7 +155,7 @@ impl Feedback {
             .states
             .rule_feedback(self.epoch, now, max_age)
             .map_err(|e| e.to_string())?;
-        if let Some(policy)=policy {physical.retain(|_,s|s.observed_ms>policy.after_ms);}
+        if let Some(policy)=policy {physical.retain(|_,s|s.observed_ms>policy.after_ms || (policy.include_boundary && s.observed_ms==policy.after_ms));}
         let mut logical = physical.clone();
         for (device, relay) in &self.supply_relays {
             let projected =

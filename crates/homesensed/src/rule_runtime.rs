@@ -136,14 +136,16 @@ impl PreparedRule {
             .map_err(PreparationFailure::Admission)?;
         let boot=Uuid::parse_str(admission.boot_id()).map_err(|_|PreparationFailure::Admission(hap::server::WriteStatus::ServiceCommunicationFailure))?.as_u128();
         let initialization_after=reads.values().filter_map(|snapshot|snapshot.initialization.as_ref()).filter(|source|source.value>0 && source.boot_id==boot).map(|source|source.initialized_ms).max();
+        let physical_after=reads.values().filter_map(|s|s.physical.as_ref().and_then(|p|p.observed_ms)).max();
         let after = reads
             .values()
             .filter(|s| s.evidence_current)
             .filter_map(|s| s.evidence.as_ref().map(|e| e.observed_ms))
-            .max().into_iter().chain(initialization_after).max();
+            .max().into_iter().chain(initialization_after).chain(physical_after).max();
         let policy = if let Some(after_ms) = after {
             Some(crate::feedback::IndicatorPolicy {
                 after_ms,
+                include_boundary: physical_after==Some(after_ms),
                 recent_off: admission
                     .recent_dimmer_off(controller, generation.clone(), after_ms)
                     .await

@@ -151,6 +151,10 @@ impl Synchronizer {
             }];
             let mut lease = None;
             let mut off = false;
+            // Scene truth under the new policy is physical On/Off. Historical
+            // dimmer intent remains the policy for ordinary light-only links.
+            let physical_scene = link.scene.as_ref().is_some_and(|scene|document.scene_switch_groups.iter().any(|g|g.members.iter().any(|m|&m.scene==scene) && g.reconciliation.as_ref().is_some_and(|p|p.enabled)));
+            let physical_levels = BTreeMap::new();
             let prepared = PreparedRule::prepare_indicator(
                 admission,
                 controller,
@@ -163,7 +167,7 @@ impl Synchronizer {
                         Budget::default(),
                         admission.monotonic_ms(),
                         max_age,
-                        &recorded,
+                        if physical_scene { &physical_levels } else { &recorded },
                         policy,
                     )?;
                     // Unknown lights never authorize output; an unknown selection
