@@ -132,6 +132,7 @@ mod scene_selection_hap;
 pub mod light_state;
 
 pub mod indicator_sync;
+pub mod scene_initialization;
 
 mod scene_observation_owner;
 mod scene_observation_runtime;

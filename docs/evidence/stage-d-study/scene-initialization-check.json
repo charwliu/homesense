@@ -1,0 +1,76 @@
+{
+  "date": "2026-10-13",
+  "base_commit": "0127c13d6e2204bbd688a67a862ec3f6a35de8a8",
+  "scope": "archived committed source plus exactly the listed product/test overlays; dedicated target directory; synthetic fixtures only",
+  "source_sha256": {
+    "crates/homesense-config/src/scene_switches.rs": "5e247baaff7d90541a1f473006b463bc636620a6dc82941e0d1e16361d22065b",
+    "crates/homesense-config/src/rule_document.rs": "68a10e913325d301e78f3eb83b00adf87c2f91c39a7a2b65c389c3819e447ed3",
+    "crates/homesense-storage/src/lib.rs": "82b4db56a9ef7deb8e23cbdf0ec1d23cdba3df02f8676df26d7bf0bf37cfd09a",
+    "crates/homesense-storage/src/backup.rs": "5d2fd745f8c04eef905cd8d19fca66b99037dcc520d2e152850a6ae45580d737",
+    "crates/homesense-storage/src/scene_observation.rs": "e3334d11177f147024826d63c7c2ff6743eab5bac69776d40d16c786acb489dd",
+    "crates/homesense-storage/src/scene_initialization.rs": "dde403e8540946f9da01e5278239a8409effab166bc20b095ecbd51dd331f808",
+    "crates/homesense-storage/tests/backup.rs": "caaad7a822b0a1db2e8162aa5768a7dba5353653002ec4af144f3579a691ba11",
+    "crates/homesense-storage/tests/journal.rs": "197a91302d02a3b73615c5141b96c28124d61a912a79b0a8362b065438b0ddaf",
+    "crates/homesensed/src/scene_initialization.rs": "d0ef27d69b547efc60afa9fed3d46574d424e716b8c775c42ad17e53426ce9d3",
+    "crates/homesensed/src/scene_initialization_tests.rs": "1865ec6070006503bb4b4138133b679fdf2dcc77f38e86ca8996395d116326d7",
+    "crates/homesensed/src/lib.rs": "6fd47aa01d74ea4717756ffcf8c232890421752bcb7d9da854339a4b8a557db8",
+    "crates/homesensed/src/admission.rs": "332f23ea808573f845e4f1c2b14964ea895525951e66383acbd8a54ae669203b",
+    "crates/homesensed/src/automation_drive.rs": "85b078a330cdcf51b7479852f92c2813a3d9216520c0c047c778a3e7866f2ebd",
+    "crates/homesensed/src/rule_runtime.rs": "b3caaca7974c63868e2b9291f5861247bd8bf247e7530d3e99de7520742685dd",
+    "crates/homesensed/src/scene_switches.rs": "e5f69d1d0ef69ebabccf04ed746401a5c29f1272c24bdb3511c3202749bede92",
+    "crates/homesensed/src/scene_observation_tests.rs": "80a5cdbf3f1302d65f8b08fad4a2f8641e0cc64bd080e82381db65c17544def6",
+    "crates/homesensed/src/web/app.js": "c8cddbc83392f7f43c5abed92314520ce65d4a01ae56ad0bacb99c99e541e34b",
+    "crates/homesense-storage/tests/scene_initialization.rs": "b480cde041ee5233d3dc85c152751ddb1b204150df497d638b02837d2dbd5119",
+    "crates/homesense-storage/tests/scene_observation.rs": "5d08e1a842ddedbcf3e0f4c09092923df3e23c812fcde1334fa5d29d1775d20d",
+    "tools/verify_scene_switches.cjs": "f6a8b7d6d4e046170f92a15bdbaefdf4497990e5170b5050ac73dd06a475df23"
+  },
+  "validation": {
+    "rustc": "1.99.0",
+    "runtime_observer_led_and_initialization": 32,
+    "storage_all_tests": 60,
+    "configuration_all_tests": 23,
+    "scene_planner_web_encrypted_hap": 8,
+    "unique_rust_tests_passed": 123,
+    "failed_final": 0,
+    "ignored": 0,
+    "frontend_scene_script": "passed including initialization history source label",
+    "strict_all_target_clippy": "homesense-config, homesense-storage, homesensed passed",
+    "full_workspace_rerun": false
+  },
+  "log_sha256": {
+    "runtime": "ab0d51eacc02cbcd98560d6f90f52b73a11df8cdc61478652995891e1b9da37b",
+    "storage": "cf716486a5131a187f59673c814cf31914c01442bfff97dbc839fcfc1ecfcab0",
+    "config": "399ec1efd5d4c214f5296d2d7a9281c408a1e0fd3bfd2a36eaa95dd7bda098d7",
+    "integration": "f2382917dcc6bcb699762ab4a6b7116722678a73ddfffa6da80bed7568e1e907",
+    "frontend": "45c07662b3ef9ea2bdc9cdc7f5a15738097b790ac3489654a716c7bd036b1461",
+    "clippy": "6605919ae4293e14d2323da9e9477e530fac18d54b191999ff5860560fd79a44",
+    "initial_stale_generation_assertion": "09582fc14eb3eea0b1989e7c043aadca5a3233aff413d4c574514c258a4b471c",
+    "initial_temp_path_collision": "979908612eb988728c467932d8890ff2d6a4cc69e2c5cbc9bd3ef4c94dbc883c"
+  },
+  "guarantees": [
+    "initialization is optional, default disabled, reviewed and one-time raw NULL/version-zero only",
+    "complete fresh physical feedback scoped to boot/configuration/transport/control; hidden combined-light relay included",
+    "unique_light_targets is legacy exact numeric matching; all-Off gives zero; incomplete/mixed/ambiguous vectors remain unknown",
+    "atomic CAS and immutable origin ledger; competing manual selection, old feedback and generations are refused without output",
+    "initialization itself creates no light/LED commands, scene actions or external observer baseline",
+    "first explicit Off uses reviewed shutdown; old remembered dimmer zero cannot immediately invalidate a positive current-boot initialization",
+    "source is labeled as an initialization record; migration/backup preserves historical raw values"
+  ],
+  "attempt_notes": [
+    "fresh runtime run initially passed31/failed1 because disconnect advances epochs and invalid generation is rejected before readiness; test expectation corrected, validation order unchanged",
+    "fresh storage run initially hit a concurrent fixture directory timestamp collision; added process ID and atomic counter; full storage suite then passed",
+    "schema assertions for backups and migration fixtures updated from22 to23; failures and final logs retained privately",
+    "older shared-target and dirty-source runs are excluded from final authority"
+  ],
+  "partial": true,
+  "field_actions": 0,
+  "ea5_changed": false,
+  "deployed": false,
+  "pushed": false,
+  "remaining": [
+    "every-boot/transport-epoch scene truth projection; before reconciliation must be unknown even when historical selection is known",
+    "new explicitly named complete binary On/Off pattern policy; retain exact policy as history",
+    "unknown scene native Toggle runtime/Web operation, fresh post-action complete feedback and combined-light handling",
+    "real Apple client and physical LED timing acceptance"
+  ]
+}
