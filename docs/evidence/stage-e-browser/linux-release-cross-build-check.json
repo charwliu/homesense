@@ -1,0 +1,63 @@
+{
+  "date": "2026-10-13",
+  "source_commit": "1067f8a08ad3a68e30f550281136642c8b68ef23",
+  "production_equal_to_verified_fixture_commit": "f7c2b22c9bbe03f1743e9672b35355431f5cbd2a",
+  "source_files_verified_unchanged": 1007,
+  "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)",
+  "build": {
+    "command": [
+      "cargo",
+      "build",
+      "--release",
+      "--offline",
+      "--locked",
+      "--target",
+      "x86_64-unknown-linux-gnu",
+      "-p",
+      "homesensed",
+      "--bin",
+      "homesensed"
+    ],
+    "host": "aarch64-apple-darwin",
+    "target": "x86_64-unknown-linux-gnu",
+    "linker": "x86_64-linux-gnu-gcc",
+    "offline": true,
+    "locked": true,
+    "release": true,
+    "exit_code": 0,
+    "elapsed_seconds": 54.34178113937378
+  },
+  "artifact": {
+    "format": "ELF 64-bit x86-64 PIE",
+    "sha256": "a902b36cb13469fa0bce7d01dae81a153034b2a8b4760328c69f2b6ad1994906",
+    "size_bytes": 23886640,
+    "interpreter": "/lib64/ld-linux-x86-64.so.2",
+    "needed_libraries": [
+      "libgcc_s.so.1",
+      "librt.so.1",
+      "libpthread.so.0",
+      "libm.so.6",
+      "libdl.so.2",
+      "libc.so.6",
+      "ld-linux-x86-64.so.2"
+    ],
+    "maximum_referenced_glibc_version": "2.28"
+  },
+  "private_evidence_sha256": {
+    "source.tar": "eb4a137bbfbc0c08a0149b3382e70ff5952db7c9198f03806fa3302b9f5dd4f6",
+    "source.json": "e408b4af85e788e17cdcb6e67a8c79e14c31e6ba627b1b3c25f7a77a379306f4",
+    "build.log": "c81eca6e871f56bdb464a0e4cc074f3f1d7a1bbc787bc1ddcd1742957304bc93",
+    "build-execution.json": "f0bb392c1f59a1c2a5c9842500d112ab310b9d5b1b8afb48cfb6dbb63cbbedc0",
+    "verification.json": "9f55e72a2b262602a57ca864ac7fec7778a71393a131c6721dd602d83e6d10c3",
+    "header.txt": "8a123dfee582e87c62ceb29295d41cfd91f849f1a13f81a689f0789e9ef02173",
+    "program.txt": "be1bb0894d8e9acbd81ff81390f6db212e3fa4c9ae8987cf2d563085d18f72cc",
+    "dynamic.txt": "ab17515dc9211bfbb157a74d016ed8860218aa12611c5fbb09a48618b30f87d3",
+    "versions.txt": "6ee842a96eed37c0d5dc149e83bd97aae1fe28e8904c52b240cb1a6fa95d2070"
+  },
+  "limitations": [
+    "Cross-compiled on Mac; not a native Linux build or executed Linux regression",
+    "ELF dependency symbols only; actual host library/kernel compatibility must be checked before use",
+    "No deployment, service start, real gateway connection, pairing/credential/state transfer or EA-5 change",
+    "Candidate binary and full archive remain ignored local artifacts; public evidence contains aggregate metadata only"
+  ]
+}
