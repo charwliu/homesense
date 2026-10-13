@@ -1,0 +1,69 @@
+{
+  "date": "2026-10-13",
+  "product_base_commit": "960c7ebda398d33ffa3cebce48ce438225a02a59",
+  "source_sha256": {
+    "tools/verify_web_tls.py": "db04fc5d629ca43c32caea8a5c9522d0a5edc69d28e0eadcff8fdfb03e817ce1"
+  },
+  "binary_sha256": "dc4aaa1cc728de6d21b4f0ae207b11e31beb3897ca6ed625e2553ec0b8f47c1f",
+  "validation": {
+    "simulation": {
+      "https": "passed",
+      "wss": "passed",
+      "csrf_and_session_revocation": "passed",
+      "revoked_wss": "closed",
+      "untrusted_and_wrong_name": "rejected",
+      "plaintext": "rejected",
+      "unsafe_key_permissions_and_mismatch": "rejected",
+      "mode": "simulation",
+      "whole_module_query_frames": null,
+      "synthetic_query_channels": null,
+      "actuator_frames": null,
+      "readiness_role_boundary": null
+    },
+    "tcp_combined": {
+      "https": "passed",
+      "wss": "passed",
+      "csrf_and_session_revocation": "passed",
+      "revoked_wss": "closed",
+      "untrusted_and_wrong_name": "rejected",
+      "plaintext": "rejected",
+      "unsafe_key_permissions_and_mismatch": "rejected",
+      "mode": "tcp-combined",
+      "whole_module_query_frames": 5,
+      "synthetic_query_channels": 8,
+      "actuator_frames": 0,
+      "readiness_role_boundary": "member_403"
+    }
+  },
+  "log_sha256": {
+    "simulation": "40b654e593bab28760eb00805fe6d3a23b93298dae3fc5274782c7532f3bdeff",
+    "tcp_combined": "d5643ca0188534ca49f6d57be2cdf748f93cd3f7c94cc18ec0367d8e6d8e7207",
+    "initial_readiness_check_failure": "c5d109fd2316db027ec382b2d21ae483762ba5fa7039f45c48c3e5f85bea38c2",
+    "build": "2b34696728dc82b03cbf6311d7e3a6a41658bbde097834c3010a78bc82842c1a"
+  },
+  "change": "TCP fake gateway requires A0F2 and supplies all eight registered channels, not only the enabled alias; confirms logical feedback and protected readiness role",
+  "preserved": [
+    "Ephemeral CA trusted only by local test process",
+    "Secure/HttpOnly cookie and exact HTTPS Origin",
+    "CSRF rejection preserves session; valid logout revokes Cookie and existing WSS",
+    "Wrong certificate trust/name rejected, no plaintext fallback",
+    "Unsafe private key permissions and mismatched key rejected",
+    "Unauthenticated HAP accessories remains 401",
+    "Only whole-module Query frames allowed, zero actuator frames"
+  ],
+  "attempts": [
+    {
+      "reason": "New readiness assertion wrongly assumed anonymous 200; product correctly denied protected endpoint. Final test checks authenticated Member remains 403, without widening grant."
+    }
+  ],
+  "cleanup": [
+    "Both services exit normally; combined fake gateway joins",
+    "Temporary credentials, CA, private keys and state automatically removed",
+    "No global certificate installation or retained real credential"
+  ],
+  "limitations": [
+    "Localhost software smoke only, not physical phone or real LAN TLS acceptance",
+    "No deployment, live gateway, field configuration or EA-5 change",
+    "Full workspace quality recorded separately; this increment changes the regression fixture only"
+  ]
+}
