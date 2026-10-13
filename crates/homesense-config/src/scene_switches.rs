@@ -23,6 +23,20 @@ pub struct Group {
     pub reset_scenes: Vec<String>,
     #[serde(default)]
     pub initialization: Option<Initialization>,
+    #[serde(default)]
+    pub reconciliation: Option<Reconciliation>,
+}
+#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ReconciliationPolicy { UniqueLightOnPattern }
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Reconciliation {
+    #[serde(default)]
+    pub enabled: bool,
+    pub policy: ReconciliationPolicy,
+    pub max_age_ms: u64,
+    pub review_evidence: String,
 }
 #[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -43,6 +57,33 @@ impl LightTarget {
 }
 pub type LightTargets = BTreeMap<i64, BTreeMap<DeviceId, LightTarget>>;
 impl Group {
+    /// Reviewed member union only. Omitted source targets are explicitly Off;
+    /// absent physical observations remain unknown at runtime.
+    pub fn light_on_patterns(&self, scenes: &BTreeMap<String, TimedScene>) -> Result<homesense_core::scene_pattern::MemberPatterns, Error> {
+        let mut patterns = BTreeMap::new();
+        let mut union = BTreeSet::new();
+        for member in &self.members {
+            let mut targets = BTreeMap::new();
+            let mut steps = scenes.get(&member.scene).ok_or_else(|| invalid("reconciliation scene missing"))?.steps.iter().enumerate().collect::<Vec<_>>();
+            steps.sort_by_key(|(index, step)| (step.delay_ms, *index));
+            for (_, step) in steps {
+                let power = match step.command {
+                    Command::Switch(on) => on.into(),
+                    Command::SetLevel { level, .. } => level.into(),
+                    Command::PanelLed(_) => continue,
+                    _ => return Err(invalid("reconciliation needs absolute light targets")),
+                };
+                targets.insert(step.device.clone(), power);
+            }
+            union.extend(targets.keys().cloned());
+            patterns.insert(member.value, targets);
+        }
+        if union.is_empty() || union.len() > 128 { return Err(invalid("reconciliation light capacity invalid")); }
+        for targets in patterns.values_mut() {
+            for id in &union { targets.entry(id.clone()).or_insert(homesense_core::scene_pattern::LightPower::Off); }
+        }
+        Ok(patterns)
+    }
     /// Exact final targets in source time/order. Missing targets are not Off.
     pub fn light_targets(&self, scenes: &BTreeMap<String, TimedScene>) -> Result<LightTargets, Error> {
         let mut result = BTreeMap::new();
@@ -142,6 +183,27 @@ pub(crate) fn validate(
                         if !matches!((target,module.kind()), (LightTarget::Switch(_),ModuleKind::Switch) | (LightTarget::Level(_),ModuleKind::Dimmer)) {
                             return Err(invalid("initialization target is not an absolute supported light value"));
                         }
+                    }
+                }
+            }
+        }
+        if let Some(policy) = &group.reconciliation {
+            if !(1..=5000).contains(&policy.max_age_ms) || policy.review_evidence.len()>8192 || (policy.enabled && policy.review_evidence.trim().is_empty()) {
+                return Err(invalid("invalid or unreviewed scene reconciliation"));
+            }
+            if policy.enabled {
+                if group.initialization.as_ref().is_some_and(|p|p.enabled) { return Err(invalid("initialization and reconciliation policies conflict")); }
+                for targets in group.light_on_patterns(scenes)?.values() {
+                    for id in targets.keys() {
+                        let (_, module) = config.binding(id).ok_or_else(|| invalid("reconciliation light disabled"))?;
+                        if !matches!(module.kind(),ModuleKind::Switch|ModuleKind::Dimmer) { return Err(invalid("reconciliation needs queryable lights")); }
+                    }
+                }
+                for member in &group.members {
+                    for step in &scenes[&member.scene].steps {
+                        if matches!(step.command,Command::PanelLed(_)) { continue; }
+                        let (_, module)=config.binding(&step.device).ok_or_else(||invalid("reconciliation target disabled"))?;
+                        if !matches!((step.command,module.kind()),(Command::Switch(_),ModuleKind::Switch)|(Command::SetLevel{..},ModuleKind::Dimmer)) { return Err(invalid("reconciliation target type mismatch")); }
                     }
                 }
             }

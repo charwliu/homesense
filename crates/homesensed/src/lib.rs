@@ -133,6 +133,7 @@ pub mod light_state;
 
 pub mod indicator_sync;
 pub mod scene_initialization;
+pub mod scene_reconciliation;
 
 mod scene_observation_owner;
 mod scene_observation_runtime;
