@@ -25,6 +25,10 @@ ALS 的 `DEACTIVATE_SCENE` 激活 Toggle ID 指向的目标，即使目标已活
 
 ## 已具体化的依赖门槛
 
+官方自定义变量契约补证：通常跨正常重启保留已设置值，异常关机可能无法保留；项目加载事件可以显式初始化。不能将原变量全部映射成每次启动自动清零的临时状态。[官方变量处理](https://docs.control4.com/help/c4/software/cpro/dealer-composer-help/content/composerpro_userguide/variable_handling.htm) 数值变量示例另要求操作者明确输入0，它不证明所有变量的默认值为0。[官方数值变量示例](https://docs.control4.com/help/c4/software/cpro/dealer-composer-help/content/composerpro_userguide/example_using_a_custom_number.htm)
+
+根重新核对权威归档及XML指纹：25个声明位于`currentstate/variables`，均为owner100001、type2、可写且非隐藏；215个事件中没有项目根节点owner1的事件程序。源项目声明版本为3.2.3／606460，不等于当前实机OS已验证；owner100001／type2的官方编码映射、逐变量生命周期和外部写入仍待审核。没有根事件不能证明所有隐式初始化均不存在；归档保存值仍不是批准的初始默认值，不据此删减整数比较域或批准24个剩余变量。此项只补文档接口与源事件边界，没有读取保存值或驱动脚本、生成运行定义或现场动作。见[变量生命周期接口根核查](evidence/stage-d-study/variable-lifecycle-interface-root-check.json)。
+
 629 个场景成员／元素的直接描述符均为 Light V2；按父协议包来源交叉核对如下。分类只陈述源文件关系，不推断实物能力。
 
 | 父协议来源 | 成员数 | 原始 rate 字面量 |

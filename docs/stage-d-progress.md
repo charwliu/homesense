@@ -945,3 +945,7 @@ RAMP_TO_LEVEL 的 TIME 单位由官方 API 关闭；不类推 AdvScene rate 或 
 逐灯分类验证已知正目标保留场景绝对亮度，只有合法未知的正目标翻转一次；显式负目标和已审核组并集中未使用灯始终确定Off，组外设备不受影响，无效成员零输出拒绝。控制之前或Query之前的样本、旧boot／代次与过期同值不建立选择；完整新反馈按开关组合解析阅读／日常／节能／全关，同组合歧义保留NULL。短写、查询缺回复超时、断线和重启保持不确定且不回滚或重放Toggle；重复请求复用收据，运行不可用、传输／存储读取失败和无效反馈不能授权翻转。旧初始化保持零输出，本地相对结果不建立EA-5外部观察基线。
 
 早期编译、配置及探针预期失败完整保留，修正仅在私有夹具；最终日志和逐项指纹见[验收证据](evidence/stage-d-study/native-scene-relative-matrix-check.json)，独立核对原帧、日志状态及27精确ID见[根审计](evidence/stage-d-study/native-scene-relative-matrix-root-check.json)。三条LED链接保留并验证配置范围，但未驱动完整indicator_sync。本轮不连接真实TCP网关、不创建凭据、不部署；真实固件／负载／LED颜色、后续稳定模块ID集成以及65场景／208程序／24变量完整语义仍待验，阶段D未完成。
+
+## 2026-10-13 自定义变量生命周期名义接口补证
+
+[官方变量处理](https://docs.control4.com/help/c4/software/cpro/dealer-composer-help/content/composerpro_userguide/variable_handling.htm)说明自定义变量值通常跨正常重启保留，异常关机可能不保留，项目加载事件可明确初始化；数值变量示例明确输入0，不能用它推导通用默认值。根独立核对原归档与XML指纹、25个声明和215个事件：没有项目根节点owner1的事件程序，因此不能虚构源启动清零程序。源项目声明3.2.3／606460只证明归档元数据，owner100001／type2的官方编码、实际版本适用、每变量初始值／生命周期与隐式写入仍待审核。保存值及驱动脚本未读取，完整变量／程序新增批准均为0，剩余65／208／24不变。见[接口与源边界证据](evidence/stage-d-study/variable-lifecycle-interface-root-check.json)。
