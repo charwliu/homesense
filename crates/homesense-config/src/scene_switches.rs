@@ -1,7 +1,7 @@
 //! Explicit, reviewed latching scene groups. Zero means no local selection;
-//! an unknown value stays unknown and is never inferred from a light level.
+//! unknown remains unknown unless an explicit physical initialization policy is enabled.
 use crate::{Error, invalid, rule_document::TimedScene};
-use homesense_core::rule::{Lifetime, ValueType, Variable};
+use homesense_core::{Command, DeviceId, ModuleKind, rule::{Lifetime, ValueType, Variable}};
 use serde::Deserialize;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -21,11 +21,59 @@ pub struct Group {
     pub members: Vec<Member>,
     #[serde(default)]
     pub reset_scenes: Vec<String>,
+    #[serde(default)]
+    pub initialization: Option<Initialization>,
+}
+#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum InitializationPolicy { UniqueLightTargets }
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Initialization {
+    #[serde(default)]
+    pub enabled: bool,
+    pub policy: InitializationPolicy,
+    pub max_age_ms: u64,
+    pub review_evidence: String,
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LightTarget { Switch(bool), Level(u8) }
+impl LightTarget {
+    pub fn is_off(self) -> bool { matches!(self, Self::Switch(false) | Self::Level(0)) }
+}
+pub type LightTargets = BTreeMap<i64, BTreeMap<DeviceId, LightTarget>>;
+impl Group {
+    /// Exact final targets in source time/order. Missing targets are not Off.
+    pub fn light_targets(&self, scenes: &BTreeMap<String, TimedScene>) -> Result<LightTargets, Error> {
+        let mut result = BTreeMap::new();
+        for member in &self.members {
+            let mut targets = BTreeMap::new();
+            let mut steps = scenes.get(&member.scene).ok_or_else(|| invalid("initialization scene missing"))?.steps.iter().enumerate().collect::<Vec<_>>();
+            steps.sort_by_key(|(index, step)| (step.delay_ms, *index));
+            for (_, step) in steps {
+                let value = match step.command {
+                    Command::Switch(on) => LightTarget::Switch(on),
+                    Command::SetLevel { level, .. } => LightTarget::Level(level.get()),
+                    Command::PanelLed(_) => continue,
+                    _ => return Err(invalid("initialization needs absolute light targets")),
+                };
+                targets.insert(step.device.clone(), value);
+            }
+            if targets.is_empty() || targets.len() > 128 { return Err(invalid("initialization light capacity invalid")); }
+            result.insert(member.value, targets);
+        }
+        let first = result.values().next().ok_or_else(|| invalid("initialization members missing"))?;
+        if result.values().any(|targets| targets.keys().ne(first.keys()) || targets.iter().any(|(id, target)| std::mem::discriminant(target) != std::mem::discriminant(&first[id]))) {
+            return Err(invalid("initialization requires complete consistent light vectors"));
+        }
+        Ok(result)
+    }
 }
 pub(crate) fn validate(
     groups: &[Group],
     variables: &BTreeMap<String, Variable>,
     scenes: &BTreeMap<String, TimedScene>,
+    config: &crate::Configuration,
 ) -> Result<(), Error> {
     let identifier =
         |s: &str| !s.trim().is_empty() && s.len() <= 250 && !s.chars().any(char::is_control);
@@ -82,6 +130,21 @@ pub(crate) fn validate(
                 return Err(invalid("invalid scene switch reset scene"));
             }
             off.insert(id);
+        }
+        if let Some(policy) = &group.initialization {
+            if !(1..=5000).contains(&policy.max_age_ms) || policy.review_evidence.len() > 8192 || (policy.enabled && policy.review_evidence.trim().is_empty()) {
+                return Err(invalid("invalid or unreviewed scene initialization"));
+            }
+            if policy.enabled {
+                for targets in group.light_targets(scenes)?.values() {
+                    for (id, target) in targets {
+                        let (_, module) = config.binding(id).ok_or_else(|| invalid("initialization light disabled"))?;
+                        if !matches!((target,module.kind()), (LightTarget::Switch(_),ModuleKind::Switch) | (LightTarget::Level(_),ModuleKind::Dimmer)) {
+                            return Err(invalid("initialization target is not an absolute supported light value"));
+                        }
+                    }
+                }
+            }
         }
     }
     if members.len() > 512 || members.iter().any(|id| off.contains(id)) {

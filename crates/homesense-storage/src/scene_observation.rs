@@ -17,6 +17,8 @@ pub struct Snapshot {
     pub evidence: Option<Inference>,
     /// Whether that evidence belongs to the caller's current complete scope.
     pub evidence_current: bool,
+    /// Historical local initialization origin, bound to the current version.
+    pub initialization: Option<crate::scene_initialization::Origin>,
 }
 impl Snapshot {
     pub fn selection(&self) -> Selection {
@@ -87,7 +89,12 @@ fn snapshot(
         }
     }
     let evidence_current = evidence.as_ref().is_some_and(|e| Some(e.scope) == scope);
+    let initialization = crate::scene_initialization::origin(connection, revision, name, version)?;
+    if initialization.as_ref().is_some_and(|origin| evidence.is_some() || value != Some(origin.value)) {
+        return Err(Error::InvalidAudit);
+    }
     Ok(Some(Snapshot {
+        initialization,
         evidence_current,
         stored: crate::variables::Stored {
             lifetime: Lifetime::Persistent,

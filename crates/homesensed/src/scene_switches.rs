@@ -69,6 +69,8 @@ pub(crate) fn details(
                     selection_state: SelectionState::from_selected(selected[&member.scene]),
                     selection_source: if inferred.is_some() {
                         "inferred"
+                    } else if state.initialization.is_some() {
+                        "light_initialization"
                     } else if state.stored.value.is_some() {
                         "local_intent"
                     } else {

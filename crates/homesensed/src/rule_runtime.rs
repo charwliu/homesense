@@ -134,11 +134,13 @@ impl PreparedRule {
             .scene_selection_snapshot(controller, generation.clone(), names)
             .await
             .map_err(PreparationFailure::Admission)?;
+        let boot=Uuid::parse_str(admission.boot_id()).map_err(|_|PreparationFailure::Admission(hap::server::WriteStatus::ServiceCommunicationFailure))?.as_u128();
+        let initialization_after=reads.values().filter_map(|snapshot|snapshot.initialization.as_ref()).filter(|source|source.value>0 && source.boot_id==boot).map(|source|source.initialized_ms).max();
         let after = reads
             .values()
             .filter(|s| s.evidence_current)
             .filter_map(|s| s.evidence.as_ref().map(|e| e.observed_ms))
-            .max();
+            .max().into_iter().chain(initialization_after).max();
         let policy = if let Some(after_ms) = after {
             Some(crate::feedback::IndicatorPolicy {
                 after_ms,

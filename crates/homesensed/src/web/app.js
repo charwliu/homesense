@@ -99,7 +99,7 @@ function renderScenes(data) {
     const stateful=scene.switch_kind==='selection';
     const unavailable=scene.selection_state?.state==='unavailable';
     const selected=unavailable?'不可用':scene.selected===true?'开启':scene.selected===false?'关闭':'未知';
-    const source=scene.selection_source==='inferred'?(scene.observation_current===false?'按键推断已失效':'按键推断'):scene.selection_source==='unknown'?'来源未知':'本地选择意图';
+    const source=scene.selection_source==='inferred'?(scene.observation_current===false?'按键推断已失效':'按键推断'):scene.selection_source==='unknown'?'来源未知':scene.selection_source==='light_initialization'?'灯光初始化记录':'本地选择意图';
     const hint=unavailable?selectionUnavailableMessage(scene.selection_state.value):scene.selection_state?.state==='unknown'?'尚未建立有效选择，可明确开启场景。':'';
     const info = document.createElement('p'); info.textContent = `${stateful ? `当前选择：${selected}（${source}，不代表负载到位）；${hint}` : ''}负载反馈：${scene.activity}；${stateful?'最近开启执行':'最近执行'}：${scene.last_run?.status || '无记录'}`;
     if(scene.last_run) {

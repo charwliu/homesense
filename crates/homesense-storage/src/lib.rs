@@ -12,6 +12,7 @@ pub mod scene_run;
 pub mod scene_history;
 pub mod variables;
 pub mod scene_observation;
+pub mod scene_initialization;
 use homesense_core::queue::CancelReason;
 use rusqlite::{Connection, OptionalExtension, TransactionBehavior, params};
 use std::{path::Path, time::Duration};
@@ -70,7 +71,7 @@ impl Store {
         if app != 0 && app != APPLICATION_ID {
             return Err(Error::ForeignDatabase);
         }
-        if version != 0 && (!(1..=22).contains(&version) || app != APPLICATION_ID) {
+        if version != 0 && (!(1..=23).contains(&version) || app != APPLICATION_ID) {
             return Err(Error::UnsupportedSchema(version));
         }
         if version == 0 {
@@ -228,6 +229,18 @@ impl Store {
                 CREATE TRIGGER IF NOT EXISTS immutable_scene_observation_update BEFORE UPDATE ON scene_observation BEGIN SELECT RAISE(ABORT, 'immutable scene observation'); END;
                 CREATE TRIGGER IF NOT EXISTS immutable_scene_observation_delete BEFORE DELETE ON scene_observation BEGIN SELECT RAISE(ABORT, 'immutable scene observation'); END;")?;
             tx.pragma_update(None, "user_version", 22)?;
+        }
+        if version <= 22 {
+            tx.execute_batch("CREATE TABLE IF NOT EXISTS scene_initialization (
+                revision INTEGER NOT NULL, name TEXT NOT NULL, variable_version INTEGER NOT NULL CHECK(variable_version=1),
+                group_id TEXT NOT NULL, boot_id TEXT NOT NULL CHECK(length(boot_id)=32),
+                transport_epoch INTEGER NOT NULL CHECK(transport_epoch>0), control_epoch INTEGER NOT NULL CHECK(control_epoch>0),
+                observed_ms INTEGER NOT NULL CHECK(observed_ms>=0), initialized_ms INTEGER NOT NULL CHECK(initialized_ms>=observed_ms),
+                value INTEGER NOT NULL CHECK(value>=0), PRIMARY KEY(revision,name),
+                FOREIGN KEY(revision,name) REFERENCES logical_variable(revision,name));
+                CREATE TRIGGER IF NOT EXISTS immutable_scene_initialization_update BEFORE UPDATE ON scene_initialization BEGIN SELECT RAISE(ABORT, 'immutable scene initialization'); END;
+                CREATE TRIGGER IF NOT EXISTS immutable_scene_initialization_delete BEFORE DELETE ON scene_initialization BEGIN SELECT RAISE(ABORT, 'immutable scene initialization'); END;")?;
+            tx.pragma_update(None, "user_version", 23)?;
         }
         tx.commit()?;
         connection.pragma_update(None, "foreign_keys", "ON")?;
