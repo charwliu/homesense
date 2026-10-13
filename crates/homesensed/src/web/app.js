@@ -34,14 +34,33 @@ let selectedRoom='';
 const started = new Map();
 const status = document.getElementById('status');
 const list = document.getElementById('scenes');
+function selectionUnavailableMessage(reason) {
+  return new Map([
+    ['not_sampled','选择尚未读取，请等待有效快照。'],
+    ['invalidated','选择快照已失效，请等待重新读取。'],
+    ['cache_expired','选择快照已过期，请等待重新读取。'],
+    ['runtime_unavailable','运行时不可用，请等待服务恢复。'],
+    ['runtime_not_ready','运行时尚未就绪，请等待服务恢复。'],
+    ['read_failed','选择读取失败，请等待有效快照恢复。'],
+    ['read_timed_out','选择读取超时，请等待有效快照恢复。']
+  ]).get(reason) || '选择状态不可用，请等待有效快照恢复。';
+}
 async function request(path, options = {}) {
   const epoch=sessionEpoch;
+  const selectionEpoch=sceneSnapshotEpoch;
   const response = await fetch(path, {...options, cache: 'no-store', credentials: 'same-origin', headers: {...(options.body!==undefined ? {'Content-Type':'application/json'} : {}), ...options.headers, ...(csrf ? {'X-CSRF-Token': csrf} : {})}});
   if(epoch!==sessionEpoch)throw new Error('会话已切换，已忽略旧响应');
   if(response.status===401){clearLocalSession();status.textContent='会话已失效，请重新登录。';throw new Error('会话已失效，请重新登录。');}
   const result = await response.json();
   if(epoch!==sessionEpoch)throw new Error('会话已切换，已忽略旧响应');
   if (!response.ok) {
+    if(path==='/api/v1/scenes' && response.status===503) {
+      const reason=result.selection_state?.state==='unavailable'?result.selection_state.value:'runtime_unavailable';
+      const message=selectionUnavailableMessage(reason);
+      // A late failed read cannot invalidate a newer HTTP/WS snapshot.
+      if(selectionEpoch===sceneSnapshotEpoch)markEventStateUnavailable(message,reason);
+      throw new Error(message);
+    }
     const messages=new Map([
       ['room_in_use','此房间仍有设备，请先在草稿中调整设备归属。'],
       ['credential_changed','授权已被其他操作修改，请重新读取。'],
@@ -78,9 +97,11 @@ function renderScenes(data) {
     const row = document.createElement('article');
     const title = document.createElement('h2'); title.textContent = scene.name;
     const stateful=scene.switch_kind==='selection';
-    const selected=scene.selected===true?'开启':scene.selected===false?'关闭':'未知';
+    const unavailable=scene.selection_state?.state==='unavailable';
+    const selected=unavailable?'不可用':scene.selected===true?'开启':scene.selected===false?'关闭':'未知';
     const source=scene.selection_source==='inferred'?(scene.observation_current===false?'按键推断已失效':'按键推断'):scene.selection_source==='unknown'?'来源未知':'本地选择意图';
-    const info = document.createElement('p'); info.textContent = `${stateful ? `当前选择：${selected}（${source}，不代表负载到位）；` : ''}负载反馈：${scene.activity}；${stateful?'最近开启执行':'最近执行'}：${scene.last_run?.status || '无记录'}`;
+    const hint=unavailable?selectionUnavailableMessage(scene.selection_state.value):scene.selection_state?.state==='unknown'?'尚未建立有效选择，可明确开启场景。':'';
+    const info = document.createElement('p'); info.textContent = `${stateful ? `当前选择：${selected}（${source}，不代表负载到位）；${hint}` : ''}负载反馈：${scene.activity}；${stateful?'最近开启执行':'最近执行'}：${scene.last_run?.status || '无记录'}`;
     if(scene.last_run) {
       const details=document.createElement('button');details.textContent='查看最近执行';
       const receipt=document.createElement('p');
@@ -331,11 +352,11 @@ document.getElementById('confirm-publication').onclick=async()=>{
 
 let eventSocket=null, eventCursor=null, eventRetry=null, eventAttempts=0;
 const eventDevices=new Map();
-function markEventStateUnavailable(message) {
+function markEventStateUnavailable(message,reason='runtime_unavailable') {
   deviceSnapshotEpoch++;sceneSnapshotEpoch++;deviceCards.clear();invalidatePreview();
   for(const [id,device] of eventDevices)eventDevices.set(id,{...device,quality:'Stale',can_control:false});
   renderDevices();
-  if(lastSceneSnapshot)renderScenes({...lastSceneSnapshot,scenes:lastSceneSnapshot.scenes.map(scene=>({...scene,selected:null,observation_current:scene.selection_source==='inferred'?false:scene.observation_current,activity:'Unknown',can_control:false}))});
+  if(lastSceneSnapshot)renderScenes({...lastSceneSnapshot,scenes:lastSceneSnapshot.scenes.map(scene=>({...scene,selected:null,selection_state:{state:'unavailable',value:reason},observation_current:scene.selection_source==='inferred'?false:scene.observation_current,activity:'Unknown',can_control:false}))});
   status.textContent=message;
 }
 function connectEvents() {
@@ -350,7 +371,8 @@ function connectEvents() {
     try {
       const frame=JSON.parse(event.data);
       if(frame.type==='unavailable') {
-        markEventStateUnavailable('状态暂时不可用，等待有效快照恢复。');return;
+        const reason=frame.selection_state?.state==='unavailable'?frame.selection_state.value:'runtime_unavailable';
+        markEventStateUnavailable(selectionUnavailableMessage(reason),reason);return;
       }
       if(frame.type!=='state')return;
       if(!observeRevision(frame.revision))return;
