@@ -1,0 +1,93 @@
+{
+  "date": "2026-10-13",
+  "status": "fixed_reference_checkpoint_audited_and_offline_remap_rechecked",
+  "fixed_commit": "f1b2e8aef58bf6b129e39a253f6fe9531d8d2e0c",
+  "source_archive_sha256": "055b43935edfbcf276d17d82054608431f60ef44ffb2d4ea37a85cf315f781b4",
+  "original_files_verified_unchanged": 968,
+  "original_tested_source_hashes_verified": 19,
+  "original_test_logs_independently_recounted": {
+    "runtime": {
+      "unique": 124,
+      "summary_totals": [
+        124,
+        0,
+        0
+      ]
+    },
+    "config_storage": {
+      "unique": 87,
+      "summary_totals": [
+        87,
+        0,
+        0
+      ]
+    }
+  },
+  "original_unique_tests_verified": 211,
+  "original_tests_rerun_by_root": false,
+  "additional_actual_root_tests": {
+    "passed": 2,
+    "failed": 0,
+    "ignored": 0
+  },
+  "additional_schema2_rejected_mutations": 15,
+  "observations": {
+    "command_journal_rows": 0,
+    "devices_json_unchanged": true,
+    "hap_ids_after": {
+      "aid": 2,
+      "brightness_iid": 10,
+      "on_iid": 9
+    },
+    "hap_ids_before": {
+      "aid": 2,
+      "brightness_iid": 10,
+      "on_iid": 9
+    },
+    "identity_keys_unchanged": true,
+    "independent_module_channel_truth_verified": false,
+    "module_id_preserved": true,
+    "network": false,
+    "new_address": 97,
+    "new_address_observed_level": 50,
+    "old_address": 65,
+    "old_address_ignored": true,
+    "old_epoch_rejected": true,
+    "online_publication": false,
+    "projection_keeps_physical_state": true,
+    "scene_definitions_unchanged": true,
+    "supply_off_projects_logical_off": true,
+    "supply_reference_preserved": true,
+    "synthetic_saved_pairings_preserved": 1
+  },
+  "saved_sql_configuration_revisions_verified": [
+    1,
+    2
+  ],
+  "saved_sql_devices_and_scenes_equal": true,
+  "actual_test_binary_sha256": "ce3e1c3017428ab396bc2b29f0691012f3aefe0263b1f61785bb6342bc3345f5",
+  "evidence_sha256": {
+    "source-audit.json": "ea59b32c2d2aed01fa65386068493a6fe30f52263c4895e5d6b5a3ff84473d83",
+    "probe.rs": "3ec44a36ee567e376ef54f21c8b4905066c1305627879aa9fd3e164a51c54c5b",
+    "test.log": "c1107d0632811d79174727af3b025f24955ceea7545fb18a8527c6f7e06c8fb4",
+    "observations.json": "9af3df4e20eb8c40bd7c86e4e757b8d6a2632323089cf675112f273467670d86",
+    "runtime.log": "d577edcf6d3ea253a8d7132cdbb5da73e0367b0dfea1ffaa8fab9317227c2f2f",
+    "config_storage.log": "442ddfee35caf2a6788c36c5a7c3ff5d3fbaaf0a212190c09d5f12ef8ba03561",
+    "clippy.log": "332a7944d91990d9cc311a2458c91c630a3dbd47a6206d19ed4f2ff8dd4bd657",
+    "verify.py": "3c924c60ac959767a8350ad447bd6fe714a8a8dccc1fd6722b451847f0fa0917"
+  },
+  "limitations": [
+    "211 original test successes are independently audited records, not 211 new executions.",
+    "Two new root tests use the actual fixed committed sources without production overlays, plus one private integration-test file.",
+    "Storage-only CAS and HAP graph rebuild preserve one synthetic pairing; online activation, encrypted pairing and actual Apple clients remain unverified.",
+    "Feedback epochs are explicitly constructed; transport-supervisor generation transition is not exercised.",
+    "Runtime Device still exposes resolved physical gateway/address compatibility fields; the user-required logical-object decoupling remains open.",
+    "Canonical module-channel ground truth independent of logical bindings, unbound/disabled-channel retention and management query actions remain open.",
+    "No original-scene/program/variable semantic disposition is promoted by this module-reference test."
+  ],
+  "network": false,
+  "physical_controls": 0,
+  "live_credentials_created": false,
+  "synthetic_pairing_record_created": true,
+  "deployed": false
+}
