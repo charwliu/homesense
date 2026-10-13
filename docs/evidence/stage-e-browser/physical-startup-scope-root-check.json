@@ -155,7 +155,6 @@
     "Recovery synchronization uses the same shared query helper as startup; test uses fake transport in Simulation",
     "Live services, field startup/reconnect, periodic timing and real Apple Home not newly accepted by this private probe",
     "Author 214 related tests and strict Clippy are separate; not added to 171 executions",
-    "Native 27 matrix passed at prior bcc0d2f; unchanged private matrix at new 99d036a still pending",
     "Full D source semantics and current E field/client gates remain open"
   ],
   "private_artifact_sha256": {
@@ -170,5 +169,14 @@
     "full-execution.json": "722c175a776ac033d32495ae76acb38133a9ae3a6a9e501460d4b2eb673d8e0a",
     "test-binary/library": "d95a58a7f02dd3158d9677cea6608d72d7df965bbd5e0bfe5e80cb7681124388",
     "test-binary/admission": "cd3897ec5f3e15070f1504b766033accf65ce4df1f91efd5796eac853cd3ee14"
+  },
+  "native_matrix_followup": {
+    "passed": 27,
+    "failed": 0,
+    "ignored": 0,
+    "filtered": 130,
+    "filtered_product_library_already_passed": 130,
+    "unique_tests_at_fixed_commit_including_followup": 198,
+    "evidence": "../stage-d-study/native-scene-physical-startup-root-check.json"
   }
 }

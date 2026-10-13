@@ -1,0 +1,237 @@
+{
+  "date": "2026-10-13",
+  "fixed_commit": "99d036a2cb0b9e0a2751f8e5c8dc8908142691d4",
+  "scope": "Unchanged 27 native scene matrix retargeted to all-registered physical query repair",
+  "original_files_verified": 992,
+  "unchanged_original_files": 991,
+  "original_test_only_append": "crates/homesensed/src/native_scene_tests.rs",
+  "probe_assertions_unchanged": true,
+  "actual_tests": {
+    "passed": 27,
+    "failed": 0,
+    "ignored": 0,
+    "filtered": 130,
+    "filtered_product_library": "All 130 already passed in independent complete library at this same fixed commit"
+  },
+  "matrix_counts": {
+    "traces": 39,
+    "checkpoints": 124,
+    "conversions": 40,
+    "reopens": 78,
+    "complete_frames": 121
+  },
+  "all_intermediate_states_equal_to_1e35add": true,
+  "schema2_conversions_independently_reconstructed": true,
+  "trace_audits": [
+    {
+      "trace": "disconnect_after_write.json",
+      "sha256": "b9d780b1e28ee03ba298d6316f0cd7c27d57ddf9aa2c3d2caf5bc6e6e653d6eb",
+      "all_intermediate_states_equal_to_1e35add": true
+    },
+    {
+      "trace": "ad8_native_support.json",
+      "sha256": "148e992b845889a1868d6107b60ba6ca9c11a390fc3c37bae1c3f05a1b3b4412",
+      "all_intermediate_states_equal_to_1e35add": true
+    },
+    {
+      "trace": "negative_targets_explicit_off--already-off.json",
+      "sha256": "866f9c77051725bab5f91b4cc3a3207345b64bcc2c412214b6146ad62e45ba29",
+      "all_intermediate_states_equal_to_1e35add": true
+    },
+    {
+      "trace": "hap_absolute.json",
+      "sha256": "7df4f8eca65041a6552c508e71101f5d7c37e1b612da9cb4893e482b4a9a7beb",
+      "all_intermediate_states_equal_to_1e35add": true
+    },
+    {
+      "trace": "missing_timeout.json",
+      "sha256": "85516d076021d3e0e5f21fbf8399d8dcd8a8d44a470868d52d5207fe02f52e49",
+      "all_intermediate_states_equal_to_1e35add": true
+    },
+    {
+      "trace": "query_after_relative--precontrol-feedback.json",
+      "sha256": "20ed0d2ae1c29237f772585cfe2361a1ea2cce7b6b5440692798065d17293b15",
+      "all_intermediate_states_equal_to_1e35add": true
+    },
+    {
+      "trace": "mixed_known_unknown_positive.json",
+      "sha256": "3a4afc55ce019d7a2eb349fb89cfec280c32bd90b6137de33cff70e54c487073",
+      "all_intermediate_states_equal_to_1e35add": true
+    },
+    {
+      "trace": "selection_after_feedback_only.json",
+      "sha256": "8232e0a59a3c00ba3a3b238e8eb86403e2d6d708c65f85c7bf98dea078097c75",
+      "all_intermediate_states_equal_to_1e35add": true
+    },
+    {
+      "trace": "fresh_all_off.json",
+      "sha256": "33ab7eaa15b149265a3069a822436e32da9376c6bfa813042d2b3f9c776c2af1",
+      "all_intermediate_states_equal_to_1e35add": true
+    },
+    {
+      "trace": "combo_light_deduplicated--relay-off-no-dimmer-target.json",
+      "sha256": "f45d4a911f9a9a335b69455150c1999d801f242b7cb5c5a71a96d312da275c56",
+      "all_intermediate_states_equal_to_1e35add": true
+    },
+    {
+      "trace": "partial_write.json",
+      "sha256": "51096595dd185cb45638fbf5f340ed59be138422d99b2f39938a520553b13bbd",
+      "all_intermediate_states_equal_to_1e35add": true
+    },
+    {
+      "trace": "partition_unique_and_complete--three-disjoint-sets.json",
+      "sha256": "30c87229bb05abab61a31eb2c5007365e43922ebb11799850f8eb3721546aa5f",
+      "all_intermediate_states_equal_to_1e35add": true
+    },
+    {
+      "trace": "fresh_unique_match--eco30.json",
+      "sha256": "eb69cc67f980621db8226bb344f0e5faacb29e71a5ab477bd83e6866fa473d64",
+      "all_intermediate_states_equal_to_1e35add": true
+    },
+    {
+      "trace": "combo_light_deduplicated.json",
+      "sha256": "50bdac81380e873236e995fb32bca46d94d44018c21a5dce01cec850134bf530",
+      "all_intermediate_states_equal_to_1e35add": true
+    },
+    {
+      "trace": "partition_unique_and_complete.json",
+      "sha256": "e452b439e105e9da350c5af733b7ee4419ecd5d0a1122e98fcee4b9167266f6b",
+      "all_intermediate_states_equal_to_1e35add": true
+    },
+    {
+      "trace": "query_after_relative.json",
+      "sha256": "98f2a614741a5a362b511eb4826739c2845cac0fc25656d8b3cf36cc6c8e41df",
+      "all_intermediate_states_equal_to_1e35add": true
+    },
+    {
+      "trace": "known_positive_absolute_level.json",
+      "sha256": "3064cea226e46a9fc5d2fb23f7d830bff3d62171b1cd2d4c956070f0bbebdbbb",
+      "all_intermediate_states_equal_to_1e35add": true
+    },
+    {
+      "trace": "disconnect_before_write.json",
+      "sha256": "c70265712dbc645a76eb029036de47640771188dead059e1d3482990d52b3a3f",
+      "all_intermediate_states_equal_to_1e35add": true
+    },
+    {
+      "trace": "read_failure_rejected--projection.json",
+      "sha256": "1c42806dc9fbaff22df7df42bc35763269d6f3f4af431afc0195a5817506258c",
+      "all_intermediate_states_equal_to_1e35add": true
+    },
+    {
+      "trace": "repeat_pending.json",
+      "sha256": "c86eff7640d5e369a5ac5429db1f7814005d22a3fdadbed751ad2037c48a99cb",
+      "all_intermediate_states_equal_to_1e35add": true
+    },
+    {
+      "trace": "negative_targets_explicit_off.json",
+      "sha256": "272791e830828957e042592dfd6db8fd8a94f3a8a027156e4fea0da4cfe4b299",
+      "all_intermediate_states_equal_to_1e35add": true
+    },
+    {
+      "trace": "read_failure_rejected--storage.json",
+      "sha256": "e0bbbf0e34f577263a36375e9ddd5a5045bbe00de8a9aaadc8119d33f27cfb71",
+      "all_intermediate_states_equal_to_1e35add": true
+    },
+    {
+      "trace": "unknown_positive_targets_toggle_once.json",
+      "sha256": "e2c5e573ae698652505c879680d98560afaa9d4ddc325edb1eb9528c3e4e4ecc",
+      "all_intermediate_states_equal_to_1e35add": true
+    },
+    {
+      "trace": "stale_same_value.json",
+      "sha256": "9c0edbc529a2167a36ab848cf647812658a9289f3038e71202332b4d23ffb022",
+      "all_intermediate_states_equal_to_1e35add": true
+    },
+    {
+      "trace": "old_boot_epoch.json",
+      "sha256": "67d932ed8c72c494f79583dc306636c5a9c85aa14bf543a3d5d11e7f50d95bbf",
+      "all_intermediate_states_equal_to_1e35add": true
+    },
+    {
+      "trace": "initializer_independent.json",
+      "sha256": "2809c52c422d9f0e17820c0dae222de035465e083142f103783f77469b69ea2f",
+      "all_intermediate_states_equal_to_1e35add": true
+    },
+    {
+      "trace": "known_on_off.json",
+      "sha256": "900dc9716cd81d149bee329401f2e07e3827b465364f4db98ea4ce86530cb896",
+      "all_intermediate_states_equal_to_1e35add": true
+    },
+    {
+      "trace": "unrelated_devices_untouched.json",
+      "sha256": "b078affaa0d6beded5e01a612b053142f433f27ab03da856c2cde81e79104f1c",
+      "all_intermediate_states_equal_to_1e35add": true
+    },
+    {
+      "trace": "fresh_unique_match.json",
+      "sha256": "a89a7c22dc041779ea3f43c93d7f5914eb9979181bad3a00ae4e5cd2f05a09a0",
+      "all_intermediate_states_equal_to_1e35add": true
+    },
+    {
+      "trace": "partition_unique_and_complete--invalid-membership.json",
+      "sha256": "2de17610721d8ebfa16400e11dd5a779a4c2c92d468c238a14f6522b6a169114",
+      "all_intermediate_states_equal_to_1e35add": true
+    },
+    {
+      "trace": "unused_group_lights_explicit_off.json",
+      "sha256": "87c1d5e435bfce0a8a5f08492d7c723da75f087dfa16e30f4b0f0ad3b1773950",
+      "all_intermediate_states_equal_to_1e35add": true
+    },
+    {
+      "trace": "mixed_feedback.json",
+      "sha256": "efae0a2d344b8d8415b0c04ba17be9116fb8cbef420597a97fc80e7b0e371d24",
+      "all_intermediate_states_equal_to_1e35add": true
+    },
+    {
+      "trace": "stale_same_value--stale-preaction.json",
+      "sha256": "2689629fcd6f470f02b9d6b97a68dc0868d7df95355f9787c673d5896ced7bcf",
+      "all_intermediate_states_equal_to_1e35add": true
+    },
+    {
+      "trace": "read_failure_rejected.json",
+      "sha256": "66dcede3b11ccc37a289220c7c2eae7a51788fb506b2e420f2f920c8bf6ad3a7",
+      "all_intermediate_states_equal_to_1e35add": true
+    },
+    {
+      "trace": "mixed_feedback--nonunique.json",
+      "sha256": "b5efed1eb0d64fed3eddd8f96b0ef55f6100532504ac79f4db01f603f7a0ccce",
+      "all_intermediate_states_equal_to_1e35add": true
+    },
+    {
+      "trace": "read_failure_rejected--malformed-feedback.json",
+      "sha256": "a72046820329b3100211472461550e1faf86e98786ce97c878761b60e4061513",
+      "all_intermediate_states_equal_to_1e35add": true
+    },
+    {
+      "trace": "runtime_unready_rejected.json",
+      "sha256": "682b53721d4ccf08220e6847cf7ff506d08347ef9180a1f633785f3d208cf5d1",
+      "all_intermediate_states_equal_to_1e35add": true
+    },
+    {
+      "trace": "combo_light_deduplicated--known-absolute.json",
+      "sha256": "a05154ebffed1850a322955d631553614fc231af250a80ab172944a9321d5d16",
+      "all_intermediate_states_equal_to_1e35add": true
+    },
+    {
+      "trace": "observation_baseline.json",
+      "sha256": "d11ebf816504098d62c97cbf992485f1ef561c80ee8c281556e03d951e429a53",
+      "all_intermediate_states_equal_to_1e35add": true
+    }
+  ],
+  "artifact_sha256": {
+    "source.tar": "41352768f0a9f7cb7663997ca4e6effe705ca683314d66d15f4803a65b59a691",
+    "source.json": "718186f2335435c071ef996880f3b16f34bf3532c5d4ac9be249afb3b27a741a",
+    "probe.rs": "ab0831310e17c86c845e0c97e5c726f5feee200894bbbf55f36400778b414b18",
+    "module-registry.json": "0e6560c99f8968af07c4d0fb08d8f87a3151e5b6b72d22828e9abf1c61f632c4",
+    "prepared-cases.json": "210833efa7f637577d8349a51c3206e41642a48733251714d8df2a4310e98900",
+    "test.log": "d161a45441ea1bbf19b25b12333a02c6941a8fb1e24506ff4964298eea48d56c",
+    "execution.json": "5a334d7dfb44bbeeac679dca8f7e03855ca5383a1e14cca8daf34ec929f8ec1c",
+    "test-binary/matrix": "f00aafb0963230c4c53c8f8e75cc5ae4261d18d44ef06a756650b013cdec421d",
+    "verify.py": "5659a06b2813bd3e103c73e0ce52ddc1d6d5d0f26f9d529571c6978d6e224300"
+  },
+  "limitations": [
+    "Simulation only; no physical gateway, deployment, credentials, Apple Home or full original D/E acceptance",
+    "Scene semantics, physical LED ownership and current field gates remain open"
+  ]
+}
