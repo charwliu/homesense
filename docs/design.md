@@ -111,7 +111,9 @@ flowchart TD
 
 为每个房间、逻辑设备、场景和规则分配稳定的内部 ID。Control4 对象 ID、驱动 ID 和 HopeBeauty 地址作为来源映射保留，不作为可变名称。代理对象与驱动对象通过连接关系合并到同一逻辑设备，防止场景引用代理而控制不到实际通道。
 
-设备地址由 gateway_id、十六进制 bus_id 和 channel 组成。面板包含按钮子对象，模块地址在同一物理总线上必须唯一；开关和调光同一模块的不同通道允许共享地址。不同总线可以使用相同地址。
+每个 485 模块拥有独立、持久的逻辑 ID。逻辑灯、面板按键、窗帘等只引用 `module_id + channel`；组合灯分别引用调光通道和供电通道，不保存真实网关或 485 地址。模块注册表负责把逻辑 ID 映射到网关、两位十六进制物理地址及协议配置。模块地址在同一物理总线上必须唯一，不同总线可以使用相同地址。换址或整体更换模块只修改注册表映射，保留模块 ID、逻辑设备、场景引用及 HAP 身份；相关型号证据和电机校准须重新核对。
+
+每个模块的全部通道由同一 `ModuleTruth` 保存观测值、质量及反馈时间，逻辑对象只读其投影。启动、重连和配置发布后查询全部已登记且支持读取的输出通道，包括未绑定及禁用通道；旧地址或旧代次的反馈不能成为新映射的当前状态。模块对象共用总线的单个 TransportOwner，不各自建立连接。控制和管理操作通过当前配置版本解析模块引用，再进入统一鉴权、仲裁及发送队列；支持查询不自动赋予控制权限。详见[模块注册表与稳定引用](rs485-module-registry.md)。
 
 能力字段至少包含 switch、level、motor、button_events、led、state_query 和 feedback。类型与通道上限来自经过确认的型号。项目中调光地址 11 至 15 均映射了 8 路，不能按 4 路 GT-E4 配置。面板项目含 Rocker 类型，不能仅凭 BT-86 手册把所有面板固定为 6 键。
 
@@ -131,19 +133,24 @@ flowchart TD
 
 ```json
 {
-  "schema_version": 1,
-  "device_id": "light-basement-corridor-15-1",
-  "name": "过道15-1",
-  "room_id": "basement-leisure",
-  "kind": "dimmer",
-  "address": {"gateway_id": "hb-main", "bus_id": "15", "channel": 1},
-  "capabilities": ["level", "state_query", "feedback"],
-  "source": {"system": "control4", "driver_id": "362", "proxy_id": "363"},
-  "model_verification": "pending"
+  "schema_version": 2,
+  "revision": 1,
+  "gateways": [{
+    "id": "example-bus",
+    "endpoint": "127.0.0.1:50007",
+    "modules": [
+      {"id": "example-dimmer", "address": "15", "profile": "ad8_din_rs485_v2_2_1", "verification": {"status": "pending"}},
+      {"id": "example-supply", "address": "03", "profile": "r8i8_din_pro_v2_7_7", "verification": {"status": "pending"}}
+    ]
+  }],
+  "devices": [
+    {"id": "supply-binding", "name": "示例供电通道", "module_id": "example-supply", "channel": 1, "enabled": false},
+    {"id": "logical-light", "name": "示例组合灯", "module_id": "example-dimmer", "channel": 1, "supply": {"module_id": "example-supply", "channel": 1}, "default_on_level": 50, "enabled": false}
+  ]
 }
 ```
 
-示例格式为设计格式，其中 capabilities 是待核对的候选能力；model_verification=pending 不授权运行时控制。bus_id 强制采用两位十六进制字符串；导入器不得将 "15" 当作十进制 15。通道、亮度、地址冲突和不存在的引用在配置发布前检查，错误配置不能进入执行状态。
+示例使用实际设备配置 schema 2；模块证据均为 pending、逻辑绑定均禁用，只用于离线校验，不授权控制。模块 ID 不按地址生成或在换址后重建；原 Control4 对象／驱动及总线来源单独保留在迁移 source_map。物理 `address` 强制采用两位十六进制字符串，导入器不得将 "15" 当作十进制 15。schema 2 拒绝逻辑设备混入 gateway／address 字段，通道、亮度、地址冲突及不存在的引用均在配置发布前检查。旧 schema 1 仅供兼容读取，经显式迁移保存稳定模块 ID 后才使用模块管理，不能丢弃 ID 后降回旧格式。该禁用示例已通过实际离线 CLI 校验；混入逻辑物理地址的变体被拒绝，见[示例校验证据](evidence/stage-e-browser/design-module-reference-root-check.json)。
 
 ## 6 HopeBeauty 协议与驱动
 
@@ -729,3 +736,11 @@ Web 列表读取与 HAP 使用同一持久选择，字段 switch_kind／selected
 ## 灯光状态优先级和多面板 LED
 
 采用[灯光状态与 LED 联动策略](state-and-indicator-policy.md)：开关／供电继电器使用新鲜实际反馈；Dimmer 使用 schema 21 持久的完整写出设定，实际测量继续独立保存。HAP 事件和读取、Web 控制投影一致。场景最终应亮的任意负载关闭即清除本地选择、关闭所有显式关联 LED；目标为关的负载不触发取消。不执行剩余灯光的物理关闭，也不推断 EA-5 变量。联动通过反馈租约和变量 CAS 接入统一运行时；待执行场景和软件渐变期间保守延后，未审核关系保持禁用。
+
+### 2026-10-13 当前启动与未知场景策略
+
+用户确认的最终策略适用于显式启用并审核的场景对账组，取代其旧的“启动保留历史选择／全关仍未知”策略；未启用的组保持原契约。每次启动、重连及配置发布先查询全部已登记可读输出，以本轮新鲜反馈建立模块通道真值，再按场景组完整的灯光开／关组合建立本地选择：明确全关为 0，唯一匹配为相应成员，歧义或反馈不完整／过期保持未知。主灯 30%、筒灯关闭可以匹配阅读，亮度单独显示，不要求与场景目标精确相等。历史选择、已发送目标或 TCP 连通不能代替实际反馈，也不据此修改 EA-5 变量或外部按键观察基线。
+
+显式原生场景切换入口在选择未知时逐灯判断：应亮且状态已知的灯执行场景明确目标，只有应亮且状态未知的灯才发送经型号验证的原生翻转；场景应关闭及组内未使用的灯执行明确 Off，组外负载保持原样。随后查询、等待完整新反馈，再由实际组合判定选择，不能把接受或写出视为确认。重复请求、超时、短写、断线及重启均不能自动重放相对动作。HAP 的 On／Off 仍是绝对目标，旧未启用组及显式 HAP 目标入口不隐式改为原生 toggle。
+
+稳定模块引用、全部已登记输出查询和软件对账已有限定回归证据，见[当前 D/E 审计](de-completion-audit.md)。原生未知切换与完整多面板 LED 同步的联合软件验证正在补齐；真实固件、Apple 客户端、LED 颜色和窗帘停止继续等待现场验收，不能凭设计更新声明 D/E 完成。
