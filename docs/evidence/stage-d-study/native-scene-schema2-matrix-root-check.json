@@ -1,0 +1,328 @@
+{
+  "date": "2026-10-13",
+  "status": "fixed_schema2_native_scene_matrix_independently_verified",
+  "product_commit": "f1b2e8aef58bf6b129e39a253f6fe9531d8d2e0c",
+  "source_archive_sha256": "055b43935edfbcf276d17d82054608431f60ef44ffb2d4ea37a85cf315f781b4",
+  "original_files_verified": 968,
+  "unchanged_original_files": 967,
+  "original_append_only_test_entry_files": 1,
+  "actual_author_tests_verified": {
+    "passed": 27,
+    "failed": 0,
+    "ignored": 0,
+    "filtered_original_tests": 108
+  },
+  "additional_tests_executed_by_root": 0,
+  "counts": {
+    "trace_artifacts": 39,
+    "conversions": 40,
+    "saved_reopens": 78,
+    "runtime_checkpoints": 124,
+    "paired_original_steps": 247,
+    "final_complete_frames": 121
+  },
+  "test_probe_sha256": "03a4df8d2f69fb0a83434770d7d4e106db8cf3413d2ed58f34d36e0a6e47c59c",
+  "actual_test_binary_sha256": "57e8a31079e583eed83837621a0d0006f5b0e83a1ab34f1f143bb895b1e02f10",
+  "explicit_role_registry_sha256": "0e6560c99f8968af07c4d0fb08d8f87a3151e5b6b72d22828e9abf1c61f632c4",
+  "author_public_evidence_sha256": "4754c3b9aab171a2faac6c6d4545765d981fa79834bde463d219b83a9d45beae",
+  "original_case_bodies_unchanged_except_schema2_old_boot_fixture": true,
+  "original_assertions_deleted_or_weakened": false,
+  "all_schema2_runtime_fixtures_independently_reconstructed_from_original": true,
+  "all_intermediate_runtime_checkpoints_compared_to_original": true,
+  "trace_audits": [
+    {
+      "id": "ad8_native_support",
+      "sha256": "41a57fb4dea1206081eb9a33ef2fa17ccf2516306f5808c1bbb1c6d2a0be650a",
+      "baseline_sha256": "9fcfea91b362eca385ee8ecd18d85dfeda89a43b5b15b6346ad88c59374f286d",
+      "all_intermediate_frames_journals_selection_and_feedback_counts_equal": true,
+      "exact_independent_schema2_conversion_equal": true
+    },
+    {
+      "id": "combo_light_deduplicated--known-absolute",
+      "sha256": "90ac79db3f730a71af4fd0ca7b6469084e85593452d4780d583ea3bca1d67ec1",
+      "baseline_sha256": "558259e12569669bdc6be5e056cf840a726fd7bd0bc1f60d1ab14d43835e0bcc",
+      "all_intermediate_frames_journals_selection_and_feedback_counts_equal": true,
+      "exact_independent_schema2_conversion_equal": true
+    },
+    {
+      "id": "combo_light_deduplicated--relay-off-no-dimmer-target",
+      "sha256": "46b43ea3dfa09fa53a72d0b9646a7d690876f8c502c9020a7892721b1fec9664",
+      "baseline_sha256": "0317e262370a413462429aed37e4ba10850caecfbaf6c2466d84c8b127b194e1",
+      "all_intermediate_frames_journals_selection_and_feedback_counts_equal": true,
+      "exact_independent_schema2_conversion_equal": true
+    },
+    {
+      "id": "combo_light_deduplicated",
+      "sha256": "aee6eacf8c6472637dc4d1a4424f2ae840ba7f318976af59b6b4bcbb82bfdca2",
+      "baseline_sha256": "89e5cf68f666cfa7096300a105bf3ecb512e21c162a4426de91a357609d385c8",
+      "all_intermediate_frames_journals_selection_and_feedback_counts_equal": true,
+      "exact_independent_schema2_conversion_equal": true
+    },
+    {
+      "id": "disconnect_after_write",
+      "sha256": "a54bdad3ba9001139ced108ba35fd31dba66d6703e47bb82c5c753cc11887e41",
+      "baseline_sha256": "99e8470f4e0e54df622daaa5588ce83d255fdfe5bcd6c7e85c820a1fce1c1589",
+      "all_intermediate_frames_journals_selection_and_feedback_counts_equal": true,
+      "exact_independent_schema2_conversion_equal": true
+    },
+    {
+      "id": "disconnect_before_write",
+      "sha256": "bd71e05c8cc1ebf76ab30acc2bfbcd8cd0c0b0a0ee370646d6cdeaa02bf9c822",
+      "baseline_sha256": "a2c42cd9f769e0214a66d8f5001163453cedb5b84ab556be6ef1e51a6bdf50fc",
+      "all_intermediate_frames_journals_selection_and_feedback_counts_equal": true,
+      "exact_independent_schema2_conversion_equal": true
+    },
+    {
+      "id": "fresh_all_off",
+      "sha256": "4b40738a9f8494ff05a8ebd825850196dba548d3c5780c3a8b3a9832391e11ca",
+      "baseline_sha256": "ea133de741d3211108fa56208c309984046824d61fdd53b860d0bd2ded306bca",
+      "all_intermediate_frames_journals_selection_and_feedback_counts_equal": true,
+      "exact_independent_schema2_conversion_equal": true
+    },
+    {
+      "id": "fresh_unique_match--eco30",
+      "sha256": "b7cbe6a13a7bd45b8daf4b143f78977316b5df9d974e4527478ef118dd3d40b2",
+      "baseline_sha256": "58307221aaca8fc68edb82ea8db666a1ac0562a90d3ec3ec2b18d5bd29959335",
+      "all_intermediate_frames_journals_selection_and_feedback_counts_equal": true,
+      "exact_independent_schema2_conversion_equal": true
+    },
+    {
+      "id": "fresh_unique_match",
+      "sha256": "b1254c5f2bf270e5982fe1dd6c57f5e3c4392b748c2cc7cc9f9e888603346fb9",
+      "baseline_sha256": "4597bd04a8d9f131234019a4f12f53667a56ea8cd440eb197d7f86e5d71dfbab",
+      "all_intermediate_frames_journals_selection_and_feedback_counts_equal": true,
+      "exact_independent_schema2_conversion_equal": true
+    },
+    {
+      "id": "hap_absolute",
+      "sha256": "a548fedd69ac7505db0d8c335c8c5c50fc593c7024dc40a627d0d55a10a24399",
+      "baseline_sha256": "332cff3cf6ad570122748bcd6100c6a5b13a37b13d75c4c0f26eb3e551b00b41",
+      "all_intermediate_frames_journals_selection_and_feedback_counts_equal": true,
+      "exact_independent_schema2_conversion_equal": true
+    },
+    {
+      "id": "initializer_independent",
+      "sha256": "3880fca42f490f3547dbbe08241769e9f269f7e6853de26f0141b0c4dd2906e4",
+      "baseline_sha256": "83652003df84ce7a01ac6f3fbc935d01b6ba661b7898c390b18e21e08afbb8e5",
+      "all_intermediate_frames_journals_selection_and_feedback_counts_equal": true,
+      "exact_independent_schema2_conversion_equal": true
+    },
+    {
+      "id": "known_on_off",
+      "sha256": "b02b538e8be5bb79675eb649e2eb34cd40e4ecf655c880aea637396c8b1587db",
+      "baseline_sha256": "d752e0610d00af356b904007b2637a15776d04fceeae852e8302c607a6c462e3",
+      "all_intermediate_frames_journals_selection_and_feedback_counts_equal": true,
+      "exact_independent_schema2_conversion_equal": true
+    },
+    {
+      "id": "known_positive_absolute_level",
+      "sha256": "3a3c6572ea9c3ed4b84510570e8ce9ae3bc5ae4dc716be081ad9c4f124841730",
+      "baseline_sha256": "a6b50b70b731efe5a7162803e3971e84551d6b96182f97c4ac119d7ae1cc1eda",
+      "all_intermediate_frames_journals_selection_and_feedback_counts_equal": true,
+      "exact_independent_schema2_conversion_equal": true
+    },
+    {
+      "id": "missing_timeout",
+      "sha256": "6924d36db4d89369fea0ca91ac124667029d13c0b20772d3605dd4e10440860c",
+      "baseline_sha256": "65b61c88b021e8587946fa3dd5c2f579329e9b592f05ef30e8483ece78857623",
+      "all_intermediate_frames_journals_selection_and_feedback_counts_equal": true,
+      "exact_independent_schema2_conversion_equal": true
+    },
+    {
+      "id": "mixed_feedback--nonunique",
+      "sha256": "a7483fcb9ad4189627870fe9f58e52c51f318630edcbbbf4fec60314a103604e",
+      "baseline_sha256": "4517a4356afc1683380e2aaa6d919b7b7b8b67501e744f4ccf6c1a13eef15f5d",
+      "all_intermediate_frames_journals_selection_and_feedback_counts_equal": true,
+      "exact_independent_schema2_conversion_equal": true
+    },
+    {
+      "id": "mixed_feedback",
+      "sha256": "c6313ffd4468f7eff4281f9ee6bebe3c7d50a3ead3e65e9be0a7d2c94111317d",
+      "baseline_sha256": "fafa41a6d5ce1bcbd4ad132b534306d5aa00801b3bba34c75d883cfe63fb8f6b",
+      "all_intermediate_frames_journals_selection_and_feedback_counts_equal": true,
+      "exact_independent_schema2_conversion_equal": true
+    },
+    {
+      "id": "mixed_known_unknown_positive",
+      "sha256": "735dae6e8e448ae35736236e2772ff74df46745bbd05ec2af9c65955b5e5ab95",
+      "baseline_sha256": "7c43a9005c378bc9da83067a35ad8948947e397c66a17017396d09ec68e18b9d",
+      "all_intermediate_frames_journals_selection_and_feedback_counts_equal": true,
+      "exact_independent_schema2_conversion_equal": true
+    },
+    {
+      "id": "negative_targets_explicit_off--already-off",
+      "sha256": "c1bd09601cc7fa72238c60309019302d2e054336904e11164abe1ebb8ed684aa",
+      "baseline_sha256": "ecf478a9878e30d1fab19d6638071438e98bfdc7435937e2a3c60d9b158d39c1",
+      "all_intermediate_frames_journals_selection_and_feedback_counts_equal": true,
+      "exact_independent_schema2_conversion_equal": true
+    },
+    {
+      "id": "negative_targets_explicit_off",
+      "sha256": "687f806c3f9d3098f8606c9a3c27585fc9d27d7562f48bc2a4350d15641cfe6d",
+      "baseline_sha256": "d65bcd81abb6bafb8a1d0110e882c653526f5631f84d20d79c0cd4299719c9e6",
+      "all_intermediate_frames_journals_selection_and_feedback_counts_equal": true,
+      "exact_independent_schema2_conversion_equal": true
+    },
+    {
+      "id": "observation_baseline",
+      "sha256": "827bc12458e95788cfc5abf54b5618a1743f8da02ef38bff16b037e134dbe365",
+      "baseline_sha256": "751f88d7d42b6a6ba8e935e30af3805e9cb5fd25270f873a723f5f677f1b8518",
+      "all_intermediate_frames_journals_selection_and_feedback_counts_equal": true,
+      "exact_independent_schema2_conversion_equal": true
+    },
+    {
+      "id": "old_boot_epoch",
+      "sha256": "243febe84bd03586ba603272c9d2f6eaf411b2f1a43695919298786ae8650756",
+      "baseline_sha256": "244c23dbb702fd12ad3693965fe4309ccfd819afc82f5f1a820110e165c7efcd",
+      "all_intermediate_frames_journals_selection_and_feedback_counts_equal": true,
+      "exact_independent_schema2_conversion_equal": true
+    },
+    {
+      "id": "partial_write",
+      "sha256": "f75d9d2632b392c64c13de6a9cd4338dca02683fbb15435e047ff19341d5935e",
+      "baseline_sha256": "689c765e07dd88d73bf721d78e14074b3ba303c2a99f29633def9ea70857421f",
+      "all_intermediate_frames_journals_selection_and_feedback_counts_equal": true,
+      "exact_independent_schema2_conversion_equal": true
+    },
+    {
+      "id": "partition_unique_and_complete--invalid-membership",
+      "sha256": "140fccecf1252580f58ec66afc087828916f0a61f69685dfc0bd3f606d793ec7",
+      "baseline_sha256": "b1e469098c3a4ab9ec99635583dcc14b160ab3f6ed0386275d60612f0b447f1a",
+      "all_intermediate_frames_journals_selection_and_feedback_counts_equal": true,
+      "exact_independent_schema2_conversion_equal": true
+    },
+    {
+      "id": "partition_unique_and_complete--three-disjoint-sets",
+      "sha256": "cc44c48562850b359cc535a46cf5bc4ca4c523189d178cad12a62edb192596b9",
+      "baseline_sha256": "39b51c0a2d89400219e6ccfa33eb67718c9db2f34c58daf9b6b5b2f97bc5c131",
+      "all_intermediate_frames_journals_selection_and_feedback_counts_equal": true,
+      "exact_independent_schema2_conversion_equal": true
+    },
+    {
+      "id": "partition_unique_and_complete",
+      "sha256": "3a8284aa69152868dc674311d5bbfbe1367bac2995345ad3ddc8c43feb8a48bc",
+      "baseline_sha256": "d7b7e09e30568cc41ca5cdff89e9f4157ad902f021382df1266f86178616ab25",
+      "all_intermediate_frames_journals_selection_and_feedback_counts_equal": true,
+      "exact_independent_schema2_conversion_equal": true
+    },
+    {
+      "id": "query_after_relative--precontrol-feedback",
+      "sha256": "1ece4c30c33bda7dc66023e1454a0583a065b56c9f0df1fdafacb8d9bf494fd8",
+      "baseline_sha256": "25dcf8e53ba667419de8852f04d4c39fc0f5ef9faaea4e5c176d88d77d3387ef",
+      "all_intermediate_frames_journals_selection_and_feedback_counts_equal": true,
+      "exact_independent_schema2_conversion_equal": true
+    },
+    {
+      "id": "query_after_relative",
+      "sha256": "8e2294b853aa3245e6bc103e7d7d0899247dc9610bccaf478e468981850f766a",
+      "baseline_sha256": "477491564fc2cf0e593e1e7e31b6021bdf2abc11b8cc483bed639813f14b349a",
+      "all_intermediate_frames_journals_selection_and_feedback_counts_equal": true,
+      "exact_independent_schema2_conversion_equal": true
+    },
+    {
+      "id": "read_failure_rejected--malformed-feedback",
+      "sha256": "618765b4aec2a7a37f74cb056c92e5da350e97e9e97e683b94f30b018d5d2689",
+      "baseline_sha256": "563a50f58af06d1bdd1dc3a3a5f6341aeb0cf04dd412d98e8c484873e9ef8d95",
+      "all_intermediate_frames_journals_selection_and_feedback_counts_equal": true,
+      "exact_independent_schema2_conversion_equal": true
+    },
+    {
+      "id": "read_failure_rejected--projection",
+      "sha256": "4265ed88ee90923ada374bf9d20d0b7ad49414ba3af66bc3d494c6e5a979bb5d",
+      "baseline_sha256": "30533975151d9fecc034096d5966c20539ec555b1067c8cf0b3d9b80b6127fdf",
+      "all_intermediate_frames_journals_selection_and_feedback_counts_equal": true,
+      "exact_independent_schema2_conversion_equal": true
+    },
+    {
+      "id": "read_failure_rejected--storage",
+      "sha256": "f8aafd18fa19fcde55a55f54fe9a8485ba3d2859cc9640733cdf306600b72be9",
+      "baseline_sha256": "343e25f6f175e7cd67fa22ec3b2365086194b3b90a077812dbefcfa3a9174564",
+      "all_intermediate_frames_journals_selection_and_feedback_counts_equal": true,
+      "exact_independent_schema2_conversion_equal": true
+    },
+    {
+      "id": "read_failure_rejected",
+      "sha256": "74abc152f1890bb64c7d3426148d4221020b90b4733d4e87eb7f9331e65a65aa",
+      "baseline_sha256": "2b489c936c39329a901b064db31ebec26c363c0d45628ec38b66c0fa39aa64cf",
+      "all_intermediate_frames_journals_selection_and_feedback_counts_equal": true,
+      "exact_independent_schema2_conversion_equal": true
+    },
+    {
+      "id": "repeat_pending",
+      "sha256": "def682cccf5341f6518dcba1da994196313f8acbb0bfb64ad136d9613ab8afd8",
+      "baseline_sha256": "8a1a6fe13650b9c5ae7d6e4435b726586f66b2e211729dc40414f6e21101ebcd",
+      "all_intermediate_frames_journals_selection_and_feedback_counts_equal": true,
+      "exact_independent_schema2_conversion_equal": true
+    },
+    {
+      "id": "runtime_unready_rejected",
+      "sha256": "c341c394a15cc7368fbe23d7cf6453d458c60793e38dc13d1eb6bfe3d7e329ab",
+      "baseline_sha256": "58f6473d075de801b67dc4baabe52d10abe9c1f3ea6c5e7cb70f481cf71294bf",
+      "all_intermediate_frames_journals_selection_and_feedback_counts_equal": true,
+      "exact_independent_schema2_conversion_equal": true
+    },
+    {
+      "id": "selection_after_feedback_only",
+      "sha256": "944ef408c7f91dd078fbf19060b27c8e6457e758e612437ddc001f68590eed0d",
+      "baseline_sha256": "e9961c94fd90189f36417e1c6b42410391d67836442356901c1f8d676fe92135",
+      "all_intermediate_frames_journals_selection_and_feedback_counts_equal": true,
+      "exact_independent_schema2_conversion_equal": true
+    },
+    {
+      "id": "stale_same_value--stale-preaction",
+      "sha256": "36a59fe1b83b4660e9be3c93b91f0d4163e87816a7faed08c0b028cecdae6067",
+      "baseline_sha256": "125bd8c6eaeeb53fe1e5a8bc74c41fd95fed58a90827ed7c923e0e6d5f8916c7",
+      "all_intermediate_frames_journals_selection_and_feedback_counts_equal": true,
+      "exact_independent_schema2_conversion_equal": true
+    },
+    {
+      "id": "stale_same_value",
+      "sha256": "36a76376fab3020ff0fe53b17fa1faf829593aa4472f4242427c241bca33d118",
+      "baseline_sha256": "b7049d1a88c84d905c07f62a19c1fbee1e70afe9e861dff89a07228c7426a011",
+      "all_intermediate_frames_journals_selection_and_feedback_counts_equal": true,
+      "exact_independent_schema2_conversion_equal": true
+    },
+    {
+      "id": "unknown_positive_targets_toggle_once",
+      "sha256": "7d3d14d8d38f5444a998e55098a6d1f5e0fab0589a888f6ec4c8fdb04935cd3a",
+      "baseline_sha256": "99eee06f966ce7809f9ac37c33a43f57026c08b39b423a8c367ffc453dde8dad",
+      "all_intermediate_frames_journals_selection_and_feedback_counts_equal": true,
+      "exact_independent_schema2_conversion_equal": true
+    },
+    {
+      "id": "unrelated_devices_untouched",
+      "sha256": "1c351a6f4a12131753d9c49e95567b823e9837005fbb9f87aedd3605188cde24",
+      "baseline_sha256": "f04b05011787a721c02d742f1fa95457828b95f4acc2c0b2924718d17524144e",
+      "all_intermediate_frames_journals_selection_and_feedback_counts_equal": true,
+      "exact_independent_schema2_conversion_equal": true
+    },
+    {
+      "id": "unused_group_lights_explicit_off",
+      "sha256": "9cb4da26603d65b6f6e03b52ef48f535fc4874513dbf24d2fdd3c3208708fecb",
+      "baseline_sha256": "d28cc448a75b27c91491b748fa8bc0d17b781e8f77f863919d332a856cbc25b9",
+      "all_intermediate_frames_journals_selection_and_feedback_counts_equal": true,
+      "exact_independent_schema2_conversion_equal": true
+    }
+  ],
+  "evidence_sha256": {
+    "source.json": "233b70cf443af1414d968972767f1494e64c8dd71918be547ffe14191c6381a4",
+    "final-source-audit.json": "f10e7af8aca8272fbd96ea8e55c3dbecf8e39d3ec74648b668a7a02876bdaebf",
+    "execution.json": "20e1dae85690a74cb1da563f1d57e08f8b67d0d42eebbf491aa975b01b2aa827",
+    "final-run.log": "da5a57b6aca112040541603b34adce3b42b17ce2970f2e63634ba19b4295efc3",
+    "assertion-preservation.json": "9068ee0e1db864eedd6ebb4fdf0e11f1b0e840ba4bafe9cb63e60152a667cb97",
+    "prepared-cases.json": "210833efa7f637577d8349a51c3206e41642a48733251714d8df2a4310e98900",
+    "verify.py": "148315f91e1c68b6ecef99e646cc5eeb8f8c65cd141b67bd50d0caa66331dcda"
+  },
+  "limitations": [
+    "27 primary tests and 12 supplementary traces are preserved; 39 traces do not count as 39 different tests or unique inputs.",
+    "All runtime fixtures use schema2 with explicit persisted role IDs. Address-remap counterfactuals are parse-only, not online replacement or bus tests.",
+    "Storage reopen checks are captured inside real Store calls; durable fixture databases are deleted by the original harness and cannot be re-opened by this audit.",
+    "HAP absolute adapter entry and three indicator links remain covered at their previous scope; encrypted HAP/actual Apple client and complete LED execution are not covered.",
+    "Canonical module-channel truth, unbound-channel retention and logical-object runtime decoupling remain under development and are not proven by f1b2e8a.",
+    "Full original project scene/program/variable dispositions and current physical field acceptance remain open."
+  ],
+  "network": false,
+  "physical_controls": 0,
+  "credentials_created": false,
+  "deployed": false
+}
