@@ -1,0 +1,117 @@
+{
+  "commit": "1cd94a44dc222b7d7b4cbc92bac9fad2f1115907",
+  "source_archive_sha256": "e52c570762a1bc34aa270793faf1bd0870f654600c590d00bd2b9190a8011cf1",
+  "original_files": 932,
+  "product_source_unchanged": true,
+  "test_only_appends": [
+    "crates/homesensed/src/lib.rs",
+    "crates/homesensed/src/scene_reconciliation_tests.rs",
+    "crates/homesensed/src/scene_initialization_tests.rs"
+  ],
+  "dedicated_target": "/var/folders/_r/ml59q3l92pjd4g9vl2wxby3r0000gn/T/hs-reconcile-fixed-onkfwj63/target-isolated",
+  "archived_whole_project": {
+    "source_sha256": "39302441d0ddd2117eaf5104494cc7bffeec158985fa9802703667f86c3efa8f",
+    "switch": 56,
+    "dimmer": 40,
+    "unique_queryable_physical_candidates": 96,
+    "duplicate_queryable_bindings": 0,
+    "scope": "Archived device map full-enable projection, not live enabled mapping or approved full-house deployment"
+  },
+  "study": {
+    "enabled_queryable_physical": 4,
+    "logical_combination_lights": 2,
+    "hidden_supply_relays": 2,
+    "interval_ms": 100,
+    "max_age_ms": 5000,
+    "refresh_interval_ms": 625
+  },
+  "formulas": {
+    "refresh_interval": "I=max(floor(F/2/N),1,2*w)",
+    "config_accept": "N*I<F; strict inequality",
+    "startup_ideal_first_last_span": "at least(N-1)*w for immediate replies and no extra stream traffic",
+    "successful_nominal_refresh_cycle": "sum(I+query_service_time+driver_scheduling_delay+queue_deferral); configured N*I omits these costs",
+    "hard_upper_bound": "No finite freshness guarantee under arbitrary continuous accepted control backlog; refresh requires queued=0 and no in-flight output"
+  },
+  "gate_limits_for_F5000": {
+    "w20_ms": 124,
+    "w100_ms": 24,
+    "w200_ms": 12,
+    "w1000_ms": 2
+  },
+  "full96_at100ms": {
+    "minimum_initial_first_last_span_ms": 9500,
+    "configured_nominal_refresh_cycle_ms": 19200,
+    "gate": "reject"
+  },
+  "full96_at20ms": {
+    "minimum_initial_first_last_span_ms": 1900,
+    "configured_nominal_refresh_cycle_ms": 3840,
+    "gate": "accept but not sufficient for fresh feedback",
+    "quiescent_driver_estimate": "100ms blocking receive plus10ms cadence can quantize due queries to roughly110ms per endpoint, roughly10.56s per96; source-derived scenario not separately timed"
+  },
+  "tests": {
+    "passed": 3,
+    "failed": 0,
+    "ignored": 0,
+    "observations": [
+      "CAPACITY startup96 elapsed_ms=9688 result=Err(\"fresh feedback required for the complete configured mapping\") queries=96",
+      "CAPACITY slow4 elapsed_ms=6151 peer_stale=true",
+      "CAPACITY gate20ms n=24 accepted",
+      "CAPACITY gate20ms n=25 accepted",
+      "CAPACITY gate20ms n=96 accepted",
+      "CAPACITY gate100ms n=24 result=Ok(())",
+      "CAPACITY gate100ms n=25 result=Err(\"output refresh mapping exceeds configured freshness and wire capacity\")",
+      "CAPACITY gate100ms n=96 result=Err(\"output refresh mapping exceeds configured freshness and wire capacity\")"
+    ],
+    "type": "Actual fixed product configure/query/recovery/refresh APIs with synthetic in-memory streams and real monotonic timing; no real TCP or hardware"
+  },
+  "queries": {
+    "startup_timeout_ms": 1000,
+    "startup_retry": false,
+    "periodic_retry": "One idempotent Query retry capped500ms; relative/control commands not retried",
+    "physical_write_gap_shared_with_controls": true,
+    "serial_global_mapping": true,
+    "hidden_supply_included": true,
+    "disabled_excluded": true,
+    "duplicate_physical_bindings": "config rejects instead of silently issuing aliases",
+    "unsupported_panel_motor": "query exempt; no invented physical state"
+  },
+  "lease_notes": [
+    "scene policy allowed1..5000ms; TCP driver/query refresh hardcodes5000 independently",
+    "age>=max_age is stale; missing/stale/pending prevents complete scene match",
+    "scene group matches reviewed logical union; combo lights depend on physical supply+level freshness",
+    "refresh waits until control queue empty; control TTL2s is not a guaranteed refresh reservation",
+    "Startup sync expiry checks all supported enabled outputs after serial full scan"
+  ],
+  "field_enablement": false,
+  "files": {
+    "tests.log": "cbf832f016271a64846185f372da5f12904264caaea630004c3dd52b6321d0b6",
+    "probe.rs": "b2ac5f0cfc39449cc97857df620379f7929d00c262193d3ce419f2839a494f9c"
+  },
+  "root_review": {
+    "deployment_original_unchanged_files": 929,
+    "deployment_test_only_append_paths_verified": 3,
+    "private_probe_bytes_match_tested_file": true,
+    "deployment_tests_prove_capacity_failures_not_system_acceptance": true,
+    "root_mixed_profile_probe": {
+      "dimmer_queries": 40,
+      "elapsed_ms": 9692,
+      "first_last_write_span_ms": 9691,
+      "light_motor_control_frames": 0,
+      "scope": "synthetic supported profile mix matching archived endpoint counts; not original driver bindings or actual field",
+      "stale_endpoints": 46,
+      "startup_result": "fresh feedback required for the complete configured mapping",
+      "switch_queries": 56,
+      "unique_queries": 96
+    },
+    "root_original_files_verified_unchanged": 932,
+    "root_mixed_profile_rust_tests": 1,
+    "root_evidence_sha256": {
+      "root_mixed96.rs": "ae4e357dfdff3d71daaded1774fe733e9687221623c13815d1b047d4f1dfe042",
+      "root-mixed96-test.log": "6cf3797ead575d966379d19ca9969dceecaa1e0821ea0767b681aa298bb64571",
+      "root-mixed96-result.json": "44f436c64c59671a6c440f5240d3829cd06a47b43eca7d1ae3544f9135fb4117"
+    },
+    "twenty_ms_receive_delay": "source-derived scenario pending actual Linux loopback timing supplement",
+    "no_new_private_strict_clippy_claim": true
+  }
+}

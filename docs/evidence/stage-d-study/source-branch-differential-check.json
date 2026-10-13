@@ -1,0 +1,74 @@
+{
+  "date": "2026-10-13",
+  "fixed_product_commit": "1cd94a44dc222b7d7b4cbc92bac9fad2f1115907",
+  "archive_sha256": "e52c570762a1bc34aa270793faf1bd0870f654600c590d00bd2b9190a8011cf1",
+  "original_product_source_files_verified_unchanged": 932,
+  "source_project_sha256": "ff8c298fd2c8efa840d572d3ca544860ffbbc4e7176f09e93efdc5464b9ce6ec",
+  "source_xml_sha256": "cac7dcdc9db08599e55a22bacb72858035c64e1ac846e2139ead5fc634513748",
+  "bindings_sha256": "af959edca5cdbe6bd20b6b073feb4e23c923fe1d7fcd37a4df100b3ce548a0d6",
+  "source_mapping_checked": {
+    "source_properties_checked": 136,
+    "map_sha256": "39302441d0ddd2117eaf5104494cc7bffeec158985fa9802703667f86c3efa8f",
+    "mapping_source_only_not_physical_verified": true,
+    "normalized_ast_nodes": {
+      "if": 275,
+      "command": 1661,
+      "set": 215,
+      "scene": 95
+    },
+    "product_compiled_events": 179
+  },
+  "validation": {
+    "production_ast_export_rust_tests": 1,
+    "independent_model_boundary_tests": 6,
+    "full_source_events_compared": 215,
+    "ordered_ast_equivalent": 179,
+    "mismatch": 0,
+    "independent_source_unreviewed": 36,
+    "product_compiled_in_unreviewed_subset": 0,
+    "source_node_inventory": {
+      "total": 3138,
+      "actions_or_sequences": 2385,
+      "comments": 145,
+      "conditions": 396,
+      "else": 178,
+      "connectives": 34
+    }
+  },
+  "ast_nodes_in_equivalent_events": {
+    "if": 275,
+    "command": 1661,
+    "set": 215,
+    "scene": 95
+  },
+  "retained_blockers": {
+    "IF_STOPPED": 24,
+    "IF_MOVING": 11,
+    "RAMP_TO_LEVEL": 1
+  },
+  "source_translation_subgate": "Independent XML whitelist preserves literal predicates, connectives, nested If/Else ownership, variable expressions, scene references and ordered actions; compared actual fixed compile_event AST, not a recreated production compiler",
+  "scope": [
+    "179 includes4empty and20 previously checked straight-line LED programs; not179 new full approvals",
+    "All source bindings remain hierarchy candidates; no protocol model, hardware layout, ownership or physical binding approval",
+    "Equality of AST conversion does not prove driver, trigger, timing, asynchronous variable or physical execution semantics",
+    "Remaining full review remains65scenes208programs24variables",
+    "No automatic rules enabled, generated runtime configuration, admission, network or field writes",
+    "Private hashed-probe LowerHex compilation failure retained; excluded from success. No private probe strict-Clippy claim",
+    "AST source trace labels are excluded from normalization; causal provenance still requires separate audit"
+  ],
+  "audited_tool_source_sha256": {
+    "tools/compare_source_ast.py": "08bf6db5c13c5fb40050365f482cd692c97f9a648afd4a14808e2476e3ff7a20",
+    "tools/test_compare_source_ast.py": "94305b5fbf5d4a9da5732928efca2653c21ff9e61306e7ce37fdc9119e0bdb7a"
+  },
+  "private_evidence_sha256": {
+    "export_ast.rs": "d28a3008bb3052fe8eafade9aaa088f8b16ae93028cb5d23bb3b4a737ce501a0",
+    "production-ast.json": "aa6e3985ff1ee9c9a020ebb602d5f21888bfbeddd0c47787ed85caf36d995d63",
+    "export-hashed-final.log": "06ac211133190af41433fa0b3ac68704b79f1b521978068548d31a28d35f3968",
+    "model-tests.log": "c6b9b1f09add0403cc07e90bfdf272129b1ddfa2f8f7675ea8218862f2516371",
+    "differential-with-fingerprints.json": "36bfdc59a144d7e70b971896efa4830f96ec09a8235d90941b2615ce45800474",
+    "source-mapping-check.json": "724307b6d3839fbbf4be9d0af4ae3a9bcc270ca750feca198df155851b2db220"
+  },
+  "stage_d_complete": false,
+  "field_operations": false,
+  "ea_configuration_or_scope_changed": false
+}
