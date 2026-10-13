@@ -1,0 +1,59 @@
+{
+  "status": "whole_original_event_ast_and_disabled_fade_match",
+  "source_xml_sha256": "cac7dcdc9db08599e55a22bacb72858035c64e1ac846e2139ead5fc634513748",
+  "bindings_sha256": "af959edca5cdbe6bd20b6b073feb4e23c923fe1d7fcd37a4df100b3ce548a0d6",
+  "base_model_sha256": "08bf6db5c13c5fb40050365f482cd692c97f9a648afd4a14808e2476e3ff7a20",
+  "source_codeitems": 26,
+  "ramp_sites": 1,
+  "source_time_ms": 1000,
+  "source_target_level": 0,
+  "disabled_generated_definitions": 1,
+  "negative_controls_rejected": [
+    "seconds_instead_of_milliseconds",
+    "automatic_enablement",
+    "wrong_target_level",
+    "wrong_interval",
+    "missing_generated_definition",
+    "missing_whole_program_actions"
+  ],
+  "automatic_execution": false,
+  "full_semantic_approval": false,
+  "driver_actual_execution_proven": false,
+  "baseline": "1cd94a44dc222b7d7b4cbc92bac9fad2f1115907",
+  "all_original_source_files_unchanged": 932,
+  "actual_production_api": "compile_event_with_fades",
+  "production_export_test": {
+    "passed": 1,
+    "failed": 0,
+    "ignored": 0
+  },
+  "ast_node_counts": {
+    "if": 1,
+    "set": 2,
+    "command": 18,
+    "scene": 1
+  },
+  "timing_policy": "TIME milliseconds from reviewed official API; interval100ms/lateness100ms are explicit audit converter arguments,not source fields",
+  "default_compile_event_still_rejects_RAMP": true,
+  "no_change_to_default179_compiled36_unreviewed_count": true,
+  "source_event_approval": "structural_and_generated_definition_equivalence_only",
+  "source_binding_scope": "candidate hierarchy aliases,not verified physical models",
+  "runtime_configuration_published": false,
+  "field_enabled": false,
+  "other_rate_or_Ramp_Timer_units_established": false,
+  "limits": [
+    "No trigger/async variable execution proof",
+    "No original driver or physical fade behavior proof",
+    "Other source trace labels normalized out as in existing structural model",
+    "Does not prove bus capacity or live scene activation",
+    "Generated definition disabled; no executable project migration approval"
+  ],
+  "artifact_sha256": {
+    "export.rs": "de02660c1f7f37b25a2d0664a43550e6bd67f269fd59b772732f52cc76d17a55",
+    "check.py": "52a876fdcaec9e92d2a7c5be0b0908741ebf7385a1f0ea6cd2b0491c71a8ae35",
+    "input-check.json": "346938c0288398eaca3b7d5f0e90dc6fb93a3536c68b26b893e5b8ae994caeb8",
+    "export.log": "ae592ec0b2d00d7e3eaf6c338334d57bcd9d940b8fafcc1ad5fe1971753f4b40",
+    "production-ramp.json": "f9241af58aefb8f79598c5a0ac3de2871ebe1ecf80c9af69373681bb9ca8eff2",
+    "differential.json": "238cdb1882767d89cefb2751fd3e4e88b43074b140093093fa25f277a8771af7"
+  }
+}
