@@ -1,0 +1,138 @@
+{
+  "date": "2026-10-13",
+  "scope": "Actual isolated x86_64 Linux execution, synthetic configuration and localhost only",
+  "source_commit": "ea524bbb4f5bfa5786e4fcdbbfa33935bffa6c4b",
+  "source_files_verified_unchanged": 1009,
+  "host": {
+    "architecture": "x86_64",
+    "glibc": "glibc 2.44",
+    "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)",
+    "cargo": "cargo 1.99.0 (5f94df478 2026-08-27)"
+  },
+  "native_tests": {
+    "runtime_library": 130,
+    "online_publication": 2,
+    "total": 132,
+    "failed": 0,
+    "ignored": 0,
+    "filtered": 0,
+    "commands_exit_code": 0,
+    "test_binary_sha256": {
+      "homesensed-9d4d668b98b86f7a": "a187ecc28b61c90b5887dd2330592178385da4a28255d8f685059e68acea274f",
+      "module_online_publication-083eea393710d73d": "f784bc568410234b8ec4a901943e70ccac73da83a576dde8ebec7189b6325dbf"
+    },
+    "commands": [
+      [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "homesensed",
+        "--lib",
+        "--",
+        "--test-threads=1"
+      ],
+      [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "homesensed",
+        "--test",
+        "module_online_publication",
+        "--",
+        "--test-threads=1"
+      ]
+    ]
+  },
+  "https_wss": {
+    "simulation": {
+      "https": "passed",
+      "wss": "passed",
+      "csrf_and_session_revocation": "passed",
+      "revoked_wss": "closed",
+      "untrusted_and_wrong_name": "rejected",
+      "plaintext": "rejected",
+      "unsafe_key_permissions_and_mismatch": "rejected",
+      "mode": "simulation",
+      "whole_module_query_frames": null,
+      "synthetic_query_channels": null,
+      "actuator_frames": null,
+      "readiness_role_boundary": null
+    },
+    "tcp_combined": {
+      "https": "passed",
+      "wss": "passed",
+      "csrf_and_session_revocation": "passed",
+      "revoked_wss": "closed",
+      "untrusted_and_wrong_name": "rejected",
+      "plaintext": "rejected",
+      "unsafe_key_permissions_and_mismatch": "rejected",
+      "mode": "tcp-combined",
+      "whole_module_query_frames": 5,
+      "synthetic_query_channels": 8,
+      "actuator_frames": 0,
+      "readiness_role_boundary": "member_403"
+    },
+    "service_binary": "Mac cross-compiled release, actually executed on Linux",
+    "binary_sha256": "a902b36cb13469fa0bce7d01dae81a153034b2a8b4760328c69f2b6ad1994906",
+    "binary_source_commit": "1067f8a08ad3a68e30f550281136642c8b68ef23",
+    "production_source_equal_to_test_archive": true,
+    "dynamic_dependencies_resolved": true
+  },
+  "offline_preparation": {
+    "vendored_public_crates": 221,
+    "locked": true,
+    "cargo_home": "new isolated directory",
+    "cargo_config": "added only inside temporary source, no tracked file changed",
+    "system_cargo_cache_changed": false
+  },
+  "cleanup": {
+    "remaining_test_processes": 0,
+    "scratch_files": 0,
+    "temporary_tls_keys_credentials_and_identity_files": 0,
+    "source_files_changed": 0,
+    "native_runner_exit_code": 0
+  },
+  "attempts": [
+    {
+      "native_commands_exit_code": [
+        101,
+        101
+      ],
+      "tests_executed": 0,
+      "reason": "Existing offline registry could not resolve futures-util; provided public locked vendored crates in isolated directory; no product change",
+      "initial_overall_runner_exit_code": 1,
+      "tls_modes_passed_on_initial_attempt": true
+    }
+  ],
+  "evidence_sha256": {
+    "source.tar": "f4288cc265313b08f0232ffebe42c960dbbe102f603becbfb0a02e052baab79e",
+    "source.json": "dc7d3a99fdae07cda3f51f918e2262736dbc37704efa8552a544b9df9edf2f3f",
+    "run.py": "ae44a83bf90ce7caed360466da9584212896b4f772a6559b956657bd167d634b",
+    "run-native.py": "1f1587f3ee7ac920ce18bc5d3768a40a2c9209e16e916e43cb394da6e0f090c7",
+    "dependency-preparation.json": "0fa6d0c05fd54d32490e712fba3f0cea2e6cbfbb014ed33ec9296f4041f29952",
+    "vendored-crates.tar.gz": "be6fb8064d8003935b7b3fe1efac13fb150944e7e0614cfe3456d1f4a31143e9",
+    "linux-cargo-config.toml": "f77b30146e3b95309f9e2c740391ae139bfe74478a82c2814f3c392abe8ac499",
+    "remote-verification.json": "001242e6fd57dd17691eba5b22d4cb67c391a82b8da16d67cf7cb291b1593e02",
+    "local-verification.json": "d652d8b705ba46f241a53e577763ce2c81a596eac78f915c75acfd502d2c3a5b",
+    "initial-evidence/execution.json": "20c512b683ed733b15055369be104eeda4ecd78f5482d6f6c48378c5c60c1557",
+    "initial-evidence/runtime-lib.log": "501fe5eea2e2acb840f18926cd09c3e46396cc281d2614d73e83f575cdb5ece5",
+    "initial-evidence/online-publication.log": "501fe5eea2e2acb840f18926cd09c3e46396cc281d2614d73e83f575cdb5ece5",
+    "initial-evidence/tls-simulation.log": "40b654e593bab28760eb00805fe6d3a23b93298dae3fc5274782c7532f3bdeff",
+    "initial-evidence/tls-combined.log": "d5643ca0188534ca49f6d57be2cdf748f93cd3f7c94cc18ec0367d8e6d8e7207",
+    "initial-evidence/final.json": "7c53f1a78fd8a98a3c8af397e4747d5692f80f14325ec673be6bfded8f706b10",
+    "native-evidence/execution.json": "f90471cf6eeb5a32a162fdca82bc40e8c077728d4bdefef92051407d3cc603b1",
+    "native-evidence/runtime-lib.log": "e37e2f7d11eec0ad0ad899647acda0c36ee768318a6e0725ce05734b088d514c",
+    "native-evidence/online-publication.log": "d7c60fb43e8da9d9cbd66a285a2e96f22e4a5d1345d7de1b693906e38aa9af4d",
+    "native-evidence/final.json": "7c53f1a78fd8a98a3c8af397e4747d5692f80f14325ec673be6bfded8f706b10"
+  },
+  "limitations": [
+    "Scoped Linux tests only, not a complete Linux workspace result; Mac 773 unique cases remain separate",
+    "Library and publication binaries compiled natively on Linux; TLS service uses separately recorded cross-compiled release, not a native Linux release build",
+    "No real firmware, Apple Home/HomePod, phone certificate trust or field acceptance",
+    "No production deployment/configuration publication, real identity/state/credential transfer, network change or EA-5 change"
+  ]
+}

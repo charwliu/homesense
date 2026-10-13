@@ -994,3 +994,9 @@ TLS 组合服务的假网关已从只读启用别名改为 A0F2 整模块查询�
 两处查询夹具修正及独立证据已提交、推送为 `f7c2b22`；[完整回归证据](docs/evidence/stage-e-browser/workspace-module-truth-root-check.json)保留所有失败尝试，并另行复核在线发布两项专项，合计 773 个不同用例，仍明确不属于同一次 workspace 命令。
 
 从 `1067f8a` 干净归档使用 Rust 1.99、锁定依赖和离线 GCC 交叉工具链完成 x86_64 Linux release 构建，约 54 秒；与 `f7c2b22` 的生产源码相同，1007 个归档文件指纹未变。ELF 引用的最高 glibc 符号版本为 2.28，依赖和二进制指纹见[构建记录](docs/evidence/stage-e-browser/linux-release-cross-build-check.json)。这只是 Mac 上的交叉构建，目标机库／内核兼容性及当前 Linux 运行测试仍未验证；候选仅留本地，没有部署、启动服务、迁移身份或连接真实网关。
+
+## 当前 Linux 隔离运行补验
+
+固定 `ea524bb` 在新的 Linux `/tmp` 目录完成实际验收：原生编译的运行时库 130 项、在线模块发布 2 项，共 **132 项通过、0 失败、0 忽略、0 过滤**；两种 HTTPS/WSS 模式也在 Linux 实际执行通过。TLS 使用已记录的交叉 release 候选，动态依赖可解析；组合模式五条整模块查询、零执行器报文，鉴权／撤销和证书拒绝保持。全部假网关与服务只监听 localhost，不发布 LAN HAP 发现记录。
+
+首轮原生 Cargo 因离线缓存缺包而未执行测试，失败保留；补充锁定的 221 个公开 vendored 依赖后重跑，没有修改系统 Cargo 缓存或生产代码。1009 个归档文件、两份实际测试二进制及 22 份日志／清单指纹已独立核对，退出后无测试进程、临时密钥／身份或凭据文件。见[实际 Linux 限定证据](docs/evidence/stage-e-browser/linux-isolated-runtime-check.json)；不计为完整 Linux workspace、原生 Linux release 构建或现场通过，EA-5、现网配置、身份和运行库不变。
