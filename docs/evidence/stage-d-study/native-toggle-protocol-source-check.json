@@ -1,0 +1,70 @@
+{
+  "date": "2026-10-13",
+  "status": "manufacturer_protocol_checked_not_field_tested",
+  "profiles": [
+    {
+      "id": "ad8_din_rs485_v2_2_1",
+      "manual_sha256": "fe309828fae4fe31e846a8ec531cc7165812f0e40628efff024f7ed5801fe030",
+      "section": "7.4; single channel query 7.6"
+    },
+    {
+      "id": "r8i8_din_pro_v2_7_7",
+      "manual_sha256": "d9f3d9396a23433537e2d4124031ce5ae5dbe8ed7f568f958f8f0cc07ddd46fe",
+      "section": "7.3"
+    }
+  ],
+  "original_hashes_match_removal_manifest": true,
+  "complete_relevant_pages_visually_checked": true,
+  "vectors": [
+    {
+      "channel": 1,
+      "toggle_hex": "ae15a1f1ee",
+      "query_hex": "ae15a1f2ee"
+    },
+    {
+      "channel": 2,
+      "toggle_hex": "ae15a2f1ee",
+      "query_hex": "ae15a2f2ee"
+    },
+    {
+      "channel": 3,
+      "toggle_hex": "ae15a3f1ee",
+      "query_hex": "ae15a3f2ee"
+    },
+    {
+      "channel": 4,
+      "toggle_hex": "ae15a4f1ee",
+      "query_hex": "ae15a4f2ee"
+    },
+    {
+      "channel": 5,
+      "toggle_hex": "ae15a5f1ee",
+      "query_hex": "ae15a5f2ee"
+    },
+    {
+      "channel": 6,
+      "toggle_hex": "ae15a6f1ee",
+      "query_hex": "ae15a6f2ee"
+    },
+    {
+      "channel": 7,
+      "toggle_hex": "ae15a7f1ee",
+      "query_hex": "ae15a7f2ee"
+    },
+    {
+      "channel": 8,
+      "toggle_hex": "ae15a8f1ee",
+      "query_hex": "ae15a8f2ee"
+    }
+  ],
+  "vector_address": "15 is synthetic, not an instruction to operate that physical address",
+  "implementation_status": "pending_independent_checkpoint",
+  "physical_toggle_sent": false,
+  "constraints": [
+    "Only explicitly verified profiles and enabled bindings may encode",
+    "No broadcast/global commands",
+    "Toggle has no absolute target acknowledgement",
+    "Do not infer AD8 restored brightness from manual",
+    "No timeout/disconnect/restart replay"
+  ]
+}
