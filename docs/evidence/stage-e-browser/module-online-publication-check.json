@@ -1,0 +1,47 @@
+{
+  "date": "2026-10-13",
+  "base_commit": "960c7ebda398d33ffa3cebce48ce438225a02a59",
+  "scope": "Real localhost Web draft/replacement/preview/activation and encrypted HAP read, with synthetic query-only TCP gateways",
+  "source_sha256": {
+    "crates/homesensed/tests/module_online_publication.rs": "569eed507a84c54369e552bc3ef1aeda96fb4b1e50958836fb6e275fb3694da4"
+  },
+  "tests": {
+    "passed": 2,
+    "failed": 0,
+    "ignored": 0,
+    "filtered": 0
+  },
+  "strict_clippy": "homesensed --all-targets -D warnings passed",
+  "log_sha256": {
+    "successful_stronger_tests": "bb01157a9d3ae66ba614669cd6b933fa4980afc3092854c1405542f239829ef4",
+    "strict_clippy": "fe91e7aaa2b98a7f47fb7f2462484393d22c9dc83fcfe752efbf6c381a16b211",
+    "compile_fixture_failure": "d489e79e0d22dcd550dd954311f443ca656592a83eba3a7c43b98e4433d4e471",
+    "startup_fixture_failure": "d35651225a3df5609d8cd33f8ae7a9904aeed17b1875db6d7c1e22a23e3cbe2c",
+    "first_success_with_warning": "c5df16e6630a2d4b16c4211fd85454d80f90b783f3920cc6e080705f54d98a09"
+  },
+  "positive": [
+    "All 16 registered readable ports confirmed before readiness, including disabled and unbound",
+    "Stable module ID remapped 0x15 to 0x61 through administrator draft and real publication barrier",
+    "New transport epoch; old physical address 99 percent frames ignored",
+    "Encrypted HAP reads 11 percent before and 44 after; AID and all characteristic IIDs unchanged",
+    "Old HAP connection closed immediately after publication, not only at service shutdown",
+    "Identity and controller pairing preserved; exact device references and timed scene definitions retained",
+    "Duplicate activation accepted as existing receipt; stale revision Query 409; disabled control 400",
+    "Zero actuator frames, command journal records or scene runs"
+  ],
+  "negative": [
+    "Missing one unbound port prevents publication readiness and closes Web/HAP service",
+    "Committed active revision remains 3 after recovery failure; manual inspection/recovery required, no automatic rollback or replay"
+  ],
+  "attempts": [
+    "Initial fixture used incorrect Store field/Option access; compilation rejected",
+    "Original fixture scene used unsupported AD8 immediate 40 percent; capability preflight correctly rejected, fixture changed to documented ramp",
+    "One successful run had an unused_mut test warning; removed before strengthened tests and strict Clippy"
+  ],
+  "limitations": [
+    "Synthetic localhost only; no physical address change command or actual gateway connection",
+    "No production deployment, real credential, field configuration publication or EA-5 change",
+    "Not a new complete workspace result; broader fixed base regression tracked independently",
+    "Physical client and field confirmation remain pending"
+  ]
+}
