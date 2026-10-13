@@ -147,7 +147,7 @@ fn version22_migration_preserves_raw_values_and_adds_empty_origin_table() {
     assert_eq!(
         sql.pragma_query_value(None, "user_version", |row| row.get::<_, i64>(0))
             .unwrap(),
-        23
+        24
     );
     drop(sql);
     drop(store);

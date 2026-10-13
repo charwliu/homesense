@@ -13,6 +13,7 @@ pub mod scene_history;
 pub mod variables;
 pub mod scene_observation;
 pub mod scene_initialization;
+pub mod native_scene;
 use homesense_core::queue::CancelReason;
 use rusqlite::{Connection, OptionalExtension, TransactionBehavior, params};
 use std::{path::Path, time::Duration};
@@ -71,7 +72,7 @@ impl Store {
         if app != 0 && app != APPLICATION_ID {
             return Err(Error::ForeignDatabase);
         }
-        if version != 0 && (!(1..=23).contains(&version) || app != APPLICATION_ID) {
+        if version != 0 && (!(1..=24).contains(&version) || app != APPLICATION_ID) {
             return Err(Error::UnsupportedSchema(version));
         }
         if version == 0 {
@@ -241,6 +242,17 @@ impl Store {
                 CREATE TRIGGER IF NOT EXISTS immutable_scene_initialization_update BEFORE UPDATE ON scene_initialization BEGIN SELECT RAISE(ABORT, 'immutable scene initialization'); END;
                 CREATE TRIGGER IF NOT EXISTS immutable_scene_initialization_delete BEFORE DELETE ON scene_initialization BEGIN SELECT RAISE(ABORT, 'immutable scene initialization'); END;")?;
             tx.pragma_update(None, "user_version", 23)?;
+        }
+        if version <= 23 {
+            tx.execute_batch("CREATE TABLE IF NOT EXISTS native_scene_request (
+                controller TEXT NOT NULL, request_key TEXT NOT NULL, scene_id TEXT NOT NULL, group_id TEXT NOT NULL,
+                variable_name TEXT NOT NULL, variable_version INTEGER NOT NULL CHECK(variable_version>=0), boot_id TEXT NOT NULL,
+                revision INTEGER NOT NULL REFERENCES configuration_revision(revision), transport_epoch INTEGER NOT NULL CHECK(transport_epoch>0), control_epoch INTEGER NOT NULL CHECK(control_epoch>0),
+                deadline_ms INTEGER NOT NULL CHECK(deadline_ms>=0),phase INTEGER NOT NULL CHECK(phase>=0),manual_fence INTEGER NOT NULL CHECK(manual_fence>=0),
+                status TEXT NOT NULL CHECK(status IN ('pending','observed','unknown')),commands TEXT NOT NULL,initial_commands TEXT NOT NULL,selected INTEGER CHECK(selected IS NULL OR selected>=0),updated_ms INTEGER NOT NULL CHECK(updated_ms>=0),
+                PRIMARY KEY(controller,request_key),FOREIGN KEY(revision,variable_name) REFERENCES logical_variable(revision,name));")?;
+            tx.execute_batch("CREATE INDEX IF NOT EXISTS native_scope ON native_scene_request(boot_id,revision,transport_epoch,control_epoch,group_id,status); CREATE INDEX IF NOT EXISTS native_expiry ON native_scene_request(status,deadline_ms);")?;
+            tx.pragma_update(None, "user_version", 24)?;
         }
         tx.commit()?;
         connection.pragma_update(None, "foreign_keys", "ON")?;

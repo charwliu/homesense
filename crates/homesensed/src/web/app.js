@@ -100,7 +100,8 @@ function renderScenes(data) {
     const unavailable=scene.selection_state?.state==='unavailable';
     const selected=unavailable?'不可用':scene.selected===true?'开启':scene.selected===false?'关闭':'未知';
     const source=scene.selection_source==='inferred'?(scene.observation_current===false?'按键推断已失效':'按键推断'):scene.selection_source==='unknown'?'来源未知':scene.selection_source==='light_initialization'?'灯光初始化记录':scene.selection_source==='physical_feedback'?'本次连接灯光反馈':'本地选择意图';
-    const hint=unavailable?selectionUnavailableMessage(scene.selection_state.value):scene.selection_state?.state==='unknown'?'尚未建立有效选择，可明确开启场景。':'';
+    const relative=stateful && !unavailable && scene.selected==null && scene.relative_unknown_allowed===true;
+    const hint=unavailable?selectionUnavailableMessage(scene.selection_state.value):scene.pending_relative?'切换执行中，等待读回。':relative?'需要点亮的未知灯会翻转一次，结果由读回确认。':scene.selection_state?.state==='unknown'?'尚未建立有效选择，可明确开启场景。':'';
     const historyHint=scene.selection_source==='physical_feedback'?`历史选择：${scene.historical_selected===true?'开启':scene.historical_selected===false?'关闭':'未知'}；`:'';
     const info = document.createElement('p'); info.textContent = `${stateful ? `当前选择：${selected}（${source}，不代表负载到位）；${hint}${historyHint}` : ''}负载反馈：${scene.activity}；${stateful?'最近开启执行':'最近执行'}：${scene.last_run?.status || '无记录'}`;
     if(scene.last_run) {
@@ -114,16 +115,16 @@ function renderScenes(data) {
       };
       row.append(details,receipt);
     }
-    const button = document.createElement('button'); button.textContent = stateful ? (scene.selected===true?'关闭场景':'开启场景') : '执行场景'; button.disabled = !scene.can_control || sceneActionBusy;
+    const button = document.createElement('button'); button.textContent = relative?'相对切换场景':stateful ? (scene.selected===true?'关闭场景':'开启场景') : '执行场景'; button.disabled = !scene.can_control || sceneActionBusy || scene.pending_relative===true;
     button.onclick = async () => {
-      if(sceneActionBusy || !scene.can_control)return;
+      if(sceneActionBusy || !scene.can_control || scene.pending_relative===true)return;
       sceneActionBusy=true;const epoch=sessionEpoch;
       if(lastSceneSnapshot)renderScenes(lastSceneSnapshot);
       try {
         const requestId = crypto.randomUUID();
         const body={scene: scene.id, request_id: requestId};
-        if(stateful)body.on=scene.selected!==true;
-        const result = await request('/api/v1/scene-actions', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+        if(stateful&&!relative)body.on=scene.selected!==true;
+        const result = await request(relative?'/api/v1/scene-relative-actions':'/api/v1/scene-actions', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
         if (result.outcome === 'accepted') started.set(scene.id, requestId);
         status.textContent = result.outcome === 'accepted' ? '请求已接受，请核对执行记录和设备反馈。' : result.outcome === 'unchanged' ? '场景选择已是目标值，本次未执行新的动作。' : '结果尚不明确，请核对记录；不要重复点击。';
         await refresh();

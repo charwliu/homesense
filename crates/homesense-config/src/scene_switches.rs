@@ -57,6 +57,29 @@ impl LightTarget {
 }
 pub type LightTargets = BTreeMap<i64, BTreeMap<DeviceId, LightTarget>>;
 impl Group {
+    /// Complete absolute logical targets for relative action planning. Source
+    /// omissions become explicit Off only within this reviewed member union.
+    pub fn absolute_light_targets(&self, scenes:&BTreeMap<String,TimedScene>)->Result<BTreeMap<i64,BTreeMap<DeviceId,Command>>,Error> {
+        let mut result=BTreeMap::new();let mut off=BTreeMap::new();
+        for member in &self.members {
+            let mut targets=BTreeMap::new();let mut steps=scenes.get(&member.scene).ok_or_else(||invalid("relative scene missing"))?.steps.iter().enumerate().collect::<Vec<_>>();
+            steps.sort_by_key(|(index,step)|(step.delay_ms,*index));
+            for (_,step) in steps {
+                let negative=match step.command {
+                    Command::Switch(_)=>Command::Switch(false),
+                    Command::SetLevel{..}=>Command::SetLevel{level:homesense_core::Percent::new(0).unwrap(),transition:homesense_core::LevelTransition::Immediate},
+                    Command::PanelLed(_)=>continue,
+                    _=>return Err(invalid("relative scene needs absolute light targets")),
+                };
+                if off.insert(step.device.clone(),negative).is_some_and(|previous|previous!=negative) {return Err(invalid("relative light type mismatch"));}
+                targets.insert(step.device.clone(),step.command);
+            }
+            result.insert(member.value,targets);
+        }
+        if off.is_empty() || off.len()>128 {return Err(invalid("relative light capacity invalid"));}
+        for targets in result.values_mut(){for (id,command) in &off {targets.entry(id.clone()).or_insert(*command);}}
+        Ok(result)
+    }
     /// Reviewed member union only. Omitted source targets are explicitly Off;
     /// absent physical observations remain unknown at runtime.
     pub fn light_on_patterns(&self, scenes: &BTreeMap<String, TimedScene>) -> Result<homesense_core::scene_pattern::MemberPatterns, Error> {

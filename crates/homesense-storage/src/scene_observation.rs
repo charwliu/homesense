@@ -29,6 +29,8 @@ pub struct PhysicalProjection {
     pub epochs: Epochs,
     pub observed_ms: Option<u64>,
     pub history_value: Option<Value>,
+    pub pending_relative: bool,
+    pub relative_eligible: bool,
 }
 impl Snapshot {
     pub fn selection(&self) -> Selection {

@@ -100,8 +100,41 @@ pub struct Feedback {
     state_epoch: u64,
     now: u64,
     stopped: bool,
+    invalid_light_reads: std::collections::BTreeSet<DeviceId>,
 }
+type NativeSceneCapture = (
+    BTreeMap<DeviceId, Option<bool>>,
+    BTreeMap<DeviceId, homesense_core::Percent>,
+    RuleLease,
+);
 impl Feedback {
+    /// Native eligibility distinguishes a healthy registered never-observed
+    /// value from stale/invalid/failed reads. None does not mean a read timeout.
+    pub(crate) fn native_scene_capture(&self,ids:&[DeviceId],now:u64,max_age:u64)->Result<NativeSceneCapture,String> {
+        use homesense_core::{ModuleKind,Observation,rule::{Action,Budget,Expr,Lifetime,Node,Value,ValueType,Variable}};
+        use homesense_state::Quality;
+        if self.stopped || max_age==0 || now<self.now {return Err("relative feedback owner unavailable".into());}
+        let snapshot=self.snapshot();let mut physical=std::collections::BTreeSet::new();
+        for id in ids {physical.insert(id.clone());if let Some(relay)=self.supply_relays.get(id){physical.insert(relay.clone());}}
+        let mut levels=BTreeMap::new();
+        for id in physical {
+            let state=snapshot.devices.get(&id).ok_or("relative device missing")?;
+            if self.invalid_light_reads.contains(&id) {return Err("relative feedback response invalid".into());}
+            let initial=state.quality==Quality::Unknown && state.observed.is_none() && state.observed_at_ms.is_none() && self.observation_counts.get(&id)==Some(&0);
+            let fresh=state.quality==Quality::Confirmed && state.observed_at_ms.and_then(|at|now.checked_sub(at)).is_some_and(|age|age<max_age);
+            if !initial && !fresh {return Err("relative feedback stale or failed".into());}
+            if fresh {match (state.kind,state.observed) {
+                (ModuleKind::Switch,Some(Observation::Switch(_)))=>{},
+                (ModuleKind::Dimmer,Some(Observation::Level(level)))=>{levels.insert(id,level);},
+                _=>return Err("relative feedback type invalid".into()),
+            }}
+        }
+        let mut variables=BTreeMap::new();let mut nodes=vec![];
+        for (index,id) in ids.iter().enumerate() {let name=format!("native:{index}");variables.insert(name.clone(),Variable{value_type:ValueType::Bool,lifetime:Lifetime::Temporary,value:None});nodes.push(Node{source:name.clone(),action:Action::Set{variable:name,value:Expr::DeviceOn(id.clone())}});}
+        let (plan,lease)=self.plan_rule(&nodes,&variables,Budget::default(),now,max_age)?;
+        let powers=ids.iter().enumerate().map(|(index,id)|(id.clone(),match plan.variables[&format!("native:{index}")].value {Some(Value::Bool(on))=>Some(on),_=>None})).collect();
+        Ok((powers,levels,lease))
+    }
     pub(crate) fn supply_relay(&self, device: &DeviceId) -> Option<&DeviceId> {
         self.supply_relays.get(device)
     }
@@ -315,6 +348,7 @@ impl Feedback {
             state_epoch: epoch,
             now: 0,
             stopped: false,
+            invalid_light_reads: Default::default(),
         })
     }
     /// Stop synchronously, including from an async operation cancellation guard.
@@ -443,6 +477,11 @@ impl Feedback {
                 }
                 let mut count = 0;
                 for frame in frames {
+                    if let Decoded::Unknown { reason: hb_protocol::UnknownReason::InvalidValue, .. }=registry.decode(*frame)
+                        && let Some(channel)=frame.command.checked_sub(0xd0)
+                        && let Some(id)=self.bindings.get(&(read.gateway_id.clone(),frame.address,channel)) {
+                        self.invalid_light_reads.insert(id.clone());
+                    }
                     if let Decoded::Feedback {
                         address,
                         channel,
@@ -464,6 +503,7 @@ impl Feedback {
                             .observe(id, observation, self.epoch, read.received_at_ms)
                             .map_err(|e| e.to_string())?;
                         self.observation_counts.insert(id.clone(), next);
+                        self.invalid_light_reads.remove(id);
                         count += 1;
                     }
                 }
