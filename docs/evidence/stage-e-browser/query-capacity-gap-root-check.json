@@ -111,7 +111,56 @@
       "root-mixed96-test.log": "6cf3797ead575d966379d19ca9969dceecaa1e0821ea0767b681aa298bb64571",
       "root-mixed96-result.json": "44f436c64c59671a6c440f5240d3829cd06a47b43eca7d1ae3544f9135fb4117"
     },
-    "twenty_ms_receive_delay": "source-derived scenario pending actual Linux loopback timing supplement",
+    "twenty_ms_receive_delay": "confirmed by actual fixed Linux loopback run: startup2.268s, steady cycle median12.289s, first stale5.855s, max57stale",
     "no_new_private_strict_clippy_claim": true
+  },
+  "linux96_twenty_ms_root_review": {
+    "commit": "1cd94a44dc222b7d7b4cbc92bac9fad2f1115907",
+    "binary_sha256": "431829611f277a386e5d80968fd09512f36c070e5f49cf33bb59f980780cf88a",
+    "script_sha256": "6f146c7332908d478768fb0f7ae2bbbd956d065c4fd5cf45cb7289a9525835dd",
+    "physical_query_endpoints": 96,
+    "profile_mix": {
+      "R8": 56,
+      "AD8": 40
+    },
+    "write_interval_ms": 20,
+    "startup_ready_after_s": 2.2682841310161166,
+    "initial_query_span_s": 2.028033642010996,
+    "total_queries": 369,
+    "control_frames": 0,
+    "periodic_repeat_measurement_excluding_startup_to_first_refresh": {
+      "count": 177,
+      "min_s": 12.287078911002027,
+      "max_s": 12.328880643006414,
+      "median_s": 12.288719584990758
+    },
+    "first_stale_sample": {
+      "t": 5.855099248001352,
+      "stale": 8,
+      "confirmed": 88
+    },
+    "max_simultaneously_stale": 57,
+    "samples_with_stale": 82,
+    "total_http_samples": 91,
+    "conclusion": "20ms admits startup/config but cannot maintain5s freshness in this quiescent96endpoint actual Linux loopback run",
+    "limitations": [
+      "Anonymous synthetic endpoints; verified flags only permit fixture, no field capability claim",
+      "Instant query replies and no unsolicited traffic or manual controls",
+      "No scene policy/HAP client needed; stale state measured through real read-onlyWeb API",
+      "Timing includes OS/event-loop/read timeout and read-onlyHTTP polling; not a universal exact cycle bound",
+      "No physical gateway, no new credential, no field enablement"
+    ],
+    "all_synthetic_endpoints_and_HTTP_samples_recomputed": true,
+    "all_processes_exited": true,
+    "evidence_sha256": {
+      "linux96-audit.json": "926bb64d46fc9a227f5e9ff009452d4a7f34ef63212d2384a839083d104a03ed",
+      "probe-linux96.py": "6f146c7332908d478768fb0f7ae2bbbd956d065c4fd5cf45cb7289a9525835dd",
+      "linux96/exit.json": "dc4d264edf3b94ee36bac01015a35c126e6206bc950292e020644b6e788f645f",
+      "linux96/results.json": "a62898cf600a51d0b95cec7a63db6eda0a7ddde90771915fbebc6adedc21d976",
+      "linux96/service.log": "e96013021f85d9e96d851ed28a736645c11f67c1de2ed454b4e8ab2b65328ce2",
+      "linux96/automation.json": "698ddc6ad880451a4cfabacb00a0c2efe42136f4671538a119b86c06e2ecdfce",
+      "linux96/devices.json": "d1a70a00342551e15f61aa29df0df4139dc880877d891bdeeec6f20604931d95",
+      "linux96/process-check.json": "4dedc50598648cff9f47a8560183576b48e552b669dab936cc11c66add9a1e00"
+    }
   }
 }
