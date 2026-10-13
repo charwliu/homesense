@@ -1,0 +1,36 @@
+# 离线候选，未下发；核查固件、地址冲突及旧 DHCP 服务后逐段合并。
+# 必须替换 DNS、VLAN1 网关 MAC；默认业务地址池仅为示例。
+# 不覆盖已有全局 DHCP、其他池、Option121 或 VLAN3 的 .3.7 保留。
+# 静态绑定地址不能 excluded；静态租约无限期，不受下面1天控制。
+system-view
+dhcp enable
+ip pool HS_VLAN1
+ network 192.168.1.0 mask 255.255.255.0
+ gateway-list 192.168.1.253
+ dns-list <VLAN1_DNS_IPV4>
+ excluded-ip-address 192.168.1.1 192.168.1.9
+ excluded-ip-address 192.168.1.11 192.168.1.99
+ excluded-ip-address 192.168.1.200 192.168.1.254
+ static-bind ip-address 192.168.1.10 mac-address <GATEWAY_1_MAC_HHHH-HHHH-HHHH>
+ lease day 1
+ quit
+ip pool HS_VLAN2
+ network 192.168.2.0 mask 255.255.255.0
+ gateway-list 192.168.2.253
+ dns-list <VLAN2_DNS_IPV4>
+ excluded-ip-address 192.168.2.1 192.168.2.10
+ excluded-ip-address 192.168.2.12 192.168.2.99
+ excluded-ip-address 192.168.2.200 192.168.2.254
+ static-bind ip-address 192.168.2.11 mac-address 34ea-e7de-8877
+ lease day 1
+ quit
+interface Vlanif1
+ ip address 192.168.1.253 255.255.255.0
+ dhcp select global
+ quit
+interface Vlanif2
+ ip address 192.168.2.253 255.255.255.0
+ dhcp select global
+ quit
+# 核查动态范围 .100-.199、保留、Option3/6，以及目标服务和回程。
+# 不在未验收时直接 save；VLAN3/4 不绑定核心 DHCP 地址池。
