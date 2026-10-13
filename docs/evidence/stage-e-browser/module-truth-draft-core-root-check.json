@@ -1,0 +1,87 @@
+{
+  "date": "2026-10-13",
+  "status": "frozen_module_truth_draft_core_positive_checks_passed_not_feature_acceptance",
+  "base_commit": "f1b2e8aef58bf6b129e39a253f6fe9531d8d2e0c",
+  "base_archive_sha256": "055b43935edfbcf276d17d82054608431f60ef44ffb2d4ea37a85cf315f781b4",
+  "base_original_files": 968,
+  "unchanged_base_files": 962,
+  "frozen_draft_overlay_sha256": {
+    "crates/homesense-config/src/lib.rs": "479d288c2b529d233f920e4c29670d304230d593471ff03183266940524f43f4",
+    "crates/homesensed/src/feedback.rs": "f9396b7abe86acc6f5cb27c6bbcc76e69bf346ca518fb7588cc1f056f51f4eda",
+    "crates/homesensed/src/lib.rs": "debd6a9a9cffd1d9a87e87f5d8cfc7d11284e11195772c4474d3f157eeddc357",
+    "crates/homesensed/src/management_modules.rs": "87109635beadfc080573f97aef1357ccd4e45f7bdec92283e6fcf1d460fb959d",
+    "crates/homesensed/src/module_object_tests.rs": "d5cfb134ac718d8e70457784a7b1dd0cf86bf1e26831a7e11c1e7c96adc028e8",
+    "crates/homesensed/src/web/app.js": "b91bfda74cac2cd79296b8386f2e24ef57f510bd887bce83b7f17acfe4444a3b"
+  },
+  "new_frozen_draft_source_sha256": {
+    "crates/homesensed/src/module_truth.rs": "4348965c7214137ba1b34981a94725db1b4f5b4c5c237dadaf50f7933c0b5711"
+  },
+  "actual_root_tests": {
+    "passed": 3,
+    "failed": 0,
+    "ignored": 0
+  },
+  "raw_feedback_expiry_boundary": [
+    {
+      "observed_ports": 256,
+      "registered_modules": 32,
+      "logical_aliases": 1,
+      "raw_frames_accepted": 256,
+      "expiry": "success",
+      "incremental_alias_quality_event": true
+    },
+    {
+      "observed_ports": 257,
+      "registered_modules": 33,
+      "registered_ports": 264,
+      "logical_aliases": 1,
+      "raw_frames_accepted": 257,
+      "expiry": "success",
+      "old_alias_cursor_requires_resync": true,
+      "current_snapshot_quality": "Stale",
+      "current_snapshot_cursor_can_continue": true
+    }
+  ],
+  "independent_module_owner_checks": {
+    "bound_sample_level": 30,
+    "disabled_port_sample_level": 41,
+    "unbound_port_sample_level": 37,
+    "disabled_and_unbound_samples_retained_without_logical_alias": true,
+    "unused_ports_remain_unknown": true,
+    "explicit_port_invalidation_keeps_prior_observation": true,
+    "same_value_valid_sample_recovers_quality": true,
+    "disconnect_marks_observed_ports_stale": true,
+    "old_epoch_sample_rejected_without_state_change": true,
+    "new_epoch_unbound_sample_level": 50,
+    "new_unbound_sample_does_not_confirm_stale_bound_light": true
+  },
+  "actual_test_binary_sha256": "09ddb941fc684c4a118d6c45149b0d7c8102756a7b42d62f60495fb3b1ab4076",
+  "evidence_sha256": {
+    "source.json": "6e4735482902311b0fd245632d52cea99d2ede2f71489f121ac7f1e7276c4a4d",
+    "probe.rs": "153c36a2341d20e12051113e72c5ad61eb44900d5d011f6eb15ca35d22d2b395",
+    "test.log": "ced59f3d9e25713d0da90bd423379b92ebd410a9f38a5eba6a73e0803903e17f",
+    "attempt-01-compile.log": "e35e688f77d92896b210d69f892267f4f8def9a6d09e68b8deb954c8c0ef8293",
+    "attempt-01-probe.rs": "2af04de1eaa02383d4efda006e4267b28c5b3bfa2c468d34ab1401ce3fe97374",
+    "attempt-02-stream-expectation.log": "f136f9aa4267066e9453c2c112f8fa71337928a4febe5edf717fde454980ed06",
+    "attempt-02-probe.rs": "6db85d09ba7ad422f1726b5a62633778ea0d2ef1a1c0f065d7e376e4272e9508",
+    "verify.py": "56d6b217667ebb27453e91cd9e7b6072d7af09114e658445870828cffea76b55"
+  },
+  "attempt_notes": [
+    "Initial probe used nonexistent Feedback.cursor method; corrected to public snapshot.cursor. No product changes.",
+    "Initial 257-port test wrongly required incremental continuity after explicit bulk-resync fallback; corrected to expect ResyncRequired, read current Stale snapshot and continue from its cursor. Existing product fallback already retained state; no product change."
+  ],
+  "limitations": [
+    "Frozen checked draft contains six overlays and one new module_truth source; this is not a fixed committed implementation or whole feature approval.",
+    "256/257-port cases use the real Registry decode -> Feedback -> ModuleTruth expiry path with synthetic raw frames, no TCP wire or hardware.",
+    "Disabled/unbound retained samples and epoch checks use the independent ModuleTruth API; administrative commands, permissions, management view and actual query actions are not exercised.",
+    "The standalone owner test explicitly invokes invalidate_port; it does not inject an invalid raw protocol frame.",
+    "The prior committed unbound-channel counterexample remains historical evidence; final closure requires accepted new checkpoint and integrated regressions.",
+    "Bulk internal journal overflow intentionally forces derived-stream resync; the initial continuity assertion was an invalid fixture expectation, not a reproduced production defect.",
+    "No 96-load service throughput, real client/LED/motor or original project semantic approval is added."
+  ],
+  "shared_product_source_edits_by_root": false,
+  "network": false,
+  "physical_controls": 0,
+  "credentials_created": false,
+  "deployed": false
+}
