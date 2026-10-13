@@ -1151,3 +1151,13 @@ Mac Safari已到登录页。为本轮书房两灯／四场景签发临时Member�
 固定 `bcc0d2f` 已接只接受module_id／类型化scope／revision／request_id的管理员查询，白名单A0F2与逐路fallback共用原Arbiter、持久队列及TransportOwner。根核对11份作者源码和9份原日志指纹，再取完整归档：988原文件中987个不变，一文件只追加原矩阵include，另新增同一投影反例。原125项产品库、27项私有矩阵、40项Admission和1项反例实际全部通过，共193项，0失败／忽略／过滤。7个新增Query用例及原9个回环／HAP用例都包含；作者272项限定记录另行核验，不重复累加为本轮新执行数。
 
 39份相对场景轨迹的124个中间检查点继续与1e35add基线一致，40次schema2转换独立重建、78次Store重开及121个最终完整帧保持。读目标在写出前按当前注册表再解析，逻辑设备与私有ticket名称冲突会拒绝；已接受／written与当前通道反馈独立，没有把旧的新鲜样本归因于本次Query，也不声称原子快照。控制授权、禁用／未绑定／隐藏供电边界保持。实际浏览器／手机的新入口及完整全注册表自动查询尚未验收；先前1-of16反例的修复继续，阶段D/E不因此完成。见 [固定Query根验收](evidence/stage-e-browser/module-query-checkpoint-root-check.json)。本轮没有部署、连接真实网关或创建真实凭据。
+
+### 2026-10-13 实际桌面浏览器 Query 与全注册表查询修复补验
+
+固定 `bcc0d2f` 的988个原归档文件全部未改，仅新增本机浏览器夹具；真实app.js、Api、AutomationRuntime和TransportOwner接模拟串流，在localhost HTTP实际操作PRO整模块逐路、AD8整模块、AD8单通道三个入口及收据查看。5次成功Query POST实际写12条查询，持久journal也是12条Query／written，零执行器报文。AD8整模块8路Confirmed、单通道3亮度30；PRO奇数4路Confirmed，偶数模拟输入F0非法，保留Unknown，不能宣称全8路或合法关闭读回通过。收据仍明确无查询因果保证／非原子快照。Cookie退出显示“已退出”，模拟令牌撤销、服务器关闭、进程和监听端口消失；实际测试二进制已保存。
+
+发现两项显示缺口：查看收据更新后主卡片仍保留旧的未知／过期槽位和“当前新鲜0/8”统计；无设备控制范围的管理员在收据中仍看到power／brightness动作字段，而inventory已过滤。实际同主体控制请求被正确拒绝403 device_not_permitted，不构成控制权限提升。功能开发已接两项修复；这里保留固定bcc的反例，不能推广为完整浏览器验收。初次无效60000ms参数及第二次240秒看护超时均保留失败与清理记录，第三次600秒窗口人工停止后1项通过，旧失败不删除。见[浏览器限定核查](evidence/stage-e-browser/module-query-browser-root-check.json)和[实际截图](evidence/stage-e-browser/module-query-browser-root.jpg)。
+
+随后固定 `99d036a` 独立复验原启动范围反例：992个原归档文件中991个不变，一文件只追加私有include；原探针仅更改检查点标签，原断言和假总线不变。相同2个AD8／16路／1个逻辑绑定现在写两条A0F2，16路全部Confirmed，逻辑设备仍1，零控制。完整产品库130项、同一私有反例1项和Admission40项实际全部通过，共171项，0失败／忽略／过滤。先单独执行的反例不重复累加，作者214项相关验证另行记录；新固定版本的27项私有场景矩阵仍待补验。见[全注册表修复独立核查](evidence/stage-e-browser/physical-startup-scope-root-check.json)。
+
+逻辑设备源码继续只保存模块ID／通道及组合灯的供电模块ID／通道；物理网关／地址由当前版本注册表在传输适配层解析。以上均为模拟或本机回环，未部署、未发现场命令、未新建真实凭据；真实Apple客户端、手机／TLS、当前现场启动恢复与原完整D/E门槛仍未完成。
