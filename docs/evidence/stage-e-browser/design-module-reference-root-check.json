@@ -1,0 +1,38 @@
+{
+  "date": "2026-10-13",
+  "scope": "Current design schema2 example validated by frozen production offline CLI; no service, deployment or control",
+  "source_commit": "f7c2b22c9bbe03f1743e9672b35355431f5cbd2a",
+  "schema2_example": {
+    "modules": 2,
+    "logical_bindings": 2,
+    "enabled_bindings": 0,
+    "physical_fields_in_logical_bindings": false,
+    "combination_supply": "stable module_id + channel",
+    "pending_verification": true
+  },
+  "actual_cli_checks": {
+    "positive_live_config_exit": 0,
+    "mixed_logical_physical_field_exit": 1,
+    "positive_source_files_unchanged": 1008,
+    "configuration_checker_opens_connection": false,
+    "binary_sha256": "1975c8990149887ab1a320d0fa013dd404f2a63e6dd8c4e68630348a191c9897"
+  },
+  "design_sha256": "861de9e852557d2c9ba8fd3544139ad96ed707c70756f859a47fca06ebf246f6",
+  "state_policy_sha256": "d9bedc4c27bc4c6f8f0ff89ad9036a1be5525382b4bb0bfe29d16eeadc84fd92",
+  "evidence_sha256": {
+    "metadata.json": "6cc8885911261f4e02c80194353d39dc3cbdd0e4e265e9c8356bad648c9a9f5c",
+    "example.json": "28435bbd9aaaac61f960c88736d6c02d68567978e1e93a31d6c486be1bb99684",
+    "physical-field-rejected.json": "236becf19c38ef36000b78af7573d5f5de4315e55526339426c6e3e051275430",
+    "execution.json": "1879536366dbbcff894956d645863ae4b40d23354b50afffa805f9d192a93409",
+    "negative-execution.json": "9fc651901aa992d9d009967f7be983291d0ae1e913bbc4a2f05782bf50f4d57f",
+    "validation.log": "8b20eab62156cc8e6f85300b4a4a2f220ba21c1a01ac17197102f5833e6e6daf",
+    "negative-validation.log": "7cc672a438d823199f4d807d5b9f693852c1080e0dcd4480b42cc1c469e0c511",
+    "homesensed": "1975c8990149887ab1a320d0fa013dd404f2a63e6dd8c4e68630348a191c9897"
+  },
+  "limitations": [
+    "Offline CLI checks only; not new runtime or field acceptance.",
+    "Example verification pending and all bindings disabled; no capability approval or control permission.",
+    "Existing canonical truth/startup/native scene results remain separate evidence; the new joint indicator regression is still in progress.",
+    "Frozen sources exclude unrelated shared worktree changes."
+  ]
+}
