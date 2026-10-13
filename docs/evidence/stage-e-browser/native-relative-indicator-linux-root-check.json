@@ -1,0 +1,85 @@
+{
+  "date": "2026-10-13",
+  "scope": "Independent verification of retained Linux six-case execution; no new tests or remote operations",
+  "source_commit": "b31ddeb34f04494bcfee6ea3fe23fe4259aca305",
+  "archive_files_equal_git_commit": 1015,
+  "tested_source_sha256": {
+    "crates/homesensed/src/indicator_sync.rs": "b0a28c1972725ced7105a204ea17c2262eb06c5c2097252fee2df5231f67dcd5",
+    "crates/homesensed/src/native_scene_tests.rs": "b67f1deef4717bde9fc196bc9dd10c389bb09ba61cee7cb0b590a3f92455ef5b",
+    "crates/homesensed/src/native_scene_indicator_tests.rs": "d296f351a3aeb6b3fb70a8797df64139cba250e4411f489beb8e5f6555e36111"
+  },
+  "run": {
+    "command": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-p",
+      "homesensed",
+      "--lib",
+      "indicator_joint",
+      "--",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "exit_code": 0,
+    "passed": 6,
+    "failed": 0,
+    "ignored": 0,
+    "measured": 0,
+    "filtered": 130,
+    "exact_test_ids": [
+      "scene_observation_runtime::tests::initialization::native::indicator_joint::captured_indicator_plan_is_rejected_if_native_pending_begins_before_commit",
+      "scene_observation_runtime::tests::initialization::native::indicator_joint::combined_supply_off_skips_dimmer_and_waits_for_complete_feedback_before_led_clear",
+      "scene_observation_runtime::tests::initialization::native::indicator_joint::combined_supply_on_queries_then_dimmer_and_external_supply_off_clear_only_linked_leds",
+      "scene_observation_runtime::tests::initialization::native::indicator_joint::observed_relative_then_unknown_stale_and_external_off_clear_only_linked_leds_once",
+      "scene_observation_runtime::tests::initialization::native::indicator_joint::pending_relative_defers_only_its_group_not_independent_led_reconciliation",
+      "scene_observation_runtime::tests::initialization::native::indicator_joint::pending_relative_partial_off_does_not_clear_multipanel_leds_or_history"
+    ]
+  },
+  "frame_traces": {
+    "six_exactly_equal_retained_mac_traces": true,
+    "frame_occurrences": 52,
+    "standalone_cases": 4,
+    "combined_hidden_supply_cases": 2
+  },
+  "actual_retained_binary": {
+    "format": "ELF64 little-endian x86_64",
+    "sha256": "c20899647c74091b33ffdad7fd698275891d5796f118ed48f0cb74ee7857bac8"
+  },
+  "host": {
+    "architecture": "x86_64",
+    "glibc": "glibc 2.44",
+    "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)",
+    "cargo": "cargo 1.99.0 (5f94df478 2026-08-27)"
+  },
+  "cleanup": {
+    "scope": "Execution-time runner record; no current remote process query",
+    "temporary_store_files": 0,
+    "remaining_own_processes": []
+  },
+  "owner_report_sha256": "ff72f325505e9a230165e69eba5ac36c6eb3115e76294118ede210157567c6f0",
+  "new_test_executions": 0,
+  "evidence_roots": {
+    "owner": "deployment/ngr/private/20261013-native-indicator-linux-b31ddeb",
+    "root": "deployment/ngr/private/20261013-native-indicator-linux-root"
+  },
+  "evidence_sha256": {
+    "owner/source.tar": "5ef04fd053963abcfefcb8acead17496fe8450a9ee52b46fda5546dcda5b8db0",
+    "owner/source.json": "0566ff8ed6335fb490cab48a6f33afadccafcc3cb752096707b801db47d590a0",
+    "owner/run.py": "644d74c3375c0d9e5f5a6288dc9ab603b9ff3d98c5cb922ec9d2cc0ee7a8f33f",
+    "owner/test-binary": "c20899647c74091b33ffdad7fd698275891d5796f118ed48f0cb74ee7857bac8",
+    "owner/frames.json": "9c38cfbbd2eebe3cfae797410fd23c1edd1d13a3272680b6597026083b5be611",
+    "owner/evidence/host.json": "c8ebbb696dd883175840e9eaff2ffe8381af91e731ee627cf2df77d8a69fd4c4",
+    "owner/evidence/tests.log": "dff44405c99d974044cb2485402139e825598b38a00c24dedf407f01b8d082b7",
+    "owner/evidence/execution.json": "1aac8516074ea51ec6308d393e9c73e78657931a0f155c9466ca10fbc8e5a0da",
+    "root/verify.py": "d73e682b772f10be12ecde1d856116943b96ed3543520f32af1b15eca09f207e",
+    "root/root-audit.json": "61081fb90587ec73ad9e43858868d7cba4753aae97f5b01138a14b79943f019a"
+  },
+  "limitations": [
+    "Current six cases only: 130 original library tests filtered, not current full Linux workspace or library pass",
+    "Memory bus outgoing frame traces do not confirm actual panel LED colors",
+    "Previous ea524bb Linux132 and b31ddeb Mac779 retain their original separate scopes",
+    "No live gateway, physical controls, real identity, credential, certificate trust or deployment changes"
+  ]
+}
