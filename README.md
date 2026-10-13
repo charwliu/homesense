@@ -160,7 +160,8 @@ cargo run --locked --offline -p homesensed -- serve-simulation config/simulation
 
 - [完整设计](docs/design.md)：v1.7，系统边界、协议契约、迁移方案及阶段 A–G 计划。
 - [家庭网络架构设计](docs/network-architecture.md)：五个业务 VLAN（1/3 走 A、2/4 走 B、5 为 AC/AP 管理）＋一个维护 VLAN100（192.168.0.0/24）；涵盖华为核心、双栈出口分流、两台 485 网关迁移、桌面换口切换 WAN、x86 HomeSense 双聚合接入及迁移验收。
-  现有 .0.x 设备全部迁移并确认无依赖后，再关闭 VLAN100 的网关和路由；保留二层维护用途，日常关闭 DHCP、不启用 RA 或公网出口。一台 AP 预留映射 VLAN100 的维护 SSID，按需开启，AP 管理仍在 VLAN5；维护时可临时开启 DHCP，仅下发地址和掩码，不下发默认网关、DNS 或静态路由，完成后关闭 SSID、DHCP 和临时 VLAN 放行。缺省地址设备优先同 VLAN 访问，远程维护需核对回程后临时恢复受限路由。
+  现有 .0.x 设备全部迁移并确认无依赖后，再关闭 VLAN100 常驻网关和路由。维护 SSID 仅在指定 AP 按需开启；核心临时 DHCP 需要受限 SVI，必须验证隔离及实际不下发网关/DNS/静态路由，结束后关闭 SVI、SSID、DHCP 和临时标签。
+- [核心、QNAP 与 AC 配置步骤](docs/network-configuration-runbook.md)：离线操作手册及华为 DHCP 模板；VLAN1/2/100 用核心 DHCPv4，3/4 保留 systemd-networkd DHCPv4 与 rdhcpd DHCPv6/PD/前缀 RA，终端默认网关仍为核心。目标为两边 /60 池自动向核心各委派 /64，用于1/2；旧核心 B侧 /64 绑定已生效，A侧 VLAN1 当前仅 IPv4；新核心绑定兼容性、PD续租和 rdhcpd RouterLifetime=0 能力待验证/补齐，未下发现网。
 - [A–C 验收跟踪](docs/stages-a-c.md) 与 [逐项证据](docs/evidence/stages-a-c-requirements-20261011.md)：限定验收结论及未关闭问题。
 - [阶段 D 完成审计](docs/stage-d-progress.md)：当前实现、验收缺口和增量验证记录。
 - [书房场景迁移](docs/stage-d-study.md)：源规则、离线回放及手动场景现场证据。
