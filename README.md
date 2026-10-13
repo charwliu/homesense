@@ -10,6 +10,8 @@ HomeSense（中文名：知居）是原生 Rust 家庭中控，通过 TCP485 网
 
 已确认型号的整模块查询及96路刷新修复已固定于 `bfe61f2`：AD8、GT-E4、GT-D8、GT-L8 按网关／模块地址／profile 聚合，R8 PRO 和 GT-C8 继续逐路查询。修正空闲读取等待、回复完成后节拍漂移及控制排队造成的刷新饥饿，保留逐通道代次、新鲜度和隐藏供电覆盖。干净提交完整 workspace **735 项通过、0 失败、0 忽略**，所有目标严格 Clippy 通过；Linux 串行运行时库 **103 项通过**。ngr 独立假网关的真实服务循环持续35秒：56路逐路开关＋40路聚合调光，20ms写间隔，最大重复查询间隔2.85秒，113份状态采样全部96路Confirmed、0次Stale，919条查询／0条控制，服务正常退出。详见[模块查询与容量验证](docs/evidence/stage-d-study/module-query-capacity-check.json)。混合61请求的映射在100ms间隔下仍不能满足5秒窗口；本轮没有连接真实网关或部署现场，D/E仍未完成。
 
+相对场景的 **27 项隔离软件验收全部通过，0 失败、0 忽略**，固定产品提交为 `bfe61f2`。使用真实 Manager／Admission／Store／TransportOwner 验证逐灯已知绝对目标、未知单次翻转、负目标确定 Off，以及查询后的新反馈、短写／断线不重放、重复请求和读失败拒绝；HAP 绝对动作与外部观察基线保持独立。另有 12 个对照子例，共 39 份轨迹，不计成 39 项测试或不同输入；本轮也不新增完整工作区、Clippy 或 Linux 通过声明。见[27项验收结果](docs/evidence/stage-d-study/native-scene-relative-matrix-check.json)及[独立审计](docs/evidence/stage-d-study/native-scene-relative-matrix-root-check.json)。HAP 本轮仅覆盖生产适配链路，真实 Apple 客户端、加密网络、完整 LED 联动及后续稳定模块 ID 集成仍待验；D/E 整体仍未完成，未连接或部署真实网关。
+
 观察模式新增独立外部 toggle 状态集合：初始包含无选择及全部成员，不以 HomeSense 本地选择或 LED 清零作为 EA-5 基线。同键仍有歧义时保持未知，两个不同的已审核场景键可使集合收敛；确定结果仍标记推断。启用需额外填写 `external_toggle_reviews`，审核完整可观察写入入口及所有成员按键；未知选择即使全组灯关闭也不被 LED 联动建立为 0，已核实的 LED 关闭仍允许执行。触发 `trigger_edge` 默认 pressed；原源分支为 Release 的绑定必须显式 released，反馈时序以松开为准。流缺口、过期／不确定按键和重启丢弃外部集合。当前增量未部署，观察模式继续禁用，现场验收与原项目语义审核仍待完成。 独立干净快照 663 项回归和所有目标严格 Clippy 通过，见[外部基线验证](docs/evidence/stage-d-study/scene-observation-external-check.json)。
 
 场景按键[观察模式](docs/scene-observation.md)已接入配置、可信反馈、Admission 原子保存、手动场景规划及 HAP/Web 状态读取，默认禁用。未知选择不猜测，旧代次／事件缺口失效，观察本身不发送设备命令；Web 明确显示按键推断及来源失效，HAP 的布尔状态不承诺展示来源标签。独立 LED 联动已改用有效作用域选择和事务只读版本校验：清理其他场景 LED 不改当前选择或来源，熄灯只清除对应选中项。旧反馈、旧 Dimmer 关灯记录及失效来源拒绝接受；现场集成验收仍待完成。本轮未部署或启动现场服务，EA-5 不变。

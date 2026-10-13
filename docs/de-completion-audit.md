@@ -2,7 +2,9 @@
 
 依据 `design.md` 第 9–11、18、20、23–25 节和用户约束。阶段 D 的范围包含 68 个场景和 215 个程序的完整处置，阶段 E 包含原生 HAP、场景入口、Web 管理、鉴权及实际客户端验收。完成判定仍为 **D 未完成、E 未完成**。
 
-2026-10-13最新模块查询／容量检查点为 `bfe61f2`：白名单AD8／GT-E4／GT-D8／GT-L8整模块Query已实现，R8 PRO／GT-C8仍逐路。固定干净提交完整workspace735项、所有目标严格Clippy和Linux串行库103项通过。96路20ms独立假网关真实服务循环35秒，最大重复查询间隔2.85秒，113份状态采样均为96路Confirmed、0 Stale，919条查询／0控制，正常退出且测试PID不存在；已关闭此前12.29秒的隔离容量反例。首次Linux多桥并行失败及同源码独立／串行重跑结果均保留，原因未确定。100ms混合映射、真实固件／总线和新版客户端仍待验；27项独立相对场景矩阵未另行完成。本轮未部署或连接真实网关，现场仍为结束窗口的schema22／revision3。详见[模块查询与容量验证](evidence/stage-d-study/module-query-capacity-check.json)。下文早期实现和缺口描述保留为对应版本历史，D/E整体仍未完成。
+2026-10-13最新模块查询／容量检查点为 `bfe61f2`：白名单AD8／GT-E4／GT-D8／GT-L8整模块Query已实现，R8 PRO／GT-C8仍逐路。固定干净提交完整workspace735项、所有目标严格Clippy和Linux串行库103项通过。96路20ms独立假网关真实服务循环35秒，最大重复查询间隔2.85秒，113份状态采样均为96路Confirmed、0 Stale，919条查询／0控制，正常退出且测试PID不存在；已关闭此前12.29秒的隔离容量反例。首次Linux多桥并行失败及同源码独立／串行重跑结果均保留，原因未确定。100ms混合映射、真实固件／总线和新版客户端仍待验；27项独立相对场景矩阵已完成下述隔离软件验收。本轮未部署或连接真实网关，现场仍为结束窗口的schema22／revision3。详见[模块查询与容量验证](evidence/stage-d-study/module-query-capacity-check.json)。下文早期实现和缺口描述保留为对应版本历史，D/E整体仍未完成。
+
+2026-10-13相对场景独立矩阵已在固定 `bfe61f2` 副本实际执行：27通过、0失败、0忽略，退出码0；另含12个对照子例，39份轨迹不计为39项测试或不同输入。真实Manager／Admission／Store／TransportOwner覆盖逐灯绝对／翻转／Off划分、查询后完整新反馈、歧义保持未知、重复请求、短写／超时／断线不重放及读取失败拒绝；旧初始化、外部基线和HAP绝对适配入口保持独立。949原文件仅一处追加测试include，探针、实际二进制、27精确ID和39份结果指纹已复核。103原库测试被过滤，未新增完整工作区、Clippy或Linux通过声明。见[验收证据](evidence/stage-d-study/native-scene-relative-matrix-check.json)、[独立根审计](evidence/stage-d-study/native-scene-relative-matrix-root-check.json)。HAP加密网络／实际客户端、完整LED联动、真实模块／总线及后续稳定模块ID集成仍待验；本轮未部署、未连接真实网关或创建凭据，D/E整体仍未完成。
 
 2026-10-13 根独立核验 `bfe61f2`：949份归档源码与本机隔离快照、Linux原文件逐份一致；从原始日志重算735个目标限定成功结果及Linux串行103项。重算919条Query覆盖96物理端点、858次重复间隔最大2.852秒，113份HTTP200采样均有96个不同设备、累计10848个Confirmed且0 Stale；单boot／revision、反馈时间不倒退，远程构建指纹和测试PID退出独立复核。这里不新增测试覆盖；首次并行102通过／1失败保留，原因未确定。原始HTTP没有连接代次或采样时钟年龄，未据此补称额外epoch／时龄验证；首次就绪时间仍来自部署探针诊断记录。见[模块查询容量根审计](evidence/stage-e-browser/module-query-capacity-root-audit.json)。
 
