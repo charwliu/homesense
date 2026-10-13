@@ -222,6 +222,33 @@ impl Arbiter {
         now: u64,
         commit: impl FnOnce(&[QueuedCommand], &[Cancellation]) -> Result<(), E>,
     ) -> Result<Vec<Cancellation>, BatchCommitError<E>> {
+        self.submit_batch_with_order(commands, now, commit, false)
+    }
+    /// Trusted runtime rule nodes retain every ordered output. This is not an
+    /// authentication API: the runtime must supply its durable rule audit.
+    pub fn submit_ordered_rule_batch_committed<E>(
+        &mut self,
+        commands: Vec<(QueuedCommand, Access)>,
+        now: u64,
+        commit: impl FnOnce(&[QueuedCommand], &[Cancellation]) -> Result<(), E>,
+    ) -> Result<Vec<Cancellation>, BatchCommitError<E>> {
+        let run = commands.first().and_then(|(command, _)| command.run_id);
+        if run.is_none_or(|run| run == 0)
+            || commands.iter().any(|(command, _)| {
+                command.origin != crate::queue::Origin::Rule || command.run_id != run
+            })
+        {
+            return Err(BatchCommitError::Admission(ArbiterError::InvalidState));
+        }
+        self.submit_batch_with_order(commands, now, commit, true)
+    }
+    fn submit_batch_with_order<E>(
+        &mut self,
+        commands: Vec<(QueuedCommand, Access)>,
+        now: u64,
+        commit: impl FnOnce(&[QueuedCommand], &[Cancellation]) -> Result<(), E>,
+        ordered_rule: bool,
+    ) -> Result<Vec<Cancellation>, BatchCommitError<E>> {
         if commands.len() > 128 {
             return Err(BatchCommitError::Admission(ArbiterError::BatchTooLarge));
         }
@@ -232,11 +259,13 @@ impl Arbiter {
             self.policy
                 .check(&command, access, now)
                 .map_err(|e| BatchCommitError::Admission(ArbiterError::Admission(e)))?;
-            cancelled.extend(
-                staged
-                    .enqueue(command.clone(), now, self.policy.epochs)
-                    .map_err(|e| BatchCommitError::Admission(ArbiterError::Queue(e)))?,
-            );
+            let effects = if ordered_rule {
+                staged.enqueue_ordered_rule(command.clone(), now, self.policy.epochs)
+            } else {
+                staged.enqueue(command.clone(), now, self.policy.epochs)
+            };
+            cancelled
+                .extend(effects.map_err(|e| BatchCommitError::Admission(ArbiterError::Queue(e)))?);
             accepted.push(command);
         }
         commit(&accepted, &cancelled).map_err(BatchCommitError::Persistence)?;

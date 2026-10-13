@@ -1,0 +1,108 @@
+{
+  "date": "2026-10-13",
+  "scope": "Ordered repeated-target audited rules; synthetic memory wire and localhost regressions only",
+  "baseline_commit": "8c089ab3be0a6b1302f7f83a5579e3397b6df203",
+  "source_overlay_sha256": {
+    "crates/homesense-core/src/queue.rs": "185d5cd6a206b41eb454d98291cd533db2441ab33e5a28967575a450bdd37bf8",
+    "crates/homesense-core/src/arbiter.rs": "30f0fce66b75958ade8e78a2915b422820446c2376e9d9fd72dfad1f83259248",
+    "crates/homesense-core/tests/ordered_rule_batch.rs": "2543768828dc2dd5f82a9b3e795c21a78e6272dcdc2fba1dc728b96c7bec7da1",
+    "crates/homesensed/src/admission.rs": "a209d3a46e2a7e9ae455cc48fccd1ae0af85e3271cbef2029af3b5153d9c0b55",
+    "crates/homesensed/tests/rule_order.rs": "4155eaa8fbf6087782f7d9f2658f033e1ac61885e639d6dba663e5fee56c7127"
+  },
+  "unchanged_baseline_files_before_and_after_tests": 1029,
+  "implementation": {
+    "duplicate_target_scope": "Only batches with persistent rule audit; external HAP/HTTP and unaudited internal batches retain duplicate-target rejection",
+    "ordered_queue_entry": "Requires Origin::Rule and one shared nonzero run ID, then original per-command policy checks and durable transaction",
+    "coalescing": "Explicit ordered entry disables immediate-level replacement; default queue path and software-sample coalescing stay unchanged",
+    "preserved": "hidden supply rejection, authorization, epochs, capacity, transaction, manual override, STOP priority, cancellation and no replay"
+  },
+  "final_regressions": {
+    "core": {
+      "blocks": 15,
+      "passed": 94,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0,
+      "exit_code": 0,
+      "command": "cargo test --offline --locked -p homesense-core"
+    },
+    "runtime_selected_targets": {
+      "blocks": 5,
+      "passed": 300,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0,
+      "exit_code": 0,
+      "command": "cargo test --offline --locked -p homesensed --lib --test admission --test study_runtime --test rule_sources --test rule_order -- --test-threads=1"
+    },
+    "distinct_tests": 394,
+    "new_tests_included": 13,
+    "actual_retained_test_binaries": 19
+  },
+  "new_cases": {
+    "ordered_rule_batch_core": 4,
+    "rule_order_runtime": 9,
+    "coverage": [
+      "same-key LED On/Off, Off/Off, Off/On and On/On retain both nodes and exact five-byte frames",
+      "same dimmer Level0/Level0 and endpoint changes retain journal intents and source ordinal",
+      "two immediate scene calls overlapping a stable module/channel retain call/member sources",
+      "repeated logical combined light expands each node to its own dimmer/supply outputs before next node",
+      "default HAP/HTTP queue coalescing remains; ordered entry rejects their origins",
+      "external normalized duplicate intent and audited hidden supply controls rejected without receipts",
+      "invalid later encoding, physical expansion above128 and capacity rejection persist no partial batch",
+      "source-row failure rolls back variable/value/version and all three audit tables; write gate closes",
+      "manual override and explicit cancel remove every pending repeated node; restart never replays",
+      "partial second wire failure retains first Written, second Uncertain and third Cancelled, never retries"
+    ]
+  },
+  "strict_clippy": {
+    "command": "cargo clippy --offline --locked -p homesense-core -p homesensed --all-targets -- -D warnings",
+    "exit_code": 0
+  },
+  "preserved_attempts": [
+    {
+      "stage": "first fixture compilation",
+      "detail": "test used missing command_state helper, unsupported u64 SQL parameter and non-Clone Intent; fixed test API usage only"
+    },
+    {
+      "stage": "first Clippy",
+      "detail": "let_and_return in fixture; fixed without suppression"
+    },
+    {
+      "stage": "initial parallel runtime regression",
+      "detail": "existing96-channel refresh had write audit failure;135 library tests passed,1 failed; no integration target ran"
+    },
+    {
+      "stage": "same-source isolated repeat",
+      "detail": "same96-channel assertions passed;1 pass,135 filtered; cause of first failure not established"
+    },
+    {
+      "stage": "final serial regression",
+      "detail": "same frozen source and original assertions;136 library,40 Admission,9 order,4 sources,111 study runtime all passed"
+    }
+  ],
+  "evidence_sha256": {
+    "regression.log": "06160a4d342d0238e9fc9c90f663c9087114161f3fa4e535fb39ac053c2fe25f",
+    "clippy-frozen.log": "f0eb09f6e669bd1f75cfe17ae654931e977e8d7273a124277e879aafe1a19bf1",
+    "core.log": "a8429056ed18f93d089313a6dc193ea7a93333a95fe73e8de459e27b25cc57e9",
+    "clippy-final.log": "dfa76d1c299838697f452f2aad566e146defe914f7f15a6c6cd6f7ece5b4d176",
+    "focused-final.log": "2ff74b18014396d39229d40cfa2bdbc665f36085d5c5a5978a20f00864e56978",
+    "clippy.log": "b02af345a27a329c608c51ec8636697c8f7c5cb02657634227856d27f371dd67",
+    "focused-v2.log": "1962534fd2556c6d2c6fde1efaf86efeafcc566988ac1dd3362b8f8b30bdd3a5",
+    "core-final.log": "cc17b7d5d699bb40c1b354c65f55b303b7d23439211730ee268c10ac7628ab30",
+    "refresh-isolated.log": "1fd4ceee6aa285f9a424f57e3ba48af575d239f666acb76ffd2555ae7a98edf8",
+    "focused.log": "4d8bfa981dc08a86c924d4d70cd08fb7d4cb7a614e18770ef74f161438e112f5",
+    "regression-serial.log": "1cc84229ef0635e8be522ddeea34c3509ba756aa126480ccaf36b1995ae4a496"
+  },
+  "source_manifest_sha256": "71f9ca5a978a10d6ea55ade44c4437229145d401a6822720febba9b1ad30f848",
+  "test_id_binary_manifest_sha256": "b36c59393c2172a4781fb2c8bca2f1e9f1d59de1f81cede2d095a944b65f6515",
+  "excluded": [
+    "full workspace rerun",
+    "old Linux or TLS rerun",
+    "current Linux/release acceptance",
+    "original Control4 rule/variable/scene semantic approval",
+    "field control or device/identity/credential/network/service deployment"
+  ],
+  "ea5_configuration_and_control_scope": "unchanged",
+  "private_family_sources": "local ignored only; no private XML/configuration published"
+}
