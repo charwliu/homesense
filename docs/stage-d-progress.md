@@ -19,7 +19,7 @@
 | 变量生命周期 | schema 14 类型化持久值；设备／规则与变量声明事务发布；Admission 内存临时值与持久提交统一 CAS；重启清空；25 变量处置证据 | 在线发布及显式类型迁移已接通；25 个变量中 1 个有书房逻辑限定现场证据，24 个仍需原项目分类语义审核和现场验收 |
 | 定时渐变 | 有界采样、反馈起点租约、单在途背压、人工接管、设备任务组、schema 14 逐采样审计及写出前场景终态检查 | SceneRuntime／SceneScheduler 已接配置渐变、反馈准备与自动安装；已完成合成服务渐变／退出／重启／发布回放及禁用渐变导出；物理写入间隔已覆盖控制与查询，渐变预算随其容量约束并在发布前验证；普通流量规划预留已接入共享渐变预算／发布前检查与管理员诊断；原程序完整语义、现场容量与回放验收仍未完成 |
 | 条件 AST 与反馈一致性 | 三值求值、算术、嵌套分支、XML AND/OR、LOAD、IS_LEVEL；反馈租约与 Admission 准入锁、持久命令状态校验 | 定时渐变及窗帘状态语义处置 |
-| 源节点追踪 | 179源 AST／规划标签已独立核对；固定 b31ddeb 的新延迟场景正例通过，调用／成员标签在重开 Store 后保留，既有渐变样本有持久来源断言 | 两条即时规则命令的节点标签在准入审计中丢失已复现；功能开发正修复，根独立回滚／组合展开／旧记录兼容验收待完成，见[缺口](evidence/stage-d-study/source-runtime-trace-gap-root-check.json)与[边界正例](evidence/stage-d-study/source-scene-trace-boundary-root-check.json) |
+| 源节点追踪 | 179源 AST／规划标签已独立核对；固定 b31ddeb 的新延迟场景正例通过，调用／成员标签在重开 Store 后保留，既有渐变样本有持久来源断言 | 节点丢失反例的限定候选已独立通过4项：逐命令标签、旧延迟来源、第二条来源失败事务回滚及真实旧schema24／备份兼容；只有7份生产覆盖文件，最终提交指纹、组合展开和面板／混合规则仍待独立复验，见[候选根证据](evidence/stage-d-study/source-runtime-trace-candidate-root-check.json)、[缺口](evidence/stage-d-study/source-runtime-trace-gap-root-check.json)与[边界正例](evidence/stage-d-study/source-scene-trace-boundary-root-check.json) |
 | 规则链 | 统一 Router／Session 接入启动、日历、面板、反馈与场景结果；同事件共享根预算，延迟场景及变量变化沿原链续接；持久成功／失败／取消终态；schema 18 保存候选反馈推断，实际写出关联与原预算续接已接入，模拟验证循环及已结束根抑制；TCP 重连不重放 | 协议无来源标识，窗口外不能证明归属；真实反馈流、歧义抑制及现场交互验收 |
 | 手势与长按 | KeyGesture→PanelRules→HoldDimming；TCP 面板长按→调光→断链恢复→新按键再触发回归；释放／到期跨通道故障隔离 | TCP 发布监督已接线；现场停止策略验收仍待完成 |
 | 日历计划 | 上海时间日历核心、SQLite 水位、ScheduledRules、统一装配与隔离模拟服务；回拨与重启防重回归 | TCP 运行中发布与管理员日历诊断接口已接线并经 Web 集成验证；原项目计划语义需核对，系统更新任务不转为灯控 |
