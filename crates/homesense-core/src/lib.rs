@@ -307,6 +307,9 @@ pub enum MotorAction {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Command {
     Switch(bool),
+    /// Native relative operation. Has no absolute target and must never be
+    /// retried after an uncertain write or replayed on connection recovery.
+    Toggle,
     SetLevel {
         level: Percent,
         transition: LevelTransition,
@@ -359,9 +362,12 @@ mod tests {
             Command::PanelLed(true),
             Command::Query,
             Command::PauseRamp,
+            Command::Toggle,
         ] {
             assert!(!command.target_matches(Observation::Button { pressed: true }));
             assert!(!command.target_matches(Observation::Switch(true)));
+            assert!(!command.target_matches(Observation::Switch(false)));
+            assert!(!command.target_matches(Observation::Level(target)));
         }
     }
     #[test]

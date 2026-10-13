@@ -79,6 +79,7 @@ fn intent(command: Command) -> [u8; 4] {
             },
         ),
         Command::PanelLed(v) => (6, u8::from(v)),
+        Command::Toggle => (7, 0),
     };
     [1, tag, value, 0]
 }
@@ -443,4 +444,47 @@ fn cancel_in_transaction(
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod native_toggle_tests {
+    use super::*;
+    #[test]
+    fn relative_audit_encoding_never_claims_an_absolute_target() {
+        assert_eq!(intent(Command::Toggle), [1, 7, 0, 0]);
+        for other in [Command::Query, Command::Switch(false), Command::Switch(true),
+            Command::PauseRamp, Command::PanelLed(false), Command::PanelLed(true)] {
+            assert_ne!(intent(Command::Toggle), intent(other));
+        }
+    }
+    #[test]
+    fn relative_journal_survives_restart_only_as_uncertain_history() {
+        let path = std::env::temp_dir().join(format!("native-journal-{}",
+            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+        std::fs::create_dir(&path).unwrap();
+        let file = path.join("runtime.sqlite");
+        let mut store = Store::open(&file).unwrap();
+        store.publish(None, 1, b"synthetic", &[]).unwrap();
+        let device = homesense_core::DeviceId::new("synthetic").unwrap();
+        store.accept_commands("first", &[QueuedCommand {
+            id: 1, device_id: device.clone(), command: Command::Toggle,
+            origin: homesense_core::queue::Origin::Http,
+            epochs: homesense_core::queue::Epochs { configuration: 1, transport: 1, control: 1 },
+            deadline_ms: 100, run_id: None,
+        }], 0).unwrap();
+        store.transition_command("first", 1, Status::Accepted, Status::Writing, 1).unwrap();
+        store.transition_command("first", 1, Status::Writing, Status::Written, 2).unwrap();
+        assert!(store.recorded_dimmer_levels(1, &[device]).unwrap().is_empty());
+        drop(store);
+        let mut store = Store::open(&file).unwrap();
+        assert_eq!(store.recover_commands("second").unwrap(), 1);
+        assert_eq!(store.command_status("first", 1).unwrap(), Some(Status::Uncertain));
+        let bytes: Vec<u8> = store.connection.query_row(
+            "SELECT intent FROM command_journal WHERE boot_id='first' AND command_id=1",
+            [], |row| row.get(0)).unwrap();
+        assert_eq!(bytes, [1, 7, 0, 0]);
+        assert_eq!(store.recover_commands("second").unwrap(), 0);
+        drop(store);
+        std::fs::remove_dir_all(path).unwrap();
+    }
 }

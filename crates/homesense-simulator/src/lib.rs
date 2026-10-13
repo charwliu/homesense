@@ -43,6 +43,9 @@ impl std::error::Error for SimError {}
 pub struct Gateway {
     modules: BTreeMap<BusAddress, ModuleSpec>,
     values: BTreeMap<(u8, u8), u8>,
+    // Synthetic toggle policy: restore last nonzero dimmer value, default 100.
+    // Manufacturer manuals do not establish this as real hardware behavior.
+    toggle_restore: BTreeMap<(u8, u8), u8>,
     motors: BTreeMap<(u8, u8), MotorMotion>,
     decoder: StreamDecoder,
     pending: VecDeque<(u64, RawFrame)>,
@@ -72,6 +75,7 @@ impl Gateway {
         Ok(Self {
             modules: registered,
             values: BTreeMap::new(),
+            toggle_restore: BTreeMap::new(),
             motors: BTreeMap::new(),
             decoder: StreamDecoder::default(),
             pending: VecDeque::new(),
@@ -128,11 +132,12 @@ impl Gateway {
     fn apply(&mut self, frame: RawFrame, now_ms: u64) -> Result<(), SimError> {
         let address = BusAddress::new(frame.address).map_err(|_| SimError::UnknownModule)?;
         let module = self.modules.get(&address).ok_or(SimError::UnknownModule)?;
-        let (channel, query, ramp, pause) = match frame.command {
-            c @ 1..=8 => (c, false, false, false),
-            c @ 0xA1..=0xA8 if frame.value == 0xF2 => (c - 0xA0, true, false, false),
-            c @ 0xA1..=0xA8 if frame.value == 5 => (c - 0xA0, false, false, true),
-            c @ 0xB1..=0xB8 => (c - 0xB0, false, true, false),
+        let (channel, query, ramp, pause, toggle) = match frame.command {
+            c @ 1..=8 => (c, false, false, false, false),
+            c @ 0xA1..=0xA8 if frame.value == 0xF2 => (c - 0xA0, true, false, false, false),
+            c @ 0xA1..=0xA8 if frame.value == 0xF1 => (c - 0xA0, false, false, false, true),
+            c @ 0xA1..=0xA8 if frame.value == 5 => (c - 0xA0, false, false, true, false),
+            c @ 0xB1..=0xB8 => (c - 0xB0, false, true, false, false),
             _ => return Err(SimError::UnsupportedCommand),
         };
         if channel > module.channels() {
@@ -150,6 +155,14 @@ impl Gateway {
                 let is_switch = module.kind() == ModuleKind::Switch;
                 let value = if query {
                     *self.values.get(&key).unwrap_or(&0)
+                } else if toggle {
+                    if self.values.get(&key).copied().unwrap_or(0) != 0 {
+                        0
+                    } else if is_switch {
+                        1
+                    } else {
+                        self.toggle_restore.get(&key).copied().unwrap_or(100)
+                    }
                 } else if is_switch {
                     match frame.value {
                         0xF1 => 1,
@@ -162,6 +175,9 @@ impl Gateway {
                     }
                     frame.value
                 };
+                if !query && !is_switch && value > 0 {
+                    self.toggle_restore.insert(key, value);
+                }
                 self.values.insert(key, value);
                 self.schedule(
                     RawFrame {
@@ -177,7 +193,7 @@ impl Gateway {
                 )?;
             }
             ModuleKind::Motor => {
-                if query || ramp || pause {
+                if query || ramp || pause || toggle {
                     return Err(SimError::UnsupportedCommand);
                 }
                 let motion = match frame.value {
@@ -189,7 +205,7 @@ impl Gateway {
                 self.motors.insert(key, motion); // No position or ACK is fabricated.
             }
             ModuleKind::Keypad => {
-                if query || ramp || pause || module.led_mode() != PanelLedMode::Manual {
+                if query || ramp || pause || toggle || module.led_mode() != PanelLedMode::Manual {
                     return Err(SimError::UnsupportedCommand);
                 }
                 if ![0xF1, 0xF2].contains(&frame.value) {
@@ -236,5 +252,45 @@ impl Gateway {
     pub fn disconnect(&mut self) {
         self.decoder.reset();
         self.pending.clear();
+    }
+}
+
+#[cfg(test)]
+mod native_toggle_tests {
+    use super::*;
+    use homesense_core::{ProtocolProfile, Verification};
+    fn gateway(profile: ProtocolProfile) -> Gateway {
+        Gateway::new(vec![ModuleSpec::new(BusAddress::new(0x15).unwrap(), profile,
+            Verification::Simulated).unwrap()], Faults::default(), 8).unwrap()
+    }
+    fn run(gateway: &mut Gateway, command: u8, value: u8, at: u64) -> Vec<u8> {
+        assert_eq!(gateway.receive(&[0xae, 0x15, command, value, 0xee], at).unwrap(), vec![Ok(())]);
+        gateway.drain_due(at).unwrap().into_iter().flatten().collect()
+    }
+    #[test]
+    fn relay_toggle_then_query_returns_actual_value_without_repeating_the_flip() {
+        let mut gateway = gateway(ProtocolProfile::R8i8DinPro);
+        assert_eq!(run(&mut gateway, 0xa1, 0xf1, 0), [0xae, 0x15, 0xd1, 0xf1, 0xee]);
+        assert_eq!(run(&mut gateway, 0xa1, 0xf2, 1), [0xae, 0x15, 0xd1, 0xf1, 0xee]);
+        assert_eq!(run(&mut gateway, 0xa1, 0xf1, 2), [0xae, 0x15, 0xd1, 0xf2, 0xee]);
+        gateway.disconnect();
+        assert_eq!(run(&mut gateway, 0xa1, 0xf2, 3), [0xae, 0x15, 0xd1, 0xf2, 0xee]);
+    }
+    #[test]
+    fn dimmer_toggle_uses_the_documented_synthetic_restore_policy_only() {
+        let mut gateway = gateway(ProtocolProfile::Ad8Din);
+        assert_eq!(run(&mut gateway, 0xb1, 17, 0), [0xae, 0x15, 0xd1, 17, 0xee]);
+        assert_eq!(run(&mut gateway, 0xa1, 0xf1, 1), [0xae, 0x15, 0xd1, 0, 0xee]);
+        assert_eq!(run(&mut gateway, 0xa1, 0xf2, 2), [0xae, 0x15, 0xd1, 0, 0xee]);
+        assert_eq!(run(&mut gateway, 0xa1, 0xf1, 3), [0xae, 0x15, 0xd1, 17, 0xee]);
+    }
+    #[test]
+    fn toggle_never_becomes_motor_motion_or_a_panel_led_command() {
+        for profile in [ProtocolProfile::C4DinPro, ProtocolProfile::Bt86cRs485] {
+            let mut gateway = gateway(profile);
+            assert_eq!(gateway.receive(&[0xae, 0x15, 0xa1, 0xf1, 0xee], 0).unwrap(),
+                vec![Err(SimError::UnsupportedCommand)]);
+            assert!(gateway.drain_due(0).unwrap().is_empty());
+        }
     }
 }

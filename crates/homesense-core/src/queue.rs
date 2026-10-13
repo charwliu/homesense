@@ -326,6 +326,34 @@ mod tests {
         }
     }
     #[test]
+    fn relative_commands_are_not_coalesced_and_epoch_change_discards_them() {
+        let mut queue = CommandQueue::new(3, 1).unwrap();
+        for id in [1, 2] {
+            assert!(
+                queue
+                    .enqueue(req(id, "light", Command::Toggle, Origin::Http), 0, EPOCH)
+                    .unwrap()
+                    .is_empty()
+            );
+        }
+        assert_eq!(queue.len(), 2);
+        assert_eq!(
+            queue.enqueue(req(2, "light", Command::Toggle, Origin::Http), 0, EPOCH),
+            Err(QueueError::InvalidCommandId)
+        );
+        let mut next_epoch = EPOCH;
+        next_epoch.transport += 1;
+        let poll = queue.poll(1, next_epoch);
+        assert!(poll.next.is_none());
+        assert_eq!(poll.cancelled.len(), 2);
+        assert!(
+            poll.cancelled
+                .iter()
+                .all(|c| c.reason == CancelReason::TransportChanged)
+        );
+        assert!(queue.is_empty());
+    }
+    #[test]
     fn stop_has_reserved_capacity_and_prevents_queued_motor_restart() {
         let mut q = CommandQueue::new(2, 1).unwrap();
         q.enqueue(
