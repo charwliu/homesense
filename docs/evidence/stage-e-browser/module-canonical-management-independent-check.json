@@ -1,0 +1,377 @@
+{
+  "fixed_commit": "8685b0b92d3732698de87a72b00c5d62c34a3ccc",
+  "status": "passed_for_management_view_and_permission_scope",
+  "actual_tests": 6,
+  "passed": 6,
+  "failed": 0,
+  "filtered_existing_library_tests": 116,
+  "actual_api_calls": 25,
+  "actual_api_pages_rendered": 14,
+  "cases": [
+    {
+      "id": "accepted_intent_never_substitutes_observed",
+      "status": "passed",
+      "actual_api_calls": 2,
+      "trace_sha256": "c29069d6f9732fac90a9a3d4e3ecdeaa832f3b32b0afbb8225a5f2386350e28a",
+      "response_statuses": [
+        {
+          "path": "/api/v1/module-commands",
+          "grant": "admin",
+          "http": 202,
+          "outcome": "accepted",
+          "error": null
+        },
+        {
+          "path": "/api/v1/modules",
+          "grant": "admin",
+          "http": 200,
+          "outcome": null,
+          "error": null
+        }
+      ],
+      "final_journal": [
+        {
+          "device": "light",
+          "intent": "01032300",
+          "status": "accepted"
+        }
+      ]
+    },
+    {
+      "id": "canonical_slots_and_bound_response_semantics",
+      "status": "passed",
+      "actual_api_calls": 3,
+      "trace_sha256": "4b3c53cd144dba4302f19b250a52028aa545b0492db7e05dc833091adef88089",
+      "response_statuses": [
+        {
+          "path": "/api/v1/modules",
+          "grant": "admin",
+          "http": 200,
+          "outcome": null,
+          "error": null
+        },
+        {
+          "path": "/api/v1/modules",
+          "grant": "admin",
+          "http": 200,
+          "outcome": null,
+          "error": null
+        },
+        {
+          "path": "/api/v1/modules",
+          "grant": "admin",
+          "http": 200,
+          "outcome": null,
+          "error": null
+        }
+      ],
+      "final_journal": []
+    },
+    {
+      "id": "observed_ports_do_not_create_control_permissions_or_query_api",
+      "status": "passed",
+      "actual_api_calls": 12,
+      "trace_sha256": "a429dd2d0cefda7997e7290d3cd0367f26af75d69d3da0ba77dbafa8dc9fe99e",
+      "response_statuses": [
+        {
+          "path": "/api/v1/modules",
+          "grant": "admin",
+          "http": 200,
+          "outcome": null,
+          "error": null
+        },
+        {
+          "path": "/api/v1/module-commands",
+          "grant": "admin",
+          "http": 400,
+          "outcome": null,
+          "error": "module_channel_unavailable"
+        },
+        {
+          "path": "/api/v1/module-commands",
+          "grant": "admin",
+          "http": 400,
+          "outcome": null,
+          "error": "module_channel_unavailable"
+        },
+        {
+          "path": "/api/v1/module-commands",
+          "grant": "admin",
+          "http": 400,
+          "outcome": null,
+          "error": "module_channel_unavailable"
+        },
+        {
+          "path": "/api/v1/module-commands",
+          "grant": "admin",
+          "http": 400,
+          "outcome": null,
+          "error": "module_channel_unavailable"
+        },
+        {
+          "path": "/api/v1/module-commands",
+          "grant": "admin",
+          "http": 202,
+          "outcome": "unknown",
+          "error": null
+        },
+        {
+          "path": "/api/v1/module-commands",
+          "grant": "no-grant",
+          "http": 403,
+          "outcome": null,
+          "error": "device_not_permitted"
+        },
+        {
+          "path": "/api/v1/module-commands",
+          "grant": "viewer",
+          "http": 403,
+          "outcome": null,
+          "error": "administrator_required"
+        },
+        {
+          "path": "/api/v1/modules",
+          "grant": "no-grant",
+          "http": 200,
+          "outcome": null,
+          "error": null
+        },
+        {
+          "path": "/api/v1/modules",
+          "grant": "viewer",
+          "http": 403,
+          "outcome": null,
+          "error": "administrator_required"
+        },
+        {
+          "path": "/api/v1/module-commands",
+          "grant": "admin",
+          "http": 400,
+          "outcome": null,
+          "error": "invalid_body"
+        },
+        {
+          "path": "/api/v1/module-queries",
+          "grant": "admin",
+          "http": 404,
+          "outcome": null,
+          "error": "not_found"
+        }
+      ],
+      "final_journal": []
+    },
+    {
+      "id": "old_mapping_and_epoch_never_current_confirmed",
+      "status": "passed",
+      "actual_api_calls": 4,
+      "trace_sha256": "3f32415bce164ca662e085b16df255e7952e21859bdf242093177a18629a4fbe",
+      "response_statuses": [
+        {
+          "path": "/api/v1/modules",
+          "grant": "admin",
+          "http": 200,
+          "outcome": null,
+          "error": null
+        },
+        {
+          "path": "/api/v1/modules",
+          "grant": "admin",
+          "http": 200,
+          "outcome": null,
+          "error": null
+        },
+        {
+          "path": "/api/v1/modules",
+          "grant": "admin",
+          "http": 200,
+          "outcome": null,
+          "error": null
+        },
+        {
+          "path": "/api/v1/modules",
+          "grant": "admin",
+          "http": 200,
+          "outcome": null,
+          "error": null
+        }
+      ],
+      "final_journal": []
+    },
+    {
+      "id": "panel_events_are_not_led_state_and_motor_has_no_position",
+      "status": "passed",
+      "actual_api_calls": 1,
+      "trace_sha256": "8fead36cd8741b9be7c012939e393d84f2cda23da6786a7184bc63c6f8fb7632",
+      "response_statuses": [
+        {
+          "path": "/api/v1/modules",
+          "grant": "admin",
+          "http": 200,
+          "outcome": null,
+          "error": null
+        }
+      ],
+      "final_journal": []
+    },
+    {
+      "id": "unknown_stale_invalid_and_unavailable_api",
+      "status": "passed",
+      "actual_api_calls": 3,
+      "trace_sha256": "086cb81b6eb060a2a91c72a9c4b593bb7fd9063105af048edc52f5f72c32672b",
+      "response_statuses": [
+        {
+          "path": "/api/v1/modules",
+          "grant": "admin",
+          "http": 200,
+          "outcome": null,
+          "error": null
+        },
+        {
+          "path": "/api/v1/modules",
+          "grant": "admin",
+          "http": 200,
+          "outcome": null,
+          "error": null
+        },
+        {
+          "path": "/api/v1/modules",
+          "grant": "admin",
+          "http": 200,
+          "outcome": null,
+          "error": null
+        }
+      ],
+      "final_journal": []
+    }
+  ],
+  "query_entrypoints": {
+    "status": "not_implemented_in_fixed_commit",
+    "single_channel_action_query_http": 400,
+    "single_channel_action_query_error": "invalid_body",
+    "whole_module_route_http": 404,
+    "whole_module_route_error": "not_found",
+    "counted_as_implemented_query_tests": false
+  },
+  "bound_response_meaning": "response/fresh_responses/queryable_bindings count enabled Switch/Dimmer bindings only; do not assert all slots confirmed from response=fresh",
+  "ui_summary_label": "启用绑定回复；完整通道反馈见下方槽位",
+  "runtime_sources_verified": 978,
+  "unchanged_original_source_files": 977,
+  "private_test_append_only": 1,
+  "test_binary_sha256": "a3f3cd957adaa8ff5d331f2eb55937a159f3a7cfcb7cdd9d4b279ed74baa0f1c",
+  "new_root_core_test_coverage_claim": false,
+  "physical_io": false,
+  "real_credentials_created": false,
+  "deployment": false,
+  "git_commit": false,
+  "git_push": false,
+  "date": "2026-10-13",
+  "scope": "Fixed 8685b0b independent administrator API/renderer/permission verification; no final D/E or full module architecture completion claim",
+  "ignored": 0,
+  "source": {
+    "archive_sha256": "a41ad7d5cab3901a040371279fbb45b7562eb5880ff3b2ee82b7dc074b33f3ea",
+    "original_files": 978,
+    "unchanged_original_files": 977,
+    "private_test_append_only_files": 1,
+    "probe_sha256": "56b43fd295f48e151f0b1aedddf1373f150ecb8b312e03a9459236bd4382f65c",
+    "test_binary_sha256": "a3f3cd957adaa8ff5d331f2eb55937a159f3a7cfcb7cdd9d4b279ed74baa0f1c",
+    "app_js_sha256": "9c06ff8e3596d3d99f5278c4e2ed45f615f6a0cfb911ce58e102d5790fbeb64b"
+  },
+  "verified_behavior": [
+    "canonical 8-channel dimmer and4-channel dimmer slot actual/quality/time visible without logical aliases",
+    "1 bound,1 disabled and1 unbound fresh slot values10/20/30; disabled binding stays disabled with no actions; unbound has no control binding",
+    "initial unknown, explicit invalid Unknown with retained previous actual/time, expiry Stale and stopped Unavailable distinguish freshness",
+    "accepted brightness35 journal remains separate from observed30 in API and actual renderer",
+    "hidden supply, disabled/unbound/panel and missing-grant commands produce no command rows; no new permission from feedback",
+    "motor lacking calibration returns HTTP202 outcome=unknown,retry=false with zero command rows; not accepted actuator output",
+    "revision mapping and old epoch hide old actual from current slots; resumed stale values are not Confirmed until new epoch feedback",
+    "panel actual pressed event is not LED color/state; motor raw sample is unsupported and gives no position",
+    "response/fresh_responses/queryable_bindings count enabled supported bindings, not all module slots; UI explicitly labels enabled-binding response"
+  ],
+  "evidence_sha256": {
+    "source.json": "4ba8c096b974a2eec0cc6e715bfe1d1b280de3b72dad00b213b12604a7524d64",
+    "final-source-audit.json": "e1c9ba976884a9596abfa7630b4cdbf40b8d45ee10b58e0714f84d29a043a848",
+    "execution.json": "6e7189283889a935f66214edd3a9f380e85c72987b6d3cd814b5115efcaf3a66",
+    "final-run.log": "81d2b4c07ac06b2e5a5e7685bcaf193c88951ea35e5918fde357fa7d040d8b6c",
+    "probe.rs": "56b43fd295f48e151f0b1aedddf1373f150ecb8b312e03a9459236bd4382f65c",
+    "verify_evidence.py": "96b69707762dd7091fad49d541c6e1c83ae7c9474d71709fd195a6b999fbda12",
+    "verification.log": "76a1e4fe7127d58d12916a21cbe7c34923b97c477300ef3eda7574e03023f26a",
+    "verification-results.json": "74f19ca900f2c6de7fa4374cca785c6a93d0734655f3e717b4ba0ef6636052da",
+    "verify_renderer.cjs": "7257852f4fe4e5ef7c07435a6e579c26a3627843c4064bf366be55ceb9faedd9",
+    "renderer-final.log": "0542d8bc34eb13a20373ed8e3ebaafbec68e67584696e9b216128a69409e69e4",
+    "renderer-results.json": "ab1ec9fb6fc7a35f0d9b57f9ecf1b16c2e46c2b0ae6c4543e278b11a06220362",
+    "run_acceptance.py": "40bd6a3836ddc259b62bb276ee7e17cb8f9c8d3546bda7e6654853ca239884e5",
+    "attempts/attempt-01-compile.log": "33d662907ee9d6686a0712f561ef9b2c4370d6352f9425e980810420c175c91e",
+    "attempts/excluded-preexisting-snapshot.log": "de9ab54e0300d67f818d708c0df42c847d8ca60df7ff401e27f0e3f27a7b9602",
+    "attempts/attempt-03-run.log": "ea567003db6714c5e9e67f0a9956bcb1b02169c070b5812982ee09df443cce43",
+    "integration-boundary.json": "257b2b9524fb4eb9b468cb9edcabd1d80eafd1db30781c2ee7bb1328d23ffa0d",
+    "root-runtime-library-failure.log": "c0ee9821f8ca76885f7e23ec1b5efb6c84d56c07f62c13169ed32c653ea6d391"
+  },
+  "attempt_history": [
+    {
+      "attempt": "01",
+      "status": "compile_failed",
+      "cause": "Private probe format string error plus six unadapted test project calls in original root frozen draft; preserved, no shared source edits"
+    },
+    {
+      "attempt": "02",
+      "status": "excluded_zero_tests",
+      "cause": "Requested isolated directory already existed; clone failed and a command ran0 matching tests in the preexisting copy; explicitly excluded from all acceptance"
+    },
+    {
+      "attempt": "03",
+      "status": "5_pass_1_fail",
+      "cause": "Probe expected HTTP400 for uncalibrated motor, actual existing receipt contract is HTTP202 unknown; raw response preserved. No actuator command accepted"
+    },
+    {
+      "attempt": "04/05",
+      "status": "6_pass",
+      "cause": "Newer compiled clean snapshot used, probe expectation recognizes unknown receipt and requires zero commands; preserved as pre-fixed history"
+    },
+    {
+      "attempt": "final",
+      "status": "6_pass",
+      "cause": "Same private probe migrated to fixed8685b0b full archive, no product overlays"
+    }
+  ],
+  "limitations": [
+    "Root later ran all116 library tests in authorized localhost environment on the same8685b0b:108 passed/8 failed,0 PermissionDenied. Logical alias-cursor/raw-port-version mismatch causes HAP InvalidState and service readiness failures. These six management passes do not close that integration blocker.",
+    "Six targeted management tests only;116 existing library tests filtered; core/burst/resync proofs already owned by root are not recounted",
+    "14 actual API payloads rendered through real app.js with fake DOM; not14 independent test functions or real browser/mobile/layout acceptance",
+    "Administrator whole-module and per-channel Query entrypoints remain pending in this fixed version;400/404 rejection checks do not mark Query implemented",
+    "No real TCP gateway, firmware/bus timing, physical light/LED/motor-position or encrypted Apple client verification",
+    "Only synthetic in-memory bearer grants for Api.handle fixture; no live credentials created",
+    "No new full-workspace/strict Clippy/Linux/long-running or final integrated deployment claim"
+  ],
+  "synthetic_in_memory_grants": true,
+  "private_raw_evidence_published": false,
+  "integration_boundary": {
+    "fixed_commit": "8685b0b92d3732698de87a72b00c5d62c34a3ccc",
+    "root_full_library_run": {
+      "status": "failed",
+      "total": 116,
+      "passed": 108,
+      "failed": 8,
+      "ignored": 0,
+      "filtered": 0,
+      "permission_denied_occurrences": 0,
+      "failed_tests": [
+        "automation_tcp::bridge_tests::multiple_bridges_rebuild_and_isolate_occupied_listener",
+        "automation_tcp::fault_tests::hap_task_failure_preserves_web_delayed_scene_and_single_startup",
+        "automation_tcp::fault_tests::occupied_tcp_hap_port_preserves_web_and_single_startup",
+        "hap_endpoint::subset_tests::two_listeners_publish_only_selected_lights_with_independent_identity",
+        "runtime_hap::publication_tests::changed_feedback_revision_invalidates_old_hap_projection",
+        "runtime_hap::publication_tests::selected_bridges_share_physical_feedback_without_exposing_each_other",
+        "service::hap_fault_tests::occupied_simulation_hap_port_preserves_web_control",
+        "service::hap_fault_tests::simulation_hap_failure_keeps_web_and_scene_execution_alive"
+      ],
+      "log_sha256": "c0ee9821f8ca76885f7e23ec1b5efb6c84d56c07f62c13169ed32c653ea6d391"
+    },
+    "coordinator_diagnosis": "ModuleTruth logical snapshot uses alias event cursor but raw all-port state_version, causing HAP InvalidState; service ended before readiness also observed. Root owns failure diagnosis and repair coordination.",
+    "frozen_source_confirmation": "module_truth::snapshot returns self.cursor() with raw.state_version",
+    "this_boundary_adds_no_test_execution": true,
+    "management_six_passes_remain_limited": true,
+    "full_runtime_library_and_Apple_pass_not_claimed": true,
+    "repair_and_fixed_source_retest_required": true,
+    "version_mismatch_examples_in_existing_management_traces": 11
+  }
+}
