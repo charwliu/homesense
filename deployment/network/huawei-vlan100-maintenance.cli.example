@@ -1,0 +1,39 @@
+# 离线实验候选；仅旧 .0.x 全部迁移后，在隔离环境先验证。
+# 日常 Vlanif100 shutdown，SSID关闭；不用 dnsmasq，不做 DHCP relay。
+# 必须核对 .0.254/.0.200 冲突、客户端无线实际 MAC、池名/ACL 编号无冲突。
+# VLANIF 入/出 ACL 支持及 CPU DHCP/管理面覆盖未实机确认，失败则禁止启用。
+# 无网关/DNS/121/249配置不保证对应选项被省略；OFFER/ACK抓包是启用门槛。
+system-view
+dhcp enable
+acl number 3997
+ description HS_MAINT100_IN_CANDIDATE
+ rule 5 permit udp source-port eq 68 destination-port eq 67
+ rule 100 deny ip
+ quit
+acl number 3998
+ description HS_MAINT100_OUT_CANDIDATE
+ rule 5 permit udp source-port eq 67 destination-port eq 68
+ rule 100 deny ip
+ quit
+ip pool HS_MAINT100
+ network 192.168.0.0 mask 255.255.255.0
+ excluded-ip-address 192.168.0.1 192.168.0.199
+ excluded-ip-address 192.168.0.201 192.168.0.254
+ static-bind ip-address 192.168.0.200 mac-address <MAINT_WIFI_MAC_HHHH-HHHH-HHHH>
+ lease day 0 hour 0 minute 15
+ quit
+# 静态绑定租约无限期：15分钟不使 .200 自动失效，结束须解绑/关SVI并释放客户地址。
+# 全局池新建，无 gateway-list/dns-list/Option121/249；不复用已有业务池。
+interface Vlanif100
+ shutdown
+ ip address 192.168.0.254 255.255.255.0
+ traffic-filter inbound acl 3997
+ traffic-filter outbound acl 3998
+ dhcp select global
+ quit
+# 到这里 SVI 保持关闭。隔离验证通过后才人工执行 undo shutdown。
+# 开启后 .0.0/24 直连会出现；不得加入 OSPF/回程/NAT/PBR，不配置 IPv6/RA。
+# 核查 CPU DHCP允许、其他核心管理入口受限、两个方向跨VLAN及公网均拒绝。
+# 同VLAN维护电脑到目标的二层流量应通过；ACL不替代SSID认证/终端隔离。
+# 结束：关闭SSID，Vlanif100 shutdown + undo dhcp select global；恢复端口和客户地址。
+# 核查池/ACL无其他引用再清理；绝不可全局 undo dhcp enable，也不保存临时开启状态。
