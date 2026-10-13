@@ -12,6 +12,8 @@
 
 模块引用层现已固定为 `f1b2e8a`，根核对19份受测源码与该提交一致，原始日志按目标重算211项成功、0失败、0忽略；这些是既有执行记录核验，不是新增211次运行。在该提交的独立归档另实际运行2项测试，968原文件逐份不变：离线Store CAS换址0x41→0x61后，保存的逻辑灯／供电引用及场景定义相同，合成HAP身份、AID/IID与一条配对保留；15种物理目标混入、无效模块／通道／供电引用被拒绝。实际命令日志0、无网络或现场动作。运行时Device仍公开解析后的gateway/address兼容字段，模块独立通道真值及未绑定反馈保留也未完成；已明确交开发继续收口，不能把配置引用层通过等同于最终领域对象解耦。见[固定模块引用检查点根审计](evidence/stage-e-browser/module-reference-checkpoint-root-audit.json)。
 
+同一固定 `f1b2e8a` 的三个存储发布入口另已独立执行1项事务验证：`publish`、`publish_configuration`、`publish_automation` 共享schema2防降级门禁。六次拒绝覆盖旧schema1、非结构化旧载荷及合法但不匹配的CAS版本，每次活动配置不变，revision2配置／自动化／取消记录均未写入，重开仍一致；随后合法schema2 CAS成功，设备定义及模块ID保留，仅该成功事务新增自动化与取消记录。968原文件未改，私有夹具的依赖位置和零版本错误两次尝试保留，未放宽产品门禁。该结果只关闭离线存储入口一致性验证，不证明在线发布、阻止有意的合法schema2身份编辑或完成模块真值层。见[发布门禁根核查](evidence/stage-e-browser/module-publication-guard-root-check.json)。
+
 冻结schema2引用层补证已实际通过1项：Store离线CAS发布把同一module_id的0x41映射改为0x61，SQL中的设备／场景定义未改，供电module_id＋channel引用保持；真实RuntimeHap重建保留AID/IID、生成身份及一条合成配对。旧地址／epoch不更新新状态，供电Off的逻辑投影不覆盖物理50%，零命令日志。948非覆盖原文件核对不变；首次夹具配对在标识分配前写入而遭正确拒绝，失败保留，未修改产品门禁。它只覆盖离线存储／图重建和明确epoch的Feedback，不关闭在线换址、真实Apple客户端或下项模块独立真值缺口。见[稳定模块引用根核查](evidence/stage-e-browser/module-reference-remap-root-check.json)。
 
 模块引用层已出现schema2草稿，但状态层仍有独立反例：固定`bfe61f2`运行时＋仅一份冻结配置解析覆盖，已注册8路AD8的通道2／37%能合法解码，却因没有逻辑绑定而被当前Feedback路径丢弃（更新0、快照不变）；绑定通道1／30%正向对照正常更新1。948非覆盖原文件不变，1项实际测试通过是在证明缺口，不作为完整当前管理草稿或新提交版本验收。可运行探针已交开发，模块通道ground truth独立于逻辑绑定、逻辑状态仅投影及旧映射／代次隔离继续待验。见[模块状态层根反例](evidence/stage-e-browser/module-channel-truth-gap-root-check.json)。
