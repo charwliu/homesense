@@ -1,0 +1,183 @@
+{
+  "fixed_commit": "1cd94a44dc222b7d7b4cbc92bac9fad2f1115907",
+  "archive_sha256": "e52c570762a1bc34aa270793faf1bd0870f654600c590d00bd2b9190a8011cf1",
+  "root_verified_local_archive_files": 932,
+  "local_original_unchanged_files": 930,
+  "private_test_only_appended_files": 2,
+  "root_verified_remote_current_source_files": 932,
+  "remote_read_only_source_match": true,
+  "linux_binary_sha256": "431829611f277a386e5d80968fd09512f36c070e5f49cf33bb59f980780cf88a",
+  "controller_binary_sha256": "2a9b962855266b08bd9feeee1254e0b06aeef4334b84cf58c5367b89347892b5",
+  "unique_rust_tests": 50,
+  "failed": 0,
+  "ignored": 0,
+  "core_and_runtime_vectors": 39,
+  "fixture_checker_reexecuted": true,
+  "encrypted_hap_web_checkpoints": [
+    {
+      "checkpoint": "two_positive_daily",
+      "selection": 2,
+      "hap_values_reading_daily_eco": [
+        false,
+        true,
+        false
+      ],
+      "web_and_hap_agree": true,
+      "raw_intent_null_version0": true
+    },
+    {
+      "checkpoint": "main30_reading",
+      "selection": 1,
+      "hap_values_reading_daily_eco": [
+        true,
+        false,
+        false
+      ],
+      "web_and_hap_agree": true,
+      "raw_intent_null_version0": true
+    },
+    {
+      "checkpoint": "down30_eco",
+      "selection": 3,
+      "hap_values_reading_daily_eco": [
+        false,
+        false,
+        true
+      ],
+      "web_and_hap_agree": true,
+      "raw_intent_null_version0": true
+    },
+    {
+      "checkpoint": "alloff",
+      "selection": 0,
+      "hap_values_reading_daily_eco": [
+        false,
+        false,
+        false
+      ],
+      "web_and_hap_agree": true,
+      "raw_intent_null_version0": true
+    },
+    {
+      "checkpoint": "EOF_fresh_daily",
+      "selection": 2,
+      "hap_values_reading_daily_eco": [
+        false,
+        true,
+        false
+      ],
+      "web_and_hap_agree": true,
+      "raw_intent_null_version0": true
+    },
+    {
+      "checkpoint": "restart_fresh_reading",
+      "selection": 1,
+      "hap_values_reading_daily_eco": [
+        true,
+        false,
+        false
+      ],
+      "web_and_hap_agree": true,
+      "raw_intent_null_version0": true
+    }
+  ],
+  "initial_subscription_notifications": {
+    "transitions_asserted": 3,
+    "off_and_on_values_delivered": true,
+    "scope": "root assertions over encrypted EVENT payloads collected by initial subscription"
+  },
+  "recovery": {
+    "EOF_requery_and_pair_verify": true,
+    "restart_requery_and_pair_verify": true,
+    "synthetic_identity_full_dump_unchanged": true,
+    "notification_delivery_after_resubscription": "separate supplementary run pending"
+  },
+  "wire_outputs": {
+    "supported_physical_query_endpoints": 4,
+    "scene_runs": 0,
+    "new_LED_off_journal_rows": 6,
+    "light_or_motor_control_frames": 0
+  },
+  "missing_startup_feedback": {
+    "partial_reply": {
+      "exit": 1,
+      "queries": 4,
+      "commands": 0,
+      "scenes": 0,
+      "selection": null
+    },
+    "no_reply": {
+      "exit": 1,
+      "queries": 1,
+      "commands": 0,
+      "scenes": 0,
+      "selection": null
+    },
+    "failure_scope": "initial synchronization aborts on missing reply; not a claim every endpoint queried on failed startup"
+  },
+  "startup_query_current_probe": {
+    "fixed_commit": "1cd94a44dc222b7d7b4cbc92bac9fad2f1115907",
+    "archive_sha256": "e52c570762a1bc34aa270793faf1bd0870f654600c590d00bd2b9190a8011cf1",
+    "original_files_verified_unchanged": 932,
+    "startup_query": {
+      "tests_passed": 1,
+      "unsupported_panel_and_calibrated_motor_remain_unknown": true,
+      "individual_queries": 4,
+      "hidden_supply_queried": true,
+      "disabled_excluded": true,
+      "default_on_level_not_used_as_truth": true,
+      "no_control_writes": true,
+      "transport_epoch": 2,
+      "scope": "actual ObservedTransport.query_recovery_with_policy and logical projection, in-memory stream; no actual TCP/hardware/HAP client"
+    },
+    "files": {
+      "root_startup_query.rs": "eb57932ccf456cc8afbe95963b1c313f9c18815acb4c67d0f58828b6ddcb137b",
+      "root_startup_query.json": "f6f5e6de6a754367df155b9881fec987483fc8f446295727e11f4a02b92ea900",
+      "startup-query-current.log": "9cddaaf82ba773de41512f39b7129c4501d482e7e9b0d773df80fbb72d8d8452"
+    }
+  },
+  "copy_migration_rollback": {
+    "schema_before": 22,
+    "schema_after": 23,
+    "restored_schema": 22,
+    "integrity": "ok",
+    "foreign_key_errors": 0,
+    "command_journal_rows_preserved": 237,
+    "scene_run_rows_preserved": 23,
+    "scene_rows_full_digest_unchanged": true,
+    "command_row_changes": {
+      "written_to_uncertain": 18,
+      "recovered_by_updated": 18,
+      "all_other_columns_unchanged": true,
+      "reason": "offline publication intentionally calls recover_commands; no automatic replay"
+    },
+    "original_and_restored_copy_bytes_identical": true,
+    "old_binary_inspection_passed": true,
+    "real_field_identity_migration": false
+  },
+  "all_isolated_services_exited_current_readonly_check": true,
+  "private_evidence_hashes": {
+    "root-reviewed-final-audit.json": "00c3dbe27af2c6c94dad9178b87c08971397e1fe8f1cd91c5bc98099376d4a13",
+    "root-local-audit.json": "3e8d5d1a75239884e334c01d1b4d657b7fe3479dc512c738dab307e69d4e8027",
+    "root-remote-source-result.json": "3e57db5151f23e0b8428029aa2b634d08655bb1d87b18e2de395648d24882169",
+    "root-migration-current.json": "a5d0717e3ca625236bd8a70769092d284e56e4d72b205682755e266dcced6459",
+    "root-journal-diff.json": "f5f68260fb7bdd1465710b97d7f99df1ef1ef3997c81e5e57ab4a785fed253a4",
+    "root-fixture39-check.json": "d9a44919cd5324fbd8a93e1783b3bfc85d5c8d2ab60491c499b80d03fc7d2da7",
+    "linux-evidence/hap-reconciliation-run/results.json": "8331d6f2edca61f5e44b102ff69108a61ba0335de89be2f57756b13c64052254",
+    "probe-linux.py": "6dd00d1fa876333c88bc35ce283468d767e337ed3e06eda017a04fd7defe4deb",
+    "rehearse-copy-only-v2.py": "6c11cd47623ffe58dfb432139ace3c2e55abbe9e357afd16aef1125e1026e356",
+    "core37.log": "3c2d88fa4a9904f5d6abb455fe405792392055faccc3300b0e80e25a52930b2e",
+    "reconciliation.log": "2b42fb82efe78c8b493d415cf0c8404a260f2b1d44c0216f8dabb65891fe56b2",
+    "joint-led.log": "df228988785355b9f271791ca6b216bcea8a4263e10a127b8b84ebdb242a7a96",
+    "remaining-two.log": "183f478f6ea39c200d068bbecaa45bf1f3f261d31270743813a0378207aa5608"
+  },
+  "core_probe_sha256": "542a89dee588d3788f3d4d1f88e56237e4a582e16c9b448249aab442d4d9d08c",
+  "limitations": [
+    "Synthetic Linux loopback and software HAP controller, not real Apple Home or physical gateway/load",
+    "50 focused tests, not full workspace regression or private-probe strict-Clippy pass",
+    "15 startup requirements have layered evidence, not15 identical E2E tests",
+    "Native unknown per-light upper scene path still being implemented;27case gate remains",
+    "No new actual field window, real credentials, or device controls"
+  ],
+  "field_enablement": false
+}
