@@ -713,10 +713,27 @@ impl Api {
                 _=>deny(StatusCode::NOT_FOUND,"relative_request_not_found"),
             };
         }
+        if let Some(key)=request.uri().path().strip_prefix("/api/v1/module-queries/") {
+            if grant.role!=crate::web_auth::Role::Administrator {return deny(StatusCode::FORBIDDEN,"administrator_required");}
+            if request.method()!=hyper::Method::GET || !request.body().is_empty() || request.uri().query().is_some() || key.is_empty() || key.len()>128 || !key.bytes().all(|b|b.is_ascii_alphanumeric()||b==b'-'||b==b'_') {return deny(StatusCode::BAD_REQUEST,"invalid_query_receipt");}
+            let owned=self.receipts.lock().ok().and_then(|r|r.lookup(&grant.controller.to_string(),key).ok().flatten());
+            let Some((fingerprint,Some(receipt)))=owned else {return deny(StatusCode::NOT_FOUND,"owned_query_not_found");};
+            let decoded=serde_json::from_str::<serde_json::Value>(&fingerprint).ok().zip(serde_json::from_str::<serde_json::Value>(&receipt).ok());
+            let Some((fingerprint,receipt))=decoded else{return deny(StatusCode::CONFLICT,"query_receipt_unknown");};
+            if fingerprint["action"]!="module_query" || fingerprint["revision"]!=runtime.revision || receipt["boot"]!=runtime.boot || receipt["outcome"]!="accepted" {return deny(StatusCode::CONFLICT,"query_not_in_current_runtime");}
+            let Some(module_id)=fingerprint["module_id"].as_str() else{return deny(StatusCode::CONFLICT,"query_receipt_unknown");};
+            let scope=match serde_json::from_value::<crate::module_queries::Scope>(fingerprint["scope"].clone()){Ok(v)=>v,Err(_)=>return deny(StatusCode::CONFLICT,"query_receipt_unknown")};
+            let commands=receipt["commands"].as_array().and_then(|ids|ids.iter().map(|id|id.as_str()?.parse::<u64>().ok()).collect::<Option<Vec<_>>>());
+            let Some(commands)=commands else{return deny(StatusCode::CONFLICT,"query_receipt_unknown");};
+            return match runtime.control.request(Action::ModuleQueryStatus{controller:grant.controller,revision:runtime.revision,module_id:module_id.to_owned(),scope,commands}).await {
+                Ok(Reply::ModuleQueryStatus(status))=>response(StatusCode::OK,json!({"request_id":key,"boot":runtime.boot,"revision":runtime.revision.to_string(),"status":status})),
+                _=>deny(StatusCode::CONFLICT,"query_scope_unavailable"),
+            };
+        }
         if request.method() != hyper::Method::POST
             || !matches!(
                 request.uri().path(),
-                "/api/v1/scene-actions" | "/api/v1/scene-cancellations" | "/api/v1/device-commands" | "/api/v1/module-commands" | "/api/v1/scene-relative-actions"
+                "/api/v1/scene-actions" | "/api/v1/scene-cancellations" | "/api/v1/device-commands" | "/api/v1/module-commands" | "/api/v1/module-queries" | "/api/v1/scene-relative-actions"
             )
         {
             return deny(StatusCode::NOT_FOUND, "not_found");
@@ -754,8 +771,21 @@ impl Api {
             request_id: String,
         }
         let principal = grant.controller.to_string();
-        let is_device = matches!(request.uri().path(),"/api/v1/device-commands"|"/api/v1/module-commands");
-        let (scene, request_id, action, fingerprint) = if request.uri().path()=="/api/v1/module-commands" {
+        let is_device = matches!(request.uri().path(),"/api/v1/device-commands"|"/api/v1/module-commands"|"/api/v1/module-queries");
+        let (scene, request_id, action, fingerprint) = if request.uri().path()=="/api/v1/module-queries" {
+            if grant.role!=crate::web_auth::Role::Administrator{return deny(StatusCode::FORBIDDEN,"administrator_required");}
+            #[derive(serde::Deserialize)]
+            #[serde(deny_unknown_fields)]
+            struct ModuleQuery{module_id:String,scope:crate::module_queries::Scope,revision:String,request_id:String}
+            let body=match serde_json::from_slice::<ModuleQuery>(request.body()){Ok(b)=>b,Err(_)=>return deny(StatusCode::BAD_REQUEST,"invalid_body")};
+            if body.revision!=runtime.revision.to_string(){return deny(StatusCode::CONFLICT,"stale_revision");}
+            if body.module_id.is_empty() || body.module_id.len()>128 {return deny(StatusCode::BAD_REQUEST,"invalid_body");}
+            if body.request_id.is_empty() || body.request_id.len()>128 || !body.request_id.bytes().all(|b|b.is_ascii_alphanumeric()||b==b'-'||b==b'_') {return deny(StatusCode::BAD_REQUEST,"invalid_request_id");}
+            let checked=runtime.control.request(Action::ModuleQuery{controller:grant.controller,revision:runtime.revision,module_id:body.module_id.clone(),scope:body.scope.clone(),submit:false}).await;
+            if !matches!(checked,Ok(Reply::ModuleQuery(_))) {return deny(StatusCode::BAD_REQUEST,"module_query_unsupported_or_unavailable");}
+            let fingerprint=json!({"revision":runtime.revision,"action":"module_query","module_id":body.module_id,"scope":body.scope}).to_string();
+            (String::new(),body.request_id,Action::ModuleQuery{controller:grant.controller,revision:runtime.revision,module_id:body.module_id,scope:body.scope,submit:true},fingerprint)
+        } else if request.uri().path()=="/api/v1/module-commands" {
             if grant.role!=crate::web_auth::Role::Administrator{return deny(StatusCode::FORBIDDEN,"administrator_required");}
             #[derive(serde::Deserialize)]
             #[serde(deny_unknown_fields)]
@@ -903,6 +933,7 @@ impl Api {
             Ok(Reply::SceneRelative(receipt))=>json!({"request_id":request_id,"outcome":"accepted","status":receipt.status,"boot":receipt.boot,"selected":receipt.selected,"retry":false}),
             Err(error) if relative=>json!({"request_id":request_id,"outcome":"unknown","error":error,"retry":false}),
             Ok(Reply::SceneAccepted(None))=>json!({"request_id":request_id,"outcome":"unchanged","retry":false}),
+            Ok(Reply::ModuleQuery(query))=>json!({"request_id":request_id,"outcome":"accepted","boot":query.boot,"revision":query.revision,"transport_epoch":query.transport_epoch,"commands":query.commands,"retry":false}),
             Ok(Reply::CommandsAccepted(commands)) => {
                 json!({"request_id":request_id,"outcome":"accepted","boot":runtime.boot,"commands":commands})
             }

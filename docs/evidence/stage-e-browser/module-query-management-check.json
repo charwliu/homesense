@@ -1,0 +1,94 @@
+{
+  "date": "2026-10-13",
+  "base_commit": "1e35addaab2caa4ead5232e8574b1d6b46a39d1f",
+  "scope": "fixed archive plus exact 11 source/test overlays, dedicated target; synthetic memory I/O and in-process API only; protected query capacity tests unchanged",
+  "source_sha256": {
+    "crates/homesensed/src/module_queries.rs": "a08bc9ea3f0873933d5a6aa23b312a15815210e3bc12f4fb18a86a7c4c0c315d",
+    "crates/homesense-storage/src/module_history.rs": "f9f9cdf1a76c1aa1aa8fa7c0a602b98f8e55caabfbe452d33ff789485e4c693b",
+    "crates/homesensed/src/admission.rs": "76dd6220a4b37213f7b0b07fc487abeba42e50eb34c479f5b4975a7332873bc2",
+    "crates/homesensed/src/automation_control.rs": "0e8400165f4ae6770dbc2ebb78ec2929b6cb0af6aed5f03740cb45add3388c8d",
+    "crates/homesensed/src/lib.rs": "0b417f06aa53c7057926650dc5adc3db18542e2e76a905ba44465b2154bfa12c",
+    "crates/homesensed/src/management_modules.rs": "504e48cb1a4fca2094730a4e9c50fd3d0a8f85ccaaecb5531ac2b729a5cba2c0",
+    "crates/homesensed/src/web_api.rs": "aa70ccbe7b560b9b047c41aac493658fdbd58a5ba62f2de91d8c4fb67e86b7ef",
+    "crates/homesensed/src/web/app.js": "9cbda8740b024d086d9eb7d88c2e69dfa89954cc59f460895426cce53e479ebd",
+    "crates/homesensed/src/module_management_api_tests.rs": "638982cd5c6b0b01a154482cec390adc013cbb8e4d6f619974198545f776e094",
+    "crates/homesensed/src/admin_module_query_tests.rs": "25116c753b35938f9b00c929a4fa46c98a2641ea72ea3ebecf8c28b52eeb7be4",
+    "tools/verify_module_management.cjs": "4ff55245a960d6b03a126ba9379e5c2a12a7a9af354e16ab08dfdda964c7e55b"
+  },
+  "validation": {
+    "unique_rust_tests_passed": 272,
+    "counts": {
+      "runtime_library": {
+        "passed": 116,
+        "failed": 0,
+        "ignored": 0
+      },
+      "admission": {
+        "passed": 40,
+        "failed": 0,
+        "ignored": 0
+      },
+      "config_storage": {
+        "passed": 87,
+        "failed": 0,
+        "ignored": 0
+      },
+      "runtime_integrations": {
+        "passed": 29,
+        "failed": 0,
+        "ignored": 0
+      }
+    },
+    "library_filtered": 9,
+    "new_query_tests": 7,
+    "existing_api_test_extended": 1,
+    "strict_clippy": "homesense-config homesense-storage homesensed all targets -D warnings passed",
+    "frontend": [
+      "verify_module_management.cjs",
+      "verify_scene_switches.cjs",
+      "verify_device_metadata.cjs",
+      "verify_draft_json.cjs"
+    ],
+    "complete_workspace_rerun": false,
+    "new_complete_loopback_library": false
+  },
+  "log_sha256": {
+    "runtime_library": "25f528ca29f5b3254b1f539e3103462e6ce38a1a5df9e64e796978b1ddd738ce",
+    "admission": "e3f0ece95f83d5d1d3c01186d7585f2f53d4c3adfbfe0b681d8b650c5f3e362f",
+    "config_storage": "cd985bd4bab7ba1f261c38504cd9f09b4b868822ea097b5523b2a71a9a4826a3",
+    "runtime_integrations": "e782e61aa33a0baa27adaed517d75251860740568c6579e5b989af5211a7ed61",
+    "strict_clippy": "d099f4b1f2086a9db2235398eac0fdbf68cfd2b4491b5c012cf04b57cc035a58",
+    "focused_query": "41fbc485f017847708e2450ffcd380a295c54602c5759568c387163449c17721",
+    "extended_api": "97766ef8992f8558b34dc7c8efb39f5474376bc773fcf183bbbbc609da159a52",
+    "initial_compile_failure": "fb23377c305e57a8853f0f2d207489c1541ef1e81f58093a9070852f8fb71b9b",
+    "initial_clippy_failure": "2610a2a5bacb02a810404464dcd0b2bc549f827bb721045e308f1482c297f853"
+  },
+  "behavior": [
+    "typed administrator module_id + scope + revision + request_id; exact Origin/session gates; no physical address/gateway/free bytes input",
+    "current registry capability/context validation before acceptance and prepared dispatch, boot/config/transport and caller/admission deadlines checked",
+    "documented AD8 GT-E4 GT-D8 GT-L8 whole-module A0F2 only; PRO/GT-C8 individual fallback; panel/motor unsupported",
+    "same bounded Arbiter queue durable command_journal and original TransportOwner/ObservedTransport/write pacing/priority; no new socket",
+    "read-only private ticket IDs never register logical devices or grants; disabled/unbound/hidden controls unchanged",
+    "accepted and written receipts do not modify observed state; actual registry feedback supplies canonical state",
+    "owned persistent Web request de-duplication and current-scope receipt inspection; command IDs are lossless strings",
+    "write status and current fresh samples are separate; no query causality or atomic snapshot claim",
+    "capacity, expiry, revocation, publication replacement, short write, old generation and restart do not replay read tickets",
+    "inventory GET remains pure read; enabled-binding statistics and all-port current coverage/latest received time separately labeled"
+  ],
+  "attempt_notes": [
+    "Initial Reply payloads needed Eq derivations; fixed without changing runtime semantics.",
+    "New test file name collided with the existing protected module_query_tests.rs. Existing file restored byte-exactly from HEAD, new tests renamed admin_module_query_tests.rs; no protected test diff or commit.",
+    "Strict Clippy initially rejected MutexGuard crossing await in a test despite explicit drop; lexical block now encloses guard, no lint waiver.",
+    "Focused/API intermediate runs are not added to unique count; final library includes both suites.",
+    "Fixed 1e35add independent root 159-test full library/admission/probe result is historical for that commit, not claimed as new Query full loopback validation."
+  ],
+  "remaining": [
+    "Startup/reconnect/periodic module coverage still follows logical bindings; registered readable module ports and alias-free modules require the next checkpoint.",
+    "Nine existing socket/HAP library tests excluded in this new scoped run; final independent full integration remains pending.",
+    "Physical scene semantics and original user confirmation gates remain paused."
+  ],
+  "field_actions": 0,
+  "deployed": false,
+  "pushed": false,
+  "ea5_changed": false
+}
