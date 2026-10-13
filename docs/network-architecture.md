@@ -1,6 +1,6 @@
 # 知居家庭网络架构设计
 
-版本 1.6，日期 2026 年 10 月 13 日。状态：核心改造仍是待实机验收、尚未下发的目标架构；第 9.4 节另记录现有 VLAN 3 的测试 TCP485 和 DHCP 保留，第 9.5 节记录两台家庭网关的目标迁移。VLAN 100 的现有网关和路由须等现有设备全部迁移并确认无依赖后再关闭，之后保留为二层维护 VLAN。IPv4/IPv6 双流策略同时应用是核心部署前的关键验证项。
+版本 1.7，日期 2026 年 10 月 13 日。状态：核心改造仍是待实机验收、尚未下发的目标架构；第 9.4 节另记录现有 VLAN 3 的测试 TCP485 和 DHCP 保留，第 9.5 节记录两台家庭网关的目标迁移。VLAN 100 的现有网关和路由须等现有设备全部迁移并确认无依赖后再关闭，之后保留为二层维护 VLAN。IPv4/IPv6 双流策略同时应用是核心部署前的关键验证项。
 
 逐设备操作见[华为核心、QNAP 与 AC 配置操作手册](network-configuration-runbook.md)，含业务端口标签、管理 VLAN/PVID 分支、VLAN100 维护 SSID、交换机临时 DHCP 示例及恢复步骤；全部为离线草案，尚未下发现网。
 
@@ -243,7 +243,9 @@ Vlanif2 的 `dhcp select interface` 是 DHCPv4；M/O 标志不自动创建 DHCPv
 
 Vlanif4 的完整配置已确认：`dhcpv6 client pd ng4prefix`、`ipv6 address auto global default`、OSPFv3进程1、OSPFv2 cost10，未显示核心 RA 开启命令。因配置含 `auto global default`，切换目标架构时需核查其从边界 RA 自动学习默认路由的行为；不能把现有核心上行学习默认路由与目标只由核心给终端通告默认路由混为同一配置。
 
-本轮本地源码核查发现 `rdhcpd/src/dhcp.rs` 未定义 Renew/Rebind 消息，`src/main.rs` 的处理分支仅处理 Solicit、Request、InformationRequest，其余忽略。这是当前 REBIND 的候选原因，尚需运行二进制对应源码或抓包确认；不能认定续租已通过。已获租前缀有效期尚余不表示长期稳定，到期会面临失效风险。Vlanif1/2 配置及 IPv6 地址状态已核对；继续核查 ng3prefix 的实际绑定接口、Vlanif3 完整前缀和路由，再决定目标 PD 绑定方式；不重启或强制续租掩盖问题。
+此前本地源码未定义或处理 Renew/Rebind，是接口 REBIND 的候选原因。2026-10-13 已在 rproxy 提交 `63f464b` 修复：校验 Client/Server DUID、IAID 与原绑定，保留 PD 前缀及 IA_NA 地址，刷新 T1/T2 和租期；未知、过期或不匹配绑定返回 IA 内的 `NoBinding`。PD 回程路由恢复/下一跳更新及租约持久化成功后才回复，不在续租中分配新资源。旧 PD JSON 可读取，单个明确 IA_PD 续租时补齐 IAID。静态 IA_NA 功能另提交为 `d95c3a9`，与续租校验衔接。
+
+续租/RA 独立提交快照 28 项测试通过；包含静态 IA_NA 的版本 31 项通过、0失败、0忽略，严格 Clippy、格式检查及 Linux ARM64 全目标编译检查通过。覆盖 Renew/Rebind、混合/多个 IA、畸形报文、过期/未知绑定、旧租约、下一跳变化和路由/持久化失败。本次没有部署二进制或修改现网；生产运行版本与报文仍待核对，不能据此认定现网续租已恢复。没有进行 Linux 内核路由更新或真实 UDP/RA 收发验收。已获租前缀尚未到期不表示长期稳定；继续核查 ng3prefix 的实际引用、Vlanif3 完整前缀和回程，不以重启或强制续租掩盖现象。Release、自动 PD 路由回收、上游 PD 变化跟踪与剩余授权期衔接尚未补齐，须分别验收。
 
 ### 5.2 RA 职责与候选模板
 
@@ -256,7 +258,7 @@ Vlanif4 的完整配置已确认：`dhcpv6 client pd ng4prefix`、`ipv6 address 
 
 终端的 IPv6 默认网关是核心链路本地地址。RA 发布者可以有两个，但只有核心通告默认路由；两者 M/O 标志和 DNS 信息须一致。保留边界 WAN PD 客户端，不让边界自身默认路由指回核心，也不让核心从边界 RA 学到绕过出口策略的默认路由。
 
-**rdhcpd 的前缀 RA 模式尚缺能力：** 当前本地 `rdhcpd/src/ra.rs` 将 RouterLifetime 固定为1800，CLI 没有设置0的参数。须先实现并验证该能力，再采用双 RA 分工；不能靠提高核心 RA 优先级代替。本文不改动 rproxy 或部署二进制，也不虚构 RouterLifetime 配置开关。
+**rdhcpd 的前缀 RA 模式已本地实现，尚未部署：** rproxy `63f464b` 新增 `--ra-router-lifetime-secs 0`；默认仍为1800，设0保留 PIO、MTU、RDNSS/DNSSL，只取消边界的默认路由器身份，不等于 `--disable-ra`。本地序列化、PIO/DNS 保留和独立 ICMPv6 校验和测试通过。未来先在隔离环境确认核心发出的默认路由 RA 不含 PIO，再合并此参数到两边现有服务；按实际 DHCPv6 服务统一双方 M/O 标志及 DNS。真实抓包和客户端默认路由仍待验证，不能靠提高核心 RA 优先级代替边界 lifetime=0。本次只提交源码和文档，未下发配置或部署。
 
 以下只展示核心 Vlanif3 的默认路由 RA 候选；先清除该接口已有的显式 PIO，否则 `default no-advertise` 不会隐藏它们。所有 RA 启用命令在能力和包级验证完成后才执行：
 
@@ -533,7 +535,7 @@ homesensed check-automation config/test/tcp485-vlan3.devices.json config/test/tc
 - ACL/PBR 组合资源、URPF 和 Redirect 配置；管理协议与来源限制。
 - 光模块/DAC、NAS 原光连接兼容性；机柜深度与散热；SR-ST3005 的 Tagged/Untagged、PVID、管理 VLAN、配置持久化，以及桌面摆放时的风扇噪声和散热。
 - 旧 AC 对现有 AP 的兼容性、本地转发、SSID 与管理标签；维护 SSID 的指定 AP 发布、VLAN 100 映射、独立启停及客户端到维护设备的访问规则。
-- 真实固定 /60、PD 生命周期、到货固件 /64 PD→/64 接口绑定能力；rdhcpd RouterLifetime=0、上游前缀/授权期衔接、租约到策略/回程同步；边界持久配置方式与 2.5G 网卡能力。
+- 真实固定 /60、PD 生命周期、到货固件 /64 PD→/64 接口绑定能力；rdhcpd 续租及 RouterLifetime=0 的隔离收发与现网验收（源码已本地验证）、上游前缀/授权期衔接、租约到策略/回程同步；边界持久配置方式与 2.5G 网卡能力。
 - x86 操作系统、CPU/内存/磁盘、两组聚合现行模式、实际接口和服务 IP、容器使用情况；HomeSense 版本及双接口发现验证。
 
 本文已纳入用户确定的接线和 VLAN 选择，但上述固件行为与现场参数仍待验证。所有模板只描述目标配置，不代表已实施或已通过硬件转发验收。
