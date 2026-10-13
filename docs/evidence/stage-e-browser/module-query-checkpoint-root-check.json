@@ -1,0 +1,271 @@
+{
+  "date": "2026-10-13",
+  "fixed_commit": "bcc0d2f4de1958adc4a1e6898e4797f9f98cbf67",
+  "status": "complete_fixed_query_library_and_native_matrix_passed",
+  "original_files_verified": 988,
+  "unchanged_original_files": 987,
+  "private_test_entry_append_files": 1,
+  "private_contract_test_added": 1,
+  "archive_sha256": "75be40df414d9706059b94eb10d26acc0b94c20af43dc2fae0e549a35ed8ced9",
+  "all_eleven_owner_source_hashes_and_nine_log_hashes_match": true,
+  "actual_counts": {
+    "product_library": 125,
+    "private_native_matrix": 27,
+    "admission": 40,
+    "same_contract_probe": 1,
+    "unique_total": 193,
+    "failed": 0,
+    "ignored": 0,
+    "filtered": 0
+  },
+  "previous_nine_library_cases_passed": [
+    "automation_tcp::bridge_tests::multiple_bridges_rebuild_and_isolate_occupied_listener",
+    "automation_tcp::fault_tests::hap_task_failure_preserves_web_delayed_scene_and_single_startup",
+    "automation_tcp::fault_tests::occupied_tcp_hap_port_preserves_web_and_single_startup",
+    "hap_endpoint::subset_tests::two_listeners_publish_only_selected_lights_with_independent_identity",
+    "observed_transport::module_query_tests::actual_tcp96_mixed_idle_polling_has_bounded_steady_refresh",
+    "runtime_hap::publication_tests::changed_feedback_revision_invalidates_old_hap_projection",
+    "runtime_hap::publication_tests::selected_bridges_share_physical_feedback_without_exposing_each_other",
+    "service::hap_fault_tests::occupied_simulation_hap_port_preserves_web_control",
+    "service::hap_fault_tests::simulation_hap_failure_keeps_web_and_scene_execution_alive"
+  ],
+  "new_product_query_cases_included": 7,
+  "matrix_counts": {
+    "traces": 39,
+    "checkpoints": 124,
+    "conversions": 40,
+    "reopens": 78,
+    "complete_frames": 121
+  },
+  "matrix_trace_audits": [
+    {
+      "trace": "ad8_native_support.json",
+      "sha256": "aaf26d59428af1b8ed8e71c0a8a71b605b5f0158682f3fb9dee157a1ffa81f38",
+      "all_intermediate_states_equal_to_1e35add": true
+    },
+    {
+      "trace": "combo_light_deduplicated--known-absolute.json",
+      "sha256": "6cdb3393e9b8aefc531944f43f50fa4070c8d47e92d046b6f3990d8f659308c9",
+      "all_intermediate_states_equal_to_1e35add": true
+    },
+    {
+      "trace": "combo_light_deduplicated--relay-off-no-dimmer-target.json",
+      "sha256": "8d816c90e138d0bd5358f49c7943f29c672898d1a8aa0cf34cc22fcec48db8ff",
+      "all_intermediate_states_equal_to_1e35add": true
+    },
+    {
+      "trace": "combo_light_deduplicated.json",
+      "sha256": "d9469b090e7647a59b831d6c327bba4cad28c8f489457eeda50272bfe13fc492",
+      "all_intermediate_states_equal_to_1e35add": true
+    },
+    {
+      "trace": "disconnect_after_write.json",
+      "sha256": "a59437dae4b1d721ead4850e6b4adc1931c75ff07bc540632a11d5c851938a57",
+      "all_intermediate_states_equal_to_1e35add": true
+    },
+    {
+      "trace": "disconnect_before_write.json",
+      "sha256": "9eed6d28b3b7b280b65672d207763a10f42dcb0658649fd17443d5f9d416a3f4",
+      "all_intermediate_states_equal_to_1e35add": true
+    },
+    {
+      "trace": "fresh_all_off.json",
+      "sha256": "a745584f3b95ec98ba2955f114dee3b678e6026bcfbefe0819ec8c188413ffc5",
+      "all_intermediate_states_equal_to_1e35add": true
+    },
+    {
+      "trace": "fresh_unique_match--eco30.json",
+      "sha256": "7ac564fc9ead620fd7c041b1cf66fac2392bdc324501503373d73c329b10d282",
+      "all_intermediate_states_equal_to_1e35add": true
+    },
+    {
+      "trace": "fresh_unique_match.json",
+      "sha256": "bfc16eea2c47d4efde31109908f837966be529e4062a76b382e21cce34ed2a88",
+      "all_intermediate_states_equal_to_1e35add": true
+    },
+    {
+      "trace": "hap_absolute.json",
+      "sha256": "7e02dda987980a5eeb197788a04a0c0bf4d434b193c3ac3d28c4133c411af8dc",
+      "all_intermediate_states_equal_to_1e35add": true
+    },
+    {
+      "trace": "initializer_independent.json",
+      "sha256": "bd282b3eae28061baf7ddea4ad4e0f284ed08e85d1c8d70f7a636d1acf0e2110",
+      "all_intermediate_states_equal_to_1e35add": true
+    },
+    {
+      "trace": "known_on_off.json",
+      "sha256": "ccb90d92e3034f34953bfaaf1e5d8fbd90ee083617270540e6fb0f2f42fac0c2",
+      "all_intermediate_states_equal_to_1e35add": true
+    },
+    {
+      "trace": "known_positive_absolute_level.json",
+      "sha256": "cbfa8ab98e2a2b4c60c827c8ecc3d1963371a90b1ca3a5e0f76422c845c15a17",
+      "all_intermediate_states_equal_to_1e35add": true
+    },
+    {
+      "trace": "missing_timeout.json",
+      "sha256": "930a2e5a350ea33dd6ca9c183fbfdf2e7876c0a36f1e2821814931404322b1fa",
+      "all_intermediate_states_equal_to_1e35add": true
+    },
+    {
+      "trace": "mixed_feedback--nonunique.json",
+      "sha256": "dac572748525e59ac4739f3527c5e9179999da8a0b229da60d75c652e759c7c8",
+      "all_intermediate_states_equal_to_1e35add": true
+    },
+    {
+      "trace": "mixed_feedback.json",
+      "sha256": "5e21a4eee9b205b9c071c8d277d030eb3dad844d01d739027ca496e599022e7f",
+      "all_intermediate_states_equal_to_1e35add": true
+    },
+    {
+      "trace": "mixed_known_unknown_positive.json",
+      "sha256": "51634671955f25c5fbf2acab2f391d0ad595c73b8c9bfd14543a4a96272861da",
+      "all_intermediate_states_equal_to_1e35add": true
+    },
+    {
+      "trace": "negative_targets_explicit_off--already-off.json",
+      "sha256": "840eb7260fe0a8ff2285ca52f2cf3721b3e22be087ed47e3f38f7aec4a80f630",
+      "all_intermediate_states_equal_to_1e35add": true
+    },
+    {
+      "trace": "negative_targets_explicit_off.json",
+      "sha256": "c4a2fe7b472901b8fdcf5db9757a303eff49fe48cdd2c28cb05392aa223f543b",
+      "all_intermediate_states_equal_to_1e35add": true
+    },
+    {
+      "trace": "observation_baseline.json",
+      "sha256": "aa65e0a08d28fc4502432ab71aa3d46045d643a21f32cbf68a9ebde6725f9005",
+      "all_intermediate_states_equal_to_1e35add": true
+    },
+    {
+      "trace": "old_boot_epoch.json",
+      "sha256": "5378e98ad3fc47a18c9a5957bd69257dd15abb0e2317e8b02fb9469f5856b976",
+      "all_intermediate_states_equal_to_1e35add": true
+    },
+    {
+      "trace": "partial_write.json",
+      "sha256": "8f1c51926a75d7eba793cc1cf182ceac997a7d160048907a30ff526ad8c60b16",
+      "all_intermediate_states_equal_to_1e35add": true
+    },
+    {
+      "trace": "partition_unique_and_complete--invalid-membership.json",
+      "sha256": "e2c0ee7671f2ec566c27a62e0f3faa7828c6bb6078912da6d24296879b350f15",
+      "all_intermediate_states_equal_to_1e35add": true
+    },
+    {
+      "trace": "partition_unique_and_complete--three-disjoint-sets.json",
+      "sha256": "7a6e73fd23bf960196d27e6e3901774887d67ce9f0da1a6344a51df4f51cc377",
+      "all_intermediate_states_equal_to_1e35add": true
+    },
+    {
+      "trace": "partition_unique_and_complete.json",
+      "sha256": "2fc646a561910b9bda3a77a60e6275974166044cbb04c1fc83c5f911132ee2d2",
+      "all_intermediate_states_equal_to_1e35add": true
+    },
+    {
+      "trace": "query_after_relative--precontrol-feedback.json",
+      "sha256": "f3dd7608f039b46a56aff3687f84c0da3667229baa82967de9eb1ca048a0ab8e",
+      "all_intermediate_states_equal_to_1e35add": true
+    },
+    {
+      "trace": "query_after_relative.json",
+      "sha256": "24fd077bcc7dc0eda9f54125084a24eebb99ab3b76df9ffa4ce61b56279b3660",
+      "all_intermediate_states_equal_to_1e35add": true
+    },
+    {
+      "trace": "read_failure_rejected--malformed-feedback.json",
+      "sha256": "b9e1626840779608342f1a57387e819f4113b31ced30801d13166c7777d2030c",
+      "all_intermediate_states_equal_to_1e35add": true
+    },
+    {
+      "trace": "read_failure_rejected--projection.json",
+      "sha256": "b518571d454103bae5d2c15d30e009639117eef05e2addfff29e5d0d1312c3d8",
+      "all_intermediate_states_equal_to_1e35add": true
+    },
+    {
+      "trace": "read_failure_rejected--storage.json",
+      "sha256": "c0e6b6ce70ee32b21c37ad9e044c976ce7e31d1a2ad8c3967cec6418622b7b5e",
+      "all_intermediate_states_equal_to_1e35add": true
+    },
+    {
+      "trace": "read_failure_rejected.json",
+      "sha256": "ab6931c1f810a765908c5a379d1859664fc4cf46dc728a050da7e4754e3aaef4",
+      "all_intermediate_states_equal_to_1e35add": true
+    },
+    {
+      "trace": "repeat_pending.json",
+      "sha256": "36491da1debfdccbc88ad23111004ddf16eb11a29512d5363b50a967c9514554",
+      "all_intermediate_states_equal_to_1e35add": true
+    },
+    {
+      "trace": "runtime_unready_rejected.json",
+      "sha256": "50e496236a86e3030d282c429b3f75be401e4af8f8b4ba882585168cd621665c",
+      "all_intermediate_states_equal_to_1e35add": true
+    },
+    {
+      "trace": "selection_after_feedback_only.json",
+      "sha256": "745a21e396e7e7f8bd332a92851d7b3101671e4032c7036018767fe030fe08a6",
+      "all_intermediate_states_equal_to_1e35add": true
+    },
+    {
+      "trace": "stale_same_value--stale-preaction.json",
+      "sha256": "2c3c46a2e604cde9961d9f18c729f200cc9827e78839bcd48e81f0e6f3c1fae6",
+      "all_intermediate_states_equal_to_1e35add": true
+    },
+    {
+      "trace": "stale_same_value.json",
+      "sha256": "c03d74d240704a00ff9a63ac25d7c273923416f6a791bdd9f3ecdaf3301e6054",
+      "all_intermediate_states_equal_to_1e35add": true
+    },
+    {
+      "trace": "unknown_positive_targets_toggle_once.json",
+      "sha256": "9d441ed6c8238dba1c4c5f6990c9c97a521d967760d177cc963099fd1a0b6c81",
+      "all_intermediate_states_equal_to_1e35add": true
+    },
+    {
+      "trace": "unrelated_devices_untouched.json",
+      "sha256": "a8f016e893f27d06e9aee244d54d48b30fe29e13be09378c5667cfa48b04aa41",
+      "all_intermediate_states_equal_to_1e35add": true
+    },
+    {
+      "trace": "unused_group_lights_explicit_off.json",
+      "sha256": "25655328b34608b8ee23829365f27e8137eca41ddde0335caa377b4812a162b8",
+      "all_intermediate_states_equal_to_1e35add": true
+    }
+  ],
+  "schema2_conversions_independently_reconstructed": true,
+  "probe_assertions_unchanged": true,
+  "original_owner_272_scoped_successes_verified_not_added_to_new_count": true,
+  "test_binary_sha256": {
+    "library": "e50dcdef9f5769fa6c75cc56648a5018cecedf67b91fb741e8314df7686f72f1",
+    "admission": "ec57f5df1f470ce8379235ef69ef48822fa4403eeca6bfe664ee9ca512b01673",
+    "contract": "53b49b006d006051fade90b9e79d67ea1ade0201d935abdc8a607520b97e09a3"
+  },
+  "log_sha256": {
+    "library": "2dda74792efbaf32d77fae1bbfcf12b04643a334113ab4c9dc91d222a3158064",
+    "admission": "95321d31f3642c6af6619d423014e4a40f858be15cd64ba4ca7a12b45a626823",
+    "contract": "0f89097deb8c2e7786d61ecbdd99e70d251054bd0a539fc57f1a9c5dfa3b5f36"
+  },
+  "source_manifest_sha256": "11c26e2e19bf4807cbf37743d8b06aa511b3142450777d1f549aba5267bbb48a",
+  "execution_sha256": "3595c38b357325b0b075aedffb58836e076f6403b42e659236e1f7d01a129bcc",
+  "matrix_probe_sha256": "83cff9382e84b0ad93f7f5de07effc772d3b212d18321a1315302b6b92b68ed4",
+  "contract_probe_sha256": "a400c6de2d033c3396a7837e1822902debaff6e85239a6c6ec0d7aff82e46ef7",
+  "registry_sha256": "0e6560c99f8968af07c4d0fb08d8f87a3151e5b6b72d22828e9abf1c61f632c4",
+  "verifier_sha256": "48bc1769db2c37faf8cda780f4b008a3632b549cf5fc837f24ecbcbe187e8699",
+  "code_review_boundary": [
+    "Targets accept stable module IDs and typed scope; physical frames are re-resolved against current configuration immediately before dispatch.",
+    "Read targets share durable queue, controller recheck, epochs, deadlines, physical write pacing and failure lifecycle; pseudo ticket collision with a logical device is rejected.",
+    "Query receipts and current canonical samples stay separate; current fresh channels are not attributed to this query and atomic_snapshot remains false.",
+    "Read permission does not create logical devices or grant control of hidden, unbound or disabled ports."
+  ],
+  "remaining": [
+    "Complete registered-module startup/reconnect/periodic query coverage remains the next product checkpoint.",
+    "No real browser/mobile layout, physical bus/firmware or actual Apple client acceptance from these tests.",
+    "Full workspace and full original D scene/program/variable semantics remain unproven."
+  ],
+  "field_actions": 0,
+  "real_credentials_created": false,
+  "deployment": false,
+  "push": false
+}
