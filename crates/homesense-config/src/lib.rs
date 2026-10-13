@@ -62,6 +62,8 @@ struct GatewayInput {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct ModuleInput {
+    #[serde(default)]
+    id: Option<String>,
     address: String,
     profile: String,
     verification: EvidenceInput,
@@ -93,8 +95,12 @@ struct DeviceInput {
     room: Option<String>,
     id: String,
     name: String,
-    gateway: String,
-    address: String,
+    #[serde(default)]
+    module_id: Option<String>,
+    #[serde(default)]
+    gateway: Option<String>,
+    #[serde(default)]
+    address: Option<String>,
     channel: u8,
     #[serde(default)]
     enabled: bool,
@@ -104,6 +110,8 @@ struct DeviceInput {
     motor_calibration: Option<MotorCalibrationInput>,
     #[serde(default)]
     supply_relay: Option<String>,
+    #[serde(default)]
+    supply: Option<ModuleChannel>,
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -147,8 +155,14 @@ impl Gateway {
         &self.modules
     }
 }
+#[derive(Debug,Clone,PartialEq,Eq,serde::Serialize,Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ModuleChannel {pub module_id:String,pub channel:u8}
 #[derive(Debug, Clone)]
 pub struct Device {
+    /// Stable module reference in schema 2; legacy schema 1 has no fabricated ID.
+    pub module_id: Option<String>,
+    pub supply_channel: Option<ModuleChannel>,
     pub room: Option<String>,
     pub name: String,
     pub gateway: String,
@@ -160,8 +174,12 @@ pub struct Device {
     /// Separate physical supply relay for this dimmer; not a second logical light.
     pub supply_relay: Option<DeviceId>,
 }
+#[derive(Debug,Clone,PartialEq,Eq)]
+pub struct ModuleLocation {pub gateway:String,pub address:BusAddress}
 #[derive(Debug, Clone)]
 pub struct Configuration {
+    schema_version:u32,
+    module_registry:BTreeMap<String,ModuleLocation>,
     revision: u64,
     manual_degraded_enabled: bool,
     gateways: BTreeMap<String, Gateway>,
@@ -169,6 +187,11 @@ pub struct Configuration {
     rooms: BTreeMap<String, Room>,
 }
 impl Configuration {
+    pub fn schema_version(&self)->u32 {self.schema_version}
+    pub fn module_registry(&self)->&BTreeMap<String,ModuleLocation>{&self.module_registry}
+    pub fn module(&self,id:&str)->Option<(&ModuleLocation,&ModuleSpec)>{let location=self.module_registry.get(id)?;Some((location,self.gateways.get(&location.gateway)?.modules.get(&location.address)?))}
+    pub fn module_id(&self,gateway:&str,address:BusAddress)->Option<&str>{self.module_registry.iter().find(|(_,location)|location.gateway==gateway && location.address==address).map(|(id,_)|id.as_str())}
+
     /// Does not send or authorize a command. The caller must still pass the
     /// command through normal admission, verification and transport ownership.
     pub fn motor_command(
@@ -219,7 +242,7 @@ impl Configuration {
             return Err(invalid("configuration exceeds 4 MiB"));
         }
         let input: Document = serde_json::from_slice(bytes).map_err(Error::Json)?;
-        if input.schema_version != 1 {
+        if !matches!(input.schema_version,1|2) {
             return Err(invalid("unsupported schema_version"));
         }
         if input.revision == 0 || input.revision > i64::MAX as u64 {
@@ -242,6 +265,7 @@ impl Configuration {
             ProtocolProfile::UnverifiedKeypad,
         ];
         let mut gateways = BTreeMap::new();
+        let mut module_registry=BTreeMap::new();
         let mut endpoints = BTreeSet::new();
         for g in input.gateways {
             identifier(&g.id)?;
@@ -263,6 +287,12 @@ impl Configuration {
             let mut modules = BTreeMap::new();
             for m in g.modules {
                 let address = BusAddress::from_hex(&m.address)?;
+                match (input.schema_version,m.id) {
+                    (2,Some(id))=>{identifier(&id)?;if module_registry.insert(id,ModuleLocation{gateway:g.id.clone(),address}).is_some(){return Err(invalid("duplicate stable module ID"));}},
+                    (1,None)=>{},
+                    _=>return Err(invalid("schema 2 requires persistent module IDs; schema 1 cannot partially introduce them")),
+                }
+
                 let profile = profiles
                     .iter()
                     .find(|p| p.id() == m.profile)
@@ -314,6 +344,7 @@ impl Configuration {
             if rooms.insert(room.id.clone(),room).is_some() {return Err(invalid("duplicate room id"));}
         }
         let mut devices = BTreeMap::new();
+        let mut pending_supplies=Vec::new();
         let mut bindings = BTreeSet::new();
         for d in input.devices {
             identifier(&d.id)?;
@@ -321,9 +352,13 @@ impl Configuration {
                 return Err(invalid("device name empty or too long"));
             }
             let id = DeviceId::new(d.id)?;
-            let address = BusAddress::from_hex(&d.address)?;
+            let (gateway_id,address,module_id)=match (input.schema_version,d.module_id,d.gateway,d.address) {
+                (1,None,Some(gateway),Some(address))=>(gateway,BusAddress::from_hex(&address)?,None),
+                (2,Some(id),None,None)=>{identifier(&id)?;let location=module_registry.get(&id).ok_or_else(||invalid("unknown stable module reference"))?;(location.gateway.clone(),location.address,Some(id))},
+                _=>return Err(invalid("logical bindings require module_id + channel in schema 2; physical address fields are legacy only")),
+            };
             let gateway = gateways
-                .get(&d.gateway)
+                .get(&gateway_id)
                 .ok_or_else(|| invalid("unknown gateway reference"))?;
             let module = gateway
                 .modules
@@ -337,7 +372,7 @@ impl Configuration {
             if d.enabled {
                 module.validate_context(context)?;
             }
-            if !bindings.insert((d.gateway.clone(), address, channel.get())) {
+            if !bindings.insert((gateway_id.clone(), address, channel.get())) {
                 return Err(invalid("duplicate physical device channel"));
             }
             let default_on_level = d.default_on_level.map(Percent::new).transpose()?;
@@ -369,10 +404,14 @@ impl Configuration {
                 None => None,
             };
             if d.room.as_ref().is_some_and(|id| !rooms.contains_key(id)) {return Err(invalid("unknown room reference"));}
+            if (input.schema_version==1 && d.supply.is_some()) || (input.schema_version==2 && d.supply_relay.is_some()){return Err(invalid("schema 2 supply references require module_id + channel"));}
+            if let Some(port)=&d.supply {identifier(&port.module_id)?;let location=module_registry.get(&port.module_id).ok_or_else(||invalid("supply module missing"))?;gateways[&location.gateway].modules[&location.address].validate_channel(Channel::new(port.channel)?)?;pending_supplies.push((id.clone(),port.clone()));}
             let device = Device {
+                module_id,
+                supply_channel:d.supply,
                 room: d.room,
                 name: d.name,
-                gateway: d.gateway,
+                gateway: gateway_id,
                 address,
                 channel,
                 enabled: d.enabled,
@@ -389,6 +428,10 @@ impl Configuration {
             if devices.insert(id, device).is_some() {
                 return Err(invalid("duplicate device ID"));
             }
+        }
+        for (id,port) in pending_supplies {
+            let relay_id=devices.iter().find(|(_,binding)|binding.module_id.as_deref()==Some(port.module_id.as_str()) && binding.channel.get()==port.channel).map(|(id,_)|id.clone()).ok_or_else(||invalid("supply module channel requires a registered physical binding"))?;
+            devices.get_mut(&id).unwrap().supply_relay=Some(relay_id);
         }
         let mut supplies = BTreeSet::new();
         for (id, device) in &devices {
@@ -418,6 +461,8 @@ impl Configuration {
             }
         }
         Ok(Self {
+            schema_version:input.schema_version,
+            module_registry,
             revision: input.revision,
             manual_degraded_enabled: input.manual_degraded_enabled,
             rooms,
@@ -443,3 +488,6 @@ pub mod scene_switches;
 pub mod indicator_links;
 
 pub mod scene_observation;
+
+/// Read-only discriminator for the storage CAS downgrade barrier.
+pub fn document_schema_version(payload:&[u8])->Option<u32>{serde_json::from_slice::<serde_json::Value>(payload).ok()?.get("schema_version")?.as_u64().and_then(|n|u32::try_from(n).ok())}

@@ -65,6 +65,12 @@ pub struct RoomEdit {
     #[serde(default)]
     pub remove:bool,
 }
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ModuleBindingEdit {pub id:Uuid,pub expected_revision:String,pub revision:String,pub device:String,pub module_id:String,pub channel:u8,pub enabled:bool}
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ModuleCalibrationEdit {pub id:Uuid,pub expected_revision:String,pub revision:String,pub device:String,pub module_id:String,pub channel:u8,pub calibration:Option<MotorCalibrationRecord>}
 type StoredDraft = (String, i64, i64, Vec<u8>, Vec<u8>);
 #[derive(Debug, PartialEq, Eq)]
 pub struct Summary {
@@ -206,6 +212,40 @@ impl Drafts {
         device.insert("channel".into(),edit.channel.into());device.insert("enabled".into(),edit.enabled.into());
         draft.devices["revision"]=draft.revision.into();draft.automation["configuration_revision"]=draft.revision.into();
         self.save(principal,&draft,context)?;Ok(draft.id)
+    }
+    pub fn edit_module_binding(&mut self,principal:Uuid,source:Uuid,edit:ModuleBindingEdit,context:ExecutionContext)->Result<Uuid,String>{
+        let mut draft=self.get(principal,source)?.ok_or("draft not found")?;
+        let revision=edit.revision.parse::<u64>().map_err(|_|"invalid revision")?;
+        if draft.devices["schema_version"]!=2 || edit.id==source || edit.expected_revision!=draft.expected_revision.to_string() || edit.revision!=revision.to_string() || revision<draft.revision{return Err("immutable schema 2 source required".into());}
+        let device=draft.devices["devices"].as_array_mut().and_then(|devices|devices.iter_mut().find(|d|d["id"]==edit.device)).and_then(|d|d.as_object_mut()).ok_or("device missing")?;
+        if device.get("module_id").and_then(|v|v.as_str())!=Some(edit.module_id.as_str()) || device.get("channel").and_then(|v|v.as_u64())!=Some(u64::from(edit.channel)){device.remove("motor_calibration");}
+        device.insert("module_id".into(),edit.module_id.into());device.insert("channel".into(),edit.channel.into());device.insert("enabled".into(),edit.enabled.into());
+        draft.id=edit.id;draft.revision=revision;draft.devices["revision"]=revision.into();draft.automation["configuration_revision"]=revision.into();self.save(principal,&draft,context)?;Ok(draft.id)
+    }
+    pub fn edit_module_calibration(&mut self,principal:Uuid,source:Uuid,edit:ModuleCalibrationEdit,context:ExecutionContext)->Result<Uuid,String>{
+        let mut draft=self.get(principal,source)?.ok_or("draft not found")?;
+        let revision=edit.revision.parse::<u64>().map_err(|_|"invalid revision")?;
+        if draft.devices["schema_version"]!=2 || edit.id==source || edit.expected_revision!=draft.expected_revision.to_string() || edit.revision!=revision.to_string() || revision<draft.revision{return Err("immutable schema 2 source required".into());}
+        let device=draft.devices["devices"].as_array_mut().and_then(|devices|devices.iter_mut().find(|d|d["id"]==edit.device)).and_then(|d|d.as_object_mut()).ok_or("device missing")?;
+        if device.get("module_id").and_then(|v|v.as_str())!=Some(edit.module_id.as_str()) || device.get("channel").and_then(|v|v.as_u64())!=Some(u64::from(edit.channel)){return Err("module channel changed".into());}
+        if let Some(record)=edit.calibration {
+            let time=record.verified_at_unix_ms.parse::<u64>().map_err(|_|"invalid verification time")?;
+            if time.to_string()!=record.verified_at_unix_ms{return Err("invalid verification time".into());}
+            device.insert("motor_calibration".into(),serde_json::json!({"open_direction":record.open_direction,"stop_verified":record.stop_verified,"evidence":record.evidence,"verified_at_unix_ms":time}));
+        }else{device.remove("motor_calibration");}
+        draft.id=edit.id;draft.revision=revision;draft.devices["revision"]=revision.into();draft.automation["configuration_revision"]=revision.into();self.save(principal,&draft,context)?;Ok(draft.id)
+    }
+    pub fn migrate_modules(&mut self,principal:Uuid,source:Uuid,edit:crate::module_migration::Edit,context:ExecutionContext)->Result<crate::module_migration::Impact,String>{
+        let original=self.get(principal,source)?.ok_or("draft not found")?;
+        let (candidate,impact)=crate::module_migration::prepare(original,edit,context)?;
+        self.save(principal,&candidate,context)?;Ok(impact)
+    }
+    /// Derive one immutable replacement draft; no active publication or physical IO.
+    pub fn replace_module(&mut self,principal:Uuid,source:Uuid,edit:crate::module_replace::Edit,context:ExecutionContext)->Result<crate::module_replace::Impact,String> {
+        let original=self.get(principal,source)?.ok_or("draft not found")?;
+        let (candidate,impact)=crate::module_replace::prepare(original,edit,context)?;
+        self.save(principal,&candidate,context)?;
+        Ok(impact)
     }
     /// Record evidence for exactly the selected binding; this never tests a motor.
     pub fn edit_motor_calibration(&mut self,principal:Uuid,source:Uuid,edit:MotorCalibrationEdit,context:ExecutionContext)->Result<Uuid,String> {

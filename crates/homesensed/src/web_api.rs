@@ -287,6 +287,27 @@ impl Api {
             }
             return deny(StatusCode::SERVICE_UNAVAILABLE, "runtime_reconfiguring");
         };
+        if request.uri().path()=="/api/v1/modules" {
+            if grant.role!=crate::web_auth::Role::Administrator {return deny(StatusCode::FORBIDDEN,"administrator_required");}
+            if request.method()!=hyper::Method::GET || !request.body().is_empty(){return deny(StatusCode::BAD_REQUEST,"invalid_module_query");}
+            let mut offset=0usize;let mut limit=32usize;let mut revision=None;let mut seen=std::collections::BTreeSet::new();
+            for part in request.uri().query().unwrap_or("").split('&').filter(|s|!s.is_empty()) {
+                let Some((key,value))=part.split_once('=') else{return deny(StatusCode::BAD_REQUEST,"invalid_module_query");};
+                if !seen.insert(key) {return deny(StatusCode::BAD_REQUEST,"invalid_module_query");}
+                let Ok(number)=value.parse::<usize>() else{return deny(StatusCode::BAD_REQUEST,"invalid_module_query");};
+                if number.to_string()!=value {return deny(StatusCode::BAD_REQUEST,"invalid_module_query");}
+                match key {"offset"=>offset=number,"limit"=>limit=number,"revision"=>revision=Some(value),_=>return deny(StatusCode::BAD_REQUEST,"invalid_module_query")}
+            }
+            if offset>16320 || !(1..=64).contains(&limit){return deny(StatusCode::BAD_REQUEST,"invalid_module_query");}
+            if (offset>0 && revision.is_none()) || revision.is_some_and(|r|r!=runtime.revision.to_string()){return deny(StatusCode::CONFLICT,"module_revision_changed");}
+            return match runtime.control.request(Action::Modules{controller:grant.controller,revision:runtime.revision,offset,limit}).await {
+                Ok(Reply::Modules(mut page))=>{
+                    for module in &mut page.modules {for slot in &mut module.slots {if let Some(binding)=&mut slot.binding && !grant.may_control_device(&binding.id){binding.actions.clear();}}}
+                    response(StatusCode::OK,serde_json::to_value(page).unwrap())
+                },
+                _=>deny(StatusCode::SERVICE_UNAVAILABLE,"module_inventory_unavailable"),
+            };
+        }
         if request.uri().path() == "/api/v1/backups/inspect" {
             if grant.role != crate::web_auth::Role::Administrator {return deny(StatusCode::FORBIDDEN,"administrator_required");}
             if request.method()!=hyper::Method::POST {return deny(StatusCode::METHOD_NOT_ALLOWED,"method_not_allowed");}
@@ -417,6 +438,14 @@ impl Api {
             if grant.role != crate::web_auth::Role::Administrator {
                 return deny(StatusCode::FORBIDDEN, "administrator_required");
             }
+            let module_calibration=id.ends_with("/module-calibration");
+            let id=id.strip_suffix("/module-calibration").unwrap_or(id);
+            let module_migration=id.ends_with("/module-migration");
+            let id=id.strip_suffix("/module-migration").unwrap_or(id);
+            let module_binding=id.ends_with("/module-binding");
+            let id=id.strip_suffix("/module-binding").unwrap_or(id);
+            let module_replacement=id.ends_with("/module-replacement");
+            let id=id.strip_suffix("/module-replacement").unwrap_or(id);
             let calibration=id.ends_with("/motor-calibration");
             let id=id.strip_suffix("/motor-calibration").unwrap_or(id);
             let binding=id.ends_with("/device-binding");
@@ -439,6 +468,35 @@ impl Api {
                     "configuration_management_unavailable",
                 );
             };
+            if module_binding || module_migration || module_calibration {
+                if request.method()!=hyper::Method::POST{return deny(StatusCode::METHOD_NOT_ALLOWED,"method_not_allowed");}
+                if request.headers().get("origin").and_then(|v|v.to_str().ok())!=Some(&self.origin){return deny(StatusCode::FORBIDDEN,"origin_required");}
+                if request.headers().get("content-type").and_then(|v|v.to_str().ok())!=Some("application/json") || request.body().len()>8192{return deny(StatusCode::BAD_REQUEST,"invalid_module_edit");}
+                if module_calibration {
+                    let edit=match serde_json::from_slice::<crate::web_drafts::ModuleCalibrationEdit>(request.body()){Ok(e)=>e,Err(_)=>return deny(StatusCode::BAD_REQUEST,"invalid_module_edit")};
+                    if edit.expected_revision!=runtime.revision.to_string(){return deny(StatusCode::CONFLICT,"stale_revision");}
+                    return match drafts.lock(){Ok(mut drafts)=>match drafts.edit_module_calibration(grant.controller,id,edit,*context){Ok(id)=>response(StatusCode::OK,json!({"draft":id,"active":false})),Err(_)=>deny(StatusCode::BAD_REQUEST,"invalid_module_calibration")},Err(_)=>deny(StatusCode::SERVICE_UNAVAILABLE,"draft_storage_unavailable")};
+                }
+                if module_migration {
+                    let edit=match serde_json::from_slice::<crate::module_migration::Edit>(request.body()){Ok(e)=>e,Err(_)=>return deny(StatusCode::BAD_REQUEST,"invalid_module_edit")};
+                    if edit.expected_revision!=runtime.revision.to_string(){return deny(StatusCode::CONFLICT,"stale_revision");}
+                    return match drafts.lock(){Ok(mut drafts)=>match drafts.migrate_modules(grant.controller,id,edit,*context){Ok(impact)=>response(StatusCode::OK,json!({"draft":impact.draft,"active":false,"impact":impact})),Err(_)=>deny(StatusCode::BAD_REQUEST,"invalid_module_migration")},Err(_)=>deny(StatusCode::SERVICE_UNAVAILABLE,"draft_storage_unavailable")};
+                }
+                let edit=match serde_json::from_slice::<crate::web_drafts::ModuleBindingEdit>(request.body()){Ok(e)=>e,Err(_)=>return deny(StatusCode::BAD_REQUEST,"invalid_module_edit")};
+                if edit.expected_revision!=runtime.revision.to_string(){return deny(StatusCode::CONFLICT,"stale_revision");}
+                return match drafts.lock(){Ok(mut drafts)=>match drafts.edit_module_binding(grant.controller,id,edit,*context){Ok(id)=>response(StatusCode::OK,json!({"draft":id,"active":false})),Err(_)=>deny(StatusCode::BAD_REQUEST,"invalid_module_binding")},Err(_)=>deny(StatusCode::SERVICE_UNAVAILABLE,"draft_storage_unavailable")};
+            }
+            if module_replacement {
+                if request.method()!=hyper::Method::POST{return deny(StatusCode::METHOD_NOT_ALLOWED,"method_not_allowed");}
+                if request.headers().get("origin").and_then(|v|v.to_str().ok())!=Some(&self.origin){return deny(StatusCode::FORBIDDEN,"origin_required");}
+                if request.headers().get("content-type").and_then(|v|v.to_str().ok())!=Some("application/json") || request.body().len()>8192{return deny(StatusCode::BAD_REQUEST,"invalid_module_replacement");}
+                let edit=match serde_json::from_slice::<crate::module_replace::Edit>(request.body()){Ok(e)=>e,Err(_)=>return deny(StatusCode::BAD_REQUEST,"invalid_module_replacement")};
+                if edit.expected_revision!=runtime.revision.to_string(){return deny(StatusCode::CONFLICT,"stale_revision");}
+                return match drafts.lock(){
+                    Ok(mut drafts)=>match drafts.replace_module(grant.controller,id,edit,*context){Ok(impact)=>response(StatusCode::OK,json!({"draft":impact.draft,"active":false,"impact":impact})),Err(_)=>deny(StatusCode::BAD_REQUEST,"invalid_module_replacement")},
+                    Err(_)=>deny(StatusCode::SERVICE_UNAVAILABLE,"draft_storage_unavailable"),
+                };
+            }
             if room_edit {
                 if request.method()!=hyper::Method::POST {return deny(StatusCode::METHOD_NOT_ALLOWED,"method_not_allowed");}
                 if request.headers().get("origin").and_then(|v|v.to_str().ok())!=Some(&self.origin) {return deny(StatusCode::FORBIDDEN,"origin_required");}
@@ -658,7 +716,7 @@ impl Api {
         if request.method() != hyper::Method::POST
             || !matches!(
                 request.uri().path(),
-                "/api/v1/scene-actions" | "/api/v1/scene-cancellations" | "/api/v1/device-commands" | "/api/v1/scene-relative-actions"
+                "/api/v1/scene-actions" | "/api/v1/scene-cancellations" | "/api/v1/device-commands" | "/api/v1/module-commands" | "/api/v1/scene-relative-actions"
             )
         {
             return deny(StatusCode::NOT_FOUND, "not_found");
@@ -696,18 +754,33 @@ impl Api {
             request_id: String,
         }
         let principal = grant.controller.to_string();
-        let is_device = request.uri().path() == "/api/v1/device-commands";
-        let (scene, request_id, action, fingerprint) = if is_device {
+        let is_device = matches!(request.uri().path(),"/api/v1/device-commands"|"/api/v1/module-commands");
+        let (scene, request_id, action, fingerprint) = if request.uri().path()=="/api/v1/module-commands" {
+            if grant.role!=crate::web_auth::Role::Administrator{return deny(StatusCode::FORBIDDEN,"administrator_required");}
+            #[derive(serde::Deserialize)]
+            #[serde(deny_unknown_fields)]
+            struct ModuleCommand{module_id:String,channel:u8,revision:String,request_id:String,command:crate::management_devices::DeviceAction}
+            let body=match serde_json::from_slice::<ModuleCommand>(request.body()){Ok(body)=>body,Err(_)=>return deny(StatusCode::BAD_REQUEST,"invalid_body")};
+            if body.revision!=runtime.revision.to_string(){return deny(StatusCode::CONFLICT,"stale_revision");}
+            if body.channel==0 || body.module_id.is_empty() || body.module_id.len()>128{return deny(StatusCode::BAD_REQUEST,"invalid_body");}
+            let device=match runtime.control.request(Action::ModuleBinding{controller:grant.controller,revision:runtime.revision,module_id:body.module_id.clone(),channel:body.channel}).await{Ok(Reply::ModuleBinding(id))=>id,_=>return deny(StatusCode::BAD_REQUEST,"module_channel_unavailable")};
+            if !grant.may_control_device(device.as_str()){return deny(StatusCode::FORBIDDEN,"device_not_permitted");}
+            let fingerprint=json!({"revision":runtime.revision,"action":"module_command","module_id":body.module_id,"channel":body.channel,"command":body.command}).to_string();
+            (device.as_str().to_owned(),body.request_id,Action::ModuleCommand{controller:grant.controller,revision:runtime.revision,module_id:body.module_id,channel:body.channel,allowed_devices:[device.as_str().to_owned()].into(),action:body.command},fingerprint)
+        } else if is_device {
             #[derive(serde::Deserialize)]
             #[serde(deny_unknown_fields)]
             struct DeviceCommand {
                 device: String,
+                #[serde(default)]
+                revision: Option<String>,
                 request_id: String,
                 command: crate::management_devices::DeviceAction,
             }
             let Ok(body) = serde_json::from_slice::<DeviceCommand>(request.body()) else {
                 return deny(StatusCode::BAD_REQUEST, "invalid_body");
             };
+            if body.revision.is_some_and(|revision|revision!=runtime.revision.to_string()){return deny(StatusCode::CONFLICT,"stale_revision");}
             if !grant.may_control_device(&body.device) {
                 return deny(StatusCode::FORBIDDEN, "device_not_permitted");
             }

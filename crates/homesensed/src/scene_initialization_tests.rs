@@ -714,3 +714,6 @@ mod reconciliation;
 
 #[path = "native_scene_tests.rs"]
 mod native;
+
+#[path="module_management_api_tests.rs"]
+mod modules;
