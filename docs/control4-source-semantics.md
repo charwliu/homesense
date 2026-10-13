@@ -29,6 +29,10 @@ ALS 的 `DEACTIVATE_SCENE` 激活 Toggle ID 指向的目标，即使目标已活
 
 根重新核对权威归档及XML指纹：25个声明位于`currentstate/variables`，均为owner100001、type2、可写且非隐藏；215个事件中没有项目根节点owner1的事件程序。源项目声明版本为3.2.3／606460，不等于当前实机OS已验证；owner100001／type2的官方编码映射、逐变量生命周期和外部写入仍待审核。没有根事件不能证明所有隐式初始化均不存在；归档保存值仍不是批准的初始默认值，不据此删减整数比较域或批准24个剩余变量。此项只补文档接口与源事件边界，没有读取保存值或驱动脚本、生成运行定义或现场动作。见[变量生命周期接口根核查](evidence/stage-d-study/variable-lifecycle-interface-root-check.json)。
 
+后续已关闭上段owner身份子项：[官方GetVariable接口](https://snap-one.github.io/docs-driverworks-api/#getvariable)明确用户变量代理DeviceID为100001，适用于源25个声明；[SetDeviceVariable](https://snap-one.github.io/docs-driverworks-api/#setdevicevariable)也允许驱动写该代理，因此XML显式写入不能证明外部写入集合完整。[AddVariable](https://snap-one.github.io/docs-driverworks-api/#addvariable)区分NUMBER、INT、FLOAT等名称，但没有给出存档type2的枚举映射，不能将它直接批准为整数或布尔。
+
+审查工具现保留source_owner／readonly／hidden及有来源的名义代理／重启契约；原type_mapping／lifetime／initialization／external_writers门槛全部保留，不生成运行声明。14项既有工具回归通过，实际权威归档25声明归属逐项核对；去掉新增元数据后，68场景／215程序／25变量完整审查结果与旧工具完全一致，读224／写263不变。新增完整批准为0。见[变量代理身份与工具核查](evidence/stage-d-study/user-variable-owner-interface-root-check.json)。
+
 629 个场景成员／元素的直接描述符均为 Light V2；按父协议包来源交叉核对如下。分类只陈述源文件关系，不推断实物能力。
 
 | 父协议来源 | 成员数 | 原始 rate 字面量 |

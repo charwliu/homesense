@@ -1,0 +1,53 @@
+{
+  "date": "2026-10-13",
+  "status": "source_user_variable_owner_identity_confirmed_without_runtime_approval",
+  "baseline_commit": "db1eb285d6ab7c45396c4f438dbc4dc48ecc9288",
+  "source_archive_sha256": "ff8c298fd2c8efa840d572d3ca544860ffbbc4e7176f09e93efdc5464b9ce6ec",
+  "source_xml_sha256": "cac7dcdc9db08599e55a22bacb72858035c64e1ac846e2139ead5fc634513748",
+  "official_owner_reference": "https://snap-one.github.io/docs-driverworks-api/#getvariable",
+  "official_lifecycle_reference": "https://docs.control4.com/help/c4/software/cpro/dealer-composer-help/content/composerpro_userguide/variable_handling.htm",
+  "official_variable_types_reference": "https://snap-one.github.io/docs-driverworks-api/#addvariable",
+  "owner_contract": {
+    "device_id": "100001",
+    "kind": "user_variable_agent",
+    "documented_api_available_from": "1.6.0",
+    "source_variables_matched": 25
+  },
+  "nominal_lifecycle": {
+    "normal_restart": "retain_existing_value",
+    "abnormal_shutdown": "retention_not_guaranteed"
+  },
+  "external_writer_contract": "SetDeviceVariable may target the Variables Agent; XML explicit assignments are not proof of an exhaustive writer set.",
+  "production_tool_actual_source_review": {
+    "scenes": 68,
+    "programs": 215,
+    "variables": 25,
+    "explicit_variable_reads": 224,
+    "explicit_variable_writes": 263,
+    "documented_user_agent_owners": 25,
+    "existing_review_identical_after_removing_only_new_metadata": true
+  },
+  "existing_tool_regressions": {
+    "passed": 14,
+    "new_test_functions": 0,
+    "network": false
+  },
+  "remaining": [
+    "Numeric archive type code 2 mapping; API documents named NUMBER/INT/FLOAT types but not this archive enum.",
+    "Reviewed per-variable initial value/lifetime/migration and actual startup behavior.",
+    "Actual external or driver writers and asynchronous behavior; documented setter existence alone does not prove they ran."
+  ],
+  "source_saved_values_inspected": false,
+  "original_driver_script_entries_read": false,
+  "runtime_definitions_generated": false,
+  "full_variable_approvals_added": 0,
+  "full_program_approvals_added": 0,
+  "field_actions": 0,
+  "evidence_sha256": {
+    "baseline-tool.py": "52e9e822f093aa299a1c5ee8cb9c13c10f7ad2cf6e2e53d667f624104f162ea2",
+    "tested-tool.py": "152563d87b1e4c7a2bae0bbab3f76d73615a88069822cbccc464a43721b7e3da",
+    "semantic-review.json": "8009c3c896d0364d3295d5b8644fb682d1f7a2e9d477d069a6f2609754a3ccef",
+    "regression.log": "d839abcd3734c79f7676ae315997dc8db6d16bdcb7cc250bb6827f27bddd60dd",
+    "audit.py": "295f2865d49f10df33d1867b470d8bb1f89eebfad1545f17c1872172e457e503"
+  }
+}

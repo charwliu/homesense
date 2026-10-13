@@ -955,3 +955,7 @@ RAMP_TO_LEVEL 的 TIME 单位由官方 API 关闭；不类推 AdvScene rate 或 
 原27主例和12对照在固定`f1b2e8a`使用schema2实际复验：27通过、0失败、0忽略，共39轨迹，108原库测试被过滤。四个模块使用提前保存的固定角色ID，全部逻辑绑定改为module_id／channel，组合灯供电也为模块通道；旧boot反馈重建同样使用schema2。40次转换核对及78次真实Store重开检查通过。967原文件逐字节不变，另一文件只追加私有测试include；原27测试与执行体除旧boot夹具转换外完全相同，没有删减或弱化断言。
 
 根独立重建每份schema2文档，与旧原配置比较全部字段，核对27精确ID、归档／源码／实际binary／39轨迹指纹；247个原步骤一一配对，124个运行时检查点的原字节、帧、命令日志、选择值／版本和反馈计数均与bfe原基线一致，最终完整帧累计121条。没有新增根测试执行或完整workspace／Clippy／Linux声明。见[实际集成验收](evidence/stage-d-study/native-scene-relative-schema2-check.json)、[独立根核查](evidence/stage-d-study/native-scene-schema2-matrix-root-check.json)。只关闭已提交引用层的原生场景集成；独立模块通道真值、运行时对象解耦、真实HAP／LED／总线与原65／208／24处置继续待验，D未完成。
+
+## 2026-10-13 25变量的用户代理身份确认
+
+[官方API](https://snap-one.github.io/docs-driverworks-api/#getvariable)明确DeviceID100001为用户变量代理，原25声明的归属已逐项核对；驱动可通过SetDeviceVariable写该代理，不能把XML263次显式写入当成全部可能写入。工具增加源owner／readonly／hidden及名义重启契约，原四项类型／生命周期／初始化／外部写入门槛不减。14项既有回归通过，权威全项目实际审查去除新元数据后与旧结果完全相同。type2的官方数值编码仍无依据，NUMBER与INT／FLOAT不能混同；实际政策及原24变量完整批准仍挂起，新增批准0。见[代理身份及生产工具核查](evidence/stage-d-study/user-variable-owner-interface-root-check.json)。
