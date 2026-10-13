@@ -36,11 +36,95 @@
       "candidate_module_query": "AE ID A0 F2 EE",
       "candidate_evidence": "likely_typographical_error_inferred_from_same_series_standard_and_AD8_not_verified_on_PRO",
       "enablement": "pending_same_model_confirmation"
+    },
+    {
+      "model": "GT-C8-RL",
+      "version": "2.8.2-2",
+      "sha256": "274ffe6962ffabf8149be7095fddff2828442b4af4602785db6d38b71904832b",
+      "profile": "gt_c8_rl_v2_8_2_2",
+      "channels": 8,
+      "section": "\u63a7\u5236\u6307\u4ee4 / \u516b\u8def\u7ee7\u7535\u5668",
+      "pdf_page_one_based": 2,
+      "printed_page": 4,
+      "document_capability": "not_documented",
+      "module_query": null,
+      "individual_query": "AE ID (A0+c) F2 EE",
+      "feedback": "AE ID (D0+c) F1/F2 EE",
+      "notes": [
+        "All eight individual queries and feedback are explicitly enumerated. No module query entry in this manual.",
+        "AE ID 00 F2 EE is ALL OFF CONTROL, never a Query. C8 mode setting is also a write."
+      ],
+      "root_original_hash_and_extracted_artifacts_verified": true,
+      "root_complete_relevant_page_visually_checked": true,
+      "hardware_verified": false
+    },
+    {
+      "model": "GT-E4-RL",
+      "version": "3.2.2-2",
+      "sha256": "b396364e135da689acbd7688135d93536ff408ec270bf1f623eab7aee5954906",
+      "profile": "gt_e4_rl_v3_2_2_2",
+      "channels": 4,
+      "section": "\u63a7\u5236\u6307\u4ee4 / \u5e38\u7528\u547d\u4ee4 / \u8f93\u51fa\u72b6\u6001\u67e5\u8be2",
+      "pdf_page_one_based": 2,
+      "printed_page": 4,
+      "document_capability": "explicit",
+      "module_query": "AE ID A0 F2 EE",
+      "individual_query": "AE ID (A0+c) F2 EE",
+      "feedback": "AE ID (D0+c) XX EE",
+      "notes": [
+        "All four feedback channels explicitly enumerated."
+      ],
+      "root_original_hash_and_extracted_artifacts_verified": true,
+      "root_complete_relevant_page_visually_checked": true,
+      "hardware_verified": false
+    },
+    {
+      "model": "GT-D8-RL",
+      "version": "2.2.6-2",
+      "sha256": "eba2c5b38e77f19a0da3d5e809b0496192370fdf347e40a76aa4297c6da4c505",
+      "profile": "gt_d8_rl_v2_2_6_2",
+      "channels": 8,
+      "section": "\u63a7\u5236\u6307\u4ee4 / \u8f93\u51fa\u72b6\u6001\u67e5\u8be2",
+      "pdf_page_one_based": 2,
+      "printed_page": null,
+      "document_capability": "explicit",
+      "module_query": "AE ID A0 F2 EE",
+      "individual_query": "AE ID (A0+c) F2 EE",
+      "feedback": "AE ID (D0+c) XX EE",
+      "notes": [
+        "Feedback D1..D4 followed by instruction to substitute third byte for remaining channels; supports D5..D8 derivation.",
+        "Unrelated B0 dimming description says 4 channels despite model and module-query text saying 8; record inconsistency without rewriting original."
+      ],
+      "root_original_hash_and_extracted_artifacts_verified": true,
+      "root_complete_relevant_page_visually_checked": true,
+      "hardware_verified": false
+    },
+    {
+      "model": "GT-L8-RL",
+      "version": "2.0.7-2",
+      "sha256": "d4092bb94d633a01c5cf30b62bb05184e52ee4b4ddbd57986188c16318e46e74",
+      "profile": "gt_l8_rl_v2_0_7_2",
+      "channels": 8,
+      "section": "\u63a7\u5236\u6307\u4ee4 / \u8f93\u51fa\u72b6\u6001\u67e5\u8be2",
+      "pdf_page_one_based": 2,
+      "printed_page": null,
+      "document_capability": "explicit",
+      "module_query": "AE ID A0 F2 EE",
+      "individual_query": "AE ID (A0+c) F2 EE",
+      "feedback": "AE ID (D0+c) XX EE",
+      "notes": [
+        "Filename says Vev2.0.7-2, cover says Ver2.0.7-2.",
+        "Feedback D1..D4 followed by remaining-channel substitution rule.",
+        "Unrelated B0 description says 4 channels despite explicit 8-channel Query."
+      ],
+      "root_original_hash_and_extracted_artifacts_verified": true,
+      "root_complete_relevant_page_visually_checked": true,
+      "hardware_verified": false
     }
   ],
   "all_original_sha256_match_repository_removal_manifest": true,
   "all_relevant_original_pages_visually_checked": true,
-  "current_encoder_scope": "individual_query_only_not_module_query",
+  "current_encoder_scope": "fixed1cd baseline individual only; module encoder/refresh draft exists but no fixed implementation acceptance yet",
   "field_enablement": false,
   "physical_query_or_control_sent": false,
   "constraints": [
@@ -52,5 +136,26 @@
     "Documented command is not firmware or full-house capacity acceptance",
     "Revalidate timing with all96 endpoints and control scheduling; do not claim8x measured speedup",
     "Preserve no replay semantics for control and native Toggle"
-  ]
+  ],
+  "supported_module_query_document_profiles": [
+    "ad8_din_rs485_v2_2_1",
+    "gt_e4_rl_v3_2_2_2",
+    "gt_d8_rl_v2_2_6_2",
+    "gt_l8_rl_v2_0_7_2"
+  ],
+  "excluded_from_automatic_module_query": {
+    "r8i8_din_pro_v2_7_7": "same-model ambiguous query entry; A0 candidate not validated",
+    "gt_c8_rl_v2_8_2_2": "module query not documented in this original manual"
+  },
+  "deployment_vector_specification": {
+    "count": 16,
+    "executed": false,
+    "root_original_pdf_hashes_verified": 4,
+    "root_extracted_artifact_hashes_verified": 8,
+    "root_visual_pages_checked": 4,
+    "private_artifact_sha256": {
+      "audit.json": "2d1635d2215c0824721822b3087f7c87ed12d18ad1c9292073da2b967b0ee59c",
+      "REPORT.md": "cb93554e3ace9955d9efc19207dd07f7ee123b8a525597b5902856296e955b5e"
+    }
+  }
 }
