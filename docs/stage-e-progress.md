@@ -2,7 +2,9 @@
 
 目标依据 design.md 第 20、23–25 节：完成原生 Rust HAP 配件公开、场景入口、Web 管理和鉴权，验证配对、反馈、断线恢复与权限；用户已取消后续 Siri 验收。阶段 D 的未完成项继续保留在 stage-d-progress.md，不能因目标扩展而视为完成。
 
-2026-10-13当前证据边界：最近限定现场仍为 `c184e65`，schema22／revision3，窗口已结束；新版候选为schema24。固定 `bfe61f2` 干净提交完整workspace735项、全部目标严格Clippy及Linux串行运行时库103项通过，包含原生场景及整模块查询集成。96路20ms独立假网关的真实服务循环35秒，最大重复查询间隔2.85秒、113份状态采样无Stale，已关闭此前12.29秒的隔离容量反例；100ms混合映射及真实总线尚未验收。27项独立相对场景夹具已通过隔离软件验收；新版Apple客户端／LED／窗帘及手机Web仍待验证。本轮未部署或连接真实网关。见[模块查询与容量验证](evidence/stage-d-study/module-query-capacity-check.json)；下文旧版本数量保留为历史，D/E综合结论仍未完成。
+2026-10-13当前证据边界：最近限定现场仍为 `c184e65`，schema22／revision3，窗口已结束；新版软件为schema24。固定 `99d036a` 全注册表查询修复已通过原1-of16反例及完整库／Admission，并补验原27项场景矩阵，共198个不同测试；16路样本全部Confirmed且零控制。固定 `960c7eb` 又在实际桌面浏览器通过三种模块Query入口，卡片8路状态／统计随完整快照更新、收据两种投影的控制动作按授权过滤，实际越权控制仍403；完整库130、Admission40、浏览器夹具1合计171项实际通过。两项旧显示反例已软件关闭。见[全注册表修复](evidence/stage-e-browser/physical-startup-scope-root-check.json)、[当前浏览器及完整库核查](evidence/stage-e-browser/module-query-receipt-browser-root-check.json)。
+
+旧固定 `bfe61f2` 的完整workspace735、Clippy、Linux103及96路20ms实际假网关循环保留为历史范围，不能自动提升为新版完整workspace／Linux／真实总线通过。新版Apple客户端／LED／窗帘及手机Web仍待验证，完整原D语义保持开放；本轮未部署或连接真实网关。下文旧版本数量与反例原样保留，D/E综合结论仍未完成。
 
 同一冻结schema2解析草稿另有引用层正向补证：真实Store离线CAS发布revision1→2仅把stable模块地址0x41改为0x61，保存的设备JSON及场景定义完全相同；Admission／Feedback／RuntimeHap重建保留AID2、OnIID9、BrightnessIID10与一条合成配对及生成身份。旧地址反馈被忽略、明确旧epoch反馈被拒绝，新地址50%正常反馈；供电Off时逻辑灯Off而物理调光50%保留，实际命令日志0条。1项实际测试通过，948非覆盖原文件未变；初始化夹具先写配对再分配标识导致的正确拒绝已保留，改正常顺序后通过，未改产品。它不验证在线发布监督、真实配对或独立模块通道真值；下项未绑定反馈缺口继续。见[模块引用换址根核查](evidence/stage-e-browser/module-reference-remap-root-check.json)。
 
@@ -1161,3 +1163,16 @@ Mac Safari已到登录页。为本轮书房两灯／四场景签发临时Member�
 随后固定 `99d036a` 独立复验原启动范围反例：992个原归档文件中991个不变，一文件只追加私有include；原探针仅更改检查点标签，原断言和假总线不变。相同2个AD8／16路／1个逻辑绑定现在写两条A0F2，16路全部Confirmed，逻辑设备仍1，零控制。完整产品库130项、同一私有反例1项和Admission40项实际全部通过，共171项，0失败／忽略／过滤。先单独执行的反例不重复累加，作者214项相关验证另行记录；随后在同一固定版本单独执行原27项私有场景矩阵，27项全部通过、130原产品库项过滤（已在前述完整库通过）；39份轨迹、124中间检查点与1e35add基线一致，原断言不变，累计198个不同测试。见[新版本场景矩阵核查](evidence/stage-d-study/native-scene-physical-startup-root-check.json)。见[全注册表修复独立核查](evidence/stage-e-browser/physical-startup-scope-root-check.json)。
 
 逻辑设备源码继续只保存模块ID／通道及组合灯的供电模块ID／通道；物理网关／地址由当前版本注册表在传输适配层解析。以上均为模拟或本机回环，未部署、未发现场命令、未新建真实凭据；真实Apple客户端、手机／TLS、当前现场启动恢复与原完整D/E门槛仍未完成。
+
+
+### 2026-10-13 查询收据显示修复的实际浏览器补验
+
+固定 `960c7eb` 完整归档997原文件全部不变，原本机假总线夹具仅改commit标签。实际Cookie登录、PRO整模块逐路／AD8整模块／AD8单通道三个入口，5次Query POST写12帧且journal均为Query／written，零执行器。过期整模块8路保留样本、新查询8/8新鲜、单查第3路请求范围1且全模块1/8新鲜；所有卡片槽位的值／质量／时间及统计与最新captured快照逐项一致，旧收据保留。requested channels与完整module.slots的actions均按无设备授权Admin过滤为空；同主体实际控制403 device_not_permitted且无新控制journal。PRO偶数F0仍为原模拟非法输入，未知不伪装关闭。
+
+实际浏览器退出“已退出”且模块区清空，模拟凭证撤销、服务正常结束exit0，PID／监听端口消失。完整产品库130、Admission40加浏览器夹具1合计171不同测试通过，0失败／忽略／过滤；作者32专项／4前端／Clippy的6源码和4日志指纹已核对，不重复累加。迟到响应／旧清单竞态由作者实际app.js的延迟响应夹具覆盖，不冒充本轮浏览器人为网络延迟测试。见[固定补验](evidence/stage-e-browser/module-query-receipt-browser-root-check.json)和[实际截图](evidence/stage-e-browser/module-query-receipt-browser-root.jpg)。这只关闭bcc的两项显示反例，不新增手机／TLS／真实Apple／现场结论。
+
+### 2026-10-13 书房稳定模块ID离线候选准备
+
+同一固定960取独立完整归档，997原文件全部不变，仅新增离线私有集成。生产module_migration::prepare对旧书房模板调用一次，生成并保存6个独立UUID模块ID；8个逻辑设备及组合供电引用改为ID／通道，不含物理gateway/address/supply_relay。独立完整重建证明物理位置、协议审核、名称、校准、绑定和控制范围保持，自动化除临时revision3→4外不变；原HAP计划逐字保持，生产解析仍为2灯／4场景／1窗帘／0公开面板。真实Drafts保存／重开相等且不同principal不可读，私有scratch Store离线CAS及重开保持注册表，journal0。无新反馈时32个输出通道全部Unknown，没有恢复旧观测为真值。实际1项通过、0失败／忽略／过滤，受测二进制保存；见[离线候选核查](evidence/stage-e-browser/study-schema2-offline-candidate-root-check.json)。
+
+该候选来自旧模板，revision4只是离线占位，field_enablement=false，不能直接部署。现场当前网关地址／返回路径、活动CAS版本与身份／状态拥有者必须在窗口前重新核实；本轮没有读取或修改真实活动库、配对身份、开服务或发物理命令。需要用户参与的现场步骤继续挂起，原65场景／208程序／24变量的完整语义审核仍开放。
