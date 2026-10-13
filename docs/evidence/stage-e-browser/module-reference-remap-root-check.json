@@ -1,0 +1,86 @@
+{
+  "date": "2026-10-13",
+  "status": "fixed_reference_draft_offline_remap_storage_and_hap_rebuild_verified",
+  "fixed_base_commit": "bfe61f28aa0070904f248ee418b542ffdde9bbeb",
+  "scope": "fixed bfe runtime/storage/HAP plus same frozen schema2 configuration overlay; offline storage and graph construction, not final module feature/online publication",
+  "original_files": 949,
+  "unchanged_non_overlay_original_files": 948,
+  "draft_overlay_sha256": {
+    "crates/homesense-config/src/lib.rs": "4c88b87085d1b943d9a84b1f202d2574fda1f99a658e5aa4eb4a47d1084462ba"
+  },
+  "archive_sha256": "fec7242edfadfe5515db46b81b12ecd55fb57dd377ddb98e21f9361c494324a9",
+  "actual_tests": {
+    "passed": 1,
+    "failed": 0,
+    "ignored": 0
+  },
+  "observations": {
+    "command_journal_rows": 0,
+    "devices_json_unchanged": true,
+    "hap_ids_after": {
+      "aid": 2,
+      "brightness_iid": 10,
+      "on_iid": 9
+    },
+    "hap_ids_before": {
+      "aid": 2,
+      "brightness_iid": 10,
+      "on_iid": 9
+    },
+    "identity_keys_unchanged": true,
+    "independent_module_channel_truth_verified": false,
+    "module_id_preserved": true,
+    "network": false,
+    "new_address": 97,
+    "new_address_observed_level": 50,
+    "old_address": 65,
+    "old_address_ignored": true,
+    "old_epoch_rejected": true,
+    "online_publication": false,
+    "projection_keeps_physical_state": true,
+    "scene_definitions_unchanged": true,
+    "supply_off_projects_logical_off": true,
+    "supply_reference_preserved": true,
+    "synthetic_saved_pairings_preserved": 1
+  },
+  "actual_saved_configuration_revisions_verified": [
+    1,
+    2
+  ],
+  "saved_device_and_scene_definitions_equal": true,
+  "saved_synthetic_pairing_count_verified": 1,
+  "saved_hap_accessory_count_verified": 2,
+  "root_source_and_saved_sql_rechecked": true,
+  "initial_attempts": {
+    "compile_fixture": "retained: borrowedPathBuf passed to ownedPathBuf API",
+    "initial_graph_storage_failures": 2,
+    "reason": "synthetic pairing inserted before first identifier allocation; correct fail-closed guard",
+    "product_changes_to_pass": false
+  },
+  "limitations": [
+    "Same frozen schema2 parser overlay as prior gap proof, not complete current module-management draft or accepted commit.",
+    "Storage-only CAS publish plus new Admission/Feedback/RuntimeHap construction, not online activation/supervision or real gateway replacement.",
+    "One synthetic saved pairing preserved; no actual SRP/PairVerify or Apple client connection.",
+    "Explicitly created Feedback epoch2 checks reject epoch1; runtime transport-supervisor synchronization not exercised.",
+    "Independent per-module channel ground-truth owner is not implemented or proven by this test; prior unbound-channel gap remains.",
+    "No live identity, user credential, real device or network changed."
+  ],
+  "live_credentials_created": false,
+  "synthetic_pairing_record_created": true,
+  "physical_controls": 0,
+  "network": false,
+  "evidence_sha256": {
+    "source.json": "d56a8ebbb440ed2aaad08cf0e2623f55c89d953a67dee99d96e3e865d74d9c13",
+    "configuration-draft.rs": "4c88b87085d1b943d9a84b1f202d2574fda1f99a658e5aa4eb4a47d1084462ba",
+    "probe.rs": "140bf7c0b2bbc74b69509e974785df5cd206c8200ab0f13c464037d0184442c2",
+    "test.log": "02ba92aa2355557f7cf244240cebf0e0e53491e43eb4c610fadc7c29d895c407",
+    "observations.json": "9af3df4e20eb8c40bd7c86e4e757b8d6a2632323089cf675112f273467670d86",
+    "attempt-01.log": "4fc6e1624ff18ff159a26cc1e8e4e0cc2d278151b408ac3f27c8418b50ac36c0",
+    "attempt-02.log": "d7b43eb67079fe75bffa21c500091990a129c0ea63e7b1e81bc75d96dbc08e18",
+    "attempt-03.log": "1798a86e331272f8382c833a22b0c58a50e5bc4ca961b683d42dd54c92338dd7",
+    "attempt-01-probe.rs": "fc8d34746c37b04b142e768f43a26e5dca0a9c89265217369f64e49abdd0dc4c",
+    "attempt-02-probe.rs": "5d02f3a45f92e3be26315718b3dae42aa0c471f3488d3a5e9335ea5821193b2a",
+    "attempt-03-probe.rs": "1f406702b88cf84ad35b753e5ac1cf1646e479ed988b41b624aafa1cdf9b6115",
+    "root-audit.json": "3bb3047ee28908ccdd94b953e6c2a89b046df0fba79ebae4f9c0ac581dae4a08"
+  }
+}

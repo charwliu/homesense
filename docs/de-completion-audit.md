@@ -10,6 +10,8 @@
 
 用户进一步明确模块架构：组合灯等逻辑设备只引用稳定的模块逻辑ID＋通道，模块注册表映射到网关／真实地址／profile；模块通道反馈是唯一物理真值，逻辑状态由其派生。整体换址只改模块物理映射，保留模块ID、逻辑设备／场景引用及HAP身份；更换后失效旧代次状态并重新查询。此前管理草稿以地址关联设备，不能视为符合此要求；开发任务已收到稳定ID、旧配置迁移、全部控制统一解析及旧映射反馈隔离要求，最终实现／回归继续待验。
 
+冻结schema2引用层补证已实际通过1项：Store离线CAS发布把同一module_id的0x41映射改为0x61，SQL中的设备／场景定义未改，供电module_id＋channel引用保持；真实RuntimeHap重建保留AID/IID、生成身份及一条合成配对。旧地址／epoch不更新新状态，供电Off的逻辑投影不覆盖物理50%，零命令日志。948非覆盖原文件核对不变；首次夹具配对在标识分配前写入而遭正确拒绝，失败保留，未修改产品门禁。它只覆盖离线存储／图重建和明确epoch的Feedback，不关闭在线换址、真实Apple客户端或下项模块独立真值缺口。见[稳定模块引用根核查](evidence/stage-e-browser/module-reference-remap-root-check.json)。
+
 模块引用层已出现schema2草稿，但状态层仍有独立反例：固定`bfe61f2`运行时＋仅一份冻结配置解析覆盖，已注册8路AD8的通道2／37%能合法解码，却因没有逻辑绑定而被当前Feedback路径丢弃（更新0、快照不变）；绑定通道1／30%正向对照正常更新1。948非覆盖原文件不变，1项实际测试通过是在证明缺口，不作为完整当前管理草稿或新提交版本验收。可运行探针已交开发，模块通道ground truth独立于逻辑绑定、逻辑状态仅投影及旧映射／代次隔离继续待验。见[模块状态层根反例](evidence/stage-e-browser/module-channel-truth-gap-root-check.json)。
 
 2026-10-13 诊断检查点 `e580caa` 区分 Known／Unknown／Unavailable，并修复迟到HTTP503覆盖较新WebSocket状态。根核对9份源码／测试与提交一致、9份日志指纹一致：32个独立Rust测试通过（33次成功执行含一次HAP重复，最终HAP日志为权威），严格homesensed全部目标Clippy通过；另用实际前端socket handler独立验证7种恢复／竞态，0真实网络和控制。它尚未部署；已验现场二进制仍为下述`c184e65`，不把针对性回归提升为新的全工作区或实机通过。见 [诊断增量根审计](evidence/stage-e-browser/scene-selection-projection-root-audit.json)。
