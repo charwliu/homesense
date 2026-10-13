@@ -29,7 +29,7 @@ function invalidatePreview() {
 for(const id of ['draft-id','base-revision','draft-revision','device-document','automation-document','metadata-device','metadata-name','metadata-room','binding-module-id','binding-gateway','binding-address','binding-channel','binding-enabled','calibration-direction','calibration-stop','calibration-evidence','calibration-time','edit-room-id','edit-room-name','edit-room-floor','edit-room-select','replacement-module','replacement-address','replacement-profile','replacement-verification','replacement-evidence','replacement-time']) {
   document.getElementById(id).addEventListener('input',invalidatePreview);
 }
-let modulePage=null;let moduleReadEpoch=0;let replacementSource=null;
+let modulePage=null;let moduleReadEpoch=0;let moduleReceiptEpoch=0;let replacementSource=null;
 let versionsBefore=null;
 let selectedRoom='';
 const started = new Map();
@@ -755,7 +755,9 @@ function announceSessionChange() {
 }
 
 
+const moduleViews=new Map();
 function clearModules() {
+  moduleViews.clear();moduleReceiptEpoch++;
   modulePage=null;moduleReadEpoch++;replacementSource=null;
   document.getElementById('modules').hidden=true;
   document.getElementById('module-list').replaceChildren();document.getElementById('module-status').textContent='';document.getElementById('next-modules').disabled=true;
@@ -776,23 +778,50 @@ async function moduleQueryAction(button,module,scope,page,renderEpoch,display,ro
       const inspect=document.createElement('button');inspect.textContent='查看查询写出与当前反馈';
       inspect.onclick=async()=>{
         if(renderEpoch!==sessionEpoch)return;inspect.disabled=true;
-        try {const state=await request('/api/v1/module-queries/'+receipt.request_id);if(renderEpoch===sessionEpoch)display.textContent=JSON.stringify(state)+'；反馈无请求因果保证／非原子快照。';}
-        catch(error){if(renderEpoch===sessionEpoch)display.textContent=error.message;}
+        const view=moduleViews.get(module.module_id);
+        const ticket={view,sequence:view?++view.sequence:0,readEpoch:moduleReadEpoch};
+        try {const state=await request('/api/v1/module-queries/'+receipt.request_id);if(moduleReceiptCurrent(module,page,renderEpoch,ticket)){applyModuleReceipt(state,module,page,renderEpoch,ticket);display.textContent=JSON.stringify(state)+'；反馈无请求因果保证／非原子快照。';}}
+        catch(error){if(moduleReceiptCurrent(module,page,renderEpoch,ticket))display.textContent=error.message;}
         finally{inspect.disabled=false;}
       };row.append(inspect);
     }
   } catch(error) {if(renderEpoch===sessionEpoch)display.textContent=error.message;}
   finally {moduleQueryBusy.delete(key);if(renderEpoch===sessionEpoch)button.disabled=!page.ready;}
 }
+function moduleInfoText(module,captured) {
+  return `${module.kind}；验证：${module.verification}；启用绑定回复：${module.response}（${module.fresh_responses}/${module.queryable_bindings}）；完整通道反馈见下方槽位；当前新鲜 ${module.fresh_channels??0}/${module.channels??module.slots.length}，已有反馈 ${module.observed_channels??0}，最近 ${module.latest_observed_ms??'未知'} ms；通道快照读取 ${captured} ms`;
+}
+function moduleSlotText(slot) {
+  const quality={confirmed:'新鲜反馈',stale:'过期反馈',unknown:'未知反馈',disabled:'禁用',unavailable:'运行时不可用',unsupported_feedback:'不支持状态读回'},binding=slot.binding;
+  return `通道 ${slot.channel}：${binding?binding.name+' · '+binding.id:'未绑定（不可控制）'}；${quality[slot.quality]||slot.quality||'未知'}；模块反馈 ${slot.actual?JSON.stringify(slot.actual):'未知'}；时间 ${slot.observed_ms??'未知'} ms；${binding?.supply_for.length?'供电关联 '+binding.supply_for.join(', '):''}`;
+}
+function moduleReceiptCurrent(module,page,renderEpoch,ticket) {
+  const current=moduleViews.get(module.module_id);
+  return renderEpoch===sessionEpoch && modulePage===page && ticket.readEpoch===moduleReadEpoch && current && current===ticket.view && ticket.sequence===current.sequence;
+}
+function applyModuleReceipt(state,module,page,renderEpoch,ticket) {
+  if(!moduleReceiptCurrent(module,page,renderEpoch,ticket))return false;
+  const current=ticket.view,sample=state.status,updated=sample?.module;
+  if(state.boot!==page.boot || state.revision!==page.revision || sample.transport_epoch!==page.transport_epoch || updated?.module_id!==module.module_id || (observedRevision!==null&&observedRevision!==page.revision))return false;
+  const times=[sample.captured_ms,current.captured,page.captured_ms];
+  if(times.some(t=>typeof t!=='string'||!/^(0|[1-9][0-9]*)$/.test(t)) || BigInt(times[0])<BigInt(times[1]) || BigInt(times[0])<BigInt(times[2]))return false;
+  if(!Array.isArray(updated.slots) || updated.slots.length!==current.lines.size || new Set(updated.slots.map(slot=>slot.channel)).size!==current.lines.size || updated.slots.some(slot=>!current.lines.has(slot.channel)))return false;
+  current.info.textContent=moduleInfoText(updated,sample.captured_ms);
+  for(const slot of updated.slots)current.lines.get(slot.channel).textContent=moduleSlotText(slot);
+  current.module=updated;current.captured=sample.captured_ms;moduleReceiptEpoch++;
+  page.modules=page.modules.map(item=>item.module_id===module.module_id?updated:item);
+  return true;
+}
 function renderModules(page) {
   if(!observeRevision(page.revision))return;
-  modulePage=page;const renderEpoch=sessionEpoch,list=document.getElementById('module-list');list.replaceChildren();
-  const quality={confirmed:'新鲜反馈',stale:'过期反馈',unknown:'未知反馈',disabled:'禁用',unavailable:'运行时不可用',unsupported_feedback:'不支持状态读回'};
+  modulePage=page;moduleViews.clear();const renderEpoch=sessionEpoch,list=document.getElementById('module-list');list.replaceChildren();
   for(const module of page.modules) {
     const row=document.createElement('article'),title=document.createElement('h3'),info=document.createElement('p');
     title.textContent=`${module.module_id||"旧配置：需迁移模块ID"} · ${module.gateway} / 0x${module.address} · ${module.profile}`;
-    info.textContent=`${module.kind}；验证：${module.verification}；启用绑定回复：${module.response}（${module.fresh_responses}/${module.queryable_bindings}）；完整通道反馈见下方槽位；当前新鲜 ${module.fresh_channels??0}/${module.channels??module.slots.length}，已有反馈 ${module.observed_channels??0}，最近 ${module.latest_observed_ms??'未知'} ms`;
+    info.textContent=moduleInfoText(module,page.captured_ms);
     row.append(title,info);
+    const view={module,info,lines:new Map(),captured:page.captured_ms,sequence:0};
+    if(module.module_id)moduleViews.set(module.module_id,view);
     const queryable=module.module_id&&['whole_module','individual_channels'].includes(module.query_mode);
     if(queryable) {
       const button=document.createElement('button'),display=document.createElement('pre');button.textContent=module.query_mode==='whole_module'?'查询整模块':'查询全部通道（逐路）';button.disabled=!page.ready;
@@ -800,7 +829,7 @@ function renderModules(page) {
     }
     for(const slot of module.slots) {
       const line=document.createElement('p'),binding=slot.binding;
-      line.textContent=`通道 ${slot.channel}：${binding?binding.name+' · '+binding.id:'未绑定（不可控制）'}；${quality[slot.quality]||slot.quality||'未知'}；模块反馈 ${slot.actual?JSON.stringify(slot.actual):'未知'}；时间 ${slot.observed_ms??'未知'} ms；${binding?.supply_for.length?'供电关联 '+binding.supply_for.join(', '):''}`;
+      line.textContent=moduleSlotText(slot);view.lines.set(slot.channel,line);
       row.append(line);
       if(queryable) {
         const button=document.createElement('button'),display=document.createElement('pre');button.textContent='查询通道 '+slot.channel;button.disabled=!page.ready;
@@ -823,18 +852,18 @@ function renderModules(page) {
     }
     list.append(row);
   }
-  document.getElementById('module-status').textContent=`配置 ${page.revision}；连接代次 ${page.transport_epoch}；读取 ${page.captured_ms} ms。写出与反馈分别核对。`;
+  document.getElementById('module-status').textContent=`配置 ${page.revision}；连接代次 ${page.transport_epoch}；清单读取 ${page.captured_ms} ms。写出与反馈分别核对。`;
   document.getElementById('next-modules').disabled=page.next_offset==null;
 }
 function parseModuleLevel(value) {
   if(!/^(0|[1-9][0-9]?)$|^100$/.test(value))throw new Error('亮度必须为0–100的整数');return Number(value);
 }
 async function readModules(next=false) {
-  const epoch=++moduleReadEpoch;
+  const epoch=++moduleReadEpoch,receiptEpoch=moduleReceiptEpoch;
   try {
     const suffix=next&&modulePage?`?offset=${modulePage.next_offset}&limit=32&revision=${modulePage.revision}`:'';
-    const page=await request('/api/v1/modules'+suffix);if(epoch!==moduleReadEpoch)return;renderModules(page);
-  }catch(error){if(epoch===moduleReadEpoch){modulePage=null;document.getElementById('module-list').replaceChildren();document.getElementById('module-status').textContent=error.message;document.getElementById('next-modules').disabled=true;}}
+    const page=await request('/api/v1/modules'+suffix);if(epoch!==moduleReadEpoch || receiptEpoch!==moduleReceiptEpoch)return;renderModules(page);
+  }catch(error){if(epoch===moduleReadEpoch && receiptEpoch===moduleReceiptEpoch){modulePage=null;document.getElementById('module-list').replaceChildren();document.getElementById('module-status').textContent=error.message;document.getElementById('next-modules').disabled=true;}}
 }
 async function moduleDeviceAction(button,device,command,revision,module,channel,renderEpoch) {
   if(button.disabled || renderEpoch!==sessionEpoch)return;const epoch=sessionEpoch;button.disabled=true;

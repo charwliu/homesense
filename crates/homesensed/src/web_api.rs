@@ -302,7 +302,7 @@ impl Api {
             if (offset>0 && revision.is_none()) || revision.is_some_and(|r|r!=runtime.revision.to_string()){return deny(StatusCode::CONFLICT,"module_revision_changed");}
             return match runtime.control.request(Action::Modules{controller:grant.controller,revision:runtime.revision,offset,limit}).await {
                 Ok(Reply::Modules(mut page))=>{
-                    for module in &mut page.modules {for slot in &mut module.slots {if let Some(binding)=&mut slot.binding && !grant.may_control_device(&binding.id){binding.actions.clear();}}}
+                    for module in &mut page.modules {mask_module_actions(&mut module.slots,&grant);}
                     response(StatusCode::OK,serde_json::to_value(page).unwrap())
                 },
                 _=>deny(StatusCode::SERVICE_UNAVAILABLE,"module_inventory_unavailable"),
@@ -726,7 +726,11 @@ impl Api {
             let commands=receipt["commands"].as_array().and_then(|ids|ids.iter().map(|id|id.as_str()?.parse::<u64>().ok()).collect::<Option<Vec<_>>>());
             let Some(commands)=commands else{return deny(StatusCode::CONFLICT,"query_receipt_unknown");};
             return match runtime.control.request(Action::ModuleQueryStatus{controller:grant.controller,revision:runtime.revision,module_id:module_id.to_owned(),scope,commands}).await {
-                Ok(Reply::ModuleQueryStatus(status))=>response(StatusCode::OK,json!({"request_id":key,"boot":runtime.boot,"revision":runtime.revision.to_string(),"status":status})),
+                Ok(Reply::ModuleQueryStatus(mut status))=>{
+                    mask_module_actions(&mut status.channels,&grant);
+                    mask_module_actions(&mut status.module.slots,&grant);
+                    response(StatusCode::OK,json!({"request_id":key,"boot":runtime.boot,"revision":runtime.revision.to_string(),"status":status}))
+                },
                 _=>deny(StatusCode::CONFLICT,"query_scope_unavailable"),
             };
         }
@@ -992,4 +996,12 @@ pub(crate) fn device_json(
         homesense_core::ModuleKind::Switch | homesense_core::ModuleKind::Dimmer
     );
     json!({"id":device.id.as_str(),"name":device.name,"room":device.room,"kind":format!("{:?}",device.state.kind),"observed":observed,"reported":reported,"state_authority":if device.recorded {"homesense_setting"} else {"feedback"},"quality":format!("{:?}",device.state.quality),"observed_at_ms":device.state.observed_at_ms,"pending":device.state.pending_command,"version":device.state.version,"motor_calibrated":device.motor_calibrated,"can_control":(light || device.motor_calibrated) && grant.may_control_device(device.id.as_str())})
+}
+
+fn mask_module_actions(slots: &mut [crate::management_modules::Slot], grant: &crate::web_auth::Grant) {
+    for slot in slots {
+        if let Some(binding) = &mut slot.binding && !grant.may_control_device(&binding.id) {
+            binding.actions.clear();
+        }
+    }
 }

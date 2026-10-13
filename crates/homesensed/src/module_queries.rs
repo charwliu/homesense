@@ -94,6 +94,9 @@ pub struct Accepted {
 }
 #[derive(Debug, Serialize, PartialEq, Eq)]
 pub struct Status {
+    pub module: crate::management_modules::Module,
+    pub transport_epoch: String,
+    pub captured_ms: String,
     pub writes: Vec<Write>,
     pub channels: Vec<crate::management_modules::Slot>,
     pub fresh_channels: usize,
@@ -109,10 +112,11 @@ pub struct Write {
 }
 pub(crate) fn project_status(
     records: Vec<homesense_storage::module_history::Record>,
-    module: &crate::management_modules::Module,
+    module: crate::management_modules::Module,
     scope: &Scope,
     expected_epoch: u64,
     expected_commands: &[u64],
+    captured_ms: u64,
 ) -> Result<Status, String> {
     if records.len() != expected_commands.len()
         || records.iter().any(|r| {
@@ -145,6 +149,9 @@ pub(crate) fn project_status(
     }
     let fresh_channels = channels.iter().filter(|c| c.quality == "confirmed").count();
     Ok(Status {
+        module,
+        transport_epoch: expected_epoch.to_string(),
+        captured_ms: captured_ms.to_string(),
         writes,
         requested_channels: channels.len(),
         channels,
