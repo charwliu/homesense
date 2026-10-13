@@ -2,6 +2,8 @@
 
 依据 `design.md` 第 9–11、18、20、23–25 节和用户约束。阶段 D 的范围包含 68 个场景和 215 个程序的完整处置，阶段 E 包含原生 HAP、场景入口、Web 管理、鉴权及实际客户端验收。完成判定仍为 **D 未完成、E 未完成**。
 
+2026-10-13 本轮关闭两项证据缺口。D 从原 XML 重建 215 事件，固定 `f7c2b22` 的 179 个可编译程序在 7,652 组实际规划差分中一致；49 组新输入补齐 41 个条件节点，84 组检查独立双变量，并单独保留 103 边界输入；剩余两条路径只在不可变三态反馈模型下证明条件必真。实际是 1 项集成测试，不新增完整语义批准。E 独立重算 `ea524bb` 的 Linux 库 130＋在线换址 2 项，并核对两份实际 ELF、1,009 原文件及两种隔离 HTTPS/WSS 日志；首次依赖失败和执行时清理记录保留，未重跑或查询当前远程进程。不扩大为完整 Linux workspace、真实客户端／总线或现场验收。详见[D 条件路径核查](evidence/stage-d-study/source-branch-path-root-check.json)、[E Linux 根核查](evidence/stage-e-browser/linux-isolated-runtime-root-check.json)。完整原 D 语义及新版现场门槛继续开放，需要用户参与的事项仍挂起。
+
 2026-10-13当前模块层的完整质量补验：固定960c7eb生产源码不改，仅校正两处旧假网关查询夹具后，完整workspace771项、所有目标严格Clippy与16项前端契约通过。原两次workspace失败及新增断言的编译错误保留；113项修复目标不重复计数。638a1c1的两项在线换址／缺未绑定端口故障另实际通过，合计773个不同Rust测试；不把这些分开执行或共享脏改动合成同一次原始检查。全注册表、模块真值、HAP版本和管理卡片软件缺口已有相应限定证据；真实客户端／现场与完整原D语义仍开放。详见[完整工作区边界](evidence/stage-e-browser/workspace-module-truth-root-check.json)。
 
 原变量生命周期新增名义接口依据：[官方说明](https://docs.control4.com/help/c4/software/cpro/dealer-composer-help/content/composerpro_userguide/variable_handling.htm)规定自定义变量通常正常重启保留值，异常关机可能不保留，项目加载事件可显式初始化。根从权威XML重算25声明／215事件，项目根节点没有事件程序；不能按每次启动清零迁移，也不能把归档保存值批准为默认值。源owner100001／type2编码映射、实际版本适用和各变量政策仍未审核，未新增完整变量或程序批准。见[变量生命周期接口证据](evidence/stage-d-study/variable-lifecycle-interface-root-check.json)。
