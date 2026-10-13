@@ -1,0 +1,52 @@
+{
+  "date": "2026-10-13",
+  "fixed_commit": "960c7ebda398d33ffa3cebce48ce438225a02a59",
+  "scope": "Production module migration and validation applied once to existing private study offline template; private draft save/reopen and scratch Store CAS only",
+  "original_source_files_unchanged": 997,
+  "new_private_integration_only": true,
+  "test": {
+    "passed": 1,
+    "failed": 0,
+    "ignored": 0,
+    "filtered": 0
+  },
+  "configuration_format": {
+    "schema_version": 2,
+    "module_ids": 6,
+    "saved_uuid_v4_ids": true,
+    "logical_devices": 8,
+    "devices_have_no_physical_address_or_gateway": true,
+    "combined_supply_uses_module_id_channel": true
+  },
+  "independent_reconstruction": "Entire output equals original template plus saved module IDs, logical references and provisional revision; profiles/physical locations/calibration/metadata unchanged",
+  "automation": "Only configuration_revision changes; existing four scene definitions, groups, reconciliation and three LED links unchanged; observer absent",
+  "hap_plan": "Byte unchanged; production parser accepts same bridge with two lights/four scenes/one motor/no published panel",
+  "persistence": "Production Drafts save/reopen equals the once-generated payload; different principal cannot read it; scratch runtime CAS 3 to 4/reopen preserves registry",
+  "initial_truth": "32 registered switch/dimmer ports are unknown without feedback; no saved state promoted to fresh",
+  "journal_rows": 0,
+  "network_calls": 0,
+  "field_enablement": false,
+  "limitations": [
+    "Old private baseline is a template, not current field state; revision 4 is provisional and cannot authorize deployment",
+    "Current gateway address/network path, active CAS revision and identity/state ownership require revalidation before a field window",
+    "No online publication, real state copy, old binary migration/restore, service launch, current pairing identity read, physical commands or full D/E acceptance"
+  ],
+  "baseline_sha256": {
+    "devices.baseline.json": "82e1059d6b3223c6ca51a644d29358204fa06e01a218421b419ef1a81178a60c",
+    "automation.offline-template.json": "23ccd2b19efe9a01bbec005f1fc4930ef5ee185d354ad490acb787a9b3a3ae2b",
+    "hap-plan.baseline.json": "7f7e8a2fcbe037bf9ccecbd8dc0f6b01c40247b292b60597f6809857e16dd738"
+  },
+  "private_artifact_sha256": {
+    "source.tar": "5127e6d506ee63c10996d25aa98f4fae5eb9aa1b7278276629429e08327ec457",
+    "source.json": "41a5d95ddb71ef9c9f870adab787fd3a2b23ba947b1a0449304b9a4ad35cf3ab",
+    "probe.rs": "005436b8ab296cc447635f92b0820b428d03f437f81c09f2bc79cc8b63979754",
+    "test.log": "2b380d9a47ce6506ff3228095fba967d3def3050f93a6073d6c8e927bad267a1",
+    "execution.json": "0a816739561c1d3b34e71ea63937592a4ce8e9dc0bda9eb20e7baad7d77a70a4",
+    "result.json": "b43c8d3b6f12baeff462400dd7774b1dac54782a6d9f682ef7eec170d2d8ae47",
+    "devices.schema2.offline.json": "c3fbc4a51d6d79b1c7b7fe9f1b909c9e400968a1fb8e5e8cdc0f5b5e437aefea",
+    "automation.schema2.offline.json": "f33dcc434531f0044886d758cbb2616c0a8aab7182b5c24d8a5d3e03b82a7579",
+    "hap-plan.unchanged.json": "7f7e8a2fcbe037bf9ccecbd8dc0f6b01c40247b292b60597f6809857e16dd738",
+    "test-binary/candidate": "c47c8cd1babbc4c5ff969f2c222bc2d919c82e6f329c7463548d57f6157a092f",
+    "verify.py": "93340d29f7e9bd8cced6d508c462ffd347b6f356632145ea8e920e2931c24e99"
+  }
+}

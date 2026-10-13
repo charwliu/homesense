@@ -1,0 +1,108 @@
+{
+  "date": "2026-10-13",
+  "fixed_commit": "960c7ebda398d33ffa3cebce48ce438225a02a59",
+  "scope": "Actual desktop browser; production app.js/API/runtime/TransportOwner on localhost HTTP with unchanged fake bus fixture and no-device Administrator grant",
+  "source_files_unchanged": 997,
+  "only_new_source": "Private integration fixture; only embedded commit label differs from original browser fixture",
+  "owner_validation_verified": {
+    "source_hashes": 6,
+    "log_hashes": 4,
+    "focused_tests": 32,
+    "frontend_scripts": 4,
+    "strict_clippy": "homesense-config homesense-storage homesensed --all-targets -D warnings passed",
+    "not_added_to_new_executions": true
+  },
+  "actual_tests": {
+    "product_library": 130,
+    "admission": 40,
+    "browser_fixture": 1,
+    "unique_total": 171,
+    "failed": 0,
+    "ignored": 0,
+    "filtered": 0
+  },
+  "successful_query_posts": 5,
+  "query_frames": 12,
+  "actuator_frames": 0,
+  "journal_query_only": true,
+  "visible_samples": {
+    "relay": {
+      "requested_channels": 8,
+      "requested_fresh": 0,
+      "module_fresh": 0,
+      "observed": 4,
+      "captured_ms": "61372"
+    },
+    "whole_stale": {
+      "requested_channels": 8,
+      "requested_fresh": 0,
+      "module_fresh": 0,
+      "observed": 8,
+      "captured_ms": "91503"
+    },
+    "whole_fresh": {
+      "requested_channels": 8,
+      "requested_fresh": 8,
+      "module_fresh": 8,
+      "observed": 8,
+      "captured_ms": "92042"
+    },
+    "channel": {
+      "requested_channels": 1,
+      "requested_fresh": 1,
+      "module_fresh": 1,
+      "observed": 8,
+      "captured_ms": "117821"
+    },
+    "final": {
+      "requested_channels": 8,
+      "requested_fresh": 8,
+      "module_fresh": 8,
+      "observed": 8,
+      "captured_ms": "178656"
+    }
+  },
+  "fixed_findings": [
+    "Full module card statistics and all eight slot values/qualities/times match the inspected snapshot; written receipt is retained",
+    "No-device grant action metadata is empty in requested channels and full-module snapshot; actual control remains 403 device_not_permitted"
+  ],
+  "requested_vs_module_scope": "One-channel read has one requested fresh channel and one of eight fresh module slots; previous seven observations are stale",
+  "relay_fixture_limit": "Even-channel F0 is deliberately unchanged invalid fake input; four unknown slots remain unknown. No valid-off or all-eight relay feedback claim.",
+  "feedback_causality": "not_established",
+  "atomic_snapshot": false,
+  "cleanup": {
+    "logout": "\u5df2\u9000\u51fa; module region cleared",
+    "synthetic_token_revoked": true,
+    "server_stopped": true,
+    "pid_and_listener_absent": true
+  },
+  "limitations": [
+    "UI race guards covered by owner delayed-response frontend fixture, not artificially delayed actual browser requests here",
+    "Desktop HTTP only; no new mobile/TLS/real Apple Home or physical field acceptance",
+    "No deployment, real credential, physical IO, EA-5 change, push or full D/E completion",
+    "Earlier bcc0d2f failures remain historical evidence; only these two display findings closed at current fixed checkpoint"
+  ],
+  "artifact_sha256": {
+    "source.tar": "5127e6d506ee63c10996d25aa98f4fae5eb9aa1b7278276629429e08327ec457",
+    "source.json": "70452765765d6a0e4895acb9e30f9587c78f7b7e6c0ef35fd91f29efd9c6bd80",
+    "probe.rs": "b9f8003ab109cff6e2ecd215de2fd6e8ae5e282984e7fafd01631c35e79cd9af",
+    "server.log": "0a61b8a916c15a265ec78a5f55bd3e1589804115949a731b277b87c7bdda768f",
+    "execution.json": "28c44e2746f5a366924136d60691086e15251b64509070e31379d4ee926eb595",
+    "result.json": "89f3a568c9274ba5314c8b894d29939192a361554558349c3a73a577cedb721f",
+    "browser-dom.json": "66325760aded3e9b90dbfc7cf0b6a2237f512078b5d06206e67d34e2e031865a",
+    "final-dom.txt": "bb5c2bad0ac3c7e14a9d013039a8b1b5039d0ba381c99c7214a0e396cd426411",
+    "query-card.jpg": "982558d014c380d4f7d071f396d6faa5103cedb64ae1a7d4003ffdc824576f6a",
+    "query-full.jpg": "d9546047ed9f4d58fe21c1708f847d594196314aac9f425b18d89d6f600e9d83",
+    "logout.txt": "d1d9d30ac2146e50e92cc1deec795db07bf8c309308a2ded2dbb9c8a74e89109",
+    "denied-control.json": "d8e3191e1882700954e52b774f4d7d2fe97925e1e86f2f1c6e20b5266e4db713",
+    "cleanup.json": "b568f9336cedd61a25eb152be105adb16372ace2641305902ae0c17fc82cf86d",
+    "library.log": "479cdcb4ba3dfc2d6c84d14ed905a95a20f090f52fb7e1b39be550e768d5e7fe",
+    "admission.log": "f35e9791032e1147faed95019788d345ec79aadb7fa6ffb275e57bdf118f2044",
+    "full-execution.json": "76d3655e5c1fe657bdd060eb67ac80545c5e867f3a06b78712368ffd4c9188d6",
+    "test-binary/browser-fixture": "b5d5dbc3d80041af0c7054155c12fe0cec1c322e6525c6f08858b16400d49641",
+    "test-binary/library": "5ca04890a3acbd8d0d78b18f54bd56b68942485e802db145f09de274eb96e249",
+    "test-binary/admission": "6532903cc25d7a08f0444dec001ca04575c69bf143bbcbfede0af7d31098ae98",
+    "verify.py": "b859ff84f3b91109744fb6a75202ef2e520b96ffe272d4f553ceb1b153255bf8"
+  },
+  "public_screenshot_sha256": "982558d014c380d4f7d071f396d6faa5103cedb64ae1a7d4003ffdc824576f6a"
+}
