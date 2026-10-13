@@ -1,0 +1,87 @@
+{
+  "date": "2026-10-13",
+  "commit": "bfe61f28aa0070904f248ee418b542ffdde9bbeb",
+  "status": "fixed_source_core_planner_trace_vectors_independently_recomputed",
+  "programs": 179,
+  "blocked_programs": 36,
+  "vectors": 7518,
+  "vectors_per_program": 42,
+  "actual_test_functions": 1,
+  "failed": 0,
+  "ignored": 0,
+  "mismatches": 0,
+  "original_files_unchanged": 949,
+  "prior_label_audit_artifacts_unchanged": true,
+  "archive_sha256": "fec7242edfadfe5515db46b81b12ecd55fb57dd377ddb98e21f9361c494324a9",
+  "input_grid": {
+    "variable_uniform_values": [
+      null,
+      -1,
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "feedback_uniform_cases": [
+      "missing",
+      "fresh_off",
+      "fresh_17",
+      "fresh_30",
+      "fresh_100",
+      "stale_30"
+    ]
+  },
+  "vector_counts_by_feedback": {
+    "missing": 1253,
+    "fresh_off": 1253,
+    "fresh_17": 1253,
+    "fresh_30": 1253,
+    "fresh_100": 1253,
+    "stale_30": 1253
+  },
+  "vector_counts_by_uniform_variable": {
+    "None": 1074,
+    "-1": 1074,
+    "0": 1074,
+    "1": 1074,
+    "2": 1074,
+    "3": 1074,
+    "4": 1074
+  },
+  "plan_occurrences": {
+    "command_label_occurrences": 35650,
+    "unknown_branch_label_occurrences": 2242,
+    "feedback_read_occurrences": 4481,
+    "leaf_set": 3945,
+    "leaf_command": 35650,
+    "leaf_scene": 1726
+  },
+  "input_snapshots_immutable_asserted": true,
+  "all_actual_output_vectors_independently_compared": true,
+  "full_semantic_approval": false,
+  "field_enablement": false,
+  "runtime_definitions": [],
+  "limitations": [
+    "42 explicit uniform vectors per program, not exhaustive independent cross-products or complete branch/path coverage.",
+    "Source candidate feedback and integer variables use explicit pure-core snapshots; variable lifetimes and initialization are audit inputs, not original-device approvals.",
+    "Includes4 already-disposed empty source programs;7518 vectors are not7518 newly approved source programs.",
+    "This verifies compile_event + evaluate_with_feedback actions,commands,variables,unknown labels and feedback read sets, not Admission journal TraceLabel storage, device transport, trigger timing, asynchronous variables, ALS rate or physical state.",
+    "36 default-blocked programs and original65-scene/208-program/24-variable full dispositions remain pending.",
+    "No network, real gateway, credentials, runtime enablement, deployment or controls."
+  ],
+  "evidence_sha256": {
+    "source.json": "8f1f242e5c4fa99ac377a7c9131079940013e0bc1612a4658beb0b7d246a9a66",
+    "project.xml": "cac7dcdc9db08599e55a22bacb72858035c64e1ac846e2139ead5fc634513748",
+    "bindings.json": "af959edca5cdbe6bd20b6b073feb4e23c923fe1d7fcd37a4df100b3ce548a0d6",
+    "generate.py": "4c2d75d6efd43382129ead0aab7150b15512b64764ca9993004e2aec6ce0688a",
+    "generate.log": "1031b4f355646a20d49ddc54da8e485c378cbac8e8052383df081b855c47d0cc",
+    "cases.json": "239ce0ec2384e8dc31dc7bcf12a1b9658b5699dd2acaf765b388b471f99b6a1f",
+    "probe.rs": "23c14177641d0a0ecbdaebd872d00280914775c04cc67ffdc502bc5af9559abe",
+    "test.log": "a6fe584d3ab06120c9bd7385855ae0c5c48428afd788a2695ebbbd31f3254d34",
+    "observed.json": "7e88a626f824e8f1f0d1935442f5d3e4564b56f94b7b91c72389185a8954feda",
+    "root-audit.json": "6218c6b98fac7f57b8f14ecf284d466ff1a86381dfc7548d8e7dbe60798ed367"
+  },
+  "independent_source_model_sha256": "08bf6db5c13c5fb40050365f482cd692c97f9a648afd4a14808e2476e3ff7a20",
+  "independent_trace_model_sha256": "4e5f4645514aa88ede0db62c164ee0bdea397d7ae654156dfe8889ef472d7909"
+}

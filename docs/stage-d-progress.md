@@ -29,6 +29,8 @@
 
 2026-10-13源追踪补证：固定`bfe61f2`从实际`compile_event`导出带source的完整AST；独立按权威XML事件／节点／Then／Else路径重建期望，179程序的2246节点标签与动作树同时一致，0差异，同事件重复标签0；含16个生成Toggle分支标签。六种缺标签、错事件／节点路径、分支标签交换、空树及重复事件变体均被拒绝，1项实际导出通过，949归档原文件未变，原C4P与project.xml输入指纹匹配。只补源标签，不执行运行时TraceLabel消费链，不关闭36个阻断或原65场景／208程序／24变量完整语义审核。见[源标签根审计](evidence/stage-d-study/source-trace-root-check.json)。
 
+同一固定`bfe61f2`继续通过真实`compile_event`＋`evaluate_with_feedback`规划链路：179程序各42种明确输入（整数变量统一Unknown／-1／0..4，反馈统一缺失／新鲜Off／17／30／100／过期30），共7518向量。独立源模型与保存的全部实际输出逐份比较，叶动作／命令／变量／未知分支标签和反馈读集0差异；35650次命令标签和2242次未知分支标签保留，输入快照不变。1项实际规划测试通过，949原文件及此前标签审计产物未变。含4个既有空程序；这些统一输入不是独立变量／设备的全笛卡尔积，不证明完整分支覆盖、原变量生命周期、持久准入TraceLabel、触发／异步／驱动／物理行为。见[源规划标签根审计](evidence/stage-d-study/source-planner-trace-root-check.json)。
+
 默认语法接口的36个首阻断为IF_STOPPED24、IF_MOVING11、RAMP_TO_LEVEL1；显式渐变导出已实现，唯一RAMP参数TIME=1000的毫秒单位已有官方依据，但完整事件及实物执行仍需核对。35个窗帘条件还遮蔽了24个SET_LEVEL_TARGET和11个STOP动作，不能只补条件而遗漏动作。基于 `061c3c2` 的限定质量修复后，干净 workspace 579 项再次通过、工作区所有目标严格 Clippy 通过；被排除的 vendor 依赖仍有 54 条警告。详见 [质量证据](evidence/stage-e-browser/clean-workspace-quality-061c3c2.json)。
 
 以下为实现过程记录，其中早期测试数量与缺口描述仅对应当时版本；当前状态以上表为准。
