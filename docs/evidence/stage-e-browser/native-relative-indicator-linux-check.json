@@ -1,0 +1,70 @@
+{
+  "date": "2026-10-13",
+  "scope": "Actual native Linux six-case indicator_joint only, memory bus and independent temporary SQLite stores",
+  "source_commit": "b31ddeb34f04494bcfee6ea3fe23fe4259aca305",
+  "source_files_verified_unchanged": 1015,
+  "tested_source_sha256": {
+    "crates/homesensed/src/indicator_sync.rs": "b0a28c1972725ced7105a204ea17c2262eb06c5c2097252fee2df5231f67dcd5",
+    "crates/homesensed/src/native_scene_tests.rs": "b67f1deef4717bde9fc196bc9dd10c389bb09ba61cee7cb0b590a3f92455ef5b",
+    "crates/homesensed/src/native_scene_indicator_tests.rs": "d296f351a3aeb6b3fb70a8797df64139cba250e4411f489beb8e5f6555e36111"
+  },
+  "host": {
+    "architecture": "x86_64",
+    "glibc": "glibc 2.44",
+    "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)",
+    "cargo": "cargo 1.99.0 (5f94df478 2026-08-27)"
+  },
+  "run": {
+    "command": [
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "-p",
+      "homesensed",
+      "--lib",
+      "indicator_joint",
+      "--",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "exit_code": 0,
+    "passed": 6,
+    "failed": 0,
+    "ignored": 0,
+    "filtered": 130,
+    "elapsed_seconds": 61.28869506297633,
+    "binary_sha256": "c20899647c74091b33ffdad7fd698275891d5796f118ed48f0cb74ee7857bac8"
+  },
+  "cases": {
+    "standalone": 4,
+    "combined_hidden_supply": 2,
+    "frame_traces_exactly_match_final_mac_six_cases": true
+  },
+  "isolation": {
+    "source": "New independent subdirectory of previous isolated tmp root",
+    "target_and_vendor": "Reuse previously dedicated test target, isolated CARGO_HOME and 221 public locked vendor sources",
+    "lockfile_unchanged_since_ea524bb": true,
+    "extra_temporary_cargo_config_sha256": "f77b30146e3b95309f9e2c740391ae139bfe74478a82c2814f3c392abe8ac499",
+    "source_files_changed": 0,
+    "remaining_test_processes": 0,
+    "temporary_store_files": 0
+  },
+  "evidence_sha256": {
+    "source.tar": "5ef04fd053963abcfefcb8acead17496fe8450a9ee52b46fda5546dcda5b8db0",
+    "source.json": "0566ff8ed6335fb490cab48a6f33afadccafcc3cb752096707b801db47d590a0",
+    "run.py": "644d74c3375c0d9e5f5a6288dc9ab603b9ff3d98c5cb922ec9d2cc0ee7a8f33f",
+    "evidence/host.json": "c8ebbb696dd883175840e9eaff2ffe8381af91e731ee627cf2df77d8a69fd4c4",
+    "evidence/tests.log": "dff44405c99d974044cb2485402139e825598b38a00c24dedf407f01b8d082b7",
+    "evidence/execution.json": "1aac8516074ea51ec6308d393e9c73e78657931a0f155c9466ca10fbc8e5a0da",
+    "test-binary": "c20899647c74091b33ffdad7fd698275891d5796f118ed48f0cb74ee7857bac8",
+    "frames.json": "9c38cfbbd2eebe3cfae797410fd23c1edd1d13a3272680b6597026083b5be611",
+    "verification.json": "8f868e79cd81777755d131508848afa2a48ddb8d8e1ed4d0c6d495fcadb60d39"
+  },
+  "limitations": [
+    "Only the current six cases; original130 library cases filtered, old132 Linux scope/TLS not rerun or added to this total",
+    "Native Linux test binary only; not a new release build or complete Linux workspace/Clippy run",
+    "Memory LED state/outgoing frames do not prove actual firmware/LED execution or Apple Home behavior",
+    "No real gateway/network connection in tests, production deployment/configuration/identity/credential migration, network change or EA-5 change"
+  ]
+}
