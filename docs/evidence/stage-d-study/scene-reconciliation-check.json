@@ -1,0 +1,76 @@
+{
+  "date": "2026-10-13",
+  "base_commit": "d669abd8562f723b553c9ab1e7b3b33046af8e3d",
+  "scope": "committed archive plus exactly listed source/test overlays, dedicated target directory, synthetic physical frames and local fake writes only",
+  "source_sha256": {
+    "crates/homesense-config/src/scene_switches.rs": "acb95862f1ceb95e0751b23928b149f6d44086579e3fc0fd8ecb55f8ed46c195",
+    "crates/homesense-storage/src/scene_observation.rs": "1c8489fdedc531c075b0c1db391ddae7ff5516173f5f7e4be2c2893ff52b5ea1",
+    "crates/homesensed/src/admission.rs": "604766e8d2d35d08762d69b75769f8c5d2c0a58ff4d68bc7df6bb461ac9df474",
+    "crates/homesensed/src/automation_drive.rs": "4781c929632ba262c42e968676feb6750c73bfe40f56c6ff61379222e3a2ced8",
+    "crates/homesensed/src/lib.rs": "ae4cff4a343fe6a083553791ddf9beb23b12440d1bccdc3b15d94d5990334c40",
+    "crates/homesensed/src/rule_runtime.rs": "f2b96088c8a23a298c8b5873d0a22c9aac0b18fa9df3de1a5aff97c906d655f9",
+    "crates/homesensed/src/scene_switches.rs": "d49292f7fe1d27f7d3f70a272e4bb891fc8b01f6e468ecf3af7ba8c32a195f22",
+    "crates/homesensed/src/web_api.rs": "ad47771512ed982a16497e1eeb952d6f686361e8c2a608bb772d62bc926dd71e",
+    "crates/homesensed/src/web/app.js": "102f4e2600ecbac7788e2b11b4a289b0b663b87ee0373c9c21d49f5f7d834716",
+    "crates/homesensed/src/scene_initialization_tests.rs": "66e84669b46b4f4ba00310a59658801204253c66c3dc79da355a05e2ff90fdfb",
+    "crates/homesensed/src/scene_reconciliation.rs": "7576f2d0f99ab200fb8919edf5834b8d5c3e8368c9b6b23dbb3193ba7bab93e0",
+    "crates/homesensed/src/scene_reconciliation_tests.rs": "8bb7ff2ac00e9084feba3a68351517072548ae2e88bbc7c76c5830c5da0cf1fc",
+    "tools/verify_scene_switches.cjs": "ffe1b190b5a6171712ac9fbf1a1256261156fde396ce7e1b3b85bef87b579cde",
+    "crates/homesensed/src/feedback.rs": "ac69c79154a51330d68752cd990541ba210e1fafdfa7c47600207d6ef1576198",
+    "crates/homesensed/src/indicator_sync.rs": "60d567dc0f1da2ad33fcb257b76ee6b15ca30a55b2432816297bb1bc47b9a3a0"
+  },
+  "validation": {
+    "rustc": "1.99.0",
+    "runtime_observer_led_initialization_reconciliation": 41,
+    "new_reconciliation_tests": 9,
+    "runtime_input_matrix": 36,
+    "config_and_storage_all_tests": 83,
+    "planner_web_encrypted_hap_regressions": 8,
+    "feedback_lease_tests": 2,
+    "unique_rust_tests_passed": 134,
+    "failed_final": 0,
+    "ignored": 0,
+    "frontend_scene_script": "passed, current physical versus historical selection label included",
+    "strict_all_target_clippy": "homesense-config, homesense-storage, homesensed passed",
+    "full_workspace_rerun": false
+  },
+  "log_sha256": {
+    "runtime": "d9f0f29b4a5ce95fe4e3333604717d93bbd7abbf8946f154c96302c14292886a",
+    "config_storage": "d345cf0a83ea7ac39adb957f209b84d1502278589fcd2395c113665af0670ef0",
+    "integration": "9b2a6cb3d0846538c1f5accb8813f6fcdd5a9a2b5fb72da4fd2f6b2b525a181d",
+    "feedback_lease": "81a04313e9b996b1b6efc206866c02b29e48e2cb8e0e0052e5c40aded3ff51b2",
+    "frontend": "45c07662b3ef9ea2bdc9cdc7f5a15738097b790ac3489654a716c7bd036b1461",
+    "clippy": "1105b59ef65ffec0ad0f95219c5d976a2a09a41a2c4f6c1c3818e18c1488b000",
+    "initial_compile_failure": "64eacc4ba39eccb6b70b8e7af5852929570e1db6a33bf4a68d99b212ffa4ee8d",
+    "initial_frontend_duplicate_name": "70107c9cf25d91655b725401dd44a55349e053462747ddd6584c6383a692a144",
+    "discarded_zero_match": "08b20ba602a6652dc303689220a36e32c0cc5b93ad1a72edad7ed80faf803eb7"
+  },
+  "guarantees": [
+    "new reviewed unique_light_on_pattern policy is optional/default disabled; old exact initialization is separate and cannot be enabled together",
+    "source-omitted lamp targets are explicit Off only within reviewed member lamp union; observed missing feedback never supplies Off",
+    "brightness is separate; full power pattern yields all-Off zero, unique positive match, or unknown for incomplete/ambiguous patterns",
+    "current selection is ephemeral and scoped to boot/configuration/transport/control, fresh immutable feedback lease and raw variable version; historical SQLite intent is not rewritten",
+    "HAP Source and actual Web API hide saved intent before first tick; same database restart and transport reconnect require new complete current feedback",
+    "pending lamp writes/scene output block stale proof; unrelated queued LED-only output does not invalidate settled lamp truth",
+    "hidden combined-light supply relay is required, including post-external-key freshness; remembered dimmer setting cannot replace a physical sample",
+    "external candidate baseline remains independent; post-key feedback barrier does not claim observed state is an EA-5 variable",
+    "new-mode scene LED predicates use physical feedback and inclusive current-sample boundary; ordinary light-only indicator policy and strict old key/initialization fences retained",
+    "synthetic LED regression covers no current On with old zero, confirmed Off with old zero/nonzero, historical intent retained, no light commands emitted by reconciliation"
+  ],
+  "attempt_notes": [
+    "first clean compile caught private TaskGeneration boot access and two HAP test type errors; runtime now captures its own boot ID, no visibility relaxation",
+    "first frontend script caught duplicate history local identifier; renamed to historyHint and final script passed",
+    "feedback::tests filter initially matched zero tests; result discarded; final feedback::lease_tests ran two tests",
+    "intermediate and broad feedback filter reruns are not added to unique test count",
+    "independent root draft LED probes identified current sample boundary and old recorded-level interference; final source includes joint regressions and fixes rather than global equality change"
+  ],
+  "field_actions": 0,
+  "ea5_changed": false,
+  "deployed": false,
+  "pushed": false,
+  "remaining": [
+    "native Toggle runtime/Web operation for unknown scene selection, bounded fresh post-action queries and combined-light handling",
+    "enable reviewed household policy and real Apple client/LED acceptance outside this offline checkpoint",
+    "full original Control4 semantic migration and paused curtain condition review remain independent gates"
+  ]
+}

@@ -180,6 +180,7 @@ enum Message {
     ObserveSceneKey(Uuid,TaskGeneration,homesense_core::scene_observer::Scope,crate::feedback::SceneKeyObservation,oneshot::Sender<Result<(),WriteStatus>>),
     SceneSelections(Uuid,TaskGeneration,Vec<String>,oneshot::Sender<Result<BTreeMap<String,homesense_storage::scene_observation::Snapshot>,WriteStatus>>),
     InitializeSceneSelection(Uuid,TaskGeneration,crate::scene_initialization::Prepared,oneshot::Sender<Result<(),WriteStatus>>),
+    ReconcileSceneSelection(Uuid,TaskGeneration,crate::scene_reconciliation::Prepared,oneshot::Sender<Result<(),WriteStatus>>),
     SceneHistory(Uuid, TaskGeneration, String, Option<homesense_storage::scene_history::Cursor>, usize, oneshot::Sender<Result<homesense_storage::scene_history::Page, WriteStatus>>),
     Diagnostics(Uuid, TaskGeneration, oneshot::Sender<Result<Diagnostics, WriteStatus>>),
     ConfigurationExport(Uuid, TaskGeneration, u64, oneshot::Sender<Result<Option<homesense_storage::configuration_history::Export>, WriteStatus>>),
@@ -395,6 +396,7 @@ impl Admission {
                 let mut next_id = 1u64;
                 let mut failed = false;
                 let mut scene_observer=crate::scene_observation_owner::Owner::default();
+                let mut scene_projections=BTreeMap::<String,crate::scene_reconciliation::Prepared>::new();
                 let observer_boot=Uuid::parse_str(&worker_boot).unwrap().as_u128();
                 let mut observation_fence=worker_observation_invalidation.load(Ordering::Acquire);
                 let mut stopped = None;
@@ -751,14 +753,35 @@ impl Admission {
                             if result==Err(WriteStatus::ServiceCommunicationFailure) {failed=true;let _=arbiter.storage_failed();}
                             let _=reply.send(result);
                         }
+                        Message::ReconcileSceneSelection(controller,generation,prepared,reply)=>{
+                            let result=(||{
+                                if !authorize(controller) {return Err(WriteStatus::InsufficientPrivileges);}
+                                let policy=arbiter.policy();
+                                if !prepared.owned_by(controller,&generation) || generation.boot!=worker_boot || generation.epochs!=policy.epochs {return Err(WriteStatus::InvalidValueInRequest);}
+                                if failed || worker_stop.load(Ordering::Acquire) || policy.publishing || !policy.gateway_ready || !policy.controller || !policy.storage_healthy || !policy.valid_configuration_loaded {return Err(WriteStatus::ResourceBusy);}
+                                let document=store.active_bundle(options.context).map_err(|_|WriteStatus::ServiceCommunicationFailure)?.and_then(|b|b.automation).ok_or(WriteStatus::InvalidValueInRequest)?;
+                                prepared.validate(&store,&configuration,&document,&worker_boot,policy.epochs,millis(clock))?;
+                                scene_projections.retain(|name,_|document.scene_switch_groups.iter().any(|g|g.variable==*name && g.reconciliation.as_ref().is_some_and(|p|p.enabled)));
+                                scene_projections.insert(prepared.variable().to_owned(),prepared);
+                                Ok(())
+                            })();
+                            if result==Err(WriteStatus::ServiceCommunicationFailure) {failed=true;let _=arbiter.storage_failed();}
+                            let _=reply.send(result);
+                        }
                         Message::SceneSelections(controller,generation,names,reply)=>{
                             let result=(||{
                                 if !authorize(controller) {return Err(WriteStatus::InsufficientPrivileges)}
                                 if failed || generation.boot!=worker_boot || generation.epochs!=arbiter.policy().epochs {return Err(WriteStatus::ServiceCommunicationFailure)}
                                 if worker_observation_invalidation.load(Ordering::Acquire)!=observation_fence {scene_observer.invalidate();}
+                                let document=store.active_bundle(options.context).map_err(|_|WriteStatus::ServiceCommunicationFailure)?.and_then(|b|b.automation);
+                                let policy=arbiter.policy();
+                                let ready=!failed && !worker_stop.load(Ordering::Acquire) && !policy.publishing && policy.gateway_ready && policy.controller && policy.storage_healthy && policy.valid_configuration_loaded;
                                 let mut values=BTreeMap::new();
                                 for name in names {
-                                    let value=store.scene_selection(configuration.revision(),&name,scene_observer.scope()).map_err(|_|WriteStatus::ServiceCommunicationFailure)?.ok_or(WriteStatus::ResourceDoesNotExist)?;
+                                    let mut value=store.scene_selection(configuration.revision(),&name,scene_observer.scope()).map_err(|_|WriteStatus::ServiceCommunicationFailure)?.ok_or(WriteStatus::ResourceDoesNotExist)?;
+                                    if let Some(document)=&document && let Some(group)=document.scene_switch_groups.iter().find(|g|g.variable==name) {
+                                        crate::scene_reconciliation::project(&mut value,scene_projections.get(&name),group,&store,&configuration,document,&worker_boot,policy.epochs,millis(clock),ready)?;
+                                    }
                                     if values.insert(name,value).is_some() {return Err(WriteStatus::InvalidValueInRequest)}
                                 }
                                 Ok(values)
@@ -1171,8 +1194,17 @@ impl Admission {
                                         if worker_observation_invalidation.load(Ordering::Acquire)!=observation_fence {scene_observer.invalidate();}
                                         for (name, expected) in &reads {
                                             if !document.scene_switch_groups.iter().any(|g|g.variable==*name && g.members.iter().any(|m|document.indicator_links.iter().any(|l|l.enabled && l.scene.as_ref()==Some(&m.scene)))) {return Err(WriteStatus::InvalidValueInRequest);}
-                                            let current=store.scene_selection(configuration.revision(),name,scene_observer.scope()).map_err(|_|WriteStatus::ServiceCommunicationFailure)?.ok_or(WriteStatus::InvalidValueInRequest)?;
-                                            if current.stored!=expected.stored || current.evidence!=expected.evidence || current.evidence_current!=expected.evidence_current || current.initialization!=expected.initialization {return Err(WriteStatus::InvalidValueInRequest);}
+                                            let mut current=store.scene_selection(configuration.revision(),name,scene_observer.scope()).map_err(|_|WriteStatus::ServiceCommunicationFailure)?.ok_or(WriteStatus::InvalidValueInRequest)?;
+                                            let group=document.scene_switch_groups.iter().find(|g|g.variable==*name).ok_or(WriteStatus::InvalidValueInRequest)?;
+                                            let policy=arbiter.policy();
+                                            crate::scene_reconciliation::project(&mut current,scene_projections.get(name),group,&store,&configuration,&document,&worker_boot,policy.epochs,millis(clock),policy.gateway_ready && !policy.publishing)?;
+                                            if current.stored!=expected.stored || current.evidence!=expected.evidence || current.evidence_current!=expected.evidence_current || current.initialization!=expected.initialization || current.physical!=expected.physical {return Err(WriteStatus::InvalidValueInRequest);}
+                                            if let Some(source)=&expected.physical && let Some(observed)=source.observed_ms {
+                                                if feedback.indicator_after.is_none_or(|after|after<observed) {return Err(WriteStatus::InvalidValueInRequest);}
+                                                for device in &feedback.recorded_off_reads {
+                                                    if !store.dimmer_setting_written_after(configuration.revision(),device,&worker_boot,observed).map_err(|_|WriteStatus::ServiceCommunicationFailure)? {return Err(WriteStatus::InvalidValueInRequest);}
+                                                }
+                                            }
                                             if let Some(source)=&expected.initialization && source.value>0 && source.boot_id==Uuid::parse_str(&worker_boot).map_err(|_|WriteStatus::ServiceCommunicationFailure)?.as_u128() {
                                                 if feedback.indicator_after.is_none_or(|after|after<source.initialized_ms) {return Err(WriteStatus::InvalidValueInRequest);}
                                                 for device in &feedback.recorded_off_reads {
@@ -1720,6 +1752,11 @@ impl Admission {
     pub async fn scene_selection_snapshot(&self,controller:Uuid,generation:TaskGeneration,names:Vec<String>)->Result<BTreeMap<String,homesense_storage::scene_observation::Snapshot>,WriteStatus> {
         if names.len()>64 || names.iter().any(|n|n.is_empty() || n.len()>256) {return Err(WriteStatus::InvalidValueInRequest)}
         let (reply,receive)=oneshot::channel();self.sender.try_send(Message::SceneSelections(controller,generation,names,reply)).map_err(|_|WriteStatus::ResourceBusy)?;
+        receive.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?
+    }
+    pub(crate) async fn reconcile_scene_selection(&self,controller:Uuid,generation:TaskGeneration,prepared:crate::scene_reconciliation::Prepared)->Result<(),WriteStatus> {
+        let (reply,receive)=oneshot::channel();
+        self.sender.try_send(Message::ReconcileSceneSelection(controller,generation,prepared,reply)).map_err(|_|WriteStatus::ResourceBusy)?;
         receive.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?
     }
     pub(crate) async fn initialize_scene_selection(&self,controller:Uuid,generation:TaskGeneration,prepared:crate::scene_initialization::Prepared)->Result<(),WriteStatus> {

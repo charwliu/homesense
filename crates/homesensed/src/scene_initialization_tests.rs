@@ -708,3 +708,6 @@ async fn stale_feedback_generation_and_readiness_guards_prevent_initialization()
     h.no_output();
     h.close().await;
 }
+
+#[path = "scene_reconciliation_tests.rs"]
+mod reconciliation;

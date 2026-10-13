@@ -19,6 +19,16 @@ pub struct Snapshot {
     pub evidence_current: bool,
     /// Historical local initialization origin, bound to the current version.
     pub initialization: Option<crate::scene_initialization::Origin>,
+    /// Ephemeral current-boot projection attached by the runtime only. Stored
+    /// historical values are never promoted to physical truth by this module.
+    pub physical: Option<PhysicalProjection>,
+}
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PhysicalProjection {
+    pub boot_id: u128,
+    pub epochs: Epochs,
+    pub observed_ms: Option<u64>,
+    pub history_value: Option<Value>,
 }
 impl Snapshot {
     pub fn selection(&self) -> Selection {
@@ -94,6 +104,7 @@ fn snapshot(
         return Err(Error::InvalidAudit);
     }
     Ok(Some(Snapshot {
+        physical: None,
         initialization,
         evidence_current,
         stored: crate::variables::Stored {
