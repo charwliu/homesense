@@ -236,6 +236,18 @@ def review(data, typed=None, prior=None, prior_variables=None):
             raise ValueError("invalid or duplicate variable declaration")
         key = node.get("variableid")
         variables[key] = {"source_id": key, "source_type": node.get("type"), "reads": [], "writes": [],
+                          "source_owner": node.get("deviceid"),
+                          "source_readonly": node.get("readonly"), "source_hidden": node.get("hidden"),
+                          "documented_owner_interface": ({
+                              "kind": "user_variable_agent",
+                              "owner_reference": "https://snap-one.github.io/docs-driverworks-api/#getvariable",
+                              "lifecycle_reference": "https://docs.control4.com/help/c4/software/cpro/dealer-composer-help/content/composerpro_userguide/variable_handling.htm",
+                              "normal_restart_retention": "documented",
+                              "abnormal_shutdown_retention": "not_guaranteed",
+                              "external_setter_api": "C4:SetDeviceVariable",
+                              "type_code_mapping_confirmed": False,
+                              "runtime_migration_approved": False,
+                          } if node.get("deviceid") == "100001" else None),
                           "context_operations": [], "review_gates": ["type_mapping", "lifetime", "initialization", "external_writers"],
                           "saved_value_imported": False, "runtime_range_complete": False,
                           "prior_limited_status": None, "semantic_approved": False}
@@ -416,6 +428,7 @@ def review(data, typed=None, prior=None, prior_variables=None):
                "explicit_variable_reads": sum(len(v["reads"]) for v in variables.values()),
                "explicit_variable_writes": sum(len(v["writes"]) for v in variables.values()),
                "arithmetic_variables": sum(any(w["operation"] in ("+", "-") for w in v["writes"]) for v in variables.values()),
+               "variables_with_documented_user_agent_owner": sum(v["documented_owner_interface"] is not None for v in variables.values()),
                "closed_source_led_request_sequences": sum("closed_source_subgate" in p for p in programs),
                "led_source_sequences_with_nominal_blind_event_identity": sum("closed_source_subgate" in p and "nominal_proxy_event" in p for p in programs),
                "closed_ramp_time_api_units": sum("closed_parameter_subgate" in s for p in programs for s in p["operations"]),
