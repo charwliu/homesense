@@ -136,6 +136,11 @@ impl Owner {
             entry.invalidate();
         }
     }
+    /// Exact accepted-command ownership, separate from the public pending action
+    /// label. Identical external actions must still invalidate a guarded read.
+    pub(crate) fn pending_identity(&self,device:&DeviceId)->Vec<(u64,Uuid,MotorAction)> {
+        self.entries.get(device).map(|entry|entry.pending.iter().map(|(id,p)|(*id,p.controller,p.action)).collect()).unwrap_or_default()
+    }
     pub fn accepted(
         &mut self,
         config: &homesense_config::Configuration,

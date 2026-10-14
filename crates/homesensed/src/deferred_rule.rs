@@ -22,6 +22,7 @@ pub struct Outcome {
     pub changed_variables: Vec<String>,
     /// Source nodes skipped by three-valued evaluation, never treated as Else.
     pub unknown_branches: Vec<String>,
+    pub motor_reads:Vec<homesense_core::rule_motor::Read>,
 }
 /// Only planning rejection proves this invocation performed no admission.
 /// Earlier invocations in the same chain may already have committed.
@@ -145,18 +146,20 @@ pub async fn execute_classified(
             )
         })
         .collect();
+    let motor=if feedback.is_some(){crate::motor_rules::capture(admission,controller,generation.clone(),&rule.actions).await?}else{None};
     let mut lease = None;
     let mut invocations = vec![];
     let planned = chain
         .plan_using(parent, rule_id, admission.monotonic_ms(), |budget| {
             let plan = if let Some((feedback, max_age)) = feedback {
                 let (plan, read) = feedback
-                    .plan_rule(
+                    .plan_rule_with_motor(
                         &rule.actions,
                         &variables,
                         budget,
                         admission.monotonic_ms(),
                         max_age,
+                        motor.as_ref(),
                     )
                     .map_err(Error::Planning)?;
                 lease = Some(read);
@@ -206,6 +209,7 @@ pub async fn execute_classified(
         })
         .collect();
     let unknown_branches = planned.plan.unknown_branches;
+    let motor_reads=planned.plan.motor_reads;
     let command_sources = planned.plan.commands.iter().map(|c| c.source.clone()).collect();
     let payload = DeferredRule {
         batch: Batch {
@@ -275,6 +279,7 @@ pub async fn execute_classified(
         scene_runs,
         changed_variables,
         unknown_branches,
+        motor_reads,
     })
 }
 

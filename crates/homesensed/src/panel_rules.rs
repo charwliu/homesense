@@ -461,6 +461,7 @@ impl PanelRules {
                             1024,
                         )
                         .map_err(|e| format!("rule {}: {e:?}", binding.id))?;
+                        let motor=if feedback.is_some(){crate::motor_rules::capture(&self.admission,self.controller,self.generation.clone(),&expanded).await?}else{None};
                         let mut lease = None;
                         let mut prepared = PreparedRule::prepare_using(
                             &self.admission,
@@ -476,12 +477,13 @@ impl PanelRules {
                                         |budget| {
                                             if let Some((feedback, max_age)) = feedback {
                                                 let (plan, read) = feedback
-                                                    .plan_rule(
+                                                    .plan_rule_with_motor(
                                                         &expanded,
                                                         variables,
                                                         budget,
                                                         self.admission.monotonic_ms(),
                                                         max_age,
+                                                        motor.as_ref(),
                                                     )
                                                     .map_err(
                                                         homesense_core::rule_chain::Error::Planning,

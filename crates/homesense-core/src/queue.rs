@@ -217,7 +217,11 @@ impl CommandQueue {
         if stop {
             // A queued UP must not execute after a later STOP and restart the motor.
             self.commands.retain(|old| {
-                let remove = old.device_id == request.device_id
+                // A reviewed ordered rule's own explicit Stop is a source
+                // node, not an external cancellation of its earlier Open.
+                let same_rule=!coalesce && request.origin==Origin::Rule && old.origin==Origin::Rule
+                    && request.run_id.is_some() && request.run_id==old.run_id;
+                let remove = !same_rule && old.device_id == request.device_id
                     && matches!(
                         old.command,
                         Command::Motor(MotorMotion::Up | MotorMotion::Down)
@@ -263,12 +267,16 @@ impl CommandQueue {
             .iter()
             .enumerate()
             .filter(|(i, command)| {
-                command.is_stop()
+                // Source order within one rule batch includes its explicit
+                // Stop. Independent manual Stops retain safety priority.
+                (command.origin!=Origin::Rule || command.run_id.is_none()
+                    || !self.commands.iter().take(*i).any(|old|old.origin==Origin::Rule && old.run_id==command.run_id))
+                    && (command.is_stop()
                     || !self
                         .commands
                         .iter()
                         .take(*i)
-                        .any(|old| old.device_id == command.device_id)
+                        .any(|old| old.device_id == command.device_id))
             })
             .min_by_key(|(i, command)| (command.priority(), *i))
             .map(|(i, _)| i);

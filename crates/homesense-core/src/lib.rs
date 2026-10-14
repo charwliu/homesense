@@ -397,3 +397,5 @@ mod tests {
         assert_eq!(DeviceId::new("c4:362").unwrap().as_str(), "c4:362");
     }
 }
+
+pub mod rule_motor;
