@@ -105,6 +105,12 @@ impl Api {
         {
             return deny(StatusCode::FORBIDDEN, "invalid_origin");
         }
+        if let Some(script)=crate::web_assets::script(request.uri().path()) {
+            if request.method()!=hyper::Method::GET {return deny(StatusCode::METHOD_NOT_ALLOWED,"method_not_allowed");}
+            if !request.body().is_empty(){return deny(StatusCode::BAD_REQUEST,"unexpected_body");}
+            if let Err(status)=script.validate_query(request.uri().query()) {return deny(status,if status==StatusCode::CONFLICT{"asset_version_changed"}else{"query_not_supported"});}
+            return script.response();
+        }
         if request.uri().query().is_some() && !matches!(request.uri().path(),"/api/v1/config/versions"|"/api/v1/scene-history") && !(request.uri().path().starts_with("/api/v1/runs/") && request.uri().path().ends_with("/details")) {
             return deny(StatusCode::BAD_REQUEST, "query_not_supported");
         }
@@ -117,20 +123,10 @@ impl Api {
         if request.method() == hyper::Method::GET && request.uri().path() == "/" {
             return Response::builder().header("content-type","text/html; charset=utf-8").header("cache-control","no-store")
                 .header("content-security-policy","default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'")
-                .body(Full::new(Bytes::from_static(include_bytes!("web/index.html")))).unwrap();
+                .body(Full::new(crate::web_assets::index())).unwrap();
         }
         if request.method() == hyper::Method::GET && request.uri().path() == "/style.css" {
             return Response::builder().header("content-type","text/css; charset=utf-8").header("cache-control","no-store").header("x-content-type-options","nosniff").body(Full::new(Bytes::from_static(include_bytes!("web/style.css")))).unwrap();
-        }
-        if request.method() == hyper::Method::GET && request.uri().path() == "/draft-json.js" {
-            return Response::builder().header("content-type","text/javascript").header("x-content-type-options","nosniff").body(Full::new(Bytes::from_static(include_bytes!("web/draft-json.js")))).unwrap();
-        }
-        if request.method() == hyper::Method::GET && request.uri().path() == "/app.js" {
-            return Response::builder()
-                .header("content-type", "text/javascript")
-                .header("x-content-type-options", "nosniff")
-                .body(Full::new(Bytes::from_static(include_bytes!("web/app.js"))))
-                .unwrap();
         }
         let authorization = request
             .headers()
