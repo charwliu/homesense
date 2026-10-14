@@ -20,11 +20,13 @@ fn condition(value:&Condition)->Json {
         Condition::All(values)=>json!({"kind":"all","conditions":values.iter().map(condition).collect::<Vec<_>>()}),
         Condition::Any(values)=>json!({"kind":"any","conditions":values.iter().map(condition).collect::<Vec<_>>()}),
         Condition::Unknown(value)=>json!({"kind":"unknown","value":expression(value)}),
+        Condition::MotorState(p)=>json!({"kind":"motor_state","device":p.device.as_str(),"state":match p.state{homesense_core::rule_motor::State::Moving=>"moving",homesense_core::rule_motor::State::Stopped=>"stopped"},"evidence_policy":match p.evidence{homesense_core::rule_motor::Evidence::ActualOnly=>"actual_only",homesense_core::rule_motor::Evidence::ReviewedCommandEstimate=>"reviewed_command_estimate"},"max_age_ms":p.max_age_ms,"mapping_review":p.mapping_review,"evidence_review":p.evidence_review}),
     }
 }
 fn nodes(values:&[Node])->Result<Vec<Json>,String> {
     values.iter().map(|node|{
         let action=match &node.action {
+            Action::Motor{device,action,mapping_review}=>json!({"kind":"motor","device":device.as_str(),"action":match action{homesense_core::MotorAction::Open=>"open",homesense_core::MotorAction::Close=>"close",homesense_core::MotorAction::Stop=>"stop"},"mapping_review":mapping_review}),
             Action::Scene{id,activate}=>json!({"kind":"scene","id":id,"activate":activate}),
             Action::Set{variable,value}=>json!({"kind":"set","variable":variable,"value":expression(value)}),
             Action::If{condition:value,then_actions,else_actions}=>json!({"kind":"if","condition":condition(value),"then_actions":nodes(then_actions)?,"else_actions":nodes(else_actions)?}),
@@ -45,7 +47,7 @@ pub fn draft(event:&crate::semantic::CompiledEvent)->Result<Json,String> {
     Ok(json!({
         "format":"homesense-event-draft-v1",
         "automatic_execution":false,"enabled":false,
-        "review_required":["device bindings","trigger","variables","referenced scenes","physical semantics"],
+        "review_required":["device bindings","trigger","variables","referenced scenes","physical semantics","motor predicate evidence","motor direction calibration","original guarded behavior"],
         "actions":nodes(&event.actions)?,
         "timed_scenes":event.timed_scenes.values().collect::<Vec<_>>()
     }))

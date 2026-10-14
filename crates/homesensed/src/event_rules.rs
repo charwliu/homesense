@@ -37,6 +37,7 @@ pub struct Completed {
     pub commands: Vec<u64>,
     pub changed_variables: Vec<String>,
     pub unknown_branches: Vec<String>,
+    pub motor_reads:Vec<homesense_core::rule_motor::Read>,
 }
 #[derive(Debug)]
 pub struct Report {
@@ -389,6 +390,7 @@ impl EventRules {
             for binding in self.bindings.iter().filter(|b| b.trigger == event) {
                 let nodes = scene_expand::expand(&binding.actions, &self.scenes, 1024)
                     .map_err(|e| format!("{}: {e:?}", binding.id))?;
+                let motor=if feedback.is_some(){crate::motor_rules::capture(&self.admission,self.controller,self.generation.clone(),&nodes).await?}else{None};
                 let mut identity = None;
                 let mut lease = None;
                 let mut prepared = PreparedRule::prepare_using(
@@ -405,12 +407,13 @@ impl EventRules {
                                 |budget| {
                                     if let Some((feedback, age)) = feedback {
                                         let (plan, read) = feedback
-                                            .plan_rule(
+                                            .plan_rule_with_motor(
                                                 &nodes,
                                                 variables,
                                                 budget,
                                                 self.admission.monotonic_ms(),
                                                 age,
+                                                motor.as_ref(),
                                             )
                                             .map_err(homesense_core::rule_chain::Error::Planning)?;
                                         lease = Some(read);
@@ -430,6 +433,7 @@ impl EventRules {
                 prepared.attach_feedback(lease);
                 let changed_variables = prepared.changed_variables.clone();
                 let unknown_branches = prepared.unknown_branches.clone();
+                let motor_reads=prepared.motor_reads.clone();
                 let (cause, causation_id) = identity.ok_or("missing planned cause")?;
                 prepared.attach_cause(&binding.id, &cause, causation_id);
                 let commands = prepared.commit(&self.admission).await?;
@@ -440,6 +444,7 @@ impl EventRules {
                     commands,
                     changed_variables: changed_variables.clone(),
                     unknown_branches,
+                    motor_reads,
                 });
                 // Reserve capacity only after preserving the successful commit.
                 if pending.len() + changed_variables.len() > 256 {

@@ -23,6 +23,7 @@ pub(crate) struct IndicatorPolicy {
 /// mutation. The commit closure must be synchronous and must not call Feedback.
 #[derive(Clone)]
 pub struct RuleLease {
+    pub(crate) motor:Option<crate::motor_rules::Lease>,
     version: Arc<Mutex<u64>>,
     expected: u64,
     boot: u128,
@@ -155,6 +156,9 @@ impl Feedback {
     ) -> Result<(homesense_core::rule::Plan, RuleLease), String> {
         self.plan_rule_with_levels(nodes, variables, budget, now, max_age, &BTreeMap::new())
     }
+    pub(crate) fn plan_rule_with_motor(&self,nodes:&[homesense_core::rule::Node],variables:&BTreeMap<String,homesense_core::rule::Variable>,budget:homesense_core::rule::Budget,now:u64,max_age:u64,motor:Option<&crate::motor_rules::Lease>)->Result<(homesense_core::rule::Plan,RuleLease),String> {
+        self.plan_indicator_rule_inputs(nodes,variables,budget,now,max_age,&BTreeMap::new(),None,motor)
+    }
     /// Policy reads for indicator reconciliation only. Physical rule predicates
     /// and diagnostic feedback remain actual observations.
     #[allow(clippy::too_many_arguments)]
@@ -174,6 +178,13 @@ impl Feedback {
         &self, nodes:&[homesense_core::rule::Node],variables:&BTreeMap<String,homesense_core::rule::Variable>,
         budget:homesense_core::rule::Budget,now:u64,max_age:u64,recorded:&BTreeMap<DeviceId,homesense_core::Percent>,policy:Option<&IndicatorPolicy>,
     )->Result<(homesense_core::rule::Plan,RuleLease),String> {
+        self.plan_indicator_rule_inputs(nodes,variables,budget,now,max_age,recorded,policy,None)
+    }
+    #[allow(clippy::too_many_arguments)]
+    fn plan_indicator_rule_inputs(
+        &self,nodes:&[homesense_core::rule::Node],variables:&BTreeMap<String,homesense_core::rule::Variable>,budget:homesense_core::rule::Budget,
+        now:u64,max_age:u64,recorded:&BTreeMap<DeviceId,homesense_core::Percent>,policy:Option<&IndicatorPolicy>,motor:Option<&crate::motor_rules::Lease>,
+    )->Result<(homesense_core::rule::Plan,RuleLease),String>{
         if self.stopped {
             return Err("feedback stopped".into());
         }
@@ -224,7 +235,7 @@ impl Feedback {
                 sample.on=Some(effective.get()>0);
             }
         }
-        let mut plan = homesense_core::rule::evaluate_with_feedback(
+        let mut plan = homesense_core::rule::evaluate_with_inputs(
             nodes,
             variables,
             budget,
@@ -233,6 +244,7 @@ impl Feedback {
                 now_ms: now,
                 max_age_ms: max_age,
             },
+            motor.map_or(homesense_core::rule_motor::Snapshot{readings:&[],scope:None,now_ms:now},|m|m.input(now)),
         )
         .map_err(|e| format!("rule: {e:?}"))?;
         // A logical read depends on both physical samples, including a missing
@@ -266,9 +278,11 @@ impl Feedback {
             })
             .collect();
         let recorded_off_reads = recorded_off_reads.into_iter().filter(|id|plan.feedback_reads.contains(id)).collect();
+        let motor=motor.and_then(|m|m.used(&plan.motor_reads));
         Ok((
             plan,
             RuleLease {
+                motor,
                 recorded_off_reads,
                 indicator_after: policy.map(|p|p.after_ms),
                 observations,
@@ -411,7 +425,7 @@ impl Feedback {
     pub(crate) fn scene_observation_start(&self,now:u64)->Result<SceneObservationStart,String> {
         let version=self.lease_version.lock().map_err(|_|"feedback lease poisoned")?;
         if self.stopped {return Err("scene observation feedback stopped".into())}
-        Ok(SceneObservationStart {snapshot:self.states.snapshot(),lease:RuleLease {
+        Ok(SceneObservationStart {snapshot:self.states.snapshot(),lease:RuleLease {motor:None,
             version:self.lease_version.clone(),expected:*version,boot:self.boot,revision:self.revision,epoch:self.epoch,
             captured_ms:now,expires_ms:None,observations:BTreeMap::new(),recorded_off_reads:std::collections::BTreeSet::new(),indicator_after:None,
         }})
@@ -426,7 +440,7 @@ impl Feedback {
         let sequence=event.cursor.sequence.checked_sub(1).ok_or("invalid scene key cursor")?;
         let recorded=self.states.events_since(homesense_state::Cursor{boot_id:self.boot,sequence}).map_err(|e|e.to_string())?;
         if recorded.first()!=Some(event) {return Err("scene key is not in the current feedback stream".into())}
-        Ok(SceneKeyObservation {event:event.clone(),lease:RuleLease {
+        Ok(SceneKeyObservation {event:event.clone(),lease:RuleLease {motor:None,
             version:self.lease_version.clone(),expected:*version,boot:self.boot,revision:self.revision,epoch:self.epoch,
             captured_ms:now,expires_ms:None,observations:BTreeMap::new(),recorded_off_reads:std::collections::BTreeSet::new(),indicator_after:None,
         }})
