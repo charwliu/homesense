@@ -1,0 +1,638 @@
+//! Admission-thread-owned, opt-in inference. No per-HAP/Web timers or feedback.
+use homesense_core::{
+    Command, DeviceId, MotorAction,
+    curtain_state::{Movement, Scope, Snapshot, Timing, Tracker},
+    queue::{CancelReason, QueuedCommand},
+};
+use std::collections::BTreeMap;
+use uuid::Uuid;
+
+/// A separate Web/diagnostic view. Never serialized as actual module position.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct View {
+    pub source: &'static str,
+    pub movement: Option<String>,
+    pub position: Option<String>,
+    pub percent_hundredths: Option<u16>,
+    pub pending: Option<String>,
+    pub stop_led_active: Option<bool>,
+    pub last_written_command: Option<String>,
+    pub last_written_id: Option<u64>,
+    pub last_written_ms: Option<u64>,
+}
+impl From<Snapshot> for View {
+    fn from(s: Snapshot) -> Self {
+        Self {
+            source: "inferred",
+            movement: s.inferred_movement.map(|f| format!("{:?}", f.value)),
+            position: s.inferred_position.map(|f| format!("{:?}", f.value)),
+            percent_hundredths: s.inferred_percent.map(|f| f.value.hundredths()),
+            pending: s.pending.map(|a| format!("{a:?}")),
+            stop_led_active: s.stop_led_active.map(|f| f.value),
+            last_written_command: s.last_written.map(|c| format!("{:?}", c.action)),
+            last_written_id: s.last_written.map(|c| c.id),
+            last_written_ms: s.last_written.map(|c| c.written_ms),
+        }
+    }
+}
+#[derive(Clone, Copy)]
+struct Pending {
+    action: MotorAction,
+    controller: Uuid,
+    deadline_ms: u64,
+}
+struct Entry {
+    model: Tracker,
+    timing: Timing,
+    leds: homesense_config::CurtainLeds,
+    pending: BTreeMap<u64, Pending>,
+    held: Option<Snapshot>,
+    source: Option<(Uuid, u64)>,
+    attempted: BTreeMap<DeviceId, bool>,
+}
+impl Entry {
+    fn invalidate(&mut self) {
+        self.pending.clear();
+        self.discard_estimate();
+    }
+    fn discard_estimate(&mut self) {
+        self.model.invalidate();
+        self.held = None;
+        self.source = None;
+        self.attempted.clear();
+    }
+    fn snapshot(&mut self, scope: Scope, now: u64) -> Snapshot {
+        let mut s = self
+            .model
+            .advance(scope, now)
+            .expect("owner monotonic scope");
+        if let Some((_, pending)) = self.pending.last_key_value() {
+            s.pending = Some(pending.action);
+            // Acceptance does not change the physical write trajectory. Hold
+            // command motion/hints until the next real Written; never fire an
+            // older endpoint or idle hint while a newer action is queued.
+            if let Some(held) = self.held {
+                s.inferred_movement = held.inferred_movement;
+                s.inferred_position = held.inferred_position;
+                s.stop_led_active = held.stop_led_active;
+            }
+        }
+        s
+    }
+}
+pub(crate) struct LedEffect {
+    pub controller: Uuid,
+    pub cause: u64,
+    pub device: DeviceId,
+    pub active: bool,
+}
+pub(crate) struct Owner {
+    revision: u64,
+    scope: Scope,
+    entries: BTreeMap<DeviceId, Entry>,
+}
+impl Owner {
+    pub fn new(config: &homesense_config::Configuration, scope: Scope, now: u64) -> Self {
+        let entries = config
+            .devices()
+            .iter()
+            .filter_map(|(id, d)| {
+                let spec = d.curtain_state.clone()?;
+                Some((
+                    id.clone(),
+                    Entry {
+                        model: Tracker::new(spec.timing, scope, now).expect("validated timing"),
+                        timing: spec.timing,
+                        leds: spec.leds,
+                        pending: BTreeMap::new(),
+                        held: None,
+                        source: None,
+                        attempted: BTreeMap::new(),
+                    },
+                ))
+            })
+            .collect();
+        Self {
+            revision: config.revision(),
+            scope,
+            entries,
+        }
+    }
+    pub fn synchronize(
+        &mut self,
+        config: &homesense_config::Configuration,
+        scope: Scope,
+        now: u64,
+        ready: bool,
+    ) {
+        if self.revision != config.revision() || self.scope != scope {
+            *self = Self::new(config, scope, now);
+        } else if !ready {
+            self.invalidate();
+        }
+    }
+    pub fn invalidate(&mut self) {
+        for entry in self.entries.values_mut() {
+            entry.invalidate();
+        }
+    }
+    pub fn accepted(
+        &mut self,
+        config: &homesense_config::Configuration,
+        command: &QueuedCommand,
+        controller: Uuid,
+        now: u64,
+    ) {
+        let Some(entry) = self.entries.get_mut(&command.device_id) else {
+            return;
+        };
+        if command.epochs != self.scope.epochs {
+            return;
+        }
+        let action = [MotorAction::Open, MotorAction::Close, MotorAction::Stop]
+            .into_iter()
+            .find(|&a| config.motor_command(&command.device_id, a).ok() == Some(command.command));
+        let Some(action) = action else {
+            return;
+        };
+        if entry.pending.is_empty() {
+            entry.held = Some(entry.snapshot(self.scope, now));
+        }
+        entry.pending.insert(
+            command.id,
+            Pending {
+                action,
+                controller,
+                deadline_ms: command.deadline_ms,
+            },
+        );
+    }
+    pub fn cancelled(&mut self, id: u64, reason: CancelReason) {
+        for entry in self.entries.values_mut() {
+            if entry.pending.remove(&id).is_some() {
+                // STOP/coalescing replaces only never-written intents; it does
+                // not erase the still-valid older physical command trajectory.
+                if !matches!(reason, CancelReason::Stopped | CancelReason::Superseded) {
+                    entry.discard_estimate();
+                } else if entry.pending.is_empty() {
+                    entry.held = None;
+                }
+            }
+        }
+    }
+    /// Only the admission worker calls this after durable Writing -> Written.
+    /// Earlier in-flight commands may complete while a later one is pending;
+    /// the queue's single writer guarantees this physical order, not callers.
+    pub fn written(&mut self, id: u64, now: u64) {
+        for entry in self.entries.values_mut() {
+            let Some(pending) = entry.pending.remove(&id) else {
+                continue;
+            };
+            let result = entry
+                .model
+                .accepted(self.scope, id, pending.action, now)
+                .and_then(|ticket| entry.model.written_at(ticket, now, now));
+            if result.is_err() {
+                entry.invalidate();
+                continue;
+            }
+            entry.source = Some((pending.controller, id));
+            entry.held = (!entry.pending.is_empty()).then(|| entry.model.snapshot());
+        }
+    }
+    pub fn candidate(
+        &mut self,
+        id: DeviceId,
+        timing: Timing,
+        now: u64,
+    ) -> Result<Snapshot, homesense_core::curtain_state::Error> {
+        timing.validate()?;
+        if let Some(entry) = self.entries.get(&id) {
+            if entry.timing != timing {
+                return Err(homesense_core::curtain_state::Error::InvalidTiming);
+            }
+        } else {
+            self.entries.insert(
+                id.clone(),
+                Entry {
+                    model: Tracker::new(timing, self.scope, now)?,
+                    timing,
+                    leds: Default::default(),
+                    pending: BTreeMap::new(),
+                    held: None,
+                    source: None,
+                    attempted: BTreeMap::new(),
+                },
+            );
+        }
+        Ok(self.snapshot(&id, now).expect("installed candidate"))
+    }
+    pub fn invalidate_device(&mut self, id: &DeviceId) {
+        if let Some(entry) = self.entries.get_mut(id) {
+            entry.invalidate();
+        }
+    }
+    pub fn snapshot(&mut self, id: &DeviceId, now: u64) -> Option<Snapshot> {
+        Some(self.entries.get_mut(id)?.snapshot(self.scope, now))
+    }
+    pub fn audit(
+        &mut self,
+        store: &homesense_storage::Store,
+        config: &homesense_config::Configuration,
+        boot: &str,
+        now: u64,
+    ) -> Result<(), homesense_storage::Error> {
+        use homesense_storage::journal::Status;
+        for (device, entry) in &mut self.entries {
+            if let Some(written) = entry.model.snapshot().last_written {
+                let command = config
+                    .motor_command(device, written.action)
+                    .expect("current calibrated entry");
+                let receipt =
+                    store.motor_receipt(boot, written.id, device, command, self.scope.epochs)?;
+                if receipt.is_none_or(|r| !matches!(r.status, Status::Written | Status::Observed)) {
+                    entry.discard_estimate();
+                }
+            }
+            let mut invalid = vec![];
+            for (&id, pending) in &entry.pending {
+                if pending.deadline_ms <= now
+                    || !matches!(
+                        store.command_status(boot, id)?,
+                        Some(Status::Accepted | Status::Writing)
+                    )
+                {
+                    invalid.push(id);
+                }
+            }
+            if !invalid.is_empty() {
+                for id in invalid {
+                    entry.pending.remove(&id);
+                }
+                entry.discard_estimate();
+            }
+            // Queue expiry invalidates knowledge, never starts another action.
+            let _ = entry.snapshot(self.scope, now);
+        }
+        Ok(())
+    }
+    pub fn retire_revoked(&mut self, authorize: &impl Fn(Uuid) -> bool) {
+        for entry in self.entries.values_mut() {
+            if entry.pending.values().any(|p| !authorize(p.controller)) {
+                entry.pending.retain(|_, p| authorize(p.controller));
+                entry.discard_estimate();
+            }
+            if entry
+                .source
+                .is_some_and(|(controller, _)| !authorize(controller))
+            {
+                entry.discard_estimate();
+            }
+        }
+    }
+    pub fn effects(&mut self, now: u64, authorize: &impl Fn(Uuid) -> bool) -> Vec<LedEffect> {
+        self.retire_revoked(authorize);
+        let mut out = vec![];
+        for entry in self.entries.values_mut() {
+            let Some((controller, cause)) = entry.source else {
+                continue;
+            };
+            let intent = entry.snapshot(self.scope, now).indicators();
+            for (ids, color) in [
+                (&entry.leds.open, Some(intent.open_red)),
+                (&entry.leds.close, Some(intent.close_red)),
+                (&entry.leds.stop, intent.stop_red),
+            ] {
+                if let Some(active) = color {
+                    for device in ids {
+                        if entry.attempted.get(device) != Some(&active) {
+                            // At most one admission attempt per hint edge. No
+                            // capacity/authorization failure can replay an edge.
+                            entry.attempted.insert(device.clone(), active);
+                            out.push(LedEffect {
+                                controller,
+                                cause,
+                                device: device.clone(),
+                                active,
+                            });
+                        }
+                    }
+                }
+            }
+        }
+        out
+    }
+    pub fn next_deadline(&mut self, now: u64) -> Option<u64> {
+        self.entries
+            .values_mut()
+            .filter_map(|entry| {
+                if !entry.pending.is_empty() {
+                    return None;
+                }
+                let s = entry.snapshot(self.scope, now);
+                let movement = s.inferred_movement?;
+                let deadline = match movement.value {
+                    Movement::Opening => s
+                        .last_written?
+                        .written_ms
+                        .checked_add(entry.timing.open_travel_ms?)?,
+                    Movement::Closing => s
+                        .last_written?
+                        .written_ms
+                        .checked_add(entry.timing.close_travel_ms?)?,
+                    Movement::Stopped => {
+                        movement.at_ms.checked_add(entry.timing.stop_led_idle_ms?)?
+                    }
+                };
+                (deadline > now).then_some(deadline)
+            })
+            .min()
+    }
+}
+
+/// Fixed reviewed LED effects retain the originating controller and causal
+/// motor id; they are never submitted under an administrator proxy.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn admit_leds(
+    effects: Vec<LedEffect>,
+    config: &homesense_config::Configuration,
+    arbiter: &mut homesense_core::arbiter::Arbiter,
+    store: &mut homesense_storage::Store,
+    boot: &str,
+    now: u64,
+    ttl: u64,
+    next_id: &mut u64,
+    principals: &mut BTreeMap<u64, Uuid>,
+    context: homesense_core::ExecutionContext,
+    authorize: &impl Fn(Uuid) -> bool,
+) -> Result<(), homesense_storage::Error> {
+    use homesense_core::{admission::Access, arbiter::BatchCommitError, queue::Origin};
+    for effect in effects {
+        if !authorize(effect.controller) {
+            continue;
+        }
+        let Some((binding, module)) = config.binding(&effect.device) else {
+            continue;
+        };
+        let command = Command::PanelLed(effect.active);
+        if hb_protocol::encode_in_context(module, binding.channel, command, context).is_err() {
+            continue;
+        }
+        let Some(end) = next_id.checked_add(1) else {
+            continue;
+        };
+        let Some(deadline_ms) = now.checked_add(ttl) else {
+            continue;
+        };
+        let id = *next_id;
+        let command = QueuedCommand {
+            id,
+            device_id: effect.device,
+            command,
+            origin: Origin::Rule,
+            epochs: arbiter.policy().epochs,
+            deadline_ms,
+            run_id: Some(effect.cause),
+        };
+        let access = Access {
+            authorized: true,
+            device_exists: true,
+            device_verified: matches!(
+                module.verification(),
+                homesense_core::Verification::Verified(_)
+            ),
+            existing_direct_manual: false,
+        };
+        match arbiter.submit_batch_committed(vec![(command, access)], now, |commands, cancelled| {
+            store.accept_queue_batch(boot, commands, cancelled, now)
+        }) {
+            Ok(cancelled) => {
+                principals.insert(id, effect.controller);
+                *next_id = end;
+                for c in cancelled {
+                    principals.remove(&c.command.id);
+                }
+            }
+            Err(BatchCommitError::Persistence(e)) => return Err(e),
+            Err(BatchCommitError::Admission(_)) => {}
+        }
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    fn document() -> serde_json::Value {
+        serde_json::json!({"schema_version":2,"revision":1,"gateways":[{"id":"bus","endpoint":"127.0.0.1:1","modules":[{"id":"motor-module","address":"26","profile":"c4_din_pro_v2_7_7","verification":{"status":"simulated"}},{"id":"panel-module","address":"4A","profile":"ts6_86_rs485_v2_6_5_6key","led_mode":"manual","verification":{"status":"simulated"}}]}],"devices":[{"id":"curtain","name":"Synthetic curtain","module_id":"motor-module","channel":1,"enabled":true,"motor_calibration":{"open_direction":"down","stop_verified":true,"evidence":"synthetic","verified_at_unix_ms":1},"curtain_state":{"open_travel_ms":1000,"close_travel_ms":1000,"stop_led_idle_ms":200,"evidence":"synthetic review","reviewed_at_unix_ms":1,"leds":{"open":["open-led"],"close":["close-led"],"stop":["stop-led"]}}},{"id":"open-led","name":"Open LED","module_id":"panel-module","channel":2,"enabled":true},{"id":"stop-led","name":"Stop LED","module_id":"panel-module","channel":4,"enabled":true},{"id":"close-led","name":"Close LED","module_id":"panel-module","channel":6,"enabled":true}]})
+    }
+
+    fn setup() -> (homesense_config::Configuration, Owner, Scope) {
+        let config = homesense_config::Configuration::parse(
+            &serde_json::to_vec(&document()).unwrap(),
+            homesense_core::ExecutionContext::Simulation,
+        )
+        .unwrap();
+        let scope = Scope {
+            boot: 1,
+            epochs: homesense_core::queue::Epochs {
+                configuration: 1,
+                transport: 1,
+                control: 1,
+            },
+        };
+        let owner = Owner::new(&config, scope, 0);
+        (config, owner, scope)
+    }
+    fn accept(
+        config: &homesense_config::Configuration,
+        owner: &mut Owner,
+        scope: Scope,
+        id: u64,
+        action: MotorAction,
+        controller: Uuid,
+        at: u64,
+    ) {
+        let device = DeviceId::new("curtain").unwrap();
+        owner.accepted(
+            config,
+            &QueuedCommand {
+                id,
+                device_id: device.clone(),
+                command: config.motor_command(&device, action).unwrap(),
+                origin: homesense_core::queue::Origin::Hap,
+                epochs: scope.epochs,
+                deadline_ms: 10000,
+                run_id: None,
+            },
+            controller,
+            at,
+        );
+    }
+    #[test]
+    fn one_owner_cross_principal_last_written_and_old_endpoint_cannot_revive() {
+        let (config, mut owner, scope) = setup();
+        let device = DeviceId::new("curtain").unwrap();
+        let a = Uuid::new_v4();
+        let b = Uuid::new_v4();
+        accept(&config, &mut owner, scope, 1, MotorAction::Open, a, 0);
+        owner.written(1, 10);
+        accept(&config, &mut owner, scope, 2, MotorAction::Close, b, 100);
+        owner.written(2, 110);
+        let view = owner.view_for_test(&device, 1111);
+        assert_eq!(view.position.as_deref(), Some("Closed"));
+        assert_eq!(view.last_written_id, Some(2));
+        assert_eq!(
+            owner.view_for_test(&device, 3000).position.as_deref(),
+            Some("Closed")
+        );
+        assert!(
+            owner
+                .effects(3000, &|_| true)
+                .iter()
+                .all(|e| e.controller == b && e.cause == 2)
+        );
+    }
+    #[test]
+    fn actual_order_when_two_actions_accepted_before_first_written_holds_motion_until_second_written()
+     {
+        let (config, mut owner, scope) = setup();
+        let device = DeviceId::new("curtain").unwrap();
+        let a = Uuid::new_v4();
+        let b = Uuid::new_v4();
+        accept(&config, &mut owner, scope, 1, MotorAction::Open, a, 0);
+        accept(&config, &mut owner, scope, 2, MotorAction::Stop, b, 1);
+        owner.written(1, 10);
+        let queued = owner.snapshot(&device, 1011).unwrap();
+        assert_eq!(queued.pending, Some(MotorAction::Stop));
+        assert_eq!(queued.inferred_movement.unwrap().value, Movement::Opening);
+        assert!(queued.stop_led_active.unwrap().value);
+        owner.written(2, 1020);
+        let stopped = owner.snapshot(&device, 1219).unwrap();
+        assert!(stopped.stop_led_active.unwrap().value);
+        assert!(
+            !owner
+                .snapshot(&device, 1220)
+                .unwrap()
+                .stop_led_active
+                .unwrap()
+                .value
+        );
+    }
+    #[test]
+    fn indicator_edges_do_not_retry_and_fault_epoch_and_revocation_never_fake_green() {
+        let (config, mut owner, scope) = setup();
+        let device = DeviceId::new("curtain").unwrap();
+        let a = Uuid::new_v4();
+        accept(&config, &mut owner, scope, 1, MotorAction::Open, a, 0);
+        owner.written(1, 10);
+        let effects = owner.effects(11, &|_| true);
+        assert_eq!(effects.len(), 3);
+        assert!(
+            effects
+                .iter()
+                .find(|e| e.device.as_str() == "stop-led")
+                .unwrap()
+                .active
+        );
+        assert!(owner.effects(12, &|_| true).is_empty());
+        assert_eq!(owner.next_deadline(12), Some(1010));
+        let terminal = owner.effects(1010, &|_| true);
+        assert_eq!(terminal.len(), 1);
+        assert_eq!(terminal[0].device.as_str(), "close-led");
+        assert_eq!(owner.next_deadline(1010), Some(1210));
+        let idle = owner.effects(1210, &|_| true);
+        assert_eq!(idle.len(), 1);
+        assert!(!idle[0].active);
+        assert!(owner.effects(1211, &|_| true).is_empty());
+        accept(&config, &mut owner, scope, 2, MotorAction::Close, a, 1300);
+        owner.written(2, 1301);
+        assert!(owner.effects(1302, &|_| false).is_empty());
+        assert_eq!(owner.snapshot(&device, 1303).unwrap().last_written, None);
+        let mut changed = scope;
+        changed.epochs.transport = 2;
+        owner.synchronize(&config, changed, 1400, true);
+        assert_eq!(
+            owner.snapshot(&device, 1401).unwrap().inferred_movement,
+            None
+        );
+        assert!(owner.effects(1402, &|_| true).is_empty());
+    }
+    #[test]
+    fn stopped_cancels_only_queued_intent_and_timing_conflict_cannot_fork_owner() {
+        let (config, mut owner, scope) = setup();
+        let device = DeviceId::new("curtain").unwrap();
+        let a = Uuid::new_v4();
+        accept(&config, &mut owner, scope, 1, MotorAction::Open, a, 0);
+        owner.written(1, 10);
+        accept(&config, &mut owner, scope, 2, MotorAction::Close, a, 100);
+        owner.cancelled(2, CancelReason::Stopped);
+        accept(&config, &mut owner, scope, 3, MotorAction::Stop, a, 101);
+        assert!(
+            owner
+                .snapshot(&device, 102)
+                .unwrap()
+                .stop_led_active
+                .unwrap()
+                .value
+        );
+        assert!(
+            owner
+                .candidate(device.clone(), Timing::default(), 103)
+                .is_err()
+        );
+        owner.written(3, 104);
+        assert_eq!(
+            owner
+                .snapshot(&device, 105)
+                .unwrap()
+                .last_written
+                .unwrap()
+                .id,
+            3
+        );
+        owner.invalidate_device(&device);
+        assert_eq!(owner.snapshot(&device, 110).unwrap().last_written, None);
+        assert!(owner.effects(111, &|_| true).is_empty());
+    }
+    #[test]
+    fn revoking_old_writer_preserves_another_principals_pending_stop_receipt() {
+        let (config, mut owner, scope) = setup();
+        let device = DeviceId::new("curtain").unwrap();
+        let a = Uuid::new_v4();
+        let b = Uuid::new_v4();
+        accept(&config, &mut owner, scope, 1, MotorAction::Open, a, 0);
+        owner.written(1, 10);
+        accept(&config, &mut owner, scope, 2, MotorAction::Stop, b, 11);
+        assert!(owner.effects(12, &|id| id == b).is_empty());
+        assert_eq!(owner.snapshot(&device, 13).unwrap().last_written, None);
+        assert_eq!(
+            owner.snapshot(&device, 13).unwrap().pending,
+            Some(MotorAction::Stop)
+        );
+        owner.written(2, 20);
+        let snapshot = owner.snapshot(&device, 21).unwrap();
+        assert_eq!(snapshot.last_written.unwrap().id, 2);
+        assert_eq!(snapshot.inferred_movement.unwrap().value, Movement::Stopped);
+        assert!(snapshot.stop_led_active.unwrap().value);
+        assert!(
+            owner
+                .effects(22, &|id| id == b)
+                .iter()
+                .all(|e| e.controller == b && e.cause == 2)
+        );
+        assert!(
+            !owner
+                .snapshot(&device, 220)
+                .unwrap()
+                .stop_led_active
+                .unwrap()
+                .value
+        );
+    }
+    impl Owner {
+        fn view_for_test(&mut self, id: &DeviceId, now: u64) -> View {
+            self.snapshot(id, now).unwrap().into()
+        }
+    }
+}

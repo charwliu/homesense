@@ -179,6 +179,9 @@ impl SubmissionFailure {
     }
 }
 enum Message {
+    CurtainViews(Uuid,TaskGeneration,Vec<homesense_core::DeviceId>,oneshot::Sender<Result<BTreeMap<homesense_core::DeviceId,homesense_core::curtain_state::Snapshot>,WriteStatus>>),
+    CurtainCandidate(Uuid,TaskGeneration,homesense_core::DeviceId,homesense_core::curtain_state::Timing,oneshot::Sender<Result<homesense_core::curtain_state::Snapshot,WriteStatus>>),
+    CurtainInvalidate(Uuid,TaskGeneration,homesense_core::DeviceId),
     ModuleQuery(Uuid,TaskGeneration,String,crate::module_queries::Scope,Instant,bool,oneshot::Sender<Result<crate::module_queries::Accepted,WriteStatus>>),
     ModuleQueryRecords(Uuid,TaskGeneration,Vec<u64>,oneshot::Sender<Result<Vec<homesense_storage::module_history::Record>,WriteStatus>>),
     RecentDeviceCommands(Uuid,TaskGeneration,Vec<homesense_core::DeviceId>,usize,oneshot::Sender<Result<Vec<homesense_storage::module_history::Record>,WriteStatus>>),
@@ -409,6 +412,7 @@ impl Admission {
                 let mut scene_observer=crate::scene_observation_owner::Owner::default();
                 let mut scene_projections=BTreeMap::<String,crate::scene_reconciliation::Prepared>::new();
                 let observer_boot=Uuid::parse_str(&worker_boot).unwrap().as_u128();
+                let mut curtains=crate::curtain_owner::Owner::new(&configuration,homesense_core::curtain_state::Scope{boot:observer_boot,epochs:arbiter.policy().epochs},millis(clock));
                 let mut observation_fence=worker_observation_invalidation.load(Ordering::Acquire);
                 let mut stopped = None;
                 let mut publication: Option<PendingPublication> = None;
@@ -426,10 +430,20 @@ impl Admission {
                     if scene_observer.refresh_local_versions(&store,millis(clock)).is_err() {
                         failed=true;let _=arbiter.storage_failed();scene_observer.invalidate();
                     }
+                    curtains.synchronize(&configuration,homesense_core::curtain_state::Scope{boot:observer_boot,epochs:arbiter.policy().epochs},millis(clock),current.is_some());
+                    if current.is_some() {
+                        let now=millis(clock);
+                        if curtains.audit(&store,&configuration,&worker_boot,now).is_err(){failed=true;let _=arbiter.storage_failed();curtains.invalidate();}
+                        let effects=if failed {vec![]} else {curtains.effects(now,&|id|authorize(id))};
+                        if crate::curtain_owner::admit_leds(effects,&configuration,&mut arbiter,&mut store,&worker_boot,now,options.request_ttl.as_millis() as u64,&mut next_id,&mut principals,options.context,&|id|authorize(id)).is_err() {
+                            failed=true;let _=arbiter.storage_failed();curtains.invalidate();
+                        }
+                    }
                     generation_updates.send_if_modified(|previous| {
                         if *previous == current { false } else { *previous = current; true }
                     });
-                    let pending = match write_deadline {
+                    let deadline=write_deadline.into_iter().chain(curtains.next_deadline(millis(clock))).min();
+                    let pending = match deadline {
                         Some(deadline) => receiver.recv_timeout(Duration::from_millis(
                             deadline.saturating_sub(millis(clock)),
                         )),
@@ -460,7 +474,35 @@ impl Admission {
                         Err(mpsc::RecvTimeoutError::Timeout) => continue,
                         Err(mpsc::RecvTimeoutError::Disconnected) => break,
                     };
+                    // Recheck at the receive boundary, not just before waiting:
+                    // an idle actor may receive this read after a TTL or revoke.
+                    curtains.retire_revoked(&|id|authorize(id));
+                    if curtains.audit(&store,&configuration,&worker_boot,now).is_err(){failed=true;let _=arbiter.storage_failed();curtains.invalidate();}
                     match message {
+                        Message::CurtainCandidate(controller,generation,device,timing,reply)=>{
+                            let result=(|| {
+                                if !authorize(controller){return Err(WriteStatus::InsufficientPrivileges);}
+                                if failed || generation.boot!=worker_boot || generation.epochs!=arbiter.policy().epochs || !arbiter.policy().gateway_ready || arbiter.policy().publishing {return Err(WriteStatus::ServiceCommunicationFailure);}
+                                configuration.motor_command(&device,homesense_core::MotorAction::Stop).map_err(|_|WriteStatus::InvalidValueInRequest)?;
+                                curtains.candidate(device,timing,now).map_err(|_|WriteStatus::InvalidValueInRequest)
+                            })();let _=reply.send(result);
+                        }
+                        Message::CurtainInvalidate(controller,generation,device)=>{
+                            if authorize(controller) && generation.boot==worker_boot && generation.epochs==arbiter.policy().epochs {curtains.invalidate_device(&device);}
+                        }
+                        Message::CurtainViews(controller,generation,ids,reply)=>{
+                            let result=(|| {
+                                if !authorize(controller){return Err(WriteStatus::InsufficientPrivileges);}
+                                if failed || generation.boot!=worker_boot || generation.epochs!=arbiter.policy().epochs || !arbiter.policy().gateway_ready || arbiter.policy().publishing {return Err(WriteStatus::ServiceCommunicationFailure);}
+                                let mut out=BTreeMap::new();
+                                for id in ids {
+                                    configuration.binding(&id).ok_or(WriteStatus::ResourceDoesNotExist)?;
+                                    if let Some(view)=curtains.snapshot(&id,now){out.insert(id,view);}
+                                }
+                                Ok(out)
+                            })();let _=reply.send(result);
+                        }
+
                         Message::PublicationBundle(controller,reply) => {
                             let result=(|| {
                                 if !authorize(controller) {return Err(WriteStatus::InsufficientPrivileges)}
@@ -1185,9 +1227,11 @@ impl Admission {
                                         .map_err(|e| e.to_string())?;
                                 }
                                 for cancelled in &dispatch.cancelled {
+                                    curtains.cancelled(cancelled.command.id,cancelled.reason);
                                     principals.remove(&cancelled.command.id);
                                 }
                                 for (command, _) in &dispatch.rejected {
+                                    curtains.cancelled(command.id,homesense_core::queue::CancelReason::RunCancelled);
                                     store
                                         .transition_command(
                                             &worker_boot,
@@ -1244,9 +1288,10 @@ impl Admission {
                             let result = if failed || in_flight != Some(id) {
                                 Err(WriteStatus::ServiceCommunicationFailure)
                             } else {
+                                let written_ms=millis(clock);
                                 let audit = if complete {
                                     store.transition_command(&worker_boot, id, Status::Writing,
-                                        Status::Written, millis(clock))
+                                        Status::Written, written_ms)
                                 } else {
                                     store.fail_transport(&worker_boot, millis(clock))
                                 };
@@ -1257,6 +1302,7 @@ impl Admission {
                                     let _ = arbiter.storage_failed();
                                     Err(WriteStatus::ServiceCommunicationFailure)
                                 } else {
+                                    if complete {curtains.written(id,written_ms);} else {curtains.invalidate();}
                                     in_flight = None;
                                     write_deadline = None;
                                     if !complete {
@@ -1537,6 +1583,7 @@ impl Admission {
                                         },
                                     ));
                                 }
+                                let curtain_commands:Vec<_>=commands.iter().filter(|(c,_)|matches!(c.command,homesense_core::Command::Motor(_))).map(|(c,_)|c.clone()).collect();
                                 let restore_owned: BTreeMap<_,Vec<u64>> = restore_intents.iter().map(|(id,_)| {
                                     let supply=configuration.devices().get(id).and_then(|d|d.supply_relay.as_ref());
                                     (id.clone(),commands.iter().filter(|(c,_)|&c.device_id==id || Some(&c.device_id)==supply).map(|(c,_)|c.id).collect())
@@ -1576,8 +1623,10 @@ impl Admission {
                                             principals.insert(id, batch.controller);
                                         }
                                         for cancellation in cancelled {
+                                            curtains.cancelled(cancellation.command.id,cancellation.reason);
                                             principals.remove(&cancellation.command.id);
                                         }
+                                        for command in &curtain_commands {curtains.accepted(&configuration,command,batch.controller,now);}
                                         let ids = (next_id..end).collect();
                                         next_id = end;
                                         Ok(ids)
@@ -1891,7 +1940,24 @@ impl Admission {
             .await
             .map_err(|_| WriteStatus::ServiceCommunicationFailure)?
     }
-    pub(crate) async fn motor_receipts(&self,controller:Uuid,generation:TaskGeneration,device:homesense_core::DeviceId,action:homesense_core::MotorAction,ids:Vec<u64>)->Result<Vec<homesense_storage::journal::MotorReceipt>,WriteStatus> {
+    /// Read the single owner projection. Callers must retain their original
+    /// device-scoped grants; inference is never a substitute for authorization.
+    pub async fn curtain_views(&self,controller:Uuid,generation:TaskGeneration,ids:Vec<homesense_core::DeviceId>)->Result<BTreeMap<homesense_core::DeviceId,crate::curtain_owner::View>,WriteStatus> {
+        Ok(self.curtain_snapshots(controller,generation,ids).await?.into_iter().map(|(id,s)|(id,s.into())).collect())
+    }
+    pub(crate) async fn curtain_snapshots(&self,controller:Uuid,generation:TaskGeneration,ids:Vec<homesense_core::DeviceId>)->Result<BTreeMap<homesense_core::DeviceId,homesense_core::curtain_state::Snapshot>,WriteStatus> {
+        if ids.len()>256{return Err(WriteStatus::InvalidValueInRequest);}
+        let (tx,rx)=oneshot::channel();self.sender.try_send(Message::CurtainViews(controller,generation,ids,tx)).map_err(|_|WriteStatus::ResourceBusy)?;
+        rx.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?
+    }
+    pub(crate) async fn curtain_candidate(&self,controller:Uuid,generation:TaskGeneration,device:homesense_core::DeviceId,timing:homesense_core::curtain_state::Timing)->Result<homesense_core::curtain_state::Snapshot,WriteStatus> {
+        let (tx,rx)=oneshot::channel();self.sender.try_send(Message::CurtainCandidate(controller,generation,device,timing,tx)).map_err(|_|WriteStatus::ResourceBusy)?;
+        rx.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?
+    }
+    pub(crate) fn invalidate_curtain(&self,controller:Uuid,generation:TaskGeneration,device:homesense_core::DeviceId) {
+        let _=self.sender.try_send(Message::CurtainInvalidate(controller,generation,device));
+    }
+    pub async fn motor_receipts(&self,controller:Uuid,generation:TaskGeneration,device:homesense_core::DeviceId,action:homesense_core::MotorAction,ids:Vec<u64>)->Result<Vec<homesense_storage::journal::MotorReceipt>,WriteStatus> {
         if ids.is_empty() || ids.len()>128 {return Err(WriteStatus::InvalidValueInRequest)}
         let (reply,receive)=oneshot::channel();
         self.sender.try_send(Message::MotorReceipts(controller,generation,device,action,ids,reply)).map_err(|_|WriteStatus::ResourceBusy)?;
