@@ -1,5 +1,6 @@
 //! HomeSense device types. Construction validates wire-level ranges.
 pub mod scene_observer;
+pub mod curtain_state;
 pub mod scene_pattern;
 pub mod variable_migration;
 pub mod admission;

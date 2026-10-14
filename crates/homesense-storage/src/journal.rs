@@ -41,6 +41,13 @@ impl Status {
         }
     }
 }
+/// Read-only motor audit. Only Written retains a trustworthy write timestamp;
+/// Observed.updated_ms is an observation timestamp and must not stand in for it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MotorReceipt {
+    pub status: Status,
+    pub written_at_ms: Option<u64>,
+}
 fn boot(value: &str) -> Result<(), Error> {
     if value.is_empty()
         || value.len() > 128
@@ -377,6 +384,23 @@ impl Store {
             )
             .optional()?;
         value.map(|s| Status::parse(&s)).transpose()
+    }
+    pub fn motor_receipt(
+        &self, boot_id: &str, id: u64, device: &homesense_core::DeviceId,
+        command: Command, epochs: homesense_core::queue::Epochs,
+    ) -> Result<Option<MotorReceipt>, Error> {
+        boot(boot_id)?;
+        if !matches!(command,Command::Motor(_)) {return Err(Error::InvalidAudit)}
+        let row:Option<(String,i64)>=self.connection.query_row(
+            "SELECT status,updated_ms FROM command_journal WHERE boot_id=?1 AND command_id=?2 AND device_id=?3 AND intent=?4 AND revision=?5 AND transport_epoch=?6 AND control_epoch=?7",
+            params![boot_id,integer(id)?,device.as_str(),intent(command).as_slice(),integer(epochs.configuration)?,integer(epochs.transport)?,integer(epochs.control)?],
+            |r|Ok((r.get(0)?,r.get(1)?)),
+        ).optional()?;
+        row.map(|(status,at)| {
+            let status=Status::parse(&status)?;
+            let at=u64::try_from(at).map_err(|_|Error::InvalidAudit)?;
+            Ok(MotorReceipt {status,written_at_ms:(status==Status::Written).then_some(at)})
+        }).transpose()
     }
     /// Atomic final scene-lifecycle check at the transport boundary.
     /// False records cancellation; no bytes may be written for that command.
