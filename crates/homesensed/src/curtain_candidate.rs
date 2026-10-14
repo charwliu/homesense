@@ -1,31 +1,14 @@
-//! Dormant, explicit single-curtain candidate. No service installs it today.
-//! Uses the existing calibrated motor owner; estimates never touch Feedback,
-//! source variables, LEDs, HAP, Web or the live configuration.
+//! Explicit calibrated candidate handle to the one Admission-owned trajectory.
+//! HAP, Web and other candidates share it; this handle only caches diagnostics.
 use crate::admission::{Admission, TaskGeneration};
 use hap::server::WriteStatus;
 use homesense_core::{
     DeviceId, MotorAction,
-    curtain_state::{Scope, Snapshot, StopEvidence, Ticket, Timing, Tracker},
+    curtain_state::{Movement, Provenance, Snapshot, StopEvidence, Timing},
 };
+#[cfg(test)]
 use homesense_storage::journal::Status;
 use uuid::Uuid;
-
-fn scope(generation: &TaskGeneration, boot: &str) -> Result<Scope, WriteStatus> {
-    Ok(Scope {
-        boot: Uuid::parse_str(boot)
-            .map_err(|_| WriteStatus::ServiceCommunicationFailure)?
-            .as_u128(),
-        epochs: generation.epochs,
-    })
-}
-struct Receipt {
-    ids: Vec<u64>,
-    ticket: Ticket,
-    written_seen: bool,
-    action: MotorAction,
-}
-/// Acceptance remains visible even if a concurrent generation change prevents
-/// tracking. Such a result must not be automatically retried.
 #[derive(Debug)]
 pub struct Accepted {
     pub command_ids: Vec<u64>,
@@ -37,8 +20,8 @@ pub struct Candidate {
     device: DeviceId,
     revision: u64,
     generation: TaskGeneration,
-    model: Tracker,
-    receipt: Option<Receipt>,
+    timing: Timing,
+    cached: Snapshot,
     condition_policy: StopEvidence,
 }
 struct SubmissionGuard<'a> {
@@ -48,12 +31,13 @@ struct SubmissionGuard<'a> {
 impl Drop for SubmissionGuard<'_> {
     fn drop(&mut self) {
         if !self.complete {
-            self.candidate.forget();
+            self.candidate.invalidate();
         }
     }
 }
 impl Candidate {
-    /// Read-only construction. Timing is explicit and defaults nowhere here.
+    /// Explicit software candidate timing; conflicts with an existing owner's
+    /// timing are rejected. Published LED bindings are never changed here.
     pub async fn new(
         admission: Admission,
         controller: Uuid,
@@ -64,32 +48,30 @@ impl Candidate {
         let bundle = admission
             .automation_bundle(controller, generation.clone())
             .await?;
-        bundle
-            .configuration
-            .motor_command(&device, MotorAction::Stop)
-            .map_err(|_| WriteStatus::InvalidValueInRequest)?;
-        let model = Tracker::new(
-            timing,
-            scope(&generation, admission.boot_id())?,
-            admission.monotonic_ms(),
-        )
-        .map_err(|_| WriteStatus::InvalidValueInRequest)?;
+        let cached = admission
+            .curtain_candidate(controller, generation.clone(), device.clone(), timing)
+            .await?;
         Ok(Self {
             revision: bundle.configuration.revision(),
             admission,
             controller,
             device,
             generation,
-            model,
-            receipt: None,
+            timing,
+            cached,
             condition_policy: StopEvidence::ActualOnly,
         })
     }
     fn forget(&mut self) {
-        self.model.invalidate();
-        self.receipt = None;
+        self.cached.observed_movement = None;
+        self.cached.observed_position = None;
+        self.cached.inferred_movement = None;
+        self.cached.inferred_position = None;
+        self.cached.inferred_percent = None;
+        self.cached.pending = None;
+        self.cached.last_written = None;
+        self.cached.stop_led_active = None;
     }
-    /// Passive reconciliation; no writes, STOP or retry are generated.
     pub async fn refresh(&mut self) -> Result<Snapshot, WriteStatus> {
         let result = self.refresh_inner().await;
         if result.is_err() {
@@ -103,159 +85,101 @@ impl Candidate {
             .admission
             .automation_bundle(self.controller, current.clone())
             .await?;
-        // A changed mapping/calibration requires a new explicit candidate.
         if bundle.configuration.revision() != self.revision {
             return Err(WriteStatus::ServiceCommunicationFailure);
         }
-        bundle
-            .configuration
-            .motor_command(&self.device, MotorAction::Stop)
-            .map_err(|_| WriteStatus::InvalidValueInRequest)?;
         if current != self.generation {
             self.forget();
-            self.generation = current;
-            return self
-                .model
-                .advance(
-                    scope(&self.generation, self.admission.boot_id())?,
-                    self.admission.monotonic_ms(),
-                )
-                .map_err(|_| WriteStatus::ServiceCommunicationFailure);
-        }
-        if let Some(receipt) = &mut self.receipt {
-            let statuses = self
+            self.generation = current.clone();
+            self.cached = self
                 .admission
-                .motor_receipts(
+                .curtain_candidate(
                     self.controller,
                     current.clone(),
                     self.device.clone(),
-                    receipt.action,
-                    receipt.ids.clone(),
+                    self.timing,
                 )
                 .await?;
-            let after = self.admission.task_generation().await?;
-            if after != current {
-                self.forget();
-                self.generation = after;
-                return self
-                    .model
-                    .advance(
-                        scope(&self.generation, self.admission.boot_id())?,
-                        self.admission.monotonic_ms(),
-                    )
-                    .map_err(|_| WriteStatus::ServiceCommunicationFailure);
-            }
-            if statuses.iter().any(|s| {
-                matches!(
-                    s.status,
-                    Status::Cancelled | Status::Failed | Status::Uncertain
-                )
-            }) {
-                self.forget();
-            } else if !receipt.written_seen {
-                if statuses.iter().all(|s| s.status == Status::Written) {
-                    let written_ms = statuses
-                        .iter()
-                        .filter_map(|s| s.written_at_ms)
-                        .max()
-                        .ok_or(WriteStatus::ServiceCommunicationFailure)?;
-                    self.model
-                        .written_at(receipt.ticket, written_ms, self.admission.monotonic_ms())
-                        .map_err(|_| WriteStatus::ServiceCommunicationFailure)?;
-                    receipt.written_seen = true;
-                } else if statuses.iter().any(|s| s.status == Status::Observed) {
-                    // The journal's updated timestamp no longer means Written.
-                    self.forget();
-                }
-            }
         }
-        self.model
-            .advance(
-                scope(&self.generation, self.admission.boot_id())?,
-                self.admission.monotonic_ms(),
-            )
-            .map_err(|_| WriteStatus::ServiceCommunicationFailure)
+        self.cached = self
+            .admission
+            .curtain_snapshots(self.controller, current, vec![self.device.clone()])
+            .await?
+            .remove(&self.device)
+            .ok_or(WriteStatus::ServiceCommunicationFailure)?;
+        Ok(self.cached)
     }
-    /// Explicit manual intent only, never called by a timer or automatic rule.
-    /// Even an inferred disabled Stop hint cannot bypass or suppress the owner's
-    /// calibrated emergency STOP path.
+    /// Each valid manual action passes the unchanged real principal, revision
+    /// and calibrated owner path. Cache/gates/LEDs never suppress motor output.
     pub async fn submit(&mut self, action: MotorAction) -> Result<Accepted, WriteStatus> {
         let mut guard = SubmissionGuard {
             candidate: self,
             complete: false,
         };
-        let candidate = &mut *guard.candidate;
-        // An unavailable old estimate must not veto a new manual intent.
-        // The owner still independently enforces current auth, readiness,
-        // calibration, immutable revision and capacity on this submission.
-        let _ = candidate.refresh().await;
-        candidate.receipt = None;
-        let ids = candidate
+        let c = &mut *guard.candidate;
+        let _ = c.refresh().await;
+        let accepted_generation = c.generation.clone();
+        let ids = c
             .admission
-            .submit_motor_for_revision(
-                candidate.revision,
-                candidate.controller,
-                candidate.device.clone(),
-                action,
-            )
+            .submit_motor_for_revision(c.revision, c.controller, c.device.clone(), action)
             .await?;
-        // Once accepted, never report an ordinary failure that invites replay.
-        let projection = match candidate.admission.task_generation().await {
-            Ok(current) if current == candidate.generation => ids.first().and_then(|id| {
-                candidate
-                    .model
-                    .accepted(
-                        scope(&current, candidate.admission.boot_id()).ok()?,
-                        *id,
-                        action,
-                        candidate.admission.monotonic_ms(),
-                    )
-                    .ok()
-            }),
-            _ => None,
-        };
-        let tracked = if let Some(ticket) = projection {
-            candidate.receipt = Some(Receipt {
-                ids: ids.clone(),
-                ticket,
-                written_seen: false,
-                action,
-            });
-            true
-        } else {
-            candidate.model.invalidate();
-            false
-        };
+        let tracked = c.refresh().await.is_ok() && c.generation == accepted_generation;
         guard.complete = true;
         Ok(Accepted {
             command_ids: ids,
             projection_tracked: tracked,
         })
     }
-    /// Explicit, per-instance automatic-condition approval. Not a manual gate,
-    /// a global setting or an activation of any source rule.
     pub fn set_condition_policy(&mut self, policy: StopEvidence) {
         self.condition_policy = policy;
     }
+    /// Cached automatic-condition diagnosis only; never called by submit.
     pub fn automatic_open_gate(
         &self,
         previous_was_open: Option<bool>,
         max_age_ms: u64,
-    ) -> Option<homesense_core::curtain_state::Provenance> {
-        self.model.stopped_open_gate(
-            previous_was_open,
-            self.admission.monotonic_ms(),
-            max_age_ms,
-            self.condition_policy,
-        )
+    ) -> Option<Provenance> {
+        let s = self.cached;
+        if self.admission.generation_updates().borrow().as_ref() != Some(&self.generation) {
+            return None;
+        }
+        let now = self.admission.monotonic_ms();
+        if previous_was_open != Some(false)
+            || s.pending.is_some()
+            || max_age_ms == 0
+            || now
+                .checked_sub(s.captured_ms)
+                .is_none_or(|a| a >= max_age_ms)
+        {
+            return None;
+        }
+        if s.observed_movement.is_some_and(|f| {
+            f.value == Movement::Stopped && now.checked_sub(f.at_ms).is_some_and(|a| a < max_age_ms)
+        }) {
+            return Some(Provenance::Observed);
+        }
+        if self.condition_policy == StopEvidence::ReviewedLocalEstimate
+            && s.last_written.is_some()
+            && s.inferred_movement
+                .is_some_and(|f| f.value == Movement::Stopped)
+        {
+            Some(Provenance::Inferred)
+        } else {
+            None
+        }
     }
-    /// Explicitly discard estimates after a known external intervention. No I/O.
+    /// Known intervention invalidates the shared projection, never sends STOP.
     pub fn invalidate(&mut self) {
+        self.admission.invalidate_curtain(
+            self.controller,
+            self.generation.clone(),
+            self.device.clone(),
+        );
         self.forget();
     }
-    /// Diagnostic cache as of captured_ms, not a current physical observation.
+    /// Captured diagnostic only, not a current physical reading.
     pub fn cached(&self) -> Snapshot {
-        self.model.snapshot()
+        self.cached
     }
 }
 
@@ -428,7 +352,7 @@ mod tests {
             .unwrap();
         let s = c.refresh().await.unwrap();
         assert_eq!(s.inferred_movement, None);
-        assert_eq!(s.pending, None);
+        assert_eq!(s.pending, Some(MotorAction::Stop));
         assert_eq!(s.last_written, None);
         assert_eq!(
             homesense_storage::Store::open(f.root.join("runtime.sqlite"))
@@ -643,7 +567,7 @@ mod receipt_clock_tests {
         f.close().await;
     }
     #[tokio::test]
-    async fn observed_audit_without_prior_written_time_does_not_start_at_read_time() {
+    async fn owner_preserves_true_written_anchor_when_observed_precedes_first_reader() {
         let mut f = Fixture::new(true).await;
         let mut c = f
             .candidate(Timing {
@@ -664,10 +588,13 @@ mod receipt_clock_tests {
             )
             .unwrap();
         drop(store);
+        tokio::time::sleep(std::time::Duration::from_millis(12)).await;
         let s = c.refresh().await.unwrap();
-        assert_eq!(s.inferred_movement, None);
-        assert_eq!(s.inferred_percent, None);
-        assert_eq!(s.last_written, None);
+        assert_eq!(s.inferred_movement.unwrap().value, Movement::Stopped);
+        assert_eq!(s.inferred_position.unwrap().value, Position::Open);
+        assert_eq!(s.inferred_percent.unwrap().value.percent(), 100.0);
+        assert!(s.captured_ms >= s.last_written.unwrap().written_ms + 5);
+        assert_eq!(s.observed_position, None);
         assert!(f.owner.step().await.unwrap().is_none());
         drop(c);
         f.close().await;
@@ -729,7 +656,7 @@ mod manual_repeat_tests {
         )
         .unwrap();
         drop(sql);
-        assert!(c.refresh().await.is_err());
+        assert_eq!(c.refresh().await.unwrap().last_written, None);
         let stop = c.submit(MotorAction::Stop).await.unwrap();
         assert!(stop.projection_tracked);
         f.owner.step().await.unwrap().unwrap().result.unwrap();

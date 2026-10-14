@@ -49,6 +49,7 @@ pub fn device_changes(current:&Configuration,candidate:&Configuration)->Vec<Devi
                 let calibration=|d:&homesense_config::Device| d.motor_calibration.as_ref().map(|c|
                     (c.motion(homesense_core::MotorAction::Open),c.evidence().evidence().to_owned(),c.evidence().verified_at_unix_ms()));
                 if calibration(old)!=calibration(new) {changes.push("motor_calibration");}
+                if old.curtain_state!=new.curtain_state {changes.push("curtain_state");}
                 let gateway_changed=match (current.gateways().get(&old.gateway),candidate.gateways().get(&new.gateway)) {
                     (Some(a),Some(b))=>a.endpoint!=b.endpoint || a.modules().get(&old.address)!=b.modules().get(&new.address),
                     _=>true,

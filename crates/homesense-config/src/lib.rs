@@ -109,9 +109,49 @@ struct DeviceInput {
     #[serde(default)]
     motor_calibration: Option<MotorCalibrationInput>,
     #[serde(default)]
+    curtain_state: Option<CurtainStateInput>,
+    #[serde(default)]
     supply_relay: Option<String>,
     #[serde(default)]
     supply: Option<ModuleChannel>,
+}
+/// Explicit local review for command/time inference and its fixed LED effects.
+/// Absence keeps the existing motor path and publishes no estimate or LEDs.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CurtainState {
+    pub timing: homesense_core::curtain_state::Timing,
+    pub leds: CurtainLeds,
+    pub evidence: VerificationRecord,
+}
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CurtainLeds {
+    pub open: Vec<DeviceId>,
+    pub close: Vec<DeviceId>,
+    pub stop: Vec<DeviceId>,
+}
+#[derive(Deserialize, Default)]
+#[serde(deny_unknown_fields)]
+struct CurtainLedInput {
+    #[serde(default)]
+    open: Vec<String>,
+    #[serde(default)]
+    close: Vec<String>,
+    #[serde(default)]
+    stop: Vec<String>,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CurtainStateInput {
+    #[serde(default)]
+    open_travel_ms: Option<u64>,
+    #[serde(default)]
+    close_travel_ms: Option<u64>,
+    #[serde(default)]
+    stop_led_idle_ms: Option<u64>,
+    #[serde(default)]
+    leds: CurtainLedInput,
+    evidence: String,
+    reviewed_at_unix_ms: u64,
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -169,6 +209,7 @@ pub struct LogicalDevice {
     pub enabled: bool,
     pub default_on_level: Option<Percent>,
     pub motor_calibration: Option<MotorCalibration>,
+    pub curtain_state: Option<CurtainState>,
 
 }
 /// Current-revision transport adapter. Logical Device has no physical locator.
@@ -413,6 +454,26 @@ impl Configuration {
                 }
                 None => None,
             };
+            let curtain_state = d.curtain_state.map(|state| -> Result<_, Error> {
+                if module.kind() != ModuleKind::Motor || motor_calibration.is_none()
+                    || !d.enabled || state.evidence.len() > 4096 {
+                    return Err(invalid("curtain state requires enabled calibrated motor and bounded review evidence"));
+                }
+                let timing = homesense_core::curtain_state::Timing {
+                    open_travel_ms: state.open_travel_ms,
+                    close_travel_ms: state.close_travel_ms,
+                    stop_led_idle_ms: state.stop_led_idle_ms,
+                }.validate().map_err(|_|invalid("invalid curtain inference timing"))?;
+                let ids = |values: Vec<String>| -> Result<Vec<DeviceId>, Error> {
+                    if values.len() > 16 { return Err(invalid("curtain LED binding limit")); }
+                    values.into_iter().map(|id| { identifier(&id)?; DeviceId::new(id).map_err(Error::from) }).collect()
+                };
+                Ok(CurtainState {
+                    timing,
+                    leds: CurtainLeds { open: ids(state.leds.open)?, close: ids(state.leds.close)?, stop: ids(state.leds.stop)? },
+                    evidence: VerificationRecord::new(state.evidence, state.reviewed_at_unix_ms)?,
+                })
+            }).transpose()?;
             if d.room.as_ref().is_some_and(|id| !rooms.contains_key(id)) {return Err(invalid("unknown room reference"));}
             if (input.schema_version==1 && d.supply.is_some()) || (input.schema_version==2 && d.supply_relay.is_some()){return Err(invalid("schema 2 supply references require module_id + channel"));}
             if let Some(port)=&d.supply {identifier(&port.module_id)?;let location=module_registry.get(&port.module_id).ok_or_else(||invalid("supply module missing"))?;gateways[&location.gateway].modules[&location.address].validate_channel(Channel::new(port.channel)?)?;pending_supplies.push((id.clone(),port.clone()));}
@@ -425,6 +486,7 @@ impl Configuration {
                 enabled: d.enabled,
                 default_on_level,
                 motor_calibration,
+                curtain_state,
 
             };
             let legacy_supply=d.supply_relay.map(|id|{identifier(&id)?;DeviceId::new(id).map_err(Error::from)}).transpose()?;
@@ -462,6 +524,20 @@ impl Configuration {
                     return Err(invalid(
                         "combined light requires an explicit nonzero default_on_level",
                     ));
+                }
+            }
+        }
+        let mut curtain_leds = BTreeSet::new();
+        for device in devices.values() {
+            if let Some(state) = &device.curtain_state {
+                for id in state.leds.open.iter().chain(&state.leds.close).chain(&state.leds.stop) {
+                    let led = resolved_bindings.get(id).ok_or_else(||invalid("curtain LED binding missing"))?;
+                    let module = &gateways[&led.gateway].modules[&led.address];
+                    if !led.enabled || module.kind() != ModuleKind::Keypad
+                        || module.led_mode() != PanelLedMode::Manual || !curtain_leds.insert(id.clone()) {
+                        return Err(invalid("curtain LEDs require enabled exclusive manual-mode keypad bindings"));
+                    }
+                    module.validate_context(context)?;
                 }
             }
         }

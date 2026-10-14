@@ -18,6 +18,7 @@ pub mod service;
 pub mod diagnostics;
 
 pub mod curtain_candidate;
+pub mod curtain_owner;
 
 pub mod read_probe;
 

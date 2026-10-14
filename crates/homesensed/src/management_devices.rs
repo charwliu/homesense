@@ -21,6 +21,7 @@ pub struct DeviceView {
     pub id: DeviceId,
     pub name: String,
     pub motor_calibrated: bool,
+    pub motor_estimate: Option<crate::curtain_owner::View>,
     pub state: homesense_state::DeviceState,
     pub reported: Option<homesense_core::Observation>,
     pub recorded: bool,
@@ -46,6 +47,7 @@ pub async fn snapshot(
         .automation_bundle(controller, generation.clone())
         .await
         .map_err(|e| format!("{e:?}"))?;
+    let motor_estimates=admission.curtain_views(controller,generation.clone(),ids.clone()).await.map_err(|e|format!("curtain inference: {e:?}"))?;
     let snapshot = crate::combined_light::project(&bundle.configuration, &feedback.snapshot())
         .map_err(|e| e.to_string())?;
     let recorded=admission.projection_levels(generation.epochs.configuration,feedback.snapshot().cursor.boot_id).await.map_err(|e|format!("recorded levels: {e:?}"))?;
@@ -90,6 +92,7 @@ pub async fn snapshot(
             id: id.clone(),
             name: device.name.clone(),
             motor_calibrated,
+            motor_estimate: motor_estimates.get(&id).cloned(),
             reported: published.devices.get(&id).and_then(|s|s.observed),
             recorded: recorded.contains_key(&id),
             state,

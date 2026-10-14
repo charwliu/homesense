@@ -995,7 +995,7 @@ pub(crate) fn device_json(
         device.state.kind,
         homesense_core::ModuleKind::Switch | homesense_core::ModuleKind::Dimmer
     );
-    json!({"id":device.id.as_str(),"name":device.name,"room":device.room,"kind":format!("{:?}",device.state.kind),"observed":observed,"reported":reported,"state_authority":if device.recorded {"pending_target"} else {"feedback"},"quality":format!("{:?}",device.state.quality),"observed_at_ms":device.state.observed_at_ms,"pending":device.state.pending_command,"version":device.state.version,"motor_calibrated":device.motor_calibrated,"can_control":(light || device.motor_calibrated) && grant.may_control_device(device.id.as_str())})
+    json!({"id":device.id.as_str(),"name":device.name,"room":device.room,"kind":format!("{:?}",device.state.kind),"observed":observed,"reported":reported,"state_authority":if device.recorded {"pending_target"} else {"feedback"},"quality":format!("{:?}",device.state.quality),"observed_at_ms":device.state.observed_at_ms,"pending":device.state.pending_command,"version":device.state.version,"motor_calibrated":device.motor_calibrated,"motor_estimate":device.motor_estimate,"can_control":(light || device.motor_calibrated) && grant.may_control_device(device.id.as_str())})
 }
 
 fn mask_module_actions(slots: &mut [crate::management_modules::Slot], grant: &crate::web_auth::Grant) {
