@@ -1,0 +1,22 @@
+{
+  "original_files_checked": 1039,
+  "modified_original_files": [],
+  "test_source_sha256": "bf87a074f1ab4a14e2186008086f89f7074b843483186e8803dd4d03dba3c672",
+  "raw_log_sha256": "51bb37849b9d19dedaa287c666b4469b393fb5b55fad166c6fee1ea66908ebf2",
+  "execution_exit_code": 101,
+  "test_result": {
+    "passed": 2,
+    "failed": 1,
+    "ignored": 0,
+    "filtered": 0
+  },
+  "counterexample": "New schema2 synthetic combined lamp, relayOn, physicalConfirmed17/noPending, recorded100 -> published100; required17 assertion failed",
+  "controls": [
+    "Raw ObservedView of combined actual17 with restore100 returns17",
+    "Off logical0 can retain brightness100 separately; stale/unknown supply refuses HAP read"
+  ],
+  "scope": "Pure synthetic schema2 runtime publication and HAP read functions. No physical bus, service, original variables, credential or field rerun.",
+  "probe_source_sha256": "bf87a074f1ab4a14e2186008086f89f7074b843483186e8803dd4d03dba3c672",
+  "production_source_commit": "25524d96fb56610a1061871e042b0fdf84399aed",
+  "original_documentation_only_baseline_preserved_privately": true
+}
