@@ -48,8 +48,8 @@ pub async fn snapshot(
         .map_err(|e| format!("{e:?}"))?;
     let snapshot = crate::combined_light::project(&bundle.configuration, &feedback.snapshot())
         .map_err(|e| e.to_string())?;
-    let recorded=admission.recorded_dimmer_levels(controller,generation).await.map_err(|e|format!("recorded levels: {e:?}"))?;
-    let published=crate::light_state::project(&bundle.configuration,&feedback.snapshot(),&recorded).map_err(str::to_owned)?;
+    let recorded=admission.projection_levels(generation.epochs.configuration,feedback.snapshot().cursor.boot_id).await.map_err(|e|format!("recorded levels: {e:?}"))?;
+    let published=crate::light_state::project_pending(&bundle.configuration,&feedback.snapshot(),&recorded).map_err(str::to_owned)?;
     let supplies: std::collections::BTreeSet<_> = bundle
         .configuration
         .devices()

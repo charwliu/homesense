@@ -306,7 +306,7 @@ async fn combined_joint(powered: bool) {
     sync(&h, &scenes, &mut indicators).await;
     drain_owner(&h, &mut owner).await;
     if powered {
-        assert!(led_frames(&bus, begin).is_empty());
+        assert_eq!(led_frames(&bus, begin),vec![[0xae,0x41,1,0xf1,0xee],[0xae,0x42,1,0xf1,0xee]],"completed selected scene reasserts its reviewed LEDs");
         receive(&mut h, &mut owner, &bus, &[(3, 0xd2, 0xf2)]).await;
         reconcile(&h, &scenes).await;
         sync(&h, &scenes, &mut indicators).await;
@@ -340,10 +340,9 @@ async fn combined_joint(powered: bool) {
     assert_eq!(bus.lock().unwrap().frames.len(), settled);
     let mut leds = led_frames(&bus, begin);
     leds.sort();
-    assert_eq!(
-        leds,
-        vec![[0xae, 0x41, 1, 0xf2, 0xee], [0xae, 0x42, 1, 0xf2, 0xee]]
-    );
+    assert_eq!(leds,if powered {
+        vec![[0xae,0x41,1,0xf1,0xee],[0xae,0x41,1,0xf2,0xee],[0xae,0x42,1,0xf1,0xee],[0xae,0x42,1,0xf2,0xee]]
+    } else {vec![[0xae,0x41,1,0xf2,0xee],[0xae,0x42,1,0xf2,0xee]]});
     assert!(bus.lock().unwrap().leds[&(0x41, 5)]);
     let frames = bus.lock().unwrap().frames[begin..].to_vec();
     assert_eq!(
@@ -638,7 +637,7 @@ async fn pending_relative_partial_off_does_not_clear_multipanel_leds_or_history(
     );
     sync(&h, &scenes, &mut indicators).await;
     drain_owner(&h, &mut owner).await;
-    assert!(led_frames(&bus, begin).is_empty());
+    assert_eq!(led_frames(&bus, begin),vec![[0xae,0x41,1,0xf1,0xee],[0xae,0x42,1,0xf1,0xee]],"only the complete selected pattern permits positive LEDs");
     let frames = bus.lock().unwrap().frames[begin..].to_vec();
     assert_eq!(
         frames
@@ -693,10 +692,7 @@ async fn observed_relative_then_unknown_stale_and_external_off_clear_only_linked
     );
     sync(&h, &scenes, &mut indicators).await;
     drain_owner(&h, &mut owner).await;
-    assert!(
-        led_frames(&bus, begin).is_empty(),
-        "intentionally Off downlight cannot cancel scene"
-    );
+    assert_eq!(led_frames(&bus, begin),vec![[0xae,0x41,1,0xf1,0xee],[0xae,0x42,1,0xf1,0xee]],"an intentionally Off downlight preserves positive scene indication");
     let stable = bus.lock().unwrap().frames.len();
     receive(&mut h, &mut owner, &bus, &[(0x15, 0xd1, 101)]).await;
     assert_eq!(

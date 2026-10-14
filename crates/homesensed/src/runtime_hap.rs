@@ -22,7 +22,7 @@ fn error(e: impl std::fmt::Display) -> String {
 /// Light publication is a view of the shared physical snapshot. Non-light
 /// observations remain with the automation owner and are not HAP light inputs.
 fn light_snapshot(configuration:&Configuration,physical:&Snapshot,selected:Option<&std::collections::BTreeSet<homesense_core::DeviceId>>,recorded:&std::collections::BTreeMap<homesense_core::DeviceId,homesense_core::Percent>)->Result<Snapshot,String> {
-    let mut logical=crate::light_state::project(configuration,physical,recorded).map_err(error)?;
+    let mut logical=crate::light_state::project_pending(configuration,physical,recorded).map_err(error)?;
     logical.devices.retain(|id,_|configuration.binding(id).is_some_and(|(_,module)|matches!(module.kind(),ModuleKind::Switch|ModuleKind::Dimmer)));
     if let Some(selected)=selected {logical.devices.retain(|id,_|selected.contains(id));}
     Ok(logical)
@@ -221,6 +221,7 @@ impl RuntimeHap {
         }
         let saved=self.admission.remember_levels(self.configuration.revision(),physical.clone(),self.max_age_ms).await.map_err(|e|format!("restore levels: {e:?}"))?;
         let recorded=self.admission.projection_levels(self.configuration.revision(),physical.cursor.boot_id).await.map_err(|e|format!("recorded levels: {e:?}"))?;
+        self.projection.transitions().retain_owned(&recorded);
         let snapshot=light_snapshot(&self.configuration,&physical,self.selected.as_ref(),&recorded)?;
         {
             let mut current=self.snapshot.write().map_err(|_|"snapshot lock poisoned")?;
@@ -282,6 +283,7 @@ impl RuntimeHap {
             .write()
             .map_err(|_| "restore lock poisoned")? = saved;
         let recorded=self.admission.projection_levels(self.configuration.revision(),physical.cursor.boot_id).await.map_err(|e|format!("recorded levels: {e:?}"))?;
+        self.projection.transitions().retain_owned(&recorded);
         let snapshot=light_snapshot(&self.configuration,&physical,self.selected.as_ref(),&recorded)?;
         *self
             .physical_snapshot
@@ -297,8 +299,8 @@ impl RuntimeHap {
         if resync {
             self.projection.resynchronize(&snapshot, now).await.map_err(error)?;
         } else {
-            // Events and reads must publish the same policy projection. Raw
-            // dimmer events cannot overwrite a recorded setting.
+            // Reads and notifications share actual steady feedback and only
+            // the actor's bounded local transition targets.
             self.projection.refresh_snapshot(&snapshot, now).await.map_err(error)?;
         }
         self.projection_interrupted = false;

@@ -128,7 +128,7 @@ fn validation_requires_reviewed_unique_logical_lights_and_explicit_led_mode() {
     );
 }
 #[test]
-fn measured_switches_and_recorded_dimmers_preserve_raw_feedback_and_quality() {
+fn measured_lights_ignore_historical_dimmer_overrides_and_preserve_quality() {
     let config =
         homesense_config::Configuration::parse(&devices(), ExecutionContext::Simulation).unwrap();
     let mut feedback = Feedback::new(&config, ExecutionContext::Simulation, 1, 1).unwrap();
@@ -142,7 +142,7 @@ fn measured_switches_and_recorded_dimmers_preserve_raw_feedback_and_quality() {
     );
     assert_eq!(
         published.devices[&id("light")].observed,
-        Some(Observation::Level(Percent::new(30).unwrap()))
+        Some(Observation::Level(Percent::new(36).unwrap()))
     );
     assert_eq!(
         published.devices[&id("switch")].observed,
@@ -255,8 +255,9 @@ async fn one_expected_on_light_off_fans_out_once_and_clears_only_its_selected_sc
         .await
         .unwrap();
     assert!(admission.dispatch().await.unwrap().is_none());
-    // A zero intermediate sample cannot override the stored 50% setting.
-    sample(&mut feedback, 0, true);
+    // This historical setting is not an active local transition. A current
+    // nonzero sample remains On; genuine pending-zero protection is separate.
+    sample(&mut feedback, 36, true);
     sync.tick(&admission, controller, &document, &scenes, &feedback, 60000)
         .await
         .unwrap();
