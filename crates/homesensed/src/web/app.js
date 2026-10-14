@@ -265,8 +265,8 @@ function renderDevices() {
     card.device=device;card.title.textContent=device.name;
     if(card.location)card.location.textContent=[device.room.floor,device.room.name].filter(Boolean).join(' · ');
     const reported=Object.hasOwn(device,'reported')?device.reported:device.observed;
-    card.info.textContent=reported==null?'状态未知':`${reported.on?'开':'关'}${reported.level===undefined?'':' · '+reported.level+'%'}${device.state_authority==='homesense_setting'?' · HomeSense设定':''}`;
-    if(device.state_authority==='homesense_setting' && device.observed?.level!==undefined && reported?.level!==device.observed.level)card.info.textContent+=` · 读回 ${device.observed.level}%`;
+    card.info.textContent=reported==null?'状态未知':`${reported.on?'开':'关'}${reported.level===undefined?'':' · '+reported.level+'%'}${device.state_authority==='pending_target'?' · 调光目标':''}`;
+    if(device.state_authority==='pending_target' && device.observed?.level!==undefined && reported?.level!==device.observed.level)card.info.textContent+=` · 当前读回 ${device.observed.level}%`;
     card.info.textContent+=` · ${device.quality}${device.pending===null?'':' · 等待反馈'}`;
     if(device.kind==='Motor')card.info.textContent='位置未知 · '+(device.motor_calibrated?'方向和停止已校准':'尚未校准');
     for(const button of card.buttons)button.disabled=!device.can_control || card.busy;

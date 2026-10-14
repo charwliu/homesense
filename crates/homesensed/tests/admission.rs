@@ -1542,6 +1542,27 @@ async fn combined_restore_ignores_ramp_and_off_supply_until_confirmed_target() {
     );
     snapshot.devices.get_mut(&id).unwrap().observed =
         Some(Observation::Level(Percent::new(30).unwrap()));
+    // A matching target cannot complete an accepted but unwritten command.
+    assert_eq!(
+        actor.remember_levels(1, snapshot.clone(), 5000).await.unwrap()[&id].get(),
+        50
+    );
+    for _ in 0..2 {
+        let ticket = actor.dispatch().await.unwrap().unwrap();
+        actor.finish_write(ticket.command.id, true).await.unwrap();
+    }
+    tokio::time::sleep(Duration::from_millis(2)).await;
+    // The owner stamps fresh feedback with the same clock as the write journal.
+    let mut reader = homesensed::transport_owner::TransportOwner::new(
+        actor.clone(),
+        [("simulation".into(), hb_transport::Connection::for_simulation(
+            std::io::Cursor::new(vec![0xae, 0x15, 0xd1, 30, 0xee]), 1
+        ))].into(),
+    );
+    let at = reader.receive("simulation").await.unwrap().received_at_ms;
+    for state in snapshot.devices.values_mut() {
+        state.observed_at_ms = Some(at);
+    }
     assert_eq!(
         actor
             .remember_levels(1, snapshot.clone(), 5000)
