@@ -41,6 +41,10 @@ impl BrightnessTransitions {
             pending.insert(device, (level, now.saturating_add(16_000)));
         }
     }
+    /// Runtime publishers prune suppression when its admitted owner is gone.
+    pub fn retain_owned(&self, targets: &BTreeMap<DeviceId, homesense_core::Percent>) {
+        self.0.lock().unwrap().retain(|id,(target,_)|targets.get(id)==Some(target));
+    }
     fn suppress(&self, device: &DeviceId, value: Option<Observation>, now: u64) -> (bool, bool) {
         let mut pending = self.0.lock().unwrap();
         let Some(&(target, deadline)) = pending.get(device) else {

@@ -1,6 +1,6 @@
 //! Publication policy; raw Feedback remains a physical measurement.
-//! Switches use measured state. Dimmers retain the last successfully written
-//! HomeSense setting. Before a local setting exists, use measured bootstrap.
+//! Confirmed steady lights use physical feedback. Historical setpoints are
+//! diagnostic intent, not permanent display overrides.
 use homesense_core::{DeviceId, ModuleKind, Observation, Percent};
 use std::collections::BTreeMap;
 
@@ -9,8 +9,20 @@ pub fn project(
     physical: &homesense_state::Snapshot,
     recorded: &BTreeMap<DeviceId, Percent>,
 ) -> Result<homesense_state::Snapshot, &'static str> {
-    let mut logical = crate::combined_light::project(configuration, physical)?;
-    for (id, level) in recorded {
+    // Kept for API compatibility: old persistent records do not prove an
+    // active local command. Restore brightness is handled separately while Off.
+    let _ = recorded;
+    crate::combined_light::project(configuration, physical)
+}
+
+/// Trusted publisher overlay from the actor's bounded, lifecycle-checked targets.
+pub(crate) fn project_pending(
+    configuration: &homesense_config::Configuration,
+    physical: &homesense_state::Snapshot,
+    targets: &BTreeMap<DeviceId, Percent>,
+) -> Result<homesense_state::Snapshot, &'static str> {
+    let mut logical = project(configuration, physical, &BTreeMap::new())?;
+    for (id, level) in targets {
         let Some(state) = logical.devices.get_mut(id) else {
             continue;
         };
@@ -21,10 +33,10 @@ pub fn project(
             .devices()
             .get(id)
             .and_then(|d| d.supply_relay.as_ref())
-            .map(|relay| physical.devices.get(relay).and_then(|s| s.observed));
-        // Separate power relays are switches: their actual off state wins.
+            .and_then(|relay| physical.devices.get(relay))
+            .and_then(|s| s.observed);
         state.observed = Some(Observation::Level(
-            if powered == Some(Some(Observation::Switch(false))) {
+            if powered == Some(Observation::Switch(false)) {
                 Percent::new(0).unwrap()
             } else {
                 *level

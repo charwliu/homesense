@@ -507,8 +507,7 @@ impl Admission {
                         Message::ProjectionLevels(revision,boot,reply) => {
                             let result=(|| {
                                 if revision!=configuration.revision() || boot!=Uuid::parse_str(&worker_boot).map_err(|_|WriteStatus::ServiceCommunicationFailure)?.as_u128() || arbiter.policy().publishing {return Err(WriteStatus::ServiceCommunicationFailure);}
-                                let ids=configuration.devices().keys().filter(|id|configuration.binding(id).is_some_and(|(_,m)|m.kind()==homesense_core::ModuleKind::Dimmer)).cloned().collect::<Vec<_>>();
-                                store.recorded_dimmer_levels(revision,&ids).map_err(|_|WriteStatus::ServiceCommunicationFailure)
+                                restore_policy.targets(arbiter.policy().epochs,millis(clock),|id|store.command_status(&worker_boot,id)).map_err(|_|WriteStatus::ServiceCommunicationFailure)
                             })();
                             let _=reply.send(result);
                         }
@@ -1033,13 +1032,25 @@ impl Admission {
                                     return Err(WriteStatus::InvalidValueInRequest);
                                 }
                                 let mut saved = store.light_restore_levels(configuration.revision()).map_err(|_| WriteStatus::ServiceCommunicationFailure)?;
-                                let ids=configuration.devices().keys().filter(|id|configuration.binding(id).is_some_and(|(_,m)|m.kind()==homesense_core::ModuleKind::Dimmer)).cloned().collect::<Vec<_>>();
-                                let recorded=store.recorded_dimmer_levels(revision,&ids).map_err(|_|WriteStatus::ServiceCommunicationFailure)?;
+                                // Prune cancelled, superseded or old-epoch local targets first.
+                                restore_policy.targets(arbiter.policy().epochs,now,|id|store.command_status(&worker_boot,id)).map_err(|_|WriteStatus::ServiceCommunicationFailure)?;
+                                let mut settled_reads = BTreeMap::new();
+                                for (id,state) in &snapshot.devices {
+                                    let Some((device,module))=configuration.binding(id) else {continue;};
+                                    if module.kind()!=homesense_core::ModuleKind::Dimmer {continue;}
+                                    if state.quality!=homesense_state::Quality::Confirmed || !state.observed_at_ms.and_then(|at|now.checked_sub(at)).is_some_and(|age|age<max_age) {continue;}
+                                    let mut settled=store.feedback_is_settled_in_epoch(&worker_boot,id,state.observed_at_ms,arbiter.policy().epochs.transport).map_err(|_|WriteStatus::ServiceCommunicationFailure)?;
+                                    if let Some(relay)=&device.supply_relay {
+                                        let Some(supply)=snapshot.devices.get(relay).filter(|s|s.quality==homesense_state::Quality::Confirmed && s.observed_at_ms.and_then(|at|now.checked_sub(at)).is_some_and(|age|age<max_age)) else {continue;};
+                                        let sample=supply.observed_at_ms;
+                                        settled &= store.feedback_is_settled_in_epoch(&worker_boot,relay,sample,arbiter.policy().epochs.transport).map_err(|_|WriteStatus::ServiceCommunicationFailure)?;
+                                    }
+                                    settled_reads.insert(id.clone(),settled);
+                                }
                                 let levels: Vec<_> = snapshot.devices.iter().filter_map(|(id,state)| {
                                     let (device,module) = configuration.binding(id)?;
                                     if module.kind()!=homesense_core::ModuleKind::Dimmer || state.quality!=homesense_state::Quality::Confirmed || !state.observed_at_ms.and_then(|at| now.checked_sub(at)).is_some_and(|age| age<max_age) { return None; }
                                     let Some(homesense_core::Observation::Level(mut level)) = state.observed else { return None; };
-                                    if let Some(setting)=recorded.get(id) {level = *setting;}
                                     if let Some(relay) = &device.supply_relay {
                                         let supply = snapshot.devices.get(relay)?;
                                         if supply.quality != homesense_state::Quality::Confirmed || !supply.observed_at_ms.and_then(|at| now.checked_sub(at)).is_some_and(|age| age < max_age) { return None; }
@@ -1049,7 +1060,7 @@ impl Admission {
                                             _ => return None,
                                         }
                                     }
-                                    match restore_policy.remember(id, level, now) {
+                                    match restore_policy.remember_settled(id, level, now, settled_reads.get(id).copied().unwrap_or(false)) {
                                         true if saved.get(id)!=Some(&level) => Some((id.clone(),level)),
                                         _ => None,
                                     }
@@ -1317,7 +1328,18 @@ impl Admission {
                                         if !authorize(batch.controller) { return Err(WriteStatus::InsufficientPrivileges); }
                                         if !batch.subscriptions.is_empty() || batch.intents.is_empty() || feedback.observations.is_empty() || reads.len()>64 || variables.iter().any(|u| !reads.contains_key(&u.name) || u.value!=Some(homesense_core::rule::Value::Integer(0))) {return Err(WriteStatus::InvalidValueInRequest);}
                                         let document=store.active_bundle(options.context).map_err(|_|WriteStatus::ServiceCommunicationFailure)?.and_then(|b|b.automation).ok_or(WriteStatus::InvalidValueInRequest)?;
-                                        if batch.intents.iter().any(|i| i.command!=homesense_core::Command::PanelLed(false) || !document.indicator_links.iter().any(|l|l.enabled && l.leds.contains(&i.device))) {return Err(WriteStatus::InvalidValueInRequest);}
+                                        for intent in &batch.intents {
+                                            let homesense_core::Command::PanelLed(on)=intent.command else {return Err(WriteStatus::InvalidValueInRequest);};
+                                            let link=document.indicator_links.iter().find(|l|l.enabled && l.leds.contains(&intent.device)).ok_or(WriteStatus::InvalidValueInRequest)?;
+                                            if on {
+                                                if !variables.is_empty() {return Err(WriteStatus::InvalidValueInRequest);}
+                                                let scene=link.scene.as_ref().ok_or(WriteStatus::InvalidValueInRequest)?;
+                                                let group=document.scene_switch_groups.iter().find(|g|g.reconciliation.as_ref().is_some_and(|p|p.enabled) && g.members.iter().any(|m|&m.scene==scene)).ok_or(WriteStatus::InvalidValueInRequest)?;
+                                                let member=group.members.iter().find(|m|&m.scene==scene).ok_or(WriteStatus::InvalidValueInRequest)?;
+                                                let source=reads.get(&group.variable).ok_or(WriteStatus::InvalidValueInRequest)?;
+                                                if source.stored.value!=Some(homesense_core::rule::Value::Integer(member.value)) || !source.physical.as_ref().is_some_and(|p|!p.pending_relative && p.observed_ms.is_some()) {return Err(WriteStatus::InvalidValueInRequest);}
+                                            }
+                                        }
                                         if worker_observation_invalidation.load(Ordering::Acquire)!=observation_fence {scene_observer.invalidate();}
                                         for (name, expected) in &reads {
                                             if !document.scene_switch_groups.iter().any(|g|g.variable==*name && g.members.iter().any(|m|document.indicator_links.iter().any(|l|l.enabled && l.scene.as_ref()==Some(&m.scene)))) {return Err(WriteStatus::InvalidValueInRequest);}
@@ -1506,6 +1528,10 @@ impl Admission {
                                         },
                                     ));
                                 }
+                                let restore_owned: BTreeMap<_,Vec<u64>> = restore_intents.iter().map(|(id,_)| {
+                                    let supply=configuration.devices().get(id).and_then(|d|d.supply_relay.as_ref());
+                                    (id.clone(),commands.iter().filter(|(c,_)|&c.device_id==id || Some(&c.device_id)==supply).map(|(c,_)|c.id).collect())
+                                }).collect();
                                 let now = millis(clock);
                                 let persist = |commands: &[QueuedCommand], cancelled: &[homesense_core::queue::Cancellation]| {
                                     store.accept_queue_batch_with_read_checks_and_sources(
@@ -1532,7 +1558,10 @@ impl Admission {
                                         temporary.extend(memory_updates);
                                         for device in manual_devices { manual_versions.insert(device,next_id); }
                                         for (device, command) in restore_intents {
-                                            restore_policy.accepted(device, command, now);
+                                            restore_policy.accepted(device.clone(), command, now);
+                                            if matches!(command,homesense_core::Command::SetLevel {..}|homesense_core::Command::Switch(false)) {
+                                                restore_policy.bind(&device,restore_owned.get(&device).cloned().unwrap_or_default(),arbiter.policy().epochs);
+                                            }
                                         }
                                         for id in next_id..end {
                                             principals.insert(id, batch.controller);

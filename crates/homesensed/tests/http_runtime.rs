@@ -197,12 +197,16 @@ async fn exercise(combined: bool) {
         assert!(headers.starts_with("HTTP/1.1 204"));
         advance.blocking_send(()).unwrap();
         ready.recv_timeout(Duration::from_secs(3)).unwrap();
-        // Intermediate 27% is retained for reads but must not be queued as EVENT.
+        // Freshness comes from actual 27%; the live admitted target is shown
+        // consistently by encrypted reads and notifications during transition.
+        let (headers, body) = session.request(&mut stream, &[]);
+        assert!(headers.starts_with("EVENT/1.0 200"), "{headers}");
+        let target: hap::serde_json::Value = hap::serde_json::from_slice(&body).unwrap();
+        assert_eq!(target["characteristics"][0]["value"], 30);
         let (headers, body) = session.request(&mut stream, read.as_bytes());
         assert!(headers.starts_with("HTTP/1.1 200"), "{headers}");
         let observed: hap::serde_json::Value = hap::serde_json::from_slice(&body).unwrap();
-        // Deliberately differs from the requested 30: only bus observation wins.
-        assert_eq!(observed["characteristics"][0]["value"], 27);
+        assert_eq!(observed["characteristics"][0]["value"], 30);
         assert_eq!(
             Store::open(&database)
                 .unwrap()

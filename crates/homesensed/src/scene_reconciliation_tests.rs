@@ -523,7 +523,7 @@ async fn actual_hap_cache_and_web_details_distinguish_history_from_current_feedb
 #[tokio::test]
 async fn physical_scene_projection_reuses_same_all_off_sample_for_leds_and_ignores_old_zero_intent()
 {
-    for (main, remembered, expected_leds) in [(0, 0, 1), (0, 80, 1), (30, 0, 0)] {
+    for (main, remembered, expected_leds) in [(0, 0, 1), (0, 80, 1), (30, 0, 1)] {
         let (config, mut rules) = reconciled();
         rules["indicator_links"] = json!([{"id":"first-off","enabled":true,"review_evidence":"synthetic link","scene":"first","lights":["light","down"],"leds":["key1"]}]);
         let mut h = harness(config, rules).await;
@@ -553,6 +553,11 @@ async fn physical_scene_projection_reuses_same_all_off_sample_for_leds_and_ignor
         };
         h.actor.finish_write(ticket.command.id, true).await.unwrap();
         tokio::time::sleep(Duration::from_millis(2)).await;
+        // A written setpoint remains an owned transition until fresh feedback
+        // confirms it; this case exercises a later independent physical edge.
+        levels(&mut h,Some(remembered),Some(0));
+        h.actor.remember_levels(1,h.feedback.snapshot(),5000).await.unwrap();
+        tokio::time::sleep(Duration::from_millis(3)).await;
         history(&h, 1);
         levels(&mut h, Some(main), Some(0));
         reconcile(&h).await;
@@ -638,3 +643,6 @@ async fn external_candidate_stays_independent_and_prekey_samples_cannot_supply_t
     h.no_output();
     h.close().await;
 }
+
+#[path = "scene_indicator_projection_tests.rs"]
+mod indicator_projection;

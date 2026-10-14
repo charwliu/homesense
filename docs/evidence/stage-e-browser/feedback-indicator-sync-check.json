@@ -1,0 +1,66 @@
+{
+  "scope": "Steady feedback publication, bounded admitted targets, restore preference and reviewed physical scene LEDs",
+  "production_parent": "cd187b57133ce8a28b0561238c7df7e1f4d985bd",
+  "quality": {
+    "rust": "1.99.0",
+    "cargo": "1.99.0",
+    "workspace": {
+      "passed": 808,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0,
+      "result_blocks": 138
+    },
+    "workspace_exit_code": 0,
+    "workspace_all_targets_clippy": "passed with -D warnings",
+    "web_scripts_passed": 16
+  },
+  "checks": [
+    "encrypted HAP GET/PUT/EVENT for external actual brightness, Off/On restore and bounded local ramp",
+    "positive scene LEDs across configured panels; unrelated LEDs unchanged",
+    "unknown, partial, stale, pending and changed-selection guards",
+    "actual-feedback ordinary LED cleanup despite historical settings",
+    "cancel/failure/uncertain/missing owner, full epoch change and exact target deadline",
+    "multi-bridge pairing, session retirement, reconnect and restart without replay"
+  ],
+  "source": {
+    "baseline_files": 1039,
+    "changed_or_added_code_tool_files": 20,
+    "other_baseline_files_unchanged": 1021,
+    "code_sha256": {
+      "crates/homesense-hap/src/events.rs": "fb6223d6c81deaa4e8337d6a0f0ae556894f5ae6f6d96e6a0622cbf47b1d17c0",
+      "crates/homesensed/src/admission.rs": "7b91b4905a698eba14604fe643b59bc94d0850127028b38526abbb8f7088990b",
+      "crates/homesensed/src/indicator_sync.rs": "098676083cc9167796c572f89db6b1e53dce91b1befd655c663c8c404f31a011",
+      "crates/homesensed/src/light_state.rs": "a879d39d2dbc33b3967cf3f3c436098a7af030bd28bed87a6faebd19e5fa08f4",
+      "crates/homesensed/src/management_devices.rs": "56130d40469428f53032e9efee8cbe8170e726d46e422ea2206da7aec90e9db3",
+      "crates/homesensed/src/native_scene_indicator_tests.rs": "808439859f6d8414d8d35486764ce1c74d877b7278eaa650579cd0f7d5cd0909",
+      "crates/homesensed/src/restore_policy.rs": "40d97484179ae45d1dea69cd44ec6705e4fe03b674475b18528c715ca12c3acd",
+      "crates/homesensed/src/runtime_hap.rs": "a77eed5fe80fb4699f1062f867011ff6d7f60560d0ada61e7a31703992b1139f",
+      "crates/homesensed/src/scene_observation_tests.rs": "2a92dc812df666b8c655ff847c2e933dec97511e8e5d30fc6ec803b953447531",
+      "crates/homesensed/src/scene_reconciliation_tests.rs": "91235e91356a7e161b49301c4f89ef7c2a2fa30279f067b406ff1d6f121b48fb",
+      "crates/homesensed/src/web/app.js": "e2fc4797fda293486f237308f3371789b09fb9be7f739d9d929b4de206dd72d7",
+      "crates/homesensed/src/web_api.rs": "65500d24f7dd6b1ecf8cc70b7d2855022d66f50db61e705cd9e4d157bb91ae65",
+      "crates/homesensed/tests/admission.rs": "c24a168b3f732839e1811a19b017b8fa68bef1d9ab23ca65fbb081e0c210369d",
+      "crates/homesensed/tests/http_runtime.rs": "bec5c6bb6bcb154e7941550b34318c99333da2de50ed1955787fa4f8eedf53c9",
+      "crates/homesensed/tests/indicator_sync.rs": "eedc745ac8a85b9ff2b0287f7065e642dbf767f43a0873476fab354767c59514",
+      "crates/homesensed/tests/multiple_hap.rs": "2bfd47cfab3ab737152c5f70d38338a29879ebef8e888ddf99f1a2280e876b50",
+      "tools/verify_brightness_slider.cjs": "8a1e4290bb17d69949456f5929d991725be74d0775dfe8ebdebaed3d374a9182",
+      "tools/verify_light_policy.cjs": "b21d4b2f2782f8f547528f312881c72431cebc21a1ee431665fd28ef76f42f26",
+      "crates/homesensed/src/scene_indicator_projection_tests.rs": "bce92e394565cb9087a78e5c28c12f899d2f1707841e6f61a075c9158100003c",
+      "crates/homesensed/tests/live_brightness.rs": "d7abe66e98934bdc6d6db91e7ccfc74e3e2f1e7673ebc7c81e0f4979d6a90647"
+    }
+  },
+  "validation_sha256": {
+    "homesense-field-sync-workspace-v2.log": "d8dcc0ddee4b26d9ed89c3c80ba2e852319ac9566f46b78de180e390159fba85",
+    "homesense-field-sync-clippy-workspace.log": "35a905a0b40656601d00f28685c05698fa6d981a6f317c38e88e913f8df18c6a",
+    "homesense-field-sync-frontend-final.log": "5695ae9636c8060eda2229e5e7a719749c69a4718179ad4ed9ab975656efa823"
+  },
+  "boundaries": {
+    "new_field_service": false,
+    "new_external_observer_or_rules": false,
+    "ea5_scope_changed": false,
+    "stage_e_complete": false,
+    "linux_or_actual_client_acceptance": false
+  },
+  "privacy": "Synthetic software results only; household data, original source, identities, credentials and detailed field evidence remain local. Failed attempts and exact binaries retained locally; results are not added to earlier runs."
+}

@@ -1,4 +1,4 @@
-//! Reviewed off reconciliation, separate from button automation. No light
+//! Reviewed LED reconciliation, separate from button automation. No light
 //! command or scene replay is emitted; only linked LEDs and local selection.
 use crate::{
     admission::Admission,
@@ -17,8 +17,108 @@ use std::collections::BTreeMap;
 #[derive(Default)]
 pub struct Synchronizer {
     attempted: BTreeMap<String, (bool, Vec<(String, u64)>)>,
+    physical_attempted: BTreeMap<String, (bool, crate::admission::TaskGeneration)>,
 }
 impl Synchronizer {
+    #[allow(clippy::too_many_arguments)]
+    async fn physical_link(
+        &mut self,
+        admission: &Admission,
+        controller: uuid::Uuid,
+        document: &Document,
+        group: &homesense_config::scene_switches::Group,
+        link: &homesense_config::indicator_links::Link,
+        feedback: &Feedback,
+        max_age: u64,
+        generation: crate::admission::TaskGeneration,
+    ) -> Result<(), String> {
+        let member = group
+            .members
+            .iter()
+            .find(|m| Some(&m.scene) == link.scene.as_ref())
+            .ok_or("indicator member missing")?;
+        let patterns = group
+            .light_on_patterns(&document.timed_scenes)
+            .map_err(|e| e.to_string())?;
+        let max_age = max_age.min(
+            group
+                .reconciliation
+                .as_ref()
+                .ok_or("reconciliation missing")?
+                .max_age_ms,
+        );
+        let mut desired = None;
+        let mut lease = None;
+        let prepared = PreparedRule::prepare_indicator(admission, controller, generation.clone(), vec![group.variable.clone()], |variables, reads, policy| {
+            let state = &reads[&group.variable];
+            let selected = state.physical.as_ref().filter(|p| !p.pending_relative && p.observed_ms.is_some())
+                .and_then(|_| match state.stored.value {Some(Value::Integer(v)) if v == 0 || patterns.contains_key(&v) => Some(v),_=>None});
+            let mut nodes = vec![];
+            if let Some(selected) = selected {
+                let on = selected == member.value;
+                let pattern = if selected == 0 {
+                    patterns.values().next().ok_or("empty physical scene pattern")?.keys().map(|id|(id.clone(),homesense_core::scene_pattern::LightPower::Off)).collect()
+                } else {patterns[&selected].clone()};
+                nodes.push(Node {source:format!("indicator:{}:physical",link.id), action:Action::If {
+                    condition:Condition::All(pattern.into_iter().map(|(id,power)| Condition::Equal(Expr::DeviceOn(id),Expr::Literal(Value::Bool(power == homesense_core::scene_pattern::LightPower::On)))).collect()),
+                    then_actions:link.leds.iter().map(|id|Node {source:format!("indicator:{}",link.id),action:Action::Command {device:id.clone(),command:Command::PanelLed(on)}}).collect(),
+                    else_actions:vec![],
+                }});
+                desired = Some(on);
+            }
+            let (plan, read) = feedback.plan_indicator_rule(&nodes,variables,Budget::default(),admission.monotonic_ms(),max_age,&BTreeMap::new(),policy)?;
+            if plan.commands.is_empty() {desired = None;}
+            lease = Some(read);
+            Ok(plan)
+        }).await;
+        let mut prepared = match prepared {
+            Ok(p) => p,
+            Err(PreparationFailure::Admission(WriteStatus::ResourceBusy)) => return Ok(()),
+            Err(PreparationFailure::Admission(e)) => {
+                return Err(format!("indicator snapshot: {e:?}"));
+            }
+            Err(PreparationFailure::Planning(e)) => return Err(e),
+        };
+        let Some(desired) = desired else {
+            return Ok(());
+        };
+        let lease = lease.ok_or("indicator feedback lease missing")?;
+        match admission
+            .feedback_settled(controller, generation.clone(), lease.clone())
+            .await
+        {
+            Ok(true) => {}
+            Ok(false) | Err(WriteStatus::ResourceBusy) => return Ok(()),
+            Err(e) => return Err(format!("{e:?}")),
+        }
+        if self
+            .physical_attempted
+            .get(&link.id)
+            .is_some_and(|(old, scope)| *old == desired && scope == &generation)
+        {
+            return Ok(());
+        }
+        prepared.attach_feedback(Some(lease));
+        let previous = self
+            .physical_attempted
+            .insert(link.id.clone(), (desired, generation));
+        match prepared.commit_status(admission).await {
+            Err(WriteStatus::ResourceBusy | WriteStatus::InvalidValueInRequest) => {
+                if let Some(previous) = previous {
+                    self.physical_attempted.insert(link.id.clone(), previous);
+                } else {
+                    self.physical_attempted.remove(&link.id);
+                }
+            }
+            Ok(_) => {}
+            Err(e) => log::warn!(
+                "indicator {} admission failed: {e:?}; no automatic replay",
+                link.id
+            ),
+        }
+        Ok(())
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub async fn tick(
         &mut self,
@@ -37,7 +137,9 @@ impl Synchronizer {
             Err(WriteStatus::ResourceBusy) => return Ok(()),
             Err(error) => return Err(format!("{error:?}")),
         };
-        let recorded = match admission
+        // Preserve controller authorization, but historical settings no longer
+        // replace current physical lamp feedback in LED conditions.
+        let _history = match admission
             .recorded_dimmer_levels(controller, generation.clone())
             .await
         {
@@ -45,12 +147,44 @@ impl Synchronizer {
             Err(WriteStatus::ResourceBusy) => return Ok(()),
             Err(error) => return Err(format!("{error:?}")),
         };
+        let snapshot = feedback.snapshot();
+        admission
+            .remember_levels(generation.epochs.configuration, snapshot.clone(), max_age)
+            .await
+            .map_err(|e| format!("indicator restore memory: {e:?}"))?;
+        let pending = admission
+            .projection_levels(generation.epochs.configuration, snapshot.cursor.boot_id)
+            .await
+            .map_err(|e| format!("indicator pending targets: {e:?}"))?;
+        let recorded = BTreeMap::new();
         // Delayed scene/fade output is not yet a settled off observation.
         // Conservatively defer while any scheduled scene is still active.
         if !scenes.publication_impact().is_empty() {
             return Ok(());
         }
         for link in document.indicator_links.iter().filter(|l| l.enabled) {
+            if link.lights.iter().any(|id| pending.contains_key(id)) {
+                continue;
+            }
+            if let Some(scene) = &link.scene
+                && let Some(group) = document.scene_switch_groups.iter().find(|g| {
+                    g.members.iter().any(|m| &m.scene == scene)
+                        && g.reconciliation.as_ref().is_some_and(|p| p.enabled)
+                })
+            {
+                self.physical_link(
+                    admission,
+                    controller,
+                    document,
+                    group,
+                    link,
+                    feedback,
+                    max_age,
+                    generation.clone(),
+                )
+                .await?;
+                continue;
+            }
             let names = link
                 .scene
                 .as_ref()
@@ -154,7 +288,12 @@ impl Synchronizer {
             let mut relative_pending = false;
             // Scene truth under the new policy is physical On/Off. Historical
             // dimmer intent remains the policy for ordinary light-only links.
-            let physical_scene = link.scene.as_ref().is_some_and(|scene|document.scene_switch_groups.iter().any(|g|g.members.iter().any(|m|&m.scene==scene) && g.reconciliation.as_ref().is_some_and(|p|p.enabled)));
+            let physical_scene = link.scene.as_ref().is_some_and(|scene| {
+                document.scene_switch_groups.iter().any(|g| {
+                    g.members.iter().any(|m| &m.scene == scene)
+                        && g.reconciliation.as_ref().is_some_and(|p| p.enabled)
+                })
+            });
             let physical_levels = BTreeMap::new();
             let prepared = PreparedRule::prepare_indicator(
                 admission,
@@ -163,7 +302,10 @@ impl Synchronizer {
                 names,
                 |variables, selections, policy| {
                     relative_pending = selections.values().any(|selection| {
-                        selection.physical.as_ref().is_some_and(|physical| physical.pending_relative)
+                        selection
+                            .physical
+                            .as_ref()
+                            .is_some_and(|physical| physical.pending_relative)
                     });
                     let (plan, read) = feedback.plan_indicator_rule(
                         &nodes,
@@ -171,7 +313,11 @@ impl Synchronizer {
                         Budget::default(),
                         admission.monotonic_ms(),
                         max_age,
-                        if physical_scene { &physical_levels } else { &recorded },
+                        if physical_scene {
+                            &physical_levels
+                        } else {
+                            &recorded
+                        },
                         policy,
                     )?;
                     // Unknown lights never authorize output; an unknown selection

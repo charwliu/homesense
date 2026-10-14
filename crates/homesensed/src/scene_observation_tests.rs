@@ -1014,10 +1014,17 @@ async fn completed_zero_setting(h: &Harness) {
     }
     assert!(written);
 }
+async fn confirmed_zero_setting(h: &mut Harness) {
+    completed_zero_setting(h).await;
+    tokio::time::sleep(Duration::from_millis(3)).await;
+    let now=h.actor.monotonic_ms();
+    light_sample(h,now,0);
+    h.actor.remember_levels(1,h.feedback.snapshot(),60000).await.unwrap();
+}
 #[tokio::test]
-async fn inference_off_requires_new_completed_dimmer_setting_not_a_prior_zero() {
+async fn inference_off_requires_fresh_actual_off_not_a_prior_zero_setting() {
     let mut h = Harness::new(Some(0), linked_automation(), true).await;
-    completed_zero_setting(&h).await;
+    confirmed_zero_setting(&mut h).await;
     tokio::time::sleep(Duration::from_millis(3)).await;
     h.select_external(1).await;
     let before = h.selection().await;
@@ -1050,10 +1057,10 @@ async fn inference_off_requires_new_completed_dimmer_setting_not_a_prior_zero() 
             .unwrap(),
         0
     );
-    completed_zero_setting(&h).await;
+    confirmed_zero_setting(&mut h).await;
     tokio::time::sleep(Duration::from_millis(3)).await;
     let now = h.actor.monotonic_ms();
-    light_sample(&mut h, now, 100);
+    light_sample(&mut h, now, 0);
     sync.tick(
         &h.actor,
         h.controller,
@@ -1116,6 +1123,9 @@ async fn audit_led_prior_zero_with_fresh_switch_off(switch_on: bool) {
     let ticket = h.actor.dispatch().await.unwrap().unwrap();
     h.actor.finish_write(ticket.command.id, true).await.unwrap();
     tokio::time::sleep(Duration::from_millis(5)).await;
+    // Complete the earlier local target before the external scene takes over.
+    let settled=h.actor.monotonic_ms();light_sample(&mut h,settled,0);
+    h.actor.remember_levels(1,h.feedback.snapshot(),60000).await.unwrap();
     h.select_external(1).await;
     let before = h.selection().await;
     assert_eq!(before.stored.value, Some(Value::Integer(1)));
