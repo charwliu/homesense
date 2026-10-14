@@ -28,6 +28,7 @@ pub struct PreparedRule {
     indicator_reads:
         Option<std::collections::BTreeMap<String, homesense_storage::scene_observation::Snapshot>>,
     pub unknown_branches: Vec<String>,
+    pub motor_reads:Vec<homesense_core::rule_motor::Read>,
     pub(crate) changed_variables: Vec<String>,
 }
 impl PreparedRule {
@@ -241,6 +242,7 @@ impl PreparedRule {
             updates,
             indicator_reads: None,
             unknown_branches: plan.unknown_branches,
+            motor_reads:plan.motor_reads,
             changed_variables,
         })
     }
@@ -257,15 +259,17 @@ impl PreparedRule {
             .task_generation()
             .await
             .map_err(|e| format!("{e:?}"))?;
+        let motor=crate::motor_rules::capture(admission,controller,generation.clone(),nodes).await?;
         let mut lease = None;
         let mut prepared =
             Self::prepare_using(admission, controller, generation, names, |variables| {
-                let (plan, read) = feedback.plan_rule(
+                let (plan, read) = feedback.plan_rule_with_motor(
                     nodes,
                     variables,
                     budget,
                     admission.monotonic_ms(),
                     max_age_ms,
+                    motor.as_ref(),
                 )?;
                 lease = Some(read);
                 Ok(plan)
@@ -296,6 +300,7 @@ impl PreparedRule {
         self,
         admission: &Admission,
     ) -> Result<Vec<u64>, hap::server::WriteStatus> {
+        for read in &self.motor_reads {log::debug!("planned motor guard source={:?} device={:?} state={:?} truth={:?} provenance={:?}",read.request.source,read.request.predicate.device,read.request.predicate.state,read.truth,read.provenance);}
         if let Some(reads) = self.indicator_reads {
             let feedback = self
                 .feedback

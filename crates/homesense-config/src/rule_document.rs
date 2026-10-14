@@ -217,6 +217,7 @@ struct NodeInput {
 #[derive(Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 enum ActionInput {
+    Motor {device:String,action:LogicalMotorAction,mapping_review:String},
     Set {
         variable: String,
         value: ExprInput,
@@ -265,6 +266,7 @@ enum ExprInput {
 #[derive(Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 enum ConditionInput {
+    MotorState {device:String,state:MotorStateInput,#[serde(default)]evidence_policy:MotorPolicyInput,#[serde(default="motor_max_age")]max_age_ms:u64,mapping_review:String,#[serde(default)]evidence_review:Option<String>},
     Equal { left: ExprInput, right: ExprInput },
     Less { left: ExprInput, right: ExprInput },
     Not { condition: Box<ConditionInput> },
@@ -272,6 +274,16 @@ enum ConditionInput {
     Any { conditions: Vec<ConditionInput> },
     Unknown { value: ExprInput },
 }
+#[derive(Deserialize)]
+#[serde(rename_all="snake_case")]
+enum LogicalMotorAction {Open,Close,Stop}
+#[derive(Deserialize)]
+#[serde(rename_all="snake_case")]
+enum MotorStateInput {Moving,Stopped}
+#[derive(Deserialize,Default)]
+#[serde(rename_all="snake_case")]
+enum MotorPolicyInput {#[default]ActualOnly,ReviewedCommandEstimate}
+fn motor_max_age()->u64{1000}
 #[derive(Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 enum CommandInput {
@@ -422,6 +434,16 @@ impl Compiler<'_> {
                     .collect::<Result<_, _>>()?,
             ),
             ConditionInput::Unknown { value } => Condition::Unknown(self.expr(value, d + 1)?.0),
+            ConditionInput::MotorState {device,state,evidence_policy,max_age_ms,mapping_review,evidence_review}=>{
+                let device=self.device(&device,&[ModuleKind::Motor])?;
+                self.config.motor_command(&device,homesense_core::MotorAction::Stop)?;
+                if mapping_review.trim().is_empty() || mapping_review.len()>8192 || !(1..=30000).contains(&max_age_ms)
+                    || evidence_review.as_ref().is_some_and(|e|e.trim().is_empty()||e.len()>8192) {return Err(invalid("motor predicate needs explicit mapping scope and bounded freshness"));}
+                Condition::MotorState(homesense_core::rule_motor::Predicate{device,
+                    state:match state{MotorStateInput::Moving=>homesense_core::rule_motor::State::Moving,MotorStateInput::Stopped=>homesense_core::rule_motor::State::Stopped},
+                    evidence:match evidence_policy{MotorPolicyInput::ActualOnly=>homesense_core::rule_motor::Evidence::ActualOnly,MotorPolicyInput::ReviewedCommandEstimate=>homesense_core::rule_motor::Evidence::ReviewedCommandEstimate},
+                    max_age_ms,mapping_review,evidence_review})
+            },
         })
     }
     fn nodes(&mut self, nodes: Vec<NodeInput>, d: usize) -> Result<Vec<Node>, Error> {
@@ -433,6 +455,13 @@ impl Compiler<'_> {
                     return Err(invalid("missing or excessive source"));
                 }
                 let action = match node.action {
+                    ActionInput::Motor {device,action,mapping_review}=>{
+                        if mapping_review.trim().is_empty()||mapping_review.len()>8192{return Err(invalid("logical motor intent needs explicit mapping review"));}
+                        let device=self.device(&device,&[ModuleKind::Motor])?;
+                        let action=match action {LogicalMotorAction::Open=>homesense_core::MotorAction::Open,LogicalMotorAction::Close=>homesense_core::MotorAction::Close,LogicalMotorAction::Stop=>homesense_core::MotorAction::Stop};
+                        let command=self.config.motor_command(&device,action)?;
+                        Action::Command{device,command}
+                    },
                     ActionInput::Set { variable, value } => {
                         let v = self.variable(&variable)?;
                         let kind = v.value_type;
@@ -878,8 +907,55 @@ impl Document {
             scene_observation:input.scene_observation,
         };
         document.validate_curtain_led_owners(config)?;
+        document.validate_enabled_motor_predicates(config)?;
         if let Some(settings)=&document.scene_observation {settings.validate_linked(&document)?;}
         Ok(document)
+    }
+}
+
+impl Document {
+    fn validate_enabled_motor_predicates(&self,config:&Configuration)->Result<(),Error> {
+        let mut any=false;
+        for rule in &self.rules {any|=!homesense_core::rule_motor::requests(&rule.actions).map_err(invalid)?.is_empty();}
+        for scene in self.immediate_scenes.values(){any|=!homesense_core::rule_motor::requests(&scene.activate).map_err(invalid)?.is_empty();if let Some(off)=&scene.deactivate{any|=!homesense_core::rule_motor::requests(off).map_err(invalid)?.is_empty();}}
+        if !any{return Ok(());}
+
+        fn walk(nodes:&[Node],doc:&Document,config:&Configuration,left:&mut usize,depth:usize)->Result<(),Error>{
+            if depth>64{return Err(invalid("motor predicate scope nesting exceeded"));}
+            for node in nodes {
+                if *left==0{return Err(invalid("motor predicate scope budget exceeded"));}*left-=1;
+                match &node.action {
+                    Action::If{condition,then_actions,else_actions}=>{
+                        let probe=Node{source:node.source.clone(),action:Action::If{condition:condition.clone(),then_actions:vec![],else_actions:vec![]}};
+                        for request in homesense_core::rule_motor::requests(&[probe]).map_err(invalid)? {
+                            let p=request.predicate;
+                            if p.evidence!=homesense_core::rule_motor::Evidence::ReviewedCommandEstimate
+                                || p.evidence_review.as_ref().is_none_or(|e|e.trim().is_empty())
+                                || config.devices().get(&p.device).is_none_or(|d|d.curtain_state.is_none()) {
+                                return Err(invalid("enabled motor condition needs per-predicate estimate review and an explicit shared model; no actual provider is available"));
+                            }
+                        }
+                        walk(then_actions,doc,config,left,depth+1)?;walk(else_actions,doc,config,left,depth+1)?;
+                    },
+                    Action::Scene{id,activate}=>if let Some(scene)=doc.immediate_scenes.get(id)
+                        && let Some(nodes)=if *activate{Some(&scene.activate)}else{scene.deactivate.as_ref()}{walk(nodes,doc,config,left,depth+1)?;},
+                    Action::Motor{..}=>return Err(invalid("unresolved logical motor action")),
+                    _=>{},
+                }
+            }Ok(())
+        }
+        for rule in self.rules.iter().filter(|r|r.enabled) {walk(&rule.actions,self,config,&mut 65536,0)?;}
+        Ok(())
+    }
+    /// Exact active source/node scopes used by the admission-owned read lease.
+    pub fn enabled_motor_requests(&self)->Result<Vec<homesense_core::rule_motor::Request>,Error> {
+        let mut requests=vec![];
+        for rule in self.linked_rules_with_deferred()? {
+            for request in homesense_core::rule_motor::requests(&rule.actions).map_err(invalid)? {
+                if !requests.contains(&request){requests.push(request);}
+                if requests.len()>256{return Err(invalid("active motor predicate scope exceeds 256"));}
+            }
+        }Ok(requests)
     }
 }
 
@@ -978,6 +1054,7 @@ fn lower_feedback(
                 }
             }
             Condition::Unknown(e) => expr(e, bindings)?,
+            Condition::MotorState(_)=>{},
         }
         Ok(())
     }

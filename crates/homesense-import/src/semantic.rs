@@ -10,6 +10,71 @@ pub struct Binding {
     pub device: DeviceId,
     pub kind: ModuleKind,
 }
+/// Mapping approval is scoped to one exact source event and target. It does
+/// not approve the source guard's evidence, trigger or variable lifecycle.
+pub struct MotorReview {
+    pub source_key:String,
+    pub source_xml_sha256:String,
+    pub source_target:String,
+    pub device:DeviceId,
+    pub mapping_review:String,
+}
+#[derive(Clone)]
+pub struct MotorOptions<'a> {
+    configuration:&'a homesense_config::Configuration,
+    reviews:&'a [MotorReview],
+    canonical:std::sync::Arc<BTreeMap<String,DeviceId>>,
+    events:std::sync::Arc<BTreeMap<String,String>>,
+}
+impl<'a> MotorOptions<'a> {
+    /// The source project establishes parent/proxy identity only. Configuration
+    /// and explicit event-scoped mapping review must independently calibrate it.
+    pub fn reviewed_project(configuration:&'a homesense_config::Configuration,project_xml:&str,reviews:&'a [MotorReview])->Result<Self,String> {
+        if reviews.len()>256{return Err("motor review scope exceeds 256".into());}
+        let report=crate::project_xml(project_xml)?;let doc=crate::parse_xml(project_xml)?;
+        let mut canonical=BTreeMap::new();
+        for device in report.devices.iter().filter(|d|d.kind=="motor") {
+            let controller=doc.descendants().find(|n|n.has_tag_name("item")&&crate::text(*n,"id")==Some(device.control4_id.as_str())).ok_or("source motor controller missing")?;
+            if crate::text(controller,"type")!=Some("6"){return Err("source motor controller must retain type6 identity".into());}
+            let id=DeviceId::new(device.stable_id.clone()).map_err(|e|e.to_string())?;canonical.insert(device.control4_id.clone(),id.clone());
+            let proxies=controller.descendants().filter(|n|n.has_tag_name("item")&&crate::text(*n,"type")==Some("7")
+                && n.ancestors().skip(1).find(|p|p.has_tag_name("item"))==Some(controller))
+                .filter(|n|n.children().find(|c|c.has_tag_name("itemdata")).and_then(|c|crate::text(c,"config_data_file"))==Some("blind.c4i")).collect::<Vec<_>>();
+            if proxies.len()!=1{return Err("source motor needs one unambiguous type7 blind proxy".into());}
+            canonical.insert(text(proxies[0],"id")?.into(),id);
+        }
+        let mut events=BTreeMap::new();
+        for event in doc.root_element().children().find(|n|n.has_tag_name("event_mgr")).into_iter().flat_map(|m|m.children().filter(|n|n.has_tag_name("event"))) {
+            let key=format!("{}:{}",text(event,"deviceid")?,text(event,"eventid")?);
+            if events.insert(key,xml_sha256(&project_xml[event.range()])).is_some(){return Err("duplicate motor source event scope".into());}
+        }
+        for review in reviews {
+            if canonical.get(&review.source_target)!=Some(&review.device) || events.get(&review.source_key)!=Some(&review.source_xml_sha256) {
+                return Err("motor proxy/parent identity or archived event scope mismatch".into());
+            }
+            configuration.motor_command(&review.device,homesense_core::MotorAction::Stop).map_err(|e|format!("motor calibration required: {e}"))?;
+        }
+        Ok(Self{configuration,reviews,canonical:std::sync::Arc::new(canonical),events:std::sync::Arc::new(events)})
+    }
+}
+struct MotorContext<'a> {options:MotorOptions<'a>,source_key:String,sha256:String}
+impl MotorContext<'_> {
+    fn binding<'a>(&'a self,target:&str,bindings:&BTreeMap<String,Binding>)->Result<&'a MotorReview,String> {
+        let mut matches=self.options.reviews.iter().filter(|r|r.source_key==self.source_key && r.source_target==target);
+        let review=matches.next().ok_or_else(||format!("unreviewed motor scope {target}"))?;
+        if matches.next().is_some() || review.source_xml_sha256!=self.sha256 || review.mapping_review.trim().is_empty() || review.mapping_review.len()>8192 {
+            return Err("motor mapping review source hash/scope mismatch".into());
+        }
+        let binding=bindings.get(target).ok_or("motor source binding missing")?;
+        if binding.kind!=ModuleKind::Motor || binding.device!=review.device || self.options.canonical.get(target)!=Some(&review.device)
+            || self.options.events.get(&self.source_key)!=Some(&self.sha256) {
+            return Err("motor proxy must retain its reviewed stable logical identity".into());
+        }
+        self.options.configuration.motor_command(&review.device,homesense_core::MotorAction::Stop).map_err(|e|format!("motor calibration required: {e}"))?;
+        Ok(review)
+    }
+}
+fn xml_sha256(xml:&str)->String {crate::sha256_hex(xml.as_bytes())}
 fn child<'a, 'i>(n: Xml<'a, 'i>, tag: &str) -> Result<Xml<'a, 'i>, String> {
     let mut matches = n.children().filter(|v| v.has_tag_name(tag));
     let first = matches.next().ok_or_else(|| format!("missing {tag}"))?;
@@ -50,11 +115,21 @@ pub(crate) fn condition(
     target: &str,
     bindings: &BTreeMap<String, Binding>,
 ) -> Result<Condition, String> {
+    condition_with_motor(n,target,bindings,None)
+}
+fn condition_with_motor(n:Xml<'_, '_>,target:&str,bindings:&BTreeMap<String,Binding>,motors:Option<&MotorContext<'_>>)->Result<Condition,String> {
     if n.attribute("owneridtype") != Some("variable") {
         let name = text(n, "name")?;
         let binding = bindings
             .get(target)
             .ok_or_else(|| format!("unreviewed condition target {target}"))?;
+        if binding.kind==ModuleKind::Motor && matches!(name,"IF_STOPPED"|"IF_MOVING")
+            && let Some(motors)=motors {
+                if n.children().filter(|n|n.is_element()).count()!=1 || n.attribute("owneridtype")!=Some("") || n.attribute("owneriditem")!=Some("-1") {return Err("invalid motor condition shape".into());}
+                let review=motors.binding(target,bindings)?;
+                return Ok(Condition::MotorState(homesense_core::rule_motor::Predicate {device:review.device.clone(),state:if name=="IF_STOPPED"{homesense_core::rule_motor::State::Stopped}else{homesense_core::rule_motor::State::Moving},
+                    evidence:homesense_core::rule_motor::Evidence::ActualOnly,max_age_ms:1000,mapping_review:review.mapping_review.clone(),evidence_review:None}));
+        }
         if name == "IS_LEVEL" && binding.kind == ModuleKind::Dimmer {
             if n.children().filter(|v| v.is_element()).count() != 3
                 || text(n, "conditional")? != "GREATER_THAN"
@@ -102,14 +177,16 @@ fn compound_condition(
     code: Xml<'_, '_>,
     bindings: &BTreeMap<String, Binding>,
     depth: usize,
+    motors:Option<&MotorContext<'_>>,
 ) -> Result<Condition, String> {
     if depth > 64 {
         return Err("condition nesting exceeds 64".into());
     }
-    let base = condition(
+    let base = condition_with_motor(
         child(child(code, "cmdcond")?, "deviceconditional")?,
         text(code, "device")?,
         bindings,
+        motors,
     )?;
     if !code.children().any(|n| n.has_tag_name("expression")) {
         return Ok(base);
@@ -134,7 +211,7 @@ fn compound_condition(
     {
         return Err("invalid compound operator".into());
     }
-    let rhs = compound_condition(parts[1], bindings, depth + 1)?;
+    let rhs = compound_condition(parts[1], bindings, depth + 1, motors)?;
     match text(op, "display")? {
         "AND" => Ok(Condition::All(vec![base, rhs])),
         "OR" => Ok(Condition::Any(vec![base, rhs])),
@@ -146,6 +223,9 @@ pub(crate) fn action(
     target: &str,
     bindings: &BTreeMap<String, Binding>,
 ) -> Result<Action, String> {
+    action_with_motor(n,target,bindings,None)
+}
+fn action_with_motor(n:Xml<'_, '_>,target:&str,bindings:&BTreeMap<String,Binding>,motors:Option<&MotorContext<'_>>)->Result<Action,String> {
     if n.attribute("owneridtype") == Some("variable") {
         let name = n
             .attribute("owneriditem")
@@ -179,6 +259,21 @@ pub(crate) fn action(
     let binding = bindings
         .get(target)
         .ok_or_else(|| format!("unreviewed target {target}"))?;
+    if binding.kind==ModuleKind::Motor && matches!(command,"SET_LEVEL_TARGET"|"STOP")
+        && let Some(motors)=motors {
+            if n.children().filter(|n|n.is_element()).count()!=2 || n.attribute("owneridtype")!=Some("") || n.attribute("owneriditem")!=Some("-1") {return Err("invalid motor action shape".into());}
+            let review=motors.binding(target,bindings)?;
+            let action=if command=="STOP" {
+                if child(n,"params")?.children().any(|n|n.is_element()) {return Err("unexpected motor STOP parameters".into());}
+                homesense_core::MotorAction::Stop
+            } else {
+                let param=child(child(n,"params")?,"param")?;
+                let value=child(param,"value")?;
+                if param.children().filter(|n|n.is_element()).count()!=2 || !matches!(value.attribute("type"),Some("STRING"|"INTEGER")) {return Err("motor target requires a static typed LEVEL_TARGET_NAME enum".into());}
+                match parameter(n,"LEVEL_TARGET_NAME")?.as_str() {"Open"=>homesense_core::MotorAction::Open,"Closed"=>homesense_core::MotorAction::Close,_=>return Err("motor target accepts only exact Open or Closed".into())}
+            };
+            return Ok(Action::Motor{device:review.device.clone(),action,mapping_review:review.mapping_review.clone()});
+    }
     if binding.kind == ModuleKind::Switch && command == "TOGGLE" {
         if child(n, "params")?.children().any(|p| p.is_element()) {
             return Err("unexpected toggle parameters".into());
@@ -303,6 +398,7 @@ fn sequence(
     prefix: &str,
     depth: usize,
     fades: &mut Option<FadeContext>,
+    motors:Option<&MotorContext<'_>>,
 ) -> Result<Vec<Node>, String> {
     if depth > 64 {
         return Err("program nesting exceeds 64".into());
@@ -359,13 +455,13 @@ fn sequence(
                 if !else_actions.is_empty() {
                     return Err("duplicate Else".into());
                 }
-                *else_actions = sequence(children, bindings, &source, depth + 1, fades)?;
+                *else_actions = sequence(children, bindings, &source, depth + 1, fades, motors)?;
             }
             "2" => result.push(Node {
                 source: source.clone(),
                 action: Action::If {
-                    condition: compound_condition(code, bindings, depth)?,
-                    then_actions: sequence(children, bindings, &source, depth + 1, fades)?,
+                    condition: compound_condition(code, bindings, depth, motors)?,
+                    then_actions: sequence(children, bindings, &source, depth + 1, fades, motors)?,
                     else_actions: vec![],
                 },
             }),
@@ -373,7 +469,7 @@ fn sequence(
                 && text(code, "device")? == "0"
                 && !payload.children().any(|n| n.is_element()) =>
             {
-                result.extend(sequence(children, bindings, &source, depth + 1, fades)?)
+                result.extend(sequence(children, bindings, &source, depth + 1, fades, motors)?)
             }
             "1" => {
                 if children.children().any(|n| n.is_element()) {
@@ -383,7 +479,7 @@ fn sequence(
                 let action=if payload.attribute("owneridtype")!=Some("variable")
                     && text(payload,"command")?=="RAMP_TO_LEVEL" && fades.is_some() {
                     timed_fade(payload,text(code,"device")?,bindings,&source,fades.as_mut().unwrap())?
-                } else {action(payload,text(code,"device")?,bindings)?};
+                } else {action_with_motor(payload,text(code,"device")?,bindings,motors)?};
                 result.push(Node {source,action});
             }
             _ => return Err(format!("{source}: unsupported node type {kind}")),
@@ -392,14 +488,22 @@ fn sequence(
     Ok(result)
 }
 pub fn compile_event(xml: &str, bindings: &BTreeMap<String, Binding>) -> Result<Vec<Node>, String> {
-    compile_event_inner(xml,bindings,None).map(|event|event.actions)
+    compile_event_inner(xml,bindings,None,None).map(|event|event.actions)
 }
 /// Opt-in conversion returns both AST references and disabled timed definitions.
 /// Callers must retain both; the legacy API still rejects timed fades.
 pub fn compile_event_with_fades(xml:&str,bindings:&BTreeMap<String,Binding>,interval_ms:u64,lateness_ms:u64)->Result<CompiledEvent,String> {
-    compile_event_inner(xml,bindings,Some(FadeContext{definitions:Default::default(),interval_ms,lateness_ms}))
+    compile_event_inner(xml,bindings,Some(FadeContext{definitions:Default::default(),interval_ms,lateness_ms}),None)
 }
-fn compile_event_inner(xml:&str,bindings:&BTreeMap<String,Binding>,mut fades:Option<FadeContext>)->Result<CompiledEvent,String> {
+/// Scoped opt-in. All source conditions remain guarded and actual-only. The
+/// result is an unexecutable draft; mapping review never enables a source rule.
+pub fn compile_event_with_motors(xml:&str,bindings:&BTreeMap<String,Binding>,options:MotorOptions<'_>)->Result<CompiledEvent,String> {
+    compile_event_inner(xml,bindings,None,Some(options))
+}
+pub fn compile_event_with_motors_and_fades(xml:&str,bindings:&BTreeMap<String,Binding>,options:MotorOptions<'_>,interval_ms:u64,lateness_ms:u64)->Result<CompiledEvent,String> {
+    compile_event_inner(xml,bindings,Some(FadeContext{definitions:Default::default(),interval_ms,lateness_ms}),Some(options))
+}
+fn compile_event_inner(xml:&str,bindings:&BTreeMap<String,Binding>,mut fades:Option<FadeContext>,motors:Option<MotorOptions<'_>>)->Result<CompiledEvent,String> {
     if xml.len() > 4 * 1024 * 1024 {
         return Err("event XML too large".into());
     }
@@ -425,7 +529,9 @@ fn compile_event_inner(xml:&str,bindings:&BTreeMap<String,Binding>,mut fades:Opt
         text(event, "deviceid")?,
         text(event, "eventid")?
     );
-    let actions=sequence(event, bindings, &prefix, 0, &mut fades)?;
+    let motors=motors.map(|options|MotorContext{options,source_key:format!("{}:{}",text(event,"deviceid").unwrap(),text(event,"eventid").unwrap()),sha256:xml_sha256(xml)});
+    if motors.as_ref().is_some_and(|m|m.options.reviews.len()>256){return Err("motor review scope exceeds 256".into());}
+    let actions=sequence(event, bindings, &prefix, 0, &mut fades,motors.as_ref())?;
     Ok(CompiledEvent{actions,timed_scenes:fades.map(|v|v.definitions).unwrap_or_default()})
 }
 

@@ -44,6 +44,7 @@ pub enum Expr {
 }
 #[derive(Debug, Clone)]
 pub enum Condition {
+    MotorState(crate::rule_motor::Predicate),
     Equal(Expr, Expr),
     Less(Expr, Expr),
     Not(Box<Condition>),
@@ -53,6 +54,9 @@ pub enum Condition {
 }
 #[derive(Debug, Clone)]
 pub enum Action {
+    /// Unresolved source intent. Configuration must lower it through reviewed
+    /// logical direction calibration before any planning or execution.
+    Motor {device:DeviceId,action:crate::MotorAction,mapping_review:String},
     Scene {
         id: String,
         activate: bool,
@@ -99,6 +103,7 @@ impl Default for Budget {
 }
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Error {
+    UnresolvedMotorAction,
     Budget,
     UndefinedVariable(String),
     TypeMismatch,
@@ -116,6 +121,7 @@ pub struct PlannedCommand {
 pub struct Plan {
     /// Devices actually consulted, including missing/unknown feedback.
     pub feedback_reads: BTreeSet<DeviceId>,
+    pub motor_reads:Vec<crate::rule_motor::Read>,
     pub visited_nodes: usize,
     pub action_cost: usize,
     /// Executed leaf actions, in source order, for domain-specific admission.
@@ -139,6 +145,7 @@ pub struct FeedbackSnapshot<'a> {
 }
 struct Evaluator<'a> {
     feedback: FeedbackSnapshot<'a>,
+    motor:crate::rule_motor::Snapshot<'a>,
     remaining: Budget,
     plan: Plan,
 }
@@ -199,9 +206,14 @@ impl Evaluator<'_> {
                 .ok_or_else(|| Error::UndefinedVariable(name.clone())),
         }
     }
-    fn condition(&mut self, c: &Condition, depth: usize) -> Result<Truth, Error> {
+    fn condition(&mut self, c: &Condition, source:&str, depth: usize) -> Result<Truth, Error> {
         self.spend(depth)?;
         Ok(match c {
+            Condition::MotorState(predicate)=>{
+                if self.plan.motor_reads.len()>=4096{return Err(Error::Budget);}
+                let read=self.motor.test(crate::rule_motor::Request{source:source.into(),predicate:predicate.clone()});
+                let truth=read.truth;self.plan.motor_reads.push(read);truth
+            },
             Condition::Less(a, b) => match (
                 self.expression(a, depth + 1)?,
                 self.expression(b, depth + 1)?,
@@ -237,7 +249,7 @@ impl Evaluator<'_> {
                     Truth::False
                 }
             }
-            Condition::Not(c) => match self.condition(c, depth + 1)? {
+            Condition::Not(c) => match self.condition(c, source, depth + 1)? {
                 Truth::True => Truth::False,
                 Truth::False => Truth::True,
                 Truth::Unknown => Truth::Unknown,
@@ -248,7 +260,7 @@ impl Evaluator<'_> {
                 let mut decisive = false;
                 // Evaluate all terms so invalid types/references are not hidden by short circuit.
                 for term in cs {
-                    let v = self.condition(term, depth + 1)?;
+                    let v = self.condition(term, source, depth + 1)?;
                     unknown |= v == Truth::Unknown;
                     decisive |= v == if all { Truth::False } else { Truth::True };
                 }
@@ -274,6 +286,7 @@ impl Evaluator<'_> {
                 self.plan.actions.push(node.clone());
             }
             match &node.action {
+                Action::Motor {..}=>return Err(Error::UnresolvedMotorAction),
                 Action::Scene { id, .. } => {
                     if id.is_empty() {
                         return Err(Error::MissingSource);
@@ -321,10 +334,18 @@ impl Evaluator<'_> {
                     condition,
                     then_actions,
                     else_actions,
-                } => match self.condition(condition, depth + 1)? {
-                    Truth::True => self.nodes(then_actions, depth + 1)?,
-                    Truth::False => self.nodes(else_actions, depth + 1)?,
-                    Truth::Unknown => self.plan.unknown_branches.push(node.source.clone()),
+                } => {
+                    let start=self.plan.motor_reads.len();
+                    let truth=self.condition(condition,&node.source,depth+1)?;
+                    // A motor guard is fail-closed across the complete Boolean
+                    // expression. Other decisive terms cannot select Else (or
+                    // Then) while a consulted motor predicate is unknown.
+                    let truth=if self.plan.motor_reads[start..].iter().any(|r|r.truth==Truth::Unknown){Truth::Unknown}else{truth};
+                    match truth {
+                        Truth::True=>self.nodes(then_actions,depth+1)?,
+                        Truth::False=>self.nodes(else_actions,depth+1)?,
+                        Truth::Unknown=>self.plan.unknown_branches.push(node.source.clone()),
+                    }
                 },
             }
         }
@@ -354,6 +375,14 @@ pub fn evaluate_with_feedback(
     budget: Budget,
     feedback: FeedbackSnapshot<'_>,
 ) -> Result<Plan, Error> {
+    let now_ms=feedback.now_ms;
+    evaluate_with_inputs(nodes,variables,budget,feedback,crate::rule_motor::Snapshot{readings:&[],scope:None,now_ms})
+}
+/// Actual light feedback and optional motor evidence are independent channels.
+pub fn evaluate_with_inputs(
+    nodes:&[Node],variables:&BTreeMap<String,Variable>,budget:Budget,
+    feedback:FeedbackSnapshot<'_>,motor:crate::rule_motor::Snapshot<'_>,
+)->Result<Plan,Error> {
     // Hard caps also bound recursion when a caller provides an excessive budget.
     if budget.depth > 64 || budget.nodes > 65536 || budget.commands > 4096 {
         return Err(Error::Budget);
@@ -367,9 +396,11 @@ pub fn evaluate_with_feedback(
     }
     let mut evaluator = Evaluator {
         feedback,
+        motor,
         remaining: budget,
         plan: Plan {
             feedback_reads: BTreeSet::new(),
+            motor_reads:vec![],
             visited_nodes: 0,
             action_cost: 0,
             actions: vec![],
@@ -442,6 +473,7 @@ pub fn variable_references_with_deferred(nodes:&[Node], deferred:&BTreeSet<Strin
                     }
                 }
                 Condition::Unknown(e) => self.expr(e, depth + 1)?,
+                Condition::MotorState(_)=>{},
             }
             Ok(())
         }
@@ -464,7 +496,7 @@ pub fn variable_references_with_deferred(nodes:&[Node], deferred:&BTreeSet<Strin
                     }
                     Action::Scene { id, activate } if *activate && self.deferred.contains(id) => {},
                     Action::Scene { .. } => return Err("unexpanded scene in reference scan"),
-                    Action::Command { .. } => {}
+                    Action::Command { .. } | Action::Motor {..} => {}
                 }
             }
             Ok(())

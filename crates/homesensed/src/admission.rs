@@ -179,6 +179,7 @@ impl SubmissionFailure {
     }
 }
 enum Message {
+    MotorRuleLease(Uuid,TaskGeneration,Vec<homesense_core::rule_motor::Request>,oneshot::Sender<Result<crate::motor_rules::Lease,WriteStatus>>),
     CurtainViews(Uuid,TaskGeneration,Vec<homesense_core::DeviceId>,oneshot::Sender<Result<BTreeMap<homesense_core::DeviceId,homesense_core::curtain_state::Snapshot>,WriteStatus>>),
     CurtainCandidate(Uuid,TaskGeneration,homesense_core::DeviceId,homesense_core::curtain_state::Timing,oneshot::Sender<Result<homesense_core::curtain_state::Snapshot,WriteStatus>>),
     CurtainInvalidate(Uuid,TaskGeneration,homesense_core::DeviceId),
@@ -403,6 +404,8 @@ impl Admission {
                 let mut restore_policy = crate::restore_policy::RestorePolicy::default();
                 let mut principals = BTreeMap::<u64, Uuid>::new();
                 let mut module_queries = BTreeMap::<u64,crate::module_queries::Target>::new();
+                let mut motor_guard_ids=BTreeMap::<u64,u64>::new();
+                let mut motor_guards=BTreeMap::<u64,crate::motor_rules::QueuedLease>::new();
                 let mut manual_versions = BTreeMap::new();
                 let mut temporary = BTreeMap::<String, homesense_storage::variables::Stored>::new();
                 let mut in_flight: Option<u64> = None;
@@ -424,6 +427,8 @@ impl Admission {
                         Some(TaskGeneration { boot: worker_boot.clone(), epochs: arbiter.policy().epochs })
                     };
                     module_queries.retain(|id,_| principals.contains_key(id) || in_flight==Some(*id));
+                    motor_guard_ids.retain(|id,_|principals.contains_key(id)||in_flight==Some(*id));
+                    motor_guards.retain(|group,_|motor_guard_ids.values().any(|g|g==group));
                     let fence=worker_observation_invalidation.load(Ordering::Acquire);
                     if current.is_none() || scene_observer.scope().is_some_and(|s|s.epochs!=arbiter.policy().epochs) || fence!=observation_fence {scene_observer.invalidate();}
                     observation_fence=fence;
@@ -479,6 +484,15 @@ impl Admission {
                     curtains.retire_revoked(&|id|authorize(id));
                     if curtains.audit(&store,&configuration,&worker_boot,now).is_err(){failed=true;let _=arbiter.storage_failed();curtains.invalidate();}
                     match message {
+                        Message::MotorRuleLease(controller,generation,requests,reply)=>{
+                            let result=(|| {
+                                if !authorize(controller){return Err(WriteStatus::InsufficientPrivileges);}
+                                if failed || generation.boot!=worker_boot || generation.epochs!=arbiter.policy().epochs || !arbiter.policy().gateway_ready || arbiter.policy().publishing {return Err(WriteStatus::ServiceCommunicationFailure);}
+                                let document=store.active_bundle(options.context).map_err(|_|WriteStatus::ServiceCommunicationFailure)?.and_then(|b|b.automation).ok_or(WriteStatus::InsufficientPrivileges)?;
+                                let allowed=document.enabled_motor_requests().map_err(|_|WriteStatus::InvalidValueInRequest)?;
+                                crate::motor_rules::Lease::capture(controller,homesense_core::curtain_state::Scope{boot:observer_boot,epochs:arbiter.policy().epochs},requests,&allowed,&mut curtains,now)
+                            })();let _=reply.send(result);
+                        }
                         Message::CurtainCandidate(controller,generation,device,timing,reply)=>{
                             let result=(|| {
                                 if !authorize(controller){return Err(WriteStatus::InsufficientPrivileges);}
@@ -1197,12 +1211,18 @@ impl Admission {
                             }
                             let now = millis(clock);
                             let result = (|| -> Result<Option<DispatchTicket>, String> {
+                                let allowed=if motor_guards.is_empty(){vec![]}else{store.active_bundle(options.context).map_err(|e|e.to_string())?.and_then(|b|b.automation).ok_or("motor guard document missing")?.enabled_motor_requests().map_err(|e|e.to_string())?};
+                                let scope=homesense_core::curtain_state::Scope{boot:observer_boot,epochs:arbiter.policy().epochs};
+                                let valid:BTreeMap<_,_>=motor_guards.iter_mut().map(|(group,guard)|{
+                                    let authorized=authorize(guard.controller());
+                                    (*group,guard.check(scope,&allowed,&mut curtains,now,authorized))
+                                }).collect();
                                 let access = |command: &QueuedCommand| {
                                         let binding = configuration.binding(&command.device_id);
                                         Access {
                                             authorized: principals
                                                 .get(&command.id)
-                                                .is_some_and(|id| authorize(*id)),
+                                                .is_some_and(|id| authorize(*id)) && motor_guard_ids.get(&command.id).is_none_or(|group|valid.get(group)==Some(&true)),
                                             device_exists: binding.is_some() || module_queries.get(&command.id).is_some_and(|q|q.frame(&configuration,options.context,command.epochs.transport).is_ok()),
                                             device_verified: module_queries.contains_key(&command.id) || binding.is_some_and(|(_, m)| {
                                                 matches!(
@@ -1302,7 +1322,18 @@ impl Admission {
                                     let _ = arbiter.storage_failed();
                                     Err(WriteStatus::ServiceCommunicationFailure)
                                 } else {
-                                    if complete {curtains.written(id,written_ms);} else {curtains.invalidate();}
+                                    if complete {
+                                        // Validate before applying our own write so a different
+                                        // subject changing the owner while in-flight is not absorbed.
+                                        if let Some(group)=motor_guard_ids.get(&id).copied()
+                                            && let Some(guard)=motor_guards.get_mut(&group) {
+                                            let allowed=store.active_bundle(options.context).ok().flatten().and_then(|b|b.automation).and_then(|d|d.enabled_motor_requests().ok()).unwrap_or_default();
+                                            guard.check(homesense_core::curtain_state::Scope{boot:observer_boot,epochs:arbiter.policy().epochs},&allowed,&mut curtains,written_ms,authorize(guard.controller()));
+                                        }
+                                        curtains.written(id,written_ms);
+                                        if let Some(group)=motor_guard_ids.remove(&id)
+                                            && let Some(guard)=motor_guards.get_mut(&group) {guard.own_written(&mut curtains,written_ms);}
+                                    } else {curtains.invalidate();}
                                     in_flight = None;
                                     write_deadline = None;
                                     if !complete {
@@ -1459,6 +1490,14 @@ impl Admission {
                                     } else {persistent_updates.push(update);}
                                 }
                                 let variables=persistent_updates;
+                                if let Some(motor)=feedback.as_ref().and_then(|lease|lease.motor.as_ref()) {
+                                    let document=store.active_bundle(options.context).map_err(|_|WriteStatus::ServiceCommunicationFailure)?.and_then(|b|b.automation).ok_or(WriteStatus::InsufficientPrivileges)?;
+                                    let allowed=document.enabled_motor_requests().map_err(|_|WriteStatus::InvalidValueInRequest)?;
+                                    // Same owner thread, before any queue or variable mutation.
+                                    let controller=match &submission {Submission::Lights(batch)|Submission::NativePhysical(batch)=>batch.controller,_=>return Err(WriteStatus::InvalidValueInRequest)};
+                                    if !authorize(controller){return Err(WriteStatus::InsufficientPrivileges);}
+                                    motor.validate(controller,homesense_core::curtain_state::Scope{boot:observer_boot,epochs:arbiter.policy().epochs},&allowed,&mut curtains,millis(clock))?;
+                                }
                                 let _feedback_guard = feedback.as_ref().map(|lease|lease.lock(
                                     Uuid::parse_str(&worker_boot).map_err(|_|WriteStatus::ServiceCommunicationFailure)?.as_u128(),
                                     configuration.revision(), arbiter.policy().epochs.transport, millis(clock))
@@ -1470,6 +1509,7 @@ impl Admission {
                                         }
                                     }
                                 }
+                                let motor_queue_lease=feedback.as_ref().and_then(|lease|lease.motor.clone());
                                 let mut restore_intents = Vec::new();
                                 let (batch, compiled) = match submission {
                                     Submission::Study { .. } | Submission::Automation { .. } | Submission::Indicator { .. } | Submission::Native(_) => unreachable!(),
@@ -1502,7 +1542,14 @@ impl Admission {
                                                 }
                                             } else {
                                                 if let Some(labels) = &mut expanded_sources {labels.push(command_sources.as_ref().expect("validated labels")[index].clone());}
-                                                expanded.push(homesense_hap::requests::Intent { device: intent.device, command: if software_sample || automation && matches!(intent.command, homesense_core::Command::PanelLed(_) | homesense_core::Command::PauseRamp) {intent.command} else {crate::light_command::plan(module, intent.command).map_err(|_| WriteStatus::InvalidValueInRequest)?} });
+                                                let command=if automation && let homesense_core::Command::Motor(motion)=intent.command {
+                                                    // Configuration lowered logical direction; independently
+                                                    // require current calibrated motor scope at admission.
+                                                    configuration.motor_command(&intent.device,homesense_core::MotorAction::Stop).map_err(|_|WriteStatus::InvalidValueInRequest)?;
+                                                    homesense_core::Command::Motor(motion)
+                                                } else if software_sample || automation && matches!(intent.command,homesense_core::Command::PanelLed(_)|homesense_core::Command::PauseRamp){intent.command}
+                                                else {crate::light_command::plan(module,intent.command).map_err(|_|WriteStatus::InvalidValueInRequest)?};
+                                                expanded.push(homesense_hap::requests::Intent{device:intent.device,command});
                                             }
                                         }
                                         command_sources = expanded_sources;
@@ -1627,6 +1674,10 @@ impl Admission {
                                             principals.remove(&cancellation.command.id);
                                         }
                                         for command in &curtain_commands {curtains.accepted(&configuration,command,batch.controller,now);}
+                                        if next_id<end && let Some(lease)=motor_queue_lease {
+                                            motor_guards.insert(next_id,crate::motor_rules::QueuedLease::admitted(lease,&mut curtains,now));
+                                            for id in next_id..end {motor_guard_ids.insert(id,next_id);}
+                                        }
                                         let ids = (next_id..end).collect();
                                         next_id = end;
                                         Ok(ids)
@@ -1944,6 +1995,10 @@ impl Admission {
     /// device-scoped grants; inference is never a substitute for authorization.
     pub async fn curtain_views(&self,controller:Uuid,generation:TaskGeneration,ids:Vec<homesense_core::DeviceId>)->Result<BTreeMap<homesense_core::DeviceId,crate::curtain_owner::View>,WriteStatus> {
         Ok(self.curtain_snapshots(controller,generation,ids).await?.into_iter().map(|(id,s)|(id,s.into())).collect())
+    }
+    pub(crate) async fn motor_rule_lease(&self,controller:Uuid,generation:TaskGeneration,requests:Vec<homesense_core::rule_motor::Request>)->Result<crate::motor_rules::Lease,WriteStatus> {
+        let (tx,rx)=oneshot::channel();self.sender.try_send(Message::MotorRuleLease(controller,generation,requests,tx)).map_err(|_|WriteStatus::ResourceBusy)?;
+        rx.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?
     }
     pub(crate) async fn curtain_snapshots(&self,controller:Uuid,generation:TaskGeneration,ids:Vec<homesense_core::DeviceId>)->Result<BTreeMap<homesense_core::DeviceId,homesense_core::curtain_state::Snapshot>,WriteStatus> {
         if ids.len()>256{return Err(WriteStatus::InvalidValueInRequest);}

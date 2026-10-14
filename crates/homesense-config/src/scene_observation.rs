@@ -86,6 +86,7 @@ impl Settings {
                     tests.iter().any(|t| condition(t, variables))
                 }
                 Condition::Unknown(expr) => expression(expr, variables),
+                Condition::MotorState(_)=>false,
             }
         }
         fn reads(nodes: &[Node], variables: &BTreeSet<&str>) -> bool {
