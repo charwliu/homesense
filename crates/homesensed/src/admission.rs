@@ -245,6 +245,7 @@ enum Message {
     ),
     ManualFence(oneshot::Sender<u64>),
     ManualSuperseded(homesense_core::DeviceId, u64, oneshot::Sender<bool>),
+    MotorReceipts(Uuid,TaskGeneration,homesense_core::DeviceId,homesense_core::MotorAction,Vec<u64>,oneshot::Sender<Result<Vec<homesense_storage::journal::MotorReceipt>,WriteStatus>>),
     CommandStatuses(
         Uuid,
         TaskGeneration,
@@ -657,6 +658,14 @@ impl Admission {
                             else if generation.boot!=worker_boot{Err(WriteStatus::ServiceCommunicationFailure)}
                             else{store.rule_chain(&worker_boot,correlation,after,limit).map_err(|_|WriteStatus::ServiceCommunicationFailure)};
                             let _=reply.send(result);
+                        }
+                        Message::MotorReceipts(controller,generation,device,action,ids,reply)=>{
+                            let result=(|| {
+                                if !authorize(controller) {return Err(WriteStatus::InsufficientPrivileges)}
+                                if failed || generation.boot!=worker_boot || generation.epochs!=arbiter.policy().epochs || !arbiter.policy().gateway_ready || arbiter.policy().publishing {return Err(WriteStatus::ServiceCommunicationFailure)}
+                                let command=configuration.motor_command(&device,action).map_err(|_|WriteStatus::InvalidValueInRequest)?;
+                                ids.into_iter().map(|id|store.motor_receipt(&worker_boot,id,&device,command,generation.epochs).map_err(|_|WriteStatus::ServiceCommunicationFailure)?.ok_or(WriteStatus::ResourceDoesNotExist)).collect()
+                            })();let _=reply.send(result);
                         }
                         Message::CommandStatuses(controller, generation, ids, reply) => {
                             let result = (|| {
@@ -1881,6 +1890,12 @@ impl Admission {
         receive
             .await
             .map_err(|_| WriteStatus::ServiceCommunicationFailure)?
+    }
+    pub(crate) async fn motor_receipts(&self,controller:Uuid,generation:TaskGeneration,device:homesense_core::DeviceId,action:homesense_core::MotorAction,ids:Vec<u64>)->Result<Vec<homesense_storage::journal::MotorReceipt>,WriteStatus> {
+        if ids.is_empty() || ids.len()>128 {return Err(WriteStatus::InvalidValueInRequest)}
+        let (reply,receive)=oneshot::channel();
+        self.sender.try_send(Message::MotorReceipts(controller,generation,device,action,ids,reply)).map_err(|_|WriteStatus::ResourceBusy)?;
+        receive.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?
     }
     pub(crate) async fn command_statuses(
         &self,
