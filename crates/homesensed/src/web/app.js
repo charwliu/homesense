@@ -215,13 +215,16 @@ function createDeviceCard(device) {
   };
   const button=(label,command)=>{
     const node=document.createElement('button');node.textContent=label;
-    node.onclick=()=>send(command);card.buttons.push(node);card.row.append(node);
+    node.onclick=()=>send(command);card.buttons.push(node);card.row.append(node);return node;
   };
   if(device.kind==='Motor') {
     for(const [action,label] of [['open','打开'],['close','关闭'],['stop','停止']])button(label,{action});
   }
   if(device.kind==='Switch'||device.kind==='Dimmer') {
-    for(const on of [true,false])button(on?'开':'关',{action:'power',on});
+    for(const on of [true,false]) {
+      const node=button(on?'开':'关',{action:'power',on});
+      if(!on)card.powerOff=node;
+    }
   }
   if(device.kind==='Dimmer') {
     card.slider=document.createElement('input');card.slider.type='range';card.slider.min='0';card.slider.max='100';card.slider.step='1';
@@ -279,6 +282,7 @@ function renderDevices() {
       card.value.textContent=level===undefined?'亮度未知':`${card.target?'目标亮度':'亮度'} ${level}%${suffix}`;
       card.slider.setAttribute('aria-valuetext',card.value.textContent);
     }
+    if(card.powerOff && device.quality==='Confirmed' && device.pending===null && device.state_authority!=='pending_target' && device.observed?.on===false && !card.target)card.powerOff.disabled=true;
     if(!selectedRoom || selectedRoom===(device.room?'room:'+device.room.id:'none'))rows.push(card.row);
   }
   // Keep the native slider attached during live feedback so touch dragging is not cancelled.
