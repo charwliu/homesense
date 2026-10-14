@@ -1,0 +1,16 @@
+{
+  "scope": "Source-empty event classification without runtime activation",
+  "checks": {
+    "source_roots_rechecked": true,
+    "classification_consistent_with_source": true,
+    "automatic_activation_unchanged": true,
+    "unrelated_records_unchanged": true
+  },
+  "boundaries": {
+    "new_runtime_rules": 0,
+    "new_field_actions": 0,
+    "new_semantic_approval": false,
+    "stage_d_complete": false
+  },
+  "privacy": "Original project, event identities, bindings, source fingerprints and detailed disposition evidence remain local."
+}
