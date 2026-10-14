@@ -223,7 +223,7 @@ function createDeviceCard(device) {
   if(device.kind==='Switch'||device.kind==='Dimmer') {
     for(const on of [true,false]) {
       const node=button(on?'开':'关',{action:'power',on});
-      if(!on)card.powerOff=node;
+      if(on)card.powerOn=node;else card.powerOff=node;
     }
   }
   if(device.kind==='Dimmer') {
@@ -282,7 +282,10 @@ function renderDevices() {
       card.value.textContent=level===undefined?'亮度未知':`${card.target?'目标亮度':'亮度'} ${level}%${suffix}`;
       card.slider.setAttribute('aria-valuetext',card.value.textContent);
     }
-    if(card.powerOff && device.quality==='Confirmed' && device.pending===null && device.state_authority!=='pending_target' && device.observed?.on===false && !card.target)card.powerOff.disabled=true;
+    if(card.powerOn && card.powerOff && device.quality==='Confirmed' && device.pending===null && device.state_authority!=='pending_target' && !card.target) {
+      if(device.observed?.on===true)card.powerOn.disabled=true;
+      if(device.observed?.on===false)card.powerOff.disabled=true;
+    }
     if(!selectedRoom || selectedRoom===(device.room?'room:'+device.room.id:'none'))rows.push(card.row);
   }
   // Keep the native slider attached during live feedback so touch dragging is not cancelled.

@@ -19,6 +19,16 @@ for(const kind of ['Dimmer','Switch']) {
  row=set({...off,can_control:false});assert.equal(row.children[2].disabled,true);assert.equal(row.children[3].disabled,true,'permission gate remains authoritative');
  row=set(off);vm.runInContext("deviceCards.get('lamp').busy=true;renderDevices()",context);assert.equal(row.children[2].disabled,true);assert.equal(row.children[3].disabled,true);
  vm.runInContext("deviceCards.get('lamp').busy=false",context);
+ // Reuse the same card while state changes; stale disabled flags must reset.
+ for(const on of [false,true,false,true]) {
+  const actual={...off,observed:{on,level:on?17:0},reported:{on:!on,level:on?0:100}};
+  row=set(actual);assert.equal(row.children[2].disabled,on,'actual On disables only power-On');assert.equal(row.children[3].disabled,!on,'state transition re-enables the opposite action');
+  for(const patch of [{quality:'Unknown'},{quality:'Stale'},{observed:null},{observed:{on:null}},{pending:{command:1}},{state_authority:'pending_target'}]) {
+   row=set({...actual,...patch});assert.equal(row.children[2].disabled,false);assert.equal(row.children[3].disabled,false,'unavailable or pending state cannot be inferred from reported values');
+  }
+  row=set({...actual,can_control:false});assert.equal(row.children[2].disabled,true);assert.equal(row.children[3].disabled,true);
+  row=set(actual);vm.runInContext("deviceCards.get('lamp').busy=true;renderDevices()",context);assert.equal(row.children[2].disabled,true);assert.equal(row.children[3].disabled,true);vm.runInContext("deviceCards.get('lamp').busy=false",context);
+ }
 }
 row=set({...dimmer,observed:{on:false,level:0},reported:{on:false,level:100},state_authority:'feedback'});
 for(const phase of ['editing','sending','submitted','uncertain']) {
@@ -26,5 +36,10 @@ for(const phase of ['editing','sending','submitted','uncertain']) {
 }
 vm.runInContext("deviceCards.get('lamp').target=null;renderDevices()",context);assert.equal(row.children[3].disabled,true);
 vm.runInContext("deviceCards.get('lamp').target={level:0,phase:'submitted'}",context);row=set({...dimmer,observed:{on:false,level:0},reported:{on:false,level:0},state_authority:'feedback'});assert.equal(row.children[3].disabled,true,'completed local Off must disable the button on the same render');
+row=set({...dimmer,observed:{on:true,level:17},reported:{on:true,level:17},state_authority:'feedback'});
+for(const phase of ['editing','sending','submitted','uncertain']) {
+ context.phase=phase;vm.runInContext("deviceCards.get('lamp').target={level:30,phase};renderDevices()",context);assert.equal(row.children[2].disabled,false);assert.equal(row.children[3].disabled,false,'unresolved local On target preserves both actions');
+}
+vm.runInContext("deviceCards.get('lamp').target={level:17,phase:'submitted'};renderDevices()",context);assert.equal(row.children[2].disabled,true);assert.equal(row.children[3].disabled,false,'completed local On disables power-On on the same render');
 context.markEventStateUnavailable('fixture disconnect');row=get('devices').children[0];assert.equal(row.children[2].disabled,true);assert.equal(row.children[3].disabled,true,'disconnect disables all controls');
-console.log('Bounded targets, steady actual feedback, Off-only button disable and pending/permission/busy/disconnect guards: passed');
+console.log('Bounded targets, actual On/Off button disable, state transitions and pending/permission/busy/disconnect guards: passed');
