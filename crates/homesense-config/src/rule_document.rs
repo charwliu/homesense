@@ -515,6 +515,38 @@ impl Compiler<'_> {
     }
 }
 impl Document {
+    /// A reviewed curtain owns its fixed logical LED outputs exclusively across
+    /// both configuration documents. Disabled source rules remain review data.
+    fn validate_curtain_led_owners(&self,config:&Configuration)->Result<(),Error> {
+        let owned:std::collections::BTreeSet<_>=config.devices().values().filter_map(|d|d.curtain_state.as_ref())
+            .flat_map(|s|s.leds.open.iter().chain(&s.leds.close).chain(&s.leds.stop)).collect();
+        if owned.is_empty(){return Ok(());}
+        let check=|id:&DeviceId,command:Command| {
+            if matches!(command,Command::PanelLed(_)) && owned.contains(id) {
+                Err(invalid("curtain LED has an independent enabled automation owner"))
+            } else {Ok(())}
+        };
+        for link in self.indicator_links.iter().filter(|l|l.enabled) {
+            for id in &link.leds {check(id,Command::PanelLed(false))?;}
+        }
+        for scene in self.timed_scenes.values().filter(|s|s.enabled) {
+            for step in &scene.steps {check(&step.device,step.command)?;}
+        }
+        fn walk(actions:&[Node],check:&impl Fn(&DeviceId,Command)->Result<(),Error>)->Result<(),Error> {
+            for node in actions {
+                match &node.action {
+                    Action::Command{device,command}=>check(device,*command)?,
+                    Action::If{then_actions,else_actions,..}=>{walk(then_actions,check)?;walk(else_actions,check)?;},
+                    _=>{},
+                }
+            }Ok(())
+        }
+        for scene in self.immediate_scenes.values() {
+            walk(&scene.activate,&check)?;if let Some(off)=&scene.deactivate{walk(off,&check)?;}
+        }
+        for rule in self.rules.iter().filter(|r|r.enabled){walk(&rule.actions,&check)?;}
+        Ok(())
+    }
     pub fn parse(bytes: &[u8], config: &Configuration) -> Result<Self, Error> {
         if bytes.len() > 4 * 1024 * 1024 {
             return Err(invalid("automation document too large"));
@@ -845,6 +877,7 @@ impl Document {
             indicator_links:input.indicator_links,
             scene_observation:input.scene_observation,
         };
+        document.validate_curtain_led_owners(config)?;
         if let Some(settings)=&document.scene_observation {settings.validate_linked(&document)?;}
         Ok(document)
     }

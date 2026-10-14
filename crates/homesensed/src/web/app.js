@@ -271,7 +271,17 @@ function renderDevices() {
     card.info.textContent=reported==null?'状态未知':`${reported.on?'开':'关'}${reported.level===undefined?'':' · '+reported.level+'%'}${device.state_authority==='pending_target'?' · 调光目标':''}`;
     if(device.state_authority==='pending_target' && device.observed?.level!==undefined && reported?.level!==device.observed.level)card.info.textContent+=` · 当前读回 ${device.observed.level}%`;
     card.info.textContent+=` · ${device.quality}${device.pending===null?'':' · 等待反馈'}`;
-    if(device.kind==='Motor')card.info.textContent='位置未知 · '+(device.motor_calibrated?'方向和停止已校准':'尚未校准');
+    if(device.kind==='Motor') {
+      const estimate=device.motor_estimate;
+      const movement={Opening:'估计正在打开',Closing:'估计正在关闭',Stopped:'估计已停止'};
+      const position={Open:'估计全开',Closed:'估计全关',Intermediate:'估计中间位置'};
+      const parts=[estimate?.movement?movement[estimate.movement]:'运动未知',estimate?.position?position[estimate.position]:'位置未知'];
+      if(estimate?.percent_hundredths!=null)parts.push(`估计 ${estimate.percent_hundredths/100}%`);
+      if(estimate?.pending)parts.push('命令待写出');
+      if(estimate?.stop_led_active!=null)parts.push(estimate.stop_led_active?'停止键活动提示：红':'停止键活动提示：绿');
+      parts.push(device.motor_calibrated?'方向和停止已校准':'尚未校准');
+      card.info.textContent=parts.join(' · ');
+    }
     for(const button of card.buttons)button.disabled=!device.can_control || card.busy;
     if(card.slider) {
       if(card.target?.phase==='submitted' && device.pending===null && reported?.level===card.target.level)card.target=null;
