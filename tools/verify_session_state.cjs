@@ -2,10 +2,10 @@
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const elements=new Map();
 const element=id=>{if(!elements.has(id))elements.set(id,{value:'',disabled:false,hidden:false,textContent:'',addEventListener(){},replaceChildren(){this.textContent='';}});return elements.get(id);};
-const pending=[],sockets=[],channels=[];
+const pending=[],sockets=[],channels=[],timers=[];
 class Channel {constructor(name){assert.equal(name,'homesense-session');channels.push(this);this.messages=[];}postMessage(value){this.messages.push(value)}}
 class Socket {constructor(){sockets.push(this)}close(){this.onclose?.()}send(){}}
-const context=vm.createContext({BroadcastChannel:Channel,document:{getElementById:element},fetch:(path,options)=>new Promise((resolve,reject)=>pending.push({path,options,resolve,reject})),clearTimeout(){},setTimeout(){throw Error('obsolete socket reconnected')},WebSocket:Socket,location:{origin:'http://127.0.0.1:1'}});
+const context=vm.createContext({BroadcastChannel:Channel,document:{getElementById:element},fetch:(path,options)=>new Promise((resolve,reject)=>pending.push({path,options,resolve,reject})),clearTimeout(timer){if(timer)timer.active=false;},setTimeout(fn,delay){const timer={fn,delay,active:true};timers.push(timer);return timer;},WebSocket:Socket,location:{origin:'http://127.0.0.1:1'}});
 vm.runInContext(fs.readFileSync(require('node:path').join(__dirname,'../crates/homesensed/src/web/app.js'),'utf8'),context);
 (async()=>{
  vm.runInContext("csrf='synthetic';connectEvents()",context);
@@ -18,6 +18,7 @@ vm.runInContext(fs.readFileSync(require('node:path').join(__dirname,'../crates/h
  pending[0].resolve({ok:true,json:async()=>({versions:[{revision:'private'}]})});await rejected;
  oldSocket.onmessage({data:JSON.stringify({type:'state',reset:true,devices:[{id:'old-device'}],scenes:[]})});oldSocket.onclose();
  assert.equal(vm.runInContext('eventDevices.size',context),0);
+ const afterLogoutSockets=sockets.length;assert.ok(timers.every(timer=>!timer.active));for(const timer of timers)timer.fn();assert.equal(sockets.length,afterLogoutSockets);assert.equal(pending.length,2,'cancelled watchdogs cannot reconnect after logout');
  assert.equal(element('versions').textContent,'');assert.equal(vm.runInContext('csrf',context),'');
  vm.runInContext("csrf='new-session';connectEvents()",context);
  element('issue-result').textContent='synthetic-secret';element('device-document').value='private-config';element('configuration').hidden=false;element('diagnostics').hidden=false;

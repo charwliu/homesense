@@ -164,7 +164,7 @@ document.getElementById('connect').onclick = async () => {
 };
 function clearLocalSession() {
   ++sessionEpoch;clearModules();deviceCards.clear();sceneActionBusy=false;clearCredentialCreation();invalidatePreview();
-  csrf = ''; observedRevision=null;lastSceneSnapshot=null; clearTimeout(eventRetry); if(eventSocket)eventSocket.close();eventDevices.clear(); selectedRoom='';document.getElementById('room-filter').replaceChildren();document.getElementById('room-filter').value=''; document.getElementById('draft-impact').textContent=''; document.getElementById('configuration').hidden=true;document.getElementById('diagnostics').hidden=true;historyEpoch++;detailEpoch++;document.getElementById('run-details').replaceChildren();document.getElementById('scene-history').hidden=true;document.getElementById('history-runs').replaceChildren();document.getElementById('history-title').textContent='';document.getElementById('history-next').disabled=true; document.getElementById('runtime-result').textContent='';document.getElementById('calendar-result').textContent='';document.getElementById('credential-list').textContent='';document.getElementById('revoke-credential-id').value='';document.getElementById('revoke-credential-confirm').checked=false;document.getElementById('revoke-credential-result').textContent='';document.getElementById('backup-result').textContent='';document.getElementById('backup-actions').replaceChildren();backupInspectionEpoch++;document.getElementById('backup-inspection').textContent='';document.getElementById('versions').replaceChildren();document.getElementById('draft-list').replaceChildren(); versionsBefore=null;document.getElementById('more-versions').disabled=true; metadataSource=null;clearCalibration();document.getElementById('binding-enabled').checked=false;for(const id of ['binding-module-id','binding-gateway','binding-address','binding-channel'])document.getElementById(id).value='';document.getElementById('metadata-device').replaceChildren();document.getElementById('metadata-room').replaceChildren();document.getElementById('edit-room-select').replaceChildren();document.getElementById('metadata-name').value=''; for(const id of ['device-document','automation-document','draft-id','base-revision','draft-revision','edit-room-id','edit-room-name','edit-room-floor']) document.getElementById(id).value=''; started.clear(); list.replaceChildren(); document.getElementById('devices').replaceChildren();
+  csrf = ''; stopEventConnection();eventAttempts=0; observedRevision=null;lastSceneSnapshot=null;eventDevices.clear(); selectedRoom='';document.getElementById('room-filter').replaceChildren();document.getElementById('room-filter').value=''; document.getElementById('draft-impact').textContent=''; document.getElementById('configuration').hidden=true;document.getElementById('diagnostics').hidden=true;historyEpoch++;detailEpoch++;document.getElementById('run-details').replaceChildren();document.getElementById('scene-history').hidden=true;document.getElementById('history-runs').replaceChildren();document.getElementById('history-title').textContent='';document.getElementById('history-next').disabled=true; document.getElementById('runtime-result').textContent='';document.getElementById('calendar-result').textContent='';document.getElementById('credential-list').textContent='';document.getElementById('revoke-credential-id').value='';document.getElementById('revoke-credential-confirm').checked=false;document.getElementById('revoke-credential-result').textContent='';document.getElementById('backup-result').textContent='';document.getElementById('backup-actions').replaceChildren();backupInspectionEpoch++;document.getElementById('backup-inspection').textContent='';document.getElementById('versions').replaceChildren();document.getElementById('draft-list').replaceChildren(); versionsBefore=null;document.getElementById('more-versions').disabled=true; metadataSource=null;clearCalibration();document.getElementById('binding-enabled').checked=false;for(const id of ['binding-module-id','binding-gateway','binding-address','binding-channel'])document.getElementById(id).value='';document.getElementById('metadata-device').replaceChildren();document.getElementById('metadata-room').replaceChildren();document.getElementById('edit-room-select').replaceChildren();document.getElementById('metadata-name').value=''; for(const id of ['device-document','automation-document','draft-id','base-revision','draft-revision','edit-room-id','edit-room-name','edit-room-floor']) document.getElementById(id).value=''; started.clear(); list.replaceChildren(); document.getElementById('devices').replaceChildren();
 }
 document.getElementById('logout').onclick = async () => {
   if(sessionBusy)return;sessionBusy=true;
@@ -362,6 +362,7 @@ document.getElementById('confirm-publication').onclick=async()=>{
 };
 
 let eventSocket=null, eventCursor=null, eventRetry=null, eventAttempts=0;
+let eventGeneration=0, eventWatchdog=null, eventProbe=null;
 const eventDevices=new Map();
 function markEventStateUnavailable(message,reason='runtime_unavailable') {
   deviceSnapshotEpoch++;sceneSnapshotEpoch++;deviceCards.clear();invalidatePreview();
@@ -370,38 +371,102 @@ function markEventStateUnavailable(message,reason='runtime_unavailable') {
   if(lastSceneSnapshot)renderScenes({...lastSceneSnapshot,scenes:lastSceneSnapshot.scenes.map(scene=>({...scene,selected:null,selection_state:{state:'unavailable',value:reason},observation_current:scene.selection_source==='inferred'?false:scene.observation_current,activity:'Unknown',can_control:false}))});
   status.textContent=message;
 }
+function eventNetworkAvailable() {
+  return typeof navigator==='undefined' || navigator.onLine!==false;
+}
+function stopEventConnection() {
+  ++eventGeneration;clearTimeout(eventRetry);clearTimeout(eventWatchdog);
+  eventRetry=null;eventWatchdog=null;eventCursor=null;
+  const probe=eventProbe;eventProbe=null;probe?.abort();
+  const socket=eventSocket;eventSocket=null;
+  if(socket)try {socket.close();} catch(_) { /* Already closed or incomplete handshake. */ }
+}
+function scheduleEventRecovery() {
+  stopEventConnection();if(!csrf || !eventNetworkAvailable())return;
+  const epoch=sessionEpoch,generation=eventGeneration;
+  // Keep read-only retries at a capped interval; a lost online event must not
+  // permanently strand a still-valid session after the fast attempts finish.
+  eventAttempts=Math.min(eventAttempts+1,6);
+  eventRetry=setTimeout(()=>{
+    if(epoch===sessionEpoch && generation===eventGeneration && csrf)recoverEvents();
+  },Math.min(10000,500*2**eventAttempts));
+}
+async function recoverEvents(resetAttempts=false) {
+  if(!csrf)return;
+  stopEventConnection();if(resetAttempts)eventAttempts=0;
+  markEventStateUnavailable(eventNetworkAvailable()?'正在重新连接并读取最新状态。':'网络已断开，等待联网后恢复状态。');
+  if(!eventNetworkAvailable())return;
+  const epoch=sessionEpoch,generation=eventGeneration;
+  const current=()=>epoch===sessionEpoch && generation===eventGeneration && !!csrf;
+  const probe=new AbortController();eventProbe=probe;
+  const timeout=setTimeout(()=>probe.abort(),5000);
+  try {
+    // Validate the existing cookie only: never create a session or replay a
+    // control/configuration request. A 401 clears the UI through request().
+    await request('/api/v1/session',{signal:probe.signal});
+    if(current() && eventNetworkAvailable())connectEvents();
+  } catch(_) {
+    if(current())scheduleEventRecovery();
+  } finally {
+    clearTimeout(timeout);if(eventProbe===probe)eventProbe=null;
+  }
+}
 function connectEvents() {
-  clearTimeout(eventRetry);if(!csrf)return;
-  if(eventSocket){eventSocket.onclose=null;eventSocket.close();}
-  const epoch=sessionEpoch;
-  const socket=new WebSocket(location.origin.replace(/^http/,'ws')+'/api/v1/events');eventSocket=socket;
-  const current=()=>epoch===sessionEpoch && eventSocket===socket && !!csrf;
-  socket.onopen=()=>{if(current())socket.send(JSON.stringify({cursor:eventCursor}));};
+  stopEventConnection();if(!csrf || !eventNetworkAvailable())return;
+  const epoch=sessionEpoch,generation=eventGeneration;
+  let socket;
+  try {socket=new WebSocket(location.origin.replace(/^http/,'ws')+'/api/v1/events');}
+  catch(_) {markEventStateUnavailable('事件连接暂时不可用，正在重新连接。');scheduleEventRecovery();return;}
+  eventSocket=socket;
+  const current=()=>epoch===sessionEpoch && generation===eventGeneration && eventSocket===socket && !!csrf;
+  let awaitingState=true;
+  eventWatchdog=setTimeout(()=>{
+    if(current() && awaitingState) {
+      markEventStateUnavailable('事件快照尚未到达，正在重新连接。');scheduleEventRecovery();
+    }
+  },10000);
+  socket.onopen=()=>{if(current())socket.send(JSON.stringify({cursor:null}));};
   socket.onmessage=event=>{
     if(!current())return;
     try {
       const frame=JSON.parse(event.data);
       if(frame.type==='unavailable') {
+        awaitingState=true;eventCursor=null;
+        clearTimeout(eventWatchdog);eventWatchdog=null;
         const reason=frame.selection_state?.state==='unavailable'?frame.selection_state.value:'runtime_unavailable';
         markEventStateUnavailable(selectionUnavailableMessage(reason),reason);return;
       }
       if(frame.type!=='state')return;
+      if(awaitingState && frame.reset!==true)throw new Error('需要完整事件快照');
       if(!observeRevision(frame.revision))return;
       deviceSnapshotEpoch++;
       if(frame.reset)eventDevices.clear();
       for(const device of frame.devices)eventDevices.set(device.id,device);
       renderDevices();renderScenes({scenes:frame.scenes,revision:frame.revision});eventCursor=frame.cursor;eventAttempts=0;
-    } catch(error){status.textContent='事件更新失败，请刷新状态。';socket.close();}
+      if(awaitingState)status.textContent='事件已连接，状态已更新。';
+      awaitingState=false;clearTimeout(eventWatchdog);eventWatchdog=null;
+    } catch(_) {
+      markEventStateUnavailable('事件更新失败，正在重新读取状态。');scheduleEventRecovery();
+    }
   };
   socket.onclose=()=>{
     if(!current())return;
-    eventCursor=null;
-    // A revoked/expired session must clear private UI, while network failures retry.
-    request('/api/v1/session').catch(()=>{});
     markEventStateUnavailable('事件连接已断开，正在重新连接；设备状态待确认。');
-    if(++eventAttempts>6){status.textContent='事件连接已断开，请重新登录。';return;}
-    eventRetry=setTimeout(()=>{if(current())connectEvents();},Math.min(10000,500*2**eventAttempts));
+    scheduleEventRecovery();
   };
+}
+if(typeof globalThis.addEventListener==='function') {
+  globalThis.addEventListener('offline',()=>{
+    if(!csrf)return;stopEventConnection();
+    markEventStateUnavailable('网络已断开，等待联网后恢复状态。');
+  });
+  globalThis.addEventListener('online',()=>{recoverEvents(true);});
+  globalThis.addEventListener('pageshow',()=>{recoverEvents(true);});
+}
+if(typeof document.addEventListener==='function') {
+  document.addEventListener('visibilitychange',()=>{
+    if(document.visibilityState==='visible')recoverEvents(true);
+  });
 }
 
 async function loadVersions(before=null) {
