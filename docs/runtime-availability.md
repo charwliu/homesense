@@ -1,5 +1,7 @@
 # 持续服务的网关故障隔离
 
+2026-10-16 取消身份的最小私有修复已限定核查：每个新Control请求通道分配独立UUID，clone/不可用视图保留；新场景回执记录runtime_instance，取消先核对boot/rev/实例，缺失或不同实例409，原请求格式不变。原3项Web场景及新增1项回归通过，包含四种无效实例、同实例合法取消/重放，严格全目标包Clippy通过。实际普通CLI在同一固定反例中仍重用数字run1，但旧A取消已409、新B精确UUID保留并到期Written，随后新B延迟动作也写出。完整隔离契约仍101，不能将此小修复当作完整多网关通过。补丁交由整合修复，尚未合入/部署/全工作区回归。见[私有取消修复](evidence/stage-e-browser/stale-scene-cancel-private-fix-root-check.json)。
+
 2026-10-16 原取消回执与新场景发生实际别名：正式CLI同boot/rev恢复后，旧A和新B数字run均为1，但持久UUID不同；引用旧A start_request_id的取消请求返回cancelled1，并把新B精确UUID从pending改为cancelled/cancel_requested，到期没有新B60命令或线帧。另一个新B延迟场景随后真实Written，排除定时路径不可用。现有API只校验boot/rev、运行时只校验数字run/controller，不能保证原目标身份；须绑定持久身份或不可复用代次，保留合法取消及来源授权。实际契约101、后端SIGTERM0，无夹具错误；仅证同测试管理员误取消，不声称跨角色扩权。修复私有进行，现网未改，D/E继续开放。见[旧取消回执反例](evidence/stage-e-browser/stale-scene-cancel-root-gap.json)。
 
 2026-10-16 延迟场景隔离已补实际反例：两个独立回环AD8各接受一个5秒后60%的场景，源UUID逐项对应API last_run；仅A故障即让纯B场景也以transport_failure取消，到期零B60帧。恢复后新B40即时命令和新B60延迟场景均有真实线帧/对应Written账目，旧A动作没有恢复重放。严格契约101、后端正常SIGTERM0、无假网关或未分类探针错误；早期AD8指令模式和数字句柄/UUID夹具错误单独保留。修复须保留健康网关既有时间线及其原时限/授权，不能只让新即时开关可用；共享预算、STOP和发布屏障仍须保留。未改现网，D/E仍开放。见[延迟场景反例](evidence/stage-e-browser/multi-gateway-delayed-scene-root-gap.json)。
