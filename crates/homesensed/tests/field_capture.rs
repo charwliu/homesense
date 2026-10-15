@@ -4,7 +4,7 @@ use homesense_core::{BusAddress, ModuleSpec, Observation, ProtocolProfile, Verif
 #[test]
 fn recorded_ts6_events_survive_every_fragment_size_without_losing_releases() {
     let rows: Vec<hap::serde_json::Value> =
-        include_str!("../../../deployment/nanopc/evidence/20261010-a3/panel-a3-listen.jsonl")
+        include_str!("fixtures/site-captures/panel-a3-listen.jsonl")
             .lines()
             .map(|s| hap::serde_json::from_str(s).unwrap())
             .collect();

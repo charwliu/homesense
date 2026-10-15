@@ -1,3 +1,5 @@
+2026-10-16 最终候选检查发现旧回归仍依赖已清理的两份部署记录，造成Clippy编译失败。Root将3358字节原HEAD夹具逐字迁入测试目录，仅改include路径，237处字面include已无缺失；原断言、测试数及其他清理改动保持。此时只完成输入修正，实际Rust回归及Clippy尚待缓存持有者重验，不以路径核对冒充全量通过。见[夹具迁移核查](evidence/stage-e-browser/regression-fixture-cleanup-root-check.json)。
+
 2026-10-16 D复合变量分支已补证：七个准确源事件的11步合成连续执行保留4／40／100叠加及移除顺序，2128份变量投影与两种已知反馈组合同源守卫归约一致。结果支持逐分支建模，不能把变量视为临时清零标记或通用位异或；零初值、事件间成功效果不冒充原运行初始化或异步语义。首两次漏读OR44的人工预期失败保留，未新增原程序批准、启用规则或现场动作，65／208／24剩余范围保持。见[连续分支核查](evidence/stage-d-study/composite-variable-transition-root-check.json)。
 
 2026-10-15 App实际Rust联调补齐：当前4dc1284功能输入34份冻结不变，Root启用两项原跳过测试，用固定f27a6b6普通后端程序独立运行完整Swift套件，77方法／13套件、0跳过、0失败。真实HTTPS管理发布及URLSession WSS推送、空闲保活、六键父卡／LED／参数与草稿隔离均通过。HTTP使用curl及临时CA，WSS使用真实URLSession和仅本夹具CA，不据此证明默认HTTP系统信任、真实Keychain或手机安装；也不覆盖尚未交付的LED修复。见[实际联调核查](evidence/stage-e-browser/native-current-integration-root-check.json)。

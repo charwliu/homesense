@@ -232,7 +232,8 @@
     "stage-e-browser/native-grant-refresh-root-check.json": "d68e8cf1764c5faf4d364aaf5d729bcf9082791ae28ef07cad0cf7fb9f185b4c",
     "stage-e-browser/native-cold-restore-root-check.json": "a02523eb029b4f11b3857c6013d8b2d3e962aca04e0fb2d2a2f8cce2e5325ca6",
     "stage-e-browser/native-current-integration-root-check.json": "2a4bdbc842d4286d82ad0dbd31e11ecc598b87f0a2fc2baae481e08f09e0bebf",
-    "stage-d-study/composite-variable-transition-root-check.json": "67dd83af3e63fb7f130e712c1368f3361784930ea2c52588e6af8b68dc3cc4d9"
+    "stage-d-study/composite-variable-transition-root-check.json": "67dd83af3e63fb7f130e712c1368f3361784930ea2c52588e6af8b68dc3cc4d9",
+    "stage-e-browser/regression-fixture-cleanup-root-check.json": "17cfbc1663dcecc58a654c94298a84ea6e69c50d1beec7fadbe2fca7f1a15fec"
   },
   "excluded_by_scope": {
     "Siri": "cancelled by user",
@@ -458,5 +459,6 @@
   "native_cold_start_transient_restore": "4dc1284 source integrated; baseline2 failures reproduced; candidate6 methods/25 cases pass. Subsequent77-method full suite with fixed normal Rust CLI and real HTTPS/WSS passed with0 skips; phone install/field deferred, pending LED fix not in backend.",
   "latest_native_cold_restore_software": "stage-e-browser/native-cold-restore-root-check.json",
   "latest_native_actual_Rust_integration": "stage-e-browser/native-current-integration-root-check.json",
-  "latest_composite_variable_source_transitions": "stage-d-study/composite-variable-transition-root-check.json"
+  "latest_composite_variable_source_transitions": "stage-d-study/composite-variable-transition-root-check.json",
+  "regression_fixture_cleanup": "stage-e-browser/regression-fixture-cleanup-root-check.json"
 }
