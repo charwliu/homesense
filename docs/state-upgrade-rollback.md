@@ -17,3 +17,5 @@ rsync -a --checksum --delete -- "$rollback_snapshot/" "$stopped_state/"
 2026-10-16 的隔离演练使用现有正式 Linux 程序、回环假网关及合成状态。第四次尝试实际漏恢复了同大小、同秒级修改时间的数据库，Root 只读核查其恢复后版本头仍为 27。第六次加入固定同大小、同精确时间戳反例，并采用内容校验恢复，27 项清单的字节、权限、属主和链接恢复一致；旧程序重新打开版本 26，非空合成配对和 Web 凭据保持。该主机的 rsync 未保持纳秒级修改时间，原始值和差异均保留。
 
 这证明回退机制，尚不证明未来真实 schema27 候选的升级及回退。该候选交付后仍须对其实际迁移重新验收。本轮没有读取或修改现网状态，没有停止 E2 或操作现场设备。详见[独立核查](evidence/stage-e-browser/state-tree-rollback-root-check.json)。
+
+真实旧程序拒绝schema27的文件树不变性检查，应先在**已停止的独立测试副本**完成WAL checkpoint，再记录比较基线；未checkpoint副本可能在拒绝时清理WAL／SHM，不能据主数据库哈希相同声称全树未变。原一致快照与失败态保留副本不因这项测试而规范化或覆盖。当前候选的实际26→27→整树恢复26已有合成状态证据，生产rev10升级仍须单独验收。见[正式Linux核验](evidence/stage-e-browser/multi-gateway-linux-runtime10-root-check.json)。
