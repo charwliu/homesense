@@ -93,8 +93,8 @@
       "stage": "E",
       "requirement": "灯光、场景、窗帘与面板入口",
       "verified_scope": "两房间多项手动灯光／场景／窗帘及LED已限定现场通过；现有两面板父卡已在线发布到rev10，原Admin视图2父卡/各6格/0独立LED，原17授权及20展开端点保持，7格既有动作可见。",
-      "remaining_evidence": "App实际卡片显示确认待用户回复；新增庭院/回家候选的物理投影修复待完整验证与部署，其他扩展和按键现场动作仍未验收。 书房2/4/6已配置但被原17凭证范围过滤，17→20的CAS授权/回退提案已准备；会同时开放书房完整面板参数管理，须明确确认，未执行。",
-      "status": "keypad_candidate_runtime_counterexample_and_physical_acceptance_partial",
+      "remaining_evidence": "用户仍看到独立LED，具体页面与服务Origin待确认；现网TLS目录2父卡／0独立LED及离线四入口渲染通过不替代实机。最终LED候选已完整1153项及普通CLI复验通过，Linux更新进行中；庭院/回家额外配置、17→20扩权和集中现场仍待批准/验收。",
+      "status": "parent_catalog_deployed_final_LED_software_qualified_field_display_unresolved",
       "additional_existing_card_evidence": "stage-e-browser/keypad-existing-cards-publication-root-check.json",
       "additional_scope_completion_proposal": "stage-e-browser/study-keypad-scope-proposal-root-check.json"
     },
@@ -129,9 +129,9 @@
       "id": "Q-1",
       "stage": "D/E",
       "requirement": "最终集成软件回归",
-      "verified_scope": "常驻整合305be34：Mac完整1128项／172实际程序输入与产物哈希核验，全部旧1117项保留新增11；文档10目标、严格Clippy、正式AD8常驻断连/恢复/SIGTERM探针通过。Linux生产交叉编译、二进制单独上传、隔离初始重试/SIGTERM烟测和systemd上线通过。",
-      "remaining_evidence": "该最终软件输入与常驻上线已核验；D/E其余原语义和集中现场验收未完成。",
-      "status": "current_frozen_software_qualified_and_continuous_service_deployed",
+      "verified_scope": "最终v13冻结842输入完整1153项／172程序、文档、全目标严格Clippy、原88路周期、常驻恢复及两项实际App HTTPS/WSS均通过；旧v21部署证据独立保留。",
+      "remaining_evidence": "最终v13 Linux本机交叉编译/隔离/常驻更新进行中；新现场、手机显示和D完整源语义尚未完成。",
+      "status": "latest_1153_frozen_software_qualified_Linux_deployment_in_progress",
       "complete_for_current_frozen_input": true,
       "incremental_python_tool_tests_passed": 20,
       "full_workspace_repeated_this_increment": true,
@@ -151,7 +151,7 @@
       "current_frozen_local_quality_pass": true,
       "latest_qualified_subset": "stage-e-browser/continuous-service-root-check.json",
       "new_continuous_mode_is_separate_unqualified_input": false,
-      "current_full_workspace_tests": 1128,
+      "current_full_workspace_tests": 1153,
       "current_actual_programs": 172
     },
     {
@@ -237,7 +237,8 @@
     "stage-e-browser/indicator-cross-writer-runtime-root-check.json": "eed4937d7cb8578a8451c06160dcb1445711a5379bb18a6771e18179137bbf79",
     "stage-e-browser/indicator-query-growth-root-gap.json": "64d9d0d4eebb495794eb75e567ba84129f8d937edad7be3fcc55e073ddf741ca",
     "stage-e-browser/current-feature-status-root-check.json": "84077d072d2ebdcf1b945b22ec4ac8d07c126bd8b00b28ab3d48630a22bf6a49",
-    "stage-e-browser/indicator-final-integrated-quality-root-check.json": "b9a88fbbe1bbb21254ee83d821bb716cb753657237f4e50a964cca228a41c106"
+    "stage-e-browser/indicator-final-integrated-quality-root-check.json": "b9a88fbbe1bbb21254ee83d821bb716cb753657237f4e50a964cca228a41c106",
+    "stage-e-browser/keypad-display-diagnosis-root-check.json": "9f2d5f8f2ff48f040986ecdaf79caca286bc74e01c5a6dc9150842f7ba96104c"
   },
   "excluded_by_scope": {
     "Siri": "cancelled by user",
@@ -468,5 +469,6 @@
   "latest_indicator_cross_writer_runtime": "stage-e-browser/indicator-cross-writer-runtime-root-check.json",
   "indicator_query_growth_gap": "resolved in integrated software; original baseline and final causal proof retained, deployment pending",
   "latest_current_feature_status_readonly": "stage-e-browser/current-feature-status-root-check.json",
-  "latest_indicator_final_integrated_quality": "stage-e-browser/indicator-final-integrated-quality-root-check.json"
+  "latest_indicator_final_integrated_quality": "stage-e-browser/indicator-final-integrated-quality-root-check.json",
+  "latest_Keypad_display_diagnosis": "stage-e-browser/keypad-display-diagnosis-root-check.json"
 }
