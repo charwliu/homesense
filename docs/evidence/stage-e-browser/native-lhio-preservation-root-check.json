@@ -102,5 +102,9 @@
     "producer_handoff": "b3b1025d2bc2e1ba25bd0d711d824205580b9222062067c3640ff9f7baa16cbc",
     "full_test_log": "7ddfd301578539aebef035e236340ecf96b7ada248a91b1f7f7f3a2a12fa8dfb",
     "candidate_manifest77": "f938c2cd5dedfad0dfd3f251492d640e6d45a21d79c8b7039d3f407280e01100"
-  }
+  },
+  "committed_full_source": "27fec73f442c5701847d404374554491ddec6a1a",
+  "Root_clean_Git_audit_sha256": "970b99348f92f4941cbdf100b511809086ebc4151d90636525b57636702615ff",
+  "private_build11_qualification": "native-build11-root-check.json",
+  "not_signed_or_installed": true
 }

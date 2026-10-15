@@ -1,0 +1,41 @@
+{
+  "source_commit": "27fec73f442c5701847d404374554491ddec6a1a",
+  "prepared_source_inputs": 58,
+  "all_source_hashes_match": true,
+  "only_private_Info_version_change": true,
+  "all56_product_test_inputs_match_qualified": true,
+  "qualified87_full_run_not_repeated": true,
+  "bundle_files": 8,
+  "bundle": "com.ngboss.homesense",
+  "build": "11",
+  "archive_sha256": "b4afd21595a521385aeb9e34cf0e39517b8ac9e1b48bbea0cc5ad7a29ed60f93",
+  "archive_payloads_verified": 8,
+  "AppleDouble_metadata_rehashed_and_bounds_checked": {
+    "__MACOSX/HomeSense.app/._HomeSense": "42050bc58a6977004e02391070cfd0fe9f849d50cc68918eeae919f3f8010758",
+    "__MACOSX/HomeSense.app/._AppIcon60x60@2x.png": "42050bc58a6977004e02391070cfd0fe9f849d50cc68918eeae919f3f8010758",
+    "__MACOSX/HomeSense.app/.___preview.dylib": "42050bc58a6977004e02391070cfd0fe9f849d50cc68918eeae919f3f8010758",
+    "__MACOSX/HomeSense.app/._Assets.car": "42050bc58a6977004e02391070cfd0fe9f849d50cc68918eeae919f3f8010758",
+    "__MACOSX/HomeSense.app/._AppIcon76x76@2x~ipad.png": "42050bc58a6977004e02391070cfd0fe9f849d50cc68918eeae919f3f8010758",
+    "__MACOSX/HomeSense.app/._HomeSense.debug.dylib": "42050bc58a6977004e02391070cfd0fe9f849d50cc68918eeae919f3f8010758",
+    "__MACOSX/HomeSense.app/._Info.plist": "42050bc58a6977004e02391070cfd0fe9f849d50cc68918eeae919f3f8010758",
+    "__MACOSX/HomeSense.app/._PkgInfo": "42050bc58a6977004e02391070cfd0fe9f849d50cc68918eeae919f3f8010758"
+  },
+  "main_executable_sha256": "3999ab8672d1056c0cc3e16ac3351777c1013cc51fd9c62c6682db78e7066e2d",
+  "debug_dylib_sha256": "a8cc55970901f6854b18ef28e5d97b90f27dfa034bc5186a82874d99efa1d39a",
+  "unsigned": true,
+  "directly_installable": false,
+  "phone_signed_or_installed": false,
+  "Keypad_LHIO_auth_source_unchanged": true,
+  "phone_visual_issue_unresolved": true,
+  "Root_production_device_Keychain_actions": 0,
+  "producer_handoff_sha256": "0d4a38679ac6d1cc36a8602086c5985b5ff295c8275836ea0b3b69cdba8e215a",
+  "checked_bj": "2026-10-16T05:24:58.154608+08:00",
+  "D_E_complete": false,
+  "full_source_qualification": "native-lhio-preservation-root-check.json",
+  "production_cutover_approval_pending": true,
+  "artifact_sha256": {
+    "Root_independent_result": "275137a699c0435b02e57cedc081ccd07574948d92d65c94df7c9ad2a2d44b58",
+    "producer_handoff": "0d4a38679ac6d1cc36a8602086c5985b5ff295c8275836ea0b3b69cdba8e215a",
+    "full87_log": "7ddfd301578539aebef035e236340ecf96b7ada248a91b1f7f7f3a2a12fa8dfb"
+  }
+}
