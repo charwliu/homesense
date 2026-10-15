@@ -2,6 +2,7 @@
 //! Parsing never connects, changes hardware or upgrades simulation evidence.
 pub mod rule_document;
 pub mod scene_tracking;
+pub mod keypad;
 use homesense_core::{
     BusAddress, Channel, DeviceId, ExecutionContext, ModuleKind, ModuleSpec, PanelLedMode, Percent,
     ProtocolProfile, ValidationError, Verification, VerificationRecord,
@@ -45,6 +46,8 @@ struct Document {
     floors: Vec<String>,
     gateways: Vec<GatewayInput>,
     devices: Vec<DeviceInput>,
+    #[serde(default)]
+    keypads: Vec<keypad::KeypadInput>,
 }
 /// Optional display metadata; room membership never grants control permission.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, Deserialize)]
@@ -235,8 +238,10 @@ pub struct Configuration {
     resolved_bindings:BTreeMap<DeviceId,ResolvedBinding>,
     rooms: BTreeMap<String, Room>,
     floors: BTreeSet<String>,
+    keypads: BTreeMap<DeviceId, keypad::Keypad>,
 }
 impl Configuration {
+    pub fn keypads(&self) -> &BTreeMap<DeviceId, keypad::Keypad> { &self.keypads }
     pub fn schema_version(&self)->u32 {self.schema_version}
     pub fn module_registry(&self)->&BTreeMap<String,ModuleLocation>{&self.module_registry}
     pub fn module(&self,id:&str)->Option<(&ModuleLocation,&ModuleSpec)>{let location=self.module_registry.get(id)?;Some((location,self.gateways.get(&location.gateway)?.modules.get(&location.address)?))}
@@ -296,7 +301,7 @@ impl Configuration {
         if bytes.len() > 4 * 1024 * 1024 {
             return Err(invalid("configuration exceeds 4 MiB"));
         }
-        let input: Document = serde_json::from_slice(bytes).map_err(Error::Json)?;
+        let mut input: Document = serde_json::from_slice(bytes).map_err(Error::Json)?;
         if !matches!(input.schema_version,1|2) {
             return Err(invalid("unsupported schema_version"));
         }
@@ -406,6 +411,7 @@ impl Configuration {
             if floors.len()>256 {return Err(invalid("floor count exceeds limit"));}
             if rooms.insert(room.id.clone(),room).is_some() {return Err(invalid("duplicate room id"));}
         }
+        let keypads = keypad::expand(input.schema_version, input.keypads, &mut input.devices, &module_registry, &gateways, &rooms)?;
         let mut devices = BTreeMap::new();
         let mut pending_supplies=Vec::new();
         let mut resolved_bindings=BTreeMap::new();
@@ -554,6 +560,12 @@ impl Configuration {
                 }
             }
         }
+        for panel in keypads.values() {for key in panel.keys.values() {
+            if let Some(keypad::KeyAction::Motor{device,..})=&key.action {
+                let id=DeviceId::new(device)?;
+                if resolved_bindings.get(&id).is_none_or(|d|!d.enabled || d.motor_calibration.is_none()) {return Err(invalid("keypad motor action requires enabled calibrated target"));}
+            }
+        }}
         Ok(Self {
             schema_version:input.schema_version,
             module_registry,
@@ -564,6 +576,7 @@ impl Configuration {
             gateways,
             devices,
             resolved_bindings,
+            keypads,
         })
     }
 }

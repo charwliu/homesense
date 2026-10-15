@@ -106,6 +106,8 @@ pub mod web_server;
 pub mod unified_hap;
 
 pub mod management_devices;
+mod management_keypads;
+pub mod panel_auth;
 
 pub mod web_drafts;
 
@@ -166,7 +168,6 @@ mod physical_queries;
 
 mod motor_rules;
 
-mod web_assets;
 
 #[cfg(test)]
 mod scene_tracking_tests;
@@ -180,3 +181,8 @@ mod immediate_scene_tests;
 
 #[cfg(test)]
 mod curtain_idle_clock_tests;
+
+#[cfg(test)]
+mod panel_auth_tests;
+
+mod web_assets;

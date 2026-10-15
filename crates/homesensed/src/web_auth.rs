@@ -314,16 +314,19 @@ impl std::fmt::Debug for ModuleOffLease {fn fmt(&self,f:&mut std::fmt::Formatter
 impl ModuleOffLease {
     pub fn controller(&self)->Uuid {self.grant.controller}
     pub fn devices(&self)->&BTreeSet<String> {&self.grant.devices}
-    pub(crate) fn valid(&self)->bool {
-        let Some(tokens)=self.tokens.upgrade() else{return false;};
-        let Ok(entries)=tokens.entries.read() else{return false;};
-        if !entries.values().any(|v|v.generation==self.generation && v.grant==self.grant && v.grant.role!=Role::Viewer){return false;}
-        if let Some(key)=&self.session_key {
-            let Ok(sessions)=tokens.sessions.read() else{return false;};
-            if !sessions.get(key).is_some_and(|s|s.generation==self.generation && s.expires>std::time::Instant::now()){return false;}
-        }
-        true
+    pub(crate) fn is_administrator(&self)->bool {self.grant.role==Role::Administrator}
+    /// The lock linearizes a bounded local write against source credential
+    /// mutation. No secret is retained, and no guard crosses an async await.
+    pub(crate) fn with_valid<T>(&self, operation:impl FnOnce()->T)->Option<T> {
+        let tokens=self.tokens.upgrade()?;
+        let entries=tokens.entries.read().ok()?;
+        if !entries.values().any(|v|v.generation==self.generation && v.grant==self.grant && v.grant.role!=Role::Viewer){return None;}
+        let sessions=tokens.sessions.read().ok()?;
+        if let Some(key)=&self.session_key
+            && !sessions.get(key).is_some_and(|s|s.generation==self.generation && s.expires>std::time::Instant::now()){return None;}
+        Some(operation())
     }
+    pub(crate) fn valid(&self)->bool {self.with_valid(||()).is_some()}
 }
 impl Grant {
     pub fn may_read_device(&self, id: &str) -> bool {

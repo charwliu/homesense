@@ -699,14 +699,11 @@ impl Api {
                 );
             };
             if request.uri().path()=="/api/v1/rooms" {
-                let rooms:std::collections::BTreeMap<_,_>=snapshot.devices.iter().filter_map(|d|d.room.as_ref()).map(|r|(r.id.clone(),r)).collect();
+                let mut rooms:std::collections::BTreeMap<_,_>=snapshot.devices.iter().filter_map(|d|d.room.as_ref()).map(|r|(r.id.clone(),serde_json::json!(r))).collect();
+                for panel in &snapshot.keypads {if let Some(id)=panel["room"]["id"].as_str(){rooms.insert(id.to_owned(),panel["room"].clone());}}
                 return response(StatusCode::OK,json!({"boot":snapshot.boot,"revision":snapshot.revision.to_string(),"rooms":rooms.values().collect::<Vec<_>>(),"floors":snapshot.floors}));
             }
-            let devices = snapshot
-                .devices
-                .iter()
-                .map(|device| device_json(device, &grant))
-                .collect::<Vec<_>>();
+            let devices = crate::management_keypads::devices_json(&snapshot, &grant);
             return response(
                 StatusCode::OK,
                 json!({"boot":snapshot.boot,"revision":snapshot.revision,"revision_text":snapshot.revision.to_string(),"sequence":snapshot.sequence,"devices":devices}),
@@ -744,7 +741,7 @@ impl Api {
         if request.method() != hyper::Method::POST
             || !matches!(
                 request.uri().path(),
-                "/api/v1/scene-actions" | "/api/v1/scene-cancellations" | "/api/v1/device-commands" | "/api/v1/module-commands" | "/api/v1/module-queries" | "/api/v1/scene-relative-actions"
+                "/api/v1/scene-actions" | "/api/v1/scene-cancellations" | "/api/v1/device-commands" | "/api/v1/module-commands" | "/api/v1/module-queries" | "/api/v1/scene-relative-actions" | "/api/v1/keypad-settings"
             )
         {
             return deny(StatusCode::NOT_FOUND, "not_found");
@@ -783,8 +780,20 @@ impl Api {
         }
         let principal = grant.controller.to_string();
         let mut source_receipt_expired=false;
-        let is_device = matches!(request.uri().path(),"/api/v1/device-commands"|"/api/v1/module-commands"|"/api/v1/module-queries");
-        let (scene, request_id, action, fingerprint) = if request.uri().path()=="/api/v1/module-queries" {
+        let is_device = matches!(request.uri().path(),"/api/v1/device-commands"|"/api/v1/module-commands"|"/api/v1/module-queries"|"/api/v1/keypad-settings");
+        let (scene, request_id, action, fingerprint) = if request.uri().path()=="/api/v1/keypad-settings" {
+            if grant.role!=crate::web_auth::Role::Administrator {return deny(StatusCode::FORBIDDEN,"administrator_required");}
+            #[derive(serde::Deserialize)]
+            #[serde(deny_unknown_fields)]
+            struct SettingRequest{keypad:String,revision:String,request_id:String,command:crate::management_keypads::Setting}
+            let body=match serde_json::from_slice::<SettingRequest>(request.body()){Ok(b)=>b,Err(_)=>return deny(StatusCode::BAD_REQUEST,"invalid_body")};
+            if body.revision!=runtime.revision.to_string(){return deny(StatusCode::CONFLICT,"stale_revision");}
+            let Some(lease)=self.tokens.module_off_lease(authorization,cookie,request.headers().get("x-csrf-token").and_then(|v|v.to_str().ok())).filter(|l|l.controller()==grant.controller) else{return deny(StatusCode::FORBIDDEN,"panel_credential_required");};
+            let checked=runtime.control.request(Action::KeypadSetting{controller:grant.controller,revision:runtime.revision,keypad:body.keypad.clone(),lease:lease.clone(),setting:body.command.clone(),submit:false}).await;
+            if !matches!(checked,Ok(Reply::CommandsAccepted(_))) {return deny(StatusCode::FORBIDDEN,"keypad_settings_not_permitted_or_incompatible");}
+            let fingerprint=json!({"revision":runtime.revision,"action":"keypad_setting","keypad":body.keypad,"command":body.command}).to_string();
+            (String::new(),body.request_id,Action::KeypadSetting{controller:grant.controller,revision:runtime.revision,keypad:body.keypad,lease,setting:body.command,submit:true},fingerprint)
+        } else if request.uri().path()=="/api/v1/module-queries" {
             if grant.role!=crate::web_auth::Role::Administrator{return deny(StatusCode::FORBIDDEN,"administrator_required");}
             #[derive(serde::Deserialize)]
             #[serde(deny_unknown_fields)]
@@ -834,15 +843,14 @@ impl Api {
                 return deny(StatusCode::BAD_REQUEST, "invalid_brightness");
             }
             let fingerprint=json!({"action":"device","revision":runtime.revision,"device":body.device,"command":body.command}).to_string();
+            let action=if matches!(body.command,crate::management_devices::DeviceAction::PanelLed{..}|crate::management_devices::DeviceAction::PanelLedOff) {
+                let Some(lease)=self.tokens.module_off_lease(authorization,cookie,request.headers().get("x-csrf-token").and_then(|v|v.to_str().ok())).filter(|l|l.controller()==grant.controller) else{return deny(StatusCode::FORBIDDEN,"panel_credential_required");};
+                Action::PanelDeviceCommand{controller:grant.controller,revision:runtime.revision,device,action:body.command,lease}
+            } else {Action::DeviceCommand{controller:grant.controller,revision:runtime.revision,device,action:body.command}};
             (
                 String::new(),
                 body.request_id,
-                Action::DeviceCommand {
-                    controller: grant.controller,
-                    revision: runtime.revision,
-                    device,
-                    action: body.command,
-                },
+                action,
                 fingerprint,
             )
         } else if request.uri().path()=="/api/v1/scene-relative-actions" {

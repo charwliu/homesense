@@ -117,7 +117,7 @@ pub fn encode_in_context(
 ) -> Result<RawFrame, ProtocolError> {
     module.validate_context(context)?;
     module.validate_channel(channel)?;
-    if matches!(command, Command::PanelLed(_))
+    if matches!(command, Command::PanelLed(_) | Command::PanelLedOff)
         && module.kind() == ModuleKind::Keypad
         && module.led_mode() != PanelLedMode::Manual
     {
@@ -130,8 +130,20 @@ pub fn encode_in_context(
     {
         return Err(ProtocolError::UnsupportedCommand);
     }
+    if let Command::PanelParameter(parameter) = command {
+        if module.profile() != homesense_core::ProtocolProfile::Ts686Rs485SixKey {
+            return Err(ProtocolError::UnsupportedCommand);
+        }
+        if let homesense_core::PanelParameter::FeedbackMode(mode)=parameter {
+            let expected=match mode {homesense_core::PanelFeedbackMode::Manual=>PanelLedMode::Manual,homesense_core::PanelFeedbackMode::SelfReset=>PanelLedMode::SelfReset};
+            if module.led_mode()!=expected {return Err(ValidationError::LedModeNotManual.into());}
+        }
+        let (command,value)=parameter.bytes();
+        return Ok(RawFrame{address:module.address().get(),command,value});
+    }
     let c = channel.get();
     let (command, value) = match (module.kind(), command) {
+        (ModuleKind::Keypad,Command::PanelLedOff) => (c,0xF0),
         (ModuleKind::Switch, Command::Switch(on)) | (ModuleKind::Keypad, Command::PanelLed(on)) => {
             (c, if on { 0xF1 } else { 0xF2 })
         }
