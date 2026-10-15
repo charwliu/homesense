@@ -27,7 +27,7 @@
       "id": "D-2",
       "stage": "D",
       "requirement": "25变量、条件与生命周期",
-      "verified_scope": "类型化存储、CAS、三值条件及来源记录有软件证据；25变量的487处显式站点与既有审查逐ID/操作/操作数一致，已形成11窗帘和14灯光相关变量的反馈替代候选；其中3个含14次算术隐式读，单独保留执行状态审核。",
+      "verified_scope": "类型化存储、CAS、三值条件及来源记录有软件证据；25变量的487处显式站点与既有审查逐ID/操作/操作数一致，已形成11窗帘和14灯光相关变量的反馈替代候选；其中3个含14次算术隐式读，单独保留复合状态审核（偏移4/40/100，不能先认定为临时状态）。",
       "remaining_evidence": "24变量的原type2、生命周期、初始化和外部写入待审核",
       "status": "source_decisions_pending",
       "additional_replacement_plan_evidence": "stage-d-study/variable-feedback-replacement-plan-root-check.json"
@@ -223,7 +223,9 @@
     "stage-d-study/motor-branch-and-writer-root-check.json": "9c4cb671c58a3f74656bf9e82efe20c8ee48f3e72e60de9b4616a1bd8b4a9eda",
     "stage-d-study/curtain-source-key-layout-root-check.json": "18badd91df91efe5d163e3a85d8aaa7df8aa7246c18e94b63c10beceee3f6678",
     "stage-d-study/scene-toggle-leaf-dependencies-root-check.json": "d31c611324d62d31aec36c9830936488d1fe7df3184252a831103435eeff4313",
-    "stage-d-study/variable-feedback-replacement-plan-root-check.json": "d95c8a478e9e3d074c19779c239132fb72002d6af893e95b096d97add3a9d7e2"
+    "stage-d-study/variable-feedback-replacement-plan-root-check.json": "d95c8a478e9e3d074c19779c239132fb72002d6af893e95b096d97add3a9d7e2",
+    "stage-d-study/variable-composite-offsets-root-check.json": "fd145df5a38f904d62ea311ce191ab97d4537c7a533f53efe877fa4e68696d0c",
+    "stage-e-browser/indicator-cross-writer-baseline-root-check.json": "6d118e9bffc0f72a9b2058c2db15d8063aeb12665362fed4158c1d892de898de"
   },
   "excluded_by_scope": {
     "Siri": "cancelled by user",
@@ -437,5 +439,7 @@
   "latest_motor_branch_writer_source_evidence": "stage-d-study/motor-branch-and-writer-root-check.json",
   "latest_curtain_source_key_layout_evidence": "stage-d-study/curtain-source-key-layout-root-check.json",
   "latest_scene_toggle_dependency_evidence": "stage-d-study/scene-toggle-leaf-dependencies-root-check.json",
-  "latest_variable_feedback_replacement_plan": "stage-d-study/variable-feedback-replacement-plan-root-check.json"
+  "latest_variable_feedback_replacement_plan": "stage-d-study/variable-feedback-replacement-plan-root-check.json",
+  "latest_composite_variable_policy_plan": "stage-d-study/variable-composite-offsets-root-check.json",
+  "latest_corrected_indicator_baseline": "stage-e-browser/indicator-cross-writer-baseline-root-check.json"
 }
