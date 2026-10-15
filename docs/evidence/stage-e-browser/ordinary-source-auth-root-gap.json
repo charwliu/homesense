@@ -1,0 +1,60 @@
+{
+  "checked_bj": "2026-10-15T16:48:05.773200+08:00",
+  "kind": "confirmed product authorization failure on synthetic in-memory transport; no physical activity",
+  "base": "native-backend-v3, public committed code equivalent to3796992 (documentation later efb3e28)",
+  "fixed_input_files": 1196,
+  "manifest_sha256": "1a5a6fb8f0e48f3225c22c608c1def0aa83910afaddca84e68e4c3885604ec82",
+  "delta_from_product": "one cfg(test) module declaration and new test source; product code unchanged",
+  "positive_control_cases": 10,
+  "negative_matrix_cases": 80,
+  "negative_cases_emitting_bytes_and_Written": 80,
+  "negative_matrix": {
+    "routes": {
+      "Switch": 8,
+      "Dimmer": 8,
+      "Combined": 8,
+      "MotorOpen": 8,
+      "MotorStop": 8,
+      "ModuleSwitch": 8,
+      "ModuleMotor": 8,
+      "Immediate": 8,
+      "Later": 8,
+      "Relative": 8
+    },
+    "capture_points": [
+      "HTTP authenticated then runtime mailbox paused",
+      "HTTP accepted then transport dispatch paused"
+    ],
+    "changes": [
+      "Member to Viewer; module Administrator to Member",
+      "source scope removed",
+      "exact source credential revoked",
+      "cookie source session logged out"
+    ]
+  },
+  "same_controller_independent_root_still_authenticates": true,
+  "same_controller_followup_control": "HTTP accepted and transport produced bytes; exact Root command_id Written not yet separately asserted in fixture, avoid stronger claim",
+  "scope_invariants": "scene-only source has no member-device IDs; combined logical source does not require hidden supply IDs",
+  "original_v1_fixture_error": "InvalidPayload before runtime due one-member mutually-exclusive group; retained, not counted as product failure",
+  "fixture_v2_fix": "second synthetic group member added; no negative assertions removed",
+  "local_auth_test_source_unchanged": true,
+  "source_boundary_effects_not_yet_covered": [
+    "revocation after ticket before actual send",
+    "partial already-written combined batch",
+    "future fade/multiphase derivatives beyond current single-step cases",
+    "management publication/backup ownership review"
+  ],
+  "security_fix": "in progress by 功能开发, not deployed",
+  "field_commands": 0,
+  "new_original_source_semantic_approvals": 0,
+  "D_E_complete": false,
+  "log_sha256": {
+    "positive": "4b7762f2d9ae78d4baecc4679044143a0c079e295e9c8e4568a67ead7a8e03ed",
+    "negative": "f74afec8dd171daba0d1327c631db0a18001d103a49ae533109e9f119d7fc776"
+  },
+  "negative_records_sha256": "55f2decd1dccbbcdae702f18e77af5e06df8e8c4790e02ac1d85805229213243",
+  "positive_records_sha256": "d95ac1e18870601d17c892bb024d94f441a49a6cfb0e8fa43d21f0a7048479c4",
+  "executed_harness_sha256": [
+    "7559e6e0af9496850cf5dc98e5b744825a5efb612c205bd82cdc6b5021131d23"
+  ]
+}

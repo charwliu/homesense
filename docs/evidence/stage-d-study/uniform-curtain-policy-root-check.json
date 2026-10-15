@@ -1,0 +1,48 @@
+{
+  "checked_bj": "2026-10-15T16:51:02.135581+08:00",
+  "user_explicit_choice": "adopt common curtain command/state migration model for remaining rooms",
+  "policy_decisions_added": 1,
+  "source_motor_controllers": 12,
+  "source_unique_motor_proxies": 12,
+  "offline_per_motor_policy_plans": 12,
+  "existing_configured_two_room_motors_preserved": 2,
+  "remaining_motors_without_invented_calibration_or_travel": 10,
+  "source_pending_motion_predicate_nodes": {
+    "IF_STOPPED": 24,
+    "IF_MOVING": 11
+  },
+  "source_pending_motor_action_nodes": {
+    "SET_LEVEL_TARGET": 24,
+    "STOP": 11
+  },
+  "manual_requests_always_explicit": "inference does not suppress request; authentication and physical calibration checks retained",
+  "stop_LED_idle_ms": 2000,
+  "restart_state": "unknown",
+  "motion_and_position_quality": "inferred; never hardware confirmed from timer",
+  "independent_existing_model_evidence": {
+    "fixed_core_source_sha256": "f8bb9a966d6e8f3715b58581674df07edeb859cc4e5baeb7ef3233363374cb9b",
+    "same_source_as_public_HEAD": true,
+    "existing_full1067_run_named_cases_passed": [
+      "unconfigured_does_not_invent_completion_position_or_idle_timeout",
+      "configured_endpoint_and_stop_idle_have_distinct_exact_deadlines",
+      "terminal_estimate_never_suppresses_repeated_direction_or_restarts_old_timer",
+      "direction_and_stop_indicators_do_not_disable_manual_actions",
+      "stop_written_not_accepted_bounds_motion_and_preserves_unknown_start",
+      "old_receipts_and_generation_changes_cannot_complete_new_motion"
+    ],
+    "not_new_tests_or_added_to_total": true
+  },
+  "private_mapping_sha256": "32702f0efcaa366865e99de8f786fbbccf8c3efb0280963c0f82dd7134c0475f",
+  "private_policy_plan_sha256": "adbc82425c21f843b315ace303b46ae80a00ed6c97ca30f0ff77872699932c4e",
+  "full_original_programs_newly_approved": 0,
+  "source_remaining_scope_unchanged": {
+    "scenes": 65,
+    "programs": 208,
+    "variables": 24
+  },
+  "bindings_LED_layout_non_motor_actions_variables_still_require_review": true,
+  "new_rules_enabled": 0,
+  "configuration_published": false,
+  "field_queries_or_controls": 0,
+  "D_E_complete": false
+}
