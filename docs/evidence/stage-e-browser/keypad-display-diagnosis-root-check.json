@@ -1,0 +1,64 @@
+{
+  "checked_at": "2026-10-16T00:46:53.346849+08:00",
+  "user_report": "still seeing separate LEDs; root cause unresolved",
+  "fresh_TLS_catalog": {
+    "revision": 10,
+    "devices": 8,
+    "Keypad_parents": 2,
+    "slots_per_parent": 6,
+    "standalone_LED": 0,
+    "read_only": true
+  },
+  "installed_build_lineage": {
+    "last_recorded_build": 8,
+    "installation_recorded_at": "2026-10-15 19:11 Asia/Shanghai",
+    "build_log_includes_Keypad_card": true,
+    "current_phone_inspection": false,
+    "complete_build8_UI_source_manifest_available": false
+  },
+  "offline_render": {
+    "pages": [
+      "daily devices",
+      "study room devices",
+      "artstudio room devices",
+      "management devices"
+    ],
+    "uses_actual_SwiftUI_components": true,
+    "frozen_catalog": true,
+    "all_show_complete_square_two_column_three_row_parent_cards": true,
+    "Root_viewed_study_room_image": true,
+    "scenes_fixture_empty_not_server_count": true,
+    "not_iPhone_field_proof": true
+  },
+  "routing": {
+    "daily_overview_devices_and_room_filters": "same activeDeviceCards entry, no LED flattening",
+    "management": "editableKeypads separate, editableDevices reads configuration devices only",
+    "legacy_API_fallback": "Keypad without module_id renders old individual LED tile; current TLS directory does not have this shape",
+    "other_LED_entries": "action picker or local debug tools may expose endpoint LED actions; not daily device cards"
+  },
+  "pending": "human screen identification and actual connected HTTPS Origin; do not infer cache or old server without evidence",
+  "diagnostic_only_patch": "private five-line version/config-version/catalog count visibility candidate, not applied; not a grouping fix",
+  "source_modifications_or_phone_installation_or_field_controls": 0,
+  "D_E_complete": false,
+  "artifact_sha256": {
+    "deployment/ngr/private/20261016-native-keypad-display-app/result.json": "115e66108af6ec12ec65a5898f6ef9e526fd9844aeda5d740c730fc5db5a9d6b",
+    "deployment/ngr/private/20261016-native-keypad-display-app/source-before.json": "3179c987976a6ac35ffcfe75ff6071e98f18440430d3e53cda6432aee805ef6b",
+    "deployment/ngr/private/20261016-native-keypad-display-app/diagnostic-only.patch": "f6d55ee847e800dd875380fd8ba80701e3cd0aac047875eb97bafe2d05c74f39",
+    "deployment/ngr/private/20261016-native-keypad-display-app/DisplayRender.swift": "b6b7fa935bb244718b435fb6f59580b1679bb7d6a7dea18424a86ebf6d0a0ce6",
+    "deployment/ngr/private/20261016-native-keypad-display-app/render-build.log": "a3a3282e8a5e7d6fd84935ca825d28aeba6e49181d015a9592caccfe1910e810",
+    "deployment/ngr/private/20261016-native-keypad-display-app/render.log": "8a1d57d9e297221ad9cc2e5e583333b37d1dd3cd96888da76df0d446405f7382",
+    "deployment/ngr/private/20261016-native-keypad-display-app/display-render": "469beda46f05f7efd5d181a4a7924394199782ee1a59be5b9da06af4f2264985",
+    "deployment/ngr/private/20261016-native-keypad-display-app/frozen-devices.json": "77c78f1ce42160cf075c67a28b717651dc34d5fe94bec07f27376f819040a710",
+    "deployment/ngr/private/20261016-native-keypad-display-app/frozen-export.json": "c8e0317a9a8b88a737c0ba9d9d34b75bb40fee02ef582fa0b86f62e1e5d4f85b",
+    "deployment/ngr/private/20261016-native-keypad-display-app/artstudio-room-devices.png": "3c767e63139380264a69ce4a7815a4e5764364a09461c5096e8db68f80771ebb",
+    "deployment/ngr/private/20261016-native-keypad-display-app/connection-diagnostic-candidate.png": "24e17ed3dec366e532aaafd6d3e5c3fc462a332ef249aa308f77eed2344ea0ce",
+    "deployment/ngr/private/20261016-native-keypad-display-app/daily-devices.png": "1461da37b949f7987f76073056006b0b5b854b526d9bff74c1ecaafeb5d19382",
+    "deployment/ngr/private/20261016-native-keypad-display-app/daily-overview.png": "879e12bae8948a467fe0e802789070ce931032860e8c50422c9aeecb8df7fdf6",
+    "deployment/ngr/private/20261016-native-keypad-display-app/management-devices.png": "62b3b6a51340b993e41f21aab91e684c041a1c1a2935ce1ffa40b225e81f5d7c",
+    "deployment/ngr/private/20261016-native-keypad-display-app/study-room-devices.png": "6ee0537e9e9fc79df7a5bdb7f63587cabcef2fc7a67bf70ec2a46e0786beffc6"
+  },
+  "fresh_catalog_evidence_sha256": {
+    "deployment/ngr/private/20261016-keypad-display-check-root/result.json": "34736247acd008162e79d2dc3daf3bb90bd7366293271c84e8f5c3257a91d99d",
+    "deployment/ngr/private/20261016-keypad-display-check-root/devices.json": "77c78f1ce42160cf075c67a28b717651dc34d5fe94bec07f27376f819040a710"
+  }
+}
