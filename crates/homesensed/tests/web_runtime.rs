@@ -185,6 +185,7 @@ async fn web_scope_origin_receipts_and_runtime_admission() {
                 .header("host", "127.0.0.1:8088")
                 .header("origin", origin)
                 .header("authorization", format!("Bearer {secret}"))
+                .header("idempotency-key",Uuid::new_v4().to_string())
                 .header("content-type", "application/json")
                 .body(Bytes::copy_from_slice(body.as_bytes()))
                 .unwrap()

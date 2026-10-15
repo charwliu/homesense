@@ -4,6 +4,7 @@ pub mod configuration;
 pub mod indicators;
 pub mod program;
 pub mod scene;
+pub mod reviewed_scenes;
 pub mod source_review;
 use roxmltree::{Document, Node};
 use serde::Serialize;

@@ -401,7 +401,10 @@ async fn exercise_authenticated_lifecycle(bind: &str) {
     task.abort();
     let _ = task.await;
     assert_eq!(reopened.count_pairings().await.unwrap(), 0);
-    assert_eq!(reopened.load_config().await.unwrap().configuration_number, configuration_number);
+    assert_eq!(
+        reopened.load_config().await.unwrap().configuration_number,
+        configuration_number
+    );
     drop(restarted);
     drop(reopened);
     std::fs::remove_dir_all(directory).unwrap();
@@ -429,27 +432,46 @@ fn verify_and_read(
         response
     }
     let list = pairings(stream, &mut session, &encode_tlv(&[(6, &[1]), (0, &[5])]));
-    assert_eq!(tlv_items(&list).unwrap()[&1], id.to_string().to_uppercase().as_bytes());
+    assert_eq!(
+        tlv_items(&list).unwrap()[&1],
+        id.to_string().to_uppercase().as_bytes()
+    );
     let second = Uuid::new_v4().to_string().to_uppercase();
-    pairings(stream, &mut session, &encode_tlv(&[
-        (6, &[1]), (0, &[3]), (1, second.as_bytes()),
-        (3, signing.verifying_key().as_bytes()), (11, &[1]),
-    ]));
+    pairings(
+        stream,
+        &mut session,
+        &encode_tlv(&[
+            (6, &[1]),
+            (0, &[3]),
+            (1, second.as_bytes()),
+            (3, signing.verifying_key().as_bytes()),
+            (11, &[1]),
+        ]),
+    );
     let list = pairings(stream, &mut session, &encode_tlv(&[(6, &[1]), (0, &[5])]));
     // Inspect each TLV field without collapsing repeated identifiers.
     let mut identifiers = Vec::new();
     let mut offset = 0;
     while offset < list.len() {
         let length = list[offset + 1] as usize;
-        if list[offset] == 1 { identifiers.push(list[offset + 2..offset + 2 + length].to_vec()); }
+        if list[offset] == 1 {
+            identifiers.push(list[offset + 2..offset + 2 + length].to_vec());
+        }
         offset += 2 + length;
     }
     assert_eq!(identifiers.len(), 2);
     assert!(identifiers.contains(&second.as_bytes().to_vec()));
     assert!(identifiers.contains(&id.to_string().to_uppercase().into_bytes()));
-    pairings(stream, &mut session, &encode_tlv(&[(6, &[1]), (0, &[4]), (1, second.as_bytes())]));
+    pairings(
+        stream,
+        &mut session,
+        &encode_tlv(&[(6, &[1]), (0, &[4]), (1, second.as_bytes())]),
+    );
     let list = pairings(stream, &mut session, &encode_tlv(&[(6, &[1]), (0, &[5])]));
-    assert_eq!(tlv_items(&list).unwrap()[&1], id.to_string().to_uppercase().as_bytes());
+    assert_eq!(
+        tlv_items(&list).unwrap()[&1],
+        id.to_string().to_uppercase().as_bytes()
+    );
 
     let (headers, body) = session.request(
         stream,

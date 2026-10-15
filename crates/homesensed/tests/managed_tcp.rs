@@ -18,7 +18,11 @@ async fn request(
 ) -> (u16, serde_json::Value) {
     let mut socket = tokio::net::TcpStream::connect(address).await.unwrap();
     let text = body.as_ref().map_or(String::new(), |v| v.to_string());
-    socket.write_all(format!("{} {path} HTTP/1.1\r\nHost: {address}\r\nOrigin: http://{address}\r\nAuthorization: Bearer abcdefghijklmnopqrstuvwxyz0123456789\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{text}",if body.is_some(){"POST"}else{"GET"},text.len()).as_bytes()).await.unwrap();
+    // Each existing fixture call represents a distinct management intent.
+    let idempotency = if body.is_some() && path.starts_with("/api/v1/config/drafts/") {
+        format!("Idempotency-Key: {}\r\n", Uuid::new_v4())
+    } else { String::new() };
+    socket.write_all(format!("{} {path} HTTP/1.1\r\nHost: {address}\r\nOrigin: http://{address}\r\nAuthorization: Bearer abcdefghijklmnopqrstuvwxyz0123456789\r\n{idempotency}Content-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{text}",if body.is_some(){"POST"}else{"GET"},text.len()).as_bytes()).await.unwrap();
     let mut response = vec![];
     tokio::time::timeout(Duration::from_secs(5), socket.read_to_end(&mut response))
         .await

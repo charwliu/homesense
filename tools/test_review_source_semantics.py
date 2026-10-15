@@ -35,6 +35,18 @@ def project(events="", state="", calendar="", variables=""):
     return (f"<project><systemitems><item><id>1</id><name>PRIVATE-HOME-NAME</name><itemdata><config_data_file>blind.c4i</config_data_file></itemdata><state><![CDATA[{state}]]></state><state_values>{calendar}</state_values><subitems><item><id>2</id></item></subitems></item></systemitems><variables>{variables}</variables><event_mgr>{events}</event_mgr></project>").encode()
 
 
+def keypad_archive(declarations):
+    package, archive = io.BytesIO(), io.BytesIO()
+    with zipfile.ZipFile(package, "w") as zipped:
+        zipped.writestr("driver.xml", "<driver><version>21</version><events>"+declarations+"</events></driver>")
+        zipped.writestr("driver.lua.encrypted", b"PRIVATE-ENCRYPTED-CODE")
+    data = project(event(code("a", command("STOP")), key="2"))
+    with zipfile.ZipFile(archive, "w") as zipped:
+        zipped.writestr("project.xml", data.replace(b"blind.c4i", b"GJ-TECH.CN_Keypad.c4z"))
+        zipped.writestr("drivers/GJ-TECH.CN_Keypad.c4z", package.getvalue())
+    return archive.getvalue()
+
+
 class ReviewTests(unittest.TestCase):
     def test_nested_blocker_keeps_later_motor_and_all_variable_dependencies(self):
         conditional = "<deviceconditional owneridtype='variable' owneriditem='9' name='=='><param name='value' type='int'>0</param></deviceconditional>"
@@ -130,6 +142,34 @@ class ReviewTests(unittest.TestCase):
         self.assertEqual(result["summary"]["embedded_agent_schedules"],1)
         self.assertEqual(result["summary"]["calendar_entries"],0)
         self.assertFalse(result["embedded_agent_schedules"][0]["runtime_task_generated"])
+
+    def test_calendar_creator_is_resolved_separately_from_empty_event_program(self):
+        calendar = "<value name='entry_data'><![CDATA[<entries><entry><eventid>1</eventid><creatorid>2</creatorid><enabled>True</enabled></entry></entries>]]></value>"
+        data = project(event(code("0", target="0")), calendar=calendar)
+        data = data.replace(b"<item><id>2</id>", b"<item><id>2</id><itemdata><config_data_file>synthetic_agent.c4i</config_data_file></itemdata>")
+        result = MODULE.review(data)
+        entry = result["calendars"][0]
+        self.assertTrue(entry["source_program_empty"])
+        self.assertEqual(entry["source_creator"], {"source_item": "2", "source_item_exists": True,
+            "source_driver": "synthetic_agent.c4i", "runtime_ownership_verified": False})
+        self.assertFalse(entry["runtime_task_generated"])
+        self.assertIn("agent_owned_behavior", entry["review_gates"])
+        self.assertEqual(result["runtime_definitions"], [])
+
+    def test_calendar_missing_creator_does_not_infer_owner_from_event_or_description(self):
+        for creator, expected in [("", None), ("<creatorid>999</creatorid>", "999")]:
+            calendar = f"<value name='entry_data'><![CDATA[<entries><entry><eventid>1</eventid>{creator}<description>PRIVATE-AGENT-NAME</description></entry></entries>]]></value>"
+            result = MODULE.review(project(event(code("0", target="0")), calendar=calendar))
+            entry = result["calendars"][0]
+            self.assertEqual(entry["source_creator"], {"source_item": expected, "source_item_exists": False,
+                "source_driver": None, "runtime_ownership_verified": False})
+            self.assertFalse(entry["runtime_task_generated"])
+            self.assertNotIn("PRIVATE-AGENT-NAME", json.dumps(result))
+
+    def test_calendar_duplicate_creator_is_rejected(self):
+        calendar = "<value name='entry_data'><![CDATA[<entries><entry><eventid>1</eventid><creatorid>1</creatorid><creatorid>2</creatorid></entry></entries>]]></value>"
+        with self.assertRaisesRegex(ValueError, "duplicate creatorid"):
+            MODULE.review(project(calendar=calendar))
 
     def test_ramp_api_duration_unit_is_scoped_and_does_not_approve_execution(self):
         payload=command("RAMP_TO_LEVEL",param("TIME","1000")+param("LEVEL","0"))
@@ -229,6 +269,39 @@ class ReviewTests(unittest.TestCase):
         self.assertFalse(metadata[0]["ramp_timer_properties"][0]["semantics_verified"])
         self.assertNotIn("PRIVATE-ENCRYPTED-CODE",json.dumps(metadata))
         self.assertNotIn("PRIVATE-IDENTITY",json.dumps(metadata))
+
+    def test_keypad_trigger_links_exact_archived_declaration_without_inferred_edge(self):
+        source = keypad_archive("<event><id>2</id><name>Deliberately different static event label</name></event>")
+        result = MODULE.review(source)
+        declaration = result["programs"][0]["source_trigger_declaration"]
+        self.assertEqual(declaration["id"], "2")
+        self.assertEqual(declaration["name"], "Deliberately different static event label")
+        metadata = result["selected_plaintext_descriptors"][0]
+        self.assertEqual(declaration["descriptor_sha256"], metadata["descriptor_sha256"])
+        self.assertEqual(declaration["descriptor_version"], "21")
+        self.assertFalse(declaration["physical_event_confirmed"])
+        self.assertFalse(declaration["migration_trigger_confirmed"])
+        self.assertFalse(result["programs"][0]["semantic_approved"])
+        self.assertIn("trigger_semantics", result["programs"][0]["review_gates"])
+        self.assertNotIn("PRIVATE-ENCRYPTED-CODE", json.dumps(result))
+        self.assertEqual(result["runtime_definitions"], [])
+
+    def test_keypad_unlisted_event_or_absent_descriptor_never_guesses_even_release(self):
+        data = keypad_archive("<event><id>7</id><name>Different event</name></event>")
+        self.assertNotIn("source_trigger_declaration", MODULE.review(data)["programs"][0])
+        with zipfile.ZipFile(io.BytesIO(data)) as zipped:
+            xml = zipped.read("project.xml")
+        self.assertNotIn("source_trigger_declaration", MODULE.review(xml)["programs"][0])
+        archive = io.BytesIO()
+        with zipfile.ZipFile(archive, "w") as zipped:
+            zipped.writestr("project.xml", xml)
+        result = MODULE.review(archive.getvalue())
+        self.assertFalse(result["selected_plaintext_descriptors"][0]["descriptor_available"])
+        self.assertNotIn("source_trigger_declaration", result["programs"][0])
+
+    def test_keypad_duplicate_event_declaration_rejects_ambiguous_identity(self):
+        with self.assertRaisesRegex(ValueError, "duplicate descriptor event"):
+            MODULE.review(keypad_archive("<event><id>2</id><name>Press</name></event><event><id>2</id><name>Release</name></event>"))
 
 
 if __name__ == "__main__":

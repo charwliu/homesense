@@ -56,11 +56,19 @@ impl Synchronizer {
             let mut nodes = vec![];
             if let Some(selected) = selected {
                 let on = selected == member.value;
-                let pattern = if selected == 0 {
-                    patterns.values().next().ok_or("empty physical scene pattern")?.keys().map(|id|(id.clone(),homesense_core::scene_pattern::LightPower::Off)).collect()
-                } else {patterns[&selected].clone()};
+                let condition = if selected == 0 {
+                    // Zero is a complete known pattern with no selected scene,
+                    // including unmatched patterns; it does not mean all-Off.
+                    // Read every light again. Admission separately revalidates
+                    // this exact physical selection snapshot before LED writes.
+                    Condition::All(patterns.values().next().ok_or("empty physical scene pattern")?.keys().map(|id|
+                        Condition::Not(Box::new(Condition::Unknown(Expr::DeviceOn(id.clone()))))
+                    ).collect())
+                } else {
+                    Condition::All(patterns[&selected].iter().map(|(id,power)| Condition::Equal(Expr::DeviceOn(id.clone()),Expr::Literal(Value::Bool(*power == homesense_core::scene_pattern::LightPower::On)))).collect())
+                };
                 nodes.push(Node {source:format!("indicator:{}:physical",link.id), action:Action::If {
-                    condition:Condition::All(pattern.into_iter().map(|(id,power)| Condition::Equal(Expr::DeviceOn(id),Expr::Literal(Value::Bool(power == homesense_core::scene_pattern::LightPower::On)))).collect()),
+                    condition,
                     then_actions:link.leds.iter().map(|id|Node {source:format!("indicator:{}",link.id),action:Action::Command {device:id.clone(),command:Command::PanelLed(on)}}).collect(),
                     else_actions:vec![],
                 }});

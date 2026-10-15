@@ -15,6 +15,10 @@ let deviceSnapshotEpoch=0;
 const deviceCards=new Map();
 let lastSceneSnapshot=null;
 let sceneActionBusy=false;
+let awayBusy=false;
+let awayRevision=null;
+let awayReadEpoch=0;
+let awayActionOwner=null;
 let sceneSnapshotEpoch=0;
 let publicationPreview=null;
 let publicationConfirmation=null;
@@ -49,6 +53,9 @@ function selectionUnavailableMessage(reason) {
 async function request(path, options = {}) {
   const epoch=sessionEpoch;
   const selectionEpoch=sceneSnapshotEpoch;
+  const method=(options.method||'GET').toUpperCase();
+  const managedWrite=method!=='GET'&&(path.startsWith('/api/v1/credentials')||path.startsWith('/api/v1/config/drafts/')||path.endsWith('/restore-draft'));
+  if(managedWrite) options={...options,headers:{'Idempotency-Key':crypto.randomUUID(),...options.headers}};
   const response = await fetch(path, {...options, cache: 'no-store', credentials: 'same-origin', headers: {...(options.body!==undefined ? {'Content-Type':'application/json'} : {}), ...options.headers, ...(csrf ? {'X-CSRF-Token': csrf} : {})}});
   if(epoch!==sessionEpoch)throw new Error('会话已切换，已忽略旧响应');
   if(response.status===401){clearLocalSession();status.textContent='会话已失效，请重新登录。';throw new Error('会话已失效，请重新登录。');}
@@ -81,6 +88,7 @@ async function refresh() {
   const data = await request('/api/v1/scenes');
   await refreshDevices();
   if(epoch===sceneSnapshotEpoch)renderScenes(data);
+  await refreshAway();
 }
 function observeRevision(revision) {
   if(typeof revision!=='string'||!/^[1-9][0-9]*$/.test(revision))return true;
@@ -99,13 +107,14 @@ function renderScenes(data) {
     const row = document.createElement('article');
     const title = document.createElement('h2'); title.textContent = scene.name;
     const stateful=scene.switch_kind==='selection';
+    const readOnlyActivity=scene.activity_kind==='read_only';
     const unavailable=scene.selection_state?.state==='unavailable';
     const selected=unavailable?'不可用':scene.selected===true?'开启':scene.selected===false?'关闭':'未知';
     const source=scene.selection_source==='inferred'?(scene.observation_current===false?'按键推断已失效':'按键推断'):scene.selection_source==='unknown'?'来源未知':scene.selection_source==='light_initialization'?'灯光初始化记录':scene.selection_source==='physical_feedback'?'本次连接灯光反馈':'本地选择意图';
     const relative=stateful && !unavailable && scene.selected==null && scene.relative_unknown_allowed===true;
     const hint=unavailable?selectionUnavailableMessage(scene.selection_state.value):scene.pending_relative?'切换执行中，等待读回。':relative?'需要点亮的未知灯会翻转一次，结果由读回确认。':scene.selection_state?.state==='unknown'?'尚未建立有效选择，可明确开启场景。':'';
     const historyHint=scene.selection_source==='physical_feedback'?`历史选择：${scene.historical_selected===true?'开启':scene.historical_selected===false?'关闭':'未知'}；`:'';
-    const info = document.createElement('p'); info.textContent = `${stateful ? `当前选择：${selected}（${source}，不代表负载到位）；${hint}${historyHint}` : ''}负载反馈：${scene.activity}；${stateful?'最近开启执行':'最近执行'}：${scene.last_run?.status || '无记录'}`;
+    const info = document.createElement('p'); info.textContent = `${stateful ? `当前选择：${selected}（${source}，不代表负载到位）；${hint}${historyHint}` : ''}${readOnlyActivity?'只读活动跟踪；':''}负载反馈：${scene.activity}；${scene.execution_kind==='immediate'?'即时执行不创建定时运行记录':`${stateful?'最近开启执行':'最近执行'}：${scene.last_run?.status || '无记录'}`}`;
     if(scene.last_run) {
       const details=document.createElement('button');details.textContent='查看最近执行';
       const receipt=document.createElement('p');
@@ -127,13 +136,14 @@ function renderScenes(data) {
         const body={scene: scene.id, request_id: requestId};
         if(stateful&&!relative)body.on=scene.selected!==true;
         const result = await request(relative?'/api/v1/scene-relative-actions':'/api/v1/scene-actions', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
-        if (result.outcome === 'accepted') started.set(scene.id, requestId);
-        status.textContent = result.outcome === 'accepted' ? '请求已接受，请核对执行记录和设备反馈。' : result.outcome === 'unchanged' ? '场景选择已是目标值，本次未执行新的动作。' : '结果尚不明确，请核对记录；不要重复点击。';
+        if (result.outcome === 'accepted' && result.execution_kind !== 'immediate') started.set(scene.id, requestId);
+        else if(result.execution_kind === 'immediate') started.delete(scene.id);
+        status.textContent = result.outcome === 'accepted' ? (result.execution_kind==='immediate'?`即时场景已接受：${result.receipt?.commands?.length || 0}条命令已准入，${result.receipt?.unknown_branches?.length || 0}个未知条件分支已跳过；请核对写出结果和设备反馈。`:'请求已接受，请核对执行记录和设备反馈。') : result.outcome === 'unchanged' ? '场景选择已是目标值，本次未执行新的动作。' : '结果尚不明确，请核对记录；不要重复点击。';
         await refresh();
       } catch (error) { if(epoch===sessionEpoch)status.textContent = `${error.message}；未自动重试。`; }
       finally {if(epoch===sessionEpoch){sceneActionBusy=false;if(lastSceneSnapshot)renderScenes(lastSceneSnapshot);}}
     };
-    const cancel = document.createElement('button'); cancel.textContent = '取消剩余动作'; cancel.disabled = !scene.can_control || !started.has(scene.id) || sceneActionBusy;
+    const cancel = document.createElement('button'); cancel.textContent = '取消剩余动作'; cancel.disabled = scene.execution_kind==='immediate' || !scene.can_control || !started.has(scene.id) || sceneActionBusy;
     cancel.onclick = async () => {
       if(sceneActionBusy || !scene.can_control || !started.has(scene.id))return;
       sceneActionBusy=true;const epoch=sessionEpoch;
@@ -145,7 +155,7 @@ function renderScenes(data) {
       } catch (error) { if(epoch===sessionEpoch)status.textContent = error.message; }
       finally {if(epoch===sessionEpoch){sceneActionBusy=false;if(lastSceneSnapshot)renderScenes(lastSceneSnapshot);}}
     };
-    const history=document.createElement('button');history.textContent='执行历史';history.disabled=!data.revision;
+    const history=document.createElement('button');history.textContent='执行历史';history.disabled=!data.revision || scene.history_available===false;
     history.onclick=()=>loadSceneHistory(scene.id,data.revision);
     row.append(title, info, button, cancel,history); list.append(row);
   }
@@ -163,6 +173,7 @@ document.getElementById('connect').onclick = async () => {
   finally {sessionBusy=false;}
 };
 function clearLocalSession() {
+  ++awayReadEpoch;awayActionOwner=null;awayRevision=null;awayBusy=false;document.getElementById('away-control').hidden=true;document.getElementById('away-off').disabled=true;document.getElementById('away-result').textContent='';
   ++sessionEpoch;clearModules();deviceCards.clear();sceneActionBusy=false;clearCredentialCreation();invalidatePreview();
   csrf = ''; stopEventConnection();eventAttempts=0; observedRevision=null;lastSceneSnapshot=null;eventDevices.clear(); selectedRoom='';document.getElementById('room-filter').replaceChildren();document.getElementById('room-filter').value=''; document.getElementById('draft-impact').textContent=''; document.getElementById('configuration').hidden=true;document.getElementById('diagnostics').hidden=true;historyEpoch++;detailEpoch++;document.getElementById('run-details').replaceChildren();document.getElementById('scene-history').hidden=true;document.getElementById('history-runs').replaceChildren();document.getElementById('history-title').textContent='';document.getElementById('history-next').disabled=true; document.getElementById('runtime-result').textContent='';document.getElementById('calendar-result').textContent='';document.getElementById('credential-list').textContent='';document.getElementById('revoke-credential-id').value='';document.getElementById('revoke-credential-confirm').checked=false;document.getElementById('revoke-credential-result').textContent='';document.getElementById('backup-result').textContent='';document.getElementById('backup-actions').replaceChildren();backupInspectionEpoch++;document.getElementById('backup-inspection').textContent='';document.getElementById('versions').replaceChildren();document.getElementById('draft-list').replaceChildren(); versionsBefore=null;document.getElementById('more-versions').disabled=true; metadataSource=null;clearCalibration();document.getElementById('binding-enabled').checked=false;for(const id of ['binding-module-id','binding-gateway','binding-address','binding-channel'])document.getElementById(id).value='';document.getElementById('metadata-device').replaceChildren();document.getElementById('metadata-room').replaceChildren();document.getElementById('edit-room-select').replaceChildren();document.getElementById('metadata-name').value=''; for(const id of ['device-document','automation-document','draft-id','base-revision','draft-revision','edit-room-id','edit-room-name','edit-room-floor']) document.getElementById(id).value=''; started.clear(); list.replaceChildren(); document.getElementById('devices').replaceChildren();
 }
@@ -769,7 +780,7 @@ document.getElementById('issue-credential').onclick=async()=>{
   try {
     const issued=await request('/api/v1/credentials',{method:'POST',body:encoded});
     if(epoch!==sessionEpoch)return;
-    output.textContent=`凭证 ID：${issued.id}\n令牌（仅显示一次）：${issued.secret}`;
+    output.textContent=typeof issued.secret==='string'?`凭证 ID：${issued.id}\n令牌（仅显示一次）：${issued.secret}`:`凭证 ID：${issued.id}\n此请求已处理；令牌仅首次显示，请核对原记录。`;
     document.getElementById('issue-confirm').checked=false;
     document.getElementById('credential-list').textContent='授权已变化，请重新读取清单';
   }catch(e){if(epoch===sessionEpoch)output.textContent=e.message+'；若连接中断，创建可能已成功，请先读取清单核对，再决定是否撤销或重试。';}
@@ -991,3 +1002,32 @@ document.getElementById('migrate-modules').onclick=async()=>{
   }catch(error){if(epoch===previewEpoch)document.getElementById('replacement-impact').textContent=error.message+'；未自动重试。';}
   finally{if(session===sessionEpoch)button.disabled=false;}
 };
+
+async function refreshAway() {
+  const panel=document.getElementById('away-control');
+  const button=document.getElementById('away-off');
+  const epoch=sessionEpoch;const read=++awayReadEpoch;
+  const current=()=>epoch===sessionEpoch && read===awayReadEpoch;
+  button.disabled=true;awayRevision=null;
+  try {
+    const value=await request('/api/v1/away-off');
+    if(!current())return;
+    if(value.available && value.revision===observedRevision) {
+      awayRevision=value.revision;panel.hidden=false;button.disabled=awayBusy;
+    } else {panel.hidden=true;}
+  } catch {if(current())panel.hidden=true;}
+}
+document.getElementById('away-off').addEventListener('click',async()=>{
+  if(awayBusy || !csrf || awayRevision!==observedRevision || !awayRevision)return;
+  const button=document.getElementById('away-off');
+  const result=document.getElementById('away-result');
+  awayBusy=true;button.disabled=true;
+  const epoch=sessionEpoch;const owner={epoch};awayActionOwner=owner;
+  try {
+    const receipt=await request('/api/v1/away-off',{method:'POST',body:JSON.stringify({revision:awayRevision,request_id:crypto.randomUUID()})});
+    if(epoch!==sessionEpoch)return;
+    result.textContent=receipt.outcome==='accepted'?'已接收关灯请求，请以设备实际状态为准。':'结果未确认，请检查灯光状态；不会自动重复执行。';
+    await refreshDevices();
+  } catch(error) {if(epoch===sessionEpoch)result.textContent=error.message;}
+  finally {if(epoch===sessionEpoch && awayActionOwner===owner){awayActionOwner=null;awayBusy=false;if(csrf)await refreshAway();}}
+});

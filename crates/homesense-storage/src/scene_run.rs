@@ -542,3 +542,11 @@ impl Store {
         Ok(result)
     }
 }
+
+impl Store {
+    /// Only this boot and revision; old interrupted receipts are never replay work.
+    pub fn has_active_scene_runs(&self,boot:&str,revision:u64)->Result<bool,Error> {
+        key(boot)?;let revision=sql_revision(revision)?;
+        Ok(self.connection.query_row("SELECT EXISTS(SELECT 1 FROM scene_run WHERE boot_id=?1 AND revision=?2 AND status IN ('pending','running'))",params![boot,revision],|r|r.get(0))?)
+    }
+}

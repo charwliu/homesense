@@ -26,6 +26,7 @@ fn condition(value:&Condition)->Json {
 fn nodes(values:&[Node])->Result<Vec<Json>,String> {
     values.iter().map(|node|{
         let action=match &node.action {
+            Action::SceneActivation{..}|Action::RequireQuiescence{..}=>return Err("trusted runtime guard cannot be imported or exported as a source action".into()),
             Action::Motor{device,action,mapping_review}=>json!({"kind":"motor","device":device.as_str(),"action":match action{homesense_core::MotorAction::Open=>"open",homesense_core::MotorAction::Close=>"close",homesense_core::MotorAction::Stop=>"stop"},"mapping_review":mapping_review}),
             Action::Scene{id,activate}=>json!({"kind":"scene","id":id,"activate":activate}),
             Action::Set{variable,value}=>json!({"kind":"set","variable":variable,"value":expression(value)}),

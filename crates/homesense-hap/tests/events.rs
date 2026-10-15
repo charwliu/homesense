@@ -346,16 +346,39 @@ async fn latest_target_wins_off_cancels_and_timeout_reasserts_unchanged_actual()
 #[tokio::test]
 async fn off_event_reasserts_retained_brightness_instead_of_zero() {
     let (id, mut states, mut events, output, _) = fixture().await;
-    events.set_restore_levels(Arc::new(std::sync::RwLock::new([(id.clone(), Percent::new(50).unwrap())].into())));
-    states.observe(&id, Observation::Level(Percent::new(50).unwrap()), 1, 1).unwrap();
-    events.refresh_snapshot(&states.snapshot(), 1).await.unwrap();
+    events.set_restore_levels(Arc::new(std::sync::RwLock::new(
+        [(id.clone(), Percent::new(50).unwrap())].into(),
+    )));
+    states
+        .observe(&id, Observation::Level(Percent::new(50).unwrap()), 1, 1)
+        .unwrap();
+    events
+        .refresh_snapshot(&states.snapshot(), 1)
+        .await
+        .unwrap();
     output.lock().unwrap().clear();
-    states.observe(&id, Observation::Level(Percent::new(0).unwrap()), 1, 2).unwrap();
-    events.refresh_snapshot(&states.snapshot(), 2).await.unwrap();
-    assert_eq!(output.lock().unwrap().iter().map(|e| e.2.clone()).collect::<Vec<_>>(), vec![serde_json::json!(false), serde_json::json!(50)]);
+    states
+        .observe(&id, Observation::Level(Percent::new(0).unwrap()), 1, 2)
+        .unwrap();
+    events
+        .refresh_snapshot(&states.snapshot(), 2)
+        .await
+        .unwrap();
+    assert_eq!(
+        output
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|e| e.2.clone())
+            .collect::<Vec<_>>(),
+        vec![serde_json::json!(false), serde_json::json!(50)]
+    );
     output.lock().unwrap().clear();
     states.disconnect(2, 3).unwrap();
-    events.refresh_snapshot(&states.snapshot(), 3).await.unwrap();
+    events
+        .refresh_snapshot(&states.snapshot(), 3)
+        .await
+        .unwrap();
     assert_eq!(output.lock().unwrap().len(), 2);
     assert!(output.lock().unwrap().iter().all(|e| e.2.is_null()));
 }

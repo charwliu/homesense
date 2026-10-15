@@ -54,6 +54,7 @@ fn response(code: StatusCode, value: serde_json::Value) -> Response<Full<Bytes>>
         .body(Full::new(Bytes::from(value.to_string())))
         .unwrap()
 }
+pub(crate) fn receipt_response(code:StatusCode,value:serde_json::Value,expired:bool)->Response<Full<Bytes>> {let mut r=response(code,value);if expired{r.headers_mut().insert("x-homesense-receipt-state",hyper::header::HeaderValue::from_static("expired_preserved"));}r}
 fn default_scene_on() -> bool { true }
 fn selection_unavailable(reason: crate::scene_switches::UnavailableReason) -> Response<Full<Bytes>> {
     response(StatusCode::SERVICE_UNAVAILABLE, json!({
@@ -196,6 +197,17 @@ impl Api {
         let Some(grant) = grant else {
             return deny(StatusCode::UNAUTHORIZED, "authentication_required");
         };
+        match crate::web_management_receipts::Operation::route(request.method(),request.uri().path()) {
+            Ok(Some(op))=>return crate::web_management_receipts::execute(self,&request,grant,op).await,
+            Err(error)=>return deny(StatusCode::BAD_REQUEST,&error),
+            Ok(None)=>{},
+        }
+        self.handle_authorized(&request,grant).await
+    }
+    pub(crate) async fn handle_authorized(&self,request:&Request<Bytes>,grant:crate::web_auth::Grant)->Response<Full<Bytes>> {
+        let deny=|code,message|response(code,json!({"error":message}));
+        let authorization=request.headers().get("authorization").and_then(|v|v.to_str().ok());
+        let cookie=request.headers().get("cookie").and_then(|v|v.to_str().ok()).and_then(session_cookie);
         if request.method() == hyper::Method::GET && request.uri().path() == "/api/v1/session" {
             return response(
                 StatusCode::OK,
@@ -329,12 +341,15 @@ impl Api {
                 _=>deny(StatusCode::SERVICE_UNAVAILABLE,"backup_catalog_unavailable"),
             };
         }
+        if request.uri().path()=="/api/v1/away-off" {
+            return crate::web_away_off::execute(self,&runtime,&grant,request).await;
+        }
         if request.uri().path() == "/api/v1/diagnostics" {
             if grant.role != crate::web_auth::Role::Administrator {return deny(StatusCode::FORBIDDEN,"administrator_required");}
             if request.method()!=hyper::Method::GET {return deny(StatusCode::METHOD_NOT_ALLOWED,"method_not_allowed");}
             if !request.body().is_empty() {return deny(StatusCode::BAD_REQUEST,"unexpected_body");}
             return match runtime.control.request(Action::Diagnostics{controller:grant.controller,revision:runtime.revision}).await {
-                Ok(Reply::Diagnostics(s))=>response(StatusCode::OK,json!({"boot":s.boot,"revision":s.epochs.configuration.to_string(),"transport_epoch":s.epochs.transport.to_string(),"control_epoch":s.epochs.control.to_string(),"queued":s.queued,"in_flight":s.in_flight,"failed":s.failed,"stopping":s.stopping,"publishing":s.publishing,"gateway_ready":s.gateway_ready,"controller_enabled":s.controller_enabled,"ready":s.ready(),"storage_healthy":s.storage_healthy,"valid_configuration_loaded":s.valid_configuration_loaded,"wire_capacity":s.wire_capacity,"daily_backup":self.daily_backup.report(),"hap_bridges":self.hap_bridges.read().map(|s|s.clone()).unwrap_or_default(),"hap":self.hap_status.read().map(|state|*state).unwrap_or_default()})),
+                Ok(Reply::Diagnostics(s))=>response(StatusCode::OK,json!({"boot":s.boot,"revision":s.epochs.configuration.to_string(),"transport_epoch":s.epochs.transport.to_string(),"control_epoch":s.epochs.control.to_string(),"queued":s.queued,"in_flight":s.in_flight,"failed":s.failed,"stopping":s.stopping,"publishing":s.publishing,"gateway_ready":s.gateway_ready,"controller_enabled":s.controller_enabled,"ready":s.ready(),"storage_healthy":s.storage_healthy,"valid_configuration_loaded":s.valid_configuration_loaded,"wire_capacity":s.wire_capacity,"web_receipt_policy":self.receipts.lock().ok().map(|r|r.policy().clone()),"daily_backup":self.daily_backup.report(),"hap_bridges":self.hap_bridges.read().map(|s|s.clone()).unwrap_or_default(),"hap":self.hap_status.read().map(|state|*state).unwrap_or_default()})),
                 _=>deny(StatusCode::SERVICE_UNAVAILABLE,"diagnostics_unavailable"),
             };
         }
@@ -352,11 +367,11 @@ impl Api {
             };
         }
         if request.uri().path().starts_with("/api/v1/config/versions/") && request.uri().path().ends_with("/restore-draft") {
-            let (code,body)=crate::web_history::restore(self,&runtime,&grant,&request).await;
+            let (code,body)=crate::web_history::restore(self,&runtime,&grant,request).await;
             return response(code,body);
         }
         if request.uri().path()=="/api/v1/config/versions" || request.uri().path().starts_with("/api/v1/config/versions/") {
-            let (code,body)=crate::web_history::read(&runtime,&grant,&request).await;
+            let (code,body)=crate::web_history::read(&runtime,&grant,request).await;
             return response(code,body);
         }
         if let Some(id) = request
@@ -364,9 +379,9 @@ impl Api {
             .path()
             .strip_prefix("/api/v1/config/activations/")
         {
-            let (code, body) =
-                crate::web_activation::activate(self, &runtime, &grant, id, &request).await;
-            return response(code, body);
+            let (code, body, expired) =
+                crate::web_activation::activate_scoped(self, &runtime, &grant, id, request).await;
+            return receipt_response(code, body, expired);
         }
         if let Some(id) = request
             .uri()
@@ -618,11 +633,11 @@ impl Api {
             };
         }
         if request.uri().path()=="/api/v1/scene-history" {
-            let (code,body)=crate::web_scene_history::read(&runtime,&grant,&request).await;
+            let (code,body)=crate::web_scene_history::read(&runtime,&grant,request).await;
             return response(code,body);
         }
         if request.uri().path().starts_with("/api/v1/runs/") && request.uri().path().ends_with("/details") {
-            let (code,body)=crate::web_run_details::read(&runtime,&grant,&request).await;
+            let (code,body)=crate::web_run_details::read(&runtime,&grant,request).await;
             return response(code,body);
         }
         if let Some(key)=request.uri().path().strip_prefix("/api/v1/runs/") {
@@ -646,21 +661,17 @@ impl Api {
                 if !grant.may_read(id) {
                     continue;
                 }
-                let activity = match runtime
-                    .control
-                    .request(Action::SceneActivity(id.clone()))
-                    .await
-                {
-                    Ok(Reply::Activity(Some(v))) => format!("{v:?}"),
-                    _ => "Unknown".into(),
-                };
+                let execution_kind=match runtime.control.request(Action::SceneDefinition{controller:grant.controller,revision:runtime.revision,scene:id.clone()}).await {Ok(Reply::SceneDefinition(kind))=>kind,_=>return deny(StatusCode::SERVICE_UNAVAILABLE,"scene_definition_unavailable")};
+                let tracking=match runtime.control.request(Action::SceneTracking{controller:grant.controller,revision:runtime.revision,scene:id.clone()}).await {Ok(Reply::SceneTracking(v))=>v,_=>return deny(StatusCode::SERVICE_UNAVAILABLE,"scene_tracking_unavailable")};
+                let activity=if let Some(value)=&tracking {format!("{:?}",value.activity)}else{match runtime.control.request(Action::SceneActivity(id.clone())).await {Ok(Reply::Activity(Some(v)))=>format!("{v:?}"),_=>"Unknown".into()}};
+                let name=tracking.as_ref().and_then(|v|v.display_name.as_ref()).unwrap_or(name);
                 let last = match runtime.control.request(Action::LastRun(id.clone())).await {
                     Ok(Reply::LastRun(Some(v))) => {
                         json!({"boot":v.boot,"run":v.run,"status":format!("{:?}",v.status)})
                     }
                     _ => serde_json::Value::Null,
                 };
-                items.push(json!({"id":id,"name":name,"activity":activity,"last_run":last,"can_control":grant.may_control(id) && !selection.get(id).is_some_and(|s|s.pending_relative),"switch_kind":if selection.contains_key(id){"selection"}else{"momentary"},"selected":selection.get(id).and_then(|s|s.selected),"selection_state":selection.get(id).map(|s|s.selection_state),"selection_source":selection.get(id).map(|s|s.selection_source),"historical_selected":selection.get(id).and_then(|s|s.historical_selected),"pending_relative":selection.get(id).is_some_and(|s|s.pending_relative),"relative_unknown_allowed":selection.get(id).is_some_and(|s|s.relative_unknown_allowed),"observation_current":selection.get(id).and_then(|s|s.observation_current),"observation_boot":selection.get(id).and_then(|s|s.observation_boot.as_ref()),"observed_ms":selection.get(id).and_then(|s|s.observed_ms.as_ref())}));
+                items.push(json!({"id":id,"name":name,"execution_kind":execution_kind,"history_available":execution_kind==homesense_config::rule_document::SceneExecutionKind::Timed,"activity":activity,"activity_source":if tracking.is_some(){"reviewed_tracking"}else if execution_kind==homesense_config::rule_document::SceneExecutionKind::Immediate{"not_configured"}else{"final_light_targets"},"tracking":tracking,"last_run":last,"can_control":grant.may_control(id) && tracking.as_ref().is_none_or(|v|v.action_available) && !selection.get(id).is_some_and(|s|s.pending_relative),"activity_kind":if tracking.is_some(){"read_only"}else if execution_kind==homesense_config::rule_document::SceneExecutionKind::Immediate{"unconfigured"}else{"load_feedback"},"switch_kind":if selection.contains_key(id){"selection"}else{"momentary"},"selected":selection.get(id).and_then(|s|s.selected),"selection_state":selection.get(id).map(|s|s.selection_state),"selection_source":selection.get(id).map(|s|s.selection_source),"historical_selected":selection.get(id).and_then(|s|s.historical_selected),"pending_relative":selection.get(id).is_some_and(|s|s.pending_relative),"relative_unknown_allowed":selection.get(id).is_some_and(|s|s.relative_unknown_allowed),"observation_current":selection.get(id).and_then(|s|s.observation_current),"observation_boot":selection.get(id).and_then(|s|s.observation_boot.as_ref()),"observed_ms":selection.get(id).and_then(|s|s.observed_ms.as_ref())}));
             }
             return response(StatusCode::OK, json!({"revision":runtime.revision.to_string(),"scenes":items}));
         }
@@ -689,7 +700,7 @@ impl Api {
             };
             if request.uri().path()=="/api/v1/rooms" {
                 let rooms:std::collections::BTreeMap<_,_>=snapshot.devices.iter().filter_map(|d|d.room.as_ref()).map(|r|(r.id.clone(),r)).collect();
-                return response(StatusCode::OK,json!({"boot":snapshot.boot,"revision":snapshot.revision.to_string(),"rooms":rooms.values().collect::<Vec<_>>()}));
+                return response(StatusCode::OK,json!({"boot":snapshot.boot,"revision":snapshot.revision.to_string(),"rooms":rooms.values().collect::<Vec<_>>(),"floors":snapshot.floors}));
             }
             let devices = snapshot
                 .devices
@@ -712,8 +723,8 @@ impl Api {
         if let Some(key)=request.uri().path().strip_prefix("/api/v1/module-queries/") {
             if grant.role!=crate::web_auth::Role::Administrator {return deny(StatusCode::FORBIDDEN,"administrator_required");}
             if request.method()!=hyper::Method::GET || !request.body().is_empty() || request.uri().query().is_some() || key.is_empty() || key.len()>128 || !key.bytes().all(|b|b.is_ascii_alphanumeric()||b==b'-'||b==b'_') {return deny(StatusCode::BAD_REQUEST,"invalid_query_receipt");}
-            let owned=self.receipts.lock().ok().and_then(|r|r.lookup(&grant.controller.to_string(),key).ok().flatten());
-            let Some((fingerprint,Some(receipt)))=owned else {return deny(StatusCode::NOT_FOUND,"owned_query_not_found");};
+            let owned=self.receipts.lock().ok().and_then(|r|r.lookup_scoped(&grant.controller.to_string(),&crate::web_receipts::Endpoint::ModuleQueries,key).ok().flatten().map(|r|(r.fingerprint,r.response,r.expired)));
+            let Some((fingerprint,Some(receipt),receipt_expired))=owned else {return deny(StatusCode::NOT_FOUND,"owned_query_not_found");};
             let decoded=serde_json::from_str::<serde_json::Value>(&fingerprint).ok().zip(serde_json::from_str::<serde_json::Value>(&receipt).ok());
             let Some((fingerprint,receipt))=decoded else{return deny(StatusCode::CONFLICT,"query_receipt_unknown");};
             if fingerprint["action"]!="module_query" || fingerprint["revision"]!=runtime.revision || receipt["boot"]!=runtime.boot || receipt["outcome"]!="accepted" {return deny(StatusCode::CONFLICT,"query_not_in_current_runtime");}
@@ -725,7 +736,7 @@ impl Api {
                 Ok(Reply::ModuleQueryStatus(mut status))=>{
                     mask_module_actions(&mut status.channels,&grant);
                     mask_module_actions(&mut status.module.slots,&grant);
-                    response(StatusCode::OK,json!({"request_id":key,"boot":runtime.boot,"revision":runtime.revision.to_string(),"status":status}))
+                    receipt_response(StatusCode::OK,json!({"request_id":key,"boot":runtime.boot,"revision":runtime.revision.to_string(),"status":status}),receipt_expired)
                 },
                 _=>deny(StatusCode::CONFLICT,"query_scope_unavailable"),
             };
@@ -771,6 +782,7 @@ impl Api {
             request_id: String,
         }
         let principal = grant.controller.to_string();
+        let mut source_receipt_expired=false;
         let is_device = matches!(request.uri().path(),"/api/v1/device-commands"|"/api/v1/module-commands"|"/api/v1/module-queries");
         let (scene, request_id, action, fingerprint) = if request.uri().path()=="/api/v1/module-queries" {
             if grant.role!=crate::web_auth::Role::Administrator{return deny(StatusCode::FORBIDDEN,"administrator_required");}
@@ -866,10 +878,11 @@ impl Api {
                 .receipts
                 .lock()
                 .ok()
-                .and_then(|r| r.lookup(&principal, &body.start_request_id).ok().flatten());
-            let Some((fingerprint, Some(receipt))) = record else {
+                .and_then(|r| r.lookup_scoped(&principal,&crate::web_receipts::Endpoint::SceneActions,&body.start_request_id).ok().flatten().map(|r|(r.fingerprint,r.response,r.expired)));
+            let Some((fingerprint, Some(receipt), expired)) = record else {
                 return deny(StatusCode::NOT_FOUND, "owned_start_not_found");
             };
+            source_receipt_expired=expired;
             let parsed = serde_json::from_str::<serde_json::Value>(&fingerprint).ok();
             let receipt = serde_json::from_str::<serde_json::Value>(&receipt).ok();
             let Some((scene, run)) = parsed.as_ref().zip(receipt.as_ref()).and_then(|(p, r)| {
@@ -899,37 +912,41 @@ impl Api {
         if !is_device && (!grant.may_control(&scene) || !runtime.scenes.contains_key(&scene)) {
             return deny(StatusCode::FORBIDDEN, "scene_not_permitted");
         }
+        let endpoint=match crate::web_receipts::Endpoint::control(request.uri().path()){Ok(e)=>e,Err(_)=>return deny(StatusCode::NOT_FOUND,"not_found")};
         let claim = self
             .receipts
             .lock()
             .map_err(|_| ())
             .and_then(|mut receipts| {
                 receipts
-                    .claim(&principal, &request_id, &fingerprint)
+                    .claim_scoped(&principal,&endpoint,&request_id,&fingerprint)
                     .map_err(|_| ())
             });
-        match claim {
-            Ok(Claim::Existing(Some(value))) => {
-                return response(
+        let claim=match claim {Ok(c)=>c,Err(_)=>return deny(StatusCode::SERVICE_UNAVAILABLE,"persistence_unavailable")};
+        let expiry_header=|mut r:Response<Full<Bytes>>|{if source_receipt_expired{r.headers_mut().insert("x-homesense-start-receipt-state",hyper::header::HeaderValue::from_static("expired_preserved"));}
+            if claim.expired{r.headers_mut().insert("x-homesense-receipt-state",hyper::header::HeaderValue::from_static("expired_preserved"));}r};
+        match claim.claim {
+            Claim::Existing(Some(value)) => {
+                return expiry_header(response(
                     StatusCode::OK,
                     serde_json::from_str(&value).unwrap_or(json!({"outcome":"unknown"})),
-                );
+                ));
             }
-            Ok(Claim::Existing(None)) => {
-                return response(
+            Claim::Existing(None) => {
+                return expiry_header(response(
                     StatusCode::ACCEPTED,
                     json!({"request_id":request_id,"outcome":"unknown","retry":false}),
-                );
+                ));
             }
-            Ok(Claim::Conflict) => return deny(StatusCode::CONFLICT, "idempotency_conflict"),
-            Err(_) => return deny(StatusCode::SERVICE_UNAVAILABLE, "persistence_unavailable"),
-            Ok(Claim::New) => {}
+            Claim::Conflict => return deny(StatusCode::CONFLICT, "idempotency_conflict"),
+            Claim::New => {}
         }
         let relative=request.uri().path()=="/api/v1/scene-relative-actions";
         let outcome = match runtime.control.request(action).await {
             Ok(Reply::SceneAccepted(Some(run))) => {
                 json!({"request_id":request_id,"outcome":"accepted","boot":runtime.boot,"run":run})
             }
+            Ok(Reply::ImmediateAccepted(receipt))=>json!({"request_id":request_id,"outcome":"accepted","execution_kind":"immediate","boot":runtime.boot,"receipt":receipt,"retry":false}),
             Ok(Reply::SceneRelative(receipt))=>json!({"request_id":request_id,"outcome":"accepted","status":receipt.status,"boot":receipt.boot,"selected":receipt.selected,"retry":false}),
             Err(error) if relative=>json!({"request_id":request_id,"outcome":"unknown","error":error,"retry":false}),
             Ok(Reply::SceneAccepted(None))=>json!({"request_id":request_id,"outcome":"unchanged","retry":false}),
@@ -948,7 +965,7 @@ impl Api {
             .map_err(|_| ())
             .and_then(|mut receipts| {
                 receipts
-                    .finish(&principal, &request_id, &outcome.to_string())
+                    .finish_scoped(&principal,&endpoint,&request_id,&outcome.to_string())
                     .map_err(|_| ())
             })
             .is_err()
@@ -958,7 +975,7 @@ impl Api {
                 "receipt_unavailable_outcome_unknown",
             );
         }
-        response(StatusCode::ACCEPTED, outcome)
+        expiry_header(response(StatusCode::ACCEPTED, outcome))
     }
 }
 

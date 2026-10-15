@@ -23,6 +23,7 @@ pub(crate) async fn run(
     loop {
         let (runtime_stop, runtime_receive) = tokio::sync::watch::channel(false);
         let mut pending = None;
+        let handoff_gate=runtime.handoff_gate();
         let outcome = {
             let (ready, mut started) = tokio::sync::oneshot::channel();
             let mut running = false;
@@ -44,7 +45,7 @@ pub(crate) async fn run(
                         let Some(request)=request else {let _=runtime_stop.send(true);break drive.await;};
                         let candidate=match crate::automation_tcp::validate_candidate_in_context(request.devices(),request.rules(),Duration::from_millis(20),ExecutionContext::Simulation){Ok(value)=>value,Err(e)=>{request.complete(Err(e.to_string()));continue;}};
                         let document=match crate::configuration_publish::validate_automation(&candidate,request.rules(),ExecutionContext::Simulation){Ok(value)=>value,Err(e)=>{request.complete(Err(e.to_string()));continue;}};
-                        let selected:std::collections::BTreeMap<String,String>=document.timed_scenes.iter().filter(|(_,s)|s.enabled && s.review_evidence.as_ref().is_some_and(|v|!v.trim().is_empty())).map(|(id,_)|(id.clone(),id.clone())).collect();
+                        let selected:std::collections::BTreeMap<String,String>=document.scene_catalog();
                         if selected.len()>64 {request.complete(Err("management scene limit exceeded".into()));continue;}
                         if request.abandoned(){request.complete(Err("publication abandoned".into()));continue;}
                         let previous=api.runtime.write().map_err(|_|"management view poisoned")?.take();
@@ -60,11 +61,33 @@ pub(crate) async fn run(
                             *api.runtime.write().map_err(|_|"management view poisoned")?=previous;
                             request.complete(Err("backup failed or publication abandoned".into()));continue;
                         }
+                        let quantum=tokio::select! {
+                            permit=handoff_gate.clone().lock_owned()=>permit,
+                            result=&mut drive=>{request.complete(Err("runtime ended before publication barrier".into()));break result;},
+                            _=async { let _=stop.wait_for(|stopped|*stopped).await; }=>{
+                                request.complete(Err("service stopped before publication barrier".into()));
+                                let _=runtime_stop.send(true);break drive.await;
+                            },
+                        };
+                        // A ready permit may win select at the same turn as stop.
+                        // Revalidate the service before any publication side effect.
+                        let stopped=*stop.borrow() || stop.has_changed().is_err();
+                        if stopped {
+                            request.complete(Err("service stopped before publication barrier".into()));
+                            let _=runtime_stop.send(true);
+                            drop(quantum);
+                            break drive.await;
+                        }
+                        if request.abandoned() {
+                            drop(quantum);
+                            *api.runtime.write().map_err(|_|"management view poisoned")?=previous;
+                            request.complete(Err("publication abandoned before barrier".into()));continue;
+                        }
                         if let Err(e)=admission.begin_automation_publication(request.devices().to_vec(),request.rules().to_vec(),request.expected_revision(),Duration::from_secs(3)).await {
                             *api.runtime.write().map_err(|_|"management view poisoned")?=previous;
                             request.complete(Err(format!("publication rejected: {e:?}")));continue;
                         }
-                        pending=Some((request,candidate,selected));let _=runtime_stop.send(true);break drive.await;
+                        pending=Some((request,candidate,selected));let _=runtime_stop.send(true);drop(quantum);break drive.await;
                     }
                 }
             }

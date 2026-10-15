@@ -1,3 +1,5 @@
+#[path = "../../test-support/cli.rs"]
+mod test_cli;
 use homesense_import::project_xml;
 fn fixture() -> String {
     r#"<project><systemitems><item><id>1</id><type>8</type><name>书房</name><subitems><item><id>210</id><name>灯</name><itemdata><config_data_file>GJ-TECH.CN_Switch_V2.c4z</config_data_file></itemdata><state><![CDATA[<state><properties><property><name>Device ID</name><value>03</value></property><property><name>Channel</name><value>4</value></property><property><name>Activation Key</name><value>DO-NOT-EXPORT</value></property></properties><AdvScene><name>Test scene</name><scene_id>7</scene_id><all_members><AdvSceneMember><device_id>210</device_id></AdvSceneMember></all_members></AdvScene></state>]]></state></item></subitems></item></systemitems><event_mgr><event><deviceid>210</deviceid><eventid>1</eventid><codeitem><id>9</id><device>999</device><type>1</type><enabled>True</enabled><display>DO-NOT-EXPORT</display></codeitem></event></event_mgr></project>"#.into()
@@ -254,7 +256,7 @@ fn cli_exports_three_disabled_artifacts_and_refuses_overwrite() {
     fs::write(root.join("project.xml"), xml).unwrap();
     fs::write(root.join("plan.json"), serde_json::to_vec(&plan).unwrap()).unwrap();
     let run = || {
-        Command::new(env!("CARGO_BIN_EXE_homesense-import"))
+        Command::new(test_cli::binary(env!("CARGO_BIN_EXE_homesense-import")))
             .arg(root.join("project.xml"))
             .arg("--config-plan")
             .arg(root.join("plan.json"))

@@ -285,6 +285,17 @@ impl CommandQueue {
             cancelled,
         }
     }
+    /// Whole-module Away override supersedes only covered control outputs.
+    /// Queries and independent motor STOP commands retain their original queue.
+    pub(crate) fn cancel_devices(&mut self,devices:&std::collections::BTreeSet<DeviceId>)->Vec<Cancellation> {
+        let mut cancelled=vec![];
+        self.commands.retain(|command|{
+            let remove=devices.contains(&command.device_id) && command.command!=Command::Query && !command.is_stop();
+            if remove {cancelled.push(Cancellation{command:command.clone(),reason:CancelReason::Superseded});}
+            !remove
+        });
+        cancelled
+    }
     pub fn cancel_run(&mut self, run_id: u64) -> Vec<Cancellation> {
         let mut cancelled = Vec::new();
         self.commands.retain(|command| {

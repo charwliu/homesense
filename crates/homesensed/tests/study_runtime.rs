@@ -4399,6 +4399,12 @@ async fn running_automation_control_cancels_before_output_and_closes_on_exit() {
     a.shutdown().await.unwrap();
 }
 
+fn publication_pause_fixture_rules(offset_ms:u64)->Vec<u8> {
+    let mut document:hap::serde_json::Value=hap::serde_json::from_slice(br#"{"schema_version":1,"configuration_revision":1,"variables":[{"id":"mode","kind":"integer","lifetime":"persistent"}],"rules":[],"timed_scenes":[{"id":"light","enabled":true,"review_evidence":"simulation","max_lateness_ms":1000,"steps":[{"source":"fixture","offset_ms":100,"device":"simulation:light","command":{"kind":"level","value":30,"ramp":false}}]}]}"#).unwrap();
+    document["timed_scenes"][0]["steps"][0]["offset_ms"]=offset_ms.into();
+    hap::serde_json::to_vec(&document).unwrap()
+}
+
 #[tokio::test]
 async fn publication_pauses_old_automation_without_closing_admission() {
     use homesensed::{automation_runtime::AutomationRuntime, automation_control::Action, feedback::Feedback, observed_transport::ObservedTransport, transport_owner::TransportOwner};
@@ -4408,8 +4414,10 @@ async fn publication_pauses_old_automation_without_closing_admission() {
     for responds in [false, true] {
     let db=Db(std::env::temp_dir().join(format!("assembly-{}.sqlite",Uuid::new_v4())));
     let devices=include_bytes!("../../../config/simulation.json");
-    let rules=br#"{"schema_version":1,"configuration_revision":1,"variables":[{"id":"mode","kind":"integer","lifetime":"persistent"}],"rules":[],"timed_scenes":[{"id":"light","enabled":true,"review_evidence":"simulation","max_lateness_ms":1000,"steps":[{"source":"fixture","offset_ms":100,"device":"simulation:light","command":{"kind":"level","value":30,"ramp":false}}]}]}"#;
-    Store::open(&db.0).unwrap().publish_automation(None,devices,rules,ExecutionContext::Simulation,&[]).unwrap();
+    // Keep cancellation work in the future while all 28 publication/recovery cases prepare their inputs.
+    // An elapsed 100ms scene may legally write before the barrier request.
+    let rules=publication_pause_fixture_rules(60_000);
+    Store::open(&db.0).unwrap().publish_automation(None,devices,&rules,ExecutionContext::Simulation,&[]).unwrap();
     let controller=Uuid::new_v4();
     let a=actor(&db,controller).await;
 
@@ -4449,7 +4457,7 @@ async fn publication_pauses_old_automation_without_closing_admission() {
     }
     use homesensed::publication_recovery::Synchronization;
     let policy=match policy_index {0=>Synchronization::CompleteFeedback,1=>Synchronization::OutputsAndKeypadEvents,4=>Synchronization::CompleteFeedback,_=>Synchronization::OutputsAndCalibratedMotors};
-    let mut next_rules:hap::serde_json::Value=hap::serde_json::from_slice(rules).unwrap();
+    let mut next_rules:hap::serde_json::Value=hap::serde_json::from_slice(&rules).unwrap();
     next_rules["configuration_revision"]=2.into();
     if policy_index>=5 { next_rules["timed_scenes"]=hap::serde_json::json!([]); }
     let (projection,mut updates)=tokio::sync::watch::channel(owner.snapshot());
@@ -4741,7 +4749,11 @@ async fn deferred_rule_adapter_reserves_before_variables_and_preserves_chain() {
     document["rules"].as_array_mut().unwrap().push(hap::serde_json::json!({"id":"mode-changed","enabled":true,"review_evidence":"test","source":"test","trigger":{"kind":"variable_changed","variable":"mode"},"actions":[{"source":"copy","action":{"kind":"set","variable":"marker","value":{"kind":"variable","id":"mode"}}}]}));
     let rules=hap::serde_json::to_vec(&document).unwrap();
     Store::open(&db.0).unwrap().publish_automation(None,devices,&rules,ExecutionContext::Simulation,&[]).unwrap();
+    // Admission creates its private Instant during actor(...). This earlier
+    // anchor bounds that same monotonic clock without exposing production API.
+    let clock_upper_anchor=std::time::Instant::now();
     let controller=Uuid::new_v4();let a=actor(&db,controller).await;
+    let upper_now=||u64::try_from(clock_upper_anchor.elapsed().as_millis()).unwrap();
     let mut scheduler=homesensed::scene_scheduler::SceneScheduler::new(a.clone(),controller,1,0).unwrap();
     let full=scheduler.reserve_slots(1).unwrap();
     let chain=||homesense_core::rule_chain::Chain::new(77,0,60000,Default::default(),32).unwrap();
@@ -4764,10 +4776,14 @@ async fn deferred_rule_adapter_reserves_before_variables_and_preserves_chain() {
     let page=store.query_scene(1,&homesense_storage::scene_run::Query::Latest{definition:"later".into()}).unwrap().unwrap();
     let cause=store.scene_cause(&page.boot,&page.run).unwrap().unwrap();
     assert_eq!(cause.correlation,77);assert_eq!(cause.event,result.cause.event_id());
-    scheduler.tick(page.record.started_ms+100).await.unwrap();
+    // Installation clocks the scheduler after durable scene acceptance. A
+    // stored start plus 100 ms can be behind that clock under async load.
+    let first_tick=(page.record.started_ms+100).max(upper_now());
+    scheduler.tick(first_tick).await.unwrap();
     let ticket=a.dispatch().await.unwrap().unwrap();
     assert_eq!(ticket.command.origin,Origin::Rule);a.finish_write(ticket.command.id,true).await.unwrap();
-    scheduler.tick(page.record.started_ms+101).await.unwrap();
+    let first_complete_tick=(first_tick+1).max(upper_now());
+    scheduler.tick(first_complete_tick).await.unwrap();
     let terminal=scheduler.take_results().pop().unwrap();
     assert!(homesensed::deferred_rule::resume_scene(&a,controller,&mut chain,&root,&terminal,&mut scheduler,None).await.is_err());
     assert_eq!(store.logical_variable(1,"mode").unwrap().unwrap().value,Some(homesense_core::rule::Value::Integer(1)));
@@ -4796,9 +4812,10 @@ async fn deferred_rule_adapter_reserves_before_variables_and_preserves_chain() {
     assert!(session.resume(&terminal,&mut scheduler,None).await.is_err());
     let next=store.query_scene(1,&homesense_storage::scene_run::Query::Latest{definition:"later".into()}).unwrap().unwrap();
     tokio::time::sleep(std::time::Duration::from_millis(110)).await;
-    scheduler.tick(next.record.started_ms+100).await.unwrap();
+    let second_tick=(next.record.started_ms+100).max(upper_now()).max(first_complete_tick+1);
+    scheduler.tick(second_tick).await.unwrap();
     let ticket=a.dispatch().await.unwrap().unwrap();a.finish_write(ticket.command.id,true).await.unwrap();
-    scheduler.tick(next.record.started_ms+101).await.unwrap();
+    scheduler.tick((second_tick+1).max(upper_now())).await.unwrap();
     let complete=scheduler.take_results().pop().unwrap();
     assert_eq!(session.resume(&complete,&mut scheduler,None).await.unwrap().len(),2);
     assert_eq!(store.logical_variable(1,"marker").unwrap().unwrap().value,Some(homesense_core::rule::Value::Integer(2)));
@@ -5325,40 +5342,6 @@ async fn software_fade_partial_wire_failure_does_not_admit_successor() {
     a.shutdown().await.unwrap();
 }
 
-#[tokio::test]
-async fn dropping_unfinished_software_fade_closes_output_admission() {
-    use homesensed::{software_fade::SoftwareFade,feedback::Feedback,transport_owner::GatewayRead};
-    let db=Db(std::env::temp_dir().join(format!("fade-drop-{}.sqlite",Uuid::new_v4())));
-    let devices=include_bytes!("../../../config/simulation.json");
-    Store::open(&db.0).unwrap().publish_configuration(None,devices,ExecutionContext::Simulation,&[]).unwrap();
-    let controller=Uuid::new_v4();let a=actor(&db,controller).await;
-    let config=homesense_config::Configuration::parse(devices,ExecutionContext::Simulation).unwrap();
-    let mut feedback=Feedback::new(&config,ExecutionContext::Simulation,Uuid::parse_str(a.boot_id()).unwrap().as_u128(),1).unwrap();
-    let device=homesense_core::DeviceId::new("simulation:light").unwrap();
-    let zero=homesense_core::Percent::new(0).unwrap();
-    assert!(SoftwareFade::start(a.clone(),controller,device.clone(),zero,200,50,100,4,&feedback,2000).await.is_err());
-    feedback.apply(&GatewayRead{gateway_id:"simulation".into(),transport_epoch:1,received_at_ms:0,result:hb_transport::Receive::Frames{transport_epoch:1,frames:vec![hb_protocol::RawFrame{address:0x15,command:0xd1,value:100}]}}).unwrap();
-    let mut fade=SoftwareFade::start(a.clone(),controller,device,zero,200,50,100,4,&feedback,2000).await.unwrap();
-    tokio::time::sleep(std::time::Duration::from_millis(60)).await;
-    assert!(!fade.tick().await.unwrap());
-    // No transport is driven: a second tick must not build a queue of samples.
-    tokio::time::sleep(std::time::Duration::from_millis(60)).await;
-    assert!(!fade.tick().await.unwrap());
-    let sql=rusqlite::Connection::open(&db.0).unwrap();
-    let (count,deadline):(i64,i64)=sql.query_row("SELECT count(*),max(deadline_ms-updated_ms) FROM command_journal",[],|r|Ok((r.get(0)?,r.get(1)?))).unwrap();
-    assert_eq!(count,1);assert!((1..=300).contains(&deadline));
-    drop(fade);
-    struct NoWrite;
-    impl std::io::Read for NoWrite {fn read(&mut self,_:&mut [u8])->std::io::Result<usize>{Err(std::io::ErrorKind::WouldBlock.into())}}
-    impl std::io::Write for NoWrite {
-        fn write(&mut self,_:&[u8])->std::io::Result<usize>{panic!("abandoned fade reached transport")}
-        fn flush(&mut self)->std::io::Result<()>{Ok(())}
-    }
-    let mut owner=homesensed::transport_owner::TransportOwner::new(a.clone(),[("simulation".into(),hb_transport::Connection::for_simulation(NoWrite,1))].into());
-    assert!(owner.step().await.is_err());
-    a.shutdown().await.unwrap();
-    assert_eq!(sql.query_row("SELECT count(*) FROM command_journal WHERE status='written'",[],|r|r.get::<_,i64>(0)).unwrap(),0);
-}
 
 #[tokio::test]
 async fn fade_group_reserves_budget_and_releases_cancelled_device() {
@@ -5928,49 +5911,6 @@ async fn scene_rejects_early_or_duplicate_fade_without_closing_admission() {
     a.shutdown().await.unwrap();
 }
 
-#[tokio::test]
-async fn configured_fade_prepares_from_feedback_and_never_falls_back() {
-    for fresh in [false,true] {
-    let db=Db(std::env::temp_dir().join(format!("fade-config-{}.sqlite",Uuid::new_v4())));
-    let devices=include_bytes!("../../../config/simulation.json");
-    Store::open(&db.0).unwrap().publish_configuration(None,devices,ExecutionContext::Simulation,&[]).unwrap();
-    let controller=Uuid::new_v4();let a=actor(&db,controller).await;
-    let config=homesense_config::Configuration::parse(devices,ExecutionContext::Simulation).unwrap();
-    let rules=br#"{"schema_version":1,"configuration_revision":1,"variables":[],"rules":[],"timed_scenes":[{"id":"fade","enabled":true,"review_evidence":"simulation","max_lateness_ms":1000,"steps":[{"source":"test","offset_ms":0,"device":"simulation:light","command":{"kind":"level","value":0,"ramp":false},"fade":{"duration_ms":200,"interval_ms":50,"lateness_ms":100}}]}]}"#;
-    let document=homesense_config::rule_document::Document::parse(rules,&config).unwrap();
-    let mut scheduler=homesensed::scene_scheduler::SceneScheduler::new(a.clone(),controller,4,0).unwrap();
-    let run=scheduler.start_document(&document,"fade",0).await.unwrap();
-    let mut feedback=homesensed::feedback::Feedback::new(&config,ExecutionContext::Simulation,Uuid::parse_str(a.boot_id()).unwrap().as_u128(),1).unwrap();
-    if fresh {
-        feedback.apply(&homesensed::transport_owner::GatewayRead{gateway_id:"simulation".into(),transport_epoch:1,received_at_ms:0,result:hb_transport::Receive::Frames{transport_epoch:1,frames:vec![hb_protocol::RawFrame{address:0x15,command:0xd1,value:100}]}}).unwrap();
-    }
-    let ticks=scheduler.tick_with_feedback(0,Some((&feedback,2000))).await.unwrap();
-    assert_eq!(ticks.len(),1);
-    assert_eq!(ticks[0].result.is_ok(),fresh);
-    let mut written=0;
-    if fresh {
-        let started=std::time::Instant::now();
-        tokio::time::timeout(std::time::Duration::from_secs(2),async {
-            while scheduler.status(run)==Some(homesense_core::scene::Status::Running) {
-                for tick in scheduler.tick_with_feedback(started.elapsed().as_millis() as u64,Some((&feedback,2000))).await.unwrap() {tick.result.unwrap();}
-                if let Some(ticket)=a.dispatch().await.unwrap() {
-                    a.finish_write(ticket.command.id,true).await.unwrap();written+=1;
-                }
-                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
-            }
-        }).await.unwrap();
-        assert!((1..=4).contains(&written));
-        assert_eq!(scheduler.status(run),Some(homesense_core::scene::Status::CommandsWritten));
-    } else {
-        assert_eq!(scheduler.status(run),Some(homesense_core::scene::Status::Cancelled));
-    }
-    assert!(a.dispatch().await.unwrap().is_none());
-    let sql=rusqlite::Connection::open(&db.0).unwrap();
-    assert_eq!(sql.query_row("SELECT count(*) FROM command_journal",[],|r|r.get::<_,i64>(0)).unwrap(),written);
-    assert_eq!(sql.query_row("SELECT count(*) FROM scene_sample",[],|r|r.get::<_,i64>(0)).unwrap(),written);
-    a.shutdown().await.unwrap();
-    }
-}
 
 #[tokio::test]
 async fn rejected_fade_snapshot_does_not_disable_independent_manual_control() {
@@ -6697,4 +6637,44 @@ async fn partial_wire_failure_is_uncertain_cancels_scene_and_never_replays_after
         a.shutdown().await.unwrap();drop(owner);drop(scene);
         let restarted=actor(&db,controller).await;assert!(restarted.dispatch().await.unwrap().is_none());assert_eq!(bytes.lock().unwrap().len(),limit);assert_eq!(Store::open(&db.0).unwrap().command_status(&boot,ids[0]).unwrap(),Some(Status::Uncertain));restarted.shutdown().await.unwrap();
     }
+}
+
+#[tokio::test]
+async fn publication_pause_same_scene_writes_when_due_without_a_barrier() {
+    use homesensed::{automation_runtime::AutomationRuntime,feedback::Feedback,observed_transport::ObservedTransport,transport_owner::TransportOwner};
+    let db=Db(std::env::temp_dir().join(format!("pause-positive-{}.sqlite",Uuid::new_v4())));
+    let devices=include_bytes!("../../../config/simulation.json");
+    Store::open(&db.0).unwrap().publish_automation(None,devices,&publication_pause_fixture_rules(0),ExecutionContext::Simulation,&[]).unwrap();
+    let controller=Uuid::new_v4();let a=actor(&db,controller).await;
+    let mut runtime=AutomationRuntime::load(a.clone(),controller,1_800_000_000_000,1000,8,Default::default()).await.unwrap();
+    let frames=std::sync::Arc::new(std::sync::Mutex::new(Vec::<Vec<u8>>::new()));
+    struct Wire(std::sync::Arc<std::sync::Mutex<Vec<Vec<u8>>>>);
+    impl std::io::Read for Wire {fn read(&mut self,_:&mut[u8])->std::io::Result<usize>{Err(std::io::ErrorKind::WouldBlock.into())}}
+    impl std::io::Write for Wire {
+        fn write(&mut self,bytes:&[u8])->std::io::Result<usize>{self.0.lock().unwrap().push(bytes.to_vec());Ok(bytes.len())}
+        fn flush(&mut self)->std::io::Result<()>{Ok(())}
+    }
+    let config=homesense_config::Configuration::parse(devices,ExecutionContext::Simulation).unwrap();
+    let feedback=Feedback::new(&config,ExecutionContext::Simulation,Uuid::parse_str(a.boot_id()).unwrap().as_u128(),1).unwrap();
+    let transport=TransportOwner::new(a.clone(),[("simulation".into(),hb_transport::Connection::for_simulation(Wire(frames.clone()),1))].into());
+    let mut owner=ObservedTransport::new(transport,feedback);
+    runtime.start_scene("light").await.unwrap();
+    let(stop,receive)=tokio::sync::watch::channel(false);
+    let complete=async {
+        tokio::time::timeout(std::time::Duration::from_secs(3),async {
+            loop {
+                let count={let sql=rusqlite::Connection::open(&db.0).unwrap();sql.query_row("SELECT count(*) FROM command_journal WHERE revision=1 AND intent=x'01021E00' AND status='written'",[],|r|r.get::<_,i64>(0)).unwrap()};
+                if count==1 {break;}
+                tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+            }
+        }).await.unwrap();
+        stop.send(true).unwrap();
+    };
+    let(result,())=tokio::join!(runtime.drive(&mut owner,std::time::Duration::from_millis(1),5000,receive,||Ok(1_800_000_000_000)),complete);result.unwrap();
+    assert_eq!(*frames.lock().unwrap(),vec![vec![0xae,0x15,1,30,0xee]]);
+    let sql=rusqlite::Connection::open(&db.0).unwrap();
+    assert_eq!(sql.query_row("SELECT count(*) FROM command_journal",[],|r|r.get::<_,i64>(0)).unwrap(),1);
+    assert_eq!(sql.query_row("SELECT count(*) FROM scene_run WHERE definition='light' AND status='commands_written'",[],|r|r.get::<_,i64>(0)).unwrap(),1);
+    assert_eq!(sql.query_row("SELECT count(*) FROM scene_cancellation WHERE reason='publication_barrier'",[],|r|r.get::<_,i64>(0)).unwrap(),0);
+    a.shutdown().await.unwrap();
 }

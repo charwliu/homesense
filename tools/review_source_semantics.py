@@ -2,7 +2,7 @@
 """Private, read-only dependency review of original Control4 source.
 
 This is an evidence worksheet, never an automation/configuration generator.
-Names, saved values, driver Lua and identity databases are not read or emitted.
+Household display names, saved values, driver Lua and identity databases are not read or emitted.
 """
 import argparse
 import collections
@@ -122,6 +122,16 @@ def descriptor_metadata(data, filenames):
                     encrypted=any(n.endswith(".encrypted") for n in package.namelist())
                     raw=entry_bytes(package,"driver.xml")
             descriptor=xml_tree(raw)
+            declared_events = []
+            event_ids = set()
+            for event in descriptor.findall("events/event"):
+                event_id, name = text(event, "id"), text(event, "name")
+                if not event_id or not name:
+                    raise ValueError("empty descriptor event identity")
+                if event_id in event_ids:
+                    raise ValueError("duplicate descriptor event")
+                event_ids.add(event_id)
+                declared_events.append({"id": event_id, "name": name})
             capabilities=[]
             for section in descriptor.iter("capabilities"):
                 capabilities.extend({"name":n.tag,"source_value":(n.text or "").strip()} for n in section if not list(n))
@@ -132,6 +142,8 @@ def descriptor_metadata(data, filenames):
                         "options":[{"tag":n.tag,"source_value":(n.text or "").strip(),"attributes":dict(n.attrib)} for n in prop.iter() if n is not prop and not list(n) and n.tag not in ("name","description")],
                         "semantics_verified":False,"scope":"driver setting only, not archive scene rate"})
             result.append({"filename":filename,"descriptor_available":True,"declared_capabilities":capabilities,
+                           "descriptor_sha256":hashlib.sha256(raw).hexdigest(),
+                           "descriptor_version":text(descriptor,"version",False),"declared_events":declared_events,
                            "ramp_timer_properties":ramp_properties,"encrypted_payload_entries_present":encrypted,
                            "lua_read_or_executed":False,"runtime_conformance_verified":False})
     return result
@@ -207,6 +219,7 @@ def review(data, typed=None, prior=None, prior_variables=None):
             if value.get("name") == "entry_data" and value.text:
                 for entry in xml_tree(value.text.encode()):
                     event_id = text(entry, "eventid")
+                    creator = text(entry, "creatorid", False)
                     fields = []
                     def leaves(node, path):
                         for n in node:
@@ -218,6 +231,8 @@ def review(data, typed=None, prior=None, prior_variables=None):
                                 fields.append({"path": "/".join(path + [n.tag]), "source_value": (n.text or "").strip(), "attributes": dict(n.attrib)})
                     leaves(entry, [])
                     calendars.append({"source_event": f"event:{owner}:{event_id}", "driver": driver(owner), "source_fields": fields,
+                                      "source_creator": {"source_item": creator, "source_item_exists": creator in items,
+                                                         "source_driver": driver(creator), "runtime_ownership_verified": False},
                                       "review_gates": ["calendar_units_and_timezone", "agent_owned_behavior", "trigger_semantics"],
                                       "runtime_task_generated": False})
     variables = {}
@@ -421,7 +436,24 @@ def review(data, typed=None, prior=None, prior_variables=None):
                 protocol_rates[family][element["rate"]] += 1
                 delays[element["delay"]] += 1
     filenames={name for s in scenes for m in s["members"] for name in m["source_driver_chain"] if name in ("light_v2.c4i","GJ-TECH.CN_Switch_V2.c4z","GJ-TECH.CN_Dimmer_V2.c4z")}
+    if any(p["trigger_driver"] == "GJ-TECH.CN_Keypad.c4z" for p in programs):
+        filenames.add("GJ-TECH.CN_Keypad.c4z")
     descriptors=descriptor_metadata(data,filenames)
+    for program in programs:
+        if program["trigger_driver"] != "GJ-TECH.CN_Keypad.c4z":
+            continue
+        event_id = program["key"].rsplit(":", 1)[1]
+        for descriptor in descriptors:
+            if descriptor["filename"] != program["trigger_driver"] or not descriptor["descriptor_available"]:
+                continue
+            for declaration in descriptor["declared_events"]:
+                if declaration["id"] == event_id:
+                    program["source_trigger_declaration"] = {
+                        **declaration, "driver": descriptor["filename"],
+                        "descriptor_sha256": descriptor["descriptor_sha256"],
+                        "descriptor_version": descriptor["descriptor_version"],
+                        "basis": "archived_plaintext_descriptor_declaration",
+                        "physical_event_confirmed": False, "migration_trigger_confirmed": False}
     summary = {"scenes": len(scenes), "programs": len(programs), "variables": len(variables), "calendar_entries": len(calendars),
                "embedded_agent_schedules": len(agent_schedules),
                "source_empty_noops": sum(p["source_empty_noop"] for p in programs),

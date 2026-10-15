@@ -103,7 +103,7 @@ fn incomplete_or_inconsistent_group_vectors_never_invent_off() {
 }
 
 #[test]
-fn full_off_has_priority_but_unmatched_complete_vector_stays_unknown() {
+fn full_off_and_unmatched_complete_vector_have_no_selected_scene() {
     let targets: MemberPatterns = [(1, pattern(true, false)), (2, pattern(false, false))].into();
     assert_eq!(
         matching_member(&targets, &observations(Some(0), Some(0))),
@@ -111,11 +111,11 @@ fn full_off_has_priority_but_unmatched_complete_vector_stays_unknown() {
     );
     assert_eq!(
         matching_member(&targets, &observations(Some(0), Some(17))),
-        None
+        Some(0)
     );
     assert_eq!(
         matching_member(&targets, &observations(Some(30), Some(17))),
-        None
+        Some(0)
     );
 }
 

@@ -162,7 +162,7 @@ impl StudyRuntime {
 }
 
 /// Feedback-derived scene state, independent of local selection or write success.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 pub enum SceneActivity {
     Active,
     Inactive,

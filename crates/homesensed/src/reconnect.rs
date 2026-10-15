@@ -98,7 +98,11 @@ pub async fn reconnect_tcp(
             return Err("reconnect stopped".into());
         }
         epoch = epoch.checked_add(1).ok_or("transport epoch exhausted")?;
-        log::info!("gateway_connect_attempt epoch={epoch} attempt={} gateways={}", attempt + 1, endpoints.len());
+        log::info!(
+            "gateway_connect_attempt epoch={epoch} attempt={} gateways={}",
+            attempt + 1,
+            endpoints.len()
+        );
         let mut connections = BTreeMap::new();
         for (id, address) in &endpoints {
             let address = *address;
@@ -111,11 +115,15 @@ pub async fn reconnect_tcp(
             };
             match connected {
                 Ok(connection) => {
-                    log::info!("gateway_connected gateway={id:?} epoch={epoch}; synchronization pending");
+                    log::info!(
+                        "gateway_connected gateway={id:?} epoch={epoch}; synchronization pending"
+                    );
                     connections.insert(id.clone(), connection);
                 }
                 Err(error) => {
-                    log::warn!("gateway_connect_failed gateway={id:?} epoch={epoch} error={error:?}");
+                    log::warn!(
+                        "gateway_connect_failed gateway={id:?} epoch={epoch} error={error:?}"
+                    );
                     last_error = format!("gateway {id}: {error}");
                     break;
                 }
@@ -130,7 +138,10 @@ pub async fn reconnect_tcp(
         }
         drop(connections);
         if attempt + 1 < policy.attempts {
-            log::info!("gateway_connect_backoff epoch={epoch} delay_ms={}", delay.as_millis());
+            log::info!(
+                "gateway_connect_backoff epoch={epoch} delay_ms={}",
+                delay.as_millis()
+            );
             tokio::select! {
                 _ = tokio::time::sleep(delay) => {},
                 _ = stop.changed() => return Err("reconnect interrupted".into()),

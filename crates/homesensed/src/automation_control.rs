@@ -11,6 +11,7 @@ use tokio::sync::{mpsc, oneshot};
 use uuid::Uuid;
 #[derive(Debug)]
 pub enum Action {
+    AwayOff{controller:Uuid,revision:u64,lease:crate::away_auth::Authorization,submit:bool},
     ModuleQuery{controller:Uuid,revision:u64,module_id:String,scope:crate::module_queries::Scope,submit:bool},
     ModuleQueryStatus{controller:Uuid,revision:u64,module_id:String,scope:crate::module_queries::Scope,commands:Vec<u64>},
     ModuleBinding {controller:Uuid,revision:u64,module_id:String,channel:u8},
@@ -32,6 +33,7 @@ pub enum Action {
     SceneSwitchStates {controller:Uuid,revision:u64},
     SceneSelectionDetails {controller:Uuid,revision:u64},
     SceneWrites {controller:Uuid,revision:u64,scenes:Vec<(String,Option<bool>)>},
+    SceneDefinition {controller:Uuid,revision:u64,scene:String},
     SceneRelative {controller:Uuid,revision:u64,scene:String,request_id:String},
     SceneRelativeStatus {controller:Uuid,revision:u64,request_id:String},
     SceneActions { controller: Uuid, revision: u64, scenes: Vec<(String,bool)> },
@@ -43,6 +45,8 @@ pub enum Action {
     LastRun(String),
     Activity(u64),
     SceneActivity(String),
+    SceneTracking {controller:Uuid,revision:u64,scene:String},
+    SceneActivityWrites {controller:Uuid,revision:u64,scenes:Vec<(String,Option<bool>)>},
 }
 #[derive(Debug, PartialEq, Eq)]
 pub enum Reply {
@@ -61,6 +65,8 @@ pub enum Reply {
     Devices(crate::management_devices::DeviceSnapshot),
     CommandsAccepted(Vec<u64>),
     SceneAccepted(Option<u64>),
+    ImmediateAccepted(crate::immediate_scene::Receipt),
+    SceneDefinition(homesense_config::rule_document::SceneExecutionKind),
     ScenesAccepted(Vec<u64>),
     SceneSwitchStates(std::collections::BTreeMap<String,Option<bool>>),
     SceneSelectionDetails(std::collections::BTreeMap<String,crate::scene_switches::Details>),
@@ -72,6 +78,7 @@ pub enum Reply {
     Retired(Status),
     LastRun(Option<LastRun>),
     Activity(Option<crate::scene_activity::SceneActivity>),
+    SceneTracking(Option<crate::scene_tracking::Projection>),
 }
 /// Persisted execution receipt. Timestamps are monotonic within `boot`, and
 /// CommandsWritten is not proof that physical targets were reached.
@@ -93,6 +100,7 @@ pub struct SceneObservation {
     pub boot: String,
     pub revision: u64,
     pub activity: crate::scene_activity::SceneActivity,
+    pub tracking_valid_until_ms: Option<u64>,
     pub last_run: Option<LastRun>,
 }
 pub type SceneSubscription = tokio::sync::watch::Receiver<Option<Result<SceneObservation,String>>>;
@@ -162,6 +170,7 @@ pub(crate) struct Receiver {
     generation: TaskGeneration,
     watchers: std::collections::VecDeque<Watcher>,
     relative: crate::native_scene::Manager,
+    budget:homesense_core::rule::Budget,
 }
 pub(crate) fn channel(controller: Uuid, generation: TaskGeneration) -> (Control, Receiver) {
     let (sender, receiver) = mpsc::channel(32);
@@ -173,12 +182,15 @@ pub(crate) fn channel(controller: Uuid, generation: TaskGeneration) -> (Control,
             generation,
             watchers: Default::default(),
             relative: Default::default(),
+            budget:Default::default(),
         },
     )
 }
 impl Receiver {
     pub(crate) fn controller(&self)->Uuid {self.controller}
+    pub(crate) fn set_budget(&mut self,budget:homesense_core::rule::Budget){self.budget=budget;}
 
+    #[cfg(test)]
     #[allow(clippy::too_many_arguments)]
     pub(crate) async fn poll(
         &mut self,
@@ -189,6 +201,10 @@ impl Receiver {
         max_age_ms: u64,
         calendar: Option<&crate::event_rules::ScheduledRules>,
     ) {
+        self.poll_causal(admission,document,scenes,feedback,max_age_ms,calendar,None).await;
+    }
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) async fn poll_causal(&mut self,admission:&Admission,document:&Document,scenes:&mut SceneScheduler,feedback:&crate::feedback::Feedback,max_age_ms:u64,calendar:Option<&crate::event_rules::ScheduledRules>,mut causal:Option<&mut crate::deferred_router::Router>) {
         self.relative.tick(admission,document,feedback).await;
         // Bound per-cycle work so incoming control cannot starve bus processing.
         for _ in 0..8 {
@@ -262,13 +278,32 @@ impl Receiver {
                         let module=if index<64 {modules.into_iter().find(|m|m.module_id.as_deref()==Some(&module_id)).ok_or("module missing")?} else {crate::management_modules::project(&bundle.configuration,&feedback.snapshot(),Some(feedback.module_truth()),captured_ms,max_age_ms,diagnostics.ready()&&feedback.is_active(),index,1)?.pop().ok_or("module missing")?};
                         crate::module_queries::project_status(records,module,&scope,self.generation.epochs.transport,&commands,captured_ms).map(Reply::ModuleQueryStatus)
                     },
+                    Action::AwayOff{controller,revision,lease,submit}=>{
+                        if revision!=document.revision || controller!=lease.controller() || request.reply.is_closed() || Instant::now()>=request.deadline {return Err("Away operation expired".into());}
+                        if submit {
+                            admission.submit_away_off(revision,lease.clone(),false).await.map_err(|e|format!("{e:?}"))?;
+                            // Preserve settled physical brightness before the module goes
+                            // dark, including runtimes without HAP or indicator samplers.
+                            if crate::module_queries::matches_feedback(admission,&self.generation,feedback,revision) {
+                                admission.remember_levels(revision,feedback.snapshot(),max_age_ms).await.map_err(|e|format!("restore levels: {e:?}"))?;
+                            }
+                            if request.reply.is_closed() || Instant::now()>=request.deadline {return Err("Away operation expired".into());}
+                        }
+                        let ids=admission.submit_away_off(revision,lease,submit).await.map_err(|e|format!("{e:?}"))?;
+                        if submit && matches!(document.away_off.as_ref().map(|p|p.active_execution_policy),Some(homesense_config::rule_document::AwayExecutionPolicy::CancelAffectedLighting)) {
+                            for device in document.away_off.as_ref().unwrap().modules.iter().flat_map(|m|&m.devices) {
+                                scenes.manual_override(&homesense_core::DeviceId::new(device.clone()).map_err(|e|e.to_string())?).await?;
+                            }
+                        }
+                        Ok(Reply::CommandsAccepted(ids))
+                    },
                     Action::Modules {controller,revision,offset,limit} => {
                         if revision!=document.revision {return Err("module inventory revision expired".into());}
                         crate::management_modules::snapshot(admission,controller,self.generation.clone(),feedback,max_age_ms,offset,limit).await.map(Reply::Modules)
                     },
                     Action::Devices {controller,revision,ids} => {
                         if revision!=document.revision {return Err("device query revision expired".into());}
-                        crate::management_devices::snapshot(admission,controller,self.generation.clone(),ids,feedback).await.map(Reply::Devices)
+                        crate::management_devices::snapshot_with_max_age(admission,controller,self.generation.clone(),ids,feedback,max_age_ms).await.map(Reply::Devices)
                     },
                     Action::ModuleBinding{controller,revision,module_id,channel}=>{
                         if revision!=document.revision{return Err("module binding revision expired".into());}
@@ -351,6 +386,9 @@ impl Receiver {
                     },
                     Action::SceneWrites {controller,revision,scenes:writes}=>{
                         if revision!=document.revision {return Err("scene write revision expired".into());}
+                        if writes.iter().any(|(id,_)|document.immediate_scenes.contains_key(id)) {
+                            return Box::pin(crate::immediate_scene::writes(admission,document,&self.generation,controller,&writes,causal.as_deref_mut(),scenes,feedback,max_age_ms,self.budget,request.deadline)).await;
+                        }
                         let snapshot=admission.scene_selection_values(controller,self.generation.clone(),crate::scene_switches::variable_names(document)).await.map_err(|e|format!("{e:?}"))?;
                         let plan=crate::scene_switches::plan(document,&writes,&snapshot)?;
                         if request.reply.is_closed()||Instant::now()>=request.deadline {return Err("scene writes expired or abandoned".into());}
@@ -359,6 +397,10 @@ impl Receiver {
                     },
                     Action::SceneActions {controller,revision,scenes:actions} => {
                         if revision!=document.revision {return Err("scene batch revision expired".into());}
+                        if actions.iter().any(|(id,_)|document.immediate_scenes.contains_key(id)) {
+                            let writes=actions.iter().map(|(id,on)|(id.clone(),on.then_some(true))).collect::<Vec<_>>();
+                            return Box::pin(crate::immediate_scene::writes(admission,document,&self.generation,controller,&writes,causal.as_deref_mut(),scenes,feedback,max_age_ms,self.budget,request.deadline)).await;
+                        }
                         for (id,_) in &actions {
                             let definition=document.timed_scenes.get(id).ok_or("unknown timed scene")?;
                             if !definition.enabled || definition.review_evidence.as_ref().is_none_or(|s|s.trim().is_empty()) {
@@ -376,6 +418,10 @@ impl Receiver {
                     },
                     Action::SceneAction { controller, revision, scene, execute } => {
                         if revision != document.revision { return Err("scene action revision expired".into()); }
+                        if document.immediate_scenes.contains_key(&scene) {
+                            let reply=Box::pin(crate::immediate_scene::writes(admission,document,&self.generation,controller,&[(scene,Some(execute))],causal.as_deref_mut(),scenes,feedback,max_age_ms,self.budget,request.deadline)).await?;
+                            return Ok(match reply {Reply::ScenesAccepted(_)=>Reply::SceneAccepted(None),other=>other});
+                        }
                         let definition = document.timed_scenes.get(&scene).ok_or("unknown timed scene")?;
                         if !definition.enabled || definition.review_evidence.as_ref().is_none_or(|s|s.trim().is_empty()) {
                             return Err("timed scene disabled or unreviewed".into());
@@ -404,10 +450,18 @@ impl Receiver {
                     Action::Cancel(run) => scenes.cancel(run).await.map(Reply::Cancelled),
                     Action::Status(run) => Ok(Reply::Status(scenes.status(run))),
                     Action::Activity(run) => scenes.activity(run,feedback,max_age_ms).await.map(Reply::Activity),
-                    Action::SceneActivity(id) => {
-                        let scene=document.timed_scenes.get(&id).ok_or("unknown timed scene")?;
-                        if !scene.enabled || scene.review_evidence.as_ref().is_none_or(|s|s.trim().is_empty()) {return Err("timed scene disabled or unreviewed".into());}
-                        crate::scene_activity::Targets::new(&scene.steps).project(admission,self.controller,&self.generation,feedback,max_age_ms).await.map(|a|Reply::Activity(Some(a)))
+                    Action::SceneActivity(id) => crate::scene_tracking::activity(document,&id,admission,self.controller,&self.generation,feedback,max_age_ms).await.map(|v|Reply::Activity(Some(v))),
+                    Action::SceneActivityWrites{controller,revision,scenes:writes}=>{
+                        if revision!=document.revision || writes.is_empty() || writes.len()>64{return Err("activity role request invalid".into());}
+                        if !admission.diagnostics(controller,self.generation.clone()).await.map_err(|e|format!("{e:?}"))?.ready(){return Err("activity role runtime unavailable".into());}
+                        if writes.iter().any(|(id,_)|!document.scene_tracking.get(id).is_some_and(|p|p.enabled)){return Err("unknown activity role".into());}
+                        if writes.iter().any(|(_,value)|value.is_some()){return Err("activity role is read-only".into());}
+                        Ok(Reply::ScenesAccepted(vec![]))
+                    },
+                    Action::SceneTracking {controller,revision,scene}=>{
+                        if revision!=document.revision{return Err("tracking revision expired".into());}
+                        if !admission.diagnostics(controller,self.generation.clone()).await.map_err(|e|format!("tracking authorization: {e:?}"))?.ready(){return Err("tracking runtime not ready".into());}
+                        crate::scene_tracking::read(document,&scene,admission,controller,&self.generation,feedback).await.map(Reply::SceneTracking)
                     },
                     Action::Retire(run) => scenes.retire(run).map(Reply::Retired),
                     Action::SceneHistory {controller,revision,scene,before,limit} => {
@@ -429,7 +483,13 @@ impl Receiver {
                         let page=admission.scene_history(controller,self.generation.clone(),homesense_storage::scene_run::Query::Run{boot,run,after:0,limit:1}).await.map_err(|e|format!("{e:?}"))?;
                         Ok(Reply::RunSummary(page.and_then(|p|p.record.definition.clone().map(|scene|(scene,LastRun{boot:p.boot,run:p.run,revision:p.record.revision,started_ms:p.record.started_ms,updated_ms:p.record.updated_ms,version:p.record.version,status:p.record.status,cause:p.cause})))))
                     },
+                    Action::SceneDefinition{controller,revision,scene}=>{
+                        if revision!=document.revision{return Err("scene definition revision expired".into());}
+                        admission.variable_snapshot(controller,self.generation.clone(),vec![]).await.map_err(|e|format!("{e:?}"))?;
+                        document.scene_execution_kind(&scene).map(Reply::SceneDefinition).ok_or("unknown enabled scene".into())
+                    },
                     Action::LastRun(id) => {
+                        if document.scene_execution_kind(&id)==Some(homesense_config::rule_document::SceneExecutionKind::Immediate){return Ok(Reply::LastRun(None));}
                         if !document.timed_scenes.contains_key(&id) { return Err("unknown timed scene".into()); }
                         let page=admission.scene_history(self.controller,self.generation.clone(),homesense_storage::scene_run::Query::Latest{definition:id}).await.map_err(|e|format!("{e:?}"))?;
                         Ok(Reply::LastRun(page.map(|p|LastRun{boot:p.boot,run:p.run,revision:p.record.revision,started_ms:p.record.started_ms,updated_ms:p.record.updated_ms,version:p.record.version,status:p.record.status,cause:p.cause})))
@@ -448,10 +508,11 @@ impl Receiver {
             && !watcher.sender.is_closed() {
                 if Instant::now()>=watcher.next {
                     let result=async {
-                        let scene=document.timed_scenes.get(&watcher.scene).ok_or("scene removed")?;
-                        let activity=crate::scene_activity::Targets::new(&scene.steps).project(admission,self.controller,&self.generation,feedback,max_age_ms).await?;
+                        let tracking=crate::scene_tracking::read(document,&watcher.scene,admission,self.controller,&self.generation,feedback).await?;
+                        let activity=if let Some(value)=&tracking {value.activity}else{crate::scene_tracking::activity(document,&watcher.scene,admission,self.controller,&self.generation,feedback,max_age_ms).await?};
+                        let tracking_valid_until_ms=tracking.and_then(|p|p.valid_until_ms);
                         let page=admission.scene_history(self.controller,self.generation.clone(),homesense_storage::scene_run::Query::Latest{definition:watcher.scene.clone()}).await.map_err(|e|format!("{e:?}"))?;
-                        Ok(SceneObservation{boot:admission.boot_id().to_owned(),revision:document.revision,activity,last_run:page.map(|p|LastRun{boot:p.boot,run:p.run,revision:p.record.revision,started_ms:p.record.started_ms,updated_ms:p.record.updated_ms,version:p.record.version,status:p.record.status,cause:p.cause})})
+                        Ok(SceneObservation{boot:admission.boot_id().to_owned(),revision:document.revision,activity,tracking_valid_until_ms,last_run:page.map(|p|LastRun{boot:p.boot,run:p.run,revision:p.record.revision,started_ms:p.record.started_ms,updated_ms:p.record.updated_ms,version:p.record.version,status:p.record.status,cause:p.cause})})
                     }.await;
                     watcher.sender.send_if_modified(|current| {
                         if current.as_ref()==Some(&result) {false} else {*current=Some(result);true}

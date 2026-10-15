@@ -58,7 +58,7 @@ impl Store {
             .collect::<Vec<_>>()
             .join(",");
         let sql = format!(
-            "SELECT command_id,device_id,status,intent,transport_epoch,control_epoch,updated_ms FROM command_journal WHERE boot_id=?1 AND revision=?2 AND device_id IN ({placeholders}) ORDER BY updated_ms DESC,rowid DESC LIMIT ?3"
+            "SELECT j.command_id,COALESCE(e.device_id,j.device_id),j.status,j.intent,j.transport_epoch,j.control_epoch,j.updated_ms FROM command_journal j LEFT JOIN module_off_effect e ON e.boot_id=j.boot_id AND e.command_id=j.command_id WHERE j.boot_id=?1 AND j.revision=?2 AND COALESCE(e.device_id,j.device_id) IN ({placeholders}) ORDER BY j.updated_ms DESC,j.rowid DESC,e.channel ASC LIMIT ?3"
         );
         let mut values = vec![
             rusqlite::types::Value::Text(boot.into()),

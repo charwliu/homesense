@@ -98,7 +98,7 @@ fn scalar(n: Xml<'_, '_>) -> Result<Expr, String> {
             .map_err(|_| "invalid integer")?,
     )))
 }
-fn parameter(n: Xml<'_, '_>, name: &str) -> Result<String, String> {
+pub(crate) fn parameter(n: Xml<'_, '_>, name: &str) -> Result<String, String> {
     let params = child(n, "params")?;
     let ps: Vec<_> = params.children().filter(|p| p.is_element()).collect();
     if ps.len() != 1 || text(ps[0], "name")? != name {

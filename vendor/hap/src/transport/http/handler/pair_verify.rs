@@ -1,10 +1,10 @@
+use crate::transport::http::body::Body;
 use aead::{AeadInOut, KeyInit};
 use chacha20poly1305::ChaCha20Poly1305;
 use futures::{
     channel::oneshot,
     future::{BoxFuture, FutureExt},
 };
-use crate::transport::http::body::Body;
 use log::{debug, info};
 use rand::SeedableRng;
 use signature::Signer;
@@ -310,7 +310,8 @@ mod input_tests {
             .await
             .is_err());
         assert!(handler.session.is_none());
-        let secret = EphemeralSecret::random_from_rng(&mut rand::rngs::StdRng::from_rng(&mut rand::rng()));
+        let secret =
+            EphemeralSecret::random_from_rng(&mut rand::rngs::StdRng::from_rng(&mut rand::rng()));
         let public = PublicKey::from(&secret);
         assert!(
             handle_start(&mut handler, config, public.as_bytes().to_vec())
@@ -347,7 +348,9 @@ mod exchange_tests {
     // handler's ephemeral/session internals and no direct handle_start/finish calls.
     async fn exchange(fault: u8) {
         let id = Uuid::new_v4();
-        let controller_key = ed25519_dalek::SigningKey::generate(&mut rand::rngs::StdRng::from_rng(&mut rand::rng()));
+        let controller_key = ed25519_dalek::SigningKey::generate(
+            &mut rand::rngs::StdRng::from_rng(&mut rand::rng()),
+        );
         let path = std::env::temp_dir().join(format!("hap-verify-exchange-{id}"));
         let mut store = FileStorage::new(path.as_os_str())
             .await
@@ -370,7 +373,8 @@ mod exchange_tests {
         let emitter = Arc::new(Mutex::new(EventEmitter::new()));
         let (sender, mut receiver) = oneshot::channel();
         let mut handler = PairVerify::new(sender);
-        let secret = EphemeralSecret::random_from_rng(&mut rand::rngs::StdRng::from_rng(&mut rand::rng()));
+        let secret =
+            EphemeralSecret::random_from_rng(&mut rand::rngs::StdRng::from_rng(&mut rand::rng()));
         let public = PublicKey::from(&secret);
         let m1 = vec![
             Value::State(1),

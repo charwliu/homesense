@@ -1,18 +1,13 @@
+use crate::transport::http::body::Body;
 use aead::{AeadInOut, KeyInit};
 use chacha20poly1305::ChaCha20Poly1305;
 use futures::future::{BoxFuture, FutureExt};
-use crate::transport::http::body::Body;
 use log::{debug, info};
 use num::BigUint;
 use rand::{Rng, SeedableRng};
 use sha2::{digest::Digest, Sha512};
 use signature::Signer;
-use srp::{
-    client::SrpClient,
-    groups::G_3072,
-    server::SrpServer,
-    types::SrpGroup,
-};
+use srp::{client::SrpClient, groups::G_3072, server::SrpServer, types::SrpGroup};
 use std::{ops::BitXor, str};
 #[cfg(test)]
 use uuid::Uuid;
@@ -203,7 +198,11 @@ async fn handle_start(
     // TODO - respect pairing flags (specification p. 35 - 7.) for split pair setup
 
     let srp_client = SrpClient::<sha2_srp::Sha512>::new(&G_3072);
-    let verifier = srp_client.compute_verifier(b"Pair-Setup", config.lock().await.pin.to_string().as_bytes(), &salt);
+    let verifier = srp_client.compute_verifier(
+        b"Pair-Setup",
+        config.lock().await.pin.to_string().as_bytes(),
+        &salt,
+    );
     let srp_server = SrpServer::<sha2_srp::Sha512>::new(&G_3072);
     let b_pub = srp_server.compute_public_ephemeral(&b, &verifier);
 
@@ -656,9 +655,16 @@ mod complete_exchange_tests {
         // srp 0.6's generic proof helper. Derive the client
         // secret with SRP, then build and verify the wire transcript here.
         let key = client
-            .process_reply(&ephemeral, b"Pair-Setup", pin.as_bytes(), salt, &m2[&(Type::PublicKey as u8)])
+            .process_reply(
+                &ephemeral,
+                b"Pair-Setup",
+                pin.as_bytes(),
+                salt,
+                &m2[&(Type::PublicKey as u8)],
+            )
             .unwrap()
-            .key().to_vec();
+            .key()
+            .to_vec();
         let key = Sha512::digest(&key).to_vec();
         let hn = Sha512::digest(&G_3072.n.to_bytes_be());
         let hg = Sha512::digest(&G_3072.g.to_bytes_be());
@@ -706,7 +712,9 @@ mod complete_exchange_tests {
             assert_eq!(m4[&(Type::Proof as u8)], server_proof.as_slice());
         };
         let id = Uuid::new_v4();
-        let signing = ed25519_dalek::SigningKey::generate(&mut rand::rngs::StdRng::from_rng(&mut rand::rng()));
+        let signing = ed25519_dalek::SigningKey::generate(&mut rand::rngs::StdRng::from_rng(
+            &mut rand::rng(),
+        ));
         let derive = |salt: &[u8], info: &[u8]| {
             let mut output = [0; 32];
             hkdf::Hkdf::<sha2::Sha512>::new(Some(salt), &key)

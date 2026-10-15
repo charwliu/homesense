@@ -46,7 +46,15 @@ async fn exercise(combined: bool) {
     runtime_store
         .publish_configuration(None, document, ExecutionContext::Simulation, &[])
         .unwrap();
-    runtime_store.remember_light_levels(1, &[(homesense_core::DeviceId::new("simulation:light").unwrap(), homesense_core::Percent::new(40).unwrap())]).unwrap();
+    runtime_store
+        .remember_light_levels(
+            1,
+            &[(
+                homesense_core::DeviceId::new("simulation:light").unwrap(),
+                homesense_core::Percent::new(40).unwrap(),
+            )],
+        )
+        .unwrap();
     drop(runtime_store);
     let controller = Uuid::new_v4();
     let signing = ed25519_dalek::SigningKey::generate(&mut rand::rng());

@@ -287,7 +287,7 @@ pub(crate) async fn drive_with_panel_feeds<S: Read + Write + Send + 'static>(
             }
             if let Some((receiver, document)) = &mut control.0 {
                 scene_observations.tick(admission,receiver.controller(),document,guard.owner.feedback()).await?;
-                receiver.poll(admission, document, guard.scenes, guard.owner.feedback(), max_age_ms, guard.calendar.as_deref()).await;
+                receiver.poll_causal(admission, document, guard.scenes, guard.owner.feedback(), max_age_ms, guard.calendar.as_deref(),causal.as_deref_mut()).await;
             }
             let now = admission.monotonic_ms();
             if let Some(calendar) = &mut guard.calendar {
@@ -448,3 +448,7 @@ pub(crate) async fn drive_with_panel_feeds<S: Read + Write + Send + 'static>(
         })
     }
 }
+
+#[cfg(test)]
+#[path = "publication_barrier_probe.rs"]
+mod publication_barrier_probe;

@@ -19,17 +19,21 @@ async fn simulation_service_restarts_with_stable_identity_and_releases_listener(
         let service = tokio::spawn(async move {
             serve_simulation(document, &directory, address, Duration::from_millis(150)).await
         });
-        let reachable = tokio::task::spawn_blocking(move || {
-            for _ in 0..100 {
-                if TcpStream::connect_timeout(&address, Duration::from_millis(10)).is_ok() {
-                    return true;
+        // Keep the probe on this runtime so a delayed blocking-pool worker
+        // cannot miss the entire 150 ms lifetime of a healthy listener.
+        let reachable = tokio::time::timeout(Duration::from_secs(2), async {
+            loop {
+                if tokio::net::TcpStream::connect(address).await.is_ok() {
+                    break true;
                 }
-                std::thread::sleep(Duration::from_millis(2));
+                if service.is_finished() {
+                    break false;
+                }
+                tokio::time::sleep(Duration::from_millis(2)).await;
             }
-            false
         })
         .await
-        .unwrap();
+        .unwrap_or(false);
         let result = service.await.unwrap();
         assert!(reachable, "listener never became reachable: {result:?}");
         result.unwrap();

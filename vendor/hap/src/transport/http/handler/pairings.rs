@@ -1,8 +1,8 @@
+use crate::transport::http::body::Body;
+use futures::future::{BoxFuture, FutureExt};
+use log::info;
 #[cfg(test)]
 use rand::SeedableRng;
-use futures::future::{BoxFuture, FutureExt};
-use crate::transport::http::body::Body;
-use log::info;
 use std::{ops::Deref, str};
 use uuid::Uuid;
 
@@ -180,7 +180,13 @@ async fn handle_add(
     let revoked = s
         .save_pairing_authorized(&actor, &pairing, max_peers)
         .await?;
-    info!("pairing mutation actor={} target={} revoked_count={} remaining={:?}", actor, pairing_uuid, revoked.len(), s.count_pairings().await.ok());
+    info!(
+        "pairing mutation actor={} target={} revoked_count={} remaining={:?}",
+        actor,
+        pairing_uuid,
+        revoked.len(),
+        s.count_pairings().await.ok()
+    );
     drop(s);
     let emitter = event_emitter.lock().await;
     if revoked.is_empty() {
@@ -216,7 +222,13 @@ async fn handle_remove(
         .map_err(|_| tlv::Error::Authentication)?)
     .ok_or(tlv::Error::Authentication)?;
     let revoked = s.remove_pairing_authorized(&actor, &pairing_uuid).await?;
-    info!("pairing mutation actor={} target={} revoked_count={} remaining={:?}", actor, pairing_uuid, revoked.len(), s.count_pairings().await.ok());
+    info!(
+        "pairing mutation actor={} target={} revoked_count={} remaining={:?}",
+        actor,
+        pairing_uuid,
+        revoked.len(),
+        s.count_pairings().await.ok()
+    );
     drop(s);
     let emitter = event_emitter.lock().await;
     for id in revoked {
@@ -286,20 +298,29 @@ mod management_tests {
     async fn list_preserves_uppercase_identifiers_after_reopen() {
         let path = std::env::temp_dir().join(format!("hap-case-{}", Uuid::new_v4()));
         let mut store = FileStorage::new(path.as_os_str()).await.unwrap();
-        let key = ed25519_dalek::SigningKey::from_bytes(&[19; 32]).verifying_key().to_bytes();
+        let key = ed25519_dalek::SigningKey::from_bytes(&[19; 32])
+            .verifying_key()
+            .to_bytes();
         let admin_id = "BC158B86-CABF-432D-AEE4-422EF0E3F1D5";
         let second_id = "AC158B86-CABF-432D-AEE4-422EF0E3F1D5";
         let admin = Pairing::from_identifier(admin_id, Permissions::Admin, key).unwrap();
         store.save_pairing(&admin).await.unwrap();
-        store.save_pairing(&Pairing::from_identifier(second_id, Permissions::Admin, key).unwrap()).await.unwrap();
+        store
+            .save_pairing(&Pairing::from_identifier(second_id, Permissions::Admin, key).unwrap())
+            .await
+            .unwrap();
         drop(store);
         let reopened = FileStorage::new(path.as_os_str()).await.unwrap();
         let storage: pointer::Storage = Arc::new(Mutex::new(Box::new(reopened)));
         let controller = Arc::new(RwLock::new(Some(admin.id)));
         let listed = handle_list(controller, storage.clone()).await.unwrap();
-        let identifiers: Vec<_> = listed.iter().filter_map(|v| match v {
-            Value::Identifier(id) => Some(id.as_str()), _ => None,
-        }).collect();
+        let identifiers: Vec<_> = listed
+            .iter()
+            .filter_map(|v| match v {
+                Value::Identifier(id) => Some(id.as_str()),
+                _ => None,
+            })
+            .collect();
         assert_eq!(identifiers.len(), 2);
         assert!(identifiers.contains(&admin_id));
         assert!(identifiers.contains(&second_id));
@@ -311,9 +332,11 @@ mod management_tests {
     async fn permissions_key_replacement_and_corrupt_storage_fail_closed() {
         let path = std::env::temp_dir().join(format!("hap-management-{}", Uuid::new_v4()));
         let mut store = FileStorage::new(path.as_os_str()).await.unwrap();
-        let key = ed25519_dalek::SigningKey::generate(&mut rand::rngs::StdRng::from_rng(&mut rand::rng()))
-            .verifying_key()
-            .to_bytes();
+        let key = ed25519_dalek::SigningKey::generate(&mut rand::rngs::StdRng::from_rng(
+            &mut rand::rng(),
+        ))
+        .verifying_key()
+        .to_bytes();
         let admin = Pairing::new(Uuid::new_v4(), Permissions::Admin, key);
         let user = Pairing::new(Uuid::new_v4(), Permissions::User, key);
         store.save_pairing(&admin).await.unwrap();
@@ -356,9 +379,11 @@ mod management_tests {
             1
         );
         assert!(!matches!(listing.last(), Some(Value::Separator)));
-        let other_key = ed25519_dalek::SigningKey::generate(&mut rand::rngs::StdRng::from_rng(&mut rand::rng()))
-            .verifying_key()
-            .to_bytes();
+        let other_key = ed25519_dalek::SigningKey::generate(&mut rand::rngs::StdRng::from_rng(
+            &mut rand::rng(),
+        ))
+        .verifying_key()
+        .to_bytes();
         assert!(handle_add(
             controller.clone(),
             config.clone(),

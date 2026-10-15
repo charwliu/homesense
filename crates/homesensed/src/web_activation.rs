@@ -7,14 +7,14 @@ use crate::{
 use hyper::{Request, StatusCode, body::Bytes};
 use serde_json::{Value, json};
 use uuid::Uuid;
-pub async fn activate(
+pub(crate) async fn activate_scoped(
     api: &Api,
     runtime: &Runtime,
     grant: &Grant,
     id: &str,
     request: &Request<Bytes>,
-) -> (StatusCode, Value) {
-    let error = |status, message| (status, json!({"error":message}));
+) -> (StatusCode, Value, bool) {
+    let error = |status, message| (status, json!({"error":message}),false);
     if grant.role != Role::Administrator {
         return error(StatusCode::FORBIDDEN, "administrator_required");
     }
@@ -66,6 +66,7 @@ pub async fn activate(
         Err(_) => return error(StatusCode::SERVICE_UNAVAILABLE, "draft_storage_unavailable"),
     };
     let principal = grant.controller.to_string();
+    let endpoint=crate::web_receipts::Endpoint::ConfigurationActivate(id);
     let fingerprint=json!({"action":"activate","draft":id,"revision":draft.revision,"expected_revision":draft.expected_revision,"boot":input.boot}).to_string();
     // Resolve earlier receipts before current-revision checks: a completed
     // publication remains queryable after its revision replaces the old one.
@@ -73,9 +74,10 @@ pub async fn activate(
         .receipts
         .lock()
         .map_err(|_| ())
-        .and_then(|r| r.lookup(&principal, &input.request_id).map_err(|_| ()));
+        .and_then(|r| r.lookup_scoped(&principal,&endpoint,&input.request_id).map_err(|_| ()));
     match existing {
-        Ok(Some((old, result))) => {
+        Ok(Some(record)) => {
+            let (old,result,expired)=(record.fingerprint,record.response,record.expired);
             if old != fingerprint {
                 return error(StatusCode::CONFLICT, "idempotency_conflict");
             }
@@ -84,6 +86,7 @@ pub async fn activate(
                 result
                     .and_then(|r| serde_json::from_str(&r).ok())
                     .unwrap_or(json!({"outcome":"unknown","retry":false})),
+                expired,
             );
         }
         Err(_) => return error(StatusCode::SERVICE_UNAVAILABLE, "persistence_unavailable"),
@@ -93,25 +96,28 @@ pub async fn activate(
         return error(StatusCode::CONFLICT, "configuration_changed");
     }
     let claim = api.receipts.lock().map_err(|_| ()).and_then(|mut r| {
-        r.claim(&principal, &input.request_id, &fingerprint)
+        r.claim_scoped(&principal,&endpoint,&input.request_id,&fingerprint)
             .map_err(|_| ())
     });
-    match claim {
-        Ok(Claim::New) => {}
-        Ok(Claim::Existing(Some(value))) => {
+    let claim=match claim{Ok(c)=>c,Err(_)=>return error(StatusCode::SERVICE_UNAVAILABLE,"persistence_unavailable")};
+    let expired=claim.expired;
+    match claim.claim {
+        Claim::New => {}
+        Claim::Existing(Some(value)) => {
             return (
                 StatusCode::OK,
                 serde_json::from_str(&value).unwrap_or(json!({"outcome":"unknown","retry":false})),
+                expired,
             );
         }
-        Ok(Claim::Existing(None)) => {
+        Claim::Existing(None) => {
             return (
                 StatusCode::ACCEPTED,
                 json!({"outcome":"unknown","retry":false}),
+                expired,
             );
         }
-        Ok(Claim::Conflict) => return error(StatusCode::CONFLICT, "idempotency_conflict"),
-        Err(_) => return error(StatusCode::SERVICE_UNAVAILABLE, "persistence_unavailable"),
+        Claim::Conflict => return error(StatusCode::CONFLICT, "idempotency_conflict"),
     }
     let outcome = match publisher
         .publish(
@@ -131,7 +137,7 @@ pub async fn activate(
         .lock()
         .map_err(|_| ())
         .and_then(|mut r| {
-            r.finish(&principal, &input.request_id, &outcome.to_string())
+            r.finish_scoped(&principal,&endpoint,&input.request_id,&outcome.to_string())
                 .map_err(|_| ())
         })
         .is_err()
@@ -141,5 +147,8 @@ pub async fn activate(
             "receipt_unavailable_outcome_unknown",
         );
     }
-    (StatusCode::ACCEPTED, outcome)
+    (StatusCode::ACCEPTED, outcome,expired)
 }
+
+/// Compatibility wrapper; actual HTTP additionally returns expiry headers.
+pub async fn activate(api:&Api,runtime:&Runtime,grant:&Grant,id:&str,request:&Request<Bytes>)->(StatusCode,Value){let(code,value,_)=activate_scoped(api,runtime,grant,id,request).await;(code,value)}

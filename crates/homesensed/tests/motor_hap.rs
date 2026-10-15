@@ -162,7 +162,7 @@ async fn motor_adapter_authorizes_resets_and_reserves_capacity_before_admission(
     let mut snapshot=homesensed::feedback::Feedback::new(&config,ExecutionContext::Simulation,Uuid::parse_str(admission.boot_id()).unwrap().as_u128(),1).unwrap().snapshot();
     let observed=snapshot.devices.get_mut(&DeviceId::new("light").unwrap()).unwrap();observed.observed=Some(homesense_core::Observation::Level(homesense_core::Percent::new(40).unwrap()));observed.quality=homesense_state::Quality::Confirmed;observed.observed_at_ms=Some(0);
     let lights=homesensed::runtime_hap::RuntimeHap::new(&config,snapshot.clone(),&identity,admission.clone(),5000).await.unwrap();
-    let mut unified=homesensed::unified_hap::UnifiedHap{lights,scenes:None,motors:Some(graph)};
+    let mut unified=homesensed::unified_hap::UnifiedHap{lights,scenes:None,motors:Some(graph),away:None};
     let server=hap::server::IpServer::new_loopback(settings,identity.clone()).await.unwrap();
     unified.install(&server).await.unwrap();
     let signing=ed25519_dalek::SigningKey::from_bytes(&[31;32]);

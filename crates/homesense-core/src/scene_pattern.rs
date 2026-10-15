@@ -26,8 +26,9 @@ impl From<Percent> for LightPower {
 pub type MemberPatterns = BTreeMap<i64, BTreeMap<DeviceId, LightPower>>;
 pub type Observations = BTreeMap<DeviceId, Option<LightPower>>;
 
-/// Returns 0 for confirmed all-Off, a positive member for a unique complete
-/// match, or None for unknown, missing, inconsistent or ambiguous patterns.
+/// Returns 0 for a complete known pattern selecting no scene (including all-Off),
+/// a positive member for a unique complete match, or None for unknown, missing,
+/// inconsistent or ambiguous patterns. Zero does not assert that all lamps are Off.
 ///
 /// Every member must explicitly cover the same reviewed group light set.
 /// Missing/unknown lamps never supply an implicit Off. Extra observations must
@@ -43,14 +44,19 @@ pub fn matching_member(targets: &MemberPatterns, actual: &Observations) -> Optio
     {
         return None;
     }
-    if actual.values().all(|power| *power == Some(LightPower::Off)) {
-        return Some(0);
-    }
     let mut matches = targets.iter().filter(|(_, expected)| {
         expected
             .iter()
             .all(|(id, power)| actual.get(id) == Some(&Some(*power)))
     });
-    let value = *matches.next()?.0;
-    matches.next().is_none().then_some(value)
+    let first_match = matches.next();
+    if matches.next().is_some() {
+        return None;
+    }
+    // Zero means no selected scene, not a claim that every lamp is Off.
+    // Preserve the all-Off reset, including a unique explicit Off member.
+    if actual.values().all(|power| *power == Some(LightPower::Off)) {
+        return Some(0);
+    }
+    Some(first_match.map_or(0, |(value, _)| *value))
 }
