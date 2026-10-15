@@ -19,4 +19,4 @@ homesensed serve-automation-tcp DEVICES AUTOMATION STATE_DIR forever --coexisten
 
 库调用者可以通过 `RunMode` 和 `RunControl` 明确选择有限／常驻模式，并通过 watch 停止通道结束服务。原有接受 `Duration` 的有限接口继续可用。通道关闭也视为停止请求。
 
-本机整合已通过1128项测试、10个文档测试目标和严格全部目标Clippy；正式AD8常驻程序的断连／恢复和显式SIGTERM停止亦通过。测试中的30天为逻辑时间推进，并非30天实机运行。Linux部署与现场验收由[常驻服务发布审计](evidence/stage-e-browser/continuous-service-root-check.json)另行记录，本机验证不代表已经上线。
+本机整合已通过1128项测试、10个文档测试目标和严格全部目标Clippy；正式AD8常驻程序的断连／恢复和显式SIGTERM停止亦通过。测试中的30天为逻辑时间推进，并非30天实机运行。Linux生产程序已完成隔离启动／SIGTERM烟测，E2 已由 systemd 常驻启动并启用开机启动。Root独立核对实际进程哈希、无整体期限、零重启和可信HTTPS就绪，原rev9、配对与永久管理员凭证保留；集中实机验收仍待恢复。详见[常驻服务发布审计](evidence/stage-e-browser/continuous-service-root-check.json)。
