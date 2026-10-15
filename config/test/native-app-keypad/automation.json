@@ -1,0 +1,123 @@
+{
+  "schema_version": 1,
+  "configuration_revision": 1,
+  "variables": [
+    {
+      "id": "selection",
+      "kind": "integer",
+      "lifetime": "persistent"
+    }
+  ],
+  "rules": [],
+  "timed_scenes": [
+    {
+      "id": "reading",
+      "enabled": true,
+      "review_evidence": "Isolated native API fixture only",
+      "max_lateness_ms": 5000,
+      "steps": [
+        {
+          "source": "isolated native fixture",
+          "offset_ms": 0,
+          "device": "fixture-light",
+          "command": {
+            "kind": "level",
+            "value": 100,
+            "ramp": false
+          }
+        },
+        {
+          "source": "isolated native fixture",
+          "offset_ms": 0,
+          "device": "fixture-downlight",
+          "command": {
+            "kind": "level",
+            "value": 0,
+            "ramp": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "meeting",
+      "enabled": true,
+      "review_evidence": "Isolated native API fixture only",
+      "max_lateness_ms": 5000,
+      "steps": [
+        {
+          "source": "isolated native fixture",
+          "offset_ms": 0,
+          "device": "fixture-light",
+          "command": {
+            "kind": "level",
+            "value": 0,
+            "ramp": false
+          }
+        },
+        {
+          "source": "isolated native fixture",
+          "offset_ms": 0,
+          "device": "fixture-downlight",
+          "command": {
+            "kind": "level",
+            "value": 100,
+            "ramp": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "off",
+      "enabled": true,
+      "review_evidence": "Isolated native API fixture only",
+      "max_lateness_ms": 5000,
+      "steps": [
+        {
+          "source": "isolated native fixture",
+          "offset_ms": 0,
+          "device": "fixture-light",
+          "command": {
+            "kind": "level",
+            "value": 0,
+            "ramp": false
+          }
+        },
+        {
+          "source": "isolated native fixture",
+          "offset_ms": 0,
+          "device": "fixture-downlight",
+          "command": {
+            "kind": "level",
+            "value": 0,
+            "ramp": false
+          }
+        }
+      ]
+    }
+  ],
+  "scene_switch_groups": [
+    {
+      "id": "reading-group",
+      "variable": "selection",
+      "review_evidence": "Isolated relative scene mapping",
+      "members": [
+        {
+          "scene": "reading",
+          "value": 1,
+          "off_scene": "off"
+        },
+        {
+          "scene": "meeting",
+          "value": 2,
+          "off_scene": "off"
+        }
+      ],
+      "reconciliation": {
+        "enabled": true,
+        "policy": "unique_light_on_pattern",
+        "max_age_ms": 5000,
+        "review_evidence": "Isolated two-light pattern"
+      }
+    }
+  ]
+}
