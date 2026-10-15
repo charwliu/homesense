@@ -1,5 +1,5 @@
 {
-  "checked_bj": "2026-10-15T17:42:35.729676+08:00",
+  "checked_bj": "2026-10-15T18:02:52.711512+08:00",
   "derived_requirements": [
     "docs/design.md sections9-11,18,20,23-24,27"
   ],
@@ -93,10 +93,11 @@
       "id": "E-4",
       "stage": "E",
       "requirement": "原生App、管理API鉴权与事件恢复",
-      "verified_scope": "登录、滑块、退出和iPad断网恢复有实际限定结果；新账本与Away有软件证据；原生App实际TLS/WSS软件集成及手机推送、页面稳定与亮度按钮可用已确认；原生App两次实际调光跟随与自动读回已确认；rev9楼层目录及原生App三层/两房间归属已实际确认，永久Admin登录和本机空楼层编辑已通过；原生App楼层/房间新增、改名、删除、服务端保存及预览、恢复活动配置和测试草稿清理均已实际确认；两草稿独立核对设备及自动化未变",
-      "remaining_evidence": "普通灯光/窗帘/模块/场景HTTP源权限缺口已用未改产品的1196文件基线确认：10正向通过，80/80撤权组合仍写出。精确源授权须延续到运行时、派发/写入和延迟后效并严格复验；App实际发布及完整新入口/前后台/持久连接仍待验。",
-      "status": "confirmed_ordinary_source_authority_failure_fix_pending",
-      "additional_auth_gap": "stage-e-browser/ordinary-source-auth-root-gap.json"
+      "verified_scope": "登录、滑块、退出和iPad断网恢复有实际限定结果；新账本与Away有软件证据；原生App实际TLS/WSS软件集成及手机推送、页面稳定与亮度按钮可用已确认；原生App两次实际调光跟随与自动读回已确认；rev9楼层目录及原生App三层/两房间归属已实际确认，永久Admin登录和本机空楼层编辑已通过；原生App楼层/房间新增、改名、删除、服务端保存及预览、恢复活动配置和测试草稿清理均已实际确认；两草稿独立核对设备及自动化未变；build7永久凭证Keychain保存、强退重开自动连接及前后台开/关同步已现场通过；ordinary v3严格负向80项零写出、publication v3四函数32项限定通过，v7 Web准确两run持久账目通过",
+      "remaining_evidence": "源授权修复仍待统一全量QA：原生组合灯新夹具InvalidPayload尚未进入行为断言；publication受理前12种旧版失败和受理后8种STOP失败均已独立复现。新Keypad、App实际发布及新服务异常恢复仍待整合和集中现场验收。",
+      "status": "source_authority_repair_partial_qualified_unified_QA_pending",
+      "additional_auth_gap": "stage-e-browser/ordinary-source-auth-root-gap.json",
+      "additional_publication_auth_evidence": "stage-e-browser/publication-source-boundaries-root-check.json"
     },
     {
       "id": "E-5",
@@ -119,8 +120,8 @@
       "stage": "D/E",
       "requirement": "最终集成软件回归",
       "verified_scope": "固定1195文件backendv3：Mac完整1067项/167实际测试程序，零失败/忽略/过滤；10个crate文档测试块无示例，严格workspace/all-targets Clippy通过；外层锁贯穿编译/执行/产物哈希，全部输入前后未变。旧Linux完整1054通过/1失败与缓存污染的无效v4运行分别保留。",
-      "remaining_evidence": "原1067项全量和Clippy限定通过保留；新独立80组合复现普通控制源撤权产品失败，修复未完成。最终输入需重验后由部署交叉生产程序/目标机隔离冒烟；实际客户端、完整D原语义和历史容量稳定性仍开放。",
-      "status": "v3_local_suite_pass_new_source_authority_failure_confirmed",
+      "remaining_evidence": "旧1067全量质量基线保留。ordinary v5修复默认栈溢出，原管理员模块测试通过；全量随后1071通过/1失败于需调整来源代次的旧Web夹具。v7该Web集成1/1通过；publication v3限定32项通过，但原生组合灯新夹具无效。统一完整workspace/doc/Clippy、运行时可用性修复及Linux生产冒烟尚待完成。",
+      "status": "unified_authority_and_runtime_availability_QA_in_progress",
       "complete_for_current_frozen_input": false,
       "incremental_python_tool_tests_passed": 20,
       "full_workspace_repeated_this_increment": true,
@@ -143,10 +144,11 @@
       "id": "E-7",
       "stage": "E",
       "requirement": "持续服务隔离网关超时与恢复失败，保留原生管理入口",
-      "verified_scope": "约17:28真实提前退出、Root进程/HTTPS终态及部署源码错误传播路径已确认；此前App验收仍有效",
+      "verified_scope": "约17:28真实提前退出、Root进程/HTTPS终态及部署源码错误传播路径已确认；此前App验收仍有效；另以未改正式CLI和纯回环AD8模拟，8路初始新鲜后仅屏蔽回复，约5087ms退出1、HTTPS拒绝连接，零控制",
       "remaining_evidence": "生产持续服务故障隔离待实现；需要真实CLI模拟无反馈、退避、未知禁控、同步恢复不重放与正常截止回归，现场集中验收待统一候选",
       "status": "confirmed_runtime_availability_gap",
-      "additional_evidence": "stage-e-browser/runtime-gateway-timeout-root-gap.json"
+      "additional_evidence": "stage-e-browser/runtime-gateway-timeout-root-gap.json",
+      "additional_production_counterexample": "stage-e-browser/runtime-feedback-outage-cli-root-check.json"
     }
   ],
   "evidence_sha256": {
@@ -189,7 +191,9 @@
     "stage-d-study/scene-ambiguity-policy-root-check.json": "22426738ddf762310f1da910a532e5702dad05d0d0ed065b5914554f1e457870",
     "stage-e-browser/native-app-build7-field-root-check.json": "f162bf5b73d30834935b856a7d8d84c81358d2582d4673f0fdbfdb45c93c96c3",
     "stage-e-browser/ordinary-source-auth-repair-v3-root-check.json": "3ec60d5f1539f49af7dca7091eb29c7299b1fe1db0aadae0a67b022302542077",
-    "stage-e-browser/runtime-gateway-timeout-root-gap.json": "02a71918edc4521220661bb95bad207cba2b98cb8fb6731b62921d0931aa9236"
+    "stage-e-browser/runtime-gateway-timeout-root-gap.json": "02a71918edc4521220661bb95bad207cba2b98cb8fb6731b62921d0931aa9236",
+    "stage-e-browser/publication-source-boundaries-root-check.json": "e8dd693ce16e83626f8efcff7a66ecce9cdd60b13bb4e13567ef972db3a57bce",
+    "stage-e-browser/runtime-feedback-outage-cli-root-check.json": "ddd9d3498af98386d801d4d33f2631a51f86397536fca029701b604523139ec9"
   },
   "excluded_by_scope": {
     "Siri": "cancelled by user",
@@ -292,7 +296,7 @@
     "all_ordinary_source_negative_combinations_emitted": 80,
     "static_gap_only": false,
     "first_repair_compile": "v1 test SQLite u64 ToSql error; no tests executed; preserved and minimalv2 requested",
-    "current_repair_regression": "v3 focused13 pass (80 original negative cases now zero output) but full workspace and exact single administrator module controls test stack-overflow SIGABRT; v4 smaller Arc proof still same single failure; not deployed"
+    "current_repair_regression": "v5通过原默认栈回归；publication v3四函数32项通过；Web v7确切两run与原命令数集成通过；统一全量和native combined有效夹具仍待完成"
   },
   "offline_keypad_migration": "Two parents and10existing aliases preserved6+4, all other revision9 fields identical; fixedv3 production check-config/check-automation exit0, no service or commands.",
   "source_policy_decisions_added": 2,
@@ -305,5 +309,7 @@
   "current_Keypad_field_parent_objects": 0,
   "current_Keypad_field_legacy_LED_entries": 7,
   "field_testing_user_deferred_until_all_fixes_integrated": true,
-  "gateway_timeout_exit_user_requires_fix": true
+  "gateway_timeout_exit_user_requires_fix": true,
+  "latest_publication_auth_evidence": "stage-e-browser/publication-source-boundaries-root-check.json",
+  "latest_runtime_counterexample_evidence": "stage-e-browser/runtime-feedback-outage-cli-root-check.json"
 }

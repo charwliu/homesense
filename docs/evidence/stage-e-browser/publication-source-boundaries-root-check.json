@@ -1,0 +1,83 @@
+{
+  "checked_bj": "2026-10-15T18:02:11.903220+08:00",
+  "kind": "exact publication source and safety STOP adoption partial independent qualification",
+  "repair_manifest_sha256": "c9f5c0a6c7aa19711eb99082050e26b74bf161f8ea29d3121e8d52194331cf07",
+  "frozen_source_files": 1201,
+  "baseline_before_barrier": {
+    "manifest_sha256": "117562d518c1f5be69361038714200bd733436da59e5e15a0e0c9bbc386afcfb",
+    "functions": 3,
+    "failed": 2,
+    "passed": 1,
+    "strict_negative_cases": 12,
+    "unauthorized_barrier_entries": 12,
+    "same_two_test_functions_byte_identical_to_repair": true
+  },
+  "baseline_after_barrier": {
+    "manifest_sha256": "58604e2db89532e106cf11f20f4e4b05b5ae403c12ceb36bb081aaf698e1a681",
+    "cases": 16,
+    "trusted_local_STOP_pass": 8,
+    "source_bound_STOP_fail": 8,
+    "failure": "reserved STOP loses old credential authority at dispatch or physical write; handoff cannot finish",
+    "exact_test_function_byte_identical_to_repair": true
+  },
+  "repair_publication": {
+    "functions_passed": 4,
+    "cases_passed": 32,
+    "before_queue_or_received": 8,
+    "at_admission_actor": 4,
+    "accepted_barrier_STOP_drain": 16,
+    "source_bound_STOP_without_accepted_barrier": 4,
+    "same_controller_fresh_root_own_revision3_committed": true,
+    "accepted_barrier_exact_reserved_STOP_written_once_commit_revision2": true,
+    "reserved_STOP_capability_contract": "Existing exact command only, original deadline retained; separate unit suite still pending"
+  },
+  "combined_focus": {
+    "functions": 11,
+    "passed": 10,
+    "failed": 1,
+    "ordinary_partial_write_scenarios_passed": 5,
+    "failure": "native combined new fixture InvalidPayload while publishing its synthetic automation, before behavior assertions",
+    "not_a_native_combined_product_counterexample": true
+  },
+  "web_runtime_v7": {
+    "manifest_sha256": "2db48ee540befa1c57280752c239d8745d6ffefc42036a0079caad2b271d864f",
+    "functions_passed": 1,
+    "exact_two_durable_run_IDs": true,
+    "old_run_cancelled": true,
+    "new_source_must_make_new_request": true,
+    "original_command_journal_count4_preserved": true,
+    "not_yet_combined_with_publication_v3": true,
+    "result_sha256": "36cfed16651b615aebeaa63db9af0dfb5c7cd5146dcc33748f455d29b520567a"
+  },
+  "old_default_stack_overflow": "v5 three bounded request futures boxed; original administrator module test passes without larger stack; full workspace later fails legacy source-generation fixture; all historical logs retained",
+  "full_current_candidate_QA_pass": false,
+  "remaining": [
+    "native combined valid fixture and all positive/revocation assertions",
+    "unified current-input full workspace/doc/Clippy",
+    "persistent runtime availability repair",
+    "Linux production cross-build and isolated smoke",
+    "concentrated physical acceptance deferred by user"
+  ],
+  "field_actions": 0,
+  "runtime_changes_committed": false,
+  "runtime_changes_deployed": false,
+  "D_E_complete": false,
+  "private_evidence_sha256": {
+    "root-prebarrier-baseline-v2-result.json": "8ed7f766b724c5c4734477b4e0a26e2bc9687371adfbecf53d5206ef3aac3f89",
+    "root-prebarrier-baseline-v2.log": "e8b928671fb5d313b21ffa7546af991ebea50715fc471c1eafd6105744866e4d",
+    "root-stop-baseline-v3-result.json": "e29aff28b2e4bce4592dead39a93bdaaff59306102c0196f7338d0a0f7b74084",
+    "root-stop-baseline-v3.log": "26bb297b2f57d6f26166bc6cdea2becdeb466b1df6c57307f15d4a6d63474a14",
+    "root-repair-v3-focused-result.json": "d5d2d799d06776ddcb5d3c45ceaab3a40fad1847de880467326a4fd4106a7377",
+    "root-repair-v3-focused.log": "54d2c5f913f103009c06cbdc57a1498c74cc4522bec4ed34f9ae80024599498b",
+    "root-repair-v3-combined-result.json": "03835480f5004885cea71db08be99b64ec27fdc7e1a22e5c84fe80c94cb6ba35",
+    "root-repair-v3-combined.log": "9f555065155f8243be27ec7965a712aba5df2af565e182fb82ed6a3d26f1c4df",
+    "root-prebarrier-baseline-v2-artifacts/publication-source-after-barrier.json": "ac7d542efadf8a89733ecae8b82c05fd7287bc61379f26cd778ababef91af79c",
+    "root-prebarrier-baseline-v2-artifacts/publication-source-at-actor.json": "ea7a750627fb292a6c5ee8ece6e4c1d927a3c97f5a632d08f106ebafb08afb22",
+    "root-prebarrier-baseline-v2-artifacts/publication-source-before-barrier.json": "caaeef388e37c36a76c8fe2859f91bd8b77a1fc1d43d370d1c28df233528bef7",
+    "root-stop-baseline-v3-artifacts/publication-source-after-barrier.json": "fa4980511be57c03c680af6d6c5387c7639575d9c5a6c9612ca399bc404e50eb",
+    "root-repair-v3-artifacts/publication-source-after-barrier.json": "579458169e3c8c8ffe3bd443db78b8af6eec7897857235dbf017ca1a2350eb1e",
+    "root-repair-v3-artifacts/publication-source-at-actor.json": "c6f165e1a69a2ab6977b35c722e33451842126bd1084712a51ce5f3ac5c871fe",
+    "root-repair-v3-artifacts/publication-source-before-barrier-stop.json": "e9f774af22c2fc8462368f128c2fd93e72d0a4caa74a8a0b434564d6ee3141c4",
+    "root-repair-v3-artifacts/publication-source-before-barrier.json": "d899caf18e9f53ad2aded7a05ebde9ec0a834ef73a69d59f88e7a2e90ccbd656"
+  }
+}
