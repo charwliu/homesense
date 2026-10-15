@@ -4,6 +4,10 @@
 
 后续每次提交的变动细节在此记录；README 的变更内容只保留功能新增、移除及能力变化。
 
+## 2026-10-16 Linux真实状态迁移／回退与App审核包
+
+2026-10-16 Linux正式ELF已通过5项原隔离契约、真实schema26→27迁移、旧ELF拒绝与checksum整树回退；Root另核实非空配对哈希、17设备／7场景授权、静态配置和原账本保持。旧拒绝严格文件不变性只对停止并checkpoint的隔离副本成立，原WAL辅助文件清理反例保留。现网尚未切换，仍为旧版schema26／rev10常驻；自动审批在核验原授权后仍要求当前明确批准，已询问用户，保持现网等待。App提交ab861d4已推送，build10无签名审核包逐文件核验通过，仅改私有版本号；尚未签名或安装，不含其他未提交LHIO功能。见[Linux候选](docs/evidence/stage-e-browser/multi-gateway-linux-runtime10-root-check.json)、[build10](docs/evidence/stage-e-browser/native-build10-root-check.json)。
+
 ## 2026-10-16 原生App按目标禁用与历史状态显示
 
 2026-10-16 原生App逐目标可用性按选择性Git构成完成完整79项／13套件，零失败／零跳过，原2项真实Rust集成在同一轮启用并通过，iOS无签名构建通过。6产品／2测试／2真实DTO输入精确合入，其他未提交App改动保留；此前混合工作树85加2与本次79明确分开，没有删除测试改变范围。失效目标禁用、健康目标继续可用、保留历史反馈且不补发旧操作；新手机包和六键视觉／硬件验收仍待。见[原生App资格](docs/evidence/stage-e-browser/native-partial-availability-root-check.json)。

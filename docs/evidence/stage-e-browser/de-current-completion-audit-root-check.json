@@ -1,5 +1,5 @@
 {
-  "checked_bj": "2026-10-16T04:53:01.413055+08:00",
+  "checked_bj": "2026-10-16T05:07:00.288314+08:00",
   "derived_requirements": [
     "docs/design.md sections9-11,18,20,23-24,27"
   ],
@@ -151,7 +151,7 @@
       "stage": "D/E",
       "requirement": "最终集成软件回归",
       "verified_scope": "网络接收错误修复最终844冻结输入：1160项完整Rust、原1153函数全部保留、172实际程序重哈希、文档与全目标严格Clippy通过；最终正式CLI88路周期/常驻恢复和两项实际App HTTPS/WSS通过。",
-      "remaining_evidence": "runtime10完整1197及全协议通过，精确Rust48文件已提交c77c4e7；含1条保留于本机的既有私有补充，其余1196原样包含于成功回归。App干净选择性构成完整79/0skip含原2实际Rust集成及iOS无签名构建通过；Linux真实升级/回退/常驻交付及手机现场仍待。",
+      "remaining_evidence": "backend冻结1197（1196tracked+1既有私有补充）/原协议、Linux正式ELF5项隔离协议与真实迁移/回退通过；App精确Git构成完整79/无skip含2实际Rust集成与iOS无签名构建通过，App提交ab861d4。新Linux现网常驻切换、新手机包签名安装与完整现场/源语义仍待。",
       "status": "receive_error_repair_Mac_qualified_Linux_deployed_multi_gateway_isolation_open",
       "complete_for_current_frozen_input": true,
       "incremental_python_tool_tests_passed": 20,
@@ -186,7 +186,7 @@
       "stage": "E",
       "requirement": "持续服务隔离网关超时与恢复失败，保留原生管理入口",
       "verified_scope": "v21常驻完整1128项、原配对HAP专项和正式AD8常驻生命周期通过；Linux隔离烟测与systemd上线及可信HTTPS就绪核验通过，保留原rev9/Admin/配对。；新增接收RST导致退出的正式程序反例已软件修复，完成故障审计的指定网络错误可恢复，真实取消和审计/不变量错误仍致命。；本轮Linux正式程序隔离RST生命周期与常驻更新已独立核验。；私有基础层Core/Storage216项及严格迁移/64容量已独立核查，不等同运行时隔离。；现有正式Linux ELF的隔离整树回退机制已独立核查，checksum修复同大小/时间数据库漏恢复，27项清单和非空合成配对/凭据保持。；私有runtime1同852输入普通CLI原HTTP8组合独立全绿，保留B连接/反馈/新控制；尚未合入/部署。",
-      "remaining_evidence": "独立网关故障隔离已在同一runtime10正式CLI全部契约通过，不再沿用此前runtime1/7反例作为当前候选未修复结论。现网仍f5b/1de常驻；新LinuxELF、真实26to27迁移/旧程序拒绝和checksum整树回退、常驻交付及集中现场仍待。",
+      "remaining_evidence": "runtime10 Mac全协议与Linux正式ELF5项原契约、真实26to27迁移/旧ELF拒绝/checksum整树回退独立通过；现网切换未执行，自动审批两次要求当前明确批准，已询问用户，旧版常驻保持。上线后的身份/17+7授权/64通道读回与手机集中现场仍待。",
       "status": "single_gateway_deployed_multi_gateway_independent_control_counterexample",
       "additional_evidence": "stage-e-browser/runtime-gateway-timeout-root-gap.json",
       "additional_production_counterexample": "stage-e-browser/runtime-feedback-outage-cli-root-check.json",
@@ -293,7 +293,9 @@
     "stage-e-browser/multi-gateway-runtime1-root-check.json": "12ab8e62ab688372c23bfee082e308095d746ce8a4f869d59a1f238bdced9531",
     "stage-e-browser/multi-gateway-runtime7-root-check.json": "0144d153a644ac4f9c19763fa279e1d90be08c8294f09db100dcb8413f56d76b",
     "stage-e-browser/multi-gateway-runtime10-root-check.json": "adb85e193be25f3135a2a894ba2a5268df33cf8f3b1b89a7b946c2c8fd411b7b",
-    "stage-e-browser/native-partial-availability-root-check.json": "ac5e90b1d0023dab92b9ba15c3c54913bd5e16bc86b225ba7bfb7738bf850849"
+    "stage-e-browser/native-partial-availability-root-check.json": "ac5e90b1d0023dab92b9ba15c3c54913bd5e16bc86b225ba7bfb7738bf850849",
+    "stage-e-browser/multi-gateway-linux-runtime10-root-check.json": "d291d9e921be9c754eb0d37122d832bfad782392cbdf73f32d5fb9dbb32b55a8",
+    "stage-e-browser/native-build10-root-check.json": "2eb147ccf1bfd1283697b20d4cde66f9ebc878499a2ecfa09191928b178db899"
   },
   "excluded_by_scope": {
     "Siri": "cancelled by user",
@@ -583,5 +585,9 @@
     "old_mixed_worktree85plus2_distinguished": true,
     "current_source_only10_paths": true
   },
-  "native_App_new_availability_commit_status": "Precise10 qualified files being committed; old signed9 does not contain these changes."
+  "native_App_new_availability_commit_status": "Committed ab861d4; clean56 match qualified79 suite. Private unsigned10 only version change, not signed/installed, excludes unrelated uncommitted LHIO tools.",
+  "latest_gateway_isolation_Linux_candidate_qualification": "stage-e-browser/multi-gateway-linux-runtime10-root-check.json",
+  "latest_native_build10_preparation": "stage-e-browser/native-build10-root-check.json",
+  "gateway_isolation_production_switch": "Not performed. Two automatic approval rejections, second after verified earlier human authorization; a current specific approval is pending. OldPID246767/schema26/rev10 retained.",
+  "native_App_availability_source_commit": "ab861d4619202754c8429fcdf07eb447d08cfaef"
 }
