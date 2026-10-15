@@ -1,5 +1,5 @@
 {
-  "checked_bj": "2026-10-16T02:42:55.230156+08:00",
+  "checked_bj": "2026-10-16T03:07:42.160337+08:00",
   "derived_requirements": [
     "docs/design.md sections9-11,18,20,23-24,27"
   ],
@@ -69,12 +69,13 @@
       "stage": "E",
       "requirement": "原生HAP、配对与身份",
       "verified_scope": "既有iPhone配对、保留身份重启和软件加密／撤权证据已具备；HAP过期失效及同值新反馈恢复通知已修复，3类灯回归、227项运行时单元、严格Clippy及普通生产库实际约5.3秒反例复验通过；同一统一候选的普通生产库另经三类灯真实回环Pair-Verify/加密EVENT/读取验证，5个特征过期和同值恢复，零控制命令；整合v7已配对加密HAP在无反馈／部分反馈期间失效，完整八路反馈后原配对及AID/IID不变，新控制25%和订阅实际读回通过。",
-      "remaining_evidence": "v21常驻模式完整回归、Linux隔离烟测和服务上线通过；实际Apple客户端新故障通知集中验收仍待。",
-      "status": "software_notification_fix_integrated_and_physical_pending",
+      "remaining_evidence": "v21常驻模式完整回归、Linux隔离烟测和服务上线通过；实际Apple客户端新故障通知集中验收仍待。；独立两网关加密HAP反例：A单独RST使健康B读取-70402并收到不可用EVENT，B50无写出；完整恢复重建HAP监听并关闭原认证会话，需在按网关修复中保持健康B及原会话。",
+      "status": "single_gateway_notification_qualified_partial_gateway_HAP_counterexample",
       "additional_software_gap": "stage-e-browser/hap-expiry-notification-root-gap.json",
       "additional_software_fix": "stage-e-browser/hap-expiry-notification-root-check.json",
       "additional_encrypted_notification_evidence": "stage-e-browser/hap-encrypted-expiry-root-check.json",
-      "additional_runtime_recovery_evidence": "stage-e-browser/runtime-availability-recovery-root-check.json"
+      "additional_runtime_recovery_evidence": "stage-e-browser/runtime-availability-recovery-root-check.json",
+      "additional_partial_HAP_evidence": "stage-e-browser/multi-gateway-partial-hap-root-gap.json"
     },
     {
       "id": "E-2",
@@ -160,7 +161,7 @@
       "stage": "E",
       "requirement": "持续服务隔离网关超时与恢复失败，保留原生管理入口",
       "verified_scope": "v21常驻完整1128项、原配对HAP专项和正式AD8常驻生命周期通过；Linux隔离烟测与systemd上线及可信HTTPS就绪核验通过，保留原rev9/Admin/配对。；新增接收RST导致退出的正式程序反例已软件修复，完成故障审计的指定网络错误可恢复，真实取消和审计/不变量错误仍致命。；本轮Linux正式程序隔离RST生命周期与常驻更新已独立核验。；私有基础层Core/Storage216项及严格迁移/64容量已独立核查，不等同运行时隔离。",
-      "remaining_evidence": "接收错误修复已Linux常驻上线，原身份/配置/凭证保持；原管理员另授权新增一条HAP配对。A故障仍使健康B新控制unknown，完整按网关隔离正在实现，集中现场仍待验。；WSS部分可用性实际反例已纳入，运行时必须保持健康B状态与新控制。",
+      "remaining_evidence": "接收错误修复已Linux常驻上线，原身份/配置/凭证保持；原管理员另授权新增一条HAP配对。A故障仍使健康B新控制unknown，完整按网关隔离正在实现，集中现场仍待验。；WSS部分可用性实际反例已纳入，运行时必须保持健康B状态与新控制。；加密HAP亦存在健康B连带失效及局部恢复重建监听的问题，保留配对身份不能代替原认证连接持续性。",
       "status": "single_gateway_deployed_multi_gateway_independent_control_counterexample",
       "additional_evidence": "stage-e-browser/runtime-gateway-timeout-root-gap.json",
       "additional_production_counterexample": "stage-e-browser/runtime-feedback-outage-cli-root-check.json",
@@ -169,7 +170,8 @@
       "additional_receive_error_evidence": "stage-e-browser/receive-network-error-root-check.json",
       "additional_receive_error_Linux_evidence": "stage-e-browser/receive-network-error-linux-deployment-root-check.json",
       "additional_foundation_evidence": "stage-e-browser/multi-gateway-foundation-root-check.json",
-      "additional_partial_WSS_evidence": "stage-e-browser/multi-gateway-partial-wss-root-gap.json"
+      "additional_partial_WSS_evidence": "stage-e-browser/multi-gateway-partial-wss-root-gap.json",
+      "additional_partial_HAP_evidence": "stage-e-browser/multi-gateway-partial-hap-root-gap.json"
     }
   ],
   "evidence_sha256": {
@@ -250,7 +252,8 @@
     "stage-e-browser/receive-network-error-root-check.json": "a2145e8e202991ae387574a57008209d5a44e6d6b17c56411e6e0535ee30ae55",
     "stage-e-browser/receive-network-error-linux-deployment-root-check.json": "4feff1129899f80ac1295fe5f5a835e1df5839f04c11f64acf1a63d391635dee",
     "stage-e-browser/multi-gateway-partial-wss-root-gap.json": "e67f4aa21186d4bca9ab13ac2ad5e0e370104b985e216cf5f6d90643532d78ed",
-    "stage-e-browser/multi-gateway-foundation-root-check.json": "8ae02f505c3e30433a9b9d2158756bd07c33eb5dd699357cb3fb8d1825cc0f0e"
+    "stage-e-browser/multi-gateway-foundation-root-check.json": "8ae02f505c3e30433a9b9d2158756bd07c33eb5dd699357cb3fb8d1825cc0f0e",
+    "stage-e-browser/multi-gateway-partial-hap-root-gap.json": "17a06a02ba196aa2a3cada7f873fd006e3d34640c6941219567493209549e7d2"
   },
   "excluded_by_scope": {
     "Siri": "cancelled by user",
@@ -504,5 +507,6 @@
     "evidence": "stage-e-browser/receive-network-error-linux-deployment-root-check.json"
   },
   "latest_gateway_foundation_software": "stage-e-browser/multi-gateway-foundation-root-check.json",
-  "latest_partial_gateway_WSS_counterexample": "stage-e-browser/multi-gateway-partial-wss-root-gap.json"
+  "latest_partial_gateway_WSS_counterexample": "stage-e-browser/multi-gateway-partial-wss-root-gap.json",
+  "latest_partial_gateway_HAP_counterexample": "stage-e-browser/multi-gateway-partial-hap-root-gap.json"
 }
