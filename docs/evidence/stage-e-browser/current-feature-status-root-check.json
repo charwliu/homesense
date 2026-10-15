@@ -1,0 +1,55 @@
+{
+  "checked_at": "2026-10-16T00:20:35.098513+08:00",
+  "changes": "README capability/status reconciliation only; no feature or runtime scope change",
+  "authoritative_current_readonly": {
+    "checked_at": "2026-10-16T00:20:35.098513+08:00",
+    "trusted_HTTPS": true,
+    "revision": "10",
+    "ready": true,
+    "gateway_ready": true,
+    "storage_healthy": true,
+    "parents": [
+      {
+        "id": "control4:425:keypad",
+        "name": "画室门口面板",
+        "slots": 6
+      },
+      {
+        "id": "control4:63:keypad",
+        "name": "书房面板",
+        "slots": 6
+      }
+    ],
+    "standalone_LED": 0,
+    "browser_root": {
+      "status": 410,
+      "body": {
+        "error": "native_app_required"
+      }
+    },
+    "systemd": {
+      "ActiveState": "active",
+      "SubState": "running",
+      "UnitFileState": "enabled",
+      "RuntimeMaxUSec": "infinity",
+      "MainPID": "244467",
+      "NRestarts": "0"
+    },
+    "device_or_grant_writes": 0
+  },
+  "feature_status_corrected": [
+    "existing study/studio six-slot parents published; actual phone visual confirmation pending",
+    "browser410 native_app_required already deployed; native HTTPS API/WSS retained",
+    "precise source authorization already part of current deployed v21, based on existing continuous-service qualified release evidence",
+    "old browser field acceptance cancelled by user, native App and hardware acceptance retained",
+    "broken deleted nanopc README link replaced with existing ngr study history"
+  ],
+  "source_authorization_release_evidence": "stage-e-browser/continuous-service-root-check.json",
+  "README_no_per_commit_test_counts_added": true,
+  "remaining_LED_candidate_index_full_QA_and_deployment_not_claimed_done": true,
+  "field_or_grant_writes": 0,
+  "private_evidence_sha256": {
+    "deployment/ngr/private/20261016-readme-current-root/readonly-current.json": "4abb35df582affa7144d72f5bc95de1ce7abb8b66a4d182b8e97dab43300d4c8"
+  },
+  "D_E_complete": false
+}
