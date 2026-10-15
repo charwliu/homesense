@@ -1,5 +1,5 @@
 {
-  "checked_bj": "2026-10-15T17:23:21.747711+08:00",
+  "checked_bj": "2026-10-15T17:42:35.729676+08:00",
   "derived_requirements": [
     "docs/design.md sections9-11,18,20,23-24,27"
   ],
@@ -138,6 +138,15 @@
       "current_integrated_evidence": "stage-e-browser/native-keypad-backend-v3-root-check.json",
       "current_mac_doc_result_blocks": 10,
       "current_frozen_local_quality_pass": true
+    },
+    {
+      "id": "E-7",
+      "stage": "E",
+      "requirement": "持续服务隔离网关超时与恢复失败，保留原生管理入口",
+      "verified_scope": "约17:28真实提前退出、Root进程/HTTPS终态及部署源码错误传播路径已确认；此前App验收仍有效",
+      "remaining_evidence": "生产持续服务故障隔离待实现；需要真实CLI模拟无反馈、退避、未知禁控、同步恢复不重放与正常截止回归，现场集中验收待统一候选",
+      "status": "confirmed_runtime_availability_gap",
+      "additional_evidence": "stage-e-browser/runtime-gateway-timeout-root-gap.json"
     }
   ],
   "evidence_sha256": {
@@ -179,7 +188,8 @@
     "stage-e-browser/native-app-build7-root-check.json": "33130538916951024b1d1cac992f28ddb87d91064a195cd00eaf61578fc6ac7f",
     "stage-d-study/scene-ambiguity-policy-root-check.json": "22426738ddf762310f1da910a532e5702dad05d0d0ed065b5914554f1e457870",
     "stage-e-browser/native-app-build7-field-root-check.json": "f162bf5b73d30834935b856a7d8d84c81358d2582d4673f0fdbfdb45c93c96c3",
-    "stage-e-browser/ordinary-source-auth-repair-v3-root-check.json": "3ec60d5f1539f49af7dca7091eb29c7299b1fe1db0aadae0a67b022302542077"
+    "stage-e-browser/ordinary-source-auth-repair-v3-root-check.json": "3ec60d5f1539f49af7dca7091eb29c7299b1fe1db0aadae0a67b022302542077",
+    "stage-e-browser/runtime-gateway-timeout-root-gap.json": "02a71918edc4521220661bb95bad207cba2b98cb8fb6731b62921d0931aa9236"
   },
   "excluded_by_scope": {
     "Siri": "cancelled by user",
@@ -195,14 +205,14 @@
   "native_app_backend_start_user_authorized": true,
   "field_queries_or_controls_scope_note": "Historical source audit had zero field actions; new user request authorizes existing two-room backend start for native App testing, not full96 audit or Away activation.",
   "native_app_backend": {
-    "ready": true,
+    "ready": false,
     "revision": 9,
     "schema": 26,
     "fresh_channels": 64,
     "deadline_bj": "2026-10-15T18:14:03+08:00",
     "physical_app_acceptance": "build7 Keychain saved + force quit/relaunch auto-connect + background/foreground on/off state sync user passed; publication and Keypad migration pending",
-    "ready_scope_note": "2026-10-15 17:14:03用户新授权恢复旧4003/rev9，Root可信HTTPS只读确认；不是新Keypad/授权候选部署。",
-    "current_status": "controlled_App_window_active_until_deadline"
+    "ready_scope_note": "计划18:14截止，但17:28发生周期查询失败，重连同步仍超时；17:33/34 Root证实端口拒绝且无进程。尚未重启。",
+    "current_status": "premature_exit_on_gateway_recovery_feedback_timeout"
   },
   "configuration_publication": {
     "revision9": "independently read trusted HTTPS export and room catalog,3floors/2rooms; native App user confirmed correct view",
@@ -293,5 +303,7 @@
   "scene_ambiguity_policy_implementation": "pending",
   "native_App_build7_evidence": "stage-e-browser/native-app-build7-root-check.json",
   "current_Keypad_field_parent_objects": 0,
-  "current_Keypad_field_legacy_LED_entries": 7
+  "current_Keypad_field_legacy_LED_entries": 7,
+  "field_testing_user_deferred_until_all_fixes_integrated": true,
+  "gateway_timeout_exit_user_requires_fix": true
 }
