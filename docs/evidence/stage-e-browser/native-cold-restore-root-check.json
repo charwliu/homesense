@@ -47,8 +47,8 @@
   "live_scope_changed": false,
   "backend_deployed": false,
   "pending": [
-    "two existing opt-in actual Rust HTTPS/WSS integrations not executed in this suite",
-    "integrated signed App install and iPhone field acceptance deferred until backend repair qualified"
+    "integrated signed App install and iPhone field acceptance deferred until backend repair qualified",
+    "new LED candidate full integration remains separate"
   ],
   "private_artifact_sha256": {
     "deployment/ngr/private/20261015-native-cold-restore-app/handoff.json": "b6a33c5e9dd4efc80cec525fc16a2d3dc6cd2fa27cc48746825c6d7d2899a365",
@@ -70,5 +70,6 @@
     "apps/HomeSense/App/HomeManagementView.swift": "ac23b3de8d05c08fd2bfdae125149c2a18c21a17e6d5c9e2c1999dcc25657cb3",
     "apps/HomeSense/Tests/HomeSenseCoreTests/HomeColdRestoreTests.swift": "23e9d4ed7a7131e3bbaf087c3c7c67e080c7f4c31650d5e0ceb97cb1d677e6f3"
   },
-  "D_E_complete": false
+  "D_E_complete": false,
+  "subsequent_actual_Rust_integration": "stage-e-browser/native-current-integration-root-check.json"
 }
