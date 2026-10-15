@@ -1,5 +1,7 @@
 # 持续服务的网关故障隔离
 
+2026-10-16 后续私有runtime7的852冻结输入已完成完整1189项回归，原1160按package／target／函数全部保留、172实际程序重哈希；严格Clippy仍两错101。原HTTP8/8及WSS部分推送通过，HAP八格仅4绿（健康B实测45仍可能显示旧30），普通延迟已保存原作用域但健康B到期及恢复后新B仍失败，两完整延迟／取消契约exit2。未改原契约、断言或期限，也未据单格通过宣布完成。实际设备availability／action_gate已交App，手机视觉与原生适配仍待；候选未合入／部署，现网1de及65／208／24剩余源语义范围保持。见[后续候选独立核查](evidence/stage-e-browser/multi-gateway-runtime7-root-check.json)。
+
 2026-10-16 首轮私有运行时runtime1已按852冻结输入独立复验：原HTTP八组合（无回复/部分回复/EOF/RST，各两排序）全部通过，B同连接、真实反馈及新控制保持，A拒绝且恢复不重放。加密HAP扩大到八组合后仅3绿；五例B模块45已确认但HAP仍30，虽八例均保持同一认证会话、身份、B50和恢复后新A60写出，也不能宣布HAP整组通过。WSS仍全局unavailable并在同transport2下reset；普通未分组延迟场景的作用域未落库，到期Failed，恢复后新B也无法执行，完整延迟/取消契约exit2。所有原契约、期限和失败保留，没有增加等待或改断言。尚无此候选完整Rust/Linux资格，未合入或部署；当前1de及原1160资格保持，65/208/24源语义仍待审。见[首轮私有候选核查](evidence/stage-e-browser/multi-gateway-runtime1-root-check.json)。
 
 2026-10-16 取消身份的最小私有修复已限定核查：每个新Control请求通道分配独立UUID，clone/不可用视图保留；新场景回执记录runtime_instance，取消先核对boot/rev/实例，缺失或不同实例409，原请求格式不变。原3项Web场景及新增1项回归通过，包含四种无效实例、同实例合法取消/重放，严格全目标包Clippy通过。实际普通CLI在同一固定反例中仍重用数字run1，但旧A取消已409、新B精确UUID保留并到期Written，随后新B延迟动作也写出。完整隔离契约仍101，不能将此小修复当作完整多网关通过。补丁交由整合修复，尚未合入/部署/全工作区回归。见[私有取消修复](evidence/stage-e-browser/stale-scene-cancel-private-fix-root-check.json)。
