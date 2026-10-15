@@ -43,14 +43,15 @@
       "id": "D-4",
       "stage": "D",
       "requirement": "窗帘条件、手势与LED",
-      "verified_scope": "书房新规则、禁用候选和生产因果链已软件核查；168条面板程序的原驱动声明已关联；用户已批准其余房间统一主动开/关/停与估计/重启规则，12份离线计划保留各自身份与参数，10台未知校准/行程未补造；35个条件所在完整事件AST已逐代码ID核对，105处LED副作用、46处变量赋值及22处事件外反馈写入已枚举；方向注释相反的房间保留独立校准要求。",
+      "verified_scope": "书房新规则、禁用候选和生产因果链已软件核查；168条面板程序的原驱动声明已关联；用户已批准其余房间统一主动开/关/停与估计/重启规则，12份离线计划保留各自身份与参数，10台未知校准/行程未补造；35个条件所在完整事件AST已逐代码ID核对，105处LED副作用、46处变量赋值及22处事件外反馈写入已枚举；方向注释相反的房间保留独立校准要求。；35个原Release入口已逐项关联驱动声明，11台源按键/LED布局候选已导出，现有两房间布局逐项一致，缺失按键未补造。",
       "remaining_evidence": "统一模型已批准；原35个运动/停止条件及其完整后续动作、变量副作用和各房间按键/物理绑定仍须逐项落实，墙面板切换未启用。",
       "status": "source_and_physical_partial",
       "additional_source_evidence": "stage-d-study/keypad-event-declaration-root-check.json",
       "additional_uniform_policy_evidence": "stage-d-study/uniform-curtain-policy-root-check.json",
       "additional_motor_LED_owner_evidence": "stage-d-study/motor-led-ownership-root-check.json",
       "approved_single_output_correction_prepared_not_applied": true,
-      "additional_branch_writer_evidence": "stage-d-study/motor-branch-and-writer-root-check.json"
+      "additional_branch_writer_evidence": "stage-d-study/motor-branch-and-writer-root-check.json",
+      "additional_source_key_layout_evidence": "stage-d-study/curtain-source-key-layout-root-check.json"
     },
     {
       "id": "D-5",
@@ -217,7 +218,8 @@
     "stage-e-browser/keypad-existing-cards-publication-root-check.json": "d4d1f6950bf83d965c5b84d8c7911602db1ca953e16823993414c81cc67ecc15",
     "stage-e-browser/scene-projection-cache-root-check.json": "dd210c9bfa51e6981c2f0d8dcfd21683bc14085b0726bf525994d5868203b2f8",
     "stage-e-browser/current-service-reconciliation-root-check.json": "52a6ddd97855cea0cf0540d9f82de79b329011caad92c6cacad620c08abc3c7a",
-    "stage-d-study/motor-branch-and-writer-root-check.json": "9c4cb671c58a3f74656bf9e82efe20c8ee48f3e72e60de9b4616a1bd8b4a9eda"
+    "stage-d-study/motor-branch-and-writer-root-check.json": "9c4cb671c58a3f74656bf9e82efe20c8ee48f3e72e60de9b4616a1bd8b4a9eda",
+    "stage-d-study/curtain-source-key-layout-root-check.json": "18badd91df91efe5d163e3a85d8aaa7df8aa7246c18e94b63c10beceee3f6678"
   },
   "excluded_by_scope": {
     "Siri": "cancelled by user",
@@ -428,5 +430,6 @@
     }
   },
   "latest_current_service_reconciliation": "stage-e-browser/current-service-reconciliation-root-check.json",
-  "latest_motor_branch_writer_source_evidence": "stage-d-study/motor-branch-and-writer-root-check.json"
+  "latest_motor_branch_writer_source_evidence": "stage-d-study/motor-branch-and-writer-root-check.json",
+  "latest_curtain_source_key_layout_evidence": "stage-d-study/curtain-source-key-layout-root-check.json"
 }
