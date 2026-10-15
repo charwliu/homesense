@@ -4,7 +4,7 @@ import HomeSenseCore
 struct HomeDeviceTile: View {
     let device: HomeRecord
     var live = true
-    private var confirmed: Bool { live && device.raw["quality"].text == "Confirmed" }
+    private var confirmed: Bool { device.feedbackIsConfirmed(current: live) }
     private var isOn: Bool { device.raw["observed"]["on"] == .bool(true) && confirmed }
     private var icon: String {
         switch device.raw["kind"].text {
@@ -22,6 +22,7 @@ struct HomeDeviceTile: View {
                 Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
             }
             Text(device.name).font(.title3.weight(.semibold)).lineLimit(2)
+            if let status = device.targetAvailability.description { Text(status).font(.caption).foregroundStyle(.secondary) }
             if let room = device.raw["room"]["name"].text { Text(room).font(.caption).foregroundStyle(.secondary) }
             Text(status).font(.title3.weight(.medium)).foregroundStyle(confirmed ? Color.primary : Color.secondary)
             if device.raw["state_authority"].text == "pending_target" {
@@ -70,9 +71,10 @@ struct HomeSceneDetails: View {
             Form {
                 if let scene = home.scenes.first(where: { $0.id == sceneID }) {
                     Section("场景状态") {
-                        Text("负载反馈：\(scene.raw["activity"].text ?? "未知")")
+                        if let status = scene.targetAvailability.description { Text(status).foregroundStyle(.secondary) }
+                        Text("\(home.snapshotIsCurrent && scene.targetAvailable ? "负载反馈" : "历史负载反馈")：\(scene.raw["activity"].text ?? "未知")")
                         if scene.raw["switch_kind"].text == "selection" {
-                            Text("选择状态：\(scene.raw["selected"] == .bool(true) ? "开启" : scene.raw["selected"] == .bool(false) ? "关闭" : "未知")")
+                            Text("\(home.snapshotIsCurrent && scene.targetAvailable ? "选择状态" : "历史选择")：\(scene.raw["selected"] == .bool(true) ? "开启" : scene.raw["selected"] == .bool(false) ? "关闭" : "未知")")
                         }
                         Text("场景选择与负载反馈分别显示，受理不表示设备已到位。")
                             .font(.caption).foregroundStyle(.secondary)
@@ -82,7 +84,7 @@ struct HomeSceneDetails: View {
                             Button("开启场景") { Task { await home.controlScene(sceneID, on: true) } }
                             Button("关闭场景") { Task { await home.controlScene(sceneID, on: false) } }
                         } else { Button("执行场景") { Task { await home.controlScene(sceneID, on: nil) } } }
-                    }.disabled(!home.controlsAvailable || !scene.raw["can_control"].flag)
+                    }.disabled(!home.canControlScene(sceneID))
                 } else { Text("场景暂不可用") }
                 if let error = home.error { Text(error).foregroundStyle(.red) }
                 Text(home.message).font(.caption).foregroundStyle(.secondary)
@@ -106,6 +108,7 @@ struct HomeKeypadDetails: View {
                 if let keypad {
                     Section("面板") {
                         LabeledContent("房间", value: keypad.roomName ?? "未分配")
+                        if let status = record?.targetAvailability.description { Text(status).foregroundStyle(.secondary) }
                         Text("按键动作使用已审核映射；LED 设置是独立操作。")
                             .font(.caption).foregroundStyle(.secondary)
                     }
@@ -115,7 +118,7 @@ struct HomeKeypadDetails: View {
                             if let history = key.led.historyDescription { Text(history).foregroundStyle(.secondary) }
                             if let raw = record?.raw["keys"].values.first(where: { $0["number"].integerText == String(key.number) }) {
                                 if raw["key_event"]["pressed"] != .null {
-                                    Text("按键事件：\(raw["key_event"]["pressed"] == .bool(true) ? "按下" : "释放") · \(raw["key_event"]["quality"].text ?? "未知")")
+                                    Text("\(home.snapshotIsCurrent && record?.targetAvailable == true && raw["key_event"]["quality"].text == "Confirmed" ? "按键事件" : "历史按键事件")：\(raw["key_event"]["pressed"] == .bool(true) ? "按下" : "释放") · \(raw["key_event"]["quality"].text ?? "未知")")
                                         .font(.caption).foregroundStyle(.secondary)
                                 }
                                 if let status = raw["led"]["last_request"]["status"].text {
@@ -132,7 +135,7 @@ struct HomeKeypadDetails: View {
                                 if keypad.ledColors.contains(.off) {
                                     Button("灭灯") { Task { await home.writeKeypadLED(keypadID, key: key.number, color: .off) } }
                                 }
-                            }.disabled(!home.controlsAvailable || !key.canWriteLED)
+                            }.disabled(!home.canWriteKeypadLED(keypadID, key: key.number))
                         }
                     }
                     Section("工作模式") {
@@ -141,7 +144,7 @@ struct HomeKeypadDetails: View {
                         Group {
                             Button("查询工作模式") { setting(.object(["action": .string("read_work_mode")])) }
                             Button("写入已发布的工作模式") { setting(.object(["action": .string("work_mode"), "mode": keypad.settings["work_mode"]["configured"]])) }
-                        }.disabled(!canSet(keypad, field: "work_mode"))
+                        }.disabled(!canSet(field: "work_mode"))
                         Text("工作模式须与已发布配置一致。更改模式前先审核模块配置和 LED 联动；打开详情不发送硬件命令。")
                             .font(.caption).foregroundStyle(.secondary)
                     }
@@ -154,7 +157,7 @@ struct HomeKeypadDetails: View {
                             }
                             Button("设置背光") { setting(.object(["action": .string("backlight"), "mode": .string(backlightMode)])) }
                             Button("查询背光") { setting(.object(["action": .string("read_backlight")])) }
-                        }.disabled(!canSet(keypad, field: "backlight"))
+                        }.disabled(!canSet(field: "backlight"))
                     }
                     Section("按键声音") {
                         settingStatus(keypad, field: "sound")
@@ -162,7 +165,7 @@ struct HomeKeypadDetails: View {
                             Button("开启声音") { setting(.object(["action": .string("sound"), "enabled": .bool(true)])) }
                             Button("关闭声音") { setting(.object(["action": .string("sound"), "enabled": .bool(false)])) }
                             Button("查询声音") { setting(.object(["action": .string("read_sound")])) }
-                        }.disabled(!canSet(keypad, field: "sound"))
+                        }.disabled(!canSet(field: "sound"))
                     }
                     Section {
                         Text("整板参数仅向具备完整六键权限的管理员开放。参数读回格式尚未核实，查询不表示已确认实际设置；最后写出也不是实测。")
@@ -179,9 +182,8 @@ struct HomeKeypadDetails: View {
     private func mode(_ value: String?) -> String {
         switch value { case "manual": "手动灯控"; case "self_reset": "自复位"; default: "未知" }
     }
-    private func canSet(_ keypad: HomeKeypad, field: String) -> Bool {
-        home.controlsAvailable && home.canManage && keypad.settings[field]["can_write"].flag
-            && keypad.keys.allSatisfy { $0.endpointID != nil }
+    private func canSet(field: String) -> Bool {
+        home.canWriteKeypadSetting(keypadID, field: field)
     }
     private func setting(_ command: HomeJSON) { Task { await home.writeKeypadSetting(keypadID, command: command) } }
     @ViewBuilder private func settingStatus(_ keypad: HomeKeypad, field: String) -> some View {

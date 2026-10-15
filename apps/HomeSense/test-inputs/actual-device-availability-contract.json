@@ -1,0 +1,240 @@
+{
+  "checked_at": "2026-10-16T04:23:30.530217+08:00",
+  "scope": "Actual loopback formal CLI WSS records. No production DTO override. Scene gate DTO requires later real scene fixture; no Keypad/motor added by this fixture.",
+  "binary_sha256": "3737c2fb0fd3ee5473f20f6584e23603b303f3a5925588cc4e59a52804ffcc66",
+  "source_artifact": "/Users/liuwei/works/homesense/deployment/ngr/private/20261016-multigateway-isolation-root/runtime7-root-review/WSS-rst-first/wss-events.json",
+  "source_sha256": "1f6ca760b521fbd9f3da1df6e72c25d33407e7e6de4b58939a4bca2bde4b23b6",
+  "initial": {
+    "cursor": {
+      "boot": "54431dad-6edf-45bb-b7f4-f5eddfe21af9",
+      "revision": 1,
+      "scope": "869814bec1577b488a2f51d0e14cbfb1f197692da76f3593339cf8f48d7a7092",
+      "sequence": 5,
+      "transport_epoch": 2
+    },
+    "devices": [
+      {
+        "action_gate": {
+          "available": true
+        },
+        "availability": {
+          "connection_epoch": "2",
+          "gateway": "bus-a",
+          "state": "ready"
+        },
+        "can_control": true,
+        "id": "lamp-a",
+        "kind": "Dimmer",
+        "motor_calibrated": false,
+        "motor_estimate": null,
+        "name": "Synthetic lamp a",
+        "observed": {
+          "level": 25,
+          "on": true
+        },
+        "observed_at_ms": 1,
+        "pending": null,
+        "quality": "Confirmed",
+        "reported": {
+          "level": 25,
+          "on": true
+        },
+        "room": null,
+        "state_authority": "feedback",
+        "version": 3
+      },
+      {
+        "action_gate": {
+          "available": true
+        },
+        "availability": {
+          "connection_epoch": "2",
+          "gateway": "bus-b",
+          "state": "ready"
+        },
+        "can_control": true,
+        "id": "lamp-b",
+        "kind": "Dimmer",
+        "motor_calibrated": false,
+        "motor_estimate": null,
+        "name": "Synthetic lamp b",
+        "observed": {
+          "level": 30,
+          "on": true
+        },
+        "observed_at_ms": 125,
+        "pending": null,
+        "quality": "Confirmed",
+        "reported": {
+          "level": 30,
+          "on": true
+        },
+        "room": null,
+        "state_authority": "feedback",
+        "version": 5
+      }
+    ],
+    "reset": true,
+    "revision": "1",
+    "scenes": [],
+    "type": "state"
+  },
+  "partial": {
+    "cursor": {
+      "boot": "54431dad-6edf-45bb-b7f4-f5eddfe21af9",
+      "revision": 1,
+      "scope": "869814bec1577b488a2f51d0e14cbfb1f197692da76f3593339cf8f48d7a7092",
+      "sequence": 7,
+      "transport_epoch": 2
+    },
+    "devices": [
+      {
+        "action_gate": {
+          "available": false
+        },
+        "availability": {
+          "connection_epoch": "3",
+          "gateway": "bus-a",
+          "state": "offline"
+        },
+        "can_control": true,
+        "id": "lamp-a",
+        "kind": "Dimmer",
+        "motor_calibrated": false,
+        "motor_estimate": null,
+        "name": "Synthetic lamp a",
+        "observed": {
+          "level": 25,
+          "on": true
+        },
+        "observed_at_ms": 1,
+        "pending": null,
+        "quality": "Unknown",
+        "reported": {
+          "level": 25,
+          "on": true
+        },
+        "room": null,
+        "state_authority": "feedback",
+        "version": 6
+      },
+      {
+        "action_gate": {
+          "available": true
+        },
+        "availability": {
+          "connection_epoch": "2",
+          "gateway": "bus-b",
+          "state": "ready"
+        },
+        "can_control": true,
+        "id": "lamp-b",
+        "kind": "Dimmer",
+        "motor_calibrated": false,
+        "motor_estimate": null,
+        "name": "Synthetic lamp b",
+        "observed": {
+          "level": 45,
+          "on": true
+        },
+        "observed_at_ms": 740,
+        "pending": null,
+        "quality": "Confirmed",
+        "reported": {
+          "level": 45,
+          "on": true
+        },
+        "room": null,
+        "state_authority": "feedback",
+        "version": 7
+      }
+    ],
+    "reset": false,
+    "revision": "1",
+    "scenes": [],
+    "type": "state"
+  },
+  "recovered": {
+    "cursor": {
+      "boot": "54431dad-6edf-45bb-b7f4-f5eddfe21af9",
+      "revision": 1,
+      "scope": "869814bec1577b488a2f51d0e14cbfb1f197692da76f3593339cf8f48d7a7092",
+      "sequence": 10,
+      "transport_epoch": 2
+    },
+    "devices": [
+      {
+        "action_gate": {
+          "available": true
+        },
+        "availability": {
+          "connection_epoch": "5",
+          "gateway": "bus-a",
+          "state": "ready"
+        },
+        "can_control": true,
+        "id": "lamp-a",
+        "kind": "Dimmer",
+        "motor_calibrated": false,
+        "motor_estimate": null,
+        "name": "Synthetic lamp a",
+        "observed": {
+          "level": 25,
+          "on": true
+        },
+        "observed_at_ms": 2282,
+        "pending": null,
+        "quality": "Confirmed",
+        "reported": {
+          "level": 25,
+          "on": true
+        },
+        "room": null,
+        "state_authority": "feedback",
+        "version": 10
+      },
+      {
+        "action_gate": {
+          "available": true
+        },
+        "availability": {
+          "connection_epoch": "2",
+          "gateway": "bus-b",
+          "state": "ready"
+        },
+        "can_control": true,
+        "id": "lamp-b",
+        "kind": "Dimmer",
+        "motor_calibrated": false,
+        "motor_estimate": null,
+        "name": "Synthetic lamp b",
+        "observed": {
+          "level": 40,
+          "on": true
+        },
+        "observed_at_ms": 1328,
+        "pending": null,
+        "quality": "Confirmed",
+        "reported": {
+          "level": 40,
+          "on": true
+        },
+        "room": null,
+        "state_authority": "feedback",
+        "version": 8
+      }
+    ],
+    "reset": false,
+    "revision": "1",
+    "scenes": [],
+    "type": "state"
+  },
+  "semantics": [
+    "can_control is authorization, not readiness",
+    "action_gate.available false gates only that target, not whole connection",
+    "unknown historical observed values may remain present when quality is Unknown; do not show confirmed state",
+    "connection_epoch is a string and local; must not be treated as global reconnect/reset cursor",
+    "global WSS unavailable events remain genuine full-stream failure and gate controls",
+    "missing new metadata on deployed older backend must retain existing documented global behavior"
+  ]
+}

@@ -1,0 +1,267 @@
+{
+  "initial": {
+    "status": 200,
+    "body": {
+      "revision": "1",
+      "scenes": [
+        {
+          "action_gate": {
+            "available": true,
+            "required_gateways": [
+              {
+                "connection_epoch": "2",
+                "gateway": "bus-a",
+                "state": "ready"
+              }
+            ]
+          },
+          "activity": "Inactive",
+          "activity_kind": "load_feedback",
+          "activity_source": "final_light_targets",
+          "can_control": true,
+          "execution_kind": "timed",
+          "historical_selected": null,
+          "history_available": true,
+          "id": "later-a",
+          "last_run": null,
+          "name": "later-a",
+          "observation_boot": null,
+          "observation_current": null,
+          "observed_ms": null,
+          "pending_relative": false,
+          "relative_unknown_allowed": false,
+          "selected": null,
+          "selection_source": null,
+          "selection_state": null,
+          "switch_kind": "momentary",
+          "tracking": null
+        },
+        {
+          "action_gate": {
+            "available": true,
+            "required_gateways": [
+              {
+                "connection_epoch": "2",
+                "gateway": "bus-b",
+                "state": "ready"
+              }
+            ]
+          },
+          "activity": "Inactive",
+          "activity_kind": "load_feedback",
+          "activity_source": "final_light_targets",
+          "can_control": true,
+          "execution_kind": "timed",
+          "historical_selected": null,
+          "history_available": true,
+          "id": "later-b",
+          "last_run": null,
+          "name": "later-b",
+          "observation_boot": null,
+          "observation_current": null,
+          "observed_ms": null,
+          "pending_relative": false,
+          "relative_unknown_allowed": false,
+          "selected": null,
+          "selection_source": null,
+          "selection_state": null,
+          "switch_kind": "momentary",
+          "tracking": null
+        }
+      ]
+    },
+    "headers": {
+      "content-type": "application/json",
+      "cache-control": "no-store",
+      "x-content-type-options": "nosniff",
+      "content-length": "1201",
+      "date": "Thu, 15 Oct 2026 20:25:14 GMT"
+    }
+  },
+  "partial": {
+    "status": 200,
+    "body": {
+      "revision": "1",
+      "scenes": [
+        {
+          "action_gate": {
+            "available": false,
+            "required_gateways": [
+              {
+                "connection_epoch": "2",
+                "gateway": "bus-a",
+                "state": "offline"
+              }
+            ]
+          },
+          "activity": "Unknown",
+          "activity_kind": "load_feedback",
+          "activity_source": "final_light_targets",
+          "can_control": true,
+          "execution_kind": "timed",
+          "historical_selected": null,
+          "history_available": true,
+          "id": "later-a",
+          "last_run": {
+            "boot": "41d723b6-ceb8-4eef-a7c4-0dcaee2b74e9",
+            "run": "187e20fc-25be-4d37-b49a-47a9cef9a875",
+            "status": "Cancelled"
+          },
+          "name": "later-a",
+          "observation_boot": null,
+          "observation_current": null,
+          "observed_ms": null,
+          "pending_relative": false,
+          "relative_unknown_allowed": false,
+          "selected": null,
+          "selection_source": null,
+          "selection_state": null,
+          "switch_kind": "momentary",
+          "tracking": null
+        },
+        {
+          "action_gate": {
+            "available": true,
+            "required_gateways": [
+              {
+                "connection_epoch": "2",
+                "gateway": "bus-b",
+                "state": "ready"
+              }
+            ]
+          },
+          "activity": "Inactive",
+          "activity_kind": "load_feedback",
+          "activity_source": "final_light_targets",
+          "can_control": true,
+          "execution_kind": "timed",
+          "historical_selected": null,
+          "history_available": true,
+          "id": "later-b",
+          "last_run": {
+            "boot": "41d723b6-ceb8-4eef-a7c4-0dcaee2b74e9",
+            "run": "3fe17aee-3f22-4fa5-850d-914010d0cc05",
+            "status": "Pending"
+          },
+          "name": "later-b",
+          "observation_boot": null,
+          "observation_current": null,
+          "observed_ms": null,
+          "pending_relative": false,
+          "relative_unknown_allowed": false,
+          "selected": null,
+          "selection_source": null,
+          "selection_state": null,
+          "switch_kind": "momentary",
+          "tracking": null
+        }
+      ]
+    },
+    "headers": {
+      "content-type": "application/json",
+      "cache-control": "no-store",
+      "x-content-type-options": "nosniff",
+      "content-length": "1419",
+      "date": "Thu, 15 Oct 2026 20:25:15 GMT"
+    }
+  },
+  "recovered": {
+    "status": 200,
+    "body": {
+      "revision": "1",
+      "scenes": [
+        {
+          "action_gate": {
+            "available": true,
+            "required_gateways": [
+              {
+                "connection_epoch": "7",
+                "gateway": "bus-a",
+                "state": "ready"
+              }
+            ]
+          },
+          "activity": "Inactive",
+          "activity_kind": "load_feedback",
+          "activity_source": "final_light_targets",
+          "can_control": true,
+          "execution_kind": "timed",
+          "historical_selected": null,
+          "history_available": true,
+          "id": "later-a",
+          "last_run": {
+            "boot": "41d723b6-ceb8-4eef-a7c4-0dcaee2b74e9",
+            "run": "187e20fc-25be-4d37-b49a-47a9cef9a875",
+            "status": "Cancelled"
+          },
+          "name": "later-a",
+          "observation_boot": null,
+          "observation_current": null,
+          "observed_ms": null,
+          "pending_relative": false,
+          "relative_unknown_allowed": false,
+          "selected": null,
+          "selection_source": null,
+          "selection_state": null,
+          "switch_kind": "momentary",
+          "tracking": null
+        },
+        {
+          "action_gate": {
+            "available": true,
+            "required_gateways": [
+              {
+                "connection_epoch": "2",
+                "gateway": "bus-b",
+                "state": "ready"
+              }
+            ]
+          },
+          "activity": "Inactive",
+          "activity_kind": "load_feedback",
+          "activity_source": "final_light_targets",
+          "can_control": true,
+          "execution_kind": "timed",
+          "historical_selected": null,
+          "history_available": true,
+          "id": "later-b",
+          "last_run": {
+            "boot": "41d723b6-ceb8-4eef-a7c4-0dcaee2b74e9",
+            "run": "4ea57b45-5820-46f6-aec4-28d199aaf910",
+            "status": "Pending"
+          },
+          "name": "later-b",
+          "observation_boot": null,
+          "observation_current": null,
+          "observed_ms": null,
+          "pending_relative": false,
+          "relative_unknown_allowed": false,
+          "selected": null,
+          "selection_source": null,
+          "selection_state": null,
+          "switch_kind": "momentary",
+          "tracking": null
+        }
+      ]
+    },
+    "headers": {
+      "content-type": "application/json",
+      "cache-control": "no-store",
+      "x-content-type-options": "nosniff",
+      "content-length": "1417",
+      "date": "Thu, 15 Oct 2026 20:25:23 GMT"
+    }
+  },
+  "provenance": {
+    "binary_sha256": "3737c2fb0fd3ee5473f20f6584e23603b303f3a5925588cc4e59a52804ffcc66",
+    "type": "real trusted localhost HTTP records; separate read-only diagnostic additions, not original contract qualification",
+    "source_sha256": {
+      "actual-scenes-initial.json": "8983d5bc043766855f4fdee6aaffcb7f6f69081b54e2f1ab04e14000eb2185a8",
+      "actual-scenes-partial.json": "328dcba0545bee9efae70d77cac38bcc72ce4aefc87cb609ef0f2ab7ba0f5f6c",
+      "actual-scenes-recovered.json": "b71127bcb3c337f8b506ae08a8f725b04befa1ef3e12ca1fbfa239572b8f1d50",
+      "result.json": "51c1c004cfc0f7ee1a666b0063da6042e9755f7e2a2674d91bb537e50f0e25ba"
+    },
+    "extra_field_controls": 0,
+    "Keypad_actual_DTO": "pending backend parent metadata implementation"
+  }
+}

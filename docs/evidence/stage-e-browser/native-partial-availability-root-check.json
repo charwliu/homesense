@@ -1,6 +1,6 @@
 {
-  "checked_bj": "2026-10-16T04:48:15.725228+08:00",
-  "status": "Private App candidate qualified against frozen Rust runtime8 and10; exact10 paths applied to shared worktree, clean selected-Git composition under separate verification before App commit.",
+  "checked_bj": "2026-10-16T04:53:01.413055+08:00",
+  "status": "Exact10 App paths qualified in clean selected-Git composition; commit pending, phone delivery and final Linux verification pending.",
   "unit_regression": {
     "actual_executed": 85,
     "full_reported": 87,
@@ -118,7 +118,7 @@
   "bounds": [
     "Real Swift helper is read-only; no-replay command behavior is covered in unit tests, not claimed from read-only helper.",
     "Original2 Rust integrations are not replaced by new partial-state helper.",
-    "UnsignediOS/macOS candidate builds passed for private baseline including unrelated shared App edits; clean selected-Git composition is being rebuilt before App merge.",
+    "Clean selected-Git composition independently passed full79/zero skips including2 actual runtime10 integrations and unsignediOS; earlier mixed worktree evidence kept separately.",
     "No signed build or phone install for new availability changes; previous failed signed9 does not include them."
   ],
   "artifact_sha256": {
@@ -127,9 +127,27 @@
     "app-apply/before.json": "6b6b7e50204552b16c745749dcd226bded3758f46a12406e26081afe14798ac0",
     "app-apply/after.json": "b9801071ec0ce9bc0dcfeb6821dfb962f17ced1d5536866959071c382c38b553",
     "app-apply/runtime10-reuse-tests.log": "bdf5335a2aadf0bdf4b4412548f925d01fcae49545699387c20d5504685da5ea",
-    "app-apply/runtime10-reuse-input-manifest.json": "dce46699535715f1eead6b03535c338cb4c7f0512f7a5b02334256736b349e79"
+    "app-apply/runtime10-reuse-input-manifest.json": "dce46699535715f1eead6b03535c338cb4c7f0512f7a5b02334256736b349e79",
+    "clean_selected_Root_independent_result": "0513c358d96beee32901b052e2a978d2f569959b8a926babe1ebc663f895a846",
+    "clean_selected_input_manifest": "c5fb23fa91d2f4f13e45f4bb8d3fdd9d663f2658b97ce0872a67a15975d62db4"
   },
   "Rust_source_unaffected_by_App_candidate": true,
   "field_controls": 0,
-  "D_E_complete": false
+  "D_E_complete": false,
+  "clean_selected_Git_composition": {
+    "full_actual_tests": 79,
+    "suites": 13,
+    "failures": 0,
+    "skips": 0,
+    "both_original_Rust_integrations_enabled_and_passed_in_same_run": true,
+    "source_files_with_config": 75,
+    "App_files": 56,
+    "config_files": 19,
+    "all_source_hashes_before_after_identical": true,
+    "actual_test_executable_sha256": "02740a4955a14c6ca470d5c5462bd93bb903cd874155fc3ce88c2da41d28acf8",
+    "iOS_unsigned_build": true,
+    "iOS_audit_bundle_source_build": "7, not a phone release",
+    "difference_from_old_mixed87": "8 preexisting uncommitted LHIO tests excluded from selected Git composition, no tracked or new test removed; old evidence retained.",
+    "no_shared_unrelated_edits_overwritten": true
+  }
 }

@@ -1,5 +1,5 @@
 {
-  "checked_bj": "2026-10-16T04:48:15.725228+08:00",
+  "checked_bj": "2026-10-16T04:53:01.413055+08:00",
   "derived_requirements": [
     "docs/design.md sections9-11,18,20,23-24,27"
   ],
@@ -117,7 +117,7 @@
       "stage": "E",
       "requirement": "原生App、管理API鉴权与事件恢复",
       "verified_scope": "登录、滑块、退出和iPad断网恢复有实际限定结果；新账本与Away有软件证据；原生App实际TLS/WSS软件集成及手机推送、页面稳定与亮度按钮可用已确认；原生App两次实际调光跟随与自动读回已确认；rev9楼层目录及原生App三层/两房间归属已实际确认，永久Admin登录和本机空楼层编辑已通过；原生App楼层/房间新增、改名、删除、服务端保存及预览、恢复活动配置和测试草稿清理均已实际确认；两草稿独立核对设备及自动化未变；build7永久凭证Keychain保存、强退重开自动连接及前后台开/关同步已现场通过；ordinary v3严格负向80项零写出、publication v3四函数32项限定通过，v7 Web准确两run持久账目通过；精确来源授权／发布与STOP冻结v5完整1086项及文档、严格Clippy通过，保留原1067项，新增19项含213专项记录",
-      "remaining_evidence": "runtime10原WSS部分状态/同socket/零globalunavailable/无globalreset及父Keypad三阶段已通过。App私有85实际单元+2原Rust实际集成及真实URLSession读链三阶段通过；待最终选择性Git构成单独验证、App合入/新包交付与手机卡片视觉、自主发布/其他管理边界集中验收。",
+      "remaining_evidence": "runtime10局部WSS及父Keypad三阶段通过；App干净选择性Git构成完整79项无skip（含原2项实际Rust集成）及iOS无签名构建通过，另有真实URLSession部分状态读取证据。新包签名/安装、六键手机视觉、自主发布及其他管理边界集中验收仍待。",
       "status": "exact_source_auth_software_deployed_remaining_field_and_management_checks_pending",
       "additional_auth_gap": "stage-e-browser/ordinary-source-auth-root-gap.json",
       "additional_publication_auth_evidence": "stage-e-browser/publication-source-boundaries-root-check.json",
@@ -151,7 +151,7 @@
       "stage": "D/E",
       "requirement": "最终集成软件回归",
       "verified_scope": "网络接收错误修复最终844冻结输入：1160项完整Rust、原1153函数全部保留、172实际程序重哈希、文档与全目标严格Clippy通过；最终正式CLI88路周期/常驻恢复和两项实际App HTTPS/WSS通过。",
-      "remaining_evidence": "新backend runtime10全部1197项、172实际程序、10文档块、严格Clippy及原HTTP8/HAP8/WSS/延迟/取消/父Keypad契约通过，原1160全部保留。精确Rust48文件已合入工作树，当前文档/原脏manual工具独立保留；Linux实际schema27升级/整树回退正在交部署，App最终干净Git组合验证及手机现场仍未完成。",
+      "remaining_evidence": "runtime10完整1197及全协议通过，精确Rust48文件已提交c77c4e7；含1条保留于本机的既有私有补充，其余1196原样包含于成功回归。App干净选择性构成完整79/0skip含原2实际Rust集成及iOS无签名构建通过；Linux真实升级/回退/常驻交付及手机现场仍待。",
       "status": "receive_error_repair_Mac_qualified_Linux_deployed_multi_gateway_isolation_open",
       "complete_for_current_frozen_input": true,
       "incremental_python_tool_tests_passed": 20,
@@ -293,7 +293,7 @@
     "stage-e-browser/multi-gateway-runtime1-root-check.json": "12ab8e62ab688372c23bfee082e308095d746ce8a4f869d59a1f238bdced9531",
     "stage-e-browser/multi-gateway-runtime7-root-check.json": "0144d153a644ac4f9c19763fa279e1d90be08c8294f09db100dcb8413f56d76b",
     "stage-e-browser/multi-gateway-runtime10-root-check.json": "adb85e193be25f3135a2a894ba2a5268df33cf8f3b1b89a7b946c2c8fd411b7b",
-    "stage-e-browser/native-partial-availability-root-check.json": "dcbb64ab3a3da2b06e382063fa3e316eca5562fe753b1da338c9a1c2b53e14b5"
+    "stage-e-browser/native-partial-availability-root-check.json": "ac5e90b1d0023dab92b9ba15c3c54913bd5e16bc86b225ba7bfb7738bf850849"
   },
   "excluded_by_scope": {
     "Siri": "cancelled by user",
@@ -572,5 +572,16 @@
     "tracked_build_inputs_exact_except_README": 848,
     "separate_whole_clean_Git_regression_claimed": false,
     "private_test_inputs_not_published": true
-  }
+  },
+  "native_App_clean_selected_source_qualification": {
+    "full_tests": 79,
+    "failed": 0,
+    "skipped": 0,
+    "actual_original_Rust_integrations_included": 2,
+    "iOS_unsigned_passed": true,
+    "phone_signed_or_installed": false,
+    "old_mixed_worktree85plus2_distinguished": true,
+    "current_source_only10_paths": true
+  },
+  "native_App_new_availability_commit_status": "Precise10 qualified files being committed; old signed9 does not contain these changes."
 }

@@ -394,8 +394,14 @@ public final class HomeServerStore: ObservableObject {
         snapshotBoot = d["boot"].text ?? ""
         capturedAt = Date()
     }
+    public func canControlDevice(_ id: String) -> Bool {
+        controlsAvailable && devices.contains { $0.id == id && $0.raw["can_control"].flag && $0.targetAvailable }
+    }
+    public func canControlScene(_ id: String) -> Bool {
+        controlsAvailable && scenes.contains { $0.id == id && $0.raw["can_control"].flag && $0.targetAvailable }
+    }
     public func controlDevice(_ id: String, command: HomeJSON) async {
-        guard controlsAvailable, devices.contains(where: { $0.id == id && $0.raw["can_control"].flag }) else { return }
+        guard canControlDevice(id) else { return }
         await sendDeviceCommand(id, command: command)
     }
     private func sendDeviceCommand(_ id: String, command: HomeJSON) async {
@@ -411,9 +417,9 @@ public final class HomeServerStore: ObservableObject {
         guard controlsAvailable, let row = devices.first(where: { $0.id == id }),
               let panel = try? HomeKeypad(record: row), let key = panel.keys.first(where: { $0.number == number && $0.canActivate }) else { return false }
         if let device = key.actionDevice {
-            return devices.contains { $0.id == device && $0.raw["kind"].text == "Motor" && $0.raw["can_control"].flag && $0.raw["motor_calibrated"].flag }
+            return canControlDevice(device) && devices.contains { $0.id == device && $0.raw["kind"].text == "Motor" && $0.raw["motor_calibrated"].flag }
         }
-        guard let sceneID = key.actionScene, let scene = scenes.first(where: { $0.id == sceneID && $0.raw["can_control"].flag }) else { return false }
+        guard let sceneID = key.actionScene, canControlScene(sceneID), let scene = scenes.first(where: { $0.id == sceneID }) else { return false }
         if case .bool = scene.raw["selected"] { return true }
         return scene.raw["relative_unknown_allowed"].flag
     }
@@ -423,12 +429,12 @@ public final class HomeServerStore: ObservableObject {
               let panel = try? HomeKeypad(record: row),
               let key = panel.keys.first(where: { $0.number == number && $0.canActivate }) else { return }
         if let device = key.actionDevice, let action = key.motorAction {
-            guard devices.contains(where: { $0.id == device && $0.raw["kind"].text == "Motor"
-                && $0.raw["can_control"].flag && $0.raw["motor_calibrated"].flag }) else { return }
+            guard canControlDevice(device), devices.contains(where: { $0.id == device && $0.raw["kind"].text == "Motor"
+                && $0.raw["motor_calibrated"].flag }) else { return }
             await sendDeviceCommand(device, command: .object(["action": .string(action)]))
             return
         }
-        guard let scene = key.actionScene, scenes.contains(where: { $0.id == scene && $0.raw["can_control"].flag }) else { return }
+        guard let scene = key.actionScene, canControlScene(scene) else { return }
         if let record = scenes.first(where: { $0.id == scene }), case .bool(let selected) = record.raw["selected"] {
             await controlScene(scene, on: !selected)
             return
@@ -441,8 +447,19 @@ public final class HomeServerStore: ObservableObject {
             if !self.receivingPush { try await self.readSnapshots() }
         }
     }
+    public func canWriteKeypadLED(_ id: String, key number: Int) -> Bool {
+        guard controlsAvailable, let row = devices.first(where: { $0.id == id }), row.targetAvailable,
+              let panel = try? HomeKeypad(record: row) else { return false }
+        return panel.keys.contains { $0.number == number && $0.canWriteLED && $0.endpointID != nil }
+    }
+    public func canWriteKeypadSetting(_ id: String, field: String) -> Bool {
+        guard controlsAvailable, canManage, ["backlight", "sound", "work_mode"].contains(field),
+              let row = devices.first(where: { $0.id == id }), row.targetAvailable,
+              let panel = try? HomeKeypad(record: row), panel.keys.allSatisfy({ $0.endpointID != nil }) else { return false }
+        return panel.settings[field]["can_write"].flag
+    }
     public func writeKeypadLED(_ id: String, key number: Int, color: HomeKeypadLEDColor) async {
-        guard controlsAvailable, color != .unknown,
+        guard canWriteKeypadLED(id, key: number), color != .unknown,
               let row = devices.first(where: { $0.id == id }), let panel = try? HomeKeypad(record: row),
               panel.ledColors.contains(color),
               let key = panel.keys.first(where: { $0.number == number && $0.canWriteLED }),
@@ -471,7 +488,7 @@ public final class HomeServerStore: ObservableObject {
             setting = "work_mode"
         default: return
         }
-        guard panel.settings[setting]["can_write"].flag else { return }
+        guard canWriteKeypadSetting(id, field: setting) else { return }
         await run {
             let result = try await self.request("/api/v1/keypad-settings", method: "POST", body: .object([
                 "keypad": .string(id), "revision": .string(self.revision), "request_id": .string(UUID().uuidString), "command": command
@@ -481,7 +498,7 @@ public final class HomeServerStore: ObservableObject {
         }
     }
     public func controlScene(_ id: String, on: Bool?) async {
-        guard controlsAvailable, scenes.contains(where: { $0.id == id && $0.raw["can_control"].flag }) else { return }
+        guard canControlScene(id) else { return }
         await run {
             var body: HomeJSON = .object(["scene": .string(id), "request_id": .string(UUID().uuidString)])
             if let on { body["on"] = .bool(on) }
