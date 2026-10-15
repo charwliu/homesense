@@ -1,0 +1,76 @@
+{
+  "checked_at": "2026-10-16T03:35:21.463331+08:00",
+  "status": "synthetic complete-state restore mechanism independently qualified; real schema27 candidate upgrade still pending",
+  "binary_sha256": "f5b4d993c21168ac18219250ca0920662725f52f255ea00a93244d782e376f97",
+  "environment": "existing formal Linux ELF in separate network/user namespace, one generated AD8 loopback gateway and synthetic state only",
+  "controlled_failure": "existing26 database tagged27, old ELF exit1 UnsupportedSchema(27); no actual schema27 migration claimed",
+  "initial_restore_failure": {
+    "attempt": 4,
+    "independent_root_read": true,
+    "relative_file": "state/automation-tcp.sqlite",
+    "same_size": 233472,
+    "same_whole_second_mtime": true,
+    "wrong_content_hash_after_plain_restore": true,
+    "restored_header_still27": true
+  },
+  "final_mechanism": {
+    "attempt": 6,
+    "restore_options": [
+      "-a",
+      "--checksum",
+      "--delete"
+    ],
+    "fixed_same_size_and_exact_mtime_counterexample": true,
+    "plain_rsync_dry_run_skips_DB": true,
+    "checksum_dry_run_selects_DB": true,
+    "inventory_entries": 27,
+    "root_directory_metadata_included": true,
+    "all_file_bytes_modes_owners_links_and_second_mtime_equal": true,
+    "nanosecond_mtime_equal": false,
+    "all_database_semantics_exact_before_restart": true,
+    "old_ELF_reopened_schema26_HAP_listening": true,
+    "nonempty_synthetic_Admin_pair_exact": true,
+    "static_HAP_config_and_Web_grants_exact": true,
+    "original_command_immutable_fields_exact": true
+  },
+  "expected_restart_mutations": {
+    "HAP_config_only": "status_flag NotPaired -> Zero, after offline synthetic pair seed",
+    "command_mutable_fields": "written -> uncertain, recovered_by new boot",
+    "exact_source_references": [
+      "vendor/hap/src/server/ip.rs:234",
+      "crates/homesense-storage/src/journal.rs:481"
+    ],
+    "root_independently_read_synthetic_DB_immutable_readonly": true,
+    "all_rows_byte_equal_after_restart_claimed": false
+  },
+  "evidence_limits": [
+    "Mechanism rehearsal only: the actual schema27 full candidate has not been built, upgraded or rolled back here.",
+    "Earlier five failure directories and wrapper logs preserved; attempt4 wrong-content proof independently retained by Root.",
+    "Current live E2, pairing/grants/state, physical devices and phone untouched; no application source or test ELF uploaded.",
+    "Nanosecond mtime truncation is retained in raw manifests; content/ownership/mode/link verification was not weakened."
+  ],
+  "production_state_accessed": false,
+  "production_mutations": 0,
+  "field_controls": 0,
+  "D_E_complete": false,
+  "artifact_sha256": {
+    "deployment/ngr/private/20261016-state-rollback-rehearsal-root/rehearse.py": "e437851da52db75d312a727c81c37780a6d9345d1e229b53412d31d4dfd0b504",
+    "deployment/ngr/private/20261016-state-rollback-rehearsal-root/independent-audit.json": "bd1fd9b63de83e385d715beb59bee093d3c6491edca262052d9aa6844b5462d9",
+    "deployment/ngr/private/20261016-state-rollback-rehearsal-root/README.md": "0ad8b77106de0ec0028f602d780f2e90f023fb607316061e83db74651421c609",
+    "deployment/ngr/private/20261016-state-rollback-rehearsal-root/root-attempt4-review/root-result.json": "e47a89643cb89d82e21be38dc7649b64c3ba8ce3fdaacce8dcdfc9b61ae86db2",
+    "deployment/ngr/private/20261016-state-rollback-rehearsal-root/root-attempt4-review/manifest-before.json": "a7b9b9065f16dd893b406370f6721328761b5e05de729cc8603527cbb06096ae",
+    "deployment/ngr/private/20261016-state-rollback-rehearsal-root/root-attempt4-review/manifest-restored.json": "8b34b021d5b15520dde19971df8e26ed73496a072d442a40154c5062dbe0471e",
+    "deployment/ngr/private/20261016-state-rollback-rehearsal-root/root-attempt4-review/restored_schema_header": "932ab0a0e4191d32c0af7b3f565b7b180dbe9869378abc5816f9add54b806e7f",
+    "deployment/ngr/private/20261016-state-rollback-rehearsal-root/root-attempt6-review/root-result.json": "133ee9598e47abde375b3c00dc74e0f629a79bed0ee198a89b0e27cf3a37e785",
+    "deployment/ngr/private/20261016-state-rollback-rehearsal-root/root-attempt6-review/reopen-mutable-differences.json": "be420fba16dbc9aa423f4df9edd5d5a814e5f9dc72aaf3ac24a719bcd4010259",
+    "deployment/ngr/private/20261016-state-rollback-rehearsal-root/evidence-attempt6/result.json": "1bddbe09ec9b32b83a150f6e11dd9594f3e958219b49c0c413ca7bda6a85c71f",
+    "deployment/ngr/private/20261016-state-rollback-rehearsal-root/evidence-attempt6/manifest-before.json": "ddce63f7d54c652c8cbac3142786e10fd9dbf4a74fe13afb1bca3add92ec26c3",
+    "deployment/ngr/private/20261016-state-rollback-rehearsal-root/evidence-attempt6/manifest-snapshot.json": "9a28cb19c3f001d8e1f5025642f746a2f03981ce628cdb8da692d453a7191114",
+    "deployment/ngr/private/20261016-state-rollback-rehearsal-root/evidence-attempt6/manifest-restored.json": "6c9d03b7349267578008640a964e33967b65eb98100d6de64e7aecc549e2a2e8",
+    "deployment/ngr/private/20261016-state-rollback-rehearsal-root/evidence-attempt6/quickcheck-counterexample.json": "7e60d614f4b4b99cb70ba55326c6509e069baada6af3c7ba5c9f30369e2c2d44",
+    "deployment/ngr/private/20261016-state-rollback-rehearsal-root/evidence-attempt6/baseline-semantic.json": "5befa695a1f0679b1cd68cf070a3a059e989c2f8f61f0ebdd209f7f1a7c3e883",
+    "deployment/ngr/private/20261016-state-rollback-rehearsal-root/evidence-attempt6/after-reopen-semantic.json": "4039157170a2c78bd515a7d338e2b666bad8a23e93a7c4d141ce93c083b8d7ab",
+    "deployment/ngr/private/20261016-state-rollback-rehearsal-root/evidence-attempt6/seed-service.log": "046b1431b7f0eb0b0a68cc294eab77ddcf624551629685c499f910487c09c685",
+    "deployment/ngr/private/20261016-state-rollback-rehearsal-root/evidence-attempt6/reopen-service.log": "6c022279893947c0cfc05bb614054ad63c151afe5ce1cba73994836966234883"
+  }
+}
