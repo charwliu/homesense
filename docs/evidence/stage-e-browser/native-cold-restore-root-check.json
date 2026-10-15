@@ -1,0 +1,74 @@
+{
+  "checked_at": "2026-10-15T23:53:20.558018+08:00",
+  "change": "Saved-credential cold-start transient failure automatically recovers in foreground with cancellable bounded backoff intervals",
+  "baseline": {
+    "same_fixture": true,
+    "methods": 1,
+    "cases": 2,
+    "expected_failure": "HTTP503 and cannotConnectToHost time out without auto recovery",
+    "Root_exit_code": 1,
+    "actual_program_sha256": "ea556e42cfc9e41b5572b8dc0af12327db75080a1ccec85c3c0f0b474f43f909"
+  },
+  "candidate": {
+    "new_methods": 6,
+    "new_cases": 25,
+    "Root_exit_code": 0,
+    "reported_full_methods": 77,
+    "executed_full_methods": 75,
+    "explicit_skips": 2,
+    "failures": 0,
+    "actual_program_sha256": "c4c223962bb19ad130683f76eae1233ccc2ef97882ef585719ba0a61bfb204dc",
+    "source_and_program_hashes_before_after_checked": true
+  },
+  "reviewed_guards": [
+    "exact canonical Origin; only saved credential restoration retries",
+    "2/4/8/10-second intervals, no finite exhaustion while foreground",
+    "disconnect/remove/Origin change cancels and rejects late lookup/initialHTTP/retryHTTP completions",
+    "background or local-tool pause cancels until resume",
+    "HTTP401 removes matching saved credential; TLS and malformed responses stop and retain it",
+    "read-only GET retries; no control request replay",
+    "new WSS state required before controls available"
+  ],
+  "unsigned_builds": {
+    "iOS_arm64": "passed; handoff logs independently rehashed",
+    "macOS_arm64": "passed; handoff logs independently rehashed",
+    "macOS_x86_64": "not validated; first default architecture mismatch failure retained"
+  },
+  "applied_paths": [
+    "apps/HomeSense/Sources/HomeSenseCore/HomeServerStore.swift",
+    "apps/HomeSense/App/HomeManagementView.swift",
+    "apps/HomeSense/Tests/HomeSenseCoreTests/HomeColdRestoreTests.swift"
+  ],
+  "unrelated_original_files_unchanged": 41,
+  "grant_refresh_test_byte_preserved": true,
+  "phone_signed_or_installed": false,
+  "actual_Keychain_used": false,
+  "field_connections": 0,
+  "live_scope_changed": false,
+  "backend_deployed": false,
+  "pending": [
+    "two existing opt-in actual Rust HTTPS/WSS integrations not executed in this suite",
+    "integrated signed App install and iPhone field acceptance deferred until backend repair qualified"
+  ],
+  "private_artifact_sha256": {
+    "deployment/ngr/private/20261015-native-cold-restore-app/handoff.json": "b6a33c5e9dd4efc80cec525fc16a2d3dc6cd2fa27cc48746825c6d7d2899a365",
+    "deployment/ngr/private/20261015-native-cold-restore-app/result.json": "6211ea32f20d2a886959a8c3e217a06e41b6e65b515654e67ff1682cb07eafa4",
+    "deployment/ngr/private/20261015-native-cold-restore-app/product.patch": "45108b0161d4035d45f0a3904141fdc7a30e789c3e7b698506213f74d0bec66f",
+    "deployment/ngr/private/20261015-native-cold-restore-app/tests-only.patch": "8da29baff3b2b6d7d52dc21bf646422515144986729448c52f009b1da2120009",
+    "deployment/ngr/private/20261015-native-cold-restore-app/source-integrity.json": "4dae7176cf6e243e6a9e1d3e27e8306b6e5edb0b0c04e839bd8e37a5b8c1f443",
+    "deployment/ngr/private/20261015-native-cold-restore-app/root-reproduction/pre-run.json": "858ee6cf808db45dffcdb8b02069ff7153f6a28d850a72b1d46f2e57b1a648a0",
+    "deployment/ngr/private/20261015-native-cold-restore-app/root-reproduction/result.json": "98f0f0229f56a977a26e26e0861b9dfaeb28e3693a7244e4d83cb0184176bd12",
+    "deployment/ngr/private/20261015-native-cold-restore-app/root-reproduction/baseline.log": "d0f4623e54f5538fb2c48757d81e3eaf42d714d1ec155bd1da4d2f8123406c09",
+    "deployment/ngr/private/20261015-native-cold-restore-app/root-reproduction/candidate.log": "144df5fa655c11056e18b53bb59e09868db524424cfb57fdf7775b7f418b8bdb",
+    "deployment/ngr/private/20261015-native-cold-restore-app/ios-build.log": "b0115eed705510b16469c227392ffb74ad4717451a3f20cc3cfbbb1b4f9c9b7b",
+    "deployment/ngr/private/20261015-native-cold-restore-app/macos-build.log": "c1bbd0c651c9aee966751eab0338be7fe0a5fd9234cc9f0d55d37b3a093a5294",
+    "deployment/ngr/private/20261015-native-cold-restore-app/baseline-reproduction.log": "fb4e93c4bb7b4232d126b7e02f99f42a40102676d273f5e0856c7840a64fc85d",
+    "deployment/ngr/private/20261015-native-cold-restore-app/macos-initial-architecture-failure.log": "b3d22e8741ff462e7e9b954c983dd47fae6110759618828f7750c164b5032b23"
+  },
+  "applied_source_sha256": {
+    "apps/HomeSense/Sources/HomeSenseCore/HomeServerStore.swift": "17fc41d55e96fb6a8d57f42c3af765acc2e59654f33a41465c19896e17c2fbd9",
+    "apps/HomeSense/App/HomeManagementView.swift": "ac23b3de8d05c08fd2bfdae125149c2a18c21a17e6d5c9e2c1999dcc25657cb3",
+    "apps/HomeSense/Tests/HomeSenseCoreTests/HomeColdRestoreTests.swift": "23e9d4ed7a7131e3bbaf087c3c7c67e080c7f4c31650d5e0ceb97cb1d677e6f3"
+  },
+  "D_E_complete": false
+}

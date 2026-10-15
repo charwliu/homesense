@@ -229,7 +229,8 @@
     "stage-e-browser/indicator-cross-writer-baseline-root-check.json": "6d118e9bffc0f72a9b2058c2db15d8063aeb12665362fed4158c1d892de898de",
     "stage-e-browser/study-keypad-scope-proposal-root-check.json": "d93d2322313a58f810a40d6728f33880ffda3eb351b1f575d06a73b5c7020637",
     "stage-e-browser/keypad-current-catalog-root-check.json": "bd42c7da87220f16bb5525c9d2e0950cc07a7ddaa81d0ddfc54517546af515ed",
-    "stage-e-browser/native-grant-refresh-root-check.json": "d68e8cf1764c5faf4d364aaf5d729bcf9082791ae28ef07cad0cf7fb9f185b4c"
+    "stage-e-browser/native-grant-refresh-root-check.json": "d68e8cf1764c5faf4d364aaf5d729bcf9082791ae28ef07cad0cf7fb9f185b4c",
+    "stage-e-browser/native-cold-restore-root-check.json": "e6efc177255791bed7654a4ceddf4d11fa6743ce9db1c1531f4481bbeccfc955"
   },
   "excluded_by_scope": {
     "Siri": "cancelled by user",
@@ -452,5 +453,6 @@
   "latest_native_grant_refresh_software": "stage-e-browser/native-grant-refresh-root-check.json",
   "existing_scope20_eligible_issuers": 0,
   "scope20_offline_maintenance": "reviewed plan only; user approval pending, not executed",
-  "native_cold_start_transient_restore": "source gap confirmed; private repair in HomeSenseApp chat in progress, no field change"
+  "native_cold_start_transient_restore": "Root independently reproduced baseline2 failures and candidate6 methods/25 cases pass; exact2 product files+new test applied; not installed, true Rust integrations remain pending",
+  "latest_native_cold_restore_software": "stage-e-browser/native-cold-restore-root-check.json"
 }

@@ -8,7 +8,13 @@ public enum HomeInterfaceMode: String, CaseIterable, Identifiable, Sendable {
 
 @MainActor
 public final class HomeServerStore: ObservableObject {
-    @Published public var endpointText: String
+    @Published public var endpointText: String {
+        didSet {
+            if (try? HomeServerEndpoint(oldValue).origin) != (try? HomeServerEndpoint(endpointText).origin) {
+                disconnect()
+            }
+        }
+    }
     @Published public private(set) var connected = false
     @Published public private(set) var busy = false
     @Published public private(set) var canManage = false
@@ -38,6 +44,9 @@ public final class HomeServerStore: ObservableObject {
     @Published public private(set) var restoringCredential = false
     @Published private var savedCredentialOrigin: String?
     private var restoreGeneration = UUID()
+    // Only a credential explicitly restored for this exact Origin may recover
+    // an initially unauthenticated connection. Never replay a control request.
+    private var savedRecoveryOrigin: String?
     @Published public private(set) var receivingPush = false
     @Published public private(set) var synchronization = "未连接"
     @Published public private(set) var serverFloors: [String] = []
@@ -73,17 +82,18 @@ public final class HomeServerStore: ObservableObject {
         defer { if restoreGeneration == restore { restoringCredential = false } }
         do {
             let origin = try HomeServerEndpoint(endpointText).origin
+            savedRecoveryOrigin = origin
             let saved = try await credentialStore.load(for: origin)
-            guard generation == epoch, !Task.isCancelled, (try? HomeServerEndpoint(endpointText).origin) == origin else { return }
+            guard generation == epoch, restoreGeneration == restore, !Task.isCancelled, (try? HomeServerEndpoint(endpointText).origin) == origin else { return }
             guard let saved else {
-                savedCredentialOrigin = nil; credentialStatus = "此服务尚未保存本机凭证。"; return
+                savedRecoveryOrigin = nil; savedCredentialOrigin = nil; credentialStatus = "此服务尚未保存本机凭证。"; return
             }
             savedCredentialOrigin = origin; credentialStatus = "已从本机 Keychain 恢复此服务凭证。"
-            await connect(token: saved)
-        } catch { if generation == epoch { self.error = error.localizedDescription } }
+            await connect(token: saved, restoringOrigin: origin)
+        } catch { if generation == epoch { savedRecoveryOrigin = nil; self.error = error.localizedDescription } }
     }
     public func removeSavedCredential() async {
-        guard !busy else { return }
+        guard !busy || restoringCredential else { return }
         do {
             let origin = try HomeServerEndpoint(endpointText).origin
             disconnect()
@@ -149,27 +159,39 @@ public final class HomeServerStore: ObservableObject {
     }
 
     public func connect(token credential: String) async {
+        await connect(token: credential, restoringOrigin: nil)
+    }
+    private func connect(token credential: String, restoringOrigin: String?) async {
         guard !busy else { return }
         disconnect()
+        savedRecoveryOrigin = restoringOrigin
+        restoringCredential = restoringOrigin != nil
         busy = true; error = nil
         let generation = epoch
         defer { if epoch == generation { busy = false } }
         do {
             let endpoint = try HomeServerEndpoint(endpointText)
+            guard restoringOrigin == nil || restoringOrigin == endpoint.origin else { throw HomeServerError.expiredRequest }
             guard !credential.isEmpty, !credential.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains) else { throw HomeServerError.notAuthenticated }
             self.endpoint = endpoint; token = credential
             let capabilities = try await request("/api/v1/session")
             guard case .bool = capabilities["can_manage_configuration"] else { throw HomeServerError.invalidResponse }
             canManage = capabilities["can_manage_configuration"].flag
             defaults?.set(endpoint.origin, forKey: "home.server")
-            do {
-                try await credentialStore.save(credential, for: endpoint.origin)
-                guard epoch == generation else { return }
+            if restoringOrigin != nil {
+                // It is already saved. Recovery must not recreate a credential
+                // after the user has explicitly removed it during an await.
                 savedCredentialOrigin = endpoint.origin
-                credentialStatus = "此服务凭证已保存到本机 Keychain，不参与 iCloud 同步。"
-            } catch {
-                guard epoch == generation else { return }
-                credentialStatus = "本次会话可用，但凭证保存失败：\(error.localizedDescription)"
+            } else {
+                do {
+                    try await credentialStore.save(credential, for: endpoint.origin)
+                    guard epoch == generation else { return }
+                    savedCredentialOrigin = endpoint.origin
+                    credentialStatus = "此服务凭证已保存到本机 Keychain，不参与 iCloud 同步。"
+                } catch {
+                    guard epoch == generation else { return }
+                    credentialStatus = "本次会话可用，但凭证保存失败：\(error.localizedDescription)"
+                }
             }
             connected = true
             try await readSnapshots()
@@ -179,14 +201,25 @@ public final class HomeServerStore: ObservableObject {
                 do { try await readActiveConfiguration() }
                 catch { self.error = error.localizedDescription }
             }
+            savedRecoveryOrigin = nil; restoringCredential = false
             startEvents()
         } catch {
             guard epoch == generation else { return }
-            token = nil; connected = false; canManage = false
+            connected = false; canManage = false; capturedAt = nil
             self.error = error.localizedDescription
+            if let origin = restoringOrigin, Self.canRetryConnection(error),
+               (try? HomeServerEndpoint(endpointText).origin) == origin {
+                savedRecoveryOrigin = origin
+                restoringCredential = eventsWanted
+                synchronization = eventsWanted ? "服务暂不可用，正在自动连接" : "已暂停同步"
+                startEvents()
+            } else {
+                savedRecoveryOrigin = nil; restoringCredential = false; token = nil
+            }
         }
     }
     public func disconnect() {
+        savedRecoveryOrigin = nil
         restoreGeneration = UUID(); restoringCredential = false
         epoch = UUID(); stopEvents(); interfaceMode = .daily
         token = nil; endpoint = nil; connected = false; canManage = false; busy = false
@@ -200,19 +233,62 @@ public final class HomeServerStore: ObservableObject {
         eventEpoch = UUID(); eventTask?.cancel(); eventTask = nil
         receivingPush = false; eventCursor = nil
     }
-    public func pause() { eventsWanted = false; stopEvents(); capturedAt = nil; preview = nil; synchronization = "已暂停同步" }
-    public func resume() { eventsWanted = true; startEvents() }
+    public func pause() {
+        eventsWanted = false
+        if savedRecoveryOrigin != nil {
+            // Cancel initial lookup/HTTP completion as well as a retry wait.
+            epoch = UUID(); restoreGeneration = UUID()
+            restoringCredential = false; busy = false; connected = false; canManage = false
+        }
+        stopEvents(); capturedAt = nil; preview = nil; synchronization = "已暂停同步"
+    }
+    public func resume() {
+        eventsWanted = true
+        if savedRecoveryOrigin != nil { restoringCredential = true }
+        startEvents()
+    }
+    private static func canRetryConnection(_ error: Error) -> Bool {
+        if error is HomeRetryableResponse { return true }
+        guard let error = error as? URLError else { return false }
+        return [.cannotConnectToHost, .notConnectedToInternet, .networkConnectionLost,
+                .timedOut, .cannotFindHost, .dnsLookupFailed].contains(error.code)
+    }
     private func startEvents() {
-        guard eventsWanted, connected, eventTask == nil else { return }
+        guard eventsWanted, connected || savedRecoveryOrigin != nil, eventTask == nil else { return }
         let generation = eventEpoch
+        let recovering = !connected
         eventTask = Task { [weak self] in
-            var attempts = 0
+            var attempts = recovering ? 1 : 0
+            if recovering {
+                do { try await Task.sleep(for: .seconds(2)) } catch { return }
+            }
             while !Task.isCancelled {
-                guard let self, self.eventEpoch == generation, self.connected else { return }
+                guard let self, self.eventEpoch == generation,
+                      self.connected || self.savedRecoveryOrigin != nil else { return }
                 self.synchronization = attempts == 0 ? "正在连接状态推送" : "状态推送断开，正在重连"
                 do {
-                    // Reauthenticate and synchronize once on each connection, never on a timer.
+                    // Recovery is read-only, scoped to the saved Origin and foreground lifecycle.
+                    if !self.connected {
+                        guard let origin = self.savedRecoveryOrigin,
+                              (try? HomeServerEndpoint(self.endpointText).origin) == origin else { return }
+                        if self.token == nil {
+                            let saved = try await self.credentialStore.load(for: origin)
+                            guard self.eventEpoch == generation, !Task.isCancelled else { return }
+                            guard let saved else { self.disconnect(); return }
+                            self.endpoint = try HomeServerEndpoint(origin); self.token = saved
+                            self.savedCredentialOrigin = origin
+                        }
+                    }
                     try await self.readSnapshots()
+                    guard self.eventEpoch == generation, !Task.isCancelled else { return }
+                    if !self.connected {
+                        self.connected = true; self.savedRecoveryOrigin = nil; self.restoringCredential = false
+                        self.error = nil; self.message = "已自动恢复服务连接；等待新的状态推送。"
+                        if self.canManage {
+                            do { try await self.readActiveConfiguration() }
+                            catch { self.error = error.localizedDescription }
+                        }
+                    }
                     guard self.eventEpoch == generation, !Task.isCancelled,
                           let endpoint = self.endpoint, let token = self.token else { return }
                     for try await message in self.eventTransport.events(try endpoint.eventRequest(token: token)) {
@@ -226,9 +302,16 @@ public final class HomeServerStore: ObservableObject {
                     }
                     throw URLError(.networkConnectionLost)
                 } catch {
-                    guard self.eventEpoch == generation, self.connected, !Task.isCancelled else { return }
+                    guard self.eventEpoch == generation, !Task.isCancelled,
+                          self.connected || self.savedRecoveryOrigin != nil else { return }
+                    if !self.connected && !Self.canRetryConnection(error) {
+                        self.disconnect(); self.error = error.localizedDescription
+                        self.synchronization = "自动连接已停止，请核对服务与凭证。"
+                        return
+                    }
                     self.receivingPush = false; self.eventCursor = nil; self.capturedAt = nil
-                    self.synchronization = "状态推送断开，正在重连"
+                    if !self.connected { self.canManage = false; self.restoringCredential = true; self.error = error.localizedDescription }
+                    self.synchronization = self.connected ? "状态推送断开，正在重连" : "服务暂不可用，正在自动连接"
                 }
                 attempts = min(attempts + 1, 4)
                 do { try await Task.sleep(for: .seconds(min(10, 1 << attempts))) } catch { return }
@@ -658,6 +741,10 @@ public final class HomeServerStore: ObservableObject {
             }
             throw HomeServerError.notAuthenticated
         }
+        if method == "GET", [408, 500, 502, 503, 504].contains(response.status) {
+            let body = try? JSONDecoder().decode(HomeJSON.self, from: response.data)
+            throw HomeRetryableResponse(detail: body?["error"].text ?? "HTTP \(response.status)")
+        }
         let value = try JSONDecoder().decode(HomeJSON.self, from: response.data)
         guard (200...299).contains(response.status) else { throw HomeServerError.server(value["error"].text ?? "HTTP \(response.status)") }
         return value
@@ -676,4 +763,9 @@ public final class HomeServerStore: ObservableObject {
             if error is URLError { preview = nil }
         }
     }
+}
+
+private struct HomeRetryableResponse: LocalizedError {
+    let detail: String
+    var errorDescription: String? { "服务端：\(detail)" }
 }
