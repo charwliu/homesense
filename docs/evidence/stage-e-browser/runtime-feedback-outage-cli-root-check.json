@@ -1,0 +1,46 @@
+{
+  "checked_bj": "2026-10-15T18:02:11.902232+08:00",
+  "kind": "production CLI independently reproduced recoverable feedback outage terminating service",
+  "binary_sha256": "93a62ffc7d3a550a631cd82fd9d9903bad7d57b749110c81a3dda85086e00b7c",
+  "all_endpoints_loopback": true,
+  "physical_access": false,
+  "control_requests": 0,
+  "module_ports": 8,
+  "bound_ports": 1,
+  "unbound_ports_still_required": 7,
+  "initial_eight_port_feedback_confirmed": true,
+  "planned_duration_seconds": 24,
+  "recoveries_flag": 2,
+  "fault": "after readiness suppress all query responses without actively disconnecting TCP",
+  "exit_code": 1,
+  "exit_observed_after_outage_ms": 5087.563,
+  "post_exit_HTTPS": "ConnectionRefusedError errno61",
+  "HTTP_samples": {
+    "200": 23,
+    "503": 5,
+    "ConnectionRefusedError": 2
+  },
+  "query_frames": 4,
+  "suppressed_reply_queries": 3,
+  "TCP_connection_epochs_observed": 2,
+  "diagnostic": "periodic output query failed then recovery synchronization timeout propagated to process",
+  "minimum_counterexample_only": true,
+  "not_covered": [
+    "WSS persistent session and events",
+    "HAP pairing/listener continuity",
+    "control rejection and no replay",
+    "partial fresh feedback and independent gateway isolation",
+    "bounded retry/backoff resources",
+    "successful recovery and normal shutdown"
+  ],
+  "runtime_fix_complete": false,
+  "D_E_complete": false,
+  "private_artifact_sha256": {
+    "result.json": "69f5b9f4dde17339b7790def523844545418e88c329b606c86af473743ebff8d",
+    "server.log": "00d015a3e459f7d89df01574ca83093dd94a1b102439be4f4207dd7f8d8ebed3",
+    "initial-ready.json": "10683c92097de1f7dc88b70c5d0024b876d5279cd9aef544e380d105281a97c5",
+    "frames.json": "aeb9cad3a9f9a40f9c078381c748ee410ce5ef8707385cb3ba1ee8d965f2f956",
+    "https-samples.json": "5a532508886e189f2415bf1ad9bce1ab055193959b7bd9157815c9b9ae8ed942",
+    "probe-feedback-outage.py": "8dad4262db6790c8adf13502a5cd1f7649ee2ff7eb93c8602d9c5418c06ad0f3"
+  }
+}
