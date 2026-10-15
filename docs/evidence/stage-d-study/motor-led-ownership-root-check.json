@@ -1,0 +1,34 @@
+{
+  "checked_at": "2026-10-15T21:43:57.601081+08:00",
+  "source_archive_sha256": "ff8c298fd2c8efa840d572d3ca544860ffbbc4e7176f09e93efdc5464b9ce6ec",
+  "source_xml_sha256": "cac7dcdc9db08599e55a22bacb72858035c64e1ac846e2139ead5fc634513748",
+  "motor_controllers_and_unique_proxies": 12,
+  "proxies_with_source_open_programs": 11,
+  "motor_feedback_events": 43,
+  "motor_feedback_LED_nodes": 90,
+  "within_source_open_panel_family": 89,
+  "outside_source_open_panel_family": 1,
+  "does_not_prove_other_LED_semantics_or_physical_wiring": true,
+  "source_archive_unchanged": true,
+  "field_queries_or_controls": 0,
+  "Control4_configuration_modified": false,
+  "HomeSense_configuration_published": false,
+  "stage_D_complete": false,
+  "approved_correction": {
+    "same_keypad_as_open_command": true,
+    "corrected_LED_key": 2,
+    "only_output_owner_changed": true,
+    "original_condition_variables_and_else_preserved": true,
+    "applied_to_Control4_or_HomeSense": false
+  },
+  "one_proxy_has_no_source_open_or_feedback_event": true,
+  "evidence_sha256": {
+    "all-led-nodes.json": "3937b9ca9c1d074184ea9aacfa56d25b8ff2838ec1c613edc06d279fbbfd82f9",
+    "source-open-request-sites.json": "a1071481f4dccb3e2d673aa65e7ae823d6dba2fa30a9ca26c7683249c2627fc6",
+    "result.json": "f46c1933aac14d082342f51e2326d5d4075b2a136e0c514c4bdce10923bfbabb",
+    "original-event-fragment.xml": "629e9d0a8bce8bd876b4fddd5169b610a4804f8ee6de917cea8b5f7bf3e078ed",
+    "corrected-event-fragment.xml": "cf8a791162a0f64ed7a07ebe839521ff675500207be84404c368584010ad9946"
+  },
+  "independent_verifier_sha256": "3d2fd7d241d01d24425b30bc64c9fc100055d041cb0f63c75737d0696695f16d",
+  "independent_original_source_and_exact_single_field_diff_reverified": true
+}

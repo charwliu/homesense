@@ -1,3 +1,5 @@
+2026-10-15 21:44 新增核查：最终v21程序的Keypad候选／回退及庭院／回家完整候选共6项离线校验通过，但88路回环全关反馈Confirmed时，场景选择12秒内保持未知；64路基础Keypad对照的16次读取中11次正常、5次未知，原因待定位。现网rev9只读对照的原五个场景投影正常，不能将候选反例直接归因于现网。D源审查另核对43个窗帘反馈事件／90处LED输出，唯一偏离开帘同组面板的输出是用户已确认的卧室误写书房2键；只改输出目标的离线片段已准备，未应用。见[完整候选反例](evidence/stage-e-browser/keypad-full-candidate-v21-root-check.json)和[窗帘LED归属](evidence/stage-d-study/motor-led-ownership-root-check.json)。
+
 2026-10-15 21:31 最新：常驻整合305be34已提交推送，v21完整1128项／172实际程序、文档和严格Clippy通过；正式AD8常驻故障／恢复／SIGTERM探针与Linux隔离烟测通过。E2于21:29:39由systemd常驻启动，Root独立核对active／enabled、无整体期限、零重启、rev9和网关／存储／HAP就绪，原配对与永久Admin保持不变。现场集中验收仍按用户要求挂起，D／E原语义范围继续未完成。见[常驻上线审计](evidence/stage-e-browser/continuous-service-root-check.json)。
 
 2026-10-15 最新整合核查：来源授权5735986、D亮度推断156c48a、离线链接校验8d2e836和网关故障恢复18e38f8已提交推送。持续服务v14完整1117项／169程序、文档和严格Clippy通过，正式AD8程序40秒故障恢复亦通过，保留全部旧失败。用户已授权部署启动E2并一直提供服务；当前补充显式forever模式，完成软件与Linux隔离验证后用systemd常驻托管，暂未启动现场。D／E原语义与其余验收仍未完成。见[恢复核查](evidence/stage-e-browser/runtime-availability-recovery-root-check.json)。
