@@ -1,0 +1,44 @@
+{
+  "checked_bj": "2026-10-15T17:03:10.165273+08:00",
+  "owner": "HomeSenseApp; independent Root hash/log/visual review",
+  "build": 7,
+  "source_files": 48,
+  "source_manifest_sha256": "bb1d144bf06a6f6173c7048fca12a20da96c0908f06b3b804d1a30dd56ca266a",
+  "all_48_source_and_2_synthetic_fixture_hashes_verified": true,
+  "tests": {
+    "passed": 57,
+    "failed": 0,
+    "skipped": 0,
+    "suites": 9,
+    "actual_Rust_HTTPS_WSS": true,
+    "credential_tests_use_in_memory_store": true
+  },
+  "test_log_sha256": "48b1eecb4a8ca035369daca849b5778c0e978190f05715c366c68545a2ca9a38",
+  "pinned_backend_sha256": "93a62ffc7d3a550a631cd82fd9d9903bad7d57b749110c81a3dda85086e00b7c",
+  "macOS_build_succeeded": true,
+  "iOS_signed_build_succeeded": true,
+  "iPhone_install_succeeded": true,
+  "no_device_identifier_published": true,
+  "visual": {
+    "synthetic_data_not_hardware_feedback": true,
+    "daily_cards_and_square_2_columns_3_rows_keypad_reviewed": true,
+    "image_sha256": {
+      "daily-home-mock.png": "589981ef88bca8917219ab7d5c241afbb84ff5b77a1626916e20c66490bab5e3",
+      "keypad-350.png": "c13ac55a3088afd4db3d9845d6294d815d206b04dd1fb6bfb0fcb59e33339dbb"
+    }
+  },
+  "implemented": [
+    "daily_home_cards_and_detail_controls",
+    "one_TS6_parent_card_six_keys_1_2_3_4_5_6_color_and_dot",
+    "mode_switch_retains_shared_page_and_filter",
+    "exact_origin_Keychain_save_restore_and_explicit_local_forget"
+  ],
+  "field_pending": [
+    "actual_Keychain_quit_and_relaunch_restore",
+    "new_Keypad_parent_configuration_migration_and_physical_acceptance",
+    "native_App_foreground_background_resync"
+  ],
+  "backend_service": "stopped; no new field window",
+  "field_commands": 0,
+  "D_E_complete": false
+}

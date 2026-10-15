@@ -1,0 +1,21 @@
+{
+  "checked_bj": "2026-10-15T17:03:10.165273+08:00",
+  "user_explicit_choice": "brightness discriminates only equal power-combination ambiguity groups",
+  "policy_decisions_added": 1,
+  "remaining_scene_cards_examined": 65,
+  "brightness_distinct_power_collision_groups": 4,
+  "scenes_in_groups": 10,
+  "plan_sha256": "2740ace36dc9945e25df99cd9272dbb9d3873210842edac83735bb30449c234d",
+  "source_review_input_sha256": "10f92bc3a441dd618d37f91824ff9205cde4d90b0cc12dc6ab677c8736f2f6a3",
+  "unique_power_combination_remains_power_only": true,
+  "unknown_or_stale_brightness_does_not_select_unique_scene": true,
+  "raw_target_levels_not_claimed_physical_module_quantization": true,
+  "source_tracking_encoding_not_resolved_by_user_policy": true,
+  "all_zero_duplicate_scenes_not_converted_to_brightness_selectors": true,
+  "new_complete_original_scene_semantic_approvals": 0,
+  "new_rules_enabled": 0,
+  "configuration_published": false,
+  "field_commands": 0,
+  "implementation": "pending separate candidate and tests",
+  "D_E_complete": false
+}
