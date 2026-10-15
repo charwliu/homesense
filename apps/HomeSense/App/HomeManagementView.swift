@@ -341,9 +341,10 @@ struct HomeManagementView: View {
                     VStack(alignment: .leading, spacing: 12) {
                     Image(systemName: "sparkles").font(.title2).foregroundStyle(.teal)
                     Text(scene.name).font(.headline)
-                    Text("负载反馈：\(scene.raw["activity"].text ?? "未知")").foregroundStyle(.secondary)
+                    if let status = scene.targetAvailability.description { Text(status).font(.caption).foregroundStyle(.secondary) }
+                    Text("\(home.snapshotIsCurrent && scene.targetAvailable ? "负载反馈" : "历史负载反馈")：\(scene.raw["activity"].text ?? "未知")").foregroundStyle(.secondary)
                     if scene.raw["switch_kind"].text == "selection" {
-                        Text("场景选择：\(selectionDescription(scene.raw["selected"]))").font(.caption)
+                        Text("\(home.snapshotIsCurrent && scene.targetAvailable ? "场景选择" : "历史选择")：\(selectionDescription(scene.raw["selected"]))").font(.caption)
                     }
                     }.padding(18).frame(maxWidth: .infinity, minHeight: 140, alignment: .topLeading)
                         .background(.background, in: RoundedRectangle(cornerRadius: 20))
@@ -430,9 +431,10 @@ struct HomeDeviceCard: View {
         VStack(alignment: .leading, spacing: 12) {
             Text(device.name).font(.headline)
             if let name = device.raw["room"]["name"].text { Text(name).font(.caption).foregroundStyle(.secondary) }
-            Text(home.snapshotIsCurrent ? "反馈质量：\(device.raw["quality"].text ?? "未知")" : "状态未同步，以下保留历史反馈").font(.caption).foregroundStyle(.secondary)
+            if let status = device.targetAvailability.description { Text(status).font(.caption).foregroundStyle(.secondary) }
+            Text(home.snapshotIsCurrent && device.targetAvailable ? "反馈质量：\(device.raw["quality"].text ?? "未知")" : "状态未同步，以下保留历史反馈").font(.caption).foregroundStyle(.secondary)
             if let on = device.raw["observed"]["on"].optionalBool {
-                Text((home.snapshotIsCurrent && device.raw["quality"].text == "Confirmed" ? "实际反馈：" : "历史反馈：") + (on ? "开" : "关"))
+                Text((device.feedbackIsConfirmed(current: home.snapshotIsCurrent) ? "实际反馈：" : "历史反馈：") + (on ? "开" : "关"))
             }
             else { Text("实际反馈：未知").foregroundStyle(.secondary) }
             if device.raw["state_authority"].text == "pending_target" { Text("有待确认的目标；以上仅显示实际反馈。").font(.caption).foregroundStyle(.orange) }
@@ -450,21 +452,21 @@ struct HomeDeviceCard: View {
                 }
             }
             if device.raw["kind"].text == "Dimmer" {
-                if let actual = device.raw["observed"]["level"].integerText { Text("读回亮度：\(actual)%").font(.caption).foregroundStyle(.secondary) }
+                if let actual = device.raw["observed"]["level"].integerText { Text("\(device.feedbackIsConfirmed(current: home.snapshotIsCurrent) ? "读回亮度" : "历史读回亮度")：\(actual)%").font(.caption).foregroundStyle(.secondary) }
                 HStack {
                     Slider(value: $level, in: 0...100, step: 1, onEditingChanged: { editing in
                         editingLevel = editing
                         if editing { pendingLevel = true }
                     })
                     Text("目标 \(Int(level))%").monospacedDigit()
-                }
+                }.disabled(!home.canControlDevice(device.id))
                 Button("设置亮度") {
                     let target = Int64(level)
                     Task {
                         await home.controlDevice(device.id, command: .object(["action": .string("brightness"), "level": .integer(target)]))
                         if home.error == nil { pendingLevel = false }
                     }
-                }.buttonStyle(.bordered).disabled(!home.controlsAvailable || !device.raw["can_control"].flag)
+                }.buttonStyle(.bordered).disabled(!home.canControlDevice(device.id))
             }
         }
         .padding(20).frame(maxWidth: .infinity, alignment: .leading).background(.background, in: RoundedRectangle(cornerRadius: 16))
@@ -476,7 +478,7 @@ struct HomeDeviceCard: View {
     }
     private func action(_ title: String, _ command: HomeJSON) -> some View {
         Button(title) { Task { await home.controlDevice(device.id, command: command) } }
-            .buttonStyle(.bordered).disabled(!home.controlsAvailable || !device.raw["can_control"].flag)
+            .buttonStyle(.bordered).disabled(!home.canControlDevice(device.id))
     }
 }
 private extension HomeJSON {
