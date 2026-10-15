@@ -36,8 +36,9 @@
       "stage": "D",
       "requirement": "场景时序、tracking与停用",
       "verified_scope": "通用审核转换、活动推断和完整目标向量停用已实现",
-      "remaining_evidence": "原rate／tracking编码及17个toggle值仍未知；其余运行中处置待决定，随后实现或明确排除",
-      "status": "source_semantics_unresolved"
+      "remaining_evidence": "原rate／tracking编码仍待处置；17个65535均为全零目标场景，未被再次关闭/翻转且95处显式调用有效目标均已解析；作为一次执行按钮的明确新策略已询问用户、待回复，未将65535猜成关闭或空操作。",
+      "status": "source_semantics_unresolved",
+      "additional_toggle_dependency_evidence": "stage-d-study/scene-toggle-leaf-dependencies-root-check.json"
     },
     {
       "id": "D-4",
@@ -219,7 +220,8 @@
     "stage-e-browser/scene-projection-cache-root-check.json": "dd210c9bfa51e6981c2f0d8dcfd21683bc14085b0726bf525994d5868203b2f8",
     "stage-e-browser/current-service-reconciliation-root-check.json": "52a6ddd97855cea0cf0540d9f82de79b329011caad92c6cacad620c08abc3c7a",
     "stage-d-study/motor-branch-and-writer-root-check.json": "9c4cb671c58a3f74656bf9e82efe20c8ee48f3e72e60de9b4616a1bd8b4a9eda",
-    "stage-d-study/curtain-source-key-layout-root-check.json": "18badd91df91efe5d163e3a85d8aaa7df8aa7246c18e94b63c10beceee3f6678"
+    "stage-d-study/curtain-source-key-layout-root-check.json": "18badd91df91efe5d163e3a85d8aaa7df8aa7246c18e94b63c10beceee3f6678",
+    "stage-d-study/scene-toggle-leaf-dependencies-root-check.json": "d31c611324d62d31aec36c9830936488d1fe7df3184252a831103435eeff4313"
   },
   "excluded_by_scope": {
     "Siri": "cancelled by user",
@@ -431,5 +433,6 @@
   },
   "latest_current_service_reconciliation": "stage-e-browser/current-service-reconciliation-root-check.json",
   "latest_motor_branch_writer_source_evidence": "stage-d-study/motor-branch-and-writer-root-check.json",
-  "latest_curtain_source_key_layout_evidence": "stage-d-study/curtain-source-key-layout-root-check.json"
+  "latest_curtain_source_key_layout_evidence": "stage-d-study/curtain-source-key-layout-root-check.json",
+  "latest_scene_toggle_dependency_evidence": "stage-d-study/scene-toggle-leaf-dependencies-root-check.json"
 }
