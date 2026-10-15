@@ -4,6 +4,10 @@
 
 后续每次提交的变动细节在此记录；README 的变更内容只保留功能新增、移除及能力变化。
 
+## 2026-10-16 恢复后旧取消回执误取消新场景
+
+普通CLI实跑确认：恢复前旧A与恢复后新B在同boot/rev复用数字run1，持久UUID不同；旧A取消请求仍返回cancelled1，导致新B精确UUID取消且到期无命令/线帧。另一个新B延迟场景随后Written。D-5/E-4/E-7新增不可复用取消身份门槛，不能仅靠本地恢复不重建暂时避开；保留原授权与真实取消。契约101、后端SIGTERM0、无夹具错误，仅限同测试管理员，不声称跨角色扩权；未改现网。见[限定反例](docs/evidence/stage-e-browser/stale-scene-cancel-root-gap.json)。
+
 ## 2026-10-16 健康网关延迟场景连续性反例
 
 普通正式CLI真实接收两条5秒延迟场景后，仅A故障就取消纯B场景，B实际仍发反馈但到期没有60%线帧。恢复后的新B即时40%及延迟60%均真实写出，持久场景UUID、API last_run、scene_command和Written账目逐项对应；旧A未重放。修正并保留两次夹具错误，最终契约101、后端SIGTERM0；D-3/D-5/E-7仍开放，私有运行时修复继续，未改现网。见[限定反例](docs/evidence/stage-e-browser/multi-gateway-delayed-scene-root-gap.json)。
