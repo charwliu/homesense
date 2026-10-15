@@ -1,0 +1,286 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 60;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		A00000000000000000000001 /* HomeSenseApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000011 /* HomeSenseApp.swift */; };
+		A00000000000000000000002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000012 /* ContentView.swift */; };
+		A00000000000000000000003 /* HomeSenseCore in Frameworks */ = {isa = PBXBuildFile; productRef = A00000000000000000000061 /* HomeSenseCore */; };
+		A00000000000000000000004 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000016 /* Assets.xcassets */; };
+		A00000000000000000000005 /* HomeManagementView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000017 /* HomeManagementView.swift */; };
+		A00000000000000000000006 /* HomeManagementEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000018 /* HomeManagementEditor.swift */; };
+		A00000000000000000000007 /* HomeKeypadCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000001A /* HomeKeypadCard.swift */; };
+		A00000000000000000000008 /* HomeDailyDetails.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000001B /* HomeDailyDetails.swift */; };
+		A00000000000000000000009 /* HomeKeypadEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000001C /* HomeKeypadEditor.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		A00000000000000000000011 /* HomeSenseApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeSenseApp.swift; sourceTree = "<group>"; };
+		A00000000000000000000012 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		A00000000000000000000013 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		A00000000000000000000014 /* HomeSense.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = HomeSense.entitlements; sourceTree = "<group>"; };
+		A00000000000000000000015 /* HomeSense.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; path = HomeSense.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A00000000000000000000016 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		A00000000000000000000017 /* HomeManagementView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeManagementView.swift; sourceTree = "<group>"; };
+		A00000000000000000000018 /* HomeManagementEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeManagementEditor.swift; sourceTree = "<group>"; };
+		A00000000000000000000019 /* Signing.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Signing.xcconfig; sourceTree = "<group>"; };
+		A0000000000000000000001A /* HomeKeypadCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeKeypadCard.swift; sourceTree = "<group>"; };
+		A0000000000000000000001B /* HomeDailyDetails.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeDailyDetails.swift; sourceTree = "<group>"; };
+		A0000000000000000000001C /* HomeKeypadEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeKeypadEditor.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		A00000000000000000000031 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A00000000000000000000003 /* HomeSenseCore in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		A00000000000000000000020 = {
+			isa = PBXGroup;
+			children = (
+				A00000000000000000000021 /* App */,
+				A00000000000000000000022 /* Products */,
+				A00000000000000000000019 /* Signing.xcconfig */,
+			);
+			sourceTree = "<group>";
+		};
+		A00000000000000000000021 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				A00000000000000000000011 /* HomeSenseApp.swift */,
+				A00000000000000000000012 /* ContentView.swift */,
+				A00000000000000000000013 /* Info.plist */,
+				A00000000000000000000014 /* HomeSense.entitlements */,
+				A00000000000000000000016 /* Assets.xcassets */,
+				A00000000000000000000017 /* HomeManagementView.swift */,
+				A00000000000000000000018 /* HomeManagementEditor.swift */,
+				A0000000000000000000001A /* HomeKeypadCard.swift */,
+				A0000000000000000000001C /* HomeKeypadEditor.swift */,
+				A0000000000000000000001B /* HomeDailyDetails.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		A00000000000000000000022 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				A00000000000000000000015 /* HomeSense.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		A00000000000000000000040 /* HomeSense */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A00000000000000000000072 /* Build configuration list for PBXNativeTarget "HomeSense" */;
+			buildPhases = (
+				A00000000000000000000030 /* Sources */,
+				A00000000000000000000031 /* Frameworks */,
+				A00000000000000000000032 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = HomeSense;
+			packageProductDependencies = (
+				A00000000000000000000061 /* HomeSenseCore */,
+			);
+			productName = HomeSense;
+			productReference = A00000000000000000000015 /* HomeSense.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		A00000000000000000000050 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastSwiftUpdateCheck = 1600;
+				LastUpgradeCheck = 1600;
+				TargetAttributes = {
+					A00000000000000000000040 = {
+						CreatedOnToolsVersion = 16.0;
+					};
+				};
+			};
+			buildConfigurationList = A00000000000000000000071 /* Build configuration list for PBXProject "HomeSense" */;
+			compatibilityVersion = "Xcode 15.0";
+			developmentRegion = zh_CN;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				zh_CN,
+				en,
+				Base,
+			);
+			mainGroup = A00000000000000000000020;
+			packageReferences = (
+				A00000000000000000000060 /* XCLocalSwiftPackageReference "." */,
+			);
+			productRefGroup = A00000000000000000000022 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				A00000000000000000000040 /* HomeSense */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		A00000000000000000000032 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A00000000000000000000004 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		A00000000000000000000030 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A00000000000000000000001 /* HomeSenseApp.swift in Sources */,
+				A00000000000000000000002 /* ContentView.swift in Sources */,
+				A00000000000000000000005 /* HomeManagementView.swift in Sources */,
+				A00000000000000000000006 /* HomeManagementEditor.swift in Sources */,
+				A00000000000000000000007 /* HomeKeypadCard.swift in Sources */,
+				A00000000000000000000009 /* HomeKeypadEditor.swift in Sources */,
+				A00000000000000000000008 /* HomeDailyDetails.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		A00000000000000000000081 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_TESTABILITY = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		A00000000000000000000082 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		A00000000000000000000083 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = A00000000000000000000019 /* Signing.xcconfig */;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = App/HomeSense.entitlements;
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = App/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.ngboss.homesense;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = auto;
+				SUPPORTED_PLATFORMS = "macosx iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		A00000000000000000000084 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = A00000000000000000000019 /* Signing.xcconfig */;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = App/HomeSense.entitlements;
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = App/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.ngboss.homesense;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = auto;
+				SUPPORTED_PLATFORMS = "macosx iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		A00000000000000000000071 /* Build configuration list for PBXProject "HomeSense" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A00000000000000000000081 /* Debug */,
+				A00000000000000000000082 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A00000000000000000000072 /* Build configuration list for PBXNativeTarget "HomeSense" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A00000000000000000000083 /* Debug */,
+				A00000000000000000000084 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		A00000000000000000000060 /* XCLocalSwiftPackageReference "." */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = .;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		A00000000000000000000061 /* HomeSenseCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A00000000000000000000060 /* XCLocalSwiftPackageReference "." */;
+			productName = HomeSenseCore;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = A00000000000000000000050 /* Project object */;
+}

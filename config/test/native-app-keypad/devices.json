@@ -1,0 +1,129 @@
+{
+  "schema_version": 2,
+  "revision": 1,
+  "rooms": [
+    {
+      "id": "study",
+      "name": "Synthetic room",
+      "floor": "2层"
+    }
+  ],
+  "floors": [
+    "1层",
+    "2层",
+    "3层"
+  ],
+  "gateways": [
+    {
+      "id": "bus",
+      "endpoint": "127.0.0.1:50007",
+      "modules": [
+        {
+          "id": "panel-module",
+          "address": "41",
+          "profile": "ts6_86_rs485_v2_6_5_6key",
+          "verification": {
+            "status": "simulated"
+          },
+          "led_mode": "manual"
+        },
+        {
+          "id": "light-module",
+          "address": "15",
+          "profile": "ad8_din_rs485_v2_2_1",
+          "verification": {
+            "status": "simulated"
+          }
+        }
+      ]
+    }
+  ],
+  "devices": [
+    {
+      "id": "fixture-light",
+      "name": "fixture-light",
+      "room": "study",
+      "module_id": "light-module",
+      "channel": 1,
+      "enabled": true
+    },
+    {
+      "id": "fixture-downlight",
+      "name": "fixture-downlight",
+      "room": "study",
+      "module_id": "light-module",
+      "channel": 2,
+      "enabled": true
+    }
+  ],
+  "keypads": [
+    {
+      "id": "panel",
+      "name": "Synthetic panel",
+      "module_id": "panel-module",
+      "room": "study",
+      "enabled": true,
+      "keys": [
+        {
+          "number": 1,
+          "label": "1",
+          "led_endpoint": {
+            "id": "legacy-key-1",
+            "name": "LED 1",
+            "enabled": true
+          },
+          "action": {
+            "kind": "scene_toggle",
+            "scene": "reading",
+            "review_evidence": "Isolated native App fixture only"
+          }
+        },
+        {
+          "number": 2,
+          "label": "2",
+          "led_endpoint": {
+            "id": "legacy-key-2",
+            "name": "LED 2",
+            "enabled": true
+          }
+        },
+        {
+          "number": 3,
+          "label": "3",
+          "led_endpoint": {
+            "id": "legacy-key-3",
+            "name": "LED 3",
+            "enabled": true
+          }
+        },
+        {
+          "number": 4,
+          "label": "4",
+          "led_endpoint": {
+            "id": "legacy-key-4",
+            "name": "LED 4",
+            "enabled": true
+          }
+        },
+        {
+          "number": 5,
+          "label": "5",
+          "led_endpoint": {
+            "id": "legacy-key-5",
+            "name": "LED 5",
+            "enabled": true
+          }
+        },
+        {
+          "number": 6,
+          "label": "6",
+          "led_endpoint": {
+            "id": "legacy-key-6",
+            "name": "LED 6",
+            "enabled": true
+          }
+        }
+      ]
+    }
+  ]
+}

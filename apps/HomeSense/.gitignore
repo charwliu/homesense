@@ -1,0 +1,7 @@
+.build/
+.swiftpm/
+build/
+/evidence/
+*.xcuserstate
+xcuserdata/
+/Signing.local.xcconfig
