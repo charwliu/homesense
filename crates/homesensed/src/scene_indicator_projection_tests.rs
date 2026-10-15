@@ -318,3 +318,34 @@ async fn positive_plan_rejects_changed_physical_selection_without_touching_leds_
     );
     h.close().await;
 }
+
+#[tokio::test]
+async fn collision_brightness_switches_every_reviewed_led_without_dropping_physical_selection() {
+    let (config,mut rules)=linked();let mut config:Json=serde_json::from_slice(&config).unwrap();
+    config["gateways"][0]["modules"][0]["profile"]=json!("ad8_din_rs485_v2_2_1");
+    rules["scene_switch_groups"][0]["reconciliation"]["policy"]=json!("power_pattern_then_profile_level");
+    rules["timed_scenes"][1]["steps"][0]["command"]["value"]=json!(30);
+    rules["timed_scenes"][1]["steps"][1]["command"]["value"]=json!(0);
+    for scene in rules["timed_scenes"].as_array_mut().unwrap(){for step in scene["steps"].as_array_mut().unwrap(){step["command"]["ramp"]=json!(true);}}
+    let parsed=homesense_config::Configuration::parse(&serde_json::to_vec(&config).unwrap(),ExecutionContext::Simulation).unwrap();
+    crate::configuration_publish::validate_automation(&parsed,&serde_json::to_vec(&rules).unwrap(),ExecutionContext::Simulation).unwrap();
+    let mut h=harness(serde_json::to_vec(&config).unwrap(),rules).await;history(&h,2);
+    let mut indicators=Synchronizer::default();
+    levels(&mut h,Some(100),Some(0));reconcile(&h).await;sync(&h,&mut indicators).await;
+    assert_eq!(h.selection().await.stored.value,Some(Value::Integer(1)),"accepted LED-only writes cannot drop inferred scene");
+    assert_eq!(drain_leds(&h).await,[((0x41,1),true),((0x42,1),true),((0x41,3),false),((0x41,5),false)].into());
+    assert_eq!(h.selection().await.stored.value,Some(Value::Integer(1)));
+    tokio::time::sleep(Duration::from_millis(2)).await;
+    levels(&mut h,Some(30),Some(0));reconcile(&h).await;sync(&h,&mut indicators).await;
+    assert_eq!(h.selection().await.stored.value,Some(Value::Integer(2)));
+    assert_eq!(drain_leds(&h).await,[((0x41,1),false),((0x42,1),false),((0x41,3),true)].into());
+    assert_eq!(h.selection().await.stored.value,Some(Value::Integer(2)));
+    tokio::time::sleep(Duration::from_millis(2)).await;
+    levels(&mut h,Some(0),Some(0));reconcile(&h).await;sync(&h,&mut indicators).await;
+    assert_eq!(drain_leds(&h).await,[((0x41,3),false)].into());
+    assert_eq!(h.selection().await.stored.value,Some(Value::Integer(0)));
+    assert_eq!(h.sql().query_row("SELECT value FROM logical_variable WHERE name='selection'",[],|r|r.get::<_,i64>(0)).unwrap(),2,"physical inference and LEDs never rewrite historical intent");
+    assert_eq!(h.sql().query_row("SELECT count(*) FROM command_journal WHERE device_id IN ('light','down','switch')",[],|r|r.get::<_,i64>(0)).unwrap(),0,"no lamp/supply commands may be synthesized");
+    for table in ["scene_run","rule_admission"]{assert_eq!(h.sql().query_row(&format!("SELECT count(*) FROM {table}"),[],|r|r.get::<_,i64>(0)).unwrap(),0);}
+    h.close().await;
+}

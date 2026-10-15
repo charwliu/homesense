@@ -1,0 +1,48 @@
+{
+  "checked_at": "2026-10-15T19:36:11.276616+08:00",
+  "scope": "additive opt-in scene inference; original full D semantics are not approved by this implementation",
+  "new_test_functions": 12,
+  "controlled_matcher_baseline": {
+    "same9_runtime_tests": true,
+    "passed": 1,
+    "failed": 8,
+    "only_reconciliation_product_file_differs_from_repair": true,
+    "baseline_contains_new_schema_and_core_foundation": true
+  },
+  "repair_runtime_tests": {
+    "passed": 9,
+    "failed": 0
+  },
+  "core_pattern_tests": {
+    "passed": 8,
+    "prior_functions": 5,
+    "new_functions": 3
+  },
+  "same_D_code_in_integrated_v1_strict_workspace_all_targets_Clippy": "exit0",
+  "v9_complete_execution": {
+    "passed": 1104,
+    "failed": 3,
+    "programs": 169,
+    "all_D_tests_passed": true,
+    "unrelated_old_exit_expectations_fail": "module_online_publication; periodic_refresh_runtime; tcp_idle_feedback",
+    "not_qualified_for_runtime_deployment": true
+  },
+  "source_manifest_sha256": "46c822aff133eb49816ebbe306e5fd8dec70601a6cb60d089777140b6e3075f9",
+  "component_file_sha256": {
+    "crates/homesense-config/src/scene_switches.rs": "0b0c55e4da2d9e3e3d8ae6c96ec0830b28f7ec142a8af9da530720f703b931d0",
+    "crates/homesense-core/src/scene_pattern.rs": "8c4a53a0d8f9a257b40c94608ff1f880396ef4d05f292b677b7798a419a255d2",
+    "crates/homesense-core/tests/scene_pattern.rs": "61385d7c8f44c8ec3014395124b71340e2230b57054d4af4e4b600ebaf210641",
+    "crates/homesensed/src/scene_reconciliation.rs": "2827fddb4099e15c22856261512ddf4202b88f669d1bef674a44f38dcc3a29ed",
+    "crates/homesensed/src/scene_indicator_projection_tests.rs": "9bd53f429b5388b111e0d5573c10922b665ca1afcc5c8f7161215ee9e285f986",
+    "crates/homesensed/src/scene_brightness_reconciliation_tests.rs": "0ac35f35a17f882b952fced5614c1bd43f27e2bfd355fda39165d1555ddf89c1",
+    "crates/homesensed/src/scene_reconciliation_tests.rs": "5c5259e7122d096004cb0846b5a66a31bc4ff7f1d3fffb5822dc414a42f9f695",
+    "docs/scene-state-inference-policy.md": "df94aa2d00e04be3c488ee357414e2755d42704d764e557f84f95d8215f0dcd3"
+  },
+  "new_policy_default_enabled": false,
+  "profile_discriminator": "AD8 integer percent only; unsupported varying profiles reject",
+  "actual_current_feedback_only": true,
+  "field_commands": 0,
+  "configuration_published": false,
+  "original_rules_newly_enabled": false,
+  "D_E_complete": false
+}
