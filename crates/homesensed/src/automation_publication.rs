@@ -95,6 +95,10 @@ impl Pending {
     pub(crate) async fn begin_before_deadline(&self,admission:&crate::admission::Admission,deadline:tokio::time::Instant)->Result<(),crate::automation_tcp::HandoffPublicationFailure> {
         crate::automation_tcp::begin_authorized_handoff_before_deadline(admission,&self.devices,&self.rules,self.expected_revision,deadline,self.source.clone()).await
     }
+    pub(crate) async fn begin_with_lifetime(&self,admission:&crate::admission::Admission,deadline:crate::lifecycle::Deadline)->Result<(),crate::automation_tcp::HandoffPublicationFailure>{
+        if let Some(deadline)=deadline.raw(){self.begin_before_deadline(admission,deadline).await}
+        else{self.begin(admission,Duration::from_secs(3)).await.map_err(crate::automation_tcp::HandoffPublicationFailure::Admission)}
+    }
     pub fn complete(self, result: Result<u64, String>) {
         let _ = self.reply.send(result);
     }

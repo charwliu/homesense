@@ -1,0 +1,213 @@
+{
+  "checked_at": "2026-10-15T21:26:29.846065+08:00",
+  "user_request": "部署启动整合E2并一直提供服务",
+  "scope": "explicit forever lifetime, graceful termination and supervised deployment; local synthetic QA until live release",
+  "source_manifest_sha256": "a56d331b52c32fb2469015f29023261ef835588ff2042e3c2ececdf84abe084b",
+  "input_files": 1225,
+  "integrated_commits": [
+    "18e38f8 runtime outage retention",
+    "24adfae independent singleton scene switches"
+  ],
+  "runtime_contract": {
+    "finite_seconds": "1..86400, deadline after initial full synchronization",
+    "forever": "typed absence of overall deadline; no giant duration or daily restart",
+    "initial_unavailability": "bounded backoff and fresh epochs until initial complete feedback; no startup outputs or listeners before complete initial truth",
+    "established_unavailability": "HTTPS/WSS/session/HAP identity retained, unknown and controls gated until complete same-epoch feedback",
+    "SIGTERM_SIGINT": "registered before live service operations, request graceful stop",
+    "publication_shutdown": "before accepted barrier reject; after barrier drain already accepted safetySTOP and commit before exit; no unrequested motor action synthesized",
+    "per_operation_limits": "connect/query/write/admission/request limits retained; accepted publication finalization bounded30seconds",
+    "closed_stop_channel": "stops normally"
+  },
+  "old_failure_history": {
+    "v16": "HTTP test helper return type mismatch; compilation failed before test execution",
+    "v17": "10pass/1fail; invalid fixture expected an unrequested STOP after manual open; no queued STOP existed",
+    "v18": "Root test-only hook wrapped already constructed motor Command; compile error, no tests executed",
+    "v19": "10pass/1fail; Root hook used lights-only submission for motor; actor correctly rejected it",
+    "v20_corrections": "test boundary explicitly admits one typed logical motorSTOP under handoff gate, then signals after barrier; all original assertions/time limits retained",
+    "v20_clippy": "one possible_missing_else fixture newline lint; corrected with one newline only"
+  },
+  "v20_lifecycle": {
+    "passed": 11,
+    "failed": 0,
+    "new_functions": 6,
+    "existing_functions": 5,
+    "actual_program_hash_reverified": true,
+    "includes_actual_loopback_TCP_and_state_database": true,
+    "logical_time_advance_days": 30,
+    "is_not_30days_wallclock_acceptance": true
+  },
+  "v20_production_CLI": {
+    "functions_passed": 2,
+    "functions_failed": 0,
+    "actual_sigterm_sigint_and_finite_child_processes": 3,
+    "actual_program_hash_reverified": true,
+    "startup_written_once_per_child": true,
+    "invalid_modes_connect_or_create_state": false
+  },
+  "v21_change_from_v20": "single test-only newline; product bytes unchanged",
+  "v21_strict_Clippy": {
+    "workspace_all_targets_Dwarnings": true,
+    "exit_code": 0,
+    "input_unchanged": true
+  },
+  "lockfile": {
+    "existing_versions_removed_or_changed": false,
+    "tokio_fixed_version": "1.53.2",
+    "new_feature": "signal",
+    "test_util": "dev-dependency only",
+    "new_transitive_archives_independently_verified": [
+      {
+        "name": "errno",
+        "version": "0.3.14",
+        "archive_sha256": "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
+      },
+      {
+        "name": "signal-hook-registry",
+        "version": "1.4.8",
+        "archive_sha256": "c4db69cba1110affc0e9f7bcd48bbf87b3f4fc7c61fc9155afd4c469eb3d6c1b"
+      }
+    ],
+    "offline_locked_resolution_and_compilation_passed": true,
+    "unsafe_code_added": false
+  },
+  "full_workspace": {
+    "source_manifest_sha256": "a56d331b52c32fb2469015f29023261ef835588ff2042e3c2ececdf84abe084b",
+    "passed": 1128,
+    "failed": 0,
+    "ignored": 0,
+    "filtered": 0,
+    "result_blocks": 172,
+    "actual_programs": 172,
+    "all_program_hashes_independently_reverified": true,
+    "input_unchanged": true,
+    "v14_tests_retained": 1117,
+    "added_tests": [
+      [
+        "continuous_cli",
+        "explicit_forever_runs_until_sigterm_or_sigint_and_finite_mode_still_expires"
+      ],
+      [
+        "continuous_cli",
+        "invalid_lifetimes_are_rejected_before_connecting_or_creating_state"
+      ],
+      [
+        "homesensed",
+        "automation_tcp::lifecycle_tests::explicit_stop_after_accepted_publication_drains_motor_stop_and_commits_before_exit"
+      ],
+      [
+        "homesensed",
+        "automation_tcp::lifecycle_tests::forever_retries_initial_unavailability_without_startup_until_complete_feedback"
+      ],
+      [
+        "homesensed",
+        "automation_tcp::lifecycle_tests::forever_survives_multi_day_advance_fault_partial_recovery_and_online_publication_without_replay"
+      ],
+      [
+        "homesensed",
+        "automation_tcp::lifecycle_tests::stop_during_initial_synchronization_finishes_without_startup_or_control"
+      ],
+      [
+        "homesensed",
+        "lifecycle::tests::forever_has_no_deadline_after_many_days_while_finite_still_expires"
+      ],
+      [
+        "homesensed",
+        "lifecycle::tests::lifetime_parser_preserves_bounded_contract_and_requires_explicit_forever"
+      ],
+      [
+        "single_member_scene_groups",
+        "independent_single_member_groups_keep_disjoint_targets_and_unknown_initial_selection"
+      ],
+      [
+        "single_member_scene_groups",
+        "singleton_support_still_rejects_empty_groups_and_shared_selection_variables"
+      ],
+      [
+        "single_member_scene_switches",
+        "independent_singletons_execute_on_off_without_exclusion_or_unknown_guessing"
+      ]
+    ],
+    "removed_tests": [],
+    "inventory_count": 1128
+  },
+  "doc_tests": {
+    "blocks": 10,
+    "examples": 0,
+    "failed": 0,
+    "input_unchanged": true
+  },
+  "forever_AD8_production_lifecycle": {
+    "binary_sha256": "7e17231b630b7ffac80bbac0fc5b3f4700fc6738594b051beb13d3f6b2ac011f",
+    "all_endpoints_loopback": true,
+    "production_cli": true,
+    "field_controls": 0,
+    "required_ports": 8,
+    "bound_ports": 1,
+    "synthetic_profile": "ad8_din_rs485_v2_2_1",
+    "run_mode": "forever",
+    "explicit_stop_after_seconds": 40,
+    "scope": "established service, silent/partial/full feedback, conservative unknown receipt with journal/wire no-execution proof and cached replay isolation, listener/session retention, explicit graceful SIGTERM",
+    "passed": true,
+    "elapsed_seconds": 40.03724558302201,
+    "epochs": {
+      "initial": 2,
+      "recovered": "8"
+    },
+    "connections": 7,
+    "controls": [
+      {
+        "at_ms": 4133.082,
+        "connection": 1,
+        "phase": "initial",
+        "raw": "ae11b119ee"
+      },
+      {
+        "at_ms": 29276.185,
+        "connection": 7,
+        "phase": "full",
+        "raw": "ae11b11eee"
+      }
+    ],
+    "unbound_external_events": 3,
+    "same_wss_connection_recovered": true,
+    "HAP_identity_unchanged": true,
+    "session_retained": true,
+    "partial_feedback_kept_gated": true,
+    "offline_outcome": "unknown",
+    "offline_no_journal_or_wire": true,
+    "cached_unknown_retry_no_execution": true,
+    "no_replay": true,
+    "explicit_SIGTERM_shutdown": true,
+    "no_global_deadline": true,
+    "wss_error": "EOFError()",
+    "worker_errors": []
+  },
+  "Linux": "deployment chat, local production crosscompile and binary-only isolated smoke pending",
+  "systemd": "prepared, not installed or started",
+  "deployed": false,
+  "field_actuator_controls": 0,
+  "D_E_complete": false,
+  "independent_probe_audit": {
+    "journal_rows": [
+      [
+        "01031900",
+        "written"
+      ],
+      [
+        "01031E00",
+        "written"
+      ]
+    ],
+    "pending_commands": 0,
+    "WSS_observed_levels": [
+      25,
+      45,
+      30
+    ],
+    "same_WSS_socket_verified": true,
+    "temporary_token_and_private_key_removed": true,
+    "pinned_binary_SHA_reverified": true,
+    "wallclock_seconds": 40.03724558302201,
+    "logical_30days_is_not_wallclock_acceptance": true
+  }
+}

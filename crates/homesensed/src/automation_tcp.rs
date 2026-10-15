@@ -1,4 +1,4 @@
-//! Explicit bounded automation over TCP with optional supervised Web/HAP endpoints.
+//! Explicit finite or continuously supervised automation with shared Web/HAP endpoints.
 use crate::{
     admission::{Admission, Options},
     automation_runtime::AutomationRuntime,
@@ -103,6 +103,21 @@ pub async fn serve_bridges(devices:&[u8],rules:&[u8],directory:&Path,duration:Du
     let (publisher,receiver)=crate::automation_publication::channel();
     serve_inner(devices,rules,directory,duration,coexistence_confirmed,recovery_limit,Some(receiver),write_interval,Some(web),Some(publisher),None,Some(plan),#[cfg(test)] None).await
 }
+/// Optional endpoints owned by the same automation supervisor.
+#[derive(Default)]
+pub struct Endpoints {
+    pub management:Option<crate::service::WebSettings>,
+    pub hap:Option<crate::hap_endpoint::Settings>,
+    pub hap_plan:Option<Vec<u8>>,
+}
+/// Explicit finite or forever mode with a graceful external stop channel.
+#[allow(clippy::too_many_arguments)]
+pub async fn serve_running(devices:&[u8],rules:&[u8],directory:&Path,control:crate::lifecycle::RunControl,coexistence_confirmed:bool,recovery_limit:u8,write_interval:Duration,endpoints:Endpoints)->Result<(),String>{
+    if let Some(web)=&endpoints.management {if let Some(tls)=&web.tls {tls.validate_address(web.address)?;}else if !web.address.ip().is_loopback() || web.address.port()==0{return Err("plaintext management requires loopback".into());}}
+    if endpoints.hap.is_some() && endpoints.management.as_ref().is_some_and(|web|Some(web.address)==endpoints.hap.as_ref().map(|hap|hap.address)){return Err("HAP and Web require distinct endpoints".into());}
+    let (publisher,publications)=if endpoints.management.is_some(){let (publisher,receiver)=crate::automation_publication::channel();(Some(publisher),Some(receiver))}else{(None,None)};
+    serve_inner_running(devices,rules,directory,control,coexistence_confirmed,recovery_limit,publications,write_interval,endpoints.management,publisher,endpoints.hap,endpoints.hap_plan,#[cfg(test)] None).await
+}
 fn validate_bridge_plan(plan:&[u8],config:&homesense_config::Configuration,rules:&[u8],web:Option<std::net::SocketAddr>)->Result<(),String> {
     let document=crate::configuration_publish::validate_automation(config,rules,ExecutionContext::Live).map_err(|e|e.to_string())?;
     let parsed=crate::hap_bridge_plan::Plan::parse(plan,config,&document)?;
@@ -127,7 +142,14 @@ pub(crate) async fn begin_authorized_handoff_before_deadline(admission:&Admissio
         .map_err(HandoffPublicationFailure::Admission)
 }
 #[allow(clippy::too_many_arguments)]
-async fn serve_inner(devices:&[u8],rules:&[u8],directory:&Path,duration:Duration,coexistence_confirmed:bool,recovery_limit:u8,mut publications:Option<crate::automation_publication::Receiver>,write_interval:Duration,mut management_settings:Option<crate::service::WebSettings>,publisher:Option<crate::automation_publication::Publisher>,hap_settings:Option<crate::hap_endpoint::Settings>,hap_plan:Option<Vec<u8>>,#[cfg(test)] hap_failure_after:Option<Duration>)->Result<(),String> {
+async fn serve_inner(devices:&[u8],rules:&[u8],directory:&Path,duration:Duration,coexistence_confirmed:bool,recovery_limit:u8,publications:Option<crate::automation_publication::Receiver>,write_interval:Duration,management_settings:Option<crate::service::WebSettings>,publisher:Option<crate::automation_publication::Publisher>,hap_settings:Option<crate::hap_endpoint::Settings>,hap_plan:Option<Vec<u8>>,#[cfg(test)] hap_failure_after:Option<Duration>)->Result<(),String> {
+    let (_hold,stop)=tokio::sync::watch::channel(false);
+    serve_inner_running(devices,rules,directory,crate::lifecycle::RunControl::new(crate::lifecycle::RunMode::For(duration),stop),coexistence_confirmed,recovery_limit,publications,write_interval,management_settings,publisher,hap_settings,hap_plan,#[cfg(test)] hap_failure_after).await
+}
+#[allow(clippy::too_many_arguments)]
+async fn serve_inner_running(devices:&[u8],rules:&[u8],directory:&Path,control:crate::lifecycle::RunControl,coexistence_confirmed:bool,recovery_limit:u8,mut publications:Option<crate::automation_publication::Receiver>,write_interval:Duration,mut management_settings:Option<crate::service::WebSettings>,publisher:Option<crate::automation_publication::Publisher>,hap_settings:Option<crate::hap_endpoint::Settings>,hap_plan:Option<Vec<u8>>,#[cfg(test)] hap_failure_after:Option<Duration>)->Result<(),String> {
+    #[cfg(test)] let mut stop_after_barrier=control.stop_after_barrier.clone();
+    #[cfg(test)] let mut queue_stop_before_barrier=control.queue_stop_before_barrier.clone();
     let receipt_policy=management_settings.as_ref().map(|_|crate::web_receipt_policy::Policy::load(directory)).transpose()?;
     if !(Duration::from_millis(20)..=Duration::from_secs(1)).contains(&write_interval) {
         return Err("write interval must be 20..1000 ms".into());
@@ -135,9 +157,9 @@ async fn serve_inner(devices:&[u8],rules:&[u8],directory:&Path,duration:Duration
     if recovery_limit > 16 {
         return Err("recovery limit must be 0..16".into());
     }
-    if !coexistence_confirmed || duration.is_zero() || duration > Duration::from_secs(86400) {
-        return Err("automation TCP requires confirmed coexistence and duration in (0,24h]".into());
-    }
+    control.mode.validate()?;
+    if !coexistence_confirmed {return Err("automation TCP requires confirmed coexistence".into());}
+    if control.stopped(){return Ok(());}
     let mut config = validate_candidate_with_write_interval(devices, rules, write_interval)?;
     if let Some(settings)=&hap_settings {settings.validate(&config,&crate::configuration_publish::validate_automation(&config,rules,ExecutionContext::Live).map_err(|e|e.to_string())?)?;}
     if hap_settings.is_some() && hap_plan.is_some() {return Err("single and multiple HAP publication are exclusive".into());}
@@ -172,21 +194,30 @@ async fn serve_inner(devices:&[u8],rules:&[u8],directory:&Path,duration:Duration
     let _guard = Stop(admission.clone());
     let daily_backup=crate::daily_backup::Monitor::default();
     let result = async {
-        let (_stop, receiver) = tokio::sync::watch::channel(false);
+        let receiver=control.stop.clone();
         let mut endpoints: std::collections::BTreeMap<_,_> = config
             .gateways()
             .iter()
             .map(|(id, g)| (id.clone(), g.endpoint))
             .collect();
-        let (transport, mut epoch) = reconnect_tcp(
+        let (mut owner,mut epoch)=if matches!(control.mode,crate::lifecycle::RunMode::Forever){
+            let synchronized=crate::runtime_transport_recovery::until_ready_with_lifetime(admission.clone(),&config,endpoints.clone(),1,recovery_limit,crate::lifecycle::Deadline::start(control.mode),receiver.clone()).await?;
+            let Some(synchronized)=synchronized else{return Ok(());};synchronized
+        }else{
+        let connected=tokio::select! {
+            biased;
+            _=crate::lifecycle::wait_for_stop(receiver.clone())=>None,
+            result=reconnect_tcp(
             admission.clone(),
             endpoints.clone(),
             1,
             RetryPolicy::default(),
             true,
             receiver.clone(),
-        )
-        .await?;
+            )=>Some(result),
+        };
+        let Some(connected)=connected else{return Ok(());};
+        let (transport,epoch)=connected?;
         let feedback = Feedback::new(
             &config,
             ExecutionContext::Live,
@@ -196,16 +227,21 @@ async fn serve_inner(devices:&[u8],rules:&[u8],directory:&Path,duration:Duration
             epoch,
         )?;
         let mut owner = ObservedTransport::new_recovering(transport, feedback, epoch)?;
-        owner
-            .query_recovery_with_policy(&config, ExecutionContext::Live, 1000, 5000, crate::observed_transport::Synchronization::OutputsAndCalibratedMotors)
-            .await?;
-        let deadline=tokio::time::Instant::now()+duration;
+        tokio::select! {
+            biased;
+            _=crate::lifecycle::wait_for_stop(receiver.clone())=>return Ok(()),
+            result=owner.query_recovery_with_policy(&config, ExecutionContext::Live, 1000, 5000, crate::observed_transport::Synchronization::OutputsAndCalibratedMotors)=>result?,
+        }
+            (owner,epoch)
+        };
+        let deadline=crate::lifecycle::Deadline::start(control.mode);
         let mut recoveries=0u64;
         let mut prepared_runtime = None;
         let mut hap:Option<crate::hap_endpoint::Endpoint>=None;
         let mut bridges:Option<crate::hap_bridge_group::Group>=None;
         let mut management:Option<crate::management_endpoint::Endpoint>=None;
         loop {
+            if control.stopped() || deadline.expired(){return Ok(());}
             use crate::{automation_drive::Exit,automation_runtime::StartupPolicy};
             let startup=if recoveries==0 {StartupPolicy::Run} else {StartupPolicy::Suppress};
             let (runtime_stop, runtime_receive) = tokio::sync::watch::channel(false);
@@ -227,6 +263,9 @@ async fn serve_inner(devices:&[u8],rules:&[u8],directory:&Path,duration:Duration
             } else if let Some(endpoint)=&management {endpoint.install(&admission,controller,&runtime).await?;}
             if let Some(endpoint)=&management {endpoint.set_hap_status(if hap.is_some(){crate::web_api::HapStatus::Listening}else if hap_settings.is_some(){crate::web_api::HapStatus::Degraded}else{crate::web_api::HapStatus::Disabled})?;}
             if let (Some(endpoint),Some(group))=(&management,&bridges) {endpoint.set_hap_bridges(group.statuses.borrow().clone())?;}
+            // Initialization may span async identity/listener setup. A stop that
+            // arrived there must not start a fresh runtime/startup rule quantum.
+            if control.stopped() || deadline.expired(){return Ok(());}
             let handoff_gate=runtime.handoff_gate();
             let outcome={
                 let (ready,mut started)=tokio::sync::oneshot::channel();
@@ -258,7 +297,8 @@ async fn serve_inner(devices:&[u8],rules:&[u8],directory:&Path,duration:Duration
                             let _=runtime_stop.send(true);let cleanup=drive.await;
                             break cleanup.and_then(|_|Err(result.err().unwrap_or_else(||"management listener ended".into())));
                         },
-                        _=tokio::time::sleep_until(deadline)=>{let _=runtime_stop.send(true);break drive.await},
+                        _=deadline.wait()=>{let _=runtime_stop.send(true);break drive.await},
+                        _=crate::lifecycle::wait_for_stop(receiver.clone())=>{let _=runtime_stop.send(true);break drive.await},
                         result=&mut started, if !running => {if result.is_err() {break drive.await;} running=true;},
                         request=async {
                             match publications.as_mut() {
@@ -290,6 +330,11 @@ async fn serve_inner(devices:&[u8],rules:&[u8],directory:&Path,duration:Duration
                                 builder.create(&folder).map_err(|e|e.to_string())?;
                                 homesense_storage::backup::create(&source,&folder.join(format!("before-{expected}-{}.sqlite",Uuid::new_v4())),Duration::from_secs(10))
                             }).await.map_err(|e|e.to_string()).and_then(|v|v);
+                            if control.stopped() {
+                                if let Some(endpoint)=&management {endpoint.restore(previous)?;}
+                                request.complete(Err("service stopped before publication barrier".into()));
+                                let _=runtime_stop.send(true);break drive.await;
+                            }
                             if backup.is_err() || request.abandoned() {
                                 if let Some(endpoint)=&management {endpoint.restore(previous)?;}
                                 request.complete(Err("backup failed or publication abandoned".into()));continue;
@@ -302,18 +347,33 @@ async fn serve_inner(devices:&[u8],rules:&[u8],directory:&Path,duration:Duration
                                     request.complete(Err("runtime ended before publication barrier".into()));
                                     break outcome;
                                 },
-                                _=tokio::time::sleep_until(deadline)=>{
+                                _=crate::lifecycle::wait_for_stop(receiver.clone())=>{
+                                    request.complete(Err("service stopped before publication barrier".into()));
+                                    let _=runtime_stop.send(true);break drive.await;
+                                },
+                                _=deadline.wait()=>{
                                     request.complete(Err("service deadline reached before publication barrier".into()));
                                     let _=runtime_stop.send(true);
                                     break drive.await;
                                 },
                             };
+                            if control.stopped() {
+                                drop(quantum);request.complete(Err("service stopped before publication barrier".into()));
+                                let _=runtime_stop.send(true);break drive.await;
+                            }
                             if request.abandoned() {
                                 drop(quantum);
                                 if let Some(endpoint)=&management {endpoint.restore(previous)?;}
                                 request.complete(Err("publication abandoned before barrier".into()));continue;
                             }
-                            match request.begin_before_deadline(&admission,deadline).await {
+                            // Test-only scheduling boundary: make the safety STOP an
+                            // actual accepted ticket before publication adopts it.
+                            #[cfg(test)]
+                            if let Some(device)=queue_stop_before_barrier.take(){
+                                let ids=admission.submit_motor_for_revision(config.revision(),controller,device,homesense_core::MotorAction::Stop).await.map_err(|e|format!("synthetic queued STOP: {e:?}"))?;
+                                if ids.len()!=1{return Err("synthetic STOP was not accepted".into());}
+                            }
+                            match request.begin_with_lifetime(&admission,deadline).await {
                                 Ok(())=>{},
                                 Err(HandoffPublicationFailure::Deadline)=>{
                                     request.complete(Err("service deadline reached before publication barrier".into()));
@@ -324,6 +384,8 @@ async fn serve_inner(devices:&[u8],rules:&[u8],directory:&Path,duration:Duration
                                     request.complete(Err(format!("publication rejected: {error:?}")));continue;
                                 },
                             }
+                            #[cfg(test)]
+                            if let Some(stop)=stop_after_barrier.take(){stop.send_replace(true);}
                             pending=Some((request,candidate));
                             let _=runtime_stop.send(true);
                             drop(quantum);
@@ -369,7 +431,7 @@ async fn serve_inner(devices:&[u8],rules:&[u8],directory:&Path,duration:Duration
                         while owner.drain_publication(&admission).await?.is_some() {}
                         admission.commit_publication().await.map_err(|e|format!("publication commit: {e:?}"))
                     };
-                    let revision=match tokio::time::timeout_at(deadline,commit).await {
+                    let revision=match tokio::time::timeout_at(deadline.operation(Duration::from_secs(30)),commit).await {
                         Ok(Ok(revision))=>revision,
                         failure=>{
                             admission.stop_now();
@@ -384,13 +446,15 @@ async fn serve_inner(devices:&[u8],rules:&[u8],directory:&Path,duration:Duration
                     // Every error after the durable commit must complete the accepted
                     // request explicitly: a lost reply must not hide a committed revision.
                     let activation=async {
+                        if control.stopped(){return Ok(None);}
                         if let Some(endpoint)=&management {endpoint.unavailable_mapping(&admission,controller,unavailable_control,&config,request.rules()).await?;}
-                        let recovery=crate::runtime_transport_recovery::until_ready(admission.clone(),&config,endpoints.clone(),epoch,recovery_limit,deadline,receiver.clone());
+                        let recovery=crate::runtime_transport_recovery::until_ready_with_lifetime(admission.clone(),&config,endpoints.clone(),epoch,recovery_limit,deadline,receiver.clone());
                         let recovered=tokio::select! {
                             result=recovery=>result?,
                             result=async{match management.as_mut(){Some(endpoint)=>endpoint.finished().await,None=>std::future::pending().await}}=>return Err(result.err().unwrap_or_else(||"management listener ended during publication recovery".into())),
                         };
                         let Some((fresh,next))=recovered else{return Ok(None);};
+                        if control.stopped(){return Ok(None);}
                         let failed_round=next!=epoch.checked_add(1).ok_or("transport epoch exhausted")?;
                         let startup=if failed_round{StartupPolicy::Suppress}else{StartupPolicy::Run};
                         let runtime=AutomationRuntime::load_with_startup(admission.clone(),controller,wall_ms()?,1000,64,Default::default(),startup).await?;
@@ -407,7 +471,7 @@ async fn serve_inner(devices:&[u8],rules:&[u8],directory:&Path,duration:Duration
                             request.complete(Ok(revision));
                         },
                         Ok(None)=>{
-                            request.complete(Err(format!("publication committed revision {revision}, but feedback unavailable before service deadline; inspect active revision before retrying")));
+                            request.complete(Err(format!("publication committed revision {revision}, but feedback unavailable before service deadline or explicit shutdown; inspect active revision before retrying")));
                             return Ok(());
                         },
                         Err(error)=>{
@@ -421,7 +485,7 @@ async fn serve_inner(devices:&[u8],rules:&[u8],directory:&Path,duration:Duration
                     recoveries=recoveries.checked_add(1).ok_or("recovery counter exhausted")?;
                     log::warn!("automation_unavailable outage={recoveries} gateway={gateway:?} previous_epoch={epoch}; listeners retained, controls gated");
                     drop(owner); // Snapshots are owned by listeners; dead streams must not retain gateway slots.
-                    let recovery=crate::runtime_transport_recovery::until_ready(admission.clone(),&config,endpoints.clone(),epoch,recovery_limit,deadline,receiver.clone());
+                    let recovery=crate::runtime_transport_recovery::until_ready_with_lifetime(admission.clone(),&config,endpoints.clone(),epoch,recovery_limit,deadline,receiver.clone());
                     let recovered=tokio::select! {
                         result=recovery=>result?,
                         result=async {match management.as_mut(){Some(endpoint)=>endpoint.finished().await,None=>std::future::pending().await}}=>return Err(result.err().unwrap_or_else(||"management listener ended during recovery".into())),
@@ -520,3 +584,7 @@ pub(crate) mod fault_tests;
 #[cfg(test)]
 #[path = "automation_tcp_bridge_tests.rs"]
 mod bridge_tests;
+
+#[cfg(test)]
+#[path="automation_tcp_lifecycle_tests.rs"]
+mod lifecycle_tests;
