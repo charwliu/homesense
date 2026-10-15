@@ -93,9 +93,10 @@
       "stage": "E",
       "requirement": "灯光、场景、窗帘与面板入口",
       "verified_scope": "两房间多项手动灯光／场景／窗帘及LED已限定现场通过；现有两面板父卡已在线发布到rev10，原Admin视图2父卡/各6格/0独立LED，原17授权及20展开端点保持，7格既有动作可见。",
-      "remaining_evidence": "App实际卡片显示确认待用户回复；新增庭院/回家候选的物理投影修复待完整验证与部署，其他扩展和按键现场动作仍未验收。",
+      "remaining_evidence": "App实际卡片显示确认待用户回复；新增庭院/回家候选的物理投影修复待完整验证与部署，其他扩展和按键现场动作仍未验收。 书房2/4/6已配置但被原17凭证范围过滤，17→20的CAS授权/回退提案已准备；会同时开放书房完整面板参数管理，须明确确认，未执行。",
       "status": "keypad_candidate_runtime_counterexample_and_physical_acceptance_partial",
-      "additional_existing_card_evidence": "stage-e-browser/keypad-existing-cards-publication-root-check.json"
+      "additional_existing_card_evidence": "stage-e-browser/keypad-existing-cards-publication-root-check.json",
+      "additional_scope_completion_proposal": "stage-e-browser/study-keypad-scope-proposal-root-check.json"
     },
     {
       "id": "E-4",
@@ -225,7 +226,8 @@
     "stage-d-study/scene-toggle-leaf-dependencies-root-check.json": "d31c611324d62d31aec36c9830936488d1fe7df3184252a831103435eeff4313",
     "stage-d-study/variable-feedback-replacement-plan-root-check.json": "d95c8a478e9e3d074c19779c239132fb72002d6af893e95b096d97add3a9d7e2",
     "stage-d-study/variable-composite-offsets-root-check.json": "fd145df5a38f904d62ea311ce191ab97d4537c7a533f53efe877fa4e68696d0c",
-    "stage-e-browser/indicator-cross-writer-baseline-root-check.json": "6d118e9bffc0f72a9b2058c2db15d8063aeb12665362fed4158c1d892de898de"
+    "stage-e-browser/indicator-cross-writer-baseline-root-check.json": "6d118e9bffc0f72a9b2058c2db15d8063aeb12665362fed4158c1d892de898de",
+    "stage-e-browser/study-keypad-scope-proposal-root-check.json": "0a44ec8552c7b03c37cf4feeefd9af34078f261f4516ce291ede4e80b1be3285"
   },
   "excluded_by_scope": {
     "Siri": "cancelled by user",
@@ -441,5 +443,7 @@
   "latest_scene_toggle_dependency_evidence": "stage-d-study/scene-toggle-leaf-dependencies-root-check.json",
   "latest_variable_feedback_replacement_plan": "stage-d-study/variable-feedback-replacement-plan-root-check.json",
   "latest_composite_variable_policy_plan": "stage-d-study/variable-composite-offsets-root-check.json",
-  "latest_corrected_indicator_baseline": "stage-e-browser/indicator-cross-writer-baseline-root-check.json"
+  "latest_corrected_indicator_baseline": "stage-e-browser/indicator-cross-writer-baseline-root-check.json",
+  "existing_study_keypad_scope_completion_proposal": "stage-e-browser/study-keypad-scope-proposal-root-check.json",
+  "existing_study_keypad_scope_completion_applied": false
 }

@@ -1,0 +1,36 @@
+{
+  "configuration_revision": 10,
+  "existing_devices": 17,
+  "proposed_devices": 20,
+  "existing_scenes": 7,
+  "proposed_scenes": 7,
+  "all_new_endpoints_already_exist_in_active_configuration": true,
+  "new_physical_control_targets": 0,
+  "motor_target_control_already_granted": true,
+  "expected_native_key_actions_before": 7,
+  "expected_native_key_actions_after": 10,
+  "role_controller_secret_and_credential_id_unchanged": true,
+  "other_permission_effects": [
+    "direct LED controls for the three added endpoints",
+    "study full-six-key administrator panel setting permission becomes available for backlight/sound/matching work mode; not permission to send unreviewed unmatched hardware mode"
+  ],
+  "existing17_bearer_cannot_self_expand": "update_grant subset check correctly rejects parent17 -> proposed20",
+  "issuer_required_before_any_execution": "existing full20 Administrator authority with same controller; deployment must verify service bootstrap grant before use; no authorization bypass",
+  "CAS_expected_old_grant_required": true,
+  "rollback_expected_new_grant_required": true,
+  "source_generation_changes": "credential generation rotates and old sessions/source leases are invalidated; stored bearer secret is retained",
+  "user_confirmation_status": "pending; current earlier scene-policy question stays first",
+  "secret_material_in_plan": false,
+  "automatic_scope_expansion_performed": false,
+  "credential_write": false,
+  "device_commands_sent": 0,
+  "configuration_published": false,
+  "added_cells": "study panel2/4/6 only; artstudio5/6 remain unconfigured",
+  "private_artifact_sha256": {
+    "deployment/ngr/private/20261015-study-keypad-scope-plan-root/plan.json": "aeb685a9091596b6abf7316cff4506185ce160fa0a8733b194958e5bfe91f292",
+    "deployment/ngr/private/20261015-study-keypad-scope-plan-root/grant-update-proposal.json": "bb514a1eda51952eef604d71832c3218528b913cd49b369b621538ae2f76b154",
+    "deployment/ngr/private/20261015-study-keypad-scope-plan-root/grant-rollback-proposal.json": "80afa0c2d432e2d84f26522610f7eb4bf33e16e11e56be9199bb236e28970191",
+    "deployment/ngr/private/20261015-study-keypad-scope-plan-root/credential-summary.json": "998a1be6370134e42eb67c837274e7bf7cd05794f63c21ae3ac2ab8421f091cc",
+    "deployment/ngr/private/20261015-study-keypad-scope-plan-root/active10-export.json": "c8e0317a9a8b88a737c0ba9d9d34b75bb40fee02ef582fa0b86f62e1e5d4f85b"
+  }
+}
