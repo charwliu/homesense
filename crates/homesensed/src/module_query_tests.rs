@@ -776,3 +776,6 @@ async fn changed_duplicate_is_latest_observation_not_an_atomic_batch_ack() {
     );
     h.close().await;
 }
+
+#[path = "periodic_refresh_tests.rs"]
+mod periodic_refresh_tests;
