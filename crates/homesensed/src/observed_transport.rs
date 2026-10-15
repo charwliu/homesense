@@ -515,6 +515,12 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
     /// Only loss of transport/feedback is retryable. Invalid projection state
     /// is an invariant failure and must not be hidden by network retries.
     pub(crate) fn retryable_failure(&self)->bool {self.unavailable && !self.projection_failed}
+    /// Only a completed durable receive-fault audit permits runtime handoff.
+    /// Projection invariants, worker failures and cancelled operations stay fatal.
+    pub(crate) fn audited_receive_failure_gateway(&self) -> Option<&str> {
+        if self.retryable_failure() { self.transport.audited_receive_failure_gateway() } else { None }
+    }
+
     pub(crate) fn invalidate(&mut self) {
         self.output_refresh = None;
         self.unavailable = true;

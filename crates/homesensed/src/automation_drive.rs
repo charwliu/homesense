@@ -268,7 +268,19 @@ pub(crate) async fn drive_with_panel_feeds<S: Read + Write + Send + 'static>(
                 return Ok(());
             }
             let had_pending_read = guard.owner.output_query_pending();
-            if let Some(read) = guard.owner.receive_pending_output().await?
+            let pending_read = match guard.owner.receive_pending_output().await {
+                Ok(read) => read,
+                Err(error) => {
+                    if let Some(gateway) = guard.owner.audited_receive_failure_gateway() {
+                        log::warn!("audited gateway receive failed gateway={gateway}: {error}");
+                        transport_failure = true;
+                        disconnected = Some(gateway.to_owned());
+                        return Ok(());
+                    }
+                    return Err(error);
+                }
+            };
+            if let Some(read) = pending_read
                 && matches!(read.result, hb_transport::Receive::Disconnected { .. })
             {
                 transport_failure = true;
@@ -358,7 +370,18 @@ pub(crate) async fn drive_with_panel_feeds<S: Read + Write + Send + 'static>(
             if *stop.borrow() {
                 return Ok(());
             }
-            let read = guard.owner.receive(&gateways[next]).await?;
+            let read = match guard.owner.receive(&gateways[next]).await {
+                Ok(read) => read,
+                Err(error) => {
+                    if let Some(gateway) = guard.owner.audited_receive_failure_gateway() {
+                        log::warn!("audited gateway receive failed gateway={gateway}: {error}");
+                        transport_failure = true;
+                        disconnected = Some(gateway.to_owned());
+                        return Ok(());
+                    }
+                    return Err(error);
+                }
+            };
             if matches!(read.result, hb_transport::Receive::Disconnected { .. }) {
                 transport_failure=true;
                 disconnected = Some(gateways[next].clone());

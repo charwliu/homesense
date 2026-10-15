@@ -1,5 +1,5 @@
 {
-  "checked_bj": "2026-10-16T00:43:52.862173+08:00",
+  "checked_bj": "2026-10-16T02:03:59.989328+08:00",
   "derived_requirements": [
     "docs/design.md sections9-11,18,20,23-24,27"
   ],
@@ -129,9 +129,9 @@
       "id": "Q-1",
       "stage": "D/E",
       "requirement": "最终集成软件回归",
-      "verified_scope": "最终v13冻结842输入完整1153项／172程序、文档、全目标严格Clippy、原88路周期、常驻恢复及两项实际App HTTPS/WSS均通过；旧v21部署证据独立保留。",
-      "remaining_evidence": "1153既有Mac回归与Linux正式程序部署检查有效；新增多TCP网关独立控制契约实际失败，修复及最终整合回归待完成。手机视觉、D原语义与现场门槛仍开放。",
-      "status": "final_1153_Mac_qualified_and_Linux_production_smoke_deployed",
+      "verified_scope": "网络接收错误修复最终844冻结输入：1160项完整Rust、原1153函数全部保留、172实际程序重哈希、文档与全目标严格Clippy通过；最终正式CLI88路周期/常驻恢复和两项实际App HTTPS/WSS通过。",
+      "remaining_evidence": "本轮Mac修复资格完成，Linux新程序交付待完成；严格独立多网关控制仍失败。手机视觉、D原语义与现场门槛仍开放。",
+      "status": "receive_error_repair_Mac_qualified_Linux_pending_multi_gateway_isolation_open",
       "complete_for_current_frozen_input": true,
       "incremental_python_tool_tests_passed": 20,
       "full_workspace_repeated_this_increment": true,
@@ -146,25 +146,26 @@
         "macOS arm64"
       ],
       "full_workspace_doc_tests_repeated": true,
-      "current_integrated_evidence": "stage-e-browser/continuous-service-root-check.json",
+      "current_integrated_evidence": "stage-e-browser/receive-network-error-root-check.json",
       "current_mac_doc_result_blocks": 10,
       "current_frozen_local_quality_pass": true,
-      "latest_qualified_subset": "stage-e-browser/continuous-service-root-check.json",
+      "latest_qualified_subset": "stage-e-browser/receive-network-error-root-check.json",
       "new_continuous_mode_is_separate_unqualified_input": false,
-      "current_full_workspace_tests": 1153,
+      "current_full_workspace_tests": 1160,
       "current_actual_programs": 172
     },
     {
       "id": "E-7",
       "stage": "E",
       "requirement": "持续服务隔离网关超时与恢复失败，保留原生管理入口",
-      "verified_scope": "v21常驻完整1128项、原配对HAP专项和正式AD8常驻生命周期通过；Linux隔离烟测与systemd上线及可信HTTPS就绪核验通过，保留原rev9/Admin/配对。",
-      "remaining_evidence": "单GW常驻恢复已部署。两独立TCP网关反例确认A查询超时时，健康B新控制也unknown/零执行，整组重连；需按网关隔离状态、故障和代次并通过严格回归。Apple客户端故障及多GW现场仍待验。",
+      "verified_scope": "v21常驻完整1128项、原配对HAP专项和正式AD8常驻生命周期通过；Linux隔离烟测与systemd上线及可信HTTPS就绪核验通过，保留原rev9/Admin/配对。；新增接收RST导致退出的正式程序反例已软件修复，完成故障审计的指定网络错误可恢复，真实取消和审计/不变量错误仍致命。",
+      "remaining_evidence": "新接收错误修复已在Mac完整验证，Linux交付待完成；A故障仍导致健康B新控制unknown，完整按网关隔离源码实现中。现场与Apple新故障通知仍待验。",
       "status": "single_gateway_deployed_multi_gateway_independent_control_counterexample",
       "additional_evidence": "stage-e-browser/runtime-gateway-timeout-root-gap.json",
       "additional_production_counterexample": "stage-e-browser/runtime-feedback-outage-cli-root-check.json",
       "additional_runtime_recovery_evidence": "stage-e-browser/runtime-availability-recovery-root-check.json",
-      "additional_continuous_service_evidence": "stage-e-browser/continuous-service-root-check.json"
+      "additional_continuous_service_evidence": "stage-e-browser/continuous-service-root-check.json",
+      "additional_receive_error_evidence": "stage-e-browser/receive-network-error-root-check.json"
     }
   ],
   "evidence_sha256": {
@@ -241,7 +242,8 @@
     "stage-e-browser/keypad-display-diagnosis-root-check.json": "9f2d5f8f2ff48f040986ecdaf79caca286bc74e01c5a6dc9150842f7ba96104c",
     "stage-e-browser/indicator-final-linux-deployment-root-check.json": "1debd9b3525862852648ee86c15ad2bfd693620f893a6bc38975fb4fd9652312",
     "stage-e-browser/native-build9-delivery-root-check.json": "2a35028b95b1cb6bcf47ab9e1171eadb282ed611237bd3854113e22b0162b44f",
-    "stage-e-browser/multi-gateway-isolation-root-gap.json": "17142cb4e80db93f6932a279cf92752bd02a7b96434c07a794a8f91127cb180b"
+    "stage-e-browser/multi-gateway-isolation-root-gap.json": "17142cb4e80db93f6932a279cf92752bd02a7b96434c07a794a8f91127cb180b",
+    "stage-e-browser/receive-network-error-root-check.json": "7642a643349482e9b7f3056774fbfbd198b3a8290f3f4b194e79ff3732e8e278"
   },
   "excluded_by_scope": {
     "Siri": "cancelled by user",
@@ -478,5 +480,11 @@
   "latest_native_build9_delivery": "stage-e-browser/native-build9-delivery-root-check.json",
   "native_App_phone_update": "build9 signed; two bounded installs failed CoreDevice4000/NWError60 despite observed tunnel state change; stopped until reliable connection; last observed build8 before attempt1",
   "latest_multi_gateway_runtime_counterexample": "stage-e-browser/multi-gateway-isolation-root-gap.json",
-  "multi_gateway_fault_isolation": "software gap confirmed on final production CLI; exact baseline retained, private architecture/candidate work assigned"
+  "multi_gateway_fault_isolation": "software gap confirmed on final production CLI; exact baseline retained, private architecture/candidate work assigned",
+  "latest_receive_network_error_repair": "stage-e-browser/receive-network-error-root-check.json",
+  "receive_network_error_repair": {
+    "Mac_qualified": true,
+    "Linux_deployed": false,
+    "full_gateway_isolation": false
+  }
 }
