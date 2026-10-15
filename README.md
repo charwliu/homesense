@@ -54,6 +54,8 @@ homesensed serve-combined-simulation DEVICE_FILE AUTOMATION_FILE STATE_DIR SECON
 
 管理监听就绪后才启动规则；配置发布先暂停视图并备份，发布或断线恢复后须完成反馈查询才能恢复控制。恢复不重放启动规则或旧命令。选定场景须已审核，且在候选配置中继续存在。
 
+普通 HTTP 控制绑定精确凭据／会话来源，撤权会取消尚未写出的控制及延迟／渐变／场景后效；组合灯和 scene-only 授权范围保持原有语义。配置发布在入屏障前复核来源，入屏障后接管已保留的安全 STOP 并完成原子切换。软件检查已通过，尚未部署，详见 [精确来源授权](docs/source-authorization.md)。
+
 ## Keypad 父对象候选
 
 每块已核实六键 TS6-86 使用一个稳定 `keypads` 父对象，键事件、LED 与面板参数是子功能。旧逐键 ID 嵌入 `keys[].led_endpoint`，继续用于规则、权限、审计和 HAP；原生清单与 WSS 不重复发布这些子端点。六键固定顺序 1–2／3–4／5–6；接口及授权约束见 [原生 Keypad 契约](docs/keypad-native-api.md)。

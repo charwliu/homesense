@@ -45,6 +45,8 @@ pub struct DispatchTicket {
     pub command: QueuedCommand,
     pub frame: hb_transport::PreparedFrame,
     pub(crate) panel_authorization: Option<crate::panel_auth::Lease>,
+    pub(crate) source_authorization: Option<crate::source_auth::Source>,
+    pub(crate) publication_stop:Option<crate::publication_auth::DrainStop>,
 }
 /// Captured before a delayed task starts. Private fields prevent callers from
 /// relabeling old work as belonging to the current runtime generation.
@@ -110,6 +112,7 @@ pub struct AcceptedScene {
     pub(crate) start: homesense_storage::scene_run::Start,
     pub(crate) started_ms: u64,
     pub(crate) causal_deadline: Option<u64>,
+    pub(crate) source_authorization: Option<crate::source_auth::Source>,
 }
 pub struct AcceptedDeferred {
     pub command_ids: Vec<u64>,
@@ -176,6 +179,7 @@ struct PendingPublication {
     document: Vec<u8>,
     rules: Option<Vec<u8>>,
     cancellations: Vec<homesense_core::queue::Cancellation>,
+    stops:BTreeMap<u64,crate::publication_auth::DrainStop>,
 }
 pub(crate) enum SceneUpdate {
     Expiry { run: String, expected: u64, expiry: homesense_storage::scene_run::Expiry },
@@ -204,7 +208,7 @@ enum Message {
     CurtainViews(Uuid,TaskGeneration,Vec<homesense_core::DeviceId>,oneshot::Sender<Result<BTreeMap<homesense_core::DeviceId,homesense_core::curtain_state::Snapshot>,WriteStatus>>),
     CurtainCandidate(Uuid,TaskGeneration,homesense_core::DeviceId,homesense_core::curtain_state::Timing,oneshot::Sender<Result<homesense_core::curtain_state::Snapshot,WriteStatus>>),
     CurtainInvalidate(Uuid,TaskGeneration,homesense_core::DeviceId),
-    ModuleQuery(Uuid,TaskGeneration,String,crate::module_queries::Scope,Instant,bool,oneshot::Sender<Result<crate::module_queries::Accepted,WriteStatus>>),
+    ModuleQuery(Uuid,Option<crate::source_auth::Source>,TaskGeneration,String,crate::module_queries::Scope,Instant,bool,oneshot::Sender<Result<crate::module_queries::Accepted,WriteStatus>>),
     ModuleQueryRecords(Uuid,TaskGeneration,Vec<u64>,oneshot::Sender<Result<Vec<homesense_storage::module_history::Record>,WriteStatus>>),
     RecentDeviceCommands(Uuid,TaskGeneration,Vec<homesense_core::DeviceId>,usize,oneshot::Sender<Result<Vec<homesense_storage::module_history::Record>,WriteStatus>>),
     BeginSceneObservation(Uuid,TaskGeneration,u64,crate::feedback::SceneObservationStart,oneshot::Sender<Result<homesense_core::scene_observer::Scope,WriteStatus>>),
@@ -214,7 +218,7 @@ enum Message {
     ReconcileSceneSelection(Uuid,TaskGeneration,crate::scene_reconciliation::Prepared,oneshot::Sender<Result<(),WriteStatus>>),
     NativeStatus(Uuid,TaskGeneration,String,oneshot::Sender<Result<Option<homesense_storage::native_scene::Record>,WriteStatus>>),
     NativeFail(Uuid,TaskGeneration,String,oneshot::Sender<Result<(),WriteStatus>>),
-    NativeFinish(Uuid,Box<crate::native_scene::Completion>,oneshot::Sender<Result<(),WriteStatus>>),
+    NativeFinish(Uuid,Option<crate::source_auth::Source>,Box<crate::native_scene::Completion>,oneshot::Sender<Result<(),WriteStatus>>),
     SceneHistory(Uuid, TaskGeneration, String, Option<homesense_storage::scene_history::Cursor>, usize, oneshot::Sender<Result<homesense_storage::scene_history::Page, WriteStatus>>),
     Diagnostics(Uuid, TaskGeneration, oneshot::Sender<Result<Diagnostics, WriteStatus>>),
     ConfigurationExport(Uuid, TaskGeneration, u64, oneshot::Sender<Result<Option<homesense_storage::configuration_history::Export>, WriteStatus>>),
@@ -231,7 +235,7 @@ enum Message {
 
     SceneQuery(Uuid, TaskGeneration, homesense_storage::scene_run::Query, oneshot::Sender<Result<Option<homesense_storage::scene_run::Page>, WriteStatus>>),
 
-    ManualScenes(Uuid, TaskGeneration, Vec<String>, Vec<homesense_storage::variables::Update>, oneshot::Sender<Result<Vec<AcceptedScene>, WriteStatus>>),
+    ManualScenes(Uuid, Option<crate::source_auth::Source>, TaskGeneration, Vec<String>, Vec<homesense_storage::variables::Update>, oneshot::Sender<Result<Vec<AcceptedScene>, WriteStatus>>),
     SceneUpdate(Uuid, TaskGeneration, SceneUpdate, oneshot::Sender<Result<u64, WriteStatus>>),
 
     RuleOutcome(
@@ -299,7 +303,7 @@ enum Message {
         u64,
         oneshot::Sender<Result<usize, WriteStatus>>,
     ),
-    BeginPublication(Vec<u8>, Option<Vec<u8>>, u64, u64, oneshot::Sender<Result<(), WriteStatus>>),
+    BeginPublication(Vec<u8>, Option<Vec<u8>>, u64, u64, Option<crate::publication_auth::Source>, oneshot::Sender<Result<(), WriteStatus>>),
     CommitPublication(oneshot::Sender<Result<u64, WriteStatus>>),
     AbortPublication(oneshot::Sender<Result<(), WriteStatus>>),
     Wake,
@@ -316,6 +320,7 @@ enum Message {
     Shutdown(oneshot::Sender<()>),
     Submit(
         Box<Submission>,
+        Option<crate::source_auth::Source>,
         Option<SubmissionScope>,
         u64,
         oneshot::Sender<Result<Vec<u64>, SubmissionFailure>>,
@@ -326,6 +331,7 @@ enum Message {
 #[derive(Clone)]
 pub struct Admission {
     context:ExecutionContext,
+    source_authorization:Option<crate::source_auth::Source>,
     pub(crate) write_interval: Duration,
     pub(crate) write_slot: std::sync::Arc<tokio::sync::Mutex<Option<tokio::time::Instant>>>,
     pub(crate) fade_budget: crate::fade_budget::Budget,
@@ -459,6 +465,7 @@ impl Admission {
                 };
                 let mut restore_policy = crate::restore_policy::RestorePolicy::default();
                 let mut principals = BTreeMap::<u64, Uuid>::new();
+                let mut source_leases=BTreeMap::<u64,crate::source_auth::Source>::new();
                 let mut panel_leases=BTreeMap::<u64,crate::panel_auth::Lease>::new();
                 let mut module_off_jobs = BTreeMap::<u64,crate::away_off::Target>::new();
                 let mut module_queries = BTreeMap::<u64,crate::module_queries::Target>::new();
@@ -484,6 +491,7 @@ impl Admission {
                     } else {
                         Some(TaskGeneration { boot: worker_boot.clone(), epochs: arbiter.policy().epochs })
                     };
+                    source_leases.retain(|id,_|principals.contains_key(id) || in_flight==Some(*id));
                     panel_leases.retain(|id,_|principals.contains_key(id) || in_flight==Some(*id));
                     module_off_jobs.retain(|id,_| principals.contains_key(id) || in_flight==Some(*id));
                     module_queries.retain(|id,_| principals.contains_key(id) || in_flight==Some(*id));
@@ -500,7 +508,7 @@ impl Admission {
                         let now=millis(clock);
                         if curtains.audit(&store,&configuration,&worker_boot,now).is_err(){failed=true;let _=arbiter.storage_failed();curtains.invalidate();}
                         let effects=if failed {vec![]} else {curtains.effects(now,&|id|authorize(id))};
-                        if crate::curtain_owner::admit_leds(effects,&configuration,&mut arbiter,&mut store,&worker_boot,now,options.request_ttl.as_millis() as u64,&mut next_id,&mut principals,options.context,&|id|authorize(id)).is_err() {
+                        if crate::curtain_owner::admit_leds(effects,&configuration,&mut arbiter,&mut store,&worker_boot,now,options.request_ttl.as_millis() as u64,&mut next_id,&mut principals,options.context,&|id|authorize(id),&mut source_leases).is_err() {
                             failed=true;let _=arbiter.storage_failed();curtains.invalidate();
                         }
                     }
@@ -700,9 +708,10 @@ impl Admission {
                             })};
                             let _=reply.send(result);
                         }
-                        Message::ManualScenes(controller,generation,definitions,updates,reply) => {
+                        Message::ManualScenes(controller,request_source,generation,definitions,updates,reply) => {
                             if reply.is_closed() { continue; }
                             let result = (|| {
+                                if request_source.as_ref().is_some_and(|source|!source.valid_for(controller,configuration.revision())) {return Err(WriteStatus::InsufficientPrivileges);}
                                 if !authorize(controller) { return Err(WriteStatus::InsufficientPrivileges); }
                                 let policy = arbiter.policy();
                                 if failed || worker_stop.load(Ordering::Acquire) || policy.publishing
@@ -728,13 +737,13 @@ impl Admission {
                                     run:Uuid::new_v4().to_string(), definition,
                                 }).collect::<Vec<_>>();
                                 let now=millis(clock);
-                                store.begin_manual_scene_batch_with_variables(&worker_boot,generation.epochs.configuration,&starts,now,&updates)
+                                crate::source_auth::commit(request_source.as_ref(),||store.begin_manual_scene_batch_with_variables(&worker_boot,generation.epochs.configuration,&starts,now,&updates)).ok_or(WriteStatus::InsufficientPrivileges)?
                                     .map_err(|error|match error {
                                         homesense_storage::Error::Conflict|homesense_storage::Error::InvalidAudit=>WriteStatus::InvalidValueInRequest,
                                         _=>{failed=true;let _=arbiter.storage_failed();WriteStatus::ServiceCommunicationFailure}
                                     })?;
                                 Ok(starts.into_iter().map(|start|AcceptedScene {
-                                    generation:generation.clone(),controller,manual_fence:next_id,started_ms:now,causal_deadline:None,
+                                    generation:generation.clone(),controller,manual_fence:next_id,started_ms:now,causal_deadline:None,source_authorization:request_source.clone(),
                                     start:homesense_storage::scene_run::Start {action_index:0,source:"manual".into(),run:start.run,
                                         revision:generation.epochs.configuration,definition:start.definition},
                                 }).collect())
@@ -930,9 +939,10 @@ impl Admission {
                                 next_id=end;Ok(ids)
                             })();let _=reply.send(result);
                         }
-                        Message::ModuleQuery(controller,generation,module_id,scope,deadline,submit,reply)=>{
+                        Message::ModuleQuery(controller,request_source,generation,module_id,scope,deadline,submit,reply)=>{
                             let result=(||{
                                 if reply.is_closed() || Instant::now()>=deadline {return Err(WriteStatus::ResourceBusy);}
+                                if request_source.as_ref().is_some_and(|source|!source.valid_for(controller,configuration.revision())) {return Err(WriteStatus::InsufficientPrivileges);}
                                 if !authorize(controller) {return Err(WriteStatus::InsufficientPrivileges);}
                                 let policy=arbiter.policy();
                                 if failed || worker_stop.load(Ordering::Acquire) || generation.boot!=worker_boot || generation.epochs!=policy.epochs || policy.publishing || !policy.gateway_ready || !policy.controller || !policy.storage_healthy || !policy.valid_configuration_loaded {return Err(WriteStatus::ResourceBusy);}
@@ -947,12 +957,12 @@ impl Admission {
                                 if commands.iter().any(|(c,_)|configuration.devices().contains_key(&c.device_id)) {return Err(WriteStatus::InvalidValueInRequest);}
                                 let mut accepted=vec![];
                                 if submit {
-                                    match arbiter.submit_batch_committed(commands,now,|commands,cancelled|store.accept_queue_batch(&worker_boot,commands,cancelled,now)) {
+                                    match crate::source_auth::commit(request_source.as_ref(),||arbiter.submit_batch_committed(commands,now,|commands,cancelled|store.accept_queue_batch(&worker_boot,commands,cancelled,now))).ok_or(WriteStatus::InsufficientPrivileges)? {
                                         Ok(cancelled)=>{for c in cancelled {principals.remove(&c.command.id);}},
                                         Err(BatchCommitError::Admission(_))=>return Err(WriteStatus::ResourceBusy),
                                         Err(BatchCommitError::Persistence(_))=>{failed=true;let _=arbiter.storage_failed();return Err(WriteStatus::ServiceCommunicationFailure);}
                                     }
-                                    for (id,target) in (next_id..end).zip(targets) {principals.insert(id,controller);module_queries.insert(id,target);accepted.push(id.to_string());}
+                                    for (id,target) in (next_id..end).zip(targets) {principals.insert(id,controller);if let Some(source)=&request_source {source_leases.insert(id,source.clone());}module_queries.insert(id,target);accepted.push(id.to_string());}
                                     next_id=end;
                                 }
                                 Ok(crate::module_queries::Accepted{boot:worker_boot.clone(),revision:configuration.revision().to_string(),transport_epoch:policy.epochs.transport.to_string(),commands:accepted})
@@ -1005,8 +1015,9 @@ impl Admission {
                                 store.fail_native_scene(&controller.to_string(),&key,millis(clock)).map_err(|_|WriteStatus::ServiceCommunicationFailure)
                             })();let _=reply.send(result);
                         }
-                        Message::NativeFinish(controller,completion,reply)=>{
+                        Message::NativeFinish(controller,request_source,completion,reply)=>{
                             let result=(||{
+                                if request_source.as_ref().is_some_and(|source|!source.valid_for(controller,configuration.revision())) {return Err(WriteStatus::InsufficientPrivileges);}
                                 if !authorize(controller) {return Err(WriteStatus::InsufficientPrivileges);}
                                 let policy=arbiter.policy();let now=millis(clock);
                                 if failed || worker_stop.load(Ordering::Acquire) || !policy.gateway_ready || policy.publishing || !policy.controller || !policy.storage_healthy || completion.generation.boot!=worker_boot || completion.generation.epochs!=policy.epochs {return Err(WriteStatus::ServiceCommunicationFailure);}
@@ -1015,7 +1026,7 @@ impl Admission {
                                 if store.native_written_query_devices(&row.request,&row.commands).map_err(|_|WriteStatus::ServiceCommunicationFailure)?!=Some(completion.physical.clone()) {return Err(WriteStatus::ResourceBusy);}
                                 let document=store.active_bundle(options.context).map_err(|_|WriteStatus::ServiceCommunicationFailure)?.and_then(|b|b.automation).ok_or(WriteStatus::InvalidValueInRequest)?;
                                 let (selected,_)=completion.projection.validate(&store,&configuration,&document,&worker_boot,policy.epochs,now)?;
-                                store.finish_native_scene(&row.request,row.phase,selected,&completion.levels,now).map_err(|e|match e {homesense_storage::Error::Conflict|homesense_storage::Error::InvalidAudit=>WriteStatus::InvalidValueInRequest,_=>WriteStatus::ServiceCommunicationFailure})?;
+                                crate::source_auth::commit(request_source.as_ref(),||store.finish_native_scene(&row.request,row.phase,selected,&completion.levels,now)).ok_or(WriteStatus::InsufficientPrivileges)?.map_err(|e|match e {homesense_storage::Error::Conflict|homesense_storage::Error::InvalidAudit=>WriteStatus::InvalidValueInRequest,_=>WriteStatus::ServiceCommunicationFailure})?;
                                 scene_projections.insert(completion.projection.variable().to_owned(),completion.projection);
                                 Ok(())
                             })();if result==Err(WriteStatus::ServiceCommunicationFailure){failed=true;let _=arbiter.storage_failed();}let _=reply.send(result);
@@ -1095,9 +1106,10 @@ impl Admission {
                             let _ = reply.send(result);
                         }
                         Message::Wake => {},
-                        Message::BeginPublication(document, rules, expected, deadline, reply) => {
+                        Message::BeginPublication(document, rules, expected, deadline, request_source, reply) => {
                             if reply.is_closed() { continue; }
                             let result = (|| {
+                                if request_source.as_ref().is_some_and(|source|!authorize(source.controller()) || !source.matches(&document,rules.as_deref(),expected)) {return Err(WriteStatus::InsufficientPrivileges);}
                                 if failed || arbiter.policy().publishing || expected != configuration.revision() {
                                     return Err(WriteStatus::ServiceCommunicationFailure);
                                 }
@@ -1118,6 +1130,7 @@ impl Admission {
                                 } else if store.automation_payload(configuration.revision()).map_err(|_|WriteStatus::ServiceCommunicationFailure)?.is_some() {
                                     return Err(WriteStatus::InvalidValueInRequest);
                                 }
+                                let enter=|| {
                                 let cancelled = arbiter.begin_publication(millis(clock), deadline)
                                     .map_err(|_| WriteStatus::ServiceCommunicationFailure)?;
                                 if store.cancel_queued(&worker_boot, &cancelled, millis(clock)).is_err() {
@@ -1126,8 +1139,14 @@ impl Admission {
                                     return Err(WriteStatus::ServiceCommunicationFailure);
                                 }
                                 for c in &cancelled { principals.remove(&c.command.id); }
-                                publication = Some(PendingPublication { document, rules, cancellations: cancelled });
+                                let stops=arbiter.publication_stops().map(|command|crate::publication_auth::DrainStop::capture(command.clone(),arbiter.policy().epochs.control).map(|lease|(command.id,lease)).ok_or(WriteStatus::ServiceCommunicationFailure)).collect::<Result<BTreeMap<_,_>,_>>()?;
+                                publication = Some(PendingPublication { document, rules, cancellations: cancelled, stops });
                                 Ok(())
+                                };
+                                // Linearization point: source mutation before this
+                                // guard rejects entry; after it, finish STOP drain
+                                // and atomic commit without a second auth abort.
+                                match &request_source {Some(source)=>source.with_valid(enter).ok_or(WriteStatus::InsufficientPrivileges)?,None=>enter()}
                             })();
                             let _ = reply.send(result);
                         }
@@ -1319,12 +1338,17 @@ impl Admission {
                                     let authorized=authorize(guard.controller());
                                     (*group,guard.check(scope,&allowed,&mut curtains,now,authorized))
                                 }).collect();
+                                let draining=arbiter.policy().publishing && publication.is_some();
                                 let access = |command: &QueuedCommand| {
+                                        // Accepted publication owns only the immutable
+                                        // reserved STOPs. Other queued work retains its
+                                        // live source check and cannot use this path.
+                                        let handoff_stop=draining && publication.as_ref().and_then(|p|p.stops.get(&command.id)).is_some_and(|lease|lease.matches_reserved(command));
                                         let binding = configuration.binding(&command.device_id);
                                         Access {
-                                            authorized: principals
+                                            authorized: handoff_stop || (principals
                                                 .get(&command.id)
-                                                .is_some_and(|id| authorize(*id)) && panel_leases.get(&command.id).is_none_or(|lease|lease.valid()) && module_off_jobs.get(&command.id).is_none_or(|job|job.lease.valid()) && motor_guard_ids.get(&command.id).is_none_or(|group|valid.get(group)==Some(&true)),
+                                                .is_some_and(|id| authorize(*id)) && source_leases.get(&command.id).is_none_or(|lease|lease.valid()) && panel_leases.get(&command.id).is_none_or(|lease|lease.valid()) && module_off_jobs.get(&command.id).is_none_or(|job|job.lease.valid()) && motor_guard_ids.get(&command.id).is_none_or(|group|valid.get(group)==Some(&true))),
                                             device_exists: binding.is_some() || module_off_jobs.contains_key(&command.id) || module_queries.get(&command.id).is_some_and(|q|q.frame(&configuration,options.context,command.epochs.transport).is_ok()),
                                             device_verified: module_off_jobs.contains_key(&command.id) || module_queries.contains_key(&command.id) || binding.is_some_and(|(_, m)| {
                                                 matches!(
@@ -1378,6 +1402,17 @@ impl Admission {
                                     let (device,module)=configuration.binding(&command.device_id).ok_or("missing binding")?;
                                     (device.gateway.clone(),hb_transport::PreparedFrame::prepare(module,device.channel,command.command,options.context,command.epochs.transport).map_err(|e|e.to_string())?)
                                 };
+                                let publication_stop=if draining {
+                                    let lease=publication.as_mut().and_then(|p|p.stops.remove(&command.id)).ok_or("missing reserved STOP authority")?;
+                                    if !lease.matches_write(&command){return Err("reserved STOP write binding changed".into());}
+                                    Some(lease)
+                                }else{None};
+                                let source_authorization=if publication_stop.is_some(){None}else{source_leases.get(&command.id).cloned()};
+                                if source_authorization.as_ref().is_some_and(|source|!source.valid_for(principals[&command.id],configuration.revision())) {
+                                    store.transition_command(&worker_boot,command.id,Status::Accepted,Status::Cancelled,now).map_err(|e|e.to_string())?;
+                                    arbiter.cancel_selected_before_write(command.id).map_err(|e|e.to_string())?;
+                                    principals.remove(&command.id);return Ok(None);
+                                }
                                 let panel_authorization=panel_leases.get(&command.id).cloned();
                                 if panel_authorization.as_ref().is_some_and(|lease|!lease.valid_for(&configuration,principals[&command.id],&command.device_id,command.command)) {
                                     store.transition_command(&worker_boot,command.id,Status::Accepted,Status::Cancelled,now).map_err(|e|e.to_string())?;
@@ -1397,6 +1432,8 @@ impl Admission {
                                     command,
                                     frame,
                                     panel_authorization,
+                                    source_authorization,
+                                    publication_stop,
                                 }))
                             })();
                             match result {
@@ -1467,7 +1504,7 @@ impl Admission {
                             generation_updates.send_replace(result.as_ref().ok().cloned());
                             let _ = reply.send(result);
                         }
-                        Message::Submit(submission, generation, deadline, reply) => {
+                        Message::Submit(submission, request_source, generation, deadline, reply) => {
                             if reply.is_closed() {
                                 continue;
                             }
@@ -1486,6 +1523,7 @@ impl Admission {
                                 let mut selection_checks = vec![];
                                 let mut command_sources = None;
                                 let software_sample = matches!(&*submission, Submission::Automation { software_sample: true, .. });
+                                if request_source.as_ref().is_some_and(|source|!source.valid()) {return Err(WriteStatus::InsufficientPrivileges);}
                                 let (submission, study, automation, variables, feedback, audit, scene, starts) = match *submission {
                                     Submission::Native(prepared)=>{
                                         let policy=arbiter.policy();
@@ -1503,7 +1541,7 @@ impl Admission {
                                         let group=document.scene_switch_groups.iter().find(|g|g.id==request.group).ok_or(WriteStatus::InvalidValueInRequest)?;
                                         let mut current=store.scene_selection(configuration.revision(),&request.variable,scene_observer.scope()).map_err(|_|WriteStatus::ServiceCommunicationFailure)?.ok_or(WriteStatus::InvalidValueInRequest)?;
                                         crate::scene_reconciliation::project(&mut current,scene_projections.get(&request.variable),group,&store,&configuration,&document,&worker_boot,policy.epochs,millis(clock),true)?;
-                                        let permit=prepared.admit(&mut store,&configuration,&document,&worker_boot,policy.epochs,millis(clock),current.stored.value.is_none(),&manual_versions)?;
+                                        let permit=crate::source_auth::commit(request_source.as_ref(),||prepared.admit(&mut store,&configuration,&document,&worker_boot,policy.epochs,millis(clock),current.stored.value.is_none(),&manual_versions)).ok_or(WriteStatus::InsufficientPrivileges)??;
                                         selection_checks.push(homesense_storage::variables::ReadCheck{revision:configuration.revision(),name:request.variable.clone(),expected_version:request.variable_version});
                                         native_accepted=Some((permit.request,permit.phase,permit.fence,permit.batch.intents.iter().any(|i|i.command!=homesense_core::Command::Query)));
                                         (Submission::NativePhysical(permit.batch),None,false,vec![],Some(Box::new(permit.lease)),None,None,vec![])
@@ -1720,11 +1758,13 @@ impl Admission {
                                 if !authorize(batch.controller) {
                                     return Err(WriteStatus::InsufficientPrivileges);
                                 }
+                                if request_source.as_ref().is_some_and(|source|!source.valid_for(batch.controller,configuration.revision())) {return Err(WriteStatus::InsufficientPrivileges);}
                                 if batch.intents.len() > 128 {
                                     return Err(WriteStatus::InvalidValueInRequest);
                                 }
                                 // Subscription-only requests still require authorization.
                                 if batch.intents.is_empty() {
+                                    let commit=||->Result<(),WriteStatus> {
                                     if !variables.is_empty() || audit.is_some() {
                                         match store.accept_queue_batch_with_read_checks_and_sources(&worker_boot,&[],&[],millis(clock),None,&variables,audit.as_ref(),None,&starts,&selection_checks,command_sources.as_deref()) {
                                             Ok(()) => {},
@@ -1737,6 +1777,9 @@ impl Admission {
                                         }
                                     }
                                     temporary.extend(memory_updates);
+                                    Ok(())
+                                    };
+                                    crate::source_auth::commit(request_source.as_ref(),commit).ok_or(WriteStatus::InsufficientPrivileges)??;
                                     return Ok(Vec::new());
                                 }
                                 let end = next_id
@@ -1804,12 +1847,16 @@ impl Admission {
                                         command_sources.as_deref(),
                                     )
                                 };
+                                if request_source.as_ref().is_some_and(|source|!source.valid()) {return Err(WriteStatus::InsufficientPrivileges);}
                                 if panel_authorization.as_ref().is_some_and(|lease|!lease.valid()) {return Err(WriteStatus::InsufficientPrivileges);}
-                                let result = if ordered_rule {
+                                let commit=|| if ordered_rule {
                                     arbiter.submit_ordered_rule_batch_committed(commands, now, persist)
                                 } else {
                                     arbiter.submit_batch_committed(commands, now, persist)
                                 };
+                                // Serialize a source generation/session change with
+                                // queue and variable acceptance, not just physical I/O.
+                                let result=crate::source_auth::commit(request_source.as_ref(),commit).ok_or(WriteStatus::InsufficientPrivileges)?;
                                 match result {
                                     Ok(cancelled) => {
                                         temporary.extend(memory_updates);
@@ -1823,12 +1870,13 @@ impl Admission {
                                         for id in next_id..end {
                                             principals.insert(id, batch.controller);
                                             if let Some(lease)=&panel_authorization {panel_leases.insert(id,lease.clone());}
+                                            if let Some(source)=&request_source {source_leases.insert(id,source.clone());}
                                         }
                                         for cancellation in cancelled {
                                             curtains.cancelled(cancellation.command.id,cancellation.reason);
                                             principals.remove(&cancellation.command.id);
                                         }
-                                        for command in &curtain_commands {curtains.accepted(&configuration,command,batch.controller,now);}
+                                        for command in &curtain_commands {curtains.accepted_with_source(&configuration,command,batch.controller,now,request_source.clone());}
                                         if next_id<end && let Some(lease)=motor_queue_lease {
                                             motor_guards.insert(next_id,crate::motor_rules::QueuedLease::admitted(lease,&mut curtains,now));
                                             for id in next_id..end {motor_guard_ids.insert(id,next_id);}
@@ -1893,6 +1941,7 @@ impl Admission {
             stop_requested,
             generations,
             observation_invalidation,
+            source_authorization:None,
         })
     }
     /// Trusted runtime coordinator only: validate then enter the publication barrier.
@@ -1914,13 +1963,16 @@ impl Admission {
         expected: u64,
         timeout: Duration,
     ) -> Result<(), WriteStatus> {
-        self.begin_publication_inner(document,None,expected,timeout).await
+        self.begin_publication_inner(document,None,expected,timeout,None).await
     }
     /// Trusted coordinator: validates both documents before invalidating old work.
     pub async fn begin_automation_publication(&self, document:Vec<u8>, rules:Vec<u8>, expected:u64, timeout:Duration)->Result<(),WriteStatus> {
-        self.begin_publication_inner(document,Some(rules),expected,timeout).await
+        self.begin_publication_inner(document,Some(rules),expected,timeout,None).await
     }
-    async fn begin_publication_inner(&self, document:Vec<u8>, rules:Option<Vec<u8>>, expected:u64, timeout:Duration)->Result<(),WriteStatus> {
+    pub(crate) async fn begin_authorized_automation_publication(&self,document:Vec<u8>,rules:Vec<u8>,expected:u64,timeout:Duration,source:Option<crate::publication_auth::Source>)->Result<(),WriteStatus> {
+        self.begin_publication_inner(document,Some(rules),expected,timeout,source).await
+    }
+    async fn begin_publication_inner(&self, document:Vec<u8>, rules:Option<Vec<u8>>, expected:u64, timeout:Duration, source:Option<crate::publication_auth::Source>)->Result<(),WriteStatus> {
         if timeout.is_zero()
             || timeout > Duration::from_secs(30)
             || document.len() > 4 * 1024 * 1024
@@ -1934,7 +1986,7 @@ impl Admission {
         let (reply, receive) = oneshot::channel();
         self.sender
             .try_send(Message::BeginPublication(
-                document, rules, expected, deadline, reply,
+                document, rules, expected, deadline, source, reply,
             ))
             .map_err(|_| WriteStatus::ResourceBusy)?;
         receive
@@ -2231,7 +2283,7 @@ impl Admission {
     }
     pub(crate) async fn module_query_until(&self,controller:Uuid,generation:TaskGeneration,module_id:String,scope:crate::module_queries::Scope,submit:bool,deadline:Instant)->Result<crate::module_queries::Accepted,WriteStatus>{
         let (reply,receive)=oneshot::channel();
-        self.sender.try_send(Message::ModuleQuery(controller,generation,module_id,scope,deadline.min(Instant::now()+self.ttl),submit,reply)).map_err(|_|WriteStatus::ResourceBusy)?;
+        self.sender.try_send(Message::ModuleQuery(controller,self.source_authorization.clone(),generation,module_id,scope,deadline.min(Instant::now()+self.ttl),submit,reply)).map_err(|_|WriteStatus::ResourceBusy)?;
         receive.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?
     }
     pub(crate) async fn module_query_records(&self,controller:Uuid,generation:TaskGeneration,commands:Vec<u64>)->Result<Vec<homesense_storage::module_history::Record>,WriteStatus>{
@@ -2245,7 +2297,7 @@ impl Admission {
     }
     pub(crate) async fn native_scene_status(&self,controller:Uuid,generation:TaskGeneration,key:String)->Result<Option<homesense_storage::native_scene::Record>,WriteStatus>{let (reply,receive)=oneshot::channel();self.sender.try_send(Message::NativeStatus(controller,generation,key,reply)).map_err(|_|WriteStatus::ResourceBusy)?;receive.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?}
     pub(crate) async fn fail_native_scene(&self,controller:Uuid,generation:TaskGeneration,key:String)->Result<(),WriteStatus>{let (reply,receive)=oneshot::channel();self.sender.try_send(Message::NativeFail(controller,generation,key,reply)).map_err(|_|WriteStatus::ResourceBusy)?;receive.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?}
-    pub(crate) async fn finish_native_scene(&self,controller:Uuid,completion:crate::native_scene::Completion)->Result<(),WriteStatus>{let (reply,receive)=oneshot::channel();self.sender.try_send(Message::NativeFinish(controller,Box::new(completion),reply)).map_err(|_|WriteStatus::ResourceBusy)?;receive.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?}
+    pub(crate) async fn finish_native_scene(&self,controller:Uuid,completion:crate::native_scene::Completion)->Result<(),WriteStatus>{let (reply,receive)=oneshot::channel();self.sender.try_send(Message::NativeFinish(controller,self.source_authorization.clone(),Box::new(completion),reply)).map_err(|_|WriteStatus::ResourceBusy)?;receive.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?}
     pub(crate) async fn submit_native_scene(&self,generation:TaskGeneration,submission:crate::native_scene::Submission)->Result<Vec<u64>,WriteStatus>{self.submit_scoped_before(Submission::Native(Box::new(submission)),Some(SubmissionScope::Generation(generation)),None).await}
     pub(crate) async fn reconcile_scene_selection(&self,controller:Uuid,generation:TaskGeneration,prepared:crate::scene_reconciliation::Prepared)->Result<(),WriteStatus> {
         let (reply,receive)=oneshot::channel();
@@ -2409,7 +2461,7 @@ impl Admission {
         struct Guard(Admission,bool);
         impl Drop for Guard { fn drop(&mut self) { if !self.1 { self.0.stop_now(); } } }
         let (reply,receive)=oneshot::channel();
-        self.sender.try_send(Message::ManualScenes(controller,generation,definitions,updates,reply))
+        self.sender.try_send(Message::ManualScenes(controller,self.source_authorization.clone(),generation,definitions,updates,reply))
             .map_err(|_|WriteStatus::ResourceBusy)?;
         let mut guard=Guard(self.clone(),false);
         let result=receive.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?;
@@ -2448,7 +2500,7 @@ impl Admission {
         for start in starts {
             let page=self.scene_history(controller,generation.clone(),homesense_storage::scene_run::Query::Run{boot:self.boot_id().into(),run:start.run.clone(),after:0,limit:1}).await.map_err(DeferredFailure::Uncertain)?.ok_or(DeferredFailure::Uncertain(WriteStatus::ServiceCommunicationFailure))?;
             if page.record.version!=0 || page.record.status!=homesense_storage::scene_run::Status::Pending || !page.commands.is_empty() {return Err(DeferredFailure::Uncertain(WriteStatus::ServiceCommunicationFailure));}
-            scenes.push(AcceptedScene{generation:generation.clone(),controller,manual_fence,start,started_ms:page.record.started_ms,causal_deadline:deadline});
+            scenes.push(AcceptedScene{generation:generation.clone(),controller,manual_fence,start,started_ms:page.record.started_ms,causal_deadline:deadline,source_authorization:self.source_authorization.clone()});
         }
         Ok(AcceptedDeferred{command_ids,scenes})
     }
@@ -2648,6 +2700,9 @@ impl Admission {
         self.sender.try_send(Message::AwayOff(revision,generation,lease,deadline,submit,reply)).map_err(|_|WriteStatus::ResourceBusy)?;
         receive.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?
     }
+    pub(crate) fn with_source(&self,source:Option<crate::source_auth::Source>)->Self {let mut scoped=self.clone();scoped.source_authorization=source;scoped}
+    pub(crate) fn source(&self)->Option<crate::source_auth::Source> {self.source_authorization.clone()}
+    pub(crate) fn source_valid(&self)->bool {self.source_authorization.as_ref().is_none_or(|source|source.valid())}
     pub async fn task_generation(&self) -> Result<TaskGeneration, WriteStatus> {
         let (reply, receive) = oneshot::channel();
         self.sender
@@ -2705,7 +2760,7 @@ impl Admission {
         let deadline=limit.map_or(deadline,|limit|limit.min(deadline));
         let (reply, receive) = oneshot::channel();
         self.sender
-            .try_send(Message::Submit(Box::new(submission), generation, deadline, reply))
+            .try_send(Message::Submit(Box::new(submission), self.source_authorization.clone(), generation, deadline, reply))
             .map_err(|_| WriteStatus::ResourceBusy)?;
         receive
             .await

@@ -240,6 +240,7 @@ async fn web_scope_origin_receipts_and_runtime_admission() {
             serde_json::from_slice(&first.into_body().collect().await.unwrap().to_bytes()).unwrap();
         assert_eq!(result["outcome"], "accepted");
         let Reply::LastRun(Some(last))=control.request(Action::LastRun("light".into())).await.unwrap() else {panic!("missing run")};
+        let original_identity=last.run.clone();
         let run_path=format!("/api/v1/runs/{}/{}",last.boot,last.run);
         let Reply::SceneHistory(history)=control.request(Action::SceneHistory{controller:caller,revision:1,scene:"light".into(),before:None,limit:20}).await.unwrap() else {panic!("missing history")};assert_eq!(history.runs.len(),1);assert_eq!(history.runs[0].identity.run,last.run);
         for (controller,revision,scene,limit) in [(Uuid::new_v4(),1,"light",20),(caller,2,"light",20),(caller,1,"missing",20),(caller,1,"light",101)] {assert!(control.request(Action::SceneHistory{controller,revision,scene:scene.into(),before:None,limit}).await.is_err());}
@@ -259,6 +260,26 @@ async fn web_scope_origin_receipts_and_runtime_admission() {
         let mut read=make(&api.origin,"");*read.method_mut()=hyper::Method::GET;*read.uri_mut()=run_path.parse().unwrap();assert_eq!(api.handle(read).await.status(),StatusCode::NOT_FOUND);
         let mut denied_details=make(&api.origin,"");*denied_details.method_mut()=hyper::Method::GET;*denied_details.uri_mut()=format!("{run_path}/details?revision=1&kind=commands").parse().unwrap();assert_eq!(api.handle(denied_details).await.status(),StatusCode::NOT_FOUND);
         tokens.insert(token_id,secret,allowed).unwrap();
+        // Restoring the grant creates a new generation; it must not revive the
+        // earlier source's accepted timeline. Wait for that actual cancellation
+        // and verify the durable run identity/history before starting a new one.
+        let original_run=result["run"].as_u64().unwrap();
+        tokio::time::timeout(Duration::from_secs(2),async {
+            loop {
+                if control.request(Action::Status(original_run)).await.unwrap()==Reply::Status(Some(homesense_core::scene::Status::Cancelled)){break;}
+                tokio::task::yield_now().await;
+            }
+        }).await.expect("source generation loss must cancel the accepted scene");
+        let Reply::RunSummary(Some((definition,cancelled)))=control.request(Action::RunSummary{controller:caller,revision:1,boot:last.boot.clone(),run:last.run.clone()}).await.unwrap() else{panic!("cancelled run history disappeared")};
+        assert_eq!(definition,"light");assert_eq!(cancelled.run,last.run);
+        assert_eq!(cancelled.status,homesense_storage::scene_run::Status::Cancelled);
+        let preview_start=api.handle(make(&api.origin,r#"{"scene":"light","request_id":"preview-current-generation"}"#)).await;
+        assert_eq!(preview_start.status(),StatusCode::ACCEPTED);
+        let preview_result:serde_json::Value=serde_json::from_slice(&preview_start.into_body().collect().await.unwrap().to_bytes()).unwrap();
+        assert_eq!(preview_result["outcome"],"accepted");assert_ne!(preview_result["run"],result["run"]);
+        let Reply::LastRun(Some(preview_last))=control.request(Action::LastRun("light".into())).await.unwrap() else{panic!("fresh preview run not persisted")};
+        let preview_identity=preview_last.run;
+        assert_ne!(preview_identity,original_identity,"new generation must create a distinct accepted run");
         for (path,body,status) in [("/api/v1/runs/not-a-boot/run","",StatusCode::BAD_REQUEST),(run_path.as_str(),"{}",StatusCode::BAD_REQUEST)] {
             let mut read=make(&api.origin,body);*read.method_mut()=hyper::Method::GET;*read.uri_mut()=path.parse().unwrap();assert_eq!(api.handle(read).await.status(),status);
         }
@@ -286,7 +307,7 @@ async fn web_scope_origin_receipts_and_runtime_admission() {
         assert_eq!(preview.interrupted_runs.len(), 1);
         assert_eq!(
             preview.interrupted_runs[0].run,
-            result["run"].as_u64().unwrap()
+            preview_result["run"].as_u64().unwrap()
         );
         assert_eq!(
             preview.interrupted_runs[0].definition.as_deref(),
@@ -644,8 +665,9 @@ async fn web_scope_origin_receipts_and_runtime_admission() {
             StatusCode::UNAUTHORIZED
         );
         stop.send(true).unwrap();
+        (original_identity,preview_identity)
     };
-    let (result, ()) = tokio::join!(
+    let (result, identities) = tokio::join!(
         runtime.drive(&mut owner, Duration::from_millis(1), 1000, receive, || Ok(
             1_800_000_000_000
         )),
@@ -656,8 +678,15 @@ async fn web_scope_origin_receipts_and_runtime_admission() {
     assert_eq!(
         sql.query_row("SELECT count(*) FROM scene_run", [], |r| r.get::<_, i64>(0))
             .unwrap(),
-        1
+        2
     );
+    // Exactly the old source's historical run and one fresh-generation run:
+    // idempotent retries must not create any extra accepted scene identity.
+    let accepted:std::collections::BTreeSet<String>=sql.prepare("SELECT run_id FROM scene_run").unwrap().query_map([],|row|row.get::<_,String>(0)).unwrap().collect::<Result<_,_>>().unwrap();
+    assert_eq!(accepted,[identities.0.clone(),identities.1.clone()].into());
+    assert_ne!(identities.0,identities.1);
+    let old_status:String=sql.query_row("SELECT status FROM scene_run WHERE run_id=?1",[&identities.0],|row|row.get(0)).unwrap();
+    assert_eq!(old_status,"cancelled","replaced source must retain its durable cancelled history");
     assert_eq!(
         sql.query_row("SELECT count(*) FROM command_journal", [], |r| r
             .get::<_, i64>(0))

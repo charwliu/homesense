@@ -413,6 +413,7 @@ enum Phase {
     },
 }
 struct Run {
+    source:Option<crate::source_auth::Source>,
     request: Request,
     generation: TaskGeneration,
     recipe: Recipe,
@@ -521,6 +522,7 @@ impl Manager {
         self.runs.insert(
             format!("{controller}:{key}"),
             Run {
+                source:admission.source(),
                 request,
                 generation,
                 recipe,
@@ -550,7 +552,9 @@ impl Manager {
         let keys = self.runs.keys().cloned().collect::<Vec<_>>();
         for key in keys {
             let mut run = self.runs.remove(&key).unwrap();
-            match run.advance(admission, document, feedback).await {
+            let scoped_admission=admission.with_source(run.source.clone());
+            let outcome=if scoped_admission.source_valid(){run.advance(&scoped_admission,document,feedback).await}else{Err("source authority revoked before native phase".into())};
+            match outcome {
                 Ok(false) => {
                     self.runs.insert(key, run);
                 }

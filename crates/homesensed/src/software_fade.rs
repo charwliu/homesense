@@ -165,6 +165,11 @@ impl SoftwareFade {
         if self.closed {
             return Ok(true);
         }
+        if !self.admission.source_valid() && !self.in_flight {
+            self.failure=Some("source authority revoked before fade sample".into());
+            self.cancel().await?;
+            return Err(self.failure.clone().unwrap());
+        }
         if self.in_flight {
             self.admission.stop_now();
             self.closed = true;
@@ -295,7 +300,7 @@ impl SoftwareFade {
                     // These replies prove this submission did not commit:
                     // queue capacity or precondition/transaction validation.
                     // A lost reply or storage/transport failure remains fatal.
-                    if !matches!(error, hap::server::WriteStatus::ResourceBusy | hap::server::WriteStatus::InvalidValueInRequest) {
+                    if !matches!(error, hap::server::WriteStatus::ResourceBusy | hap::server::WriteStatus::InvalidValueInRequest | hap::server::WriteStatus::InsufficientPrivileges) {
                         self.admission.stop_now();
                     }
                     self.closed = true;

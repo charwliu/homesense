@@ -83,7 +83,7 @@ pub(crate) async fn run(
                             *api.runtime.write().map_err(|_|"management view poisoned")?=previous;
                             request.complete(Err("publication abandoned before barrier".into()));continue;
                         }
-                        if let Err(e)=admission.begin_automation_publication(request.devices().to_vec(),request.rules().to_vec(),request.expected_revision(),Duration::from_secs(3)).await {
+                        if let Err(e)=request.begin(&admission,Duration::from_secs(3)).await {
                             *api.runtime.write().map_err(|_|"management view poisoned")?=previous;
                             request.complete(Err(format!("publication rejected: {e:?}")));continue;
                         }

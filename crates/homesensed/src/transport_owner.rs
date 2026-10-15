@@ -11,9 +11,14 @@ use std::{
 /// synchronous write. Revocation completed before this guard yields zero bytes.
 pub(crate) fn send_ticket<S:Read+Write>(ticket:&crate::admission::DispatchTicket,connection:&mut Connection<S>,now:impl FnMut()->u64)->Result<(),SendError> {
     let send=||connection.send(&ticket.frame,ticket.command.deadline_ms,now);
-    if let Some(lease)=&ticket.panel_authorization {
-        lease.with_valid(send).unwrap_or(Err(SendError{reason:hb_transport::SendFailure::Io(std::io::ErrorKind::PermissionDenied),bytes_written:0}))
-    } else {send()}
+    let denied=||Err(SendError{reason:hb_transport::SendFailure::Io(std::io::ErrorKind::PermissionDenied),bytes_written:0});
+    match (&ticket.panel_authorization,&ticket.source_authorization,&ticket.publication_stop) {
+        (Some(lease),None,None)=>lease.with_valid(send).unwrap_or_else(denied),
+        (None,Some(source),None)=>source.with_valid(send).unwrap_or_else(denied),
+        (None,None,Some(lease)) if lease.matches_write(&ticket.command)=>send(),
+        (None,None,None)=>send(),
+        _=>denied(),
+    }
 }
 
 pub struct TransportOwner<S> {

@@ -17,6 +17,7 @@ pub struct Pending {
     devices: Vec<u8>,
     rules: Vec<u8>,
     expected_revision: u64,
+    source:Option<crate::publication_auth::Source>,
     deadline: Instant,
     reply: oneshot::Sender<Result<u64, String>>,
 }
@@ -34,6 +35,13 @@ impl Publisher {
         rules: Vec<u8>,
         expected_revision: u64,
     ) -> Result<u64, String> {
+        self.enqueue(devices,rules,expected_revision,None).await
+    }
+    pub(crate) async fn publish_authorized(&self,devices:Vec<u8>,rules:Vec<u8>,expected_revision:u64,source:crate::publication_auth::Source)->Result<u64,String> {
+        if !source.matches(&devices,Some(&rules),expected_revision){return Err("publication source revoked or request changed".into());}
+        self.enqueue(devices,rules,expected_revision,Some(source)).await
+    }
+    async fn enqueue(&self,devices:Vec<u8>,rules:Vec<u8>,expected_revision:u64,source:Option<crate::publication_auth::Source>)->Result<u64,String> {
         if expected_revision == 0
             || devices.is_empty()
             || rules.is_empty()
@@ -48,6 +56,7 @@ impl Publisher {
                 devices,
                 rules,
                 expected_revision,
+                source,
                 deadline: Instant::now() + REQUEST_LIFETIME,
                 reply,
             })
@@ -75,7 +84,16 @@ impl Pending {
     /// Check immediately before entering the publication barrier. Cancellation
     /// after that boundary must not interrupt STOP draining or leave a half-switch.
     pub fn abandoned(&self) -> bool {
-        self.reply.is_closed() || Instant::now() >= self.deadline
+        self.reply.is_closed() || Instant::now() >= self.deadline || self.source.as_ref().is_some_and(|source|!source.valid())
+    }
+    /// The actor rechecks the exact source while serializing entry into the
+    /// publication barrier. After success callers must finish the handoff,
+    /// regardless of source changes, and must not call abandoned() to abort it.
+    pub(crate) async fn begin(&self,admission:&crate::admission::Admission,timeout:Duration)->Result<(),hap::server::WriteStatus> {
+        admission.begin_authorized_automation_publication(self.devices.clone(),self.rules.clone(),self.expected_revision,timeout,self.source.clone()).await
+    }
+    pub(crate) async fn begin_before_deadline(&self,admission:&crate::admission::Admission,deadline:tokio::time::Instant)->Result<(),crate::automation_tcp::HandoffPublicationFailure> {
+        crate::automation_tcp::begin_authorized_handoff_before_deadline(admission,&self.devices,&self.rules,self.expected_revision,deadline,self.source.clone()).await
     }
     pub fn complete(self, result: Result<u64, String>) {
         let _ = self.reply.send(result);
@@ -106,3 +124,7 @@ impl Drop for Receiver {
         self.close();
     }
 }
+
+#[cfg(test)]
+#[path = "publication_auth_tests.rs"]
+mod source_auth_tests;

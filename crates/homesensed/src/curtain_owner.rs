@@ -35,11 +35,12 @@ impl From<Snapshot> for View {
         }
     }
 }
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 struct Pending {
     action: MotorAction,
     controller: Uuid,
     deadline_ms: u64,
+    source_authorization:Option<crate::source_auth::Source>,
 }
 struct Entry {
     model: Tracker,
@@ -48,6 +49,7 @@ struct Entry {
     pending: BTreeMap<u64, Pending>,
     held: Option<Snapshot>,
     source: Option<(Uuid, u64)>,
+    source_authorization:Option<crate::source_auth::Source>,
     attempted: BTreeMap<DeviceId, bool>,
 }
 impl Entry {
@@ -59,6 +61,7 @@ impl Entry {
         self.model.invalidate();
         self.held = None;
         self.source = None;
+        self.source_authorization=None;
         self.attempted.clear();
     }
     fn snapshot(&mut self, scope: Scope, now: u64) -> Snapshot {
@@ -85,6 +88,7 @@ pub(crate) struct LedEffect {
     pub cause: u64,
     pub device: DeviceId,
     pub active: bool,
+    pub source_authorization:Option<crate::source_auth::Source>,
 }
 pub(crate) struct Owner {
     revision: u64,
@@ -107,6 +111,7 @@ impl Owner {
                         pending: BTreeMap::new(),
                         held: None,
                         source: None,
+                        source_authorization:None,
                         attempted: BTreeMap::new(),
                     },
                 ))
@@ -141,12 +146,17 @@ impl Owner {
     pub(crate) fn pending_identity(&self,device:&DeviceId)->Vec<(u64,Uuid,MotorAction)> {
         self.entries.get(device).map(|entry|entry.pending.iter().map(|(id,p)|(*id,p.controller,p.action)).collect()).unwrap_or_default()
     }
-    pub fn accepted(
+    #[cfg(test)]
+    pub fn accepted(&mut self,config:&homesense_config::Configuration,command:&QueuedCommand,controller:Uuid,now:u64) {
+        self.accepted_with_source(config,command,controller,now,None);
+    }
+    pub fn accepted_with_source(
         &mut self,
         config: &homesense_config::Configuration,
         command: &QueuedCommand,
         controller: Uuid,
         now: u64,
+        source_authorization:Option<crate::source_auth::Source>,
     ) {
         let Some(entry) = self.entries.get_mut(&command.device_id) else {
             return;
@@ -169,6 +179,7 @@ impl Owner {
                 action,
                 controller,
                 deadline_ms: command.deadline_ms,
+                source_authorization,
             },
         );
     }
@@ -202,6 +213,7 @@ impl Owner {
                 continue;
             }
             entry.source = Some((pending.controller, id));
+            entry.source_authorization=pending.source_authorization;
             entry.held = (!entry.pending.is_empty()).then(|| entry.model.snapshot());
         }
     }
@@ -226,6 +238,7 @@ impl Owner {
                     pending: BTreeMap::new(),
                     held: None,
                     source: None,
+                    source_authorization:None,
                     attempted: BTreeMap::new(),
                 },
             );
@@ -283,13 +296,13 @@ impl Owner {
     }
     pub fn retire_revoked(&mut self, authorize: &impl Fn(Uuid) -> bool) {
         for entry in self.entries.values_mut() {
-            if entry.pending.values().any(|p| !authorize(p.controller)) {
-                entry.pending.retain(|_, p| authorize(p.controller));
+            if entry.pending.values().any(|p| !authorize(p.controller) || p.source_authorization.as_ref().is_some_and(|source|!source.valid())) {
+                entry.pending.retain(|_, p| authorize(p.controller) && p.source_authorization.as_ref().is_none_or(|source|source.valid()));
                 entry.discard_estimate();
             }
             if entry
                 .source
-                .is_some_and(|(controller, _)| !authorize(controller))
+                .is_some_and(|(controller, _)| !authorize(controller)) || entry.source_authorization.as_ref().is_some_and(|source|!source.valid())
             {
                 entry.discard_estimate();
             }
@@ -302,6 +315,7 @@ impl Owner {
             let Some((controller, cause)) = entry.source else {
                 continue;
             };
+            let source_authorization=entry.source_authorization.clone();
             let intent = entry.snapshot(self.scope, now).indicators();
             for (ids, color) in [
                 (&entry.leds.open, Some(intent.open_red)),
@@ -319,6 +333,7 @@ impl Owner {
                                 cause,
                                 device: device.clone(),
                                 active,
+                                source_authorization:source_authorization.clone(),
                             });
                         }
                     }
@@ -370,10 +385,11 @@ pub(crate) fn admit_leds(
     principals: &mut BTreeMap<u64, Uuid>,
     context: homesense_core::ExecutionContext,
     authorize: &impl Fn(Uuid) -> bool,
+    sources:&mut BTreeMap<u64,crate::source_auth::Source>,
 ) -> Result<(), homesense_storage::Error> {
     use homesense_core::{admission::Access, arbiter::BatchCommitError, queue::Origin};
     for effect in effects {
-        if !authorize(effect.controller) {
+        if !authorize(effect.controller) || effect.source_authorization.as_ref().is_some_and(|source|!source.valid_for(effect.controller,config.revision())) {
             continue;
         }
         let Some((binding, module)) = config.binding(&effect.device) else {
@@ -413,6 +429,7 @@ pub(crate) fn admit_leds(
         }) {
             Ok(cancelled) => {
                 principals.insert(id, effect.controller);
+                if let Some(source)=effect.source_authorization {sources.insert(id,source);}
                 *next_id = end;
                 for c in cancelled {
                     principals.remove(&c.command.id);
