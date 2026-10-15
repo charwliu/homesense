@@ -46,6 +46,8 @@ struct Pending {
 }
 impl SceneRuntime {
     pub(crate) fn controller(&self) -> Uuid { self.controller }
+    pub(crate) fn source_authorization(&self)->Option<crate::source_auth::Source>{self.admission.source()}
+    pub(crate) fn source_valid(&self)->bool{self.admission.source_valid()}
     /// A durable terminal with no owned output is safe to deliver as a result.
     pub(crate) fn settled_terminal(&self) -> bool {
         !self.audit_failed && !self.has_pending() && self.audit_status.terminal()
@@ -137,6 +139,7 @@ impl SceneRuntime {
     /// Install only a freshly accepted, single-use capability. This never reads
     /// executable work from history and cannot recreate a token after restart.
     pub async fn from_accepted(admission:Admission, accepted:crate::admission::AcceptedScene)->Result<Self,String> {
+        let admission=admission.with_source(accepted.source_authorization.clone());
         let current=admission.task_generation().await.map_err(|e|format!("{e:?}"))?;
         if current!=accepted.generation {return Err("accepted scene generation expired".into());}
         let bundle=admission.automation_bundle(accepted.controller,current.clone()).await.map_err(|e|format!("{e:?}"))?;
@@ -321,6 +324,7 @@ impl SceneRuntime {
             }
             Err(crate::admission::SubmissionFailure::Status(
                 hap::server::WriteStatus::InvalidValueInRequest
+                | hap::server::WriteStatus::InsufficientPrivileges
                 | hap::server::WriteStatus::ResourceDoesNotExist,
             )) => {
                 // Rejected admission produced no command. End only this run,
@@ -458,6 +462,10 @@ impl SceneRuntime {
         }
         self.checkpoint().await?;
         Ok(count)
+    }
+    pub(crate) async fn cancel_revoked_source(&mut self)->Result<(),String> {
+        self.cancel_with_reason(homesense_storage::scene_run::CancellationReason::CancelRequested).await?;
+        self.checkpoint().await
     }
     pub async fn cancel(&mut self) -> Result<usize, String> {
         self.cancel_with_reason(homesense_storage::scene_run::CancellationReason::CancelRequested).await

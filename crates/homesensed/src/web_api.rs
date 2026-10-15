@@ -199,6 +199,12 @@ impl Api {
         let deny=|code,message|response(code,json!({"error":message}));
         let authorization=request.headers().get("authorization").and_then(|v|v.to_str().ok());
         let cookie=request.headers().get("cookie").and_then(|v|v.to_str().ok()).and_then(session_cookie);
+        // Capture the write source before any async binding/query preflight.
+        // A later lookup must not silently adopt a replacement generation.
+        let control_source=if request.method()==hyper::Method::POST && matches!(request.uri().path(),"/api/v1/scene-actions"|"/api/v1/scene-cancellations"|"/api/v1/device-commands"|"/api/v1/module-commands"|"/api/v1/module-queries"|"/api/v1/scene-relative-actions"|"/api/v1/keypad-settings") {
+            let Some(source)=self.tokens.module_off_lease(authorization,cookie,request.headers().get("x-csrf-token").and_then(|v|v.to_str().ok())).filter(|source|source.matches_grant(&grant)) else{return deny(StatusCode::FORBIDDEN,"source_credential_required");};
+            Some(source)
+        } else {None};
         if request.method() == hyper::Method::GET && request.uri().path() == "/api/v1/session" {
             return response(
                 StatusCode::OK,
@@ -779,7 +785,7 @@ impl Api {
             struct SettingRequest{keypad:String,revision:String,request_id:String,command:crate::management_keypads::Setting}
             let body=match serde_json::from_slice::<SettingRequest>(request.body()){Ok(b)=>b,Err(_)=>return deny(StatusCode::BAD_REQUEST,"invalid_body")};
             if body.revision!=runtime.revision.to_string(){return deny(StatusCode::CONFLICT,"stale_revision");}
-            let Some(lease)=self.tokens.module_off_lease(authorization,cookie,request.headers().get("x-csrf-token").and_then(|v|v.to_str().ok())).filter(|l|l.controller()==grant.controller) else{return deny(StatusCode::FORBIDDEN,"panel_credential_required");};
+            let Some(lease)=control_source.clone().filter(|l|l.controller()==grant.controller && l.valid()) else{return deny(StatusCode::FORBIDDEN,"panel_credential_required");};
             let checked=runtime.control.request(Action::KeypadSetting{controller:grant.controller,revision:runtime.revision,keypad:body.keypad.clone(),lease:lease.clone(),setting:body.command.clone(),submit:false}).await;
             if !matches!(checked,Ok(Reply::CommandsAccepted(_))) {return deny(StatusCode::FORBIDDEN,"keypad_settings_not_permitted_or_incompatible");}
             let fingerprint=json!({"revision":runtime.revision,"action":"keypad_setting","keypad":body.keypad,"command":body.command}).to_string();
@@ -835,7 +841,7 @@ impl Api {
             }
             let fingerprint=json!({"action":"device","revision":runtime.revision,"device":body.device,"command":body.command}).to_string();
             let action=if matches!(body.command,crate::management_devices::DeviceAction::PanelLed{..}|crate::management_devices::DeviceAction::PanelLedOff) {
-                let Some(lease)=self.tokens.module_off_lease(authorization,cookie,request.headers().get("x-csrf-token").and_then(|v|v.to_str().ok())).filter(|l|l.controller()==grant.controller) else{return deny(StatusCode::FORBIDDEN,"panel_credential_required");};
+                let Some(lease)=control_source.clone().filter(|l|l.controller()==grant.controller && l.valid()) else{return deny(StatusCode::FORBIDDEN,"panel_credential_required");};
                 Action::PanelDeviceCommand{controller:grant.controller,revision:runtime.revision,device,action:body.command,lease}
             } else {Action::DeviceCommand{controller:grant.controller,revision:runtime.revision,device,action:body.command}};
             (
@@ -911,6 +917,11 @@ impl Api {
         if !is_device && (!grant.may_control(&scene) || !runtime.scenes.contains_key(&scene)) {
             return deny(StatusCode::FORBIDDEN, "scene_not_permitted");
         }
+        let command_source=if crate::source_auth::Source::supports(&action) {
+            let Some(lease)=control_source else{return deny(StatusCode::FORBIDDEN,"source_credential_required");};
+            let Some(source)=crate::source_auth::Source::capture(lease,&action,Some(&scene)) else{return deny(StatusCode::FORBIDDEN,"source_scope_changed");};
+            Some(source)
+        }else{None};
         let endpoint=match crate::web_receipts::Endpoint::control(request.uri().path()){Ok(e)=>e,Err(_)=>return deny(StatusCode::NOT_FOUND,"not_found")};
         let claim = self
             .receipts
@@ -941,7 +952,8 @@ impl Api {
             Claim::New => {}
         }
         let relative=request.uri().path()=="/api/v1/scene-relative-actions";
-        let outcome = match runtime.control.request(action).await {
+        let controlled=if let Some(source)=command_source {runtime.control.request_authorized(action,source).await}else{runtime.control.request(action).await};
+        let outcome = match controlled {
             Ok(Reply::SceneAccepted(Some(run))) => {
                 json!({"request_id":request_id,"outcome":"accepted","boot":runtime.boot,"run":run})
             }

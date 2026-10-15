@@ -314,6 +314,8 @@ impl std::fmt::Debug for ModuleOffLease {fn fmt(&self,f:&mut std::fmt::Formatter
 impl ModuleOffLease {
     pub fn controller(&self)->Uuid {self.grant.controller}
     pub fn devices(&self)->&BTreeSet<String> {&self.grant.devices}
+    pub(crate) fn scenes(&self)->&BTreeSet<String> {&self.grant.scenes}
+    pub(crate) fn matches_grant(&self,grant:&Grant)->bool {&self.grant==grant}
     pub(crate) fn is_administrator(&self)->bool {self.grant.role==Role::Administrator}
     /// The lock linearizes a bounded local write against source credential
     /// mutation. No secret is retained, and no guard crosses an async await.

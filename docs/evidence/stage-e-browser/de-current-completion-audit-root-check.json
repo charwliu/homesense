@@ -1,5 +1,5 @@
 {
-  "checked_bj": "2026-10-15T18:02:52.711512+08:00",
+  "checked_bj": "2026-10-15T18:23:29.807116+08:00",
   "derived_requirements": [
     "docs/design.md sections9-11,18,20,23-24,27"
   ],
@@ -93,11 +93,12 @@
       "id": "E-4",
       "stage": "E",
       "requirement": "原生App、管理API鉴权与事件恢复",
-      "verified_scope": "登录、滑块、退出和iPad断网恢复有实际限定结果；新账本与Away有软件证据；原生App实际TLS/WSS软件集成及手机推送、页面稳定与亮度按钮可用已确认；原生App两次实际调光跟随与自动读回已确认；rev9楼层目录及原生App三层/两房间归属已实际确认，永久Admin登录和本机空楼层编辑已通过；原生App楼层/房间新增、改名、删除、服务端保存及预览、恢复活动配置和测试草稿清理均已实际确认；两草稿独立核对设备及自动化未变；build7永久凭证Keychain保存、强退重开自动连接及前后台开/关同步已现场通过；ordinary v3严格负向80项零写出、publication v3四函数32项限定通过，v7 Web准确两run持久账目通过",
-      "remaining_evidence": "源授权修复仍待统一全量QA：原生组合灯新夹具InvalidPayload尚未进入行为断言；publication受理前12种旧版失败和受理后8种STOP失败均已独立复现。新Keypad、App实际发布及新服务异常恢复仍待整合和集中现场验收。",
-      "status": "source_authority_repair_partial_qualified_unified_QA_pending",
+      "verified_scope": "登录、滑块、退出和iPad断网恢复有实际限定结果；新账本与Away有软件证据；原生App实际TLS/WSS软件集成及手机推送、页面稳定与亮度按钮可用已确认；原生App两次实际调光跟随与自动读回已确认；rev9楼层目录及原生App三层/两房间归属已实际确认，永久Admin登录和本机空楼层编辑已通过；原生App楼层/房间新增、改名、删除、服务端保存及预览、恢复活动配置和测试草稿清理均已实际确认；两草稿独立核对设备及自动化未变；build7永久凭证Keychain保存、强退重开自动连接及前后台开/关同步已现场通过；ordinary v3严格负向80项零写出、publication v3四函数32项限定通过，v7 Web准确两run持久账目通过；精确来源授权／发布与STOP冻结v5完整1086项及文档、严格Clippy通过，保留原1067项，新增19项含213专项记录",
+      "remaining_evidence": "该授权软件子集已完成本机质量检查，尚未部署；持续服务恢复、其他管理变更／备份边界、App实际发布、新Keypad迁移及集中现场验收仍开放。",
+      "status": "exact_source_auth_and_publication_software_qualified_not_deployed",
       "additional_auth_gap": "stage-e-browser/ordinary-source-auth-root-gap.json",
-      "additional_publication_auth_evidence": "stage-e-browser/publication-source-boundaries-root-check.json"
+      "additional_publication_auth_evidence": "stage-e-browser/publication-source-boundaries-root-check.json",
+      "additional_qualified_auth_evidence": "stage-e-browser/source-authorization-v5-root-check.json"
     },
     {
       "id": "E-5",
@@ -120,8 +121,8 @@
       "stage": "D/E",
       "requirement": "最终集成软件回归",
       "verified_scope": "固定1195文件backendv3：Mac完整1067项/167实际测试程序，零失败/忽略/过滤；10个crate文档测试块无示例，严格workspace/all-targets Clippy通过；外层锁贯穿编译/执行/产物哈希，全部输入前后未变。旧Linux完整1054通过/1失败与缓存污染的无效v4运行分别保留。",
-      "remaining_evidence": "旧1067全量质量基线保留。ordinary v5修复默认栈溢出，原管理员模块测试通过；全量随后1071通过/1失败于需调整来源代次的旧Web夹具。v7该Web集成1/1通过；publication v3限定32项通过，但原生组合灯新夹具无效。统一完整workspace/doc/Clippy、运行时可用性修复及Linux生产冒烟尚待完成。",
-      "status": "unified_authority_and_runtime_availability_QA_in_progress",
+      "remaining_evidence": "授权／发布／STOP冻结v5本机完整1086／167、文档与严格Clippy通过；网关持续服务及场景歧义亮度后续候选需独立定向与最终统一QA，再交部署交叉生产程序及Linux隔离冒烟。实际客户端、完整D原语义和历史容量稳定性仍开放。",
+      "status": "auth_v5_local_qualified_final_runtime_and_scene_candidate_pending",
       "complete_for_current_frozen_input": false,
       "incremental_python_tool_tests_passed": 20,
       "full_workspace_repeated_this_increment": true,
@@ -138,7 +139,8 @@
       "full_workspace_doc_tests_repeated": true,
       "current_integrated_evidence": "stage-e-browser/native-keypad-backend-v3-root-check.json",
       "current_mac_doc_result_blocks": 10,
-      "current_frozen_local_quality_pass": true
+      "current_frozen_local_quality_pass": true,
+      "latest_qualified_subset": "stage-e-browser/source-authorization-v5-root-check.json"
     },
     {
       "id": "E-7",
@@ -193,7 +195,8 @@
     "stage-e-browser/ordinary-source-auth-repair-v3-root-check.json": "3ec60d5f1539f49af7dca7091eb29c7299b1fe1db0aadae0a67b022302542077",
     "stage-e-browser/runtime-gateway-timeout-root-gap.json": "02a71918edc4521220661bb95bad207cba2b98cb8fb6731b62921d0931aa9236",
     "stage-e-browser/publication-source-boundaries-root-check.json": "e8dd693ce16e83626f8efcff7a66ecce9cdd60b13bb4e13567ef972db3a57bce",
-    "stage-e-browser/runtime-feedback-outage-cli-root-check.json": "ddd9d3498af98386d801d4d33f2631a51f86397536fca029701b604523139ec9"
+    "stage-e-browser/runtime-feedback-outage-cli-root-check.json": "ddd9d3498af98386d801d4d33f2631a51f86397536fca029701b604523139ec9",
+    "stage-e-browser/source-authorization-v5-root-check.json": "273491270d1c201af3b0b3794f88df7807a4be9519c848775d451b113dd49729"
   },
   "excluded_by_scope": {
     "Siri": "cancelled by user",
@@ -279,15 +282,14 @@
     "old_failure_retained": true
   },
   "pending_Keypad_scope_review": {
-    "kind": "new panel settings/LED lease18cases pass; ordinary reused control paths dynamically fail80/80",
+    "kind": "exact source auth and publication software qualified; Keypad field migration pending",
     "fixed_scope": "frozen backendv3: two test functions/18 scenarios for exact source generation changes before enqueue/dispatch and after ticket; zero bytes, same-controller positive source remains working",
     "candidate_manifest_sha256": "fb3b02e0fee75fb0ed83aab63f197414295125348757f8d3a0b3cbe521bf65c4",
     "compile_failure_retained": "v2 two E0509 fixture shutdown compile errors; v3 only test handle clones changed",
     "still_open_paths": [
-      "ordinary light HTTP commands",
-      "motor HTTP commands",
-      "scene APIs reused by Keypad actions",
-      "module controls and derived delayed/scene output scope inventory"
+      "new native Keypad field migration",
+      "other management mutation/backup boundaries outside this repair",
+      "persistent runtime gateway recovery candidate qualification"
     ],
     "not_a_claim_all_API_auth_fixed": true,
     "full_workspace": "frozenv3 completed1067/all167, doc andClippy passed",
@@ -296,7 +298,14 @@
     "all_ordinary_source_negative_combinations_emitted": 80,
     "static_gap_only": false,
     "first_repair_compile": "v1 test SQLite u64 ToSql error; no tests executed; preserved and minimalv2 requested",
-    "current_repair_regression": "v5通过原默认栈回归；publication v3四函数32项通过；Web v7确切两run与原命令数集成通过；统一全量和native combined有效夹具仍待完成"
+    "current_repair_regression": "冻结v5完整1086／167通过、10crate文档检查与严格Clippy通过；原19项新增回归与全部既有测试保留，未部署",
+    "previous_still_open_paths_now_software_covered": [
+      "ordinary light HTTP commands",
+      "motor HTTP commands",
+      "scene APIs reused by Keypad actions",
+      "module controls and derived delayed/scene output scope inventory"
+    ],
+    "historical_80_emitted_fields_describe_preserved_baseline": true
   },
   "offline_keypad_migration": "Two parents and10existing aliases preserved6+4, all other revision9 fields identical; fixedv3 production check-config/check-automation exit0, no service or commands.",
   "source_policy_decisions_added": 2,
@@ -311,5 +320,6 @@
   "field_testing_user_deferred_until_all_fixes_integrated": true,
   "gateway_timeout_exit_user_requires_fix": true,
   "latest_publication_auth_evidence": "stage-e-browser/publication-source-boundaries-root-check.json",
-  "latest_runtime_counterexample_evidence": "stage-e-browser/runtime-feedback-outage-cli-root-check.json"
+  "latest_runtime_counterexample_evidence": "stage-e-browser/runtime-feedback-outage-cli-root-check.json",
+  "latest_qualified_source_authorization": "stage-e-browser/source-authorization-v5-root-check.json"
 }
