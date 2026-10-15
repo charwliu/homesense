@@ -3,11 +3,13 @@ import UniformTypeIdentifiers
 import HomeSenseCore
 
 enum ToolPage: String, CaseIterable, Identifiable {
+    case relayAddress = "LH-IO1600 地址"
     case address = "面板地址", test = "指令测试", log = "通信日志", connection = "网关连接"
     var id: String { rawValue }
     var icon: String {
         switch self {
         case .address: "number.square"
+        case .relayAddress: "cpu"
         case .test: "slider.horizontal.3"
         case .log: "terminal"
         case .connection: "network"
@@ -21,6 +23,7 @@ struct ContentView: View {
     @State private var key = 1
     @State private var backlight = 1
     @State private var confirmChange = false
+    @State private var confirmLHChange = false
     @State private var exporting = false
     @State private var exportDocument = LogDocument(text: "")
 
@@ -31,7 +34,7 @@ struct ContentView: View {
                     Label {
                         VStack(alignment: .leading, spacing: 4) {
                             Text("HomeSense · 本地调试").font(.headline)
-                            Text("TS6-86 · 面板调试").font(.caption).foregroundStyle(.secondary)
+                            Text("TS6-86 / LH-IO1600").font(.caption).foregroundStyle(.secondary)
                         }
                     } icon: {
                         Image(systemName: "wave.3.right.circle.fill").font(.title).foregroundStyle(.teal)
@@ -46,7 +49,8 @@ struct ContentView: View {
                 Section("通信状态") {
                     Label(statusText, systemImage: session.status == .connected ? "circle.fill" : "circle")
                         .foregroundStyle(session.status == .connected ? Color.teal : Color.secondary)
-                    LabeledContent("目标地址", value: session.address.uppercased())
+                    LabeledContent(selected == .relayAddress ? "LH 地址 · 十进制" : "TS6 地址 · HEX",
+                                   value: selected == .relayAddress ? session.lhAddress : session.address.uppercased())
                     Text("TCP 串口 · 9600 / 8N1")
                         .font(.caption).foregroundStyle(.secondary)
                 }
@@ -66,6 +70,7 @@ struct ContentView: View {
                     switch selected ?? .connection {
                     case .connection: connectionPage
                     case .address: addressPage
+                    case .relayAddress: relayAddressPage
                     case .test: testPage
                     case .log: logPage
                     }
@@ -81,6 +86,15 @@ struct ContentView: View {
                     Button("断开", systemImage: "xmark.circle") { session.disconnect() }
                 }
             }
+        }
+        .onChange(of: selected) { _, page in
+            if page == .relayAddress { session.setKeyLEDLinkEnabled(false) }
+        }
+        .alert("修改 LH-IO1600 地址", isPresented: $confirmLHChange) {
+            Button("发送改址指令", role: .destructive) { session.changeLHAddress() }
+            Button("取消", role: .cancel) { }
+        } message: {
+            Text("十进制地址 \(session.lhAddress) → \(session.lhNewAddress)\n\(session.lhChangePreview)\n请确认总线上仅连接这一块 LH-IO1600，新地址未被占用。无需按住 TS6 面板按键。发送后请查询新地址核对；不会自动重发，也不会修改服务端配置。")
         }
         .alert("修改 TS6-86 硬件地址", isPresented: $confirmChange) {
             Button("发送改址指令", role: .destructive) { session.changeAddress() }
@@ -104,9 +118,9 @@ struct ContentView: View {
 
     private var heading: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("TS6-86").font(.caption.weight(.semibold)).tracking(3).foregroundStyle(.teal)
+            Text(selected == .relayAddress ? "LH-IO1600 · Modbus RTU" : "TS6-86").font(.caption.weight(.semibold)).tracking(3).foregroundStyle(.teal)
             Text((selected ?? .connection).rawValue).font(.largeTitle.bold())
-            Text(session.notice).font(.subheadline).foregroundStyle(.secondary).textSelection(.enabled)
+            Text(selected == .relayAddress ? session.lhNotice : session.notice).font(.subheadline).foregroundStyle(.secondary).textSelection(.enabled)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -135,6 +149,58 @@ struct ContentView: View {
                 Text("调试时由此 App 独占网关连接，暂停其他向同一总线发指令的控制程序。iPhone / iPad 首次连接需允许访问本地网络。")
                 Text("连接后不会自动扫描或发指令；断线及进入后台会取消当前操作，重新连接后需手动查询。")
                     .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private var relayAddressPage: some View {
+        VStack(spacing: 20) {
+            card("读取 LH-IO1600 软件地址", icon: "magnifyingglass") {
+                field("当前从站地址 · 十进制", text: $session.lhAddress, prompt: "0–255，例如 1（不是 TS6 的 HEX）")
+                hexLine(session.lhReadPreview)
+                Button("读取地址", systemImage: "arrow.down.circle") { session.readLHAddress() }
+                    .buttonStyle(.borderedProminent).disabled(!session.canSend)
+                Toggle("已确认总线上只连接这一块 LH-IO1600", isOn: $session.isolatedRelay)
+                    .disabled(session.busy)
+                Button("未知地址：以 254 查询", systemImage: "antenna.radiowaves.left.and.right") {
+                    session.readLHAddress(unknown: true)
+                }
+                .buttonStyle(.bordered).disabled(!session.canSend || !session.isolatedRelay)
+                Text("254（FE）是厂家广播地址，仅用于隔离单模块。当前地址为 0 时也须确认隔离。查询只读寄存器 0x03EA，不控制继电器。")
+                    .font(.caption).foregroundStyle(.secondary)
+                if let value = session.lhQueriedAddress {
+                    Divider()
+                    Text("软件地址读回：\(value) · HEX \(String(format: "%02X", value))")
+                        .font(.title3.bold()).foregroundStyle(.teal)
+                    Button("将读回地址设为当前目标") { session.useLHAddress(value) }.disabled(session.busy)
+                }
+                if !session.lhLastReply.isEmpty { hexLine(session.lhLastReply) }
+            }
+            card("修改 LH-IO1600 地址", icon: "pencil.circle") {
+                field("新地址 · 十进制", text: $session.lhNewAddress, prompt: "1–247，例如 10")
+                hexLine(session.lhChangePreview)
+                Text("通过功能码 06 写寄存器 0x03EA。改址前必须隔离单模块，且新地址未被其他设备占用；无需长按面板按键。本工具的新地址限定为 1–247。")
+                    .font(.caption).foregroundStyle(.secondary)
+                Button("修改模块地址", systemImage: "arrow.right.arrow.left") { confirmLHChange = true }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(!session.canSend || !session.canChangeLHAddress)
+                if let next = session.lhWrittenAddress {
+                    Divider()
+                    Text(session.lhVerifiedAddress == next ? "新地址 \(next) 已读回核对" : "改址指令已写出 → \(next)，待核对")
+                        .font(.subheadline.bold())
+                    Button("查询新地址 \(next) 核对") { session.verifyLHAddress() }
+                        .buttonStyle(.bordered).disabled(!session.canSend)
+                    if session.lhVerifiedAddress == next {
+                        Button("将新地址设为当前目标") { session.useLHAddress(next) }.disabled(session.busy)
+                    }
+                }
+                Text("写出或收到回显不等于改址成功。只有用新地址读回相同软件地址，才显示核对通过；断线或进入后台取消等待，不自动重试。")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            card("连接方式", icon: "network") {
+                Text("共用“网关连接”中的 IP／端口，网关须为透明传输模式，串口参数与模块一致（出厂为 9600 / 8N1）。此处发送 Modbus RTU，不是 Modbus TCP。")
+                Text("调试前暂停其他总线控制程序。进入本页会停止 TS6 按键灯联动；TS6 地址、灯控、参数及日志功能仍在原工具页。")
+                    .font(.caption).foregroundStyle(.secondary)
             }
         }
     }
@@ -331,7 +397,7 @@ struct ContentView: View {
                 }
                 Button("清空", systemImage: "trash") { session.clearLogs() }
             }
-            Text("TX 为 TCP 写出；RX 为原始字节；帧为固定 5 字节解码。未知帧保持原样，ASCII 列为字节预览。")
+            Text("TX 为 TCP 写出；RX 为原始字节；TS6 帧按固定 5 字节解码。LH-IO1600 按 Modbus RTU 校验 CRC、地址与功能码；写入回显仍需通过新地址读回核对。")
                 .font(.caption).foregroundStyle(.secondary)
             if session.logs.isEmpty {
                 ContentUnavailableView("暂无通信记录", systemImage: "terminal", description: Text("连接网关并手动发送查询后，收发报文会显示在这里。"))

@@ -1,0 +1,106 @@
+{
+  "status": "independently verified complete software composition; not signed or installed",
+  "base_commit": "ab861d4619202754c8429fcdf07eb447d08cfaef",
+  "inputs": 77,
+  "App_inputs": 58,
+  "changed_paths": {
+    "App/ContentView.swift": {
+      "base_sha256": "27c094281cd09dcf827a2f2becd68633478181649a2ac6c6e6f8317a8362af17",
+      "candidate_sha256": "a91bd021cfaec3f79a6b9822e2020e89ec52e5dffae89e2f6b849bdab86c4bd3",
+      "user_feature_reason": "恢复独立LH地址页、十进制/隔离确认/查询与改址核对UI，保留TS6页面",
+      "exact_build8_source": true
+    },
+    "App/Info.plist": {
+      "base_sha256": "c6b084954a3470bcf058870e87286ad5af5b98ab9df5ae1f6fc8e727502689d8",
+      "candidate_sha256": "31ddd5576118875a2e847564095bc56bfe5e028974dc107f50e513a288528507",
+      "user_feature_reason": "本地网络用途说明准确包含两种模块；版本仍7、标识/权限项不变",
+      "exact_build8_source": false
+    },
+    "CHANGELOG.md": {
+      "base_sha256": "e66f2da5b74231cedf05e0d291601b06ebd4d3d7945321107cbf92c1ac164808",
+      "candidate_sha256": "8480658a4debaad79aea624eaff382f006c480ab05fe31f180485856d5c035c6",
+      "user_feature_reason": "保留build8历史和后续只读证据，记录本轮功能回退修复及未发布边界",
+      "exact_build8_source": false
+    },
+    "README.md": {
+      "base_sha256": "4f97869b127d594712a5dd9404ddc6d409d87ec8c154455c28ea1b1067c8c0e3",
+      "candidate_sha256": "f2f89a3a4244fae0fe7c5d91749285aee0802ba0c9d0b91e14f9763567a669ae",
+      "user_feature_reason": "仅说明现有LH/逐网关状态功能与操作范围，逐次记录移至CHANGELOG",
+      "exact_build8_source": false
+    },
+    "Sources/HomeSenseCore/CommissioningSession.swift": {
+      "base_sha256": "e105bf24c6e3fec96d6f6274469dc153a84e5d2ef0d78af3cc5dbb29e3baafa7",
+      "candidate_sha256": "7eaf365e280852380b8ba63b8aa436397f8d71da2523bed3937054b6be99831d",
+      "user_feature_reason": "恢复LH状态、串行收发、取消及新地址读回状态，不重放",
+      "exact_build8_source": true
+    },
+    "Sources/HomeSenseCore/LHIO1600Protocol.swift": {
+      "base_sha256": null,
+      "candidate_sha256": "6e429a57828756f6ecad80248e319fe327355ba112f52c7786bd96375b06c844",
+      "user_feature_reason": "恢复03EA FC03/06编码、CRC及唯一匹配解析",
+      "exact_build8_source": true
+    },
+    "Sources/HomeSenseCore/TCPClient.swift": {
+      "base_sha256": "685fb0209a2ac0c76f0a2ede263ad892393cb273933c4800ca6423038968a590",
+      "candidate_sha256": "c8075390e8f751fac7b16d92e9f0c16c592c255b2e124981388fa8321ec6a13f",
+      "user_feature_reason": "恢复Data发送重载供8字节ModbusRTU使用，Frame仍委托同发送通道",
+      "exact_build8_source": true
+    },
+    "Tests/HomeSenseCoreTests/LHIO1600Tests.swift": {
+      "base_sha256": null,
+      "candidate_sha256": "9d4ef7177ea42362128a778dacdc0d21cd3469ebb109081d95ec375ab00c5ebb",
+      "user_feature_reason": "恢复原8项LH测试源码及断言",
+      "exact_build8_source": true
+    }
+  },
+  "full_run": {
+    "passed_methods": 87,
+    "passed_suites": 15,
+    "failed": 0,
+    "skipped": 0,
+    "old79_retained": true,
+    "new_LH8": [
+      "badCRCAndWriteEchoNeverConfirmAnAddress()",
+      "decimalInputsIsolationAndReservedTargets()",
+      "disconnectCancelsAndReconnectNeverReplays()",
+      "manualRegisterFramesAndCRC()",
+      "readChangeAndExplicitNewAddressVerification()",
+      "readFiltersCRCUnitCountAndRequestEcho()",
+      "writeEchoIsDistinctFromVerificationAndChecksRegisterValue()",
+      "zeroAddressCanBeReadAndChangedWhenIsolated()"
+    ],
+    "actual_Rust_integration_methods": [
+      "nativeManagementAgainstActualRustHTTPSAPI()",
+      "realKeypadHTTPSWSSKeepsOneParentAndNeverPromotesWritesToActual()"
+    ]
+  },
+  "bundle_files_verified": {
+    "iOS-app-manifest.json": 8,
+    "macOS-app-manifest.json": 7,
+    "test-bundle-manifest.json": 3
+  },
+  "test_program_sha256": "0bf6560124491e3020af68408d9fbc330a26c8f5e4d2743cbfc3a972050f1624",
+  "Keypad_UI_unchanged_from_qualified_base": true,
+  "Info_semantic_change_only": "NSLocalNetworkUsageDescription",
+  "source_version": "7; private release11 preparation separate",
+  "README_review_corrections": [
+    "retain TS6 qualifier for single-byte response",
+    "retain manual command feature wording"
+  ],
+  "phone_LED_display_issue": "unresolved; no inference of old build or cache",
+  "field_commands_phone_queries_Keychain_production_changes": 0,
+  "handoff_sha256": "b3b1025d2bc2e1ba25bd0d711d824205580b9222062067c3640ff9f7baa16cbc",
+  "checked_bj": "2026-10-16T05:20:55.357409+08:00",
+  "source_readme_only_review_adjustments": [
+    "TS6 single-byte qualification retained",
+    "manual command feature retained"
+  ],
+  "production_migration_approval_pending": true,
+  "D_E_complete": false,
+  "artifact_sha256": {
+    "independent_result": "92712485a695c29ccab2130479ca47da6b8b7b8ff6542effdf591f3d3cb81ae0",
+    "producer_handoff": "b3b1025d2bc2e1ba25bd0d711d824205580b9222062067c3640ff9f7baa16cbc",
+    "full_test_log": "7ddfd301578539aebef035e236340ecf96b7ada248a91b1f7f7f3a2a12fa8dfb",
+    "candidate_manifest77": "f938c2cd5dedfad0dfd3f251492d640e6d45a21d79c8b7039d3f407280e01100"
+  }
+}

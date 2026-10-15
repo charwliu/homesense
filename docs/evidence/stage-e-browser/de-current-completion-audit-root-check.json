@@ -1,5 +1,5 @@
 {
-  "checked_bj": "2026-10-16T05:07:00.288314+08:00",
+  "checked_bj": "2026-10-16T05:20:55.357409+08:00",
   "derived_requirements": [
     "docs/design.md sections9-11,18,20,23-24,27"
   ],
@@ -295,7 +295,8 @@
     "stage-e-browser/multi-gateway-runtime10-root-check.json": "adb85e193be25f3135a2a894ba2a5268df33cf8f3b1b89a7b946c2c8fd411b7b",
     "stage-e-browser/native-partial-availability-root-check.json": "ac5e90b1d0023dab92b9ba15c3c54913bd5e16bc86b225ba7bfb7738bf850849",
     "stage-e-browser/multi-gateway-linux-runtime10-root-check.json": "d291d9e921be9c754eb0d37122d832bfad782392cbdf73f32d5fb9dbb32b55a8",
-    "stage-e-browser/native-build10-root-check.json": "2eb147ccf1bfd1283697b20d4cde66f9ebc878499a2ecfa09191928b178db899"
+    "stage-e-browser/native-build10-root-check.json": "d08b261fb605ba7c5b1249c77241daa21145a17c89b3d31d25a3b96ee48ecff3",
+    "stage-e-browser/native-lhio-preservation-root-check.json": "753b2f521966c68b7e63e283eb851ea1d97ae1c190b1e25fc96b7ecf12d14683"
   },
   "excluded_by_scope": {
     "Siri": "cancelled by user",
@@ -530,7 +531,7 @@
   "latest_Keypad_display_diagnosis": "stage-e-browser/keypad-display-diagnosis-root-check.json",
   "latest_indicator_final_Linux_deployment": "stage-e-browser/indicator-final-linux-deployment-root-check.json",
   "latest_native_build9_delivery": "stage-e-browser/native-build9-delivery-root-check.json",
-  "native_App_phone_update": "old-source build9 signed but two installs failed CoreDevice4000/NWError60; current availability changes not in that old signed9. New phone package/install/visual acceptance pending, last observed installed8.",
+  "native_App_phone_update": "Last verified installed build8. Old9 two failed installs; unsigned clean10 held for missing preexisting LHIO. Full58-input LHIO/TS6/Keypad/availability combination software qualified87, private11 and phone acceptance pending.",
   "latest_multi_gateway_runtime_counterexample": "stage-e-browser/multi-gateway-isolation-root-gap.json",
   "multi_gateway_fault_isolation": {
     "Mac_frozen_backend_qualified": true,
@@ -589,5 +590,21 @@
   "latest_gateway_isolation_Linux_candidate_qualification": "stage-e-browser/multi-gateway-linux-runtime10-root-check.json",
   "latest_native_build10_preparation": "stage-e-browser/native-build10-root-check.json",
   "gateway_isolation_production_switch": "Not performed. Two automatic approval rejections, second after verified earlier human authorization; a current specific approval is pending. OldPID246767/schema26/rev10 retained.",
-  "native_App_availability_source_commit": "ab861d4619202754c8429fcdf07eb447d08cfaef"
+  "native_App_availability_source_commit": "ab861d4619202754c8429fcdf07eb447d08cfaef",
+  "latest_native_complete_LHIO_preservation": "stage-e-browser/native-lhio-preservation-root-check.json",
+  "native_App_complete_source_qualification": {
+    "App_inputs": 58,
+    "full_methods": 87,
+    "suites": 15,
+    "failed": 0,
+    "skipped": 0,
+    "previous79_retained": true,
+    "original8_LH_methods_preserved": true,
+    "original2_actual_Rust_integrations_in_same_run": true,
+    "iOS_and_macOS_unsigned": true,
+    "source_Info_version": 7,
+    "phone_package11_prepared": false,
+    "signed_or_installed": false,
+    "phone_LED_display_complaint_unresolved": true
+  }
 }

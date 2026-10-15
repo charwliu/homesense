@@ -33,5 +33,12 @@
     "Root_independent_result": "e0d6e622d901673a32f0182f8b26e79eb70779e4d0cd3aee0bd237bc07224a77",
     "producer_handoff": "161340f9a2bbbe4a4bef9a4f352bd34c11db082a96a91074fbb6f6e6b4903a4e"
   },
-  "D_E_complete": false
+  "D_E_complete": false,
+  "release_scope_review": {
+    "eligible_as_complete_phone_update": false,
+    "reason": "Omits LH-IO1600 tool present in last verified installed build8; original user explicitly required preserving existing features.",
+    "archive_retained_unmodified": true,
+    "replacement_software_qualification": "native-lhio-preservation-root-check.json",
+    "replacement_not_yet_signed_or_installed": true
+  }
 }
