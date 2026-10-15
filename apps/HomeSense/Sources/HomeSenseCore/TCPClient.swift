@@ -53,7 +53,7 @@ public final class TCPClient: ObservableObject {
                 case .ready:
                     self.deadline?.cancel()
                     self.status = .connected
-                    self.onMessage?("TCP 已连接；尚未确认面板响应。")
+                    self.onMessage?("TCP 已连接；尚未确认模块响应。")
                     self.receive(active, token: token)
                 case .failed(let error): self.fail(error)
                 case .waiting(let error): self.onMessage?("等待网络：\(error.localizedDescription)")
@@ -89,6 +89,10 @@ public final class TCPClient: ObservableObject {
     }
 
     public func send(_ frame: Frame) async throws {
+        try await send(frame.data)
+    }
+
+    public func send(_ data: Data) async throws {
         guard pending == nil else { throw TransportFailure.busy }
         guard status == .connected, let active = connection else { throw TransportFailure.notConnected }
         let token = generation
@@ -105,7 +109,7 @@ public final class TCPClient: ObservableObject {
                 guard let self, self.generation == token, self.pending != nil else { return }
                 self.fail(TransportFailure.timedOut)
             }
-            active.send(content: frame.data, completion: .contentProcessed { [weak self] error in
+            active.send(content: data, completion: .contentProcessed { [weak self] error in
                 Task { @MainActor [weak self] in
                     guard let self, self.generation == token, let pending = self.pending else { return }
                     self.pending = nil

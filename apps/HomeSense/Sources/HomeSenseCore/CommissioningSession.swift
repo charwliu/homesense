@@ -35,6 +35,15 @@ public final class CommissioningSession: ObservableObject {
     @Published public private(set) var keyLEDLinkEnabled = false
     /// Successfully written requests, not measured LED state.
     @Published public private(set) var lastWrittenLEDColors: [Int: LEDColor] = [:]
+    @Published public var lhAddress = "1"
+    @Published public var lhNewAddress = "10"
+    @Published public var isolatedRelay = false
+    @Published public private(set) var lhQueriedAddress: UInt8?
+    @Published public private(set) var lhWrittenAddress: UInt8?
+    @Published public private(set) var lhVerifiedAddress: UInt8?
+    @Published public private(set) var lhNotice = "LH-IO1600 · 地址均为十进制；请先查询。"
+    @Published public private(set) var lhLastReply = ""
+    private var lhWindow: Data?
     public let client: TCPClient
     private var decoder = FrameDecoder()
     private var subscriptions: Set<AnyCancellable> = []
@@ -58,7 +67,10 @@ public final class CommissioningSession: ObservableObject {
         client.onBytes = { [weak self] bytes in self?.receive(bytes) }
         client.onDisconnect = { [weak self] in
             guard let self else { return }
-            self.operation?.cancel(); self.readWindow = nil
+            self.operation?.cancel(); self.readWindow = nil; self.lhWindow = nil
+            self.lhQueriedAddress = nil; self.lhWrittenAddress = nil; self.lhVerifiedAddress = nil
+            self.isolatedRelay = false; self.lhLastReply = ""
+            self.lhNotice = "已断开；LH-IO1600 本次连接的地址结果已清空。"
             self.stopKeyLEDLink()
             self.lastWrittenLEDColors.removeAll()
             self.decoder.reset(); self.observedAddresses.removeAll(); self.keyEvents.removeAll()
@@ -85,7 +97,7 @@ public final class CommissioningSession: ObservableObject {
     }
     public var transcript: String {
         let formatter = ISO8601DateFormatter()
-        return "HomeSense · TS6-86 / TS6-86-B （串口版）\n" + logs.map {
+        return "HomeSense · TS6-86 / TS6-86-B / LH-IO1600\n" + logs.map {
             "\(formatter.string(from: $0.time)) [\($0.kind.rawValue)] \($0.text)"
         }.joined(separator: "\n")
     }
@@ -97,7 +109,7 @@ public final class CommissioningSession: ObservableObject {
             writtenAddress = nil
             queriedAddress = nil; lastReply = ""
             defaults?.set(host, forKey: "gateway.host"); defaults?.set(port, forKey: "gateway.port")
-            append(.info, "连接 \(host):\(port) · TS6-86（串口版）")
+            append(.info, "连接 \(host):\(port) · TCP 透明串口网关")
         } catch { report(error) }
     }
     public func disconnect() { client.disconnect() }
@@ -256,7 +268,88 @@ public final class CommissioningSession: ObservableObject {
         }
     }
 
+    public var lhReadPreview: String {
+        (try? LHIO1600Request.read(target: lhAddress, isolated: isolatedRelay).hex) ?? "请输入有效当前地址；0／254 需确认单模块隔离"
+    }
+    public var lhChangePreview: String {
+        do { return try LHIO1600Request.write(target: lhAddress, newAddress: lhNewAddress, isolated: isolatedRelay).hex }
+        catch { return error.localizedDescription }
+    }
+    public var canChangeLHAddress: Bool {
+        (try? LHIO1600Request.write(target: lhAddress, newAddress: lhNewAddress, isolated: isolatedRelay)) != nil
+    }
+    public func readLHAddress(unknown: Bool = false) {
+        do {
+            let request = try LHIO1600Request.read(target: unknown ? "254" : lhAddress, isolated: isolatedRelay)
+            performLH(request)
+        } catch { report(error) }
+    }
+    public func changeLHAddress() {
+        do { performLH(try LHIO1600Request.write(target: lhAddress, newAddress: lhNewAddress, isolated: isolatedRelay)) }
+        catch { report(error) }
+    }
+    public func verifyLHAddress() {
+        guard let next = lhWrittenAddress else { return }
+        do { performLH(try LHIO1600Request.read(target: String(next), isolated: false)) }
+        catch { report(error) }
+    }
+    public func useLHAddress(_ address: UInt8) {
+        guard !busy else { return }
+        lhAddress = String(address)
+    }
+
+    private func performLH(_ request: LHIO1600Request) {
+        guard canSend else { report(status == .connected ? TransportFailure.busy : .notConnected); return }
+        stopKeyLEDLink()
+        decoder.reset()
+        busy = true; error = nil; lhWindow = Data(); lhLastReply = ""
+        lhQueriedAddress = nil; lhVerifiedAddress = nil
+        if request.newAddress != nil { lhWrittenAddress = nil }
+        operation = Task { [weak self] in
+            guard let self else { return }
+            defer { self.busy = false; self.operation = nil; self.lhWindow = nil; self.decoder.reset() }
+            do {
+                try Task.checkCancellation()
+                try await self.client.send(request.data)
+                self.append(.tx, "\(request.hex) · LH-IO1600 \(request.newAddress == nil ? "读地址" : "改址") · 已写出")
+                try Task.checkCancellation()
+                if let next = request.newAddress {
+                    self.lhWrittenAddress = next
+                    self.isolatedRelay = false
+                    self.lhNotice = "改址指令已写出 → \(next)；尚未确认，请查询新地址核对。"
+                } else { self.lhNotice = "读取地址指令已写出；等待 CRC 校验通过的回复。" }
+                try await Task.sleep(for: .seconds(2))
+                try Task.checkCancellation()
+                let bytes = self.lhWindow ?? Data()
+                self.lhLastReply = bytes.isEmpty ? "未收到回复" : bytes.hex
+                switch try request.reply(in: bytes) {
+                case .address(let value):
+                    self.lhQueriedAddress = value
+                    if request.target == self.lhWrittenAddress, value == request.target {
+                        self.lhVerifiedAddress = value
+                        self.lhNotice = "已通过新地址 \(value) 读回软件地址 \(value)，CRC 校验通过。"
+                    } else {
+                        self.lhNotice = "软件地址读回 \(value)（HEX \(String(format: "%02X", value))），CRC 校验通过。"
+                    }
+                case .writeEcho:
+                    self.lhNotice = "收到匹配的写入回显；回显不能证明硬件改址成功，请查询新地址核对。"
+                }
+                self.append(.info, "LH-IO1600 · \(self.lhNotice)")
+            } catch is CancellationError {
+                self.append(.info, "LH-IO1600 操作已取消；不自动重发。")
+            } catch {
+                self.lhNotice = (self.lhWrittenAddress == nil ? "" : "改址尚未确认；可查询新地址核对。") + error.localizedDescription
+                self.report(error)
+            }
+        }
+    }
+
     private func receive(_ data: Data) {
+        if let window = lhWindow {
+            lhWindow = window + data.prefix(max(0, 65536 - window.count))
+            append(.rx, "\(data.hex) · LH-IO1600 RTU")
+            return
+        }
         if let window = readWindow {
             // Bounded diagnostics even if a gateway continuously streams noise.
             readWindow = window + data.prefix(max(0, 65536 - window.count))
