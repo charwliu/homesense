@@ -45,13 +45,39 @@
     }
   ],
   "observation": "same-boot unrelated1000/10000/100000 rows cause about7000/70000/700000 VM steps",
-  "prototype": "scope+intent partial index leaves70 steps for all three sizes; not yet applied to product or field DB",
   "actual_ms_are_diagnostics_not_portable_latency_guarantees": true,
-  "new_indexed_final_candidate_required": true,
+  "new_indexed_final_candidate_required": false,
   "existing_v11_runtime_passes_preserved": true,
   "evidence_sha256": {
     "deployment/ngr/private/20261016-led-query-cost-root/result.json": "6674aed275421663f20b3092de799049b0ec7d05790504149d20116b191f02ce",
     "deployment/ngr/private/20261016-led-query-cost-root/index-prototype-result.json": "d2f35b81891d4b4e311155da62c406ea9c3dae38378650d06c0419f4566c8c2a"
   },
-  "field_DB_reads_or_writes": 0
+  "field_DB_reads_or_writes": 0,
+  "historical_prototype": "scope+intent partial index leaves70 steps for all three sizes; not yet applied to product or field DB",
+  "current_status": "resolved in integrated software; field deployment pending",
+  "final_Rust_causal_pair": {
+    "same_four_test_file": true,
+    "baseline_passed": 2,
+    "baseline_failed": 2,
+    "candidate_passed": 4,
+    "candidate_failed": 0,
+    "unrelated_same_boot_rows": [
+      1000,
+      10000,
+      100000
+    ],
+    "baseline_VM_steps": [
+      7049,
+      70049,
+      700049
+    ],
+    "candidate_VM_steps": [
+      28,
+      28,
+      28
+    ],
+    "derived_index_only_no_row_or_schema26_version_change": true,
+    "old_current_DB_and_legacy_opener_tests_passed": true
+  },
+  "final_evidence": "stage-e-browser/indicator-final-integrated-quality-root-check.json"
 }

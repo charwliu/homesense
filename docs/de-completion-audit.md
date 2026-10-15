@@ -1,3 +1,5 @@
+2026-10-16 LED最终v13已按13条路径合入：冻结842份输入的完整workspace1153项／172结果块全部通过，原1137项清单完整保留，0失败／忽略／过滤；文档与全目标严格Clippy通过。普通CLI的88路周期探针、40秒常驻超时／部分反馈／恢复、最终App两项实际HTTPS/WSS联调通过。索引相同四测试在旧实现2过2失败、候选4过，1千／1万／10万条无关历史的Rust VM步数从7049／70049／700049降为28／28／28；不改账本行或schema26版本。原838输入遗漏四个既存回归输入的失败与中止记录保留，最终补齐842，不删用例。Linux构建部署及手机显示／硬件仍待验，现网rev10、Admin17范围不变。见[最终整合软件核查](evidence/stage-e-browser/indicator-final-integrated-quality-root-check.json)。
+
 2026-10-16 00:20 现网只读复核：rev10就绪、两张六格父卡、0独立LED，首页410；systemd同PID244467、active／enabled、零重启、无限期限。README将过期的父对象／浏览器／来源授权“未部署”状态与已取消浏览器验收条目校正为实际能力状态，仍保留手机显示、完整硬件与新候选验收。没有运行配置、凭证或设备写入。见[当前能力核查](evidence/stage-e-browser/current-feature-status-root-check.json)。
 
 2026-10-16 LED私有v11已完成Root运行复验：相同五测试文件在旧实现2过3失败、修复5过，普通程序原88路探针及周期静默通过，23 Written／0待决；常驻AD8断连／部分反馈／恢复／SIGTERM探针通过，只发两条预期模拟控制。两项迁移夹具的四个原测试另经Root直接执行通过，候选71项相关回归与包级严格Clippy日志已核对。源码尚未合入或部署；Root又发现新LED查询随同boot历史线性扫描，已私有复现并交回补索引，完整workspace及新最终候选继续待验。见[运行核查](evidence/stage-e-browser/indicator-cross-writer-runtime-root-check.json)和[查询增长缺口](evidence/stage-e-browser/indicator-query-growth-root-gap.json)。

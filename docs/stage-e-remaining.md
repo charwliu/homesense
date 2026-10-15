@@ -1,3 +1,5 @@
+2026-10-16 LED最终v13已按13条路径合入：冻结842份输入的完整workspace1153项／172结果块全部通过，原1137项清单完整保留，0失败／忽略／过滤；文档与全目标严格Clippy通过。普通CLI的88路周期探针、40秒常驻超时／部分反馈／恢复、最终App两项实际HTTPS/WSS联调通过。索引相同四测试在旧实现2过2失败、候选4过，1千／1万／10万条无关历史的Rust VM步数从7049／70049／700049降为28／28／28；不改账本行或schema26版本。原838输入遗漏四个既存回归输入的失败与中止记录保留，最终补齐842，不删用例。Linux构建部署及手机显示／硬件仍待验，现网rev10、Admin17范围不变。见[最终整合软件核查](evidence/stage-e-browser/indicator-final-integrated-quality-root-check.json)。
+
 2026-10-16 私有LED v11的原88路及常驻AD8故障恢复均已Root独立通过，五个同字节测试的基线2过3失败、修复5过，原夹具四项测试及候选包级严格Clippy通过。完整workspace尚未执行，源码未合入／部署；新查询的同boot历史线性扫描已复现，需补精确索引后再固定最终候选。LED仍只报告软件Written，不声称硬件读回。见[运行核查](evidence/stage-e-browser/indicator-cross-writer-runtime-root-check.json)和[查询增长缺口](evidence/stage-e-browser/indicator-query-growth-root-gap.json)。
 
 2026-10-15 App两项实际Rust联调已补跑：当前4dc1284 App及固定f27a6b6普通后端在回环模拟配置下，完整77方法通过、0跳过，含真实HTTPS管理发布、URLSession WSS和Keypad接口。HTTP为curl固定CA，非默认URLSession HTTP系统信任验证；真实Keychain、手机安装及硬件效果仍待现场，待交付LED修复亦未被此后端覆盖。见[实际联调核查](evidence/stage-e-browser/native-current-integration-root-check.json)。

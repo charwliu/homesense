@@ -275,6 +275,10 @@ impl Store {
                 CREATE TRIGGER module_off_effect_delete BEFORE DELETE ON module_off_effect BEGIN SELECT RAISE(ABORT,'immutable module scope'); END;")?;
             tx.pragma_update(None,"user_version",26)?;
         }
+        // A derived acceleration index changes no row format or user_version.
+        // Install transactionally for new databases and every supported old
+        // schema after migration; schema26 clients can still reopen this DB.
+        tx.execute_batch("CREATE INDEX IF NOT EXISTS command_led_request_scope ON command_journal(boot_id,revision,device_id,transport_epoch,control_epoch,command_id DESC) WHERE intent IN (x'01060000',x'01060100',x'010A0000')")?;
         tx.commit()?;
         connection.pragma_update(None, "foreign_keys", "ON")?;
         connection.pragma_update(None, "journal_mode", "WAL")?;

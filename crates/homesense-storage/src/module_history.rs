@@ -2,6 +2,7 @@
 use crate::{Error, Store, sql_revision};
 use homesense_core::DeviceId;
 use rusqlite::params_from_iter;
+const LATEST_LED_REQUEST_SQL: &str = "SELECT command_id,device_id,status,intent,transport_epoch,control_epoch,updated_ms FROM command_journal WHERE boot_id=?1 AND revision=?2 AND device_id=?3 AND transport_epoch=?4 AND control_epoch=?5 AND intent IN (x'01060000',x'01060100',x'010A0000') ORDER BY command_id DESC LIMIT 1";
 #[derive(Debug)]
 pub struct Record {
     pub command: u64,
@@ -88,3 +89,48 @@ impl Store {
         Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
     }
 }
+
+impl Store {
+    /// Exact current-generation LED request fence, including accepted work.
+    /// This is audit metadata; only the actor's complete write is Written.
+    pub fn latest_led_request(
+        &self,
+        boot: &str,
+        revision: u64,
+        id: &DeviceId,
+        epochs: homesense_core::queue::Epochs,
+    ) -> Result<Option<Record>, Error> {
+        use rusqlite::OptionalExtension;
+        let mut query = self.connection.prepare(LATEST_LED_REQUEST_SQL)?;
+        Ok(query
+            .query_row(
+                rusqlite::params![
+                    boot,
+                    sql_revision(revision)?,
+                    id.as_str(),
+                    sql_revision(epochs.transport)?,
+                    sql_revision(epochs.control)?
+                ],
+                |r| {
+                    Ok(Record {
+                        command: u64::try_from(r.get::<_, i64>(0)?)
+                            .map_err(|_| rusqlite::Error::InvalidQuery)?,
+                        device: r.get(1)?,
+                        status: r.get(2)?,
+                        intent: r.get(3)?,
+                        transport_epoch: u64::try_from(r.get::<_, i64>(4)?)
+                            .map_err(|_| rusqlite::Error::InvalidQuery)?,
+                        control_epoch: u64::try_from(r.get::<_, i64>(5)?)
+                            .map_err(|_| rusqlite::Error::InvalidQuery)?,
+                        updated_ms: u64::try_from(r.get::<_, i64>(6)?)
+                            .map_err(|_| rusqlite::Error::InvalidQuery)?,
+                    })
+                },
+            )
+            .optional()?)
+    }
+}
+
+#[cfg(test)]
+#[path = "led_request_index_tests.rs"]
+mod led_request_index_tests;

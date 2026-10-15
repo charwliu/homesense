@@ -1,0 +1,159 @@
+{
+  "checked_at": "2026-10-16T00:43:52.832900+08:00",
+  "status": "final v13 software qualified and source integrated; Linux deployment pending",
+  "source_files_frozen": 842,
+  "manifest_sha256": "ed9a8d1d18a1c74917e13505cdb63445026fdd1e106a86e5c6de96558df9ba85",
+  "normal_CLI_sha256": "24f4fa1500cd5e49bd06c4b773663b5ab3b54238a883cace8a701600923a3438",
+  "whole_workspace": {
+    "passed": 1153,
+    "failed": 0,
+    "ignored": 0,
+    "filtered": 0,
+    "result_blocks": 172,
+    "previous1137_test_inventory_retained": true,
+    "new_tests": [
+      [
+        "homesense_storage",
+        "module_history::led_request_index_tests::extra_partial_index_is_compatible_with_legacy_schema_and_data"
+      ],
+      [
+        "homesense_storage",
+        "module_history::led_request_index_tests::led_lookup_vm_cost_does_not_grow_with_unrelated_boot_history"
+      ],
+      [
+        "homesense_storage",
+        "module_history::led_request_index_tests::old_current_schema_open_adds_index_once_without_changing_any_journal_row"
+      ],
+      [
+        "homesense_storage",
+        "module_history::led_request_index_tests::scope_and_all_request_statuses_remain_exact"
+      ],
+      [
+        "homesensed",
+        "scene_observation_runtime::tests::initialization::reconciliation::indicator_projection::cross_writer::accepted_attempt_is_not_written_and_same_target_is_not_requeued"
+      ],
+      [
+        "homesensed",
+        "scene_observation_runtime::tests::initialization::reconciliation::indicator_projection::cross_writer::incomplete_write_remains_uncertain_and_never_replays"
+      ],
+      [
+        "homesensed",
+        "scene_observation_runtime::tests::initialization::reconciliation::indicator_projection::cross_writer::led_only_complete_override_corrects_even_without_lamp_change"
+      ],
+      [
+        "homesensed",
+        "scene_observation_runtime::tests::initialization::reconciliation::indicator_projection::cross_writer::semantic_off_on_without_local_led_journal_is_a_new_physical_cause"
+      ],
+      [
+        "homesensed",
+        "scene_observation_runtime::tests::initialization::reconciliation::indicator_projection::cross_writer::timed_off_override_then_external_on_reconciles_one_or_many_leds_once"
+      ],
+      [
+        "homesensed",
+        "scene_observation_runtime::tests::initialization::reconciliation::indicator_projection::output_fence::accepted_other_writer_invalidates_stale_output_plan_without_claiming_written"
+      ],
+      [
+        "homesensed",
+        "scene_observation_runtime::tests::initialization::reconciliation::indicator_projection::output_fence::authorization_change_does_not_expand_scope_or_replay_cached_output"
+      ],
+      [
+        "homesensed",
+        "scene_observation_runtime::tests::initialization::reconciliation::indicator_projection::output_fence::newer_complete_write_between_capture_and_commit_rejects_old_output_fence"
+      ],
+      [
+        "homesensed",
+        "scene_observation_runtime::tests::initialization::reconciliation::indicator_projection::output_fence::output_fence_does_not_weaken_global_feedback_lease"
+      ],
+      [
+        "homesensed",
+        "scene_observation_runtime::tests::initialization::reconciliation::indicator_projection::output_fence::positive_level_change_does_not_rewrite_unique_power_scene_leds"
+      ],
+      [
+        "homesensed",
+        "scene_observation_runtime::tests::initialization::reconciliation::indicator_projection::output_fence::previous_generation_output_is_not_current_or_replayed"
+      ],
+      [
+        "homesensed",
+        "scene_observation_runtime::tests::initialization::reconciliation::indicator_projection::output_fence::transient_owned_dimmer_off_target_is_deferred_until_normal_feedback_settlement"
+      ]
+    ],
+    "actual_programs_rehashed_before_Clippy": 172,
+    "input_unchanged": true
+  },
+  "strict_workspace_Clippy": {
+    "exit_code": 0,
+    "all_targets": true,
+    "warnings_denied": true
+  },
+  "workspace_doc_tests": {
+    "exit_code": 0,
+    "runnable_examples": 0
+  },
+  "packaging_repairs": "original worker838 omitted four existing full-regression inputs; final842 retains all previous1137 tests and16 added. Missing-input compile and controlled interruption attempts retained, not product test passes. Original assertions unchanged.",
+  "ordinary_CLI_runtime": {
+    "registered_light_ports": 88,
+    "periodic_equal_feedback_no_extra_LED": true,
+    "Written": 23,
+    "pending": 0,
+    "forever_AD8_timeout_partial_full_recovery": true,
+    "same_WSS_HAP_identity_session_preserved": true,
+    "replayed_device_controls": 0,
+    "graceful_SIGTERM": true
+  },
+  "final_App_integration": {
+    "executed_methods": 2,
+    "failures": 0,
+    "skips": 0,
+    "Swift_actual_program_sha256": "000755ac2970b4d5ca69dad6d7477cba1faee0028a698acbb2f48de88691d673",
+    "input_files_unchanged": 34,
+    "scope": "actual Rust HTTPS management/draft publication and Keypad/WSS integration; prior full77 App result overlaps, counts not added",
+    "trust_limit": "fixture HTTPS curl CA and URLSession WSS test-only CA; not real phone, default HTTP trust or Keychain"
+  },
+  "index_causal_pair": {
+    "same_four_test_file": true,
+    "baseline_passed": 2,
+    "baseline_failed": 2,
+    "candidate_passed": 4,
+    "candidate_failed": 0,
+    "unrelated_same_boot_rows": [
+      1000,
+      10000,
+      100000
+    ],
+    "baseline_VM_steps": [
+      7049,
+      70049,
+      700049
+    ],
+    "candidate_VM_steps": [
+      28,
+      28,
+      28
+    ],
+    "derived_index_only_no_row_or_schema26_version_change": true,
+    "old_current_DB_and_legacy_opener_tests_passed": true
+  },
+  "source_integrated_paths": 13,
+  "field_controls_or_grant_changes": 0,
+  "deployment_pending": true,
+  "actual_App_Keypad_visual_confirmation": "user still reports independent LEDs; exact screen and installed-origin diagnosis pending",
+  "hardware_limit": "LED Written is software write evidence, never physical readback. Unreceived hardware-only overwrite or fully unsampled Off-to-On cannot be inferred.",
+  "D_E_complete": false,
+  "artifact_sha256": {
+    "deployment/ngr/private/20261016-indicator-quality-root/attempt-3/result.json": "112036643e72e93ab054cff0a4878da5ba19fafaf547ac1fa246f9e6552f2d81",
+    "deployment/ngr/private/20261016-indicator-quality-root/attempt-3/workspace-result.json": "3d815f37810cbad7104878e1724861588bde3c7a3c54bc1f21d2fc18e105c548",
+    "deployment/ngr/private/20261016-indicator-quality-root/attempt-3/workspace-inventory.json": "ae78dafc80fed5df20d437ac3bd4a8a5e892d8d1d5e13b3a0eae1b86191e6a1a",
+    "deployment/ngr/private/20261016-indicator-quality-root/attempt-3/doc-result.json": "a975d3439cce914e62acdcec5ceaedb3fe1c7b9c909f6dd5f7b7c034056946f1",
+    "deployment/ngr/private/20261016-indicator-quality-root/attempt-3/clippy-result.json": "c27a2df34d875710857c077a9a540a8eefc7c008dc1a855bec41282e3b477574",
+    "deployment/ngr/private/20261016-indicator-quality-root/attempt-3/complete-manifest.json": "ed9a8d1d18a1c74917e13505cdb63445026fdd1e106a86e5c6de96558df9ba85",
+    "deployment/ngr/private/20261016-indicator-quality-root/attempt-3/packaging-repair.json": "b94239a4605a190a0aa94cf892f409a5fb760fbb987f9de6ff1d9034902899c5",
+    "deployment/ngr/private/20261016-indicator-quality-root/index-causal/result.json": "4322dab6900ca6965bd3ee4ee35090d6f0301b5a8aab278183fb077dad83a325",
+    "deployment/ngr/private/20261016-indicator-quality-root/index-causal/baseline.log": "c2d12285a99b0a5f037fbd88800f14c9b20b355b08eb1f67b4490e4b542e5761",
+    "deployment/ngr/private/20261016-indicator-quality-root/index-causal/candidate.log": "1ba6ef32b1978e79c732a59bccf69a3c0a88bb749239244cf1046af2e23dfb9b",
+    "deployment/ngr/private/20261015-keypad-v21-final-root/repair-v13-root-periodic/result.json": "5dcd7110ae69ad08917321acd0105e86e0037a9b9f4d3e695760be57f297cded",
+    "deployment/ngr/private/20261016-indicator-quality-root/forever-ad8-v13/result.json": "40dcb65d9c1b5cb34a8c59df1c0d322babcf2b4d858ce934a0d442201f07daae",
+    "deployment/ngr/private/20261016-indicator-quality-root/native-final-v13/result.json": "897428aa7e71ce7f640d5f17e9d566fd6599c54699cc45d3899397b6afed0ff7",
+    "deployment/ngr/private/20261016-indicator-quality-root/native-final-v13/tests.log": "41eaf38fa4f1109eebfbd49009b7117328797240df445cb2e98432fc68029d9f",
+    "deployment/ngr/private/20261016-indicator-quality-root/integration-applied.json": "5a1292d66a054fc01a8e613b369be4be0c13f0e8f47d058736be2fbc381857a5"
+  }
+}
