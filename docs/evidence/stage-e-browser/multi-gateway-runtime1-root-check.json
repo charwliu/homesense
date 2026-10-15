@@ -1,0 +1,133 @@
+{
+  "checked_at": "2026-10-16T04:05:10.741719+08:00",
+  "status": "first private runtime: HTTP8 pass, encrypted HAP3/8, WSS and plain timed scene incomplete",
+  "binary_sha256": "a4bd0c1e4a8697a4ad78661ad7209ad52c9b6cda6a020dcc9ded123535315350",
+  "source_manifest_sha256": "7af8ee8a0dd08a0e35f55eb830c41309dbcaa34dec1dcd5b7f4c3768ae238aa3",
+  "frozen_input_files": 852,
+  "scope": "ordinary Mac CLI, generated localhost gateways/pairing; no full Rust regression, Linux qualification or deployment",
+  "HTTP": {
+    "required_cases": 8,
+    "passed_cases": 8,
+    "faults": [
+      "silent",
+      "partial",
+      "eof",
+      "rst"
+    ],
+    "orders": [
+      "first",
+      "last"
+    ],
+    "B_connection_feedback_and_new_write_preserved": true,
+    "A_denied_cached_request_never_replayed": true
+  },
+  "encrypted_HAP": {
+    "required_cases": 8,
+    "passed_cases": 3,
+    "passed": [
+      "rst-first",
+      "silent-last",
+      "partial-first"
+    ],
+    "failed": [
+      "silent-first",
+      "partial-last",
+      "eof-first",
+      "eof-last",
+      "rst-last"
+    ],
+    "common_all8": [
+      "HAP_single_encrypted_session",
+      "HAP_same_session_recovers",
+      "HAP_B50_written_during_A_fault",
+      "HAP_new_A60_after_recovery_written",
+      "HAP_expiry_EVENT_only_A",
+      "HAP_identity_fingerprint_preserved"
+    ],
+    "common_all8_verified": true,
+    "failure": "healthy B module45 confirmed but encrypted HAP reads old30 in five cases; A correctly unavailable",
+    "client_contract_and_deadlines_unchanged": true,
+    "fixture_crypto_or_worker_errors": 0,
+    "single_RST_pass_not_generalized": true
+  },
+  "WSS": {
+    "contract_exit": 101,
+    "HTTP_control_still_written": true,
+    "one_socket_retained": true,
+    "partial_state_missing": true,
+    "global_unavailable_events": 1,
+    "same_transport_epoch": 2,
+    "recovery_reset_flag": true
+  },
+  "plain_timed_scenes": {
+    "contract_exit": 2,
+    "old_cancel_contract_exit": 2,
+    "reason": "new B timed positive itself fails at due with ServiceCommunicationFailure; no scene_command or wire",
+    "gateway_operation_and_wire_rows": "empty for ordinary single-scene start",
+    "whole_cancel_contract_not_qualified": true,
+    "probe_errors_and_all_failures_retained": true
+  },
+  "scope_boundaries": {
+    "original_D_scenes_programs_variables": [
+      68,
+      215,
+      25
+    ],
+    "remaining_source_semantics": [
+      65,
+      208,
+      24
+    ],
+    "full_workspace_tests_for_candidate": 0,
+    "production_changes": 0,
+    "field_controls": 0,
+    "D_E_complete": false
+  },
+  "artifact_sha256": {
+    "deployment/ngr/private/20261016-multigateway-isolation-root/runtime1-root-review/input-root-check.json": "d18d9873aef7667f838022449a5daf314603e76f759472ce59154fd1b5e37cd7",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/runtime1-root-review/runtime-1-manifest.json": "7af8ee8a0dd08a0e35f55eb830c41309dbcaa34dec1dcd5b7f4c3768ae238aa3",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/runtime1-root-review/runtime-1-result.json": "d0787aed5ed0fdde7e9d06929f5817a6073c95aec363078aaa25b71bbf3407aa",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/runtime1-root-review/runtime-1-build.log": "699ec831450dcda615311d707ad25e07df847c29f5a220e3d982719a965eb655",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/runtime1-root-review/contracts-before.json": "81315b68190080f8262005f38533c8f9f8a4ccd8872d91975a00a462d6bcda3c",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/runtime1-root-review/HTTP-eight-matrix/result.json": "983723aedc2bfba07f688796f99b99030a2f2bd29620819d56196042ee903f38",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/runtime1-root-review/HAP-eight-matrix/result.json": "dc53ffa7ecb677958d3c029cffee75ac5089672763f06bcaf4ccd341538cfb7d",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/runtime1-root-review/WSS-rst-first/result.json": "c0354faa9a2868d22a043a9b3e0ba361a493f49bbc7a2925b9148499c358f84d",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/runtime1-root-review/WSS-rst-first/wss-events.json": "39d5469e8952cfabb5a4aec47ae08de2381a8a76ba725a3f583de124df1d5f03",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/runtime1-root-review/delayed-rst-first/result.json": "b59638d861e140534a588c310a18911cb361f85258909695e716892314edf8f1",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/runtime1-root-review/delayed-rst-first/server.log": "71021e1d11608bf719013a5c6a137d9d4f6e36dba30edc601428e1a14cde8f15",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/runtime1-root-review/stale-cancel-rst-first/result.json": "846480a9db6e2b820e21c60de0c039b8df9d907ce6566be78f68f0946e8332f8",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/runtime1-root-review/stale-cancel-rst-first/server.log": "b785bc5549bf68c2d5f578268d68c69fe790e1eb83d5f6d851cc84b5f4973ef0",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/runtime1-root-review/HTTP-eight-matrix/silent-first/result.json": "cd5b5efc3171ccd2d3b679dc858aca94f9306b9fed1c4bfad6a98b3557f25cb8",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/runtime1-root-review/HTTP-eight-matrix/silent-last/result.json": "d32952d8a602cc21d21d49400545d87f45a92dd1561f55cd6b28119048480033",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/runtime1-root-review/HTTP-eight-matrix/partial-first/result.json": "00785234d5976aefe173a3b2a3de1164ed875741d0e85ac41d11a43768ce540c",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/runtime1-root-review/HTTP-eight-matrix/partial-last/result.json": "2ae7a9719e2d25bdee212fab2e9f496e88bdd69363b13a1f9c1ca7f9bcbd5c78",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/runtime1-root-review/HTTP-eight-matrix/eof-first/result.json": "7ff457217eeb3dc1d8066a0dbdb5e7126dd6fc396f8233b03b8f030f02a11bbc",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/runtime1-root-review/HTTP-eight-matrix/eof-last/result.json": "a05172dac567ae6cbf2c67b9edcc37e9a7d7a935ed4186b992378b9e9e5a047d",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/runtime1-root-review/HTTP-eight-matrix/rst-first/result.json": "64e3fba461ad3a3ed205e3252ed76864aee4d2b0f300cf26d4d3aabc6c6feb1c",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/runtime1-root-review/HTTP-eight-matrix/rst-last/result.json": "6a3cc06aca87a5e2fcc6cb912b581748f97bade1cd04ccdd57d2f1998c8842d4",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/runtime1-root-review/HAP-rst-first/result.json": "0b2d0bff9c32c05d64a5f30807d57d45addc07afb94d046f63b59869b932670d",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/runtime1-root-review/HAP-eight-matrix/silent-first/result.json": "b7493af80115a3bdf7e7ea5bf664d5ce4f050cceeff5e7996c607c9a7427165b",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/runtime1-root-review/HAP-eight-matrix/silent-first/hap-fault-read.json": "7e267488114c477faab484740d98f1b91783eea605a6ff4ea558b83c3c8e58a9",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/runtime1-root-review/HAP-eight-matrix/silent-first/independent-b-control.json": "14ae9a8e335c897a9955e95bed158287e19f0f7dfaf078ff25a3e9b5e14905c0",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/runtime1-root-review/HAP-eight-matrix/silent-first/feedback.json": "0d578b7ad7b1e502185d63e5188f0bb4bd0f8d4044be48c1901802d3421fe0c6",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/runtime1-root-review/HAP-eight-matrix/silent-last/result.json": "87324c2d20da0e047fdfae63bb0874f8d05214e0e585993ef50e177ca80d4044",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/runtime1-root-review/HAP-eight-matrix/partial-first/result.json": "7ebf5bb55ebe96bae5bb83043454dc3f89e4788f45d27bb6ec07328b5c3c3cd8",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/runtime1-root-review/HAP-eight-matrix/partial-last/result.json": "cfcc95a567788ca80ea6779b2c982a897121a3971e9429950fc0e8b522334cbe",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/runtime1-root-review/HAP-eight-matrix/partial-last/hap-fault-read.json": "7e267488114c477faab484740d98f1b91783eea605a6ff4ea558b83c3c8e58a9",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/runtime1-root-review/HAP-eight-matrix/partial-last/independent-b-control.json": "9291b2e31f27d22a1a8188961198fb97b6b101a6ed314af0864a8afa38ec02fb",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/runtime1-root-review/HAP-eight-matrix/partial-last/feedback.json": "eecacad594f74797d1133dc3f1a0495242b7ab579adf0d6a7f6bef8b9485ff7d",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/runtime1-root-review/HAP-eight-matrix/eof-first/result.json": "81d012826515c87df190c39b4ad8a0f6de59495aff747fe5a858b88df09d470c",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/runtime1-root-review/HAP-eight-matrix/eof-first/hap-fault-read.json": "7e267488114c477faab484740d98f1b91783eea605a6ff4ea558b83c3c8e58a9",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/runtime1-root-review/HAP-eight-matrix/eof-first/independent-b-control.json": "f94b6dca52f3091409c3e1ccc5cf2e5d865cdb08e323754098c52751e946b0a2",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/runtime1-root-review/HAP-eight-matrix/eof-first/feedback.json": "bea19727d0847b44fb885eebb302832d2a65e9cd49244e718044ba7c5d8444d8",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/runtime1-root-review/HAP-eight-matrix/eof-last/result.json": "457766bd941b4b3c84e47d4e1fb952393de7fdf0b9eb3c8b39931202491f74ad",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/runtime1-root-review/HAP-eight-matrix/eof-last/hap-fault-read.json": "7e267488114c477faab484740d98f1b91783eea605a6ff4ea558b83c3c8e58a9",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/runtime1-root-review/HAP-eight-matrix/eof-last/independent-b-control.json": "b4aa20d75ff9c0f0c78a3eb3a90e417a7f1c1ef313609b08ad8c2bbb24d01d72",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/runtime1-root-review/HAP-eight-matrix/eof-last/feedback.json": "dea508382092f902c08e2c7256755f9a47f51e58885a90fc5e0bae8529ec05cd",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/runtime1-root-review/HAP-eight-matrix/rst-last/result.json": "f3315010b505462ccaaaf86a4e55b7b2443218bffa4b077ac0e8f3e843847570",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/runtime1-root-review/HAP-eight-matrix/rst-last/hap-fault-read.json": "7e267488114c477faab484740d98f1b91783eea605a6ff4ea558b83c3c8e58a9",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/runtime1-root-review/HAP-eight-matrix/rst-last/independent-b-control.json": "4582165f17a9f126f882ef42a48deb59a28fc677f7121961878dda134fe3b8d5",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/runtime1-root-review/HAP-eight-matrix/rst-last/feedback.json": "e303335afb29519550367d0f639e047d30ff8c93634eeb1fad2b184ced0bf9d6",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/runtime1-root-review/timed-ledger-root-check.json": "20f48eb3f1144632ad96a8e7c007b347bc8c975c94dadb8f1947d1781780790c"
+  }
+}

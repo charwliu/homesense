@@ -1,5 +1,5 @@
 {
-  "checked_bj": "2026-10-16T03:35:21.463331+08:00",
+  "checked_bj": "2026-10-16T04:05:10.741719+08:00",
   "derived_requirements": [
     "docs/design.md sections9-11,18,20,23-24,27"
   ],
@@ -37,10 +37,11 @@
       "stage": "D",
       "requirement": "场景时序、tracking与停用",
       "verified_scope": "通用审核转换、活动推断和完整目标向量停用已实现",
-      "remaining_evidence": "原rate／tracking编码仍待处置；17个65535均为全零目标场景，未被再次关闭/翻转且95处显式调用有效目标均已解析；作为一次执行按钮的明确新策略已询问用户、待回复，未将65535猜成关闭或空操作。；两网关正式CLI反例另确认A故障会取消纯B已接受的延迟场景（transport_failure），B仍反馈且恢复后新B延迟场景确能写出；健康时间线连续性待按网关修复。",
+      "remaining_evidence": "原rate／tracking编码仍待处置；17个65535均为全零目标场景，未被再次关闭/翻转且95处显式调用有效目标均已解析；作为一次执行按钮的明确新策略已询问用户、待回复，未将65535猜成关闭或空操作。；两网关正式CLI反例另确认A故障会取消纯B已接受的延迟场景（transport_failure），B仍反馈且恢复后新B延迟场景确能写出；健康时间线连续性待按网关修复。；私有runtime1普通单场景启动未保存gateway_operation，延迟到期失败，恢复后新B也无写出；两完整时间线/取消契约exit2，不能先记通过。",
       "status": "source_semantics_unresolved",
       "additional_toggle_dependency_evidence": "stage-d-study/scene-toggle-leaf-dependencies-root-check.json",
-      "additional_gateway_timeline_evidence": "stage-e-browser/multi-gateway-delayed-scene-root-gap.json"
+      "additional_gateway_timeline_evidence": "stage-e-browser/multi-gateway-delayed-scene-root-gap.json",
+      "additional_private_runtime1_protocol_evidence": "stage-e-browser/multi-gateway-runtime1-root-check.json"
     },
     {
       "id": "D-4",
@@ -61,25 +62,27 @@
       "stage": "D",
       "requirement": "日历、规则链、取消与恢复",
       "verified_scope": "显式顺序、延迟、渐变、来源审计及恢复不重放有软件回归；4日历创建者与1内嵌计划来源已核对",
-      "remaining_evidence": "原计划／代理自身运行行为处置及完整原程序回放未完成；两网关正式CLI反例另确认A故障会取消纯B已接受的延迟场景（transport_failure），B仍反馈且恢复后新B延迟场景确能写出；健康时间线连续性待按网关修复。；同boot/rev恢复后数字run重用导致旧A取消回执实际取消不同持久UUID的新B场景，取消目标身份绑定仍须修复；不是已证跨角色扩权。；Root私有两文件修复已在原取消契约转绿：回执绑定不可复用Control实例，旧取消409而新B按时Written；原3+新1回归及严格Clippy通过。尚未并入完整运行时/全量回归/部署，其他网关契约仍101。",
+      "remaining_evidence": "原计划／代理自身运行行为处置及完整原程序回放未完成；两网关正式CLI反例另确认A故障会取消纯B已接受的延迟场景（transport_failure），B仍反馈且恢复后新B延迟场景确能写出；健康时间线连续性待按网关修复。；同boot/rev恢复后数字run重用导致旧A取消回执实际取消不同持久UUID的新B场景，取消目标身份绑定仍须修复；不是已证跨角色扩权。；Root私有两文件修复已在原取消契约转绿：回执绑定不可复用Control实例，旧取消409而新B按时Written；原3+新1回归及严格Clippy通过。尚未并入完整运行时/全量回归/部署，其他网关契约仍101。；私有runtime1普通单场景启动未保存gateway_operation，延迟到期失败，恢复后新B也无写出；两完整时间线/取消契约exit2，不能先记通过。",
       "status": "source_and_physical_partial",
       "additional_source_evidence": "stage-d-study/calendar-creator-source-root-check.json",
       "additional_gateway_timeline_evidence": "stage-e-browser/multi-gateway-delayed-scene-root-gap.json",
       "additional_stale_cancel_evidence": "stage-e-browser/stale-scene-cancel-root-gap.json",
-      "additional_private_cancel_fix": "stage-e-browser/stale-scene-cancel-private-fix-root-check.json"
+      "additional_private_cancel_fix": "stage-e-browser/stale-scene-cancel-private-fix-root-check.json",
+      "additional_private_runtime1_protocol_evidence": "stage-e-browser/multi-gateway-runtime1-root-check.json"
     },
     {
       "id": "E-1",
       "stage": "E",
       "requirement": "原生HAP、配对与身份",
       "verified_scope": "既有iPhone配对、保留身份重启和软件加密／撤权证据已具备；HAP过期失效及同值新反馈恢复通知已修复，3类灯回归、227项运行时单元、严格Clippy及普通生产库实际约5.3秒反例复验通过；同一统一候选的普通生产库另经三类灯真实回环Pair-Verify/加密EVENT/读取验证，5个特征过期和同值恢复，零控制命令；整合v7已配对加密HAP在无反馈／部分反馈期间失效，完整八路反馈后原配对及AID/IID不变，新控制25%和订阅实际读回通过。",
-      "remaining_evidence": "v21常驻模式完整回归、Linux隔离烟测和服务上线通过；实际Apple客户端新故障通知集中验收仍待。；独立两网关加密HAP反例：A单独RST使健康B读取-70402并收到不可用EVENT，B50无写出；完整恢复重建HAP监听并关闭原认证会话，需在按网关修复中保持健康B及原会话。",
+      "remaining_evidence": "v21常驻模式完整回归、Linux隔离烟测和服务上线通过；实际Apple客户端新故障通知集中验收仍待。；独立两网关加密HAP反例：A单独RST使健康B读取-70402并收到不可用EVENT，B50无写出；完整恢复重建HAP监听并关闭原认证会话，需在按网关修复中保持健康B及原会话。；私有runtime1原加密HAP八组合仅3绿，5例模块B45已confirmed但HAP仍30；8例同会话/身份及B50、新A60写出通过，不等于整组HAP通过。",
       "status": "single_gateway_notification_qualified_partial_gateway_HAP_counterexample",
       "additional_software_gap": "stage-e-browser/hap-expiry-notification-root-gap.json",
       "additional_software_fix": "stage-e-browser/hap-expiry-notification-root-check.json",
       "additional_encrypted_notification_evidence": "stage-e-browser/hap-encrypted-expiry-root-check.json",
       "additional_runtime_recovery_evidence": "stage-e-browser/runtime-availability-recovery-root-check.json",
-      "additional_partial_HAP_evidence": "stage-e-browser/multi-gateway-partial-hap-root-gap.json"
+      "additional_partial_HAP_evidence": "stage-e-browser/multi-gateway-partial-hap-root-gap.json",
+      "additional_private_runtime1_protocol_evidence": "stage-e-browser/multi-gateway-runtime1-root-check.json"
     },
     {
       "id": "E-2",
@@ -108,14 +111,15 @@
       "stage": "E",
       "requirement": "原生App、管理API鉴权与事件恢复",
       "verified_scope": "登录、滑块、退出和iPad断网恢复有实际限定结果；新账本与Away有软件证据；原生App实际TLS/WSS软件集成及手机推送、页面稳定与亮度按钮可用已确认；原生App两次实际调光跟随与自动读回已确认；rev9楼层目录及原生App三层/两房间归属已实际确认，永久Admin登录和本机空楼层编辑已通过；原生App楼层/房间新增、改名、删除、服务端保存及预览、恢复活动配置和测试草稿清理均已实际确认；两草稿独立核对设备及自动化未变；build7永久凭证Keychain保存、强退重开自动连接及前后台开/关同步已现场通过；ordinary v3严格负向80项零写出、publication v3四函数32项限定通过，v7 Web准确两run持久账目通过；精确来源授权／发布与STOP冻结v5完整1086项及文档、严格Clippy通过，保留原1067项，新增19项含213专项记录",
-      "remaining_evidence": "rev10已通过管理API实际发布现有面板父卡，权限和身份保持；App自主发布、其他管理变更/备份边界及集中现场动作验收仍开放。；两独立假网关反例另确认A故障时WSS虽不断开但全局unavailable，B局部状态/恢复游标也受影响，修复待完成。；同boot/rev恢复后数字run重用导致旧A取消回执实际取消不同持久UUID的新B场景，取消目标身份绑定仍须修复；不是已证跨角色扩权。；Root私有两文件修复已在原取消契约转绿：回执绑定不可复用Control实例，旧取消409而新B按时Written；原3+新1回归及严格Clippy通过。尚未并入完整运行时/全量回归/部署，其他网关契约仍101。",
+      "remaining_evidence": "rev10已通过管理API实际发布现有面板父卡，权限和身份保持；App自主发布、其他管理变更/备份边界及集中现场动作验收仍开放。；两独立假网关反例另确认A故障时WSS虽不断开但全局unavailable，B局部状态/恢复游标也受影响，修复待完成。；同boot/rev恢复后数字run重用导致旧A取消回执实际取消不同持久UUID的新B场景，取消目标身份绑定仍须修复；不是已证跨角色扩权。；Root私有两文件修复已在原取消契约转绿：回执绑定不可复用Control实例，旧取消409而新B按时Written；原3+新1回归及严格Clippy通过。尚未并入完整运行时/全量回归/部署，其他网关契约仍101。；私有runtime1即时控制已独立通过，但WSS仍全局unavailable、恢复reset（全局transport仍2）；App局部可用性和新推送候选待实证。",
       "status": "exact_source_auth_software_deployed_remaining_field_and_management_checks_pending",
       "additional_auth_gap": "stage-e-browser/ordinary-source-auth-root-gap.json",
       "additional_publication_auth_evidence": "stage-e-browser/publication-source-boundaries-root-check.json",
       "additional_qualified_auth_evidence": "stage-e-browser/source-authorization-v5-root-check.json",
       "additional_partial_WSS_evidence": "stage-e-browser/multi-gateway-partial-wss-root-gap.json",
       "additional_stale_cancel_evidence": "stage-e-browser/stale-scene-cancel-root-gap.json",
-      "additional_private_cancel_fix": "stage-e-browser/stale-scene-cancel-private-fix-root-check.json"
+      "additional_private_cancel_fix": "stage-e-browser/stale-scene-cancel-private-fix-root-check.json",
+      "additional_private_runtime1_protocol_evidence": "stage-e-browser/multi-gateway-runtime1-root-check.json"
     },
     {
       "id": "E-5",
@@ -138,7 +142,7 @@
       "stage": "D/E",
       "requirement": "最终集成软件回归",
       "verified_scope": "网络接收错误修复最终844冻结输入：1160项完整Rust、原1153函数全部保留、172实际程序重哈希、文档与全目标严格Clippy通过；最终正式CLI88路周期/常驻恢复和两项实际App HTTPS/WSS通过。",
-      "remaining_evidence": "Mac1160/严格Clippy与Linux正式程序隔离RST/兼容及常驻交付已核验；完整Linux单测未运行。多网关独立控制仍严格101，手机视觉、D原语义和现场门槛继续。",
+      "remaining_evidence": "Mac1160/严格Clippy与Linux正式程序隔离RST/兼容及常驻交付已核验；完整Linux单测未运行。多网关独立控制仍严格101，手机视觉、D原语义和现场门槛继续。；私有852输入仅编译与限定正式CLI契约，尚无新完整Rust回归；原1160资格不转移，HTTP8绿之外HAP/WSS/时间线仍有明确失败。",
       "status": "receive_error_repair_Mac_qualified_Linux_deployed_multi_gateway_isolation_open",
       "complete_for_current_frozen_input": true,
       "incremental_python_tool_tests_passed": 20,
@@ -160,14 +164,15 @@
       "latest_qualified_subset": "stage-e-browser/receive-network-error-root-check.json",
       "new_continuous_mode_is_separate_unqualified_input": false,
       "current_full_workspace_tests": 1160,
-      "current_actual_programs": 172
+      "current_actual_programs": 172,
+      "additional_private_runtime1_protocol_evidence": "stage-e-browser/multi-gateway-runtime1-root-check.json"
     },
     {
       "id": "E-7",
       "stage": "E",
       "requirement": "持续服务隔离网关超时与恢复失败，保留原生管理入口",
-      "verified_scope": "v21常驻完整1128项、原配对HAP专项和正式AD8常驻生命周期通过；Linux隔离烟测与systemd上线及可信HTTPS就绪核验通过，保留原rev9/Admin/配对。；新增接收RST导致退出的正式程序反例已软件修复，完成故障审计的指定网络错误可恢复，真实取消和审计/不变量错误仍致命。；本轮Linux正式程序隔离RST生命周期与常驻更新已独立核验。；私有基础层Core/Storage216项及严格迁移/64容量已独立核查，不等同运行时隔离。；现有正式Linux ELF的隔离整树回退机制已独立核查，checksum修复同大小/时间数据库漏恢复，27项清单和非空合成配对/凭据保持。",
-      "remaining_evidence": "接收错误修复已Linux常驻上线，原身份/配置/凭证保持；原管理员另授权新增一条HAP配对。A故障仍使健康B新控制unknown，完整按网关隔离正在实现，集中现场仍待验。；WSS部分可用性实际反例已纳入，运行时必须保持健康B状态与新控制。；加密HAP亦存在健康B连带失效及局部恢复重建监听的问题，保留配对身份不能代替原认证连接持续性。；两网关正式CLI反例另确认A故障会取消纯B已接受的延迟场景（transport_failure），B仍反馈且恢复后新B延迟场景确能写出；健康时间线连续性待按网关修复。；同boot/rev恢复后数字run重用导致旧A取消回执实际取消不同持久UUID的新B场景，取消目标身份绑定仍须修复；不是已证跨角色扩权。；Root私有两文件修复已在原取消契约转绿：回执绑定不可复用Control实例，旧取消409而新B按时Written；原3+新1回归及严格Clippy通过。尚未并入完整运行时/全量回归/部署，其他网关契约仍101。；上述仅受控version标签故障机制演练，真正schema27候选升级及完整状态回退仍待验收；不能只换旧unit/程序。",
+      "verified_scope": "v21常驻完整1128项、原配对HAP专项和正式AD8常驻生命周期通过；Linux隔离烟测与systemd上线及可信HTTPS就绪核验通过，保留原rev9/Admin/配对。；新增接收RST导致退出的正式程序反例已软件修复，完成故障审计的指定网络错误可恢复，真实取消和审计/不变量错误仍致命。；本轮Linux正式程序隔离RST生命周期与常驻更新已独立核验。；私有基础层Core/Storage216项及严格迁移/64容量已独立核查，不等同运行时隔离。；现有正式Linux ELF的隔离整树回退机制已独立核查，checksum修复同大小/时间数据库漏恢复，27项清单和非空合成配对/凭据保持。；私有runtime1同852输入普通CLI原HTTP8组合独立全绿，保留B连接/反馈/新控制；尚未合入/部署。",
+      "remaining_evidence": "接收错误修复已Linux常驻上线，原身份/配置/凭证保持；原管理员另授权新增一条HAP配对。A故障仍使健康B新控制unknown，完整按网关隔离正在实现，集中现场仍待验。；WSS部分可用性实际反例已纳入，运行时必须保持健康B状态与新控制。；加密HAP亦存在健康B连带失效及局部恢复重建监听的问题，保留配对身份不能代替原认证连接持续性。；两网关正式CLI反例另确认A故障会取消纯B已接受的延迟场景（transport_failure），B仍反馈且恢复后新B延迟场景确能写出；健康时间线连续性待按网关修复。；同boot/rev恢复后数字run重用导致旧A取消回执实际取消不同持久UUID的新B场景，取消目标身份绑定仍须修复；不是已证跨角色扩权。；Root私有两文件修复已在原取消契约转绿：回执绑定不可复用Control实例，旧取消409而新B按时Written；原3+新1回归及严格Clippy通过。尚未并入完整运行时/全量回归/部署，其他网关契约仍101。；上述仅受控version标签故障机制演练，真正schema27候选升级及完整状态回退仍待验收；不能只换旧unit/程序。；该私有候选加密HAP仅3/8、WSS失败、普通延迟路径缺作用域；现网1de保持，完整隔离不能宣布完成。",
       "status": "single_gateway_deployed_multi_gateway_independent_control_counterexample",
       "additional_evidence": "stage-e-browser/runtime-gateway-timeout-root-gap.json",
       "additional_production_counterexample": "stage-e-browser/runtime-feedback-outage-cli-root-check.json",
@@ -181,7 +186,8 @@
       "additional_gateway_timeline_evidence": "stage-e-browser/multi-gateway-delayed-scene-root-gap.json",
       "additional_stale_cancel_evidence": "stage-e-browser/stale-scene-cancel-root-gap.json",
       "additional_private_cancel_fix": "stage-e-browser/stale-scene-cancel-private-fix-root-check.json",
-      "additional_synthetic_rollback_evidence": "stage-e-browser/state-tree-rollback-root-check.json"
+      "additional_synthetic_rollback_evidence": "stage-e-browser/state-tree-rollback-root-check.json",
+      "additional_private_runtime1_protocol_evidence": "stage-e-browser/multi-gateway-runtime1-root-check.json"
     }
   ],
   "evidence_sha256": {
@@ -267,7 +273,8 @@
     "stage-e-browser/multi-gateway-delayed-scene-root-gap.json": "2cd53406c7cd6d30f93884fad0addf647267373f85daab44e10b7f66944e6134",
     "stage-e-browser/stale-scene-cancel-root-gap.json": "d06337673c6cc9010fa64bb7063045780621454b0216668154d02d1b91d0e53d",
     "stage-e-browser/stale-scene-cancel-private-fix-root-check.json": "8d036cf0593cd187d5fed3b059a084d247b6a42ad22d7ea5182fe108e4460e98",
-    "stage-e-browser/state-tree-rollback-root-check.json": "92f6c98fa43ad4c0980ae8bf35ee7941970de0a1fa1068b199a903e106b248ee"
+    "stage-e-browser/state-tree-rollback-root-check.json": "92f6c98fa43ad4c0980ae8bf35ee7941970de0a1fa1068b199a903e106b248ee",
+    "stage-e-browser/multi-gateway-runtime1-root-check.json": "12ab8e62ab688372c23bfee082e308095d746ce8a4f869d59a1f238bdced9531"
   },
   "excluded_by_scope": {
     "Siri": "cancelled by user",
@@ -526,5 +533,6 @@
   "latest_gateway_delayed_scene_counterexample": "stage-e-browser/multi-gateway-delayed-scene-root-gap.json",
   "latest_stale_scene_cancel_counterexample": "stage-e-browser/stale-scene-cancel-root-gap.json",
   "latest_private_stale_cancel_repair": "stage-e-browser/stale-scene-cancel-private-fix-root-check.json",
-  "latest_synthetic_complete_state_rollback": "stage-e-browser/state-tree-rollback-root-check.json"
+  "latest_synthetic_complete_state_rollback": "stage-e-browser/state-tree-rollback-root-check.json",
+  "latest_private_runtime1_protocol_review": "stage-e-browser/multi-gateway-runtime1-root-check.json"
 }
