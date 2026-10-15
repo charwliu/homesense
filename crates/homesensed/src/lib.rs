@@ -184,5 +184,3 @@ mod curtain_idle_clock_tests;
 
 #[cfg(test)]
 mod panel_auth_tests;
-
-mod web_assets;

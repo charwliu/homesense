@@ -106,11 +106,10 @@ impl Api {
         {
             return deny(StatusCode::FORBIDDEN, "invalid_origin");
         }
-        if let Some(script)=crate::web_assets::script(request.uri().path()) {
-            if request.method()!=hyper::Method::GET {return deny(StatusCode::METHOD_NOT_ALLOWED,"method_not_allowed");}
-            if !request.body().is_empty(){return deny(StatusCode::BAD_REQUEST,"unexpected_body");}
-            if let Err(status)=script.validate_query(request.uri().query()) {return deny(status,if status==StatusCode::CONFLICT{"asset_version_changed"}else{"query_not_supported"});}
-            return script.response();
+        // The native App is the sole management UI. Retired entry points stay
+        // unavailable even with an old asset version query or bearer token.
+        if matches!(request.uri().path(), "/" | "/app.js" | "/draft-json.js" | "/style.css") {
+            return deny(StatusCode::GONE, "native_app_required");
         }
         if request.uri().query().is_some() && !matches!(request.uri().path(),"/api/v1/config/versions"|"/api/v1/scene-history") && !(request.uri().path().starts_with("/api/v1/runs/") && request.uri().path().ends_with("/details")) {
             return deny(StatusCode::BAD_REQUEST, "query_not_supported");
@@ -120,14 +119,6 @@ impl Api {
             if request.method()!=hyper::Method::GET {return deny(StatusCode::METHOD_NOT_ALLOWED,"method_not_allowed");}
             if !request.body().is_empty() {return deny(StatusCode::BAD_REQUEST,"unexpected_body");}
             return response(StatusCode::OK,json!({"live":true}));
-        }
-        if request.method() == hyper::Method::GET && request.uri().path() == "/" {
-            return Response::builder().header("content-type","text/html; charset=utf-8").header("cache-control","no-store")
-                .header("content-security-policy","default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'")
-                .body(Full::new(crate::web_assets::index())).unwrap();
-        }
-        if request.method() == hyper::Method::GET && request.uri().path() == "/style.css" {
-            return Response::builder().header("content-type","text/css; charset=utf-8").header("cache-control","no-store").header("x-content-type-options","nosniff").body(Full::new(Bytes::from_static(include_bytes!("web/style.css")))).unwrap();
         }
         let authorization = request
             .headers()
