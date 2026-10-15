@@ -62,7 +62,7 @@ cargo run --locked --offline -p homesense-import --bin study-replay -- config/sc
 
 `serve-automation-simulation DEVICE_FILE AUTOMATION_FILE STATE_DIR SECONDS [SCENE]` 使用内存网关和独立的 `automation-simulation.sqlite`，不打开现场运行库或配对目录；可指定已启用的定时场景。重启要求文档完全一致，改变配置请使用新模拟目录。
 
-上述工具不连接真实网关；`check-automation` 只校验结构、引用及启用规则的命令编码，`study-replay` 只输出计划。工作区集成测试需要允许本机回环监听。
+上述工具不连接真实网关；`check-automation` 只校验结构、引用及启用规则的命令编码，`study-replay` 只输出计划。工作区集成测试需要允许本机回环监听。配置发布取消与 HAP 故障隔离测试使用合成 TCP 网关和独立临时身份目录。
 
 ## 模拟与现场入口
 

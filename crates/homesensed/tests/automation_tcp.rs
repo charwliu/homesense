@@ -621,6 +621,13 @@ async fn tcp_long_press_disconnect_does_not_resume_without_new_press() {
     std::fs::remove_dir_all(root).unwrap();
 }
 
+fn publication_fixture_rules(offset_ms:u64)->Vec<u8> {
+    hap::serde_json::to_vec(&hap::serde_json::json!({"schema_version":1,"configuration_revision":1,"variables":[{"id":"remember","kind":"integer","lifetime":"persistent"}],
+        "rules":[{"id":"startup","enabled":true,"review_evidence":"loopback","source":"test","trigger":{"kind":"startup_synchronized"},"actions":[{"source":"remember","action":{"kind":"set","variable":"remember","value":{"kind":"integer","value":17}}},{"source":"test","action":{"kind":"scene","id":"later","activate":true}}]}],
+        "timed_scenes":[{"id":"later","enabled":true,"review_evidence":"loopback","max_lateness_ms":1000,"steps":[{"source":"test","offset_ms":offset_ms,"device":"simulation:light","command":{"kind":"level","value":90,"ramp":false}}]}]
+    })).unwrap()
+}
+
 #[tokio::test]
 async fn online_publication_queries_new_mapping_before_acknowledgement() {
     use hap::serde_json::{json, to_vec, Value};
@@ -661,10 +668,10 @@ async fn online_publication_queries_new_mapping_before_acknowledgement() {
         assert_eq!(old.read(&mut frame).unwrap(),0);
     });
     let (publisher,receiver)=homesensed::automation_publication::channel();
-    let old_rules=to_vec(&json!({"schema_version":1,"configuration_revision":1,"variables":[{"id":"remember","kind":"integer","lifetime":"persistent"}],
-        "rules":[{"id":"startup","enabled":true,"review_evidence":"loopback","source":"test","trigger":{"kind":"startup_synchronized"},"actions":[{"source":"remember","action":{"kind":"set","variable":"remember","value":{"kind":"integer","value":17}}},{"source":"test","action":{"kind":"scene","id":"later","activate":true}}]}],
-        "timed_scenes":[{"id":"later","enabled":true,"review_evidence":"loopback","max_lateness_ms":1000,"steps":[{"source":"test","offset_ms":300,"device":"simulation:light","command":{"kind":"level","value":90,"ramp":false}}]}]
-    })).unwrap();
+    // This is a cancellation/recovery test, not a 300ms scheduling test.
+    // Keep the old action strictly in the future throughout the unchanged
+    // 700ms service, even while rejected publication requests are prepared.
+    let old_rules=publication_fixture_rules(60_000);
     let service=homesensed::automation_tcp::serve_with_write_interval(&initial,&old_rules,&root,Duration::from_millis(700),true,0,Some(receiver),Duration::from_millis(200));
     let client=async {
         ready.await.unwrap();
@@ -689,6 +696,8 @@ async fn online_publication_queries_new_mapping_before_acknowledgement() {
     assert_eq!(homesense_storage::Store::open(root.join("automation-tcp.sqlite")).unwrap().active().unwrap().unwrap().revision,2);
     let sql=rusqlite::Connection::open(root.join("automation-tcp.sqlite")).unwrap();
     assert_eq!(sql.query_row("SELECT count(*) FROM scene_run WHERE definition='later' AND status='cancelled'",[],|row|row.get::<_,i64>(0)).unwrap(),1);
+    assert_eq!(sql.query_row("SELECT count(*) FROM scene_cancellation c JOIN scene_run r USING(boot_id,run_id) WHERE r.definition='later' AND c.reason='publication_barrier'",[],|row|row.get::<_,i64>(0)).unwrap(),1);
+    assert_eq!(sql.query_row("SELECT count(*) FROM command_journal WHERE revision=1 AND intent=x'01025A00'",[],|row|row.get::<_,i64>(0)).unwrap(),0);
     for revision in [1,2] {
         let stored:(String,Option<i64>)=sql.query_row("SELECT kind,value FROM logical_variable WHERE revision=?1 AND name='remember'",[revision],|r|Ok((r.get(0)?,r.get(1)?))).unwrap();
         assert_eq!(stored,if migrate && revision==2 {("bool".into(),None)} else {("integer".into(),Some(17))});
@@ -902,4 +911,27 @@ fn cli_rejects_incomplete_or_duplicate_hap_options_before_configuration_io() {
 
 fn module_levels(address: u8, level: u8) -> Vec<u8> {
     (1..=8).flat_map(|channel| [0xae, address, 0xd0 + channel, level, 0xee]).collect()
+}
+
+#[tokio::test]
+async fn publication_fixture_same_scene_reaches_wire_when_due_without_cancellation() {
+    let root=std::env::temp_dir().join(format!("tcp-publication-positive-{}",uuid::Uuid::new_v4()));
+    let listener=TcpListener::bind("127.0.0.1:0").unwrap();let mut devices:hap::serde_json::Value=hap::serde_json::from_slice(include_bytes!("../../../config/simulation-home.json")).unwrap();devices["gateways"][0]["endpoint"]=listener.local_addr().unwrap().to_string().into();devices["gateways"][0]["modules"][0]["verification"]=hap::serde_json::json!({"status":"verified","evidence":"loopback positive control","verified_at_unix_ms":1});
+    let server=std::thread::spawn(move|| {
+        let(mut socket,_)=listener.accept().unwrap();socket.set_read_timeout(Some(Duration::from_secs(5))).unwrap();let mut controls=Vec::new();let mut level=30;
+        loop {
+            let mut frame=[0;5];match socket.read_exact(&mut frame) {
+                Ok(())=>{},Err(error)if error.kind()==std::io::ErrorKind::UnexpectedEof=>break,Err(error)=>panic!("fixture transport failed: {error}"),
+            }
+            if frame==[0xae,0x15,0xa0,0xf2,0xee] {socket.write_all(&module_levels(0x15,level)).unwrap();continue;}
+            assert_eq!(frame,[0xae,0x15,1,90,0xee]);level=90;controls.push(frame);
+        }
+        controls
+    });
+    // Same immutable definition, caller, variable and command; only make its
+    // offset due here. The cancellation case above retains the future offset.
+    homesensed::automation_tcp::serve_with_write_interval(&hap::serde_json::to_vec(&devices).unwrap(),&publication_fixture_rules(0),&root,Duration::from_millis(700),true,0,None,Duration::from_millis(200)).await.unwrap();
+    assert_eq!(server.join().unwrap(),vec![[0xae,0x15,1,90,0xee]]);
+    let store=homesense_storage::Store::open(root.join("automation-tcp.sqlite")).unwrap();assert_eq!(store.logical_variable(1,"remember").unwrap().unwrap().value,Some(homesense_core::rule::Value::Integer(17)));
+    let sql=rusqlite::Connection::open(root.join("automation-tcp.sqlite")).unwrap();assert_eq!(sql.query_row("SELECT count(*) FROM scene_run WHERE definition='later' AND status='commands_written'",[],|r|r.get::<_,i64>(0)).unwrap(),1);assert_eq!(sql.query_row("SELECT count(*) FROM command_journal WHERE intent=x'01025A00' AND status='written'",[],|r|r.get::<_,i64>(0)).unwrap(),1);drop(sql);drop(store);std::fs::remove_dir_all(root).unwrap();
 }
