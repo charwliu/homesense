@@ -4,6 +4,10 @@
 
 后续每次提交的变动细节在此记录；README 的变更内容只保留功能新增、移除及能力变化。
 
+## 2026-10-16 完整原生 App 保留 LH-IO1600 工具
+
+发布范围审查发现无签名 clean build10 未包含最后已核实安装的 build8 的 LH-IO1600 地址工具，因此保留审核包但停止作为完整更新包交付。完整候选以已提交的六键父卡片、逐目标可用状态及凭证恢复功能为基线，补齐原地址页、RTU 编解码和核对流程；58 个 App 输入加 19 个模拟配置逐文件核验，同一轮完整 87 项／15 套件全部通过、零跳过，原 79 项和 8 项 LH 测试均保留，两项实际 Rust HTTPS/WSS 集成同轮启用。iOS、macOS 无签名构建通过；源码版本保持基线，尚未准备私有 build11、签名或安装。六键卡片源码保留，用户手机仍显示独立 LED 的原因和真机视觉验收继续开放，不能以源码检查关闭。见[完整 App 核查](docs/evidence/stage-e-browser/native-lhio-preservation-root-check.json)。
+
 ## 2026-10-16 Linux真实状态迁移／回退与App审核包
 
 2026-10-16 Linux正式ELF已通过5项原隔离契约、真实schema26→27迁移、旧ELF拒绝与checksum整树回退；Root另核实非空配对哈希、17设备／7场景授权、静态配置和原账本保持。旧拒绝严格文件不变性只对停止并checkpoint的隔离副本成立，原WAL辅助文件清理反例保留。现网尚未切换，仍为旧版schema26／rev10常驻；自动审批在核验原授权后仍要求当前明确批准，已询问用户，保持现网等待。App提交ab861d4已推送，build10无签名审核包逐文件核验通过，仅改私有版本号；尚未签名或安装，不含其他未提交LHIO功能。见[Linux候选](docs/evidence/stage-e-browser/multi-gateway-linux-runtime10-root-check.json)、[build10](docs/evidence/stage-e-browser/native-build10-root-check.json)。
