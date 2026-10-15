@@ -235,7 +235,8 @@
     "stage-d-study/composite-variable-transition-root-check.json": "67dd83af3e63fb7f130e712c1368f3361784930ea2c52588e6af8b68dc3cc4d9",
     "stage-e-browser/regression-fixture-cleanup-root-check.json": "7a43cfa9554cf3d5b103f184251182f618727b45440ad33b974273de7b91b4a5",
     "stage-e-browser/indicator-cross-writer-runtime-root-check.json": "eed4937d7cb8578a8451c06160dcb1445711a5379bb18a6771e18179137bbf79",
-    "stage-e-browser/indicator-query-growth-root-gap.json": "1b84030da4f7c2744cff228461f55e580d44efb075aadcaa4dbdd5ee2477619b"
+    "stage-e-browser/indicator-query-growth-root-gap.json": "1b84030da4f7c2744cff228461f55e580d44efb075aadcaa4dbdd5ee2477619b",
+    "stage-e-browser/current-feature-status-root-check.json": "84077d072d2ebdcf1b945b22ec4ac8d07c126bd8b00b28ab3d48630a22bf6a49"
   },
   "excluded_by_scope": {
     "Siri": "cancelled by user",
@@ -464,5 +465,6 @@
   "latest_composite_variable_source_transitions": "stage-d-study/composite-variable-transition-root-check.json",
   "regression_fixture_cleanup": "stage-e-browser/regression-fixture-cleanup-root-check.json",
   "latest_indicator_cross_writer_runtime": "stage-e-browser/indicator-cross-writer-runtime-root-check.json",
-  "indicator_query_growth_gap": "stage-e-browser/indicator-query-growth-root-gap.json"
+  "indicator_query_growth_gap": "stage-e-browser/indicator-query-growth-root-gap.json",
+  "latest_current_feature_status_readonly": "stage-e-browser/current-feature-status-root-check.json"
 }
