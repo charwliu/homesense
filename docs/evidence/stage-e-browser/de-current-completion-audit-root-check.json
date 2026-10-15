@@ -1,5 +1,5 @@
 {
-  "checked_bj": "2026-10-16T03:22:57.772169+08:00",
+  "checked_bj": "2026-10-16T03:35:21.463331+08:00",
   "derived_requirements": [
     "docs/design.md sections9-11,18,20,23-24,27"
   ],
@@ -166,8 +166,8 @@
       "id": "E-7",
       "stage": "E",
       "requirement": "持续服务隔离网关超时与恢复失败，保留原生管理入口",
-      "verified_scope": "v21常驻完整1128项、原配对HAP专项和正式AD8常驻生命周期通过；Linux隔离烟测与systemd上线及可信HTTPS就绪核验通过，保留原rev9/Admin/配对。；新增接收RST导致退出的正式程序反例已软件修复，完成故障审计的指定网络错误可恢复，真实取消和审计/不变量错误仍致命。；本轮Linux正式程序隔离RST生命周期与常驻更新已独立核验。；私有基础层Core/Storage216项及严格迁移/64容量已独立核查，不等同运行时隔离。",
-      "remaining_evidence": "接收错误修复已Linux常驻上线，原身份/配置/凭证保持；原管理员另授权新增一条HAP配对。A故障仍使健康B新控制unknown，完整按网关隔离正在实现，集中现场仍待验。；WSS部分可用性实际反例已纳入，运行时必须保持健康B状态与新控制。；加密HAP亦存在健康B连带失效及局部恢复重建监听的问题，保留配对身份不能代替原认证连接持续性。；两网关正式CLI反例另确认A故障会取消纯B已接受的延迟场景（transport_failure），B仍反馈且恢复后新B延迟场景确能写出；健康时间线连续性待按网关修复。；同boot/rev恢复后数字run重用导致旧A取消回执实际取消不同持久UUID的新B场景，取消目标身份绑定仍须修复；不是已证跨角色扩权。；Root私有两文件修复已在原取消契约转绿：回执绑定不可复用Control实例，旧取消409而新B按时Written；原3+新1回归及严格Clippy通过。尚未并入完整运行时/全量回归/部署，其他网关契约仍101。",
+      "verified_scope": "v21常驻完整1128项、原配对HAP专项和正式AD8常驻生命周期通过；Linux隔离烟测与systemd上线及可信HTTPS就绪核验通过，保留原rev9/Admin/配对。；新增接收RST导致退出的正式程序反例已软件修复，完成故障审计的指定网络错误可恢复，真实取消和审计/不变量错误仍致命。；本轮Linux正式程序隔离RST生命周期与常驻更新已独立核验。；私有基础层Core/Storage216项及严格迁移/64容量已独立核查，不等同运行时隔离。；现有正式Linux ELF的隔离整树回退机制已独立核查，checksum修复同大小/时间数据库漏恢复，27项清单和非空合成配对/凭据保持。",
+      "remaining_evidence": "接收错误修复已Linux常驻上线，原身份/配置/凭证保持；原管理员另授权新增一条HAP配对。A故障仍使健康B新控制unknown，完整按网关隔离正在实现，集中现场仍待验。；WSS部分可用性实际反例已纳入，运行时必须保持健康B状态与新控制。；加密HAP亦存在健康B连带失效及局部恢复重建监听的问题，保留配对身份不能代替原认证连接持续性。；两网关正式CLI反例另确认A故障会取消纯B已接受的延迟场景（transport_failure），B仍反馈且恢复后新B延迟场景确能写出；健康时间线连续性待按网关修复。；同boot/rev恢复后数字run重用导致旧A取消回执实际取消不同持久UUID的新B场景，取消目标身份绑定仍须修复；不是已证跨角色扩权。；Root私有两文件修复已在原取消契约转绿：回执绑定不可复用Control实例，旧取消409而新B按时Written；原3+新1回归及严格Clippy通过。尚未并入完整运行时/全量回归/部署，其他网关契约仍101。；上述仅受控version标签故障机制演练，真正schema27候选升级及完整状态回退仍待验收；不能只换旧unit/程序。",
       "status": "single_gateway_deployed_multi_gateway_independent_control_counterexample",
       "additional_evidence": "stage-e-browser/runtime-gateway-timeout-root-gap.json",
       "additional_production_counterexample": "stage-e-browser/runtime-feedback-outage-cli-root-check.json",
@@ -180,7 +180,8 @@
       "additional_partial_HAP_evidence": "stage-e-browser/multi-gateway-partial-hap-root-gap.json",
       "additional_gateway_timeline_evidence": "stage-e-browser/multi-gateway-delayed-scene-root-gap.json",
       "additional_stale_cancel_evidence": "stage-e-browser/stale-scene-cancel-root-gap.json",
-      "additional_private_cancel_fix": "stage-e-browser/stale-scene-cancel-private-fix-root-check.json"
+      "additional_private_cancel_fix": "stage-e-browser/stale-scene-cancel-private-fix-root-check.json",
+      "additional_synthetic_rollback_evidence": "stage-e-browser/state-tree-rollback-root-check.json"
     }
   ],
   "evidence_sha256": {
@@ -265,7 +266,8 @@
     "stage-e-browser/multi-gateway-partial-hap-root-gap.json": "17a06a02ba196aa2a3cada7f873fd006e3d34640c6941219567493209549e7d2",
     "stage-e-browser/multi-gateway-delayed-scene-root-gap.json": "2cd53406c7cd6d30f93884fad0addf647267373f85daab44e10b7f66944e6134",
     "stage-e-browser/stale-scene-cancel-root-gap.json": "d06337673c6cc9010fa64bb7063045780621454b0216668154d02d1b91d0e53d",
-    "stage-e-browser/stale-scene-cancel-private-fix-root-check.json": "8d036cf0593cd187d5fed3b059a084d247b6a42ad22d7ea5182fe108e4460e98"
+    "stage-e-browser/stale-scene-cancel-private-fix-root-check.json": "8d036cf0593cd187d5fed3b059a084d247b6a42ad22d7ea5182fe108e4460e98",
+    "stage-e-browser/state-tree-rollback-root-check.json": "92f6c98fa43ad4c0980ae8bf35ee7941970de0a1fa1068b199a903e106b248ee"
   },
   "excluded_by_scope": {
     "Siri": "cancelled by user",
@@ -523,5 +525,6 @@
   "latest_partial_gateway_HAP_counterexample": "stage-e-browser/multi-gateway-partial-hap-root-gap.json",
   "latest_gateway_delayed_scene_counterexample": "stage-e-browser/multi-gateway-delayed-scene-root-gap.json",
   "latest_stale_scene_cancel_counterexample": "stage-e-browser/stale-scene-cancel-root-gap.json",
-  "latest_private_stale_cancel_repair": "stage-e-browser/stale-scene-cancel-private-fix-root-check.json"
+  "latest_private_stale_cancel_repair": "stage-e-browser/stale-scene-cancel-private-fix-root-check.json",
+  "latest_synthetic_complete_state_rollback": "stage-e-browser/state-tree-rollback-root-check.json"
 }
