@@ -175,6 +175,7 @@ impl CommandQueue {
             });
         let supersedes_rule = |old: &QueuedCommand| {
             old.device_id == request.device_id
+                && !matches!(request.command,Command::PanelParameter(_))
                 && old.origin == Origin::Rule
                 && old.run_id.is_some()
                 && !old.is_stop()

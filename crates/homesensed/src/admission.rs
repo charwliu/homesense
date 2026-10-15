@@ -44,6 +44,7 @@ pub struct DispatchTicket {
     pub gateway_id: String,
     pub command: QueuedCommand,
     pub frame: hb_transport::PreparedFrame,
+    pub(crate) panel_authorization: Option<crate::panel_auth::Lease>,
 }
 /// Captured before a delayed task starts. Private fields prevent callers from
 /// relabeling old work as belonging to the current runtime generation.
@@ -153,6 +154,12 @@ enum Submission {
         next_mode: u8,
     },
     Lights(Batch),
+    PanelCommand {
+        controller: Uuid,
+        device: homesense_core::DeviceId,
+        command: homesense_core::Command,
+        lease: crate::panel_auth::Lease,
+    },
     PanelLed {
         controller: Uuid,
         device: homesense_core::DeviceId,
@@ -452,6 +459,7 @@ impl Admission {
                 };
                 let mut restore_policy = crate::restore_policy::RestorePolicy::default();
                 let mut principals = BTreeMap::<u64, Uuid>::new();
+                let mut panel_leases=BTreeMap::<u64,crate::panel_auth::Lease>::new();
                 let mut module_off_jobs = BTreeMap::<u64,crate::away_off::Target>::new();
                 let mut module_queries = BTreeMap::<u64,crate::module_queries::Target>::new();
                 let mut motor_guard_ids=BTreeMap::<u64,u64>::new();
@@ -476,6 +484,7 @@ impl Admission {
                     } else {
                         Some(TaskGeneration { boot: worker_boot.clone(), epochs: arbiter.policy().epochs })
                     };
+                    panel_leases.retain(|id,_|principals.contains_key(id) || in_flight==Some(*id));
                     module_off_jobs.retain(|id,_| principals.contains_key(id) || in_flight==Some(*id));
                     module_queries.retain(|id,_| principals.contains_key(id) || in_flight==Some(*id));
                     motor_guard_ids.retain(|id,_|principals.contains_key(id)||in_flight==Some(*id));
@@ -1315,7 +1324,7 @@ impl Admission {
                                         Access {
                                             authorized: principals
                                                 .get(&command.id)
-                                                .is_some_and(|id| authorize(*id)) && module_off_jobs.get(&command.id).is_none_or(|job|job.lease.valid()) && motor_guard_ids.get(&command.id).is_none_or(|group|valid.get(group)==Some(&true)),
+                                                .is_some_and(|id| authorize(*id)) && panel_leases.get(&command.id).is_none_or(|lease|lease.valid()) && module_off_jobs.get(&command.id).is_none_or(|job|job.lease.valid()) && motor_guard_ids.get(&command.id).is_none_or(|group|valid.get(group)==Some(&true)),
                                             device_exists: binding.is_some() || module_off_jobs.contains_key(&command.id) || module_queries.get(&command.id).is_some_and(|q|q.frame(&configuration,options.context,command.epochs.transport).is_ok()),
                                             device_verified: module_off_jobs.contains_key(&command.id) || module_queries.contains_key(&command.id) || binding.is_some_and(|(_, m)| {
                                                 matches!(
@@ -1369,6 +1378,12 @@ impl Admission {
                                     let (device,module)=configuration.binding(&command.device_id).ok_or("missing binding")?;
                                     (device.gateway.clone(),hb_transport::PreparedFrame::prepare(module,device.channel,command.command,options.context,command.epochs.transport).map_err(|e|e.to_string())?)
                                 };
+                                let panel_authorization=panel_leases.get(&command.id).cloned();
+                                if panel_authorization.as_ref().is_some_and(|lease|!lease.valid_for(&configuration,principals[&command.id],&command.device_id,command.command)) {
+                                    store.transition_command(&worker_boot,command.id,Status::Accepted,Status::Cancelled,now).map_err(|e|e.to_string())?;
+                                    arbiter.cancel_selected_before_write(command.id).map_err(|e|e.to_string())?;
+                                    principals.remove(&command.id);return Ok(None);
+                                }
                                 if !store.begin_command_write(&worker_boot,command.id,now).map_err(|e|e.to_string())? {
                                     arbiter.cancel_selected_before_write(command.id).map_err(|e|e.to_string())?;
                                     principals.remove(&command.id);
@@ -1381,6 +1396,7 @@ impl Admission {
                                     gateway_id,
                                     command,
                                     frame,
+                                    panel_authorization,
                                 }))
                             })();
                             match result {
@@ -1640,6 +1656,7 @@ impl Admission {
                                 }
                                 let motor_queue_lease=feedback.as_ref().and_then(|lease|lease.motor.clone());
                                 let mut restore_intents = Vec::new();
+                                let panel_authorization=match &submission {Submission::PanelCommand{lease,..}=>Some(lease.clone()),_=>None};
                                 let (batch, compiled) = match submission {
                                     Submission::Study { .. } | Submission::Automation { .. } | Submission::Indicator { .. } | Submission::Native(_) => unreachable!(),
                                     Submission::NativePhysical(batch)=>{restore_intents=batch.intents.iter().filter(|i|!matches!(i.command,homesense_core::Command::Query|homesense_core::Command::Toggle)).map(|i|(i.device.clone(),i.command)).collect();(batch,true)},
@@ -1685,6 +1702,10 @@ impl Admission {
                                         batch.intents = expanded;
                                         (batch, true)
                                     },
+                                    Submission::PanelCommand {controller,device,command,lease} => {
+                                        if !lease.valid_for(&configuration,controller,&device,command) {return Err(WriteStatus::InsufficientPrivileges);}
+                                        (Batch {controller,intents:vec![homesense_hap::requests::Intent{device,command}],subscriptions:vec![]},true)
+                                    },
                                     Submission::PanelLed { controller, device, active } => (
                                         Batch { controller, intents: vec![homesense_hap::requests::Intent {
                                             device, command: homesense_core::Command::PanelLed(active)
@@ -1721,7 +1742,7 @@ impl Admission {
                                 let end = next_id
                                     .checked_add(batch.intents.len() as u64)
                                     .ok_or(WriteStatus::ServiceCommunicationFailure)?;
-                                let manual_devices: Vec<_> = if automation {vec![]} else {batch.intents.iter().filter(|i|!native_mode || i.command!=homesense_core::Command::Query).map(|i|i.device.clone()).collect()};
+                                let manual_devices: Vec<_> = if automation {vec![]} else {batch.intents.iter().filter(|i|!matches!(i.command,homesense_core::Command::PanelParameter(_)) && (!native_mode || i.command!=homesense_core::Command::Query)).map(|i|i.device.clone()).collect()};
                                 let mut commands = Vec::new();
                                 for (offset, intent) in batch.intents.into_iter().enumerate() {
                                     let (device, module) = configuration
@@ -1783,6 +1804,7 @@ impl Admission {
                                         command_sources.as_deref(),
                                     )
                                 };
+                                if panel_authorization.as_ref().is_some_and(|lease|!lease.valid()) {return Err(WriteStatus::InsufficientPrivileges);}
                                 let result = if ordered_rule {
                                     arbiter.submit_ordered_rule_batch_committed(commands, now, persist)
                                 } else {
@@ -1800,6 +1822,7 @@ impl Admission {
                                         }
                                         for id in next_id..end {
                                             principals.insert(id, batch.controller);
+                                            if let Some(lease)=&panel_authorization {panel_leases.insert(id,lease.clone());}
                                         }
                                         for cancellation in cancelled {
                                             curtains.cancelled(cancellation.command.id,cancellation.reason);
@@ -2586,6 +2609,14 @@ impl Admission {
         action:homesense_core::MotorAction,
     )->Result<Vec<u64>,WriteStatus> {
         self.submit_scoped(Submission::Motor{controller,device,action},Some(SubmissionScope::Configuration(revision))).await
+    }
+    /// Typed native panel entry; never make light submissions accept parameters.
+    pub(crate) async fn submit_panel_command_for_revision(&self,revision:u64,controller:Uuid,
+        device:homesense_core::DeviceId,command:homesense_core::Command,lease:crate::panel_auth::Lease)->Result<Vec<u64>,WriteStatus> {
+        if !matches!(command,homesense_core::Command::PanelLed(_)|homesense_core::Command::PanelLedOff|homesense_core::Command::PanelParameter(_)) {
+            return Err(WriteStatus::InvalidValueInRequest);
+        }
+        self.submit_scoped(Submission::PanelCommand{controller,device,command,lease},Some(SubmissionScope::Configuration(revision))).await
     }
     /// Manual LED control only; encoding checks the persisted panel profile,
     /// verification and Manual LED mode before any command is accepted.

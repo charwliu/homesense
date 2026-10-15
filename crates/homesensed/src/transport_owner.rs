@@ -7,6 +7,15 @@ use std::{
     io::{Read, Write},
 };
 
+/// Recheck and hold the exact credential/session generation through the bounded
+/// synchronous write. Revocation completed before this guard yields zero bytes.
+pub(crate) fn send_ticket<S:Read+Write>(ticket:&crate::admission::DispatchTicket,connection:&mut Connection<S>,now:impl FnMut()->u64)->Result<(),SendError> {
+    let send=||connection.send(&ticket.frame,ticket.command.deadline_ms,now);
+    if let Some(lease)=&ticket.panel_authorization {
+        lease.with_valid(send).unwrap_or(Err(SendError{reason:hb_transport::SendFailure::Io(std::io::ErrorKind::PermissionDenied),bytes_written:0}))
+    } else {send()}
+}
+
 pub struct TransportOwner<S> {
     admission: Admission,
     connections: BTreeMap<String, Connection<S>>,
@@ -235,16 +244,14 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
         };
         let id = ticket.command.id;
         let device_id = ticket.command.device_id.clone();
-        let gateway = ticket.gateway_id;
+        let gateway = ticket.gateway_id.clone();
         let Some(mut connection) = self.connections.remove(&gateway) else {
             let _ = self.admission.finish_write(id, false).await;
             return Err("no connection for configured gateway".into());
         };
         let clock = self.admission.clone();
         let (connection, result) = tokio::task::spawn_blocking(move || {
-            let result = connection.send(&ticket.frame, ticket.command.deadline_ms, || {
-                clock.monotonic_ms()
-            });
+            let result = send_ticket(&ticket,&mut connection,||clock.monotonic_ms());
             *slot = Some(tokio::time::Instant::now() + clock.write_interval);
             (connection, result)
         })

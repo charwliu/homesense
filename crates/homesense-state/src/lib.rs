@@ -369,7 +369,7 @@ impl StateStore {
                     Command::SetLevel { .. } | Command::PauseRamp | Command::Toggle
                 )
                 | (ModuleKind::Motor, Command::Motor(_))
-                | (ModuleKind::Keypad, Command::PanelLed(_))
+                | (ModuleKind::Keypad, Command::PanelLed(_) | Command::PanelLedOff | Command::PanelParameter(_))
         );
         if !valid {
             return Err(StateError::WrongKind);
