@@ -1,0 +1,199 @@
+{
+  "checked_bj": "2026-10-16T04:24:32.436688+08:00",
+  "scope": "Independent Mac runtime7 full regression audit and original synthetic normal-CLI contracts; no production changes or physical commands.",
+  "input": {
+    "source_files": 852,
+    "manifest_sha256": "9d35d297b1d40e97145beac1104185aa0d16d16ee207058e92597fc5efb01bf7",
+    "binary_sha256": "3737c2fb0fd3ee5473f20f6584e23603b303f3a5925588cc4e59a52804ffcc66"
+  },
+  "Rust": {
+    "workspace_exit_code": 0,
+    "tests": 1189,
+    "failed": 0,
+    "ignored": 0,
+    "filtered": 0,
+    "result_blocks": 182,
+    "doc_zero_blocks": 10,
+    "actual_programs_rehashed": 172,
+    "original1160_retained": true,
+    "new_tests": 29,
+    "strict_Clippy_exit_code": 101,
+    "strict_Clippy_errors": [
+      "collapsible_if in admission.rs650",
+      "type_complexity in gateway_io.rs12"
+    ],
+    "full_qualification": false
+  },
+  "HTTP": {
+    "cases_passed": 8,
+    "cases_required": 8,
+    "all_original_contracts_retained": true
+  },
+  "WSS": {
+    "case": "rst-first",
+    "passed": true,
+    "B45_and_B40_partial_updates": true,
+    "same_socket": true,
+    "global_unavailable_count": 0,
+    "local_fault_global_cursor_reset": false,
+    "same_session_recovery": true
+  },
+  "HAP": {
+    "cases_passed": 4,
+    "cases_required": 8,
+    "failed_cases": [
+      "HAP-silent-first",
+      "HAP-partial-first",
+      "HAP-eof-last",
+      "HAP-rst-last"
+    ],
+    "only_failing_flag": "HAP_A_unavailable_B45_fresh_during_A_fault",
+    "physical_B45_confirmed_but_HAP30": true,
+    "all8_same_encrypted_session_identity_B50_written_and_new_A60_recovery": true,
+    "no_fixture_or_worker_error": true
+  },
+  "timelines": {
+    "delayed_exit": 2,
+    "stale_cancel_exit": 2,
+    "not_qualified": true,
+    "partial_improvement": "Initial scene operation/wire scopes are now persisted; A fault cancels only A in observed ledger.",
+    "remaining_failure": "Old and fresh healthy-B delayed scene both fail at due admission, zero scene_command/wire, so full cancellation positive control is not satisfied.",
+    "source_hypothesis_not_yet_fixed": "Due actor appends original wires to current requirements, duplicating same bus+epoch; strict storage wire_map rejects duplicate. Must normalize identical dependencies, reject conflicting epochs, retain storage invariant."
+  },
+  "App": {
+    "actual_device_DTO_in_loopback_WSS_verified": true,
+    "actual_Keypad_scene_motor_gate_coverage": "pending dedicated actual samples and native implementation",
+    "adapter_owner": "HomeSenseApp",
+    "phone_visual_card_acceptance": false,
+    "build9_install_success_verified": false
+  },
+  "records": [
+    {
+      "case": "HTTP-eight-matrix",
+      "exit_code": 0,
+      "passed": true,
+      "result_sha256": "c3636fc2b98427baa15af3cc5bd9b19d3f29e95ba63218af51638437ab48cdce",
+      "false_HAP_flags": []
+    },
+    {
+      "case": "WSS-rst-first",
+      "exit_code": 0,
+      "passed": true,
+      "result_sha256": "0e331a6d3b648382d0a9f188c030b12a9d4afb7dd924250f7e286c3e38be862a",
+      "false_HAP_flags": []
+    },
+    {
+      "case": "HAP-silent-first",
+      "exit_code": 101,
+      "passed": false,
+      "result_sha256": "046f6cc8ee103881c7789f2a8765b5f6f2fb2c72a589df357b4bb606e9a85b63",
+      "false_HAP_flags": [
+        "HAP_A_unavailable_B45_fresh_during_A_fault",
+        "HAP_unavailable_EVENT_hit_healthy_B"
+      ]
+    },
+    {
+      "case": "HAP-silent-last",
+      "exit_code": 0,
+      "passed": true,
+      "result_sha256": "971766cbe6e07cb6849b1745a40441d35ab49cbf19936138ae664e81a2d79e52",
+      "false_HAP_flags": [
+        "HAP_unavailable_EVENT_hit_healthy_B"
+      ]
+    },
+    {
+      "case": "HAP-partial-first",
+      "exit_code": 101,
+      "passed": false,
+      "result_sha256": "e185198f306f9b88dfc97341a28beed5e8b3226f6c196de48468d83412ec43f7",
+      "false_HAP_flags": [
+        "HAP_A_unavailable_B45_fresh_during_A_fault",
+        "HAP_unavailable_EVENT_hit_healthy_B"
+      ]
+    },
+    {
+      "case": "HAP-partial-last",
+      "exit_code": 0,
+      "passed": true,
+      "result_sha256": "f7e23705a7c8925573c76288d3618c768b2117a0a6921cb467d8c5d494b1ed2d",
+      "false_HAP_flags": [
+        "HAP_unavailable_EVENT_hit_healthy_B"
+      ]
+    },
+    {
+      "case": "HAP-eof-first",
+      "exit_code": 0,
+      "passed": true,
+      "result_sha256": "4c939127f475da75f0ad28c32da20fd93f1ec641fcb8d6d5cddbea340dee3fe0",
+      "false_HAP_flags": [
+        "HAP_unavailable_EVENT_hit_healthy_B"
+      ]
+    },
+    {
+      "case": "HAP-eof-last",
+      "exit_code": 101,
+      "passed": false,
+      "result_sha256": "d2c8cf5f502e47d91e6f1278d5ed623883201d6dccb750e571c6cf5862f411d9",
+      "false_HAP_flags": [
+        "HAP_A_unavailable_B45_fresh_during_A_fault",
+        "HAP_unavailable_EVENT_hit_healthy_B"
+      ]
+    },
+    {
+      "case": "HAP-rst-first",
+      "exit_code": 0,
+      "passed": true,
+      "result_sha256": "ae40be4e6d080086b9c9165d3c4671c658aac445d89e54163d79316b27ab3928",
+      "false_HAP_flags": [
+        "HAP_unavailable_EVENT_hit_healthy_B"
+      ]
+    },
+    {
+      "case": "HAP-rst-last",
+      "exit_code": 101,
+      "passed": false,
+      "result_sha256": "dc64ce21b78936fc8254fc14d8108dbc07df1b891b575c35a501da11fdd14ca8",
+      "false_HAP_flags": [
+        "HAP_A_unavailable_B45_fresh_during_A_fault",
+        "HAP_unavailable_EVENT_hit_healthy_B"
+      ]
+    },
+    {
+      "case": "delayed-rst-first",
+      "exit_code": 2,
+      "passed": false,
+      "result_sha256": "02a054f0e3bf8dceaeee6d84b035c9bc93a71ba20d7732c33f39c0c0cc76151b",
+      "false_HAP_flags": []
+    },
+    {
+      "case": "stale-cancel-rst-first",
+      "exit_code": 2,
+      "passed": false,
+      "result_sha256": "76076bd30b8a8c06e475373d682fa7fbd6b706f51d81961d6f3f6291b1322c81",
+      "false_HAP_flags": []
+    }
+  ],
+  "private_evidence_root": "deployment/ngr/private/20261016-multigateway-isolation-root/runtime7-root-review",
+  "private_artifact_sha256": {
+    "runtime-7-result.json": "e9ef5241660fa5d16bc5d2ab1e9e9e79a2ee9f8631883dd131f54b249af073c9",
+    "runtime-7-manifest.json": "9d35d297b1d40e97145beac1104185aa0d16d16ee207058e92597fc5efb01bf7",
+    "qa-root-check.json": "920cd9b0d37ffee84253de30ad585fe174c416aff015037ef8c0fa4f86fbe742",
+    "test-inventory-root-check.json": "0e770bc26733de7490d27d29039b180826e8642b37fb01dcbccb2f4cf62ae149",
+    "protocol-results.json": "bff67dad0da5bb74835ed1477c27f3cdc475c4f7e450069947cad521b8ba98ac",
+    "actual-device-availability-contract.json": "56194c853f59a54e54b21935eaff5443dcffebe5dbb984a224ebf88a9973d294"
+  },
+  "production": "Existing1de receive repair remains; runtime7 not integrated or deployed.",
+  "new_source_decisions_approved": 0,
+  "new_rules_activated": 0,
+  "D_E_complete": false,
+  "original_scope": {
+    "scenes": 68,
+    "programs": 215,
+    "variables": 25
+  },
+  "remaining_source_scope": {
+    "scenes": 65,
+    "programs": 208,
+    "variables": 24
+  }
+}
