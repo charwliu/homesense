@@ -1,0 +1,57 @@
+{
+  "scope": "exact v11 query and original command_journal schema in private in-memory Python SQLite, not actual Rust storage timing",
+  "cases": [
+    {
+      "unrelated_same_boot_rows": 1000,
+      "progress_callbacks_per1000_VM_steps": 7,
+      "query_ms": 0.12,
+      "query_plan": [
+        [
+          5,
+          0,
+          62,
+          "SEARCH command_journal USING INDEX sqlite_autoindex_command_journal_1 (boot_id=?)"
+        ]
+      ],
+      "exact_result_id": 1
+    },
+    {
+      "unrelated_same_boot_rows": 10000,
+      "progress_callbacks_per1000_VM_steps": 70,
+      "query_ms": 0.957,
+      "query_plan": [
+        [
+          5,
+          0,
+          62,
+          "SEARCH command_journal USING INDEX sqlite_autoindex_command_journal_1 (boot_id=?)"
+        ]
+      ],
+      "exact_result_id": 1
+    },
+    {
+      "unrelated_same_boot_rows": 100000,
+      "progress_callbacks_per1000_VM_steps": 700,
+      "query_ms": 11.258,
+      "query_plan": [
+        [
+          5,
+          0,
+          62,
+          "SEARCH command_journal USING INDEX sqlite_autoindex_command_journal_1 (boot_id=?)"
+        ]
+      ],
+      "exact_result_id": 1
+    }
+  ],
+  "observation": "same-boot unrelated1000/10000/100000 rows cause about7000/70000/700000 VM steps",
+  "prototype": "scope+intent partial index leaves70 steps for all three sizes; not yet applied to product or field DB",
+  "actual_ms_are_diagnostics_not_portable_latency_guarantees": true,
+  "new_indexed_final_candidate_required": true,
+  "existing_v11_runtime_passes_preserved": true,
+  "evidence_sha256": {
+    "deployment/ngr/private/20261016-led-query-cost-root/result.json": "6674aed275421663f20b3092de799049b0ec7d05790504149d20116b191f02ce",
+    "deployment/ngr/private/20261016-led-query-cost-root/index-prototype-result.json": "d2f35b81891d4b4e311155da62c406ea9c3dae38378650d06c0419f4566c8c2a"
+  },
+  "field_DB_reads_or_writes": 0
+}
