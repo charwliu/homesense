@@ -33,7 +33,7 @@ impl Endpoint {
 
     #[allow(clippy::too_many_arguments)]
     pub async fn start(
-        settings: crate::service::WebSettings,
+        settings: (crate::service::WebSettings,crate::web_receipt_policy::Policy),
         directory: &Path,
         admission: &Admission,
         controller: Uuid,
@@ -45,7 +45,7 @@ impl Endpoint {
     }
     #[allow(clippy::too_many_arguments)]
     pub async fn start_in_context(
-        settings: crate::service::WebSettings,
+        settings: (crate::service::WebSettings,crate::web_receipt_policy::Policy),
         directory: &Path,
         admission: &Admission,
         controller: Uuid,
@@ -54,6 +54,7 @@ impl Endpoint {
         context: homesense_core::ExecutionContext,
         daily_backup: crate::daily_backup::Monitor,
     ) -> Result<Self, String> {
+        let (settings,receipt_policy)=settings;receipt_policy.validate()?;
         if let Some(tls)=&settings.tls {tls.validate_address(settings.address)?;}
         else if !settings.address.ip().is_loopback() || settings.address.port()==0 {return Err("plaintext management requires loopback".into());}
         let bundle = admission
@@ -99,8 +100,8 @@ impl Endpoint {
             tokens,
             runtime: RwLock::new(Some(view)),
             publisher,
-            receipts: Mutex::new(crate::web_receipts::Receipts::open(
-                &directory.join("web-receipts.sqlite"),
+            receipts: Mutex::new(crate::web_receipts::Receipts::open_with_policy(
+                &directory.join("web-receipts.sqlite"),receipt_policy,
             )?),
             drafts: Some((
                 context,
@@ -176,17 +177,7 @@ fn view(
         .automation
         .as_ref()
         .ok_or("automation document missing")?;
-    let scenes: std::collections::BTreeMap<String, String> = document
-        .timed_scenes
-        .iter()
-        .filter(|(_, s)| {
-            s.enabled
-                && s.review_evidence
-                    .as_ref()
-                    .is_some_and(|v| !v.trim().is_empty())
-        })
-        .map(|(id, _)| (id.clone(), id.clone()))
-        .collect();
+    let scenes=document.scene_catalog();
     if scenes.len() > 64 {
         return Err("management scene capacity exceeded".into());
     }

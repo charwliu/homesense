@@ -142,10 +142,16 @@ async fn actual_hap_reads_ignore_desired_and_reject_individual_writes() {
 #[test]
 fn off_reads_keep_remembered_brightness_without_claiming_power_or_freshness() {
     let (id, mut states) = fixture();
-    states.observe(&id, Observation::Level(Percent::new(0).unwrap()), 1, 10).unwrap();
+    states
+        .observe(&id, Observation::Level(Percent::new(0).unwrap()), 1, 10)
+        .unwrap();
     let snapshot = Arc::new(RwLock::new(states.snapshot()));
-    let levels = Arc::new(RwLock::new([(id.clone(), Percent::new(50).unwrap())].into()));
-    let view = ObservedView::new(snapshot.clone(), 100, || 20).unwrap().with_restore_levels(levels);
+    let levels = Arc::new(RwLock::new(
+        [(id.clone(), Percent::new(50).unwrap())].into(),
+    ));
+    let view = ObservedView::new(snapshot.clone(), 100, || 20)
+        .unwrap()
+        .with_restore_levels(levels);
     assert_eq!(view.power(&id, true), Ok(false));
     assert_eq!(view.brightness(&id).unwrap().get(), 50);
     states.disconnect(2, 21).unwrap();

@@ -1,6 +1,7 @@
 //! Strict versioned configuration input; immutable, validated runtime mappings.
 //! Parsing never connects, changes hardware or upgrades simulation evidence.
 pub mod rule_document;
+pub mod scene_tracking;
 use homesense_core::{
     BusAddress, Channel, DeviceId, ExecutionContext, ModuleKind, ModuleSpec, PanelLedMode, Percent,
     ProtocolProfile, ValidationError, Verification, VerificationRecord,
@@ -40,6 +41,8 @@ struct Document {
     manual_degraded_enabled: bool,
     #[serde(default)]
     rooms: Vec<Room>,
+    #[serde(default)]
+    floors: Vec<String>,
     gateways: Vec<GatewayInput>,
     devices: Vec<DeviceInput>,
 }
@@ -231,6 +234,7 @@ pub struct Configuration {
     devices: BTreeMap<DeviceId, LogicalDevice>,
     resolved_bindings:BTreeMap<DeviceId,ResolvedBinding>,
     rooms: BTreeMap<String, Room>,
+    floors: BTreeSet<String>,
 }
 impl Configuration {
     pub fn schema_version(&self)->u32 {self.schema_version}
@@ -267,6 +271,7 @@ impl Configuration {
         &self.gateways
     }
     pub fn rooms(&self) -> &BTreeMap<String, Room> { &self.rooms }
+    pub fn floors(&self) -> &BTreeSet<String> { &self.floors }
     /// Logical domain objects contain stable module references, never addresses.
     pub fn logical_devices(&self)->&BTreeMap<DeviceId,LogicalDevice>{&self.devices}
     /// Compatibility enumeration for transport adapters in the current immutable
@@ -385,12 +390,20 @@ impl Configuration {
             );
         }
         if input.rooms.len()>256 {return Err(invalid("room count exceeds limit"));}
+        if input.floors.len() > 256 {return Err(invalid("floor count exceeds limit"));}
+        let mut floors=BTreeSet::new();
+        for floor in input.floors {
+            if floor.trim().is_empty() || floor.len()>256 || floor.chars().any(char::is_control) {return Err(invalid("invalid floor label"));}
+            if !floors.insert(floor) {return Err(invalid("duplicate floor label"));}
+        }
         let mut rooms=BTreeMap::new();
         for room in input.rooms {
             identifier(&room.id)?;
             for label in std::iter::once(&room.name).chain(room.floor.iter()) {
                 if label.trim().is_empty() || label.len()>256 || label.chars().any(char::is_control) {return Err(invalid("invalid room or floor label"));}
             }
+            if let Some(floor)=&room.floor {floors.insert(floor.clone());}
+            if floors.len()>256 {return Err(invalid("floor count exceeds limit"));}
             if rooms.insert(room.id.clone(),room).is_some() {return Err(invalid("duplicate room id"));}
         }
         let mut devices = BTreeMap::new();
@@ -547,6 +560,7 @@ impl Configuration {
             revision: input.revision,
             manual_degraded_enabled: input.manual_degraded_enabled,
             rooms,
+            floors,
             gateways,
             devices,
             resolved_bindings,

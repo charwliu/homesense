@@ -37,9 +37,11 @@ impl ConfiguredRules {
             rule.actions.clear();
         }
         let index=Document {
-            revision:document.revision,variables:document.variables.clone(),variable_migrations:document.variable_migrations.clone(),
+                away_off: None,
+            scene_deactivations:Default::default(),
+            revision:document.revision,scene_tracking:document.scene_tracking.clone(),scene_metadata:document.scene_metadata.clone(),variables:document.variables.clone(),variable_migrations:document.variable_migrations.clone(),
             feedback_bindings:document.feedback_bindings.clone(),rules,
-            immediate_scenes:Default::default(),schedules:document.schedules.clone(),
+            immediate_scenes:Default::default(),disabled_immediate_scenes:Default::default(),schedules:document.schedules.clone(),
             gestures:document.gestures.clone(),holds:document.holds.clone(),
             timed_scenes:document.timed_scenes.clone(),scene_switch_groups:document.scene_switch_groups.clone(),indicator_links:document.indicator_links.clone(),scene_observation:document.scene_observation.clone(),
         };
@@ -194,12 +196,16 @@ impl ConfiguredRules {
             admission.clone(),
             controller,
             &Document {
+                away_off: None,
+                scene_deactivations:Default::default(),
                 revision: document.revision,
+                scene_tracking: document.scene_tracking.clone(),scene_metadata: document.scene_metadata.clone(),
                 variables: document.variables.clone(),
                 variable_migrations: document.variable_migrations.clone(),
                 feedback_bindings: document.feedback_bindings.clone(),
                 rules: non_panel,
                 immediate_scenes: Default::default(),
+                disabled_immediate_scenes: Default::default(),
                 schedules: vec![],
                 gestures: Default::default(),
                 holds: None,

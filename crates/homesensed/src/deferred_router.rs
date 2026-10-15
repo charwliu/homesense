@@ -32,6 +32,8 @@ impl From<&str> for RootFailure {
         message.to_owned().into()
     }
 }
+#[derive(Clone,Copy)]
+pub(crate) struct ManualRoot<'a>{pub controller:Uuid,pub writes:&'a [(String,Option<bool>)],pub generation:&'a crate::admission::TaskGeneration,pub deadline:u64}
 pub struct Router {
     admission: Admission,
     controller: Uuid,
@@ -208,6 +210,14 @@ impl Router {
         budget: Budget,
         duration_ms: u64,
     ) -> Result<(u64, Vec<Outcome>), RootFailure> {
+        self.start_entry_inner(rules,None,scheduler,feedback,budget,duration_ms).await
+    }
+    /// A manual scene root participates in the same bounded retention and result
+    /// routing as configured rules. The actual network caller owns its outputs.
+    pub(crate) async fn start_manual_scenes_as(&mut self,root:ManualRoot<'_>,scheduler:&mut SceneScheduler,feedback:Option<(&Feedback,u64)>,budget:Budget)->Result<Vec<Outcome>,String> {
+        self.start_entry_inner(&[],Some(root),scheduler,feedback,budget,60_000).await.map(|(_,outcomes)|outcomes).map_err(|e|e.message)
+    }
+    async fn start_entry_inner(&mut self,rules:&[String],manual:Option<ManualRoot<'_>>,scheduler:&mut SceneScheduler,feedback:Option<(&Feedback,u64)>,budget:Budget,duration_ms:u64)->Result<(u64,Vec<Outcome>),RootFailure> {
         self.validate(scheduler)?;
         if self.closed {
             return Err("causal router closed".into());
@@ -225,7 +235,11 @@ impl Router {
             .next
             .checked_add(1)
             .ok_or("causal identity exhausted")?;
-        let mut session = if self.feedback_candidates.is_some() {
+        let mut session = if let Some(root)=manual {
+            let mut session=Session::new_for_caller_before(self.admission.clone(),root.controller,scheduler,budget,duration_ms,Some(root.deadline)).await?;
+            if self.feedback_candidates.is_some(){session.retain_feedback();}
+            session
+        } else if self.feedback_candidates.is_some() {
             Session::new_for_feedback(self.admission.clone(),self.controller,scheduler,budget,duration_ms).await?
         } else {Session::new(
             self.admission.clone(),
@@ -235,7 +249,9 @@ impl Router {
             duration_ms,
         )
         .await?};
-        let outcomes = match session.start_rules(rules, scheduler, feedback).await {
+        if manual.is_some_and(|root|session.generation()!=root.generation){return Err("manual scene generation changed before execution".into());}
+        let result=if let Some(root)=manual {Box::pin(session.start_manual_scenes(root.writes,scheduler,feedback)).await}else{session.start_rules(rules,scheduler,feedback).await};
+        let outcomes = match result {
             Ok(outcomes) => outcomes,
             Err(message) => {
                 let isolated = session.failure_isolated();

@@ -1,6 +1,5 @@
 use super::*;
-#[path = "../../homesense-hap/tests/support/mod.rs"]
-mod support;
+use crate::hap_test_support as support;
 #[tokio::test]
 async fn two_listeners_publish_only_selected_lights_with_independent_identity() {
     let root=std::env::temp_dir().join(format!("homesense-hap-subset-{}",Uuid::new_v4()));std::fs::create_dir_all(&root).unwrap();

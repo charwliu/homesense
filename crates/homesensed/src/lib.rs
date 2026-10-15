@@ -1,4 +1,9 @@
 //! Runtime components; construction does not start a listener or connect hardware.
+pub mod module_all_off;
+pub mod away_auth;
+mod away_off;
+pub mod runtime_away_hap;
+mod web_away_off;
 pub mod admission;
 pub mod simulation;
 pub mod simulation_hap;
@@ -61,6 +66,9 @@ pub mod event_rules;
 pub mod configured_rules;
 
 pub mod scene_activity;
+pub mod scene_tracking;
+pub mod immediate_scene;
+mod manual_scene_plan;
 
 pub mod automation_runtime;
 pub mod automation_control;
@@ -78,6 +86,9 @@ pub mod automation_publication;
 
 pub mod software_fade;
 
+#[cfg(test)]
+mod fade_clock_tests;
+
 pub mod fade_group;
 
 mod fade_budget;
@@ -86,6 +97,8 @@ pub mod runtime_scene_hap;
 
 pub mod web_auth;
 pub mod web_credentials;
+pub mod web_receipt_policy;
+pub mod web_management_receipts;
 pub mod web_receipts;
 pub mod web_api;
 pub mod web_server;
@@ -154,3 +167,16 @@ mod physical_queries;
 mod motor_rules;
 
 mod web_assets;
+
+#[cfg(test)]
+mod scene_tracking_tests;
+
+#[cfg(test)]
+#[path="../../homesense-hap/tests/support/mod.rs"]
+pub(crate) mod hap_test_support;
+
+#[cfg(test)]
+mod immediate_scene_tests;
+
+#[cfg(test)]
+mod curtain_idle_clock_tests;

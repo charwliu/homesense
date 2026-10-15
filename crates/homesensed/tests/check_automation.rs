@@ -1,3 +1,5 @@
+#[path = "../../test-support/cli.rs"]
+mod test_cli;
 use std::process::Command;
 #[test]
 fn offline_cli_checks_disabled_example_and_enabled_scene_without_creating_state() {
@@ -10,7 +12,7 @@ fn offline_cli_checks_disabled_example_and_enabled_scene_without_creating_state(
         hap::serde_json::from_slice(include_bytes!("../../../config/automation.simulation.json"))
             .unwrap();
     let run = |simulation: bool| {
-        let mut command = Command::new(env!("CARGO_BIN_EXE_homesensed"));
+        let mut command = Command::new(test_cli::binary(env!("CARGO_BIN_EXE_homesensed")));
         command
             .current_dir(&directory)
             .arg("check-automation")

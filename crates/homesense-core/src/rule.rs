@@ -54,6 +54,10 @@ pub enum Condition {
 }
 #[derive(Debug, Clone)]
 pub enum Action {
+    /// Trusted linker guard; never a physical command or implicit cancellation.
+    RequireQuiescence { scene: String },
+    /// Linker provenance for rejecting activation/off overlap in one admission.
+    SceneActivation { scene: String },
     /// Unresolved source intent. Configuration must lower it through reviewed
     /// logical direction calibration before any planning or execution.
     Motor {device:DeviceId,action:crate::MotorAction,mapping_review:String},
@@ -287,7 +291,7 @@ impl Evaluator<'_> {
             }
             match &node.action {
                 Action::Motor {..}=>return Err(Error::UnresolvedMotorAction),
-                Action::Scene { id, .. } => {
+                Action::SceneActivation {scene:id} | Action::RequireQuiescence { scene: id } | Action::Scene { id, .. } => {
                     if id.is_empty() {
                         return Err(Error::MissingSource);
                     }
@@ -496,7 +500,7 @@ pub fn variable_references_with_deferred(nodes:&[Node], deferred:&BTreeSet<Strin
                     }
                     Action::Scene { id, activate } if *activate && self.deferred.contains(id) => {},
                     Action::Scene { .. } => return Err("unexpanded scene in reference scan"),
-                    Action::Command { .. } | Action::Motor {..} => {}
+                    Action::SceneActivation { .. } | Action::RequireQuiescence { .. } | Action::Command { .. } | Action::Motor {..} => {}
                 }
             }
             Ok(())

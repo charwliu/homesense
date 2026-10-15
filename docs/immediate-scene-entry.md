@@ -1,0 +1,33 @@
+# Immediate scene action entry
+
+Reviewed, explicitly enabled Immediate definitions can be published as momentary HAP actions and selected by the Web service catalog. Display metadata is separate from canonical scene IDs. No source approval, numeric tracking interpretation or field configuration follows from this software capability.
+
+## Execution contract
+
+A positive action is linked from the currently published document as a real scene-call AST. Expansion preserves nested member sources, condition order, assignments and repeated targets. It does not generate an enabled startup rule or a zero-delay TimedScene. Feedback aliases lower to actual operands; the normal fresh read-set lease and per-predicate motor review apply. Disabled nested definitions reject the whole action before admission.
+
+The original authenticated caller is retained through snapshots, variable updates, ordered command admission, deferred installation and dispatch authorization. A typed causal entry keeps scene identity distinct from rule identity. Variable-changed and real deferred-result successors share the original chain and budgets, bounded by the existing 60-second causal-root limit. The first durable acceptance must finish before the original request deadline; accepted deferred work retains the causal deadline rather than the HTTP request TTL. Captured generation and caller are retained across every await and successor. A later causal rule may supersede earlier queued targets under the existing arbiter policy; cancelled commands retain their original source audit. This is not a guarantee that every accepted command reaches Written.
+
+Ordinary mixed Immediate/Timed batches are linked and planned together. Variables, immediate commands and true Timed starts are durably accepted atomically; native Timed offsets and run records remain unchanged. Every addressed item is validated first. Missing, disabled, duplicated or unauthorized entries produce no partial first action. Native selection groups use their existing `scene_switches::plan` provider against captured effective selection, including unknown-Off rejection, nonselected-Off and already-selected no-ops, reset rules and multi-On conflicts. The full original Timed-subset plan owns real call order and shared-reset deduplication. Explicit selection assignments are inserted at their effective canonical request slots in the shared AST; true Timed calls are collected in the original provider order, retain all contributing canonical sources, and keep the single durable acceptance clock. Everything is then admitted in one transaction. Passive subscriptions and nonselected Off entries cannot pull a later effective operation ahead of an Immediate action. Existing Timed-only selection and timeline behavior is preserved.
+
+False and subscription-only writes to the momentary action produce no actuator command. A tracking activity uses its independent typed read-only address; true/false activity writes reject, and its address cannot route into the action handler. Unknown/pending activity is not silently exposed as a writable false state.
+
+## Joint native provider read set
+
+The native provider retains its recorded/inferred/physical selection view. Planned ordinary assignments are not substituted for physical or inferred evidence when resolving a native selection. Selection assignments resulting from the provider participate in ordinary AST order, so later ordinary actions can see an explicit accepted local value. No native mode is inferred from a writable activity address.
+
+Every native provider read is reprojected on the Admission owner and compared in full, including version, inference scope, initialization, physical projection, freshness and pending state, before any commit. SQL read checks and ordinary variable CAS share the same command/variable/run transaction; stale or forged proofs cannot commit the Immediate prefix. Condition-only persistent and temporary inputs are read guards rather than unchanged-value writes. An inferred already-selected no-op preserves its original version and provenance, verified with actual synthetic keypad frames.
+
+Internal provider selection bookkeeping does not introduce ordinary variable-changed callbacks absent from the original manual provider. Explicit assignments in the reviewed Immediate AST retain ordinary changed-variable causal dispatch. Known pre-acceptance rejections, including capacity and caller revocation, reject only this root with no owner fallback or fabricated accepted audit. Ambiguous submission/transport communication failure is not classified as a proven rejection. Uncertain acceptance or failed installation retains the fail-closed guard.
+
+## Receipts and management
+
+An Immediate action returns the accepted canonical IDs, causal correlation/event, command IDs, unknown branch labels and any real deferred run IDs. Acceptance is not Written or physical completion. A pure Immediate execution creates no `scene_run`. The Web card states that no timeline record exists and disables timeline history/cancellation for this kind; it reports accepted command/unknown-branch counts. Durable ordinary rule-command audit retains exact node sources. Duplicate Web request IDs return the stored receipt without re-executing commands.
+
+Without an explicit tracking policy, Immediate activity remains Unknown: condition/variable-dependent final load values are not guessed. With tracking, actual observed activity remains independent of action history. Service startup and publication rebuild both use the same enabled catalog, including display metadata. Low-level direct scheduler/start-scene timeline APIs still require Timed definitions; the new entry is the HAP/Web causal action path.
+
+## Verification boundary
+
+Large rule execution futures are heap pinned so adding a new manual branch does not increase the ordinary runtime driver beyond the default test stack. The original default-stack regression is retained and repeated without a stack-size override.
+
+Tests use synthetic definitions, actual Control/Admission/Router, in-memory transports, SQLite audit and the production automation drive loop. They cover nested sources, same-target command order, assignment followed by conditions, variable cascades, valid/invalid mixed batches, caller revocation before dispatch, unknown feedback, read-only role isolation, Web grants/idempotency and persistent restart without replay. A separate unchanged public root probe retains the Timed-positive and disabled-Immediate-negative controls. This is software validation; field confirmation and source semantic review remain separate.

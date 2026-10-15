@@ -32,12 +32,7 @@ impl Settings {
             return Err("invalid HAP scene selection".into());
         }
         for id in &self.scenes {
-            if !document.timed_scenes.get(id).is_some_and(|s| {
-                s.enabled
-                    && s.review_evidence
-                        .as_ref()
-                        .is_some_and(|v| !v.trim().is_empty())
-            }) {
+            if !document.scene_action_available(id) {
                 return Err("published HAP scene missing, disabled or unreviewed".into());
             }
         }
@@ -185,7 +180,9 @@ impl Endpoint {
                 move |id,_|authorization.controller_is_paired(id).unwrap_or(false),
             ).await?)
         };
-        let mut graph = crate::unified_hap::UnifiedHap { lights, scenes, motors };
+        let published=lights.lights.iter().map(|(binding,_)|binding.device.clone()).collect();
+        let away=crate::runtime_away_hap::RuntimeAwayHap::new(&bundle.configuration,document,identity,admission,runtime.control(),&published).await?;
+        let mut graph = crate::unified_hap::UnifiedHap { lights, scenes, motors, away };
         let config = identity.load_config().await.map_err(|e| e.to_string())?;
         let server = if settings.address.ip().is_loopback() {
             IpServer::new_loopback(config, identity.clone()).await

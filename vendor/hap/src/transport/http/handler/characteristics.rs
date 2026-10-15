@@ -401,7 +401,9 @@ mod write_body_tests {
             assert_eq!(response.status(), status);
             if reject {
                 let value: serde_json::Value = serde_json::from_slice(
-                    &crate::transport::http::body::to_bytes(response.into_body()).await.unwrap(),
+                    &crate::transport::http::body::to_bytes(response.into_body())
+                        .await
+                        .unwrap(),
                 )
                 .unwrap();
                 assert!(value["characteristics"]

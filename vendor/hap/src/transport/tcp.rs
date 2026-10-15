@@ -946,8 +946,7 @@ mod read_record_tests {
         }
     }
     fn encoded(secret: &[u8; 32], messages: &[Vec<u8>]) -> Vec<u8> {
-        let cipher =
-            ChaCha20Poly1305::new((&compute_read_key(secret).unwrap()).into());
+        let cipher = ChaCha20Poly1305::new((&compute_read_key(secret).unwrap()).into());
         let mut wire = Vec::new();
         for (count, message) in messages.iter().enumerate() {
             let mut aad = [0; 2];
@@ -1094,8 +1093,7 @@ mod socket_tests {
         (client.unwrap(), server.unwrap().0)
     }
     fn client_records(secret: &[u8; 32], plaintext: &[u8]) -> Vec<u8> {
-        let cipher =
-            ChaCha20Poly1305::new((&compute_read_key(secret).unwrap()).into());
+        let cipher = ChaCha20Poly1305::new((&compute_read_key(secret).unwrap()).into());
         let mut wire = Vec::new();
         for (counter, chunk) in plaintext.chunks(1024).enumerate() {
             let mut aad = [0; 2];
@@ -1162,13 +1160,13 @@ mod socket_tests {
             let mut tag = [0; 16];
             client.read_exact(&mut tag).await.unwrap();
             ChaCha20Poly1305::new((&compute_write_key(&secret).unwrap()).into())
-            .decrypt_inout_detached(
-                (&[0u8; 12]).into(),
-                &aad,
-                body.as_mut_slice().into(),
-                (&tag).into(),
-            )
-            .unwrap();
+                .decrypt_inout_detached(
+                    (&[0u8; 12]).into(),
+                    &aad,
+                    body.as_mut_slice().into(),
+                    (&tag).into(),
+                )
+                .unwrap();
             assert_eq!(body, b"encrypted response");
             client.shutdown().await.unwrap();
             task.await.unwrap().unwrap();
@@ -1224,7 +1222,8 @@ mod socket_tests {
             }
             assert_eq!(received, plaintext);
             outgoing.try_send(plaintext.clone()).unwrap();
-            let cipher = ChaCha20Poly1305::new((&compute_write_key(&secret).unwrap()).into());
+            let cipher =
+                ChaCha20Poly1305::new((&compute_write_key(&secret).unwrap()).into());
             let mut received = Vec::new();
             for counter in 0..3u64 {
                 let mut aad = [0; 2];

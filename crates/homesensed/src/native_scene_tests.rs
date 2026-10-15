@@ -856,17 +856,7 @@ async fn web_relative_action_is_explicit_scoped_and_deduplicated_with_pending_st
     )
     .await;
     assert_eq!(duplicate, receipt);
-    assert_eq!(
-        api.handle(request(
-            "/api/v1/scene-actions",
-            member,
-            Some(json!({"scene":"first","request_id":"web-once","on":true})),
-            true
-        ))
-        .await
-        .status(),
-        hyper::StatusCode::CONFLICT
-    );
+    // Cross-endpoint independence is exercised after the native request settles below.
     let response = poll_request(
         &h,
         &mut receiver,
@@ -931,5 +921,51 @@ async fn web_relative_action_is_explicit_scoped_and_deduplicated_with_pending_st
             .unwrap(),
         1
     );
+    // The same principal/key now has a separate absolute-action scope. Drive
+    // the real control receiver and scheduler, rather than accepting a timeout
+    // receipt from an unpolled request. Native observation above remains intact.
+    let absolute = json!({"scene":"first","request_id":"web-once","on":false});
+    let response = poll_request(
+        &h,
+        &mut receiver,
+        &mut scenes,
+        api.handle(request("/api/v1/scene-actions", member, Some(absolute.clone()), true)),
+    ).await;
+    assert_eq!(response.status(), hyper::StatusCode::ACCEPTED);
+    let absolute_receipt = payload(response).await;
+    assert_eq!(absolute_receipt["outcome"], "accepted");
+    let run = absolute_receipt["run"].as_u64().unwrap();
+    let mut written = Vec::new();
+    for _ in 0..8 {
+        let ticks = scenes.tick(h.actor.monotonic_ms()).await.unwrap();
+        assert!(ticks.iter().all(|tick| tick.result.is_ok()));
+        written.extend(drain(&h).await);
+        if scenes.settled_terminal(run) { break; }
+        tokio::time::sleep(Duration::from_millis(2)).await;
+    }
+    assert!(scenes.settled_terminal(run));
+    for device in ["light", "down"] {
+        assert!(written.iter().any(|(_, id, command, frame)| {
+            id.as_str() == device
+                && matches!(command, Command::SetLevel { level, .. } if level.get() == 0)
+                && frame[3] == 0
+        }));
+    }
+    assert_eq!(h.sql().query_row("SELECT count(*) FROM scene_run", [], |r| r.get::<_, i64>(0)).unwrap(), 1);
+    let command_count = h.sql().query_row("SELECT count(*) FROM command_journal", [], |r| r.get::<_, i64>(0)).unwrap();
+    let repeat = api.handle(request("/api/v1/scene-actions", member, Some(absolute), true)).await;
+    assert_eq!(repeat.status(), hyper::StatusCode::OK);
+    assert_eq!(payload(repeat).await, absolute_receipt);
+    let relative_repeat = api.handle(request("/api/v1/scene-relative-actions", member,
+        Some(json!({"scene":"first","request_id":"web-once"})), true)).await;
+    assert_eq!(relative_repeat.status(), hyper::StatusCode::OK);
+    assert_eq!(payload(relative_repeat).await, receipt);
+    assert_eq!(api.handle(request("/api/v1/scene-actions", member,
+        Some(json!({"scene":"first","request_id":"web-once","on":true})), true)).await.status(),
+        hyper::StatusCode::CONFLICT);
+    assert_eq!(h.sql().query_row("SELECT count(*) FROM command_journal", [], |r| r.get::<_, i64>(0)).unwrap(), command_count);
+    assert_eq!(h.sql().query_row("SELECT count(*) FROM scene_run", [], |r| r.get::<_, i64>(0)).unwrap(), 1);
+    assert_eq!(api.receipts.lock().unwrap().record_count().unwrap(), 2);
+    assert!(drain(&h).await.is_empty());
     h.close().await;
 }

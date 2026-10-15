@@ -30,7 +30,11 @@ async fn http(address: SocketAddr, path: &str, body: Option<Value>) -> (u16, Val
     let mut socket = tokio::net::TcpStream::connect(address).await.unwrap();
     let method = if body.is_some() { "POST" } else { "GET" };
     let body = body.map_or(String::new(), |v| v.to_string());
-    socket.write_all(format!("{method} {path} HTTP/1.1\r\nHost: {address}\r\nOrigin: http://{address}\r\nAuthorization: Bearer {TOKEN}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len()).as_bytes()).await.unwrap();
+    // Each existing fixture call represents a distinct management intent.
+    let idempotency = if method == "POST" && path.starts_with("/api/v1/config/drafts/") {
+        format!("Idempotency-Key: {}\r\n", Uuid::new_v4())
+    } else { String::new() };
+    socket.write_all(format!("{method} {path} HTTP/1.1\r\nHost: {address}\r\nOrigin: http://{address}\r\nAuthorization: Bearer {TOKEN}\r\n{idempotency}Content-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len()).as_bytes()).await.unwrap();
     let mut bytes = vec![];
     tokio::time::timeout(Duration::from_secs(4), socket.read_to_end(&mut bytes))
         .await

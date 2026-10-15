@@ -10,6 +10,10 @@ use std::collections::BTreeMap;
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Input {
+    #[serde(default)]
+    away_off: Option<AwayOff>,
+    #[serde(default)]
+    scene_deactivations: Vec<SceneDeactivation>,
     schema_version: u32,
     configuration_revision: u64,
     variables: Vec<VariableInput>,
@@ -18,6 +22,10 @@ struct Input {
     rules: Vec<RuleInput>,
     #[serde(default)]
     immediate_scenes: Vec<SceneInput>,
+    #[serde(default)]
+    scene_tracking: Vec<crate::scene_tracking::Policy>,
+    #[serde(default)]
+    scene_metadata: Vec<SceneMetadata>,
     #[serde(default)]
     schedules: Vec<ScheduleInput>,
     #[serde(default)]
@@ -128,10 +136,13 @@ pub enum HoldRelease {
     CancelPendingOnly,
     PauseRampFieldVerified,
 }
+fn legacy_scene_enabled() -> bool { true }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct SceneInput {
     id: String,
+    #[serde(default = "legacy_scene_enabled")]
+    enabled: bool,
     review_evidence: String,
     activate: Vec<NodeInput>,
     deactivate: Option<Vec<NodeInput>>,
@@ -310,13 +321,41 @@ pub enum FeedbackBinding {
     On { device: String },
     Level { device: String },
 }
+#[derive(Clone,Debug,serde::Deserialize,serde::Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct SceneMetadata {pub id:String,pub name:String}
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all="snake_case")]
+pub enum SceneExecutionKind { Immediate, Timed }
+/// Explicit new Away policy, separate from all imported scene definitions.
+#[derive(Debug,Clone,Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AwayOff {
+    #[serde(default)]
+    pub hap_expose:bool,
+    pub enabled:bool, pub review_evidence:String,
+    pub active_execution_policy:AwayExecutionPolicy,
+    pub modules:Vec<AwayModule>,
+}
+#[derive(Debug,Clone,Copy,Deserialize)]
+#[serde(rename_all="snake_case")]
+pub enum AwayExecutionPolicy {RequireQuiescentRuntime,CancelAffectedLighting}
+#[derive(Debug,Clone,Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AwayModule {pub module_id:String,pub devices:Vec<String>,pub review_evidence:String}
 pub struct Document {
+    pub away_off: Option<AwayOff>,
+    pub scene_deactivations: BTreeMap<String,SceneDeactivation>,
     pub revision: u64,
+    pub scene_tracking: BTreeMap<String,crate::scene_tracking::Policy>,
+    pub scene_metadata: BTreeMap<String,String>,
     pub variables: BTreeMap<String, Variable>,
     pub variable_migrations: BTreeMap<String, VariableMigration>,
     pub feedback_bindings: BTreeMap<String, FeedbackBinding>,
     pub rules: Vec<Rule>,
     pub immediate_scenes: BTreeMap<String, homesense_core::scene_expand::Definition>,
+    /// Explicitly disabled imported definitions cannot be activated by enabling a caller alone.
+    pub disabled_immediate_scenes: std::collections::BTreeSet<String>,
     pub schedules: Vec<homesense_core::calendar::Schedule>,
     pub gestures: BTreeMap<DeviceId, homesense_core::gesture::Settings>,
     pub holds: Option<Holds>,
@@ -325,6 +364,16 @@ pub struct Document {
     pub indicator_links: Vec<crate::indicator_links::Link>,
     pub scene_observation: Option<crate::scene_observation::Settings>,
 }
+/// New links require an explicit runtime policy; no source timing default.
+#[derive(Debug,Clone,Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SceneDeactivation {
+    pub scene:String, pub target:String, pub enabled:bool, pub review_evidence:String,
+    pub active_execution_policy:DeactivationPolicy,
+}
+#[derive(Debug,Clone,Copy,Deserialize,serde::Serialize)]
+#[serde(rename_all="snake_case")]
+pub enum DeactivationPolicy { RequireQuiescentRuntime }
 struct Compiler<'a> {
     config: &'a Configuration,
     variables: &'a BTreeMap<String, Variable>,
@@ -675,11 +724,13 @@ impl Document {
             return Err(invalid("automation definition capacity exceeded"));
         }
         let mut immediate_scenes = BTreeMap::new();
+        let mut disabled_immediate_scenes = std::collections::BTreeSet::new();
         for scene in input.immediate_scenes {
             identifier(&scene.id)?;
             if scene.review_evidence.trim().is_empty() || scene.review_evidence.len() > 8192 {
                 return Err(invalid("scene review evidence required"));
             }
+            if !scene.enabled { disabled_immediate_scenes.insert(scene.id.clone()); }
             let definition = homesense_core::scene_expand::Definition {
                 activate: compiler.nodes(scene.activate, 0)?,
                 deactivate: scene
@@ -891,13 +942,30 @@ impl Document {
         if let Some(settings)=&input.scene_observation {
             settings.validate(config,&input.scene_switch_groups,&rules,input.holds.as_ref())?;
         }
+        let mut scene_deactivations=BTreeMap::new();
+        if input.scene_deactivations.len()>1024{return Err(invalid("deactivation capacity exceeded"));}
+        for link in input.scene_deactivations {
+            identifier(&link.scene)?;identifier(&link.target)?;
+            if link.scene==link.target || link.review_evidence.trim().is_empty() || link.review_evidence.len()>8192
+                || !immediate_scenes.contains_key(&link.scene)&&!timed_scenes.contains_key(&link.scene)
+                || !immediate_scenes.contains_key(&link.target)&&!timed_scenes.contains_key(&link.target)
+                || immediate_scenes.get(&link.scene).is_some_and(|s|s.deactivate.is_some()) {return Err(invalid("invalid, ambiguous or unresolved deactivation link"));}
+            let enabled=|id:&String|immediate_scenes.contains_key(id)&&!disabled_immediate_scenes.contains(id)||timed_scenes.get(id).is_some_and(|s|s.enabled);
+            if link.enabled && (!enabled(&link.scene)||!enabled(&link.target)){return Err(invalid("enabled deactivation references disabled scene"));}
+            if scene_deactivations.insert(link.scene.clone(),link).is_some(){return Err(invalid("duplicate deactivation link"));}
+        }
         let document=Self {
+            away_off: input.away_off,
+            scene_deactivations,
             revision: input.configuration_revision,
             variables,
             variable_migrations,
             feedback_bindings,
             rules,
             immediate_scenes,
+            disabled_immediate_scenes,
+            scene_tracking: input.scene_tracking.iter().map(|p|(p.scene.clone(),p.clone())).collect(),
+            scene_metadata: input.scene_metadata.iter().map(|m|(m.id.clone(),m.name.clone())).collect(),
             schedules,
             gestures,
             holds: input.holds,
@@ -906,6 +974,29 @@ impl Document {
             indicator_links:input.indicator_links,
             scene_observation:input.scene_observation,
         };
+        if let Some(away)=&document.away_off && away.enabled {
+                if config.schema_version()!=2 || away.review_evidence.trim().is_empty() || away.review_evidence.len()>8192 || away.modules.is_empty() || away.modules.len()>128 {return Err(invalid("enabled Away operation requires reviewed stable modules"));}
+                let mut seen=std::collections::BTreeSet::new();
+                for reviewed in &away.modules {
+                    if !seen.insert(&reviewed.module_id) || reviewed.review_evidence.trim().is_empty() || reviewed.review_evidence.len()>4096 {return Err(invalid("Away module review required"));}
+                    let (_,module)=config.module(&reviewed.module_id).ok_or_else(||invalid("Away module missing"))?;
+                    if !matches!(module.profile(),homesense_core::ProtocolProfile::R8i8DinPro|homesense_core::ProtocolProfile::Ad8Din) || matches!(module.verification(),homesense_core::Verification::Pending) || reviewed.devices.len()!=8 {return Err(invalid("Away module capability or coverage missing"));}
+                    let mut channels=std::collections::BTreeSet::new();
+                    for id in &reviewed.devices {
+                        let id=DeviceId::new(id.clone())?;
+                        let (binding,_) = config.binding(&id).ok_or_else(||invalid("Away lighting binding missing"))?;
+                        if binding.module_id.as_deref()!=Some(reviewed.module_id.as_str()) || !channels.insert(binding.channel.get()) {return Err(invalid("Away coverage differs from module"));}
+                    }
+                    if channels.iter().copied().ne(1..=8) || config.logical_devices().iter().any(|(id,b)|b.module_id.as_deref()==Some(reviewed.module_id.as_str()) && !reviewed.devices.iter().any(|name|name==id.as_str())) {return Err(invalid("Away requires every physical output explicitly reviewed"));}
+                }
+        }
+        crate::scene_tracking::validate(&input.scene_tracking,&document,config)?;
+        if input.scene_metadata.len()!=document.scene_metadata.len() || input.scene_metadata.len()>1024 {return Err(invalid("duplicate/excessive scene metadata"));}
+        for metadata in &input.scene_metadata {
+            identifier(&metadata.id)?;
+            if metadata.name.trim().is_empty() || metadata.name.len()>64 || metadata.name.chars().any(char::is_control)
+                || (!document.immediate_scenes.contains_key(&metadata.id) && !document.timed_scenes.contains_key(&metadata.id)) {return Err(invalid("invalid scene display metadata"));}
+        }
         document.validate_curtain_led_owners(config)?;
         document.validate_enabled_motor_predicates(config)?;
         if let Some(settings)=&document.scene_observation {settings.validate_linked(&document)?;}
@@ -945,6 +1036,12 @@ impl Document {
             }Ok(())
         }
         for rule in self.rules.iter().filter(|r|r.enabled) {walk(&rule.actions,self,config,&mut 65536,0)?;}
+        // Enabled scenes are now directly executable, not only reachable from
+        // an enabled rule. The same per-predicate model/review gate applies.
+        for (id,scene) in self.immediate_scenes.iter().filter(|(id,_)|!self.disabled_immediate_scenes.contains(*id)) {
+            walk(&scene.activate,self,config,&mut 65536,0).map_err(|e|invalid(format!("manual scene {id}: {e}")))?;
+            if let Some(off)=&scene.deactivate{walk(off,self,config,&mut 65536,0)?;}
+        }
         Ok(())
     }
     /// Exact active source/node scopes used by the admission-owned read lease.
@@ -955,7 +1052,18 @@ impl Document {
                 if !requests.contains(&request){requests.push(request);}
                 if requests.len()>256{return Err(invalid("active motor predicate scope exceeds 256"));}
             }
-        }Ok(requests)
+        }
+        for id in self.immediate_scenes.keys().filter(|id|!self.disabled_immediate_scenes.contains(*id)) {
+            // An unresolved disabled dependency is not admitted by the manual
+            // linker and contributes no allowed operand scope here.
+            if let Ok(actions)=self.linked_manual_scenes(std::slice::from_ref(id)) {
+                for request in homesense_core::rule_motor::requests(&actions).map_err(invalid)? {
+                    if !requests.contains(&request){requests.push(request);}
+                    if requests.len()>256{return Err(invalid("active motor predicate scope exceeds 256"));}
+                }
+            }
+        }
+        Ok(requests)
     }
 }
 
@@ -971,11 +1079,57 @@ impl Document {
     }
     /// Explicit opt-in for adapters that atomically accept and install delayed
     /// calls. Ordinary immediate adapters must continue using linked_rules.
+    /// Kind and enabled gate are shared by publication, catalogs and execution.
+    /// Immediate review evidence is mandatory at parse time; disabled imports remain held.
+    pub fn scene_execution_kind(&self,id:&str)->Option<SceneExecutionKind> {
+        if self.immediate_scenes.contains_key(id) && !self.disabled_immediate_scenes.contains(id) {
+            Some(SceneExecutionKind::Immediate)
+        } else if self.timed_scenes.get(id).is_some_and(|s|s.enabled && s.review_evidence.as_ref().is_some_and(|v|!v.trim().is_empty())) {
+            Some(SceneExecutionKind::Timed)
+        } else {None}
+    }
+    pub fn scene_action_available(&self,id:&str)->bool {
+        match self.scene_execution_kind(id) {
+            Some(SceneExecutionKind::Timed)=>true,
+            Some(SceneExecutionKind::Immediate)=>self.linked_manual_scenes(&[id.to_owned()]).is_ok(),
+            None=>false,
+        }
+    }
+    pub fn scene_catalog(&self)->BTreeMap<String,String> {
+        self.immediate_scenes.keys().chain(self.timed_scenes.keys())
+            .filter(|id|self.scene_action_available(id))
+            .map(|id|(id.clone(),self.scene_metadata.get(id).cloned().unwrap_or_else(||id.clone()))).collect()
+    }
+    /// A real manual entry AST, not a generated enabled rule or zero-delay timeline.
+    /// Enabled definitions and nested disabled gates are checked before evaluation.
+    pub fn linked_manual_scenes(&self,ids:&[String])->Result<Vec<Node>,Error> {
+        if ids.is_empty() || ids.len()>64 || ids.iter().collect::<std::collections::BTreeSet<_>>().len()!=ids.len()
+            || ids.iter().any(|id|self.scene_execution_kind(id).is_none()) {
+            return Err(invalid("manual scene missing, disabled, duplicated or unreviewed"));
+        }
+        let roots=ids.iter().map(|id|Node{source:format!("manual-scene/{id}"),action:Action::Scene{id:id.clone(),activate:true}}).collect::<Vec<_>>();
+        self.linked_manual_actions(&roots)
+    }
+    /// Trusted runtime composition can retain provider-generated selection nodes
+    /// in the same AST without fabricating an enabled configuration rule.
+    pub fn linked_manual_actions(&self,roots:&[Node])->Result<Vec<Node>,Error> {
+        let scenes=self.immediate_scenes.iter().filter(|(id,_)|!self.disabled_immediate_scenes.contains(*id)).map(|(id,s)|(id.clone(),s.clone())).collect();
+        let deferred=self.timed_scenes.iter().filter(|(_,s)|s.enabled).map(|(id,_)|id.clone()).collect();
+        let mut actions=homesense_core::scene_expand::expand_with_deactivations(roots,&scenes,&deferred,&self.deactivation_targets(),1024).map_err(|e|invalid(format!("manual immediate scene: {e:?}")))?;
+        for variable in homesense_core::rule::variable_references_with_deferred(&actions,&deferred).map_err(invalid)? {
+            if !self.variables.contains_key(&variable){return Err(invalid("undeclared manual scene variable"));}
+        }
+        lower_feedback(&mut actions,&self.feedback_bindings)?;
+        Ok(actions)
+    }
+    pub fn deactivation_targets(&self)->BTreeMap<String,String> {self.scene_deactivations.iter().filter(|(_,l)|l.enabled).map(|(id,l)|(id.clone(),l.target.clone())).collect()}
     pub fn linked_rules_with_deferred(&self)->Result<Vec<Rule>,Error> {
         self.link_rules(&self.immediate_scenes,&self.schedules.iter().map(|s|s.id.clone()).collect(),true)
     }
     fn link_rules(&self,scenes:&BTreeMap<String,homesense_core::scene_expand::Definition>,schedules:&std::collections::BTreeSet<String>,allow_deferred:bool)->Result<Vec<Rule>,Error> {
+        let scenes: BTreeMap<_, _> = scenes.iter().filter(|(id,_)| !self.disabled_immediate_scenes.contains(*id)).map(|(id,scene)|(id.clone(),scene.clone())).collect();
         let deferred=if allow_deferred {self.timed_scenes.iter().filter(|(_,s)|s.enabled).map(|(id,_)|id.clone()).collect()} else {Default::default()};
+        let deactivation_targets=if allow_deferred{self.deactivation_targets()}else{Default::default()};
         let mut linked = vec![];
         for rule in self.rules.iter().filter(|r| r.enabled) {
             match &rule.trigger {
@@ -993,7 +1147,7 @@ impl Document {
                 }
                 _ => {}
             }
-            let mut actions = homesense_core::scene_expand::expand_with_deferred(&rule.actions, scenes, &deferred, 1024)
+            let mut actions = homesense_core::scene_expand::expand_with_deactivations(&rule.actions, &scenes, &deferred, &deactivation_targets, 1024)
                 .map_err(|e| invalid(format!("{}: {e:?}", rule.id)))?;
             for variable in homesense_core::rule::variable_references_with_deferred(&actions,&deferred).map_err(invalid)? {
                 if !self.variables.contains_key(&variable) {

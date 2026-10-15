@@ -123,6 +123,7 @@ pub(crate) async fn begin_handoff_before_deadline(
 }
 #[allow(clippy::too_many_arguments)]
 async fn serve_inner(devices:&[u8],rules:&[u8],directory:&Path,duration:Duration,coexistence_confirmed:bool,recovery_limit:u8,mut publications:Option<crate::automation_publication::Receiver>,write_interval:Duration,mut management_settings:Option<crate::service::WebSettings>,publisher:Option<crate::automation_publication::Publisher>,hap_settings:Option<crate::hap_endpoint::Settings>,hap_plan:Option<Vec<u8>>,#[cfg(test)] hap_failure_after:Option<Duration>)->Result<(),String> {
+    let receipt_policy=management_settings.as_ref().map(|_|crate::web_receipt_policy::Policy::load(directory)).transpose()?;
     if !(Duration::from_millis(20)..=Duration::from_secs(1)).contains(&write_interval) {
         return Err("write interval must be 20..1000 ms".into());
     }
@@ -217,7 +218,7 @@ async fn serve_inner(devices:&[u8],rules:&[u8],directory:&Path,duration:Duration
                 tokio::spawn(async move {tokio::time::sleep(delay).await;handle.abort();});
             }
             if let Some(settings)=management_settings.take() {
-                management=Some(crate::management_endpoint::Endpoint::start(settings,directory,&admission,controller,&runtime,publisher.clone().ok_or("management publisher missing")?,daily_backup.clone()).await?);
+                management=Some(crate::management_endpoint::Endpoint::start((settings,receipt_policy.clone().ok_or("management receipt policy missing")?),directory,&admission,controller,&runtime,publisher.clone().ok_or("management publisher missing")?,daily_backup.clone()).await?);
             } else if let Some(endpoint)=&management {endpoint.install(&admission,controller,&runtime).await?;}
             if let Some(endpoint)=&management {endpoint.set_hap_status(if hap.is_some(){crate::web_api::HapStatus::Listening}else if hap_settings.is_some(){crate::web_api::HapStatus::Degraded}else{crate::web_api::HapStatus::Disabled})?;}
             if let (Some(endpoint),Some(group))=(&management,&bridges) {endpoint.set_hap_bridges(group.statuses.borrow().clone())?;}
@@ -273,7 +274,7 @@ async fn serve_inner(devices:&[u8],rules:&[u8],directory:&Path,duration:Duration
                             if request.abandoned() {request.complete(Err("publication abandoned before barrier".into()));continue;}
                             if management.is_some() {
                                 let document=crate::configuration_publish::validate_automation(&candidate,request.rules(),ExecutionContext::Live).map_err(|e|e.to_string())?;
-                                if document.timed_scenes.values().filter(|s|s.enabled && s.review_evidence.as_ref().is_some_and(|v|!v.trim().is_empty())).count()>64 {request.complete(Err("management scene capacity exceeded".into()));continue;}
+                                if document.scene_catalog().len()>64 {request.complete(Err("management scene capacity exceeded".into()));continue;}
                             }
                             let previous=match &management {Some(endpoint)=>endpoint.pause()?,None=>None};
                             let source=path.clone();let expected=request.expected_revision();

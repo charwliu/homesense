@@ -4,6 +4,7 @@
 pub mod automation;
 pub mod configuration_history;
 pub mod calendar;
+pub mod module_off;
 pub mod journal;
 pub mod feedback_inference;
 pub mod light_restore;
@@ -63,6 +64,7 @@ fn sql_revision(value: u64) -> Result<i64, Error> {
     }
     i64::try_from(value).map_err(|_| Error::InvalidRevision)
 }
+pub const SCHEMA_VERSION:i64=26;
 impl Store {
     pub fn open(path: impl AsRef<Path>) -> Result<Self, Error> {
         let mut connection = Connection::open(path)?;
@@ -72,7 +74,7 @@ impl Store {
         if app != 0 && app != APPLICATION_ID {
             return Err(Error::ForeignDatabase);
         }
-        if version != 0 && (!(1..=25).contains(&version) || app != APPLICATION_ID) {
+        if version != 0 && (!(1..=SCHEMA_VERSION).contains(&version) || app != APPLICATION_ID) {
             return Err(Error::UnsupportedSchema(version));
         }
         if version == 0 {
@@ -259,6 +261,19 @@ impl Store {
             // source nodes that were discarded by an older runtime.
             tx.execute_batch("ALTER TABLE rule_command ADD COLUMN source TEXT CHECK(source IS NULL OR length(CAST(source AS BLOB)) BETWEEN 1 AND 8192);")?;
             tx.pragma_update(None, "user_version", 25)?;
+        }
+        if version <= 25 {
+            tx.execute_batch("CREATE TABLE module_off_effect (
+                boot_id TEXT NOT NULL, command_id INTEGER NOT NULL,
+                module_id TEXT NOT NULL, gateway_id TEXT NOT NULL,
+                address INTEGER NOT NULL CHECK(address BETWEEN 1 AND 255), profile TEXT NOT NULL,
+                channel INTEGER NOT NULL CHECK(channel BETWEEN 1 AND 16), device_id TEXT NOT NULL,
+                PRIMARY KEY(boot_id,command_id,channel),
+                FOREIGN KEY(boot_id,command_id) REFERENCES command_journal(boot_id,command_id));
+                CREATE INDEX module_off_device ON module_off_effect(boot_id,device_id,command_id);
+                CREATE TRIGGER module_off_effect_update BEFORE UPDATE ON module_off_effect BEGIN SELECT RAISE(ABORT,'immutable module scope'); END;
+                CREATE TRIGGER module_off_effect_delete BEFORE DELETE ON module_off_effect BEGIN SELECT RAISE(ABORT,'immutable module scope'); END;")?;
+            tx.pragma_update(None,"user_version",26)?;
         }
         tx.commit()?;
         connection.pragma_update(None, "foreign_keys", "ON")?;

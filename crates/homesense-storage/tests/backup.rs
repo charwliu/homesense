@@ -64,7 +64,7 @@ fn inspection_validates_standalone_backup_without_migration_or_activation() {
     homesense_storage::backup::create(&source,&target,Duration::from_secs(2)).unwrap();
     let before=std::fs::read(&target).unwrap();
     let report=homesense_storage::backup::inspect(&target,ExecutionContext::Simulation).unwrap();
-    assert_eq!(report.active_revision,Some(1));assert_eq!(report.schema,25);assert_eq!(report.configuration_versions,1);assert_eq!(report.automation_versions,1);assert_eq!(report.bytes,before.len() as u64);
+    assert_eq!(report.active_revision,Some(1));assert_eq!(report.schema,homesense_storage::SCHEMA_VERSION);assert_eq!(report.configuration_versions,1);assert_eq!(report.automation_versions,1);assert_eq!(report.bytes,before.len() as u64);
     assert!(homesense_storage::backup::inspect(&target,ExecutionContext::Live).is_err());
     assert_eq!(std::fs::read(&target).unwrap(),before);
     assert!(homesense_storage::backup::inspect(&source,ExecutionContext::Simulation).is_err());

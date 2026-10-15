@@ -362,12 +362,23 @@ mod tests {
             Some(Status::Cancelled)
         );
         f.owner.step().await.unwrap().unwrap().result.unwrap();
-        c.submit(MotorAction::Open).await.unwrap();
+        let reopened = c.submit(MotorAction::Open).await.unwrap();
         f.owner.step().await.unwrap().unwrap().result.unwrap();
-        assert_eq!(
-            c.refresh().await.unwrap().inferred_movement.unwrap().value,
+        let snapshot = c.refresh().await.unwrap();
+        let written = snapshot.last_written.unwrap();
+        assert_eq!(written.id, reopened.command_ids[0]);
+        assert_eq!(written.action, MotorAction::Open);
+        // Actor/SQLite awaits can cross this synthetic 5 ms travel deadline.
+        // Check the sampled write interval, not wall-clock scheduling speed.
+        let expected = if snapshot.captured_ms - written.written_ms < 5 {
             Movement::Opening
-        );
+        } else {
+            assert_eq!(snapshot.inferred_position.unwrap().value, Position::Open);
+            Movement::Stopped
+        };
+        assert_eq!(snapshot.inferred_movement.unwrap().value, expected);
+        assert_eq!(snapshot.inferred_movement.unwrap().source, Provenance::Inferred);
+        assert_eq!(snapshot.observed_movement, None);
         f.actor.transport_failed().await.unwrap();
         assert!(c.refresh().await.is_err());
         tokio::time::sleep(Duration::from_millis(8)).await;
@@ -451,12 +462,9 @@ mod lifecycle_tests {
     #[tokio::test]
     async fn recovery_and_restart_never_rehydrate_a_written_motor_command() {
         let mut f = Fixture::new(true).await;
-        let mut c = f
-            .candidate(Timing {
-                open_travel_ms: Some(10),
-                ..Timing::default()
-            })
-            .await;
+        // Keep this lifecycle case moving until recovery invalidates it.
+        // A configured 10 ms travel can finish before an asynchronous snapshot.
+        let mut c = f.candidate(Timing::default()).await;
         c.submit(MotorAction::Open).await.unwrap();
         f.owner.step().await.unwrap().unwrap().result.unwrap();
         assert_eq!(
@@ -556,13 +564,26 @@ mod receipt_clock_tests {
         assert!(!s.stop_led_active.unwrap().value);
         assert!(s.captured_ms >= s.last_written.unwrap().written_ms + 8);
         assert_eq!(s.observed_position, None);
-        c.submit(MotorAction::Open).await.unwrap();
+        let repeated = c.submit(MotorAction::Open).await.unwrap();
         f.owner.step().await.unwrap().unwrap().result.unwrap();
         assert_eq!(f.bytes.lock().unwrap().len(), 10);
-        assert_eq!(
-            c.refresh().await.unwrap().inferred_movement.unwrap().value,
-            Movement::Opening
-        );
+        let snapshot = c.refresh().await.unwrap();
+        let written = snapshot.last_written.unwrap();
+        assert_eq!(written.id, repeated.command_ids[0]);
+        assert_ne!(written.id, s.last_written.unwrap().id);
+        assert_eq!(written.action, MotorAction::Open);
+        assert!(snapshot.captured_ms >= written.written_ms);
+        // This synthetic travel lasts 5 ms; an actor/SQLite await may outlive it.
+        let elapsed = snapshot.captured_ms - written.written_ms;
+        let expected = if elapsed < 5 { Movement::Opening } else { Movement::Stopped };
+        assert_eq!(snapshot.inferred_movement.unwrap().value, expected);
+        assert_eq!(snapshot.inferred_movement.unwrap().source, Provenance::Inferred);
+        if elapsed >= 5 {
+            assert_eq!(snapshot.inferred_position.unwrap().value, Position::Open);
+        }
+        assert_eq!(snapshot.stop_led_active.unwrap().value, elapsed < 8);
+        assert_eq!(snapshot.observed_movement, None);
+        assert_eq!(snapshot.observed_position, None);
         drop(c);
         f.close().await;
     }

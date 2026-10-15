@@ -33,21 +33,27 @@ pub fn expand_with_deferred(
     deferred: &BTreeSet<String>,
     max_nodes: usize,
 ) -> Result<Vec<Node>, Error> {
+    expand_with_deactivations(nodes, scenes, deferred, &BTreeMap::new(), max_nodes)
+}
+/// Reviewed source-off means the complete target activation, preceded by a
+/// trusted guard. It never inverts source outputs or cancels source timelines.
+pub fn expand_with_deactivations(nodes:&[Node], scenes:&BTreeMap<String,Definition>, deferred:&BTreeSet<String>, deactivations:&BTreeMap<String,String>, max_nodes:usize)->Result<Vec<Node>,Error> {
     if let Some(id) = deferred.iter().find(|id| scenes.contains_key(*id)) {
         return Err(Error::AmbiguousScene(id.clone()));
     }
     if max_nodes == 0 || max_nodes > 65536 {
         return Err(Error::Budget);
     }
+    struct Links<'a> {scenes:&'a BTreeMap<String,Definition>,deferred:&'a BTreeSet<String>,deactivations:&'a BTreeMap<String,String>}
     fn visit(
         nodes: &[Node],
-        scenes: &BTreeMap<String, Definition>,
-        deferred: &BTreeSet<String>,
+        links:&Links<'_>,
         remaining: &mut usize,
         path: &mut Vec<String>,
         depth: usize,
         prefix: &str,
     ) -> Result<Vec<Node>, Error> {
+        let Links{scenes,deferred,deactivations}=links;
         if depth > 64 {
             return Err(Error::Budget);
         }
@@ -73,6 +79,15 @@ pub fn expand_with_deferred(
                     if path.contains(id) {
                         return Err(Error::Cycle(id.clone()));
                     }
+                    if *activate && deactivations.contains_key(id) {result.push(Node {source:source.clone(),action:Action::SceneActivation {scene:id.clone()}});}
+                    if !activate && let Some(target)=deactivations.get(id) {
+                        path.push(id.clone());
+                        result.push(Node { source:format!("{source} -> deactivate:{id}"), action:Action::RequireQuiescence { scene:id.clone() } });
+                        let call=Node { source:format!("deactivation-target:{target}"), action:Action::Scene { id:target.clone(), activate:true } };
+                        result.extend(visit(&[call], links, remaining, path, depth+1, &source)?);
+                        path.pop();
+                        continue;
+                    }
                     if deferred.contains(id) {
                         if !activate {return Err(Error::UnknownDeactivation(id.clone()));}
                         result.push(Node {source,action:node.action.clone()});
@@ -90,7 +105,7 @@ pub fn expand_with_deferred(
                             .ok_or_else(|| Error::UnknownDeactivation(id.clone()))?
                     };
                     path.push(id.clone());
-                    result.extend(visit(members, scenes, deferred, remaining, path, depth + 1, &source)?);
+                    result.extend(visit(members, links, remaining, path, depth + 1, &source)?);
                     path.pop();
                 }
                 Action::If {
@@ -103,8 +118,7 @@ pub fn expand_with_deferred(
                         condition: condition.clone(),
                         then_actions: visit(
                             then_actions,
-                            scenes,
-                            deferred,
+                            links,
                             remaining,
                             path,
                             depth + 1,
@@ -112,8 +126,7 @@ pub fn expand_with_deferred(
                         )?,
                         else_actions: visit(
                             else_actions,
-                            scenes,
-                            deferred,
+                            links,
                             remaining,
                             path,
                             depth + 1,
@@ -129,5 +142,5 @@ pub fn expand_with_deferred(
         }
         Ok(result)
     }
-    visit(nodes, scenes, deferred, &mut max_nodes.clone(), &mut vec![], 0, "")
+    visit(nodes, &Links{scenes,deferred,deactivations}, &mut max_nodes.clone(), &mut vec![], 0, "")
 }

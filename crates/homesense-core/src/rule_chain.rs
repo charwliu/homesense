@@ -3,11 +3,13 @@
 //! not use planning success as proof of execution.
 use crate::rule::{self, Budget, Node, Plan, Variable};
 use std::collections::{BTreeMap,BTreeSet};
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum Entry { Rule(String), ManualScenes(Vec<String>) }
 #[derive(Debug, Clone)]
 pub struct Cause {
     correlation: u128,
     id: u64,
-    path: Vec<String>,
+    path: Vec<Entry>,
 }
 impl Cause {
     pub fn correlation_id(&self) -> u128 {
@@ -120,6 +122,17 @@ impl Chain {
         now: u64,
         planner: impl FnOnce(Budget) -> Result<Plan, Error>,
     ) -> Result<PlannedRun, Error> {
+        self.plan_entry(parent,Entry::Rule(rule_id.to_owned()),now,planner)
+    }
+    /// Separate causal identity: a scene ID can equal a rule ID without creating
+    /// a false cycle or aliasing two different entry roles.
+    pub fn plan_manual_scenes_using(&mut self,parent:&Cause,scenes:&[String],now:u64,
+        planner:impl FnOnce(Budget)->Result<Plan,Error>)->Result<PlannedRun,Error> {
+        if scenes.is_empty() || scenes.len()>64 || scenes.iter().any(String::is_empty){return Err(Error::InvalidLimits);}
+        self.plan_entry(parent,Entry::ManualScenes(scenes.to_vec()),now,planner)
+    }
+    fn plan_entry(&mut self,parent:&Cause,entry:Entry,now:u64,
+        planner:impl FnOnce(Budget)->Result<Plan,Error>)->Result<PlannedRun,Error> {
         if self.stopped {
             return Err(Error::Stopped);
         }
@@ -135,7 +148,7 @@ impl Chain {
             self.stopped = true;
             return Err(Error::Budget);
         }
-        if rule_id.is_empty() || parent.path.iter().any(|id| id == rule_id) {
+        if matches!(&entry,Entry::Rule(id) if id.is_empty()) || parent.path.contains(&entry) {
             self.stopped = true;
             return Err(Error::Cycle);
         }
@@ -155,7 +168,7 @@ impl Chain {
         self.remaining.nodes -= plan.visited_nodes;
         self.remaining.commands -= plan.action_cost;
         let mut path = parent.path.clone();
-        path.push(rule_id.to_owned());
+        path.push(entry);
         let cause = Cause {
             correlation: self.correlation,
             id: self.next,

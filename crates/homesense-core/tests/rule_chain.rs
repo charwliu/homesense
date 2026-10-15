@@ -110,3 +110,12 @@ fn completion_claims_keep_budget_deadline_and_reject_duplicate_delivery() {
     let parent=c.plan(&root,"first",&[],&Default::default(),0).unwrap().cause;
     assert_eq!(c.claim_completion(&parent,"late",1000),Err(Error::Budget));
 }
+
+#[test]
+fn manual_scene_and_rule_roles_have_distinct_lineage_without_weakening_rule_cycles(){
+ let mut c=chain(1,8);let root=c.root();
+ let scene=c.plan_manual_scenes_using(&root,&["same".into()],0,|budget|homesense_core::rule::evaluate(&[],&Default::default(),budget).map_err(Error::Rule)).unwrap();
+ let rule=c.plan(&scene.cause,"same",&[],&Default::default(),0).unwrap();
+ assert_eq!(rule.causation_id,scene.cause.event_id());
+ assert!(matches!(c.plan(&rule.cause,"same",&[],&Default::default(),0),Err(Error::Cycle)));
+}

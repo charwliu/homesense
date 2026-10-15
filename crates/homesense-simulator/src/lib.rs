@@ -132,6 +132,20 @@ impl Gateway {
     fn apply(&mut self, frame: RawFrame, now_ms: u64) -> Result<(), SimError> {
         let address = BusAddress::new(frame.address).map_err(|_| SimError::UnknownModule)?;
         let module = self.modules.get(&address).ok_or(SimError::UnknownModule)?;
+        if frame.command == 0 {
+            let expected = hb_protocol::encode_module_all_off(module, ExecutionContext::Simulation)
+                .map_err(|_| SimError::UnsupportedCommand)?;
+            if frame.bytes() != expected.bytes() {
+                return Err(SimError::UnsupportedCommand);
+            }
+            // One received module frame changes all eight simulated outputs.
+            // Reuse the per-output model for feedback faults and restore memory.
+            let channels = module.channels();
+            for channel in 1..=channels {
+                self.apply(RawFrame { command: channel, ..frame }, now_ms)?;
+            }
+            return Ok(());
+        }
         if frame.command == 0xA0 && frame.value == 0xF2 {
             if !hb_protocol::supports_module_query(module.profile()) {
                 return Err(SimError::UnsupportedCommand);

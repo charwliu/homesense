@@ -80,6 +80,26 @@ pub fn encode_module_query(
     })
 }
 
+/// Addressed, immediate all-channel Off documented by these exact profiles.
+/// This encodes a module operation, not an ordinary channel-zero command.
+/// Admission must authorize every affected port before dispatch.
+pub fn supports_module_all_off(profile: homesense_core::ProtocolProfile) -> bool {
+    matches!(profile, homesense_core::ProtocolProfile::Ad8Din | homesense_core::ProtocolProfile::R8i8DinPro)
+}
+
+pub fn encode_module_all_off(
+    module: &ModuleSpec,
+    context: ExecutionContext,
+) -> Result<RawFrame, ProtocolError> {
+    module.validate_context(context)?;
+    let value = match module.profile() {
+        homesense_core::ProtocolProfile::Ad8Din => 0,
+        homesense_core::ProtocolProfile::R8i8DinPro => 0xF2,
+        _ => return Err(ProtocolError::UnsupportedCommand),
+    };
+    Ok(RawFrame { address: module.address().get(), command: 0, value })
+}
+
 pub fn encode(
     module: &ModuleSpec,
     channel: Channel,

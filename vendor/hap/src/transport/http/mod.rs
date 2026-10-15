@@ -10,8 +10,8 @@ use crate::{
     Error, HapType, Result,
 };
 
-mod handler;
 mod body;
+mod handler;
 
 pub(crate) mod server;
 

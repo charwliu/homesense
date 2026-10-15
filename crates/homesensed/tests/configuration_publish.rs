@@ -1,3 +1,5 @@
+#[path = "../../test-support/cli.rs"]
+mod test_cli;
 use homesensed::configuration_publish::publish;
 #[test]
 fn publication_requires_stopped_runtime_and_expected_revision_preserving_identity() {
@@ -76,7 +78,7 @@ fn automation_cli_publishes_both_documents_only_after_runtime_stops() {
     let rules = br#"{"schema_version":1,"configuration_revision":2,"variables":[],"rules":[]}"#;
     std::fs::write(&rules_path, rules).unwrap();
     let run = |expected: &str| {
-        std::process::Command::new(env!("CARGO_BIN_EXE_homesensed"))
+        std::process::Command::new(test_cli::binary(env!("CARGO_BIN_EXE_homesensed")))
             .arg("publish-automation")
             .arg(&device_path)
             .arg(&rules_path)

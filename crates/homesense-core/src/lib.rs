@@ -308,6 +308,8 @@ pub enum MotorAction {
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Command {
+    /// Internal whole-module control. Ordinary per-channel encoders reject it.
+    ModuleAllOff,
     Switch(bool),
     /// Native relative operation. Has no absolute target and must never be
     /// retried after an uncertain write or replayed on connection recovery.

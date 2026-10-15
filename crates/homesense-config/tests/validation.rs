@@ -328,3 +328,19 @@ fn optional_rooms_validate_labels_unique_ids_and_references() {
     value["rooms"]=json!((0..257).map(|i|json!({"id":format!("r{i}"),"name":"Room"})).collect::<Vec<_>>());
     value["devices"][0].as_object_mut().unwrap().remove("room");assert!(!parse(&value,ExecutionContext::Simulation));
 }
+
+#[test]
+fn independent_floor_catalog_preserves_empty_floors_and_legacy_room_metadata() {
+    let mut value=document();
+    value["floors"]=json!(["1层","2层","3层"]);
+    value["rooms"]=json!([{"id":"artstudio","name":"画室","floor":"1层"},{"id":"study","name":"书房","floor":"2层"}]);
+    let config=Configuration::parse(&serde_json::to_vec(&value).unwrap(),ExecutionContext::Simulation).unwrap();
+    assert_eq!(config.floors().iter().map(String::as_str).collect::<Vec<_>>(),vec!["1层","2层","3层"]);
+    assert_eq!(config.rooms().len(),2);
+    for floors in [json!(["3层","3层"]),json!([""]),json!(["\n"]),json!(["x".repeat(257)]),json!((0..257).map(|i|format!("F{i}")).collect::<Vec<_>>())] {
+        let mut bad=value.clone();bad["floors"]=floors;assert!(!parse(&bad,ExecutionContext::Simulation));
+    }
+    value.as_object_mut().unwrap().remove("floors");
+    let legacy=Configuration::parse(&serde_json::to_vec(&value).unwrap(),ExecutionContext::Simulation).unwrap();
+    assert_eq!(legacy.floors().len(),2);
+}

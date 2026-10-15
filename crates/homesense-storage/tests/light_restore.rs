@@ -107,7 +107,7 @@ fn recorded_settings_include_off_and_ignore_unwritten_targets_across_boots() {
     );
     // Schema 20 migration captures only writes whose completion is known.
     let sql = rusqlite::Connection::open(&path).unwrap();
-    sql.execute_batch("DROP TABLE light_setting; ALTER TABLE rule_command DROP COLUMN source; PRAGMA user_version=20;")
+    sql.execute_batch("DROP TABLE light_setting; ALTER TABLE rule_command DROP COLUMN source; DROP TABLE module_off_effect; PRAGMA user_version=20;")
         .unwrap();
     drop(sql);
     drop(store);
@@ -148,7 +148,7 @@ fn recorded_settings_include_off_and_ignore_unwritten_targets_across_boots() {
     store
         .transition_command("boot2", 1, Status::Writing, Status::Written, 2)
         .unwrap();
-    let sql=rusqlite::Connection::open(&path).unwrap();sql.execute_batch("DROP TABLE light_setting; ALTER TABLE rule_command DROP COLUMN source; PRAGMA user_version=20;").unwrap();drop(sql);
+    let sql=rusqlite::Connection::open(&path).unwrap();sql.execute_batch("DROP TABLE light_setting; ALTER TABLE rule_command DROP COLUMN source; DROP TABLE module_off_effect; PRAGMA user_version=20;").unwrap();drop(sql);
     drop(store);
     let mut store = Store::open(&path).unwrap();
     store.recover_commands("boot3").unwrap();
