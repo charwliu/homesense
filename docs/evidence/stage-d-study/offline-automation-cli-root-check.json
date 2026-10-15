@@ -1,0 +1,35 @@
+{
+  "checked_at": "2026-10-15T20:10:01.416272+08:00",
+  "scope": "offline validation statistics use the already validated deferred linker",
+  "product_changed_paths": [
+    "crates/homesensed/src/main.rs",
+    "crates/homesensed/tests/check_automation.rs"
+  ],
+  "product_behavior_change": "one linker call at final check-automation statistics; does not weaken validation",
+  "controlled_baseline_v2": {
+    "passed": 1,
+    "failed": 1,
+    "failure": "legal direct startup->timed_scene passed validation but was rejected at final immediate-only statistics"
+  },
+  "repair_same_tests": {
+    "passed": 2,
+    "failed": 0,
+    "positive": "legal direct timed invocation and separate legal immediate nesting",
+    "negative": "unsupported immediate->timed nesting retained, missing/disabled/unreviewed/cycles/unknown device/unsupported AD8 mode retained",
+    "no_state_created_and_no_gateway_accept_in_every_invocation": true
+  },
+  "same_file_bytes_in_v9_full_run": true,
+  "v9_full_integration_not_qualified": {
+    "passed": 1104,
+    "failed": 3,
+    "not_CLI_failures": true
+  },
+  "same_file_bytes_in_v10_strict_workspace_all_targets_Clippy": "exit0",
+  "file_sha256": {
+    "crates/homesensed/src/main.rs": "aeb102448baccce53a2826a9b8479df84722abd002c205d05b7cf2d704285cfe",
+    "crates/homesensed/tests/check_automation.rs": "a2b241a02aa739600c4790e953a590ef600775f7530d41a9ec6335bd40214a1d"
+  },
+  "no_production_runtime_availability_files_in_checkpoint": true,
+  "field_commands": 0,
+  "D_E_complete": false
+}
