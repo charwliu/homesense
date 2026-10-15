@@ -1,0 +1,80 @@
+{
+  "checked_at": "2026-10-15T22:21:37.628138+08:00",
+  "scope": "read-only scene projection cache; command admission strict global RuleLease unchanged",
+  "frozen_manifest_sha256": "b9be4e0e87d282c41842aac696d66b4be7bd36ee6ac58e7a09f112fc2b2c97a2",
+  "normal_production_binary_sha256": "b86a751681cfcd35d3d11524959f7c9f740ef65a678453d56b3564ede3f58364",
+  "baseline_same_9_tests": {
+    "passed": 6,
+    "failed": 3
+  },
+  "repair_all_workspace": {
+    "passed": 1137,
+    "failed": 0,
+    "ignored": 0,
+    "actual_programs_rehashed": 172,
+    "all_previous_1128_retained": true,
+    "new_cache_tests": 9
+  },
+  "strict_workspace_clippy": true,
+  "doc_test_blocks": 10,
+  "doc_test_examples": 0,
+  "original_64_port_diagnostic": {
+    "samples": 16,
+    "all_five_selection_values_known_false_each_sample": true,
+    "light_writes": 0,
+    "full_acceptance_not_claimed": true
+  },
+  "original_88_port_actual_App_contract": {
+    "passed": true,
+    "all_7_selection_states_initially_known_off": true,
+    "two_six_key_cards": true,
+    "explicit_known_On_Off": true,
+    "same_request_no_replay": true,
+    "external_feedback_selection_and_single_WSS": true,
+    "light_writes": 6,
+    "LED_external_color_not_asserted_in_this_original_probe": true
+  },
+  "normal_forever_AD8_fault_recovery": {
+    "passed": true,
+    "only_two_expected_controls": true,
+    "same_HAP_identity_and_WSS_session": true,
+    "partial_truth_gated": true,
+    "unknown_retry_no_execution": true,
+    "explicit_SIGTERM": true
+  },
+  "remaining_separate_indicator_counterexample": {
+    "v1_missing_links": "courtyard On writes key5 red but key6 last_written remains null; joint colors assertion failed",
+    "v2_adds_only_two_links": "manual courtyard/home On/Off colors pass; external courtyard On has selected true but key5 last_written remains green beyond12s",
+    "pending_commands": 0,
+    "diagnostics_ready": true,
+    "worker_errors": [],
+    "not_a_pass": true,
+    "not_deployed": true
+  },
+  "all_loopback_only": true,
+  "field_controls": 0,
+  "live_configuration_revision_10_unchanged_by_these_checks": true,
+  "runtime_fix_deployed": false,
+  "D_E_complete": false,
+  "source_sha256": {
+    "crates/homesensed/src/feedback.rs": "b3f671badaa8325c1ef408b9d4382572661040db613980df14a2f6c3b9cab86d",
+    "crates/homesensed/src/scene_reconciliation.rs": "d5b7b39e64cc9025b50825841e53562d7185f9145c6c44065a93bbf84e22c3b6",
+    "crates/homesensed/src/scene_projection_lease.rs": "030179d3bbef57750cd8e587b056f22bff09fd6a0e6b4b984f17f60b992831c2",
+    "crates/homesensed/src/scene_reconciliation_tests.rs": "4e5fa36989863f47c732b00e30db72dab19b34bd36d7df7c8bc296f03d5a5800",
+    "crates/homesensed/src/scene_projection_cache_tests.rs": "611288ca0da6f9e6f69a1f6b9653a7f16ed502fa832f452cab4ffcb1adbe9d4d"
+  },
+  "private_evidence_sha256": {
+    "deployment/ngr/private/20261015-scene-projection-recovery/handoff-v2.json": "89ba14787454cce9875d6b262f55138374fa9042d2a1b4ae0fd479ccbad1d7f5",
+    "deployment/ngr/private/20261015-scene-projection-recovery/baseline-cache-tests-result.json": "fb0e683ba6abf52f225b20a64864b2167a363e9da0bccfb1ed62a6c83da9d3b0",
+    "deployment/ngr/private/20261015-scene-projection-recovery/root-full-workspace-result.json": "2626c5d43389412c8326ccc63f5fb8630d5c3f2ae342df126405c1bd43228d55",
+    "deployment/ngr/private/20261015-scene-projection-recovery/root-full-workspace-independent-audit.json": "e65883aa075f9a0be53f68af6d77b90119a9af41e0c06e9b2fb829860ec94a41",
+    "deployment/ngr/private/20261015-scene-projection-recovery/root-test-inventory-comparison.json": "3559fbc4a72a5e7d76a8323225b52fb753aae16e471caae2d6561744314546ce",
+    "deployment/ngr/private/20261015-scene-projection-recovery/root-workspace-clippy-result.json": "f9ae192b0d8f06c20c2de66a75f462aa3d9bd7c378bcbe5694021e38fefd36d6",
+    "deployment/ngr/private/20261015-scene-projection-recovery/root-workspace-doc-result.json": "038f055b16a55d5116fe5ef2438ffaf1658d3fe77c99a302253c7d5490677f7a",
+    "deployment/ngr/private/20261015-scene-projection-recovery/root-forever-AD8-repair-v2/result.json": "3d2247ca4373a62d2330638db1b31f098c9734e4509e842fdc8b146532fae604",
+    "deployment/ngr/private/20261015-keypad-v21-final-root/repair-v2-original-overlay-actual-App-contract/result.json": "0d18088896f6be9b1e1ea800e06051e083c1eba62e966aa7cb667997f61e7136",
+    "deployment/ngr/private/20261015-keypad-v21-final-root/diagnostic-base-keypad-repair-v2/result.json": "0c9bf69b217b823f486d289eed3a0f40fc7db89b25f2dc714bd89bfb8507c7a6",
+    "deployment/ngr/private/20261015-keypad-v21-final-root/repair-v2-v1-indicator-counterexample/result.json": "b7a1f7e7e716183ac5d9c751b5ae9df0b0802689ffa549a155b9263cc51aaea9",
+    "deployment/ngr/private/20261015-keypad-v21-final-root/repair-v2-v2-indicator-runtime/result.json": "613dabca9a877334196e68fd1418ae7cdac85ce0353157a186ccdf5c87998cf2"
+  }
+}

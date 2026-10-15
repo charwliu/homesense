@@ -10,6 +10,10 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+#[path="scene_projection_lease.rs"]
+mod projection_lease;
+pub(crate) use projection_lease::ProjectionLease;
+
 /// Private policy proof for LED planning only. Old evidence becomes Unknown,
 /// allowing a separate fresh Switch Off to satisfy an Any condition.
 pub(crate) struct IndicatorPolicy {
@@ -90,6 +94,7 @@ impl SceneKeyObservation {
 }
 pub struct Feedback {
     lease_version: Arc<Mutex<u64>>,
+    projection_versions: Arc<Mutex<projection_lease::Versions>>,
     boot: u128,
     revision: u64,
     registries: BTreeMap<String, Registry>,
@@ -325,6 +330,7 @@ impl Feedback {
         }
         Ok(Self {
             lease_version: Arc::new(Mutex::new(0)),
+            projection_versions: Arc::new(Mutex::new(projection_lease::Versions::new(&states,config,boot,epoch))),
             boot,
             revision: config.revision(),
             supply_relays: config
@@ -341,6 +347,11 @@ impl Feedback {
             stopped: false,
         })
     }
+    pub(crate) fn scene_projection_lease(&self,lease:&RuleLease)->Result<ProjectionLease,String>{ProjectionLease::capture(self,lease)}
+    // Caller retains lease_version while changing both physical state and these
+    // dependency versions. Cache validation holds that same mutation fence.
+    fn refresh_projection_versions(&self)->Result<(),String>{self.projection_versions.lock().map_err(|_|"projection dependency lease poisoned")?.refresh(&self.states,self.epoch,!self.stopped)}
+    fn refresh_projection_port(&self,gateway:&str,address:u8,channel:u8)->Result<(),String>{self.projection_versions.lock().map_err(|_|"projection dependency lease poisoned")?.refresh_port(&self.states,gateway,address,channel)}
     /// Stop synchronously, including from an async operation cancellation guard.
     /// mark_stale emits quality events without requiring a new transport epoch.
     pub fn invalidate(&mut self) -> Result<(), String> {
@@ -351,9 +362,8 @@ impl Feedback {
             .ok_or("feedback lease exhausted")?;
 
         self.stopped = true;
-        self.states
-            .mark_stale(self.now, 0)
-            .map_err(|e| e.to_string())
+        self.states.mark_stale(self.now,0).map_err(|e|e.to_string())?;
+        self.refresh_projection_versions()
     }
     /// Age observations on the same monotonic clock used by transport reads.
     pub fn expire(&mut self, now: u64, max_age_ms: u64) -> Result<(), String> {
@@ -368,7 +378,10 @@ impl Feedback {
         self.states
             .mark_stale(now, max_age_ms)
             .map_err(|e| e.to_string())?;
-        if self.states.cursor() != before { *lease_guard = next_version; }
+        if self.states.cursor() != before {
+            *lease_guard = next_version;
+            self.refresh_projection_versions()?;
+        }
         self.now = now;
         Ok(())
     }
@@ -400,6 +413,7 @@ impl Feedback {
         self.epoch = next_epoch;
         self.now = now;
         self.stopped = false;
+        self.refresh_projection_versions()?;
         Ok(())
     }
     pub fn events_since(
@@ -476,10 +490,14 @@ impl Feedback {
                             .is_some_and(|module|matches!(module.kind(),homesense_core::ModuleKind::Switch|homesense_core::ModuleKind::Dimmer))
                         && let Some(channel)=frame.command.checked_sub(0xd0) {
                         self.states.invalidate_port(&read.gateway_id,frame.address,channel).map_err(|e|e.to_string())?;
+                        self.refresh_projection_port(&read.gateway_id,frame.address,channel)?;
                     }
                     if let Decoded::Feedback {address,channel,observation}=registry.decode(*frame)
                         && self.states.observe(&read.gateway_id,address.get(),channel.get(),observation,self.epoch,read.received_at_ms).map_err(|e|e.to_string())? {
                         count+=1;
+                        // Per-frame semantic change tracking also invalidates an
+                        // Off→On→Off round trip within one received batch.
+                        self.refresh_projection_port(&read.gateway_id,address.get(),channel.get())?;
                     }
                 }
                 self.now = read.received_at_ms;
@@ -498,6 +516,7 @@ impl Feedback {
                     )
                     .map_err(|e| e.to_string())?;
                 self.state_epoch = self.epoch.checked_add(1).ok_or("epoch exhausted")?;
+                self.refresh_projection_versions()?;
                 self.now = read.received_at_ms;
                 Ok(0)
             }

@@ -1,3 +1,5 @@
+2026-10-15 场景读缓存修复已完成软件核查：Root完整1137项保留原1128项，172实际程序逐一复核哈希；严格Clippy、文档及正式程序64／88路和常驻故障恢复通过。增强LED检查另发现新增庭院／回家候选外部反馈颜色未同步，仍未发布，修复候选未替换现网。见[场景缓存核查](evidence/stage-e-browser/scene-projection-cache-root-check.json)。
+
 2026-10-15 22:05 卡片发布：用户报告仍是独立LED后，已从新鲜活动9导出并在线发布同一20端点的父对象归并到rev10。原Admin17范围下，Root可信HTTPS独立确认2张六格父卡、0独立LED、7格原授权动作可见；未新增模块、场景、墙面规则或控制权限，原配对保持、进程未重启。App现有版本无需重装，实际卡片显示已询问用户，尚待回复；场景投影缓存修复仍在独立软件验证，未随本次发布。见[卡片发布证据](evidence/stage-e-browser/keypad-existing-cards-publication-root-check.json)。
 
 2026-10-15 21:44 新增核查：最终v21程序的Keypad候选／回退及庭院／回家完整候选共6项离线校验通过，但88路回环全关反馈Confirmed时，场景选择12秒内保持未知；64路基础Keypad对照的16次读取中11次正常、5次未知，原因待定位。现网rev9只读对照的原五个场景投影正常，不能将候选反例直接归因于现网。D源审查另核对43个窗帘反馈事件／90处LED输出，唯一偏离开帘同组面板的输出是用户已确认的卧室误写书房2键；只改输出目标的离线片段已准备，未应用。见[完整候选反例](evidence/stage-e-browser/keypad-full-candidate-v21-root-check.json)和[窗帘LED归属](evidence/stage-d-study/motor-led-ownership-root-check.json)。
