@@ -292,7 +292,7 @@
     "stage-e-browser/state-tree-rollback-root-check.json": "92f6c98fa43ad4c0980ae8bf35ee7941970de0a1fa1068b199a903e106b248ee",
     "stage-e-browser/multi-gateway-runtime1-root-check.json": "12ab8e62ab688372c23bfee082e308095d746ce8a4f869d59a1f238bdced9531",
     "stage-e-browser/multi-gateway-runtime7-root-check.json": "0144d153a644ac4f9c19763fa279e1d90be08c8294f09db100dcb8413f56d76b",
-    "stage-e-browser/multi-gateway-runtime10-root-check.json": "d0304f21c7086e5d5b4c0f599869136ea3aac086240e3ed5fab04d849d16dd82",
+    "stage-e-browser/multi-gateway-runtime10-root-check.json": "adb85e193be25f3135a2a894ba2a5268df33cf8f3b1b89a7b946c2c8fd411b7b",
     "stage-e-browser/native-partial-availability-root-check.json": "dcbb64ab3a3da2b06e382063fa3e316eca5562fe753b1da338c9a1c2b53e14b5"
   },
   "excluded_by_scope": {
@@ -563,5 +563,14 @@
   "latest_private_runtime1_protocol_review": "stage-e-browser/multi-gateway-runtime1-root-check.json",
   "latest_private_runtime7_protocol_and_Rust_review": "stage-e-browser/multi-gateway-runtime7-root-check.json",
   "latest_gateway_isolation_Mac_qualification": "stage-e-browser/multi-gateway-runtime10-root-check.json",
-  "latest_native_partial_availability_software": "stage-e-browser/native-partial-availability-root-check.json"
+  "latest_native_partial_availability_software": "stage-e-browser/native-partial-availability-root-check.json",
+  "gateway_isolation_source_commit": "c77c4e74c4120e05ee8b69ba32af6f6eaa67a452",
+  "frozen_backend_regression_vs_tracked_Git": {
+    "full_frozen_tests": 1197,
+    "includes_preexisting_untracked_local_private_test": 1,
+    "tracked1196_all_were_executed_in_full_run": true,
+    "tracked_build_inputs_exact_except_README": 848,
+    "separate_whole_clean_Git_regression_claimed": false,
+    "private_test_inputs_not_published": true
+  }
 }

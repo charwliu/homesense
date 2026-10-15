@@ -13,7 +13,11 @@
     "doc_result_blocks": 10,
     "strict_Clippy_exit_code": 0,
     "original1160_retained": true,
-    "new_tests": 37
+    "new_tests": 37,
+    "full1197_includes_local_private_event1": true,
+    "tracked1196_test_functions_were_in_full_successful_run_unchanged": true,
+    "new_full_clean_Git_run_claimed": false,
+    "private_fixture_scope_retained_not_published": true
   },
   "normal_CLI": {
     "HTTP_passed": 8,
@@ -124,9 +128,10 @@
   "composition": {
     "exact48_Rust_test_files_applied": true,
     "worktree_matches846_of852": "README current feature status and5 preexisting dirty manual verify tools deliberately preserved; all Cargo/crates/vendor/config exact.",
-    "tracked_clean_commit_expected851_of852": "Five tracked HEAD manual tools equal frozen inputs; exact staged audit will verify final commit, README reconciled separately.",
     "README_not_compiler_input": true,
-    "unrelated_App_tools_and_old_deletions_preserved": true
+    "unrelated_App_tools_and_old_deletions_preserved": true,
+    "verified_clean_commit848_of852": "c77c4e74:848 tracked nonREADME inputs exact. Other3 are preexisting explicitly excluded local-private event test/XML/bindings, never part of tracked baseline. README separately reconciled.",
+    "initial_clean_Git851_assertion_failed_and_preserved": true
   },
   "production": "Existingf5b/1de forever service unchanged; no new configuration/rules/permissions or physical queries/actions.",
   "Linux": "Deployment authorized to locally cross compile frozen source and perform real26to27 plus checksum whole-state rollback in isolated fake namespace; production held pending review.",
