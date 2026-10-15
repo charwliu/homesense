@@ -1,0 +1,117 @@
+{
+  "checked_bj": "2026-10-16T07:46:12.257000+08:00",
+  "scope": "explicitly human-approved production E2 binary and schema upgrade, independent readonly checks; not whole D/E completion",
+  "current_human_approval": {
+    "questionItemId": "call_8f094aca2b1d400d83f91a101fd2078b:0",
+    "answer": "批准现网切换",
+    "earlier_two_approval_rejections_preserved": true
+  },
+  "backend_source_commit": "c77c4e74c4120e05ee8b69ba32af6f6eaa67a452",
+  "formal_Linux_ELF_sha256": "96fe6ee504a93c0f0c32d52badfe02f870652d18613265c25a7b4169a6d6bcf8",
+  "service": {
+    "PID": 249375,
+    "active": true,
+    "enabled": true,
+    "restart_count": 0,
+    "restart": "on-failure",
+    "runtime_limit": "infinity"
+  },
+  "state": {
+    "schema_before_after": [
+      26,
+      27
+    ],
+    "revision_before_after": [
+      10,
+      10
+    ],
+    "HAP_pairs_before_after": [
+      2,
+      2
+    ],
+    "Admin_devices_scenes": [
+      17,
+      7
+    ],
+    "original_credentials_identity_AID_IID_and_configuration_hashes_preserved": true,
+    "original_journal_stable_rows_preserved": true
+  },
+  "actual_startup_effects": {
+    "journal_rows_before_after": [
+      938,
+      943
+    ],
+    "new_commands": 5,
+    "new_intent_audit_hex": "01060000",
+    "meaning": "PanelLed(false), Written; five actual existing startup rule LED writes",
+    "old_five_written_rows_marked_uncertain": true,
+    "manual_control_requests_sent": 0,
+    "not_zero_bus_write": true
+  },
+  "read_only_https": {
+    "checked_bj": "2026-10-16T07:42:54.860281+08:00",
+    "HTTPS_origin": "https://192.168.3.2:8444",
+    "trusted_TLS": true,
+    "existing_permanent_Admin_authentication_200": true,
+    "revision": "10",
+    "ready": true,
+    "storage_healthy": true,
+    "HAP": "listening",
+    "registered_modules": 12,
+    "fresh_output_modules": 8,
+    "fresh_output_channels": 64,
+    "visible_devices": 8,
+    "Keypad_parents": 2,
+    "slots_per_parent": 6,
+    "standalone_LED": 0,
+    "device_controls_sent": 0,
+    "availability_metadata_present": 0,
+    "availability_metadata_null": 8,
+    "action_gates_available": 8,
+    "raw_evidence_sha256": {
+      "devices": "57d9bc1feb592905d78cc25851bb49392f86e75d3aec27906c1966478d5ac98e",
+      "modules": "3f34d57ddd5fb7bc381fac6227fc5c10485916fcb9077a515accf0bb2ab9ab7a",
+      "diagnostics": "c4937bb7ddb16ce66f70f7f6a2f9be483b76c1875dd5ed0bcdaf8d8bf2697341"
+    }
+  },
+  "backup": {
+    "entries_including_root": 139,
+    "original_snapshot_first_Root_check": true,
+    "second_Root_check": "failed: one SHM file mtime changed; full content hash and every other recorded field unchanged",
+    "likely_cause": "Deployment mode=ro SQLite inspection at matching time; strong temporal inference, not independently proven causation",
+    "original_snapshot_and_failure_evidence_preserved": true,
+    "new_sealed_copy_independently_verified_against_original_manifest": true,
+    "manifest_sha256": "d9a8c0be5977401dd11bde4805ac91ec62972427a39ccf09f18320e1e0c590e6",
+    "verification_precision": "SHA256/size/type/mode/uid/gid/symlink and whole-second mtime; original SHM nanoseconds unavailable",
+    "no_actual_rollback_or_extra_restart_for_backup_repair": true,
+    "future_recovery_uses_sealed_copy_only": true,
+    "historical_transaction_script_not_to_be_rerun": true
+  },
+  "field_limits": {
+    "one_actual_gateway_profile": true,
+    "live_multi_gateway_fault_injection": false,
+    "single_profile_optional_availability_is_null": true,
+    "current8_action_gates_available": true,
+    "null_metadata_source_reason": "local_refresh.enable_independent returns without activation when gateway count <2; global readiness remains authoritative for this legacy single profile",
+    "full96field_check_user_paused": true,
+    "phone_Keypad_visual_and_source_semantics_unresolved": true
+  },
+  "Root_audit_parser_errors_preserved": [
+    "devices revision int10 versus diagnostic string10",
+    "nullable availability summary assumption"
+  ],
+  "no_new_config_or_grants_or_rules": true,
+  "production_state_bytes_exported_off_host": false,
+  "D_E_complete": false,
+  "artifact_sha256": {
+    "Root_first_remote": "fff7dfda4b802929f415334bbe30c0a53ba736bbc3fee5931f85326ac000f2bc",
+    "Root_sealed_remote": "bf3d1866bb9de25d8f38704452e898545dbdd623a7bcd6a881a20d2c0ae51730",
+    "Root_snapshot_final": "13fb61fb315eb9c4c5e036d818c993ea37332e349b9bae938d529e73f76dba86",
+    "Root_snapshot_diff": "e437c9f033b75000055317c7bd39979e5d7719b474ba85d2fe5cc1011269fd11",
+    "Root_HTTPS": "67f14e940be1decb9a46d54aaaaa595b71c32ec27cbb41c2f6e5e0c3fff1b63d",
+    "direct_current_human_approval": "61152a3ec8e8e4c57127b3f651471fcb3aa4cbf2c01aa52b3fadd7da1e65e133",
+    "producer_handoff": "697c6d80130659521cee1cbaf4cb176ec94bc95a450675b6201bbd37e6f4049b",
+    "snapshot_amendment": "4406747a0f1257c642099dba098993481244745406526ebe83c96495c33fa873",
+    "sealed_recovery_guide": "7bfc502bc0a659faa00ec33fefa73710359060e9c146cb7ac4f68d362829fb75"
+  }
+}

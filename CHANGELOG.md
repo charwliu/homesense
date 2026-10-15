@@ -4,6 +4,11 @@
 
 后续每次提交的变动细节在此记录；README 的变更内容只保留功能新增、移除及能力变化。
 
+## 2026-10-16 runtime10 现网迁移与密封回退备份
+
+2026-10-16 经用户对本次切换明确批准，runtime10 正式 Linux ELF 已在 E2 常驻上线，schema26→27，rev10 保持；Root 独立核对同 PID249375、零重启、无限期限、原2配对及Admin17设备／7场景授权，可信HTTPS/HAP就绪、8个输出模块64路反馈新鲜。实际启动规则写出5条LED投影，旧5条Written恢复为uncertain，不能记为零写出。事后SQLite只读检查触碰原备份SHM秒mtime的反例保留，另建sealed副本并逐139项核验；今后回退只使用该副本，生产未因备份修复额外重启。当前只有一个实际网关配置，不能据此宣布多网关现场或长期稳定性通过；完整App11手机安装/视觉和65／208／24源语义仍待。见[现网独立核查](docs/evidence/stage-e-browser/multi-gateway-runtime10-production-root-check.json)。
+
+
 ## 2026-10-16 完整原生 App 保留 LH-IO1600 工具
 
 发布范围审查发现无签名 clean build10 未包含最后已核实安装的 build8 的 LH-IO1600 地址工具，因此保留审核包但停止作为完整更新包交付。完整候选以已提交的六键父卡片、逐目标可用状态及凭证恢复功能为基线，补齐原地址页、RTU 编解码和核对流程；58 个 App 输入加 19 个模拟配置逐文件核验，同一轮完整 87 项／15 套件全部通过、零跳过，原 79 项和 8 项 LH 测试均保留，两项实际 Rust HTTPS/WSS 集成同轮启用。iOS、macOS 无签名构建通过；源码版本保持基线，尚未准备私有 build11、签名或安装。六键卡片源码保留，用户手机仍显示独立 LED 的原因和真机视觉验收继续开放，不能以源码检查关闭。见[完整 App 核查](docs/evidence/stage-e-browser/native-lhio-preservation-root-check.json)。 后续私有 build11 由提交 `27fec73` 的 58 输入构建，仅版本号 7→11；Root 重核 8 个包内文件、归档有效载荷与 AppleDouble 元数据，SHA-256 为 `b4afd21595a521385aeb9e34cf0e39517b8ac9e1b48bbea0cc5ad7a29ed60f93`。该无签名包不能直接安装，尚无手机视觉验收；产品与测试不变，未重复 87 项测试。见[build11](docs/evidence/stage-e-browser/native-build11-root-check.json)。

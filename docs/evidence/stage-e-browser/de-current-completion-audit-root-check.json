@@ -1,5 +1,5 @@
 {
-  "checked_bj": "2026-10-16T05:24:58.154608+08:00",
+  "checked_bj": "2026-10-16T07:46:12.257000+08:00",
   "derived_requirements": [
     "docs/design.md sections9-11,18,20,23-24,27"
   ],
@@ -64,7 +64,7 @@
       "stage": "D",
       "requirement": "日历、规则链、取消与恢复",
       "verified_scope": "显式顺序、延迟、渐变、来源审计及恢复不重放有软件回归；4日历创建者与1内嵌计划来源已核对",
-      "remaining_evidence": "原计划／代理自身语义与完整原程序回放仍待。runtime10原旧取消完整契约通过，持续本地故障不复用数字run误取消；不可复用Control实例回执另有原3+新1回归。Linux实际迁移/回退和完整现场恢复仍待，不把软件loopback证明当作源程序批准。",
+      "remaining_evidence": "原计划／代理自身语义与完整原程序回放仍待。runtime10原旧取消完整契约通过，持续本地故障不复用数字run误取消；不可复用Control实例回执另有原3+新1回归。Linux迁移/整树回退已隔离验收且实际现网已迁移27、完整sealed备份就绪；完整现场恢复仍待，不把软件loopback证明当作源程序批准。",
       "status": "source_and_physical_partial",
       "additional_source_evidence": "stage-d-study/calendar-creator-source-root-check.json",
       "additional_gateway_timeline_evidence": "stage-e-browser/multi-gateway-delayed-scene-root-gap.json",
@@ -79,7 +79,7 @@
       "stage": "E",
       "requirement": "原生HAP、配对与身份",
       "verified_scope": "既有iPhone配对、保留身份重启和软件加密／撤权证据已具备；HAP过期失效及同值新反馈恢复通知已修复，3类灯回归、227项运行时单元、严格Clippy及普通生产库实际约5.3秒反例复验通过；同一统一候选的普通生产库另经三类灯真实回环Pair-Verify/加密EVENT/读取验证，5个特征过期和同值恢复，零控制命令；整合v7已配对加密HAP在无反馈／部分反馈期间失效，完整八路反馈后原配对及AID/IID不变，新控制25%和订阅实际读回通过。",
-      "remaining_evidence": "runtime10原加密HAP8/8全绿：A局部不可用，健康B外部45读回/通知与B50写出、同认证会话/身份、恢复后新A60均成立。真实Apple客户端新故障通知集中验收及完整多中枢范围仍待；现网尚未升级该候选。",
+      "remaining_evidence": "runtime10原加密HAP8/8全绿：A局部不可用，健康B外部45读回/通知与B50写出、同认证会话/身份、恢复后新A60均成立。真实Apple客户端新故障通知集中验收及完整多中枢范围仍待；已升级现网并保留2配对/AID/IID；新版本真实Apple客户端集中验收仍待。",
       "status": "single_gateway_notification_qualified_partial_gateway_HAP_counterexample",
       "additional_software_gap": "stage-e-browser/hap-expiry-notification-root-gap.json",
       "additional_software_fix": "stage-e-browser/hap-expiry-notification-root-check.json",
@@ -152,7 +152,7 @@
       "stage": "D/E",
       "requirement": "最终集成软件回归",
       "verified_scope": "网络接收错误修复最终844冻结输入：1160项完整Rust、原1153函数全部保留、172实际程序重哈希、文档与全目标严格Clippy通过；最终正式CLI88路周期/常驻恢复和两项实际App HTTPS/WSS通过。",
-      "remaining_evidence": "backend冻结1197（1196tracked+1既有私有补充）/原协议、Linux正式ELF5项隔离协议与真实迁移/回退通过；完整App27fec73的58输入构成87项无skip含2实际Rust集成与iOS/macOS无签名构建通过，已保留原LH工具。新Linux现网常驻切换、新手机包签名安装与完整现场/源语义仍待。",
+      "remaining_evidence": "backend冻结1197（1196tracked+1既有私有补充）/原协议、Linux正式ELF5项隔离协议与真实迁移/回退通过；完整App27fec73的58输入构成87项无skip含2实际Rust集成与iOS/macOS无签名构建通过，已保留原LH工具。新Linux现网常驻切换已通过，完整回退副本经修复后独立核验；新手机包签名安装与完整现场/源语义仍待。",
       "status": "receive_error_repair_Mac_qualified_Linux_deployed_multi_gateway_isolation_open",
       "complete_for_current_frozen_input": true,
       "incremental_python_tool_tests_passed": 20,
@@ -188,8 +188,8 @@
       "stage": "E",
       "requirement": "持续服务隔离网关超时与恢复失败，保留原生管理入口",
       "verified_scope": "v21常驻完整1128项、原配对HAP专项和正式AD8常驻生命周期通过；Linux隔离烟测与systemd上线及可信HTTPS就绪核验通过，保留原rev9/Admin/配对。；新增接收RST导致退出的正式程序反例已软件修复，完成故障审计的指定网络错误可恢复，真实取消和审计/不变量错误仍致命。；本轮Linux正式程序隔离RST生命周期与常驻更新已独立核验。；私有基础层Core/Storage216项及严格迁移/64容量已独立核查，不等同运行时隔离。；现有正式Linux ELF的隔离整树回退机制已独立核查，checksum修复同大小/时间数据库漏恢复，27项清单和非空合成配对/凭据保持。；私有runtime1同852输入普通CLI原HTTP8组合独立全绿，保留B连接/反馈/新控制；尚未合入/部署。",
-      "remaining_evidence": "runtime10 Mac全协议与Linux正式ELF5项原契约、真实26to27迁移/旧ELF拒绝/checksum整树回退独立通过；现网切换未执行，自动审批两次要求当前明确批准，已询问用户，旧版常驻保持。上线后的身份/17+7授权/64通道读回与手机集中现场仍待。",
-      "status": "single_gateway_deployed_multi_gateway_independent_control_counterexample",
+      "remaining_evidence": "已获本次明确批准，runtime10 Linux现网常驻已切换并经Root独立核验；schema27/rev10、原身份/2配对/Admin17+7、64新鲜通道保持。备份SHM时间漂移反例保留，新密封139项回退副本匹配原清单。当前仅一个实际网关配置，不代表多网关故障现场或长期稳定性验收；手机集中现场仍待。",
+      "status": "runtime10_production_deployed_remaining_field_acceptance",
       "additional_evidence": "stage-e-browser/runtime-gateway-timeout-root-gap.json",
       "additional_production_counterexample": "stage-e-browser/runtime-feedback-outage-cli-root-check.json",
       "additional_runtime_recovery_evidence": "stage-e-browser/runtime-availability-recovery-root-check.json",
@@ -205,7 +205,8 @@
       "additional_synthetic_rollback_evidence": "stage-e-browser/state-tree-rollback-root-check.json",
       "additional_private_runtime1_protocol_evidence": "stage-e-browser/multi-gateway-runtime1-root-check.json",
       "additional_private_runtime7_evidence": "stage-e-browser/multi-gateway-runtime7-root-check.json",
-      "additional_runtime10_evidence": "stage-e-browser/multi-gateway-runtime10-root-check.json"
+      "additional_runtime10_evidence": "stage-e-browser/multi-gateway-runtime10-root-check.json",
+      "additional_production_evidence": "stage-e-browser/multi-gateway-runtime10-production-root-check.json"
     }
   ],
   "evidence_sha256": {
@@ -299,7 +300,8 @@
     "stage-e-browser/multi-gateway-linux-runtime10-root-check.json": "d291d9e921be9c754eb0d37122d832bfad782392cbdf73f32d5fb9dbb32b55a8",
     "stage-e-browser/native-build10-root-check.json": "d08b261fb605ba7c5b1249c77241daa21145a17c89b3d31d25a3b96ee48ecff3",
     "stage-e-browser/native-lhio-preservation-root-check.json": "a047a1f0d638811d75c406d2de5a9541d20c062a59d7044c4dc7d58a7863d38a",
-    "stage-e-browser/native-build11-root-check.json": "06933c85f2391f149633fbe9d8a4cdb2d1066d950307bf8b0e6f4c0176da0758"
+    "stage-e-browser/native-build11-root-check.json": "06933c85f2391f149633fbe9d8a4cdb2d1066d950307bf8b0e6f4c0176da0758",
+    "stage-e-browser/multi-gateway-runtime10-production-root-check.json": "291bc14a911efefad07a3c8b2c3cbd475550c831d56771c05e058fa958a7ee6f"
   },
   "excluded_by_scope": {
     "Siri": "cancelled by user",
@@ -538,10 +540,13 @@
   "latest_multi_gateway_runtime_counterexample": "stage-e-browser/multi-gateway-isolation-root-gap.json",
   "multi_gateway_fault_isolation": {
     "Mac_frozen_backend_qualified": true,
-    "current_production_still_previous_single_gateway_recovery": true,
+    "current_production_still_previous_single_gateway_recovery": false,
     "new_Linux_cross_compile_and_state_upgrade_rollback": "in progress, no production switch yet",
     "original_failure_baselines_retained": true,
-    "current_evidence": "stage-e-browser/multi-gateway-runtime10-root-check.json"
+    "current_evidence": "stage-e-browser/multi-gateway-runtime10-root-check.json",
+    "runtime10_now_deployed": true,
+    "production_actual_gateway_profiles": 1,
+    "live_multi_gateway_fault_acceptance": false
   },
   "latest_receive_network_error_repair": "stage-e-browser/receive-network-error-root-check.json",
   "receive_network_error_repair": {
@@ -592,7 +597,7 @@
   "native_App_new_availability_commit_status": "Availability ab861d4 retained in full App27fec73, pushed. Complete87 run qualified, private11 version-only unsigned artifact verified; actual phone and deployment approvals pending.",
   "latest_gateway_isolation_Linux_candidate_qualification": "stage-e-browser/multi-gateway-linux-runtime10-root-check.json",
   "latest_native_build10_preparation": "stage-e-browser/native-build10-root-check.json",
-  "gateway_isolation_production_switch": "Not performed. Two automatic approval rejections, second after verified earlier human authorization; a current specific approval is pending. OldPID246767/schema26/rev10 retained.",
+  "gateway_isolation_production_switch": "Current direct human approval received; performed and independently qualified: ELF96fe/schema27/rev10/PID249375/no restarts. Original identity/2pairs/Admin17+7 retained; original snapshot SHMmtime audit failure preserved, new sealed139 backup verified.",
   "native_App_availability_source_commit": "ab861d4619202754c8429fcdf07eb447d08cfaef",
   "latest_native_complete_LHIO_preservation": "stage-e-browser/native-lhio-preservation-root-check.json",
   "native_App_complete_source_qualification": {
@@ -611,5 +616,6 @@
     "phone_LED_display_complaint_unresolved": true
   },
   "native_App_complete_source_commit": "27fec73f442c5701847d404374554491ddec6a1a",
-  "latest_native_build11_preparation": "stage-e-browser/native-build11-root-check.json"
+  "latest_native_build11_preparation": "stage-e-browser/native-build11-root-check.json",
+  "latest_gateway_isolation_production_qualification": "stage-e-browser/multi-gateway-runtime10-production-root-check.json"
 }

@@ -19,3 +19,9 @@ rsync -a --checksum --delete -- "$rollback_snapshot/" "$stopped_state/"
 这证明回退机制，尚不证明未来真实 schema27 候选的升级及回退。该候选交付后仍须对其实际迁移重新验收。本轮没有读取或修改现网状态，没有停止 E2 或操作现场设备。详见[独立核查](evidence/stage-e-browser/state-tree-rollback-root-check.json)。
 
 真实旧程序拒绝schema27的文件树不变性检查，应先在**已停止的独立测试副本**完成WAL checkpoint，再记录比较基线；未checkpoint副本可能在拒绝时清理WAL／SHM，不能据主数据库哈希相同声称全树未变。原一致快照与失败态保留副本不因这项测试而规范化或覆盖。当前候选的实际26→27→整树恢复26已有合成状态证据，生产rev10升级仍须单独验收。见[正式Linux核验](evidence/stage-e-browser/multi-gateway-linux-runtime10-root-check.json)。
+
+2026-10-16 已获本次明确批准的现网升级完成，schema26→27、rev10及原配对／授权保持。停机快照139项首次完整比对通过；之后对快照使用SQLite `mode=ro` 和 `PRAGMA query_only=ON` 读取时，既有 `-shm` 的秒级mtime发生变化，而全部内容哈希和其余清单字段未变。时间与该读取动作吻合，因果为强推断；原快照、原清单及失败差异均保留。
+
+**不要直接打开完整回退快照中的SQLite数据库**，即使使用只读URI。需要语义读取时，复制主文件和存在的WAL／SHM到一次性目录，再读取副本；不要为了避免辅助文件变化而盲用忽略WAL的 `immutable=1`。校验原快照只读取文件元数据和内容哈希。
+
+本次另建密封回退副本，只在新副本依据原清单恢复上述SHM的已知秒级mtime；含根目录139项的内容、类型、模式、属主、链接和秒mtime均与原清单一致。原始纳秒未记录，不能声称已恢复。已执行的升级脚本作为历史交易记录保留，不得重跑；未来回退须使用新密封副本并先保留当时的现网状态。密封修复未重启生产或实际执行回退。见[现网核查与限制](evidence/stage-e-browser/multi-gateway-runtime10-production-root-check.json)。

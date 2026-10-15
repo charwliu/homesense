@@ -1,5 +1,7 @@
 # 持续服务的网关故障隔离
 
+2026-10-16 经用户对本次切换明确批准，runtime10 正式 Linux ELF 已在 E2 常驻上线，schema26→27，rev10 保持；Root 独立核对同 PID249375、零重启、无限期限、原2配对及Admin17设备／7场景授权，可信HTTPS/HAP就绪、8个输出模块64路反馈新鲜。实际启动规则写出5条LED投影，旧5条Written恢复为uncertain，不能记为零写出。事后SQLite只读检查触碰原备份SHM秒mtime的反例保留，另建sealed副本并逐139项核验；今后回退只使用该副本，生产未因备份修复额外重启。当前只有一个实际网关配置，不能据此宣布多网关现场或长期稳定性通过；完整App11手机安装/视觉和65／208／24源语义仍待。见[现网独立核查](evidence/stage-e-browser/multi-gateway-runtime10-production-root-check.json)。
+
 2026-10-16 原生App逐目标可用性按选择性Git构成完成完整79项／13套件，零失败／零跳过，原2项真实Rust集成在同一轮启用并通过，iOS无签名构建通过。6产品／2测试／2真实DTO输入精确合入，其他未提交App改动保留；此前混合工作树85加2与本次79明确分开，没有删除测试改变范围。失效目标禁用、健康目标继续可用、保留历史反馈且不补发旧操作；新手机包和六键视觉／硬件验收仍待。见[原生App资格](evidence/stage-e-browser/native-partial-availability-root-check.json)。
 
 2026-10-16 后续runtime10已按852冻结输入完成1197项完整Rust、172实际程序及严格Clippy核验，原1160全部保留；相同正常CLI的原HTTP8/8、加密HAP8/8、WSS、延迟、旧回执取消和新父Keypad可用性13条记录全部exit0。48个Rust／测试文件已精确合入工作树，README和原脏手动工具保留；Linux本机交叉编译与真实schema27整状态升级／回退已交部署，现网尚未切换。原生App私有85项加原2项真实Rust集成及真实URLSession部分状态读取链通过，最终选择性Git构成另行核验，尚未发新包或验收手机卡片。原65／208／24源语义和用户挂起现场项目均保留，D/E未完成。见[后端资格](evidence/stage-e-browser/multi-gateway-runtime10-root-check.json)、[原生部分可用性](evidence/stage-e-browser/native-partial-availability-root-check.json)。
