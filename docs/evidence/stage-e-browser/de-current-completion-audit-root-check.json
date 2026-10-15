@@ -1,5 +1,5 @@
 {
-  "checked_bj": "2026-10-15T18:23:29.807116+08:00",
+  "checked_bj": "2026-10-15T21:32:21.731815+08:00",
   "derived_requirements": [
     "docs/design.md sections9-11,18,20,23-24,27"
   ],
@@ -62,12 +62,13 @@
       "id": "E-1",
       "stage": "E",
       "requirement": "原生HAP、配对与身份",
-      "verified_scope": "既有iPhone配对、保留身份重启和软件加密／撤权证据已具备；HAP过期失效及同值新反馈恢复通知已修复，3类灯回归、227项运行时单元、严格Clippy及普通生产库实际约5.3秒反例复验通过；同一统一候选的普通生产库另经三类灯真实回环Pair-Verify/加密EVENT/读取验证，5个特征过期和同值恢复，零控制命令",
-      "remaining_evidence": "HAP通知修复已纳入旧统一候选；当前新Keypad/浏览器撤除候选的最终本机集成与Linux生产冒烟尚待完成，实际Apple客户端故障通知覆盖仍待验收。",
+      "verified_scope": "既有iPhone配对、保留身份重启和软件加密／撤权证据已具备；HAP过期失效及同值新反馈恢复通知已修复，3类灯回归、227项运行时单元、严格Clippy及普通生产库实际约5.3秒反例复验通过；同一统一候选的普通生产库另经三类灯真实回环Pair-Verify/加密EVENT/读取验证，5个特征过期和同值恢复，零控制命令；整合v7已配对加密HAP在无反馈／部分反馈期间失效，完整八路反馈后原配对及AID/IID不变，新控制25%和订阅实际读回通过。",
+      "remaining_evidence": "v21常驻模式完整回归、Linux隔离烟测和服务上线通过；实际Apple客户端新故障通知集中验收仍待。",
       "status": "software_notification_fix_integrated_and_physical_pending",
       "additional_software_gap": "stage-e-browser/hap-expiry-notification-root-gap.json",
       "additional_software_fix": "stage-e-browser/hap-expiry-notification-root-check.json",
-      "additional_encrypted_notification_evidence": "stage-e-browser/hap-encrypted-expiry-root-check.json"
+      "additional_encrypted_notification_evidence": "stage-e-browser/hap-encrypted-expiry-root-check.json",
+      "additional_runtime_recovery_evidence": "stage-e-browser/runtime-availability-recovery-root-check.json"
     },
     {
       "id": "E-2",
@@ -94,8 +95,8 @@
       "stage": "E",
       "requirement": "原生App、管理API鉴权与事件恢复",
       "verified_scope": "登录、滑块、退出和iPad断网恢复有实际限定结果；新账本与Away有软件证据；原生App实际TLS/WSS软件集成及手机推送、页面稳定与亮度按钮可用已确认；原生App两次实际调光跟随与自动读回已确认；rev9楼层目录及原生App三层/两房间归属已实际确认，永久Admin登录和本机空楼层编辑已通过；原生App楼层/房间新增、改名、删除、服务端保存及预览、恢复活动配置和测试草稿清理均已实际确认；两草稿独立核对设备及自动化未变；build7永久凭证Keychain保存、强退重开自动连接及前后台开/关同步已现场通过；ordinary v3严格负向80项零写出、publication v3四函数32项限定通过，v7 Web准确两run持久账目通过；精确来源授权／发布与STOP冻结v5完整1086项及文档、严格Clippy通过，保留原1067项，新增19项含213专项记录",
-      "remaining_evidence": "该授权软件子集已完成本机质量检查，尚未部署；持续服务恢复、其他管理变更／备份边界、App实际发布、新Keypad迁移及集中现场验收仍开放。",
-      "status": "exact_source_auth_and_publication_software_qualified_not_deployed",
+      "remaining_evidence": "精确授权与发布修复已包含在305be34常驻上线；其他管理变更/备份边界、App实际发布、新Keypad迁移及集中现场验收仍开放。",
+      "status": "exact_source_auth_software_deployed_remaining_field_and_management_checks_pending",
       "additional_auth_gap": "stage-e-browser/ordinary-source-auth-root-gap.json",
       "additional_publication_auth_evidence": "stage-e-browser/publication-source-boundaries-root-check.json",
       "additional_qualified_auth_evidence": "stage-e-browser/source-authorization-v5-root-check.json"
@@ -120,10 +121,10 @@
       "id": "Q-1",
       "stage": "D/E",
       "requirement": "最终集成软件回归",
-      "verified_scope": "固定1195文件backendv3：Mac完整1067项/167实际测试程序，零失败/忽略/过滤；10个crate文档测试块无示例，严格workspace/all-targets Clippy通过；外层锁贯穿编译/执行/产物哈希，全部输入前后未变。旧Linux完整1054通过/1失败与缓存污染的无效v4运行分别保留。",
-      "remaining_evidence": "授权／发布／STOP冻结v5本机完整1086／167、文档与严格Clippy通过；网关持续服务及场景歧义亮度后续候选需独立定向与最终统一QA，再交部署交叉生产程序及Linux隔离冒烟。实际客户端、完整D原语义和历史容量稳定性仍开放。",
-      "status": "auth_v5_local_qualified_final_runtime_and_scene_candidate_pending",
-      "complete_for_current_frozen_input": false,
+      "verified_scope": "常驻整合305be34：Mac完整1128项／172实际程序输入与产物哈希核验，全部旧1117项保留新增11；文档10目标、严格Clippy、正式AD8常驻断连/恢复/SIGTERM探针通过。Linux生产交叉编译、二进制单独上传、隔离初始重试/SIGTERM烟测和systemd上线通过。",
+      "remaining_evidence": "该最终软件输入与常驻上线已核验；D/E其余原语义和集中现场验收未完成。",
+      "status": "current_frozen_software_qualified_and_continuous_service_deployed",
+      "complete_for_current_frozen_input": true,
       "incremental_python_tool_tests_passed": 20,
       "full_workspace_repeated_this_increment": true,
       "previous_verified_scope": "Rust／前端输入与1180文件冻结回归一致：Mac／Linux各1038通过、严格Clippy通过，各162实际二进制核验；仅Python审查工具增量20项通过",
@@ -137,20 +138,25 @@
         "macOS arm64"
       ],
       "full_workspace_doc_tests_repeated": true,
-      "current_integrated_evidence": "stage-e-browser/native-keypad-backend-v3-root-check.json",
+      "current_integrated_evidence": "stage-e-browser/continuous-service-root-check.json",
       "current_mac_doc_result_blocks": 10,
       "current_frozen_local_quality_pass": true,
-      "latest_qualified_subset": "stage-e-browser/source-authorization-v5-root-check.json"
+      "latest_qualified_subset": "stage-e-browser/continuous-service-root-check.json",
+      "new_continuous_mode_is_separate_unqualified_input": false,
+      "current_full_workspace_tests": 1128,
+      "current_actual_programs": 172
     },
     {
       "id": "E-7",
       "stage": "E",
       "requirement": "持续服务隔离网关超时与恢复失败，保留原生管理入口",
-      "verified_scope": "约17:28真实提前退出、Root进程/HTTPS终态及部署源码错误传播路径已确认；此前App验收仍有效；另以未改正式CLI和纯回环AD8模拟，8路初始新鲜后仅屏蔽回复，约5087ms退出1、HTTPS拒绝连接，零控制",
-      "remaining_evidence": "生产持续服务故障隔离待实现；需要真实CLI模拟无反馈、退避、未知禁控、同步恢复不重放与正常截止回归，现场集中验收待统一候选",
-      "status": "confirmed_runtime_availability_gap",
+      "verified_scope": "v21常驻完整1128项、原配对HAP专项和正式AD8常驻生命周期通过；Linux隔离烟测与systemd上线及可信HTTPS就绪核验通过，保留原rev9/Admin/配对。",
+      "remaining_evidence": "实际Apple客户端集中故障验收待恢复；单映射全局禁控不证明多个HomeSense TCP网关可独立控制。",
+      "status": "software_and_continuous_deployment_passed_field_pending",
       "additional_evidence": "stage-e-browser/runtime-gateway-timeout-root-gap.json",
-      "additional_production_counterexample": "stage-e-browser/runtime-feedback-outage-cli-root-check.json"
+      "additional_production_counterexample": "stage-e-browser/runtime-feedback-outage-cli-root-check.json",
+      "additional_runtime_recovery_evidence": "stage-e-browser/runtime-availability-recovery-root-check.json",
+      "additional_continuous_service_evidence": "stage-e-browser/continuous-service-root-check.json"
     }
   ],
   "evidence_sha256": {
@@ -196,7 +202,12 @@
     "stage-e-browser/runtime-gateway-timeout-root-gap.json": "02a71918edc4521220661bb95bad207cba2b98cb8fb6731b62921d0931aa9236",
     "stage-e-browser/publication-source-boundaries-root-check.json": "e8dd693ce16e83626f8efcff7a66ecce9cdd60b13bb4e13567ef972db3a57bce",
     "stage-e-browser/runtime-feedback-outage-cli-root-check.json": "ddd9d3498af98386d801d4d33f2631a51f86397536fca029701b604523139ec9",
-    "stage-e-browser/source-authorization-v5-root-check.json": "273491270d1c201af3b0b3794f88df7807a4be9519c848775d451b113dd49729"
+    "stage-e-browser/source-authorization-v5-root-check.json": "273491270d1c201af3b0b3794f88df7807a4be9519c848775d451b113dd49729",
+    "stage-e-browser/runtime-availability-recovery-root-check.json": "b4a99de1794a7f3cedf994425131caef5902869b4f779b5d408da58f180959c5",
+    "stage-d-study/brightness-refinement-root-check.json": "8a17d46504dd89ddf0578aa5fc42b466fea6bffd5d4ee2370923417e0891f32e",
+    "stage-e-browser/keypad-interactive-rollout-root-check.json": "6225832841f598539345d84dcd3821bb5e5a0d69a78a8132be0ff06782c277cc",
+    "stage-d-study/offline-automation-cli-root-check.json": "027eae1017cf6ee2ae5e778f357b5e6b3406ab66c19887809d81bcfc03e2f0de",
+    "stage-e-browser/continuous-service-root-check.json": "65b8cf06c7aec14c4ffc2dfa55205499648923f491a86107bbe60545ba2ec26b"
   },
   "excluded_by_scope": {
     "Siri": "cancelled by user",
@@ -313,7 +324,14 @@
   "curtain_uniform_policy_user_authorized": true,
   "curtain_uniform_policy_activation": false,
   "scene_ambiguity_policy_user_authorized": true,
-  "scene_ambiguity_policy_implementation": "pending",
+  "scene_ambiguity_policy_implementation": {
+    "commit": "156c48a1c4786d59c9b0fba98561c7820b228f10",
+    "software_only": true,
+    "new_test_functions": 12,
+    "default_enabled": false,
+    "original_scene_groups_enabled": false,
+    "evidence": "stage-d-study/brightness-refinement-root-check.json"
+  },
   "native_App_build7_evidence": "stage-e-browser/native-app-build7-root-check.json",
   "current_Keypad_field_parent_objects": 0,
   "current_Keypad_field_legacy_LED_entries": 7,
@@ -321,5 +339,42 @@
   "gateway_timeout_exit_user_requires_fix": true,
   "latest_publication_auth_evidence": "stage-e-browser/publication-source-boundaries-root-check.json",
   "latest_runtime_counterexample_evidence": "stage-e-browser/runtime-feedback-outage-cli-root-check.json",
-  "latest_qualified_source_authorization": "stage-e-browser/source-authorization-v5-root-check.json"
+  "latest_qualified_source_authorization": "stage-e-browser/source-authorization-v5-root-check.json",
+  "latest_runtime_recovery_evidence": "stage-e-browser/runtime-availability-recovery-root-check.json",
+  "offline_keypad_interactive_rollout": {
+    "evidence": "stage-e-browser/keypad-interactive-rollout-root-check.json",
+    "candidate_revision": 10,
+    "rollback_revision": 11,
+    "native_manual_actions": 10,
+    "new_wall_rules_enabled": 0,
+    "scope_change_applied": false,
+    "published": false
+  },
+  "offline_automation_CLI_fix": {
+    "commit": "8d2e836",
+    "source_statistics_linker_only": true,
+    "same2tests_passed": true,
+    "evidence": "stage-d-study/offline-automation-cli-root-check.json"
+  },
+  "continuous_E2_service_user_authorized": {
+    "date": "2026-10-15",
+    "owner": "部署",
+    "start_after_exact_final_qualification": true,
+    "systemd_preflight": "available; User=build; no E2 process/unit/timer conflict; read-only verified20:30",
+    "explicit_no_test_deadline_mode": "implemented and deployed305be34",
+    "preserve_pairing_admin_active_configuration": true,
+    "automatic_actuator_acceptance_not_authorized_by_start": true,
+    "systemd_status": "active and enabled, no RuntimeMax deadline, NRestarts0, MainPID244467, Root verified21:31",
+    "TLS_verified_ready": true,
+    "active_revision": 9,
+    "permanent_Admin_and_pairing_unchanged": true
+  },
+  "new_Keypad_courtyard_and_shared_coming_home_request": {
+    "received_from": "HomeSenseApp with stated direct user authorization",
+    "reviewed_handoff_hashes": true,
+    "root_rollout_applied": false,
+    "software_gap": "singleton groups currently reject members<2; separate positive runtime/unknown/independent-state validation required",
+    "additional_61_56_hardware_confirmation_pending": true
+  },
+  "latest_continuous_service_evidence": "stage-e-browser/continuous-service-root-check.json"
 }

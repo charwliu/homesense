@@ -1,0 +1,117 @@
+{
+  "checked_at": "2026-10-15T20:36:26.108273+08:00",
+  "scope": "offline interactive native keypad rollout preparation; no field/config/credential mutation",
+  "expected_active_revision": 9,
+  "candidate_revision": 10,
+  "rollback_revision": 11,
+  "keypad_parents": 2,
+  "configured_keys": [
+    6,
+    4
+  ],
+  "slots_per_native_card": 6,
+  "reviewed_manual_actions": {
+    "scene_toggle": 5,
+    "calibrated_motor": 5
+  },
+  "unconfigured_artstudio_keys5_6": "unchanged, no inferred controls",
+  "all_legacy_LED_ids_and_physical_module_channels_preserved": true,
+  "original_automation_except_revision_unchanged": true,
+  "new_rules_enabled": 0,
+  "grant_role_and_controller_unchanged": true,
+  "credential_secret_read_or_copied": false,
+  "scope_before": 17,
+  "scope_candidate": 20,
+  "scope_delta": "existing study LED aliases for keys2,4,6 only",
+  "scope_change_applied": false,
+  "permanent_token_rotated_or_revoked": false,
+  "original_revision9_export_reproduces_prior_metadata_migration": true,
+  "rollback_retains_exact_original_fields": true,
+  "offline_CLI_checks": [
+    {
+      "scope": "candidate",
+      "kind": "configuration",
+      "exit_code": 0,
+      "log_sha256": "97b8cf7d2bc960dc68a323888f49838a851abb50e688ff27de494bd056f49712"
+    },
+    {
+      "scope": "candidate",
+      "kind": "automation",
+      "exit_code": 0,
+      "log_sha256": "e0027f57a0cfb512f78105fc8cc77e619f8d01f310eec31b842e715ef91bd99a"
+    },
+    {
+      "scope": "rollback",
+      "kind": "configuration",
+      "exit_code": 0,
+      "log_sha256": "0edb695c8b690d27e19f768406dd6000115e8193014e01341666b3c530a39611"
+    },
+    {
+      "scope": "rollback",
+      "kind": "automation",
+      "exit_code": 0,
+      "log_sha256": "463a9145a71361df040bdddca86552803b2ceea41aaffb8f9303ae24b5544eea"
+    }
+  ],
+  "static_binary_sha256": "445fa40c2326d0690a15d694bb5731242830462b4feb39a7891233d5f38631bc",
+  "artifact_sha256": {
+    "original-devices9.json": "d2c86e715a31bc4f4c674a0d4f3d4b455ab045de2b358e5eb51f3ae077c1458e",
+    "original-automation9.json": "7e4f5034b0ae0958419ba1b9639f94f05d66a909895a478e9dbd524b9e32cb17",
+    "candidate-devices10.json": "190727d55caaa14058a67849b69f78f006481515c2dffab42f4ba51e0a3d9f7b",
+    "candidate-automation10.json": "043e3a2d799f220ffeeafbfcf4984afad4ef1f46252b968770acf5829f6e1615",
+    "rollback-devices11.json": "ac8883cbf0575c6614cc59dae82a49637c089bfe0f07fdc73033c76481d1e2b8",
+    "rollback-automation11.json": "782c307577d4bd26aea51a1ce743b4b1b843419ecf358d7cc9af90c523936ad1",
+    "grant-before.json": "aa1777dbf64c91e457e58b3665605b0dfd694536d807b261d6ea218b2f958903",
+    "grant-candidate.json": "059e0b0a52b01ff5449fecc6b9e459e2738150cd8c0c88e4f0175b61298bc265"
+  },
+  "not_final_candidate_validation": true,
+  "fresh_active_revision_and_hash_check_required_before_CAS": true,
+  "configuration_published": false,
+  "field_commands": 0,
+  "field_acceptance": "held until all fixes integrate and a controlled window is available",
+  "D_E_complete": false,
+  "native_App_code_review": {
+    "compatible": true,
+    "current_DTO_and_ten_actions_checked": true,
+    "no_app_change_required_for_this_candidate": true,
+    "unconfigured_cells": "configured=false,endpoint_id=null,action=null;disabled placeholders",
+    "unavailable_recovery": "WSS unavailable gates controls; recovery requires reset=true",
+    "boundaries": [
+      "HTTP503 alone before WSS unavailable does not guarantee immediate local disable; server remains authoritative",
+      "unconfigured cells use numeric placeholder/unknown LED, no dedicated unconfigured label"
+    ],
+    "field_or_app_install_performed": false
+  },
+  "runtime_fix_v14_CLI_revalidation": {
+    "binary_sha256": "de72fb4a30344a92a5fc824c0933c524e091a519f6ee7f1444fc3cd1ace2c1c6",
+    "checks": [
+      {
+        "scope": "candidate",
+        "kind": "configuration",
+        "exit_code": 0,
+        "log_sha256": "97b8cf7d2bc960dc68a323888f49838a851abb50e688ff27de494bd056f49712"
+      },
+      {
+        "scope": "candidate",
+        "kind": "automation",
+        "exit_code": 0,
+        "log_sha256": "e0027f57a0cfb512f78105fc8cc77e619f8d01f310eec31b842e715ef91bd99a"
+      },
+      {
+        "scope": "rollback",
+        "kind": "configuration",
+        "exit_code": 0,
+        "log_sha256": "0edb695c8b690d27e19f768406dd6000115e8193014e01341666b3c530a39611"
+      },
+      {
+        "scope": "rollback",
+        "kind": "automation",
+        "exit_code": 0,
+        "log_sha256": "463a9145a71361df040bdddca86552803b2ceea41aaffb8f9303ae24b5544eea"
+      }
+    ],
+    "no_state_created": true,
+    "config_and_grant_not_applied": true,
+    "forever_build_must_recheck_before_rollout": true
+  }
+}

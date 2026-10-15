@@ -1,5 +1,5 @@
 {
-  "checked_at": "2026-10-15T21:26:29.846065+08:00",
+  "checked_at": "2026-10-15T21:32:21.731815+08:00",
   "user_request": "部署启动整合E2并一直提供服务",
   "scope": "explicit forever lifetime, graceful termination and supervised deployment; local synthetic QA until live release",
   "source_manifest_sha256": "a56d331b52c32fb2469015f29023261ef835588ff2042e3c2ececdf84abe084b",
@@ -182,9 +182,29 @@
     "wss_error": "EOFError()",
     "worker_errors": []
   },
-  "Linux": "deployment chat, local production crosscompile and binary-only isolated smoke pending",
-  "systemd": "prepared, not installed or started",
-  "deployed": false,
+  "Linux": {
+    "source_manifest_sha256": "a56d331b52c32fb2469015f29023261ef835588ff2042e3c2ececdf84abe084b",
+    "local_Cargo_GCC_release_crossbuild_passed": true,
+    "production_binary_sha256": "80682e277976f326c2738d9e0cd9fc9a738dfa08cf574f989e0bd64eea062aca",
+    "interpreter_and_libraries_verified": true,
+    "max_glibc": "2.28",
+    "host_glibc": "2.44",
+    "isolated_network_namespace_initial_retry_and_SIGTERM_passed": true,
+    "Rust_source_or_full_test_ELFs_uploaded": false,
+    "Linux_full_workspace_tests_required": false
+  },
+  "systemd": {
+    "ActiveState": "active",
+    "UnitFileState": "enabled",
+    "ActiveEnterTimestamp": "Thu 2026-10-15 21:29:39 CST",
+    "Restart": "on-failure",
+    "TimeoutStopUSec": "45s",
+    "RuntimeMaxUSec": "infinity",
+    "MainPID": "244467",
+    "NRestarts": "0",
+    "KillSignal": "15"
+  },
+  "deployed": true,
   "field_actuator_controls": 0,
   "D_E_complete": false,
   "independent_probe_audit": {
@@ -209,5 +229,35 @@
     "pinned_binary_SHA_reverified": true,
     "wallclock_seconds": 40.03724558302201,
     "logical_30days_is_not_wallclock_acceptance": true
-  }
+  },
+  "live_readonly_verification": {
+    "checked_at": "2026-10-15T21:31:07.461387+08:00",
+    "root_independent_readonly_verification": true,
+    "systemd": {
+      "ActiveState": "active",
+      "UnitFileState": "enabled",
+      "ActiveEnterTimestamp": "Thu 2026-10-15 21:29:39 CST",
+      "Restart": "on-failure",
+      "TimeoutStopUSec": "45s",
+      "RuntimeMaxUSec": "infinity",
+      "MainPID": "244467",
+      "NRestarts": "0",
+      "KillSignal": "15"
+    },
+    "actual_process_binary_sha256": "80682e277976f326c2738d9e0cd9fc9a738dfa08cf574f989e0bd64eea062aca",
+    "TLS_verified_HTTPS_diagnostics": {
+      "revision": "9",
+      "ready": true,
+      "gateway_ready": true,
+      "storage_healthy": true,
+      "hap": "listening"
+    },
+    "pre_post_active_pairing_credential_audit_identical": true,
+    "actuator_acceptance_commands_sent": 0,
+    "source_commit": "305be34432fda8f9737f03684959b20abc0600dd",
+    "service_ready": true
+  },
+  "preserved_active_revision_pairing_Admin": true,
+  "field_acceptance": "user deferred until integrated; no new actuator acceptance performed",
+  "TLS_current_certificate_expires": "2026-10-19; existing trust unchanged"
 }
