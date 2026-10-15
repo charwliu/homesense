@@ -4,6 +4,10 @@
 
 后续每次提交的变动细节在此记录；README 的变更内容只保留功能新增、移除及能力变化。
 
+## 2026-10-16 首轮私有网关运行时的实际契约结果
+
+独立核对852输入和普通CLI a4bd0c1e后，原HTTP8/8通过，保留健康B连接/实测/新控制及A拒绝不重放。加密HAP原契约扩至8例仅3绿：共同的会话/身份/写入恢复成立，但5例物理B45已确认、HAP仍旧30，原始模块和加密响应均保留。WSS仍全局unavailable/reset，普通单场景未存原网关作用域使到期及恢复后新B场景Failed，两全契约exit2未记通过。未改脚本/期限/断言；早期结果汇总的cursor解析错误单列修正，未重跑覆盖。此为私有候选增量，未做新完整Rust回归、合入或部署，不把旧1160资格转移，也未缩减65/208/24源范围。见[限定核查](docs/evidence/stage-e-browser/multi-gateway-runtime1-root-check.json)。
+
 ## 2026-10-16 完整状态回退机制与内容校验
 
 使用既有正式Linux ELF的隔离合成演练发现：同大小、同时间的SQLite会被普通rsync跳过，Root确认失败恢复后的库头仍27。保留前五次失败，第六次以固定反例验证--checksum，并复核27项清单、根目录权限/属主、非空合成配对、Web凭据及原命令不变字段，旧程序重新打开26且HAP就绪。正常启动只允许核实的HAP状态和命令恢复标记变化；纳秒mtime差异单列。新增完整状态维护流程，禁止把只回二进制或秒级quick-check当作完整恢复。只证明回退机制，真实schema27升级/回退仍待；现网未停止/修改。见[核查](docs/evidence/stage-e-browser/state-tree-rollback-root-check.json)、[流程](docs/state-upgrade-rollback.md)。

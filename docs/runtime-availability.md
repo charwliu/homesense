@@ -1,5 +1,7 @@
 # 持续服务的网关故障隔离
 
+2026-10-16 首轮私有运行时runtime1已按852冻结输入独立复验：原HTTP八组合（无回复/部分回复/EOF/RST，各两排序）全部通过，B同连接、真实反馈及新控制保持，A拒绝且恢复不重放。加密HAP扩大到八组合后仅3绿；五例B模块45已确认但HAP仍30，虽八例均保持同一认证会话、身份、B50和恢复后新A60写出，也不能宣布HAP整组通过。WSS仍全局unavailable并在同transport2下reset；普通未分组延迟场景的作用域未落库，到期Failed，恢复后新B也无法执行，完整延迟/取消契约exit2。所有原契约、期限和失败保留，没有增加等待或改断言。尚无此候选完整Rust/Linux资格，未合入或部署；当前1de及原1160资格保持，65/208/24源语义仍待审。见[首轮私有候选核查](evidence/stage-e-browser/multi-gateway-runtime1-root-check.json)。
+
 2026-10-16 取消身份的最小私有修复已限定核查：每个新Control请求通道分配独立UUID，clone/不可用视图保留；新场景回执记录runtime_instance，取消先核对boot/rev/实例，缺失或不同实例409，原请求格式不变。原3项Web场景及新增1项回归通过，包含四种无效实例、同实例合法取消/重放，严格全目标包Clippy通过。实际普通CLI在同一固定反例中仍重用数字run1，但旧A取消已409、新B精确UUID保留并到期Written，随后新B延迟动作也写出。完整隔离契约仍101，不能将此小修复当作完整多网关通过。补丁交由整合修复，尚未合入/部署/全工作区回归。见[私有取消修复](evidence/stage-e-browser/stale-scene-cancel-private-fix-root-check.json)。
 
 2026-10-16 原取消回执与新场景发生实际别名：正式CLI同boot/rev恢复后，旧A和新B数字run均为1，但持久UUID不同；引用旧A start_request_id的取消请求返回cancelled1，并把新B精确UUID从pending改为cancelled/cancel_requested，到期没有新B60命令或线帧。另一个新B延迟场景随后真实Written，排除定时路径不可用。现有API只校验boot/rev、运行时只校验数字run/controller，不能保证原目标身份；须绑定持久身份或不可复用代次，保留合法取消及来源授权。实际契约101、后端SIGTERM0，无夹具错误；仅证同测试管理员误取消，不声称跨角色扩权。修复私有进行，现网未改，D/E继续开放。见[旧取消回执反例](evidence/stage-e-browser/stale-scene-cancel-root-gap.json)。
