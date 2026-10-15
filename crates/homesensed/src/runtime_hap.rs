@@ -38,6 +38,7 @@ pub struct RuntimeHap {
     projection_interrupted: bool,
     max_age_ms: u64,
     configuration: Configuration,
+    projection_epoch: Option<u64>,
     selected: Option<std::collections::BTreeSet<homesense_core::DeviceId>>,
     physical_snapshot: Arc<RwLock<Snapshot>>,
     restore_levels:
@@ -93,6 +94,9 @@ impl RuntimeHap {
                 return Err("HAP selection requires enabled logical lights".into());
             }
         }
+        // Live standalone graphs can be constructed before their initial sync.
+        // Once a ready epoch is captured it is never relabelled after recovery.
+        let projection_epoch=admission.generation_updates().borrow().as_ref().map(|generation|generation.epochs.transport);
         let restore_levels = Arc::new(RwLock::new(
             admission
                 .remember_levels(configuration.revision(), initial.clone(), max_age_ms)
@@ -207,6 +211,7 @@ impl RuntimeHap {
             projection_interrupted: false,
             max_age_ms,
             configuration: configuration.clone(),
+            projection_epoch,
             selected,
             physical_snapshot,
             restore_levels,
@@ -225,8 +230,13 @@ impl RuntimeHap {
             let current=self.snapshot.read().map_err(|_|"snapshot lock poisoned")?;
             if physical.cursor.boot_id!=current.cursor.boot_id || physical.cursor.sequence<current.cursor.sequence {return Err("snapshot cursor regressed".into());}
         }
-        let saved=self.admission.remember_levels(self.configuration.revision(),physical.clone(),self.max_age_ms).await.map_err(|e|format!("restore levels: {e:?}"))?;
-        let recorded=self.admission.projection_levels(self.configuration.revision(),physical.cursor.boot_id).await.map_err(|e|format!("recorded levels: {e:?}"))?;
+        if physical.devices.values().all(|state|state.quality!=homesense_state::Quality::Confirmed) {
+            return self.publish_unavailable(physical).await;
+        }
+        let (saved,recorded)=match self.admission.hap_projection(self.configuration.revision(),self.projection_epoch,physical.clone(),self.max_age_ms).await.map_err(|e|format!("HAP projection: {e:?}"))? {
+            crate::admission::HapProjection::Unavailable=>return self.publish_unavailable(physical).await,
+            crate::admission::HapProjection::Ready{restore,targets,transport_epoch}=>{self.projection_epoch=Some(transport_epoch);(restore,targets)},
+        };
         self.projection.transitions().retain_owned(&recorded);
         let snapshot=light_snapshot(&self.configuration,&physical,self.selected.as_ref(),&recorded)?;
         {
@@ -236,6 +246,22 @@ impl RuntimeHap {
         }
         *self.physical_snapshot.write().map_err(|_|"snapshot lock poisoned")?=physical;
         *self.restore_levels.write().map_err(|_|"restore lock poisoned")?=saved;
+        self.projection.refresh_snapshot(&snapshot,self.admission.monotonic_ms()).await.map_err(error)
+    }
+    /// Local invalidation only: never turn a closed actor lifecycle gate into
+    /// known old-generation feedback, and never touch its restore ledger.
+    async fn publish_unavailable(&mut self,mut physical:Snapshot)->Result<(),String>{
+        for state in physical.devices.values_mut(){if state.quality==homesense_state::Quality::Confirmed{state.quality=homesense_state::Quality::Stale;}}
+        {
+            let previous=self.physical_snapshot.read().map_err(|_|"physical snapshot lock poisoned")?;
+            if physical.devices.len()!=previous.devices.len() || physical.devices.iter().any(|(id,state)|previous.devices.get(id).is_none_or(|old|old.kind!=state.kind)) {
+                return Err("unavailable snapshot mapping changed".into());
+            }
+        }
+        let snapshot=light_snapshot(&self.configuration,&physical,self.selected.as_ref(),&Default::default())?;
+        self.projection.transitions().retain_owned(&Default::default());
+        *self.snapshot.write().map_err(|_|"snapshot lock poisoned")?=snapshot.clone();
+        *self.physical_snapshot.write().map_err(|_|"physical snapshot lock poisoned")?=physical;
         self.projection.refresh_snapshot(&snapshot,self.admission.monotonic_ms()).await.map_err(error)
     }
     /// Register the exact graph handles before running the HTTP server.
@@ -796,3 +822,7 @@ mod publication_tests {
         std::fs::remove_dir_all(dir).unwrap();
     }
 }
+
+#[cfg(test)]
+#[path="runtime_hap_publication_tests.rs"]
+mod unavailable_publication_tests;

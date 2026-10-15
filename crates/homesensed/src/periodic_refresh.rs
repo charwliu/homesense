@@ -221,7 +221,9 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
             .unwrap_or_else(|| plan.oldest(self.feedback.module_truth()));
         let target = &plan.targets[index];
         let gateway = target.gateway.clone();
-        if plan.pending.as_ref().is_some_and(|pending| pending.retried) {
+        if let Some(pending)=plan.pending.as_ref().filter(|pending|pending.retried) {
+            let missing=pending.before.iter().filter_map(|(channel,count)|self.feedback.module_truth().port_observation_count(&target.gateway,target.module.address().get(),*channel).is_none_or(|current|current<=*count).then_some(*channel)).collect::<Vec<_>>();
+            log::warn!("physical_query_timeout phase=periodic gateway={:?} address={:02X} whole={} required={:?} missing={:?} transport_epoch={} configuration_revision={} timeout_ms={} retry=true",target.gateway,target.module.address().get(),target.whole,target.channels,missing,plan.generation.epochs.transport,plan.configuration.revision(),plan.timeout_ms);
             return Err((gateway, "physical recovery feedback timeout".into()));
         }
         let timeout = if retry {

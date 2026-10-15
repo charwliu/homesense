@@ -34,6 +34,7 @@ pub struct ObservedTransport<S> {
     unavailable: bool,
     projection_failed: bool,
     pending_recovery: Option<u64>,
+    recovery_query_offset: usize,
     output_refresh: Option<OutputRefresh>,
 }
 #[path = "periodic_refresh.rs"]
@@ -65,6 +66,7 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
             unavailable: false,
             projection_failed: false,
             pending_recovery: None,
+            recovery_query_offset: 0,
             output_refresh: None,
         }
     }
@@ -261,6 +263,10 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
                 max_age_ms,
             )?;
         }
+        if selected.is_none() && self.pending_recovery.is_some() && !targets.is_empty() {
+            let offset=self.recovery_query_offset%targets.len();
+            targets.rotate_left(offset);
+        }
         for target in targets {
             self.query_physical(
                 config,
@@ -395,6 +401,8 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
                         .ok_or("query deadline overflow")?;
                     continue;
                 }
+                let missing=before.iter().filter_map(|(channel,count)|self.feedback.module_truth().port_observation_count(&target.gateway,target.module.address().get(),*channel).is_none_or(|current|current<=*count).then_some(*channel)).collect::<Vec<_>>();
+                log::warn!("physical_query_timeout gateway={:?} address={:02X} whole={} required={:?} missing={:?} transport_epoch={} configuration_revision={} timeout_ms={}",target.gateway,target.module.address().get(),target.whole,target.channels,missing,self.feedback.transport_epoch(),config.revision(),timeout_ms);
                 self.invalidate();
                 return Err("physical recovery feedback timeout".into());
             }
@@ -438,6 +446,12 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
         .await?;
         self.synchronize_recovery(config.revision(), max_age_ms)
             .await
+    }
+    /// Retry fairness only. A new owner still needs every registered output at
+    /// its own epoch; rotating order never reuses another owner's partial truth.
+    pub(crate) fn set_recovery_query_offset(&mut self,offset:usize)->Result<(),String>{
+        if self.pending_recovery.is_none() || self.unavailable || self.projection_failed {return Err("query rotation requires intact pending recovery".into());}
+        self.recovery_query_offset=offset;Ok(())
     }
     /// Automation synchronizes queryable outputs; verified keypad observations
     /// remain unknown until fresh events arrive on this connection.
@@ -498,6 +512,9 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
         )
         .await
     }
+    /// Only loss of transport/feedback is retryable. Invalid projection state
+    /// is an invariant failure and must not be hidden by network retries.
+    pub(crate) fn retryable_failure(&self)->bool {self.unavailable && !self.projection_failed}
     pub(crate) fn invalidate(&mut self) {
         self.output_refresh = None;
         self.unavailable = true;
