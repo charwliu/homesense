@@ -1,0 +1,44 @@
+{
+  "checked_at": "2026-10-15T23:56:44.668838+08:00",
+  "source_App_commit": "4dc1284",
+  "backend_source": "f27a6b6 scene projection repair; not pending LED cross-writer repair",
+  "backend_normal_CLI_sha256": "b86a751681cfcd35d3d11524959f7c9f740ef65a678453d56b3564ede3f58364",
+  "App_functional_input_files_frozen_before_after": 34,
+  "Root_full_Swift_reported_and_executed_methods": 77,
+  "suites": 13,
+  "skips": 0,
+  "failures": 0,
+  "actual_programs": [
+    {
+      "path": "/Users/liuwei/works/homesense/deployment/ngr/private/20261015-native-current-integration-root/build/out/Products/Debug/HomeSenseCoreTests.xctest/Contents/MacOS/HomeSenseCoreTests",
+      "sha256": "000755ac2970b4d5ca69dad6d7477cba1faee0028a698acbb2f48de88691d673"
+    }
+  ],
+  "two_previously_skipped_integrations_now_passed": [
+    "nativeManagementAgainstActualRustHTTPSAPI",
+    "realKeypadHTTPSWSSKeepsOneParentAndNeverPromotesWritesToActual"
+  ],
+  "covered": [
+    "real Rust native-management session, catalog, draft save/preview/publish and resulting revision",
+    "real URLSession WSS handshake, pushed state changes from second client, healthy idle stream",
+    "one six-slot Keypad parent, mapped scene action independent of LED write, parameter write and persisted last_written",
+    "draft-only keypad rename preserves stable LED endpoint identity"
+  ],
+  "transport_and_trust": "HTTPS requests use curl --cacert for fixture certificate; WSS uses production HomeWebSocketTransport with fixture-only URLSession delegate. Production HTTP URLSession default trust is not established by the curl transport. No OS trust changes.",
+  "credentials": "synthetic temporary bearer and in-memory credential store; not actual Keychain",
+  "loopback_only": true,
+  "field_connections": 0,
+  "phone_install_or_signing": false,
+  "live_E2_scope_or_configuration_change": false,
+  "limitations": [
+    "does not validate pending backend LED fix or its final integrated binary",
+    "does not replace iPhone installation, real Keychain/TLS trust or physical Keypad acceptance",
+    "this run overlaps the previous App suite; counts are not added together"
+  ],
+  "artifact_sha256": {
+    "deployment/ngr/private/20261015-native-current-integration-root/pre-run.json": "aa4e5f87839dfaf22f80828d1d1c0157be40582bd6d4124cd6172d1037bcfd01",
+    "deployment/ngr/private/20261015-native-current-integration-root/result.json": "a0897188e071dac883827abffee1bd86e40aabe5978a8cfdda360d005cfd3c69",
+    "deployment/ngr/private/20261015-native-current-integration-root/tests.log": "8125b56fe0b8f0b035603be975f47bfa25e563581d5ab8cf6567506a5236c7cb"
+  },
+  "D_E_complete": false
+}

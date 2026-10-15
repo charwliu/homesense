@@ -1,4 +1,6 @@
-2026-10-15 App冷启动恢复已通过独立软件复验并窄合入，原首次503／连接失败不恢复反例保留；新增6方法／25用例通过，完整Swift实际75方法通过、2项Rust集成跳过未冒充通过。已有token可在临时故障后自动恢复，取消／暂停和TLS／401门禁保持；手机安装与现场补验仍待后端修复整合。见[冷启动核查](evidence/stage-e-browser/native-cold-restore-root-check.json)。
+2026-10-15 App两项实际Rust联调已补跑：当前4dc1284 App及固定f27a6b6普通后端在回环模拟配置下，完整77方法通过、0跳过，含真实HTTPS管理发布、URLSession WSS和Keypad接口。HTTP为curl固定CA，非默认URLSession HTTP系统信任验证；真实Keychain、手机安装及硬件效果仍待现场，待交付LED修复亦未被此后端覆盖。见[实际联调核查](evidence/stage-e-browser/native-current-integration-root-check.json)。
+
+2026-10-15 App冷启动恢复已通过独立软件复验并窄合入，原首次503／连接失败不恢复反例保留；新增6方法／25用例通过，首次完整Swift实际75方法通过、2项Rust集成明确跳过，后续已补验。已有token可在临时故障后自动恢复，取消／暂停和TLS／401门禁保持；手机安装与现场补验仍待后端修复整合。见[冷启动核查](evidence/stage-e-browser/native-cold-restore-root-check.json)。
 
 2026-10-15 23:42 只读复核：现网仍为rev10、两张六格Keypad、8个可见设备、0个独立LED，网关与存储就绪；实际App显示待用户回复。App目录权限刷新专项由Root复用实际程序独立复跑，6个新方法／7个用例及25个既有方法全部通过，属于内存模拟软件证据，不替代手机或真实网络验收。另确认的冷启动首次恢复缺口，后续修复见上。见[当前目录](evidence/stage-e-browser/keypad-current-catalog-root-check.json)及[App刷新核查](evidence/stage-e-browser/native-grant-refresh-root-check.json)。
 
