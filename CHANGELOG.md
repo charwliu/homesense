@@ -4,6 +4,10 @@
 
 后续每次提交的变动细节在此记录；README 的变更内容只保留功能新增、移除及能力变化。
 
+## 2026-10-16 完整状态回退机制与内容校验
+
+使用既有正式Linux ELF的隔离合成演练发现：同大小、同时间的SQLite会被普通rsync跳过，Root确认失败恢复后的库头仍27。保留前五次失败，第六次以固定反例验证--checksum，并复核27项清单、根目录权限/属主、非空合成配对、Web凭据及原命令不变字段，旧程序重新打开26且HAP就绪。正常启动只允许核实的HAP状态和命令恢复标记变化；纳秒mtime差异单列。新增完整状态维护流程，禁止把只回二进制或秒级quick-check当作完整恢复。只证明回退机制，真实schema27升级/回退仍待；现网未停止/修改。见[核查](docs/evidence/stage-e-browser/state-tree-rollback-root-check.json)、[流程](docs/state-upgrade-rollback.md)。
+
 ## 2026-10-16 取消运行实例最小修复的独立资格
 
 Root独立副本的两处产品改动为场景回执绑定Control通道UUID，clone/不可用视图保持实例、重建分配新实例；旧/错/缺实例取消409。同一反例中数字run仍重用1，但新B不再被旧A取消且按时Written，后续延迟正向也通过。保留旧版新增回归失败，候选原3+新1测试及包全目标严格Clippy通过。原HTTP/HAP/WSS/延迟多网关缺口仍开放、完整契约仍101；补丁已交完整运行时整合，未合共享、未部署，不替代全量资格。见[私有修复核查](docs/evidence/stage-e-browser/stale-scene-cancel-private-fix-root-check.json)。
