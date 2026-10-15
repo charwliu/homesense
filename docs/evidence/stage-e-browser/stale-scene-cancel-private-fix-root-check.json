@@ -1,0 +1,66 @@
+{
+  "checked_at": "2026-10-16T03:22:57.772169+08:00",
+  "status": "private two-product-file cancellation-instance repair qualified for integration; not deployed or complete gateway repair",
+  "base_commit": "1de4579a777ce74f68294b0bd1deac23cb54066e",
+  "frozen_inputs": 844,
+  "changed_paths": [
+    "crates/homesensed/src/automation_control.rs",
+    "crates/homesensed/src/web_api.rs",
+    "crates/homesensed/tests/scene_switch_web.rs"
+  ],
+  "behavior": "A UUID belongs to each new Control channel; derived unavailable/clone views retain it. New accepted scene receipts retain runtime_instance. Cancellation requires same boot/revision/instance before numeric run use. Missing/foreign/malformed instance fails409; original request format and normal same-instance cancellation/replay unchanged. UUID is metadata, not a credential.",
+  "baseline_regression": "one actual fail: legacy-unbound cancellation changes current scene, 202 instead of409",
+  "candidate_tests": {
+    "scene_switch_web_functions": 4,
+    "original_functions_retained": 3,
+    "new_function": 1,
+    "new_function_cases": "missing/foreign/malformed/null instance =>409 and unchanged cancellation history; actual same-instance replay/cancel =>success",
+    "strict_Clippy": "homesensed all-targets exit0",
+    "full_workspace_regression": "not run for this private incremental candidate"
+  },
+  "ordinary_CLI_recheck": {
+    "binary_sha256": "d80ede5f9fd315ae53c2ffb5d6ba9ca2439122974eaabb9eec1f65e1d809a4e6",
+    "same_pinned_probe_sha256": "437cfbd8aad3ca1b379de57e6c4b1031aad7328e2be95ffa1d813796f2f0544e",
+    "old_receipt_cancelled_new_B": false,
+    "old_receipt_response": 409,
+    "new_B_target_survives_and_written": true,
+    "numeric_handle_still_reused": true,
+    "subsequent_new_B_delayed_positive": true,
+    "strict_whole_gateway_contract_exit": 101,
+    "other_gateway_and_delayed_continuity_gaps": "unchanged and explicitly failing",
+    "backend_SIGTERM_exit": 0,
+    "probe_errors": null
+  },
+  "actual_program_sha256": {
+    "/Users/liuwei/works/homesense/deployment/ngr/private/20261016-stale-cancel-repair-root/candidate-scene_switch_web-84748ea719ea39de": "be7e7f0e8bdc070b31fe38df54a38aa229cd311a6accd5a6351476e9df856d12",
+    "/Users/liuwei/works/homesense/deployment/ngr/private/20261016-stale-cancel-repair-root/homesensed-stale-cancel-candidate": "d80ede5f9fd315ae53c2ffb5d6ba9ca2439122974eaabb9eec1f65e1d809a4e6"
+  },
+  "integration_requirements": [
+    "Apply the three-path incremental patch to the complete per-gateway candidate, resolving any Control changes explicitly.",
+    "Retain same instance for views of the same request channel; new channel must never inherit previous instance.",
+    "Run the complete source-preserving regression and unchanged HTTP/WSS/encrypted-HAP/delayed/stale-cancel contracts before shared integration and deployment.",
+    "Do not deploy this minimal source alone or call the full gateway contract passed."
+  ],
+  "shared_Rust_changes": 0,
+  "field_controls": 0,
+  "D_E_complete": false,
+  "artifact_sha256": {
+    "deployment/ngr/private/20261016-stale-cancel-repair-root/deployed-input-manifest.json": "c7716776c67c34d0d40e7b6329e751bbca2a2a7d407b05ade76eec35975c4f56",
+    "deployment/ngr/private/20261016-stale-cancel-repair-root/baseline-manifest.json": "1b0f8fb295af8c61b024c6601e84cc7f54ee4a5c75c21da883898b4875d8a604",
+    "deployment/ngr/private/20261016-stale-cancel-repair-root/candidate-manifest.json": "9bb82a5862f886e91102d19fc223eced8d6ac48b74361de1f5e0f6a1d248b521",
+    "deployment/ngr/private/20261016-stale-cancel-repair-root/baseline-result.json": "2de7ca1ff78d7ff82bac01476ab2f4b660fd12ac1afeaa4e9621e47bf36d5b28",
+    "deployment/ngr/private/20261016-stale-cancel-repair-root/baseline-test.log": "5ecf2108688231b23d3132f4a99b9002ffc6d4e40b1a8a75e42ac617a4b8e51f",
+    "deployment/ngr/private/20261016-stale-cancel-repair-root/candidate-result.json": "2f64be312bf412e0f95779042ffd1b53ab07cfe54d64d41766d938e2552b1637",
+    "deployment/ngr/private/20261016-stale-cancel-repair-root/candidate-tests.log": "f0438da03906e1847e8ce5d9016821973942c611d3f8544754f07bac0f5b2c04",
+    "deployment/ngr/private/20261016-stale-cancel-repair-root/candidate-clippy.log": "c1a5a88163a9fa59c33c2cda38bb415b2c2352702d329b0b3c3a1df1682c7790",
+    "deployment/ngr/private/20261016-stale-cancel-repair-root/candidate-build.log": "de2b1ecbe4de4d182b66203cf0941f4c03092545b93617d09546cda611e1b050",
+    "deployment/ngr/private/20261016-stale-cancel-repair-root/stale-cancel-identity.patch": "a83c8b6bf11ae86673fd609c12a60cc6e1886c91020d47c07d7256f6ac9e7a46",
+    "deployment/ngr/private/20261016-stale-cancel-repair-root/production-cli-recheck-exit.json": "b366d2675c19182076712cd38c90275c6eab71f6c9cc4993f9c3d0f1eab3e272",
+    "deployment/ngr/private/20261016-stale-cancel-repair-root/production-cli-recheck-v1/result.json": "db102145ebc8925a8c8a996759917764285c793cefdf3efa6ff9cfd2cf16479c",
+    "deployment/ngr/private/20261016-stale-cancel-repair-root/production-cli-recheck-v1/old-A-cancel-new-B.json": "434b61202d20ee9f15160009771a04188418de4eadadd0d2852644243a5d31b6",
+    "deployment/ngr/private/20261016-stale-cancel-repair-root/production-cli-recheck-v1/new-B-due-after-old-A-cancel.json": "4a3beaa5a615b469d95eb1666e76ab0fdaa248eff5c9ebcfb9a234523b622b82",
+    "deployment/ngr/private/20261016-stale-cancel-repair-root/production-cli-recheck-v1/final-scene-ledger.json": "5f88a747df9fe333d6c2044986d9e2af7e01eb2314ca438d6ba25e3e6b447a28",
+    "deployment/ngr/private/20261016-stale-cancel-repair-root/production-cli-recheck-v1/frames.json": "cbbfde80688c9441b92f76207d6e8495de2410d78fdba79834a51d0954165694",
+    "deployment/ngr/private/20261016-stale-cancel-repair-root/handoff.json": "086782ad50f3b09416015a0d00e5c9022bd9ecccd5cc1f1795918289737ec4ce"
+  }
+}

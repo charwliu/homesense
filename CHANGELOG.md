@@ -4,6 +4,10 @@
 
 后续每次提交的变动细节在此记录；README 的变更内容只保留功能新增、移除及能力变化。
 
+## 2026-10-16 取消运行实例最小修复的独立资格
+
+Root独立副本的两处产品改动为场景回执绑定Control通道UUID，clone/不可用视图保持实例、重建分配新实例；旧/错/缺实例取消409。同一反例中数字run仍重用1，但新B不再被旧A取消且按时Written，后续延迟正向也通过。保留旧版新增回归失败，候选原3+新1测试及包全目标严格Clippy通过。原HTTP/HAP/WSS/延迟多网关缺口仍开放、完整契约仍101；补丁已交完整运行时整合，未合共享、未部署，不替代全量资格。见[私有修复核查](docs/evidence/stage-e-browser/stale-scene-cancel-private-fix-root-check.json)。
+
 ## 2026-10-16 恢复后旧取消回执误取消新场景
 
 普通CLI实跑确认：恢复前旧A与恢复后新B在同boot/rev复用数字run1，持久UUID不同；旧A取消请求仍返回cancelled1，导致新B精确UUID取消且到期无命令/线帧。另一个新B延迟场景随后Written。D-5/E-4/E-7新增不可复用取消身份门槛，不能仅靠本地恢复不重建暂时避开；保留原授权与真实取消。契约101、后端SIGTERM0、无夹具错误，仅限同测试管理员，不声称跨角色扩权；未改现网。见[限定反例](docs/evidence/stage-e-browser/stale-scene-cancel-root-gap.json)。
