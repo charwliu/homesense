@@ -1,3 +1,5 @@
+2026-10-16 接收错误修复已Linux常驻上线：本机交叉构建正式ELF，namespace启动/旧库兼容和实际回环RST生命周期复验完成，严格多网关独立控制仍101。Root于02:13:51与02:14:52两次可信HTTPS/进程读取确认同PID246767、零重启、无限期限、rev10就绪、2张六格父卡/0独立LED；原HAP身份/配置/Web凭证保持。entries在较早全表相等后由6增7，Root保留最初比对失败并逐条确认原记录无改删，新增一条pair与原管理员的已提交授权日志匹配，未推断具体Apple设备。完整状态快照保留，自动错误处理只切回旧unit/程序，未声称全状态恢复实测；服务重启的5条既有LED投影Written不等于新现场控制或实体读回。手机显示和完整D/E仍待验。见[部署独立核查](evidence/stage-e-browser/receive-network-error-linux-deployment-root-check.json)。
+
 2026-10-16 接收网络错误增量：正式程序RST退出反例已修复并完成Mac资格。最终844输入完整1160项、文档与严格Clippy通过，最终程序与已执行88路/常驻/RST检查的v4字节一致，两项实际Swift/Rust HTTPS/WSS也通过。只允许完成双重故障审计的指定连接错误进入新同步恢复，真实取消和审计/不变量错误仍致命；Linux交付待完成。严格多网关独立控制仍失败，D原语义、手机Keypad视觉和用户挂起现场项不变，D/E均未完成。见[接收错误证据](evidence/stage-e-browser/receive-network-error-root-check.json)。
 
 2026-10-16 多TCP网关独立隔离新增正式程序反例：两本机AD8总线各8路同步、B初始控制成功；只屏蔽A查询后B仍发送13次反馈，但新B40返回unknown、journal和wire均无新增，A恢复后新B40才成功。服务／HTTP保持、SIGTERM退出0，探针严格契约退出101且无夹具/工作线程错误。源码显示整组owner回收与全局准入门，修复私有进行；原1153既有套件和单GW上线证据范围不扩大。未改现场或放开配置，D/E仍有软件缺口。见[独立隔离反例](evidence/stage-e-browser/multi-gateway-isolation-root-gap.json)。
