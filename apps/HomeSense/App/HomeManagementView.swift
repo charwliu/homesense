@@ -192,7 +192,7 @@ struct HomeManagementView: View {
     private var canEdit: Bool { home.canManage && home.deviceDocument != nil && !home.configurationStale && !home.busy }
     private var connection: some View {
         panel("HomeSense 管理服务", icon: "server.rack") {
-            TextField("HTTPS 地址", text: $home.endpointText).textFieldStyle(.roundedBorder).disabled(home.connected || home.busy)
+            TextField("HTTPS 地址", text: $home.endpointText).textFieldStyle(.roundedBorder).disabled(home.connected || (home.busy && !home.restoringCredential))
                 #if os(iOS)
                 .textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.URL)
                 #endif
@@ -204,12 +204,15 @@ struct HomeManagementView: View {
                 }.buttonStyle(.borderedProminent).disabled(home.busy || home.restoringCredential || token.isEmpty)
                 Button("使用此服务已保存的凭证连接") { Task { await home.restoreSavedConnection() } }
                     .disabled(home.busy || home.restoringCredential)
+                if home.restoringCredential {
+                    Button("取消自动连接") { home.disconnect() }.buttonStyle(.bordered)
+                }
             } else {
                 Text(home.canManage ? "管理员 · 可编辑配置草稿" : "设备与场景权限由服务端授权决定")
-                Button("断开服务") { home.disconnect() }.buttonStyle(.bordered).disabled(home.busy)
+                Button("断开服务") { home.disconnect() }.buttonStyle(.bordered).disabled(home.busy && !home.restoringCredential)
             }
             Button("退出并移除本机凭证", role: .destructive) { Task { await home.removeSavedCredential() } }
-                .disabled(home.busy || home.restoringCredential)
+                .disabled(home.busy && !home.restoringCredential)
             if !home.credentialStatus.isEmpty { Text(home.credentialStatus).font(.caption).foregroundStyle(.secondary) }
             Text("鉴权成功后，令牌按 HTTPS 服务地址保存在本机 Keychain，不参与 iCloud 同步，不写入配置或日志。HTTPS 证书须由系统信任且与服务地址匹配。")
                 .font(.caption).foregroundStyle(.secondary)
