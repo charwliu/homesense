@@ -29,6 +29,7 @@ fn delay(attempt: u32, fast_budget: u8) -> Duration {
             .min(30),
     )
 }
+#[cfg(test)]
 pub(crate) async fn until_ready(
     admission: Admission,
     config: &Configuration,
@@ -36,6 +37,17 @@ pub(crate) async fn until_ready(
     previous_epoch: u64,
     fast_budget: u8,
     deadline: tokio::time::Instant,
+    stop: watch::Receiver<bool>,
+) -> Result<Option<(ObservedTransport<TcpStream>, u64)>, String> {
+    until_ready_with_lifetime(admission,config,endpoints,previous_epoch,fast_budget,crate::lifecycle::Deadline::at(deadline),stop).await
+}
+pub(crate) async fn until_ready_with_lifetime(
+    admission: Admission,
+    config: &Configuration,
+    endpoints: BTreeMap<String, SocketAddr>,
+    previous_epoch: u64,
+    fast_budget: u8,
+    deadline: crate::lifecycle::Deadline,
     stop: watch::Receiver<bool>,
 ) -> Result<Option<(ObservedTransport<TcpStream>, u64)>, String> {
     let work = async {
@@ -130,11 +142,11 @@ pub(crate) async fn until_ready(
             }
         }
     };
-    let mut shutdown=stop.clone();
     tokio::select! {
+        biased;
+        _=crate::lifecycle::wait_for_stop(stop.clone())=>Ok(None),
+        _=deadline.wait()=>Ok(None),
         result=work=>result,
-        _=tokio::time::sleep_until(deadline)=>Ok(None),
-        _=shutdown.changed()=>Ok(None),
     }
 }
 #[cfg(test)]

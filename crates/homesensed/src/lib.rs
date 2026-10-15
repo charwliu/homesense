@@ -188,3 +188,6 @@ mod curtain_idle_clock_tests;
 mod panel_auth_tests;
 
 mod runtime_transport_recovery;
+
+pub mod lifecycle;
+pub mod process_signals;
