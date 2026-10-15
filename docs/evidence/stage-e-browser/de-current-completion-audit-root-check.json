@@ -240,7 +240,7 @@
     "stage-e-browser/indicator-final-integrated-quality-root-check.json": "fadcc7e3a38045718d4a75563c2411380d034c2101c8cdb2db05242afba190af",
     "stage-e-browser/keypad-display-diagnosis-root-check.json": "9f2d5f8f2ff48f040986ecdaf79caca286bc74e01c5a6dc9150842f7ba96104c",
     "stage-e-browser/indicator-final-linux-deployment-root-check.json": "1debd9b3525862852648ee86c15ad2bfd693620f893a6bc38975fb4fd9652312",
-    "stage-e-browser/native-build9-delivery-root-check.json": "af1c181bbe9bf8ebe0a9d14c59aa1249b87994266bcb9e6968d0912feb580215",
+    "stage-e-browser/native-build9-delivery-root-check.json": "2a35028b95b1cb6bcf47ab9e1171eadb282ed611237bd3854113e22b0162b44f",
     "stage-e-browser/multi-gateway-isolation-root-gap.json": "17142cb4e80db93f6932a279cf92752bd02a7b96434c07a794a8f91127cb180b"
   },
   "excluded_by_scope": {
@@ -476,7 +476,7 @@
   "latest_Keypad_display_diagnosis": "stage-e-browser/keypad-display-diagnosis-root-check.json",
   "latest_indicator_final_Linux_deployment": "stage-e-browser/indicator-final-linux-deployment-root-check.json",
   "latest_native_build9_delivery": "stage-e-browser/native-build9-delivery-root-check.json",
-  "native_App_phone_update": "build9 signed; one install failed CoreDevice4000; awaiting reliable unlocked USB connection, last observed build8 before attempt",
+  "native_App_phone_update": "build9 signed; two bounded installs failed CoreDevice4000/NWError60 despite observed tunnel state change; stopped until reliable connection; last observed build8 before attempt1",
   "latest_multi_gateway_runtime_counterexample": "stage-e-browser/multi-gateway-isolation-root-gap.json",
   "multi_gateway_fault_isolation": "software gap confirmed on final production CLI; exact baseline retained, private architecture/candidate work assigned"
 }

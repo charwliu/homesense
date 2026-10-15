@@ -1,5 +1,5 @@
 {
-  "checked_at": "2026-10-16T00:57:53.122514+08:00",
+  "checked_at": "2026-10-16T01:40:11.843385+08:00",
   "App_version": "1.0 build9",
   "status": "signed exact frozen App ready; overwrite install failed on device connectivity; no build9 phone acceptance",
   "frozen_App_inputs": 55,
@@ -16,20 +16,24 @@
     "initial_sandbox_trust_check": "CSSMERR_TP_NOT_TRUSTED retained; exact same read-only verification outside filesystem sandbox passed; no OS trust change"
   },
   "installation": {
-    "attempts": 1,
+    "attempts": 2,
     "receipt_outcome": "failed",
     "CoreDeviceError_code": 4000,
     "underlying": "Network.NWError60 connection timeout while establishing device tunnel",
     "last_installed_build_evidence": "build8 before attempt; no post-failure version attestation",
     "success": false,
-    "retries": 0,
+    "retries": 1,
     "uninstall": false,
     "data_clear": false,
     "app_launched": false,
     "actual_Keychain_or_token_read": false,
-    "device_control": false
+    "device_control": false,
+    "all_attempts_failed": true,
+    "last_verified_phone_build": "build8 before attempt1; no successful update or post-failure attestation",
+    "attempt2_reason": "one real external status change to connected tunnel+DDI-ready was observed before the bounded retry; not inferred from silence or time",
+    "attempt2_outcome": "CoreDevice4000/NWError60 tunnel connection timeout again; stopped"
   },
-  "pending_user": "original iPhone unlocked and reliable Mac USB connection; readiness question pending, no repeat install before changed state",
+  "pending_user": "reliable original phone connection (USB/unlocked readiness not confirmed); no further retry based only on repeated connected status",
   "Keypad_phone_visual_symptom": "unresolved; screen identification question pending",
   "D_E_complete": false,
   "artifact_sha256": {
@@ -46,6 +50,35 @@
     "deployment/ngr/private/20261016-native-build9-app/signing-install/signature-identity-compare.json": "9cf40ecc52d256c13d97f10d87419ee1b2ad865e16486a0e73eb47ca172792b9",
     "deployment/ngr/private/20261016-native-build9-app/signing-install/signed-bundle-manifest.json": "d9cebdef272852de785bb5e4bd51b29769df4b1f405df8848f1ee39a0601cd7f",
     "deployment/ngr/private/20261016-native-build9-app/signing-install/signature-verification.log": "769caf350f75bcb2f15051f5e0638a305e2e71c9002ba7f0ffb50ba4c6a5bb6e",
-    "deployment/ngr/private/20261016-native-build9-app/signing-install/signature-verification-sandbox.log": "7b86a76b252ba650546ad12faa2030a8b022e003917486e01f14a6f44cb434ef"
+    "deployment/ngr/private/20261016-native-build9-app/signing-install/signature-verification-sandbox.log": "7b86a76b252ba650546ad12faa2030a8b022e003917486e01f14a6f44cb434ef",
+    "deployment/ngr/private/20261016-native-build9-app/signing-install/attempt2/result.json": "377a13fd14d86507e50db89df597aa061fe4368b6a50493ce03216b323c2b115",
+    "deployment/ngr/private/20261016-native-build9-app/signing-install/attempt2/readiness.json": "dd1e338e374ab4f9b57a744aa3086cb98b6dfad154805e8f1a120d685e3768c0",
+    "deployment/ngr/private/20261016-native-build9-app/signing-install/attempt2/source-integrity.json": "fa47ddabaa8d177ad78961e4b2e48ccc68028e65425816173793341666730d43",
+    "deployment/ngr/private/20261016-native-build9-app/signing-install/attempt2/preserved-before.json": "63ed2942fd56593f04f924f8499b2eb7c17ba9fd60d3c94efab72c692af24ba8",
+    "deployment/ngr/private/20261016-native-build9-app/signing-install/attempt2/device-before.json": "aa384fb71f87c4d89d909487eb8e58caef186251eacc602b8f8570f1c2abd485",
+    "deployment/ngr/private/20261016-native-build9-app/signing-install/attempt2/device-before.log": "a7008b3deaca28401bff72f45244435975d5c052395965d6a3637c45575b923d",
+    "deployment/ngr/private/20261016-native-build9-app/signing-install/attempt2/install-build9.json": "7d96809d29cae5c4e312113d957794867006952c8f85c635ec2b780bce30b195",
+    "deployment/ngr/private/20261016-native-build9-app/signing-install/attempt2/install-build9.log": "a65b47870702ababd8854f783cf9a4dea43060eb8cd2b5e75a9c69d7e2a274f8"
+  },
+  "previous_single_attempt_snapshot": {
+    "checked_at": "2026-10-16T00:57:53.122514+08:00",
+    "installation": {
+      "attempts": 2,
+      "receipt_outcome": "failed",
+      "CoreDeviceError_code": 4000,
+      "underlying": "Network.NWError60 connection timeout while establishing device tunnel",
+      "last_installed_build_evidence": "build8 before attempt; no post-failure version attestation",
+      "success": false,
+      "retries": 1,
+      "uninstall": false,
+      "data_clear": false,
+      "app_launched": false,
+      "actual_Keychain_or_token_read": false,
+      "device_control": false,
+      "all_attempts_failed": true,
+      "last_verified_phone_build": "build8 before attempt1; no successful update or post-failure attestation",
+      "attempt2_reason": "one real external status change to connected tunnel+DDI-ready was observed before the bounded retry; not inferred from silence or time",
+      "attempt2_outcome": "CoreDevice4000/NWError60 tunnel connection timeout again; stopped"
+    }
   }
 }
