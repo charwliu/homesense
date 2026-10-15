@@ -1,0 +1,51 @@
+{
+  "checked_at": "2026-10-16T03:15:33.121769+08:00",
+  "status": "old scene cancellation aliases unrelated new run after runtime recovery: actual production CLI counterexample",
+  "severity": "P1 semantic cancellation failure; no cross-role privilege escalation claimed",
+  "source_commit": "1de4579a777ce74f68294b0bd1deac23cb54066e",
+  "binary_sha256": "ca6b5cfffab367de75fdadb3800f89e71670eb13b1700b2e68b0ec424b1080a8",
+  "strict_contract_exit": 101,
+  "backend_explicit_SIGTERM_exit": 0,
+  "mock_gateway_errors": 0,
+  "unclassified_probe_error": null,
+  "identity_facts": {
+    "same_service_boot": true,
+    "same_configuration_revision": true,
+    "same_authorized_test_controller": true,
+    "old_A_and_new_B_numeric_handles": 1,
+    "distinct_durable_run_UUIDs": true
+  },
+  "observed": {
+    "request": "scene-cancellations with old A start_request_id",
+    "response": "cancelled 1",
+    "new_B_exact_durable_UUID_before": "pending",
+    "new_B_exact_durable_UUID_after": "cancelled",
+    "reason": "cancel_requested",
+    "new_B_due_command_and_wire": "absent",
+    "independent_new_B_delayed_positive_after_cancel": "one actual60 wire and matching Written scene_command"
+  },
+  "source_boundary": {
+    "receipt": "web_api.rs validates cached start boot/revision then forwards cached numeric run",
+    "runtime": "automation_control.rs SceneCancel verifies ownership by numeric run/controller, not original durable identity/definition",
+    "scope": "Source code agrees with this observed same-controller wrong-run cancellation; does not prove a different-controller or narrowed-grant exploit."
+  },
+  "required_fix": [
+    "Retain stable target identity across local recovery and prevent reuse of an old receipt for a new run.",
+    "Bind cancellation to durable run identity or an equally non-reusable runtime generation, not just service boot and numeric run.",
+    "Preserve legitimate cancellation, exact originating authority and publication barriers; old or incomplete receipts fail closed."
+  ],
+  "verification_scope": "one RST-first localhost production CLI case; no field control, physical client, full regression or new repair qualification",
+  "field_control_requests": 0,
+  "D_E_complete": false,
+  "artifact_sha256": {
+    "deployment/ngr/private/20261016-multigateway-isolation-root/probe-contract-stale-cancel.py": "437cfbd8aad3ca1b379de57e6c4b1031aad7328e2be95ffa1d813796f2f0544e",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/stale-cancel-baseline-v1-rst-first/result.json": "8d4d2995f4eb1d1e68813da9e4a277f00fc99fd1134174649bab1fc8827dc6b9",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/stale-cancel-baseline-v1-rst-first/old-A-cancel-new-B.json": "159e3d94c79e533630ad1f627ec1ec7c42026e61a3ab8a1bcb47f797e673c5ff",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/stale-cancel-baseline-v1-rst-first/new-B-due-after-old-A-cancel.json": "32b1acccafa1bdeb982109fcec81c73383ad37f3d50b42da2924924ee8e29e94",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/stale-cancel-baseline-v1-rst-first/new-B-positive-after-cancel.json": "1981446179bc88c57c5e3ea0cda2e70e8da396c25dc3a6bddc0753ad21b8b91e",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/stale-cancel-baseline-v1-rst-first/final-scene-ledger.json": "cf9924b5215ab79b9bae8b2a61b59a0a851d1e7702b0c1a5c8aa8a7e77b86b92",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/stale-cancel-baseline-v1-rst-first/frames.json": "e88be3b029b1df8938436130ee3882b222216592653ebd9ec4b22e510ca6a491",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/stale-cancel-baseline-v1-rst-first/feedback.json": "c9da4c4b1a4acdc6d43e66daab5724bab8bb2647b0886a892c5d886a1086e7c5",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/stale-cancel-baseline-v1-rst-first/server.log": "ab1f248745ffcd777e30a0b340eb725ae21045f65814f17076b1982b23039eeb"
+  }
+}
