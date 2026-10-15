@@ -1,0 +1,36 @@
+{
+  "source_xml_sha256": "cac7dcdc9db08599e55a22bacb72858035c64e1ac846e2139ead5fc634513748",
+  "scenes": 68,
+  "resolved_toggle_edges": 51,
+  "unresolved_toggle_literals": {
+    "65535": 17
+  },
+  "all17_are_entirely_zero_target_scenes": true,
+  "explicit_scene_call_sites": {
+    "ACTIVATE_SCENE": 47,
+    "DEACTIVATE_SCENE": 48
+  },
+  "all95_source_effective_targets_resolve": true,
+  "unresolved_leaf_called_as_deactivate_toggle_or_condition": 0,
+  "leaf_activation_call_sites": 0,
+  "storage_sentinel_meaning_not_established": true,
+  "proposed_user_semantics": "all17 zero-target leaves as repeated momentary execution;51 regular scenes preserve explicit complete deactivation target, not synthesized zeroing",
+  "user_decision": "pending",
+  "timing_and_tracking_semantics_still_separate": true,
+  "field_commands": 0,
+  "runtime_rules_enabled": 0,
+  "private_evidence_sha256": {
+    "deployment/ngr/private/20261015-scene-toggle-leaf-root/scenes.json": "1eff1a754429a866e12765865f701bafdeebb4293244f80cd615bfce0ea59ede",
+    "deployment/ngr/private/20261015-scene-toggle-leaf-root/unresolved-leaves.json": "7dbfaff2f513fc1191d5e66a2e6054d867db789e3c8085fb0427902be3dbcf25",
+    "deployment/ngr/private/20261015-scene-toggle-leaf-root/explicit-call-sites.json": "fdb6cb9766fba01230558e12a3a503f98b8a9c9851cbee574d609fc5bab92061",
+    "deployment/ngr/private/20261015-scene-toggle-leaf-root/result.json": "ccb879e8b542f342421947bb5fc8ea748ad7113f366c4f68c897b251b3ccbc53",
+    "deployment/ngr/private/20261015-scene-toggle-leaf-root/dependency-shape.json": "fa7199faaba2bc275e25d43bae70b3d37915cbc789c17a87dbf487e8bd56f928"
+  },
+  "full_original_semantics_approved": false,
+  "source_scope_remaining_unchanged": true,
+  "all51_resolved_toggle_edges_target_one_of17_zero_target_leaves": true,
+  "all17_leaves_referenced_by_toggle_metadata": true,
+  "leaf_scenes_reached_by_actual_source_deactivate": 11,
+  "leaf_scenes_not_reached_by_actual_source_deactivate": 6,
+  "no_recursive_toggle_needed_by95_call_sites": true
+}
