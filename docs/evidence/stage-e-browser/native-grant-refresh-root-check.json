@@ -1,0 +1,34 @@
+{
+  "checked_at": "2026-10-15T23:43:48.650912+08:00",
+  "qualification": "Root repeated actual prebuilt Swift test program; software only",
+  "new_methods": 6,
+  "new_cases": 7,
+  "existing_methods": 25,
+  "total_methods": 31,
+  "total_cases": 32,
+  "actual_program_sha256": "5f80b3730333c4282dc8340823bd09cacb22bfe42a10883779a059fa3513fd13",
+  "program_hash_verified_before_and_after": true,
+  "original_shared_source_files_preserved": 43,
+  "production_source_changed": false,
+  "new_test_only": "apps/HomeSense/Tests/HomeSenseCoreTests/HomeGrantRefreshTests.swift",
+  "behaviors": [
+    "scope reset on same Bearer WSS refreshes panel catalog",
+    "WSS closure reconnects using unchanged saved Bearer",
+    "transient503 during reconnect preserves credential and recovers",
+    "foreground resume refreshes scope",
+    "reopened App restores saved credential",
+    "actual HTTP401 removes rejected matching saved credential"
+  ],
+  "limitations": [
+    "injected in-memory HTTP/WSS only, no actual TLS/URLSession/network/Keychain/iPhone",
+    "synthetic17/20 endpoint fixture does not represent live visible-device counts",
+    "no actual grant expansion, device command or App installation",
+    "cold-start first restore transient failure is separate verified source gap; private repair in progress"
+  ],
+  "evidence_sha256": {
+    "deployment/ngr/private/20261015-native-grant-refresh-app/handoff.json": "e7d3908da8190fa7a7964af9a15b054363319ff6b31a4ec863867d42e256afbe",
+    "deployment/ngr/private/20261015-native-grant-refresh-app/root-reproduction/result.json": "1ce4e3d10fee08f6c8218f50d49d89ec52f7c19a304bf6bcff0a8fe71c6b841c",
+    "deployment/ngr/private/20261015-native-grant-refresh-app/root-reproduction/tests.log": "9ebb83a2a3a48ee67686bffe8bd4bfa5f82bfccad4a187188596827e54788166",
+    "apps/HomeSense/Tests/HomeSenseCoreTests/HomeGrantRefreshTests.swift": "7bc047ac0a5cbe748496f5fa2e5adb84d2a2816778ef522ebc4ecf97b9d328f7"
+  }
+}
