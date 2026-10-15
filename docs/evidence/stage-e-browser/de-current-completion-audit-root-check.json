@@ -1,5 +1,5 @@
 {
-  "checked_bj": "2026-10-15T17:03:10.165273+08:00",
+  "checked_bj": "2026-10-15T17:23:21.747711+08:00",
   "derived_requirements": [
     "docs/design.md sections9-11,18,20,23-24,27"
   ],
@@ -177,7 +177,9 @@
     "stage-d-study/uniform-curtain-policy-root-check.json": "94c5048ea87a5ad0779dea77869b85712b1f4b75414799c8e87887c4f7ee77ca",
     "stage-e-browser/ordinary-source-auth-root-gap.json": "1c2de0da33ae3a654349e29d79e63b0ab32f30ec76bc8e8baacd1c667819e60c",
     "stage-e-browser/native-app-build7-root-check.json": "33130538916951024b1d1cac992f28ddb87d91064a195cd00eaf61578fc6ac7f",
-    "stage-d-study/scene-ambiguity-policy-root-check.json": "22426738ddf762310f1da910a532e5702dad05d0d0ed065b5914554f1e457870"
+    "stage-d-study/scene-ambiguity-policy-root-check.json": "22426738ddf762310f1da910a532e5702dad05d0d0ed065b5914554f1e457870",
+    "stage-e-browser/native-app-build7-field-root-check.json": "f162bf5b73d30834935b856a7d8d84c81358d2582d4673f0fdbfdb45c93c96c3",
+    "stage-e-browser/ordinary-source-auth-repair-v3-root-check.json": "3ec60d5f1539f49af7dca7091eb29c7299b1fe1db0aadae0a67b022302542077"
   },
   "excluded_by_scope": {
     "Siri": "cancelled by user",
@@ -193,14 +195,14 @@
   "native_app_backend_start_user_authorized": true,
   "field_queries_or_controls_scope_note": "Historical source audit had zero field actions; new user request authorizes existing two-room backend start for native App testing, not full96 audit or Away activation.",
   "native_app_backend": {
-    "ready": false,
+    "ready": true,
     "revision": 9,
     "schema": 26,
     "fresh_channels": 64,
-    "deadline_bj": "2026-10-15T16:04:26+08:00",
-    "physical_app_acceptance": "partial: metadata CRUD/save/preview verified; publication pending",
-    "ready_scope_note": "此前窗口通过的历史快照；16:04:26到期，16:05:04受信HTTPS只读访问ConnectionRefused，不能继续当作当前在线。新现场窗口未启动。",
-    "current_status": "deadline_ended_connection_refused"
+    "deadline_bj": "2026-10-15T18:14:03+08:00",
+    "physical_app_acceptance": "build7 Keychain saved + force quit/relaunch auto-connect + background/foreground on/off state sync user passed; publication and Keypad migration pending",
+    "ready_scope_note": "2026-10-15 17:14:03用户新授权恢复旧4003/rev9，Root可信HTTPS只读确认；不是新Keypad/授权候选部署。",
+    "current_status": "controlled_App_window_active_until_deadline"
   },
   "configuration_publication": {
     "revision9": "independently read trusted HTTPS export and room catalog,3floors/2rooms; native App user confirmed correct view",
@@ -215,7 +217,7 @@
       "id": "U-1",
       "requirement": "原生App日常控制/配置管理模式切换",
       "status": "build7_installed_software_57_passed_field_pending",
-      "field_sync_acceptance": "pending; user encountered management-only navigation"
+      "field_sync_acceptance": "build7 foreground/background state resync passed in both on/off directions; navigation retention software evidence remains separate"
     },
     {
       "id": "U-2",
@@ -232,11 +234,11 @@
     {
       "id": "U-4",
       "requirement": "原生App在系统Keychain保存服务器令牌，重开免输入并按Origin隔离",
-      "status": "implemented_build7_installed_10_mock_credential_tests_passed_actual_device_relaunch_pending",
+      "status": "build7_iPhone_Keychain_save_and_force_quit_relaunch_auto_connect_field_verified",
       "owner": "HomeSenseApp",
       "explicit_user_authorized": true,
-      "field_verified": false,
-      "software_evidence": "57 total passed/0skip including10credential tests; iOS/macOS builds and iPhone install succeeded; actual device quit/relaunch pending"
+      "field_verified": true,
+      "software_evidence": "57 software tests including10in-memory credential tests; separate iPhone user force-quit/relaunch field acceptance passed"
     }
   ],
   "client_scope_user_change": {
@@ -279,7 +281,8 @@
     "all_ordinary_source_negative_combinations": 80,
     "all_ordinary_source_negative_combinations_emitted": 80,
     "static_gap_only": false,
-    "first_repair_compile": "v1 test SQLite u64 ToSql error; no tests executed; preserved and minimalv2 requested"
+    "first_repair_compile": "v1 test SQLite u64 ToSql error; no tests executed; preserved and minimalv2 requested",
+    "current_repair_regression": "v3 focused13 pass (80 original negative cases now zero output) but full workspace and exact single administrator module controls test stack-overflow SIGABRT; v4 smaller Arc proof still same single failure; not deployed"
   },
   "offline_keypad_migration": "Two parents and10existing aliases preserved6+4, all other revision9 fields identical; fixedv3 production check-config/check-automation exit0, no service or commands.",
   "source_policy_decisions_added": 2,
@@ -288,5 +291,7 @@
   "curtain_uniform_policy_activation": false,
   "scene_ambiguity_policy_user_authorized": true,
   "scene_ambiguity_policy_implementation": "pending",
-  "native_App_build7_evidence": "stage-e-browser/native-app-build7-root-check.json"
+  "native_App_build7_evidence": "stage-e-browser/native-app-build7-root-check.json",
+  "current_Keypad_field_parent_objects": 0,
+  "current_Keypad_field_legacy_LED_entries": 7
 }
