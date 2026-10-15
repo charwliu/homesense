@@ -60,6 +60,8 @@ homesensed serve-combined-simulation DEVICE_FILE AUTOMATION_FILE STATE_DIR SECON
 
 场景推断支持显式 `power_pattern_then_profile_level`：唯一开关组合仍只看开关，碰撞组合才用可靠 AD8 百分比读回区分；未知、过期、未稳定或供电关闭时不以历史亮度猜选，原策略保留。软件已实现，默认不启用，原场景仍须审核配置。见 [场景状态推断规则](docs/scene-state-inference-policy.md)。
 
+场景开关支持独立单成员分组：各自保存选择状态与明确关闭动作，可同时开启；不会把互不相关的场景放进互斥组。软件定向检查已通过，配置接入与现场验收待完成。
+
 ## Keypad 父对象候选
 
 每块已核实六键 TS6-86 使用一个稳定 `keypads` 父对象，键事件、LED 与面板参数是子功能。旧逐键 ID 嵌入 `keys[].led_endpoint`，继续用于规则、权限、审计和 HAP；原生清单与 WSS 不重复发布这些子端点。六键固定顺序 1–2／3–4／5–6；接口及授权约束见 [原生 Keypad 契约](docs/keypad-native-api.md)。

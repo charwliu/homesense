@@ -160,7 +160,7 @@ pub(crate) fn validate(
             || !vars.insert(&group.variable)
             || group.review_evidence.trim().is_empty()
             || group.review_evidence.len() > 8192
-            || !(2..=64).contains(&group.members.len())
+            || !(1..=64).contains(&group.members.len())
             || group.reset_scenes.len() > 64
         {
             return Err(invalid("invalid or unreviewed scene switch group"));
