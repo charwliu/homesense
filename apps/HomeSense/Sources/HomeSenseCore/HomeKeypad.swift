@@ -96,7 +96,7 @@ public struct HomeKeypad: Identifiable, Equatable, Sendable {
                 ? action["device"].text.flatMap { $0.isEmpty ? nil : $0 } : nil
             let led = row["led"]
             // Button observations and the parent's quality never prove LED color.
-            let measured = current && raw["capabilities"]["led_readback"].flag && led["quality"].text == "Confirmed"
+            let measured = current && record.targetAvailable && raw["capabilities"]["led_readback"].flag && led["quality"].text == "Confirmed"
             let color = raw["capabilities"]["led_readback"].flag
                 ? HomeKeypadLEDColor(rawValue: led["observed"].text ?? "") ?? .unknown : .unknown
             let written = led["last_written"]

@@ -19,14 +19,17 @@ final class NoRedirects: NSObject, URLSessionTaskDelegate, Sendable {
 
 public final class HomeURLSessionTransport: HomeHTTPTransport, Sendable {
     private let session: URLSession
-    public init() {
+    public convenience init() { self.init(delegate: NoRedirects()) }
+    // Internal test injection, matching HomeWebSocketTransport. The public
+    // initializer keeps normal system trust and the no-redirect boundary.
+    init(delegate: any URLSessionDelegate & Sendable) {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.httpShouldSetCookies = false
         configuration.httpCookieStorage = nil
         configuration.urlCache = nil
         configuration.timeoutIntervalForRequest = 12
         configuration.timeoutIntervalForResource = 20
-        session = URLSession(configuration: configuration, delegate: NoRedirects(), delegateQueue: nil)
+        session = URLSession(configuration: configuration, delegate: delegate, delegateQueue: nil)
     }
     public func send(_ request: URLRequest) async throws -> HomeHTTPResponse {
         let (data, response) = try await session.data(for: request)
