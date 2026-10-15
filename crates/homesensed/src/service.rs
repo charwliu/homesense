@@ -549,6 +549,8 @@ async fn serve_automation_simulation_options(
         }
         {
             let (stop, receive) = tokio::sync::watch::channel(false);
+            let handoff_gate=runtime.handoff_gate();
+            let simulation_deadline=tokio::time::Instant::now()+duration;
             let drive = runtime.drive(&mut owner, Duration::from_millis(10), 5000, receive, wall_ms);
             tokio::pin!(drive);
             let first_duration=publication.as_ref().map_or(duration, |p|p.after);
@@ -556,9 +558,23 @@ async fn serve_automation_simulation_options(
                 result=&mut drive=>{result?;return Err("simulation loop ended before deadline".into())},
                 _=tokio::time::sleep(first_duration)=>{
                     if let Some(next)=&publication {
-                        admission.begin_automation_publication(next.devices.to_vec(),next.rules.to_vec(),config.revision(),Duration::from_secs(3)).await.map_err(|e|format!("{e:?}"))?;
-                    }
-                    let _=stop.send(true);
+                        let quantum=tokio::select! {
+                            permit=handoff_gate.clone().lock_owned()=>permit,
+                            result=&mut drive=>{result?;return Err("simulation ended before publication barrier".into());},
+                            _=tokio::time::sleep_until(simulation_deadline)=>{
+                                let _=stop.send(true);drive.await?;return Ok(());
+                            },
+                        };
+                        match crate::automation_tcp::begin_handoff_before_deadline(&admission,next.devices,next.rules,config.revision(),simulation_deadline).await {
+                            Ok(())=>{},
+                            Err(crate::automation_tcp::HandoffPublicationFailure::Deadline)=>{
+                                let _=stop.send(true);drop(quantum);drive.await?;return Ok(());
+                            },
+                            Err(crate::automation_tcp::HandoffPublicationFailure::Admission(error))=>return Err(format!("{error:?}")),
+                        }
+                        let _=stop.send(true);
+                        drop(quantum);
+                    } else {let _=stop.send(true);}
                     drive.await?;
                 }
             }

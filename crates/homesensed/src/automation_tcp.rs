@@ -107,6 +107,20 @@ fn validate_bridge_plan(plan:&[u8],config:&homesense_config::Configuration,rules
     if parsed.bridges.iter().any(|b|Some(b.address)==web) {return Err("HAP and Web require distinct endpoints".into());}
     Ok(())
 }
+pub(crate) enum HandoffPublicationFailure {
+    Deadline,
+    Admission(hap::server::WriteStatus),
+}
+/// Called while the coordinator owns its runtime quantum permit. The same
+/// deadline check is used by live TCP and scheduled simulation publication.
+pub(crate) async fn begin_handoff_before_deadline(
+    admission:&Admission, devices:&[u8], rules:&[u8], expected:u64,
+    deadline:tokio::time::Instant,
+) -> Result<(),HandoffPublicationFailure> {
+    if tokio::time::Instant::now()>=deadline {return Err(HandoffPublicationFailure::Deadline);}
+    admission.begin_automation_publication(devices.to_vec(),rules.to_vec(),expected,Duration::from_secs(3)).await
+        .map_err(HandoffPublicationFailure::Admission)
+}
 #[allow(clippy::too_many_arguments)]
 async fn serve_inner(devices:&[u8],rules:&[u8],directory:&Path,duration:Duration,coexistence_confirmed:bool,recovery_limit:u8,mut publications:Option<crate::automation_publication::Receiver>,write_interval:Duration,mut management_settings:Option<crate::service::WebSettings>,publisher:Option<crate::automation_publication::Publisher>,hap_settings:Option<crate::hap_endpoint::Settings>,hap_plan:Option<Vec<u8>>,#[cfg(test)] hap_failure_after:Option<Duration>)->Result<(),String> {
     if !(Duration::from_millis(20)..=Duration::from_secs(1)).contains(&write_interval) {
@@ -207,6 +221,7 @@ async fn serve_inner(devices:&[u8],rules:&[u8],directory:&Path,duration:Duration
             } else if let Some(endpoint)=&management {endpoint.install(&admission,controller,&runtime).await?;}
             if let Some(endpoint)=&management {endpoint.set_hap_status(if hap.is_some(){crate::web_api::HapStatus::Listening}else if hap_settings.is_some(){crate::web_api::HapStatus::Degraded}else{crate::web_api::HapStatus::Disabled})?;}
             if let (Some(endpoint),Some(group))=(&management,&bridges) {endpoint.set_hap_bridges(group.statuses.borrow().clone())?;}
+            let handoff_gate=runtime.handoff_gate();
             let outcome={
                 let (ready,mut started)=tokio::sync::oneshot::channel();
                 let mut running=false;
@@ -273,12 +288,39 @@ async fn serve_inner(devices:&[u8],rules:&[u8],directory:&Path,duration:Duration
                                 if let Some(endpoint)=&management {endpoint.restore(previous)?;}
                                 request.complete(Err("backup failed or publication abandoned".into()));continue;
                             }
-                            if let Err(error)=admission.begin_automation_publication(request.devices().to_vec(),request.rules().to_vec(),request.expected_revision(),Duration::from_secs(3)).await {
+                            // Continue polling the borrowed drive while waiting for its
+                            // current quantum; otherwise this lock could deadlock it.
+                            let quantum=tokio::select! {
+                                permit=handoff_gate.clone().lock_owned()=>permit,
+                                outcome=&mut drive=>{
+                                    request.complete(Err("runtime ended before publication barrier".into()));
+                                    break outcome;
+                                },
+                                _=tokio::time::sleep_until(deadline)=>{
+                                    request.complete(Err("service deadline reached before publication barrier".into()));
+                                    let _=runtime_stop.send(true);
+                                    break drive.await;
+                                },
+                            };
+                            if request.abandoned() {
+                                drop(quantum);
                                 if let Some(endpoint)=&management {endpoint.restore(previous)?;}
-                                request.complete(Err(format!("publication rejected: {error:?}")));continue;
+                                request.complete(Err("publication abandoned before barrier".into()));continue;
+                            }
+                            match begin_handoff_before_deadline(&admission,request.devices(),request.rules(),request.expected_revision(),deadline).await {
+                                Ok(())=>{},
+                                Err(HandoffPublicationFailure::Deadline)=>{
+                                    request.complete(Err("service deadline reached before publication barrier".into()));
+                                    let _=runtime_stop.send(true);drop(quantum);break drive.await;
+                                },
+                                Err(HandoffPublicationFailure::Admission(error))=>{
+                                    if let Some(endpoint)=&management {endpoint.restore(previous)?;}
+                                    request.complete(Err(format!("publication rejected: {error:?}")));continue;
+                                },
                             }
                             pending=Some((request,candidate));
                             let _=runtime_stop.send(true);
+                            drop(quantum);
                             break drive.await;
                         }
                     }

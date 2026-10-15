@@ -256,6 +256,16 @@ async fn periodic_scope_refreshes_alias_free_modules_and_uses_real_physical_capa
     for _ in 0..2 {
         tokio::time::sleep(Duration::from_millis(105)).await;
         f.owner.refresh_outputs_if_due().await.unwrap();
+        // Query admission does not imply receipt. Pump actual feedback while
+        // retaining the original 100ms query bound and all state assertions.
+        tokio::time::timeout(Duration::from_millis(100), async {
+            while f.owner.output_query_pending() {
+                f.owner.receive("bus").await.unwrap();
+                f.owner.refresh_outputs_if_due().await.unwrap();
+            }
+        })
+        .await
+        .unwrap();
     }
     f.assert_ports(37);
     assert_eq!(f.owner.snapshot().devices.len(), 1);
