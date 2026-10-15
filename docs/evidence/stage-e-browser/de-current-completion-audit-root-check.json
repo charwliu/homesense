@@ -227,7 +227,9 @@
     "stage-d-study/variable-feedback-replacement-plan-root-check.json": "d95c8a478e9e3d074c19779c239132fb72002d6af893e95b096d97add3a9d7e2",
     "stage-d-study/variable-composite-offsets-root-check.json": "fd145df5a38f904d62ea311ce191ab97d4537c7a533f53efe877fa4e68696d0c",
     "stage-e-browser/indicator-cross-writer-baseline-root-check.json": "6d118e9bffc0f72a9b2058c2db15d8063aeb12665362fed4158c1d892de898de",
-    "stage-e-browser/study-keypad-scope-proposal-root-check.json": "0a44ec8552c7b03c37cf4feeefd9af34078f261f4516ce291ede4e80b1be3285"
+    "stage-e-browser/study-keypad-scope-proposal-root-check.json": "d93d2322313a58f810a40d6728f33880ffda3eb351b1f575d06a73b5c7020637",
+    "stage-e-browser/keypad-current-catalog-root-check.json": "bd42c7da87220f16bb5525c9d2e0950cc07a7ddaa81d0ddfc54517546af515ed",
+    "stage-e-browser/native-grant-refresh-root-check.json": "d68e8cf1764c5faf4d364aaf5d729bcf9082791ae28ef07cad0cf7fb9f185b4c"
   },
   "excluded_by_scope": {
     "Siri": "cancelled by user",
@@ -445,5 +447,10 @@
   "latest_composite_variable_policy_plan": "stage-d-study/variable-composite-offsets-root-check.json",
   "latest_corrected_indicator_baseline": "stage-e-browser/indicator-cross-writer-baseline-root-check.json",
   "existing_study_keypad_scope_completion_proposal": "stage-e-browser/study-keypad-scope-proposal-root-check.json",
-  "existing_study_keypad_scope_completion_applied": false
+  "existing_study_keypad_scope_completion_applied": false,
+  "latest_current_keypad_catalog": "stage-e-browser/keypad-current-catalog-root-check.json",
+  "latest_native_grant_refresh_software": "stage-e-browser/native-grant-refresh-root-check.json",
+  "existing_scope20_eligible_issuers": 0,
+  "scope20_offline_maintenance": "reviewed plan only; user approval pending, not executed",
+  "native_cold_start_transient_restore": "source gap confirmed; private repair in HomeSenseApp chat in progress, no field change"
 }

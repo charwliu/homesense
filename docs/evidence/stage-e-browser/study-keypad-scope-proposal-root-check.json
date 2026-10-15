@@ -15,7 +15,7 @@
     "study full-six-key administrator panel setting permission becomes available for backlight/sound/matching work mode; not permission to send unreviewed unmatched hardware mode"
   ],
   "existing17_bearer_cannot_self_expand": "update_grant subset check correctly rejects parent17 -> proposed20",
-  "issuer_required_before_any_execution": "existing full20 Administrator authority with same controller; deployment must verify service bootstrap grant before use; no authorization bypass",
+  "issuer_required_before_any_execution": "Live verified: no eligible same-controller full20 Administrator; current17 cannot self-expand; bootstrap initialization must not be reset.",
   "CAS_expected_old_grant_required": true,
   "rollback_expected_new_grant_required": true,
   "source_generation_changes": "credential generation rotates and old sessions/source leases are invalidated; stored bearer secret is retained",
@@ -31,6 +31,12 @@
     "deployment/ngr/private/20261015-study-keypad-scope-plan-root/grant-update-proposal.json": "bb514a1eda51952eef604d71832c3218528b913cd49b369b621538ae2f76b154",
     "deployment/ngr/private/20261015-study-keypad-scope-plan-root/grant-rollback-proposal.json": "80afa0c2d432e2d84f26522610f7eb4bf33e16e11e56be9199bb236e28970191",
     "deployment/ngr/private/20261015-study-keypad-scope-plan-root/credential-summary.json": "998a1be6370134e42eb67c837274e7bf7cd05794f63c21ae3ac2ab8421f091cc",
-    "deployment/ngr/private/20261015-study-keypad-scope-plan-root/active10-export.json": "c8e0317a9a8b88a737c0ba9d9d34b75bb40fee02ef582fa0b86f62e1e5d4f85b"
-  }
+    "deployment/ngr/private/20261015-study-keypad-scope-plan-root/active10-export.json": "c8e0317a9a8b88a737c0ba9d9d34b75bb40fee02ef582fa0b86f62e1e5d4f85b",
+    "deployment/ngr/private/20261015-study-keypad-scope-plan-root/issuer-authority-readonly-check.json": "f667dee4d2cdcc9797ceaa539e8eb77b029ba25c157737888c8146aec058c7e5",
+    "deployment/ngr/private/20261015-study-keypad-scope-plan-root/maintenance-prereqs-readonly.json": "07766017306261e02ff7ece644a1801785b15d902e6df7d5637e89bb18988b10",
+    "deployment/ngr/private/20261015-study-keypad-scope-plan-root/OFFLINE-GRANT-MAINTENANCE-PLAN.md": "aa8a08ddd3e2100b4044524a1cac51427f77ad2ba75c1cff08febde8a3e9bd53"
+  },
+  "eligible_existing_full20_issuers": 0,
+  "controlled_offline_maintenance": "Deployment prepared reviewed HOLD plan with service stop, complete state backup, exact grant_json CAS and reverse CAS; no execution, user scope/restart approval still pending.",
+  "service_outage_or_restart_performed": false
 }

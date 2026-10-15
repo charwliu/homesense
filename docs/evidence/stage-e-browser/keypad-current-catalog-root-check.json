@@ -1,0 +1,33 @@
+{
+  "checked_at": "2026-10-15T23:42:32.217297+08:00",
+  "TLS_verified": true,
+  "read_only": true,
+  "revision": "10",
+  "visible_devices": 8,
+  "parent_cards": [
+    {
+      "id": "control4:425:keypad",
+      "name": "画室门口面板",
+      "slots": 6,
+      "configured": 4
+    },
+    {
+      "id": "control4:63:keypad",
+      "name": "书房面板",
+      "slots": 6,
+      "configured": 3
+    }
+  ],
+  "standalone_LED": 0,
+  "ready": true,
+  "gateway_ready": true,
+  "storage_healthy": true,
+  "device_commands_sent": 0,
+  "grant_updates": 0,
+  "actual_App_visual_confirmation": "pending user reply",
+  "source_evidence_sha256": {
+    "deployment/ngr/private/20261015-keypad-current-root/root-current.json": "4d55c5d8128c2a04a579d00511b7116d9174fc564437d5770a2bd926a6613bcb",
+    "deployment/ngr/private/20261015-keypad-current-root/devices.json": "86ee324561a242bddeff2d629e2bcf23a27c89a3ab4a6fa68271cea5ea5c1cb0",
+    "deployment/ngr/private/20261015-keypad-current-root/diagnostics.json": "f1641eb135b38447031d9c31d4695231cf1a460cd6ac1f32c725dd2be8440d7e"
+  }
+}
