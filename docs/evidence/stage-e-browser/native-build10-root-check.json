@@ -1,0 +1,37 @@
+{
+  "checked_at": "2026-10-16T05:02:22.310426+08:00",
+  "source_commit": "ab861d4619202754c8429fcdf07eb447d08cfaef",
+  "original56_all_match_exact_clean_Git_App": true,
+  "source_change_only_private_Info_version7_to10": true,
+  "other55_source_files_unchanged": true,
+  "bundle_files_rehashed": 8,
+  "archive_sha256": "1d67d18eaee400a411b923d1cd0e927148e745b8b0e8d1d67569a3b44740149d",
+  "archive_all8_bundle_payloads_match_manifest": true,
+  "AppleDouble_metadata_entries_validated_separately": {
+    "__MACOSX/HomeSense.app/._HomeSense": "42050bc58a6977004e02391070cfd0fe9f849d50cc68918eeae919f3f8010758",
+    "__MACOSX/HomeSense.app/._AppIcon60x60@2x.png": "42050bc58a6977004e02391070cfd0fe9f849d50cc68918eeae919f3f8010758",
+    "__MACOSX/HomeSense.app/.___preview.dylib": "42050bc58a6977004e02391070cfd0fe9f849d50cc68918eeae919f3f8010758",
+    "__MACOSX/HomeSense.app/._Assets.car": "42050bc58a6977004e02391070cfd0fe9f849d50cc68918eeae919f3f8010758",
+    "__MACOSX/HomeSense.app/._AppIcon76x76@2x~ipad.png": "42050bc58a6977004e02391070cfd0fe9f849d50cc68918eeae919f3f8010758",
+    "__MACOSX/HomeSense.app/._HomeSense.debug.dylib": "42050bc58a6977004e02391070cfd0fe9f849d50cc68918eeae919f3f8010758",
+    "__MACOSX/HomeSense.app/._Info.plist": "42050bc58a6977004e02391070cfd0fe9f849d50cc68918eeae919f3f8010758",
+    "__MACOSX/HomeSense.app/._PkgInfo": "42050bc58a6977004e02391070cfd0fe9f849d50cc68918eeae919f3f8010758"
+  },
+  "initial_ZIP_parser_error_retained": true,
+  "bundle": "com.ngboss.homesense",
+  "build": "10",
+  "unsigned": true,
+  "directly_installable": false,
+  "signed_or_phone_installed": false,
+  "source79_unit_tests_not_repeated": true,
+  "includes_existing_uncommitted_LHIO_changes": false,
+  "phone_card_visual_acceptance": false,
+  "new_install_pending_reliable_connection_and_release_scope_review": true,
+  "Root_phone_or_Keychain_queries": 0,
+  "checked_bj": "2026-10-16T05:07:00.288314+08:00",
+  "artifact_sha256": {
+    "Root_independent_result": "e0d6e622d901673a32f0182f8b26e79eb70779e4d0cd3aee0bd237bc07224a77",
+    "producer_handoff": "161340f9a2bbbe4a4bef9a4f352bd34c11db082a96a91074fbb6f6e6b4903a4e"
+  },
+  "D_E_complete": false
+}
