@@ -132,6 +132,16 @@ impl Gateway {
     fn apply(&mut self, frame: RawFrame, now_ms: u64) -> Result<(), SimError> {
         let address = BusAddress::new(frame.address).map_err(|_| SimError::UnknownModule)?;
         let module = self.modules.get(&address).ok_or(SimError::UnknownModule)?;
+        if module.profile()==homesense_core::ProtocolProfile::Ts686Rs485SixKey {
+            let supported=match (frame.command,frame.value) {
+                (0xC1|0xC5|0xC7,0)=>true,
+                (0xC2,1|2)|(0xC6,1..=3)=>true,
+                (0xC8,2)=>module.led_mode()==homesense_core::PanelLedMode::Manual,
+                (0xC8,1)=>module.led_mode()==homesense_core::PanelLedMode::SelfReset,
+                _=>false,
+            };
+            if supported { return Ok(()); } // No undocumented parameter readback.
+        }
         if frame.command == 0 {
             let expected = hb_protocol::encode_module_all_off(module, ExecutionContext::Simulation)
                 .map_err(|_| SimError::UnsupportedCommand)?;
@@ -232,7 +242,7 @@ impl Gateway {
                 if query || ramp || pause || toggle || module.led_mode() != PanelLedMode::Manual {
                     return Err(SimError::UnsupportedCommand);
                 }
-                if ![0xF1, 0xF2].contains(&frame.value) {
+                if ![0xF0, 0xF1, 0xF2].contains(&frame.value) {
                     return Err(SimError::InvalidValue);
                 }
                 self.values.insert(key, frame.value); // LED writes do not synthesize button events.

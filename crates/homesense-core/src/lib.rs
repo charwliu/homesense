@@ -322,7 +322,29 @@ pub enum Command {
     PauseRamp,
     Motor(MotorMotion),
     PanelLed(bool),
+    PanelLedOff,
+    PanelParameter(PanelParameter),
 }
+/// Typed TS6 parameters. Replies are diagnostic until independently decoded.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PanelBacklight { DimAfterTenSeconds, Bright, Dim }
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PanelFeedbackMode { SelfReset, Manual }
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PanelParameter {
+    ReadBacklight, Backlight(PanelBacklight), ReadSound, Sound(bool),
+    ReadFeedbackMode, FeedbackMode(PanelFeedbackMode),
+}
+impl PanelParameter {
+    pub const fn bytes(self) -> (u8,u8) {
+        match self {
+            Self::ReadBacklight=>(0xC5,0),Self::Backlight(mode)=>(0xC6,match mode{PanelBacklight::DimAfterTenSeconds=>1,PanelBacklight::Bright=>2,PanelBacklight::Dim=>3}),
+            Self::ReadSound=>(0xC1,0),Self::Sound(on)=>(0xC2,if on{1}else{2}),
+            Self::ReadFeedbackMode=>(0xC7,0),Self::FeedbackMode(mode)=>(0xC8,match mode{PanelFeedbackMode::SelfReset=>1,PanelFeedbackMode::Manual=>2}),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Observation {
     Switch(bool),

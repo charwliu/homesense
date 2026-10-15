@@ -85,7 +85,9 @@ fn intent(command: Command) -> [u8; 4] {
                 MotorMotion::Stop => 2,
             },
         ),
+        Command::PanelLedOff => (10,0),
         Command::PanelLed(v) => (6, u8::from(v)),
+        Command::PanelParameter(parameter) => {let (command,value)=parameter.bytes();return [1,9,command,value];},
         Command::Toggle => (7, 0),
         Command::ModuleAllOff => (8, 0),
     };

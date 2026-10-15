@@ -997,6 +997,15 @@ impl Document {
             if metadata.name.trim().is_empty() || metadata.name.len()>64 || metadata.name.chars().any(char::is_control)
                 || (!document.immediate_scenes.contains_key(&metadata.id) && !document.timed_scenes.contains_key(&metadata.id)) {return Err(invalid("invalid scene display metadata"));}
         }
+        for panel in config.keypads().values() {
+            for key in panel.keys.values() {
+                if let Some(crate::keypad::KeyAction::SceneToggle { scene, .. }) = &key.action
+                    && (!document.scene_action_available(scene)
+                        || !document.scene_switch_groups.iter().any(|group| group.members.iter().any(|member| &member.scene == scene))) {
+                    return Err(invalid("keypad action requires an enabled reviewed selection scene"));
+                }
+            }
+        }
         document.validate_curtain_led_owners(config)?;
         document.validate_enabled_motor_predicates(config)?;
         if let Some(settings)=&document.scene_observation {settings.validate_linked(&document)?;}

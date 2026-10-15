@@ -14,6 +14,8 @@ use uuid::Uuid;
 pub enum DeviceAction {
     Power { on: bool },
     Brightness { level: u8 },
+    PanelLed { on: bool },
+    PanelLedOff,
     Open,
     Close,
     Stop,
@@ -36,6 +38,8 @@ pub struct DeviceSnapshot {
     pub sequence: u64,
     pub devices: Vec<DeviceView>,
     pub floors: Vec<String>,
+    pub keypads: Vec<serde_json::Value>,
+    pub keypad_endpoints: std::collections::BTreeSet<DeviceId>,
 }
 pub async fn snapshot(
     admission: &Admission,
@@ -130,11 +134,16 @@ pub(crate) async fn snapshot_with_max_age(
             state,
         });
     }
+    let (keypads, keypad_endpoints) = crate::management_keypads::snapshot(
+        admission, controller, generation, &bundle.configuration, &raw, &devices, feedback.transport_epoch(), now,
+    ).await?;
     Ok(DeviceSnapshot {
         boot: admission.boot_id().to_owned(),
         revision: bundle.configuration.revision(),
         sequence: snapshot.cursor.sequence,
         devices,
+        keypads,
+        keypad_endpoints,
         floors: bundle.configuration.floors().iter().cloned().collect(),
     })
 }
@@ -162,6 +171,15 @@ pub async fn prepare(
         .any(|binding| binding.enabled && binding.supply_relay.as_ref() == Some(&id))
     {
         return Err("supply relay is controlled through its logical light".into());
+    }
+    if matches!(action,DeviceAction::PanelLed{..}|DeviceAction::PanelLedOff) {
+        if module.profile() != homesense_core::ProtocolProfile::Ts686Rs485SixKey
+            || module.led_mode() != homesense_core::PanelLedMode::Manual {
+            return Err("panel LED requires reviewed TS6 manual mode".into());
+        }
+        return Ok(Batch { controller, subscriptions: vec![], intents: vec![
+            homesense_hap::requests::Intent { device: id, command: match action {DeviceAction::PanelLed{on}=>homesense_core::Command::PanelLed(on),_=>homesense_core::Command::PanelLedOff} }
+        ] });
     }
     let dimmable = match module.kind() {
         ModuleKind::Dimmer => true,

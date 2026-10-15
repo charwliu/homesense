@@ -115,7 +115,8 @@ pub(crate) fn upgrade(
         };
         let mut cursor = resume.cursor;
         let mut scenes = serde_json::Value::Null;
-        let mut motor_estimates=serde_json::Value::Null;
+        let mut keypads=serde_json::Value::Null;
+    let mut motor_estimates=serde_json::Value::Null;
         let mut interval = tokio::time::interval(Duration::from_millis(500));
         interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
         let mut unavailable = false;
@@ -166,11 +167,12 @@ pub(crate) fn upgrade(
                     if api.runtime.read().ok().is_none_or(|current|current.as_ref().is_none_or(|current|current.revision!=runtime.revision || current.boot!=runtime.boot)){cursor=None;continue;}
                     if current_grant(&api,&headers).as_ref()!=Some(&grant) {cursor=None;continue;}
                     let next_motor_estimates=json!(update.snapshot.devices.iter().filter(|d|d.motor_estimate.is_some()).map(|d|(d.id.as_str(),&d.motor_estimate)).collect::<Vec<_>>());
-                    if cursor.as_ref()!=Some(&update.cursor) || next_scenes!=scenes || next_motor_estimates!=motor_estimates || unavailable {
-                        let devices=update.snapshot.devices.iter().map(|device|crate::web_api::device_json(device,&grant)).collect::<Vec<_>>();
+                    let next_keypads=json!(update.snapshot.keypads);
+                    if cursor.as_ref()!=Some(&update.cursor) || next_scenes!=scenes || next_motor_estimates!=motor_estimates || next_keypads!=keypads || unavailable {
+                        let devices=crate::management_keypads::devices_json(&update.snapshot,&grant);
                         let frame=json!({"type":"state","cursor":update.cursor,"reset":update.reset,"devices":devices,"scenes":next_scenes["scenes"],"revision":next_scenes["revision"]}).to_string();
                         if frame.len()>512*1024 || !matches!(tokio::time::timeout(Duration::from_secs(2),socket.send(Message::Text(frame.into()))).await,Ok(Ok(()))){break;}
-                        cursor=Some(update.cursor);scenes=next_scenes;motor_estimates=next_motor_estimates;unavailable=false;last_send=std::time::Instant::now();
+                        cursor=Some(update.cursor);scenes=next_scenes;motor_estimates=next_motor_estimates;keypads=next_keypads;unavailable=false;last_send=std::time::Instant::now();
                     }
                     if last_send.elapsed()>=Duration::from_secs(15) {
                         if !matches!(tokio::time::timeout(Duration::from_secs(2),socket.send(Message::Ping(Bytes::new()))).await,Ok(Ok(()))){break;}

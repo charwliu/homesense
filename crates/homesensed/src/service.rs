@@ -297,6 +297,7 @@ pub(crate) fn simulation_connections_at(
         for device_id in config.devices().keys() {
             if let Some((device, module)) = config.binding(device_id)
                 && device.gateway == *id
+                && matches!(module.kind(), homesense_core::ModuleKind::Switch | homesense_core::ModuleKind::Dimmer)
             {
                 queries.push(
                     hb_protocol::encode_in_context(

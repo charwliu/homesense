@@ -287,6 +287,11 @@ async fn visible_away_operation_flows_through_http_actor_audit_wire_feedback_and
     );
     // All control/feedback checks are complete; only the intentional service
     // shutdown may close a socket with unread final periodic feedback via RST.
+    // The native API remains available; browser management entry points are retired.
+    for path in ["/", "/app.js"] {
+        let (code,body)=http(web,path,None).await.unwrap();
+        assert_eq!(code,410);assert_eq!(body["error"],"native_app_required");
+    }
     expected_shutdown.store(true, std::sync::atomic::Ordering::Release);
     service.await.unwrap().unwrap();
     server.join().unwrap();
@@ -322,10 +327,6 @@ async fn visible_away_operation_flows_through_http_actor_audit_wire_feedback_and
         2
     );
     drop(sql);
-    assert!(include_str!("../src/web/index.html").contains("id=\"away-off\""));
-    assert!(
-        include_str!("../src/web/app.js").contains("request('/api/v1/away-off',{method:'POST'")
-    );
     std::fs::remove_dir_all(root).unwrap();
 }
 

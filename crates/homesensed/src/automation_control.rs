@@ -28,6 +28,8 @@ pub enum Action {
     CalendarStatus,
     ManagedCalendarStatus { controller: Uuid, revision: u64 },
     Devices {controller:Uuid,revision:u64,ids:Vec<homesense_core::DeviceId>},
+    KeypadSetting {controller:Uuid,revision:u64,keypad:String,lease:crate::web_auth::ModuleOffLease,setting:crate::management_keypads::Setting,submit:bool},
+    PanelDeviceCommand{controller:Uuid,revision:u64,device:homesense_core::DeviceId,action:crate::management_devices::DeviceAction,lease:crate::web_auth::ModuleOffLease},
     DeviceCommand {controller:Uuid,revision:u64,device:homesense_core::DeviceId,action:crate::management_devices::DeviceAction},
     SceneCancel { controller: Uuid, revision: u64, run: u64 },
     SceneSwitchStates {controller:Uuid,revision:u64},
@@ -328,6 +330,24 @@ impl Receiver {
                             },
                         }
                     },
+                    Action::KeypadSetting{controller,revision,keypad,lease,setting,submit} => {
+                        if revision!=document.revision {return Err("keypad settings revision expired".into());}
+                        let (batch,lease)=crate::management_keypads::prepare(admission,controller,self.generation.clone(),&keypad,lease,setting).await?;
+                        if request.reply.is_closed() || Instant::now()>=request.deadline {return Err("keypad setting expired or abandoned".into());}
+                        if !submit {return Ok(Reply::CommandsAccepted(vec![]));}
+                        let intent=batch.intents.into_iter().next().ok_or("empty panel setting")?;
+                        admission.submit_panel_command_for_revision(revision,controller,intent.device,intent.command,lease).await.map(Reply::CommandsAccepted).map_err(|e|format!("{e:?}"))
+                    },
+                    Action::PanelDeviceCommand{controller,revision,device,action,lease}=>{
+                        if revision!=document.revision || lease.controller()!=controller || !lease.valid() {return Err("panel credential or revision expired".into());}
+                        if !matches!(action,crate::management_devices::DeviceAction::PanelLed{..}|crate::management_devices::DeviceAction::PanelLedOff) {return Err("typed LED action required".into());}
+                        let bundle=admission.automation_bundle(controller,self.generation.clone()).await.map_err(|e|format!("{e:?}"))?;
+                        let batch=crate::management_devices::prepare(admission,controller,self.generation.clone(),device,action,feedback,max_age_ms).await?;
+                        let intent=batch.intents.into_iter().next().ok_or("empty panel command")?;
+                        let lease=crate::panel_auth::Lease::led(lease,&bundle.configuration,intent.device.clone(),intent.command).ok_or("panel authorization expired")?;
+                        if request.reply.is_closed() || Instant::now()>=request.deadline {return Err("panel command expired or abandoned".into());}
+                        admission.submit_panel_command_for_revision(revision,controller,intent.device,intent.command,lease).await.map(Reply::CommandsAccepted).map_err(|e|format!("{e:?}"))
+                    },
                     Action::DeviceCommand {controller,revision,device,action} => {
                         if revision!=document.revision {return Err("device command revision expired".into());}
                         let motor=match action {
@@ -341,6 +361,7 @@ impl Receiver {
                             if request.reply.is_closed() || Instant::now()>=request.deadline {return Err("device command expired or abandoned".into());}
                             return admission.submit_motor_for_revision(revision,controller,device,motor).await.map(Reply::CommandsAccepted).map_err(|e|format!("{e:?}"));
                         }
+                        if matches!(action,crate::management_devices::DeviceAction::PanelLed{..}|crate::management_devices::DeviceAction::PanelLedOff) {return Err("native LED control requires a source credential lease".into());}
                         let batch=crate::management_devices::prepare(admission,controller,self.generation.clone(),device,action,feedback,max_age_ms).await?;
                         if request.reply.is_closed() || Instant::now()>=request.deadline {return Err("device command expired or abandoned".into());}
                         admission.submit_for_revision(revision,batch).await.map(Reply::CommandsAccepted).map_err(|e|format!("{e:?}"))
