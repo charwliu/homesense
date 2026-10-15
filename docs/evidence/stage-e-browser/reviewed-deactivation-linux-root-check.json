@@ -1,0 +1,37 @@
+{
+  "checked_bj": "2026-10-15T04:28:43.026708+08:00",
+  "frozen_source_files_verified": 1087,
+  "source_sha256": "414d4a8ae70baf73067e3a8fb9e046bd489716cbfa4bfef80d9940ef91fb4cb4",
+  "manifest_and_build_source_all_exact": true,
+  "five_x86_64_linux_ELFs_verified": true,
+  "local_and_remote_binary_and_log_sha256_agree": true,
+  "mac_build_exit_codes": {
+    "release": 0,
+    "targeted_test_no_run": 0,
+    "root14_extra_test_no_run": 0
+  },
+  "linux_static_checks_exit0": true,
+  "linux_test_execution_counts": {
+    "root-immediate-action-contract": 5,
+    "root-immediate-scene-entry": 3,
+    "root-immediate-native-mix": 6,
+    "reviewed-deactivation": 6
+  },
+  "all_four_test_binaries_failed_ignored_filtered": 0,
+  "not_20_distinct_contracts": "Native6 includes5 baseline variants already exercised by action5; four source/target combinations run insideone deactivation case",
+  "current_service_PID83759_start_time_preserved": true,
+  "isolation_temporary_files_cleaned": true,
+  "original_semantic_approvals_added": 0,
+  "deployed": false,
+  "physical_gateway_used": false,
+  "full_linux_workspace_verified": false,
+  "review_scope": "frozen generic Immediate/Timed/native/deactivation candidate, not all source semantics or physical device acceptance",
+  "binary_sha256": {
+    "bin/homesensed": "c339b00a76d925379fef58b9992ab27c51682098859ef3df97604da0f36f913d",
+    "bin/root_immediate_native_mix": "cd24a4e1088630e0c17c4275096fe1a9567f8d3dfd29ea000c9baf3011823327",
+    "bin/reviewed_deactivation": "1230fb4233cbcf51ce82fc7566b47513ebe857a29c9a3520240530e779262e5e",
+    "bin/root_immediate_action_contract": "eab46a44b720ad6073edcc9cb1e880ce4c949cfa33eb8e3fdcfebdc739fe05f9",
+    "bin/root_immediate_scene_entry": "56e30ae4a2c29e6e4a3ac29007ec25cddfd48eb5a61ccc85b96deca6e4beda83"
+  },
+  "report_sha256": "3c4b57f70e2129c11991fb0be16a64737dbcc77c9e22e88df9565817a0b7c906"
+}

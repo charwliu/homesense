@@ -1,0 +1,26 @@
+{
+  "date_bj": "2026-10-15",
+  "status": "confirmed software gap; fix candidate not yet compiled or merged",
+  "scope": "ordinary production-library HAP projection with unchanged feedback, no transport or field commands",
+  "observation": {
+    "age_ms": 5303,
+    "all_events_after_recovery": [],
+    "commands": 0,
+    "expiration_events": [],
+    "expired_null_events": 0,
+    "network_connections": 0,
+    "raw_quality": "Confirmed",
+    "read_unavailable": true
+  },
+  "failure": "expired HAP reads return unavailable, but subscribers receive no null event; unchanged fresh feedback then produces no recovery event",
+  "current_source_matches_baseline": true,
+  "source_sha256": {
+    "crates/homesensed/src/unified_hap.rs": "6e82c8d2d973f5d5f803858350f8361d15e736e272c936508eb030519210c462",
+    "crates/homesensed/src/runtime_hap.rs": "a77eed5fe80fb4699f1062f867011ff6d7f60560d0ada61e7a31703992b1139f"
+  },
+  "probe_source_sha256": "fd3770e968e511bb41b79031649a674eb5a5d5869a259a93c90b899c26fc9941",
+  "baseline_terminal_sha256": "fa240d304ef639a249fb3d9dfa68477102c2c5d772f8bdb2726f6e36925a12d1",
+  "candidate_implemented_privately_only": true,
+  "candidate_tested": false,
+  "field_or_server_changes": false
+}

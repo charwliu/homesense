@@ -1,0 +1,75 @@
+{
+  "passed": true,
+  "cases": [
+    {
+      "kind": "relay",
+      "age_at_stale_read_ms": 5258,
+      "unavailable_characteristics": 1,
+      "same_value_recovered_characteristics": 1,
+      "commands": 0
+    },
+    {
+      "kind": "dimmer",
+      "age_at_stale_read_ms": 5257,
+      "unavailable_characteristics": 2,
+      "same_value_recovered_characteristics": 2,
+      "commands": 0
+    },
+    {
+      "kind": "combined",
+      "age_at_stale_read_ms": 5312,
+      "unavailable_characteristics": 2,
+      "same_value_recovered_characteristics": 2,
+      "commands": 0
+    }
+  ],
+  "expired_and_recovered_characteristics_each": 5,
+  "production_Instant": true,
+  "cfg_test_not_used": true,
+  "pair_verify_not_pair_setup": true,
+  "mdns_disabled": true,
+  "all_connections_loopback": true,
+  "field_access": false,
+  "full_D_E_complete": false,
+  "fixture_failures_preserved": [
+    "sandbox denied initial loopback bind",
+    "paired identity was seeded before AID graph creation",
+    "pairing inserted before startup graph manifest installation",
+    "combined fixture missing required nonzero default_on_level"
+  ],
+  "checked_bj": "2026-10-15T14:47:51.933435+08:00",
+  "scope": "ordinary production libraries from final1185-file source-v2 candidate; actual loopback TCP, Pair-Verify, AEAD records, EVENT subscription, HTTP characteristics reads",
+  "probe_sha256": "e1f073134aebf2008e05375ccdd27cb4d2a57bb6dc42d9092aacf7b2784b0291",
+  "source_sha256": "3411979e88a4fd19f13c2a6caad244db93f46f16504f232e07a5f3bc60945ffa",
+  "manifest_sha256": "d3f6dbdf516a95e5af4820a59025154afb455f19c8cc149f757f5830fa4d25ca",
+  "ordinary_libraries": {
+    "homesensed": "05890d293ebc668085c1e6a8c3a554ff18c80f4f40b70ff0e70b246ae2d4f566",
+    "homesense_config": "4bb3cd7e07b7aaec8ed1a95ca105a269b98c32ad107850c00715696e17373858",
+    "homesense_core": "49e3fe0da63db2d64c4a9968c12ae1cb959988a15a17d2b3eb6a0579c18bf932",
+    "homesense_storage": "d095ce141d8768d64d731b1e3226af62c697959a4ddb892799de6783c30a31b0",
+    "homesense_state": "a34fe3ba1e013936065522591ef0579f70d339b3e8e639d8da140b881d93bbc6",
+    "uuid": "7fb228a79047c53d0d92728514029de90bcfaa1ddbde744e99f7bd300f66d9b2",
+    "tokio": "f0b286f9a6e049f1763e39e388c3c8d65b5f366b18849cf6105a68d3bd44a1aa",
+    "serde_json": "60c6dcc1464c5f835384515b2443658e47cb87fb55f25e5c2d72eb8d3f936240",
+    "homesense_hap": "5304f4549b5a2f323337862c4c1598dfc96f823d4c2234ecd722de951c54914a",
+    "hap": "2ebbd57cb71a72c3811cf0325e005e93594e7053c4d570cab2984c5453695d04",
+    "rusqlite": "12c33e5cb6054e8fc8eb666a1df27d3858bf651915f1f61f26f4417f15fe7c11",
+    "chacha20poly1305": "e1dce3b1b81baeab3fce09b0e058dddc78c9089a888ae8642286969f5242fbc1",
+    "rand": "b8c7fe47004a9166eb4fc21ab1a65671dc637c2c10bf80496f1364bce6189236",
+    "ed25519_dalek": "1426c382167f5c7696bc157808dc5416739239336c176a2f518867cb2c680391",
+    "x25519_dalek": "5ca875fd41234d95435fbe6b858a2524a00d1083a32e159af4831c7c4529a6db",
+    "hkdf": "e9c08f6122f39e402dc116a657815b2933eb850c146c7e5e92c2ce4cefc84035",
+    "sha2": "08a8c26af702b34de7eb59252f7b5d262dbbc1dcaaa52d209e997d8fcb53e0d7"
+  },
+  "standalone_process_exit": 0,
+  "support_source_sha256": "29fce100bc773100a6ef383a6997fbeb97a7054bf0dac69cd8a8d353b8dcfb77",
+  "raw_files_rehashed": 51,
+  "not_a_full_workspace_test": true,
+  "combined_supply_expired_while_dimmer_still_younger_than_5000ms": true,
+  "limits": [
+    "three synthetic controllers preseeded only after graph creation; does not test Pair-Setup",
+    "production graph and projector plus real TCP HAP server; no physical bus owner in this fixture",
+    "no discovery advertisements; no Apple client or home hub acceptance",
+    "does not alter original65-scene208-program24-variable remaining scope"
+  ]
+}

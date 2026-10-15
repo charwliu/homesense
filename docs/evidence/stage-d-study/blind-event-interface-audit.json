@@ -12,6 +12,14 @@
     "5": {
       "name": "Moving",
       "trigger": "protocol MOVING notification arrives at proxy"
+    },
+    "2": {
+      "name": "Fully Closed",
+      "trigger": "proxy full-close event; nominal interface only"
+    },
+    "4": {
+      "name": "Fully Opened",
+      "trigger": "proxy full-open event; nominal interface only"
     }
   },
   "archived_blind_program_counts_by_event": {
@@ -47,5 +55,12 @@
   "runtime_definitions_generated": false,
   "field_enablement": false,
   "encrypted_script_bytes_read": false,
-  "root_independent_source_event_coverage": "43 XML owners and event IDs match private ledger exactly"
+  "root_independent_source_event_coverage": "43 XML owners and event IDs match private ledger exactly",
+  "source_revalidated_on": "2026-10-14",
+  "manual_repeat_capability_reference": {
+    "url": "https://snap-one.github.io/docs-driverworks-proxyprotocol-blind/#always-send-level",
+    "documented_since": "3.4.0",
+    "meaning": "always sends requested target irrespective of cached current level, for devices controlled externally",
+    "archived_runtime_capability_verified": false
+  }
 }

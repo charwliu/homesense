@@ -1,0 +1,48 @@
+{
+  "scope": "Away Web V2 integrated complete software regression; not field acceptance",
+  "archive_sha256": "59f4ed9af22bc783f705af23f44edab748b539ac721da6568630bccc598199b7",
+  "source_files": 1173,
+  "Mac": {
+    "passed": 1025,
+    "failed": 0,
+    "blocks": 169,
+    "strict_workspace_all_targets_clippy_exit": 0
+  },
+  "Linux": {
+    "source_archive_sha256": "59f4ed9af22bc783f705af23f44edab748b539ac721da6568630bccc598199b7",
+    "test": {
+      "exit": 101,
+      "blocks": 169,
+      "passed": 1023,
+      "failed": 2,
+      "ignored": 0,
+      "filtered": 0
+    },
+    "clippy": {
+      "exit": 0,
+      "log_sha256": "dbb72eea718a9f0196b97bc2e31f3494a4ee9ca979c07a552b946ace4c2c108b"
+    },
+    "all_1173_source_files_exact_before_after": true,
+    "failures": [
+      "capacity96_documented_modules_at100ms_and_mixed_at20ms_stay_fresh",
+      "live_service_queries_before_serving_and_preserves_identity_across_restart"
+    ],
+    "study_future_publication_case_passed": true,
+    "Away_specific_tests_passed": true,
+    "field_access": false,
+    "candidate_qualification": "Linux full tests failed; no deploy"
+  },
+  "independent_UI_races_fixed": 3,
+  "actual_schema_25_to_26_history_preserved_and_old_reader_refuses": true,
+  "HAP_Away": "V3 work in progress, missing from V2",
+  "shared_new_feature_merged": false,
+  "field_commands": 0,
+  "field_deployed": false,
+  "remaining_D_source_semantics": {
+    "scenes": 65,
+    "programs": 208,
+    "variables": 24
+  },
+  "artstudio_Web_acceptance": "paused by user",
+  "E2_field_deadline": "2026-10-15 08:00 Asia/Shanghai, already stopped"
+}

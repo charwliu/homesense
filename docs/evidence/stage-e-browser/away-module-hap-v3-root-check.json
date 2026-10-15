@@ -1,0 +1,52 @@
+{
+  "scope": "Away HAP V3 independent source reconstruction and limited contract revalidation; no complete Linux claim",
+  "archive_sha256": "9db5f76c7930425102ea4ee5759bfa81985304c730930ec2027e73b332673b92",
+  "source_files": 1178,
+  "all_original_sources_exact_before_after": true,
+  "original_two_combined_scope_counterexamples_now_pass": 2,
+  "real_HTTP_reopen_previous_brightness_pass": 1,
+  "real_paired_encrypted_HAP_pass": 1,
+  "HAP_scope_key_revocation_retirement_cases_pass": 3,
+  "separate_96_port_12_module_runtime_case": {
+    "pass": 1,
+    "actual_frames": 12,
+    "actual_control_bytes": 60,
+    "immutable_scope_rows": 96,
+    "durable_written_commands": 12,
+    "fabricated_observed_rows": 0
+  },
+  "limited_tests_not_added_to_whole_counts": true,
+  "strict_Linux_workspace_all_targets_clippy_exit": 0,
+  "actual_ELF_count_preserved": 5,
+  "UI": {
+    "owner_tool_contracts_pass": 4,
+    "Root_original_races_same_contracts_pass": 3,
+    "overlap_not_added_as_unique": true,
+    "JS_syntax_exit": 0
+  },
+  "Linux_original_V2_full": {
+    "passed": 1023,
+    "failed": 2,
+    "kept": true
+  },
+  "full_final_integration_pending": true,
+  "new_feature_shared_merged": false,
+  "field_commands": 0,
+  "field_deployed": false,
+  "remaining_D": {
+    "scenes": 65,
+    "programs": 208,
+    "variables": 24
+  },
+  "V3_Mac_full": {
+    "passed": 1032,
+    "failed": 0,
+    "ignored": 0,
+    "filtered": 0,
+    "blocks": 171,
+    "exit": 0,
+    "source_before_after_equal": true,
+    "strict_all_targets_clippy_exit": 0
+  },
+  "HAP_protocol_scope": "stored synthetic User pairing plus actual Pair-Verify and encrypted characteristics; not Pair-Setup or Apple hardware acceptance"
+}

@@ -1,0 +1,95 @@
+{
+  "checked_bj": "2026-10-15T15:27:55.365790+08:00",
+  "candidate_linux_sha256": "397095d73c37730a97489b34fdb57ebbecf02c219948e67cd8cac684ddbd0e51",
+  "user_reported_after_restart": {
+    "E2_two_rooms_and_existing_gateways_normal": true,
+    "Apple_Home_all_E2_room_assignments_correct": true
+  },
+  "native_App_floor_acceptance": {
+    "current_floor_catalog_verified": true,
+    "new_scoped_credential_pending": false,
+    "saved_connection_not_restored": true,
+    "user_report": "提示令牌失效或需要重新连接",
+    "HTTP401_independently_verified_by_this_check": false,
+    "permanent_Admin_login_user_verified": true,
+    "user_result": "连接成功，楼层与房间归属全部正确",
+    "local_empty_floor_add_preserved_existing_catalog_user_verified": true,
+    "CRUD_save_preview_and_restore_user_verified": true,
+    "actual_publication_verified": false
+  },
+  "root_device_controls": 0,
+  "no_new_wall_rules_or_Away_enabled": true,
+  "full96_field_and_studio_Web_remain_paused": true,
+  "physical_acceptance_scope": "Earlier Apple Home read-only checks and current native App metadata CRUD/save/preview; no new physical controls or hub fault injection in this report.",
+  "service_lifecycle": "Cargo/Linux GCC service restored; root trusted-HTTPS GET snapshot confirms active revision9,3floors,2rooms,20configured devices,13visible devices",
+  "D_E_complete": false,
+  "private_checks_sha256": "2b4688387fffe97a9107f4e6d2c2fa459e19a3ffa50be4fb6df8832d6d8c6d63",
+  "readonly_backend_snapshot_sha256": "71b76a13218f085d4e9b5f8a776ce4efe7e7c6916b1eb81ba38edec6fcfc403c",
+  "candidate_binary_scope_note": "Earlier Apple Home checks used the previous binary; App CRUD below used the direct Cargo/Linux GCC binary.",
+  "native_App_CRUD_candidate_sha256": "4003d9887af4e1365641651fc615fb13bc0303bf5bdb33575e37312e69b8bd9a",
+  "native_App_CRUD": {
+    "user_steps": [
+      {
+        "question_id": "call_a00f84987c594e0f852fb585f5358974",
+        "step": "新增临时房间",
+        "answer": "新增成功，三个房间归属正确",
+        "passed": true
+      },
+      {
+        "question_id": "call_9bf842e0fad64cafb80bfe784165415d",
+        "step": "保存和预览",
+        "answer": "保存和预览成功，活动仍9、候选10",
+        "passed": true
+      },
+      {
+        "question_id": "call_7c1bd6a638a94b7cac19dbc576d1a3ca",
+        "step": "楼层改名和房间归属联动",
+        "answer": "重命名成功，房间归属同步更新",
+        "passed": true
+      },
+      {
+        "question_id": "call_6f23054a2f4c49b4899d8280b13c0491",
+        "step": "房间改名后保存和预览",
+        "answer": "编辑、保存、预览均成功，版本正确",
+        "passed": true
+      },
+      {
+        "question_id": "call_789273a6b200424c8c1e2f7dd5071507",
+        "step": "删除临时房间及临时楼层",
+        "answer": "删除成功，原目录和归属恢复正确",
+        "passed": true
+      },
+      {
+        "question_id": "call_73676d878f064f70abe2416749499a7e",
+        "step": "重新读取活动配置",
+        "answer": "已恢复活动配置，目录正确且无未保存修改",
+        "passed": true
+      },
+      {
+        "question_id": "call_342479e677144159a75c9ba481b6a4cd",
+        "step": "验收草稿归档后读取我的草稿",
+        "answer": "测试草稿已清空，目录仍正确",
+        "passed": true
+      }
+    ],
+    "both_saved_drafts_independently_reviewed": true,
+    "room_ID_preserved_on_rename": true,
+    "all20devices_and_automation_unchanged": true,
+    "only_test_floor_room_and_candidate_revision_differed": true,
+    "two_test_drafts_archived": true,
+    "final_draft_count": 0,
+    "final_active_revision": 9,
+    "permanent_Admin_retained": true
+  },
+  "home_hub_offline_recovery_user_paused": true,
+  "private_evidence_sha256": {
+    "user-checks.json": "2b4688387fffe97a9107f4e6d2c2fa459e19a3ffa50be4fb6df8832d6d8c6d63",
+    "before-app-draft.json": "60d8d1fa14972d5cfe2541228236c350b20b492f18ebe48a5c492df285433052",
+    "after-app-save.json": "eaf2ebf2a873b1a0c7abb852049645076e04d605531ae23694ef5ddb4940f662",
+    "after-app-rename-save.json": "70ac76a74e3b36e586e88a566ff724e2b3ae7beadd3ad1746801d628be3e480a",
+    "app-created-draft-review.json": "b75c9835714b7d5aa6ab9b3f258713592d403244b330375d6793e93fa69dc455",
+    "app-renamed-draft-review.json": "4799b002a9da0d68dbfbdda3b4a1278a86bf29b1ffcf0c604f7fe02cdfde8cb6",
+    "archive-test-drafts-result.json": "9d5d11570dd1eed55620814d0ef9d3f3a695315aa8d31eddba6818d36e41b243",
+    "after-app-crud-cleanup.json": "71b76a13218f085d4e9b5f8a776ce4efe7e7c6916b1eb81ba38edec6fcfc403c"
+  }
+}

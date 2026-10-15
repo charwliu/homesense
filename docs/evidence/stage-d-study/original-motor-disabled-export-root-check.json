@@ -1,0 +1,42 @@
+{
+  "source_xml_sha256": "cac7dcdc9db08599e55a22bacb72858035c64e1ac846e2139ead5fc634513748",
+  "independent_actual_export_test_passed": 1,
+  "failed": 0,
+  "same_wrapper_counterexample_test_bytes": true,
+  "original_events": 215,
+  "opt_in_syntax_compiled": 214,
+  "default_source_converter_scope_not_changed": true,
+  "motor_programs": 35,
+  "ordered_motor_nodes_matched": 70,
+  "counts": {
+    "stopped": 24,
+    "open": 12,
+    "moving": 11,
+    "stop": 11,
+    "close": 12
+  },
+  "logical_aliases": 12,
+  "all_exported_fragments_disabled": true,
+  "actual_only_evidence_default_preserved": true,
+  "synthetic_calibration_only": true,
+  "physical_direction_not_validated": true,
+  "runtime_approvals_added": 0,
+  "runtime_rules_enabled": 0,
+  "full_remaining_scope": {
+    "scenes": 65,
+    "programs": 208,
+    "variables": 24
+  },
+  "export_sha256": "c2d032065ecac6cd73af627f4a286b8bae26b76efa7d2ae4a311ed386be64c3a",
+  "log_sha256": "210b20a056aefee6f4a3578c05704b92c472bf8f16fd3e324d8c4df817ec8e89",
+  "test_sha256": "41b309e8a80c908c52f38c4b066964e02f23d59d6c9c37d0ff7f31acd442cb01",
+  "earlier_fixture_and_source_failures_retained": true,
+  "remaining_blocker": "one source RAMP_TO_LEVEL requires separately reviewed fade conversion",
+  "default_scope": "default converter179 compiled/36blocked remains; opt-in214 is not a semantic approval",
+  "independent_default_gate_test_passed": 1,
+  "default_converter_totals": {
+    "compiled": 179,
+    "blocked": 36
+  },
+  "default_gate_log_sha256": "0d7b38f8e17467365c27710c39234af77709b97f43f603d8d93f7213718723ac"
+}

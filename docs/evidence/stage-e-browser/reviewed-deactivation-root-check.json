@@ -1,0 +1,62 @@
+{
+  "checked_bj": "2026-10-15T04:19:39.970739+08:00",
+  "source_archive_sha256": "414d4a8ae70baf73067e3a8fb9e046bd489716cbfa4bfef80d9940ef91fb4cb4",
+  "baseline_archive_sha256": "86f17f903c1326700b6dcc38975adecfdbf3ecb992df091cd44aa7880489fa64",
+  "frozen_files_independently_verified": 1087,
+  "six_layers_independently_reconstructed": true,
+  "integrated_code_exact": true,
+  "docs_merged_with_current_content": true,
+  "independent_queue_cases": {
+    "passed": 3,
+    "failed": 0,
+    "filtered": 195,
+    "isolated_extra_module": true,
+    "added_to_full_count": false
+  },
+  "actual_workspace": {
+    "passed": 962,
+    "failed": 0,
+    "ignored": 0,
+    "filtered": 0,
+    "result_blocks": 159,
+    "exit_code": 0,
+    "log": "actual-workspace-full-authorized.log",
+    "default_stack": true,
+    "first_sandbox_socket_failure_preserved": true
+  },
+  "strict_clippy": {
+    "workspace": true,
+    "all_targets": true,
+    "deny_warnings": true,
+    "exit_code": 0,
+    "excluded_files": [],
+    "new_lint_allowances": []
+  },
+  "web_scripts_passed": 18,
+  "candidate_workspace_passed": 961,
+  "actual_extra_existing_test": 1,
+  "shared_test_clock_patch_not_reapplied": true,
+  "new_original_approvals": {
+    "scenes": 0,
+    "programs": 0,
+    "variables": 0
+  },
+  "remaining_source_scope": {
+    "scenes": 65,
+    "programs": 208,
+    "variables": 24
+  },
+  "physical_commands_sent": 0,
+  "deployment": false,
+  "field_version_changed": false,
+  "stage_D_E_complete": false,
+  "supported_policy": "require_quiescent_runtime",
+  "additional_active_work_policies_not_implemented_or_approved": true,
+  "known_rejection_preserves_other_work": true,
+  "query_excluded_from_control_quiescence": true,
+  "partial_scene_step_result_distinct_from_uncertain_transport_receipt": true,
+  "interim_Root_fixture_and_patch_serialization_failures_retained": true,
+  "unrelated_dirty_paths_unchanged": 135,
+  "index_and_head_unchanged": true,
+  "public_summary_excludes_private_source_XML_and_credentials": true
+}

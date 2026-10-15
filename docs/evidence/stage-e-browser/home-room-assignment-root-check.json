@@ -1,0 +1,28 @@
+{
+  "config_sha256": "85cf867d566f26ee5e244a3b013bc713186a4c8414d966420d662898a594b690",
+  "plan_sha256": "e400bd6b05e904ba0318f8e834eaaf6a26cc97759d122640ba692ff434667b1c",
+  "expected_accessories": 17,
+  "rooms_expected": {
+    "书房": 9,
+    "画室": 8
+  },
+  "Apple_Home_rooms_not_verified": false,
+  "HomeSense_metadata_is_not_Apple_Home_assignment": true,
+  "book_lights_and_motor_have_no_HomeSense_room_metadata_in_this_input": true,
+  "field_commands": 0,
+  "field_service_started": false,
+  "devices_or_pairings_changed": false,
+  "private_checklist": "local-only expected room checklist, 17 accessories",
+  "preparation_source": "cached revision8 preparation files tied to prior field evidence; not a fresh live Home database read",
+  "source": "prior prepared17-accessory checklist plus current user observation after rev9 backend start; no direct Apple Home database extraction",
+  "input_scope_note": "missing HomeSense metadata flag above describes historicalrev8 preparation only; rev9 floor publication is tracked separately",
+  "current_user_verification": {
+    "checked_bj": "2026-10-15T14:50:18.845324+08:00",
+    "question_id": "call_a76d91ebd149481e90e065095e5f8658",
+    "answer": "两房间所有 E2 卡片归属正确",
+    "Apple_Home_room_assignment_passed": true,
+    "accessory_count_independently_enumerated_in_Home_database": false,
+    "automated_assignment_mechanism_proven": false,
+    "root_device_controls": 0
+  }
+}

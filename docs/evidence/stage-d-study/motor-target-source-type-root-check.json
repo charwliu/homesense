@@ -1,0 +1,42 @@
+{
+  "date": "2026-10-14",
+  "source_archive_sha256": "ff8c298fd2c8efa840d572d3ca544860ffbbc4e7176f09e93efdc5464b9ce6ec",
+  "project_xml_sha256": "cac7dcdc9db08599e55a22bacb72858035c64e1ac846e2139ead5fc634513748",
+  "source_commands": 24,
+  "source_value_type_counts": {
+    "INTEGER": 24
+  },
+  "source_static_value_counts": {
+    "Open": 12,
+    "Closed": 12
+  },
+  "candidate_findings": "STRING-only enum conversion rejects all archived INTEGER-tagged named targets",
+  "independent_frozen_counterexample": {
+    "passed": 0,
+    "failed": 1,
+    "ignored": 0,
+    "filtered": 3,
+    "original_frozen_files_unchanged": 1056,
+    "source_manifest_sha256": "f8646fea9b2cc169fc603c494670839d871a048b8a6c403b085d13ecc67c442d",
+    "test_sha256": "fc9911477bb671b32d0e9b3317b0455abdbeace2f47dbce42dac7279e3310b4f",
+    "log_sha256": "f7890481f7a250922518102d7cf7f5d034eceb693be22d8b5fdfc0601409022e",
+    "failure": "motor target requires static STRING LEVEL_TARGET_NAME"
+  },
+  "required_fix": "Retain exact named static Open/Closed with source INTEGER serialization; no numeric percentage or dynamic parameter inference; mapping/calibration review and disabled export preserved",
+  "official_nominal_interface": "https://snap-one.github.io/docs-driverworks-proxyprotocol-blind/#set-level-target",
+  "nominal_protocol_type_does_not_override_archived_serialization": true,
+  "runtime_approvals_added": 0,
+  "physical_actuator_commands": 0,
+  "full_D_E_complete": false,
+  "same_counterexample_after_fix": {
+    "passed": 1,
+    "failed": 0,
+    "ignored": 0,
+    "filtered": 3,
+    "test_bytes_unchanged": true,
+    "other_original_frozen_inputs_unchanged": 1055,
+    "fix_source_sha256": "df4e689f0648caa856cf452950d771354aad4d1f74450390f4283265b9a9da39",
+    "log_sha256": "b242f7b41b91670a9752b17d07b6a30301ad422d6ae9cebf6087a70c1facf126",
+    "full24_source_reexport_not_yet_independently_verified": true
+  }
+}

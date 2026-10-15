@@ -1,0 +1,136 @@
+{
+  "scope": "Module-wide Off simulation and brightness preference capture in the common Web/HAP Away action; qualified delta, not D/E completion",
+  "baseline_full_V4_archive_sha256": "a8aed01dd17d3aa1029a9e5f78409cb37244b0207ab088e0512743caf59b62b1",
+  "final_archive_sha256": "2c681dd8a8ac5e3ef373dbcf8da98d981299f69ac736230a966b20879b1fedcc",
+  "source_files": 1179,
+  "changed_product_files": [
+    "crates/homesense-simulator/src/lib.rs",
+    "crates/homesensed/src/automation_control.rs"
+  ],
+  "changed_and_added_test_files": [
+    "crates/homesense-simulator/tests/module_all_off.rs",
+    "crates/homesensed/tests/away_off_http.rs"
+  ],
+  "Mac_and_Linux_unchanged_three_package_closure": {
+    "passed_each": 150,
+    "result_blocks_each": 25,
+    "actual_test_binaries_each": 22,
+    "strict_three_package_all_targets_exit_each": 0,
+    "packages": [
+      "homesense-core",
+      "hb-protocol",
+      "homesense-simulator"
+    ],
+    "not_full_workspace": true
+  },
+  "final_Linux_runtime": {
+    "passed": 15,
+    "failed": 0,
+    "filtered": 0,
+    "ignored": 0,
+    "result_blocks": 3,
+    "tests": [
+      "away_off_http",
+      "away_off_runtime",
+      "away_off_hap"
+    ],
+    "new_no_HAP_no_indicator_case": "standalone and combined lights; settled feedback strictly after written commands; save37 before Off and restore37 on On",
+    "archive_test_file_sha256": "c904883f7d4aee9766a9b20c82e792bbed9bcee65f6550433eed48dbcfc3f5d4",
+    "strict_workspace_all_targets_Clippy_exit": 0,
+    "release": {
+      "runner_pid": 169251,
+      "runner_start_ticks": "30652609",
+      "source_files": 1179,
+      "field_access": false,
+      "steps": {
+        "final-clippy": {
+          "exit": 0,
+          "log_sha256": "0c7b4e6bf43d2cfcd9f2cf42c200caa0f6b4c3520dda79c66d199c2e34e46765"
+        },
+        "final-release": {
+          "exit": 0,
+          "log_sha256": "a70da5408e7a6da7efe97b23011504833b16a7875bda14543f2504b5b8c7d97a"
+        }
+      },
+      "binary_sha256": "ade98cbcd677f0a4413d57656f0e5901e3a558dd470e1d8b27b28b090b6a8247",
+      "ELF64_x86_64": true,
+      "all_1179_source_files_exact_after": true,
+      "completed": 1792033235.1138124
+    }
+  },
+  "actual_Linux_release_simulation_Web": {
+    "binary_sha256": "ade98cbcd677f0a4413d57656f0e5901e3a558dd470e1d8b27b28b090b6a8247",
+    "field_access": false,
+    "original_project_scope": false,
+    "network": "unshare -Urn; lo only; no routes",
+    "passed": true,
+    "module_receipts_written": 2,
+    "immutable_effects": 16,
+    "visible_combined_lights_confirmed_off": 8,
+    "duplicate_receipt_controls": 0,
+    "restored_level": 37,
+    "other_seven_lights_stay_off": true,
+    "simulated_feedback_not_ACK": true
+  },
+  "preserved_product_failures": {
+    "native_module_off_in_simulator": "UnsupportedCommand, original unit case 1 pass /1 fail",
+    "original_V4_Web_simulation": "module Off uncertain and subsequent module cancelled",
+    "simulator_only_fix_Web": "two module Off commands Written, but next On100 instead of37",
+    "new_settled_restore_regression_before_common_action_fix": "0 pass /1 fail /1 filtered; missing37 preference despite fresh physical sample after write"
+  },
+  "fixture_compile_error_separate": "initial u64 SQLite type error corrected to checked i64; never counted as product failure",
+  "authorization_and_feedback_contract": "actual submit only; scope preflight before preference write; only matching generation and settled fresh physical observations; request deadline checked again; no feedback forged",
+  "ordinary_frame_zero_channel_still_invalid": true,
+  "whole_module_models_and_wrong_values_rejected": true,
+  "other_address_outputs_unchanged": true,
+  "Mac_full_workspace_after_delta": "not rerun; no claim that prior1033 covers this runtime delta",
+  "Linux_full_workspace_tests_after_delta": "not rerun;150 closure and15 runtime are scoped checks, not prior1033 repeated",
+  "shared_merge": {
+    "paths": [
+      "crates/homesense-simulator/src/lib.rs",
+      "crates/homesense-simulator/tests/module_all_off.rs",
+      "crates/homesensed/src/automation_control.rs",
+      "crates/homesensed/tests/away_off_http.rs"
+    ],
+    "all_four_exact_qualified_candidate": true,
+    "all_other_existing_input_files_preserved": true,
+    "index_unchanged": true,
+    "all_product_test_tool_config_reference_inputs_exact_final": true,
+    "documentation_differences_only": [
+      "CHANGELOG.md",
+      "README.md",
+      "docs/de-completion-audit.md",
+      "docs/away-module-off.md",
+      "docs/stage-e-remaining.md",
+      "docs/state-and-indicator-policy.md"
+    ],
+    "staged": false,
+    "committed": false,
+    "field_deployed": false
+  },
+  "field_queries": 0,
+  "field_controls": 0,
+  "E2_started": false,
+  "field_readonly_user_paused": true,
+  "original_source_approvals_added": 0,
+  "remaining_source_scope": {
+    "scenes": 65,
+    "programs": 208,
+    "variables": 24
+  },
+  "D_E_complete": false,
+  "evidence_sha256": {
+    "red-test.log": "558dc5d0907729aa26ff48f78fa317c5b15c8227c79ff6ab3076b5ebfcda22f8",
+    "green-test.log": "8206748f430f841baa559343eecdd64ecbae5685c4242ffba85aade8791740d3",
+    "clippy.log": "09c44fe0b96b195ded983c38e67993df2b7131e7e86f8194c936b618e73f5aa4",
+    "targeted-test.log": "1faaa6e578bd4580d745c88f4bda014ad2e19150194d7894d544779a977fc3a6",
+    "targeted-clippy.log": "a3b60d5d2f7792c9aa8d3b62177e0db7bc8191706833189b2610997f006697da",
+    "restore-red.log": "30e284970d19bc19d945536f045367fda4505d6af2cd10a191e802d20a06dc21",
+    "restore-green.log": "9abd166f1acec078c85fbc7e86895aad2eddafa06fcc86db749b3bc97882cf19",
+    "final-clippy.log": "0c7b4e6bf43d2cfcd9f2cf42c200caa0f6b4c3520dda79c66d199c2e34e46765",
+    "final-release.log": "a70da5408e7a6da7efe97b23011504833b16a7875bda14543f2504b5b8c7d97a",
+    "simulation-away-before-proof/result.json": "d1eda69cb4119eccf6fe4cece3f88efa5f3214ec0474a9a917d55e912ec854ab",
+    "simulation-away-proof/result.json": "1dc75a4af790cc1c73d5a76ee821676017921a07896775b8650a87da8cf7f07b",
+    "simulation-away-final-proof/result.json": "95083a3abdcbf86a13851f60d47aa29f8c5a6df86dd526660f9bdd898b7c1fc0"
+  }
+}

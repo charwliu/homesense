@@ -1,0 +1,40 @@
+{
+  "mode_build": 5,
+  "six_changed_files_match_frozen_mode_source": true,
+  "swift_tests_passed": 34,
+  "Swift_includes_Rust_HTTPS_WSS_integration": true,
+  "iOS_and_macOS_build_logs_passed": true,
+  "install_retry_reported_success": true,
+  "first_install_and_first_test_failures_retained": true,
+  "mode_picker_guard_reviewed": "home.canManage",
+  "mode_source_does_not_include_Keypad_parent_UI": true,
+  "actual_phone_mode_and_background_sync_pending": true,
+  "implementation_owner": "HomeSenseApp",
+  "backend_restarted": false,
+  "proof_sha256": {
+    "mode-handoff.json": "e8ce103bebb42f648dd112962504efb1f80f463d40d42ae728fd4ce2a42ff76b",
+    "swift-test.log": "7a409b777fd2cd5559233ba8095f7496e346a1797aff2d68f57c7fb934f324b4",
+    "swift-test-final.log": "5a39b3520b6345f9bd22e12cf3408871435790c0a8010accb8c0fe02e8ce7f15",
+    "ios-build.log": "fed48ebffc7ae74cb3c946e34ec6cc3dcc6be93009de619143609b13fbb21a4a",
+    "macos-build-final.log": "6137d2c7f839228517ba56d4db4c67d1b7c7e6b63ccf386d3e45f8c65256cb7b",
+    "iphone-install.log": "801bd022bf7027808ddeba9a775f3f5f97c75fde162ca8525550465ace884137",
+    "iphone-install-retry.log": "cf231f895d01cc3d67be4e04570bbc61cc7261ecf11d407050664af871a09493"
+  },
+  "source_sha256": {
+    "apps/HomeSense/App/HomeManagementView.swift": "96330554146df9ff2393d4455e1e41b45071737ae9fa2e3bad482df80db0e36a",
+    "apps/HomeSense/App/Info.plist": "d37a0b5cad0e4dc58a7a3de34bbdb860f8a862d31eff5d8c19b211ec96e78683",
+    "apps/HomeSense/Sources/HomeSenseCore/HomeServerStore.swift": "9e0b68cea23f3770a9e4a464995fc1d47085a29a9bc8adb195a1f6fb62234e07",
+    "apps/HomeSense/Tests/HomeSenseCoreTests/HomeServerTests.swift": "0fdacd8faa6d38e445ec069a8cb078dad34d6118d02b79215e9ab41be3b3a556",
+    "apps/HomeSense/Tests/HomeSenseCoreTests/HomePushTests.swift": "77662700c6fc15e45c82c18b798b070a460726317d39bea71ac111e98455cdd1",
+    "apps/HomeSense/README.md": "7ef691dd8a9c0238cb146dafa5f8894eea0f852fcf75d0eb30c4ae7bbed59da1"
+  },
+  "user_field_result": {
+    "question_id": "call_f4fd03108f5e464984b613e50ed97611",
+    "answer": "在 楼层/房间/设备等页，切换模式，都会回到家庭概览的相应模式",
+    "mode_switch_accessible": true,
+    "current_page_preserved": false,
+    "foreground_background_sync_verified": false
+  },
+  "current_page_reset_source_confirmed": "HomeManagementView.onChange(interfaceMode) explicitly resets page and roomFilter",
+  "followup_owner": "HomeSenseApp"
+}

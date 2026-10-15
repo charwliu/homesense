@@ -1,0 +1,42 @@
+{
+  "checked_bj": "2026-10-15T03:05:53.109824+08:00",
+  "source_files_verified": 1082,
+  "source_archive_sha256": "234bed24ecd31c56024bc744512a14047cd1f945094083c58d442420b86f5226",
+  "modified_original_files": 26,
+  "added_files": 5,
+  "SDK_vendor_native_preserved": true,
+  "root_unmodified_original_contracts_passed": 8,
+  "root_final_default_stack_legacy_fade_passed": 4,
+  "root_final_immediate_library_contracts_passed": 10,
+  "other_library_cases_filtered": 171,
+  "zero_match_integration_first_attempt_not_counted": true,
+  "developer_full_workspace_log_recount": {
+    "passed": 931,
+    "failed": 0,
+    "ignored": 0,
+    "filtered": 0,
+    "blocks": 155
+  },
+  "root_did_not_independently_run_full_workspace": true,
+  "clippy_full_1082_frozen_tree_passed": false,
+  "clippy_product_1080_tree_claim_pending_source_and_log_audit": true,
+  "root_fixture_only_modern_chunks_style_lint_preserved": true,
+  "shared_or_field_products_not_changed": true,
+  "final_native_mix_probe_pending": false,
+  "complete_D_E": false,
+  "four_patch_reproduction_all_1082_files_equal": true,
+  "strict_product_clippy_source_files_verified": 1080,
+  "strict_product_alltargets_clippy_log_audited": true,
+  "strict_product_clippy_excluded_only_two_immutable_external_root_tests": true,
+  "final_native_mix_support_gap_reproduced": true,
+  "final_native_mix_passed": 0,
+  "final_native_mix_failed": 1,
+  "final_native_mix_filtered": 5,
+  "field_service_still_previous_binary_revision8": true,
+  "code_not_installed_in_shared_workspace": true,
+  "full_D_remaining_scope": [
+    65,
+    208,
+    24
+  ]
+}

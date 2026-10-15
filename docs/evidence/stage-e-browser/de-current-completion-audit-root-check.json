@@ -1,0 +1,275 @@
+{
+  "checked_bj": "2026-10-15T16:27:59.627256+08:00",
+  "derived_requirements": [
+    "docs/design.md sections9-11,18,20,23-24,27"
+  ],
+  "source_xml_sha256": "cac7dcdc9db08599e55a22bacb72858035c64e1ac846e2139ead5fc634513748",
+  "original_scope": {
+    "scenes": 68,
+    "programs": 215,
+    "variables": 25
+  },
+  "remaining_source_scope": {
+    "scenes": 65,
+    "programs": 208,
+    "variables": 24
+  },
+  "requirements": [
+    {
+      "id": "D-1",
+      "stage": "D",
+      "requirement": "68场景／215程序逐项处置",
+      "verified_scope": "完整清单与禁用转换已保留，显式联合入口覆盖215事件",
+      "remaining_evidence": "65场景、208程序的完整语义处置未完成；禁用和语法成功不等于批准",
+      "status": "source_decisions_pending"
+    },
+    {
+      "id": "D-2",
+      "stage": "D",
+      "requirement": "25变量、条件与生命周期",
+      "verified_scope": "类型化存储、CAS、三值条件及来源记录有软件证据",
+      "remaining_evidence": "24变量的原type2、生命周期、初始化和外部写入待审核",
+      "status": "source_decisions_pending"
+    },
+    {
+      "id": "D-3",
+      "stage": "D",
+      "requirement": "场景时序、tracking与停用",
+      "verified_scope": "通用审核转换、活动推断和完整目标向量停用已实现",
+      "remaining_evidence": "原rate／tracking编码及17个toggle值仍未知；其余运行中处置待决定，随后实现或明确排除",
+      "status": "source_semantics_unresolved"
+    },
+    {
+      "id": "D-4",
+      "stage": "D",
+      "requirement": "窗帘条件、手势与LED",
+      "verified_scope": "书房新规则、禁用候选和生产因果链已软件核查；168条面板程序的原驱动声明已关联",
+      "remaining_evidence": "35个原运动条件及其后续动作、其他房间按键／长按停止仍待逐项处置",
+      "status": "source_and_physical_partial",
+      "additional_source_evidence": "stage-d-study/keypad-event-declaration-root-check.json"
+    },
+    {
+      "id": "D-5",
+      "stage": "D",
+      "requirement": "日历、规则链、取消与恢复",
+      "verified_scope": "显式顺序、延迟、渐变、来源审计及恢复不重放有软件回归；4日历创建者与1内嵌计划来源已核对",
+      "remaining_evidence": "原计划／代理自身运行行为处置及完整原程序回放未完成",
+      "status": "source_and_physical_partial",
+      "additional_source_evidence": "stage-d-study/calendar-creator-source-root-check.json"
+    },
+    {
+      "id": "E-1",
+      "stage": "E",
+      "requirement": "原生HAP、配对与身份",
+      "verified_scope": "既有iPhone配对、保留身份重启和软件加密／撤权证据已具备；HAP过期失效及同值新反馈恢复通知已修复，3类灯回归、227项运行时单元、严格Clippy及普通生产库实际约5.3秒反例复验通过；同一统一候选的普通生产库另经三类灯真实回环Pair-Verify/加密EVENT/读取验证，5个特征过期和同值恢复，零控制命令",
+      "remaining_evidence": "HAP通知修复已纳入旧统一候选；当前新Keypad/浏览器撤除候选的最终本机集成与Linux生产冒烟尚待完成，实际Apple客户端故障通知覆盖仍待验收。",
+      "status": "software_notification_fix_integrated_and_physical_pending",
+      "additional_software_gap": "stage-e-browser/hap-expiry-notification-root-gap.json",
+      "additional_software_fix": "stage-e-browser/hap-expiry-notification-root-check.json",
+      "additional_encrypted_notification_evidence": "stage-e-browser/hap-encrypted-expiry-root-check.json"
+    },
+    {
+      "id": "E-2",
+      "stage": "E",
+      "requirement": "96路反馈、模块状态与查询",
+      "verified_scope": "已有两房间64路限定现场证据；正常CLI96路两例及189条并发控制已验证，12模块型号／用途已确认；当前正式CLI隔离停顿6秒后过期正确，96路新值约2.64秒恢复；新调度普通Mac CLI三例23232通道样本全部新鲜、586控制请求与Written及假总线逐项匹配，含25ms延迟反馈；最终候选启用HAP的180秒合成采样76128通道样本新鲜，2807控制与日志/假总线匹配；该次接收处理时间戳不能验证发送节拍",
+      "remaining_evidence": "完整96路现场地址/反馈核对按用户要求挂起；旧5512ms停顿原因及持续稳定性仍开放，后续受控容量通过不替代根因。",
+      "status": "software_failure_and_user_paused",
+      "additional_software_evidence": "stage-e-browser/production-query-capacity-root-check.json",
+      "additional_pause_recovery_evidence": "stage-e-browser/capacity-pause-recovery-root-check.json",
+      "additional_periodic_scheduler_evidence": "stage-e-browser/periodic-production-cli-root-check.json",
+      "additional_final_hap_soak_evidence": "stage-e-browser/periodic-hap-soak-root-check.json"
+    },
+    {
+      "id": "E-3",
+      "stage": "E",
+      "requirement": "灯光、场景、窗帘与面板入口",
+      "verified_scope": "两房间多项手动灯光／场景／窗帘及LED已限定现场通过",
+      "remaining_evidence": "扩展面板公开范围、完整新场景／管理范围仍待验收；不把软件Written当实物确认",
+      "status": "physical_acceptance_partial"
+    },
+    {
+      "id": "E-4",
+      "stage": "E",
+      "requirement": "原生App、管理API鉴权与事件恢复",
+      "verified_scope": "登录、滑块、退出和iPad断网恢复有实际限定结果；新账本与Away有软件证据；原生App实际TLS/WSS软件集成及手机推送、页面稳定与亮度按钮可用已确认；原生App两次实际调光跟随与自动读回已确认；rev9楼层目录及原生App三层/两房间归属已实际确认，永久Admin登录和本机空楼层编辑已通过；原生App楼层/房间新增、改名、删除、服务端保存及预览、恢复活动配置和测试草稿清理均已实际确认；两草稿独立核对设备及自动化未变",
+      "remaining_evidence": "浏览器页面验收由用户取消；页面撤除待实现，API/鉴权/WSS及原生App实际发布和完整管理/新入口仍待验收",
+      "status": "software_freshness_fixed_physical_pending"
+    },
+    {
+      "id": "E-5",
+      "stage": "E",
+      "requirement": "家庭中枢、多客户端与网络恢复",
+      "verified_scope": "实际iPhone蜂窝远控／回WiFi通过；用户报告HPLeft已连接",
+      "remaining_evidence": "用户明确挂起HPLeft断电恢复，未断电；其余明确客户端/桥和网络场景继续验收，具体中枢Peer未独立映射",
+      "status": "physical_acceptance_partial"
+    },
+    {
+      "id": "E-6",
+      "stage": "E",
+      "requirement": "Apple家庭房间归属",
+      "verified_scope": "保留书房9／画室8共17项预期清单；新服务启动后用户在Apple家庭逐房间查看，确认两房间所有E2卡片归属正确",
+      "remaining_evidence": "本项按当前两房间用户现场观察通过；未声称直接提取Home数据库或自动分房机制已实现",
+      "status": "current_two_room_assignment_user_verified"
+    },
+    {
+      "id": "Q-1",
+      "stage": "D/E",
+      "requirement": "最终集成软件回归",
+      "verified_scope": "固定1195文件backendv3：Mac完整1067项/167实际测试程序，零失败/忽略/过滤；10个crate文档测试块无示例，严格workspace/all-targets Clippy通过；外层锁贯穿编译/执行/产物哈希，全部输入前后未变。旧Linux完整1054通过/1失败与缓存污染的无效v4运行分别保留。",
+      "remaining_evidence": "当前v3普通light/motor/module/scene等源grant生命周期覆盖未完整；反例及修复正在准备，之后重验最终输入并由部署交叉生产程序/目标机隔离冒烟。实际客户端与完整D原语义及旧容量稳定性仍未完成。",
+      "status": "backend_v3_local_quality_pass_legacy_source_lease_and_production_smoke_pending",
+      "complete_for_current_frozen_input": false,
+      "incremental_python_tool_tests_passed": 20,
+      "full_workspace_repeated_this_increment": true,
+      "previous_verified_scope": "Rust／前端输入与1180文件冻结回归一致：Mac／Linux各1038通过、严格Clippy通过，各162实际二进制核验；仅Python审查工具增量20项通过",
+      "last_completed_frozen_regression": {
+        "historical_tests_per_platform": 1041,
+        "source_count": 1184,
+        "is_current_candidate": false
+      },
+      "current_increment_runtime_unit_tests": 227,
+      "current_full_workspace_platforms": [
+        "macOS arm64"
+      ],
+      "full_workspace_doc_tests_repeated": true,
+      "current_integrated_evidence": "stage-e-browser/native-keypad-backend-v3-root-check.json",
+      "current_mac_doc_result_blocks": 10,
+      "current_frozen_local_quality_pass": true
+    }
+  ],
+  "evidence_sha256": {
+    "stage-d-study/source-review-batches-root-check.json": "24290c3a4a839656c61ccbee9cb243b5018e74419e204e39bcb59e385ef7030b",
+    "stage-d-study/original-composite-conversion-root-check.json": "9481f7c78478648b2f06d11edac5e9cf23c1b4f46b185cae928b128b6bd42e3a",
+    "stage-d-study/reviewed-scene-converter-root-check.json": "e8107994055e4df979fc45325f6b7d39d70e3f96f68e0acda16bd7fd60153592",
+    "stage-d-study/wall-causal-runtime-root-check.json": "285323e6dc28ae8a5fb302e3618771520f331ce13c95463e24e3640ef169d06f",
+    "stage-e-browser/home-hub-field20-root-check.json": "f1969dbe0f9525d43905cb70db7b26c7853e4f9af1dacf43ce73f822c7f0d94e",
+    "stage-e-browser/home-room-assignment-root-check.json": "7811c8b3daaec9dc919d64bef5964a685f9fb1c4c796d18735d00ea6a9773beb",
+    "stage-e-browser/artstudio-manual-access-root-check.json": "b97e3c4f26c6ee3c62e302838cc29eb675aad0e6df4039a8da21d9ec2543a931",
+    "stage-e-browser/away-current-full-linux-root-check.json": "3cf3ed2745a9741908478c3fd3894c90065f067ab624f64baa2b03829b87f49c",
+    "stage-e-browser/away-simulator-restore-root-check.json": "4b3d1f0aab09b8d2f87f51913f1fa5a578f9fecb1d4b87f54f29dc348e4229fa",
+    "stage-e-browser/away-cold-full-observation-root-check.json": "d10dd602bf37406bf7a0a5573b83f3a41af15172c4ffac7c663a737667256bb0",
+    "stage-e-browser/hap-simulation-lifecycle-root-check.json": "b549732425e841c6bd12952b3beeb45e3fce20880f2f064f0940d547f4bad713",
+    "stage-e-browser/mac-fade-deadline-diagnosis-root-check.json": "df0b5bc40c9e88d7ea4fabd0b2e3084bd8e5bec7cf20d931c1c27f8138079e13",
+    "stage-e-browser/fade-clock-semantic-root-check.json": "cf21aeb742b2952e401c1e926b1ff3924ce9a725bf7da757316a5fce5b150556",
+    "stage-e-browser/production-query-capacity-root-check.json": "57b0ebd3a5991d7c18fd420ed761da2a844d1b1ed8dddc811873fa45108158a9",
+    "stage-d-study/calendar-creator-source-root-check.json": "9c6684b223d4ea41f7b47055807b6c687c89041aae3e6f5505e763efd25236fd",
+    "stage-d-study/keypad-event-declaration-root-check.json": "243fb15653f11e18117799e0c2ad975e0f58fc8315abba7f5ede9ffb0d511c09",
+    "stage-e-browser/device-read-freshness-root-check.json": "16d25b02707eb32329e50b4933881e4d7f3138cbc06c621d4b61c0fd42a9c890",
+    "stage-e-browser/native-app-backend-start-root-check.json": "11362117c17f877cb79349eee3c886d8ecf4aaa75690ce1cfe05d04bc1c115db",
+    "stage-e-browser/capacity-pause-recovery-root-check.json": "dc72f38e7d7e27b4bc8447d4a8dcdab1b834aec05b93439d4e27c4e89ce353c0",
+    "stage-e-browser/hap-expiry-notification-root-gap.json": "53d0b9fecc2d12662a16d1715acdc1d75673f418c662c5d287296df81ddc1518",
+    "stage-e-browser/hap-expiry-notification-root-check.json": "eaa2f634163f4d151485a844cd4288ca30ca1700e95c6045f5d2771f958e32ab",
+    "stage-e-browser/native-app-push-floors-root-check.json": "836050a327d38f9691455297d1d19994593d3bae63653602dda1ded593b0aee6",
+    "stage-e-browser/periodic-production-cli-root-check.json": "88cbf8fd9a41d09cb0992a8d5d08ca79084c6ee21699c000b5c08a8e9eb8ec0f",
+    "stage-e-browser/full-backend-v2-root-check.json": "9637ef55be5e2b37e4c42f4801a25800675290c4183c5521bd7231cb0f3cd7ee",
+    "stage-e-browser/hap-encrypted-expiry-root-check.json": "02157d626b7880dadfdb84aaa61351cc2f63a97e64080442ebca5bb46e8a453a",
+    "stage-e-browser/periodic-hap-soak-root-check.json": "bd3fee0cab5104171d8d3f945fd27c8b06ffc7444dc672da811b037ba6809cbb",
+    "stage-e-browser/full-backend-field-root-check.json": "26dad63d5929a9afefbb50ae7d929f73b8f3b7edc1081ef851fe8c263cd8e6a4",
+    "stage-e-browser/native-app-mode-keypad-root-gap.json": "c6c88766384100b074cc181e378b8f6edada4ca8c70f5ce3a88ea36afba5924a",
+    "stage-e-browser/test-portability-root-check.json": "09a3d9364caec64fc813f3e0ffb8c56ce97afb5d217304130d85bc1c4c501f34",
+    "stage-e-browser/native-app-mode-root-check.json": "4330f43f7e8fa2a6d979e3be81fbefc23d814c154cd20ce2ab58ac8e27e12770",
+    "stage-e-browser/curtain-idle-clock-root-check.json": "8a49b57e99a66e0b3e206b87363660cb3560a8bf97d25c9aab79be358adec2ec",
+    "stage-e-browser/keypad-migration-root-check.json": "b860828a90d85e66b1d444159aaa33edd4cacc219aad6aa60c3f1600a3a9956f",
+    "stage-e-browser/native-keypad-backend-v3-root-check.json": "01f360e2700738006bfdc6242226d363057c99e347f2030a6d79784fbe458ee4"
+  },
+  "excluded_by_scope": {
+    "Siri": "cancelled by user",
+    "F": "formal deployment, full backup recovery and72h operation",
+    "G": "whole-home takeover and rollback signing"
+  },
+  "field_readonly_user_paused": true,
+  "studio_Web_user_paused": false,
+  "all_new_source_approvals": 0,
+  "new_live_rules_enabled": 0,
+  "field_queries_or_controls": 0,
+  "D_E_complete": false,
+  "native_app_backend_start_user_authorized": true,
+  "field_queries_or_controls_scope_note": "Historical source audit had zero field actions; new user request authorizes existing two-room backend start for native App testing, not full96 audit or Away activation.",
+  "native_app_backend": {
+    "ready": false,
+    "revision": 9,
+    "schema": 26,
+    "fresh_channels": 64,
+    "deadline_bj": "2026-10-15T16:04:26+08:00",
+    "physical_app_acceptance": "partial: metadata CRUD/save/preview verified; publication pending",
+    "ready_scope_note": "此前窗口通过的历史快照；16:04:26到期，16:05:04受信HTTPS只读访问ConnectionRefused，不能继续当作当前在线。新现场窗口未启动。",
+    "current_status": "deadline_ended_connection_refused"
+  },
+  "configuration_publication": {
+    "revision9": "independently read trusted HTTPS export and room catalog,3floors/2rooms; native App user confirmed correct view",
+    "active_revision": 9,
+    "reason": "deployment-test authorization not accepted as explicit persistent active-database publication authorization",
+    "user_explicit_rev9_approval_verified": true,
+    "authoritative_field_revision_recheck_pending": false
+  },
+  "home_hub_offline_recovery_user_paused": true,
+  "new_user_requirements": [
+    {
+      "id": "U-1",
+      "requirement": "原生App日常控制/配置管理模式切换",
+      "status": "build5_installed_field_navigation_reset_reported_AppleHome_style_successor_in_progress",
+      "field_sync_acceptance": "pending; user encountered management-only navigation"
+    },
+    {
+      "id": "U-2",
+      "requirement": "TS6-86一块面板一个Keypad设备及子功能",
+      "status": "backend_v1_implemented_not_final_validated_App_in_progress_offline_migration_verified",
+      "field_migration": false
+    },
+    {
+      "id": "U-3",
+      "requirement": "撤除浏览器管理页面，保留原生App及其服务API",
+      "status": "implemented_in_frozen_backend_v1_final_validation_and_deployment_pending",
+      "deployment_performed": false
+    },
+    {
+      "id": "U-4",
+      "requirement": "原生App在系统Keychain保存服务器令牌，重开免输入并按Origin隔离",
+      "status": "Keychain_adapter_and_restore_UI_source_in_progress_tests_and_field_pending",
+      "owner": "HomeSenseApp",
+      "explicit_user_authorized": true,
+      "field_verified": false,
+      "software_evidence": "7 credential logic mock tests passed; iOS build succeeded; actual device quit/relaunch persistence pending"
+    }
+  ],
+  "client_scope_user_change": {
+    "date": "2026-10-15",
+    "user_request": "可以取消web管理页面；只留下原生App",
+    "browser_management_and_studio_Web_acceptance": "cancelled_by_user",
+    "native_App_HTTPS_API_auth_WSS_and_publication": "retained",
+    "Apple_Home_HAP": "retained",
+    "frontend_removal_implemented": "present_in_frozen_backend_v1_not_final_validated_or_deployed"
+  },
+  "studio_Web_cancelled_by_user": true,
+  "implementation_owners": {
+    "native_App_implementation_sign_build_install": "HomeSenseApp",
+    "backend_implementation_local_checks": "功能开发",
+    "backend_Linux_cross_compile_package_server_deploy_exclusive": "部署",
+    "root": "requirements/interface/evidence audit, coordination and physical acceptance; no independent Linux cross-build"
+  },
+  "QA_workflow_explicit_user_change": {
+    "user_deployment_chat_request": "单元测试在本机作就可以吧？",
+    "local_workspace_and_clippy": true,
+    "cross_compile_production_Cargo_LinuxGCC": true,
+    "Linux_isolated_production_smoke": true,
+    "routine_full_Linux_test_upload_required": false,
+    "old_failure_retained": true
+  },
+  "pending_Keypad_scope_review": {
+    "kind": "new native parameter/LED exact-source tests passed; legacy generic paths static gap, dynamic counterexample pending",
+    "fixed_scope": "frozen backendv3: two test functions/18 scenarios for exact source generation changes before enqueue/dispatch and after ticket; zero bytes, same-controller positive source remains working",
+    "candidate_manifest_sha256": "fb3b02e0fee75fb0ed83aab63f197414295125348757f8d3a0b3cbe521bf65c4",
+    "compile_failure_retained": "v2 two E0509 fixture shutdown compile errors; v3 only test handle clones changed",
+    "still_open_paths": [
+      "ordinary light HTTP commands",
+      "motor HTTP commands",
+      "scene APIs reused by Keypad actions",
+      "module controls and derived delayed/scene output scope inventory"
+    ],
+    "not_a_claim_all_API_auth_fixed": true,
+    "full_workspace": "frozenv3 completed1067/all167, doc andClippy passed",
+    "deployment_held": true
+  },
+  "offline_keypad_migration": "Two parents and10existing aliases preserved6+4, all other revision9 fields identical; fixedv3 production check-config/check-automation exit0, no service or commands."
+}

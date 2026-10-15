@@ -1,0 +1,57 @@
+{
+  "status": "authorized_recovery_segment_deadline_and_preservation_verified",
+  "terminal_audit": {
+    "status": "terminal_verified",
+    "checked_bj": "2026-10-15T08:00:42.421502+08:00",
+    "deadline_bj": "2026-10-15T08:00:00+08:00",
+    "service_absent": true,
+    "guard_absent": true,
+    "observer_absent": true,
+    "listeners_absent": true,
+    "terminal_not_before_deadline": true,
+    "observer_reached_deadline": true,
+    "observer_terminal": {
+      "checked_bj": "2026-10-15T08:00:00.000163+08:00",
+      "samples": 266,
+      "healthy_samples": 259,
+      "read_failed": 3,
+      "deadline_elapsed": true,
+      "service_absent": false,
+      "commands_sent": 0,
+      "no_process_signaled": true
+    },
+    "failures": [],
+    "pairing_configuration_credentials_history_preserved": true,
+    "earlier_failure_evidence_preserved": true,
+    "full_overnight_continuity_passed": false,
+    "full_D_E_complete": false,
+    "commands_sent": 0,
+    "signals_sent": 0
+  },
+  "samples": 266,
+  "sample_status_counts": {
+    "healthy": 259,
+    "read_failed": 3,
+    "unhealthy": 4
+  },
+  "last_sample": {
+    "checked_bj": "2026-10-15T07:59:36.940143+08:00",
+    "sample": 266,
+    "commands_sent": 0,
+    "status": "healthy",
+    "ready": true,
+    "boot": "94ece5e2-7f6e-41ee-8ec9-cbbae26c3478",
+    "revision": 8,
+    "fresh_channels": 64,
+    "pairing_and_history_preserved": true
+  },
+  "guard_status": "deadline_stop_completed",
+  "guard_terminal_bj": "2026-10-15T08:00:00.001339+08:00",
+  "deadline_stop_bj": "2026-10-15T08:00:00.000823+08:00",
+  "old_0516_failure_and_sampling_gaps_preserved": true,
+  "full_overnight_continuity_passed": false,
+  "continuous_healthy_sampling_passed": false,
+  "field_restart_requested": false,
+  "field_software_replaced": false,
+  "full_D_E_complete": false
+}

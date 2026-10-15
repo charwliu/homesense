@@ -1,0 +1,32 @@
+{
+  "checked_bj": "2026-10-15T00:52:04.749241+08:00",
+  "code_installed_in_actual_shared_workspace": true,
+  "installed_14_files_equal_final_candidate": true,
+  "actual_workspace_tests": {
+    "test-import-final.log": 53,
+    "test-config-final.log": 15,
+    "test-runtime-scoped-final.log": 33,
+    "test-native-core-final.log": 5
+  },
+  "actual_workspace_tests_passed": 106,
+  "frozen_candidate_scoped_tests": 105,
+  "actual_workspace_extra_existing_test": "full_source_event_preserves_branch_actions_and_timed_ramp_reference",
+  "candidate_tests_missing_from_actual": 0,
+  "actual_workspace_strict_clippy_scopes_passed": 2,
+  "independent_final_source_disabled_gate_tests": 4,
+  "independent_final_source_previously_sandbox_failed_TCP_tests_passed": 7,
+  "TCP_old_library_cases_filtered_out": 150,
+  "source_primary_68_scenes_retained": true,
+  "no_original_source_semantics_approved": true,
+  "original_runtime_definitions_generated": 0,
+  "remaining_D_scenes": 65,
+  "remaining_D_programs": 208,
+  "remaining_D_variables": 24,
+  "shared_pre_existing_edits_preserved_by_disjoint_patch_paths": true,
+  "staged": false,
+  "committed": false,
+  "field_binary_or_configuration_changed": false,
+  "full_workspace_regression_claimed": false,
+  "root_fixture_initial_variant_error_retained": true,
+  "complete_D_E": false
+}

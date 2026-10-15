@@ -1,0 +1,15 @@
+{
+  "diagnostic_only_source_logs_and_controlled_ordering": true,
+  "raw_old_frame_hex": "AE 15 01 5A EE",
+  "meaning": "old mapping light level 90",
+  "wire_done_ms": 324,
+  "successful_publication_begin_request_ms": 351,
+  "successful_publication_begin_ack_ms": 352,
+  "old_frame_precedes_successful_barrier": true,
+  "original_zero_read_assertion_failed_and_preserved": true,
+  "controlled_log_sha256": "b7bb0ce78c2d034368ad503cc164cb746cb16528338a3dd830fe0c4c2b5d3f08",
+  "not_a_cancellation_after_barrier_counterexample": true,
+  "HAP_original_timeout_unresolved": true,
+  "candidate_fix_not_yet_integrated": true,
+  "physical_gateway_connected": false
+}

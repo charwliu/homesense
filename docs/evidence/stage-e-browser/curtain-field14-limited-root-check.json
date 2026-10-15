@@ -1,0 +1,49 @@
+{
+  "date": "2026-10-14",
+  "source_commit": "0149860ebd1fca71757390b17750a06ea09064fd",
+  "binary_sha256": "b7893ccd70222ee04ba1b1d0b6aabe7adf6314007eaaaf773e21e8a7031fced2",
+  "scope": "Limited paired HAP manual curtain state estimates and direction/Stop LEDs; original wall programs unchanged, not newly enabled.",
+  "user_confirmed": [
+    "readonly original gateways and lights healthy",
+    "initial manual Stop and delayed idle hint",
+    "Open then physical mid-travel Stop and motion/idle LEDs",
+    "Close then physical mid-travel Stop and motion/idle LEDs",
+    "natural fully Closed/self-stop and corresponding LEDs",
+    "natural fully Open/self-stop and corresponding LEDs"
+  ],
+  "actual_motor_commands": {
+    "open": 2,
+    "close": 2,
+    "stop": 3
+  },
+  "all_seven_motor_commands_written": true,
+  "pending_commands": 0,
+  "active_revision": 5,
+  "fresh_light_channels_at_final_check": 32,
+  "pairing_identity_unchanged": true,
+  "temporary_credentials_issued": 0,
+  "credential_baseline_unchanged": true,
+  "normal_service_guard_expiry_verified": true,
+  "seconds_after_deadline": 2.535,
+  "initial_position_unknown_preserved": true,
+  "no_fake_percent_for_unknown_start_midstop": true,
+  "inferred_endpoints_zero_and_full_verified": true,
+  "actual_motor_feedback_still_unknown": true,
+  "guard_history": {
+    "initial_guard_exited": "light baseline changed",
+    "failure_time_light_snapshot_missing": true,
+    "three_later_confirmed_Off_reads": true,
+    "original_failure_retained": true,
+    "replacement_guard": "20s bounded incomplete-feedback grace, any observed On fatal; same service process",
+    "replacement_guard_no_failure": true
+  },
+  "remaining": [
+    "actual new iPad Web curtain state display and controls",
+    "repeat terminal Open and idle-hint Stop",
+    "known-start intermediate percent and reversal",
+    "restart unknown state and broader client scope",
+    "original wall-event execution ownership and full D semantics"
+  ],
+  "full_D_E_complete": false,
+  "private_terminal_sha256": "6c27dacc32ae50cea5095335c500185f54752d5697995c980f28954a98fd3fa2"
+}

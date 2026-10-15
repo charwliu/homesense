@@ -1,0 +1,18 @@
+{
+  "path": "crates/homesensed/tests/live_service.rs",
+  "old_sha256": "477480aedc2e5c3607612731be857822435bba9b0838074dee424da84d9c349a",
+  "new_sha256": "905f10035e0819112de64dd58c73899dd7521dfe0e6f5a49ffa95e8aed2a4c8e",
+  "shared_only_one_test_file_changed": true,
+  "production_changed": false,
+  "original_poll_attempts": 150,
+  "original_poll_sleep_ms": 2,
+  "original_service_duration_ms": 250,
+  "new_cold_query_wait_seconds": 3,
+  "controlled_delay_ms": 400,
+  "old_controlled_case_exit": 101,
+  "new_same_delay_exit": 0,
+  "new_no_delay_target_tests_passed": 2,
+  "new_target_strict_clippy_exit": 0,
+  "not_claimed_exact_original_full_Linux_phase": true,
+  "no_staging_commit_or_field_deployment": true
+}

@@ -1,0 +1,12 @@
+{
+  "scope": "pre-fix tracking candidate; independent actual actor/Feedback and public scene write planner",
+  "actual_activity": "Active",
+  "Off_accepted_with_no_action": true,
+  "commands": 0,
+  "failed_product_contract_tests": 1,
+  "source_files_in_snapshot": 1075,
+  "first_private_clock_fixture_compile_error_retained": true,
+  "result": "confirmed candidate gap; not current field binary failure",
+  "real_gateway_or_production_state_used": false,
+  "developer_remediation_in_progress": true
+}

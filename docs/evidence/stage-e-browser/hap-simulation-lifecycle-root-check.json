@@ -1,0 +1,139 @@
+{
+  "scope": "test lifecycle correction; current complete frozen input results retained per platform",
+  "source_archive_sha256": "2effbcc317ac92e245fafb796f078cfdf8bb8f4fe0a7a1e38563f80ba6aeb933",
+  "source_files": 1179,
+  "all_original_sources_exact_before_after_each_platform": true,
+  "changed_paths": [
+    "crates/homesensed/src/service.rs",
+    "crates/homesensed/src/simulation_hap_fault_tests.rs"
+  ],
+  "production_service_text_after_removing_changed_cfg_test_parameter_and_blocks_identical": true,
+  "test_contract": {
+    "old_clock_included_cold_database_and_endpoint_preparation": true,
+    "separate_startup_guard_seconds": 10,
+    "failure_delay_after_healthy_baseline_ms": 500,
+    "degraded_response_guard_seconds": 2,
+    "service_runtime_seconds": 3,
+    "post_fault_scene_offset_ms": 500,
+    "scene_max_lateness_ms": 1000,
+    "scene_observed_guard_seconds": 2,
+    "healthy_Web_and_HAP_baseline_assertions_added": true,
+    "slow_startup_counterpart_ms": 2200,
+    "old_behavior_assertions_preserved": true
+  },
+  "Linux": {
+    "full": {
+      "exit": 0,
+      "result_blocks": 172,
+      "counts": [
+        1037,
+        0,
+        0,
+        0
+      ],
+      "log_sha256": "8a54e87afbaa20c0c346154fa3e181395a7ea333b2b34dcf8cfe54d982a194c6"
+    },
+    "workspace_all_targets_strict_Clippy_exit": 0,
+    "production_library_check_exit": 0,
+    "actual_ELF_binaries": 162,
+    "targeted": {
+      "exit": 0,
+      "result_blocks": 1,
+      "counts": [
+        3,
+        0,
+        0,
+        207
+      ],
+      "log_sha256": "97009ebf5a359aac145572527e077c35a03b0385c135c54f1da2ee5c81ae6262"
+    },
+    "no_abort_negative_control": {
+      "exit": 101,
+      "result_blocks": 1,
+      "counts": [
+        0,
+        1,
+        0,
+        209
+      ],
+      "log_sha256": "cee841594c40d57f6abbbaba0105274172b640b020b8f3dfb4676c68bd729b0a"
+    },
+    "negative_failure_location": "simulation_hap_fault_tests.rs:48, unchanged two-second degraded-state guard"
+  },
+  "Mac": {
+    "full": {
+      "exit": 101,
+      "result_blocks": 172,
+      "counts": [
+        1035,
+        2,
+        0,
+        0
+      ],
+      "log_sha256": "0442e17508d66e3774c6bc0914d9b19a33e85943af5919451e29f4dbf7a32cbb"
+    },
+    "workspace_all_targets_strict_Clippy_exit": 0,
+    "actual_MachO_binaries": 162,
+    "same_three_HAP_cases_passed_in_full_run": true,
+    "remaining_failures": [
+      {
+        "test": "configured_fade_prepares_from_feedback_and_never_falls_back",
+        "file": "crates/homesensed/tests/study_runtime.rs",
+        "line": 5972,
+        "error": "fade output interrupted"
+      },
+      {
+        "test": "dropping_unfinished_software_fade_closes_output_admission",
+        "file": "crates/homesensed/tests/study_runtime.rs",
+        "line": 5363,
+        "error": "fade output expired"
+      }
+    ],
+    "failing_study_runtime_source_unchanged": true,
+    "original_failure_executables_preserved": true
+  },
+  "both_platform_actual_binaries_hashed": true,
+  "overlapping_targeted_tests_not_added_to_full_counts": true,
+  "previous_capacity_freshness_failure_not_closed_by_passing_this_run": true,
+  "Mac_fade_failure_root_cause_proven": false,
+  "full_worktree_qualification_passed": false,
+  "scoped_test_fixture_merged": {
+    "merged_paths": [
+      "crates/homesensed/src/service.rs",
+      "crates/homesensed/src/simulation_hap_fault_tests.rs"
+    ],
+    "only_two_existing_source_files_changed": true,
+    "all_other_original_inputs_preserved": true,
+    "index_bytes_unchanged": true,
+    "source_archive_sha256": "2effbcc317ac92e245fafb796f078cfdf8bb8f4fe0a7a1e38563f80ba6aeb933",
+    "remaining_document_differences": [
+      "CHANGELOG.md",
+      "README.md",
+      "docs/de-completion-audit.md",
+      "docs/away-module-off.md",
+      "docs/stage-e-remaining.md",
+      "docs/state-and-indicator-policy.md"
+    ],
+    "committed": false,
+    "field_deployed": false
+  },
+  "field_readonly_user_paused": true,
+  "studio_Web_user_paused": true,
+  "field_access": false,
+  "new_source_semantic_approvals": 0,
+  "new_original_rules_enabled": 0,
+  "D_E_complete": false,
+  "artifact_sha256": {
+    "terminal.json": "2e0f741bdfd15595aeadfb5a6ad0ad039c36ab0db209ab2376cb43660d1079bf",
+    "full.log": "8a54e87afbaa20c0c346154fa3e181395a7ea333b2b34dcf8cfe54d982a194c6",
+    "full-binaries.json": "68478617860a2e1f519e3af10db1374206b308f390e3cb215a8fc248c347f5a0",
+    "clippy-workspace.json": "b1b890066e3b2cfc678e1bb422a1ca235660765d5e1b3777f68836317a555c97",
+    "mac-terminal.json": "62d5104170676980a8ccd707d7b8879dd2bdf0d120f36d1c2a1d1150ace0bb39",
+    "mac-full.log": "0442e17508d66e3774c6bc0914d9b19a33e85943af5919451e29f4dbf7a32cbb",
+    "mac-actual-binaries.json": "03a4d80e30a9b6dc5785f905f5a61ed62c826bbdb01386744f569f49221aa0c5",
+    "mac-preserved-binaries.json": "d15beb2f3ce2f14e5cf4b0c2df297ae1fbe602740a7a07fdc086755363aed387",
+    "negative-no-abort.log": "cee841594c40d57f6abbbaba0105274172b640b020b8f3dfb4676c68bd729b0a",
+    "candidate.patch": "25842d2dd0d7b84792a2fee2a6049dde515bde23b96499661325dc5acfa67987",
+    "shared-scoped-merge.json": "4e73561b1e1296468f12b0a2722e9295029aeb58b3d316a5062c5f13304e5dfe"
+  }
+}

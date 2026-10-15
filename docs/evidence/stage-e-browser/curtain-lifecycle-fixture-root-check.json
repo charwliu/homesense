@@ -1,0 +1,19 @@
+{
+  "original_delayed_probe_exit": 101,
+  "original_delayed_probe_log_sha256": "5850cc40b9d846cfc37d07bba85068039d1ec6b8b6d9bc313e5925d81302cf54",
+  "fixed_delayed_probe_exit": 0,
+  "fixed_delayed_probe_log_sha256": "d13871d5928ae2f1152b223dad9852a5974af5c89ae345431c9f191206e044ae",
+  "fixed_probe_strict_Opening_assertion_preserved": true,
+  "diagnostic_delay_removed_from_final_fixture": true,
+  "production_prefix_unchanged": true,
+  "before_sha256": "e4e5f44e44d870107c81ca517f7385ac777ac7cdea3babafb047db5baa0d6fe6",
+  "candidate_sha256": "c4a56b471459de8fd7c544f38dbddab851748377e8893e543f96d8fb416538c2",
+  "shared_source_modified": true,
+  "lifecycle_candidate_not_yet_broadly_qualified": true,
+  "only_existing_lifecycle_test_fixture_changed": true,
+  "candidate_curtain_tests_passed": 10,
+  "candidate_curtain_tests_filtered": 185,
+  "strict_Opening_assertion_and_all_recovery_no_replay_assertions_preserved": true,
+  "actual_shared_full_test_after_fixture_change_pending": true,
+  "production_timing_changed": false
+}

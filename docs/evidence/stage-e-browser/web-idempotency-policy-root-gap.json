@@ -1,0 +1,101 @@
+{
+  "checked_bj": "2026-10-15T04:41:20.090423+08:00",
+  "status": "resolved_in_shared_source_with_limited_software_qualification",
+  "requirement_sources": [
+    "docs/design.md:306",
+    "docs/design.md:624"
+  ],
+  "required_scope": "principal + normalized endpoint + request key",
+  "required_configuration": "idempotency window/capacity and expiry policy",
+  "current_implementation": {
+    "key": "principal + trusted canonical endpoint + request_key",
+    "default_capacity": 100000,
+    "capacity_configurable": true,
+    "endpoint_field": true,
+    "expiry_field": true,
+    "expired_fence_retained": true,
+    "source_path": "crates/homesensed/src/web_receipts.rs",
+    "source_sha256": "a2d1e4773def4e0f043a0e01ef99116aa04e274f8876b37153450569c088efd1"
+  },
+  "existing_durable_replay_fence_not_removed": true,
+  "independent_runtime_counterexample_run": true,
+  "evidence_scope": "explicit design/source comparison plus actual authenticated in-process Web handler, runtime drive/Admission and SQLite; no physical IO",
+  "source_semantic_approval_required": false,
+  "fix_requires_preserving_legacy_and_uncertain_receipts": true,
+  "delegated_thread": "01a1233b-ff40-7971-b40d-806595943d96",
+  "live_turn": "01a13c24-ae75-7182-b4ee-6c8772de70b7",
+  "no_implementation_installed": false,
+  "deployment": false,
+  "physical_commands": 0,
+  "full_D_E_complete": false,
+  "runtime_counterexample": {
+    "tests_passed": 0,
+    "tests_failed": 1,
+    "exit_code": 101,
+    "counterexample": "scene-actions with same principal/key and separate valid endpoint returns409 idempotency_conflict instead of own accepted record",
+    "positive_control_in_same_test": "device-commands202 accepted, same endpoint/key retry200 with byte-identical receipt; those assertions reached before scope failure",
+    "actual_qualified_HTTP_handler": true,
+    "HTTP_network_socket_or_TLS_or_browser_test": false,
+    "physical_io": false
+  },
+  "updated_bj": "2026-10-15T06:29:53.171893+08:00",
+  "management_write_coverage": {
+    "explicit_design_applies_to_authenticated_writes": true,
+    "draft_create_edit_archive_and_credential_issue_edit_revoke_need_ledger": true,
+    "existing_resource_checks_not_equivalent_to_transmission_deduplication": true,
+    "implementation_status": "independent implementation expanding coverage",
+    "credential_secret_contract": "same original issuance record; no second secret disclosure and no plaintext secret in ledger",
+    "production_updated": false
+  },
+  "draft_expiry_counterexample": {
+    "first_probe_passed": 1,
+    "first_probe_failed": 1,
+    "same_test_bytes_fixed_passed": 2,
+    "fixed_failed": 0,
+    "scope": "only frozen draft ledger/policy modules with SQLite and trusted clock; not a full final candidate",
+    "no_action_replay_observed": true
+  },
+  "v3_draft_independent_checks": {
+    "stable_snapshot_files": 1097,
+    "root_http_expiry_management_contracts_passed": 7,
+    "ledger_policy_migration_tests_passed": 12,
+    "failed": 0,
+    "root_scope": "in-process authenticated API, real Admission/runtime and SQLite; no socket/TLS/browser/physical IO",
+    "original_ledger_code_byte_identical": true,
+    "old_ledger_initialization_after_upgrade_rejected": true,
+    "intermediate_view_upgrade_and_failed_upgrade_preservation_checked": true,
+    "management_fixture_assertions_unchanged": true,
+    "final_fixed_archive_not_yet_reviewed": true,
+    "shared_source_or_field_installation": false,
+    "frontend_checks_passed": 19,
+    "actual_browser_qualified": false
+  },
+  "full_candidate_regression": {
+    "first_attempt_passed": false,
+    "old_cross_endpoint_conflict_assertion_contradicts_required_endpoint_scope": true,
+    "original_failure_log_preserved": true,
+    "corrected_full_regression_pending": true,
+    "root_corrected_exact_case": {
+      "passed": 1,
+      "failed": 0,
+      "filtered": 194,
+      "original_pending_feedback_and_single_toggle_preserved": true,
+      "new_endpoint_receipts_and_duplicates_conflicts_verified": true,
+      "scope": "isolated source unit case, not full workspace"
+    },
+    "compilation_disk_exhaustion_preserved": true,
+    "shared_or_field_source_changed": false
+  },
+  "original_gap_status": "explicit_design_requirement_missing",
+  "original_implementation": {
+    "key": "principal + request_key",
+    "capacity": 100000,
+    "capacity_configurable": false,
+    "endpoint_field": false,
+    "expiry_field": false,
+    "source_sha256": "b2bdf3f4cffd8675c1a33aeab22bcad85b7a6e89c9e8857689b2f8abc8f95b24",
+    "source_path": "crates/homesensed/src/web_receipts.rs"
+  },
+  "final_shared_qualification": "web-idempotency-policy-root-check.json",
+  "historical_failures_preserved": true
+}

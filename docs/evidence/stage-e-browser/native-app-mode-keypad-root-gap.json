@@ -1,0 +1,55 @@
+{
+  "checked_bj": "2026-10-15T15:31:48.914988+08:00",
+  "user_mode_feedback": {
+    "question_id": "call_793b74cce7b44acdb84173ef3daddf4b",
+    "answer": "在管理模式，看不到状态；应该要可以切换模式",
+    "foreground_background_sync_verified": false,
+    "physical_lamp_off_confirmed": false
+  },
+  "user_keypad_requirement": "每块TS6-86一个Keypad对象/设备；LED、背光、工作模式为子功能，不是多个顶层设备",
+  "current_source_findings": {
+    "HomePage_navigation_mixes_live_control_and_management": true,
+    "explicit_daily_management_mode_switch": false,
+    "logical_device_binding_requires_single_channel": true,
+    "module_registry_has_stable_module_id": true,
+    "Keypad_parent_device_model_implemented": false
+  },
+  "readonly_backend_snapshot": "71b76a13218f085d4e9b5f8a776ce4efe7e7c6916b1eb81ba38edec6fcfc403c",
+  "current_visible_Keypad_rows": 7,
+  "actual_panels_represented": 2,
+  "current_scope_note": "7 enabled LED channel devices from two panels appear as top-level Keypad rows; not seven physical panels.",
+  "contracts": "docs/keypad-device-model.md",
+  "implementation_owner": "split by explicit user request: HomeSenseApp owns native UI",
+  "priority": "Install App mode switch first; implement Keypad model in a separate subsequent frozen candidate.",
+  "source_sha256": {
+    "apps/HomeSense/App/HomeManagementView.swift": "d3eb563520f23a31cb8275caa124916648459f3c2192fe712b0b422696992a8c",
+    "apps/HomeSense/Sources/HomeSenseCore/HomeServerStore.swift": "57519f3a62bd5a59e588e688c14d2bcc4faafa1edf55bfe7bc00e54a65b1eadc",
+    "crates/homesense-config/src/lib.rs": "74e96d68a549cbf4304ce446e1b3a8c09a8f2fc5a2ee4060601fcad7ce49958f",
+    "crates/homesensed/src/management_devices.rs": "1a4b8de4b5a11de530c58fbf53e4dbc701598762ba3baa9819d63ebb1341a995"
+  },
+  "field_migration_performed": false,
+  "new_keypad_commands_sent": 0,
+  "D_E_complete": false,
+  "implementation_owners": {
+    "App_modes_Keypad_UI_build_install": "HomeSenseApp",
+    "backend_Keypad_API_WSS_and_remove_browser_pages": "功能开发",
+    "cross_compile_and_deploy": "部署"
+  },
+  "App_mode_build5_reported_installed": true,
+  "App_mode_field_acceptance": false,
+  "Keypad_square_layout": [
+    [
+      1,
+      2
+    ],
+    [
+      3,
+      4
+    ],
+    [
+      5,
+      6
+    ]
+  ],
+  "browser_UI_cancelled_by_user": true
+}

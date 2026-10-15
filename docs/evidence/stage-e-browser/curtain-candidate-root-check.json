@@ -1,0 +1,244 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-14",
+  "scope": "Historical independent software counterexamples and fixes, plus fixed integration commit and isolated Linux runtime checks; physical field acceptance remains pending.",
+  "baseline_commit": "75e0b8011d58723e761777ff5e5e685655433c64",
+  "adapter_input_overlay_sha256": {
+    "crates/homesense-core/src/lib.rs": "b9d2052120a18c53694e84a7e9c80701ac0f7288455d950fa12b953faa0556b9",
+    "crates/homesense-core/src/curtain_state.rs": "7aabc526fbedcce77f19ccf0aabc1812b74cb87c4d3e428c5d243baac5250ecd",
+    "crates/homesense-storage/src/journal.rs": "d4c50f0bebef5620874a0e86d689a49762dfb9fa874fc8de5c901af3eb390848",
+    "crates/homesensed/src/lib.rs": "f6179924e2f244b2bb73ba989a5e2de75fd7757e5f9b1985db31e1fd1b309f40",
+    "crates/homesensed/src/admission.rs": "0a4a2690f7b7d05e54eb6531b9a4f5eb7fea13b2bfbb7cb798515a0004dcd078",
+    "crates/homesensed/src/curtain_candidate.rs": "30ebec82d693b925869ec011546ce753363ff83235da067dbc796f4294c3d2fa"
+  },
+  "adapter_contract": {
+    "passed": 5,
+    "failed": 0,
+    "ignored": 0,
+    "filtered_out": 0
+  },
+  "adapter_cases": [
+    "repeat estimated-terminal Open and LED-idle Stop send actual calibrated frames",
+    "delayed first view uses SQLite actual Written timestamp",
+    "revoked principal cancels with zero bytes and no replay after reauthorization",
+    "missing calibration and unauthorized constructor fail with zero bytes",
+    "partial motion frame becomes Uncertain without retry or automatic Stop"
+  ],
+  "initial_test_compile_error": "Private regression fixture used unsupported u64 SQLite bindings. Fixed to checked i64 conversions; production source unchanged. Original build log retained privately.",
+  "new_indicator_input_core_sha256": {
+    "lib.rs": "b9d2052120a18c53694e84a7e9c80701ac0f7288455d950fa12b953faa0556b9",
+    "curtain_state.rs": "a8d5001739dc06d68f20f6be0f238d1d3119f02a6931d7c063259a8f02a572f4"
+  },
+  "new_indicator_contract": {
+    "passed": 7,
+    "failed": 1,
+    "ignored": 0,
+    "filtered_out": 0
+  },
+  "new_indicator_gap": {
+    "reproduction": "Open Written; Stop Accepted but not yet Written; snapshot activity color becomes unavailable while prior physical motion has not been superseded.",
+    "expected": "Keep red activity indication through the successful Written boundary; green only after explicit Stop or estimated arrival plus the configured delay.",
+    "limitations": "No physical green output proven; current software has no active LED consumer installed.",
+    "current_status": "closed by independent unchanged 8-case core regression on fixed input; original failure retained"
+  },
+  "manual_policy": "Each authorized, calibrated manual Open/Close/Stop remains actionable regardless of estimated terminal state or LED color.",
+  "remaining": [
+    "final submitted candidate and complete required quality checks",
+    "exact Linux candidate and limited physical acceptance",
+    "Web event and browser estimate rendering verification",
+    "full original scene/program/variable semantic dispositions"
+  ],
+  "stage_d_complete": false,
+  "stage_e_complete": false,
+  "runtime_rules_enabled": false,
+  "field_commands_sent": 0,
+  "fixed_indicator_input_core_sha256": {
+    "lib.rs": "b9d2052120a18c53694e84a7e9c80701ac0f7288455d950fa12b953faa0556b9",
+    "curtain_state.rs": "f8bb9a966d6e8f3715b58581674df07edeb859cc4e5baeb7ef3233363374cb9b"
+  },
+  "fixed_indicator_contract": {
+    "passed": 8,
+    "failed": 0,
+    "ignored": 0,
+    "filtered_out": 0
+  },
+  "fixed_indicator_test_source_unchanged": true,
+  "fixed_adapter_input_overlay_sha256": {
+    "crates/homesense-core/src/lib.rs": "b9d2052120a18c53694e84a7e9c80701ac0f7288455d950fa12b953faa0556b9",
+    "crates/homesense-core/src/curtain_state.rs": "f8bb9a966d6e8f3715b58581674df07edeb859cc4e5baeb7ef3233363374cb9b",
+    "crates/homesense-storage/src/journal.rs": "d4c50f0bebef5620874a0e86d689a49762dfb9fa874fc8de5c901af3eb390848",
+    "crates/homesensed/src/lib.rs": "f6179924e2f244b2bb73ba989a5e2de75fd7757e5f9b1985db31e1fd1b309f40",
+    "crates/homesensed/src/admission.rs": "0a4a2690f7b7d05e54eb6531b9a4f5eb7fea13b2bfbb7cb798515a0004dcd078",
+    "crates/homesensed/src/curtain_candidate.rs": "3b6fd3d95437aa3f32708beaacba30be04763a1eccc72e799b5c6f922fada2b7"
+  },
+  "fixed_adapter_contract": {
+    "passed": 5,
+    "failed": 0,
+    "ignored": 0,
+    "filtered_out": 0
+  },
+  "fixed_adapter_test_source_unchanged": true,
+  "shared_projection_counterexample": {
+    "result": {
+      "passed": 0,
+      "failed": 1,
+      "ignored": 0,
+      "filtered_out": 0,
+      "exit_code": 101
+    },
+    "scenario": "Two authorized principals issue Open then Close through one owner; independent instances retain different terminal estimates.",
+    "expected": "one latest per-logical-curtain trajectory",
+    "limitations": "Counterexample to per-client integration architecture; current Candidate is documented standalone and dormant. Not an installed HAP/Web or field regression.",
+    "current_status": "closed by unchanged regression against frozen shared Admission integration"
+  },
+  "shared_projection_fixed_contract": {
+    "result": {
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0,
+      "filtered_out": 0,
+      "exit_code": 0
+    },
+    "test_source_unchanged": true,
+    "adapter_contract": {
+      "passed": 5,
+      "failed": 0,
+      "ignored": 0,
+      "filtered_out": 0,
+      "exit_code": 0
+    },
+    "scope": "Actual Admission + single memory TransportOwner; not HTTP/HAP encrypted clients, physical LEDs, Linux or full workspace."
+  },
+  "led_ownership_counterexample": {
+    "result": {
+      "passed": 0,
+      "failed": 1,
+      "ignored": 0,
+      "filtered_out": 0,
+      "exit_code": 101
+    },
+    "positive_control": "Same enabled light indicator link accepted when motor has no LED binding.",
+    "failure": "Configuration + rule Document allow same logical/physical LED in curtain stop binding and independent enabled light indicator.",
+    "scope": "Parser counterexample only, no runtime or physical fight proven.",
+    "current_status": "closed by unchanged independent parser regression on fixed input"
+  },
+  "auth_transfer_counterexample": {
+    "result": {
+      "passed": 0,
+      "failed": 1,
+      "ignored": 0,
+      "filtered_out": 0,
+      "exit_code": 101
+    },
+    "reproduction": [
+      "two initially authorized principals; A Open successfully Written",
+      "B Stop accepted, pending dispatch",
+      "revoke only A; B remains authorized",
+      "B Stop dispatch completes and full frame written, but shared latest Written and movement both absent"
+    ],
+    "expected": "Revoking A invalidates old estimate and A effects; retain accepted valid B receipt so actual new B Written establishes inferred Stopped and Stop-key timer",
+    "scope": "Shared Admission + memory TransportOwner; not physical motor response, encrypted HAP/Web, Linux or full workspace. Motor STOP output succeeds; the new shared state is lost.",
+    "current_status": "closed by unchanged independent actual owner regression on fixed input"
+  },
+  "latest_frozen_integration_input_sha256": {
+    "crates/homesense-core/src/lib.rs": "b9d2052120a18c53694e84a7e9c80701ac0f7288455d950fa12b953faa0556b9",
+    "crates/homesense-core/src/curtain_state.rs": "f8bb9a966d6e8f3715b58581674df07edeb859cc4e5baeb7ef3233363374cb9b",
+    "crates/homesense-config/src/lib.rs": "d3bacdb127c4b2b01c4987646d0948e8e8d817b3c89be1e69bdd06ceb882df26",
+    "crates/homesense-storage/src/journal.rs": "d4c50f0bebef5620874a0e86d689a49762dfb9fa874fc8de5c901af3eb390848",
+    "crates/homesensed/src/lib.rs": "9a17d4efced06b4515879d817009e58986b4f199ae81dd396eece6269201f2c5",
+    "crates/homesensed/src/admission.rs": "35ec8a11837b8bffe4273e3e5112f82f81baeba265a0728b411bf6f4a16701f1",
+    "crates/homesensed/src/curtain_candidate.rs": "6aecbcfddfc495e96464cd2abe6ee874b9214f6e37e17415d656c36098adfa6e",
+    "crates/homesensed/src/curtain_owner.rs": "0257c7aa85e33d2ec3a96e82aff07d4a2507fd79bbce6c9341acb1c90526bb51",
+    "crates/homesensed/src/management_devices.rs": "60a9f53365198119cbeabd5f76781ae8898b7f3a5ea336fd36d930753e0a3521",
+    "crates/homesensed/src/management_events.rs": "81155c68054ec451d478c7ec11e470e25b55754027ea8df8342e36e446132d02",
+    "crates/homesensed/src/web_api.rs": "c50f49fa099a2a0e40b9735baaa345835f7628bab411c136c40636187477fcc0",
+    "crates/homesensed/src/web_events.rs": "4b4e7483559f1832d44dc53227ca09b40f3b9cda79eb4ea75e017bb00233e2d2",
+    "crates/homesensed/src/web/app.js": "c0b905a21fea790ccf7ab9e50372adf52223ae5aac11f393a5bb4902aefcf66b",
+    "crates/homesense-config/src/rule_document.rs": "a213c8fcea542e56a34119b818e299d5cef33ae42619a58292a02dd591362d87",
+    "crates/homesensed/tests/curtain_entries.rs": "7c5c0910027a83f79b1220798cdf823aeb0a14ebc83acd6e993ca2b138864078",
+    "crates/homesense-config/tests/curtain_state.rs": "3ab2c240f61d020b232d5417f9e871608eb7b5f0302d17ed2c0651386afd6a53"
+  },
+  "latest_independent_integration_results": {
+    "curtain-root-independent-led-ownership-fixed-contract.log": {
+      "blocks": 2,
+      "passed": 5,
+      "failed": 0,
+      "ignored": 0,
+      "filtered_out": 0,
+      "sha256": "32f6726acaa5198afafad6b4daefd9b59550438b696c0f7347bfb1902305de1e"
+    },
+    "curtain-root-independent-shared-final-contract.log": {
+      "blocks": 3,
+      "passed": 7,
+      "failed": 0,
+      "ignored": 0,
+      "filtered_out": 0,
+      "sha256": "d6db98387f08d1fc26bb77937ec6e9e4ce1bfdd0e877b5ba20721f1b38030483"
+    },
+    "curtain-root-independent-encrypted-hap-web-contract.log": {
+      "blocks": 1,
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0,
+      "filtered_out": 0,
+      "sha256": "771c9bc48d04e2c98628e9256d2bdef8187b642556e62ae00169e55bdc8c453a"
+    }
+  },
+  "latest_regression_sources_unchanged": {
+    "root_curtain_led_ownership.rs": true,
+    "root_curtain_auth_transfer.rs": true,
+    "root_curtain_shared_contract.rs": true,
+    "root_curtain_adapter_contract.rs": true
+  },
+  "joint_integration_scope": {
+    "encrypted_localhost_hap": true,
+    "authenticated_web_api_handler": true,
+    "real_web_http_socket": false,
+    "websocket_or_browser": false,
+    "memory_led_frames": true,
+    "count": 1
+  },
+  "final_committed_integration": {
+    "commit": "0149860ebd1fca71757390b17750a06ea09064fd",
+    "clean_commit_input_files": 15,
+    "root_log_sha_verified": true,
+    "full_workspace": {
+      "passed": 851,
+      "failed": 0,
+      "result_blocks": 141,
+      "post_full_change": "candidate diagnostic generation tracking only",
+      "post_full_validation": "10 candidate tests and current strict Clippy; overlapping tests not added to 851"
+    },
+    "current_source_inputs_match_commit": true,
+    "executable_hashes_checked_after_runs": 135,
+    "executable_hash_capture_limit": "Current shared-target hashes do not prove earlier executed binaries retroactively",
+    "root_frontend_contract_scripts": 17,
+    "actual_browser_for_new_curtain_ui": false
+  },
+  "linux_fixed_candidate": {
+    "binary_sha256": "b7893ccd70222ee04ba1b1d0b6aabe7adf6314007eaaaf773e21e8a7031fced2",
+    "cross_build": "passed",
+    "ngr_static_live_config": "passed",
+    "loopback_https_wss_and_revocation": "passed",
+    "loopback_combined_restart_idempotency": "passed",
+    "loopback_motor_manual_estimation": "passed",
+    "synthetic_motor_written_commands": 5,
+    "actual_feedback_not_fabricated": true,
+    "physical_gateway_connected_by_isolation": false,
+    "internal_motor_simulation_query_unsupported": true,
+    "test_boundary": "Linux release smoke and synthetic TCP only; not complete Linux workspace or physical acceptance"
+  },
+  "limited_field_window": {
+    "completed": true,
+    "limited_physical_steps_passed": 6,
+    "retained_pairing": true,
+    "fresh_light_channels": 32,
+    "motor_commands": 7,
+    "new_original_wall_rules_enabled": 0,
+    "normal_own_expiry_verified": true,
+    "original_guard_failure_retained": true,
+    "actual_new_Web_curtain_UI": "pending",
+    "full_D_E_complete": false,
+    "public_evidence": "curtain-field14-limited-root-check.json"
+  }
+}

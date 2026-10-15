@@ -1,0 +1,84 @@
+{
+  "scope": "bounded diagnosis of two retained Mac full-regression failures; not a new qualification pass",
+  "original_complete_Mac_result": {
+    "passed": 1035,
+    "failed": 2,
+    "blocks": 172,
+    "proof": "hap-simulation-lifecycle-root-check.json"
+  },
+  "unchanged_parameter_diagnostic": {
+    "fixed_runs": 1,
+    "passed": 112,
+    "failed": 0,
+    "filtered": 0,
+    "test_threads_override": null,
+    "source_change": "phase logging plus failed fixture database retention only",
+    "reproduced_original_failure": false,
+    "all1179_original_sources_restored": true,
+    "actual_MachO_sha256": "2b5cc78fd9c105c7689e8b50922931494fdd2c74c064c66865a9e5934e4030cb",
+    "log_sha256": "1c9684e19660a2e2e0a179fb02b1d633a8d190090459ef318afe7c2411c838ec"
+  },
+  "controlled_timing": {
+    "fixed_cases": 2,
+    "injected_hold_ms": 350,
+    "drop_hold_point": "after reading Accepted status, before testing fade expiration",
+    "configured_hold_point": "after a queued sample exists, before dispatch",
+    "original_fade_duration_ms": 200,
+    "original_interval_ms": 50,
+    "original_lateness_ms": 100,
+    "original_fade_budget": 4,
+    "original_bounds_and_assertions_unchanged": true,
+    "both_expected_failures_observed": true,
+    "drop_error": "fade output expired",
+    "configured_error": "fade output interrupted",
+    "persisted_commands": [
+      {
+        "case": "configured",
+        "command_id": 1,
+        "deadline_ms": 301,
+        "final_updated_ms": 410,
+        "status": "cancelled",
+        "cancellation_reason": "Expired",
+        "snapshot_sha256": "bf6ca884209d87a389ea7347149f4e33a938b2fd58481935f90c1831c8280a2d"
+      },
+      {
+        "case": "drop",
+        "command_id": 1,
+        "deadline_ms": 303,
+        "final_updated_ms": 486,
+        "status": "cancelled",
+        "cancellation_reason": "RunCancelled",
+        "snapshot_sha256": "765d04fb293071678461cd2833ec85535ef3b8a56346eaad25884f173e93a81a"
+      }
+    ],
+    "no_written_or_observed_rows": true,
+    "actual_MachO_sha256": "66f28f22988b0050484e66ebc666df6fdb64914dae5a977311f2b941e760c77d",
+    "log_sha256": "9a5255e3d34524e8c65efc35b31db52e1043b68d2282c02a8457e19c35f0f6da",
+    "all1179_original_sources_restored": true
+  },
+  "deductions": {
+    "original_drop_expired_error_implies_monotonic_fade_expiration_guard_was_crossed": true,
+    "controlled_cases_show_valid_cancellation_paths_with_same_error_labels": true,
+    "original_scheduler_or_storage_pause_cause_proven": false,
+    "original_configured_case_cancellation_reason_proven": false
+  },
+  "not_claimed": [
+    "112 diagnostic passes do not replace original complete Mac 1035/2 result.",
+    "Controlled injected waits do not establish the exact timing cause of the original run.",
+    "No fade deadline, lateness, query freshness, assertion or production failure guard was relaxed."
+  ],
+  "next_action": "Separate semantic fade state tests from wall-clock scheduling using a private cfg(test) monotonic clock, preserve their original bounds and all persistence/no-output/drop/feedback assertions, add explicit expired-pending controls; retain existing real-clock and wire tests. Review candidate before any shared merge.",
+  "shared_product_or_test_changes_this_diagnosis": 0,
+  "field_access": false,
+  "field_readonly_user_paused": true,
+  "studio_Web_user_paused": true,
+  "source_semantic_approvals_added": 0,
+  "D_E_complete": false,
+  "artifact_sha256": {
+    "diagnostic_terminal": "862929163b0761e4b841d589a772b0b8ed4b89278994b698c8be9b2e3cefa923",
+    "controlled_terminal": "6033e52d9e70a12f75eaaeaae2171c5d0eccf4da16858fb0e5dda2e0bb6c1c9d",
+    "diagnostic_source": "a16a3d71ac548b55c79b8ba892359096a83dfba1a24b3edd07099869540b4929",
+    "controlled_test_source": "ced2a4e1882b59225aefda1c7930be6aee465cd405813cc487ca95ea6954f6ef",
+    "controlled_fade_source": "169510cdc4064698ffef12ac59dda0728e11f7901a9bc5a47a9f9a3b030980d3"
+  }
+}

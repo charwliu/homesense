@@ -1,0 +1,121 @@
+{
+  "scope": "Away module shutdown merged into shared worktree; complete frozen software qualification, not field acceptance or D/E completion",
+  "archive_sha256": "a8aed01dd17d3aa1029a9e5f78409cb37244b0207ab088e0512743caf59b62b1",
+  "full_frozen_source_files": 1178,
+  "all_frozen_source_files_exact_before_after_commands": true,
+  "Mac": {
+    "passed": 1033,
+    "failed": 0,
+    "ignored": 0,
+    "filtered": 0,
+    "blocks": 171,
+    "full_test_exit": 0,
+    "strict_all_targets_Clippy_exit": 0,
+    "actual_Mach_O_count": 161
+  },
+  "Linux": {
+    "passed": 1033,
+    "failed": 0,
+    "ignored": 0,
+    "filtered": 0,
+    "blocks": 171,
+    "full_test_exit": 0,
+    "strict_all_targets_Clippy_exit": 0,
+    "actual_ELF64_x86_64_count": 161,
+    "relevant_ELFs_preserved": 11
+  },
+  "merge": {
+    "feature_paths": 48,
+    "feature_paths_exact_frozen_V4": true,
+    "all_product_test_tool_config_reference_and_private_fixture_inputs_exact": true,
+    "runtime_core_input_files": 801,
+    "frozen_input_differences_after_merge_documentation_only": [
+      "CHANGELOG.md",
+      "README.md",
+      "docs/de-completion-audit.md",
+      "docs/stage-e-remaining.md",
+      "docs/state-and-indicator-policy.md"
+    ],
+    "unrelated_current_files_preserved": true,
+    "staged_entries_unchanged": true,
+    "new_commits": 0
+  },
+  "scale_case_included_in_full_count": {
+    "ports": 96,
+    "native_control_frames": 12,
+    "durable_effect_rows": 96,
+    "Written_rows": 12,
+    "fabricated_Observed_rows": 0
+  },
+  "actual_HAP_protocol_scope": "stored synthetic User pairing, actual Pair-Verify and encrypted characteristics; Apple hardware not exercised",
+  "additional_shared_frontend": {
+    "Away_contracts_passed": 4,
+    "JS_syntax_exit": 0,
+    "not_added_to_Rust_counts": true
+  },
+  "prior_failures_preserved": true,
+  "prior_capacity_failure_cause_not_claimed_fixed": true,
+  "native_release": {
+    "exit": 0,
+    "all_1178_sources_exact_before_after": true,
+    "field_access": false,
+    "completed": 1792030867.3098173,
+    "binary": "/home/build/apps/homesense/candidates/20261015-away-final-full-a8aed0-root/release-target/release/homesensed",
+    "binary_sha256": "d9e44c7b173b73433824a1d3b7f123b338e0f9c3296825c8ebb1641294ee2cd2",
+    "binary_bytes": 27519592,
+    "ELF64_x86_64": true
+  },
+  "field_commands": 0,
+  "field_deployments": 0,
+  "configuration_policy_default_enabled": false,
+  "HAP_exposure_default": false,
+  "original_96_port_disabled_draft": {
+    "stable_modules": 12,
+    "existing_module_ids_reused": 8,
+    "new_proposed_ids": 4,
+    "physical_models_pending": 0,
+    "physical_wiring_not_verified": true,
+    "policy_enabled": false,
+    "HAP_exposed": false,
+    "all_model_families_user_confirmed": true,
+    "all_96_ports_lighting_or_lighting_supply_user_confirmed": true,
+    "current_registry_and_feedback_pending": true
+  },
+  "remaining_D_source_scope": {
+    "scenes": 65,
+    "programs": 208,
+    "variables": 24
+  },
+  "actual_Home_room_assignment": "17 expected accessories prepared; actual Home rooms unverified",
+  "artstudio_Web": "user paused",
+  "Siri": "cancelled by user",
+  "D_E_complete": false,
+  "native_release_offline_qualification": {
+    "binary_sha256": "d9e44c7b173b73433824a1d3b7f123b338e0f9c3296825c8ebb1641294ee2cd2",
+    "cases": {
+      "config-disabled": {
+        "exit": 0,
+        "log_sha256": "50e5b6ab260dcd0e409404eefe33c9de5000cc6390219a9034bbd74e9c81d329"
+      },
+      "config-simulation": {
+        "exit": 0,
+        "log_sha256": "b733a314252cebfa67094c48fe947537aadc6c0df26f1682a0655b961d257b2e"
+      },
+      "tls-simulation": {
+        "exit": 0,
+        "log_sha256": "40b654e593bab28760eb00805fe6d3a23b93298dae3fc5274782c7532f3bdeff"
+      },
+      "tls-combined": {
+        "exit": 0,
+        "log_sha256": "d5643ca0188534ca49f6d57be2cdf748f93cd3f7c94cc18ec0367d8e6d8e7207"
+      }
+    },
+    "field_access": false,
+    "all_1178_original_sources_exact": true,
+    "completed_unix": 1792031317.0064487
+  },
+  "snapshot_role": "historical V4 qualification and exact merge checkpoint",
+  "later_delta": "away-simulator-restore-root-check.json",
+  "current_worktree_all_product_inputs_identical_to_V4": false,
+  "field_readonly_user_paused": true
+}

@@ -1,0 +1,51 @@
+{
+  "checked_bj": "2026-10-15T16:27:59.627256+08:00",
+  "scope": "fixed native Keypad/frontend-retirement backend v3 local software QA; not full D/E",
+  "source_files": 1195,
+  "source_manifest_sha256": "fb3b02e0fee75fb0ed83aab63f197414295125348757f8d3a0b3cbe521bf65c4",
+  "workspace_all_targets": {
+    "passed": 1067,
+    "failed": 0,
+    "ignored": 0,
+    "measured": 0,
+    "filtered": 0
+  },
+  "result_blocks": 167,
+  "executed_artifacts_hashed_under_shared_execution_lock": 167,
+  "artifact_hashes_independently_rechecked_before_next_build": true,
+  "source_unchanged_before_after_each_execution": true,
+  "doc_test_crate_blocks": 10,
+  "doc_examples_executed": 0,
+  "strict_Clippy_workspace_all_targets_D_warnings": "exit0",
+  "auth_regression": {
+    "functions": 2,
+    "scenarios": 18,
+    "scope": "new native panel settings and single-key LED requests only",
+    "positive_control": "same healthy transport with independent valid source sharing controller writes expected C2 frame",
+    "not_added_to_workspace_total": true
+  },
+  "original_panel_contract_test": "byte-identical to prior source and passed in full integration target",
+  "compile_failure_preserved": {
+    "candidate": "v2",
+    "exit": 101,
+    "errors": 2,
+    "kind": "new test Fixture Drop field consumption E0509",
+    "v3_delta": "two clone().shutdown() calls in same test file; product unchanged"
+  },
+  "pinned_App_integration_binary_sha256": "93a62ffc7d3a550a631cd82fd9d9903bad7d57b749110c81a3dda85086e00b7c",
+  "production_Linux_cross_compile": "not yet requested for this input; exclusive deployment owner remains 部署",
+  "production_deployed": false,
+  "all_API_source_credential_revalidation": "NOT achieved: ordinary light/motor/module/scene and delayed derivatives inventory and deterministic probe pending",
+  "physical_acceptance_for_Keypad_or_saved_token": false,
+  "offline_keypad_migration_static_cli_checks": "check-config and check-automation exit0 using pinned v3 program; no service started",
+  "original_source_semantic_approvals_added": 0,
+  "wall_rules_or_Away_enabled": 0,
+  "field_controls": 0,
+  "D_E_complete": false,
+  "log_sha256": {
+    "auth": "f54da7bf7a781d5ab304cba848be92ed1a788879c50e3e0c5e5a802c23f9245f",
+    "workspace": "38616743d508d7d13f89ab0ca32b808f608ffb530e1b56c0e64010efa5dc8a80",
+    "doc": "cc9705103f0986c6918c9ff8319ac07ad5ab1a4be7b8ad80e1413fb16174404c",
+    "clippy": "f4f9ffdd2bacc9f320a9649a1a43d562553b50b17c5374a914063e25af459025"
+  }
+}

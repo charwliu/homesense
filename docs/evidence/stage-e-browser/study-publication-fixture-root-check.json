@@ -1,0 +1,30 @@
+{
+  "status": "specific_test_fixture_corrected_shared_not_full_qualification",
+  "changed_test_path": "crates/homesensed/tests/study_runtime.rs",
+  "production_changed": false,
+  "original_case_matrix": {
+    "projection_modes": 2,
+    "recovery_policies": 7,
+    "response_modes": 2,
+    "cases": 28
+  },
+  "original_test_body_and_assertions_preserved_except_fixture_definition_and_borrows": true,
+  "cancellation_fixture_offset_ms": 60000,
+  "positive_same_definition_offset_ms": 0,
+  "positive_control_asserts_exactly_one_frame_and_durable_written_effect": true,
+  "Mac_specific_tests_passed": 2,
+  "Linux_specific_tests_passed": 2,
+  "both_strict_test_target_Clippy_passed": true,
+  "Linux_actual_ELF64_x86_64_sha256": "6c661c854787f1810f0f276d5e5a2314b2d5bb40bdd617fe17659880f45542fd",
+  "all_1163_Linux_source_inputs_exact_before_after": true,
+  "fresh_unique_targets_used": true,
+  "earlier_reused_target_compile_result_invalid_preserved": true,
+  "old_controlled_phase_zero_failure_preserved": true,
+  "original_full_Linux_exact_write_phase_not_proven": true,
+  "old_full_Linux_1003_pass_2_fail_remains_historical_truth": true,
+  "capacity96_failure_unresolved": true,
+  "new_full_workspace_qualification_pending": true,
+  "field_deployment": false,
+  "new_D_source_semantic_approvals": 0,
+  "DE_complete": false
+}

@@ -1,0 +1,84 @@
+{
+  "checked_bj": "2026-10-15T12:52:23.687965+08:00",
+  "scope": "read-only source scheduler creator relationships; no execution or migration policy approval",
+  "source_xml_sha256": "cac7dcdc9db08599e55a22bacb72858035c64e1ac846e2139ead5fc634513748",
+  "source_review": {
+    "source_xml_sha256": "cac7dcdc9db08599e55a22bacb72858035c64e1ac846e2139ead5fc634513748",
+    "actual_source_objects": {
+      "scenes": 68,
+      "programs": 215,
+      "variables": 25,
+      "calendar_entries": 4,
+      "embedded_agent_schedules": 1
+    },
+    "independent_creator_resolution_matches": true,
+    "creator_driver_counts": {
+      "control4_agent_driverupdate.c4i": 2,
+      "control4_agent_updatemanager.c4i": 2
+    },
+    "all_four_calendar_source_programs_empty": true,
+    "all_existing_review_fields_unchanged_after_removing_only_new_creator_metadata": true,
+    "runtime_definitions": 0,
+    "semantic_approvals_added": 0,
+    "field_access": false
+  },
+  "validation": {
+    "python_tests_passed": 17,
+    "new_tests": 3,
+    "original_tests_preserved": 14,
+    "baseline_new_contract_result": {
+      "tests": 3,
+      "errors": 2,
+      "failed": 1,
+      "retained": true
+    },
+    "final_tests": {
+      "tests": 17,
+      "failed": 0,
+      "errors": 0
+    },
+    "independent_actual_xml_creator_lookup_matches": true,
+    "full_review_differential_only_new_creator_metadata": true,
+    "existing_functional_inputs_exact_except_two_python_files": 799,
+    "Rust_frontend_config_vendor_inputs_unchanged": true,
+    "new_full_workspace_run": false,
+    "prior_complete_Rust_workspace_passed_each_platform": 1038,
+    "prior_counts_not_increased_by_python_cases": true,
+    "git_index_unchanged": true
+  },
+  "behavior": {
+    "creator_reference_read_from": "entry/creatorid",
+    "creator_target_lookup": "same original project systemitems ID; source descriptor filename",
+    "absent_or_dangling_creator": "explicit unresolved with no inferred owner",
+    "duplicate_creator": "rejected as ambiguous scalar",
+    "empty_calendar_event_program": "retained as source empty, does not approve agent callback",
+    "creator_runtime_ownership_verified": false,
+    "runtime_definitions_generated": 0
+  },
+  "source_changes_sha256": {
+    "tools/review_source_semantics.py": "2c98d465c8e4319dc3a1da2d1919a58a2c302c7108d2ad023d00189de5e1ebc8",
+    "tools/test_review_source_semantics.py": "5012106281a20328efd75cb98d22649088e637c039689eb9bb81a462daf10d28"
+  },
+  "private_artifacts_sha256": {
+    "review_source_semantics.py": "152563d87b1e4c7a2bae0bbab3f76d73615a88069822cbccc464a43721b7e3da",
+    "test_review_source_semantics.py": "033a5b409ba3a2858786b67f62e17c11fdf512f2a4ac91c620fe1159a5072bb1",
+    "baseline-review.json": "461f56da67e9818c791d1bd82597aba5c50ddaf45a9c0c70fa17071db601080d",
+    "baseline-negative.log": "0b5d8b10cf9c3303b185d818ba8b09d5203afe35fbbe0fa04c3fb951b8cac882",
+    "final-review.json": "1bf0b94c8c0e0c501dd70b9a404571b8ebeaa9b1fb53ddedcd7f52256c732059",
+    "final-tests.log": "a0cedd9e664978024646021f3e2a87a13fe607b820d545dbae317dd4fa36b225",
+    "source-differential-review.json": "f20a1f223310df7bc861aba4e76dd6195909c64ee23a60b304b69a39ae138bb0"
+  },
+  "remaining_full_semantic_scope": {
+    "scenes": 65,
+    "programs": 208,
+    "variables": 24
+  },
+  "calendar_agent_runtime_behavior_complete": false,
+  "semantic_approvals_added": 0,
+  "new_live_tasks": 0,
+  "field_access": false,
+  "field_readonly_user_paused": true,
+  "studio_Web_user_paused": true,
+  "D_E_complete": false,
+  "goal_turn_classification": "progress"
+}

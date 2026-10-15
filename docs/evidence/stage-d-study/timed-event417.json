@@ -1,0 +1,37 @@
+{
+  "source": {
+    "format": "c4p",
+    "project_xml_sha256": "cac7dcdc9db08599e55a22bacb72858035c64e1ac846e2139ead5fc634513748",
+    "sha256": "ff8c298fd2c8efa840d572d3ca544860ffbbc4e7176f09e93efdc5464b9ce6ec"
+  },
+  "event": "417:2",
+  "fixture_sha256": "90b6758d7c3defb76f877eefc8d9d4dcb130a54e87dd20003842b4b05030ff15",
+  "transformation": "Removed display text only; XML normalized by ElementTree",
+  "binding_basis": "Source hierarchy candidates; not physical verification",
+  "automatic_execution": false,
+  "expected_generated_fades": 1,
+  "expected_duration_ms": 1000,
+  "expected_level": 0,
+  "stage_d_complete": false,
+  "driver_semantics_inspection": {
+    "date": "2026-10-11T10:29:23.810143+00:00",
+    "implementation": "driver.lua.encrypted; no plaintext Lua in the packaged driver",
+    "ramp_timer_default": "400",
+    "ramp_timer_choices": [
+      "100",
+      "200",
+      "300",
+      "400",
+      "500",
+      "600",
+      "700",
+      "800",
+      "900"
+    ],
+    "documentation_result": "RTF text contains company/product introduction, no Ramp Timer or RAMP_TO_LEVEL execution specification",
+    "conclusion": "Neither timing units nor the mapping from RAMP_TO_LEVEL TIME to bus commands is established by available plaintext driver metadata.",
+    "next_evidence": "Passively capture original EA-5 timed ramp command sequence or obtain vendor execution specification; preserve EA-5 configuration.",
+    "migration_accepted": false,
+    "publication": "local only per user instruction"
+  }
+}

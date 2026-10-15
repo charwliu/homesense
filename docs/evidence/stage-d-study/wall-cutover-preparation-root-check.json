@@ -1,0 +1,37 @@
+{
+  "date": "2026-10-14",
+  "scope": "disabled preparation for reviewed manual wall controls; no field activation",
+  "future_ownership_user_confirmed": true,
+  "disabled_rules_prepared": 3,
+  "original_programs_in_scope": 7,
+  "original_semantic_nodes": 38,
+  "additional_legacy_cross_scope_writer_found": 1,
+  "cross_scope_output_correction_confirmed_by_user": true,
+  "corrected_candidate_changes_only_target_object": true,
+  "same_control_keypad_source_binding_verified": true,
+  "current_live_source_version_not_yet_verified": true,
+  "historical_normalized_source_hashes_separated_from_raw_byte_hashes": true,
+  "static_live_candidate_validation_passed": true,
+  "static_simulation_enabled_variant_parse_passed": true,
+  "prospective_public_panel_api_test": {
+    "passed": 1,
+    "failed": 0,
+    "motor_subcases": 5,
+    "indicator_companion_writes": 7,
+    "pressed_not_triggered": true,
+    "duplicate_raw_release_not_replayed": true,
+    "repeated_open_and_stop_submitted": true,
+    "production_causal_event_consumer_not_used": true,
+    "physical_decoder_or_wire_not_used": true
+  },
+  "source_saved_stop_variable_not_declared": true,
+  "live_configuration_published": false,
+  "original_system_modified": false,
+  "new_original_rules_enabled": 0,
+  "full_D_E_complete": false,
+  "full_remaining_scope": {
+    "scenes": 65,
+    "programs": 208,
+    "variables": 24
+  }
+}
