@@ -649,3 +649,6 @@ mod indicator_projection;
 
 #[path="scene_brightness_reconciliation_tests.rs"]
 mod brightness;
+
+#[path = "scene_projection_cache_tests.rs"]
+mod cache_tests;
