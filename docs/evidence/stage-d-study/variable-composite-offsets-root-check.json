@@ -1,0 +1,25 @@
+{
+  "source_xml_sha256": "cac7dcdc9db08599e55a22bacb72858035c64e1ac846e2139ead5fc634513748",
+  "source_descriptor_sha256": "957f3dbe80dafb0e0667cb7b362be7a139a0e8ac465b0991fbfb27c7f6228937",
+  "original_plan_sha256": "6b332253d3c4b4cb4c9ea688ded2c1f7a180dff4f6cf98859a9031b670430a9e",
+  "arithmetic_sites": 14,
+  "arithmetic_variables": 3,
+  "all14_exact_source_sites_checked": true,
+  "operand_occurrences": {
+    "40": 6,
+    "4": 6,
+    "100": 2
+  },
+  "all_arithmetic_sites_have_original_keypad_Release_declaration": true,
+  "all_offsets_4_40_100_are_not_automatically_transient_flags": true,
+  "new_plan_retirement_or_runtime_enablement": false,
+  "legacy_values_imported": false,
+  "runtime_rules_enabled": 0,
+  "field_commands": 0,
+  "complete_source_semantics_approved": false,
+  "private_artifacts_sha256": {
+    "deployment/ngr/private/20261015-variable-composite-plan-root/arithmetic-source-sites.json": "63ed7cb38c14709c54bfe30b1c331f24e9288d8401abf1f9fd43c4b784644e69",
+    "deployment/ngr/private/20261015-variable-composite-plan-root/replacement-plans-v2.json": "2bca442087235163eb3819677b298f95b208e7f19678706a9f3f23e4bf4bdcaa",
+    "deployment/ngr/private/20261015-variable-composite-plan-root/result.json": "c8b7437861e238d070dd457cca2db096c27cfa800d5d6fb1dd380107980ed8dd"
+  }
+}

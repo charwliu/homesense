@@ -1,0 +1,26 @@
+{
+  "corrected_normal_feedback_settlement_fixture": true,
+  "source_same_as_repair_v3_five_test_file": true,
+  "Root_actual_pinned_binary_run": true,
+  "expected_unfixed_baseline_exit": 101,
+  "passed_negative_guards": 2,
+  "failed_positive_reconciliation_cases": 3,
+  "multi_case_not_reached_in_timed_first_failure": true,
+  "binary_sha256": "3b444c2e1585a0adc0e480e58153ba9432c3e53527afedd3822867b10cd1190d",
+  "log_sha256": "3444003044e1710de40a2610e3b8d5646f44400c94b36bdb41d2d97f38818b42",
+  "ordinary_remember_levels_feedback_path_used_not_guard_bypass": true,
+  "no_Cargo": true,
+  "field_controls": 0,
+  "source_input_and_actual_program_audit_sha256": "d2aef938bcbc66dfa351de95ec77ec01152b48f99c74a02fd3713d5280404478",
+  "old_v2_assertion_failure_causal_qualification": "withdrawn: normal Off settlement missing; original logs retained",
+  "old_v2_qualification_review_sha256": "c11a7782da70c508eb125e4d43b0202a34c0d0c97cd31ee3ba5b05883c88809a",
+  "repaired_five_test_source_matches_corrected_baseline": true,
+  "final_repair_extra_boundaries_and_production_CLI_not_yet_qualified": true,
+  "runtime_fix_deployed": false,
+  "original88_runtime_counterexample_remains": true,
+  "private_artifact_sha256": {
+    "deployment/ngr/private/20261015-indicator-baseline-v3-pin-root/result.json": "d2aef938bcbc66dfa351de95ec77ec01152b48f99c74a02fd3713d5280404478",
+    "deployment/ngr/private/20261015-indicator-baseline-v3-pin-root/root-reproduction.log": "3444003044e1710de40a2610e3b8d5646f44400c94b36bdb41d2d97f38818b42",
+    "deployment/ngr/private/20261015-indicator-baseline-v3-pin-root/root-reproduction-result.json": "4ce019b0773c269134175ff8c9dc0c2fe32980c6d486e4730254531766168a3e"
+  }
+}
