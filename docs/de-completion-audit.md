@@ -1,3 +1,5 @@
+2026-10-16 D复合变量分支已补证：七个准确源事件的11步合成连续执行保留4／40／100叠加及移除顺序，2128份变量投影与两种已知反馈组合同源守卫归约一致。结果支持逐分支建模，不能把变量视为临时清零标记或通用位异或；零初值、事件间成功效果不冒充原运行初始化或异步语义。首两次漏读OR44的人工预期失败保留，未新增原程序批准、启用规则或现场动作，65／208／24剩余范围保持。见[连续分支核查](evidence/stage-d-study/composite-variable-transition-root-check.json)。
+
 2026-10-15 App实际Rust联调补齐：当前4dc1284功能输入34份冻结不变，Root启用两项原跳过测试，用固定f27a6b6普通后端程序独立运行完整Swift套件，77方法／13套件、0跳过、0失败。真实HTTPS管理发布及URLSession WSS推送、空闲保活、六键父卡／LED／参数与草稿隔离均通过。HTTP使用curl及临时CA，WSS使用真实URLSession和仅本夹具CA，不据此证明默认HTTP系统信任、真实Keychain或手机安装；也不覆盖尚未交付的LED修复。见[实际联调核查](evidence/stage-e-browser/native-current-integration-root-check.json)。
 
 2026-10-15 App冷启动恢复修复已窄合入：Root独立复跑同夹具，旧版503／连接失败两例均超时不恢复，新版6方法／25用例通过，完整Swift套件实际执行75方法、2项Rust集成明确跳过、0失败，后续补验见上。只读恢复保留Origin、取消／暂停、401清除和TLS门禁，新的WSS状态前禁控；iOS及macOS arm64无签名构建通过。尚未安装手机或新增现场验收，后端LED最终候选仍在验证。见[冷启动核查](evidence/stage-e-browser/native-cold-restore-root-check.json)。
