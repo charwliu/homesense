@@ -4,6 +4,10 @@
 
 后续每次提交的变动细节在此记录；README 的变更内容只保留功能新增、移除及能力变化。
 
+## 2026-10-16 健康网关延迟场景连续性反例
+
+普通正式CLI真实接收两条5秒延迟场景后，仅A故障就取消纯B场景，B实际仍发反馈但到期没有60%线帧。恢复后的新B即时40%及延迟60%均真实写出，持久场景UUID、API last_run、scene_command和Written账目逐项对应；旧A未重放。修正并保留两次夹具错误，最终契约101、后端SIGTERM0；D-3/D-5/E-7仍开放，私有运行时修复继续，未改现网。见[限定反例](docs/evidence/stage-e-browser/multi-gateway-delayed-scene-root-gap.json)。
+
 ## 2026-10-16 加密HAP局部隔离与会话反例
 
 真实认证/加密读订阅和B30写出的正向前缀成立后，仅A回环网关RST即可令健康B返回-70402、收到不可用EVENT且新B50不写出。完整恢复时配对身份不变但HAP监听重建、原加密会话关闭；后端仍存活并正常SIGTERM0，严格契约101。保留早期构建/夹具失败，未把客户端EOF当成后端退出，也未声称未执行的新A60恢复控制门槛通过。新增逐文件/实际程序哈希核验与E-1/E-7审计，现网与1160项资格不变。见[限定反例](docs/evidence/stage-e-browser/multi-gateway-partial-hap-root-gap.json)。

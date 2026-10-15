@@ -1,0 +1,51 @@
+{
+  "checked_at": "2026-10-16T03:12:35.590183+08:00",
+  "status": "ordinary CLI healthy-gateway delayed-scene continuity counterexample confirmed",
+  "source_commit": "1de4579a777ce74f68294b0bd1deac23cb54066e",
+  "binary_sha256": "ca6b5cfffab367de75fdadb3800f89e71670eb13b1700b2e68b0ec424b1080a8",
+  "fault": "one of two synthetic loopback AD8 gateways RST, ordering first",
+  "strict_contract_exit": 101,
+  "backend_explicit_SIGTERM_exit": 0,
+  "mock_gateway_errors": 0,
+  "unclassified_probe_error": null,
+  "pre_fault_positive_prefix": "B30 command written; both separate five-second AD8 Ramp60 scenes accepted with exact durable UUIDs matched to API last_run",
+  "during_fault": {
+    "failed_A_scene_cancelled_transport_failure": true,
+    "healthy_B_scene_cancelled_transport_failure": true,
+    "B_delayed60_wire_count": 0,
+    "B_was_still_sending_feedback": true,
+    "new_B40_control_blocked": true
+  },
+  "after_recovery": {
+    "B_new40_direct_written": true,
+    "B_new60_delayed_scene_written_with_exact_scene_command_UUID_and_one_wire_frame": true,
+    "old_A_delayed_work_never_written_or_replayed": true,
+    "B_old_delayed_scene_still_cancelled": true
+  },
+  "requirements": [
+    "A pure-B accepted timeline must retain its original deadlines and authority while A is offline.",
+    "Work depending on A must be fenced under existing cancellation semantics and never replay on recovery.",
+    "Shared source authorization, publication barriers, write budget and STOP ordering remain mandatory."
+  ],
+  "early_fixture_failures_retained": [
+    "v1 AD8 UnsupportedCommand before initial synchronization: use supported native Ramp",
+    "v2 transient numeric run handle incorrectly joined to durable UUID: actual positive delayed write existed; timeout was probe lookup failure"
+  ],
+  "verification_scope": "one RST-first actual production CLI case, not a full matrix, complete workspace regression or field acceptance",
+  "field_control_requests": 0,
+  "D_E_complete": false,
+  "artifact_sha256": {
+    "deployment/ngr/private/20261016-multigateway-isolation-root/probe-contract-delayed.py": "9da47ed5303bb87f09ebcfd19c2d3370ce86019c4d8c4eb7556709e776c3287d",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/delayed-baseline-v3-rst-first/result.json": "9fc9f0894238659eec704716b14bedfea7e52ab48a69f6792fdafe817b767791",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/delayed-baseline-v3-rst-first/pre-fault-scene-starts.json": "2d508f68ed8c25d9837b8432361813511b75c59886c1bc37c07a238390e0e8e8",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/delayed-baseline-v3-rst-first/pre-fault-scene-ledger.json": "d047fac55f2ae7da4410b560d6d2c073e50fb556d4218214c4e6c4662a3b984c",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/delayed-baseline-v3-rst-first/during-fault-delayed-result.json": "55e6b2bf7026c8652e776a9286d9caa5a7a6b5c91f7fc11e1dfafba3bb45cecf",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/delayed-baseline-v3-rst-first/new-after-recovery-scene.json": "15b859c952a088a3fab826cb5f6596eced80c90f7c88d2cdd5a0c6718d5981fe",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/delayed-baseline-v3-rst-first/final-scene-ledger.json": "93dbfbf7f65ba7aa764b671d18d814b5128720663fee80531dfa330b41a46a89",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/delayed-baseline-v3-rst-first/frames.json": "4ca9b1be9d8840fb160e882c6bb0c7fe798f51b8be345088d2c62c69586b6460",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/delayed-baseline-v3-rst-first/feedback.json": "cf19ad1327ace150e0d77929f828105047ff0434599f52afb4212de2319281d8",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/delayed-baseline-v3-rst-first/server.log": "6f10fd81d79b4b080dc99b01821cc2a8e1e51c79e3173c700306118f9b122947",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/delayed-v1-fixture-error.json": "91238a788cb6fcb4953efca21d8039f265bc21954458e62f0ed6cac4119e57ef",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/delayed-v2-fixture-lookup-error.json": "00a0b73d23ced47409425be49b2f12dd3a6e21c11b0031205179516b2ba3796d"
+  }
+}

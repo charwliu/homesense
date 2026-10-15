@@ -1,5 +1,5 @@
 {
-  "checked_bj": "2026-10-16T03:07:42.160337+08:00",
+  "checked_bj": "2026-10-16T03:12:35.590183+08:00",
   "derived_requirements": [
     "docs/design.md sections9-11,18,20,23-24,27"
   ],
@@ -37,9 +37,10 @@
       "stage": "D",
       "requirement": "场景时序、tracking与停用",
       "verified_scope": "通用审核转换、活动推断和完整目标向量停用已实现",
-      "remaining_evidence": "原rate／tracking编码仍待处置；17个65535均为全零目标场景，未被再次关闭/翻转且95处显式调用有效目标均已解析；作为一次执行按钮的明确新策略已询问用户、待回复，未将65535猜成关闭或空操作。",
+      "remaining_evidence": "原rate／tracking编码仍待处置；17个65535均为全零目标场景，未被再次关闭/翻转且95处显式调用有效目标均已解析；作为一次执行按钮的明确新策略已询问用户、待回复，未将65535猜成关闭或空操作。；两网关正式CLI反例另确认A故障会取消纯B已接受的延迟场景（transport_failure），B仍反馈且恢复后新B延迟场景确能写出；健康时间线连续性待按网关修复。",
       "status": "source_semantics_unresolved",
-      "additional_toggle_dependency_evidence": "stage-d-study/scene-toggle-leaf-dependencies-root-check.json"
+      "additional_toggle_dependency_evidence": "stage-d-study/scene-toggle-leaf-dependencies-root-check.json",
+      "additional_gateway_timeline_evidence": "stage-e-browser/multi-gateway-delayed-scene-root-gap.json"
     },
     {
       "id": "D-4",
@@ -60,9 +61,10 @@
       "stage": "D",
       "requirement": "日历、规则链、取消与恢复",
       "verified_scope": "显式顺序、延迟、渐变、来源审计及恢复不重放有软件回归；4日历创建者与1内嵌计划来源已核对",
-      "remaining_evidence": "原计划／代理自身运行行为处置及完整原程序回放未完成",
+      "remaining_evidence": "原计划／代理自身运行行为处置及完整原程序回放未完成；两网关正式CLI反例另确认A故障会取消纯B已接受的延迟场景（transport_failure），B仍反馈且恢复后新B延迟场景确能写出；健康时间线连续性待按网关修复。",
       "status": "source_and_physical_partial",
-      "additional_source_evidence": "stage-d-study/calendar-creator-source-root-check.json"
+      "additional_source_evidence": "stage-d-study/calendar-creator-source-root-check.json",
+      "additional_gateway_timeline_evidence": "stage-e-browser/multi-gateway-delayed-scene-root-gap.json"
     },
     {
       "id": "E-1",
@@ -161,7 +163,7 @@
       "stage": "E",
       "requirement": "持续服务隔离网关超时与恢复失败，保留原生管理入口",
       "verified_scope": "v21常驻完整1128项、原配对HAP专项和正式AD8常驻生命周期通过；Linux隔离烟测与systemd上线及可信HTTPS就绪核验通过，保留原rev9/Admin/配对。；新增接收RST导致退出的正式程序反例已软件修复，完成故障审计的指定网络错误可恢复，真实取消和审计/不变量错误仍致命。；本轮Linux正式程序隔离RST生命周期与常驻更新已独立核验。；私有基础层Core/Storage216项及严格迁移/64容量已独立核查，不等同运行时隔离。",
-      "remaining_evidence": "接收错误修复已Linux常驻上线，原身份/配置/凭证保持；原管理员另授权新增一条HAP配对。A故障仍使健康B新控制unknown，完整按网关隔离正在实现，集中现场仍待验。；WSS部分可用性实际反例已纳入，运行时必须保持健康B状态与新控制。；加密HAP亦存在健康B连带失效及局部恢复重建监听的问题，保留配对身份不能代替原认证连接持续性。",
+      "remaining_evidence": "接收错误修复已Linux常驻上线，原身份/配置/凭证保持；原管理员另授权新增一条HAP配对。A故障仍使健康B新控制unknown，完整按网关隔离正在实现，集中现场仍待验。；WSS部分可用性实际反例已纳入，运行时必须保持健康B状态与新控制。；加密HAP亦存在健康B连带失效及局部恢复重建监听的问题，保留配对身份不能代替原认证连接持续性。；两网关正式CLI反例另确认A故障会取消纯B已接受的延迟场景（transport_failure），B仍反馈且恢复后新B延迟场景确能写出；健康时间线连续性待按网关修复。",
       "status": "single_gateway_deployed_multi_gateway_independent_control_counterexample",
       "additional_evidence": "stage-e-browser/runtime-gateway-timeout-root-gap.json",
       "additional_production_counterexample": "stage-e-browser/runtime-feedback-outage-cli-root-check.json",
@@ -171,7 +173,8 @@
       "additional_receive_error_Linux_evidence": "stage-e-browser/receive-network-error-linux-deployment-root-check.json",
       "additional_foundation_evidence": "stage-e-browser/multi-gateway-foundation-root-check.json",
       "additional_partial_WSS_evidence": "stage-e-browser/multi-gateway-partial-wss-root-gap.json",
-      "additional_partial_HAP_evidence": "stage-e-browser/multi-gateway-partial-hap-root-gap.json"
+      "additional_partial_HAP_evidence": "stage-e-browser/multi-gateway-partial-hap-root-gap.json",
+      "additional_gateway_timeline_evidence": "stage-e-browser/multi-gateway-delayed-scene-root-gap.json"
     }
   ],
   "evidence_sha256": {
@@ -253,7 +256,8 @@
     "stage-e-browser/receive-network-error-linux-deployment-root-check.json": "4feff1129899f80ac1295fe5f5a835e1df5839f04c11f64acf1a63d391635dee",
     "stage-e-browser/multi-gateway-partial-wss-root-gap.json": "e67f4aa21186d4bca9ab13ac2ad5e0e370104b985e216cf5f6d90643532d78ed",
     "stage-e-browser/multi-gateway-foundation-root-check.json": "8ae02f505c3e30433a9b9d2158756bd07c33eb5dd699357cb3fb8d1825cc0f0e",
-    "stage-e-browser/multi-gateway-partial-hap-root-gap.json": "17a06a02ba196aa2a3cada7f873fd006e3d34640c6941219567493209549e7d2"
+    "stage-e-browser/multi-gateway-partial-hap-root-gap.json": "17a06a02ba196aa2a3cada7f873fd006e3d34640c6941219567493209549e7d2",
+    "stage-e-browser/multi-gateway-delayed-scene-root-gap.json": "2cd53406c7cd6d30f93884fad0addf647267373f85daab44e10b7f66944e6134"
   },
   "excluded_by_scope": {
     "Siri": "cancelled by user",
@@ -508,5 +512,6 @@
   },
   "latest_gateway_foundation_software": "stage-e-browser/multi-gateway-foundation-root-check.json",
   "latest_partial_gateway_WSS_counterexample": "stage-e-browser/multi-gateway-partial-wss-root-gap.json",
-  "latest_partial_gateway_HAP_counterexample": "stage-e-browser/multi-gateway-partial-hap-root-gap.json"
+  "latest_partial_gateway_HAP_counterexample": "stage-e-browser/multi-gateway-partial-hap-root-gap.json",
+  "latest_gateway_delayed_scene_counterexample": "stage-e-browser/multi-gateway-delayed-scene-root-gap.json"
 }
