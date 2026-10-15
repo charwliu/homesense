@@ -1,6 +1,8 @@
 # 持续服务的网关故障隔离
 
-2026-10-16 接收RST补充：新正式程序已关闭审计成功后仍永久停止准入的退出路径；普通读及待完成模块读回均可交给既有新连接同步。只有ConnectionReset／ConnectionAborted／BrokenPipe／NotConnected且内存仲裁与持久日志均成功才允许恢复，真实取消、存储/仲裁失败、非网络错误和投影不变量不能被网络重试掩盖。最终1160项及严格Clippy、两项实际原生API联调通过；字节相同正式程序的88路/常驻/RST生命周期证据保留，Linux更新待完成。此修复不改变下述整组所有者结构，独立多网关控制契约仍失败。见[限定修复证据](evidence/stage-e-browser/receive-network-error-root-check.json)。
+2026-10-16 接收RST补充：新正式程序已关闭审计成功后仍永久停止准入的退出路径；普通读及待完成模块读回均可交给既有新连接同步。只有ConnectionReset／ConnectionAborted／BrokenPipe／NotConnected且内存仲裁与持久日志均成功才允许恢复，真实取消、存储/仲裁失败、非网络错误和投影不变量不能被网络重试掩盖。最终1160项及严格Clippy、两项实际原生API联调通过；字节相同正式程序的88路/常驻/RST生命周期证据保留，Linux隔离启动、旧库兼容、实际回环RST生命周期及常驻更新已核验。此修复不改变下述整组所有者结构，独立多网关控制契约仍失败。见[限定修复证据](evidence/stage-e-browser/receive-network-error-root-check.json)。
+
+Root两次独立读取确认新版同PID、零重启、无限期限并保持原身份、配置及永久Admin。较晚新增一条HAP配对已与原管理员授权日志核对，原记录无改删；初始全表比对失败和后续逐条证明均保留。见[Linux交付及身份边界](evidence/stage-e-browser/receive-network-error-linux-deployment-root-check.json)。
 
 2026-10-16 当前状态：整合服务已常驻上线，单网关恢复资格见[最终部署](evidence/stage-e-browser/indicator-final-linux-deployment-root-check.json)。Root新增两个独立本机TCP网关反例：仅A查询失去反馈，健康B仍发送13次反馈，但新B控制只得到unknown、没有新增journal或线帧；A恢复后新B控制再次成功。管理监听与服务本身保留，程序最终按SIGTERM正常退出。当前实现会因一条总线故障drop整个owner、重新连接两条总线并关闭全局准入，因此下述“其他独立网关不随之关闭”要求仍未实现，私有修复在做；不以单GW存活替代该门槛。详见[多网关反例](evidence/stage-e-browser/multi-gateway-isolation-root-gap.json)。
 

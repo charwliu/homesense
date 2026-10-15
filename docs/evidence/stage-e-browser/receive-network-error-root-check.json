@@ -1,6 +1,6 @@
 {
   "checked_at": "2026-10-16T02:03:59.989328+08:00",
-  "status": "receive-error lifetime repair integrated locally; Linux update pending; full per-gateway isolation still fails",
+  "status": "receive-error lifetime repair qualified and Linux deployed; independent per-gateway isolation remains open",
   "frozen_source_files": 844,
   "source_manifest_sha256": "c7716776c67c34d0d40e7b6329e751bbca2a2a7d407b05ade76eec35975c4f56",
   "normal_binary_sha256": "ca6b5cfffab367de75fdadb3800f89e71670eb13b1700b2e68b0ec424b1080a8",
@@ -127,7 +127,7 @@
   ],
   "environment": "localhost-only fake buses; initial sandbox bind failures preserved, same pinned TCP executable passed with local socket access",
   "field_controls_or_new_config_or_grant_changes": 0,
-  "Linux_repair_deployed": false,
+  "Linux_repair_deployed": true,
   "App_phone_display_verified": false,
   "D_E_complete": false,
   "artifact_sha256": {
@@ -154,5 +154,7 @@
     "deployment/ngr/private/20261016-receive-error-guard-root/final-v5-runtime-result.json": "41f5b7e5ac817c3b2a2c80f46708d8498c3abeeff0eb62e42dbf1f2b1c4cb5e2",
     "deployment/ngr/private/20261016-receive-error-guard-root/native-final-v5/result.json": "bad82a59ba9fc5990d3e50ccb877c6669af458c64c432ad89fcf5cd5c3b71806",
     "deployment/ngr/private/20261016-receive-error-guard-root/native-final-v5/tests.log": "cad4531d63a94435d0f167c550bc0c90b8a89a89b054d5d4eda0e242d765c5a8"
-  }
+  },
+  "integrated_source_commit": "1de4579a777ce74f68294b0bd1deac23cb54066e",
+  "Linux_deployment_evidence": "stage-e-browser/receive-network-error-linux-deployment-root-check.json"
 }

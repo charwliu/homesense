@@ -1,5 +1,5 @@
 {
-  "checked_bj": "2026-10-16T02:03:59.989328+08:00",
+  "checked_bj": "2026-10-16T02:14:52.391137+08:00",
   "derived_requirements": [
     "docs/design.md sections9-11,18,20,23-24,27"
   ],
@@ -130,8 +130,8 @@
       "stage": "D/E",
       "requirement": "最终集成软件回归",
       "verified_scope": "网络接收错误修复最终844冻结输入：1160项完整Rust、原1153函数全部保留、172实际程序重哈希、文档与全目标严格Clippy通过；最终正式CLI88路周期/常驻恢复和两项实际App HTTPS/WSS通过。",
-      "remaining_evidence": "本轮Mac修复资格完成，Linux新程序交付待完成；严格独立多网关控制仍失败。手机视觉、D原语义与现场门槛仍开放。",
-      "status": "receive_error_repair_Mac_qualified_Linux_pending_multi_gateway_isolation_open",
+      "remaining_evidence": "Mac1160/严格Clippy与Linux正式程序隔离RST/兼容及常驻交付已核验；完整Linux单测未运行。多网关独立控制仍严格101，手机视觉、D原语义和现场门槛继续。",
+      "status": "receive_error_repair_Mac_qualified_Linux_deployed_multi_gateway_isolation_open",
       "complete_for_current_frozen_input": true,
       "incremental_python_tool_tests_passed": 20,
       "full_workspace_repeated_this_increment": true,
@@ -158,14 +158,15 @@
       "id": "E-7",
       "stage": "E",
       "requirement": "持续服务隔离网关超时与恢复失败，保留原生管理入口",
-      "verified_scope": "v21常驻完整1128项、原配对HAP专项和正式AD8常驻生命周期通过；Linux隔离烟测与systemd上线及可信HTTPS就绪核验通过，保留原rev9/Admin/配对。；新增接收RST导致退出的正式程序反例已软件修复，完成故障审计的指定网络错误可恢复，真实取消和审计/不变量错误仍致命。",
-      "remaining_evidence": "新接收错误修复已在Mac完整验证，Linux交付待完成；A故障仍导致健康B新控制unknown，完整按网关隔离源码实现中。现场与Apple新故障通知仍待验。",
+      "verified_scope": "v21常驻完整1128项、原配对HAP专项和正式AD8常驻生命周期通过；Linux隔离烟测与systemd上线及可信HTTPS就绪核验通过，保留原rev9/Admin/配对。；新增接收RST导致退出的正式程序反例已软件修复，完成故障审计的指定网络错误可恢复，真实取消和审计/不变量错误仍致命。；本轮Linux正式程序隔离RST生命周期与常驻更新已独立核验。",
+      "remaining_evidence": "接收错误修复已Linux常驻上线，原身份/配置/凭证保持；原管理员另授权新增一条HAP配对。A故障仍使健康B新控制unknown，完整按网关隔离正在实现，集中现场仍待验。",
       "status": "single_gateway_deployed_multi_gateway_independent_control_counterexample",
       "additional_evidence": "stage-e-browser/runtime-gateway-timeout-root-gap.json",
       "additional_production_counterexample": "stage-e-browser/runtime-feedback-outage-cli-root-check.json",
       "additional_runtime_recovery_evidence": "stage-e-browser/runtime-availability-recovery-root-check.json",
       "additional_continuous_service_evidence": "stage-e-browser/continuous-service-root-check.json",
-      "additional_receive_error_evidence": "stage-e-browser/receive-network-error-root-check.json"
+      "additional_receive_error_evidence": "stage-e-browser/receive-network-error-root-check.json",
+      "additional_receive_error_Linux_evidence": "stage-e-browser/receive-network-error-linux-deployment-root-check.json"
     }
   ],
   "evidence_sha256": {
@@ -243,7 +244,8 @@
     "stage-e-browser/indicator-final-linux-deployment-root-check.json": "1debd9b3525862852648ee86c15ad2bfd693620f893a6bc38975fb4fd9652312",
     "stage-e-browser/native-build9-delivery-root-check.json": "2a35028b95b1cb6bcf47ab9e1171eadb282ed611237bd3854113e22b0162b44f",
     "stage-e-browser/multi-gateway-isolation-root-gap.json": "17142cb4e80db93f6932a279cf92752bd02a7b96434c07a794a8f91127cb180b",
-    "stage-e-browser/receive-network-error-root-check.json": "7642a643349482e9b7f3056774fbfbd198b3a8290f3f4b194e79ff3732e8e278"
+    "stage-e-browser/receive-network-error-root-check.json": "a2145e8e202991ae387574a57008209d5a44e6d6b17c56411e6e0535ee30ae55",
+    "stage-e-browser/receive-network-error-linux-deployment-root-check.json": "4feff1129899f80ac1295fe5f5a835e1df5839f04c11f64acf1a63d391635dee"
   },
   "excluded_by_scope": {
     "Siri": "cancelled by user",
@@ -261,11 +263,11 @@
   "native_app_backend": {
     "ready": true,
     "revision": 10,
-    "current_status": "final_integrated_continuous_service_active_enabled",
+    "current_status": "receive_error_repair_continuous_service_active_enabled",
     "physical_app_acceptance": "build7 token/cold reopen/background user verified; final build9 prepared/signed but install failed; actual parent-card visual and final field actions pending",
-    "source_binary_commit": "9f2f369721806bcab50ddda6a62bd467f7f10a34",
+    "source_binary_commit": "1de4579a777ce74f68294b0bd1deac23cb54066e",
     "projection_fix_f27a6b6_deployed": true,
-    "latest_evidence": "stage-e-browser/indicator-final-linux-deployment-root-check.json"
+    "latest_evidence": "stage-e-browser/receive-network-error-linux-deployment-root-check.json"
   },
   "configuration_publication": {
     "revision9": "independently read trusted HTTPS export and room catalog,3floors/2rooms; native App user confirmed correct view",
@@ -453,7 +455,7 @@
       "historical_80_emitted_fields_describe_preserved_baseline": true
     }
   },
-  "latest_current_service_reconciliation": "stage-e-browser/indicator-final-linux-deployment-root-check.json",
+  "latest_current_service_reconciliation": "stage-e-browser/receive-network-error-linux-deployment-root-check.json",
   "latest_motor_branch_writer_source_evidence": "stage-d-study/motor-branch-and-writer-root-check.json",
   "latest_curtain_source_key_layout_evidence": "stage-d-study/curtain-source-key-layout-root-check.json",
   "latest_scene_toggle_dependency_evidence": "stage-d-study/scene-toggle-leaf-dependencies-root-check.json",
@@ -484,7 +486,16 @@
   "latest_receive_network_error_repair": "stage-e-browser/receive-network-error-root-check.json",
   "receive_network_error_repair": {
     "Mac_qualified": true,
-    "Linux_deployed": false,
+    "Linux_deployed": true,
     "full_gateway_isolation": false
+  },
+  "latest_receive_network_error_Linux_deployment": "stage-e-browser/receive-network-error-linux-deployment-root-check.json",
+  "HAP_poststart_authorized_pairing_addition": {
+    "original_pair_count": 1,
+    "later_pair_count": 2,
+    "original_rows_preserved": true,
+    "old_admin_committed_log_verified": true,
+    "Apple_device_identity_unmapped": true,
+    "evidence": "stage-e-browser/receive-network-error-linux-deployment-root-check.json"
   }
 }

@@ -1,0 +1,121 @@
+{
+  "checked_at": "2026-10-16T02:14:52.391137+08:00",
+  "status": "qualified receive-error repair deployed; original identity/config/credentials preserved, one authorized HAP pairing added after start",
+  "source_commit": "1de4579a777ce74f68294b0bd1deac23cb54066e",
+  "source_manifest_sha256": "c7716776c67c34d0d40e7b6329e751bbca2a2a7d407b05ade76eec35975c4f56",
+  "frozen_inputs": 844,
+  "software_qualification": "stage-e-browser/receive-network-error-root-check.json",
+  "Linux_binary_sha256": "f5b4d993c21168ac18219250ca0920662725f52f255ea00a93244d782e376f97",
+  "Root_local_ELF_rehashed": true,
+  "build": "Mac local crosscompile; only production ELF transferred, not Rust application source or test ELF",
+  "Linux_scope": {
+    "namespace_startup_and_old_binary_reopen": {
+      "isolated_network": true,
+      "active_revision": 10,
+      "new_forever_exit": 0,
+      "old_binary_reopen_exit": 0,
+      "index_present": true,
+      "user_version_before_after": 26,
+      "command_journal_rows_before_after": 933,
+      "quick_check": "ok",
+      "real_gateway_access": false
+    },
+    "actual_loopback_RST": {
+      "actual_Linux_fixture": true,
+      "strict_probe_exit": 101,
+      "same_process_lifetime_recovery": true,
+      "failed_request_no_replay": true,
+      "healthy_gateway_independent_during_fault": false,
+      "fixture_result": "/Users/liuwei/works/homesense/deployment/ngr/private/20261016-receive-deploy-root/rst-probe-summary.json",
+      "all_endpoints_loopback": true,
+      "no_real_gateway_access": true
+    },
+    "full_Linux_unit_suite": false
+  },
+  "Root_live_reads": {
+    "first": "2026-10-16T02:13:51.107693+08:00",
+    "second": "2026-10-16T02:14:52.391137+08:00",
+    "same_PID": true,
+    "PID": 246767,
+    "active_running_enabled": true,
+    "restart_count": 0,
+    "RuntimeMaxUSec": "infinity",
+    "trusted_TLS": true,
+    "active_revision": 10,
+    "ready_gateway_storage": true,
+    "permanent_Admin_accepted": true,
+    "visible_devices": 8,
+    "six_slot_Keypad_parents": 2,
+    "standalone_LED": 0
+  },
+  "state_preservation": {
+    "snapshot": "/home/build/apps/homesense/rollback/e2-receive-v5-20261015T180925Z-f5b4d993c211",
+    "all_original_five_table_rows_and_configuration_byte_preserved": true,
+    "accessory_ids": 18,
+    "instance_ids": 164,
+    "original_entries": 6,
+    "later_entries": 7,
+    "pair_count_before": 1,
+    "pair_count_after": 2,
+    "credential_tables_exactly_equal": true,
+    "permanent_Admin_scope": "17devices/7scenes unchanged",
+    "initial_full_table_comparison_failure_retained": true,
+    "all_entries_table_equal_now": false,
+    "addition": {
+      "count": 1,
+      "old_admin_authorized_committed_log": true,
+      "target_key_digest_matches_only_new_row": true,
+      "mutation_PID_matches_new_service": true,
+      "revoked_count": 0,
+      "exact_Apple_device_identity": "unmapped; not inferred to be HPLeft"
+    },
+    "no_Root_pairing_grant_or_config_mutation": true
+  },
+  "rollback": {
+    "whole_state_snapshot_retained": true,
+    "automatic_handler": "restores old unit/program; does not restore state bytes automatically",
+    "whole_state_restore_exercised": false,
+    "schema26_and_old_binary_compatibility_verified": true
+  },
+  "normal_restart_projection": {
+    "new_written_LED_records": 5,
+    "explicit_field_control_test_requests": 0,
+    "physical_LED_readback": false
+  },
+  "remaining": {
+    "per_gateway_independent_B_control": "strict101, implementation ongoing; not fixed by receive lifetime change",
+    "phone_Keypad_visual_symptom": "unresolved",
+    "phone_build9_install": "two failed connectivity attempts; no new retry",
+    "D_original_semantics_and_user_paused_field": "unchanged"
+  },
+  "D_E_complete": false,
+  "artifact_sha256": {
+    "deployment/ngr/private/20261016-receive-deploy-root/deployment-result.json": "a581bafa467a1967b931b57329e50bac22ce3c32a2ca99ceb00311ed0b298751",
+    "deployment/ngr/private/20261016-receive-deploy-root/deployment-result-final.json": "cb5d5de89b6cd9c035b94923e201c8252d5a766c1caf5c804861c3fbe9a10512",
+    "deployment/ngr/private/20261016-receive-deploy-root/deployment-result-verified.json": "1ca182b1999ebb4b0de8631518be542eb3ffbb464ffd41be5a17a2ae0293c16b",
+    "deployment/ngr/private/20261016-receive-deploy-root/crossbuild-result.json": "3bcdc4260903fb122c44485a6c55ddda60534783ee3b42f84c7feae21af9071e",
+    "deployment/ngr/private/20261016-receive-deploy-root/crossbuild.log": "f7b31c6b867e0aa39d31ac646ab8117e810037e2132a069e1488ccbdfe6cb091",
+    "deployment/ngr/private/20261016-receive-deploy-root/isolated-smoke-result.json": "83a32d87ca630543fbcc3b1a9760f7a9027fb401224e0371b713cbdb779700a5",
+    "deployment/ngr/private/20261016-receive-deploy-root/rst-probe-summary.json": "295a74161d4ce31de984da8371a76135c3c74402c105fed6c4d4edbdbf466e8c",
+    "deployment/ngr/private/20261016-receive-deploy-root/rst-probe-wrapper.log": "0af8932409c6a33f906938923982ac689bdd22f2a1969221227dbd6f5314941b",
+    "deployment/ngr/private/20261016-receive-deploy-root/remote-smoke-v5.sh": "40f6be3ceab3f8b01727208030dee074df0c78dc6dad9204473c81738e78267b",
+    "deployment/ngr/private/20261016-receive-deploy-root/remote-upgrade-v5.sh": "597c01fdb8d11d672de2e5165c3ee216ea9ca505a8ba5460e1fccb6552ef9b7d",
+    "deployment/ngr/private/20261016-receive-deploy-root/preupgrade-state-audit.json": "d81926a2d9b46787e53615c9ae527a7c4bfb438dd13b011583b04abea1c24af2",
+    "deployment/ngr/private/20261016-receive-deploy-root/postupgrade-state-audit.json": "d81926a2d9b46787e53615c9ae527a7c4bfb438dd13b011583b04abea1c24af2",
+    "deployment/ngr/private/20261016-receive-deploy-root/preupgrade-grant-summary.json": "9d81e7cff2521b87461b4ee5b26f2dbd096b9b0193da72efa8f1128ba842bd97",
+    "deployment/ngr/private/20261016-receive-deploy-root/identity-credential-compare.json": "c1b5a3218146e2b7223f6781a0190cf72025f0d239400ea7f6426c13404a08fd",
+    "deployment/ngr/private/20261016-receive-deploy-root/identity-credential-compare-later.json": "3f62776cf09888b9fc559755a361a32160f8f792b2e5759f386961b24ed5bf63",
+    "deployment/ngr/private/20261016-receive-deploy-root/hap-entries-delta.json": "cbc66ace879420329ef4d01e0bd06cb07239b1763d2ad9eafa507c1326907b8a",
+    "deployment/ngr/private/20261016-receive-deploy-root/postupgrade-grant-and-journal.json": "a0ab03ce860e09f1446c5f172986a5f771c0c5475e6bafea8d70ed743dd2d1f2",
+    "deployment/ngr/private/20261016-receive-error-guard-root/postdeploy-root/result.json": "baa7163cee3f04521b134b71556eb1d2d5b6abdf26f856ab754410710cc49428",
+    "deployment/ngr/private/20261016-receive-error-guard-root/postdeploy-root/second-result.json": "94b94a463f9abc50d6c31718c0cb85a5f62bc63006c4f8b7b56c7452d27f3f27",
+    "deployment/ngr/private/20261016-receive-error-guard-root/postdeploy-root/state-read.stderr": "6aff5e55eec749dc6380469a04a53b35faa0784fd9a4bef88b9064e67bb9b93a",
+    "deployment/ngr/private/20261016-receive-error-guard-root/postdeploy-root/state-read-v2.json": "b870b3b72e1ae75f15a5ae65527e5f3b1a292f2e370e74fa397586caf6f4ea38",
+    "deployment/ngr/private/20261016-receive-error-guard-root/postdeploy-root/entry-differences.json": "45dfd6d55cdc0a41d0d65dbe671da16511934c9c076fc667a263f38def84fdc8",
+    "deployment/ngr/private/20261016-receive-error-guard-root/postdeploy-root/pairing-mutation-log.json": "754aa1bcb6601ddf05a12d8aeed7512599ac01de31c7ee7008b664088a8f38de",
+    "deployment/ngr/private/20261016-receive-error-guard-root/read-live-upgrade-state.py": "83e6270797e4e7fa0bdc89ee064bdb862570cabba1a412a632337b726aa33804",
+    "deployment/ngr/private/20261016-receive-error-guard-root/read-live-upgrade-state-v2.py": "51b9caab42b82d36050c43f7907040412f984fc61aebbe1bbc8d9b8a72779aec",
+    "deployment/ngr/private/20261016-receive-error-guard-root/read-entry-differences.py": "4d6d3063a8bf2e8d7558f1d652ccf59d20aa23e5a2c0700b3bfdb4b40856a655",
+    "deployment/ngr/private/20261016-receive-error-guard-root/read-pairing-mutation-log.py": "666b7c3ae94ebdbecf3a2a7164f2f1540d12694093853b2024ea427b982512cd"
+  }
+}
