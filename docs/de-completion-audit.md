@@ -1,3 +1,7 @@
+2026-10-15 窗帘分支与写入源核查：独立从原XML重建35个事件的完整AST，逐代码ID核对表达式与Else，覆盖24个停止条件、11个运动条件、105处LED副作用、46处变量赋值；相关11变量另有22处窗帘反馈事件写入。一个房间的Open/Closed注释及1/2反馈编码均与其余房间相反，不能在未校准时自动修正。此项完成结构和写入源审核，不冒充完整程序迁移或现场校准通过。见[分支与写入源证据](evidence/stage-d-study/motor-branch-and-writer-root-check.json)。
+
+2026-10-15 22:24 当前状态校正：可信HTTPS与systemd只读复核确认E2 active/enabled、PID244467、零重启、无整体期限，活动rev10、网关/存储/HAP就绪，两张六格Keypad且无独立LED。旧审计中的17:28停机、rev9和未部署卡片字段移入历史快照；浏览器首页现网为410 native_app_required。场景投影修复f27a6b6已推送但未部署，新增场景LED失败及现场挂起项仍开放。见[现网状态复核](evidence/stage-e-browser/current-service-reconciliation-root-check.json)。
+
 2026-10-15 场景读缓存修复已完成软件核查：Root完整1137项保留原1128项，172实际程序逐一复核哈希；严格Clippy、文档及正式程序64／88路和常驻故障恢复通过。增强LED检查另发现新增庭院／回家候选外部反馈颜色未同步，仍未发布，修复候选未替换现网。见[场景缓存核查](evidence/stage-e-browser/scene-projection-cache-root-check.json)。
 
 2026-10-15 22:05 卡片发布：用户报告仍是独立LED后，已从新鲜活动9导出并在线发布同一20端点的父对象归并到rev10。原Admin17范围下，Root可信HTTPS独立确认2张六格父卡、0独立LED、7格原授权动作可见；未新增模块、场景、墙面规则或控制权限，原配对保持、进程未重启。App现有版本无需重装，实际卡片显示已询问用户，尚待回复；场景投影缓存修复仍在独立软件验证，未随本次发布。见[卡片发布证据](evidence/stage-e-browser/keypad-existing-cards-publication-root-check.json)。

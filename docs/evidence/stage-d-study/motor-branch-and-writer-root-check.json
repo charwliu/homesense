@@ -1,0 +1,40 @@
+{
+  "source_archive_sha256": "ff8c298fd2c8efa840d572d3ca544860ffbbc4e7176f09e93efdc5464b9ce6ec",
+  "source_xml_sha256": "cac7dcdc9db08599e55a22bacb72858035c64e1ac846e2139ead5fc634513748",
+  "motion_condition_rows": 35,
+  "unique_source_events": 35,
+  "unique_motor_proxies": 11,
+  "variable_count": 11,
+  "counts": {
+    "IF_STOPPED": 24,
+    "side_effect_LED_commands": 105,
+    "side_effect_variable_assignments": 46,
+    "IF_MOVING": 11
+  },
+  "direction_comment_mismatches_not_proven_hardware_errors": [
+    {
+      "event": "430:2",
+      "actual_command": "Closed"
+    },
+    {
+      "event": "430:10",
+      "actual_command": "Open"
+    }
+  ],
+  "all_effects_are_LED_or_same_curtain_variable_in_these_events": true,
+  "external_writers": 22,
+  "source_scope_remaining_counts_not_reduced_by_structural_audit": true,
+  "new_rules_enabled": 0,
+  "configuration_published": false,
+  "field_queries_or_controls": 0,
+  "complete_program_semantic_approval": false,
+  "private_artifact_sha256": {
+    "deployment/ngr/private/20261015-motor-branch-audit-root/audit.py": "5bb60fcabbaa643c3c543f0c82f967b4db05c764225a7143a957fc774b525def",
+    "deployment/ngr/private/20261015-motor-branch-audit-root/branch-rows.json": "0514ff3797619c069ad7f058415289168738e12e29642b34c8e30f82c5ee3bf3",
+    "deployment/ngr/private/20261015-motor-branch-audit-root/variable-writers.json": "9c102b25db6ff010450b1a14af792aa6db0d6ecdbbb30cdb7cc95510f13646f1",
+    "deployment/ngr/private/20261015-motor-branch-audit-root/result.json": "962406eba58fc734aec7a6b030e1946049ed23ae3184dd4135592bb54d298273",
+    "deployment/ngr/private/20261015-motor-branch-audit-root/fixture-parser-first-attempts.json": "f5fc1738cd78f12576fafabe625cb98e11c76fc88e42d9e3ba40ed2db95db07b"
+  },
+  "audit_scope_note": "all source code IDs in each reviewed event accounted for, including expression and Else; only structural/branch and external-writer evidence, not physical direction calibration or complete program semantic approval",
+  "proxy_feedback_variable_inversion_matches_label_inversion": "same one room has opposite literal Open/Closed command labels and opposite1/2 feedback assignments; retain explicit calibration requirement, no automatic correction"
+}
