@@ -54,7 +54,7 @@
   },
   "field_DB_reads_or_writes": 0,
   "historical_prototype": "scope+intent partial index leaves70 steps for all three sizes; not yet applied to product or field DB",
-  "current_status": "resolved in integrated software; field deployment pending",
+  "current_status": "resolved in integrated software and deployed binary; field performance acceptance pending",
   "final_Rust_causal_pair": {
     "same_four_test_file": true,
     "baseline_passed": 2,
@@ -79,5 +79,6 @@
     "derived_index_only_no_row_or_schema26_version_change": true,
     "old_current_DB_and_legacy_opener_tests_passed": true
   },
-  "final_evidence": "stage-e-browser/indicator-final-integrated-quality-root-check.json"
+  "final_evidence": "stage-e-browser/indicator-final-integrated-quality-root-check.json",
+  "Linux_deployment_evidence": "stage-e-browser/indicator-final-linux-deployment-root-check.json"
 }

@@ -1,6 +1,6 @@
 {
   "checked_at": "2026-10-16T00:43:52.832900+08:00",
-  "status": "final v13 software qualified and source integrated; Linux deployment pending",
+  "status": "final v13 software qualified, source integrated and Linux production binary deployed; field acceptance pending",
   "source_files_frozen": 842,
   "manifest_sha256": "ed9a8d1d18a1c74917e13505cdb63445026fdd1e106a86e5c6de96558df9ba85",
   "normal_CLI_sha256": "24f4fa1500cd5e49bd06c4b773663b5ab3b54238a883cace8a701600923a3438",
@@ -135,7 +135,7 @@
   },
   "source_integrated_paths": 13,
   "field_controls_or_grant_changes": 0,
-  "deployment_pending": true,
+  "deployment_pending": false,
   "actual_App_Keypad_visual_confirmation": "user still reports independent LEDs; exact screen and installed-origin diagnosis pending",
   "hardware_limit": "LED Written is software write evidence, never physical readback. Unreceived hardware-only overwrite or fully unsampled Off-to-On cannot be inferred.",
   "D_E_complete": false,
@@ -155,5 +155,6 @@
     "deployment/ngr/private/20261016-indicator-quality-root/native-final-v13/result.json": "897428aa7e71ce7f640d5f17e9d566fd6599c54699cc45d3899397b6afed0ff7",
     "deployment/ngr/private/20261016-indicator-quality-root/native-final-v13/tests.log": "41eaf38fa4f1109eebfbd49009b7117328797240df445cb2e98432fc68029d9f",
     "deployment/ngr/private/20261016-indicator-quality-root/integration-applied.json": "5a1292d66a054fc01a8e613b369be4be0c13f0e8f47d058736be2fbc381857a5"
-  }
+  },
+  "Linux_deployment_evidence": "stage-e-browser/indicator-final-linux-deployment-root-check.json"
 }

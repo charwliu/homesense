@@ -1,0 +1,51 @@
+{
+  "checked_at": "2026-10-16T00:57:53.122514+08:00",
+  "App_version": "1.0 build9",
+  "status": "signed exact frozen App ready; overwrite install failed on device connectivity; no build9 phone acceptance",
+  "frozen_App_inputs": 55,
+  "existing_shared_inputs_verified_unchanged": 55,
+  "signed_bundle_files_Root_rehashed": 10,
+  "only_preparation_change": "private Info version8-to9; no grouping or diagnostics patch",
+  "functional_source": "4dc1284 cold restore matches reviewed source; existing build8 LHIO edits preserved by exact hash",
+  "software_evidence": "stage-e-browser/native-current-integration-root-check.json plus final backend two actual integrations in indicator-final-integrated-quality-root-check.json; counts overlap",
+  "signed_product_sha256": "35aecd55cff0886ad8cd2eecfe26077ebf0204a4633cb196108eaca8898f91fd",
+  "signing": {
+    "original_development_configuration": true,
+    "application_identifier_team_and_Keychain_groups_match_build8": true,
+    "strict_codesign_verification_exit": 0,
+    "initial_sandbox_trust_check": "CSSMERR_TP_NOT_TRUSTED retained; exact same read-only verification outside filesystem sandbox passed; no OS trust change"
+  },
+  "installation": {
+    "attempts": 1,
+    "receipt_outcome": "failed",
+    "CoreDeviceError_code": 4000,
+    "underlying": "Network.NWError60 connection timeout while establishing device tunnel",
+    "last_installed_build_evidence": "build8 before attempt; no post-failure version attestation",
+    "success": false,
+    "retries": 0,
+    "uninstall": false,
+    "data_clear": false,
+    "app_launched": false,
+    "actual_Keychain_or_token_read": false,
+    "device_control": false
+  },
+  "pending_user": "original iPhone unlocked and reliable Mac USB connection; readiness question pending, no repeat install before changed state",
+  "Keypad_phone_visual_symptom": "unresolved; screen identification question pending",
+  "D_E_complete": false,
+  "artifact_sha256": {
+    "deployment/ngr/private/20261016-native-build9-app/handoff.json": "574665bbdebc939a421cd32b33762eb5f235e15e6ce4cea6e1e3e30296e10ec7",
+    "deployment/ngr/private/20261016-native-build9-app/result.json": "a251f1316b8a02f595b79a5947f2a9d03798a221124c147a57fd200d8cdc13c2",
+    "deployment/ngr/private/20261016-native-build9-app/build-source-manifest.json": "04c3b7b40aadf3a768925367f4f748da8c1f404270548cb1955eb3e408e0e296",
+    "deployment/ngr/private/20261016-native-build9-app/source-boundaries.json": "d5af4d46b59da37558864cf449d22a0377f01446d324e182776508e97d326050",
+    "deployment/ngr/private/20261016-native-build9-app/integrity-after.json": "e95ba899b01dba812a89fc4e9ca02e2853f6c60170a79dff9b3c8a7b89b53c1f",
+    "deployment/ngr/private/20261016-native-build9-app/Root-independent-integrity.json": "211ae87b1b4eadae89d8f632c01d804f37b0b1a032f502134d3be8956c053387",
+    "deployment/ngr/private/20261016-native-build9-app/signing-install/handoff.json": "6f76f621a5f212efc2a1ffb4587dc53a1f54f85017519abca4c06f72cc4dff3f",
+    "deployment/ngr/private/20261016-native-build9-app/signing-install/result.json": "4923ec6f7c33b4a8f19eb233cb87a8a15f71ee8fd20638a1810a25e22377142d",
+    "deployment/ngr/private/20261016-native-build9-app/signing-install/install-build9.json": "6904c1c5597ba0b4e143d62a14a1a59283dd0e23d13bedf1a0051733d6f74750",
+    "deployment/ngr/private/20261016-native-build9-app/signing-install/post-sign-integrity.json": "33d6d7da1c59111bd9d454aca30ea0dce8d3a7e51780293c4e2354ad4a5b94bd",
+    "deployment/ngr/private/20261016-native-build9-app/signing-install/signature-identity-compare.json": "9cf40ecc52d256c13d97f10d87419ee1b2ad865e16486a0e73eb47ca172792b9",
+    "deployment/ngr/private/20261016-native-build9-app/signing-install/signed-bundle-manifest.json": "d9cebdef272852de785bb5e4bd51b29769df4b1f405df8848f1ee39a0601cd7f",
+    "deployment/ngr/private/20261016-native-build9-app/signing-install/signature-verification.log": "769caf350f75bcb2f15051f5e0638a305e2e71c9002ba7f0ffb50ba4c6a5bb6e",
+    "deployment/ngr/private/20261016-native-build9-app/signing-install/signature-verification-sandbox.log": "7b86a76b252ba650546ad12faa2030a8b022e003917486e01f14a6f44cb434ef"
+  }
+}
