@@ -646,3 +646,6 @@ async fn external_candidate_stays_independent_and_prekey_samples_cannot_supply_t
 
 #[path = "scene_indicator_projection_tests.rs"]
 mod indicator_projection;
+
+#[path="scene_brightness_reconciliation_tests.rs"]
+mod brightness;
