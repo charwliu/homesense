@@ -1,5 +1,5 @@
 {
-  "checked_bj": "2026-10-15T21:45:10.538123+08:00",
+  "checked_bj": "2026-10-15T22:12:35.268259+08:00",
   "derived_requirements": [
     "docs/design.md sections9-11,18,20,23-24,27"
   ],
@@ -88,16 +88,17 @@
       "id": "E-3",
       "stage": "E",
       "requirement": "灯光、场景、窗帘与面板入口",
-      "verified_scope": "两房间多项手动灯光／场景／窗帘及LED已限定现场通过",
-      "remaining_evidence": "完整Keypad候选虽6项静态校验通过，88路运行出现初始场景未知；64路对照间歇未知，待定位。完整新场景与管理范围仍待现场验收，候选未发布。",
-      "status": "keypad_candidate_runtime_counterexample_and_physical_acceptance_partial"
+      "verified_scope": "两房间多项手动灯光／场景／窗帘及LED已限定现场通过；现有两面板父卡已在线发布到rev10，原Admin视图2父卡/各6格/0独立LED，原17授权及20展开端点保持，7格既有动作可见。",
+      "remaining_evidence": "App实际卡片显示确认待用户回复；新增庭院/回家候选的物理投影修复待完整验证与部署，其他扩展和按键现场动作仍未验收。",
+      "status": "keypad_candidate_runtime_counterexample_and_physical_acceptance_partial",
+      "additional_existing_card_evidence": "stage-e-browser/keypad-existing-cards-publication-root-check.json"
     },
     {
       "id": "E-4",
       "stage": "E",
       "requirement": "原生App、管理API鉴权与事件恢复",
       "verified_scope": "登录、滑块、退出和iPad断网恢复有实际限定结果；新账本与Away有软件证据；原生App实际TLS/WSS软件集成及手机推送、页面稳定与亮度按钮可用已确认；原生App两次实际调光跟随与自动读回已确认；rev9楼层目录及原生App三层/两房间归属已实际确认，永久Admin登录和本机空楼层编辑已通过；原生App楼层/房间新增、改名、删除、服务端保存及预览、恢复活动配置和测试草稿清理均已实际确认；两草稿独立核对设备及自动化未变；build7永久凭证Keychain保存、强退重开自动连接及前后台开/关同步已现场通过；ordinary v3严格负向80项零写出、publication v3四函数32项限定通过，v7 Web准确两run持久账目通过；精确来源授权／发布与STOP冻结v5完整1086项及文档、严格Clippy通过，保留原1067项，新增19项含213专项记录",
-      "remaining_evidence": "精确授权与发布修复已包含在305be34常驻上线；其他管理变更/备份边界、App实际发布、新Keypad迁移及集中现场验收仍开放。",
+      "remaining_evidence": "rev10已通过管理API实际发布现有面板父卡，权限和身份保持；App自主发布、其他管理变更/备份边界及集中现场动作验收仍开放。",
       "status": "exact_source_auth_software_deployed_remaining_field_and_management_checks_pending",
       "additional_auth_gap": "stage-e-browser/ordinary-source-auth-root-gap.json",
       "additional_publication_auth_evidence": "stage-e-browser/publication-source-boundaries-root-check.json",
@@ -211,7 +212,8 @@
     "stage-d-study/offline-automation-cli-root-check.json": "027eae1017cf6ee2ae5e778f357b5e6b3406ab66c19887809d81bcfc03e2f0de",
     "stage-e-browser/continuous-service-root-check.json": "65b8cf06c7aec14c4ffc2dfa55205499648923f491a86107bbe60545ba2ec26b",
     "stage-e-browser/keypad-full-candidate-v21-root-check.json": "b1c2263798ccc3b76a2aaf4a91f6fe46e014e8f0f2550e50fc62c5c97bf31ad6",
-    "stage-d-study/motor-led-ownership-root-check.json": "680d5a1991a1f779a1e75e2f4ac97f8f6a1b6c13da4b7ce2bb2f004d436d064f"
+    "stage-d-study/motor-led-ownership-root-check.json": "680d5a1991a1f779a1e75e2f4ac97f8f6a1b6c13da4b7ce2bb2f004d436d064f",
+    "stage-e-browser/keypad-existing-cards-publication-root-check.json": "d4d1f6950bf83d965c5b84d8c7911602db1ca953e16823993414c81cc67ecc15"
   },
   "excluded_by_scope": {
     "Siri": "cancelled by user",
@@ -337,8 +339,8 @@
     "evidence": "stage-d-study/brightness-refinement-root-check.json"
   },
   "native_App_build7_evidence": "stage-e-browser/native-app-build7-root-check.json",
-  "current_Keypad_field_parent_objects": 0,
-  "current_Keypad_field_legacy_LED_entries": 7,
+  "current_Keypad_field_parent_objects": 2,
+  "current_Keypad_field_legacy_LED_entries": 0,
   "field_testing_user_deferred_until_all_fixes_integrated": true,
   "gateway_timeout_exit_user_requires_fix": true,
   "latest_publication_auth_evidence": "stage-e-browser/publication-source-boundaries-root-check.json",
@@ -382,5 +384,17 @@
   },
   "latest_continuous_service_evidence": "stage-e-browser/continuous-service-root-check.json",
   "latest_full_keypad_candidate_evidence": "stage-e-browser/keypad-full-candidate-v21-root-check.json",
-  "latest_motor_LED_source_owner_evidence": "stage-d-study/motor-led-ownership-root-check.json"
+  "latest_motor_LED_source_owner_evidence": "stage-d-study/motor-led-ownership-root-check.json",
+  "latest_existing_Keypad_card_publication": "stage-e-browser/keypad-existing-cards-publication-root-check.json",
+  "current_active_configuration_revision": 10,
+  "existing_keypad_permission_scope_preserved": 17,
+  "current_card_slots_per_parent": 6,
+  "current_authorized_key_actions": 7,
+  "actual_App_card_visual_confirmation": "pending user response",
+  "extra_shared_keypad_models_user_confirmed": {
+    "61": "TS6-86",
+    "56": "TS6-86",
+    "work_mode_not_inferred": true,
+    "activation_applied": false
+  }
 }
