@@ -516,10 +516,7 @@ fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
                 &read(&args[2])?,
                 context,
             )?;
-            let linked = document.linked_rules(
-                &document.immediate_scenes,
-                &document.schedules.iter().map(|s| s.id.clone()).collect(),
-            )?;
+            let linked = document.linked_rules_with_deferred()?;
             println!(
                 "Automation structure and enabled command encoding valid: revision={}, rules={}, enabled={}, variables={}, immediate_scenes={}, schedules={}, gesture_keys={}, context={:?}; no state created or connection opened",
                 document.revision,
