@@ -1,4 +1,6 @@
-2026-10-15 App冷启动恢复修复已窄合入：Root独立复跑同夹具，旧版503／连接失败两例均超时不恢复，新版6方法／25用例通过，完整Swift套件实际执行75方法、2项Rust集成明确跳过、0失败。只读恢复保留Origin、取消／暂停、401清除和TLS门禁，新的WSS状态前禁控；iOS及macOS arm64无签名构建通过。尚未安装手机或新增现场验收，后端LED最终候选仍在验证。见[冷启动核查](evidence/stage-e-browser/native-cold-restore-root-check.json)。
+2026-10-15 App实际Rust联调补齐：当前4dc1284功能输入34份冻结不变，Root启用两项原跳过测试，用固定f27a6b6普通后端程序独立运行完整Swift套件，77方法／13套件、0跳过、0失败。真实HTTPS管理发布及URLSession WSS推送、空闲保活、六键父卡／LED／参数与草稿隔离均通过。HTTP使用curl及临时CA，WSS使用真实URLSession和仅本夹具CA，不据此证明默认HTTP系统信任、真实Keychain或手机安装；也不覆盖尚未交付的LED修复。见[实际联调核查](evidence/stage-e-browser/native-current-integration-root-check.json)。
+
+2026-10-15 App冷启动恢复修复已窄合入：Root独立复跑同夹具，旧版503／连接失败两例均超时不恢复，新版6方法／25用例通过，完整Swift套件实际执行75方法、2项Rust集成明确跳过、0失败，后续补验见上。只读恢复保留Origin、取消／暂停、401清除和TLS门禁，新的WSS状态前禁控；iOS及macOS arm64无签名构建通过。尚未安装手机或新增现场验收，后端LED最终候选仍在验证。见[冷启动核查](evidence/stage-e-browser/native-cold-restore-root-check.json)。
 
 2026-10-15 23:42 当前目录仍为rev10、两张六格父卡、0独立LED，服务就绪，实际App显示待回复。Root独立复跑App目录／凭证刷新31个方法（32次用例）全部通过，只新增回归文件，不改产品源码、不安装App；内存传输不替代真实TLS、Keychain和手机验收。冷启动首次恢复遇临时故障不重试另为已核实缺口，后续修复见上。现网没有可委派20端点的管理员，书房权限补齐仅形成停机维护与CAS回退方案，尚未执行。见[当前目录](evidence/stage-e-browser/keypad-current-catalog-root-check.json)、[App软件复验](evidence/stage-e-browser/native-grant-refresh-root-check.json)和[权限提案](evidence/stage-e-browser/study-keypad-scope-proposal-root-check.json)。
 
