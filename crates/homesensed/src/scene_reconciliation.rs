@@ -6,11 +6,11 @@ use crate::{
     scene_scheduler::SceneScheduler,
 };
 use hap::server::WriteStatus;
-use homesense_config::{Configuration, rule_document::Document, scene_switches::Group};
+use homesense_config::{Configuration, rule_document::Document, scene_switches::{Group, ReconciliationPolicy}};
 use homesense_core::{
     queue::Epochs,
     rule::{Action, Budget, Expr, Lifetime, Node, Value, ValueType, Variable},
-    scene_pattern::{MemberPatterns, Observations, matching_member},
+    scene_pattern::{MemberPatterns, MemberLevels, LevelObservations, Observations, matching_member, matching_member_with_levels,brightness_reads_for_collision},
 };
 use homesense_storage::{
     Store,
@@ -28,6 +28,9 @@ pub(crate) struct Prepared {
     version: u64,
     patterns: MemberPatterns,
     actual: Observations,
+    level_patterns: Option<MemberLevels>,
+    levels: LevelObservations,
+    policy: ReconciliationPolicy,
     max_age_ms: u64,
     lease: RuleLease,
     relative_eligible: bool,
@@ -75,7 +78,7 @@ impl Prepared {
             });
         }
         // Physical samples only. Remembered brightness remains separate.
-        let (plan, lease) = feedback
+        let (mut plan, mut lease) = feedback
             .plan_rule(
                 &nodes,
                 &variables,
@@ -90,7 +93,7 @@ impl Prepared {
             .as_ref()
             .filter(|_| state.evidence_current)
             .map(|e| e.observed_ms);
-        let actual = first
+        let powers=|plan:&homesense_core::rule::Plan,lease:&RuleLease|->Observations { first
             .keys()
             .enumerate()
             .map(|(index, id)| {
@@ -114,7 +117,33 @@ impl Prepared {
                 };
                 (id.clone(), value)
             })
-            .collect();
+            .collect() };
+        let mut actual=powers(&plan,&lease);
+        let level_patterns=if policy.policy==ReconciliationPolicy::PowerPatternThenProfileLevel {
+            Some(group.profile_level_patterns(&document.timed_scenes).map_err(|_|WriteStatus::InvalidValueInRequest)?)
+        }else{None};
+        let mut levels=LevelObservations::new();
+        if let Some(targets)=&level_patterns {
+            let reads=brightness_reads_for_collision(&patterns,targets,&actual).unwrap_or_default();
+            if !reads.is_empty() {
+                for (index,id) in reads.iter().enumerate() {
+                    let name=format!("level:{index}");
+                    variables.insert(name.clone(),Variable{value_type:ValueType::Integer,lifetime:Lifetime::Temporary,value:None});
+                    nodes.push(Node{source:format!("reconciliation-level:{}:{index}",group.id),action:Action::Set{variable:name,value:Expr::DeviceLevel(id.clone())}});
+                }
+                // One read proof covers both powers and only the colliding
+                // candidates' discriminating levels, including hidden supplies.
+                (plan,lease)=feedback.plan_rule(&nodes,&variables,Budget::default(),admission.monotonic_ms(),policy.max_age_ms).map_err(|_|WriteStatus::ResourceBusy)?;
+                actual=powers(&plan,&lease);
+                for (index,id) in reads.into_iter().enumerate() {
+                    let value=match plan.variables[&format!("level:{index}")].value {
+                        Some(Value::Integer(value)) if actual.get(&id).is_some_and(Option::is_some)=>u8::try_from(value).ok().and_then(|v|homesense_core::Percent::new(v).ok()),
+                        _=>None,
+                    };
+                    levels.insert(id,value);
+                }
+            }
+        }
         let relative_eligible=feedback.native_scene_capture(&first.keys().cloned().collect::<Vec<_>>(),admission.monotonic_ms(),policy.max_age_ms).is_ok();
         Ok(Some(Self {
             controller,
@@ -125,6 +154,9 @@ impl Prepared {
             version: snapshot[&group.variable].stored.version,
             patterns,
             actual,
+            level_patterns,
+            levels,
+            policy: policy.policy,
             max_age_ms: policy.max_age_ms,
             lease,
             relative_eligible,
@@ -158,6 +190,8 @@ impl Prepared {
         if self.boot != boot
             || self.generation.epochs != epochs
             || policy.max_age_ms != self.max_age_ms
+            || policy.policy != self.policy
+            || (policy.policy==ReconciliationPolicy::PowerPatternThenProfileLevel && group.profile_level_patterns(&document.timed_scenes).map_err(|_|WriteStatus::InvalidValueInRequest)?!=self.level_patterns.clone().ok_or(WriteStatus::InvalidValueInRequest)?)
             || group
                 .light_on_patterns(&document.timed_scenes)
                 .map_err(|_| WriteStatus::InvalidValueInRequest)?
@@ -206,10 +240,14 @@ impl Prepared {
                 return Err(WriteStatus::ResourceBusy);
             }
         }
-        let selected = matching_member(&self.patterns, &self.actual);
+        let selected = match &self.level_patterns {
+            Some(targets)=>matching_member_with_levels(&self.patterns,targets,&self.actual,&self.levels),
+            None=>matching_member(&self.patterns, &self.actual),
+        };
         // Unknown samples have no complete observation time. They are never
         // synthesized as Off, including non-queryable panel/motor endpoints.
         let observed = if self.actual.values().all(Option::is_some)
+            && self.levels.values().all(Option::is_some)
             && self.lease.observations.values().all(Option::is_some)
         {
             self.lease.observations.values().filter_map(|v| *v).min()

@@ -28,7 +28,7 @@ pub struct Group {
 }
 #[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
-pub enum ReconciliationPolicy { UniqueLightOnPattern }
+pub enum ReconciliationPolicy { UniqueLightOnPattern, PowerPatternThenProfileLevel }
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Reconciliation {
@@ -106,6 +106,11 @@ impl Group {
             for id in &union { targets.entry(id.clone()).or_insert(homesense_core::scene_pattern::LightPower::Off); }
         }
         Ok(patterns)
+    }
+    /// Final logical dimmer targets, completed with explicit Off in the reviewed
+    /// union. These are percentages, not raw Control4 source/rate units.
+    pub fn profile_level_patterns(&self,scenes:&BTreeMap<String,TimedScene>)->Result<homesense_core::scene_pattern::MemberLevels,Error> {
+        Ok(self.absolute_light_targets(scenes)?.into_iter().map(|(value,targets)|(value,targets.into_iter().filter_map(|(id,command)|match command {Command::SetLevel{level,..}=>Some((id,level)),_=>None}).collect())).collect())
     }
     /// Exact final targets in source time/order. Missing targets are not Off.
     pub fn light_targets(&self, scenes: &BTreeMap<String, TimedScene>) -> Result<LightTargets, Error> {
@@ -220,6 +225,22 @@ pub(crate) fn validate(
                     for id in targets.keys() {
                         let (_, module) = config.binding(id).ok_or_else(|| invalid("reconciliation light disabled"))?;
                         if !matches!(module.kind(),ModuleKind::Switch|ModuleKind::Dimmer) { return Err(invalid("reconciliation needs queryable lights")); }
+                    }
+                }
+                if policy.policy==ReconciliationPolicy::PowerPatternThenProfileLevel {
+                    let powers=group.light_on_patterns(scenes)?;
+                    let levels=group.profile_level_patterns(scenes)?;
+                    for pattern in powers.values() {
+                        let actual=pattern.iter().map(|(id,power)|(id.clone(),Some(*power))).collect();
+                        if let Some(reads)=homesense_core::scene_pattern::brightness_reads_for_collision(&powers,&levels,&actual) {
+                            for id in reads {
+                                let (_,module)=config.binding(&id).ok_or_else(||invalid("brightness discriminator disabled"))?;
+                                // This opt-in starts with the established AD8 0..100
+                                // readback domain. Other profiles require their own
+                                // reviewed conversion; never assume a tolerance.
+                                if module.profile()!=homesense_core::ProtocolProfile::Ad8Din {return Err(invalid("brightness discriminator requires established AD8 percentage readback"));}
+                            }
+                        }
                     }
                 }
                 for member in &group.members {
