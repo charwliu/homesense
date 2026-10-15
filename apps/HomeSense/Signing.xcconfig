@@ -1,0 +1,2 @@
+// Optional per-machine development team, kept outside version control.
+#include? "Signing.local.xcconfig"
