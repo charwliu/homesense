@@ -167,7 +167,17 @@ pub(crate) async fn drive_with_projection<S: Read + Write + Send + 'static>(
     allow_handoff: bool,
     projection: Option<tokio::sync::watch::Sender<homesense_state::Snapshot>>,
 ) -> Result<Exit, String> {
-    drive_with_panel_feeds(admission,owner,panels,scenes,calendar,cadence,max_age_ms,stop,wall_clock,control,causal,allow_handoff,projection,vec![]).await
+    drive_with_panel_feeds(admission,owner,panels,scenes,calendar,cadence,max_age_ms,stop,wall_clock,control,causal,allow_handoff,projection,vec![],None).await
+}
+async fn acquire_quantum(
+    gate: Option<&std::sync::Arc<tokio::sync::Mutex<()>>>,
+    stop: &mut tokio::sync::watch::Receiver<bool>,
+) -> Option<tokio::sync::OwnedMutexGuard<()>> {
+    let gate=gate?;
+    tokio::select! {
+        permit=gate.clone().lock_owned()=>Some(permit),
+        _=stop.wait_for(|stopped|*stopped)=>None,
+    }
 }
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn drive_with_panel_feeds<S: Read + Write + Send + 'static>(
@@ -188,6 +198,7 @@ pub(crate) async fn drive_with_panel_feeds<S: Read + Write + Send + 'static>(
     allow_handoff: bool,
     projection: Option<tokio::sync::watch::Sender<homesense_state::Snapshot>>,
     panel_feeds:Vec<crate::runtime_panel_hap::Feed>,
+    handoff_gate:Option<std::sync::Arc<tokio::sync::Mutex<()>>>,
 ) -> Result<Exit, String> {
     struct Close<'a>(
         Option<(
@@ -221,6 +232,9 @@ pub(crate) async fn drive_with_panel_feeds<S: Read + Write + Send + 'static>(
     let mut panel_feeds=PanelFeeds(panel_feeds);
     let mut panel_cursor=owner.snapshot().cursor;
     let panel_generation=homesense_hap::panel_input::Generation {configuration:owner.feedback().configuration_revision(),transport:owner.feedback().transport_epoch()};
+    // Keep the lease through error cleanup; declare it before Guard so an
+    // abandoned future closes Admission before releasing the runtime quantum.
+    let mut quantum = None;
     let mut guard = Guard {
         admission,
         owner,
@@ -236,6 +250,11 @@ pub(crate) async fn drive_with_panel_feeds<S: Read + Write + Send + 'static>(
         if gateways.is_empty() {
             return Err("automation drive has no gateways".into());
         }
+        // A trusted publication coordinator enters its barrier only between
+        // complete runtime quanta, never while a causal owner awaits Admission.
+        // Failed/cancelled work retains the existing fail-closed guards.
+        quantum = acquire_quantum(handoff_gate.as_ref(), &mut stop).await;
+        if *stop.borrow() || stop.has_changed().is_err() { return Ok(()); }
         if let Some(router)=&mut causal {router.enable_feedback_candidates().await?;}
         guard.panels.bind_feedback(guard.owner.feedback())?;
         if causal.is_some() && let Some(calendar)=&mut guard.calendar {
@@ -247,6 +266,24 @@ pub(crate) async fn drive_with_panel_feeds<S: Read + Write + Send + 'static>(
         loop {
             if *stop.borrow() || stop.has_changed().is_err() {
                 return Ok(());
+            }
+            let had_pending_read = guard.owner.output_query_pending();
+            if let Some(read) = guard.owner.receive_pending_output().await?
+                && matches!(read.result, hb_transport::Receive::Disconnected { .. })
+            {
+                transport_failure = true;
+                disconnected = Some(read.gateway_id);
+                return Ok(());
+            }
+            if had_pending_read && !guard.owner.output_query_pending() {
+                // The previous quantum ends with this response. Offer its
+                // publication boundary before starting any new runtime work
+                // or query, even if every following polling slot is overdue.
+                drop(quantum.take());
+                quantum = acquire_quantum(handoff_gate.as_ref(), &mut stop).await;
+                if *stop.borrow() || stop.has_changed().is_err() {
+                    return Ok(());
+                }
             }
             if let Some((receiver, document)) = &mut control.0 {
                 scene_observations.tick(admission,receiver.controller(),document,guard.owner.feedback()).await?;
@@ -312,7 +349,7 @@ pub(crate) async fn drive_with_panel_feeds<S: Read + Write + Send + 'static>(
                     }
                 }
             }
-            if let Some(outcome) = guard.owner.step().await? {
+            if let Some(outcome) = guard.owner.step_after_refresh_read().await? {
                 outcome
                     .result
                     .map_err(|e| {transport_failure=true;format!("automation write: {e:?}")})?;
@@ -356,9 +393,18 @@ pub(crate) async fn drive_with_panel_feeds<S: Read + Write + Send + 'static>(
                 }
             }
             next = (next + 1) % gateways.len();
+            // Preserve the existing publication boundary: an outstanding read
+            // belongs to this generation until it completes or faults. Keep
+            // pumping controls/feedback without publishing a new mapping mid-read.
+            if !guard.owner.output_query_pending() {
+                drop(quantum.take());
+            }
             tokio::select! {
                 _=tokio::time::sleep(cadence)=>{},
                 changed=stop.changed()=>{if changed.is_err() || *stop.borrow() {return Ok(());}}
+            }
+            if quantum.is_none() {
+                quantum = acquire_quantum(handoff_gate.as_ref(), &mut stop).await;
             }
         }
     }

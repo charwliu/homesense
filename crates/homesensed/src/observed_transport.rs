@@ -36,18 +36,9 @@ pub struct ObservedTransport<S> {
     pending_recovery: Option<u64>,
     output_refresh: Option<OutputRefresh>,
 }
-struct OutputRefresh {
-    configuration: homesense_config::Configuration,
-    targets: Vec<crate::physical_queries::Target>,
-    controller: uuid::Uuid,
-    generation: crate::admission::TaskGeneration,
-    context: homesense_core::ExecutionContext,
-    timeout_ms: u64,
-    max_age_ms: u64,
-    interval_ms: u64,
-    next: usize,
-    due: u64,
-}
+#[path = "periodic_refresh.rs"]
+mod periodic_refresh;
+use periodic_refresh::OutputRefresh;
 struct Operation<'a> {
     feedback: &'a mut Feedback,
     unavailable: &'a mut bool,
@@ -76,93 +67,6 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
             pending_recovery: None,
             output_refresh: None,
         }
-    }
-    /// Opt-in periodic queries for output channels only. Event-only panels and
-    /// motors retain their actual unknown/event state; no position is synthesized.
-    pub(crate) fn configure_output_refresh(
-        &mut self,
-        configuration: &homesense_config::Configuration,
-        controller: uuid::Uuid,
-        generation: crate::admission::TaskGeneration,
-        context: homesense_core::ExecutionContext,
-        timeout_ms: u64,
-        max_age_ms: u64,
-    ) -> Result<(), String> {
-        if configuration.revision() != self.feedback.configuration_revision()
-            || generation.epochs.configuration != configuration.revision()
-            || generation.epochs.transport != self.feedback.transport_epoch()
-            || self.pending_recovery.is_some()
-            || self.unavailable
-            || timeout_ms == 0
-            || timeout_ms > 5000
-            || max_age_ms == 0
-        {
-            return Err("invalid output refresh generation or bounds".into());
-        }
-        self.feedback
-            .module_truth()
-            .project_logical(configuration)?;
-        let targets = crate::physical_queries::plan(configuration, context)?;
-        let interval_ms = crate::physical_queries::interval(
-            &targets,
-            self.transport.write_interval_ms(),
-            max_age_ms,
-        )?;
-        self.output_refresh = Some(OutputRefresh {
-            configuration: configuration.clone(),
-            targets,
-            controller,
-            generation,
-            context,
-            timeout_ms,
-            max_age_ms,
-            interval_ms,
-            next: 0,
-            due: self.transport.now_ms().saturating_add(interval_ms),
-        });
-        Ok(())
-    }
-    /// One query per due cycle, interleaved with controls. Queries share the existing
-    /// wire gap and require a fresh matching response. Failed refreshes hand off
-    /// to the transport supervisor rather than extending observation timestamps.
-    pub(crate) async fn refresh_outputs_if_due(&mut self) -> Result<(), (String, String)> {
-        let Some(mut plan) = self.output_refresh.take() else {
-            return Ok(());
-        };
-        if self.transport.now_ms() < plan.due {
-            self.output_refresh = Some(plan);
-            return Ok(());
-        }
-        let available = self
-            .transport
-            .idle_for_refresh(plan.controller, plan.generation.clone())
-            .await;
-        if !available {
-            self.output_refresh = Some(plan);
-            return Ok(());
-        }
-        let target = plan.targets[plan.next].clone();
-        let gateway = target.gateway.clone();
-        let result = self
-            .query_physical(
-                &plan.configuration,
-                &target,
-                plan.context,
-                plan.timeout_ms,
-                plan.max_age_ms,
-                true,
-            )
-            .await;
-        plan.next = (plan.next + 1) % plan.targets.len();
-        // Anchor cadence to the scheduled start, not response completion. Skip
-        // overdue slots rather than burst catch-up; wire spacing remains enforced.
-        let now = self.transport.now_ms();
-        plan.due = plan.due.saturating_add(plan.interval_ms);
-        if plan.due <= now {
-            plan.due = now;
-        }
-        self.output_refresh = Some(plan);
-        result.map_err(|error| (gateway, error))
     }
     /// Initial live startup after the connector has faulted admission. No state
     /// is considered ready until query_recovery completes on these streams.
@@ -206,6 +110,7 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
             return Err("recovery requires the same gateways at one fresh generation".into());
         }
         self.feedback.resume(epoch, transport.now_ms())?;
+        self.output_refresh = None;
         self.transport = transport;
         self.unavailable = false;
         self.pending_recovery = Some(epoch);
@@ -381,15 +286,13 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
         self.query_physical(config, target, context, timeout_ms, max_age_ms, true)
             .await
     }
-    async fn query_physical(
-        &mut self,
+    fn physical_query_counts(
+        &self,
         config: &homesense_config::Configuration,
         target: &crate::physical_queries::Target,
-        context: homesense_core::ExecutionContext,
         timeout_ms: u64,
         max_age_ms: u64,
-        periodic: bool,
-    ) -> Result<(), String> {
+    ) -> Result<Vec<(u8, u64)>, String> {
         if config.revision() != self.feedback.configuration_revision()
             || self.unavailable
             || timeout_ms == 0
@@ -407,7 +310,7 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
         {
             return Err("physical query mapping or generation changed".into());
         }
-        let before = target
+        target
             .channels
             .iter()
             .map(|channel| {
@@ -421,7 +324,18 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
                     .map(|count| (*channel, count))
                     .ok_or("physical query port missing".to_owned())
             })
-            .collect::<Result<Vec<_>, _>>()?;
+            .collect::<Result<Vec<_>, _>>()
+    }
+    async fn query_physical(
+        &mut self,
+        config: &homesense_config::Configuration,
+        target: &crate::physical_queries::Target,
+        context: homesense_core::ExecutionContext,
+        timeout_ms: u64,
+        max_age_ms: u64,
+        periodic: bool,
+    ) -> Result<(), String> {
+        let before = self.physical_query_counts(config, target, timeout_ms, max_age_ms)?;
         let sent = if target.whole {
             self.transport
                 .query_status_scope(
@@ -585,6 +499,7 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
         .await
     }
     pub(crate) fn invalidate(&mut self) {
+        self.output_refresh = None;
         self.unavailable = true;
         if self.feedback.invalidate().is_err() {
             self.projection_failed = true;
@@ -635,6 +550,9 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
         operation.feedback.apply(&read)?;
         *operation.unavailable = matches!(read.result, hb_transport::Receive::Disconnected { .. });
         operation.complete = true;
+        if *operation.unavailable {
+            self.output_refresh = None;
+        }
         Ok(read)
     }
     /// Trusted publication coordinator only. The old mapping/streams remain
@@ -654,8 +572,22 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
         self.transport.step().await
     }
     pub async fn step(&mut self) -> Result<Option<WriteOutcome>, String> {
+        self.receive_pending_output().await?;
+        self.step_after_refresh_read().await
+    }
+    /// The runtime has already classified the bounded pending read, including
+    /// EOF, before this write attempt. Other callers use step().
+    pub(crate) async fn step_after_refresh_read(&mut self) -> Result<Option<WriteOutcome>, String> {
         if self.unavailable {
             return Err("observed transport requires recovery".into());
+        }
+        // Keep a pending response serialized with later writes on this bus.
+        // The runtime continues receiving, publishing and accepting requests;
+        // accepted control tickets stay in Admission until the read resolves.
+        if self.output_refresh.as_ref().is_some_and(|plan| {
+            plan.defer_control(self.transport.now_ms(), self.transport.write_interval_ms())
+        }) {
+            return Ok(None);
         }
         let mut operation = Operation {
             feedback: &mut self.feedback,
@@ -666,6 +598,9 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
         let outcome = self.transport.step().await?;
         if outcome.as_ref().is_none_or(|value| value.result.is_ok()) {
             operation.complete = true;
+        }
+        if let Some(plan) = &mut self.output_refresh {
+            plan.control_checked();
         }
         Ok(outcome)
     }

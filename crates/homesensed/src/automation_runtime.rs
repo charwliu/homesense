@@ -24,6 +24,7 @@ pub struct AutomationRuntime {
     requests: crate::automation_control::Receiver,
     generation: TaskGeneration,
     publication_paused: bool,
+    handoff_gate: std::sync::Arc<tokio::sync::Mutex<()>>,
     document: Document,
     pub(crate) panels: PanelRules,
     pub(crate) calendar: ScheduledRules,
@@ -99,6 +100,7 @@ impl AutomationRuntime {
             admission,
             generation,
             publication_paused: false,
+            handoff_gate: std::sync::Arc::new(tokio::sync::Mutex::new(())),
             document,
             panels: configured.panels,
             calendar,
@@ -116,6 +118,7 @@ impl AutomationRuntime {
         self.control.clone()
     }
     pub fn publication_paused(&self) -> bool {self.publication_paused}
+    pub(crate) fn handoff_gate(&self) -> std::sync::Arc<tokio::sync::Mutex<()>> {self.handoff_gate.clone()}
     pub fn revision(&self) -> u64 {
         self.document.revision
     }
@@ -200,7 +203,7 @@ impl AutomationRuntime {
         wall_clock: impl FnMut() -> Result<i64, String>,
     ) -> Result<crate::automation_drive::Exit, String> {
         self.validate().await?;
-        let outcome = crate::automation_drive::drive_classified(
+        let outcome = crate::automation_drive::drive_with_panel_feeds(
             &self.admission,
             owner,
             &mut self.panels,
@@ -211,7 +214,7 @@ impl AutomationRuntime {
             stop,
             wall_clock,
             Some((&mut self.requests, &self.document)),
-            Some(&mut self.causal),
+            Some(&mut self.causal), false, None, vec![], Some(self.handoff_gate.clone()),
         )
         .await?;
         self.publication_paused = matches!(outcome, crate::automation_drive::Exit::PublicationPaused);
@@ -265,7 +268,7 @@ impl AutomationRuntime {
         let outcome = crate::automation_drive::drive_with_panel_feeds(
             &self.admission, owner, &mut self.panels, &mut self.scenes,
             Some(&mut self.calendar), cadence, max_age_ms, stop, wall_clock,
-            Some((&mut self.requests, &self.document)), Some(&mut self.causal), true, projection, panel_feeds,
+            Some((&mut self.requests, &self.document)), Some(&mut self.causal), true, projection, panel_feeds, Some(self.handoff_gate.clone()),
         ).await?;
         self.publication_paused = matches!(outcome,
             crate::automation_drive::Exit::PublicationPaused | crate::automation_drive::Exit::Disconnected { .. });
@@ -278,9 +281,9 @@ impl AutomationRuntime {
         wall_clock:impl FnMut()->Result<i64,String>,
     )->Result<(),String> {
         self.validate().await?;
-        let result=crate::automation_drive::drive_with_projection(&self.admission,owner,&mut self.panels,&mut self.scenes,
+        let result=crate::automation_drive::drive_with_panel_feeds(&self.admission,owner,&mut self.panels,&mut self.scenes,
             Some(&mut self.calendar),std::time::Duration::from_millis(10),5000,stop,wall_clock,
-            Some((&mut self.requests,&self.document)),Some(&mut self.causal),false,Some(projection)).await?;
+            Some((&mut self.requests,&self.document)),Some(&mut self.causal),false,Some(projection),vec![],Some(self.handoff_gate.clone())).await?;
         self.publication_paused=matches!(result,crate::automation_drive::Exit::PublicationPaused);
         Ok(())
     }
