@@ -1,0 +1,52 @@
+{
+  "checked_bj": "2026-10-15T17:22:18.152563+08:00",
+  "App_build": 7,
+  "backend_binary_sha256": "4003d9887af4e1365641651fc615fb13bc0303bf5bdb33575e37312e69b8bd9a",
+  "backend_configuration_revision": 9,
+  "window": {
+    "start_bj": "2026-10-15T17:14:03+08:00",
+    "deadline_bj": "2026-10-15T18:14:03+08:00"
+  },
+  "user_verified": {
+    "credential_saved_Keychain_indicator": true,
+    "force_quit_relaunch_auto_connect_without_token_or_connect_refresh_taps": true,
+    "relaunch_restores_realtime_push": true,
+    "background_AppleHome_main_on_then_foreground_auto_state": true,
+    "background_AppleHome_main_off_then_foreground_auto_state": true,
+    "page_stable_and_controls_available": true
+  },
+  "independent_trusted_HTTPS": {
+    "same_permanent_Admin_accepted": true,
+    "study_main_and_downlight_confirmed_off_after_test": true,
+    "ready_gateway_storage_healthy": true,
+    "hap_listening": true
+  },
+  "final_user_physical_state": {
+    "main": "off",
+    "downlight": "off",
+    "curtain": "open and stopped"
+  },
+  "user_light_control_steps": 2,
+  "Root_light_or_motor_control_requests": 0,
+  "startup_panel_LED_Written": 5,
+  "new_credential_created_or_revoked": false,
+  "Keypad_parent_migration_or_new_backend_deployed": false,
+  "current_native_snapshot": {
+    "visible_devices": 13,
+    "legacy_LED_entries": 7,
+    "Keypad_parents": 0
+  },
+  "remaining_Keypad": "App card software complete; backend candidate and offline two-parent migration not deployed; final authorization regression pending",
+  "tests_do_not_verify": [
+    "new_Keypad_parent_hardware_or_migration",
+    "configuration_publication",
+    "full96_status_audit",
+    "HPLeft_power_failure_recovery"
+  ],
+  "D_E_complete": false,
+  "private_sha256": {
+    "checks.json": "01ac4eb57a51008887644b5b0ed071c60e7bde5f62e558c1f34c8be85e07aaf6",
+    "server-baseline.json": "e08256d786f0a427d063b57f7a18cfa111c0e6a4b4a6c6daa43d24ae91c214a7",
+    "server-final.json": "bbda4a0206d37dc151940eb5ab013b9d092a24eb3ddf58e40883b1e2e2cc46b7"
+  }
+}
