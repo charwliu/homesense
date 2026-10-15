@@ -135,6 +135,27 @@ impl Store {
     pub fn begin_manual_scene_batch_with_variables(
         &mut self,boot:&str,revision:u64,starts:&[ManualStart],now:u64,updates:&[crate::variables::Update],
     )->Result<(),Error> {
+        self.begin_manual_scene_batch_inner(boot,revision,starts,now,updates,None)
+    }
+    /// Original scene selection/receipt and immutable gateway dependency scope
+    /// become durable together before any timeline is installed.
+    pub fn begin_manual_scene_batch_scoped(
+        &mut self,boot:&str,revision:u64,starts:&[ManualStart],now:u64,
+        updates:&[crate::variables::Update],scopes:&[crate::gateway_audit::OperationScope],
+    )->Result<(),Error> {
+        if scopes.len()!=starts.len() || scopes.iter().any(|scope|
+            scope.key.kind!=crate::gateway_audit::OperationKind::Scene
+            || scope.global.configuration!=revision
+            || !starts.iter().any(|start|start.run==scope.key.id)) {
+            return Err(Error::InvalidAudit);
+        }
+        self.begin_manual_scene_batch_inner(boot,revision,starts,now,updates,Some(scopes))
+    }
+    #[allow(clippy::too_many_arguments)]
+    fn begin_manual_scene_batch_inner(
+        &mut self,boot:&str,revision:u64,starts:&[ManualStart],now:u64,
+        updates:&[crate::variables::Update],scopes:Option<&[crate::gateway_audit::OperationScope]>,
+    )->Result<(),Error> {
         key(boot)?;
         if updates.len()>32||starts.is_empty() || starts.len() > 64 {
             return Err(Error::InvalidAudit);
@@ -158,6 +179,9 @@ impl Store {
                 definition: start.definition.clone(),
             }, now, active)?;
         }
+        if let Some(scopes)=scopes {
+            crate::gateway_audit::insert_operations(&tx,boot,scopes,active,now)?;
+        }
         tx.commit()?;
         Ok(())
     }
@@ -170,6 +194,22 @@ impl Store {
         definition: Option<&str>,
         now: u64,
     ) -> Result<(), Error> {
+        self.begin_scene_run_inner(boot,run,revision,definition,now,None)
+    }
+    /// Persist the original full timeline dependency set atomically with its
+    /// receipt, including unnamed/programmatic scenes. Never recapture at due.
+    pub fn begin_scene_run_scoped(
+        &mut self,boot:&str,run:&str,revision:u64,definition:Option<&str>,now:u64,
+        scope:&crate::gateway_audit::OperationScope,
+    )->Result<(),Error> {
+        if scope.key.kind!=crate::gateway_audit::OperationKind::Scene || scope.key.id!=run
+            || scope.global.configuration!=revision {return Err(Error::InvalidAudit);}
+        self.begin_scene_run_inner(boot,run,revision,definition,now,Some(scope))
+    }
+    fn begin_scene_run_inner(
+        &mut self,boot:&str,run:&str,revision:u64,definition:Option<&str>,now:u64,
+        scope:Option<&crate::gateway_audit::OperationScope>,
+    )->Result<(),Error> {
         key(boot)?;
         key(run)?;
         if definition
@@ -193,6 +233,9 @@ impl Store {
             return Err(Error::Conflict);
         }
         tx.execute("INSERT INTO scene_run(boot_id,run_id,revision,definition,started_ms,updated_ms,status,version) VALUES(?1,?2,?3,?4,?5,?5,'pending',0)", params![boot,run,revision,definition,now])?;
+        if let Some(scope)=scope {
+            crate::gateway_audit::insert_operations(&tx,boot,std::slice::from_ref(scope),active,u64::try_from(now).map_err(|_|Error::InvalidAudit)?)?;
+        }
         tx.commit()?;
         Ok(())
     }
@@ -271,6 +314,15 @@ impl Store {
             let admitted: bool = tx.query_row("SELECT EXISTS(SELECT 1 FROM scene_step WHERE boot_id=?1 AND run_id=?2 AND step_index=?3)",params![boot,run,expiry.index as i64],|r|r.get(0))?;
             if admitted { return Err(Error::InvalidAudit); }
             tx.execute("INSERT INTO scene_expiry(boot_id,run_id,step_index,version,device_id,source) VALUES(?1,?2,?3,?4,?5,?6)",params![boot,run,expiry.index as i64,next,expiry.device.as_str(),expiry.source])?;
+        }
+        // Normal terminal receipts also close retained scopes atomically. Keep
+        // their original wires/history, so a later unrelated fault cannot claim
+        // an already completed run as newly cancelled work.
+        if status.terminal() {
+            let exhausted:bool=tx.query_row("SELECT EXISTS(SELECT 1 FROM gateway_operation WHERE boot_id=?1 AND kind='scene' AND operation_id=?2 AND status='active' AND (version=9223372036854775807 OR updated_ms>?3))",params![boot,run,now],|row|row.get(0))?;
+            if exhausted{return Err(Error::Conflict);}
+            let closed=match status {Status::CommandsWritten=>"completed",Status::Partial=>"partial",_=>"cancelled"};
+            tx.execute("UPDATE gateway_operation SET status=?3,updated_ms=?4,version=version+1 WHERE boot_id=?1 AND kind='scene' AND operation_id=?2 AND status='active'",params![boot,run,closed,now])?;
         }
         tx.commit()?;
         Ok(next as u64)

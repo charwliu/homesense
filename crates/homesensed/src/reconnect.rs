@@ -71,7 +71,7 @@ pub async fn reconnect_tcp(
     if !coexistence_confirmed
         || previous_epoch == 0
         || endpoints.is_empty()
-        || endpoints.len() > 32
+        || endpoints.len() > homesense_core::gateway_scope::MAX_GATEWAYS
         || endpoints.iter().any(|(id, address)| {
             id.is_empty()
                 || id.len() > 256

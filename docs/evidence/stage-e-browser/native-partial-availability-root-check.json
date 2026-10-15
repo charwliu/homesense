@@ -1,0 +1,135 @@
+{
+  "checked_bj": "2026-10-16T04:48:15.725228+08:00",
+  "status": "Private App candidate qualified against frozen Rust runtime8 and10; exact10 paths applied to shared worktree, clean selected-Git composition under separate verification before App commit.",
+  "unit_regression": {
+    "actual_executed": 85,
+    "full_reported": 87,
+    "full_report_skips": 2,
+    "skips_not_counted_passed": true,
+    "new_methods": 10,
+    "new_parameter_cases": 19,
+    "baseline_same4_methods_failed_assertions": 14,
+    "original11_test_file_bytes_retained": true
+  },
+  "original_Rust_integration": {
+    "actual2_tests_passed_with_runtime10": true,
+    "skip_build_same_original_test_bundle_rehashed": true,
+    "no_skip": true,
+    "no_assertion_change": true,
+    "repeated_green_runs_not_counted_extra_coverage": true
+  },
+  "actual_URLSession_integration": {
+    "helper2_sha256": "1b21f335aae5828fefa031a450cb77e8571232c947983f8f4d810a3b0caa4423",
+    "Rust_runtime8_CLI_sha256": "61571e0f024dec093c84f558ea79504ba87648864944b3deeb4141c742182063",
+    "HTTP_GET_requests": 11,
+    "App_POST_or_control_requests": 0,
+    "WSS_connections": 1,
+    "actual_phases": [
+      {
+        "A_availability": {
+          "connection_epoch": "2",
+          "gateway": "bus-a",
+          "state": "ready"
+        },
+        "A_can_control": true,
+        "B_availability": {
+          "connection_epoch": "2",
+          "gateway": "bus-b",
+          "state": "ready"
+        },
+        "B_can_control": true,
+        "connected": true,
+        "cursor": {
+          "boot": "192c0c23-c69f-40d7-a88b-8cd9962451b5",
+          "revision": 1,
+          "scope": "07785b22ad55682e0fd40c7c618431640c2d1d9ec91a4ff8f568911cf14adee1",
+          "sequence": 5,
+          "transport_epoch": 2
+        },
+        "phase": "initial",
+        "receivingPush": true
+      },
+      {
+        "A_availability": {
+          "connection_epoch": "2",
+          "gateway": "bus-a",
+          "state": "offline"
+        },
+        "A_can_control": false,
+        "B_availability": {
+          "connection_epoch": "2",
+          "gateway": "bus-b",
+          "state": "ready"
+        },
+        "B_can_control": true,
+        "connected": true,
+        "cursor": {
+          "boot": "192c0c23-c69f-40d7-a88b-8cd9962451b5",
+          "revision": 1,
+          "scope": "07785b22ad55682e0fd40c7c618431640c2d1d9ec91a4ff8f568911cf14adee1",
+          "sequence": 7,
+          "transport_epoch": 2
+        },
+        "phase": "partial",
+        "receivingPush": true
+      },
+      {
+        "A_availability": {
+          "connection_epoch": "4",
+          "gateway": "bus-a",
+          "state": "ready"
+        },
+        "A_can_control": true,
+        "B_availability": {
+          "connection_epoch": "2",
+          "gateway": "bus-b",
+          "state": "ready"
+        },
+        "B_can_control": true,
+        "connected": true,
+        "cursor": {
+          "boot": "192c0c23-c69f-40d7-a88b-8cd9962451b5",
+          "revision": 1,
+          "scope": "07785b22ad55682e0fd40c7c618431640c2d1d9ec91a4ff8f568911cf14adee1",
+          "sequence": 10,
+          "transport_epoch": 2
+        },
+        "phase": "recovered",
+        "receivingPush": true
+      }
+    ],
+    "strict_TLS": true,
+    "same_global_cursor_identity_and_stream": true
+  },
+  "TLS_fixture_failure": {
+    "original_attempts_preserved": true,
+    "original_serverAuth_EKU_missing": true,
+    "Apple_SecTrust_error": -67609,
+    "sandbox_initial_error_not_confused_with_actual_EKU_error": true,
+    "new_public_local_fixture_has_serverAuth_keyUsage_leaf_constraints": true,
+    "trust_validation_not_weakened": true,
+    "system_trust_and_Keychain_changes": 0
+  },
+  "Keypad": {
+    "backend_actual2parents6slots_and3phase_metadata": "runtime10 original new parent contract passed",
+    "App_parent_getters_actual_public_DTO": "producer supplementary proof available, Root clean composition verification pending",
+    "phone_visual_and_hardware_acceptance": false
+  },
+  "bounds": [
+    "Real Swift helper is read-only; no-replay command behavior is covered in unit tests, not claimed from read-only helper.",
+    "Original2 Rust integrations are not replaced by new partial-state helper.",
+    "UnsignediOS/macOS candidate builds passed for private baseline including unrelated shared App edits; clean selected-Git composition is being rebuilt before App merge.",
+    "No signed build or phone install for new availability changes; previous failed signed9 does not include them."
+  ],
+  "artifact_sha256": {
+    "root-integration-check.json": "7cba3f0fa46d022505372f38cf66c3bc183accd16463622b431dc943340a50da",
+    "app-audit/root-App-source-check.json": "6fff80eb3f0fdf91e3eee1a23b5d3a3c2877a84d415e34974da614289d0b60d1",
+    "app-apply/before.json": "6b6b7e50204552b16c745749dcd226bded3758f46a12406e26081afe14798ac0",
+    "app-apply/after.json": "b9801071ec0ce9bc0dcfeb6821dfb962f17ced1d5536866959071c382c38b553",
+    "app-apply/runtime10-reuse-tests.log": "bdf5335a2aadf0bdf4b4412548f925d01fcae49545699387c20d5504685da5ea",
+    "app-apply/runtime10-reuse-input-manifest.json": "dce46699535715f1eead6b03535c338cb4c7f0512f7a5b02334256736b349e79"
+  },
+  "Rust_source_unaffected_by_App_candidate": true,
+  "field_controls": 0,
+  "D_E_complete": false
+}

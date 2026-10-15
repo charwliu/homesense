@@ -36,6 +36,7 @@ pub enum Action {
     SceneSelectionDetails {controller:Uuid,revision:u64},
     SceneWrites {controller:Uuid,revision:u64,scenes:Vec<(String,Option<bool>)>},
     SceneDefinition {controller:Uuid,revision:u64,scene:String},
+    SceneAvailability {controller:Uuid,revision:u64,scene:String},
     SceneRelative {controller:Uuid,revision:u64,scene:String,request_id:String},
     SceneRelativeStatus {controller:Uuid,revision:u64,request_id:String},
     SceneActions { controller: Uuid, revision: u64, scenes: Vec<(String,bool)> },
@@ -69,6 +70,7 @@ pub enum Reply {
     SceneAccepted(Option<u64>),
     ImmediateAccepted(crate::immediate_scene::Receipt),
     SceneDefinition(homesense_config::rule_document::SceneExecutionKind),
+    SceneAvailability(crate::gateway_runtime::ActionGate),
     ScenesAccepted(Vec<u64>),
     SceneSwitchStates(std::collections::BTreeMap<String,Option<bool>>),
     SceneSelectionDetails(std::collections::BTreeMap<String,crate::scene_switches::Details>),
@@ -121,13 +123,17 @@ struct Request {
 #[derive(Clone)]
 pub struct Control {
     sender: mpsc::Sender<Request>,
+    instance: Uuid,
     unavailable:Option<std::sync::Arc<Unavailable>>,
 }
 struct Unavailable {admission:Admission,generation:TaskGeneration}
 
 impl Control {
+    /// Non-secret identity of this request channel, retained by every view/clone.
+    /// A rebuilt scheduler may reuse numeric run handles within the same boot.
+    pub(crate) fn instance_id(&self) -> Uuid { self.instance }
     pub(crate) fn unavailable(&self,admission:Admission,generation:TaskGeneration)->Self {
-        Self{sender:self.sender.clone(),unavailable:Some(std::sync::Arc::new(Unavailable{admission,generation}))}
+        Self{sender:self.sender.clone(),instance:self.instance,unavailable:Some(std::sync::Arc::new(Unavailable{admission,generation}))}
     }
     /// Bounded admission, no retry. A lost response after execution is ambiguous;
     /// callers must inspect history rather than resubmit an action automatically.
@@ -207,7 +213,7 @@ pub(crate) struct Receiver {
 pub(crate) fn channel(controller: Uuid, generation: TaskGeneration) -> (Control, Receiver) {
     let (sender, receiver) = mpsc::channel(32);
     (
-        Control { sender,unavailable:None },
+        Control { sender,instance:Uuid::new_v4(),unavailable:None },
         Receiver {
             receiver,
             controller,
@@ -426,13 +432,13 @@ impl Receiver {
                     Action::SceneSelectionDetails {controller,revision}=>{
                         if revision!=document.revision {return Err("scene state revision expired".into());}
                         let snapshot=admission.scene_selection_snapshot(controller,self.generation.clone(),crate::scene_switches::variable_names(document)).await.map_err(|e|format!("{e:?}"))?;
-                        if !admission.diagnostics(controller,self.generation.clone()).await.map_err(|e|format!("{e:?}"))?.ready() {return Err("scene selection runtime not ready".into());}
+                        if !admission.diagnostics(controller,self.generation.clone()).await.map_err(|e|format!("{e:?}"))?.mapping_readable() {return Err("scene selection runtime not ready".into());}
                         crate::scene_switches::details(document,&snapshot).map(Reply::SceneSelectionDetails)
                     },
                     Action::SceneSwitchStates {controller,revision}=>{
                         if revision!=document.revision {return Err("scene state revision expired".into());}
                         let snapshot=admission.scene_selection_values(controller,self.generation.clone(),crate::scene_switches::variable_names(document)).await.map_err(|e|format!("{e:?}"))?;
-                        if !admission.diagnostics(controller,self.generation.clone()).await.map_err(|e|format!("{e:?}"))?.ready() {return Err("scene selection runtime not ready".into());}
+                        if !admission.diagnostics(controller,self.generation.clone()).await.map_err(|e|format!("{e:?}"))?.mapping_readable() {return Err("scene selection runtime not ready".into());}
                         crate::scene_switches::states(document,&snapshot).map(Reply::SceneSwitchStates)
                     },
                     Action::SceneRelative{controller,revision,scene,request_id}=>{
@@ -521,7 +527,7 @@ impl Receiver {
                     },
                     Action::SceneTracking {controller,revision,scene}=>{
                         if revision!=document.revision{return Err("tracking revision expired".into());}
-                        if !admission.diagnostics(controller,self.generation.clone()).await.map_err(|e|format!("tracking authorization: {e:?}"))?.ready(){return Err("tracking runtime not ready".into());}
+                        if !admission.diagnostics(controller,self.generation.clone()).await.map_err(|e|format!("tracking authorization: {e:?}"))?.mapping_readable(){return Err("tracking runtime not ready".into());}
                         crate::scene_tracking::read(document,&scene,admission,controller,&self.generation,feedback).await.map(Reply::SceneTracking)
                     },
                     Action::Retire(run) => scenes.retire(run).map(Reply::Retired),
@@ -543,6 +549,20 @@ impl Receiver {
                         if revision!=document.revision {return Err("run query revision expired".into());}
                         let page=admission.scene_history(controller,self.generation.clone(),homesense_storage::scene_run::Query::Run{boot,run,after:0,limit:1}).await.map_err(|e|format!("{e:?}"))?;
                         Ok(Reply::RunSummary(page.and_then(|p|p.record.definition.clone().map(|scene|(scene,LastRun{boot:p.boot,run:p.run,revision:p.record.revision,started_ms:p.record.started_ms,updated_ms:p.record.updated_ms,version:p.record.version,status:p.record.status,cause:p.cause})))))
+                    },
+                    Action::SceneAvailability{controller,revision,scene}=>{
+                        if revision!=document.revision{return Err("scene availability revision expired".into());}
+                        let diagnostics=admission.diagnostics(controller,self.generation.clone()).await.map_err(|e|format!("availability authorization: {e:?}"))?;
+                        if !diagnostics.mapping_readable(){return Err("scene availability runtime unavailable".into());}
+                        let bundle=admission.automation_bundle(controller,self.generation.clone()).await.map_err(|e|format!("availability mapping: {e:?}"))?;
+                        let mut gateways=std::collections::BTreeSet::new();
+                        for id in crate::gateway_runtime::scene_devices(document,&scene)? {
+                            gateways.insert(bundle.configuration.binding(&id).ok_or("scene target unavailable")?.0.gateway.clone());
+                        }
+                        let local=!diagnostics.gateways.is_empty();
+                        let views=diagnostics.gateways.into_iter().filter(|view|gateways.contains(&view.gateway)).collect::<Vec<_>>();
+                        let available=if !local {diagnostics.gateway_ready}else{views.len()==gateways.len()&&views.iter().all(|view|view.state=="ready")};
+                        Ok(Reply::SceneAvailability(crate::gateway_runtime::ActionGate {available,required_gateways:views}))
                     },
                     Action::SceneDefinition{controller,revision,scene}=>{
                         if revision!=document.revision{return Err("scene definition revision expired".into());}

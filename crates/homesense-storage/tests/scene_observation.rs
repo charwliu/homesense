@@ -1,3 +1,6 @@
+#[path = "support/pre_gateway_scope_fixture.rs"]
+mod pre_gateway_scope_fixture;
+
 use homesense_core::{
     DeviceId, ExecutionContext,
     queue::Epochs,
@@ -343,6 +346,7 @@ fn schema21_migration_and_online_backup_preserve_recorded_values_and_inferred_or
     recorded(&mut store, 0, Some(0));
     drop(store);
     let sql = rusqlite::Connection::open(db.path()).unwrap();
+    pre_gateway_scope_fixture::strip(&sql);
     sql.execute_batch("DROP TABLE scene_observation; ALTER TABLE rule_command DROP COLUMN source; DROP TABLE module_off_effect; PRAGMA user_version=21;")
         .unwrap();
     drop(sql);

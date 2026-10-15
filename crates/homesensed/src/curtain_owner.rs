@@ -386,12 +386,21 @@ pub(crate) fn admit_leds(
     context: homesense_core::ExecutionContext,
     authorize: &impl Fn(Uuid) -> bool,
     sources:&mut BTreeMap<u64,crate::source_auth::Source>,
+    gateways:Option<&crate::gateway_runtime::State>,
 ) -> Result<(), homesense_storage::Error> {
     use homesense_core::{admission::Access, arbiter::BatchCommitError, queue::Origin};
     for effect in effects {
         if !authorize(effect.controller) || effect.source_authorization.as_ref().is_some_and(|source|!source.valid_for(effect.controller,config.revision())) {
             continue;
         }
+        // LED effects inherit the motor's original durable causal scope. A
+        // reconnected bus cannot revive an old motor timer or capture new epochs.
+        let requirements=if let Some(g)=gateways {
+            let requirements=store.command_gateway_requirements(boot,effect.cause)?;
+            if requirements.iter().any(|wire|!g.table.ready(wire)){continue;}
+            if g.wire_for(config,&effect.device).is_err(){continue;}
+            requirements
+        } else {vec![]};
         let Some((binding, module)) = config.binding(&effect.device) else {
             continue;
         };
@@ -424,8 +433,13 @@ pub(crate) fn admit_leds(
             ),
             existing_direct_manual: false,
         };
+        let gateway_scope=gateways.map(|g|g.scope(config,std::slice::from_ref(&command),&BTreeMap::new(),&requirements,vec![]))
+            .transpose().map_err(|_|homesense_storage::Error::InvalidAudit)?;
         match arbiter.submit_batch_committed(vec![(command, access)], now, |commands, cancelled| {
-            store.accept_queue_batch(boot, commands, cancelled, now)
+            match &gateway_scope {
+                Some(scope)=>store.accept_queue_batch_scoped(boot,commands,cancelled,now,None,&[],None,None,&[],&[],None,&[],scope),
+                None=>store.accept_queue_batch(boot, commands, cancelled, now),
+            }
         }) {
             Ok(cancelled) => {
                 principals.insert(id, effect.controller);

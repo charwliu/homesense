@@ -423,3 +423,6 @@ mod tests {
 }
 
 pub mod rule_motor;
+
+/// Target-local transport fences; callers still supply authentication and global policy.
+pub mod gateway_scope;

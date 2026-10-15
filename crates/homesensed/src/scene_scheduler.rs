@@ -356,6 +356,16 @@ impl SceneScheduler {
     pub(crate) fn matches_admission(&self, admission: &Admission) -> bool {
         self.admission.boot_id() == admission.boot_id()
     }
+    pub(crate) async fn cancel_gateway_operations(&mut self,operations:&[homesense_storage::gateway_audit::OperationKey])->Result<(),String> {
+        let targets=operations.iter().filter(|key|key.kind==homesense_storage::gateway_audit::OperationKind::Scene)
+            .map(|key|key.id.as_str()).collect::<std::collections::BTreeSet<_>>();
+        for run in self.runs.values_mut().filter(|run|targets.contains(run.audit_id())) {
+            run.cancel_timers();
+            run.cancel_with_reason(homesense_storage::scene_run::CancellationReason::TransportFailure).await?;
+            run.reconcile().await?;
+        }
+        Ok(())
+    }
     pub fn stop_now(&mut self) {
         self.stopped = true;
         for run in self.runs.values_mut() {

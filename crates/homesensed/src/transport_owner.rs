@@ -26,7 +26,11 @@ pub struct TransportOwner<S> {
     connections: BTreeMap<String, Connection<S>>,
     failed: bool,
     audited_receive_failure: Option<String>,
+    local:Option<gateway_io::Local<S>>,
 }
+#[path = "gateway_io.rs"]
+mod gateway_io;
+pub(crate) use gateway_io::{Connector,network_send_failure};
 struct OperationGuard {
     admission: Admission,
     complete: bool,
@@ -56,6 +60,7 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
             connections,
             failed: false,
             audited_receive_failure: None,
+            local:None,
         }
     }
     /// One shared write slot for queries and expanded control frames. Waiting
@@ -67,6 +72,7 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
         }
         slot
     }
+    pub(crate) fn admission(&self)->&Admission {&self.admission}
     pub(crate) fn belongs_to(&self, admission: &Admission) -> bool {
         self.admission.boot_id() == admission.boot_id()
     }
@@ -74,7 +80,7 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
         self.audited_receive_failure.as_deref()
     }
     pub(crate) fn gateway_ids(&self) -> Vec<String> {
-        self.connections.keys().cloned().collect()
+        self.local.as_ref().map_or_else(||self.connections.keys().cloned().collect(),|local|local.epochs.keys().cloned().collect())
     }
     pub(crate) fn same_runtime(&self, other: &Self) -> bool {
         self.admission.boot_id() == other.admission.boot_id()
@@ -169,8 +175,15 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
         .await
         .map_err(|e| format!("query worker: {e}"))?;
         if let Err(error) = sent {
+            if self.local_mode() && network_send_failure(&error) {
+                let wire=homesense_core::gateway_scope::WireScope::from_persisted(gateway.into(),epoch).map_err(|e|e.to_string())?;
+                let audit=self.admission.gateway_fault(wire.clone()).await.map_err(|e|format!("local query audit: {e:?}"))?;
+                self.local_record_fault(wire,audit)?;
+                self.failed=false;guard.complete=true;
+                return Err(format!("local query send: {error:?}"));
+            }
             let _ = self.admission.transport_failed().await;
-            guard.complete = true;
+            guard.complete = !self.local_mode();
             return Err(format!("query send: {error:?}"));
         }
         self.connections.insert(gateway.to_owned(), connection);

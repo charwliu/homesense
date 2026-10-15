@@ -1,3 +1,6 @@
+#[path = "support/pre_gateway_scope_fixture.rs"]
+mod pre_gateway_scope_fixture;
+
 use homesense_core::{
     Command, DeviceId,
     queue::{Epochs, Origin, QueuedCommand},
@@ -132,6 +135,7 @@ fn version_one_database_migrates_without_losing_configuration() {
     store.publish(None, 1, b"original", &[]).unwrap();
     drop(store);
     let connection = rusqlite::Connection::open(&db.0).unwrap();
+    pre_gateway_scope_fixture::strip(&connection);
     connection
         .execute_batch(
             "DROP TABLE light_setting; DROP TABLE feedback_inference; DROP TABLE scene_expiry; DROP TABLE scene_cancellation; DROP TABLE scene_sample; DROP TABLE scene_cause; DROP TABLE automation_revision; DROP TABLE command_journal; DROP TABLE light_restore; DROP TABLE study_mode; DROP TABLE logical_variable; DROP TABLE calendar_watermark; DROP TABLE rule_command; DROP TABLE rule_admission; DROP TABLE rule_chain_outcome; DROP TABLE scene_command; DROP TABLE scene_step; DROP TABLE scene_run; DROP TABLE module_off_effect; PRAGMA user_version=1;",
@@ -814,6 +818,7 @@ fn schema_twelve_migration_preserves_existing_manual_scene_without_inventing_cau
     store.begin_scene_run("boot","manual",1,Some("scene"),10).unwrap();
     drop(store);
     let sql=rusqlite::Connection::open(&db.0).unwrap();
+    pre_gateway_scope_fixture::strip(&sql);
     sql.execute_batch("DROP TABLE light_setting; DROP TABLE feedback_inference; DROP TABLE scene_expiry; DROP TABLE scene_cancellation; DROP TABLE scene_sample; DROP TABLE scene_cause; ALTER TABLE rule_command DROP COLUMN source; DROP TABLE module_off_effect; PRAGMA user_version=12;").unwrap();
     drop(sql);
     let store=Store::open(&db.0).unwrap();
@@ -873,6 +878,7 @@ fn schema_thirteen_keeps_scene_links_without_inventing_fade_samples() {
     store.accept_queue_batch_with_audits("boot",&[c],&[],1,None,&[],None,Some(&link)).unwrap();
     drop(store);
     let sql=rusqlite::Connection::open(&db.0).unwrap();
+    pre_gateway_scope_fixture::strip(&sql);
     sql.execute_batch("DROP TABLE light_setting; DROP TABLE feedback_inference; DROP TABLE scene_expiry; DROP TABLE scene_cancellation; DROP TABLE scene_sample; ALTER TABLE rule_command DROP COLUMN source; DROP TABLE module_off_effect; PRAGMA user_version=13;").unwrap();
     let store=Store::open(&db.0).unwrap();
     let rows=store.scene_commands("boot","scene",0,128).unwrap();
@@ -938,6 +944,7 @@ fn scene_cancellation_is_atomic_with_checkpoint_and_survives_schema_upgrade() {
     store.begin_scene_run("boot","scene",1,None,10).unwrap();
     drop(store);
     let sql=rusqlite::Connection::open(&db.0).unwrap();
+    pre_gateway_scope_fixture::strip(&sql);
     sql.execute_batch("DROP TABLE light_setting; DROP TABLE feedback_inference; DROP TABLE scene_expiry; DROP TABLE scene_cancellation; ALTER TABLE rule_command DROP COLUMN source; DROP TABLE module_off_effect; PRAGMA user_version=14;").unwrap();
     let mut store=Store::open(&db.0).unwrap();
     assert_eq!(store.scene_run("boot","scene").unwrap().unwrap().version,0);
@@ -983,6 +990,7 @@ fn schema_fifteen_preserves_cancellation_history_and_accepts_cancel_request() {
     store.checkpoint_scene_run_with_cancellation("boot","scene",0,Scene::Running,1,Some(&Cancellation{device:device.clone(),reason:CancellationReason::ManualOverride})).unwrap();
     drop(store);
     let sql=rusqlite::Connection::open(&db.0).unwrap();
+    pre_gateway_scope_fixture::strip(&sql);
     sql.execute_batch("ALTER TABLE scene_cancellation RENAME TO newer;
         CREATE TABLE scene_cancellation (boot_id TEXT NOT NULL, run_id TEXT NOT NULL, version INTEGER NOT NULL CHECK(version>0), device_id TEXT NOT NULL, reason TEXT NOT NULL CHECK(reason IN ('manual_override','scene_replacement')), PRIMARY KEY(boot_id,run_id,version), FOREIGN KEY(boot_id,run_id) REFERENCES scene_run(boot_id,run_id));
         INSERT INTO scene_cancellation SELECT * FROM newer; DROP TABLE newer; DROP TABLE light_setting; DROP TABLE feedback_inference; DROP TABLE scene_expiry; ALTER TABLE rule_command DROP COLUMN source; DROP TABLE module_off_effect; PRAGMA user_version=15;").unwrap();
@@ -1009,6 +1017,7 @@ fn expired_scene_step_migrates_atomically_and_cannot_be_admitted() {
     store.begin_scene_run("boot","scene",1,None,0).unwrap();
     drop(store);
     let sql=rusqlite::Connection::open(&db.0).unwrap();
+    pre_gateway_scope_fixture::strip(&sql);
     sql.execute_batch("DROP TABLE light_setting; DROP TABLE feedback_inference; DROP TABLE scene_expiry; ALTER TABLE rule_command DROP COLUMN source; DROP TABLE module_off_effect; PRAGMA user_version=16;").unwrap();
     let mut store=Store::open(&db.0).unwrap();
     let expiry=Expiry{index:0,device:DeviceId::new("synthetic:light").unwrap(),source:"synthetic:late".into()};
@@ -1128,6 +1137,7 @@ fn feedback_inference_migrates_and_resolves_delayed_scene_parent() {
     store.publish(None,1,b"config",&[]).unwrap();
     drop(store);
     let sql=rusqlite::Connection::open(&db.0).unwrap();
+    pre_gateway_scope_fixture::strip(&sql);
     sql.execute_batch("DROP TABLE light_setting; DROP TABLE feedback_inference; ALTER TABLE rule_command DROP COLUMN source; DROP TABLE module_off_effect; PRAGMA user_version=17;").unwrap();
     let mut store=Store::open(&db.0).unwrap();
     assert_eq!(sql.pragma_query_value(None,"user_version",|r|r.get::<_,i64>(0)).unwrap(),homesense_storage::SCHEMA_VERSION);
@@ -1158,7 +1168,8 @@ fn schema_eighteen_preserves_history_and_records_system_cancellation_causes() {
     let db=Database::new();let mut store=Store::open(&db.0).unwrap();store.publish(None,1,b"config",&[]).unwrap();store.begin_scene_run("boot","scene",1,None,0).unwrap();
     let device=DeviceId::new("synthetic:light").unwrap();
     store.checkpoint_scene_run_with_cancellation("boot","scene",0,Scene::Running,1,Some(&Cancellation{device:device.clone(),reason:Reason::CancelRequested})).unwrap();drop(store);
-    let sql=rusqlite::Connection::open(&db.0).unwrap();sql.execute_batch("ALTER TABLE scene_cancellation RENAME TO newer; CREATE TABLE scene_cancellation (boot_id TEXT NOT NULL,run_id TEXT NOT NULL,version INTEGER NOT NULL CHECK(version>0),device_id TEXT NOT NULL,reason TEXT NOT NULL CHECK(reason IN ('manual_override','scene_replacement','cancel_requested')),PRIMARY KEY(boot_id,run_id,version),FOREIGN KEY(boot_id,run_id) REFERENCES scene_run(boot_id,run_id)); INSERT INTO scene_cancellation SELECT * FROM newer; DROP TABLE newer; DROP TABLE light_setting; ALTER TABLE rule_command DROP COLUMN source; DROP TABLE module_off_effect; PRAGMA user_version=18;").unwrap();
+    let sql=rusqlite::Connection::open(&db.0).unwrap();pre_gateway_scope_fixture::strip(&sql);
+    sql.execute_batch("ALTER TABLE scene_cancellation RENAME TO newer; CREATE TABLE scene_cancellation (boot_id TEXT NOT NULL,run_id TEXT NOT NULL,version INTEGER NOT NULL CHECK(version>0),device_id TEXT NOT NULL,reason TEXT NOT NULL CHECK(reason IN ('manual_override','scene_replacement','cancel_requested')),PRIMARY KEY(boot_id,run_id,version),FOREIGN KEY(boot_id,run_id) REFERENCES scene_run(boot_id,run_id)); INSERT INTO scene_cancellation SELECT * FROM newer; DROP TABLE newer; DROP TABLE light_setting; ALTER TABLE rule_command DROP COLUMN source; DROP TABLE module_off_effect; PRAGMA user_version=18;").unwrap();
     let mut store=Store::open(&db.0).unwrap();let reasons=[Reason::ServiceStopped,Reason::ConfigurationPublished,Reason::TransportFailure,Reason::PreparationFailed];
     for (i,reason) in reasons.iter().enumerate(){store.checkpoint_scene_run_with_cancellation("boot","scene",i as u64+1,Scene::Running,i as u64+2,Some(&Cancellation{device:device.clone(),reason:*reason})).unwrap();}
     drop(store);let store=Store::open(&db.0).unwrap();let page=store.query_scene(1,&Query::Cancellations{boot:"boot".into(),run:"scene".into(),after:0,limit:128}).unwrap().unwrap();
@@ -1171,7 +1182,8 @@ fn schema_nineteen_retains_legacy_publication_reason_without_claiming_barrier_co
     let db=Database::new();let mut store=Store::open(&db.0).unwrap();store.publish(None,1,b"config",&[]).unwrap();store.begin_scene_run("boot","scene",1,None,0).unwrap();
     let device=DeviceId::new("synthetic:light").unwrap();store.checkpoint_scene_run_with_cancellation("boot","scene",0,Scene::Running,1,Some(&Cancellation{device:device.clone(),reason:Reason::ConfigurationPublished})).unwrap();drop(store);
     let sql=rusqlite::Connection::open(&db.0).unwrap();let schema:String=sql.query_row("SELECT sql FROM sqlite_master WHERE name='scene_cancellation'",[],|row|row.get(0)).unwrap();
-    sql.execute_batch("ALTER TABLE scene_cancellation RENAME TO newer").unwrap();sql.execute_batch(&schema.replace(",'publication_barrier'","")).unwrap();sql.execute_batch("INSERT INTO scene_cancellation SELECT * FROM newer; DROP TABLE newer; DROP TABLE light_setting; ALTER TABLE rule_command DROP COLUMN source; DROP TABLE module_off_effect; PRAGMA user_version=19;").unwrap();
+    sql.execute_batch("ALTER TABLE scene_cancellation RENAME TO newer").unwrap();sql.execute_batch(&schema.replace(",'publication_barrier'","")).unwrap();pre_gateway_scope_fixture::strip(&sql);
+    sql.execute_batch("INSERT INTO scene_cancellation SELECT * FROM newer; DROP TABLE newer; DROP TABLE light_setting; ALTER TABLE rule_command DROP COLUMN source; DROP TABLE module_off_effect; PRAGMA user_version=19;").unwrap();
     let mut store=Store::open(&db.0).unwrap();store.checkpoint_scene_run_with_cancellation("boot","scene",1,Scene::Cancelled,2,Some(&Cancellation{device,reason:Reason::PublicationBarrier})).unwrap();
     let page=store.query_scene(1,&Query::Cancellations{boot:"boot".into(),run:"scene".into(),after:0,limit:128}).unwrap().unwrap();assert_eq!(page.cancellations.iter().map(|c|c.cancellation.reason).collect::<Vec<_>>(),vec![Reason::ConfigurationPublished,Reason::PublicationBarrier]);assert_eq!(sql.pragma_query_value(None,"user_version",|row|row.get::<_,i64>(0)).unwrap(),homesense_storage::SCHEMA_VERSION);
 }

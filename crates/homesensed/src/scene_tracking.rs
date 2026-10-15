@@ -67,7 +67,7 @@ pub async fn project(
         || !admission
             .diagnostics(controller, generation.clone())
             .await
-            .is_ok_and(|d| d.ready())
+            .is_ok_and(|d| d.mapping_readable())
     {
         return result;
     }
@@ -164,7 +164,7 @@ pub async fn project(
         || !admission
             .diagnostics(controller, generation.clone())
             .await
-            .is_ok_and(|d| d.ready())
+            .is_ok_and(|d| d.mapping_readable())
     {
         for m in &mut result.members {
             m.on = None;
@@ -230,7 +230,7 @@ pub async fn read(
         .diagnostics(controller, generation.clone())
         .await
         .map_err(|e| format!("tracking readiness: {e:?}"))?
-        .ready()
+        .mapping_readable()
     {
         return Err("tracking runtime not ready".into());
     }

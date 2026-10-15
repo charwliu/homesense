@@ -304,6 +304,12 @@ impl Arbiter {
         now: u64,
         mut access: impl FnMut(&QueuedCommand) -> Access,
     ) -> Result<Dispatch, ArbiterError> {
+        self.dispatch_eligible(now,&mut access,|_|true)
+    }
+    pub fn dispatch_eligible(&mut self, now:u64,
+        mut access:impl FnMut(&QueuedCommand)->Access,
+        mut eligible:impl FnMut(&QueuedCommand)->bool,
+    )->Result<Dispatch,ArbiterError> {
         if self.writing.is_some() {
             return Err(ArbiterError::Busy);
         }
@@ -312,7 +318,7 @@ impl Arbiter {
         }
         let mut result = Dispatch::default();
         loop {
-            let polled = self.queue.poll(now, self.policy.epochs);
+            let polled = self.queue.poll_eligible(now, self.policy.epochs,&mut eligible);
             result.cancelled.extend(polled.cancelled);
             let Some(command) = polled.next else {
                 return Ok(result);
@@ -325,6 +331,22 @@ impl Arbiter {
             result.command = Some(command);
             return Ok(result);
         }
+    }
+    /// Apply exact IDs returned by a committed local gateway fault transaction.
+    /// Missing owned rows are an invariant failure; callers fail the service.
+    /// No global generation/readiness or unrelated B writer is changed.
+    pub fn apply_audited_gateway_fault(&mut self,cancelled:&[u64],uncertain:&[u64])
+        ->Result<Vec<Cancellation>,ArbiterError> {
+        let ids=cancelled.iter().copied().collect::<std::collections::BTreeSet<_>>();
+        if ids.len()!=cancelled.len() || !self.queue.contains_ids(&ids)
+            || uncertain.len()>1 || uncertain.first().is_some_and(|id|
+                self.writing.as_ref().is_none_or(|command|command.id!=*id)) {
+            return Err(ArbiterError::InvalidState);
+        }
+        let rows=self.queue.cancel_ids(&ids);
+        if !uncertain.is_empty() {self.writing=None;}
+        if let Some(publication)=&mut self.publication {publication.failed=true;}
+        Ok(rows)
     }
     /// Release a selected command rejected before any transport write.
     /// The caller must first durably record its cancellation.

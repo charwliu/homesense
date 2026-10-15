@@ -22,6 +22,7 @@ pub enum DeviceAction {
 }
 #[derive(Debug, PartialEq, Eq)]
 pub struct DeviceView {
+    pub availability:Option<crate::gateway_runtime::View>,
     pub room: Option<homesense_config::Room>,
     pub id: DeviceId,
     pub name: String,
@@ -69,6 +70,7 @@ pub(crate) async fn snapshot_with_max_age(
         .await
         .map_err(|e| format!("{e:?}"))?;
     let motor_estimates=admission.curtain_views(controller,generation.clone(),ids.clone()).await.map_err(|e|format!("curtain inference: {e:?}"))?;
+    let gateway_views=admission.gateway_availability().await.map_err(|e|format!("gateway view: {e:?}"))?;
     let recorded=admission.projection_levels(generation.epochs.configuration,feedback.snapshot().cursor.boot_id).await.map_err(|e|format!("recorded levels: {e:?}"))?;
     // Evaluate freshness after awaited reads. The periodic expiration owner may
     // be delayed; a cached Confirmed flag alone cannot establish a current view.
@@ -110,7 +112,7 @@ pub(crate) async fn snapshot_with_max_age(
         if supplies.contains(&id) {
             continue;
         }
-        let state = snapshot
+        let mut state = snapshot
             .devices
             .get(&id)
             .ok_or("missing device state")?
@@ -119,7 +121,10 @@ pub(crate) async fn snapshot_with_max_age(
             .configuration
             .motor_command(&id, homesense_core::MotorAction::Stop)
             .is_ok();
+        let availability=gateway_views.iter().find(|view|view.gateway==device.gateway).cloned();
+        if availability.as_ref().is_some_and(|view|view.state!="ready") {state.quality=homesense_state::Quality::Unknown;}
         devices.push(DeviceView {
+            availability,
             room: device
                 .room
                 .as_ref()

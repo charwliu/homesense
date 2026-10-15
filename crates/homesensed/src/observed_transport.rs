@@ -36,7 +36,11 @@ pub struct ObservedTransport<S> {
     pending_recovery: Option<u64>,
     recovery_query_offset: usize,
     output_refresh: Option<OutputRefresh>,
+    local_refresh:Option<local_refresh::Refresh>,
+    local_fault_operations:Vec<homesense_storage::gateway_audit::OperationKey>,
 }
+#[path = "local_refresh.rs"]
+mod local_refresh;
 #[path = "periodic_refresh.rs"]
 mod periodic_refresh;
 use periodic_refresh::OutputRefresh;
@@ -68,6 +72,8 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
             pending_recovery: None,
             recovery_query_offset: 0,
             output_refresh: None,
+            local_refresh:None,
+            local_fault_operations:vec![],
         }
     }
     /// Initial live startup after the connector has faulted admission. No state
@@ -304,10 +310,13 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
             || timeout_ms == 0
             || timeout_ms > 5000
             || max_age_ms == 0
-            || !self.transport.matches_generation(
+            || (if self.transport.local_mode() {
+                self.transport.gateway_ids()!=config.gateways().keys().cloned().collect::<Vec<_>>()
+                    ||!self.transport.local_connected(&target.gateway)
+            }else{!self.transport.matches_generation(
                 &config.gateways().keys().cloned().collect::<Vec<_>>(),
                 self.feedback.transport_epoch(),
-            )
+            )})
             || config
                 .gateways()
                 .get(&target.gateway)
@@ -603,6 +612,12 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
     pub(crate) async fn step_after_refresh_read(&mut self) -> Result<Option<WriteOutcome>, String> {
         if self.unavailable {
             return Err("observed transport requires recovery".into());
+        }
+        if self.transport.local_mode() {
+            let blocked=self.local_refresh.as_ref().map_or_else(std::collections::BTreeSet::new,|plan|plan.blocked(self.transport.now_ms(),self.transport.write_interval_ms()));
+            let outcome=self.transport.local_step(&blocked).await?;
+            if self.transport.has_local_fault() {self.poll_local_events(false).await?;}
+            return Ok(outcome);
         }
         // Keep a pending response serialized with later writes on this bus.
         // The runtime continues receiving, publishing and accepting requests;
