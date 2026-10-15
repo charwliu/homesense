@@ -14,10 +14,15 @@ use homesense_core::{
 };
 use std::collections::BTreeMap;
 
+struct Attempt {
+    desired:bool,selection:i64,generation:crate::admission::TaskGeneration,controller:uuid::Uuid,
+    fingerprint:crate::feedback::IndicatorFingerprint,
+    output_fence:crate::indicator_outputs::Fence,commands:Vec<u64>,
+}
 #[derive(Default)]
 pub struct Synchronizer {
     attempted: BTreeMap<String, (bool, Vec<(String, u64)>)>,
-    physical_attempted: BTreeMap<String, (bool, crate::admission::TaskGeneration)>,
+    physical_attempted: BTreeMap<String,Attempt>,
 }
 impl Synchronizer {
     #[allow(clippy::too_many_arguments)]
@@ -47,6 +52,7 @@ impl Synchronizer {
                 .ok_or("reconciliation missing")?
                 .max_age_ms,
         );
+        let mut selection_value=None;
         let mut desired = None;
         let mut lease = None;
         let prepared = PreparedRule::prepare_indicator(admission, controller, generation.clone(), vec![group.variable.clone()], |variables, reads, policy| {
@@ -55,6 +61,7 @@ impl Synchronizer {
                 .and_then(|_| match state.stored.value {Some(Value::Integer(v)) if v == 0 || patterns.contains_key(&v) => Some(v),_=>None});
             let mut nodes = vec![];
             if let Some(selected) = selected {
+                selection_value=Some(selected);
                 let on = selected == member.value;
                 let condition = if selected == 0 {
                     // Zero is a complete known pattern with no selected scene,
@@ -99,17 +106,32 @@ impl Synchronizer {
             Ok(false) | Err(WriteStatus::ResourceBusy) => return Ok(()),
             Err(e) => return Err(format!("{e:?}")),
         }
-        if self
-            .physical_attempted
-            .get(&link.id)
-            .is_some_and(|(old, scope)| *old == desired && scope == &generation)
-        {
-            return Ok(());
+        let selected=selection_value.ok_or("physical indicator selection missing")?;
+        let fingerprint=feedback.indicator_fingerprint(&lease,group.reconciliation.as_ref().is_some_and(|p|p.policy==homesense_config::scene_switches::ReconciliationPolicy::PowerPatternThenProfileLevel))?;
+        let prior=self.physical_attempted.get(&link.id).filter(|p|p.generation==generation && p.controller==controller);
+        let output=match admission.indicator_outputs(controller,generation.clone(),link.leds.clone(),prior.map(|p|p.commands.clone()).unwrap_or_default()).await {
+            Ok(output)=>output,Err(WriteStatus::ResourceBusy)=>return Ok(()),Err(e)=>return Err(format!("indicator output fence: {e:?}")),
+        };
+        if output.fence.values().any(|state|state.requested.as_ref().is_some_and(|r|matches!(r.status.as_str(),"accepted"|"writing"|"uncertain"|"failed"))){return Ok(());}
+        if let Some(prior)=prior && prior.desired==desired {
+            // An uncompleted/uncertain attempt is never replayed. A later
+            // semantic input or successful independent LED override is a new
+            // reconciliation cause only after this attempt reached Written.
+            if !output.prior_complete {return Ok(());}
+            let overridden=output.fence.iter().any(|(id,current)|current.written.as_ref().is_some_and(|w|
+                w.color!=Some(desired) && prior.output_fence.get(id).and_then(|out|out.written.as_ref()).is_none_or(|old|w.sequence>old.sequence)
+            ));
+            if (prior.fingerprint==fingerprint || prior.selection!=selected) && !overridden {
+                // A different selected member may leave this LED's false value
+                // unchanged. Advance its evidence baseline without rewriting it;
+                // a same-selection semantic round trip remains a distinct edge.
+                if let Some(cached)=self.physical_attempted.get_mut(&link.id){cached.fingerprint=fingerprint;cached.selection=selected;cached.output_fence=output.fence;}
+                return Ok(());
+            }
         }
         prepared.attach_feedback(Some(lease));
-        let previous = self
-            .physical_attempted
-            .insert(link.id.clone(), (desired, generation));
+        prepared.attach_indicator_outputs(output.fence.clone());
+        let previous = self.physical_attempted.insert(link.id.clone(),Attempt{desired,selection:selected,generation,controller,fingerprint,output_fence:output.fence,commands:vec![]});
         match prepared.commit_status(admission).await {
             Err(WriteStatus::ResourceBusy | WriteStatus::InvalidValueInRequest) => {
                 if let Some(previous) = previous {
@@ -118,7 +140,7 @@ impl Synchronizer {
                     self.physical_attempted.remove(&link.id);
                 }
             }
-            Ok(_) => {}
+            Ok(ids) => {if let Some(attempt)=self.physical_attempted.get_mut(&link.id){attempt.commands=ids;}}
             Err(e) => log::warn!(
                 "indicator {} admission failed: {e:?}; no automatic replay",
                 link.id

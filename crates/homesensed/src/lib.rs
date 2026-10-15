@@ -191,3 +191,5 @@ mod runtime_transport_recovery;
 
 pub mod lifecycle;
 pub mod process_signals;
+
+mod indicator_outputs;

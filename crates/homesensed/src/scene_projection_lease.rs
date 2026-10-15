@@ -19,6 +19,18 @@ struct Signature {
     never_observed: bool,
 }
 impl Signature {
+    fn same_power(&self, other: &Self) -> bool {
+        let power = |sample: Option<Observation>| match sample {
+            Some(Observation::Switch(on)) => Some(on),
+            Some(Observation::Level(level)) => Some(level.get() > 0),
+            _ => None,
+        };
+        self.kind == other.kind
+            && self.quality == other.quality
+            && self.invalid == other.invalid
+            && self.never_observed == other.never_observed
+            && power(self.observed) == power(other.observed)
+    }
     fn new(truth: &ModuleTruth, id: &DeviceId, state: &DeviceState) -> Self {
         Self {
             kind: state.kind,
@@ -32,6 +44,7 @@ impl Signature {
 struct Entry {
     signature: Signature,
     version: u64,
+    power_version: u64,
     observed_ms: Option<u64>,
 }
 pub(super) struct Versions {
@@ -54,6 +67,7 @@ impl Versions {
                 let entry = Entry {
                     signature: Signature::new(truth, &id, &state),
                     version: 0,
+                    power_version: 0,
                     observed_ms: state.observed_at_ms,
                 };
                 (id, entry)
@@ -89,6 +103,12 @@ impl Versions {
         observed_ms: Option<u64>,
     ) -> Result<(), String> {
         if entry.signature != signature {
+            if !entry.signature.same_power(&signature) {
+                entry.power_version = entry
+                    .power_version
+                    .checked_add(1)
+                    .ok_or("indicator power version exhausted")?;
+            }
             entry.version = entry
                 .version
                 .checked_add(1)
@@ -150,12 +170,33 @@ impl Versions {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct Fingerprint {
+    boot: u128,
+    revision: u64,
+    epoch: u64,
+    dependencies: BTreeMap<DeviceId, Option<u64>>,
+}
 pub(crate) struct ProjectionLease {
     rule: RuleLease,
     versions: Arc<Mutex<Versions>>,
     expected: BTreeMap<DeviceId, Option<u64>>,
+    power_expected: BTreeMap<DeviceId, Option<u64>>,
 }
 impl ProjectionLease {
+    pub(crate) fn fingerprint(&self, level_sensitive: bool) -> Fingerprint {
+        Fingerprint {
+            boot: self.rule.boot,
+            revision: self.rule.revision,
+            epoch: self.rule.epoch,
+            dependencies: if level_sensitive {
+                self.expected.clone()
+            } else {
+                self.power_expected.clone()
+            },
+        }
+    }
+
     pub(super) fn capture(feedback: &Feedback, lease: &RuleLease) -> Result<Self, String> {
         let _guard = lease.lock(
             feedback.boot,
@@ -167,6 +208,16 @@ impl ProjectionLease {
             .projection_versions
             .lock()
             .map_err(|_| "projection dependency lease poisoned")?;
+        let power_expected = lease
+            .observations
+            .keys()
+            .map(|id| {
+                (
+                    id.clone(),
+                    versions.entries.get(id).map(|entry| entry.power_version),
+                )
+            })
+            .collect();
         let expected = lease
             .observations
             .keys()
@@ -181,6 +232,7 @@ impl ProjectionLease {
             rule: lease.clone(),
             versions: feedback.projection_versions.clone(),
             expected,
+            power_expected,
         })
     }
     pub(crate) fn lock(

@@ -12,7 +12,7 @@ use std::{
 
 #[path="scene_projection_lease.rs"]
 mod projection_lease;
-pub(crate) use projection_lease::ProjectionLease;
+pub(crate) use projection_lease::{ProjectionLease,Fingerprint as IndicatorFingerprint};
 
 /// Private policy proof for LED planning only. Old evidence becomes Unknown,
 /// allowing a separate fresh Switch Off to satisfy an Any condition.
@@ -352,6 +352,7 @@ impl Feedback {
     // dependency versions. Cache validation holds that same mutation fence.
     fn refresh_projection_versions(&self)->Result<(),String>{self.projection_versions.lock().map_err(|_|"projection dependency lease poisoned")?.refresh(&self.states,self.epoch,!self.stopped)}
     fn refresh_projection_port(&self,gateway:&str,address:u8,channel:u8)->Result<(),String>{self.projection_versions.lock().map_err(|_|"projection dependency lease poisoned")?.refresh_port(&self.states,gateway,address,channel)}
+    pub(crate) fn indicator_fingerprint(&self,lease:&RuleLease,level_sensitive:bool)->Result<IndicatorFingerprint,String>{Ok(self.scene_projection_lease(lease)?.fingerprint(level_sensitive))}
     /// Stop synchronously, including from an async operation cancellation guard.
     /// mark_stale emits quality events without requiring a new transport epoch.
     pub fn invalidate(&mut self) -> Result<(), String> {

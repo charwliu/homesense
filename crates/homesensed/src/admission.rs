@@ -138,6 +138,7 @@ enum Submission {
         variables: Vec<homesense_storage::variables::Update>,
         feedback: Box<crate::feedback::RuleLease>,
         reads: BTreeMap<String, homesense_storage::scene_observation::Snapshot>,
+        output_fence:Option<crate::indicator_outputs::Fence>,
     },
     Automation {
         entry_reads:Option<Box<RuleEntryReads>>,
@@ -346,6 +347,7 @@ enum Message {
     PublicationBundle(Uuid, oneshot::Sender<Result<(homesense_storage::automation::Bundle, ExecutionContext, u64), WriteStatus>>),
     PublicationState(oneshot::Sender<bool>),
     AutomationBundle(Uuid, TaskGeneration, oneshot::Sender<Result<homesense_storage::automation::Bundle, WriteStatus>>),
+    IndicatorOutputs(Uuid,TaskGeneration,Vec<homesense_core::DeviceId>,Vec<u64>,oneshot::Sender<Result<crate::indicator_outputs::Capture,WriteStatus>>),
     FeedbackSettled(Uuid, TaskGeneration, crate::feedback::RuleLease, oneshot::Sender<Result<bool, WriteStatus>>),
     RecordedLevels(Uuid, TaskGeneration, oneshot::Sender<Result<RestoreLevels, WriteStatus>>),
     RecentDimmerOff(Uuid,TaskGeneration,u64,oneshot::Sender<Result<std::collections::BTreeSet<homesense_core::DeviceId>,WriteStatus>>),
@@ -594,6 +596,8 @@ impl Admission {
                 let mut motor_guards=BTreeMap::<u64,crate::motor_rules::QueuedLease>::new();
                 let mut manual_versions = BTreeMap::new();
                 let mut temporary = BTreeMap::<String, homesense_storage::variables::Stored>::new();
+                let mut led_outputs=crate::indicator_outputs::Ledger::default();
+                let mut in_flight_led=None;
                 let mut in_flight: Option<u64> = None;
                 let mut write_deadline: Option<u64> = None;
                 let mut next_id = 1u64;
@@ -806,6 +810,18 @@ impl Admission {
                                     if store.dimmer_setting_written_after(configuration.revision(),id,&worker_boot,after).map_err(|_|WriteStatus::ServiceCommunicationFailure)? {recent.insert(id.clone());}
                                 }
                                 Ok(recent)
+                            })();let _=reply.send(result);
+                        }
+                        Message::IndicatorOutputs(controller,generation,ids,prior,reply)=>{
+                            let result=(||{
+                                if !authorize(controller){return Err(WriteStatus::InsufficientPrivileges);}
+                                let policy=arbiter.policy();
+                                if failed || generation.boot!=worker_boot || generation.epochs!=policy.epochs {return Err(WriteStatus::ResourceBusy);}
+                                if ids.is_empty() || ids.len()>128 || prior.len()>128 {return Err(WriteStatus::InvalidValueInRequest);}
+                                if ids.iter().any(|id|configuration.binding(id).is_none_or(|(_,m)|m.kind()!=homesense_core::ModuleKind::Keypad || m.led_mode()!=homesense_core::PanelLedMode::Manual)){return Err(WriteStatus::InvalidValueInRequest);}
+                                let mut prior_complete=!prior.is_empty();
+                                for id in prior {prior_complete &= store.command_status(&worker_boot,id).map_err(|_|WriteStatus::ServiceCommunicationFailure)?==Some(Status::Written);}
+                                Ok(crate::indicator_outputs::Capture{fence:led_outputs.capture(&store,&worker_boot,configuration.revision(),&ids,policy.epochs).map_err(|_|WriteStatus::ServiceCommunicationFailure)?,prior_complete})
                             })();let _=reply.send(result);
                         }
                         Message::FeedbackSettled(controller,generation,lease,reply) => {
@@ -1540,6 +1556,7 @@ impl Admission {
                                     return Ok(None);
                                 }
                                 principals.remove(&command.id);
+                                in_flight_led=crate::indicator_outputs::Ledger::color(command.command).map(|color|(command.id,command.device_id.clone(),color,command.epochs));
                                 in_flight = Some(command.id);
                                 write_deadline = Some(command.deadline_ms);
                                 Ok(Some(DispatchTicket {
@@ -1595,9 +1612,13 @@ impl Admission {
                                             guard.check(homesense_core::curtain_state::Scope{boot:observer_boot,epochs:arbiter.policy().epochs},&allowed,&mut curtains,written_ms,authorize(guard.controller()));
                                         }
                                         curtains.written(id,written_ms);
+                                        if let Some((command,device,color,epochs))=in_flight_led.take()
+                                            && (command!=id || led_outputs.written(device,command,color,epochs).is_err()) {
+                                            failed=true;audited_transport_failure=false;let _=arbiter.storage_failed();
+                                        }
                                         if let Some(group)=motor_guard_ids.remove(&id)
                                             && let Some(guard)=motor_guards.get_mut(&group) {guard.own_written(&mut curtains,written_ms);}
-                                    } else {curtains.invalidate();}
+                                    } else {in_flight_led=None;curtains.invalidate();}
                                     in_flight = None;
                                     write_deadline = None;
                                     if !complete {
@@ -1708,7 +1729,7 @@ impl Admission {
                                         if !batch.subscriptions.is_empty() || (batch.intents.is_empty() && variables.is_empty() && audit.is_none()) || variables.len()>1024 || variables.iter().any(|v|v.revision!=configuration.revision()) { return Err(WriteStatus::InvalidValueInRequest); }
                                         (Submission::Lights(batch), None, true, variables, feedback, audit, scene, starts)
                                     },
-                                    Submission::Indicator { batch, variables, feedback, reads } => {
+                                    Submission::Indicator { batch, variables, feedback, reads,output_fence } => {
                                         if !authorize(batch.controller) { return Err(WriteStatus::InsufficientPrivileges); }
                                         if !batch.subscriptions.is_empty() || batch.intents.is_empty() || feedback.observations.is_empty() || reads.len()>64 || variables.iter().any(|u| !reads.contains_key(&u.name) || u.value!=Some(homesense_core::rule::Value::Integer(0))) {return Err(WriteStatus::InvalidValueInRequest);}
                                         let document=store.active_bundle(options.context).map_err(|_|WriteStatus::ServiceCommunicationFailure)?.and_then(|b|b.automation).ok_or(WriteStatus::InvalidValueInRequest)?;
@@ -1723,6 +1744,10 @@ impl Admission {
                                                 let source=reads.get(&group.variable).ok_or(WriteStatus::InvalidValueInRequest)?;
                                                 if source.stored.value!=Some(homesense_core::rule::Value::Integer(member.value)) || !source.physical.as_ref().is_some_and(|p|!p.pending_relative && p.observed_ms.is_some()) {return Err(WriteStatus::InvalidValueInRequest);}
                                             }
+                                        }
+                                        if let Some(expected)=output_fence {
+                                            let ids=batch.intents.iter().map(|i|i.device.clone()).collect::<Vec<_>>();
+                                            if expected.len()!=ids.len() || ids.iter().any(|id|!expected.contains_key(id)) || led_outputs.capture(&store,&worker_boot,configuration.revision(),&ids,arbiter.policy().epochs).map_err(|_|WriteStatus::ServiceCommunicationFailure)?!=expected {return Err(WriteStatus::ResourceBusy);}
                                         }
                                         if worker_observation_invalidation.load(Ordering::Acquire)!=observation_fence {scene_observer.invalidate();}
                                         for (name, expected) in &reads {
@@ -2189,6 +2214,11 @@ impl Admission {
     /// interleaving configuration publication or another rule update.
     /// Internal audit read remains available after transport failure. It cannot
     /// authorize or replay commands and is scoped to the captured process boot.
+    pub(crate) async fn indicator_outputs(&self,controller:Uuid,generation:TaskGeneration,ids:Vec<homesense_core::DeviceId>,prior:Vec<u64>)->Result<crate::indicator_outputs::Capture,WriteStatus>{
+        if !self.source_valid(){return Err(WriteStatus::InsufficientPrivileges);}
+        let(reply,receive)=oneshot::channel();self.sender.try_send(Message::IndicatorOutputs(controller,generation,ids,prior,reply)).map_err(|_|WriteStatus::ResourceBusy)?;
+        receive.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?
+    }
     pub(crate) async fn feedback_settled(&self,controller:Uuid,generation:TaskGeneration,lease:crate::feedback::RuleLease)->Result<bool,WriteStatus>{
         let (reply,receive)=oneshot::channel();
         self.sender.try_send(Message::FeedbackSettled(controller,generation,lease,reply)).map_err(|_|WriteStatus::ResourceBusy)?;
@@ -2570,8 +2600,9 @@ impl Admission {
         &self, generation: TaskGeneration, batch: Batch,
         variables: Vec<homesense_storage::variables::Update>, feedback: crate::feedback::RuleLease,
         reads: BTreeMap<String, homesense_storage::scene_observation::Snapshot>,
+        output_fence:Option<crate::indicator_outputs::Fence>,
     ) -> Result<Vec<u64>,WriteStatus> {
-        self.submit_scoped(Submission::Indicator {batch,variables,feedback:Box::new(feedback),reads},Some(SubmissionScope::Generation(generation))).await
+        self.submit_scoped(Submission::Indicator {batch,variables,feedback:Box::new(feedback),reads,output_fence},Some(SubmissionScope::Generation(generation))).await
     }
     /// Accept named manual scenes together; reserve scheduler slots first.
     /// Dropping an in-flight request closes admission because acceptance may
