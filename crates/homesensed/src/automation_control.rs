@@ -121,8 +121,14 @@ struct Request {
 #[derive(Clone)]
 pub struct Control {
     sender: mpsc::Sender<Request>,
+    unavailable:Option<std::sync::Arc<Unavailable>>,
 }
+struct Unavailable {admission:Admission,generation:TaskGeneration}
+
 impl Control {
+    pub(crate) fn unavailable(&self,admission:Admission,generation:TaskGeneration)->Self {
+        Self{sender:self.sender.clone(),unavailable:Some(std::sync::Arc::new(Unavailable{admission,generation}))}
+    }
     /// Bounded admission, no retry. A lost response after execution is ambiguous;
     /// callers must inspect history rather than resubmit an action automatically.
     pub async fn subscribe(&self, scene: String) -> Result<SceneSubscription,String> {
@@ -134,6 +140,18 @@ impl Control {
         self.request_inner(action,None).await
     }
     async fn request_inner(&self,action:Action,watch:Option<tokio::sync::watch::Sender<Option<Result<SceneObservation,String>>>>)->Result<Reply,String> {
+        if let Some(unavailable)=&self.unavailable {
+            return match action {
+                Action::Diagnostics{controller,revision} if revision==unavailable.generation.epochs.configuration=>{
+                    let mut state=unavailable.admission.diagnostics(controller,unavailable.generation.clone()).await.map_err(|e|format!("{e:?}"))?;
+                    // This view is not replaced until the new control runtime is
+                    // installed, even if physical synchronization just completed.
+                    state.gateway_ready=false;
+                    Ok(Reply::Diagnostics(state))
+                },
+                _=>Err("gateway unavailable; control runtime is gated".into()),
+            };
+        }
         // Keep the channel wait state behind the bounded request boundary.
         // Callers may already retain a sizeable HTTP / joined-driver future.
         Box::pin(self.request_scoped(action,watch,None)).await
@@ -143,6 +161,7 @@ impl Control {
         Box::pin(self.request_scoped(action,None,Some(source))).await
     }
     async fn request_scoped(&self, action: Action, watch: Option<tokio::sync::watch::Sender<Option<Result<SceneObservation,String>>>>,source:Option<crate::source_auth::Source>) -> Result<Reply,String> {
+        if self.unavailable.is_some(){return Err("gateway unavailable; control runtime is gated".into());}
         if matches!(&action, Action::Start(id) | Action::LastRun(id) | Action::SceneActivity(id) if id.is_empty() || id.len()>256 || id.chars().any(char::is_control)) {
             return Err("invalid scene name".into());
         }
@@ -188,7 +207,7 @@ pub(crate) struct Receiver {
 pub(crate) fn channel(controller: Uuid, generation: TaskGeneration) -> (Control, Receiver) {
     let (sender, receiver) = mpsc::channel(32);
     (
-        Control { sender },
+        Control { sender,unavailable:None },
         Receiver {
             receiver,
             controller,

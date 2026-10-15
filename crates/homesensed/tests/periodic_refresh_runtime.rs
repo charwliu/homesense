@@ -1,4 +1,6 @@
 //! Synthetic localhost regression for EOF while a periodic read is outstanding.
+#[path="support/runtime_outage.rs"]
+mod outage;
 use std::{
     io::{Read, Write},
     time::Duration,
@@ -13,34 +15,39 @@ async fn periodic_query_eof_uses_supervised_disconnect_path_without_output_or_re
         serde_json::from_slice(include_bytes!("../../../config/simulation.json")).unwrap();
     devices["gateways"][0]["endpoint"] = bus.local_addr().unwrap().to_string().into();
     devices["gateways"][0]["modules"][0]["verification"] = serde_json::json!({"status":"verified","evidence":"synthetic loopback only","verified_at_unix_ms":1});
+    let (eof,wait_eof)=tokio::sync::oneshot::channel();
     let gateway = std::thread::spawn(move || {
         let (mut socket, _) = bus.accept().unwrap();
-        socket
-            .set_read_timeout(Some(Duration::from_secs(6)))
-            .unwrap();
-        let mut frame = [0; 5];
+        socket.set_read_timeout(Some(Duration::from_secs(6))).unwrap();
+        let mut frame = [0; 5];let mut queries=vec![];
         socket.read_exact(&mut frame).unwrap();
-        assert_eq!(frame, [0xae, 0x15, 0xa0, 0xf2, 0xee]);
-        for channel in 1..=8 {
-            socket
-                .write_all(&[0xae, 0x15, 0xd0 + channel, 42, 0xee])
-                .unwrap();
-        }
+        assert_eq!(frame, [0xae, 0x15, 0xa0, 0xf2, 0xee]);queries.push(frame);
+        for channel in 1..=8 {socket.write_all(&[0xae, 0x15, 0xd0 + channel, 42, 0xee]).unwrap();}
         socket.read_exact(&mut frame).unwrap();
-        assert_eq!(frame, [0xae, 0x15, 0xa0, 0xf2, 0xee]);
+        assert_eq!(frame, [0xae, 0x15, 0xa0, 0xf2, 0xee]);queries.push(frame);
         // EOF is consumed by the pending-read path before normal loop receive.
+        drop(socket);drop(bus);let _=eof.send(());queries
     });
-    let result = homesensed::automation_tcp::serve(
-        &serde_json::to_vec(&devices).unwrap(),
-        br#"{"schema_version":1,"configuration_revision":1,"variables":[],"rules":[]}"#,
-        &root,
-        Duration::from_secs(6),
-        true,
-    )
-    .await;
-    let error = result.unwrap_err();
-    assert!(error.contains("recovery limit reached"), "{error}");
-    gateway.join().unwrap();
+    let web=std::net::TcpListener::bind("127.0.0.1:0").unwrap();let web_address=web.local_addr().unwrap();drop(web);
+    let input=serde_json::to_vec(&devices).unwrap();let directory=root.clone();
+    let started=std::time::Instant::now();
+    let service=tokio::spawn(async move {homesensed::automation_tcp::serve_managed(
+        &input,br#"{"schema_version":1,"configuration_revision":1,"variables":[],"rules":[]}"#,
+        &directory,Duration::from_secs(6),true,0,Duration::from_millis(20),
+        homesensed::service::WebSettings{address:web_address,secret:"abcdefghijklmnopqrstuvwxyz0123456789".into(),administrator:true,tls:None},
+    ).await});
+    tokio::time::timeout(Duration::from_secs(5),wait_eof).await.unwrap().unwrap();
+    let token="abcdefghijklmnopqrstuvwxyz0123456789";
+    outage::wait_unavailable(web_address,token,"1",&service).await;
+    outage::assert_gated(web_address,token,"1","simulation:light").await;
+    outage::assert_empty_journal(&root);
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    assert!(!service.is_finished(),"EOF must not consume the six-second service window");
+    outage::assert_gated(web_address,token,"1","simulation:light").await;
+    tokio::time::timeout(Duration::from_secs(8),service).await.unwrap().unwrap().unwrap();
+    assert!(started.elapsed()>=Duration::from_secs(6),"service ended before its original deadline");
+    assert!(tokio::net::TcpStream::connect(web_address).await.is_err());
+    assert_eq!(gateway.join().unwrap(),vec![[0xae,0x15,0xa0,0xf2,0xee];2]);
     let db = rusqlite::Connection::open(root.join("automation-tcp.sqlite")).unwrap();
     assert_eq!(
         db.query_row("SELECT count(*) FROM command_journal", [], |row| row

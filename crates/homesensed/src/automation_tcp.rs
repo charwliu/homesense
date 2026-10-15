@@ -31,7 +31,8 @@ fn wall_ms() -> Result<i64, String> {
 }
 /// This entry point executes enabled, reviewed rules, including startup rules.
 /// The caller explicitly confirms concurrent gateway clients are supported.
-/// Loss of transport ends this run; a new invocation never replays old commands.
+/// Transport loss gates controls while the established service stays available;
+/// fresh recovery suppresses startup rules and never replays old commands.
 pub async fn serve(
     devices: &[u8],
     rules: &[u8],
@@ -49,7 +50,8 @@ pub async fn serve(
     )
     .await
 }
-/// Opt-in bounded recovery after an explicitly classified, fully cleaned disconnect.
+/// Bounded retry rounds after an explicitly classified, fully cleaned disconnect.
+/// `recovery_limit` selects the fast retry budget, not a service lifetime cap.
 /// The duration is shared by all connections after initial synchronization.
 pub async fn serve_supervised(
     devices: &[u8],
@@ -198,7 +200,7 @@ async fn serve_inner(devices:&[u8],rules:&[u8],directory:&Path,duration:Duration
             .query_recovery_with_policy(&config, ExecutionContext::Live, 1000, 5000, crate::observed_transport::Synchronization::OutputsAndCalibratedMotors)
             .await?;
         let deadline=tokio::time::Instant::now()+duration;
-        let mut recoveries=0;
+        let mut recoveries=0u64;
         let mut prepared_runtime = None;
         let mut hap:Option<crate::hap_endpoint::Endpoint>=None;
         let mut bridges:Option<crate::hap_bridge_group::Group>=None;
@@ -330,10 +332,6 @@ async fn serve_inner(devices:&[u8],rules:&[u8],directory:&Path,duration:Duration
                     }
                 }
             };
-            if let Some(endpoint)=&management {endpoint.pause()?;if hap_settings.is_some() || hap_plan.is_some(){endpoint.set_hap_status(crate::web_api::HapStatus::Reconfiguring)?;}}
-            if let Some(endpoint)=hap.take() {endpoint.shutdown().await;}
-            if let Some(group)=bridges.take() {group.shutdown().await;}
-            drop(runtime);
             let outcome=match outcome {
                 Ok(outcome)=>outcome,
                 Err(error)=>{
@@ -343,63 +341,97 @@ async fn serve_inner(devices:&[u8],rules:&[u8],directory:&Path,duration:Duration
                     return Err(error);
                 }
             };
+            let unavailable_control=runtime.unavailable_control();
+            if matches!(&outcome,Exit::Disconnected{..}|Exit::PublicationPaused) {
+                if matches!(&outcome,Exit::Disconnected{..}) && let Some(endpoint)=&management {endpoint.unavailable(unavailable_control.clone())?;}
+                let mut stale=owner.snapshot();
+                for state in stale.devices.values_mut(){if state.quality==homesense_state::Quality::Confirmed{state.quality=homesense_state::Quality::Stale;}}
+                // Existing HAP servers and identities survive the outage. Their
+                // old command receivers are closed and the projection is stale.
+                if let Some(endpoint)=&hap {endpoint.projection.send_replace(stale.clone());}
+                if let Some(group)=&bridges {
+                    group.projection.send_replace(stale);
+                    if let Some(endpoint)=&management {let mut states=group.statuses.borrow().clone();for state in states.values_mut(){*state=crate::hap_bridge_group::Status::Degraded;}endpoint.set_hap_bridges(states)?;}
+                }
+            }else{
+                if let Some(endpoint)=&management {endpoint.pause()?;if hap_settings.is_some() || hap_plan.is_some(){endpoint.set_hap_status(crate::web_api::HapStatus::Reconfiguring)?;}}
+                if let Some(endpoint)=hap.take() {endpoint.shutdown().await;}
+                if let Some(group)=bridges.take() {group.shutdown().await;}
+            }
+            drop(runtime);
             match outcome {
                 Exit::Stopped => return Ok(()),
                 Exit::PublicationPaused => {
                     let (request, candidate)=pending.take().ok_or("publication paused without request")?;
-                    let transition=async {
+                    // The accepted handoff still owns its reserved STOPs and
+                    // atomic durable commit. Only network recovery is retried.
+                    let commit=async {
                         while owner.drain_publication(&admission).await?.is_some() {}
-                        let revision=admission.commit_publication().await.map_err(|e|format!("publication commit: {e:?}"))?;
-                        let next=epoch.checked_add(1).ok_or("transport epoch exhausted")?;
-                        let mut connections=std::collections::BTreeMap::new();
-                        for (id,gateway) in candidate.gateways() {
-                            let address=gateway.endpoint;
-                            let connection=tokio::task::spawn_blocking(move || hb_transport::Connection::connect(address,next,Duration::from_secs(2),Duration::from_millis(100)))
-                                .await.map_err(|e|format!("publication connect worker for {id}: {e}"))?.map_err(|e|format!("publication connect gateway {id}: {e}"))?;
-                            connections.insert(id.clone(),connection);
-                        }
-                        let transport=crate::transport_owner::TransportOwner::new(admission.clone(),connections);
-                        let (runtime,fresh)=crate::publication_recovery::rebuild_with_policy(
-                            admission.clone(),controller,transport,next,
-                            crate::publication_recovery::Settings{query_timeout_ms:1000,max_age_ms:5000,wall_unix_ms:wall_ms()?,calendar_lateness_ms:1000,scene_capacity:64},
-                            crate::publication_recovery::Synchronization::OutputsAndCalibratedMotors,
-                        ).await?;
-                        Ok::<_,String>((revision,next,runtime,fresh))
+                        admission.commit_publication().await.map_err(|e|format!("publication commit: {e:?}"))
                     };
-                    match tokio::time::timeout_at(deadline,transition).await {
-                        Ok(Ok((revision,next,runtime,fresh)))=>{
-                            owner=fresh;
-                            epoch=next;
-                            endpoints=candidate.gateways().iter().map(|(id,g)|(id.clone(),g.endpoint)).collect();
-                            config=candidate;
-                            if let (Some(settings),Some(identity))=(&hap_settings,&identity) {hap=crate::hap_endpoint::Endpoint::start(settings,identity,&admission,controller,&runtime,owner.snapshot(),management.is_some() || management_settings.is_some()).await?;}
-                            if let Some(plan)=&hap_plan {bridges=Some(crate::hap_bridge_group::Group::start(plan,directory,&admission,controller,&runtime,owner.snapshot()).await?);}
-                            if let Some(endpoint)=&management {endpoint.install(&admission,controller,&runtime).await?;}
-                            prepared_runtime=Some(runtime);
-                            request.complete(Ok(revision));
-                        }
+                    let revision=match tokio::time::timeout_at(deadline,commit).await {
+                        Ok(Ok(revision))=>revision,
                         failure=>{
                             admission.stop_now();
-                            let error=match failure {Ok(Err(error))=>format!("publication failed; inspect active revision before retrying: {error}"),_=>"publication exceeded service deadline; inspect active revision".into()};
+                            let error=match failure{Ok(Err(error))=>format!("publication failed; inspect active revision before retrying: {error}"),_=>"publication exceeded service deadline; inspect active revision".into()};
+                            request.complete(Err(error.clone()));return Err(error);
+                        }
+                    };
+                    endpoints=candidate.gateways().iter().map(|(id,g)|(id.clone(),g.endpoint)).collect();
+                    config=candidate;
+                    owner.invalidate();
+                    drop(owner); // Retire old streams after reserved STOP drain and durable commit.
+                    // Every error after the durable commit must complete the accepted
+                    // request explicitly: a lost reply must not hide a committed revision.
+                    let activation=async {
+                        if let Some(endpoint)=&management {endpoint.unavailable_mapping(&admission,controller,unavailable_control,&config,request.rules()).await?;}
+                        let recovery=crate::runtime_transport_recovery::until_ready(admission.clone(),&config,endpoints.clone(),epoch,recovery_limit,deadline,receiver.clone());
+                        let recovered=tokio::select! {
+                            result=recovery=>result?,
+                            result=async{match management.as_mut(){Some(endpoint)=>endpoint.finished().await,None=>std::future::pending().await}}=>return Err(result.err().unwrap_or_else(||"management listener ended during publication recovery".into())),
+                        };
+                        let Some((fresh,next))=recovered else{return Ok(None);};
+                        let failed_round=next!=epoch.checked_add(1).ok_or("transport epoch exhausted")?;
+                        let startup=if failed_round{StartupPolicy::Suppress}else{StartupPolicy::Run};
+                        let runtime=AutomationRuntime::load_with_startup(admission.clone(),controller,wall_ms()?,1000,64,Default::default(),startup).await?;
+                        if let Some(endpoint)=hap.take(){endpoint.shutdown().await;}
+                        if let Some(group)=bridges.take(){group.shutdown().await;}
+                        if let (Some(settings),Some(identity))=(&hap_settings,&identity) {hap=crate::hap_endpoint::Endpoint::start(settings,identity,&admission,controller,&runtime,fresh.snapshot(),management.is_some() || management_settings.is_some()).await?;}
+                        if let Some(plan)=&hap_plan {bridges=Some(crate::hap_bridge_group::Group::start(plan,directory,&admission,controller,&runtime,fresh.snapshot()).await?);}
+                        if let Some(endpoint)=&management {endpoint.install(&admission,controller,&runtime).await?;}
+                        Ok(Some((fresh,next,runtime)))
+                    }.await;
+                    match activation {
+                        Ok(Some((fresh,next,runtime)))=>{
+                            owner=fresh;epoch=next;prepared_runtime=Some(runtime);
+                            request.complete(Ok(revision));
+                        },
+                        Ok(None)=>{
+                            request.complete(Err(format!("publication committed revision {revision}, but feedback unavailable before service deadline; inspect active revision before retrying")));
+                            return Ok(());
+                        },
+                        Err(error)=>{
+                            let error=format!("publication committed revision {revision}, but runtime activation failed; inspect active revision before retrying: {error}");
                             request.complete(Err(error.clone()));
                             return Err(error);
-                        }
+                        },
                     }
                 },
                 Exit::Disconnected {gateway} => {
-                    if recoveries>=recovery_limit {return Err(format!("gateway disconnected: {gateway}; recovery limit reached"));}
-                    recoveries+=1;
-                    log::info!("automation recovery={recoveries} gateway={gateway:?} previous_epoch={epoch}");
-                    let recovery=async {
-                        let (transport,next)=reconnect_tcp(admission.clone(),endpoints.clone(),epoch,RetryPolicy::default(),true,receiver.clone()).await?;
-                        epoch=next;
-                        owner.recover(transport,epoch)?;
-                        owner.query_recovery_with_policy(&config,ExecutionContext::Live,1000,5000,crate::observed_transport::Synchronization::OutputsAndCalibratedMotors).await
-                    };
-                    tokio::select! {
+                    recoveries=recoveries.checked_add(1).ok_or("recovery counter exhausted")?;
+                    log::warn!("automation_unavailable outage={recoveries} gateway={gateway:?} previous_epoch={epoch}; listeners retained, controls gated");
+                    drop(owner); // Snapshots are owned by listeners; dead streams must not retain gateway slots.
+                    let recovery=crate::runtime_transport_recovery::until_ready(admission.clone(),&config,endpoints.clone(),epoch,recovery_limit,deadline,receiver.clone());
+                    let recovered=tokio::select! {
                         result=recovery=>result?,
-                        _=tokio::time::sleep_until(deadline)=>return Ok(()),
-                    }
+                        result=async {match management.as_mut(){Some(endpoint)=>endpoint.finished().await,None=>std::future::pending().await}}=>return Err(result.err().unwrap_or_else(||"management listener ended during recovery".into())),
+                    };
+                    let Some((fresh,next))=recovered else{return Ok(());};
+                    owner=fresh;epoch=next;
+                    // Rebind runtime request channels only after full fresh truth.
+                    // Pairing databases remain the same; startup is suppressed.
+                    if let Some(endpoint)=hap.take(){endpoint.shutdown().await;}
+                    if let Some(group)=bridges.take(){group.shutdown().await;}
                 }
             }
         }

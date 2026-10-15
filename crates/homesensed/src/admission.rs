@@ -175,6 +175,13 @@ enum Submission {
     },
 }
 type RestoreLevels = BTreeMap<homesense_core::DeviceId, homesense_core::Percent>;
+/// Projection lifecycle is distinct from an actual actor/storage read failure.
+/// Unavailable performs no restore read/write and never grants control.
+pub(crate) enum HapProjection {
+    Unavailable,
+    Ready {restore:RestoreLevels,targets:RestoreLevels,transport_epoch:u64},
+}
+
 struct PendingPublication {
     document: Vec<u8>,
     rules: Option<Vec<u8>>,
@@ -202,6 +209,118 @@ impl SubmissionFailure {
         }
     }
 }
+// Shared persistence semantics for ordinary remember requests and the atomic
+// HAP projection capture. The actor supplies one policy/time snapshot.
+fn remember_projection(
+    store: &mut Store,
+    restore_policy: &mut crate::restore_policy::RestorePolicy,
+    configuration: &homesense_config::Configuration,
+    boot: &str,
+    policy: RuntimePolicy,
+    now: u64,
+    observation: (&homesense_state::Snapshot, u64),
+) -> Result<RestoreLevels, WriteStatus> {
+    let (snapshot, max_age) = observation;
+    if max_age == 0 || snapshot.cursor.boot_id != Uuid::parse_str(boot).unwrap().as_u128() {
+        return Err(WriteStatus::InvalidValueInRequest);
+    }
+    let mut saved = store
+        .light_restore_levels(configuration.revision())
+        .map_err(|_| WriteStatus::ServiceCommunicationFailure)?;
+    // Prune cancelled, superseded or old-epoch local targets first.
+    restore_policy
+        .targets(policy.epochs, now, |id| store.command_status(boot, id))
+        .map_err(|_| WriteStatus::ServiceCommunicationFailure)?;
+    let mut settled_reads = BTreeMap::new();
+    for (id, state) in &snapshot.devices {
+        let Some((device, module)) = configuration.binding(id) else {
+            continue;
+        };
+        if module.kind() != homesense_core::ModuleKind::Dimmer {
+            continue;
+        }
+        if state.quality != homesense_state::Quality::Confirmed
+            || !state
+                .observed_at_ms
+                .and_then(|at| now.checked_sub(at))
+                .is_some_and(|age| age < max_age)
+        {
+            continue;
+        }
+        let mut settled = store
+            .feedback_is_settled_in_epoch(boot, id, state.observed_at_ms, policy.epochs.transport)
+            .map_err(|_| WriteStatus::ServiceCommunicationFailure)?;
+        if let Some(relay) = &device.supply_relay {
+            let Some(supply) = snapshot.devices.get(relay).filter(|s| {
+                s.quality == homesense_state::Quality::Confirmed
+                    && s.observed_at_ms
+                        .and_then(|at| now.checked_sub(at))
+                        .is_some_and(|age| age < max_age)
+            }) else {
+                continue;
+            };
+            let sample = supply.observed_at_ms;
+            settled &= store
+                .feedback_is_settled_in_epoch(boot, relay, sample, policy.epochs.transport)
+                .map_err(|_| WriteStatus::ServiceCommunicationFailure)?;
+        }
+        settled_reads.insert(id.clone(), settled);
+    }
+    let levels: Vec<_> = snapshot
+        .devices
+        .iter()
+        .filter_map(|(id, state)| {
+            let (device, module) = configuration.binding(id)?;
+            if module.kind() != homesense_core::ModuleKind::Dimmer
+                || state.quality != homesense_state::Quality::Confirmed
+                || !state
+                    .observed_at_ms
+                    .and_then(|at| now.checked_sub(at))
+                    .is_some_and(|age| age < max_age)
+            {
+                return None;
+            }
+            let Some(homesense_core::Observation::Level(mut level)) = state.observed else {
+                return None;
+            };
+            if let Some(relay) = &device.supply_relay {
+                let supply = snapshot.devices.get(relay)?;
+                if supply.quality != homesense_state::Quality::Confirmed
+                    || !supply
+                        .observed_at_ms
+                        .and_then(|at| now.checked_sub(at))
+                        .is_some_and(|age| age < max_age)
+                {
+                    return None;
+                }
+                match supply.observed {
+                    Some(homesense_core::Observation::Switch(false)) => {
+                        level = homesense_core::Percent::new(0).unwrap()
+                    }
+                    Some(homesense_core::Observation::Switch(true)) => {}
+                    _ => return None,
+                }
+            }
+            match restore_policy.remember_settled(
+                id,
+                level,
+                now,
+                settled_reads.get(id).copied().unwrap_or(false),
+            ) {
+                true if saved.get(id) != Some(&level) => Some((id.clone(), level)),
+                _ => None,
+            }
+        })
+        .collect();
+    if !levels.is_empty() {
+        store
+            .remember_light_levels(configuration.revision(), &levels)
+            .map_err(|_| WriteStatus::ServiceCommunicationFailure)?;
+        saved.extend(levels);
+    }
+    Ok(saved)
+}
+
 enum Message {
     AwayOff(u64,TaskGeneration,crate::away_auth::Authorization,u64,bool,oneshot::Sender<Result<Vec<u64>,WriteStatus>>),
     MotorRuleLease(Uuid,TaskGeneration,Vec<homesense_core::rule_motor::Request>,oneshot::Sender<Result<crate::motor_rules::Lease,WriteStatus>>),
@@ -221,6 +340,7 @@ enum Message {
     NativeFinish(Uuid,Option<crate::source_auth::Source>,Box<crate::native_scene::Completion>,oneshot::Sender<Result<(),WriteStatus>>),
     SceneHistory(Uuid, TaskGeneration, String, Option<homesense_storage::scene_history::Cursor>, usize, oneshot::Sender<Result<homesense_storage::scene_history::Page, WriteStatus>>),
     Diagnostics(Uuid, TaskGeneration, oneshot::Sender<Result<Diagnostics, WriteStatus>>),
+    DiagnosticGeneration(Uuid, u64, oneshot::Sender<Result<TaskGeneration, WriteStatus>>),
     ConfigurationExport(Uuid, TaskGeneration, u64, oneshot::Sender<Result<Option<homesense_storage::configuration_history::Export>, WriteStatus>>),
     ConfigurationHistory(Uuid, TaskGeneration, Option<u64>, usize, oneshot::Sender<Result<homesense_storage::configuration_history::Page, WriteStatus>>),
     PublicationBundle(Uuid, oneshot::Sender<Result<(homesense_storage::automation::Bundle, ExecutionContext, u64), WriteStatus>>),
@@ -230,6 +350,7 @@ enum Message {
     RecordedLevels(Uuid, TaskGeneration, oneshot::Sender<Result<RestoreLevels, WriteStatus>>),
     RecentDimmerOff(Uuid,TaskGeneration,u64,oneshot::Sender<Result<std::collections::BTreeSet<homesense_core::DeviceId>,WriteStatus>>),
     ProjectionLevels(u64, u128, oneshot::Sender<Result<RestoreLevels, WriteStatus>>),
+    HapProjection(u64, Option<u64>, homesense_state::Snapshot, u64, oneshot::Sender<Result<HapProjection,WriteStatus>>),
     WrittenFeedbackTarget(Uuid, TaskGeneration, u64, oneshot::Sender<Result<Option<homesense_storage::feedback_inference::WrittenTarget>, WriteStatus>>),
     FeedbackInference(Uuid, TaskGeneration, homesense_storage::feedback_inference::Inference, oneshot::Sender<Result<(), WriteStatus>>),
 
@@ -477,6 +598,10 @@ impl Admission {
                 let mut write_deadline: Option<u64> = None;
                 let mut next_id = 1u64;
                 let mut failed = false;
+                // Only a successful communication-fault audit may keep a HAP
+                // graph locally unavailable. Every other terminal failure clears
+                // this classification; it never opens ordinary admission.
+                let mut audited_transport_failure=false;
                 let mut scene_observer=crate::scene_observation_owner::Owner::default();
                 let mut scene_projections=BTreeMap::<String,crate::scene_reconciliation::Prepared>::new();
                 let observer_boot=Uuid::parse_str(&worker_boot).unwrap().as_u128();
@@ -501,15 +626,15 @@ impl Admission {
                     if current.is_none() || scene_observer.scope().is_some_and(|s|s.epochs!=arbiter.policy().epochs) || fence!=observation_fence {scene_observer.invalidate();}
                     observation_fence=fence;
                     if scene_observer.refresh_local_versions(&store,millis(clock)).is_err() {
-                        failed=true;let _=arbiter.storage_failed();scene_observer.invalidate();
+                        failed=true; audited_transport_failure=false;let _=arbiter.storage_failed();scene_observer.invalidate();
                     }
                     curtains.synchronize(&configuration,homesense_core::curtain_state::Scope{boot:observer_boot,epochs:arbiter.policy().epochs},millis(clock),current.is_some());
                     if current.is_some() {
                         let now=millis(clock);
-                        if curtains.audit(&store,&configuration,&worker_boot,now).is_err(){failed=true;let _=arbiter.storage_failed();curtains.invalidate();}
+                        if curtains.audit(&store,&configuration,&worker_boot,now).is_err(){failed=true; audited_transport_failure=false;let _=arbiter.storage_failed();curtains.invalidate();}
                         let effects=if failed {vec![]} else {curtains.effects(now,&|id|authorize(id))};
                         if crate::curtain_owner::admit_leds(effects,&configuration,&mut arbiter,&mut store,&worker_boot,now,options.request_ttl.as_millis() as u64,&mut next_id,&mut principals,options.context,&|id|authorize(id),&mut source_leases).is_err() {
-                            failed=true;let _=arbiter.storage_failed();curtains.invalidate();
+                            failed=true; audited_transport_failure=false;let _=arbiter.storage_failed();curtains.invalidate();
                         }
                     }
                     generation_updates.send_if_modified(|previous| {
@@ -526,7 +651,7 @@ impl Admission {
                     };
                     let now = millis(clock);
                     if worker_stop.load(Ordering::Acquire) && !failed {
-                        failed = true;
+                        failed = true; audited_transport_failure=false;
                         let _ = arbiter.storage_failed();
                     }
                     if let Some(id) =
@@ -540,7 +665,7 @@ impl Admission {
                         let _ = arbiter.storage_failed();
                         in_flight = None;
                         write_deadline = None;
-                        failed = true;
+                        failed = true; audited_transport_failure=false;
                     }
                     let message = match pending {
                         Ok(message) => message,
@@ -550,7 +675,7 @@ impl Admission {
                     // Recheck at the receive boundary, not just before waiting:
                     // an idle actor may receive this read after a TTL or revoke.
                     curtains.retire_revoked(&|id|authorize(id));
-                    if curtains.audit(&store,&configuration,&worker_boot,now).is_err(){failed=true;let _=arbiter.storage_failed();curtains.invalidate();}
+                    if curtains.audit(&store,&configuration,&worker_boot,now).is_err(){failed=true; audited_transport_failure=false;let _=arbiter.storage_failed();curtains.invalidate();}
                     match message {
                         Message::MotorRuleLease(controller,generation,requests,reply)=>{
                             let result=(|| {
@@ -595,6 +720,17 @@ impl Admission {
                             })();
                             let _=reply.send(result);
                         }
+                        Message::DiagnosticGeneration(controller,revision,reply) => {
+                            let result=if !authorize(controller) {Err(WriteStatus::InsufficientPrivileges)}
+                            else if revision!=configuration.revision() || revision!=durable_configuration.revision || publication.is_some() {Err(WriteStatus::ServiceCommunicationFailure)}
+                            else {Ok(TaskGeneration{boot:worker_boot.clone(),epochs:arbiter.policy().epochs})};
+                            // The durable pending document is cleared after readback of
+                            // the committed pointer. policy.publishing intentionally stays
+                            // true until physical resynchronization; do not confuse that
+                            // control fence with an uncommitted document. This snapshot
+                            // never changes admission or its ready-generation subscribers.
+                            let _=reply.send(result);
+                        }
                         Message::Diagnostics(controller,generation,reply) => {
                             let policy=arbiter.policy();
                             let result=if !authorize(controller) {Err(WriteStatus::InsufficientPrivileges)}
@@ -626,6 +762,22 @@ impl Admission {
                                 let bundle=store.active_bundle(options.context).map_err(|_|WriteStatus::ServiceCommunicationFailure)?.ok_or(WriteStatus::ServiceCommunicationFailure)?;
                                 if bundle.configuration.revision()!=generation.epochs.configuration {return Err(WriteStatus::ServiceCommunicationFailure)}
                                 Ok(bundle)
+                            })();
+                            let _=reply.send(result);
+                        }
+                        Message::HapProjection(revision,transport_epoch,snapshot,max_age,reply) => {
+                            let result=(|| {
+                                if max_age==0 || snapshot.cursor.boot_id!=Uuid::parse_str(&worker_boot).map_err(|_|WriteStatus::ServiceCommunicationFailure)?.as_u128() {return Err(WriteStatus::InvalidValueInRequest);}
+                                if worker_stop.load(Ordering::Acquire) {return Err(WriteStatus::ServiceCommunicationFailure);}
+                                let policy=arbiter.policy();
+                                // An explicit closed lifecycle gate is not a failed
+                                // database operation. No ledger is touched in this arm.
+                                if failed && !audited_transport_failure {return Err(WriteStatus::ServiceCommunicationFailure);}
+                                if revision!=configuration.revision() || transport_epoch.is_some_and(|epoch|epoch!=policy.epochs.transport) || policy.publishing || !policy.gateway_ready || audited_transport_failure {return Ok(HapProjection::Unavailable);}
+                                if !policy.storage_healthy {return Err(WriteStatus::ServiceCommunicationFailure);}
+                                let restore=remember_projection(&mut store,&mut restore_policy,&configuration,&worker_boot,policy,now,(&snapshot,max_age))?;
+                                let targets=restore_policy.targets(policy.epochs,now,|id|store.command_status(&worker_boot,id)).map_err(|_|WriteStatus::ServiceCommunicationFailure)?;
+                                Ok(HapProjection::Ready{restore,targets,transport_epoch:policy.epochs.transport})
                             })();
                             let _=reply.send(result);
                         }
@@ -688,7 +840,7 @@ impl Admission {
                             } else {
                                 store.record_feedback_inference(&worker_boot,&inference).map_err(|error| match error {
                                     homesense_storage::Error::Conflict | homesense_storage::Error::InvalidAudit => WriteStatus::InvalidValueInRequest,
-                                    _ => { failed=true; let _=arbiter.storage_failed(); WriteStatus::ServiceCommunicationFailure }
+                                    _ => { failed=true; audited_transport_failure=false; let _=arbiter.storage_failed(); WriteStatus::ServiceCommunicationFailure }
                                 })
                             };
                             let _=reply.send(result);
@@ -740,7 +892,7 @@ impl Admission {
                                 crate::source_auth::commit(request_source.as_ref(),||store.begin_manual_scene_batch_with_variables(&worker_boot,generation.epochs.configuration,&starts,now,&updates)).ok_or(WriteStatus::InsufficientPrivileges)?
                                     .map_err(|error|match error {
                                         homesense_storage::Error::Conflict|homesense_storage::Error::InvalidAudit=>WriteStatus::InvalidValueInRequest,
-                                        _=>{failed=true;let _=arbiter.storage_failed();WriteStatus::ServiceCommunicationFailure}
+                                        _=>{failed=true; audited_transport_failure=false;let _=arbiter.storage_failed();WriteStatus::ServiceCommunicationFailure}
                                     })?;
                                 Ok(starts.into_iter().map(|start|AcceptedScene {
                                     generation:generation.clone(),controller,manual_fence:next_id,started_ms:now,causal_deadline:None,source_authorization:request_source.clone(),
@@ -748,7 +900,7 @@ impl Admission {
                                         revision:generation.epochs.configuration,definition:start.definition},
                                 }).collect())
                             })();
-                            if reply.send(result).is_err() { failed=true;let _=arbiter.storage_failed(); }
+                            if reply.send(result).is_err() { failed=true; audited_transport_failure=false;let _=arbiter.storage_failed(); }
                         }
                         Message::SceneUpdate(controller,generation,update,reply) => {
                             let result = if !authorize(controller) { Err(WriteStatus::InsufficientPrivileges) }
@@ -761,7 +913,7 @@ impl Admission {
                                 };
                                 stored.map_err(|error| match error {
                                     homesense_storage::Error::Conflict | homesense_storage::Error::InvalidAudit => WriteStatus::InvalidValueInRequest,
-                                    _ => { failed=true;let _=arbiter.storage_failed();WriteStatus::ServiceCommunicationFailure }
+                                    _ => { failed=true; audited_transport_failure=false;let _=arbiter.storage_failed();WriteStatus::ServiceCommunicationFailure }
                                 })
                             };
                             let _=reply.send(result);
@@ -774,7 +926,7 @@ impl Admission {
                             else if generation.boot!=worker_boot || generation.epochs.configuration!=configuration.revision(){Err(WriteStatus::ServiceCommunicationFailure)}
                             else{store.finish_rule_chain(&worker_boot,configuration.revision(),correlation,millis(clock),error.as_deref()).map_err(|error|match error{
                                 homesense_storage::Error::Conflict|homesense_storage::Error::InvalidAudit=>WriteStatus::InvalidValueInRequest,
-                                _=>{failed=true;let _=arbiter.storage_failed();WriteStatus::ServiceCommunicationFailure}
+                                _=>{failed=true; audited_transport_failure=false;let _=arbiter.storage_failed();WriteStatus::ServiceCommunicationFailure}
                             })};
                             let _=reply.send(result);
                         }
@@ -809,7 +961,7 @@ impl Admission {
                             else { store.calendar_watermark(configuration.revision(), update).map_err(|error| match error {
                                 homesense_storage::Error::Conflict => WriteStatus::ResourceBusy,
                                 homesense_storage::Error::InvalidAudit => WriteStatus::InvalidValueInRequest,
-                                _ => { failed = true; WriteStatus::ServiceCommunicationFailure }
+                                _ => { failed = true; audited_transport_failure=false; WriteStatus::ServiceCommunicationFailure }
                             }) };
                             let _ = reply.send(result);
                         }
@@ -838,7 +990,7 @@ impl Admission {
                                 if next.len()>1024{return Err(WriteStatus::InvalidValueInRequest);}
                                 store.ensure_logical_variables(configuration.revision(),&persistent).map_err(|error|match error{
                                     homesense_storage::Error::Conflict | homesense_storage::Error::InvalidAudit=>WriteStatus::InvalidValueInRequest,
-                                    _=>{failed=true;let _=arbiter.storage_failed();WriteStatus::ServiceCommunicationFailure}
+                                    _=>{failed=true; audited_transport_failure=false;let _=arbiter.storage_failed();WriteStatus::ServiceCommunicationFailure}
                                 })?;
                                 temporary=next;Ok(())
                             })();
@@ -865,7 +1017,7 @@ impl Admission {
                                 if worker_observation_invalidation.load(Ordering::Acquire)!=fence {return Err(WriteStatus::ResourceBusy)}
                                 let scope=scene_observer.begin(&store,&document,proof.snapshot(),observer_boot,arbiter.policy().epochs,now).map_err(|error|match error {
                                     homesense_storage::Error::Conflict|homesense_storage::Error::InvalidAudit=>WriteStatus::InvalidValueInRequest,
-                                    _=>{failed=true;let _=arbiter.storage_failed();WriteStatus::ServiceCommunicationFailure}
+                                    _=>{failed=true; audited_transport_failure=false;let _=arbiter.storage_failed();WriteStatus::ServiceCommunicationFailure}
                                 })?;
                                 if worker_observation_invalidation.load(Ordering::Acquire)!=fence {scene_observer.invalidate();return Err(WriteStatus::ResourceBusy)}
                                 observation_fence=fence;Ok(scope)
@@ -880,7 +1032,7 @@ impl Admission {
                                 let _lease=proof.lease().lock(observer_boot,configuration.revision(),arbiter.policy().epochs.transport,now).map_err(|_|WriteStatus::ResourceBusy)?;
                                 scene_observer.observe(&mut store,scope,proof.event(),now).map_err(|error|match error {
                                     homesense_storage::Error::Conflict|homesense_storage::Error::InvalidAudit=>WriteStatus::InvalidValueInRequest,
-                                    _=>{failed=true;let _=arbiter.storage_failed();WriteStatus::ServiceCommunicationFailure}
+                                    _=>{failed=true; audited_transport_failure=false;let _=arbiter.storage_failed();WriteStatus::ServiceCommunicationFailure}
                                 })
                             })();let _=reply.send(result);
                         }
@@ -894,7 +1046,7 @@ impl Admission {
                                 let document=store.active_bundle(options.context).map_err(|_|WriteStatus::ServiceCommunicationFailure)?.and_then(|bundle|bundle.automation).ok_or(WriteStatus::InvalidValueInRequest)?;
                                 prepared.commit(&mut store,&configuration,&document,&worker_boot,policy.epochs,millis(clock))
                             })();
-                            if result==Err(WriteStatus::ServiceCommunicationFailure) {failed=true;let _=arbiter.storage_failed();}
+                            if result==Err(WriteStatus::ServiceCommunicationFailure) {failed=true; audited_transport_failure=false;let _=arbiter.storage_failed();}
                             let _=reply.send(result);
                         }
                         Message::AwayOff(revision,generation,lease,deadline,submit,reply)=>{
@@ -926,7 +1078,7 @@ impl Admission {
                                 match accepted {
                                     Ok(cancelled)=>{for c in cancelled {principals.remove(&c.command.id);}},
                                     Err(BatchCommitError::Admission(_))=>return Err(WriteStatus::ResourceBusy),
-                                    Err(BatchCommitError::Persistence(_))=>{failed=true;let _=arbiter.storage_failed();return Err(WriteStatus::ServiceCommunicationFailure);}
+                                    Err(BatchCommitError::Persistence(_))=>{failed=true; audited_transport_failure=false;let _=arbiter.storage_failed();return Err(WriteStatus::ServiceCommunicationFailure);}
                                 }
                                 let ids=(next_id..end).collect::<Vec<_>>();
                                 for (id,target) in (next_id..end).zip(targets) {
@@ -960,7 +1112,7 @@ impl Admission {
                                     match crate::source_auth::commit(request_source.as_ref(),||arbiter.submit_batch_committed(commands,now,|commands,cancelled|store.accept_queue_batch(&worker_boot,commands,cancelled,now))).ok_or(WriteStatus::InsufficientPrivileges)? {
                                         Ok(cancelled)=>{for c in cancelled {principals.remove(&c.command.id);}},
                                         Err(BatchCommitError::Admission(_))=>return Err(WriteStatus::ResourceBusy),
-                                        Err(BatchCommitError::Persistence(_))=>{failed=true;let _=arbiter.storage_failed();return Err(WriteStatus::ServiceCommunicationFailure);}
+                                        Err(BatchCommitError::Persistence(_))=>{failed=true; audited_transport_failure=false;let _=arbiter.storage_failed();return Err(WriteStatus::ServiceCommunicationFailure);}
                                     }
                                     for (id,target) in (next_id..end).zip(targets) {principals.insert(id,controller);if let Some(source)=&request_source {source_leases.insert(id,source.clone());}module_queries.insert(id,target);accepted.push(id.to_string());}
                                     next_id=end;
@@ -1029,7 +1181,7 @@ impl Admission {
                                 crate::source_auth::commit(request_source.as_ref(),||store.finish_native_scene(&row.request,row.phase,selected,&completion.levels,now)).ok_or(WriteStatus::InsufficientPrivileges)?.map_err(|e|match e {homesense_storage::Error::Conflict|homesense_storage::Error::InvalidAudit=>WriteStatus::InvalidValueInRequest,_=>WriteStatus::ServiceCommunicationFailure})?;
                                 scene_projections.insert(completion.projection.variable().to_owned(),completion.projection);
                                 Ok(())
-                            })();if result==Err(WriteStatus::ServiceCommunicationFailure){failed=true;let _=arbiter.storage_failed();}let _=reply.send(result);
+                            })();if result==Err(WriteStatus::ServiceCommunicationFailure){failed=true; audited_transport_failure=false;let _=arbiter.storage_failed();}let _=reply.send(result);
                         }
                         Message::ReconcileSceneSelection(controller,generation,prepared,reply)=>{
                             let result=(||{
@@ -1043,7 +1195,7 @@ impl Admission {
                                 scene_projections.insert(prepared.variable().to_owned(),prepared);
                                 Ok(())
                             })();
-                            if result==Err(WriteStatus::ServiceCommunicationFailure) {failed=true;let _=arbiter.storage_failed();}
+                            if result==Err(WriteStatus::ServiceCommunicationFailure) {failed=true; audited_transport_failure=false;let _=arbiter.storage_failed();}
                             let _=reply.send(result);
                         }
                         Message::SceneSelections(controller,generation,names,reply)=>{
@@ -1134,7 +1286,7 @@ impl Admission {
                                 let cancelled = arbiter.begin_publication(millis(clock), deadline)
                                     .map_err(|_| WriteStatus::ServiceCommunicationFailure)?;
                                 if store.cancel_queued(&worker_boot, &cancelled, millis(clock)).is_err() {
-                                    failed = true;
+                                    failed = true; audited_transport_failure=false;
                                     let _ = arbiter.storage_failed();
                                     return Err(WriteStatus::ServiceCommunicationFailure);
                                 }
@@ -1155,7 +1307,7 @@ impl Admission {
                                 let cancelled = arbiter.abort_before_commit().map_err(|_| WriteStatus::ResourceBusy)?;
                                 publication = None;
                                 if store.cancel_queued(&worker_boot, &cancelled, millis(clock)).is_err() {
-                                    failed = true;
+                                    failed = true; audited_transport_failure=false;
                                     let _ = arbiter.storage_failed();
                                     return Err(WriteStatus::ServiceCommunicationFailure);
                                 }
@@ -1202,7 +1354,7 @@ impl Admission {
                                     homesense_core::arbiter::CommitResult::RolledBack
                                 } else { homesense_core::arbiter::CommitResult::Unknown });
                                 publication = None;
-                                failed = true;
+                                failed = true; audited_transport_failure=false;
                                 let _ = arbiter.storage_failed();
                                 Err(WriteStatus::ServiceCommunicationFailure)
                             })();
@@ -1214,48 +1366,7 @@ impl Admission {
                                 if revision != configuration.revision() || arbiter.policy().publishing {
                                     return Err(WriteStatus::ServiceCommunicationFailure);
                                 }
-                                if max_age == 0 || snapshot.cursor.boot_id != Uuid::parse_str(&worker_boot).unwrap().as_u128() {
-                                    return Err(WriteStatus::InvalidValueInRequest);
-                                }
-                                let mut saved = store.light_restore_levels(configuration.revision()).map_err(|_| WriteStatus::ServiceCommunicationFailure)?;
-                                // Prune cancelled, superseded or old-epoch local targets first.
-                                restore_policy.targets(arbiter.policy().epochs,now,|id|store.command_status(&worker_boot,id)).map_err(|_|WriteStatus::ServiceCommunicationFailure)?;
-                                let mut settled_reads = BTreeMap::new();
-                                for (id,state) in &snapshot.devices {
-                                    let Some((device,module))=configuration.binding(id) else {continue;};
-                                    if module.kind()!=homesense_core::ModuleKind::Dimmer {continue;}
-                                    if state.quality!=homesense_state::Quality::Confirmed || !state.observed_at_ms.and_then(|at|now.checked_sub(at)).is_some_and(|age|age<max_age) {continue;}
-                                    let mut settled=store.feedback_is_settled_in_epoch(&worker_boot,id,state.observed_at_ms,arbiter.policy().epochs.transport).map_err(|_|WriteStatus::ServiceCommunicationFailure)?;
-                                    if let Some(relay)=&device.supply_relay {
-                                        let Some(supply)=snapshot.devices.get(relay).filter(|s|s.quality==homesense_state::Quality::Confirmed && s.observed_at_ms.and_then(|at|now.checked_sub(at)).is_some_and(|age|age<max_age)) else {continue;};
-                                        let sample=supply.observed_at_ms;
-                                        settled &= store.feedback_is_settled_in_epoch(&worker_boot,relay,sample,arbiter.policy().epochs.transport).map_err(|_|WriteStatus::ServiceCommunicationFailure)?;
-                                    }
-                                    settled_reads.insert(id.clone(),settled);
-                                }
-                                let levels: Vec<_> = snapshot.devices.iter().filter_map(|(id,state)| {
-                                    let (device,module) = configuration.binding(id)?;
-                                    if module.kind()!=homesense_core::ModuleKind::Dimmer || state.quality!=homesense_state::Quality::Confirmed || !state.observed_at_ms.and_then(|at| now.checked_sub(at)).is_some_and(|age| age<max_age) { return None; }
-                                    let Some(homesense_core::Observation::Level(mut level)) = state.observed else { return None; };
-                                    if let Some(relay) = &device.supply_relay {
-                                        let supply = snapshot.devices.get(relay)?;
-                                        if supply.quality != homesense_state::Quality::Confirmed || !supply.observed_at_ms.and_then(|at| now.checked_sub(at)).is_some_and(|age| age < max_age) { return None; }
-                                        match supply.observed {
-                                            Some(homesense_core::Observation::Switch(false)) => level = homesense_core::Percent::new(0).unwrap(),
-                                            Some(homesense_core::Observation::Switch(true)) => {},
-                                            _ => return None,
-                                        }
-                                    }
-                                    match restore_policy.remember_settled(id, level, now, settled_reads.get(id).copied().unwrap_or(false)) {
-                                        true if saved.get(id)!=Some(&level) => Some((id.clone(),level)),
-                                        _ => None,
-                                    }
-                                }).collect();
-                                if !levels.is_empty() {
-                                    store.remember_light_levels(configuration.revision(), &levels).map_err(|_| WriteStatus::ServiceCommunicationFailure)?;
-                                    saved.extend(levels);
-                                }
-                                Ok(saved)
+                                remember_projection(&mut store,&mut restore_policy,&configuration,&worker_boot,arbiter.policy(),now,(&snapshot,max_age))
                             })();
                             let _ = reply.send(result);
                         }
@@ -1267,10 +1378,11 @@ impl Admission {
                                 let _ = arbiter.finish_write(id, false);
                             }
                             write_deadline = None;
-                            let _ = arbiter.storage_failed();
+                            let fault_state=arbiter.storage_failed();
                             principals.clear();
                             let result = store.fail_transport(&worker_boot, millis(clock))
                                 .map_err(|_| WriteStatus::ServiceCommunicationFailure);
+                            audited_transport_failure=result.is_ok() && fault_state.is_ok();
                             let _ = reply.send(result);
                         }
                         Message::Shutdown(reply) => {
@@ -1279,6 +1391,9 @@ impl Admission {
                         }
                         Message::Recover(epoch, revision, reply) => {
                             if reply.is_closed() { continue; }
+                            // A failed recovery read/audit is not a successfully
+                            // audited transport outage, even after an earlier one.
+                            audited_transport_failure=false;
                             let result = (|| -> Result<(), WriteStatus> {
                                 let failure = WriteStatus::ServiceCommunicationFailure;
                                 if !failed || worker_stop.load(Ordering::Acquire)
@@ -1441,12 +1556,12 @@ impl Admission {
                                     if reply.send(Ok(ticket)).is_err() && in_flight.is_some() {
                                         // Delivery raced caller cancellation. Stop; startup recovery
                                         // marks Writing uncertain and never replays the frame.
-                                        failed = true;
+                                        failed = true; audited_transport_failure=false;
                                         let _ = arbiter.storage_failed();
                                     }
                                 }
                                 Err(_) => {
-                                    failed = true;
+                                    failed = true; audited_transport_failure=false;
                                     let _ = arbiter.storage_failed();
                                     let _ =
                                         reply.send(Err(WriteStatus::ServiceCommunicationFailure));
@@ -1467,7 +1582,7 @@ impl Admission {
                                 if audit.is_err()
                                     || arbiter.finish_write(id, complete).is_err()
                                 {
-                                    failed = true;
+                                    failed = true; audited_transport_failure=false;
                                     let _ = arbiter.storage_failed();
                                     Err(WriteStatus::ServiceCommunicationFailure)
                                 } else {
@@ -1488,7 +1603,7 @@ impl Admission {
                                     if !complete {
                                         principals.clear();
                                         failed = true;
-                                        let _ = arbiter.storage_failed();
+                                        audited_transport_failure=arbiter.storage_failed().is_ok();
                                     }
                                     Ok(())
                                 }
@@ -1732,6 +1847,7 @@ impl Admission {
                                                     configuration.motor_command(&intent.device,homesense_core::MotorAction::Stop).map_err(|_|WriteStatus::InvalidValueInRequest)?;
                                                     homesense_core::Command::Motor(motion)
                                                 } else if software_sample || automation && matches!(intent.command,homesense_core::Command::PanelLed(_)|homesense_core::Command::PauseRamp){intent.command}
+                                                else if automation {crate::light_command::plan_automation(module,intent.command).map_err(|_|WriteStatus::InvalidValueInRequest)?}
                                                 else {crate::light_command::plan(module,intent.command).map_err(|_|WriteStatus::InvalidValueInRequest)?};
                                                 expanded.push(homesense_hap::requests::Intent{device:intent.device,command});
                                             }
@@ -1770,7 +1886,7 @@ impl Admission {
                                             Ok(()) => {},
                                             Err(homesense_storage::Error::Conflict | homesense_storage::Error::InvalidAudit) => return Err(WriteStatus::InvalidValueInRequest),
                                             Err(_) => {
-                                                failed = true;
+                                                failed = true; audited_transport_failure=false;
                                                 let _ = arbiter.storage_failed();
                                                 return Err(WriteStatus::ServiceCommunicationFailure);
                                             }
@@ -1895,7 +2011,7 @@ impl Admission {
                                         Err(WriteStatus::InvalidValueInRequest)
                                     }
                                     Err(BatchCommitError::Persistence(_)) => {
-                                        failed = true;
+                                        failed = true; audited_transport_failure=false;
                                         let _ = arbiter.storage_failed();
                                         Err(WriteStatus::ServiceCommunicationFailure)
                                     }
@@ -1904,14 +2020,14 @@ impl Admission {
                             let result=result.and_then(|ids:Vec<u64>|{
                                 if let Some((request,phase,fence,physical))=&native_accepted {
                                     let fence=if *physical {ids.last().and_then(|id|id.checked_add(1)).unwrap_or(*fence)} else {*fence};
-                                    store.native_phase_accepted(request,*phase,&ids,fence,millis(clock)).map_err(|_|{failed=true;let _=arbiter.storage_failed();WriteStatus::ServiceCommunicationFailure})?;
+                                    store.native_phase_accepted(request,*phase,&ids,fence,millis(clock)).map_err(|_|{failed=true; audited_transport_failure=false;let _=arbiter.storage_failed();WriteStatus::ServiceCommunicationFailure})?;
                                 }Ok(ids)
                             });
                             if result.is_err() && let Some((request,before))=&native_attempt
                                 && let Ok(Some(row))=store.native_scene_request(&request.controller,&request.key)
                                 && before.is_none_or(|phase|row.phase>phase)
                                 && store.fail_native_scene(&request.controller,&request.key,millis(clock)).is_err() {
-                                failed=true;let _=arbiter.storage_failed();
+                                failed=true; audited_transport_failure=false;let _=arbiter.storage_failed();
                             }
                             let result = result.map_err(|status| if manual_superseded {
                                 SubmissionFailure::ManualSuperseded
@@ -2089,6 +2205,13 @@ impl Admission {
     }
     // Same trusted snapshot publisher boundary as remember_levels; no external
     // request or device action uses this route to bypass controller checks.
+    /// Trusted HAP publisher: remember settled observations and capture active
+    /// targets in one owner turn. Publication cannot interleave the two reads.
+    pub(crate) async fn hap_projection(&self,revision:u64,transport_epoch:Option<u64>,snapshot:homesense_state::Snapshot,max_age:u64)->Result<HapProjection,WriteStatus>{
+        let (reply,receive)=oneshot::channel();
+        self.sender.try_send(Message::HapProjection(revision,transport_epoch,snapshot,max_age,reply)).map_err(|_|WriteStatus::ResourceBusy)?;
+        receive.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?
+    }
     pub(crate) async fn projection_levels(&self,revision:u64,boot:u128)->Result<RestoreLevels,WriteStatus>{
         let (reply,receive)=oneshot::channel();
         self.sender.try_send(Message::ProjectionLevels(revision,boot,reply)).map_err(|_|WriteStatus::ResourceBusy)?;
@@ -2703,6 +2826,13 @@ impl Admission {
     pub(crate) fn with_source(&self,source:Option<crate::source_auth::Source>)->Self {let mut scoped=self.clone();scoped.source_authorization=source;scoped}
     pub(crate) fn source(&self)->Option<crate::source_auth::Source> {self.source_authorization.clone()}
     pub(crate) fn source_valid(&self)->bool {self.source_authorization.as_ref().is_none_or(|source|source.valid())}
+    /// Coordinator-only snapshot for diagnostics after durable commit, including
+    /// unavailable transport. This does not reopen control or update subscribers.
+    pub(crate) async fn diagnostic_generation(&self,controller:Uuid,revision:u64)->Result<TaskGeneration,WriteStatus> {
+        let (reply,receive)=oneshot::channel();
+        self.sender.try_send(Message::DiagnosticGeneration(controller,revision,reply)).map_err(|_|WriteStatus::ResourceBusy)?;
+        receive.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?
+    }
     pub async fn task_generation(&self) -> Result<TaskGeneration, WriteStatus> {
         let (reply, receive) = oneshot::channel();
         self.sender
@@ -2870,6 +3000,46 @@ mod lifecycle_tests {
         assert!(failed.failed);assert!(!failed.storage_healthy);assert!(!failed.ready());
         assert!(actor.task_generation().await.is_err());
         assert_eq!(failed.queued,0);assert!(!failed.in_flight);
+        actor.shutdown().await.unwrap();std::fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[tokio::test]
+    async fn committed_offline_mapping_has_read_only_generation_without_control_readiness() {
+        let directory=std::env::temp_dir().join(format!("homesense-diagnostic-mapping-{}",Uuid::new_v4()));
+        std::fs::create_dir_all(&directory).unwrap();
+        let path=directory.join("runtime.sqlite");
+        Store::open(&path).unwrap().publish_configuration(None,include_bytes!("../../../config/simulation.json"),ExecutionContext::Simulation,&[]).unwrap();
+        let controller=Uuid::new_v4();
+        let actor=Admission::open(path,Options{context:ExecutionContext::Simulation,..Options::default()},move |id|id==controller).await.unwrap();
+        actor.synchronized(1,1).await.unwrap();
+        let original=actor.task_generation().await.unwrap();
+        let mut configuration:serde_json::Value=serde_json::from_slice(include_bytes!("../../../config/simulation.json")).unwrap();
+        configuration["revision"]=2.into();
+        actor.begin_publication(serde_json::to_vec(&configuration).unwrap(),1,Duration::from_secs(2)).await.unwrap();
+        assert!(actor.diagnostic_generation(controller,1).await.is_err());
+        assert!(actor.diagnostic_generation(controller,2).await.is_err());
+        assert_eq!(actor.commit_publication().await.unwrap(),2);
+        assert!(actor.task_generation().await.is_err());
+        assert!(actor.generation_updates().borrow().is_none());
+        assert!(actor.diagnostic_generation(Uuid::new_v4(),2).await.is_err());
+        assert!(actor.diagnostic_generation(controller,1).await.is_err());
+        assert!(actor.diagnostics(controller,original).await.is_err());
+        let generation=actor.diagnostic_generation(controller,2).await.unwrap();
+        let state=actor.diagnostics(controller,generation.clone()).await.unwrap();
+        assert_eq!(state.epochs.configuration,2);
+        assert!(state.publishing,"physical synchronization still owns the publication control fence");
+        assert!(!state.gateway_ready && !state.ready());
+        let (control,_receiver)=crate::automation_control::channel(controller,generation.clone());
+        let unavailable=control.unavailable(actor.clone(),generation.clone());
+        assert!(matches!(unavailable.request(crate::automation_control::Action::Diagnostics{controller,revision:2}).await.unwrap(),crate::automation_control::Reply::Diagnostics(s) if !s.gateway_ready && !s.ready()));
+        assert!(unavailable.request(crate::automation_control::Action::Start("synthetic".into())).await.is_err());
+        let batch=Batch{controller,intents:vec![homesense_hap::requests::Intent{
+            device:homesense_core::DeviceId::new("simulation:light").unwrap(),
+            command:homesense_core::Command::SetLevel{level:homesense_core::Percent::new(30).unwrap(),transition:homesense_core::LevelTransition::Immediate},
+        }],subscriptions:vec![]};
+        assert!(actor.submit_delayed(generation,batch).await.is_err());
+        assert!(actor.task_generation().await.is_err());
+        assert!(actor.generation_updates().borrow().is_none());
         actor.shutdown().await.unwrap();std::fs::remove_dir_all(directory).unwrap();
     }
 
