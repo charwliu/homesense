@@ -130,7 +130,7 @@
       "stage": "D/E",
       "requirement": "最终集成软件回归",
       "verified_scope": "最终v13冻结842输入完整1153项／172程序、文档、全目标严格Clippy、原88路周期、常驻恢复及两项实际App HTTPS/WSS均通过；旧v21部署证据独立保留。",
-      "remaining_evidence": "最终Mac软件与Linux常驻更新已核验；不是完整Linux单元测试。D/E原语义、手机视觉和集中现场验收仍未完成。",
+      "remaining_evidence": "1153既有Mac回归与Linux正式程序部署检查有效；新增多TCP网关独立控制契约实际失败，修复及最终整合回归待完成。手机视觉、D原语义与现场门槛仍开放。",
       "status": "final_1153_Mac_qualified_and_Linux_production_smoke_deployed",
       "complete_for_current_frozen_input": true,
       "incremental_python_tool_tests_passed": 20,
@@ -159,8 +159,8 @@
       "stage": "E",
       "requirement": "持续服务隔离网关超时与恢复失败，保留原生管理入口",
       "verified_scope": "v21常驻完整1128项、原配对HAP专项和正式AD8常驻生命周期通过；Linux隔离烟测与systemd上线及可信HTTPS就绪核验通过，保留原rev9/Admin/配对。",
-      "remaining_evidence": "实际Apple客户端集中故障验收待恢复；单映射全局禁控不证明多个HomeSense TCP网关可独立控制。",
-      "status": "software_and_continuous_deployment_passed_field_pending",
+      "remaining_evidence": "单GW常驻恢复已部署。两独立TCP网关反例确认A查询超时时，健康B新控制也unknown/零执行，整组重连；需按网关隔离状态、故障和代次并通过严格回归。Apple客户端故障及多GW现场仍待验。",
+      "status": "single_gateway_deployed_multi_gateway_independent_control_counterexample",
       "additional_evidence": "stage-e-browser/runtime-gateway-timeout-root-gap.json",
       "additional_production_counterexample": "stage-e-browser/runtime-feedback-outage-cli-root-check.json",
       "additional_runtime_recovery_evidence": "stage-e-browser/runtime-availability-recovery-root-check.json",
@@ -240,7 +240,8 @@
     "stage-e-browser/indicator-final-integrated-quality-root-check.json": "fadcc7e3a38045718d4a75563c2411380d034c2101c8cdb2db05242afba190af",
     "stage-e-browser/keypad-display-diagnosis-root-check.json": "9f2d5f8f2ff48f040986ecdaf79caca286bc74e01c5a6dc9150842f7ba96104c",
     "stage-e-browser/indicator-final-linux-deployment-root-check.json": "1debd9b3525862852648ee86c15ad2bfd693620f893a6bc38975fb4fd9652312",
-    "stage-e-browser/native-build9-delivery-root-check.json": "af1c181bbe9bf8ebe0a9d14c59aa1249b87994266bcb9e6968d0912feb580215"
+    "stage-e-browser/native-build9-delivery-root-check.json": "af1c181bbe9bf8ebe0a9d14c59aa1249b87994266bcb9e6968d0912feb580215",
+    "stage-e-browser/multi-gateway-isolation-root-gap.json": "17142cb4e80db93f6932a279cf92752bd02a7b96434c07a794a8f91127cb180b"
   },
   "excluded_by_scope": {
     "Siri": "cancelled by user",
@@ -475,5 +476,7 @@
   "latest_Keypad_display_diagnosis": "stage-e-browser/keypad-display-diagnosis-root-check.json",
   "latest_indicator_final_Linux_deployment": "stage-e-browser/indicator-final-linux-deployment-root-check.json",
   "latest_native_build9_delivery": "stage-e-browser/native-build9-delivery-root-check.json",
-  "native_App_phone_update": "build9 signed; one install failed CoreDevice4000; awaiting reliable unlocked USB connection, last observed build8 before attempt"
+  "native_App_phone_update": "build9 signed; one install failed CoreDevice4000; awaiting reliable unlocked USB connection, last observed build8 before attempt",
+  "latest_multi_gateway_runtime_counterexample": "stage-e-browser/multi-gateway-isolation-root-gap.json",
+  "multi_gateway_fault_isolation": "software gap confirmed on final production CLI; exact baseline retained, private architecture/candidate work assigned"
 }

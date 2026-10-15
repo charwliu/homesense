@@ -1,3 +1,5 @@
+2026-10-16 多TCP网关独立隔离新增正式程序反例：两本机AD8总线各8路同步、B初始控制成功；只屏蔽A查询后B仍发送13次反馈，但新B40返回unknown、journal和wire均无新增，A恢复后新B40才成功。服务／HTTP保持、SIGTERM退出0，探针严格契约退出101且无夹具/工作线程错误。源码显示整组owner回收与全局准入门，修复私有进行；原1153既有套件和单GW上线证据范围不扩大。未改现场或放开配置，D/E仍有软件缺口。见[独立隔离反例](evidence/stage-e-browser/multi-gateway-isolation-root-gap.json)。
+
 2026-10-16 原生App统一更新已签名为build9：Root独立核对55源、55共享输入、10份签名包文件，复用已验证冷恢复及原LHIO功能。唯一一次覆盖安装在设备隧道建立时因CoreDevice4000／NWError60超时失败，未卸载／清数据／重复尝试；最后可证手机版本仍是安装前build8，不声称build9已上机。原签名标识和Keychain组保持，待原测试手机可靠连接；独立LED视觉反馈仍未解决。见[App交付核查](evidence/stage-e-browser/native-build9-delivery-root-check.json)。
 
 2026-10-16 最终LED／索引整合已常驻部署：本机仅交叉构建正式Linux二进制，namespace隔离启动与旧版重新打开带索引库通过，不代替完整Linux单测。首次停机备份单元的权限错误触发回退，修正后第二次上线；Root两次可信HTTPS核对同PID246086、0重启、active／enabled／无限期限、rev10就绪、2六格父卡／0独立LED。Root另逐表比较两份停机备份与活动配对／凭据五表，全部内容摘要一致；Admin17／7、配置及配对保持。手机独立LED现象仍待页面／地址确认，未新增场景或墙面规则，D/E不记完成。见[Linux部署根核查](evidence/stage-e-browser/indicator-final-linux-deployment-root-check.json)。

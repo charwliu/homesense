@@ -1,0 +1,74 @@
+{
+  "checked_at": "2026-10-16T01:03:16.035116+08:00",
+  "requirement": "one HomeSense TCP gateway fault must not close independent other gateways or their new controls",
+  "requirement_source": "docs/runtime-availability.md",
+  "status": "production CLI counterexample confirmed; private repair assigned, not implemented or deployed",
+  "source_commit": "9f2f369721806bcab50ddda6a62bd467f7f10a34",
+  "normal_Mac_CLI_sha256": "24f4fa1500cd5e49bd06c4b773663b5ab3b54238a883cace8a701600923a3438",
+  "strict_probe_exit_code": 101,
+  "service_graceful_SIGTERM_exit_code": 0,
+  "probe_errors": 0,
+  "worker_errors": 0,
+  "fixture": {
+    "TCP_gateways": 2,
+    "per_gateway_modules": 1,
+    "profile": "AD8",
+    "same_address_on_separate_buses": "0x11",
+    "query_channels_per_module": 8,
+    "bound_lights_per_bus": 1,
+    "all_endpoints_loopback": true,
+    "startup_rules": 0,
+    "only_fault": "suppress bus-a query replies; bus-b server remains responsive and sends feedback"
+  },
+  "causal_sequence": {
+    "both_gateways_full_fresh_at_start": true,
+    "initial_B30_control_exact_once": true,
+    "healthy_B_feedback_sent_during_A_failure": 13,
+    "healthy_B_feedback_received_not_independently_claimed": true,
+    "B40_API_response_while_A_down": {
+      "outcome": "unknown",
+      "request_id": "independent-b-40",
+      "retry": false
+    },
+    "B40_new_command_journal_rows": 0,
+    "B40_new_wire_frames": 0,
+    "management_HTTP_alive": true,
+    "global_gateway_ready": false,
+    "A_restored_then_fresh_B40_exact_once": true,
+    "B40_HTTP_status": 202,
+    "module_API_status_while_A_down": 503
+  },
+  "current_implementation": {
+    "driver": "one periodic gateway failure ends shared automation drive",
+    "automation_tcp": "drop entire owner and reconnect all registered endpoints",
+    "reconnect": "every attempt uses new global epoch and discards partial connection sets",
+    "admission_and_projection": "global ready/failure fence closes B as well; module API unavailable",
+    "diagnostic_storage_flag": "false during global fault is an observed policy projection, not proof of database corruption"
+  },
+  "repair_constraints": [
+    "retain shared service and current supported cross-gateway scene scope; no independent-service workaround",
+    "preserve same-gateway supply/dimmer restriction; do not add cross-gateway combined light capability",
+    "fresh feedback and new requests for healthy B remain available while failed A stays unavailable",
+    "only affected gateway generations and work are invalidated; no old startup/action/toggle replay on A recovery",
+    "atomic publication, fatal storage errors, credential/source leases, STOP and exact journal outcomes remain authoritative",
+    "initial full synchronization and mixed-target admission semantics require explicit regression, not optimistic stale truth"
+  ],
+  "single_gateway_existing_recovery_regressions": "previous1153 and deployed single-gateway health remain valid in their scopes; this independent contract failed outside that suite",
+  "current_field_configuration_or_binary_changed": false,
+  "field_queries_or_controls": 0,
+  "actual_App_Keypad_symptom": "separate pending observation, not explained by this two-gateway synthetic test",
+  "D_E_complete": false,
+  "artifact_sha256": {
+    "deployment/ngr/private/20261016-multigateway-isolation-root/probe.py": "6473c7df981392ae6ff67d705bddc51d936c8144d6026506544ed584fcea5a9a",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/baseline-v13/result.json": "80f564738b9a92d52cd7f6fe140a7721a56ddf5c7d33386e39f3dd0c033dbc7d",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/baseline-v13/devices.json": "afcafbf8168eb7155434f97d26ad321bde7d4c3aff29d9d0e6d5493b9b084562",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/baseline-v13/automation.json": "0571e032d43676e20332bc58bf4d8c290884c1a9f687bc621c99cda9d6777b6b",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/baseline-v13/initial-ready.json": "9ec24dbee3b5faa77c5bffd1dfdc6ade8971e2c3b0b8589eb4810974c216930e",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/baseline-v13/initial-b-command.json": "9c4f2315450fd801f60ff3b5a6def96714241aee20da83d2098b1f15ea0c70ff",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/baseline-v13/independent-b-control.json": "32f269526b5303319bb30694ca2b3aebe4051a1b2011b38f41967a4273d1c4c3",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/baseline-v13/fresh-b-command.json": "bedf78e1dd03e0cce9832c41fc7b04d017c0d2705f08170cd9c195481f625e72",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/baseline-v13/frames.json": "07caf5ee074722314e602d4cd5df0a829d54a064117cb2b6cb9878fea6ab8630",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/baseline-v13/feedback.json": "a20472ce531173b14297943f889fb751f4c06c74802505b0ae7942c5b5624c59",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/baseline-v13/server.log": "77684c32b8581f482d339e7291430e91df93e0174b7c7d51c6b4bae3241dcf60"
+  }
+}
