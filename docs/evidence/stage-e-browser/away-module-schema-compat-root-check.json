@@ -1,0 +1,39 @@
+{
+  "status": "draft_schema25_to26_history_and_older_reader_guard_verified_offline",
+  "platform": "Mac native compiled old and candidate storage implementations",
+  "old_real_schema": 25,
+  "new_real_schema": 26,
+  "original_tables_rows_preserved": 24,
+  "original_configuration_and_ordinary_command_history_preserved": true,
+  "original_DDL_preserved": true,
+  "schema_additions": [
+    [
+      "index",
+      "module_off_device"
+    ],
+    [
+      "table",
+      "module_off_effect"
+    ],
+    [
+      "trigger",
+      "module_off_effect_delete"
+    ],
+    [
+      "trigger",
+      "module_off_effect_update"
+    ]
+  ],
+  "old_actual_implementation_returns_UnsupportedSchema26": true,
+  "old_open_rejection_db_bytes_equal_in_both_actual_executions": true,
+  "initial_checker_expected_wrong_DDL_object_count_corrected": true,
+  "old_helper_sha256": "42b9e700bece8a28c2ede05bc38209568d1f1b95328ccf4b5fd7f7196a333126",
+  "new_helper_sha256": "8cc372d1a253c0de62272dd1b3cf8fd4fd5931b0a0db0cbdb048c6c4f84912e9",
+  "candidate_store_source_sha256": "10e6080054881336ca740435ac621f8429529d7d213c30274150fc210c432ae7",
+  "network_and_transport_created": false,
+  "field_state_accessed": false,
+  "full_runtime_or_field_backup_restore_qualification_claimed": false,
+  "DE_complete": false,
+  "initial_checker_stopped_before_old_helper_invocation": true,
+  "no_actual_database_file_mutation_observed": true
+}

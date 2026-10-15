@@ -1,0 +1,35 @@
+{
+  "date": "2026-10-14",
+  "commit": "d57fd452bb12677b3eb7220f4aca99743d8e439f",
+  "source_tree": "14f023d53fc9c6e7470667ffa96d8cea89610ecf",
+  "source_archive_sha256": "bc7ded1a165dc29a78e3f1d57aa9fb305202edf8e00b77bfeceeac6ade75e2aa",
+  "all_clean_archive_files_unchanged": 1056,
+  "exact_linux_binary_sha256": "251b92c5d0038d2e5b5f4114ba9cde2872694feeb49bb87065c287c013883aa8",
+  "independent_static_handler_tests_passed": 3,
+  "actual_loopback_HTTPS_assets": [
+    {
+      "path": "/app.js",
+      "sha256": "c0b905a21fea790ccf7ab9e50372adf52223ae5aac11f393a5bb4902aefcf66b",
+      "no_store": true,
+      "exact_version_bytes": true,
+      "stale_version_denied": 409
+    },
+    {
+      "path": "/draft-json.js",
+      "sha256": "866ce0a43c0f3ffac4068850850679b12e4832787ed672257fbf5cd4266c872c",
+      "no_store": true,
+      "exact_version_bytes": true,
+      "stale_version_denied": 409
+    }
+  ],
+  "version_gate_not_generic_query_allowance": true,
+  "server_WSS_natural_endpoint_and_idle_passed": true,
+  "shipped_JS_Node_VM_received_exact_capture_without_HTTP_refresh": true,
+  "browser_or_iPad_executed": false,
+  "old_script_counterfactual_not_field_attribution": true,
+  "actual_iPad_loaded_bytes_not_proven": true,
+  "actual_iPad_update_gap_not_closed": true,
+  "physical_gateway_connected": false,
+  "field_deployed": false,
+  "full_D_E_complete": false
+}

@@ -1,0 +1,60 @@
+{
+  "checked_bj": "2026-10-15T02:07:55.528912+08:00",
+  "frozen_source_files_verified": 1077,
+  "base_files_verified": 1071,
+  "code_installed_in_actual_workspace": true,
+  "modified_original_files": 17,
+  "added_files": 6,
+  "all_23_installed_files_equal_frozen_candidate": true,
+  "independent_three_patch_reproduction_all_files_equal": true,
+  "frozen_candidate_scoped_tests_passed": 198,
+  "actual_workspace_test_groups": {
+    "shared-test-import-final.log": 54,
+    "shared-test-config-final.log": 19,
+    "shared-test-tracking-runtime-final.log": 13,
+    "shared-test-runtime-regression-final.log": 33,
+    "shared-test-hap-roles-final.log": 10,
+    "shared-test-native-core-final.log": 5,
+    "shared-test-native-observation-final.log": 62,
+    "shared-test-native-selection-cache-final.log": 2
+  },
+  "actual_workspace_scoped_tests_excluding_wire": 198,
+  "actual_workspace_encrypted_wire_tests": 1,
+  "actual_workspace_scoped_tests_passed": 199,
+  "extra_existing_test": "full_source_event_preserves_branch_actions_and_timed_ramp_reference",
+  "candidate_tests_missing_from_actual": 0,
+  "strict_clippy_all_target_scopes_passed": 2,
+  "independent_final_source_identity_readonly_constructor_tests": 1,
+  "full_workspace_regression_claimed": false,
+  "encrypted_EVENT_values": [
+    true,
+    false,
+    null,
+    true
+  ],
+  "GET_after_subscribe": 0,
+  "read_side_commands": 0,
+  "readonly_false_write_status": -70404,
+  "actual_Apple_unknown_event_display_validated": false,
+  "original_source_tracking_modes_approved": false,
+  "original_source_scene_program_variable_approvals_added": [
+    0,
+    0,
+    0
+  ],
+  "remaining_D_scope": [
+    65,
+    208,
+    24
+  ],
+  "Immediate_HAP_Web_action_adapter_complete": false,
+  "earlier_silent_writable_activity_boundary_closed_by_separate_roles": true,
+  "old_direct_false_planner_test_not_counted_as_green": true,
+  "unrelated_product_edits_preserved": true,
+  "README_feature_row_and_interface_docs_reconciled_separately": true,
+  "staged": false,
+  "committed": false,
+  "pushed": false,
+  "field_binary_or_configuration_changed": false,
+  "complete_D_E": false
+}

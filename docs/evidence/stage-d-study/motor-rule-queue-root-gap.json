@@ -1,0 +1,111 @@
+{
+  "date": "2026-10-14",
+  "scope": "Frozen development motor predicate runtime only, not the field Web cache binary",
+  "counterexamples": [
+    {
+      "case": "predicate_expired_after_admission",
+      "predicate_ms": 100,
+      "queue_wait_ms": 200,
+      "late_dispatch_ticket": true
+    },
+    {
+      "case": "another_authorized_subject_changed_movement_after_admission",
+      "predicate_ms": 1000,
+      "other_manual_open_written": true,
+      "old_stopped_guard_output_dispatched": true
+    },
+    {
+      "case": "fresh_own_ordered_motor_and_relay_batch",
+      "planning_known": true,
+      "admission_rejected": "InvalidValueInRequest"
+    }
+  ],
+  "passed": 0,
+  "failed": 3,
+  "all_frozen_product_files_unchanged": 1062,
+  "fix_pending": false,
+  "physical_transport_or_wire_executed": false,
+  "new_original_rules_enabled": 0,
+  "not_current_field_binary": true,
+  "full_D_E_complete": false,
+  "same_three_tests_after_fix": {
+    "passed": 3,
+    "failed": 0,
+    "ignored": 0,
+    "test_bytes_unchanged": true,
+    "frozen_product_input_manifest_sha256": "f040bc5a2f7e072bdd4494e3a158c7bbd2597e7a04c485c6eba5f2cb884231bd",
+    "log_sha256": "c94472e616f902fe1411a1776faa04a22e8f1531cdc38e9532d7104263a26c8d",
+    "no_physical_transport_or_wire": true,
+    "not_final_integrated_committed_input": true
+  },
+  "final_committed_quality": {
+    "commit": "08b2ad16d1beec0936fede13295050a8a19a9842",
+    "workspace_result_blocks": 147,
+    "workspace_tests_passed": 877,
+    "failed": 0,
+    "ignored": 0,
+    "filtered": 0,
+    "strict_workspace_all_targets_clippy_log_verified": true,
+    "full_compiled_source_manifest_matches_commit_except": [
+      "CHANGELOG.md",
+      "docs/motor-rule-candidates.md"
+    ],
+    "documentation_only_differences": true,
+    "private_root_tests_not_summed_with_workspace": true,
+    "all_previous_failures_retained": true,
+    "field_deployed": false,
+    "new_original_rules_enabled": 0,
+    "full_semantic_scope_unchanged": {
+      "scenes": 65,
+      "programs": 208,
+      "variables": 24
+    }
+  },
+  "final_same_three_tests": {
+    "passed": 3,
+    "failed": 0,
+    "test_bytes_unchanged": true,
+    "exact_product_inputs": 22,
+    "log_sha256": "8cca9ac369bfb818b8df224779560a7f91a5b06890d7f3c7a7ed6112564a7213",
+    "same_source_code_as_final_commit": true,
+    "no_physical_io": true
+  },
+  "linux_clean_build": {
+    "commit": "08b2ad16d1beec0936fede13295050a8a19a9842",
+    "source_files": 1064,
+    "passed": true,
+    "native_runtime_not_yet_verified": true,
+    "field_deployed": false
+  },
+  "linux_same_three_counterexamples": {
+    "commit": "08b2ad16d1beec0936fede13295050a8a19a9842",
+    "runtime": "native NGR Linux x86_64",
+    "passed": 3,
+    "failed": 0,
+    "ignored": 0,
+    "filtered": 0,
+    "targets": [
+      {
+        "test_target": "root_motor_lease_queue",
+        "binary_sha256": "74ed52cb6505c443500f7ab8a0f67e7540ffcd11c729da0c79c47f11fe8a602f",
+        "log_sha256": "4807dc8b3eb104132bc40f1dceb55afe3874d5ec44c5a3a6682690163fbec0f5"
+      },
+      {
+        "test_target": "root_motor_lease_foreign",
+        "binary_sha256": "f7d9adb931182ddf978a9db2bd996dde1d7b6a1c528073076deb878b14dcba63",
+        "log_sha256": "2598b35cacb944a5dbde89f81fec557c050dff9ac1ae6295da1bb24d3c2e1c3d"
+      },
+      {
+        "test_target": "root_motor_lease_own",
+        "binary_sha256": "fa1ec2489a8c8f310cc3a47ec0b04879c31024ab5ac33a3570207d2cb9299e17",
+        "log_sha256": "7c3f6ae9c41d75a4575f2e14b3f5b7958455fbf3d994325cd8aeb768a36fa7d9"
+      }
+    ],
+    "full_product_source_files_unchanged": 1064,
+    "counterexample_test_bytes_unchanged": true,
+    "physical_io": false,
+    "field_service_absent_before_after": true,
+    "not_full_linux_workspace": true,
+    "original_rules_enabled": 0
+  }
+}

@@ -1,0 +1,62 @@
+{
+  "scope": "original 96-port disabled draft executed only against a loopback synthetic gateway; no original source approval or field activation",
+  "source_scene": "control4:scene:3:9",
+  "binary_sha256": "d9e44c7b173b73433824a1d3b7f123b338e0f9c3296825c8ebb1641294ee2cd2",
+  "network": "unshare -Urn; verified lo only and no route",
+  "original_frozen_sources_exact_after": 1178,
+  "all_16_module_definitions_present": true,
+  "original_20_device_definitions_preserved": true,
+  "existing_four_combined_light_supply_relationships_preserved": true,
+  "lighting_modules": 12,
+  "physical_ports": 96,
+  "scope_action_references": "stable module IDs and original physical binding IDs",
+  "actual_loopback_HTTPS_Bearer_API": true,
+  "HAP_or_Apple_hardware_exercised": false,
+  "synthetic_verification_not_physical_verification": true,
+  "results": {
+    "field_access": false,
+    "source_scope": "original scene3:9, 96 lighting or lighting-supply ports",
+    "binary_sha256": "d9e44c7b173b73433824a1d3b7f123b338e0f9c3296825c8ebb1641294ee2cd2",
+    "synthetic_model_verification_only": true,
+    "away_module_frames": 12,
+    "away_per_channel_control_frames": 0,
+    "immutable_effects_exact_original_bindings": 96,
+    "visible_lights_confirmed_off": 92,
+    "existing_combined_supply_pairs": 4,
+    "five_scene_states_off": true,
+    "five_scene_leds_green": true,
+    "duplicate_request_replayed_controls": 0,
+    "single_combined_light_restored_percent": 37,
+    "other_94_physical_outputs_remain_off": true,
+    "motor_frames": 0,
+    "restore_control_frames": [
+      "ae12b425ee",
+      "ae0304f1ee"
+    ],
+    "passed": true
+  },
+  "module_control_bytes": 60,
+  "module_receipt_statuses": {
+    "written": 12
+  },
+  "evidence_sha256": {
+    "original-scope-loopback-v2/result.json": "cf1081f54837b4a237efb143f40638a2fb7a178159353b015c44e8ab56e6025e",
+    "original-scope-loopback-v2/frames.json": "4d87d0a217edc0473c783f9f0a694434d151f34bc7210d207b18328dd850bd53",
+    "original-scope-loopback-v2/away-view.json": "567626154b77ef4ea513f9b5729252dc43a397d46225754f45a443aac6cad179",
+    "original-scope-loopback-v2/server.log": "cd20ad76f322a777867243309fa5f5170972145765eac3ce624c5f262d07657f",
+    "original-scope-loopback/result.json": "bdf9a305b96f11a47434b114bd8b9b4d0c1ccbfe2971cefde96f9ff30efd8ad3",
+    "original-scope-loopback/frames.json": "1e2324dbdfb4bef2d3072a282f4924aa1049feb21d1bfdd08927524081d6e6c8",
+    "verify_original_scope_loopback.initial.py": "12bbe07088570447315521eca19f1afd4d90f0c20d6de9ea2362a65f1c754bd8",
+    "verify_original_scope_loopback.py": "e8cfd6a631b2bda5ba977325a81c8521b57b0f3a8d600671f23983edc14fb948"
+  },
+  "field_commands": 0,
+  "configuration_published": false,
+  "source_semantic_approvals_added": 0,
+  "D_E_complete": false,
+  "earlier_fixture_failure": {
+    "preserved": true,
+    "cause": "preceding combined-light seed supply command not yet written at phase boundary",
+    "corrected_gate": "wait both returned seed command IDs written",
+    "product_changes": 0
+  }
+}

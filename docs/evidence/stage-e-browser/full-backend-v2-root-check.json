@@ -1,0 +1,47 @@
+{
+  "checked_bj": "2026-10-15T14:41:27.259690+08:00",
+  "source_count": 1185,
+  "source_matches_root_integrated": true,
+  "Mac": {
+    "workspace_all_targets": true,
+    "test_threads": 1,
+    "test_process_terminal_exit": 0,
+    "terminal_evidence": "deployment chat command exec-da91e991-6c9e-4b99-a857-5890d926377c completed exit0; duration443824ms",
+    "result_blocks": 163,
+    "passed": 1055,
+    "failed": 0,
+    "ignored": 0,
+    "measured": 0,
+    "filtered": 0,
+    "actual_MachO_programs_rehashed": 163,
+    "strict_workspace_all_targets_clippy": true,
+    "doc_tests_in_this_command": false,
+    "separate_doc_test_command": {
+      "workspace": true,
+      "terminal_exit": 0,
+      "result_blocks": 10,
+      "actual_tests": 0,
+      "passed": true,
+      "not_added_to_1055": true
+    }
+  },
+  "Linux": {
+    "local_cross_compile_complete": true,
+    "production_ELF_sha256": "397095d73c37730a97489b34fdb57ebbecf02c219948e67cd8cac684ddbd0e51",
+    "current_integrated_full_tests_executed": false
+  },
+  "source_manifest_sha256": "10b69e67814bb80ab4fe85b4fffaacaaac12f236c747a19409475255b7ed92b4",
+  "logs_sha256": {
+    "mac-full-test-v2.log": "b6a880222bb1a07d83eca25016be1901ea8bf0dc4e22012e5b02e9b2536cf5f9",
+    "mac-clippy-v2.log": "00ab56e441b290e2692f71d81fe2129315a99f3cca9f0ccb81f7d8dbc996a47d",
+    "zigbuild-v2.log": "5782aea295ad9a8774f3886bf5670c7d1fa5628b37ba3f30ea354ad68619c34f",
+    "deployment-v2-mac-doc-tests.log": "4bf5345ec06a42ccc158d9b921b3f6bf4fe0e81f8164343243b9445d1bb31bc6"
+  },
+  "test_binaries_manifest_sha256": "d5b8914d4cda5280a7a1ca37b65262b4f2222b8627248ebb9a4d60e2c4d28b2b",
+  "runtime_config": {
+    "rev9_publication_blocked_by_auto_review": true,
+    "rev8_retained": true,
+    "root_changed_runtime": false
+  },
+  "full_D_E_complete": false
+}

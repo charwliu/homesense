@@ -1,0 +1,46 @@
+{
+  "scope": "first complete final1179 frozen input Linux default workspace run; retained capacity failure",
+  "archive_sha256": "2c681dd8a8ac5e3ef373dbcf8da98d981299f69ac736230a966b20879b1fedcc",
+  "source_files": 1179,
+  "all_source_files_exact_before_after": true,
+  "full_test_exit": 101,
+  "passed": 1035,
+  "failed": 1,
+  "ignored": 0,
+  "filtered": 0,
+  "result_blocks": 172,
+  "actual_ELF_binaries": 162,
+  "failure": "observed_transport::module_query_tests::capacity96_documented_modules_at100ms_and_mixed_at20ms_stay_fresh",
+  "failure_case": {
+    "switch_modules": 7,
+    "dimmer_modules": 5,
+    "physical_ports": 96,
+    "write_interval_ms": 20,
+    "max_age_limit_ms": 5000,
+    "observed_age_ms": 5512,
+    "quality": "Stale",
+    "phase_peaks": {
+      "submit_ms": 889,
+      "step_increment_ms": 1040,
+      "receive_increment_ms": 2,
+      "refresh_increment_ms": 19
+    }
+  },
+  "failure_root_cause_proven": false,
+  "previous_V4_pass_does_not_override_this_result": true,
+  "earlier_targeted150_and15_results_not_added": true,
+  "field_access": false,
+  "field_readonly_user_paused": true,
+  "D_E_complete": false,
+  "log_sha256": "cd284fea5ae87c8c15d7c5a49ce113aab70b35ce095efa79b6b5342b17115e8e",
+  "subsequent_same_input_cold_full": {
+    "passed": 1035,
+    "failed": 1,
+    "result_blocks": 172,
+    "exit": 101,
+    "failure": "service::hap_fault_tests::simulation_hap_failure_keeps_web_and_scene_execution_alive",
+    "capacity_case_passed": true,
+    "root_cause_proven": false,
+    "proof": "away-cold-full-observation-root-check.json"
+  }
+}

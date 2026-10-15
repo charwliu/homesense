@@ -1,0 +1,62 @@
+{
+  "checked_bj": "2026-10-15T13:26:07.342943+08:00",
+  "source_files": 1184,
+  "source_archive_sha256": "25ef230f8d31021007ef8fe40d2643aed3b31648cab951f2451ace9e5476d29a",
+  "change": "Read Switch/Dimmer feedback age on every device snapshot, before combined-light projection; no feedback history or timestamps mutated",
+  "default_max_age_ms": 5000,
+  "boundary": "age >= max_age_ms is Stale; missing or future observation time is Stale; requested bound must be 1..5000",
+  "production_probe_source_sha256": "4d06ebff5cbe1085e90fe4024212e2236e5cf4c10fdb919316c664374b4a5e40",
+  "baseline_production_age_ms": 5208,
+  "baseline_device_quality": "Confirmed",
+  "platforms": {
+    "mac": {
+      "full_passed": 1041,
+      "result_blocks": 162,
+      "doc_blocks": 10,
+      "strict_clippy_exit": 0,
+      "actual_test_binaries": 162,
+      "production_probe": {
+        "age_ms": 5204,
+        "captured_ms": 5204,
+        "control_submissions": 0,
+        "device_quality": "Stale",
+        "max_age_ms": 5000,
+        "module_quality": "stale",
+        "module_ready": true,
+        "network_connections": 0,
+        "observed_at_ms": 0,
+        "raw_cached_quality": "Confirmed",
+        "raw_observation": "Some(Level(Percent(37)))",
+        "transport_constructed": false
+      },
+      "independent_review_sha256": "c0d3f75b325a5d96f21d310010fd0089c8633883c48fa00b47bf021edfae88f3"
+    },
+    "linux": {
+      "full_passed": 1041,
+      "result_blocks": 162,
+      "doc_blocks": 10,
+      "strict_clippy_exit": 0,
+      "actual_test_binaries": 162,
+      "production_probe": {
+        "age_ms": 5214,
+        "captured_ms": 5214,
+        "control_submissions": 0,
+        "device_quality": "Stale",
+        "max_age_ms": 5000,
+        "module_quality": "stale",
+        "module_ready": true,
+        "network_connections": 0,
+        "observed_at_ms": 0,
+        "raw_cached_quality": "Confirmed",
+        "raw_observation": "Some(Level(Percent(37)))",
+        "transport_constructed": false
+      },
+      "independent_review_sha256": "b2df876df999268b9deaf0654ce46411685dc81b19aa7b600b6b0cc4d345dd7e"
+    }
+  },
+  "mac_initial_full": "sandbox localhost bind PermissionDenied; unchanged source full rerun outside sandbox passed",
+  "test_count_note": "--all-targets has 162 blocks; --doc has 10 zero-test blocks; total executed tests 1041 on each platform; focused tests overlap",
+  "physical_acceptance": false,
+  "old_capacity_5512ms_stability_gap_closed": false,
+  "capacity_phase_analysis_sha256": "558c122512f6047a9a2ee9255045dfa80a2a6cea781752f33d6930851e9b3534"
+}

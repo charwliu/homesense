@@ -1,0 +1,42 @@
+{
+  "checked_bj": "2026-10-15T04:29:58.956355+08:00",
+  "scope": "two actual GET/SQL-only sampled revision8 segments, with an explicit intervening gap",
+  "first_segment": {
+    "checked_bj": "2026-10-15T04:22:55.748713+08:00",
+    "sample_count": 202,
+    "healthy_samples": 202,
+    "first_sample_bj": "2026-10-14T23:43:06.815028+08:00",
+    "last_sample_bj": "2026-10-15T01:29:29.081724+08:00",
+    "sampled_duration_seconds": 6382.267,
+    "max_sample_gap_seconds": 32.744,
+    "observer_actual_process_missing": true,
+    "failure_bj": "2026-10-15T01:30:00.219591+08:00",
+    "failure": "/api/v1/scenes HTTP503",
+    "service_and_deadline_supervisor_owned_live": true,
+    "current_health_ready": true,
+    "current_fresh_channels": 64,
+    "no_observer_physical_commands": true
+  },
+  "resumed_segment": {
+    "checked_bj": "2026-10-15T04:29:14.468416+08:00",
+    "owned_service_supervisor_observer_live": true,
+    "first_new_sample_bj": "2026-10-15T04:25:28.310278+08:00",
+    "last_new_sample_bj": "2026-10-15T04:29:10.083617+08:00",
+    "samples": 8,
+    "healthy_samples": 8,
+    "read_failures": 0,
+    "latest_fresh_channels": 64,
+    "new_failure_file_present": false,
+    "deadline_bj": "2026-10-15T08:00:00+08:00",
+    "physical_commands_sent": 0,
+    "no_sampling_gap_backfilled": true,
+    "script_sha256": "b54b73c08c78a975481b935910f9f528abefcd20e5de1299f0db375bce23b7f2",
+    "synthetic_observer_cases_passed": 4,
+    "old_failure_and_samples_retained": true,
+    "actual_E2_boot_unchanged": true
+  },
+  "deadline_termination_not_observed": true,
+  "full_overnight_continuity_not_proven": true,
+  "not_72_hour_acceptance": true,
+  "complete_D_E": false
+}

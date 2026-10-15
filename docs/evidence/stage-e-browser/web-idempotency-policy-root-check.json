@@ -1,0 +1,37 @@
+{
+  "checked_bj": "2026-10-15T06:29:53.171893+08:00",
+  "status": "implemented_in_shared_worktree_and_software_qualified",
+  "candidate_archive_sha256": "0e16291c7f75c313268d1be7dc7d32a0cec6b9a4f5fffa8a2c82ede33bf52956",
+  "candidate_files": 1097,
+  "candidate_workspace_passed": 992,
+  "actual_workspace_passed": 993,
+  "actual_result_blocks": 165,
+  "all_target_strict_clippy_passed": true,
+  "actual_frontend_checks_passed": 19,
+  "fixed_archive_linux_release_and_six_test_ELFs_verified": true,
+  "fixed_archive_linux_targeted_tests_passed": 31,
+  "Linux_full_workspace_qualified": false,
+  "all_patch_layers_reconstructed_exact": true,
+  "old_management_client_assertions_preserved": true,
+  "single_existing_async_clock_test_corrected": true,
+  "production_estimator_unchanged": true,
+  "original_semantic_approvals_added": 0,
+  "field_deployed": false,
+  "new_real_client_acceptance_pending": true,
+  "studio_web_user_paused": true,
+  "remaining_original_scope": {
+    "scenes": 65,
+    "programs": 208,
+    "variables": 24
+  },
+  "complete_D_E": false,
+  "current_shared_vs_frozen_Linux_scope": {
+    "fixed_archive": "0e16291c7f75c313268d1be7dc7d32a0cec6b9a4f5fffa8a2c82ede33bf52956",
+    "actual_shared_archive": "6f84f147c28e7b4f746597c5627c649739e3e84c6846c8aaf10483db09772bcc",
+    "actual_shared_file_count": 1154,
+    "preserved_existing_product_paths_different": 30,
+    "only_clock_fixture_difference": false,
+    "full_actual_Linux_verification_pending": true,
+    "Mac_993_actual_product_inputs_match": true
+  }
+}

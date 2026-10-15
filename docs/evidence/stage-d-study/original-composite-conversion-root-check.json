@@ -1,0 +1,35 @@
+{
+  "checked_utc": "2026-10-14T12:11:44.625278+00:00",
+  "commit": "08b2ad16d1beec0936fede13295050a8a19a9842",
+  "explicit_combined_motor_and_fade_entry": true,
+  "events_converted": 215,
+  "previous_motor_only_events_unchanged": 214,
+  "test_passed": 1,
+  "test_failed": 0,
+  "default_converter_gate_unchanged": true,
+  "synthetic_calibration_only": true,
+  "original_semantic_approvals_added": 0,
+  "original_rules_enabled": 0,
+  "physical_io": false,
+  "full_D_E_complete": false,
+  "remaining_semantic_scope": {
+    "scenes": 65,
+    "programs": 208,
+    "variables": 24
+  },
+  "fixture_diagnostic_warning_retained": true,
+  "all_drafts_disabled": true,
+  "fade_profile_review_not_added": true,
+  "native_linux": {
+    "commit": "08b2ad16d1beec0936fede13295050a8a19a9842",
+    "binary_sha256": "4574bce2945b886dafa4bf125a50dd0ea23ab960eb7c7b2a28bdbaecaed6b7f5",
+    "log_sha256": "72bfe87727b4cc9e5255110ccbec697cd1e457d765bf8b1bdfbdc6ca28800e65",
+    "output_sha256": "195374099d5a56e2ae4333be9f25ca34554cde307f6f156766d97f011c1006c5",
+    "mac_export_byte_identical": true,
+    "compiled_events": 215,
+    "root_test_count": 1,
+    "physical_io": false,
+    "all_fragments_disabled": true,
+    "not_full_linux_workspace": true
+  }
+}

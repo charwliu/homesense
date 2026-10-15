@@ -1,0 +1,154 @@
+{
+  "scope": "semantic fade test clock and fidelity correction; complete fixed-input software runs, physical acceptance remains separate",
+  "source_archive_sha256": "2b62cc6c81d78141caaffc26b3845cd5061882cd0d7496e15b53e85e9a0b0320",
+  "source_files": 1180,
+  "changed_paths": [
+    "crates/homesensed/src/admission.rs",
+    "crates/homesensed/src/lib.rs",
+    "crates/homesensed/tests/study_runtime.rs",
+    "crates/homesensed/src/fade_clock_tests.rs"
+  ],
+  "all_original_sources_exact_before_after_both_platforms": true,
+  "production_clock": "std::time::Instant alias; test-time constructor and manual clock only cfg(test), crate-private",
+  "production_admission_body_identical_after_alias_and_forwarding_normalization": true,
+  "production_software_fade_source_unchanged": true,
+  "old_semantic_tests_moved": [
+    "dropping_unfinished_software_fade_closes_output_admission",
+    "configured_fade_prepares_from_feedback_and_never_falls_back"
+  ],
+  "old_assertions_preserved": 15,
+  "original_integration_tests": 112,
+  "remaining_integration_tests": 110,
+  "all_other_integration_source_bytes_unchanged": true,
+  "new_unit_test_count": 3,
+  "positive_tests_keep_original_duration_interval_lateness_budget": {
+    "duration_ms": 200,
+    "interval_ms": 50,
+    "lateness_ms": 100,
+    "logical_samples": 4
+  },
+  "new_or_strengthened_assertions": [
+    "unfinished drop closes admission before transport can fail",
+    "exactly four scheduled positive samples complete",
+    "fade at300ms remains pending, at301ms fails",
+    "producer cancellation and dispatch expiry both persist cancellation without Written or Observed",
+    "failure stays terminal on repeated tick"
+  ],
+  "Linux": {
+    "full": {
+      "exit": 0,
+      "result_blocks": 172,
+      "counts": [
+        1038,
+        0,
+        0,
+        0
+      ],
+      "log_sha256": "b2e22a907ca019b87fb0e7e1f9386282a3f92b593c6873ed9919f4c61d080d78"
+    },
+    "workspace_all_targets_strict_Clippy_exit": 0,
+    "production_library_check_exit": 0,
+    "targeted": {
+      "exit": 0,
+      "result_blocks": 1,
+      "counts": [
+        3,
+        0,
+        0,
+        210
+      ],
+      "log_sha256": "957d7afe25a625a6323441a78f53d3bb9738575a6943da9197b31cc18d7367a6"
+    },
+    "negative_no_drop_close": {
+      "exit": 101,
+      "result_blocks": 1,
+      "counts": [
+        0,
+        1,
+        0,
+        212
+      ],
+      "log_sha256": "71ef3bae3c214bf3d178da2d52406a6e7cd60f4b65ff2b6065c16ee97691b0a2"
+    },
+    "negative_no_fade_expiry": {
+      "exit": 101,
+      "result_blocks": 1,
+      "counts": [
+        0,
+        1,
+        0,
+        212
+      ],
+      "log_sha256": "4cb3d33daa7887ab88af78d58e9c855c29b6f558fd458f078f0aaa1f2573137e"
+    },
+    "actual_identity": {
+      "actual_ELF64_x86_64_rehashed": 162,
+      "all1180_sources_still_exact": true,
+      "field_access": false
+    }
+  },
+  "Mac": {
+    "full": {
+      "exit": 0,
+      "result_blocks": 172,
+      "counts": [
+        1038,
+        0,
+        0,
+        0
+      ],
+      "log_sha256": "33d1186d8dbddacbb17d86bdd1ec9f8bb686d866735d57ed271003c28435c5e2"
+    },
+    "workspace_all_targets_strict_Clippy_exit": 0,
+    "actual_identity": {
+      "actual_MachO64_arm64_rehashed": 162,
+      "field_access": false
+    }
+  },
+  "overlapping_targeted_tests_not_added_to_full_totals": true,
+  "formerly_failing_two_semantic_contracts_now_checked_with_same_bounds_and_stronger_assertions": true,
+  "old_Mac_complete_failures_and_controlled_diagnosis_retained": true,
+  "old_host_scheduling_or_storage_pause_exact_cause_not_claimed": true,
+  "previous_real_time_capacity_stability_gap_closed": false,
+  "shared_scoped_merge": {
+    "merged_paths": [
+      "crates/homesensed/src/admission.rs",
+      "crates/homesensed/src/lib.rs",
+      "crates/homesensed/tests/study_runtime.rs",
+      "crates/homesensed/src/fade_clock_tests.rs"
+    ],
+    "all_other_original_inputs_preserved": true,
+    "current_non_document_inputs_match_frozen_candidate": true,
+    "index_bytes_unchanged": true,
+    "committed": false,
+    "field_deployed": false
+  },
+  "current_complete_workspace_run_gate_passed": true,
+  "full_D_E_complete": false,
+  "field_readonly_user_paused": true,
+  "studio_Web_user_paused": true,
+  "field_queries_or_controls": 0,
+  "new_source_semantic_approvals": 0,
+  "new_original_rules_enabled": 0,
+  "remaining_original_source_scope": {
+    "scenes": 65,
+    "programs": 208,
+    "variables": 24
+  },
+  "artifact_sha256": {
+    "candidate-manifest.json": "5b0ca3fbc5b73fa847ab5bc94f3a556064a816a180235b058511620d117348ad",
+    "candidate.patch": "b4e3e514ea0726d5330a59cbc5ebcf8f2ed0d293fed089b8196495e181424c91",
+    "terminal.json": "793c586c8c63a68baf64ad2a6c8de73f297d072c6e0b6d37df4fafc5267ed1c1",
+    "full.log": "b2e22a907ca019b87fb0e7e1f9386282a3f92b593c6873ed9919f4c61d080d78",
+    "full-binaries.json": "f05ed25a5cd290c671f7eea275a787b6466b98a570aa6edcf588c622cdf56454",
+    "root-final-identity.json": "5a90403c7d8166369ab2d4da530ba7de7f1807da337f7e741b54329b758902eb",
+    "mac-terminal.json": "09b4e6dca852e74522f738536fd5c2ab967317dfd119e59bbf1208363880483b",
+    "mac-full.log": "33d1186d8dbddacbb17d86bdd1ec9f8bb686d866735d57ed271003c28435c5e2",
+    "mac-actual-binaries.json": "56ba2ea7274d4543806d774acf384dd50cac2c9469a897d342c3dbb18de885f6",
+    "mac-final-identity.json": "d6545cb10c27981d47cda0cc88952784e73e574c26cb4769a6964fbd4ccce71a",
+    "test-placement-review.json": "e6fff59f470b70e8ac34ee8fa483366e902b243d641e5e09614437fe0d5d63ae",
+    "negative-no-drop-close.log": "71ef3bae3c214bf3d178da2d52406a6e7cd60f4b65ff2b6065c16ee97691b0a2",
+    "negative-no-fade-expiry.log": "4cb3d33daa7887ab88af78d58e9c855c29b6f558fd458f078f0aaa1f2573137e",
+    "shared-scoped-merge.json": "c78622b916b7c6f18818626a0911a91fb7aa9971024741c73cdac3ebe745e566"
+  }
+}

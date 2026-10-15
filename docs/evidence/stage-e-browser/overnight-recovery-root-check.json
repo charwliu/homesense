@@ -1,0 +1,19 @@
+{
+  "checked_bj": "2026-10-15T05:45:20.904057+08:00",
+  "independent_readonly_check": true,
+  "ready": true,
+  "fresh_channels": 64,
+  "deadline_bj": "2026-10-15T08:00:00+08:00",
+  "binary_unchanged": true,
+  "pairing_config_credentials_history_verified": true,
+  "old_failure_files_preserved": true,
+  "only_duration_changed": true,
+  "startup_lighting_commands": 0,
+  "startup_motor_commands": 0,
+  "new_scene_runs": 0,
+  "observer_samples": 11,
+  "observer_latest_bj": "2026-10-15T05:45:12.697918+08:00",
+  "observer_latest_status": "healthy",
+  "complete_overnight_pass": false,
+  "device_commands_sent_by_root": 0
+}

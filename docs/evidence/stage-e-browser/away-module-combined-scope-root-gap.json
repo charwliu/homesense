@@ -1,0 +1,31 @@
+{
+  "candidate": "Away Web V2, archive59f4ed9a, 1173 original files unchanged",
+  "restore_real_HTTP": {
+    "passed": 1,
+    "failed": 0,
+    "controls": "two module-off frames then AE 38 B1 4B EE only",
+    "effect": "only requested dimmer1 reopened at previous75; other15ports stayedoff",
+    "module_audit_rows": 16
+  },
+  "scope_contracts": {
+    "passed": 0,
+    "failed": 2,
+    "filtered_original_tests": 9,
+    "valid_input": true,
+    "full_logical_owner_grant": "err InsufficientPrivileges instead of two accepted module tickets",
+    "raw_hidden_supply_grant_only": "Ok([1]) instead of InsufficientPrivileges"
+  },
+  "invalid_initial_scope_fixture": {
+    "error": "missing required nonzero default_on_level",
+    "product_failure": false,
+    "log_preserved": true
+  },
+  "frozen_product_sources_mutated": false,
+  "field_access": false,
+  "log_sha256": {
+    "root_away_restore.log": "f841793b2334ba3dce8dfb65b8f0b3778f824a94e7e935042d08bbd56e654c47",
+    "root_away_scope.log": "2dce3e6d366c81167131d61368f7418e0b56f31e4606cd76083980f534c15d5c",
+    "root_away_scope-valid-input.log": "1337daf84e06c7a12a05743667a9e7e55935e289b58abb600c87be752ba74e25",
+    "root_away_scope-two-contracts.log": "ac1787f1475b5e80e0930ca6ecabf8d351939713a61cbc7465e0c9b2c0a29d48"
+  }
+}

@@ -1,0 +1,128 @@
+{
+  "checked_bj": "2026-10-15T12:49:31.375112+08:00",
+  "scope": "normal production CLI with synthetic TCP modules and real HTTPS API in Linux loopback-only network namespace",
+  "status": "two_normal_cli_capacity_cases_verified_historical_stability_failure_open",
+  "frozen_input": {
+    "files": 1180,
+    "archive_sha256": "2b62cc6c81d78141caaffc26b3845cd5061882cd0d7496e15b53e85e9a0b0320",
+    "remote_all_source_hashes_exact": true,
+    "current_functional_inputs_unchanged": 801,
+    "normal_cli_sha256": "0458e8021f1ed2f5954349105cdd88cabefb49282266676d998bd1f0eaba2f66",
+    "build_profile": "debug, ordinary main binary, not libtest",
+    "production_clock": "std::time::Instant"
+  },
+  "cases": [
+    {
+      "switch_modules": 0,
+      "dimmer_modules": 12,
+      "ports": 96,
+      "startup_query_frames": 12,
+      "periodic_query_frames_before_first_ready_http_snapshot": 0,
+      "steady_samples": 66,
+      "slot_samples": 6336,
+      "max_observed_age_ms": 2508,
+      "steady_query_frames": 124,
+      "steady_control_frames": 0,
+      "max_query_reply_gap_ms": 2525.483,
+      "min_wire_gap_ms": 101.088
+    },
+    {
+      "switch_modules": 7,
+      "dimmer_modules": 5,
+      "ports": 96,
+      "startup_query_frames": 61,
+      "periodic_query_frames_before_first_ready_http_snapshot": 3,
+      "steady_samples": 72,
+      "slot_samples": 6912,
+      "max_observed_age_ms": 3014,
+      "steady_query_frames": 570,
+      "steady_control_frames": 189,
+      "max_query_reply_gap_ms": 3062.751,
+      "min_wire_gap_ms": 20.266
+    }
+  ],
+  "measurement": {
+    "each_cli_duration_seconds": 26,
+    "each_steady_sample_window_seconds": 18,
+    "maximum_allowed_feedback_age_ms": 5000,
+    "all_sampled_slots_confirmed": true,
+    "mixed_all189_accepted_ids_match189_Written_rows_and189_bus_frames": true,
+    "all96_final_logical_views_confirmed_without_pending": true,
+    "exact_first_complete_query_prefix_verified": true,
+    "all_wire_frames_validated_no_broadcast_motor_or_panel": true,
+    "wire_gap_requirement_unchanged": true,
+    "workspace_tests_added_to_prior1038_count": 0
+  },
+  "initial_fixture_failure": {
+    "retained": true,
+    "first_all_AD8_case_passed": true,
+    "mixed_count_assertion": "65 instead of61 before first ready HTTP observation",
+    "cause": "first complete 61-query initialization plus periodic queries already emitted before asynchronous HTTP read finished",
+    "correction": "validate exact first complete96-port bus prefix, separately record periodic frames before HTTP observation",
+    "product_unchanged": true,
+    "age_or_wire_gap_limits_relaxed": false
+  },
+  "independent_review": {
+    "downloaded_artifacts_rehashed": 85,
+    "all_sample_slot_quality_binding_value_age_checked": true,
+    "all_control_receipts_database_rows_and_bus_frames_correlated": true,
+    "private_credentials_removed": true,
+    "git_index_unchanged": true
+  },
+  "limitations": [
+    "Synthetic peers do not prove physical R818-PRO A0 support or actual96-port address/readback acceptance",
+    "18-second sampling windows and one control producer do not prove all workloads or sustained stability",
+    "Historical full-run capacity5512ms failure remains open; this pass does not establish or repair its root cause",
+    "Current1180-input full regression proof remains separate; no new full run was needed because product and test input are unchanged"
+  ],
+  "protocol_scope": {
+    "AD8": "whole module A0 F2, eight channel feedbacks required",
+    "R818_PRO": "per-channel A1..A8 retained pending same-model whole-query confirmation",
+    "original7R8plus5AD8_queries_per_complete_sweep": 61,
+    "conditional_all12_whole_query_future_count": 12
+  },
+  "private_artifacts_sha256": {
+    "probe.py": "4b8461ddcf4dc50cc2cc5dea3ae9083c85c79260b8914457a717a4c7a55c05af",
+    "probe-v2.py": "c00862f0abf8a0414cd812bc6c0edc077bd8a517da2cd21b99c8b781478b048c",
+    "verify.py": "8a7a9a48f225d1a9f315ca0e7e4d5806c1e2ea5cfc50044b7a8eb580d5754b11",
+    "identity.json": "68e49d59e6e8694c34f8c0efd94d88be6a0cb0b4b2b170f1d7dfb2e143003d75",
+    "artifacts.sha256.json": "c13218df9a0c130258812d4daae6e53bff9cddadcf49453e310bfef2ee14c8f2",
+    "independent-review.json": "5a66e6ee30c6277c1813928a6234d85e638612a2e684f5df8334b5b3ba57210f",
+    "result.json": "028d1b5790224c83a9dea290aac56780622df416a8009275ff7b55d86921466d",
+    "v2/result.json": "33ca4a5dd7a0affab6282513dc16389d35dad0f5995cb528b988bb27b19a23e4",
+    "v2/switches0-gap100/result.json": "9da717545323b821c9b019ad1e94fc7a1d717d97ed6697ddc5b5e21ceb4e161f",
+    "v2/switches0-gap100/frames.json": "c960ac013db7224be22200e3d68ee50200ed549947b6b47b6640bf51a7a83925",
+    "v2/switches0-gap100/samples.json": "c7066940ad3a70caabc0d25509a25e71d0ed3a6229a1e6c7e4866b314b944822",
+    "v2/switches0-gap100/startup-prefix.json": "647829e5fb2bc2dba263bd5dcc9b6c375f56b88f0ad2a48c8168b8d71c6f87ba",
+    "v2/switches0-gap100/logical-final.json": "2c5dfaadf7475df69a195768a7c9849d29c0b6d71d457861e1bfaa3c53c6cd11",
+    "v2/switches0-gap100/control-requests.json": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "v2/switches0-gap100/server.log": "a1d7874de43e738def26998012b160527cf292dd4538bf2c1a3c75be7d377d22",
+    "v2/switches0-gap100/devices.json": "711d93e90d7c19992b29fa342b8d616cda8e2ef3c4b84998db6f106dc229ae41",
+    "v2/switches0-gap100/automation.json": "0571e032d43676e20332bc58bf4d8c290884c1a9f687bc621c99cda9d6777b6b",
+    "v2/switches0-gap100/stale-slot-samples.json": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "v2/switches7-gap20/result.json": "4b0474a5004c0edf2e794a5f5ab0772d83efaf90107629a0ae8460e00bd02956",
+    "v2/switches7-gap20/frames.json": "ec33e960d45cbe55002fcfa64f9eaf2a10a6e15ca20ff9281240b5bd582ebbc3",
+    "v2/switches7-gap20/samples.json": "5738e2b045e5fc6be017e7893b52841a3875414b337c3768b3e0a97fbd8347bb",
+    "v2/switches7-gap20/startup-prefix.json": "2e576f5f191cdd1ec6fd759134e9873488e287247f0cb24b4cacffbefa9855a7",
+    "v2/switches7-gap20/logical-final.json": "c54f6c1821f0eea2fb5d9ea83b3dbbc3ca4f684fb442da6e44f3ef83e7f8d79c",
+    "v2/switches7-gap20/control-requests.json": "d0ebe375cdf4fe64cce9aa3ab568cebc5deebdded34b4476f5a5ad5b3127f03e",
+    "v2/switches7-gap20/server.log": "c3aa808e699a407b8ece44bc76436256a83742a2b0f8255111dd8ad11b82b308",
+    "v2/switches7-gap20/devices.json": "ca0e424ddc8f651a575f2f877e2cb2dae64e9b29983b2504981ff8e04c50706a",
+    "v2/switches7-gap20/automation.json": "0571e032d43676e20332bc58bf4d8c290884c1a9f687bc621c99cda9d6777b6b",
+    "v2/switches7-gap20/stale-slot-samples.json": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+  },
+  "field_access": false,
+  "physical_queries_or_controls": 0,
+  "E2_started": false,
+  "configuration_published_to_field": false,
+  "field_readonly_user_paused": true,
+  "studio_Web_user_paused": true,
+  "source_semantic_dispositions_complete": false,
+  "D_E_complete": false,
+  "goal_turn": {
+    "previous_turn_classification": "no_progress",
+    "previous_turn_reason": "Explained existing module query capability without a new accepted artifact or completed gate",
+    "this_turn_classification": "progress",
+    "new_evidence": "Actual ordinary CLI96-slot freshness with module queries and189 concurrent controls; original first-boundary failure retained"
+  }
+}

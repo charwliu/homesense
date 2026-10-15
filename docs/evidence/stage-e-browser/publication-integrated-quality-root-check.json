@@ -1,0 +1,58 @@
+{
+  "archive_sha256": "971e23e91ffb2d2553c183e1ce06651dce0f8c0ffcab472ba18fef242098ebd0",
+  "frozen_input_files": 1163,
+  "Mac": {
+    "Mac_full_exit": 0,
+    "result_blocks": 165,
+    "passed": 1004,
+    "failed": 0,
+    "ignored": 0,
+    "filtered": 0,
+    "all_1163_source_files_unchanged": true,
+    "archive_sha256": "971e23e91ffb2d2553c183e1ce06651dce0f8c0ffcab472ba18fef242098ebd0",
+    "log_sha256": "f4dcdc585dab66471c07f1deb5090074fbfa104216c5bfabc72e893886c182c7",
+    "ignored_private_full_source_import_case_actually_executed": true,
+    "Root_11_pub_probes_included_not_added_again": true,
+    "fresh_target_used": true,
+    "Clippy_pending": false,
+    "full_D_E_complete": false,
+    "all_target_strict_Clippy_passed": true,
+    "Clippy_log_sha256": "5d38e976bef15e3e816c0a03dfcab551a5157c2cda0b4e373d16be5d40794778",
+    "1163_files_stable_after_Clippy": true,
+    "Linux_full_not_yet_passed": true
+  },
+  "Linux": {
+    "archive_sha256": "971e23e91ffb2d2553c183e1ce06651dce0f8c0ffcab472ba18fef242098ebd0",
+    "source_files": 1163,
+    "exit": 101,
+    "passed": 1002,
+    "failed": 2,
+    "ignored": 0,
+    "filtered": 0,
+    "result_blocks": 165,
+    "failed_names": [
+      "automation_tcp::fault_tests::hap_task_failure_preserves_web_delayed_scene_and_single_startup",
+      "online_publication_queries_new_mapping_before_acknowledgement"
+    ],
+    "full_log_sha256": "7ca5c2694e33ee182357feee9430e51bbc7dbb90bf93d1b94e4ea81947037ba3",
+    "strict_Clippy_exit": 0,
+    "strict_Clippy_log_sha256": "1d0f6945ef92a60981d43e1f02fb71e941fea42dff94ca2201c1c607bf3d5f24",
+    "source_before": {
+      "archive_sha256": "971e23e91ffb2d2553c183e1ce06651dce0f8c0ffcab472ba18fef242098ebd0",
+      "file_count": 1163,
+      "source_matches_manifest": true
+    },
+    "source_after": {
+      "archive_sha256": "971e23e91ffb2d2553c183e1ce06651dce0f8c0ffcab472ba18fef242098ebd0",
+      "file_count": 1163,
+      "source_matches_manifest": true
+    },
+    "full_Linux_qualified": false,
+    "all_platform_green": false,
+    "field_deployed": false
+  },
+  "actual_shared_full_software_qualified": false,
+  "known_Linux_failures_under_independent_diagnosis": true,
+  "field_deployed": false,
+  "complete_D_E": false
+}

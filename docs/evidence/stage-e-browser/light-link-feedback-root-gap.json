@@ -1,0 +1,38 @@
+{
+  "source_commit": "094c4179ee8a0f3d9c449ab06d9349bcc1365d59",
+  "source_semantics": "Production feedback/indicator source is unchanged from6a90980;094c417 only adds documentation",
+  "original_files_checked": 1043,
+  "modified_original_files": [],
+  "probe_source_sha256": "3dd96b35a72bc1f6293bd134802c20bd5403336f42064470b067c676072d7ed5",
+  "raw_log_sha256": "b1ad1d8f663ef17e9e6eb9027d132dbf4118fb5527684f20ef733519b9ce1a2d",
+  "execution_exit_code": 101,
+  "test_result": {
+    "passed": 0,
+    "failed": 2,
+    "ignored": 0,
+    "filtered": 136
+  },
+  "counterexamples": [
+    "ActualfreshOff, historical100: actual-feedback control plans1 reviewed LED-Off, historical overlay plans0",
+    "ActualfreshOn17, historical0: actual-feedback control plans0, historical overlay spuriously plans1 reviewed LED-Off"
+  ],
+  "scope": "Two pure feedback-planner conditions using existing schema2 synthetic fixture and current fresh feedback; no actor, transport owner, network, physical commands or field DB",
+  "limitations": "Pure condition/planner evidence for the historical-overlay path used by ordinary indicator fallback. No admission, accepted command, LED wire write or physical field symptom proved.",
+  "runtime_followup": {
+    "source_commit": "094c4179ee8a0f3d9c449ab06d9349bcc1365d59",
+    "original_files_checked": 1043,
+    "modified_original_files": [],
+    "probe_source_sha256": "cbd64d87196453eea110c578c2761cf987d1e652b528f5c2e8a8c22f4bea088d",
+    "raw_log_sha256": "c897f8a3c32450a257de7c9b9f996d6f08cdbc115b59db88b1bf9f9b3ea3843c",
+    "execution_exit_code": 101,
+    "test_result": {
+      "passed": 0,
+      "failed": 1,
+      "ignored": 0,
+      "filtered": 138
+    },
+    "settled_control": "Current100 read and remembered100 before external0; local target is already completed",
+    "counterexample": "Actual Admission/Store writes and records100; current feedback confirms100 and remembers100, finishing local target. Subsequent fresh actual0/noPending does not cause ordinary Synchronizer to clear linked LED; frames=[], simulated LED remains red.",
+    "scope": "One synthetic real Admission/Store/Synchronizer/TransportOwner memory-wire regression. Earlier two planner cases filtered in this command; no real network, device, field DB or original automatic rule."
+  }
+}

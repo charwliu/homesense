@@ -1,0 +1,31 @@
+{
+  "date_bj": "2026-10-15",
+  "scope": "native App server push and independent floor catalog",
+  "automatic_http_polling_removed": true,
+  "state_protocol": "existing WSS /api/v1/events",
+  "control_replay": false,
+  "default_tls_trust_unchanged": true,
+  "empty_floors_supported": true,
+  "swift_tests_passed": 32,
+  "actual_rust_https_websocket_integration_passed": true,
+  "config_validation_tests_passed": 12,
+  "web_api_tests_passed": 1,
+  "websocket_tests_passed": 2,
+  "ios_signed_build": 4,
+  "ios_installation_succeeded": true,
+  "physical_push_acceptance": "user confirmed realtime push, stable page and available brightness button",
+  "floor_configuration_publication": "rev9 read via trusted HTTPS, exact1/2/3floor catalog and room bindings verified; user confirmed native App view with permanent Admin",
+  "complete_backend_integration": "delegated to deployment chat",
+  "logs_sha256": {
+    "swift-integrated-test-final.log": "2908f37e1a87b169dad438e7acce9d8220084fc7fa64f7f77a9015375200b4b1",
+    "config-test.log": "68cf5a387535ab28f0e80518164ff8f0eec598d44afb2c0c03dd17620e82e055",
+    "rust-web-test-elevated.log": "e33adc9027075f301225463731902b5dd9ac25b449343f9e6582a94e9068c5ff",
+    "ios-signed-build.log": "d045cebc95edf8bfcdc2642c81be7bbe4d82d27aef523aa9f07865919e330970",
+    "iphone-install.log": "6a9734019e7b387fcc6ca573e49f0cef9ac5cdcff4677df90eb01be8f92197ec",
+    "macos-build.log": "63ffe255accd01660749c3a9b780203ec6d8245a2832280766fcfd29a903d61b"
+  },
+  "no_physical_commands_sent_for_this_change": true,
+  "physical_brightness_retest": "user confirmed two nonzero changes, actual light followed, readback automatic and page stable",
+  "macos_build_succeeded": true,
+  "native_App_local_empty_floor_edit": "user confirmed new empty test floor and existing catalog preserved; no server save or publication yet"
+}

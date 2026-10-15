@@ -1,0 +1,69 @@
+{
+  "scope": "HAP expiration EVENT and fresh unchanged recovery",
+  "source_base": "20261015-full-backend-handoff-5b4fc17",
+  "three_file_sha256": {
+    "crates/homesensed/src/runtime_hap.rs": "399cd7bb1130f94f0e66bee332477b2d23fb6837e3594fa962f26ed708e4a9db",
+    "crates/homesensed/src/unified_hap.rs": "894a746d8857226103ec84e1728d67c545b4f9ba80fe42c63a35fbc95926d473",
+    "crates/homesensed/src/hap_expiry_tests.rs": "740e8fb825d39f925d93ce908b6bd1ca0b45e9ec45e6277899c70d837b16b169"
+  },
+  "unit_tests_passed": 227,
+  "strict_clippy_exit": 0,
+  "ordinary_production_library_probe": {
+    "age_ms": 5305,
+    "all_events_after_recovery": [
+      {
+        "aid": 2,
+        "iid": 9,
+        "value": null
+      },
+      {
+        "aid": 2,
+        "iid": 10,
+        "value": null
+      },
+      {
+        "aid": 2,
+        "iid": 9,
+        "value": true
+      },
+      {
+        "aid": 2,
+        "iid": 10,
+        "value": 30
+      }
+    ],
+    "commands": 0,
+    "expiration_events": [
+      {
+        "aid": 2,
+        "iid": 9,
+        "value": null
+      },
+      {
+        "aid": 2,
+        "iid": 10,
+        "value": null
+      }
+    ],
+    "expired_null_events": 2,
+    "network_connections": 0,
+    "raw_quality": "Confirmed",
+    "read_unavailable": true
+  },
+  "production_probe_exit": 0,
+  "field_deployed": false,
+  "full_integrated_regression": "same1185-file deployment-v2 candidate: Mac1055 tests across163 targets passed, strict Clippy passed; Linux production cross-compile passed, current integrated Linux full regression pending",
+  "merged_to_worktree": true,
+  "commit_created": false,
+  "baseline_new_regressions_failed": 3,
+  "preserved_fixture_failures": [
+    "initial combined capacity=1",
+    "older supply feedback inserted after newer dimmer caused clock regression",
+    "shutdown and readonly SQLite WAL cleanup race"
+  ],
+  "preserved_runner_failures": [
+    "copy2 preserved old mtime and Cargo reused old executable",
+    "module rename caused 0-test filter; not counted as pass"
+  ],
+  "integrated_evidence": "stage-e-browser/full-backend-v2-root-check.json"
+}

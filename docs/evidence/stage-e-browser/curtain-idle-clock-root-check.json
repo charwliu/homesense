@@ -1,0 +1,70 @@
+{
+  "checked_bj": "2026-10-15T15:58:01.121181+08:00",
+  "candidate_source_v3_files": 1187,
+  "Mac_workspace": {
+    "passed": 1055,
+    "failed": 0,
+    "ignored": 0,
+    "filtered": 0,
+    "targets": 163
+  },
+  "Linux_original_complete_execution": {
+    "passed": 1054,
+    "failed": 1,
+    "ignored": 0,
+    "filtered": 0,
+    "targets": 163,
+    "all_exit_codes_and_log_summaries_independently_recounted": true,
+    "all167Remote_ELFs_match_local_artifact_manifest": true
+  },
+  "failure": {
+    "test": "curtain_idle_read_expires_pending_at_receive_boundary_without_motor_replay",
+    "location": "curtain_entries.rs:498 finish_write(true)",
+    "original_Open": {
+      "status": "cancelled",
+      "reason": "Expired",
+      "deadline_ms": 51,
+      "updated_ms": 97
+    },
+    "original_STOP": {
+      "status": "uncertain",
+      "deadline_ms": 158,
+      "updated_ms": 263
+    },
+    "Writing_lease_expiry_confirmed": true,
+    "external_delay_cause_proven": false,
+    "same_test_later_targeted_pass_does_not_replace_original_failure": true
+  },
+  "correction_candidate": {
+    "source_files": 1188,
+    "only_test_changes": true,
+    "original_50ms_TTL_80ms_elapsed_and5assertions_preserved": true,
+    "original_other3curtain_integration_tests_unchanged": true,
+    "added_49ms_written_50ms_uncertain_no_replay_control": true,
+    "existing_private_test_clock_only": true,
+    "production_Instant_and_deadlines_unchanged": true,
+    "frozen_Mac_complete_pass": false,
+    "first_frozen_Mac_run_valid": false,
+    "first_frozen_Mac_run_reason": "same shared Cargo target reused concurrently; later web_assets executable replaced by new frontend-retirement candidate while frozen v4 execution was running",
+    "source_bytes_changed_by_interference": false
+  },
+  "latest_user_QA_workflow": {
+    "user_deployment_chat_request": "单元测试在本机作就可以吧？",
+    "local_workspace_and_clippy": true,
+    "cross_compile_production_Cargo_LinuxGCC": true,
+    "Linux_isolated_production_smoke": true,
+    "routine_full_Linux_test_upload_required": false,
+    "old_failure_retained": true
+  },
+  "proof_sha256": {
+    "original-linux-results.tsv": "0973045014af17d5e137e16d0642995a0ddf4a7761b2546170d76d623946d77c",
+    "original-linux-remote-sha256.json": "3ff80d06eabc704063a18090db4d720a647d4c3bf89705900b33d005945116d2",
+    "original-linux-log-review.json": "c573d18c7fe75a8b30fa076e45d81d47123316c9dce60e2cc332ce8648214958",
+    "original-linux-failure-sql.json": "5bf6e1b3025755f947aff6fdbd503e6e290bfce84582fe892bdd8bc6f968014b",
+    "original-linux-failure.log": "6d3ee9e84cf1c547a6f59699b9ae0aa93808af66d7ef502755c97d87c1b5ed89",
+    "v4-handoff.json": "700c45438ee61fd59fb5066a26c7576fc4f25c9f77f9d814925134b8f77c9811",
+    "test-clock.patch": "82232d2f262ded0e43473834fb14da35d70519e4f1b8953a36d55653637e3d59",
+    "cache-overwrite-diagnosis.json": "91b917cf0c04bf3126f4752c6032c1acb5b7627ae4b3c362b5577fdf63953320",
+    "mac-v4-full-contaminated.log": "7a8f8ed4e4c019de698620c7b8307585416423df37dde400fed2694a50644422"
+  }
+}

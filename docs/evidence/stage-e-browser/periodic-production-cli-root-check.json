@@ -1,0 +1,100 @@
+{
+  "checked_bj": "2026-10-15T14:39:55.709534+08:00",
+  "scope": "ordinary macOS CLI; synthetic96-channel modules; three short loopback scenarios; not a full workspace regression",
+  "input": {
+    "created_bj": "2026-10-15T14:32:48.158796+08:00",
+    "binary_sha256": "15b0fe6f4418afbbafea7cc2256d060badae51d61b2deaafafd43589717d62ec",
+    "binary_copy_byte_exact": true,
+    "frozen_source_archive_sha256": "df97ac1baa6d1833792eeabb7f90927eb6346ae59b2ab52a3c56f82404c5fbbb",
+    "ordinary_production_binary": true,
+    "HAP_overlay_included": false,
+    "physical_access": false,
+    "sources_uploaded": false,
+    "not_a_full_workspace_test": true,
+    "prior5512ms_root_cause_claimed": false
+  },
+  "results": {
+    "passed": true,
+    "cases": [
+      {
+        "switch_modules": 0,
+        "dimmer_modules": 12,
+        "ports": 96,
+        "query_reply_delay_ms": 0,
+        "configured_write_gap_ms": 100,
+        "startup_query_frames": 12,
+        "steady_samples": 81,
+        "slot_samples": 7776,
+        "max_observed_age_ms": 2493,
+        "steady_query_frames": 124,
+        "steady_control_frames": 0,
+        "min_wire_gap_ms": 101.554
+      },
+      {
+        "switch_modules": 7,
+        "dimmer_modules": 5,
+        "ports": 96,
+        "query_reply_delay_ms": 0,
+        "configured_write_gap_ms": 20,
+        "startup_query_frames": 61,
+        "steady_samples": 82,
+        "slot_samples": 7872,
+        "max_observed_age_ms": 2397,
+        "steady_query_frames": 649,
+        "steady_control_frames": 282,
+        "min_wire_gap_ms": 20.222
+      },
+      {
+        "switch_modules": 7,
+        "dimmer_modules": 5,
+        "ports": 96,
+        "query_reply_delay_ms": 25,
+        "configured_write_gap_ms": 20,
+        "startup_query_frames": 61,
+        "steady_samples": 79,
+        "slot_samples": 7584,
+        "max_observed_age_ms": 3546,
+        "steady_query_frames": 517,
+        "steady_control_frames": 304,
+        "min_wire_gap_ms": 20.256
+      }
+    ],
+    "slot_samples_checked": 23232,
+    "accepted_ids_written_rows_bus_frames_matched": 586,
+    "field_access": false,
+    "network_namespace": false,
+    "all_generated_endpoints_loopback": true,
+    "no_HAP_flags_enabled_in_these_cases": true,
+    "real_wire_timing_or_causal_acknowledgment_proven": false,
+    "historical5512ms_stall_root_cause_closed": false,
+    "note": "long query repeat on the repeatedly controlled slot is allowed only while its actual control feedback keeps that slot fresh; frame counts include post-sampling shutdown wait, sample window remains18seconds"
+  },
+  "sampling_seconds_per_case": 18,
+  "service_seconds_per_case": 26,
+  "audit_checks": [
+    "startup exact12 or61 protocol vectors; R818 PRO uses individual A1..A8; AD8 uses module A0",
+    "96 enabled bindings; boot and transport epoch coherent; each channel feedback value and age independently checked",
+    "HTTP202 command IDs equal SQLite Written IDs and fake bus control frame count",
+    "SQLite quick_check; final logical96 Confirmed without pending",
+    "all generated endpoints loopback; no leftover token or TLS private key",
+    "all raw evidence files independently rehashed"
+  ],
+  "artifacts": {
+    "count": 70,
+    "manifest_sha256": "8511c61045a3bce4aae054b281f44283680da28e2599267b787b006e7d2979da",
+    "independent_review_sha256": "a3b5068b24d32954a13ce62d91b1b2548e16111bd0d051c24f2caeede4f48df6",
+    "probe_sha256": "6c559bab958de39f74a58659b454d816a8f17fc4d7835c828eeec78640b058b7",
+    "verifier_sha256": "bea5d96cb150168b24cc578cfaf298c5ff002784a38fc441a0c1323d34eb210b"
+  },
+  "limits": [
+    "binary predates the separate HAP expiry overlay; HAP was not enabled in these cases",
+    "macOS loopback fixture does not provide Linux isolation or physical module acceptance",
+    "frame arrival gaps are fake gateway observations, not physical bus timing",
+    "Written proves local write, not causally acknowledged hardware execution",
+    "does not establish sustained reliability or explain the historical5512ms stall",
+    "full96 field audit and studio Web remain user-paused"
+  ],
+  "D_E_complete": false,
+  "field_actions": 0,
+  "semantic_approvals_added": 0
+}

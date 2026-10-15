@@ -1,0 +1,100 @@
+{
+  "checked_bj": "2026-10-15T13:02:08.460599+08:00",
+  "scope": "source keypad event identity from exact archived plaintext descriptor; no runtime trigger or migration approval",
+  "status": "all168_keypad_program_declarations_linked_and_independently_verified",
+  "source_archive_sha256": "ff8c298fd2c8efa840d572d3ca544860ffbbc4e7176f09e93efdc5464b9ce6ec",
+  "source_xml_sha256": "cac7dcdc9db08599e55a22bacb72858035c64e1ac846e2139ead5fc634513748",
+  "archived_descriptor": {
+    "package": "GJ-TECH.CN_Keypad.c4z",
+    "package_sha256": "c83e53664c220f07c2d669a3b778b68efcdaaa54eaca0cce34b1d4d85a7eff44",
+    "descriptor_sha256": "957f3dbe80dafb0e0667cb7b362be7a139a0e8ac465b0991fbfb27c7f6228937",
+    "version": "21",
+    "event_declarations": 12,
+    "encrypted_entries_present": true,
+    "encrypted_script_entries_opened": 0,
+    "identity_entries_opened": 0
+  },
+  "actual_source": {
+    "keypad_items": 28,
+    "program_links_verified": 168,
+    "event_label_counts": {
+      "Button 1 Release": 28,
+      "Button 2 Release": 28,
+      "Button 3 Release": 28,
+      "Button 4 Release": 28,
+      "Button 5 Release": 28,
+      "Button 6 Release": 28
+    },
+    "all_referenced_declarations_are_release_events": true,
+    "existing_source_review_other_fields_exact": true,
+    "scenes": 68,
+    "programs": 215,
+    "variables": 25,
+    "remaining_full_semantics": {
+      "scenes": 65,
+      "programs": 208,
+      "variables": 24
+    }
+  },
+  "contract": {
+    "event_id_lookup": "exact static event ID in same archived driver descriptor",
+    "even_id_means_release_assumption_used": false,
+    "label_derived_from_button_formula": false,
+    "missing_descriptor_or_event": "no declaration invented",
+    "duplicate_declaration_ids": "reject ambiguous descriptor",
+    "all168_physical_event_confirmed": false,
+    "all168_migration_trigger_confirmed": false,
+    "runtime_definitions_generated": 0,
+    "full_semantic_approvals_added": 0
+  },
+  "validation": {
+    "python_regression_tests_passed": 20,
+    "original_calendar_increment_tests_retained": 17,
+    "new_tests": 3,
+    "baseline_new_tests": {
+      "errors": 2,
+      "failures": 1,
+      "retained": true
+    },
+    "actual_source_independent_XML_to_descriptor_lookup": true,
+    "actual_source_differential_except_new_metadata": true,
+    "other_functional_inputs_unchanged": 799,
+    "Rust_frontend_config_vendor_inputs_unchanged": true,
+    "full_workspace_rerun": false,
+    "prior_frozen_full_Rust_tests_each_platform": 1038,
+    "counts_not_added_to_prior_workspace": true,
+    "index_unchanged": true
+  },
+  "unresolved_source_fields": {
+    "archive_variable_type2": "not established by current official API named types",
+    "archive_scene_rate_and_tracking_numeric_encoding": "not established; source values retained without inferred meanings"
+  },
+  "official_sources_rechecked": [
+    "https://snap-one.github.io/docs-driverworks-api/#addvariable",
+    "https://snap-one.github.io/docs-driverworks-api/#getdevicevariables",
+    "https://snap-one.github.io/docs-driverworks-proxyprotocol-lightv2/#advanced_scene_support"
+  ],
+  "source_changes_sha256": {
+    "tools/review_source_semantics.py": "187b5a536c9247af1893e514b4e208361b5c676ae01b4ea50904c04f056c1277",
+    "tools/test_review_source_semantics.py": "7e621db343f9b9e2fe90bd6c6c739a9e2ef01bfd685afdf5eb77fc03e017c9d4"
+  },
+  "private_artifacts_sha256": {
+    "review_source_semantics.py": "2c98d465c8e4319dc3a1da2d1919a58a2c302c7108d2ad023d00189de5e1ebc8",
+    "test_review_source_semantics.py": "5012106281a20328efd75cb98d22649088e637c039689eb9bb81a462daf10d28",
+    "baseline-review.json": "67c1073bf89a903b4141baa0bf76f83d7c942f47cd141e51dbb41984b8f516c3",
+    "baseline-negative.log": "74b405af4e0835e820215f74c911a817f21e8dde8fab9dd953c069feae8f18e0",
+    "final-review.json": "02aa08405b7bf3c1cd74b4822b837f66dcff17321cf35bbade23d813085b84a8",
+    "final-tests.log": "970ee4ee65fe0fcf69e24af67ca4efeae1ed36f23dd75b3456349b43444609fe",
+    "audit.py": "73658628eac6a186728cbe2a085ac0ebf3ea9ad562f191cc875f593a6700bfdf",
+    "audit.log": "95824b943767c5468613a662e108c2e561759b21a674871a9b17fd14088d9535",
+    "source-differential-review.json": "8bc749d5ffd6970e56a4c06ffb1a2000325e5fa14a7448b15949a27c5aad4744"
+  },
+  "field_access": false,
+  "E2_started": false,
+  "new_rules_enabled": 0,
+  "configuration_published": false,
+  "field_readonly_user_paused": true,
+  "studio_Web_user_paused": true,
+  "D_E_complete": false,
+  "goal_turn_classification": "progress"
+}

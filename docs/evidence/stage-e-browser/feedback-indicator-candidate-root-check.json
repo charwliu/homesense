@@ -1,0 +1,225 @@
+{
+  "source_commit": "df16dd1a22071e9eadd59869643944efd82defe2",
+  "source_tree": "0e72be145e30eb2130a48a8167cedcc9bc60ff8f",
+  "source_files_verified": 1045,
+  "independent_regressions": [
+    {
+      "run": 0,
+      "result": {
+        "passed": 3,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0
+      },
+      "test_ids": [
+        "fresh_powered_feedback_must_not_be_overwritten_by_old_setting",
+        "off_memory_and_unavailable_components_remain_distinct_from_emitted_light",
+        "raw_observed_hap_read_uses_powered_feedback_even_with_restore_memory"
+      ],
+      "raw_log_sha256": "00e76e0f819dc447589b7ddbef344288a187c57e79a8835e8e09c7c3d1569865"
+    },
+    {
+      "run": 1,
+      "result": {
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 146
+      },
+      "test_ids": [
+        "scene_observation_runtime::tests::initialization::native::indicator_joint::root_physical_selection_must_reconcile_positive_leds"
+      ],
+      "raw_log_sha256": "4cc352b08d133ff7fe0f8e64f03ba94f0dc31a613130e350bc70c8a30ba5eed9"
+    },
+    {
+      "run": 2,
+      "result": {
+        "passed": 3,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 144
+      },
+      "test_ids": [
+        "restore_policy::root_restore_contract::exact_timeout_and_each_epoch_change_release_old_target",
+        "restore_policy::root_restore_contract::invalid_supply_or_dimmer_owner_releases_actual_feedback_immediately",
+        "restore_policy::root_restore_contract::unsettled_target_sample_cannot_complete_transition_or_replace_restore_preference"
+      ],
+      "raw_log_sha256": "f5dd6d8cce9597c71848bf97153eba3ec6cbdc44a3ec7f6669019b261932bcd9"
+    },
+    {
+      "run": 3,
+      "result": {
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 146
+      },
+      "test_ids": [
+        "scene_observation_runtime::tests::initialization::native::indicator_joint::root_light_link_synchronizer_must_clear_led_after_external_actual_off"
+      ],
+      "raw_log_sha256": "093a1a3859df9948c7ef949b085122309000a6ac7d53a9050f64b3ba651e049e"
+    },
+    {
+      "run": 4,
+      "result": {
+        "passed": 3,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0
+      },
+      "test_ids": [
+        "encrypted_hap_external17_off_restore_on_and_owned_ramp_share_reported_read_events",
+        "fresh_steady_on_projection_and_hap_read_use_external_actual_instead_of_old_setting",
+        "off_retains_restore_only_and_stale_feedback_stays_unavailable"
+      ],
+      "raw_log_sha256": "d6c97bd09f94c16e520faf9646039245eda9e4d58ffa89bd85a6ed9d7028c4e8"
+    }
+  ],
+  "developer_quality": {
+    "workspace_passed": 808,
+    "workspace_failed": 0,
+    "workspace_ignored": 0,
+    "workspace_filtered": 0,
+    "compilation_inputs_compared": 741,
+    "workspace_all_targets_strict_clippy": "passed",
+    "web_scripts_passed": 16,
+    "raw_log_records": [
+      {
+        "file": "homesense-field-sync-workspace-v2.log",
+        "sha256": "d8dcc0ddee4b26d9ed89c3c80ba2e852319ac9566f46b78de180e390159fba85",
+        "blocks": 138,
+        "passed": 808,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0
+      },
+      {
+        "file": "homesense-field-sync-clippy-workspace.log",
+        "sha256": "35a905a0b40656601d00f28685c05698fa6d981a6f317c38e88e913f8df18c6a",
+        "blocks": 0,
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0
+      },
+      {
+        "file": "homesense-field-sync-frontend-final.log",
+        "sha256": "5695ae9636c8060eda2229e5e7a719749c69a4718179ad4ed9ab975656efa823",
+        "blocks": 0,
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0
+      }
+    ]
+  },
+  "linux_candidate": {
+    "build": "Mac cross compilation",
+    "target": "x86_64-unknown-linux-gnu.2.17",
+    "binary_sha256": "71631a8465d85b4799b42d877295775793a71ef437d8b94fd4725610ad8fe573",
+    "checks": {
+      "tracked_files": 1045,
+      "source_mismatches": [],
+      "dependencies": 0,
+      "config": 0,
+      "automation": 0,
+      "simulation-config": 0,
+      "simulation-automation": 0,
+      "web_http": 200,
+      "web_html_bytes": 9520,
+      "simulation_exit": 0
+    },
+    "scope": "Dynamic dependencies, live/simulation static configuration and one loopback Web simulation. No Linux full workspace test claim."
+  },
+  "software_regressions_closed": [
+    "fresh stable powered brightness publication",
+    "positive scene indicator reconciliation",
+    "ordinary light indicator clearing from actual feedback",
+    "bounded local target lifecycle and restore preference"
+  ],
+  "field_acceptance": {
+    "scope": "Limited HAP and Mac Web light/scene controls, brightness restore, cross-client foreground updates, physical indicators, scoped login/logout and temporary credential revocation passed in bounded sessions. Both lights symmetric power button transitions, followed by logout and credential revocation, also passed on the subsequent UI candidate. Current candidate explicit short motor Close and mid-travel Stop passed by direct human observation; independent terminal audit verified the planned early service termination after that testimony. A separate current-candidate short Open and mid-travel Stop also passed by direct human observation, with independent command, identity, revocation-baseline and planned early-stop terminal audit.",
+    "pending": [
+      "remaining client scope",
+      "full source migration semantics"
+    ],
+    "limits": "Initial real-client reconnection was not immediate; eventual recovery after opening a detail view is not proof of automatic background recovery. External legacy-control brightness path was not established. No full D/E completion claim. Latest bounded UI session had a normal service terminal marker but a guard listener-invariant failure during deadline shutdown. This is retained as an exception, not normal guard completion. Motor motion/percentage position remains unknown to the runtime; the manual Close/Stop trial does not approve original motion conditions or prove natural deadline expiry.",
+    "detail_location": "Private local evidence only; household, network, identity, timestamps and action logs are excluded.",
+    "client_network_recovery": {
+      "iphone": "passed: actual offline interval, other client changed light, existing Home view automatically received new state after reconnect",
+      "mac_web": "failed: actual offline interval, other client changed light, original Safari page retained old Stale state with controls disabled after reconnect",
+      "scope": "One bounded room configuration; original old Mac failure preserved. Reused old Mac page during new window is not a new-frontend acceptance result. No full household/background/HomePod acceptance claim.",
+      "ipad_web": "passed on fixed frontend: actual offline interval, iPhone changed light, original Safari page automatically received new current state without refresh/relogin; subsequent On/Off controls and logout passed"
+    }
+  },
+  "stage_d_complete": false,
+  "stage_e_complete": false,
+  "scope_note": "Root11 and developer808 are separate evidence, not summed. Physical observations and deployment details remain private.",
+  "ui_candidate": {
+    "source_commit": "cc05a0d80c7ac3d1a613ce1b349d5849c2fc1d4c",
+    "changes": [
+      "web power buttons disabled from confirmed observed On/Off",
+      "production render contract regression",
+      "changelog"
+    ],
+    "developer_web_scripts_passed": 16,
+    "root_independent_existing_web_scripts_passed": 5,
+    "linux_smoke": "passed: source bytes, dynamic dependencies, static configuration, loopback HTML/app.js and normal simulation exit",
+    "scope_note": "Separate UI increment evidence; Rust runtime unchanged, no new full workspace or Linux workspace claim."
+  },
+  "window_guard_increment": {
+    "candidate_policy_tests_rerun": 9,
+    "candidate_actual_guard_core_tests_rerun": 6,
+    "candidate_snapshot_entry_test_rerun": 1,
+    "additional_root_actual_guard_core_probes": 5,
+    "local_remote_files_matched": 11,
+    "reviewed_previous_exception_preserved": true,
+    "scope": "Synthetic gate tests and actual planned early stop only; separate from product workspace tests and natural-expiry field evidence.",
+    "subsequent_natural_expiry_field": {
+      "passed": true,
+      "owned_processes_and_listeners_absent": true,
+      "final_pending": 0,
+      "new_motor_commands": 0,
+      "temporary_member_revoked": true,
+      "archived_backup_integrity_verified": true,
+      "earlier_failure_retained": true,
+      "mac_client_reconnect_failure_retained": true,
+      "scope": "Actual bounded service/guard natural expiry; no repaired Web or full D/E acceptance claim"
+    }
+  },
+  "web_reconnect_gap": {
+    "candidate_app_sha256": "557235527f28d0aea03c9be444219bce9e949647944a427ed9c422d1225b9c30",
+    "actual_field_failure": true,
+    "independent_production_js_probe": {
+      "expected_assertion_failed": true,
+      "command_exit": 1,
+      "connection_failures": 7,
+      "sockets_before_online": 7,
+      "sockets_after_online": 7,
+      "online_handlers": 0,
+      "session_retained": true,
+      "mutations": 0
+    },
+    "repair": "75e0b8011d58723e761777ff5e5e685655433c64: independent software checks and actual iPad Safari reconnect passed in limited scope",
+    "private_detail_only": true
+  },
+  "web_reconnect_repair": {
+    "source_commit": "75e0b8011d58723e761777ff5e5e685655433c64",
+    "source_tree": "f3d2ba13333e3af9750eed47e415aac9556c0386",
+    "source_files_verified": 1045,
+    "app_sha256": "a0a0ce217b61777414e9de81bc7fb0a6dd049af660774ae6b9c3d16885d892ca",
+    "root_existing_scripts_passed": 16,
+    "root_additional_production_handler_cases_passed": 4,
+    "rust_runtime_changed": false,
+    "actual_repaired_browser_acceptance": "passed on iPad Safari: actual client offline interval and post-recovery controls; remaining client scope pending",
+    "scope": "Separate frontend increment, not summed as a new Rust workspace or Linux field acceptance",
+    "bounded_field_terminal": {
+      "normal_own_expiry": true,
+      "owned_processes_and_listeners_absent": true,
+      "temporary_member_revoked": true,
+      "pending_commands": 0,
+      "motor_commands_in_window": 0,
+      "snapshot_integrity_verified": true
+    }
+  }
+}

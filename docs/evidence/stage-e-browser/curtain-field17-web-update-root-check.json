@@ -1,0 +1,56 @@
+{
+  "date": "2026-10-14",
+  "source_commit": "0149860ebd1fca71757390b17750a06ea09064fd",
+  "binary_sha256": "b7893ccd70222ee04ba1b1d0b6aabe7adf6314007eaaaf773e21e8a7031fced2",
+  "scope": "One authorized manual Web Open at an already Open curtain; actual iPad automatic estimate update did not pass.",
+  "user_observation": {
+    "before_refresh": "initial Unknown",
+    "disconnect_notice": false,
+    "screen_stayed_lit": true,
+    "after_refresh": "estimated Stopped/Open/100%",
+    "other_requested_indicators_conformed": true,
+    "foreground_lifecycle_not_separately_proven": true
+  },
+  "actual_motor_commands": {
+    "open": 1,
+    "close": 0,
+    "stop": 0
+  },
+  "pending_commands": 0,
+  "root_physical_actuator_requests": 0,
+  "actual_motor_feedback_known": false,
+  "synthetic_server_WSS": {
+    "same_fixed_binary": true,
+    "three_frames": "Unknown → Opening → Stopped/Open/100%/idle hint",
+    "cursor_sequence_and_device_version_unchanged": true,
+    "physical_gateway_connected": false,
+    "actual_iPad_browser_not_executed": true,
+    "first_fixture_wait_timeout_retained": true
+  },
+  "cache_diagnosis": {
+    "script_cache_policy_missing_at_fixed_commit": true,
+    "fixed_script_URLs": true,
+    "actual_iPad_loaded_script_bytes_proven": false,
+    "stale_cache_root_cause_proven": false
+  },
+  "terminal": {
+    "service_and_listeners_absent": true,
+    "normal_service_log_expiry": true,
+    "seconds_after_deadline": 2.028,
+    "whole_window_guard_passed": false,
+    "guard_failure_retained": "all-machine process-name matching also includes isolated Root synthetic fixture",
+    "temporary_member_removed": "offline exact single-row deletion after expiry",
+    "baseline_credentials_and_pairing_preserved": true,
+    "HTTP_401_not_tested_after_expiry": true,
+    "local_and_remote_plaintext_removed": true,
+    "test_certificate_retained_by_user": true
+  },
+  "remaining": [
+    "actual browser update fix and repeat verification",
+    "repeated endpoint commands and known-start intermediate percent",
+    "restart unknown state and broader client scope",
+    "original automation full semantics and execution ownership"
+  ],
+  "private_terminal_sha256": "274041da94a68ae8b45bb4a243c1270af8fdedb3f2cc7b62ad4718344351cbeb",
+  "full_D_E_complete": false
+}

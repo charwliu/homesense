@@ -1,0 +1,56 @@
+{
+  "status": "Mac_full_pass_Linux_full_failed_new_two_cases",
+  "checkpoint": "d54f5b5",
+  "candidate_sha256": "5211db0879462f8d941491c24e67dc8840087bb9ec4a22190423520127d5aabc",
+  "Mac_full": {
+    "passed": 1005,
+    "failed": 0,
+    "result_blocks": 165,
+    "source_differences_only_progress_docs": [
+      "docs/evidence/stage-e-browser/publication-handoff-stop-race-root-gap.json",
+      "docs/stage-e-remaining.md"
+    ]
+  },
+  "Linux_full": {
+    "passed": 1003,
+    "failed": 2,
+    "ignored": 0,
+    "filtered": 0,
+    "result_blocks": 165,
+    "test_exit": 101,
+    "strict_workspace_all_targets_Clippy_exit": 0,
+    "failures": [
+      "observed_transport::module_query_tests::capacity96_documented_modules_at100ms_and_mixed_at20ms_stay_fresh",
+      "publication_pauses_old_automation_without_closing_admission"
+    ]
+  },
+  "Linux_source_files": 1163,
+  "source_stable_before_after": true,
+  "actual_Linux_ELF64_x86_64_binary_count": 155,
+  "affected_and_private_import_binaries_preserved": 5,
+  "logs": {
+    "test": {
+      "exit": 101,
+      "log_sha256": "6058ef999b4c9a56303b5a7ed715ac953fbcd420f4447a244c194dace154d6cc"
+    },
+    "clippy": {
+      "exit": 0,
+      "log_sha256": "cb374fe907ed12eb2d21b15528c664b5190e0a9a9d7a2a5edf0ede7b7fe4962e"
+    }
+  },
+  "original_971e_failures_preserved": true,
+  "corrected_old_cases_pass_in_this_full_run": true,
+  "new_study_controlled_case": {
+    "original_offset_ms": 100,
+    "optional_preparation_delay_ms": 200,
+    "actual_frame": "AE 15 01 1E EE",
+    "write_before_begin_request": true,
+    "original_failure_assertion_preserved": true,
+    "original_Linux_exact_phase_proven": false
+  },
+  "new_capacity_failure": "mixed 96 ports observed Stale where original assertion required Confirmed; cause under diagnosis",
+  "source_approvals_added": 0,
+  "whole_DE_complete": false,
+  "field_service_restarted": false,
+  "module_away_feature_not_part_of_this_snapshot": true
+}

@@ -1,0 +1,27 @@
+{
+  "status": "original_three_draft_UI_races_fixed_same_contracts_in_current_draft",
+  "candidate_original_app_sha256": "8a1f470652990138973e0017333542f173de73c530e908093814bce560f8ee93",
+  "second_section_app_sha256": "8a1f470652990138973e0017333542f173de73c530e908093814bce560f8ee93",
+  "both_captures_same_whole_app": true,
+  "actual_js_functions_executed_not_reimplemented": true,
+  "failing_cases": [
+    "late_failure_cannot_hide_new_success",
+    "late_success_cannot_enable_after_new_unavailable",
+    "old_session_completion_does_not_unlock_new_request"
+  ],
+  "actual_failed": 3,
+  "network_calls": 0,
+  "device_commands": 0,
+  "field_deployment": false,
+  "fix_pending": false,
+  "original_results_retained": true,
+  "strict_final_runtime_candidate_not_yet_reviewed": true,
+  "full_DE_complete": false,
+  "log_sha256": {
+    "original-draft-results.log": "2699c75655756cb4120b0282df12ea6aad7fd79db991a8baac4d2caf118c59e6",
+    "original-session-lock.log": "fa45775a6794281493ac67f8b748d1e1dee3863c0bcc38bb9467ba018a0bdd07"
+  },
+  "Root_independently_fixed_cases_passed": 3,
+  "Root_fixed_app_sha256": "8956680744683d494de540b944f084d29874eba8e31e5afb2047b042184da19a",
+  "full_runtime_candidate_qualification_pending": true
+}

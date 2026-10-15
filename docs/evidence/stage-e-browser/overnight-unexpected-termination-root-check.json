@@ -1,0 +1,41 @@
+{
+  "checked_bj": "2026-10-15T05:31:37.937837+08:00",
+  "status": "unexpected_early_service_termination_confirmed",
+  "service_pid83759_absent": true,
+  "supervisor_pid83760_absent": true,
+  "observer_pid84351_absent": true,
+  "service_terminal_bj": "2026-10-15T05:16:46.132455+08:00",
+  "deadline_stop_requested": false,
+  "planned_deadline_bj": "2026-10-15T08:00:00+08:00",
+  "log_final_error": "physical recovery feedback timeout after periodic query failure and gateway epoch3 initial sync",
+  "gateway_TCP_connect_succeeded_but_sync_failed": true,
+  "observer_v2_samples": 98,
+  "observer_v2_healthy": 94,
+  "observer_v2_read_failures": 4,
+  "observer_v2_deadline_elapsed": false,
+  "current_Web_connection_refused": true,
+  "commands_sent_by_root_observers": 0,
+  "Root_process_signals_sent": 0,
+  "not_complete_night_or_D_E": true,
+  "original_records_preserved": true,
+  "recovery_requested_same_approved_binary_configuration_pairing_only": true,
+  "readonly_diagnosis": {
+    "baseline_commit": "d57fd452bb12677b3eb7220f4aca99743d8e439f",
+    "original_log_hash_verified": true,
+    "log_proves": [
+      "periodic output query feedback timeout",
+      "TCP reconnect succeeded but synchronization pending",
+      "final physical feedback synchronization timeout"
+    ],
+    "not_proven": [
+      "recovery limit exhaustion",
+      "specific failing module or channel",
+      "hardware failure"
+    ],
+    "source_inference": "recovery synchronization returns its error directly, before another configured recovery attempt",
+    "missing_expected_recovery_counter_log_retained_as_limitation": true,
+    "live_service_touched": false,
+    "gateway_queries_sent": 0,
+    "goal_complete": false
+  }
+}

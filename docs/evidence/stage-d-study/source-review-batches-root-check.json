@@ -1,0 +1,32 @@
+{
+  "date": "2026-10-14",
+  "scope": "complete private review batching from existing original source and pending dispositions",
+  "original_scope": { "scenes": 68, "programs": 215, "variables": 25 },
+  "remaining_unique_scope": { "scenes": 65, "programs": 208, "variables": 24 },
+  "source_room_entries": 26,
+  "room_association": "nearest source item ancestor with room type; no display-name inference",
+  "source_rooms_not_verified_physical_inventory": true,
+  "cross_room_scenes_and_variables_may_appear_in_multiple_batches": true,
+  "all_remaining_unique_objects_covered": true,
+  "remaining_scene_members": 617,
+  "scene_tracking_literal_counts": { "0": 65 },
+  "member_tracking_literal_counts": { "4": 617 },
+  "source_rate_literal_counts": { "0": 316, "1": 16, "750": 3, "1000": 282 },
+  "nonzero_source_rate_elements": 301,
+  "tracking_integer_meanings_verified": false,
+  "source_rate_serialization_unit_verified": false,
+  "official_UI_tracking_and_time_options_checked": true,
+  "official_UI_does_not_prove_XML_numeric_encoding": true,
+  "runtime_expression_coverage_review_dispatched": true,
+  "source_fields_changed": false,
+  "saved_variable_values_imported": false,
+  "semantic_approvals_added": 0,
+  "live_configuration_published": false,
+  "original_rules_enabled": 0,
+  "controls_sent": 0,
+  "full_D_E_complete": false,
+  "primary_references": [
+    "https://docs.control4.com/help/c4/software/cpro/dealer-composer-help/content/composerpro_userguide/example_use_the_advanced_lighting.htm",
+    "https://snap-one.github.io/docs-driverworks-proxyprotocol-lightv2/#advanced_scene_support"
+  ]
+}

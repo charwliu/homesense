@@ -1,0 +1,84 @@
+{
+  "scope": "diagnosis only; does not replace the failed complete workspace result",
+  "full_input_archive_sha256": "2c681dd8a8ac5e3ef373dbcf8da98d981299f69ac736230a966b20879b1fedcc",
+  "full_original_result": {
+    "passed": 1035,
+    "failed": 1,
+    "blocks": 172,
+    "exit": 101
+  },
+  "original_failure_phase_peaks_ms": {
+    "submit_ms": 889,
+    "step_increment_ms": 1040,
+    "receive_increment_ms": 2,
+    "refresh_increment_ms": 19
+  },
+  "original_failure_observed_age_ms": 5512,
+  "unchanged_max_age_limit_ms": 5000,
+  "initial_fsync_trace": {
+    "tests_passed": 209,
+    "failed": 0,
+    "max_module_query_fsync_ms": 65.5,
+    "source_restored": true
+  },
+  "extended_fixed_two_trials": [
+    {
+      "trial": "trial-1",
+      "tests_passed": 209,
+      "failed": 0,
+      "max_query_fsync_ms": 18.671,
+      "max_query_pwrite_ms": 0.121,
+      "capacity_lines": [
+        "module_capacity96 switches=0 interval=100 startup_ms=1122 max_age_ms=2494 queries=50 controls=0",
+        "module_capacity96 switches=7 interval=20 startup_ms=1282 max_age_ms=2835 queries=232 controls=172"
+      ]
+    },
+    {
+      "trial": "trial-2",
+      "tests_passed": 209,
+      "failed": 0,
+      "max_query_fsync_ms": 25.089,
+      "max_query_pwrite_ms": 0.294,
+      "capacity_lines": [
+        "module_capacity96 switches=0 interval=100 startup_ms=1123 max_age_ms=2500 queries=50 controls=0",
+        "module_capacity96 switches=7 interval=20 startup_ms=1289 max_age_ms=2864 queries=230 controls=170"
+      ]
+    }
+  ],
+  "same_original_ELF_untraced_control": {
+    "sha256": "afd723d40ffb571ec02357e32986491219bb091156382ee7d79d9315fb1845d2",
+    "tests_passed": 209,
+    "failed": 0,
+    "thread_override": null,
+    "test_source_modified": false
+  },
+  "no_diagnostic_run_reproduced_original_long_pause": true,
+  "original_failure_root_cause_proven": false,
+  "disk_or_scheduler_cause_not_claimed": true,
+  "production_or_shared_test_changes": 0,
+  "original1179_source_restored_after_each_diagnostic": true,
+  "cold_full_observation": {
+    "status": "completed_failed",
+    "pid": 181878,
+    "start_ticks": "30876011",
+    "cargo_pid": 181883,
+    "fixed_runs": 1,
+    "fresh_target": true,
+    "same1179_input": true,
+    "source_and_test_unchanged": true,
+    "thread_count_unchanged": true,
+    "job_directory": "/home/build/apps/homesense/candidates/20261015-away-simulator-1a84eb-root/cold-full-observe",
+    "passed": 1035,
+    "failed": 1,
+    "blocks": 172,
+    "exit": 101,
+    "capacity_case_passed": true,
+    "failure": "service::hap_fault_tests::simulation_hap_failure_keeps_web_and_scene_execution_alive",
+    "proof": "away-cold-full-observation-root-check.json"
+  },
+  "field_readonly_user_paused": true,
+  "field_access": false,
+  "D_E_complete": false,
+  "raw_extended_archive_sha256": "7ed5545d72ad0c3e4693bd9a91c14c684858c18b8fc064f5832dd97eb9a5324b",
+  "cold_run_captured_actual_filesystem_sync_waits": true
+}

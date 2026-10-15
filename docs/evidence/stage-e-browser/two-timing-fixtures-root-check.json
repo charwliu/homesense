@@ -1,0 +1,28 @@
+{
+  "exact_v2_two_files_verified": {
+    "crates/homesensed/tests/service.rs": {
+      "before": "27b93ad4324f9a365016d14dca3cecc8c115f1eed75c911b1c46704993ac35da",
+      "after": "96356b59d9f5dd2e109c89af45b61f6f31b6bc4a0c511c220884299bcd7363d0"
+    },
+    "crates/homesensed/tests/study_runtime.rs": {
+      "before": "95c2489098946dc201ebf6334702b1d8d90693d2d5407933d5a1eb2d14c6cfa5",
+      "after": "5d3dfe3fb47e1bb01144b48f1e3d3e7ac0ae1ab040d9d8c64e30da37cd4a0d81"
+    }
+  },
+  "strict_all_original_assertions_preserved": true,
+  "service_duration_150ms_unchanged": true,
+  "scene_offset_100ms_and_lateness_1000ms_unchanged": true,
+  "read_actor_clock_api_is_private": true,
+  "earlier_Instant_only_provides_conservative_same_clock_upper_bound": true,
+  "shared_source_modified": true,
+  "Root_Mac_service_tests_passed": 4,
+  "Root_Mac_study_case_passed": 1,
+  "Root_study_filtered": 110,
+  "Root_service_initial_sandbox_bind_denial_preserved": true,
+  "production_files_modified": false,
+  "full_integrated_source_validation_pending": true,
+  "additional_publication_failure_not_resolved_by_fixture_patch": true,
+  "root-service-v2.log_sha256": "efd34d4a862b2e41122cc06cb2ea782dcb47d1dc2e04023ee04a4f86cf73db29",
+  "root-service-v2-allowed-loopback.log_sha256": "3a233aed3a3e33096c2a480b6084154713c43f2837d405539d6915155d35848f",
+  "root-study-v2.log_sha256": "81d6f59db9b5de7edccdf2bbd025706b377254d494e45d7ec2d930d58d525da6"
+}

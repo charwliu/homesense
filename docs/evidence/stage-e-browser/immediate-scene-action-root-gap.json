@@ -1,0 +1,39 @@
+{
+  "checked_bj": "2026-10-15T01:55:21.654037+08:00",
+  "frozen_converter_files_verified": 1071,
+  "passed": 2,
+  "failed": 1,
+  "fixture_compilation_passed": true,
+  "enabled_immediate_definition_strict_parse_and_runtime_load_passed": true,
+  "HAP_publication_error": "unknown published scene",
+  "timed_definition_positive_control_passed": true,
+  "disabled_immediate_publication_rejection_passed": true,
+  "startup_suppressed": true,
+  "physical_gateway_connected": false,
+  "commands_dispatched": 0,
+  "original_source_semantic_approvals_added": 0,
+  "current_tracking_candidate_code_only_inspection": "TimedScene-only adapter rejection remains; no claim of independent rerun of tracking candidate yet",
+  "complete_D_E": false,
+  "control_runtime_independent_probe": {
+    "frozen_base_files": 1077,
+    "passed": 3,
+    "failed": 2,
+    "error_for_single_and_valid_mixed": "unknown timed scene",
+    "timed_real_memory_frame_and_written_positive_control": true,
+    "invalid_batch_and_unauthorized_actor_zero_output_zero_variable_commit": true,
+    "positive_required_order": [
+      10,
+      40,
+      10
+    ],
+    "valid_mixed_adds_other_channel_timed_level": 60,
+    "timed_delay_explicit_ms": 100,
+    "memory_frames_and_Written_and_original_source_leaves_asserted": true,
+    "first_fixture_compile_type_error_retained_not_a_product_result": true,
+    "physical_field_contact": false
+  },
+  "first_fixed_candidate_root_review": "immediate-scene-first-candidate-root-check.json",
+  "original_8_root_contracts_passed_in_first_fixed_candidate": true,
+  "native_selection_joint_entry_gap_remains": true,
+  "first_fixed_candidate_not_installed_or_deployed": true
+}

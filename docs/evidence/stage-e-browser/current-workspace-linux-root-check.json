@@ -1,0 +1,72 @@
+{
+  "checked_bj": "2026-10-15T06:54:06.967193+08:00",
+  "first_full_attempt_passed": false,
+  "exit_code": 101,
+  "result_blocks": 88,
+  "executed_passed": 652,
+  "executed_failed": 1,
+  "executed_ignored": 0,
+  "executed_filtered": 0,
+  "first_full_log_sha256": "112dbf527b1a40196a616b29ab4ea6df09f84d22d6dd84481e589148780a11c2",
+  "failure": "automation_tcp::online_publication_queries_new_mapping_before_acknowledgement",
+  "error": "publication runtime handoff failed; inspect active revision before retrying: ServiceCommunicationFailure",
+  "full_workspace_completed": false,
+  "source_before": {
+    "archive_sha256": "6f84f147c28e7b4f746597c5627c649739e3e84c6846c8aaf10483db09772bcc",
+    "file_count": 1154,
+    "source_matches_manifest": true
+  },
+  "source_after": {
+    "archive_sha256": "6f84f147c28e7b4f746597c5627c649739e3e84c6846c8aaf10483db09772bcc",
+    "file_count": 1154,
+    "source_matches_manifest": true
+  },
+  "candidate_not_deployed": true,
+  "Root_independent_parse": true,
+  "synthetic_failed_database_observation": {
+    "active_revision": 1,
+    "scene_status": "pending",
+    "scene_cancellations": 0,
+    "physical_command_journal_rows": 0,
+    "rule_chain_error": "ServiceCommunicationFailure",
+    "rule_chain_finished_ms": 324
+  },
+  "single_focused_recheck_passed_reported": true,
+  "failure_mechanism_resolved": false,
+  "status": "current_Linux_full_failure_under_independent_diagnosis",
+  "complete_6f84_archive_attempt": {
+    "archive": "6f84f147c28e7b4f746597c5627c649739e3e84c6846c8aaf10483db09772bcc",
+    "file_count": 1154,
+    "fully_executed": true,
+    "all_test_targets_passed": false,
+    "exit": 101,
+    "result_blocks": 164,
+    "passed": 988,
+    "failed": 4,
+    "ignored": 0,
+    "filtered": 0,
+    "log_sha256": "e95e1847e8a9ab919f7417d6477f2c2eb810ab13344fe80512f5b5f2b275fd46",
+    "before_source_check": {
+      "archive_sha256": "6f84f147c28e7b4f746597c5627c649739e3e84c6846c8aaf10483db09772bcc",
+      "file_count": 1154,
+      "source_matches_manifest": true
+    },
+    "after_source_check": {
+      "archive_sha256": "6f84f147c28e7b4f746597c5627c649739e3e84c6846c8aaf10483db09772bcc",
+      "file_count": 1154,
+      "source_matches_manifest": true
+    },
+    "failure_names": [
+      "curtain_candidate::lifecycle_tests::recovery_and_restart_never_rehydrate_a_written_motor_command",
+      "combined_tcp_rebuilds_hap_and_retires_old_sessions_after_publication",
+      "simulation_service_restarts_with_stable_identity_and_releases_listener",
+      "deferred_rule_adapter_reserves_before_variables_and_preserves_chain"
+    ],
+    "field_deployed": false,
+    "Root_independent_parse": true
+  },
+  "current_lifecycle_fixture_corrected": true,
+  "remaining_failure_diagnosis_active": true,
+  "Mac_extra_private_test_not_in_6f84": true,
+  "current_full_Mac_and_Linux_requalification_pending": true
+}

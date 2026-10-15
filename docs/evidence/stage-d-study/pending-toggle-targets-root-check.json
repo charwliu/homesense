@@ -1,0 +1,23 @@
+{
+  "date": "2026-10-14",
+  "scope": "all remaining scene metadata toggle relations, not program callsite execution",
+  "pending_scenes_covered": 65,
+  "resolved_toggle_relations": 48,
+  "unresolved_toggle_literals": 17,
+  "all_resolved_edges_rechecked_directly_against_raw_source_XML": true,
+  "source_and_target_raw_scene_hashes_verified": true,
+  "membership_different_edges": 1,
+  "different_edge_source_member_count": 4,
+  "different_edge_target_member_count": 36,
+  "different_edge_target_extra_member_references": 36,
+  "different_edge_target_missing_source_member_references": 4,
+  "different_edge_target_all_levels_zero": true,
+  "rate_sequence_different_edges": 7,
+  "complete_target_scene_required": true,
+  "physical_output_identity_not_inferred_from_source_references": true,
+  "metadata_edge_counts_not_same_as_prior_deactivate_callsite_counts": true,
+  "source_or_candidate_behavior_changed": false,
+  "controls_sent": 0,
+  "original_semantic_approvals_added": 0,
+  "full_D_E_complete": false
+}

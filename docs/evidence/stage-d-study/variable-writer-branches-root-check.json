@@ -1,0 +1,21 @@
+{
+  "date": "2026-10-14",
+  "scope": "Exact source variable-reference and nested-ancestor inventory only; no runtime changes or semantic approvals.",
+  "remaining_variables": 24,
+  "reference_nodes": 478,
+  "reads": 221,
+  "writes": 257,
+  "source_programs": 149,
+  "producer_typed_sites_matched": 478,
+  "source_archive_sha256": "ff8c298fd2c8efa840d572d3ca544860ffbbc4e7176f09e93efdc5464b9ce6ec",
+  "project_xml_sha256": "cac7dcdc9db08599e55a22bacb72858035c64e1ac846e2139ead5fc634513748",
+  "private_evidence_sha256": "1602c7cc087ec863e9296e0abe7179c85b8c23e6deba1ae59ee996d2425c0f82",
+  "ancestor_source_codes_preserved": true,
+  "canonical_hashes_not_raw_fragment_hashes": true,
+  "saved_values_imported": false,
+  "assignment_set_is_full_domain": false,
+  "external_writers_excluded": false,
+  "full_semantic_approvals_added": 0,
+  "runtime_enabled": 0,
+  "private_names_ids_values_and_branches_not_published": true
+}

@@ -1,0 +1,65 @@
+{
+  "scope": "one fixed complete cold Linux run of unchanged final1179 input; sampling only, no retries or source edits",
+  "archive_sha256": "2c681dd8a8ac5e3ef373dbcf8da98d981299f69ac736230a966b20879b1fedcc",
+  "all1179_source_files_exact_after": true,
+  "status": "completed_failed",
+  "exit": 101,
+  "passed": 1035,
+  "failed": 1,
+  "ignored": 0,
+  "filtered": 0,
+  "result_blocks": 172,
+  "actual_ELF_binaries": 162,
+  "preserved_library_sha256": "afd723d40ffb571ec02357e32986491219bb091156382ee7d79d9315fb1845d2",
+  "library_identical_to_first_full_run": true,
+  "failure": "service::hap_fault_tests::simulation_hap_failure_keeps_web_and_scene_execution_alive",
+  "failure_boundary": "simulation_hap_fault_tests.rs:21, two-second wait for Web diagnostics HAP degraded; elapsed before scene request",
+  "capacity96_case_passed_this_run": true,
+  "previous_capacity_failure_remains_open": true,
+  "sampling": {
+    "method": "/proc thread state, syscall, fd path and scheduler counters at approximately 50ms; not syscall entry/exit tracing",
+    "failing_test_tid": 188704,
+    "failing_thread_fsync_samples": 37,
+    "first_fsync_sample_wall": 1792035626.2557435,
+    "last_fsync_sample_wall": 1792035628.5965812,
+    "observed_fsync_sample_span_ms": 2340.838,
+    "wchan_counts": {
+      "xlog_wait_on_iclog": 4,
+      "xlog_force_lsn": 15,
+      "folio_wait_bit_common": 3,
+      "bio_await": 15
+    },
+    "fixture_database_files": [
+      "automation-simulation.sqlite-journal",
+      "web-credentials.sqlite-wal",
+      "web-drafts.sqlite",
+      "web-drafts.sqlite-wal",
+      "web-receipts.sqlite",
+      "web-receipts.sqlite-wal"
+    ],
+    "sample_span_is_not_single_syscall_duration": true,
+    "thread_exit_sampling_errors": {
+      "FileNotFoundError": 87
+    },
+    "observed_database_sync_waits_overlap_startup_readiness_wait": true
+  },
+  "limits": [
+    "Cold run captures actual filesystem sync waits on failing test thread during service preparation; exact complete timeout causality is not isolated.",
+    "This run passed capacity96 and cannot prove the original capacity failure cause.",
+    "No freshness limits, timeouts, assertions, thread count or production sources were changed.",
+    "Scoped green controls do not replace either failed complete run."
+  ],
+  "root_cause_proven": false,
+  "field_readonly_user_paused": true,
+  "field_access": false,
+  "new_live_rules_enabled": 0,
+  "D_E_complete": false,
+  "log_sha256": "5aef7d371c445146265f9d5fad95d84b17c4cf9681023995cc27323417d35962",
+  "raw_artifact_sha256": {
+    "terminal.json": "d80534eb7d308b611db34d2fb35449ec75a015df42d15cf31d2bece563100b8a",
+    "thread-samples.jsonl": "b11b584062da9c399a5a4b75b267c954fa4e96d4b8d7cc2667cdb88d25f0c5cb",
+    "output-timestamps.jsonl": "233cf05dcde3ea558c84c1f87716036596ad322f2586bb5e06b3c81589ee99f5",
+    "actual-binaries.json": "4f5af97eb2d43802c5ace96213c4f0a85ecb4ef7db5cd4013dc48186ad080df8",
+    "hap-failure-thread-samples.json": "ab2183c370dc1eca7d694e4ac65ba32c612d2231e6c45dce8472b1adecd638c1"
+  }
+}

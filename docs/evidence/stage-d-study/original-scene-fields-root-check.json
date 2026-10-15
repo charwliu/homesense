@@ -1,0 +1,35 @@
+{
+  "checked_at": "2026-10-14T08:18:44.290213+00:00",
+  "baseline_commit": "75e0b8011d58723e761777ff5e5e685655433c64",
+  "archive_sha256": "7256f1f0ffffa4747aadadf693e8a894f6ab33d1a70f0da4cfccd57b56c7a7d5",
+  "archive_files_equal_to_build_source": 1045,
+  "current_importer_scene_source_sha256": {
+    "crates/homesense-import/src/scene.rs": "1adbb52cd421803773ec13c4688870a85efafaadaa34d79c07165112285f48d7",
+    "crates/homesense-import/src/lib.rs": "d6fafbe53dcf1409e5d43ad2b1855cdafe226bfc6ea159d76722273ddfdf876c",
+    "crates/homesense-import/src/semantic.rs": "0611ebb7988910552002a6d074de6335963a4d35e5a3cdbee108e36298db8df9"
+  },
+  "producer_binary_sha256": "377a5380569292c6596106c09534c6ac764773ebd3ffe2ed996ef0ea95ffb31a",
+  "fresh_producer_exit_code": 0,
+  "fresh_producer_report_sha256": "f11c4a40d611384f78d5ee5f5b46cd78fe46bc0de884b974f9320d1878ee2b92",
+  "fresh_report_matches_deployer_bytes": true,
+  "source_xml_sha256": "cac7dcdc9db08599e55a22bacb72858035c64e1ac846e2139ead5fc634513748",
+  "scenes_checked": 65,
+  "original_scene_raw_hashes_checked": 68,
+  "members_checked": 617,
+  "nonzero_rate_elements": 301,
+  "nonzero_delay_elements": 0,
+  "member_rows_match_independent_original_reconstruction": true,
+  "original_source_nodes_or_values_changed": 0,
+  "semantic_approvals_added": 0,
+  "runtime_rules_enabled": 0,
+  "field_commands_sent": 0,
+  "limitations": [
+    "disabled importer output only",
+    "rate execution semantics unresolved",
+    "source item resolution is not verified physical binding",
+    "not runtime scene execution or physical acceptance"
+  ],
+  "scope": "Original source fields to disabled production importer output; no physical bindings or runtime scene approval.",
+  "stage_d_complete": false,
+  "stage_e_complete": false
+}

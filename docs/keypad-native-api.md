@@ -30,7 +30,7 @@ LED 实测值目前始终未知：现有反馈协议只有按下／释放，没�
 
 显式 LED 设置使用已有 `POST /api/v1/device-commands`：`{"device":"legacy:key:1","request_id":"UUID","command":{"action":"panel_led","on":true}}`。true 红、false 绿，需该子端点的控制权限、已核实 TS6 型号和已配置 manual LED 模式，继续走既有审计、准入、队列和唯一传输所有者。灭灯用同一子端点与 `{"action":"panel_led_off"}`。按键卡片本身不能自动翻转 LED。
 
-若配置明确设置经过审核的 `scene_toggle` 动作，`keys[].action` 返回 `{"kind":"scene_toggle","scene":"scene-id","path":"/api/v1/scene-relative-actions"}`。仅同时有该键控制范围及场景控制权限时返回；客户端显式点按后调用现有场景 relative 接口，并使用原有 request_id/未知结果不重试规则。这是 HomeSense 手动场景入口，不伪造物理按键事件，也不启用 EA-5 或禁用规则。另支持经过明确审核并绑定已启用、已校准窗帘目标的 `motor` 动作：`{"kind":"motor","device":"motor-id","command":{"action":"open"},"path":"/api/v1/device-commands"}`，action 是 open／stop／close，需同时有该键与目标电机控制权限。未配置时 action=null，按键不发送动作。
+若配置明确设置经过审核的 `scene_toggle` 动作，`keys[].action` 返回 `{"kind":"scene_toggle","scene":"scene-id","path":"/api/v1/scene-relative-actions"}`。仅同时有该键控制范围及场景控制权限时返回；客户端点按时先读取当前选择状态：已知开启／关闭分别调用明确的关闭／开启接口，只有选择状态未知且服务端允许相对操作时才调用 relative 接口；无法判定或不允许时禁用动作。继续使用原有 request_id/未知结果不重试规则。这是 HomeSense 手动场景入口，不伪造物理按键事件，也不启用 EA-5 或禁用规则。另支持经过明确审核并绑定已启用、已校准窗帘目标的 `motor` 动作：`{"kind":"motor","device":"motor-id","command":{"action":"open"},"path":"/api/v1/device-commands"}`，action 是 open／stop／close，需同时有该键与目标电机控制权限。未配置时 action=null，按键不发送动作。
 
 背光、声音与工作模式集中在 settings。`can_write` 仅对管理员且完整显式覆盖该面板六个已启用子端点时为 true；单键权限不扩大。部分配置/部分授权维持 false，补齐六键和授权需显式审核。每项都有 observed=null、quality=Unknown、source、last_request、last_written；与LED历史相同，Written 不等于实测。configured 工作模式仅为配置声明。参数查询 C1/C5/C7 的返回格式仍未经核实，不解释成实际参数。
 

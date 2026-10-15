@@ -1,0 +1,39 @@
+{
+  "checked_bj": "2026-10-15T16:15:04.541621+08:00",
+  "scope": "offline representation migration from independently captured revision9; no field connection",
+  "original_configuration_devices": 20,
+  "remaining_top_level_devices": 10,
+  "keypad_parents": 2,
+  "configured_child_counts": [
+    6,
+    4
+  ],
+  "legacy_identity_room_channel_enabled_preserved": true,
+  "all_other_configuration_fields_unchanged": true,
+  "revision_unchanged": 9,
+  "actions_inferred": false,
+  "permission_scope_widened": false,
+  "candidate_published": false,
+  "device_commands_sent": 0,
+  "frozen_source_files_verified": 1193,
+  "source_manifest_sha256": "17b42ced60626e7e81c184cb575c782e0b416794f80c18d2897e5cab012eb50d",
+  "offline_candidate_sha256": "95dafa63bac43c1901dee8d02f9dd061947ac23c745cafb4692d5d734fa1b17b",
+  "original_snapshot_sha256": "71b76a13218f085d4e9b5f8a776ce4efe7e7c6916b1eb81ba38edec6fcfc403c",
+  "python_migration_tests_passed": 2,
+  "Rust_parse_and_runtime_validation": "fixed v3 production CLI check-config and check-automation exit0; static checks only, no service/command runtime",
+  "actual_Keypad_field_acceptance": "not performed",
+  "D_E_complete": false,
+  "binary_sha256": "93a62ffc7d3a550a631cd82fd9d9903bad7d57b749110c81a3dda85086e00b7c",
+  "checks": [
+    {
+      "kind": "configuration",
+      "exit_code": 0,
+      "log_sha256": "ba0136c83b5484ba32e43e691463ca25e43a81bd752630fd7aa0a89bceb8e570"
+    },
+    {
+      "kind": "configuration-and-automation",
+      "exit_code": 0,
+      "log_sha256": "50e5b6ab260dcd0e409404eefe33c9de5000cc6390219a9034bbd74e9c81d329"
+    }
+  ]
+}

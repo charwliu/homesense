@@ -1,0 +1,28 @@
+{
+  "candidate": "68e4986edefee9361604ce08f8468247e94fc3d14cdd1950fc7654512c19ae99",
+  "first_waiter_layout_test_passed": true,
+  "first_layout_attempts": 32,
+  "warm_layout_test_failed": true,
+  "warm_failed_exit": 101,
+  "actual_mutation_after_stop": {
+    "active_revision": 2,
+    "attempt": 19,
+    "publication": "Ok(2)",
+    "root_stopped_publication_waiter_precedes_next_cycle": true
+  },
+  "warm_attempts_before_failure": 20,
+  "baseline_all_production_files_unchanged": true,
+  "only_probe_module_appended": true,
+  "probe_patch_sha256": "965a678c1b0fb23d40e6e2f4868c71f3aec31d29ce3e302d437d237a5d58f2fa",
+  "warm_log_sha256": "bd23faa9e23be42e0702211b1345bbac3b8aea17b25ad0cd1833bda9d6b19276",
+  "wire_or_physical_commands_sent_by_Root": 0,
+  "shared_production_modified": false,
+  "candidate_not_qualified_to_merge": true,
+  "status": "fixed_and_independently_rechecked_in_shared_source_full_qualification_pending",
+  "fix_candidate_sha256": "e99af10a9b03597d2b7018909d763f6e1787955e318ac894cdf806c933420918",
+  "Root_fixed_probe_scope_passed": 11,
+  "old_actual_counterexample_and_original_assertions_preserved": true,
+  "new_shared_full_qualification_pending": true,
+  "original_68e_candidate_always_rejected": true,
+  "different_fixed_e99_candidate_narrow_merged": true
+}
