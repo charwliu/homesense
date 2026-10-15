@@ -660,3 +660,80 @@ async fn unavailable_selection_reads_distinguish_timeout_absent_and_closed_runti
     drop(api);
     std::fs::remove_dir_all(root).unwrap();
 }
+
+
+#[tokio::test]
+async fn cancellation_rejects_unbound_or_other_runtime_receipts_but_keeps_legitimate_target() {
+    use homesensed::web_receipts::Endpoint;
+    let root = std::env::temp_dir().join(format!("cancel-instance-{}", Uuid::new_v4()));
+    std::fs::create_dir(&root).unwrap();
+    let path = root.join("runtime.sqlite");
+    homesense_storage::Store::open(&path).unwrap().publish_automation(
+        None, include_bytes!("../../../config/simulation.json"), &rules(),
+        ExecutionContext::Simulation, &[],
+    ).unwrap();
+    let caller = Uuid::new_v4();
+    let secret = "cancel-instance-member-01234567890123456789";
+    let tokens = Arc::new(Tokens::default());
+    tokens.insert(Uuid::new_v4(), secret, Grant {
+        controller: caller, role: Role::Member,
+        scenes: ["reading".into()].into(), devices: Default::default(),
+    }).unwrap();
+    let (admission, control, stop, drive) = owner(&path, caller).await;
+    let api = Api {
+        daily_backup: Default::default(), hap_bridges: Default::default(),
+        hap_status: Default::default(), backup_source: None, publisher: None,
+        origin: "http://127.0.0.1:8088".into(), tokens,
+        runtime: std::sync::RwLock::new(Some(Runtime {
+            control: control.clone(), revision: 1, boot: admission.boot_id().into(),
+            scenes: [("reading".into(), "Reading".into())].into(),
+        })),
+        receipts: Mutex::new(Receipts::open(&root.join("web.sqlite")).unwrap()), drafts: None,
+    };
+    let start = json!({"scene":"reading","request_id":"actual-current","on":true});
+    let (code, actual) = request(&api, secret, "/api/v1/scene-actions", Some(start.clone())).await;
+    assert_eq!(code, StatusCode::ACCEPTED);
+    assert_eq!(actual["outcome"], "accepted");
+    let count = || {
+        rusqlite::Connection::open(&path).unwrap().query_row(
+            "SELECT count(*) FROM scene_cancellation", [], |r|r.get::<_, i64>(0),
+        ).unwrap()
+    };
+    let before = count();
+    for (key, instance) in [
+        ("legacy-unbound", None),
+        ("other-instance", Some(json!(Uuid::new_v4().to_string()))),
+        ("malformed-instance", Some(json!(17))),
+        ("null-instance", Some(Value::Null)),
+    ] {
+        let mut stale = actual.clone();
+        stale.as_object_mut().unwrap().remove("runtime_instance");
+        if let Some(instance) = instance { stale["runtime_instance"] = instance; }
+        {
+            let mut receipts = api.receipts.lock().unwrap();
+            let fingerprint = json!({"revision":1,"scene":"reading","action":"start"}).to_string();
+            assert!(matches!(receipts.claim_scoped(&caller.to_string(), &Endpoint::SceneActions,
+                key, &fingerprint).unwrap().claim, homesensed::web_receipts::Claim::New));
+            receipts.finish_scoped(&caller.to_string(), &Endpoint::SceneActions, key,
+                &stale.to_string()).unwrap();
+        }
+        let (code, denied) = request(&api, secret, "/api/v1/scene-cancellations",
+            Some(json!({"start_request_id":key,"request_id":format!("cancel-{key}")}))).await;
+        assert_eq!(code, StatusCode::CONFLICT, "receipt {key}: {denied}");
+        assert_eq!(denied["error"], "start_not_in_current_runtime");
+        assert_eq!(count(), before, "stale receipt {key} changed cancellation history");
+    }
+    let (code, replay) = request(&api, secret, "/api/v1/scene-actions", Some(start)).await;
+    assert_eq!(code, StatusCode::OK);
+    assert_eq!(replay, actual, "replaying an accepted start must retain its original target");
+    let (code, cancelled) = request(&api, secret, "/api/v1/scene-cancellations",
+        Some(json!({"start_request_id":"actual-current","request_id":"actual-cancel"}))).await;
+    assert_eq!(code, StatusCode::ACCEPTED);
+    assert_eq!(cancelled["outcome"], "cancelled");
+    assert_eq!(cancelled["cancelled"], 1);
+    assert_eq!(count(), before+1);
+    stop.send(true).unwrap();
+    drive.await.unwrap().unwrap();
+    drop(api); drop(control); drop(admission);
+    std::fs::remove_dir_all(root).unwrap();
+}

@@ -102,6 +102,8 @@ pub struct Feedback {
     supply_relays: BTreeMap<DeviceId, DeviceId>,
     epoch: u64,
     state_epoch: u64,
+    local_wires:Option<BTreeMap<String,Option<u64>>>,
+    event_wires:BTreeMap<u64,(String,u64)>,
     now: u64,
     stopped: bool,
 }
@@ -343,6 +345,8 @@ impl Feedback {
             states,
             epoch,
             state_epoch: epoch,
+            local_wires:None,
+            event_wires:BTreeMap::new(),
             now: 0,
             stopped: false,
         })
@@ -421,7 +425,12 @@ impl Feedback {
         &self,
         cursor: homesense_state::Cursor,
     ) -> Result<Vec<homesense_state::Event>, String> {
-        self.states.events_since(cursor).map_err(|e| e.to_string())
+        let mut events=self.states.events_since(cursor).map_err(|e| e.to_string())?;
+        if let Some(wires)=&self.local_wires {
+            events.retain(|event|!matches!(event.change,homesense_state::Change::Button|homesense_state::Change::Observation)
+                || self.event_wires.get(&event.cursor.sequence).is_some_and(|(gateway,epoch)|wires.get(gateway)==Some(&Some(*epoch))));
+        }
+        Ok(events)
     }
     /// Counts valid received observations, including unchanged values. State
     /// event versions intentionally deduplicate values and are not query receipts.
@@ -452,6 +461,10 @@ impl Feedback {
             || event.state.observed_at_ms.is_none() || !matches!(event.state.observed,Some(homesense_core::Observation::Button{..})) {
             return Err("invalid scene key observation".into())
         }
+        if let Some(wires)=&self.local_wires && !self.event_wires.get(&event.cursor.sequence)
+            .is_some_and(|(gateway,epoch)|wires.get(gateway)==Some(&Some(*epoch))) {
+            return Err("scene key belongs to a retired local wire".into());
+        }
         let sequence=event.cursor.sequence.checked_sub(1).ok_or("invalid scene key cursor")?;
         let recorded=self.states.events_since(homesense_state::Cursor{boot_id:self.boot,sequence}).map_err(|e|e.to_string())?;
         if recorded.first()!=Some(event) {return Err("scene key is not in the current feedback stream".into())}
@@ -460,7 +473,33 @@ impl Feedback {
             captured_ms:now,expires_ms:None,observations:BTreeMap::new(),recorded_off_reads:std::collections::BTreeSet::new(),indicator_after:None,
         }})
     }
+    pub(crate) fn enable_local_wires(&mut self,wires:BTreeMap<String,u64>)->Result<(),String> {
+        if wires.keys().ne(self.registries.keys()) || self.stopped {return Err("local wire registry mismatch".into());}
+        self.local_wires=Some(wires.into_iter().map(|(id,epoch)|(id,Some(epoch))).collect());Ok(())
+    }
+    pub(crate) fn invalidate_gateway(&mut self,gateway:&str)->Result<(),String> {
+        let mut guard=self.lease_version.lock().map_err(|_|"feedback lease poisoned")?;
+        *guard=guard.checked_add(1).ok_or("feedback lease exhausted")?;
+        let wires=self.local_wires.as_mut().ok_or("local wire owner not enabled")?;
+        *wires.get_mut(gateway).ok_or("unknown gateway")?=None;
+        self.states.invalidate_gateway(gateway).map_err(|e|e.to_string())?;
+        self.refresh_projection_versions()
+    }
+    pub(crate) fn attach_gateway_wire(&mut self,gateway:&str,epoch:u64)->Result<(),String> {
+        if epoch==0 {return Err("zero local epoch".into());}
+        let wires=self.local_wires.as_mut().ok_or("local wire owner not enabled")?;
+        *wires.get_mut(gateway).ok_or("unknown gateway")?=Some(epoch);Ok(())
+    }
+    pub(crate) fn gateway_ready(&mut self,gateway:&str)->Result<(),String> {
+        let mut guard=self.lease_version.lock().map_err(|_|"feedback lease poisoned")?;
+        *guard=guard.checked_add(1).ok_or("feedback lease exhausted")?;
+        self.states.gateway_ready(gateway).map_err(|e|e.to_string())?;
+        self.refresh_projection_versions()
+    }
     pub fn apply(&mut self, read: &GatewayRead) -> Result<usize, String> {
+        self.apply_at(read,read.received_at_ms)
+    }
+    pub(crate) fn apply_at(&mut self, read:&GatewayRead,applied_at_ms:u64)->Result<usize,String> {
         let version = self.lease_version.clone();
         let mut lease_guard = version.lock().map_err(|_| "feedback lease poisoned")?;
         // Idle polling changes no observation; lease expiry is checked at use.
@@ -468,8 +507,10 @@ impl Feedback {
             *lease_guard = lease_guard.checked_add(1).ok_or("feedback lease exhausted")?;
         }
 
-        if self.stopped || read.transport_epoch != self.epoch || read.received_at_ms < self.now {
-            return Err("inactive feedback, stale epoch or backwards time".into());
+        let expected=self.local_wires.as_ref().map_or(Some(self.epoch),|wires|wires.get(&read.gateway_id).copied().flatten());
+        if self.stopped || expected!=Some(read.transport_epoch) || applied_at_ms<self.now
+            || read.received_at_ms>applied_at_ms {
+            return Err("inactive feedback, stale local epoch or backwards application time".into());
         }
         let registry = self
             .registries
@@ -480,11 +521,12 @@ impl Feedback {
                 transport_epoch,
                 frames,
             } => {
-                if *transport_epoch != self.epoch || frames.len() > 103 {
+                if *transport_epoch != read.transport_epoch || frames.len() > 103 {
                     return Err("invalid feedback batch".into());
                 }
                 let mut count = 0;
                 for frame in frames {
+                    let before=self.states.cursor();
                     if let Decoded::Unknown { reason: hb_protocol::UnknownReason::InvalidValue, .. }=registry.decode(*frame)
                         && homesense_core::BusAddress::new(frame.address).ok()
                             .and_then(|address|registry.module(address))
@@ -494,21 +536,30 @@ impl Feedback {
                         self.refresh_projection_port(&read.gateway_id,frame.address,channel)?;
                     }
                     if let Decoded::Feedback {address,channel,observation}=registry.decode(*frame)
-                        && self.states.observe(&read.gateway_id,address.get(),channel.get(),observation,self.epoch,read.received_at_ms).map_err(|e|e.to_string())? {
+                        && self.states.observe_received(&read.gateway_id,address.get(),channel.get(),observation,self.state_epoch,read.received_at_ms,applied_at_ms).map_err(|e|e.to_string())? {
                         count+=1;
                         // Per-frame semantic change tracking also invalidates an
                         // Off→On→Off round trip within one received batch.
                         self.refresh_projection_port(&read.gateway_id,address.get(),channel.get())?;
                     }
+                    if self.local_wires.is_some() {
+                        for event in self.states.events_since(before).map_err(|e|e.to_string())? {
+                            if matches!(event.change,homesense_state::Change::Button|homesense_state::Change::Observation) {
+                                self.event_wires.insert(event.cursor.sequence,(read.gateway_id.clone(),read.transport_epoch));
+                            }
+                        }
+                        while self.event_wires.len()>256 {self.event_wires.pop_first();}
+                    }
                 }
-                self.now = read.received_at_ms;
+                self.now = applied_at_ms;
                 Ok(count)
             }
             Receive::Idle => {
-                self.now = read.received_at_ms;
+                self.now = applied_at_ms;
                 Ok(0)
             }
             Receive::Disconnected { .. } => {
+                if self.local_wires.is_some() {return Err("local disconnect must be audited by its owner before projection".into());}
                 self.stopped = true;
                 self.states
                     .disconnect(
@@ -518,7 +569,7 @@ impl Feedback {
                     .map_err(|e| e.to_string())?;
                 self.state_epoch = self.epoch.checked_add(1).ok_or("epoch exhausted")?;
                 self.refresh_projection_versions()?;
-                self.now = read.received_at_ms;
+                self.now = applied_at_ms;
                 Ok(0)
             }
         }
@@ -695,5 +746,29 @@ mod lease_tests {
                 ))
                 .is_err()
         );
+    }
+}
+
+#[cfg(test)]
+mod local_event_scope_tests {
+    use super::*;
+    #[test]
+    fn old_confirmed_key_cannot_be_recaptured_after_same_service_gateway_recovery() {
+        let bytes=br#"{"schema_version":1,"revision":1,"gateways":[{"id":"bus","endpoint":"127.0.0.1:50007","modules":[{"address":"41","profile":"ts6_86_rs485_v2_6_5_6key","verification":{"status":"simulated"}}]}],"devices":[{"id":"key","name":"Synthetic key","gateway":"bus","address":"41","channel":1,"enabled":true}]}"#;
+        let config=Configuration::parse(bytes,ExecutionContext::Simulation).unwrap();
+        let mut feedback=Feedback::new(&config,ExecutionContext::Simulation,123,1).unwrap();
+        feedback.enable_local_wires([("bus".into(),1)].into()).unwrap();
+        let before=feedback.snapshot().cursor;
+        let read=|epoch,at|GatewayRead {gateway_id:"bus".into(),transport_epoch:epoch,received_at_ms:at,result:Receive::Frames {transport_epoch:epoch,frames:vec![hb_protocol::RawFrame {address:0x41,command:0xd1,value:0xf1}]}};
+        feedback.apply(&read(1,10)).unwrap();
+        let old=feedback.events_since(before).unwrap().into_iter().find(|event|event.change==homesense_state::Change::Button).unwrap();
+        assert!(feedback.scene_key_observation(&old,10).is_ok());
+        feedback.invalidate_gateway("bus").unwrap();feedback.attach_gateway_wire("bus",2).unwrap();feedback.gateway_ready("bus").unwrap();
+        assert!(feedback.scene_key_observation(&old,11).is_err());
+        assert!(feedback.events_since(before).unwrap().iter().all(|event|event.cursor!=old.cursor));
+        let fresh_before=feedback.snapshot().cursor;feedback.apply(&read(2,20)).unwrap();
+        let fresh=feedback.events_since(fresh_before).unwrap().into_iter().find(|event|event.change==homesense_state::Change::Button).unwrap();
+        assert!(feedback.scene_key_observation(&fresh,20).is_ok());assert!(feedback.scene_key_observation(&old,20).is_err());
+        assert_eq!(feedback.transport_epoch(),1,"global service cursor remains unchanged");
     }
 }

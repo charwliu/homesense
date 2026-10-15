@@ -245,7 +245,9 @@ pub(crate) async fn drive_with_panel_feeds<S: Read + Write + Send + 'static>(
     };
     let mut disconnected = None;
     let mut transport_failure=false;
-    let result = async {
+    // Heap-own the central loop to keep nested drive wrappers within the
+    // caller's default stack, without changing guard or cancellation ownership.
+    let result = Box::pin(async {
         let gateways = guard.owner.gateway_ids();
         if gateways.is_empty() {
             return Err("automation drive has no gateways".into());
@@ -267,6 +269,11 @@ pub(crate) async fn drive_with_panel_feeds<S: Read + Write + Send + 'static>(
             if *stop.borrow() || stop.has_changed().is_err() {
                 return Ok(());
             }
+            if guard.owner.independent() {
+                guard.owner.local_tick().await?;
+                let operations=guard.owner.take_local_fault_operations();
+                guard.scenes.cancel_gateway_operations(&operations).await?;
+            }else{
             let had_pending_read = guard.owner.output_query_pending();
             let pending_read = match guard.owner.receive_pending_output().await {
                 Ok(read) => read,
@@ -296,6 +303,7 @@ pub(crate) async fn drive_with_panel_feeds<S: Read + Write + Send + 'static>(
                 if *stop.borrow() || stop.has_changed().is_err() {
                     return Ok(());
                 }
+            }
             }
             if let Some((receiver, document)) = &mut control.0 {
                 scene_observations.tick(admission,receiver.controller(),document,guard.owner.feedback()).await?;
@@ -362,14 +370,18 @@ pub(crate) async fn drive_with_panel_feeds<S: Read + Write + Send + 'static>(
                 }
             }
             if let Some(outcome) = guard.owner.step_after_refresh_read().await? {
-                outcome
-                    .result
-                    .map_err(|e| {transport_failure=true;format!("automation write: {e:?}")})?;
-                if let Some(router)=&mut causal {router.observe_written(outcome.command_id).await?;}
+                match &outcome.result {
+                    Err(error) if guard.owner.independent() && crate::transport_owner::network_send_failure(error)=>{
+                        log::warn!("local actuator write failed without replay command={}: {error:?}",outcome.command_id);
+                    },
+                    Err(error)=>{transport_failure=true;return Err(format!("automation write: {error:?}"));},
+                    Ok(())=>{if let Some(router)=&mut causal {router.observe_written(outcome.command_id).await?;}},
+                }
             }
             if *stop.borrow() {
                 return Ok(());
             }
+            if !guard.owner.independent() {
             let read = match guard.owner.receive(&gateways[next]).await {
                 Ok(read) => read,
                 Err(error) => {
@@ -392,6 +404,9 @@ pub(crate) async fn drive_with_panel_feeds<S: Read + Write + Send + 'static>(
                 transport_failure=true;
                 disconnected=Some(gateway);
                 return Ok(());
+            }
+            }else{
+                guard.owner.start_local_reads()?;
             }
             guard.owner.expire(admission.monotonic_ms(), max_age_ms)?;
             if let Some((receiver,document))=&control.0 {
@@ -430,8 +445,13 @@ pub(crate) async fn drive_with_panel_feeds<S: Read + Write + Send + 'static>(
                 quantum = acquire_quantum(handoff_gate.as_ref(), &mut stop).await;
             }
         }
-    }
+    })
     .await;
+    // Retire bounded owned readers/connectors before a global mapping handoff.
+    // Actual future cancellation still takes the existing fail-closed Drop.
+    if guard.owner.independent() && result.is_ok() {
+        guard.owner.settle_local_handoff().await?;
+    }
     let publication_barrier=admission.publication_in_progress().await.unwrap_or(false);
     let reason=if transport_failure {homesense_storage::scene_run::CancellationReason::TransportFailure}
         else if publication_barrier {homesense_storage::scene_run::CancellationReason::PublicationBarrier}

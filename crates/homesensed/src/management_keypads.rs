@@ -147,14 +147,21 @@ pub(crate) async fn snapshot(
                 .map_err(|e| format!("keypad audit: {e:?}"))?,
         );
     }
-    Ok(project(
-        config,
-        raw,
-        &visible,
-        &records,
-        transport_epoch,
-        now,
-    ))
+    let diagnostics=admission.diagnostics(controller,generation).await.map_err(|e|format!("keypad gateway view: {e:?}"))?;
+    let (mut panels,endpoints)=project(config,raw,&visible,&records,transport_epoch,now);
+    annotate_gateway_availability(config,&mut panels,&diagnostics.gateways,diagnostics.mapping_readable())?;
+    Ok((panels,endpoints))
+}
+fn annotate_gateway_availability(config:&Configuration,panels:&mut [Value],views:&[crate::gateway_runtime::View],readable:bool)->Result<(),String> {
+    for value in panels {
+        let panel=config.keypads().values().find(|panel|Some(panel.id.as_str())==value["id"].as_str()).ok_or("unknown logical keypad")?;
+        let gateway=&config.module(&panel.module_id).ok_or("keypad physical module unavailable")?.0.gateway;
+        let view=views.iter().find(|view|&view.gateway==gateway);
+        if !views.is_empty() && view.is_none(){return Err("keypad gateway scope unavailable".into());}
+        value["availability"]=json!(view);
+        value["action_gate"]=json!({"available":readable && view.is_none_or(|view|view.state=="ready")});
+    }
+    Ok(())
 }
 fn led_record(record: &Record, epoch: u64) -> Option<Value> {
     let color = match record.intent.as_slice() {
@@ -441,5 +448,24 @@ mod tests {
         assert!(key["led"]["observed"].is_null());
         let (restarted, _) = project(&config, &store.snapshot(), &[id].into(), &[], 2, 10000);
         assert!(restarted[0]["keys"][0]["led"]["last_written"].is_null());
+    }
+}
+
+#[cfg(test)]
+mod gateway_availability_tests {
+    use super::*;
+    #[test]
+    fn parent_gate_uses_physical_module_without_changing_masked_key_permissions() {
+        let bytes=br#"{"schema_version":2,"revision":1,"gateways":[{"id":"real-bus","endpoint":"127.0.0.1:50007","modules":[{"id":"registered-module","address":"41","profile":"ts6_86_rs485_v2_6_5_6key","verification":{"status":"simulated"},"led_mode":"manual"}]}],"devices":[],"keypads":[{"id":"unrelated-parent-name","name":"Synthetic panel","module_id":"registered-module","enabled":true,"keys":[{"number":1,"label":"One","led_endpoint":{"id":"legacy:1","name":"One","enabled":true}},{"number":2,"label":"Two","led_endpoint":{"id":"legacy:2","name":"Two","enabled":true}}]}]}"#;
+        let config=Configuration::parse(bytes,homesense_core::ExecutionContext::Simulation).unwrap();
+        let mut panels=vec![json!({"id":"unrelated-parent-name","keys":[{"number":1,"configured":true,"can_write_led":true},{"number":2,"configured":false,"can_write_led":false}],"settings":{"scope_complete":false,"backlight":{"can_write":false}}})];
+        let before=panels[0].clone();
+        for (epoch,state,available) in [(1,"offline",false),(2,"synchronizing",false),(2,"ready",true)] {
+            let view=crate::gateway_runtime::View {gateway:"real-bus".into(),connection_epoch:epoch.to_string(),state};
+            annotate_gateway_availability(&config,&mut panels,&[view],true).unwrap();
+            assert_eq!(panels[0]["availability"]["gateway"],"real-bus");assert_eq!(panels[0]["availability"]["connection_epoch"],epoch.to_string());assert_eq!(panels[0]["action_gate"]["available"],available);
+            assert_eq!(panels[0]["keys"],before["keys"]);assert_eq!(panels[0]["settings"],before["settings"]);
+        }
+        annotate_gateway_availability(&config,&mut panels,&[],false).unwrap();assert_eq!(panels[0]["action_gate"]["available"],false);
     }
 }

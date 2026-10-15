@@ -134,3 +134,54 @@ impl Store {
 #[cfg(test)]
 #[path = "led_request_index_tests.rs"]
 mod led_request_index_tests;
+
+/// Local wire epoch is additional provenance; the original service transport
+/// epoch and authority scope remain unchanged. Indexed even when no request
+/// exists yet in the new local epoch.
+pub(crate) const LATEST_LED_WIRE_REQUEST_SQL: &str = "SELECT command_id,device_id,status,intent,transport_epoch,control_epoch,updated_ms FROM command_journal WHERE boot_id=?1 AND revision=?2 AND device_id=?3 AND transport_epoch=?4 AND control_epoch=?5 AND gateway_id=?6 AND gateway_epoch=?7 AND intent IN (x'01060000',x'01060100',x'010A0000') ORDER BY command_id DESC LIMIT 1";
+
+impl Store {
+    pub fn latest_led_request_in_wire_scope(
+        &self,
+        boot: &str,
+        revision: u64,
+        id: &DeviceId,
+        global: homesense_core::queue::Epochs,
+        wire: &homesense_core::gateway_scope::WireScope,
+    ) -> Result<Option<Record>, Error> {
+        use rusqlite::OptionalExtension;
+        if global.configuration != revision {
+            return Err(Error::Conflict);
+        }
+        Ok(self
+            .connection
+            .query_row(
+                LATEST_LED_WIRE_REQUEST_SQL,
+                rusqlite::params![
+                    boot,
+                    sql_revision(revision)?,
+                    id.as_str(),
+                    sql_revision(global.transport)?,
+                    sql_revision(global.control)?,
+                    wire.gateway(),
+                    sql_revision(wire.epoch())?
+                ],
+                |r| {
+                    Ok(Record {
+                        command: u64::try_from(r.get::<_, i64>(0)?)
+                            .map_err(|_| rusqlite::Error::InvalidQuery)?,
+                        device: r.get(1)?,
+                        status: r.get(2)?,
+                        intent: r.get(3)?,
+                        transport_epoch: u64::try_from(r.get::<_, i64>(4)?)
+                            .map_err(|_| rusqlite::Error::InvalidQuery)?,
+                        control_epoch: u64::try_from(r.get::<_, i64>(5)?)
+                            .map_err(|_| rusqlite::Error::InvalidQuery)?,
+                        updated_ms: u64::try_from(r.get::<_, i64>(6)?)
+                            .map_err(|_| rusqlite::Error::InvalidQuery)?,
+                    })
+                },
+            )
+            .optional()?)
+    }
+}

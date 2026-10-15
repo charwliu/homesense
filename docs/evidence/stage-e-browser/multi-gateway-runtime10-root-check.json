@@ -1,0 +1,154 @@
+{
+  "checked_bj": "2026-10-16T04:48:15.725228+08:00",
+  "status": "Mac frozen backend fully qualified for local cross compile; shared exact48 Rust/test paths applied, pending exact commit and Linux state upgrade/rollback.",
+  "source_files": 852,
+  "manifest_sha256": "1e3c901b1a77e48c1f47aa5b86e43cec5592e4ca36fd03ea25083f18c2b61cc0",
+  "ordinary_CLI_sha256": "a1bd25f90f400942f68da93e669e8447a29bdddeef717af1d98c68d64b7a0ce7",
+  "Rust": {
+    "full_workspace_passed": 1197,
+    "failed": 0,
+    "ignored": 0,
+    "filtered": 0,
+    "actual_programs_rehashed": 172,
+    "doc_result_blocks": 10,
+    "strict_Clippy_exit_code": 0,
+    "original1160_retained": true,
+    "new_tests": 37
+  },
+  "normal_CLI": {
+    "HTTP_passed": 8,
+    "HTTP_required": 8,
+    "HAP_passed": 8,
+    "HAP_required": 8,
+    "WSS_partial_passed": true,
+    "delayed_original_contract_passed": true,
+    "stale_cancel_original_contract_passed": true,
+    "Keypad_parent_own_gateway_three_phases_passed": true,
+    "all13_record_exit0": true,
+    "original_contracts_deadlines_and_assertions_unchanged": true,
+    "records": [
+      {
+        "case": "HTTP-eight-matrix",
+        "exit_code": 0,
+        "passed": true,
+        "result_sha256": "c3fa72684ab7c2a84a8890ef947e79edd9a2f617c138f6c296efde0da576f839"
+      },
+      {
+        "case": "WSS-rst-first",
+        "exit_code": 0,
+        "passed": true,
+        "result_sha256": "7b8589ed7cba819e98794eeba625db51a288e4145166885f2dc908dc3c24aaed"
+      },
+      {
+        "case": "HAP-silent-first",
+        "exit_code": 0,
+        "passed": true,
+        "result_sha256": "5609aeb445fc6b8060652f6842c73923ae5ee55054d98505c17e35352621ba34"
+      },
+      {
+        "case": "HAP-silent-last",
+        "exit_code": 0,
+        "passed": true,
+        "result_sha256": "16d24274b6612f31db091aee8bddd8b0fa3bb11a43de93c848e98c056f55d9d1"
+      },
+      {
+        "case": "HAP-partial-first",
+        "exit_code": 0,
+        "passed": true,
+        "result_sha256": "ca77ff445ce4ec63d44653fc6b839bbb5b9843780c4712d42936035a220ff6c4"
+      },
+      {
+        "case": "HAP-partial-last",
+        "exit_code": 0,
+        "passed": true,
+        "result_sha256": "e8c5ea00a8b19692b4f2b34b9190f243aba642137120d13af662c5f83d66fc83"
+      },
+      {
+        "case": "HAP-eof-first",
+        "exit_code": 0,
+        "passed": true,
+        "result_sha256": "e6425b63dfcc5aadcb459e453b2822ab238e278e994f8cb1c6c3cda0dffd386a"
+      },
+      {
+        "case": "HAP-eof-last",
+        "exit_code": 0,
+        "passed": true,
+        "result_sha256": "f8fd3b7aaa873fc16bf8d1fed250b728a9bbd6c8b20e2d8c2f51c41d5407c6d5"
+      },
+      {
+        "case": "HAP-rst-first",
+        "exit_code": 0,
+        "passed": true,
+        "result_sha256": "1a97ea33c3754ff3f16191aab36b835fb5ec44c20543c28769f89b4574f11fc5"
+      },
+      {
+        "case": "HAP-rst-last",
+        "exit_code": 0,
+        "passed": true,
+        "result_sha256": "317df61a9db6bfb84ce30b182b994f0b7f9d8d3a81c565b871beac6ed7a88896"
+      },
+      {
+        "case": "delayed-rst-first",
+        "exit_code": 0,
+        "passed": true,
+        "result_sha256": "c62ceee1ef9069807d240b7b2ef02a826a616bce1471fbfcfc6e4ff8cd1edd69"
+      },
+      {
+        "case": "stale-cancel-rst-first",
+        "exit_code": 0,
+        "passed": true,
+        "result_sha256": "f3d8900b445a05bfcb5e45fb424bb4d6fbb8589559d8cc3d7c30f09ce2063a3f"
+      },
+      {
+        "case": "Keypad-availability-rst-first",
+        "exit_code": 0,
+        "passed": true,
+        "result_sha256": "57bb6498dcbdcbd0e7b23bd60eced998cef326215e82119a3828a2f757c83570"
+      }
+    ]
+  },
+  "repair_semantics": [
+    "Every local gateway has independent ready/offline/synchronizing wire generation and full fresh query barrier. Healthy connections, new writes, subscriptions and original delayed decisions retain their scopes.",
+    "Ordinary delayed scenes atomically capture original dependencies at start; due admission normalizes equal gateway+epoch while rejecting conflicting epochs.",
+    "Only actual matching per-frame feedback after proved written owners in same live wire may end bounded target protection at equal millisecond; actual relay supply remains guarded. Existing same-gateway composite-light constraint is preserved.",
+    "Scene/Keypad action_gate is health, separate from permissions. Parent module health is derived from module registry, not guessed from logical ID.",
+    "Cancel receipts retain nonreusable Control instance, never numeric run alone.",
+    "Strict schema27 stores original operation/wire links; old fixtures normalized as genuine pre-migration fixtures rather than weakening validation."
+  ],
+  "retained_failures": {
+    "runtime6": "workspace800 completed then original publication test stack overflow; product loop boxed, no test stack increase/assertion change",
+    "runtime7": "1189 passed but Clippy101/HAP4of8/delayed and cancel2",
+    "runtime8": "1193 and Clippy0; original delayed2/HAP101 and new Keypad101 remained",
+    "runtime9": "combined-supply new fixture missing required nonzero default_on_level, test never reached assertion; original failed source/log/program retained, fixture repaired only in next cohort"
+  },
+  "composition": {
+    "exact48_Rust_test_files_applied": true,
+    "worktree_matches846_of852": "README current feature status and5 preexisting dirty manual verify tools deliberately preserved; all Cargo/crates/vendor/config exact.",
+    "tracked_clean_commit_expected851_of852": "Five tracked HEAD manual tools equal frozen inputs; exact staged audit will verify final commit, README reconciled separately.",
+    "README_not_compiler_input": true,
+    "unrelated_App_tools_and_old_deletions_preserved": true
+  },
+  "production": "Existingf5b/1de forever service unchanged; no new configuration/rules/permissions or physical queries/actions.",
+  "Linux": "Deployment authorized to locally cross compile frozen source and perform real26to27 plus checksum whole-state rollback in isolated fake namespace; production held pending review.",
+  "private_evidence_root": "deployment/ngr/private/20261016-multigateway-isolation-root/runtime10-root-review",
+  "artifact_sha256": {
+    "qa-root-check.json": "9c216357349715c7ff16d0e1e9d43b16ec2acbc92bbd95a20ac39e1744480087",
+    "test-inventory-root-check.json": "fa1a63eb1020c6a16689d7f31846fce574139de5a0a0eb5247e994f9ccb91b71",
+    "protocol-results.json": "427814b0875aa55b263a9f616dfd2cff82caaf08b5cfba0b78a9c8d2dd4fa216",
+    "actual-keypad-availability-contract.json": "d9dcc5bc76f8ab9b60edb2257027a41a2f46ca3d1578eb7fd4a0e15eb6fae4c2",
+    "shared-apply/before.json": "5993a8e5b206524dfc771f817771e1f8f0a996957187c1f8201be8730f61642f",
+    "shared-apply/after.json": "52d57747ec3b83602f726d08745b45fcf1273a16edd0844bebdc700ef18f9fba"
+  },
+  "field_controls": 0,
+  "original_scope": {
+    "scenes": 68,
+    "programs": 215,
+    "variables": 25
+  },
+  "remaining_source_scope": {
+    "scenes": 65,
+    "programs": 208,
+    "variables": 24
+  },
+  "D_E_complete": false
+}

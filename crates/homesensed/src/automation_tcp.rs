@@ -246,6 +246,14 @@ async fn serve_inner_running(devices:&[u8],rules:&[u8],directory:&Path,control:c
             let startup=if recoveries==0 {StartupPolicy::Run} else {StartupPolicy::Suppress};
             let (runtime_stop, runtime_receive) = tokio::sync::watch::channel(false);
             let mut pending = None;
+            if config.gateways().len()>1 && !owner.independent() {
+                let destinations=endpoints.clone();
+                let connector:crate::transport_owner::Connector<std::net::TcpStream>=std::sync::Arc::new(move|id,epoch| {
+                    let address=destinations.get(id).copied().ok_or_else(||std::io::Error::new(std::io::ErrorKind::InvalidInput,"unknown configured gateway"))?;
+                    hb_transport::Connection::connect(address,epoch,Duration::from_secs(2),Duration::from_millis(100))
+                });
+                owner.enable_independent(&config,connector).await?;
+            }
             let mut runtime=match prepared_runtime.take() {
                 Some(runtime) => runtime,
                 None => AutomationRuntime::load_with_startup(admission.clone(),controller,wall_ms()?,1000,64,Default::default(),startup).await?,

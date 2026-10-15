@@ -117,6 +117,7 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
         Ok(Some(read))
     }
     pub(crate) fn output_query_pending(&self) -> bool {
+        if self.transport.local_mode() {return self.local_refresh.as_ref().is_some_and(local_refresh::Refresh::pending);}
         self.output_refresh
             .as_ref()
             .is_some_and(OutputRefresh::awaiting_response)
@@ -151,6 +152,10 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
             self.transport.write_interval_ms(),
             max_age_ms,
         )?;
+        if self.transport.local_mode() {
+            self.local_refresh=Some(local_refresh::Refresh::new(configuration.clone(),targets,generation,context,timeout_ms,max_age_ms,interval_ms,self.transport.now_ms())?);
+            self.output_refresh=None;return Ok(());
+        }
         self.output_refresh = Some(OutputRefresh {
             configuration: configuration.clone(),
             targets,

@@ -71,7 +71,7 @@ async fn selection_details(
     // A read-only request may complete late, but can never dispatch an action.
     match tokio::time::timeout(std::time::Duration::from_millis(500), async {
         match control.request(Action::Diagnostics { controller, revision }).await {
-            Ok(Reply::Diagnostics(state)) if state.ready() => {},
+            Ok(Reply::Diagnostics(state)) if state.mapping_readable() => {},
             Ok(Reply::Diagnostics(_)) => return Err(UnavailableReason::RuntimeNotReady),
             _ => return Err(UnavailableReason::ReadFailed),
         }
@@ -659,6 +659,7 @@ impl Api {
                     continue;
                 }
                 let execution_kind=match runtime.control.request(Action::SceneDefinition{controller:grant.controller,revision:runtime.revision,scene:id.clone()}).await {Ok(Reply::SceneDefinition(kind))=>kind,_=>return deny(StatusCode::SERVICE_UNAVAILABLE,"scene_definition_unavailable")};
+                let action_gate=match runtime.control.request(Action::SceneAvailability{controller:grant.controller,revision:runtime.revision,scene:id.clone()}).await {Ok(Reply::SceneAvailability(gate))=>gate,_=>return deny(StatusCode::SERVICE_UNAVAILABLE,"scene_availability_unavailable")};
                 let tracking=match runtime.control.request(Action::SceneTracking{controller:grant.controller,revision:runtime.revision,scene:id.clone()}).await {Ok(Reply::SceneTracking(v))=>v,_=>return deny(StatusCode::SERVICE_UNAVAILABLE,"scene_tracking_unavailable")};
                 let activity=if let Some(value)=&tracking {format!("{:?}",value.activity)}else{match runtime.control.request(Action::SceneActivity(id.clone())).await {Ok(Reply::Activity(Some(v)))=>format!("{v:?}"),_=>"Unknown".into()}};
                 let name=tracking.as_ref().and_then(|v|v.display_name.as_ref()).unwrap_or(name);
@@ -668,7 +669,7 @@ impl Api {
                     }
                     _ => serde_json::Value::Null,
                 };
-                items.push(json!({"id":id,"name":name,"execution_kind":execution_kind,"history_available":execution_kind==homesense_config::rule_document::SceneExecutionKind::Timed,"activity":activity,"activity_source":if tracking.is_some(){"reviewed_tracking"}else if execution_kind==homesense_config::rule_document::SceneExecutionKind::Immediate{"not_configured"}else{"final_light_targets"},"tracking":tracking,"last_run":last,"can_control":grant.may_control(id) && tracking.as_ref().is_none_or(|v|v.action_available) && !selection.get(id).is_some_and(|s|s.pending_relative),"activity_kind":if tracking.is_some(){"read_only"}else if execution_kind==homesense_config::rule_document::SceneExecutionKind::Immediate{"unconfigured"}else{"load_feedback"},"switch_kind":if selection.contains_key(id){"selection"}else{"momentary"},"selected":selection.get(id).and_then(|s|s.selected),"selection_state":selection.get(id).map(|s|s.selection_state),"selection_source":selection.get(id).map(|s|s.selection_source),"historical_selected":selection.get(id).and_then(|s|s.historical_selected),"pending_relative":selection.get(id).is_some_and(|s|s.pending_relative),"relative_unknown_allowed":selection.get(id).is_some_and(|s|s.relative_unknown_allowed),"observation_current":selection.get(id).and_then(|s|s.observation_current),"observation_boot":selection.get(id).and_then(|s|s.observation_boot.as_ref()),"observed_ms":selection.get(id).and_then(|s|s.observed_ms.as_ref())}));
+                items.push(json!({"id":id,"name":name,"action_gate":action_gate,"execution_kind":execution_kind,"history_available":execution_kind==homesense_config::rule_document::SceneExecutionKind::Timed,"activity":activity,"activity_source":if tracking.is_some(){"reviewed_tracking"}else if execution_kind==homesense_config::rule_document::SceneExecutionKind::Immediate{"not_configured"}else{"final_light_targets"},"tracking":tracking,"last_run":last,"can_control":grant.may_control(id) && tracking.as_ref().is_none_or(|v|v.action_available) && !selection.get(id).is_some_and(|s|s.pending_relative),"activity_kind":if tracking.is_some(){"read_only"}else if execution_kind==homesense_config::rule_document::SceneExecutionKind::Immediate{"unconfigured"}else{"load_feedback"},"switch_kind":if selection.contains_key(id){"selection"}else{"momentary"},"selected":selection.get(id).and_then(|s|s.selected),"selection_state":selection.get(id).map(|s|s.selection_state),"selection_source":selection.get(id).map(|s|s.selection_source),"historical_selected":selection.get(id).and_then(|s|s.historical_selected),"pending_relative":selection.get(id).is_some_and(|s|s.pending_relative),"relative_unknown_allowed":selection.get(id).is_some_and(|s|s.relative_unknown_allowed),"observation_current":selection.get(id).and_then(|s|s.observation_current),"observation_boot":selection.get(id).and_then(|s|s.observation_boot.as_ref()),"observed_ms":selection.get(id).and_then(|s|s.observed_ms.as_ref())}));
             }
             return response(StatusCode::OK, json!({"revision":runtime.revision.to_string(),"scenes":items}));
         }
@@ -895,6 +896,7 @@ impl Api {
                     || p["revision"] != runtime.revision
                     || r["outcome"] != "accepted"
                     || r["boot"] != runtime.boot
+                    || r["runtime_instance"] != runtime.control.instance_id().to_string()
                 {
                     return None;
                 }
@@ -955,7 +957,7 @@ impl Api {
         let controlled=if let Some(source)=command_source {runtime.control.request_authorized(action,source).await}else{runtime.control.request(action).await};
         let outcome = match controlled {
             Ok(Reply::SceneAccepted(Some(run))) => {
-                json!({"request_id":request_id,"outcome":"accepted","boot":runtime.boot,"run":run})
+                json!({"request_id":request_id,"outcome":"accepted","boot":runtime.boot,"run":run,"runtime_instance":runtime.control.instance_id().to_string()})
             }
             Ok(Reply::ImmediateAccepted(receipt))=>json!({"request_id":request_id,"outcome":"accepted","execution_kind":"immediate","boot":runtime.boot,"receipt":receipt,"retry":false}),
             Ok(Reply::SceneRelative(receipt))=>json!({"request_id":request_id,"outcome":"accepted","status":receipt.status,"boot":receipt.boot,"selected":receipt.selected,"retry":false}),
@@ -1019,7 +1021,7 @@ pub(crate) fn device_json(
         device.state.kind,
         homesense_core::ModuleKind::Switch | homesense_core::ModuleKind::Dimmer
     );
-    json!({"id":device.id.as_str(),"name":device.name,"room":device.room,"kind":format!("{:?}",device.state.kind),"observed":observed,"reported":reported,"state_authority":if device.recorded {"pending_target"} else {"feedback"},"quality":format!("{:?}",device.state.quality),"observed_at_ms":device.state.observed_at_ms,"pending":device.state.pending_command,"version":device.state.version,"motor_calibrated":device.motor_calibrated,"motor_estimate":device.motor_estimate,"can_control":(light || device.motor_calibrated) && grant.may_control_device(device.id.as_str())})
+    json!({"id":device.id.as_str(),"name":device.name,"room":device.room,"kind":format!("{:?}",device.state.kind),"observed":observed,"reported":reported,"state_authority":if device.recorded {"pending_target"} else {"feedback"},"quality":format!("{:?}",device.state.quality),"availability":device.availability,"action_gate":{"available":device.availability.as_ref().is_none_or(|view|view.state=="ready")},"observed_at_ms":device.state.observed_at_ms,"pending":device.state.pending_command,"version":device.state.version,"motor_calibrated":device.motor_calibrated,"motor_estimate":device.motor_estimate,"can_control":(light || device.motor_calibrated) && grant.may_control_device(device.id.as_str())})
 }
 
 fn mask_module_actions(slots: &mut [crate::management_modules::Slot], grant: &crate::web_auth::Grant) {

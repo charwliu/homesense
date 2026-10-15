@@ -1,3 +1,6 @@
+#[path = "support/pre_gateway_scope_fixture.rs"]
+mod pre_gateway_scope_fixture;
+
 use homesense_core::{
     Command, DeviceId, ExecutionContext,
     queue::{CancelReason, Cancellation, Epochs, Origin, QueuedCommand},
@@ -255,6 +258,7 @@ fn schema_24_backup_and_migration_keep_historical_sources_unknown() {
         .unwrap();
     drop(store);
     let sql = rusqlite::Connection::open(db.path()).unwrap();
+    pre_gateway_scope_fixture::strip(&sql);
     sql.execute_batch("ALTER TABLE rule_command DROP COLUMN source; DROP TABLE module_off_effect; PRAGMA user_version=24;")
         .unwrap();
     drop(sql);

@@ -184,7 +184,9 @@ impl Store {
         key: &str,
         now: u64,
     ) -> Result<(), Error> {
-        self.connection.execute("UPDATE native_scene_request SET status='unknown',selected=NULL,updated_ms=?3 WHERE controller=?1 AND request_key=?2 AND status='pending'",params![controller,key,number(now)?])?;
+        let tx=self.connection.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        tx.execute("UPDATE native_scene_request SET status='unknown',selected=NULL,updated_ms=?3 WHERE controller=?1 AND request_key=?2 AND status='pending'",params![controller,key,number(now)?])?;
+        retire_gateway_native_scope(&tx,controller,key)?;tx.commit()?;
         Ok(())
     }
     /// Recovery is audit-only: no command or request is returned to replay.
@@ -194,7 +196,13 @@ impl Store {
         epochs: Epochs,
         now: u64,
     ) -> Result<(), Error> {
-        self.connection.execute("UPDATE native_scene_request SET status='unknown',selected=NULL,updated_ms=CASE WHEN boot_id=?1 THEN ?5 ELSE updated_ms END WHERE status='pending' AND (boot_id!=?1 OR revision!=?2 OR transport_epoch!=?3 OR control_epoch!=?4 OR deadline_ms<=?5)",params![boot,sql_revision(epochs.configuration)?,number(epochs.transport)?,number(epochs.control)?,number(now)?])?;
+        let tx=self.connection.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        let expired={
+            let mut query=tx.prepare("SELECT controller,request_key FROM native_scene_request WHERE status='pending' AND (boot_id!=?1 OR revision!=?2 OR transport_epoch!=?3 OR control_epoch!=?4 OR deadline_ms<=?5)")?;
+            query.query_map(params![boot,sql_revision(epochs.configuration)?,number(epochs.transport)?,number(epochs.control)?,number(now)?],|row|Ok((row.get::<_,String>(0)?,row.get::<_,String>(1)?)))?.collect::<Result<Vec<_>,_>>()?
+        };
+        tx.execute("UPDATE native_scene_request SET status='unknown',selected=NULL,updated_ms=CASE WHEN boot_id=?1 THEN ?5 ELSE updated_ms END WHERE status='pending' AND (boot_id!=?1 OR revision!=?2 OR transport_epoch!=?3 OR control_epoch!=?4 OR deadline_ms<=?5)",params![boot,sql_revision(epochs.configuration)?,number(epochs.transport)?,number(epochs.control)?,number(now)?])?;
+        for (controller,key) in expired {retire_gateway_native_scope(&tx,&controller,&key)?;}tx.commit()?;
         Ok(())
     }
     /// Only confirmed post-query values become native dimmer settings. The
@@ -218,7 +226,28 @@ impl Store {
         if changed != 1 {
             return Err(Error::Conflict);
         }
+        retire_gateway_native_scope(&tx,&request.controller,&request.key)?;
         tx.commit()?;
         Ok(())
     }
+}
+
+/// Native birth ids are existing durable first-phase command receipts. The
+/// matching operation is created with those commands by scoped acceptance.
+/// Closing the native row and its scope uses one transaction; old boot-relative
+/// clocks retain their original dates rather than borrowing the new boot clock.
+type NativeScopeRecord=(String,i64,i64,i64,String,String,i64);
+fn retire_gateway_native_scope(tx:&rusqlite::Transaction<'_>,controller:&str,key:&str)->Result<(),Error> {
+    let row:Option<NativeScopeRecord>=tx.query_row("SELECT boot_id,revision,transport_epoch,control_epoch,initial_commands,status,updated_ms FROM native_scene_request WHERE controller=?1 AND request_key=?2",params![controller,key],|row|Ok((row.get(0)?,row.get(1)?,row.get(2)?,row.get(3)?,row.get(4)?,row.get(5)?,row.get(6)?))).optional()?;
+    let Some((boot,revision,transport,control,commands,status,updated))=row else{return Ok(());};
+    if status=="pending" || commands.is_empty(){return Ok(());}
+    let commands=commands.split(',').map(str::parse::<u64>).collect::<Result<Vec<_>,_>>().map_err(|_|Error::InvalidAudit)?;
+    if commands.is_empty() || commands.len()>128 || commands.contains(&0){return Err(Error::InvalidAudit);}
+    let id=(1u64<<62).checked_add(commands[0]).ok_or(Error::InvalidAudit)?.to_string();
+    let closed=if status=="observed" {"completed"}else{"cancelled"};
+    let invalid:bool=tx.query_row("SELECT EXISTS(SELECT 1 FROM gateway_operation WHERE boot_id=?1 AND kind='native' AND operation_id=?2 AND status='active' AND (version=9223372036854775807 OR updated_ms>?3))",params![boot,id,updated],|row|row.get(0))?;
+    if invalid{return Err(Error::Conflict);}
+    // This closes only an explicitly existing scope, never constructs legacy scope.
+    tx.execute("UPDATE gateway_operation SET status=?6,updated_ms=?7,version=version+1 WHERE boot_id=?1 AND kind='native' AND operation_id=?2 AND revision=?3 AND transport_epoch=?4 AND control_epoch=?5 AND status='active'",params![boot,id,revision,transport,control,closed,updated])?;
+    Ok(())
 }

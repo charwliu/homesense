@@ -39,6 +39,9 @@ fn equivalent(a: Option<Snapshot>, b: Option<Snapshot>) -> bool {
     }
 }
 impl Lease {
+    pub(crate) fn devices(&self)->Vec<homesense_core::DeviceId> {
+        self.witnesses.iter().map(|w|w.request.predicate.device.clone()).collect()
+    }
     pub fn capture(
         controller: Uuid,
         scope: Scope,

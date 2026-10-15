@@ -1,5 +1,5 @@
 {
-  "checked_bj": "2026-10-16T04:24:32.436688+08:00",
+  "checked_bj": "2026-10-16T04:48:15.725228+08:00",
   "derived_requirements": [
     "docs/design.md sections9-11,18,20,23-24,27"
   ],
@@ -37,12 +37,13 @@
       "stage": "D",
       "requirement": "场景时序、tracking与停用",
       "verified_scope": "通用审核转换、活动推断和完整目标向量停用已实现",
-      "remaining_evidence": "原rate／tracking与全零场景策略仍待用户语义处置。私有runtime7普通延迟启动已原子保存作用域，A故障仅取消A；但健康B到期准入失败，恢复后新B正向对照也失败，延迟契约exit2，不能宣布时间线连续性完成。",
+      "remaining_evidence": "原rate／tracking、17个全零场景的一次执行策略及完整原项目处置仍待。runtime10普通延迟原作用域已持久捕获、去重并保持epoch冲突拒绝；原延迟契约完整通过，A故障仅取消依赖A，纯B及恢复后新B按时Written。真实原程序时序及现场范围仍待。",
       "status": "source_semantics_unresolved",
       "additional_toggle_dependency_evidence": "stage-d-study/scene-toggle-leaf-dependencies-root-check.json",
       "additional_gateway_timeline_evidence": "stage-e-browser/multi-gateway-delayed-scene-root-gap.json",
       "additional_private_runtime1_protocol_evidence": "stage-e-browser/multi-gateway-runtime1-root-check.json",
-      "additional_private_runtime7_evidence": "stage-e-browser/multi-gateway-runtime7-root-check.json"
+      "additional_private_runtime7_evidence": "stage-e-browser/multi-gateway-runtime7-root-check.json",
+      "additional_runtime10_evidence": "stage-e-browser/multi-gateway-runtime10-root-check.json"
     },
     {
       "id": "D-4",
@@ -63,21 +64,22 @@
       "stage": "D",
       "requirement": "日历、规则链、取消与恢复",
       "verified_scope": "显式顺序、延迟、渐变、来源审计及恢复不重放有软件回归；4日历创建者与1内嵌计划来源已核对",
-      "remaining_evidence": "原计划／代理自身运行语义与完整原程序回放仍待。不可复用Control实例的取消回执修复已进入私有runtime7并通过原3+新1回归；原完整旧取消契约仍exit2，因为健康B延迟正向对照失败，尚无最终集成发布资格。",
+      "remaining_evidence": "原计划／代理自身语义与完整原程序回放仍待。runtime10原旧取消完整契约通过，持续本地故障不复用数字run误取消；不可复用Control实例回执另有原3+新1回归。Linux实际迁移/回退和完整现场恢复仍待，不把软件loopback证明当作源程序批准。",
       "status": "source_and_physical_partial",
       "additional_source_evidence": "stage-d-study/calendar-creator-source-root-check.json",
       "additional_gateway_timeline_evidence": "stage-e-browser/multi-gateway-delayed-scene-root-gap.json",
       "additional_stale_cancel_evidence": "stage-e-browser/stale-scene-cancel-root-gap.json",
       "additional_private_cancel_fix": "stage-e-browser/stale-scene-cancel-private-fix-root-check.json",
       "additional_private_runtime1_protocol_evidence": "stage-e-browser/multi-gateway-runtime1-root-check.json",
-      "additional_private_runtime7_evidence": "stage-e-browser/multi-gateway-runtime7-root-check.json"
+      "additional_private_runtime7_evidence": "stage-e-browser/multi-gateway-runtime7-root-check.json",
+      "additional_runtime10_evidence": "stage-e-browser/multi-gateway-runtime10-root-check.json"
     },
     {
       "id": "E-1",
       "stage": "E",
       "requirement": "原生HAP、配对与身份",
       "verified_scope": "既有iPhone配对、保留身份重启和软件加密／撤权证据已具备；HAP过期失效及同值新反馈恢复通知已修复，3类灯回归、227项运行时单元、严格Clippy及普通生产库实际约5.3秒反例复验通过；同一统一候选的普通生产库另经三类灯真实回环Pair-Verify/加密EVENT/读取验证，5个特征过期和同值恢复，零控制命令；整合v7已配对加密HAP在无反馈／部分反馈期间失效，完整八路反馈后原配对及AID/IID不变，新控制25%和订阅实际读回通过。",
-      "remaining_evidence": "现网单网关通知/身份及实际Apple客户端已有范围结果保留。私有runtime7加密HAP八组合仅4绿，四例健康B物理45已确认而HAP仍30；八例同认证会话、身份、B50写出及新A60恢复均成立，但整组未通过，集中现场验收未开始。",
+      "remaining_evidence": "runtime10原加密HAP8/8全绿：A局部不可用，健康B外部45读回/通知与B50写出、同认证会话/身份、恢复后新A60均成立。真实Apple客户端新故障通知集中验收及完整多中枢范围仍待；现网尚未升级该候选。",
       "status": "single_gateway_notification_qualified_partial_gateway_HAP_counterexample",
       "additional_software_gap": "stage-e-browser/hap-expiry-notification-root-gap.json",
       "additional_software_fix": "stage-e-browser/hap-expiry-notification-root-check.json",
@@ -85,7 +87,8 @@
       "additional_runtime_recovery_evidence": "stage-e-browser/runtime-availability-recovery-root-check.json",
       "additional_partial_HAP_evidence": "stage-e-browser/multi-gateway-partial-hap-root-gap.json",
       "additional_private_runtime1_protocol_evidence": "stage-e-browser/multi-gateway-runtime1-root-check.json",
-      "additional_private_runtime7_evidence": "stage-e-browser/multi-gateway-runtime7-root-check.json"
+      "additional_private_runtime7_evidence": "stage-e-browser/multi-gateway-runtime7-root-check.json",
+      "additional_runtime10_evidence": "stage-e-browser/multi-gateway-runtime10-root-check.json"
     },
     {
       "id": "E-2",
@@ -114,7 +117,7 @@
       "stage": "E",
       "requirement": "原生App、管理API鉴权与事件恢复",
       "verified_scope": "登录、滑块、退出和iPad断网恢复有实际限定结果；新账本与Away有软件证据；原生App实际TLS/WSS软件集成及手机推送、页面稳定与亮度按钮可用已确认；原生App两次实际调光跟随与自动读回已确认；rev9楼层目录及原生App三层/两房间归属已实际确认，永久Admin登录和本机空楼层编辑已通过；原生App楼层/房间新增、改名、删除、服务端保存及预览、恢复活动配置和测试草稿清理均已实际确认；两草稿独立核对设备及自动化未变；build7永久凭证Keychain保存、强退重开自动连接及前后台开/关同步已现场通过；ordinary v3严格负向80项零写出、publication v3四函数32项限定通过，v7 Web准确两run持久账目通过；精确来源授权／发布与STOP冻结v5完整1086项及文档、严格Clippy通过，保留原1067项，新增19项含213专项记录",
-      "remaining_evidence": "私有runtime7原WSS-rst-first已通过：B45/B40部分推送、同socket、零全局unavailable、无全局reset及恢复均成立。实际availability/action_gate设备DTO已提供App，原生局部可用性适配/场景与Keypad目标门禁、手机六键卡片视觉及自主发布/管理边界仍待；完整取消契约仍因延迟正向对照失败exit2。",
+      "remaining_evidence": "runtime10原WSS部分状态/同socket/零globalunavailable/无globalreset及父Keypad三阶段已通过。App私有85实际单元+2原Rust实际集成及真实URLSession读链三阶段通过；待最终选择性Git构成单独验证、App合入/新包交付与手机卡片视觉、自主发布/其他管理边界集中验收。",
       "status": "exact_source_auth_software_deployed_remaining_field_and_management_checks_pending",
       "additional_auth_gap": "stage-e-browser/ordinary-source-auth-root-gap.json",
       "additional_publication_auth_evidence": "stage-e-browser/publication-source-boundaries-root-check.json",
@@ -123,7 +126,9 @@
       "additional_stale_cancel_evidence": "stage-e-browser/stale-scene-cancel-root-gap.json",
       "additional_private_cancel_fix": "stage-e-browser/stale-scene-cancel-private-fix-root-check.json",
       "additional_private_runtime1_protocol_evidence": "stage-e-browser/multi-gateway-runtime1-root-check.json",
-      "additional_private_runtime7_evidence": "stage-e-browser/multi-gateway-runtime7-root-check.json"
+      "additional_private_runtime7_evidence": "stage-e-browser/multi-gateway-runtime7-root-check.json",
+      "additional_runtime10_evidence": "stage-e-browser/multi-gateway-runtime10-root-check.json",
+      "additional_native_partial_evidence": "stage-e-browser/native-partial-availability-root-check.json"
     },
     {
       "id": "E-5",
@@ -146,7 +151,7 @@
       "stage": "D/E",
       "requirement": "最终集成软件回归",
       "verified_scope": "网络接收错误修复最终844冻结输入：1160项完整Rust、原1153函数全部保留、172实际程序重哈希、文档与全目标严格Clippy通过；最终正式CLI88路周期/常驻恢复和两项实际App HTTPS/WSS通过。",
-      "remaining_evidence": "现网1de的1160项/严格Clippy与Linux资格保持。私有runtime7同852输入完整1189项、172实际程序及10文档结果块通过，原1160按package+target+test全部保留，新增29；严格Clippy两项错误101、HAP4/8及延迟/取消exit2，故最终集成软件资格未完成，Linux真实schema27升级/完整状态回退仍待。",
+      "remaining_evidence": "新backend runtime10全部1197项、172实际程序、10文档块、严格Clippy及原HTTP8/HAP8/WSS/延迟/取消/父Keypad契约通过，原1160全部保留。精确Rust48文件已合入工作树，当前文档/原脏manual工具独立保留；Linux实际schema27升级/整树回退正在交部署，App最终干净Git组合验证及手机现场仍未完成。",
       "status": "receive_error_repair_Mac_qualified_Linux_deployed_multi_gateway_isolation_open",
       "complete_for_current_frozen_input": true,
       "incremental_python_tool_tests_passed": 20,
@@ -171,15 +176,17 @@
       "current_actual_programs": 172,
       "additional_private_runtime1_protocol_evidence": "stage-e-browser/multi-gateway-runtime1-root-check.json",
       "additional_private_runtime7_evidence": "stage-e-browser/multi-gateway-runtime7-root-check.json",
-      "latest_private_candidate_full_workspace_tests": 1189,
-      "latest_private_candidate_full_qualification": false
+      "latest_private_candidate_full_workspace_tests": 1197,
+      "latest_private_candidate_full_qualification": true,
+      "additional_runtime10_evidence": "stage-e-browser/multi-gateway-runtime10-root-check.json",
+      "latest_private_candidate_qualification_scope": "Mac backend frozen Rust/normalCLI only; not whole D/E or Linux/App/field"
     },
     {
       "id": "E-7",
       "stage": "E",
       "requirement": "持续服务隔离网关超时与恢复失败，保留原生管理入口",
       "verified_scope": "v21常驻完整1128项、原配对HAP专项和正式AD8常驻生命周期通过；Linux隔离烟测与systemd上线及可信HTTPS就绪核验通过，保留原rev9/Admin/配对。；新增接收RST导致退出的正式程序反例已软件修复，完成故障审计的指定网络错误可恢复，真实取消和审计/不变量错误仍致命。；本轮Linux正式程序隔离RST生命周期与常驻更新已独立核验。；私有基础层Core/Storage216项及严格迁移/64容量已独立核查，不等同运行时隔离。；现有正式Linux ELF的隔离整树回退机制已独立核查，checksum修复同大小/时间数据库漏恢复，27项清单和非空合成配对/凭据保持。；私有runtime1同852输入普通CLI原HTTP8组合独立全绿，保留B连接/反馈/新控制；尚未合入/部署。",
-      "remaining_evidence": "私有runtime7原HTTP八组合全绿且WSS局部推送已绿，但HAP八组合仅4绿，健康B延迟到期仍失败，最终严格Clippy101。现网保持1de，未集成/部署该候选。真实schema27升级/整树checksum回退、原生App部分可用性及集中现场仍待；不以合成version标签演练代替真实迁移。",
+      "remaining_evidence": "独立网关故障隔离已在同一runtime10正式CLI全部契约通过，不再沿用此前runtime1/7反例作为当前候选未修复结论。现网仍f5b/1de常驻；新LinuxELF、真实26to27迁移/旧程序拒绝和checksum整树回退、常驻交付及集中现场仍待。",
       "status": "single_gateway_deployed_multi_gateway_independent_control_counterexample",
       "additional_evidence": "stage-e-browser/runtime-gateway-timeout-root-gap.json",
       "additional_production_counterexample": "stage-e-browser/runtime-feedback-outage-cli-root-check.json",
@@ -195,7 +202,8 @@
       "additional_private_cancel_fix": "stage-e-browser/stale-scene-cancel-private-fix-root-check.json",
       "additional_synthetic_rollback_evidence": "stage-e-browser/state-tree-rollback-root-check.json",
       "additional_private_runtime1_protocol_evidence": "stage-e-browser/multi-gateway-runtime1-root-check.json",
-      "additional_private_runtime7_evidence": "stage-e-browser/multi-gateway-runtime7-root-check.json"
+      "additional_private_runtime7_evidence": "stage-e-browser/multi-gateway-runtime7-root-check.json",
+      "additional_runtime10_evidence": "stage-e-browser/multi-gateway-runtime10-root-check.json"
     }
   ],
   "evidence_sha256": {
@@ -283,7 +291,9 @@
     "stage-e-browser/stale-scene-cancel-private-fix-root-check.json": "8d036cf0593cd187d5fed3b059a084d247b6a42ad22d7ea5182fe108e4460e98",
     "stage-e-browser/state-tree-rollback-root-check.json": "92f6c98fa43ad4c0980ae8bf35ee7941970de0a1fa1068b199a903e106b248ee",
     "stage-e-browser/multi-gateway-runtime1-root-check.json": "12ab8e62ab688372c23bfee082e308095d746ce8a4f869d59a1f238bdced9531",
-    "stage-e-browser/multi-gateway-runtime7-root-check.json": "0144d153a644ac4f9c19763fa279e1d90be08c8294f09db100dcb8413f56d76b"
+    "stage-e-browser/multi-gateway-runtime7-root-check.json": "0144d153a644ac4f9c19763fa279e1d90be08c8294f09db100dcb8413f56d76b",
+    "stage-e-browser/multi-gateway-runtime10-root-check.json": "d0304f21c7086e5d5b4c0f599869136ea3aac086240e3ed5fab04d849d16dd82",
+    "stage-e-browser/native-partial-availability-root-check.json": "dcbb64ab3a3da2b06e382063fa3e316eca5562fe753b1da338c9a1c2b53e14b5"
   },
   "excluded_by_scope": {
     "Siri": "cancelled by user",
@@ -518,14 +528,21 @@
   "latest_Keypad_display_diagnosis": "stage-e-browser/keypad-display-diagnosis-root-check.json",
   "latest_indicator_final_Linux_deployment": "stage-e-browser/indicator-final-linux-deployment-root-check.json",
   "latest_native_build9_delivery": "stage-e-browser/native-build9-delivery-root-check.json",
-  "native_App_phone_update": "build9 signed; two bounded installs failed CoreDevice4000/NWError60 despite observed tunnel state change; stopped until reliable connection; last observed build8 before attempt1",
+  "native_App_phone_update": "old-source build9 signed but two installs failed CoreDevice4000/NWError60; current availability changes not in that old signed9. New phone package/install/visual acceptance pending, last observed installed8.",
   "latest_multi_gateway_runtime_counterexample": "stage-e-browser/multi-gateway-isolation-root-gap.json",
-  "multi_gateway_fault_isolation": "software gap confirmed on final production CLI; exact baseline retained, private architecture/candidate work assigned",
+  "multi_gateway_fault_isolation": {
+    "Mac_frozen_backend_qualified": true,
+    "current_production_still_previous_single_gateway_recovery": true,
+    "new_Linux_cross_compile_and_state_upgrade_rollback": "in progress, no production switch yet",
+    "original_failure_baselines_retained": true,
+    "current_evidence": "stage-e-browser/multi-gateway-runtime10-root-check.json"
+  },
   "latest_receive_network_error_repair": "stage-e-browser/receive-network-error-root-check.json",
   "receive_network_error_repair": {
     "Mac_qualified": true,
     "Linux_deployed": true,
-    "full_gateway_isolation": false
+    "full_gateway_isolation": false,
+    "full_gateway_isolation_scope": "deployed old runtime only; new frozen Mac candidate fully qualified separately"
   },
   "latest_receive_network_error_Linux_deployment": "stage-e-browser/receive-network-error-linux-deployment-root-check.json",
   "HAP_poststart_authorized_pairing_addition": {
@@ -544,5 +561,7 @@
   "latest_private_stale_cancel_repair": "stage-e-browser/stale-scene-cancel-private-fix-root-check.json",
   "latest_synthetic_complete_state_rollback": "stage-e-browser/state-tree-rollback-root-check.json",
   "latest_private_runtime1_protocol_review": "stage-e-browser/multi-gateway-runtime1-root-check.json",
-  "latest_private_runtime7_protocol_and_Rust_review": "stage-e-browser/multi-gateway-runtime7-root-check.json"
+  "latest_private_runtime7_protocol_and_Rust_review": "stage-e-browser/multi-gateway-runtime7-root-check.json",
+  "latest_gateway_isolation_Mac_qualification": "stage-e-browser/multi-gateway-runtime10-root-check.json",
+  "latest_native_partial_availability_software": "stage-e-browser/native-partial-availability-root-check.json"
 }

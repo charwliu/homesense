@@ -333,7 +333,9 @@ pub async fn snapshot(
         raw.devices.clear();
     }
     let ready = mapping_current
-        && diagnostics.ready()
+        // Target readiness is projected per module below. Global storage,
+        // lifecycle and publication failures still make every view unavailable.
+        && diagnostics.mapping_readable()
         && feedback.is_active()
         && feedback.transport_epoch() == generation.epochs.transport
         && raw.cursor.boot_id
