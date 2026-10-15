@@ -1,5 +1,5 @@
 {
-  "checked_bj": "2026-10-15T22:12:35.268259+08:00",
+  "checked_bj": "2026-10-15T22:21:37.629836+08:00",
   "derived_requirements": [
     "docs/design.md sections9-11,18,20,23-24,27"
   ],
@@ -213,7 +213,8 @@
     "stage-e-browser/continuous-service-root-check.json": "65b8cf06c7aec14c4ffc2dfa55205499648923f491a86107bbe60545ba2ec26b",
     "stage-e-browser/keypad-full-candidate-v21-root-check.json": "b1c2263798ccc3b76a2aaf4a91f6fe46e014e8f0f2550e50fc62c5c97bf31ad6",
     "stage-d-study/motor-led-ownership-root-check.json": "680d5a1991a1f779a1e75e2f4ac97f8f6a1b6c13da4b7ce2bb2f004d436d064f",
-    "stage-e-browser/keypad-existing-cards-publication-root-check.json": "d4d1f6950bf83d965c5b84d8c7911602db1ca953e16823993414c81cc67ecc15"
+    "stage-e-browser/keypad-existing-cards-publication-root-check.json": "d4d1f6950bf83d965c5b84d8c7911602db1ca953e16823993414c81cc67ecc15",
+    "stage-e-browser/scene-projection-cache-root-check.json": "dd210c9bfa51e6981c2f0d8dcfd21683bc14085b0726bf525994d5868203b2f8"
   },
   "excluded_by_scope": {
     "Siri": "cancelled by user",
@@ -396,5 +397,6 @@
     "56": "TS6-86",
     "work_mode_not_inferred": true,
     "activation_applied": false
-  }
+  },
+  "latest_scene_projection_software_evidence": "stage-e-browser/scene-projection-cache-root-check.json"
 }

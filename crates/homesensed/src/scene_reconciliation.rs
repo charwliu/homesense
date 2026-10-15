@@ -2,7 +2,7 @@
 //! scene actions, commands or external toggle baselines are produced.
 use crate::{
     admission::{Admission, TaskGeneration},
-    feedback::{Feedback, RuleLease},
+    feedback::{Feedback, RuleLease,ProjectionLease},
     scene_scheduler::SceneScheduler,
 };
 use hap::server::WriteStatus;
@@ -33,6 +33,7 @@ pub(crate) struct Prepared {
     policy: ReconciliationPolicy,
     max_age_ms: u64,
     lease: RuleLease,
+    projection_lease: Box<ProjectionLease>,
     relative_eligible: bool,
 }
 impl Prepared {
@@ -144,6 +145,7 @@ impl Prepared {
                 }
             }
         }
+        let projection_lease=Box::new(feedback.scene_projection_lease(&lease).map_err(|_|WriteStatus::ResourceBusy)?);
         let relative_eligible=feedback.native_scene_capture(&first.keys().cloned().collect::<Vec<_>>(),admission.monotonic_ms(),policy.max_age_ms).is_ok();
         Ok(Some(Self {
             controller,
@@ -159,6 +161,7 @@ impl Prepared {
             policy: policy.policy,
             max_age_ms: policy.max_age_ms,
             lease,
+            projection_lease,
             relative_eligible,
         }))
     }
@@ -177,6 +180,10 @@ impl Prepared {
         epochs: Epochs,
         now: u64,
     ) -> Result<(Option<i64>, Option<u64>), WriteStatus> {
+        self.validate_using(store,config,document,boot,epochs,now,false)
+    }
+    #[allow(clippy::too_many_arguments)]
+    fn validate_using(&self,store:&Store,config:&Configuration,document:&Document,boot:&str,epochs:Epochs,now:u64,projection:bool)->Result<(Option<i64>,Option<u64>),WriteStatus>{
         let group = document
             .scene_switch_groups
             .iter()
@@ -220,10 +227,7 @@ impl Prepared {
         let boot_id = Uuid::parse_str(boot)
             .map_err(|_| WriteStatus::ServiceCommunicationFailure)?
             .as_u128();
-        let _guard = self
-            .lease
-            .lock(boot_id, document.revision, epochs.transport, now)
-            .map_err(|_| WriteStatus::ResourceBusy)?;
+        let _guard=if projection {self.projection_lease.lock(boot_id,document.revision,epochs.transport,now)}else{self.lease.lock(boot_id,document.revision,epochs.transport,now)}.map_err(|_|WriteStatus::ResourceBusy)?;
         if let Some(after)=store.native_scene_failure_after(boot,epochs,&self.group).map_err(|_|WriteStatus::ServiceCommunicationFailure)?
             && self.lease.observations.values().any(|observed|observed.is_none_or(|at|at<=after)) {return Err(WriteStatus::ResourceBusy)}
         if store
@@ -281,7 +285,7 @@ pub(crate) fn project(
     let mut observed_ms = None;
     let pending_relative=store.native_scene_pending(boot,epochs,&group.id).map_err(|_|WriteStatus::ServiceCommunicationFailure)?;
     if ready && !pending_relative && let Some(proof) = proof {
-        match proof.validate(store, config, document, boot, epochs, now) {
+        match proof.validate_using(store, config, document, boot, epochs, now,true) {
             Ok((value, observed)) => {
                 selected = value;
                 relative_eligible=proof.relative_eligible;
