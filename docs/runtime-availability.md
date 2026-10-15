@@ -1,5 +1,7 @@
 # 持续服务的网关故障隔离
 
+2026-10-16 延迟场景隔离已补实际反例：两个独立回环AD8各接受一个5秒后60%的场景，源UUID逐项对应API last_run；仅A故障即让纯B场景也以transport_failure取消，到期零B60帧。恢复后新B40即时命令和新B60延迟场景均有真实线帧/对应Written账目，旧A动作没有恢复重放。严格契约101、后端正常SIGTERM0、无假网关或未分类探针错误；早期AD8指令模式和数字句柄/UUID夹具错误单独保留。修复须保留健康网关既有时间线及其原时限/授权，不能只让新即时开关可用；共享预算、STOP和发布屏障仍须保留。未改现网，D/E仍开放。见[延迟场景反例](evidence/stage-e-browser/multi-gateway-delayed-scene-root-gap.json)。
+
 2026-10-16 加密HAP局部故障反例已独立复现：正式CLI先完成真实Pair-Verify、加密读取/订阅及B30控制；仅A假网关RST后，健康B也返回-70402并收到不可用EVENT，B50没有写出。A完整恢复后REST新B40可执行，配对身份不变，但同进程重建HAP监听并关闭原认证连接。严格契约与HAP客户端退出101，后端按SIGTERM退出0，无假网关或未分类夹具错误；不能把保留身份当作保留会话。新A60恢复控制门槛因会话关闭未执行，未记通过。运行时隔离继续私有修复，未改现场；D/E仍开放。见[加密HAP反例](evidence/stage-e-browser/multi-gateway-partial-hap-root-gap.json)。
 
 当前正式程序的部分WSS反例也已实际复现：两条本机假总线初始化成功，A连接重置后，B仍发送真实反馈，原认证WebSocket不关闭，却收到全局unavailable；B45/B40未继续显示，A恢复后全局transport从2变7并reset。正确隔离须保留B的同连接、真实状态和新控制，也不能用局部健康替代授权或把未知电机位置当断线。私有基础层已通过限定Core/Storage与严格迁移检查，运行时尚未贯通；不是新现场故障，也未改变现网。见[WSS反例](evidence/stage-e-browser/multi-gateway-partial-wss-root-gap.json)。
