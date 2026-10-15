@@ -1,0 +1,96 @@
+{
+  "checked_at": "2026-10-15T21:44:25.661358+08:00",
+  "binary_sha256": "7e17231b630b7ffac80bbac0fc5b3f4700fc6738594b051beb13d3f6b2ac011f",
+  "final_static_cli": {
+    "passed": 6,
+    "failed": 0,
+    "new_state_or_connection_created": false,
+    "input_hashes_match_reviewed_handoffs": true,
+    "scope": [
+      "base_keypad_candidate",
+      "base_rollback",
+      "full_artstudio_extra_scene_overlay"
+    ]
+  },
+  "runtime_v1": {
+    "passed": false,
+    "failure": "all-Off selection did not become known within12seconds",
+    "shutdown_exit_code": 0,
+    "light_commands": 0,
+    "startup_LED_written": 5,
+    "required_ports": 88,
+    "worker_reset_during_shutdown": "retained; not a product counterexample"
+  },
+  "runtime_v2": {
+    "passed": false,
+    "same_initial_selection_assertion": true,
+    "raw_API_Confirmed_lights_Off_but_selected_null": true,
+    "diagnostics_ready": true,
+    "light_commands": 0,
+    "pending_commands_after_stop": 0,
+    "shutdown_exit_code": 0,
+    "worker_errors": []
+  },
+  "diagnostic_base_keypad": {
+    "registered_ports": 64,
+    "scene_read_samples": 16,
+    "all_five_selections_false_samples": 11,
+    "all_five_selections_null_samples": 5,
+    "light_commands": 0,
+    "full_acceptance_executed": false
+  },
+  "current_live_revision9_readonly_contrast": {
+    "checked_at": "2026-10-15T21:40:30+08:00",
+    "TLS_verified": true,
+    "original_five_selections_known": true,
+    "observation_current": true,
+    "field_controls": 0
+  },
+  "possible_causes_not_yet_proven": [
+    "cached_reconciliation_lease_invalidated_by_unrelated_feedback",
+    "runtime_read_and_refresh_order",
+    "candidate_configuration_shape"
+  ],
+  "candidate_rollout_complete": false,
+  "configuration_published": false,
+  "credentials_or_Control4_changed": false,
+  "field_controls": 0,
+  "full_D_E_complete": false,
+  "evidence_sha256": {
+    "result.json": "c957e286c62c1b11c9532679908a473af7dd3e205640d136e67724b9c95b042b",
+    "probe-v1.py": "7e219e9848ecdefa0bba3fae16d93204f400eb852d6c7612d5969dbe691dc0bf",
+    "probe-v2.py": "88c623e2bf342c2e9e2c2c896ccc3c7d0fbbc0c2e121512ed4b0391b293f8e19",
+    "wss-helper.py": "1f269ec04d6d1cee2f0e66715a9c67ef680131bf8c442e5a476358c00f6268ef",
+    "runtime-v1/result.json": "00f29aa78e6002b023795bb099b7f64182d93a79a532fe18dcf584b2be21de78",
+    "runtime-v1/frames.json": "08d5d1d3cb2a952115af211b4edb28c9f713e0f0c918baa1238f0f787ed37207",
+    "runtime-v2/result.json": "992e9b7529fb820c9c6dc308ee60a8a008c5ec64083f6c12d126e3a67d34713d",
+    "runtime-v2/last-scenes.json": "0fab663dc895d15e0af107dc253b39eb8873db37f01b9fafc0bcad3ef38a7695",
+    "runtime-v2/initial-devices-debug.json": "2ad637f81d254d45c4b154c84ff1141c4e07aac178da58ad6ce667969a508109",
+    "runtime-v2/initial-modules-debug.json": "5443aa1cd43d50573f7dda03e6cf2093fc2dfa7730c7908a3fe126bc346d0d78",
+    "diagnostic-base-keypad-v1.py": "ec41b6fd682cab23064aba5f19584961f11d033976e603e1c70009e6cb9247c7",
+    "diagnostic-base-keypad-v1/result.json": "4d9ee64c99af7b14428e5798f4cbcdd5c1660e1a2467f98f8d2a06b219e1d1bc",
+    "diagnostic-base-keypad-v1/scene-samples.json": "6f8395cd487491d25fdd30bb51e4957432a79ced0c9e13b2579b937725fc5af6",
+    "live-current-scope-readonly.json": "dce32af472c28cda4001e3a241bcbc0c3e146328cbadf34fca0802d1f0f629fc",
+    "probe-v3.py": "b38a4e7bc60c2c4f96939c232c628837cb62a2c230e53e2153a336c2891fc813",
+    "runtime-v3/result.json": "abcffe041e47d6cf60594b5ff2fda9610a6b264e6f32ac218fe6d2939e45cf9b",
+    "runtime-v3/timeout-context.json": "bff3ece80f9e31d5540a907fb4aba9bb6a5dd178f5ff93fefbf8d91a88a2001b",
+    "runtime-v3/frames.json": "76dfbc4b99a1c5fb390f1db505e11ac3c85baa3d87fada54ea45e3c10c417ec1"
+  },
+  "runtime_v3_timeout_diagnostics": {
+    "assertion_and_binary_unchanged": true,
+    "failed_same_initial_off_assertion": true,
+    "diagnostic_reads_sequential_not_an_atomic_cross_endpoint_snapshot": true,
+    "fresh_light_ports": 88,
+    "Confirmed_Off_logical_lights": 7,
+    "null_selection_scenes": 7,
+    "gateway_storage_ready": true,
+    "queued": 0,
+    "in_flight": false,
+    "light_commands": 0,
+    "startup_LED_written": 5,
+    "pending_after_shutdown": 0,
+    "exit_code": 0,
+    "worker_errors": []
+  },
+  "independent_raw_diagnostics_frames_and_baseline_samples_reverified": true
+}

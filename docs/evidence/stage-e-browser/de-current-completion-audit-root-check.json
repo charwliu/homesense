@@ -1,5 +1,5 @@
 {
-  "checked_bj": "2026-10-15T21:32:21.731815+08:00",
+  "checked_bj": "2026-10-15T21:45:10.538123+08:00",
   "derived_requirements": [
     "docs/design.md sections9-11,18,20,23-24,27"
   ],
@@ -47,7 +47,9 @@
       "remaining_evidence": "统一模型已批准；原35个运动/停止条件及其完整后续动作、变量副作用和各房间按键/物理绑定仍须逐项落实，墙面板切换未启用。",
       "status": "source_and_physical_partial",
       "additional_source_evidence": "stage-d-study/keypad-event-declaration-root-check.json",
-      "additional_uniform_policy_evidence": "stage-d-study/uniform-curtain-policy-root-check.json"
+      "additional_uniform_policy_evidence": "stage-d-study/uniform-curtain-policy-root-check.json",
+      "additional_motor_LED_owner_evidence": "stage-d-study/motor-led-ownership-root-check.json",
+      "approved_single_output_correction_prepared_not_applied": true
     },
     {
       "id": "D-5",
@@ -87,8 +89,8 @@
       "stage": "E",
       "requirement": "灯光、场景、窗帘与面板入口",
       "verified_scope": "两房间多项手动灯光／场景／窗帘及LED已限定现场通过",
-      "remaining_evidence": "扩展面板公开范围、完整新场景／管理范围仍待验收；不把软件Written当实物确认",
-      "status": "physical_acceptance_partial"
+      "remaining_evidence": "完整Keypad候选虽6项静态校验通过，88路运行出现初始场景未知；64路对照间歇未知，待定位。完整新场景与管理范围仍待现场验收，候选未发布。",
+      "status": "keypad_candidate_runtime_counterexample_and_physical_acceptance_partial"
     },
     {
       "id": "E-4",
@@ -207,7 +209,9 @@
     "stage-d-study/brightness-refinement-root-check.json": "8a17d46504dd89ddf0578aa5fc42b466fea6bffd5d4ee2370923417e0891f32e",
     "stage-e-browser/keypad-interactive-rollout-root-check.json": "6225832841f598539345d84dcd3821bb5e5a0d69a78a8132be0ff06782c277cc",
     "stage-d-study/offline-automation-cli-root-check.json": "027eae1017cf6ee2ae5e778f357b5e6b3406ab66c19887809d81bcfc03e2f0de",
-    "stage-e-browser/continuous-service-root-check.json": "65b8cf06c7aec14c4ffc2dfa55205499648923f491a86107bbe60545ba2ec26b"
+    "stage-e-browser/continuous-service-root-check.json": "65b8cf06c7aec14c4ffc2dfa55205499648923f491a86107bbe60545ba2ec26b",
+    "stage-e-browser/keypad-full-candidate-v21-root-check.json": "b1c2263798ccc3b76a2aaf4a91f6fe46e014e8f0f2550e50fc62c5c97bf31ad6",
+    "stage-d-study/motor-led-ownership-root-check.json": "680d5a1991a1f779a1e75e2f4ac97f8f6a1b6c13da4b7ce2bb2f004d436d064f"
   },
   "excluded_by_scope": {
     "Siri": "cancelled by user",
@@ -376,5 +380,7 @@
     "software_gap": "singleton groups currently reject members<2; separate positive runtime/unknown/independent-state validation required",
     "additional_61_56_hardware_confirmation_pending": true
   },
-  "latest_continuous_service_evidence": "stage-e-browser/continuous-service-root-check.json"
+  "latest_continuous_service_evidence": "stage-e-browser/continuous-service-root-check.json",
+  "latest_full_keypad_candidate_evidence": "stage-e-browser/keypad-full-candidate-v21-root-check.json",
+  "latest_motor_LED_source_owner_evidence": "stage-d-study/motor-led-ownership-root-check.json"
 }
