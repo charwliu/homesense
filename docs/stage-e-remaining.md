@@ -1,4 +1,6 @@
-2026-10-15 23:42 只读复核：现网仍为rev10、两张六格Keypad、8个可见设备、0个独立LED，网关与存储就绪；实际App显示待用户回复。App目录权限刷新专项由Root复用实际程序独立复跑，6个新方法／7个用例及25个既有方法全部通过，属于内存模拟软件证据，不替代手机或真实网络验收。另确认冷启动首次恢复遇临时网络故障后不会自行重试，HomeSenseApp正私有修复。见[当前目录](evidence/stage-e-browser/keypad-current-catalog-root-check.json)及[App刷新核查](evidence/stage-e-browser/native-grant-refresh-root-check.json)。
+2026-10-15 App冷启动恢复已通过独立软件复验并窄合入，原首次503／连接失败不恢复反例保留；新增6方法／25用例通过，完整Swift实际75方法通过、2项Rust集成跳过未冒充通过。已有token可在临时故障后自动恢复，取消／暂停和TLS／401门禁保持；手机安装与现场补验仍待后端修复整合。见[冷启动核查](evidence/stage-e-browser/native-cold-restore-root-check.json)。
+
+2026-10-15 23:42 只读复核：现网仍为rev10、两张六格Keypad、8个可见设备、0个独立LED，网关与存储就绪；实际App显示待用户回复。App目录权限刷新专项由Root复用实际程序独立复跑，6个新方法／7个用例及25个既有方法全部通过，属于内存模拟软件证据，不替代手机或真实网络验收。另确认的冷启动首次恢复缺口，后续修复见上。见[当前目录](evidence/stage-e-browser/keypad-current-catalog-root-check.json)及[App刷新核查](evidence/stage-e-browser/native-grant-refresh-root-check.json)。
 
 2026-10-15 书房六键权限补齐候选：现网rev10已配置六格，但永久Admin范围仍为17，所以2/4/6在App是禁用占位。已准备仅补入这3个既有端点的20范围CAS提案与回退，目标窗帘本已授权、角色/令牌/控制器和7场景保持；完整六格授权也会开放书房背光/声音/匹配工作模式参数管理。实际只读核对没有可委派20范围的同控制器管理员，旧17不能自行扩权，也不能清初始化标志重跑bootstrap。部署仅准备了受控停机、完整备份、精确grant_json CAS与回退方案，权限扩大及短暂重启均待明确确认，未执行。画室5/6仍未配置，不在此提案内。见[权限补齐提案](evidence/stage-e-browser/study-keypad-scope-proposal-root-check.json)。
 
