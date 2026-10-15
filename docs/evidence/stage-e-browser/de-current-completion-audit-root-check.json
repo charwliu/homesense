@@ -1,5 +1,5 @@
 {
-  "checked_bj": "2026-10-15T22:24:10.751122+08:00",
+  "checked_bj": "2026-10-16T00:43:52.862173+08:00",
   "derived_requirements": [
     "docs/design.md sections9-11,18,20,23-24,27"
   ],
@@ -235,8 +235,9 @@
     "stage-d-study/composite-variable-transition-root-check.json": "67dd83af3e63fb7f130e712c1368f3361784930ea2c52588e6af8b68dc3cc4d9",
     "stage-e-browser/regression-fixture-cleanup-root-check.json": "7a43cfa9554cf3d5b103f184251182f618727b45440ad33b974273de7b91b4a5",
     "stage-e-browser/indicator-cross-writer-runtime-root-check.json": "eed4937d7cb8578a8451c06160dcb1445711a5379bb18a6771e18179137bbf79",
-    "stage-e-browser/indicator-query-growth-root-gap.json": "1b84030da4f7c2744cff228461f55e580d44efb075aadcaa4dbdd5ee2477619b",
-    "stage-e-browser/current-feature-status-root-check.json": "84077d072d2ebdcf1b945b22ec4ac8d07c126bd8b00b28ab3d48630a22bf6a49"
+    "stage-e-browser/indicator-query-growth-root-gap.json": "64d9d0d4eebb495794eb75e567ba84129f8d937edad7be3fcc55e073ddf741ca",
+    "stage-e-browser/current-feature-status-root-check.json": "84077d072d2ebdcf1b945b22ec4ac8d07c126bd8b00b28ab3d48630a22bf6a49",
+    "stage-e-browser/indicator-final-integrated-quality-root-check.json": "b9a88fbbe1bbb21254ee83d821bb716cb753657237f4e50a964cca228a41c106"
   },
   "excluded_by_scope": {
     "Siri": "cancelled by user",
@@ -400,7 +401,7 @@
   "existing_keypad_permission_scope_preserved": 17,
   "current_card_slots_per_parent": 6,
   "current_authorized_key_actions": 7,
-  "actual_App_card_visual_confirmation": "pending user response",
+  "actual_App_card_visual_confirmation": "user reports separate LED; screen clarification and App owner diagnosis pending",
   "extra_shared_keypad_models_user_confirmed": {
     "61": "TS6-86",
     "56": "TS6-86",
@@ -465,6 +466,7 @@
   "latest_composite_variable_source_transitions": "stage-d-study/composite-variable-transition-root-check.json",
   "regression_fixture_cleanup": "stage-e-browser/regression-fixture-cleanup-root-check.json",
   "latest_indicator_cross_writer_runtime": "stage-e-browser/indicator-cross-writer-runtime-root-check.json",
-  "indicator_query_growth_gap": "stage-e-browser/indicator-query-growth-root-gap.json",
-  "latest_current_feature_status_readonly": "stage-e-browser/current-feature-status-root-check.json"
+  "indicator_query_growth_gap": "resolved in integrated software; original baseline and final causal proof retained, deployment pending",
+  "latest_current_feature_status_readonly": "stage-e-browser/current-feature-status-root-check.json",
+  "latest_indicator_final_integrated_quality": "stage-e-browser/indicator-final-integrated-quality-root-check.json"
 }

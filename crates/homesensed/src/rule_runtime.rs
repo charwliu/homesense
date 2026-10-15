@@ -27,6 +27,7 @@ pub struct PreparedRule {
     updates: Vec<Update>,
     indicator_reads:
         Option<std::collections::BTreeMap<String, homesense_storage::scene_observation::Snapshot>>,
+    indicator_outputs:Option<crate::indicator_outputs::Fence>,
     pub unknown_branches: Vec<String>,
     pub motor_reads:Vec<homesense_core::rule_motor::Read>,
     pub(crate) changed_variables: Vec<String>,
@@ -60,6 +61,7 @@ impl PreparedRule {
         });
     }
 
+    pub(crate) fn attach_indicator_outputs(&mut self,fence:crate::indicator_outputs::Fence){self.indicator_outputs=Some(fence);}
     pub(crate) fn attach_feedback(&mut self, lease: Option<crate::feedback::RuleLease>) {
         self.feedback = lease;
     }
@@ -241,6 +243,7 @@ impl PreparedRule {
             command_sources,
             updates,
             indicator_reads: None,
+            indicator_outputs:None,
             unknown_branches: plan.unknown_branches,
             motor_reads:plan.motor_reads,
             changed_variables,
@@ -306,7 +309,7 @@ impl PreparedRule {
                 .feedback
                 .ok_or(hap::server::WriteStatus::InvalidValueInRequest)?;
             return admission
-                .submit_indicator_rule(self.generation, self.batch, self.updates, feedback, reads)
+                .submit_indicator_rule(self.generation, self.batch, self.updates, feedback, reads,self.indicator_outputs)
                 .await;
         }
         if let Some(audit) = self.audit {

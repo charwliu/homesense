@@ -349,3 +349,9 @@ async fn collision_brightness_switches_every_reviewed_led_without_dropping_physi
     for table in ["scene_run","rule_admission"]{assert_eq!(h.sql().query_row(&format!("SELECT count(*) FROM {table}"),[],|r|r.get::<_,i64>(0)).unwrap(),0);}
     h.close().await;
 }
+
+#[path = "indicator_cross_writer_tests.rs"]
+mod cross_writer;
+
+#[path="indicator_output_fence_tests.rs"]
+mod output_fence;
