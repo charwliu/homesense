@@ -504,3 +504,24 @@ async fn administrator_module_controls_use_stable_ids_and_cannot_select_physical
     drop(owner);
     h.close().await;
 }
+
+
+/// Report layouts without constructing or polling the large client/driver
+/// futures. The factory type identifies F, but the factory is never invoked.
+#[tokio::test]
+async fn diagnostic_exact_source_control_future_layout() {
+    fn future_bytes<F:std::future::Future>(_:impl FnOnce()->F)->usize {std::mem::size_of::<F>()}
+    let (config,rules)=inputs(false);
+    let h=Box::pin(harness(config,rules)).await;
+    let (control,mut receiver)=crate::automation_control::channel(h.controller,h.generation.clone());
+    let mut scenes=crate::scene_scheduler::SceneScheduler::new(h.actor.clone(),h.controller,8,h.actor.monotonic_ms()).unwrap();
+    let api=crate::web_api::Api{daily_backup:Default::default(),hap_bridges:Default::default(),hap_status:Default::default(),backup_source:None,publisher:None,origin:"http://127.0.0.1:8088".into(),tokens:std::sync::Arc::new(Tokens::default()),runtime:std::sync::RwLock::new(Some(crate::web_api::Runtime{control,revision:1,boot:h.actor.boot_id().into(),scenes:Default::default()})),receipts:std::sync::Mutex::new(crate::web_receipts::Receipts::open(&h.directory.join("layout-receipts.sqlite")).unwrap()),drafts:None};
+    let request=||hyper::Request::builder().uri("/api/v1/modules").body(hyper::body::Bytes::new()).unwrap();
+    let api_bytes=future_bytes(||api.handle(request()));
+    let poll_bytes={let receiver=&mut receiver;let scenes=&mut scenes;let actor=&h.actor;let document=&h.document;let feedback=&h.feedback;future_bytes(move||receiver.poll(actor,document,scenes,feedback,5000,None))};
+    let joined_bytes={let receiver=&mut receiver;let scenes=&mut scenes;let h=&h;let api=&api;future_bytes(move||poll_request(h,receiver,scenes,api.handle(request())))};
+    let result=serde_json::json!({"source_bytes":std::mem::size_of::<crate::source_auth::Source>(),"optional_source_bytes":std::mem::size_of::<Option<crate::source_auth::Source>>(),"admission_bytes":std::mem::size_of::<crate::admission::Admission>(),"api_handle_future_bytes":api_bytes,"receiver_poll_future_bytes":poll_bytes,"joined_original_helper_future_bytes":joined_bytes,"large_factories_invoked":false,"test_stack_override":false});
+    eprintln!("exact_source_future_layout={result}");
+    if let Ok(path)=std::env::var("SOURCE_AUTH_LAYOUT_EVIDENCE"){std::fs::write(path,serde_json::to_vec_pretty(&result).unwrap()).unwrap();}
+    drop(api);h.close().await;
+}

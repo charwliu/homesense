@@ -384,6 +384,11 @@ impl Arbiter {
         });
         Ok(cancelled)
     }
+    /// Immutable reserved STOPs only. The admission owner may bind these to the
+    /// accepted publication before draining; it cannot add work through this view.
+    pub fn publication_stops(&self)->impl Iterator<Item=&QueuedCommand> {
+        self.publication.iter().flat_map(|publication|publication.stops.iter())
+    }
     /// STOP retains the old configuration revision. Caller resolves its original
     /// mapping and authority; only this explicit drain can adopt the new control
     /// epoch. New external STOP requests are still rejected during publication.

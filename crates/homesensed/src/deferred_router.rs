@@ -44,7 +44,16 @@ pub struct Router {
     closed: bool,
     feedback_candidates: Option<(crate::admission::TaskGeneration, homesense_core::feedback_cause::Candidates)>,
 }
+pub(crate) struct RouterSourceScope<'a> {owner:&'a mut Router,previous:Admission}
+impl std::ops::Deref for RouterSourceScope<'_> {type Target=Router;fn deref(&self)->&Self::Target{self.owner}}
+impl std::ops::DerefMut for RouterSourceScope<'_> {fn deref_mut(&mut self)->&mut Self::Target{self.owner}}
+impl Drop for RouterSourceScope<'_> {fn drop(&mut self){self.owner.admission=self.previous.clone();}}
 impl Router {
+    pub(crate) fn source_scope(&mut self,source:Option<crate::source_auth::Source>)->RouterSourceScope<'_> {
+        let previous=self.admission.clone();self.admission=self.admission.with_source(source);
+        RouterSourceScope{owner:self,previous}
+    }
+
     pub fn new(
         admission: Admission,
         controller: Uuid,

@@ -278,6 +278,7 @@ async fn execute_entry_classified(caller:Caller<'_>,entry:Entry<'_>,chain:&mut C
         Err(e) => {
             guard.1 = true;
             return Err(match e {
+                crate::admission::DeferredFailure::Rejected(hap::server::WriteStatus::InsufficientPrivileges) if !admission.source_valid()=>ExecutionFailure::RejectedBeforeAcceptance("source authority revoked before derived admission".into()),
                 crate::admission::DeferredFailure::Rejected(status) if is_manual && matches!(status,hap::server::WriteStatus::ResourceBusy|hap::server::WriteStatus::InsufficientPrivileges|hap::server::WriteStatus::InvalidValueInRequest|hap::server::WriteStatus::ResourceDoesNotExist)=>ExecutionFailure::RejectedBeforeAcceptance(format!("manual scene rejected before acceptance: {status:?}")),
                 crate::admission::DeferredFailure::Rejected(
                     hap::server::WriteStatus::ResourceBusy,

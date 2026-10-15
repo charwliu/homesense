@@ -117,8 +117,11 @@ pub(crate) async fn begin_handoff_before_deadline(
     admission:&Admission, devices:&[u8], rules:&[u8], expected:u64,
     deadline:tokio::time::Instant,
 ) -> Result<(),HandoffPublicationFailure> {
+    begin_authorized_handoff_before_deadline(admission,devices,rules,expected,deadline,None).await
+}
+pub(crate) async fn begin_authorized_handoff_before_deadline(admission:&Admission,devices:&[u8],rules:&[u8],expected:u64,deadline:tokio::time::Instant,source:Option<crate::publication_auth::Source>)->Result<(),HandoffPublicationFailure> {
     if tokio::time::Instant::now()>=deadline {return Err(HandoffPublicationFailure::Deadline);}
-    admission.begin_automation_publication(devices.to_vec(),rules.to_vec(),expected,Duration::from_secs(3)).await
+    admission.begin_authorized_automation_publication(devices.to_vec(),rules.to_vec(),expected,Duration::from_secs(3),source).await
         .map_err(HandoffPublicationFailure::Admission)
 }
 #[allow(clippy::too_many_arguments)]
@@ -308,7 +311,7 @@ async fn serve_inner(devices:&[u8],rules:&[u8],directory:&Path,duration:Duration
                                 if let Some(endpoint)=&management {endpoint.restore(previous)?;}
                                 request.complete(Err("publication abandoned before barrier".into()));continue;
                             }
-                            match begin_handoff_before_deadline(&admission,request.devices(),request.rules(),request.expected_revision(),deadline).await {
+                            match request.begin_before_deadline(&admission,deadline).await {
                                 Ok(())=>{},
                                 Err(HandoffPublicationFailure::Deadline)=>{
                                     request.complete(Err("service deadline reached before publication barrier".into()));

@@ -65,6 +65,13 @@ pub(crate) async fn activate_scoped(
         Ok(None) => return error(StatusCode::NOT_FOUND, "draft_not_found"),
         Err(_) => return error(StatusCode::SERVICE_UNAVAILABLE, "draft_storage_unavailable"),
     };
+    // No async preflight may recapture a replacement source generation.
+    let devices=serde_json::to_vec(&draft.devices).unwrap();
+    let rules=serde_json::to_vec(&draft.automation).unwrap();
+    let authorization=request.headers().get("authorization").and_then(|v|v.to_str().ok());
+    let cookie=request.headers().get("cookie").and_then(|v|v.to_str().ok()).and_then(crate::web_api::session_cookie);
+    let Some(lease)=api.tokens.module_off_lease(authorization,cookie,request.headers().get("x-csrf-token").and_then(|v|v.to_str().ok())) else{return error(StatusCode::FORBIDDEN,"publication_source_required");};
+    let Some(source)=crate::publication_auth::Source::capture(lease,grant,&devices,&rules,draft.expected_revision) else{return error(StatusCode::FORBIDDEN,"publication_source_changed");};
     let principal = grant.controller.to_string();
     let endpoint=crate::web_receipts::Endpoint::ConfigurationActivate(id);
     let fingerprint=json!({"action":"activate","draft":id,"revision":draft.revision,"expected_revision":draft.expected_revision,"boot":input.boot}).to_string();
@@ -120,11 +127,7 @@ pub(crate) async fn activate_scoped(
         Claim::Conflict => return error(StatusCode::CONFLICT, "idempotency_conflict"),
     }
     let outcome = match publisher
-        .publish(
-            serde_json::to_vec(&draft.devices).unwrap(),
-            serde_json::to_vec(&draft.automation).unwrap(),
-            draft.expected_revision,
-        )
+        .publish_authorized(devices,rules,draft.expected_revision,source)
         .await
     {
         Ok(revision) => {

@@ -91,6 +91,11 @@ impl Session {
     pub(crate) fn correlation(&self) -> u128 { self.chain.root().correlation_id() }
     pub fn deadline_ms(&self) -> u64 { self.chain.deadline_ms() }
     pub async fn expire(&mut self, scheduler: &mut SceneScheduler) -> Result<bool, String> {
+        if !self.closed && !self.admission.source_valid() {
+            self.cancel_with_reason(scheduler,homesense_storage::scene_run::CancellationReason::CancelRequested).await?;
+            self.isolated_failure=true;
+            return Ok(true);
+        }
         if self.closed || self.admission.monotonic_ms() < self.chain.deadline_ms() {
             return Ok(false);
         }
@@ -235,6 +240,9 @@ impl Session {
     async fn record_failure(&mut self, error: String, scheduler: &mut SceneScheduler) -> String {
         self.closed = true;
         self.chain.cancel();
+        // Known source loss cancels only this chain. It is not a storage or
+        // transport failure and never renews authority for derived output.
+        self.planning_failure |= !self.admission.source_valid();
         if self.planning_failure {
             for (run, (audit, _)) in &self.pending {
                 if scheduler.audit_id(*run) != Some(audit.as_str()) {
@@ -450,6 +458,14 @@ impl Session {
             return Err("scene result identity mismatch".into());
         }
         let parent = parent.clone();
+        if !self.admission.source_valid() {
+            // Router already retired this verified terminal; do not attempt
+            // cancellation through a scheduler handle that no longer exists.
+            self.pending.remove(&result.run);
+            self.cancel_with_reason(scheduler,homesense_storage::scene_run::CancellationReason::CancelRequested).await?;
+            self.isolated_failure=true;
+            return Err("source authority revoked before scene continuation".into());
+        }
         self.closed = true;
         let mut guard = Guard(self.admission.clone(), false);
         let execution: Result<Vec<Outcome>, String> = async {

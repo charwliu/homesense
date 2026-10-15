@@ -113,6 +113,7 @@ struct Watcher {
 }
 struct Request {
     action: Action,
+    source:Option<crate::source_auth::Source>,
     watch: Option<tokio::sync::watch::Sender<Option<Result<SceneObservation,String>>>>,
     deadline: Instant,
     reply: oneshot::Sender<Result<Reply, String>>,
@@ -132,7 +133,16 @@ impl Control {
     pub async fn request(&self, action: Action) -> Result<Reply, String> {
         self.request_inner(action,None).await
     }
-    async fn request_inner(&self, action: Action, watch: Option<tokio::sync::watch::Sender<Option<Result<SceneObservation,String>>>>) -> Result<Reply,String> {
+    async fn request_inner(&self,action:Action,watch:Option<tokio::sync::watch::Sender<Option<Result<SceneObservation,String>>>>)->Result<Reply,String> {
+        // Keep the channel wait state behind the bounded request boundary.
+        // Callers may already retain a sizeable HTTP / joined-driver future.
+        Box::pin(self.request_scoped(action,watch,None)).await
+    }
+    pub(crate) async fn request_authorized(&self,action:Action,source:crate::source_auth::Source)->Result<Reply,String> {
+        if !source.matches(&action) {return Err("source authority expired or operation mismatch".into());}
+        Box::pin(self.request_scoped(action,None,Some(source))).await
+    }
+    async fn request_scoped(&self, action: Action, watch: Option<tokio::sync::watch::Sender<Option<Result<SceneObservation,String>>>>,source:Option<crate::source_auth::Source>) -> Result<Reply,String> {
         if matches!(&action, Action::Start(id) | Action::LastRun(id) | Action::SceneActivity(id) if id.is_empty() || id.len()>256 || id.chars().any(char::is_control)) {
             return Err("invalid scene name".into());
         }
@@ -153,6 +163,7 @@ impl Control {
         self.sender
             .try_send(Request {
                 action,
+                source,
                 watch,
                 deadline: Instant::now() + Duration::from_secs(5),
                 reply,
@@ -220,7 +231,16 @@ impl Receiver {
             let watch_scene=if request.watch.is_some() {
                 match &request.action {Action::SceneActivity(id)=>Some(id.clone()),_=>None}
             } else {None};
-            let result = async {
+            // One bounded request at a time: do not embed every action's
+            // derived scene/fade/session state in the outer polling future.
+            let result = Box::pin(async {
+                if request.source.as_ref().is_some_and(|source|!source.matches(&request.action)) {return Err("source authority expired before runtime handling".into());}
+                let scoped_admission=admission.with_source(request.source.clone());
+                let admission=&scoped_admission;
+                let mut scene_scope=scenes.source_scope(request.source.clone());
+                let scenes=&mut *scene_scope;
+                let mut causal_scope=causal.as_deref_mut().map(|router|router.source_scope(request.source.clone()));
+                let mut causal=causal_scope.as_deref_mut();
                 if request.watch.is_some() && self.watchers.len()>=16 {return Err("scene subscription capacity reached".into());}
                 if Instant::now() >= request.deadline {
                     return Err("automation request expired".into());
@@ -238,6 +258,7 @@ impl Receiver {
                 if request.reply.is_closed() || Instant::now() >= request.deadline {
                     return Err("automation request expired or abandoned".into());
                 }
+                if !admission.source_valid() {return Err("source authority expired after runtime read".into());}
                 match request.action {
                     Action::ConfigurationHistory{controller,revision,before,limit}=>{
                         if revision!=document.revision {return Err("configuration history revision expired".into());}
@@ -440,7 +461,7 @@ impl Receiver {
                     Action::SceneAction { controller, revision, scene, execute } => {
                         if revision != document.revision { return Err("scene action revision expired".into()); }
                         if document.immediate_scenes.contains_key(&scene) {
-                            let reply=Box::pin(crate::immediate_scene::writes(admission,document,&self.generation,controller,&[(scene,Some(execute))],causal.as_deref_mut(),scenes,feedback,max_age_ms,self.budget,request.deadline)).await?;
+                            let reply=Box::pin(crate::immediate_scene::writes(admission,document,&self.generation,controller,&[(scene,Some(execute))],causal,scenes,feedback,max_age_ms,self.budget,request.deadline)).await?;
                             return Ok(match reply {Reply::ScenesAccepted(_)=>Reply::SceneAccepted(None),other=>other});
                         }
                         let definition = document.timed_scenes.get(&scene).ok_or("unknown timed scene")?;
@@ -516,7 +537,7 @@ impl Receiver {
                         Ok(Reply::LastRun(page.map(|p|LastRun{boot:p.boot,run:p.run,revision:p.record.revision,started_ms:p.record.started_ms,updated_ms:p.record.updated_ms,version:p.record.version,status:p.record.status,cause:p.cause})))
                     },
                 }
-            }
+            })
             .await;
             if result.is_ok() && !request.reply.is_closed()
                 && let (Some(scene),Some(sender))=(watch_scene,request.watch) {
@@ -558,3 +579,7 @@ impl Drop for Receiver {
         self.close();
     }
 }
+
+#[cfg(test)]
+#[path="ordinary_http_source_auth_tests.rs"]
+mod ordinary_http_source_auth_tests;

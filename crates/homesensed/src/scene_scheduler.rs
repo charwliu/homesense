@@ -46,7 +46,16 @@ pub struct Tick {
     pub result: Result<Vec<u64>, String>,
     pub status: Status,
 }
+pub(crate) struct SceneSchedulerSourceScope<'a> {owner:&'a mut SceneScheduler,previous:Admission}
+impl std::ops::Deref for SceneSchedulerSourceScope<'_> {type Target=SceneScheduler;fn deref(&self)->&Self::Target{self.owner}}
+impl std::ops::DerefMut for SceneSchedulerSourceScope<'_> {fn deref_mut(&mut self)->&mut Self::Target{self.owner}}
+impl Drop for SceneSchedulerSourceScope<'_> {fn drop(&mut self){self.owner.admission=self.previous.clone();}}
 impl SceneScheduler {
+    pub(crate) fn source_scope(&mut self,source:Option<crate::source_auth::Source>)->SceneSchedulerSourceScope<'_> {
+        let previous=self.admission.clone();self.admission=self.admission.with_source(source);
+        SceneSchedulerSourceScope{owner:self,previous}
+    }
+
     pub(crate) fn publication_impact(&self) -> Vec<crate::configuration_preview::Run> {
         self.runs.iter().filter(|(_,run)|!run.settled_terminal()).map(|(id,run)|crate::configuration_preview::Run {
             run:*id, audit_id:run.audit_id().to_owned(),definition:run.definition().map(str::to_owned),status:format!("{:?}",run.status()),
@@ -317,14 +326,16 @@ impl SceneScheduler {
     }
     async fn tick_run(&mut self,id:u64,now:u64,feedback:Option<(&crate::feedback::Feedback,u64)>)->Result<Vec<u64>,String> {
         let run=self.runs.get_mut(&id).unwrap();
+        if !run.source_valid() {run.cancel_revoked_source().await?;return Ok(vec![]);}
         run.reconcile().await?;
         if run.has_pending() {return Ok(vec![]);}
         let controller=run.controller();
+        let source_authorization=run.source_authorization();
         if let Some((step,timing))=run.due_fade(now) {
             let prepared=async {
                 let (feedback,max_age)=feedback.ok_or("configured fade requires fresh feedback")?;
                 let homesense_core::Command::SetLevel{level,..}=step.command else {return Err("invalid fade target".into());};
-                let fade=crate::software_fade::SoftwareFade::start(self.admission.clone(),controller,step.device,level,
+                let fade=crate::software_fade::SoftwareFade::start(self.admission.with_source(source_authorization),controller,step.device,level,
                     timing.duration_ms,timing.interval_ms,timing.lateness_ms,timing.samples().map_err(|e|e.to_string())?,feedback,max_age).await?;
                 self.install_due_fade(id,fade,now).await
             }.await;

@@ -1,0 +1,82 @@
+{
+  "checked_bj": "2026-10-15T18:22:50.216492+08:00",
+  "scope": "ordinary HTTP exact source, delayed effects, publication barrier and reserved safety STOP; local software qualification only",
+  "manifest_sha256": "a63842cffdad26da726f3fe734cf1355deb155420e7c0b6c478ab5d5f533ad5d",
+  "frozen_input_files": 1201,
+  "workspace_all_targets": {
+    "passed": 1086,
+    "failed": 0,
+    "ignored": 0,
+    "filtered": 0,
+    "executed_programs": 167,
+    "all_program_hashes_independently_reverified": true
+  },
+  "prior_1067_test_inventory_retained": true,
+  "new_test_functions": 19,
+  "scenario_records_included_in_workspace_not_added_to_test_total": 213,
+  "doc_crate_blocks": 10,
+  "doc_examples": 0,
+  "strict_Clippy_workspace_all_targets_D_warnings": "exit0",
+  "source_inputs_unchanged": true,
+  "stack_override": false,
+  "rustc": "1.99.0 (b940084d7 2026-09-28)",
+  "regression_contracts": {
+    "ordinary_negative_zero_bytes_and_Written": 80,
+    "normal_scoped_routes": 10,
+    "after_actual_ticket_revocation_zero_bytes": 40,
+    "publication_before_barrier_rejected": 12,
+    "accepted_barrier_exact_reserved_STOP_completed": 16,
+    "revoked_STOP_without_barrier_zero_bytes": 4,
+    "ordinary_and_native_combined_partial_write": 10,
+    "new_source_command_IDs_itself_Written": true,
+    "same_controller_other_credential_remains_valid": true,
+    "old_runs_cancelled_and_two_exact_durable_IDs_no_replay": true,
+    "original_default_stack_module_management_test_passed": true
+  },
+  "historical_failures_retained": [
+    "original80/80 ordinary revoked sources wrote",
+    "original12/12 publication sources entered barrier",
+    "source-bound reserved STOP8/8 failed after accepted barrier",
+    "v3/v4 stack overflow before boxing",
+    "Web old-generation and exact two-run fixture revisions",
+    "native combined fixture ramp normalization InvalidPayload",
+    "v4 complete1086 passed but strict Clippy rejected1product+4test expressions"
+  ],
+  "v4_to_v5_delta": "only one last-use optional borrow and four five-byte array iterators; no lint suppression or assertion removal",
+  "source_scope_preserved": [
+    "scene-only does not require child devices",
+    "logical combined lamp does not require hidden supply",
+    "reviewed derived curtain LED retains motor authority"
+  ],
+  "other_management_mutation_or_backup_auth_not_claimed_complete": true,
+  "local_input_note": "pre-existing ignored private import fixture and untracked network helper retained as baseline inputs, excluded from feature commit",
+  "deployed": false,
+  "field_actions": 0,
+  "gateway_runtime_availability_fix_in_this_candidate": false,
+  "D_brightness_collision_policy_in_this_candidate": false,
+  "D_E_complete": false,
+  "logs_sha256": {
+    "workspace": "5478bdc3c5f2800801283840e4f52ea63ebb0a9c28aab497b9d69e62065203c1",
+    "doc": "8b3d557f3458ac6c24e258b5b0f4864e2be58f1b7c1a7330a6f0f6a32e8875e4",
+    "clippy": "f06a0c03d753c7554e26332d6ab568d80ebc72948ff666077264706d33c474ef"
+  },
+  "artifact_records_sha256": {
+    "ordinary-source-preflight.json": "43fc1db33ea8932d8656857cfaddadb69e70206e1a028cba89e94da87df6322e",
+    "ordinary-source-negative.json": "05cd93dbe001763119cb6a5945a32b641479dfb9b391f8337c761766f154eac2",
+    "ordinary-source-fade.json": "3ed41da53f9d3507864e6f57330b94fa46f1327c29ae1a40bd7dc401934fabec",
+    "ordinary-source-positive.json": "d95ac1e18870601d17c892bb024d94f441a49a6cfb0e8fa43d21f0a7048479c4",
+    "ordinary-source-after-ticket.json": "832fba4625cb4188c0bcc6808b6ec54d8be785843ae06a6d0aec38eab74808c8",
+    "ordinary-source-delayed.json": "dcfa7ce75bdb231967eceb2f55f4222d1dc6ebc068dbec53dbb046b0ab0e4f03",
+    "publication-source-after-barrier.json": "579458169e3c8c8ffe3bd443db78b8af6eec7897857235dbf017ca1a2350eb1e",
+    "ordinary-source-curtain-leds.json": "6c073fff826d15f09f2f14f50c38375503469f9db8dac85419fa05064773dc8d",
+    "ordinary-source-native-phase.json": "caff831ef4a5a07a3a5360cbda2bed8734bd24eefc0a11f59df6f9b0b80f2b2a",
+    "ordinary-source-combined-partial.json": "16f1aad15f051bdd13aaf7c13a036ebd212e350ea7b4b3615e783af3b7a7eeed",
+    "ordinary-source-native-combined-partial.json": "870476d28f6feb894ffb511b312e3952c8d5d5534830a0bdbd6b527bae4b0ae7",
+    "ordinary-source-causal.json": "9b3bdb4f358e0b948b99730f7b6ec74de6dadd0332d3929cba752daa66dd2af8",
+    "publication-source-at-actor.json": "c6f165e1a69a2ab6977b35c722e33451842126bd1084712a51ce5f3ac5c871fe",
+    "ordinary-source-module-query.json": "76680a830a5e26683209eb241332ae8ddc097f32d23e8360207c51bae7cade73",
+    "publication-source-before-barrier.json": "d899caf18e9f53ad2aded7a05ebde9ec0a834ef73a69d59f88e7a2e90ccbd656",
+    "publication-source-before-barrier-stop.json": "e9f774af22c2fc8462368f128c2fd93e72d0a4caa74a8a0b434564d6ee3141c4"
+  },
+  "prior_boundary_evidence": "publication-source-boundaries-root-check.json"
+}
