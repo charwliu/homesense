@@ -25,6 +25,7 @@ pub struct TransportOwner<S> {
     admission: Admission,
     connections: BTreeMap<String, Connection<S>>,
     failed: bool,
+    audited_receive_failure: Option<String>,
 }
 struct OperationGuard {
     admission: Admission,
@@ -54,6 +55,7 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
             admission,
             connections,
             failed: false,
+            audited_receive_failure: None,
         }
     }
     /// One shared write slot for queries and expanded control frames. Waiting
@@ -67,6 +69,9 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
     }
     pub(crate) fn belongs_to(&self, admission: &Admission) -> bool {
         self.admission.boot_id() == admission.boot_id()
+    }
+    pub(crate) fn audited_receive_failure_gateway(&self) -> Option<&str> {
+        self.audited_receive_failure.as_deref()
     }
     pub(crate) fn gateway_ids(&self) -> Vec<String> {
         self.connections.keys().cloned().collect()
@@ -178,6 +183,7 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
         if self.failed {
             return Err("transport owner requires recovery".into());
         }
+        self.audited_receive_failure = None;
         let mut guard = OperationGuard {
             admission: self.admission.clone(),
             complete: false,
@@ -203,7 +209,14 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
         let result = match result {
             Ok(result) => result,
             Err(error) => {
-                let _ = self.admission.transport_failed().await;
+                // An audited network disconnect requires a fresh owner, not permanent
+                // cancellation of the admission actor. Audit failure or actual
+                // future cancellation still leaves the guard incomplete.
+                let audited = self.admission.transport_failed().await.is_ok();
+                guard.complete = audited && matches!(error.kind(),
+                    std::io::ErrorKind::ConnectionReset | std::io::ErrorKind::ConnectionAborted
+                    | std::io::ErrorKind::BrokenPipe | std::io::ErrorKind::NotConnected);
+                if guard.complete { self.audited_receive_failure = Some(gateway.to_owned()); }
                 return Err(format!("receive: {error}"));
             }
         };
@@ -365,3 +378,7 @@ mod pacing_tests {
     }
 
 }
+
+#[cfg(test)]
+#[path = "transport_receive_error_tests.rs"]
+mod receive_error_guard;

@@ -18,6 +18,18 @@ use std::{
 };
 use tokio::sync::oneshot;
 use uuid::Uuid;
+/// Combine completed fault handling and durable audit. The audit argument must
+/// be evaluated even when the arbiter failed; neither success alone is recovery.
+fn transport_fault_audit_result(
+    fault_state: Result<Vec<homesense_core::queue::Cancellation>, homesense_core::arbiter::ArbiterError>,
+    journal_audit: Result<(), homesense_storage::Error>,
+) -> Result<(), WriteStatus> {
+    fault_state
+        .map(|_| ())
+        .map_err(|_| WriteStatus::ServiceCommunicationFailure)
+        .and(journal_audit.map_err(|_| WriteStatus::ServiceCommunicationFailure))
+}
+
 #[derive(Clone, Copy)]
 pub struct Options {
     pub context: ExecutionContext,
@@ -1396,9 +1408,13 @@ impl Admission {
                             write_deadline = None;
                             let fault_state=arbiter.storage_failed();
                             principals.clear();
-                            let result = store.fail_transport(&worker_boot, millis(clock))
-                                .map_err(|_| WriteStatus::ServiceCommunicationFailure);
-                            audited_transport_failure=result.is_ok() && fault_state.is_ok();
+                            // Execute the journal audit even if in-memory fault handling failed.
+                            // Only both completed parts authorize a recoverable transport handoff.
+                            let result = transport_fault_audit_result(
+                                fault_state,
+                                store.fail_transport(&worker_boot, millis(clock)),
+                            );
+                            audited_transport_failure = result.is_ok();
                             let _ = reply.send(result);
                         }
                         Message::Shutdown(reply) => {
@@ -3115,3 +3131,7 @@ mod lifecycle_tests {
         std::fs::remove_dir_all(directory).unwrap();
     }
 }
+
+#[cfg(test)]
+#[path = "transport_fault_reply_tests.rs"]
+mod transport_fault_reply_tests;

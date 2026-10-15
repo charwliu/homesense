@@ -1,0 +1,158 @@
+{
+  "checked_at": "2026-10-16T02:03:59.989328+08:00",
+  "status": "receive-error lifetime repair integrated locally; Linux update pending; full per-gateway isolation still fails",
+  "frozen_source_files": 844,
+  "source_manifest_sha256": "c7716776c67c34d0d40e7b6329e751bbca2a2a7d407b05ade76eec35975c4f56",
+  "normal_binary_sha256": "ca6b5cfffab367de75fdadb3800f89e71670eb13b1700b2e68b0ec424b1080a8",
+  "integration_paths": [
+    {
+      "path": "crates/homesensed/src/transport_owner.rs",
+      "shared_expected_sha256": "e3a731ab7a91e56e60da136823b39b95e6ca4901894cd586c83f5e5901fe0216",
+      "candidate_sha256": "2f81487977963277bfe00313edd6f7b18f7adf87c1eb0d4f996c0e281f9c9300"
+    },
+    {
+      "path": "crates/homesensed/src/observed_transport.rs",
+      "shared_expected_sha256": "478e5a8f942f725b0a5ca6ef0aed9c10a25cfcb0783b7b67fa370321bf3621a3",
+      "candidate_sha256": "36b7dbf98b56825858749b642add4ce4a26128ec8b254b7a7e484c55c9b66804"
+    },
+    {
+      "path": "crates/homesensed/src/automation_drive.rs",
+      "shared_expected_sha256": "cc58cd1d4f4a3bc177cb166985f0494e7ef36f21474b2656474da206531319f4",
+      "candidate_sha256": "cec958e8253fae72204d8a769b628b7742a20f351b19695a1196dd2908527553"
+    },
+    {
+      "path": "crates/homesensed/src/admission.rs",
+      "shared_expected_sha256": "09013e0dddd226d75c98598a10dee011b3c9efd2d711ae8902e3ed024f09f9a6",
+      "candidate_sha256": "3fbd5e5473006595780ec823a2fff09152316dfe28e4519285e6533abcc73c79"
+    },
+    {
+      "path": "crates/homesensed/src/transport_receive_error_tests.rs",
+      "shared_expected_sha256": null,
+      "candidate_sha256": "6b12e0062ac73782aee22965d427f60fa8e43640055031863b6f665518e3b0e6"
+    },
+    {
+      "path": "crates/homesensed/src/transport_fault_reply_tests.rs",
+      "shared_expected_sha256": null,
+      "candidate_sha256": "34ea04b864a738fda4dbd0e6c5ace2dfd8d114f7f785d02be4f6b6e4ed5a7b7f"
+    },
+    {
+      "path": "crates/homesensed/tests/automation_tcp.rs",
+      "shared_expected_sha256": "1f539fcac6ad63f5b535cb5b283dbf34cdc3c0150812645e37a74835f46c5f73",
+      "candidate_sha256": "aac1acb04af274101281875385d4c880ebf41f32e19875f8d09306124dd09e8c"
+    }
+  ],
+  "behavior": {
+    "recoverable": "completed arbiter AND durable journal audit, then ConnectionReset/ConnectionAborted/BrokenPipe/NotConnected only",
+    "runtime_handoff": "ordinary and pending-output reads preserve the typed audited gateway cause",
+    "still_fatal": [
+      "actual future cancellation",
+      "failed fault audit",
+      "worker failure",
+      "non-network read errors",
+      "projection invariant failure"
+    ],
+    "recovery": "existing fresh synchronization and no-replay gates retained",
+    "scope": "same process and shared ownership; independent healthy-gateway availability is not yet implemented"
+  },
+  "full_workspace": {
+    "passed": 1160,
+    "failed": 0,
+    "ignored": 0,
+    "filtered": 0,
+    "original1153_test_names_retained": true,
+    "actual_programs_rehashed": 172
+  },
+  "doc_exit": 0,
+  "strict_all_target_Clippy_exit": 0,
+  "native_integration": {
+    "actual_Swift_test_program_and_34_inputs_retained": true,
+    "tests": 2,
+    "exit_code": 0,
+    "backend_sha256": "ca6b5cfffab367de75fdadb3800f89e71670eb13b1700b2e68b0ec424b1080a8",
+    "scope": "actual loopback HTTPS/WSS; synthetic fixture CA, not phone Keychain or production TLS acceptance"
+  },
+  "final_production_cli_checks": [
+    {
+      "name": "original88-periodic-identical-binary",
+      "script_sha256": "def13daa2a62a249f7ec9f792437b83f33de647d254f8981a1a057974cc394fd",
+      "exit_code": 0,
+      "result_sha256": "193a63d4a689419e9b493d754757f59a3cd6f1591e49ab7482e757dced0c4344",
+      "passed": true,
+      "service_exit_code": 0,
+      "explicit_SIGTERM_shutdown": null,
+      "source_result": "deployment/ngr/private/20261015-keypad-v21-final-root/repair-receive-v4-root-periodic/result.json",
+      "rerun_this_increment": false
+    },
+    {
+      "name": "forever-identical-binary",
+      "script_sha256": "12458542f3d867415db80f64114cbdea5b21bae3bd698c151f8daf78bc76df50",
+      "exit_code": 0,
+      "result_sha256": "cf72738fe4482e4d82cbd7c08d4cfcb4e8656fbc8174f5ed56b5349652a50cf3",
+      "passed": true,
+      "service_exit_code": null,
+      "explicit_SIGTERM_shutdown": true,
+      "source_result": "deployment/ngr/private/20261016-receive-error-guard-root/normal-forever-v4/result.json",
+      "rerun_this_increment": false
+    },
+    {
+      "name": "RST-identical-binary",
+      "script_sha256": "5c59c2c4c251c9fe9ba4158334369eb609c32fdd372282b328c1cd8490e2e224",
+      "exit_code": 101,
+      "result_sha256": "cfc995c57da35afface4ca3579ee0a3a098f6a970bb42ff071a748f0d68f0833",
+      "passed": false,
+      "service_exit_code": 0,
+      "explicit_SIGTERM_shutdown": null,
+      "source_result": "deployment/ngr/private/20261016-receive-error-guard-root/rst-candidate-v4/result.json",
+      "rerun_this_increment": false
+    }
+  ],
+  "runtime_evidence_reuse": "final v5 normal binary is byte-identical to the retained v4 binary actually executed in these three checks; no rerun or added count",
+  "causal_evidence": {
+    "original_RST_baseline": "actual production CLI exits1; exact same strict loopback contract used for candidate",
+    "new_RST_candidate": "stays alive, recovers with fresh feedback, new control and cached-unknown no replay; explicit SIGTERM0",
+    "strict_independent_gateway_contract_exit": 101,
+    "strict_independent_gateway_contract_passed": false,
+    "fault_reply_pair": "real arbiter CounterExhausted and SQLite transactions: original2pass1fail vs repaired3pass; final fixture differs only one test needless borrow",
+    "counts_overlap": "focused results are not added to the1160 complete suite"
+  },
+  "original_TCP_fixture_change": "only accept NotConnected from cleanup shutdown after peer close; original runtime assertions, timing and rounds>=3 unchanged",
+  "retained_failures": [
+    "cache-reuse-detected.json",
+    "rst-pair-result.json",
+    "full-qa-v2/result.json",
+    "full-qa-v3/result.json",
+    "v4-tcp-sandbox-failure.json",
+    "v4-clippy-only-failure.json",
+    "full-qa-v4/result.json"
+  ],
+  "environment": "localhost-only fake buses; initial sandbox bind failures preserved, same pinned TCP executable passed with local socket access",
+  "field_controls_or_new_config_or_grant_changes": 0,
+  "Linux_repair_deployed": false,
+  "App_phone_display_verified": false,
+  "D_E_complete": false,
+  "artifact_sha256": {
+    "deployment/ngr/private/20261016-receive-error-guard-root/cache-reuse-detected.json": "13bdf2a91dd256be36e03180d735000e7e432871b680a51d5cf31edf5b33012a",
+    "deployment/ngr/private/20261016-receive-error-guard-root/rst-pair-result.json": "22b396612c98b620789e7eaa55817f6b325fe79fa2c306a6b115710f166db332",
+    "deployment/ngr/private/20261016-receive-error-guard-root/full-qa-v2/result.json": "9cdf78f588750fa0f889b6c9e0b6dfcf30ee040a8b93cbbb59519d2b079a597d",
+    "deployment/ngr/private/20261016-receive-error-guard-root/full-qa-v3/result.json": "ffee08b6dcead8319710ce6efa8e4567aae5b4a37e5fefa3ab39a8a219cf2598",
+    "deployment/ngr/private/20261016-receive-error-guard-root/v4-tcp-sandbox-failure.json": "42c205edc5b9229b64de3f332212de78eea294b2b0e07d5736f66525b7434ae9",
+    "deployment/ngr/private/20261016-receive-error-guard-root/v4-clippy-only-failure.json": "5b911ebd1150f73105a0ff5c4e80a354f32c87d13ae38e8aa185bce5d1ebaeec",
+    "deployment/ngr/private/20261016-receive-error-guard-root/full-qa-v4/result.json": "3eb3ef2caa0b2c3cd02f09270d0b2ddaebc9001c9c5a2d5011e18081bc3062b7",
+    "deployment/ngr/private/20261016-receive-error-guard-root/candidate-v5-manifest.json": "c7716776c67c34d0d40e7b6329e751bbca2a2a7d407b05ade76eec35975c4f56",
+    "deployment/ngr/private/20261016-receive-error-guard-root/integration-guard-v5.json": "8e8f71b072e3098bba997615fe57a9cdbb93cd2bd96a1100a5ebaaba6606b5ed",
+    "deployment/ngr/private/20261016-receive-error-guard-root/integration-result.json": "8c363509793b5eeade7f0383c79ae8b514c053a1d110dfd0414c6b2f734b7485",
+    "deployment/ngr/private/20261016-receive-error-guard-root/complete-v5.patch": "e334b46b8845820390ff6e23028a6689298f74afcf66202e4f4d52da166b9c3b",
+    "deployment/ngr/private/20261016-receive-error-guard-root/full-qa-v5/result.json": "83c6e1fe3103f0da0236142ed85a4a6294a90ee122e8ea2c6bd1b006fd486f85",
+    "deployment/ngr/private/20261016-receive-error-guard-root/full-qa-v5/workspace.log": "3097a2f5b90787657abccc83ef6c8fdb4870aa4fcec47fc84966c8f3315b837b",
+    "deployment/ngr/private/20261016-receive-error-guard-root/full-qa-v5/doc.log": "e2583051f9c090cb26f5531daaa44513fa2e2e61f9c5a918b0b91a612a8552ba",
+    "deployment/ngr/private/20261016-receive-error-guard-root/full-qa-v5/clippy.log": "d50cc908eedd14c25f1a62dd5d90495d9d465568f78ea2964d27958ae85f7111",
+    "deployment/ngr/private/20261016-receive-error-guard-root/full-qa-v5/workspace-inventory.json": "269295ac9aac06ff52714e6198e827cbefc2a84c5b46351f234b4a659820e7c3",
+    "deployment/ngr/private/20261016-receive-error-guard-root/v5-build-result.json": "52aa039a6f2b50ad92d283df9fe6f615c669113628df1e1cee0c6bc8cbbdb1a3",
+    "deployment/ngr/private/20261016-receive-error-guard-root/v5-normal-build.log": "0d2aa4d0bc5093056fe29641df92ab8d248fb7bafbd4009ce15339efc7367e40",
+    "deployment/ngr/private/20261016-receive-error-guard-root/v4-progress.json": "1b633914149aa20ad2ec261c51d6c78ebc625372d5b887fd401d16fb375ae0b2",
+    "deployment/ngr/private/20261016-receive-error-guard-root/rst-v4-causal-result.json": "fee04bfb331a925f2d026b692e147e1d7d24d82c40711206401e97a81a6ec177",
+    "deployment/ngr/private/20261016-receive-error-guard-root/final-v5-runtime-result.json": "41f5b7e5ac817c3b2a2c80f46708d8498c3abeeff0eb62e42dbf1f2b1c4cb5e2",
+    "deployment/ngr/private/20261016-receive-error-guard-root/native-final-v5/result.json": "bad82a59ba9fc5990d3e50ccb877c6669af458c64c432ad89fcf5cd5c3b71806",
+    "deployment/ngr/private/20261016-receive-error-guard-root/native-final-v5/tests.log": "cad4531d63a94435d0f167c550bc0c90b8a89a89b054d5d4eda0e242d765c5a8"
+  }
+}

@@ -508,7 +508,11 @@ async fn supervision_outlives_fast_budget_and_partial_feedback_until_deadline() 
                 if rounds==0 || synchronized {socket.write_all(&module_levels(0x15,42)).unwrap();}
                 else {socket.write_all(&[0xae,0x15,0xd1,42,0xee]).unwrap();}
                 rounds+=1;
-                socket.shutdown(std::net::Shutdown::Both).unwrap();
+                match socket.shutdown(std::net::Shutdown::Both) {
+                    Ok(()) => {},
+                    Err(error) if error.kind()==std::io::ErrorKind::NotConnected => {},
+                    Err(error) => panic!("fixture shutdown failed: {error}"),
+                }
             }
             rounds
         });

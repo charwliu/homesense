@@ -1,3 +1,5 @@
+2026-10-16 接收网络错误增量：正式程序RST退出反例已修复并完成Mac资格。最终844输入完整1160项、文档与严格Clippy通过，最终程序与已执行88路/常驻/RST检查的v4字节一致，两项实际Swift/Rust HTTPS/WSS也通过。只允许完成双重故障审计的指定连接错误进入新同步恢复，真实取消和审计/不变量错误仍致命；Linux交付待完成。严格多网关独立控制仍失败，D原语义、手机Keypad视觉和用户挂起现场项不变，D/E均未完成。见[接收错误证据](evidence/stage-e-browser/receive-network-error-root-check.json)。
+
 2026-10-16 多TCP网关独立隔离新增正式程序反例：两本机AD8总线各8路同步、B初始控制成功；只屏蔽A查询后B仍发送13次反馈，但新B40返回unknown、journal和wire均无新增，A恢复后新B40才成功。服务／HTTP保持、SIGTERM退出0，探针严格契约退出101且无夹具/工作线程错误。源码显示整组owner回收与全局准入门，修复私有进行；原1153既有套件和单GW上线证据范围不扩大。未改现场或放开配置，D/E仍有软件缺口。见[独立隔离反例](evidence/stage-e-browser/multi-gateway-isolation-root-gap.json)。
 
 2026-10-16 原生App统一更新已签名为build9：Root独立核对55源、55共享输入、10份签名包文件，复用已验证冷恢复及原LHIO功能。唯一一次覆盖安装在设备隧道建立时因CoreDevice4000／NWError60超时失败，未卸载／清数据／重复尝试；最后可证手机版本仍是安装前build8，不声称build9已上机。原签名标识和Keychain组保持，待原测试手机可靠连接；独立LED视觉反馈仍未解决。见[App交付核查](evidence/stage-e-browser/native-build9-delivery-root-check.json)。
