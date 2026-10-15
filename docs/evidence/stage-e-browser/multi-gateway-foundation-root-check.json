@@ -1,0 +1,66 @@
+{
+  "checked_at": "2026-10-16T02:42:55.230156+08:00",
+  "status": "private strict foundation qualified; runtime independent-gateway behavior not connected or deployed",
+  "source_files": 849,
+  "source_manifest_sha256": "af38d41e992339d1c09a9b55e8af9a48bbf2f6683d5da434b14a99ff0a1b3d03",
+  "package_scope": {
+    "Core_passed": 129,
+    "Storage_passed": 87,
+    "total": 216,
+    "original196_test_names_retained": true,
+    "new_test_functions": 20,
+    "actual_programs_Root_rehashed": 30,
+    "all_target_Clippy": "Core/Storage only",
+    "full_workspace_pass": false
+  },
+  "execution_provenance": "Root verified all849 source hashes/logs/30 actually retained programs; package tests were executed by functional worker. Four old-CLI commands separately executed by Root, not added to216 count.",
+  "capacity_compatibility": {
+    "new_private_model_and_scope_support": 64,
+    "original_configuration_limit_unchanged": 64,
+    "existing_production_check_config_results": {
+      "32": 0,
+      "33": 0,
+      "64": 0,
+      "65": 1
+    },
+    "private_cross_layer_64_sync_and_dependency_persistence_test_passed": true
+  },
+  "migration": {
+    "new_mandatory_schema": 27,
+    "production_migration_strict_DDL": true,
+    "legacy_fixtures": "six test files/15 reconstruction sites, all old Rust tokens/literals/SQL/assertions preserved",
+    "new_helper": "only empty scope metadata removed to build actual old test inputs; never a production rollback path",
+    "helper_format_matches_genuine_old26": "all41 noninternal SQL definitions/25 table column+FK layouts equal",
+    "old_production_CLI_checks": {
+      "genuine26_internal_simulation_exit": 0,
+      "genuine26_backup_inspection_exit": 0,
+      "new27_backup_rejected_exit": 1,
+      "new27_runtime_Store_open_rejected_exit": 1,
+      "all_snapshot_inputs_byte_unchanged": true
+    },
+    "previous_failed_storage_journal_tests": 9,
+    "overbroad_attempt3_214_passed_not_current_qualification": true
+  },
+  "not_claimed": [
+    "runtime A fault preserves B control",
+    "partial WSS/HAP availability",
+    "all original authorization/publication/STOP owner integration",
+    "final fullworkspace or Linux qualification of schema27",
+    "schema27 production rollout"
+  ],
+  "current_live_backend_source": "1de4579",
+  "D_E_complete": false,
+  "artifact_sha256": {
+    "deployment/ngr/private/20261016-multigateway-isolation-root/layer1-independent-review-v2.json": "6bd8390b12e86568820129a50c4d81b8587c7b1bebed3d0db069a696779277c9",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/fixture-preservation-v2/result.json": "a68f1a22b5b7f813f834ed5ee7db71ef45c080acbaf574cb38ab02a66f964a9b",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/old-reader-schema27-v1/result.json": "ffe3a8766cdcc4d79091564d75877a8d8078885c1700d161235abc3d1bf704e5",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/old-reader-schema27-v1/fixture-format-compatibility/result.json": "0440d62780afe7a68aaf9d997935afbb53c9634333818df32e0d3abcc611651c",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/capacity-review-v1/result.json": "8e34921e3fe74922cfd7fc49b4827974776914906d2aa9981ff0b8cea1782722",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/migration-review-v1/review.json": "c6a85dc3e9e13eb2a569a32b492fe3dfc6b0c4bfa6e74af5b0a8e39808f9de1d",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/migration-review-v1/captured-migrate-source.rs": "3e1304d1747493c74de5313c24125581554957e25b7e89acd800b7326face6f5",
+    "deployment/ngr/private/20261016-multigateway-isolation-worker/implementation-layer1/attempt-2-result.json": "da45119af4e3ad54b45e1a4b92306afda85ad7027aa49abe974004c81eb98756",
+    "deployment/ngr/private/20261016-multigateway-isolation-worker/implementation-layer1/attempt-3-result.json": "93177fd1d2acf341482c2ac8f6f7ed87d39f1631ae98be93b082b8994d1b0674",
+    "deployment/ngr/private/20261016-multigateway-isolation-worker/implementation-layer1/attempt-4-result.json": "b15e2af6a01caadc9e2fd18079f236978a894d3524aa73d6d91b35c969f29e9d",
+    "deployment/ngr/private/20261016-multigateway-isolation-worker/implementation-layer1/attempt-4-manifest.json": "af38d41e992339d1c09a9b55e8af9a48bbf2f6683d5da434b14a99ff0a1b3d03"
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "checked_at": "2026-10-16T02:40:46.238375+08:00",
+  "status": "current production loopback partial-WSS counterexample confirmed; candidate runtime repair pending",
+  "binary_sha256": "ca6b5cfffab367de75fdadb3800f89e71670eb13b1700b2e68b0ec424b1080a8",
+  "fault": "RST bus A, B replies and sends fresh feedback",
+  "wrapper_exit": 101,
+  "fixture_errors": 0,
+  "initial_B30_state_passed": true,
+  "one_WSS_connection_retained": true,
+  "global_unavailable_during_local_A_fault": 1,
+  "partial_healthy_B45_state_missing": true,
+  "new_B40_control_and_WSS_feedback_missing": true,
+  "global_cursor_after_local_recovery_not_retained": true,
+  "process_alive_through_fault": true,
+  "explicit_SIGTERM_exit": 0,
+  "B_control_again_after_recovery": true,
+  "field_control_requests": 0,
+  "D_E_complete": false,
+  "artifact_sha256": {
+    "deployment/ngr/private/20261016-multigateway-isolation-root/probe-contract-wss.py": "29127eff82d9edc558b28740f8fe4f9d7ad2bba8b8e1993edb2f78e740074f95",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/WSS-baseline-v1-rst-first/result.json": "9d8f1e44d894716799af4fceb6ea855c4fca5d6192d94a136666c68dd941669b",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/WSS-baseline-v1-rst-first/wss-events.json": "f23b076003ee5009df016ac3da5c44082fba638990ea551c3a7f18f679480f23",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/WSS-baseline-v1-rst-first/feedback.json": "910416778c2ad6b1414b31459972ffbbf1414d957416577c99b26bfff810b1f1",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/WSS-baseline-v1-rst-first/frames.json": "1b04d1e4f905c90c4319d17ac4f886374da9c4ab0a9725bcac7d0c188fd206cc"
+  },
+  "source_commit": "1de4579a777ce74f68294b0bd1deac23cb54066e",
+  "actual_global_cursor_change": {
+    "initial_transport_epoch": 2,
+    "recovered_transport_epoch": 7,
+    "same_boot_revision_scope": true,
+    "recovered_reset_flag": true,
+    "recovered_B40_Confirmed": true
+  },
+  "scope": "ordinary frozen Mac production CLI; two generated loopback AD8 buses, not an observation of two real house gateways"
+}
