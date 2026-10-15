@@ -1,0 +1,44 @@
+{
+  "checked_at": "2026-10-16T00:07:06.814832+08:00",
+  "failure_evidence": "worker v9 strict Clippy could not include removed deployment/nanopc panel fixture",
+  "change": "Move two immutable existing record inputs into tests/fixtures/site-captures and change only include paths",
+  "literal_include_sites_checked_in_crates": 237,
+  "missing_before": 2,
+  "missing_after": 0,
+  "fixture_bytes_total": 3358,
+  "records": [
+    {
+      "test": "crates/homesensed/tests/parameter_probe.rs",
+      "old_fixture": "deployment/nanopc/evidence/20261010-a3/panel-41-modes.json",
+      "new_fixture": "crates/homesensed/tests/fixtures/site-captures/panel-41-modes.json",
+      "bytes": 207,
+      "fixture_sha256": "b9d527b74cf4d6094252ac211a7d9d700b1df48a6d454cc143772bd996b3d51e",
+      "test_before_sha256": "7c10321501a3baadbe81fda36e0e1e459b5b1237db032b44e77467ff89cab8b7",
+      "test_after_sha256": "0479d3d7fcc4dc02bebb3c3b329dfc340119afe9f053a1e0613160fc4774dec3",
+      "only_include_path_changed": true,
+      "old_deployment_deletion_preserved": true
+    },
+    {
+      "test": "crates/homesensed/tests/field_capture.rs",
+      "old_fixture": "deployment/nanopc/evidence/20261010-a3/panel-a3-listen.jsonl",
+      "new_fixture": "crates/homesensed/tests/fixtures/site-captures/panel-a3-listen.jsonl",
+      "bytes": 3151,
+      "fixture_sha256": "aba936f3b7c4eb63353e9369f69da659ec83d1add3c7ea52a2c8c22876a678da",
+      "test_before_sha256": "d9b5ef7111bcf720826c6c274cd99a8dc6b8830616c8719124f45140dd5e5ce8",
+      "test_after_sha256": "c6666f6cafa7c3603dd3316946564fbe2aa56267af97d0059f0b44a8a0312437",
+      "only_include_path_changed": true,
+      "old_deployment_deletion_preserved": true
+    }
+  ],
+  "existing_test_names_assertions_and_other_body_bytes_preserved": true,
+  "production_code_changed": false,
+  "other_deployment_cleanup_changes_preserved": true,
+  "Root_Cargo_run": false,
+  "validation_status": "byte identity and literal include resolution passed; Rust test and Clippy execution delegated to existing cache owner, not yet claimed passed",
+  "field_queries_or_commands": 0,
+  "new_test_count": 0,
+  "private_artifact_sha256": {
+    "deployment/ngr/private/20261016-regression-fixture-root/migration-plan.json": "276ec36f5146b98a3f2c4d6b962e605b8ca81c43a7d2c5f100d0c66ffec53f95"
+  },
+  "D_E_complete": false
+}

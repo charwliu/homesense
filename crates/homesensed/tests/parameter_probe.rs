@@ -15,7 +15,7 @@ fn panel(parameter: Parameter) -> Probe {
 #[test]
 fn field_values_preserve_unknown_backlight_and_do_not_claim_led_colors() {
     let records: hap::serde_json::Value = hap::serde_json::from_str(include_str!(
-        "../../../deployment/nanopc/evidence/20261010-a3/panel-41-modes.json"
+        "fixtures/site-captures/panel-41-modes.json"
     ))
     .unwrap();
     assert_eq!(records[0]["response"], "FF");
