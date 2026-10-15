@@ -308,7 +308,7 @@ impl Configuration {
         if input.revision == 0 || input.revision > i64::MAX as u64 {
             return Err(invalid("revision must fit a positive SQLite integer"));
         }
-        if input.gateways.is_empty() || input.gateways.len() > 64 || input.devices.len() > 4096 {
+        if input.gateways.is_empty() || input.gateways.len() > homesense_core::gateway_scope::MAX_GATEWAYS || input.devices.len() > 4096 {
             return Err(invalid("gateway/device count exceeds limits"));
         }
         let profiles = [

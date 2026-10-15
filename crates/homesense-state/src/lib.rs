@@ -409,11 +409,20 @@ impl StateStore {
         epoch: u64,
         now_ms: u64,
     ) -> Result<(), StateError> {
+        self.observe_received(id,value,epoch,now_ms,now_ms)
+    }
+    /// Actual read time and owner application time are separate for independent
+    /// bounded readers. A delayed completion cannot fabricate a fresh sample.
+    pub fn observe_received(&mut self,id:&DeviceId,value:Observation,epoch:u64,
+        received_at_ms:u64,now_ms:u64)->Result<(),StateError> {
         if epoch != self.transport_epoch {
             return Err(StateError::WrongTransportEpoch);
         }
         self.validate_time(now_ms)?;
         let state = self.devices.get(id).ok_or(StateError::UnknownDevice)?;
+        if received_at_ms>now_ms || state.observed_at_ms.is_some_and(|last|last>received_at_ms) {
+            return Err(StateError::ClockWentBackwards);
+        }
         if !matches!(
             (state.kind, value),
             (ModuleKind::Switch, Observation::Switch(_))
@@ -429,7 +438,7 @@ impl StateStore {
         self.now_ms = now_ms;
         let state = self.devices.get_mut(id).unwrap();
         state.observed = Some(value);
-        state.observed_at_ms = Some(now_ms);
+        state.observed_at_ms = Some(received_at_ms);
         state.quality = Quality::Confirmed;
         // Pending is managed by the command tracker, not by matching coincidental feedback.
         if changed {

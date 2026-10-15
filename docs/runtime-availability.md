@@ -1,5 +1,7 @@
 # 持续服务的网关故障隔离
 
+2026-10-16 后续runtime10已按852冻结输入完成1197项完整Rust、172实际程序及严格Clippy核验，原1160全部保留；相同正常CLI的原HTTP8/8、加密HAP8/8、WSS、延迟、旧回执取消和新父Keypad可用性13条记录全部exit0。48个Rust／测试文件已精确合入工作树，README和原脏手动工具保留；Linux本机交叉编译与真实schema27整状态升级／回退已交部署，现网尚未切换。原生App私有85项加原2项真实Rust集成及真实URLSession部分状态读取链通过，最终选择性Git构成另行核验，尚未发新包或验收手机卡片。原65／208／24源语义和用户挂起现场项目均保留，D/E未完成。见[后端资格](evidence/stage-e-browser/multi-gateway-runtime10-root-check.json)、[原生部分可用性](evidence/stage-e-browser/native-partial-availability-root-check.json)。
+
 2026-10-16 后续私有runtime7的852冻结输入已完成完整1189项回归，原1160按package／target／函数全部保留、172实际程序重哈希；严格Clippy仍两错101。原HTTP8/8及WSS部分推送通过，HAP八格仅4绿（健康B实测45仍可能显示旧30），普通延迟已保存原作用域但健康B到期及恢复后新B仍失败，两完整延迟／取消契约exit2。未改原契约、断言或期限，也未据单格通过宣布完成。实际设备availability／action_gate已交App，手机视觉与原生适配仍待；候选未合入／部署，现网1de及65／208／24剩余源语义范围保持。见[后续候选独立核查](evidence/stage-e-browser/multi-gateway-runtime7-root-check.json)。
 
 2026-10-16 首轮私有运行时runtime1已按852冻结输入独立复验：原HTTP八组合（无回复/部分回复/EOF/RST，各两排序）全部通过，B同连接、真实反馈及新控制保持，A拒绝且恢复不重放。加密HAP扩大到八组合后仅3绿；五例B模块45已确认但HAP仍30，虽八例均保持同一认证会话、身份、B50和恢复后新A60写出，也不能宣布HAP整组通过。WSS仍全局unavailable并在同transport2下reset；普通未分组延迟场景的作用域未落库，到期Failed，恢复后新B也无法执行，完整延迟/取消契约exit2。所有原契约、期限和失败保留，没有增加等待或改断言。尚无此候选完整Rust/Linux资格，未合入或部署；当前1de及原1160资格保持，65/208/24源语义仍待审。见[首轮私有候选核查](evidence/stage-e-browser/multi-gateway-runtime1-root-check.json)。

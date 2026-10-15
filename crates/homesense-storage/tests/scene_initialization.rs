@@ -1,3 +1,6 @@
+#[path = "support/pre_gateway_scope_fixture.rs"]
+mod pre_gateway_scope_fixture;
+
 use homesense_core::{
     queue::Epochs,
     rule::{Value, ValueType},
@@ -134,6 +137,7 @@ fn version22_migration_preserves_raw_values_and_adds_empty_origin_table() {
         .unwrap();
     drop(store);
     let sql = rusqlite::Connection::open(path.join("runtime.sqlite")).unwrap();
+    pre_gateway_scope_fixture::strip(&sql);
     sql.execute_batch("DROP TRIGGER immutable_scene_initialization_update;DROP TRIGGER immutable_scene_initialization_delete;DROP TABLE scene_initialization;ALTER TABLE rule_command DROP COLUMN source; DROP TABLE module_off_effect; PRAGMA user_version=22;").unwrap();
     drop(sql);
     let store = Store::open(path.join("runtime.sqlite")).unwrap();

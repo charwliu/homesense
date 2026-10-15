@@ -1,3 +1,6 @@
+#[path = "support/pre_gateway_scope_fixture.rs"]
+mod pre_gateway_scope_fixture;
+
 use homesense_core::{
     Command, DeviceId, Percent,
     queue::{Epochs, Origin, QueuedCommand},
@@ -264,6 +267,7 @@ fn schema23_upgrade_preserves_historical_selection_and_starts_with_no_relative_r
         .unwrap();
     drop(store);
     let sql = rusqlite::Connection::open(db.0.join("runtime.sqlite")).unwrap();
+    pre_gateway_scope_fixture::strip(&sql);
     sql.execute_batch("DROP TABLE native_scene_request; ALTER TABLE rule_command DROP COLUMN source; DROP TABLE module_off_effect; PRAGMA user_version=23;")
         .unwrap();
     drop(sql);

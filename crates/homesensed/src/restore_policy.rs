@@ -32,6 +32,17 @@ impl RestorePolicy {
             entry.owner = Some((commands, epochs));
         }
     }
+    pub(crate) fn owner(&self,id:&DeviceId)->Option<(Percent,Vec<u64>,Epochs)> {
+        let entry=self.0.get(id)?;let(ids,scope)=entry.owner.as_ref()?;
+        Some((entry.target,ids.clone(),*scope))
+    }
+    /// A trusted receive owner proves all exact physical writes completed before
+    /// starting the receive. This is a causal fence, not a relaxed timestamp.
+    pub(crate) fn reached_after_written(&mut self,id:&DeviceId,target:Percent,ids:&[u64],scope:Epochs,now:u64)->bool {
+        let Some(entry)=self.0.get(id) else{return false;};
+        if entry.target!=target || now>=entry.deadline || entry.owner.as_ref().is_none_or(|(commands,epochs)|commands!=ids || *epochs!=scope){return false;}
+        self.0.remove(id);true
+    }
     /// Every target is bounded and owned by a still-valid accepted command set.
     pub(crate) fn targets(
         &mut self,

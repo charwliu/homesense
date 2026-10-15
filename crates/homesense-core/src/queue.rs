@@ -242,6 +242,12 @@ impl CommandQueue {
     }
     /// Stale/expired commands are returned to the caller for outcome reporting.
     pub fn poll(&mut self, now_ms: u64, current: Epochs) -> Poll {
+        self.poll_eligible(now_ms,current,|_|true)
+    }
+    /// A busy reader on one bus does not consume another bus's dispatch slot.
+    /// Eligibility is trusted transport ownership, never a substitute for auth.
+    pub(crate) fn poll_eligible(&mut self, now_ms: u64, current: Epochs,
+        mut eligible: impl FnMut(&QueuedCommand)->bool) -> Poll {
         let mut cancelled = Vec::new();
         self.commands.retain(|command| {
             let reason = if command.epochs.transport != current.transport {
@@ -268,6 +274,7 @@ impl CommandQueue {
             .iter()
             .enumerate()
             .filter(|(i, command)| {
+                if !eligible(command) {return false;}
                 // Source order within one rule batch includes its explicit
                 // Stop. Independent manual Stops retain safety priority.
                 (command.origin!=Origin::Rule || command.run_id.is_none()
@@ -285,6 +292,19 @@ impl CommandQueue {
             next: index.and_then(|i| self.commands.remove(i)),
             cancelled,
         }
+    }
+    pub(crate) fn cancel_ids(&mut self, ids:&std::collections::BTreeSet<u64>) -> Vec<Cancellation> {
+        let mut cancelled=vec![];
+        self.commands.retain(|command| {
+            if ids.contains(&command.id) {
+                cancelled.push(Cancellation {command:command.clone(),reason:CancelReason::TransportChanged});
+                false
+            } else {true}
+        });
+        cancelled
+    }
+    pub(crate) fn contains_ids(&self, ids:&std::collections::BTreeSet<u64>) -> bool {
+        ids.iter().all(|id|self.commands.iter().any(|command|command.id==*id))
     }
     /// Whole-module Away override supersedes only covered control outputs.
     /// Queries and independent motor STOP commands retain their original queue.

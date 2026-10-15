@@ -97,7 +97,10 @@ pub(crate) async fn read_scoped(
         // Relay observations affect their logical combined lights too. Project
         // the latest coherent physical snapshot instead of inventing old pairs.
         snapshot.devices.retain(|view| {
-            view.motor_estimate.is_some() || view.recorded || physical.contains(&view.id)
+            // Local gateway health has its own epoch, without advancing the
+            // service cursor. Include the bounded local views even when no
+            // queryable state exists (keypads and uncalibrated motors).
+            view.availability.is_some() || view.motor_estimate.is_some() || view.recorded || physical.contains(&view.id)
                 || bundle
                     .configuration
                     .devices()

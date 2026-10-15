@@ -95,7 +95,7 @@ fn intent(command: Command) -> [u8; 4] {
 }
 impl Store {
     pub fn accept_module_off_commands(&mut self,boot_id:&str,commands:&[QueuedCommand],cancellations:&[Cancellation],now_ms:u64,effects:&[crate::module_off::Effects])->Result<(),Error> {
-        self.accept_queue_batch_detailed(boot_id,commands,cancellations,now_ms,None,&[],None,None,&[],&[],None,effects)
+        self.accept_queue_batch_detailed(boot_id,commands,cancellations,now_ms,None,&[],None,None,&[],&[],None,effects,None)
     }
     /// All commands are committed together against the currently active revision.
     /// Duplicate IDs fail the whole transaction; this is not request idempotency.
@@ -227,7 +227,7 @@ impl Store {
         starts:&[crate::scene_run::Start], reads:&[crate::variables::ReadCheck],
         sources:Option<&[String]>,
     )->Result<(),Error> {
-        self.accept_queue_batch_detailed(boot_id,commands,cancellations,now_ms,study,variables,audit,scene,starts,reads,sources,&[])
+        self.accept_queue_batch_detailed(boot_id,commands,cancellations,now_ms,study,variables,audit,scene,starts,reads,sources,&[],None)
     }
     #[allow(clippy::too_many_arguments)]
     fn accept_queue_batch_detailed(
@@ -237,6 +237,7 @@ impl Store {
         starts:&[crate::scene_run::Start], reads:&[crate::variables::ReadCheck],
         sources:Option<&[String]>,
         module_effects:&[crate::module_off::Effects],
+        gateway_scopes:Option<&crate::gateway_audit::Acceptance>,
     )->Result<(),Error> {
         crate::rule_audit::validate_sources(sources, commands.len())?;
         if sources.is_some() && audit.is_none() {return Err(Error::InvalidAudit);}
@@ -320,10 +321,27 @@ impl Store {
             crate::scene_run::insert_start(&tx,boot_id,start,now_ms,active)?;
             crate::scene_run::insert_cause(&tx,boot_id,start,audit.ok_or(Error::InvalidAudit)?)?;
         }
+        if let Some(scopes) = gateway_scopes {
+            crate::gateway_audit::insert(&tx, boot_id, commands, scopes, active, now_ms)?;
+        }
         crate::variables::apply(&tx, variables, active)?;
         cancel_in_transaction(&tx, boot_id, cancellations, now)?;
         tx.commit()?;
         Ok(())
+    }
+    /// Scoped runtime acceptance: physical route, decision dependencies and
+    /// retained operation receipts commit with the queue/variable/rule audit.
+    #[allow(clippy::too_many_arguments)]
+    pub fn accept_queue_batch_scoped(
+        &mut self, boot_id:&str, commands:&[QueuedCommand], cancellations:&[Cancellation],
+        now_ms:u64, study:Option<(Option<u8>,u8)>, variables:&[crate::variables::Update],
+        audit:Option<&crate::rule_audit::Admission>, scene:Option<&crate::scene_run::StepLink>,
+        starts:&[crate::scene_run::Start], reads:&[crate::variables::ReadCheck],
+        sources:Option<&[String]>, module_effects:&[crate::module_off::Effects],
+        scopes:&crate::gateway_audit::Acceptance,
+    )->Result<(),Error> {
+        self.accept_queue_batch_detailed(boot_id,commands,cancellations,now_ms,study,
+            variables,audit,scene,starts,reads,sources,module_effects,Some(scopes))
     }
     /// Persist a publication/run barrier before attempting a configuration commit.
     /// Every snapshot must still be Accepted; any mismatch rolls back the batch.
@@ -425,11 +443,26 @@ impl Store {
     /// Already accepted motor STOP survives scene cancellation, as in the queue.
     /// Transport epochs, deadline and authorization remain the caller's gates.
     pub fn begin_command_write(&mut self, boot_id: &str, id: u64, now_ms: u64) -> Result<bool, Error> {
+        self.begin_command_write_inner(boot_id,id,now_ms,None)
+    }
+    /// Runtime path: physical wire scope and fault/operation fences supplement
+    /// the caller's current readiness, source and publication authorization.
+    pub fn begin_command_write_scoped(&mut self, boot_id: &str, id: u64, now_ms: u64,
+        wire: &homesense_core::gateway_scope::WireScope) -> Result<bool, Error> {
+        self.begin_command_write_inner(boot_id,id,now_ms,Some(wire))
+    }
+    fn begin_command_write_inner(&mut self, boot_id: &str, id: u64, now_ms: u64,
+        wire:Option<&homesense_core::gateway_scope::WireScope>) -> Result<bool, Error> {
         boot(boot_id)?;
         let tx=self.connection.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
         let ended: bool=tx.query_row(
             "SELECT EXISTS(SELECT 1 FROM scene_command c JOIN scene_run s USING(boot_id,run_id) JOIN command_journal j ON j.boot_id=c.boot_id AND j.command_id=c.command_id WHERE c.boot_id=?1 AND c.command_id=?2 AND j.intent!=?3 AND s.status NOT IN ('pending','running'))",
             params![boot_id,integer(id)?,intent(Command::Motor(MotorMotion::Stop)).as_slice()],|r|r.get(0))?;
+        let scoped_ready=match wire {
+            Some(wire)=>crate::gateway_audit::check_before_write(&tx,boot_id,id,wire)?,
+            None=>true,
+        };
+        let ended=ended || !scoped_ready;
         let status=if ended {"cancelled"} else {"writing"};
         let count=tx.execute("UPDATE command_journal SET status=?1,updated_ms=?2 WHERE boot_id=?3 AND command_id=?4 AND status='accepted' AND updated_ms<=?2",
             params![status,integer(now_ms)?,boot_id,integer(id)?])?;

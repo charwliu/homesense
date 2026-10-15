@@ -20,6 +20,8 @@ pub struct ModuleTruth {
     reverse: BTreeMap<DeviceId, DeviceId>,
     alias_versions: BTreeMap<DeviceId, u64>,
     counts: BTreeMap<DeviceId, u64>,
+    port_gateway: BTreeMap<DeviceId,String>,
+    unavailable_gateways:BTreeSet<String>,
     invalid: BTreeSet<DeviceId>,
     boot: u128,
     sequence: u64,
@@ -92,7 +94,10 @@ impl ModuleTruth {
                 });
             }
         }
+        let port_gateway=locators.iter().map(|((gateway,_,_),key)|(key.clone(),gateway.clone())).collect();
         let mut truth = Self {
+            port_gateway,
+            unavailable_gateways:BTreeSet::new(),
             states,
             modules,
             locators,
@@ -256,7 +261,7 @@ impl ModuleTruth {
     }
     fn port_state(&self, key: &DeviceId) -> Option<DeviceState> {
         let mut state = self.states.get(key)?.clone();
-        if self.invalid.contains(key) {
+        if self.invalid.contains(key) || self.port_gateway.get(key).is_some_and(|gateway|self.unavailable_gateways.contains(gateway)) {
             state.quality = homesense_state::Quality::Unknown;
         }
         Some(state)
@@ -286,6 +291,14 @@ impl ModuleTruth {
             .get(self.locators.get(&(gateway.to_owned(), address, channel))?)
             .copied()
     }
+    /// Valid actual receipt state for synchronization, before the gateway's
+    /// complete-ready mask is removed from public/actuation projections.
+    pub(crate) fn received_port_state(&self,gateway:&str,address:u8,channel:u8)->Option<DeviceState> {
+        let key=self.locators.get(&(gateway.into(),address,channel))?;
+        let mut state=self.states.get(key)?.clone();
+        if self.invalid.contains(key) {state.quality=homesense_state::Quality::Unknown;}
+        Some(state)
+    }
     pub fn invalid_alias(&self, id: &DeviceId) -> bool {
         self.aliases
             .get(id)
@@ -309,6 +322,20 @@ impl ModuleTruth {
         }
         Ok(())
     }
+    pub(crate) fn invalidate_gateway(&mut self,gateway:&str)->Result<(),StateError> {
+        self.unavailable_gateways.insert(gateway.to_owned());
+        let ports=self.locators.keys().filter(|(g,_,_)|g==gateway).cloned().collect::<Vec<_>>();
+        for (g,address,channel) in ports {self.invalidate_port(&g,address,channel)?;}
+        Ok(())
+    }
+    pub(crate) fn gateway_ready(&mut self,gateway:&str)->Result<(),StateError> {
+        if self.unavailable_gateways.remove(gateway) {
+            let aliases=self.aliases.iter().filter(|(_,key)|self.port_gateway.get(*key).is_some_and(|g|g==gateway))
+                .map(|(id,key)|(id.clone(),key.clone())).collect::<Vec<_>>();
+            for (id,key) in aliases {self.emit(id,Change::Quality,self.port_state(&key).ok_or(StateError::UnknownDevice)?)?;}
+        }
+        Ok(())
+    }
     pub fn observe(
         &mut self,
         gateway: &str,
@@ -318,6 +345,11 @@ impl ModuleTruth {
         epoch: u64,
         at: u64,
     ) -> Result<bool, StateError> {
+        self.observe_received(gateway,address,channel,observation,epoch,at,at)
+    }
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn observe_received(&mut self,gateway:&str,address:u8,channel:u8,
+        observation:Observation,epoch:u64,at:u64,applied:u64)->Result<bool,StateError> {
         let Some(key) = self
             .locators
             .get(&(gateway.to_owned(), address, channel))
@@ -329,7 +361,7 @@ impl ModuleTruth {
             .checked_add(1)
             .ok_or(StateError::CounterExhausted)?;
         let before = self.states.cursor();
-        self.states.observe(&key, observation, epoch, at)?;
+        self.states.observe_received(&key, observation, epoch, at,applied)?;
         self.counts.insert(key.clone(), next);
         let recovered = self.invalid.remove(&key);
         let changed = self.states.cursor() != before;

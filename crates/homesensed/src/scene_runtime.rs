@@ -93,6 +93,7 @@ impl SceneRuntime {
             .task_generation()
             .await
             .map_err(|e| format!("{e:?}"))?;
+        let gateway_targets=steps.iter().map(|step|step.device.clone()).collect();
         let targets = crate::scene_activity::Targets::new(&steps);
         let timeline = Timeline::new(steps, generation.epochs, now, max_lateness)
             .map_err(|e| format!("{e:?}"))?;
@@ -105,9 +106,10 @@ impl SceneRuntime {
             .scene_update(
                 controller,
                 generation.clone(),
-                crate::admission::SceneUpdate::Begin {
+                crate::admission::SceneUpdate::BeginScoped {
                     run: audit_id.clone(),
                     definition: definition.clone(),
+                    targets:gateway_targets,
                 },
             )
             .await
