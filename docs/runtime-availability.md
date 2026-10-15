@@ -1,5 +1,7 @@
 # 持续服务的网关故障隔离
 
+2026-10-16 加密HAP局部故障反例已独立复现：正式CLI先完成真实Pair-Verify、加密读取/订阅及B30控制；仅A假网关RST后，健康B也返回-70402并收到不可用EVENT，B50没有写出。A完整恢复后REST新B40可执行，配对身份不变，但同进程重建HAP监听并关闭原认证连接。严格契约与HAP客户端退出101，后端按SIGTERM退出0，无假网关或未分类夹具错误；不能把保留身份当作保留会话。新A60恢复控制门槛因会话关闭未执行，未记通过。运行时隔离继续私有修复，未改现场；D/E仍开放。见[加密HAP反例](evidence/stage-e-browser/multi-gateway-partial-hap-root-gap.json)。
+
 当前正式程序的部分WSS反例也已实际复现：两条本机假总线初始化成功，A连接重置后，B仍发送真实反馈，原认证WebSocket不关闭，却收到全局unavailable；B45/B40未继续显示，A恢复后全局transport从2变7并reset。正确隔离须保留B的同连接、真实状态和新控制，也不能用局部健康替代授权或把未知电机位置当断线。私有基础层已通过限定Core/Storage与严格迁移检查，运行时尚未贯通；不是新现场故障，也未改变现网。见[WSS反例](evidence/stage-e-browser/multi-gateway-partial-wss-root-gap.json)。
 
 2026-10-16 接收RST补充：新正式程序已关闭审计成功后仍永久停止准入的退出路径；普通读及待完成模块读回均可交给既有新连接同步。只有ConnectionReset／ConnectionAborted／BrokenPipe／NotConnected且内存仲裁与持久日志均成功才允许恢复，真实取消、存储/仲裁失败、非网络错误和投影不变量不能被网络重试掩盖。最终1160项及严格Clippy、两项实际原生API联调通过；字节相同正式程序的88路/常驻/RST生命周期证据保留，Linux隔离启动、旧库兼容、实际回环RST生命周期及常驻更新已核验。此修复不改变下述整组所有者结构，独立多网关控制契约仍失败。见[限定修复证据](evidence/stage-e-browser/receive-network-error-root-check.json)。

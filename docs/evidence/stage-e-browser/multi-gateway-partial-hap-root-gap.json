@@ -1,0 +1,64 @@
+{
+  "checked_at": "2026-10-16T03:07:42.151015+08:00",
+  "status": "ordinary production CLI encrypted partial-HAP counterexample confirmed, not a completed runtime fix",
+  "source_commit": "1de4579a777ce74f68294b0bd1deac23cb54066e",
+  "normal_binary_sha256": "ca6b5cfffab367de75fdadb3800f89e71670eb13b1700b2e68b0ec424b1080a8",
+  "contract_sha256": "30125f0a62ef9fe6468d444448705dba46905fe877935a24688e94d2148a386b",
+  "client_sha256": "f08ccb7aedf8e75f792fab0d1524f34676c10f81c06d684dca93b9a09f0655dd",
+  "strict_contract_exit": 101,
+  "positive_prefix": "real graph prepared by ordinary CLI, one synthetic pairing seeded offline, actual Pair-Verify, encrypted read+subscription and B30 write+wire/journal succeeded",
+  "during_only_A_RST": {
+    "A_unavailable_and_control_denied": true,
+    "healthy_B_read_failed_with_70402": true,
+    "healthy_B_unavailable_EVENT": true,
+    "new_B_HAP50_not_written": true
+  },
+  "after_A_full_recovery": {
+    "REST_new_B40_written": true,
+    "identity_fingerprint_preserved": true,
+    "same_backend_process_alive": true,
+    "HAP_listener_bindings": 2,
+    "old_authenticated_encrypted_connection_closed": true,
+    "peer_UnexpectedEof_observed_before_test_shutdown": true,
+    "new_A60_HAP_restore_control_gate": "required by final contract, not reached in this baseline due session loss"
+  },
+  "test_processes": {
+    "backend_SIGTERM_exit": 0,
+    "HAP_client_exit": 101,
+    "HAP_client_exit_scope": "peer EOF after known-positive protocol prefix, explicitly failing lifecycle condition",
+    "mock_gateway_errors": 0,
+    "unclassified_probe_error": null
+  },
+  "early_fixture_and_build_failures_retained": [
+    "partial-hap-client-v1/prebuild-failure.json",
+    "partial-hap-client-v2/build-result.json",
+    "HAP-baseline-v1-rst-first/result.json",
+    "HAP-baseline-v2-rst-first/result.json",
+    "HAP-fixture-v1-representation-error.json",
+    "HAP-baseline-v3-rst-first/result.json"
+  ],
+  "scope": "two generated localhost AD8 gateways and one synthetic local pairing; no house device, actual Home identity, phone, Keychain or LAN discovery accessed",
+  "field_controls": 0,
+  "D_E_complete": false,
+  "artifact_sha256": {
+    "deployment/ngr/private/20261016-multigateway-isolation-root/probe-contract-hap.py": "30125f0a62ef9fe6468d444448705dba46905fe877935a24688e94d2148a386b",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/partial-hap-client-v3/client.rs": "b957e46e863239acfaf49a4df47a89ad4fbabde459a9d7bf8c8215ce924b8101",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/partial-hap-client-v3/support.rs": "29fce100bc773100a6ef383a6997fbeb97a7054bf0dac69cd8a8d353b8dcfb77",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/partial-hap-client-v3/build-result.json": "22baa6d683fa01a9bc89792573a55898d9b59f9a49c6df8ad1c592592d697543",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/HAP-baseline-v4-rst-first/result.json": "7816c99d587b3acd5b2e484107b9e73e99b596891e7e299f03be1365f2d7546a",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/HAP-baseline-v4-rst-first/server.log": "d97bf42bca892665d7dc26a83725ac1968a23fd7874e2c0c3ca356a63b0d6d3d",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/HAP-baseline-v4-rst-first/hap-client.stderr": "10c3bd50f80fbd8384a61a1853bd6cefca29cc8ae9fcc4b1d5df11152dcb2c58",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/HAP-baseline-v4-rst-first/hap-responses.json": "7de335f3a6b13c7798bc5e1f800d26d96a1b3c4234c82b8c4977eaee9efb1a1c",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/HAP-baseline-v4-rst-first/hap-fault-read.json": "1677de2ba4ebf78b53f924798a4335c6d5d1f4d4faa47fe1bf3f2f1177aaad9d",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/HAP-baseline-v4-rst-first/hap-fault-write-responses.json": "4eb6a8766b6094e729eae4580e1735fb94d92579cb967370da3542a107e183cd",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/HAP-baseline-v4-rst-first/frames.json": "fac179120f72389a39669033dc6fb908155850a28ae5d12a72eb96a6dec5f1ca",
+    "deployment/ngr/private/20261016-multigateway-isolation-root/HAP-baseline-v4-rst-first/feedback.json": "96d9371ef5bf40a7bcdda536b60a502731f359d9ac3d205920cc4bb4e795dce1"
+  },
+  "independent_binary_and_client_hashes_verified": true,
+  "evidence_scope_limits": [
+    "This is one RST-first production CLI loopback case, not a completed eight-case matrix or physical Apple client acceptance.",
+    "One preserved HAP pairing identity does not prove the existing authenticated TCP connection survives.",
+    "The explicit new A60 HAP control gate after full recovery was not reached because the retained session had closed.",
+    "The backend exit0 and mock workers0 are distinct from strict contract and HAP client exit101."
+  ]
+}
