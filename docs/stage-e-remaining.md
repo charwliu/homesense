@@ -1,3 +1,7 @@
+2026-10-16 原生App统一更新已签名为build9：Root独立核对55源、55共享输入、10份签名包文件，复用已验证冷恢复及原LHIO功能。唯一一次覆盖安装在设备隧道建立时因CoreDevice4000／NWError60超时失败，未卸载／清数据／重复尝试；最后可证手机版本仍是安装前build8，不声称build9已上机。原签名标识和Keychain组保持，待原测试手机可靠连接；独立LED视觉反馈仍未解决。见[App交付核查](evidence/stage-e-browser/native-build9-delivery-root-check.json)。
+
+2026-10-16 最终LED／索引整合已常驻部署：本机仅交叉构建正式Linux二进制，namespace隔离启动与旧版重新打开带索引库通过，不代替完整Linux单测。首次停机备份单元的权限错误触发回退，修正后第二次上线；Root两次可信HTTPS核对同PID246086、0重启、active／enabled／无限期限、rev10就绪、2六格父卡／0独立LED。Root另逐表比较两份停机备份与活动配对／凭据五表，全部内容摘要一致；Admin17／7、配置及配对保持。手机独立LED现象仍待页面／地址确认，未新增场景或墙面规则，D/E不记完成。见[Linux部署根核查](evidence/stage-e-browser/indicator-final-linux-deployment-root-check.json)。
+
 2026-10-16 LED最终v13已按13条路径合入：冻结842份输入的完整workspace1153项／172结果块全部通过，原1137项清单完整保留，0失败／忽略／过滤；文档与全目标严格Clippy通过。普通CLI的88路周期探针、40秒常驻超时／部分反馈／恢复、最终App两项实际HTTPS/WSS联调通过。索引相同四测试在旧实现2过2失败、候选4过，1千／1万／10万条无关历史的Rust VM步数从7049／70049／700049降为28／28／28；不改账本行或schema26版本。原838输入遗漏四个既存回归输入的失败与中止记录保留，最终补齐842，不删用例。Linux构建部署及手机显示／硬件仍待验，现网rev10、Admin17范围不变。见[最终整合软件核查](evidence/stage-e-browser/indicator-final-integrated-quality-root-check.json)。
 
 2026-10-16 私有LED v11的原88路及常驻AD8故障恢复均已Root独立通过，五个同字节测试的基线2过3失败、修复5过，原夹具四项测试及候选包级严格Clippy通过。完整workspace尚未执行，源码未合入／部署；新查询的同boot历史线性扫描已复现，需补精确索引后再固定最终候选。LED仍只报告软件Written，不声称硬件读回。见[运行核查](evidence/stage-e-browser/indicator-cross-writer-runtime-root-check.json)和[查询增长缺口](evidence/stage-e-browser/indicator-query-growth-root-gap.json)。

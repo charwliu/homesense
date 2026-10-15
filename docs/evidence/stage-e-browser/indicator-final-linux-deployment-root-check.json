@@ -1,0 +1,100 @@
+{
+  "checked_at": "2026-10-16T00:56:29.624917+08:00",
+  "status": "final integrated backend deployed and Root independently checked",
+  "source_commit": "9f2f369721806bcab50ddda6a62bd467f7f10a34",
+  "source_manifest_sha256": "ed9a8d1d18a1c74917e13505cdb63445026fdd1e106a86e5c6de96558df9ba85",
+  "Linux_normal_binary_sha256": "598fe4ebf27d97561dddb96cf39651232afd5187d48cd7e815c1969f81919f51",
+  "build_scope": "Mac local crossbuild of production binary only; source and full test ELF not uploaded; unit configuration and operational scripts distinct from application source",
+  "software_qualification": "stage-e-browser/indicator-final-integrated-quality-root-check.json",
+  "Linux_scope": "no-network namespace production CLI smoke, schema/index and old binary reopen, then active service health; not full Linux unit suite",
+  "root_two_TLS_read_samples": {
+    "first": "2026-10-16T00:53:17.619825+08:00",
+    "second": "2026-10-16T00:55:25.566469+08:00",
+    "same_PID": true,
+    "PID": 246086,
+    "active_running_enabled": true,
+    "restart_count": 0,
+    "RuntimeMaxUSec": "infinity",
+    "revision": 10,
+    "ready_gateway_storage": true,
+    "permanent_Admin_accepted": true,
+    "catalog_devices": 8,
+    "six_slot_parents": 2,
+    "standalone_LED": 0
+  },
+  "independent_protected_state_comparison": {
+    "all_five_tables_content_equal": true,
+    "both_matching_snapshots_compared": true,
+    "HAP_tables": [
+      "accessory_ids",
+      "entries",
+      "instance_ids"
+    ],
+    "credential_tables": [
+      "web_credential",
+      "web_credential_initialized"
+    ],
+    "typed_sorted_full_row_digest": true,
+    "no_key_or_token_values_printed": true,
+    "permanent_Admin_scope": "unchanged17devices/7scenes",
+    "schema_version": 26,
+    "derived_LED_index_present": true
+  },
+  "first_deployment_attempt": {
+    "outcome": "failed on root-owned 0600 backup-unit read after stopping; automatic rollback restored old unit and restarted old binary",
+    "snapshot": "/home/build/apps/homesense/rollback/e2-v13-20261015T165209Z-598fe4ebf27d",
+    "new_unit_installed": false,
+    "old_binary_after_rollback_sha256": "80682e277976f326c2738d9e0cd9fc9a738dfa08cf574f989e0bd64eea062aca"
+  },
+  "successful_deployment_attempt": {
+    "snapshot": "/home/build/apps/homesense/rollback/e2-v13-20261015T165232Z-598fe4ebf27d",
+    "old_pid": 245915,
+    "new_pid": 246086,
+    "unit_sha256": "1d909f6e0c940e582895940e1ae03419800c989d40cc9e74bdf7cf1f8c970188",
+    "active": true,
+    "enabled": true,
+    "forever_runtime_max": true,
+    "restart_count": 0,
+    "https_health": {
+      "status": 200,
+      "revision": 10,
+      "ready": true,
+      "gateway_ready": true,
+      "storage_healthy": true,
+      "hap": "listening",
+      "tls_verified": true
+    },
+    "observed_stable_after_seconds_at_least": 50
+  },
+  "Root_audit_first_attempt": "expected one backup directory, found two, stopped before data comparison; next read-only run compared both, not guessed",
+  "scope_boundaries": {
+    "active_config_or_Admin_or_pairing_changes": false,
+    "new_extra_scene_or_wall_rules_published": false,
+    "Root_device_control_requests": 0,
+    "normal_service_startup_projection": "existing configured behavior only; not claimed zero runtime LED output",
+    "real_device_acceptance": false,
+    "phone_Keypad_symptom_resolved": false,
+    "all96_field_audit_and_HPLeft_powercycle": "user paused"
+  },
+  "App_update": "build9 signed and Root-verified; one install failed CoreDevice4000, awaiting reliable phone connection; native-build9-delivery-root-check.json",
+  "D_E_complete": false,
+  "artifact_sha256": {
+    "deployment/ngr/private/20261016-integrated-e2-update-root/deployment-result.json": "df3c8bc834bb9118ce74e81d3ad709bb53769d70c01750d4ddef0ee42ee90aab",
+    "deployment/ngr/private/20261016-integrated-e2-update-root/crossbuild-result.json": "10bbfc53be0b1a741ea9d471117741643b7b731288e35e8611c6b6bc61b17e5b",
+    "deployment/ngr/private/20261016-integrated-e2-update-root/crossbuild.log": "313b031ed050c7f021de1b0f5bcacf30bed0e6a16ae3a488c988d154e4ca92b3",
+    "deployment/ngr/private/20261016-integrated-e2-update-root/preupgrade-state-audit.json": "12a778658dea1afcaffa4c392286f344dec5cd6696dacf71bd3c61787f68d20b",
+    "deployment/ngr/private/20261016-integrated-e2-update-root/postupgrade-state-audit.json": "d81926a2d9b46787e53615c9ae527a7c4bfb438dd13b011583b04abea1c24af2",
+    "deployment/ngr/private/20261016-integrated-e2-update-root/preupgrade-grant-summary.json": "4cdea182ca26783fd46bfc81a14d0c0e790fb71dfe86c01c8125db592a9ea725",
+    "deployment/ngr/private/20261016-integrated-e2-update-root/identity-credential-compare.json": "c1b5a3218146e2b7223f6781a0190cf72025f0d239400ea7f6426c13404a08fd",
+    "deployment/ngr/private/20261016-integrated-e2-update-root/remote-smoke-v13.sh": "dfa04304a038fe97e7ae0182dc54518d76f0d0f6ed787ab465c923cd0c5bc63e",
+    "deployment/ngr/private/20261016-integrated-e2-update-root/remote-upgrade-v13.sh": "12e992f2990b73f2b986bd7e051e94185d3c6b63708d0932225bbf9348c12049",
+    "deployment/ngr/private/20261016-integrated-e2-update-root/remote-compare-v13.py": "bb9765c6e847a571a5bc635896352ce27ce89484068a0d6a90517a2493485034",
+    "deployment/ngr/private/20261016-integrated-e2-update-root/homesense-e2.old.service": "27fdb69bb6df283a587b864c728ca9d604fb092a6412ad03a64bea6e243e306f",
+    "deployment/ngr/private/20261016-integrated-e2-update-root/homesense-e2.new.service": "1d909f6e0c940e582895940e1ae03419800c989d40cc9e74bdf7cf1f8c970188",
+    "deployment/ngr/private/20261016-indicator-quality-root/postdeploy-root/result.json": "67f17c2639616abb14f28f7583c22695dcc6316b9c9de9d3c7d9a9fa9b260162",
+    "deployment/ngr/private/20261016-indicator-quality-root/postdeploy-root/first-result.json": "e06424cc49188f2bf5d6272955508bb51f58d9dd245667cc68cbcdd117a5603f",
+    "deployment/ngr/private/20261016-indicator-quality-root/postdeploy-root/identity-credential-independent.json": "da62112c2e56f7b59f301260aa4516e3e3f9bcc6aa0a09874822466cbaffc408",
+    "deployment/ngr/private/20261016-indicator-quality-root/postdeploy-root/identity-attempt1-stopped.json": "895ba841df87e440f5523600f175ed2d0c161c99b894099d208b145cd4775517",
+    "deployment/ngr/private/20261016-indicator-quality-root/postdeploy-root/systemd.txt": "de78c13fedada9df8a1ab37ba8ad9af47554821f9615b2ac0a5bef8d72362217"
+  }
+}

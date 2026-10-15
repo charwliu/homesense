@@ -93,7 +93,7 @@
       "stage": "E",
       "requirement": "灯光、场景、窗帘与面板入口",
       "verified_scope": "两房间多项手动灯光／场景／窗帘及LED已限定现场通过；现有两面板父卡已在线发布到rev10，原Admin视图2父卡/各6格/0独立LED，原17授权及20展开端点保持，7格既有动作可见。",
-      "remaining_evidence": "用户仍看到独立LED，具体页面与服务Origin待确认；现网TLS目录2父卡／0独立LED及离线四入口渲染通过不替代实机。最终LED候选已完整1153项及普通CLI复验通过，Linux更新进行中；庭院/回家额外配置、17→20扩权和集中现场仍待批准/验收。",
+      "remaining_evidence": "用户仍看到独立LED，具体页面与服务Origin待确认；现网TLS目录2父卡／0独立LED及离线四入口渲染通过不替代实机。最终LED候选已完整1153项及普通CLI复验通过，Linux新二进制已上线并复核；庭院/回家额外配置、17→20扩权和集中现场仍待批准/验收。",
       "status": "parent_catalog_deployed_final_LED_software_qualified_field_display_unresolved",
       "additional_existing_card_evidence": "stage-e-browser/keypad-existing-cards-publication-root-check.json",
       "additional_scope_completion_proposal": "stage-e-browser/study-keypad-scope-proposal-root-check.json"
@@ -130,8 +130,8 @@
       "stage": "D/E",
       "requirement": "最终集成软件回归",
       "verified_scope": "最终v13冻结842输入完整1153项／172程序、文档、全目标严格Clippy、原88路周期、常驻恢复及两项实际App HTTPS/WSS均通过；旧v21部署证据独立保留。",
-      "remaining_evidence": "最终v13 Linux本机交叉编译/隔离/常驻更新进行中；新现场、手机显示和D完整源语义尚未完成。",
-      "status": "latest_1153_frozen_software_qualified_Linux_deployment_in_progress",
+      "remaining_evidence": "最终Mac软件与Linux常驻更新已核验；不是完整Linux单元测试。D/E原语义、手机视觉和集中现场验收仍未完成。",
+      "status": "final_1153_Mac_qualified_and_Linux_production_smoke_deployed",
       "complete_for_current_frozen_input": true,
       "incremental_python_tool_tests_passed": 20,
       "full_workspace_repeated_this_increment": true,
@@ -235,10 +235,12 @@
     "stage-d-study/composite-variable-transition-root-check.json": "67dd83af3e63fb7f130e712c1368f3361784930ea2c52588e6af8b68dc3cc4d9",
     "stage-e-browser/regression-fixture-cleanup-root-check.json": "7a43cfa9554cf3d5b103f184251182f618727b45440ad33b974273de7b91b4a5",
     "stage-e-browser/indicator-cross-writer-runtime-root-check.json": "eed4937d7cb8578a8451c06160dcb1445711a5379bb18a6771e18179137bbf79",
-    "stage-e-browser/indicator-query-growth-root-gap.json": "64d9d0d4eebb495794eb75e567ba84129f8d937edad7be3fcc55e073ddf741ca",
+    "stage-e-browser/indicator-query-growth-root-gap.json": "9e1112927f9077543758999fba6ea3cc9e127965da4995a3eb3c54bf010fb6c2",
     "stage-e-browser/current-feature-status-root-check.json": "84077d072d2ebdcf1b945b22ec4ac8d07c126bd8b00b28ab3d48630a22bf6a49",
-    "stage-e-browser/indicator-final-integrated-quality-root-check.json": "b9a88fbbe1bbb21254ee83d821bb716cb753657237f4e50a964cca228a41c106",
-    "stage-e-browser/keypad-display-diagnosis-root-check.json": "9f2d5f8f2ff48f040986ecdaf79caca286bc74e01c5a6dc9150842f7ba96104c"
+    "stage-e-browser/indicator-final-integrated-quality-root-check.json": "fadcc7e3a38045718d4a75563c2411380d034c2101c8cdb2db05242afba190af",
+    "stage-e-browser/keypad-display-diagnosis-root-check.json": "9f2d5f8f2ff48f040986ecdaf79caca286bc74e01c5a6dc9150842f7ba96104c",
+    "stage-e-browser/indicator-final-linux-deployment-root-check.json": "1debd9b3525862852648ee86c15ad2bfd693620f893a6bc38975fb4fd9652312",
+    "stage-e-browser/native-build9-delivery-root-check.json": "af1c181bbe9bf8ebe0a9d14c59aa1249b87994266bcb9e6968d0912feb580215"
   },
   "excluded_by_scope": {
     "Siri": "cancelled by user",
@@ -256,11 +258,11 @@
   "native_app_backend": {
     "ready": true,
     "revision": 10,
-    "current_status": "continuous_service_active_enabled",
-    "physical_app_acceptance": "build7 Keychain and relaunch/background synchronization user verified; two parent cards server-published; actual card visual and actions pending",
-    "source_binary_commit": "305be34",
-    "projection_fix_f27a6b6_deployed": false,
-    "latest_evidence": "stage-e-browser/current-service-reconciliation-root-check.json"
+    "current_status": "final_integrated_continuous_service_active_enabled",
+    "physical_app_acceptance": "build7 token/cold reopen/background user verified; final build9 prepared/signed but install failed; actual parent-card visual and final field actions pending",
+    "source_binary_commit": "9f2f369721806bcab50ddda6a62bd467f7f10a34",
+    "projection_fix_f27a6b6_deployed": true,
+    "latest_evidence": "stage-e-browser/indicator-final-linux-deployment-root-check.json"
   },
   "configuration_publication": {
     "revision9": "independently read trusted HTTPS export and room catalog,3floors/2rooms; native App user confirmed correct view",
@@ -448,7 +450,7 @@
       "historical_80_emitted_fields_describe_preserved_baseline": true
     }
   },
-  "latest_current_service_reconciliation": "stage-e-browser/current-service-reconciliation-root-check.json",
+  "latest_current_service_reconciliation": "stage-e-browser/indicator-final-linux-deployment-root-check.json",
   "latest_motor_branch_writer_source_evidence": "stage-d-study/motor-branch-and-writer-root-check.json",
   "latest_curtain_source_key_layout_evidence": "stage-d-study/curtain-source-key-layout-root-check.json",
   "latest_scene_toggle_dependency_evidence": "stage-d-study/scene-toggle-leaf-dependencies-root-check.json",
@@ -467,8 +469,11 @@
   "latest_composite_variable_source_transitions": "stage-d-study/composite-variable-transition-root-check.json",
   "regression_fixture_cleanup": "stage-e-browser/regression-fixture-cleanup-root-check.json",
   "latest_indicator_cross_writer_runtime": "stage-e-browser/indicator-cross-writer-runtime-root-check.json",
-  "indicator_query_growth_gap": "resolved in integrated software; original baseline and final causal proof retained, deployment pending",
+  "indicator_query_growth_gap": "resolved in integrated and deployed software; field performance still pending",
   "latest_current_feature_status_readonly": "stage-e-browser/current-feature-status-root-check.json",
   "latest_indicator_final_integrated_quality": "stage-e-browser/indicator-final-integrated-quality-root-check.json",
-  "latest_Keypad_display_diagnosis": "stage-e-browser/keypad-display-diagnosis-root-check.json"
+  "latest_Keypad_display_diagnosis": "stage-e-browser/keypad-display-diagnosis-root-check.json",
+  "latest_indicator_final_Linux_deployment": "stage-e-browser/indicator-final-linux-deployment-root-check.json",
+  "latest_native_build9_delivery": "stage-e-browser/native-build9-delivery-root-check.json",
+  "native_App_phone_update": "build9 signed; one install failed CoreDevice4000; awaiting reliable unlocked USB connection, last observed build8 before attempt"
 }
