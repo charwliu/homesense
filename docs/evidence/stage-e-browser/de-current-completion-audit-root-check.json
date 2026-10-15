@@ -1,5 +1,5 @@
 {
-  "checked_bj": "2026-10-15T22:21:37.629836+08:00",
+  "checked_bj": "2026-10-15T22:24:10.751122+08:00",
   "derived_requirements": [
     "docs/design.md sections9-11,18,20,23-24,27"
   ],
@@ -43,13 +43,14 @@
       "id": "D-4",
       "stage": "D",
       "requirement": "窗帘条件、手势与LED",
-      "verified_scope": "书房新规则、禁用候选和生产因果链已软件核查；168条面板程序的原驱动声明已关联；用户已批准其余房间统一主动开/关/停与估计/重启规则，12份离线计划保留各自身份与参数，10台未知校准/行程未补造",
+      "verified_scope": "书房新规则、禁用候选和生产因果链已软件核查；168条面板程序的原驱动声明已关联；用户已批准其余房间统一主动开/关/停与估计/重启规则，12份离线计划保留各自身份与参数，10台未知校准/行程未补造；35个条件所在完整事件AST已逐代码ID核对，105处LED副作用、46处变量赋值及22处事件外反馈写入已枚举；方向注释相反的房间保留独立校准要求。",
       "remaining_evidence": "统一模型已批准；原35个运动/停止条件及其完整后续动作、变量副作用和各房间按键/物理绑定仍须逐项落实，墙面板切换未启用。",
       "status": "source_and_physical_partial",
       "additional_source_evidence": "stage-d-study/keypad-event-declaration-root-check.json",
       "additional_uniform_policy_evidence": "stage-d-study/uniform-curtain-policy-root-check.json",
       "additional_motor_LED_owner_evidence": "stage-d-study/motor-led-ownership-root-check.json",
-      "approved_single_output_correction_prepared_not_applied": true
+      "approved_single_output_correction_prepared_not_applied": true,
+      "additional_branch_writer_evidence": "stage-d-study/motor-branch-and-writer-root-check.json"
     },
     {
       "id": "D-5",
@@ -214,7 +215,9 @@
     "stage-e-browser/keypad-full-candidate-v21-root-check.json": "b1c2263798ccc3b76a2aaf4a91f6fe46e014e8f0f2550e50fc62c5c97bf31ad6",
     "stage-d-study/motor-led-ownership-root-check.json": "680d5a1991a1f779a1e75e2f4ac97f8f6a1b6c13da4b7ce2bb2f004d436d064f",
     "stage-e-browser/keypad-existing-cards-publication-root-check.json": "d4d1f6950bf83d965c5b84d8c7911602db1ca953e16823993414c81cc67ecc15",
-    "stage-e-browser/scene-projection-cache-root-check.json": "dd210c9bfa51e6981c2f0d8dcfd21683bc14085b0726bf525994d5868203b2f8"
+    "stage-e-browser/scene-projection-cache-root-check.json": "dd210c9bfa51e6981c2f0d8dcfd21683bc14085b0726bf525994d5868203b2f8",
+    "stage-e-browser/current-service-reconciliation-root-check.json": "52a6ddd97855cea0cf0540d9f82de79b329011caad92c6cacad620c08abc3c7a",
+    "stage-d-study/motor-branch-and-writer-root-check.json": "9c4cb671c58a3f74656bf9e82efe20c8ee48f3e72e60de9b4616a1bd8b4a9eda"
   },
   "excluded_by_scope": {
     "Siri": "cancelled by user",
@@ -230,21 +233,21 @@
   "native_app_backend_start_user_authorized": true,
   "field_queries_or_controls_scope_note": "Historical source audit had zero field actions; new user request authorizes existing two-room backend start for native App testing, not full96 audit or Away activation.",
   "native_app_backend": {
-    "ready": false,
-    "revision": 9,
-    "schema": 26,
-    "fresh_channels": 64,
-    "deadline_bj": "2026-10-15T18:14:03+08:00",
-    "physical_app_acceptance": "build7 Keychain saved + force quit/relaunch auto-connect + background/foreground on/off state sync user passed; publication and Keypad migration pending",
-    "ready_scope_note": "计划18:14截止，但17:28发生周期查询失败，重连同步仍超时；17:33/34 Root证实端口拒绝且无进程。尚未重启。",
-    "current_status": "premature_exit_on_gateway_recovery_feedback_timeout"
+    "ready": true,
+    "revision": 10,
+    "current_status": "continuous_service_active_enabled",
+    "physical_app_acceptance": "build7 Keychain and relaunch/background synchronization user verified; two parent cards server-published; actual card visual and actions pending",
+    "source_binary_commit": "305be34",
+    "projection_fix_f27a6b6_deployed": false,
+    "latest_evidence": "stage-e-browser/current-service-reconciliation-root-check.json"
   },
   "configuration_publication": {
     "revision9": "independently read trusted HTTPS export and room catalog,3floors/2rooms; native App user confirmed correct view",
-    "active_revision": 9,
-    "reason": "deployment-test authorization not accepted as explicit persistent active-database publication authorization",
+    "active_revision": 10,
+    "reason": "existing20-endpoint Keypad grouping published via normal draft/preview/CAS management API; no physical bindings or permissions added",
     "user_explicit_rev9_approval_verified": true,
-    "authoritative_field_revision_recheck_pending": false
+    "authoritative_field_revision_recheck_pending": false,
+    "revision10_evidence": "stage-e-browser/keypad-existing-cards-publication-root-check.json"
   },
   "home_hub_offline_recovery_user_paused": true,
   "new_user_requirements": [
@@ -257,14 +260,15 @@
     {
       "id": "U-2",
       "requirement": "TS6-86一块面板一个Keypad设备及子功能",
-      "status": "backend_v3_local_QA_and_App_build7_passed_no_field_migration",
-      "field_migration": false
+      "status": "backend_v21_deployed_existing_parents_published_App_visual_and_actions_pending",
+      "field_migration": true,
+      "field_migration_scope": "server grouping only; no new wall execution or hardware control acceptance"
     },
     {
       "id": "U-3",
       "requirement": "撤除浏览器管理页面，保留原生App及其服务API",
-      "status": "backend_v3_local_QA_passed_and_committed_not_deployed",
-      "deployment_performed": false
+      "status": "browser_frontend_removed_in_deployed_v21_live_root410",
+      "deployment_performed": true
     },
     {
       "id": "U-4",
@@ -282,7 +286,7 @@
     "browser_management_and_studio_Web_acceptance": "cancelled_by_user",
     "native_App_HTTPS_API_auth_WSS_and_publication": "retained",
     "Apple_Home_HAP": "retained",
-    "frontend_removal_implemented": "present_in_frozen_backend_v1_not_final_validated_or_deployed"
+    "frontend_removal_implemented": "deployed v21; trusted live GET / returns410 native_app_required"
   },
   "studio_Web_cancelled_by_user": true,
   "implementation_owners": {
@@ -300,30 +304,14 @@
     "old_failure_retained": true
   },
   "pending_Keypad_scope_review": {
-    "kind": "exact source auth and publication software qualified; Keypad field migration pending",
-    "fixed_scope": "frozen backendv3: two test functions/18 scenarios for exact source generation changes before enqueue/dispatch and after ticket; zero bytes, same-controller positive source remains working",
-    "candidate_manifest_sha256": "fb3b02e0fee75fb0ed83aab63f197414295125348757f8d3a0b3cbe521bf65c4",
-    "compile_failure_retained": "v2 two E0509 fixture shutdown compile errors; v3 only test handle clones changed",
-    "still_open_paths": [
-      "new native Keypad field migration",
-      "other management mutation/backup boundaries outside this repair",
-      "persistent runtime gateway recovery candidate qualification"
-    ],
-    "not_a_claim_all_API_auth_fixed": true,
-    "full_workspace": "frozenv3 completed1067/all167, doc andClippy passed",
-    "deployment_held": true,
-    "all_ordinary_source_negative_combinations": 80,
-    "all_ordinary_source_negative_combinations_emitted": 80,
-    "static_gap_only": false,
-    "first_repair_compile": "v1 test SQLite u64 ToSql error; no tests executed; preserved and minimalv2 requested",
-    "current_repair_regression": "冻结v5完整1086／167通过、10crate文档检查与严格Clippy通过；原19项新增回归与全部既有测试保留，未部署",
-    "previous_still_open_paths_now_software_covered": [
-      "ordinary light HTTP commands",
-      "motor HTTP commands",
-      "scene APIs reused by Keypad actions",
-      "module controls and derived delayed/scene output scope inventory"
-    ],
-    "historical_80_emitted_fields_describe_preserved_baseline": true
+    "kind": "existing grouping published; broader controls and actual card/action acceptance pending",
+    "current_parent_count": 2,
+    "standalone_LED_count": 0,
+    "authorized_cells": 7,
+    "unchanged_Admin_device_scope": 17,
+    "extra_scene_LED_counterexample_unresolved": true,
+    "precise_source_auth_deployed_in_v21": true,
+    "other_management_backup_boundaries_not_claimed_complete": true
   },
   "offline_keypad_migration": "Two parents and10existing aliases preserved6+4, all other revision9 fields identical; fixedv3 production check-config/check-automation exit0, no service or commands.",
   "source_policy_decisions_added": 2,
@@ -355,7 +343,8 @@
     "native_manual_actions": 10,
     "new_wall_rules_enabled": 0,
     "scope_change_applied": false,
-    "published": false
+    "published": true,
+    "published_scope": "existing grouping20 expanded endpoints only;7 of planned10 visible actions under unchanged17 grant; no field action acceptance"
   },
   "offline_automation_CLI_fix": {
     "commit": "8d2e836",
@@ -371,17 +360,18 @@
     "explicit_no_test_deadline_mode": "implemented and deployed305be34",
     "preserve_pairing_admin_active_configuration": true,
     "automatic_actuator_acceptance_not_authorized_by_start": true,
-    "systemd_status": "active and enabled, no RuntimeMax deadline, NRestarts0, MainPID244467, Root verified21:31",
+    "systemd_status": "active/running/enabled, RuntimeMax infinity, PID244467, NRestarts0; Root22:24 checked",
     "TLS_verified_ready": true,
-    "active_revision": 9,
+    "active_revision": 10,
     "permanent_Admin_and_pairing_unchanged": true
   },
   "new_Keypad_courtyard_and_shared_coming_home_request": {
     "received_from": "HomeSenseApp with stated direct user authorization",
     "reviewed_handoff_hashes": true,
     "root_rollout_applied": false,
-    "software_gap": "singleton groups currently reject members<2; separate positive runtime/unknown/independent-state validation required",
-    "additional_61_56_hardware_confirmation_pending": true
+    "software_gap": "singleton validation fixed; read-cache repair committed f27a6b6 and full1137 verified; separate extra-scene external-feedback LED counterexample unresolved, neither fix nor extras deployed",
+    "additional_61_56_hardware_confirmation_pending": false,
+    "additional_61_56_workmode_confirmation_pending": true
   },
   "latest_continuous_service_evidence": "stage-e-browser/continuous-service-root-check.json",
   "latest_full_keypad_candidate_evidence": "stage-e-browser/keypad-full-candidate-v21-root-check.json",
@@ -398,5 +388,45 @@
     "work_mode_not_inferred": true,
     "activation_applied": false
   },
-  "latest_scene_projection_software_evidence": "stage-e-browser/scene-projection-cache-root-check.json"
+  "latest_scene_projection_software_evidence": "stage-e-browser/scene-projection-cache-root-check.json",
+  "historical_superseded_snapshots": {
+    "native_app_backend": {
+      "ready": false,
+      "revision": 9,
+      "schema": 26,
+      "fresh_channels": 64,
+      "deadline_bj": "2026-10-15T18:14:03+08:00",
+      "physical_app_acceptance": "build7 Keychain saved + force quit/relaunch auto-connect + background/foreground on/off state sync user passed; publication and Keypad migration pending",
+      "ready_scope_note": "计划18:14截止，但17:28发生周期查询失败，重连同步仍超时；17:33/34 Root证实端口拒绝且无进程。尚未重启。",
+      "current_status": "premature_exit_on_gateway_recovery_feedback_timeout"
+    },
+    "pending_Keypad_scope_review": {
+      "kind": "exact source auth and publication software qualified; Keypad field migration pending",
+      "fixed_scope": "frozen backendv3: two test functions/18 scenarios for exact source generation changes before enqueue/dispatch and after ticket; zero bytes, same-controller positive source remains working",
+      "candidate_manifest_sha256": "fb3b02e0fee75fb0ed83aab63f197414295125348757f8d3a0b3cbe521bf65c4",
+      "compile_failure_retained": "v2 two E0509 fixture shutdown compile errors; v3 only test handle clones changed",
+      "still_open_paths": [
+        "new native Keypad field migration",
+        "other management mutation/backup boundaries outside this repair",
+        "persistent runtime gateway recovery candidate qualification"
+      ],
+      "not_a_claim_all_API_auth_fixed": true,
+      "full_workspace": "frozenv3 completed1067/all167, doc andClippy passed",
+      "deployment_held": true,
+      "all_ordinary_source_negative_combinations": 80,
+      "all_ordinary_source_negative_combinations_emitted": 80,
+      "static_gap_only": false,
+      "first_repair_compile": "v1 test SQLite u64 ToSql error; no tests executed; preserved and minimalv2 requested",
+      "current_repair_regression": "冻结v5完整1086／167通过、10crate文档检查与严格Clippy通过；原19项新增回归与全部既有测试保留，未部署",
+      "previous_still_open_paths_now_software_covered": [
+        "ordinary light HTTP commands",
+        "motor HTTP commands",
+        "scene APIs reused by Keypad actions",
+        "module controls and derived delayed/scene output scope inventory"
+      ],
+      "historical_80_emitted_fields_describe_preserved_baseline": true
+    }
+  },
+  "latest_current_service_reconciliation": "stage-e-browser/current-service-reconciliation-root-check.json",
+  "latest_motor_branch_writer_source_evidence": "stage-d-study/motor-branch-and-writer-root-check.json"
 }

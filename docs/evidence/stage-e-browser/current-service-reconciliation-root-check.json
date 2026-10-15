@@ -1,0 +1,42 @@
+{
+  "checked_at": "2026-10-15T22:24:10.751122+08:00",
+  "read_only": true,
+  "TLS_verified": true,
+  "current_configuration_revision": 10,
+  "current_binary_source_commit": "305be34432fda8f9737f03684959b20abc0600dd",
+  "projection_fix_f27a6b6_not_deployed": true,
+  "ready": true,
+  "gateway_ready": true,
+  "storage_healthy": true,
+  "HAP": "listening",
+  "Keypad_parent_count": 2,
+  "Keypad_slots": [
+    6,
+    6
+  ],
+  "standalone_LED_count": 0,
+  "current_App_visual_confirmation_pending": true,
+  "service": {
+    "verified_from_tool_output": true,
+    "ActiveState": "active",
+    "SubState": "running",
+    "UnitFileState": "enabled",
+    "MainPID": 244467,
+    "NRestarts": 0,
+    "RuntimeMaxUSec": "infinity",
+    "ActiveEnterTimestamp": "Thu 2026-10-15 21:29:39 CST"
+  },
+  "browser_root": {
+    "status": 410,
+    "error": "native_app_required"
+  },
+  "field_controls": 0,
+  "configuration_mutations": 0,
+  "evidence_sha256": {
+    "deployment/ngr/private/20261015-continuation-live-root/result.json": "2758897128b34be540d706dad5ef11e6a685c4b8ccaba15773c1516dd0f35cf9",
+    "deployment/ngr/private/20261015-continuation-live-root/devices.json": "587068dde372e78ca510d0165b77ab2fc9d8fe3970f32d2039a70f78653c03b8",
+    "deployment/ngr/private/20261015-continuation-live-root/diagnostics.json": "7fee6de8e32607dba185ab23d6387de64711364b5860551e4a7a989d07da0ab5",
+    "deployment/ngr/private/20261015-continuation-live-root/browser-root.json": "3b610a6cde910d80b38b957f3a2f84352fc01ba4a3b2321d444032991bafccf8",
+    "deployment/ngr/private/20261015-continuation-live-root/systemd-readonly.json": "667c11352693e99e203ee4fccd3c4ed1442f9b60907ea81a080aa2327f185fe5"
+  }
+}
