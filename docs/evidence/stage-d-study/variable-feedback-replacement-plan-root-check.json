@@ -1,0 +1,26 @@
+{
+  "source_xml_sha256": "cac7dcdc9db08599e55a22bacb72858035c64e1ac846e2139ead5fc634513748",
+  "variables": 25,
+  "curtain_variable_source_roles_verified": 11,
+  "remaining_noncurtain_state_variable_plans": 14,
+  "explicit_read_sites": 224,
+  "explicit_write_sites": 263,
+  "implicit_arithmetic_reads": 14,
+  "variables_with_arithmetic_state_not_collapsed_into_power_selector": 3,
+  "associated_unknown_action_categories": {},
+  "only_role_and_candidate_lifecycle_mapping_not_full_semantic_approval": true,
+  "stored_values_read_or_imported": false,
+  "type2_enum_mapping_claimed": false,
+  "runtime_definitions_enabled": 0,
+  "field_commands": 0,
+  "legacy_variables_deleted": 0,
+  "exact_inventory_comparison_sites": 487,
+  "private_artifacts_sha256": {
+    "deployment/ngr/private/20261015-variable-state-plan-root/derive.py": "a9c5afc285924ac0039ec8a1fc23c5bacc55f94a68eac9a2a745928407faf6e3",
+    "deployment/ngr/private/20261015-variable-state-plan-root/plans.json": "6b332253d3c4b4cb4c9ea688ded2c1f7a180dff4f6cf98859a9031b670430a9e",
+    "deployment/ngr/private/20261015-variable-state-plan-root/result.json": "e0abcc1312001b94c521da33a4c8b39135542f8ee01467d1bf4d2412ea619ace",
+    "deployment/ngr/private/20261015-variable-state-plan-root/independent-existing-inventory-comparison.json": "b8c6dcd9c366ecac412608bf5e74a14fc34ba3d1d9a6438749ad9a83163fe527"
+  },
+  "user_behavior_policy_already_available": "module feedback ground truth; power pattern scene selection with brightness discriminators; common inferred curtain model",
+  "legacy_variable_retirement_approved_by_this_audit": false
+}

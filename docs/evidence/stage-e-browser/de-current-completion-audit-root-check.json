@@ -27,9 +27,10 @@
       "id": "D-2",
       "stage": "D",
       "requirement": "25变量、条件与生命周期",
-      "verified_scope": "类型化存储、CAS、三值条件及来源记录有软件证据",
+      "verified_scope": "类型化存储、CAS、三值条件及来源记录有软件证据；25变量的487处显式站点与既有审查逐ID/操作/操作数一致，已形成11窗帘和14灯光相关变量的反馈替代候选；其中3个含14次算术隐式读，单独保留执行状态审核。",
       "remaining_evidence": "24变量的原type2、生命周期、初始化和外部写入待审核",
-      "status": "source_decisions_pending"
+      "status": "source_decisions_pending",
+      "additional_replacement_plan_evidence": "stage-d-study/variable-feedback-replacement-plan-root-check.json"
     },
     {
       "id": "D-3",
@@ -221,7 +222,8 @@
     "stage-e-browser/current-service-reconciliation-root-check.json": "52a6ddd97855cea0cf0540d9f82de79b329011caad92c6cacad620c08abc3c7a",
     "stage-d-study/motor-branch-and-writer-root-check.json": "9c4cb671c58a3f74656bf9e82efe20c8ee48f3e72e60de9b4616a1bd8b4a9eda",
     "stage-d-study/curtain-source-key-layout-root-check.json": "18badd91df91efe5d163e3a85d8aaa7df8aa7246c18e94b63c10beceee3f6678",
-    "stage-d-study/scene-toggle-leaf-dependencies-root-check.json": "d31c611324d62d31aec36c9830936488d1fe7df3184252a831103435eeff4313"
+    "stage-d-study/scene-toggle-leaf-dependencies-root-check.json": "d31c611324d62d31aec36c9830936488d1fe7df3184252a831103435eeff4313",
+    "stage-d-study/variable-feedback-replacement-plan-root-check.json": "d95c8a478e9e3d074c19779c239132fb72002d6af893e95b096d97add3a9d7e2"
   },
   "excluded_by_scope": {
     "Siri": "cancelled by user",
@@ -434,5 +436,6 @@
   "latest_current_service_reconciliation": "stage-e-browser/current-service-reconciliation-root-check.json",
   "latest_motor_branch_writer_source_evidence": "stage-d-study/motor-branch-and-writer-root-check.json",
   "latest_curtain_source_key_layout_evidence": "stage-d-study/curtain-source-key-layout-root-check.json",
-  "latest_scene_toggle_dependency_evidence": "stage-d-study/scene-toggle-leaf-dependencies-root-check.json"
+  "latest_scene_toggle_dependency_evidence": "stage-d-study/scene-toggle-leaf-dependencies-root-check.json",
+  "latest_variable_feedback_replacement_plan": "stage-d-study/variable-feedback-replacement-plan-root-check.json"
 }
