@@ -1,0 +1,43 @@
+{
+  "source_xml_sha256": "cac7dcdc9db08599e55a22bacb72858035c64e1ac846e2139ead5fc634513748",
+  "source_descriptor_sha256": "957f3dbe80dafb0e0667cb7b362be7a139a0e8ac465b0991fbfb27c7f6228937",
+  "motor_plans": 12,
+  "exact_release_request_bindings": 35,
+  "roles": {
+    "open": 12,
+    "stop": 11,
+    "close": 12
+  },
+  "motors_with_source_layout_candidate": 11,
+  "existing_two_room_layouts_exactly_preserved": true,
+  "unknown_calibration_or_travel_not_invented": true,
+  "direction_comment_disagreement_requires_review": 1,
+  "missing_original_requests_not_created": [
+    {
+      "proxy": "303",
+      "role": "stop"
+    },
+    {
+      "proxy": "287",
+      "role": "open"
+    },
+    {
+      "proxy": "287",
+      "role": "stop"
+    },
+    {
+      "proxy": "287",
+      "role": "close"
+    }
+  ],
+  "encrypted_entries_opened": 0,
+  "source_rules_enabled": 0,
+  "field_controls": 0,
+  "source_request_layout_is_not_physical_calibration_or_event_semantic_approval": true,
+  "source_plan_is_disabled_not_runtime_configuration": true,
+  "private_evidence_sha256": {
+    "deployment/ngr/private/20261015-curtain-binding-plan-root/derive.py": "ccda6538571926443b89d5d0ef7f25bcd7571e02b02f61841edf67018b0cc010",
+    "deployment/ngr/private/20261015-curtain-binding-plan-root/per-motor-source-binding-plans.json": "b0c5bef5bf0729540fb799ddc1adcc4d6c4e154c719ca0bff40309f9ef148c0c",
+    "deployment/ngr/private/20261015-curtain-binding-plan-root/result.json": "01602a1b276ebcccaca4b51ccb97fb7bdf33046b45ccfce6e4094b010012b528"
+  }
+}
