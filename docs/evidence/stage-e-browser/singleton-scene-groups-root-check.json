@@ -1,0 +1,41 @@
+{
+  "checked_at": "2026-10-15T20:44:47.021892+08:00",
+  "request": "independent courtyard and coming-home toggles; never manufacture mutually exclusive or dummy scene members",
+  "source_delta": {
+    "path": "crates/homesense-config/src/scene_switches.rs",
+    "old": "members2..=64",
+    "new": "members1..=64",
+    "other_validation_unchanged": true
+  },
+  "source_manifest_sha256": "1b8665d4d55b1e6bb9bc256810cf38a3239a794a4b73c19667255d5c4aa82900",
+  "controlled_baseline_same3tests": {
+    "passed": 1,
+    "failed": 2,
+    "input_unchanged": true,
+    "actual2program_hashes_reverified": true,
+    "failure": "min2 rejects legal singleton documents before state/actions"
+  },
+  "repair_same3tests": {
+    "passed": 3,
+    "failed": 0,
+    "actual2program_hashes_reverified": true,
+    "input_unchanged": true
+  },
+  "real_runtime_proofs": [
+    "unknown initial state for both groups; explicit Off cannot guess unknown",
+    "On courtyard leaves home unknown; On home allows both selected",
+    "Off courtyard preserves home On; Off home clears only its own group",
+    "batch On for both independent groups accepted",
+    "exact6GT-D8Immediate bytes plus6Written rows, no extra command or cross-group exclusion",
+    "repeated On is no-op",
+    "empty groups and shared selection variables remain invalid"
+  ],
+  "fixture_correction_retained": "repair-v1 positive states/6writes correct but expected GT-D8 immediate opcodes mistakenlyA1/A2; corrected to channel01/02 per existing hb-protocol source, reran baseline/repairv2 same fixture. Not a product counterexample or ignored assertion.",
+  "new_field_rules_enabled": 0,
+  "field_queries_or_controls": 0,
+  "new_credentials_or_scope_changes": 0,
+  "Keypad_configuration_published": false,
+  "additional61_56_hardware_confirmation_pending": true,
+  "final_integration_and_Linux": "pending combined forever-mode qualification",
+  "D_E_complete": false
+}
