@@ -1,3 +1,5 @@
+2026-10-15 23:42 当前目录仍为rev10、两张六格父卡、0独立LED，服务就绪，实际App显示待回复。Root独立复跑App目录／凭证刷新31个方法（32次用例）全部通过，只新增回归文件，不改产品源码、不安装App；内存传输不替代真实TLS、Keychain和手机验收。冷启动首次恢复遇临时故障不重试另为已核实缺口，正在私有修复。现网没有可委派20端点的管理员，书房权限补齐仅形成停机维护与CAS回退方案，尚未执行。见[当前目录](evidence/stage-e-browser/keypad-current-catalog-root-check.json)、[App软件复验](evidence/stage-e-browser/native-grant-refresh-root-check.json)和[权限提案](evidence/stage-e-browser/study-keypad-scope-proposal-root-check.json)。
+
 2026-10-15 窗帘分支与写入源核查：独立从原XML重建35个事件的完整AST，逐代码ID核对表达式与Else，覆盖24个停止条件、11个运动条件、105处LED副作用、46处变量赋值；相关11变量另有22处窗帘反馈事件写入。一个房间的Open/Closed注释及1/2反馈编码均与其余房间相反，不能在未校准时自动修正。此项完成结构和写入源审核，不冒充完整程序迁移或现场校准通过。见[分支与写入源证据](evidence/stage-d-study/motor-branch-and-writer-root-check.json)。
 
 2026-10-15 22:24 当前状态校正：可信HTTPS与systemd只读复核确认E2 active/enabled、PID244467、零重启、无整体期限，活动rev10、网关/存储/HAP就绪，两张六格Keypad且无独立LED。旧审计中的17:28停机、rev9和未部署卡片字段移入历史快照；浏览器首页现网为410 native_app_required。场景投影修复f27a6b6已推送但未部署，新增场景LED失败及现场挂起项仍开放。见[现网状态复核](evidence/stage-e-browser/current-service-reconciliation-root-check.json)。
