@@ -1,0 +1,47 @@
+{
+  "checked_bj": "2026-10-15T17:42:35.729676+08:00",
+  "kind": "confirmed real service premature exit and explicit continuous-availability requirement",
+  "deployed_binary_sha256": "4003d9887af4e1365641651fc615fb13bc0303bf5bdb33575e37312e69b8bd9a",
+  "revision": 9,
+  "started_bj": "2026-10-15T17:14:03+08:00",
+  "planned_hard_deadline_bj": "2026-10-15T18:14:03+08:00",
+  "failure_log_bj": "2026-10-15T17:28:03+08:00",
+  "last_error": "physical recovery feedback timeout",
+  "final_error_line_has_no_own_timestamp": true,
+  "Root_HTTPS_ConnectionRefused_bj": "2026-10-15T17:33:50+08:00",
+  "Root_no_process_bj": "2026-10-15T17:34:10+08:00",
+  "deployed_frozen_automation_tcp_sha256": "57f3fd2bec2ea2adceea8ad6de98a34bbcfabf9b9bc686e2ac74de39925e3879",
+  "source_exit_paths": [
+    "recovery feedback error propagated by result? ends serve future",
+    "recovery limit reached ends service"
+  ],
+  "required_behavior": [
+    "keep native HTTPS WSS diagnostics and relevant HAP identity alive for recoverable gateway failures",
+    "mark affected state unavailable and deny controls until fresh synchronization",
+    "bounded paced retries without replay of old control or startup rules",
+    "respect explicit shutdown and overall test deadline",
+    "keep true storage corruption and configuration fatal errors separate"
+  ],
+  "status": "not fixed or validated yet; assigned to functional development in unified candidate",
+  "wall_panel_operations": "user estimates near17:28; no exact timing or sequence",
+  "causation_not_established": [
+    "wall-panel lighting caused lost feedback",
+    "same root cause as earlier5512ms stall"
+  ],
+  "query_scope": {
+    "modules": 8,
+    "physical_channels": 64,
+    "bound_channels": 8,
+    "unbound_channels": 56,
+    "failed_module_or_channel_identified": false
+  },
+  "diagnostic_gap": "current log records gateway error only, not target module/channel/missing-port witness",
+  "source_log_sha256": "a0f535d420e97ae63d582a0ef5288139decf1ff550b46bb7c1dc9a913e93e6c8",
+  "readonly_report_sha256": "ac9055d38f6436da671b92f635dc6df2d60ef50ce41a4b4f3a996d2019e774e6",
+  "timeline_sha256": "9fde019b66304fd5485419c6b4b5f21a6a0024d1d67a322f2615cccda1ace707",
+  "new_gateway_queries_or_controls": 0,
+  "restarted": false,
+  "prior_App_save_relaunch_foreground_tests_remain_valid": true,
+  "further_field_testing": "user deferred until all fixes integrated",
+  "D_E_complete": false
+}
