@@ -1,0 +1,46 @@
+{
+  "checked_at": "2026-10-16T00:03:41.790519+08:00",
+  "source_xml_sha256": "cac7dcdc9db08599e55a22bacb72858035c64e1ac846e2139ead5fc634513748",
+  "scope": "source-only sequential and variable-projection review of three arithmetic state variables",
+  "variables": 3,
+  "exact_original_events": 7,
+  "synthetic_event_executions": 11,
+  "independently_source_guarded_reductions": 7,
+  "synthetic_variable_and_uniform_feedback_comparisons": 2128,
+  "findings": [
+    "4 and40 can compose as44; reviewed repeated4 event leaves40",
+    "100 operation can preserve lower value44 as144 and then44",
+    "seven full source branches include OR44 guards omitted by the first visual expectation; these guards were not removed",
+    "not general XOR components: synthetic144 at the4 event becomes4, not140"
+  ],
+  "fixture_corrections": {
+    "count": 2,
+    "cause": "Root handwritten expected value missed nested OR44 clauses; strict source parser and model were unchanged",
+    "both_failed_scripts_and_errors_retained": true,
+    "not_product_failures": true
+  },
+  "limits": [
+    "zero seed and negative/large model integers are synthetic, not imported saved values or approved initialization/type2 mapping",
+    "per-event immutable snapshot and successful between-event synthetic command effects are explicit assumptions",
+    "not all feedback combinations, asynchronous Control4 interleavings or actual driver behavior",
+    "does not approve whole original programs, declare physical bindings verified or retire variables"
+  ],
+  "full_original_program_approvals_added": 0,
+  "runtime_rules_enabled": 0,
+  "field_queries_or_commands": 0,
+  "legacy_values_imported": false,
+  "new_Rust_or_App_test_count": 0,
+  "private_artifacts_sha256": {
+    "deployment/ngr/private/20261016-composite-transition-root/derive.py": "e6d7613efa317ec68e8335302d43e9f73b4ae1f2616f55207f0de5efd337e510",
+    "deployment/ngr/private/20261016-composite-transition-root/verify.py": "ad4bfa8dda2b2eee4ff9e4a3d0683095b959fa3b2d85b2294f55e3f76d3dcaf1",
+    "deployment/ngr/private/20261016-composite-transition-root/result.json": "f8f34cfb47dc98cd9d3b5530276ee85e7ef682ca341f24f4a30d5a9869d2c87f",
+    "deployment/ngr/private/20261016-composite-transition-root/independent-reduction-check.json": "e4eb53478415ab4db09278d10dc4bfe5d0890511b7efbc98692b630a6fd662b0",
+    "deployment/ngr/private/20261016-composite-transition-root/sequential-witnesses.json": "9a04301f3953e8f44fad82558928a25d9563435eeefe091f7d959bc3495a1a20",
+    "deployment/ngr/private/20261016-composite-transition-root/source-trees.json": "f54f3aab08f15cb530d2811bfc6fab056a4b31ae4a559cb03250296e97a555fe",
+    "deployment/ngr/private/20261016-composite-transition-root/derive-first-expectation.py": "995960b31b2b14dc22117274e739d6ac2ea9c520b64682aef070248839997c15",
+    "deployment/ngr/private/20261016-composite-transition-root/first-expectation-error.json": "2bcfd46d78659867197468412d1c6d4cf7e7f342c021a02e9dd54352b2ef26b5",
+    "deployment/ngr/private/20261016-composite-transition-root/derive-second-expectation.py": "f30b856cbc1b377b0242d5bd2f138dd93a3afe994415f3976c91be48d455455a",
+    "deployment/ngr/private/20261016-composite-transition-root/second-expectation-error.json": "4c620d0e5a700a548a395d3d111a08ec30e8dd1b8f9ac345aaa011a82218b150"
+  },
+  "D_E_complete": false
+}
