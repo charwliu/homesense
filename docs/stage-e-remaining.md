@@ -1,3 +1,5 @@
+2026-10-16 私有LED v11的原88路及常驻AD8故障恢复均已Root独立通过，五个同字节测试的基线2过3失败、修复5过，原夹具四项测试及候选包级严格Clippy通过。完整workspace尚未执行，源码未合入／部署；新查询的同boot历史线性扫描已复现，需补精确索引后再固定最终候选。LED仍只报告软件Written，不声称硬件读回。见[运行核查](evidence/stage-e-browser/indicator-cross-writer-runtime-root-check.json)和[查询增长缺口](evidence/stage-e-browser/indicator-query-growth-root-gap.json)。
+
 2026-10-15 App两项实际Rust联调已补跑：当前4dc1284 App及固定f27a6b6普通后端在回环模拟配置下，完整77方法通过、0跳过，含真实HTTPS管理发布、URLSession WSS和Keypad接口。HTTP为curl固定CA，非默认URLSession HTTP系统信任验证；真实Keychain、手机安装及硬件效果仍待现场，待交付LED修复亦未被此后端覆盖。见[实际联调核查](evidence/stage-e-browser/native-current-integration-root-check.json)。
 
 2026-10-15 App冷启动恢复已通过独立软件复验并窄合入，原首次503／连接失败不恢复反例保留；新增6方法／25用例通过，首次完整Swift实际75方法通过、2项Rust集成明确跳过，后续已补验。已有token可在临时故障后自动恢复，取消／暂停和TLS／401门禁保持；手机安装与现场补验仍待后端修复整合。见[冷启动核查](evidence/stage-e-browser/native-cold-restore-root-check.json)。

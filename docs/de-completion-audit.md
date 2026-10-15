@@ -1,4 +1,6 @@
-2026-10-16 最终候选检查发现旧回归仍依赖已清理的两份部署记录，造成Clippy编译失败。Root将3358字节原HEAD夹具逐字迁入测试目录，仅改include路径，237处字面include已无缺失；原断言、测试数及其他清理改动保持。此时只完成输入修正，实际Rust回归及Clippy尚待缓存持有者重验，不以路径核对冒充全量通过。见[夹具迁移核查](evidence/stage-e-browser/regression-fixture-cleanup-root-check.json)。
+2026-10-16 LED私有v11已完成Root运行复验：相同五测试文件在旧实现2过3失败、修复5过，普通程序原88路探针及周期静默通过，23 Written／0待决；常驻AD8断连／部分反馈／恢复／SIGTERM探针通过，只发两条预期模拟控制。两项迁移夹具的四个原测试另经Root直接执行通过，候选71项相关回归与包级严格Clippy日志已核对。源码尚未合入或部署；Root又发现新LED查询随同boot历史线性扫描，已私有复现并交回补索引，完整workspace及新最终候选继续待验。见[运行核查](evidence/stage-e-browser/indicator-cross-writer-runtime-root-check.json)和[查询增长缺口](evidence/stage-e-browser/indicator-query-growth-root-gap.json)。
+
+2026-10-16 最终候选检查发现旧回归仍依赖已清理的两份部署记录，造成Clippy编译失败。Root将3358字节原HEAD夹具逐字迁入测试目录，仅改include路径，237处字面include已无缺失；原断言、测试数及其他清理改动保持。此时先完成输入修正，后续四项原测试及候选包级Clippy已通过，不能据此替代完整workspace。见[夹具迁移核查](evidence/stage-e-browser/regression-fixture-cleanup-root-check.json)。
 
 2026-10-16 D复合变量分支已补证：七个准确源事件的11步合成连续执行保留4／40／100叠加及移除顺序，2128份变量投影与两种已知反馈组合同源守卫归约一致。结果支持逐分支建模，不能把变量视为临时清零标记或通用位异或；零初值、事件间成功效果不冒充原运行初始化或异步语义。首两次漏读OR44的人工预期失败保留，未新增原程序批准、启用规则或现场动作，65／208／24剩余范围保持。见[连续分支核查](evidence/stage-d-study/composite-variable-transition-root-check.json)。
 

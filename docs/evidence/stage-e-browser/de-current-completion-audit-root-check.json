@@ -233,7 +233,9 @@
     "stage-e-browser/native-cold-restore-root-check.json": "a02523eb029b4f11b3857c6013d8b2d3e962aca04e0fb2d2a2f8cce2e5325ca6",
     "stage-e-browser/native-current-integration-root-check.json": "2a4bdbc842d4286d82ad0dbd31e11ecc598b87f0a2fc2baae481e08f09e0bebf",
     "stage-d-study/composite-variable-transition-root-check.json": "67dd83af3e63fb7f130e712c1368f3361784930ea2c52588e6af8b68dc3cc4d9",
-    "stage-e-browser/regression-fixture-cleanup-root-check.json": "17cfbc1663dcecc58a654c94298a84ea6e69c50d1beec7fadbe2fca7f1a15fec"
+    "stage-e-browser/regression-fixture-cleanup-root-check.json": "7a43cfa9554cf3d5b103f184251182f618727b45440ad33b974273de7b91b4a5",
+    "stage-e-browser/indicator-cross-writer-runtime-root-check.json": "eed4937d7cb8578a8451c06160dcb1445711a5379bb18a6771e18179137bbf79",
+    "stage-e-browser/indicator-query-growth-root-gap.json": "1b84030da4f7c2744cff228461f55e580d44efb075aadcaa4dbdd5ee2477619b"
   },
   "excluded_by_scope": {
     "Siri": "cancelled by user",
@@ -460,5 +462,7 @@
   "latest_native_cold_restore_software": "stage-e-browser/native-cold-restore-root-check.json",
   "latest_native_actual_Rust_integration": "stage-e-browser/native-current-integration-root-check.json",
   "latest_composite_variable_source_transitions": "stage-d-study/composite-variable-transition-root-check.json",
-  "regression_fixture_cleanup": "stage-e-browser/regression-fixture-cleanup-root-check.json"
+  "regression_fixture_cleanup": "stage-e-browser/regression-fixture-cleanup-root-check.json",
+  "latest_indicator_cross_writer_runtime": "stage-e-browser/indicator-cross-writer-runtime-root-check.json",
+  "indicator_query_growth_gap": "stage-e-browser/indicator-query-growth-root-gap.json"
 }

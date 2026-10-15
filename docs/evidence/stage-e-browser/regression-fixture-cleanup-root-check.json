@@ -34,11 +34,15 @@
   "production_code_changed": false,
   "other_deployment_cleanup_changes_preserved": true,
   "Root_Cargo_run": false,
-  "validation_status": "byte identity and literal include resolution passed; Rust test and Clippy execution delegated to existing cache owner, not yet claimed passed",
+  "validation_status": "Root direct execution of pinned field_capture1 and parameter_probe3 tests passed; private v11 strict homesensed all-targets Clippy log rehashed and exit0; complete workspace remains pending",
   "field_queries_or_commands": 0,
   "new_test_count": 0,
   "private_artifact_sha256": {
-    "deployment/ngr/private/20261016-regression-fixture-root/migration-plan.json": "276ec36f5146b98a3f2c4d6b962e605b8ca81c43a7d2c5f100d0c66ffec53f95"
+    "deployment/ngr/private/20261016-regression-fixture-root/migration-plan.json": "276ec36f5146b98a3f2c4d6b962e605b8ca81c43a7d2c5f100d0c66ffec53f95",
+    "deployment/ngr/private/20261016-regression-fixture-root/Root-executed-original-tests.json": "ae998f33600740bbe0b95502648f9261f8373419c63c0ac818b18ddff1b71968",
+    "deployment/ngr/private/20261015-indicator-cross-writer-candidate-worker/v11-fixture-regressions.log": "5597003560f4377437fad5723665d7bbdcc734f76b25478a8a8679bcda503db9",
+    "deployment/ngr/private/20261015-indicator-cross-writer-candidate-worker/v11-clippy.log": "00d132b6083b374407e36b25598ee7f83559a96aff0ed540c1493aea6565593d"
   },
-  "D_E_complete": false
+  "D_E_complete": false,
+  "Root_original_tests_passed": 4
 }

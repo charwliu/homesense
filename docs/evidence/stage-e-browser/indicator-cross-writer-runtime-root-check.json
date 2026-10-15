@@ -1,0 +1,59 @@
+{
+  "checked_at": "2026-10-16T00:16:53.203181+08:00",
+  "status": "private v11 runtime and same-test causal verification pass; full workspace and indexed final candidate still pending",
+  "shared_product_source_applied": false,
+  "field_or_deployment_changes": false,
+  "normal_CLI_sha256": "25eaa4ca47c8eca64832c914f1819ca1e80a595121f5563bd6df5afb9afdf1bd",
+  "frozen_source_files_verified": 837,
+  "frozen_manifest_sha256": "8d4700ad5e00f97ffc58f9e48674dd7cfc9ebced48dbde3dcc28ccb8428b5549",
+  "same_five_test_bytes": true,
+  "Root_baseline_result": "2 passed /3 failed",
+  "Root_candidate_result": "5 passed /0 failed",
+  "v11_related_distinct_tests": 71,
+  "v11_homesensed_all_targets_Clippy": 0,
+  "Root_actual_original88": {
+    "passed": true,
+    "duration_seconds": 43.89683949993923,
+    "original_input_and_probe_assertions_preserved": true,
+    "manual_and_external_feedback_LED_colors_match": true,
+    "same_value_periodic_window_ms": 3200,
+    "same_value_periodic_LED_repeats": 0,
+    "one_WSS_connection_automatic_state_updates": true,
+    "exact_expected_light_controls": 6,
+    "Written": 23,
+    "pending": 0,
+    "LED_hardware_readback_claimed": false
+  },
+  "Root_actual_forever_AD8": {
+    "passed": true,
+    "duration_seconds": 40.040359250037,
+    "only_expected_controls": 2,
+    "no_replay": true,
+    "partial_feedback_gated": true,
+    "same_WSS_connection_recovered": true,
+    "same_HAP_identity": true,
+    "explicit_SIGTERM": true
+  },
+  "new_performance_gap": "latest LED request query scans unrelated same-boot history; Root reproduced linear VM-step growth; precise-index private repair now in progress",
+  "remaining": [
+    "fixed indexed final source and ordinary CLI",
+    "Root full workspace/doc/strict workspace Clippy and preserved inventory",
+    "latest App/backend integration and local Linux crosscompile/binary-only deployment",
+    "user-deferred field and source-policy gates"
+  ],
+  "private_artifact_sha256": {
+    "deployment/ngr/private/20261015-indicator-cross-writer-candidate-worker/handoff-final-v11.json": "c20152fc6ad97f56d80cd304c52ea0ae5eb264ac8841afd08fe8f7f408fec11a",
+    "deployment/ngr/private/20261015-indicator-cross-writer-candidate-worker/v11-checks-result.json": "164b459e5abd3bd91f75cb14c55d1b6cf484655e1d8438960d1ca3e633da6596",
+    "deployment/ngr/private/20261016-indicator-final-root/normal-cli-pre-run.json": "afcdcefa3a0ecf26c4f3ac15f496aede92566920b02e3caf31c7da02bdded9ed",
+    "deployment/ngr/private/20261016-indicator-final-root/common-causal/plan.json": "7c6dab1f78d6470469274284d16612f18aa91ec319e469e4f716bca1198bd912",
+    "deployment/ngr/private/20261016-indicator-final-root/common-causal/result.json": "85fd43c96722137a233ba5e17ae55cf2a55e3ace63c8987bcf51704d9da528ac",
+    "deployment/ngr/private/20261016-indicator-final-root/common-causal/baseline.log": "0c577e857870c6c252658f5db50b91dd934182c1fafd1cbae60b97c187377a23",
+    "deployment/ngr/private/20261016-indicator-final-root/common-causal/candidate.log": "1b482e256d79f98fefadc939865e831e3e4579bbe0e23c1e2f7002f5c53d385b",
+    "deployment/ngr/private/20261015-keypad-v21-final-root/repair-v11-root-periodic/result.json": "9ec0ce5b09103fd34ef5f70586ac77bc6d4ef64c124c6b9eee77ba050455eb69",
+    "deployment/ngr/private/20261015-keypad-v21-final-root/repair-v11-root-periodic/same-value-periodic-quiet-window.json": "124543a6298de7e4eb293a567ad372dfe6fdfa7ccc547539f61e6cf4f5ebf792",
+    "deployment/ngr/private/20261015-keypad-v21-final-root/repair-v11-root-periodic/frames.json": "4953055802439f6c13568847c5504dbb1e5cd9f3d7a7a0df8c8548d81d910991",
+    "deployment/ngr/private/20261015-keypad-v21-final-root/repair-v11-root-periodic/observations.json": "e1fd9e178937da9c02149c36e545277d7c089dda613770b9430daf3cfa851ed0",
+    "deployment/ngr/private/20261016-indicator-final-root/forever-ad8/result.json": "f9203cd8db6f7022043d1c4d74fcad30540c7b654287e0eccc61114f5e49ac61"
+  },
+  "D_E_complete": false
+}
