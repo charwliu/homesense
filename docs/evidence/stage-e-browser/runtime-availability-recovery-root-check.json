@@ -1,0 +1,459 @@
+{
+  "checked_at": "2026-10-15T20:32:42.078120+08:00",
+  "scope": "established-service gateway outage and recovery; synthetic local software only",
+  "source_manifest_sha256": "42e5e35eaaff4a5c45b51c8af31882dbcd9d9b8ccd839fe5c44c6c877536c883",
+  "input_files": 1212,
+  "paired_encrypted_HAP": {
+    "fresh_target_event_confirmed": true,
+    "initial_transport_epoch": 2,
+    "no_pair_setup_during_recovery": true,
+    "pair_verify_sessions": 2,
+    "recovered_event_subscription": true,
+    "recovered_transport_epoch": 5,
+    "stable_aid": 2,
+    "stable_brightness_iid": 10,
+    "stable_on_iid": 9,
+    "unavailable_characteristics": [
+      9,
+      10
+    ],
+    "pairing_and_identity_unchanged": true,
+    "all_required_ports": 8,
+    "bound_ports": 1,
+    "partial_bound_only_feedback_does_not_open_control": true,
+    "recovered_event_and_actual_module_level": 25,
+    "no_old_40_or_offline_88_replay": true,
+    "exact_written_commands": 2,
+    "pending_commands_at_deadline": 0,
+    "normal_deadline_seconds": 24,
+    "repeated_in_final_v14_full_workspace": true
+  },
+  "baseline_same_hap_test": {
+    "initial_ready": true,
+    "initial_event_level": 40,
+    "failure_phase": "silent-gateway",
+    "failure": "UnexpectedEof in encrypted session after old service terminates",
+    "is_product_counterexample": true,
+    "earlier_orphan_pairing_fixture_failure_is_not_counterexample": true
+  },
+  "Linux": "pending deployment chat after final qualification",
+  "deployed": false,
+  "field_actions": 0,
+  "independent_healthy_HomeSense_gateway_control_isolation": "open; single mapping/global control fence does not prove this",
+  "initial_startup_unavailable_gateway": "strict startup unchanged",
+  "D_E_complete": false,
+  "v8_publication_directed": {
+    "passed": 23,
+    "failed": 2,
+    "ignored": 0,
+    "filtered": 240,
+    "input_files": 1209,
+    "input_manifest_sha256": "862fe2bd10ba8a039e2985a9da49d7c82ab92838df9bc12a54a5f4a3df5d88e6",
+    "input_unchanged": true,
+    "actual_program_hash_independently_reverified": true,
+    "cause": "DiagnosticGeneration incorrectly rejects policy.publishing; arbiter intentionally retains publishing=true after durable commit until fresh mapping synchronized. Coordinator Pending clears after durable commit and is the relevant precommit condition. Existing arbiter control gate must remain unchanged.",
+    "qualified": false
+  },
+  "v9_complete_workspace": {
+    "passed": 1104,
+    "failed": 3,
+    "ignored": 0,
+    "filtered": 0,
+    "actual_programs": 169,
+    "result_blocks": 169,
+    "all_program_hashes_reverified": true,
+    "source_manifest_sha256": "46c822aff133eb49816ebbe306e5fd8dec70601a6cb60d089777140b6e3075f9",
+    "input_unchanged": true,
+    "failures": [
+      "module_online_publication::missing_unbound_port_during_remap_fails_closed_without_control_or_replay",
+      "periodic_refresh_runtime::periodic_query_eof_uses_supervised_disconnect_path_without_output_or_replay",
+      "tcp_idle_feedback::missing_periodic_response_stops_at_recovery_limit_without_control_writes"
+    ],
+    "qualification": "old failure-exit expectations conflict with new runtime contract; full integration not qualified until tests migrate with meaningful assertions"
+  },
+  "v9_formal_AD8_lifecycle": {
+    "binary_sha256": "445fa40c2326d0690a15d694bb5731242830462b4feb39a7891233d5f38631bc",
+    "all_endpoints_loopback": true,
+    "production_cli": true,
+    "field_controls": 0,
+    "required_ports": 8,
+    "bound_ports": 1,
+    "synthetic_profile": "ad8_din_rs485_v2_2_1",
+    "runtime_seconds": 40,
+    "scope": "established service, silent/partial/full feedback, conservative unknown receipt with journal/wire no-execution proof and cached replay isolation, listener/session retention, deadline",
+    "passed": true,
+    "elapsed_seconds": 41.20331666711718,
+    "epochs": {
+      "initial": 2,
+      "recovered": "8"
+    },
+    "connections": 7,
+    "unbound_external_events": 3,
+    "same_wss_connection_recovered": true,
+    "HAP_identity_unchanged": true,
+    "session_retained": true,
+    "partial_feedback_kept_gated": true,
+    "offline_outcome": "unknown",
+    "offline_no_journal_or_wire": true,
+    "cached_unknown_retry_no_execution": true,
+    "no_replay": true,
+    "normal_deadline": true,
+    "wss_error": "EOFError()",
+    "worker_errors": [],
+    "actual_controls": [
+      "ae11b119ee",
+      "ae11b11eee"
+    ],
+    "actual_journal": "exact2 Written, no pending",
+    "startup_admissions": 1,
+    "delayed_60": "cancelled, no wire",
+    "same_WSS_observed_confirmed_levels": [
+      25,
+      45,
+      30
+    ],
+    "temporary_token_and_key_removed": true,
+    "wss_error_note": "EOF at normal process deadline; same connection remained usable and emitted recovery/current feedback before deadline"
+  },
+  "v10_contract_migration": {
+    "source_manifest_sha256": "2ee723c6bda6d3f9e1b54737a16041ed144d0f50b6a17448d6217867d16a70fd",
+    "input_files": 1210,
+    "product_files_unchanged_from_v9": true,
+    "original_service_duration_seconds": 6,
+    "ordinary_HTTP_timeout_seconds": 4,
+    "periodic_and_idle_tests": {
+      "passed": 5,
+      "failed": 0,
+      "executed_program_hashes_reverified": true
+    },
+    "module_online_publication": {
+      "passed": 1,
+      "failed": 1,
+      "failure": "encrypted HAP Pair-Verify connection refused during incomplete remap feedback",
+      "normal_full_remap_contract_retained": true,
+      "ordinary_outage_not_equivalent_to_postpublication_outage": true
+    },
+    "new_product_gap_hypothesis": "old HAP graph receives all-Stale projection while publication is active; publish_snapshot reads/writes old-revision restore ledger, error terminates graph task and listener",
+    "qualification": "not qualified; retain encrypted207 assertion and fix pure unavailable projection rather than deleting test"
+  },
+  "v10_strict_clippy": {
+    "workspace_all_targets_Dwarnings": "exit0",
+    "source_inputs_unchanged": true,
+    "source_manifest_sha256": "2ee723c6bda6d3f9e1b54737a16041ed144d0f50b6a17448d6217867d16a70fd",
+    "does_not_include_later_HAP_projection_fix": true
+  },
+  "v11_unavailable_projection": {
+    "source_manifest_sha256": "1e17c3ab1ca55881c1c809b1ba1a7d33b1583f1976d8b8f146f02972d0503a54",
+    "baseline_same3_unit_tests": {
+      "passed": 0,
+      "failed": 3,
+      "failure": "restore levels: ServiceCommunicationFailure"
+    },
+    "repair_unit_tests": {
+      "passed": 3,
+      "failed": 0
+    },
+    "integration": {
+      "module_online_passed": 1,
+      "module_online_failed": 1,
+      "periodic_and_idle_passed": 5,
+      "real_encrypted207_assertion_unchanged": true
+    },
+    "independent_test_only_diagnostic": {
+      "normal_test_assertions_and_deadlines_unchanged": true,
+      "graph_end": "recorded levels: ServiceCommunicationFailure",
+      "unavailable_seen_ms": 124.787083,
+      "before_encrypted_HAP_ms": 129.357875,
+      "service_finished_at_HAP_attempt": false,
+      "test_elapsed_seconds": 0.14,
+      "all_actual_program_hashes_reverified": true
+    },
+    "confirmed_gap": "fresh snapshot projection can pass remember_levels then hit publication fence at second projection_levels await; graph task exits while main service remains live",
+    "qualified": false,
+    "next_action": "atomic actor projection read with typed Unavailable versus real storage/actor error; no unconditional error swallowing"
+  },
+  "v12_atomic_projection_unit": {
+    "source_manifest_sha256": "35f3fd857dd0b481d429c920d903198654390e09153b41a2d2df8979bfccf778",
+    "baseline_same6": {
+      "passed": 2,
+      "failed": 4
+    },
+    "repair": {
+      "passed": 4,
+      "failed": 2
+    },
+    "actual_program_hashes_independently_reverified": true,
+    "failed_scope": [
+      "transport_failed uses legacy failed/storage-health flag so is still classified as storage error before recovery",
+      "closed actor rejects but test assumes a specific error string rather than existing ResourceBusy mapping"
+    ],
+    "real_generated_SQLite_fault_still_propagates": true,
+    "publication_interleave_unit_passed": true,
+    "qualified": false
+  },
+  "v13_audited_outage_classification": {
+    "source_manifest_sha256": "d58ac8e2be14f5d97dbce25cabb498a80e58a0ec3ec873271a9465d2f04fa109",
+    "same7_baseline": {
+      "passed": 5,
+      "failed": 2
+    },
+    "repair": {
+      "passed": 7,
+      "failed": 0
+    },
+    "all_actual_program_hashes_reverified": true,
+    "successful_communication_audit_required_for_unavailable": true,
+    "real_SQLite_failure_and_failed_second_audit_still_errors": true,
+    "old_graph_unknown_after_epoch_replacement": true,
+    "closed_channel_ResourceBusy_does_not_become_success": true
+  },
+  "v14_recovery_query_fairness": {
+    "source_manifest_sha256": "42e5e35eaaff4a5c45b51c8af31882dbcd9d9b8ccd839fe5c44c6c877536c883",
+    "inputs": 1212,
+    "controlled_baseline": {
+      "passed": 3,
+      "failed": 1,
+      "first_module_in_three_recovery_rounds": [
+        "16",
+        "16",
+        "16"
+      ]
+    },
+    "repair": {
+      "passed": 4,
+      "failed": 0,
+      "first_module_in_three_recovery_rounds": [
+        "16",
+        "17",
+        "18"
+      ]
+    },
+    "first_round_query_order_unchanged": true,
+    "periodic_query_order_unchanged": true,
+    "full24_channels_in_one_epoch_required": true,
+    "cross_epoch_union_not_accepted": true,
+    "zero_controls_or_command_journal": true,
+    "all_actual_program_hashes_reverified": true,
+    "real_encrypted_remap_and_final_workspace": "7 outage contracts and full1117 tests passed"
+  },
+  "v14_real_outage_contracts": {
+    "passed": 7,
+    "failed": 0,
+    "module_online_publication": 2,
+    "periodic_refresh_runtime": 2,
+    "tcp_idle_feedback": 3,
+    "encrypted_pair_verify_and_207_unavailable_preserved": true,
+    "original_service_deadline_seconds": 6,
+    "ordinary_HTTP_timeout_seconds": 4,
+    "all_actual_program_hashes_reverified": true,
+    "source_manifest_sha256": "42e5e35eaaff4a5c45b51c8af31882dbcd9d9b8ccd839fe5c44c6c877536c883",
+    "input_unchanged": true
+  },
+  "v14_strict_clippy": {
+    "exit_code": 0,
+    "workspace_all_targets_Dwarnings": true,
+    "source_manifest_sha256": "42e5e35eaaff4a5c45b51c8af31882dbcd9d9b8ccd839fe5c44c6c877536c883",
+    "input_unchanged": true
+  },
+  "historical_v7_full_workspace_quality": {
+    "exit_code": 101,
+    "passed_before_stop": 665,
+    "failed": 1,
+    "completed_result_blocks": 88,
+    "actual_executed_programs": 88,
+    "all_program_hashes_independently_reverified": true,
+    "input_unchanged": true,
+    "failure": "automation_tcp::bridge_tests::multiple_bridges_rebuild_and_isolate_occupied_listener: publication response lost",
+    "isolated_same_input_reproduced": true,
+    "isolated_test_seconds": 0.31,
+    "qualification": "not qualified for deployment; original failure retained; directed recovery pass remains scoped only",
+    "diagnostic_service_terminal_error": "ServiceCommunicationFailure",
+    "cause": "Post-commit unavailable_mapping called ready-gated Admission.task_generation while gateway_ready is necessarily false; deterministic0.13s with test-only terminal logging; original time limits/assertions unchanged",
+    "repair_review": "Separate coordinator-only read snapshot for unavailable diagnostics; do not weaken ready-gated task_generation or reopen control"
+  },
+  "full_workspace_quality": {
+    "source_manifest_sha256": "42e5e35eaaff4a5c45b51c8af31882dbcd9d9b8ccd839fe5c44c6c877536c883",
+    "passed": 1117,
+    "failed": 0,
+    "ignored": 0,
+    "filtered": 0,
+    "result_blocks": 169,
+    "actual_programs": 169,
+    "all_program_hashes_independently_reverified": true,
+    "input_unchanged": true,
+    "v9_tests_retained": 1107,
+    "added_tests": [
+      [
+        "homesensed",
+        "runtime_hap::unavailable_publication_tests::confirmed_old_graph_stays_unavailable_after_transport_epoch_replacement"
+      ],
+      [
+        "homesensed",
+        "runtime_hap::unavailable_publication_tests::confirmed_projection_crossing_publication_gate_reports_unknown_without_reusing_split_reads"
+      ],
+      [
+        "homesensed",
+        "runtime_hap::unavailable_publication_tests::confirmed_projection_preserves_real_store_read_failures_as_errors"
+      ],
+      [
+        "homesensed",
+        "runtime_hap::unavailable_publication_tests::failed_transport_audit_is_not_hidden_by_an_earlier_audited_outage"
+      ],
+      [
+        "homesensed",
+        "runtime_hap::unavailable_publication_tests::old_graph_stays_unknown_before_and_after_durable_commit_without_restore_writes"
+      ],
+      [
+        "homesensed",
+        "runtime_hap::unavailable_publication_tests::unavailable_projection_clears_local_transition_suppression_without_reading_restore_ledger"
+      ],
+      [
+        "homesensed",
+        "runtime_hap::unavailable_publication_tests::unavailable_projection_rejects_foreign_regressed_or_changed_mapping_and_mixed_quality"
+      ],
+      [
+        "homesensed",
+        "runtime_transport_recovery::tests::complete_union_across_partial_epochs_never_satisfies_recovery"
+      ],
+      [
+        "homesensed",
+        "runtime_transport_recovery::tests::first_recovery_round_keeps_default_order_and_requires_all_twenty_four_ports"
+      ],
+      [
+        "homesensed",
+        "runtime_transport_recovery::tests::recovery_retries_rotate_past_persistently_partial_first_of_three_modules"
+      ]
+    ],
+    "removed_tests": [],
+    "inventory_count": 1117
+  },
+  "v14_full_workspace": {
+    "source_manifest_sha256": "42e5e35eaaff4a5c45b51c8af31882dbcd9d9b8ccd839fe5c44c6c877536c883",
+    "passed": 1117,
+    "failed": 0,
+    "ignored": 0,
+    "filtered": 0,
+    "result_blocks": 169,
+    "actual_programs": 169,
+    "all_program_hashes_independently_reverified": true,
+    "input_unchanged": true,
+    "v9_tests_retained": 1107,
+    "added_tests": [
+      [
+        "homesensed",
+        "runtime_hap::unavailable_publication_tests::confirmed_old_graph_stays_unavailable_after_transport_epoch_replacement"
+      ],
+      [
+        "homesensed",
+        "runtime_hap::unavailable_publication_tests::confirmed_projection_crossing_publication_gate_reports_unknown_without_reusing_split_reads"
+      ],
+      [
+        "homesensed",
+        "runtime_hap::unavailable_publication_tests::confirmed_projection_preserves_real_store_read_failures_as_errors"
+      ],
+      [
+        "homesensed",
+        "runtime_hap::unavailable_publication_tests::failed_transport_audit_is_not_hidden_by_an_earlier_audited_outage"
+      ],
+      [
+        "homesensed",
+        "runtime_hap::unavailable_publication_tests::old_graph_stays_unknown_before_and_after_durable_commit_without_restore_writes"
+      ],
+      [
+        "homesensed",
+        "runtime_hap::unavailable_publication_tests::unavailable_projection_clears_local_transition_suppression_without_reading_restore_ledger"
+      ],
+      [
+        "homesensed",
+        "runtime_hap::unavailable_publication_tests::unavailable_projection_rejects_foreign_regressed_or_changed_mapping_and_mixed_quality"
+      ],
+      [
+        "homesensed",
+        "runtime_transport_recovery::tests::complete_union_across_partial_epochs_never_satisfies_recovery"
+      ],
+      [
+        "homesensed",
+        "runtime_transport_recovery::tests::first_recovery_round_keeps_default_order_and_requires_all_twenty_four_ports"
+      ],
+      [
+        "homesensed",
+        "runtime_transport_recovery::tests::recovery_retries_rotate_past_persistently_partial_first_of_three_modules"
+      ]
+    ],
+    "removed_tests": [],
+    "inventory_count": 1117
+  },
+  "v14_doc_tests": {
+    "result_blocks": 10,
+    "examples": 0,
+    "failed": 0,
+    "input_unchanged": true
+  },
+  "historical_v7_directed_tests": {
+    "passed": 6,
+    "failed": 0,
+    "ignored": 0,
+    "targets": {
+      "ad8_automation_contract": 3,
+      "check_automation": 2,
+      "hap_runtime_recovery": 1
+    },
+    "actual_executed_programs": {
+      "ad8_automation_contract-003f813741d0790b": "25f79cdf2b758894e6c18577b23dcc0535c929f300a1f019209ce7b83bb50c26",
+      "check_automation-f7d1dcbc05a0cc02": "a7822a4306a3b8e74c998ea6370ab4ce12fb2be2c38daceeba9af5aeeda6389a",
+      "hap_runtime_recovery-c915d7cea42da63c": "38e313c86c185ccfb53508837e2d366e1e9454f64734606bae403228dbf9c4d0"
+    },
+    "all_hashes_independently_reverified": true
+  },
+  "directed_tests": {
+    "final_frozen_input": true,
+    "passed": 18,
+    "failed": 0,
+    "scope": {
+      "real_outage_and_module_remap": 7,
+      "recovery_query_fairness_including_existing_backoff": 4,
+      "HAP_atomic_and_unavailable_projection": 7
+    },
+    "included_in_full1117_not_additional": true
+  },
+  "v14_formal_AD8_lifecycle": {
+    "binary_sha256": "de72fb4a30344a92a5fc824c0933c524e091a519f6ee7f1444fc3cd1ace2c1c6",
+    "all_endpoints_loopback": true,
+    "production_cli": true,
+    "field_controls": 0,
+    "required_ports": 8,
+    "bound_ports": 1,
+    "synthetic_profile": "ad8_din_rs485_v2_2_1",
+    "runtime_seconds": 40,
+    "scope": "established service, silent/partial/full feedback, conservative unknown receipt with journal/wire no-execution proof and cached replay isolation, listener/session retention, deadline",
+    "passed": true,
+    "elapsed_seconds": 41.19943287502974,
+    "epochs": {
+      "initial": 2,
+      "recovered": "8"
+    },
+    "connections": 7,
+    "unbound_external_events": 3,
+    "same_wss_connection_recovered": true,
+    "HAP_identity_unchanged": true,
+    "session_retained": true,
+    "partial_feedback_kept_gated": true,
+    "offline_outcome": "unknown",
+    "offline_no_journal_or_wire": true,
+    "cached_unknown_retry_no_execution": true,
+    "no_replay": true,
+    "normal_deadline": true,
+    "wss_error": "EOFError()",
+    "worker_errors": [],
+    "actual_journal": "independently verified exact2 written, no pending",
+    "actual_controls": [
+      "ae11b119ee",
+      "ae11b11eee"
+    ],
+    "temporary_token_and_key_removed": true,
+    "all_binary_and_wire_hashes_independently_reverified": true,
+    "wss_error_note": "EOF at normal40second process deadline, after same connection emitted recovery/current feedback"
+  },
+  "qualification": "local software qualified; Linux production crossbuild and isolated smoke pending; field deployment pending",
+  "continuous_without_test_deadline": "new user requirement2026-10-15; separate explicit forever mode in preparation, not yet qualified"
+}

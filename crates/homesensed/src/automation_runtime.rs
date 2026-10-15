@@ -118,6 +118,9 @@ impl AutomationRuntime {
     pub fn control(&self) -> crate::automation_control::Control {
         self.control.clone()
     }
+    pub(crate) fn unavailable_control(&self)->crate::automation_control::Control {
+        self.control.unavailable(self.admission.clone(),self.generation.clone())
+    }
     pub fn publication_paused(&self) -> bool {self.publication_paused}
     pub(crate) fn handoff_gate(&self) -> std::sync::Arc<tokio::sync::Mutex<()>> {self.handoff_gate.clone()}
     pub fn revision(&self) -> u64 {

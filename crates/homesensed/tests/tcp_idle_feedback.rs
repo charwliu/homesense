@@ -1,3 +1,5 @@
+#[path="support/runtime_outage.rs"]
+mod outage;
 #[path = "../../homesense-hap/tests/support/mod.rs"]
 mod support;
 use hap::storage::Storage;
@@ -9,6 +11,8 @@ use std::{
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use uuid::Uuid;
 
+// Retain the historical test identifier for inventory continuity. A missing
+// periodic response now gates controls until the original service deadline.
 #[tokio::test]
 async fn missing_periodic_response_stops_at_recovery_limit_without_control_writes() {
     let root = std::env::temp_dir().join(format!("idle-feedback-timeout-{}", Uuid::new_v4()));
@@ -18,35 +22,44 @@ async fn missing_periodic_response_stops_at_recovery_limit_without_control_write
         serde_json::from_slice(include_bytes!("../../../config/simulation.json")).unwrap();
     raw["gateways"][0]["endpoint"] = bus.local_addr().unwrap().to_string().into();
     raw["gateways"][0]["modules"][0]["verification"] = serde_json::json!({"status":"verified","evidence":"synthetic loopback only","verified_at_unix_ms":1});
+    let (missing,wait_missing)=tokio::sync::oneshot::channel();
     let gateway = std::thread::spawn(move || {
         let (mut socket, _) = bus.accept().unwrap();
-        socket
-            .set_read_timeout(Some(Duration::from_secs(7)))
-            .unwrap();
-        let mut frame = [0; 5];
+        socket.set_read_timeout(Some(Duration::from_secs(7))).unwrap();
+        let mut frame = [0; 5];let mut queries=vec![];
         socket.read_exact(&mut frame).unwrap();
-        assert_eq!(frame, [0xae, 0x15, 0xa0, 0xf2, 0xee]);
+        assert_eq!(frame, [0xae, 0x15, 0xa0, 0xf2, 0xee]);queries.push(frame);
         socket.write_all(&module_levels(0x15, 42)).unwrap();
         socket.read_exact(&mut frame).unwrap();
-        assert_eq!(frame, [0xae, 0x15, 0xa0, 0xf2, 0xee]);
+        assert_eq!(frame, [0xae, 0x15, 0xa0, 0xf2, 0xee]);queries.push(frame);
         // The fresh query receives no answer: the old observation is not renewed.
         socket.read_exact(&mut frame).unwrap();
-        assert_eq!(frame, [0xae, 0x15, 0xa0, 0xf2, 0xee]);
-        // One bounded read-only retry is also unanswered; control remains gated.
-        assert_eq!(socket.read(&mut frame).unwrap(), 0);
+        assert_eq!(frame, [0xae, 0x15, 0xa0, 0xf2, 0xee]);queries.push(frame);
+        // One bounded read-only retry is also unanswered. Stop accepting new
+        // streams so subsequent supervised connection attempts fail explicitly.
+        drop(bus);let _=missing.send(());
+        assert_eq!(socket.read(&mut frame).unwrap(), 0);queries
     });
+    let web=std::net::TcpListener::bind("127.0.0.1:0").unwrap();let web_address=web.local_addr().unwrap();drop(web);
+    let directory=root.clone();let input=serde_json::to_vec(&raw).unwrap();
     let started = std::time::Instant::now();
-    let result = homesensed::automation_tcp::serve(
-        &serde_json::to_vec(&raw).unwrap(),
-        br#"{"schema_version":1,"configuration_revision":1,"variables":[],"rules":[]}"#,
-        &root,
-        Duration::from_secs(6),
-        true,
-    )
-    .await;
-    assert!(result.unwrap_err().contains("recovery limit reached"));
-    assert!(started.elapsed() < Duration::from_secs(6));
-    gateway.join().unwrap();
+    let service=tokio::spawn(async move {homesensed::automation_tcp::serve_managed(
+        &input,br#"{"schema_version":1,"configuration_revision":1,"variables":[],"rules":[]}"#,
+        &directory,Duration::from_secs(6),true,0,Duration::from_millis(20),
+        homesensed::service::WebSettings{address:web_address,secret:"abcdefghijklmnopqrstuvwxyz0123456789".into(),administrator:true,tls:None},
+    ).await});
+    tokio::time::timeout(Duration::from_secs(5),wait_missing).await.unwrap().unwrap();
+    let token="abcdefghijklmnopqrstuvwxyz0123456789";
+    outage::wait_unavailable(web_address,token,"1",&service).await;
+    outage::assert_gated(web_address,token,"1","simulation:light").await;
+    outage::assert_empty_journal(&root);
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    assert!(!service.is_finished(),"missing periodic feedback must not consume the six-second service window");
+    outage::assert_gated(web_address,token,"1","simulation:light").await;
+    tokio::time::timeout(Duration::from_secs(8),service).await.unwrap().unwrap().unwrap();
+    assert!(started.elapsed()>=Duration::from_secs(6),"service ended before its original deadline");
+    assert!(tokio::net::TcpStream::connect(web_address).await.is_err());
+    assert_eq!(gateway.join().unwrap(),vec![[0xae,0x15,0xa0,0xf2,0xee];3]);
     let db = rusqlite::Connection::open(root.join("automation-tcp.sqlite")).unwrap();
     assert_eq!(
         db.query_row("SELECT count(*) FROM command_journal", [], |row| row

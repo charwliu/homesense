@@ -210,7 +210,7 @@ async fn disconnect_after_write_cancels_delayed_scene_without_replay() {
         true,
     )
     .await;
-    assert!(result.is_err(), "disconnect must end this unsupervised run");
+    assert!(result.is_ok(), "transport loss must stay gated until the service deadline: {result:?}");
     server.join().unwrap();
     let sql = rusqlite::Connection::open(root.join("automation-tcp.sqlite")).unwrap();
     assert_eq!(sql.query_row("SELECT count(*) FROM scene_cancellation WHERE reason='transport_failure'",[],|row|row.get::<_,i64>(0)).unwrap(),1);
@@ -336,7 +336,7 @@ async fn disconnect_without_pending_work_has_explicit_transport_outcome() {
         true,
     )
     .await;
-    assert!(result.unwrap_err().contains("gateway disconnected"));
+    assert!(result.is_ok(), "cleaned transport loss must not terminate the established service: {result:?}");
     server.join().unwrap();
     let sql = rusqlite::Connection::open(root.join("automation-tcp.sqlite")).unwrap();
     let count: i64 = sql
@@ -488,64 +488,41 @@ async fn supervised_reconnect_queries_again_without_repeating_startup() {
 }
 
 #[tokio::test]
-async fn supervision_stops_at_limit_or_failed_recovery_sync() {
-    for synchronized in [true, false] {
-        let root = std::env::temp_dir().join(format!(
-            "automation-recovery-failure-{}",
-            uuid::Uuid::new_v4()
-        ));
-        let bus = TcpListener::bind("127.0.0.1:0").unwrap();
-        let mut devices: hap::serde_json::Value =
-            hap::serde_json::from_slice(include_bytes!("../../../config/simulation-home.json"))
-                .unwrap();
-        devices["gateways"][0]["endpoint"] = bus.local_addr().unwrap().to_string().into();
-        devices["gateways"][0]["modules"][0]["verification"] = hap::serde_json::json!({"status":"verified","evidence":"loopback only","verified_at_unix_ms":1});
-        let rules = br#"{"schema_version":1,"configuration_revision":1,"variables":[],"rules":[]}"#;
-        let server = std::thread::spawn(move || {
-            for round in 0..2 {
-                let (mut socket, _) = bus.accept().unwrap();
-                socket
-                    .set_read_timeout(Some(Duration::from_secs(5)))
-                    .unwrap();
-                let mut frame = [0; 5];
-                socket.read_exact(&mut frame).unwrap();
-                assert_eq!(frame, [0xae, 0x15, 0xa0, 0xf2, 0xee]);
-                if round == 0 || synchronized {
-                    socket.write_all(&module_levels(0x15, 42)).unwrap();
-                }
+async fn supervision_outlives_fast_budget_and_partial_feedback_until_deadline() {
+    use std::sync::{Arc,atomic::{AtomicBool,Ordering}};
+    for synchronized in [true,false] {
+        let root=std::env::temp_dir().join(format!("automation-recovery-persistent-{}",uuid::Uuid::new_v4()));
+        let bus=TcpListener::bind("127.0.0.1:0").unwrap();
+        let mut devices:hap::serde_json::Value=hap::serde_json::from_slice(include_bytes!("../../../config/simulation-home.json")).unwrap();
+        devices["gateways"][0]["endpoint"]=bus.local_addr().unwrap().to_string().into();
+        devices["gateways"][0]["modules"][0]["verification"]=hap::serde_json::json!({"status":"verified","evidence":"loopback only","verified_at_unix_ms":1});
+        let stop=Arc::new(AtomicBool::new(false));let stopped=stop.clone();
+        let server=std::thread::spawn(move|| {
+            bus.set_nonblocking(true).unwrap();let mut rounds=0;
+            while !stopped.load(Ordering::Acquire) {
+                let (mut socket,_)=match bus.accept(){Ok(value)=>value,Err(error) if error.kind()==std::io::ErrorKind::WouldBlock=>{std::thread::sleep(Duration::from_millis(5));continue},Err(error)=>panic!("{error}")};
+                socket.set_nonblocking(false).unwrap(); // Darwin accepts inherit O_NONBLOCK.
+                socket.set_read_timeout(Some(Duration::from_secs(2))).unwrap();let mut frame=[0;5];
+                match socket.read_exact(&mut frame){Ok(())=>{},Err(_) if stopped.load(Ordering::Acquire)=>break,Err(error)=>panic!("{error}")};
+                assert_eq!(frame,[0xae,0x15,0xa0,0xf2,0xee]);
+                if rounds==0 || synchronized {socket.write_all(&module_levels(0x15,42)).unwrap();}
+                else {socket.write_all(&[0xae,0x15,0xd1,42,0xee]).unwrap();}
+                rounds+=1;
                 socket.shutdown(std::net::Shutdown::Both).unwrap();
             }
-            bus
+            rounds
         });
-        let error = homesensed::automation_tcp::serve_supervised(
-            &hap::serde_json::to_vec(&devices).unwrap(),
-            rules,
-            &root,
-            Duration::from_secs(3),
-            true,
-            1,
-        )
-        .await
-        .unwrap_err();
-        if synchronized {
-            assert!(error.contains("recovery limit reached"), "{error}");
-        }
-        let listener = server.join().unwrap();
-        listener.set_nonblocking(true).unwrap();
-        assert_eq!(
-            listener.accept().unwrap_err().kind(),
-            std::io::ErrorKind::WouldBlock,
-            "no third connection after exhausted budget or failed synchronization"
-        );
-        let sql = rusqlite::Connection::open(root.join("automation-tcp.sqlite")).unwrap();
-        assert_eq!(
-            sql.query_row("SELECT count(*) FROM command_journal", [], |r| r
-                .get::<_, i64>(0))
-                .unwrap(),
-            0
-        );
-        drop(sql);
-        std::fs::remove_dir_all(root).unwrap();
+        let began=std::time::Instant::now();
+        let result=homesensed::automation_tcp::serve_supervised(&hap::serde_json::to_vec(&devices).unwrap(),br#"{"schema_version":1,"configuration_revision":1,"variables":[],"rules":[]}"#,&root,Duration::from_secs(4),true,1).await;
+        stop.store(true,Ordering::Release);
+        let rounds=server.join().unwrap();
+        assert!(result.is_ok(),"recoverable loss ended service: {result:?}");
+        assert!(rounds>=3,"budget1 must not cap service lifetime: {rounds} connections");
+        assert!(began.elapsed()>=Duration::from_secs(4),"must survive until deadline");
+        assert!(began.elapsed()<Duration::from_secs(8),"retry must respect deadline");
+        let sql=rusqlite::Connection::open(root.join("automation-tcp.sqlite")).unwrap();
+        assert_eq!(sql.query_row("SELECT count(*) FROM command_journal",[],|r|r.get::<_,i64>(0)).unwrap(),0,"recovery must never replay commands");
+        drop(sql);std::fs::remove_dir_all(root).unwrap();
     }
 }
 
@@ -693,7 +670,7 @@ async fn online_publication_queries_new_mapping_before_acknowledgement() {
         if reply { assert_eq!(outcome.unwrap(),2); } else { assert!(outcome.is_err()); }
     };
     let (result,())=tokio::join!(service,client);
-    assert_eq!(result.is_ok(),reply,"{result:?}");
+    assert!(result.is_ok(),"publication feedback outage must preserve service until deadline: {result:?}");
     server.join().unwrap();
     assert_eq!(homesense_storage::Store::open(root.join("automation-tcp.sqlite")).unwrap().active().unwrap().unwrap().revision,2);
     let sql=rusqlite::Connection::open(root.join("automation-tcp.sqlite")).unwrap();
@@ -810,11 +787,11 @@ async fn publication_partial_connection_set_is_dropped_without_commands() {
     let client=async {
         ready.await.unwrap();
         let error=publisher.publish(to_vec(&devices).unwrap(),rules(2),1).await.unwrap_err();
-        assert!(error.contains("zz-failed"),"{error}");
+        assert!(error.contains("committed revision 2"),"{error}");
         assert!(error.contains("inspect active revision"),"{error}");
     };
     let (result,())=tokio::join!(service,client);
-    assert!(result.unwrap_err().contains("zz-failed"));
+    assert!(result.is_ok(),"failed post-commit connection must not kill service: {result:?}");
     server.join().unwrap();
     let sql=rusqlite::Connection::open(root.join("automation-tcp.sqlite")).unwrap();
     assert_eq!(sql.query_row("SELECT count(*) FROM command_journal",[],|r|r.get::<_,i64>(0)).unwrap(),0);
@@ -878,7 +855,7 @@ async fn publication_partial_feedback_never_enables_startup() {
         assert!(error.contains("inspect active revision"),"{error}");
     };
     let (result,())=tokio::join!(service,client);
-    assert!(result.unwrap_err().contains("inspect active revision"));
+    assert!(result.is_ok(),"failed post-commit synchronization must not kill service: {result:?}");
     server.join().unwrap();
     let sql=rusqlite::Connection::open(root.join("automation-tcp.sqlite")).unwrap();
     assert_eq!(sql.query_row("SELECT count(*) FROM command_journal",[],|r|r.get::<_,i64>(0)).unwrap(),0);

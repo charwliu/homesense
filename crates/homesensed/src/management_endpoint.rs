@@ -130,6 +130,21 @@ impl Endpoint {
         }
         Ok(endpoint)
     }
+    /// Keep the listener, sessions and a read-only diagnostic view alive while
+    /// transport resynchronizes. Every other runtime request remains refused.
+    pub fn unavailable(&self,control:crate::automation_control::Control)->Result<(),String> {
+        if let Some(view)=self.api.runtime.write().map_err(|_|"management lock poisoned")?.as_mut(){view.control=control;}
+        self.set_hap_status(crate::web_api::HapStatus::Degraded)
+    }
+    /// Durable publication already committed, but its new physical mapping is
+    /// still unavailable. Do not expose the old revision or open a control queue.
+    pub async fn unavailable_mapping(&self,admission:&Admission,controller:Uuid,control:crate::automation_control::Control,configuration:&homesense_config::Configuration,rules:&[u8])->Result<(),String> {
+        let generation=admission.diagnostic_generation(controller,configuration.revision()).await.map_err(|e|format!("{e:?}"))?;
+        if generation.epochs.configuration!=configuration.revision(){return Err("unavailable mapping revision mismatch".into());}
+        let document=crate::configuration_publish::validate_automation(configuration,rules,homesense_core::ExecutionContext::Live).map_err(|e|e.to_string())?;
+        self.restore(Some(Runtime{control:control.unavailable(admission.clone(),generation),revision:configuration.revision(),boot:admission.boot_id().to_owned(),scenes:document.scene_catalog()}))?;
+        self.set_hap_status(crate::web_api::HapStatus::Degraded)
+    }
     pub fn pause(&self) -> Result<Option<Runtime>, String> {
         Ok(self
             .api
