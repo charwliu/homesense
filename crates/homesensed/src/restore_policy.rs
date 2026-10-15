@@ -10,6 +10,7 @@ struct Transition {
 #[derive(Default)]
 pub(crate) struct RestorePolicy(BTreeMap<DeviceId, Transition>);
 impl RestorePolicy {
+    pub(crate) fn invalidate_device(&mut self,id:&DeviceId) {self.0.remove(id);}
     pub(crate) fn accepted(&mut self, id: DeviceId, command: Command, now: u64) {
         let target = match command {
             Command::SetLevel { level, .. } => level,

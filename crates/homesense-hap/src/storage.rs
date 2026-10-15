@@ -70,6 +70,11 @@ impl IdentityStore {
     /// Blocking authorization check for the dedicated admission thread.
     /// Database errors and malformed records must be denied by the caller.
     pub fn controller_is_paired(&self, id: Uuid) -> Result<bool> {
+        Ok(self.controller_public_key(id)?.is_some())
+    }
+    /// Blocking public identity snapshot for revocable queued capabilities.
+    /// Private accessory keys never leave this store through this method.
+    pub fn controller_public_key(&self, id: Uuid) -> Result<Option<[u8; 32]>> {
         let db = self.db.lock().map_err(storage_error)?;
         let bytes: Option<Vec<u8>> = db
             .query_row(
@@ -80,13 +85,13 @@ impl IdentityStore {
             .optional()
             .map_err(storage_error)?;
         let Some(bytes) = bytes else {
-            return Ok(false);
+            return Ok(None);
         };
         let pairing: Pairing = serde_json::from_slice(&bytes)?;
         if pairing.id != id {
             return Err(Error::Storage);
         }
-        Ok(true)
+        Ok(Some(pairing.public_key))
     }
     pub async fn has_config(&self) -> Result<bool> {
         self.with(|db| {

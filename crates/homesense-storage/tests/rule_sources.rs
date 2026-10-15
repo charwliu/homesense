@@ -255,7 +255,7 @@ fn schema_24_backup_and_migration_keep_historical_sources_unknown() {
         .unwrap();
     drop(store);
     let sql = rusqlite::Connection::open(db.path()).unwrap();
-    sql.execute_batch("ALTER TABLE rule_command DROP COLUMN source; PRAGMA user_version=24;")
+    sql.execute_batch("ALTER TABLE rule_command DROP COLUMN source; DROP TABLE module_off_effect; PRAGMA user_version=24;")
         .unwrap();
     drop(sql);
     let old = db.0.join("before.sqlite");
@@ -303,7 +303,7 @@ fn schema_24_backup_and_migration_keep_historical_sources_unknown() {
         homesense_storage::backup::inspect(&new, ExecutionContext::Simulation)
             .unwrap()
             .schema,
-        25
+        homesense_storage::SCHEMA_VERSION
     );
     assert_eq!(std::fs::read(old).unwrap(), before);
 }

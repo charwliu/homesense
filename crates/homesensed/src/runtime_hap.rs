@@ -212,6 +212,12 @@ impl RuntimeHap {
             restore_levels,
         })
     }
+    /// Age the HAP event projection independently of the physical owner and
+    /// durable admission. Reads already check this same observation deadline.
+    pub(crate) async fn refresh_expiration(&mut self) -> Result<(), String> {
+        let snapshot = self.snapshot.read().map_err(|_| "snapshot lock poisoned")?.clone();
+        self.projection.refresh_snapshot(&snapshot, self.admission.monotonic_ms()).await.map_err(error)
+    }
     /// Coalesced full snapshot path for an independent HAP projection task.
     /// It never borrows the transport owner or blocks its control channel.
     pub async fn publish_snapshot(&mut self, physical:Snapshot)->Result<(),String> {

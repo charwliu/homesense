@@ -173,7 +173,6 @@ pub(crate) async fn paired_controller(
 pub(crate) async fn read_tlv_body(
     mut body: Body,
 ) -> std::result::Result<std::collections::HashMap<u8, Vec<u8>>, crate::tlv::ErrorContainer> {
-
     let bytes = tokio::time::timeout(std::time::Duration::from_secs(5), async move {
         let mut bytes = Vec::new();
         while let Some(chunk) = body.data().await {

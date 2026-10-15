@@ -1,3 +1,5 @@
+#[path = "../../test-support/cli.rs"]
+mod test_cli;
 use std::{
     io::{Read, Write},
     net::TcpListener,
@@ -41,7 +43,7 @@ async fn tcp_automation_synchronizes_before_startup_and_preserves_other_state() 
     std::fs::write(&device_path, &devices).unwrap();
     std::fs::write(&rules_path, &rules).unwrap();
     for _ in 0..2 {
-        let output = std::process::Command::new(env!("CARGO_BIN_EXE_homesensed"))
+        let output = std::process::Command::new(test_cli::binary(env!("CARGO_BIN_EXE_homesensed")))
             .arg("serve-automation-tcp")
             .arg(&device_path)
             .arg(&rules_path)
@@ -159,7 +161,7 @@ fn cli_rejects_missing_confirmation_and_invalid_duration_without_state() {
         ("0", Some("--coexistence-confirmed")),
         ("86401", Some("--coexistence-confirmed")),
     ] {
-        let mut cmd = std::process::Command::new(env!("CARGO_BIN_EXE_homesensed"));
+        let mut cmd = std::process::Command::new(test_cli::binary(env!("CARGO_BIN_EXE_homesensed")));
         cmd.arg("serve-automation-tcp")
             .arg(&device)
             .arg(&rules)
@@ -422,7 +424,7 @@ async fn supervised_reconnect_queries_again_without_repeating_startup() {
                 let rule_file = root.join("rules.json");
                 std::fs::write(&device_file, hap::serde_json::to_vec(&devices).unwrap()).unwrap();
                 std::fs::write(&rule_file, &rules).unwrap();
-                let output = std::process::Command::new(env!("CARGO_BIN_EXE_homesensed"))
+                let output = std::process::Command::new(test_cli::binary(env!("CARGO_BIN_EXE_homesensed")))
                     .arg("serve-automation-tcp")
                     .arg(device_file)
                     .arg(rule_file)
@@ -889,7 +891,7 @@ async fn publication_partial_feedback_never_enables_startup() {
 fn cli_rejects_invalid_pacing_flags_before_reading_configuration() {
     for flags in [vec!["--write-interval-ms","19"],vec!["--write-interval-ms","1001"],vec!["--write-interval-ms"],vec!["--write-interval-ms","50","--write-interval-ms","50"],vec!["--unknown","50"]] {
         let root=std::env::temp_dir().join(format!("invalid-pacing-cli-{}",uuid::Uuid::new_v4()));
-        let output=std::process::Command::new(env!("CARGO_BIN_EXE_homesensed"))
+        let output=std::process::Command::new(test_cli::binary(env!("CARGO_BIN_EXE_homesensed")))
             .args(["serve-automation-tcp","missing-device","missing-rules"])
             .arg(&root).args(["1","--coexistence-confirmed"]).args(flags).output().unwrap();
         assert!(!output.status.success());
@@ -903,7 +905,7 @@ fn cli_rejects_invalid_pacing_flags_before_reading_configuration() {
 fn cli_rejects_incomplete_or_duplicate_hap_options_before_configuration_io() {
     for flags in [vec!["--hap-motor","motor"],vec!["--hap-motor","motor","--hap-motor","motor"],vec!["--hap-motor",""],vec!["--hap-scene","demo"],vec!["--hap-listen","127.0.0.1:12345"],vec!["--hap-listen","127.0.0.1:12345","--hap-listen","127.0.0.1:12346"],vec!["--hap-scene","demo","--hap-scene","demo"],vec!["--hap-listen"]] {
         let root=std::env::temp_dir().join(format!("hap-cli-reject-{}",uuid::Uuid::new_v4()));
-        let output=std::process::Command::new(env!("CARGO_BIN_EXE_homesensed")).args(["serve-automation-tcp","missing-devices","missing-rules"]).arg(&root).args(["1","--coexistence-confirmed"]).args(flags).output().unwrap();
+        let output=std::process::Command::new(test_cli::binary(env!("CARGO_BIN_EXE_homesensed"))).args(["serve-automation-tcp","missing-devices","missing-rules"]).arg(&root).args(["1","--coexistence-confirmed"]).args(flags).output().unwrap();
         assert!(!output.status.success());assert!(!root.exists());
         let error=String::from_utf8_lossy(&output.stderr);assert!(!error.contains("No such file"),"{error}");
     }

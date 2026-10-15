@@ -1,4 +1,6 @@
 //! Synthetic input only: no household project data is needed for boundary tests.
+#[path = "../../test-support/cli.rs"]
+mod test_cli;
 #[test]
 fn rejects_oversized_and_invalid_bindings_without_partial_output() {
     let dir = std::env::temp_dir().join(format!(
@@ -13,7 +15,7 @@ fn rejects_oversized_and_invalid_bindings_without_partial_output() {
     let event = dir.join("event.xml");
     let bindings = dir.join("bindings.json");
     let run = || {
-        std::process::Command::new(env!("CARGO_BIN_EXE_compile-event"))
+        std::process::Command::new(test_cli::binary(env!("CARGO_BIN_EXE_compile-event")))
             .arg(&event)
             .arg(&bindings)
             .args(["100", "100"])

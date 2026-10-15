@@ -1,4 +1,7 @@
 //! Typed device management, sharing HAP normalization and calibrated Admission.
+#[cfg(test)]
+#[path = "management_device_freshness_tests.rs"]
+mod freshness_tests;
 use crate::{
     admission::{Admission, TaskGeneration},
     feedback::Feedback,
@@ -32,6 +35,7 @@ pub struct DeviceSnapshot {
     pub revision: u64,
     pub sequence: u64,
     pub devices: Vec<DeviceView>,
+    pub floors: Vec<String>,
 }
 pub async fn snapshot(
     admission: &Admission,
@@ -40,6 +44,19 @@ pub async fn snapshot(
     ids: Vec<DeviceId>,
     feedback: &Feedback,
 ) -> Result<DeviceSnapshot, String> {
+    snapshot_with_max_age(admission, controller, generation, ids, feedback, 5000).await
+}
+pub(crate) async fn snapshot_with_max_age(
+    admission: &Admission,
+    controller: Uuid,
+    generation: TaskGeneration,
+    ids: Vec<DeviceId>,
+    feedback: &Feedback,
+    max_age_ms: u64,
+) -> Result<DeviceSnapshot, String> {
+    if max_age_ms == 0 || max_age_ms > 5000 {
+        return Err("invalid device freshness bound".into());
+    }
     if ids.len() > 256 {
         return Err("device query limit exceeded".into());
     }
@@ -48,10 +65,25 @@ pub async fn snapshot(
         .await
         .map_err(|e| format!("{e:?}"))?;
     let motor_estimates=admission.curtain_views(controller,generation.clone(),ids.clone()).await.map_err(|e|format!("curtain inference: {e:?}"))?;
-    let snapshot = crate::combined_light::project(&bundle.configuration, &feedback.snapshot())
-        .map_err(|e| e.to_string())?;
     let recorded=admission.projection_levels(generation.epochs.configuration,feedback.snapshot().cursor.boot_id).await.map_err(|e|format!("recorded levels: {e:?}"))?;
-    let published=crate::light_state::project_pending(&bundle.configuration,&feedback.snapshot(),&recorded).map_err(str::to_owned)?;
+    // Evaluate freshness after awaited reads. The periodic expiration owner may
+    // be delayed; a cached Confirmed flag alone cannot establish a current view.
+    // Expire physical components before combining, so a fresh dimmer cannot
+    // conceal its old supply feedback. Retain original observations and cursors.
+    let mut raw = feedback.snapshot();
+    let now = admission.monotonic_ms();
+    for state in raw.devices.values_mut() {
+        if matches!(state.kind, ModuleKind::Switch | ModuleKind::Dimmer)
+            && state.quality == homesense_state::Quality::Confirmed
+            && state.observed_at_ms.and_then(|at| now.checked_sub(at))
+                .is_none_or(|age| age >= max_age_ms)
+        {
+            state.quality = homesense_state::Quality::Stale;
+        }
+    }
+    let snapshot = crate::combined_light::project(&bundle.configuration, &raw)
+        .map_err(|e| e.to_string())?;
+    let published=crate::light_state::project_pending(&bundle.configuration,&raw,&recorded).map_err(str::to_owned)?;
     let supplies: std::collections::BTreeSet<_> = bundle
         .configuration
         .devices()
@@ -103,6 +135,7 @@ pub async fn snapshot(
         revision: bundle.configuration.revision(),
         sequence: snapshot.cursor.sequence,
         devices,
+        floors: bundle.configuration.floors().iter().cloned().collect(),
     })
 }
 pub async fn prepare(

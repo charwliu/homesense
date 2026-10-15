@@ -15,10 +15,13 @@ impl MotorOperation {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum AccessoryKey {
+    AwayOff,
     Bridge,
     Device(DeviceId),
     /// Explicit scene action; its identity is independent of display names.
     Scene(String),
+    /// Read-only activity has its own namespace; never encoded as a scene ID suffix.
+    SceneActivity(String),
     Motor(DeviceId, MotorOperation),
     /// An explicitly selected physical panel key; independent of its label.
     PanelKey(DeviceId, u8),
@@ -26,10 +29,12 @@ pub enum AccessoryKey {
 impl AccessoryKey {
     fn storage_key(&self) -> String {
         match self {
+            Self::AwayOff => "operation:away-off".into(),
             Self::PanelKey(device, key) => format!("panel:{}:{}:{key}", device.as_str().len(), device.as_str()),
             Self::Bridge => "bridge".into(),
             Self::Device(device) => format!("device:{}", device.as_str()),
             Self::Scene(id) => format!("scene:{id}"),
+            Self::SceneActivity(id) => format!("sact:{id}"),
             Self::Motor(device,action)=>format!("motor:{}:{}:{}",device.as_str().len(),device.as_str(),action.label().to_ascii_lowercase()),
         }
     }
@@ -62,7 +67,7 @@ impl IdentityStore {
         let mut sorted = BTreeMap::new();
         let mut total = 0usize;
         for definition in definitions {
-            if matches!(&definition.key, AccessoryKey::Scene(id) if id.trim().is_empty() || id.chars().any(char::is_control))
+            if matches!(&definition.key, AccessoryKey::Scene(id) | AccessoryKey::SceneActivity(id) if id.trim().is_empty() || id.chars().any(char::is_control))
                 || matches!(&definition.key, AccessoryKey::PanelKey(device, key) if *key == 0 || *key > 6 || device.as_str().chars().any(char::is_control))
                 || definition.key.storage_key().len() > 256
                 || definition.resources.is_empty()

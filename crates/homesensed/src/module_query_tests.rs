@@ -284,7 +284,10 @@ async fn capacity96_documented_modules_at100ms_and_mixed_at20ms_stay_fresh() {
         .unwrap();
         let start = Instant::now();
         let mut max_age = 0;
+        let mut phase_samples = Vec::new();
         while start.elapsed() < Duration::from_secs(8) {
+            let tick_start = Instant::now();
+            let tick_ms = tick_start.saturating_duration_since(start).as_millis();
             if switches > 0 {
                 h.a.submit(homesense_hap::requests::Batch {
                     controller: h.controller,
@@ -297,12 +300,21 @@ async fn capacity96_documented_modules_at100ms_and_mixed_at20ms_stay_fresh() {
                 .await
                 .unwrap();
             }
+            let submit_ms = tick_start.elapsed().as_millis();
             h.o.step().await.unwrap();
+            let step_ms = tick_start.elapsed().as_millis();
             h.o.receive("bus").await.unwrap();
+            let receive_ms = tick_start.elapsed().as_millis();
             h.o.refresh_outputs_if_due().await.unwrap();
+            let refresh_ms = tick_start.elapsed().as_millis();
             let now = h.a.monotonic_ms();
             h.o.expire(now, 5000).unwrap();
-            for s in h.o.snapshot().devices.values() {
+            phase_samples.push([tick_ms, submit_ms, step_ms, receive_ms, refresh_ms]);
+            for (id,s) in &h.o.snapshot().devices {
+                if s.quality != Quality::Confirmed {
+                    let wire=h.w.lock().unwrap();
+                    eprintln!("CAPACITY_DIAG {}",serde_json::json!({"switches":switches,"interval_ms":interval,"startup_ms":startup.as_millis(),"loop_elapsed_ms":start.elapsed().as_millis(),"now_ms":now,"device":id.as_str(),"quality":format!("{:?}",s.quality),"observed_at_ms":s.observed_at_ms,"age_ms":s.observed_at_ms.map(|at|now.saturating_sub(at)),"phase_columns":["tick_start_ms","after_submit_ms","after_step_ms","after_receive_ms","after_refresh_ms"],"phase_samples":phase_samples,"wire_frames":wire.writes,"wire_relative_ms":wire.times.iter().map(|at|at.saturating_duration_since(wire.times[0]).as_millis()).collect::<Vec<_>>() }));
+                }
                 assert_eq!(s.quality, Quality::Confirmed);
                 max_age = max_age.max(now - s.observed_at_ms.unwrap());
             }

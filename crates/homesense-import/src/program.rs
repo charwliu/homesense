@@ -73,9 +73,8 @@ pub(crate) fn code(
             "unsupported"
         },
         target: if container { None } else { Some(target.into()) },
-        payload_sha256: payload.map(|n| {
-            super::sha256_hex(&n.document().input_text().as_bytes()[n.range()])
-        }),
+        payload_sha256: payload
+            .map(|n| super::sha256_hex(&n.document().input_text().as_bytes()[n.range()])),
         children,
     })
 }

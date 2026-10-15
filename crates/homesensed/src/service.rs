@@ -379,8 +379,9 @@ pub async fn serve_unified_simulation(devices:&[u8],rules:&[u8],directory:&Path,
 }
 #[allow(clippy::too_many_arguments)]
 async fn serve_automation_simulation_options(
-    devices:&[u8],rules:&[u8],directory:&Path,duration:Duration,scene:Option<&str>,publication:Option<SimulationPublication<'_>>,web:Option<WebSimulation>,hap:Option<UnifiedSimulation>,#[cfg(test)] hap_failure_after:Option<Duration>
+    devices:&[u8],rules:&[u8],directory:&Path,duration:Duration,scene:Option<&str>,publication:Option<SimulationPublication<'_>>,web:Option<WebSimulation>,hap:Option<UnifiedSimulation>,#[cfg(test)] lifecycle:Option<hap_fault_tests::Lifecycle>
 )->Result<(),String> {
+    let receipt_policy=if web.is_some(){Some(crate::web_receipt_policy::Policy::load(directory)?)}else{None};
     if duration.is_zero() || duration > Duration::from_secs(86400) {
         return Err("duration must be in (0,24h]".into());
     }
@@ -500,15 +501,10 @@ async fn serve_automation_simulation_options(
                 &crate::hap_endpoint::Settings{address:hap.address,scenes:hap.scenes,motors:vec![]},
                 &identity,&admission,controller,&runtime,owner.snapshot(),web.is_some(),
             ).await?;
-            #[cfg(test)]
-            if let (Some(delay),Some(endpoint))=(hap_failure_after,&endpoint) {
-                let handle=endpoint.abort_handle();
-                tokio::spawn(async move {tokio::time::sleep(delay).await;handle.abort();});
-            }
             let snapshots=endpoint.as_ref().map(|endpoint|endpoint.projection.clone()).unwrap_or_else(||tokio::sync::watch::channel(owner.snapshot()).0);
             let mut endpoint=endpoint;
             let mut management=match web {
-                Some(settings)=>Some(crate::management_endpoint::Endpoint::start_in_context(settings,directory,&admission,controller,&runtime,None,ExecutionContext::Simulation,daily_backup.clone()).await?),
+                Some(settings)=>Some(crate::management_endpoint::Endpoint::start_in_context((settings,receipt_policy.clone().ok_or("management receipt policy missing")?),directory,&admission,controller,&runtime,None,ExecutionContext::Simulation,daily_backup.clone()).await?),
                 None=>None,
             };
             if let Some(management)=&management {management.set_hap_status(if endpoint.is_some(){crate::web_api::HapStatus::Listening}else{crate::web_api::HapStatus::Degraded})?;}
@@ -516,6 +512,16 @@ async fn serve_automation_simulation_options(
             let drive=runtime.drive_hap(&mut owner,snapshots,receive,wall_ms);
             tokio::pin!(drive);
             let deadline=tokio::time::Instant::now()+duration;
+            #[cfg(test)]
+            if let Some(lifecycle)=lifecycle {
+                if let (Some((trigger,delay)),Some(endpoint))=(lifecycle.fail_after,&endpoint) {
+                    let handle=endpoint.abort_handle();
+                    tokio::spawn(async move {
+                        if trigger.await.is_ok() {tokio::time::sleep(delay).await;handle.abort();}
+                    });
+                }
+                let _=lifecycle.ready.send(());
+            }
             loop {
                 tokio::select! {
                     result=async {match management.as_mut(){Some(endpoint)=>endpoint.finished().await,None=>std::future::pending().await}}=>{let _=stop.send(true);drive.await?;return Err(result.err().unwrap_or_else(||"management listener ended".into()));},
@@ -533,9 +539,9 @@ async fn serve_automation_simulation_options(
         }
         if let Some(web)=web {
             let (publisher,publications)=crate::automation_publication::channel();
-            let selected:std::collections::BTreeMap<String,String>=document.timed_scenes.iter().filter(|(_,s)|s.enabled && s.review_evidence.as_ref().is_some_and(|v|!v.trim().is_empty())).map(|(id,_)|(id.clone(),id.clone())).collect();
+            let selected:std::collections::BTreeMap<String,String>=document.scene_catalog();
             let tokens=std::sync::Arc::new(crate::web_auth::Tokens::open_bootstrapped(&directory.join("web-credentials.sqlite"),&web.secret,crate::web_auth::Grant{controller,role:if web.administrator {crate::web_auth::Role::Administrator}else{crate::web_auth::Role::Member},scenes:selected.keys().cloned().collect(),devices:config.devices().iter().filter(|(_,d)|d.enabled).map(|(id,_)|id.as_str().to_owned()).collect()})?);
-            let api=std::sync::Arc::new(crate::web_api::Api{daily_backup:daily_backup.clone(),hap_bridges:Default::default(),hap_status:std::sync::RwLock::new(crate::web_api::HapStatus::Disabled),backup_source:Some(directory.join("automation-simulation.sqlite")),publisher:Some(publisher),origin:web.tls.as_ref().map_or_else(||format!("http://{}",web.address),|tls|tls.origin.clone()),tokens,runtime:std::sync::RwLock::new(Some(crate::web_api::Runtime{control:runtime.control(),revision:document.revision,boot:admission.boot_id().to_owned(),scenes:selected})),drafts:Some((ExecutionContext::Simulation,std::sync::Mutex::new(crate::web_drafts::Drafts::open(&directory.join("web-drafts.sqlite"))?))),receipts:std::sync::Mutex::new(crate::web_receipts::Receipts::open(&directory.join("web-receipts.sqlite"))?)});
+            let api=std::sync::Arc::new(crate::web_api::Api{daily_backup:daily_backup.clone(),hap_bridges:Default::default(),hap_status:std::sync::RwLock::new(crate::web_api::HapStatus::Disabled),backup_source:Some(directory.join("automation-simulation.sqlite")),publisher:Some(publisher),origin:web.tls.as_ref().map_or_else(||format!("http://{}",web.address),|tls|tls.origin.clone()),tokens,runtime:std::sync::RwLock::new(Some(crate::web_api::Runtime{control:runtime.control(),revision:document.revision,boot:admission.boot_id().to_owned(),scenes:selected})),drafts:Some((ExecutionContext::Simulation,std::sync::Mutex::new(crate::web_drafts::Drafts::open(&directory.join("web-drafts.sqlite"))?))),receipts:std::sync::Mutex::new(crate::web_receipts::Receipts::open_with_policy(&directory.join("web-receipts.sqlite"),receipt_policy.clone().unwrap())?)});
             let (stop,receive)=tokio::sync::watch::channel(false);
             let drive=crate::web_supervision::run(api.clone(),admission.clone(),controller,runtime,owner,publications,receive.clone(),directory.join("automation-simulation.sqlite"));
             let server=crate::web_server::serve_with_tls(api,web.address,receive,web.tls);

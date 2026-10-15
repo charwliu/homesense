@@ -9,14 +9,31 @@ fn failure(error: impl std::fmt::Display) -> Error {
 
 fn service_info(config: &Config) -> Result<ServiceInfo> {
     if config.host.is_unspecified() || config.host.is_multicast() || config.port == 0 {
-        return Err(failure("advertising requires a concrete listening address and port"));
+        return Err(failure(
+            "advertising requires a concrete listening address and port",
+        ));
     }
-    let hostname = format!("homesense-{}.local.", config.device_id.to_string().replace(':', "").to_lowercase());
-    let txt: HashMap<String, String> = config.txt_records().iter().map(|item| {
-        let (key, value) = item.split_once('=').expect("fixed HAP TXT format");
-        (key.to_owned(), value.to_owned())
-    }).collect();
-    let mut service = ServiceInfo::new("_hap._tcp.local.", &config.name, &hostname, config.host, config.port, txt).map_err(failure)?;
+    let hostname = format!(
+        "homesense-{}.local.",
+        config.device_id.to_string().replace(':', "").to_lowercase()
+    );
+    let txt: HashMap<String, String> = config
+        .txt_records()
+        .iter()
+        .map(|item| {
+            let (key, value) = item.split_once('=').expect("fixed HAP TXT format");
+            (key.to_owned(), value.to_owned())
+        })
+        .collect();
+    let mut service = ServiceInfo::new(
+        "_hap._tcp.local.",
+        &config.name,
+        &hostname,
+        config.host,
+        config.port,
+        txt,
+    )
+    .map_err(failure)?;
     service.set_interfaces(vec![IfKind::Addr(config.host)]);
     // Do not enable address auto-detection: the TCP listener accepts this IP only.
     Ok(service)
@@ -35,22 +52,36 @@ impl MdnsResponder {
             service_info(&current)?;
             current.host
         };
-        let mut result = Self { config, daemon: Some(ServiceDaemon::new().map_err(failure)?), events: None, fullname: None };
+        let mut result = Self {
+            config,
+            daemon: Some(ServiceDaemon::new().map_err(failure)?),
+            events: None,
+            fullname: None,
+        };
         let daemon = result.daemon.as_ref().unwrap();
         result.events = Some(daemon.monitor().map_err(failure)?);
         daemon.disable_interface(IfKind::All).map_err(failure)?;
-        daemon.enable_interface(IfKind::Addr(host)).map_err(failure)?;
+        daemon
+            .enable_interface(IfKind::Addr(host))
+            .map_err(failure)?;
         Ok(result)
     }
     pub fn disabled(config: pointer::Config) -> Self {
-        Self { config, daemon: None, events: None, fullname: None }
+        Self {
+            config,
+            daemon: None,
+            events: None,
+            fullname: None,
+        }
     }
     pub async fn update_records(&mut self) -> Result<()> {
         if let Some(daemon) = &self.daemon {
             let info = service_info(&*self.config.lock().await)?;
             let fullname = info.get_fullname().to_owned();
             if let Some(old) = &self.fullname {
-                if *old != fullname { daemon.unregister(old).map_err(failure)?; }
+                if *old != fullname {
+                    daemon.unregister(old).map_err(failure)?;
+                }
             }
             daemon.register(info).map_err(failure)?;
             self.fullname = Some(fullname);
@@ -70,7 +101,8 @@ impl MdnsResponder {
                         }
                     }
                     Err(failure("daemon event channel closed"))
-                }.boxed()
+                }
+                .boxed()
             }
         }
     }
@@ -78,7 +110,9 @@ impl MdnsResponder {
 impl Drop for MdnsResponder {
     fn drop(&mut self) {
         if let Some(daemon) = &self.daemon {
-            if let Some(name) = &self.fullname { let _ = daemon.unregister(name); }
+            if let Some(name) = &self.fullname {
+                let _ = daemon.unregister(name);
+            }
             let _ = daemon.shutdown();
         }
     }
@@ -98,18 +132,25 @@ mod tests {
             assert!(info.get_addresses().contains(&config.host));
             assert!(!info.is_addr_auto());
             assert_eq!(info.get_port(), config.port);
-            assert_eq!(info.get_property_val_str("id"), Some(config.device_id.to_string().as_str()));
+            assert_eq!(
+                info.get_property_val_str("id"),
+                Some(config.device_id.to_string().as_str())
+            );
             let hostname = info.get_hostname().to_owned();
             config.configuration_number += 1;
             let updated = service_info(&config).unwrap();
             assert_eq!(updated.get_hostname(), hostname);
-            assert_eq!(updated.get_property_val_str("c#"), Some(config.configuration_number.to_string().as_str()));
+            assert_eq!(
+                updated.get_property_val_str("c#"),
+                Some(config.configuration_number.to_string().as_str())
+            );
         }
     }
     #[test]
     fn wildcard_or_multicast_listener_cannot_be_advertised() {
         for host in ["0.0.0.0", "::", "224.0.0.251", "ff02::fb"] {
-            let mut config = Config::default(); config.host = host.parse().unwrap();
+            let mut config = Config::default();
+            config.host = host.parse().unwrap();
             assert!(service_info(&config).is_err());
         }
     }

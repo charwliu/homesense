@@ -87,10 +87,14 @@ fn intent(command: Command) -> [u8; 4] {
         ),
         Command::PanelLed(v) => (6, u8::from(v)),
         Command::Toggle => (7, 0),
+        Command::ModuleAllOff => (8, 0),
     };
     [1, tag, value, 0]
 }
 impl Store {
+    pub fn accept_module_off_commands(&mut self,boot_id:&str,commands:&[QueuedCommand],cancellations:&[Cancellation],now_ms:u64,effects:&[crate::module_off::Effects])->Result<(),Error> {
+        self.accept_queue_batch_detailed(boot_id,commands,cancellations,now_ms,None,&[],None,None,&[],&[],None,effects)
+    }
     /// All commands are committed together against the currently active revision.
     /// Duplicate IDs fail the whole transaction; this is not request idempotency.
     pub fn accept_commands(
@@ -221,6 +225,17 @@ impl Store {
         starts:&[crate::scene_run::Start], reads:&[crate::variables::ReadCheck],
         sources:Option<&[String]>,
     )->Result<(),Error> {
+        self.accept_queue_batch_detailed(boot_id,commands,cancellations,now_ms,study,variables,audit,scene,starts,reads,sources,&[])
+    }
+    #[allow(clippy::too_many_arguments)]
+    fn accept_queue_batch_detailed(
+        &mut self, boot_id:&str, commands:&[QueuedCommand], cancellations:&[Cancellation],
+        now_ms:u64, study:Option<(Option<u8>,u8)>, variables:&[crate::variables::Update],
+        audit:Option<&crate::rule_audit::Admission>, scene:Option<&crate::scene_run::StepLink>,
+        starts:&[crate::scene_run::Start], reads:&[crate::variables::ReadCheck],
+        sources:Option<&[String]>,
+        module_effects:&[crate::module_off::Effects],
+    )->Result<(),Error> {
         crate::rule_audit::validate_sources(sources, commands.len())?;
         if sources.is_some() && audit.is_none() {return Err(Error::InvalidAudit);}
         if starts.len()>64 || (!starts.is_empty() && audit.is_none()) {return Err(Error::InvalidAudit);}
@@ -270,6 +285,7 @@ impl Store {
             };
             tx.execute("INSERT INTO command_journal(boot_id,command_id,revision,device_id,origin,intent,transport_epoch,control_epoch,deadline_ms,updated_ms,run_id,status) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,'accepted')",params![boot_id,integer(command.id)?,revision,command.device_id.as_str(),origin,intent(command.command).as_slice(),integer(command.epochs.transport)?,integer(command.epochs.control)?,integer(command.deadline_ms)?,now,command.run_id.map(integer).transpose()?])?;
         }
+        crate::module_off::insert(&tx,boot_id,commands,module_effects)?;
         if let Some((expected, next)) = study {
             if next > 3
                 || expected.is_some_and(|v| v > 3)
@@ -482,6 +498,17 @@ fn cancel_in_transaction(
         }
     }
     Ok(())
+}
+
+
+impl Store {
+    /// Quiescence is durable execution work for this boot/revision. Pure Query
+    /// intents are excluded, including Accepted/Writing background read tickets.
+    /// Uncertain control receipts remain a barrier until explicit reconciliation.
+    pub fn has_unsettled_control_commands(&self,boot_id:&str,revision:u64)->Result<bool,Error> {
+        boot(boot_id)?;let revision=crate::sql_revision(revision)?;
+        Ok(self.connection.query_row("SELECT EXISTS(SELECT 1 FROM command_journal WHERE boot_id=?1 AND revision=?2 AND intent!=?3 AND status IN ('accepted','writing','uncertain'))",params![boot_id,revision,intent(Command::Query).as_slice()],|r|r.get(0))?)
+    }
 }
 
 #[cfg(test)]

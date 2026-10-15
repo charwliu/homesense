@@ -3,7 +3,7 @@
 use sha2::{Digest, Sha256};
 use std::{
     collections::{BTreeMap, BTreeSet},
-    sync::RwLock,
+    sync::{Arc,RwLock},
 };
 use subtle::ConstantTimeEq;
 use uuid::Uuid;
@@ -88,6 +88,29 @@ fn administrator<'a>(entries:&'a BTreeMap<Uuid,Credential>, sessions:&BTreeMap<[
     (credential.grant.role==Role::Administrator).then_some(&credential.grant)
 }
 impl Tokens {
+    /// Captures the exact authenticated credential generation, never its secret.
+    pub fn module_off_lease(self:&Arc<Self>,header:Option<&str>,cookie:Option<&str>,csrf:Option<&str>)->Option<ModuleOffLease> {
+        let entries=self.entries.read().ok()?;
+        let (credential,session_key)=match (header,cookie) {
+            (Some(header),None)=>{
+                let secret=header.strip_prefix("Bearer ")?;
+                if !(32..=256).contains(&secret.len()){return None;}
+                let hash=digest(secret);
+                (entries.values().find(|v|bool::from(v.hash.ct_eq(&hash)))?,None)
+            },
+            (None,Some(cookie))=>{
+                if cookie.len()!=64{return None;}
+                let key=digest(cookie);
+                let sessions=self.sessions.read().ok()?;
+                let session=sessions.get(&key)?;
+                if session.expires<=std::time::Instant::now() || !bool::from(session.csrf.ct_eq(&digest(csrf?))){return None;}
+                (entries.values().find(|v|v.generation==session.generation && bool::from(v.hash.ct_eq(&session.credential)))?,Some(key))
+            },
+            _=>return None,
+        };
+        if credential.grant.role==Role::Viewer{return None;}
+        Some(ModuleOffLease{tokens:std::sync::Arc::downgrade(self),generation:credential.generation,grant:credential.grant.clone(),session_key})
+    }
     /// Administrative projection; intentionally excludes hashes and session material.
     pub fn summaries(&self)->Result<Vec<CredentialSummary>,String> {
         let entries=self.entries.read().map_err(|_|"credential lock unavailable")?;
@@ -280,6 +303,26 @@ impl Tokens {
             }
         }
         result
+    }
+}
+/// A revocable, scope-bound module control capability from the session owner.
+#[derive(Clone)]
+pub struct ModuleOffLease {
+    tokens:std::sync::Weak<Tokens>,generation:Uuid,grant:Grant,session_key:Option<[u8;32]>,
+}
+impl std::fmt::Debug for ModuleOffLease {fn fmt(&self,f:&mut std::fmt::Formatter<'_>)->std::fmt::Result {f.write_str("ModuleOffLease(<opaque>)")}}
+impl ModuleOffLease {
+    pub fn controller(&self)->Uuid {self.grant.controller}
+    pub fn devices(&self)->&BTreeSet<String> {&self.grant.devices}
+    pub(crate) fn valid(&self)->bool {
+        let Some(tokens)=self.tokens.upgrade() else{return false;};
+        let Ok(entries)=tokens.entries.read() else{return false;};
+        if !entries.values().any(|v|v.generation==self.generation && v.grant==self.grant && v.grant.role!=Role::Viewer){return false;}
+        if let Some(key)=&self.session_key {
+            let Ok(sessions)=tokens.sessions.read() else{return false;};
+            if !sessions.get(key).is_some_and(|s|s.generation==self.generation && s.expires>std::time::Instant::now()){return false;}
+        }
+        true
     }
 }
 impl Grant {

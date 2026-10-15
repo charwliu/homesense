@@ -12,6 +12,20 @@ pub struct PreparedFrame {
     context: ExecutionContext,
 }
 impl PreparedFrame {
+    /// Encodes one addressed module operation. The runtime must reserve and
+    /// authorize the entire affected channel set before handing it to send.
+    pub fn prepare_module_all_off(
+        module: &ModuleSpec,
+        context: ExecutionContext,
+        transport_epoch: u64,
+    ) -> Result<Self, ProtocolError> {
+        Ok(Self {
+            bytes: hb_protocol::encode_module_all_off(module, context)?.bytes(),
+            transport_epoch,
+            context,
+        })
+    }
+
     pub fn prepare_module_query(
         module: &ModuleSpec,
         context: ExecutionContext,

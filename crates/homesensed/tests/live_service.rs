@@ -22,8 +22,10 @@ async fn live_service_queries_before_serving_and_preserves_identity_across_resta
     let document = serde_json::to_vec(&document).unwrap();
     let queries = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
     let count = queries.clone();
+    let (query_ready, mut queries_ready) = tokio::sync::mpsc::channel(2);
+    let (release_feedback, feedback_released) = std::sync::mpsc::channel();
     let server = std::thread::spawn(move || {
-        for _ in 0..2 {
+        for round in 0..2 {
             let (mut socket, _) = bus.accept().unwrap();
             socket
                 .set_read_timeout(Some(Duration::from_secs(3)))
@@ -32,6 +34,8 @@ async fn live_service_queries_before_serving_and_preserves_identity_across_resta
             socket.read_exact(&mut frame).unwrap();
             assert_eq!(frame, [0xAE, 0x15, 0xA0, 0xF2, 0xEE]);
             count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            query_ready.blocking_send(round).unwrap();
+            feedback_released.recv_timeout(Duration::from_secs(3)).unwrap();
             // Startup requires current feedback for every registered output,
             // including channels with no logical alias. This verified AD8 model
             // reads all eight channels in one A0 F2 request.
@@ -59,6 +63,18 @@ async fn live_service_queries_before_serving_and_preserves_identity_across_resta
             )
             .await
         });
+        // Cold database and identity setup is not the listener-readiness phase.
+        // Wait for the actual startup query, then prove that no HAP listener is
+        // exposed until complete physical feedback is supplied. Keep the original
+        // 150 x 2ms readiness loop and 250ms serving duration below.
+        assert_eq!(
+            tokio::time::timeout(Duration::from_secs(3), queries_ready.recv())
+                .await.unwrap(),
+            Some(round)
+        );
+        assert!(TcpStream::connect_timeout(&address, Duration::from_millis(10)).is_err(),
+            "HAP listener exposed before startup physical feedback");
+        release_feedback.send(()).unwrap();
         let status = tokio::task::spawn_blocking(move || {
             for _ in 0..150 {
                 if let Ok(mut socket) = TcpStream::connect_timeout(&address, Duration::from_millis(10)) {

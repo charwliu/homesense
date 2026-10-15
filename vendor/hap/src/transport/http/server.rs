@@ -4,7 +4,9 @@ use futures::{
     future::{self, BoxFuture, Future, FutureExt, TryFutureExt},
     lock::Mutex,
 };
-use hyper::{server::conn::http1, service::Service, body::Incoming, Method, Request, Response, StatusCode};
+use hyper::{
+    body::Incoming, server::conn::http1, service::Service, Method, Request, Response, StatusCode,
+};
 use log::{error, info};
 use std::{
     net::SocketAddr,
@@ -129,7 +131,11 @@ impl Service<Request<Incoming>> for Api {
         let event_emitter = self.event_emitter.clone();
 
         let fut = async move {
-            info!("HAP request path={} authenticated={}", uri.path(), controller_id.read().is_ok_and(|id| id.is_some()));
+            info!(
+                "HAP request path={} authenticated={}",
+                uri.path(),
+                controller_id.read().is_ok_and(|id| id.is_some())
+            );
             let result = match handler.take() {
                 Some(handler) => {
                     handler
@@ -499,20 +505,35 @@ mod notification_authorization_tests {
         tokio::time::timeout(std::time::Duration::from_secs(5), async {
             for value in 0..128 {
                 let bytes = event_response(vec![EventObject {
-                    aid: 2, iid: 9, value: serde_json::json!(value),
-                }]).unwrap();
-                if send_authorized_event(&controller, &storage, &slow, bytes.clone()).await.is_err() {
+                    aid: 2,
+                    iid: 9,
+                    value: serde_json::json!(value),
+                }])
+                .unwrap();
+                if send_authorized_event(&controller, &storage, &slow, bytes.clone())
+                    .await
+                    .is_err()
+                {
                     overflowed = true;
                 }
-                send_authorized_event(&controller, &storage, &healthy, bytes.clone()).await.unwrap();
+                send_authorized_event(&controller, &storage, &healthy, bytes.clone())
+                    .await
+                    .unwrap();
                 assert_eq!(&*healthy_receiver.next().await.unwrap(), bytes.as_slice());
             }
-        }).await.expect("notification path waited for the slow consumer");
+        })
+        .await
+        .expect("notification path waited for the slow consumer");
         assert!(overflowed, "unread output must hit its bounded capacity");
-        assert!(slow.try_send(vec![0]).is_err(), "overflow must terminate that session");
+        assert!(
+            slow.try_send(vec![0]).is_err(),
+            "overflow must terminate that session"
+        );
         // Output congestion must neither revoke the controller nor poison another session.
         assert!(storage.lock().await.load_pairing(&pairing.id).await.is_ok());
-        send_authorized_event(&controller, &storage, &healthy, vec![7]).await.unwrap();
+        send_authorized_event(&controller, &storage, &healthy, vec![7])
+            .await
+            .unwrap();
         assert_eq!(&*healthy_receiver.next().await.unwrap(), &[7]);
         drop(slow_receiver);
         drop(storage);

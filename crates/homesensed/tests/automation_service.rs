@@ -1,3 +1,5 @@
+#[path = "../../test-support/cli.rs"]
+mod test_cli;
 use std::process::Command;
 #[test]
 fn isolated_automation_cli_runs_scene_restarts_and_preserves_live_files() {
@@ -23,7 +25,7 @@ fn isolated_automation_cli_runs_scene_restarts_and_preserves_live_files() {
     automation["rules"].as_array_mut().unwrap().push(hap::serde_json::json!({"id":"light-observed","enabled":true,"review_evidence":"simulation","source":"fixture","trigger":{"kind":"device_changed","device":"simulation:light"},"actions":[{"source":"observed","action":{"kind":"set","variable":"observed","value":{"kind":"variable","id":"actual-level"}}}]}));
     std::fs::write(&rules,hap::serde_json::to_vec(&automation).unwrap()).unwrap();
     let run = |seconds: &str, scene: &str| {
-        Command::new(env!("CARGO_BIN_EXE_homesensed"))
+        Command::new(test_cli::binary(env!("CARGO_BIN_EXE_homesensed")))
             .arg("serve-automation-simulation")
             .arg(&devices)
             .arg(&rules)
@@ -102,7 +104,7 @@ fn isolated_automation_cli_runs_scene_restarts_and_preserves_live_files() {
         br#"{"schema_version":1,"configuration_revision":1,"variables":[],"rules":[]}"#,
     )
     .unwrap();
-    let output = Command::new(env!("CARGO_BIN_EXE_homesensed"))
+    let output = Command::new(test_cli::binary(env!("CARGO_BIN_EXE_homesensed")))
         .arg("serve-automation-simulation")
         .arg(&devices)
         .arg(&rules)
@@ -171,7 +173,7 @@ fn startup_calls_delayed_scene_and_resumes_original_cause_in_service() {
     std::fs::write(&devices,include_bytes!("../../../config/simulation.json")).unwrap();
     std::fs::write(&rules,br#"{"schema_version":1,"configuration_revision":1,"variables":[{"id":"done","kind":"integer","lifetime":"persistent"}],"rules":[{"id":"begin","enabled":true,"review_evidence":"simulation","source":"test","trigger":{"kind":"startup_synchronized"},"actions":[{"source":"call","action":{"kind":"scene","id":"later","activate":true}}]},{"id":"after","enabled":true,"review_evidence":"simulation","source":"test","trigger":{"kind":"scene_result","scene":"later"},"actions":[{"source":"done","action":{"kind":"set","variable":"done","value":{"kind":"integer","value":1}}}]}],"timed_scenes":[{"id":"later","enabled":true,"review_evidence":"simulation","max_lateness_ms":1000,"steps":[{"source":"delayed","offset_ms":100,"device":"simulation:light","command":{"kind":"level","value":30,"ramp":false}}]}]}"#).unwrap();
     for _ in 0..2 {
-        let output=Command::new(env!("CARGO_BIN_EXE_homesensed")).arg("serve-automation-simulation").arg(&devices).arg(&rules).arg(&root).arg("1").output().unwrap();
+        let output=Command::new(test_cli::binary(env!("CARGO_BIN_EXE_homesensed"))).arg("serve-automation-simulation").arg(&devices).arg(&rules).arg(&root).arg("1").output().unwrap();
         assert!(output.status.success(),"{}",String::from_utf8_lossy(&output.stderr));
     }
     let sql=rusqlite::Connection::open(root.join("automation-simulation.sqlite")).unwrap();
@@ -199,7 +201,7 @@ fn isolated_startup_cycle_does_not_stop_manual_scene_or_successor() {
         "timed_scenes":[{"id":"manual","enabled":true,"review_evidence":"simulation","max_lateness_ms":1000,"steps":[{"source":"step","offset_ms":100,"device":"simulation:light","command":{"kind":"level","value":30,"ramp":false}}]}]
     });
     std::fs::write(&rules,hap::serde_json::to_vec(&document).unwrap()).unwrap();
-    let output=Command::new(env!("CARGO_BIN_EXE_homesensed")).arg("serve-automation-simulation").arg(&devices).arg(&rules).arg(&root).arg("1").arg("manual").output().unwrap();
+    let output=Command::new(test_cli::binary(env!("CARGO_BIN_EXE_homesensed"))).arg("serve-automation-simulation").arg(&devices).arg(&rules).arg(&root).arg("1").arg("manual").output().unwrap();
     assert!(output.status.success(),"{}",String::from_utf8_lossy(&output.stderr));
     let sql=rusqlite::Connection::open(root.join("automation-simulation.sqlite")).unwrap();
     let failed:i64=sql.query_row("SELECT count(*) FROM rule_chain_outcome WHERE error IS NOT NULL",[],|r|r.get(0)).unwrap();assert_eq!(failed,1);

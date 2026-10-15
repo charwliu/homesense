@@ -26,13 +26,24 @@ impl Pairing {
     }
 
     /// Creates a pairing without losing the controller's identifier spelling.
-    pub fn from_identifier(identifier: &str, permissions: Permissions, public_key: [u8; 32]) -> std::result::Result<Self, uuid::Error> {
+    pub fn from_identifier(
+        identifier: &str,
+        permissions: Permissions,
+        public_key: [u8; 32],
+    ) -> std::result::Result<Self, uuid::Error> {
         let id = Uuid::parse_str(identifier)?;
-        Ok(Self { id, identifier: Some(identifier.to_owned()), permissions, public_key })
+        Ok(Self {
+            id,
+            identifier: Some(identifier.to_owned()),
+            permissions,
+            public_key,
+        })
     }
 
     pub fn wire_identifier(&self) -> String {
-        self.identifier.clone().unwrap_or_else(|| self.id.hyphenated().to_string())
+        self.identifier
+            .clone()
+            .unwrap_or_else(|| self.id.hyphenated().to_string())
     }
 
     /// Deserializes a [`Pairing`](Pairing) from bytes.

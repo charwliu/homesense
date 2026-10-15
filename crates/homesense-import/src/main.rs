@@ -1,7 +1,11 @@
 fn main() {
     let result = (|| -> Result<(), String> {
         let args: Vec<_> = std::env::args_os().skip(1).collect();
-        if args.len() != 1 && !(args.len() == 3 && args[1] == "--room") && !((args.len() == 3 || (args.len() == 5 && args[3] == "--export-dir")) && args[1] == "--config-plan") {
+        if args.len() != 1
+            && !(args.len() == 3 && args[1] == "--room")
+            && !((args.len() == 3 || (args.len() == 5 && args[3] == "--export-dir"))
+                && args[1] == "--config-plan")
+        {
             return Err(
                 "usage: homesense-import <project.c4p|project.xml> [--room ROOM | --config-plan plan.json [--export-dir NEW_DIRECTORY]]"
                     .into(),
@@ -16,7 +20,10 @@ fn main() {
             .map_err(|e| e.to_string())?;
         let report = homesense_import::import_bytes(&bytes)?;
         let output = if args.len() == 3 && args[1] == "--room" {
-            homesense_import::room::blockers(&report, args[2].to_str().ok_or("room must be UTF-8")?)?
+            homesense_import::room::blockers(
+                &report,
+                args[2].to_str().ok_or("room must be UTF-8")?,
+            )?
         } else if args.len() >= 3 {
             let mut bytes = Vec::new();
             std::fs::File::open(&args[2])
@@ -50,9 +57,11 @@ fn main() {
                     "automatic_enable":false
                 }))),
             ].into_iter().map(|(name, bytes)| bytes.map(|bytes| (name,bytes)).map_err(|e|e.to_string())).collect::<Result<Vec<_>,_>>()?;
-            std::fs::create_dir(directory).map_err(|e| format!("new export directory required: {e}"))?;
+            std::fs::create_dir(directory)
+                .map_err(|e| format!("new export directory required: {e}"))?;
             for (name, bytes) in files {
-                std::fs::write(directory.join(name),bytes).map_err(|e|format!("incomplete export at {}: {e}",directory.display()))?;
+                std::fs::write(directory.join(name), bytes)
+                    .map_err(|e| format!("incomplete export at {}: {e}", directory.display()))?;
             }
             return Ok(());
         }

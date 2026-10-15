@@ -41,7 +41,12 @@ async fn identity_pairing_and_aids_survive_reopen() {
     store.save_config(&config).await.unwrap();
     config.name = "HomeSense renamed".into();
     store.save_config(&config).await.unwrap();
-    let pairing = Pairing::from_identifier("BC158B86-CABF-432D-AEE4-422EF0E3F1D5", Permissions::Admin, [7; 32]).unwrap();
+    let pairing = Pairing::from_identifier(
+        "BC158B86-CABF-432D-AEE4-422EF0E3F1D5",
+        Permissions::Admin,
+        [7; 32],
+    )
+    .unwrap();
     store.save_pairing(&pairing).await.unwrap();
     store.save_aid_cache(&[1, 2, 5]).await.unwrap();
     drop(store);

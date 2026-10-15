@@ -14,7 +14,11 @@ async fn http_body(
     body: &str,
 ) -> String {
     let mut socket = tokio::net::TcpStream::connect(address).await.unwrap();
-    socket.write_all(format!("{method} {path} HTTP/1.1\r\nHost: {address}\r\nOrigin: http://{address}\r\nConnection: close\r\nContent-Type: application/json\r\nContent-Length: {}\r\n{headers}\r\n{body}",body.len()).as_bytes()).await.unwrap();
+    // Each existing fixture call represents a distinct management intent.
+    let idempotency = if matches!(method, "POST" | "PATCH") && path.starts_with("/api/v1/credentials") {
+        format!("Idempotency-Key: {}\r\n", Uuid::new_v4())
+    } else { String::new() };
+    socket.write_all(format!("{method} {path} HTTP/1.1\r\nHost: {address}\r\nOrigin: http://{address}\r\nConnection: close\r\n{idempotency}Content-Type: application/json\r\nContent-Length: {}\r\n{headers}\r\n{body}",body.len()).as_bytes()).await.unwrap();
     let mut bytes = vec![];
     tokio::time::timeout(Duration::from_secs(3), socket.read_to_end(&mut bytes))
         .await

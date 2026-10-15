@@ -3,9 +3,14 @@ use crate::{
     admission::{Admission, Options},
     transport_owner::TransportOwner,
 };
-use homesense_core::{DeviceId, MotorAction, ExecutionContext, ProtocolProfile};
+use homesense_core::{DeviceId, ExecutionContext, MotorAction, ProtocolProfile};
 use homesense_storage::Store;
-use std::{io::Read, net::Shutdown, path::Path, time::{Duration, Instant}};
+use std::{
+    io::Read,
+    net::Shutdown,
+    path::Path,
+    time::{Duration, Instant},
+};
 
 struct StopOnDrop(Admission);
 impl Drop for StopOnDrop {
@@ -22,7 +27,9 @@ pub async fn run(
     action: MotorAction,
     coexistence_confirmed: bool,
 ) -> Result<hap::serde_json::Value, String> {
-    if !matches!(action, MotorAction::Open | MotorAction::Close) { return Err("motion must be open or close".into()); }
+    if !matches!(action, MotorAction::Open | MotorAction::Close) {
+        return Err("motion must be open or close".into());
+    }
     if !coexistence_confirmed {
         return Err("coexistence confirmation required".into());
     }

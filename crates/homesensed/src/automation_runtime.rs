@@ -92,8 +92,9 @@ impl AutomationRuntime {
         )
         .await?;
         if startup == StartupPolicy::Suppress { calendar.suppress_startup(); }
-        let (control, requests) =
+        let (control, mut requests) =
             crate::automation_control::channel(controller, generation.clone());
+        requests.set_budget(budget);
         let mut result = Self {
             control,
             requests,

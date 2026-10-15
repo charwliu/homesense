@@ -1,6 +1,6 @@
 //! Test-only HAP controller: actual HTTP and encrypted records.
 use chacha20poly1305::ChaCha20Poly1305;
-use chacha20poly1305::aead::{AeadInOut};
+use chacha20poly1305::aead::AeadInOut;
 use rand::SeedableRng;
 use std::{
     io::{Read, Write},

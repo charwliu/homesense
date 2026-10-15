@@ -139,7 +139,9 @@ async fn projection_hides_supply_and_uses_the_older_feedback_without_mutating_ph
     store
         .publish_configuration(None, document, ExecutionContext::Simulation, &[])
         .unwrap();
-    store.remember_light_levels(1, &[(light.clone(), percent(30))]).unwrap();
+    store
+        .remember_light_levels(1, &[(light.clone(), percent(30))])
+        .unwrap();
     drop(store);
     let actor = homesensed::admission::Admission::open(
         database,
@@ -194,18 +196,44 @@ async fn projection_hides_supply_and_uses_the_older_feedback_without_mutating_ph
     {
         let mut accessory = graph.lights[0].1.lock().await;
         let service = accessory.get_mut_service(hap::HapType::Lightbulb).unwrap();
-        assert_eq!(service.get_mut_characteristic(hap::HapType::PowerState).unwrap().get_value().await.unwrap(), hap::serde_json::json!(false));
-        assert_eq!(service.get_mut_characteristic(hap::HapType::Brightness).unwrap().get_value().await.unwrap(), hap::serde_json::json!(30));
+        assert_eq!(
+            service
+                .get_mut_characteristic(hap::HapType::PowerState)
+                .unwrap()
+                .get_value()
+                .await
+                .unwrap(),
+            hap::serde_json::json!(false)
+        );
+        assert_eq!(
+            service
+                .get_mut_characteristic(hap::HapType::Brightness)
+                .unwrap()
+                .get_value()
+                .await
+                .unwrap(),
+            hap::serde_json::json!(30)
+        );
     }
     let binding = &graph.lights[0].0;
     for (iid, value, expected) in [
         (binding.on_iid, hap::serde_json::json!(true), 30),
-        (binding.brightness_iid.unwrap(), hap::serde_json::json!(100), 100),
+        (
+            binding.brightness_iid.unwrap(),
+            hap::serde_json::json!(100),
+            100,
+        ),
     ] {
         let body = hap::serde_json::json!({"characteristics":[{"aid":binding.aid,"iid":iid,"value":value}]}).to_string();
-        graph.write_handler.write_async(uuid::Uuid::new_v4(), body.as_bytes()).await.unwrap();
+        graph
+            .write_handler
+            .write_async(uuid::Uuid::new_v4(), body.as_bytes())
+            .await
+            .unwrap();
         let ticket = actor.dispatch().await.unwrap().unwrap();
-        assert!(matches!(ticket.command.command, Command::SetLevel { level, .. } if level == percent(expected)));
+        assert!(
+            matches!(ticket.command.command, Command::SetLevel { level, .. } if level == percent(expected))
+        );
         actor.finish_write(ticket.command.id, true).await.unwrap();
         let ticket = actor.dispatch().await.unwrap().unwrap();
         assert_eq!(ticket.command.command, Command::Switch(true));

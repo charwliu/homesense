@@ -24,6 +24,7 @@ pub struct Session {
     planning_failure: bool,
     isolated_failure: bool,
     retain_for_feedback: bool,
+    manual_admission_deadline:Option<u64>,
     causes: BTreeMap<u64, Cause>,
 }
 impl Session {
@@ -34,9 +35,14 @@ impl Session {
         budget: Budget,
         duration_ms: u64,
     ) -> Result<Self, String> {
-        if !scheduler.matches_admission(&admission) || !scheduler.matches_controller(controller) {
-            return Err("foreign scheduler".into());
-        }
+        if !scheduler.matches_controller(controller){return Err("foreign scheduler".into());}
+        Self::new_for_caller(admission,controller,scheduler,budget,duration_ms).await
+    }
+    pub(crate) async fn new_for_caller(admission:Admission,controller:Uuid,scheduler:&SceneScheduler,budget:Budget,duration_ms:u64)->Result<Self,String> {
+        Self::new_for_caller_before(admission,controller,scheduler,budget,duration_ms,None).await
+    }
+    pub(crate) async fn new_for_caller_before(admission:Admission,controller:Uuid,scheduler:&SceneScheduler,budget:Budget,duration_ms:u64,deadline:Option<u64>)->Result<Self,String> {
+        if !scheduler.matches_admission(&admission){return Err("foreign scheduler".into());}
         let generation = admission
             .task_generation()
             .await
@@ -45,9 +51,11 @@ impl Session {
             .variable_snapshot(controller, generation.clone(), vec![])
             .await
             .map_err(|e| format!("{e:?}"))?;
+        let now=admission.monotonic_ms();
+        if deadline.is_some_and(|deadline|deadline<=now){return Err("manual scene request expired".into());}
         let chain = Chain::new(
             Uuid::new_v4().as_u128(),
-            admission.monotonic_ms(),
+            now,
             duration_ms,
             budget,
             32,
@@ -65,6 +73,7 @@ impl Session {
             planning_failure: false,
             isolated_failure: false,
             retain_for_feedback: false,
+            manual_admission_deadline:deadline,
             causes: BTreeMap::new(),
         })
     }
@@ -78,6 +87,7 @@ impl Session {
         session.retain_for_feedback = true;
         Ok(session)
     }
+    pub(crate) fn generation(&self)->&TaskGeneration {&self.generation}
     pub(crate) fn correlation(&self) -> u128 { self.chain.root().correlation_id() }
     pub fn deadline_ms(&self) -> u64 { self.chain.deadline_ms() }
     pub async fn expire(&mut self, scheduler: &mut SceneScheduler) -> Result<bool, String> {
@@ -190,9 +200,8 @@ impl Session {
                 if outcomes.len() >= 1024 {
                     return Err("causal report capacity exceeded".into());
                 }
-                let outcome = deferred_rule::execute_classified(
-                    &self.admission,
-                    self.controller,
+                let outcome = deferred_rule::execute_caller_rule_classified(
+                    deferred_rule::Caller{admission:&self.admission,controller:self.controller,generation:&self.generation,admit_before:None},
                     &rule,
                     &mut self.chain,
                     &parent,
@@ -268,6 +277,33 @@ impl Session {
         self.start_rules(&[rule.to_owned()], scheduler, feedback)
             .await
     }
+    pub(crate) fn retain_feedback(&mut self) {self.retain_for_feedback=true;}
+    /// One immediate action batch, followed by the ordinary variable/result
+    /// cascade in the same bounded chain and under the original caller.
+    pub(crate) async fn start_manual_scenes(&mut self,writes:&[(String,Option<bool>)],scheduler:&mut SceneScheduler,feedback:Option<(&Feedback,u64)>)->Result<Vec<Outcome>,String> {
+        self.validate(scheduler).await?;
+        if self.started{return Err("causal root already started".into());}
+        self.started=true;self.closed=true;
+        let mut guard=Guard(self.admission.clone(),false);
+        let parent=self.chain.root();
+        let mut rejected_before_acceptance=false;
+        let result=async {
+            let outcome=deferred_rule::execute_manual_scenes_classified(deferred_rule::Caller{admission:&self.admission,controller:self.controller,generation:&self.generation,admit_before:self.manual_admission_deadline},writes,&mut self.chain,&parent,scheduler,feedback).await.map_err(|e|{rejected_before_acceptance=matches!(e,deferred_rule::ExecutionFailure::RejectedBeforeAcceptance(_));self.planning_failure=matches!(e,deferred_rule::ExecutionFailure::Planning(_)) || e.is_chain_rejection();e.to_string()})?;
+            self.track(&outcome,scheduler)?;
+            self.cascade(vec![outcome],scheduler,feedback).await
+        }.await;
+        match result {
+            Ok(outcomes)=>{guard.1=true;Ok(outcomes)},
+            Err(error) if rejected_before_acceptance=>{
+                // No command, variable or run was accepted. A revoked caller
+                // cannot persist a new audit as a privileged owner fallback.
+                self.chain.cancel();self.closed=true;self.isolated_failure=true;
+                log::warn!("manual root rejected before acceptance correlation={}: {error}",self.chain.root().correlation_id());
+                guard.1=true;Err(error)
+            },
+            Err(error)=>{let error=self.record_failure(error,scheduler).await;guard.1=self.isolated_failure;Err(error)},
+        }
+    }
     /// All rules matching one producer event share the same root and budget.
     pub async fn start_rules(
         &mut self,
@@ -320,9 +356,8 @@ impl Session {
         let execution: Result<Vec<Outcome>, String> = async {
             let mut roots = Vec::new();
             for rule in rules {
-                let outcome = deferred_rule::execute_classified(
-                    &self.admission,
-                    self.controller,
+                let outcome = deferred_rule::execute_caller_rule_classified(
+                    deferred_rule::Caller{admission:&self.admission,controller:self.controller,generation:&self.generation,admit_before:None},
                     rule,
                     &mut self.chain,
                     parent,
@@ -418,9 +453,8 @@ impl Session {
         self.closed = true;
         let mut guard = Guard(self.admission.clone(), false);
         let execution: Result<Vec<Outcome>, String> = async {
-            let continuation = deferred_rule::resume_scene_classified(
-                &self.admission,
-                self.controller,
+            let continuation = deferred_rule::resume_scene_for_caller(
+                deferred_rule::Caller{admission:&self.admission,controller:self.controller,generation:&self.generation,admit_before:None},
                 &mut self.chain,
                 &parent,
                 result,

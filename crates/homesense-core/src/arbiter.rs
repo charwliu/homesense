@@ -222,7 +222,7 @@ impl Arbiter {
         now: u64,
         commit: impl FnOnce(&[QueuedCommand], &[Cancellation]) -> Result<(), E>,
     ) -> Result<Vec<Cancellation>, BatchCommitError<E>> {
-        self.submit_batch_with_order(commands, now, commit, false)
+        self.submit_batch_with_order(commands, now, commit, false,None)
     }
     /// Trusted runtime rule nodes retain every ordered output. This is not an
     /// authentication API: the runtime must supply its durable rule audit.
@@ -240,7 +240,19 @@ impl Arbiter {
         {
             return Err(BatchCommitError::Admission(ArbiterError::InvalidState));
         }
-        self.submit_batch_with_order(commands, now, commit, true)
+        self.submit_batch_with_order(commands, now, commit, true,None)
+    }
+    /// Trusted module operation: cancellation and module effects commit in one
+    /// transaction. An in-flight write is not undone; queued unrelated outputs
+    /// and every STOP remain available to the sole transport owner.
+    pub fn submit_module_off_batch_committed<E>(
+        &mut self,commands:Vec<(QueuedCommand,Access)>,affected:&std::collections::BTreeSet<crate::DeviceId>,now:u64,
+        commit:impl FnOnce(&[QueuedCommand],&[Cancellation])->Result<(),E>,
+    )->Result<Vec<Cancellation>,BatchCommitError<E>> {
+        if commands.is_empty() || affected.is_empty() || commands.iter().any(|(c,_)|c.command!=crate::Command::ModuleAllOff) {
+            return Err(BatchCommitError::Admission(ArbiterError::InvalidState));
+        }
+        self.submit_batch_with_order(commands,now,commit,false,Some(affected))
     }
     fn submit_batch_with_order<E>(
         &mut self,
@@ -248,12 +260,13 @@ impl Arbiter {
         now: u64,
         commit: impl FnOnce(&[QueuedCommand], &[Cancellation]) -> Result<(), E>,
         ordered_rule: bool,
+        supersede_devices:Option<&std::collections::BTreeSet<crate::DeviceId>>,
     ) -> Result<Vec<Cancellation>, BatchCommitError<E>> {
         if commands.len() > 128 {
             return Err(BatchCommitError::Admission(ArbiterError::BatchTooLarge));
         }
         let mut staged = self.queue.clone();
-        let mut cancelled = Vec::new();
+        let mut cancelled = supersede_devices.map(|devices|staged.cancel_devices(devices)).unwrap_or_default();
         let mut accepted = Vec::with_capacity(commands.len());
         for (command, access) in commands {
             self.policy

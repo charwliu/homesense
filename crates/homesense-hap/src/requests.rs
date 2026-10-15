@@ -187,7 +187,11 @@ impl LightRequests {
         let mut intents = Vec::with_capacity(groups.len());
         for (device, group) in groups {
             let binding = &self.bindings[&device];
-            log::debug!("hap_light_fields device={device:?} on={:?} brightness={:?}", group.on, group.brightness);
+            log::debug!(
+                "hap_light_fields device={device:?} on={:?} brightness={:?}",
+                group.on,
+                group.brightness
+            );
             let command = if binding.brightness_iid.is_none() {
                 Command::Switch(group.on.ok_or(RequestError::InvalidValue)?)
             } else {

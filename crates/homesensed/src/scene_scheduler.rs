@@ -100,7 +100,7 @@ impl SceneScheduler {
     pub async fn install_accepted(&mut self, reservation:&mut Reservation, accepted:Vec<crate::admission::AcceptedScene>, now:u64)->Result<Vec<u64>,String> {
         self.install_accepted_as(reservation,accepted,now,self.controller).await
     }
-    async fn install_accepted_as(&mut self, reservation:&mut Reservation, accepted:Vec<crate::admission::AcceptedScene>, now:u64, controller:Uuid)->Result<Vec<u64>,String> {
+    pub(crate) async fn install_accepted_as(&mut self, reservation:&mut Reservation, accepted:Vec<crate::admission::AcceptedScene>, now:u64, controller:Uuid)->Result<Vec<u64>,String> {
         self.clock(now)?;
         if !Arc::ptr_eq(&self.reserved,&reservation.owner) || accepted.is_empty() || accepted.len()>reservation.remaining {return Err("invalid batch reservation".into());}
         struct Guard(Admission,bool);
