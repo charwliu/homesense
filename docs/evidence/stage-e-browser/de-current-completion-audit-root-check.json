@@ -1,5 +1,5 @@
 {
-  "checked_bj": "2026-10-16T08:50:17.535181+08:00",
+  "checked_bj": "2026-10-16T08:56:24.691670+08:00",
   "derived_requirements": [
     "docs/design.md sections9-11,18,20,23-24,27"
   ],
@@ -106,14 +106,15 @@
       "id": "E-3",
       "stage": "E",
       "requirement": "灯光、场景、窗帘与面板入口",
-      "verified_scope": "两房间多项手动灯光／场景／窗帘及LED已限定现场通过；现有两面板父卡已在线发布到rev10，原Admin视图2父卡/各6格/0独立LED，原17授权及20展开端点保持，7格既有动作可见；build11手机已确认两张正方形六键卡片和自动连接，书房1键首次阅读开启及LED符合。；build12真实日志取回，书房1键开启/再次关闭及实灯/两处LED复测通过，手机与服务器request_id匹配。；本轮其余3/5场景开关及2打开/4停止/6关闭短程、卡片和墙面LED通过，9条新请求均与服务端202回执匹配；经明确批准原管理员补齐既有3端点到20/7。",
-      "remaining_evidence": "旧无日志关闭失败原因仍未复现；不将本轮通过记为根因修复。画室卡片动作、其他场景/面板参数、完整硬件范围继续待验；本轮不包含原生窗帘全行程终态验收。",
-      "status": "Study_six_key_limited_field_passed_historical_failure_cause_open",
+      "verified_scope": "两房间多项手动灯光／场景／窗帘及LED已限定现场通过；现有两面板父卡已在线发布到rev10，原Admin视图2父卡/各6格/0独立LED，原17授权及20展开端点保持，7格既有动作可见；build11手机已确认两张正方形六键卡片和自动连接，书房1键首次阅读开启及LED符合。；build12真实日志取回，书房1键开启/再次关闭及实灯/两处LED复测通过，手机与服务器request_id匹配。；本轮其余3/5场景开关及2打开/4停止/6关闭短程、卡片和墙面LED通过，9条新请求均与服务端202回执匹配；经明确批准原管理员补齐既有3端点到20/7。；补测原生卡片全开/全关终态通过：全开2绿/6红/4绿，全关6绿/2红/4绿，实际自动停止，卡片与墙面一致；两个新服务端accepted回执及Written账本均存在。",
+      "remaining_evidence": "旧无日志关闭失败原因仍未复现，不将本轮通过记为根因修复。画室卡片动作、其他场景/面板参数及其他完整硬件范围继续待验。本次全行程手机诊断读取因CoreDevice4016失败，只有现场和服务端证据，未声称新手机点击链关联。",
+      "status": "Study_six_key_and_curtain_endpoints_field_passed_historical_failure_cause_open",
       "additional_existing_card_evidence": "stage-e-browser/keypad-existing-cards-publication-root-check.json",
       "additional_scope_completion_proposal": "stage-e-browser/study-keypad-scope-proposal-root-check.json",
       "additional_phone_installation_and_field_evidence": "stage-e-browser/native-build11-installation-field-root-check.json",
       "additional_native_control_diagnostics": "stage-e-browser/native-control-logging-root-check.json",
-      "additional_Study_keypad_field": "stage-e-browser/native-study-keypad-field-root-check.json"
+      "additional_Study_keypad_field": "stage-e-browser/native-study-keypad-field-root-check.json",
+      "additional_Study_full_travel_field": "stage-e-browser/native-study-keypad-full-travel-root-check.json"
     },
     {
       "id": "E-4",
@@ -311,7 +312,8 @@
     "stage-e-browser/multi-gateway-runtime10-production-root-check.json": "291bc14a911efefad07a3c8b2c3cbd475550c831d56771c05e058fa958a7ee6f",
     "stage-e-browser/native-build11-installation-field-root-check.json": "4295219ccf1c58554082a28011200b0fdb1c37a815ea70d9db418122e808d917",
     "stage-e-browser/native-control-logging-root-check.json": "68c46871d04d8d93b2f8c8e0e8940b4e0c599d58e2991d9387205dc4583d3a1b",
-    "stage-e-browser/native-study-keypad-field-root-check.json": "2ab570284492a214cdb8004e8fc2b0a78555572c7ef2f270c8dcc80825317d29"
+    "stage-e-browser/native-study-keypad-field-root-check.json": "2ab570284492a214cdb8004e8fc2b0a78555572c7ef2f270c8dcc80825317d29",
+    "stage-e-browser/native-study-keypad-full-travel-root-check.json": "fc93e5ee982efcc0fabe1f767120041ba6e7c16555efc361b56368a7091333f4"
   },
   "excluded_by_scope": {
     "Siri": "cancelled by user",
@@ -330,10 +332,10 @@
     "ready": true,
     "revision": 10,
     "current_status": "runtime10_continuous_service_active_enabled",
-    "physical_app_acceptance": "Two square cards and credential auto restore confirmed; logged12 Study1/3/5 scene ON/OFF and2/4/6 short-travel/STOP with card+wallLED passed. Historical silent OFF cause remains open.",
+    "physical_app_acceptance": "Native App12 Study1/3/5 scene ON/OFF,2/4/6 short travel/STOP and full-open/full-close endpoint/card+wallLED passed. Fulltravel server receipts accepted and commands Written; CoreDevice4016 prevented phone trace retrieval for these2actions. Historical silent OFF cause open.",
     "source_binary_commit": "c77c4e74c4120e05ee8b69ba32af6f6eaa67a452",
     "projection_fix_f27a6b6_deployed": true,
-    "latest_evidence": "stage-e-browser/native-study-keypad-field-root-check.json",
+    "latest_evidence": "stage-e-browser/native-study-keypad-full-travel-root-check.json",
     "pid": 250664,
     "schema": 27,
     "Admin_devices": 20,
@@ -479,7 +481,7 @@
   "current_active_configuration_revision": 10,
   "current_card_slots_per_parent": 6,
   "current_authorized_key_actions": 10,
-  "actual_App_card_visual_confirmation": "Two square cards and credential auto restore confirmed; logged12 Study1/3/5 scene ON/OFF and2/4/6 short-travel/STOP with card+wallLED passed. Historical silent OFF cause remains open.",
+  "actual_App_card_visual_confirmation": "Native App12 Study1/3/5 scene ON/OFF,2/4/6 short travel/STOP and full-open/full-close endpoint/card+wallLED passed. Fulltravel server receipts accepted and commands Written; CoreDevice4016 prevented phone trace retrieval for these2actions. Historical silent OFF cause open.",
   "extra_shared_keypad_models_user_confirmed": {
     "61": "TS6-86",
     "56": "TS6-86",
@@ -574,7 +576,7 @@
   "latest_Keypad_display_diagnosis": "stage-e-browser/keypad-display-diagnosis-root-check.json",
   "latest_indicator_final_Linux_deployment": "stage-e-browser/indicator-final-linux-deployment-root-check.json",
   "latest_native_build9_delivery": "stage-e-browser/native-build9-delivery-root-check.json",
-  "native_App_phone_update": "Logged App12 unchanged; actual1/3/5 ON/OFF and2/4/6 short travel/STOP field passed, both card/wallLED confirmed and9new request_ids matched. Historical silent OFF root cause remains unreproduced.",
+  "native_App_phone_update": "Native App12 Study1/3/5 scene ON/OFF,2/4/6 short travel/STOP and full-open/full-close endpoint/card+wallLED passed. Fulltravel server receipts accepted and commands Written; CoreDevice4016 prevented phone trace retrieval for these2actions. Historical silent OFF cause open.",
   "latest_multi_gateway_runtime_counterexample": "stage-e-browser/multi-gateway-isolation-root-gap.json",
   "multi_gateway_fault_isolation": {
     "Mac_frozen_backend_qualified": true,
@@ -669,5 +671,6 @@
   },
   "current_permanent_Admin_devices": 20,
   "current_permanent_Admin_scenes": 7,
-  "latest_native_Study_keypad_field_evidence": "stage-e-browser/native-study-keypad-field-root-check.json"
+  "latest_native_Study_keypad_field_evidence": "stage-e-browser/native-study-keypad-field-root-check.json",
+  "latest_native_Study_keypad_full_travel_field_evidence": "stage-e-browser/native-study-keypad-full-travel-root-check.json"
 }
