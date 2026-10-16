@@ -31,6 +31,7 @@ pub struct AutomationRuntime {
     pub(crate) scenes: SceneScheduler,
     causal: crate::deferred_router::Router,
     budget: Budget,
+    observation_max_age_ms:u64,
 }
 impl AutomationRuntime {
     pub async fn load(
@@ -62,6 +63,7 @@ impl AutomationRuntime {
             .automation_bundle(controller, generation.clone())
             .await
             .map_err(|e| format!("{e:?}"))?;
+        let observation_max_age_ms=bundle.configuration.refresh_policy().observation_max_age_ms();
         let document = bundle
             .automation
             .ok_or("published automation document required")?;
@@ -108,6 +110,7 @@ impl AutomationRuntime {
             scenes,
             causal,
             budget,
+            observation_max_age_ms,
         };
         if let Err(error) = result.validate().await {
             result.stop();
@@ -115,6 +118,7 @@ impl AutomationRuntime {
         }
         Ok(result)
     }
+    pub(crate) fn observation_max_age_ms(&self)->u64 {self.observation_max_age_ms}
     pub fn control(&self) -> crate::automation_control::Control {
         self.control.clone()
     }
@@ -286,7 +290,7 @@ impl AutomationRuntime {
     )->Result<(),String> {
         self.validate().await?;
         let result=crate::automation_drive::drive_with_panel_feeds(&self.admission,owner,&mut self.panels,&mut self.scenes,
-            Some(&mut self.calendar),std::time::Duration::from_millis(10),5000,stop,wall_clock,
+            Some(&mut self.calendar),std::time::Duration::from_millis(10),self.observation_max_age_ms,stop,wall_clock,
             Some((&mut self.requests,&self.document)),Some(&mut self.causal),false,Some(projection),vec![],Some(self.handoff_gate.clone())).await?;
         self.publication_paused=matches!(result,crate::automation_drive::Exit::PublicationPaused);
         Ok(())

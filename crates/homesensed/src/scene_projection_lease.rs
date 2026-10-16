@@ -26,7 +26,6 @@ impl Signature {
             _ => None,
         };
         self.kind == other.kind
-            && self.quality == other.quality
             && self.invalid == other.invalid
             && self.never_observed == other.never_observed
             && power(self.observed) == power(other.observed)
@@ -45,6 +44,7 @@ struct Entry {
     signature: Signature,
     version: u64,
     power_version: u64,
+    semantic_version: u64,
     observed_ms: Option<u64>,
 }
 pub(super) struct Versions {
@@ -68,6 +68,7 @@ impl Versions {
                     signature: Signature::new(truth, &id, &state),
                     version: 0,
                     power_version: 0,
+                    semantic_version: 0,
                     observed_ms: state.observed_at_ms,
                 };
                 (id, entry)
@@ -103,6 +104,12 @@ impl Versions {
         observed_ms: Option<u64>,
     ) -> Result<(), String> {
         if entry.signature != signature {
+            // Read-cache validity remains strict below. LED effect identity is
+            // separate: aging/reconfirmation alone is not a new physical cause.
+            if entry.signature.kind!=signature.kind || entry.signature.observed!=signature.observed
+                || entry.signature.invalid!=signature.invalid || entry.signature.never_observed!=signature.never_observed {
+                entry.semantic_version=entry.semantic_version.checked_add(1).ok_or("indicator semantic version exhausted")?;
+            }
             if !entry.signature.same_power(&signature) {
                 entry.power_version = entry
                     .power_version
@@ -182,6 +189,7 @@ pub(crate) struct ProjectionLease {
     versions: Arc<Mutex<Versions>>,
     expected: BTreeMap<DeviceId, Option<u64>>,
     power_expected: BTreeMap<DeviceId, Option<u64>>,
+    semantic_expected: BTreeMap<DeviceId, Option<u64>>,
 }
 impl ProjectionLease {
     pub(crate) fn fingerprint(&self, level_sensitive: bool) -> Fingerprint {
@@ -190,7 +198,7 @@ impl ProjectionLease {
             revision: self.rule.revision,
             epoch: self.rule.epoch,
             dependencies: if level_sensitive {
-                self.expected.clone()
+                self.semantic_expected.clone()
             } else {
                 self.power_expected.clone()
             },
@@ -218,6 +226,9 @@ impl ProjectionLease {
                 )
             })
             .collect();
+        let semantic_expected=lease.observations.keys().map(|id|(
+            id.clone(),versions.entries.get(id).map(|entry|entry.semantic_version)
+        )).collect();
         let expected = lease
             .observations
             .keys()
@@ -233,6 +244,7 @@ impl ProjectionLease {
             versions: feedback.projection_versions.clone(),
             expected,
             power_expected,
+            semantic_expected,
         })
     }
     pub(crate) fn lock(

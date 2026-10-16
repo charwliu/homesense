@@ -355,3 +355,22 @@ mod cross_writer;
 
 #[path="indicator_output_fence_tests.rs"]
 mod output_fence;
+
+#[tokio::test]
+async fn identical_physical_values_after_quality_expiry_do_not_rewrite_same_leds() {
+    let (config,rules)=linked();let mut h=harness(config,rules).await;let mut s=Synchronizer::default();
+    levels(&mut h,Some(0),Some(0));reconcile(&h).await;sync(&h,&mut s).await;
+    let initial=drain_leds(&h).await;assert_eq!(initial.len(),4);assert!(initial.values().all(|red|!*red));
+    let before=h.sql().query_row("SELECT count(*) FROM command_journal",[],|r|r.get::<_,i64>(0)).unwrap();
+    for _ in 0..3 {
+        tokio::time::sleep(Duration::from_millis(2)).await;
+        h.feedback.expire(h.actor.monotonic_ms(),1).unwrap();
+        reconcile(&h).await;sync(&h,&mut s).await;
+        assert!(drain_leds(&h).await.is_empty(),"stale samples authorize no output");
+        assert_eq!(h.selection().await.stored.value,None,"stale selection remains unknown");
+        levels(&mut h,Some(0),Some(0));reconcile(&h).await;sync(&h,&mut s).await;
+        assert!(drain_leds(&h).await.is_empty(),"identical re-confirmation must not become a new LED effect");
+    }
+    assert_eq!(h.sql().query_row("SELECT count(*) FROM command_journal",[],|r|r.get::<_,i64>(0)).unwrap(),before);
+    h.close().await;
+}

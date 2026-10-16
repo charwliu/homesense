@@ -41,6 +41,8 @@ struct Document {
     #[serde(default)]
     manual_degraded_enabled: bool,
     #[serde(default)]
+    refresh_policy: RefreshPolicy,
+    #[serde(default)]
     rooms: Vec<Room>,
     #[serde(default)]
     floors: Vec<String>,
@@ -48,6 +50,42 @@ struct Document {
     devices: Vec<DeviceInput>,
     #[serde(default)]
     keypads: Vec<keypad::KeypadInput>,
+}
+/// Server-owned adaptive observation timing, independent of command leases.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RefreshPolicy {
+    pub idle_interval_ms: u64,
+    pub active_interval_ms: u64,
+    pub backoff_ms: [u64; 2],
+    pub quiet_rounds_per_step: u32,
+    pub round_budget_ms: u64,
+    pub observation_grace_ms: u64,
+}
+impl Default for RefreshPolicy {
+    fn default() -> Self { Self { idle_interval_ms:10_800_000, active_interval_ms:10_000,
+        backoff_ms:[30_000,60_000], quiet_rounds_per_step:2, round_budget_ms:10_000,
+        observation_grace_ms:5_000 } }
+}
+impl RefreshPolicy {
+    pub const MAX_OBSERVATION_AGE_MS: u64 = 86_460_000;
+    pub fn observation_max_age_ms(self) -> u64 {
+        self.idle_interval_ms + self.round_budget_ms + self.observation_grace_ms
+    }
+    pub fn age_for_interval(self, interval:u64) -> u64 {
+        interval + self.round_budget_ms + self.observation_grace_ms
+    }
+    fn validate(self) -> Result<(), Error> {
+        if !(100..=86_400_000).contains(&self.idle_interval_ms)
+            || !(100..=self.backoff_ms[0]).contains(&self.active_interval_ms)
+            || self.backoff_ms[0] > self.backoff_ms[1] || self.backoff_ms[1] > self.idle_interval_ms
+            || !(1..=16).contains(&self.quiet_rounds_per_step)
+            || !(1000..=30_000).contains(&self.round_budget_ms)
+            || !(1000..=30_000).contains(&self.observation_grace_ms) {
+            return Err(invalid("invalid adaptive refresh intervals, round budget or observation margin"));
+        }
+        Ok(())
+    }
 }
 /// Optional display metadata; room membership never grants control permission.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, Deserialize)]
@@ -255,6 +293,7 @@ pub struct Configuration {
     module_registry:BTreeMap<String,ModuleLocation>,
     revision: u64,
     manual_degraded_enabled: bool,
+    refresh_policy: RefreshPolicy,
     gateways: BTreeMap<String, Gateway>,
     devices: BTreeMap<DeviceId, LogicalDevice>,
     resolved_bindings:BTreeMap<DeviceId,ResolvedBinding>,
@@ -288,6 +327,7 @@ impl Configuration {
             .ok_or_else(|| invalid("motor direction and STOP calibration required"))?;
         Ok(homesense_core::Command::Motor(calibration.motion(action)))
     }
+    pub fn refresh_policy(&self) -> RefreshPolicy { self.refresh_policy }
     pub fn revision(&self) -> u64 {
         self.revision
     }
@@ -324,6 +364,7 @@ impl Configuration {
             return Err(invalid("configuration exceeds 4 MiB"));
         }
         let mut input: Document = serde_json::from_slice(bytes).map_err(Error::Json)?;
+        input.refresh_policy.validate()?;
         if !matches!(input.schema_version,1|2) {
             return Err(invalid("unsupported schema_version"));
         }
@@ -598,6 +639,7 @@ impl Configuration {
             module_registry,
             revision: input.revision,
             manual_degraded_enabled: input.manual_degraded_enabled,
+            refresh_policy: input.refresh_policy,
             rooms,
             floors,
             gateways,

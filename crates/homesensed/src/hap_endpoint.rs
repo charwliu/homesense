@@ -145,7 +145,7 @@ impl Endpoint {
             initial.clone(),
             identity,
             admission.clone(),
-            5000,
+            bundle.configuration.refresh_policy().observation_max_age_ms(),
             lights,
         )
         .await?;

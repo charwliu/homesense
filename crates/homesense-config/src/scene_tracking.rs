@@ -77,7 +77,7 @@ pub(crate) fn validate(
             || (!immediate && timed.is_none())
             || p.review_evidence.trim().is_empty()
             || p.review_evidence.len() > 8192
-            || !(1..=30000).contains(&p.max_age_ms)
+            || !(1..=super::RefreshPolicy::MAX_OBSERVATION_AGE_MS).contains(&p.max_age_ms)
             || p.members.is_empty()
             || p.members.len() > 128
         {

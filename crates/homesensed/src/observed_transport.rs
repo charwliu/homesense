@@ -38,7 +38,12 @@ pub struct ObservedTransport<S> {
     output_refresh: Option<OutputRefresh>,
     local_refresh:Option<local_refresh::Refresh>,
     local_fault_operations:Vec<homesense_storage::gateway_audit::OperationKey>,
+    background_led_phase:bool,
 }
+#[path="refresh_round.rs"]
+mod refresh_round;
+use refresh_round::RoundTracker;
+pub(crate) use refresh_round::CompletedRound;
 #[path = "local_refresh.rs"]
 mod local_refresh;
 #[path = "periodic_refresh.rs"]
@@ -61,6 +66,11 @@ impl Drop for Operation<'_> {
     }
 }
 impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
+    pub(crate) fn has_periodic_refresh(&self)->bool {self.output_refresh.is_some()||self.local_refresh.is_some()}
+    pub(crate) fn pause_refresh_for_background_leds(&mut self,pause:bool) {self.background_led_phase=pause;}
+    pub(crate) fn take_completed_refresh_round(&mut self)->Option<CompletedRound> {
+        if let Some(plan)=&mut self.local_refresh {plan.round.take()}else{self.output_refresh.as_mut().and_then(|plan|plan.round.take())}
+    }
     pub fn new(transport: TransportOwner<S>, feedback: Feedback) -> Self {
         let gateways = transport.gateway_ids();
         Self {
@@ -74,6 +84,7 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
             output_refresh: None,
             local_refresh:None,
             local_fault_operations:vec![],
+            background_led_phase:false,
         }
     }
     /// Initial live startup after the connector has faulted admission. No state
@@ -531,6 +542,7 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
     }
 
     pub(crate) fn invalidate(&mut self) {
+        self.background_led_phase=false;
         self.output_refresh = None;
         self.unavailable = true;
         if self.feedback.invalidate().is_err() {
@@ -579,12 +591,21 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
             complete: false,
         };
         let read = self.transport.receive(gateway).await?;
+        let activity=match &read.result {
+            hb_transport::Receive::Frames {frames,..}=>frames.iter().filter_map(|frame| {
+                let channel=frame.command.checked_sub(0xd0)?;
+                if !operation.feedback.module_truth().received_port_state(gateway,frame.address,channel).is_some_and(|state|matches!(state.kind,homesense_core::ModuleKind::Switch|homesense_core::ModuleKind::Dimmer)) {return None;}
+                let count=operation.feedback.module_truth().port_observation_count(gateway,frame.address,channel)?;
+                (!self.output_refresh.as_ref().is_some_and(|plan|plan.solicited(gateway,frame.address,channel,read.received_at_ms))).then_some((frame.address,channel,count))
+            }).collect::<Vec<_>>(),
+            _=>vec![],
+        };
         operation.feedback.apply(&read)?;
+        let activity=activity.iter().any(|(address,channel,before)|operation.feedback.module_truth().port_observation_count(gateway,*address,*channel).is_some_and(|count|count>*before));
         *operation.unavailable = matches!(read.result, hb_transport::Receive::Disconnected { .. });
         operation.complete = true;
-        if *operation.unavailable {
-            self.output_refresh = None;
-        }
+        if *operation.unavailable {self.output_refresh=None;}
+        else if activity && let Some(plan)=&mut self.output_refresh {plan.activity(read.received_at_ms);}
         Ok(read)
     }
     /// Trusted publication coordinator only. The old mapping/streams remain
@@ -614,16 +635,17 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
             return Err("observed transport requires recovery".into());
         }
         if self.transport.local_mode() {
-            let blocked=self.local_refresh.as_ref().map_or_else(std::collections::BTreeSet::new,|plan|plan.blocked(self.transport.now_ms(),self.transport.write_interval_ms()));
+            let blocked=self.local_refresh.as_ref().map_or_else(std::collections::BTreeSet::new,|plan|plan.blocked(self.transport.now_ms(),self.transport.write_interval_ms(),self.background_led_phase));
             let outcome=self.transport.local_step(&blocked).await?;
             if self.transport.has_local_fault() {self.poll_local_events(false).await?;}
+            if let Some(write)=&outcome && write.result.is_ok() && let Some(plan)=&mut self.local_refresh {plan.written(&write.device_id,self.transport.now_ms());}
             return Ok(outcome);
         }
         // Keep a pending response serialized with later writes on this bus.
         // The runtime continues receiving, publishing and accepting requests;
         // accepted control tickets stay in Admission until the read resolves.
         if self.output_refresh.as_ref().is_some_and(|plan| {
-            plan.defer_control(self.transport.now_ms(), self.transport.write_interval_ms())
+            plan.awaiting_response() || (!self.background_led_phase && plan.defer_control(self.transport.now_ms(), self.transport.write_interval_ms()))
         }) {
             return Ok(None);
         }
@@ -634,6 +656,7 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
             complete: false,
         };
         let outcome = self.transport.step().await?;
+        if let Some(write)=&outcome && write.result.is_ok() && let Some(plan)=&mut self.output_refresh {plan.written(&write.device_id,self.transport.now_ms());}
         if outcome.as_ref().is_none_or(|value| value.result.is_ok()) {
             operation.complete = true;
         }

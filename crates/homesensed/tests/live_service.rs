@@ -42,11 +42,13 @@ async fn live_service_queries_before_serving_and_preserves_identity_across_resta
             for channel in 1..=8 {
                 socket.write_all(&[0xAE, 0x15, 0xD0 + channel, 42, 0xEE]).unwrap();
             }
-            assert_eq!(
-                socket.read(&mut frame).unwrap(),
-                0,
-                "unauthenticated service must not send control"
-            );
+            loop {
+                if socket.read(&mut frame[..1]).unwrap()==0 {break;}
+                // Any prefix followed by EOF still fails the original zero-output check.
+                socket.read_exact(&mut frame[1..]).unwrap();
+                assert_eq!(frame,[0xAE,0x15,0xA0,0xF2,0xEE],"unauthenticated service must not send control");
+                for channel in 1..=8 {socket.write_all(&[0xAE,0x15,0xD0+channel,42,0xEE]).unwrap();}
+            }
         }
     });
     let mut previous = None;

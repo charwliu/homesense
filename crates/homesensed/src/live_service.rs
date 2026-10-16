@@ -104,8 +104,8 @@ pub async fn serve_live(
         let feedback = Feedback::new(&config, ExecutionContext::Live,
             uuid::Uuid::parse_str(admission.boot_id()).map_err(error)?.as_u128(), epoch)?;
         let mut owner = ObservedTransport::new_recovering(transport, feedback, epoch)?;
-        let mut graph = RuntimeHap::new(&config, owner.snapshot(), &identity, admission.clone(), 5000).await?;
-        owner.query_recovery(&config, ExecutionContext::Live, 1000, 5000).await?;
+        let mut graph = RuntimeHap::new(&config, owner.snapshot(), &identity, admission.clone(), config.refresh_policy().observation_max_age_ms()).await?;
+        owner.query_recovery(&config, ExecutionContext::Live, 1000, config.refresh_policy().observation_max_age_ms()).await?;
         log::info!("live_initial_synchronized epoch={epoch} revision={} devices={enabled}", config.revision());
         graph.publish(&owner).await?;
         let server = if address.ip().is_loopback() { IpServer::new_loopback(settings, identity.clone()).await }

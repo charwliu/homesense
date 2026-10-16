@@ -1554,7 +1554,7 @@ impl Admission {
                                     if device.gateway!=wire.gateway() || module.kind()!=homesense_core::ModuleKind::Dimmer {continue;}
                                     let Some((target,commands,scope))=restore_policy.owner(&id) else {continue;};
                                     if scope!=policy.epochs || commands.is_empty() || commands.iter().any(|id|!written.contains(id)){continue;}
-                                    let Some(state)=snapshot.devices.get(&id).filter(|state|state.quality==homesense_state::Quality::Confirmed && state.observed_at_ms==Some(received_ms) && now.checked_sub(received_ms).is_some_and(|age|age<5000)) else{continue;};
+                                    let Some(state)=snapshot.devices.get(&id).filter(|state|state.quality==homesense_state::Quality::Confirmed && state.observed_at_ms==Some(received_ms) && now.checked_sub(received_ms).is_some_and(|age|age<configuration.refresh_policy().observation_max_age_ms())) else{continue;};
                                     if state.observed!=Some(homesense_core::Observation::Level(target)){continue;}
                                     let mut completed=true;
                                     for command in &commands {
@@ -1563,12 +1563,12 @@ impl Admission {
                                     }
                                     if !completed{continue;}
                                     if let Some(relay)=&device.supply_relay {
-                                        let Some(supply)=snapshot.devices.get(relay).filter(|state|state.quality==homesense_state::Quality::Confirmed && state.observed==Some(homesense_core::Observation::Switch(true)) && state.observed_at_ms.and_then(|at|now.checked_sub(at)).is_some_and(|age|age<5000)) else{continue;};
+                                        let Some(supply)=snapshot.devices.get(relay).filter(|state|state.quality==homesense_state::Quality::Confirmed && state.observed==Some(homesense_core::Observation::Switch(true)) && state.observed_at_ms.and_then(|at|now.checked_sub(at)).is_some_and(|age|age<configuration.refresh_policy().observation_max_age_ms())) else{continue;};
                                         if !store.feedback_is_settled_in_wire_scope(&worker_boot,relay,supply.observed_at_ms,policy.epochs,&wire).map_err(|_|WriteStatus::ServiceCommunicationFailure)?{continue;}
                                     }
                                     restore_policy.reached_after_written(&id,target,&commands,scope,now);
                                 }
-                                remember_projection(&mut store,&mut restore_policy,&configuration,&worker_boot,policy,now,(&snapshot,5000)).map(|_|())
+                                remember_projection(&mut store,&mut restore_policy,&configuration,&worker_boot,policy,now,(&snapshot,configuration.refresh_policy().observation_max_age_ms())).map(|_|())
                             })();
                             if result==Err(WriteStatus::ServiceCommunicationFailure){failed=true;audited_transport_failure=false;let _=arbiter.storage_failed();}
                             let _=reply.send(result);

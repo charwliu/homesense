@@ -30,7 +30,7 @@ pub(crate) async fn run(
             let drive = runtime.drive_recoverable_ready(
                 &mut owner,
                 Duration::from_millis(10),
-                5000,
+                runtime.observation_max_age_ms(),
                 runtime_receive,
                 crate::service::wall_ms,
                 Some(ready),
@@ -119,7 +119,7 @@ pub(crate) async fn run(
                         epoch,
                         crate::publication_recovery::Settings {
                             query_timeout_ms: 1000,
-                            max_age_ms: 5000,
+                            max_age_ms: candidate.refresh_policy().observation_max_age_ms(),
                             wall_unix_ms: crate::service::wall_ms()?,
                             calendar_lateness_ms: 1000,
                             scene_capacity: 64,
