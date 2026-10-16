@@ -4,6 +4,7 @@ import HomeSenseCore
 struct HomeDeviceTile: View {
     let device: HomeRecord
     var live = true
+    var showsBackground = true
     private var confirmed: Bool { device.feedbackIsConfirmed(current: live) }
     private var isOn: Bool { device.raw["observed"]["on"] == .bool(true) && confirmed }
     private var icon: String {
@@ -30,16 +31,103 @@ struct HomeDeviceTile: View {
             }
         }
         .padding(18).frame(maxWidth: .infinity, minHeight: 170, alignment: .topLeading)
-        .background(isOn ? Color.orange.opacity(0.09) : Color.primary.opacity(0.025), in: RoundedRectangle(cornerRadius: 20))
-        .background(.background, in: RoundedRectangle(cornerRadius: 20))
+        .background(showsBackground ? (isOn ? Color.orange.opacity(0.09) : Color.primary.opacity(0.025)) : Color.clear, in: RoundedRectangle(cornerRadius: 20))
         .accessibilityElement(children: .combine)
     }
     private var status: String {
+        if device.raw["kind"].text == "Motor" { return device.motorStatusDescription(current: live) }
         let prefix = confirmed ? "实测 · " : "历史 · "
         if let level = device.raw["observed"]["level"].integerText { return prefix + level + "%" }
         if device.raw["observed"]["on"] == .bool(true) { return prefix + "开启" }
         if device.raw["observed"]["on"] == .bool(false) { return prefix + "关闭" }
         return "实测状态未知"
+    }
+}
+
+struct HomeQuickDeviceCard: View {
+    @ObservedObject var home: HomeServerStore
+    let device: HomeRecord
+    let openDetails: () -> Void
+    var body: some View {
+        VStack(spacing: 0) {
+            Button(action: openDetails) {
+                HomeDeviceTile(device: device, live: home.snapshotIsCurrent, showsBackground: false)
+            }.buttonStyle(.plain)
+                .accessibilityIdentifier("device.\(device.id).details")
+                .accessibilityHint("查看设备详情")
+            if ["Motor", "Dimmer", "Switch"].contains(device.raw["kind"].text ?? "") {
+                Divider().padding(.horizontal, 18)
+                Group {
+                    if device.raw["kind"].text == "Motor" { HomeMotorControls(home: home, device: device) }
+                    else { HomeLightPowerControls(home: home, device: device) }
+                }.padding(18)
+            }
+        }
+        .background(.background, in: RoundedRectangle(cornerRadius: 20))
+        .overlay { RoundedRectangle(cornerRadius: 20).strokeBorder(.primary.opacity(0.07)) }
+    }
+}
+
+struct HomeMotorControls: View {
+    @ObservedObject var home: HomeServerStore
+    let device: HomeRecord
+    var body: some View {
+        HStack {
+            action("打开", "arrow.up", "open")
+            action("停止", "stop.fill", "stop")
+            action("关闭", "arrow.down", "close")
+        }.disabled(!home.canControlDevice(device.id))
+    }
+    private func action(_ title: String, _ icon: String, _ command: String) -> some View {
+        Button {
+            let operation = home.beginDeviceControl(device.id)
+            Task { await home.controlDevice(device.id, command: .object(["action": .string(command)]), operation: operation) }
+        } label: { Label(title, systemImage: icon).frame(maxWidth: .infinity) }
+            .buttonStyle(.bordered)
+            .accessibilityLabel("\(device.name)\(title)")
+            .accessibilityIdentifier("device.\(device.id).\(command)")
+    }
+}
+
+struct HomeLightPowerControls: View {
+    @ObservedObject var home: HomeServerStore
+    let device: HomeRecord
+    var beforeAction: () -> Void = { }
+    private var confirmedOn: Bool? {
+        guard device.feedbackIsConfirmed(current: home.snapshotIsCurrent), case .bool(let value) = device.raw["observed"]["on"] else { return nil }
+        return value
+    }
+    var body: some View {
+        HStack {
+            if let on = confirmedOn { power(on ? "关闭" : "开启", on: !on) }
+            else { power("开", on: true); power("关", on: false) }
+        }.disabled(!home.canControlDevice(device.id))
+    }
+    private func power(_ title: String, on: Bool) -> some View {
+        Button {
+            beforeAction()
+            let operation = home.beginDeviceControl(device.id)
+            Task { await home.controlDevice(device.id, command: .object(["action": .string("power"), "on": .bool(on)]), operation: operation) }
+        } label: { Label(title, systemImage: "power").frame(maxWidth: .infinity) }
+            .buttonStyle(.bordered)
+            .accessibilityLabel("\(device.name)\(title)")
+            .accessibilityIdentifier("device.\(device.id).power.\(on ? "on" : "off")")
+    }
+}
+
+extension HomeRecord {
+    func motorStatusDescription(current: Bool) -> String {
+        let estimate = raw["motor_estimate"]
+        let prefix = current && targetAvailable ? "估计 · " : "历史估计 · "
+        let movement: String
+        switch estimate["movement"].text {
+        case "Opening": movement = "正在打开"
+        case "Closing": movement = "正在关闭"
+        case "Stopped": movement = "已停止"
+        default: return current && targetAvailable ? "位置与运动状态未知" : "状态未同步 · 位置与运动状态未知"
+        }
+        if let text = estimate["percent_hundredths"].integerText, let value = Int(text) { return prefix + "\(movement) · \(value / 100)%" }
+        return prefix + "\(movement) · 位置未知"
     }
 }
 
@@ -58,7 +146,7 @@ struct HomeDeviceDetails: View {
             }
             .navigationTitle(home.devices.first(where: { $0.id == deviceID })?.name ?? "设备")
             .toolbar { Button("完成") { dismiss() } }
-        }.frame(idealWidth: 460, idealHeight: 500)
+        }.frame(idealWidth: 460, idealHeight: 680)
     }
 }
 
