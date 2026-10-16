@@ -1,5 +1,5 @@
 {
-  "checked_bj": "2026-10-16T11:09:19.638914+08:00",
+  "checked_bj": "2026-10-16T11:38:29.587041+08:00",
   "derived_requirements": [
     "docs/design.md sections9-11,18,20,23-24,27"
   ],
@@ -94,15 +94,16 @@
       "id": "E-2",
       "stage": "E",
       "requirement": "96路反馈、模块状态与查询",
-      "verified_scope": "已有两房间64路限定现场证据；正常CLI96路两例及189条并发控制已验证，12模块型号／用途已确认；当前正式CLI隔离停顿6秒后过期正确，96路新值约2.64秒恢复；新调度普通Mac CLI三例23232通道样本全部新鲜、586控制请求与Written及假总线逐项匹配，含25ms延迟反馈；最终候选启用HAP的180秒合成采样76128通道样本新鲜，2807控制与日志/假总线匹配；该次接收处理时间戳不能验证发送节拍；2026-10-16用户批准恢复只读核对和短停后，12模块96通道均收到合法反馈，61查询=56 R818逐通道+5 AD8整模块；Root独立解析全部TX/RX，无重复/畸形反馈。约69秒后同ELF/rev13恢复，原配对/凭证不变，客户端自动恢复。；现网已追加01/04/05/15四模块为rev14，共12照明模块96路；同ELF受控重启后初始61查询及7完整查询/反馈周期由Root从原pcap重组TCP逐字节核对；21次独立采样2016槽位、最大年龄3943ms，96路观测时间全部推进，原5000ms门槛保持。",
-      "remaining_evidence": "完整96路初始化与周期刷新已上线并在本窗口通过；逐路实物负载/房间映射、R818 A0整模块能力、模块换址、实际Away全关与长期/并发负载稳定性仍待；历史5512ms停顿根因未由本次查询配置修复。",
+      "verified_scope": "已有两房间64路限定现场证据；正常CLI96路两例及189条并发控制已验证，12模块型号／用途已确认；当前正式CLI隔离停顿6秒后过期正确，96路新值约2.64秒恢复；新调度普通Mac CLI三例23232通道样本全部新鲜、586控制请求与Written及假总线逐项匹配，含25ms延迟反馈；最终候选启用HAP的180秒合成采样76128通道样本新鲜，2807控制与日志/假总线匹配；该次接收处理时间戳不能验证发送节拍；2026-10-16用户批准恢复只读核对和短停后，12模块96通道均收到合法反馈，61查询=56 R818逐通道+5 AD8整模块；Root独立解析全部TX/RX，无重复/畸形反馈。约69秒后同ELF/rev13恢复，原配对/凭证不变，客户端自动恢复。；现网已追加01/04/05/15四模块为rev14，共12照明模块96路；同ELF受控重启后初始61查询及7完整查询/反馈周期由Root从原pcap重组TCP逐字节核对；21次独立采样2016槽位、最大年龄3943ms，96路观测时间全部推进，原5000ms门槛保持。；2026-10-16同生产ELF的临时隔离配置完成一次获批Away：12模块各一OFF、96精确审计/最后反馈OFF、四代表灯实物关闭及原服务/客户端恢复；风机01-2按明确例外纳入，原配置14未启用Away。",
+      "remaining_evidence": "完整96路初始化与周期刷新已上线并在本窗口通过；逐路实物负载/房间映射、R818 A0整模块能力、模块换址、永久Away发布/原生App入口、实际活动场景接管与长期/并发负载稳定性仍待；历史5512ms停顿根因未由本次查询配置修复。",
       "status": "full96_initialization_periodic_deployed_bounded_physical_pass",
       "additional_software_evidence": "stage-e-browser/production-query-capacity-root-check.json",
       "additional_pause_recovery_evidence": "stage-e-browser/capacity-pause-recovery-root-check.json",
       "additional_periodic_scheduler_evidence": "stage-e-browser/periodic-production-cli-root-check.json",
       "additional_final_hap_soak_evidence": "stage-e-browser/periodic-hap-soak-root-check.json",
       "additional_physical96_readonly_field": "stage-e-browser/readonly96-physical-feedback-field-root-check.json",
-      "additional_full96_initialization_periodic": "stage-e-browser/full96-initialization-periodic-production-root-check.json"
+      "additional_full96_initialization_periodic": "stage-e-browser/full96-initialization-periodic-production-root-check.json",
+      "additional_Away96_field": "stage-e-browser/away96-module-batch-field-root-check.json"
     },
     {
       "id": "E-3",
@@ -335,7 +336,8 @@
     "stage-e-browser/native-app-offline-recovery-field-root-check.json": "b27b249dffe9b3ad1c4e7e50721d6e82f991aac2d7571f611a602ac97f4a398c",
     "stage-e-browser/home-hub-power-recovery-native13-field-root-check.json": "fdca84fdd0361b6bed4089a4fcc6830f95d94f55f33a650e25952dfe97a9dcee",
     "stage-e-browser/readonly96-physical-feedback-field-root-check.json": "32b3c89535c8de8a8f28b67586c48fe6e003803dbf8dc50152ccb9e217866df1",
-    "stage-e-browser/full96-initialization-periodic-production-root-check.json": "7cf09c84585b67916228aac6ff976dee338138661a32ad04eb1c53aa4c946e4c"
+    "stage-e-browser/full96-initialization-periodic-production-root-check.json": "7cf09c84585b67916228aac6ff976dee338138661a32ad04eb1c53aa4c946e4c",
+    "stage-e-browser/away96-module-batch-field-root-check.json": "4ef382718b33968826c8175e50ecab78e75e0adb3fdfb84b74dfb1cd4554075f"
   },
   "excluded_by_scope": {
     "Siri": "cancelled by user",
@@ -353,7 +355,7 @@
   "native_app_backend": {
     "ready": true,
     "revision": 14,
-    "current_status": "full96_initialization_periodic_continuous_service_active",
+    "current_status": "full96_continuous_service_restored_after_bounded_Away_field",
     "physical_app_acceptance": "Native13 both room cards plus offline/HPLeft recovery passed earlier; configuration14 retained-pairing restart client auto-recovery and actual-light state match user verified; historical silentOFF cause remains open",
     "projection_fix_f27a6b6_deployed": true,
     "latest_evidence": "stage-e-browser/full96-initialization-periodic-production-root-check.json",
@@ -757,5 +759,12 @@
     "Away_batch_control_tested": false,
     "full96_initialization_periodic_published": true
   },
-  "latest_full96_initialization_periodic_production": "stage-e-browser/full96-initialization-periodic-production-root-check.json"
+  "latest_full96_initialization_periodic_production": "stage-e-browser/full96-initialization-periodic-production-root-check.json",
+  "latest_Away96_module_batch_field": "stage-e-browser/away96-module-batch-field-root-check.json",
+  "Away96_field": {
+    "temporary_same_ELF_single_POST_passed": true,
+    "production_rev14_restored": true,
+    "permanent_Away_enabled": false,
+    "native_App_Away_UI_or_HAP_field_passed": false
+  }
 }

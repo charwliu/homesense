@@ -1,0 +1,144 @@
+{
+  "checked_bj": "2026-10-16T11:38:29.587041+08:00",
+  "status": "bounded_single_Away96_module_OFF_field_passed_original_E2_restored",
+  "production_ELF_sha256": "83d894380419ee00c9ecf0a0fcb5356c3ac85185e301fb6f070e1dd70ef9895d",
+  "production_revision_before_after": 14,
+  "temporary_revision": 1,
+  "temporary_API_port": 8446,
+  "production_API_port": 8444,
+  "temporary_HAP_browser_UI_scenes_rules_keypads_motors": false,
+  "scope": {
+    "module_addresses": [
+      "01",
+      "02",
+      "03",
+      "04",
+      "05",
+      "06",
+      "07",
+      "11",
+      "12",
+      "13",
+      "14",
+      "15"
+    ],
+    "physical_outputs": 96,
+    "lighting_or_supply_outputs": 95,
+    "explicit_fan_exception": {
+      "address": "01",
+      "channel": 2,
+      "device_id": "control4:387",
+      "actual_load": "exhaust/fan",
+      "user_instruction": "仍然接排气/风机；可以按灯光一样处理；一同关闭。",
+      "before_off": true,
+      "not_energized_for_test": true
+    },
+    "logical_API_visible_devices": 92,
+    "hidden_supply_relays": 4,
+    "exact_visible_ID_set_checked": true,
+    "temporary_Member_no_Admin_no_scenes": true
+  },
+  "authorization": {
+    "window": "call_3db92785b3364cbd9a3034f721493c95:0",
+    "one_actual_OFF": "call_956c5d1236c54e9fb4a1eb18ac010b68:0",
+    "answer": "现在执行一次离家全关",
+    "one_POST_only_no_retry": true,
+    "request_id": "6129f376-e588-4e5a-b623-00c574debf6b"
+  },
+  "wire_independent_byte_reassembly": {
+    "method": "Root independent TCP byte-sequence reassembly over all interfaces; duplicate and overlapping bytes checked identical; no gaps",
+    "pcap_sha256": "e75824e87fbef710b76dbdedac58f6e1fdf189c4f5c0a802b20adca4a2971cb8",
+    "tcp_stream_direction_count": 2,
+    "duplicated_byte_observations": 10845,
+    "TX_frames": 436,
+    "query_frames": 424,
+    "native_module_OFF_frames": 12,
+    "module_OFF_each_once": true,
+    "unexpected_TX_frames": 0,
+    "RX_frames": 647,
+    "post_module_OFF_feedback_samples": 622,
+    "last96_physical_feedback_OFF": true,
+    "restored_production96_slots_Confirmed_OFF": true,
+    "restored_max_age_ms": 3331,
+    "restored_revision": "14",
+    "restored_ready": true,
+    "production_Away_available": false
+  },
+  "durable": {
+    "Written_commands": 12,
+    "effects": 96,
+    "exact_module_channel_device_ID_set_matches_frozen_configuration": true,
+    "effects_per_command": 8,
+    "immutable_update_and_delete_triggers_present": true,
+    "http202_alone_not_physical_proof": true,
+    "all12_intent_module_OFF_http_origin_checked": true
+  },
+  "field": {
+    "recorded_bj": "2026-10-16T11:35:38.637269+08:00",
+    "physical_result": {
+      "question_item_id": "[\"request_user_input_async\",\"call_8b172f9ea30e456da4b9729a7454298a\",0]",
+      "answer": "全部符合",
+      "scope": "four representative lamps OFF; remaining lights/fan remainOFF; both curtains stopped"
+    },
+    "restored_client_result": {
+      "question_item_id": "[\"request_user_input_async\",\"call_21f2711795184724a4707c1f13b71ccd\",0]",
+      "answer": "两边自动恢复且全部符合",
+      "scope": "native and AppleHome automatic recovery without refresh/reopen/token entry; two rooms lights/scenesOFF, original gateways normal, curtains stopped"
+    }
+  },
+  "restoration": {
+    "ready": true,
+    "PID": "256827",
+    "original_ELF_revision_configuration_unit_pairings_AID_IID_all_credential_rows_unchanged": true,
+    "pairings": 2,
+    "AID": 18,
+    "IID": 164,
+    "permanent_Admin_devices_scenes": [
+      20,
+      7
+    ],
+    "other_Admin_devices_scenes": [
+      17,
+      7
+    ],
+    "temporary_service_stopped_token_destroyed_port8446closed": true,
+    "restore_guard_cancelled": true,
+    "production_Away_available": false,
+    "permanent_Away_not_enabled": true
+  },
+  "auxiliary_failure_preserved": {
+    "first_nonce": "cbbbbe1402d1",
+    "actual_POSTs": 0,
+    "reason": "field helper incorrectly required96 visible API devices; four supply relays intentionally hidden",
+    "recovery": "original E2 restored and token destroyed before corrected retry",
+    "correction": "derive exact92 visibleIDs from96 physical bindings minus4 supply references; same productionELF loopback qualified before one corrected live window",
+    "product_failure_not_established": true
+  },
+  "limitations": [
+    "Only four representative lamps deliberately turned on; other outputs and fan already OFF. No claim of visible transition or wiring validation for all96 loads.",
+    "Temporary isolated configuration used exact productionELF; no nativeApp Away UI, HAP Away action, production scene takeover concurrency or permanent Away publication was tested.",
+    "96 fresh final feedback values after their module command are observations, not causal acknowledgments from each physical load.",
+    "Original E2 restart emits existing scene LED projections outside temporary action capture; whole maintenance window is not claimed zero LED.",
+    "No long term stability, module replacement, whole home takeover or full D/E completion claim."
+  ],
+  "private_evidence_sha256": {
+    "field-window-plan-v3.json": "a91c204d59abe44dd6bb0e21167a7ac59f794d615a2962366ccd50a43bc95851",
+    "temporary.devices.json": "3da9b4b94cb551eb973b968cda8b16563af5d1917276a9f6782dd50c27a58d11",
+    "temporary-v3.automation.json": "07f1019d63bb93e238686b2c8970500314792b963db9b1866cd5484a7dc51c3c",
+    "away96_window.py": "bea06bf70e65c5be82ae77b2ec1553cab50e270aeac9c3d6eb1e50d520038f35",
+    "window-open-approval-242444c7fc85.json": "7074d0e07ce0733907f114c0f05a609087a886147074eb6fcdd6f27e833f7a8a",
+    "window-send-approval-242444c7fc85.json": "936bc54764848e685c99878a0008fa38d4c5d4c516d2771bebfe31edd1937d97",
+    "root-pre-action-status-242444c7fc85.json": "7f935bb9c671db9657fbd4dfaf6a4b4f30cee19d26507cf72999bbd03749d800",
+    "send-remote-242444c7fc85.json": "be2bf7802110450648a71bb7dd02168dd20bbf3f40a5bfe020963be1b7cc89e8",
+    "action-gateway-242444c7fc85.pcap": "e75824e87fbef710b76dbdedac58f6e1fdf189c4f5c0a802b20adca4a2971cb8",
+    "root-wire-and-restored96-review.json": "8f2184ac9ba1165f81f8b6d38f2c8784488d12661add4e71f2d3cd43cbc4baa7",
+    "root-restored-production-current.json": "44ad5f3673e9e9304e4c89358bd11d37c1150791cc934f24149a1971fe7b55d8",
+    "root-durable-rows-and-restored-fingerprint.json": "63218722971db031219b4439e7abed4f1e2a4784213d115b7ec70d28463c59a5",
+    "human-away96-and-restoration-results.json": "e01a9833012a180a81c7409c88d8c41a54cb986f94fc0d117c502505ad543726",
+    "open-remote-cbbbbe1402d1.json": "687773ffd72221b3e03d30e13d4d533674337f3141b9ee82dca79ab79b971b30",
+    "root-restored-after-open-failure.json": "0875b318a9552bdea39415b13b378ec6ac99fbce85c692cbd10c52ee3cb4534b",
+    "away96-loopback-same-elf-result-v2.json": "8af05660024631bec0b748a75ec6efeac030264a0724309eab1e95902ac2708f",
+    "root_wire_review.py": "9f4130c312ed8297971e763232f200086313586753478a3fcc2ce64e8763ee99",
+    "root_durable_review.py": "cff7dab61af9ef9a3c6fee785cdfdcde21af56975dff910372653b6e18d8b039"
+  }
+}
