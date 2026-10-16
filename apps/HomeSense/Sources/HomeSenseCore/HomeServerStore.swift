@@ -16,6 +16,8 @@ public final class HomeServerStore: ObservableObject {
         }
     }
     @Published public private(set) var connected = false
+    public let diagnostics: HomeDiagnostics
+    private var loggedKeypadGates: [String: [HomeKeypadGateState]] = [:]
     @Published public private(set) var busy = false
     @Published public private(set) var canManage = false
     @Published public private(set) var interfaceMode: HomeInterfaceMode = .daily
@@ -59,7 +61,8 @@ public final class HomeServerStore: ObservableObject {
     private var eventCursor: HomeJSON?
 
     public init(transport: any HomeHTTPTransport = HomeURLSessionTransport(), eventTransport: any HomeEventTransport = HomeWebSocketTransport(), defaults: UserDefaults? = .standard,
-                credentialStore: any HomeCredentialStore = HomeKeychainCredentialStore()) {
+                credentialStore: any HomeCredentialStore = HomeKeychainCredentialStore(), diagnostics: HomeDiagnostics? = nil) {
+        self.diagnostics = diagnostics ?? HomeDiagnostics()
         self.transport = transport; self.eventTransport = eventTransport; self.defaults = defaults
         self.credentialStore = credentialStore
         endpointText = defaults?.string(forKey: "home.server") ?? "https://192.168.3.2:8444"
@@ -413,18 +416,74 @@ public final class HomeServerStore: ObservableObject {
             if !self.receivingPush { try await self.readSnapshots() }
         }
     }
-    public func canActivateKeypad(_ id: String, key number: Int) -> Bool {
-        guard controlsAvailable, let row = devices.first(where: { $0.id == id }),
-              let panel = try? HomeKeypad(record: row), let key = panel.keys.first(where: { $0.number == number && $0.canActivate }) else { return false }
+    public func keypadGate(_ id: String, key number: Int) -> HomeKeypadGateState {
+        var state = HomeKeypadGateState()
+        state.connected = connected; state.busy = busy
+        state.current = snapshotIsCurrent; state.receivingPush = receivingPush
+        let factRow = devices.first { $0.id == id }
+        let factPanel = factRow.flatMap { try? HomeKeypad(record: $0) }
+        let factKey = factPanel?.keys.first { $0.number == number && $0.canActivate }
+        let factTarget = factKey?.actionScene.flatMap { scene in scenes.first { $0.id == scene } }
+            ?? factKey?.actionDevice.flatMap { device in devices.first { $0.id == device } }
+        state.configured = factKey != nil
+        state.canControl = factTarget?.raw["can_control"].flag == true
+        state.targetAvailable = factTarget?.targetAvailable == true
+        if case .bool(let value) = factTarget?.raw["selected"] { state.selected = value }
+        state.relativeUnknownAllowed = factTarget?.raw["relative_unknown_allowed"].flag == true
+        if !connected { state.reason = .disconnected; return state }
+        if busy { state.reason = .busy; return state }
+        if !snapshotIsCurrent { state.reason = .snapshotNotCurrent; return state }
+        guard let row = devices.first(where: { $0.id == id }) else { state.reason = .panelMissing; return state }
+        guard let panel = try? HomeKeypad(record: row) else { state.reason = .panelInvalid; return state }
+        guard let key = panel.keys.first(where: { $0.number == number && $0.canActivate }) else { state.reason = .actionMissing; return state }
+        state.configured = true
         if let device = key.actionDevice {
-            return canControlDevice(device) && devices.contains { $0.id == device && $0.raw["kind"].text == "Motor" && $0.raw["motor_calibrated"].flag }
+            state.canControl = canControlDevice(device)
+            state.targetAvailable = devices.first { $0.id == device }?.targetAvailable == true
+            if !state.canControl { state.reason = .deviceUnavailable }
+            else if !devices.contains(where: { $0.id == device && $0.raw["kind"].text == "Motor" && $0.raw["motor_calibrated"].flag }) { state.reason = .motorNotCalibrated }
+            return state
         }
-        guard let sceneID = key.actionScene, canControlScene(sceneID), let scene = scenes.first(where: { $0.id == sceneID }) else { return false }
-        if case .bool = scene.raw["selected"] { return true }
-        return scene.raw["relative_unknown_allowed"].flag
+        guard let sceneID = key.actionScene, let scene = scenes.first(where: { $0.id == sceneID }) else { state.reason = .sceneUnavailable; return state }
+        state.canControl = canControlScene(sceneID); state.targetAvailable = scene.targetAvailable
+        if case .bool(let value) = scene.raw["selected"] { state.selected = value }
+        state.relativeUnknownAllowed = scene.raw["relative_unknown_allowed"].flag
+        if !state.canControl { state.reason = .sceneUnavailable }
+        else if state.selected == nil && !state.relativeUnknownAllowed { state.reason = .selectionUnknown }
+        return state
     }
-    public func activateKeypad(_ id: String, key number: Int) async {
-        guard canActivateKeypad(id, key: number) else { return }
+    public func canActivateKeypad(_ id: String, key number: Int) -> Bool { keypadGate(id, key: number).allowed }
+    public func keypadGateStates(_ id: String) -> [HomeKeypadGateState] { (1...6).map { keypadGate(id, key: $0) } }
+    public func recordKeypadGateStates(_ id: String) {
+        let states = keypadGateStates(id), previous = loggedKeypadGates[id]
+        for (index, state) in states.enumerated() where previous?[index] != state {
+            diagnostics.record(.gateState, operation: diagnostics.operation(target: id, key: index + 1), gate: state)
+        }
+        loggedKeypadGates[id] = states
+    }
+    /// Called synchronously by the actual SwiftUI Button action, before its Task.
+    /// A disabled Button dispatches no action; only gate.state can describe it.
+    public func beginKeypadClick(_ id: String, key number: Int) -> HomeControlOperation {
+        let operation = diagnostics.operation(target: id, key: number)
+        diagnostics.record(.buttonClick, operation: operation, gate: keypadGate(id, key: number))
+        return operation
+    }
+    private func traced(_ supplied: HomeControlOperation? = nil, target: String, key: Int? = nil, work: () async -> Void) async {
+        if HomeControlContext.operation != nil { await work(); return }
+        let operation = supplied ?? diagnostics.operation(target: target, key: key)
+        await HomeControlContext.$operation.withValue(operation) {
+            diagnostics.record(.operationBegin)
+            defer { diagnostics.record(.operationComplete) }
+            await work()
+        }
+    }
+    public func activateKeypad(_ id: String, key number: Int, operation: HomeControlOperation? = nil) async {
+        await traced(operation, target: id, key: number) { await self.activateKeypadAction(id, key: number) }
+    }
+    private func activateKeypadAction(_ id: String, key number: Int) async {
+        let gate = keypadGate(id, key: number)
+        diagnostics.record(.gateCheck, gate: gate)
+        guard gate.allowed else { diagnostics.record(.ignored, gate: gate); return }
         guard controlsAvailable, let row = devices.first(where: { $0.id == id }),
               let panel = try? HomeKeypad(record: row),
               let key = panel.keys.first(where: { $0.number == number && $0.canActivate }) else { return }
@@ -439,6 +498,7 @@ public final class HomeServerStore: ObservableObject {
             await controlScene(scene, on: !selected)
             return
         }
+        diagnostics.record(.decision) // Selected state is unknown; existing relative path is unchanged.
         await run {
             let result = try await self.request("/api/v1/scene-relative-actions", method: "POST", body: .object([
                 "scene": .string(scene), "request_id": .string(UUID().uuidString)
@@ -498,7 +558,14 @@ public final class HomeServerStore: ObservableObject {
         }
     }
     public func controlScene(_ id: String, on: Bool?) async {
-        guard canControlScene(id) else { return }
+        await traced(target: id) { await self.controlSceneAction(id, on: on) }
+    }
+    private func controlSceneAction(_ id: String, on: Bool?) async {
+        diagnostics.record(.decision, on: on)
+        guard canControlScene(id) else {
+            diagnostics.record(.ignored, reason: !connected ? .disconnected : busy ? .busy : !snapshotIsCurrent ? .snapshotNotCurrent : .sceneUnavailable)
+            return
+        }
         await run {
             var body: HomeJSON = .object(["scene": .string(id), "request_id": .string(UUID().uuidString)])
             if let on { body["on"] = .bool(on) }
@@ -725,14 +792,19 @@ public final class HomeServerStore: ObservableObject {
         guard let endpoint, let token else { throw HomeServerError.notAuthenticated }
         let generation = epoch
         let outgoing = try endpoint.request(path: path, method: method, token: token, body: body)
+        let trace = HomeControlContext.operation ?? diagnostics.operation(target: "http")
+        let requestID = body?["request_id"].text
+        diagnostics.record(.requestSend, operation: trace, method: method, path: path, requestID: requestID)
         let response: HomeHTTPResponse
         do { response = try await transport.send(outgoing) }
         catch {
+            diagnostics.record(.requestFailed, operation: trace, method: method, path: path, requestID: requestID, error: error)
             if method != "GET", generation == epoch {
                 message = "请求结果未知，服务端可能已执行；请刷新核对，不自动重试。"
             }
             throw error
         }
+        diagnostics.record(.response, operation: trace, method: method, path: path, requestID: requestID, status: response.status, responseData: response.data)
         guard generation == epoch, !Task.isCancelled else { throw HomeServerError.expiredRequest }
         if response.status == 401 {
             let origin = endpoint.origin
@@ -767,12 +839,13 @@ public final class HomeServerStore: ObservableObject {
         return value
     }
     private func run(_ work: () async throws -> Void) async {
-        guard !busy, connected else { return }
+        guard !busy, connected else { diagnostics.record(.ignored, reason: !connected ? .disconnected : .busy); return }
         let generation = epoch
         busy = true; error = nil
         defer { if generation == epoch { busy = false } }
         do { try await work() }
         catch {
+            diagnostics.record(.workFailed, error: error)
             guard generation == epoch else { return }
             self.error = error.localizedDescription
             if case HomeServerError.staleConfiguration = error { preview = nil }

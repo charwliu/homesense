@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 import HomeSenseCore
 
 private enum HomePage: String, CaseIterable, Identifiable {
@@ -22,6 +23,8 @@ struct HomeManagementView: View {
     @ObservedObject var home: HomeServerStore
     @State private var page: HomePage? = .overview
     @State private var token = ""
+    @State private var exportingDiagnostics = false
+    @State private var diagnosticExport = HomeDiagnosticExport(text: "")
     @State private var roomFilter = ""
     @State private var editor: HomeEditRequest?
     @State private var confirmPublication = false
@@ -104,6 +107,7 @@ struct HomeManagementView: View {
                 }
             }
         }
+        .fileExporter(isPresented: $exportingDiagnostics, document: diagnosticExport, contentType: .plainText, defaultFilename: "HomeSense-diagnostics") { _ in }
         .onChange(of: home.interfaceMode) { _, _ in preserveNavigation() }
         .onChange(of: home.canManage) { _, canManage in
             preserveNavigation()
@@ -176,9 +180,14 @@ struct HomeManagementView: View {
                 if device.raw["kind"].text == "Keypad", device.raw["module_id"].text != nil {
                     if let keypad = try? HomeKeypad(record: device, current: home.snapshotIsCurrent) {
                         HomeKeypadCard(keypad: keypad, controlsAvailable: home.controlsAvailable,
-                            activate: { number in Task { await home.activateKeypad(device.id, key: number) } },
+                            activate: { number in
+                                let operation = home.beginKeypadClick(device.id, key: number)
+                                Task { await home.activateKeypad(device.id, key: number, operation: operation) }
+                            },
                             details: { editor = HomeEditRequest(kind: "keypad-details", record: device) },
                             isActionAvailable: { home.canActivateKeypad(device.id, key: $0) })
+                            .onAppear { home.recordKeypadGateStates(device.id) }
+                            .onChange(of: home.keypadGateStates(device.id)) { _, _ in home.recordKeypadGateStates(device.id) }
                     } else { empty("面板数据暂不可用", "请刷新或核对服务端接口。") }
                 } else {
                     Button { editor = HomeEditRequest(kind: "device-details", record: device) } label: {
@@ -215,6 +224,14 @@ struct HomeManagementView: View {
                 .disabled(home.busy && !home.restoringCredential)
             if !home.credentialStatus.isEmpty { Text(home.credentialStatus).font(.caption).foregroundStyle(.secondary) }
             Text("鉴权成功后，令牌按 HTTPS 服务地址保存在本机 Keychain，不参与 iCloud 同步，不写入配置或日志。HTTPS 证书须由系统信任且与服务地址匹配。")
+                .font(.caption).foregroundStyle(.secondary)
+            Button("导出诊断日志", systemImage: "square.and.arrow.up") {
+                Task {
+                    diagnosticExport = HomeDiagnosticExport(text: await home.diagnostics.exportIncludingPrevious())
+                    exportingDiagnostics = true
+                }
+            }
+            Text("日志仅保留最近的操作状态与请求结果；禁用按键的触摸不会触发点击日志。导出不会发送设备指令。")
                 .font(.caption).foregroundStyle(.secondary)
             Text("楼层、房间、设备和场景共用服务端配置版本；修改需保存草稿、预览并发布。")
                 .font(.caption).foregroundStyle(.secondary)
@@ -487,4 +504,16 @@ private extension HomeJSON {
 
 private extension String {
     func nonemptyOr(_ alternative: String) -> String { isEmpty ? alternative : self }
+}
+
+private struct HomeDiagnosticExport: FileDocument {
+    static var readableContentTypes: [UTType] { [.plainText] }
+    var text: String
+    init(text: String) { self.text = text }
+    init(configuration: ReadConfiguration) throws {
+        text = configuration.file.regularFileContents.flatMap { String(data: $0, encoding: .utf8) } ?? ""
+    }
+    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
+        FileWrapper(regularFileWithContents: Data(text.utf8))
+    }
 }
