@@ -57,6 +57,7 @@ pub struct CancellationAudit<'a> {
 
 pub struct Store {
     connection: Connection,
+    active_bundle_cache: std::cell::RefCell<Option<automation::CachedBundle>>,
 }
 fn sql_revision(value: u64) -> Result<i64, Error> {
     if value == 0 {
@@ -288,7 +289,7 @@ impl Store {
         connection.pragma_update(None, "foreign_keys", "ON")?;
         connection.pragma_update(None, "journal_mode", "WAL")?;
         connection.pragma_update(None, "synchronous", "FULL")?;
-        Ok(Self { connection })
+        Ok(Self { connection, active_bundle_cache: Default::default() })
     }
     /// Validate before opening the publication transaction. The payload revision
     /// is authoritative, preventing a mismatch between SQL and configuration IDs.

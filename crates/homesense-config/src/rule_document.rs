@@ -343,6 +343,7 @@ pub enum AwayExecutionPolicy {RequireQuiescentRuntime,CancelAffectedLighting}
 #[derive(Debug,Clone,Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct AwayModule {pub module_id:String,pub devices:Vec<String>,pub review_evidence:String}
+#[derive(Clone)]
 pub struct Document {
     pub away_off: Option<AwayOff>,
     pub scene_deactivations: BTreeMap<String,SceneDeactivation>,
@@ -999,6 +1000,11 @@ impl Document {
         }
         for panel in config.keypads().values() {
             for key in panel.keys.values() {
+                if let Some(crate::keypad::KeyAction::AwayOff{indicator_reset,..})=&key.action
+                    && panel.enabled && key.led_endpoint.enabled {
+                    if document.away_off.as_ref().is_none_or(|policy|!policy.enabled) {return Err(invalid("keypad Away requires enabled reviewed Away policy"));}
+                    if indicator_reset.is_some() && config.module(&panel.module_id).is_none_or(|(_,m)|m.led_mode()!=homesense_core::PanelLedMode::Manual) {return Err(invalid("Away indicator reset requires reviewed manual panel mode"));}
+                }
                 if let Some(crate::keypad::KeyAction::SceneToggle { scene, .. }) = &key.action
                     && (!document.scene_action_available(scene)
                         || !document.scene_switch_groups.iter().any(|group| group.members.iter().any(|member| &member.scene == scene))) {

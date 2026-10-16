@@ -35,6 +35,7 @@ pub enum Action {
     SceneSwitchStates {controller:Uuid,revision:u64},
     SceneSelectionDetails {controller:Uuid,revision:u64},
     SceneWrites {controller:Uuid,revision:u64,scenes:Vec<(String,Option<bool>)>},
+    SceneCatalog {controller:Uuid,revision:u64,scenes:Vec<String>},
     SceneDefinition {controller:Uuid,revision:u64,scene:String},
     SceneAvailability {controller:Uuid,revision:u64,scene:String},
     SceneRelative {controller:Uuid,revision:u64,scene:String,request_id:String},
@@ -69,6 +70,7 @@ pub enum Reply {
     CommandsAccepted(Vec<u64>),
     SceneAccepted(Option<u64>),
     ImmediateAccepted(crate::immediate_scene::Receipt),
+    SceneCatalog(std::collections::BTreeMap<String,SceneCatalogEntry>),
     SceneDefinition(homesense_config::rule_document::SceneExecutionKind),
     SceneAvailability(crate::gateway_runtime::ActionGate),
     ScenesAccepted(Vec<u64>),
@@ -83,6 +85,16 @@ pub enum Reply {
     LastRun(Option<LastRun>),
     Activity(Option<crate::scene_activity::SceneActivity>),
     SceneTracking(Option<crate::scene_tracking::Projection>),
+}
+/// One read-only control quantum for a directory, avoiding a bus-drive round
+/// trip between every definition, availability, activity and history field.
+#[derive(Debug, PartialEq, Eq)]
+pub struct SceneCatalogEntry {
+    pub execution_kind: homesense_config::rule_document::SceneExecutionKind,
+    pub action_gate: crate::gateway_runtime::ActionGate,
+    pub tracking: Option<crate::scene_tracking::Projection>,
+    pub activity: crate::scene_activity::SceneActivity,
+    pub last_run: Option<LastRun>,
 }
 /// Persisted execution receipt. Timestamps are monotonic within `boot`, and
 /// CommandsWritten is not proof that physical targets were reached.
@@ -502,6 +514,7 @@ impl Receiver {
                         admission.variable_snapshot(controller, self.generation.clone(), vec![]).await.map_err(|e|format!("{e:?}"))?;
                         if request.reply.is_closed() || Instant::now() >= request.deadline { return Err("scene action expired or abandoned".into()); }
                         if crate::scene_switches::related(document,&scene) {
+                            crate::scene_reconciliation::tick(admission,controller,document,scenes,feedback).await?;
                             let snapshot=admission.scene_selection_values(controller,self.generation.clone(),crate::scene_switches::variable_names(document)).await.map_err(|e|format!("{e:?}"))?;
                             let plan=crate::scene_switches::plan(document,&[(scene,Some(execute))],&snapshot)?;
                             if request.reply.is_closed()||Instant::now()>=request.deadline {return Err("scene action expired or abandoned".into());}
@@ -530,6 +543,25 @@ impl Receiver {
                         if writes.iter().any(|(id,_)|!document.scene_tracking.get(id).is_some_and(|p|p.enabled)){return Err("unknown activity role".into());}
                         if writes.iter().any(|(_,value)|value.is_some()){return Err("activity role is read-only".into());}
                         Ok(Reply::ScenesAccepted(vec![]))
+                    },
+                    Action::SceneCatalog {controller,revision,scenes:ids}=>{
+                        if revision!=document.revision || ids.len()>2048 || ids.iter().collect::<std::collections::BTreeSet<_>>().len()!=ids.len() {return Err("scene catalog revision or scope invalid".into());}
+                        let diagnostics=admission.diagnostics(controller,self.generation.clone()).await.map_err(|e|format!("catalog authorization: {e:?}"))?;
+                        if !diagnostics.mapping_readable(){return Err("scene catalog runtime not ready".into());}
+                        let bundle=admission.automation_bundle(controller,self.generation.clone()).await.map_err(|e|format!("catalog mapping: {e:?}"))?;
+                        let mut entries=std::collections::BTreeMap::new();
+                        for id in ids {
+                            if request.reply.is_closed() || Instant::now()>=request.deadline {return Err("scene catalog expired or abandoned".into());}
+                            let execution_kind=document.scene_execution_kind(&id).ok_or("unknown enabled scene")?;
+                            let gateways=crate::gateway_runtime::scene_devices(document,&id)?.into_iter().map(|device|bundle.configuration.binding(&device).map(|(d,_)|d.gateway.clone()).ok_or("scene target unavailable")).collect::<Result<std::collections::BTreeSet<_>,_>>()?;
+                            let views=diagnostics.gateways.iter().filter(|view|gateways.contains(&view.gateway)).cloned().collect::<Vec<_>>();
+                            let available=if diagnostics.gateways.is_empty(){diagnostics.gateway_ready}else{views.len()==gateways.len()&&views.iter().all(|view|view.state=="ready")};
+                            let tracking=crate::scene_tracking::read(document,&id,admission,controller,&self.generation,feedback).await?;
+                            let activity=if let Some(value)=&tracking {value.activity}else{crate::scene_tracking::activity(document,&id,admission,controller,&self.generation,feedback,max_age_ms).await.unwrap_or(crate::scene_activity::SceneActivity::Unknown)};
+                            let last_run=if execution_kind==homesense_config::rule_document::SceneExecutionKind::Immediate {None}else{admission.scene_history(controller,self.generation.clone(),homesense_storage::scene_run::Query::Latest{definition:id.clone()}).await.map_err(|e|format!("catalog history: {e:?}"))?.map(|p|LastRun{boot:p.boot,run:p.run,revision:p.record.revision,started_ms:p.record.started_ms,updated_ms:p.record.updated_ms,version:p.record.version,status:p.record.status,cause:p.cause})};
+                            entries.insert(id,SceneCatalogEntry{execution_kind,action_gate:crate::gateway_runtime::ActionGate{available,required_gateways:views},tracking,activity,last_run});
+                        }
+                        Ok(Reply::SceneCatalog(entries))
                     },
                     Action::SceneTracking {controller,revision,scene}=>{
                         if revision!=document.revision{return Err("tracking revision expired".into());}
