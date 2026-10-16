@@ -11,6 +11,8 @@ use std::collections::BTreeMap;
 #[serde(deny_unknown_fields)]
 struct Input {
     #[serde(default)]
+    component_mode_confirmations: Vec<crate::component_modes::Policy>,
+    #[serde(default)]
     away_off: Option<AwayOff>,
     #[serde(default)]
     scene_deactivations: Vec<SceneDeactivation>,
@@ -345,6 +347,7 @@ pub enum AwayExecutionPolicy {RequireQuiescentRuntime,CancelAffectedLighting}
 pub struct AwayModule {pub module_id:String,pub devices:Vec<String>,pub review_evidence:String}
 #[derive(Clone)]
 pub struct Document {
+    pub component_mode_confirmations: Vec<crate::component_modes::Policy>,
     pub away_off: Option<AwayOff>,
     pub scene_deactivations: BTreeMap<String,SceneDeactivation>,
     pub revision: u64,
@@ -962,6 +965,7 @@ impl Document {
             variables,
             variable_migrations,
             feedback_bindings,
+            component_mode_confirmations: input.component_mode_confirmations,
             rules,
             immediate_scenes,
             disabled_immediate_scenes,
@@ -1005,6 +1009,10 @@ impl Document {
                     if document.away_off.as_ref().is_none_or(|policy|!policy.enabled) {return Err(invalid("keypad Away requires enabled reviewed Away policy"));}
                     if indicator_reset.is_some() && config.module(&panel.module_id).is_none_or(|(_,m)|m.led_mode()!=homesense_core::PanelLedMode::Manual) {return Err(invalid("Away indicator reset requires reviewed manual panel mode"));}
                 }
+                if let Some(crate::keypad::KeyAction::SceneExecute { scene, .. }) = &key.action {
+                    if document.scene_execution_kind(scene)!=Some(SceneExecutionKind::Immediate) || !document.scene_action_available(scene) {return Err(invalid("keypad execute requires enabled reviewed manual immediate scene"));}
+                    crate::keypad::scene_execute_devices(&document,config,scene)?;
+                }
                 if let Some(crate::keypad::KeyAction::SceneToggle { scene, .. }) = &key.action
                     && (!document.scene_action_available(scene)
                         || !document.scene_switch_groups.iter().any(|group| group.members.iter().any(|member| &member.scene == scene))) {
@@ -1012,6 +1020,7 @@ impl Document {
                 }
             }
         }
+        crate::component_modes::validate(&document.component_mode_confirmations,&document,config)?;
         document.validate_curtain_led_owners(config)?;
         document.validate_enabled_motor_predicates(config)?;
         if let Some(settings)=&document.scene_observation {settings.validate_linked(&document)?;}

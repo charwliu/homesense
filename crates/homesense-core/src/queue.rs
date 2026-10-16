@@ -28,6 +28,18 @@ pub struct QueuedCommand {
     pub run_id: Option<u64>,
 }
 impl QueuedCommand {
+    pub fn physical_frames(&self) -> usize {
+        if matches!(
+            self.command,
+            Command::PanelParameter(
+                crate::PanelParameter::Backlight(_) | crate::PanelParameter::FeedbackMode(_)
+            )
+        ) {
+            3
+        } else {
+            1
+        }
+    }
     pub fn is_stop(&self) -> bool {
         self.command == Command::Motor(MotorMotion::Stop)
     }
@@ -112,6 +124,9 @@ impl CommandQueue {
             last_id: 0,
         })
     }
+    pub fn any(&self, predicate: impl Fn(&QueuedCommand) -> bool) -> bool {
+        self.commands.iter().any(predicate)
+    }
     pub fn len(&self) -> usize {
         self.commands.len()
     }
@@ -121,7 +136,9 @@ impl CommandQueue {
     /// Only unfinished motor work for this exact logical owner. Queries and
     /// unrelated channels never block a conditional direction decision.
     pub fn has_motor_for(&self, device: &DeviceId) -> bool {
-        self.commands.iter().any(|c| &c.device_id == device && matches!(c.command, Command::Motor(_)))
+        self.commands
+            .iter()
+            .any(|c| &c.device_id == device && matches!(c.command, Command::Motor(_)))
     }
     pub fn has_stop(&self) -> bool {
         self.commands.iter().any(QueuedCommand::is_stop)
@@ -150,7 +167,8 @@ impl CommandQueue {
         &mut self,
         request: QueuedCommand,
         now_ms: u64,
-        current: Epochs, coalesce: bool,
+        current: Epochs,
+        coalesce: bool,
     ) -> Result<Vec<Cancellation>, QueueError> {
         if request.id <= self.last_id {
             return Err(QueueError::InvalidCommandId);
@@ -180,7 +198,7 @@ impl CommandQueue {
             });
         let supersedes_rule = |old: &QueuedCommand| {
             old.device_id == request.device_id
-                && !matches!(request.command,Command::PanelParameter(_))
+                && !matches!(request.command, Command::PanelParameter(_))
                 && old.origin == Origin::Rule
                 && old.run_id.is_some()
                 && !old.is_stop()
@@ -192,14 +210,23 @@ impl CommandQueue {
             .commands
             .iter()
             .filter(|c| c.is_stop() == stop && supersedes_rule(c))
-            .count();
-        let used = self.commands.iter().filter(|c| c.is_stop() == stop).count();
+            .map(QueuedCommand::physical_frames)
+            .sum::<usize>();
+        let used = self
+            .commands
+            .iter()
+            .filter(|c| c.is_stop() == stop)
+            .map(QueuedCommand::physical_frames)
+            .sum::<usize>();
         let capacity = if stop {
             self.stop_capacity
         } else {
             self.normal_capacity
         };
-        if used - usize::from(replace.is_some()) - replaced_rules >= capacity {
+        if used - replace.map_or(0, |i| self.commands[i].physical_frames()) - replaced_rules
+            + request.physical_frames()
+            > capacity
+        {
             return Err(QueueError::QueueFull);
         }
         let mut cancelled = Vec::new();
@@ -225,9 +252,13 @@ impl CommandQueue {
             self.commands.retain(|old| {
                 // A reviewed ordered rule's own explicit Stop is a source
                 // node, not an external cancellation of its earlier Open.
-                let same_rule=!coalesce && request.origin==Origin::Rule && old.origin==Origin::Rule
-                    && request.run_id.is_some() && request.run_id==old.run_id;
-                let remove = !same_rule && old.device_id == request.device_id
+                let same_rule = !coalesce
+                    && request.origin == Origin::Rule
+                    && old.origin == Origin::Rule
+                    && request.run_id.is_some()
+                    && request.run_id == old.run_id;
+                let remove = !same_rule
+                    && old.device_id == request.device_id
                     && matches!(
                         old.command,
                         Command::Motor(MotorMotion::Up | MotorMotion::Down)
@@ -247,12 +278,16 @@ impl CommandQueue {
     }
     /// Stale/expired commands are returned to the caller for outcome reporting.
     pub fn poll(&mut self, now_ms: u64, current: Epochs) -> Poll {
-        self.poll_eligible(now_ms,current,|_|true)
+        self.poll_eligible(now_ms, current, |_| true)
     }
     /// A busy reader on one bus does not consume another bus's dispatch slot.
     /// Eligibility is trusted transport ownership, never a substitute for auth.
-    pub(crate) fn poll_eligible(&mut self, now_ms: u64, current: Epochs,
-        mut eligible: impl FnMut(&QueuedCommand)->bool) -> Poll {
+    pub(crate) fn poll_eligible(
+        &mut self,
+        now_ms: u64,
+        current: Epochs,
+        mut eligible: impl FnMut(&QueuedCommand) -> bool,
+    ) -> Poll {
         let mut cancelled = Vec::new();
         self.commands.retain(|command| {
             let reason = if command.epochs.transport != current.transport {
@@ -279,17 +314,24 @@ impl CommandQueue {
             .iter()
             .enumerate()
             .filter(|(i, command)| {
-                if !eligible(command) {return false;}
+                if !eligible(command) {
+                    return false;
+                }
                 // Source order within one rule batch includes its explicit
                 // Stop. Independent manual Stops retain safety priority.
-                (command.origin!=Origin::Rule || command.run_id.is_none()
-                    || !self.commands.iter().take(*i).any(|old|old.origin==Origin::Rule && old.run_id==command.run_id))
-                    && (command.is_stop()
+                (command.origin != Origin::Rule
+                    || command.run_id.is_none()
                     || !self
                         .commands
                         .iter()
                         .take(*i)
-                        .any(|old| old.device_id == command.device_id))
+                        .any(|old| old.origin == Origin::Rule && old.run_id == command.run_id))
+                    && (command.is_stop()
+                        || !self
+                            .commands
+                            .iter()
+                            .take(*i)
+                            .any(|old| old.device_id == command.device_id))
             })
             .min_by_key(|(i, command)| (command.priority(), *i))
             .map(|(i, _)| i);
@@ -298,26 +340,52 @@ impl CommandQueue {
             cancelled,
         }
     }
-    pub(crate) fn cancel_ids(&mut self, ids:&std::collections::BTreeSet<u64>) -> Vec<Cancellation> {
-        let mut cancelled=vec![];
+    pub(crate) fn cancel_ids(
+        &mut self,
+        ids: &std::collections::BTreeSet<u64>,
+    ) -> Vec<Cancellation> {
+        self.cancel_ids_with_reason(ids, CancelReason::TransportChanged)
+    }
+    pub(crate) fn cancel_ids_with_reason(
+        &mut self,
+        ids: &std::collections::BTreeSet<u64>,
+        reason: CancelReason,
+    ) -> Vec<Cancellation> {
+        let mut cancelled = vec![];
         self.commands.retain(|command| {
             if ids.contains(&command.id) {
-                cancelled.push(Cancellation {command:command.clone(),reason:CancelReason::TransportChanged});
+                cancelled.push(Cancellation {
+                    command: command.clone(),
+                    reason,
+                });
                 false
-            } else {true}
+            } else {
+                true
+            }
         });
         cancelled
     }
-    pub(crate) fn contains_ids(&self, ids:&std::collections::BTreeSet<u64>) -> bool {
-        ids.iter().all(|id|self.commands.iter().any(|command|command.id==*id))
+    pub(crate) fn contains_ids(&self, ids: &std::collections::BTreeSet<u64>) -> bool {
+        ids.iter()
+            .all(|id| self.commands.iter().any(|command| command.id == *id))
     }
     /// Whole-module Away override supersedes only covered control outputs.
     /// Queries and independent motor STOP commands retain their original queue.
-    pub(crate) fn cancel_devices(&mut self,devices:&std::collections::BTreeSet<DeviceId>)->Vec<Cancellation> {
-        let mut cancelled=vec![];
-        self.commands.retain(|command|{
-            let remove=devices.contains(&command.device_id) && command.command!=Command::Query && !command.is_stop();
-            if remove {cancelled.push(Cancellation{command:command.clone(),reason:CancelReason::Superseded});}
+    pub(crate) fn cancel_devices(
+        &mut self,
+        devices: &std::collections::BTreeSet<DeviceId>,
+    ) -> Vec<Cancellation> {
+        let mut cancelled = vec![];
+        self.commands.retain(|command| {
+            let remove = devices.contains(&command.device_id)
+                && command.command != Command::Query
+                && !command.is_stop();
+            if remove {
+                cancelled.push(Cancellation {
+                    command: command.clone(),
+                    reason: CancelReason::Superseded,
+                });
+            }
             !remove
         });
         cancelled

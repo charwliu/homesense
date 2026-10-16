@@ -59,7 +59,7 @@ pub enum CommitResult {
 pub struct Arbiter {
     policy: RuntimePolicy,
     queue: CommandQueue,
-    writing: Option<QueuedCommand>,
+    writing: Vec<QueuedCommand>,
     publication: Option<Publication>,
 }
 impl Arbiter {
@@ -75,12 +75,20 @@ impl Arbiter {
             policy,
             queue: CommandQueue::new(normal_capacity, stop_capacity)
                 .map_err(ArbiterError::Queue)?,
-            writing: None,
+            writing: Vec::new(),
             publication: None,
         })
     }
     pub fn policy(&self) -> RuntimePolicy {
         self.policy
+    }
+    pub fn has_pending_matching(&self, predicate: impl Fn(&QueuedCommand) -> bool) -> bool {
+        self.queue.any(&predicate)
+            || self.writing.iter().any(&predicate)
+            || self
+                .publication
+                .as_ref()
+                .is_some_and(|p| p.stops.iter().any(predicate))
     }
     pub fn queued_len(&self) -> usize {
         self.queue.len()
@@ -88,8 +96,11 @@ impl Arbiter {
     /// The admission owner uses this during the same turn as queue acceptance.
     /// Include a selected writer, not just work still waiting in the queue.
     pub fn has_pending_motor(&self, device: &crate::DeviceId) -> bool {
-        self.queue.has_motor_for(device) || self.writing.as_ref().is_some_and(|c|
-            &c.device_id == device && matches!(c.command, crate::Command::Motor(_)))
+        self.queue.has_motor_for(device)
+            || self
+                .writing
+                .iter()
+                .any(|c| &c.device_id == device && matches!(c.command, crate::Command::Motor(_)))
     }
     /// Invalidate old producers immediately. Returned cancellations include STOP:
     /// the owner may explicitly submit a NEW degraded STOP after revalidating its
@@ -136,7 +147,7 @@ impl Arbiter {
         {
             return Err(ArbiterError::NotSynchronized);
         }
-        if self.writing.is_some() || self.queue.has_stop() {
+        if !self.writing.is_empty() || self.queue.has_stop() {
             return Err(ArbiterError::Busy);
         }
         let control = self
@@ -161,7 +172,7 @@ impl Arbiter {
         if self.policy.storage_healthy || self.publication.is_some() {
             return Err(ArbiterError::InvalidState);
         }
-        if self.writing.is_some() {
+        if !self.writing.is_empty() {
             return Err(ArbiterError::Busy);
         }
         if transport_epoch <= self.policy.epochs.transport {
@@ -228,7 +239,7 @@ impl Arbiter {
         now: u64,
         commit: impl FnOnce(&[QueuedCommand], &[Cancellation]) -> Result<(), E>,
     ) -> Result<Vec<Cancellation>, BatchCommitError<E>> {
-        self.submit_batch_with_order(commands, now, commit, false,None)
+        self.submit_batch_with_order(commands, now, commit, false, None)
     }
     /// Trusted runtime rule nodes retain every ordered output. This is not an
     /// authentication API: the runtime must supply its durable rule audit.
@@ -246,30 +257,43 @@ impl Arbiter {
         {
             return Err(BatchCommitError::Admission(ArbiterError::InvalidState));
         }
-        self.submit_batch_with_order(commands, now, commit, true,None)
+        self.submit_batch_with_order(commands, now, commit, true, None)
     }
     /// Trusted module operation: cancellation and module effects commit in one
     /// transaction. An in-flight write is not undone; queued unrelated outputs
     /// and every STOP remain available to the sole transport owner.
     pub fn submit_module_off_batch_committed<E>(
-        &mut self,commands:Vec<(QueuedCommand,Access)>,affected:&std::collections::BTreeSet<crate::DeviceId>,now:u64,
-        commit:impl FnOnce(&[QueuedCommand],&[Cancellation])->Result<(),E>,
-    )->Result<Vec<Cancellation>,BatchCommitError<E>> {
-        self.submit_module_off_with_reset_committed(commands,None,affected,now,commit)
+        &mut self,
+        commands: Vec<(QueuedCommand, Access)>,
+        affected: &std::collections::BTreeSet<crate::DeviceId>,
+        now: u64,
+        commit: impl FnOnce(&[QueuedCommand], &[Cancellation]) -> Result<(), E>,
+    ) -> Result<Vec<Cancellation>, BatchCommitError<E>> {
+        self.submit_module_off_with_reset_committed(commands, None, affected, now, commit)
     }
     /// The reviewed native key may reserve one green reset after the module
     /// batch. Its dispatch dependency is enforced by the execution owner.
     pub fn submit_module_off_with_reset_committed<E>(
-        &mut self,mut modules:Vec<(QueuedCommand,Access)>,reset:Option<(QueuedCommand,Access)>,
-        affected:&std::collections::BTreeSet<crate::DeviceId>,now:u64,
-        commit:impl FnOnce(&[QueuedCommand],&[Cancellation])->Result<(),E>,
-    )->Result<Vec<Cancellation>,BatchCommitError<E>> {
-        if modules.is_empty() || affected.is_empty() || modules.iter().any(|(c,_)|c.command!=crate::Command::ModuleAllOff)
-            || reset.as_ref().is_some_and(|(c,_)|c.command!=crate::Command::PanelLed(false) || affected.contains(&c.device_id)) {
+        &mut self,
+        mut modules: Vec<(QueuedCommand, Access)>,
+        reset: Option<(QueuedCommand, Access)>,
+        affected: &std::collections::BTreeSet<crate::DeviceId>,
+        now: u64,
+        commit: impl FnOnce(&[QueuedCommand], &[Cancellation]) -> Result<(), E>,
+    ) -> Result<Vec<Cancellation>, BatchCommitError<E>> {
+        if modules.is_empty()
+            || affected.is_empty()
+            || modules
+                .iter()
+                .any(|(c, _)| c.command != crate::Command::ModuleAllOff)
+            || reset.as_ref().is_some_and(|(c, _)| {
+                c.command != crate::Command::PanelLed(false) || affected.contains(&c.device_id)
+            })
+        {
             return Err(BatchCommitError::Admission(ArbiterError::InvalidState));
         }
         modules.extend(reset);
-        self.submit_batch_with_order(modules,now,commit,false,Some(affected))
+        self.submit_batch_with_order(modules, now, commit, false, Some(affected))
     }
     fn submit_batch_with_order<E>(
         &mut self,
@@ -277,13 +301,15 @@ impl Arbiter {
         now: u64,
         commit: impl FnOnce(&[QueuedCommand], &[Cancellation]) -> Result<(), E>,
         ordered_rule: bool,
-        supersede_devices:Option<&std::collections::BTreeSet<crate::DeviceId>>,
+        supersede_devices: Option<&std::collections::BTreeSet<crate::DeviceId>>,
     ) -> Result<Vec<Cancellation>, BatchCommitError<E>> {
         if commands.len() > 128 {
             return Err(BatchCommitError::Admission(ArbiterError::BatchTooLarge));
         }
         let mut staged = self.queue.clone();
-        let mut cancelled = supersede_devices.map(|devices|staged.cancel_devices(devices)).unwrap_or_default();
+        let mut cancelled = supersede_devices
+            .map(|devices| staged.cancel_devices(devices))
+            .unwrap_or_default();
         let mut accepted = Vec::with_capacity(commands.len());
         for (command, access) in commands {
             self.policy
@@ -314,6 +340,28 @@ impl Arbiter {
         self.queue = staged;
         Ok(cancelled)
     }
+    /// Cancel one logical member's exact expanded IDs, retaining peers from
+    /// the same admitted due phase. A selected writer cannot be recalled.
+    pub fn cancel_run_members_committed<E>(
+        &mut self,
+        run: u64,
+        ids: &std::collections::BTreeSet<u64>,
+        commit: impl FnOnce(&[Cancellation]) -> Result<(), E>,
+    ) -> Result<Vec<Cancellation>, BatchCommitError<E>> {
+        if ids.is_empty()
+            || ids.len() > 128
+            || self
+                .queue
+                .any(|c| ids.contains(&c.id) && c.run_id != Some(run))
+        {
+            return Err(BatchCommitError::Admission(ArbiterError::InvalidState));
+        }
+        let mut staged = self.queue.clone();
+        let cancelled = staged.cancel_ids_with_reason(ids, CancelReason::RunCancelled);
+        commit(&cancelled).map_err(BatchCommitError::Persistence)?;
+        self.queue = staged;
+        Ok(cancelled)
+    }
     /// Resolve current access for every candidate. Only one write may be in flight.
     /// A returned command must be encoded against its unchanged configuration.
     pub fn dispatch(
@@ -321,13 +369,15 @@ impl Arbiter {
         now: u64,
         mut access: impl FnMut(&QueuedCommand) -> Access,
     ) -> Result<Dispatch, ArbiterError> {
-        self.dispatch_eligible(now,&mut access,|_|true)
+        self.dispatch_eligible(now, &mut access, |_| true)
     }
-    pub fn dispatch_eligible(&mut self, now:u64,
-        mut access:impl FnMut(&QueuedCommand)->Access,
-        mut eligible:impl FnMut(&QueuedCommand)->bool,
-    )->Result<Dispatch,ArbiterError> {
-        if self.writing.is_some() {
+    pub fn dispatch_eligible(
+        &mut self,
+        now: u64,
+        mut access: impl FnMut(&QueuedCommand) -> Access,
+        mut eligible: impl FnMut(&QueuedCommand) -> bool,
+    ) -> Result<Dispatch, ArbiterError> {
+        if !self.writing.is_empty() {
             return Err(ArbiterError::Busy);
         }
         if self.publication.is_some() {
@@ -335,7 +385,9 @@ impl Arbiter {
         }
         let mut result = Dispatch::default();
         loop {
-            let polled = self.queue.poll_eligible(now, self.policy.epochs,&mut eligible);
+            let polled = self
+                .queue
+                .poll_eligible(now, self.policy.epochs, &mut eligible);
             result.cancelled.extend(polled.cancelled);
             let Some(command) = polled.next else {
                 return Ok(result);
@@ -344,43 +396,103 @@ impl Arbiter {
                 result.rejected.push((command, error));
                 continue;
             }
-            self.writing = Some(command.clone());
+            self.writing.push(command.clone());
             result.command = Some(command);
             return Ok(result);
         }
     }
+    /// Extend a selected writer without releasing its ownership. The caller
+    /// supplies the exact admitted request/phase identity and byte-capacity
+    /// predicate. Inspect the next normal-priority candidate before consuming:
+    /// an independent STOP or request is never skipped to fill a batch.
+    pub fn extend_write(
+        &mut self,
+        now: u64,
+        mut access: impl FnMut(&QueuedCommand) -> Access,
+        mut same_phase: impl FnMut(&QueuedCommand) -> bool,
+        mut eligible: impl FnMut(&QueuedCommand) -> bool,
+    ) -> Result<Dispatch, ArbiterError> {
+        if self.writing.is_empty() || self.writing.len() >= 32 || self.publication.is_some() {
+            return Err(ArbiterError::InvalidState);
+        }
+        let mut candidate = self.queue.clone();
+        let preview = candidate.poll_eligible(now, self.policy.epochs, &mut eligible);
+        let Some(next) = preview.next else {
+            return Ok(Dispatch::default());
+        };
+        if next.is_stop() || !same_phase(&next) {
+            return Ok(Dispatch::default());
+        }
+        let polled = self
+            .queue
+            .poll_eligible(now, self.policy.epochs, &mut eligible);
+        let mut result = Dispatch {
+            cancelled: polled.cancelled,
+            ..Default::default()
+        };
+        let command = polled.next.ok_or(ArbiterError::InvalidState)?;
+        if command.id != next.id {
+            return Err(ArbiterError::InvalidState);
+        }
+        if let Err(error) = self.policy.check(&command, access(&command), now) {
+            result.rejected.push((command, error));
+        } else {
+            self.writing.push(command.clone());
+            result.command = Some(command);
+        }
+        Ok(result)
+    }
     /// Apply exact IDs returned by a committed local gateway fault transaction.
     /// Missing owned rows are an invariant failure; callers fail the service.
     /// No global generation/readiness or unrelated B writer is changed.
-    pub fn apply_audited_gateway_fault(&mut self,cancelled:&[u64],uncertain:&[u64])
-        ->Result<Vec<Cancellation>,ArbiterError> {
-        let ids=cancelled.iter().copied().collect::<std::collections::BTreeSet<_>>();
-        if ids.len()!=cancelled.len() || !self.queue.contains_ids(&ids)
-            || uncertain.len()>1 || uncertain.first().is_some_and(|id|
-                self.writing.as_ref().is_none_or(|command|command.id!=*id)) {
+    pub fn apply_audited_gateway_fault(
+        &mut self,
+        cancelled: &[u64],
+        uncertain: &[u64],
+    ) -> Result<Vec<Cancellation>, ArbiterError> {
+        let ids = cancelled
+            .iter()
+            .copied()
+            .collect::<std::collections::BTreeSet<_>>();
+        if ids.len() != cancelled.len()
+            || !self.queue.contains_ids(&ids)
+            || uncertain.len() > 32
+            || uncertain
+                .iter()
+                .copied()
+                .collect::<std::collections::BTreeSet<_>>()
+                .len()
+                != uncertain.len()
+            || uncertain
+                .iter()
+                .any(|id| !self.writing.iter().any(|command| command.id == *id))
+        {
             return Err(ArbiterError::InvalidState);
         }
-        let rows=self.queue.cancel_ids(&ids);
-        if !uncertain.is_empty() {self.writing=None;}
-        if let Some(publication)=&mut self.publication {publication.failed=true;}
+        let rows = self.queue.cancel_ids(&ids);
+        self.writing
+            .retain(|command| !uncertain.contains(&command.id));
+        if let Some(publication) = &mut self.publication {
+            publication.failed = true;
+        }
         Ok(rows)
     }
     /// Release a selected command rejected before any transport write.
     /// The caller must first durably record its cancellation.
     pub fn cancel_selected_before_write(&mut self, id: u64) -> Result<(), ArbiterError> {
-        if self.writing.as_ref().is_none_or(|c| c.id != id) {
+        if !self.writing.iter().any(|c| c.id == id) {
             return Err(ArbiterError::InvalidState);
         }
-        self.writing.take();
+        self.writing.retain(|command| command.id != id);
         Ok(())
     }
     /// false means the frame boundary was not completed; publication must fail.
     /// Execution outcome/partial byte count must also be recorded by the caller.
     pub fn finish_write(&mut self, id: u64, complete_frame: bool) -> Result<(), ArbiterError> {
-        if self.writing.as_ref().is_none_or(|c| c.id != id) {
+        if !self.writing.iter().any(|c| c.id == id) {
             return Err(ArbiterError::InvalidState);
         }
-        self.writing.take();
+        self.writing.retain(|command| command.id != id);
         if !complete_frame {
             self.policy.gateway_ready = false;
             if let Some(publication) = &mut self.publication {
@@ -425,8 +537,10 @@ impl Arbiter {
     }
     /// Immutable reserved STOPs only. The admission owner may bind these to the
     /// accepted publication before draining; it cannot add work through this view.
-    pub fn publication_stops(&self)->impl Iterator<Item=&QueuedCommand> {
-        self.publication.iter().flat_map(|publication|publication.stops.iter())
+    pub fn publication_stops(&self) -> impl Iterator<Item = &QueuedCommand> {
+        self.publication
+            .iter()
+            .flat_map(|publication| publication.stops.iter())
     }
     /// STOP retains the old configuration revision. Caller resolves its original
     /// mapping and authority; only this explicit drain can adopt the new control
@@ -436,7 +550,7 @@ impl Arbiter {
         now: u64,
         access: impl FnOnce(&QueuedCommand) -> Access,
     ) -> Result<Option<QueuedCommand>, ArbiterError> {
-        if self.writing.is_some() {
+        if !self.writing.is_empty() {
             return Err(ArbiterError::Busy);
         }
         let publication = self
@@ -467,7 +581,7 @@ impl Arbiter {
             return Err(ArbiterError::Admission(error));
         }
         publication.stops.pop_front();
-        self.writing = Some(command.clone());
+        self.writing.push(command.clone());
         Ok(Some(command))
     }
     /// Must succeed before the storage owner starts its commit transaction.
@@ -486,7 +600,7 @@ impl Arbiter {
         if publication.failed || publication.committed || publication.transaction_started {
             return Err(ArbiterError::DrainFailed);
         }
-        if self.writing.is_some() || !publication.stops.is_empty() {
+        if !self.writing.is_empty() || !publication.stops.is_empty() {
             return Err(ArbiterError::Busy);
         }
         publication.transaction_started = true;
@@ -500,7 +614,7 @@ impl Arbiter {
             .publication
             .as_mut()
             .ok_or(ArbiterError::InvalidState)?;
-        if self.writing.is_some()
+        if !self.writing.is_empty()
             || !publication.stops.is_empty()
             || publication.committed
             || !publication.transaction_started
@@ -535,9 +649,18 @@ impl Arbiter {
             || !self.policy.valid_configuration_loaded
             || revision != self.policy.epochs.configuration
             || epoch <= self.policy.epochs.transport
-        { return Err(ArbiterError::NotSynchronized); }
-        if self.writing.is_some() || self.queue.has_stop() { return Err(ArbiterError::Busy); }
-        let control = self.policy.epochs.control.checked_add(1).ok_or(ArbiterError::CounterExhausted)?;
+        {
+            return Err(ArbiterError::NotSynchronized);
+        }
+        if !self.writing.is_empty() || self.queue.has_stop() {
+            return Err(ArbiterError::Busy);
+        }
+        let control = self
+            .policy
+            .epochs
+            .control
+            .checked_add(1)
+            .ok_or(ArbiterError::CounterExhausted)?;
         self.policy.epochs.control = control;
         self.policy.epochs.transport = epoch;
         self.policy.storage_healthy = true;
@@ -566,7 +689,7 @@ impl Arbiter {
     /// Abort before starting the database transaction. Never call this for an
     /// unknown commit result; resolve the durable pointer via record_commit.
     pub fn abort_before_commit(&mut self) -> Result<Vec<Cancellation>, ArbiterError> {
-        if self.writing.is_some() {
+        if !self.writing.is_empty() {
             return Err(ArbiterError::Busy);
         }
         let p = self

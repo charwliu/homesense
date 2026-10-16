@@ -582,8 +582,7 @@ async fn tcp_long_press_disconnect_does_not_resume_without_new_press() {
             if round == 0 {
                 std::thread::sleep(Duration::from_millis(100));
                 socket.write_all(&[0xae, 0x41, 0xd1, 0xf1, 0xee]).unwrap();
-                socket.read_exact(&mut frame).unwrap();
-                assert_eq!(frame, [0xae, 0x15, 1, 35, 0xee]);
+                assert_eq!(read_non_query(&mut socket,30).unwrap(),Some([0xae, 0x15, 1, 35, 0xee]));
                 socket.shutdown(std::net::Shutdown::Both).unwrap();
             } else {
                 socket
@@ -598,8 +597,7 @@ async fn tcp_long_press_disconnect_does_not_resume_without_new_press() {
                     .set_read_timeout(Some(Duration::from_secs(4)))
                     .unwrap();
                 socket.write_all(&[0xae, 0x41, 0xd1, 0xf1, 0xee]).unwrap();
-                socket.read_exact(&mut frame).unwrap();
-                assert_eq!(frame, [0xae, 0x15, 1, 35, 0xee]);
+                assert_eq!(read_non_query(&mut socket,30).unwrap(),Some([0xae, 0x15, 1, 35, 0xee]));
                 socket.write_all(&[0xae, 0x41, 0xd1, 0xf2, 0xee]).unwrap();
                 assert_eq!(read_non_query(&mut socket,35).unwrap(),None,"released new hold must stop");
             }

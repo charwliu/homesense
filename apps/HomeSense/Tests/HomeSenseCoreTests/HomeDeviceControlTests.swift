@@ -108,4 +108,84 @@ private actor DeviceCommandHTTP: HomeHTTPTransport {
         let offlineWrites = await http.writes()
         #expect(offline == .notSent && offlineWrites.count == 1)
     }
+    @Test func motorCardDirectionsSendAtomicPressAndKeepCorrelatedReceipts() async throws {
+        let (home, http, log) = try await connected(); defer { home.disconnect() }
+        let initial = home.devices.first { $0.id == "curtain" }?.raw
+        let actions: [HomeMotorControlAction] = [.open, .open, .close, .close, .stop]
+        var operations: [HomeControlOperation] = []
+        for action in actions {
+            let operation = home.beginDeviceControl("curtain"); operations.append(operation)
+            let result = await home.controlDevice("curtain", command: action.command, operation: operation)
+            #expect(result.accepted)
+            #expect(home.devices.first { $0.id == "curtain" }?.raw == initial)
+        }
+        let writes = await http.writes()
+        #expect(writes.count == 5)
+        let rows = try log.exportText().split(separator: "\n").dropFirst().map {
+            try JSONDecoder().decode(HomeJSON.self, from: Data($0.utf8))
+        }
+        var ids: Set<String> = []
+        for (index, request) in writes.enumerated() {
+            let body = try JSONDecoder().decode(HomeJSON.self, from: #require(request.httpBody))
+            let expected: HomeJSON = index == 4 ? .object(["action": .string("stop")]) :
+                .object(["action": .string("motor_press"), "direction": .string(index < 2 ? "open" : "close")])
+            #expect(request.url?.path == "/api/v1/device-commands" && request.httpMethod == "POST")
+            #expect(body["device"].text == "curtain" && body["command"] == expected)
+            #expect(index == 4 ? body["revision"] == .null : body["revision"].text == home.revision)
+            let id = try #require(body["request_id"].text); ids.insert(id)
+            let chain = rows.filter { $0["operation_id"].text == operations[index].id.uuidString }
+            #expect(chain.first?["event"].text == "button.click" && chain.last?["event"].text == "operation.complete")
+            #expect(chain.contains { $0["event"].text == "operation.begin" })
+            #expect(chain.filter { $0["event"].text == "http.send" && $0["method"].text == "POST" }.count == 1)
+            #expect(chain.contains { $0["event"].text == "http.response" && $0["http_status"].integerText == "202" && $0["request_id"].text == id })
+        }
+        #expect(ids.count == 5)
+    }
+    @Test(arguments: ["wrong_id", "missing_id", "timeout", "denied"])
+    func motorPressDoesNotRetryOrFabricateMovementAfterUnconfirmedReceipt(_ mode: String) async throws {
+        let (home, http, _) = try await connected(); defer { home.disconnect() }
+        let initial = home.devices.first { $0.id == "curtain" }?.raw
+        await http.configure(mode)
+        let result = await home.controlDevice("curtain", command: HomeMotorControlAction.open.command)
+        #expect(!result.accepted && result != .notSent)
+        #expect(await http.writes().count == 1)
+        #expect(home.devices.first { $0.id == "curtain" }?.raw == initial)
+    }
+    @Test func motorPressKeepsBusyAndOfflineGatesWithoutQueuedReplay() async throws {
+        let (home, http, _) = try await connected(); defer { home.disconnect() }
+        await http.holdNext()
+        let first = Task { await home.controlDevice("curtain", command: HomeMotorControlAction.open.command) }
+        for _ in 0..<1000 { if await http.writes().count == 1 { break }; await Task.yield() }
+        try #require(home.busy)
+        let repeated = await home.controlDevice("curtain", command: HomeMotorControlAction.open.command)
+        let stop = await home.controlDevice("curtain", command: HomeMotorControlAction.stop.command)
+        #expect(repeated == .notSent && stop == .notSent)
+        #expect(await http.writes().count == 1)
+        await http.release(); let accepted = await first.value
+        #expect(accepted.accepted && !home.busy)
+        #expect(await http.writes().count == 1)
+        let closing = await home.controlDevice("curtain", command: HomeMotorControlAction.close.command)
+        let afterClosing = await http.writes()
+        #expect(closing.accepted && afterClosing.count == 2)
+        home.disconnect()
+        let offline = await home.controlDevice("curtain", command: HomeMotorControlAction.close.command)
+        let afterOffline = await http.writes()
+        #expect(offline == .notSent && afterOffline.count == 2)
+    }
+
+    @Test func legacyAbsoluteMotorCommandsKeepRevisionFreeEnvelope() async throws {
+        let (home, http, _) = try await connected(); defer { home.disconnect() }
+        for action in ["open", "close", "stop"] {
+            let result = await home.controlDevice("curtain", command: .object(["action": .string(action)]))
+            #expect(result.accepted)
+        }
+        let writes = await http.writes()
+        #expect(writes.count == 3)
+        for (request, action) in zip(writes, ["open", "close", "stop"]) {
+            let body = try JSONDecoder().decode(HomeJSON.self, from: #require(request.httpBody))
+            #expect(body["revision"] == .null)
+            #expect(body["command"] == .object(["action": .string(action)]))
+        }
+    }
+
 }

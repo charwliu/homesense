@@ -8,6 +8,10 @@ use std::{
     io::{Read, Write},
     time::Duration,
 };
+#[path="indicator_waves.rs"]
+mod indicator_waves;
+#[path="background_led_phase.rs"]
+mod background_led_phase;
 struct Guard<'a, S: Read + Write + Send + 'static> {
     admission: &'a Admission,
     owner: &'a mut ObservedTransport<S>,
@@ -257,36 +261,28 @@ pub(crate) async fn drive_with_panel_feeds<S: Read + Write + Send + 'static>(
         // Failed/cancelled work retains the existing fail-closed guards.
         quantum = acquire_quantum(handoff_gate.as_ref(), &mut stop).await;
         if *stop.borrow() || stop.has_changed().is_err() { return Ok(()); }
+        if let Some((receiver,document))=&mut control.0 {receiver.bind_selection_reader(admission,document,stop.clone()).await?;}
         if let Some(router)=&mut causal {router.enable_feedback_candidates().await?;}
         guard.panels.bind_feedback(guard.owner.feedback())?;
         if causal.is_some() && let Some(calendar)=&mut guard.calendar {
             calendar.bind_feedback(guard.owner.feedback())?;
         }
-        let mut indicators=crate::indicator_sync::Synchronizer::default();
-        let mut background_led_phase:Option<(crate::admission::TaskGeneration,Vec<Vec<u64>>,u64)>=None;
+        let mut indicators=indicator_waves::Waves::default();
+        let mut component_modes=crate::component_modes::Consumer::default();
+        let mut control_batches=crate::control_batch::Consumer::default();
+        let mut background_led_phase:Option<background_led_phase::Phase>=None;
         let mut scene_observations=crate::scene_observation_runtime::Consumer::default();
         let mut next = 0;
         loop {
+            let quantum_started=std::time::Instant::now();
             if *stop.borrow() || stop.has_changed().is_err() {
                 return Ok(());
             }
             let max_age_ms=guard.owner.feedback().effective_max_age_ms(max_age_ms);
-            if let Some((generation,batches,deadline))=&background_led_phase {
-                let controller=control.0.as_ref().map(|(receiver,_)|receiver.controller());
-                let mut terminal=true;
-                if let Some(controller)=controller {
-                    for batch in batches {
-                        match admission.command_statuses(controller,generation.clone(),batch.clone()).await {
-                            Ok(statuses)=>terminal &= statuses.iter().all(|status|matches!(status,homesense_storage::journal::Status::Written|homesense_storage::journal::Status::Observed|homesense_storage::journal::Status::Cancelled|homesense_storage::journal::Status::Failed|homesense_storage::journal::Status::Uncertain)),
-                            Err(_)=>terminal=false,
-                        }
-                    }
-                    if admission.monotonic_ms()>=*deadline {
-                        for batch in batches {if let Some(run)=batch.first(){let _=admission.cancel_scene_run(controller,generation.clone(),*run).await;}}
-                        terminal=true;
-                    }
-                }else{terminal=true;}
-                if terminal {background_led_phase=None;guard.owner.pause_refresh_for_background_leds(false);}
+            if let Some(phase)=&background_led_phase
+                && let Some(all_written)=phase.completion(admission,control.0.as_ref().map(|(receiver,_)|receiver.controller())).await {
+                    indicators.phase_ended(all_written);
+                    background_led_phase=None;guard.owner.pause_refresh_for_background_leds(false);
             }
             if guard.owner.independent() {
                 guard.owner.local_tick().await?;
@@ -324,10 +320,14 @@ pub(crate) async fn drive_with_panel_feeds<S: Read + Write + Send + 'static>(
                 }
             }
             }
+            let before_control_ms=quantum_started.elapsed().as_millis();
             if let Some((receiver, document)) = &mut control.0 {
                 scene_observations.tick(admission,receiver.controller(),document,guard.owner.feedback()).await?;
+                control_batches.tick(admission,receiver.controller(),guard.owner.feedback()).await?;
+                component_modes.tick(admission,receiver.controller(),document,guard.owner.feedback()).await?;
                 receiver.poll_causal(admission, document, guard.scenes, guard.owner.feedback(), max_age_ms, guard.calendar.as_deref(),causal.as_deref_mut()).await;
             }
+            let after_control_ms=quantum_started.elapsed().as_millis();
             let now = admission.monotonic_ms();
             if let Some(calendar) = &mut guard.calendar {
                 if let Some(router) = &mut causal {
@@ -388,19 +388,30 @@ pub(crate) async fn drive_with_panel_feeds<S: Read + Write + Send + 'static>(
                     }
                 }
             }
-            if let Some(outcome) = guard.owner.step_after_refresh_read().await? {
+            let burst_started=tokio::time::Instant::now();let mut written_this_quantum=0;
+            // Bounded accepted-work progress. Each dispatch still rechecks STOP,
+            // revocation, generation and the original deadline in Admission.
+            for _ in 0..4 {
+                if written_this_quantum>=hb_transport::MAX_BATCH_FRAMES || *stop.borrow() || background_led_phase.as_ref().is_some_and(|phase|admission.monotonic_ms()>=phase.deadline()) {break;}
+                let Some(outcome)=guard.owner.step_after_refresh_read().await? else{break;};
                 match &outcome.result {
                     Err(error) if guard.owner.independent() && crate::transport_owner::network_send_failure(error)=>{
                         log::warn!("local actuator write failed without replay command={}: {error:?}",outcome.command_id);
                     },
                     Err(error)=>{transport_failure=true;return Err(format!("automation write: {error:?}"));},
-                    Ok(())=>{if let Some(router)=&mut causal {router.observe_written(outcome.command_id).await?;}},
+                    Ok(())=>{if let Some(router)=&mut causal {for (id,_) in &outcome.completed{router.observe_written(*id).await?;}}},
                 }
+                written_this_quantum+=outcome.physical_frames;
+                if burst_started.elapsed()>=std::time::Duration::from_millis(100) {break;}
             }
             if *stop.borrow() {
                 return Ok(());
             }
-            if !guard.owner.independent() {
+            let protected_after_burst=if written_this_quantum>0 {
+                if let Some((receiver,_))=&control.0 {guard.owner.protected_controls(receiver.controller()).await?}else{false}
+            }else{false};
+            let defer_idle_receive=written_this_quantum>0 && protected_after_burst && !guard.owner.output_query_pending();
+            if !guard.owner.independent() && !defer_idle_receive {
             let read = match guard.owner.receive(&gateways[next]).await {
                 Ok(read) => read,
                 Err(error) => {
@@ -424,7 +435,7 @@ pub(crate) async fn drive_with_panel_feeds<S: Read + Write + Send + 'static>(
                 disconnected=Some(gateway);
                 return Ok(());
             }
-            }else{
+            }else if guard.owner.independent(){
                 guard.owner.start_local_reads()?;
             }
             guard.owner.expire(admission.monotonic_ms(), max_age_ms)?;
@@ -433,15 +444,13 @@ pub(crate) async fn drive_with_panel_feeds<S: Read + Write + Send + 'static>(
                 crate::scene_initialization::tick(admission,receiver.controller(),document,guard.scenes,guard.owner.feedback()).await?;
                 crate::scene_reconciliation::tick(admission,receiver.controller(),document,guard.scenes,guard.owner.feedback()).await?;
                 let round=guard.owner.take_completed_refresh_round();
-                if (round.is_some() || !guard.owner.has_periodic_refresh())
-                    && match &round {Some(round)=>admission.task_generation().await.is_ok_and(|generation|generation==round.generation),None=>true} {
-                        indicators.tick(admission,receiver.controller(),document,guard.scenes,guard.owner.feedback(),max_age_ms).await?;
-                        let batches=indicators.take_emitted_batches();
-                        if !batches.is_empty() && let Some(round)=round {
-                            let allowance=(round.max_age_ms.saturating_sub(round.completed_ms.saturating_sub(round.started_ms))/2).min(2000);
-                            background_led_phase=Some((round.generation,batches,round.completed_ms.saturating_add(allowance)));
-                            guard.owner.pause_refresh_for_background_leds(true);
-                        }
+                if background_led_phase.is_none() {
+                    let qualified=round.as_ref().is_some_and(|round|round.generation.epochs.configuration==document.revision && round.completed_ms>=round.started_ms && admission.monotonic_ms().saturating_sub(round.started_ms)<round.max_age_ms);
+                    if let Some(wave)=indicators.advance(admission,receiver.controller(),document,guard.scenes,guard.owner.feedback(),max_age_ms,guard.owner.write_interval_ms(),qualified,guard.owner.output_query_pending()).await? {
+                        let generation=admission.task_generation().await.map_err(|e|format!("LED wave generation: {e:?}"))?;
+                        background_led_phase=Some(background_led_phase::Phase::new(generation,wave.batches,wave.deadline));
+                        guard.owner.pause_refresh_for_background_leds(true);
+                    }
                 }
             }
             if let Some(projection)=&projection {projection.send_replace(guard.owner.snapshot());}
@@ -458,6 +467,9 @@ pub(crate) async fn drive_with_panel_feeds<S: Read + Write + Send + 'static>(
                         panel_feeds.0.clear();
                     }
                 }
+            }
+            if quantum_started.elapsed()>=std::time::Duration::from_millis(100) {
+                log::warn!("automation_quantum_lag total_ms={} before_control_ms={before_control_ms} control_ms={} after_control_ms={} written_frames={written_this_quantum} pending_read={}",quantum_started.elapsed().as_millis(),after_control_ms.saturating_sub(before_control_ms),quantum_started.elapsed().as_millis().saturating_sub(after_control_ms),guard.owner.output_query_pending());
             }
             next = (next + 1) % gateways.len();
             // Preserve the existing publication boundary: an outstanding read

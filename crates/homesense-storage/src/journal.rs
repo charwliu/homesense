@@ -116,7 +116,7 @@ impl UndeliveredWrite<'_> {
 }
 impl Store {
     pub fn accept_module_off_commands(&mut self,boot_id:&str,commands:&[QueuedCommand],cancellations:&[Cancellation],now_ms:u64,effects:&[crate::module_off::Effects])->Result<(),Error> {
-        self.accept_queue_batch_detailed(boot_id,commands,cancellations,now_ms,None,&[],None,None,&[],&[],None,effects,None)
+        self.accept_queue_batch_detailed(boot_id,commands,cancellations,now_ms,None,&[],None,None,&[],&[],None,effects,None,None,None)
     }
     /// All commands are committed together against the currently active revision.
     /// Duplicate IDs fail the whole transaction; this is not request idempotency.
@@ -248,7 +248,7 @@ impl Store {
         starts:&[crate::scene_run::Start], reads:&[crate::variables::ReadCheck],
         sources:Option<&[String]>,
     )->Result<(),Error> {
-        self.accept_queue_batch_detailed(boot_id,commands,cancellations,now_ms,study,variables,audit,scene,starts,reads,sources,&[],None)
+        self.accept_queue_batch_detailed(boot_id,commands,cancellations,now_ms,study,variables,audit,scene,starts,reads,sources,&[],None,None,None)
     }
     #[allow(clippy::too_many_arguments)]
     fn accept_queue_batch_detailed(
@@ -259,6 +259,8 @@ impl Store {
         sources:Option<&[String]>,
         module_effects:&[crate::module_off::Effects],
         gateway_scopes:Option<&crate::gateway_audit::Acceptance>,
+        canonical:Option<(&str,&[crate::component_modes::Canonical])>,
+        phase:Option<&[crate::scene_run::PhaseStep]>,
     )->Result<(),Error> {
         crate::rule_audit::validate_sources(sources, commands.len())?;
         if sources.is_some() && audit.is_none() {return Err(Error::InvalidAudit);}
@@ -332,9 +334,20 @@ impl Store {
             }
             tx.execute("INSERT INTO study_mode(revision,value) VALUES(?1,?2) ON CONFLICT(revision) DO UPDATE SET value=excluded.value",params![revision,next])?;
         }
-        if let Some(scene) = scene {
-            crate::scene_run::insert_step(&tx, boot_id, scene, commands, active)?;
-        }
+        if let Some(phase)=phase {
+            if scene.is_some()||phase.is_empty()||phase.len()>128{return Err(Error::InvalidAudit);}
+            let mut covered=std::collections::BTreeSet::new();let mut steps=std::collections::BTreeSet::new();
+            for step in phase {
+                if step.link.run!=phase[0].link.run||step.link.sample.is_some()||!steps.insert(step.link.index){return Err(Error::InvalidAudit);}
+                let mut rows=vec![];for id in &step.command_ids{
+                    if !covered.insert(*id){return Err(Error::InvalidAudit);}
+                    rows.push(commands.iter().find(|command|command.id==*id).cloned().ok_or(Error::InvalidAudit)?);
+                }
+                crate::scene_run::insert_step(&tx,boot_id,&step.link,&rows,active)?;
+            }
+            if covered.len()!=commands.len(){return Err(Error::InvalidAudit);}
+        }else if let Some(scene)=scene {crate::scene_run::insert_step(&tx,boot_id,scene,commands,active)?;}
+
         if let Some(audit) = audit {
             crate::rule_audit::insert(&tx, boot_id, audit, commands, sources, now_ms, active)?;
         }
@@ -346,6 +359,7 @@ impl Store {
             crate::gateway_audit::insert(&tx, boot_id, commands, scopes, active, now_ms)?;
         }
         crate::variables::apply(&tx, variables, active)?;
+        if let Some((controller,entries))=canonical{crate::component_modes::insert_canonical(&tx,boot_id,controller,variables,entries,now_ms,active)?;}
         cancel_in_transaction(&tx, boot_id, cancellations, now)?;
         tx.commit()?;
         Ok(())
@@ -362,7 +376,18 @@ impl Store {
         scopes:&crate::gateway_audit::Acceptance,
     )->Result<(),Error> {
         self.accept_queue_batch_detailed(boot_id,commands,cancellations,now_ms,study,
-            variables,audit,scene,starts,reads,sources,module_effects,Some(scopes))
+            variables,audit,scene,starts,reads,sources,module_effects,Some(scopes),None,None)
+    }
+    /// Only explicit local canonical metadata; all existing callers keep None.
+    #[allow(clippy::too_many_arguments)]
+    pub fn accept_queue_batch_with_components(&mut self,boot:&str,commands:&[QueuedCommand],cancelled:&[Cancellation],now:u64,study:Option<(Option<u8>,u8)>,variables:&[crate::variables::Update],audit:Option<&crate::rule_audit::Admission>,scene:Option<&crate::scene_run::StepLink>,starts:&[crate::scene_run::Start],reads:&[crate::variables::ReadCheck],sources:Option<&[String]>,scopes:Option<&crate::gateway_audit::Acceptance>,controller:&str,canonical:&[crate::component_modes::Canonical])->Result<(),Error>{
+        self.accept_queue_batch_detailed(boot,commands,cancelled,now,study,variables,audit,scene,starts,reads,sources,&[],scopes,Some((controller,canonical)),None)
+    }
+    /// Every due member keeps its exact source index; all step links and
+    /// expanded commands become durable in the original acceptance transaction.
+    #[allow(clippy::too_many_arguments)]
+    pub fn accept_queue_phase_with_components(&mut self,boot:&str,commands:&[QueuedCommand],cancelled:&[Cancellation],now:u64,study:Option<(Option<u8>,u8)>,variables:&[crate::variables::Update],audit:Option<&crate::rule_audit::Admission>,scene:Option<&crate::scene_run::StepLink>,starts:&[crate::scene_run::Start],reads:&[crate::variables::ReadCheck],sources:Option<&[String]>,scopes:Option<&crate::gateway_audit::Acceptance>,controller:&str,canonical:&[crate::component_modes::Canonical],phase:Option<&[crate::scene_run::PhaseStep]>)->Result<(),Error>{
+        self.accept_queue_batch_detailed(boot,commands,cancelled,now,study,variables,audit,scene.filter(|_|phase.is_none()),starts,reads,sources,&[],scopes,Some((controller,canonical)),phase)
     }
     /// Persist a publication/run barrier before attempting a configuration commit.
     /// Every snapshot must still be Accepted; any mismatch rolls back the batch.

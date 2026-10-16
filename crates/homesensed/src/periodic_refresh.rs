@@ -4,8 +4,8 @@ use super::*;
 pub(super) struct OutputRefresh {
     configuration: homesense_config::Configuration,
     targets: Vec<crate::physical_queries::Target>,
-    controller: uuid::Uuid,
-    generation: crate::admission::TaskGeneration,
+    pub(super) controller: uuid::Uuid,
+    pub(super) generation: crate::admission::TaskGeneration,
     context: homesense_core::ExecutionContext,
     timeout_ms: u64,
     max_age_ms: u64,
@@ -18,12 +18,14 @@ pub(super) struct OutputRefresh {
     adaptive:Option<crate::adaptive_refresh::Schedule>,
     priority:std::collections::BTreeSet<usize>,
     recent_queries:std::collections::BTreeMap<(String,u8,u8),u64>,
+    strict:std::collections::BTreeMap<usize,u64>,
 }
 struct Pending {
     index: usize,
     before: Vec<(u8, u64)>,
     deadline: u64,
     retried: bool,
+    strict: bool,
 }
 impl OutputRefresh {
     pub(super) fn activity(&mut self,now:u64) {
@@ -140,7 +142,8 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
         if let Some(plan)=&mut self.output_refresh
             && let Some(pending)=&plan.pending && plan.complete(pending,self.feedback.module_truth(),self.transport.now_ms()) {
                 let index=pending.index;
-                if let Some(bound)=plan.observed_round(index,self.feedback.module_truth(),self.transport.now_ms()) {self.feedback.set_managed_max_age_ms(bound)?;}
+                if !pending.strict && let Some(bound)=plan.observed_round(index,self.feedback.module_truth(),self.transport.now_ms()) {self.feedback.set_managed_max_age_ms(bound)?;}
+                self.transport.finish_status_read(&gateway);
                 plan.pending=None;plan.control_opportunity=true;
         }
         Ok(Some(read))
@@ -210,8 +213,13 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
             pending: None,
             control_opportunity: true,
             round,
-            adaptive,priority:Default::default(),recent_queries:Default::default(),
+            adaptive,priority:Default::default(),recent_queries:Default::default(),strict:Default::default(),
         });
+        Ok(())
+    }
+    pub(crate) fn configure_consumer_refresh(&mut self,requirements:&std::collections::BTreeMap<homesense_core::DeviceId,u64>)->Result<(),String>{
+        if let Some(plan)=&mut self.output_refresh {plan.strict=crate::consumer_refresh::target_ages(&plan.configuration,&plan.targets,requirements);}
+        if let Some(plan)=&mut self.local_refresh {plan.configure_consumers(requirements);}
         Ok(())
     }
     /// At most one status read waits on the bus. A response updates state only
@@ -237,7 +245,8 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
         if let Some(pending) = &plan.pending {
             if plan.complete(pending, self.feedback.module_truth(), now) {
                 let index=pending.index;
-                if let Some(bound)=plan.observed_round(index,self.feedback.module_truth(),now) {self.feedback.set_managed_max_age_ms(bound).map_err(|e|(plan.targets[index].gateway.clone(),e))?;}
+                if !pending.strict && let Some(bound)=plan.observed_round(index,self.feedback.module_truth(),now) {self.feedback.set_managed_max_age_ms(bound).map_err(|e|(plan.targets[index].gateway.clone(),e))?;}
+                self.transport.finish_status_read(&plan.targets[index].gateway);
                 plan.pending = None;
                 plan.control_opportunity = true;
                 // Leave one control-dispatch opportunity between reads even
@@ -247,28 +256,25 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
             if now < pending.deadline {
                 return Ok(());
             }
-        } else if now < plan.due {
+        } else if now < plan.due && !plan.strict.iter().any(|(i,age)|crate::consumer_refresh::due(&plan.targets[*i],self.feedback.module_truth(),*age)<=now) {
             return Ok(());
         }
-        if !self
-            .transport
-            .idle_for_refresh(plan.controller, plan.generation.clone())
-            .await
-        {
+        let retry = plan.pending.is_some();
+        let readable=if retry {self.transport.can_retry_read(plan.controller,plan.generation.clone()).await}
+            else {self.transport.idle_for_refresh(plan.controller,plan.generation.clone()).await};
+        if !readable {
             if let Some(pending) = &plan.pending {
                 return Err((
                     plan.targets[pending.index].gateway.clone(),
                     "output query admission unavailable".into(),
                 ));
             }
+            plan.control_opportunity=true;
             return Ok(());
         }
-        let retry = plan.pending.is_some();
-        let index = plan
-            .pending
-            .as_ref()
-            .map(|p| p.index)
-            .unwrap_or_else(|| plan.oldest(self.feedback.module_truth()));
+        let strict_due=plan.strict.iter().filter_map(|(i,age)|{let due=crate::consumer_refresh::due(&plan.targets[*i],self.feedback.module_truth(),*age);(due<=now).then_some((due,*i))}).min();
+        let strict=plan.pending.as_ref().map_or(strict_due.is_some(),|p|p.strict);
+        let index=plan.pending.as_ref().map(|p|p.index).or_else(||strict_due.map(|(_,i)|i)).unwrap_or_else(||plan.oldest(self.feedback.module_truth()));
         let target = &plan.targets[index];
         let gateway = target.gateway.clone();
         if let Some(pending)=plan.pending.as_ref().filter(|pending|pending.retried) {
@@ -284,8 +290,8 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
         let before = self
             .physical_query_counts(&plan.configuration, target, timeout, plan.max_age_ms)
             .map_err(|error| (gateway.clone(), error))?;
-        self.transport
-            .query_status_scope(
+        let sent=self.transport
+            .try_query_status_scope(
                 &target.gateway,
                 &target.module,
                 target.first_channel(),
@@ -295,6 +301,7 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
             )
             .await
             .map_err(|error| (gateway.clone(), error))?;
+        if !sent {plan.control_opportunity=true;return Ok(());}
         let deadline = self
             .transport
             .now_ms()
@@ -307,8 +314,9 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
             before,
             deadline,
             retried: retry,
+            strict,
         });
-        if !retry {
+        if !retry && !strict {
             plan.round.begin(self.transport.now_ms());
             plan.next = (index + 1) % plan.targets.len();
             plan.due = plan

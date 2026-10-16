@@ -277,6 +277,9 @@ pub(crate) fn project(
     now: u64,
     ready: bool,
 ) -> Result<(), WriteStatus> {
+    // Explicit source values retain their own recorded provenance and mean
+    // no member; never rewrite source5 into0 or invent another physical scene.
+    if matches!(snapshot.stored.value,Some(Value::Integer(v)) if group.unselected_values.contains(&v)){return Ok(())}
     if !group.reconciliation.as_ref().is_some_and(|p| p.enabled) {
         return Ok(());
     }

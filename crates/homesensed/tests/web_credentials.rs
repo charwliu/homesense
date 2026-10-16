@@ -143,3 +143,15 @@ fn concurrent_administrators_cannot_remove_or_demote_the_last_administrator() {
         drop(tokens);let reopened=Tokens::open(&path).unwrap();assert_eq!(reopened.summaries().unwrap().iter().filter(|c|c.grant.role==Role::Administrator).count(),1);drop(reopened);std::fs::remove_dir_all(root).unwrap();
     }
 }
+#[test]
+fn full_device_scope275_persists_reopens_and_keeps_finite_capacity_and_session_generation(){
+    use homesensed::web_auth::{Tokens,Grant,Role};
+    let root=std::env::temp_dir().join(format!("large-scope-{}",Uuid::new_v4()));std::fs::create_dir_all(&root).unwrap();let path=root.join("credentials.sqlite");
+    let secret="synthetic-large-scope-secret-0123456789";let header=format!("Bearer {secret}");let id=Uuid::new_v4();
+    let grant=|count:usize|Grant{controller:Uuid::new_v4(),role:Role::Member,devices:(0..count).map(|n|format!("synthetic-{n}")).collect(),scenes:Default::default()};
+    let tokens=Tokens::open(&path).unwrap();let initial=grant(275);tokens.insert(id,secret,initial.clone()).expect("all275 target grant must load");let session=tokens.login(&header).unwrap();drop(tokens);
+    let tokens=Tokens::open(&path).unwrap();assert_eq!(tokens.authenticate(&header),Some(initial));assert!(tokens.session(&session.cookie,None,false).is_none(),"restart never revives prior browser session");
+    let edge=grant(512);tokens.insert(id,secret,edge.clone()).unwrap();assert_eq!(tokens.authenticate(&header),Some(edge));assert!(tokens.insert(Uuid::new_v4(),"synthetic-over-capacity-secret-0123456789",grant(513)).is_err());
+    let session=tokens.login(&header).unwrap();tokens.insert(id,secret,grant(275)).unwrap();assert!(tokens.session(&session.cookie,None,false).is_none(),"scope replacement invalidates old source generation");
+    drop(tokens);std::fs::remove_dir_all(root).unwrap();
+}

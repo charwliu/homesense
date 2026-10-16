@@ -18,6 +18,9 @@ pub(crate) fn storage_error<E>(_: E) -> Error {
     Error::Storage
 }
 impl IdentityStore {
+    /// Exact in-process database owner identity; does not expose pairings.
+    pub fn same_owner(&self,other:&Self)->bool{Arc::ptr_eq(&self.db,&other.db)}
+
     pub async fn open(directory: impl AsRef<Path>) -> Result<Self> {
         let directory = directory.as_ref().to_owned();
         let db = tokio::task::spawn_blocking(move || -> Result<Connection> {

@@ -257,6 +257,9 @@ async fn transient_owned_dimmer_off_target_is_deferred_until_normal_feedback_set
         .remember_levels(1, h.feedback.snapshot(), 5000)
         .await
         .unwrap();
+    crate::control_batch::tick(&h.actor,h.controller,&h.feedback).await.unwrap();
+    let off=drain_all(&h).await;assert!(off.contains(&[0xae,0x41,1,0xf2,0xee]),"actual Off releases the previously held timed LED");
+    scenes.tick(h.actor.monotonic_ms()).await.unwrap();
     levels(&mut h, Some(100), Some(0));
     reconcile(&h).await;
     sync(&h, &mut s).await;

@@ -427,3 +427,5 @@ pub mod module_history;
 
 /// Durable local wire/dependency scopes; receipts are never replay plans.
 pub mod gateway_audit;
+
+pub mod component_modes;

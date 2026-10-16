@@ -2053,3 +2053,390 @@ async fn deactivation_blocks_same_admission_source_activation_and_charges_future
     assert_eq!(h.count("scene_run"), 0);
     h.finish().await;
 }
+fn execute_inputs()->(Vec<u8>,Json) {
+    let mut cfg:Json=serde_json::from_slice(&data()).unwrap();cfg["gateways"][0]["modules"].as_array_mut().unwrap().push(json!({"id":"panel-module","address":"41","profile":"ts6_86_rs485_v2_6_5_6key","verification":{"status":"simulated"},"led_mode":"manual"}));
+    cfg["keypads"]=json!([{"id":"panel","name":"Synthetic manual panel","module_id":"panel-module","enabled":true,"keys":[{"number":1,"label":"Execute","led_endpoint":{"id":"execute-led","name":"LED","enabled":true},"action":{"kind":"scene_execute","scene":"act","review_evidence":"synthetic manual-only AST"}}]}]);
+    let mut doc=rules();doc["rules"]=json!([]);(serde_json::to_vec(&cfg).unwrap(),doc)
+}
+#[test]
+fn scene_execute_accepts_only_reviewed_enabled_manual_ast_and_preserves_toggle_requirement(){
+    let (cfg,doc)=execute_inputs();let config=Configuration::parse(&cfg,ExecutionContext::Simulation).unwrap();let parsed=Document::parse(&serde_json::to_vec(&doc).unwrap(),&config).unwrap();let ids=homesense_config::keypad::scene_execute_devices(&parsed,&config,"act").unwrap();assert_eq!(ids.into_iter().map(|d|d.as_str().to_owned()).collect::<std::collections::BTreeSet<_>>(),["light".into(),"relay".into()].into());
+    for mode in 0..6 {let mut cfg:Json=serde_json::from_slice(&cfg).unwrap();let mut doc=doc.clone();match mode {
+        0=>doc["immediate_scenes"][0]["enabled"]=json!(false),
+        1=>cfg["keypads"][0]["keys"][0]["action"]["review_evidence"]=json!(""),
+        2=>cfg["keypads"][0]["keys"][0]["action"]["scene"]=json!("later"),
+        3=>cfg["keypads"][0]["keys"][0]["action"]["unexpected"]=json!(true),
+        4=>cfg["keypads"][0]["keys"][0]["action"]["kind"]=json!("scene_toggle"),
+        _=>cfg["keypads"][0]["keys"][0]["action"]["scene"]=json!("missing"),
+    }let rejected=Configuration::parse(&serde_json::to_vec(&cfg).unwrap(),ExecutionContext::Simulation).and_then(|cfg|Document::parse(&serde_json::to_vec(&doc).unwrap(),&cfg));assert!(rejected.is_err(),"mode{mode} must be rejected");}
+}
+#[tokio::test]
+async fn scene_execute_descriptor_full_branch_scope_atomic_manual_owner_and_revocation(){
+    use crate::{web_auth::{Tokens,Grant,Role},source_auth::Source};
+    let (cfg,doc)=execute_inputs();let mut h=Harness::from_inputs(cfg,doc).await;h.samples(true);
+    let tokens=Arc::new(Tokens::default());let credential=Uuid::new_v4();const SECRET:&str="synthetic-scene-execute-source-0123456789";
+    let action=||Action::SceneAction{controller:h.member,revision:1,scene:"act".into(),execute:true};
+    let grant=|devices:&[&str]|Grant{controller:h.member,role:Role::Member,scenes:["act".into()].into(),devices:devices.iter().map(|id|(*id).into()).collect()};
+    tokens.insert(credential,SECRET,grant(&["relay","execute-led"])).unwrap();
+    let snapshot=crate::management_devices::snapshot(&h.actor,h.controller,h.generation.clone(),vec![homesense_core::DeviceId::new("execute-led").unwrap()],&h.feedback).await.unwrap();
+    let limited=crate::management_keypads::devices_json(&snapshot,&grant(&["relay","execute-led"]));assert!(limited.last().unwrap()["keys"][0]["action"].is_null(),"inactive nested branch target still needs scope");
+    let complete=crate::management_keypads::devices_json(&snapshot,&grant(&["relay","light","execute-led"]));let key=&complete.last().unwrap()["keys"][0];assert_eq!(key["action"],json!({"kind":"scene_execute","scene":"act","path":"/api/v1/scene-actions"}));assert!(key["card_action"].is_null());
+    let source=Source::capture(tokens.module_off_lease(Some(&format!("Bearer {SECRET}")),None,None).unwrap(),&action(),Some("act")).unwrap();let control=h.control.clone();let requested=action();let task=tokio::spawn(async move{control.request_authorized(requested,source).await});assert!(h.drive(task).await.unwrap_err().contains("full-branch"));assert_eq!(h.count("command_journal"),0);
+    tokens.insert(credential,SECRET,Grant{controller:h.member,role:Role::Member,scenes:["act".into()].into(),devices:["relay".into(),"light".into(),"execute-led".into()].into()}).unwrap();
+    let action=Action::SceneAction{controller:h.member,revision:1,scene:"act".into(),execute:true};let source=Source::capture(tokens.module_off_lease(Some(&format!("Bearer {SECRET}")),None,None).unwrap(),&action,Some("act")).unwrap();let control=h.control.clone();let task=tokio::spawn(async move{control.request_authorized(action,source).await});let reply=h.drive(task).await.unwrap();assert!(matches!(reply,Reply::ImmediateAccepted(_)));assert_eq!(h.count("command_journal"),3);let frames=h.wire().await;assert_eq!(frames,vec![0xae,0x15,1,20,0xee,0xae,0x15,1,40,0xee,0xae,3,1,0xf2,0xee]);
+    tokio::time::sleep(Duration::from_millis(2)).await;h.samples(false);
+    let action=Action::SceneAction{controller:h.member,revision:1,scene:"act".into(),execute:true};let source=Source::capture(tokens.module_off_lease(Some(&format!("Bearer {SECRET}")),None,None).unwrap(),&action,Some("act")).unwrap();let control=h.control.clone();let task=tokio::spawn(async move{control.request_authorized(action,source).await});h.drive(task).await.unwrap();tokens.revoke(credential).unwrap();assert!(h.wire().await.is_empty(),"revoked exact source cannot write accepted second activation");h.finish().await;
+}
+
+fn component_inputs()->(Vec<u8>,Json){
+    let (cfg,mut doc)=execute_inputs();doc["variables"]=json!([{"id":"v","kind":"integer","lifetime":"persistent"},{"id":"w","kind":"integer","lifetime":"persistent"}]);
+    let mut cfg:Json=serde_json::from_slice(&cfg).unwrap();cfg["keypads"][0]["keys"].as_array_mut().unwrap().push(json!({"number":2,"label":"Other","led_endpoint":{"id":"other-led","name":"Other LED","enabled":true},"action":{"kind":"scene_execute","scene":"other","review_evidence":"synthetic independent mode"}}));
+    let activate=|var:&str,device:&str,led:&str|json!([{"source":format!("{var}/first"),"action":{"kind":"if","condition":{"kind":"unknown","value":{"kind":"variable","id":var}},"then_actions":[command(&format!("{var}/on"),device,json!({"kind":"switch","on":true})),{"source":format!("{var}/set"),"action":{"kind":"set","variable":var,"value":{"kind":"integer","value":1}}},command(&format!("{var}/led"),led,json!({"kind":"panel_led","on":true}))],"else_actions":[command(&format!("{var}/off"),device,json!({"kind":"switch","on":false})),{"source":format!("{var}/reset"),"action":{"kind":"set","variable":var,"value":{"kind":"integer","value":0}}},command(&format!("{var}/green"),led,json!({"kind":"panel_led","on":false}))]}}]);
+    doc["immediate_scenes"]=json!([{"id":"act","enabled":true,"review_evidence":"synthetic mode A","activate":activate("v","relay","execute-led")},{"id":"other","enabled":true,"review_evidence":"synthetic mode B","activate":activate("w","marker","other-led")}]);doc["timed_scenes"]=json!([]);
+    doc["component_mode_confirmations"]=json!([{"id":"mode-a","variable":"v","scenes":["act"],"first_value":1,"timeout_ms":15000,"max_age_ms":5000,"review_evidence":"synthetic first-unknown policy","postconditions":[{"device":"relay","on":true}]},{"id":"mode-b","variable":"w","scenes":["other"],"first_value":1,"timeout_ms":15000,"max_age_ms":5000,"review_evidence":"synthetic independent policy","postconditions":[{"device":"marker","on":true}]}]);
+    (serde_json::to_vec(&cfg).unwrap(),doc)
+}
+fn mode_value(h:&Harness,name:&str)->Option<homesense_core::rule::Value>{Store::open(h.directory.join("runtime.sqlite")).unwrap().logical_variable(1,name).unwrap().unwrap().value}
+fn mode_frame(h:&mut Harness,addr:u8,channel:u8,value:u8){h.feedback.apply(&GatewayRead{gateway_id:"bus".into(),transport_epoch:1,received_at_ms:h.actor.monotonic_ms(),result:hb_transport::Receive::Frames{transport_epoch:1,frames:vec![hb_protocol::RawFrame{address:addr,command:0xd0+channel,value}]}}).unwrap();}
+async fn mode_confirm(h:&Harness)->usize{
+    let has_written_stage=!h.actor.control_batch_views(h.controller,h.generation.clone()).await.unwrap().is_empty();
+    crate::control_batch::tick(&h.actor,h.controller,&h.feedback).await.unwrap();if has_written_stage{h.wire().await;}
+
+    let views=h.actor.component_mode_views(h.controller,h.generation.clone()).await.unwrap();let mut confirmed=0;
+    for view in views.into_iter().rev(){let proof=crate::component_modes::Proof::prepare(&view,&h.configuration,&h.feedback,h.actor.monotonic_ms()).unwrap();if h.actor.component_mode_proof(h.controller,proof).await.unwrap(){confirmed+=1;}}
+    confirmed
+}
+#[tokio::test]
+async fn component_mode_independent_reservations_actual_written_fresh_vector_and_restart_unknown(){
+    let (cfg,doc)=component_inputs();let mut h=Harness::from_inputs(cfg,doc).await;
+    h.request(Action::SceneAction{controller:h.controller,revision:1,scene:"act".into(),execute:true}).await.unwrap();assert_eq!(mode_value(&h,"v"),None);assert_eq!(h.count("command_journal"),2);
+    assert!(h.actor.component_mode_views(h.controller,h.generation.clone()).await.unwrap().is_empty());
+    assert!(h.request(Action::SceneAction{controller:h.controller,revision:1,scene:"act".into(),execute:true}).await.is_err());assert_eq!(h.count("command_journal"),2);
+    h.request(Action::SceneAction{controller:h.controller,revision:1,scene:"other".into(),execute:true}).await.unwrap();assert_eq!(h.count("command_journal"),4);assert_eq!(h.wire().await.len(),10,"only two physical light outputs precede the feedback barrier");
+    tokio::time::sleep(Duration::from_millis(2)).await;mode_frame(&mut h,3,1,0xf1);mode_frame(&mut h,3,2,0xf1);
+    assert_eq!(mode_confirm(&h).await,2,"B confirms before A without unrelated persistent version invalidation");assert_eq!(mode_value(&h,"v"),Some(homesense_core::rule::Value::Integer(1)));assert_eq!(mode_value(&h,"w"),Some(homesense_core::rule::Value::Integer(1)));
+    tokio::time::sleep(Duration::from_millis(2)).await;mode_frame(&mut h,3,2,0xf2);mode_confirm(&h).await;assert_eq!(mode_value(&h,"w"),None);assert_eq!(mode_value(&h,"v"),Some(homesense_core::rule::Value::Integer(1)));assert_eq!(h.count("command_journal"),4);
+    h.actor.clone().shutdown().await.unwrap();let controller=h.controller;let actor=Admission::open(h.directory.join("runtime.sqlite"),Options{context:ExecutionContext::Simulation,..Default::default()},move|id|id==controller).await.unwrap();
+    assert_eq!(mode_value(&h,"v"),None,"durable inference audit must not restore current mode after restart");actor.synchronized(1,1).await.unwrap();let generation=actor.task_generation().await.unwrap();assert!(actor.component_mode_views(controller,generation).await.unwrap().is_empty(),"same physical On cannot create a new owned confirmation");actor.shutdown().await.unwrap();std::fs::remove_dir_all(h.directory).unwrap();
+}
+#[tokio::test]
+async fn component_mode_wrong_level_cannot_confirm_then_actual_level_confirms_and_off_invalidates(){
+    let (cfg,mut doc)=component_inputs();let mut cfg:Json=serde_json::from_slice(&cfg).unwrap();cfg["gateways"][0]["modules"][0]["profile"]=json!("ad8_din_rs485_v2_2_1");
+    let actions=doc["immediate_scenes"][0]["activate"][0]["action"]["then_actions"].as_array_mut().unwrap();actions[0]=command("v/dim20","light",level(20));doc["component_mode_confirmations"][0]["postconditions"]=json!([{"device":"light","on":true,"level":20}]);
+    let mut h=Harness::from_inputs(serde_json::to_vec(&cfg).unwrap(),doc).await;
+    h.request(Action::SceneAction{controller:h.controller,revision:1,scene:"act".into(),execute:true}).await.unwrap();h.wire().await;tokio::time::sleep(Duration::from_millis(2)).await;
+    mode_frame(&mut h,0x15,1,100);assert_eq!(mode_confirm(&h).await,0);assert_eq!(mode_value(&h,"v"),None,"On at100 is not20% proof");
+    tokio::time::sleep(Duration::from_millis(2)).await;mode_frame(&mut h,0x15,1,20);assert_eq!(mode_confirm(&h).await,1);assert_eq!(mode_value(&h,"v"),Some(homesense_core::rule::Value::Integer(1)));
+    tokio::time::sleep(Duration::from_millis(2)).await;mode_frame(&mut h,0x15,1,12);mode_confirm(&h).await;assert_eq!(mode_value(&h,"v"),None,"fresh external level contradicts owned20% inference");assert_eq!(h.count("command_journal"),2);h.finish().await;
+}
+#[tokio::test]
+async fn component_mode_requires_trusted_written_and_preserves_it_after_observed(){
+    for trusted in [false,true]{let (cfg,doc)=component_inputs();let mut h=Harness::from_inputs(cfg,doc).await;
+        h.request(Action::SceneAction{controller:h.controller,revision:1,scene:"act".into(),execute:true}).await.unwrap();
+        if trusted{assert_eq!(h.wire().await.len(),5,"LED remains Accepted until actual feedback");}
+        tokio::time::sleep(Duration::from_millis(2)).await;let now=h.actor.monotonic_ms();
+        let sql=rusqlite::Connection::open(h.directory.join("runtime.sqlite")).unwrap();sql.execute("UPDATE command_journal SET status='observed',updated_ms=?1 WHERE device_id='relay'",[now as i64]).unwrap();if !trusted{sql.execute("UPDATE command_journal SET status='written' WHERE device_id='execute-led'",[]).unwrap();}drop(sql);
+        mode_frame(&mut h,3,1,0xf1);let n=mode_confirm(&h).await;assert_eq!(n,usize::from(trusted));assert_eq!(mode_value(&h,"v"),trusted.then_some(homesense_core::rule::Value::Integer(1)));h.finish().await;
+    }
+}
+#[tokio::test]
+async fn component_mode_revoke_expiry_and_epoch_drop_pending_without_replay(){
+    for reason in ["revoke","expiry","epoch"]{let (cfg,mut doc)=component_inputs();if reason=="expiry"{doc["component_mode_confirmations"][0]["timeout_ms"]=json!(1);}
+        let mut h=Harness::from_inputs(cfg,doc).await;let controller=if reason=="revoke"{h.member}else{h.controller};h.request(Action::SceneAction{controller,revision:1,scene:"act".into(),execute:true}).await.unwrap();
+        match reason{"revoke"=>{h.allowed.store(false,Ordering::Release);assert!(h.wire().await.is_empty());},"expiry"=>{tokio::time::sleep(Duration::from_millis(5)).await;},"epoch"=>{h.actor.transport_failed().await.unwrap();},_=>unreachable!()}
+        tokio::time::sleep(Duration::from_millis(2)).await;mode_frame(&mut h,3,1,0xf1);assert_eq!(mode_value(&h,"v"),None);
+        if reason!="epoch"{assert!(h.actor.component_mode_views(h.controller,h.generation.clone()).await.unwrap().is_empty());}
+        assert_eq!(h.count("command_journal"),2,"confirmation never retries/replays command");h.finish().await;
+    }
+}
+#[tokio::test]
+async fn component_mode_known_branch_is_unchanged_and_late_proof_cannot_overwrite_newer_state(){
+    let (cfg,doc)=component_inputs();let mut h=Harness::from_inputs(cfg,doc).await;h.request(Action::SceneAction{controller:h.controller,revision:1,scene:"act".into(),execute:true}).await.unwrap();h.wire().await;tokio::time::sleep(Duration::from_millis(2)).await;mode_frame(&mut h,3,1,0xf1);assert_eq!(mode_confirm(&h).await,1);
+    let view=h.actor.component_mode_views(h.controller,h.generation.clone()).await.unwrap().pop().unwrap();let stale=crate::component_modes::Proof::prepare(&view,&h.configuration,&h.feedback,h.actor.monotonic_ms()).unwrap();
+    h.request(Action::SceneAction{controller:h.controller,revision:1,scene:"act".into(),execute:true}).await.unwrap();assert_eq!(mode_value(&h,"v"),Some(homesense_core::rule::Value::Integer(0)),"known AST retains eager Set ordering");assert!(!h.actor.component_mode_proof(h.controller,stale).await.unwrap());assert_eq!(mode_value(&h,"v"),Some(homesense_core::rule::Value::Integer(0)));assert_eq!(h.wire().await,vec![0xae,3,1,0xf2,0xee]);tokio::time::sleep(Duration::from_millis(2)).await;mode_frame(&mut h,3,1,0xf2);crate::control_batch::tick(&h.actor,h.controller,&h.feedback).await.unwrap();assert_eq!(h.wire().await,vec![0xae,0x41,1,0xf2,0xee]);assert_eq!(h.count("command_journal"),4);h.finish().await;
+}
+#[test]
+fn component_mode_schema_rejects_unreviewed_or_impossible_level_and_causal_policies(){
+    let (cfg,doc)=component_inputs();let c=Configuration::parse(&cfg,ExecutionContext::Simulation).unwrap();assert!(Document::parse(&serde_json::to_vec(&doc).unwrap(),&c).is_ok());
+    for mode in 0..7{let mut d=doc.clone();match mode{0=>d["component_mode_confirmations"][0]["review_evidence"]=json!(""),1=>d["component_mode_confirmations"][0]["postconditions"][0]["level"]=json!(20),2=>d["component_mode_confirmations"][0]["timeout_ms"]=json!(60001),3=>d["component_mode_confirmations"][0]["max_age_ms"]=json!(999999999),4=>d["component_mode_confirmations"][0]["variable"]=json!("missing"),5=>d["rules"]=json!([{"id":"bad-cascade","enabled":true,"review_evidence":"synthetic unsupported retained cascade","source":"synthetic/cascade","trigger":{"kind":"variable_changed","variable":"v"},"actions":[command("cascade/output","relay",json!({"kind":"switch","on":true}))]}]),_=>{d["component_mode_confirmations"][0]["postconditions"][0]["on"]=json!(false);d["component_mode_confirmations"][0]["postconditions"][0]["level"]=json!(0);}}assert!(Document::parse(&serde_json::to_vec(&d).unwrap(),&c).is_err(),"invalid mode policy{mode}");}
+}
+#[tokio::test]
+async fn component_mode_unwritten_known_precondition_keeps_original_fresh_proof(){
+    let (cfg,mut doc)=component_inputs();let mut cfg:Json=serde_json::from_slice(&cfg).unwrap();cfg["gateways"][0]["modules"][0]["profile"]=json!("ad8_din_rs485_v2_2_1");doc["immediate_scenes"][0]["activate"][0]["action"]["then_actions"][0]=command("v/actual-dim","light",level(20));doc["component_mode_confirmations"][0]["postconditions"]=json!([{"device":"relay","on":true},{"device":"light","on":true,"level":20}]);let mut h=Harness::from_inputs(serde_json::to_vec(&cfg).unwrap(),doc).await;
+    h.samples(true);let prior=h.feedback.snapshot().devices[&homesense_core::DeviceId::new("relay").unwrap()].observed_at_ms;
+    h.request(Action::SceneAction{controller:h.controller,revision:1,scene:"act".into(),execute:true}).await.unwrap();h.wire().await;tokio::time::sleep(Duration::from_millis(2)).await;mode_frame(&mut h,0x15,1,20);assert_eq!(mode_confirm(&h).await,1);assert_eq!(mode_value(&h,"v"),Some(homesense_core::rule::Value::Integer(1)));assert_eq!(h.feedback.snapshot().devices[&homesense_core::DeviceId::new("relay").unwrap()].observed_at_ms,prior,"unwritten known power prerequisite must not require a post-unrelated-write requery");assert_eq!(h.count("command_journal"),2);h.finish().await;
+}
+#[tokio::test]
+async fn component_mode_combined_off_requires_supply_not_ad8_residual(){
+    let (cfg,mut doc)=component_inputs();let mut cfg:Json=serde_json::from_slice(&cfg).unwrap();cfg["gateways"][0]["modules"][0]["profile"]=json!("ad8_din_rs485_v2_2_1");cfg["devices"][0]["supply"]=json!({"module_id":"relay","channel":1});cfg["devices"][0]["default_on_level"]=json!(100);
+    doc["immediate_scenes"][0]["activate"][0]["action"]["then_actions"].as_array_mut().unwrap().insert(0,command("v/marker-on","marker",json!({"kind":"switch","on":true})));doc["immediate_scenes"][0]["activate"][0]["action"]["then_actions"][1]=command("v/logical-off","light",level(0));doc["component_mode_confirmations"][0]["postconditions"]=json!([{"device":"light","on":false},{"device":"marker","on":true}]);
+    doc["immediate_scenes"][0]["activate"][0]["action"]["else_actions"][0]=command("v/logical-off-known","light",level(0));let mut h=Harness::from_inputs(serde_json::to_vec(&cfg).unwrap(),doc).await;mode_frame(&mut h,0x15,1,100);h.samples(true);
+    h.request(Action::SceneAction{controller:h.controller,revision:1,scene:"act".into(),execute:true}).await.unwrap();h.wire().await;tokio::time::sleep(Duration::from_millis(2)).await;mode_frame(&mut h,3,2,0xf1);mode_frame(&mut h,0x15,1,0);assert_eq!(mode_confirm(&h).await,0,"AD8zero while reliable supplystillOn cannot prove combinedOff");
+    tokio::time::sleep(Duration::from_millis(2)).await;mode_frame(&mut h,0x15,1,100);mode_frame(&mut h,3,1,0xf2);assert_eq!(mode_confirm(&h).await,1,"fresh actual supplyOff qualifies despite residualAD8level100");h.finish().await;
+}
+#[tokio::test]
+async fn component_mode_unknown_first_companion_known_peer_waits_for_off_feedback_or_invalidates(){
+    for succeed in [false,true]{let (cfg,mut doc)=component_inputs();let actions=doc["immediate_scenes"][0]["activate"][0]["action"]["then_actions"].as_array_mut().unwrap();actions.push(command("v/clear-peer","marker",json!({"kind":"switch","on":false})));actions.push(json!({"source":"v/peer-set","action":{"kind":"set","variable":"w","value":{"kind":"integer","value":0}}}));
+        doc["component_mode_confirmations"].as_array_mut().unwrap().push(json!({"id":"peer-off","variable":"w","scenes":["act"],"first_value":0,"include_when_first_unknown":true,"timeout_ms":500,"max_age_ms":5000,"review_evidence":"synthetic explicit unknown-first clears known peer","postconditions":[{"device":"marker","on":false}]}));
+        let mut h=Harness::from_inputs(cfg,doc).await;h.request(Action::SceneAction{controller:h.controller,revision:1,scene:"other".into(),execute:true}).await.unwrap();h.wire().await;tokio::time::sleep(Duration::from_millis(2)).await;mode_frame(&mut h,3,2,0xf1);assert_eq!(mode_confirm(&h).await,1);assert_eq!(mode_value(&h,"w"),Some(homesense_core::rule::Value::Integer(1)));
+        h.request(Action::SceneAction{controller:h.controller,revision:1,scene:"act".into(),execute:true}).await.unwrap();assert_eq!(mode_value(&h,"w"),Some(homesense_core::rule::Value::Integer(1)),"accepted peerOff is not established mode");h.wire().await;tokio::time::sleep(Duration::from_millis(2)).await;mode_frame(&mut h,3,1,0xf1);mode_frame(&mut h,3,2,if succeed{0xf2}else{0xf1});let _=mode_confirm(&h).await;
+        if succeed{assert_eq!(mode_value(&h,"v"),Some(homesense_core::rule::Value::Integer(1)));assert_eq!(mode_value(&h,"w"),Some(homesense_core::rule::Value::Integer(0)));}else{assert_eq!(mode_value(&h,"v"),None);tokio::time::sleep(Duration::from_millis(505)).await;assert!(h.actor.component_mode_views(h.controller,h.generation.clone()).await.unwrap().is_empty());assert_eq!(mode_value(&h,"w"),None,"failed affected known peer cannot retain a speculative stale component");}
+        assert_eq!(h.count("command_journal"),5);h.finish().await;
+    }
+}
+#[tokio::test]
+async fn component_mode_optin_known_partial_off_waits_for_actual_off(){
+    let (cfg,mut doc)=component_inputs();let mut off=doc["component_mode_confirmations"][0].clone();off["id"]=json!("mode-a-off");off["first_value"]=json!(0);off["confirm_when_known"]=json!(true);off["postconditions"][0]["on"]=json!(false);doc["component_mode_confirmations"].as_array_mut().unwrap().push(off);
+    let mut h=Harness::from_inputs(cfg,doc).await;h.request(Action::SceneAction{controller:h.controller,revision:1,scene:"act".into(),execute:true}).await.unwrap();h.wire().await;tokio::time::sleep(Duration::from_millis(2)).await;mode_frame(&mut h,3,1,0xf1);assert_eq!(mode_confirm(&h).await,1);
+    h.request(Action::SceneAction{controller:h.controller,revision:1,scene:"act".into(),execute:true}).await.unwrap();assert_eq!(mode_value(&h,"v"),Some(homesense_core::rule::Value::Integer(1)));h.wire().await;tokio::time::sleep(Duration::from_millis(2)).await;mode_frame(&mut h,3,1,0xf1);assert_eq!(mode_confirm(&h).await,0);assert_eq!(mode_value(&h,"v"),Some(homesense_core::rule::Value::Integer(1)));tokio::time::sleep(Duration::from_millis(2)).await;mode_frame(&mut h,3,1,0xf2);assert_eq!(mode_confirm(&h).await,1);assert_eq!(mode_value(&h,"v"),Some(homesense_core::rule::Value::Integer(0)));h.finish().await;
+}
+#[tokio::test]
+async fn component_mode_dynamic_reviewed_outcomes_select_actual_evaluated_vector(){
+    for (a,b,result) in [(false,false,0),(true,false,2),(false,true,4),(true,true,6)]{let (cfg,mut doc)=component_inputs();
+        let leaves=|on_a:bool,on_b:bool,value:i64|json!([command("dynamic/a","relay",json!({"kind":"switch","on":on_a})),command("dynamic/b","marker",json!({"kind":"switch","on":on_b})),{"source":"dynamic/set","action":{"kind":"set","variable":"v","value":{"kind":"integer","value":value}}}]);
+        let inner=|on_a:bool|json!([{"source":"dynamic/b-condition","action":{"kind":"if","condition":{"kind":"equal","left":{"kind":"device_on","device":"marker"},"right":{"kind":"bool","value":true}},"then_actions":leaves(on_a,true,if on_a{6}else{4}),"else_actions":leaves(on_a,false,if on_a{2}else{0})}}]);
+        doc["immediate_scenes"][0]["activate"]=json!([{"source":"dynamic/a-condition","action":{"kind":"if","condition":{"kind":"equal","left":{"kind":"device_on","device":"relay"},"right":{"kind":"bool","value":true}},"then_actions":inner(true),"else_actions":inner(false)}}]);
+        doc["component_mode_confirmations"]=json!([(false,false,0),(true,false,2),(false,true,4),(true,true,6)].iter().map(|(a,b,v)|json!({"id":format!("dynamic-{v}"),"variable":"v","scenes":["act"],"first_value":v,"timeout_ms":15000,"max_age_ms":5000,"review_evidence":"synthetic finite branch outcome","postconditions":[{"device":"relay","on":a},{"device":"marker","on":b}]})).collect::<Vec<_>>());
+        let mut h=Harness::from_inputs(cfg,doc).await;mode_frame(&mut h,3,1,if a{0xf1}else{0xf2});mode_frame(&mut h,3,2,if b{0xf1}else{0xf2});h.request(Action::SceneAction{controller:h.controller,revision:1,scene:"act".into(),execute:true}).await.unwrap();assert_eq!(mode_value(&h,"v"),None);h.wire().await;tokio::time::sleep(Duration::from_millis(2)).await;mode_frame(&mut h,3,1,if a{0xf1}else{0xf2});mode_frame(&mut h,3,2,if b{0xf1}else{0xf2});assert_eq!(mode_confirm(&h).await,1);assert_eq!(mode_value(&h,"v"),Some(homesense_core::rule::Value::Integer(result)));h.finish().await;
+    }
+}
+#[tokio::test]
+async fn component_mode_shared_source_unselected_value_preserved_and_default_group_stays_strict(){
+    for known in [false,true]{let (cfg,mut doc)=component_inputs();
+        doc["timed_scenes"]=json!([{"id":"one","enabled":true,"review_evidence":"synthetic selection member","max_lateness_ms":1000,"steps":[{"source":"one/output","offset_ms":0,"device":"relay","command":{"kind":"switch","on":true}}]},{"id":"off-one","enabled":true,"review_evidence":"synthetic selection off","max_lateness_ms":1000,"steps":[{"source":"off/output","offset_ms":0,"device":"relay","command":{"kind":"switch","on":false}}]}]);
+        doc["scene_switch_groups"]=json!([{"id":"shared","variable":"v","review_evidence":"synthetic source5 explicitly no member","unselected_values":[5],"members":[{"scene":"one","value":1,"off_scene":"off-one"}]}]);
+        doc["scene_switch_groups"][0]["initialization"]=json!({"enabled":true,"policy":"unique_light_targets","max_age_ms":5000,"review_evidence":"synthetic shared initializer competition"});doc["component_mode_confirmations"][0]["first_value"]=json!(5);doc["component_mode_confirmations"][0]["shared_selection_group"]=json!("shared");
+        let turn=|on:bool,value:i64|json!([command("shared/output","relay",json!({"kind":"switch","on":on})),{"source":"shared/set","action":{"kind":"set","variable":"v","value":{"kind":"integer","value":value}}}]);
+        doc["immediate_scenes"][0]["activate"]=json!([{"source":"shared/unknown","action":{"kind":"if","condition":{"kind":"unknown","value":{"kind":"variable","id":"v"}},"then_actions":turn(true,5),"else_actions":[{"source":"shared/known","action":{"kind":"if","condition":{"kind":"equal","left":{"kind":"variable","id":"v"},"right":{"kind":"integer","value":5}},"then_actions":turn(false,0),"else_actions":turn(true,5)}}]}}]);
+        let mut h=Harness::from_inputs(cfg,doc).await;
+        if known{rusqlite::Connection::open(h.directory.join("runtime.sqlite")).unwrap().execute("UPDATE logical_variable SET value=1,version=version+1 WHERE name='v'",[]).unwrap();}
+        h.request(Action::SceneAction{controller:h.controller,revision:1,scene:"act".into(),execute:true}).await.unwrap();assert_eq!(mode_value(&h,"v"),known.then_some(homesense_core::rule::Value::Integer(5)));h.wire().await;tokio::time::sleep(Duration::from_millis(2)).await;mode_frame(&mut h,3,1,0xf1);if !known{let init=crate::scene_initialization::Prepared::prepare(&h.actor,h.controller,h.generation.clone(),&h.document.scene_switch_groups[0],&h.document,&h.feedback).await.unwrap().unwrap();assert_eq!(h.actor.initialize_scene_selection(h.controller,h.generation.clone(),init).await.unwrap_err(),hap::server::WriteStatus::ResourceBusy,"shared initializer cannot overwrite a reserved component outcome");assert_eq!(mode_confirm(&h).await,1);}
+        let snapshot=h.actor.scene_selection_snapshot(h.controller,h.generation.clone(),vec!["v".into()]).await.unwrap();assert_eq!(snapshot["v"].stored.value,Some(homesense_core::rule::Value::Integer(5)));let details=crate::scene_switches::details(&h.document,&snapshot).unwrap();assert_eq!(details["one"].selected,Some(false));if !known{assert_eq!(details["one"].selection_source,"local_written_feedback_inference");}
+        let values=snapshot.iter().map(|(n,v)|(n.clone(),v.stored.clone())).collect();let mut strict=h.document.clone();strict.scene_switch_groups[0].unselected_values.clear();assert!(crate::scene_switches::states(&strict,&values).is_err(),"another/default group cannot accept arbitrarysource5");
+        h.request(Action::SceneAction{controller:h.controller,revision:1,scene:"act".into(),execute:true}).await.unwrap();assert_eq!(mode_value(&h,"v"),Some(homesense_core::rule::Value::Integer(0)));h.wire().await;h.finish().await;
+    }
+}
+#[tokio::test]
+async fn component_mode_unwritten_confirmation_vector_is_an_authority_dependency(){
+    use crate::{web_auth::{Tokens,Grant,Role},source_auth::Source};
+    let (cfg,mut doc)=component_inputs();doc["component_mode_confirmations"][0]["postconditions"].as_array_mut().unwrap().push(json!({"device":"marker","on":true}));let mut h=Harness::from_inputs(cfg,doc).await;mode_frame(&mut h,3,2,0xf1);
+    let ids=homesense_config::keypad::scene_execute_devices(&h.document,&h.configuration,"act").unwrap();assert!(ids.contains(&homesense_core::DeviceId::new("marker").unwrap()));
+    let tokens=Arc::new(Tokens::default());let credential=Uuid::new_v4();const SECRET:&str="synthetic-component-scope-0123456789";tokens.insert(credential,SECRET,Grant{controller:h.member,role:Role::Member,scenes:["act".into()].into(),devices:["relay".into(),"execute-led".into()].into()}).unwrap();
+    let action=Action::SceneAction{controller:h.member,revision:1,scene:"act".into(),execute:true};let source=Source::capture(tokens.module_off_lease(Some(&format!("Bearer {SECRET}")),None,None).unwrap(),&action,Some("act")).unwrap();let control=h.control.clone();assert!(h.drive(tokio::spawn(async move{control.request_authorized(action,source).await})).await.unwrap_err().contains("full-branch"));assert_eq!(h.count("command_journal"),0);assert_eq!(mode_value(&h,"v"),None);h.finish().await;
+}
+fn canonical_mode_inputs()->(Vec<u8>,Json){
+    let (cfg,mut doc)=component_inputs();doc["variables"].as_array_mut().unwrap().extend([json!({"id":"base","kind":"integer","lifetime":"persistent"}),json!({"id":"tag","kind":"bool","lifetime":"persistent"})]);
+    let outputs=|value:i64,a:bool,b:bool|json!([{"source":"source/set","action":{"kind":"set","variable":"v","value":{"kind":"integer","value":value}}},command("source/a","relay",json!({"kind":"switch","on":a})),command("source/b","marker",json!({"kind":"switch","on":b}))]);
+    let known=json!([{"source":"source/known","action":{"kind":"if","condition":{"kind":"equal","left":{"kind":"variable","id":"v"},"right":{"kind":"integer","value":1}},"then_actions":outputs(0,false,false),"else_actions":outputs(4,true,false)}}]);
+    let mut actions=json!([{"source":"source/unknown","action":{"kind":"if","condition":{"kind":"unknown","value":{"kind":"variable","id":"v"}},"then_actions":outputs(1,true,true),"else_actions":known}}]);
+    // Only pure metadata is appended after the original known source subtree.
+    for (value,base,tag) in [(0,0,false),(1,1,false),(4,0,true)]{actions.as_array_mut().unwrap().push(json!({"source":format!("canonical/{value}"),"action":{"kind":"if","condition":{"kind":"equal","left":{"kind":"variable","id":"v"},"right":{"kind":"integer","value":value}},"then_actions":[{"source":format!("canonical/base/{value}"),"action":{"kind":"set","variable":"base","value":{"kind":"integer","value":base}}},{"source":format!("canonical/tag/{value}"),"action":{"kind":"set","variable":"tag","value":{"kind":"bool","value":tag}}}],"else_actions":[]}}));}
+    doc["immediate_scenes"][0]["activate"]=actions;
+    let mut policies=vec![json!({"id":"source-first","variable":"v","scenes":["act"],"first_value":1,"timeout_ms":15000,"max_age_ms":5000,"review_evidence":"synthetic explicit source activation","postconditions":[{"device":"relay","on":true},{"device":"marker","on":true}]})];
+    for (value,base,tag,a,b) in [(0,0,false,false,false),(1,1,false,true,true),(4,0,true,true,false)]{for (variable,final_value) in [("base",json!(base)),("tag",json!(tag))]{policies.push(json!({"id":format!("canonical-{variable}-{value}"),"variable":variable,"scenes":["act"],"first_value":final_value,"when_values":{"v":value},"confirm_when_known":true,"timeout_ms":15000,"max_age_ms":5000,"review_evidence":"synthetic finite final source selector","postconditions":[{"device":"relay","on":a},{"device":"marker","on":b}]}));}}
+    doc["component_mode_confirmations"]=json!(policies);(cfg,doc)
+}
+#[tokio::test]
+async fn component_mode_final_selectors_distinguish_same_false_and_atomically_confirm_unknown_source(){
+    let (cfg,doc)=canonical_mode_inputs();let mut h=Harness::from_inputs(cfg,doc).await;h.request(Action::SceneAction{controller:h.controller,revision:1,scene:"act".into(),execute:true}).await.unwrap();for name in ["v","base","tag"]{assert_eq!(mode_value(&h,name),None);}h.wire().await;tokio::time::sleep(Duration::from_millis(2)).await;mode_frame(&mut h,3,1,0xf1);mode_frame(&mut h,3,2,0xf1);assert_eq!(mode_confirm(&h).await,1);assert_eq!(mode_value(&h,"v"),Some(homesense_core::rule::Value::Integer(1)));assert_eq!(mode_value(&h,"base"),Some(homesense_core::rule::Value::Integer(1)));assert_eq!(mode_value(&h,"tag"),Some(homesense_core::rule::Value::Bool(false)));
+    h.request(Action::SceneAction{controller:h.controller,revision:1,scene:"act".into(),execute:true}).await.unwrap();assert_eq!(mode_value(&h,"v"),Some(homesense_core::rule::Value::Integer(0)),"known sourceSet remains acceptance atomic");h.wire().await;tokio::time::sleep(Duration::from_millis(2)).await;mode_frame(&mut h,3,1,0xf1);mode_frame(&mut h,3,2,0xf1);assert_eq!(mode_confirm(&h).await,0,"tagfalse must select Mode0 Off proof, not Mode1 On proof");assert_eq!(mode_value(&h,"base"),Some(homesense_core::rule::Value::Integer(1)));tokio::time::sleep(Duration::from_millis(2)).await;mode_frame(&mut h,3,1,0xf2);mode_frame(&mut h,3,2,0xf2);assert_eq!(mode_confirm(&h).await,1);assert_eq!(mode_value(&h,"base"),Some(homesense_core::rule::Value::Integer(0)));assert_eq!(mode_value(&h,"tag"),Some(homesense_core::rule::Value::Bool(false)));h.finish().await;
+}
+#[tokio::test]
+async fn component_mode_known44_to4_preserves_source_and_late_selector_version_cannot_commit_tags(){
+    for late in [false,true]{let (cfg,doc)=canonical_mode_inputs();let mut h=Harness::from_inputs(cfg,doc).await;rusqlite::Connection::open(h.directory.join("runtime.sqlite")).unwrap().execute("UPDATE logical_variable SET value=44,version=version+1 WHERE name='v'",[]).unwrap();h.request(Action::SceneAction{controller:h.controller,revision:1,scene:"act".into(),execute:true}).await.unwrap();assert_eq!(mode_value(&h,"v"),Some(homesense_core::rule::Value::Integer(4)));assert_eq!(mode_value(&h,"base"),None);assert_eq!(h.wire().await,vec![0xae,3,1,0xf1,0xee,0xae,3,2,0xf2,0xee],"postlude emits no physical output");tokio::time::sleep(Duration::from_millis(2)).await;mode_frame(&mut h,3,1,0xf1);mode_frame(&mut h,3,2,0xf2);
+        if late{let view=h.actor.component_mode_views(h.controller,h.generation.clone()).await.unwrap().pop().unwrap();let proof=crate::component_modes::Proof::prepare(&view,&h.configuration,&h.feedback,h.actor.monotonic_ms()).unwrap();rusqlite::Connection::open(h.directory.join("runtime.sqlite")).unwrap().execute("UPDATE logical_variable SET value=9,version=version+1 WHERE name='v'",[]).unwrap();assert!(!h.actor.component_mode_proof(h.controller,proof).await.unwrap());assert_eq!(mode_value(&h,"base"),None);assert_eq!(mode_value(&h,"tag"),None);assert_eq!(mode_value(&h,"v"),Some(homesense_core::rule::Value::Integer(9)));}else{assert_eq!(mode_confirm(&h).await,1);assert_eq!(mode_value(&h,"base"),Some(homesense_core::rule::Value::Integer(0)));assert_eq!(mode_value(&h,"tag"),Some(homesense_core::rule::Value::Bool(true)));assert_eq!(mode_value(&h,"v"),Some(homesense_core::rule::Value::Integer(4)));}h.finish().await;
+    }
+}
+#[tokio::test]
+async fn component_mode_unknown_selector_has_no_default_or_partial_acceptance(){
+    let (cfg,mut doc)=canonical_mode_inputs();doc["component_mode_confirmations"].as_array_mut().unwrap().retain(|p|p["id"]!="canonical-tag-1");let mut h=Harness::from_inputs(cfg,doc).await;let result=h.request(Action::SceneAction{controller:h.controller,revision:1,scene:"act".into(),execute:true}).await;assert!(result.unwrap_err().contains("outcome"));assert_eq!(h.count("command_journal"),0);for name in ["v","base","tag"]{assert_eq!(mode_value(&h,name),None);}h.finish().await;
+}
+#[tokio::test]
+async fn component_mode_first_unknown_companion_cannot_spill_into_unrelated_manual_entry(){
+    let (cfg,mut doc)=component_inputs();doc["component_mode_confirmations"].as_array_mut().unwrap().push(json!({"id":"other-companion","variable":"w","scenes":["other"],"first_value":0,"include_when_first_unknown":true,"timeout_ms":15000,"max_age_ms":5000,"review_evidence":"synthetic entry scoped unknown-first companion","postconditions":[{"device":"marker","on":false}]}));let mut h=Harness::from_inputs(cfg,doc).await;rusqlite::Connection::open(h.directory.join("runtime.sqlite")).unwrap().execute("UPDATE logical_variable SET value=1,version=version+1 WHERE name='w'",[]).unwrap();h.request(Action::SceneActions{controller:h.controller,revision:1,scenes:vec![("act".into(),true),("other".into(),true)]}).await.unwrap();assert_eq!(mode_value(&h,"v"),None);assert_eq!(mode_value(&h,"w"),Some(homesense_core::rule::Value::Integer(0)),"known other entry keeps original eagerSet even when an independent entry is firstUnknown");assert_eq!(h.wire().await.len(),10,"only two physical light outputs precede the feedback barrier");h.finish().await;
+}
+fn logical_mode_inputs(physical_unknown:bool)->(Vec<u8>,Json){
+    let (cfg,mut doc)=canonical_mode_inputs();let mut policies=vec![];for mut p in doc["component_mode_confirmations"].as_array().unwrap().clone(){if p["variable"]=="v"{policies.push(p);continue;}
+        if physical_unknown{let mut original=p.clone();original["id"]=json!(format!("unknown-{}",p["id"].as_str().unwrap()));original["confirm_when_known"]=json!(false);original["include_when_first_unknown"]=json!(true);policies.push(original);}p["basis"]=json!("logical_source");p["postconditions"]=json!([]);policies.push(p);}doc["component_mode_confirmations"]=json!(policies);(cfg,doc)
+}
+fn seed_mode(h:&Harness,name:&str,value:i64){rusqlite::Connection::open(h.directory.join("runtime.sqlite")).unwrap().execute("UPDATE logical_variable SET value=?1,version=version+1 WHERE name=?2",rusqlite::params![value,name]).unwrap();}
+#[tokio::test]
+async fn component_mode_logical_source_keeps_same_false_outcomes_honest_and_initial_unknown_physical(){
+    for initial in [0,1]{let (cfg,mut doc)=logical_mode_inputs(true);if initial==0{let branch=&mut doc["immediate_scenes"][0]["activate"][0]["action"]["else_actions"][0]["action"]["else_actions"];*branch=json!([{"source":"known/source1","action":{"kind":"set","variable":"v","value":{"kind":"integer","value":1}}},command("known/a","relay",json!({"kind":"switch","on":true})),command("known/b","marker",json!({"kind":"switch","on":true}))]);}let mut h=Harness::from_inputs(cfg,doc).await;seed_mode(&h,"v",initial);h.request(Action::SceneAction{controller:h.controller,revision:1,scene:"act".into(),execute:true}).await.unwrap();assert_eq!(mode_value(&h,"v"),Some(homesense_core::rule::Value::Integer(1-initial)));assert_eq!(mode_value(&h,"tag"),Some(homesense_core::rule::Value::Bool(false)));let audit=Store::open(h.directory.join("runtime.sqlite")).unwrap().component_mode_audit(1,"tag",1).unwrap().unwrap();assert_eq!(audit.provenance,"local_source_canonicalization");let sql=rusqlite::Connection::open(h.directory.join("runtime.sqlite")).unwrap();let (source,tickets):(i64,String)=sql.query_row("SELECT s.source_value,a.tickets FROM component_mode_source s JOIN component_mode_audit a USING(revision,name,version) WHERE name='tag'",[],|r|Ok((r.get(0)?,r.get(1)?))).unwrap();assert_eq!(source,1-initial);assert!(tickets.is_empty(),"logical normalization never invents Written tickets");drop(sql);assert!(h.actor.component_mode_views(h.controller,h.generation.clone()).await.unwrap().is_empty());h.wire().await;h.finish().await;}
+    let (cfg,doc)=logical_mode_inputs(true);let mut h=Harness::from_inputs(cfg,doc).await;h.request(Action::SceneAction{controller:h.controller,revision:1,scene:"act".into(),execute:true}).await.unwrap();for name in ["v","tag","base"]{assert_eq!(mode_value(&h,name),None,"Unknown source cannot use logical label shortcut");}h.wire().await;tokio::time::sleep(Duration::from_millis(2)).await;mode_frame(&mut h,3,1,0xf1);mode_frame(&mut h,3,2,0xf1);assert_eq!(mode_confirm(&h).await,1);assert_eq!(mode_value(&h,"tag"),Some(homesense_core::rule::Value::Bool(false)));assert_eq!(Store::open(h.directory.join("runtime.sqlite")).unwrap().component_mode_audit(1,"tag",1).unwrap().unwrap().provenance,"local_written_with_feedback_inference");h.finish().await;
+}
+#[tokio::test]
+async fn component_mode_logical_cannot_bypass_initial_unknown_or_erase_new_tag_owner(){
+    let (cfg,doc)=logical_mode_inputs(false);let mut h=Harness::from_inputs(cfg,doc).await;assert!(h.request(Action::SceneAction{controller:h.controller,revision:1,scene:"act".into(),execute:true}).await.is_err());assert_eq!(h.count("command_journal"),0);assert_eq!(mode_value(&h,"v"),None);h.finish().await;
+    let (cfg,doc)=logical_mode_inputs(true);let mut h=Harness::from_inputs(cfg,doc).await;seed_mode(&h,"v",44);h.request(Action::SceneAction{controller:h.controller,revision:1,scene:"act".into(),execute:true}).await.unwrap();assert_eq!(mode_value(&h,"v"),Some(homesense_core::rule::Value::Integer(4)));assert_eq!(mode_value(&h,"tag"),Some(homesense_core::rule::Value::Bool(true)));seed_mode(&h,"tag",0);seed_mode(&h,"v",9);h.actor.component_mode_views(h.controller,h.generation.clone()).await.unwrap();assert_eq!(mode_value(&h,"tag"),Some(homesense_core::rule::Value::Bool(false)),"old logical watch must not erase newer tag version");assert_eq!(mode_value(&h,"base"),None,"still-owned old label invalidates with source version");assert_eq!(mode_value(&h,"v"),Some(homesense_core::rule::Value::Integer(9)));h.wire().await;h.finish().await;
+}
+#[tokio::test]
+async fn component_mode_logical_pure_set_has_zero_wire_receipts_and_epoch_invalidation(){
+    let (cfg,mut doc)=logical_mode_inputs(true);let actions=doc["immediate_scenes"][0]["activate"].as_array_mut().unwrap();actions[0]=json!({"source":"known/pure-source-set","action":{"kind":"set","variable":"v","value":{"kind":"integer","value":4}}});let mut h=Harness::from_inputs(cfg,doc).await;seed_mode(&h,"v",44);h.request(Action::SceneAction{controller:h.controller,revision:1,scene:"act".into(),execute:true}).await.unwrap();assert_eq!(h.count("command_journal"),0);assert_eq!(h.count("rule_admission"),1);assert_eq!(mode_value(&h,"tag"),Some(homesense_core::rule::Value::Bool(true)));assert_eq!(mode_value(&h,"base"),Some(homesense_core::rule::Value::Integer(0)));assert!(h.wire().await.is_empty());h.actor.transport_failed().await.unwrap();let _=h.actor.task_generation().await;assert_eq!(mode_value(&h,"tag"),None);assert_eq!(mode_value(&h,"base"),None);h.finish().await;
+}
+#[test]
+fn component_mode_policy_bound_accepts512_rejects513_without_removing_vectors(){
+    let (cfg,mut doc)=component_inputs();let config=Configuration::parse(&cfg,ExecutionContext::Simulation).unwrap();let template=doc["component_mode_confirmations"][0].clone();let policies=(0..512).map(|n|{let mut p=template.clone();p["id"]=json!(format!("bounded-{n}"));p["first_value"]=json!(n);p}).collect::<Vec<_>>();doc["component_mode_confirmations"]=json!(policies);assert!(Document::parse(&serde_json::to_vec(&doc).unwrap(),&config).is_ok());let mut extra=template;extra["id"]=json!("bounded-512");extra["first_value"]=json!(512);doc["component_mode_confirmations"].as_array_mut().unwrap().push(extra);assert!(Document::parse(&serde_json::to_vec(&doc).unwrap(),&config).is_err());
+}
+#[tokio::test]
+async fn component_mode_initial_unknown_scope_separates_partial_off_from_known_canonical_false(){
+    for known in [false,true]{let (cfg,mut doc)=logical_mode_inputs(true);doc["component_mode_confirmations"].as_array_mut().unwrap().push(json!({"id":"partial-off-unknown-source","variable":"tag","scenes":["act"],"first_value":false,"confirm_when_known":true,"when_initial_unknown":["v"],"timeout_ms":15000,"max_age_ms":5000,"review_evidence":"synthetic partial fallback only when sourceUnknown","postconditions":[{"device":"relay","on":false}]}));
+        doc["immediate_scenes"][0]["activate"][0]["action"]["then_actions"]=json!([command("partial/off","relay",json!({"kind":"switch","on":false})),{"source":"partial/tag","action":{"kind":"set","variable":"tag","value":{"kind":"bool","value":false}}}]);let mut h=Harness::from_inputs(cfg,doc).await;seed_mode(&h,"tag",1);if known{seed_mode(&h,"v",1);}
+        h.request(Action::SceneAction{controller:h.controller,revision:1,scene:"act".into(),execute:true}).await.unwrap();assert_eq!(mode_value(&h,"tag"),Some(homesense_core::rule::Value::Bool(!known)),"known source uses honest logical Set; unknown source partialOff waits feedback");h.wire().await;
+        if !known{tokio::time::sleep(Duration::from_millis(2)).await;mode_frame(&mut h,3,1,0xf2);assert_eq!(mode_confirm(&h).await,1);assert_eq!(mode_value(&h,"v"),None);}
+        let version=Store::open(h.directory.join("runtime.sqlite")).unwrap().logical_variable(1,"tag").unwrap().unwrap().version;let audit=Store::open(h.directory.join("runtime.sqlite")).unwrap().component_mode_audit(1,"tag",version).unwrap().unwrap();assert_eq!(audit.provenance,if known{"local_source_canonicalization"}else{"local_written_with_feedback_inference"});h.finish().await;
+    }
+}
+
+fn writer_batch_inputs()->(Vec<u8>,Json){
+    let(cfg,mut doc)=component_inputs();let mut cfg:Json=serde_json::from_slice(&cfg).unwrap();
+    cfg["keypads"][0]["keys"].as_array_mut().unwrap().push(json!({"number":3,"label":"Third","led_endpoint":{"id":"third-led","name":"Third LED","enabled":true}}));
+    doc["component_mode_confirmations"]=json!([]);doc["rules"]=json!([]);
+    doc["immediate_scenes"][0]["activate"]=json!([
+        command("led/a","execute-led",json!({"kind":"panel_led","on":true})),
+        command("light/initial","light",level(20)),
+        command("relay/on","relay",json!({"kind":"switch","on":true})),
+        command("led/b","other-led",json!({"kind":"panel_led","on":false})),
+        command("light/final","light",level(40)),
+        command("marker/on","marker",json!({"kind":"switch","on":true})),
+        command("led/c","third-led",json!({"kind":"panel_led","on":false}))]);
+    (serde_json::to_vec(&cfg).unwrap(),doc)
+}
+struct CountWrites{calls:Arc<Mutex<Vec<Vec<u8>>>>,limit:usize,written:usize}
+impl std::io::Read for CountWrites{fn read(&mut self,_:&mut[u8])->std::io::Result<usize>{Err(std::io::ErrorKind::WouldBlock.into())}}
+impl std::io::Write for CountWrites{
+    fn write(&mut self,bytes:&[u8])->std::io::Result<usize>{
+        if self.written>=self.limit{return Err(std::io::ErrorKind::BrokenPipe.into());}
+        let n=bytes.len().min(self.limit-self.written);self.calls.lock().unwrap().push(bytes[..n].to_vec());self.written+=n;Ok(n)
+    }
+    fn flush(&mut self)->std::io::Result<()>{panic!("unbuffered")}
+}
+type BatchWrites=Arc<Mutex<Vec<Vec<u8>>>>;
+fn batch_owner(h:&Harness,limit:usize)->(TransportOwner<CountWrites>,BatchWrites){
+    let calls=Arc::default();let owner=TransportOwner::new(h.actor.clone(),[("bus".into(),hb_transport::Connection::for_simulation(CountWrites{calls:Arc::clone(&calls),limit,written:0},1))].into());(owner,calls)
+}
+#[tokio::test]
+async fn batch_daily_four_lights_one_write_then_three_leds_only_after_postwrite_final_feedback(){
+    let(cfg,doc)=writer_batch_inputs();let mut h=Harness::from_inputs(cfg,doc).await;
+    mode_frame(&mut h,3,1,0xf1);mode_frame(&mut h,3,2,0xf1);mode_frame(&mut h,0x15,1,40);
+    h.request(Action::SceneAction{controller:h.controller,revision:1,scene:"act".into(),execute:true}).await.unwrap();
+    let(mut owner,calls)=batch_owner(&h,usize::MAX);let outcome=owner.step().await.unwrap().unwrap();outcome.result.unwrap();assert_eq!(outcome.completed.len(),4);
+    assert_eq!(calls.lock().unwrap().iter().map(Vec::len).collect::<Vec<_>>(),vec![20]);
+    assert!(owner.step().await.unwrap().is_none(),"LEDs remain Accepted before postwrite feedback");
+    crate::control_batch::tick(&h.actor,h.controller,&h.feedback).await.unwrap();assert!(owner.step().await.unwrap().is_none(),"prewrite matching readings cannot release LEDs");
+    tokio::time::sleep(Duration::from_millis(2)).await;
+    mode_frame(&mut h,3,1,0xf1);mode_frame(&mut h,3,2,0xf1);mode_frame(&mut h,0x15,1,20);
+    crate::control_batch::tick(&h.actor,h.controller,&h.feedback).await.unwrap();assert!(owner.step().await.unwrap().is_none(),"intermediate target20 does not satisfy final40");
+    tokio::time::sleep(Duration::from_millis(2)).await;mode_frame(&mut h,0x15,1,40);
+    crate::control_batch::tick(&h.actor,h.controller,&h.feedback).await.unwrap();let leds=owner.step().await.unwrap().unwrap();leds.result.unwrap();assert_eq!(leds.completed.len(),3);
+    assert_eq!(calls.lock().unwrap().iter().map(Vec::len).collect::<Vec<_>>(),vec![20,15]);
+    let store=Store::open(h.directory.join("runtime.sqlite")).unwrap();for id in 1..=7{assert_eq!(store.command_status(h.actor.boot_id(),id).unwrap(),Some(homesense_storage::journal::Status::Written));}drop(store);h.finish().await;
+}
+#[tokio::test]
+async fn batch_partial_write_keeps_complete_prefix_partial_uncertain_unsent_failed_and_no_replay(){
+    for amount in [0,5,7,10,14,15,19]{
+        let(cfg,doc)=writer_batch_inputs();let mut h=Harness::from_inputs(cfg,doc).await;
+        h.request(Action::SceneAction{controller:h.controller,revision:1,scene:"act".into(),execute:true}).await.unwrap();
+        let(mut owner,calls)=batch_owner(&h,amount);let outcome=owner.step().await.unwrap().unwrap();assert_eq!(outcome.result.unwrap_err().bytes_written,amount);
+        let store=Store::open(h.directory.join("runtime.sqlite")).unwrap();
+        for index in 0..4{let expected=if amount>=(index+1)*5{homesense_storage::journal::Status::Written}else if amount>index*5{homesense_storage::journal::Status::Uncertain}else{homesense_storage::journal::Status::Failed};assert_eq!(store.command_status(h.actor.boot_id(),index as u64+1).unwrap(),Some(expected));}
+        for id in 5..=7{assert_eq!(store.command_status(h.actor.boot_id(),id).unwrap(),Some(homesense_storage::journal::Status::Cancelled));}
+        assert_eq!(calls.lock().unwrap().iter().map(Vec::len).sum::<usize>(),amount);assert!(owner.step().await.is_err());drop(store);h.finish().await;
+    }
+}
+
+#[tokio::test]
+async fn batch_cross_gateway_led_first_cannot_block_lights_or_bypass_feedback_and_independent_request_progresses(){
+    let(cfg,mut doc)=writer_batch_inputs();let mut cfg:Json=serde_json::from_slice(&cfg).unwrap();
+    cfg["gateways"].as_array_mut().unwrap().push(json!({"id":"second","endpoint":"127.0.0.1:2","modules":[{"id":"second-relay","address":"04","profile":"r8i8_din_pro_v2_7_7","verification":{"status":"simulated"}}]}));
+    cfg["devices"].as_array_mut().unwrap().push(json!({"id":"second-light","name":"Second bus light","module_id":"second-relay","channel":1,"enabled":true}));
+    doc["immediate_scenes"][0]["activate"]=json!([command("led-first","execute-led",json!({"kind":"panel_led","on":true})),command("other-bus-light","second-light",json!({"kind":"switch","on":true}))]);
+    let mut h=Harness::from_inputs(serde_json::to_vec(&cfg).unwrap(),doc).await;
+    h.request(Action::SceneAction{controller:h.controller,revision:1,scene:"act".into(),execute:true}).await.unwrap();
+    let a=Arc::default();let b=Arc::default();let wire=|calls|hb_transport::Connection::for_simulation(CountWrites{calls,limit:usize::MAX,written:0},1);
+    let mut owner=TransportOwner::new(h.actor.clone(),[("bus".into(),wire(Arc::clone(&a))),("second".into(),wire(Arc::clone(&b)))].into());
+    let result=owner.step().await.unwrap().unwrap();result.result.unwrap();assert_eq!(result.device_id.as_str(),"second-light");assert!(a.lock().unwrap().is_empty());assert_eq!(b.lock().unwrap()[0].len(),5);
+    h.actor.submit(homesense_hap::requests::Batch{controller:h.controller,intents:vec![homesense_hap::requests::Intent{device:homesense_core::DeviceId::new("marker").unwrap(),command:homesense_core::Command::Switch(true)}],subscriptions:vec![]}).await.unwrap();
+    let independent=owner.step().await.unwrap().unwrap();independent.result.unwrap();assert_eq!(independent.device_id.as_str(),"marker");assert_eq!(a.lock().unwrap().len(),1);assert!(owner.step().await.unwrap().is_none());
+    tokio::time::sleep(Duration::from_millis(2)).await;
+    h.feedback.apply(&GatewayRead{gateway_id:"second".into(),transport_epoch:1,received_at_ms:h.actor.monotonic_ms(),result:hb_transport::Receive::Frames{transport_epoch:1,frames:vec![hb_protocol::RawFrame{address:4,command:0xd1,value:0xf1}]}}).unwrap();
+    crate::control_batch::tick(&h.actor,h.controller,&h.feedback).await.unwrap();owner.step().await.unwrap().unwrap().result.unwrap();
+    assert_eq!(a.lock().unwrap()[1],vec![0xae,0x41,1,0xf1,0xee]);h.finish().await;
+}
+#[tokio::test]
+async fn batch_independent_hap_requests_with_absent_run_ids_never_merge_but_one_two_light_request_does(){
+    let h=Harness::new(rules()).await;let(mut owner,calls)=batch_owner(&h,usize::MAX);
+    let batch=|devices:&[&str]|homesense_hap::requests::Batch{controller:h.controller,intents:devices.iter().map(|id|homesense_hap::requests::Intent{device:homesense_core::DeviceId::new(*id).unwrap(),command:homesense_core::Command::Switch(true)}).collect(),subscriptions:vec![]};
+    h.actor.submit(batch(&["relay","marker"])).await.unwrap();let first=owner.step().await.unwrap().unwrap();first.result.unwrap();assert_eq!(first.completed.len(),2);assert_eq!(calls.lock().unwrap()[0].len(),10);
+    h.actor.submit(batch(&["relay"])).await.unwrap();h.actor.submit(batch(&["marker"])).await.unwrap();
+    for _ in 0..2{let outcome=owner.step().await.unwrap().unwrap();outcome.result.unwrap();assert_eq!(outcome.completed.len(),1);}
+    assert_eq!(calls.lock().unwrap().iter().map(Vec::len).collect::<Vec<_>>(),vec![10,5,5]);h.finish().await;
+}
+#[tokio::test]
+async fn batch_timed_due_phase_keeps_source_step_receipts_and_delay_boundary(){
+    let(cfg,mut doc)=writer_batch_inputs();let sources=doc["immediate_scenes"][0]["activate"].as_array().unwrap().clone();
+    doc["timed_scenes"]=json!([{"id":"phase","enabled":true,"review_evidence":"synthetic whole due phase","max_lateness_ms":5000,"steps":sources.iter().map(|node|json!({"source":node["source"],"offset_ms":0,"device":node["action"]["device"],"command":node["action"]["command"]})).chain(std::iter::once(json!({"source":"later/source","offset_ms":10000,"device":"marker","command":{"kind":"switch","on":false}}))).collect::<Vec<_>>()}]);
+    let mut h=Harness::from_inputs(cfg,doc).await;let scene=h.document.timed_scenes["phase"].clone();let now=h.actor.monotonic_ms();
+    let mut runtime=crate::scene_runtime::SceneRuntime::new(h.actor.clone(),h.controller,scene.steps,now,5000).await.unwrap();
+    let ids=runtime.poll(now).await.unwrap().unwrap();assert_eq!(ids.len(),7);
+    let store=Store::open(h.directory.join("runtime.sqlite")).unwrap();let rows=store.scene_commands(h.actor.boot_id(),runtime.audit_id(),0,128).unwrap();assert_eq!(rows.len(),7);assert_eq!(rows.iter().map(|r|r.step).collect::<Vec<_>>(),vec![1,2,4,5,0,3,6]);drop(store);
+    let(mut owner,calls)=batch_owner(&h,usize::MAX);owner.step().await.unwrap().unwrap().result.unwrap();assert_eq!(calls.lock().unwrap()[0].len(),20);assert!(owner.step().await.unwrap().is_none());
+    tokio::time::sleep(Duration::from_millis(2)).await;mode_frame(&mut h,3,1,0xf1);mode_frame(&mut h,3,2,0xf1);mode_frame(&mut h,0x15,1,40);crate::control_batch::tick(&h.actor,h.controller,&h.feedback).await.unwrap();owner.step().await.unwrap().unwrap().result.unwrap();runtime.reconcile().await.unwrap();
+    assert_eq!(calls.lock().unwrap().iter().map(Vec::len).collect::<Vec<_>>(),vec![20,15]);assert!(runtime.poll(h.actor.monotonic_ms()).await.unwrap().is_none(),"different due time is not admitted early");runtime.cancel().await.unwrap();h.finish().await;
+}
+
+#[tokio::test]
+async fn batch_gate_expiry_tombstone_never_releases_a_longer_original_led_deadline(){
+    use homesense_core::{queue::{QueuedCommand,Origin},Command,DeviceId,Percent,LevelTransition};
+    let(cfg,doc)=writer_batch_inputs();let mut h=Harness::from_inputs(cfg,doc).await;h.request(Action::SceneAction{controller:h.controller,revision:1,scene:"act".into(),execute:true}).await.unwrap();
+    let commands=vec![QueuedCommand{id:1,device_id:DeviceId::new("light").unwrap(),command:Command::SetLevel{level:Percent::new(40).unwrap(),transition:LevelTransition::Immediate},origin:Origin::Rule,epochs:h.generation.epochs,deadline_ms:1,run_id:Some(1)},QueuedCommand{id:5,device_id:DeviceId::new("execute-led").unwrap(),command:Command::PanelLed(true),origin:Origin::Rule,epochs:h.generation.epochs,deadline_ms:10000,run_id:Some(1)}];
+    let mut gate=crate::control_batch::Owner::default();gate.accepted(&h.configuration,&commands,h.generation.clone(),h.controller,None,vec![],&Default::default());
+    let store=Store::open(h.directory.join("runtime.sqlite")).unwrap();
+    for now in [2,100,9999]{gate.audit(&store,Some(&h.generation),now,|_|true,&Default::default()).unwrap();assert!(!gate.eligible(5,now),"expired proof can never turn into a standalone LED request");assert!(gate.views().is_empty());}
+    drop(store);h.finish().await;
+}
+
+#[tokio::test]
+async fn component_mode_nonmatching_unknown_tag_primary_cannot_activate_physical_companion_on_known_source_path(){
+    let(cfg,mut doc)=component_inputs();let other=doc["immediate_scenes"][1].clone();doc["variables"]=json!([{"id":"v","kind":"integer","lifetime":"persistent"},{"id":"tag","kind":"bool","lifetime":"persistent"},{"id":"peer","kind":"bool","lifetime":"persistent"}]);doc["immediate_scenes"]=json!([{"id":"act","enabled":true,"review_evidence":"synthetic known selector with unknown canonical tags","activate":[{"source":"read-known","action":{"kind":"if","condition":{"kind":"equal","left":{"kind":"variable","id":"v"},"right":{"kind":"integer","value":4}},"then_actions":[{"source":"source0","action":{"kind":"set","variable":"v","value":{"kind":"integer","value":0}}},{"source":"tagfalse","action":{"kind":"set","variable":"tag","value":{"kind":"bool","value":false}}},{"source":"peerfalse","action":{"kind":"set","variable":"peer","value":{"kind":"bool","value":false}}},command("actual-off","relay",json!({"kind":"switch","on":false})),command("led-off","execute-led",json!({"kind":"panel_led","on":false}))],"else_actions":[]}}]}]);
+    doc["component_mode_confirmations"]=json!([
+        {"id":"tag-unknown-on","variable":"tag","scenes":["act"],"first_value":true,"timeout_ms":15000,"max_age_ms":5000,"review_evidence":"synthetic inactive opposite physical policy","postconditions":[{"device":"relay","on":true}]},
+        {"id":"peer-physical-companion","variable":"peer","scenes":["act"],"first_value":false,"include_when_first_unknown":true,"timeout_ms":15000,"max_age_ms":5000,"review_evidence":"synthetic only actual unknown primary may own","postconditions":[{"device":"marker","on":false}]},
+        {"id":"tag-known","variable":"tag","scenes":["act"],"first_value":false,"confirm_when_known":true,"basis":"logical_source","when_values":{"v":0},"timeout_ms":15000,"max_age_ms":5000,"review_evidence":"synthetic original known source canonical tag","postconditions":[]},
+        {"id":"peer-known","variable":"peer","scenes":["act"],"first_value":false,"confirm_when_known":true,"basis":"logical_source","when_values":{"v":0},"timeout_ms":15000,"max_age_ms":5000,"review_evidence":"synthetic original known source canonical peer","postconditions":[]}]);
+    doc["immediate_scenes"].as_array_mut().unwrap().push(other);doc["variables"].as_array_mut().unwrap().push(json!({"id":"w","kind":"integer","lifetime":"persistent"}));
+    let mut h=Harness::from_inputs(cfg,doc).await;seed_mode(&h,"v",4);h.request(Action::SceneAction{controller:h.controller,revision:1,scene:"act".into(),execute:true}).await.unwrap();
+    assert_eq!(mode_value(&h,"v"),Some(homesense_core::rule::Value::Integer(0)));let store=Store::open(h.directory.join("runtime.sqlite")).unwrap();for name in ["tag","peer"]{let value=store.logical_variable(1,name).unwrap().unwrap();assert_eq!(value.value,Some(homesense_core::rule::Value::Bool(false)));assert_eq!(store.component_mode_audit(1,name,value.version).unwrap().unwrap().provenance,"local_source_canonicalization");}drop(store);h.finish().await;
+}
+
+#[tokio::test]
+async fn batch_timed_manual_takeover_cancels_only_one_expanded_member_and_preserves_same_due_peer(){
+    use homesense_core::{DeviceId,Command,scene::{Step,Status}};
+    for writing in [false,true]{
+        let(cfg,mut doc)=writer_batch_inputs();doc["immediate_scenes"][0]["activate"]=json!([command("safe logical","light",level(40))]);let mut cfg:Json=serde_json::from_slice(&cfg).unwrap();cfg["devices"][0]["supply"]=json!({"module_id":"relay","channel":1});cfg["devices"][0]["default_on_level"]=json!(100);
+        let h=Harness::from_inputs(serde_json::to_vec(&cfg).unwrap(),doc).await;
+        let light=DeviceId::new("light").unwrap();let peer=DeviceId::new("marker").unwrap();
+        let steps=vec![Step{device:light.clone(),command:homesense_core::Command::SetLevel{level:homesense_core::Percent::new(40).unwrap(),transition:homesense_core::LevelTransition::Immediate},delay_ms:0,source:"member/combined".into()},Step{device:peer.clone(),command:Command::Switch(true),delay_ms:0,source:"member/peer".into()}];
+        let now=h.actor.monotonic_ms();let mut scene=crate::scene_runtime::SceneRuntime::new(h.actor.clone(),h.controller,steps,now,5000).await.unwrap();let ids=scene.poll(now).await.unwrap().unwrap();assert_eq!(ids.len(),3);
+        let selected=if writing{Some(h.actor.dispatch().await.unwrap().unwrap())}else{None};
+        assert_eq!(scene.cancel_device(&light).await.unwrap(),if writing{1}else{2});
+        let states=h.actor.command_statuses(h.controller,h.generation.clone(),ids.clone()).await.unwrap();assert_eq!(states[2],homesense_storage::journal::Status::Accepted);assert_eq!(states[1],homesense_storage::journal::Status::Cancelled);
+        if let Some(ticket)=selected{assert_eq!(states[0],homesense_storage::journal::Status::Writing);let mut wire=hb_transport::Connection::for_simulation(Memory(Arc::default()),1);crate::transport_owner::send_ticket(&ticket,&mut wire,||h.actor.monotonic_ms()).unwrap();h.actor.finish_write(ticket.command.id,true).await.unwrap();}else{assert_eq!(states[0],homesense_storage::journal::Status::Cancelled);}
+        let(mut owner,bytes)=batch_owner(&h,usize::MAX);let outcome=owner.step().await.unwrap().unwrap();outcome.result.unwrap();assert_eq!(outcome.completed,vec![(ids[2],peer)]);assert_eq!(bytes.lock().unwrap().as_slice(),&[vec![0xae,3,2,0xf1,0xee]]);
+        scene.reconcile().await.unwrap();assert_eq!(scene.status(),Status::Partial);assert!(owner.step().await.unwrap().is_none());h.finish().await;
+    }
+}
+
+#[tokio::test]
+async fn batch_timed_pre_admission_takeover_of_second_member_preserves_first_without_replaying_override(){
+    use homesense_core::{DeviceId,Command,scene::{Step,Status}};
+    let(cfg,doc)=writer_batch_inputs();let h=Harness::from_inputs(cfg,doc).await;
+    let a=DeviceId::new("relay").unwrap();let b=DeviceId::new("marker").unwrap();let now=h.actor.monotonic_ms();
+    let steps=[a.clone(),b.clone()].into_iter().map(|device|Step{source:format!("phase/{}",device.as_str()),device,command:Command::Switch(true),delay_ms:0}).collect();
+    let mut scene=crate::scene_runtime::SceneRuntime::new(h.actor.clone(),h.controller,steps,now,5000).await.unwrap();
+    let manual=h.actor.submit(homesense_hap::requests::Batch{controller:h.controller,intents:vec![homesense_hap::requests::Intent{device:b.clone(),command:Command::Switch(false)}],subscriptions:vec![]}).await.unwrap();
+    assert!(scene.poll(now).await.unwrap().is_none());assert_eq!(h.count("command_journal"),1,"known rejected cohort cannot allocate receipts or replay B");
+    let(mut owner,bytes)=batch_owner(&h,usize::MAX);let prior=owner.step().await.unwrap().unwrap();prior.result.unwrap();assert_eq!(prior.completed,vec![(manual[0],b)]);
+    let kept=scene.poll(now+1).await.unwrap().unwrap();assert_eq!(kept.len(),1);let next=owner.step().await.unwrap().unwrap();next.result.unwrap();assert_eq!(next.completed,vec![(kept[0],a)]);scene.reconcile().await.unwrap();assert_eq!(scene.status(),Status::Partial);
+    assert!(scene.poll(now+2).await.unwrap().is_none());assert!(owner.step().await.unwrap().is_none());assert_eq!(bytes.lock().unwrap().as_slice(),&[vec![0xae,3,2,0xf2,0xee],vec![0xae,3,1,0xf1,0xee]]);h.finish().await;
+}

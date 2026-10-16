@@ -179,11 +179,9 @@ async fn explicit_runtime_entry_writes_two_frames_and_sixteen_durable_effects() 
             .unwrap_err(),
         WriteStatus::ResourceBusy
     );
-    for id in ids {
-        let event = owner.step().await.unwrap().unwrap();
-        assert_eq!(event.command_id, id);
-        assert!(event.result.is_ok());
-    }
+    let event=owner.step().await.unwrap().unwrap();event.result.unwrap();assert_eq!(event.physical_frames,2);
+    assert_eq!(event.completed.iter().map(|(id,_)|*id).collect::<Vec<_>>(),ids);
+    let store=Store::open(&db.0).unwrap();for id in &ids{assert_eq!(store.command_status(actor.boot_id(),*id).unwrap(),Some(Status::Written));}drop(store);
     assert!(owner.step().await.unwrap().is_none());
     assert_eq!(
         *bus.bytes.lock().unwrap(),
@@ -375,9 +373,10 @@ async fn away_atomically_supersedes_covered_queue_and_preserves_unrelated_motor_
     let mut owner = owner(&actor, bus.clone());
     let first = owner.step().await.unwrap().unwrap();
     assert_eq!(first.command_id, stop);
-    for id in away {
-        assert_eq!(owner.step().await.unwrap().unwrap().command_id, id);
-    }
+    first.result.unwrap();
+    let event=owner.step().await.unwrap().unwrap();event.result.unwrap();assert_eq!(event.completed.iter().map(|(id,_)|*id).collect::<Vec<_>>(),away);
+    for id in &away{assert_eq!(store.command_status(actor.boot_id(),*id).unwrap(),Some(Status::Written));}
+    assert!(owner.step().await.unwrap().is_none());
     assert_eq!(
         *bus.bytes.lock().unwrap(),
         vec![
@@ -564,7 +563,7 @@ async fn ninety_six_lighting_ports_emit_twelve_module_frames() {
  let lease=tokens.module_off_lease(Some(&format!("Bearer {SECRET}")),None,None).unwrap();
  let actor=Admission::open(db.0.clone(),Options{context:ExecutionContext::Simulation,..Options::default()},move|id|id==controller).await.unwrap();
  let bus=Bus::default();let mut owner=owner(&actor,bus.clone());let ids=actor.submit_away_off(1,lease,true).await.unwrap();assert_eq!(ids.len(),12);
- for id in ids {let result=owner.step().await.unwrap().unwrap();assert_eq!(result.command_id,id);assert!(result.result.is_ok());}
+ let result=owner.step().await.unwrap().unwrap();result.result.unwrap();assert_eq!(result.physical_frames,12);assert_eq!(result.completed.iter().map(|(id,_)|*id).collect::<Vec<_>>(),ids);let store=Store::open(&db.0).unwrap();for id in &ids{assert_eq!(store.command_status(actor.boot_id(),*id).unwrap(),Some(Status::Written));}drop(store);
  assert!(owner.step().await.unwrap().is_none());assert_eq!(*bus.bytes.lock().unwrap(),expected);assert_eq!(expected.len(),60);
  let sql=rusqlite::Connection::open(&db.0).unwrap();
  assert_eq!(sql.query_row("SELECT count(*) FROM module_off_effect",[],|r|r.get::<_,i64>(0)).unwrap(),96);

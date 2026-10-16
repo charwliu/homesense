@@ -11,6 +11,8 @@ use rusqlite::{Connection, OptionalExtension, params};
 
 #[derive(Debug, Clone)]
 pub struct Snapshot {
+    /// Current actor-owned Written plus feedback inference, not EA variable truth.
+    pub component_inferred:bool,
     /// Effective value; a different boot/epoch/stream makes an inference unknown.
     pub stored: crate::variables::Stored,
     /// Retained even when invalidated, so unknown never loses its source label.
@@ -106,6 +108,7 @@ fn snapshot(
         return Err(Error::InvalidAudit);
     }
     Ok(Some(Snapshot {
+        component_inferred:false,
         physical: None,
         initialization,
         evidence_current,

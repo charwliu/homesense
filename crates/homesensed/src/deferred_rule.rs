@@ -140,11 +140,12 @@ async fn execute_entry_classified(caller:Caller<'_>,entry:Entry<'_>,chain:&mut C
         .filter(|(_, s)| s.enabled)
         .map(|(id, s)| (id.clone(), s.steps.clone()))
         .collect();
-    let names = rule::variable_references_with_deferred(
+    let mut names = rule::variable_references_with_deferred(
         &actions,
         &definitions.keys().cloned().collect(),
     )
     .map_err(str::to_owned)?;
+    if let Entry::Scenes(writes)=&entry{for policy in document.component_mode_confirmations.iter().filter(|p|p.scenes.iter().any(|s|writes.iter().any(|(id,on)|id==s&&*on==Some(true)))){names.extend(policy.when_values.keys().cloned());names.extend(policy.when_initial_unknown.iter().cloned());}}
     let snapshot = admission
         .variable_snapshot(controller, generation.clone(), names.into_iter().collect())
         .await
@@ -204,13 +205,14 @@ async fn execute_entry_classified(caller:Caller<'_>,entry:Entry<'_>,chain:&mut C
     };
     let explicit_writes=planned.plan.actions.iter().filter_map(|node|match &node.action {rule::Action::Set{variable,..}=>Some(variable.clone()),_=>None}).collect::<std::collections::BTreeSet<_>>();
     let ordinary_writes=planned.plan.actions.iter().filter(|node|manual.as_ref().is_none_or(|m|!m.provider_set_sources.contains(&node.source))).filter_map(|node|match &node.action {rule::Action::Set{variable,..}=>Some(variable.clone()),_=>None}).collect::<std::collections::BTreeSet<_>>();
-    let condition_reads=if manual.is_some(){snapshot.iter().filter(|(name,_)|!explicit_writes.contains(*name)).map(|(name,v)|homesense_storage::variables::ReadCheck{revision:document.revision,name:name.clone(),expected_version:v.version}).collect()}else{vec![]};
-    let changed_variables = snapshot
+    let mut condition_reads=if manual.is_some(){snapshot.iter().filter(|(name,_)|!explicit_writes.contains(*name)).map(|(name,v)|homesense_storage::variables::ReadCheck{revision:document.revision,name:name.clone(),expected_version:v.version}).collect()}else{vec![]};
+    let initial_snapshot=snapshot.clone();
+    let mut changed_variables:Vec<String> = snapshot
         .iter()
         .filter(|(name, v)| planned.plan.variables[*name].value != v.value && (manual.is_none() || ordinary_writes.contains(*name)))
         .map(|(name, _)| name.clone())
         .collect();
-    let updates = if planned.plan.actions.is_empty() {
+    let mut updates:Vec<homesense_storage::variables::Update> = if planned.plan.actions.is_empty() {
         vec![]
     } else {
         snapshot
@@ -224,6 +226,10 @@ async fn execute_entry_classified(caller:Caller<'_>,entry:Entry<'_>,chain:&mut C
             })
             .collect()
     };
+    let requested=match &entry{Entry::Scenes(writes)=>writes.iter().filter(|(_,on)|*on==Some(true)).map(|(id,_)|id.clone()).collect::<Vec<_>>(),_=>vec![]};
+    let intents=planned.plan.commands.iter().map(|c|Intent{device:c.device.clone(),command:c.command}).collect::<Vec<_>>();
+    let mode_confirmation=if requested.is_empty(){None}else{crate::component_modes::Prepared::capture(&document,&bundle.configuration,&requested,&initial_snapshot,&planned.plan.variable_reads,&planned.plan.variables,&updates,&intents,feedback,admission.monotonic_ms()).map_err(ExecutionFailure::RejectedBeforeAcceptance)?};
+    if let Some(mode)=&mode_confirmation {let deferred=mode.variables();condition_reads.extend(mode.reads());updates.retain(|u|!deferred.contains(&u.name));changed_variables.retain(|name|!deferred.contains(name));if let Some(baseline)=mode.baseline(){lease=Some(match lease {Some(original)=>original.merge_physical(baseline).map_err(ExecutionFailure::RejectedBeforeAcceptance)?,None=>baseline.clone()});}}
     let starts = invocations
         .into_iter()
         .map(|i| homesense_storage::scene_run::Start {
@@ -271,7 +277,7 @@ async fn execute_entry_classified(caller:Caller<'_>,entry:Entry<'_>,chain:&mut C
     }
     let mut guard = Guard(admission.clone(), false);
     let accepted = match admission
-        .submit_deferred_rule_for_entry(generation, payload, lease, Some(command_sources),crate::admission::RuleEntry{deadline:Some(chain.deadline_ms()),admit_before,selection_reads:manual.map(|m|m.selection_reads),condition_reads,deactivated_scenes})
+        .submit_deferred_rule_for_entry(generation, payload, lease, Some(command_sources),crate::admission::RuleEntry{deadline:Some(chain.deadline_ms()),admit_before,selection_reads:manual.map(|m|m.selection_reads),condition_reads,deactivated_scenes,mode_confirmation:mode_confirmation.map(Box::new)})
         .await
     {
         Ok(v) => v,

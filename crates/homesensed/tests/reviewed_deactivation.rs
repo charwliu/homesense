@@ -393,7 +393,7 @@ async fn target_partial_write_is_audited_without_compensation_or_later_target_re
         .unwrap() as u64;
     drop(sql);
     l.scheduler.tick(now).await.unwrap();
-    l.owner.step().await.unwrap().unwrap().result.unwrap();
+    l.owner.step_with_frame_budget(1).await.unwrap().unwrap().result.unwrap();
     l.scheduler.tick(now).await.unwrap();
     let second = l.actor.dispatch().await.unwrap().unwrap();
     l.actor
@@ -415,8 +415,9 @@ async fn target_partial_write_is_audited_without_compensation_or_later_target_re
         sql.query_row("select count(*) from command_journal", [], |r| r
             .get::<_, i64>(0))
             .unwrap(),
-        2
+        36
     );
+    assert_eq!(sql.query_row("select count(*) from command_journal where status='cancelled'",[],|r|r.get::<_,i64>(0)).unwrap(),34,"accepted cohort suffix must be durably cancelled, never replayed");
     assert_eq!(
         sql.query_row("select status from scene_run", [], |r| r
             .get::<_, String>(0))

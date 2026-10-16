@@ -242,3 +242,131 @@ async fn three_hour_idle_retains_last_observation_and_still_expires_after_the_po
     assert_eq!(fixture.feedback.snapshot().devices[&fixture.id].observed_at_ms,Some(0));
     fixture.close().await;
 }
+
+
+#[tokio::test]
+async fn relay_feedback_authority_is_not_a_dimmer_target_even_after_written_off() {
+    use homesense_core::{Command, LevelTransition};
+    use homesense_hap::requests::{Batch, Intent};
+    static TIME: AtomicU64 = AtomicU64::new(10);
+    let path = std::env::temp_dir().join(format!("authority-kind-{}.sqlite", Uuid::new_v4()));
+    let bytes = serde_json::to_vec(&serde_json::json!({
+        "schema_version":2,"revision":1,
+        "gateways":[{"id":"fixture","endpoint":"127.0.0.1:1","modules":[
+            {"id":"relay-module","address":"03","profile":"r8i8_din_pro_v2_7_7","verification":{"status":"simulated"}},
+            {"id":"dimmer-module","address":"15","profile":"ad8_din_rs485_v2_2_1","verification":{"status":"simulated"}}
+        ]}],
+        "devices":[
+            {"id":"relay","name":"Synthetic relay","module_id":"relay-module","channel":1,"enabled":true},
+            {"id":"dimmer","name":"Synthetic dimmer","module_id":"dimmer-module","channel":1,"enabled":true}
+        ]
+    })).unwrap();
+    Store::open(&path).unwrap().publish_configuration(None,&bytes,ExecutionContext::Simulation,&[]).unwrap();
+    let configuration=homesense_config::Configuration::parse(&bytes,ExecutionContext::Simulation).unwrap();
+    let controller=Uuid::new_v4();
+    let admission=Admission::open_with_test_time(path.clone(),Options {context:ExecutionContext::Simulation,..Default::default()},move |id|id==controller,&TIME).await.unwrap();
+    admission.synchronized(1,1).await.unwrap();
+    let generation=admission.task_generation().await.unwrap();
+    let mut feedback=Feedback::new(&configuration,ExecutionContext::Simulation,Uuid::parse_str(admission.boot_id()).unwrap().as_u128(),1).unwrap();
+    let relay=DeviceId::new("relay").unwrap();let dimmer=DeviceId::new("dimmer").unwrap();
+    let sample=|feedback:&mut Feedback,at,value|feedback.apply(&GatewayRead {
+        gateway_id:"fixture".into(),transport_epoch:1,received_at_ms:at,
+        result:hb_transport::Receive::Frames {transport_epoch:1,frames:vec![
+            hb_protocol::RawFrame {address:3,command:0xd1,value},
+            hb_protocol::RawFrame {address:0x15,command:0xd1,value:25}
+        ]}
+    }).unwrap();
+    sample(&mut feedback,10,0xf1);
+    admission.submit(Batch {controller,intents:vec![
+        Intent {device:relay.clone(),command:Command::Switch(false)},
+        Intent {device:dimmer.clone(),command:Command::SetLevel {level:Percent::new(60).unwrap(),transition:LevelTransition::Immediate}}
+    ],subscriptions:vec![]}).await.unwrap();
+    let grant=crate::web_auth::Grant {controller,role:crate::web_auth::Role::Administrator,devices:["relay".into(),"dimmer".into()].into(),scenes:Default::default()};
+    for after_written in [false,true] {
+        if after_written {
+            while let Some(ticket)=admission.dispatch().await.unwrap() {admission.finish_write(ticket.command.id,true).await.unwrap();}
+            TIME.store(20,Ordering::Release);sample(&mut feedback,20,0xf2);
+        }
+        // Both actor targets intentionally exist: only the dimmer actually uses
+        // that display overlay. Do not remove the relay's internal policy entry.
+        let targets=admission.projection_levels(1,feedback.snapshot().cursor.boot_id).await.unwrap();
+        assert!(targets.contains_key(&relay) && targets.contains_key(&dimmer));
+        let raw=feedback.snapshot();
+        let view=snapshot(&admission,controller,generation.clone(),vec![relay.clone(),dimmer.clone()],&feedback).await.unwrap();
+        let relay_view=view.devices.iter().find(|v|v.id==relay).unwrap();
+        assert!(!relay_view.recorded,"relay authority must remain physical feedback, after_written={after_written}");
+        let relay_json=crate::web_api::device_json(relay_view,&grant);
+        assert_eq!(relay_json["state_authority"],"feedback");
+        assert_eq!(relay_json["observed"]["on"],!after_written);
+        assert_eq!(relay_json["reported"],relay_json["observed"]);
+        assert_eq!(relay_json["quality"],"Confirmed");
+        let dimmer_view=view.devices.iter().find(|v|v.id==dimmer).unwrap();
+        assert!(dimmer_view.recorded);
+        let dimmer_json=crate::web_api::device_json(dimmer_view,&grant);
+        assert_eq!(dimmer_json["state_authority"],"pending_target");
+        assert_eq!(dimmer_json["observed"]["level"],25);
+        assert_eq!(dimmer_json["reported"]["level"],60);
+        assert_eq!(feedback.snapshot(),raw,"view must not alter physical observations");
+    }
+    let prior=crate::management_events::read_scoped(&admission,controller,generation.clone(),vec![relay.clone(),dimmer.clone()],&feedback,None,"projection-test").await.unwrap();
+    let target_fingerprint=crate::web_events::light_projection(&prior.snapshot);
+    TIME.store(16010,Ordering::Release);
+    let settled=crate::management_events::read_scoped(&admission,controller,generation.clone(),vec![relay.clone(),dimmer.clone()],&feedback,Some(prior.cursor.clone()),"projection-test").await.unwrap();
+    assert_eq!(settled.cursor,prior.cursor,"software target expiry must not fabricate a physical cursor");
+    assert!(!settled.reset);
+    let dimmer_view=settled.snapshot.devices.iter().find(|view|view.id==dimmer).expect("event delta must retain dimmer whose overlay cleared without a physical event");
+    assert!(!dimmer_view.recorded);
+    assert_eq!(dimmer_view.reported,Some(Observation::Level(Percent::new(25).unwrap())));
+    let settled_fingerprint=crate::web_events::light_projection(&settled.snapshot);
+    assert_ne!(settled_fingerprint,target_fingerprint,"WSS must publish target/authority convergence even at the same cursor");
+    TIME.store(16011,Ordering::Release);sample(&mut feedback,16011,0xf2);
+    let quiet=crate::management_events::read_scoped(&admission,controller,generation,vec![relay,dimmer],&feedback,Some(settled.cursor),"projection-test").await.unwrap();
+    assert_eq!(crate::web_events::light_projection(&quiet.snapshot),settled_fingerprint,"unchanged repeated readback timestamps must not flood WSS");
+    admission.shutdown().await.unwrap();
+    for suffix in ["","-wal","-shm"] {let _=std::fs::remove_file(format!("{}{suffix}",path.display()));}
+    let _=std::fs::remove_file(path.with_extension("runtime.lock"));
+}
+
+#[tokio::test]
+async fn same_value_dimmer_confirmation_advances_projection_without_a_physical_cursor() {
+    use homesense_core::{Command, LevelTransition, gateway_scope::WireScope};
+    use homesense_hap::requests::{Batch, Intent};
+    static TIME: AtomicU64 = AtomicU64::new(0);
+    let mut fixture=Fixture::new(false,&TIME).await;
+    let wire=WireScope::from_persisted("fixture".into(),1).unwrap();
+    // Use the actual local-wire owner so received_projection can verify the
+    // Written command's wire and the post-write receive witness.
+    fixture.admission.activate_gateways(vec![crate::gateway_runtime::Initial {
+        wire:wire.clone(),samples:(1..=8).map(|channel|crate::gateway_runtime::Sample {
+            requirement:homesense_core::gateway_scope::ReadRequirement {
+                port:homesense_core::gateway_scope::Port {address:0x15,channel},before_count:0,sent_at_ms:0,deadline_ms:100
+            },count:1,at:0
+        }).collect()
+    }]).await.unwrap();
+    fixture.feedback.enable_local_wires([("fixture".into(),1)].into()).unwrap();
+    TIME.store(10,Ordering::Release);
+    fixture.admission.submit(Batch {controller:fixture.controller,intents:vec![Intent {
+        device:fixture.id.clone(),command:Command::SetLevel {level:Percent::new(37).unwrap(),transition:LevelTransition::Immediate}
+    }],subscriptions:vec![]}).await.unwrap();
+    let ticket=fixture.admission.dispatch().await.unwrap().unwrap();
+    fixture.admission.finish_write(ticket.command.id,true).await.unwrap();
+    let prior=crate::management_events::read_scoped(&fixture.admission,fixture.controller,fixture.generation.clone(),vec![fixture.id.clone()],&fixture.feedback,None,"projection-test").await.unwrap();
+    assert!(prior.snapshot.devices[0].recorded);
+    assert_eq!(prior.snapshot.devices[0].reported,Some(Observation::Level(Percent::new(37).unwrap())));
+    let pending=crate::web_events::light_projection(&prior.snapshot);
+    TIME.store(20,Ordering::Release);fixture.observe(0x15,37,20);
+    fixture.admission.received_projection(wire,vec![ticket.command.id],vec![fixture.id.clone()],20,fixture.feedback.snapshot()).await.unwrap();
+    let confirmed=crate::management_events::read_scoped(&fixture.admission,fixture.controller,fixture.generation.clone(),vec![fixture.id.clone()],&fixture.feedback,Some(prior.cursor.clone()),"projection-test").await.unwrap();
+    assert_eq!(confirmed.cursor,prior.cursor,"same value feedback does not fabricate a physical event");
+    assert_eq!(confirmed.snapshot.devices.len(),1,"cleared overlay must remain in the bounded delta view");
+    assert!(!confirmed.snapshot.devices[0].recorded);
+    assert_eq!(confirmed.snapshot.devices[0].reported,prior.snapshot.devices[0].reported);
+    let settled=crate::web_events::light_projection(&confirmed.snapshot);
+    assert_ne!(pending,settled,"the exact WSS send fingerprint must change when only authority settles");
+    TIME.store(21,Ordering::Release);fixture.observe(0x15,37,21);
+    let quiet=crate::management_events::read_scoped(&fixture.admission,fixture.controller,fixture.generation,vec![fixture.id],&fixture.feedback,Some(confirmed.cursor),"projection-test").await.unwrap();
+    assert_eq!(crate::web_events::light_projection(&quiet.snapshot),settled,"quiet same-value readbacks must not cause repeated sends");
+    fixture.admission.shutdown().await.unwrap();
+    for suffix in ["","-wal","-shm"] {let _=std::fs::remove_file(format!("{}{suffix}",fixture.path.display()));}
+    let _=std::fs::remove_file(fixture.path.with_extension("runtime.lock"));
+}

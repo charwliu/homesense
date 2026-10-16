@@ -33,8 +33,8 @@ pub async fn read(
     feedback: &Feedback,
     previous: Option<Cursor>,
 ) -> Result<Update, String> {
-    read_scoped(
-        admission, controller, generation, ids, feedback, previous, "",
+    read_bound(
+        admission, controller, generation, ids, feedback, previous, "", false,
     )
     .await
 }
@@ -47,7 +47,22 @@ pub(crate) async fn read_scoped(
     previous: Option<Cursor>,
     authorization_scope: &str,
 ) -> Result<Update, String> {
-    if ids.len() > 256 {
+    // This internal entry is the WSS owner's bounded software projection view.
+    // Ordinary public event reads retain their empty-idle delta contract.
+    read_bound(admission,controller,generation,ids,feedback,previous,authorization_scope,true).await
+}
+#[allow(clippy::too_many_arguments)]
+async fn read_bound(
+    admission: &Admission,
+    controller: Uuid,
+    generation: TaskGeneration,
+    ids: Vec<DeviceId>,
+    feedback: &Feedback,
+    previous: Option<Cursor>,
+    authorization_scope: &str,
+    include_projection: bool,
+) -> Result<Update, String> {
+    if ids.len() > crate::web_auth::MAX_DEVICE_SCOPE {
         return Err("event device scope too large".into());
     }
     let mut ids = ids;
@@ -100,7 +115,11 @@ pub(crate) async fn read_scoped(
             // Local gateway health has its own epoch, without advancing the
             // service cursor. Include the bounded local views even when no
             // queryable state exists (keypads and uncalibrated motors).
-            view.availability.is_some() || view.motor_estimate.is_some() || view.recorded || physical.contains(&view.id)
+            // Dimmer overlay settlement can change without a physical event.
+            // Retain its bounded view so WSS can compare stable projection data.
+            view.availability.is_some() || view.motor_estimate.is_some()
+                || (include_projection && view.state.kind == homesense_core::ModuleKind::Dimmer)
+                || view.recorded || physical.contains(&view.id)
                 || bundle
                     .configuration
                     .devices()

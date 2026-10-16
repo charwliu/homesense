@@ -18,8 +18,9 @@ pub(super) struct Refresh {
     pub(super) round:RoundTracker,
     adaptive:Option<crate::adaptive_refresh::Schedule>,
     recent_queries:BTreeMap<(String,u8,u8),u64>,
+    strict:BTreeMap<usize,u64>,
 }
-struct Pending { index:usize,before:Vec<(u8,u64)>,sent:u64,deadline:u64,retried:bool,recovery:bool }
+struct Pending { index:usize,before:Vec<(u8,u64)>,sent:u64,deadline:u64,retried:bool,recovery:bool,strict:bool }
 struct Recovery { wire:WireScope,indices:Vec<usize>,next:usize,samples:Vec<crate::gateway_runtime::Sample> }
 impl Refresh {
     #[allow(clippy::too_many_arguments)]
@@ -34,8 +35,10 @@ impl Refresh {
             now.checked_add(first_delay).and_then(|at|at.checked_add(offset)).ok_or("local refresh due overflow")
         }).collect::<Result<Vec<_>,_>>()?;
         let control_opportunity=config.gateways().keys().cloned().collect();
-        Ok(Self {config,targets,generation,context,timeout,max_age,cycle,due,pending:BTreeMap::new(),recovery:BTreeMap::new(),control_opportunity,round:RoundTracker::default(),adaptive,recent_queries:BTreeMap::new()})
+        Ok(Self {config,targets,generation,context,timeout,max_age,cycle,due,pending:BTreeMap::new(),recovery:BTreeMap::new(),control_opportunity,round:RoundTracker::default(),adaptive,recent_queries:BTreeMap::new(),strict:BTreeMap::new()})
     }
+    pub(super) fn configure_consumers(&mut self,requirements:&BTreeMap<homesense_core::DeviceId,u64>) {self.strict=crate::consumer_refresh::target_ages(&self.config,&self.targets,requirements);}
+    fn due_at(&self,index:usize,truth:&crate::module_truth::ModuleTruth)->u64 {self.strict.get(&index).map_or(self.due[index],|age|self.due[index].min(crate::consumer_refresh::due(&self.targets[index],truth,*age)))}
     pub(super) fn written(&mut self,device:&homesense_core::DeviceId,now:u64) {
         if self.adaptive.is_none() {return;}
         let Some((binding,module))=self.config.binding(device) else{return;};
@@ -106,6 +109,7 @@ impl<S:Read+Write+Send+'static> ObservedTransport<S> {
     pub(crate) async fn poll_local_events(&mut self,start_connects:bool)->Result<(),String> {
         let events=self.transport.poll_local_io(start_connects).await?;
         for (wire,audit) in events.faults {
+            self.transport.finish_status_read(wire.gateway());
             self.feedback.invalidate_gateway(wire.gateway())?;
             if let Some(plan)=&mut self.local_refresh {plan.fault(wire.gateway());}
             self.local_fault_operations.extend(audit.operations);
@@ -118,9 +122,7 @@ impl<S:Read+Write+Send+'static> ObservedTransport<S> {
         for read in events.reads {
             let candidates=match &read.result {
                 hb_transport::Receive::Frames {frames,..}=>frames.iter().filter_map(|frame| {
-                    let channel=frame.command.checked_sub(0xd0)?;
-                if !self.feedback.module_truth().received_port_state(&read.gateway_id,frame.address,channel).is_some_and(|state|matches!(state.kind,homesense_core::ModuleKind::Switch|homesense_core::ModuleKind::Dimmer)) {return None;}
-                    let count=self.feedback.module_truth().port_observation_count(&read.gateway_id,frame.address,channel)?;
+                    let (_,channel,count)=crate::adaptive_refresh::candidate(self.feedback.module_truth(),&read.gateway_id,frame)?;
                     (!self.local_refresh.as_ref().is_some_and(|p|p.solicited(&read.gateway_id,frame.address,channel,read.received_at_ms))).then_some((frame.address,channel,count))
                 }).collect::<Vec<_>>(),_=>vec![],
             };
@@ -180,6 +182,7 @@ impl<S:Read+Write+Send+'static> ObservedTransport<S> {
             .map(|(gateway,_)|gateway.clone()).collect::<Vec<_>>();
         for gateway in completed {
             let pending=plan.pending.remove(&gateway).ok_or("completed local query missing")?;
+            self.transport.finish_status_read(&gateway);
             let target=&plan.targets[pending.index];
             if pending.recovery {
                 let recovery=plan.recovery.get_mut(&gateway).ok_or("local recovery owner missing")?;
@@ -191,15 +194,15 @@ impl<S:Read+Write+Send+'static> ObservedTransport<S> {
                     },count:self.feedback.module_truth().port_observation_count(&gateway,target.module.address().get(),channel).ok_or("recovery count missing")?,at:state.observed_at_ms.ok_or("recovery actual time missing")?});
                 }
                 recovery.next+=1;
-            }else{
+            }else if !pending.strict {
                 let complete=plan.round.observe(pending.index,&plan.targets,self.feedback.module_truth(),now,plan.max_age,plan.config.refresh_policy().round_budget_ms,&plan.generation);
                 if complete && let Some(schedule)=&mut plan.adaptive {
                     let due=now.checked_add(schedule.completed()).ok_or("adaptive refresh time exhausted")?;
                     plan.due.fill(due);self.feedback.set_managed_max_age_ms(schedule.allowance())?;
                 }else{plan.due[pending.index]=plan.due[pending.index].checked_add(plan.cycle).ok_or("refresh time exhausted")?.max(now);}
 
-                plan.control_opportunity.insert(gateway);
             }
+            if !pending.recovery {plan.control_opportunity.insert(gateway);}
         }
         let synchronized=plan.recovery.iter().filter(|(_,recovery)|recovery.next==recovery.indices.len()).map(|(id,_)|id.clone()).collect::<Vec<_>>();
         for gateway in synchronized {
@@ -237,25 +240,27 @@ impl<S:Read+Write+Send+'static> ObservedTransport<S> {
         for (index,target) in plan.targets.iter().enumerate() {
             if !plan.pending.contains_key(&target.gateway)&&!plan.recovery.contains_key(&target.gateway)
                 &&self.transport.local_connected(&target.gateway)&&!self.transport.local_syncing(&target.gateway)
-                &&self.transport.local_idle_stream(&target.gateway)&&now>=plan.due[index]&&!plan.round.contains(index) {
-                candidates.push((plan.due[index],index,false,false));
+                &&self.transport.local_idle_stream(&target.gateway)&&now>=plan.due_at(index,self.feedback.module_truth())&&(!plan.round.contains(index)||plan.strict.get(&index).is_some_and(|age|crate::consumer_refresh::due(target,self.feedback.module_truth(),*age)<=now)) {
+                candidates.push((plan.due_at(index,self.feedback.module_truth()),index,false,false));
             }
         }
         candidates.sort_by_key(|candidate|(candidate.0,candidate.1));
         let Some((_,index,retried,recovery))=candidates.first().copied() else{return Ok(());};
-        if !retried&&!recovery {plan.round.begin(now);}
+        let strict=!recovery && plan.pending.get(&plan.targets[index].gateway).map_or_else(||plan.strict.get(&index).is_some_and(|age|crate::consumer_refresh::due(&plan.targets[index],self.feedback.module_truth(),*age)<=now),|p|p.strict);
         let target=&plan.targets[index];
         let before=self.physical_query_counts(&plan.config,target,plan.timeout,plan.max_age)?;
         let timeout=if retried {plan.timeout.min(500)}else{plan.timeout};
-        match self.transport.query_status_scope(&target.gateway,&target.module,target.first_channel(),plan.context,timeout,target.whole).await {
-            Ok(())=>{},
+        match self.transport.try_query_status_scope(&target.gateway,&target.module,target.first_channel(),plan.context,timeout,target.whole).await {
+            Ok(true)=>{},
+            Ok(false)=>return Ok(()),
             Err(_) if self.transport.has_local_fault()=>return Ok(()),
             Err(error)=>return Err(error),
         }
         let sent=self.transport.now_ms();
+        if !retried&&!recovery&&!strict {plan.round.begin(sent);}
         plan.recent_queries.retain(|_,deadline|*deadline>=sent);
         for channel in &target.channels {plan.recent_queries.insert((target.gateway.clone(),target.module.address().get(),*channel),sent.saturating_add(timeout));}
-        plan.pending.insert(target.gateway.clone(),Pending {index,before,sent,deadline:sent.checked_add(timeout).ok_or("local deadline overflow")?,retried,recovery});
+        plan.pending.insert(target.gateway.clone(),Pending {index,before,sent,deadline:sent.checked_add(timeout).ok_or("local deadline overflow")?,retried,recovery,strict});
         plan.control_opportunity.remove(&target.gateway);
         // Capture generation is unchanged by local retries; it remains a global
         // publication/startup guard and is never replaced with a local epoch.

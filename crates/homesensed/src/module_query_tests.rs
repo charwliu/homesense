@@ -40,10 +40,9 @@ impl Read for Stream {
 }
 impl Write for Stream {
     fn write(&mut self, b: &[u8]) -> std::io::Result<usize> {
-        let f: [u8; 5] = b.try_into().unwrap();
-        let mut w = self.0.lock().unwrap();
-        w.writes.push(f);
-        w.times.push(Instant::now());
+        let(frames,tail)=b.as_chunks::<5>();assert!(tail.is_empty());
+        let mut w=self.0.lock().unwrap();w.times.push(Instant::now());
+        for &f in frames{w.writes.push(f);
         let channels: Vec<_> = if f[2] == 0xA0 {
             (1..=w.channels).rev().collect()
         } else if f[2] >= 0xA1 {
@@ -68,6 +67,7 @@ impl Write for Stream {
             if w.dirty {
                 w.replies.extend([0xAE, f[1], 0xD0 + c, value, 0xEE]);
             }
+        }
         }
         Ok(b.len())
     }

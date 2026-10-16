@@ -25,6 +25,10 @@ pub enum KeyAction {
         #[serde(default,skip_serializing_if="Option::is_none")]
         indicator_reset: Option<AwayIndicatorReset>,
     },
+    SceneExecute {
+        scene: String,
+        review_evidence: String,
+    },
     SceneToggle {
         scene: String,
         review_evidence: String,
@@ -152,10 +156,7 @@ pub(super) fn expand(
                     return Err(invalid("repeat-to-stop requires an open or close key"));
                 }
                 let (target, evidence) = match action {
-                    KeyAction::SceneToggle {
-                        scene,
-                        review_evidence,
-                    } => (Some(scene), review_evidence),
+                    KeyAction::SceneToggle { scene, review_evidence } | KeyAction::SceneExecute { scene, review_evidence } => (Some(scene), review_evidence),
                     KeyAction::Motor {
                         device,
                         review_evidence,
@@ -203,4 +204,28 @@ pub(super) fn expand(
         return Err(invalid("expanded endpoint limit exceeded"));
     }
     Ok(panels)
+}
+/// Entire reviewed manual AST authority, including both conditional branches,
+/// predicate reads, nested expanded scenes and explicitly linked timelines.
+pub fn scene_execute_devices(document:&crate::rule_document::Document,config:&Configuration,scene:&str)->Result<BTreeSet<DeviceId>,Error> {
+    use homesense_core::rule::{Action,Condition,Expr,Node};
+    fn expr(e:&Expr,ids:&mut BTreeSet<DeviceId>) {match e {Expr::DeviceOn(id)|Expr::DeviceLevel(id)=>{ids.insert(id.clone());},Expr::Add(a,b)|Expr::Subtract(a,b)=>{expr(a,ids);expr(b,ids);},_=>{}}}
+    fn condition(c:&Condition,ids:&mut BTreeSet<DeviceId>) {match c {Condition::Equal(a,b)|Condition::Less(a,b)=>{expr(a,ids);expr(b,ids);},Condition::Not(c)=>condition(c,ids),Condition::All(cs)|Condition::Any(cs)=>for c in cs{condition(c,ids)},Condition::Unknown(e)=>expr(e,ids),Condition::MotorState(p)=>{ids.insert(p.device.clone());}}}
+    fn walk(nodes:&[Node],doc:&crate::rule_document::Document,ids:&mut BTreeSet<DeviceId>,remaining:&mut usize,depth:usize)->Result<(),Error>{
+        if depth>64{return Err(invalid("manual authority depth exceeded"));}
+        for node in nodes {if *remaining==0{return Err(invalid("manual authority budget exceeded"));}*remaining-=1;
+            match &node.action {
+                Action::Command{device,..}|Action::Motor{device,..}=>{ids.insert(device.clone());},
+                Action::Set{value,..}=>expr(value,ids),
+                Action::If{condition:c,then_actions,else_actions}=>{condition(c,ids);walk(then_actions,doc,ids,remaining,depth+1)?;walk(else_actions,doc,ids,remaining,depth+1)?;},
+                Action::Scene{id,..}=>{let timeline=doc.timed_scenes.get(id).filter(|s|s.enabled).ok_or_else(||invalid("unexpanded manual scene authority"))?;for step in &timeline.steps {ids.insert(step.device.clone());}},
+                Action::RequireQuiescence{..}|Action::SceneActivation{..}=>{},
+            }
+        }Ok(())
+    }
+    let linked=document.linked_manual_scenes(&[scene.into()])?;let mut ids=BTreeSet::new();walk(&linked,document,&mut ids,&mut 4096,0)?;
+    // Explicit confirmation vectors are read dependencies, even where the
+    // selected AST leaves an already-known light unchanged.
+    for policy in document.component_mode_confirmations.iter().filter(|p|p.scenes.iter().any(|id|id==scene)){for condition in &policy.postconditions{ids.insert(DeviceId::new(&condition.device)?);}}
+    let supplies=ids.iter().filter_map(|id|config.devices().get(id).and_then(|d|d.supply_relay.clone())).collect::<Vec<_>>();ids.extend(supplies);Ok(ids)
 }

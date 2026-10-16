@@ -14,6 +14,21 @@ public enum HomeDeviceCommandResult: Equatable, Sendable {
     public var accepted: Bool { if case .accepted = self { return true }; return false }
 }
 
+/// Shared device-card and detail intent. The server decides whether a repeated
+/// direction stops movement; the client never derives it from cached feedback.
+public enum HomeMotorControlAction: String, CaseIterable, Sendable {
+    case open, stop, close
+
+    public var command: HomeJSON {
+        switch self {
+        case .open, .close:
+            .object(["action": .string("motor_press"), "direction": .string(rawValue)])
+        case .stop:
+            .object(["action": .string("stop")])
+        }
+    }
+}
+
 @MainActor
 public final class HomeServerStore: ObservableObject {
     @Published public var endpointText: String {
@@ -427,7 +442,7 @@ public final class HomeServerStore: ObservableObject {
                 self.diagnostics.record(.ignored, reason: !self.connected ? .disconnected : self.busy ? .busy : !self.snapshotIsCurrent ? .snapshotNotCurrent : .deviceUnavailable)
                 return
             }
-            outcome = await self.sendDeviceCommand(id, command: command)
+            outcome = await self.sendDeviceCommand(id, command: command, includeRevision: command["action"].text == "motor_press")
         }
         return outcome
     }
@@ -498,7 +513,7 @@ public final class HomeServerStore: ObservableObject {
         if case .bool(let value) = scene.raw["selected"] { state.selected = value }
         state.relativeUnknownAllowed = scene.raw["relative_unknown_allowed"].flag
         if !state.canControl { state.reason = .sceneUnavailable }
-        else if state.selected == nil && !state.relativeUnknownAllowed { state.reason = .selectionUnknown }
+        else if !key.executesScene && state.selected == nil && !state.relativeUnknownAllowed { state.reason = .selectionUnknown }
         return state
     }
     public func canActivateKeypad(_ id: String, key number: Int, card: Bool = false) -> Bool { keypadGate(id, key: number, card: card).allowed }
@@ -568,6 +583,10 @@ public final class HomeServerStore: ObservableObject {
             return
         }
         guard let scene = key.actionScene, canControlScene(scene) else { return }
+        if key.executesScene {
+            await controlScene(scene, on: true)
+            return
+        }
         if let record = scenes.first(where: { $0.id == scene }), case .bool(let selected) = record.raw["selected"] {
             await controlScene(scene, on: !selected)
             return

@@ -72,5 +72,5 @@ impl Credentials {
     }
 }
 pub(crate) fn validate(grant:&Grant)->Result<(),String> {
-    if grant.scenes.len()>4095 || grant.devices.len()>256 || grant.scenes.iter().chain(&grant.devices).any(|s|s.is_empty() || s.len()>256 || s.chars().any(char::is_control)) {return Err("invalid grant scope".into());}Ok(())
+    if grant.scenes.len()>4095 || grant.devices.len()>crate::web_auth::MAX_DEVICE_SCOPE || grant.scenes.iter().chain(&grant.devices).any(|s|s.is_empty() || s.len()>256 || s.chars().any(char::is_control)) {return Err("invalid grant scope".into());}Ok(())
 }

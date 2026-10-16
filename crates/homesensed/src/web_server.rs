@@ -18,9 +18,9 @@ pub(crate) async fn serve_ready(api:Arc<Api>,address:SocketAddr,mut stop:tokio::
 
     if (tls.is_none() && (!address.ip().is_loopback() || api.origin != format!("http://{address}")))
         || address.port() == 0
-        || api.runtime.read().map_err(|_|"management runtime lock poisoned")?.as_ref().is_none_or(|r|r.scenes.len()>64)
+        || api.runtime.read().map_err(|_|"management runtime lock poisoned")?.as_ref().is_none_or(|r|crate::web_api::check_catalog_capacity(r.scenes.len()).is_err())
     {
-        return Err("valid listener address, matching origin and at most 64 scenes required".into());
+        return Err("valid listener address, matching origin and bounded scene catalog required".into());
     }
     let listener = tokio::net::TcpListener::bind(address)
         .await

@@ -193,13 +193,26 @@ fn view(
         .as_ref()
         .ok_or("automation document missing")?;
     let scenes=document.scene_catalog();
-    if scenes.len() > 64 {
-        return Err("management scene capacity exceeded".into());
-    }
+    crate::web_api::check_catalog_capacity(scenes.len())?;
     Ok(Runtime {
         control: runtime.control(),
         revision: bundle.configuration.revision(),
         boot: admission.boot_id().to_owned(),
         scenes,
     })
+}
+#[cfg(test)]
+mod capacity_tests {
+    use super::*;
+    #[tokio::test]
+    async fn complete_catalog_accepts130_and256_rejects257_without_executing_scenes(){
+        use homesense_core::ExecutionContext;
+        for count in [130,256,257]{
+            let dir=std::env::temp_dir().join(format!("management-capacity-{}",Uuid::new_v4()));std::fs::create_dir(&dir).unwrap();let path=dir.join("runtime.sqlite");
+            let devices=br#"{"schema_version":2,"revision":1,"gateways":[{"id":"bus","endpoint":"127.0.0.1:1","modules":[{"id":"relay","address":"03","profile":"r8i8_din_pro_v2_7_7","verification":{"status":"simulated"}}]}],"devices":[{"id":"lamp","name":"Synthetic light","module_id":"relay","channel":1,"enabled":true}]}"#;
+            let scenes=(0..count).map(|n|serde_json::json!({"id":format!("synthetic-{n}"),"enabled":true,"review_evidence":"synthetic catalog boundary","activate":[{"source":format!("synthetic/{n}"),"action":{"kind":"command","device":"lamp","command":{"kind":"switch","on":true}}}]})).collect::<Vec<_>>();
+            let document=serde_json::to_vec(&serde_json::json!({"schema_version":1,"configuration_revision":1,"variables":[],"rules":[],"immediate_scenes":scenes})).unwrap();let mut store=homesense_storage::Store::open(&path).unwrap();let bundle=store.publish_automation(None,devices,&document,ExecutionContext::Simulation,&[]).unwrap();drop(store);
+            let controller=Uuid::new_v4();let admission=Admission::open(path.clone(),crate::admission::Options{context:ExecutionContext::Simulation,..Default::default()},move|id|id==controller).await.unwrap();admission.synchronized(1,1).await.unwrap();let runtime=AutomationRuntime::load(admission.clone(),controller,1_600_000_000_000,1000,16,homesense_core::rule::Budget::default()).await.unwrap();let result=view(&admission,&runtime,&bundle);assert_eq!(result.is_ok(),count<=crate::web_api::MAX_MANAGED_SCENES);if let Ok(value)=result{assert_eq!(value.scenes.len(),count);}assert_eq!(rusqlite::Connection::open(&path).unwrap().query_row("SELECT count(*) FROM command_journal",[],|r|r.get::<_,i64>(0)).unwrap(),0);drop(runtime);admission.shutdown().await.unwrap();std::fs::remove_dir_all(dir).unwrap();
+        }
+    }
 }

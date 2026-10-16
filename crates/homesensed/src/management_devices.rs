@@ -9,6 +9,12 @@ use crate::{
 use homesense_core::{DeviceId, ModuleKind};
 use homesense_hap::requests::{Batch, LightBinding, LightRequests};
 use uuid::Uuid;
+#[derive(Clone,Copy,Debug,PartialEq,Eq,serde::Deserialize,serde::Serialize)]
+#[serde(rename_all="snake_case")]
+pub enum MotorDirection {Open,Close}
+impl MotorDirection {
+    pub(crate) fn requested(self)->homesense_core::MotorAction {match self {Self::Open=>homesense_core::MotorAction::Open,Self::Close=>homesense_core::MotorAction::Close}}
+}
 #[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
 #[serde(tag = "action", rename_all = "snake_case", deny_unknown_fields)]
 pub enum DeviceAction {
@@ -19,6 +25,7 @@ pub enum DeviceAction {
     Open,
     Close,
     Stop,
+    MotorPress { direction:MotorDirection },
     /// Configured native card key, resolved atomically by Admission. Never
     /// accepted as a pre-normalized physical motor direction.
     KeypadPress { keypad: String, key: u8 },
@@ -47,6 +54,7 @@ pub struct DeviceSnapshot {
     pub(crate) scoped_catalog_rooms: Vec<homesense_config::Room>,
     pub keypads: Vec<serde_json::Value>,
     pub keypad_endpoints: std::collections::BTreeSet<DeviceId>,
+    pub(crate) keypad_execute_scopes: std::collections::BTreeMap<String,std::collections::BTreeSet<String>>,
     pub(crate) keypad_away_scope: Option<crate::away_off::CatalogScope>,
 }
 /// Metadata only; this projection never adds devices, endpoints or control rights.
@@ -89,7 +97,7 @@ async fn snapshot_bound(admission:&Admission,controller:Uuid,generation:TaskGene
     if max_age_ms.is_some_and(|age|age==0 || age>homesense_config::RefreshPolicy::MAX_OBSERVATION_AGE_MS) {
         return Err("invalid device freshness bound".into());
     }
-    if ids.len() > 256 {
+    if ids.len() > crate::web_auth::MAX_DEVICE_SCOPE {
         return Err("device query limit exceeded".into());
     }
     let bundle = admission
@@ -167,7 +175,11 @@ async fn snapshot_bound(admission:&Admission,controller:Uuid,generation:TaskGene
             motor_calibrated,
             motor_estimate: motor_estimates.get(&id).cloned(),
             reported: published.devices.get(&id).and_then(|s|s.observed),
-            recorded: recorded.contains_key(&id),
+            // Only dimmers actually consume the target overlay. Relay Off also
+            // has an internal restore-policy entry, but relay state is physical.
+            recorded: state.kind == ModuleKind::Dimmer
+                && state.observed.is_some()
+                && recorded.contains_key(&id),
             state,
         });
     }
@@ -182,6 +194,8 @@ async fn snapshot_bound(admission:&Admission,controller:Uuid,generation:TaskGene
             scoped_catalog_rooms.insert(id.to_owned(),room.clone());
         }
     }
+    let mut keypad_execute_scopes=std::collections::BTreeMap::new();
+    if let Some(document)=&bundle.automation {for panel in bundle.configuration.keypads().values(){for key in panel.keys.values(){if let Some(homesense_config::keypad::KeyAction::SceneExecute{scene,..})=&key.action {let ids=homesense_config::keypad::scene_execute_devices(document,&bundle.configuration,scene).map_err(|e|e.to_string())?;keypad_execute_scopes.insert(scene.clone(),ids.into_iter().map(|id|id.as_str().to_owned()).collect());}}}}
     Ok(DeviceSnapshot {
         boot: admission.boot_id().to_owned(),
         revision: bundle.configuration.revision(),
@@ -189,6 +203,7 @@ async fn snapshot_bound(admission:&Admission,controller:Uuid,generation:TaskGene
         devices,
         keypads,
         keypad_endpoints,
+        keypad_execute_scopes,
         keypad_away_scope:bundle.automation.as_ref().and_then(|document|crate::away_off::catalog_scope(&bundle.configuration,document,&gateway_views)),
         floors: bundle.configuration.floors().iter().cloned().collect(),
         configured_rooms: bundle.configuration.rooms().values().cloned().collect(),
