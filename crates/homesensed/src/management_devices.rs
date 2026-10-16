@@ -26,6 +26,7 @@ pub enum DeviceAction {
 #[derive(Debug, PartialEq, Eq)]
 pub struct DeviceView {
     pub availability:Option<crate::gateway_runtime::View>,
+    pub catalog_visible:bool,
     pub room: Option<homesense_config::Room>,
     pub id: DeviceId,
     pub name: String,
@@ -44,6 +45,7 @@ pub struct DeviceSnapshot {
     pub floors: Vec<String>,
     pub keypads: Vec<serde_json::Value>,
     pub keypad_endpoints: std::collections::BTreeSet<DeviceId>,
+    pub(crate) keypad_away_scope: Option<crate::away_off::CatalogScope>,
 }
 pub async fn snapshot(
     admission: &Admission,
@@ -128,6 +130,7 @@ pub(crate) async fn snapshot_with_max_age(
         if availability.as_ref().is_some_and(|view|view.state!="ready") {state.quality=homesense_state::Quality::Unknown;}
         devices.push(DeviceView {
             availability,
+            catalog_visible:device.catalog_visible,
             room: device
                 .room
                 .as_ref()
@@ -152,6 +155,7 @@ pub(crate) async fn snapshot_with_max_age(
         devices,
         keypads,
         keypad_endpoints,
+        keypad_away_scope:bundle.automation.as_ref().and_then(|document|crate::away_off::catalog_scope(&bundle.configuration,document,&gateway_views)),
         floors: bundle.configuration.floors().iter().cloned().collect(),
     })
 }

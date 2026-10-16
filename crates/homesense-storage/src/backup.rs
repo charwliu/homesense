@@ -106,7 +106,7 @@ pub fn inspect(path:&Path,context:homesense_core::ExecutionContext)->Result<Insp
     let versions:i64=tx.query_row("SELECT count(*) FROM configuration_revision",[],|r|r.get(0)).map_err(|e|e.to_string())?;
     let automations:i64=tx.query_row("SELECT count(*) FROM automation_revision",[],|r|r.get(0)).map_err(|e|e.to_string())?;
     tx.commit().map_err(|e|e.to_string())?;
-    let store=crate::Store{connection};
+    let store=crate::Store{connection,active_bundle_cache:Default::default()};
     let active=store.active_bundle(context).map_err(|e|e.to_string())?;
     Ok(Inspection{bytes:metadata.len(),schema,active_revision:active.map(|b|b.configuration.revision()),configuration_versions:versions as u64,automation_versions:automations as u64})
 }

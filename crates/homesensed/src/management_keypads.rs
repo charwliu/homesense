@@ -272,10 +272,12 @@ fn project(
                 "led":{"observed":Value::Null,"quality":"Unknown","source":if written.is_some(){"last_written"}else{"unknown"},
                     "last_request":latest,"last_written":written},
                 "action":key.and_then(|k|k.action.as_ref()).map(|a|match a {
+                    homesense_config::keypad::KeyAction::AwayOff{..}=>json!({"kind":"away_off","path":"/api/v1/away-off"}),
                     homesense_config::keypad::KeyAction::SceneToggle{scene,..}=>json!({"kind":"scene_toggle","scene":scene,"path":"/api/v1/scene-relative-actions"}),
                     homesense_config::keypad::KeyAction::Motor{device,action,..}=>json!({"kind":"motor","device":device,"command":{"action":action},"path":"/api/v1/device-commands"})
                 }),
                 "card_action":key.and_then(|k| match k.action.as_ref()? {
+                    homesense_config::keypad::KeyAction::AwayOff{..}=>Some(json!({"kind":"away_off","command":{"action":"keypad_press","keypad":panel.id.as_str(),"key":number},"path":"/api/v1/away-off"})),
                     homesense_config::keypad::KeyAction::Motor{device, action:homesense_config::keypad::KeyMotorAction::Open | homesense_config::keypad::KeyMotorAction::Close, press_behavior:homesense_config::keypad::MotorPressBehavior::RepeatToStop,..} => Some(json!({"kind":"motor_press","device":device,"behavior":"repeat_to_stop","command":{"action":"keypad_press","keypad":panel.id.as_str(),"key":number},"path":"/api/v1/device-commands"})),
                     _=>None,
                 })})
@@ -334,12 +336,15 @@ pub(crate) fn devices_json(
         .map(|d| crate::web_api::device_json(d, grant))
         .collect();
     devices.extend(snapshot.keypads.iter().cloned().map(|mut panel| {
+        let parent_ready=panel["action_gate"]["available"]==true;
         for key in panel["keys"].as_array_mut().into_iter().flatten() {
             let allowed = key["endpoint_id"]
                 .as_str()
                 .is_some_and(|id| grant.may_control_device(id));
             key["can_write_led"] = json!(allowed && key["can_write_led"] == true);
+            let is_away=key["action"]["kind"]=="away_off";
             let target_allowed = match key["action"]["kind"].as_str() {
+                Some("away_off")=>snapshot.keypad_away_scope.as_ref().is_some_and(|scope|scope.permitted(grant)),
                 Some("scene_toggle") => key["action"]["scene"]
                     .as_str()
                     .is_some_and(|scene| grant.may_control(scene)),
@@ -348,7 +353,12 @@ pub(crate) fn devices_json(
                     .is_some_and(|id| grant.may_control_device(id)),
                 _ => false,
             };
-            if !allowed || !target_allowed {
+            let available=allowed && target_allowed && parent_ready;
+            if is_away {
+                key["can_activate"]=json!(available);
+                key["action_gate"]=json!({"available":available});
+            }
+            if !allowed || !target_allowed || is_away && !available {
                 key["action"] = Value::Null;
                 key["card_action"] = Value::Null;
             }

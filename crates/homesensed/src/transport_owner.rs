@@ -12,11 +12,12 @@ use std::{
 pub(crate) fn send_ticket<S:Read+Write>(ticket:&crate::admission::DispatchTicket,connection:&mut Connection<S>,now:impl FnMut()->u64)->Result<(),SendError> {
     let send=||connection.send(&ticket.frame,ticket.command.deadline_ms,now);
     let denied=||Err(SendError{reason:hb_transport::SendFailure::Io(std::io::ErrorKind::PermissionDenied),bytes_written:0});
-    match (&ticket.panel_authorization,&ticket.source_authorization,&ticket.publication_stop) {
-        (Some(lease),None,None)=>lease.with_valid(send).unwrap_or_else(denied),
-        (None,Some(source),None)=>source.with_valid(send).unwrap_or_else(denied),
-        (None,None,Some(lease)) if lease.matches_write(&ticket.command)=>send(),
-        (None,None,None)=>send(),
+    match (&ticket.panel_authorization,&ticket.source_authorization,&ticket.publication_stop,&ticket.away_authorization) {
+        (Some(lease),None,None,None)=>lease.with_valid(send).unwrap_or_else(denied),
+        (None,Some(source),None,None)=>source.with_valid(send).unwrap_or_else(denied),
+        (None,None,None,Some(lease))=>lease.with_valid(send).unwrap_or_else(denied),
+        (None,None,Some(lease),None) if lease.matches_write(&ticket.command)=>send(),
+        (None,None,None,None)=>send(),
         _=>denied(),
     }
 }
@@ -281,17 +282,25 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
             return Err("no connection for configured gateway".into());
         };
         let clock = self.admission.clone();
-        let (connection, result) = tokio::task::spawn_blocking(move || {
+        let deadline_ms=ticket.command.deadline_ms;
+        let (connection, result, send_started_ms, send_completed_ms) = tokio::task::spawn_blocking(move || {
+            let send_started_ms=clock.monotonic_ms();
             let result = send_ticket(&ticket,&mut connection,||clock.monotonic_ms());
+            let send_completed_ms=clock.monotonic_ms();
             *slot = Some(tokio::time::Instant::now() + clock.write_interval);
-            (connection, result)
+            (connection, result, send_started_ms, send_completed_ms)
         })
         .await
         .map_err(|e| format!("transport worker: {e}"))?;
+        let audit_requested_ms=self.admission.monotonic_ms();
+        if let Err(error)=&result {log::warn!("transport_send_failed command={} reason={:?} bytes_written={} send_started_ms={} send_completed_ms={} deadline_ms={}",id,error.reason,error.bytes_written,send_started_ms,send_completed_ms,deadline_ms);}
         self.admission
             .finish_write(id, result.is_ok())
             .await
-            .map_err(|e| format!("write audit: {e:?}"))?;
+            .map_err(|e| {
+                log::warn!("transport_write_audit_failed command={} complete={} send_started_ms={} send_completed_ms={} audit_requested_ms={} deadline_ms={} error={:?}",id,result.is_ok(),send_started_ms,send_completed_ms,audit_requested_ms,deadline_ms,e);
+                format!("write audit: {e:?}")
+            })?;
         if result.is_ok() {
             self.connections.insert(gateway, connection);
             self.failed = false;

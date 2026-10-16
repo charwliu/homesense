@@ -163,3 +163,68 @@ async fn unverified_mode_scope_and_missing_coexistence_fail_before_state_creatio
         assert!(!directory.exists());
     }
 }
+
+#[tokio::test]
+async fn expiring_queued_led_is_cancelled_before_writing_and_does_not_fault_transport() {
+    use homesense_core::ExecutionContext;
+    use homesensed::admission::{Admission,Options};
+    let directory=root();std::fs::create_dir(&directory).unwrap();
+    let path=directory.join("expiry.sqlite");
+    let doc=serde_json::to_vec(&document("127.0.0.1:50007".parse().unwrap())).unwrap();
+    Store::open(&path).unwrap().publish_configuration(None,&doc,ExecutionContext::Simulation,&[]).unwrap();
+    let controller=uuid::Uuid::new_v4();
+    let actor=Admission::open(path.clone(),Options{context:ExecutionContext::Simulation,request_ttl:Duration::from_millis(80),write_interval:Duration::from_millis(50),..Default::default()},move|id|id==controller).await.unwrap();
+    actor.synchronized(1,1).await.unwrap();
+    let ids=actor.submit_panel_led(controller,DeviceId::new("key2").unwrap(),false).await.unwrap();
+    tokio::time::sleep(Duration::from_millis(40)).await;
+    assert!(actor.dispatch().await.unwrap().is_none());
+    let store=Store::open(&path).unwrap();assert_eq!(store.command_status(actor.boot_id(),ids[0]).unwrap(),Some(Status::Cancelled));
+    assert!(actor.task_generation().await.is_ok());
+    // A fresh request still writes; the rejected request is never replayed.
+    let fresh=actor.submit_panel_led(controller,DeviceId::new("key2").unwrap(),true).await.unwrap();
+    let ticket=actor.dispatch().await.unwrap().unwrap();assert_eq!(ticket.command.id,fresh[0]);actor.finish_write(ticket.command.id,true).await.unwrap();
+    drop(store);actor.shutdown().await.unwrap();std::fs::remove_dir_all(directory).unwrap();
+}
+
+#[tokio::test]
+async fn already_writing_led_still_fails_closed_after_its_original_deadline() {
+    use homesense_core::ExecutionContext;
+    use homesensed::admission::{Admission,Options};
+    let directory=root();std::fs::create_dir(&directory).unwrap();let path=directory.join("late-writing.sqlite");
+    let doc=serde_json::to_vec(&document("127.0.0.1:50007".parse().unwrap())).unwrap();
+    Store::open(&path).unwrap().publish_configuration(None,&doc,ExecutionContext::Simulation,&[]).unwrap();
+    let controller=uuid::Uuid::new_v4();
+    let actor=Admission::open(path.clone(),Options{context:ExecutionContext::Simulation,request_ttl:Duration::from_millis(80),write_interval:Duration::from_millis(50),..Default::default()},move|id|id==controller).await.unwrap();actor.synchronized(1,1).await.unwrap();
+    let ids=actor.submit_panel_led(controller,DeviceId::new("key2").unwrap(),false).await.unwrap();
+    let ticket=actor.dispatch().await.unwrap().unwrap();assert_eq!(ticket.command.id,ids[0]);
+    tokio::time::sleep(Duration::from_millis(90)).await;
+    assert!(actor.finish_write(ids[0],true).await.is_err());
+    assert_eq!(Store::open(&path).unwrap().command_status(actor.boot_id(),ids[0]).unwrap(),Some(Status::Uncertain));
+    assert!(actor.task_generation().await.is_err());
+    actor.shutdown().await.unwrap();std::fs::remove_dir_all(directory).unwrap();
+}
+
+#[tokio::test]
+async fn synchronous_writing_audit_that_outlasts_led_lease_never_delivers_a_ticket() {
+    use homesense_core::ExecutionContext;
+    use homesensed::admission::{Admission,Options};
+    let directory=root();std::fs::create_dir(&directory).unwrap();let path=directory.join("blocked-audit.sqlite");
+    let doc=serde_json::to_vec(&document("127.0.0.1:50007".parse().unwrap())).unwrap();
+    Store::open(&path).unwrap().publish_configuration(None,&doc,ExecutionContext::Simulation,&[]).unwrap();
+    let controller=uuid::Uuid::new_v4();
+    let actor=Admission::open(path.clone(),Options{context:ExecutionContext::Simulation,request_ttl:Duration::from_millis(80),write_interval:Duration::from_millis(20),..Default::default()},move|id|id==controller).await.unwrap();actor.synchronized(1,1).await.unwrap();
+    let ids=actor.submit_panel_led(controller,DeviceId::new("key2").unwrap(),false).await.unwrap();
+    let sql=rusqlite::Connection::open(&path).unwrap();sql.execute_batch("BEGIN IMMEDIATE").unwrap();
+    // Actual SQLite writer contention crosses the unchanged lease. It occurs
+    // inside Writing persistence, before admission can release any ticket.
+    let release=std::thread::spawn(move||{std::thread::sleep(Duration::from_millis(120));sql.execute_batch("ROLLBACK").unwrap();});
+    assert!(actor.dispatch().await.unwrap().is_none());release.join().unwrap();
+    let sql=rusqlite::Connection::open(&path).unwrap();
+    let row:(String,String)=sql.query_row("SELECT status,cancellation_reason FROM command_journal WHERE command_id=?1",[ids[0] as i64],|r|Ok((r.get(0)?,r.get(1)?))).unwrap();
+    assert_eq!(row,("cancelled".into(),"ExpiredBeforeDelivery".into()),"must exercise post-Writing/pre-delivery cancellation, not early Accepted expiry");
+    assert!(actor.task_generation().await.is_ok());
+    // No replay and no deadline renewal: only this distinct fresh request runs.
+    let fresh=actor.submit_panel_led(controller,DeviceId::new("key2").unwrap(),true).await.unwrap();
+    let ticket=actor.dispatch().await.unwrap().unwrap();assert_eq!(ticket.command.id,fresh[0]);actor.finish_write(ticket.command.id,true).await.unwrap();
+    drop(sql);actor.shutdown().await.unwrap();std::fs::remove_dir_all(directory).unwrap();
+}

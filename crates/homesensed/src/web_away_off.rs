@@ -13,6 +13,8 @@ use serde_json::json;
 struct Body {
     revision: String,
     request_id: String,
+    #[serde(default)]
+    command:Option<crate::away_auth::KeypadCommand>,
 }
 pub(crate) async fn execute(
     api: &Api,
@@ -66,13 +68,21 @@ pub(crate) async fn execute(
     let Some(lease) = lease.filter(|lease| lease.controller() == grant.controller) else {
         return response(StatusCode::FORBIDDEN, json!({"error":"away_not_permitted"}));
     };
+    let body=if read {None} else {
+        let parsed=match serde_json::from_slice::<Body>(request.body()) {Ok(body)=>body,Err(_)=>return response(StatusCode::BAD_REQUEST,json!({"error":"invalid_body"}))};
+        if parsed.revision!=runtime.revision.to_string() {return response(StatusCode::CONFLICT,json!({"error":"stale_revision"}));}
+        Some(parsed)
+    };
+    let lease:crate::away_auth::Authorization=if let Some(command)=body.as_ref().and_then(|body|body.command.as_ref()) {
+        let Some(lease)=crate::away_auth::Authorization::keypad(lease,command) else {return response(StatusCode::BAD_REQUEST,json!({"error":"invalid_keypad_press"}));};lease
+    }else{lease.into()};
     let available = matches!(
         runtime
             .control
             .request(Action::AwayOff {
                 controller: grant.controller,
                 revision: runtime.revision,
-                lease: lease.clone().into(),
+                lease: lease.clone(),
                 submit: false
             })
             .await,
@@ -90,17 +100,12 @@ pub(crate) async fn execute(
             json!({"error":"away_scope_not_permitted_or_unavailable"}),
         );
     }
-    let body = match serde_json::from_slice::<Body>(request.body()) {
-        Ok(body) => body,
-        Err(_) => return response(StatusCode::BAD_REQUEST, json!({"error":"invalid_body"})),
-    };
-    if body.revision != runtime.revision.to_string() {
-        return response(StatusCode::CONFLICT, json!({"error":"stale_revision"}));
-    }
+    let body=body.expect("validated non-read body");
     let principal = grant.controller.to_string();
     let endpoint = Endpoint::AwayOff;
-    let fingerprint =
-        json!({"revision":runtime.revision,"action":"away_module_all_off_immediate"}).to_string();
+    let mut fingerprint=json!({"revision":runtime.revision,"action":"away_module_all_off_immediate"});
+    if let Some(command)=&body.command {fingerprint["command"]=json!(command);}
+    let fingerprint=fingerprint.to_string();
     let claim = api.receipts.lock().ok().and_then(|mut r| {
         r.claim_scoped(&principal, &endpoint, &body.request_id, &fingerprint)
             .ok()
@@ -140,7 +145,7 @@ pub(crate) async fn execute(
         .request(Action::AwayOff {
             controller: grant.controller,
             revision: runtime.revision,
-            lease:lease.into(),
+            lease,
             submit: true,
         })
         .await

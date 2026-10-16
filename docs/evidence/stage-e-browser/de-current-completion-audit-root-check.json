@@ -343,7 +343,8 @@
     "stage-e-browser/r818-c7-feedback-config-field-root-check.json": "5728e76d8a6fd73e49925b73561b198ffa04e59c4bafeb27bfe72b60a21a1557",
     "stage-e-browser/r81803-active-feedback-wall-sync-field-root-check.json": "49efa8f665271b8281c258d59154608091063cd6e5bb2add56d36aef23b7fb80",
     "stage-e-browser/r818-all-active-feedback-enable-field-root-check.json": "a2295545a059bc75ede29bc097eb7d13e6f602e630c27c0b2d76ecef2b3cab9c",
-    "stage-e-browser/ad8-11-c7-probe-field-root-check.json": "62a30d61f0aeda07cc1a258c195eb69fec75ccff208fdd6622e1e30c993693ed"
+    "stage-e-browser/ad8-11-c7-probe-field-root-check.json": "62a30d61f0aeda07cc1a258c195eb69fec75ccff208fdd6622e1e30c993693ed",
+    "stage-e-browser/native-keypad-away-backend-v6-root-check.json": "09c38d4a1425130a1fdef9643ec6db79c66ab1abe38d90b159157ccfc61582b4"
   },
   "excluded_by_scope": {
     "Siri": "cancelled by user",
@@ -847,5 +848,15 @@
     "original_E2_rev14_restored": true,
     "periodic_queries_unchanged": true,
     "evidence": "stage-e-browser/ad8-11-c7-probe-field-root-check.json"
+  },
+  "native_Keypad_Away_backend": {
+    "software_candidate": "v6 after v5 original-harness failure",
+    "workspace_tests": 1232,
+    "original_Linux_harness_passed_runs": 3,
+    "native_client_final_tests": 109,
+    "new_undelivered_LED_boundary_verified": true,
+    "field_candidate_published": false,
+    "EA5_execution_scope_changed": false,
+    "evidence": "stage-e-browser/native-keypad-away-backend-v6-root-check.json"
   }
 }

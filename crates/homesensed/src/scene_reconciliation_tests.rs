@@ -652,3 +652,42 @@ mod brightness;
 
 #[path = "scene_projection_cache_tests.rs"]
 mod cache_tests;
+
+#[tokio::test]
+async fn explicit_off_refreshes_versioned_physical_proof_without_using_saved_intent() {
+    let (config,rules)=reconciled();
+    let mut h=harness(config,rules).await;
+    levels(&mut h,Some(100),Some(0));
+    reconcile(&h).await;
+    // A completed ON advances intent version. Its old projection is masked,
+    // although the same current settled physical vector still matches.
+    history(&h,1);
+    assert_eq!(h.selection().await.stored.value,None);
+    let (control,mut receiver)=crate::automation_control::channel(h.controller,h.generation.clone());
+    let mut scenes=crate::scene_scheduler::SceneScheduler::new(h.actor.clone(),h.controller,8,h.actor.monotonic_ms()).unwrap();
+    let reply=poll_request(&h,&mut receiver,&mut scenes,control.request(crate::automation_control::Action::SceneAction{controller:h.controller,revision:1,scene:"first".into(),execute:false})).await.unwrap();
+    assert!(matches!(reply,crate::automation_control::Reply::SceneAccepted(Some(_))));
+    h.close().await;
+}
+
+#[tokio::test]
+async fn scene_catalog_reads_seventeen_scenes_in_one_control_request_and_rejects_bad_revision() {
+    let (config,mut rules)=reconciled();
+    let template=rules["timed_scenes"][0].clone();
+    for n in 0..13 {
+        let mut scene=template.clone();scene["id"]=json!(format!("directory-{n}"));
+        rules["timed_scenes"].as_array_mut().unwrap().push(scene);
+    }
+    let mut h=harness(config,rules).await;
+    levels(&mut h,Some(100),Some(0));
+    let (control,mut receiver)=crate::automation_control::channel(h.controller,h.generation.clone());
+    let mut scenes=crate::scene_scheduler::SceneScheduler::new(h.actor.clone(),h.controller,8,h.actor.monotonic_ms()).unwrap();
+    let ids=h.document.timed_scenes.keys().cloned().collect::<Vec<_>>();
+    assert_eq!(ids.len(),17);
+    let reply=poll_request(&h,&mut receiver,&mut scenes,control.request(crate::automation_control::Action::SceneCatalog{controller:h.controller,revision:1,scenes:ids.clone()})).await.unwrap();
+    let crate::automation_control::Reply::SceneCatalog(entries)=reply else{panic!("catalog reply")};
+    assert_eq!(entries.len(),17);
+    assert!(entries.values().all(|v|v.tracking.is_none()&&v.last_run.is_none()));
+    assert!(poll_request(&h,&mut receiver,&mut scenes,control.request(crate::automation_control::Action::SceneCatalog{controller:h.controller,revision:2,scenes:ids})).await.is_err());
+    h.no_output();h.close().await;
+}

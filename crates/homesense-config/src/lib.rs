@@ -110,6 +110,8 @@ struct DeviceInput {
     channel: u8,
     #[serde(default)]
     enabled: bool,
+    #[serde(default="catalog_visible_default")]
+    catalog_visible: bool,
     #[serde(default)]
     default_on_level: Option<u8>,
     #[serde(default)]
@@ -221,6 +223,7 @@ impl Gateway {
 #[derive(Debug,Clone,PartialEq,Eq,serde::Serialize,Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ModuleChannel {pub module_id:String,pub channel:u8}
+fn catalog_visible_default()->bool {true}
 #[derive(Debug, Clone)]
 pub struct LogicalDevice {
     /// Stable module reference in schema 2; legacy schema 1 has no fabricated ID.
@@ -230,6 +233,8 @@ pub struct LogicalDevice {
     pub name: String,
     pub channel: Channel,
     pub enabled: bool,
+    /// Native daily catalog hint only; never a permission or physical enable flag.
+    pub catalog_visible: bool,
     pub default_on_level: Option<Percent>,
     pub motor_calibration: Option<MotorCalibration>,
     pub curtain_state: Option<CurtainState>,
@@ -521,6 +526,7 @@ impl Configuration {
                 name: d.name,
                 channel,
                 enabled: d.enabled,
+                catalog_visible: d.catalog_visible,
                 default_on_level,
                 motor_calibration,
                 curtain_state,

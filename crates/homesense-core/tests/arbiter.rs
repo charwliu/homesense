@@ -434,3 +434,13 @@ fn publication_recovery_requires_committed_revision_and_fresh_epoch() {
     enqueue(&mut a, 2, false);
     assert_eq!(a.dispatch(4, access).unwrap().command.unwrap().id, 2);
 }
+
+#[test]
+fn module_off_green_tail_commits_with_effects_and_failure_leaves_old_work_unchanged() {
+    let mut a=fixture();enqueue(&mut a,1,false);let epochs=a.policy().epochs;
+    let modules=vec![(QueuedCommand{id:2,device_id:DeviceId::new("module-ticket").unwrap(),command:Command::ModuleAllOff,origin:Origin::Http,epochs,deadline_ms:100,run_id:None},access(&request(&a,2,false)))];
+    let mut reset=QueuedCommand{id:3,device_id:DeviceId::new("key6").unwrap(),command:Command::PanelLed(false),origin:Origin::Http,epochs,deadline_ms:100,run_id:None};let affected=[DeviceId::new("light").unwrap()].into();
+    let result=a.submit_module_off_with_reset_committed(modules.clone(),Some((reset.clone(),access(&reset))),&affected,0,|_,_|Err::<(),_>("audit failed"));assert!(result.is_err());assert_eq!(a.queued_len(),1);
+    reset.command=Command::PanelLed(true);assert!(a.submit_module_off_with_reset_committed(modules.clone(),Some((reset.clone(),access(&reset))),&affected,0,|_,_|Ok::<_,()>(())).is_err());assert_eq!(a.queued_len(),1);
+    reset.command=Command::PanelLed(false);let cancelled=a.submit_module_off_with_reset_committed(modules,Some((reset.clone(),access(&reset))),&affected,0,|commands,cancelled|{assert_eq!(commands.len(),2);assert_eq!(cancelled.len(),1);Ok::<_,()>(())}).unwrap();assert_eq!(cancelled.len(),1);assert_eq!(a.queued_len(),2);
+}

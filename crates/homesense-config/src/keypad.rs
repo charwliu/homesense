@@ -20,11 +20,19 @@ pub enum KeyAction {
         press_behavior: MotorPressBehavior,
         review_evidence: String,
     },
+    AwayOff {
+        review_evidence: String,
+        #[serde(default,skip_serializing_if="Option::is_none")]
+        indicator_reset: Option<AwayIndicatorReset>,
+    },
     SceneToggle {
         scene: String,
         review_evidence: String,
     },
 }
+#[derive(Debug,Clone,Copy,PartialEq,Eq,serde::Serialize,Deserialize)]
+#[serde(rename_all="snake_case")]
+pub enum AwayIndicatorReset {Green}
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum KeyMotorAction {
@@ -147,14 +155,15 @@ pub(super) fn expand(
                     KeyAction::SceneToggle {
                         scene,
                         review_evidence,
-                    } => (scene, review_evidence),
+                    } => (Some(scene), review_evidence),
                     KeyAction::Motor {
                         device,
                         review_evidence,
                         ..
-                    } => (device, review_evidence),
+                    } => (Some(device), review_evidence),
+                    KeyAction::AwayOff{review_evidence,..}=>(None,review_evidence),
                 };
-                identifier(target)?;
+                if let Some(target)=target {identifier(target)?;}
                 if evidence.trim().is_empty() || evidence.len() > 4096 {
                     return Err(invalid("key action requires explicit bounded review"));
                 }
@@ -168,6 +177,7 @@ pub(super) fn expand(
                 address: None,
                 channel: key.number,
                 enabled: panel.enabled && key.led_endpoint.enabled,
+                catalog_visible: true,
                 default_on_level: None,
                 motor_calibration: None,
                 curtain_state: None,

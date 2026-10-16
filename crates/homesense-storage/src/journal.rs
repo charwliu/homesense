@@ -93,6 +93,27 @@ fn intent(command: Command) -> [u8; 4] {
     };
     [1, tag, value, 0]
 }
+/// Exclusive, non-cloneable reservation whose transport capability has not
+/// been released to the caller. Dropping it leaves Writing conservatively;
+/// ordinary Writing transitions still cannot become Cancelled.
+#[must_use]
+pub struct UndeliveredWrite<'a> {
+    store: &'a mut Store,
+    boot: String,
+    id: u64,
+}
+impl UndeliveredWrite<'_> {
+    /// Consume the reservation before constructing or delivering a ticket.
+    pub fn release(self) {}
+    /// Only expired LEDs, and only while the exclusive reservation is held.
+    /// No connection/ticket exists outside the admission owner at this point.
+    pub fn cancel_expired_led_before_delivery(self, now_ms:u64)->Result<(),Error> {
+        let tx=self.store.connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let count=tx.execute("UPDATE command_journal SET status='cancelled',updated_ms=?1,cancellation_reason='ExpiredBeforeDelivery' WHERE boot_id=?2 AND command_id=?3 AND status='writing' AND updated_ms<=?1 AND deadline_ms<=?1 AND intent IN (?4,?5,?6)",params![integer(now_ms)?,self.boot,integer(self.id)?,intent(Command::PanelLed(false)).as_slice(),intent(Command::PanelLed(true)).as_slice(),intent(Command::PanelLedOff).as_slice()])?;
+        if count!=1 {return Err(Error::Conflict)}
+        tx.commit()?;Ok(())
+    }
+}
 impl Store {
     pub fn accept_module_off_commands(&mut self,boot_id:&str,commands:&[QueuedCommand],cancellations:&[Cancellation],now_ms:u64,effects:&[crate::module_off::Effects])->Result<(),Error> {
         self.accept_queue_batch_detailed(boot_id,commands,cancellations,now_ms,None,&[],None,None,&[],&[],None,effects,None)
@@ -450,6 +471,13 @@ impl Store {
     pub fn begin_command_write_scoped(&mut self, boot_id: &str, id: u64, now_ms: u64,
         wire: &homesense_core::gateway_scope::WireScope) -> Result<bool, Error> {
         self.begin_command_write_inner(boot_id,id,now_ms,Some(wire))
+    }
+    /// Reserve durable Writing without releasing a transport capability. The
+    /// caller must revalidate its lease after this potentially blocking audit.
+    pub fn reserve_command_write(&mut self,boot_id:&str,id:u64,now_ms:u64,
+        wire:Option<&homesense_core::gateway_scope::WireScope>)->Result<Option<UndeliveredWrite<'_>>,Error> {
+        if !self.begin_command_write_inner(boot_id,id,now_ms,wire)? {return Ok(None)}
+        Ok(Some(UndeliveredWrite{store:self,boot:boot_id.to_owned(),id}))
     }
     fn begin_command_write_inner(&mut self, boot_id: &str, id: u64, now_ms: u64,
         wire:Option<&homesense_core::gateway_scope::WireScope>) -> Result<bool, Error> {

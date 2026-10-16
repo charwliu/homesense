@@ -8,9 +8,20 @@ use homesense_core::{
 };
 use rusqlite::{OptionalExtension, Transaction, params};
 
+#[derive(Clone)]
 pub struct Bundle {
     pub configuration: homesense_config::Configuration,
     pub automation: Option<Document>,
+}
+/// Only validated decoded data is cached. Every lookup still reads both exact
+/// payloads from one current SQLite snapshot; revision alone is never a key.
+/// No variable, observation, pending-command or permission state is cached.
+pub(crate) struct CachedBundle {
+    revision: i64,
+    devices: Vec<u8>,
+    rules: Option<Vec<u8>>,
+    context: ExecutionContext,
+    bundle: Bundle,
 }
 impl Store {
     pub fn automation_payload(&self, revision: u64) -> Result<Option<Vec<u8>>, Error> {
@@ -62,18 +73,25 @@ impl Store {
         let Some((revision, devices, rules)) = stored else {
             return Ok(None);
         };
+        if let Some(cached)=self.active_bundle_cache.borrow().as_ref()
+            && cached.revision==revision && cached.context==context
+            && cached.devices==devices && cached.rules==rules {
+            return Ok(Some(cached.bundle.clone()));
+        }
+        // Clear before validating a changed payload or execution context so an
+        // invalid current snapshot cannot preserve or expose a previous result.
+        self.active_bundle_cache.replace(None);
         let configuration = homesense_config::Configuration::parse(&devices, context)
             .map_err(Error::Configuration)?;
         if crate::sql_revision(configuration.revision())? != revision {
             return Err(Error::InvalidRevision);
         }
-        let automation = rules
-            .map(|rules| validate(&rules, &configuration))
+        let automation = rules.as_ref()
+            .map(|rules| validate(rules, &configuration))
             .transpose()?;
-        Ok(Some(Bundle {
-            configuration,
-            automation,
-        }))
+        let bundle=Bundle{configuration,automation};
+        self.active_bundle_cache.replace(Some(CachedBundle{revision,devices,rules,context,bundle:bundle.clone()}));
+        Ok(Some(bundle))
     }
 }
 pub(crate) fn validate(bytes: &[u8], config: &homesense_config::Configuration) -> Result<Document, Error> {
