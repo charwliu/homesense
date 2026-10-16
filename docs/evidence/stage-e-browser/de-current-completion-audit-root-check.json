@@ -95,7 +95,7 @@
       "stage": "E",
       "requirement": "96路反馈、模块状态与查询",
       "verified_scope": "已有两房间64路限定现场证据；正常CLI96路两例及189条并发控制已验证，12模块型号／用途已确认；当前正式CLI隔离停顿6秒后过期正确，96路新值约2.64秒恢复；新调度普通Mac CLI三例23232通道样本全部新鲜、586控制请求与Written及假总线逐项匹配，含25ms延迟反馈；最终候选启用HAP的180秒合成采样76128通道样本新鲜，2807控制与日志/假总线匹配；该次接收处理时间戳不能验证发送节拍；2026-10-16用户批准恢复只读核对和短停后，12模块96通道均收到合法反馈，61查询=56 R818逐通道+5 AD8整模块；Root独立解析全部TX/RX，无重复/畸形反馈。约69秒后同ELF/rev13恢复，原配对/凭证不变，客户端自动恢复。；现网已追加01/04/05/15四模块为rev14，共12照明模块96路；同ELF受控重启后初始61查询及7完整查询/反馈周期由Root从原pcap重组TCP逐字节核对；21次独立采样2016槽位、最大年龄3943ms，96路观测时间全部推进，原5000ms门槛保持。；2026-10-16同生产ELF的临时隔离配置完成一次获批Away：12模块各一OFF、96精确审计/最后反馈OFF、四代表灯实物关闭及原服务/客户端恢复；风机01-2按明确例外纳入，原配置14未启用Away。",
-      "remaining_evidence": "完整96路初始化与周期刷新已上线并在本窗口通过；逐路实物负载/房间映射、R818 A0整模块能力、模块换址、永久Away发布/原生App入口、实际活动场景接管与长期/并发负载稳定性仍待；历史5512ms停顿根因未由本次查询配置修复。",
+      "remaining_evidence": "完整96路初始化与周期刷新已上线并在本窗口通过；逐路实物负载/房间映射、模块换址、永久Away发布/原生App入口、实际活动场景接管与长期/并发负载稳定性仍待；历史5512ms停顿根因未由本次查询配置修复。",
       "status": "full96_initialization_periodic_deployed_bounded_physical_pass",
       "additional_software_evidence": "stage-e-browser/production-query-capacity-root-check.json",
       "additional_pause_recovery_evidence": "stage-e-browser/capacity-pause-recovery-root-check.json",
@@ -766,5 +766,18 @@
     "production_rev14_restored": true,
     "permanent_Away_enabled": false,
     "native_App_Away_UI_or_HAP_field_passed": false
+  },
+  "R818_query_capability": {
+    "recorded_bj": "2026-10-16",
+    "basis": "用户明确要求：明确记录R818的不支持整模块查询；既有两模块只读对照A0无回复、A8仅第8路",
+    "model": "R818-DIN-PRO / R8I8-DIN PRO",
+    "whole_module_output_query_supported": false,
+    "per_channel_query": "AE ID A1..A8 F2 EE",
+    "A0_future_validation_item": false,
+    "AD8_whole_module_query": "AE ID A0 F2 EE",
+    "registered_96_channel_sweep_query_frames": 61,
+    "scene_hardware_query_per_scene": false,
+    "C7_00": "主动反馈配置只读查询，非八路输出状态；现场结果另记",
+    "module_all_off": "独立已支持能力，不因整模块状态查询不支持而禁用"
   }
 }
