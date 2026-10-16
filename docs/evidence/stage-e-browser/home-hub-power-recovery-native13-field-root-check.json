@@ -1,0 +1,88 @@
+{
+  "checked_bj": "2026-10-16T10:49:27.963491+08:00",
+  "scope": "real HPLeft brief power outage, native local mainON, hub online and cellular remote mainOFF, return homeWiFi",
+  "App_build": 13,
+  "configuration_revision": 13,
+  "human_field_report": {
+    "created_bj": "2026-10-16T10:38:43.444863+08:00",
+    "user_resumed_question": "call_a04ec4e843bb4a3a8e67db2bf2ace515:0",
+    "user_answer": "现在方便，可继续",
+    "scope": "HPLeft only, approximately30s power interruption; all network devices andclients remain online",
+    "pending": null,
+    "power_operation_sent": true,
+    "test_complete": true,
+    "hub_selection": {
+      "question": "call_fec02cd5c53d476fb0bf26872352f7c5:0",
+      "answer": "自动选择关，当前选择HPLeft，在线",
+      "other_hubs": "not enumerated; no sole-hub assertion",
+      "settings_changed": false
+    },
+    "baseline": {
+      "question": "call_a8624cbc53a5431080c277141f65657b:0",
+      "answer": "全部符合",
+      "Study": "both lightsOFF; native state matches/push normal; curtain fullclosed/stopped"
+    },
+    "outage_local_control": {
+      "question": "call_d8b38356f81042fabf0c99de2740890c:0",
+      "answer": "主灯在断电期间亮起，HPLeft 已恢复供电",
+      "human_confirmed_native_main_ON_during_HPLeft_power_off": true,
+      "power_restored": true,
+      "duration": "approximately30s requested; exact duration not independently measured",
+      "no_coordinator_or_network_outage_requested": true
+    },
+    "updated_bj": "2026-10-16T10:47:53.190087+08:00",
+    "hub_and_Apple_Home_recovery": {
+      "question": "call_28258e9e1e6847f1a578101f529a9407:0",
+      "answer": "HPLeft 在线，灯光和场景状态全部一致",
+      "hub_online_current_selection": true,
+      "actual_and_Home": "Study mainON/downlightOFF/ReadingON",
+      "re_pairing_requested": false
+    },
+    "post_recovery_cellular_read": {
+      "question": "call_ddff862c27544c078e55a9b654a9e679:0",
+      "answer": "蜂窝网络下状态一致，E2 可响应",
+      "test_iPhone_WiFi_off_cellular_on": true,
+      "state": "Study mainON/downlightOFF/ReadingON",
+      "hub_peer_mapping_independently_proven": false
+    },
+    "post_recovery_cellular_control": {
+      "question": "call_d4108c86191241ea9a5c0e60a5b854cd:0",
+      "answer": "实际与 App 全部符合，持续响应",
+      "source": "iPhone Apple Home with WiFi off/cellular on",
+      "action": "Study mainOFF",
+      "actual_and_App": "both lightsOFF/ReadingDailyEcoOFF; responsive",
+      "curtain": "no new action"
+    },
+    "return_WiFi_native_recovery": {
+      "question": "call_1453ac1dab0f45faac5f15cbd4a6f987:0",
+      "answer": "全部自动恢复且一致，网关正常",
+      "without_refresh_relaunch_token_entry": true,
+      "receiving_push": true,
+      "final_baseline": "Study bothlightsOFF/ReadingDailyEcoOFF/card and wall1/3/5green; curtain fullclosed/stopped; HPLeft and existing gateways normal"
+    }
+  },
+  "independent_readonly_server_checks": {
+    "before_remote_OFF": "main100 ON/downlightOFF; sameboot rev13 healthy queued0",
+    "after_remote_OFF": "both lights ConfirmedOFF; sameboot rev13 healthy queued0",
+    "unit": "ActiveState=active\nSubState=running\nMainPID=253294\nNRestarts=0\n"
+  },
+  "result": "bounded HPLeft outage and recovery field case passed; final light baseline restored; no curtain actions requested",
+  "limitations": [
+    "Power interruption and control source confirmed by user; exact outage duration not independently timed.",
+    "Automatic hub selection off and HPLeft selected/online confirmed by user; other hubs not enumerated, no sole-hub assertion.",
+    "Specific encrypted HAP peer was not independently mapped to HPLeft.",
+    "API snapshots corroborate observed state, not captured per-click phone traces or packet-level source causality.",
+    "This case is not whole-home, all-hub or long-term stability acceptance."
+  ],
+  "remaining_source_scope": {
+    "scenes": 65,
+    "programs": 208,
+    "variables": 24
+  },
+  "D_E_complete": false,
+  "evidence_sha256": {
+    "deployment/ngr/private/20261016-native-app-remaining-field-root/home-hub-offline-results.json": "f6b350c1c24dcf859157fa5f60ee768f7258fb24f78d29c43de1fa250a0ef6aa",
+    "deployment/ngr/private/20261016-native-app-remaining-field-root/home-hub-after-outage-readonly.json": "d772961c6a5bbb2d23573c8e3ce2350fb09ca7eede35b246cd579270fb707215",
+    "deployment/ngr/private/20261016-native-app-remaining-field-root/home-hub-after-cellular-OFF-readonly.json": "bcff77b5fa8c2f98061cd17762086cecb114296e2497104626f7f2f902811f19"
+  }
+}
