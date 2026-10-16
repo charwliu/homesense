@@ -119,7 +119,11 @@ impl Api {
         if matches!(request.uri().path(), "/" | "/app.js" | "/draft-json.js" | "/style.css") {
             return deny(StatusCode::GONE, "native_app_required");
         }
-        if request.uri().query().is_some() && !matches!(request.uri().path(),"/api/v1/config/versions"|"/api/v1/scene-history") && !(request.uri().path().starts_with("/api/v1/runs/") && request.uri().path().ends_with("/details")) {
+        if request.uri().query().is_some()
+            && !matches!(request.uri().path(), "/api/v1/config/versions" | "/api/v1/scene-history")
+            && !(request.method() == hyper::Method::GET && request.uri().path() == "/api/v1/modules")
+            && !(request.uri().path().starts_with("/api/v1/runs/") && request.uri().path().ends_with("/details"))
+        {
             return deny(StatusCode::BAD_REQUEST, "query_not_supported");
         }
         // Minimal liveness reveals no runtime configuration or credentials.

@@ -525,3 +525,97 @@ async fn diagnostic_exact_source_control_future_layout() {
     if let Ok(path)=std::env::var("SOURCE_AUTH_LAYOUT_EVIDENCE"){std::fs::write(path,serde_json::to_vec_pretty(&result).unwrap()).unwrap();}
     drop(api);h.close().await;
 }
+
+#[tokio::test]
+async fn module_get_pagination_covers_43_modules_and_preserves_read_only_boundaries() {
+    // Cross the default page size with synthetic unbound modules. Inventory
+    // must not issue hardware queries, controls, scene runs or admissions.
+    let mut config: Json = serde_json::from_slice(&devices()).unwrap();
+    for address in 0x80..0xa7 {
+        config["gateways"][0]["modules"].as_array_mut().unwrap().push(json!({
+            "address":format!("{address:02X}"), "profile":"r8i8_din_pro_v2_7_7",
+            "verification":{"status":"simulated"}
+        }));
+    }
+    let draft = crate::web_drafts::Draft {
+        id: uuid::Uuid::new_v4(), expected_revision: 1, revision: 1,
+        devices: config, automation: automation(),
+    };
+    let (draft, impact) = crate::module_migration::prepare(draft,
+        crate::module_migration::Edit {
+            id: uuid::Uuid::new_v4(), expected_revision: "1".into(), revision: "2".into(),
+        }, ExecutionContext::Simulation).unwrap();
+    assert_eq!(impact.modules.len(), 43);
+    let expected: std::collections::BTreeSet<_> = impact.modules.into_iter().map(|m| m.module_id).collect();
+    let h = harness(serde_json::to_vec(&draft.devices).unwrap(), draft.automation).await;
+    let (control, mut receiver) = crate::automation_control::channel(h.controller, h.generation.clone());
+    let mut scenes = crate::scene_scheduler::SceneScheduler::new(
+        h.actor.clone(), h.controller, 8, h.actor.monotonic_ms()).unwrap();
+    let tokens = std::sync::Arc::new(Tokens::default());
+    let admin = "abcdefghijklmnopqrstuvwxyz0123456789";
+    let member = "abcdefghijklmnopqrstuvwxyz9876543210";
+    for (secret, role) in [(admin, Role::Administrator), (member, Role::Member)] {
+        tokens.insert(uuid::Uuid::new_v4(), secret, Grant {
+            controller: h.controller, role, scenes: Default::default(), devices: Default::default(),
+        }).unwrap();
+    }
+    let api = crate::web_api::Api {
+        daily_backup: Default::default(), hap_bridges: Default::default(), hap_status: Default::default(),
+        backup_source: None, publisher: None, origin: "http://127.0.0.1:8088".into(), tokens,
+        runtime: std::sync::RwLock::new(Some(crate::web_api::Runtime {
+            control, revision: 2, boot: h.actor.boot_id().into(), scenes: Default::default(),
+        })),
+        receipts: std::sync::Mutex::new(crate::web_receipts::Receipts::open(&h.directory.join("web.sqlite")).unwrap()),
+        drafts: None,
+    };
+    let request = |path: &str, secret: &str, method: &str, body: &str| {
+        hyper::Request::builder().uri(path).method(method)
+            .header("host", "127.0.0.1:8088").header("origin", "http://127.0.0.1:8088")
+            .header("authorization", format!("Bearer {secret}"))
+            .body(hyper::body::Bytes::copy_from_slice(body.as_bytes())).unwrap()
+    };
+    let mut ids = std::collections::BTreeSet::new();
+    for (path, count, next) in [
+        ("/api/v1/modules", 32, json!(32)),
+        ("/api/v1/modules?offset=32&limit=32&revision=2", 11, Json::Null),
+        ("/api/v1/modules?limit=64", 43, Json::Null),
+        ("/api/v1/modules?offset=43&limit=1&revision=2", 0, Json::Null),
+        ("/api/v1/modules?offset=16320&limit=64&revision=2", 0, Json::Null),
+    ] {
+        let response = poll_request(&h, &mut receiver, &mut scenes,
+            api.handle(request(path, admin, "GET", ""))).await;
+        assert_eq!(response.status(), hyper::StatusCode::OK, "legal pagination {path}");
+        let page: Json = serde_json::from_slice(&response.into_body().collect().await.unwrap().to_bytes()).unwrap();
+        assert_eq!(page["revision"], "2");
+        assert_eq!(page["truth_source"], "canonical_module_channels");
+        assert_eq!(page["next_offset"], next, "{path}");
+        let modules = page["modules"].as_array().unwrap();
+        assert_eq!(modules.len(), count, "{path}");
+        assert!(page["commands"].as_array().unwrap().is_empty());
+        if path == "/api/v1/modules?limit=64" { assert_eq!(ids, expected); }
+        for module in modules {
+            let id = module["module_id"].as_str().unwrap().to_owned();
+            if path != "/api/v1/modules?limit=64" { assert!(ids.insert(id)); }
+        }
+    }
+    for query in ["limit=0", "limit=65", "offset=16321&revision=2", "limit=01", "offset=00", "revision=02", "limit=+1", "limit=-1", "limit=184467440737095516160", "limit=%31", "limit=1&limit=2", "revision=2&revision=2", "offset=0&offset=0", "unknown=1", "limit", "limit="] {
+        let path = format!("/api/v1/modules?{query}");
+        assert_eq!(api.handle(request(&path, admin, "GET", "")).await.status(), hyper::StatusCode::BAD_REQUEST, "{path}");
+    }
+    for query in ["revision=1", "offset=32", "offset=32&revision=1"] {
+        let path = format!("/api/v1/modules?{query}");
+        assert_eq!(api.handle(request(&path, admin, "GET", "")).await.status(), hyper::StatusCode::CONFLICT, "{path}");
+    }
+    for path in ["/api/v1/modules", "/api/v1/modules?limit=64"] {
+        assert_eq!(api.handle(request(path, member, "GET", "")).await.status(), hyper::StatusCode::FORBIDDEN, "{path}");
+        for method in ["POST", "PUT", "DELETE", "PATCH", "HEAD"] {
+            assert!(api.handle(request(path, admin, method, "")).await.status().is_client_error(), "{method} {path}");
+        }
+        assert_eq!(api.handle(request(path, admin, "GET", "{}")).await.status(), hyper::StatusCode::BAD_REQUEST, "{path}");
+    }
+    for path in ["/api/v1/devices?limit=64", "/api/v1/modules/extra?limit=64", "/api/v1/module-commands?limit=64"] {
+        assert_eq!(api.handle(request(path, admin, "GET", "")).await.status(), hyper::StatusCode::BAD_REQUEST, "{path}");
+    }
+    h.no_output();
+    h.close().await;
+}
