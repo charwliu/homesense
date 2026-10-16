@@ -1,0 +1,60 @@
+{
+  "checked_bj": "2026-10-16T13:20:11.025042+08:00",
+  "scope": "One requested AD8 address11 C7 probe; no active-feedback setting or output command",
+  "request_hex": "AE 11 C7 00 EE",
+  "probe_send_count": 1,
+  "before_window_seconds": 0.75,
+  "before_raw_hex": "",
+  "after_window_seconds": 2.0,
+  "after_raw_hex": "",
+  "after_bytes": 0,
+  "C8_sent": false,
+  "interpretation": "No reply observed within this one 2-second window. C7 semantics are undocumented for AD8 Ver2.2.1; do not infer proactive-feedback support or unsupported status.",
+  "guards": {
+    "outer_timeout_seconds": 60,
+    "outer_kill_after_seconds": 5,
+    "automatic_e2_restart_seconds": 90,
+    "exited_normally": true,
+    "timer_cancelled": true
+  },
+  "restored_PID": 259244,
+  "E2_active": true,
+  "revision": 14,
+  "schema": 27,
+  "ELF_sha256": "83d894380419ee00c9ecf0a0fcb5356c3ac85185e301fb6f070e1dd70ef9895d",
+  "configuration_unit_credentials_HAP_identity_preserved": true,
+  "pending": 0,
+  "post_restore_capture": {
+    "TCP_reassembled_overlap_consistent_no_gaps": true,
+    "directions": {
+      "TX": {
+        "query_frames": 220,
+        "unique_query_frames": 61,
+        "min_each": 3,
+        "max_each": 4,
+        "other_frame_types_in_this_capture": 0
+      },
+      "RX": {
+        "frames": 359,
+        "unique_output_slots": 96
+      }
+    },
+    "sha256": "1ef4f605905334a2db57e2cb40d2c0a5c8081ddab23379cf0131311b1db3033e"
+  },
+  "periodic_query_policy_unchanged": true,
+  "R81801_07_active_feedback_not_changed": "No C7/C8 frames to R818 in probe; prior enabled settings retained, not re-read",
+  "evidence_sha256": {
+    "backup-manifest.json": "8ce02477f76c0e95da3fe65089375ca0bac84f88a71c7790fd9203fdb87f1f82",
+    "before.json": "9c2fdcc592b5c3f132993828c5151637a6aed2157aa75ca40f1a8bc0e121c97c",
+    "immediate-before.json": "795b2cfab3d1792b29af416abb34efc06ae879826a81fa3884696b0c9cd32aa0",
+    "post-restore-gateway.pcap": "1ef4f605905334a2db57e2cb40d2c0a5c8081ddab23379cf0131311b1db3033e",
+    "postcheck.json": "36570b31e01203a26254623cd485a07e5137882f35b5fe06aa0e3829e175776c",
+    "summary.json": "4e7ca2e3a22d4a40ad87a4816ed970ae4438a08a1a3f114e194ea566bc386231",
+    "timeline.jsonl": "bae15d3a808927e11ea3758689f198324937151eda346fdf7e81587dcd21b176"
+  },
+  "probe_script_sha256": "dd32a73dd3a6db75ccedffb9b6886dfd664a6c0e55aa8e1c50c83af8c9f8ce14",
+  "no_B1_candidate_publication": true,
+  "D_E_complete": false,
+  "root_audit_script_sha256": "122a278e4a728a5bf5b8ae5e31c3cee7ba59475b39e5484b1a762ae37db9fb5c",
+  "authorization_scope_sha256": "c790d5c2e57574dd075f7c37cff52dc58373d4e302fae0df0b9d3f1fe591025b"
+}
