@@ -75,3 +75,36 @@ LH-IO1600 地址工具：
 当前面板协议没有 LED 颜色读回，最后写出不等于实测，按键事件也不能证明灯色。背光、声音与工作模式的读回格式尚未核实，实测保持未知；查询或写出成功不表示设置已确认。场景选择与负载反馈同样分别展示。
 
 软件结果和模拟截图不能代替现场验收。真实 Keypad 的迁移、权限和硬件效果，以及手机 Keychain 首次保存／重开恢复、前后台同步，需在相应服务窗口核对。进入后台或“本地调试”会暂停家庭状态流，返回后重新同步；本地按键联动仅在前台且网关连接有效时工作。
+
+## 点击与请求诊断
+
+六键卡的实际 Button action 同步产生 `button.click` 和随机 `operation_id`，随后异步处理沿用同一 ID，依次记录门禁、开关方向、HTTP 发送与结果，以及 `operation.complete` 和单调时钟耗时。每个控制请求仍单独生成原有的 `request_id`；`http.send` 和 `http.response`／`http.failed` 同时包含它和操作 ID，可与服务端回执对应。HTTPS 共用层也记录只读请求，区分 HTTP 非成功状态、响应格式错误、超时、取消及传输失败，不增加刷新、重连或重发。
+
+禁用 Button 不会收到系统派发的 action，因而不能声称捕获了禁用表面的触摸。卡片出现和门禁状态变化时记录去重的 `gate.state`，包括连接、忙碌、当前快照、推送、映射、目标可用、授权、场景选择及相对操作许可；此类状态记录不冒充点击，没有 `operation_id`。getter 本身不写日志，原忙碌和安全门禁保持。
+
+系统日志为 subsystem `com.ngboss.homesense`、category `ControlTrace`。App 内“服务连接 → 导出诊断日志”可保存文本；导出仅包含当前和经格式校验的上一会话。磁盘中固定保存：
+
+- `Library/Application Support/HomeSenseDiagnostics/control-trace.jsonl`：当前会话。
+- `Library/Application Support/HomeSenseDiagnostics/control-trace.previous.jsonl`：新会话首次写入时移位保留的上一会话。
+- 同目录 `control-trace.pending`：异步原子替换时唯一临时文件。
+
+每会话默认最多 512 条，单文件硬上限 256 KiB；当前与上一会话最多 512 KiB，含临时快照磁盘最多 768 KiB。异步队列仅保留最新一份待写快照；旧条目从环形记录淘汰。目录权限 0700、文件 0600，目录排除备份，iOS 文件使用首次解锁后的数据保护。写入失败不改变控制结果；内存记录仍可导出。未完成异步写入即终止进程时，末尾少量事件可能尚未落盘；日志不是服务端执行回执或实体反馈证明。
+
+仅记录固定字段：操作／请求 UUID、会话内加盐匿名目标标识、按键号、布尔状态、方法、固定路由／配置路径模板、HTTP 状态、字节数、白名单错误和 outcome，以及白名单 NSError domain／数字 code。UTC `time` 可换算到本地时区，`sequence` 保序，`elapsed_ms` 使用单调时钟。设备／场景名称和原 ID、服务地址、令牌、Authorization、请求／响应全文、错误 description／userInfo 均不写入。未知后端错误码记为 `other`，已列入当前后端固定拒绝码白名单的原值可以检索。开启日志不代表六键再次关闭故障已修复。
+
+已连接并解锁的测试 iPhone 可只取上述已知文件，无需读取 Keychain 或复制整个容器。由取证操作者替换设备标识和本机保存位置：
+
+```sh
+xcrun devicectl device copy from --device '<原测试机标识>' \
+  --domain-type appDataContainer --domain-identifier com.ngboss.homesense \
+  --source 'Library/Application Support/HomeSenseDiagnostics/control-trace.jsonl' \
+  --destination '<本机私有目录>/control-trace.jsonl' --timeout 20
+```
+
+上一会话同样只取 `control-trace.previous.jsonl`。文件不存在意味着该会话尚未成功落盘，不能据此认定没有点击。macOS 定向系统日志可使用：
+
+```sh
+log stream --style compact --predicate 'subsystem == "com.ngboss.homesense" AND category == "ControlTrace"'
+```
+
+手机也可在 Mac“控制台”中选择该已连接设备，再按上述 subsystem／category 筛选；不收集全机 sysdiagnose。定位时从 `button.click` 的操作 ID 串联门禁、方向和 HTTP 终态，再用 `request_id` 对照服务端。日志取回不触发设备控制，不要求使用者复述日志内容。

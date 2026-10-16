@@ -126,7 +126,10 @@ struct HomeKeypadDetails: View {
                                 }
                             }
                             if let action = key.actionDescription {
-                                Button(action) { Task { await home.activateKeypad(keypadID, key: key.number) } }
+                                Button(action) {
+                                    let operation = home.beginKeypadClick(keypadID, key: key.number)
+                                    Task { await home.activateKeypad(keypadID, key: key.number, operation: operation) }
+                                }
                                     .disabled(!home.canActivateKeypad(keypadID, key: key.number))
                             } else { Text("未配置已授权的按键动作").font(.caption).foregroundStyle(.secondary) }
                             HStack {
@@ -178,6 +181,8 @@ struct HomeKeypadDetails: View {
             .navigationTitle(keypad?.name ?? "Keypad")
             .toolbar { Button("完成") { dismiss() } }
         }.frame(idealWidth: 520, idealHeight: 650)
+        .onAppear { home.recordKeypadGateStates(keypadID) }
+        .onChange(of: home.keypadGateStates(keypadID)) { _, _ in home.recordKeypadGateStates(keypadID) }
     }
     private func mode(_ value: String?) -> String {
         switch value { case "manual": "手动灯控"; case "self_reset": "自复位"; default: "未知" }
