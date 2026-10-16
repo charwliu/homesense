@@ -92,6 +92,29 @@ struct HomeKeypadIntegrationTests {
         try #require(home.error == nil, "\(home.error ?? "")")
         try await waitFor("mapped scene light feedback", home: home) { home.devices.first { $0.id == "fixture-light" }?.raw["observed"]["level"] == .integer(100) }
         #expect(panelState()["keys"].values.first?["led"]["last_written"]["color"].text == "green", "Mapped scene action is not an LED toggle")
+        try await waitFor("scene selected after mapped first click", home: home) {
+            home.scenes.first { $0.id == "reading" }?.raw["selected"] == .bool(true)
+        }
+        try #require(home.canActivateKeypad("panel", key: 1), "An already selected scene must remain actionable for deactivation")
+        await home.activateKeypad("panel", key: 1)
+        try #require(home.error == nil, "Second mapped click: \(home.error ?? "")")
+        try await waitFor("mapped scene off after second click", home: home) {
+            home.devices.first { $0.id == "fixture-light" }?.raw["observed"]["level"] == .integer(0)
+                && home.scenes.first { $0.id == "reading" }?.raw["selected"] == .bool(false)
+        }
+        #expect(!home.busy && home.canActivateKeypad("panel", key: 1))
+        let trace = try home.diagnostics.exportText().split(separator: "\n").dropFirst().map {
+            try JSONDecoder().decode(HomeJSON.self, from: Data($0.utf8))
+        }
+        let sends = trace.filter { $0["event"].text == "http.send" && $0["path"].text == "/api/v1/scene-actions" }
+        try #require(sends.count == 2)
+        #expect(sends[0]["operation_id"] != sends[1]["operation_id"] && sends[0]["request_id"] != sends[1]["request_id"])
+        let offOperation = sends[1]["operation_id"]
+        #expect(trace.contains { $0["event"].text == "scene.decision" && $0["operation_id"] == offOperation && $0["on"] == .bool(false) })
+        #expect(trace.contains { $0["event"].text == "http.response" && $0["operation_id"] == offOperation && $0["request_id"] == sends[1]["request_id"] && $0["http_status"] == .integer(202) && $0["outcome"].text == "accepted" })
+        #expect(trace.contains { $0["event"].text == "operation.complete" && $0["operation_id"] == offOperation })
+
+
         await home.writeKeypadLED("panel", key: 1, color: .off)
         try await waitFor("LED off", home: home) { panelState()["keys"].values.first?["led"]["last_written"]["color"].text == "off" }
         await home.writeKeypadSetting("panel", command: .object(["action": .string("backlight"), "mode": .string("bright")]))
