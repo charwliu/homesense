@@ -1,0 +1,92 @@
+{
+  "checked_bj": "2026-10-16T08:03:35.370475+08:00",
+  "source_commit": "27fec73f442c5701847d404374554491ddec6a1a",
+  "build": "11",
+  "bundle": "com.ngboss.homesense",
+  "signed_archive_sha256": "2b9d479c66dbf7035785a02acc51512cb86defb208e0f4bf04c6ac25472247ec",
+  "qualified58_inputs_unchanged": true,
+  "strict_codesign_passed": true,
+  "same_old8_entitlements_and_profile": true,
+  "actual_USB_cover_installs": 1,
+  "phone_inventory_build_before_after": [
+    8,
+    11
+  ],
+  "actual_launches": 1,
+  "uninstall_or_clear_data": false,
+  "data_container_path_changed": true,
+  "path_equality_initial_assertion_failure_retained": true,
+  "container_contents_independently_verified": false,
+  "actual_token_or_Keychain_contents_read": false,
+  "human_card_and_restore": {
+    "questionItemId": "call_72d3e76ce0d34e55940804ee99b90e50:0",
+    "answer": "自动连接，两张六键卡均正确",
+    "credential_auto_restore_after_update": true,
+    "two_square_Keypad_cards_two_columns_three_rows": true,
+    "actual_key_actions_or_hardware_LED_acceptance": false
+  },
+  "field_acceptance": [
+    {
+      "questionItemId": "call_97984ee58e4140d38cb0f9577d3c8129:0",
+      "test": "Study Keypad key1 Reading ON",
+      "answer": "全部符合，持续响应",
+      "passed": true,
+      "scope": "main full brightness, spots off, scene selection and card/physical LED as expected"
+    },
+    {
+      "questionItemId": "call_a3e9aeb8ddc74589aacd9a2152fcda3a:0",
+      "test": "same key1 Reading OFF",
+      "answer": "未响应；还是开着",
+      "passed": false
+    },
+    {
+      "questionItemId": "call_15c2394a511242e1b195c57ca50fb25f:0",
+      "test": "failure clarification",
+      "answer": "再次点1键没有变化；还是开着，没有离线"
+    },
+    {
+      "questionItemId": "call_b05b537e302647f086a7553c1a0b1626:0",
+      "test": "human restore through Apple Home only",
+      "answer": "主灯已关，其余保持原状"
+    }
+  ],
+  "post_restore_human_baseline": {
+    "both_lights": "off",
+    "curtain": "stopped"
+  },
+  "failure_readonly_findings": {
+    "PID": 249375,
+    "service_restarts": 0,
+    "fresh_channels": 64,
+    "Reading_selected": true,
+    "Reading_action_gate_available": true,
+    "first_ON_success_receipt": true,
+    "second_OFF_success_receipt_or_command_seen": false,
+    "rejection_before_receipt_or_client_no_send_distinguished": false
+  },
+  "old87_run_coverage_gap": "actual Rust integration previously covered first ON only, not the second key click OFF",
+  "root_cause_confirmed": false,
+  "software_fix_claimed": false,
+  "further_native_field_actions_paused": true,
+  "D_E_complete": false,
+  "original_scope": {
+    "scenes": 68,
+    "programs": 215,
+    "variables": 25
+  },
+  "remaining_source_scope": {
+    "scenes": 65,
+    "programs": 208,
+    "variables": 24
+  },
+  "artifact_sha256": {
+    "signed_artifact_root_audit": "cd23f69cf8a5710fa9069cf98bcf7db502444889b5904599bfbffdde615fc5f9",
+    "USB_installation_root_audit": "33d047cbdbc46dc36171eee86f6d2affa5be8eded8bc33be07484559cee1c157",
+    "field_device_snapshot": "76c95cab23ef7d4cffed62679c141e2f589bb5d0999e24595ab82ca872f63343",
+    "field_scene_snapshot": "39d7c58f30e23c90175a3297ac6b7e3ad2a7fca1f01d7f1aec4a0774a501c00d",
+    "field_service_and_receipts": "b2a6a13b584cc4c13eca5131f6e5b7d9098095f6145042f2552f2ba4f1430b2b",
+    "field_readonly_HTTPS_summary": "6686f94df711c8d55ab53fa9755f4eb50620d34e26804178dda0a3b29f83a0c0"
+  },
+  "earlier_unsigned_preparation_evidence": "native-build11-root-check.json",
+  "production_evidence": "multi-gateway-runtime10-production-root-check.json"
+}

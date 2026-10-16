@@ -1,5 +1,5 @@
 {
-  "checked_bj": "2026-10-16T07:46:12.257000+08:00",
+  "checked_bj": "2026-10-16T08:03:35.370475+08:00",
   "derived_requirements": [
     "docs/design.md sections9-11,18,20,23-24,27"
   ],
@@ -106,18 +106,19 @@
       "id": "E-3",
       "stage": "E",
       "requirement": "灯光、场景、窗帘与面板入口",
-      "verified_scope": "两房间多项手动灯光／场景／窗帘及LED已限定现场通过；现有两面板父卡已在线发布到rev10，原Admin视图2父卡/各6格/0独立LED，原17授权及20展开端点保持，7格既有动作可见。",
-      "remaining_evidence": "用户仍看到独立LED，具体页面与服务Origin待确认；现网TLS目录2父卡／0独立LED及离线四入口渲染通过不替代实机。最终LED候选已完整1153项及普通CLI复验通过，Linux新二进制已上线并复核；庭院/回家额外配置、17→20扩权和集中现场仍待批准/验收。",
-      "status": "parent_catalog_deployed_final_LED_software_qualified_field_display_unresolved",
+      "verified_scope": "两房间多项手动灯光／场景／窗帘及LED已限定现场通过；现有两面板父卡已在线发布到rev10，原Admin视图2父卡/各6格/0独立LED，原17授权及20展开端点保持，7格既有动作可见；build11手机已确认两张正方形六键卡片和自动连接，书房1键首次阅读开启及LED符合。",
+      "remaining_evidence": "同一书房1键再次点按关闭现场失败，主灯保持亮、App未离线；成功回执/命令缺失不能区分客户端未发送与后端提前拒绝。用户已通过Apple家庭恢复两灯关/窗帘停止，进一步六键现场暂停，隔离复现继续。其余按键、扩展场景/17→20权限及完整硬件验收仍待。",
+      "status": "phone_visual_passed_native_key1_OFF_field_failure_open",
       "additional_existing_card_evidence": "stage-e-browser/keypad-existing-cards-publication-root-check.json",
-      "additional_scope_completion_proposal": "stage-e-browser/study-keypad-scope-proposal-root-check.json"
+      "additional_scope_completion_proposal": "stage-e-browser/study-keypad-scope-proposal-root-check.json",
+      "additional_phone_installation_and_field_evidence": "stage-e-browser/native-build11-installation-field-root-check.json"
     },
     {
       "id": "E-4",
       "stage": "E",
       "requirement": "原生App、管理API鉴权与事件恢复",
-      "verified_scope": "登录、滑块、退出和iPad断网恢复有实际限定结果；新账本与Away有软件证据；原生App实际TLS/WSS软件集成及手机推送、页面稳定与亮度按钮可用已确认；原生App两次实际调光跟随与自动读回已确认；rev9楼层目录及原生App三层/两房间归属已实际确认，永久Admin登录和本机空楼层编辑已通过；原生App楼层/房间新增、改名、删除、服务端保存及预览、恢复活动配置和测试草稿清理均已实际确认；两草稿独立核对设备及自动化未变；build7永久凭证Keychain保存、强退重开自动连接及前后台开/关同步已现场通过；ordinary v3严格负向80项零写出、publication v3四函数32项限定通过，v7 Web准确两run持久账目通过；精确来源授权／发布与STOP冻结v5完整1086项及文档、严格Clippy通过，保留原1067项，新增19项含213专项记录",
-      "remaining_evidence": "runtime10局部WSS及父Keypad三阶段通过；完整App构成27fec73保留原LH工具，87项/15套件无skip（含原2实际Rust集成）、iOS/macOS无签名构建通过。旧clean10缺LH不用于更新；完整新包签名/安装、六键手机视觉、自主发布及其他管理边界集中验收仍待。",
+      "verified_scope": "登录、滑块、退出和iPad断网恢复有实际限定结果；新账本与Away有软件证据；原生App实际TLS/WSS软件集成及手机推送、页面稳定与亮度按钮可用已确认；原生App两次实际调光跟随与自动读回已确认；rev9楼层目录及原生App三层/两房间归属已实际确认，永久Admin登录和本机空楼层编辑已通过；原生App楼层/房间新增、改名、删除、服务端保存及预览、恢复活动配置和测试草稿清理均已实际确认；两草稿独立核对设备及自动化未变；build7永久凭证Keychain保存、强退重开自动连接及前后台开/关同步已现场通过；ordinary v3严格负向80项零写出、publication v3四函数32项限定通过，v7 Web准确两run持久账目通过；精确来源授权／发布与STOP冻结v5完整1086项及文档、严格Clippy通过，保留原1067项，新增19项含213专项记录；完整build11已通过原机USB覆盖安装，用户确认自动恢复凭证及两父卡显示。",
+      "remaining_evidence": "完整App58输入及87项资格保持；新手机包签名/安装/免输入连接/两张卡片显示已通过。书房六键再次点按关闭失败尚未定位，自主发布和其他管理边界集中验收继续。",
       "status": "exact_source_auth_software_deployed_remaining_field_and_management_checks_pending",
       "additional_auth_gap": "stage-e-browser/ordinary-source-auth-root-gap.json",
       "additional_publication_auth_evidence": "stage-e-browser/publication-source-boundaries-root-check.json",
@@ -129,7 +130,8 @@
       "additional_private_runtime7_evidence": "stage-e-browser/multi-gateway-runtime7-root-check.json",
       "additional_runtime10_evidence": "stage-e-browser/multi-gateway-runtime10-root-check.json",
       "additional_native_partial_evidence": "stage-e-browser/native-partial-availability-root-check.json",
-      "additional_native_complete_evidence": "stage-e-browser/native-lhio-preservation-root-check.json"
+      "additional_native_complete_evidence": "stage-e-browser/native-lhio-preservation-root-check.json",
+      "additional_phone_installation_and_field_evidence": "stage-e-browser/native-build11-installation-field-root-check.json"
     },
     {
       "id": "E-5",
@@ -152,7 +154,7 @@
       "stage": "D/E",
       "requirement": "最终集成软件回归",
       "verified_scope": "网络接收错误修复最终844冻结输入：1160项完整Rust、原1153函数全部保留、172实际程序重哈希、文档与全目标严格Clippy通过；最终正式CLI88路周期/常驻恢复和两项实际App HTTPS/WSS通过。",
-      "remaining_evidence": "backend冻结1197（1196tracked+1既有私有补充）/原协议、Linux正式ELF5项隔离协议与真实迁移/回退通过；完整App27fec73的58输入构成87项无skip含2实际Rust集成与iOS/macOS无签名构建通过，已保留原LH工具。新Linux现网常驻切换已通过，完整回退副本经修复后独立核验；新手机包签名安装与完整现场/源语义仍待。",
+      "remaining_evidence": "backend冻结1197（1196tracked+1既有私有补充）/原协议、Linux正式ELF5项隔离协议与真实迁移/回退通过；完整App27fec73的58输入构成87项无skip含2实际Rust集成与iOS/macOS无签名构建通过，已保留原LH工具。新Linux现网常驻切换已通过，完整回退副本经修复后独立核验；新手机包签名安装与卡片视觉已通过，但六键再次点按关闭现场失败；完整现场/源语义仍待。",
       "status": "receive_error_repair_Mac_qualified_Linux_deployed_multi_gateway_isolation_open",
       "complete_for_current_frozen_input": true,
       "incremental_python_tool_tests_passed": 20,
@@ -301,7 +303,8 @@
     "stage-e-browser/native-build10-root-check.json": "d08b261fb605ba7c5b1249c77241daa21145a17c89b3d31d25a3b96ee48ecff3",
     "stage-e-browser/native-lhio-preservation-root-check.json": "a047a1f0d638811d75c406d2de5a9541d20c062a59d7044c4dc7d58a7863d38a",
     "stage-e-browser/native-build11-root-check.json": "06933c85f2391f149633fbe9d8a4cdb2d1066d950307bf8b0e6f4c0176da0758",
-    "stage-e-browser/multi-gateway-runtime10-production-root-check.json": "291bc14a911efefad07a3c8b2c3cbd475550c831d56771c05e058fa958a7ee6f"
+    "stage-e-browser/multi-gateway-runtime10-production-root-check.json": "291bc14a911efefad07a3c8b2c3cbd475550c831d56771c05e058fa958a7ee6f",
+    "stage-e-browser/native-build11-installation-field-root-check.json": "4295219ccf1c58554082a28011200b0fdb1c37a815ea70d9db418122e808d917"
   },
   "excluded_by_scope": {
     "Siri": "cancelled by user",
@@ -465,7 +468,7 @@
   "existing_keypad_permission_scope_preserved": 17,
   "current_card_slots_per_parent": 6,
   "current_authorized_key_actions": 7,
-  "actual_App_card_visual_confirmation": "user reports separate LED; screen clarification and App owner diagnosis pending",
+  "actual_App_card_visual_confirmation": "Human confirmed build11 automatic connection and two square six-key cards; old exact separate-LED cause remains unproven. Native Study key1 ON passed, second OFF failed.",
   "extra_shared_keypad_models_user_confirmed": {
     "61": "TS6-86",
     "56": "TS6-86",
@@ -536,7 +539,7 @@
   "latest_Keypad_display_diagnosis": "stage-e-browser/keypad-display-diagnosis-root-check.json",
   "latest_indicator_final_Linux_deployment": "stage-e-browser/indicator-final-linux-deployment-root-check.json",
   "latest_native_build9_delivery": "stage-e-browser/native-build9-delivery-root-check.json",
-  "native_App_phone_update": "Last verified installed build8. Old9 failed twice; unsigned clean10 held for missing LHIO. Complete58-source private11 independently qualified from committed27fec73; unsigned, not directly installable; signing/install and visual acceptance pending.",
+  "native_App_phone_update": "Actual original USB phone inventory8→11, one successful cover install/one launch, same identity/profile/58 qualified inputs. Human automatic credential restore/two cards passed; key1 OFF field failure open.",
   "latest_multi_gateway_runtime_counterexample": "stage-e-browser/multi-gateway-isolation-root-gap.json",
   "multi_gateway_fault_isolation": {
     "Mac_frozen_backend_qualified": true,
@@ -594,7 +597,7 @@
     "old_mixed_worktree85plus2_distinguished": true,
     "current_source_only10_paths": true
   },
-  "native_App_new_availability_commit_status": "Availability ab861d4 retained in full App27fec73, pushed. Complete87 run qualified, private11 version-only unsigned artifact verified; actual phone and deployment approvals pending.",
+  "native_App_new_availability_commit_status": "Full App27fec73/build11 signed and USB installed; human card display and automatic connection passed. Field key1 OFF failure under isolated investigation.",
   "latest_gateway_isolation_Linux_candidate_qualification": "stage-e-browser/multi-gateway-linux-runtime10-root-check.json",
   "latest_native_build10_preparation": "stage-e-browser/native-build10-root-check.json",
   "gateway_isolation_production_switch": "Current direct human approval received; performed and independently qualified: ELF96fe/schema27/rev10/PID249375/no restarts. Original identity/2pairs/Admin17+7 retained; original snapshot SHMmtime audit failure preserved, new sealed139 backup verified.",
@@ -612,10 +615,11 @@
     "iOS_and_macOS_unsigned": true,
     "source_Info_version": 7,
     "phone_package11_prepared": true,
-    "signed_or_installed": false,
-    "phone_LED_display_complaint_unresolved": true
+    "signed_or_installed": true,
+    "phone_LED_display_complaint_unresolved": false
   },
   "native_App_complete_source_commit": "27fec73f442c5701847d404374554491ddec6a1a",
   "latest_native_build11_preparation": "stage-e-browser/native-build11-root-check.json",
-  "latest_gateway_isolation_production_qualification": "stage-e-browser/multi-gateway-runtime10-production-root-check.json"
+  "latest_gateway_isolation_production_qualification": "stage-e-browser/multi-gateway-runtime10-production-root-check.json",
+  "latest_native_build11_installation_and_field_failure": "stage-e-browser/native-build11-installation-field-root-check.json"
 }
