@@ -103,7 +103,8 @@
       "additional_final_hap_soak_evidence": "stage-e-browser/periodic-hap-soak-root-check.json",
       "additional_physical96_readonly_field": "stage-e-browser/readonly96-physical-feedback-field-root-check.json",
       "additional_full96_initialization_periodic": "stage-e-browser/full96-initialization-periodic-production-root-check.json",
-      "additional_Away96_field": "stage-e-browser/away96-module-batch-field-root-check.json"
+      "additional_Away96_field": "stage-e-browser/away96-module-batch-field-root-check.json",
+      "additional_R81803_active_feedback_field": "stage-e-browser/r81803-active-feedback-wall-sync-field-root-check.json"
     },
     {
       "id": "E-3",
@@ -338,7 +339,8 @@
     "stage-e-browser/readonly96-physical-feedback-field-root-check.json": "32b3c89535c8de8a8f28b67586c48fe6e003803dbf8dc50152ccb9e217866df1",
     "stage-e-browser/full96-initialization-periodic-production-root-check.json": "7cf09c84585b67916228aac6ff976dee338138661a32ad04eb1c53aa4c946e4c",
     "stage-e-browser/away96-module-batch-field-root-check.json": "4ef382718b33968826c8175e50ecab78e75e0adb3fdfb84b74dfb1cd4554075f",
-    "stage-e-browser/r818-c7-feedback-config-field-root-check.json": "5728e76d8a6fd73e49925b73561b198ffa04e59c4bafeb27bfe72b60a21a1557"
+    "stage-e-browser/r818-c7-feedback-config-field-root-check.json": "5728e76d8a6fd73e49925b73561b198ffa04e59c4bafeb27bfe72b60a21a1557",
+    "stage-e-browser/r81803-active-feedback-wall-sync-field-root-check.json": "49efa8f665271b8281c258d59154608091063cd6e5bb2add56d36aef23b7fb80"
   },
   "excluded_by_scope": {
     "Siri": "cancelled by user",
@@ -788,8 +790,17 @@
       "manual_value_meaning": "主动反馈关闭",
       "C8_sent": false,
       "original_E2_rev14_restored": true,
-      "evidence": "stage-e-browser/r818-c7-feedback-config-field-root-check.json"
+      "evidence": "stage-e-browser/r818-c7-feedback-config-field-root-check.json",
+      "historical_pre_enable_read": true,
+      "superseded_for_current03_mode_by": "active_feedback03"
     },
-    "module_all_off": "独立已支持能力，不因整模块状态查询不支持而禁用"
+    "module_all_off": "独立已支持能力，不因整模块状态查询不支持而禁用",
+    "active_feedback03": {
+      "configured_enabled": true,
+      "C7_readback": "00",
+      "only_module": "03",
+      "field_scope": "Study wall key1 reading ON/OFF; native lamp+scene automatic sync",
+      "evidence": "stage-e-browser/r81803-active-feedback-wall-sync-field-root-check.json"
+    }
   }
 }
