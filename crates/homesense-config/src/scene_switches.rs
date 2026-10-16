@@ -201,7 +201,7 @@ pub(crate) fn validate(
             off.insert(id);
         }
         if let Some(policy) = &group.initialization {
-            if !(1..=5000).contains(&policy.max_age_ms) || policy.review_evidence.len() > 8192 || (policy.enabled && policy.review_evidence.trim().is_empty()) {
+            if !(1..=super::RefreshPolicy::MAX_OBSERVATION_AGE_MS).contains(&policy.max_age_ms) || policy.review_evidence.len() > 8192 || (policy.enabled && policy.review_evidence.trim().is_empty()) {
                 return Err(invalid("invalid or unreviewed scene initialization"));
             }
             if policy.enabled {
@@ -216,7 +216,7 @@ pub(crate) fn validate(
             }
         }
         if let Some(policy) = &group.reconciliation {
-            if !(1..=5000).contains(&policy.max_age_ms) || policy.review_evidence.len()>8192 || (policy.enabled && policy.review_evidence.trim().is_empty()) {
+            if !(1..=super::RefreshPolicy::MAX_OBSERVATION_AGE_MS).contains(&policy.max_age_ms) || policy.review_evidence.len()>8192 || (policy.enabled && policy.review_evidence.trim().is_empty()) {
                 return Err(invalid("invalid or unreviewed scene reconciliation"));
             }
             if policy.enabled {

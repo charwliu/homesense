@@ -37,7 +37,7 @@ async fn web_scope_origin_receipts_and_runtime_admission() {
     let root = std::env::temp_dir().join(format!("web-runtime-{}", Uuid::new_v4()));
     std::fs::create_dir(&root).unwrap();
     let mut definition:serde_json::Value=serde_json::from_slice(include_bytes!("../../../config/simulation.json")).unwrap();
-    definition["rooms"]=serde_json::json!([{"id":"visible","name":"Visible room","floor":"Test floor"},{"id":"hidden","name":"Unassigned room"}]);
+    definition["rooms"]=serde_json::json!([{"id":"visible","name":"Visible room","floor":"Test floor"},{"id":"hidden","name":"Unassigned room","floor":"Unassigned floor"}]);
     definition["devices"][0]["room"]=serde_json::json!("visible");
 
     definition["gateways"][0]["modules"].as_array_mut().unwrap().push(serde_json::json!({"address":"22","profile":"c4_din_pro_v2_7_7","verification":{"status":"simulated"}}));
@@ -198,6 +198,23 @@ async fn web_scope_origin_receipts_and_runtime_admission() {
         let rooms=api.handle(rooms).await;assert_eq!(rooms.status(),StatusCode::OK);
         let rooms:serde_json::Value=serde_json::from_slice(&rooms.into_body().collect().await.unwrap().to_bytes()).unwrap();
         assert_eq!(rooms["rooms"],serde_json::json!([{"id":"visible","name":"Visible room","floor":"Test floor"}]));
+        // A configuration manager sees configured empty rooms, even with a
+        // deliberately narrow device grant. Metadata does not grant endpoints.
+        let admin_secret="abcdefghijklmnopqrstuvwxyz5555555555";
+        let metadata_admin_id=Uuid::new_v4();
+        tokens.insert(metadata_admin_id,admin_secret,Grant{controller:caller,role:Role::Administrator,scenes:Default::default(),devices:["simulation:light".into()].into()}).unwrap();
+        let read_origin=api.origin.clone();
+        let read=|path:&str| {let mut r=make(&read_origin,"");*r.method_mut()=hyper::Method::GET;*r.uri_mut()=path.parse().unwrap();r.headers_mut().insert("authorization",format!("Bearer {admin_secret}").parse().unwrap());r};
+        let all=api.handle(read("/api/v1/rooms")).await;assert_eq!(all.status(),StatusCode::OK);
+        let all:serde_json::Value=serde_json::from_slice(&all.into_body().collect().await.unwrap().to_bytes()).unwrap();
+        assert_eq!(all["rooms"].as_array().unwrap().len(),2);assert_eq!(all["floors"],serde_json::json!(["Test floor","Unassigned floor"]));
+        let scoped=api.handle(read("/api/v1/devices")).await;let scoped:serde_json::Value=serde_json::from_slice(&scoped.into_body().collect().await.unwrap().to_bytes()).unwrap();
+        assert_eq!(scoped["devices"].as_array().unwrap().len(),1);assert_eq!(scoped["rooms"],all["rooms"]);
+        let saved=api.drafts.take();
+        let all=api.handle(read("/api/v1/rooms")).await;let limited:serde_json::Value=serde_json::from_slice(&all.into_body().collect().await.unwrap().to_bytes()).unwrap();
+        assert_eq!(limited["rooms"],rooms["rooms"]);assert_eq!(limited["floors"],serde_json::json!(["Test floor"]));
+        api.drafts=saved;
+        tokens.revoke(metadata_admin_id).unwrap();
         let mut login = make(&api.origin, "{}");
         *login.uri_mut() = "/api/v1/session".parse().unwrap();
         let login = api.handle(login).await;

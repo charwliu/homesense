@@ -13,6 +13,7 @@ mod light_command;
 pub mod transport_owner;
 
 pub mod feedback;
+mod adaptive_refresh;
 
 pub mod observed_transport;
 

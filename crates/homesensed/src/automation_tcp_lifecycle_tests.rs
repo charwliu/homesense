@@ -59,7 +59,10 @@ async fn unavailable(web:std::net::SocketAddr,service:&tokio::task::JoinHandle<R
 }}).await.unwrap();}
 #[tokio::test]
 async fn forever_survives_multi_day_advance_fault_partial_recovery_and_online_publication_without_replay(){
-    let root=std::env::temp_dir().join(format!("forever-runtime-{}",Uuid::new_v4()));let bus=Bus::new(false).await;let web=free_address();let (stop,receive)=tokio::sync::watch::channel(false);let (publisher,requests)=crate::automation_publication::channel();
+    let root=std::env::temp_dir().join(format!("forever-runtime-{}",Uuid::new_v4()));let mut bus=Bus::new(false).await;
+    // Preserve the original sub-3s fault/recovery windows with explicit fast idle.
+    bus.devices["refresh_policy"]=json!({"idle_interval_ms":500,"active_interval_ms":100,"backoff_ms":[200,300],"quiet_rounds_per_step":2,"round_budget_ms":1000,"observation_grace_ms":1000});
+    let web=free_address();let (stop,receive)=tokio::sync::watch::channel(false);let (publisher,requests)=crate::automation_publication::channel();
     let service={let input=serde_json::to_vec(&bus.devices).unwrap();let directory=root.clone();let publisher=publisher.clone();tokio::spawn(async move {serve_inner_running(&input,&rules(1,true),&directory,RunControl::new(RunMode::Forever,receive),true,3,Some(requests),Duration::from_millis(20),Some(crate::service::WebSettings{address:web,secret:"abcdefghijklmnopqrstuvwxyz0123456789".into(),administrator:true,tls:None}),Some(publisher),None,None,None).await})};
     ready(web,"1",&service).await;
     tokio::time::timeout(Duration::from_secs(3),async{while bus.levels()!=vec![25]{tokio::time::sleep(Duration::from_millis(10)).await;}}).await.unwrap();

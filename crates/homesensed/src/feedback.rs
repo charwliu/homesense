@@ -106,6 +106,7 @@ pub struct Feedback {
     event_wires:BTreeMap<u64,(String,u64)>,
     now: u64,
     stopped: bool,
+    managed_max_age_ms: Option<u64>,
 }
 type NativeSceneCapture = (
     BTreeMap<DeviceId, Option<bool>>,
@@ -113,11 +114,25 @@ type NativeSceneCapture = (
     RuleLease,
 );
 impl Feedback {
+    pub(crate) fn effective_max_age_ms(&self, requested:u64)->u64 {
+        self.managed_max_age_ms.map_or(requested,|bound|requested.min(bound))
+    }
+    pub(crate) fn set_managed_max_age_ms(&mut self,bound:u64)->Result<(),String> {
+        if bound==0 || bound>homesense_config::RefreshPolicy::MAX_OBSERVATION_AGE_MS {return Err("invalid managed observation allowance".into());}
+        if self.managed_max_age_ms!=Some(bound) {
+            let mut version=self.lease_version.lock().map_err(|_|"feedback lease poisoned")?;
+            *version=version.checked_add(1).ok_or("feedback lease exhausted")?;
+            self.managed_max_age_ms=Some(bound);
+        }
+        Ok(())
+    }
+
     /// Native eligibility distinguishes a healthy registered never-observed
     /// value from stale/invalid/failed reads. None does not mean a read timeout.
     pub(crate) fn native_scene_capture(&self,ids:&[DeviceId],now:u64,max_age:u64)->Result<NativeSceneCapture,String> {
         use homesense_core::{ModuleKind,Observation,rule::{Action,Budget,Expr,Lifetime,Node,Value,ValueType,Variable}};
         use homesense_state::Quality;
+        let max_age=self.effective_max_age_ms(max_age);
         if self.stopped || max_age==0 || now<self.now {return Err("relative feedback owner unavailable".into());}
         let snapshot=self.snapshot();let mut physical=std::collections::BTreeSet::new();
         for id in ids {physical.insert(id.clone());if let Some(relay)=self.supply_relays.get(id){physical.insert(relay.clone());}}
@@ -192,6 +207,7 @@ impl Feedback {
         &self,nodes:&[homesense_core::rule::Node],variables:&BTreeMap<String,homesense_core::rule::Variable>,budget:homesense_core::rule::Budget,
         now:u64,max_age:u64,recorded:&BTreeMap<DeviceId,homesense_core::Percent>,policy:Option<&IndicatorPolicy>,motor:Option<&crate::motor_rules::Lease>,
     )->Result<(homesense_core::rule::Plan,RuleLease),String>{
+        let max_age=self.effective_max_age_ms(max_age);
         if self.stopped {
             return Err("feedback stopped".into());
         }
@@ -299,7 +315,7 @@ impl Feedback {
                 revision: self.revision,
                 epoch: self.epoch,
                 captured_ms: now,
-                expires_ms: read.expires_at_ms(),
+                expires_ms: if self.managed_max_age_ms.is_some() {Some(read.expires_at_ms().unwrap_or(u64::MAX).min(now.saturating_add(2000)))} else {read.expires_at_ms()},
             },
         ))
     }
@@ -331,6 +347,7 @@ impl Feedback {
             registries.insert(name.clone(), registry);
         }
         Ok(Self {
+            managed_max_age_ms: None,
             lease_version: Arc::new(Mutex::new(0)),
             projection_versions: Arc::new(Mutex::new(projection_lease::Versions::new(&states,config,boot,epoch))),
             boot,
@@ -372,6 +389,7 @@ impl Feedback {
     }
     /// Age observations on the same monotonic clock used by transport reads.
     pub fn expire(&mut self, now: u64, max_age_ms: u64) -> Result<(), String> {
+        let max_age_ms=self.effective_max_age_ms(max_age_ms);
         let version = self.lease_version.clone();
         let mut lease_guard = version.lock().map_err(|_| "feedback lease poisoned")?;
         let before = self.states.cursor();
@@ -770,5 +788,25 @@ mod local_event_scope_tests {
         let fresh=feedback.events_since(fresh_before).unwrap().into_iter().find(|event|event.change==homesense_state::Change::Button).unwrap();
         assert!(feedback.scene_key_observation(&fresh,20).is_ok());assert!(feedback.scene_key_observation(&old,20).is_err());
         assert_eq!(feedback.transport_epoch(),1,"global service cursor remains unchanged");
+    }
+}
+
+#[cfg(test)]
+mod adaptive_lease_tests {
+    use super::*;
+    #[test]
+    fn retained_three_hour_observation_does_not_become_a_three_hour_execution_lease() {
+        let config=Configuration::parse(include_bytes!("../../../config/simulation.json"),ExecutionContext::Simulation).unwrap();
+        let age=config.refresh_policy().observation_max_age_ms();
+        let mut feedback=Feedback::new(&config,ExecutionContext::Simulation,9,7).unwrap();
+        feedback.set_managed_max_age_ms(age).unwrap();
+        feedback.apply(&GatewayRead {gateway_id:"simulation".into(),transport_epoch:7,received_at_ms:1,result:Receive::Frames {transport_epoch:7,frames:vec![hb_protocol::RawFrame {address:0x15,command:0xd1,value:30}]}}).unwrap();
+        let now=10_800_001;
+        feedback.expire(now,age).unwrap();
+        let id=DeviceId::new("simulation:light").unwrap();
+        assert_eq!(feedback.snapshot().devices[&id].observed_at_ms,Some(1));
+        let (_,_,lease)=feedback.native_scene_capture(&[id],now,age).unwrap();
+        assert!(lease.lock(9,1,7,now+1999).is_ok());
+        assert!(lease.lock(9,1,7,now+2000).is_err(),"long polling does not extend execution proof");
     }
 }

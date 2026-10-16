@@ -115,7 +115,7 @@ pub(crate) async fn until_ready_with_lifetime(
                     config,
                     ExecutionContext::Live,
                     1000,
-                    5000,
+                    config.refresh_policy().observation_max_age_ms(),
                     Synchronization::OutputsAndCalibratedMotors,
                 )
                 .await

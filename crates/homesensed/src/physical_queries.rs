@@ -85,3 +85,16 @@ pub(crate) fn interval(targets: &[Target], gap: u64, max_age: u64) -> Result<u64
     }
     Ok(interval)
 }
+
+/// Queries within an adaptive round are fast; idle applies only between rounds.
+/// Explicit tighter standalone API bounds retain their original polling budget.
+pub(crate) fn policy_interval(targets:&[Target],gap:u64,max_age:u64,
+    policy:homesense_config::RefreshPolicy)->Result<u64,String> {
+    if max_age!=policy.observation_max_age_ms() {return interval(targets,gap,max_age);}
+    if targets.is_empty() {return Err("invalid physical refresh scope".into());}
+    let slot=gap.saturating_mul(2).max(1);
+    if slot.saturating_mul(targets.len() as u64)>=policy.round_budget_ms {
+        return Err("physical query scope exceeds adaptive round wire capacity".into());
+    }
+    Ok(slot)
+}

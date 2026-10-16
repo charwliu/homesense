@@ -14,6 +14,10 @@ pub(super) struct OutputRefresh {
     due: u64,
     pending: Option<Pending>,
     control_opportunity: bool,
+    pub(super) round:RoundTracker,
+    adaptive:Option<crate::adaptive_refresh::Schedule>,
+    priority:std::collections::BTreeSet<usize>,
+    recent_queries:std::collections::BTreeMap<(String,u8,u8),u64>,
 }
 struct Pending {
     index: usize,
@@ -22,6 +26,35 @@ struct Pending {
     retried: bool,
 }
 impl OutputRefresh {
+    pub(super) fn activity(&mut self,now:u64) {
+        if let Some(schedule)=&mut self.adaptive {schedule.activity();self.round.discard_completion();self.due=self.due.min(now);}
+    }
+    pub(super) fn written(&mut self,device:&homesense_core::DeviceId,now:u64) {
+        if self.adaptive.is_none() {return;}
+        let Some((binding,module))=self.configuration.binding(device) else{return;};
+        if !matches!(module.kind(),homesense_core::ModuleKind::Switch|homesense_core::ModuleKind::Dimmer) {return;}
+        let (gateway,address,channel)=(binding.gateway.clone(),binding.address,binding.channel.get());
+        self.activity(now);
+        for (index,target) in self.targets.iter().enumerate() {
+            if target.gateway==gateway && target.module.address()==address && target.channels.contains(&channel) {
+                self.priority.insert(index);self.round.forget(index);
+            }
+        }
+    }
+    pub(super) fn solicited(&self,gateway:&str,address:u8,channel:u8,now:u64)->bool {
+        if self.recent_queries.get(&(gateway.into(),address,channel)).is_some_and(|deadline|now<=*deadline) {return true;}
+
+        self.pending.as_ref().is_some_and(|p| {let t=&self.targets[p.index];t.gateway==gateway && t.module.address().get()==address && t.channels.contains(&channel)})
+    }
+    fn observed_round(&mut self,index:usize,truth:&crate::module_truth::ModuleTruth,now:u64)->Option<u64> {
+        self.priority.remove(&index);
+        if self.round.observe(index,&self.targets,truth,now,self.max_age_ms,self.configuration.refresh_policy().round_budget_ms,&self.generation)
+            && let Some(schedule)=&mut self.adaptive {
+            self.due=now.saturating_add(schedule.completed());return Some(schedule.allowance());
+        }
+        None
+    }
+
     pub(super) fn awaiting_response(&self) -> bool {
         self.pending.is_some()
     }
@@ -56,6 +89,7 @@ impl OutputRefresh {
     }
     fn oldest(&self, truth: &crate::module_truth::ModuleTruth) -> usize {
         (0..self.targets.len())
+            .filter(|index|!self.round.contains(*index))
             .min_by_key(|index| {
                 let target = &self.targets[*index];
                 let mut available = true;
@@ -80,6 +114,7 @@ impl OutputRefresh {
                     .min()
                     .unwrap_or(0);
                 (
+                    u8::from(!self.priority.contains(index)),
                     u8::from(available),
                     oldest,
                     (*index + self.targets.len() - self.next) % self.targets.len(),
@@ -102,17 +137,11 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
             return Ok(None);
         };
         let read = self.receive(&gateway).await?;
-        if let Some(plan) = &mut self.output_refresh
-            && plan.pending.as_ref().is_some_and(|pending| {
-                plan.complete(
-                    pending,
-                    self.feedback.module_truth(),
-                    self.transport.now_ms(),
-                )
-            })
-        {
-            plan.pending = None;
-            plan.control_opportunity = true;
+        if let Some(plan)=&mut self.output_refresh
+            && let Some(pending)=&plan.pending && plan.complete(pending,self.feedback.module_truth(),self.transport.now_ms()) {
+                let index=pending.index;
+                if let Some(bound)=plan.observed_round(index,self.feedback.module_truth(),self.transport.now_ms()) {self.feedback.set_managed_max_age_ms(bound)?;}
+                plan.pending=None;plan.control_opportunity=true;
         }
         Ok(Some(read))
     }
@@ -147,13 +176,24 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
             .module_truth()
             .project_logical(configuration)?;
         let targets = crate::physical_queries::plan(configuration, context)?;
-        let interval_ms = crate::physical_queries::interval(
+        let interval_ms = crate::physical_queries::policy_interval(
             &targets,
             self.transport.write_interval_ms(),
             max_age_ms,
+            configuration.refresh_policy(),
         )?;
+        let adaptive=(max_age_ms==configuration.refresh_policy().observation_max_age_ms()).then(||crate::adaptive_refresh::Schedule::new(configuration.refresh_policy()));
+        if let Some(schedule)=&adaptive {self.feedback.set_managed_max_age_ms(schedule.allowance())?;}
+        let first_delay=adaptive.as_ref().map_or(interval_ms,|schedule|schedule.interval());
+        let mut round=RoundTracker::default();
+        // The startup/recovery owner already proved every registered port.
+        if targets.iter().all(|target|target.fresh(self.feedback.module_truth(),self.transport.now_ms(),max_age_ms)) {
+            round.begin(self.transport.now_ms());
+            for index in 0..targets.len() {round.observe(index,&targets,self.feedback.module_truth(),self.transport.now_ms(),max_age_ms,configuration.refresh_policy().round_budget_ms,&generation);}
+        }
         if self.transport.local_mode() {
             self.local_refresh=Some(local_refresh::Refresh::new(configuration.clone(),targets,generation,context,timeout_ms,max_age_ms,interval_ms,self.transport.now_ms())?);
+            if let Some(plan)=&mut self.local_refresh {plan.round=round;}
             self.output_refresh=None;return Ok(());
         }
         self.output_refresh = Some(OutputRefresh {
@@ -166,15 +206,18 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
             max_age_ms,
             interval_ms,
             next: 0,
-            due: self.transport.now_ms().saturating_add(interval_ms),
+            due: self.transport.now_ms().saturating_add(first_delay),
             pending: None,
             control_opportunity: true,
+            round,
+            adaptive,priority:Default::default(),recent_queries:Default::default(),
         });
         Ok(())
     }
     /// At most one status read waits on the bus. A response updates state only
     /// through receive(); accepting/sending a query never refreshes timestamps.
     pub(crate) async fn refresh_outputs_if_due(&mut self) -> Result<(), (String, String)> {
+        if self.background_led_phase {return Ok(());}
         let Some(mut plan) = self.output_refresh.take() else {
             return Ok(());
         };
@@ -193,6 +236,8 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
         let now = self.transport.now_ms();
         if let Some(pending) = &plan.pending {
             if plan.complete(pending, self.feedback.module_truth(), now) {
+                let index=pending.index;
+                if let Some(bound)=plan.observed_round(index,self.feedback.module_truth(),now) {self.feedback.set_managed_max_age_ms(bound).map_err(|e|(plan.targets[index].gateway.clone(),e))?;}
                 plan.pending = None;
                 plan.control_opportunity = true;
                 // Leave one control-dispatch opportunity between reads even
@@ -255,6 +300,8 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
             .now_ms()
             .checked_add(timeout)
             .ok_or_else(|| (gateway, "query deadline overflow".into()))?;
+        plan.recent_queries.retain(|_,old|*old>=self.transport.now_ms());
+        for channel in &target.channels {plan.recent_queries.insert((target.gateway.clone(),target.module.address().get(),*channel),deadline);}
         plan.pending = Some(Pending {
             index,
             before,
@@ -262,6 +309,7 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
             retried: retry,
         });
         if !retry {
+            plan.round.begin(self.transport.now_ms());
             plan.next = (index + 1) % plan.targets.len();
             plan.due = plan
                 .due

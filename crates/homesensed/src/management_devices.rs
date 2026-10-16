@@ -43,9 +43,28 @@ pub struct DeviceSnapshot {
     pub sequence: u64,
     pub devices: Vec<DeviceView>,
     pub floors: Vec<String>,
+    pub(crate) configured_rooms: Vec<homesense_config::Room>,
+    pub(crate) scoped_catalog_rooms: Vec<homesense_config::Room>,
     pub keypads: Vec<serde_json::Value>,
     pub keypad_endpoints: std::collections::BTreeSet<DeviceId>,
     pub(crate) keypad_away_scope: Option<crate::away_off::CatalogScope>,
+}
+/// Metadata only; this projection never adds devices, endpoints or control rights.
+#[derive(Debug, PartialEq, Eq, serde::Serialize)]
+pub(crate) struct Directory {
+    pub rooms: Vec<homesense_config::Room>,
+    pub floors: Vec<String>,
+}
+impl DeviceSnapshot {
+    pub(crate) fn directory(&self, configuration_manager:bool)->Directory {
+        if configuration_manager {
+            return Directory{rooms:self.configured_rooms.clone(),floors:self.floors.clone()};
+        }
+        let rooms=self.scoped_catalog_rooms.clone();
+        let floors=rooms.iter().filter_map(|room|room.floor.clone())
+            .collect::<std::collections::BTreeSet<_>>().into_iter().collect();
+        Directory{rooms,floors}
+    }
 }
 pub async fn snapshot(
     admission: &Admission,
@@ -54,7 +73,7 @@ pub async fn snapshot(
     ids: Vec<DeviceId>,
     feedback: &Feedback,
 ) -> Result<DeviceSnapshot, String> {
-    snapshot_with_max_age(admission, controller, generation, ids, feedback, 5000).await
+    snapshot_bound(admission, controller, generation, ids, feedback, None).await
 }
 pub(crate) async fn snapshot_with_max_age(
     admission: &Admission,
@@ -63,8 +82,11 @@ pub(crate) async fn snapshot_with_max_age(
     ids: Vec<DeviceId>,
     feedback: &Feedback,
     max_age_ms: u64,
-) -> Result<DeviceSnapshot, String> {
-    if max_age_ms == 0 || max_age_ms > 5000 {
+ ) -> Result<DeviceSnapshot, String> {
+    snapshot_bound(admission,controller,generation,ids,feedback,Some(max_age_ms)).await
+}
+async fn snapshot_bound(admission:&Admission,controller:Uuid,generation:TaskGeneration,ids:Vec<DeviceId>,feedback:&Feedback,max_age_ms:Option<u64>)->Result<DeviceSnapshot,String> {
+    if max_age_ms.is_some_and(|age|age==0 || age>homesense_config::RefreshPolicy::MAX_OBSERVATION_AGE_MS) {
         return Err("invalid device freshness bound".into());
     }
     if ids.len() > 256 {
@@ -74,6 +96,10 @@ pub(crate) async fn snapshot_with_max_age(
         .automation_bundle(controller, generation.clone())
         .await
         .map_err(|e| format!("{e:?}"))?;
+    let configured=bundle.configuration.refresh_policy().observation_max_age_ms();
+    let requested=max_age_ms.unwrap_or(configured);
+    if requested>configured {return Err("device freshness exceeds configured allowance".into());}
+    let max_age_ms=feedback.effective_max_age_ms(requested);
     let motor_estimates=admission.curtain_views(controller,generation.clone(),ids.clone()).await.map_err(|e|format!("curtain inference: {e:?}"))?;
     let gateway_views=admission.gateway_availability().await.map_err(|e|format!("gateway view: {e:?}"))?;
     let recorded=admission.projection_levels(generation.epochs.configuration,feedback.snapshot().cursor.boot_id).await.map_err(|e|format!("recorded levels: {e:?}"))?;
@@ -148,6 +174,14 @@ pub(crate) async fn snapshot_with_max_age(
     let (keypads, keypad_endpoints) = crate::management_keypads::snapshot(
         admission, controller, generation, &bundle.configuration, &raw, &devices, feedback.transport_epoch(), now,
     ).await?;
+    // Retain the full scoped directory before event deltas trim device rows.
+    let mut scoped_catalog_rooms=devices.iter().filter(|d|d.catalog_visible).filter_map(|d|d.room.as_ref())
+        .map(|room|(room.id.clone(),room.clone())).collect::<std::collections::BTreeMap<_,_>>();
+    for panel in &keypads {
+        if let Some(id)=panel["room"]["id"].as_str() && let Some(room)=bundle.configuration.rooms().get(id) {
+            scoped_catalog_rooms.insert(id.to_owned(),room.clone());
+        }
+    }
     Ok(DeviceSnapshot {
         boot: admission.boot_id().to_owned(),
         revision: bundle.configuration.revision(),
@@ -157,6 +191,8 @@ pub(crate) async fn snapshot_with_max_age(
         keypad_endpoints,
         keypad_away_scope:bundle.automation.as_ref().and_then(|document|crate::away_off::catalog_scope(&bundle.configuration,document,&gateway_views)),
         floors: bundle.configuration.floors().iter().cloned().collect(),
+        configured_rooms: bundle.configuration.rooms().values().cloned().collect(),
+        scoped_catalog_rooms:scoped_catalog_rooms.into_values().collect(),
     })
 }
 pub async fn prepare(
