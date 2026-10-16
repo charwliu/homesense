@@ -1,5 +1,5 @@
 {
-  "checked_bj": "2026-10-16T10:42:30.091905+08:00",
+  "checked_bj": "2026-10-16T10:49:27.963491+08:00",
   "derived_requirements": [
     "docs/design.md sections9-11,18,20,23-24,27"
   ],
@@ -149,10 +149,11 @@
       "id": "E-5",
       "stage": "E",
       "requirement": "家庭中枢、多客户端与网络恢复",
-      "verified_scope": "实际iPhone蜂窝远控／回WiFi通过；用户报告HPLeft已连接；App13测试手机前台断网至少60秒，控制不可用；另一Apple家庭设备开画室主灯，原生App恢复网络后无需刷新/重开/重输令牌自动同步，再用原生App关灯恢复基线；单次HTTP202和持久回执/供电Written匹配。",
-      "remaining_evidence": "HPLeft断电恢复已由用户恢复测试，当前选定HPLeft在线且自动选择关闭，断电结果尚待；其他中枢未枚举，具体中枢Peer未独立映射；其余客户端/桥和网络场景待验。",
+      "verified_scope": "实际iPhone蜂窝远控／回WiFi通过；用户报告HPLeft已连接；App13测试手机前台断网至少60秒，控制不可用；另一Apple家庭设备开画室主灯，原生App恢复网络后无需刷新/重开/重输令牌自动同步，再用原生App关灯恢复基线；单次HTTP202和持久回执/供电Written匹配。；App13/配置13下HPLeft约30秒断电期间原生本地开书房主灯通过；恢复在线后Apple家庭状态一致，蜂窝远程关灯和回WiFi原生自动推送同步通过，两灯关闭/窗帘全关停止基线恢复；后端同boot、PID253294、零重启。",
+      "remaining_evidence": "HPLeft本次限定恢复通过；其他中枢未枚举，具体加密HAP Peer未独立映射，全中枢/全客户端/长期稳定性不据此通过。",
       "status": "physical_acceptance_partial",
-      "additional_native_offline_recovery_field": "stage-e-browser/native-app-offline-recovery-field-root-check.json"
+      "additional_native_offline_recovery_field": "stage-e-browser/native-app-offline-recovery-field-root-check.json",
+      "additional_HPLeft_power_recovery_field": "stage-e-browser/home-hub-power-recovery-native13-field-root-check.json"
     },
     {
       "id": "E-6",
@@ -329,7 +330,8 @@
     "stage-e-browser/native-keypad-motor-runtime13-root-check.json": "8962a41543afe1fffa0485304693492361dddb719b42217e2e2f4ce835492a51",
     "stage-e-browser/native-keypad-curtain-runtime13-field-root-check.json": "e591cdf8b9d3bd21f3c6b3efb9bcc0be0e622a5158f2b7522ad1075973fdaa70",
     "stage-e-browser/native-artstudio-scene-card-field-root-check.json": "56e96f84b6034a317fa51039deed8c70e2326140bf3159a003b4554d9e6440e0",
-    "stage-e-browser/native-app-offline-recovery-field-root-check.json": "b27b249dffe9b3ad1c4e7e50721d6e82f991aac2d7571f611a602ac97f4a398c"
+    "stage-e-browser/native-app-offline-recovery-field-root-check.json": "b27b249dffe9b3ad1c4e7e50721d6e82f991aac2d7571f611a602ac97f4a398c",
+    "stage-e-browser/home-hub-power-recovery-native13-field-root-check.json": "fdca84fdd0361b6bed4089a4fcc6830f95d94f55f33a650e25952dfe97a9dcee"
   },
   "excluded_by_scope": {
     "Siri": "cancelled by user",
@@ -723,5 +725,6 @@
   "latest_generic_native_Keypad_motor_field": "stage-e-browser/native-keypad-curtain-runtime13-field-root-check.json",
   "latest_native_Artstudio_scene_card_field": "stage-e-browser/native-artstudio-scene-card-field-root-check.json",
   "latest_native_App_offline_recovery_field": "stage-e-browser/native-app-offline-recovery-field-root-check.json",
-  "home_hub_offline_recovery_current": "resumed by user; HPLeft selected/online, auto-selection off; outage result pending, other hubs not enumerated"
+  "home_hub_offline_recovery_current": "HPLeft brief outage/local native control/online state synchronization/cellular remote control/return WiFi passed; other hubs not enumerated, encrypted peer not mapped",
+  "latest_home_hub_power_recovery_field": "stage-e-browser/home-hub-power-recovery-native13-field-root-check.json"
 }
