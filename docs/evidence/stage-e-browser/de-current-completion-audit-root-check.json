@@ -1,5 +1,5 @@
 {
-  "checked_bj": "2026-10-16T08:26:33.092705+08:00",
+  "checked_bj": "2026-10-16T08:50:17.535181+08:00",
   "derived_requirements": [
     "docs/design.md sections9-11,18,20,23-24,27"
   ],
@@ -106,19 +106,20 @@
       "id": "E-3",
       "stage": "E",
       "requirement": "灯光、场景、窗帘与面板入口",
-      "verified_scope": "两房间多项手动灯光／场景／窗帘及LED已限定现场通过；现有两面板父卡已在线发布到rev10，原Admin视图2父卡/各6格/0独立LED，原17授权及20展开端点保持，7格既有动作可见；build11手机已确认两张正方形六键卡片和自动连接，书房1键首次阅读开启及LED符合。；build12真实日志取回，书房1键开启/再次关闭及实灯/两处LED复测通过，手机与服务器request_id匹配。",
-      "remaining_evidence": "既往同键关闭失败原因仍未复现；新增点击/门禁/HTTP关联日志已安装并真实取回，本轮开关均通过，不能视为已定位或修复旧故障。其余按键、扩展场景/17→20权限及完整硬件验收仍待。",
-      "status": "native_key1_cycle_passed_historical_failure_cause_open",
+      "verified_scope": "两房间多项手动灯光／场景／窗帘及LED已限定现场通过；现有两面板父卡已在线发布到rev10，原Admin视图2父卡/各6格/0独立LED，原17授权及20展开端点保持，7格既有动作可见；build11手机已确认两张正方形六键卡片和自动连接，书房1键首次阅读开启及LED符合。；build12真实日志取回，书房1键开启/再次关闭及实灯/两处LED复测通过，手机与服务器request_id匹配。；本轮其余3/5场景开关及2打开/4停止/6关闭短程、卡片和墙面LED通过，9条新请求均与服务端202回执匹配；经明确批准原管理员补齐既有3端点到20/7。",
+      "remaining_evidence": "旧无日志关闭失败原因仍未复现；不将本轮通过记为根因修复。画室卡片动作、其他场景/面板参数、完整硬件范围继续待验；本轮不包含原生窗帘全行程终态验收。",
+      "status": "Study_six_key_limited_field_passed_historical_failure_cause_open",
       "additional_existing_card_evidence": "stage-e-browser/keypad-existing-cards-publication-root-check.json",
       "additional_scope_completion_proposal": "stage-e-browser/study-keypad-scope-proposal-root-check.json",
       "additional_phone_installation_and_field_evidence": "stage-e-browser/native-build11-installation-field-root-check.json",
-      "additional_native_control_diagnostics": "stage-e-browser/native-control-logging-root-check.json"
+      "additional_native_control_diagnostics": "stage-e-browser/native-control-logging-root-check.json",
+      "additional_Study_keypad_field": "stage-e-browser/native-study-keypad-field-root-check.json"
     },
     {
       "id": "E-4",
       "stage": "E",
       "requirement": "原生App、管理API鉴权与事件恢复",
-      "verified_scope": "登录、滑块、退出和iPad断网恢复有实际限定结果；新账本与Away有软件证据；原生App实际TLS/WSS软件集成及手机推送、页面稳定与亮度按钮可用已确认；原生App两次实际调光跟随与自动读回已确认；rev9楼层目录及原生App三层/两房间归属已实际确认，永久Admin登录和本机空楼层编辑已通过；原生App楼层/房间新增、改名、删除、服务端保存及预览、恢复活动配置和测试草稿清理均已实际确认；两草稿独立核对设备及自动化未变；build7永久凭证Keychain保存、强退重开自动连接及前后台开/关同步已现场通过；ordinary v3严格负向80项零写出、publication v3四函数32项限定通过，v7 Web准确两run持久账目通过；精确来源授权／发布与STOP冻结v5完整1086项及文档、严格Clippy通过，保留原1067项，新增19项含213专项记录；完整build11已通过原机USB覆盖安装，用户确认自动恢复凭证及两父卡显示。",
+      "verified_scope": "登录、滑块、退出和iPad断网恢复有实际限定结果；新账本与Away有软件证据；原生App实际TLS/WSS软件集成及手机推送、页面稳定与亮度按钮可用已确认；原生App两次实际调光跟随与自动读回已确认；rev9楼层目录及原生App三层/两房间归属已实际确认，永久Admin登录和本机空楼层编辑已通过；原生App楼层/房间新增、改名、删除、服务端保存及预览、恢复活动配置和测试草稿清理均已实际确认；两草稿独立核对设备及自动化未变；build7永久凭证Keychain保存、强退重开自动连接及前后台开/关同步已现场通过；ordinary v3严格负向80项零写出、publication v3四函数32项限定通过，v7 Web准确两run持久账目通过；精确来源授权／发布与STOP冻结v5完整1086项及文档、严格Clippy通过，保留原1067项，新增19项含213专项记录；完整build11已通过原机USB覆盖安装，用户确认自动恢复凭证及两父卡显示。；原永久管理员在用户明确批准后补齐书房2/4/6三个既有端点，20设备/7场景；原令牌/角色/控制器、其他凭据与2配对保持，权限变化可见及六键手动动作通过。",
       "remaining_evidence": "完整App已补取证日志，92方法保留原87/两项真实Rust，详情UI补录后同Core/测试字节不变且双平台重编译。build12原签名覆盖安装11→12，真实日志/上一会话保留及本轮key1开关链通过；旧偶发关闭失败原因仍待，App自主发布和其他管理边界继续验收。",
       "status": "exact_source_auth_software_deployed_remaining_field_and_management_checks_pending",
       "additional_auth_gap": "stage-e-browser/ordinary-source-auth-root-gap.json",
@@ -133,7 +134,8 @@
       "additional_native_partial_evidence": "stage-e-browser/native-partial-availability-root-check.json",
       "additional_native_complete_evidence": "stage-e-browser/native-lhio-preservation-root-check.json",
       "additional_phone_installation_and_field_evidence": "stage-e-browser/native-build11-installation-field-root-check.json",
-      "additional_native_control_diagnostics": "stage-e-browser/native-control-logging-root-check.json"
+      "additional_native_control_diagnostics": "stage-e-browser/native-control-logging-root-check.json",
+      "additional_Study_keypad_field": "stage-e-browser/native-study-keypad-field-root-check.json"
     },
     {
       "id": "E-5",
@@ -192,7 +194,7 @@
       "stage": "E",
       "requirement": "持续服务隔离网关超时与恢复失败，保留原生管理入口",
       "verified_scope": "v21常驻完整1128项、原配对HAP专项和正式AD8常驻生命周期通过；Linux隔离烟测与systemd上线及可信HTTPS就绪核验通过，保留原rev9/Admin/配对。；新增接收RST导致退出的正式程序反例已软件修复，完成故障审计的指定网络错误可恢复，真实取消和审计/不变量错误仍致命。；本轮Linux正式程序隔离RST生命周期与常驻更新已独立核验。；私有基础层Core/Storage216项及严格迁移/64容量已独立核查，不等同运行时隔离。；现有正式Linux ELF的隔离整树回退机制已独立核查，checksum修复同大小/时间数据库漏恢复，27项清单和非空合成配对/凭据保持。；私有runtime1同852输入普通CLI原HTTP8组合独立全绿，保留B连接/反馈/新控制；尚未合入/部署。",
-      "remaining_evidence": "已获本次明确批准，runtime10 Linux现网常驻已切换并经Root独立核验；schema27/rev10、原身份/2配对/Admin17+7、64新鲜通道保持。备份SHM时间漂移反例保留，新密封139项回退副本匹配原清单。当前仅一个实际网关配置，不代表多网关故障现场或长期稳定性验收；手机集中现场仍待。",
+      "remaining_evidence": "runtime10 已常驻部署；随后批准的既有3端点权限维护保持同ELF/schema27/rev10、2配对，当前PID250664、零重启、Admin20/7。新140项停机快照由Root独立核验，未打开golden SQLite；首次探针失败回退及第二次成功均保留。原升级的SHM时间漂移反例及密封139项副本仍作为历史保存。当前仅一个实际网关配置，不能代表多网关故障现场或长期稳定性验收；其他集中现场项目仍待。",
       "status": "runtime10_production_deployed_remaining_field_acceptance",
       "additional_evidence": "stage-e-browser/runtime-gateway-timeout-root-gap.json",
       "additional_production_counterexample": "stage-e-browser/runtime-feedback-outage-cli-root-check.json",
@@ -210,7 +212,8 @@
       "additional_private_runtime1_protocol_evidence": "stage-e-browser/multi-gateway-runtime1-root-check.json",
       "additional_private_runtime7_evidence": "stage-e-browser/multi-gateway-runtime7-root-check.json",
       "additional_runtime10_evidence": "stage-e-browser/multi-gateway-runtime10-root-check.json",
-      "additional_production_evidence": "stage-e-browser/multi-gateway-runtime10-production-root-check.json"
+      "additional_production_evidence": "stage-e-browser/multi-gateway-runtime10-production-root-check.json",
+      "additional_Study_scope_maintenance": "stage-e-browser/native-study-keypad-field-root-check.json"
     }
   ],
   "evidence_sha256": {
@@ -307,7 +310,8 @@
     "stage-e-browser/native-build11-root-check.json": "06933c85f2391f149633fbe9d8a4cdb2d1066d950307bf8b0e6f4c0176da0758",
     "stage-e-browser/multi-gateway-runtime10-production-root-check.json": "291bc14a911efefad07a3c8b2c3cbd475550c831d56771c05e058fa958a7ee6f",
     "stage-e-browser/native-build11-installation-field-root-check.json": "4295219ccf1c58554082a28011200b0fdb1c37a815ea70d9db418122e808d917",
-    "stage-e-browser/native-control-logging-root-check.json": "68c46871d04d8d93b2f8c8e0e8940b4e0c599d58e2991d9387205dc4583d3a1b"
+    "stage-e-browser/native-control-logging-root-check.json": "68c46871d04d8d93b2f8c8e0e8940b4e0c599d58e2991d9387205dc4583d3a1b",
+    "stage-e-browser/native-study-keypad-field-root-check.json": "2ab570284492a214cdb8004e8fc2b0a78555572c7ef2f270c8dcc80825317d29"
   },
   "excluded_by_scope": {
     "Siri": "cancelled by user",
@@ -325,11 +329,15 @@
   "native_app_backend": {
     "ready": true,
     "revision": 10,
-    "current_status": "receive_error_repair_continuous_service_active_enabled",
-    "physical_app_acceptance": "build7 token/cold reopen/background user verified; final build9 prepared/signed but install failed; actual parent-card visual and final field actions pending",
-    "source_binary_commit": "1de4579a777ce74f68294b0bd1deac23cb54066e",
+    "current_status": "runtime10_continuous_service_active_enabled",
+    "physical_app_acceptance": "Two square cards and credential auto restore confirmed; logged12 Study1/3/5 scene ON/OFF and2/4/6 short-travel/STOP with card+wallLED passed. Historical silent OFF cause remains open.",
+    "source_binary_commit": "c77c4e74c4120e05ee8b69ba32af6f6eaa67a452",
     "projection_fix_f27a6b6_deployed": true,
-    "latest_evidence": "stage-e-browser/receive-network-error-linux-deployment-root-check.json"
+    "latest_evidence": "stage-e-browser/native-study-keypad-field-root-check.json",
+    "pid": 250664,
+    "schema": 27,
+    "Admin_devices": 20,
+    "Admin_scenes": 7
   },
   "configuration_publication": {
     "revision9": "independently read trusted HTTPS export and room catalog,3floors/2rooms; native App user confirmed correct view",
@@ -394,14 +402,15 @@
     "old_failure_retained": true
   },
   "pending_Keypad_scope_review": {
-    "kind": "existing grouping published; broader controls and actual card/action acceptance pending",
+    "kind": "Existing Study all6 native card actions passed within short-travel scope; broader controls and settings field acceptance pending",
     "current_parent_count": 2,
     "standalone_LED_count": 0,
-    "authorized_cells": 7,
-    "unchanged_Admin_device_scope": 17,
-    "extra_scene_LED_counterexample_unresolved": true,
+    "authorized_cells": 10,
     "precise_source_auth_deployed_in_v21": true,
-    "other_management_backup_boundaries_not_claimed_complete": true
+    "other_management_backup_boundaries_not_claimed_complete": true,
+    "current_Admin_device_scope": 20,
+    "Study_scope20_completed": true,
+    "historical_new_scene_LED_counterexample_now_software_qualified": true
   },
   "offline_keypad_migration": "Two parents and10existing aliases preserved6+4, all other revision9 fields identical; fixedv3 production check-config/check-automation exit0, no service or commands.",
   "source_policy_decisions_added": 2,
@@ -468,10 +477,9 @@
   "latest_motor_LED_source_owner_evidence": "stage-d-study/motor-led-ownership-root-check.json",
   "latest_existing_Keypad_card_publication": "stage-e-browser/keypad-existing-cards-publication-root-check.json",
   "current_active_configuration_revision": 10,
-  "existing_keypad_permission_scope_preserved": 17,
   "current_card_slots_per_parent": 6,
-  "current_authorized_key_actions": 7,
-  "actual_App_card_visual_confirmation": "Two square six-key cards/auto restore confirmed on11; logged12 study key1 ON/OFF and physical/card LEDs confirmed. Earlier failed OFF preserved as unresolved cause.",
+  "current_authorized_key_actions": 10,
+  "actual_App_card_visual_confirmation": "Two square cards and credential auto restore confirmed; logged12 Study1/3/5 scene ON/OFF and2/4/6 short-travel/STOP with card+wallLED passed. Historical silent OFF cause remains open.",
   "extra_shared_keypad_models_user_confirmed": {
     "61": "TS6-86",
     "56": "TS6-86",
@@ -515,6 +523,30 @@
         "module controls and derived delayed/scene output scope inventory"
       ],
       "historical_80_emitted_fields_describe_preserved_baseline": true
+    },
+    "before_Study_scope20_field_acceptance": {
+      "native_app_backend": {
+        "ready": true,
+        "revision": 10,
+        "current_status": "receive_error_repair_continuous_service_active_enabled",
+        "physical_app_acceptance": "build7 token/cold reopen/background user verified; final build9 prepared/signed but install failed; actual parent-card visual and final field actions pending",
+        "source_binary_commit": "1de4579a777ce74f68294b0bd1deac23cb54066e",
+        "projection_fix_f27a6b6_deployed": true,
+        "latest_evidence": "stage-e-browser/receive-network-error-linux-deployment-root-check.json"
+      },
+      "pending_Keypad_scope_review": {
+        "kind": "existing grouping published; broader controls and actual card/action acceptance pending",
+        "current_parent_count": 2,
+        "standalone_LED_count": 0,
+        "authorized_cells": 7,
+        "unchanged_Admin_device_scope": 17,
+        "extra_scene_LED_counterexample_unresolved": true,
+        "precise_source_auth_deployed_in_v21": true,
+        "other_management_backup_boundaries_not_claimed_complete": true
+      },
+      "existing_keypad_permission_scope_preserved": 17,
+      "existing_scope20_eligible_issuers": 0,
+      "scope20_offline_maintenance": "reviewed plan only; user approval pending, not executed"
     }
   },
   "latest_current_service_reconciliation": "stage-e-browser/receive-network-error-linux-deployment-root-check.json",
@@ -525,11 +557,11 @@
   "latest_composite_variable_policy_plan": "stage-d-study/variable-composite-offsets-root-check.json",
   "latest_corrected_indicator_baseline": "stage-e-browser/indicator-cross-writer-baseline-root-check.json",
   "existing_study_keypad_scope_completion_proposal": "stage-e-browser/study-keypad-scope-proposal-root-check.json",
-  "existing_study_keypad_scope_completion_applied": false,
+  "existing_study_keypad_scope_completion_applied": true,
   "latest_current_keypad_catalog": "stage-e-browser/keypad-current-catalog-root-check.json",
   "latest_native_grant_refresh_software": "stage-e-browser/native-grant-refresh-root-check.json",
-  "existing_scope20_eligible_issuers": 0,
-  "scope20_offline_maintenance": "reviewed plan only; user approval pending, not executed",
+  "existing_scope20_eligible_issuers": 1,
+  "scope20_offline_maintenance": "User explicitly approved exact3 additions and shortrestart; v1 reversed CAS after failed probe, v2 passed with correct target bearer; Root independently checked140-entry golden inventory and live20/7. No golden SQLite opened.",
   "native_cold_start_transient_restore": "4dc1284 source integrated; baseline2 failures reproduced; candidate6 methods/25 cases pass. Subsequent77-method full suite with fixed normal Rust CLI and real HTTPS/WSS passed with0 skips; phone install/field deferred, pending LED fix not in backend.",
   "latest_native_cold_restore_software": "stage-e-browser/native-cold-restore-root-check.json",
   "latest_native_actual_Rust_integration": "stage-e-browser/native-current-integration-root-check.json",
@@ -542,12 +574,12 @@
   "latest_Keypad_display_diagnosis": "stage-e-browser/keypad-display-diagnosis-root-check.json",
   "latest_indicator_final_Linux_deployment": "stage-e-browser/indicator-final-linux-deployment-root-check.json",
   "latest_native_build9_delivery": "stage-e-browser/native-build9-delivery-root-check.json",
-  "native_App_phone_update": "Complete logged App12 covered installed11 once, same entitlements/profile, raw inventory verified. Exact diagnostics files retrieved, both field key1 clicks match HTTP202/server receipts and Written; human ON/OFF passed. Old silent OFF failure root cause remains unreproduced.",
+  "native_App_phone_update": "Logged App12 unchanged; actual1/3/5 ON/OFF and2/4/6 short travel/STOP field passed, both card/wallLED confirmed and9new request_ids matched. Historical silent OFF root cause remains unreproduced.",
   "latest_multi_gateway_runtime_counterexample": "stage-e-browser/multi-gateway-isolation-root-gap.json",
   "multi_gateway_fault_isolation": {
     "Mac_frozen_backend_qualified": true,
     "current_production_still_previous_single_gateway_recovery": false,
-    "new_Linux_cross_compile_and_state_upgrade_rollback": "in progress, no production switch yet",
+    "new_Linux_cross_compile_and_state_upgrade_rollback": "qualified and runtime10 deployed; current single actual gateway does not establish multi-gateway field acceptance",
     "original_failure_baselines_retained": true,
     "current_evidence": "stage-e-browser/multi-gateway-runtime10-root-check.json",
     "runtime10_now_deployed": true,
@@ -600,10 +632,10 @@
     "old_mixed_worktree85plus2_distinguished": true,
     "current_source_only10_paths": true
   },
-  "native_App_new_availability_commit_status": "Full App27fec73/build11 signed and USB installed; human card display and automatic connection passed. Field key1 OFF failure under isolated investigation.",
+  "native_App_new_availability_commit_status": "Full App build12 installed; both card visual and Study six-key limited field actions passed; earlier silent OFF remains unexplained.",
   "latest_gateway_isolation_Linux_candidate_qualification": "stage-e-browser/multi-gateway-linux-runtime10-root-check.json",
   "latest_native_build10_preparation": "stage-e-browser/native-build10-root-check.json",
-  "gateway_isolation_production_switch": "Current direct human approval received; performed and independently qualified: ELF96fe/schema27/rev10/PID249375/no restarts. Original identity/2pairs/Admin17+7 retained; original snapshot SHMmtime audit failure preserved, new sealed139 backup verified.",
+  "gateway_isolation_production_switch": "Current direct human approval received; performed and independently qualified: ELF96fe/schema27/rev10/PID249375/no restarts. Original identity/2pairs/Admin17+7 retained; original snapshot SHMmtime audit failure preserved, new sealed139 backup verified. Subsequent approved exact3-ID maintenance now PID250664/Admin20+7; original2pairs and same runtime10 preserved; see latest Study field evidence.",
   "native_App_availability_source_commit": "ab861d4619202754c8429fcdf07eb447d08cfaef",
   "latest_native_complete_LHIO_preservation": "stage-e-browser/native-lhio-preservation-root-check.json",
   "native_App_complete_source_qualification": {
@@ -634,5 +666,8 @@
     "exact_file_retrieval_and_previous_session_preserved": true,
     "field_key1_ON_OFF_passed": true,
     "historical_failure_cause_resolved": false
-  }
+  },
+  "current_permanent_Admin_devices": 20,
+  "current_permanent_Admin_scenes": 7,
+  "latest_native_Study_keypad_field_evidence": "stage-e-browser/native-study-keypad-field-root-check.json"
 }
