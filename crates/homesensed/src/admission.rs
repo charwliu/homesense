@@ -189,6 +189,12 @@ enum Submission {
         device: homesense_core::DeviceId,
         active: bool,
     },
+    KeypadPress {
+        controller: Uuid,
+        device: homesense_core::DeviceId,
+        keypad: String,
+        key: u8,
+    },
     Motor {
         controller: Uuid,
         device: homesense_core::DeviceId,
@@ -1651,7 +1657,7 @@ impl Admission {
                                         Access {
                                             authorized: handoff_stop || (principals
                                                 .get(&command.id)
-                                                .is_some_and(|id| authorize(*id)) && source_leases.get(&command.id).is_none_or(|lease|lease.valid()) && panel_leases.get(&command.id).is_none_or(|lease|lease.valid()) && module_off_jobs.get(&command.id).is_none_or(|job|job.lease.valid()) && motor_guard_ids.get(&command.id).is_none_or(|group|valid.get(group)==Some(&true))),
+                                                .is_some_and(|id| authorize(*id)) && source_leases.get(&command.id).is_none_or(|lease|lease.valid()) && panel_leases.get(&command.id).is_none_or(|lease|lease.valid()) && module_off_jobs.get(&command.id).is_none_or(|job|job.lease.valid()) && motor_guard_ids.get(&command.id).is_none_or(|group|valid.get(group)==Some(&true)) && curtains.permits_queued_hint(command,now)),
                                             device_exists: binding.is_some() || module_off_jobs.contains_key(&command.id) || module_queries.get(&command.id).is_some_and(|q|q.frame(&configuration,options.context,command.epochs.transport).is_ok()),
                                             device_verified: module_off_jobs.contains_key(&command.id) || module_queries.contains_key(&command.id) || binding.is_some_and(|(_, m)| {
                                                 matches!(
@@ -2029,6 +2035,8 @@ impl Admission {
                                 }
                                 let motor_queue_lease=feedback.as_ref().and_then(|lease|lease.motor.clone());
                                 let mut restore_intents = Vec::new();
+                                let mut key_dependencies = Vec::new();
+                                let mut inference_source = None;
                                 let panel_authorization=match &submission {Submission::PanelCommand{lease,..}=>Some(lease.clone()),_=>None};
                                 let (batch, compiled) = match submission {
                                     Submission::Study { .. } | Submission::Automation { .. } | Submission::Indicator { .. } | Submission::Native(_) => unreachable!(),
@@ -2084,6 +2092,24 @@ impl Admission {
                                         Batch { controller, intents: vec![homesense_hap::requests::Intent {
                                             device, command: homesense_core::Command::PanelLed(active)
                                         }], subscriptions: vec![] }, true),
+                                    Submission::KeypadPress { controller, device, keypad, key } => {
+                                        if !authorize(controller) {return Err(WriteStatus::InsufficientPrivileges);}
+                                        let source=request_source.as_ref().filter(|source|source.valid_for(controller,configuration.revision())).ok_or(WriteStatus::InsufficientPrivileges)?;
+                                        let original=crate::automation_control::Action::DeviceCommand{controller,revision:configuration.revision(),device:device.clone(),action:crate::management_devices::DeviceAction::KeypadPress{keypad:keypad.clone(),key}};
+                                        if !source.matches(&original) {return Err(WriteStatus::InsufficientPrivileges);}
+                                        let binding=crate::keypad_motor::resolve(&configuration,&device,&keypad,key)?;
+                                        if !source.permits_device(device.as_str()) || !source.permits_device(binding.endpoint.as_str()) {
+                                            return Err(WriteStatus::InsufficientPrivileges);
+                                        }
+                                        if arbiter.has_pending_motor(&device) {return Err(WriteStatus::ResourceBusy);}
+                                        curtains.retire_revoked(&|id|authorize(id));
+                                        let movement=curtains.snapshot(&device,millis(clock)).and_then(|s|s.inferred_movement.map(|f|f.value));
+                                        let action=crate::keypad_motor::decide(binding.action,movement);
+                                        if action==homesense_core::MotorAction::Stop {inference_source=curtains.inference_source(&device);}
+                                        let command=configuration.motor_command(&device,action).map_err(|_|WriteStatus::InvalidValueInRequest)?;
+                                        key_dependencies.push(binding.endpoint);
+                                        (Batch {controller,intents:vec![homesense_hap::requests::Intent{device,command}],subscriptions:vec![]},true)
+                                    },
                                     Submission::Motor { controller, device, action } => {
                                         if !authorize(controller) { return Err(WriteStatus::InsufficientPrivileges); }
                                         let command = configuration.motor_command(&device, action)
@@ -2183,6 +2209,7 @@ impl Admission {
                                     let mut reads=feedback.as_ref().map_or_else(Vec::new,|lease|lease.observations.keys().cloned().collect());
                                     if let Some(motor)=feedback.as_ref().and_then(|lease|lease.motor.as_ref()) {reads.extend(motor.devices());}
                                     reads.extend(commands.iter().map(|(command,_)|command.device_id.clone()));
+                                    reads.extend(key_dependencies);
                                     let requirements=g.device_requirements(&configuration,reads)?;
                                     let mut requirements=requirements;
                                     let mut declared=if starts.is_empty(){vec![]}else{
@@ -2261,7 +2288,7 @@ impl Admission {
                                 };
                                 // Serialize a source generation/session change with
                                 // queue and variable acceptance, not just physical I/O.
-                                let result=crate::source_auth::commit(request_source.as_ref(),commit).ok_or(WriteStatus::InsufficientPrivileges)?;
+                                let result=crate::source_auth::commit_with_dependency(request_source.as_ref(),inference_source.as_ref(),commit).ok_or(WriteStatus::InsufficientPrivileges)?;
                                 match result {
                                     Ok(cancelled) => {
                                         temporary.extend(memory_updates);
@@ -3115,6 +3142,12 @@ impl Admission {
         action:homesense_core::MotorAction,
     )->Result<Vec<u64>,WriteStatus> {
         self.submit_scoped(Submission::Motor{controller,device,action},Some(SubmissionScope::Configuration(revision))).await
+    }
+    /// Native card entry only. Mapping, source scope and current Written owner
+    /// trajectory are resolved on one actor turn with durable queue acceptance.
+    pub(crate) async fn submit_keypad_press_for_revision(&self,revision:u64,controller:Uuid,
+        device:homesense_core::DeviceId,keypad:String,key:u8,deadline:u64)->Result<Vec<u64>,WriteStatus> {
+        self.submit_scoped_before(Submission::KeypadPress{controller,device,keypad,key},Some(SubmissionScope::Configuration(revision)),Some(deadline)).await
     }
     /// Typed native panel entry; never make light submissions accept parameters.
     pub(crate) async fn submit_panel_command_for_revision(&self,revision:u64,controller:Uuid,

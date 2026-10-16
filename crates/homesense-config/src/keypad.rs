@@ -16,6 +16,8 @@ pub enum KeyAction {
     Motor {
         device: String,
         action: KeyMotorAction,
+        #[serde(default, skip_serializing_if = "MotorPressBehavior::is_absolute")]
+        press_behavior: MotorPressBehavior,
         review_evidence: String,
     },
     SceneToggle {
@@ -29,6 +31,18 @@ pub enum KeyMotorAction {
     Open,
     Stop,
     Close,
+}
+/// Native card interpretation only. Absolute directions remain available through
+/// the original action descriptor, HAP and the physical keypad event rules.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, serde::Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MotorPressBehavior {
+    #[default]
+    Absolute,
+    RepeatToStop,
+}
+impl MotorPressBehavior {
+    fn is_absolute(&self) -> bool { *self == Self::Absolute }
 }
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -126,6 +140,9 @@ pub(super) fn expand(
                 return Err(invalid("duplicate keypad child identity"));
             }
             if let Some(action) = &key.action {
+                if matches!(action, KeyAction::Motor { action: KeyMotorAction::Stop, press_behavior: MotorPressBehavior::RepeatToStop, .. }) {
+                    return Err(invalid("repeat-to-stop requires an open or close key"));
+                }
                 let (target, evidence) = match action {
                     KeyAction::SceneToggle {
                         scene,

@@ -107,3 +107,16 @@ fn curtain_led_owner_is_exclusive_across_enabled_rules_and_scene_outputs() {
         "available immediate scene cannot be a second LED writer"
     );
 }
+
+#[test]
+fn explicit_direction_led_policy_is_bounded_and_legacy_is_unchanged() {
+    use homesense_core::curtain_state::DirectionLedPolicy;
+    let mut d=document();
+    let parsed=parse(&d).unwrap();let id=homesense_core::DeviceId::new("curtain").unwrap();
+    assert_eq!(parsed.devices()[&id].curtain_state.as_ref().unwrap().direction_led_policy,DirectionLedPolicy::Legacy);
+    d["devices"][0]["curtain_state"]["direction_led_policy"]=serde_json::json!({"kind":"written_direction_delay","opposite_red_after_ms":2000});
+    assert_eq!(parse(&d).unwrap().devices()[&id].curtain_state.as_ref().unwrap().direction_led_policy,DirectionLedPolicy::WrittenDirectionDelay{opposite_red_after_ms:2000});
+    for policy in [serde_json::json!({"kind":"written_direction_delay","opposite_red_after_ms":0}),serde_json::json!({"kind":"written_direction_delay","opposite_red_after_ms":86400001}),serde_json::json!({"kind":"written_direction_delay"}),serde_json::json!({"kind":"legacy","opposite_red_after_ms":2000}),serde_json::json!({"kind":"unknown"})] {
+        d["devices"][0]["curtain_state"]["direction_led_policy"]=policy;assert!(parse(&d).is_err());
+    }
+}

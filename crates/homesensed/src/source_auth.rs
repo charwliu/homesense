@@ -177,11 +177,24 @@ impl Source {
         self.proof.lease.valid()
             && (!self.proof.administrator || self.proof.lease.is_administrator())
     }
+    pub(crate) fn permits_device(&self, device: &str) -> bool {
+        self.valid() && self.proof.lease.devices().contains(device)
+    }
     pub(crate) fn valid_for(&self, controller: Uuid, revision: u64) -> bool {
         self.proof.controller == controller && self.proof.revision == revision && self.valid()
     }
     pub(crate) fn with_valid<T>(&self, operation: impl FnOnce() -> T) -> Option<T> {
         self.proof.lease.with_valid(operation)
+    }
+}
+
+/// Hold both exact source generations through conditional queue acceptance.
+/// An old Written source revoked after the decision cannot authorize its STOP.
+pub(crate) fn commit_with_dependency<T>(source:Option<&Source>, dependency:Option<&Source>, operation:impl FnOnce()->T)->Option<T> {
+    match (source,dependency) {
+        (Some(source),Some(dependency))=>source.proof.lease.with_valid_dependency(&dependency.proof.lease,operation),
+        (_,None)=>commit(source,operation),
+        (None,Some(_))=>None,
     }
 }
 

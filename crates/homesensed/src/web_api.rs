@@ -829,6 +829,10 @@ impl Api {
             let Ok(body) = serde_json::from_slice::<DeviceCommand>(request.body()) else {
                 return deny(StatusCode::BAD_REQUEST, "invalid_body");
             };
+            if let crate::management_devices::DeviceAction::KeypadPress{keypad,key}=&body.command
+                && (body.revision.is_none() || !(1..=6).contains(key) || homesense_core::DeviceId::new(keypad).is_err()) {
+                return deny(StatusCode::BAD_REQUEST,"invalid_keypad_press");
+            }
             if body.revision.is_some_and(|revision|revision!=runtime.revision.to_string()){return deny(StatusCode::CONFLICT,"stale_revision");}
             if !grant.may_control_device(&body.device) {
                 return deny(StatusCode::FORBIDDEN, "device_not_permitted");

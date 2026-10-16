@@ -117,3 +117,36 @@ fn reviewed_motor_actions_require_calibration_and_unknown_scene_actions_cannot_a
         br#"{"schema_version":1,"configuration_revision":1,"variables":[],"rules":[]}"#;
     assert!(homesense_config::rule_document::Document::parse(automation, &configuration).is_err());
 }
+
+#[test]
+fn motor_card_press_is_generic_explicit_opt_in_and_stop_cannot_toggle() {
+    use homesense_config::keypad::{KeyAction, MotorPressBehavior};
+    let mut value=fixture();
+    value["gateways"][0]["modules"].as_array_mut().unwrap().push(json!({"id":"curtain","address":"22","profile":"c4_din_pro_v2_7_7","verification":{"status":"simulated"}}));
+    value["devices"]=json!([{"id":"any-curtain","name":"Motor","module_id":"curtain","channel":1,"enabled":true,"motor_calibration":{"open_direction":"up","stop_verified":true,"evidence":"Synthetic calibration","verified_at_unix_ms":1}}]);
+    let original=json!({"kind":"motor","device":"any-curtain","action":"open","review_evidence":"Synthetic manual card mapping"});
+    value["keypads"][0]["keys"][0]["action"]=original.clone();
+    let config=parse(&value).unwrap();
+    let action=config.keypads().values().next().unwrap().keys[&1].action.as_ref().unwrap();
+    assert!(matches!(action,KeyAction::Motor{press_behavior:MotorPressBehavior::Absolute,..}));
+    assert_eq!(serde_json::to_value(action).unwrap(),original,"omitted default serializes exactly as before");
+    value["devices"][0]["curtain_state"]=json!({"evidence":"Synthetic shared model without travel timing","reviewed_at_unix_ms":1});
+    for direction in ["open","close"] {
+        value["keypads"][0]["keys"][0]["action"]["action"]=json!(direction);
+        value["keypads"][0]["keys"][0]["action"]["press_behavior"]=json!("repeat_to_stop");
+        let config=parse(&value).unwrap();
+        assert!(matches!(config.keypads().values().next().unwrap().keys[&1].action,Some(KeyAction::Motor{press_behavior:MotorPressBehavior::RepeatToStop,..})));
+    }
+    let mut missing_model=value.clone();missing_model["devices"][0].as_object_mut().unwrap().remove("curtain_state");
+    assert!(parse(&missing_model).is_err(),"opt-in must install a trajectory owner; travel times may remain absent");
+    value["keypads"][0]["keys"][0]["action"]["action"]=json!("stop");
+    assert!(parse(&value).is_err());
+    value["keypads"][0]["keys"][0]["action"]["press_behavior"]=json!("absolute");
+    assert!(parse(&value).is_ok());
+    for invalid in [json!("toggle"),json!(false),Value::Null] {
+        value["keypads"][0]["keys"][0]["action"]["press_behavior"]=invalid;
+        assert!(parse(&value).is_err());
+    }
+    value["keypads"][0]["keys"][0]["action"]=json!({"kind":"scene_toggle","scene":"scene","review_evidence":"Synthetic review","press_behavior":"repeat_to_stop"});
+    assert!(parse(&value).is_err(),"motor opt-in cannot alter scene or physical button semantics");
+}

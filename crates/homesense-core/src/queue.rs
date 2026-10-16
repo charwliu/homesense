@@ -118,6 +118,11 @@ impl CommandQueue {
     pub fn is_empty(&self) -> bool {
         self.commands.is_empty()
     }
+    /// Only unfinished motor work for this exact logical owner. Queries and
+    /// unrelated channels never block a conditional direction decision.
+    pub fn has_motor_for(&self, device: &DeviceId) -> bool {
+        self.commands.iter().any(|c| &c.device_id == device && matches!(c.command, Command::Motor(_)))
+    }
     pub fn has_stop(&self) -> bool {
         self.commands.iter().any(QueuedCommand::is_stop)
     }
