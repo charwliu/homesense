@@ -2,13 +2,13 @@
 All controls target the newly generated private fixture. Never use a live config.
 """
 from pathlib import Path
-import argparse,hashlib,http.client,json,os,signal,socket,sqlite3,ssl,subprocess,threading,time,traceback,tempfile
+import argparse,hashlib,http.client,json,os,re,signal,socket,sqlite3,ssl,subprocess,threading,time,traceback,tempfile
 parser=argparse.ArgumentParser()
 parser.add_argument('--binary',type=Path,required=True)
 parser.add_argument('--sha256',required=True)
 parser.add_argument('--output',type=Path,required=True)
 parser.add_argument('--scratch',type=Path,required=True)
-parser.add_argument('--full-suite',action='store_true',help='Run all100 App tests with allthree actual Rust integrations enabled')
+parser.add_argument('--full-suite',action='store_true',help='Run all App tests with the three existing actual Rust integrations enabled')
 a=parser.parse_args();os.umask(0o077)
 sha=lambda p:hashlib.sha256(p.read_bytes()).hexdigest()
 assert a.binary.is_absolute() and sha(a.binary)==a.sha256
@@ -117,9 +117,11 @@ try:
   result['swift_test_exit']=code
   assert code==0,'native actual integration/fullsuite failed; see preserved swift-test.log'
   testlog=(a.output/'swift-test.log').read_text()
-  expected_summary='Test run with 100 tests in 18 suites passed' if a.full_suite else 'Test run with 1 test in 1 suite passed'
-  assert expected_summary in testlog and 'skipped' not in testlog
-  result['full_App100_tests_enabled']=a.full_suite
+  summary=re.search(r'Test run with (\d+) tests? in (\d+) suites? passed',testlog)
+  assert summary is not None and 'skipped' not in testlog
+  count,suites=map(int,summary.groups())
+  assert (count>=100 and suites>=18) if a.full_suite else (count,suites)==(1,1)
+  result.update(full_App100_tests_enabled=a.full_suite,executed_App_tests=count,executed_App_suites=suites)
   if a.full_suite:assert len(logs)==2,'both legacy actualserver logs must be preserved'
   phases=json.loads((a.output/'actual-client-phases.json').read_text());assert len(phases)==11
   motor=[f for f in frames if f['raw'].startswith('ae2201')]

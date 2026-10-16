@@ -1,0 +1,103 @@
+{
+  "schema_version": 1,
+  "configuration_revision": 1,
+  "variables": [
+    {
+      "id": "selection",
+      "kind": "integer",
+      "lifetime": "persistent"
+    }
+  ],
+  "rules": [],
+  "away_off": {
+    "enabled": true,
+    "review_evidence": "Synthetic two-module Away plan",
+    "active_execution_policy": "cancel_affected_lighting",
+    "modules": [
+      {
+        "module_id": "relay-a",
+        "devices": [
+          "relay-a:1",
+          "relay-a:2",
+          "relay-a:3",
+          "relay-a:4",
+          "relay-a:5",
+          "relay-a:6",
+          "relay-a:7",
+          "relay-a:8"
+        ],
+        "review_evidence": "All eight synthetic relay outputs explicitly reviewed as lighting"
+      },
+      {
+        "module_id": "relay-b",
+        "devices": [
+          "relay-b:1",
+          "relay-b:2",
+          "relay-b:3",
+          "relay-b:4",
+          "relay-b:5",
+          "relay-b:6",
+          "relay-b:7",
+          "relay-b:8"
+        ],
+        "review_evidence": "All eight synthetic relay outputs explicitly reviewed as lighting"
+      }
+    ]
+  },
+  "timed_scenes": [
+    {
+      "id": "lights-on",
+      "enabled": true,
+      "review_evidence": "Synthetic hidden target scene",
+      "max_lateness_ms": 5000,
+      "steps": [
+        {
+          "source": "Synthetic client fixture",
+          "offset_ms": 0,
+          "device": "relay-a:1",
+          "command": {
+            "kind": "switch",
+            "on": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "lights-off",
+      "enabled": true,
+      "review_evidence": "Synthetic hidden target scene",
+      "max_lateness_ms": 5000,
+      "steps": [
+        {
+          "source": "Synthetic client fixture",
+          "offset_ms": 0,
+          "device": "relay-a:1",
+          "command": {
+            "kind": "switch",
+            "on": false
+          }
+        }
+      ]
+    }
+  ],
+  "scene_switch_groups": [
+    {
+      "id": "scene-selection",
+      "variable": "selection",
+      "review_evidence": "Synthetic one-light selection group",
+      "members": [
+        {
+          "scene": "lights-on",
+          "value": 1,
+          "off_scene": "lights-off"
+        }
+      ],
+      "reconciliation": {
+        "enabled": true,
+        "policy": "unique_light_on_pattern",
+        "max_age_ms": 5000,
+        "review_evidence": "Synthetic switch feedback"
+      }
+    }
+  ]
+}

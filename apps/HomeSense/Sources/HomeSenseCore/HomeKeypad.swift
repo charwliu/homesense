@@ -36,7 +36,7 @@ public struct HomeKeypadLED: Equatable, Sendable {
 
 /// A card-only intent; explicit actions used by Details remain independent.
 public enum HomeKeypadCardAction: Equatable, Sendable {
-    case absolute, motorPress, invalid
+    case absolute, motorPress, awayOff, invalid
 }
 
 public struct HomeKeypadKey: Identifiable, Equatable, Sendable {
@@ -51,16 +51,21 @@ public struct HomeKeypadKey: Identifiable, Equatable, Sendable {
     public let actionDevice: String?
     public let motorAction: String?
     public let cardAction: HomeKeypadCardAction
+    public let awayControlAllowed: Bool
+    public let awayTargetAvailable: Bool
     public var canActivateCard: Bool { canActivate && cardAction != .invalid }
+    public var cardActionDescription: String? { cardAction == .awayOff ? "提交已审核离家动作" : actionDescription }
     public var id: Int { number }
     public init(number: Int, name: String, led: HomeKeypadLED = HomeKeypadLED(),
                 canActivate: Bool = false, actionDescription: String? = nil,
                 endpointID: String? = nil, canWriteLED: Bool = false, actionScene: String? = nil,
-                actionDevice: String? = nil, motorAction: String? = nil, cardAction: HomeKeypadCardAction = .absolute) {
+                actionDevice: String? = nil, motorAction: String? = nil, cardAction: HomeKeypadCardAction = .absolute,
+                awayControlAllowed: Bool = false, awayTargetAvailable: Bool = false) {
         self.number = number; self.name = name; self.led = led
         self.canActivate = canActivate; self.actionDescription = actionDescription
         self.endpointID = endpointID; self.canWriteLED = canWriteLED; self.actionScene = actionScene
         self.actionDevice = actionDevice; self.motorAction = motorAction; self.cardAction = cardAction
+        self.awayControlAllowed = awayControlAllowed; self.awayTargetAvailable = awayTargetAvailable
     }
 }
 
@@ -102,7 +107,12 @@ public struct HomeKeypad: Identifiable, Equatable, Sendable {
                 && ["open", "close", "stop"].contains(action["command"]["action"].text ?? "")
                 ? action["device"].text.flatMap { $0.isEmpty ? nil : $0 } : nil
             let card = row["card_action"]
-            var cardAction: HomeKeypadCardAction = card == .null ? .absolute : .invalid
+            let awayAction = configured && action == .object(["kind": .string("away_off"), "path": .string("/api/v1/away-off")])
+            var cardAction: HomeKeypadCardAction = card == .null && action["kind"].text != "away_off" ? .absolute : .invalid
+            if awayAction, card == .object([
+                "kind": .string("away_off"), "path": .string("/api/v1/away-off"),
+                "command": .object(["action": .string("keypad_press"), "keypad": .string(record.id), "key": .integer(Int64(number))])
+            ]) { cardAction = .awayOff }
             if case .object(let fields) = card, Set(fields.keys) == ["kind", "device", "behavior", "command", "path"],
                card["kind"].text == "motor_press", card["behavior"].text == "repeat_to_stop",
                card["path"].text == "/api/v1/device-commands", let motor,
@@ -122,10 +132,11 @@ public struct HomeKeypad: Identifiable, Equatable, Sendable {
                 ? HomeKeypadLEDColor(rawValue: written["color"].text ?? "") ?? .unknown : .unknown
             return HomeKeypadKey(number: number, name: row["label"].text ?? "按键 \(number)",
                 led: HomeKeypadLED(observed: color, confirmed: measured, lastWritten: last),
-                canActivate: scene != nil || motor != nil,
+                canActivate: scene != nil || motor != nil || cardAction == .awayOff,
                 actionDescription: scene.map { "执行已审核场景映射：\($0)" } ?? motor.map { "执行已审核窗帘映射：\($0)" },
                 endpointID: configured ? endpoint : nil, canWriteLED: configured && row["can_write_led"].flag,
-                actionScene: scene, actionDevice: motor, motorAction: motor == nil ? nil : action["command"]["action"].text, cardAction: cardAction)
+                actionScene: scene, actionDevice: motor, motorAction: motor == nil ? nil : action["command"]["action"].text, cardAction: cardAction,
+                awayControlAllowed: row["can_activate"] == .bool(true), awayTargetAvailable: row["action_gate"]["available"] == .bool(true))
         }
         try self.init(id: record.id, name: record.name, roomName: raw["room"]["name"].text,
                       moduleID: module, keys: keys, settings: raw["settings"],

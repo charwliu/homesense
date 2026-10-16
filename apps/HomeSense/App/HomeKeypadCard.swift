@@ -39,10 +39,14 @@ struct HomeKeypadCard: View {
     }
 
     private func key(_ key: HomeKeypadKey, compact: Bool) -> some View {
-        Button { activate(key.number) } label: {
+        let available = controlsAvailable && key.canActivateCard && isActionAvailable?(key.number) != false
+        return Button { activate(key.number) } label: {
             VStack(alignment: .leading, spacing: compact ? 2 : 4) {
                 HStack {
                     Text("\(key.number)").font(.caption.monospacedDigit().weight(.semibold)).foregroundStyle(.secondary)
+                    if !available {
+                        Text("不可用").font(.system(size: 9, weight: .medium)).foregroundStyle(.secondary)
+                    }
                     Spacer(minLength: 4)
                     ZStack {
                         Circle().fill(key.led.displayColor == .red ? Color.red : key.led.displayColor == .green ? Color.green : Color.secondary.opacity(0.2))
@@ -54,13 +58,13 @@ struct HomeKeypadCard: View {
                 Text(key.led.displayDescription).font(.caption2).foregroundStyle(.secondary).lineLimit(1).minimumScaleFactor(0.7)
             }
             .padding(compact ? 6 : 10).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-            .background(keyColor(key.led.displayColor), in: RoundedRectangle(cornerRadius: 10))
-            .overlay { RoundedRectangle(cornerRadius: 10).strokeBorder(.primary.opacity(key.led.displayColor == .unknown ? 0.12 : 0.04)) }
+            .background(available ? keyColor(key.led.displayColor) : Color.gray.opacity(0.16), in: RoundedRectangle(cornerRadius: 10))
+            .overlay { RoundedRectangle(cornerRadius: 10).strokeBorder(available ? Color.primary.opacity(key.led.displayColor == .unknown ? 0.12 : 0.04) : Color.gray.opacity(0.35)) }
             .contentShape(RoundedRectangle(cornerRadius: 10))
         }
-        .buttonStyle(KeypadPressStyle()).disabled(!controlsAvailable || !key.canActivateCard || isActionAvailable?(key.number) == false)
+        .buttonStyle(KeypadPressStyle()).disabled(!available)
         .accessibilityLabel("按键 \(key.number)，\(key.name)，\(key.led.actualDescription)，\(key.led.historyDescription ?? "")")
-        .accessibilityHint(key.actionDescription ?? "没有已授权的按键动作")
+        .accessibilityHint(available ? (key.cardActionDescription ?? "没有已授权的按键动作") : "控制暂不可用；LED 状态仍保留显示")
         .accessibilityIdentifier("keypad.\(keypad.id).key.\(key.number)")
     }
 
@@ -75,11 +79,13 @@ struct HomeKeypadCard: View {
 }
 
 private struct KeypadPressStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .foregroundStyle(Color.primary)
-            .scaleEffect(configuration.isPressed ? 0.97 : 1)
-            .overlay { RoundedRectangle(cornerRadius: 10).strokeBorder(.primary.opacity(configuration.isPressed ? 0.4 : 0), lineWidth: 2) }
+            .foregroundStyle(isEnabled ? Color.primary : Color.secondary)
+            .scaleEffect(isEnabled && configuration.isPressed ? 0.97 : 1)
+            .overlay { RoundedRectangle(cornerRadius: 10).strokeBorder(.primary.opacity(isEnabled && configuration.isPressed ? 0.4 : 0), lineWidth: 2) }
             .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
     }
 }

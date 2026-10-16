@@ -1,0 +1,267 @@
+{
+  "schema_version": 2,
+  "revision": 1,
+  "gateways": [
+    {
+      "id": "bus",
+      "endpoint": "127.0.0.1:1",
+      "modules": [
+        {
+          "id": "relay-a",
+          "address": "03",
+          "profile": "r8i8_din_pro_v2_7_7",
+          "verification": {
+            "status": "verified",
+            "verified_at_unix_ms": 1,
+            "evidence": "synthetic loopback regression only"
+          }
+        },
+        {
+          "id": "relay-b",
+          "address": "04",
+          "profile": "r8i8_din_pro_v2_7_7",
+          "verification": {
+            "status": "verified",
+            "verified_at_unix_ms": 1,
+            "evidence": "synthetic loopback regression only"
+          }
+        },
+        {
+          "id": "panel-module",
+          "address": "41",
+          "profile": "ts6_86_rs485_v2_6_5_6key",
+          "led_mode": "manual",
+          "verification": {
+            "status": "verified",
+            "verified_at_unix_ms": 1,
+            "evidence": "synthetic loopback regression only"
+          }
+        }
+      ]
+    }
+  ],
+  "devices": [
+    {
+      "id": "relay-a:1",
+      "name": "Synthetic coverage lamp",
+      "module_id": "relay-a",
+      "channel": 1,
+      "enabled": true,
+      "catalog_visible": false
+    },
+    {
+      "id": "relay-a:2",
+      "name": "Synthetic coverage lamp",
+      "module_id": "relay-a",
+      "channel": 2,
+      "enabled": true,
+      "catalog_visible": false
+    },
+    {
+      "id": "relay-a:3",
+      "name": "Synthetic coverage lamp",
+      "module_id": "relay-a",
+      "channel": 3,
+      "enabled": true,
+      "catalog_visible": false
+    },
+    {
+      "id": "relay-a:4",
+      "name": "Synthetic coverage lamp",
+      "module_id": "relay-a",
+      "channel": 4,
+      "enabled": true,
+      "catalog_visible": false
+    },
+    {
+      "id": "relay-a:5",
+      "name": "Synthetic coverage lamp",
+      "module_id": "relay-a",
+      "channel": 5,
+      "enabled": true,
+      "catalog_visible": false
+    },
+    {
+      "id": "relay-a:6",
+      "name": "Synthetic coverage lamp",
+      "module_id": "relay-a",
+      "channel": 6,
+      "enabled": true,
+      "catalog_visible": false
+    },
+    {
+      "id": "relay-a:7",
+      "name": "Synthetic coverage lamp",
+      "module_id": "relay-a",
+      "channel": 7,
+      "enabled": true,
+      "catalog_visible": false
+    },
+    {
+      "id": "relay-a:8",
+      "name": "Synthetic coverage lamp",
+      "module_id": "relay-a",
+      "channel": 8,
+      "enabled": true,
+      "catalog_visible": false
+    },
+    {
+      "id": "relay-b:1",
+      "name": "Synthetic coverage lamp",
+      "module_id": "relay-b",
+      "channel": 1,
+      "enabled": true,
+      "catalog_visible": false
+    },
+    {
+      "id": "relay-b:2",
+      "name": "Synthetic coverage lamp",
+      "module_id": "relay-b",
+      "channel": 2,
+      "enabled": true,
+      "catalog_visible": false
+    },
+    {
+      "id": "relay-b:3",
+      "name": "Synthetic coverage lamp",
+      "module_id": "relay-b",
+      "channel": 3,
+      "enabled": true,
+      "catalog_visible": false
+    },
+    {
+      "id": "relay-b:4",
+      "name": "Synthetic coverage lamp",
+      "module_id": "relay-b",
+      "channel": 4,
+      "enabled": true,
+      "catalog_visible": false
+    },
+    {
+      "id": "relay-b:5",
+      "name": "Synthetic coverage lamp",
+      "module_id": "relay-b",
+      "channel": 5,
+      "enabled": true,
+      "catalog_visible": false
+    },
+    {
+      "id": "relay-b:6",
+      "name": "Synthetic coverage lamp",
+      "module_id": "relay-b",
+      "channel": 6,
+      "enabled": true,
+      "catalog_visible": false
+    },
+    {
+      "id": "relay-b:7",
+      "name": "Synthetic coverage lamp",
+      "module_id": "relay-b",
+      "channel": 7,
+      "enabled": true,
+      "catalog_visible": false
+    },
+    {
+      "id": "relay-b:8",
+      "name": "Synthetic coverage lamp",
+      "module_id": "relay-b",
+      "channel": 8,
+      "enabled": true,
+      "catalog_visible": false
+    }
+  ],
+  "keypads": [
+    {
+      "id": "entry-panel",
+      "name": "Synthetic entry",
+      "module_id": "panel-module",
+      "enabled": true,
+      "keys": [
+        {
+          "number": 1,
+          "label": "1",
+          "led_endpoint": {
+            "id": "key:1",
+            "name": "Synthetic LED 1",
+            "enabled": true
+          },
+          "action": {
+            "kind": "scene_toggle",
+            "scene": "lights-on",
+            "review_evidence": "Synthetic native scene mapping"
+          }
+        },
+        {
+          "number": 2,
+          "label": "2",
+          "led_endpoint": {
+            "id": "key:2",
+            "name": "Synthetic LED 2",
+            "enabled": true
+          },
+          "action": {
+            "kind": "scene_toggle",
+            "scene": "lights-on",
+            "review_evidence": "Synthetic native scene mapping"
+          }
+        },
+        {
+          "number": 3,
+          "label": "3",
+          "led_endpoint": {
+            "id": "key:3",
+            "name": "Synthetic LED 3",
+            "enabled": true
+          },
+          "action": {
+            "kind": "scene_toggle",
+            "scene": "lights-on",
+            "review_evidence": "Synthetic native scene mapping"
+          }
+        },
+        {
+          "number": 4,
+          "label": "4",
+          "led_endpoint": {
+            "id": "key:4",
+            "name": "Synthetic LED 4",
+            "enabled": true
+          },
+          "action": {
+            "kind": "scene_toggle",
+            "scene": "lights-on",
+            "review_evidence": "Synthetic native scene mapping"
+          }
+        },
+        {
+          "number": 5,
+          "label": "5",
+          "led_endpoint": {
+            "id": "key:5",
+            "name": "Synthetic LED 5",
+            "enabled": true
+          },
+          "action": {
+            "kind": "scene_toggle",
+            "scene": "lights-on",
+            "review_evidence": "Synthetic native scene mapping"
+          }
+        },
+        {
+          "number": 6,
+          "label": "6",
+          "led_endpoint": {
+            "id": "key:6",
+            "name": "Synthetic LED 6",
+            "enabled": true
+          },
+          "action": {
+            "kind": "away_off",
+            "review_evidence": "Synthetic native Away binding",
+            "indicator_reset": "green"
+          }
+        }
+      ]
+    }
+  ]
+}
