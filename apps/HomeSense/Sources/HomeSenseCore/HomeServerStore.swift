@@ -70,6 +70,9 @@ public final class HomeServerStore: ObservableObject {
     public var controlsAvailable: Bool {
         snapshotIsCurrent && !busy
     }
+    /// A server-owned presentation hint, never a permission or polling filter.
+    /// Keep the complete authorized store for scene feedback and admission.
+    public var dailyDevices: [HomeRecord] { devices.filter { $0.raw["catalog_visible"] != .bool(false) } }
     public var snapshotIsCurrent: Bool {
         connected && (eventsWanted ? receivingPush : capturedAt.map { Date().timeIntervalSince($0) < 10 } == true)
     }
@@ -431,6 +434,10 @@ public final class HomeServerStore: ObservableObject {
         state.canControl = factTarget?.raw["can_control"].flag == true
         let pressNeedsParent = card && factKey?.cardAction == HomeKeypadCardAction.motorPress
         state.targetAvailable = factTarget?.targetAvailable == true && (!pressNeedsParent || factRow?.targetAvailable == true)
+        if factKey?.cardAction == .awayOff {
+            state.canControl = factKey?.awayControlAllowed == true
+            state.targetAvailable = factKey?.awayTargetAvailable == true && factRow?.targetAvailable == true
+        }
         if case .bool(let value) = factTarget?.raw["selected"] { state.selected = value }
         state.relativeUnknownAllowed = factTarget?.raw["relative_unknown_allowed"].flag == true
         if !connected { state.reason = .disconnected; return state }
@@ -440,8 +447,15 @@ public final class HomeServerStore: ObservableObject {
         guard let panel = try? HomeKeypad(record: row) else { state.reason = .panelInvalid; return state }
         guard let key = panel.keys.first(where: { $0.number == number && $0.canActivate }) else { state.reason = .actionMissing; return state }
         state.configured = true
-        if card && (!key.canActivateCard || (key.cardAction == .motorPress && UInt64(revision).map { $0 > 0 } != true)) {
+        if card && (!key.canActivateCard || ([HomeKeypadCardAction.motorPress, .awayOff].contains(key.cardAction) && UInt64(revision).map { $0 > 0 } != true)) {
             state.reason = .cardActionInvalid; return state
+        }
+        if key.cardAction == .awayOff {
+            // The server's per-key gate covers the complete reviewed Away
+            // scope. It is independent of scene selection or parent grants.
+            if !card { state.reason = .cardActionInvalid }
+            else if !state.canControl || !state.targetAvailable { state.reason = .deviceUnavailable }
+            return state
         }
         if let device = key.actionDevice {
             state.canControl = canControlDevice(device)
@@ -499,6 +513,19 @@ public final class HomeServerStore: ObservableObject {
         guard controlsAvailable, let row = devices.first(where: { $0.id == id }),
               let panel = try? HomeKeypad(record: row),
               let key = panel.keys.first(where: { $0.number == number && $0.canActivate }) else { return }
+        if card && key.cardAction == .awayOff {
+            await run {
+                let result = try await self.request("/api/v1/away-off", method: "POST", body: .object([
+                    "revision": .string(self.revision), "request_id": .string(UUID().uuidString),
+                    "command": .object(["action": .string("keypad_press"), "keypad": .string(id), "key": .integer(Int64(number))])
+                ]))
+                self.message = result["outcome"].text == "accepted"
+                    ? "离家请求已受理，等待服务端执行及实际设备反馈。"
+                    : "离家结果未知，请核对实际设备；未自动重试。"
+                if !self.receivingPush { try await self.readSnapshots() }
+            }
+            return
+        }
         if let device = key.actionDevice, let action = key.motorAction {
             guard canControlDevice(device), devices.contains(where: { $0.id == device && $0.raw["kind"].text == "Motor"
                 && $0.raw["motor_calibrated"].flag }) else { return }
@@ -746,6 +773,11 @@ public final class HomeServerStore: ObservableObject {
                 case "motor":
                     try validateLabel(key["action"]["device"].text ?? "")
                     guard ["open", "stop", "close"].contains(key["action"]["action"].text ?? "") else { throw HomeServerError.invalidDocument }
+                case "away_off":
+                    // Preserve an existing reviewed server-owned scope. The
+                    // editor cannot create/copy an Away action to another key.
+                    let previous = deviceDocument?["keypads"].values.first { $0["id"].text == originalID }?["keys"].values.first { $0["number"] == key["number"] }
+                    guard originalID == id, previous?["action"] == key["action"] else { throw HomeServerError.invalidDocument }
                 default: throw HomeServerError.invalidDocument
                 }
                 let review = key["action"]["review_evidence"].text ?? ""
