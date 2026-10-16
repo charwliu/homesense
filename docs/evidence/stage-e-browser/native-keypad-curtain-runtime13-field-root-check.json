@@ -1,0 +1,505 @@
+{
+  "checked_bj": "2026-10-16T10:19:46.065031+08:00",
+  "version": {
+    "App": 13,
+    "configuration": 13,
+    "ELF": "83d894380419ee00c9ecf0a0fcb5356c3ac85185e301fb6f070e1dd70ef9895d"
+  },
+  "field": {
+    "started_bj": "2026-10-16T10:12:40.800387+08:00",
+    "build": 13,
+    "config_revision": 13,
+    "ELF": "83d894380419ee00c9ecf0a0fcb5356c3ac85185e301fb6f070e1dd70ef9895d",
+    "baseline": {
+      "onsite_question": "call_7ca0065771e141fc8b6e675139c4262c:0",
+      "curtain": "full closed/stopped",
+      "emergency_original_control": true
+    },
+    "steps": [
+      {
+        "question": "call_1f143297cb9b4397aa0f20873f4c36ee:0",
+        "action": "read only after publication",
+        "answer": "全部符合",
+        "pass": true
+      },
+      {
+        "question": "call_6bee37c74bd24353a7280f8b5fb52fd5:0",
+        "action": "Study card2 Open then same2 Stop after about3s",
+        "answer": "动作和 LED 全部符合",
+        "user_observed_pass": true,
+        "direction_LED": "Open immediately red/opposite preserved until2s thenred; midstopbothred; Stopgreenwithout2s delay",
+        "client_request_correlation": {
+          "Open_request": "5E906270-0769-4ADB-9624-6152CA7E442B",
+          "Open_command_id": 19,
+          "Stop_request": "188AA8E6-46A8-4C16-B7D4-CEFCFB382AAD",
+          "Stop_command_id": 23,
+          "same_boot": "5ba11ac4-e96f-4b99-b6ff-66e8be14a7ec",
+          "durable_receipts_match": true,
+          "journal_written_match": true,
+          "no_field_wire_capture_claimed": true,
+          "other_earlier_Open_Stop_pair": "retained journal, not assigned to these phone requests"
+        }
+      },
+      {
+        "question": "call_e09b629b51a34e30b8eee9656f49e39d:0",
+        "action": "Study card2 Open to full end",
+        "answer": "全开并停止，LED 和响应均符合",
+        "user_observed_pass": true,
+        "terminal_LED": "Opengreen/Closered/Stopgreen"
+      },
+      {
+        "question": "call_cad168dffd0c43c299034ca441fe9363:0",
+        "action": "Study card6 Close then same6 Stop after about3s",
+        "answer": "动作和 LED 全部符合",
+        "user_observed_pass": true,
+        "direction_LED": "Close immediately red/Opengreen preserved until2s thenred; midstopbothred/Stopgreen"
+      },
+      {
+        "question": "call_f0cff2afc3dd44ad9baf754486972b18:0",
+        "action": "Study card6 fullClose endpoint",
+        "answer": "全关并停止，LED 和响应均符合",
+        "user_observed_pass": true,
+        "terminal_LED": "Closegreen/Openred/Stopgreen"
+      },
+      {
+        "question": "call_6643b46fb3aa4e02b0231b2d27c8253d:0",
+        "room": "Artstudio",
+        "action": "card1 Open then same1 Stop",
+        "answer": "动作和 LED 全部符合",
+        "user_observed_pass": true
+      },
+      {
+        "question": "call_26404b89d7254b96a719bf8653d4d931:0",
+        "room": "Artstudio",
+        "action": "card1 fullOpen",
+        "answer": "全开并停止，LED 和响应均符合",
+        "user_observed_pass": true
+      },
+      {
+        "question": "call_4fadb27345c54bd0b8eeb4520dab5e95:0",
+        "room": "Artstudio",
+        "action": "card2 Close then same2 Stop",
+        "answer": "动作和 LED 全部符合",
+        "user_observed_pass": true
+      },
+      {
+        "question": "call_d0cc1ddcf7294a35b0f265a23fa09778:0",
+        "room": "Artstudio",
+        "action": "card2 fullClose",
+        "answer": "全关并停止，LED 和响应均符合",
+        "user_observed_pass": true
+      }
+    ],
+    "pending": [],
+    "D_E_complete": false,
+    "Study_new_rule_human_field_passed": true,
+    "Artstudio_baseline": {
+      "question": "call_0e8a0532ece7458492301766c2179403:0",
+      "answer": "全关停止",
+      "preceding_ready_question": "call_730a6daf522c4e34a1c0f815501978de:0"
+    },
+    "Artstudio_new_rule_human_field_passed": true,
+    "final_actual_curtains": "Study and Artstudio full closed/stopped per user",
+    "updated_bj": "2026-10-16T10:17:33.836881+08:00",
+    "twelve_client_receipt_journal_correlations": [
+      {
+        "room": "Study",
+        "key": 2,
+        "operation_id": "B2A084FD-E17C-47AA-A9D4-1EECD1983E69",
+        "request_id": "5E906270-0769-4ADB-9624-6152CA7E442B",
+        "command_id": 19,
+        "written_command": "Open",
+        "written_ms": 596696,
+        "one_complete_client_chain": true,
+        "http_status": 202,
+        "one_send": true
+      },
+      {
+        "room": "Study",
+        "key": 2,
+        "operation_id": "2EDD6B0A-3032-4B70-92CD-7BC5699C19E0",
+        "request_id": "188AA8E6-46A8-4C16-B7D4-CEFCFB382AAD",
+        "command_id": 23,
+        "written_command": "Stop",
+        "written_ms": 599688,
+        "one_complete_client_chain": true,
+        "http_status": 202,
+        "one_send": true
+      },
+      {
+        "room": "Study",
+        "key": 2,
+        "operation_id": "F9CD1E43-3390-45C4-BEE7-6A4403B10F6C",
+        "request_id": "FA77DEAE-BA06-4C51-96B8-EF75FE9E3B81",
+        "command_id": 27,
+        "written_command": "Open",
+        "written_ms": 642002,
+        "one_complete_client_chain": true,
+        "http_status": 202,
+        "one_send": true
+      },
+      {
+        "room": "Study",
+        "key": 6,
+        "operation_id": "0D33D7CD-A799-428B-BC91-ADF1A96E8937",
+        "request_id": "7554A369-D038-4282-ACF3-95CF5773A3DD",
+        "command_id": 33,
+        "written_command": "Close",
+        "written_ms": 671308,
+        "one_complete_client_chain": true,
+        "http_status": 202,
+        "one_send": true
+      },
+      {
+        "room": "Study",
+        "key": 6,
+        "operation_id": "2E637D8F-1CDF-46D2-9218-E56626E1E674",
+        "request_id": "8A88D615-1ED0-45B3-99DA-E413455D291F",
+        "command_id": 37,
+        "written_command": "Stop",
+        "written_ms": 674465,
+        "one_complete_client_chain": true,
+        "http_status": 202,
+        "one_send": true
+      },
+      {
+        "room": "Study",
+        "key": 6,
+        "operation_id": "6183EE16-8C1B-49C2-8E93-0D195D808268",
+        "request_id": "2937606C-2AAE-4B5C-ACDB-96E1DAFD5E5A",
+        "command_id": 41,
+        "written_command": "Close",
+        "written_ms": 697071,
+        "one_complete_client_chain": true,
+        "http_status": 202,
+        "one_send": true
+      },
+      {
+        "room": "Artstudio",
+        "key": 1,
+        "operation_id": "3C0D231F-AE47-4D7F-B0F3-C58CAEF5C9FE",
+        "request_id": "E7ACB80B-F134-4F66-AA00-F7FE9AFE84E3",
+        "command_id": 47,
+        "written_command": "Open",
+        "written_ms": 769392,
+        "one_complete_client_chain": true,
+        "http_status": 202,
+        "one_send": true
+      },
+      {
+        "room": "Artstudio",
+        "key": 1,
+        "operation_id": "BEB3B9DE-42AB-4212-A388-499F1966A06C",
+        "request_id": "29CBC69F-55E6-4A4C-8BFD-BAE36F3BD939",
+        "command_id": 50,
+        "written_command": "Stop",
+        "written_ms": 774056,
+        "one_complete_client_chain": true,
+        "http_status": 202,
+        "one_send": true
+      },
+      {
+        "room": "Artstudio",
+        "key": 1,
+        "operation_id": "E676D1D9-1B2A-4477-92CA-85BE71562B6A",
+        "request_id": "9AAC0742-01BA-489B-B084-B7738991E7C4",
+        "command_id": 53,
+        "written_command": "Open",
+        "written_ms": 780123,
+        "one_complete_client_chain": true,
+        "http_status": 202,
+        "one_send": true
+      },
+      {
+        "room": "Artstudio",
+        "key": 2,
+        "operation_id": "A2CC86DF-A96E-4F2B-8C43-C9D0864AAAC0",
+        "request_id": "6868FA1D-392D-4FAC-A256-A550E6C5FCCD",
+        "command_id": 57,
+        "written_command": "Close",
+        "written_ms": 796415,
+        "one_complete_client_chain": true,
+        "http_status": 202,
+        "one_send": true
+      },
+      {
+        "room": "Artstudio",
+        "key": 2,
+        "operation_id": "3189A118-CC2E-4E53-B82C-7D1EB22E8E40",
+        "request_id": "2B2C2A26-4538-4636-8575-865198D792F2",
+        "command_id": 60,
+        "written_command": "Stop",
+        "written_ms": 798985,
+        "one_complete_client_chain": true,
+        "http_status": 202,
+        "one_send": true
+      },
+      {
+        "room": "Artstudio",
+        "key": 2,
+        "operation_id": "2073C349-9EF5-4ADD-ACE6-11BF28616995",
+        "request_id": "54AE6F45-11C3-4BC2-8AD9-56B9A8ED428C",
+        "command_id": 63,
+        "written_command": "Close",
+        "written_ms": 800690,
+        "one_complete_client_chain": true,
+        "http_status": 202,
+        "one_send": true
+      }
+    ],
+    "eight_direction_stop_endpoint_procedures_passed": true,
+    "old_App11_silent_OFF_root_cause": "unreproduced; not claimed fixed"
+  },
+  "Root_independent_client_receipt_Written_correlations": [
+    {
+      "room": "Study",
+      "key": 2,
+      "operation_id": "B2A084FD-E17C-47AA-A9D4-1EECD1983E69",
+      "request_id": "5E906270-0769-4ADB-9624-6152CA7E442B",
+      "command_id": 19,
+      "written_command": "Open",
+      "written_ms": 596696,
+      "one_complete_client_chain": true,
+      "http_status": 202,
+      "one_send": true
+    },
+    {
+      "room": "Study",
+      "key": 2,
+      "operation_id": "2EDD6B0A-3032-4B70-92CD-7BC5699C19E0",
+      "request_id": "188AA8E6-46A8-4C16-B7D4-CEFCFB382AAD",
+      "command_id": 23,
+      "written_command": "Stop",
+      "written_ms": 599688,
+      "one_complete_client_chain": true,
+      "http_status": 202,
+      "one_send": true
+    },
+    {
+      "room": "Study",
+      "key": 2,
+      "operation_id": "F9CD1E43-3390-45C4-BEE7-6A4403B10F6C",
+      "request_id": "FA77DEAE-BA06-4C51-96B8-EF75FE9E3B81",
+      "command_id": 27,
+      "written_command": "Open",
+      "written_ms": 642002,
+      "one_complete_client_chain": true,
+      "http_status": 202,
+      "one_send": true
+    },
+    {
+      "room": "Study",
+      "key": 6,
+      "operation_id": "0D33D7CD-A799-428B-BC91-ADF1A96E8937",
+      "request_id": "7554A369-D038-4282-ACF3-95CF5773A3DD",
+      "command_id": 33,
+      "written_command": "Close",
+      "written_ms": 671308,
+      "one_complete_client_chain": true,
+      "http_status": 202,
+      "one_send": true
+    },
+    {
+      "room": "Study",
+      "key": 6,
+      "operation_id": "2E637D8F-1CDF-46D2-9218-E56626E1E674",
+      "request_id": "8A88D615-1ED0-45B3-99DA-E413455D291F",
+      "command_id": 37,
+      "written_command": "Stop",
+      "written_ms": 674465,
+      "one_complete_client_chain": true,
+      "http_status": 202,
+      "one_send": true
+    },
+    {
+      "room": "Study",
+      "key": 6,
+      "operation_id": "6183EE16-8C1B-49C2-8E93-0D195D808268",
+      "request_id": "2937606C-2AAE-4B5C-ACDB-96E1DAFD5E5A",
+      "command_id": 41,
+      "written_command": "Close",
+      "written_ms": 697071,
+      "one_complete_client_chain": true,
+      "http_status": 202,
+      "one_send": true
+    },
+    {
+      "room": "Artstudio",
+      "key": 1,
+      "operation_id": "3C0D231F-AE47-4D7F-B0F3-C58CAEF5C9FE",
+      "request_id": "E7ACB80B-F134-4F66-AA00-F7FE9AFE84E3",
+      "command_id": 47,
+      "written_command": "Open",
+      "written_ms": 769392,
+      "one_complete_client_chain": true,
+      "http_status": 202,
+      "one_send": true
+    },
+    {
+      "room": "Artstudio",
+      "key": 1,
+      "operation_id": "BEB3B9DE-42AB-4212-A388-499F1966A06C",
+      "request_id": "29CBC69F-55E6-4A4C-8BFD-BAE36F3BD939",
+      "command_id": 50,
+      "written_command": "Stop",
+      "written_ms": 774056,
+      "one_complete_client_chain": true,
+      "http_status": 202,
+      "one_send": true
+    },
+    {
+      "room": "Artstudio",
+      "key": 1,
+      "operation_id": "E676D1D9-1B2A-4477-92CA-85BE71562B6A",
+      "request_id": "9AAC0742-01BA-489B-B084-B7738991E7C4",
+      "command_id": 53,
+      "written_command": "Open",
+      "written_ms": 780123,
+      "one_complete_client_chain": true,
+      "http_status": 202,
+      "one_send": true
+    },
+    {
+      "room": "Artstudio",
+      "key": 2,
+      "operation_id": "A2CC86DF-A96E-4F2B-8C43-C9D0864AAAC0",
+      "request_id": "6868FA1D-392D-4FAC-A256-A550E6C5FCCD",
+      "command_id": 57,
+      "written_command": "Close",
+      "written_ms": 796415,
+      "one_complete_client_chain": true,
+      "http_status": 202,
+      "one_send": true
+    },
+    {
+      "room": "Artstudio",
+      "key": 2,
+      "operation_id": "3189A118-CC2E-4E53-B82C-7D1EB22E8E40",
+      "request_id": "2B2C2A26-4538-4636-8575-865198D792F2",
+      "command_id": 60,
+      "written_command": "Stop",
+      "written_ms": 798985,
+      "one_complete_client_chain": true,
+      "http_status": 202,
+      "one_send": true
+    },
+    {
+      "room": "Artstudio",
+      "key": 2,
+      "operation_id": "2073C349-9EF5-4ADD-ACE6-11BF28616995",
+      "request_id": "54AE6F45-11C3-4BC2-8AD9-56B9A8ED428C",
+      "command_id": 63,
+      "written_command": "Close",
+      "written_ms": 800690,
+      "one_complete_client_chain": true,
+      "http_status": 202,
+      "one_send": true
+    }
+  ],
+  "journal_timing_metrics_ms": {
+    "Study_fullOpen_opposite_red_ms": 2092,
+    "Study_Close_opposite_red_ms": 2102,
+    "Study_Stop_key_green_after_STOP_ms": 385,
+    "Study_fullOpen_Stopgreen_after_Opengreen_ms": 78,
+    "Study_fullClose_Stopgreen_after_Closegreen_ms": 84,
+    "Art_Open_opposite_red_ms": 2118,
+    "Art_Close_opposite_red_ms": 2018,
+    "Study_first_Open_opposite_red_ms": 2280
+  },
+  "timing_authority": "motor Written and LED Written ledger times; includes bus queue; stop_idle_ms1 removes fixed2s delay, not1ms physicalLED guarantee",
+  "phone_log_headers": {
+    "field-study-key2": {
+      "build": "13",
+      "discarded": 0,
+      "enabled": true,
+      "format": "homesense-control-trace-v1",
+      "session": "98177F17-4499-4174-922A-1CF79625C766"
+    },
+    "field-study-directions-final": {
+      "build": "13",
+      "discarded": 66,
+      "enabled": true,
+      "format": "homesense-control-trace-v1",
+      "session": "98177F17-4499-4174-922A-1CF79625C766"
+    },
+    "field-artstudio-final": {
+      "build": "13",
+      "discarded": 366,
+      "enabled": true,
+      "format": "homesense-control-trace-v1",
+      "session": "98177F17-4499-4174-922A-1CF79625C766"
+    }
+  },
+  "ring_log_limit": "later snapshots discarded66/366 old entries; required12 chains complete across retained snapshots; first snapshot preserved",
+  "extra_initial_actions": {
+    "earlier_key2_request": "25FD885A-ED73-46C7-B804-B246BE7936D2",
+    "command": 11,
+    "independent_key4_request": "895ECF67-E3B5-4C49-9F07-FD32C612A683",
+    "Stop_command": 15,
+    "both_in_client_log_and_durable_receipts": true,
+    "excluded_from_main12": true
+  },
+  "final_health": {
+    "checked_bj": "2026-10-16T10:18:12.919415+08:00",
+    "diagnostics": {
+      "boot": "5ba11ac4-e96f-4b99-b6ff-66e8be14a7ec",
+      "revision": "13",
+      "ready": true,
+      "gateway_ready": true,
+      "storage_healthy": true,
+      "queued": 0,
+      "in_flight": false,
+      "publishing": false
+    },
+    "motors": [
+      {
+        "id": "control4:290",
+        "motor_estimate": {
+          "last_written_command": "Close",
+          "last_written_id": 41,
+          "last_written_ms": 697071,
+          "movement": "Stopped",
+          "pending": null,
+          "percent_hundredths": 0,
+          "position": "Closed",
+          "source": "inferred",
+          "stop_led_active": false
+        }
+      },
+      {
+        "id": "control4:302",
+        "motor_estimate": {
+          "last_written_command": "Close",
+          "last_written_id": 63,
+          "last_written_ms": 800690,
+          "movement": "Stopped",
+          "pending": null,
+          "percent_hundredths": 0,
+          "position": "Closed",
+          "source": "inferred",
+          "stop_led_active": false
+        }
+      }
+    ]
+  },
+  "limits": [
+    "physical directions/LED observed and confirmed by user; no phone UI automation or field packet capture for these12 requests",
+    "position remains inferred; manual out-of-system motion can invalidate estimate",
+    "new physical wall execution rules remain disabled; originalControl4 unchanged",
+    "global D/E completion and original source semantics remaining65/208/24 unchanged",
+    "older App11 silentOFF rootcause not reproduced"
+  ],
+  "evidence_sha256": {
+    "deployment/ngr/private/20261016-native-curtain-key-toggle-app-v2/signing-review/field-study-key2/control-trace.jsonl": "0064ddfdc2cdf6d04fd7c65822c7a862b201f70cdfe682b978aa1871e71d43c0",
+    "deployment/ngr/private/20261016-native-curtain-key-toggle-app-v2/signing-review/field-study-directions-final/control-trace.jsonl": "db115d3a729db239761be29c73309cca4d43e1a8b292f6ffa804cead87f607b4",
+    "deployment/ngr/private/20261016-native-curtain-key-toggle-app-v2/signing-review/field-artstudio-final/control-trace.jsonl": "7835cb8887826f21aeaba33f712ded8a8994859f50a371afb048e884e7edd0b9",
+    "deployment/ngr/private/20261016-native-curtain-key-toggle-app-v2/signing-review/field-study-key2/key2-sanitized-summary.json": "89f449cbd4e6453f20d65bdb79664bf8abdad8fb15beec9d1f883f45d431d1c1",
+    "deployment/ngr/private/20261016-native-curtain-key-toggle-app-v2/signing-review/field-study-directions-final/directions-sanitized-summary.json": "73cb2d615fa333e61ee3f85f45440ee4fd43f04534e64319626c28e4fe1c94a6",
+    "deployment/ngr/private/20261016-native-curtain-key-toggle-app-v2/signing-review/field-artstudio-final/copy-summary.json": "1d0839401216b13d0c95a41c357443bd08f6a6db629c05d756624215eff4d35e",
+    "deployment/ngr/private/20261016-curtain-stop-immediate-root/field-study-server-snapshot.json": "ada6a463ac4a5f1c6b473e56b30c53f02e296fd6c795f9e433fc11ec1d4e21ee",
+    "deployment/ngr/private/20261016-curtain-stop-immediate-root/field-study-final-server-snapshot.json": "71109d5d57a2f864528c65e95cb85982b9c0eac3b63a0ad44f60fcdd4ec60750",
+    "deployment/ngr/private/20261016-curtain-stop-immediate-root/field-both-rooms-server-final.json": "b3ce9a945926f293d62ef377842c033124706fa28c387e1e4fbd06588cefc905",
+    "deployment/ngr/private/20261016-curtain-stop-immediate-root/Art-receipt-independent.json": "f76cf09aedb7887036aa1dce45ae69e52db155a404279d7c9e4336db2dc0b1e3",
+    "deployment/ngr/private/20261016-curtain-stop-immediate-root/field-final-health.json": "92f1d512233cc4a535662ed6c2b432f072694c946358fd3cb4c60f8c3391f007"
+  }
+}
