@@ -1,0 +1,364 @@
+{
+  "checked_bj": "2026-10-16T08:50:17.535181+08:00",
+  "scope": "Existing Study native App12 six-key card: other keys after prior key1 ON/OFF evidence",
+  "product_source_or_App_build_changed": false,
+  "App_build": 12,
+  "prior_key1_evidence": "stage-e-browser/native-control-logging-root-check.json",
+  "new_actual_requests": 9,
+  "scene_requests": 4,
+  "motor_requests": 5,
+  "cases": [
+    {
+      "stage": "daily-on",
+      "key": 3,
+      "action": "on",
+      "human_answer": "符合预期",
+      "questionItemIds": [
+        "call_406af48d528b406d939b110089f7a64e:0"
+      ],
+      "request_id": "FD8119DD-EA36-47EA-A738-FA9B09AC31C5",
+      "operation_id": "5EB6BD07-A8C5-4D1F-828A-193A4A8CB55D",
+      "clicked_utc": "2026-10-16T00:28:25Z",
+      "http_status": 202,
+      "elapsed_ms": 103,
+      "phone_trace_and_server_receipt_matched": true,
+      "fingerprint": {
+        "action": "start",
+        "revision": 10,
+        "scene": "书房日常"
+      },
+      "source_sha256": {
+        "deployment/ngr/private/20261016-multigateway-isolation-root/native-other-keys-field/daily-on/result.json": "45c8e219ab3172b427ab5fa6cd7c009ac1901117bab03e4f7d968c8d4bb0b490",
+        "deployment/ngr/private/20261016-multigateway-isolation-root/native-other-keys-field/daily-on/click-trace.json": "163ace71ff50d330a7c2e83954a37c2b8ed626f2fc14ef48130617286fe83bd5",
+        "deployment/ngr/private/20261016-multigateway-isolation-root/native-other-keys-field/daily-on/server-receipts.json": "8226598810ac5f370240deea8c3a62d7a34251c75d4671e8be9dd1c55d0572e2",
+        "deployment/ngr/private/20261016-multigateway-isolation-root/native-other-keys-field/daily-on/control-trace.jsonl": "0136e4c867ffe900c8c6bb880dc7a7b8ba18c6480044fd4e8511b0ae584bd561"
+      }
+    },
+    {
+      "stage": "daily-off",
+      "key": 3,
+      "action": "off",
+      "human_answer": "符合预期",
+      "questionItemIds": [
+        "call_b138b286e79f40579772184bfb8b3c42:0"
+      ],
+      "request_id": "E39C2DFD-4E00-41AC-A0CD-79F4704D5D1B",
+      "operation_id": "6E029BC4-FFFC-47E1-B48B-5807605B3B5C",
+      "clicked_utc": "2026-10-16T00:29:17Z",
+      "http_status": 202,
+      "elapsed_ms": 81,
+      "phone_trace_and_server_receipt_matched": true,
+      "fingerprint": {
+        "action": "off",
+        "revision": 10,
+        "scene": "书房日常"
+      },
+      "source_sha256": {
+        "deployment/ngr/private/20261016-multigateway-isolation-root/native-other-keys-field/daily-off/result.json": "edd0db1d75c3154238648524fc9228fcb943097c4877cd957f1921f1ea8bd8e8",
+        "deployment/ngr/private/20261016-multigateway-isolation-root/native-other-keys-field/daily-off/click-trace.json": "6bac5a972e42034919ed48503d1d0591cae365c8120f8a28864435c01cb4223b",
+        "deployment/ngr/private/20261016-multigateway-isolation-root/native-other-keys-field/daily-off/server-receipts.json": "6add9618a72adee1eb428f0fd44484f4d09215ab9c32a7dec1574307cc10714d",
+        "deployment/ngr/private/20261016-multigateway-isolation-root/native-other-keys-field/daily-off/control-trace.jsonl": "30da22f831d613c253c47c7c34f375fcab345e2a7bbb3f1f850959a0c9c5dc9b"
+      }
+    },
+    {
+      "stage": "eco-on",
+      "key": 5,
+      "action": "on",
+      "human_answer": "符合预期",
+      "questionItemIds": [
+        "call_6be5df952e934548a667b41b397d4f16:0",
+        "call_786803b8f1bb4e40a1a824899ee9404b:0",
+        "call_51f538de46474f74b3eb10a0ba48c53b:0"
+      ],
+      "request_id": "F48D8997-D9A7-4685-91CF-8D294C97524D",
+      "operation_id": "1ADE3FE1-80A5-4C69-8CC3-EC983397E611",
+      "clicked_utc": "2026-10-16T00:32:51Z",
+      "http_status": 202,
+      "elapsed_ms": 59,
+      "phone_trace_and_server_receipt_matched": true,
+      "fingerprint": {
+        "action": "start",
+        "revision": 10,
+        "scene": "书房节能"
+      },
+      "source_sha256": {
+        "deployment/ngr/private/20261016-multigateway-isolation-root/native-other-keys-field/eco-on/result.json": "396ab9f67afd8d7eae82989d7d408f202ba3fe986c88132278f3c8bf24311390",
+        "deployment/ngr/private/20261016-multigateway-isolation-root/native-other-keys-field/eco-on/click-trace.json": "73aa2bbde3e4f1731d8b120f745548243a0d60feb69e1e36fe5403f4765b37a5",
+        "deployment/ngr/private/20261016-multigateway-isolation-root/native-other-keys-field/eco-on/server-receipts.json": "90772dc56a8ea2d8166218006ff3b9f6ef75bee0d0d580ed498cc10bc248b530",
+        "deployment/ngr/private/20261016-multigateway-isolation-root/native-other-keys-field/eco-on/control-trace.jsonl": "bd776ce2087f5a1c74f2d8fc2973af256a71f5c76ae88aa2b01847cf96e3c770"
+      }
+    },
+    {
+      "stage": "eco-off",
+      "key": 5,
+      "action": "off",
+      "human_answer": "符合预期",
+      "questionItemIds": [
+        "call_6fe9f1c0ec2b4bb1b2934842ffee06cd:0"
+      ],
+      "request_id": "13861803-83DD-49F6-90D9-3023861F3679",
+      "operation_id": "8CC9615C-EC19-410D-A316-F9DE9121B7B5",
+      "clicked_utc": "2026-10-16T00:34:09Z",
+      "http_status": 202,
+      "elapsed_ms": 62,
+      "phone_trace_and_server_receipt_matched": true,
+      "fingerprint": {
+        "action": "off",
+        "revision": 10,
+        "scene": "书房节能"
+      },
+      "source_sha256": {
+        "deployment/ngr/private/20261016-multigateway-isolation-root/native-other-keys-field/eco-off/result.json": "d7335bfc0aff6deb4f42f113c25e573991c9d2e5d067df4b741f3f126acfcccd",
+        "deployment/ngr/private/20261016-multigateway-isolation-root/native-other-keys-field/eco-off/click-trace.json": "0610fe6b5b8a910271064fd67a8a295fac078536193bc411d40823ff81775e0e",
+        "deployment/ngr/private/20261016-multigateway-isolation-root/native-other-keys-field/eco-off/server-receipts.json": "56eecc7c75b6ca482249d581e964e47693dbc9df28c1439e1d533fec3f8f5edf",
+        "deployment/ngr/private/20261016-multigateway-isolation-root/native-other-keys-field/eco-off/control-trace.jsonl": "f180a11812a2623c1c7ec2407be7952d87a5601918a4e6494b75c63abe68b3af"
+      }
+    },
+    {
+      "stage": "motor-idle-stop",
+      "key": 4,
+      "action": "stop",
+      "human_answer": "符合",
+      "questionItemIds": [
+        "call_0ceca83135234c6d8f629e567bc5cfc1:0"
+      ],
+      "request_id": "CCB02F02-F13C-45EF-B3B4-D8EA3147CC9F",
+      "operation_id": "2D92A67F-2C8C-44A5-9156-E34DC5B5F3B6",
+      "clicked_utc": "2026-10-16T00:45:45Z",
+      "http_status": 202,
+      "elapsed_ms": 63,
+      "phone_trace_and_server_receipt_matched": true,
+      "fingerprint": {
+        "action": "device",
+        "command": {
+          "action": "stop"
+        },
+        "device": "control4:290",
+        "revision": 10
+      },
+      "source_sha256": {
+        "deployment/ngr/private/20261016-multigateway-isolation-root/native-other-keys-field/motor-idle-stop/result.json": "98b6ae91622241756188574c8dac35acf989b1395384f628454f2630f4dd911f",
+        "deployment/ngr/private/20261016-multigateway-isolation-root/native-other-keys-field/motor-idle-stop/click-trace.json": "5020b49b5e3d767985ebdcb14e5178c4bd3d41a81888c25e41b4e3313c94e8cc",
+        "deployment/ngr/private/20261016-multigateway-isolation-root/native-other-keys-field/motor-idle-stop/server-receipts.json": "b82b55b2bb459d34b3c176f6b218bde6fc76d2227a43399a6a2e5622e1c9dd2f",
+        "deployment/ngr/private/20261016-multigateway-isolation-root/native-other-keys-field/motor-idle-stop/control-trace.jsonl": "6953deb20de44690504d0b24b323d7527c5b7224bf7e60d0afb8af91348ca575"
+      }
+    },
+    {
+      "stage": "motor-open-stop",
+      "key": 2,
+      "action": "open",
+      "human_answer": "符合",
+      "questionItemIds": [
+        "call_4965d71dd1c547f9be225e07e050f6bd:0"
+      ],
+      "request_id": "D75A81E9-DA60-46DF-9823-3A8A79C6AD5C",
+      "operation_id": "F30F8A28-AD87-47FF-867E-2385673428A3",
+      "clicked_utc": "2026-10-16T00:46:35Z",
+      "http_status": 202,
+      "elapsed_ms": 66,
+      "phone_trace_and_server_receipt_matched": true,
+      "fingerprint": {
+        "action": "device",
+        "command": {
+          "action": "open"
+        },
+        "device": "control4:290",
+        "revision": 10
+      },
+      "source_sha256": {
+        "deployment/ngr/private/20261016-multigateway-isolation-root/native-other-keys-field/motor-open-stop/result.json": "a5a0388d374f6148d89a7ca87de59b92f6189bf607bc9a2fc53742b27f64c2b8",
+        "deployment/ngr/private/20261016-multigateway-isolation-root/native-other-keys-field/motor-open-stop/click-trace.json": "6ddcebb284c0b480b3c17b8ca0858af3c5b23a705b2b043110181c9ac2704bc3",
+        "deployment/ngr/private/20261016-multigateway-isolation-root/native-other-keys-field/motor-open-stop/server-receipts.json": "407fb80bdf9b6390a7ffc91fea7b7fa216fe8d12c031e6b62ff849e9734b240d",
+        "deployment/ngr/private/20261016-multigateway-isolation-root/native-other-keys-field/motor-open-stop/control-trace.jsonl": "0735c14de9171fcdc29f2a8a5f18bc6e6df6c222e344591aa103a8ab9f0e859a"
+      }
+    },
+    {
+      "stage": "motor-open-stop",
+      "key": 4,
+      "action": "stop",
+      "human_answer": "符合",
+      "questionItemIds": [
+        "call_4965d71dd1c547f9be225e07e050f6bd:0"
+      ],
+      "request_id": "DAFB5806-02EF-4F44-89BE-13A1B011F93C",
+      "operation_id": "C1177B35-7BCA-4ED8-8F07-41E3D89B84EB",
+      "clicked_utc": "2026-10-16T00:46:37Z",
+      "http_status": 202,
+      "elapsed_ms": 67,
+      "phone_trace_and_server_receipt_matched": true,
+      "fingerprint": {
+        "action": "device",
+        "command": {
+          "action": "stop"
+        },
+        "device": "control4:290",
+        "revision": 10
+      },
+      "source_sha256": {
+        "deployment/ngr/private/20261016-multigateway-isolation-root/native-other-keys-field/motor-open-stop/stop-result.json": "bf742eb582b67e35a2266f26c8e1d8c08fa665b8dcff92cc7bf54fe4259dc85c",
+        "deployment/ngr/private/20261016-multigateway-isolation-root/native-other-keys-field/motor-open-stop/stop-click-trace.json": "62ac2aa0088093188b94e336192c3efea875de5585ba1e00d29d8b4bc9093993",
+        "deployment/ngr/private/20261016-multigateway-isolation-root/native-other-keys-field/motor-open-stop/server-receipts.json": "407fb80bdf9b6390a7ffc91fea7b7fa216fe8d12c031e6b62ff849e9734b240d",
+        "deployment/ngr/private/20261016-multigateway-isolation-root/native-other-keys-field/motor-open-stop/control-trace.jsonl": "0735c14de9171fcdc29f2a8a5f18bc6e6df6c222e344591aa103a8ab9f0e859a"
+      }
+    },
+    {
+      "stage": "motor-close-stop",
+      "key": 6,
+      "action": "close",
+      "human_answer": "符合",
+      "questionItemIds": [
+        "call_bf8decd6b45340b1ae3673351ea5c44f:0"
+      ],
+      "request_id": "4A6E226B-A840-41AD-AC10-0E67C97C223D",
+      "operation_id": "A1B529F1-F043-4DB7-AC5A-D8A0E6F600E3",
+      "clicked_utc": "2026-10-16T00:47:22Z",
+      "http_status": 202,
+      "elapsed_ms": 97,
+      "phone_trace_and_server_receipt_matched": true,
+      "fingerprint": {
+        "action": "device",
+        "command": {
+          "action": "close"
+        },
+        "device": "control4:290",
+        "revision": 10
+      },
+      "source_sha256": {
+        "deployment/ngr/private/20261016-multigateway-isolation-root/native-other-keys-field/motor-close-stop/result.json": "8e666b8b423146f05bf7cf8536806043d3aea63dbcd8b3decc52e307a53149be",
+        "deployment/ngr/private/20261016-multigateway-isolation-root/native-other-keys-field/motor-close-stop/click-trace.json": "a5c259895b5cf37994ce5e5375a19d78a880bcbe2e41df6844997672241d358a",
+        "deployment/ngr/private/20261016-multigateway-isolation-root/native-other-keys-field/motor-close-stop/server-receipts.json": "2ac21030319f801d37571ab3fe738701dc3ebdab7e5d4e50ac037f480e78ff5f",
+        "deployment/ngr/private/20261016-multigateway-isolation-root/native-other-keys-field/motor-close-stop/control-trace.jsonl": "cdd8c516cc97e94b1e40803c18c34cb43be7b8a76d73a2b9b897cebc997bafde"
+      }
+    },
+    {
+      "stage": "motor-close-stop",
+      "key": 4,
+      "action": "stop",
+      "human_answer": "符合",
+      "questionItemIds": [
+        "call_bf8decd6b45340b1ae3673351ea5c44f:0"
+      ],
+      "request_id": "06149650-539C-4D0C-9D25-801C949C0CC0",
+      "operation_id": "AE99D557-2CA4-4516-8AEC-70465DD1BAE0",
+      "clicked_utc": "2026-10-16T00:47:25Z",
+      "http_status": 202,
+      "elapsed_ms": 67,
+      "phone_trace_and_server_receipt_matched": true,
+      "fingerprint": {
+        "action": "device",
+        "command": {
+          "action": "stop"
+        },
+        "device": "control4:290",
+        "revision": 10
+      },
+      "source_sha256": {
+        "deployment/ngr/private/20261016-multigateway-isolation-root/native-other-keys-field/motor-close-stop/stop-result.json": "4bb3e5a43ae4f62a97c0f73813cf31b86b33e0617002442fc1a92073b89fc9c2",
+        "deployment/ngr/private/20261016-multigateway-isolation-root/native-other-keys-field/motor-close-stop/stop-click-trace.json": "2a6427ccbcefd9cb55bd7a2e410bd2d074bef1129438d63f876b61aca4ed78d7",
+        "deployment/ngr/private/20261016-multigateway-isolation-root/native-other-keys-field/motor-close-stop/server-receipts.json": "2ac21030319f801d37571ab3fe738701dc3ebdab7e5d4e50ac037f480e78ff5f",
+        "deployment/ngr/private/20261016-multigateway-isolation-root/native-other-keys-field/motor-close-stop/control-trace.jsonl": "cdd8c516cc97e94b1e40803c18c34cb43be7b8a76d73a2b9b897cebc997bafde"
+      }
+    }
+  ],
+  "key5_early_observations": {
+    "snapshots_without_clicks": [
+      "eco-inspect-1",
+      "eco-inspect-2"
+    ],
+    "discarded_entries_reported": 0,
+    "later_one_actual_ON_and_one_OFF_matched": true,
+    "repeated_question_answers_counted_as_one_ON_case": true,
+    "no_inference_of_earlier_click_delivery": true
+  },
+  "human_physical_acceptance": {
+    "key3_daily_on_off": true,
+    "key5_eco_on_off": true,
+    "key4_stop_while_idle": true,
+    "key2_open_then_key4_stop_short_travel": true,
+    "key6_close_then_key4_stop_short_travel": true,
+    "motion_LED": "2/6 green,4 red; stopped midtravel 2/6 red,4 green after about2s",
+    "card_and_wall_LED_observed": true,
+    "postrestart_labels_and_baseline_question": "call_deb256988ba34088b5d02a6e156303c2:0",
+    "postrestart_labels_and_baseline_answer": "符合"
+  },
+  "scope_maintenance": {
+    "human_question": "call_49fdc3ee0e784ed698ce89aed92af5f7:0",
+    "human_answer": "批准补齐权限并短重启",
+    "devices_before_after": [
+      17,
+      20
+    ],
+    "scenes_unchanged": 7,
+    "added_ids": [
+      "control4:63:key:2",
+      "control4:63:key:4",
+      "control4:63:key:6"
+    ],
+    "same_permanent_token_controller_role_and_other_grant": true,
+    "also_opens_direct_LED_and_full_Study_panel_settings": true,
+    "no_settings_writes_tested": true,
+    "first_attempt": "Read-only assertion failed; probe bearer belonged to different17-ID Admin. Exact target reverse-CAS rolled back and service restored; expanded-state HTTP body absent so exact assertion remains unclassified.",
+    "second_attempt": "Separate evidence root, fresh stopped snapshot, exact3-ID CAS; target permanent bearer read-only API and23namedchecks passed.",
+    "root_independent_checks": {
+      "HAP_pairs": 2,
+      "backup_manifest_sha256": "97745cf7e7940907da0c8863461c29288c797d01392b3c6d4d980796f4aae224",
+      "checked_ms": 1792111482525,
+      "golden_SQLite_opened": false,
+      "golden_backup_entries": 140,
+      "golden_inventory_matches_both_manifests": true,
+      "maintenance_passed": true,
+      "maintenance_result_sha256": "27a6686ecb3500dbcb6e1b2ad0c3987dcc6e40374be4d86c583bc9c1e89f9afa",
+      "manual_controls_sent": 0,
+      "only_three_grant_ids_added": true,
+      "other_grant_and_initialized_preserved": true,
+      "pair_static_identity_and_AID_IID_hashes_preserved": true,
+      "permanent_grant_devices_scenes": [
+        20,
+        7
+      ],
+      "revision": 10,
+      "schema": 27,
+      "service": {
+        "ActiveState": "active",
+        "MainPID": "250664",
+        "NRestarts": "0",
+        "RuntimeMaxUSec": "infinity",
+        "SubState": "running"
+      },
+      "unit_ELF_config_cert_key_hashes_preserved": true
+    },
+    "local_frozen_manifest_sha256": "862a431f142860278bb79377ff47788f7cc9499ad6320a5b7841858d9ac372af",
+    "local_frozen_entries_rechecked": 23,
+    "remote_frozen_manifest_sha256": "02921587f2bc71848c919ea50ea143a1017e12f57b71f925067c88645cb2da9c",
+    "manual_actuator_controls_during_maintenance": 0,
+    "normal_startup_LED_writes": 5
+  },
+  "last_service_observation": {
+    "source": "motor-close-stop/server-receipts.json",
+    "checked_ms": 1792111667152,
+    "state": "active/running",
+    "pid": 250664,
+    "restarts": 0,
+    "runtime_deadline": "infinity",
+    "schema": 27,
+    "revision": 10,
+    "elf_sha256": "96fe6ee504a93c0f0c32d52badfe02f870652d18613265c25a7b4169a6d6bcf8"
+  },
+  "final_human_observed_state": {
+    "both_lamps": "off",
+    "three_scenes": "off",
+    "curtain": "intermediate and stopped",
+    "position_percent": "not independently measured",
+    "App_responsive": true
+  },
+  "limits": [
+    "No new full-travel/native endpoint position acceptance",
+    "No panel mode/backlight/sound writes",
+    "No new source-program approval or wall rule activation",
+    "Prior build11 silent key1 OFF failure remains unreproduced; logging is not claimed as its fix",
+    "Written LED/API projection is not physical feedback; physical LED proof is human observation",
+    "D/E overall not complete"
+  ],
+  "agent_control_requests_sent": 0,
+  "D_E_complete": false
+}
