@@ -66,6 +66,33 @@ fn runtime(a: &Admission, id: Uuid) -> StudyRuntime {
     )
     .unwrap()
 }
+struct ReadbackStream(std::collections::VecDeque<u8>);
+impl std::io::Read for ReadbackStream{fn read(&mut self,out:&mut[u8])->std::io::Result<usize>{let n=out.len().min(self.0.len());if n==0{return Err(std::io::ErrorKind::WouldBlock.into());}for byte in &mut out[..n]{*byte=self.0.pop_front().unwrap();}Ok(n)}}
+impl std::io::Write for ReadbackStream{fn write(&mut self,_:&[u8])->std::io::Result<usize>{panic!("readback fixture never sends control")}fn flush(&mut self)->std::io::Result<()>{Ok(())}}
+// These fixtures own an in-memory bus. Feed its completed output frames back
+// through the real registry at a strictly later time; never treat admission or
+// a write receipt alone as physical LED proof.
+async fn readback_written(a:&Admission,db:&Db,controller:Uuid,context:ExecutionContext,frames:&[u8]){
+    let config=Store::open(&db.0).unwrap().active_configuration(context).unwrap().unwrap();
+    let mut feedback=homesensed::feedback::Feedback::new(&config,context,Uuid::parse_str(a.boot_id()).unwrap().as_u128(),1).unwrap();
+    tokio::time::sleep(std::time::Duration::from_millis(2)).await;
+    let mut by_gateway=std::collections::BTreeMap::<String,Vec<hb_protocol::RawFrame>>::new();
+    let(rows,tail)=frames.as_chunks::<5>();assert!(tail.is_empty());
+    for frame in rows{
+        let (gateway,module)=config.gateways().iter().find_map(|(gateway,g)|g.modules().values().find(|m|m.address().get()==frame[1]).map(|m|(gateway,m))).unwrap();
+        if !matches!(module.kind(),homesense_core::ModuleKind::Switch|homesense_core::ModuleKind::Dimmer){continue;}
+        let channel=if (0xb1..=0xb8).contains(&frame[2]){frame[2]-0xb0}else{frame[2]};assert!((1..=8).contains(&channel));
+        by_gateway.entry(gateway.clone()).or_default().push(hb_protocol::RawFrame{address:frame[1],command:0xd0+channel,value:frame[3]});
+    }
+    let gateways=by_gateway.keys().cloned().collect::<Vec<_>>();
+    let streams=by_gateway.into_iter().map(|(gateway,frames)|(gateway,hb_transport::Connection::for_simulation(ReadbackStream(frames.into_iter().flat_map(|f|[0xae,f.address,f.command,f.value,0xee]).collect()),1))).collect();
+    let mut reader=homesensed::transport_owner::TransportOwner::new(a.clone(),streams);
+    for gateway in gateways{feedback.apply(&reader.receive(&gateway).await.unwrap()).unwrap();}
+    feedback.reconcile_control_phases(a,controller).await.unwrap();
+}
+fn encoded(a:&Admission,db:&Db,command:&homesense_core::queue::QueuedCommand)->[u8;5]{
+    let config=Store::open(&db.0).unwrap().active_configuration(ExecutionContext::Simulation).unwrap().unwrap();let(device,module)=config.binding(&command.device_id).unwrap();assert_eq!(command.epochs.transport,1);assert!(!a.boot_id().is_empty());hb_protocol::encode_in_context(module,device.channel,command.command,ExecutionContext::Simulation).unwrap().bytes()
+}
 #[tokio::test]
 async fn rule_origin_cancel_persistence_and_no_restart_replay() {
     let db = database();
@@ -136,11 +163,10 @@ async fn replacement_cancels_old_run_and_denies_other_principal() {
             Some(Status::Cancelled)
         );
     }
-    for _ in 0..7 {
-        let ticket = a.dispatch().await.unwrap().unwrap();
-        assert_eq!(ticket.command.run_id, Some(new.command_ids[0]));
-        a.finish_write(ticket.command.id, true).await.unwrap();
-    }
+    let mut frames=vec![];let mut written=vec![];
+    while let Some(ticket)=a.dispatch().await.unwrap(){assert_eq!(ticket.command.run_id,Some(new.command_ids[0]));frames.extend(encoded(&a,&db,&ticket.command));written.push(ticket.command.id);a.finish_write(ticket.command.id,true).await.unwrap();}
+    assert_eq!(written.len(),4,"only lighting controls precede feedback");readback_written(&a,&db,id,ExecutionContext::Simulation,&frames).await;
+    while let Some(ticket)=a.dispatch().await.unwrap(){written.push(ticket.command.id);a.finish_write(ticket.command.id,true).await.unwrap();}assert_eq!(written,new.command_ids);
     assert!(a.dispatch().await.unwrap().is_none());
     a.shutdown().await.unwrap();
 }
@@ -179,7 +205,9 @@ async fn direct_manual_control_cancels_only_that_devices_pending_scene_action() 
         remaining += 1;
         a.finish_write(ticket.command.id, true).await.unwrap();
     }
-    assert_eq!(remaining, 6);
+    assert_eq!(remaining,3,"other three lighting controls finish; stale success LEDs remain held after manual takeover");
+    for command in &run.command_ids{let status=store.command_status(a.boot_id(),*command).unwrap().unwrap();assert!(matches!(status,Status::Cancelled|Status::Written|Status::Accepted));}
+    assert_eq!(rusqlite::Connection::open(&db.0).unwrap().query_row("SELECT count(*) FROM command_journal WHERE status='accepted'",[],|r|r.get::<_,i64>(0)).unwrap(),3,"no stale expected scene LED is written");
     a.shutdown().await.unwrap();
 }
 #[tokio::test]
@@ -220,17 +248,15 @@ async fn energy_scene_executes_through_transport_owner_in_source_order() {
         )]
         .into(),
     );
-    for command in &run.command_ids {
-        let out = owner.step().await.unwrap().unwrap();
-        assert_eq!(*command, out.command_id);
-        out.result.unwrap();
-    }
+    let first=owner.step().await.unwrap().unwrap();first.result.unwrap();assert_eq!(first.completed.len(),4);assert!(owner.step().await.unwrap().is_none());
+    let light_frames=bytes.lock().unwrap().clone();readback_written(&a,&db,id,ExecutionContext::Live,&light_frames).await;
+    let leds=owner.step().await.unwrap().unwrap();leds.result.unwrap();assert_eq!(leds.completed.len(),3);
+    assert_eq!(first.completed.iter().chain(&leds.completed).map(|(id,_)|*id).collect::<Vec<_>>(),run.command_ids);
     assert_eq!(
         *bytes.lock().unwrap(),
         vec![
-            0xae, 0x41, 5, 0xf1, 0xee, 0xae, 0x41, 1, 0xf2, 0xee, 0xae, 0x41, 3, 0xf2, 0xee, 0xae,
-            3, 4, 0xf2, 0xee, 0xae, 7, 6, 0xf1, 0xee, 0xae, 0x11, 0xb5, 17, 0xee, 0xae, 0x12, 4, 0,
-            0xee
+            0xae,3,4,0xf2,0xee,0xae,7,6,0xf1,0xee,0xae,0x11,0xb5,17,0xee,0xae,0x12,4,0,0xee,
+            0xae,0x41,5,0xf1,0xee,0xae,0x41,1,0xf2,0xee,0xae,0x41,3,0xf2,0xee
         ]
     );
     let store = Store::open(&db.0).unwrap();
@@ -280,18 +306,11 @@ async fn every_repeated_scene_turns_off_and_pre_dispatch_cancel_writes_nothing()
         let off = scene.toggle(key).await.unwrap();
         assert_eq!(off.mode, 0);
         assert_eq!(off.command_ids.len(), 5);
-        for expected in off.command_ids {
-            let ticket = a.dispatch().await.unwrap().unwrap();
-            assert_eq!(ticket.command.id, expected);
-            match ticket.command.command {
-                Command::Switch(on) | Command::PanelLed(on) => assert!(!on),
-                Command::SetLevel { level, .. } => assert_eq!(level.get(), 0),
-                other => panic!("unexpected off command: {other:?}"),
-            }
-            a.finish_write(expected, true).await.unwrap();
-        }
-        assert!(a.dispatch().await.unwrap().is_none());
-        assert_eq!(scene.mode().await.unwrap(), Some(0));
+        let mut frames=vec![];let mut written=vec![];
+        while let Some(ticket)=a.dispatch().await.unwrap(){match ticket.command.command{Command::Switch(on)|Command::PanelLed(on)=>assert!(!on),Command::SetLevel{level,..}=>assert_eq!(level.get(),0),other=>panic!("unexpected off command: {other:?}")};frames.extend(encoded(&a,&db,&ticket.command));written.push(ticket.command.id);a.finish_write(ticket.command.id,true).await.unwrap();}
+        assert_eq!(written.len(),4);readback_written(&a,&db,id,ExecutionContext::Simulation,&frames).await;
+        while let Some(ticket)=a.dispatch().await.unwrap(){assert_eq!(ticket.command.command,Command::PanelLed(false));written.push(ticket.command.id);a.finish_write(ticket.command.id,true).await.unwrap();}
+        assert_eq!(written,off.command_ids);
         a.shutdown().await.unwrap();
     }
 }
@@ -2028,14 +2047,9 @@ async fn ninety_six_channel_scene_preserves_order_and_cancels_remaining_outputs(
         let mut scene = SceneRuntime::new(a.clone(), controller, steps, 0, 1000)
             .await
             .unwrap();
-        for i in 0..stop_after {
-            let ids = scene.poll(0).await.unwrap().unwrap();
-            let result = transport.step().await.unwrap().unwrap();
-            assert_eq!(result.command_id, ids[0]);
-            assert!(result.result.is_ok());
-            assert_eq!(result.device_id.as_str(), format!("test:{i}"));
-            scene.reconcile().await.unwrap();
-        }
+        let ids=scene.poll(0).await.unwrap().unwrap();assert_eq!(ids.len(),96);
+        let mut emitted=0;
+        while emitted<stop_after{let result=transport.step_with_frame_budget((stop_after-emitted).min(32)).await.unwrap().unwrap();assert_eq!(result.command_id,ids[emitted]);assert!(result.result.is_ok());for(id,device)in &result.completed{assert_eq!(*id,ids[emitted]);assert_eq!(device.as_str(),format!("test:{emitted}"));emitted+=1;}scene.reconcile().await.unwrap();}
         if stop_after < 96 {
             assert_eq!(scene.cancel().await.unwrap(), 96 - stop_after);
             assert_eq!(scene.status(), SceneStatus::Partial);
@@ -6632,10 +6646,10 @@ async fn partial_wire_failure_is_uncertain_cancels_scene_and_never_replays_after
         let steps=[30,60].into_iter().map(|value|Step{device:DeviceId::new("simulation:light").unwrap(),command:Command::SetLevel{level:homesense_core::Percent::new(value).unwrap(),transition:homesense_core::LevelTransition::Immediate},delay_ms:0,source:"synthetic partial write".into()}).collect();
         let mut scene=SceneRuntime::new(a.clone(),controller,steps,0,1000).await.unwrap();let ids=scene.poll(0).await.unwrap().unwrap();
         let result=owner.step().await.unwrap().unwrap();assert_eq!(result.command_id,ids[0]);assert_eq!(result.result.unwrap_err().bytes_written,limit);assert_eq!(bytes.lock().unwrap().len(),limit);
-        assert_eq!(Store::open(&db.0).unwrap().command_status(&boot,ids[0]).unwrap(),Some(Status::Uncertain));
-        scene.reconcile().await.unwrap();assert_eq!(scene.status(),SceneStatus::Partial);assert_eq!(scene.poll(0).await.unwrap_err(),"ServiceCommunicationFailure");assert!(owner.step().await.is_err());
+        assert_eq!(Store::open(&db.0).unwrap().command_status(&boot,ids[0]).unwrap(),Some(if limit==0{Status::Failed}else{Status::Uncertain}));
+        scene.reconcile().await.unwrap();assert_eq!(scene.status(),if limit==0{SceneStatus::Failed}else{SceneStatus::Partial});assert_eq!(scene.poll(0).await.unwrap_err(),"ServiceCommunicationFailure");assert!(owner.step().await.is_err());
         a.shutdown().await.unwrap();drop(owner);drop(scene);
-        let restarted=actor(&db,controller).await;assert!(restarted.dispatch().await.unwrap().is_none());assert_eq!(bytes.lock().unwrap().len(),limit);assert_eq!(Store::open(&db.0).unwrap().command_status(&boot,ids[0]).unwrap(),Some(Status::Uncertain));restarted.shutdown().await.unwrap();
+        let restarted=actor(&db,controller).await;assert!(restarted.dispatch().await.unwrap().is_none());assert_eq!(bytes.lock().unwrap().len(),limit);assert_eq!(Store::open(&db.0).unwrap().command_status(&boot,ids[0]).unwrap(),Some(if limit==0{Status::Failed}else{Status::Uncertain}));restarted.shutdown().await.unwrap();
     }
 }
 

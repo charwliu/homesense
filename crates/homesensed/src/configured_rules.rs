@@ -37,6 +37,7 @@ impl ConfiguredRules {
             rule.actions.clear();
         }
         let index=Document {
+                component_mode_confirmations:document.component_mode_confirmations.clone(),
                 away_off: None,
             scene_deactivations:Default::default(),
             revision:document.revision,scene_tracking:document.scene_tracking.clone(),scene_metadata:document.scene_metadata.clone(),variables:document.variables.clone(),variable_migrations:document.variable_migrations.clone(),
@@ -196,6 +197,7 @@ impl ConfiguredRules {
             admission.clone(),
             controller,
             &Document {
+                component_mode_confirmations:document.component_mode_confirmations.clone(),
                 away_off: None,
                 scene_deactivations:Default::default(),
                 revision: document.revision,

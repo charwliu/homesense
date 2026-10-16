@@ -1365,13 +1365,10 @@ async fn combined_wire_order_and_each_partial_write_boundary_are_audited() {
             .into(),
         );
         let first = owner.step().await.unwrap().unwrap();
-        if fail_after == 2 {
-            assert!(first.result.is_err());
-        } else {
-            first.result.unwrap();
-            let second = owner.step().await.unwrap().unwrap();
-            assert_eq!(second.result.is_ok(), fail_after == 100);
-        }
+        assert_eq!(first.physical_frames,2);
+        if fail_after<10{assert_eq!(first.result.unwrap_err().bytes_written,fail_after);assert!(owner.step().await.is_err());}
+        else{first.result.unwrap();assert!(owner.step().await.unwrap().is_none());}
+        assert_eq!(first.completed.iter().map(|(id,_)|*id).collect::<Vec<_>>(),ids.iter().copied().take(fail_after.min(10)/5).collect::<Vec<_>>());
         let expected = [0xAE, 0x15, 0xB1, 30, 0xEE, 0xAE, 0x03, 0x04, 0xF1, 0xEE];
         assert_eq!(
             bytes.lock().unwrap().as_slice(),
@@ -1379,7 +1376,7 @@ async fn combined_wire_order_and_each_partial_write_boundary_are_audited() {
         );
         let store = Store::open(&db.0).unwrap();
         let statuses = match fail_after {
-            2 => [Status::Uncertain, Status::Cancelled],
+            2 => [Status::Uncertain, Status::Failed],
             7 => [Status::Written, Status::Uncertain],
             _ => [Status::Written, Status::Written],
         };

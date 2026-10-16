@@ -184,7 +184,7 @@ mod scene_scope_inventory_tests {
         document.scene_switch_groups.push(homesense_config::scene_switches::Group {id:"group".into(),variable:"selection".into(),review_evidence:"synthetic".into(),members:vec![
             homesense_config::scene_switches::Member {scene:"first".into(),value:1,off_scene:"off".into()},
             homesense_config::scene_switches::Member {scene:"second".into(),value:2,off_scene:"off".into()},
-        ],reset_scenes:vec![],initialization:None,reconciliation:None});
+        ],unselected_values:vec![],reset_scenes:vec![],initialization:None,reconciliation:None});
         assert_eq!(scene_devices(&document,"second").unwrap(),BTreeSet::from([DeviceId::new("a-light").unwrap(),DeviceId::new("b-light").unwrap()]));
         assert!(scene_devices(&document,"unknown").is_err());
     }

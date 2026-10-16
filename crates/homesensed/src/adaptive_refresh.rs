@@ -48,6 +48,15 @@ impl Schedule {
         self.interval()
     }
 }
+/// Pre-receive candidate only: activity requires the unified decoder to advance
+/// the same registered port's count after apply, under the current wire epoch.
+pub(crate) fn candidate(truth:&crate::module_truth::ModuleTruth,gateway:&str,frame:&hb_protocol::RawFrame)->Option<(u8,u8,u64)>{
+    let channel=frame.command.checked_sub(0xd0)?;let state=truth.received_port_state(gateway,frame.address,channel)?;
+    let allowed=matches!(state.kind,homesense_core::ModuleKind::Switch|homesense_core::ModuleKind::Dimmer)
+        ||state.kind==homesense_core::ModuleKind::Keypad&&(1..=6).contains(&channel)&&matches!(frame.value,0xf1|0xf2)&&truth.module_objects().iter().any(|m|m.gateway==gateway&&m.spec.address().get()==frame.address&&m.spec.profile()==homesense_core::ProtocolProfile::Ts686Rs485SixKey);
+    allowed.then(||truth.port_observation_count(gateway,frame.address,channel).map(|count|(frame.address,channel,count))).flatten()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

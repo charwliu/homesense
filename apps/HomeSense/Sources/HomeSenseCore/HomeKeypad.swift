@@ -48,6 +48,7 @@ public struct HomeKeypadKey: Identifiable, Equatable, Sendable {
     public let endpointID: String?
     public let canWriteLED: Bool
     public let actionScene: String?
+    public let executesScene: Bool
     public let actionDevice: String?
     public let motorAction: String?
     public let cardAction: HomeKeypadCardAction
@@ -60,12 +61,13 @@ public struct HomeKeypadKey: Identifiable, Equatable, Sendable {
                 canActivate: Bool = false, actionDescription: String? = nil,
                 endpointID: String? = nil, canWriteLED: Bool = false, actionScene: String? = nil,
                 actionDevice: String? = nil, motorAction: String? = nil, cardAction: HomeKeypadCardAction = .absolute,
-                awayControlAllowed: Bool = false, awayTargetAvailable: Bool = false) {
+                awayControlAllowed: Bool = false, awayTargetAvailable: Bool = false, executesScene: Bool = false) {
         self.number = number; self.name = name; self.led = led
         self.canActivate = canActivate; self.actionDescription = actionDescription
         self.endpointID = endpointID; self.canWriteLED = canWriteLED; self.actionScene = actionScene
         self.actionDevice = actionDevice; self.motorAction = motorAction; self.cardAction = cardAction
         self.awayControlAllowed = awayControlAllowed; self.awayTargetAvailable = awayTargetAvailable
+        self.executesScene = executesScene
     }
 }
 
@@ -99,9 +101,17 @@ public struct HomeKeypad: Identifiable, Equatable, Sendable {
             let endpoint = row["endpoint_id"].text
             let configured = row["configured"].flag && endpoint?.isEmpty == false
             let action = row["action"]
-            let scene = configured && action["kind"].text == "scene_toggle"
+            let executeScene: String?
+            if configured, row["card_action"] == .null,
+               case .object(let fields) = action, Set(fields.keys) == ["kind", "scene", "path"],
+               action["kind"].text == "scene_execute", action["path"].text == "/api/v1/scene-actions",
+               let id = action["scene"].text, !id.isEmpty,
+               id == id.trimmingCharacters(in: .whitespacesAndNewlines) {
+                executeScene = id
+            } else { executeScene = nil }
+            let scene = executeScene ?? (configured && action["kind"].text == "scene_toggle"
                 && ["/api/v1/scene-relative-actions", "/api/v1/scene-actions"].contains(action["path"].text ?? "")
-                ? action["scene"].text.flatMap { $0.isEmpty ? nil : $0 } : nil
+                ? action["scene"].text.flatMap { $0.isEmpty ? nil : $0 } : nil)
             let motor = configured && action["kind"].text == "motor"
                 && action["path"].text == "/api/v1/device-commands"
                 && ["open", "close", "stop"].contains(action["command"]["action"].text ?? "")
@@ -136,7 +146,8 @@ public struct HomeKeypad: Identifiable, Equatable, Sendable {
                 actionDescription: scene.map { "执行已审核场景映射：\($0)" } ?? motor.map { "执行已审核窗帘映射：\($0)" },
                 endpointID: configured ? endpoint : nil, canWriteLED: configured && row["can_write_led"].flag,
                 actionScene: scene, actionDevice: motor, motorAction: motor == nil ? nil : action["command"]["action"].text, cardAction: cardAction,
-                awayControlAllowed: row["can_activate"] == .bool(true), awayTargetAvailable: row["action_gate"]["available"] == .bool(true))
+                awayControlAllowed: row["can_activate"] == .bool(true), awayTargetAvailable: row["action_gate"]["available"] == .bool(true),
+                executesScene: executeScene != nil)
         }
         try self.init(id: record.id, name: record.name, roomName: raw["room"]["name"].text,
                       moduleID: module, keys: keys, settings: raw["settings"],

@@ -338,3 +338,11 @@ fn feedback_read_set_includes_unknown_but_excludes_unvisited_branch() {
     assert_eq!(plan.feedback_reads, [missing].into());
     assert!(plan.commands.is_empty());
 }
+#[test]
+fn actual_variable_reads_follow_executed_branches_and_assignment_order(){
+    let mut vars=variable(None);vars.insert("other".into(),Variable{value_type:ValueType::Integer,lifetime:Lifetime::Persistent,value:Some(Value::Integer(9))});
+    let branch=node(Action::If{condition:Condition::Unknown(Expr::Variable("mode".into())),then_actions:vec![node(Action::Set{variable:"mode".into(),value:Expr::Literal(Value::Integer(1))})],else_actions:vec![node(Action::Set{variable:"mode".into(),value:Expr::Variable("other".into())})]});
+    let plan=evaluate(&[branch.clone(),node(Action::Set{variable:"other".into(),value:Expr::Variable("mode".into())})],&vars,Budget::default()).unwrap();
+    assert_eq!(plan.variable_reads,["mode".into()].into());assert_eq!(plan.variables["other"].value,Some(Value::Integer(1)));
+    let plan=evaluate(&[node(Action::Set{variable:"mode".into(),value:Expr::Literal(Value::Integer(2))}),branch],&vars,Budget::default()).unwrap();assert_eq!(plan.variable_reads,["other".into()].into());assert_eq!(plan.variables["mode"].value,Some(Value::Integer(9)));
+}

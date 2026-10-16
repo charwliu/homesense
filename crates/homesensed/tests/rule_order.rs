@@ -120,12 +120,9 @@ impl std::io::Read for Wire {
 }
 impl std::io::Write for Wire {
     fn write(&mut self, b: &[u8]) -> std::io::Result<usize> {
-        if self.fail_after.is_some_and(|n| self.writes >= n) {
-            return Err(std::io::ErrorKind::BrokenPipe.into());
-        }
-        self.writes += 1;
-        self.bytes.lock().unwrap().extend_from_slice(b);
-        Ok(b.len())
+        if self.fail_after.is_some_and(|n|self.writes>=n){return Err(std::io::ErrorKind::BrokenPipe.into());}
+        let n=self.fail_after.map_or(b.len(),|limit|b.len().min(limit-self.writes));
+        self.writes+=n;self.bytes.lock().unwrap().extend_from_slice(&b[..n]);Ok(n)
     }
     fn flush(&mut self) -> std::io::Result<()> {
         Ok(())
@@ -155,11 +152,11 @@ fn wire(a: &Admission, fail_after: Option<usize>) -> (TransportOwner<Wire>, Byte
 async fn emit(a: &Admission, ids: &[u64]) -> Vec<u8> {
     let (mut owner, bytes) = wire(a, None);
     for id in ids {
-        let output = owner.step().await.unwrap().unwrap();
+        let output = owner.step_with_frame_budget(1).await.unwrap().unwrap();
         assert_eq!(output.command_id, *id);
         output.result.unwrap();
     }
-    assert!(owner.step().await.unwrap().is_none());
+    assert!(owner.step_with_frame_budget(1).await.unwrap().is_none());
     bytes.lock().unwrap().clone()
 }
 fn verify(db: &Database, boot: &str, report: &Report, expected: &[(&str, &str, Command, Status)]) {
@@ -629,6 +626,7 @@ async fn cancellation_and_manual_override_remove_all_pending_repeat_nodes_withou
 
 #[tokio::test]
 async fn partial_wire_failure_preserves_first_written_node_and_never_replays_tail() {
+    for budget in [5usize,7]{
     let db = Database::new();
     let id = Uuid::new_v4();
     let a = actor(&db, id, 8).await;
@@ -647,11 +645,11 @@ async fn partial_wire_failure_preserves_first_written_node_and_never_replays_tai
     .await;
     assert!(report.failure.is_none());
     assert_eq!(report.completed[0].commands.len(), 3);
-    let (mut owner, bytes) = wire(&a, Some(1));
-    assert!(owner.step().await.unwrap().unwrap().result.is_ok());
-    assert!(owner.step().await.unwrap().unwrap().result.is_err());
-    assert!(owner.step().await.is_err());
-    assert_eq!(*bytes.lock().unwrap(), [0xae, 0x41, 1, 0xf1, 0xee]);
+    let (mut owner, bytes) = wire(&a, Some(budget));
+    assert!(owner.step_with_frame_budget(1).await.unwrap().unwrap().result.is_ok());
+    assert!(owner.step_with_frame_budget(1).await.unwrap().unwrap().result.is_err());
+    assert!(owner.step_with_frame_budget(1).await.is_err());
+    assert_eq!(*bytes.lock().unwrap(),[0xae,0x41,1,0xf1,0xee,0xae,0x41][..budget]);
     assert!(a.task_generation().await.is_err());
     a.shutdown().await.unwrap();
     let mut store = db.store();
@@ -667,10 +665,11 @@ async fn partial_wire_failure_preserves_first_written_node_and_never_replays_tai
         [Some("first"), Some("second"), Some("third")]
     );
     assert_eq!(page.records[0].commands[0].status, Status::Written);
-    assert_eq!(page.records[0].commands[1].status, Status::Uncertain);
+    assert_eq!(page.records[0].commands[1].status, if budget==5{Status::Failed}else{Status::Uncertain});
     assert_eq!(page.records[0].commands[2].status, Status::Cancelled);
     drop(store);
     let recovered = open(&db, id, 8).await;
     assert!(recovered.dispatch().await.unwrap().is_none());
     recovered.shutdown().await.unwrap();
+    }
 }

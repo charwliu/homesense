@@ -48,7 +48,7 @@ pub struct Timeline {
     steps: Vec<Step>,
     order: Vec<usize>,
     states: Vec<State>,
-    offered: Option<usize>,
+    offered: std::collections::BTreeSet<usize>,
 }
 impl Timeline {
     pub fn new(
@@ -83,7 +83,7 @@ impl Timeline {
             steps,
             order,
             states,
-            offered: None,
+            offered: Default::default(),
         })
     }
     /// At most one offered action. The caller must resolve it even on failure;
@@ -97,7 +97,7 @@ impl Timeline {
             self.cancel();
             return Err(Error::WrongGeneration);
         }
-        if self.offered.is_some() {
+        if !self.offered.is_empty() {
             return Err(Error::InFlight);
         }
         for &i in &self.order {
@@ -113,7 +113,7 @@ impl Timeline {
                 continue;
             }
             self.states[i] = State::Offered;
-            self.offered = Some(i);
+            self.offered.insert(i);
             return Ok(Some(Due {
                 index: i,
                 step: self.steps[i].clone(),
@@ -121,12 +121,68 @@ impl Timeline {
         }
         Ok(None)
     }
-    /// Written is transport completion only. Scene active requires feedback.
-    pub fn resolve(&mut self, index: usize, written: bool) -> Result<(), Error> {
-        if self.offered != Some(index) {
+    /// Extend only the already offered due-time phase. Different delays,
+    /// barriers and configured fades are never pulled into the same admission.
+    pub fn extend_due_phase(
+        &mut self,
+        first: usize,
+        mut eligible: impl FnMut(usize, &Step) -> bool,
+    ) -> Result<Vec<Due>, Error> {
+        if self.offered.len() != 1 || !self.offered.contains(&first) {
             return Err(Error::InvalidResult);
         }
-        self.offered = None;
+        if !eligible(first, &self.steps[first]) {
+            return Ok(vec![]);
+        }
+        let mut result = vec![];
+        let mut after = false;
+        for &index in &self.order {
+            if index == first {
+                after = true;
+                continue;
+            }
+            if !after || self.states[index] != State::Waiting {
+                continue;
+            }
+            if self.steps[index].delay_ms != self.steps[first].delay_ms
+                || !eligible(index, &self.steps[index])
+            {
+                break;
+            }
+            if result.len() >= 127 {
+                return Err(Error::InvalidPlan);
+            }
+            result.push(Due {
+                index,
+                step: self.steps[index].clone(),
+            });
+        }
+        for due in &result {
+            self.states[due.index] = State::Offered;
+            self.offered.insert(due.index);
+        }
+        Ok(result)
+    }
+    /// Only after an explicit rejection proving that no queue/variable commit
+    /// happened. Unknown outcomes must never use this to replay an offer.
+    pub fn return_unadmitted(&mut self, index: usize) -> Result<(), Error> {
+        if !self.offered.remove(&index) {
+            return Err(Error::InvalidResult);
+        }
+        self.states[index] = State::Waiting;
+        Ok(())
+    }
+    pub fn offered_deadline(&self, index: usize) -> Option<u64> {
+        self.offered
+            .contains(&index)
+            .then(|| self.started + self.steps[index].delay_ms + self.lateness)
+    }
+    /// Written is transport completion only. Scene active requires feedback.
+    pub fn resolve(&mut self, index: usize, written: bool) -> Result<(), Error> {
+        if !self.offered.contains(&index) {
+            return Err(Error::InvalidResult);
+        }
+        self.offered.remove(&index);
         self.states[index] = if written {
             State::Written
         } else {
@@ -136,19 +192,19 @@ impl Timeline {
     }
     /// Some expanded output was written, but the complete action did not finish.
     pub fn resolve_partial(&mut self, index: usize) -> Result<(), Error> {
-        if self.offered != Some(index) {
+        if !self.offered.contains(&index) {
             return Err(Error::InvalidResult);
         }
-        self.offered = None;
+        self.offered.remove(&index);
         self.states[index] = State::Partial;
         Ok(())
     }
     /// Only after the runtime proves all offered commands were durably cancelled.
     pub fn cancel_offered(&mut self, index: usize) -> Result<(), Error> {
-        if self.offered != Some(index) {
+        if !self.offered.contains(&index) {
             return Err(Error::InvalidResult);
         }
-        self.offered = None;
+        self.offered.remove(&index);
         self.states[index] = State::Cancelled;
         Ok(())
     }
@@ -176,12 +232,14 @@ impl Timeline {
     }
     pub fn due_step(&self, now: u64) -> Option<(usize, &Step)> {
         self.order.iter().copied().find_map(|i| {
-            let due=self.started+self.steps[i].delay_ms;
-            (self.states[i]==State::Waiting && now>=due && now<=due+self.lateness)
-                .then_some((i,&self.steps[i]))
+            let due = self.started + self.steps[i].delay_ms;
+            (self.states[i] == State::Waiting && now >= due && now <= due + self.lateness)
+                .then_some((i, &self.steps[i]))
         })
     }
-    pub fn step(&self, index: usize) -> Option<&Step> { self.steps.get(index) }
+    pub fn step(&self, index: usize) -> Option<&Step> {
+        self.steps.get(index)
+    }
     pub fn states(&self) -> &[State] {
         &self.states
     }

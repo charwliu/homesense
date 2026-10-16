@@ -9,29 +9,106 @@ use std::{
 
 /// Recheck and hold the exact credential/session generation through the bounded
 /// synchronous write. Revocation completed before this guard yields zero bytes.
-pub(crate) fn send_ticket<S:Read+Write>(ticket:&crate::admission::DispatchTicket,connection:&mut Connection<S>,now:impl FnMut()->u64)->Result<(),SendError> {
-    let send=||connection.send(&ticket.frame,ticket.command.deadline_ms,now);
-    let denied=||Err(SendError{reason:hb_transport::SendFailure::Io(std::io::ErrorKind::PermissionDenied),bytes_written:0});
-    match (&ticket.panel_authorization,&ticket.source_authorization,&ticket.publication_stop,&ticket.away_authorization) {
-        (Some(lease),None,None,None)=>lease.with_valid(send).unwrap_or_else(denied),
-        (None,Some(source),None,None)=>source.with_valid(send).unwrap_or_else(denied),
-        (None,None,None,Some(lease))=>lease.with_valid(send).unwrap_or_else(denied),
-        (None,None,Some(lease),None) if lease.matches_write(&ticket.command)=>send(),
-        (None,None,None,None)=>send(),
-        _=>denied(),
+pub(crate) fn send_ticket<S: Read + Write>(
+    ticket: &crate::admission::DispatchTicket,
+    connection: &mut Connection<S>,
+    mut now: impl FnMut() -> u64,
+) -> Result<(), SendError> {
+    let at = now();
+    let denied = || {
+        Err(SendError {
+            reason: hb_transport::SendFailure::Io(std::io::ErrorKind::PermissionDenied),
+            bytes_written: 0,
+        })
+    };
+    let send = || connection.send(&ticket.frame, ticket.command.deadline_ms, now);
+    // Match admission lock order: physical feedback first, source generations
+    // second. Reversing these can deadlock behind a queued credential writer.
+    let authorized = || match (
+        &ticket.panel_authorization,
+        &ticket.source_authorization,
+        &ticket.publication_stop,
+        &ticket.away_authorization,
+    ) {
+        (Some(lease), None, None, None) => lease.with_valid(send).unwrap_or_else(denied),
+        (None, Some(source), None, None) => source.with_valid(send).unwrap_or_else(denied),
+        (None, None, None, Some(lease)) => lease.with_valid(send).unwrap_or_else(denied),
+        (None, None, Some(lease), None) if lease.matches_write(&ticket.command) => send(),
+        (None, None, None, None) => send(),
+        _ => denied(),
+    };
+    match &ticket.feedback_barrier {
+        Some(lease) => lease.with_valid(at, authorized).unwrap_or_else(denied),
+        None => authorized(),
+    }
+}
+
+fn send_tickets<S: Read + Write>(
+    tickets: &[crate::admission::DispatchTicket],
+    connection: &mut Connection<S>,
+    mut now: impl FnMut() -> u64,
+) -> Result<(), SendError> {
+    if tickets.len() == 1 {
+        return send_ticket(&tickets[0], connection, now);
+    }
+    let first = &tickets[0];
+    let denied = || {
+        Err(SendError {
+            reason: hb_transport::SendFailure::Io(std::io::ErrorKind::PermissionDenied),
+            bytes_written: 0,
+        })
+    };
+    if tickets.iter().any(|ticket| {
+        ticket.gateway_id != first.gateway_id
+            || ticket.panel_authorization.is_some()
+            || ticket.publication_stop.is_some()
+            || match (&first.away_authorization, &ticket.away_authorization) {
+                (Some(a), Some(b)) => !a.same_authority(b),
+                (None, None) => false,
+                _ => true,
+            }
+            || match (&first.source_authorization, &ticket.source_authorization) {
+                (Some(a), Some(b)) => !a.same_authority(b),
+                (None, None) => false,
+                _ => true,
+            }
+    }) {
+        return denied();
+    }
+    let at = now();
+    let frames = tickets
+        .iter()
+        .map(|ticket| &ticket.frame)
+        .collect::<Vec<_>>();
+    let deadline = tickets
+        .iter()
+        .map(|ticket| ticket.command.deadline_ms)
+        .min()
+        .unwrap();
+    let send = || connection.send_batch(&frames, deadline, now);
+    let authorized = || match (&first.source_authorization, &first.away_authorization) {
+        (Some(source), None) => source.with_valid(send).unwrap_or_else(denied),
+        (None, Some(away)) => away.with_valid(send).unwrap_or_else(denied),
+        (None, None) => send(),
+        _ => denied(),
+    };
+    match &first.feedback_barrier {
+        Some(lease) => lease.with_valid(at, authorized).unwrap_or_else(denied),
+        None => authorized(),
     }
 }
 
 pub struct TransportOwner<S> {
+    read_permits: BTreeMap<String, crate::admission::QueryReadPermit>,
     admission: Admission,
     connections: BTreeMap<String, Connection<S>>,
     failed: bool,
     audited_receive_failure: Option<String>,
-    local:Option<gateway_io::Local<S>>,
+    local: Option<gateway_io::Local<S>>,
 }
 #[path = "gateway_io.rs"]
 mod gateway_io;
-pub(crate) use gateway_io::{Connector,network_send_failure};
+pub(crate) use gateway_io::{Connector, network_send_failure};
 struct OperationGuard {
     admission: Admission,
     complete: bool,
@@ -53,16 +130,90 @@ pub struct WriteOutcome {
     pub device_id: homesense_core::DeviceId,
     pub command_id: u64,
     pub result: Result<(), SendError>,
+    pub completed: Vec<(u64, homesense_core::DeviceId)>,
+    pub physical_frames: usize,
+    pub refresh_devices: Vec<homesense_core::DeviceId>,
 }
 impl<S: Read + Write + Send + 'static> TransportOwner<S> {
     pub fn new(admission: Admission, connections: BTreeMap<String, Connection<S>>) -> Self {
         Self {
+            read_permits: Default::default(),
             admission,
             connections,
             failed: false,
             audited_receive_failure: None,
-            local:None,
+            local: None,
         }
+    }
+    async fn collect_tickets(
+        &self,
+        first: crate::admission::DispatchTicket,
+        frame_budget: usize,
+    ) -> Result<Vec<crate::admission::DispatchTicket>, String> {
+        let id = first.command.id;
+        let protected = first.panel_authorization.is_some() || first.publication_stop.is_some();
+        let mut frames = first.frame.physical_frames();
+        if frames > frame_budget {
+            self.admission
+                .finish_unsent(id)
+                .await
+                .map_err(|e| format!("unfit operation audit: {e:?}"))?;
+            return Err("complete operation exceeds remaining physical frame budget".into());
+        }
+        let mut tickets = vec![first];
+        if protected {
+            return Ok(tickets);
+        }
+        while frames < frame_budget {
+            let Some(ticket) = self
+                .admission
+                .extend_write(id)
+                .await
+                .map_err(|e| format!("batch extension: {e:?}"))?
+            else {
+                break;
+            };
+            frames += ticket.frame.physical_frames();
+            if frames > frame_budget {
+                return Err("batch physical frame budget exceeded".into());
+            }
+            tickets.push(ticket);
+        }
+        Ok(tickets)
+    }
+    /// Audit every whole-operation prefix, then zero-byte suffixes. Partial
+    /// operation ownership remains Writing for the transport fault transaction.
+    async fn audit_batch_progress(
+        &self,
+        tickets: &[crate::admission::DispatchTicket],
+        result: &Result<(), SendError>,
+    ) -> Result<Vec<(u64, homesense_core::DeviceId)>, String> {
+        let refs = tickets.iter().map(|t| &t.frame).collect::<Vec<_>>();
+        let written = result.as_ref().map_or_else(
+            |e| e.bytes_written,
+            |_| refs.iter().map(|f| f.encoded_len()).sum(),
+        );
+        let progress = hb_transport::operation_progress(&refs, written)
+            .ok_or("invalid batch byte progress")?;
+        let mut completed = vec![];
+        for (ticket, state) in tickets.iter().zip(progress) {
+            match state {
+                hb_transport::OperationProgress::Complete => {
+                    self.admission
+                        .finish_write(ticket.command.id, true)
+                        .await
+                        .map_err(|e| format!("complete batch member: {e:?}"))?;
+                    completed.push((ticket.command.id, ticket.command.device_id.clone()));
+                }
+                hb_transport::OperationProgress::Unsent => self
+                    .admission
+                    .finish_unsent(ticket.command.id)
+                    .await
+                    .map_err(|e| format!("unsent batch member: {e:?}"))?,
+                hb_transport::OperationProgress::Partial => {}
+            }
+        }
+        Ok(completed)
     }
     /// One shared write slot for queries and expanded control frames. Waiting
     /// precedes dispatch so STOP priority and deadlines are checked afterwards.
@@ -73,7 +224,9 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
         }
         slot
     }
-    pub(crate) fn admission(&self)->&Admission {&self.admission}
+    pub(crate) fn admission(&self) -> &Admission {
+        &self.admission
+    }
     pub(crate) fn belongs_to(&self, admission: &Admission) -> bool {
         self.admission.boot_id() == admission.boot_id()
     }
@@ -81,7 +234,10 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
         self.audited_receive_failure.as_deref()
     }
     pub(crate) fn gateway_ids(&self) -> Vec<String> {
-        self.local.as_ref().map_or_else(||self.connections.keys().cloned().collect(),|local|local.epochs.keys().cloned().collect())
+        self.local.as_ref().map_or_else(
+            || self.connections.keys().cloned().collect(),
+            |local| local.epochs.keys().cloned().collect(),
+        )
     }
     pub(crate) fn same_runtime(&self, other: &Self) -> bool {
         self.admission.boot_id() == other.admission.boot_id()
@@ -111,12 +267,40 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
         guard.complete = true;
         result
     }
-    pub(crate) fn write_interval_ms(&self)->u64 {
+    pub(crate) fn write_interval_ms(&self) -> u64 {
         self.admission.write_interval.as_millis() as u64
     }
-    pub(crate) async fn idle_for_refresh(&self,controller:uuid::Uuid,generation:crate::admission::TaskGeneration)->bool {
-        self.admission.diagnostics(controller,generation).await
-            .is_ok_and(|state|state.ready() && !state.in_flight)
+    pub(crate) async fn idle_for_refresh(
+        &self,
+        controller: uuid::Uuid,
+        generation: crate::admission::TaskGeneration,
+    ) -> bool {
+        self.admission
+            .diagnostics(controller, generation)
+            .await
+            .is_ok_and(|state| state.ready() && !state.in_flight && !state.protected_queued)
+    }
+    pub(crate) async fn protected_controls_ready(
+        &self,
+        controller: uuid::Uuid,
+        generation: crate::admission::TaskGeneration,
+    ) -> bool {
+        self.admission
+            .diagnostics(controller, generation)
+            .await
+            .is_ok_and(|state| state.ready() && !state.in_flight && state.protected_queued)
+    }
+    /// Retrying the same bounded read must not be blocked by a control queued
+    /// after that read began. New reads still defer to protected controls.
+    pub(crate) async fn can_retry_read(
+        &self,
+        controller: uuid::Uuid,
+        generation: crate::admission::TaskGeneration,
+    ) -> bool {
+        self.admission
+            .diagnostics(controller, generation)
+            .await
+            .is_ok_and(|state| state.ready() && !state.in_flight)
     }
     /// Internal synchronization query only. PreparedFrame validates capability,
     /// channel, verification and execution context before any bytes are sent.
@@ -128,13 +312,73 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
         context: homesense_core::ExecutionContext,
         timeout_ms: u64,
     ) -> Result<(), String> {
-        self.query_status_scope(gateway, module, channel, context, timeout_ms, false).await
+        self.query_status_scope(gateway, module, channel, context, timeout_ms, false)
+            .await
+    }
+    pub(crate) fn finish_status_read(&mut self, gateway: &str) {
+        self.read_permits.remove(gateway);
+    }
+    pub(crate) fn finish_all_status_reads(&mut self) {
+        self.read_permits.clear();
+    }
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) async fn try_query_status_scope(
+        &mut self,
+        gateway: &str,
+        module: &homesense_core::ModuleSpec,
+        channel: homesense_core::Channel,
+        context: homesense_core::ExecutionContext,
+        timeout_ms: u64,
+        whole_module: bool,
+    ) -> Result<bool, String> {
+        self.send_status_scope(
+            gateway,
+            module,
+            channel,
+            context,
+            timeout_ms,
+            whole_module,
+            true,
+        )
+        .await
     }
     pub(crate) async fn query_status_scope(
-        &mut self, gateway: &str, module: &homesense_core::ModuleSpec,
-        channel: homesense_core::Channel, context: homesense_core::ExecutionContext,
-        timeout_ms: u64, whole_module: bool,
+        &mut self,
+        gateway: &str,
+        module: &homesense_core::ModuleSpec,
+        channel: homesense_core::Channel,
+        context: homesense_core::ExecutionContext,
+        timeout_ms: u64,
+        whole_module: bool,
     ) -> Result<(), String> {
+        if self
+            .send_status_scope(
+                gateway,
+                module,
+                channel,
+                context,
+                timeout_ms,
+                whole_module,
+                false,
+            )
+            .await?
+        {
+            Ok(())
+        } else {
+            Err("status read deferred".into())
+        }
+    }
+    #[allow(clippy::too_many_arguments)]
+    async fn send_status_scope(
+        &mut self,
+        gateway: &str,
+        module: &homesense_core::ModuleSpec,
+        channel: homesense_core::Channel,
+        context: homesense_core::ExecutionContext,
+        timeout_ms: u64,
+        whole_module: bool,
+        deferrable: bool,
+    ) -> Result<bool, String> {
         if self.failed || timeout_ms == 0 || timeout_ms > 5000 {
             return Err("invalid query owner or timeout".into());
         }
@@ -145,15 +389,35 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
             .epoch();
         let frame = if whole_module {
             hb_transport::PreparedFrame::prepare_module_query(module, context, epoch)
-        } else { hb_transport::PreparedFrame::prepare(
-            module,
-            channel,
-            homesense_core::Command::Query,
-            context,
-            epoch,
-        ) }
+        } else {
+            hb_transport::PreparedFrame::prepare(
+                module,
+                channel,
+                homesense_core::Command::Query,
+                context,
+                epoch,
+            )
+        }
         .map_err(|e| e.to_string())?;
         let mut slot = self.wait_write_slot().await;
+        let budget_end_ms = self
+            .now_ms()
+            .checked_add(timeout_ms)
+            .and_then(|end| end.checked_add(timeout_ms.min(500)))
+            .ok_or("query budget overflow")?;
+        if !self.read_permits.contains_key(gateway) {
+            match self
+                .admission
+                .reserve_physical_read(gateway.into(), budget_end_ms)
+                .await
+            {
+                Ok(permit) => {
+                    self.read_permits.insert(gateway.into(), permit);
+                }
+                Err(hap::server::WriteStatus::ResourceBusy) if deferrable => return Ok(false),
+                Err(error) => return Err(format!("status read reservation: {error:?}")),
+            }
+        }
         let deadline = self
             .now_ms()
             .checked_add(timeout_ms)
@@ -177,10 +441,17 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
         .map_err(|e| format!("query worker: {e}"))?;
         if let Err(error) = sent {
             if self.local_mode() && network_send_failure(&error) {
-                let wire=homesense_core::gateway_scope::WireScope::from_persisted(gateway.into(),epoch).map_err(|e|e.to_string())?;
-                let audit=self.admission.gateway_fault(wire.clone()).await.map_err(|e|format!("local query audit: {e:?}"))?;
-                self.local_record_fault(wire,audit)?;
-                self.failed=false;guard.complete=true;
+                let wire =
+                    homesense_core::gateway_scope::WireScope::from_persisted(gateway.into(), epoch)
+                        .map_err(|e| e.to_string())?;
+                let audit = self
+                    .admission
+                    .gateway_fault(wire.clone())
+                    .await
+                    .map_err(|e| format!("local query audit: {e:?}"))?;
+                self.local_record_fault(wire, audit)?;
+                self.failed = false;
+                guard.complete = true;
                 return Err(format!("local query send: {error:?}"));
             }
             let _ = self.admission.transport_failed().await;
@@ -190,7 +461,7 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
         self.connections.insert(gateway.to_owned(), connection);
         self.failed = false;
         guard.complete = true;
-        Ok(())
+        Ok(true)
     }
     /// One bounded read. Unknown frames remain raw until configuration decoding.
     pub async fn receive(&mut self, gateway: &str) -> Result<GatewayRead, String> {
@@ -227,10 +498,17 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
                 // cancellation of the admission actor. Audit failure or actual
                 // future cancellation still leaves the guard incomplete.
                 let audited = self.admission.transport_failed().await.is_ok();
-                guard.complete = audited && matches!(error.kind(),
-                    std::io::ErrorKind::ConnectionReset | std::io::ErrorKind::ConnectionAborted
-                    | std::io::ErrorKind::BrokenPipe | std::io::ErrorKind::NotConnected);
-                if guard.complete { self.audited_receive_failure = Some(gateway.to_owned()); }
+                guard.complete = audited
+                    && matches!(
+                        error.kind(),
+                        std::io::ErrorKind::ConnectionReset
+                            | std::io::ErrorKind::ConnectionAborted
+                            | std::io::ErrorKind::BrokenPipe
+                            | std::io::ErrorKind::NotConnected
+                    );
+                if guard.complete {
+                    self.audited_receive_failure = Some(gateway.to_owned());
+                }
                 return Err(format!("receive: {error}"));
             }
         };
@@ -252,9 +530,22 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
             result,
         })
     }
-    /// Write at most one ticket using a blocking I/O worker, then await audit.
+    /// Write one bounded admitted phase using a blocking I/O worker, then audit.
     /// Cancellation poisons this owner; a removed connection is never reused.
     pub async fn step(&mut self) -> Result<Option<WriteOutcome>, String> {
+        self.step_with_frame_budget(hb_transport::MAX_BATCH_FRAMES)
+            .await
+    }
+    /// Explicit scheduling budget, also useful for observing exact member
+    /// cancellation boundaries. A logical TS6 triplet cannot be split; a budget
+    /// too small for a complete operation fails closed before sending bytes.
+    pub async fn step_with_frame_budget(
+        &mut self,
+        frame_budget: usize,
+    ) -> Result<Option<WriteOutcome>, String> {
+        if !(1..=hb_transport::MAX_BATCH_FRAMES).contains(&frame_budget) {
+            return Err("invalid physical frame budget".into());
+        }
         if self.failed {
             return Err("transport owner requires recovery".into());
         }
@@ -274,42 +565,44 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
             guard.complete = true;
             return Ok(None);
         };
-        let id = ticket.command.id;
-        let device_id = ticket.command.device_id.clone();
-        let gateway = ticket.gateway_id.clone();
+        let tickets = self.collect_tickets(ticket, frame_budget).await?;
+        let id = tickets[0].command.id;
+        let device_id = tickets[0].command.device_id.clone();
+        let gateway = tickets[0].gateway_id.clone();
         let Some(mut connection) = self.connections.remove(&gateway) else {
-            let _ = self.admission.finish_write(id, false).await;
+            let _ = self.admission.transport_failed().await;
             return Err("no connection for configured gateway".into());
         };
         let clock = self.admission.clone();
-        let deadline_ms=ticket.command.deadline_ms;
-        let (connection, result, send_started_ms, send_completed_ms) = tokio::task::spawn_blocking(move || {
-            let send_started_ms=clock.monotonic_ms();
-            let result = send_ticket(&ticket,&mut connection,||clock.monotonic_ms());
-            let send_completed_ms=clock.monotonic_ms();
+        let (connection, tickets, result, _slot) = tokio::task::spawn_blocking(move || {
+            let result = send_tickets(&tickets, &mut connection, || clock.monotonic_ms());
             *slot = Some(tokio::time::Instant::now() + clock.write_interval);
-            (connection, result, send_started_ms, send_completed_ms)
+            (connection, tickets, result, slot)
         })
         .await
-        .map_err(|e| format!("transport worker: {e}"))?;
-        let audit_requested_ms=self.admission.monotonic_ms();
-        if let Err(error)=&result {log::warn!("transport_send_failed command={} reason={:?} bytes_written={} send_started_ms={} send_completed_ms={} deadline_ms={}",id,error.reason,error.bytes_written,send_started_ms,send_completed_ms,deadline_ms);}
-        self.admission
-            .finish_write(id, result.is_ok())
-            .await
-            .map_err(|e| {
-                log::warn!("transport_write_audit_failed command={} complete={} send_started_ms={} send_completed_ms={} audit_requested_ms={} deadline_ms={} error={:?}",id,result.is_ok(),send_started_ms,send_completed_ms,audit_requested_ms,deadline_ms,e);
-                format!("write audit: {e:?}")
-            })?;
+        .map_err(|e| format!("transport batch worker: {e}"))?;
+        let completed = self.audit_batch_progress(&tickets, &result).await?;
         if result.is_ok() {
             self.connections.insert(gateway, connection);
             self.failed = false;
+        } else {
+            self.admission
+                .transport_failed()
+                .await
+                .map_err(|e| format!("batch failure audit: {e:?}"))?;
         }
         guard.complete = true;
         Ok(Some(WriteOutcome {
             command_id: id,
             device_id,
             result,
+            completed: completed.clone(),
+            physical_frames: tickets.iter().map(|t| t.frame.physical_frames()).sum(),
+            refresh_devices: tickets
+                .iter()
+                .filter(|t| completed.iter().any(|(id, _)| *id == t.command.id))
+                .flat_map(|t| t.refresh_devices.clone())
+                .collect(),
         }))
     }
 }
@@ -320,85 +613,222 @@ mod pacing_tests {
     #[tokio::test]
     async fn queries_and_controls_share_the_same_write_spacing() {
         for interval_ms in [20, 50] {
-        use homesense_core::{ExecutionContext,DeviceId,Command,Percent,LevelTransition};
-        let path=std::env::temp_dir().join(format!("pacing-{}.sqlite",uuid::Uuid::new_v4()));
-        let bytes=include_bytes!("../../../config/simulation.json");
-        homesense_storage::Store::open(&path).unwrap().publish_configuration(None,bytes,ExecutionContext::Simulation,&[]).unwrap();
-        let controller=uuid::Uuid::new_v4();
-        let admission=Admission::open(path.clone(),crate::admission::Options{context:ExecutionContext::Simulation,write_interval:std::time::Duration::from_millis(interval_ms),..Default::default()},move |id|id==controller).await.unwrap();
-        admission.synchronized(1,1).await.unwrap();
-        let writes=std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
-        struct Stream(std::sync::Arc<std::sync::Mutex<Vec<std::time::Instant>>>);
-        impl Read for Stream {fn read(&mut self,_:&mut [u8])->std::io::Result<usize>{Err(std::io::ErrorKind::WouldBlock.into())}}
-        impl Write for Stream {
-            fn write(&mut self,bytes:&[u8])->std::io::Result<usize>{self.0.lock().unwrap().push(std::time::Instant::now());Ok(bytes.len())}
-            fn flush(&mut self)->std::io::Result<()>{Ok(())}
-        }
-        let mut owner=TransportOwner::new(admission.clone(),[("simulation".into(),Connection::for_simulation(Stream(writes.clone()),1))].into());
-        let mut other=TransportOwner::new(admission.clone(),[("simulation".into(),Connection::for_simulation(Stream(writes.clone()),1))].into());
-        let config=homesense_config::Configuration::parse(bytes,ExecutionContext::Simulation).unwrap();
-        let id=DeviceId::new("simulation:light").unwrap();
-        let (device,module)=config.binding(&id).unwrap();
-        owner.query_status("simulation",module,device.channel,ExecutionContext::Simulation,100).await.unwrap();
-        admission.submit(homesense_hap::requests::Batch{controller,intents:vec![homesense_hap::requests::Intent{device:id.clone(),command:Command::SetLevel{level:Percent::new(30).unwrap(),transition:LevelTransition::Immediate}}],subscriptions:vec![]}).await.unwrap();
-        other.step().await.unwrap().unwrap().result.unwrap();
-        owner.query_status("simulation",module,device.channel,ExecutionContext::Simulation,100).await.unwrap();
-        {
-            let times=writes.lock().unwrap();
-            assert_eq!(times.len(),3);
-            assert!(times.windows(2).all(|pair|pair[1].duration_since(pair[0])>=std::time::Duration::from_millis(interval_ms)));
-        }
-        admission.shutdown().await.unwrap();
-        drop(owner);
-        for suffix in ["","-wal","-shm"] {let _=std::fs::remove_file(format!("{}{suffix}",path.display()));}
-        let _=std::fs::remove_file(path.with_extension("runtime.lock"));
+            use homesense_core::{Command, DeviceId, ExecutionContext, LevelTransition, Percent};
+            let path = std::env::temp_dir().join(format!("pacing-{}.sqlite", uuid::Uuid::new_v4()));
+            let bytes = include_bytes!("../../../config/simulation.json");
+            homesense_storage::Store::open(&path)
+                .unwrap()
+                .publish_configuration(None, bytes, ExecutionContext::Simulation, &[])
+                .unwrap();
+            let controller = uuid::Uuid::new_v4();
+            let admission = Admission::open(
+                path.clone(),
+                crate::admission::Options {
+                    context: ExecutionContext::Simulation,
+                    write_interval: std::time::Duration::from_millis(interval_ms),
+                    ..Default::default()
+                },
+                move |id| id == controller,
+            )
+            .await
+            .unwrap();
+            admission.synchronized(1, 1).await.unwrap();
+            let writes = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+            struct Stream(std::sync::Arc<std::sync::Mutex<Vec<std::time::Instant>>>);
+            impl Read for Stream {
+                fn read(&mut self, _: &mut [u8]) -> std::io::Result<usize> {
+                    Err(std::io::ErrorKind::WouldBlock.into())
+                }
+            }
+            impl Write for Stream {
+                fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+                    self.0.lock().unwrap().push(std::time::Instant::now());
+                    Ok(bytes.len())
+                }
+                fn flush(&mut self) -> std::io::Result<()> {
+                    Ok(())
+                }
+            }
+            let mut owner = TransportOwner::new(
+                admission.clone(),
+                [(
+                    "simulation".into(),
+                    Connection::for_simulation(Stream(writes.clone()), 1),
+                )]
+                .into(),
+            );
+            let mut other = TransportOwner::new(
+                admission.clone(),
+                [(
+                    "simulation".into(),
+                    Connection::for_simulation(Stream(writes.clone()), 1),
+                )]
+                .into(),
+            );
+            let config =
+                homesense_config::Configuration::parse(bytes, ExecutionContext::Simulation)
+                    .unwrap();
+            let id = DeviceId::new("simulation:light").unwrap();
+            let (device, module) = config.binding(&id).unwrap();
+            owner
+                .query_status(
+                    "simulation",
+                    module,
+                    device.channel,
+                    ExecutionContext::Simulation,
+                    100,
+                )
+                .await
+                .unwrap();
+            admission
+                .submit(homesense_hap::requests::Batch {
+                    controller,
+                    intents: vec![homesense_hap::requests::Intent {
+                        device: id.clone(),
+                        command: Command::SetLevel {
+                            level: Percent::new(30).unwrap(),
+                            transition: LevelTransition::Immediate,
+                        },
+                    }],
+                    subscriptions: vec![],
+                })
+                .await
+                .unwrap();
+            other.step().await.unwrap().unwrap().result.unwrap();
+            owner
+                .query_status(
+                    "simulation",
+                    module,
+                    device.channel,
+                    ExecutionContext::Simulation,
+                    100,
+                )
+                .await
+                .unwrap();
+            {
+                let times = writes.lock().unwrap();
+                assert_eq!(times.len(), 3);
+                assert!(times.windows(2).all(|pair| pair[1].duration_since(pair[0])
+                    >= std::time::Duration::from_millis(interval_ms)));
+            }
+            admission.shutdown().await.unwrap();
+            drop(owner);
+            for suffix in ["", "-wal", "-shm"] {
+                let _ = std::fs::remove_file(format!("{}{suffix}", path.display()));
+            }
+            let _ = std::fs::remove_file(path.with_extension("runtime.lock"));
         }
     }
     #[tokio::test]
     async fn cancelled_query_keeps_slot_until_blocking_writer_finishes() {
-        use homesense_core::{ExecutionContext, DeviceId};
-        let path=std::env::temp_dir().join(format!("pacing-cancel-{}.sqlite",uuid::Uuid::new_v4()));
-        let bytes=include_bytes!("../../../config/simulation.json");
-        homesense_storage::Store::open(&path).unwrap().publish_configuration(None,bytes,ExecutionContext::Simulation,&[]).unwrap();
-        let controller=uuid::Uuid::new_v4();
-        let admission=Admission::open(path.clone(),crate::admission::Options{context:ExecutionContext::Simulation,..Default::default()},move |id|id==controller).await.unwrap();
-        admission.synchronized(1,1).await.unwrap();
-        let (started,ready)=tokio::sync::oneshot::channel();
-        let (release,blocked)=std::sync::mpsc::channel();
+        use homesense_core::{DeviceId, ExecutionContext};
+        let path =
+            std::env::temp_dir().join(format!("pacing-cancel-{}.sqlite", uuid::Uuid::new_v4()));
+        let bytes = include_bytes!("../../../config/simulation.json");
+        homesense_storage::Store::open(&path)
+            .unwrap()
+            .publish_configuration(None, bytes, ExecutionContext::Simulation, &[])
+            .unwrap();
+        let controller = uuid::Uuid::new_v4();
+        let admission = Admission::open(
+            path.clone(),
+            crate::admission::Options {
+                context: ExecutionContext::Simulation,
+                ..Default::default()
+            },
+            move |id| id == controller,
+        )
+        .await
+        .unwrap();
+        admission.synchronized(1, 1).await.unwrap();
+        let (started, ready) = tokio::sync::oneshot::channel();
+        let (release, blocked) = std::sync::mpsc::channel();
         struct Blocked {
-            started:Option<tokio::sync::oneshot::Sender<()>>,
-            release:std::sync::Mutex<std::sync::mpsc::Receiver<()>>,
+            started: Option<tokio::sync::oneshot::Sender<()>>,
+            release: std::sync::Mutex<std::sync::mpsc::Receiver<()>>,
         }
-        impl Read for Blocked {fn read(&mut self,_:&mut [u8])->std::io::Result<usize>{Err(std::io::ErrorKind::WouldBlock.into())}}
+        impl Read for Blocked {
+            fn read(&mut self, _: &mut [u8]) -> std::io::Result<usize> {
+                Err(std::io::ErrorKind::WouldBlock.into())
+            }
+        }
         impl Write for Blocked {
-            fn write(&mut self,bytes:&[u8])->std::io::Result<usize>{
-                if let Some(started)=self.started.take(){let _=started.send(());}
-                self.release.lock().unwrap().recv_timeout(std::time::Duration::from_secs(10)).map_err(std::io::Error::other)?;
+            fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+                if let Some(started) = self.started.take() {
+                    let _ = started.send(());
+                }
+                self.release
+                    .lock()
+                    .unwrap()
+                    .recv_timeout(std::time::Duration::from_secs(10))
+                    .map_err(std::io::Error::other)?;
                 Ok(bytes.len())
             }
-            fn flush(&mut self)->std::io::Result<()>{Ok(())}
+            fn flush(&mut self) -> std::io::Result<()> {
+                Ok(())
+            }
         }
-        let mut owner=TransportOwner::new(admission.clone(),[("simulation".into(),Connection::for_simulation(Blocked{started:Some(started),release:std::sync::Mutex::new(blocked)},1))].into());
-        let config=homesense_config::Configuration::parse(bytes,ExecutionContext::Simulation).unwrap();
-        let task=tokio::spawn(async move {
-            let id=DeviceId::new("simulation:light").unwrap();
-            let (device,module)=config.binding(&id).unwrap();
-            owner.query_status("simulation",module,device.channel,ExecutionContext::Simulation,5000).await
+        let mut owner = TransportOwner::new(
+            admission.clone(),
+            [(
+                "simulation".into(),
+                Connection::for_simulation(
+                    Blocked {
+                        started: Some(started),
+                        release: std::sync::Mutex::new(blocked),
+                    },
+                    1,
+                ),
+            )]
+            .into(),
+        );
+        let config =
+            homesense_config::Configuration::parse(bytes, ExecutionContext::Simulation).unwrap();
+        let task = tokio::spawn(async move {
+            let id = DeviceId::new("simulation:light").unwrap();
+            let (device, module) = config.binding(&id).unwrap();
+            owner
+                .query_status(
+                    "simulation",
+                    module,
+                    device.channel,
+                    ExecutionContext::Simulation,
+                    5000,
+                )
+                .await
         });
-        tokio::time::timeout(std::time::Duration::from_secs(2),ready).await.unwrap().unwrap();
+        tokio::time::timeout(std::time::Duration::from_secs(2), ready)
+            .await
+            .unwrap()
+            .unwrap();
         task.abort();
         assert!(task.await.unwrap_err().is_cancelled());
-        assert!(admission.write_slot.try_lock().is_err(),"writer must retain slot after caller cancellation");
+        assert!(
+            admission.write_slot.try_lock().is_err(),
+            "writer must retain slot after caller cancellation"
+        );
         release.send(()).unwrap();
-        let slot=tokio::time::timeout(std::time::Duration::from_secs(2),admission.write_slot.clone().lock_owned()).await.unwrap();
-        assert!(slot.is_some(),"completed writer must record the next allowed write time");
+        let slot = tokio::time::timeout(
+            std::time::Duration::from_secs(2),
+            admission.write_slot.clone().lock_owned(),
+        )
+        .await
+        .unwrap();
+        assert!(
+            slot.is_some(),
+            "completed writer must record the next allowed write time"
+        );
         drop(slot);
-        assert!(admission.task_generation().await.is_err(),"cancelled I/O still closes admission");
+        assert!(
+            admission.task_generation().await.is_err(),
+            "cancelled I/O still closes admission"
+        );
         admission.shutdown().await.unwrap();
-        for suffix in ["","-wal","-shm"] {let _=std::fs::remove_file(format!("{}{suffix}",path.display()));}
-        let _=std::fs::remove_file(path.with_extension("runtime.lock"));
+        for suffix in ["", "-wal", "-shm"] {
+            let _ = std::fs::remove_file(format!("{}{suffix}", path.display()));
+        }
+        let _ = std::fs::remove_file(path.with_extension("runtime.lock"));
     }
-
 }
 
 #[cfg(test)]

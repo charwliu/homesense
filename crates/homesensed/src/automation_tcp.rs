@@ -259,6 +259,7 @@ async fn serve_inner_running(devices:&[u8],rules:&[u8],directory:&Path,control:c
                 None => AutomationRuntime::load_with_startup(admission.clone(),controller,wall_ms()?,1000,64,Default::default(),startup).await?,
             };
             owner.configure_output_refresh(&config,controller,admission.task_generation().await.map_err(|e|format!("{e:?}"))?,ExecutionContext::Live,1000,config.refresh_policy().observation_max_age_ms())?;
+            owner.configure_consumer_refresh(&runtime.refresh_requirements(&config)?)?;
             if hap.is_none() && let (Some(settings),Some(identity))=(&hap_settings,&identity) {hap=crate::hap_endpoint::Endpoint::start(settings,identity,&admission,controller,&runtime,owner.snapshot(),management.is_some() || management_settings.is_some()).await?;}
             if bridges.is_none() && let Some(plan)=&hap_plan {bridges=Some(crate::hap_bridge_group::Group::start(plan,directory,&admission,controller,&runtime,owner.snapshot()).await?);}
             #[cfg(test)]
@@ -327,7 +328,7 @@ async fn serve_inner_running(devices:&[u8],rules:&[u8],directory:&Path,control:c
                             if request.abandoned() {request.complete(Err("publication abandoned before barrier".into()));continue;}
                             if management.is_some() {
                                 let document=crate::configuration_publish::validate_automation(&candidate,request.rules(),ExecutionContext::Live).map_err(|e|e.to_string())?;
-                                if document.scene_catalog().len()>64 {request.complete(Err("management scene capacity exceeded".into()));continue;}
+                                if let Err(error)=crate::web_api::check_catalog_capacity(document.scene_catalog().len()) {request.complete(Err(error));continue;}
                             }
                             let previous=match &management {Some(endpoint)=>endpoint.pause()?,None=>None};
                             let source=path.clone();let expected=request.expected_revision();

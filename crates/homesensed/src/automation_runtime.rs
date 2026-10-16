@@ -119,6 +119,7 @@ impl AutomationRuntime {
         Ok(result)
     }
     pub(crate) fn observation_max_age_ms(&self)->u64 {self.observation_max_age_ms}
+    pub(crate) fn refresh_requirements(&self,config:&homesense_config::Configuration)->Result<std::collections::BTreeMap<homesense_core::DeviceId,u64>,String>{crate::consumer_refresh::requirements(config,&self.document)}
     pub fn control(&self) -> crate::automation_control::Control {
         self.control.clone()
     }

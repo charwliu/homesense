@@ -29,7 +29,8 @@ impl Read for MemoryWire {
 }
 impl Write for MemoryWire {
     fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
-        let frame: [u8; 5] = bytes.try_into().unwrap();
+        let(frames,tail)=bytes.as_chunks::<5>();assert!(tail.is_empty());
+        for &frame in frames{
         assert_eq!((frame[0], frame[4]), (0xae, 0xee));
         let mut bus = self.0.lock().unwrap();
         if [0x41, 0x42].contains(&frame[1]) {
@@ -37,6 +38,7 @@ impl Write for MemoryWire {
             bus.leds.insert((frame[1], frame[2]), frame[3] == 0xf1);
         }
         bus.frames.push(frame);
+        }
         Ok(bytes.len())
     }
     fn flush(&mut self) -> std::io::Result<()> {

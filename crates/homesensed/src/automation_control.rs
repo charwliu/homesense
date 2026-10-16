@@ -14,6 +14,7 @@ pub enum Action {
     AwayOff{controller:Uuid,revision:u64,lease:crate::away_auth::Authorization,submit:bool},
     ModuleQuery{controller:Uuid,revision:u64,module_id:String,scope:crate::module_queries::Scope,submit:bool},
     ModuleQueryStatus{controller:Uuid,revision:u64,module_id:String,scope:crate::module_queries::Scope,commands:Vec<u64>},
+    MotorBinding {controller:Uuid,revision:u64,device:homesense_core::DeviceId},
     ModuleBinding {controller:Uuid,revision:u64,module_id:String,channel:u8},
     ModuleCommand {controller:Uuid,revision:u64,module_id:String,channel:u8,allowed_devices:std::collections::BTreeSet<String>,action:crate::management_devices::DeviceAction},
     Modules {controller:Uuid,revision:u64,offset:usize,limit:usize},
@@ -137,15 +138,43 @@ pub struct Control {
     sender: mpsc::Sender<Request>,
     instance: Uuid,
     unavailable:Option<std::sync::Arc<Unavailable>>,
+    selection_reader: SelectionReaderSlot,
 }
 struct Unavailable {admission:Admission,generation:TaskGeneration}
+
+type SelectionReaderSlot = std::sync::Arc<std::sync::Mutex<Option<std::sync::Arc<SelectionReader>>>>;
+struct SelectionReader {
+    admission: Admission,
+    controller: Uuid,
+    generation: TaskGeneration,
+    document: std::sync::Arc<Document>,
+    stop: tokio::sync::watch::Receiver<bool>,
+}
+async fn selection_reply(admission:&Admission,generation:&TaskGeneration,document:&Document,controller:Uuid,revision:u64)->Result<Reply,String> {
+    if revision!=document.revision {return Err("scene state revision expired".into());}
+    let snapshot=admission.scene_selection_snapshot(controller,generation.clone(),crate::scene_switches::variable_names(document)).await.map_err(|e|format!("{e:?}"))?;
+    if !admission.diagnostics(controller,generation.clone()).await.map_err(|e|format!("{e:?}"))?.mapping_readable() {return Err("scene selection runtime not ready".into());}
+    crate::scene_switches::details(document,&snapshot).map(Reply::SceneSelectionDetails)
+}
+impl SelectionReader {
+    fn active(&self)->bool { !*self.stop.borrow() && self.stop.has_changed().is_ok() }
+    async fn read(&self,controller:Uuid,revision:u64)->Result<Reply,String> {
+        if !self.active(){return Err("automation runtime stopped".into());}
+        // Same base-controller authorization and same live Admission generation
+        // as the queued runtime path. Only immutable definitions are retained;
+        // every selection/expiry/readability check still runs in Admission.
+        self.admission.variable_snapshot(self.controller,self.generation.clone(),vec![]).await.map_err(|e|format!("{e:?}"))?;
+        if !self.admission.source_valid(){return Err("source authority expired after runtime read".into());}
+        selection_reply(&self.admission,&self.generation,&self.document,controller,revision).await
+    }
+}
 
 impl Control {
     /// Non-secret identity of this request channel, retained by every view/clone.
     /// A rebuilt scheduler may reuse numeric run handles within the same boot.
     pub(crate) fn instance_id(&self) -> Uuid { self.instance }
     pub(crate) fn unavailable(&self,admission:Admission,generation:TaskGeneration)->Self {
-        Self{sender:self.sender.clone(),instance:self.instance,unavailable:Some(std::sync::Arc::new(Unavailable{admission,generation}))}
+        Self{sender:self.sender.clone(),instance:self.instance,unavailable:Some(std::sync::Arc::new(Unavailable{admission,generation})),selection_reader:self.selection_reader.clone()}
     }
     /// Bounded admission, no retry. A lost response after execution is ambiguous;
     /// callers must inspect history rather than resubmit an action automatically.
@@ -169,6 +198,20 @@ impl Control {
                 },
                 _=>Err("gateway unavailable; control runtime is gated".into()),
             };
+        }
+        if watch.is_none() && let Action::SceneSelectionDetails {controller,revision}=&action {
+            let reader=self.selection_reader.lock().map_err(|_|"scene read capability poisoned")?.clone();
+            if let Some(reader)=reader {
+                if self.sender.is_closed(){return Err("automation runtime stopped".into());}
+                let result=tokio::time::timeout(Duration::from_secs(5),reader.read(*controller,*revision)).await
+                    .map_err(|_|"automation control response timed out; outcome may be unknown".to_owned())?;
+                // Closing/replacing a published owner cannot lend this capability
+                // to a late read, even if the old actor has not shut down yet.
+                if self.sender.is_closed() || !reader.active() || !self.selection_reader.lock().map_err(|_|"scene read capability poisoned")?.as_ref().is_some_and(|current|std::sync::Arc::ptr_eq(current,&reader)) {
+                    return Err("automation runtime stopped".into());
+                }
+                return result;
+            }
         }
         // Keep the channel wait state behind the bounded request boundary.
         // Callers may already retain a sizeable HTTP / joined-driver future.
@@ -214,6 +257,19 @@ impl Control {
             .map_err(|_| "automation control closed; outcome may be unknown".to_owned())?
     }
 }
+// Timing labels contain no scene/device identities, request data or credentials.
+fn managed_request_kind(action: &Action) -> Option<&'static str> {
+    match action {
+        Action::SceneSelectionDetails {..} => Some("scene_selection"),
+        Action::SceneCatalog {..} => Some("scene_catalog"),
+        Action::DeviceEvents {..} => Some("device_events"),
+        Action::Devices {..} => Some("devices"),
+        Action::SceneAction {..} | Action::SceneActions {..} | Action::SceneWrites {..} => Some("scene_write"),
+        Action::DeviceCommand {..} | Action::PanelDeviceCommand {..} | Action::ModuleCommand {..} => Some("device_write"),
+        Action::ModuleQuery {..} | Action::ModuleQueryStatus {..} | Action::Modules {..} => Some("module_read"),
+        _ => None,
+    }
+}
 pub(crate) struct Receiver {
     receiver: mpsc::Receiver<Request>,
     controller: Uuid,
@@ -221,11 +277,13 @@ pub(crate) struct Receiver {
     watchers: std::collections::VecDeque<Watcher>,
     relative: crate::native_scene::Manager,
     budget:homesense_core::rule::Budget,
+    selection_reader: SelectionReaderSlot,
 }
 pub(crate) fn channel(controller: Uuid, generation: TaskGeneration) -> (Control, Receiver) {
     let (sender, receiver) = mpsc::channel(32);
+    let selection_reader=SelectionReaderSlot::default();
     (
-        Control { sender,instance:Uuid::new_v4(),unavailable:None },
+        Control { sender,instance:Uuid::new_v4(),unavailable:None,selection_reader:selection_reader.clone() },
         Receiver {
             receiver,
             controller,
@@ -233,10 +291,24 @@ pub(crate) fn channel(controller: Uuid, generation: TaskGeneration) -> (Control,
             watchers: Default::default(),
             relative: Default::default(),
             budget:Default::default(),
+            selection_reader,
         },
     )
 }
 impl Receiver {
+    /// Production read-only capability. It uses the existing Admission owner,
+    /// never the physical work queue; manual poll-only channels keep old behavior.
+    pub(crate) async fn bind_selection_reader(&mut self,admission:&Admission,document:&Document,stop:tokio::sync::watch::Receiver<bool>)->Result<(),String> {
+        if *stop.borrow() || stop.has_changed().is_err() || self.receiver.is_closed() || document.revision!=self.generation.epochs.configuration
+            || admission.task_generation().await.map_err(|e|format!("{e:?}"))?!=self.generation {
+            return Err("scene read capability generation invalid".into());
+        }
+        *self.selection_reader.lock().map_err(|_|"scene read capability poisoned")?=Some(std::sync::Arc::new(SelectionReader {
+            admission:admission.clone(),controller:self.controller,generation:self.generation.clone(),document:std::sync::Arc::new(document.clone()),stop,
+        }));
+        Ok(())
+    }
+
     pub(crate) fn controller(&self)->Uuid {self.controller}
     pub(crate) fn set_budget(&mut self,budget:homesense_core::rule::Budget){self.budget=budget;}
 
@@ -261,7 +333,13 @@ impl Receiver {
             let Ok(request) = self.receiver.try_recv() else {
                 break;
             };
+            let read_kind=managed_request_kind(&request.action);
+            let handling_started=Instant::now();
+            let queued_ms=Duration::from_secs(5).saturating_sub(request.deadline.saturating_duration_since(handling_started)).as_millis();
             if request.reply.is_closed() {
+                if let Some(kind)=read_kind && queued_ms>=100 {
+                    log::warn!("automation_request_lag kind={kind} phase=abandoned queue_ms={queued_ms} handler_ms=0");
+                }
                 continue;
             }
             self.watchers.retain(|watcher|!watcher.sender.is_closed());
@@ -272,6 +350,20 @@ impl Receiver {
             // derived scene/fade/session state in the outer polling future.
             let result = Box::pin(async {
                 if request.source.as_ref().is_some_and(|source|!source.matches(&request.action)) {return Err("source authority expired before runtime handling".into());}
+                if let Some(source)=&request.source {
+                    let requested=match &request.action {
+                        Action::SceneAction{scene,execute:true,..}=>vec![scene.clone()],
+                        Action::SceneActions{scenes,..}=>scenes.iter().filter(|(_,on)|*on).map(|(id,_)|id.clone()).collect(),
+                        Action::SceneWrites{scenes,..}|Action::SceneActivityWrites{scenes,..}=>scenes.iter().filter(|(_,on)|*on==Some(true)).map(|(id,_)|id.clone()).collect(),
+                        _=>vec![],
+                    };
+                    if !requested.is_empty() {let bundle=admission.automation_bundle(self.controller,self.generation.clone()).await.map_err(|e|format!("{e:?}"))?;
+                        for scene in requested {if bundle.configuration.keypads().values().flat_map(|p|p.keys.values()).any(|k|matches!(&k.action,Some(homesense_config::keypad::KeyAction::SceneExecute{scene:id,..}) if *id==scene)) {
+                            let ids=homesense_config::keypad::scene_execute_devices(document,&bundle.configuration,&scene).map_err(|e|e.to_string())?;
+                            if ids.iter().any(|id|!source.permits_device(id.as_str())) {return Err("scene execute full-branch device scope denied".into());}
+                        }}
+                    }
+                }
                 let scoped_admission=admission.with_source(request.source.clone());
                 let admission=&scoped_admission;
                 let mut scene_scope=scenes.source_scope(request.source.clone());
@@ -365,6 +457,12 @@ impl Receiver {
                         if revision!=document.revision {return Err("device query revision expired".into());}
                         crate::management_devices::snapshot_with_max_age(admission,controller,self.generation.clone(),ids,feedback,max_age_ms).await.map(Reply::Devices)
                     },
+                    Action::MotorBinding {controller,revision,device}=>{
+                        if revision!=document.revision {return Err("motor binding revision expired".into());}
+                        let bundle=admission.automation_bundle(controller,self.generation.clone()).await.map_err(|e|format!("{e:?}"))?;
+                        bundle.configuration.motor_command(&device,homesense_core::MotorAction::Stop).map_err(|e|e.to_string())?;
+                        Ok(Reply::ModuleBinding(device))
+                    },
                     Action::ModuleBinding{controller,revision,module_id,channel}=>{
                         if revision!=document.revision{return Err("module binding revision expired".into());}
                         let bundle=admission.automation_bundle(controller,self.generation.clone()).await.map_err(|e|format!("{e:?}"))?;
@@ -414,6 +512,12 @@ impl Receiver {
                             let limit=admission.monotonic_ms().saturating_add(u64::try_from(remaining.as_millis()).unwrap_or(u64::MAX));
                             return admission.submit_keypad_press_for_revision(revision,controller,device,keypad,key,limit).await.map(Reply::CommandsAccepted).map_err(|e|format!("{e:?}"));
                         }
+                        if let crate::management_devices::DeviceAction::MotorPress {direction}=action {
+                            if request.reply.is_closed() || Instant::now()>=request.deadline {return Err("motor press expired or abandoned".into());}
+                            let remaining=request.deadline.saturating_duration_since(Instant::now());
+                            let limit=admission.monotonic_ms().saturating_add(u64::try_from(remaining.as_millis()).unwrap_or(u64::MAX));
+                            return admission.submit_motor_press_for_revision(revision,controller,device,direction,limit).await.map(Reply::CommandsAccepted).map_err(|e|format!("{e:?}"));
+                        }
                         let motor=match action {
                             crate::management_devices::DeviceAction::Open=>Some(homesense_core::MotorAction::Open),
                             crate::management_devices::DeviceAction::Close=>Some(homesense_core::MotorAction::Close),
@@ -447,12 +551,7 @@ impl Receiver {
                         if request.reply.is_closed() || Instant::now()>=request.deadline {return Err("cancellation expired or abandoned".into());}
                         scenes.cancel(run).await.map(Reply::Cancelled)
                     },
-                    Action::SceneSelectionDetails {controller,revision}=>{
-                        if revision!=document.revision {return Err("scene state revision expired".into());}
-                        let snapshot=admission.scene_selection_snapshot(controller,self.generation.clone(),crate::scene_switches::variable_names(document)).await.map_err(|e|format!("{e:?}"))?;
-                        if !admission.diagnostics(controller,self.generation.clone()).await.map_err(|e|format!("{e:?}"))?.mapping_readable() {return Err("scene selection runtime not ready".into());}
-                        crate::scene_switches::details(document,&snapshot).map(Reply::SceneSelectionDetails)
-                    },
+                    Action::SceneSelectionDetails {controller,revision}=>selection_reply(admission,&self.generation,document,controller,revision).await,
                     Action::SceneSwitchStates {controller,revision}=>{
                         if revision!=document.revision {return Err("scene state revision expired".into());}
                         let snapshot=admission.scene_selection_values(controller,self.generation.clone(),crate::scene_switches::variable_names(document)).await.map_err(|e|format!("{e:?}"))?;
@@ -620,6 +719,9 @@ impl Receiver {
                 && let (Some(scene),Some(sender))=(watch_scene,request.watch) {
                 self.watchers.push_back(Watcher{scene,sender,next:Instant::now()});
             }
+            if let Some(kind)=read_kind && (queued_ms>=100 || handling_started.elapsed()>=Duration::from_millis(100)) {
+                log::warn!("automation_request_lag kind={kind} phase=complete queue_ms={queued_ms} handler_ms={} abandoned={}",handling_started.elapsed().as_millis(),request.reply.is_closed());
+            }
             let _ = request.reply.send(result);
         }
         // At most one snapshot per cycle, and no more than 10 Hz per watcher.
@@ -642,6 +744,7 @@ impl Receiver {
         }
     }
     pub(crate) fn close(&mut self) {
+        if let Ok(mut reader)=self.selection_reader.lock(){*reader=None;}
         for watcher in self.watchers.drain(..) {
             watcher.sender.send_replace(Some(Err("automation runtime stopped".into())));
         }
@@ -660,3 +763,7 @@ impl Drop for Receiver {
 #[cfg(test)]
 #[path="ordinary_http_source_auth_tests.rs"]
 mod ordinary_http_source_auth_tests;
+
+#[cfg(test)]
+#[path="selection_reader_guard_tests.rs"]
+mod selection_reader_guard_tests;

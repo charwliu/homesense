@@ -66,7 +66,10 @@ impl Drop for Operation<'_> {
     }
 }
 impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
-    pub(crate) fn has_periodic_refresh(&self)->bool {self.output_refresh.is_some()||self.local_refresh.is_some()}
+    pub(crate) async fn protected_controls(&self,controller:uuid::Uuid)->Result<bool,String> {
+        let admission=self.transport.admission();let generation=admission.task_generation().await.map_err(|e|format!("{e:?}"))?;
+        admission.diagnostics(controller,generation).await.map(|state|state.ready() && state.protected_queued).map_err(|e|format!("{e:?}"))
+    }
     pub(crate) fn pause_refresh_for_background_leds(&mut self,pause:bool) {self.background_led_phase=pause;}
     pub(crate) fn take_completed_refresh_round(&mut self)->Option<CompletedRound> {
         if let Some(plan)=&mut self.local_refresh {plan.round.take()}else{self.output_refresh.as_mut().and_then(|plan|plan.round.take())}
@@ -442,6 +445,7 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
             }
             tokio::task::yield_now().await;
         }
+        self.transport.finish_status_read(&target.gateway);
         self.expire(self.transport.now_ms(), max_age_ms)?;
         Ok(())
     }
@@ -542,6 +546,7 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
     }
 
     pub(crate) fn invalidate(&mut self) {
+        self.transport.finish_all_status_reads();
         self.background_led_phase=false;
         self.output_refresh = None;
         self.unavailable = true;
@@ -593,9 +598,7 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
         let read = self.transport.receive(gateway).await?;
         let activity=match &read.result {
             hb_transport::Receive::Frames {frames,..}=>frames.iter().filter_map(|frame| {
-                let channel=frame.command.checked_sub(0xd0)?;
-                if !operation.feedback.module_truth().received_port_state(gateway,frame.address,channel).is_some_and(|state|matches!(state.kind,homesense_core::ModuleKind::Switch|homesense_core::ModuleKind::Dimmer)) {return None;}
-                let count=operation.feedback.module_truth().port_observation_count(gateway,frame.address,channel)?;
+                let (_,channel,count)=crate::adaptive_refresh::candidate(operation.feedback.module_truth(),gateway,frame)?;
                 (!self.output_refresh.as_ref().is_some_and(|plan|plan.solicited(gateway,frame.address,channel,read.received_at_ms))).then_some((frame.address,channel,count))
             }).collect::<Vec<_>>(),
             _=>vec![],
@@ -604,7 +607,7 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
         let activity=activity.iter().any(|(address,channel,before)|operation.feedback.module_truth().port_observation_count(gateway,*address,*channel).is_some_and(|count|count>*before));
         *operation.unavailable = matches!(read.result, hb_transport::Receive::Disconnected { .. });
         operation.complete = true;
-        if *operation.unavailable {self.output_refresh=None;}
+        if *operation.unavailable {self.output_refresh=None;self.transport.finish_status_read(gateway);}
         else if activity && let Some(plan)=&mut self.output_refresh {plan.activity(read.received_at_ms);}
         Ok(read)
     }
@@ -638,16 +641,16 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
             let blocked=self.local_refresh.as_ref().map_or_else(std::collections::BTreeSet::new,|plan|plan.blocked(self.transport.now_ms(),self.transport.write_interval_ms(),self.background_led_phase));
             let outcome=self.transport.local_step(&blocked).await?;
             if self.transport.has_local_fault() {self.poll_local_events(false).await?;}
-            if let Some(write)=&outcome && write.result.is_ok() && let Some(plan)=&mut self.local_refresh {plan.written(&write.device_id,self.transport.now_ms());}
+            if let Some(write)=&outcome && write.result.is_ok() && let Some(plan)=&mut self.local_refresh {for device in &write.refresh_devices{plan.written(device,self.transport.now_ms());}}
             return Ok(outcome);
         }
         // Keep a pending response serialized with later writes on this bus.
         // The runtime continues receiving, publishing and accepting requests;
         // accepted control tickets stay in Admission until the read resolves.
-        if self.output_refresh.as_ref().is_some_and(|plan| {
-            plan.awaiting_response() || (!self.background_led_phase && plan.defer_control(self.transport.now_ms(), self.transport.write_interval_ms()))
-        }) {
-            return Ok(None);
+        if let Some(plan)=&self.output_refresh {
+            if plan.awaiting_response() {return Ok(None);}
+            if !self.background_led_phase && plan.defer_control(self.transport.now_ms(),self.transport.write_interval_ms())
+                && !self.transport.protected_controls_ready(plan.controller,plan.generation.clone()).await {return Ok(None);}
         }
         let mut operation = Operation {
             feedback: &mut self.feedback,
@@ -656,7 +659,7 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
             complete: false,
         };
         let outcome = self.transport.step().await?;
-        if let Some(write)=&outcome && write.result.is_ok() && let Some(plan)=&mut self.output_refresh {plan.written(&write.device_id,self.transport.now_ms());}
+        if let Some(write)=&outcome && write.result.is_ok() && let Some(plan)=&mut self.output_refresh {for device in &write.refresh_devices{plan.written(device,self.transport.now_ms());}}
         if outcome.as_ref().is_none_or(|value| value.result.is_ok()) {
             operation.complete = true;
         }
@@ -674,3 +677,6 @@ mod module_query_tests;
 #[cfg(test)]
 #[path = "physical_startup_tests.rs"]
 mod physical_startup_tests;
+#[cfg(test)]
+#[path="panel_activity_tests.rs"]
+mod panel_activity_tests;

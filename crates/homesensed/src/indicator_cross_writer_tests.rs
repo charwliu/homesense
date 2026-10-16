@@ -54,6 +54,13 @@ async fn timed_off_override_then_external_on_reconciles_one_or_many_leds_once() 
                 break;
             }
         }
+        assert!(!off.iter().any(|frame|[0x41,0x42].contains(&frame[1])),"timed success LEDs stay Accepted before real Off feedback");
+        // The synchronizer deliberately does not see the brief Off interval.
+        tokio::time::sleep(Duration::from_millis(2)).await;
+        levels(&mut h, Some(0), Some(0));
+        // Normal feedback settlement is independent of LED synchronization.
+        // This closes the dimmer Off target without delivering an Off LED edge.
+        crate::control_batch::tick(&h.actor,h.controller,&h.feedback).await.unwrap();off.extend(drain_all(&h).await);
         assert!(
             off.contains(&[0xae, 0x41, 1, 0xf2, 0xee]),
             "actual timed off frames {off:?}"
@@ -62,11 +69,6 @@ async fn timed_off_override_then_external_on_reconciles_one_or_many_leds_once() 
             assert!(off.contains(&[0xae, 0x42, 1, 0xf2, 0xee]));
         }
         scenes.tick(h.actor.monotonic_ms()).await.unwrap();
-        // The synchronizer deliberately does not see the brief Off interval.
-        tokio::time::sleep(Duration::from_millis(2)).await;
-        levels(&mut h, Some(0), Some(0));
-        // Normal feedback settlement is independent of LED synchronization.
-        // This closes the dimmer Off target without delivering an Off LED edge.
         h.actor.remember_levels(1,h.feedback.snapshot(),5000).await.unwrap();
         levels(&mut h, Some(100), Some(0));
         reconcile(&h).await;

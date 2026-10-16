@@ -19,6 +19,9 @@ pub struct Group {
     pub variable: String,
     pub review_evidence: String,
     pub members: Vec<Member>,
+    /// Reviewed source values that select no member without rewriting history.
+    #[serde(default)]
+    pub unselected_values:Vec<i64>,
     #[serde(default)]
     pub reset_scenes: Vec<String>,
     #[serde(default)]
@@ -193,6 +196,8 @@ pub(crate) fn validate(
             }
             off.insert(&member.off_scene);
         }
+        let unselected=group.unselected_values.iter().copied().collect::<BTreeSet<_>>();
+        if unselected.len()!=group.unselected_values.len()||unselected.len()>64||unselected.iter().any(|v|*v<=0||values.contains(v)){return Err(invalid("invalid unselected scene source values"));}
         let mut resets = BTreeSet::new();
         for id in &group.reset_scenes {
             if !reviewed(id) || !resets.insert(id) {

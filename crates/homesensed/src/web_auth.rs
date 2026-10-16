@@ -1,5 +1,7 @@
 //! Revocable scoped bearer credentials. The HTTP owner must additionally check
 //! origin/host and transport; never accept credentials from URLs or JSON bodies.
+/// Shared finite bound for credential scope and device snapshots.
+pub const MAX_DEVICE_SCOPE:usize=512;
 use sha2::{Digest, Sha256};
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -150,7 +152,7 @@ impl Tokens {
                 .bytes()
                 .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
             || grant.scenes.len() > 4095
-            || grant.devices.len() > 256
+            || grant.devices.len() > MAX_DEVICE_SCOPE
         {
             return Err("invalid credential configuration".into());
         }
@@ -312,6 +314,8 @@ pub struct ModuleOffLease {
 }
 impl std::fmt::Debug for ModuleOffLease {fn fmt(&self,f:&mut std::fmt::Formatter<'_>)->std::fmt::Result {f.write_str("ModuleOffLease(<opaque>)")}}
 impl ModuleOffLease {
+    pub(crate) fn same_authority(&self,other:&Self)->bool{self.tokens.ptr_eq(&other.tokens)&&self.generation==other.generation&&self.grant==other.grant&&self.session_key==other.session_key}
+
     pub fn controller(&self)->Uuid {self.grant.controller}
     pub fn devices(&self)->&BTreeSet<String> {&self.grant.devices}
     pub(crate) fn scenes(&self)->&BTreeSet<String> {&self.grant.scenes}

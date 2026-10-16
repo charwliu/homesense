@@ -137,6 +137,8 @@ fn describe(action: &Action) -> Option<Description> {
     })
 }
 impl Source {
+    pub(crate) fn same_authority(&self,other:&Self)->bool{std::sync::Arc::ptr_eq(&self.proof,&other.proof)}
+
     pub(crate) fn supports(action: &Action) -> bool {
         describe(action).is_some()
     }

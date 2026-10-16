@@ -37,7 +37,9 @@ struct OwnedFade {
     driver: crate::software_fade::SoftwareFade,
     stopping: bool,
 }
+struct PhaseMember{index:usize,device:DeviceId,ids:Vec<u64>}
 struct Pending {
+    members:Vec<PhaseMember>,
     device: DeviceId,
     index: usize,
     run: u64,
@@ -281,47 +283,30 @@ impl SceneRuntime {
             return Ok(None);
         };
         self.audit_expiries().await?;
-        let device = due.step.device.clone();
-        let batch = Batch {
-            controller: self.controller,
-            intents: vec![Intent {
-                device: due.step.device,
-                command: due.step.command,
-            }],
-            subscriptions: vec![],
-        };
-        match self
-            .admission
-            .submit_scene_step(
-                self.generation.clone(),
-                batch,
-                self.manual_fence,
-                homesense_storage::scene_run::StepLink {
-        sample: None,
-                    run: self.audit_id.clone(),
-                    index: due.index,
-                    source: due.step.source,
-                },
-                self.causal_deadline,
-            )
-            .await
-        {
-            Ok(ids) => {
-                self.admitted.push(ids[0]);
-                self.pending = Some(Pending {
-                    device,
-                    index: due.index,
-                    run: ids[0],
-                    ids: ids.clone(),
-                    written: 0,
-                });
-                Ok(Some(ids))
+        let mut due_steps=vec![due.clone()];
+        let additional=self.timeline.extend_due_phase(due.index,|index,step|!self.configured_fades.contains_key(&index)&&matches!(step.command,homesense_core::Command::Switch(_)|homesense_core::Command::SetLevel{..}|homesense_core::Command::PanelLed(_)|homesense_core::Command::PanelLedOff));
+        match additional{Ok(additional)=>due_steps.extend(additional),Err(error)=>{self.timeline.resolve(due.index,false).map_err(|e|format!("{e:?}"))?;self.timeline.cancel();return Err(format!("phase offer: {error:?}"));}}
+        let device=due.step.device.clone();
+        let batch=Batch{controller:self.controller,intents:due_steps.iter().map(|due|Intent{device:due.step.device.clone(),command:due.step.command}).collect(),subscriptions:vec![]};
+        let links=due_steps.iter().map(|due|homesense_storage::scene_run::StepLink{sample:None,run:self.audit_id.clone(),index:due.index,source:due.step.source.clone()}).collect::<Vec<_>>();
+        let deadline=self.causal_deadline; // retain the original admission TTL and any causal fence
+        let accepted=if due_steps.len()>1 {self.admission.submit_scene_phase(self.generation.clone(),batch,self.manual_fence,links,deadline).await}
+        else{self.admission.submit_scene_step(self.generation.clone(),batch,self.manual_fence,links[0].clone(),deadline).await.map(|ids|(ids,vec![]))};
+        match accepted {
+            Ok((ids,rows))=>{
+                let members=if due_steps.len()==1{vec![PhaseMember{index:due.index,device:device.clone(),ids:ids.clone()}]}else{due_steps.iter().map(|due|PhaseMember{index:due.index,device:due.step.device.clone(),ids:rows.iter().filter(|row|row.step==due.index).map(|row|row.command_id).collect()}).collect()};
+                self.admitted.push(ids[0]);self.pending=Some(Pending{members,device,index:due.index,run:ids[0],ids:ids.clone(),written:0});Ok(Some(ids))
             }
-            Err(crate::admission::SubmissionFailure::ManualSuperseded) => {
-                // The actor rejected the step before allocating or persisting commands.
-                self.timeline.cancel_offered(due.index).map_err(|e| format!("{e:?}"))?;
-                self.cancellation_audited.entry(device.clone()).or_insert(false);
-                self.cancel_device(&device).await?;
+            Err(crate::admission::SubmissionFailure::ManualSuperseded)=>{
+                // This distinct actor result proves zero accepted commands and
+                // zero variable updates. Retain unaffected peers, with their
+                // original due/deadline; only superseded devices lose timers.
+                for due in &due_steps{
+                    if self.admission.manual_superseded(due.step.device.clone(),self.manual_fence).await.map_err(|e|format!("phase manual fence: {e:?}"))?{
+                        self.timeline.cancel_offered(due.index).map_err(|e|format!("{e:?}"))?;
+                        self.cancellation_audited.entry(due.step.device.clone()).or_insert(false);self.cancel_device(&due.step.device).await?;
+                    }else{self.timeline.return_unadmitted(due.index).map_err(|e|format!("{e:?}"))?;}
+                }
                 Ok(None)
             }
             Err(crate::admission::SubmissionFailure::Status(
@@ -334,14 +319,12 @@ impl SceneRuntime {
                 // checkpoint via poll(). Storage/generation/transport failures
                 // still propagate and gate the service.
                 log::warn!("scene step rejected run={} step={}; remaining steps cancelled", self.audit_id, due.index);
-                self.timeline.resolve(due.index, false).map_err(|e| format!("{e:?}"))?;
+                for due in &due_steps{self.timeline.resolve(due.index,false).map_err(|e|format!("{e:?}"))?;}
                 self.timeline.cancel();
                 Ok(None)
             }
             Err(e) => {
-                self.timeline
-                    .resolve(due.index, false)
-                    .map_err(|e| format!("{e:?}"))?;
+                for due in &due_steps{self.timeline.resolve(due.index,false).map_err(|e|format!("{e:?}"))?;}
                 Err(format!("scene admission: {e:?}"))
             }
         }
@@ -369,35 +352,29 @@ impl SceneRuntime {
         {
             return Ok(());
         }
-        let written = pending.written
-            + states
-                .iter()
-                .filter(|s| matches!(s, Audit::Written | Audit::Observed))
-                .count();
-        let failed = states
-            .iter()
-            .any(|s| matches!(s, Audit::Failed | Audit::Uncertain));
-        if failed {
-            self.timeline.cancel();
-        } else if states.contains(&Audit::Cancelled) {
-            self.timeline.cancel_device(&pending.device);
+        if pending.members.len()>1 {
+            for member in &pending.members{
+                let samples=member.ids.iter().map(|id|states[pending.ids.iter().position(|candidate|candidate==id).expect("phase receipt member")]).collect::<Vec<_>>();
+                let count=samples.iter().filter(|s|matches!(s,Audit::Written|Audit::Observed)).count();
+                let failed=samples.iter().any(|s|matches!(s,Audit::Failed|Audit::Uncertain));
+                if failed{self.timeline.cancel();}else if samples.contains(&Audit::Cancelled){self.timeline.cancel_device(&member.device);}
+                let result=if count==samples.len(){self.timeline.resolve(member.index,true)}else if count>0||samples.contains(&Audit::Uncertain){self.timeline.resolve_partial(member.index)}else if failed{self.timeline.resolve(member.index,false)}else{self.timeline.cancel_offered(member.index)};
+                result.map_err(|e|format!("phase resolve: {e:?}"))?;
+            }
+        }else{
+            let written=pending.written+states.iter().filter(|s|matches!(s,Audit::Written|Audit::Observed)).count();
+            let failed=states.iter().any(|s|matches!(s,Audit::Failed|Audit::Uncertain));
+            if failed{self.timeline.cancel();}else if states.contains(&Audit::Cancelled){self.timeline.cancel_device(&pending.device);}
+            let result=if written==pending.written+states.len(){self.timeline.resolve(pending.index,true)}else if written>0||states.contains(&Audit::Uncertain){self.timeline.resolve_partial(pending.index)}else if failed{self.timeline.resolve(pending.index,false)}else{self.timeline.cancel_offered(pending.index)};
+            result.map_err(|e|format!("{e:?}"))?;
         }
-        let result = if written == pending.written + states.len() {
-            self.timeline.resolve(pending.index, true)
-        } else if written > 0 || states.contains(&Audit::Uncertain) {
-            self.timeline.resolve_partial(pending.index)
-        } else if failed {
-            self.timeline.resolve(pending.index, false)
-        } else {
-            self.timeline.cancel_offered(pending.index)
-        };
-        result.map_err(|e| format!("{e:?}"))?;
         self.admitted.retain(|run| *run != pending.run);
         self.pending = None;
         self.checkpoint().await
     }
     /// Report each durable TransportOwner result. Failed output is never retried.
     pub async fn written(&mut self, id: u64, success: bool) -> Result<(), String> {
+        if self.pending.as_ref().is_some_and(|pending|pending.members.len()>1){return self.reconcile().await;}
         let pending = self.pending.as_mut().ok_or("no scene action pending")?;
         if pending.ids.first() != Some(&id) {
             return Err("unexpected scene completion".into());
@@ -444,7 +421,7 @@ impl SceneRuntime {
     }
     pub(crate) async fn cancel_device_with_reason(&mut self, device: &DeviceId, reason: homesense_storage::scene_run::CancellationReason) -> Result<usize,String> {
         let mut count = self.cancel_device_timers(device);
-        if self.pending.as_ref().is_some_and(|pending| &pending.device==device) {
+        if self.pending.as_ref().is_some_and(|pending|pending.members.iter().any(|member|&member.device==device)) {
             self.cancellation_audited.entry(device.clone()).or_insert(false);
         }
         if self.cancellation_audited.get(device)==Some(&false) {
@@ -453,11 +430,11 @@ impl SceneRuntime {
         }
         if self.fade.as_ref().is_some_and(|f|f.stopping) {self.reconcile_fade().await?;}
         if let Some(pending) = &self.pending
-            && &pending.device == device
+            && pending.members.iter().any(|member|&member.device==device)
         {
             count += self
                 .admission
-                .cancel_scene_run(self.controller, self.generation.clone(), pending.run)
+                .cancel_scene_members(self.controller,self.generation.clone(),pending.run,pending.members.iter().filter(|m|&m.device==device).flat_map(|m|m.ids.iter().copied()).collect())
                 .await
                 .map_err(|e| format!("scene device cancellation: {e:?}"))?;
             self.reconcile().await?;
@@ -500,12 +477,9 @@ impl SceneRuntime {
                 && pending.run == *run
                 && cancelled == pending.ids.len()
             {
-                if pending.written > 0 {
-                    self.timeline.resolve_partial(pending.index)
-                } else {
-                    self.timeline.cancel_offered(pending.index)
+                for member in &pending.members{
+                    if pending.written>0{self.timeline.resolve_partial(member.index)}else{self.timeline.cancel_offered(member.index)}.map_err(|e|format!("{e:?}"))?;
                 }
-                .map_err(|e| format!("{e:?}"))?;
                 self.pending = None;
             }
         }

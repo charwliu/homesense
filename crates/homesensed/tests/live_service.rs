@@ -43,7 +43,14 @@ async fn live_service_queries_before_serving_and_preserves_identity_across_resta
                 socket.write_all(&[0xAE, 0x15, 0xD0 + channel, 42, 0xEE]).unwrap();
             }
             loop {
-                if socket.read(&mut frame[..1]).unwrap()==0 {break;}
+                match socket.read(&mut frame[..1]) {
+                    Ok(0)=>break,
+                    Ok(_)=>{},
+                    // A closed peer may terminate with RST at a frame boundary.
+                    // Never accept RST/EOF after a prefix or any control frame.
+                    Err(error) if error.kind()==std::io::ErrorKind::ConnectionReset=>break,
+                    Err(error)=>panic!("gateway fixture read: {error}"),
+                }
                 // Any prefix followed by EOF still fails the original zero-output check.
                 socket.read_exact(&mut frame[1..]).unwrap();
                 assert_eq!(frame,[0xAE,0x15,0xA0,0xF2,0xEE],"unauthenticated service must not send control");

@@ -69,6 +69,13 @@ impl From<ModuleOffLease> for Authorization {
     }
 }
 impl Authorization {
+    pub(crate) fn same_authority(&self,other:&Self)->bool{match(self,other){
+        (Self::Web(a),Self::Web(b))=>a.same_authority(b),
+        (Self::KeypadWeb(a),Self::KeypadWeb(b))=>a.parent==b.parent&&a.key==b.key&&a.source.same_authority(&b.source),
+        (Self::Hap(a),Self::Hap(b))=>a.identity.same_owner(&b.identity)&&a.controller==b.controller&&a.public_key==b.public_key&&a.devices==b.devices&&Arc::ptr_eq(&a.active,&b.active),
+        _=>false,
+    }}
+
     pub(crate) fn keypad(source:ModuleOffLease,command:&KeypadCommand)->Option<Self> {
         let KeypadCommand::KeypadPress{keypad,key}=command;
         if !(1..=6).contains(key) || !source.valid() {return None;}
