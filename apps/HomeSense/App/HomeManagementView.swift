@@ -476,9 +476,9 @@ private struct HomeDeviceCards: View {
                             .onChange(of: home.keypadGateStates(device.id, card: true)) { _, _ in home.recordKeypadGateStates(device.id, card: true) }
                     } else { ContentUnavailableView("面板数据暂不可用", systemImage: "square.grid.2x2", description: Text("请刷新或核对服务端接口。")) }
                 } else {
-                    Button { openDetails(HomeEditRequest(kind: "device-details", record: device)) } label: {
-                        HomeDeviceTile(device: device, live: home.snapshotIsCurrent)
-                    }.buttonStyle(.plain)
+                    HomeQuickDeviceCard(home: home, device: device) {
+                        openDetails(HomeEditRequest(kind: "device-details", record: device))
+                    }
                 }
             }
         }
@@ -538,9 +538,7 @@ private struct HomeRoomDetail: View {
 struct HomeDeviceCard: View {
     @ObservedObject var home: HomeServerStore
     let device: HomeRecord
-    @State private var level = 50.0
-    @State private var editingLevel = false
-    @State private var pendingLevel = false
+    @State private var brightness = HomeBrightnessDraft()
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(device.name).font(.headline)
@@ -552,46 +550,84 @@ struct HomeDeviceCard: View {
             }
             else { Text("实际反馈：未知").foregroundStyle(.secondary) }
             if device.raw["state_authority"].text == "pending_target" { Text("有待确认的目标；以上仅显示实际反馈。").font(.caption).foregroundStyle(.orange) }
-            HStack {
-                if device.raw["kind"].text == "Motor" {
-                    action("打开", .object(["action": .string("open")]))
-                    action("关闭", .object(["action": .string("close")]))
-                    action("停止", .object(["action": .string("stop")]))
-                } else if device.raw["kind"].text == "Keypad" {
+            if device.raw["kind"].text == "Motor" {
+                Text(device.motorStatusDescription(current: home.snapshotIsCurrent)).font(.subheadline).foregroundStyle(.secondary)
+                HomeMotorControls(home: home, device: device)
+            } else if device.raw["kind"].text == "Keypad" {
+                HStack {
                     action("红灯", .object(["action": .string("panel_led"), "on": .bool(true)]))
                     action("绿灯", .object(["action": .string("panel_led"), "on": .bool(false)]))
-                } else {
-                    action("开", .object(["action": .string("power"), "on": .bool(true)]))
-                    action("关", .object(["action": .string("power"), "on": .bool(false)]))
                 }
+            } else {
+                HomeLightPowerControls(home: home, device: device, beforeAction: {
+                    brightness.cancel(); syncLevel()
+                })
             }
             if device.raw["kind"].text == "Dimmer" {
-                if let actual = device.raw["observed"]["level"].integerText { Text("\(device.feedbackIsConfirmed(current: home.snapshotIsCurrent) ? "读回亮度" : "历史读回亮度")：\(actual)%").font(.caption).foregroundStyle(.secondary) }
-                HStack {
-                    Slider(value: $level, in: 0...100, step: 1, onEditingChanged: { editing in
-                        editingLevel = editing
-                        if editing { pendingLevel = true }
+                if let actual = device.raw["observed"]["level"].integerText {
+                    Text("\(device.feedbackIsConfirmed(current: home.snapshotIsCurrent) ? "读回亮度" : "历史读回亮度")：\(actual)%")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                VStack(spacing: 12) {
+                    Text("\(Int(brightness.value))%")
+                        .font(.system(size: 44, weight: .medium, design: .rounded)).monospacedDigit()
+                        .accessibilityIdentifier("device.\(device.id).brightnessTarget")
+                    Slider(value: Binding(get: { brightness.value }, set: { brightness.setValue($0) }), in: 0...100, step: 1, onEditingChanged: { editing in
+                        if editing { brightness.beginEditing() } else { submitBrightness() }
                     })
-                    Text("目标 \(Int(level))%").monospacedDigit()
-                }.disabled(!home.canControlDevice(device.id))
-                Button("设置亮度") {
-                    let target = Int64(level)
-                    Task {
-                        await home.controlDevice(device.id, command: .object(["action": .string("brightness"), "level": .integer(target)]))
-                        if home.error == nil { pendingLevel = false }
+                    .controlSize(.large).tint(.orange)
+                    .frame(width: 240, height: 64).rotationEffect(.degrees(-90)).frame(width: 88, height: 250)
+                    .background(.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 24))
+                    .accessibilityLabel("亮度").accessibilityValue("\(Int(brightness.value))%")
+                    .accessibilityIdentifier("device.\(device.id).brightness")
+                    .accessibilityAdjustableAction { direction in
+                        guard home.canControlDevice(device.id) else { return }
+                        brightness.beginEditing()
+                        switch direction {
+                        case .increment: brightness.setValue(brightness.value + 5)
+                        case .decrement: brightness.setValue(brightness.value - 5)
+                        @unknown default: brightness.cancel(); return
+                        }
+                        submitBrightness()
                     }
-                }.buttonStyle(.bordered).disabled(!home.canControlDevice(device.id))
+                    .disabled(!home.canControlDevice(device.id))
+                    if brightness.submission != nil {
+                        Text("目标 \(Int(brightness.value))%，等待设备反馈").font(.caption).foregroundStyle(.secondary)
+                    } else if let target = brightness.unconfirmedTarget {
+                        Text("上次目标 \(target)% 尚未确认").font(.caption).foregroundStyle(.secondary)
+                    }
+                }.frame(maxWidth: .infinity)
             }
         }
         .padding(20).frame(maxWidth: .infinity, alignment: .leading).background(.background, in: RoundedRectangle(cornerRadius: 16))
         .onAppear { syncLevel() }
-        .onChange(of: device.raw["observed"]["level"]) { _, _ in syncLevel() }
+        .onChange(of: device.raw) { _, _ in syncLevel() }
+        .onChange(of: home.snapshotIsCurrent) { _, _ in syncLevel() }
+        .task(id: brightness.submission?.id) {
+            guard let id = brightness.submission?.id else { return }
+            do { try await Task.sleep(for: .seconds(10)) } catch { return }
+            brightness.expire(id); syncLevel()
+        }
     }
+    private var feedbackTimestamp: UInt64? { device.raw["observed_at_ms"].integerText.flatMap(UInt64.init) }
     private func syncLevel() {
-        if !editingLevel, !pendingLevel, let text = device.raw["observed"]["level"].integerText, let value = Double(text) { level = value }
+        brightness.observe(level: device.raw["observed"]["level"].integerText.flatMap(Int64.init),
+                           confirmed: device.feedbackIsConfirmed(current: home.snapshotIsCurrent), timestamp: feedbackTimestamp)
+    }
+    private func submitBrightness() {
+        guard let submission = brightness.endEditing(feedbackTimestamp: feedbackTimestamp) else { return }
+        let operation = home.beginDeviceControl(device.id)
+        Task {
+            let result = await home.controlDevice(device.id, command: .object(["action": .string("brightness"), "level": .integer(submission.level)]), operation: operation)
+            brightness.complete(submission.id, accepted: result.accepted)
+            syncLevel()
+        }
     }
     private func action(_ title: String, _ command: HomeJSON) -> some View {
-        Button(title) { Task { await home.controlDevice(device.id, command: command) } }
+        Button(title) {
+            let operation = home.beginDeviceControl(device.id)
+            Task { await home.controlDevice(device.id, command: command, operation: operation) }
+        }
             .buttonStyle(.bordered).disabled(!home.canControlDevice(device.id))
     }
 }
