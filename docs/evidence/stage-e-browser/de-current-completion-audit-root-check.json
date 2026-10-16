@@ -1,5 +1,5 @@
 {
-  "checked_bj": "2026-10-16T10:56:59.544315+08:00",
+  "checked_bj": "2026-10-16T11:09:19.638914+08:00",
   "derived_requirements": [
     "docs/design.md sections9-11,18,20,23-24,27"
   ],
@@ -94,14 +94,15 @@
       "id": "E-2",
       "stage": "E",
       "requirement": "96路反馈、模块状态与查询",
-      "verified_scope": "已有两房间64路限定现场证据；正常CLI96路两例及189条并发控制已验证，12模块型号／用途已确认；当前正式CLI隔离停顿6秒后过期正确，96路新值约2.64秒恢复；新调度普通Mac CLI三例23232通道样本全部新鲜、586控制请求与Written及假总线逐项匹配，含25ms延迟反馈；最终候选启用HAP的180秒合成采样76128通道样本新鲜，2807控制与日志/假总线匹配；该次接收处理时间戳不能验证发送节拍；2026-10-16用户批准恢复只读核对和短停后，12模块96通道均收到合法反馈，61查询=56 R818逐通道+5 AD8整模块；Root独立解析全部TX/RX，无重复/畸形反馈。约69秒后同ELF/rev13恢复，原配对/凭证不变，客户端自动恢复。",
-      "remaining_evidence": "96路地址/通道一次只读反馈已通过；逐路实物负载/房间接线、4个未登记模块纳入现网、R818整模块A0支持、完整96路周期容量及持续稳定性仍待；旧5512ms停顿根因保持开放，未执行Away全关。",
-      "status": "physical96_address_feedback_passed_mapping_and_continuous96_pending",
+      "verified_scope": "已有两房间64路限定现场证据；正常CLI96路两例及189条并发控制已验证，12模块型号／用途已确认；当前正式CLI隔离停顿6秒后过期正确，96路新值约2.64秒恢复；新调度普通Mac CLI三例23232通道样本全部新鲜、586控制请求与Written及假总线逐项匹配，含25ms延迟反馈；最终候选启用HAP的180秒合成采样76128通道样本新鲜，2807控制与日志/假总线匹配；该次接收处理时间戳不能验证发送节拍；2026-10-16用户批准恢复只读核对和短停后，12模块96通道均收到合法反馈，61查询=56 R818逐通道+5 AD8整模块；Root独立解析全部TX/RX，无重复/畸形反馈。约69秒后同ELF/rev13恢复，原配对/凭证不变，客户端自动恢复。；现网已追加01/04/05/15四模块为rev14，共12照明模块96路；同ELF受控重启后初始61查询及7完整查询/反馈周期由Root从原pcap重组TCP逐字节核对；21次独立采样2016槽位、最大年龄3943ms，96路观测时间全部推进，原5000ms门槛保持。",
+      "remaining_evidence": "完整96路初始化与周期刷新已上线并在本窗口通过；逐路实物负载/房间映射、R818 A0整模块能力、模块换址、实际Away全关与长期/并发负载稳定性仍待；历史5512ms停顿根因未由本次查询配置修复。",
+      "status": "full96_initialization_periodic_deployed_bounded_physical_pass",
       "additional_software_evidence": "stage-e-browser/production-query-capacity-root-check.json",
       "additional_pause_recovery_evidence": "stage-e-browser/capacity-pause-recovery-root-check.json",
       "additional_periodic_scheduler_evidence": "stage-e-browser/periodic-production-cli-root-check.json",
       "additional_final_hap_soak_evidence": "stage-e-browser/periodic-hap-soak-root-check.json",
-      "additional_physical96_readonly_field": "stage-e-browser/readonly96-physical-feedback-field-root-check.json"
+      "additional_physical96_readonly_field": "stage-e-browser/readonly96-physical-feedback-field-root-check.json",
+      "additional_full96_initialization_periodic": "stage-e-browser/full96-initialization-periodic-production-root-check.json"
     },
     {
       "id": "E-3",
@@ -204,8 +205,8 @@
       "id": "E-7",
       "stage": "E",
       "requirement": "持续服务隔离网关超时与恢复失败，保留原生管理入口",
-      "verified_scope": "v21常驻完整1128项、原配对HAP专项和正式AD8常驻生命周期通过；Linux隔离烟测与systemd上线及可信HTTPS就绪核验通过，保留原rev9/Admin/配对。；新增接收RST导致退出的正式程序反例已软件修复，完成故障审计的指定网络错误可恢复，真实取消和审计/不变量错误仍致命。；本轮Linux正式程序隔离RST生命周期与常驻更新已独立核验。；私有基础层Core/Storage216项及严格迁移/64容量已独立核查，不等同运行时隔离。；现有正式Linux ELF的隔离整树回退机制已独立核查，checksum修复同大小/时间数据库漏恢复，27项清单和非空合成配对/凭据保持。；私有runtime1同852输入普通CLI原HTTP8组合独立全绿，保留B连接/反馈/新控制；尚未合入/部署。",
-      "remaining_evidence": "runtime10 已常驻部署；随后批准的既有3端点权限维护保持同ELF/schema27/rev10、2配对，当前PID250664、零重启、Admin20/7。新140项停机快照由Root独立核验，未打开golden SQLite；首次探针失败回退及第二次成功均保留。原升级的SHM时间漂移反例及密封139项副本仍作为历史保存。当前仅一个实际网关配置，不能代表多网关故障现场或长期稳定性验收；其他集中现场项目仍待。",
+      "verified_scope": "v21常驻完整1128项、原配对HAP专项和正式AD8常驻生命周期通过；Linux隔离烟测与systemd上线及可信HTTPS就绪核验通过，保留原rev9/Admin/配对。；新增接收RST导致退出的正式程序反例已软件修复，完成故障审计的指定网络错误可恢复，真实取消和审计/不变量错误仍致命。；本轮Linux正式程序隔离RST生命周期与常驻更新已独立核验。；私有基础层Core/Storage216项及严格迁移/64容量已独立核查，不等同运行时隔离。；现有正式Linux ELF的隔离整树回退机制已独立核查，checksum修复同大小/时间数据库漏恢复，27项清单和非空合成配对/凭据保持。；私有runtime1同852输入普通CLI原HTTP8组合独立全绿，保留B连接/反馈/新控制；尚未合入/部署。；同ELF配置14扩到12模块96路，Root核对初始化/周期、161项备份与原身份，客户端自动恢复。",
+      "remaining_evidence": "当前同ELF83d894/schema27/rev14/PID255715/NRestarts0/Admin20+7及2配对保持；仍只有一个实际网关配置，不代表多网关故障或长期无故障验收。",
       "status": "runtime10_production_deployed_remaining_field_acceptance",
       "additional_evidence": "stage-e-browser/runtime-gateway-timeout-root-gap.json",
       "additional_production_counterexample": "stage-e-browser/runtime-feedback-outage-cli-root-check.json",
@@ -333,7 +334,8 @@
     "stage-e-browser/native-artstudio-scene-card-field-root-check.json": "56e96f84b6034a317fa51039deed8c70e2326140bf3159a003b4554d9e6440e0",
     "stage-e-browser/native-app-offline-recovery-field-root-check.json": "b27b249dffe9b3ad1c4e7e50721d6e82f991aac2d7571f611a602ac97f4a398c",
     "stage-e-browser/home-hub-power-recovery-native13-field-root-check.json": "fdca84fdd0361b6bed4089a4fcc6830f95d94f55f33a650e25952dfe97a9dcee",
-    "stage-e-browser/readonly96-physical-feedback-field-root-check.json": "32b3c89535c8de8a8f28b67586c48fe6e003803dbf8dc50152ccb9e217866df1"
+    "stage-e-browser/readonly96-physical-feedback-field-root-check.json": "32b3c89535c8de8a8f28b67586c48fe6e003803dbf8dc50152ccb9e217866df1",
+    "stage-e-browser/full96-initialization-periodic-production-root-check.json": "7cf09c84585b67916228aac6ff976dee338138661a32ad04eb1c53aa4c946e4c"
   },
   "excluded_by_scope": {
     "Siri": "cancelled by user",
@@ -350,24 +352,25 @@
   "field_queries_or_controls_scope_note": "Historical source audit had zero field actions; new user request authorizes existing two-room backend start for native App testing, not full96 audit or Away activation.",
   "native_app_backend": {
     "ready": true,
-    "revision": 10,
-    "current_status": "runtime10_continuous_service_active_enabled",
-    "physical_app_acceptance": "Native App12 Study1/3/5 scene ON/OFF,2/4/6 short travel/STOP and full-open/full-close endpoint/card+wallLED passed. Fulltravel server receipts accepted and commands Written; CoreDevice4016 prevented phone trace retrieval for these2actions. Historical silent OFF cause open.",
-    "source_binary_commit": "c77c4e74c4120e05ee8b69ba32af6f6eaa67a452",
+    "revision": 14,
+    "current_status": "full96_initialization_periodic_continuous_service_active",
+    "physical_app_acceptance": "Native13 both room cards plus offline/HPLeft recovery passed earlier; configuration14 retained-pairing restart client auto-recovery and actual-light state match user verified; historical silentOFF cause remains open",
     "projection_fix_f27a6b6_deployed": true,
-    "latest_evidence": "stage-e-browser/native-study-keypad-full-travel-root-check.json",
-    "pid": 250664,
+    "latest_evidence": "stage-e-browser/full96-initialization-periodic-production-root-check.json",
+    "pid": 255715,
     "schema": 27,
     "Admin_devices": 20,
-    "Admin_scenes": 7
+    "Admin_scenes": 7,
+    "current_executable_sha256": "83d894380419ee00c9ecf0a0fcb5356c3ac85185e301fb6f070e1dd70ef9895d"
   },
   "configuration_publication": {
     "revision9": "independently read trusted HTTPS export and room catalog,3floors/2rooms; native App user confirmed correct view",
-    "active_revision": 10,
-    "reason": "existing20-endpoint Keypad grouping published via normal draft/preview/CAS management API; no physical bindings or permissions added",
+    "active_revision": 14,
+    "reason": "only4 lighting module registrations added for96-output initialization/periodic queries; existing device/control/scene scope preserved",
     "user_explicit_rev9_approval_verified": true,
     "authoritative_field_revision_recheck_pending": false,
-    "revision10_evidence": "stage-e-browser/keypad-existing-cards-publication-root-check.json"
+    "revision10_evidence": "stage-e-browser/keypad-existing-cards-publication-root-check.json",
+    "revision14_evidence": "stage-e-browser/full96-initialization-periodic-production-root-check.json"
   },
   "home_hub_offline_recovery_user_paused": false,
   "new_user_requirements": [
@@ -481,9 +484,9 @@
     "explicit_no_test_deadline_mode": "implemented and deployed305be34",
     "preserve_pairing_admin_active_configuration": true,
     "automatic_actuator_acceptance_not_authorized_by_start": true,
-    "systemd_status": "active/running/enabled, RuntimeMax infinity, PID244467, NRestarts0; Root22:24 checked",
+    "systemd_status": "active/running/enabled, PID255715/NRestarts0; same original ELF and unit;Root live checked",
     "TLS_verified_ready": true,
-    "active_revision": 10,
+    "active_revision": 14,
     "permanent_Admin_and_pairing_unchanged": true
   },
   "new_Keypad_courtyard_and_shared_coming_home_request": {
@@ -498,7 +501,7 @@
   "latest_full_keypad_candidate_evidence": "stage-e-browser/keypad-full-candidate-v21-root-check.json",
   "latest_motor_LED_source_owner_evidence": "stage-d-study/motor-led-ownership-root-check.json",
   "latest_existing_Keypad_card_publication": "stage-e-browser/keypad-existing-cards-publication-root-check.json",
-  "current_active_configuration_revision": 10,
+  "current_active_configuration_revision": 14,
   "current_card_slots_per_parent": 6,
   "current_authorized_key_actions": 10,
   "actual_App_card_visual_confirmation": "Native App12 Study1/3/5 scene ON/OFF,2/4/6 short travel/STOP and full-open/full-close endpoint/card+wallLED passed. Fulltravel server receipts accepted and commands Written; CoreDevice4016 prevented phone trace retrieval for these2actions. Historical silent OFF cause open.",
@@ -569,6 +572,19 @@
       "existing_keypad_permission_scope_preserved": 17,
       "existing_scope20_eligible_issuers": 0,
       "scope20_offline_maintenance": "reviewed plan only; user approval pending, not executed"
+    },
+    "native_app_backend_before_full96": {
+      "ready": true,
+      "revision": 10,
+      "current_status": "runtime10_continuous_service_active_enabled",
+      "physical_app_acceptance": "Native App12 Study1/3/5 scene ON/OFF,2/4/6 short travel/STOP and full-open/full-close endpoint/card+wallLED passed. Fulltravel server receipts accepted and commands Written; CoreDevice4016 prevented phone trace retrieval for these2actions. Historical silent OFF cause open.",
+      "source_binary_commit": "c77c4e74c4120e05ee8b69ba32af6f6eaa67a452",
+      "projection_fix_f27a6b6_deployed": true,
+      "latest_evidence": "stage-e-browser/native-study-keypad-full-travel-root-check.json",
+      "pid": 250664,
+      "schema": 27,
+      "Admin_devices": 20,
+      "Admin_scenes": 7
     }
   },
   "latest_current_service_reconciliation": "stage-e-browser/receive-network-error-linux-deployment-root-check.json",
@@ -737,7 +753,9 @@
     "module_addresses": 12,
     "E2_restored": true,
     "physical_load_mapping_complete": false,
-    "active_registry_lighting_outputs": 64,
-    "Away_batch_control_tested": false
-  }
+    "active_registry_lighting_outputs": 96,
+    "Away_batch_control_tested": false,
+    "full96_initialization_periodic_published": true
+  },
+  "latest_full96_initialization_periodic_production": "stage-e-browser/full96-initialization-periodic-production-root-check.json"
 }

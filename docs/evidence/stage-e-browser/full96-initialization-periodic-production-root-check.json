@@ -1,0 +1,169 @@
+{
+  "checked_bj": "2026-10-16T11:09:19.638914+08:00",
+  "user_request": "把剩余4个模块也纳入初始化和周期查询，完整覆盖96路。",
+  "scope": "configuration registry only; existing same Linux ELF, normal save/preview/CAS and retained-pairing restart",
+  "change": {
+    "from_revision": 13,
+    "to_revision": 14,
+    "added_module_addresses": [
+      "01",
+      "04",
+      "05",
+      "15"
+    ],
+    "added_profiles": [
+      "R818-DIN-PRO x3",
+      "AD8-DIN x1"
+    ],
+    "semantic_change_only": "append4 stable module objects plus2 revision fields; all existing device/keypad/automation/room/floor definitions preserved",
+    "configured_lighting_modules": 12,
+    "registered_output_channels": 96,
+    "raw_device_records_preserved": 10,
+    "keypad_parents_preserved": 2,
+    "compiled_device_endpoints_preserved": 20,
+    "new_Away_or_wall_rules": 0
+  },
+  "publication": {
+    "api_status": 202,
+    "automation_raw_sha256": "05ddbcc868c7dac91cfc4849d2abb669c1521f475dd0dc0a12c69fed4ae4381c",
+    "devices_raw_sha256": "eb2f09f96e7dc953e6120f51eb7bea8bcaad057f87f8987ecc6d036ff8d02b67",
+    "draft_id": "58f617f8-17a1-45bb-887c-c73240aea7af",
+    "from_revision": 13,
+    "initial_fresh_outputs": 96,
+    "preview": {
+      "active_revision": 13,
+      "boot": "7d2bf1e8-7334-4931-8c6f-22c1c706f208",
+      "candidate_revision": 14,
+      "connection_rebuild_required": true,
+      "device_changes": [],
+      "interrupted_runs": [],
+      "invalidates_old_rules_and_timers": true
+    },
+    "publication_light_motor_writes": 0,
+    "publication_scene_led_writes": 5,
+    "request_id": "89d2c863-8188-4dd5-8ccc-dda80c235a17",
+    "to_revision": 14
+  },
+  "initialization_wire_root_review": {
+    "local_pcap_sha256": "61016988b72a3cc58aac701ad9c812f6aa0f97bc17e7ac8b806115ebdf414284",
+    "independently_reassembled_TCP_stream": "1",
+    "new_syn_unique": true,
+    "TCP_byte_overlaps_consistent": true,
+    "TCP_byte_gaps": 0,
+    "startup_first61_queries_exact_plan": true,
+    "complete_query_sweeps": 7,
+    "complete_feedback96_sweeps": 7,
+    "total_query_frames": 486,
+    "total_feedback_frames": 748,
+    "only_nonquery_frames": "five existing scene greenLED projections",
+    "nonquery_LED_count": 5,
+    "unexpected_or_light_motor_frames": 0,
+    "all_query_order_and_feedback_slot_order_verified": true,
+    "causal_ACK_claimed": false,
+    "manifest_files_verified": 22,
+    "source": "Root local tshark and TCP sequence-byte reassembly from original passive pcap; duplicates/overlaps retained consistently, no live connection"
+  },
+  "periodic_root_sampling": {
+    "checked_bj": "2026-10-16T11:06:33.177581+08:00",
+    "snapshot_count": 21,
+    "sampled_slot_observations": 2016,
+    "captured_span_ms": 25788,
+    "elapsed_seconds": 26.262,
+    "max_age_ms": 3943,
+    "all96_slots_Confirmed_within5000ms": true,
+    "all96_slot_observation_times_advanced": true,
+    "min_distinct_observation_times_per_slot": 8,
+    "boot": "7afb06fc-c543-45bc-acdb-e87aae4fe500",
+    "revision": 14,
+    "commands_sent": 0,
+    "scope": "read-only bounded actual physical sampling; not long-term stability proof"
+  },
+  "identity_backup_root_review": {
+    "backup_entries_rehashed": 161,
+    "backup_SQLite_opened": false,
+    "backup_cross_database_atomicity": "not proven; normal versioned rollback remains primary",
+    "live_identity_exact": true,
+    "pairings": 2,
+    "AID_rows": 18,
+    "IID_rows": 164,
+    "all_credential_rows_exact": true,
+    "admin_grants": [
+      [
+        "Administrator",
+        17,
+        7
+      ],
+      [
+        "Administrator",
+        20,
+        7
+      ]
+    ],
+    "active_revision": 14,
+    "schema": 27,
+    "active_payload_semantically_exact_candidate": true,
+    "devices_raw_sha256": "eb2f09f96e7dc953e6120f51eb7bea8bcaad057f87f8987ecc6d036ff8d02b67",
+    "automation_raw_sha256": "05ddbcc868c7dac91cfc4849d2abb669c1521f475dd0dc0a12c69fed4ae4381c",
+    "same_ELF_and_unit": true,
+    "pid": 255715,
+    "restarts": 0
+  },
+  "human_client_recovery": {
+    "question": "call_976fd389fa634bcaac941c3c1a0b9af1:0",
+    "answer": "全部自动恢复，状态一致，网关正常",
+    "checked_bj": "2026-10-16T11:06:31.267913+08:00",
+    "clients": "HomeSense and Apple Home",
+    "rooms": "Study and Artstudio",
+    "no_refresh_repairing_control_requested": true,
+    "physical_lights_match_UI": true,
+    "existing_gateways_normal": true,
+    "curtains_remain_stopped": true
+  },
+  "same_program": "83d894380419ee00c9ecf0a0fcb5356c3ac85185e301fb6f070e1dd70ef9895d",
+  "same_unit": "2f735d2ff63fea8d361c288b1d65237fbf862209b7254fa0f52915ae801cade3",
+  "boot": "7afb06fc-c543-45bc-acdb-e87aae4fe500",
+  "new_modules_without_logical_binding": "four physical modules are queried and all32 ports confirmed; module response=no_queryable_bindings describes logical bindings, not absent physical feedback; physical slot quality and age used without relaxing5000ms requirement",
+  "startup_and_publication_LED": {
+    "publication_scene_LED_written": 5,
+    "restart_scene_LED_frames_and_Written": 5,
+    "light_motor_control_written": 0,
+    "passive_capture_scope": "restart new TCP stream; publication has persisted journal evidence, not a new passive capture"
+  },
+  "auxiliary_failures_retained": [
+    "Root initial local candidate helper confused20 granted/compiled endpoints with10 raw device records; corrected before draft or field mutation.",
+    "Deployment periodic checker initially required module response=fresh after activation; corrected to physical slot freshness by source semantics. This was a post-publication helper assertion, not before all field mutation; owner handoff wording is narrowed here. Product and5000ms gate unchanged."
+  ],
+  "limitations": [
+    "Actual bounded startup/periodic windows, not indefinite stability or all-load stress acceptance. Historical5512ms pause root cause remains open.",
+    "Physical load/room wiring mapping, module replacement and Away batch all-off not executed.",
+    "R818 still uses supported per-channel queries; AD8 whole-module A0;61 queries per sweep, no R818 A0 support claim.",
+    "Feedback windows do not establish causal ACK or remembered brightness while powered off.",
+    "161 backup entries rehashed without opening backup SQLite; cross-database atomicity not proven, normal versioned rollback is primary; no actual rollback exercised in this window."
+  ],
+  "source_scope_remaining": {
+    "scenes": 65,
+    "programs": 208,
+    "variables": 24
+  },
+  "D_E_complete": false,
+  "evidence_sha256": {
+    "deployment/ngr/private/20261016-full96-query-registry-root/handoff.json": "a7f3a7d21026cf38523499b5717edbbf8735dfd55d718239f106cb880eef6007",
+    "deployment/ngr/private/20261016-full96-query-registry-root/candidate-root-review.json": "a370c7ce011756856f0a7d066e96b7badcc35a6454fb404e78d88adb24cabea0",
+    "deployment/ngr/private/20261016-full96-query-registry-root/four-modules-added.json": "bc6ac188d3b7fd97512d469d0129a3c2fd2318fe91edb80d990fda22bc85af82",
+    "deployment/ngr/private/20261016-full96-query-registry-root/initial-helper-assertion-failure.json": "b70e0d8974fc3e1b53cc1be30badc30f6743fb29f763f54105f67e0599060fda",
+    "deployment/ngr/private/20261016-full96-query-registry-root/live-activated-root-snapshot.json": "5a6df6d6b8b9a38cecfb08c13127b208e181312cbc969e8e79c8f43f78609a24",
+    "deployment/ngr/private/20261016-full96-query-registry-root/live-restarted-root-snapshot.json": "9b1263876fea567df3f17c3f92aa056f7cf4bdb1e0bd01cc63ceed013eeea33f",
+    "deployment/ngr/private/20261016-full96-query-registry-root/periodic-root-samples.json": "2f18e283cea48c601bb4e3bd1ef51b3d35329f7f56e6156faaaad390de57012c",
+    "deployment/ngr/private/20261016-full96-query-registry-root/periodic-root-summary.json": "bb6bee3e70e22145f3d456fe3f553f1d93af59804495ba115ccfdf32b2ef078d",
+    "deployment/ngr/private/20261016-full96-query-registry-root/backup-and-live-identity-root-review.json": "b695a42c2109ba487fdfac3e1dbe19884be963dd3f0d57f9019e3fc4ac73968f",
+    "deployment/ngr/private/20261016-full96-query-registry-root/passive-wire-root-review.json": "33693573209014819ee9762919467e320f30b237122ca27d805861f43daf085e",
+    "deployment/ngr/private/20261016-full96-query-registry-root/human-post-restart.json": "657ee93f709303f821fdacfca4d8cd50ae573bc32f2b2166c7086b085c019da8",
+    "deployment/ngr/private/20261016-native-app-remaining-field-root/rev14-full96-final-handoff.json": "831fe6b29988d2d6d95fdbfffd8caf662d00781f3af761eea5cd26b920986ef6",
+    "deployment/ngr/private/20261016-native-app-remaining-field-root/rev14-isolated-check.json": "e17f8029f5c0a458d7693798574b8ae9975fde41135ea3a10251586a80c0c32e",
+    "deployment/ngr/private/20261016-native-app-remaining-field-root/rev14-saved-preview.json": "c10d02212092f217f3d4d9227c553a669c520a96119368753b871ee93500dec8",
+    "deployment/ngr/private/20261016-native-app-remaining-field-root/rev14-activation-response.json": "45ec250b1a894d387bb457aed7ed0f25aa9b6531279c651668c5f7b323bf9022",
+    "deployment/ngr/private/20261016-native-app-remaining-field-root/rev14-prepublish-backup-manifest.json": "674b61e619bb9b3fcf850b6d2e0431395bf149ca7de839eecc5db5af13c82219",
+    "deployment/ngr/private/20261016-native-app-remaining-field-root/rev14-post-restart-journal.json": "21f65a3f8a6a8fbc7aec02947159a72db2ca0cd793b5fdcbaedf444245c0b73a",
+    "deployment/ngr/private/20261016-native-app-remaining-field-root/rev14-restart-evidence-cb38bff53312/gateway.pcap": "61016988b72a3cc58aac701ad9c812f6aa0f97bc17e7ac8b806115ebdf414284"
+  }
+}
