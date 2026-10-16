@@ -1,0 +1,169 @@
+{
+  "checked_bj": "2026-10-16T13:05:45.390616+08:00",
+  "scope": "R818-DIN-PRO address03 active-feedback enable and Study physical wall-key1 reading ON/OFF, original E2 rev14",
+  "human_authorization": "那先把0x03的主动反馈打开，验证按墙面板后，HomeSense和场景状态能否自动同步。",
+  "commissioning": {
+    "address": "03",
+    "before_C7": "FF",
+    "TX": [
+      "AE 03 C7 00 EE",
+      "AE 03 C8 00 EE",
+      "AE 03 C7 00 EE"
+    ],
+    "C8_sent_once": true,
+    "enable_window_RX": "00 AE 03 D1 F2 EE AE 03 D2 F2 EE AE 03 D3 F2 EE AE 03 D4 F2 EE AE 03 D5 F2 EE AE 03 D6 F2 EE AE 03 D7 F2 EE AE 03 D8 F2 EE",
+    "after_C7": "00",
+    "parameter_readback": "single_byte_candidate_per_manual",
+    "rollback": false,
+    "leave_enabled": true,
+    "other_module_settings_written": false
+  },
+  "human_field": {
+    "baseline": "both lights OFF; curtain fully closed and stopped",
+    "on": {
+      "confirmed_bj": "2026-10-16T13:02:14.608507+08:00",
+      "question_id": "call_e6de196c092345499bfcdc620c7b2082:0",
+      "answer": "符合预期",
+      "action": "physical wall Study key1 once; HomeSense foreground; no App control/refresh",
+      "actual_main": "on",
+      "actual_downlight": "off",
+      "native_main": "on",
+      "native_reading": true,
+      "native_daily": false,
+      "native_energy": false,
+      "automatic_sync_human_confirmed": true,
+      "protocol_causality_audit_pending": true
+    },
+    "off": {
+      "confirmed_bj": "2026-10-16T13:03:25.103072+08:00",
+      "question_id": "call_a4a0103580df48dd9dd506fcdbb5883c:0",
+      "answer": "符合预期",
+      "action": "physical wall Study key1 second press; HomeSense foreground; no refresh/App command",
+      "actual_main": "off",
+      "actual_downlight": "off",
+      "native_main": "off",
+      "native_downlight": "off",
+      "native_reading": false,
+      "native_daily": false,
+      "native_energy": false,
+      "automatic_sync_human_confirmed": true
+    },
+    "no_native_App_control_refresh_or_relogin": true,
+    "exact_sync_latency_measured": false
+  },
+  "independent_API": {
+    "on": {
+      "boot": "830f4e33-d65a-455f-8e07-936bac300dfb",
+      "revision": "14",
+      "main": {
+        "level": 100,
+        "on": true
+      },
+      "downlight": {
+        "level": 0,
+        "on": false
+      },
+      "reading": true,
+      "daily": false,
+      "energy": false,
+      "state_quality": "Confirmed"
+    },
+    "off": {
+      "boot": "830f4e33-d65a-455f-8e07-936bac300dfb",
+      "revision": "14",
+      "main": {
+        "level": 0,
+        "on": false
+      },
+      "downlight": {
+        "level": 0,
+        "on": false
+      },
+      "reading": false,
+      "daily": false,
+      "energy": false,
+      "state_quality": "Confirmed"
+    }
+  },
+  "passive_capture": {
+    "capture_sha256": "458169c1d27eefbf19de3c8495efc4a69ba4357eb59c57a1d4477f9a4884b9cc",
+    "bytes": 2731383,
+    "TCP_overlap_consistency_and_no_gaps": true,
+    "frames_by_direction": [
+      {
+        "direction": "RX",
+        "unique_TCP_bytes": 27582,
+        "raw_packets": 16554,
+        "frames": 5513,
+        "discarded_prefix_or_noise_hex": "bf37ee3fd5ffd757fff7ae47f33efeddee",
+        "trailing_partial_hex": ""
+      },
+      {
+        "direction": "TX",
+        "unique_TCP_bytes": 17635,
+        "raw_packets": 10581,
+        "frames": 3527,
+        "discarded_prefix_or_noise_hex": "",
+        "trailing_partial_hex": ""
+      }
+    ],
+    "03_ch4_query_count": 57,
+    "03_ch4_received_count": 59,
+    "extra_03_ch4_received_frames": 2,
+    "power_changes": [
+      {
+        "at_bj": "2026-10-16T13:01:40.711+08:00",
+        "raw": "ae03d4f1ee",
+        "no_outstanding_query_on_this_TCP_connection": true,
+        "after_previous_query_ms": 1484.047,
+        "previous_query_response_already_seen": true
+      },
+      {
+        "at_bj": "2026-10-16T13:02:55.583+08:00",
+        "raw": "ae03d4f2ee",
+        "no_outstanding_query_on_this_TCP_connection": true,
+        "after_previous_query_ms": 3203.91,
+        "previous_query_response_already_seen": true
+      }
+    ],
+    "scope": "Original E2 sole connection to gateway; periodic queries remain enabled. Changes arrive with no outstanding03/ch4 query on this observed connection. Other controllers serial commands are not fully observable. Human confirms wall action and automatic native sync; exact push latency not measured.",
+    "first_frame_bj": "2026-10-16T13:00:07.040+08:00",
+    "last_frame_bj": "2026-10-16T13:03:32.978+08:00"
+  },
+  "restoration": {
+    "original_E2_active": true,
+    "PID": 258478,
+    "NRestarts": 0,
+    "original_ELF_sha256": "83d894380419ee00c9ecf0a0fcb5356c3ac85185e301fb6f070e1dd70ef9895d",
+    "revision": 14,
+    "configuration_unit_credentials_HAP_identity_preserved": true,
+    "capture_unit_inactive_success": true,
+    "03_active_feedback_kept_enabled": true
+  },
+  "evidence_sha256": {
+    "commissioning/backup-manifest.json": "85a4501556f07232134b641e9b2594b0780ef0ca2b082f27c984da6bcd678f76",
+    "commissioning/before.json": "d1bc8a8e0359b94ad83d994fed0850eaa0475050faab1327db14082b5d94b3d9",
+    "commissioning/immediate-before.json": "04a7bf10a347c1c315c4daac463b73dd9d1ab4ca1930c1af82e0db300b619cbf",
+    "commissioning/post-restore-gateway.pcap": "5b99ed18b8682162cfba71756896f11d7b1526aaa83574072f1a4e45d60397c5",
+    "commissioning/summary.json": "746ca926e5d51c2ce409b8727144209ec1de4c455fa9f4eadd5cb46392fc8f96",
+    "commissioning/timeline.jsonl": "4a460b1afb149305bb1402d0c7624538d963883e1d50c7990b594a7059b68d99",
+    "commissioning/c8_enable03_once.py": "f2eaf1dab28a041da87234b832f73e0142a6b234689faaeea80edaba59d11244",
+    "root/human-baseline.json": "149215cd6ee6d26703b0da820463c92952996c4f456bce8e2c0f30f6e2001245",
+    "root/human-wall-reading-on.json": "ba297abd913faaa13f95132f69cb3366e1b8fc78768d8c89aa63b46d89b6db6a",
+    "root/human-wall-reading-off.json": "86ed9307b34b04658dcfc490c21aa2f2aad9629fc4cbf8f99c7bcf91d35f0e99",
+    "root/readonly-before-setting.json": "baa2dc57649d4291600e527ad11f36d28b2674f530f886f9a2d306daf41e9362",
+    "root/readonly-after-setting-before-wall.json": "63805ef685a528186b41cf35a714007b29db1f5c0bd0e80fb65dc7c9ead26e26",
+    "root/readonly-after-wall-reading-on.json": "8f53ec778134908a93f27e65f11de71de059a8f252c364b9825195e3f43edff1",
+    "root/readonly-after-wall-reading-off.json": "77fb81ec3a7abd0d2ec0e64a2c903cf15b02eebb73c770369e50d9af4195634e",
+    "root/audit_wall_pcap.py": "9765bb1a5b59541189fe6d8e8bdc2bee48e2a468be7e226f116cc21f93f7e2b5",
+    "root/wall-pcap-independent-review.json": "56796e43342499dfe8abf32daa1585821e61b792c5bcefcf49cdce94ba2751f7"
+  },
+  "limitations": [
+    "Parameter00 has no source address/checksum; retain raw windows.",
+    "57 observed03/A4 queries and59 corresponding03/D4 frames include two power changes without an outstanding query on this connection; other controllers bus traffic was not fully captured.",
+    "17 unclassified RX bytes were retained and not counted as state frames.",
+    "Only03/channel4 power changes and two human wall actions verified; no all-channel/full-module/long-term claim.",
+    "Periodic queries remain enabled; no runtime polling policy or B1 candidate publication."
+  ],
+  "D_E_complete": false
+}
