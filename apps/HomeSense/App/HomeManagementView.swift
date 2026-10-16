@@ -12,6 +12,10 @@ private enum HomePage: String, CaseIterable, Identifiable {
         }
     }
 }
+private struct HomeRoomRoute: Hashable {
+    let id: String
+}
+
 struct HomeEditRequest: Identifiable {
     let id = UUID()
     let kind: String
@@ -26,6 +30,7 @@ struct HomeManagementView: View {
     @State private var exportingDiagnostics = false
     @State private var diagnosticExport = HomeDiagnosticExport(text: "")
     @State private var roomFilter = ""
+    @State private var roomPath: [HomeRoomRoute] = []
     @State private var editor: HomeEditRequest?
     @State private var confirmPublication = false
     @State private var confirmReload = false
@@ -66,47 +71,53 @@ struct HomeManagementView: View {
             .navigationTitle("HomeSense")
             .navigationSplitViewColumnWidth(min: 210, ideal: 245, max: 300)
         } detail: {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(managing ? "配置管理" : "我的家").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-                        Text(pageTitle).font(.largeTitle.bold())
-                        if managing { Text(home.message).font(.subheadline).foregroundStyle(.secondary) }
-                        if home.connected { Label(home.receivingPush ? "状态实时更新" : "正在同步状态", systemImage: home.receivingPush ? "checkmark.circle" : "arrow.triangle.2.circlepath").font(.caption).foregroundStyle(.secondary) }
-                        if let error = home.error { Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(.red).textSelection(.enabled) }
-                    }
-                    if home.busy { ProgressView().controlSize(.small) }
-                    if !home.connected, page != .server {
-                        ContentUnavailableView("连接你的家庭", systemImage: "house", description: Text("连接 ngr 上的 HomeSense 服务，查看家庭状态和控制设备。现有直连测试在“本地调试”中保留。"))
-                        Button("连接服务") { page = .server }.buttonStyle(.borderedProminent)
-                    } else {
-                        switch page ?? .overview {
-                        case .overview: if managing { overview } else { dailyOverview }
-                        case .floors: floors
-                        case .rooms: rooms
-                        case .devices: devices
-                        case .scenes: scenes
-                        case .drafts: if managing { configuration }
-                        case .server: connection
+            NavigationStack(path: $roomPath) {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 20) {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(managing ? "配置管理" : "我的家").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                            Text(pageTitle).font(.largeTitle.bold())
+                            if managing { Text(home.message).font(.subheadline).foregroundStyle(.secondary) }
+                            if home.connected { Label(home.receivingPush ? "状态实时更新" : "正在同步状态", systemImage: home.receivingPush ? "checkmark.circle" : "arrow.triangle.2.circlepath").font(.caption).foregroundStyle(.secondary) }
+                            if let error = home.error { Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(.red).textSelection(.enabled) }
+                        }
+                        if home.busy { ProgressView().controlSize(.small) }
+                        if !home.connected, page != .server {
+                            ContentUnavailableView("连接你的家庭", systemImage: "house", description: Text("连接 ngr 上的 HomeSense 服务，查看家庭状态和控制设备。现有直连测试在“本地调试”中保留。"))
+                            Button("连接服务") { page = .server }.buttonStyle(.borderedProminent)
+                        } else {
+                            switch page ?? .overview {
+                            case .overview: if managing { overview } else { dailyOverview }
+                            case .floors: floors
+                            case .rooms: rooms
+                            case .devices: devices
+                            case .scenes: scenes
+                            case .drafts: if managing { configuration }
+                            case .server: connection
+                            }
                         }
                     }
+                    .padding(24).frame(maxWidth: 950, alignment: .leading).frame(maxWidth: .infinity)
                 }
-                .padding(24).frame(maxWidth: 950, alignment: .leading).frame(maxWidth: .infinity)
-            }
-            .background(.background.secondary)
-            .navigationTitle(managing ? "配置管理" : "HomeSense")
-            .toolbar {
-                if home.canManage {
-                    Button(managing ? "完成管理" : "管理", systemImage: managing ? "checkmark" : "slider.horizontal.3") {
-                        home.selectInterfaceMode(managing ? .daily : .management)
-                    }.accessibilityIdentifier("home.interfaceMode")
+                .background(.background.secondary)
+                .navigationTitle(managing ? "配置管理" : "HomeSense")
+                .toolbar {
+                    if home.canManage {
+                        Button(managing ? "完成管理" : "管理", systemImage: managing ? "checkmark" : "slider.horizontal.3") {
+                            home.selectInterfaceMode(managing ? .daily : .management)
+                        }.accessibilityIdentifier("home.interfaceMode")
+                    }
+                    Button("服务连接", systemImage: "network") { page = .server; compactColumn = .detail }
+                    if home.connected {
+                        Button("刷新", systemImage: "arrow.clockwise") { Task { await home.refresh() } }.disabled(home.busy)
+                    }
                 }
-                Button("服务连接", systemImage: "network") { page = .server; compactColumn = .detail }
-                if home.connected {
-                    Button("刷新", systemImage: "arrow.clockwise") { Task { await home.refresh() } }.disabled(home.busy)
+                .navigationDestination(for: HomeRoomRoute.self) { route in
+                    HomeRoomDetail(home: home, roomID: route.id, openDetails: { editor = $0 })
                 }
             }
         }
+        .onChange(of: page) { _, _ in roomPath.removeAll() }
         .fileExporter(isPresented: $exportingDiagnostics, document: diagnosticExport, contentType: .plainText, defaultFilename: "HomeSense-diagnostics") { _ in }
         .onChange(of: home.interfaceMode) { _, _ in preserveNavigation() }
         .onChange(of: home.canManage) { _, canManage in
@@ -156,15 +167,7 @@ struct HomeManagementView: View {
             Text("房间").font(.title2.bold())
             LazyVGrid(columns: cardColumns, alignment: .leading, spacing: 16) {
                 ForEach(home.rooms) { room in
-                    Button { roomFilter = room.id; page = .devices; compactColumn = .detail } label: {
-                        VStack(alignment: .leading, spacing: 10) {
-                            Label(room.name, systemImage: "door.left.hand.open").font(.headline)
-                            Text(room.raw["floor"].text ?? "未分配楼层").font(.caption)
-                            Text("\(home.dailyDevices.filter { $0.raw["room"]["id"].text == room.id }.count) 个可见设备").font(.caption)
-                        }.frame(maxWidth: .infinity, alignment: .leading).padding(20)
-                            .background(.background, in: RoundedRectangle(cornerRadius: 16))
-                            .overlay { RoundedRectangle(cornerRadius: 16).strokeBorder(.primary.opacity(0.07)) }
-                    }.buttonStyle(.plain)
+                    roomCard(room)
                 }
             }
             if home.rooms.isEmpty { empty("暂无可见房间", "房间和设备清单由服务端授权决定。") }
@@ -175,27 +178,7 @@ struct HomeManagementView: View {
         }
     }
     private var activeDeviceCards: some View {
-        LazyVGrid(columns: cardColumns, alignment: .leading, spacing: 16) {
-            ForEach(filteredDevices) { device in
-                if device.raw["kind"].text == "Keypad", device.raw["module_id"].text != nil {
-                    if let keypad = try? HomeKeypad(record: device, current: home.snapshotIsCurrent) {
-                        HomeKeypadCard(keypad: keypad, controlsAvailable: home.controlsAvailable,
-                            activate: { number in
-                                let operation = home.beginKeypadClick(device.id, key: number, card: true)
-                                Task { await home.activateKeypadCard(device.id, key: number, operation: operation) }
-                            },
-                            details: { editor = HomeEditRequest(kind: "keypad-details", record: device) },
-                            isActionAvailable: { home.canActivateKeypad(device.id, key: $0, card: true) })
-                            .onAppear { home.recordKeypadGateStates(device.id, card: true) }
-                            .onChange(of: home.keypadGateStates(device.id, card: true)) { _, _ in home.recordKeypadGateStates(device.id, card: true) }
-                    } else { empty("面板数据暂不可用", "请刷新或核对服务端接口。") }
-                } else {
-                    Button { editor = HomeEditRequest(kind: "device-details", record: device) } label: {
-                        HomeDeviceTile(device: device, live: home.snapshotIsCurrent)
-                    }.buttonStyle(.plain)
-                }
-            }
-        }
+        HomeDeviceCards(home: home, devices: filteredDevices, openDetails: { editor = $0 })
     }
     private var filteredDevices: [HomeRecord] { (managing ? home.devices : home.dailyDevices).filter { roomFilter.isEmpty || $0.raw["room"]["id"].text == roomFilter } }
     private var canEdit: Bool { home.canManage && home.deviceDocument != nil && !home.configurationStale && !home.busy }
@@ -262,8 +245,11 @@ struct HomeManagementView: View {
             if displayFloors.isEmpty { empty("暂无楼层", "可独立新增楼层，再添加房间或调整房间归属。") }
             ForEach(displayFloors, id: \.self) { floor in
                 panel(floor, icon: "building.2") {
-                    Text(displayRooms.filter { $0.raw["floor"].text == floor }.map(\.name).joined(separator: "、").nonemptyOr("暂无房间"))
-                        .foregroundStyle(.secondary)
+                    let floorRooms = displayRooms.filter { $0.raw["floor"].text == floor }
+                    if floorRooms.isEmpty { Text("暂无房间").foregroundStyle(.secondary) }
+                    ForEach(floorRooms) { room in
+                        roomLink(room, showsFloor: false)
+                    }
                     if managing {
                         HStack {
                             Button("重命名") { editor = HomeEditRequest(kind: "floor", floor: floor) }
@@ -280,20 +266,49 @@ struct HomeManagementView: View {
             if managing { Button("新增房间", systemImage: "plus") { editor = HomeEditRequest(kind: "room") }.disabled(!canEdit) }
             if displayRooms.isEmpty { empty("暂无房间", "可为房间选择楼层，再把设备分配到房间。") }
             ForEach(displayRooms) { room in
-                panel(room.name, icon: "door.left.hand.open") {
-                    Text(room.raw["floor"].text ?? "未分配楼层").foregroundStyle(.secondary)
-                    Text(managing
-                         ? "\(home.editableDevices.filter { $0.raw["room"].text == room.id }.count) 个配置设备"
-                         : "\(home.dailyDevices.filter { $0.raw["room"]["id"].text == room.id }.count) 个可见设备").font(.caption)
-                    if managing {
-                        HStack {
-                            Button("编辑房间") { editor = HomeEditRequest(kind: "room", record: room) }
-                            Button("移除", role: .destructive) { removal = HomeEditRequest(kind: "room", record: room) }
-                        }.disabled(!canEdit)
-                    }
-                }
+                roomCard(room)
             }
         }
+    }
+    private func roomLink(_ room: HomeRecord, showsFloor: Bool = true) -> some View {
+        NavigationLink(value: HomeRoomRoute(id: room.id)) {
+            HStack(spacing: 14) {
+                Image(systemName: "door.left.hand.open").font(.title2).foregroundStyle(.teal)
+                    .frame(width: 32)
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(room.name).font(.headline).foregroundStyle(.primary)
+                    if showsFloor { Text(room.raw["floor"].text ?? "未分配楼层").font(.caption).foregroundStyle(.secondary) }
+                    Text(managing
+                         ? "\(home.editableDevices.filter { $0.raw["room"].text == room.id }.count + home.editableKeypads.filter { $0.raw["room"].text == room.id }.count) 个配置设备"
+                         : "\(home.dailyDevices.filter { $0.raw["room"]["id"].text == room.id }.count) 个可见设备")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 8)
+                Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(.tertiary)
+            }
+            .padding(showsFloor ? 20 : 10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint("进入房间，查看设备")
+        .accessibilityIdentifier("home.roomLink.\(room.id)")
+    }
+    private func roomCard(_ room: HomeRecord) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            roomLink(room)
+            if managing {
+                Divider().padding(.horizontal, 20)
+                HStack {
+                    Button("编辑房间") { editor = HomeEditRequest(kind: "room", record: room) }
+                        .accessibilityIdentifier("home.editRoom.\(room.id)")
+                    Button("移除", role: .destructive) { removal = HomeEditRequest(kind: "room", record: room) }
+                }
+                .disabled(!canEdit).padding(20)
+            }
+        }
+        .background(.background, in: RoundedRectangle(cornerRadius: 16))
+        .overlay { RoundedRectangle(cornerRadius: 16).strokeBorder(.primary.opacity(0.07)) }
     }
     private var devices: some View {
         VStack(spacing: 16) {
@@ -435,6 +450,88 @@ struct HomeManagementView: View {
     private func panel<Content: View>(_ title: String, icon: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 14) { Label(title, systemImage: icon).font(.headline); content() }
             .padding(20).frame(maxWidth: .infinity, alignment: .leading).background(.background, in: RoundedRectangle(cornerRadius: 16))
+    }
+}
+
+/// Shared by the overview, device catalog and room destination so every control
+/// observes the same store and keeps its existing admission and LED behavior.
+private struct HomeDeviceCards: View {
+    @ObservedObject var home: HomeServerStore
+    let devices: [HomeRecord]
+    let openDetails: (HomeEditRequest) -> Void
+    private let cardColumns = [GridItem(.adaptive(minimum: 260), alignment: .top)]
+    var body: some View {
+        LazyVGrid(columns: cardColumns, alignment: .leading, spacing: 16) {
+            ForEach(devices) { device in
+                if device.raw["kind"].text == "Keypad", device.raw["module_id"].text != nil {
+                    if let keypad = try? HomeKeypad(record: device, current: home.snapshotIsCurrent) {
+                        HomeKeypadCard(keypad: keypad, controlsAvailable: home.controlsAvailable,
+                            activate: { number in
+                                let operation = home.beginKeypadClick(device.id, key: number, card: true)
+                                Task { await home.activateKeypadCard(device.id, key: number, operation: operation) }
+                            },
+                            details: { openDetails(HomeEditRequest(kind: "keypad-details", record: device)) },
+                            isActionAvailable: { home.canActivateKeypad(device.id, key: $0, card: true) })
+                            .onAppear { home.recordKeypadGateStates(device.id, card: true) }
+                            .onChange(of: home.keypadGateStates(device.id, card: true)) { _, _ in home.recordKeypadGateStates(device.id, card: true) }
+                    } else { ContentUnavailableView("面板数据暂不可用", systemImage: "square.grid.2x2", description: Text("请刷新或核对服务端接口。")) }
+                } else {
+                    Button { openDetails(HomeEditRequest(kind: "device-details", record: device)) } label: {
+                        HomeDeviceTile(device: device, live: home.snapshotIsCurrent)
+                    }.buttonStyle(.plain)
+                }
+            }
+        }
+    }
+}
+
+private struct HomeRoomDetail: View {
+    @ObservedObject var home: HomeServerStore
+    let roomID: String
+    let openDetails: (HomeEditRequest) -> Void
+    private var managing: Bool { home.interfaceMode == .management && home.canManage }
+    private var activeRoom: HomeRecord? { home.rooms.first { $0.id == roomID } }
+    private var room: HomeRecord? {
+        activeRoom ?? (managing ? home.editableRooms.first { $0.id == roomID } : nil)
+    }
+    private var devices: [HomeRecord] { home.dailyDevices.filter { $0.raw["room"]["id"].text == roomID } }
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                if let room {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Label(room.raw["floor"].text ?? "未分配楼层", systemImage: "building.2")
+                            .font(.caption).foregroundStyle(.secondary)
+                        Text(room.name).font(.largeTitle.bold())
+                        Text("\(devices.count) 个可见设备").font(.subheadline).foregroundStyle(.secondary)
+                        Label(home.connected ? (home.receivingPush ? "状态实时更新" : "正在同步状态") : "未连接，控制暂不可用",
+                              systemImage: home.connected && home.receivingPush ? "checkmark.circle" : "arrow.triangle.2.circlepath")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                    if activeRoom == nil {
+                        Text("此房间尚未发布；日常设备以活动配置为准。").font(.subheadline).foregroundStyle(.secondary)
+                    }
+                    if devices.isEmpty {
+                        ContentUnavailableView("暂无可见设备", systemImage: "lightbulb", description: Text("此房间尚无当前凭证可见的设备。"))
+                    } else {
+                        HomeDeviceCards(home: home, devices: devices, openDetails: openDetails)
+                    }
+                } else {
+                    ContentUnavailableView("房间暂不可见", systemImage: "door.left.hand.open", description: Text("房间可能已调整，或当前凭证无权查看。"))
+                }
+            }
+            .padding(24).frame(maxWidth: 950, alignment: .leading).frame(maxWidth: .infinity)
+        }
+        .background(.background.secondary)
+        .navigationTitle(room?.name ?? "房间")
+        .accessibilityIdentifier("home.roomDetail.\(roomID)")
+        .toolbar {
+            if home.canManage {
+                Button(managing ? "完成管理" : "管理", systemImage: managing ? "checkmark" : "slider.horizontal.3") {
+                    home.selectInterfaceMode(managing ? .daily : .management)
+                }
+            }
+        }
     }
 }
 
