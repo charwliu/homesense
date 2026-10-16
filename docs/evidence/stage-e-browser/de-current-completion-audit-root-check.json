@@ -1,5 +1,5 @@
 {
-  "checked_bj": "2026-10-16T10:32:48.791003+08:00",
+  "checked_bj": "2026-10-16T10:42:30.091905+08:00",
   "derived_requirements": [
     "docs/design.md sections9-11,18,20,23-24,27"
   ],
@@ -126,7 +126,7 @@
       "id": "E-4",
       "stage": "E",
       "requirement": "原生App、管理API鉴权与事件恢复",
-      "verified_scope": "登录、滑块、退出和iPad断网恢复有实际限定结果；新账本与Away有软件证据；原生App实际TLS/WSS软件集成及手机推送、页面稳定与亮度按钮可用已确认；原生App两次实际调光跟随与自动读回已确认；rev9楼层目录及原生App三层/两房间归属已实际确认，永久Admin登录和本机空楼层编辑已通过；原生App楼层/房间新增、改名、删除、服务端保存及预览、恢复活动配置和测试草稿清理均已实际确认；两草稿独立核对设备及自动化未变；build7永久凭证Keychain保存、强退重开自动连接及前后台开/关同步已现场通过；ordinary v3严格负向80项零写出、publication v3四函数32项限定通过，v7 Web准确两run持久账目通过；精确来源授权／发布与STOP冻结v5完整1086项及文档、严格Clippy通过，保留原1067项，新增19项含213专项记录；完整build11已通过原机USB覆盖安装，用户确认自动恢复凭证及两父卡显示。；原永久管理员在用户明确批准后补齐书房2/4/6三个既有端点，20设备/7场景；原令牌/角色/控制器、其他凭据与2配对保持，权限变化可见及六键手动动作通过。",
+      "verified_scope": "登录、滑块、退出和iPad断网恢复有实际限定结果；新账本与Away有软件证据；原生App实际TLS/WSS软件集成及手机推送、页面稳定与亮度按钮可用已确认；原生App两次实际调光跟随与自动读回已确认；rev9楼层目录及原生App三层/两房间归属已实际确认，永久Admin登录和本机空楼层编辑已通过；原生App楼层/房间新增、改名、删除、服务端保存及预览、恢复活动配置和测试草稿清理均已实际确认；两草稿独立核对设备及自动化未变；build7永久凭证Keychain保存、强退重开自动连接及前后台开/关同步已现场通过；ordinary v3严格负向80项零写出、publication v3四函数32项限定通过，v7 Web准确两run持久账目通过；精确来源授权／发布与STOP冻结v5完整1086项及文档、严格Clippy通过，保留原1067项，新增19项含213专项记录；完整build11已通过原机USB覆盖安装，用户确认自动恢复凭证及两父卡显示。；原永久管理员在用户明确批准后补齐书房2/4/6三个既有端点，20设备/7场景；原令牌/角色/控制器、其他凭据与2配对保持，权限变化可见及六键手动动作通过。；App13测试手机前台断网至少60秒，控制不可用；另一Apple家庭设备开画室主灯，原生App恢复网络后无需刷新/重开/重输令牌自动同步，再用原生App关灯恢复基线；单次HTTP202和持久回执/供电Written匹配。",
       "remaining_evidence": "完整App已补取证日志，92方法保留原87/两项真实Rust，详情UI补录后同Core/测试字节不变且双平台重编译。build12原签名覆盖安装11→12，真实日志/上一会话保留及本轮key1开关链通过；旧偶发关闭失败原因仍待，App自主发布和其他管理边界继续验收。",
       "status": "exact_source_auth_software_deployed_remaining_field_and_management_checks_pending",
       "additional_auth_gap": "stage-e-browser/ordinary-source-auth-root-gap.json",
@@ -142,15 +142,17 @@
       "additional_native_complete_evidence": "stage-e-browser/native-lhio-preservation-root-check.json",
       "additional_phone_installation_and_field_evidence": "stage-e-browser/native-build11-installation-field-root-check.json",
       "additional_native_control_diagnostics": "stage-e-browser/native-control-logging-root-check.json",
-      "additional_Study_keypad_field": "stage-e-browser/native-study-keypad-field-root-check.json"
+      "additional_Study_keypad_field": "stage-e-browser/native-study-keypad-field-root-check.json",
+      "additional_native_offline_recovery_field": "stage-e-browser/native-app-offline-recovery-field-root-check.json"
     },
     {
       "id": "E-5",
       "stage": "E",
       "requirement": "家庭中枢、多客户端与网络恢复",
-      "verified_scope": "实际iPhone蜂窝远控／回WiFi通过；用户报告HPLeft已连接",
-      "remaining_evidence": "用户明确挂起HPLeft断电恢复，未断电；其余明确客户端/桥和网络场景继续验收，具体中枢Peer未独立映射",
-      "status": "physical_acceptance_partial"
+      "verified_scope": "实际iPhone蜂窝远控／回WiFi通过；用户报告HPLeft已连接；App13测试手机前台断网至少60秒，控制不可用；另一Apple家庭设备开画室主灯，原生App恢复网络后无需刷新/重开/重输令牌自动同步，再用原生App关灯恢复基线；单次HTTP202和持久回执/供电Written匹配。",
+      "remaining_evidence": "HPLeft断电恢复已由用户恢复测试，当前选定HPLeft在线且自动选择关闭，断电结果尚待；其他中枢未枚举，具体中枢Peer未独立映射；其余客户端/桥和网络场景待验。",
+      "status": "physical_acceptance_partial",
+      "additional_native_offline_recovery_field": "stage-e-browser/native-app-offline-recovery-field-root-check.json"
     },
     {
       "id": "E-6",
@@ -326,7 +328,8 @@
     "stage-e-browser/native-keypad-motor-app13-installed-root-check.json": "6bc63eb8865690ca3594f9c49dfabbdba5bdc68b136b2840d3c01868a8ffa622",
     "stage-e-browser/native-keypad-motor-runtime13-root-check.json": "8962a41543afe1fffa0485304693492361dddb719b42217e2e2f4ce835492a51",
     "stage-e-browser/native-keypad-curtain-runtime13-field-root-check.json": "e591cdf8b9d3bd21f3c6b3efb9bcc0be0e622a5158f2b7522ad1075973fdaa70",
-    "stage-e-browser/native-artstudio-scene-card-field-root-check.json": "56e96f84b6034a317fa51039deed8c70e2326140bf3159a003b4554d9e6440e0"
+    "stage-e-browser/native-artstudio-scene-card-field-root-check.json": "56e96f84b6034a317fa51039deed8c70e2326140bf3159a003b4554d9e6440e0",
+    "stage-e-browser/native-app-offline-recovery-field-root-check.json": "b27b249dffe9b3ad1c4e7e50721d6e82f991aac2d7571f611a602ac97f4a398c"
   },
   "excluded_by_scope": {
     "Siri": "cancelled by user",
@@ -362,7 +365,7 @@
     "authoritative_field_revision_recheck_pending": false,
     "revision10_evidence": "stage-e-browser/keypad-existing-cards-publication-root-check.json"
   },
-  "home_hub_offline_recovery_user_paused": true,
+  "home_hub_offline_recovery_user_paused": false,
   "new_user_requirements": [
     {
       "id": "U-1",
@@ -718,5 +721,7 @@
   "latest_generic_native_Keypad_App13_install": "stage-e-browser/native-keypad-motor-app13-installed-root-check.json",
   "latest_generic_native_Keypad_runtime13": "stage-e-browser/native-keypad-motor-runtime13-root-check.json",
   "latest_generic_native_Keypad_motor_field": "stage-e-browser/native-keypad-curtain-runtime13-field-root-check.json",
-  "latest_native_Artstudio_scene_card_field": "stage-e-browser/native-artstudio-scene-card-field-root-check.json"
+  "latest_native_Artstudio_scene_card_field": "stage-e-browser/native-artstudio-scene-card-field-root-check.json",
+  "latest_native_App_offline_recovery_field": "stage-e-browser/native-app-offline-recovery-field-root-check.json",
+  "home_hub_offline_recovery_current": "resumed by user; HPLeft selected/online, auto-selection off; outage result pending, other hubs not enumerated"
 }
