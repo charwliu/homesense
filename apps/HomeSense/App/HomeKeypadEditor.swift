@@ -75,6 +75,9 @@ struct HomeKeypadEditor: View {
                                 Text("未映射，不发送动作").tag("none")
                                 Text("场景切换").tag("scene_toggle")
                                 Text("窗帘动作").tag("motor")
+                                if key.original["action"]["kind"].text == "away_off" {
+                                    Text("离家（保留现有审核映射）").tag("away_off")
+                                }
                             }
                             if key.mappingKind == "scene_toggle" {
                                 Picker("目标场景", selection: $key.scene) {
@@ -95,7 +98,10 @@ struct HomeKeypadEditor: View {
                                     Text("打开").tag("open"); Text("停止").tag("stop"); Text("关闭").tag("close")
                                 }
                             }
-                            if key.mappingKind != "none" {
+                            if key.mappingKind == "away_off" {
+                                Text("保留已发布的离家映射；执行范围由服务端审核配置决定。此处不创建或扩大全屋控制范围。")
+                                    .font(.caption).foregroundStyle(.secondary)
+                            } else if key.mappingKind != "none" {
                                 TextField("映射审核依据", text: $key.review, axis: .vertical)
                                 Text("点击此键只执行经过审核的映射，不注入物理按键事件。目标还需具备独立控制权限。")
                                     .font(.caption).foregroundStyle(.secondary)
@@ -131,7 +137,7 @@ struct HomeKeypadEditor: View {
             var row = record?.raw ?? .object([:])
             row["id"] = .string(id); row["name"] = .string(name); row["module_id"] = .string(module)
             row["room"] = room.isEmpty ? .null : .string(room); row["enabled"] = .bool(enabled)
-            row["keys"] = .array(keys.filter(\.configured).map { key in
+            row["keys"] = .array(try keys.filter(\.configured).map { key in
                 var raw = key.original
                 raw["number"] = .integer(Int64(key.number)); raw["label"] = .string(key.label)
                 var led = raw["led_endpoint"].isObject ? raw["led_endpoint"] : .object([:])
@@ -141,7 +147,11 @@ struct HomeKeypadEditor: View {
                 switch key.mappingKind {
                 case "scene_toggle": raw["action"] = .object(["kind": .string("scene_toggle"), "scene": .string(key.scene), "review_evidence": .string(key.review)])
                 case "motor": raw["action"] = .object(["kind": .string("motor"), "device": .string(key.motorDevice), "action": .string(key.motorAction), "review_evidence": .string(key.review)])
-                default: raw = raw.removing(["action"])
+                case "away_off":
+                    guard key.original["action"]["kind"].text == "away_off" else { throw HomeServerError.invalidDocument }
+                    raw["action"] = key.original["action"]
+                case "none": raw = raw.removing(["action"])
+                default: throw HomeServerError.invalidDocument
                 }
                 return raw
             })

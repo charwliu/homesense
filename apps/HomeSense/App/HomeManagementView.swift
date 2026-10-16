@@ -60,7 +60,7 @@ struct HomeManagementView: View {
                 Section(managing ? "服务端" : "家庭状态") {
                     Label(home.connected ? "已连接" : "未连接", systemImage: home.connected ? "checkmark.circle" : "circle")
                     if managing, !home.revision.isEmpty { LabeledContent("配置版本", value: home.revision) }
-                    Text("\(home.devices.count) 个设备 · \(home.scenes.count) 个场景").font(.caption).foregroundStyle(.secondary)
+                    Text("\(managing ? home.devices.count : home.dailyDevices.count) 个设备 · \(home.scenes.count) 个场景").font(.caption).foregroundStyle(.secondary)
                 }
             }
             .navigationTitle("HomeSense")
@@ -160,7 +160,7 @@ struct HomeManagementView: View {
                         VStack(alignment: .leading, spacing: 10) {
                             Label(room.name, systemImage: "door.left.hand.open").font(.headline)
                             Text(room.raw["floor"].text ?? "未分配楼层").font(.caption)
-                            Text("\(home.devices.filter { $0.raw["room"]["id"].text == room.id }.count) 个可见设备").font(.caption)
+                            Text("\(home.dailyDevices.filter { $0.raw["room"]["id"].text == room.id }.count) 个可见设备").font(.caption)
                         }.frame(maxWidth: .infinity, alignment: .leading).padding(20)
                             .background(.background, in: RoundedRectangle(cornerRadius: 16))
                             .overlay { RoundedRectangle(cornerRadius: 16).strokeBorder(.primary.opacity(0.07)) }
@@ -197,7 +197,7 @@ struct HomeManagementView: View {
             }
         }
     }
-    private var filteredDevices: [HomeRecord] { home.devices.filter { roomFilter.isEmpty || $0.raw["room"]["id"].text == roomFilter } }
+    private var filteredDevices: [HomeRecord] { (managing ? home.devices : home.dailyDevices).filter { roomFilter.isEmpty || $0.raw["room"]["id"].text == roomFilter } }
     private var canEdit: Bool { home.canManage && home.deviceDocument != nil && !home.configurationStale && !home.busy }
     private var connection: some View {
         panel("HomeSense 管理服务", icon: "server.rack") {
@@ -284,7 +284,7 @@ struct HomeManagementView: View {
                     Text(room.raw["floor"].text ?? "未分配楼层").foregroundStyle(.secondary)
                     Text(managing
                          ? "\(home.editableDevices.filter { $0.raw["room"].text == room.id }.count) 个配置设备"
-                         : "\(home.devices.filter { $0.raw["room"]["id"].text == room.id }.count) 个可见设备").font(.caption)
+                         : "\(home.dailyDevices.filter { $0.raw["room"]["id"].text == room.id }.count) 个可见设备").font(.caption)
                     if managing {
                         HStack {
                             Button("编辑房间") { editor = HomeEditRequest(kind: "room", record: room) }
@@ -302,7 +302,7 @@ struct HomeManagementView: View {
                 ForEach(home.rooms) { Text($0.name).tag($0.id) }
             }
             activeDeviceCards
-            if home.devices.isEmpty { empty("暂无可见设备", "设备清单与可控范围由服务端凭证决定。") }
+            if (managing ? home.devices : home.dailyDevices).isEmpty { empty("暂无可见设备", "设备清单与可控范围由服务端凭证决定。") }
             if managing {
                 editNotice
                 HStack {

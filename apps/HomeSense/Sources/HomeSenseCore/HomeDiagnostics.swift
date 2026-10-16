@@ -137,7 +137,7 @@ enum HomeDiagnosticStage: String, CaseIterable {
     }
     fileprivate nonisolated static func safePath(_ path: String) -> String {
         let fixed: Set<String> = ["/api/v1/session","/api/v1/devices","/api/v1/scenes","/api/v1/rooms","/api/v1/device-commands",
-            "/api/v1/scene-actions","/api/v1/scene-relative-actions","/api/v1/keypad-settings","/api/v1/config/versions","/api/v1/config/drafts"]
+            "/api/v1/scene-actions","/api/v1/scene-relative-actions","/api/v1/away-off","/api/v1/keypad-settings","/api/v1/config/versions","/api/v1/config/drafts"]
         if fixed.contains(path) { return path }
         if path.hasPrefix("/api/v1/config/") { return "/api/v1/config/*" }
         return "/api/v1/other"
