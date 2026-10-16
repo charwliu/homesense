@@ -1,0 +1,97 @@
+{
+  "checked_bj": "2026-10-16T10:56:59.544315+08:00",
+  "scope": "single approved read-only commissioning sweep of12 modules/96 output addresses; restore original E2 service",
+  "authorization": {
+    "question": "call_0f0dade0be634a51b07fc67a28086a9b:0",
+    "answer": "允许短停并查询，完成后恢复 E2",
+    "recorded_bj": "2026-10-16T10:50:52.796815+08:00"
+  },
+  "query_policy": {
+    "R818_modules": 7,
+    "R818_queries_each": 8,
+    "R818_commands": "A1..A8 F2",
+    "AD8_modules": 5,
+    "AD8_queries_each": 1,
+    "AD8_command": "A0 F2",
+    "query_frames": 61,
+    "R818_A0_support_claimed": false,
+    "queries_replayed_or_reconnected": false
+  },
+  "independent_RX_TX_review": {
+    "checked_bj": "2026-10-16T10:55:37.165500+08:00",
+    "query_frames": 61,
+    "feedback_frames": 96,
+    "RX_chunks": 96,
+    "output_channels": 96,
+    "modules": 12,
+    "all_feedback_address_channel_within_expected_query_window": true,
+    "duplicate_feedback": 0,
+    "malformed_frames": 0,
+    "no_socket_actuator_or_parameter_write_frames": true,
+    "query_reply_causality_claimed": false,
+    "stationary_dimmer_values_not_used_as_memory_brightness": true,
+    "short_stop_seconds": 68.997,
+    "pre_post_identity_config_ELF_credentials_exact": true,
+    "timer_cancelled": true,
+    "wire_capture_used": false,
+    "source": "independent Root parse of saved TX/RX byte chunks, no bus actions"
+  },
+  "human_restoration": {
+    "question": "call_eca3627c83514a579a0af61df830c4fd:0",
+    "answer": "两边自动恢复，状态一致，网关正常",
+    "checked_bj": "2026-10-16T10:56:23.033760+08:00",
+    "without_refresh_repairing_new_control": true,
+    "actual_and_clients": "Study and Artstudio responsive, Study bothlightsOFF; existing gateways normal; curtains remain stopped"
+  },
+  "restored_service": {
+    "ELF_sha256": "83d894380419ee00c9ecf0a0fcb5356c3ac85185e301fb6f070e1dd70ef9895d",
+    "revision": 13,
+    "schema": 27,
+    "boot": "7d2bf1e8-7334-4931-8c6f-22c1c706f208",
+    "pid": 254892,
+    "NRestarts": 0,
+    "pairings": 2,
+    "AID_rows": 18,
+    "IID_rows": 164,
+    "Admin_devices": 20,
+    "Admin_scenes": 7,
+    "original_credentials_identity_unit_config_exact": true,
+    "registered_fresh_lighting_outputs": 64,
+    "ready_gateway_storage_healthy": true,
+    "queued": 0
+  },
+  "restart_side_effects": {
+    "scene_LED_written": 5,
+    "light_motor_written": 0,
+    "note": "startup LED projections separate from query-only socket; no entire-window zero-LED claim; no independent wire capture"
+  },
+  "remaining": [
+    "0x01/04/05/15 observed independently but not added to active registry; continuous polling remains64 outputs.",
+    "No per-channel physical load/room wiring acceptance, no module batch Away control executed.",
+    "Stationary AD8 nonzero feedback does not prove lamp powered ON or remembered brightness; supply relay feedback must remain separate.",
+    "Time-window match is not causal ACK; no physical bus packet capture.",
+    "R818 A0 unconfirmed; current7x8+5=61 queries, not12 whole-module queries.",
+    "Historical5512ms pause cause and long-term96-output service stability remain open."
+  ],
+  "source_scope_remaining": {
+    "scenes": 65,
+    "programs": 208,
+    "variables": 24
+  },
+  "D_E_complete": false,
+  "evidence_sha256": {
+    "deployment/ngr/private/20261016-native-app-remaining-field-root/readonly96-window-plan.json": "14b4da7571964bada851dde27a501f930e2e6e0ecd258fb5423bc3e222a79d26",
+    "deployment/ngr/private/20261016-native-app-remaining-field-root/readonly96-plan-root-review.json": "cd18fb7f8422fbdec6cc253ac23c46b0125cb167f06f84f21f196ed978ccc350",
+    "deployment/ngr/private/20261016-native-app-remaining-field-root/execute_readonly96.py": "eb7f21d7e3c26e1617d266d104355df2a6b1e03bff9b79021aacd5825e018e02",
+    "deployment/ngr/private/20261016-native-app-remaining-field-root/readonly96-handoff-3a626c4fc827.json": "94639f3974dfff19611315254841dda91003be9ba188770f67b9395d998c0c71",
+    "deployment/ngr/private/20261016-native-app-remaining-field-root/readonly96-analysis-3a626c4fc827.json": "49496537fc461f75e39f6e1027f641147ff89cca0735429e528bbe578fc1c9bd",
+    "deployment/ngr/private/20261016-native-app-remaining-field-root/readonly96-independent-frame-review.json": "1f3617a2f57abd8d67a752473eeaaea32255e9e3a15986970979d0353df2d908",
+    "deployment/ngr/private/20261016-native-app-remaining-field-root/readonly96-live-identity-root-check.json": "971e951baa8ecf0dd96adb5b3c5851538ecc0776a516d354dc75cd1609057c33",
+    "deployment/ngr/private/20261016-native-app-remaining-field-root/readonly96-restored-root-snapshot.json": "caf0be30f6cbd3054aa990d285291c1d21be483669cfc49e7a1aa0d73026c4d5",
+    "deployment/ngr/private/20261016-native-app-remaining-field-root/readonly96-post-restore-3a626c4fc827.json": "9ed4e7836b2a9d4e44ca761ef93e25f6a3a8d534374e21b327992ccadeb8ebda",
+    "deployment/ngr/private/20261016-native-app-remaining-field-root/readonly96-human-restoration.json": "a94110c3d22100e80dbed9b67ba2f33bc1aaeac1ef01cdd602188f8748c11571",
+    "deployment/ngr/private/20261016-native-app-remaining-field-root/readonly96-evidence-3a626c4fc827/before.json": "3b87b35de6050d907b2f1a7a77704964592e74abf356c3316d92c0314f892170",
+    "deployment/ngr/private/20261016-native-app-remaining-field-root/readonly96-evidence-3a626c4fc827/summary.json": "36f12e1c3c362ca533d9b8555f01a46cd5fcc3e0ab5e354cd97a30db833b0b6a",
+    "deployment/ngr/private/20261016-native-app-remaining-field-root/readonly96-evidence-3a626c4fc827/tx-rx.jsonl": "7d0a33de920ad2ad0ace7c1d117628e3af79ca5b98e288f5a97451407c42f33d"
+  }
+}
