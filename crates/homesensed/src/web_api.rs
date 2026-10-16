@@ -70,11 +70,9 @@ async fn selection_details(
     use crate::scene_switches::UnavailableReason;
     // A read-only request may complete late, but can never dispatch an action.
     match tokio::time::timeout(std::time::Duration::from_millis(500), async {
-        match control.request(Action::Diagnostics { controller, revision }).await {
-            Ok(Reply::Diagnostics(state)) if state.mapping_readable() => {},
-            Ok(Reply::Diagnostics(_)) => return Err(UnavailableReason::RuntimeNotReady),
-            _ => return Err(UnavailableReason::ReadFailed),
-        }
+        // SceneSelectionDetails performs its own revision, source/generation and
+        // mapping-ready checks in the runtime. A separate diagnostics request
+        // added a second drive quantum inside the same 500ms read budget.
         match control.request(Action::SceneSelectionDetails { controller, revision }).await {
             Ok(Reply::SceneSelectionDetails(states)) => Ok(states),
             Err(error) if error == "scene selection runtime not ready" => Err(UnavailableReason::RuntimeNotReady),
@@ -86,6 +84,9 @@ async fn selection_details(
     }
 }
 impl Api {
+    pub(crate) fn can_manage_configuration(&self,grant:&crate::web_auth::Grant)->bool {
+        grant.role==crate::web_auth::Role::Administrator && self.drafts.is_some()
+    }
     pub async fn handle(&self, request: Request<Bytes>) -> Response<Full<Bytes>> {
         let deny = |code, message| response(code, json!({"error":message}));
         let expected_host = self
@@ -208,7 +209,7 @@ impl Api {
         if request.method() == hyper::Method::GET && request.uri().path() == "/api/v1/session" {
             return response(
                 StatusCode::OK,
-                json!({"can_view_diagnostics":grant.role==crate::web_auth::Role::Administrator,"can_manage_configuration":grant.role==crate::web_auth::Role::Administrator && self.drafts.is_some()}),
+                json!({"can_view_diagnostics":grant.role==crate::web_auth::Role::Administrator,"can_manage_configuration":self.can_manage_configuration(&grant)}),
             );
         }
         if request.method() == hyper::Method::DELETE && request.uri().path() == "/api/v1/session" {
@@ -694,15 +695,14 @@ impl Api {
                     "device_snapshot_unavailable",
                 );
             };
+            let directory=snapshot.directory(self.can_manage_configuration(&grant));
             if request.uri().path()=="/api/v1/rooms" {
-                let mut rooms:std::collections::BTreeMap<_,_>=snapshot.devices.iter().filter(|d|d.catalog_visible).filter_map(|d|d.room.as_ref()).map(|r|(r.id.clone(),serde_json::json!(r))).collect();
-                for panel in &snapshot.keypads {if let Some(id)=panel["room"]["id"].as_str(){rooms.insert(id.to_owned(),panel["room"].clone());}}
-                return response(StatusCode::OK,json!({"boot":snapshot.boot,"revision":snapshot.revision.to_string(),"rooms":rooms.values().collect::<Vec<_>>(),"floors":snapshot.floors}));
+                return response(StatusCode::OK,json!({"boot":snapshot.boot,"revision":snapshot.revision.to_string(),"rooms":directory.rooms,"floors":directory.floors}));
             }
             let devices = crate::management_keypads::devices_json(&snapshot, &grant);
             return response(
                 StatusCode::OK,
-                json!({"boot":snapshot.boot,"revision":snapshot.revision,"revision_text":snapshot.revision.to_string(),"sequence":snapshot.sequence,"devices":devices}),
+                json!({"boot":snapshot.boot,"revision":snapshot.revision,"revision_text":snapshot.revision.to_string(),"sequence":snapshot.sequence,"devices":devices,"rooms":directory.rooms,"floors":directory.floors}),
             );
         }
         if request.method()==hyper::Method::GET && let Some(key)=request.uri().path().strip_prefix("/api/v1/scene-relative-requests/") {
@@ -1031,5 +1031,32 @@ fn mask_module_actions(slots: &mut [crate::management_modules::Slot], grant: &cr
         if let Some(binding) = &mut slot.binding && !grant.may_control_device(&binding.id) {
             binding.actions.clear();
         }
+    }
+}
+
+#[cfg(test)]
+mod selection_quantum_tests {
+    use super::*;
+    #[tokio::test]
+    async fn selection_read_needs_one_runtime_quantum_and_keeps_the_original_read_deadline() {
+        let directory=std::env::temp_dir().join(format!("scene-read-quantum-{}",uuid::Uuid::new_v4()));std::fs::create_dir(&directory).unwrap();
+        let path=directory.join("runtime.sqlite");let rules=br#"{"schema_version":1,"configuration_revision":1,"variables":[],"rules":[]}"#;
+        homesense_storage::Store::open(&path).unwrap().publish_automation(None,include_bytes!("../../../config/simulation.json"),rules,homesense_core::ExecutionContext::Simulation,&[]).unwrap();
+        let controller=uuid::Uuid::new_v4();
+        let admission=crate::admission::Admission::open(path,crate::admission::Options {context:homesense_core::ExecutionContext::Simulation,..Default::default()},move|id|id==controller).await.unwrap();
+        admission.synchronized(1,1).await.unwrap();
+        let bundle=admission.automation_bundle(controller,admission.task_generation().await.unwrap()).await.unwrap();
+        let document=bundle.automation.unwrap();
+        let feedback=crate::feedback::Feedback::new(&bundle.configuration,homesense_core::ExecutionContext::Simulation,uuid::Uuid::parse_str(admission.boot_id()).unwrap().as_u128(),1).unwrap();
+        let (control,mut receiver)=crate::automation_control::channel(controller,admission.task_generation().await.unwrap());
+        let mut scenes=crate::scene_scheduler::SceneScheduler::new(admission.clone(),controller,8,admission.monotonic_ms()).unwrap();
+        let read=async {let result=selection_details(&control,controller,1).await;assert!(result.unwrap().is_empty());};
+        // A single drive call must suffice. No wall-clock sleep or weakened
+        // product timeout: the old second request has no subsequent quantum.
+        let drive=async {receiver.poll(&admission,&document,&mut scenes,&feedback,5000,None).await;};
+        tokio::join!(read,drive);
+        // No runtime polling: genuine timeout must still be reported, not cached.
+        assert!(matches!(selection_details(&control,controller,1).await,Err(crate::scene_switches::UnavailableReason::ReadTimedOut)));
+        drop(receiver);admission.shutdown().await.unwrap();std::fs::remove_dir_all(directory).unwrap();
     }
 }

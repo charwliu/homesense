@@ -15,6 +15,9 @@ pub(super) struct Refresh {
     pending:BTreeMap<String,Pending>,
     recovery:BTreeMap<String,Recovery>,
     control_opportunity:BTreeSet<String>,
+    pub(super) round:RoundTracker,
+    adaptive:Option<crate::adaptive_refresh::Schedule>,
+    recent_queries:BTreeMap<(String,u8,u8),u64>,
 }
 struct Pending { index:usize,before:Vec<(u8,u64)>,sent:u64,deadline:u64,retried:bool,recovery:bool }
 struct Recovery { wire:WireScope,indices:Vec<usize>,next:usize,samples:Vec<crate::gateway_runtime::Sample> }
@@ -24,20 +27,36 @@ impl Refresh {
         generation:crate::admission::TaskGeneration,context:homesense_core::ExecutionContext,
         timeout:u64,max_age:u64,interval:u64,now:u64)->Result<Self,String> {
         let cycle=interval.checked_mul(targets.len() as u64).ok_or("local refresh cycle overflow")?;
-        let due=(0..targets.len()).map(|i|now.checked_add(interval.checked_mul(i as u64+1).ok_or("local refresh slot overflow")?).ok_or("local refresh due overflow")).collect::<Result<Vec<_>,_>>()?;
+        let adaptive=(max_age==config.refresh_policy().observation_max_age_ms()).then(||crate::adaptive_refresh::Schedule::new(config.refresh_policy()));
+        let first_delay=adaptive.as_ref().map_or(0,|s|s.interval());
+        let due=(0..targets.len()).map(|i| {
+            let offset=interval.checked_mul(i as u64+1).ok_or("local refresh slot overflow")?;
+            now.checked_add(first_delay).and_then(|at|at.checked_add(offset)).ok_or("local refresh due overflow")
+        }).collect::<Result<Vec<_>,_>>()?;
         let control_opportunity=config.gateways().keys().cloned().collect();
-        Ok(Self {config,targets,generation,context,timeout,max_age,cycle,due,pending:BTreeMap::new(),recovery:BTreeMap::new(),control_opportunity})
+        Ok(Self {config,targets,generation,context,timeout,max_age,cycle,due,pending:BTreeMap::new(),recovery:BTreeMap::new(),control_opportunity,round:RoundTracker::default(),adaptive,recent_queries:BTreeMap::new()})
     }
+    pub(super) fn written(&mut self,device:&homesense_core::DeviceId,now:u64) {
+        if self.adaptive.is_none() {return;}
+        let Some((binding,module))=self.config.binding(device) else{return;};
+        if !matches!(module.kind(),homesense_core::ModuleKind::Switch|homesense_core::ModuleKind::Dimmer) {return;}
+        let (gateway,address,channel)=(binding.gateway.clone(),binding.address,binding.channel.get());
+        self.activity(now);
+        for (index,target) in self.targets.iter().enumerate() {if target.gateway==gateway && target.module.address()==address && target.channels.contains(&channel) {self.round.forget(index);self.due[index]=0;}}
+    }
+    fn activity(&mut self,now:u64) {if let Some(schedule)=&mut self.adaptive {schedule.activity();self.round.discard_completion();for due in &mut self.due {*due=(*due).min(now);}}}
+    fn solicited(&self,gateway:&str,address:u8,channel:u8,now:u64)->bool {if self.recent_queries.get(&(gateway.into(),address,channel)).is_some_and(|deadline|now<=*deadline){return true;}self.pending.get(gateway).is_some_and(|pending| {let target=&self.targets[pending.index];target.module.address().get()==address && target.channels.contains(&channel)})}
     pub(super) fn pending(&self)->bool {!self.pending.is_empty()}
-    pub(super) fn blocked(&self,now:u64,gap:u64)->BTreeSet<String> {
+    pub(super) fn blocked(&self,now:u64,gap:u64,background_led_phase:bool)->BTreeSet<String> {
         let mut blocked=self.pending.keys().cloned().collect::<BTreeSet<_>>();
         for (i,target) in self.targets.iter().enumerate() {
-            if !self.control_opportunity.contains(&target.gateway) && now.saturating_add(gap)>=self.due[i] {blocked.insert(target.gateway.clone());}
+            if !background_led_phase && !self.control_opportunity.contains(&target.gateway) && now.saturating_add(gap)>=self.due[i] {blocked.insert(target.gateway.clone());}
         }
         blocked
     }
-    fn fault(&mut self,gateway:&str) {self.pending.remove(gateway);self.recovery.remove(gateway);self.control_opportunity.remove(gateway);}
+    fn fault(&mut self,gateway:&str) {self.round.reset();self.pending.remove(gateway);self.recovery.remove(gateway);self.control_opportunity.remove(gateway);}
     fn connected(&mut self,wire:WireScope) {
+        self.round.reset();
         self.pending.remove(wire.gateway());
         let indices=self.targets.iter().enumerate().filter(|(_,target)|target.gateway==wire.gateway()).map(|(i,_)|i).collect();
         self.recovery.insert(wire.gateway().into(),Recovery {wire,indices,next:0,samples:vec![]});
@@ -74,7 +93,7 @@ impl<S:Read+Write+Send+'static> ObservedTransport<S> {
                     let at=state.observed_at_ms.ok_or("initial actual observation missing")?;
                     let count=self.feedback.module_truth().port_observation_count(wire.gateway(),object.spec.address().get(),channel).ok_or("initial actual count missing")?;
                     if state.quality!=Quality::Confirmed ||state.observed.is_none() ||count==0
-                        ||now.checked_sub(at).is_none_or(|age|age>=5000) {return Err("initial full physical feedback required".into());}
+                        ||now.checked_sub(at).is_none_or(|age|age>=config.refresh_policy().observation_max_age_ms()) {return Err("initial full physical feedback required".into());}
                     samples.push(crate::gateway_runtime::Sample {requirement:ReadRequirement {port:Port {address:object.spec.address().get(),channel},before_count:count-1,sent_at_ms:at,deadline_ms:at},count,at});
                 }
             }
@@ -97,6 +116,15 @@ impl<S:Read+Write+Send+'static> ObservedTransport<S> {
         }
         let read_fences=events.read_fences;
         for read in events.reads {
+            let candidates=match &read.result {
+                hb_transport::Receive::Frames {frames,..}=>frames.iter().filter_map(|frame| {
+                    let channel=frame.command.checked_sub(0xd0)?;
+                if !self.feedback.module_truth().received_port_state(&read.gateway_id,frame.address,channel).is_some_and(|state|matches!(state.kind,homesense_core::ModuleKind::Switch|homesense_core::ModuleKind::Dimmer)) {return None;}
+                    let count=self.feedback.module_truth().port_observation_count(&read.gateway_id,frame.address,channel)?;
+                    (!self.local_refresh.as_ref().is_some_and(|p|p.solicited(&read.gateway_id,frame.address,channel,read.received_at_ms))).then_some((frame.address,channel,count))
+                }).collect::<Vec<_>>(),_=>vec![],
+            };
+
             // HAP's coalesced publisher may skip a reached local target followed
             // by external feedback in the same receive batch. Settle the bounded
             // target from genuine per-frame evidence before later samples; this
@@ -120,6 +148,9 @@ impl<S:Read+Write+Send+'static> ObservedTransport<S> {
                     }
                 }
             }else {self.feedback.apply_at(&read,self.transport.now_ms())?;}
+            if candidates.iter().any(|(address,channel,before)|self.feedback.module_truth().port_observation_count(&read.gateway_id,*address,*channel).is_some_and(|count|count>*before))
+                && let Some(plan)=&mut self.local_refresh {plan.activity(read.received_at_ms);}
+
         }
         Ok(())
     }
@@ -161,7 +192,12 @@ impl<S:Read+Write+Send+'static> ObservedTransport<S> {
                 }
                 recovery.next+=1;
             }else{
-                plan.due[pending.index]=plan.due[pending.index].checked_add(plan.cycle).ok_or("refresh time exhausted")?.max(now);
+                let complete=plan.round.observe(pending.index,&plan.targets,self.feedback.module_truth(),now,plan.max_age,plan.config.refresh_policy().round_budget_ms,&plan.generation);
+                if complete && let Some(schedule)=&mut plan.adaptive {
+                    let due=now.checked_add(schedule.completed()).ok_or("adaptive refresh time exhausted")?;
+                    plan.due.fill(due);self.feedback.set_managed_max_age_ms(schedule.allowance())?;
+                }else{plan.due[pending.index]=plan.due[pending.index].checked_add(plan.cycle).ok_or("refresh time exhausted")?.max(now);}
+
                 plan.control_opportunity.insert(gateway);
             }
         }
@@ -188,6 +224,7 @@ impl<S:Read+Write+Send+'static> ObservedTransport<S> {
             let audit=self.transport.admission().gateway_fault(wire.clone()).await.map_err(|e|format!("local query-timeout audit: {e:?}"))?;
             self.transport.local_record_fault(wire,audit)?;plan.fault(&gateway);
         }
+        if self.background_led_phase && plan.recovery.is_empty() {return Ok(());}
         let mut candidates=vec![];
         for (gateway,pending) in &plan.pending {
             if now>=pending.deadline&&!pending.retried&&self.transport.local_idle_stream(gateway) {candidates.push((pending.deadline,pending.index,true,pending.recovery));}
@@ -200,12 +237,13 @@ impl<S:Read+Write+Send+'static> ObservedTransport<S> {
         for (index,target) in plan.targets.iter().enumerate() {
             if !plan.pending.contains_key(&target.gateway)&&!plan.recovery.contains_key(&target.gateway)
                 &&self.transport.local_connected(&target.gateway)&&!self.transport.local_syncing(&target.gateway)
-                &&self.transport.local_idle_stream(&target.gateway)&&now>=plan.due[index] {
+                &&self.transport.local_idle_stream(&target.gateway)&&now>=plan.due[index]&&!plan.round.contains(index) {
                 candidates.push((plan.due[index],index,false,false));
             }
         }
         candidates.sort_by_key(|candidate|(candidate.0,candidate.1));
         let Some((_,index,retried,recovery))=candidates.first().copied() else{return Ok(());};
+        if !retried&&!recovery {plan.round.begin(now);}
         let target=&plan.targets[index];
         let before=self.physical_query_counts(&plan.config,target,plan.timeout,plan.max_age)?;
         let timeout=if retried {plan.timeout.min(500)}else{plan.timeout};
@@ -215,6 +253,8 @@ impl<S:Read+Write+Send+'static> ObservedTransport<S> {
             Err(error)=>return Err(error),
         }
         let sent=self.transport.now_ms();
+        plan.recent_queries.retain(|_,deadline|*deadline>=sent);
+        for channel in &target.channels {plan.recent_queries.insert((target.gateway.clone(),target.module.address().get(),*channel),sent.saturating_add(timeout));}
         plan.pending.insert(target.gateway.clone(),Pending {index,before,sent,deadline:sent.checked_add(timeout).ok_or("local deadline overflow")?,retried,recovery});
         plan.control_opportunity.remove(&target.gateway);
         // Capture generation is unchanged by local retries; it remains a global

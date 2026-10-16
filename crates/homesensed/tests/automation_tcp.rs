@@ -5,6 +5,37 @@ use std::{
     net::TcpListener,
     time::Duration,
 };
+// Read-only fallback queries are legitimate between controls. Keep the original
+// actuator assertions and deadlines; answer status without counting it as replay.
+fn read_non_query(socket:&mut std::net::TcpStream,level:u8)->std::io::Result<Option<[u8;5]>> {
+    loop {
+        let mut frame=[0;5];
+        if socket.read(&mut frame[..1])?==0 {return Ok(None);}
+        // Once any byte arrived, a truncated tail is a failure, never clean EOF.
+        socket.read_exact(&mut frame[1..])?;
+        if frame==[0xae,0x15,0xa0,0xf2,0xee] {eprintln!("synthetic status query (no actuator): {frame:02x?}");socket.write_all(&module_levels(0x15,level))?;continue;}
+        return Ok(Some(frame));
+    }
+}
+#[test]
+fn status_query_filter_preserves_strict_zero_output_and_truncated_frame_failures() {
+    let query=[0xae,0x15,0xa0,0xf2,0xee];let control=[0xae,0x15,1,35,0xee];
+    let mut packets=vec![vec![],query.to_vec(),control.to_vec()];
+    for frame in [query,control] {for length in 1..5 {packets.push(frame[..length].to_vec());}}
+    for packet in packets {
+        let listener=TcpListener::bind("127.0.0.1:0").unwrap();let address=listener.local_addr().unwrap();
+        let copy=packet.clone();let client=std::thread::spawn(move || {
+            let mut stream=std::net::TcpStream::connect(address).unwrap();stream.write_all(&copy).unwrap();stream.shutdown(std::net::Shutdown::Write).unwrap();
+            if copy==query {let mut reply=[0;40];stream.read_exact(&mut reply).unwrap();assert_eq!(reply.to_vec(),module_levels(0x15,35));}
+        });
+        let (mut socket,_)=listener.accept().unwrap();socket.set_read_timeout(Some(Duration::from_secs(1))).unwrap();
+        let result=read_non_query(&mut socket,35);
+        if packet.is_empty() || packet==query {assert_eq!(result.unwrap(),None);}
+        else if packet==control {assert_eq!(result.unwrap(),Some(control),"extra control must reach the original assertion");}
+        else {assert_eq!(result.unwrap_err().kind(),std::io::ErrorKind::UnexpectedEof,"partial output must fail: {packet:02x?}");}
+        client.join().unwrap();
+    }
+}
 #[tokio::test]
 async fn tcp_automation_synchronizes_before_startup_and_preserves_other_state() {
     let root = std::env::temp_dir().join(format!("automation-tcp-{}", uuid::Uuid::new_v4()));
@@ -31,11 +62,7 @@ async fn tcp_automation_synchronizes_before_startup_and_preserves_other_state() 
             socket.write_all(&module_levels(0x15, 42)).unwrap();
             socket.read_exact(&mut frame).unwrap();
             assert_eq!(frame, [0xAE, 0x15, 0x01, 30, 0xEE]);
-            assert_eq!(
-                socket.read(&mut frame).unwrap(),
-                0,
-                "no repeated startup or replay"
-            );
+            assert_eq!(read_non_query(&mut socket,30).unwrap(),None,"no repeated startup or replay");
         }
     });
     let device_path = root.join("devices.json");
@@ -265,7 +292,7 @@ async fn shutdown_audit_failure_is_reported_instead_of_success() {
         let sql = rusqlite::Connection::open(database).unwrap();
         sql.execute_batch("CREATE TRIGGER reject_cancel BEFORE UPDATE ON scene_run WHEN NEW.status IN ('cancelled','failed','partial') BEGIN SELECT RAISE(ABORT,'injected cleanup audit failure'); END;").unwrap();
         drop(sql);
-        assert_eq!(socket.read(&mut frame).unwrap(), 0);
+        assert_eq!(read_non_query(&mut socket,30).unwrap(),None);
     });
     let result = homesensed::automation_tcp::serve(
         &hap::serde_json::to_vec(&devices).unwrap(),
@@ -574,11 +601,7 @@ async fn tcp_long_press_disconnect_does_not_resume_without_new_press() {
                 socket.read_exact(&mut frame).unwrap();
                 assert_eq!(frame, [0xae, 0x15, 1, 35, 0xee]);
                 socket.write_all(&[0xae, 0x41, 0xd1, 0xf2, 0xee]).unwrap();
-                assert_eq!(
-                    socket.read(&mut frame).unwrap(),
-                    0,
-                    "released new hold must stop"
-                );
+                assert_eq!(read_non_query(&mut socket,35).unwrap(),None,"released new hold must stop");
             }
         }
     });
@@ -722,10 +745,10 @@ async fn repeated_publication_then_recovery_uses_latest_endpoint_and_suppresses_
                 started.send(channel).unwrap();
             }
             if index==2 {drop(socket);} else if index==3 {
-                assert_eq!(socket.read(&mut frame).unwrap(),0,"recovery must not repeat startup");
-            } else {retained.push(socket);}
+                assert_eq!(read_non_query(&mut socket,30).unwrap(),None,"recovery must not repeat startup");
+            } else {retained.push(std::thread::spawn(move ||assert_eq!(read_non_query(&mut socket,channel*11).unwrap(),None)));}
         }
-        for mut socket in retained {assert_eq!(socket.read(&mut [0;5]).unwrap(),0);}
+        for worker in retained {worker.join().unwrap();}
     });
     let (publisher,receiver)=homesensed::automation_publication::channel();
     let old_rules=rules(1);

@@ -23,8 +23,10 @@ struct Attempt {
 pub struct Synchronizer {
     attempted: BTreeMap<String, (bool, Vec<(String, u64)>)>,
     physical_attempted: BTreeMap<String,Attempt>,
+    emitted:Vec<Vec<u64>>,
 }
 impl Synchronizer {
+    pub(crate) fn take_emitted_batches(&mut self)->Vec<Vec<u64>> {std::mem::take(&mut self.emitted)}
     #[allow(clippy::too_many_arguments)]
     async fn physical_link(
         &mut self,
@@ -140,7 +142,8 @@ impl Synchronizer {
                     self.physical_attempted.remove(&link.id);
                 }
             }
-            Ok(ids) => {if let Some(attempt)=self.physical_attempted.get_mut(&link.id){attempt.commands=ids;}}
+            Ok(ids) => {if !ids.is_empty(){self.emitted.push(ids.clone());}
+                        if let Some(attempt)=self.physical_attempted.get_mut(&link.id){attempt.commands=ids;}}
             Err(e) => log::warn!(
                 "indicator {} admission failed: {e:?}; no automatic replay",
                 link.id
@@ -412,7 +415,7 @@ impl Synchronizer {
                         self.attempted.remove(&link.id);
                     }
                 }
-                Ok(_) => {}
+                Ok(ids) => {if !ids.is_empty(){self.emitted.push(ids);}}
                 Err(error) => {
                     log::warn!(
                         "indicator {} admission failed: {error:?}; no automatic replay",

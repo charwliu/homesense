@@ -280,3 +280,40 @@ async fn changed_grants_close_existing_sockets_and_resume_with_reduced_scope() {
     service.await.unwrap().unwrap();
     std::fs::remove_dir_all(root).unwrap();
 }
+
+#[tokio::test]
+async fn empty_room_directory_is_identical_over_http_wss_and_reconnect_without_expanding_scope() {
+    let root=std::env::temp_dir().join(format!("rooms-ws-{}",Uuid::new_v4()));
+    let listener=std::net::TcpListener::bind("127.0.0.1:0").unwrap();let address=listener.local_addr().unwrap();drop(listener);
+    let mut config:serde_json::Value=serde_json::from_slice(include_bytes!("../../../config/simulation.json")).unwrap();
+    config["floors"]=serde_json::json!(["Floor 1","Floor 2","Floor 3","Unused floor"]);
+    config["rooms"]=serde_json::json!([{"id":"visible","name":"Visible room","floor":"Floor 1"},{"id":"empty","name":"Empty room","floor":"Floor 2"},{"id":"hidden","name":"Hidden room","floor":"Floor 3"}]);
+    config["devices"][0]["room"]=serde_json::json!("visible");
+    config["devices"].as_array_mut().unwrap().push(serde_json::json!({"id":"hidden:raw","name":"Hidden raw","gateway":"simulation","address":"15","channel":2,"enabled":true,"catalog_visible":false,"room":"hidden"}));
+    let directory=root.clone();let secret="abcdefghijklmnopqrstuvwxyz0123456789";
+    let service=tokio::spawn(async move{homesensed::service::serve_web_simulation(&serde_json::to_vec(&config).unwrap(),br#"{"schema_version":1,"configuration_revision":1,"variables":[],"rules":[]}"#,&directory,Duration::from_secs(6),homesensed::service::WebSimulation{address,secret:secret.into(),administrator:true,tls:None}).await});
+    for _ in 0..200 {if tokio::net::TcpStream::connect(address).await.is_ok(){break;}tokio::time::sleep(Duration::from_millis(10)).await;}
+    fn body(r:&str)->serde_json::Value {assert!(r.starts_with("HTTP/1.1 200")||r.starts_with("HTTP/1.1 201"),"{r}");serde_json::from_str(r.split_once("\r\n\r\n").unwrap().1).unwrap()}
+    fn cookie(r:&str)->String {r.lines().find_map(|line|line.strip_prefix("set-cookie: ")).unwrap().split(';').next().unwrap().to_owned()}
+    let auth=format!("Authorization: Bearer {secret}\r\n");let origin=format!("http://{address}");
+    let admin_rooms=body(&http(address,"GET","/api/v1/rooms",&auth).await);assert_eq!(admin_rooms["rooms"].as_array().unwrap().len(),3);assert_eq!(admin_rooms["floors"].as_array().unwrap().len(),4);
+    // Narrow configuration administrator can read all metadata but only one endpoint.
+    let issued=body(&http_body(address,"POST","/api/v1/credentials",&auth,r#"{"role":"Administrator","devices":["simulation:light"],"scenes":[]}"#).await);
+    let narrow=issued["secret"].as_str().unwrap();let narrow_auth=format!("Authorization: Bearer {narrow}\r\n");
+    let login=http(address,"POST","/api/v1/session",&narrow_auth).await;let admin_cookie=cookie(&login);
+    let mut admin=connect(address,&admin_cookie,&origin).await.unwrap();admin.send(Message::Text(r#"{"cursor":null}"#.into())).await.unwrap();let initial=frame(&mut admin).await;
+    assert_eq!(initial["rooms"],admin_rooms["rooms"]);assert_eq!(initial["floors"],admin_rooms["floors"]);assert_eq!(initial["devices"].as_array().unwrap().len(),1);assert!(!initial.to_string().contains("hidden:raw"));
+    let admin_http=body(&http(address,"GET","/api/v1/devices",&narrow_auth).await);assert_eq!(admin_http["rooms"],initial["rooms"]);assert_eq!(admin_http["devices"].as_array().unwrap().len(),1);
+    // Non-managers retain scope privacy, including unused/hidden floor labels.
+    let issued=body(&http_body(address,"POST","/api/v1/credentials",&auth,r#"{"role":"Member","devices":["simulation:light"],"scenes":[]}"#).await);
+    let member_auth=format!("Authorization: Bearer {}\r\n",issued["secret"].as_str().unwrap());let member_rooms=body(&http(address,"GET","/api/v1/rooms",&member_auth).await);
+    assert_eq!(member_rooms["rooms"].as_array().unwrap().len(),1);assert_eq!(member_rooms["floors"],serde_json::json!(["Floor 1"]));
+    let login=http(address,"POST","/api/v1/session",&member_auth).await;let member_cookie=cookie(&login);let mut member=connect(address,&member_cookie,&origin).await.unwrap();member.send(Message::Text(r#"{"cursor":null}"#.into())).await.unwrap();let member_frame=frame(&mut member).await;
+    assert_eq!(member_frame["rooms"],member_rooms["rooms"]);assert_eq!(member_frame["floors"],member_rooms["floors"]);assert_eq!(member_frame["devices"].as_array().unwrap().len(),1);assert!(!member_frame.to_string().contains("hidden:raw"));assert!(!member_frame.to_string().contains("Empty room"));
+    admin.close(None).await.unwrap();member.close(None).await.unwrap();
+    let mut resumed=connect(address,&admin_cookie,&origin).await.unwrap();resumed.send(Message::Text(serde_json::json!({"cursor":initial["cursor"]}).to_string().into())).await.unwrap();let next=frame(&mut resumed).await;assert_eq!(next["rooms"],initial["rooms"]);assert_eq!(next["floors"],initial["floors"]);assert!(next["devices"].as_array().unwrap().iter().all(|d|d["id"]=="simulation:light"));
+    resumed.close(None).await.unwrap();
+    let mut resumed=connect(address,&member_cookie,&origin).await.unwrap();resumed.send(Message::Text(serde_json::json!({"cursor":member_frame["cursor"]}).to_string().into())).await.unwrap();let next=frame(&mut resumed).await;
+    assert_eq!(next["rooms"],member_rooms["rooms"]);assert_eq!(next["floors"],member_rooms["floors"]);assert!(!next.to_string().contains("hidden:raw"));assert!(!next.to_string().contains("Empty room"));
+    resumed.close(None).await.unwrap();service.await.unwrap().unwrap();std::fs::remove_dir_all(root).unwrap();
+}

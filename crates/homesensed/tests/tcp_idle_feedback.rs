@@ -20,6 +20,7 @@ async fn missing_periodic_response_stops_at_recovery_limit_without_control_write
     let bus = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
     let mut raw: serde_json::Value =
         serde_json::from_slice(include_bytes!("../../../config/simulation.json")).unwrap();
+    raw["refresh_policy"]=serde_json::json!({"idle_interval_ms":500,"active_interval_ms":100,"backoff_ms":[200,300],"quiet_rounds_per_step":2,"round_budget_ms":3500,"observation_grace_ms":1000});
     raw["gateways"][0]["endpoint"] = bus.local_addr().unwrap().to_string().into();
     raw["gateways"][0]["modules"][0]["verification"] = serde_json::json!({"status":"verified","evidence":"synthetic loopback only","verified_at_unix_ms":1});
     let (missing,wait_missing)=tokio::sync::oneshot::channel();
@@ -98,6 +99,7 @@ async fn idle_combined_light_stays_readable_over_encrypted_hap_and_web() {
     drop(hap);
     let mut raw: serde_json::Value =
         serde_json::from_slice(include_bytes!("../../../config/simulation.json")).unwrap();
+    raw["refresh_policy"]=serde_json::json!({"idle_interval_ms":500,"active_interval_ms":100,"backoff_ms":[200,300],"quiet_rounds_per_step":2,"round_budget_ms":3500,"observation_grace_ms":1000});
     raw["gateways"][0]["endpoint"] = bus.local_addr().unwrap().to_string().into();
     let verified = serde_json::json!({"status":"verified","evidence":"synthetic loopback only","verified_at_unix_ms":1});
     raw["gateways"][0]["modules"][0]["verification"] = verified.clone();
@@ -284,6 +286,7 @@ async fn lost_periodic_reply_requeries_same_connection_and_requires_new_observat
     let web_address = web.local_addr().unwrap();
     drop(web);
     let mut raw: serde_json::Value = serde_json::from_slice(include_bytes!("../../../config/simulation.json")).unwrap();
+    raw["refresh_policy"]=serde_json::json!({"idle_interval_ms":500,"active_interval_ms":100,"backoff_ms":[200,300],"quiet_rounds_per_step":2,"round_budget_ms":3500,"observation_grace_ms":1000});
     raw["gateways"][0]["endpoint"] = bus.local_addr().unwrap().to_string().into();
     raw["gateways"][0]["modules"][0]["verification"] = serde_json::json!({"status":"verified","evidence":"synthetic loopback only","verified_at_unix_ms":1});
     let server = std::thread::spawn(move || {

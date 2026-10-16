@@ -83,9 +83,10 @@ pub(crate) fn project(
     offset: usize,
     limit: usize,
 ) -> Result<Vec<Module>, String> {
-    if !(1..=64).contains(&limit) || offset > 16320 || max_age == 0 || max_age > 5000 {
+    if !(1..=64).contains(&limit) || offset > 16320 || max_age == 0 || max_age > homesense_config::RefreshPolicy::MAX_OBSERVATION_AGE_MS {
         return Err("invalid module page".into());
     }
+    let max_age = max_age.min(config.refresh_policy().observation_max_age_ms());
     let mut bindings = BTreeMap::new();
     let mut supply_users: BTreeMap<&DeviceId, Vec<String>> = BTreeMap::new();
     for (id, device) in config.devices() {

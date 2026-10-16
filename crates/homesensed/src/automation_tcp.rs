@@ -230,7 +230,7 @@ async fn serve_inner_running(devices:&[u8],rules:&[u8],directory:&Path,control:c
         tokio::select! {
             biased;
             _=crate::lifecycle::wait_for_stop(receiver.clone())=>return Ok(()),
-            result=owner.query_recovery_with_policy(&config, ExecutionContext::Live, 1000, 5000, crate::observed_transport::Synchronization::OutputsAndCalibratedMotors)=>result?,
+            result=owner.query_recovery_with_policy(&config, ExecutionContext::Live, 1000, config.refresh_policy().observation_max_age_ms(), crate::observed_transport::Synchronization::OutputsAndCalibratedMotors)=>result?,
         }
             (owner,epoch)
         };
@@ -258,7 +258,7 @@ async fn serve_inner_running(devices:&[u8],rules:&[u8],directory:&Path,control:c
                 Some(runtime) => runtime,
                 None => AutomationRuntime::load_with_startup(admission.clone(),controller,wall_ms()?,1000,64,Default::default(),startup).await?,
             };
-            owner.configure_output_refresh(&config,controller,admission.task_generation().await.map_err(|e|format!("{e:?}"))?,ExecutionContext::Live,1000,5000)?;
+            owner.configure_output_refresh(&config,controller,admission.task_generation().await.map_err(|e|format!("{e:?}"))?,ExecutionContext::Live,1000,config.refresh_policy().observation_max_age_ms())?;
             if hap.is_none() && let (Some(settings),Some(identity))=(&hap_settings,&identity) {hap=crate::hap_endpoint::Endpoint::start(settings,identity,&admission,controller,&runtime,owner.snapshot(),management.is_some() || management_settings.is_some()).await?;}
             if bridges.is_none() && let Some(plan)=&hap_plan {bridges=Some(crate::hap_bridge_group::Group::start(plan,directory,&admission,controller,&runtime,owner.snapshot()).await?);}
             #[cfg(test)]
@@ -278,7 +278,7 @@ async fn serve_inner_running(devices:&[u8],rules:&[u8],directory:&Path,control:c
             let outcome={
                 let (ready,mut started)=tokio::sync::oneshot::channel();
                 let mut running=false;
-                let drive=runtime.drive_recoverable_published(&mut owner,Duration::from_millis(10),5000,runtime_receive,wall_ms,Some(ready),hap.as_ref().map(|endpoint|endpoint.projection.clone()).or_else(||bridges.as_ref().map(|group|group.projection.clone())),bridges.as_ref().map(|group|group.panel_feeds.clone()).unwrap_or_default());
+                let drive=runtime.drive_recoverable_published(&mut owner,Duration::from_millis(10),config.refresh_policy().observation_max_age_ms(),runtime_receive,wall_ms,Some(ready),hap.as_ref().map(|endpoint|endpoint.projection.clone()).or_else(||bridges.as_ref().map(|group|group.projection.clone())),bridges.as_ref().map(|group|group.panel_feeds.clone()).unwrap_or_default());
                 tokio::pin!(drive);
                 loop {
                     tokio::select! {
@@ -559,7 +559,7 @@ pub(crate) fn validate_candidate_in_context(devices:&[u8],rules:&[u8],write_inte
         return Err("registered gateways required".into());
     }
     let targets = crate::physical_queries::plan(&config, context)?;
-    crate::physical_queries::interval(&targets, write_interval.as_millis() as u64, 5000)?;
+    crate::physical_queries::policy_interval(&targets, write_interval.as_millis() as u64, config.refresh_policy().observation_max_age_ms(), config.refresh_policy())?;
     // Reject unsupported synchronization before entering a publication barrier.
     for id in config.devices().keys() {
         if let Some((device, module)) = config.binding(id) {

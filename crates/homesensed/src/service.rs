@@ -216,7 +216,7 @@ async fn serve_simulation_inner(
             feedback.snapshot(),
             &identity,
             admission.clone(),
-            5000,
+            config.refresh_policy().observation_max_age_ms(),
         )
         .await?;
         let connections = simulation_connections(&config)?;
@@ -558,7 +558,7 @@ async fn serve_automation_simulation_options(
             let (stop, receive) = tokio::sync::watch::channel(false);
             let handoff_gate=runtime.handoff_gate();
             let simulation_deadline=tokio::time::Instant::now()+duration;
-            let drive = runtime.drive(&mut owner, Duration::from_millis(10), 5000, receive, wall_ms);
+            let drive = runtime.drive(&mut owner, Duration::from_millis(10), config.refresh_policy().observation_max_age_ms(), receive, wall_ms);
             tokio::pin!(drive);
             let first_duration=publication.as_ref().map_or(duration, |p|p.after);
             tokio::select! {
@@ -594,11 +594,11 @@ async fn serve_automation_simulation_options(
             drop(owner);
             let fresh=TransportOwner::new(admission.clone(),simulation_connections_at(&next_config,2)?);
             let (mut runtime,mut owner)=crate::publication_recovery::rebuild(admission.clone(),controller,fresh,2,crate::publication_recovery::Settings{
-                query_timeout_ms:1000,max_age_ms:5000,wall_unix_ms:wall_ms()?,calendar_lateness_ms:1000,scene_capacity:64,
+                query_timeout_ms:1000,max_age_ms:next_config.refresh_policy().observation_max_age_ms(),wall_unix_ms:wall_ms()?,calendar_lateness_ms:1000,scene_capacity:64,
             }).await?;
             if let Some(scene)=next.scene {runtime.start_scene(scene).await?;}
             let (stop,receive)=tokio::sync::watch::channel(false);
-            let drive=runtime.drive(&mut owner,Duration::from_millis(10),5000,receive,wall_ms);
+            let drive=runtime.drive(&mut owner,Duration::from_millis(10),next_config.refresh_policy().observation_max_age_ms(),receive,wall_ms);
             tokio::pin!(drive);
             tokio::select! {
                 result=&mut drive=>result?,

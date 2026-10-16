@@ -527,7 +527,7 @@ impl RuntimeHap {
             let mut recoveries = 0;
             let mut next = 0;
             let refresh_targets=crate::physical_queries::plan(config,homesense_core::ExecutionContext::Live)?;
-            let refresh_interval=crate::physical_queries::interval(&refresh_targets,guard.owner.write_interval_ms(),guard.graph.max_age_ms)?;
+            let refresh_interval=crate::physical_queries::policy_interval(&refresh_targets,guard.owner.write_interval_ms(),guard.graph.max_age_ms,guard.graph.configuration.refresh_policy())?;
             let mut refresh_next = 0;
             let mut interactive_until = 0u64;
             let mut refresh_at = guard.graph.admission.monotonic_ms().saturating_add(refresh_interval);

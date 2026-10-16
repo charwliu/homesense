@@ -13,6 +13,7 @@ async fn periodic_query_eof_uses_supervised_disconnect_path_without_output_or_re
     let bus = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
     let mut devices: serde_json::Value =
         serde_json::from_slice(include_bytes!("../../../config/simulation.json")).unwrap();
+    devices["refresh_policy"]=serde_json::json!({"idle_interval_ms":500,"active_interval_ms":100,"backoff_ms":[200,300],"quiet_rounds_per_step":2,"round_budget_ms":3500,"observation_grace_ms":1000});
     devices["gateways"][0]["endpoint"] = bus.local_addr().unwrap().to_string().into();
     devices["gateways"][0]["modules"][0]["verification"] = serde_json::json!({"status":"verified","evidence":"synthetic loopback only","verified_at_unix_ms":1});
     let (eof,wait_eof)=tokio::sync::oneshot::channel();
@@ -72,7 +73,7 @@ async fn continuously_due_reads_yield_publication_between_completed_queries() {
     bus.set_nonblocking(true).unwrap();
     let modules=(1..=12).map(|address|serde_json::json!({"address":format!("{address:02X}"),"profile":if address<=7 {"r8i8_din_pro_v2_7_7"}else{"ad8_din_rs485_v2_2_1"},"verification":{"status":"verified","evidence":"synthetic loopback only","verified_at_unix_ms":1}})).collect::<Vec<_>>();
     let lights=(0..96).map(|i|serde_json::json!({"id":format!("lamp{i:03}"),"name":"anonymous","gateway":"bus","address":format!("{:02X}",i/8+1),"channel":i%8+1,"enabled":true})).collect::<Vec<_>>();
-    let devices = serde_json::json!({"schema_version":1,"revision":1,"gateways":[{"id":"bus","endpoint":bus.local_addr().unwrap().to_string(),"modules":modules}],"devices":lights});
+    let devices = serde_json::json!({"schema_version":1,"revision":1,"refresh_policy":serde_json::json!({"idle_interval_ms":500,"active_interval_ms":100,"backoff_ms":[200,300],"quiet_rounds_per_step":2,"round_budget_ms":3500,"observation_grace_ms":1000}),"gateways":[{"id":"bus","endpoint":bus.local_addr().unwrap().to_string(),"modules":modules}],"devices":lights});
     let rules = serde_json::json!({"schema_version":1,"configuration_revision":1,"variables":[],"rules":[]});
     let stop = Arc::new(AtomicBool::new(false));
     let stopped = stop.clone();

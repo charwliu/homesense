@@ -116,6 +116,8 @@ fn tcp_candidate_counts_registered_ports_without_logical_bindings() {
     use hap::serde_json::{json, to_vec, Value};
     let mut devices: Value = hap::serde_json::from_slice(include_bytes!("../../../config/simulation.json")).unwrap();
     devices["devices"] = json!([]);
+    // Keep the existing five-second wire-capacity boundary explicit.
+    devices["refresh_policy"]=hap::serde_json::to_value(homesense_config::RefreshPolicy {round_budget_ms:5000,..Default::default()}).unwrap();
     devices["gateways"][0]["modules"][0]["verification"] = json!({"status":"verified","evidence":"offline fixture","verified_at_unix_ms":1});
     let rules = to_vec(&json!({"schema_version":1,"configuration_revision":1,"variables":[],"rules":[]})).unwrap();
     let check = |doc: &Value, gap| homesensed::automation_tcp::validate_candidate_with_write_interval(&to_vec(doc).unwrap(), &rules, std::time::Duration::from_millis(gap));
