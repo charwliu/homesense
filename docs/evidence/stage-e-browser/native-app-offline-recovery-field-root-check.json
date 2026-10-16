@@ -1,0 +1,189 @@
+{
+  "checked_bj": "2026-10-16T10:42:30.091905+08:00",
+  "App_build": 13,
+  "configuration_revision": 13,
+  "human_field_report": {
+    "App_build": 13,
+    "configuration_revision": 13,
+    "coordinator_Mac_kept_online": true,
+    "second_Apple_Home_device_available": {
+      "question": "call_8b1fdacd245b42a7987ce9c9ccf84faa:0",
+      "answer": "有另一台可用设备"
+    },
+    "baseline": {
+      "question": "call_25bb7eaa1f704d148352d2cb2a512838:0",
+      "answer": "两台均符合",
+      "lights": "both off; native and secondAppleHome responsive"
+    },
+    "offline": {
+      "question": "call_cee7d1563b9d48b7afcf0d2aac0c45aa:0",
+      "answer": "已满60秒，显示正在同步状态",
+      "foreground_60s_confirmed": true,
+      "visual_gate_question": "call_3d67689945c446278f014c0e7091600f:0",
+      "visual_gate_answer": "按钮看起来仍可用",
+      "visual_disable_pass": null,
+      "negative_control": {
+        "question": "call_72b6d5cb7de14bb9a69a3d0b450241d2:0",
+        "answer": "主灯开不可用",
+        "observed_control_unavailable": true,
+        "visual_ambiguity_resolved": "button looked available initially, explicit attempt found mainON unavailable; no offline send claimed without logs",
+        "twenty_second_wait": "not independently confirmed; unavailable button required no waiting request"
+      }
+    },
+    "source_readonly_check": {
+      "controlsAvailable": "snapshotIsCurrent && !busy",
+      "snapshotIsCurrent": "connected && (eventsWanted ? receivingPush : recent capturedAt)",
+      "KeypadButton": "disabled if !controlsAvailable or action unavailable; custom style keeps LED colors",
+      "HTTP_request_timeout_s": 12,
+      "HTTP_resource_timeout_s": 20,
+      "source_unchanged": true
+    },
+    "next": "HPLeft independent outage/recovery field test in progress; separate result file",
+    "test_complete": true,
+    "updated_bj": "2026-10-16T10:37:51.330918+08:00",
+    "external_change": {
+      "question": "call_f70830f5f2174ba7a1899cb4cff42bba:0",
+      "answer": "全部符合",
+      "source": "second device Apple Home",
+      "test_iPhone": "kept offline",
+      "actual": "Artstudio main ON/downlight OFF"
+    },
+    "automatic_recovery": {
+      "question": "call_66fc4ddd1beb4e4b8ac140a0a2e945fb:0",
+      "answer": "全部自动恢复且一致",
+      "foreground_without_refresh_relaunch_login": true,
+      "receiving_push": true,
+      "actual_and_App": "mainON/downlightOFF/DailyON/ReadingOFF",
+      "controls_available": true
+    },
+    "recovered_control_and_restore": {
+      "question": "call_f2f8f31fa00d4f95b1a6075aef3f4d7a:0",
+      "answer": "全部符合",
+      "source": "native HomeSense mainOFF",
+      "actual_and_two_clients": "both lightsOFF/ReadingDailyOFF/card and physical3/4green",
+      "curtain": "stopped"
+    },
+    "log_audit_complete": true
+  },
+  "phone_log_summary": {
+    "build": "13",
+    "session": "98177F17-4499-4174-922A-1CF79625C766",
+    "retained_events": 512,
+    "discarded_events": 805,
+    "window_sequence_range": [
+      1187,
+      1317
+    ],
+    "window_contiguous": true,
+    "time_zone": "All below UTC; Asia/Shanghai is UTC+08:00",
+    "observed_network_evidence": {
+      "gate_became_not_current_UTC": "2026-10-16T02:30:40Z",
+      "gate_fields": {
+        "connected": true,
+        "current": false,
+        "receiving_push": false,
+        "allowed": false,
+        "gate": "snapshotNotCurrent"
+      },
+      "session_GET_failed_count": 33,
+      "session_GET_failed_first_UTC": "2026-10-16T02:31:07Z",
+      "session_GET_failed_last_UTC": "2026-10-16T02:36:00Z",
+      "error_domain": "NSURLErrorDomain",
+      "error_number": -1009,
+      "recovery_session_GET200_UTC": "2026-10-16T02:36:20Z",
+      "recovery_devices_GET200_UTC": "2026-10-16T02:36:20Z",
+      "recovery_scenes_rooms_GET200_UTC": "2026-10-16T02:36:21Z",
+      "gate_current_push_allowed_UTC": "2026-10-16T02:36:22Z",
+      "scene_selection_at_recovery": {
+        "key3": false,
+        "key4": true
+      },
+      "later_gate_not_current_UTC": "2026-10-16T02:37:19Z",
+      "later_GET_refresh_UTC": "2026-10-16T02:37:22Z",
+      "later_gate_current_push_allowed_UTC": "2026-10-16T02:37:24Z",
+      "later_scene_selection": {
+        "key3": false,
+        "key4": false
+      }
+    },
+    "all_POSTs_in_window": [
+      {
+        "operation_id": "0F0DD08D-E7BB-48AF-9DA3-6363E82196C7",
+        "request_id": "EA24C534-AAF5-43AD-98AB-2C6805B29DAE",
+        "path": "/api/v1/device-commands",
+        "time_UTC": "2026-10-16T02:36:58Z",
+        "time_AsiaShanghai": "2026-10-16T10:36:58+08:00",
+        "send_sequence": 1280,
+        "response_sequence": 1287,
+        "http_status": 202,
+        "outcome": "accepted",
+        "response_elapsed_ms": 55,
+        "send_count": 1,
+        "response_count": 1,
+        "target_alias": "59255e3a0ee4d7de",
+        "raw_target_ID_and_body_logged": false,
+        "main_OFF_attribution": "Root field report only; requires server durable receipt confirmation."
+      }
+    ],
+    "replay_observation": "No POST sends in this contiguous logged window before recovery or between reconnect and the sole later POST. Sole request_id appears in exactly one http.send in retained raw. No logged duplicate/replayed POST observed; this is scoped log evidence, not universal transport proof.",
+    "missing_evidence": [
+      "No explicit NWPath, airplane/WiFi toggle, WSS connect/disconnect/frame event or snapshot revision/payload logs. Push recovery inferred only from gate.state receiving_push/current facts plus successful HTTP reads.",
+      "Sole main-OFF-attributed direct device command records http.send/http.response only; no button.click/operation.begin/gate.check/operation.complete for that operation. Do not fabricate a full keypad operation chain.",
+      "Disabled offline mainON attempt has no button.click or HTTP send; user reported unavailable. Exact toggle times and continuous offline duration are not established by these logs.",
+      "POST request body/device raw ID not logged; scene key4 selected true/false is observed, while physical main/downlight states and no-refresh behavior come from Root user report."
+    ],
+    "no_App_source_changes": true,
+    "no_further_phone_operations": true
+  },
+  "server_correlation": {
+    "request_id": "EA24C534-AAF5-43AD-98AB-2C6805B29DAE",
+    "fingerprint": {
+      "action": "device",
+      "command": {
+        "action": "power",
+        "on": false
+      },
+      "device": "control4:328",
+      "revision": 13
+    },
+    "reply": {
+      "boot": "5ba11ac4-e96f-4b99-b6ff-66e8be14a7ec",
+      "commands": [
+        138
+      ],
+      "outcome": "accepted",
+      "request_id": "EA24C534-AAF5-43AD-98AB-2C6805B29DAE"
+    },
+    "commands": [
+      {
+        "command_id": 138,
+        "device_id": "control4:250",
+        "status": "written",
+        "intent_hex": "01010000",
+        "updated_ms": 2143090,
+        "origin": "hap"
+      }
+    ],
+    "composite_main_supply_mapping": "control4:328 uses relay control4:250",
+    "origin_limit": "shared ledger origin hap is not independent Apple Home source evidence; exact HTTP request receipt establishes this native request"
+  },
+  "field_result": "offline control unavailable; second client mainON observed on automatic recovery; native mainOFF restored baseline",
+  "transient_followup": "10:37:19 gate not current, HTTP200 at10:37:22, push/current allowed at10:37:24; cause unknown, not long-term stability acceptance",
+  "no_new_code_or_configuration_changes": true,
+  "remaining_scope": [
+    65,
+    208,
+    24
+  ],
+  "D_E_complete": false,
+  "evidence_sha256": {
+    "deployment/ngr/private/20261016-native-app-remaining-field-root/native-offline-results.json": "35a882cbd8ba96f9f2f885009c94b221eb61490ccaf9528e256a561db83b2cb9",
+    "deployment/ngr/private/20261016-native-app-remaining-field-root/network-external-change-server.json": "249f97896f2b3e10228950f8d138693ced694fa13a2b8bfa25c563080d93eb3d",
+    "deployment/ngr/private/20261016-native-app-remaining-field-root/offline-finished-health.json": "271f5ab18c0986c44c2aa402552049d957ec4a87a929b633fc5d316b1d8c753d",
+    "deployment/ngr/private/20261016-native-app-remaining-field-root/offline-recovery-server-receipt.json": "cd11651076c64b1e2bd24b772c4dc201689701d88694c785b3d49c4ae462fdf9",
+    "deployment/ngr/private/20261016-native-curtain-key-toggle-app-v2/signing-review/field-native-offline-recovery/control-trace.jsonl": "7a206f7b496d3ad43ed3c4cf018aeadc32ad36d0cbc3b52d2d7e14c33046755f",
+    "deployment/ngr/private/20261016-native-curtain-key-toggle-app-v2/signing-review/field-native-offline-recovery/offline-recovery-sanitized-summary.json": "2d90b5ce77442164b3a62cc3d3ca832f4bef983d332175e0f11e58fd216c21eb",
+    "deployment/ngr/private/20261016-native-curtain-key-toggle-app-v2/signing-review/field-native-offline-recovery/evidence-manifest.json": "2c7a7bad55d0b035b11e1102fae10b9591262274914d5344479ccf1f330b5c37",
+    "deployment/ngr/private/20261016-native-curtain-key-toggle-app-v2/signing-review/field-native-offline-recovery/handoff.json": "6cd15228c63d6fc2755404a96847e82addb4de2c1c0192578da62fc92bbdd34f"
+  }
+}
