@@ -274,6 +274,10 @@ fn project(
                 "action":key.and_then(|k|k.action.as_ref()).map(|a|match a {
                     homesense_config::keypad::KeyAction::SceneToggle{scene,..}=>json!({"kind":"scene_toggle","scene":scene,"path":"/api/v1/scene-relative-actions"}),
                     homesense_config::keypad::KeyAction::Motor{device,action,..}=>json!({"kind":"motor","device":device,"command":{"action":action},"path":"/api/v1/device-commands"})
+                }),
+                "card_action":key.and_then(|k| match k.action.as_ref()? {
+                    homesense_config::keypad::KeyAction::Motor{device, action:homesense_config::keypad::KeyMotorAction::Open | homesense_config::keypad::KeyMotorAction::Close, press_behavior:homesense_config::keypad::MotorPressBehavior::RepeatToStop,..} => Some(json!({"kind":"motor_press","device":device,"behavior":"repeat_to_stop","command":{"action":"keypad_press","keypad":panel.id.as_str(),"key":number},"path":"/api/v1/device-commands"})),
+                    _=>None,
                 })})
         }).collect::<Vec<_>>();
         let whole_coverage = panel.keys.len() == 6
@@ -346,6 +350,7 @@ pub(crate) fn devices_json(
             };
             if !allowed || !target_allowed {
                 key["action"] = Value::Null;
+                key["card_action"] = Value::Null;
             }
         }
         let whole_control = grant.role == crate::web_auth::Role::Administrator

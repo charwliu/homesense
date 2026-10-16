@@ -59,7 +59,53 @@ pub struct IndicatorIntent {
     pub close_red: bool,
     pub stop_red: Option<bool>,
 }
+/// An opt-in hint policy; unknown opposite color is represented by no output.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub enum DirectionLedPolicy {
+    #[default]
+    Legacy,
+    WrittenDirectionDelay { opposite_red_after_ms: u64 },
+}
+impl DirectionLedPolicy {
+    pub fn validate(self) -> Result<Self, Error> {
+        if matches!(self, Self::WrittenDirectionDelay{opposite_red_after_ms} if !(1..=86_400_000).contains(&opposite_red_after_ms)) {
+            return Err(Error::InvalidTiming);
+        }
+        Ok(self)
+    }
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DirectionIndicators {
+    pub open_red: Option<bool>,
+    pub close_red: Option<bool>,
+    pub stop_red: Option<bool>,
+}
 impl Snapshot {
+    pub fn indicators_for(&self, policy: DirectionLedPolicy) -> DirectionIndicators {
+        let old=self.indicators();
+        if let DirectionLedPolicy::WrittenDirectionDelay{opposite_red_after_ms}=policy {
+            let movement=self.inferred_movement.map(|f|f.value);
+            if let Some(Movement::Opening|Movement::Closing)=movement {
+                let delayed=self.last_written.and_then(|written|self.captured_ms.checked_sub(written.written_ms))
+                    .filter(|elapsed|*elapsed>=opposite_red_after_ms).map(|_|true);
+                let (open_red,close_red)=if movement==Some(Movement::Opening) {(Some(true),delayed)} else {(delayed,Some(true))};
+                return DirectionIndicators{open_red,close_red,stop_red:old.stop_red};
+            }
+            if movement.is_none() {
+                return DirectionIndicators{open_red:None,close_red:None,stop_red:old.stop_red};
+            }
+        }
+        DirectionIndicators{open_red:Some(old.open_red),close_red:Some(old.close_red),stop_red:old.stop_red}
+    }
+    /// Next policy edge only. The owner combines it with travel/idle boundaries;
+    /// stopped/end-point facts take precedence over any old delayed red hint.
+    pub fn direction_deadline(&self,policy:DirectionLedPolicy)->Option<u64> {
+        if !matches!(self.inferred_movement.map(|f|f.value),Some(Movement::Opening|Movement::Closing)) {return None;}
+        match policy {
+            DirectionLedPolicy::Legacy=>None,
+            DirectionLedPolicy::WrittenDirectionDelay{opposite_red_after_ms}=>self.last_written?.written_ms.checked_add(opposite_red_after_ms).filter(|at|*at>self.captured_ms),
+        }
+    }
     pub fn indicators(&self) -> IndicatorIntent {
         let (open_red, close_red) = if matches!(
             self.inferred_movement.map(|f| f.value),

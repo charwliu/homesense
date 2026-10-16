@@ -1,0 +1,160 @@
+{
+  "checked_bj": "2026-10-16T09:35:44.770658+08:00",
+  "scope": "generic native Keypad curtain direction repeat-to-stop plus opt-in direction LED timeline",
+  "human_scope": {
+    "native_cards_only_confirmed_question": "call_0be2e9b65d2d4e839a2990ad02e9641b:0",
+    "general_mode": "all native Keypad curtain direction keys; current Study2/6 and Artstudio1/2 intended",
+    "absolute_Stop_and_details_HAP_wall_actions": "unchanged",
+    "direction_LED_question": "call_ef2ac1872b634e15ae1795f16cae487a:0",
+    "direction_LED_answer": "requested direction immediately red; opposite retains prior color until2s then red; endpoint Open green/Close red, Closed inverse; midstop bothred; stopgreen without visible2s delay",
+    "selected_stop_idle_ms": 1,
+    "configuration_not_yet_activated": true
+  },
+  "source_qualification": {
+    "status": "final backend source/scope/log/executable and protocol evidence independently verified",
+    "source_inputs": 1386,
+    "Rust_build_inputs": 793,
+    "delta_paths": [
+      "README.md",
+      "crates/homesense-config/src/keypad.rs",
+      "crates/homesense-config/src/lib.rs",
+      "crates/homesense-config/tests/curtain_state.rs",
+      "crates/homesense-config/tests/keypad.rs",
+      "crates/homesense-core/src/arbiter.rs",
+      "crates/homesense-core/src/curtain_state.rs",
+      "crates/homesense-core/src/queue.rs",
+      "crates/homesense-core/tests/curtain_direction_led.rs",
+      "crates/homesensed/src/admission.rs",
+      "crates/homesensed/src/automation_control.rs",
+      "crates/homesensed/src/curtain_owner.rs",
+      "crates/homesensed/src/keypad_motor.rs",
+      "crates/homesensed/src/keypad_motor_tests.rs",
+      "crates/homesensed/src/lib.rs",
+      "crates/homesensed/src/management_devices.rs",
+      "crates/homesensed/src/management_keypads.rs",
+      "crates/homesensed/src/source_auth.rs",
+      "crates/homesensed/src/web_api.rs",
+      "crates/homesensed/src/web_auth.rs",
+      "docs/native-keypad-motor-press.md",
+      "tools/verify_keypad_motor_press.py"
+    ],
+    "all_preimages_exact_Git": true,
+    "tests": 1213,
+    "original_tracked_tests_retained": 1196,
+    "excluded_private_untracked_tests": 1,
+    "new_tests": 17,
+    "actual_executables_hashes": 172,
+    "doc_targets": 10,
+    "Clippy_passed": true,
+    "cli_passed": true,
+    "delayed_edge_ms": 2003,
+    "binary_sha256": "0caa12c215337501c6a4f84f3da24635316c1395bd8e55ea4a87de6e508ea74c",
+    "source_manifest_sha256": "dc3f6b72c15b233c2917d563bae2fc2f48f6499d020accabd950f936edbbf18c",
+    "handoff_sha256": "9eb43ad5b42339ed74e89ee6d724baa5d2b0827619e7ce953acfdf344f47d696",
+    "early_gap_fixes": [
+      "conditional motion source dependency fenced at acceptance",
+      "repeat_to_stop requires shared trajectory model",
+      "new Written refreshes new-policy LED edge without old attempted color assumption"
+    ],
+    "historical_rounds_retained": {
+      "historical_incomplete_runs": [
+        {
+          "inventory": "candidate-1/interrupted-inventory.json",
+          "completed_tests": 969,
+          "programs_started": 136,
+          "status": "interrupted due to source version update; not a software failure and not a complete qualification pass"
+        },
+        {
+          "inventory": "candidate-2/interrupted-inventory.json",
+          "completed_tests": 847,
+          "programs_started": 99,
+          "status": "interrupted due to source version update; not a software failure and not a complete qualification pass"
+        }
+      ],
+      "logs": [
+        "logs/workspace.log",
+        "logs/workspace-final.log"
+      ],
+      "candidate2_preserved": true,
+      "candidate2_binary_sha256": "861cb1772abd906243cd3db5dd11ed5e7d1d397c1d75910939edc5ce474d4a1d",
+      "candidate2_initial_manifest_drift": "See candidate-2/manifest-drift.json. Tool-only enhancement at that phase; later Owner Rust change is candidate3 and receives new build/full qualification. Prior snapshot assertions are historical, not current source assertions.",
+      "earlier_diagnostics": "failure-history.json"
+    },
+    "Linux_or_phone_or_field_acceptance_claimed": false,
+    "shared_source_edits": 0
+  },
+  "source_preimages_commit": "cbee528322639ac1d5be1c5380c5671df50bdaf9",
+  "integration": {
+    "backend_paths": 22,
+    "all_Rust_inputs_exact_qualified_bytes": true,
+    "README_editorial_status_only_difference": true,
+    "App_sources_not_in_this_checkpoint": true
+  },
+  "ordinary_cli": {
+    "passed": true,
+    "binary_sha256": "0caa12c215337501c6a4f84f3da24635316c1395bd8e55ea4a87de6e508ea74c",
+    "network": "synthetic loopback only",
+    "field_writes": 0,
+    "no_client_reads_edge_ms": 2002.878,
+    "ledger_direction_delay_ms": 2003,
+    "wss_delayed_hint_matches_ledger": true,
+    "absolute_details_preserved": true,
+    "same_id_no_reevaluation": true,
+    "same_direction_stop": true,
+    "reverse_absolute": true,
+    "endpoint_defaults_direction": true,
+    "exact_child_grant_no_parent": true,
+    "wss_state_messages": 7,
+    "motor_frames": 9,
+    "unexpected_cli_exit": false,
+    "exit_code": 0,
+    "worker_errors": []
+  },
+  "source_and_log_sha256": {
+    "deployment/ngr/private/20261016-keypad-motor-toggle-worker/candidate-3/changes.patch": "811785050ab68bc86b76c41d796053dba514d4cb4082e7692403685e2d7ae4ff",
+    "deployment/ngr/private/20261016-keypad-motor-toggle-worker/candidate-3/delta.json": "168200874f9f6fd7fa3da85aabed09df5f8ff54e1c499c3f00d85f71c7c029c3",
+    "deployment/ngr/private/20261016-keypad-motor-toggle-worker/candidate-3/source-manifest.json": "dc3f6b72c15b233c2917d563bae2fc2f48f6499d020accabd950f936edbbf18c",
+    "deployment/ngr/private/20261016-keypad-motor-toggle-worker/candidate-3/rust-build-inputs.json": "b438886c5fdb726c30b5686ea2409baff7a77da2654c02db924be68edefa5d7f",
+    "deployment/ngr/private/20261016-keypad-motor-toggle-worker/candidate-3/test-inventory.json": "ad934f89de50df7adf3fa251718edb441720d2ce6c6b11a74c3d734b81df4afd",
+    "deployment/ngr/private/20261016-keypad-motor-toggle-worker/candidate-3/executed-programs.json": "13469d37b9f9699977c4e6056be807212a18b5bbfcf99716d5020439b1cd91e8",
+    "deployment/ngr/private/20261016-keypad-motor-toggle-worker/candidate-3/probe-manifest.json": "cd5c22f8b51601d6384d7625c66e74e9d4aff3be0be853acfda0b0d2c5ec7289",
+    "deployment/ngr/private/20261016-keypad-motor-toggle-worker/candidate-3/CONTRACT-final.json": "8c6a90f61f05d6183b3ef000c7db0b09f00756e2fc7e168bdf50ffd0274dffe2",
+    "deployment/ngr/private/20261016-keypad-motor-toggle-worker/candidate-3/actual-dto.json": "acbdaf7911845ee0da1d7b1e8bf3df745f95790b15db9265569fa0f0dda049ed",
+    "deployment/ngr/private/20261016-keypad-motor-toggle-worker/candidate-3/actual-partial-dto.json": "0b9971e3225ecb885ee4f9014eb555fde16799008702445411c6604d0ce130c1",
+    "deployment/ngr/private/20261016-keypad-motor-toggle-worker/candidate-3/shared-scope-check.json": "91a0cdbee5abb284775159f98de293ad76d6b90719193bc1a1290432b8ee3bab",
+    "deployment/ngr/private/20261016-keypad-motor-toggle-worker/candidate-3/qualification-history.json": "948d9c4376a4ae14dc59e8f6e883fa9f7033417fed314eb2b322f65fc361dcda",
+    "deployment/ngr/private/20261016-keypad-motor-toggle-worker/logs/workspace-final3.log": "5361b6e086efc0eedeae71a45e96175c7c48c0d1ecee0cbce1201914b0d022bb",
+    "deployment/ngr/private/20261016-keypad-motor-toggle-worker/logs/clippy-final3.log": "12332df02055986360fe425670ac8860677a6987f9dce1cdc71dff3735e7c422",
+    "deployment/ngr/private/20261016-keypad-motor-toggle-worker/logs/cli-final3.log": "ba5a696c6ae7bb9eebb2156ebaf5d6aa0b01745dad4e2f8adf4e801c4d4f2dbc",
+    "deployment/ngr/private/20261016-keypad-motor-toggle-worker/logs/owner-led-final3.log": "1ce40730c6b4ec3e415ddefb529f3f911ec927d7eab941753ec9505bcf79ebda",
+    "deployment/ngr/private/20261016-keypad-motor-toggle-worker/logs/actor-keypad-4.log": "dd4a5972ac86ed79bda12b7633a0547e22c92446b94235c95f5a36159bd70535",
+    "deployment/ngr/private/20261016-keypad-motor-toggle-worker/logs/core-config.log": "ef79b3e4f9b84dfcdaf8a60fc4bc2b210c3f1b0cb5381652cb1ef2880a50f0ed"
+  },
+  "protocol": "key.action absolute preserved; key.card_action opt-in sends one current revision/request_id keypad_press; Admission decides on current Written estimate",
+  "boundary_fixes": [
+    "requires installed shared trajectory model; unknown travel allowed",
+    "exact child endpoint and target grant; derived parent requires no new grant",
+    "same-motor pending refused; duplicate ID retains original receipt and decision",
+    "trajectory source revoked after prior loop is retired and dependency fenced at acceptance",
+    "new Written refreshes LED hints; delayed old cause cannot dispatch over new command"
+  ],
+  "unchanged_production": {
+    "binary": "96fe6ee504a93c0f0c32d52badfe02f870652d18613265c25a7b4169a6d6bcf8",
+    "schema": 27,
+    "revision": 10,
+    "permanent_Admin": [
+      20,
+      7
+    ],
+    "HAP_pairs": 2,
+    "source": "last verified prior maintenance; deployment fresh preflight required"
+  },
+  "remaining": [
+    "Linux cross compile and isolated new-ELF qualification",
+    "final native parent-gateway gate correction and complete client qualification",
+    "App13 signing/install and coordinated new-rule field acceptance",
+    "integrated new configuration publication"
+  ],
+  "field_operations_sent": 0,
+  "D_E_complete": false
+}

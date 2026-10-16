@@ -1,5 +1,5 @@
 {
-  "checked_bj": "2026-10-16T08:56:24.691670+08:00",
+  "checked_bj": "2026-10-16T09:35:44.770658+08:00",
   "derived_requirements": [
     "docs/design.md sections9-11,18,20,23-24,27"
   ],
@@ -106,15 +106,16 @@
       "id": "E-3",
       "stage": "E",
       "requirement": "灯光、场景、窗帘与面板入口",
-      "verified_scope": "两房间多项手动灯光／场景／窗帘及LED已限定现场通过；现有两面板父卡已在线发布到rev10，原Admin视图2父卡/各6格/0独立LED，原17授权及20展开端点保持，7格既有动作可见；build11手机已确认两张正方形六键卡片和自动连接，书房1键首次阅读开启及LED符合。；build12真实日志取回，书房1键开启/再次关闭及实灯/两处LED复测通过，手机与服务器request_id匹配。；本轮其余3/5场景开关及2打开/4停止/6关闭短程、卡片和墙面LED通过，9条新请求均与服务端202回执匹配；经明确批准原管理员补齐既有3端点到20/7。；补测原生卡片全开/全关终态通过：全开2绿/6红/4绿，全关6绿/2红/4绿，实际自动停止，卡片与墙面一致；两个新服务端accepted回执及Written账本均存在。",
-      "remaining_evidence": "旧无日志关闭失败原因仍未复现，不将本轮通过记为根因修复。画室卡片动作、其他场景/面板参数及其他完整硬件范围继续待验。本次全行程手机诊断读取因CoreDevice4016失败，只有现场和服务端证据，未声称新手机点击链关联。",
+      "verified_scope": "两房间多项手动灯光／场景／窗帘及LED已限定现场通过；现有两面板父卡已在线发布到rev10，原Admin视图2父卡/各6格/0独立LED，原17授权及20展开端点保持，7格既有动作可见；build11手机已确认两张正方形六键卡片和自动连接，书房1键首次阅读开启及LED符合。；build12真实日志取回，书房1键开启/再次关闭及实灯/两处LED复测通过，手机与服务器request_id匹配。；本轮其余3/5场景开关及2打开/4停止/6关闭短程、卡片和墙面LED通过，9条新请求均与服务端202回执匹配；经明确批准原管理员补齐既有3端点到20/7。；补测原生卡片全开/全关终态通过：全开2绿/6红/4绿，全关6绿/2红/4绿，实际自动停止，卡片与墙面一致；两个新服务端accepted回执及Written账本均存在。；新通用原生卡片同向再按停止及方向LED延时策略已完成后端1213项和普通CLI资格，尚未部署，不替代此前旧规则现场证据。",
+      "remaining_evidence": "旧无日志关闭失败原因仍未复现，不将本轮通过记为根因修复。画室卡片动作、其他场景/面板参数及其他完整硬件范围继续待验。本次全行程手机诊断读取因CoreDevice4016失败，只有现场和服务端证据，未声称新手机点击链关联。 新规则Linux、App最终门禁修正、发布及实物动作/LED待整合验收。",
       "status": "Study_six_key_and_curtain_endpoints_field_passed_historical_failure_cause_open",
       "additional_existing_card_evidence": "stage-e-browser/keypad-existing-cards-publication-root-check.json",
       "additional_scope_completion_proposal": "stage-e-browser/study-keypad-scope-proposal-root-check.json",
       "additional_phone_installation_and_field_evidence": "stage-e-browser/native-build11-installation-field-root-check.json",
       "additional_native_control_diagnostics": "stage-e-browser/native-control-logging-root-check.json",
       "additional_Study_keypad_field": "stage-e-browser/native-study-keypad-field-root-check.json",
-      "additional_Study_full_travel_field": "stage-e-browser/native-study-keypad-full-travel-root-check.json"
+      "additional_Study_full_travel_field": "stage-e-browser/native-study-keypad-full-travel-root-check.json",
+      "additional_generic_Keypad_motor_software": "stage-e-browser/native-keypad-motor-press-root-check.json"
     },
     {
       "id": "E-4",
@@ -313,7 +314,8 @@
     "stage-e-browser/native-build11-installation-field-root-check.json": "4295219ccf1c58554082a28011200b0fdb1c37a815ea70d9db418122e808d917",
     "stage-e-browser/native-control-logging-root-check.json": "68c46871d04d8d93b2f8c8e0e8940b4e0c599d58e2991d9387205dc4583d3a1b",
     "stage-e-browser/native-study-keypad-field-root-check.json": "2ab570284492a214cdb8004e8fc2b0a78555572c7ef2f270c8dcc80825317d29",
-    "stage-e-browser/native-study-keypad-full-travel-root-check.json": "fc93e5ee982efcc0fabe1f767120041ba6e7c16555efc361b56368a7091333f4"
+    "stage-e-browser/native-study-keypad-full-travel-root-check.json": "fc93e5ee982efcc0fabe1f767120041ba6e7c16555efc361b56368a7091333f4",
+    "stage-e-browser/native-keypad-motor-press-root-check.json": "91d6f93f73244b13ce044db9b2c109290c82a87f722bcdf18515a9de295b3d02"
   },
   "excluded_by_scope": {
     "Siri": "cancelled by user",
@@ -672,5 +674,16 @@
   "current_permanent_Admin_devices": 20,
   "current_permanent_Admin_scenes": 7,
   "latest_native_Study_keypad_field_evidence": "stage-e-browser/native-study-keypad-field-root-check.json",
-  "latest_native_Study_keypad_full_travel_field_evidence": "stage-e-browser/native-study-keypad-full-travel-root-check.json"
+  "latest_native_Study_keypad_full_travel_field_evidence": "stage-e-browser/native-study-keypad-full-travel-root-check.json",
+  "latest_generic_native_Keypad_motor_software": "stage-e-browser/native-keypad-motor-press-root-check.json",
+  "generic_native_Keypad_motor_candidate": {
+    "backend_qualified": true,
+    "full_tests": 1213,
+    "original_tracked1196_retained": true,
+    "native_client_final_gate_fix_pending": true,
+    "production_activated": false,
+    "direction_LED_policy": "current direction red at Written, opposite unchanged until2s then red; terminal/midstop precedence",
+    "stop_idle_ms_planned": 1,
+    "new_wall_rules_enabled": false
+  }
 }

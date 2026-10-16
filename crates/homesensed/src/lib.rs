@@ -107,6 +107,7 @@ pub mod unified_hap;
 
 pub mod management_devices;
 mod management_keypads;
+mod keypad_motor;
 pub mod panel_auth;
 pub mod source_auth;
 mod publication_auth;
