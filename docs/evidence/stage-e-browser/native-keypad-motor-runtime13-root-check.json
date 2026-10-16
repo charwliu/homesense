@@ -1,0 +1,609 @@
+{
+  "checked_bj": "2026-10-16T10:11:15.949005+08:00",
+  "new_ELF": "83d894380419ee00c9ecf0a0fcb5356c3ac85185e301fb6f070e1dd70ef9895d",
+  "PID": 253294,
+  "NRestarts": 0,
+  "active_revision": 13,
+  "schema": 27,
+  "forever_service": true,
+  "Root_checks": {
+    "diagnostics": {
+      "boot": "5ba11ac4-e96f-4b99-b6ff-66e8be14a7ec",
+      "revision": "13",
+      "ready": true,
+      "gateway_ready": true,
+      "storage_healthy": true,
+      "queued": 0,
+      "in_flight": false,
+      "publishing": false
+    },
+    "keypads": [
+      {
+        "id": "control4:425:keypad",
+        "keys": [
+          {
+            "number": 1,
+            "action": {
+              "command": {
+                "action": "open"
+              },
+              "device": "control4:302",
+              "kind": "motor",
+              "path": "/api/v1/device-commands"
+            },
+            "card_action": {
+              "behavior": "repeat_to_stop",
+              "command": {
+                "action": "keypad_press",
+                "key": 1,
+                "keypad": "control4:425:keypad"
+              },
+              "device": "control4:302",
+              "kind": "motor_press",
+              "path": "/api/v1/device-commands"
+            }
+          },
+          {
+            "number": 2,
+            "action": {
+              "command": {
+                "action": "close"
+              },
+              "device": "control4:302",
+              "kind": "motor",
+              "path": "/api/v1/device-commands"
+            },
+            "card_action": {
+              "behavior": "repeat_to_stop",
+              "command": {
+                "action": "keypad_press",
+                "key": 2,
+                "keypad": "control4:425:keypad"
+              },
+              "device": "control4:302",
+              "kind": "motor_press",
+              "path": "/api/v1/device-commands"
+            }
+          },
+          {
+            "number": 3,
+            "action": {
+              "kind": "scene_toggle",
+              "path": "/api/v1/scene-relative-actions",
+              "scene": "画室阅读"
+            },
+            "card_action": null
+          },
+          {
+            "number": 4,
+            "action": {
+              "kind": "scene_toggle",
+              "path": "/api/v1/scene-relative-actions",
+              "scene": "画室日常"
+            },
+            "card_action": null
+          },
+          {
+            "number": 5,
+            "action": null,
+            "card_action": null
+          },
+          {
+            "number": 6,
+            "action": null,
+            "card_action": null
+          }
+        ]
+      },
+      {
+        "id": "control4:63:keypad",
+        "keys": [
+          {
+            "number": 1,
+            "action": {
+              "kind": "scene_toggle",
+              "path": "/api/v1/scene-relative-actions",
+              "scene": "书房阅读"
+            },
+            "card_action": null
+          },
+          {
+            "number": 2,
+            "action": {
+              "command": {
+                "action": "open"
+              },
+              "device": "control4:290",
+              "kind": "motor",
+              "path": "/api/v1/device-commands"
+            },
+            "card_action": {
+              "behavior": "repeat_to_stop",
+              "command": {
+                "action": "keypad_press",
+                "key": 2,
+                "keypad": "control4:63:keypad"
+              },
+              "device": "control4:290",
+              "kind": "motor_press",
+              "path": "/api/v1/device-commands"
+            }
+          },
+          {
+            "number": 3,
+            "action": {
+              "kind": "scene_toggle",
+              "path": "/api/v1/scene-relative-actions",
+              "scene": "书房日常"
+            },
+            "card_action": null
+          },
+          {
+            "number": 4,
+            "action": {
+              "command": {
+                "action": "stop"
+              },
+              "device": "control4:290",
+              "kind": "motor",
+              "path": "/api/v1/device-commands"
+            },
+            "card_action": null
+          },
+          {
+            "number": 5,
+            "action": {
+              "kind": "scene_toggle",
+              "path": "/api/v1/scene-relative-actions",
+              "scene": "书房节能"
+            },
+            "card_action": null
+          },
+          {
+            "number": 6,
+            "action": {
+              "command": {
+                "action": "close"
+              },
+              "device": "control4:290",
+              "kind": "motor",
+              "path": "/api/v1/device-commands"
+            },
+            "card_action": {
+              "behavior": "repeat_to_stop",
+              "command": {
+                "action": "keypad_press",
+                "key": 6,
+                "keypad": "control4:63:keypad"
+              },
+              "device": "control4:290",
+              "kind": "motor_press",
+              "path": "/api/v1/device-commands"
+            }
+          }
+        ]
+      }
+    ],
+    "live_export_exact_draft_semantics": true,
+    "export_api_representation": "parsed JSON objects; readback contains original strings; raw byte equality not claimed for this API",
+    "schema": 27,
+    "pair_AID_IID_and_full_credentials_rows_independently_equal_stopped_baseline": true,
+    "checked_bj": "2026-10-16T10:10:20.278042+08:00"
+  },
+  "switch": {
+    "checked_bj": "2026-10-16T10:02:50.090432+08:00",
+    "attempt2_result": {
+      "api_after": {
+        "boot": "5ba11ac4-e96f-4b99-b6ff-66e8be14a7ec",
+        "drafts": [
+          [
+            "10",
+            "9",
+            "ae062bec-2058-47c9-9a5f-123243cd904d"
+          ],
+          [
+            "11",
+            "10",
+            "b67477dc-e690-4121-be64-968d94aa47c8"
+          ],
+          [
+            "12",
+            "10",
+            "77d0357d-2140-4f60-828a-c0f411ddf952"
+          ]
+        ],
+        "gateway_ready": true,
+        "grants": {
+          "9e875f7d-9d0a-4889-8f47-f45530e7f391": [
+            "Administrator",
+            17,
+            7
+          ],
+          "feeb1049-401b-4d66-8f21-b7e64bdb137c": [
+            "Administrator",
+            20,
+            7
+          ]
+        },
+        "queued": 0,
+        "revision": "10",
+        "versions": 10
+      },
+      "api_before": {
+        "boot": "4477662a-e1e4-4d98-92cd-ce9d0722bdf1",
+        "drafts": [
+          [
+            "10",
+            "9",
+            "ae062bec-2058-47c9-9a5f-123243cd904d"
+          ],
+          [
+            "11",
+            "10",
+            "b67477dc-e690-4121-be64-968d94aa47c8"
+          ],
+          [
+            "12",
+            "10",
+            "77d0357d-2140-4f60-828a-c0f411ddf952"
+          ]
+        ],
+        "gateway_ready": true,
+        "grants": {
+          "9e875f7d-9d0a-4889-8f47-f45530e7f391": [
+            "Administrator",
+            17,
+            7
+          ],
+          "feeb1049-401b-4d66-8f21-b7e64bdb137c": [
+            "Administrator",
+            20,
+            7
+          ]
+        },
+        "queued": 0,
+        "revision": "10",
+        "versions": 10
+      },
+      "passed": true,
+      "snapshot_root": "/home/build/apps/homesense/candidates/20261016-keypad-motor-toggle-cutover-vhezjcoi",
+      "started_at": "2026-10-16T10:01:11+0800",
+      "startup_audit": {
+        "journal": {
+          "actuator": 0,
+          "led_intents": [
+            "01060000"
+          ],
+          "led_origins": [
+            "rule"
+          ],
+          "scene_led": 5,
+          "unclassified": 0,
+          "written_or_observed": 5
+        },
+        "phase": "startup-audit",
+        "pid": 253294,
+        "wire": {
+          "actuator_frames": [],
+          "outbound_frames": 349,
+          "pcap_sha256": "b4205780342bdb025f992761a871ea5863e658e609f3253eea6171fbb9149b2a",
+          "query_frames": 344,
+          "scene_led_frames": 5,
+          "unclassified_frames": []
+        }
+      }
+    },
+    "independent_checks": {
+      "PID": 253294,
+      "ELF": "83d894380419ee00c9ecf0a0fcb5356c3ac85185e301fb6f070e1dd70ef9895d",
+      "unit_only_two_Exec_paths_changed": true,
+      "snapshot_state_entries": 141,
+      "snapshot_run_entries": 41,
+      "all_snapshot_regularfile_SHA_and_symlink_targets_recomputed": true,
+      "backup_SQLite_opened": false,
+      "API_revision": 10,
+      "API_boot": "5ba11ac4-e96f-4b99-b6ff-66e8be14a7ec",
+      "API_ready_gateway_storage": true,
+      "queued": 0,
+      "in_flight": false
+    },
+    "scope": "new ELF on old rev10; integrated rules not activated; draft save+preview authorized next"
+  },
+  "publication_review": {
+    "checked_bj": "2026-10-16T10:05:18.848907+08:00",
+    "draft": "9f661e16-0eb0-4113-968c-2bca48993fcd",
+    "expected_revision": 10,
+    "candidate_revision": 13,
+    "Root_reconstructed_from_active10_matches_API_readback_exact_semantics": true,
+    "only_10_semantic_paths": true,
+    "readback_sha256": {
+      "automation_raw_sha256": "f4d9d1ef2078d7c42894d64fc9ebd5e4bda0658026b6cd3f966c9cbb42e9490b",
+      "body_wire_sha256": "2361a229bb2683dcc2bb08a02aa6b5f63222d1c11cae9a0e4f2f6380a95c8fbc",
+      "devices_raw_sha256": "d16b6d94d701c0d315df2e65d56e45e9dfdf64123f2f4e6659598da27f7cefed"
+    },
+    "preview": {
+      "draft": "9f661e16-0eb0-4113-968c-2bca48993fcd",
+      "impact": {
+        "active_revision": 10,
+        "boot": "5ba11ac4-e96f-4b99-b6ff-66e8be14a7ec",
+        "candidate_revision": 13,
+        "connection_rebuild_required": false,
+        "device_changes": [
+          {
+            "changes": [
+              "curtain_state"
+            ],
+            "device": "control4:290"
+          },
+          {
+            "changes": [
+              "curtain_state"
+            ],
+            "device": "control4:302"
+          }
+        ],
+        "interrupted_runs": [],
+        "invalidates_old_rules_and_timers": true
+      },
+      "reservation": false
+    },
+    "invalidates_rules_and_timers_review": "expected publication fence; current rules0/active scene runs0/pending commands0; curtain estimates intentionally reset unknown; no automatic motor command",
+    "activation_authorized_next": true
+  },
+  "deployment_post_review": {
+    "active_raw": {
+      "automation_bytes": 8884,
+      "automation_raw_sha256": "f4d9d1ef2078d7c42894d64fc9ebd5e4bda0658026b6cd3f966c9cbb42e9490b",
+      "devices_bytes": 12460,
+      "devices_raw_sha256": "d16b6d94d701c0d315df2e65d56e45e9dfdf64123f2f4e6659598da27f7cefed",
+      "revision": 13
+    },
+    "active_revision": 13,
+    "boot": "5ba11ac4-e96f-4b99-b6ff-66e8be14a7ec",
+    "credentials": {
+      "credential_rows": {
+        "count": 2,
+        "sha256": "fe33a5fa9c1b14e34d0634ce32f974f5b144eebbc3f4a48486fab60f7efd29e8"
+      },
+      "grants": [
+        [
+          "Administrator",
+          17,
+          7
+        ],
+        [
+          "Administrator",
+          20,
+          7
+        ]
+      ],
+      "initialization_rows": {
+        "count": 1,
+        "sha256": "ae6cc4d680d62f0629b17773faee41a2e222e6357382e27cd860488acb1ac078"
+      }
+    },
+    "curtain_policy": {
+      "devices": [
+        "control4:290",
+        "control4:302"
+      ],
+      "direction_led_policy": {
+        "kind": "written_direction_delay",
+        "opposite_red_after_ms": 2000
+      },
+      "stop_led_idle_ms": 1
+    },
+    "diagnostics": {
+      "boot": "5ba11ac4-e96f-4b99-b6ff-66e8be14a7ec",
+      "control_epoch": "6",
+      "controller_enabled": true,
+      "daily_backup": {
+        "attempted_utc_day": 20742,
+        "created": false,
+        "failure": null,
+        "last_success_utc_day": 20742,
+        "phase": "complete"
+      },
+      "failed": false,
+      "gateway_ready": true,
+      "hap": "listening",
+      "hap_bridges": {
+        "study-e": "listening"
+      },
+      "in_flight": false,
+      "publishing": false,
+      "queued": 0,
+      "ready": true,
+      "revision": "13",
+      "stopping": false,
+      "storage_healthy": true,
+      "transport_epoch": "3",
+      "valid_configuration_loaded": true,
+      "web_receipt_policy": {
+        "expiry": {
+          "kind": "never"
+        },
+        "max_records": 100000
+      },
+      "wire_capacity": {
+        "fade_frames_per_second": 20,
+        "ordinary_reserved_frames_per_second": 30,
+        "physical_frames_per_second": 50
+      }
+    },
+    "draft": "9f661e16-0eb0-4113-968c-2bca48993fcd",
+    "executable_sha256": "83d894380419ee00c9ecf0a0fcb5356c3ac85185e301fb6f070e1dd70ef9895d",
+    "identity": {
+      "accessory_ids": {
+        "count": 18,
+        "sha256": "6b222758907ba273f7ae811f76a2df1f61b5ddc28613ecca6efaaf96e217936b"
+      },
+      "instance_ids": {
+        "count": 164,
+        "sha256": "627bf318d3f0396c5d38e8e72fa59f3c4469cbd10f7108527613b403104b9c38"
+      },
+      "pairings": {
+        "count": 2,
+        "sha256": "7a7d29d4366adda671c8cd8321b423544aa8a072a6ac1bc753698c719ea91917"
+      }
+    },
+    "isolated_restart_export_validation": {
+      "check_automation": {
+        "exit_code": 0,
+        "summary": "Automation structure and enabled command encoding valid: revision=13, rules=0, enabled=0, variables=2, immediate_scenes=0, schedules=0, gesture_keys=0, context=Live; no state created or connection opened"
+      },
+      "check_config": {
+        "exit_code": 0,
+        "summary": "Configuration valid: revision=13, gateways=1, devices=20, enabled=20, context=Live; no connection opened"
+      },
+      "export_source": "single read-only SQLite transaction",
+      "manifest": {
+        "active_revision": 13,
+        "automation_bytes": 8884,
+        "automation_sha256": "f4d9d1ef2078d7c42894d64fc9ebd5e4bda0658026b6cd3f966c9cbb42e9490b",
+        "devices_bytes": 12460,
+        "devices_sha256": "d16b6d94d701c0d315df2e65d56e45e9dfdf64123f2f4e6659598da27f7cefed"
+      },
+      "namespace": "unshare -Urn",
+      "temporary_export_removed": true
+    },
+    "journal_since_activation": [
+      {
+        "command_id": 6,
+        "device_id": "control4:63:key:1",
+        "intent_hex": "01060000",
+        "origin": "rule",
+        "revision": 13,
+        "status": "written"
+      },
+      {
+        "command_id": 7,
+        "device_id": "control4:63:key:3",
+        "intent_hex": "01060000",
+        "origin": "rule",
+        "revision": 13,
+        "status": "written"
+      },
+      {
+        "command_id": 8,
+        "device_id": "control4:63:key:5",
+        "intent_hex": "01060000",
+        "origin": "rule",
+        "revision": 13,
+        "status": "written"
+      },
+      {
+        "command_id": 9,
+        "device_id": "control4:425:key:3",
+        "intent_hex": "01060000",
+        "origin": "rule",
+        "revision": 13,
+        "status": "written"
+      },
+      {
+        "command_id": 10,
+        "device_id": "control4:425:key:4",
+        "intent_hex": "01060000",
+        "origin": "rule",
+        "revision": 13,
+        "status": "written"
+      }
+    ],
+    "light_motor_command_count": 0,
+    "limitations": [
+      "No passive packet capture was started before activation; no Light/Motor journal commands were recorded.",
+      "run/current is the last startup export at rev10; ExecStartPre exports active SQLite revision on a future restart."
+    ],
+    "live_export_matches_draft": true,
+    "motor_cards": [
+      {
+        "device": "control4:302",
+        "key": 1,
+        "keypad": "control4:425:keypad"
+      },
+      {
+        "device": "control4:302",
+        "key": 2,
+        "keypad": "control4:425:keypad"
+      },
+      {
+        "device": "control4:290",
+        "key": 2,
+        "keypad": "control4:63:keypad"
+      },
+      {
+        "device": "control4:290",
+        "key": 6,
+        "keypad": "control4:63:keypad"
+      }
+    ],
+    "request_id": "840cda0c-8d83-400c-b322-f91994cd72f3",
+    "restart_exporter_command": "/home/build/apps/homesense/service/bin/export-active-bundle.py --state-dir /home/build/apps/homesense/tests/study-e02-ngr --output-dir /home/build/apps/homesense/service/run",
+    "rollback_performed": false,
+    "run_current": "rev-10-85e9582b1ca5-fa8e52da4458-2667fc7d",
+    "runtime": {
+      "active": 13,
+      "active_scene_runs": 0,
+      "max_draft": 13,
+      "max_published": 13,
+      "pending_commands": 0,
+      "schema": 27
+    },
+    "scene_led_write_count": 5,
+    "service": {
+      "ActiveState": "active",
+      "MainPID": "253294",
+      "NRestarts": "0",
+      "SubState": "running"
+    },
+    "study_key4_absolute_stop": true,
+    "verdict": "passed"
+  },
+  "backup": {
+    "remote_root": "/home/build/apps/homesense/candidates/20261016-keypad-motor-toggle-cutover-vhezjcoi",
+    "state_entries": 141,
+    "run_entries": 41,
+    "Root_independent_all_file_SHA_and_link_verification": true,
+    "Golden_SQLite_opened": false
+  },
+  "attempt1": {
+    "outcome": "auxiliary fixed generation suffix assertion failed; old service restored and fully reverified before fresh attempt2",
+    "cause": "startup exporter intentionally creates uuid suffix; both configuration raw hashes unchanged",
+    "original_full_stderr": "not retained; exact assertion isolated by read-only replay",
+    "snapshot_retained": true,
+    "Root_cause_verified_live_exporter_code": true
+  },
+  "accepted_rules": {
+    "card_repeat_to_stop": [
+      "Study2",
+      "Study6",
+      "Artstudio1",
+      "Artstudio2"
+    ],
+    "details_HAP_wall_absolute_commands": "unchanged",
+    "Study4": "absolute STOP",
+    "direction_LED": "requested direction red at Written; opposite unchanged until2s then red; middle bothred/endpoints requested green/opposite red",
+    "stop_idle_ms": 1,
+    "new_wall_rules_enabled": false
+  },
+  "human_readonly_after_publication": {
+    "question": "call_1f143297cb9b4397aa0f20873f4c36ee:0",
+    "answer": "全部符合",
+    "App_response_and_three_keys_available": true,
+    "actual_curtain": "full closed/stopped"
+  },
+  "field_new_motion_and_LED_acceptance": "next step pending; not counted passed",
+  "D_E_complete": false,
+  "source_remaining_scope": [
+    65,
+    208,
+    24
+  ],
+  "evidence_sha256": {
+    "deployment/ngr/private/20261016-keypad-motor-toggle-attempt2-prepared/production-switch-result.json": "10c84cbc08e294453e53fdbc50e96b2754d5cd91a02e32ba6a3e4bdead71b74f",
+    "deployment/ngr/private/20261016-keypad-motor-toggle-attempt2-prepared/switch-transcript.jsonl": "2d1bfebd707aa8abf50fe69b76e5b42a579ff1bb013eb73cc1c61d2268734927",
+    "deployment/ngr/private/20261016-keypad-motor-toggle-attempt2-prepared/rev13-activation-response.json": "f2cce15715ea2d116f5d9c7d669a41d0325b08e412435f37bc1c51f19aeddf2f",
+    "deployment/ngr/private/20261016-keypad-motor-toggle-attempt2-prepared/rev13-independent-review.json": "d8ef0d16140ae08c8d205ad56872cd5555a8d4c1d6b561452017f3e46701aa7e",
+    "deployment/ngr/private/20261016-keypad-motor-toggle-attempt2-prepared/rev13-preview.json": "a465154e5eca3983708ccc59fbbeeac351f22de4811b1113fc9a05fddcb3f138"
+  }
+}
