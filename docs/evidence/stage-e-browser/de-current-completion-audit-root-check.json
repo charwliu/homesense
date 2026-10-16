@@ -342,7 +342,8 @@
     "stage-e-browser/away96-module-batch-field-root-check.json": "4ef382718b33968826c8175e50ecab78e75e0adb3fdfb84b74dfb1cd4554075f",
     "stage-e-browser/r818-c7-feedback-config-field-root-check.json": "5728e76d8a6fd73e49925b73561b198ffa04e59c4bafeb27bfe72b60a21a1557",
     "stage-e-browser/r81803-active-feedback-wall-sync-field-root-check.json": "49efa8f665271b8281c258d59154608091063cd6e5bb2add56d36aef23b7fb80",
-    "stage-e-browser/r818-all-active-feedback-enable-field-root-check.json": "a2295545a059bc75ede29bc097eb7d13e6f602e630c27c0b2d76ecef2b3cab9c"
+    "stage-e-browser/r818-all-active-feedback-enable-field-root-check.json": "a2295545a059bc75ede29bc097eb7d13e6f602e630c27c0b2d76ecef2b3cab9c",
+    "stage-e-browser/ad8-11-c7-probe-field-root-check.json": "62a30d61f0aeda07cc1a258c195eb69fec75ccff208fdd6622e1e30c993693ed"
   },
   "excluded_by_scope": {
     "Siri": "cancelled by user",
@@ -828,5 +829,23 @@
       "evidence": "stage-e-browser/r818-all-active-feedback-enable-field-root-check.json",
       "new_room_actuation_tests": false
     }
+  },
+  "AD8_query_capability": {
+    "recorded_bj": "2026-10-16",
+    "model": "AD8-DIN / Ver2.2.1",
+    "whole_module_output_query": "AE ID A0 F2 EE",
+    "active_feedback_capability": "unverified; manual does not document C7/C8",
+    "C7_probe": {
+      "address": "11",
+      "request_hex": "AE 11 C7 00 EE",
+      "send_count": 1,
+      "observation_seconds": 2,
+      "received_bytes": 0,
+      "C8_sent": false,
+      "conclusion": "本次窗口无回复；不据此断言支持或不支持主动反馈"
+    },
+    "original_E2_rev14_restored": true,
+    "periodic_queries_unchanged": true,
+    "evidence": "stage-e-browser/ad8-11-c7-probe-field-root-check.json"
   }
 }
