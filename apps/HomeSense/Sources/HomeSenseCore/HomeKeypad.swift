@@ -34,6 +34,11 @@ public struct HomeKeypadLED: Equatable, Sendable {
     }
 }
 
+/// A card-only intent; explicit actions used by Details remain independent.
+public enum HomeKeypadCardAction: Equatable, Sendable {
+    case absolute, motorPress, invalid
+}
+
 public struct HomeKeypadKey: Identifiable, Equatable, Sendable {
     public let number: Int
     public let name: String
@@ -45,15 +50,17 @@ public struct HomeKeypadKey: Identifiable, Equatable, Sendable {
     public let actionScene: String?
     public let actionDevice: String?
     public let motorAction: String?
+    public let cardAction: HomeKeypadCardAction
+    public var canActivateCard: Bool { canActivate && cardAction != .invalid }
     public var id: Int { number }
     public init(number: Int, name: String, led: HomeKeypadLED = HomeKeypadLED(),
                 canActivate: Bool = false, actionDescription: String? = nil,
                 endpointID: String? = nil, canWriteLED: Bool = false, actionScene: String? = nil,
-                actionDevice: String? = nil, motorAction: String? = nil) {
+                actionDevice: String? = nil, motorAction: String? = nil, cardAction: HomeKeypadCardAction = .absolute) {
         self.number = number; self.name = name; self.led = led
         self.canActivate = canActivate; self.actionDescription = actionDescription
         self.endpointID = endpointID; self.canWriteLED = canWriteLED; self.actionScene = actionScene
-        self.actionDevice = actionDevice; self.motorAction = motorAction
+        self.actionDevice = actionDevice; self.motorAction = motorAction; self.cardAction = cardAction
     }
 }
 
@@ -94,6 +101,17 @@ public struct HomeKeypad: Identifiable, Equatable, Sendable {
                 && action["path"].text == "/api/v1/device-commands"
                 && ["open", "close", "stop"].contains(action["command"]["action"].text ?? "")
                 ? action["device"].text.flatMap { $0.isEmpty ? nil : $0 } : nil
+            let card = row["card_action"]
+            var cardAction: HomeKeypadCardAction = card == .null ? .absolute : .invalid
+            if case .object(let fields) = card, Set(fields.keys) == ["kind", "device", "behavior", "command", "path"],
+               card["kind"].text == "motor_press", card["behavior"].text == "repeat_to_stop",
+               card["path"].text == "/api/v1/device-commands", let motor,
+               card["device"].text == motor, ["open", "close"].contains(action["command"]["action"].text ?? ""),
+               case .object(let command) = card["command"], Set(command.keys) == ["action", "keypad", "key"],
+               card["command"]["action"].text == "keypad_press", card["command"]["keypad"].text == record.id,
+               card["command"]["key"] == .integer(Int64(number)) {
+                cardAction = .motorPress
+            }
             let led = row["led"]
             // Button observations and the parent's quality never prove LED color.
             let measured = current && record.targetAvailable && raw["capabilities"]["led_readback"].flag && led["quality"].text == "Confirmed"
@@ -107,7 +125,7 @@ public struct HomeKeypad: Identifiable, Equatable, Sendable {
                 canActivate: scene != nil || motor != nil,
                 actionDescription: scene.map { "执行已审核场景映射：\($0)" } ?? motor.map { "执行已审核窗帘映射：\($0)" },
                 endpointID: configured ? endpoint : nil, canWriteLED: configured && row["can_write_led"].flag,
-                actionScene: scene, actionDevice: motor, motorAction: motor == nil ? nil : action["command"]["action"].text)
+                actionScene: scene, actionDevice: motor, motorAction: motor == nil ? nil : action["command"]["action"].text, cardAction: cardAction)
         }
         try self.init(id: record.id, name: record.name, roomName: raw["room"]["name"].text,
                       moduleID: module, keys: keys, settings: raw["settings"],

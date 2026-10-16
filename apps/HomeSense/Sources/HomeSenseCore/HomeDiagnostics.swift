@@ -5,7 +5,7 @@ import Darwin
 
 public enum HomeControlGateReason: String, CaseIterable, Sendable {
     case allowed, disconnected, busy, snapshotNotCurrent, panelMissing, panelInvalid, actionMissing
-    case deviceUnavailable, motorNotCalibrated, sceneUnavailable, selectionUnknown
+    case deviceUnavailable, motorNotCalibrated, sceneUnavailable, selectionUnknown, cardActionInvalid
 }
 
 public struct HomeKeypadGateState: Equatable, Sendable {
