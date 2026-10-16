@@ -125,6 +125,7 @@ struct DeviceInput {
 /// Absence keeps the existing motor path and publishes no estimate or LEDs.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CurtainState {
+    pub direction_led_policy: homesense_core::curtain_state::DirectionLedPolicy,
     pub timing: homesense_core::curtain_state::Timing,
     pub leds: CurtainLeds,
     pub evidence: VerificationRecord,
@@ -149,6 +150,8 @@ struct CurtainLedInput {
 #[serde(deny_unknown_fields)]
 struct CurtainStateInput {
     #[serde(default)]
+    direction_led_policy: DirectionLedPolicyInput,
+    #[serde(default)]
     open_travel_ms: Option<u64>,
     #[serde(default)]
     close_travel_ms: Option<u64>,
@@ -158,6 +161,20 @@ struct CurtainStateInput {
     leds: CurtainLedInput,
     evidence: String,
     reviewed_at_unix_ms: u64,
+}
+#[derive(Deserialize)]
+#[serde(tag="kind",rename_all="snake_case",deny_unknown_fields)]
+enum DirectionLedPolicyInput {
+    Legacy {},
+    WrittenDirectionDelay { opposite_red_after_ms:u64 },
+}
+impl Default for DirectionLedPolicyInput {fn default()->Self {Self::Legacy{}}}
+impl DirectionLedPolicyInput {
+    fn resolve(self)->Result<homesense_core::curtain_state::DirectionLedPolicy,Error> {
+        use homesense_core::curtain_state::DirectionLedPolicy as P;
+        let policy=match self {Self::Legacy{}=>P::Legacy,Self::WrittenDirectionDelay{opposite_red_after_ms}=>P::WrittenDirectionDelay{opposite_red_after_ms}};
+        policy.validate().map_err(|_|invalid("invalid curtain direction LED policy"))
+    }
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -488,6 +505,7 @@ impl Configuration {
                     values.into_iter().map(|id| { identifier(&id)?; DeviceId::new(id).map_err(Error::from) }).collect()
                 };
                 Ok(CurtainState {
+                    direction_led_policy: state.direction_led_policy.resolve()?,
                     timing,
                     leds: CurtainLeds { open: ids(state.leds.open)?, close: ids(state.leds.close)?, stop: ids(state.leds.stop)? },
                     evidence: VerificationRecord::new(state.evidence, state.reviewed_at_unix_ms)?,
@@ -561,9 +579,12 @@ impl Configuration {
             }
         }
         for panel in keypads.values() {for key in panel.keys.values() {
-            if let Some(keypad::KeyAction::Motor{device,..})=&key.action {
+            if let Some(keypad::KeyAction::Motor{device,press_behavior,..})=&key.action {
                 let id=DeviceId::new(device)?;
-                if resolved_bindings.get(&id).is_none_or(|d|!d.enabled || d.motor_calibration.is_none()) {return Err(invalid("keypad motor action requires enabled calibrated target"));}
+                let target=resolved_bindings.get(&id).filter(|d|d.enabled && d.motor_calibration.is_some()).ok_or_else(||invalid("keypad motor action requires enabled calibrated target"))?;
+                if *press_behavior==keypad::MotorPressBehavior::RepeatToStop && target.curtain_state.is_none() {
+                    return Err(invalid("repeat-to-stop requires an installed shared curtain trajectory"));
+                }
             }
         }}
         Ok(Self {

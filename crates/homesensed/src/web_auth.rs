@@ -328,6 +328,20 @@ impl ModuleOffLease {
             && !sessions.get(key).is_some_and(|s|s.generation==self.generation && s.expires>std::time::Instant::now()){return None;}
         Some(operation())
     }
+    /// Conditional commands may depend on another live source's trajectory.
+    /// Runtime credentials share one owner; take its read lock once so a queued
+    /// writer cannot deadlock recursively acquiring the same RwLock.
+    pub(crate) fn with_valid_dependency<T>(&self, other:&Self, operation:impl FnOnce()->T)->Option<T> {
+        let tokens=self.tokens.upgrade()?;let other_tokens=other.tokens.upgrade()?;
+        if !Arc::ptr_eq(&tokens,&other_tokens) {return None;}
+        let entries=tokens.entries.read().ok()?;let sessions=tokens.sessions.read().ok()?;
+        for lease in [self,other] {
+            if !entries.values().any(|v|v.generation==lease.generation && v.grant==lease.grant && v.grant.role!=Role::Viewer) {return None;}
+            if let Some(key)=&lease.session_key
+                && !sessions.get(key).is_some_and(|s|s.generation==lease.generation && s.expires>std::time::Instant::now()) {return None;}
+        }
+        Some(operation())
+    }
     pub(crate) fn valid(&self)->bool {self.with_valid(||()).is_some()}
 }
 impl Grant {

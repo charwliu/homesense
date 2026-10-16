@@ -85,6 +85,12 @@ impl Arbiter {
     pub fn queued_len(&self) -> usize {
         self.queue.len()
     }
+    /// The admission owner uses this during the same turn as queue acceptance.
+    /// Include a selected writer, not just work still waiting in the queue.
+    pub fn has_pending_motor(&self, device: &crate::DeviceId) -> bool {
+        self.queue.has_motor_for(device) || self.writing.as_ref().is_some_and(|c|
+            &c.device_id == device && matches!(c.command, crate::Command::Motor(_)))
+    }
     /// Invalidate old producers immediately. Returned cancellations include STOP:
     /// the owner may explicitly submit a NEW degraded STOP after revalidating its
     /// original mapping, authorization and deadline. Nothing is silently replayed.

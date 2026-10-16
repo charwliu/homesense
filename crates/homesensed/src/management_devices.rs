@@ -19,6 +19,9 @@ pub enum DeviceAction {
     Open,
     Close,
     Stop,
+    /// Configured native card key, resolved atomically by Admission. Never
+    /// accepted as a pre-normalized physical motor direction.
+    KeypadPress { keypad: String, key: u8 },
 }
 #[derive(Debug, PartialEq, Eq)]
 pub struct DeviceView {

@@ -396,6 +396,12 @@ impl Receiver {
                     },
                     Action::DeviceCommand {controller,revision,device,action} => {
                         if revision!=document.revision {return Err("device command revision expired".into());}
+                        if let crate::management_devices::DeviceAction::KeypadPress{keypad,key}=action {
+                            if request.reply.is_closed() || Instant::now()>=request.deadline {return Err("keypad press expired or abandoned".into());}
+                            let remaining=request.deadline.saturating_duration_since(Instant::now());
+                            let limit=admission.monotonic_ms().saturating_add(u64::try_from(remaining.as_millis()).unwrap_or(u64::MAX));
+                            return admission.submit_keypad_press_for_revision(revision,controller,device,keypad,key,limit).await.map(Reply::CommandsAccepted).map_err(|e|format!("{e:?}"));
+                        }
                         let motor=match action {
                             crate::management_devices::DeviceAction::Open=>Some(homesense_core::MotorAction::Open),
                             crate::management_devices::DeviceAction::Close=>Some(homesense_core::MotorAction::Close),
