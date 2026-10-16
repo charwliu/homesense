@@ -1,5 +1,5 @@
 {
-  "checked_bj": "2026-10-16T09:43:20.411181+08:00",
+  "checked_bj": "2026-10-16T09:49:24.348852+08:00",
   "derived_requirements": [
     "docs/design.md sections9-11,18,20,23-24,27"
   ],
@@ -116,7 +116,8 @@
       "additional_Study_keypad_field": "stage-e-browser/native-study-keypad-field-root-check.json",
       "additional_Study_full_travel_field": "stage-e-browser/native-study-keypad-full-travel-root-check.json",
       "additional_generic_Keypad_motor_software": "stage-e-browser/native-keypad-motor-press-root-check.json",
-      "additional_generic_Keypad_motor_client": "stage-e-browser/native-keypad-motor-client-root-check.json"
+      "additional_generic_Keypad_motor_client": "stage-e-browser/native-keypad-motor-client-root-check.json",
+      "additional_generic_Keypad_motor_Linux": "stage-e-browser/native-keypad-motor-linux-root-check.json"
     },
     {
       "id": "E-4",
@@ -317,7 +318,9 @@
     "stage-e-browser/native-study-keypad-field-root-check.json": "2ab570284492a214cdb8004e8fc2b0a78555572c7ef2f270c8dcc80825317d29",
     "stage-e-browser/native-study-keypad-full-travel-root-check.json": "fc93e5ee982efcc0fabe1f767120041ba6e7c16555efc361b56368a7091333f4",
     "stage-e-browser/native-keypad-motor-press-root-check.json": "91d6f93f73244b13ce044db9b2c109290c82a87f722bcdf18515a9de295b3d02",
-    "stage-e-browser/native-keypad-motor-client-root-check.json": "737a5c826c0a333048d70ac0d9ecd4fb8416bc87130bbbfce3849796b334b09b"
+    "stage-e-browser/native-keypad-motor-client-root-check.json": "737a5c826c0a333048d70ac0d9ecd4fb8416bc87130bbbfce3849796b334b09b",
+    "stage-e-browser/native-keypad-motor-linux-root-check.json": "d8cbaf9e72dc3b9b1451902d1acf334abbd37f5141e5f94dc941a4213fec7d7e",
+    "stage-e-browser/native-keypad-motor-app13-installed-root-check.json": "6bc63eb8865690ca3594f9c49dfabbdba5bdc68b136b2840d3c01868a8ffa622"
   },
   "excluded_by_scope": {
     "Siri": "cancelled by user",
@@ -688,7 +691,12 @@
     "stop_idle_ms_planned": 1,
     "new_wall_rules_enabled": false,
     "native_client_full_tests": 100,
-    "native_client_build13_install_pending": true
+    "native_client_build13_install_pending": false,
+    "Linux_qualified": true,
+    "native_client_build13_installed": true,
+    "build13_auto_token_restore_and_two_cards_human_verified": true
   },
-  "latest_generic_native_Keypad_motor_client": "stage-e-browser/native-keypad-motor-client-root-check.json"
+  "latest_generic_native_Keypad_motor_client": "stage-e-browser/native-keypad-motor-client-root-check.json",
+  "latest_generic_native_Keypad_motor_Linux": "stage-e-browser/native-keypad-motor-linux-root-check.json",
+  "latest_generic_native_Keypad_App13_install": "stage-e-browser/native-keypad-motor-app13-installed-root-check.json"
 }

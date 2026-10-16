@@ -4,6 +4,10 @@
 
 后续每次提交的变动细节在此记录；README 的变更内容只保留功能新增、移除及能力变化。
 
+## 2026-10-16 Linux卡片模式资格与App13覆盖更新
+
+2026-10-16 新卡片模式的Linux隔离检查及App13覆盖更新完成：Linux ELF83d894…在unshare回环验收9电机帧/7WSS，2秒边沿约2013ms，完整Cargo原输出未落盘及未独立采集namespace inode的限制已明确记录。Root重核ELF、bytecode及11份QA文件，并独立SSH对照远端ELF/结果。App13从已核无签名包直接签名，原证书/完整entitlements/profile相同，所有MachO代码数据段保持；一次保数据覆盖成功、设备元数据确认13，用户确认无需重输token且两张六键卡正常。新后端/新配置尚未激活，不计新窗帘动作现场通过。见[Linux核查](docs/evidence/stage-e-browser/native-keypad-motor-linux-root-check.json)与[App13安装核查](docs/evidence/stage-e-browser/native-keypad-motor-app13-installed-root-check.json)。
+
 ## 2026-10-16 原生卡片窗帘意图与父网关门禁
 
 2026-10-16 原生卡片窗帘客户端已合入：严格解析服务端card_action，卡片发送带当前revision和新request_id的单次keypad_press，详情保留绝对命令；不增加本地运动判断、变色计时或自动重试。修正条件意图遗漏父面板可用性的门禁，仍仅要求原子键/目标授权，不要求父can_control。Root核对85输入、64预备App输入、55证据和签名之前的build13全部16ZIP条目；同轮100项/18组全过，三个真实Rust集成均启用，新流程11请求=11电机Written=11线帧、14WSS，显式测试重复ID不重写。当前安装/发布及新规则实物验收待；旧App11偶发无效关闭原因仍未复现。见[原生卡片客户端核查](docs/evidence/stage-e-browser/native-keypad-motor-client-root-check.json)。

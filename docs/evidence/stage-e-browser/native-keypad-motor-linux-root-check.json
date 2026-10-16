@@ -1,0 +1,43 @@
+{
+  "qualification": {
+    "Linux_ELF_sha256": "83d894380419ee00c9ecf0a0fcb5356c3ac85185e301fb6f070e1dd70ef9895d",
+    "bytecode_sha256": "a566e42da3359f36a2331cf36ff07fb226d1bf750aa2a8c36f8c809316041c70",
+    "offline_candidate_exact_semantic_diff": 10,
+    "old_doc_other_fields_preserved": true,
+    "all_current4_direction_keys_opt_in": true,
+    "Study4_absolute_Stop_preserved": true,
+    "Linux_QA_passed": true,
+    "no_client_read_delay_ms": 2013,
+    "raw_provenance_manifest_pending": true,
+    "source_or_production_changed": false,
+    "checked_bj": "2026-10-16T09:44:27.342697+08:00",
+    "qualified": true,
+    "remote_ELF_independently_rehashed": true,
+    "remote_QA_result_independently_rehashed": true,
+    "qa_local_files_rehashed": 11,
+    "limitations": [
+      "full raw Cargo output was not persisted; actual command and exit transcribed by deployment",
+      "unshare -Urn invocation and successful loopback preflight captured; separate namespace inode capture absent"
+    ],
+    "current_production_readonly": {
+      "MainPID": 250664,
+      "active": "running",
+      "NRestarts": 0,
+      "old_ELF_path": "20261016-runtime10-96fe6ee504a9"
+    },
+    "artifact_sha256": {
+      "deployment/ngr/private/20261016-keypad-motor-toggle-linux-root/execution-receipt.json": "451354980cc974886d725586d882372094bce95d3b4869a339fa72652f849ad2",
+      "deployment/ngr/private/20261016-keypad-motor-toggle-linux-root/input-hash-audit.json": "2097ec232dbee6c2dfe839e2bdb6e39038f8b751695e7eabdb5d55ce190f2c9f",
+      "deployment/ngr/private/20261016-keypad-motor-toggle-linux-root/isolated-evidence-manifest.json": "c35439a997e62870984a6a238ddbd87eae1911da3bc26ccc10a88edf3c411435",
+      "deployment/ngr/private/20261016-keypad-motor-toggle-linux-root/linux-qa-result.json": "b6ec7ab9c261f0bff372f78778847d2d5308354d653340ff0e97f410d08ca2f7",
+      "deployment/ngr/private/20261016-keypad-motor-toggle-linux-root/build-result.json": "530df18d6727a2b158d674c1713eb0772b4f47f4866ef3e75dc2d4d5e0374b57",
+      "deployment/ngr/private/20261016-keypad-motor-toggle-linux-root/offline-rev13.devices.json": "d930038e28055ebe92ce480848739447289dd5fb3e66a61aabed89d31076a009",
+      "deployment/ngr/private/20261016-keypad-motor-toggle-linux-root/offline-rev13.automation.json": "60982efc3c202cdd6abc62c456071e225e3c449c20a46848b6476c57beaab0e6"
+    }
+  },
+  "scope": "Linux new ELF and same candidate3 source; synthetic isolated loopback only",
+  "production_activated": false,
+  "field_commands": 0,
+  "stop_idle_ms": 1,
+  "direction_delay_ms": 2000
+}
