@@ -31,6 +31,7 @@ pub(crate) struct Ledger {
     outputs: BTreeMap<DeviceId, Written>,
 }
 impl Ledger {
+    pub(crate) fn sequence(&self)->u64 {self.sequence}
     pub(crate) fn capture(
         &self,
         store: &homesense_storage::Store,

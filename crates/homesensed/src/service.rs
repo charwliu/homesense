@@ -378,6 +378,14 @@ pub async fn serve_unified_simulation(devices:&[u8],rules:&[u8],directory:&Path,
     if !hap.address.ip().is_loopback() || hap.address.port()==0 || hap.scenes.is_empty() {return Err("unified simulation needs loopback endpoint and selected scenes".into());}
     serve_automation_simulation_options(devices,rules,directory,duration,None,None,None,Some(hap),#[cfg(test)] None).await
 }
+// Simulation has no absolute motor observation. Exemption never changes
+// that Unknown state and does not relax the real TCP synchronization owner.
+fn simulation_initial_feedback_ready(snapshot:&homesense_state::Snapshot)->bool {
+    snapshot.devices.values().all(|state| {
+        matches!(state.kind,homesense_core::ModuleKind::Keypad|homesense_core::ModuleKind::Motor)
+            || state.quality==homesense_state::Quality::Confirmed
+    })
+}
 #[allow(clippy::too_many_arguments)]
 async fn serve_automation_simulation_options(
     devices:&[u8],rules:&[u8],directory:&Path,duration:Duration,scene:Option<&str>,publication:Option<SimulationPublication<'_>>,web:Option<WebSimulation>,hap:Option<UnifiedSimulation>,#[cfg(test)] lifecycle:Option<hap_fault_tests::Lifecycle>
@@ -474,10 +482,7 @@ async fn serve_automation_simulation_options(
             for gateway in owner.gateway_ids() {
                 owner.receive(&gateway).await?;
             }
-            if owner.snapshot().devices.values().all(|state| {
-                state.kind == homesense_core::ModuleKind::Keypad
-                    || state.quality == homesense_state::Quality::Confirmed
-            }) {
+            if simulation_initial_feedback_ready(&owner.snapshot()) {
                 break;
             }
             if tokio::time::Instant::now() >= deadline {
@@ -642,3 +647,7 @@ pub(crate) fn web_controller(directory:&Path)->Result<Uuid,String> {
 #[cfg(test)]
 #[path = "simulation_hap_fault_tests.rs"]
 mod hap_fault_tests;
+
+#[cfg(test)]
+#[path="simulation_startup_tests.rs"]
+mod simulation_startup_tests;

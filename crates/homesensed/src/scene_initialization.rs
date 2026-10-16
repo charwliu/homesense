@@ -150,6 +150,7 @@ impl Prepared {
             selected,
         }))
     }
+    pub(crate) fn variable(&self)->&str{&self.variable}
     pub(crate) fn owned_by(&self, controller: Uuid, generation: &TaskGeneration) -> bool {
         self.controller == controller && &self.generation == generation
     }

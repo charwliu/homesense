@@ -125,6 +125,8 @@ pub struct PlannedCommand {
 pub struct Plan {
     /// Devices actually consulted, including missing/unknown feedback.
     pub feedback_reads: BTreeSet<DeviceId>,
+    /// Persistent inputs actually read before any local assignment.
+    pub variable_reads: BTreeSet<String>,
     pub motor_reads:Vec<crate::rule_motor::Read>,
     pub visited_nodes: usize,
     pub action_cost: usize,
@@ -148,6 +150,7 @@ pub struct FeedbackSnapshot<'a> {
     pub max_age_ms: u64,
 }
 struct Evaluator<'a> {
+    assigned: BTreeSet<String>,
     feedback: FeedbackSnapshot<'a>,
     motor:crate::rule_motor::Snapshot<'a>,
     remaining: Budget,
@@ -202,12 +205,10 @@ impl Evaluator<'_> {
                 }))
             }
             Expr::Literal(value) => Ok(Some(value.clone())),
-            Expr::Variable(name) => self
-                .plan
-                .variables
-                .get(name)
-                .map(|v| v.value.clone())
-                .ok_or_else(|| Error::UndefinedVariable(name.clone())),
+            Expr::Variable(name) => {
+                if !self.assigned.contains(name) {self.plan.variable_reads.insert(name.clone());}
+                self.plan.variables.get(name).map(|v|v.value.clone()).ok_or_else(||Error::UndefinedVariable(name.clone()))
+            },
         }
     }
     fn condition(&mut self, c: &Condition, source:&str, depth: usize) -> Result<Truth, Error> {
@@ -322,6 +323,7 @@ impl Evaluator<'_> {
                         return Err(Error::TypeMismatch);
                     }
                     prior.value = value;
+                    self.assigned.insert(variable.clone());
                 }
                 Action::Command { device, command } => {
                     if self.remaining.commands == 0 {
@@ -399,11 +401,13 @@ pub fn evaluate_with_inputs(
         return Err(Error::TypeMismatch);
     }
     let mut evaluator = Evaluator {
+        assigned:BTreeSet::new(),
         feedback,
         motor,
         remaining: budget,
         plan: Plan {
             feedback_reads: BTreeSet::new(),
+            variable_reads:BTreeSet::new(),
             motor_reads:vec![],
             visited_nodes: 0,
             action_cost: 0,

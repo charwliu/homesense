@@ -20,7 +20,7 @@ fn batch(controller:Uuid,device:&str,level:u8,transition:LevelTransition)->Batch
 struct Wire(Arc<Mutex<Vec<[u8;5]>>>);
 impl Read for Wire {fn read(&mut self,_:&mut[u8])->std::io::Result<usize>{Err(std::io::ErrorKind::WouldBlock.into())}}
 impl Write for Wire {
-    fn write(&mut self,bytes:&[u8])->std::io::Result<usize>{self.0.lock().unwrap().push(bytes.try_into().unwrap());Ok(bytes.len())}
+    fn write(&mut self,bytes:&[u8])->std::io::Result<usize>{let(frames,tail)=bytes.as_chunks::<5>();assert!(tail.is_empty());self.0.lock().unwrap().extend_from_slice(frames);Ok(bytes.len())}
     fn flush(&mut self)->std::io::Result<()>{Ok(())}
 }
 #[tokio::test]
@@ -47,7 +47,7 @@ async fn combined_logical_immediate_still_expands_to_native_ramp_and_raw_logical
     let bytes=Arc::new(Mutex::new(Vec::new()));let mut owner=homesensed::transport_owner::TransportOwner::new(actor.clone(),[("bus".into(),hb_transport::Connection::for_simulation(Wire(bytes.clone()),1))].into());
     assert_eq!(actor.submit_rule_update(generation.clone(),batch(controller,"light",37,LevelTransition::Ramp),vec![]).await,Err(WriteStatus::InvalidValueInRequest),"combined logical input must remain normalized Immediate");
     let ids=actor.submit_rule_update(generation,batch(controller,"light",37,LevelTransition::Immediate),vec![]).await.unwrap();assert_eq!(ids.len(),2);
-    for id in ids{let sent=owner.step().await.unwrap().unwrap();sent.result.unwrap();assert_eq!(sent.command_id,id);}
+    let sent=owner.step().await.unwrap().unwrap();sent.result.unwrap();assert_eq!(sent.completed.iter().map(|(id,_)|*id).collect::<Vec<_>>(),ids);assert_eq!(sent.physical_frames,2);let store=homesense_storage::Store::open(&path).unwrap();for id in &ids{assert_eq!(store.command_status(actor.boot_id(),*id).unwrap(),Some(homesense_storage::journal::Status::Written));}drop(store);assert!(owner.step().await.unwrap().is_none());
     assert_eq!(*bytes.lock().unwrap(),vec![[0xae,0x11,0xb1,37,0xee],[0xae,3,1,0xf1,0xee]],"existing dimmer-before-supply expansion unchanged");
     drop(owner);actor.shutdown().await.unwrap();std::fs::remove_dir_all(directory).unwrap();
 }

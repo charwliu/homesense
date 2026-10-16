@@ -70,7 +70,7 @@ pub(crate) fn details(
                 Details {
                     selected: selected[&member.scene],
                     selection_state: SelectionState::from_selected(selected[&member.scene]),
-                    selection_source: if state.physical.is_some() {
+                    selection_source: if state.component_inferred {"local_written_feedback_inference"} else if state.physical.is_some() {
                         "physical_feedback"
                     } else if inferred.is_some() {
                         "inferred"
@@ -134,7 +134,7 @@ fn selection(
     {
         None => Ok(None),
         Some(Value::Integer(value))
-            if value == 0 || group.members.iter().any(|m| m.value == value) =>
+            if value == 0 || group.members.iter().any(|m| m.value == value)||group.unselected_values.contains(&value) =>
         {
             Ok(Some(value))
         }

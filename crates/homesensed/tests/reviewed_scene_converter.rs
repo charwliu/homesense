@@ -107,11 +107,11 @@ async fn full_target36_runtime_receipts_wire_order_and_caller_member_chain_survi
         .into(),
     );
     for expected in &result.completed[0].commands {
-        let written = owner.step().await.unwrap().unwrap();
+        let written = owner.step_with_frame_budget(1).await.unwrap().unwrap();
         assert_eq!(written.command_id, *expected);
         written.result.unwrap();
     }
-    assert!(owner.step().await.unwrap().is_none());
+    assert!(owner.step_with_frame_budget(1).await.unwrap().is_none());
     let expected = (4u8..40)
         .flat_map(|i| [0xae, 16 + i / 8, i % 8 + 1, 0xf2, 0xee])
         .collect::<Vec<_>>();
@@ -278,11 +278,11 @@ async fn reviewed_logical_combined_target_writes_exact_level_and_supply_with_one
         .into(),
     );
     for expected in &result.completed[0].commands {
-        let output = owner.step().await.unwrap().unwrap();
+        let output = owner.step_with_frame_budget(1).await.unwrap().unwrap();
         assert_eq!(output.command_id, *expected);
         output.result.unwrap();
     }
-    assert!(owner.step().await.unwrap().is_none());
+    assert!(owner.step_with_frame_budget(1).await.unwrap().is_none());
     assert_eq!(
         *bytes.lock().unwrap(),
         [0xae, 0x20, 0xb1, 40, 0xee, 0xae, 0x10, 2, 0xf1, 0xee]
@@ -306,7 +306,7 @@ async fn reviewed_logical_combined_target_writes_exact_level_and_supply_with_one
             .await
             .is_err()
     );
-    assert!(owner.step().await.unwrap().is_none());
+    assert!(owner.step_with_frame_budget(1).await.unwrap().is_none());
     assert_eq!(
         bytes.lock().unwrap().len(),
         10,

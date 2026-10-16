@@ -80,3 +80,13 @@ fn configuration_change_cancels_future_work_and_clock_reversal_is_rejected() {
     assert!(t.next(110, E).unwrap().is_none());
     assert!(Timeline::new(vec![step("a", 1)], E, u64::MAX, 1).is_err());
 }
+
+#[test]
+fn due_phase_is_atomic_bounded_and_return_unadmitted_preserves_original_deadline(){
+    for count in [128,129]{
+        let mut timeline=Timeline::new((0..count).map(|n|step(&format!("light{n}"),0)).collect(),E,1000,5000).unwrap();
+        let first=timeline.next(1001,E).unwrap().unwrap();let extra=timeline.extend_due_phase(first.index,|_,_|true);
+        if count==128{assert_eq!(extra.unwrap().len(),127);for index in 0..count{timeline.return_unadmitted(index).unwrap();}let again=timeline.next(1500,E).unwrap().unwrap();assert_eq!(again.index,0);assert_eq!(timeline.offered_deadline(0),Some(6000));}
+        else{assert_eq!(extra.err(),Some(Error::InvalidPlan));assert_eq!(timeline.states().iter().filter(|s|**s==State::Offered).count(),1);timeline.resolve(0,false).unwrap();assert_eq!(timeline.cancel(),128);}
+    }
+}

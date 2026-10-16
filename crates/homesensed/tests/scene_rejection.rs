@@ -64,6 +64,7 @@ async fn rejected_scene_stops_remaining_steps_but_keeps_other_control_available(
             step("supply", Command::Switch(false)),
             step("light", level(70)),
         ]);
+        if prior_output{for step in &mut steps[1..]{step.delay_ms=1;}}
         let mut scene = SceneRuntime::new(a.clone(), controller, steps, 0, 1000)
             .await
             .unwrap();

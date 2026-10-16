@@ -136,7 +136,7 @@ pub(crate) async fn snapshot(
         .filter(|id| visible.contains(id))
         .collect();
     let mut records = vec![];
-    // Bound audit work to two batches for the maximum visible device scope.
+    // Bound each audit request to 128 device IDs within the shared scope limit.
     // If no written row survives this history window, retain unknown rather
     // than inventing a color from accepted intent or button feedback.
     for chunk in ids.chunks(128) {
@@ -273,6 +273,7 @@ fn project(
                     "last_request":latest,"last_written":written},
                 "action":key.and_then(|k|k.action.as_ref()).map(|a|match a {
                     homesense_config::keypad::KeyAction::AwayOff{..}=>json!({"kind":"away_off","path":"/api/v1/away-off"}),
+                    homesense_config::keypad::KeyAction::SceneExecute{scene,..}=>json!({"kind":"scene_execute","scene":scene,"path":"/api/v1/scene-actions"}),
                     homesense_config::keypad::KeyAction::SceneToggle{scene,..}=>json!({"kind":"scene_toggle","scene":scene,"path":"/api/v1/scene-relative-actions"}),
                     homesense_config::keypad::KeyAction::Motor{device,action,..}=>json!({"kind":"motor","device":device,"command":{"action":action},"path":"/api/v1/device-commands"})
                 }),
@@ -343,8 +344,10 @@ pub(crate) fn devices_json(
                 .is_some_and(|id| grant.may_control_device(id));
             key["can_write_led"] = json!(allowed && key["can_write_led"] == true);
             let is_away=key["action"]["kind"]=="away_off";
+            let is_execute=key["action"]["kind"]=="scene_execute";
             let target_allowed = match key["action"]["kind"].as_str() {
                 Some("away_off")=>snapshot.keypad_away_scope.as_ref().is_some_and(|scope|scope.permitted(grant)),
+                Some("scene_execute")=>key["action"]["scene"].as_str().is_some_and(|scene|grant.may_control(scene) && snapshot.keypad_execute_scopes.get(scene).is_some_and(|ids|ids.iter().all(|id|grant.may_control_device(id)))),
                 Some("scene_toggle") => key["action"]["scene"]
                     .as_str()
                     .is_some_and(|scene| grant.may_control(scene)),
@@ -354,7 +357,7 @@ pub(crate) fn devices_json(
                 _ => false,
             };
             let available=allowed && target_allowed && parent_ready;
-            if is_away {
+            if is_away || is_execute {
                 key["can_activate"]=json!(available);
                 key["action_gate"]=json!({"available":available});
             }

@@ -5,13 +5,43 @@ use hb_protocol::{ProtocolError, RawFrame, StreamDecoder, encode_in_context};
 use homesense_core::{Channel, Command, ExecutionContext, ModuleSpec};
 use std::io::{self, Read, Write};
 
+/// A bounded write never exceeds 32 physical protocol frames (160 bytes).
+pub const MAX_BATCH_FRAMES: usize = 32;
+pub const MAX_BATCH_BYTES: usize = MAX_BATCH_FRAMES * 5;
+
 /// An encoded capability-checked frame. Raw bytes cannot bypass the encoder.
 pub struct PreparedFrame {
-    bytes: [u8; 5],
+    bytes: [u8; 15],
+    length: usize,
     transport_epoch: u64,
     context: ExecutionContext,
 }
 impl PreparedFrame {
+    /// Actual complete five-byte protocol frames held by this logical operation.
+    pub fn physical_frames(&self) -> usize {
+        self.length / 5
+    }
+    pub fn encoded_len(&self) -> usize {
+        self.length
+    }
+
+    fn operation(
+        bytes: [u8; 5],
+        copies: usize,
+        context: ExecutionContext,
+        transport_epoch: u64,
+    ) -> Self {
+        let mut operation = [0; 15];
+        for chunk in operation[..copies * 5].as_chunks_mut::<5>().0 {
+            chunk.copy_from_slice(&bytes);
+        }
+        Self {
+            bytes: operation,
+            length: copies * 5,
+            transport_epoch,
+            context,
+        }
+    }
     /// Encodes one addressed module operation. The runtime must reserve and
     /// authorize the entire affected channel set before handing it to send.
     pub fn prepare_module_all_off(
@@ -19,11 +49,12 @@ impl PreparedFrame {
         context: ExecutionContext,
         transport_epoch: u64,
     ) -> Result<Self, ProtocolError> {
-        Ok(Self {
-            bytes: hb_protocol::encode_module_all_off(module, context)?.bytes(),
-            transport_epoch,
+        Ok(Self::operation(
+            hb_protocol::encode_module_all_off(module, context)?.bytes(),
+            1,
             context,
-        })
+            transport_epoch,
+        ))
     }
 
     pub fn prepare_module_query(
@@ -31,11 +62,12 @@ impl PreparedFrame {
         context: ExecutionContext,
         transport_epoch: u64,
     ) -> Result<Self, ProtocolError> {
-        Ok(Self {
-            bytes: hb_protocol::encode_module_query(module, context)?.bytes(),
-            transport_epoch,
+        Ok(Self::operation(
+            hb_protocol::encode_module_query(module, context)?.bytes(),
+            1,
             context,
-        })
+            transport_epoch,
+        ))
     }
 
     pub fn prepare(
@@ -45,12 +77,57 @@ impl PreparedFrame {
         context: ExecutionContext,
         transport_epoch: u64,
     ) -> Result<Self, ProtocolError> {
-        Ok(Self {
-            bytes: encode_in_context(module, channel, command, context)?.bytes(),
-            transport_epoch,
-            context,
-        })
+        let frame = encode_in_context(module, channel, command, context)?.bytes();
+        // TS6 C6/C8 settings require three complete consecutive frames. Keep
+        // one logical ticket, one writer lease and one final completion audit.
+        let copies = if module.profile() == homesense_core::ProtocolProfile::Ts686Rs485SixKey
+            && matches!(
+                command,
+                Command::PanelParameter(
+                    homesense_core::PanelParameter::Backlight(_)
+                        | homesense_core::PanelParameter::FeedbackMode(_)
+                )
+            ) {
+            3
+        } else {
+            1
+        };
+        Ok(Self::operation(frame, copies, context, transport_epoch))
     }
+}
+
+/// Local stream progress only; Written never asserts that an actuator applied it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OperationProgress {
+    Complete,
+    Partial,
+    Unsent,
+}
+pub fn operation_progress(
+    frames: &[&PreparedFrame],
+    bytes_written: usize,
+) -> Option<Vec<OperationProgress>> {
+    let total = frames.iter().map(|frame| frame.length).sum::<usize>();
+    if frames.is_empty() || total > MAX_BATCH_BYTES || bytes_written > total {
+        return None;
+    }
+    let mut end = 0;
+    Some(
+        frames
+            .iter()
+            .map(|frame| {
+                let start = end;
+                end += frame.length;
+                if bytes_written >= end {
+                    OperationProgress::Complete
+                } else if bytes_written > start {
+                    OperationProgress::Partial
+                } else {
+                    OperationProgress::Unsent
+                }
+            })
+            .collect(),
+    )
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -137,7 +214,8 @@ impl<S: Read + Write> Connection<S> {
         self.stream.take();
         self.decoder.reset()
     }
-    /// One complete frame or a terminal connection failure. Partial frames are
+    /// One complete bounded operation or a terminal failure. TS6 settings carry
+    /// three complete frames; partial operations are
     /// never resumed on another connection. The owner assigns a new epoch there.
     /// `now` is the same monotonic millisecond clock used for queue deadlines.
     pub fn send(
@@ -146,27 +224,45 @@ impl<S: Read + Write> Connection<S> {
         deadline_ms: u64,
         mut now: impl FnMut() -> u64,
     ) -> Result<(), SendError> {
+        self.send_batch(&[frame], deadline_ms, &mut now)
+    }
+    /// An already admitted homogeneous writer phase. Every operation retains its
+    /// own capability proof; the runtime owns request grouping and authority.
+    /// No buffering, waiting to fill, retries on a fresh socket, or new deadline.
+    pub fn send_batch(
+        &mut self,
+        frames: &[&PreparedFrame],
+        deadline_ms: u64,
+        mut now: impl FnMut() -> u64,
+    ) -> Result<(), SendError> {
+        let denied = |reason| SendError {
+            reason,
+            bytes_written: 0,
+        };
         if !self.is_connected() {
-            return Err(SendError {
-                reason: SendFailure::Disconnected,
-                bytes_written: 0,
-            });
+            return Err(denied(SendFailure::Disconnected));
         }
-        if frame.transport_epoch != self.epoch {
-            return Err(SendError {
-                reason: SendFailure::StaleEpoch,
-                bytes_written: 0,
-            });
+        let length = frames.iter().map(|frame| frame.length).sum::<usize>();
+        if frames.is_empty() || length > MAX_BATCH_BYTES {
+            return Err(denied(SendFailure::Io(io::ErrorKind::InvalidInput)));
         }
-        if self.context == ExecutionContext::Live && frame.context == ExecutionContext::Simulation {
-            return Err(SendError {
-                reason: SendFailure::SimulationOnly,
-                bytes_written: 0,
-            });
+        let mut bytes = [0u8; MAX_BATCH_BYTES];
+        let mut offset = 0;
+        for frame in frames {
+            if frame.transport_epoch != self.epoch {
+                return Err(denied(SendFailure::StaleEpoch));
+            }
+            if self.context == ExecutionContext::Live
+                && frame.context == ExecutionContext::Simulation
+            {
+                return Err(denied(SendFailure::SimulationOnly));
+            }
+            bytes[offset..offset + frame.length].copy_from_slice(&frame.bytes[..frame.length]);
+            offset += frame.length;
         }
         let mut written = 0;
         let mut interruptions = 0;
-        while written < frame.bytes.len() {
+        while written < length {
             if now() >= deadline_ms {
                 if written > 0 {
                     self.disconnect();
@@ -176,7 +272,7 @@ impl<S: Read + Write> Connection<S> {
                     bytes_written: written,
                 });
             }
-            match self.stream.as_mut().unwrap().write(&frame.bytes[written..]) {
+            match self.stream.as_mut().unwrap().write(&bytes[written..length]) {
                 Ok(0) => {
                     self.disconnect();
                     return Err(SendError {
@@ -184,12 +280,19 @@ impl<S: Read + Write> Connection<S> {
                         bytes_written: written,
                     });
                 }
-                Ok(n) => {
+                Ok(n) if n <= length - written => {
                     written += n;
                     interruptions = 0;
                 }
+                Ok(_) => {
+                    self.disconnect();
+                    return Err(SendError {
+                        reason: SendFailure::Io(io::ErrorKind::InvalidData),
+                        bytes_written: written,
+                    });
+                }
                 Err(e) if e.kind() == io::ErrorKind::Interrupted && interruptions < 16 => {
-                    interruptions += 1;
+                    interruptions += 1
                 }
                 Err(e) => {
                     self.disconnect();
@@ -200,7 +303,6 @@ impl<S: Read + Write> Connection<S> {
                 }
             }
         }
-        // No flush: this adapter requires an unbuffered stream (e.g. TcpStream).
         Ok(())
     }
     /// At most one bounded read and 512 bytes per call. Idle keeps partial input;

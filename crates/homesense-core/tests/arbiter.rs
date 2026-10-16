@@ -402,11 +402,17 @@ fn reconnect_cancels_degraded_stop_instead_of_replaying_on_new_socket() {
 fn publication_recovery_requires_committed_revision_and_fresh_epoch() {
     let mut a = fixture();
     let stale = request(&a, 99, false);
-    assert_eq!(a.publication_recovered(2, 4), Err(ArbiterError::NotSynchronized));
+    assert_eq!(
+        a.publication_recovered(2, 4),
+        Err(ArbiterError::NotSynchronized)
+    );
     enqueue(&mut a, 1, false);
     a.begin_publication(1, 50).unwrap();
     a.storage_failed().unwrap();
-    assert_eq!(a.publication_recovered(2, 5), Err(ArbiterError::NotSynchronized));
+    assert_eq!(
+        a.publication_recovered(2, 5),
+        Err(ArbiterError::NotSynchronized)
+    );
 
     // A failed pre-commit publication cannot be promoted by recovery.
     let mut a = fixture();
@@ -414,11 +420,17 @@ fn publication_recovery_requires_committed_revision_and_fresh_epoch() {
     a.begin_publication(1, 50).unwrap();
     a.begin_commit(2).unwrap();
     a.record_commit(CommitResult::Committed(5)).unwrap();
-    assert_eq!(a.publication_recovered(2, 5), Err(ArbiterError::NotSynchronized));
+    assert_eq!(
+        a.publication_recovered(2, 5),
+        Err(ArbiterError::NotSynchronized)
+    );
     a.storage_failed().unwrap();
     let before = a.policy();
     for (epoch, revision) in [(1, 5), (0, 5), (2, 4), (2, 6)] {
-        assert_eq!(a.publication_recovered(epoch, revision), Err(ArbiterError::NotSynchronized));
+        assert_eq!(
+            a.publication_recovered(epoch, revision),
+            Err(ArbiterError::NotSynchronized)
+        );
         assert_eq!(a.policy().epochs, before.epochs);
         assert!(!a.policy().storage_healthy && !a.policy().gateway_ready && a.policy().publishing);
     }
@@ -430,17 +442,176 @@ fn publication_recovery_requires_committed_revision_and_fresh_epoch() {
     assert!(policy.storage_healthy && policy.gateway_ready && !policy.publishing);
     assert!(a.submit(stale.clone(), access(&stale), 3).is_err());
     assert!(a.dispatch(3, access).unwrap().command.is_none());
-    assert_eq!(a.publication_recovered(3, 5), Err(ArbiterError::NotSynchronized));
+    assert_eq!(
+        a.publication_recovered(3, 5),
+        Err(ArbiterError::NotSynchronized)
+    );
     enqueue(&mut a, 2, false);
     assert_eq!(a.dispatch(4, access).unwrap().command.unwrap().id, 2);
 }
 
 #[test]
 fn module_off_green_tail_commits_with_effects_and_failure_leaves_old_work_unchanged() {
-    let mut a=fixture();enqueue(&mut a,1,false);let epochs=a.policy().epochs;
-    let modules=vec![(QueuedCommand{id:2,device_id:DeviceId::new("module-ticket").unwrap(),command:Command::ModuleAllOff,origin:Origin::Http,epochs,deadline_ms:100,run_id:None},access(&request(&a,2,false)))];
-    let mut reset=QueuedCommand{id:3,device_id:DeviceId::new("key6").unwrap(),command:Command::PanelLed(false),origin:Origin::Http,epochs,deadline_ms:100,run_id:None};let affected=[DeviceId::new("light").unwrap()].into();
-    let result=a.submit_module_off_with_reset_committed(modules.clone(),Some((reset.clone(),access(&reset))),&affected,0,|_,_|Err::<(),_>("audit failed"));assert!(result.is_err());assert_eq!(a.queued_len(),1);
-    reset.command=Command::PanelLed(true);assert!(a.submit_module_off_with_reset_committed(modules.clone(),Some((reset.clone(),access(&reset))),&affected,0,|_,_|Ok::<_,()>(())).is_err());assert_eq!(a.queued_len(),1);
-    reset.command=Command::PanelLed(false);let cancelled=a.submit_module_off_with_reset_committed(modules,Some((reset.clone(),access(&reset))),&affected,0,|commands,cancelled|{assert_eq!(commands.len(),2);assert_eq!(cancelled.len(),1);Ok::<_,()>(())}).unwrap();assert_eq!(cancelled.len(),1);assert_eq!(a.queued_len(),2);
+    let mut a = fixture();
+    enqueue(&mut a, 1, false);
+    let epochs = a.policy().epochs;
+    let modules = vec![(
+        QueuedCommand {
+            id: 2,
+            device_id: DeviceId::new("module-ticket").unwrap(),
+            command: Command::ModuleAllOff,
+            origin: Origin::Http,
+            epochs,
+            deadline_ms: 100,
+            run_id: None,
+        },
+        access(&request(&a, 2, false)),
+    )];
+    let mut reset = QueuedCommand {
+        id: 3,
+        device_id: DeviceId::new("key6").unwrap(),
+        command: Command::PanelLed(false),
+        origin: Origin::Http,
+        epochs,
+        deadline_ms: 100,
+        run_id: None,
+    };
+    let affected = [DeviceId::new("light").unwrap()].into();
+    let result = a.submit_module_off_with_reset_committed(
+        modules.clone(),
+        Some((reset.clone(), access(&reset))),
+        &affected,
+        0,
+        |_, _| Err::<(), _>("audit failed"),
+    );
+    assert!(result.is_err());
+    assert_eq!(a.queued_len(), 1);
+    reset.command = Command::PanelLed(true);
+    assert!(
+        a.submit_module_off_with_reset_committed(
+            modules.clone(),
+            Some((reset.clone(), access(&reset))),
+            &affected,
+            0,
+            |_, _| Ok::<_, ()>(())
+        )
+        .is_err()
+    );
+    assert_eq!(a.queued_len(), 1);
+    reset.command = Command::PanelLed(false);
+    let cancelled = a
+        .submit_module_off_with_reset_committed(
+            modules,
+            Some((reset.clone(), access(&reset))),
+            &affected,
+            0,
+            |commands, cancelled| {
+                assert_eq!(commands.len(), 2);
+                assert_eq!(cancelled.len(), 1);
+                Ok::<_, ()>(())
+            },
+        )
+        .unwrap();
+    assert_eq!(cancelled.len(), 1);
+    assert_eq!(a.queued_len(), 2);
+}
+
+#[test]
+fn bounded_writer_extension_keeps_all_members_owned_until_each_real_completion() {
+    let mut a = fixture();
+    for id in 1..=4 {
+        enqueue(&mut a, id, false);
+    }
+    assert_eq!(a.dispatch(0, access).unwrap().command.unwrap().id, 1);
+    for id in 2..=3 {
+        assert_eq!(
+            a.extend_write(0, access, |c| c.id <= 3, |_| true)
+                .unwrap()
+                .command
+                .unwrap()
+                .id,
+            id
+        );
+    }
+    assert!(
+        a.extend_write(0, access, |c| c.id <= 3, |_| true)
+            .unwrap()
+            .command
+            .is_none()
+    );
+    assert_eq!(a.queued_len(), 1);
+    a.finish_write(1, true).unwrap();
+    assert_eq!(a.dispatch(0, access).unwrap_err(), ArbiterError::Busy);
+    a.finish_write(2, true).unwrap();
+    assert_eq!(a.dispatch(0, access).unwrap_err(), ArbiterError::Busy);
+    a.finish_write(3, true).unwrap();
+    assert_eq!(a.dispatch(0, access).unwrap().command.unwrap().id, 4);
+}
+#[test]
+fn writer_extension_never_skips_independent_stop_or_weakens_member_authorization() {
+    let mut a = fixture();
+    enqueue(&mut a, 1, false);
+    enqueue(&mut a, 2, false);
+    a.dispatch(0, access).unwrap();
+    enqueue(&mut a, 3, true);
+    assert!(
+        a.extend_write(0, access, |_| true, |_| true)
+            .unwrap()
+            .command
+            .is_none()
+    );
+    a.finish_write(1, true).unwrap();
+    assert!(a.dispatch(0, access).unwrap().command.unwrap().is_stop());
+    a.finish_write(3, true).unwrap();
+    assert!(a.dispatch(0, access).unwrap().command.is_some());
+    let mut a = fixture();
+    enqueue(&mut a, 1, false);
+    enqueue(&mut a, 2, false);
+    a.dispatch(0, access).unwrap();
+    let rejected = a
+        .extend_write(
+            0,
+            |c| Access {
+                authorized: false,
+                ..access(c)
+            },
+            |_| true,
+            |_| true,
+        )
+        .unwrap();
+    assert!(rejected.command.is_none());
+    assert_eq!(rejected.rejected.len(), 1);
+    a.finish_write(1, true).unwrap();
+    assert!(a.dispatch(0, access).unwrap().command.is_none());
+}
+#[test]
+fn audited_fault_retires_exact_bounded_writer_members_without_erasing_other_work() {
+    let mut a = fixture();
+    for id in 1..=4 {
+        enqueue(&mut a, id, false);
+    }
+    a.dispatch(0, access).unwrap();
+    a.extend_write(0, access, |c| c.id == 2, |_| true).unwrap();
+    assert_eq!(
+        a.apply_audited_gateway_fault(&[], &[1, 2, 2]).unwrap_err(),
+        ArbiterError::InvalidState
+    );
+    assert_eq!(
+        a.apply_audited_gateway_fault(&[], &[1, 9]).unwrap_err(),
+        ArbiterError::InvalidState
+    );
+    assert_eq!(
+        a.apply_audited_gateway_fault(&[3], &[1, 2]).unwrap().len(),
+        1
+    );
+    assert_eq!(a.dispatch(0, access).unwrap().command.unwrap().id, 4);
+}
+
+#[test]
+fn member_cancellation_retains_shared_run_peer_and_writing_with_atomic_persistence_failure(){
+    let mut a=fixture();for id in 1..=3{let mut command=request(&a,id,false);command.run_id=Some(if id==3{8}else{7});a.submit(command,access(&request(&a,id,false)),0).unwrap();}
+    assert!(matches!(a.cancel_run_members_committed(7,&[1,3].into(),|_|Ok::<_,()>(())),Err(homesense_core::arbiter::BatchCommitError::Admission(ArbiterError::InvalidState))));assert_eq!(a.queued_len(),3);
+    assert!(matches!(a.cancel_run_members_committed(7,&[1].into(),|_|Err("db")),Err(homesense_core::arbiter::BatchCommitError::Persistence("db"))));assert_eq!(a.queued_len(),3);
+    a.dispatch(0,access).unwrap();let cancelled=a.cancel_run_members_committed(7,&[1,2].into(),|_|Ok::<_,()>(())).unwrap();assert_eq!(cancelled.len(),1);assert_eq!(cancelled[0].command.id,2);assert_eq!(cancelled[0].reason,homesense_core::queue::CancelReason::RunCancelled);
+    assert_eq!(a.dispatch(0,access).unwrap_err(),ArbiterError::Busy);a.finish_write(1,true).unwrap();assert_eq!(a.dispatch(0,access).unwrap().command.unwrap().id,3);
 }

@@ -1,0 +1,108 @@
+{
+  "schema_version": 1,
+  "configuration_revision": 1,
+  "variables": [
+    {
+      "id": "branch",
+      "kind": "integer",
+      "lifetime": "persistent"
+    }
+  ],
+  "rules": [],
+  "immediate_scenes": [
+    {
+      "id": "conditional",
+      "enabled": true,
+      "review_evidence": "Synthetic native execution conditional AST only",
+      "activate": [
+        {
+          "source": "conditional/if",
+          "action": {
+            "kind": "if",
+            "condition": {
+              "kind": "equal",
+              "left": {
+                "kind": "device_on",
+                "device": "light"
+              },
+              "right": {
+                "kind": "bool",
+                "value": true
+              }
+            },
+            "then_actions": [
+              {
+                "source": "conditional/then/light",
+                "action": {
+                  "kind": "command",
+                  "device": "light",
+                  "command": {
+                    "kind": "switch",
+                    "on": false
+                  }
+                }
+              },
+              {
+                "source": "conditional/then/variable",
+                "action": {
+                  "kind": "set",
+                  "variable": "branch",
+                  "value": {
+                    "kind": "integer",
+                    "value": 0
+                  }
+                }
+              },
+              {
+                "source": "conditional/then/LED",
+                "action": {
+                  "kind": "command",
+                  "device": "key:1",
+                  "command": {
+                    "kind": "panel_led",
+                    "on": false
+                  }
+                }
+              }
+            ],
+            "else_actions": [
+              {
+                "source": "conditional/else/light",
+                "action": {
+                  "kind": "command",
+                  "device": "light",
+                  "command": {
+                    "kind": "switch",
+                    "on": true
+                  }
+                }
+              },
+              {
+                "source": "conditional/else/variable",
+                "action": {
+                  "kind": "set",
+                  "variable": "branch",
+                  "value": {
+                    "kind": "integer",
+                    "value": 1
+                  }
+                }
+              },
+              {
+                "source": "conditional/else/LED",
+                "action": {
+                  "kind": "command",
+                  "device": "key:1",
+                  "command": {
+                    "kind": "panel_led",
+                    "on": true
+                  }
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

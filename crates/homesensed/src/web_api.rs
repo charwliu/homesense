@@ -1,5 +1,8 @@
 //! Scoped management API. Commands use durable request fences and the running
 //! automation owner; neither the HTTP layer nor its UI touches a gateway.
+/// Bounded complete management catalog; write-batch and HAP subset limits remain separate.
+pub const MAX_MANAGED_SCENES:usize=256;
+pub(crate) fn check_catalog_capacity(count:usize)->Result<(),String>{if count>MAX_MANAGED_SCENES{Err("management scene capacity exceeded".into())}else{Ok(())}}
 use crate::{
     automation_control::{Action, Control, Reply},
     web_auth::Tokens,
@@ -69,6 +72,7 @@ async fn selection_details(
 ) -> Result<BTreeMap<String, crate::scene_switches::Details>, crate::scene_switches::UnavailableReason> {
     use crate::scene_switches::UnavailableReason;
     // A read-only request may complete late, but can never dispatch an action.
+    let read_started=std::time::Instant::now();
     match tokio::time::timeout(std::time::Duration::from_millis(500), async {
         // SceneSelectionDetails performs its own revision, source/generation and
         // mapping-ready checks in the runtime. A separate diagnostics request
@@ -80,7 +84,10 @@ async fn selection_details(
         }
     }).await {
         Ok(result) => result,
-        Err(_) => Err(UnavailableReason::ReadTimedOut),
+        Err(_) => {
+            log::warn!("scene_selection_read_timed_out deadline_ms=500 elapsed_ms={}",read_started.elapsed().as_millis());
+            Err(UnavailableReason::ReadTimedOut)
+        },
     }
 }
 impl Api {
@@ -808,6 +815,7 @@ impl Api {
             #[serde(deny_unknown_fields)]
             struct ModuleCommand{module_id:String,channel:u8,revision:String,request_id:String,command:crate::management_devices::DeviceAction}
             let body=match serde_json::from_slice::<ModuleCommand>(request.body()){Ok(body)=>body,Err(_)=>return deny(StatusCode::BAD_REQUEST,"invalid_body")};
+            if matches!(body.command,crate::management_devices::DeviceAction::MotorPress {..}) {return deny(StatusCode::BAD_REQUEST,"module_motor_press_unsupported");}
             if body.revision!=runtime.revision.to_string(){return deny(StatusCode::CONFLICT,"stale_revision");}
             if body.channel==0 || body.module_id.is_empty() || body.module_id.len()>128{return deny(StatusCode::BAD_REQUEST,"invalid_body");}
             let device=match runtime.control.request(Action::ModuleBinding{controller:grant.controller,revision:runtime.revision,module_id:body.module_id.clone(),channel:body.channel}).await{Ok(Reply::ModuleBinding(id))=>id,_=>return deny(StatusCode::BAD_REQUEST,"module_channel_unavailable")};
@@ -831,6 +839,7 @@ impl Api {
                 && (body.revision.is_none() || !(1..=6).contains(key) || homesense_core::DeviceId::new(keypad).is_err()) {
                 return deny(StatusCode::BAD_REQUEST,"invalid_keypad_press");
             }
+            if matches!(body.command,crate::management_devices::DeviceAction::MotorPress {..}) && body.revision.is_none() {return deny(StatusCode::BAD_REQUEST,"motor_press_revision_required");}
             if body.revision.is_some_and(|revision|revision!=runtime.revision.to_string()){return deny(StatusCode::CONFLICT,"stale_revision");}
             if !grant.may_control_device(&body.device) {
                 return deny(StatusCode::FORBIDDEN, "device_not_permitted");
@@ -841,6 +850,13 @@ impl Api {
             if matches!(body.command, crate::management_devices::DeviceAction::Brightness {level} if level>100)
             {
                 return deny(StatusCode::BAD_REQUEST, "invalid_brightness");
+            }
+            if matches!(body.command,crate::management_devices::DeviceAction::MotorPress {..}) {
+                match tokio::time::timeout(std::time::Duration::from_millis(500),runtime.control.request(Action::MotorBinding {controller:grant.controller,revision:runtime.revision,device:device.clone()})).await {
+                    Ok(Ok(Reply::ModuleBinding(_)))=>{},
+                    Ok(Err(_))=>return deny(StatusCode::BAD_REQUEST,"motor_press_target_unavailable"),
+                    _=>return deny(StatusCode::SERVICE_UNAVAILABLE,"motor_binding_unavailable"),
+                }
             }
             let fingerprint=json!({"action":"device","revision":runtime.revision,"device":body.device,"command":body.command}).to_string();
             let action=if matches!(body.command,crate::management_devices::DeviceAction::PanelLed{..}|crate::management_devices::DeviceAction::PanelLedOff) {
@@ -1060,3 +1076,7 @@ mod selection_quantum_tests {
         drop(receiver);admission.shutdown().await.unwrap();std::fs::remove_dir_all(directory).unwrap();
     }
 }
+
+#[cfg(test)]
+#[path="selection_read_fairness_tests.rs"]
+mod selection_read_fairness_tests;

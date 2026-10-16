@@ -336,6 +336,8 @@ impl Store {
 }
 
 #[derive(Debug, Clone)]
+pub struct PhaseStep {pub link:StepLink,pub command_ids:Vec<u64>}
+#[derive(Debug, Clone)]
 pub struct StepLink {
     /// Contiguous fade sample number; None keeps ordinary single-admission steps.
     pub sample: Option<u16>,

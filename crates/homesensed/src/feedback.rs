@@ -42,6 +42,13 @@ pub struct RuleLease {
     pub(crate) indicator_after: Option<u64>,
 }
 impl RuleLease {
+
+    pub(crate) fn merge_physical(mut self,other:&Self)->Result<Self,String>{
+        if !Arc::ptr_eq(&self.version,&other.version)||self.expected!=other.expected||self.boot!=other.boot||self.revision!=other.revision||self.epoch!=other.epoch||other.motor.is_some()||other.indicator_after.is_some()||!other.recorded_off_reads.is_empty(){return Err("foreign component baseline lease".into());}
+        for (id,at) in &other.observations {if self.observations.get(id).is_some_and(|old|old!=at){return Err("inconsistent component baseline".into());}self.observations.insert(id.clone(),*at);}
+        self.captured_ms=self.captured_ms.max(other.captured_ms);self.expires_ms=match(self.expires_ms,other.expires_ms){(Some(a),Some(b))=>Some(a.min(b)),(a,b)=>a.or(b)};Ok(self)
+    }
+    pub(crate) fn covers(&self,other:&Self)->bool{Arc::ptr_eq(&self.version,&other.version)&&self.expected==other.expected&&self.boot==other.boot&&self.revision==other.revision&&self.epoch==other.epoch&&self.captured_ms>=other.captured_ms&&other.expires_ms.is_none_or(|limit|self.expires_ms.is_some_and(|at|at<=limit))&&other.observations.iter().all(|(id,at)|self.observations.get(id)==Some(at))}
     #[cfg(test)]
     pub(crate) fn commit<T>(
         &self,
@@ -114,6 +121,14 @@ type NativeSceneCapture = (
     RuleLease,
 );
 impl Feedback {
+    /// Explicitly driven embedded runtimes may publish the existing physical
+    /// snapshot to pending control-phase barriers. This performs no I/O and
+    /// cannot manufacture targets or Written receipts; Admission validates the
+    /// original source, generation, deadline, and post-write observation lease.
+    pub async fn reconcile_control_phases(&self,admission:&crate::admission::Admission,controller:uuid::Uuid)->Result<(),String>{
+        crate::control_batch::Consumer::default().tick(admission,controller,self).await
+    }
+
     pub(crate) fn effective_max_age_ms(&self, requested:u64)->u64 {
         self.managed_max_age_ms.map_or(requested,|bound|requested.min(bound))
     }

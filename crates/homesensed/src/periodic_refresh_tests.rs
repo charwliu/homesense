@@ -551,3 +551,15 @@ async fn buffered_query_reply_allows_accepted_control_in_same_dispatch_turn() {
     drop(owner);
     h.close().await;
 }
+#[tokio::test]
+async fn explicit_consumer_refreshes_only_its_port_without_shortening_default_idle_round(){
+    let (h,mut owner,_)=delayed_fixture(8,1,20).await;let age=h.c.refresh_policy().observation_max_age_ms();
+    owner.configure_output_refresh(&h.c,h.controller,h.a.task_generation().await.unwrap(),ExecutionContext::Simulation,500,age).unwrap();
+    let baseline=h.w.lock().unwrap().writes.len();let old=owner.snapshot().devices[&DeviceId::new("lamp001").unwrap()].observed_at_ms;
+    let end=Instant::now()+Duration::from_millis(350);while Instant::now()<end{owner.receive("bus").await.unwrap();owner.refresh_outputs_if_due().await.unwrap();tokio::time::sleep(Duration::from_millis(5)).await;}
+    assert_eq!(h.w.lock().unwrap().writes.len(),baseline,"no configured short consumer: default hours-long idle must remain");
+    owner.configure_consumer_refresh(&[(DeviceId::new("lamp000").unwrap(),600)].into()).unwrap();
+    let end=Instant::now()+Duration::from_millis(1000);while Instant::now()<end{owner.receive_pending_output().await.unwrap();owner.refresh_outputs_if_due().await.unwrap();tokio::time::sleep(Duration::from_millis(5)).await;}
+    {let wire=h.w.lock().unwrap();let queries=&wire.writes[baseline..];assert!(queries.len()>=3,"strict port must refresh independently");assert!(queries.iter().all(|q|*q==[0xae,1,0xa1,0xf2,0xee]),"unrelated seven ports must keep long idle: {queries:?}");}
+    assert_eq!(owner.snapshot().devices[&DeviceId::new("lamp001").unwrap()].observed_at_ms,old,"unrequested read cannot renew another port");drop(owner);h.close().await;
+}

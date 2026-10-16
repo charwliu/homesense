@@ -13,6 +13,9 @@ use homesense_core::{
     rule::{Action, Budget, Condition, Expr, Node, Value},
 };
 use std::collections::BTreeMap;
+type AttemptKey=(String,Vec<homesense_core::DeviceId>);
+#[derive(Clone,Copy,Debug,PartialEq,Eq)]
+pub(crate) enum Evaluation {Unknown,NotRequired,Desired(bool)}
 
 struct Attempt {
     desired:bool,selection:i64,generation:crate::admission::TaskGeneration,controller:uuid::Uuid,
@@ -21,11 +24,25 @@ struct Attempt {
 }
 #[derive(Default)]
 pub struct Synchronizer {
-    attempted: BTreeMap<String, (bool, Vec<(String, u64)>)>,
-    physical_attempted: BTreeMap<String,Attempt>,
+    attempted: BTreeMap<AttemptKey, (bool, Vec<(String, u64)>)>,
+    physical_attempted: BTreeMap<AttemptKey,Attempt>,
     emitted:Vec<Vec<u64>>,
+    evaluations:BTreeMap<AttemptKey,Evaluation>,
+    legacy_commands:BTreeMap<AttemptKey,Vec<u64>>,
+    prepare_deadline:Option<u64>,
+    visited:Vec<AttemptKey>,
 }
 impl Synchronizer {
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) async fn tick_wave(&mut self,admission:&Admission,controller:uuid::Uuid,document:&Document,scenes:&SceneScheduler,feedback:&Feedback,max_age:u64,deadline:u64)->Result<usize,String> {
+        self.prepare_deadline=Some(deadline);
+        let result=self.tick(admission,controller,document,scenes,feedback,max_age).await;
+        self.prepare_deadline=None;
+        result.map(|()|self.visited.len())
+    }
+    pub(crate) fn evaluation(&self,link:&str,id:&homesense_core::DeviceId)->Evaluation {
+        self.evaluations.get(&(link.to_owned(),vec![id.clone()])).copied().unwrap_or(Evaluation::Unknown)
+    }
     pub(crate) fn take_emitted_batches(&mut self)->Vec<Vec<u64>> {std::mem::take(&mut self.emitted)}
     #[allow(clippy::too_many_arguments)]
     async fn physical_link(
@@ -39,6 +56,7 @@ impl Synchronizer {
         max_age: u64,
         generation: crate::admission::TaskGeneration,
     ) -> Result<(), String> {
+        let key=(link.id.clone(),link.leds.clone());
         let member = group
             .members
             .iter()
@@ -108,9 +126,10 @@ impl Synchronizer {
             Ok(false) | Err(WriteStatus::ResourceBusy) => return Ok(()),
             Err(e) => return Err(format!("{e:?}")),
         }
+        self.evaluations.insert(key.clone(),Evaluation::Desired(desired));
         let selected=selection_value.ok_or("physical indicator selection missing")?;
         let fingerprint=feedback.indicator_fingerprint(&lease,group.reconciliation.as_ref().is_some_and(|p|p.policy==homesense_config::scene_switches::ReconciliationPolicy::PowerPatternThenProfileLevel))?;
-        let prior=self.physical_attempted.get(&link.id).filter(|p|p.generation==generation && p.controller==controller);
+        let prior=self.physical_attempted.get(&key).filter(|p|p.generation==generation && p.controller==controller);
         let output=match admission.indicator_outputs(controller,generation.clone(),link.leds.clone(),prior.map(|p|p.commands.clone()).unwrap_or_default()).await {
             Ok(output)=>output,Err(WriteStatus::ResourceBusy)=>return Ok(()),Err(e)=>return Err(format!("indicator output fence: {e:?}")),
         };
@@ -127,23 +146,23 @@ impl Synchronizer {
                 // A different selected member may leave this LED's false value
                 // unchanged. Advance its evidence baseline without rewriting it;
                 // a same-selection semantic round trip remains a distinct edge.
-                if let Some(cached)=self.physical_attempted.get_mut(&link.id){cached.fingerprint=fingerprint;cached.selection=selected;cached.output_fence=output.fence;}
+                if let Some(cached)=self.physical_attempted.get_mut(&key){cached.fingerprint=fingerprint;cached.selection=selected;cached.output_fence=output.fence;}
                 return Ok(());
             }
         }
         prepared.attach_feedback(Some(lease));
         prepared.attach_indicator_outputs(output.fence.clone());
-        let previous = self.physical_attempted.insert(link.id.clone(),Attempt{desired,selection:selected,generation,controller,fingerprint,output_fence:output.fence,commands:vec![]});
+        let previous = self.physical_attempted.insert(key.clone(),Attempt{desired,selection:selected,generation,controller,fingerprint,output_fence:output.fence,commands:vec![]});
         match prepared.commit_status(admission).await {
             Err(WriteStatus::ResourceBusy | WriteStatus::InvalidValueInRequest) => {
                 if let Some(previous) = previous {
-                    self.physical_attempted.insert(link.id.clone(), previous);
+                    self.physical_attempted.insert(key.clone(), previous);
                 } else {
-                    self.physical_attempted.remove(&link.id);
+                    self.physical_attempted.remove(&key);
                 }
             }
             Ok(ids) => {if !ids.is_empty(){self.emitted.push(ids.clone());}
-                        if let Some(attempt)=self.physical_attempted.get_mut(&link.id){attempt.commands=ids;}}
+                        if let Some(attempt)=self.physical_attempted.get_mut(&key){attempt.commands=ids;}}
             Err(e) => log::warn!(
                 "indicator {} admission failed: {e:?}; no automatic replay",
                 link.id
@@ -162,6 +181,7 @@ impl Synchronizer {
         feedback: &Feedback,
         max_age: u64,
     ) -> Result<(), String> {
+        self.evaluations.clear();self.visited.clear();
         if !document.indicator_links.iter().any(|l| l.enabled) {
             return Ok(());
         }
@@ -196,6 +216,8 @@ impl Synchronizer {
             return Ok(());
         }
         for link in document.indicator_links.iter().filter(|l| l.enabled) {
+            if self.prepare_deadline.is_some_and(|deadline|admission.monotonic_ms()>=deadline) || !admission.source_valid() {break;}
+            let key=(link.id.clone(),link.leds.clone());self.visited.push(key.clone());
             if link.lights.iter().any(|id| pending.contains_key(id)) {
                 continue;
             }
@@ -388,34 +410,38 @@ impl Synchronizer {
             }
             if !off {
                 if prepared.unknown_branches.is_empty() {
-                    self.attempted.insert(link.id.clone(), (false, vec![]));
+                    self.evaluations.insert(key.clone(),Evaluation::NotRequired);
+                    self.attempted.insert(key.clone(), (false, vec![]));
                 }
                 continue;
             }
+            self.evaluations.insert(key.clone(),Evaluation::Desired(false));
             let mode_clearing = !prepared.changed_variables.is_empty();
             let versions = prepared.input_versions();
-            if self
-                .attempted
-                .get(&link.id)
-                .is_some_and(|(attempted, old)| *attempted && (!mode_clearing || old == &versions))
-            {
+            let previous_ids=self.legacy_commands.get(&key).cloned().unwrap_or_default();
+            let output=match admission.indicator_outputs(controller,generation.clone(),link.leds.clone(),previous_ids).await {
+                Ok(value)=>value,Err(WriteStatus::ResourceBusy)=>continue,Err(error)=>return Err(format!("indicator fence: {error:?}")),
+            };
+            let overridden=output.prior_complete && output.fence.values().any(|value|value.written.as_ref().is_some_and(|written|written.color!=Some(false)));
+            if self.attempted.get(&key).is_some_and(|(attempted,old)|*attempted && (!mode_clearing || old==&versions)) && !overridden {
                 continue;
             }
             prepared.attach_feedback(Some(lease));
+            prepared.attach_indicator_outputs(output.fence);
             // Record before awaiting so dropping the future cannot retry an
             // admission that may already be durable. Undo only known rejection.
-            let previous = self.attempted.insert(link.id.clone(), (true, versions));
+            let previous = self.attempted.insert(key.clone(), (true, versions));
             match prepared.commit_status(admission).await {
                 // Both statuses are definite rejection before durable acceptance.
                 // Do not reuse this plan: the next tick captures fresh state/CAS.
                 Err(WriteStatus::ResourceBusy | WriteStatus::InvalidValueInRequest) => {
                     if let Some(previous) = previous {
-                        self.attempted.insert(link.id.clone(), previous);
+                        self.attempted.insert(key.clone(), previous);
                     } else {
-                        self.attempted.remove(&link.id);
+                        self.attempted.remove(&key);
                     }
                 }
-                Ok(ids) => {if !ids.is_empty(){self.emitted.push(ids);}}
+                Ok(ids) => {if !ids.is_empty(){self.legacy_commands.insert(key.clone(),ids.clone());self.emitted.push(ids);}}
                 Err(error) => {
                     log::warn!(
                         "indicator {} admission failed: {error:?}; no automatic replay",

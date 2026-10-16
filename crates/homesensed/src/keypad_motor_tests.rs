@@ -168,3 +168,66 @@ fn keypad_source_dependency_fence_validates_both_generations_without_recursive_l
     assert_eq!(crate::source_auth::commit_with_dependency(Some(&fresh),Some(&old),||{written=true;7}),None);
     assert!(!written);assert!(fresh.valid());
 }
+impl Fixture {
+    fn device_scoped(&self,direction:crate::management_devices::MotorDirection)->Admission {
+        let lease=self.tokens.module_off_lease(Some(&format!("Bearer {SECRET}")),None,None).unwrap();
+        let action=Action::DeviceCommand{controller:self.controller,revision:1,device:DeviceId::new("curtain").unwrap(),action:DeviceAction::MotorPress{direction}};
+        self.actor.with_source(Source::capture(lease,&action,None))
+    }
+    async fn device_press(&self,direction:crate::management_devices::MotorDirection)->Result<Vec<u64>,hap::server::WriteStatus> {
+        self.device_scoped(direction).submit_motor_press_for_revision(1,self.controller,DeviceId::new("curtain").unwrap(),direction,100000).await
+    }
+    async fn write_frame(&self,motion:MotorMotion,opcode:u8) {
+        self.advance(21);let ticket=self.actor.dispatch().await.unwrap().unwrap();
+        assert_eq!(ticket.command.command,Command::Motor(motion));
+        let bytes=Arc::new(std::sync::Mutex::new(Vec::<u8>::new()));
+        struct Wire(Arc<std::sync::Mutex<Vec<u8>>>);
+        impl std::io::Read for Wire {fn read(&mut self,_:&mut[u8])->std::io::Result<usize>{Err(std::io::ErrorKind::WouldBlock.into())}}
+        impl std::io::Write for Wire {fn write(&mut self,b:&[u8])->std::io::Result<usize>{self.0.lock().unwrap().extend_from_slice(b);Ok(b.len())}fn flush(&mut self)->std::io::Result<()>{Ok(())}}
+        let mut wire=hb_transport::Connection::for_simulation(Wire(bytes.clone()),1);
+        crate::transport_owner::send_ticket(&ticket,&mut wire,||self.time.load(Ordering::SeqCst)).unwrap();
+        assert_eq!(*bytes.lock().unwrap(),vec![0xae,0x22,1,opcode,0xee]);
+        self.actor.finish_write(ticket.command.id,true).await.unwrap();
+    }
+}
+#[tokio::test]
+async fn device_motor_press_target_only_scope_current_written_state_and_inverted_wire() {
+    use crate::management_devices::MotorDirection::{Open,Close};
+    use hap::server::WriteStatus as W;
+    let f=Fixture::new(|_|{},&["curtain"]).await;
+    let (a,b)=tokio::join!(f.device_press(Open),f.device_press(Open));
+    assert!(matches!((&a,&b),(Ok(_),Err(W::ResourceBusy))|(Err(W::ResourceBusy),Ok(_))));
+    f.advance(21);let ticket=f.actor.dispatch().await.unwrap().unwrap();
+    assert_eq!(f.device_press(Open).await,Err(W::ResourceBusy));
+    f.actor.finish_write(ticket.command.id,true).await.unwrap();
+    f.device_press(Open).await.unwrap();f.write_frame(MotorMotion::Stop,0xf0).await;
+    f.device_press(Open).await.unwrap();f.write_frame(MotorMotion::Down,0xf2).await;
+    f.device_press(Close).await.unwrap();f.write_frame(MotorMotion::Up,0xf1).await;
+    f.device_press(Close).await.unwrap();f.write_frame(MotorMotion::Stop,0xf0).await;
+    for _ in 0..2 {f.actor.submit_motor(f.controller,DeviceId::new("curtain").unwrap(),MotorAction::Open).await.unwrap();f.write_frame(MotorMotion::Down,0xf2).await;}
+    f.close().await;
+}
+#[tokio::test]
+async fn device_motor_press_exact_intent_revision_target_and_source_revoke_no_replay() {
+    use crate::management_devices::MotorDirection::{Open,Close};
+    use hap::server::WriteStatus as W;
+    let f=Fixture::new(|_|{},&["curtain"]).await;
+    let source=f.device_scoped(Open);
+    for (revision,device,direction) in [(2,"curtain",Open),(1,"other-curtain",Open),(1,"curtain",Close),(1,"key-open",Open)] {
+        assert!(source.submit_motor_press_for_revision(revision,f.controller,DeviceId::new(device).unwrap(),direction,100000).await.is_err());
+    }
+    assert_eq!(f.actor.submit_motor_press_for_revision(1,f.controller,DeviceId::new("curtain").unwrap(),Open,100000).await,Err(W::InsufficientPrivileges));
+    f.device_press(Open).await.unwrap();f.tokens.revoke(f.credential).unwrap();
+    assert!(f.actor.dispatch().await.unwrap().is_none());
+    let sql=rusqlite::Connection::open(&f.path).unwrap();assert_eq!(sql.query_row("SELECT count(*) FROM command_journal WHERE status='written'",[],|r|r.get::<_,i64>(0)).unwrap(),0);drop(sql);
+    f.close().await;
+}
+#[tokio::test]
+async fn device_motor_press_revoked_written_source_cannot_infer_stop() {
+    use crate::management_devices::MotorDirection::Open;
+    let f=Fixture::new(|_|{},&["curtain"]).await;
+    f.device_press(Open).await.unwrap();f.write_frame(MotorMotion::Down,0xf2).await;
+    f.actor.task_generation().await.unwrap();f.tokens.revoke(f.credential).unwrap();
+    f.tokens.insert(Uuid::new_v4(),SECRET,Grant{controller:f.controller,role:Role::Member,devices:["curtain".into()].into(),scenes:Default::default()}).unwrap();
+    f.device_press(Open).await.unwrap();f.write_frame(MotorMotion::Down,0xf2).await;f.close().await;
+}

@@ -73,19 +73,19 @@ struct HomeMotorControls: View {
     let device: HomeRecord
     var body: some View {
         HStack {
-            action("打开", "arrow.up", "open")
-            action("停止", "stop.fill", "stop")
-            action("关闭", "arrow.down", "close")
+            action("打开", "arrow.up", .open)
+            action("停止", "stop.fill", .stop)
+            action("关闭", "arrow.down", .close)
         }.disabled(!home.canControlDevice(device.id))
     }
-    private func action(_ title: String, _ icon: String, _ command: String) -> some View {
+    private func action(_ title: String, _ icon: String, _ action: HomeMotorControlAction) -> some View {
         Button {
             let operation = home.beginDeviceControl(device.id)
-            Task { await home.controlDevice(device.id, command: .object(["action": .string(command)]), operation: operation) }
+            Task { await home.controlDevice(device.id, command: action.command, operation: operation) }
         } label: { Label(title, systemImage: icon).frame(maxWidth: .infinity) }
             .buttonStyle(.bordered)
             .accessibilityLabel("\(device.name)\(title)")
-            .accessibilityIdentifier("device.\(device.id).\(command)")
+            .accessibilityIdentifier("device.\(device.id).\(action.rawValue)")
     }
 }
 

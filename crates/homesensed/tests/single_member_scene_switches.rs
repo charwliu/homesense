@@ -57,7 +57,7 @@ impl Read for Wire {
 }
 impl Write for Wire {
     fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
-        self.0.lock().unwrap().push(bytes.try_into().unwrap());
+        let(frames,tail)=bytes.as_chunks::<5>();assert!(tail.is_empty());self.0.lock().unwrap().extend_from_slice(frames);
         Ok(bytes.len())
     }
     fn flush(&mut self) -> std::io::Result<()> {
