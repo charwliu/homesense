@@ -1,3 +1,5 @@
+2026-10-16 当前协议能力约束：按用户明确要求，R818-DIN-PRO 不支持整模块输出状态查询，仅用 A1–A8 逐路查询，不再列为 A0 待验证项；AD8 用 A0 一次查询八路，现网 12 模块／96 路每轮 61 帧。统一模块反馈用于推导场景状态，不按场景发起硬件查询。C7 00 是主动反馈配置查询，与输出状态及整模块全关分别处理。下文较早的“未确认”描述保留为历史记录；当前约束见[实现说明](implementation.md#r8i8-din-pro-与-c4-din-pro-独立-profile)。
+
 2026-10-16 Linux正式ELF已通过5项原隔离契约、真实schema26→27迁移、旧ELF拒绝与checksum整树回退；Root另核实非空配对哈希、17设备／7场景授权、静态配置和原账本保持。旧拒绝严格文件不变性只对停止并checkpoint的隔离副本成立，原WAL辅助文件清理反例保留。现网尚未切换，仍为旧版schema26／rev10常驻；自动审批在核验原授权后仍要求当前明确批准，已询问用户，保持现网等待。App提交ab861d4已推送，build10无签名审核包逐文件核验通过，仅改私有版本号；尚未签名或安装，不含其他未提交LHIO功能。见[Linux候选](evidence/stage-e-browser/multi-gateway-linux-runtime10-root-check.json)、[build10](evidence/stage-e-browser/native-build10-root-check.json)。
 
 2026-10-16 原生App逐目标可用性按选择性Git构成完成完整79项／13套件，零失败／零跳过，原2项真实Rust集成在同一轮启用并通过，iOS无签名构建通过。6产品／2测试／2真实DTO输入精确合入，其他未提交App改动保留；此前混合工作树85加2与本次79明确分开，没有删除测试改变范围。失效目标禁用、健康目标继续可用、保留历史反馈且不补发旧操作；新手机包和六键视觉／硬件验收仍待。见[原生App资格](evidence/stage-e-browser/native-partial-availability-root-check.json)。
