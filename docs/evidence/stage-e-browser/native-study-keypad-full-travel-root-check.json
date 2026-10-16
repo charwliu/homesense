@@ -1,0 +1,139 @@
+{
+  "checked_bj": "2026-10-16T08:56:24.691670+08:00",
+  "scope": "Study native six-key card full-open and full-close terminal LED acceptance after short-travel cases",
+  "prior_limited_field_evidence": "stage-e-browser/native-study-keypad-field-root-check.json",
+  "baseline_question": "call_adb347d9f7a0457c838cbcfe0a0566ac:0",
+  "baseline_answer": "是，现场和 App 均就绪",
+  "cases": [
+    {
+      "native_Study_key": 2,
+      "action": "open",
+      "human_answer": "全开并停止，卡片与墙面 LED 全部符合",
+      "questionItemId": "call_74cd4c1e0e824e739003bcf36d01a9ae:0",
+      "human_confirmed_endpoint_and_auto_stop": true,
+      "card_and_wall_LED_colors": {
+        "2": "green",
+        "6": "red",
+        "4": "green"
+      },
+      "motion_LED_human_confirmed": {
+        "2": "green",
+        "6": "green",
+        "4": "red"
+      },
+      "App_responsive": true,
+      "server_receipt": {
+        "endpoint": "/api/v1/device-commands",
+        "created_ms": 1792112060291,
+        "fingerprint": {
+          "action": "device",
+          "command": {
+            "action": "open"
+          },
+          "device": "control4:290",
+          "revision": 10
+        },
+        "response": {
+          "boot": "5cbaeea7-2630-4ea9-8e96-9e2c6e2867e1",
+          "commands": [
+            27
+          ],
+          "outcome": "accepted",
+          "request_id": "0838D196-CCE6-4B4F-98DD-45EC040368CC"
+        }
+      },
+      "server_command_written": true,
+      "phone_click_log_retrieved": false,
+      "request_id_correlated_to_phone_trace": false,
+      "source_sha256": {
+        "deployment/ngr/private/20261016-multigateway-isolation-root/native-other-keys-field/motor-full-open/human-result.json": "eede89f04b14a6071684d7f254e72ace7e8524ea9c7b53b987a4205f48058785",
+        "deployment/ngr/private/20261016-multigateway-isolation-root/native-other-keys-field/motor-full-open/server-receipts.json": "243e0672727809dcb1257ad14f0e751259fd6412039a463d7d5b5072100740e9"
+      }
+    },
+    {
+      "native_Study_key": 6,
+      "action": "close",
+      "human_answer": "全关并停止，卡片与墙面 LED 全部符合",
+      "questionItemId": "call_9319d1ea908d490298e780a22d963e38:0",
+      "human_confirmed_endpoint_and_auto_stop": true,
+      "card_and_wall_LED_colors": {
+        "2": "red",
+        "6": "green",
+        "4": "green"
+      },
+      "motion_LED_human_confirmed": {
+        "2": "green",
+        "6": "green",
+        "4": "red"
+      },
+      "App_responsive": true,
+      "server_receipt": {
+        "endpoint": "/api/v1/device-commands",
+        "created_ms": 1792112119188,
+        "fingerprint": {
+          "action": "device",
+          "command": {
+            "action": "close"
+          },
+          "device": "control4:290",
+          "revision": 10
+        },
+        "response": {
+          "boot": "5cbaeea7-2630-4ea9-8e96-9e2c6e2867e1",
+          "commands": [
+            33
+          ],
+          "outcome": "accepted",
+          "request_id": "2586A024-4A8E-406B-88A7-ACDDD3306CB3"
+        }
+      },
+      "server_command_written": true,
+      "phone_click_log_retrieved": false,
+      "request_id_correlated_to_phone_trace": false,
+      "source_sha256": {
+        "deployment/ngr/private/20261016-multigateway-isolation-root/native-other-keys-field/motor-full-close/human-result.json": "dfdcd10cdc39932f9908a2fcbda2efb133d7a05a9179c57d2b4178acfd190654",
+        "deployment/ngr/private/20261016-multigateway-isolation-root/native-other-keys-field/motor-full-close/server-receipts.json": "e3d35cdd0b03d5c81bb7abb15f22435007b1004deb06a9925458d5d78b1ed36c"
+      }
+    }
+  ],
+  "phone_log_gap": {
+    "exact_diagnostics_copy_attempts": 1,
+    "CoreDevice_error": 4016,
+    "raw_failure_preserved": true,
+    "full_travel_phone_logs_obtained": false,
+    "direct_phone_request_correlation_claimed": false,
+    "server_and_human_evidence_used": true
+  },
+  "last_service_observation": {
+    "checked_ms": 1792112157198,
+    "service": "ActiveState=active\nSubState=running\nMainPID=250664\nNRestarts=0\n",
+    "same_PID_as_scope20_maintenance": true,
+    "schema": 27,
+    "revision": 10,
+    "permanent_Admin_devices_scenes": [
+      20,
+      7
+    ],
+    "scope_and_schema_from_prior_verified_maintenance_not_requeried": true
+  },
+  "final_human_observed_state": {
+    "both_lamps": "off, unchanged from prior cases",
+    "curtain": "fully closed and stopped",
+    "card_and_wall_LED": {
+      "2": "red",
+      "6": "green",
+      "4": "green"
+    }
+  },
+  "agent_controls_sent": 0,
+  "product_source_changed": false,
+  "App_package_changed": false,
+  "new_configuration_or_grant_changes": false,
+  "limits": [
+    "Physical endpoint/LED confirmation is human observation, not new module position telemetry",
+    "No new panel setting writes or wall-rule activation",
+    "Earlier silent key1 OFF failure remains unreproduced",
+    "D/E overall not complete"
+  ],
+  "D_E_complete": false
+}
