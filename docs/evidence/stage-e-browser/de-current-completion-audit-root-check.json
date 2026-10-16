@@ -1,5 +1,5 @@
 {
-  "checked_bj": "2026-10-16T10:49:27.963491+08:00",
+  "checked_bj": "2026-10-16T10:56:59.544315+08:00",
   "derived_requirements": [
     "docs/design.md sections9-11,18,20,23-24,27"
   ],
@@ -94,13 +94,14 @@
       "id": "E-2",
       "stage": "E",
       "requirement": "96路反馈、模块状态与查询",
-      "verified_scope": "已有两房间64路限定现场证据；正常CLI96路两例及189条并发控制已验证，12模块型号／用途已确认；当前正式CLI隔离停顿6秒后过期正确，96路新值约2.64秒恢复；新调度普通Mac CLI三例23232通道样本全部新鲜、586控制请求与Written及假总线逐项匹配，含25ms延迟反馈；最终候选启用HAP的180秒合成采样76128通道样本新鲜，2807控制与日志/假总线匹配；该次接收处理时间戳不能验证发送节拍",
-      "remaining_evidence": "完整96路现场地址/反馈核对按用户要求挂起；旧5512ms停顿原因及持续稳定性仍开放，后续受控容量通过不替代根因。",
-      "status": "software_failure_and_user_paused",
+      "verified_scope": "已有两房间64路限定现场证据；正常CLI96路两例及189条并发控制已验证，12模块型号／用途已确认；当前正式CLI隔离停顿6秒后过期正确，96路新值约2.64秒恢复；新调度普通Mac CLI三例23232通道样本全部新鲜、586控制请求与Written及假总线逐项匹配，含25ms延迟反馈；最终候选启用HAP的180秒合成采样76128通道样本新鲜，2807控制与日志/假总线匹配；该次接收处理时间戳不能验证发送节拍；2026-10-16用户批准恢复只读核对和短停后，12模块96通道均收到合法反馈，61查询=56 R818逐通道+5 AD8整模块；Root独立解析全部TX/RX，无重复/畸形反馈。约69秒后同ELF/rev13恢复，原配对/凭证不变，客户端自动恢复。",
+      "remaining_evidence": "96路地址/通道一次只读反馈已通过；逐路实物负载/房间接线、4个未登记模块纳入现网、R818整模块A0支持、完整96路周期容量及持续稳定性仍待；旧5512ms停顿根因保持开放，未执行Away全关。",
+      "status": "physical96_address_feedback_passed_mapping_and_continuous96_pending",
       "additional_software_evidence": "stage-e-browser/production-query-capacity-root-check.json",
       "additional_pause_recovery_evidence": "stage-e-browser/capacity-pause-recovery-root-check.json",
       "additional_periodic_scheduler_evidence": "stage-e-browser/periodic-production-cli-root-check.json",
-      "additional_final_hap_soak_evidence": "stage-e-browser/periodic-hap-soak-root-check.json"
+      "additional_final_hap_soak_evidence": "stage-e-browser/periodic-hap-soak-root-check.json",
+      "additional_physical96_readonly_field": "stage-e-browser/readonly96-physical-feedback-field-root-check.json"
     },
     {
       "id": "E-3",
@@ -331,14 +332,15 @@
     "stage-e-browser/native-keypad-curtain-runtime13-field-root-check.json": "e591cdf8b9d3bd21f3c6b3efb9bcc0be0e622a5158f2b7522ad1075973fdaa70",
     "stage-e-browser/native-artstudio-scene-card-field-root-check.json": "56e96f84b6034a317fa51039deed8c70e2326140bf3159a003b4554d9e6440e0",
     "stage-e-browser/native-app-offline-recovery-field-root-check.json": "b27b249dffe9b3ad1c4e7e50721d6e82f991aac2d7571f611a602ac97f4a398c",
-    "stage-e-browser/home-hub-power-recovery-native13-field-root-check.json": "fdca84fdd0361b6bed4089a4fcc6830f95d94f55f33a650e25952dfe97a9dcee"
+    "stage-e-browser/home-hub-power-recovery-native13-field-root-check.json": "fdca84fdd0361b6bed4089a4fcc6830f95d94f55f33a650e25952dfe97a9dcee",
+    "stage-e-browser/readonly96-physical-feedback-field-root-check.json": "32b3c89535c8de8a8f28b67586c48fe6e003803dbf8dc50152ccb9e217866df1"
   },
   "excluded_by_scope": {
     "Siri": "cancelled by user",
     "F": "formal deployment, full backup recovery and72h operation",
     "G": "whole-home takeover and rollback signing"
   },
-  "field_readonly_user_paused": true,
+  "field_readonly_user_paused": false,
   "studio_Web_user_paused": false,
   "all_new_source_approvals": 0,
   "new_live_rules_enabled": 0,
@@ -726,5 +728,16 @@
   "latest_native_Artstudio_scene_card_field": "stage-e-browser/native-artstudio-scene-card-field-root-check.json",
   "latest_native_App_offline_recovery_field": "stage-e-browser/native-app-offline-recovery-field-root-check.json",
   "home_hub_offline_recovery_current": "HPLeft brief outage/local native control/online state synchronization/cellular remote control/return WiFi passed; other hubs not enumerated, encrypted peer not mapped",
-  "latest_home_hub_power_recovery_field": "stage-e-browser/home-hub-power-recovery-native13-field-root-check.json"
+  "latest_home_hub_power_recovery_field": "stage-e-browser/home-hub-power-recovery-native13-field-root-check.json",
+  "latest_physical96_readonly_feedback_field": "stage-e-browser/readonly96-physical-feedback-field-root-check.json",
+  "physical96_readonly_field": {
+    "user_resumed_and_short_stop_explicitly_authorized": true,
+    "query_frames": 61,
+    "feedback_channels": 96,
+    "module_addresses": 12,
+    "E2_restored": true,
+    "physical_load_mapping_complete": false,
+    "active_registry_lighting_outputs": 64,
+    "Away_batch_control_tested": false
+  }
 }
