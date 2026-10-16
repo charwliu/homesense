@@ -1,0 +1,58 @@
+{
+  "checked_bj": "2026-10-16T12:55:22.274912+08:00",
+  "scope": "One R818-DIN-PRO at address03, C7 active-feedback configuration query only",
+  "request_hex": "AE 03 C7 00 EE",
+  "query_socket_send_count": 1,
+  "pre_query_raw_hex": "",
+  "post_query_raw_hex": "FF",
+  "response_after_send_complete_ms": 48.314,
+  "classification": "single_byte_candidate",
+  "manual_meaning": "FF: active feedback disabled;00: enabled",
+  "limitation": "Reply has no address/checksum; consistent candidate, not causal ACK or whole8 output state. No C8 or actuator command from query socket.",
+  "existing_evidence_files_sha256": {
+    "backup-manifest.json": "3f16f9f0986b1308f190a3a078d54a647fb370e25f5f11b58aeb88c6ae15c5e3",
+    "before.json": "d9a624192db2ca5891c2f03d45cdf85578eb4561a24676cf983c12acdb26c3a8",
+    "immediate-before.json": "d9a624192db2ca5891c2f03d45cdf85578eb4561a24676cf983c12acdb26c3a8",
+    "post-restore-gateway.pcap": "fb81c67fc6eef94ac6c1f7341e77b99a9b1bbfd2352afef56b153b44f78d6ec9",
+    "summary.json": "7ed881a7be39a8f5fbb28253c664488024cfc0d5935db8a930a8fff2f9de4e4a",
+    "timeline.jsonl": "8a35b9d5febc7b7bfeeb7ed0d081adaa562681ce9d73f1594df537b888446542"
+  },
+  "probe_script_sha256": "98c592bb5184f4ff2929efa17a45018cbace5716ff3e2b8a55fc06b98ff73ecf",
+  "service_restored": true,
+  "ELF_sha256": "83d894380419ee00c9ecf0a0fcb5356c3ac85185e301fb6f070e1dd70ef9895d",
+  "active_revision": 14,
+  "configuration_grants_HAP_identity_unit_unchanged": true,
+  "post_restore_passive_capture": {
+    "TCP_reassembled_overlap_and_gap_checks": true,
+    "flows": [
+      {
+        "direction": "RX",
+        "bytes": 1970,
+        "frames": 394,
+        "unique_feedback_slots": 96
+      },
+      {
+        "direction": "TX",
+        "bytes": 1290,
+        "frames": 258,
+        "query_frames": 253,
+        "existing_Study_Art_LED_frames": [
+          "ae4101f2ee",
+          "ae4103f2ee",
+          "ae4105f2ee",
+          "ae7203f2ee",
+          "ae7204f2ee"
+        ]
+      }
+    ]
+  },
+  "no_B1_candidate_publication": true,
+  "auxiliary_check_correction": "First pcap predicate allowed only Study LEDs; corrected to the existing Study3+Art2 startup projections. Raw capture unchanged.",
+  "manual_source": {
+    "model": "R8I8-DIN PRO RS485 Ver2.7.7",
+    "section": "7.4 输出状态主动反馈配置",
+    "PDF_sha256": "d9f3d9396a23433537e2d4124031ce5ae5dbe8ed7f568f958f8f0cc07ddd46fe"
+  },
+  "root_audit_script_sha256": "35cd38541d0aa39d9d1e9075b93cedbb3e0e338cca2d1054e3cc23d83b38ec3e",
+  "evidence_scope_note": "Probe TX/RX recorded by the one-shot socket timeline. Restore pcap is a separate passive observation; TCP payload overlaps/duplicate packets were deduplicated, not counted as repeated feedback."
+}

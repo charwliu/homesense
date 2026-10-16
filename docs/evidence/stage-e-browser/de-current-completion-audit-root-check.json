@@ -337,7 +337,8 @@
     "stage-e-browser/home-hub-power-recovery-native13-field-root-check.json": "fdca84fdd0361b6bed4089a4fcc6830f95d94f55f33a650e25952dfe97a9dcee",
     "stage-e-browser/readonly96-physical-feedback-field-root-check.json": "32b3c89535c8de8a8f28b67586c48fe6e003803dbf8dc50152ccb9e217866df1",
     "stage-e-browser/full96-initialization-periodic-production-root-check.json": "7cf09c84585b67916228aac6ff976dee338138661a32ad04eb1c53aa4c946e4c",
-    "stage-e-browser/away96-module-batch-field-root-check.json": "4ef382718b33968826c8175e50ecab78e75e0adb3fdfb84b74dfb1cd4554075f"
+    "stage-e-browser/away96-module-batch-field-root-check.json": "4ef382718b33968826c8175e50ecab78e75e0adb3fdfb84b74dfb1cd4554075f",
+    "stage-e-browser/r818-c7-feedback-config-field-root-check.json": "5728e76d8a6fd73e49925b73561b198ffa04e59c4bafeb27bfe72b60a21a1557"
   },
   "excluded_by_scope": {
     "Siri": "cancelled by user",
@@ -777,7 +778,18 @@
     "AD8_whole_module_query": "AE ID A0 F2 EE",
     "registered_96_channel_sweep_query_frames": 61,
     "scene_hardware_query_per_scene": false,
-    "C7_00": "主动反馈配置只读查询，非八路输出状态；现场结果另记",
+    "C7_00": {
+      "meaning": "主动反馈配置只读查询，非八路输出状态",
+      "field_address": "03",
+      "request_hex": "AE 03 C7 00 EE",
+      "raw_reply_hex": "FF",
+      "reply_after_write_complete_ms": 48.314,
+      "classification": "single_byte_candidate",
+      "manual_value_meaning": "主动反馈关闭",
+      "C8_sent": false,
+      "original_E2_rev14_restored": true,
+      "evidence": "stage-e-browser/r818-c7-feedback-config-field-root-check.json"
+    },
     "module_all_off": "独立已支持能力，不因整模块状态查询不支持而禁用"
   }
 }
