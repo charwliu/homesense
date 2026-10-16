@@ -1,0 +1,76 @@
+{
+  "checked_bj": "2026-10-16T09:49:24.345471+08:00",
+  "signature_and_install": {
+    "strict_deep_codesign_exit": 0,
+    "verification_context": "system normal trust; sandbox CSSMERR_TP_NOT_TRUSTED, escalated read-only verification exit0",
+    "entitlements_equal_installed12": true,
+    "profile_byte_equal_installed12": true,
+    "Team": "94G8T56W39",
+    "bundle": "com.ngboss.homesense",
+    "build": "13",
+    "all_three_MachO_file_backed_sections_equal_unsigned_qualified": true,
+    "no_compilation": true,
+    "phone_readonly_wired_confirmed": true,
+    "install_pending": false,
+    "signed_bundle_payload_files": 10,
+    "signed_zip_entries": 21,
+    "signed_evidence_files_rehashed": 43,
+    "signed_zip_sha256": "e45efd7e7ed3cec954a18519445572f1f3710d4da11aa8a7549b6bf2aa4060c1",
+    "install": {
+      "status": "singleoverwrite signed13 installed successfully; targetmetadata confirms1.0/13; no App launch or controls requested",
+      "bundle": "com.ngboss.homesense",
+      "version": "1.0",
+      "installed_build": "13",
+      "install": {
+        "exit_code": 0,
+        "install_attempts": 1,
+        "uninstall_clear_account_change": false,
+        "App_launches_or_controls": 0,
+        "outcome": "success",
+        "error_domain": null,
+        "error_code": null
+      },
+      "target_inventory": {
+        "exit_code": 0,
+        "original_device": true,
+        "only_target_bundle_metadata": true,
+        "launches_or_controls": 0,
+        "outcome": "success",
+        "count": 1,
+        "bundle": "com.ngboss.homesense",
+        "version": "1.0",
+        "build": "13"
+      },
+      "signed_zip_sha256": "e45efd7e7ed3cec954a18519445572f1f3710d4da11aa8a7549b6bf2aa4060c1",
+      "signedpayloads_locked_and_afterinstall_unchanged": true,
+      "source85_andprepared64_afterinstall_exact": true,
+      "identity": "priorRoot auditfullentitlements/profile/cert equalold12; no entitlement/group changes",
+      "operation_scope": {
+        "install_attempts": 1,
+        "postinstall_target_inventory_queries": 1,
+        "uninstall_or_clear_or_account_changes": 0,
+        "agent_requested_App_launches": 0,
+        "agent_sent_controls": 0,
+        "real_Token_Keychain_or_usercontainerfiles_read": 0,
+        "production_sharedsource_Git_Cargo_changes": 0
+      },
+      "retention": "normaloverlay sameidentity; no userdata read orcleared; actualcredential restoration nottested inthis no-launch step",
+      "container_UUID": "notqueried/compared",
+      "history": "v1unsigned13 andoriginalsigned12 retained unchanged",
+      "next": "Root handles userUI/fieldacceptance separately; no furtherdevice action withoutinstruction"
+    },
+    "install_evidence_files_rehashed": 14,
+    "human_auto_connection": {
+      "question": "call_3c0e21c0ea434af39c3929a4a6691ba5:0",
+      "answer": "自动连接，两张卡片正常",
+      "old_backend_still_active": true
+    }
+  },
+  "evidence_sha256": {
+    "deployment/ngr/private/20261016-native-curtain-key-toggle-app-v2/signing-review/installation-attempt1/final-handoff/handoff.json": "08a1eff764a49a90a367de0c0e2611a9e3684e945069c73bb2c3c62ca81c9afa",
+    "deployment/ngr/private/20261016-native-curtain-key-toggle-app-v2/signing-review/installation-attempt1/final-handoff/result.json": "e6fc0ae9600c73f7e951901f5ae355e1727d89fdfbe3725ffeee8227a0c778d3",
+    "deployment/ngr/private/20261016-native-curtain-key-toggle-app-v2/signing-review/installation-attempt1/final-handoff/evidence-manifest.json": "8a95fe7ded30b59eafa51791a2cee45617bda27ada6cf503563be17265c68d12"
+  },
+  "new_rule_field_verified": false,
+  "production_new_config_activated": false
+}
