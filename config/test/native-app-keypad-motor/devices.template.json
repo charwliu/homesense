@@ -1,0 +1,177 @@
+{
+  "schema_version": 2,
+  "revision": 1,
+  "gateways": [
+    {
+      "id": "bus",
+      "endpoint": "127.0.0.1:1",
+      "modules": [
+        {
+          "id": "motor-module",
+          "address": "22",
+          "profile": "c4_din_pro_v2_7_7",
+          "verification": {
+            "status": "verified",
+            "verified_at_unix_ms": 1,
+            "evidence": "synthetic loopback regression only"
+          }
+        },
+        {
+          "id": "panel-module",
+          "address": "41",
+          "profile": "ts6_86_rs485_v2_6_5_6key",
+          "led_mode": "manual",
+          "verification": {
+            "status": "verified",
+            "verified_at_unix_ms": 1,
+            "evidence": "synthetic loopback regression only"
+          }
+        },
+        {
+          "id": "switch-module",
+          "address": "03",
+          "profile": "r8i8_din_pro_v2_7_7",
+          "verification": {
+            "status": "verified",
+            "verified_at_unix_ms": 1,
+            "evidence": "synthetic loopback regression only"
+          }
+        }
+      ]
+    }
+  ],
+  "devices": [
+    {
+      "id": "curtain",
+      "name": "Synthetic motor",
+      "module_id": "motor-module",
+      "channel": 1,
+      "enabled": true,
+      "motor_calibration": {
+        "open_direction": "up",
+        "stop_verified": true,
+        "evidence": "synthetic",
+        "verified_at_unix_ms": 1
+      },
+      "curtain_state": {
+        "open_travel_ms": 5000,
+        "close_travel_ms": 5000,
+        "stop_led_idle_ms": 1,
+        "direction_led_policy": {
+          "kind": "written_direction_delay",
+          "opposite_red_after_ms": 2000
+        },
+        "evidence": "synthetic",
+        "reviewed_at_unix_ms": 1,
+        "leds": {
+          "open": [
+            "key:1"
+          ],
+          "close": [
+            "key:2"
+          ],
+          "stop": [
+            "key:3"
+          ]
+        }
+      }
+    },
+    {
+      "id": "light",
+      "name": "Synthetic switch",
+      "module_id": "switch-module",
+      "channel": 1,
+      "enabled": true
+    }
+  ],
+  "keypads": [
+    {
+      "id": "panel",
+      "name": "Synthetic panel",
+      "module_id": "panel-module",
+      "enabled": true,
+      "keys": [
+        {
+          "number": 1,
+          "label": "1",
+          "led_endpoint": {
+            "id": "key:1",
+            "name": "Synthetic LED 1",
+            "enabled": true
+          },
+          "action": {
+            "kind": "motor",
+            "device": "curtain",
+            "action": "open",
+            "press_behavior": "repeat_to_stop",
+            "review_evidence": "synthetic native card only"
+          }
+        },
+        {
+          "number": 2,
+          "label": "2",
+          "led_endpoint": {
+            "id": "key:2",
+            "name": "Synthetic LED 2",
+            "enabled": true
+          },
+          "action": {
+            "kind": "motor",
+            "device": "curtain",
+            "action": "close",
+            "press_behavior": "repeat_to_stop",
+            "review_evidence": "synthetic native card only"
+          }
+        },
+        {
+          "number": 3,
+          "label": "3",
+          "led_endpoint": {
+            "id": "key:3",
+            "name": "Synthetic LED 3",
+            "enabled": true
+          },
+          "action": {
+            "kind": "motor",
+            "device": "curtain",
+            "action": "stop",
+            "review_evidence": "synthetic native card only"
+          }
+        },
+        {
+          "number": 4,
+          "label": "4",
+          "led_endpoint": {
+            "id": "key:4",
+            "name": "Synthetic LED 4",
+            "enabled": true
+          },
+          "action": {
+            "kind": "motor",
+            "device": "curtain",
+            "action": "open",
+            "review_evidence": "synthetic native card only"
+          }
+        },
+        {
+          "number": 5,
+          "label": "5",
+          "led_endpoint": {
+            "id": "key:5",
+            "name": "Synthetic LED 5",
+            "enabled": true
+          }
+        },
+        {
+          "number": 6,
+          "label": "6",
+          "led_endpoint": {
+            "id": "key:6",
+            "name": "Synthetic LED 6",
+            "enabled": true
+          }
+        }
+      ]
+    }
+  ]
+}

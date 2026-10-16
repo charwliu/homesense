@@ -407,16 +407,18 @@ public final class HomeServerStore: ObservableObject {
         guard canControlDevice(id) else { return }
         await sendDeviceCommand(id, command: command)
     }
-    private func sendDeviceCommand(_ id: String, command: HomeJSON) async {
+    private func sendDeviceCommand(_ id: String, command: HomeJSON, includeRevision: Bool = false) async {
         await run {
-            let result = try await self.request("/api/v1/device-commands", method: "POST", body: .object([
+            var body: HomeJSON = .object([
                 "device": .string(id), "request_id": .string(UUID().uuidString), "command": command
-            ]))
+            ])
+            if includeRevision { body["revision"] = .string(self.revision) }
+            let result = try await self.request("/api/v1/device-commands", method: "POST", body: body)
             self.message = result["outcome"].text == "accepted" ? "控制已受理，等待实际设备反馈。" : "控制结果未知，请核对实际设备；未自动重试。"
             if !self.receivingPush { try await self.readSnapshots() }
         }
     }
-    public func keypadGate(_ id: String, key number: Int) -> HomeKeypadGateState {
+    public func keypadGate(_ id: String, key number: Int, card: Bool = false) -> HomeKeypadGateState {
         var state = HomeKeypadGateState()
         state.connected = connected; state.busy = busy
         state.current = snapshotIsCurrent; state.receivingPush = receivingPush
@@ -427,7 +429,8 @@ public final class HomeServerStore: ObservableObject {
             ?? factKey?.actionDevice.flatMap { device in devices.first { $0.id == device } }
         state.configured = factKey != nil
         state.canControl = factTarget?.raw["can_control"].flag == true
-        state.targetAvailable = factTarget?.targetAvailable == true
+        let pressNeedsParent = card && factKey?.cardAction == HomeKeypadCardAction.motorPress
+        state.targetAvailable = factTarget?.targetAvailable == true && (!pressNeedsParent || factRow?.targetAvailable == true)
         if case .bool(let value) = factTarget?.raw["selected"] { state.selected = value }
         state.relativeUnknownAllowed = factTarget?.raw["relative_unknown_allowed"].flag == true
         if !connected { state.reason = .disconnected; return state }
@@ -437,10 +440,13 @@ public final class HomeServerStore: ObservableObject {
         guard let panel = try? HomeKeypad(record: row) else { state.reason = .panelInvalid; return state }
         guard let key = panel.keys.first(where: { $0.number == number && $0.canActivate }) else { state.reason = .actionMissing; return state }
         state.configured = true
+        if card && (!key.canActivateCard || (key.cardAction == .motorPress && UInt64(revision).map { $0 > 0 } != true)) {
+            state.reason = .cardActionInvalid; return state
+        }
         if let device = key.actionDevice {
             state.canControl = canControlDevice(device)
-            state.targetAvailable = devices.first { $0.id == device }?.targetAvailable == true
-            if !state.canControl { state.reason = .deviceUnavailable }
+            state.targetAvailable = devices.first { $0.id == device }?.targetAvailable == true && (!pressNeedsParent || row.targetAvailable)
+            if !state.canControl || !state.targetAvailable { state.reason = .deviceUnavailable }
             else if !devices.contains(where: { $0.id == device && $0.raw["kind"].text == "Motor" && $0.raw["motor_calibrated"].flag }) { state.reason = .motorNotCalibrated }
             return state
         }
@@ -452,20 +458,21 @@ public final class HomeServerStore: ObservableObject {
         else if state.selected == nil && !state.relativeUnknownAllowed { state.reason = .selectionUnknown }
         return state
     }
-    public func canActivateKeypad(_ id: String, key number: Int) -> Bool { keypadGate(id, key: number).allowed }
-    public func keypadGateStates(_ id: String) -> [HomeKeypadGateState] { (1...6).map { keypadGate(id, key: $0) } }
-    public func recordKeypadGateStates(_ id: String) {
-        let states = keypadGateStates(id), previous = loggedKeypadGates[id]
+    public func canActivateKeypad(_ id: String, key number: Int, card: Bool = false) -> Bool { keypadGate(id, key: number, card: card).allowed }
+    public func keypadGateStates(_ id: String, card: Bool = false) -> [HomeKeypadGateState] { (1...6).map { keypadGate(id, key: $0, card: card) } }
+    public func recordKeypadGateStates(_ id: String, card: Bool = false) {
+        let scope = (card ? "card:" : "explicit:") + id
+        let states = keypadGateStates(id, card: card), previous = loggedKeypadGates[scope]
         for (index, state) in states.enumerated() where previous?[index] != state {
             diagnostics.record(.gateState, operation: diagnostics.operation(target: id, key: index + 1), gate: state)
         }
-        loggedKeypadGates[id] = states
+        loggedKeypadGates[scope] = states
     }
     /// Called synchronously by the actual SwiftUI Button action, before its Task.
     /// A disabled Button dispatches no action; only gate.state can describe it.
-    public func beginKeypadClick(_ id: String, key number: Int) -> HomeControlOperation {
+    public func beginKeypadClick(_ id: String, key number: Int, card: Bool = false) -> HomeControlOperation {
         let operation = diagnostics.operation(target: id, key: number)
-        diagnostics.record(.buttonClick, operation: operation, gate: keypadGate(id, key: number))
+        diagnostics.record(.buttonClick, operation: operation, gate: keypadGate(id, key: number, card: card))
         return operation
     }
     private func traced(_ supplied: HomeControlOperation? = nil, target: String, key: Int? = nil, work: () async -> Void) async {
@@ -480,8 +487,13 @@ public final class HomeServerStore: ObservableObject {
     public func activateKeypad(_ id: String, key number: Int, operation: HomeControlOperation? = nil) async {
         await traced(operation, target: id, key: number) { await self.activateKeypadAction(id, key: number) }
     }
-    private func activateKeypadAction(_ id: String, key number: Int) async {
-        let gate = keypadGate(id, key: number)
+    /// Card-only conditional press. The server, never a cached estimate or LED,
+    /// decides whether the reviewed direction becomes STOP in Admission.
+    public func activateKeypadCard(_ id: String, key number: Int, operation: HomeControlOperation? = nil) async {
+        await traced(operation, target: id, key: number) { await self.activateKeypadAction(id, key: number, card: true) }
+    }
+    private func activateKeypadAction(_ id: String, key number: Int, card: Bool = false) async {
+        let gate = keypadGate(id, key: number, card: card)
         diagnostics.record(.gateCheck, gate: gate)
         guard gate.allowed else { diagnostics.record(.ignored, gate: gate); return }
         guard controlsAvailable, let row = devices.first(where: { $0.id == id }),
@@ -490,7 +502,13 @@ public final class HomeServerStore: ObservableObject {
         if let device = key.actionDevice, let action = key.motorAction {
             guard canControlDevice(device), devices.contains(where: { $0.id == device && $0.raw["kind"].text == "Motor"
                 && $0.raw["motor_calibrated"].flag }) else { return }
-            await sendDeviceCommand(device, command: .object(["action": .string(action)]))
+            if card && key.cardAction == .motorPress {
+                await sendDeviceCommand(device, command: .object([
+                    "action": .string("keypad_press"), "keypad": .string(id), "key": .integer(Int64(number))
+                ]), includeRevision: true)
+            } else {
+                await sendDeviceCommand(device, command: .object(["action": .string(action)]))
+            }
             return
         }
         guard let scene = key.actionScene, canControlScene(scene) else { return }

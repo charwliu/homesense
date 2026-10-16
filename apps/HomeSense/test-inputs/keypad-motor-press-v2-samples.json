@@ -1,0 +1,340 @@
+{
+  "note": "DTO grammar examples for parallel App work, not yet actual candidate server output. Existing base parent came from a real qualified loopback server.",
+  "valid_parent": {
+    "action_gate": {
+      "available": true
+    },
+    "availability": null,
+    "can_control": false,
+    "capabilities": {
+      "backlight_write": true,
+      "key_events": true,
+      "led_colors": [
+        "off",
+        "red",
+        "green"
+      ],
+      "led_readback": false,
+      "sound_write": true,
+      "work_mode_write": true
+    },
+    "id": "panel",
+    "keys": [
+      {
+        "action": {
+          "kind": "motor",
+          "device": "curtain",
+          "command": {
+            "action": "open"
+          },
+          "path": "/api/v1/device-commands"
+        },
+        "can_write_led": true,
+        "configured": true,
+        "endpoint_id": "panel-b-key-1",
+        "key_event": {
+          "observed_at_ms": null,
+          "pressed": null,
+          "quality": "Unknown",
+          "source": "button_feedback"
+        },
+        "label": "1",
+        "led": {
+          "last_request": {
+            "color": "green",
+            "command": "7",
+            "control_epoch": "3",
+            "current_transport_epoch": true,
+            "status": "written",
+            "transport_epoch": "2",
+            "updated_ms": "3774"
+          },
+          "last_written": {
+            "color": "green",
+            "command": "7",
+            "control_epoch": "3",
+            "current_transport_epoch": true,
+            "status": "written",
+            "transport_epoch": "2",
+            "updated_ms": "3774"
+          },
+          "observed": null,
+          "quality": "Unknown",
+          "source": "last_written"
+        },
+        "number": 1,
+        "card_action": {
+          "kind": "motor_press",
+          "device": "curtain",
+          "behavior": "repeat_to_stop",
+          "command": {
+            "action": "keypad_press",
+            "keypad": "panel",
+            "key": 1
+          },
+          "path": "/api/v1/device-commands"
+        }
+      },
+      {
+        "action": null,
+        "can_write_led": true,
+        "configured": true,
+        "endpoint_id": "panel-b-key-2",
+        "key_event": {
+          "observed_at_ms": null,
+          "pressed": null,
+          "quality": "Unknown",
+          "source": "button_feedback"
+        },
+        "label": "2",
+        "led": {
+          "last_request": null,
+          "last_written": null,
+          "observed": null,
+          "quality": "Unknown",
+          "source": "unknown"
+        },
+        "number": 2,
+        "card_action": null
+      },
+      {
+        "action": null,
+        "can_write_led": true,
+        "configured": true,
+        "endpoint_id": "panel-b-key-3",
+        "key_event": {
+          "observed_at_ms": null,
+          "pressed": null,
+          "quality": "Unknown",
+          "source": "button_feedback"
+        },
+        "label": "3",
+        "led": {
+          "last_request": {
+            "color": "green",
+            "command": "8",
+            "control_epoch": "3",
+            "current_transport_epoch": true,
+            "status": "written",
+            "transport_epoch": "2",
+            "updated_ms": "3796"
+          },
+          "last_written": {
+            "color": "green",
+            "command": "8",
+            "control_epoch": "3",
+            "current_transport_epoch": true,
+            "status": "written",
+            "transport_epoch": "2",
+            "updated_ms": "3796"
+          },
+          "observed": null,
+          "quality": "Unknown",
+          "source": "last_written"
+        },
+        "number": 3,
+        "card_action": null
+      },
+      {
+        "action": null,
+        "can_write_led": true,
+        "configured": true,
+        "endpoint_id": "panel-b-key-4",
+        "key_event": {
+          "observed_at_ms": null,
+          "pressed": null,
+          "quality": "Unknown",
+          "source": "button_feedback"
+        },
+        "label": "4",
+        "led": {
+          "last_request": null,
+          "last_written": null,
+          "observed": null,
+          "quality": "Unknown",
+          "source": "unknown"
+        },
+        "number": 4,
+        "card_action": null
+      },
+      {
+        "action": null,
+        "can_write_led": true,
+        "configured": true,
+        "endpoint_id": "panel-b-key-5",
+        "key_event": {
+          "observed_at_ms": null,
+          "pressed": null,
+          "quality": "Unknown",
+          "source": "button_feedback"
+        },
+        "label": "5",
+        "led": {
+          "last_request": {
+            "color": "green",
+            "command": "9",
+            "control_epoch": "3",
+            "current_transport_epoch": true,
+            "status": "written",
+            "transport_epoch": "2",
+            "updated_ms": "3819"
+          },
+          "last_written": {
+            "color": "green",
+            "command": "9",
+            "control_epoch": "3",
+            "current_transport_epoch": true,
+            "status": "written",
+            "transport_epoch": "2",
+            "updated_ms": "3819"
+          },
+          "observed": null,
+          "quality": "Unknown",
+          "source": "last_written"
+        },
+        "number": 5,
+        "card_action": null
+      },
+      {
+        "action": null,
+        "can_write_led": true,
+        "configured": true,
+        "endpoint_id": "panel-b-key-6",
+        "key_event": {
+          "observed_at_ms": null,
+          "pressed": null,
+          "quality": "Unknown",
+          "source": "button_feedback"
+        },
+        "label": "6",
+        "led": {
+          "last_request": null,
+          "last_written": null,
+          "observed": null,
+          "quality": "Unknown",
+          "source": "unknown"
+        },
+        "number": 6,
+        "card_action": null
+      }
+    ],
+    "kind": "Keypad",
+    "module_id": "panel-module-b",
+    "name": "Synthetic six-key panel",
+    "quality": "Unknown",
+    "room": null,
+    "settings": {
+      "backlight": {
+        "can_write": true,
+        "last_request": null,
+        "last_written": null,
+        "observed": null,
+        "quality": "Unknown",
+        "source": "unknown"
+      },
+      "scope_complete": true,
+      "sound": {
+        "can_write": true,
+        "last_request": null,
+        "last_written": null,
+        "observed": null,
+        "quality": "Unknown",
+        "source": "unknown"
+      },
+      "work_mode": {
+        "can_write": true,
+        "configured": "manual",
+        "last_request": null,
+        "last_written": null,
+        "observed": null,
+        "quality": "Unknown",
+        "source": "unknown"
+      }
+    }
+  },
+  "valid_request": {
+    "device": "curtain",
+    "revision": "11",
+    "request_id": "example-distinct-click-uuid",
+    "command": {
+      "action": "keypad_press",
+      "keypad": "panel",
+      "key": 1
+    }
+  },
+  "explicit_details_request": {
+    "device": "curtain",
+    "request_id": "separate-explicit-request",
+    "command": {
+      "action": "open"
+    }
+  },
+  "invalid_card_samples": {
+    "wrong_parent": {
+      "kind": "motor_press",
+      "device": "curtain",
+      "behavior": "repeat_to_stop",
+      "command": {
+        "action": "keypad_press",
+        "keypad": "other-parent",
+        "key": 1
+      },
+      "path": "/api/v1/device-commands"
+    },
+    "wrong_key": {
+      "kind": "motor_press",
+      "device": "curtain",
+      "behavior": "repeat_to_stop",
+      "command": {
+        "action": "keypad_press",
+        "keypad": "panel",
+        "key": 2
+      },
+      "path": "/api/v1/device-commands"
+    },
+    "wrong_action": {
+      "kind": "motor_press",
+      "device": "curtain",
+      "behavior": "repeat_to_stop",
+      "command": {
+        "action": "open",
+        "keypad": "panel",
+        "key": 1
+      },
+      "path": "/api/v1/device-commands"
+    },
+    "target_mismatch": {
+      "kind": "motor_press",
+      "device": "other-motor",
+      "behavior": "repeat_to_stop",
+      "command": {
+        "action": "keypad_press",
+        "keypad": "panel",
+        "key": 1
+      },
+      "path": "/api/v1/device-commands"
+    },
+    "unknown_behavior": {
+      "kind": "motor_press",
+      "device": "curtain",
+      "behavior": "unknown",
+      "command": {
+        "action": "keypad_press",
+        "keypad": "panel",
+        "key": 1
+      },
+      "path": "/api/v1/device-commands"
+    },
+    "external_path": {
+      "kind": "motor_press",
+      "device": "curtain",
+      "behavior": "repeat_to_stop",
+      "command": {
+        "action": "keypad_press",
+        "keypad": "panel",
+        "key": 1
+      },
+      "path": "https://example.invalid/control"
+    }
+  }
+}
