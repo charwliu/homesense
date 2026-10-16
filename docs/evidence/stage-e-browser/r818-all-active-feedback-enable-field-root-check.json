@@ -1,0 +1,112 @@
+{
+  "checked_bj": "2026-10-16T13:12:41.949791+08:00",
+  "scope": "Six remaining R818 active-feedback enable; original03 preserved; periodic polling retained",
+  "addresses_enabled": [
+    {
+      "address_hex": "01",
+      "pre_value_hex": "FF",
+      "post_value_hex": "00",
+      "status": "enabled_readback_00"
+    },
+    {
+      "address_hex": "02",
+      "pre_value_hex": "FF",
+      "post_value_hex": "00",
+      "status": "enabled_readback_00"
+    },
+    {
+      "address_hex": "04",
+      "pre_value_hex": "FF",
+      "post_value_hex": "00",
+      "status": "enabled_readback_00"
+    },
+    {
+      "address_hex": "05",
+      "pre_value_hex": "FF",
+      "post_value_hex": "00",
+      "status": "enabled_readback_00"
+    },
+    {
+      "address_hex": "06",
+      "pre_value_hex": "FF",
+      "post_value_hex": "00",
+      "status": "enabled_readback_00"
+    },
+    {
+      "address_hex": "07",
+      "pre_value_hex": "FF",
+      "post_value_hex": "00",
+      "status": "enabled_readback_00"
+    }
+  ],
+  "03_read_only_C7": "00",
+  "commissioning_TX_total": 19,
+  "C8_00_exactly_once_each": [
+    1,
+    2,
+    4,
+    5,
+    6,
+    7
+  ],
+  "C7_queries": 13,
+  "rollback_frames": 0,
+  "actuator_commands_from_commissioning": 0,
+  "parameter_response_classification": "single-byte candidate per manual; each C8 window also held address-matchingD1-D8",
+  "original_ELF_sha256": "83d894380419ee00c9ecf0a0fcb5356c3ac85185e301fb6f070e1dd70ef9895d",
+  "revision": 14,
+  "schema": 27,
+  "unit_configuration_all_credentials_HAP_identity_preserved": true,
+  "restored_PID": 258990,
+  "E2_ready": true,
+  "queue": 0,
+  "in_flight": false,
+  "snapshot_boot": "c17ff62a-a906-41b1-ba0b-373996d1994f",
+  "output_slots_Confirmed": 96,
+  "max_output_sample_age_ms": 3556,
+  "periodic_polling_unchanged": true,
+  "restore_pcap": {
+    "sha256": "ebbf60137f41bcaf500a81b4ec6e5b7603f14f505ef86aa01142443ce600c990",
+    "TCP_overlap_consistent_no_gaps": true,
+    "directions": {
+      "RX": {
+        "frames": 400,
+        "unique_output_slots": 96
+      },
+      "TX": {
+        "frames": 265,
+        "periodic_query_frames": 260,
+        "unique_query_frames": 61,
+        "per_query_occurrence_min": 4,
+        "per_query_occurrence_max": 5,
+        "existing_scene_LED_frames": [
+          "ae4101f2ee",
+          "ae4103f2ee",
+          "ae4105f2ee",
+          "ae7203f2ee",
+          "ae7204f2ee"
+        ]
+      }
+    }
+  },
+  "leave_all_R818_01_07_enabled": true,
+  "guard_seconds": 180,
+  "external_process_cutoff_before_guard": false,
+  "actual_device_operation_audit_seconds": 22.534,
+  "maintenance_limit": "No earlier whole-process cutoff was used. This completed operation restored E2 before the guard. Future reuse must add a cutoff that closes probe sockets before guard auto-start. No repeat C8 is needed.",
+  "no_B1_candidate_publication": true,
+  "D_E_complete": false,
+  "evidence_sha256": {
+    "before.json": "9630f2e0a3aaf3fa95b253c2d5d25ff99b52f2287caa8d720fdb85b444430ec3",
+    "summary.json": "07bc80ba6344b6bdcf2306caeca793c26b1000a06aea578abb1bedd313c0b25f",
+    "timeline.jsonl": "f9e69b578f2998db3805513c949a1bfdd09bd7dda25b26a492d5cd5a2413e192",
+    "backup-manifest.json": "1aac66126d45c1d8843a4cb4b21eccb01c1a1c4a8fd4d68850fe3eebcd9ce3f0",
+    "post-restore-gateway.pcap": "ebbf60137f41bcaf500a81b4ec6e5b7603f14f505ef86aa01142443ce600c990",
+    "immediate-before.json": "30fb4e07b9620671bb84353bfea694413cb786705ce7519593546d248036eba1"
+  },
+  "script_sha256": "f25fdbf0d9b6497fc564b0cbff65553019b2bea238a408353608b466c6dffb07",
+  "API_snapshot_sha256": "bc2ff1b84bf71d5d8d2089036d2367f1c042233c958957d89205209206c70327",
+  "authorization_sha256": "0b47a98b0348265c6f124add67d474e772bc10dec8c2917859868a9559f209d5",
+  "independent_audit_script_sha256": "79d3533364089bca3e2305a1acb122134a19fe5d92c54787f94b3a583712e11d",
+  "field_scope_note": "All seven R818 have configuration readback00. Only03 wall-panel lamp/scene automatic synchronization has been physically exercised; other rooms were not actuated in this setting window."
+}
