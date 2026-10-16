@@ -1,0 +1,180 @@
+{
+  "checked_bj": "2026-10-16T10:32:48.791003+08:00",
+  "App_build": 13,
+  "configuration_revision": 13,
+  "human_steps": [
+    {
+      "checked_bj": "2026-10-16T10:25:50.120128+08:00",
+      "step": "Artstudio native keypad3 Reading ON",
+      "answer": "符合预期",
+      "human_pass": true,
+      "physical_lights": "both full",
+      "scene": "Reading ON/Daily OFF",
+      "LED": "card and physical3red/4green",
+      "App": "responsive/no error",
+      "answer_source": "direct user reply to immediately preceding Reading ON prompt"
+    },
+    {
+      "checked_bj": "2026-10-16T10:26:08.712372+08:00",
+      "step": "Artstudio native keypad3 Reading OFF",
+      "question": "call_4e19b896c49543b0ad1ff504270a244a:0",
+      "answer": "全部符合",
+      "human_pass": true,
+      "physical_lights": "both off",
+      "scene": "Reading OFF/Daily OFF",
+      "LED": "card and physical3green/4green",
+      "App": "responsive/no error"
+    },
+    {
+      "checked_bj": "2026-10-16T10:26:36.725656+08:00",
+      "step": "Artstudio native keypad4 Daily ON",
+      "answer_source": "direct user reply to preceding Daily ON prompt",
+      "answer": "符合预期",
+      "human_pass": true,
+      "physical_lights": "main full/downlight off",
+      "scene": "Daily ON/Reading OFF",
+      "LED": "card and physical4red/3green",
+      "App": "responsive/no error"
+    },
+    {
+      "checked_bj": "2026-10-16T10:28:33.105897+08:00",
+      "step": "Artstudio keypad4 Daily OFF attempt",
+      "question": "call_36c416df18ad4638a595c218e5ad42e9:0",
+      "answers_received": [
+        "全部符合，两灯全亮，3红4绿，App正常。",
+        "全部符合"
+      ],
+      "human_pass": true,
+      "status": "passed after exact-state clarification",
+      "clarification": {
+        "answer_source": "direct user clarification",
+        "answer": "现在两灯都关了，3、4键都是绿，App阅读和日常都关闭，最后点的是4键。",
+        "physical_lights": "both off",
+        "scene": "Reading OFF/Daily OFF",
+        "LED": "card/physical3green/4green",
+        "last_actual_key": 4
+      }
+    }
+  ],
+  "request_correlations": [
+    {
+      "key": 3,
+      "scene": "画室阅读",
+      "action": "start",
+      "request_id": "EEBBABA5-147C-4ACB-BC4A-5654D7BA7441",
+      "operation_id": "42696243-7DCF-47F5-AF07-8BFEBE25D3E5",
+      "runtime_run": 2,
+      "runtime_instance": "94c5df6f-f891-4d93-847d-3b6a303af1aa",
+      "one_complete_click_to_202_chain": true,
+      "exact_persistent_request_fingerprint_matches": true
+    },
+    {
+      "key": 3,
+      "scene": "画室阅读",
+      "action": "off",
+      "request_id": "FED9751D-B5E2-4A9B-A5D3-5AAD08DB4A1D",
+      "operation_id": "7F31A64B-1A26-4035-AE9A-F6956ABC4DF1",
+      "runtime_run": 4,
+      "runtime_instance": "94c5df6f-f891-4d93-847d-3b6a303af1aa",
+      "one_complete_click_to_202_chain": true,
+      "exact_persistent_request_fingerprint_matches": true
+    },
+    {
+      "key": 4,
+      "scene": "画室日常",
+      "action": "start",
+      "request_id": "62F94EF8-9F05-47D4-ABF1-9B48DD3875AC",
+      "operation_id": "E6870F7D-F076-4DB9-B765-F8F6E35BBCC6",
+      "runtime_run": 5,
+      "runtime_instance": "94c5df6f-f891-4d93-847d-3b6a303af1aa",
+      "one_complete_click_to_202_chain": true,
+      "exact_persistent_request_fingerprint_matches": true
+    },
+    {
+      "key": 4,
+      "scene": "画室日常",
+      "action": "off",
+      "request_id": "62034C47-2FDB-4E9B-8129-CA4E3B8CDEB2",
+      "operation_id": "94BB6B5A-F0BB-48AE-A9A4-30626D7E5AFE",
+      "runtime_run": 6,
+      "runtime_instance": "94c5df6f-f891-4d93-847d-3b6a303af1aa",
+      "one_complete_click_to_202_chain": true,
+      "exact_persistent_request_fingerprint_matches": true
+    }
+  ],
+  "persistent_scene_runs": [
+    {
+      "boot_id": "5ba11ac4-e96f-4b99-b6ff-66e8be14a7ec",
+      "run_id": "a57a74d1-092c-4693-8547-d076b587496e",
+      "revision": 13,
+      "definition": "画室阅读",
+      "started_ms": 1416326,
+      "updated_ms": 1416825,
+      "status": "commands_written",
+      "version": 2
+    },
+    {
+      "boot_id": "5ba11ac4-e96f-4b99-b6ff-66e8be14a7ec",
+      "run_id": "a9a830de-3821-4367-aa6c-16662b717639",
+      "revision": 13,
+      "definition": "画室全关",
+      "started_ms": 1476454,
+      "updated_ms": 1477272,
+      "status": "commands_written",
+      "version": 2
+    },
+    {
+      "boot_id": "5ba11ac4-e96f-4b99-b6ff-66e8be14a7ec",
+      "run_id": "b84766a6-d141-4fb8-926f-c5c7ec5a38e5",
+      "revision": 13,
+      "definition": "画室日常",
+      "started_ms": 1496329,
+      "updated_ms": 1496821,
+      "status": "commands_written",
+      "version": 2
+    },
+    {
+      "boot_id": "5ba11ac4-e96f-4b99-b6ff-66e8be14a7ec",
+      "run_id": "18a11017-6140-4b54-9aa6-381f7cc88480",
+      "revision": 13,
+      "definition": "画室全关",
+      "started_ms": 1521917,
+      "updated_ms": 1522299,
+      "status": "commands_written",
+      "version": 2
+    }
+  ],
+  "run_identity_limit": "request receipts carry runtime_instance/numeric run; persisted UUID rows independently match source/time and completed definitions; no direct UUID mapping claimed by row order",
+  "clarified_conflict": {
+    "original_reports": [
+      "全部符合，两灯全亮，3红4绿，App正常。",
+      "全部符合"
+    ],
+    "read_only_backend": "both lightsOFF, Reading/DailyOFF",
+    "final_human": "现在两灯都关了，3、4键都是绿，App阅读和日常都关闭，最后点的是4键。",
+    "result": "DailyOFF passed after clarification; original conflicting report retained"
+  },
+  "incidental_Study_key1_actions": "2 separate phone clicks and scene runs preserved/excluded; not grouped as Artstudio failures or replays",
+  "phone_ring_log": {
+    "retained": 512,
+    "discarded": 674,
+    "four_required_chains_complete": true
+  },
+  "final_Artstudio_state": "both lightsOFF; Reading/DailyOFF;3/4green;curtain fullclosed/stopped per user",
+  "old_App11_silentOFF_rootcause": "unreproduced; not claimed fixed",
+  "D_E_complete": false,
+  "remaining_scope": [
+    65,
+    208,
+    24
+  ],
+  "evidence_sha256": {
+    "deployment/ngr/private/20261016-native-app-remaining-field-root/field-results.json": "bbaf3c2a27052170bf5dfb400be9aa535e76eb93e746689599270e6658975dbc",
+    "deployment/ngr/private/20261016-native-app-remaining-field-root/artstudio-scenes-server-claims.json": "163d43ce9c7e53b48922b5dd70e8fe729a2a7d985d7e8a182f59c53cc5a24fd9",
+    "deployment/ngr/private/20261016-native-app-remaining-field-root/artstudio-scenes-server-snapshot.json": "82203eb1ca1fec62990d2d6dc91e707db8befbf29f399f3af84344bf516febb3",
+    "deployment/ngr/private/20261016-native-app-remaining-field-root/conflicting-daily-off-readonly.json": "3d33a4af29958c63d6ff0e082401f4e9b75dc7c539784aa4fdc4a070d81c182a",
+    "deployment/ngr/private/20261016-native-curtain-key-toggle-app-v2/signing-review/field-artstudio-scenes-final/control-trace.jsonl": "5b6a5a46c4ac6dc18e98013f3daa97d9f17dc29ddc52aec1d5abc84768b7702a",
+    "deployment/ngr/private/20261016-native-curtain-key-toggle-app-v2/signing-review/field-artstudio-scenes-final/scenes-sanitized-summary.json": "008434e846f1bf309d41c1c0347e79cbcdea13125669a23526a2ede9b73f1cd1",
+    "deployment/ngr/private/20261016-native-curtain-key-toggle-app-v2/signing-review/field-artstudio-scenes-final/evidence-manifest.json": "88449d843db53fa2764042d5130df1416021c81fc97ad6c81ad8e02738bec66d"
+  }
+}

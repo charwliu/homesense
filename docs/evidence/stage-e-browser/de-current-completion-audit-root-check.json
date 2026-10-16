@@ -1,5 +1,5 @@
 {
-  "checked_bj": "2026-10-16T10:19:46.065031+08:00",
+  "checked_bj": "2026-10-16T10:32:48.791003+08:00",
   "derived_requirements": [
     "docs/design.md sections9-11,18,20,23-24,27"
   ],
@@ -106,8 +106,8 @@
       "id": "E-3",
       "stage": "E",
       "requirement": "灯光、场景、窗帘与面板入口",
-      "verified_scope": "两房间多项手动灯光／场景／窗帘及LED已限定现场通过；现有两面板父卡已在线发布到rev10，原Admin视图2父卡/各6格/0独立LED，原17授权及20展开端点保持，7格既有动作可见；build11手机已确认两张正方形六键卡片和自动连接，书房1键首次阅读开启及LED符合。；build12真实日志取回，书房1键开启/再次关闭及实灯/两处LED复测通过，手机与服务器request_id匹配。；本轮其余3/5场景开关及2打开/4停止/6关闭短程、卡片和墙面LED通过，9条新请求均与服务端202回执匹配；经明确批准原管理员补齐既有3端点到20/7。；补测原生卡片全开/全关终态通过：全开2绿/6红/4绿，全关6绿/2红/4绿，实际自动停止，卡片与墙面一致；两个新服务端accepted回执及Written账本均存在。；新通用原生卡片同向再按停止及方向LED延时策略已完成后端1213项和普通CLI资格，尚未部署，不替代此前旧规则现场证据。；原生客户端卡片专用意图及父/目标网关门禁修复已通过同轮100项和真实Rust普通服务11动作/14WSS检查，build13无签名包已复核，安装和新规则现场待。；通用卡片新版ELF83d894…及配置13已持续部署，App13自动连接/双卡及发布后只读响应获用户确认；新动作和LED仍待现场。；原生App13/配置13书房与画室8项新规则现场通过，12个点击/单请求/202/receipt/电机Written逐条关联，含同向再按停止、两端终态及LED延时/停止灯取消固定2秒等待。",
-      "remaining_evidence": "旧无日志关闭失败原因仍未复现，不将本轮通过记为根因修复。画室卡片动作、其他场景/面板参数及其他完整硬件范围继续待验。本次全行程手机诊断读取因CoreDevice4016失败，只有现场和服务端证据，未声称新手机点击链关联。 新规则Linux、App13和配置13发布已完成；书房/画室同向再按停止及LED时间线已通过；其他房间与原墙面接管仍待。",
+      "verified_scope": "两房间多项手动灯光／场景／窗帘及LED已限定现场通过；现有两面板父卡已在线发布到rev10，原Admin视图2父卡/各6格/0独立LED，原17授权及20展开端点保持，7格既有动作可见；build11手机已确认两张正方形六键卡片和自动连接，书房1键首次阅读开启及LED符合。；build12真实日志取回，书房1键开启/再次关闭及实灯/两处LED复测通过，手机与服务器request_id匹配。；本轮其余3/5场景开关及2打开/4停止/6关闭短程、卡片和墙面LED通过，9条新请求均与服务端202回执匹配；经明确批准原管理员补齐既有3端点到20/7。；补测原生卡片全开/全关终态通过：全开2绿/6红/4绿，全关6绿/2红/4绿，实际自动停止，卡片与墙面一致；两个新服务端accepted回执及Written账本均存在。；新通用原生卡片同向再按停止及方向LED延时策略已完成后端1213项和普通CLI资格，尚未部署，不替代此前旧规则现场证据。；原生客户端卡片专用意图及父/目标网关门禁修复已通过同轮100项和真实Rust普通服务11动作/14WSS检查，build13无签名包已复核，安装和新规则现场待。；通用卡片新版ELF83d894…及配置13已持续部署，App13自动连接/双卡及发布后只读响应获用户确认；新动作和LED仍待现场。；原生App13/配置13书房与画室8项新规则现场通过，12个点击/单请求/202/receipt/电机Written逐条关联，含同向再按停止、两端终态及LED延时/停止灯取消固定2秒等待。；App13画室3阅读/4日常四次开关、实灯/场景/卡片与墙面LED现场通过，四条完整点击-请求-202及服务端持久目标/动作指纹匹配，相关四个场景持久运行均commands_written；原冲突反馈保留并经现状澄清。",
+      "remaining_evidence": "旧无日志关闭失败原因仍未复现，不将本轮通过记为根因修复。画室卡片窗帘及阅读/日常均已通过；其他场景/面板参数及其他完整硬件范围继续待验。本次全行程手机诊断读取因CoreDevice4016失败，只有现场和服务端证据，未声称新手机点击链关联。 新规则Linux、App13和配置13发布已完成；书房/画室同向再按停止及LED时间线已通过；其他房间与原墙面接管仍待。",
       "status": "Study_six_key_and_curtain_endpoints_field_passed_historical_failure_cause_open",
       "additional_existing_card_evidence": "stage-e-browser/keypad-existing-cards-publication-root-check.json",
       "additional_scope_completion_proposal": "stage-e-browser/study-keypad-scope-proposal-root-check.json",
@@ -119,7 +119,8 @@
       "additional_generic_Keypad_motor_client": "stage-e-browser/native-keypad-motor-client-root-check.json",
       "additional_generic_Keypad_motor_Linux": "stage-e-browser/native-keypad-motor-linux-root-check.json",
       "additional_generic_Keypad_runtime13": "stage-e-browser/native-keypad-motor-runtime13-root-check.json",
-      "additional_runtime13_curtain_field": "stage-e-browser/native-keypad-curtain-runtime13-field-root-check.json"
+      "additional_runtime13_curtain_field": "stage-e-browser/native-keypad-curtain-runtime13-field-root-check.json",
+      "additional_Artstudio_scene_card_field": "stage-e-browser/native-artstudio-scene-card-field-root-check.json"
     },
     {
       "id": "E-4",
@@ -324,7 +325,8 @@
     "stage-e-browser/native-keypad-motor-linux-root-check.json": "d8cbaf9e72dc3b9b1451902d1acf334abbd37f5141e5f94dc941a4213fec7d7e",
     "stage-e-browser/native-keypad-motor-app13-installed-root-check.json": "6bc63eb8865690ca3594f9c49dfabbdba5bdc68b136b2840d3c01868a8ffa622",
     "stage-e-browser/native-keypad-motor-runtime13-root-check.json": "8962a41543afe1fffa0485304693492361dddb719b42217e2e2f4ce835492a51",
-    "stage-e-browser/native-keypad-curtain-runtime13-field-root-check.json": "e591cdf8b9d3bd21f3c6b3efb9bcc0be0e622a5158f2b7522ad1075973fdaa70"
+    "stage-e-browser/native-keypad-curtain-runtime13-field-root-check.json": "e591cdf8b9d3bd21f3c6b3efb9bcc0be0e622a5158f2b7522ad1075973fdaa70",
+    "stage-e-browser/native-artstudio-scene-card-field-root-check.json": "56e96f84b6034a317fa51039deed8c70e2326140bf3159a003b4554d9e6440e0"
   },
   "excluded_by_scope": {
     "Siri": "cancelled by user",
@@ -715,5 +717,6 @@
   "latest_generic_native_Keypad_motor_Linux": "stage-e-browser/native-keypad-motor-linux-root-check.json",
   "latest_generic_native_Keypad_App13_install": "stage-e-browser/native-keypad-motor-app13-installed-root-check.json",
   "latest_generic_native_Keypad_runtime13": "stage-e-browser/native-keypad-motor-runtime13-root-check.json",
-  "latest_generic_native_Keypad_motor_field": "stage-e-browser/native-keypad-curtain-runtime13-field-root-check.json"
+  "latest_generic_native_Keypad_motor_field": "stage-e-browser/native-keypad-curtain-runtime13-field-root-check.json",
+  "latest_native_Artstudio_scene_card_field": "stage-e-browser/native-artstudio-scene-card-field-root-check.json"
 }
