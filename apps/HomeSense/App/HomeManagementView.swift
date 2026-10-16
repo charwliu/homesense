@@ -181,13 +181,13 @@ struct HomeManagementView: View {
                     if let keypad = try? HomeKeypad(record: device, current: home.snapshotIsCurrent) {
                         HomeKeypadCard(keypad: keypad, controlsAvailable: home.controlsAvailable,
                             activate: { number in
-                                let operation = home.beginKeypadClick(device.id, key: number)
-                                Task { await home.activateKeypad(device.id, key: number, operation: operation) }
+                                let operation = home.beginKeypadClick(device.id, key: number, card: true)
+                                Task { await home.activateKeypadCard(device.id, key: number, operation: operation) }
                             },
                             details: { editor = HomeEditRequest(kind: "keypad-details", record: device) },
-                            isActionAvailable: { home.canActivateKeypad(device.id, key: $0) })
-                            .onAppear { home.recordKeypadGateStates(device.id) }
-                            .onChange(of: home.keypadGateStates(device.id)) { _, _ in home.recordKeypadGateStates(device.id) }
+                            isActionAvailable: { home.canActivateKeypad(device.id, key: $0, card: true) })
+                            .onAppear { home.recordKeypadGateStates(device.id, card: true) }
+                            .onChange(of: home.keypadGateStates(device.id, card: true)) { _, _ in home.recordKeypadGateStates(device.id, card: true) }
                     } else { empty("面板数据暂不可用", "请刷新或核对服务端接口。") }
                 } else {
                     Button { editor = HomeEditRequest(kind: "device-details", record: device) } label: {

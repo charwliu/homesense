@@ -58,7 +58,7 @@ struct HomeKeypadCard: View {
             .overlay { RoundedRectangle(cornerRadius: 10).strokeBorder(.primary.opacity(key.led.displayColor == .unknown ? 0.12 : 0.04)) }
             .contentShape(RoundedRectangle(cornerRadius: 10))
         }
-        .buttonStyle(KeypadPressStyle()).disabled(!controlsAvailable || !key.canActivate || isActionAvailable?(key.number) == false)
+        .buttonStyle(KeypadPressStyle()).disabled(!controlsAvailable || !key.canActivateCard || isActionAvailable?(key.number) == false)
         .accessibilityLabel("按键 \(key.number)，\(key.name)，\(key.led.actualDescription)，\(key.led.historyDescription ?? "")")
         .accessibilityHint(key.actionDescription ?? "没有已授权的按键动作")
         .accessibilityIdentifier("keypad.\(keypad.id).key.\(key.number)")
