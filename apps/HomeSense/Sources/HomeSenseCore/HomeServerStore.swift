@@ -6,6 +6,14 @@ public enum HomeInterfaceMode: String, CaseIterable, Identifiable, Sendable {
     public var id: String { rawValue }
 }
 
+/// Admission acknowledgement only; physical state remains server feedback.
+public enum HomeDeviceCommandResult: Equatable, Sendable {
+    case notSent
+    case accepted(requestID: String)
+    case unconfirmed(requestID: String)
+    public var accepted: Bool { if case .accepted = self { return true }; return false }
+}
+
 @MainActor
 public final class HomeServerStore: ObservableObject {
     @Published public var endpointText: String {
@@ -406,20 +414,41 @@ public final class HomeServerStore: ObservableObject {
     public func canControlScene(_ id: String) -> Bool {
         controlsAvailable && scenes.contains { $0.id == id && $0.raw["can_control"].flag && $0.targetAvailable }
     }
-    public func controlDevice(_ id: String, command: HomeJSON) async {
-        guard canControlDevice(id) else { return }
-        await sendDeviceCommand(id, command: command)
+    public func beginDeviceControl(_ id: String) -> HomeControlOperation {
+        let operation = diagnostics.operation(target: id)
+        diagnostics.record(.buttonClick, operation: operation)
+        return operation
     }
-    private func sendDeviceCommand(_ id: String, command: HomeJSON, includeRevision: Bool = false) async {
+    @discardableResult
+    public func controlDevice(_ id: String, command: HomeJSON, operation: HomeControlOperation? = nil) async -> HomeDeviceCommandResult {
+        var outcome = HomeDeviceCommandResult.notSent
+        await traced(operation, target: id) {
+            guard self.canControlDevice(id) else {
+                self.diagnostics.record(.ignored, reason: !self.connected ? .disconnected : self.busy ? .busy : !self.snapshotIsCurrent ? .snapshotNotCurrent : .deviceUnavailable)
+                return
+            }
+            outcome = await self.sendDeviceCommand(id, command: command)
+        }
+        return outcome
+    }
+    @discardableResult
+    private func sendDeviceCommand(_ id: String, command: HomeJSON, includeRevision: Bool = false) async -> HomeDeviceCommandResult {
+        var outcome = HomeDeviceCommandResult.notSent
         await run {
+            let requestID = UUID().uuidString
             var body: HomeJSON = .object([
-                "device": .string(id), "request_id": .string(UUID().uuidString), "command": command
+                "device": .string(id), "request_id": .string(requestID), "command": command
             ])
             if includeRevision { body["revision"] = .string(self.revision) }
+            outcome = .unconfirmed(requestID: requestID)
             let result = try await self.request("/api/v1/device-commands", method: "POST", body: body)
+            if result["outcome"].text == "accepted", result["request_id"].text == requestID {
+                outcome = .accepted(requestID: requestID)
+            }
             self.message = result["outcome"].text == "accepted" ? "控制已受理，等待实际设备反馈。" : "控制结果未知，请核对实际设备；未自动重试。"
             if !self.receivingPush { try await self.readSnapshots() }
         }
+        return outcome
     }
     public func keypadGate(_ id: String, key number: Int, card: Bool = false) -> HomeKeypadGateState {
         var state = HomeKeypadGateState()
