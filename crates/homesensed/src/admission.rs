@@ -58,6 +58,7 @@ pub struct DispatchTicket {
     pub frame: hb_transport::PreparedFrame,
     pub(crate) panel_authorization: Option<crate::panel_auth::Lease>,
     pub(crate) source_authorization: Option<crate::source_auth::Source>,
+    pub(crate) away_authorization: Option<crate::away_auth::Authorization>,
     pub(crate) publication_stop:Option<crate::publication_auth::DrainStop>,
 }
 /// Captured before a delayed task starts. Private fields prevent callers from
@@ -627,6 +628,7 @@ impl Admission {
                 let mut source_leases=BTreeMap::<u64,crate::source_auth::Source>::new();
                 let mut panel_leases=BTreeMap::<u64,crate::panel_auth::Lease>::new();
                 let mut module_off_jobs = BTreeMap::<u64,crate::away_off::Target>::new();
+                let mut away_reset_dependencies = BTreeMap::<u64,Vec<u64>>::new();
                 let mut module_queries = BTreeMap::<u64,crate::module_queries::Target>::new();
                 let mut motor_guard_ids=BTreeMap::<u64,u64>::new();
                 let mut motor_guards=BTreeMap::<u64,crate::motor_rules::QueuedLease>::new();
@@ -664,6 +666,7 @@ impl Admission {
                     source_leases.retain(|id,_|principals.contains_key(id) || in_flight==Some(*id));
                     panel_leases.retain(|id,_|principals.contains_key(id) || in_flight==Some(*id));
                     module_off_jobs.retain(|id,_| principals.contains_key(id) || in_flight==Some(*id));
+                    away_reset_dependencies.retain(|id,_|principals.contains_key(id)||in_flight==Some(*id));
                     module_queries.retain(|id,_| principals.contains_key(id) || in_flight==Some(*id));
                     motor_guard_ids.retain(|id,_|principals.contains_key(id)||in_flight==Some(*id));
                     motor_guards.retain(|group,_|motor_guard_ids.values().any(|g|g==group));
@@ -1198,37 +1201,56 @@ impl Admission {
                                 let now=millis(clock);
                                 if failed || worker_stop.load(Ordering::Acquire) || generation.boot!=worker_boot || generation.epochs!=policy.epochs || revision!=configuration.revision() || policy.publishing || !policy.gateway_ready || !policy.controller || !policy.storage_healthy || !policy.valid_configuration_loaded || now>=deadline {return Err(WriteStatus::ResourceBusy);}
                                 let document=store.active_bundle(options.context).map_err(|_|WriteStatus::ServiceCommunicationFailure)?.and_then(|b|b.automation).ok_or(WriteStatus::InvalidValueInRequest)?;
-                                let targets=crate::away_off::plan(&configuration,&document,lease,options.context).map_err(|_|WriteStatus::InsufficientPrivileges)?;
-                                if !submit{return Ok(vec![]);}
+                                let key_binding=lease.key_binding(&configuration).map_err(|_|WriteStatus::InsufficientPrivileges)?;
+                                let indicator=lease.indicator_lease(&configuration).map_err(|_|WriteStatus::InsufficientPrivileges)?;
+                                let targets=crate::away_off::plan(&configuration,&document,lease.clone(),options.context).map_err(|_|WriteStatus::InsufficientPrivileges)?;
+                                let count=targets.len()+usize::from(indicator.is_some());
+                                if count>128 {return Err(WriteStatus::ResourceBusy);}
+                                if !submit{
+                                    if let Some(g)=&gateways {
+                                        let mut required=targets.iter().map(|target|target.plan.modules()[target.index].gateway_id().to_owned()).collect::<Vec<_>>();
+                                        if let Some(key)=&key_binding {required.push(configuration.binding(&key.endpoint).ok_or(WriteStatus::InvalidValueInRequest)?.0.gateway.clone());}
+                                        g.table.capture(required).map_err(|_|WriteStatus::ResourceBusy)?;
+                                    }
+                                    return Ok(vec![]);
+                                }
                                 let supersede=matches!(document.away_off.as_ref().map(|p|p.active_execution_policy),Some(homesense_config::rule_document::AwayExecutionPolicy::CancelAffectedLighting));
                                 if !supersede && (in_flight.is_some() || store.has_unsettled_control_commands(&worker_boot,revision).map_err(|_|WriteStatus::ServiceCommunicationFailure)? || store.has_active_scene_runs(&worker_boot,revision).map_err(|_|WriteStatus::ServiceCommunicationFailure)?) {return Err(WriteStatus::ResourceBusy);}
                                 let affected=targets.iter().flat_map(|t|t.plan.modules()[t.index].devices().iter().cloned()).collect::<std::collections::BTreeSet<_>>();
-                                let cost=(targets.len() as u64).checked_mul(options.write_interval.as_millis() as u64).ok_or(WriteStatus::InvalidValueInRequest)?;
+                                let cost=(count as u64).checked_mul(options.write_interval.as_millis() as u64).ok_or(WriteStatus::InvalidValueInRequest)?;
                                 if now.checked_add(cost).is_none_or(|end|end>=deadline){return Err(WriteStatus::ResourceBusy);}
-                                let end=next_id.checked_add(targets.len() as u64).ok_or(WriteStatus::ServiceCommunicationFailure)?;
-                                let commands=targets.iter().enumerate().map(|(offset,_)|{
+                                let end=next_id.checked_add(count as u64).ok_or(WriteStatus::ServiceCommunicationFailure)?;
+                                let modules_end=next_id+targets.len() as u64;
+                                let module_commands=targets.iter().enumerate().map(|(offset,_)|{
                                     let id=next_id+offset as u64;
                                     (QueuedCommand{id,device_id:crate::away_off::receipt_device(id),command:homesense_core::Command::ModuleAllOff,origin:targets[0].lease.origin(),epochs:policy.epochs,deadline_ms:deadline,run_id:None},Access{authorized:true,device_exists:true,device_verified:true,existing_direct_manual:false})
                                 }).collect::<Vec<_>>();
-                                if commands.iter().any(|(c,_)|configuration.devices().contains_key(&c.device_id)){return Err(WriteStatus::InvalidValueInRequest);}
+                                if module_commands.iter().any(|(c,_)|configuration.devices().contains_key(&c.device_id)){return Err(WriteStatus::InvalidValueInRequest);}
+                                let reset=indicator.as_ref().map(|(endpoint,_)|(QueuedCommand{id:modules_end,device_id:endpoint.clone(),command:homesense_core::Command::PanelLed(false),origin:lease.origin(),epochs:policy.epochs,deadline_ms:deadline,run_id:None},Access{authorized:true,device_exists:true,device_verified:true,existing_direct_manual:false}));
+                                let mut commands=module_commands.clone();commands.extend(reset.clone());
                                 let effects=targets.iter().enumerate().map(|(n,t)|t.effects(next_id+n as u64)).collect::<Vec<_>>();
                                 for target in &targets {target.frame(&configuration,options.context,policy.epochs.transport).map_err(|_|WriteStatus::InvalidValueInRequest)?;}
                                 let gateway_scopes=if let Some(g)=&gateways {
                                     let routes=effects.iter().map(|effect|(effect.command,effect.gateway_id.clone())).collect::<BTreeMap<_,_>>();
-                                    let requirements=g.table.capture(routes.values().cloned()).map_err(|_|WriteStatus::ServiceCommunicationFailure)?.wires().to_vec();
+                                    let mut requirements=g.table.capture(routes.values().cloned()).map_err(|_|WriteStatus::ServiceCommunicationFailure)?.wires().to_vec();
+                                    if let Some(key)=&key_binding {requirements.extend(g.device_requirements(&configuration,vec![key.endpoint.clone()])?);}
                                     Some(g.scope(&configuration,&commands.iter().map(|(c,_)|c.clone()).collect::<Vec<_>>(),&routes,&requirements,vec![])? )
                                 }else{None};
                                 let persist=|commands:&[QueuedCommand],cancelled:&[homesense_core::queue::Cancellation]| {
                                     match &gateway_scopes {Some(scopes)=>store.accept_queue_batch_scoped(&worker_boot,commands,cancelled,now,None,&[],None,None,&[],&[],None,&effects,scopes),None=>store.accept_module_off_commands(&worker_boot,commands,cancelled,now,&effects)}
                                 };
-                                let accepted=if supersede {arbiter.submit_module_off_batch_committed(commands,&affected,now,persist)} else {arbiter.submit_batch_committed(commands,now,persist)};
+                                let accepted=lease.with_valid(||if supersede {arbiter.submit_module_off_with_reset_committed(module_commands,reset,&affected,now,persist)} else {arbiter.submit_batch_committed(commands,now,persist)}).ok_or(WriteStatus::InsufficientPrivileges)?;
                                 match accepted {
                                     Ok(cancelled)=>{for c in cancelled {principals.remove(&c.command.id);}},
                                     Err(BatchCommitError::Admission(_))=>return Err(WriteStatus::ResourceBusy),
                                     Err(BatchCommitError::Persistence(_))=>{failed=true; audited_transport_failure=false;let _=arbiter.storage_failed();return Err(WriteStatus::ServiceCommunicationFailure);}
                                 }
                                 let ids=(next_id..end).collect::<Vec<_>>();
-                                for (id,target) in (next_id..end).zip(targets) {
+                                if let Some((_,panel_lease))=indicator {
+                                    panel_leases.insert(modules_end,panel_lease);principals.insert(modules_end,controller);
+                                    away_reset_dependencies.insert(modules_end,(next_id..modules_end).collect());
+                                }
+                                for (id,target) in (next_id..modules_end).zip(targets) {
                                     for device in target.plan.modules()[target.index].devices() {
                                         manual_versions.insert(device.clone(),end);
                                         restore_policy.invalidate_device(device);
@@ -1641,6 +1663,10 @@ impl Admission {
                             }
                             let now = millis(clock);
                             let result = (|| -> Result<Option<DispatchTicket>, String> {
+                                let reset_ready=away_reset_dependencies.iter().map(|(reset,ids)| {
+                                    let mut ready=true;for id in ids {ready &= matches!(store.command_status(&worker_boot,*id).map_err(|e|e.to_string())?,Some(Status::Written|Status::Observed));}
+                                    Ok((*reset,ready))
+                                }).collect::<Result<BTreeMap<_,_>,String>>()?;
                                 let allowed=if motor_guards.is_empty(){vec![]}else{store.active_bundle(options.context).map_err(|e|e.to_string())?.and_then(|b|b.automation).ok_or("motor guard document missing")?.enabled_motor_requests().map_err(|e|e.to_string())?};
                                 let scope=homesense_core::curtain_state::Scope{boot:observer_boot,epochs:arbiter.policy().epochs};
                                 let valid:BTreeMap<_,_>=motor_guards.iter_mut().map(|(group,guard)|{
@@ -1681,7 +1707,7 @@ impl Admission {
                                         }else if let Some(target)=module_queries.get(&command.id) {
                                             configuration.module(&target.module_id).map(|(g,_)|g.gateway.clone())
                                         }else{configuration.binding(&command.device_id).map(|(d,_)|d.gateway.clone())};
-                                        gateway.is_none_or(|gateway|available.as_ref().is_none_or(|ids|ids.contains(&gateway)))
+                                        reset_ready.get(&command.id).is_none_or(|ready|*ready) && gateway.is_none_or(|gateway|available.as_ref().is_none_or(|ids|ids.contains(&gateway)))
                                     }).map_err(|e| e.to_string())?
                                 };
                                 if !dispatch.cancelled.is_empty() {
@@ -1708,6 +1734,19 @@ impl Admission {
                                 let Some(command) = dispatch.command else {
                                     return Ok(None);
                                 };
+                                // Projection LEDs are disposable, unlike actuator/STOP
+                                // operations. Do not acquire a Writing obligation at the
+                                // expiry edge: the bounded worker and completion audit
+                                // need one existing wire-gap quantum. This cancels only
+                                // still-Accepted work, never extends or replays its lease.
+                                let current=millis(clock);
+                                if matches!(command.command,homesense_core::Command::PanelLed(_)|homesense_core::Command::PanelLedOff)
+                                    && current.saturating_add(options.write_interval.as_millis() as u64)>=command.deadline_ms {
+                                    store.transition_command(&worker_boot,command.id,Status::Accepted,Status::Cancelled,current).map_err(|e|e.to_string())?;
+                                    arbiter.cancel_selected_before_write(command.id).map_err(|e|e.to_string())?;
+                                    principals.remove(&command.id);
+                                    return Ok(None);
+                                }
                                 let physical_wire=if let Some(g)=&gateways {
                                     let wire=store.command_wire_scope(&worker_boot,command.id).map_err(|e|e.to_string())?.ok_or("missing mandatory command wire")?;
                                     if !g.table.ready(&wire) {return Err("command wire is offline or changed".into());}
@@ -1742,25 +1781,37 @@ impl Admission {
                                     principals.remove(&command.id);return Ok(None);
                                 }
                                 if physical_wire.as_ref().is_some_and(|wire|wire.gateway()!=gateway_id) {return Err("persisted wire route changed".into());}
-                                let began=match &physical_wire {
-                                    Some(wire)=>store.begin_command_write_scoped(&worker_boot,command.id,now,wire),
-                                    None=>store.begin_command_write(&worker_boot,command.id,now),
-                                }.map_err(|e|e.to_string())?;
-                                if !began {
+                                let audit_started=millis(clock);
+                                let reservation=store.reserve_command_write(&worker_boot,command.id,now,physical_wire.as_ref()).map_err(|e|e.to_string())?;
+                                let Some(reservation)=reservation else {
                                     arbiter.cancel_selected_before_write(command.id).map_err(|e|e.to_string())?;
                                     principals.remove(&command.id);
                                     return Ok(None);
+                                };
+                                let audited=millis(clock);
+                                if matches!(command.command,homesense_core::Command::PanelLed(_)|homesense_core::Command::PanelLedOff) && audited>=command.deadline_ms {
+                                    // This reservation has never been released or handed
+                                    // to a transmitter: zero possible wire bytes, even if
+                                    // the synchronous Writing commit outlasted its lease.
+                                    reservation.cancel_expired_led_before_delivery(audited).map_err(|e|e.to_string())?;
+                                    arbiter.cancel_selected_before_write(command.id).map_err(|e|e.to_string())?;
+                                    principals.remove(&command.id);
+                                    log::warn!("dispatch_expired_before_delivery command={} audit_started_ms={} audit_completed_ms={} deadline_ms={} bytes_possible=0",command.id,audit_started,audited,command.deadline_ms);
+                                    return Ok(None);
                                 }
+                                reservation.release();
                                 principals.remove(&command.id);
                                 in_flight_led=crate::indicator_outputs::Ledger::color(command.command).map(|color|(command.id,command.device_id.clone(),color,command.epochs));
                                 in_flight = Some(command.id);
                                 write_deadline = Some(command.deadline_ms);
+                                let away_authorization=module_off_jobs.get(&command.id).map(|target|target.lease.clone());
                                 Ok(Some(DispatchTicket {
                                     gateway_id,
                                     command,
                                     frame,
                                     panel_authorization,
                                     source_authorization,
+                                    away_authorization,
                                     publication_stop,
                                 }))
                             })();

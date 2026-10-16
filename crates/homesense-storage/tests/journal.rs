@@ -1187,3 +1187,28 @@ fn schema_nineteen_retains_legacy_publication_reason_without_claiming_barrier_co
     let mut store=Store::open(&db.0).unwrap();store.checkpoint_scene_run_with_cancellation("boot","scene",1,Scene::Cancelled,2,Some(&Cancellation{device,reason:Reason::PublicationBarrier})).unwrap();
     let page=store.query_scene(1,&Query::Cancellations{boot:"boot".into(),run:"scene".into(),after:0,limit:128}).unwrap().unwrap();assert_eq!(page.cancellations.iter().map(|c|c.cancellation.reason).collect::<Vec<_>>(),vec![Reason::ConfigurationPublished,Reason::PublicationBarrier]);assert_eq!(sql.pragma_query_value(None,"user_version",|row|row.get::<_,i64>(0)).unwrap(),homesense_storage::SCHEMA_VERSION);
 }
+
+#[test]
+fn undelivered_reservation_only_cancels_expired_leds_and_cannot_be_recreated_after_release() {
+    let db=Database::new();let mut store=Store::open(&db.0).unwrap();store.publish(None,1,b"config",&[]).unwrap();
+    let mut led=command(1);led.command=Command::PanelLed(false);led.deadline_ms=100;
+    store.accept_commands("boot1",&[led.clone()],10).unwrap();
+    let reservation=store.reserve_command_write("boot1",1,20,None).unwrap().unwrap();
+    assert!(reservation.cancel_expired_led_before_delivery(99).is_err());
+    assert_eq!(store.command_status("boot1",1).unwrap(),Some(Status::Writing));
+    assert!(store.reserve_command_write("boot1",1,100,None).is_err(),"Writing cannot fabricate a second undelivered capability");
+    assert!(store.transition_command("boot1",1,Status::Writing,Status::Cancelled,100).is_err(),"general Writing cancellation remains forbidden");
+    store.transition_command("boot1",1,Status::Writing,Status::Uncertain,100).unwrap();
+    led.id=2;store.accept_commands("boot1",&[led.clone()],10).unwrap();
+    store.reserve_command_write("boot1",2,20,None).unwrap().unwrap().cancel_expired_led_before_delivery(100).unwrap();
+    assert_eq!(store.command_status("boot1",2).unwrap(),Some(Status::Cancelled));
+    led.id=3;store.accept_commands("boot1",&[led],10).unwrap();
+    store.reserve_command_write("boot1",3,20,None).unwrap().unwrap().release();
+    assert!(store.reserve_command_write("boot1",3,100,None).is_err());
+    assert!(store.transition_command("boot1",3,Status::Writing,Status::Cancelled,100).is_err());
+    store.transition_command("boot1",3,Status::Writing,Status::Uncertain,100).unwrap();
+    let mut actuator=command(4);actuator.deadline_ms=100;
+    store.accept_commands("boot1",&[actuator],10).unwrap();
+    assert!(store.reserve_command_write("boot1",4,20,None).unwrap().unwrap().cancel_expired_led_before_delivery(100).is_err());
+    assert_eq!(store.command_status("boot1",4).unwrap(),Some(Status::Writing));
+}

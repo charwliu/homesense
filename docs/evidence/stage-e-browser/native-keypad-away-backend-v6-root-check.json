@@ -1,0 +1,277 @@
+{
+  "checked_bj": "2026-10-16T14:04:41.111508+08:00",
+  "scope": "Backend source integration; synthetic loopback qualification only; no field deployment or App source merge",
+  "features": [
+    "reviewed native Keypad Away mapping with complete originating authority and optional same-key green tail after all module writes",
+    "catalog_visible display hint retains enabled/polled/authorized outputs and WSS facts",
+    "batched scene directory read; current physical selection evidence revalidated for explicit OFF",
+    "validated parsed bundle cache compares both current document bytes and execution context; no cached authority or feedback",
+    "exclusive undelivered Writing reservation cancels expired LEDs before ticket release; delivered uncertain writes retain original fail-closed behavior"
+  ],
+  "Mac_binary_sha256": "e7a9f013195042785a58b9086a8a994f56fcd62d02c6db9fcf8fe9b160bf3696",
+  "Linux_binary_sha256": "53c8e62cd0a7d1ca39fb7405892cd5477501de5ea59f95f4086581b8615ced63",
+  "source_manifest_sha256": "af30569ea182cacc4c77262c3c74b7993ed69fbf9ca465be7f1b79494339eec9",
+  "source_files_verified": 1407,
+  "merged_Rust_vendor_Cargo_files_identical_to_tested_snapshot": 801,
+  "source_file_sha256": {
+    "crates/homesense-config/src/keypad.rs": "7a4d3ec04626ee66d3cf2927975596d2e585c20cd0b722f579c0e00d05d9e7e4",
+    "crates/homesense-config/src/lib.rs": "16dafb4d03609f09a581b35a9a3ebda16ba1441f9ed4b3190481cc11ffc3beb8",
+    "crates/homesense-config/src/rule_document.rs": "fa80b9a6315308f2b36b9a94356c6b0dd2439e4cc172d943f9d3b96f9cf8285d",
+    "crates/homesense-config/tests/keypad.rs": "6570a29ab3a669546d38129338a71d77fde06aab118e33f9d136c8a82c04e651",
+    "crates/homesense-core/src/arbiter.rs": "14bb729ec664752ff7c16fc70a409210da0ce88d7e7082820257df4730084dca",
+    "crates/homesense-core/tests/arbiter.rs": "879411cdb027d321309e4271132dfe3bc320bcdf3f4fc24fee0cf7976a7d68e9",
+    "crates/homesense-storage/src/automation.rs": "e4ec956b7e86a898a47fcc2a93f5f6124c9388dbb08f31aed1370971423328e9",
+    "crates/homesense-storage/src/backup.rs": "a3fbd24922a5ab655be6ec234a579eb3eaaf46ef4e95a0b392d5f31d0d5c0217",
+    "crates/homesense-storage/src/journal.rs": "b2bca3b26560db66698635ee90594b4592a52b889fbff23beb5f1c360dce4efc",
+    "crates/homesense-storage/src/lib.rs": "ba622878f7ef8f8ded193fa81290ef2547cea33ba80b102182505fb485f7580f",
+    "crates/homesense-storage/tests/journal.rs": "38f50223f8073321ca21fad9b5ded7a69879e02c9236e851030a285e8f933f7f",
+    "crates/homesense-storage/tests/publication.rs": "3a8873ea8dd896b28836347acb9fd7fbcaa0c871687fe93d08c511fe1fc71a7a",
+    "crates/homesensed/src/admission.rs": "a9da6153cebdb6efd7527e413764d13faa78b7cfb8a9fea2c73d6c9f845974b9",
+    "crates/homesensed/src/automation_control.rs": "c9d738c3cb6ac44bb3d4b6635ed42d053e30e94ae74159cdafd88afa0d7a794d",
+    "crates/homesensed/src/away_auth.rs": "273ae2dd2316ab46f80c1a8d8300a8c4cdca0e6d9bb97612bdfae858799500f1",
+    "crates/homesensed/src/away_off.rs": "10945bc766c097728cc031efd7defc5c116c127da13653f4e8c3896e85553806",
+    "crates/homesensed/src/keypad_away_tests.rs": "152f42c3327c9ae70477ff21da9f86f73155f598f3f4a4aaf7f302146b16cdf2",
+    "crates/homesensed/src/management_devices.rs": "50334d1758592c8cfaf2296b5a2911b302a48f6a36109691c069e1d40a33d98c",
+    "crates/homesensed/src/management_keypads.rs": "44e730cffbeaf8fd9c0b64d5147271b01e2827e8f962c2b64ac48b46a6944779",
+    "crates/homesensed/src/scene_reconciliation_tests.rs": "dbe8f804d4a22effa04eccca9ba2b1460fbf94caa681fa016f59577a79efa8b0",
+    "crates/homesensed/src/transport_owner.rs": "6240d24cf49ba61f99f409342ddf996e917850e44cf8a1845a0383f8f2eeaa66",
+    "crates/homesensed/src/web_api.rs": "3a4d1ce807d1bd752df16d7f7b49b34ccf843c9aaf1df802826a7c1030d57919",
+    "crates/homesensed/src/web_away_off.rs": "e0c84fb9c7d3f95b6bd4e1ce4cb72a8210eeb98f9bac1d0bd77fb8562d82f024",
+    "crates/homesensed/tests/panel_led.rs": "ab0411e52f5f2abb4bb20c1854fb7853c7dc985432d803c8c333d1ad66c7c473",
+    "docs/keypad-away.md": "956638ca2ac23c6d0677c9a08ee61a62b2762d0e5eb5c9d95cf9eb7eefe643a4",
+    "tools/verify_keypad_away.py": "e23a8919472a35845fe8cca6ab6f1986ed9f7fc18bc1cfaba59af3ca7f9b2a79"
+  },
+  "workspace": {
+    "passed": 1232,
+    "original_retained": 1213,
+    "new": 19,
+    "failed": 0,
+    "ignored": 0,
+    "actual_programs_rehashed": 172,
+    "doc_tests_passed": true,
+    "strict_Clippy_all_targets_warnings_denied": true,
+    "test_log_sha256": "22ef3fe87482bc2ce0ce4153a69c7fe910e45a20bdf561923d88f57fcb8ee431",
+    "Clippy_log_sha256": "b64564569fea6a5f062f60eff21c061d1d61a572cde5fcedfa3241e02fa8fa47"
+  },
+  "deterministic_regression": {
+    "same_80ms_lease_120ms_SQLite_lock": "v5 fails by delivering expired ticket; v6 cancels with ExpiredBeforeDelivery and remains healthy",
+    "lease_and_250ms_busy_timeout_unchanged": true,
+    "already_delivered_late_ticket_still_uncertain": true,
+    "general_Writing_to_Cancelled_forbidden": true,
+    "cannot_recreate_undelivered_reservation_after_release": true,
+    "unexpired_and_non_LED_cancellation_rejected": true,
+    "log_sha256": {
+      "v6-deterministic-preimage-failure2.log": "f17d619b2f064f71f4d4317384ce7c18ac8563adab401ef4c04352356507797d",
+      "led-v6-blocked-audit3.log": "6850f401885e3f60c8d2cab7569e263c02f36addc5db9b8a1e0233416aae777e",
+      "journal-v6-reservation.log": "24f77f2849ef228e087194d221ef9ad8b54e15ed1c2d891b185c43b636855974"
+    }
+  },
+  "Linux": {
+    "isolation": "unshare -Urn; loopback up; no route to real gateway",
+    "only_ELF_uploaded": true,
+    "original_failed_harness_sha256": "964414d5380c5c9df3d22fa8f6cac9339845c2d4c0dc64f48f29f7431d329e2e",
+    "original_assertions_and_deadlines_preserved": true,
+    "original_harness_passed_runs": 3,
+    "runs": [
+      {
+        "run": 1,
+        "scene_actions": 20,
+        "simulated_output_vectors_reconstructed": 20,
+        "Written_frames_equal_ledger_multiset": 197,
+        "module_OFF_each_once": 12,
+        "module_effect_rows": 96,
+        "final96_outputs_off": true,
+        "cancelled_LED_count": 1,
+        "cancelled_LED_only": [
+          {
+            "command": 187,
+            "intent": "01060000",
+            "deadline_ms": 20359,
+            "updated_ms": 20369
+          }
+        ],
+        "final_scenes_HTTP_seconds": 0.149,
+        "process_exit": 0,
+        "motor_or_parameter_frames": 0,
+        "artifact_sha256": {
+          "result.json": "209b24cff7a64fe16750b963e092c56770fd3147ec0194108ea3c2703114204c",
+          "cases.json": "40164ed751813af052b67db3ac2213ad62132439976b85845730a7034a9cc771",
+          "frames.json": "293c1bed4c6c10eb6e1cdd12550c6310b6d1fb52a9329cd1018b418738705d9e",
+          "http-timing.json": "23d153d232698359b6587b3d0fc38c2c9662e5383a03b8b1d6e29914c0324ab4",
+          "server.log": "f2e9ff569a067e278f0171ebd518c796d3c33a5fe9686b55927e842848ea0153",
+          "state/automation-tcp.sqlite": "a63801ae5d62cba50b44924dc3b0d579b72d028f5030821e149b2a23c346defc"
+        }
+      },
+      {
+        "run": 2,
+        "scene_actions": 20,
+        "simulated_output_vectors_reconstructed": 20,
+        "Written_frames_equal_ledger_multiset": 191,
+        "module_OFF_each_once": 12,
+        "module_effect_rows": 96,
+        "final96_outputs_off": true,
+        "cancelled_LED_count": 6,
+        "cancelled_LED_only": [
+          {
+            "command": 180,
+            "intent": "01060000",
+            "deadline_ms": 18629,
+            "updated_ms": 18631
+          },
+          {
+            "command": 181,
+            "intent": "01060000",
+            "deadline_ms": 18637,
+            "updated_ms": 18644
+          },
+          {
+            "command": 182,
+            "intent": "01060000",
+            "deadline_ms": 18709,
+            "updated_ms": 18717
+          },
+          {
+            "command": 183,
+            "intent": "01060100",
+            "deadline_ms": 18718,
+            "updated_ms": 18727
+          },
+          {
+            "command": 186,
+            "intent": "01060000",
+            "deadline_ms": 18955,
+            "updated_ms": 18959
+          },
+          {
+            "command": 187,
+            "intent": "01060000",
+            "deadline_ms": 18955,
+            "updated_ms": 18959
+          }
+        ],
+        "final_scenes_HTTP_seconds": 0.17,
+        "process_exit": 0,
+        "motor_or_parameter_frames": 0,
+        "artifact_sha256": {
+          "result.json": "f730a43176a7baa8012d9e7a8b9c2dcbcd698d7211afa7480ebf3ae03e34442c",
+          "cases.json": "9e1632b2dc629755fbc044be4680e7f93a292e3759595b90aec1f0f8d2d2e30d",
+          "frames.json": "bced27b7b45dfc1ef982189c292cc63a2b3b1646af145c82c87324ac1d4d9cbd",
+          "http-timing.json": "363b4d8bc0069e3edb21efba1aa48c6218bca3f6bf8c4280c60beb5cf77e8699",
+          "server.log": "03a929efd20de2ae6c9d8e08aa6ecf0d9074d5254929b74b947bef8480c1abb5",
+          "state/automation-tcp.sqlite": "cff0c420f34680050ae16744c0cd3656e32d2672763b620762ca79b1db82d2f5"
+        }
+      },
+      {
+        "run": 3,
+        "scene_actions": 20,
+        "simulated_output_vectors_reconstructed": 20,
+        "Written_frames_equal_ledger_multiset": 197,
+        "module_OFF_each_once": 12,
+        "module_effect_rows": 96,
+        "final96_outputs_off": true,
+        "cancelled_LED_count": 1,
+        "cancelled_LED_only": [
+          {
+            "command": 187,
+            "intent": "01060000",
+            "deadline_ms": 19132,
+            "updated_ms": 19166
+          }
+        ],
+        "final_scenes_HTTP_seconds": 0.188,
+        "process_exit": 0,
+        "motor_or_parameter_frames": 0,
+        "artifact_sha256": {
+          "result.json": "701a60bbf3edaf7e0af5ed1a4f3e597ca8da4ac58e51e4665f01fe09fe6a42d7",
+          "cases.json": "4e4f4ad926f3dee62be1558089c107fb8d5e5a33865cae830fc72b9b763d117b",
+          "frames.json": "4f57177f454a649a2e63424e76c38a7fb32d8e9ae908823b3acefa46caf696cc",
+          "http-timing.json": "d7186b832a30bf1f817c8ecf6be075b7e369e15ed2d63f3bba5aea688c6b44bd",
+          "server.log": "204b2218caa5af2606c0350d56328e1ffe4cbd597493bd9bddc8442c3cb8ff6e",
+          "state/automation-tcp.sqlite": "3df90369ccb95c99c9be01ef2d3700e0dfa594f5b7d76a902317b6ad671b383e"
+        }
+      }
+    ],
+    "feedback_snapshot_review": [
+      {
+        "run": 1,
+        "confirmed_vectors": 21,
+        "confirmed_slots": 2016,
+        "max_feedback_age_ms": 4022
+      },
+      {
+        "run": 2,
+        "confirmed_vectors": 21,
+        "confirmed_slots": 2016,
+        "max_feedback_age_ms": 3849
+      },
+      {
+        "run": 3,
+        "confirmed_vectors": 21,
+        "confirmed_slots": 2016,
+        "max_feedback_age_ms": 4044
+      }
+    ],
+    "generic_Away_contract_passed": true,
+    "original_remote_evidence_files_verified": 363,
+    "remote_evidence_manifest_sha256": "275fe78275094b602cf8c9d5f122366067beee886b0e17e9502aa6613229b536",
+    "new_undelivered_guard_log_branch_observed_in_these_runs": false,
+    "cancelled_LED_not_counted_as_written": true,
+    "all_projection_LEDs_eventually_written_claimed": false
+  },
+  "Mac_quiet_original_harness": {
+    "passed": true,
+    "scene_actions": 20,
+    "module_OFF_each_once": 12,
+    "exact96_confirmed": true,
+    "exit_code": 0,
+    "result_sha256": "39b9ac47cb82215d07c46b713108dd37cc7330dae51e60a015bcf14ee2afa4cf"
+  },
+  "native_client": {
+    "final_full_run": {
+      "methods": 109,
+      "suites": 21,
+      "failed": 0,
+      "skipped": 0,
+      "all4_actual_TLS_WSS_enabled": true,
+      "both_post_suite_wire_ledger_drivers_passed": true
+    },
+    "original_100_methods_retained": true,
+    "one_Away_App_POST_writes_two_synthetic_modules_and_same_key_green_once": true,
+    "16_hidden_facts_retained_daily_only_parent": true,
+    "successful_evidence_files_verified": 51,
+    "failed_evidence_files_verified": 45,
+    "successful_manifest_sha256": "2445d744bcb6ad254c3d4bd12940184cd8df021480f018177ffeccdce7e88962",
+    "failed_manifest_sha256": "b23afc36da17bda26320c86ff9f1d0961a2169a5c700a6ed9ed8a3b607600d28",
+    "App_source_or_install_changed": false
+  },
+  "retained_counterexamples": {
+    "v4_original_Linux_exit1": true,
+    "v5_original_harness_runs": "pass / FAIL exit1 first LED184 deadline overrun61ms / pass; not qualified",
+    "v5_revised_harness_three_passes_do_not_replace_original": true,
+    "v6_initial_Mac_original_probe": "17 feedback slots stale; query intervals about8240/6480ms; subsequent fixed-input quiet run passed, causal attribution not proven",
+    "native_client_first_full109": "2 issues in original in-memory401 async credential test; focused unchanged method passed; subsequent unchanged full109 passed; async observation window not declared fixed",
+    "test_setup_errors": "Homebrew missing Linux core, namespace lo down, initial SQL test400ms lock exceeding250ms busy timeout and test ToSql compile error retained privately; not counted as product passes",
+    "Root_audit_setup_errors": "Swift log parser assumptions and Linux database subdirectory mismatch corrected; original evidence unchanged"
+  },
+  "boundaries": {
+    "private_material_not_published": true,
+    "private_configs_raw_snapshots_databases_credentials_and_manuals_retained_local": true,
+    "EA5_execution_scope_changed": false,
+    "physical_wall_rules_enabled": false,
+    "HAP_exposure_changed": false,
+    "production_configuration_or_grants_changed": false,
+    "B1_candidate_published": false,
+    "App14_installed": false,
+    "R81801_07_active_feedback_documentation_preserved": true,
+    "R818_settings_written_or_reread_by_this_qualification": false,
+    "periodic_query_policy_changed": false,
+    "README_original_lines_preserved": true,
+    "D_E_complete": false
+  },
+  "private_root_review_sha256": {
+    "v6-mac-independent-review.json": "2b376bb761d7befbefc002eebe400f1be319a145aa8be011277c08c699a4fbbe",
+    "v6-linux-independent-review.json": "5c7412f39348a43981cd4d1288ad50d6e134827ca308b1b7a0c036857452704f",
+    "v6-app-independent-review.json": "856b46ed9a6a73b622ff7f482ce9caef42a1f7b5dcea22c72c462bac26d2948d",
+    "v5-original-harness-failure-root-check.json": "898b2ab17ddd2ee0b90196f3516d8c6230bfd0e9ce279b7cdb8bcc835e55b3bf"
+  }
+}

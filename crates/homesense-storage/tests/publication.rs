@@ -499,3 +499,48 @@ fn migration_requires_existing_source_even_for_reset_unknown() {
     assert_eq!(store.active().unwrap().unwrap().revision,1);
     assert!(store.automation_payload(2).unwrap().is_none());
 }
+
+#[test]
+fn decoded_bundle_cache_does_not_cache_variables_and_does_not_share_mutable_results() {
+    use homesense_core::{ExecutionContext::Simulation,rule::Value};
+    let db=Database::new();let mut store=Store::open(db.path()).unwrap();
+    store.publish_automation(None,&bundle_devices(1),&bundle_rules(1,"integer"),Simulation,&[]).unwrap();
+    let mut copy=store.active_bundle(Simulation).unwrap().unwrap();
+    copy.automation.as_mut().unwrap().revision=999;
+    assert_eq!(store.active_bundle(Simulation).unwrap().unwrap().automation.unwrap().revision,1);
+    rusqlite::Connection::open(db.path()).unwrap().execute("UPDATE logical_variable SET value=42,version=1 WHERE revision=1 AND name='mode'",[]).unwrap();
+    assert_eq!(store.logical_variable(1,"mode").unwrap().unwrap().value,Some(Value::Integer(42)));
+    store.active_bundle(Simulation).unwrap().unwrap();
+    assert_eq!(store.logical_variable(1,"mode").unwrap().unwrap().value,Some(Value::Integer(42)));
+}
+
+#[test]
+fn decoded_bundle_cache_revalidates_execution_context_and_external_publication() {
+    use homesense_core::ExecutionContext::{Simulation,Live};
+    let db=Database::new();let mut store=Store::open(db.path()).unwrap();
+    store.publish_automation(None,&bundle_devices(1),&bundle_rules(1,"integer"),Simulation,&[]).unwrap();
+    store.active_bundle(Simulation).unwrap().unwrap();
+    assert!(store.active_bundle(Live).is_err(),"simulation validation is not live authority");
+    store.active_bundle(Simulation).unwrap().unwrap();
+    let mut other=Store::open(db.path()).unwrap();
+    other.publish_automation(Some(1),&bundle_devices(2),&bundle_rules(2,"integer"),Simulation,&[]).unwrap();
+    let next=store.active_bundle(Simulation).unwrap().unwrap();
+    assert_eq!(next.configuration.revision(),2);assert_eq!(next.automation.unwrap().revision,2);
+}
+
+#[test]
+fn decoded_bundle_cache_compares_both_current_payloads_even_when_revision_does_not_change() {
+    use homesense_core::ExecutionContext::Simulation;
+    for table in ["configuration_revision","automation_revision"] {
+        let db=Database::new();let mut store=Store::open(db.path()).unwrap();
+        store.publish_automation(None,&bundle_devices(1),&bundle_rules(1,"integer"),Simulation,&[]).unwrap();
+        store.active_bundle(Simulation).unwrap().unwrap();
+        // Deliberately corrupt a separate connection after warming the cache.
+        // Normal writers cannot edit immutable revision rows.
+        let connection=rusqlite::Connection::open(db.path()).unwrap();
+        let trigger=if table=="configuration_revision"{"immutable_configuration_update"}else{"immutable_automation_update"};
+        connection.execute_batch(&format!("DROP TRIGGER {trigger}; UPDATE {table} SET payload=x'7b7d' WHERE revision=1;")).unwrap();
+        assert!(store.active_bundle(Simulation).is_err(),"{table} corruption must not be hidden by a revision cache");
+        assert!(store.active_bundle(Simulation).is_err());
+    }
+}

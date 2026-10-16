@@ -255,10 +255,21 @@ impl Arbiter {
         &mut self,commands:Vec<(QueuedCommand,Access)>,affected:&std::collections::BTreeSet<crate::DeviceId>,now:u64,
         commit:impl FnOnce(&[QueuedCommand],&[Cancellation])->Result<(),E>,
     )->Result<Vec<Cancellation>,BatchCommitError<E>> {
-        if commands.is_empty() || affected.is_empty() || commands.iter().any(|(c,_)|c.command!=crate::Command::ModuleAllOff) {
+        self.submit_module_off_with_reset_committed(commands,None,affected,now,commit)
+    }
+    /// The reviewed native key may reserve one green reset after the module
+    /// batch. Its dispatch dependency is enforced by the execution owner.
+    pub fn submit_module_off_with_reset_committed<E>(
+        &mut self,mut modules:Vec<(QueuedCommand,Access)>,reset:Option<(QueuedCommand,Access)>,
+        affected:&std::collections::BTreeSet<crate::DeviceId>,now:u64,
+        commit:impl FnOnce(&[QueuedCommand],&[Cancellation])->Result<(),E>,
+    )->Result<Vec<Cancellation>,BatchCommitError<E>> {
+        if modules.is_empty() || affected.is_empty() || modules.iter().any(|(c,_)|c.command!=crate::Command::ModuleAllOff)
+            || reset.as_ref().is_some_and(|(c,_)|c.command!=crate::Command::PanelLed(false) || affected.contains(&c.device_id)) {
             return Err(BatchCommitError::Admission(ArbiterError::InvalidState));
         }
-        self.submit_batch_with_order(commands,now,commit,false,Some(affected))
+        modules.extend(reset);
+        self.submit_batch_with_order(modules,now,commit,false,Some(affected))
     }
     fn submit_batch_with_order<E>(
         &mut self,

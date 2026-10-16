@@ -22,6 +22,7 @@ impl Target {
         if !self.lease.valid() {
             return Err("Away credential revoked".into());
         }
+        self.lease.key_binding(config)?;
         let authorized = authorized_devices(config, self.lease.devices())?;
         self.plan
             .revalidate(config, &authorized, context)
@@ -63,6 +64,7 @@ pub(crate) fn plan(
     if !lease.valid() {
         return Err("Away credential revoked".into());
     }
+    lease.key_binding(config)?;
     let policy = document
         .away_off
         .as_ref()
@@ -185,3 +187,28 @@ mod tests {
         );
     }
 }
+
+/// Internal projection prerequisites, never a client-supplied write scope.
+#[derive(Debug,Clone,PartialEq,Eq)]
+pub(crate) struct CatalogScope {required: BTreeSet<String>,ready:bool}
+impl CatalogScope {
+    pub(crate) fn permitted(&self,grant:&crate::web_auth::Grant)->bool {
+        self.ready && grant.role!=crate::web_auth::Role::Viewer && self.required.iter().all(|id|grant.may_control_device(id))
+    }
+}
+pub(crate) fn catalog_scope(config:&Configuration,document:&Document,gateways:&[crate::gateway_runtime::View])->Option<CatalogScope> {
+    let policy=document.away_off.as_ref().filter(|p|p.enabled)?;
+    let mut required=BTreeSet::new();let mut target_gateways=BTreeSet::new();
+    for id in policy.modules.iter().flat_map(|module|&module.devices) {
+        let id=DeviceId::new(id).ok()?;let (binding,_)=config.binding(&id)?;
+        target_gateways.insert(binding.gateway.clone());
+        let owners=config.devices().iter().filter(|(_,d)|d.enabled && d.supply_relay.as_ref()==Some(&id)).map(|(id,_)|id.as_str().to_owned()).collect::<Vec<_>>();
+        if owners.is_empty(){required.insert(id.as_str().to_owned());}else{required.extend(owners);}
+    }
+    let ready=gateways.is_empty() || target_gateways.iter().all(|gateway|gateways.iter().any(|view|&view.gateway==gateway && view.state=="ready"));
+    Some(CatalogScope{required,ready})
+}
+
+#[cfg(test)]
+#[path="keypad_away_tests.rs"]
+mod keypad_tests;

@@ -150,3 +150,19 @@ fn motor_card_press_is_generic_explicit_opt_in_and_stop_cannot_toggle() {
     value["keypads"][0]["keys"][0]["action"]=json!({"kind":"scene_toggle","scene":"scene","review_evidence":"Synthetic review","press_behavior":"repeat_to_stop"});
     assert!(parse(&value).is_err(),"motor opt-in cannot alter scene or physical button semantics");
 }
+
+#[test]
+fn native_away_mapping_and_same_key_green_are_explicit_bounded_and_roundtrip() {
+    let mut v=fixture();v["keypads"][0]["keys"][0]["action"]=json!({"kind":"away_off","review_evidence":"Native reviewed operation","indicator_reset":"green"});
+    let c=parse(&v).unwrap();let action=c.keypads().values().next().unwrap().keys[&1].action.as_ref().unwrap();assert_eq!(serde_json::to_value(action).unwrap(),v["keypads"][0]["keys"][0]["action"]);
+    for action in [json!({"kind":"away_off","review_evidence":""}),json!({"kind":"away_off","review_evidence":"review","indicator_reset":"red"}),json!({"kind":"away_off","review_evidence":"review","indicator_reset":"green","targets":["anything"]})] {
+        v["keypads"][0]["keys"][0]["action"]=action;assert!(parse(&v).is_err());
+    }
+}
+#[test]
+fn catalog_visibility_does_not_disable_physical_binding_and_absent_defaults_true() {
+    let mut v=fixture();v["gateways"][0]["modules"].as_array_mut().unwrap().push(json!({"id":"relay","address":"28","profile":"r8i8_din_pro_v2_7_7","verification":{"status":"simulated"}}));
+    v["devices"]=json!([{"id":"normal","name":"Normal","module_id":"relay","channel":1,"enabled":true},{"id":"hidden","name":"Hidden","module_id":"relay","channel":2,"enabled":true,"catalog_visible":false}]);
+    let c=parse(&v).unwrap();assert!(c.binding(&DeviceId::new("normal").unwrap()).unwrap().0.catalog_visible);let hidden=c.binding(&DeviceId::new("hidden").unwrap()).unwrap().0;assert!(hidden.enabled);assert!(!hidden.catalog_visible);
+    v["devices"][1]["catalog_visible"]=json!("false");assert!(parse(&v).is_err());
+}
