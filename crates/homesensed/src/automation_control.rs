@@ -11,6 +11,7 @@ use tokio::sync::{mpsc, oneshot};
 use uuid::Uuid;
 #[derive(Debug)]
 pub enum Action {
+    KeypadAction {controller:Uuid,request:crate::keypad_actions::Request},
     AwayOff{controller:Uuid,revision:u64,lease:crate::away_auth::Authorization,submit:bool},
     ModuleQuery{controller:Uuid,revision:u64,module_id:String,scope:crate::module_queries::Scope,submit:bool},
     ModuleQueryStatus{controller:Uuid,revision:u64,module_id:String,scope:crate::module_queries::Scope,commands:Vec<u64>},
@@ -55,6 +56,8 @@ pub enum Action {
 }
 #[derive(Debug, PartialEq, Eq)]
 pub enum Reply {
+    KeypadAccepted(Box<crate::keypad_actions::Receipt>),
+    KeypadRejected(crate::keypad_actions::Rejection),
     ModuleQuery(crate::module_queries::Accepted),
     ModuleQueryStatus(crate::module_queries::Status),
     ModuleBinding(homesense_core::DeviceId),
@@ -134,9 +137,14 @@ struct Request {
     deadline: Instant,
     reply: oneshot::Sender<Result<Reply, String>>,
 }
+type PolledRequest = (Request, Option<oneshot::Receiver<Result<Reply, String>>>);
+#[derive(Clone,Copy,Debug,PartialEq,Eq)]
+enum RequestLane {Stop,Motor,Ordinary}
 #[derive(Clone)]
 pub struct Control {
     sender: mpsc::Sender<Request>,
+    stop_sender: mpsc::Sender<Request>,
+    motor_sender: mpsc::Sender<Request>,
     instance: Uuid,
     unavailable:Option<std::sync::Arc<Unavailable>>,
     selection_reader: SelectionReaderSlot,
@@ -150,6 +158,9 @@ struct SelectionReader {
     generation: TaskGeneration,
     document: std::sync::Arc<Document>,
     stop: tokio::sync::watch::Receiver<bool>,
+    // Scheduling hints only: execution still resolves and authorizes the key
+    // against the current actor configuration. No client selects this lane.
+    key_lanes:std::collections::BTreeMap<(String,u8),RequestLane>,
 }
 async fn selection_reply(admission:&Admission,generation:&TaskGeneration,document:&Document,controller:Uuid,revision:u64)->Result<Reply,String> {
     if revision!=document.revision {return Err("scene state revision expired".into());}
@@ -176,7 +187,7 @@ impl Control {
     /// A rebuilt scheduler may reuse numeric run handles within the same boot.
     pub(crate) fn instance_id(&self) -> Uuid { self.instance }
     pub(crate) fn unavailable(&self,admission:Admission,generation:TaskGeneration)->Self {
-        Self{sender:self.sender.clone(),instance:self.instance,unavailable:Some(std::sync::Arc::new(Unavailable{admission,generation})),selection_reader:self.selection_reader.clone()}
+        Self{sender:self.sender.clone(),stop_sender:self.stop_sender.clone(),motor_sender:self.motor_sender.clone(),instance:self.instance,unavailable:Some(std::sync::Arc::new(Unavailable{admission,generation})),selection_reader:self.selection_reader.clone()}
     }
     /// Bounded admission, no retry. A lost response after execution is ambiguous;
     /// callers must inspect history rather than resubmit an action automatically.
@@ -223,6 +234,23 @@ impl Control {
         if !source.matches(&action) {return Err("source authority expired or operation mismatch".into());}
         Box::pin(self.request_scoped(action,None,Some(source))).await
     }
+    fn request_lane(&self,action:&Action)->RequestLane {
+        use crate::management_devices::DeviceAction;
+        match action {
+            Action::DeviceCommand{action:DeviceAction::Stop,..}
+            |Action::ModuleCommand{action:DeviceAction::Stop,..}
+            |Action::PanelDeviceCommand{action:DeviceAction::Stop,..}=>RequestLane::Stop,
+            Action::DeviceCommand{action:DeviceAction::MotorPress{..}|DeviceAction::KeypadPress{..},..}
+            |Action::ModuleCommand{action:DeviceAction::MotorPress{..}|DeviceAction::KeypadPress{..},..}
+            |Action::PanelDeviceCommand{action:DeviceAction::MotorPress{..}|DeviceAction::KeypadPress{..},..}=>RequestLane::Motor,
+            Action::KeypadAction{request,..}=>self.selection_reader.lock().ok()
+                .and_then(|slot|slot.clone())
+                .filter(|reader|reader.active() && request.revision==reader.document.revision.to_string() && !self.sender.is_closed())
+                .and_then(|reader|reader.key_lanes.get(&(request.keypad.clone(),request.key)).copied())
+                .unwrap_or(RequestLane::Ordinary),
+            _=>RequestLane::Ordinary,
+        }
+    }
     async fn request_scoped(&self, action: Action, watch: Option<tokio::sync::watch::Sender<Option<Result<SceneObservation,String>>>>,source:Option<crate::source_auth::Source>) -> Result<Reply,String> {
         if self.unavailable.is_some(){return Err("gateway unavailable; control runtime is gated".into());}
         if matches!(&action, Action::Start(id) | Action::LastRun(id) | Action::SceneActivity(id) if id.is_empty() || id.len()>256 || id.chars().any(char::is_control)) {
@@ -242,7 +270,14 @@ impl Control {
         if let Action::SceneRelative{scene,request_id,..}=&action
             && (scene.trim().is_empty() || scene.len()>250 || scene.chars().any(char::is_control) || request_id.is_empty() || request_id.len()>128 || !request_id.bytes().all(|b|b.is_ascii_alphanumeric()||b==b'-'||b==b'_')) {return Err("invalid relative request".into());}
         let (reply, receive) = oneshot::channel();
-        self.sender
+        // Ordinary requests cannot consume the explicit motor STOP reserve.
+        // Authorization is still checked by the runtime before execution.
+        let sender=match self.request_lane(&action) {
+            RequestLane::Stop=>&self.stop_sender,
+            RequestLane::Motor=>&self.motor_sender,
+            RequestLane::Ordinary=>&self.sender,
+        };
+        sender
             .try_send(Request {
                 action,
                 source,
@@ -274,30 +309,89 @@ fn managed_request_kind(action: &Action) -> Option<&'static str> {
 }
 pub(crate) struct Receiver {
     receiver: mpsc::Receiver<Request>,
+    stop_receiver: mpsc::Receiver<Request>,
+    motor_receiver: mpsc::Receiver<Request>,
     controller: Uuid,
     generation: TaskGeneration,
     watchers: std::collections::VecDeque<Watcher>,
     relative: crate::native_scene::Manager,
     budget:homesense_core::rule::Budget,
     selection_reader: SelectionReaderSlot,
+    native:[std::collections::VecDeque<crate::panel_rules::NativeDispatch>;3],
+    prefer_web_stop:bool,
+    prefer_web_motor:bool,
+    prefer_web_work:bool,
 }
 pub(crate) fn channel(controller: Uuid, generation: TaskGeneration) -> (Control, Receiver) {
     let (sender, receiver) = mpsc::channel(32);
+    let (stop_sender, stop_receiver) = mpsc::channel(32);
+    let (motor_sender, motor_receiver) = mpsc::channel(32);
     let selection_reader=SelectionReaderSlot::default();
     (
-        Control { sender,instance:Uuid::new_v4(),unavailable:None,selection_reader:selection_reader.clone() },
+        Control { sender,stop_sender,motor_sender,instance:Uuid::new_v4(),unavailable:None,selection_reader:selection_reader.clone() },
         Receiver {
             receiver,
+            stop_receiver,
+            motor_receiver,
             controller,
             generation,
             watchers: Default::default(),
             relative: Default::default(),
             budget:Default::default(),
             selection_reader,
+            native:std::array::from_fn(|_|Default::default()),
+            prefer_web_stop:true,
+            prefer_web_motor:true,
+            prefer_web_work:true,
         },
     )
 }
 impl Receiver {
+    fn take_native_request(&mut self,priority:usize)->Option<PolledRequest> {
+        let event=self.native[priority].pop_front()?;
+        let(tx,rx)=oneshot::channel();
+        Some((Request{action:event.action,source:Some(event.source),watch:None,deadline:event.deadline,reply:tx},Some(rx)))
+    }
+    fn next_request(&mut self)->Option<PolledRequest> {
+        // STOPs from both entrances share priority and get fair service. A
+        // stream of ordinary wall events cannot starve an App request either.
+        for web in [self.prefer_web_stop,!self.prefer_web_stop] {
+            let next=if web {self.stop_receiver.try_recv().ok().map(|request|(request,None))}
+                else {self.take_native_request(0)};
+            if next.is_some(){self.prefer_web_stop = !web;return next;}
+        }
+        // Open/close key presses can resolve to same-direction STOP. They have
+        // independent capacity ahead of lighting, without consuming explicit
+        // STOP capacity or predicting the curtain's current motion here.
+        for web in [self.prefer_web_motor,!self.prefer_web_motor] {
+            let next=if web {self.motor_receiver.try_recv().ok().map(|request|(request,None))}
+                else {self.take_native_request(1)};
+            if next.is_some(){self.prefer_web_motor = !web;return next;}
+        }
+        for web in [self.prefer_web_work,!self.prefer_web_work] {
+            let next=if web {self.receiver.try_recv().ok().map(|request|(request,None))}
+                else {self.take_native_request(2)};
+            if next.is_some(){self.prefer_web_work = !web;return next;}
+        }
+        None
+    }
+    pub(crate) fn enqueue_native(&mut self,events:Vec<crate::panel_rules::NativeDispatch>)->Result<(),String>{
+        let limits=crate::panel_rules::NATIVE_QUEUE_CAPACITIES;
+        // Reject a malformed internal batch before accepting any part of it.
+        if events.iter().any(|event|event.priority>=3){return Err("invalid native event priority".into());}
+        let mut dropped=[0usize;3];
+        // Capacity is independent per priority. In particular, a full ordinary
+        // queue must not discard a STOP that arrived in the same feedback batch.
+        // Events are already consumed: overload is recorded, never replayed and
+        // does not terminate the service or discard previously queued STOPs.
+        for event in events {
+            let priority=usize::from(event.priority);
+            if self.native[priority].len()>=limits[priority] {dropped[priority]+=1;}
+            else {self.native[priority].push_back(event);}
+        }
+        if dropped!=[0;3] {log::warn!("configured_keypad_queue_overload dropped_stop={} dropped_motor={} dropped_ordinary={} events_consumed=true replay=false",dropped[0],dropped[1],dropped[2]);}
+        Ok(())
+    }
     /// Production read-only capability. It uses the existing Admission owner,
     /// never the physical work queue; manual poll-only channels keep old behavior.
     pub(crate) async fn bind_selection_reader(&mut self,admission:&Admission,document:&Document,stop:tokio::sync::watch::Receiver<bool>)->Result<(),String> {
@@ -305,8 +399,20 @@ impl Receiver {
             || admission.task_generation().await.map_err(|e|format!("{e:?}"))?!=self.generation {
             return Err("scene read capability generation invalid".into());
         }
+        let bundle=admission.automation_bundle(self.controller,self.generation.clone()).await.map_err(|e|format!("key scheduling map unavailable: {e:?}"))?;
+        if bundle.configuration.revision()!=document.revision{return Err("key scheduling map revision mismatch".into());}
+        let mut key_lanes=std::collections::BTreeMap::new();
+        for panel in bundle.configuration.keypads().values().filter(|panel|panel.enabled) {
+            for key in panel.keys.values().filter(|key|key.led_endpoint.enabled) {
+                if let Some(homesense_config::keypad::KeyAction::Motor{action,..})=&key.action {
+                    key_lanes.insert((panel.id.as_str().to_owned(),key.number),
+                        if *action==homesense_config::keypad::KeyMotorAction::Stop {RequestLane::Stop}else{RequestLane::Motor});
+                }
+            }
+        }
         *self.selection_reader.lock().map_err(|_|"scene read capability poisoned")?=Some(std::sync::Arc::new(SelectionReader {
             admission:admission.clone(),controller:self.controller,generation:self.generation.clone(),document:std::sync::Arc::new(document.clone()),stop,
+            key_lanes,
         }));
         Ok(())
     }
@@ -332,9 +438,7 @@ impl Receiver {
         self.relative.tick(admission,document,feedback).await;
         // Bound per-cycle work so incoming control cannot starve bus processing.
         for _ in 0..8 {
-            let Ok(request) = self.receiver.try_recv() else {
-                break;
-            };
+            let Some((mut request,native_completion))=self.next_request() else{break;};
             let read_kind=managed_request_kind(&request.action);
             let handling_started=Instant::now();
             let queued_ms=Duration::from_secs(5).saturating_sub(request.deadline.saturating_duration_since(handling_started)).as_millis();
@@ -350,8 +454,16 @@ impl Receiver {
             } else {None};
             // One bounded request at a time: do not embed every action's
             // derived scene/fade/session state in the outer polling future.
+            let mut keypad_context=None;
             let result = Box::pin(async {
                 if request.source.as_ref().is_some_and(|source|!source.matches(&request.action)) {return Err("source authority expired before runtime handling".into());}
+                if let Action::KeypadAction {controller,request:input}=&request.action {
+                    let Some(source)=request.source.as_ref() else {return Ok(Reply::KeypadRejected(crate::keypad_actions::Rejection::KeypadScopeDenied));};
+                    let prepared=match crate::keypad_actions::prepare(admission,&self.generation,document,*controller,input,source).await {
+                        Ok(prepared)=>prepared,Err(error)=>return Ok(Reply::KeypadRejected(error)),
+                    };
+                    request.action=prepared.action;request.source=prepared.source;keypad_context=Some(prepared.context);
+                }
                 if let Some(source)=&request.source {
                     let requested=match &request.action {
                         Action::SceneAction{scene,execute:true,..}=>vec![scene.clone()],
@@ -391,6 +503,7 @@ impl Receiver {
                 }
                 if !admission.source_valid() {return Err("source authority expired after runtime read".into());}
                 match request.action {
+                    Action::KeypadAction {..} => unreachable!("keypad gestures resolve before source scopes"),
                     Action::ConfigurationHistory{controller,revision,before,limit}=>{
                         if revision!=document.revision {return Err("configuration history revision expired".into());}
                         admission.configuration_history(controller,self.generation.clone(),before,limit).await.map(Reply::ConfigurationHistory).map_err(|e|format!("{e:?}"))
@@ -718,6 +831,10 @@ impl Receiver {
                 }
             })
             .await;
+            let result=match (result,keypad_context) {
+                (Ok(reply),Some(context))=>context.finish(reply).map(|receipt|Reply::KeypadAccepted(Box::new(receipt))),
+                (result,_)=>result,
+            };
             if result.is_ok() && !request.reply.is_closed()
                 && let (Some(scene),Some(sender))=(watch_scene,request.watch) {
                 self.watchers.push_back(Watcher{scene,sender,next:Instant::now()});
@@ -726,6 +843,12 @@ impl Receiver {
                 log::warn!("automation_request_lag kind={kind} phase=complete queue_ms={queued_ms} handler_ms={} abandoned={}",handling_started.elapsed().as_millis(),request.reply.is_closed());
             }
             let _ = request.reply.send(result);
+            if let Some(mut completion)=native_completion {
+                match completion.try_recv(){Ok(Ok(Reply::KeypadAccepted(_)))=>log::debug!("configured_keypad_event outcome=accepted"),
+                    Ok(Ok(Reply::KeypadRejected(error)))=>log::warn!("configured_keypad_event outcome=rejected reason={error:?}; not replayed"),
+                    Ok(Err(error))=>log::warn!("configured_keypad_event outcome=failed reason={error}; not replayed"),
+                    _=>log::warn!("configured_keypad_event outcome=unknown; not replayed"),}
+            }
         }
         // At most one snapshot per cycle, and no more than 10 Hz per watcher.
         if let Some(mut watcher)=self.watchers.pop_front()
@@ -755,6 +878,15 @@ impl Receiver {
         while let Ok(request) = self.receiver.try_recv() {
             let _ = request.reply.send(Err("automation runtime stopped".into()));
         }
+        self.stop_receiver.close();
+        while let Ok(request)=self.stop_receiver.try_recv(){
+            let _=request.reply.send(Err("automation runtime stopped".into()));
+        }
+        self.motor_receiver.close();
+        while let Ok(request)=self.motor_receiver.try_recv(){
+            let _=request.reply.send(Err("automation runtime stopped".into()));
+        }
+        for queue in &mut self.native{queue.clear();}
     }
 }
 impl Drop for Receiver {
@@ -770,3 +902,7 @@ mod ordinary_http_source_auth_tests;
 #[cfg(test)]
 #[path="selection_reader_guard_tests.rs"]
 mod selection_reader_guard_tests;
+
+#[cfg(test)]
+#[path="native_panel_queue_tests.rs"]
+mod native_panel_queue_tests;

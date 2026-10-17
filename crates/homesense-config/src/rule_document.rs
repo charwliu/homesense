@@ -1017,7 +1017,21 @@ impl Document {
                 || (!document.immediate_scenes.contains_key(&metadata.id) && !document.timed_scenes.contains_key(&metadata.id)) {return Err(invalid("invalid scene display metadata"));}
         }
         for panel in config.keypads().values() {
+            if panel.executes_events() {
+                let controlled=panel.keys.values().map(|key|key.led_endpoint.id.as_str()).collect::<std::collections::BTreeSet<_>>();
+                if document.rules.iter().any(|rule|rule.enabled && matches!(&rule.trigger,Trigger::Panel{device,..} if controlled.contains(device.as_str())))
+                    || document.scene_observation.as_ref().is_some_and(|settings|settings.enabled && settings.bindings.iter().any(|binding|controlled.contains(binding.device.as_str())))
+                    || document.holds.as_ref().is_some_and(|settings|settings.bindings.iter().any(|binding|binding.enabled&&controlled.contains(binding.key.as_str()))) {
+                    return Err(invalid("configured keypad execution cannot share an endpoint with panel rules, scene observation or hold dimming"));
+                }
+            }
             for key in panel.keys.values() {
+                if let Some(crate::keypad::LocalIndicator::SceneSelection{group,value,..})=&key.local_indicator {
+                    let Some(crate::keypad::KeyAction::SceneToggle{scene,..})=&key.action else{return Err(invalid("local indicator scene action missing"));};
+                    if !document.scene_switch_groups.iter().any(|candidate|&candidate.id==group && candidate.members.iter().any(|member|&member.scene==scene && member.value==*value)) {
+                        return Err(invalid("local indicator must match the exact reviewed selection member"));
+                    }
+                }
                 if let Some(crate::keypad::KeyAction::AwayOff{indicator_reset,..})=&key.action
                     && panel.enabled && key.led_endpoint.enabled {
                     if document.away_off.as_ref().is_none_or(|policy|!policy.enabled) {return Err(invalid("keypad Away requires enabled reviewed Away policy"));}

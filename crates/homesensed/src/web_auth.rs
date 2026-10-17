@@ -93,12 +93,12 @@ impl Tokens {
     /// Captures the exact authenticated credential generation, never its secret.
     pub fn module_off_lease(self:&Arc<Self>,header:Option<&str>,cookie:Option<&str>,csrf:Option<&str>)->Option<ModuleOffLease> {
         let entries=self.entries.read().ok()?;
-        let (credential,session_key)=match (header,cookie) {
+        let ((credential_id,credential),session_key)=match (header,cookie) {
             (Some(header),None)=>{
                 let secret=header.strip_prefix("Bearer ")?;
                 if !(32..=256).contains(&secret.len()){return None;}
                 let hash=digest(secret);
-                (entries.values().find(|v|bool::from(v.hash.ct_eq(&hash)))?,None)
+                (entries.iter().find(|(_,v)|bool::from(v.hash.ct_eq(&hash)))?,None)
             },
             (None,Some(cookie))=>{
                 if cookie.len()!=64{return None;}
@@ -106,12 +106,12 @@ impl Tokens {
                 let sessions=self.sessions.read().ok()?;
                 let session=sessions.get(&key)?;
                 if session.expires<=std::time::Instant::now() || !bool::from(session.csrf.ct_eq(&digest(csrf?))){return None;}
-                (entries.values().find(|v|v.generation==session.generation && bool::from(v.hash.ct_eq(&session.credential)))?,Some(key))
+                (entries.iter().find(|(_,v)|v.generation==session.generation && bool::from(v.hash.ct_eq(&session.credential)))?,Some(key))
             },
             _=>return None,
         };
         if credential.grant.role==Role::Viewer{return None;}
-        Some(ModuleOffLease{tokens:std::sync::Arc::downgrade(self),generation:credential.generation,grant:credential.grant.clone(),session_key})
+        Some(ModuleOffLease{tokens:std::sync::Arc::downgrade(self),credential_id:*credential_id,generation:credential.generation,grant:credential.grant.clone(),session_key})
     }
     /// Administrative projection; intentionally excludes hashes and session material.
     pub fn summaries(&self)->Result<Vec<CredentialSummary>,String> {
@@ -310,12 +310,15 @@ impl Tokens {
 /// A revocable, scope-bound module control capability from the session owner.
 #[derive(Clone)]
 pub struct ModuleOffLease {
-    tokens:std::sync::Weak<Tokens>,generation:Uuid,grant:Grant,session_key:Option<[u8;32]>,
+    tokens:std::sync::Weak<Tokens>,credential_id:Uuid,generation:Uuid,grant:Grant,session_key:Option<[u8;32]>,
 }
 impl std::fmt::Debug for ModuleOffLease {fn fmt(&self,f:&mut std::fmt::Formatter<'_>)->std::fmt::Result {f.write_str("ModuleOffLease(<opaque>)")}}
 impl ModuleOffLease {
     pub(crate) fn same_authority(&self,other:&Self)->bool{self.tokens.ptr_eq(&other.tokens)&&self.generation==other.generation&&self.grant==other.grant&&self.session_key==other.session_key}
 
+    /// Stable credential identity for endpoint-scoped durable receipts. No secret or process-local generation is used.
+    pub(crate) fn credential_id(&self)->Uuid {self.credential_id}
+    pub(crate) fn receipt_scope(&self)->[u8;32] {Sha256::digest(serde_json::to_vec(&self.grant).expect("bounded authenticated grant")).into()}
     pub fn controller(&self)->Uuid {self.grant.controller}
     pub fn devices(&self)->&BTreeSet<String> {&self.grant.devices}
     pub(crate) fn scenes(&self)->&BTreeSet<String> {&self.grant.scenes}
@@ -365,6 +368,28 @@ impl Grant {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn receipt_credential_identity_is_stable_across_restart_and_distinct_for_shared_controller() {
+        let directory=std::env::temp_dir().join(format!("receipt-credential-{}",Uuid::new_v4()));
+        std::fs::create_dir(&directory).unwrap();
+        let path=directory.join("credentials.sqlite");
+        let secret="synthetic-persistent-receipt-owner-0123456789";
+        let grant=Grant{controller:Uuid::new_v4(),role:Role::Administrator,devices:BTreeSet::new(),scenes:BTreeSet::new()};
+        let tokens=Arc::new(Tokens::open_bootstrapped(&path,secret,grant.clone()).unwrap());
+        let header=format!("Bearer {secret}");
+        let before=tokens.module_off_lease(Some(&header),None,None).unwrap();
+        let other_id=Uuid::new_v4();let other_secret="synthetic-persistent-second-owner-0123456789";
+        tokens.insert(other_id,other_secret,grant).unwrap();
+        let other=tokens.module_off_lease(Some(&format!("Bearer {other_secret}")),None,None).unwrap();
+        assert_eq!(before.controller(),other.controller());assert_ne!(before.credential_id(),other.credential_id());
+        let old_generation=before.generation;let credential_id=before.credential_id();
+        drop(before);drop(other);drop(tokens);
+        let reopened=Arc::new(Tokens::open(&path).unwrap());
+        let after=reopened.module_off_lease(Some(&header),None,None).unwrap();
+        assert_eq!(after.credential_id(),credential_id);assert_ne!(after.generation,old_generation);
+        drop(after);drop(reopened);std::fs::remove_dir_all(directory).unwrap();
+    }
+
     #[test]
     fn expired_sessions_fail_closed_and_capacity_is_bounded() {
         let tokens = Tokens::default();

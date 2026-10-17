@@ -37,6 +37,28 @@ pub enum KeyAction {
 #[derive(Debug,Clone,Copy,PartialEq,Eq,serde::Serialize,Deserialize)]
 #[serde(rename_all="snake_case")]
 pub enum AwayIndicatorReset {Green}
+/// Explicit origin-key cue for a reviewed logical selection. This never adds
+/// LED commands to a room scene or supplies physical observation authority.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, Deserialize)]
+#[serde(tag="kind",rename_all="snake_case",deny_unknown_fields)]
+pub enum LocalIndicator {
+    SceneSelection {group:String,value:i64,selected_color:IndicatorColor,unselected_color:IndicatorColor,review_evidence:String},
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, Deserialize)]
+#[serde(rename_all="snake_case")]
+pub enum IndicatorColor {Red,Green}
+impl IndicatorColor {pub fn red(self)->bool {self==Self::Red}}
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, Deserialize)]
+#[serde(rename_all="snake_case")]
+pub enum EventOwner {ObserveOnly,#[serde(rename="homesense")]HomeSense}
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct EventControl {
+    pub owner:EventOwner,
+    #[serde(default)]
+    pub legacy_writer_isolated:bool,
+    pub review_evidence:Option<String>,
+}
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum KeyMotorAction {
@@ -64,6 +86,8 @@ pub struct Key {
     pub led_endpoint: LedEndpoint,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub action: Option<KeyAction>,
+    #[serde(default,skip_serializing_if="Option::is_none")]
+    pub local_indicator: Option<LocalIndicator>,
 }
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -76,6 +100,8 @@ pub(super) struct KeypadInput {
     #[serde(default)]
     pub enabled: bool,
     pub keys: Vec<Key>,
+    #[serde(default)]
+    pub event_control:Option<EventControl>,
 }
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Keypad {
@@ -85,6 +111,10 @@ pub struct Keypad {
     pub room: Option<String>,
     pub enabled: bool,
     pub keys: BTreeMap<u8, Key>,
+    pub event_control:Option<EventControl>,
+}
+impl Keypad {
+    pub fn executes_events(&self)->bool {self.enabled && self.event_control.as_ref().is_some_and(|control|control.owner==EventOwner::HomeSense)}
 }
 fn label(value: &str) -> Result<(), Error> {
     if value.trim().is_empty() || value.len() > 256 || value.chars().any(char::is_control) {
@@ -169,6 +199,13 @@ pub(super) fn expand(
                     return Err(invalid("key action requires explicit bounded review"));
                 }
             }
+            if let Some(LocalIndicator::SceneSelection{group,value,selected_color,unselected_color,review_evidence})=&key.local_indicator {
+                identifier(group)?;
+                if *value<=0 || selected_color==unselected_color || review_evidence.trim().is_empty() || review_evidence.len()>8192
+                    || !matches!(key.action,Some(KeyAction::SceneToggle{..})) || module.led_mode()!=PanelLedMode::Manual {
+                    return Err(invalid("local indicator requires a reviewed distinct-color scene selection"));
+                }
+            }
             devices.push(DeviceInput {
                 id: key.led_endpoint.id.clone(),
                 name: key.led_endpoint.name.clone(),
@@ -188,6 +225,13 @@ pub(super) fn expand(
             keys.insert(key.number, key);
         }
         let id = DeviceId::new(panel.id)?;
+        if let Some(control)=&panel.event_control
+            && control.owner==EventOwner::HomeSense && (!control.legacy_writer_isolated
+                || control.review_evidence.as_ref().is_none_or(|e|e.trim().is_empty()||e.len()>8192)
+                || module.led_mode()!=PanelLedMode::Manual || keys.len()!=6
+                || keys.values().any(|key|!key.led_endpoint.enabled||key.action.is_none())) {
+                return Err(invalid("event execution requires explicit legacy-writer isolation declaration, review and six mapped manual-mode keys"));
+        }
         panels.insert(
             id.clone(),
             Keypad {
@@ -197,6 +241,7 @@ pub(super) fn expand(
                 room: panel.room,
                 enabled: panel.enabled,
                 keys,
+                event_control:panel.event_control,
             },
         );
     }

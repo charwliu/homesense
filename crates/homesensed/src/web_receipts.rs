@@ -34,6 +34,7 @@ pub enum Endpoint {
     ModuleCommands,
     ModuleQueries,
     KeypadSettings,
+    KeypadActions,
     SceneRelativeActions,
     ConfigurationActivate(uuid::Uuid),
 }
@@ -47,6 +48,7 @@ impl Endpoint {
             "/api/v1/module-commands" => Self::ModuleCommands,
             "/api/v1/module-queries" => Self::ModuleQueries,
             "/api/v1/keypad-settings" => Self::KeypadSettings,
+            "/api/v1/keypad-actions" => Self::KeypadActions,
             "/api/v1/scene-relative-actions" => Self::SceneRelativeActions,
             _ => return Err("unknown canonical receipt endpoint".into()),
         })
@@ -61,6 +63,7 @@ impl Endpoint {
             Self::ModuleCommands => "/api/v1/module-commands".into(),
             Self::ModuleQueries => "/api/v1/module-queries".into(),
             Self::KeypadSettings => "/api/v1/keypad-settings".into(),
+            Self::KeypadActions => "/api/v1/keypad-actions".into(),
             Self::SceneRelativeActions => "/api/v1/scene-relative-actions".into(),
             Self::ConfigurationActivate(id) => format!("/api/v1/config/activations/{id}"),
         }

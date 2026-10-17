@@ -166,3 +166,26 @@ fn catalog_visibility_does_not_disable_physical_binding_and_absent_defaults_true
     let c=parse(&v).unwrap();assert!(c.binding(&DeviceId::new("normal").unwrap()).unwrap().0.catalog_visible);let hidden=c.binding(&DeviceId::new("hidden").unwrap()).unwrap().0;assert!(hidden.enabled);assert!(!hidden.catalog_visible);
     v["devices"][1]["catalog_visible"]=json!("false");assert!(parse(&v).is_err());
 }
+
+#[test]
+fn configured_execution_cannot_share_a_key_with_enabled_hold_dimming() {
+    let mut v=fixture();
+    v["gateways"][0]["modules"].as_array_mut().unwrap().push(json!({"id":"dimmer","address":"11","profile":"ad8_din_rs485_v2_2_1","verification":{"status":"simulated"}}));
+    v["devices"]=json!([{"id":"light","name":"Synthetic dimmer","module_id":"dimmer","channel":1,"enabled":true}]);
+    v["keypads"][0]["keys"]=json!((1..=6).map(|n|json!({"number":n,"label":n.to_string(),
+        "led_endpoint":{"id":format!("key{n}"),"name":"Synthetic key","enabled":true},
+        "action":{"kind":"scene_execute","scene":"on","review_evidence":"Synthetic mapping"}})).collect::<Vec<_>>());
+    let mut doc=json!({"schema_version":1,"configuration_revision":1,"variables":[],"rules":[],
+        "immediate_scenes":[{"id":"on","enabled":true,"review_evidence":"Synthetic scene","activate":[
+            {"source":"synthetic load","action":{"kind":"command","device":"light","command":{"kind":"level","value":50,"ramp":true}}}]}],
+        "gestures":[{"device":"key1","debounce_ms":30,"long_press_ms":600,"double_click_ms":300,"max_hold_ms":10000,"double_click_enabled":false}],
+        "holds":{"interval_ms":100,"increment":1,"bindings":[{"key":"key1","device":"light","up":true,"enabled":true,"review_evidence":"Synthetic hold owner","release":"cancel_pending_only"}]}});
+    let check=|doc:&Value,config:&Configuration|homesense_config::rule_document::Document::parse(&serde_json::to_vec(doc).unwrap(),config);
+    assert!(check(&doc,&parse(&v).unwrap()).is_ok(),"the hold fixture must be valid before adding a second owner");
+    v["keypads"][0]["event_control"]=json!({"owner":"homesense","legacy_writer_isolated":true,"review_evidence":"Loopback-only isolation"});
+    let config=parse(&v).unwrap();
+    let error=check(&doc,&config).err().expect("two owners must be rejected").to_string();
+    assert!(error.contains("configured keypad execution cannot share an endpoint"),"unexpected rejection: {error}");
+    doc["holds"]["bindings"][0]["enabled"]=json!(false);
+    assert!(check(&doc,&config).is_ok(),"disabled historical hold mapping must not claim execution ownership");
+}
