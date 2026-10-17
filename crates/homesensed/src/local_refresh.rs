@@ -169,6 +169,13 @@ impl<S:Read+Write+Send+'static> ObservedTransport<S> {
     }
     pub(crate) async fn local_tick(&mut self)->Result<(),String> {
         self.poll_local_events(true).await?;
+        let now=self.transport.now_ms();
+        let window=self.local_refresh.as_ref().is_some_and(|plan|!self.background_led_phase
+            && plan.targets.iter().enumerate().any(|(i,target)|!plan.pending.contains_key(&target.gateway)
+                && !plan.recovery.contains_key(&target.gateway) && plan.due_at(i,self.feedback.module_truth())<=now
+                && plan.ramp_reads.ready(target,now) && !self.feedback.query_deferred(&target.gateway,now,plan.priority.contains(&i))));
+        if window && !self.refresh_slot_receive_window().await
+                .map_err(|(gateway,error)|format!("{gateway}: {error}"))? {return Ok(());}
         let mut plan=self.local_refresh.take().ok_or("local refresh not configured")?;
         let result=self.advance_local_refresh(&mut plan).await;
         self.local_refresh=Some(plan);
@@ -269,9 +276,14 @@ impl<S:Read+Write+Send+'static> ObservedTransport<S> {
         let target=&plan.targets[index];
         let before=self.physical_query_counts(&plan.config,target,plan.timeout,plan.max_age)?;
         let timeout=if retried {plan.timeout.min(500)}else{plan.timeout};
-        match self.transport.try_query_status_scope(&target.gateway,&target.module,target.first_channel(),plan.context,timeout,target.whole).await {
+        let sent=if retried || recovery {
+            self.transport.try_query_status_scope(&target.gateway,&target.module,target.first_channel(),plan.context,timeout,target.whole).await
+        }else{
+            self.transport.poll_query_status_scope(&target.gateway,&target.module,target.first_channel(),plan.context,timeout,target.whole).await
+        };
+        match sent {
             Ok(true)=>{},
-            Ok(false)=>return Ok(()),
+            Ok(false)=>{plan.control_opportunity.remove(&target.gateway);return Ok(());},
             Err(_) if self.transport.has_local_fault()=>return Ok(()),
             Err(error)=>return Err(error),
         }

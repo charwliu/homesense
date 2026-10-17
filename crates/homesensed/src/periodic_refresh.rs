@@ -234,6 +234,13 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
     /// through receive(); accepting/sending a query never refreshes timestamps.
     pub(crate) async fn refresh_outputs_if_due(&mut self) -> Result<(), (String, String)> {
         if self.background_led_phase {return Ok(());}
+        let now=self.transport.now_ms();
+        let window=self.output_refresh.as_ref().is_some_and(|plan|plan.pending.is_none()
+            && (now>=plan.due || !plan.priority.is_empty() || plan.strict.iter().any(|(i,age)|
+                crate::consumer_refresh::due(&plan.targets[*i],self.feedback.module_truth(),*age)<=now))
+            && plan.targets.iter().enumerate().any(|(i,target)|plan.ramp_reads.ready(target,now)
+                && !self.feedback.query_deferred(&target.gateway,now,plan.priority.contains(&i))));
+        if window && !self.refresh_slot_receive_window().await? {return Ok(());}
         let Some(mut plan) = self.output_refresh.take() else {
             return Ok(());
         };
@@ -319,8 +326,10 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
         let before = self
             .physical_query_counts(&plan.configuration, target, timeout, plan.max_age_ms)
             .map_err(|error| (gateway.clone(), error))?;
-        let sent=self.transport
-            .try_query_status_scope(
+        let sent=if retry {self.transport.try_query_status_scope(
+                &target.gateway, &target.module, target.first_channel(),
+                plan.context, timeout, target.whole).await
+            } else {self.transport.poll_query_status_scope(
                 &target.gateway,
                 &target.module,
                 target.first_channel(),
@@ -328,9 +337,12 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
                 timeout,
                 target.whole,
             )
-            .await
+            .await}
             .map_err(|error| (gateway.clone(), error))?;
-        if !sent {plan.control_opportunity=true;return Ok(());}
+        // Keep the query's turn while its write slot matures. Giving another
+        // normal control a turn here lets continuous controls consume every
+        // slot and starves feedback. STOP/eligible LED work still has priority.
+        if !sent {plan.control_opportunity=false;return Ok(());}
         if !retry {plan.prefer_postwrite = !postwrite;}
         let deadline = self
             .transport
