@@ -8,6 +8,53 @@ use std::{
     sync::atomic::{AtomicU64, Ordering},
 };
 
+#[tokio::test]
+async fn management_only_snapshot_retires_exact_post_write_target_without_hap_or_indicator_sampler() {
+    use homesense_core::{Command, LevelTransition};
+    use homesense_hap::requests::{Batch, Intent};
+    static TIME: AtomicU64 = AtomicU64::new(0);
+    let mut fixture = Fixture::new(false, &TIME).await;
+    TIME.store(10, Ordering::Release);
+    fixture.admission.submit(Batch {
+        controller: fixture.controller,
+        intents: vec![Intent { device: fixture.id.clone(), command: Command::SetLevel {
+            level: Percent::new(40).unwrap(), transition: LevelTransition::Immediate,
+        }}], subscriptions: vec![],
+    }).await.unwrap();
+    // A matching sample cannot acknowledge Accepted or Writing commands.
+    fixture.observe(0x15, 40, 10);
+    assert!(fixture.view(5000).await.devices[0].recorded);
+    TIME.store(11, Ordering::Release);
+    let ticket = fixture.admission.dispatch().await.unwrap().unwrap();
+    fixture.observe(0x15, 40, 11);
+    assert!(fixture.view(5000).await.devices[0].recorded);
+    TIME.store(12, Ordering::Release);
+    fixture.admission.finish_write(ticket.command.id, true).await.unwrap();
+    // A fresh intermediate ramp value is physical truth, not target completion.
+    TIME.store(13, Ordering::Release);
+    fixture.observe(0x15, 35, 13);
+    let intermediate = fixture.view(5000).await;
+    assert!(intermediate.devices[0].recorded);
+    assert_eq!(intermediate.devices[0].state.observed, Some(Observation::Level(Percent::new(35).unwrap())));
+    assert_eq!(intermediate.devices[0].reported, Some(Observation::Level(Percent::new(40).unwrap())));
+    TIME.store(14, Ordering::Release);
+    fixture.observe(0x15, 40, 14);
+    let complete = fixture.view(5000).await;
+    assert_eq!(complete.devices[0].state.quality, Quality::Confirmed);
+    assert_eq!(complete.devices[0].state.observed, Some(Observation::Level(Percent::new(40).unwrap())));
+    assert_eq!(complete.devices[0].reported, complete.devices[0].state.observed);
+    assert!(!complete.devices[0].recorded, "management snapshot must retire a reached target without an auxiliary sampler");
+    // Retiring the target must expose a later external physical value immediately.
+    TIME.store(15, Ordering::Release);
+    fixture.observe(0x15, 25, 15);
+    let external = fixture.view(5000).await;
+    assert!(!external.devices[0].recorded);
+    assert_eq!(external.devices[0].reported, Some(Observation::Level(Percent::new(25).unwrap())));
+    fixture.admission.shutdown().await.unwrap();
+    for suffix in ["", "-wal", "-shm"] { let _ = std::fs::remove_file(format!("{}{suffix}", fixture.path.display())); }
+    let _ = std::fs::remove_file(fixture.path.with_extension("runtime.lock"));
+}
+
 struct Fixture {
     path: PathBuf,
     admission: Admission,
