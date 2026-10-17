@@ -53,6 +53,30 @@ impl Waves {
         pending.retain(|id,_|ids.contains(id));
         Ok(Signal {lights,variables,recorded,pending})
     }
+    fn affected_links(before:&Signal,after:&Signal,document:&Document,feedback:&Feedback)->std::collections::BTreeSet<usize> {
+        let old=before.lights.iter().map(|(id,value,quality)|(id,(value,quality))).collect::<BTreeMap<_,_>>();
+        let new=after.lights.iter().map(|(id,value,quality)|(id,(value,quality))).collect::<BTreeMap<_,_>>();
+        let changed=old.keys().chain(new.keys()).filter(|id|old.get(*id)!=new.get(*id)).map(|id|(*id).clone())
+            .chain(before.pending.keys().chain(after.pending.keys()).filter(|id|before.pending.get(*id)!=after.pending.get(*id)).cloned()).collect::<std::collections::BTreeSet<_>>();
+        document.indicator_links.iter().enumerate().filter_map(|(index,link)| {
+            if !link.enabled {return None;}
+            let group=link.scene.as_ref().and_then(|scene|document.scene_switch_groups.iter().find(|g|g.members.iter().any(|m|&m.scene==scene)));
+            let mut inputs=link.lights.iter().cloned().collect::<std::collections::BTreeSet<_>>();
+            // Physical selection can depend on another member's light, not just
+            // this link's named lights. Keep the complete reviewed group scope.
+            if let Some(group)=group {for member in &group.members {if let Some(scene)=document.timed_scenes.get(&member.scene) {inputs.extend(scene.steps.iter().map(|s|s.device.clone()));}}}
+            let supplies=inputs.iter().filter_map(|id|feedback.supply_relay(id).cloned()).collect::<Vec<_>>();inputs.extend(supplies);
+            (inputs.iter().any(|id|changed.contains(id)) || group.is_some_and(|g|before.variables.get(&g.variable)!=after.variables.get(&g.variable))).then_some(index)
+        }).collect()
+    }
+    fn reprioritize(cycle:&mut Cycle,signal:Signal,affected:&std::collections::BTreeSet<usize>) {
+        // Retain the original hard deadline and every unvisited target. At most
+        // half a full wave jumps the queue, so hot inputs cannot starve the rest.
+        let rotated=cycle.targets[cycle.cursor..].iter().chain(&cycle.targets[..cycle.cursor]).cloned().collect::<Vec<_>>();
+        let mut urgent=vec![];let mut ordinary=vec![];
+        for target in rotated {if urgent.len()<8 && affected.contains(&target.link) {urgent.push(target);}else{ordinary.push(target);}}
+        urgent.extend(ordinary);cycle.targets=urgent;cycle.cursor=0;cycle.signal=signal;
+    }
     async fn fences(admission:&Admission,controller:Uuid,generation:&TaskGeneration,ids:&[DeviceId])->Result<crate::indicator_outputs::Fence,WriteStatus> {
         let mut result=BTreeMap::new();for chunk in ids.chunks(128) {result.extend(admission.indicator_outputs(controller,generation.clone(),chunk.to_vec(),vec![]).await?.fence);}Ok(result)
     }
@@ -95,6 +119,11 @@ impl Waves {
         let signal=match Self::signal(admission,controller,&generation,document,feedback).await {Ok(value)=>value,Err(WriteStatus::ResourceBusy)=>return Ok(None),Err(_)=>{self.abort();return Ok(None);}};
         let sequence=match admission.indicator_sequence(controller,generation.clone()).await {Ok(value)=>value,Err(WriteStatus::ResourceBusy)=>return Ok(None),Err(_)=>{self.abort();return Ok(None);}};
         self.last_version=Some(version);self.next_probe=now.saturating_add(250);
+        if let Some(cycle)=&mut self.cycle && cycle.signal!=signal && cycle.cursor<cycle.targets.len() {
+            let affected=Self::affected_links(&cycle.signal,&signal,document,feedback);
+            self.outcome=Some(Outcome {kind:Kind::Changed,targets:cycle.targets.len(),admitted:cycle.admitted,waves:cycle.waves,unresolved:cycle.unresolved});
+            if affected.is_empty() {cycle.signal=signal.clone();}else{Self::reprioritize(cycle,signal.clone(),&affected);}
+        }
         if self.cycle.as_ref().is_some_and(|c|c.cursor==c.targets.len()) {
             let cycle=self.cycle.take().unwrap();let ids=cycle.expected.keys().cloned().collect::<Vec<_>>();
             let fences=Self::fences(admission,controller,&generation,&ids).await.map_err(|e|format!("LED cycle verification: {e:?}"))?;
