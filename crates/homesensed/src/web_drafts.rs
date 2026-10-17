@@ -272,7 +272,9 @@ impl Drafts {
         let mut draft=self.get(principal,source)?.ok_or("draft not found")?;
         draft.id=edit.id;draft.expected_revision=edit.expected_revision.parse().map_err(|_|"invalid revision")?;draft.revision=edit.revision.parse().map_err(|_|"invalid revision")?;
         if edit.expected_revision!=draft.expected_revision.to_string() || edit.revision!=draft.revision.to_string(){return Err("invalid revision".into());}
-        if edit.remove && draft.devices.get("devices").and_then(|v|v.as_array()).is_some_and(|devices|devices.iter().any(|d|d.get("room").and_then(|v|v.as_str())==Some(edit.room.id.as_str()))) {return Err("room_in_use".into());}
+        if edit.remove && [draft.devices.get("devices"),draft.automation.get("scene_metadata")].into_iter()
+            .flatten().filter_map(|v|v.as_array()).flatten()
+            .any(|item|item.get("room").and_then(|v|v.as_str())==Some(edit.room.id.as_str())) {return Err("room_in_use".into());}
         let rooms=draft.devices.as_object_mut().ok_or("invalid device document")?.entry("rooms").or_insert_with(||serde_json::json!([])).as_array_mut().ok_or("invalid rooms")?;
         if edit.remove {
             let index=rooms.iter().position(|r|r["id"]==edit.room.id).ok_or("room not found")?;

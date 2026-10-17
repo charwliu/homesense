@@ -216,3 +216,39 @@ fn motor_calibration_drafts_require_matching_binding_and_valid_evidence() {
     assert!(store.get(principal,id).unwrap().unwrap().devices["devices"][0].get("motor_calibration").is_none());
     drop(store);std::fs::remove_dir_all(root).unwrap();
 }
+
+#[test]
+fn scene_room_references_block_deletion_and_follow_room_rename_in_a_new_draft() {
+    use homesensed::web_drafts::RoomEdit;
+    use serde_json::json;
+    let root = std::env::temp_dir().join(format!("scene-room-draft-{}", Uuid::new_v4()));
+    std::fs::create_dir(&root).unwrap();
+    let mut store = Drafts::open(&root.join("drafts.sqlite")).unwrap();
+    let owner = Uuid::new_v4();
+    let mut devices: serde_json::Value = serde_json::from_slice(include_bytes!("../../../config/simulation.json")).unwrap();
+    devices["revision"] = json!(2);
+    devices["rooms"] = json!([{"id":"alpha","name":"Alpha","floor":"Upper"}]);
+    let draft = Draft {
+        id: Uuid::new_v4(), expected_revision:1, revision:2, devices,
+        automation: json!({"schema_version":1,"configuration_revision":2,"variables":[],"rules":[],
+            "timed_scenes":[{"id":"scene","enabled":true,"review_evidence":"synthetic","max_lateness_ms":1000,"steps":[{"source":"synthetic","offset_ms":60000,"device":"simulation:light","command":{"kind":"level","value":50,"ramp":false}}]}],
+            "scene_metadata":[{"id":"scene","name":"Scene","room":"alpha"}]}),
+    };
+    store.save(owner, &draft, ExecutionContext::Simulation).unwrap();
+    let edit = |remove| RoomEdit {id:Uuid::new_v4(),expected_revision:"1".into(),revision:"3".into(),room:homesense_config::Room {id:"alpha".into(),name:"Renamed".into(),floor:None},remove};
+    let remove = edit(true);
+    let refused = remove.id;
+    assert_eq!(store.edit_room(owner, draft.id, remove, ExecutionContext::Simulation).unwrap_err(), "room_in_use");
+    assert!(store.get(owner, refused).unwrap().is_none());
+    let renamed = store.edit_room(owner, draft.id, edit(false), ExecutionContext::Simulation).unwrap();
+    let updated = store.get(owner, renamed).unwrap().unwrap();
+    let config = homesense_config::Configuration::parse(&serde_json::to_vec(&updated.devices).unwrap(), ExecutionContext::Simulation).unwrap();
+    let document = homesense_config::rule_document::Document::parse(&serde_json::to_vec(&updated.automation).unwrap(), &config).unwrap();
+    assert_eq!(document.scene_rooms["scene"].name, "Renamed");
+    assert_eq!(document.scene_rooms["scene"].floor, None);
+    assert_eq!(updated.automation["timed_scenes"], draft.automation["timed_scenes"]);
+    assert_eq!(updated.devices["devices"], draft.devices["devices"]);
+    assert_eq!(store.get(owner, draft.id).unwrap(), Some(draft));
+    drop(store);
+    std::fs::remove_dir_all(root).unwrap();
+}

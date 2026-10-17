@@ -91,6 +91,7 @@ pub enum Reply {
 /// trip between every definition, availability, activity and history field.
 #[derive(Debug, PartialEq, Eq)]
 pub struct SceneCatalogEntry {
+    pub room: Option<homesense_config::Room>,
     pub execution_kind: homesense_config::rule_document::SceneExecutionKind,
     pub action_gate: crate::gateway_runtime::ActionGate,
     pub tracking: Option<crate::scene_tracking::Projection>,
@@ -659,7 +660,8 @@ impl Receiver {
                             let tracking=crate::scene_tracking::read(document,&id,admission,controller,&self.generation,feedback).await?;
                             let activity=if let Some(value)=&tracking {value.activity}else{crate::scene_tracking::activity(document,&id,admission,controller,&self.generation,feedback,max_age_ms).await.unwrap_or(crate::scene_activity::SceneActivity::Unknown)};
                             let last_run=if execution_kind==homesense_config::rule_document::SceneExecutionKind::Immediate {None}else{admission.scene_history(controller,self.generation.clone(),homesense_storage::scene_run::Query::Latest{definition:id.clone()}).await.map_err(|e|format!("catalog history: {e:?}"))?.map(|p|LastRun{boot:p.boot,run:p.run,revision:p.record.revision,started_ms:p.record.started_ms,updated_ms:p.record.updated_ms,version:p.record.version,status:p.record.status,cause:p.cause})};
-                            entries.insert(id,SceneCatalogEntry{execution_kind,action_gate:crate::gateway_runtime::ActionGate{available,required_gateways:views},tracking,activity,last_run});
+                            let room=document.scene_rooms.get(&id).cloned();
+                            entries.insert(id,SceneCatalogEntry{room,execution_kind,action_gate:crate::gateway_runtime::ActionGate{available,required_gateways:views},tracking,activity,last_run});
                         }
                         Ok(Reply::SceneCatalog(entries))
                     },
