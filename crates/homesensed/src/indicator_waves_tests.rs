@@ -6,11 +6,14 @@ use serde_json::json;
 use std::{sync::{Arc,Mutex,atomic::{AtomicBool,AtomicU64,Ordering}},io::{Read,Write},path::PathBuf};
 struct Fixture {actor:Admission,controller:Uuid,clock:&'static AtomicU64,auth:Arc<AtomicBool>,path:PathBuf,document:Document,feedback:Feedback,scenes:SceneScheduler}
 impl Fixture {
-    async fn new()->Self {
+    async fn new()->Self { Self::with_combined_light(false).await }
+    async fn with_combined_light(combined:bool)->Self {
         let mut modules=(0..28).map(|n|json!({"id":format!("panel{n}"),"address":format!("{:02X}",0x60+n),"profile":"ts6_86_rs485_v2_6_5_6key","led_mode":"manual","verification":{"status":"simulated"}})).collect::<Vec<_>>();
         modules.push(json!({"id":"relay","address":"20","profile":"r8i8_din_pro_v2_7_7","verification":{"status":"simulated"}}));
+        if combined {modules.push(json!({"id":"dimmer","address":"21","profile":"ad8_din_rs485_v2_2_1","verification":{"status":"simulated"}}));}
         let mut devices=(0..168).map(|n|json!({"id":format!("led{n}"),"name":"Synthetic indicator","module_id":format!("panel{}",n/6),"channel":n%6+1,"enabled":true})).collect::<Vec<_>>();
-        devices.push(json!({"id":"light","name":"Synthetic relay","module_id":"relay","channel":1,"enabled":true}));
+        devices.push(if combined {json!({"id":"light","name":"Synthetic combined light","module_id":"dimmer","channel":1,"enabled":true,"default_on_level":100,"supply":{"module_id":"relay","channel":1}})}else{json!({"id":"light","name":"Synthetic relay","module_id":"relay","channel":1,"enabled":true})});
+        if combined {devices.push(json!({"id":"supply","name":"Synthetic supply","module_id":"relay","channel":1,"enabled":true}));}
         let config=serde_json::to_vec(&json!({"schema_version":2,"revision":1,"gateways":[{"id":"bus","endpoint":"127.0.0.1:1","modules":modules}],"devices":devices})).unwrap();
         let rules=serde_json::to_vec(&json!({"schema_version":1,"configuration_revision":1,"variables":[],"rules":[],"indicator_links":(0..3).map(|n|json!({"id":format!("link{n}"),"enabled":true,"review_evidence":"synthetic wave capacity","lights":["light"],"leds":(n*64..168.min((n+1)*64)).map(|i|format!("led{i}")).collect::<Vec<_>>()})).collect::<Vec<_>>()})).unwrap();
         let parsed=homesense_config::Configuration::parse(&config,ExecutionContext::Simulation).unwrap();let document=Document::parse(&rules,&parsed).unwrap();
@@ -19,6 +22,7 @@ impl Fixture {
         let actor=Admission::open_with_test_time(path.clone(),Options{context:ExecutionContext::Simulation,write_interval:std::time::Duration::from_millis(20),..Default::default()},move |_|flag.load(Ordering::Acquire),clock).await.unwrap();actor.synchronized(1,1).await.unwrap();
         let controller=Uuid::new_v4();let mut feedback=Feedback::new(&parsed,ExecutionContext::Simulation,Uuid::parse_str(actor.boot_id()).unwrap().as_u128(),1).unwrap();
         feedback.apply(&GatewayRead{gateway_id:"bus".into(),transport_epoch:1,received_at_ms:500,result:hb_transport::Receive::Frames{transport_epoch:1,frames:vec![hb_protocol::RawFrame{address:0x20,command:0xd1,value:0xf2}]}}).unwrap();
+        if combined {feedback.apply(&GatewayRead{gateway_id:"bus".into(),transport_epoch:1,received_at_ms:500,result:hb_transport::Receive::Frames{transport_epoch:1,frames:vec![hb_protocol::RawFrame{address:0x21,command:0xd1,value:100}]}}).unwrap();}
         let scenes=SceneScheduler::new(actor.clone(),controller,8,500).unwrap();Self{actor,controller,clock,auth,path,document,feedback,scenes}
     }
     async fn advance(&self,waves:&mut Waves,query:bool)->Option<Wave>{waves.advance(&self.actor,self.controller,&self.document,&self.scenes,&self.feedback,20000,20,false,query).await.unwrap()}
@@ -82,4 +86,45 @@ async fn shared_snapshot_limit_still_rejects_duplicates_and_over_capacity(){
     let f=Fixture::new().await;let generation=f.actor.task_generation().await.unwrap();let id=DeviceId::new("light").unwrap();
     let duplicate=crate::management_devices::snapshot(&f.actor,f.controller,generation.clone(),vec![id.clone(),id.clone()],&f.feedback).await.unwrap_err();assert!(duplicate.contains("duplicate device"));
     let oversized=crate::management_devices::snapshot(&f.actor,f.controller,generation,vec![id;crate::web_auth::MAX_DEVICE_SCOPE+1],&f.feedback).await.unwrap_err();assert!(oversized.contains("query limit"));f.close().await;
+}
+
+#[tokio::test]
+async fn expired_hard_delivery_deadline_cannot_be_extended_by_shared_preparation() {
+    let f=Fixture::new().await;
+    let mut sync=Synchronizer::default();
+    let deadline=f.clock.load(Ordering::SeqCst);
+    assert_eq!(sync.tick_wave(&f.actor,f.controller,&f.document,&f.scenes,&f.feedback,20000,deadline).await.unwrap(),0);
+    assert!(sync.take_emitted_batches().is_empty());
+    assert_eq!(f.count(),0,"expired hard deadline must admit no LED writes");
+    f.close().await;
+}
+
+
+#[tokio::test]
+async fn combined_supply_only_change_invalidates_indicator_wave_cache() {
+    let mut f=Fixture::with_combined_light(true).await;
+    let generation=f.actor.task_generation().await.unwrap();
+    let before=Waves::signal(&f.actor,f.controller,&generation,&f.document,&f.feedback).await.unwrap();
+    f.feedback.apply(&GatewayRead {gateway_id:"bus".into(),transport_epoch:1,received_at_ms:501,
+        result:hb_transport::Receive::Frames {transport_epoch:1,frames:vec![hb_protocol::RawFrame {address:0x20,command:0xd1,value:0xf1}]}}).unwrap();
+    let after=Waves::signal(&f.actor,f.controller,&generation,&f.document,&f.feedback).await.unwrap();
+    assert_ne!(before,after,"unchanged AD8 brightness cannot hide a changed supply relay from LED reconciliation");
+    f.close().await;
+}
+
+#[tokio::test]
+async fn expired_transition_invalidates_cache_even_with_identical_physical_values() {
+    let f=Fixture::with_combined_light(true).await;
+    let generation=f.actor.task_generation().await.unwrap();
+    f.actor.submit(homesense_hap::requests::Batch {controller:f.controller,intents:vec![homesense_hap::requests::Intent {
+        device:DeviceId::new("light").unwrap(),command:homesense_core::Command::SetLevel {level:Percent::new(100).unwrap(),transition:homesense_core::LevelTransition::Immediate}
+    }],subscriptions:vec![]}).await.unwrap();
+    let pending=Waves::signal(&f.actor,f.controller,&generation,&f.document,&f.feedback).await.unwrap();
+    assert_eq!(pending.pending.get(&DeviceId::new("light").unwrap()),Some(&Percent::new(100).unwrap()));
+    f.clock.store(16_500,Ordering::SeqCst);
+    let expired=Waves::signal(&f.actor,f.controller,&generation,&f.document,&f.feedback).await.unwrap();
+    assert!(expired.pending.is_empty());
+    assert_eq!(pending.lights,expired.lights);
+    assert_ne!(pending,expired,"previously deferred indicators must be reconsidered after target expiry");
+    f.close().await;
 }

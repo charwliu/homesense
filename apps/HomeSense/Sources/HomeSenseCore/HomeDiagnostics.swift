@@ -6,6 +6,7 @@ import Darwin
 public enum HomeControlGateReason: String, CaseIterable, Sendable {
     case allowed, disconnected, busy, snapshotNotCurrent, panelMissing, panelInvalid, actionMissing
     case deviceUnavailable, motorNotCalibrated, sceneUnavailable, selectionUnknown, cardActionInvalid
+    case unifiedKeypadUnsupported
 }
 
 public struct HomeKeypadGateState: Equatable, Sendable {
@@ -137,7 +138,7 @@ enum HomeDiagnosticStage: String, CaseIterable {
     }
     fileprivate nonisolated static func safePath(_ path: String) -> String {
         let fixed: Set<String> = ["/api/v1/session","/api/v1/devices","/api/v1/scenes","/api/v1/rooms","/api/v1/device-commands",
-            "/api/v1/scene-actions","/api/v1/scene-relative-actions","/api/v1/away-off","/api/v1/keypad-settings","/api/v1/config/versions","/api/v1/config/drafts"]
+            "/api/v1/scene-actions","/api/v1/scene-relative-actions","/api/v1/away-off","/api/v1/keypad-settings","/api/v1/keypad-actions","/api/v1/config/versions","/api/v1/config/drafts"]
         if fixed.contains(path) { return path }
         if path.hasPrefix("/api/v1/config/") { return "/api/v1/config/*" }
         return "/api/v1/other"
@@ -157,6 +158,7 @@ enum HomeDiagnosticStage: String, CaseIterable {
             "invalid_module_replacement", "invalid_motor_calibration", "invalid_origin", "invalid_query_receipt",
             "invalid_request", "invalid_request_id", "invalid_room_edit", "invalid_run",
             "invalid_stored_draft", "keypad_settings_not_permitted_or_incompatible", "method_not_allowed", "module_channel_unavailable",
+            "keypad_unavailable", "keypad_action_unavailable", "keypad_scope_denied", "keypad_led_mapping_missing", "execution_outcome_unknown",
             "module_inventory_unavailable", "module_query_unsupported_or_unavailable", "module_revision_changed", "native_app_required",
             "not_found", "origin_required", "owned_query_not_found", "owned_start_not_found",
             "panel_credential_required", "persistence_unavailable", "query_not_in_current_runtime", "query_not_supported",

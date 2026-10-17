@@ -215,8 +215,13 @@ impl Synchronizer {
         if !scenes.publication_impact().is_empty() {
             return Ok(());
         }
+        // Shared snapshot/restore preparation can exceed the short per-wave
+        // planning quantum on Linux with a full catalog. Start that soft
+        // quantum here, while retaining the original hard delivery deadline.
+        // Otherwise every wave can visit zero links forever.
+        let planning_deadline=self.prepare_deadline.map(|hard|hard.min(admission.monotonic_ms().saturating_add(100)));
         for link in document.indicator_links.iter().filter(|l| l.enabled) {
-            if self.prepare_deadline.is_some_and(|deadline|admission.monotonic_ms()>=deadline) || !admission.source_valid() {break;}
+            if planning_deadline.is_some_and(|deadline|admission.monotonic_ms()>=deadline) || !admission.source_valid() {break;}
             let key=(link.id.clone(),link.leds.clone());self.visited.push(key.clone());
             if link.lights.iter().any(|id| pending.contains_key(id)) {
                 continue;

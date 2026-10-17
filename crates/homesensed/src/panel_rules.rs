@@ -10,7 +10,7 @@ use homesense_core::{
     rule::{Budget, Node},
     scene_expand::Definition,
 };
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet,VecDeque};
 use uuid::Uuid;
 type Causal<'a> = Option<(&'a mut crate::deferred_router::Router, &'a mut crate::scene_scheduler::SceneScheduler)>;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -77,6 +77,9 @@ struct Registered {
     gesture: KeyGesture,
     bindings: Vec<Binding>,
 }
+pub(crate) struct NativeBinding {pub keypad:String,pub key:u8,pub priority:u8}
+pub(crate) struct NativeDispatch {pub action:crate::automation_control::Action,pub source:crate::source_auth::Source,pub priority:u8,pub deadline:std::time::Instant}
+pub(crate) const NATIVE_QUEUE_CAPACITIES:[usize;3]=[64,128,256];
 pub struct PanelRules {
     admission: Admission,
     controller: Uuid,
@@ -90,6 +93,11 @@ pub struct PanelRules {
         crate::hold_dimming::HoldDimming,
         BTreeMap<DeviceId, HoldBinding>,
     )>,
+    native_owner:Option<crate::panel_execution_auth::Owner>,
+    native_bindings:BTreeMap<DeviceId,NativeBinding>,
+    native_dispatch:VecDeque<NativeDispatch>,
+    native_event:Option<homesense_state::Event>,
+    native_held:BTreeSet<DeviceId>,
 }
 impl PanelRules {
     pub async fn new(
@@ -140,8 +148,15 @@ impl PanelRules {
             stopped: false,
             feedback_cursor: None,
             holds: None,
+            native_owner:None,native_bindings:Default::default(),native_dispatch:Default::default(),native_event:None,native_held:Default::default(),
         })
     }
+    pub(crate) fn configure_native(&mut self,owner:crate::panel_execution_auth::Owner,bindings:BTreeMap<DeviceId,NativeBinding>)->Result<(),String>{
+        if self.native_owner.is_some()||self.feedback_cursor.is_some()||self.mode!=Mode::Execute||bindings.len()>256
+            || bindings.keys().any(|key|!self.keys.contains_key(key)||owner.lease(key).is_none()) {return Err("invalid configured native event owner".into());}
+        self.native_owner=Some(owner);self.native_bindings=bindings;Ok(())
+    }
+    pub(crate) fn take_native_dispatch(&mut self)->Vec<NativeDispatch>{self.native_dispatch.drain(..).collect()}
     pub fn configure_holds(
         &mut self,
         bindings: BTreeMap<DeviceId, HoldBinding>,
@@ -189,6 +204,8 @@ impl PanelRules {
             return Err("invalid feedback subscription generation".into());
         }
         let cursor = feedback.snapshot().cursor;
+        let snapshot=feedback.snapshot();
+        self.native_held=self.native_bindings.keys().filter(|id|snapshot.devices.get(*id).is_some_and(|state|state.observed==Some(homesense_core::Observation::Button{pressed:true}))).cloned().collect();
         if Uuid::parse_str(self.admission.boot_id())
             .map_err(|e| e.to_string())?
             .as_u128()
@@ -252,12 +269,15 @@ impl PanelRules {
                 else {
                     continue;
                 };
+                if self.native_held.contains(&event.device_id) {if !pressed{self.native_held.remove(&event.device_id);}continue;}
+                self.native_event=Some(event.clone());
                 match self
                     .edge_inner(&event.device_id, pressed, at, Some((feedback, max_age)), &mut causal)
                     .await
                 {
-                    Ok(items) => completed.extend(items),
+                    Ok(items) => {self.native_event=None;completed.extend(items)},
                     Err(mut failure) => {
+                        self.native_event=None;
                         completed.append(&mut failure.completed);
                         failure.completed = completed;
                         return Err(failure);
@@ -287,6 +307,8 @@ impl PanelRules {
     }
     pub fn disconnect(&mut self) {
         self.stopped = true;
+        if let Some(owner)=&self.native_owner{owner.retire();}
+        self.native_dispatch.clear();self.native_event=None;self.native_held.clear();
         if let Some((tasks, _)) = &mut self.holds {
             tasks.invalidate();
         }
@@ -425,6 +447,25 @@ impl PanelRules {
                         observed_only: false,
                     });
                 }
+            }
+            if self.mode==Mode::Execute && event==Event::Released && let Some(binding)=self.native_bindings.get(key)
+                && let Some(raw)=self.native_event.as_ref() {
+                // Reserve STOP and motor capacity before the central receiver,
+                // too. Ordinary input overload must not retire the owner or
+                // discard a later STOP from the same decoded event batch.
+                if self.native_dispatch.iter().filter(|queued|queued.priority==binding.priority).count()
+                    >=NATIVE_QUEUE_CAPACITIES[usize::from(binding.priority)] {
+                    log::warn!("configured_keypad_dispatch_overload priority={} events_consumed=true replay=false",binding.priority);
+                    continue;
+                }
+                let (feedback,_)=feedback.ok_or("native gesture requires configured raw feedback")?;
+                let proof=feedback.scene_key_observation(raw,now)?;
+                let lease=self.native_owner.as_ref().and_then(|owner|owner.lease(key)).ok_or("native event owner retired")?;
+                let request=crate::keypad_actions::Request{revision:self.generation.epochs.configuration.to_string(),keypad:binding.keypad.clone(),key:binding.key,
+                    request_id:format!("wall-{:032x}-{}",raw.cursor.boot_id,raw.cursor.sequence),gesture:crate::keypad_actions::Gesture::Activate};
+                let action=crate::automation_control::Action::KeypadAction{controller:self.controller,request};
+                let source=crate::source_auth::Source::capture_event(lease,&action,&proof,now).ok_or("native event proof expired or foreign")?;
+                self.native_dispatch.push_back(NativeDispatch{action,source,priority:binding.priority,deadline:std::time::Instant::now()+std::time::Duration::from_secs(5)});
             }
             if self.mode == Mode::Execute && let Some((router,scheduler))=causal.as_mut() {
                 let ids:Vec<_>=self.keys[key].bindings.iter().filter(|b|b.event==event).map(|b|b.id.clone()).collect();

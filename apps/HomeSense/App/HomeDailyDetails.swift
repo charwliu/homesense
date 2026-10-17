@@ -1,6 +1,86 @@
 import SwiftUI
 import HomeSenseCore
 
+struct HomeModuleDetails: View {
+    @ObservedObject var home: HomeServerStore
+    let moduleID: String
+    @State private var levels: [Int: Double] = [:]
+    private var module: HomePhysicalModule? { home.moduleInventory.first { $0.id == moduleID } }
+    var body: some View {
+        NavigationStack {
+            Form {
+                if let module {
+                    Section("物理模块") {
+                        LabeledContent("型号", value: module.modelName ?? module.profile)
+                        LabeledContent("总线地址（HEX）", value: module.address)
+                        LabeledContent("网关", value: module.gateway)
+                        LabeledContent("通道数", value: String(module.channelCount))
+                        Text("\(module.profile)").font(.caption.monospaced()).foregroundStyle(.secondary)
+                        Button("重新读取清单") { Task { await home.loadPhysicalModules() } }.disabled(home.loadingModules || !home.connected)
+                    }
+                    if module.supportsQuery {
+                        Section("状态查询") {
+                            Button("发送整模块查询") { Task { await home.queryPhysicalModule(moduleID) } }
+                                .disabled(!home.canQueryPhysicalModule(moduleID))
+                            Text("查询经服务端队列发送；请重新读取清单核对实际反馈。")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
+                    ForEach(module.slots.indices, id: \.self) { index in
+                        channel(module, slot: module.slots[index])
+                    }
+                } else { Text("模块清单已失效，请返回设备页重新读取。") }
+                if !home.moduleInventoryMessage.isEmpty { Text(home.moduleInventoryMessage).font(.caption).foregroundStyle(.secondary) }
+                Text(home.message).font(.caption).foregroundStyle(.secondary)
+                if let error = home.error { Text(error).foregroundStyle(.red) }
+            }
+            .navigationTitle(module?.modelName ?? "模块设置与测试")
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("完成") { dismiss() } } }
+        }
+        #if os(macOS)
+        .frame(minWidth: 520, minHeight: 620)
+        #endif
+    }
+    @Environment(\.dismiss) private var dismiss
+    @ViewBuilder private func channel(_ module: HomePhysicalModule, slot: HomeJSON) -> some View {
+        if let number = slot["channel"].integerText.flatMap(Int.init) {
+            Section("通道 \(number)") {
+                if let name = slot["binding"]["name"].text { Text(name).font(.headline) }
+                Text("读取时反馈：\(slot["actual"].formatted) · \(slot["quality"].text ?? "未知")")
+                    .font(.caption).foregroundStyle(.secondary)
+                if module.supportsQuery {
+                    Button("查询此通道") { Task { await home.queryPhysicalModule(moduleID, channel: number) } }
+                        .disabled(!home.canQueryPhysicalModule(moduleID))
+                }
+                let actions = slot["binding"]["actions"].values.compactMap(\.text)
+                if actions.contains("power") {
+                    HStack {
+                        command("测试开启", number, .object(["action": .string("power"), "on": .bool(true)]))
+                        command("测试关闭", number, .object(["action": .string("power"), "on": .bool(false)]))
+                    }
+                }
+                if actions.contains("brightness") {
+                    Slider(value: Binding(get: { levels[number] ?? 50 }, set: { levels[number] = $0 }), in: 0...100, step: 1)
+                    command("设置亮度 \(Int(levels[number] ?? 50))%", number,
+                        .object(["action": .string("brightness"), "level": .integer(Int64(levels[number] ?? 50))]))
+                }
+                if actions.contains("open") || actions.contains("close") || actions.contains("stop") {
+                    HStack {
+                        ForEach([("打开", "open"), ("停止", "stop"), ("关闭", "close")], id: \.1) { title, action in
+                            if actions.contains(action) { command("测试\(title)", number, .object(["action": .string(action)])) }
+                        }
+                    }
+                }
+                if !actions.isEmpty { Text("测试指令会控制此通道的实际负载。").font(.caption).foregroundStyle(.secondary) }
+            }
+        }
+    }
+    private func command(_ title: String, _ channel: Int, _ command: HomeJSON) -> some View {
+        Button(title) { Task { await home.controlPhysicalModule(moduleID, channel: channel, command: command) } }
+            .disabled(!home.canControlPhysicalModule(moduleID, channel: channel, command: command))
+    }
+}
+
 struct HomeDeviceTile: View {
     let device: HomeRecord
     var live = true
@@ -76,7 +156,7 @@ struct HomeMotorControls: View {
             action("打开", "arrow.up", .open)
             action("停止", "stop.fill", .stop)
             action("关闭", "arrow.down", .close)
-        }.disabled(!home.canControlDevice(device.id))
+        }
     }
     private func action(_ title: String, _ icon: String, _ action: HomeMotorControlAction) -> some View {
         Button {
@@ -84,6 +164,7 @@ struct HomeMotorControls: View {
             Task { await home.controlDevice(device.id, command: action.command, operation: operation) }
         } label: { Label(title, systemImage: icon).frame(maxWidth: .infinity) }
             .buttonStyle(.bordered)
+            .disabled(action == .stop ? !home.canStopMotorDevice(device.id) : !home.canControlDevice(device.id))
             .accessibilityLabel("\(device.name)\(title)")
             .accessibilityIdentifier("device.\(device.id).\(action.rawValue)")
     }
@@ -116,6 +197,14 @@ struct HomeLightPowerControls: View {
 }
 
 extension HomeRecord {
+    var sceneActivityDescription: String {
+        switch raw["activity"].text {
+        case "Active": "匹配"
+        case "Inactive": "未匹配"
+        case "Pending": "待确认"
+        default: "未知"
+        }
+    }
     func motorStatusDescription(current: Bool) -> String {
         let estimate = raw["motor_estimate"]
         let prefix = current && targetAvailable ? "估计 · " : "历史估计 · "
@@ -161,7 +250,7 @@ struct HomeSceneDetails: View {
                     Section("场景状态") {
                         LabeledContent("房间", value: home.rooms.first(where: { $0.id == scene.roomID })?.name ?? "全屋／未分配")
                         if let status = scene.targetAvailability.description { Text(status).foregroundStyle(.secondary) }
-                        Text("\(home.snapshotIsCurrent && scene.targetAvailable ? "负载反馈" : "历史负载反馈")：\(scene.raw["activity"].text ?? "未知")")
+                        Text("\(home.snapshotIsCurrent && scene.targetAvailable ? "负载反馈" : "历史负载反馈")：\(scene.sceneActivityDescription)")
                         if scene.raw["switch_kind"].text == "selection" {
                             Text("\(home.snapshotIsCurrent && scene.targetAvailable ? "选择状态" : "历史选择")：\(scene.raw["selected"] == .bool(true) ? "开启" : scene.raw["selected"] == .bool(false) ? "关闭" : "未知")")
                         }
@@ -197,29 +286,40 @@ struct HomeKeypadDetails: View {
                 if let keypad {
                     Section("面板") {
                         LabeledContent("房间", value: keypad.roomName ?? "未分配")
+                        if let record, let module = home.physicalModule(for: record) {
+                            LabeledContent("总线地址（HEX）", value: module.address)
+                            LabeledContent("网关", value: module.gateway)
+                        }
                         if let status = record?.targetAvailability.description { Text(status).foregroundStyle(.secondary) }
                         Text("按键动作使用已审核映射；LED 设置是独立操作。")
                             .font(.caption).foregroundStyle(.secondary)
                     }
                     ForEach(keypad.keys) { key in
                         Section("\(key.number) · \(key.name)") {
+                            let raw = record?.raw["keys"].values.first(where: { $0["number"].integerText == String(key.number) }) ?? .null
                             Text(key.led.actualDescription)
                             if let history = key.led.historyDescription { Text(history).foregroundStyle(.secondary) }
-                            if let raw = record?.raw["keys"].values.first(where: { $0["number"].integerText == String(key.number) }) {
+                            if raw.isObject {
                                 if raw["key_event"]["pressed"] != .null {
-                                    Text("\(home.snapshotIsCurrent && record?.targetAvailable == true && raw["key_event"]["quality"].text == "Confirmed" ? "按键事件" : "历史按键事件")：\(raw["key_event"]["pressed"] == .bool(true) ? "按下" : "释放") · \(raw["key_event"]["quality"].text ?? "未知")")
+                                    let current = home.snapshotIsCurrent && record?.targetAvailable == true && raw["key_event"]["quality"] == .string("Confirmed")
+                                    let position = raw["key_event"]["pressed"] == .bool(true) ? "按下" : "释放"
+                                    Text("\(current ? "按键事件" : "历史按键事件")：\(position) · \(raw["key_event"]["quality"].text ?? "未知")")
                                         .font(.caption).foregroundStyle(.secondary)
                                 }
                                 if let status = raw["led"]["last_request"]["status"].text {
                                     Text("最近请求：\(status)").font(.caption).foregroundStyle(.secondary)
                                 }
                             }
-                            if let action = key.actionDescription {
-                                Button(action) {
-                                    let operation = home.beginKeypadClick(keypadID, key: key.number)
-                                    Task { await home.activateKeypad(keypadID, key: key.number, operation: operation) }
+                            if let progress = home.keypadActionPresentation(keypadID, key: key.number) {
+                                Text(progress.description).font(.caption).foregroundStyle(cueColor(key.number))
+                            }
+                            if key.canActivate || raw["activation"].isObject {
+                                Button(key.cardActionDescription ?? "执行按键动作") {
+                                    let operation = home.beginUnifiedKeypadClick(keypadID, key: key.number)
+                                    Task { await home.activateUnifiedKeypad(keypadID, key: key.number, operation: operation) }
                                 }
-                                    .disabled(!home.canActivateKeypad(keypadID, key: key.number))
+                                    .buttonStyle(.bordered).tint(cueColor(key.number))
+                                    .disabled(!home.canActivateUnifiedKeypad(keypadID, key: key.number))
                             } else { Text("未配置已授权的按键动作").font(.caption).foregroundStyle(.secondary) }
                             HStack {
                                 Button("设置红灯") { Task { await home.writeKeypadLED(keypadID, key: key.number, color: .red) } }
@@ -230,6 +330,7 @@ struct HomeKeypadDetails: View {
                             }.disabled(!home.canWriteKeypadLED(keypadID, key: key.number))
                         }
                     }
+                    if let notice = home.unifiedKeypadSupportMessage { Text(notice).font(.caption).foregroundStyle(.secondary) }
                     Section("工作模式") {
                         LabeledContent("配置工作模式", value: mode(keypad.settings["work_mode"]["configured"].text))
                         settingStatus(keypad, field: "work_mode")
@@ -270,8 +371,15 @@ struct HomeKeypadDetails: View {
             .navigationTitle(keypad?.name ?? "Keypad")
             .toolbar { Button("完成") { dismiss() } }
         }.frame(idealWidth: 520, idealHeight: 650)
-        .onAppear { home.recordKeypadGateStates(keypadID) }
-        .onChange(of: home.keypadGateStates(keypadID)) { _, _ in home.recordKeypadGateStates(keypadID) }
+        .onAppear { home.recordUnifiedKeypadGates(keypadID) }
+        .onChange(of: home.unifiedKeypadGateStates(keypadID)) { _, _ in home.recordUnifiedKeypadGates(keypadID) }
+    }
+    private func cueColor(_ number: Int) -> Color {
+        let cue = home.keypadActionPresentation(keypadID, key: number)
+        if cue?.requestedColor == .red { return .red }
+        if cue?.requestedColor == .green { return .green }
+        if cue?.phase == .uncertain || cue?.phase == .mappingGap { return .orange }
+        return .blue
     }
     private func mode(_ value: String?) -> String {
         switch value { case "manual": "手动灯控"; case "self_reset": "自复位"; default: "未知" }
