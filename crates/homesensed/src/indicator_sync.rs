@@ -205,10 +205,13 @@ impl Synchronizer {
             .remember_levels(generation.epochs.configuration, snapshot.clone(), max_age)
             .await
             .map_err(|e| format!("indicator restore memory: {e:?}"))?;
-        let pending = admission
+        let mut pending = admission
             .projection_levels(generation.epochs.configuration, snapshot.cursor.boot_id)
             .await
             .map_err(|e| format!("indicator pending targets: {e:?}"))?;
+        // Relay commands have an internal policy entry too, but physical relay
+        // feedback is their authority. Only dimmer transitions defer LEDs.
+        pending.retain(|id,_|snapshot.devices.get(id).is_some_and(|state|state.kind==homesense_core::ModuleKind::Dimmer));
         let recorded = BTreeMap::new();
         // Delayed scene/fade output is not yet a settled off observation.
         // Conservatively defer while any scheduled scene is still active.

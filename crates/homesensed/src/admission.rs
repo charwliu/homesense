@@ -2497,7 +2497,10 @@ impl Admission {
                                     }
                                     if let Some(command)=origin.fallback(millis(clock),&batch.intents) {
                                         if batch.intents.len()>=128{return Err(WriteStatus::ResourceBusy);}
-                                        batch.intents.push(homesense_hap::requests::Intent{device:origin.endpoint.clone(),command});
+                                        let cue=homesense_hap::requests::Intent{device:origin.endpoint.clone(),command};
+                                        // Toggle is a causal partition barrier. Native recipes
+                                        // must retain their order with the cue ahead of it.
+                                        if native_mode {batch.intents.insert(0,cue);}else{batch.intents.push(cue);}
                                         if let Some(sources)=&mut command_sources{sources.push("keypad-origin:reviewed-local-indicator".into());}
                                         if phase_links.is_some(){phase_ordinals.push(phase_ordinals.first().copied().unwrap_or(0));}
                                     }
@@ -2573,7 +2576,14 @@ impl Admission {
                                                     crate::control_batch::BudgetRole::Lighting => deadline.min(led_total_deadline),
                                                     crate::control_batch::BudgetRole::Ordinary => deadline,
                                                 };
-                                                bound.min(native_deadline.unwrap_or(bound))
+                                                if native_mode && command==homesense_core::Command::Query {
+                                                    // A native read phase can cover many serial
+                                                    // ports. Queue them within the operation's
+                                                    // original fixed budget, not one shared
+                                                    // ordinary control TTL. Response ownership
+                                                    // and per-query timeouts remain unchanged.
+                                                    native_deadline.unwrap_or(bound)
+                                                }else{bound.min(native_deadline.unwrap_or(bound))}
                                             },
                                             run_id: native_run.or_else(||automation.then_some(next_id)),
                                         },
@@ -3228,7 +3238,7 @@ impl Admission {
     pub(crate) async fn native_scene_status(&self,controller:Uuid,generation:TaskGeneration,key:String)->Result<Option<homesense_storage::native_scene::Record>,WriteStatus>{let (reply,receive)=oneshot::channel();self.sender.try_send(Message::NativeStatus(controller,generation,key,reply)).map_err(|_|WriteStatus::ResourceBusy)?;receive.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?}
     pub(crate) async fn fail_native_scene(&self,controller:Uuid,generation:TaskGeneration,key:String)->Result<(),WriteStatus>{let (reply,receive)=oneshot::channel();self.sender.try_send(Message::NativeFail(controller,generation,key,reply)).map_err(|_|WriteStatus::ResourceBusy)?;receive.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?}
     pub(crate) async fn finish_native_scene(&self,controller:Uuid,completion:crate::native_scene::Completion)->Result<(),WriteStatus>{let (reply,receive)=oneshot::channel();self.sender.try_send(Message::NativeFinish(controller,self.source_authorization.clone(),Box::new(completion),reply)).map_err(|_|WriteStatus::ResourceBusy)?;receive.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?}
-    pub(crate) async fn submit_native_scene(&self,generation:TaskGeneration,submission:crate::native_scene::Submission)->Result<Vec<u64>,WriteStatus>{self.submit_scoped_before(Submission::Native(Box::new(submission)),Some(SubmissionScope::Generation(generation)),None).await}
+    pub(crate) async fn submit_native_scene(&self,generation:TaskGeneration,submission:crate::native_scene::Submission)->Result<Vec<u64>,WriteStatus>{let deadline=submission.query_deadline();self.submit_scoped_before(Submission::Native(Box::new(submission)),Some(SubmissionScope::Generation(generation)),deadline).await}
     pub(crate) async fn reconcile_scene_selection(&self,controller:Uuid,generation:TaskGeneration,prepared:crate::scene_reconciliation::Prepared)->Result<(),WriteStatus> {
         let (reply,receive)=oneshot::channel();
         self.sender.try_send(Message::ReconcileSceneSelection(controller,generation,prepared,reply)).map_err(|_|WriteStatus::ResourceBusy)?;

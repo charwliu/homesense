@@ -23,6 +23,8 @@ struct Recipe {
     physical: BTreeSet<DeviceId>,
     conditional: BTreeMap<DeviceId, (DeviceId, Percent)>,
     toggled_dimmers: BTreeSet<DeviceId>,
+    initial_settle_ms:u64,
+    conditional_settle_ms:u64,
 }
 fn positive(command: Command) -> bool {
     matches!(command, Command::Switch(true))
@@ -131,12 +133,20 @@ fn build(
     if physical.len() > 128 {
         return Err(WriteStatus::ResourceBusy);
     }
+    let needs_settle=|id:&DeviceId,command:Command| {
+        config.binding(id).is_some_and(|(_,module)|module.profile()==homesense_core::ProtocolProfile::Ad8Din)
+            && matches!(command,Command::SetLevel{transition:LevelTransition::Ramp,..})
+    };
+    let initial_settle_ms=if initial.iter().any(|(id,command)|needs_settle(id,*command)){crate::postwrite_confirmation::AD8_SETTLE_MS}else{0};
+    let conditional_settle_ms=if conditional.iter().any(|(id,(_,level))|config.binding(id).is_some_and(|(_,module)|module.profile()==homesense_core::ProtocolProfile::Ad8Din)&&!matches!(level.get(),0|100)){crate::postwrite_confirmation::AD8_SETTLE_MS}else{0};
     Ok(Recipe {
         targets,
         initial,
         physical,
         conditional,
         toggled_dimmers,
+        initial_settle_ms,
+        conditional_settle_ms,
     })
 }
 
@@ -166,6 +176,12 @@ pub(crate) struct Permit {
     pub lease: RuleLease,
 }
 impl Submission {
+    /// Read phases share the original operation's fixed completion budget.
+    /// Physical controls retain ordinary admission TTLs; response windows
+    /// remain the transport owner's responsibility.
+    pub(crate) fn query_deadline(&self)->Option<u64> {
+        matches!(self.kind,Kind::RelayQueries|Kind::FinalQueries).then_some(self.request.deadline_ms)
+    }
     pub(crate) fn request(&self) -> &Request {
         &self.request
     }
@@ -402,6 +418,7 @@ pub(crate) fn receipt(row: &Record, document: &Document) -> Receipt {
 }
 enum Phase {
     Controls(Vec<u64>),
+    Settling(u64),
     RelayQuery {
         ids: Vec<u64>,
         before: BTreeMap<DeviceId, u64>,
@@ -495,7 +512,9 @@ impl Manager {
             variable_version: snapshot[&group.variable].stored.version,
             boot: admission.boot_id().into(),
             epochs: generation.epochs,
-            deadline_ms: now.saturating_add(5000),
+            // Only native AD8 ramps need the six-second settling allowance.
+            // Keep the original five-second deadline for direct/Toggle recipes.
+            deadline_ms: now.saturating_add(if recipe.initial_settle_ms>0 || recipe.conditional_settle_ms>0 {crate::control_batch::FEEDBACK_TOTAL_MS}else{5000}),
         };
         let submission = Submission {
             request: request.clone(),
@@ -512,10 +531,13 @@ impl Manager {
             .submit_native_scene(generation.clone(), submission)
             .await
             .map_err(|e| format!("{e:?}"))?;
+        let cue=admission.source().and_then(|source|source.keypad().and_then(|origin|origin.cue().map(|(id,_)|id)));
+        let physical_ids=ids.iter().copied().filter(|id|Some(*id)!=cue).collect::<Vec<_>>();
+        if physical_ids.len()!=recipe.initial.len(){return Err("relative initial command identity mismatch".into());}
         let toggles = recipe
             .initial
             .iter()
-            .zip(&ids)
+            .zip(&physical_ids)
             .filter(|((_, command), _)| *command == Command::Toggle)
             .map(|((device, _), id)| (device.clone(), *id))
             .collect();
@@ -689,7 +711,7 @@ impl Run {
         match &self.stage {
             Phase::Controls(ids) if self.written(admission, ids).await? => {
                 if self.recipe.conditional.is_empty() {
-                    self.final_queries(admission, feedback).await?;
+                    self.settle_or_query(admission,feedback,self.recipe.initial_settle_ms).await?;
                 } else {
                     let before = self.counters(
                         feedback,
@@ -732,8 +754,9 @@ impl Run {
                 self.stage = Phase::DimmerControls(ids);
             }
             Phase::DimmerControls(ids) if self.written(admission, ids).await? => {
-                self.final_queries(admission, feedback).await?;
+                self.settle_or_query(admission,feedback,self.recipe.initial_settle_ms.max(self.recipe.conditional_settle_ms)).await?;
             }
+            Phase::Settling(until) if admission.monotonic_ms()>=*until => {self.final_queries(admission,feedback).await?;}
             Phase::FinalQuery { ids, before } if self.written(admission, ids).await? => {
                 if !before.iter().all(|(id, count)| {
                     feedback
@@ -801,6 +824,10 @@ impl Run {
             _ => {}
         }
         Ok(false)
+    }
+    async fn settle_or_query(&mut self,admission:&Admission,feedback:&Feedback,delay:u64)->Result<(),String> {
+        if delay==0 {self.final_queries(admission,feedback).await}
+        else {self.stage=Phase::Settling(admission.monotonic_ms().saturating_add(delay));Ok(())}
     }
     async fn final_queries(
         &mut self,

@@ -15,6 +15,9 @@ impl Fixture {
         Self::with_selection(cue,motor,Some(0),scope).await
     }
     async fn with_selection(cue:bool,motor:bool,selection:Option<i64>,scope:impl FnOnce(&mut Grant))->Self {
+        Self::with_policy(cue,motor,selection,false,scope).await
+    }
+    async fn with_policy(cue:bool,motor:bool,selection:Option<i64>,reconciled:bool,scope:impl FnOnce(&mut Grant))->Self {
         let mut config:Value=serde_json::from_slice(include_bytes!("../../../config/test/native-app-keypad/devices.json")).unwrap();
         config["keypads"][0]["keys"][2]["action"]=json!({"kind":"scene_toggle","scene":"meeting","review_evidence":"synthetic second origin key"});
         if cue {config["keypads"][0]["keys"][0]["local_indicator"]=json!({"kind":"scene_selection","group":"reading-group","value":1,"selected_color":"red","unselected_color":"green","review_evidence":"synthetic exact On/Off source review"});}
@@ -39,7 +42,8 @@ impl Fixture {
         let mut rules:Value=serde_json::from_slice(include_bytes!("../../../config/test/native-app-keypad/automation.json")).unwrap();
         // This fixture starts from a known recorded selection. Physical-pattern
         // inference and native-unknown execution have separate regressions.
-        rules["scene_switch_groups"][0]["reconciliation"]["enabled"]=json!(false);
+        rules["scene_switch_groups"][0]["reconciliation"]["enabled"]=json!(reconciled);
+        if reconciled {rules["timed_scenes"][0]["steps"][0]["command"]["value"]=json!(40);}
         if motor {rules["away_off"]=json!({"enabled":true,"review_evidence":"synthetic twelve complete lighting modules","active_execution_policy":"cancel_affected_lighting",
             "modules":(0..12).map(|n|json!({"module_id":format!("away-{n}"),"devices":(1..=8).map(|channel|format!("away-{n}:{channel}")).collect::<Vec<_>>(),"review_evidence":"synthetic full eight outputs"})).collect::<Vec<_>>()});}
         let rules=serde_json::to_vec(&rules).unwrap();
@@ -327,14 +331,46 @@ async fn unknown_recorded_scene_starts_explicit_on_with_source_cue_and_selection
 }
 
 #[tokio::test]
-async fn unknown_reconciled_scene_keeps_relative_per_light_planning_without_fabricated_selection() {
-    let mut f=Fixture::with_selection(true,false,None,|_|{}).await;
-    f.doc.scene_switch_groups[0].reconciliation.as_mut().unwrap().enabled=true;
+async fn unknown_reconciled_scene_cue_preserves_native_toggle_identity_and_current_truth() {
+    for known in [false,true] {
+    let mut f=Fixture::with_policy(true,false,None,true,|_|{}).await;
+    if known {
+        f.feedback.apply(&crate::transport_owner::GatewayRead{gateway_id:"bus".into(),transport_epoch:1,received_at_ms:f.time.load(Ordering::SeqCst),result:hb_transport::Receive::Frames{transport_epoch:1,frames:vec![hb_protocol::RawFrame{address:0x15,command:0xd1,value:17},hb_protocol::RawFrame{address:0x15,command:0xd2,value:17}]}}).unwrap();
+    }
     let prepared=f.prepare(&f.request()).await.unwrap();
-    assert!(matches!(prepared.action,Action::SceneRelative{scene,..} if scene=="reading"));
+    assert!(matches!(prepared.action,Action::SceneRelative{ref scene,..} if scene=="reading"));
     let source=prepared.source.unwrap();let origin=source.keypad().unwrap();
-    assert!(origin.fallback.is_none());assert!(origin.selection.is_empty());
-    assert!(f.actor.dispatch().await.unwrap().is_none());f.close().await;
+    assert_eq!(origin.fallback,Some(Command::PanelLed(true)));assert!(origin.selection.is_empty());
+    let mut manager=crate::native_scene::Manager::default();let scoped=f.actor.with_source(Some(source.clone()));
+    manager.start(&scoped,f.controller,f.actor.task_generation().await.unwrap(),&f.doc,"reading".into(),"unknown-key".into(),&f.feedback).await.unwrap();
+    let pending=f.actor.native_scene_status(f.controller,f.actor.task_generation().await.unwrap(),"unknown-key".into()).await.unwrap().unwrap();
+    assert_eq!(pending.request.deadline_ms,100+if known{15000}else{5000},"only AD8 ramp recipes receive the bounded settling allowance");
+    let (mut owner,bytes)=owner(&f,None);
+    for _ in 0..3 {f.time.fetch_add(21,Ordering::SeqCst);if let Some(sent)=owner.step().await.unwrap(){sent.result.unwrap();}else{break;}}
+    let frames=bytes.lock().unwrap().iter().flatten().copied().collect::<Vec<_>>();
+    assert_eq!(frames.len(),15,"one source cue and exactly two light controls");
+    assert_eq!(&frames[..5],&[0xae,0x41,1,0xf1,0xee],"only authenticated source cue precedes native controls");
+    assert!(frames.as_chunks::<5>().0.contains(&if known{[0xae,0x15,0xb1,40,0xee]}else{[0xae,0x15,0xa1,0xf1,0xee]}),"only unknown light toggles; known light uses absolute target");
+    assert!(frames.as_chunks::<5>().0.contains(&[0xae,0x15,2,0,0xee]),"excluded light stays explicit Off");
+    let stored=Store::open(&f.path).unwrap().logical_variable(1,"selection").unwrap().unwrap();assert!(stored.value.is_none(),"cue is not observed selection");
+    // Real six-second query deferral can outlast the old five-second relative TTL.
+    if known {
+        manager.tick(&f.actor,&f.doc,&f.feedback).await;
+        f.time.fetch_add(6000,Ordering::SeqCst);manager.tick(&f.actor,&f.doc,&f.feedback).await;
+        assert!(f.actor.dispatch().await.unwrap().is_none(),"AD8 native query cannot precede six seconds");
+        f.time.fetch_add(1,Ordering::SeqCst);
+    }
+    manager.tick(&f.actor,&f.doc,&f.feedback).await;
+    for _ in 0..2 {let query=f.dispatch().await;assert_eq!(query.command.command,Command::Query);assert_eq!(query.command.deadline_ms,pending.request.deadline_ms,"queued reads use only the original operation remainder");f.finish(&query).await;}
+    let at=f.time.fetch_add(2,Ordering::SeqCst)+2;
+    f.feedback.apply(&crate::transport_owner::GatewayRead{gateway_id:"bus".into(),transport_epoch:1,received_at_ms:at,result:hb_transport::Receive::Frames{transport_epoch:1,frames:vec![hb_protocol::RawFrame{address:0x15,command:0xd1,value:if known{40}else{17}},hb_protocol::RawFrame{address:0x15,command:0xd2,value:0}]}}).unwrap();
+    manager.tick(&f.actor,&f.doc,&f.feedback).await;
+    let row=f.actor.native_scene_status(f.controller,f.actor.task_generation().await.unwrap(),"unknown-key".into()).await.unwrap().unwrap();
+    assert_eq!(row.status,homesense_storage::native_scene::Status::Observed);
+    assert_eq!(row.selected,Some(1));
+    assert_eq!(f.actor.task_generation().await.unwrap().epochs.configuration,1);
+    f.close().await;
+    }
 }
 
 #[tokio::test]

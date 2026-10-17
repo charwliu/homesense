@@ -206,6 +206,12 @@ pub(crate) async fn prepare(admission:&Admission,generation:&TaskGeneration,docu
             let selected_group=document.scene_switch_groups.iter().find(|candidate|candidate.members.iter().any(|member|&member.scene==scene)).ok_or(Rejection::KeypadActionUnavailable)?;
             let selected=states.get(scene).and_then(|state|state.selected);
             let action=if selected.is_none() && selected_group.reconciliation.as_ref().is_some_and(|policy|policy.enabled) {
+                // This is an accepted gesture cue, not a guessed final mode.
+                // Native planning still decides each light from fresh truth.
+                if let Some(homesense_config::keypad::LocalIndicator::SceneSelection{group,selected_color,..})=&key.local_indicator {
+                    if &selected_group.id!=group{return Err(Rejection::KeypadActionUnavailable);}
+                    fallback=Some(homesense_core::Command::PanelLed(selected_color.red()));
+                }
                 Action::SceneRelative{controller,revision,scene:scene.clone(),request_id:request.request_id.clone()}
             } else {
                 // Recorded/ambiguous modes have no relative light recipe. On a

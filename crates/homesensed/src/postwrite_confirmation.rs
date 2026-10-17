@@ -54,13 +54,14 @@ pub(crate) async fn needed(
 /// A later direct write to that same channel clears its previous ramp fence.
 #[derive(Default)]
 pub(crate) struct RampReads(std::collections::BTreeMap<(String,u8,u8),u64>);
+pub(crate) const AD8_SETTLE_MS:u64=6_001;
 impl RampReads {
     pub(crate) fn written(&mut self,config:&Configuration,device:&homesense_core::DeviceId,now:u64,ramped:bool) {
         let Some((binding,module))=config.binding(device) else{return;};
         let key=(binding.gateway.clone(),module.address().get(),binding.channel.get());
         // Admission's clock floors elapsed time to milliseconds. Retain one
         // rounding quantum so the real wire-to-query delay is never <6s.
-        if ramped {self.0.insert(key,now.saturating_add(6_001));}
+        if ramped {self.0.insert(key,now.saturating_add(AD8_SETTLE_MS));}
         else {self.0.remove(&key);}
     }
     pub(crate) fn ready(&self,target:&Target,now:u64)->bool {
