@@ -604,6 +604,7 @@ fn main() -> ExitCode {
         logger.filter_module("homesense_hap", log::LevelFilter::Debug);
         logger.filter_module("homesensed::control_batch", log::LevelFilter::Debug);
         logger.filter_module("homesensed::admission", log::LevelFilter::Debug);
+        logger.filter_module("homesensed::automation_drive::indicator_waves", log::LevelFilter::Debug);
     }
     logger.init();
     match run(&std::env::args().skip(1).collect::<Vec<_>>()) {

@@ -223,3 +223,43 @@ async fn continuously_due_reads_yield_publication_between_completed_queries() {
     drop(db);
     std::fs::remove_dir_all(root).unwrap();
 }
+
+#[tokio::test]
+async fn continuously_due_consumer_reads_leave_a_background_led_opportunity() {
+    let root=std::env::temp_dir().join(format!("poll-led-fairness-{}",uuid::Uuid::new_v4()));
+    std::fs::create_dir(&root).unwrap();
+    let bus=std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let mut devices=serde_json::json!({"schema_version":1,"revision":1,"gateways":[{"id":"bus","endpoint":bus.local_addr().unwrap().to_string(),"modules":[
+        {"address":"03","profile":"r8i8_din_pro_v2_7_7","verification":{"status":"verified","evidence":"synthetic only","verified_at_unix_ms":1}},
+        {"address":"41","profile":"ts6_86_rs485_v2_6_5_6key","led_mode":"manual","verification":{"status":"verified","evidence":"synthetic only","verified_at_unix_ms":1}}
+    ]}],"devices":[{"id":"light","name":"Synthetic light","gateway":"bus","address":"03","channel":1,"enabled":true},{"id":"led","name":"Synthetic LED","gateway":"bus","address":"41","channel":1,"enabled":true}]});
+    let scenes=[("on",true),("off",false)].map(|(id,on)|serde_json::json!({"id":id,"enabled":true,"review_evidence":"synthetic only","max_lateness_ms":1000,"steps":[{"source":"synthetic","offset_ms":0,"device":"light","command":{"kind":"switch","on":on}}]}));
+    let mut rules=serde_json::json!({"schema_version":1,"configuration_revision":1,"variables":[{"id":"selection","kind":"integer","lifetime":"persistent"}],"rules":[],"timed_scenes":scenes,"scene_switch_groups":[{"id":"room","variable":"selection","review_evidence":"synthetic only","members":[{"scene":"on","off_scene":"off","value":1}],"reconciliation":{"enabled":true,"policy":"unique_light_on_pattern","max_age_ms":5000,"review_evidence":"synthetic fresh LED light"}}],"indicator_links":[{"id":"room-led","enabled":true,"scene":"on","lights":["light"],"leds":["led"],"review_evidence":"synthetic physical off LED"}]});
+    // A different port is continuously overdue; the LED's light remains
+    // genuinely fresh. Do not make the LED proof itself impossible to obtain.
+    devices["devices"].as_array_mut().unwrap().push(serde_json::json!({"id":"busy","name":"Synthetic busy consumer","gateway":"bus","address":"03","channel":2,"enabled":true}));
+    rules["variables"].as_array_mut().unwrap().push(serde_json::json!({"id":"busy-selection","kind":"integer","lifetime":"persistent"}));
+    for (id,on) in [("busy-on",true),("busy-off",false)] {
+        rules["timed_scenes"].as_array_mut().unwrap().push(serde_json::json!({"id":id,"enabled":true,"review_evidence":"synthetic only","max_lateness_ms":1000,"steps":[{"source":"synthetic","offset_ms":0,"device":"busy","command":{"kind":"switch","on":on}}]}));
+    }
+    rules["scene_switch_groups"].as_array_mut().unwrap().push(serde_json::json!({"id":"busy-room","variable":"busy-selection","review_evidence":"synthetic only","members":[{"scene":"busy-on","off_scene":"busy-off","value":1}],"reconciliation":{"enabled":true,"policy":"unique_light_on_pattern","max_age_ms":1,"review_evidence":"synthetic continuously overdue different port"}}));
+    let gateway=std::thread::spawn(move || {
+        let(mut stream,_)=bus.accept().unwrap();stream.set_read_timeout(Some(Duration::from_secs(8))).unwrap();
+        let mut queries=0;let mut leds=vec![];
+        loop {
+            let mut f=[0;5];match stream.read_exact(&mut f) {Ok(())=>{},Err(e) if matches!(e.kind(),std::io::ErrorKind::UnexpectedEof|std::io::ErrorKind::ConnectionReset)=>break,Err(e)=>panic!("synthetic read: {e}")}
+            if f[1]==3 &&(0xa1..=0xa8).contains(&f[2]) {
+                queries+=1;std::thread::sleep(Duration::from_millis(25));
+                if stream.write_all(&[0xae,3,0xd0+(f[2]-0xa0),0xf2,0xee]).is_err(){break;}
+            } else {assert_eq!(f,[0xae,0x41,1,0xf2,0xee]);leds.push(f);}
+        }
+        (queries,leds)
+    });
+    let web=std::net::TcpListener::bind("127.0.0.1:0").unwrap();let address=web.local_addr().unwrap();drop(web);
+    homesensed::automation_tcp::serve_managed(&serde_json::to_vec(&devices).unwrap(),&serde_json::to_vec(&rules).unwrap(),&root,Duration::from_secs(3),true,0,Duration::from_millis(20),
+        homesensed::service::WebSettings{address,secret:"abcdefghijklmnopqrstuvwxyz0123456789".into(),administrator:true,tls:None}).await.unwrap();
+    let (queries,leds)=gateway.join().unwrap();
+    assert!(queries>20,"periodic consumer queries must continue");
+    assert_eq!(leds,vec![[0xae,0x41,1,0xf2,0xee]],"continuously due reads must allow exactly one feedback-derived LED write");
+    std::fs::remove_dir_all(root).unwrap();
+}
