@@ -615,3 +615,24 @@ fn member_cancellation_retains_shared_run_peer_and_writing_with_atomic_persisten
     a.dispatch(0,access).unwrap();let cancelled=a.cancel_run_members_committed(7,&[1,2].into(),|_|Ok::<_,()>(())).unwrap();assert_eq!(cancelled.len(),1);assert_eq!(cancelled[0].command.id,2);assert_eq!(cancelled[0].reason,homesense_core::queue::CancelReason::RunCancelled);
     assert_eq!(a.dispatch(0,access).unwrap_err(),ArbiterError::Busy);a.finish_write(1,true).unwrap();assert_eq!(a.dispatch(0,access).unwrap().command.unwrap().id,3);
 }
+
+#[test]
+fn queued_ticket_cancellation_commits_before_mutation_and_never_recalls_writer_or_stop() {
+    use homesense_core::queue::CancelReason;
+    let mut a = fixture();
+    enqueue(&mut a,1,false);
+    assert_eq!(a.dispatch(0,access).unwrap().command.unwrap().id,1);
+    enqueue(&mut a,2,false);enqueue(&mut a,3,true);
+    let ids = [1,2].into();
+    let failed = a.cancel_queued_ids_committed(&ids,CancelReason::Expired,|rows| {
+        assert_eq!(rows.len(),1);assert_eq!(rows[0].command.id,2);
+        Err::<(),_>("durable audit failure")
+    });
+    assert_eq!(failed.unwrap_err(),"durable audit failure");
+    assert_eq!(a.queued_len(),2);
+    let rows = a.cancel_queued_ids_committed(&ids,CancelReason::Expired,|_|Ok::<_,&str>(())).unwrap();
+    assert_eq!(rows.len(),1);assert_eq!(rows[0].command.id,2);assert_eq!(rows[0].reason,CancelReason::Expired);
+    a.finish_write(1,true).unwrap();
+    let stop = a.dispatch(1,access).unwrap().command.unwrap();assert_eq!(stop.id,3);assert!(stop.is_stop());
+    a.finish_write(3,true).unwrap();assert!(a.dispatch(2,access).unwrap().command.is_none());
+}

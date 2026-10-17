@@ -660,7 +660,7 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
         };
         let outcome = self.transport.step().await?;
         if let Some(write)=&outcome && write.result.is_ok() && let Some(plan)=&mut self.output_refresh {for device in &write.refresh_devices{plan.written(device,self.transport.now_ms());}}
-        if outcome.as_ref().is_none_or(|value| value.result.is_ok()) {
+        if outcome.as_ref().is_none_or(|value| value.result.is_ok() || value.projection_cancelled) {
             operation.complete = true;
         }
         if let Some(plan) = &mut self.output_refresh {

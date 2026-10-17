@@ -7,23 +7,116 @@ use std::{
     io::{Read, Write},
 };
 
-/// Recheck and hold the exact credential/session generation through the bounded
-/// synchronous write. Revocation completed before this guard yields zero bytes.
+#[derive(Clone, Copy)]
+enum ProjectionRefusal {
+    Expired,
+    Invalidated,
+}
+/// Minted only by the synchronous writer after a whole guarded LED batch was
+/// refused before any wire byte. It cannot be constructed by an API caller.
+pub(crate) struct ProjectionDiscard {
+    members: Vec<(u64, u64)>,
+    reason: ProjectionRefusal,
+}
+impl ProjectionDiscard {
+    pub(crate) fn members(&self) -> &[(u64, u64)] {
+        &self.members
+    }
+    pub(crate) fn reason(&self) -> homesense_core::queue::CancelReason {
+        match self.reason {
+            ProjectionRefusal::Expired => homesense_core::queue::CancelReason::Expired,
+            ProjectionRefusal::Invalidated => homesense_core::queue::CancelReason::RunCancelled,
+        }
+    }
+}
+struct SendAttempt {
+    result: Result<(), SendError>,
+    projection: Option<ProjectionDiscard>,
+}
+fn is_projection(ticket: &crate::admission::DispatchTicket) -> bool {
+    matches!(
+        ticket.command.command,
+        homesense_core::Command::PanelLed(_) | homesense_core::Command::PanelLedOff
+    ) && ticket.feedback_barrier.is_some()
+}
+fn send_attempt(
+    tickets: &[crate::admission::DispatchTicket],
+    result: Result<(), SendError>,
+    refusal: Option<ProjectionRefusal>,
+) -> SendAttempt {
+    let projection = if tickets.iter().all(is_projection)
+        && result.as_ref().is_err_and(|e| e.bytes_written == 0)
+    {
+        let reason = if result
+            .as_ref()
+            .is_err_and(|e| matches!(e.reason, hb_transport::SendFailure::Expired))
+        {
+            Some(ProjectionRefusal::Expired)
+        } else {
+            refusal
+        };
+        reason.map(|reason| ProjectionDiscard {
+            members: tickets
+                .iter()
+                .map(|t| (t.command.id, t.command.deadline_ms))
+                .collect(),
+            reason,
+        })
+    } else {
+        None
+    };
+    SendAttempt { result, projection }
+}
+#[cfg(test)]
 pub(crate) fn send_ticket<S: Read + Write>(
     ticket: &crate::admission::DispatchTicket,
     connection: &mut Connection<S>,
-    mut now: impl FnMut() -> u64,
+    now: impl FnMut() -> u64,
 ) -> Result<(), SendError> {
+    send_one(ticket, connection, now).result
+}
+fn send_one<S: Read + Write>(
+    ticket: &crate::admission::DispatchTicket,
+    connection: &mut Connection<S>,
+    mut now: impl FnMut() -> u64,
+) -> SendAttempt {
+    let valid_authorities = match (
+        &ticket.panel_authorization,
+        &ticket.source_authorization,
+        &ticket.publication_stop,
+        &ticket.away_authorization,
+    ) {
+        (Some(_), None, None, None)
+        | (None, Some(_), None, None)
+        | (None, None, None, Some(_))
+        | (None, None, None, None) => true,
+        (None, None, Some(lease), None) => lease.matches_write(&ticket.command),
+        _ => false,
+    };
+    if !valid_authorities {
+        return SendAttempt {
+            result: Err(SendError {
+                reason: hb_transport::SendFailure::Io(std::io::ErrorKind::PermissionDenied),
+                bytes_written: 0,
+            }),
+            projection: None,
+        };
+    }
     let at = now();
+    let refusal = std::cell::Cell::new(None);
     let denied = || {
+        refusal.set(Some(if at >= ticket.command.deadline_ms {
+            ProjectionRefusal::Expired
+        } else {
+            ProjectionRefusal::Invalidated
+        }));
         Err(SendError {
             reason: hb_transport::SendFailure::Io(std::io::ErrorKind::PermissionDenied),
             bytes_written: 0,
         })
     };
     let send = || connection.send(&ticket.frame, ticket.command.deadline_ms, now);
-    // Match admission lock order: physical feedback first, source generations
-    // second. Reversing these can deadlock behind a queued credential writer.
+    // Preserve feedback -> source lock ordering through the complete write.
     let authorized = || match (
         &ticket.panel_authorization,
         &ticket.source_authorization,
@@ -35,67 +128,82 @@ pub(crate) fn send_ticket<S: Read + Write>(
         (None, None, None, Some(lease)) => lease.with_valid(send).unwrap_or_else(denied),
         (None, None, Some(lease), None) if lease.matches_write(&ticket.command) => send(),
         (None, None, None, None) => send(),
-        _ => denied(),
+        // A malformed authority combination is not a proven lease refusal.
+        _ => Err(SendError {
+            reason: hb_transport::SendFailure::Io(std::io::ErrorKind::PermissionDenied),
+            bytes_written: 0,
+        }),
     };
-    match &ticket.feedback_barrier {
+    let result = match &ticket.feedback_barrier {
         Some(lease) => lease.with_valid(at, authorized).unwrap_or_else(denied),
         None => authorized(),
-    }
+    };
+    send_attempt(std::slice::from_ref(ticket), result, refusal.get())
 }
-
 fn send_tickets<S: Read + Write>(
     tickets: &[crate::admission::DispatchTicket],
     connection: &mut Connection<S>,
     mut now: impl FnMut() -> u64,
-) -> Result<(), SendError> {
+) -> SendAttempt {
     if tickets.len() == 1 {
-        return send_ticket(&tickets[0], connection, now);
+        return send_one(&tickets[0], connection, now);
     }
     let first = &tickets[0];
+    if (first.source_authorization.is_some() && first.away_authorization.is_some())
+        || tickets.iter().any(|ticket| {
+            ticket.gateway_id != first.gateway_id
+                || ticket.panel_authorization.is_some()
+                || ticket.publication_stop.is_some()
+                || match (&first.away_authorization, &ticket.away_authorization) {
+                    (Some(a), Some(b)) => !a.same_authority(b),
+                    (None, None) => false,
+                    _ => true,
+                }
+                || match (&first.source_authorization, &ticket.source_authorization) {
+                    (Some(a), Some(b)) => !a.same_authority(b),
+                    (None, None) => false,
+                    _ => true,
+                }
+        })
+    {
+        return SendAttempt {
+            result: Err(SendError {
+                reason: hb_transport::SendFailure::Io(std::io::ErrorKind::PermissionDenied),
+                bytes_written: 0,
+            }),
+            projection: None,
+        };
+    }
+    let at = now();
+    let refusal = std::cell::Cell::new(None);
+    let deadline = tickets.iter().map(|t| t.command.deadline_ms).min().unwrap();
     let denied = || {
+        refusal.set(Some(if at >= deadline {
+            ProjectionRefusal::Expired
+        } else {
+            ProjectionRefusal::Invalidated
+        }));
         Err(SendError {
             reason: hb_transport::SendFailure::Io(std::io::ErrorKind::PermissionDenied),
             bytes_written: 0,
         })
     };
-    if tickets.iter().any(|ticket| {
-        ticket.gateway_id != first.gateway_id
-            || ticket.panel_authorization.is_some()
-            || ticket.publication_stop.is_some()
-            || match (&first.away_authorization, &ticket.away_authorization) {
-                (Some(a), Some(b)) => !a.same_authority(b),
-                (None, None) => false,
-                _ => true,
-            }
-            || match (&first.source_authorization, &ticket.source_authorization) {
-                (Some(a), Some(b)) => !a.same_authority(b),
-                (None, None) => false,
-                _ => true,
-            }
-    }) {
-        return denied();
-    }
-    let at = now();
-    let frames = tickets
-        .iter()
-        .map(|ticket| &ticket.frame)
-        .collect::<Vec<_>>();
-    let deadline = tickets
-        .iter()
-        .map(|ticket| ticket.command.deadline_ms)
-        .min()
-        .unwrap();
+    let frames = tickets.iter().map(|t| &t.frame).collect::<Vec<_>>();
     let send = || connection.send_batch(&frames, deadline, now);
     let authorized = || match (&first.source_authorization, &first.away_authorization) {
         (Some(source), None) => source.with_valid(send).unwrap_or_else(denied),
         (None, Some(away)) => away.with_valid(send).unwrap_or_else(denied),
         (None, None) => send(),
-        _ => denied(),
+        _ => Err(SendError {
+            reason: hb_transport::SendFailure::Io(std::io::ErrorKind::PermissionDenied),
+            bytes_written: 0,
+        }),
     };
-    match &first.feedback_barrier {
+    let result = match &first.feedback_barrier {
         Some(lease) => lease.with_valid(at, authorized).unwrap_or_else(denied),
         None => authorized(),
-    }
+    };
+    send_attempt(tickets, result, refusal.get())
 }
 
 pub struct TransportOwner<S> {
@@ -130,6 +238,8 @@ pub struct WriteOutcome {
     pub device_id: homesense_core::DeviceId,
     pub command_id: u64,
     pub result: Result<(), SendError>,
+    /// Proven zero-byte projection cancellation, not a successful write.
+    pub projection_cancelled: bool,
     pub completed: Vec<(u64, homesense_core::DeviceId)>,
     pub physical_frames: usize,
     pub refresh_devices: Vec<homesense_core::DeviceId>,
@@ -581,8 +691,13 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
         })
         .await
         .map_err(|e| format!("transport batch worker: {e}"))?;
-        let completed = self.audit_batch_progress(&tickets, &result).await?;
-        if result.is_ok() {
+        let SendAttempt {result,projection}=result;
+        let projection_cancelled=projection.is_some();
+        let completed=if let Some(proof)=projection {
+            self.admission.finish_projection_discard(proof).await.map_err(|e|format!("projection cancellation audit: {e:?}"))?;
+            vec![]
+        } else {self.audit_batch_progress(&tickets,&result).await?};
+        if result.is_ok() || projection_cancelled {
             self.connections.insert(gateway, connection);
             self.failed = false;
         } else {
@@ -596,6 +711,7 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
             command_id: id,
             device_id,
             result,
+            projection_cancelled,
             completed: completed.clone(),
             physical_frames: tickets.iter().map(|t| t.frame.physical_frames()).sum(),
             refresh_devices: tickets

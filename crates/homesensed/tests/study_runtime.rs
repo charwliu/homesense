@@ -202,12 +202,18 @@ async fn direct_manual_control_cancels_only_that_devices_pending_scene_action() 
     let mut remaining = 0;
     while let Some(ticket) = a.dispatch().await.unwrap() {
         assert_ne!(ticket.command.device_id.as_str(), "control4:210");
+        assert!(!matches!(ticket.command.command,homesense_core::Command::PanelLed(_)|homesense_core::Command::PanelLedOff),"no stale LED receives a wire ticket");
         remaining += 1;
         a.finish_write(ticket.command.id, true).await.unwrap();
     }
     assert_eq!(remaining,3,"other three lighting controls finish; stale success LEDs remain held after manual takeover");
-    for command in &run.command_ids{let status=store.command_status(a.boot_id(),*command).unwrap().unwrap();assert!(matches!(status,Status::Cancelled|Status::Written|Status::Accepted));}
-    assert_eq!(rusqlite::Connection::open(&db.0).unwrap().query_row("SELECT count(*) FROM command_journal WHERE status='accepted'",[],|r|r.get::<_,i64>(0)).unwrap(),3,"no stale expected scene LED is written");
+    assert_eq!(run.command_ids.len(),7);
+    for command in &run.command_ids{let status=store.command_status(a.boot_id(),*command).unwrap().unwrap();assert!(matches!(status,Status::Cancelled|Status::Written));}
+    for command in &run.command_ids[4..] {
+        assert_eq!(store.command_status(a.boot_id(),*command).unwrap(),Some(Status::Cancelled),"manual takeover eagerly cancels stale projection LEDs");
+        let reason=rusqlite::Connection::open(&db.0).unwrap().query_row("SELECT cancellation_reason FROM command_journal WHERE boot_id=?1 AND command_id=?2",rusqlite::params![a.boot_id(),*command as i64],|r|r.get::<_,String>(0)).unwrap();assert_eq!(reason,"RunCancelled");
+    }
+    assert_eq!(rusqlite::Connection::open(&db.0).unwrap().query_row("SELECT count(*) FROM command_journal WHERE status='accepted'",[],|r|r.get::<_,i64>(0)).unwrap(),0,"no stale expected scene LED remains pending or is written");
     a.shutdown().await.unwrap();
 }
 #[tokio::test]
