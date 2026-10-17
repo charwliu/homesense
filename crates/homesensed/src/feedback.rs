@@ -12,6 +12,8 @@ use std::{
 
 #[path="scene_projection_lease.rs"]
 mod projection_lease;
+#[path="panel_query_guard.rs"]
+mod panel_query_guard;
 pub(crate) use projection_lease::{ProjectionLease,Fingerprint as IndicatorFingerprint};
 
 /// Private policy proof for LED planning only. Old evidence becomes Unknown,
@@ -113,6 +115,7 @@ pub struct Feedback {
     state_epoch: u64,
     local_wires:Option<BTreeMap<String,Option<u64>>>,
     event_wires:BTreeMap<u64,(String,u64)>,
+    panel_queries: panel_query_guard::Guard,
     now: u64,
     stopped: bool,
     managed_max_age_ms: Option<u64>,
@@ -381,6 +384,7 @@ impl Feedback {
             state_epoch: epoch,
             local_wires:None,
             event_wires:BTreeMap::new(),
+            panel_queries: panel_query_guard::Guard::default(),
             now: 0,
             stopped: false,
         })
@@ -401,6 +405,7 @@ impl Feedback {
             .ok_or("feedback lease exhausted")?;
 
         self.stopped = true;
+        self.panel_queries.reset();
         self.states.mark_stale(self.now,0).map_err(|e|e.to_string())?;
         self.refresh_projection_versions()
     }
@@ -453,6 +458,7 @@ impl Feedback {
         self.epoch = next_epoch;
         self.now = now;
         self.stopped = false;
+        self.panel_queries.reset();
         self.refresh_projection_versions()?;
         Ok(())
     }
@@ -518,19 +524,26 @@ impl Feedback {
         *guard=guard.checked_add(1).ok_or("feedback lease exhausted")?;
         let wires=self.local_wires.as_mut().ok_or("local wire owner not enabled")?;
         *wires.get_mut(gateway).ok_or("unknown gateway")?=None;
+        self.panel_queries.reset_gateway(gateway);
         self.states.invalidate_gateway(gateway).map_err(|e|e.to_string())?;
         self.refresh_projection_versions()
     }
     pub(crate) fn attach_gateway_wire(&mut self,gateway:&str,epoch:u64)->Result<(),String> {
         if epoch==0 {return Err("zero local epoch".into());}
         let wires=self.local_wires.as_mut().ok_or("local wire owner not enabled")?;
-        *wires.get_mut(gateway).ok_or("unknown gateway")?=Some(epoch);Ok(())
+        *wires.get_mut(gateway).ok_or("unknown gateway")?=Some(epoch);
+        self.panel_queries.reset_gateway(gateway);Ok(())
     }
     pub(crate) fn gateway_ready(&mut self,gateway:&str)->Result<(),String> {
         let mut guard=self.lease_version.lock().map_err(|_|"feedback lease poisoned")?;
         *guard=guard.checked_add(1).ok_or("feedback lease exhausted")?;
         self.states.gateway_ready(gateway).map_err(|e|e.to_string())?;
         self.refresh_projection_versions()
+    }
+    /// True only for new query admission. Actual feedback and control writes
+    /// retain their existing evidence, deadlines, and priority.
+    pub(crate) fn query_deferred(&self,gateway:&str,now:u64,postwrite_or_retry:bool)->bool {
+        self.panel_queries.deferred(gateway,now,postwrite_or_retry)
     }
     pub fn apply(&mut self, read: &GatewayRead) -> Result<usize, String> {
         self.apply_at(read,read.received_at_ms)
@@ -574,6 +587,10 @@ impl Feedback {
                     if let Decoded::Feedback {address,channel,observation}=registry.decode(*frame)
                         && self.states.observe_received(&read.gateway_id,address.get(),channel.get(),observation,self.state_epoch,read.received_at_ms,applied_at_ms).map_err(|e|e.to_string())? {
                         count+=1;
+                        if registry.module(address).is_some_and(|module| module.profile()==homesense_core::ProtocolProfile::Ts686Rs485SixKey)
+                            && let homesense_core::Observation::Button { pressed } = observation {
+                            self.panel_queries.button(&read.gateway_id,address.get(),channel.get(),pressed,read.received_at_ms);
+                        }
                         // Per-frame semantic change tracking also invalidates an
                         // Off→On→Off round trip within one received batch.
                         self.refresh_projection_port(&read.gateway_id,address.get(),channel.get())?;
@@ -597,6 +614,7 @@ impl Feedback {
             Receive::Disconnected { .. } => {
                 if self.local_wires.is_some() {return Err("local disconnect must be audited by its owner before projection".into());}
                 self.stopped = true;
+                self.panel_queries.reset();
                 self.states
                     .disconnect(
                         self.epoch.checked_add(1).ok_or("epoch exhausted")?,

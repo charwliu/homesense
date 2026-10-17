@@ -227,6 +227,10 @@ async fn raw_stop_survives_full_upstream_ordinary_dispatch_and_reaches_wire_firs
     assert_eq!(pending.iter().filter(|p|p.priority==2).count(),256);
     assert_eq!(pending.iter().filter(|p|p.priority==0).count(),1,"upstream overload must preserve STOP reserve");
     f.receiver.enqueue_native(pending).unwrap();
+    // An unrelated real key is still held: query protection must not become a
+    // global writer lock or consume STOP's reserved admission capacity.
+    f.input(&[0xae,0x41,0xd1,0xf1,0xee]).await;
+    assert!(f.owner.feedback().query_deferred("bus",f.actor.monotonic_ms(),true));
     f.receiver.poll_causal(&f.actor,&f.document,&mut f.scenes,f.owner.feedback(),5000,None,Some(&mut f.router)).await;
     f.time.fetch_add(21,Ordering::SeqCst);f.owner.step().await.unwrap().expect("STOP must reach writer").result.unwrap();
     let mut first=[0;5];f.peer.read_exact(&mut first).unwrap();
@@ -281,4 +285,20 @@ async fn one_live_native_owner_per_generation_and_retired_owner_can_be_replaced(
     assert_eq!(f.route().await,0,"a replacement cannot replay the old release");
     f.click(0,2).await;assert_eq!(f.route().await,1);f.flush_scene().await;
     assert_eq!(f.journal_count(),4);f.finish().await;
+}
+
+#[tokio::test]
+async fn stop_waits_for_inflight_query_reply_then_takes_the_next_bus_slot() {
+    let mut f=Fixture::build(true,true,true).await;
+    f.actor.module_query(f.controller,f.actor.task_generation().await.unwrap(),"relay".into(),
+        crate::module_queries::Scope::Channel {channel:1},true).await.unwrap();
+    f.owner.step().await.unwrap().unwrap().result.unwrap();
+    let mut frame=[0;5];f.peer.read_exact(&mut frame).unwrap();assert_eq!(frame,[0xae,3,0xa1,0xf2,0xee]);
+    f.click(0,2).await;assert_eq!(f.route().await,1);
+    assert!(f.owner.step().await.unwrap().is_none(),"STOP cannot collide with a query's pending response");
+    f.input(&[0xae,3,0xd1,0xf2,0xee]).await;
+    f.time.fetch_add(21,Ordering::SeqCst);
+    f.owner.step().await.unwrap().unwrap().result.unwrap();
+    f.peer.read_exact(&mut frame).unwrap();assert_eq!(frame,[0xae,0x22,1,0xf0,0xee]);
+    f.finish().await;
 }

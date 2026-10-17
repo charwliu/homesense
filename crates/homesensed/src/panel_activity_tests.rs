@@ -14,12 +14,24 @@ use uuid::Uuid;
 struct Bus {
     writes: Vec<[u8; 5]>,
     replies: VecDeque<u8>,
+    startup_hold: bool,
+    release_at: Option<std::time::Instant>,
+    dimmer_level: u8,
+    dimmer_target: Option<(u8,std::time::Instant)>,
+    dimmer_reads: usize,
+    relay_written_at:Option<std::time::Instant>,
+    dimmer_written_at:Option<std::time::Instant>,
+    dimmer_query_times:Vec<std::time::Instant>,
 }
 #[derive(Clone)]
 struct Stream(Arc<Mutex<Bus>>);
 impl Read for Stream {
     fn read(&mut self, out: &mut [u8]) -> std::io::Result<usize> {
         let mut b = self.0.lock().unwrap();
+        if b.release_at.is_some_and(|at| std::time::Instant::now() >= at) {
+            b.replies.extend([0xae, 0x41, 0xd1, 0xf2, 0xee]);
+            b.release_at = None;
+        }
         if b.replies.is_empty() {
             return Err(std::io::ErrorKind::WouldBlock.into());
         }
@@ -34,24 +46,59 @@ impl Write for Stream {
     fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
         let frame: [u8; 5] = bytes.try_into().unwrap();
         let mut b = self.0.lock().unwrap();
+        if b.startup_hold && b.writes.is_empty() {
+            b.replies.extend([0xae, 0x41, 0xd1, 0xf1, 0xee]);
+            b.release_at = Some(std::time::Instant::now() + Duration::from_millis(142));
+        } else if b.startup_hold {
+            assert!(b.release_at.is_none(), "startup must receive release before next query");
+        }
         b.writes.push(frame);
+        if frame[1]==0x15 {
+            if frame[2]==0xa0 {
+                b.dimmer_reads+=1;
+                b.dimmer_query_times.push(std::time::Instant::now());
+                if let Some((target,at))=b.dimmer_target && std::time::Instant::now()>=at {
+                    b.dimmer_level=target;b.dimmer_target=None;
+                }
+                let level=b.dimmer_level;
+                for ch in 1..=8 {b.replies.extend([0xae,0x15,0xd0+ch,level,0xee]);}
+            } else {
+                assert!(matches!(frame[2],1|0xb1));
+                let now=std::time::Instant::now();
+                b.dimmer_written_at=Some(now);b.dimmer_query_times.clear();
+                b.dimmer_target=Some((frame[3],now+if frame[2]==0xb1 {Duration::from_millis(6150)} else {Duration::ZERO}));
+                b.dimmer_reads=0;
+            }
+            return Ok(bytes.len());
+        }
         assert_eq!(frame[1], 3, "no panel queries or outputs");
-        assert!((0xa1..=0xa8).contains(&frame[2]), "only R8 singleton reads");
-        b.replies.extend([0xae, 3, frame[2] + 0x30, 0xf1, 0xee]);
+        if (0xa1..=0xa8).contains(&frame[2]) {
+            b.replies.extend([0xae, 3, frame[2] + 0x30, 0xf1, 0xee]);
+        } else {
+            b.relay_written_at=Some(std::time::Instant::now());
+            assert!((1..=8).contains(&frame[2]) && matches!(frame[3], 0xf1 | 0xf2));
+            b.replies.extend([0xae, 3, frame[2] + 0xd0, frame[3], 0xee]);
+        }
         Ok(bytes.len())
     }
     fn flush(&mut self) -> std::io::Result<()> {
         Ok(())
     }
 }
-async fn run(independent: bool, strict: bool) {
+async fn run(independent: bool, strict: bool, delayed_release: bool, startup_hold: bool, ramp:bool) {
     let gateways = if independent {
         vec!["bus", "other"]
     } else {
         vec!["bus"]
     };
-    let configs=gateways.iter().map(|id|serde_json::json!({"id":id,"endpoint":if *id=="bus"{"127.0.0.1:1"}else{"127.0.0.1:2"},"modules":[{"id":format!("{id}-r8"),"address":"03","profile":"r8i8_din_pro_v2_7_7","verification":{"status":"simulated"}},{"id":format!("{id}-ts6"),"address":"41","profile":"ts6_86_rs485_v2_6_5_6key","verification":{"status":"simulated"},"led_mode":"manual"}]})).collect::<Vec<_>>();
-    let devices=gateways.iter().map(|id|serde_json::json!({"id":format!("{id}-light"),"name":"Synthetic light","module_id":format!("{id}-r8"),"channel":1,"enabled":true})).collect::<Vec<_>>();
+    let mut configs=gateways.iter().map(|id|serde_json::json!({"id":id,"endpoint":if *id=="bus"{"127.0.0.1:1"}else{"127.0.0.1:2"},"modules":[{"id":format!("{id}-r8"),"address":"03","profile":"r8i8_din_pro_v2_7_7","verification":{"status":"simulated"}},{"id":format!("{id}-ts6"),"address":"41","profile":"ts6_86_rs485_v2_6_5_6key","verification":{"status":"simulated"},"led_mode":"manual"}]})).collect::<Vec<_>>();
+    let mut devices=gateways.iter().map(|id|serde_json::json!({"id":format!("{id}-light"),"name":"Synthetic light","module_id":format!("{id}-r8"),"channel":1,"enabled":true})).collect::<Vec<_>>();
+    if ramp {
+        for (id,gateway) in gateways.iter().zip(&mut configs) {
+            gateway["modules"].as_array_mut().unwrap().push(serde_json::json!({"id":format!("{id}-ad8"),"address":"15","profile":"ad8_din_rs485_v2_2_1","verification":{"status":"simulated"}}));
+            devices.push(serde_json::json!({"id":format!("{id}-dimmer"),"name":"Synthetic delayed dimmer","module_id":format!("{id}-ad8"),"channel":1,"enabled":true}));
+        }
+    }
     let raw = serde_json::to_vec(
         &serde_json::json!({"schema_version":2,"revision":1,"gateways":configs,"devices":devices}),
     )
@@ -78,7 +125,7 @@ async fn run(independent: bool, strict: bool) {
     a.transport_failed().await.unwrap();
     let buses = gateways
         .iter()
-        .map(|id| (id.to_string(), Arc::new(Mutex::new(Bus::default()))))
+        .map(|id| (id.to_string(), Arc::new(Mutex::new(Bus { startup_hold, dimmer_level:60, ..Default::default() }))))
         .collect::<BTreeMap<_, _>>();
     let conns = buses
         .iter()
@@ -108,6 +155,12 @@ async fn run(independent: bool, strict: bool) {
     )
     .await
     .unwrap();
+    if startup_hold {
+        assert_eq!(buses["bus"].lock().unwrap().writes.len(), 8);
+        assert_eq!(o.feedback.module_truth().received_port_state("bus", 0x41, 1).unwrap().observed,
+            Some(homesense_core::Observation::Button { pressed: false }));
+        drop(o);a.shutdown().await.unwrap();std::fs::remove_dir_all(dir).unwrap();return;
+    }
     if independent {
         o.enable_independent(
             &c,
@@ -125,6 +178,54 @@ async fn run(independent: bool, strict: bool) {
         age,
     )
     .unwrap();
+    if ramp {
+        let baseline=buses["bus"].lock().unwrap().writes.len();assert_eq!(baseline,9);
+        buses["bus"].lock().unwrap().replies.extend([0xae,0x41,0xd1,0xf1,0xee,0xae,0x41,0xd1,0xf2,0xee]);
+        let until=std::time::Instant::now()+Duration::from_millis(30);
+        while std::time::Instant::now()<until {
+            if independent {o.local_tick().await.unwrap();o.start_local_reads().unwrap();}
+            else {o.receive("bus").await.unwrap();o.refresh_outputs_if_due().await.unwrap();}
+            tokio::time::sleep(Duration::from_millis(2)).await;
+        }
+        a.submit(homesense_hap::requests::Batch {controller,intents:vec![homesense_hap::requests::Intent {
+            device:homesense_core::DeviceId::new("bus-dimmer").unwrap(),command:homesense_core::Command::SetLevel {
+                level:homesense_core::Percent::new(17).unwrap(),transition:homesense_core::LevelTransition::Immediate,
+            },
+        }],subscriptions:vec![]}).await.unwrap();
+        let mut relay_requested=false;
+        let until=std::time::Instant::now()+Duration::from_millis(6800);
+        while std::time::Instant::now()<until {
+            if independent {o.local_tick().await.unwrap();}
+            else {o.receive_pending_output().await.unwrap();o.receive("bus").await.unwrap();o.refresh_outputs_if_due().await.unwrap();}
+            if let Some(write)=o.step().await.unwrap(){
+                write.result.unwrap();
+                if !relay_requested {
+                    a.submit(homesense_hap::requests::Batch {controller,intents:vec![homesense_hap::requests::Intent {
+                        device:homesense_core::DeviceId::new("bus-light").unwrap(),command:homesense_core::Command::Switch(false),
+                    }],subscriptions:vec![]}).await.unwrap();relay_requested=true;
+                }
+            }
+            if independent{o.start_local_reads().unwrap();}
+            tokio::time::sleep(Duration::from_millis(2)).await;
+        }
+        assert_eq!(o.feedback.module_truth().received_port_state("bus",0x15,1).unwrap().observed,
+            Some(homesense_core::Observation::Level(homesense_core::Percent::new(17).unwrap())),
+            "a first intermediate reply cannot postpone final brightness confirmation for five minutes");
+        {let state=buses["bus"].lock().unwrap();assert!(state.dimmer_reads>=2);
+        let written=state.dimmer_written_at.unwrap();
+        assert!(state.dimmer_query_times.iter().all(|at|at.duration_since(written)>=Duration::from_secs(6)),"no AD8 read before six seconds after actual ramp write");
+        assert!(state.relay_written_at.unwrap().duration_since(written)<Duration::from_secs(1),"ramp query delay must not block another control");
+        assert!(state.writes[baseline..].iter().all(|frame|frame[1]==0x15 || (frame[1]==3 && matches!(frame[2],1|0xa1))),"confirmation must not restart unrelated periodic R8 reads");}
+        let count=buses["bus"].lock().unwrap().writes.len();
+        let until=std::time::Instant::now()+Duration::from_millis(100);
+        while std::time::Instant::now()<until {
+            if independent{o.local_tick().await.unwrap();o.start_local_reads().unwrap();}
+            else{o.receive_pending_output().await.unwrap();o.receive("bus").await.unwrap();o.refresh_outputs_if_due().await.unwrap();}
+            tokio::time::sleep(Duration::from_millis(2)).await;
+        }
+        assert_eq!(buses["bus"].lock().unwrap().writes.len(),count,"confirmation queries stop at the observed target");
+        drop(o);a.shutdown().await.unwrap();std::fs::remove_dir_all(dir).unwrap();return;
+    }
     let count = || {
         buses
             .values()
@@ -180,71 +281,136 @@ async fn run(independent: bool, strict: bool) {
         std::fs::remove_dir_all(dir).unwrap();
         return;
     }
-    let before = o
-        .feedback
-        .module_truth()
-        .port_observation_count("bus", 0x41, 1)
-        .unwrap();
-    buses["bus"].lock().unwrap().replies.extend([
-        0xae, 0x41, 0xd1, 0xf1, 0xee, 0xae, 0x41, 0xd1, 0xf2, 0xee, 0xae, 0x41, 0xd2, 0xf1, 0xee,
-        0xae, 0x41, 0xd2, 0xf2, 0xee,
-    ]);
-    let deadline = std::time::Instant::now() + Duration::from_secs(2);
-    while count() < baseline + gateways.len() * 8 || o.output_query_pending() {
-        assert!(
-            std::time::Instant::now() < deadline,
-            "normal output round never accelerated"
-        );
-        if independent {
-            o.local_tick().await.unwrap();
-            o.start_local_reads().unwrap();
-        } else {
-            o.receive_pending_output().await.unwrap();
-            o.receive("bus").await.unwrap();
-            o.refresh_outputs_if_due().await.unwrap();
+    // A real short press can arrive in a different read from its release.
+    // The field trace lost F2 when a newly admitted query followed F1; the
+    // receive-only comparison delivered F2 142 ms later.
+    if delayed_release {
+        buses["bus"].lock().unwrap().replies.extend([0xae, 0x41, 0xd1, 0xf1, 0xee]);
+        let end = std::time::Instant::now() + Duration::from_millis(160);
+        while std::time::Instant::now() < end {
+            if independent {
+                o.local_tick().await.unwrap();
+                o.start_local_reads().unwrap();
+            } else {
+                o.receive("bus").await.unwrap();
+                o.refresh_outputs_if_due().await.unwrap();
+            }
+            tokio::time::sleep(Duration::from_millis(2)).await;
         }
-        tokio::time::sleep(Duration::from_millis(2)).await;
-    }
-    assert_eq!(
-        o.feedback
-            .module_truth()
-            .port_observation_count("bus", 0x41, 1),
-        Some(before + 2)
-    );
-    assert_eq!(
-        count(),
-        baseline + gateways.len() * 8,
-        "press/release burst coalesces one ordinary round"
-    );
-    for _ in 0..20 {
+        assert_eq!(buses["bus"].lock().unwrap().writes.len(), 8,
+            "new polling must leave the pressed bus quiet until release");
         if independent {
-            o.local_tick().await.unwrap();
-            o.start_local_reads().unwrap();
-        } else {
-            o.receive("bus").await.unwrap();
-            o.refresh_outputs_if_due().await.unwrap();
+            assert!(buses["other"].lock().unwrap().writes.len() > 8,
+                "a pressed key cannot stall an independent bus");
         }
-        tokio::time::sleep(Duration::from_millis(2)).await;
     }
-    assert_eq!(
-        count(),
-        baseline + gateways.len() * 8,
-        "solicited output replies cannot start more rounds"
-    );
+    if delayed_release {
+        // A release ends receive protection, but ordinary/strict periodic reads
+        // still wait five minutes. It must not be mistaken for a load receipt.
+        a.module_query(controller,a.task_generation().await.unwrap(),"bus-r8".into(),
+            crate::module_queries::Scope::Channel {channel:8},true).await.unwrap();
+        a.submit(homesense_hap::requests::Batch { controller,
+            intents: vec![homesense_hap::requests::Intent {
+                device: homesense_core::DeviceId::new("bus-light").unwrap(),
+                command: homesense_core::Command::Switch(true),
+            }], subscriptions: vec![],
+        }).await.unwrap();
+        let end = std::time::Instant::now() + Duration::from_millis(50);
+        while std::time::Instant::now() < end {
+            if independent { o.local_tick().await.unwrap(); }
+            else { o.receive("bus").await.unwrap();o.refresh_outputs_if_due().await.unwrap(); }
+            if let Some(write) = o.step().await.unwrap() { write.result.unwrap(); }
+            if independent { o.start_local_reads().unwrap(); }
+            tokio::time::sleep(Duration::from_millis(2)).await;
+        }
+        assert_eq!(&buses["bus"].lock().unwrap().writes[8..], &[[0xae,3,1,0xf1,0xee]],
+            "control writes proceed while pressed, confirmation query waits for real release");
+        buses["bus"].lock().unwrap().replies.extend([0xae, 0x41, 0xd1, 0xf2, 0xee]);
+        o.configure_consumer_refresh(&[(homesense_core::DeviceId::new("bus-light").unwrap(), 1)].into()).unwrap();
+        let end = std::time::Instant::now() + Duration::from_millis(300);
+        while std::time::Instant::now() < end {
+            if independent {
+                o.local_tick().await.unwrap();
+            } else {
+                o.receive_pending_output().await.unwrap();
+                o.receive("bus").await.unwrap();
+                o.refresh_outputs_if_due().await.unwrap();
+            }
+            if let Some(write) = o.step().await.unwrap() { write.result.unwrap(); }
+            if independent { o.start_local_reads().unwrap(); }
+            tokio::time::sleep(Duration::from_millis(2)).await;
+        }
+        let sent=buses["bus"].lock().unwrap().writes[8..].to_vec();
+        assert_eq!(sent.first(),Some(&[0xae,3,1,0xf1,0xee]));
+        let queries=sent.iter().skip(1).copied().collect::<std::collections::BTreeSet<_>>();
+        assert_eq!(queries,[[0xae,3,0xa1,0xf2,0xee],[0xae,3,0xa8,0xf2,0xee]].into());
+        assert_eq!(sent.len(),3,"one actual write, one confirmation and one explicitly requested query; no periodic reads");
+    } else {
+        // Genuine unsolicited load feedback still accelerates a normal round.
+        buses["bus"].lock().unwrap().replies.extend([0xae, 3, 0xd1, 0xf2, 0xee]);
+        let deadline = std::time::Instant::now() + Duration::from_secs(2);
+        while count() < baseline + gateways.len() * 8 || o.output_query_pending() {
+            assert!(std::time::Instant::now() < deadline, "normal output round never accelerated");
+            if independent {
+                o.local_tick().await.unwrap();
+                o.start_local_reads().unwrap();
+            } else {
+                o.receive_pending_output().await.unwrap();
+                o.receive("bus").await.unwrap();
+                o.refresh_outputs_if_due().await.unwrap();
+            }
+            tokio::time::sleep(Duration::from_millis(2)).await;
+        }
+        assert_eq!(count(), baseline + gateways.len() * 8);
+        for _ in 0..20 {
+            if independent {
+                o.local_tick().await.unwrap();
+                o.start_local_reads().unwrap();
+            } else {
+                o.receive("bus").await.unwrap();
+                o.refresh_outputs_if_due().await.unwrap();
+            }
+            tokio::time::sleep(Duration::from_millis(2)).await;
+        }
+        assert_eq!(count(), baseline + gateways.len() * 8, "solicited replies cannot start more rounds");
+    }
     drop(o);
     a.shutdown().await.unwrap();
     std::fs::remove_dir_all(dir).unwrap();
 }
 #[tokio::test]
-async fn registered_ts6_activity_accelerates_single_gateway_normal_round_only() {
-    run(false, false).await;
+async fn unsolicited_load_feedback_accelerates_single_gateway_normal_round_only() {
+    run(false, false, false, false, false).await;
 }
 #[tokio::test]
-async fn registered_ts6_activity_accelerates_independent_gateway_normal_round_only() {
-    run(true, false).await;
+async fn unsolicited_load_feedback_accelerates_independent_gateway_normal_round_only() {
+    run(true, false, false, false, false).await;
 }
 
 #[tokio::test]
 async fn strict_consumer_on_independent_bus_never_refreshes_unrelated_ports_or_gateway() {
-    run(true, true).await;
+    run(true, true, false, false, false).await;
+}
+
+#[tokio::test]
+async fn short_press_defers_single_bus_queries_until_real_release() {
+    run(false, false, true, false, false).await;
+}
+#[tokio::test]
+async fn short_press_defers_its_local_bus_without_stalling_other_gateway() {
+    run(true, false, true, false, false).await;
+}
+
+#[tokio::test]
+async fn startup_queries_also_wait_for_the_received_press_release() {
+    run(false, false, false, true, false).await;
+}
+
+#[tokio::test]
+async fn keypad_quiet_period_keeps_single_bus_dimmer_confirmation_until_final_feedback() {
+    run(false,false,false,false,true).await;
+}
+#[tokio::test]
+async fn keypad_quiet_period_keeps_local_bus_dimmer_confirmation_until_final_feedback() {
+    run(true,false,false,false,true).await;
 }

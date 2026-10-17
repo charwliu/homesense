@@ -208,6 +208,8 @@ fn send_tickets<S: Read + Write>(
 
 pub struct TransportOwner<S> {
     read_permits: BTreeMap<String, crate::admission::QueryReadPermit>,
+    query_replies:crate::query_response::Replies,
+    query_paused:std::collections::BTreeSet<String>,
     admission: Admission,
     connections: BTreeMap<String, Connection<S>>,
     failed: bool,
@@ -243,11 +245,14 @@ pub struct WriteOutcome {
     pub completed: Vec<(u64, homesense_core::DeviceId)>,
     pub physical_frames: usize,
     pub refresh_devices: Vec<homesense_core::DeviceId>,
+    pub(crate) refresh_schedule: Vec<(homesense_core::DeviceId,bool)>,
 }
 impl<S: Read + Write + Send + 'static> TransportOwner<S> {
     pub fn new(admission: Admission, connections: BTreeMap<String, Connection<S>>) -> Self {
         Self {
             read_permits: Default::default(),
+            query_replies:Default::default(),
+            query_paused:Default::default(),
             admission,
             connections,
             failed: false,
@@ -261,7 +266,7 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
         frame_budget: usize,
     ) -> Result<Vec<crate::admission::DispatchTicket>, String> {
         let id = first.command.id;
-        let protected = first.panel_authorization.is_some() || first.publication_stop.is_some();
+        let protected = first.command.command==homesense_core::Command::Query || first.panel_authorization.is_some() || first.publication_stop.is_some();
         let mut frames = first.frame.physical_frames();
         if frames > frame_budget {
             self.admission
@@ -425,11 +430,30 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
         self.query_status_scope(gateway, module, channel, context, timeout_ms, false)
             .await
     }
+    pub(crate) fn pause_queries(&mut self,paused:std::collections::BTreeSet<String>) { self.query_paused=paused; }
+    pub(crate) fn queued_query_gateway(&self)->Option<String> { self.query_replies.next(self.now_ms()) }
+    pub(crate) fn query_response_pending(&self,gateway:&str)->bool {self.query_replies.waiting(gateway,self.now_ms())}
+    pub(crate) fn awaiting_query_response(&self,gateway:&str)->bool {self.query_replies.awaiting(gateway,self.now_ms())}
+    pub(crate) async fn finish_reply_turnaround(&mut self) {
+        if let Some(delay)=self.query_replies.turnaround(self.now_ms()) {
+            tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
+        }
+    }
+    pub(crate) fn queued_query_solicited(&self,gateway:&str,frame:hb_protocol::RawFrame,at:u64)->bool {self.query_replies.solicited(gateway,frame,at)}
+    fn track_query_reply(&mut self,tickets:&mut [crate::admission::DispatchTicket]) {
+        for ticket in tickets { if let Some(scope)=ticket.query_reply.take() {
+            self.query_replies.start(ticket.gateway_id.clone(),scope,self.now_ms(),self.write_interval_ms());
+        } }
+    }
     pub(crate) fn finish_status_read(&mut self, gateway: &str) {
         self.read_permits.remove(gateway);
+        // Keep the completed reply's bounded turnaround window. Dropping the
+        // query permit must not immediately authorize a colliding writer.
     }
     pub(crate) fn finish_all_status_reads(&mut self) {
         self.read_permits.clear();
+        self.query_replies.clear();
+        self.query_paused.clear();
     }
     #[allow(clippy::too_many_arguments)]
     pub(crate) async fn try_query_status_scope(
@@ -491,6 +515,9 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
     ) -> Result<bool, String> {
         if self.failed || timeout_ms == 0 || timeout_ms > 5000 {
             return Err("invalid query owner or timeout".into());
+        }
+        if self.query_replies.waiting(gateway,self.now_ms()) {
+            return if deferrable {Ok(false)} else {Err("query reply or release still pending".into())};
         }
         let epoch = self
             .connections
@@ -569,6 +596,8 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
             return Err(format!("query send: {error:?}"));
         }
         self.connections.insert(gateway.to_owned(), connection);
+        self.query_replies.start_with_timeout(gateway.to_owned(),
+            crate::query_response::Scope::new(module,if whole_module {None}else{Some(channel.get())},context,epoch)?,self.now_ms(),timeout_ms,self.write_interval_ms());
         self.failed = false;
         guard.complete = true;
         Ok(true)
@@ -633,12 +662,10 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
             self.failed = false;
         }
         guard.complete = true;
-        Ok(GatewayRead {
-            gateway_id: gateway.to_owned(),
-            transport_epoch: epoch,
-            received_at_ms,
-            result,
-        })
+        let read=GatewayRead {gateway_id:gateway.to_owned(),transport_epoch:epoch,received_at_ms,result};
+        self.query_replies.observe(&read);
+        if matches!(read.result,Receive::Disconnected {..}) {self.query_replies.reset(gateway);}
+        Ok(read)
     }
     /// Write one bounded admitted phase using a blocking I/O worker, then audit.
     /// Cancellation poisons this owner; a removed connection is never reused.
@@ -659,6 +686,12 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
         if self.failed {
             return Err("transport owner requires recovery".into());
         }
+        let mut available=self.connections.keys().filter(|gateway|!self.query_replies.waiting(gateway,self.now_ms())).cloned().collect::<std::collections::BTreeSet<_>>();
+        if available.is_empty() {
+            self.finish_reply_turnaround().await;
+            available=self.connections.keys().filter(|gateway|!self.query_replies.waiting(gateway,self.now_ms())).cloned().collect();
+            if available.is_empty() {return Ok(None);}
+        }
         let mut slot = self.wait_write_slot().await;
         let mut guard = OperationGuard {
             admission: self.admission.clone(),
@@ -667,7 +700,7 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
         self.failed = true;
         let Some(ticket) = self
             .admission
-            .dispatch()
+            .dispatch_query_filtered(available,self.query_paused.clone())
             .await
             .map_err(|e| format!("dispatch: {e:?}"))?
         else {
@@ -684,7 +717,7 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
             return Err("no connection for configured gateway".into());
         };
         let clock = self.admission.clone();
-        let (connection, tickets, result, _slot) = tokio::task::spawn_blocking(move || {
+        let (connection, mut tickets, result, _slot) = tokio::task::spawn_blocking(move || {
             let result = send_tickets(&tickets, &mut connection, || clock.monotonic_ms());
             *slot = Some(tokio::time::Instant::now() + clock.write_interval);
             (connection, tickets, result, slot)
@@ -697,6 +730,7 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
             self.admission.finish_projection_discard(proof).await.map_err(|e|format!("projection cancellation audit: {e:?}"))?;
             vec![]
         } else {self.audit_batch_progress(&tickets,&result).await?};
+        if result.is_ok() {self.track_query_reply(&mut tickets);}
         if result.is_ok() || projection_cancelled {
             self.connections.insert(gateway, connection);
             self.failed = false;
@@ -714,6 +748,9 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
             projection_cancelled,
             completed: completed.clone(),
             physical_frames: tickets.iter().map(|t| t.frame.physical_frames()).sum(),
+            refresh_schedule: tickets.iter()
+                .filter(|t| t.command.command!=homesense_core::Command::Query && completed.iter().any(|(id,_)|*id==t.command.id))
+                .flat_map(|t|t.refresh_devices.iter().cloned().map(|id|(id,t.ramp_confirmation))).collect(),
             refresh_devices: tickets
                 .iter()
                 .filter(|t| completed.iter().any(|(id, _)| *id == t.command.id))
@@ -810,6 +847,10 @@ mod pacing_tests {
                 })
                 .await
                 .unwrap();
+            // No reply is provided by this pacing fixture. The first owner's
+            // read must expire before the next writer uses the physical bus.
+            tokio::time::sleep(std::time::Duration::from_millis(110)).await;
+            owner.finish_status_read("simulation");
             other.step().await.unwrap().unwrap().result.unwrap();
             owner
                 .query_status(

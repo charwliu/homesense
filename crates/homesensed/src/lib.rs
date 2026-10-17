@@ -202,6 +202,8 @@ mod indicator_outputs;
 mod gateway_runtime;
 
 mod consumer_refresh;
+mod query_response;
+mod postwrite_confirmation;
 
 mod component_modes;
 mod control_batch;

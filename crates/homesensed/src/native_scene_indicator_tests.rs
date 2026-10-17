@@ -379,7 +379,10 @@ async fn combined_joint(powered: bool) {
     h.close().await;
 }
 async fn drain_owner(h: &Harness, owner: &mut TransportOwner<MemoryWire>) {
-    for _ in 0..100 {
+    // This fixture deliberately supplies observations later. Unanswered query
+    // tickets must use their real response timeout before another write runs.
+    let deadline=std::time::Instant::now()+Duration::from_secs(3);
+    while std::time::Instant::now()<deadline {
         if let Some(outcome) = owner.step().await.unwrap() {
             outcome.result.unwrap();
         }

@@ -369,24 +369,28 @@ async fn failed_adaptive_round_does_not_qualify_background_leds_or_preserve_conf
 }
 
 #[tokio::test]
-async fn direct_write_during_three_hour_idle_prioritizes_actual_readback_without_waiting() {
+async fn direct_and_ramp_writes_during_three_hour_idle_confirm_with_their_respective_delay() {
+    for level in [100,60] {
     let mut f=Fixture::new(false,true).await;let age=f.config.refresh_policy().observation_max_age_ms();
     f.sync(100,age).await.unwrap();
     f.owner.configure_output_refresh(&f.config,f.controller,f.admission.task_generation().await.unwrap(),ExecutionContext::Simulation,100,age).unwrap();
     f.owner.take_completed_refresh_round();
     let before=f.owner.feedback().module_truth().module_state("bound",1).unwrap().observed_at_ms;
-    f.admission.submit(homesense_hap::requests::Batch {controller:f.controller,intents:vec![homesense_hap::requests::Intent {device:homesense_core::DeviceId::new("light").unwrap(),command:homesense_core::Command::SetLevel {level:Percent::new(60).unwrap(),transition:homesense_core::LevelTransition::Immediate}}],subscriptions:vec![]}).await.unwrap();
+    f.admission.submit(homesense_hap::requests::Batch {controller:f.controller,intents:vec![homesense_hap::requests::Intent {device:homesense_core::DeviceId::new("light").unwrap(),command:homesense_core::Command::SetLevel {level:Percent::new(level).unwrap(),transition:homesense_core::LevelTransition::Immediate}}],subscriptions:vec![]}).await.unwrap();
+    let write_started_at=f.admission.monotonic_ms();
     tokio::time::timeout(Duration::from_secs(1),async {loop {if f.owner.step_after_refresh_read().await.unwrap().is_some(){break;}tokio::time::sleep(Duration::from_millis(10)).await;}}).await.unwrap();
     assert_eq!(f.owner.feedback().module_truth().module_state("bound",1).unwrap().observed_at_ms,before,"Written is not readback");
-    tokio::time::timeout(Duration::from_secs(1),async {loop {
+    tokio::time::timeout(Duration::from_secs(if level==100 {1}else{7}),async {loop {
         f.owner.refresh_outputs_if_due().await.unwrap();f.owner.receive("bus").await.unwrap();
-        if f.owner.feedback().module_truth().module_state("bound",1).unwrap().observed==Some(Observation::Level(Percent::new(60).unwrap())) {break;}
+        if f.owner.feedback().module_truth().module_state("bound",1).unwrap().observed==Some(Observation::Level(Percent::new(level).unwrap())) {break;}
         tokio::time::sleep(Duration::from_millis(5)).await;
     }}).await.unwrap();
-    assert_eq!(f.owner.feedback().module_truth().module_state("bound",1).unwrap().observed,Some(Observation::Level(Percent::new(60).unwrap())));
+    if level==60 {assert!(f.admission.monotonic_ms()>=write_started_at+6_000,"AD8 intermediate target waits six seconds after writing before confirmation");}
+    assert_eq!(f.owner.feedback().module_truth().module_state("bound",1).unwrap().observed,Some(Observation::Level(Percent::new(level).unwrap())));
     assert!(f.owner.feedback().module_truth().module_state("bound",1).unwrap().observed_at_ms>before);
     assert_eq!(f.bus.lock().unwrap().writes.last().unwrap()[1],1,"changed module read first in the ordinary round");
     f.close().await;
+    }
 }
 
 #[tokio::test]

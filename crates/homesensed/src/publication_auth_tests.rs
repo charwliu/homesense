@@ -488,6 +488,7 @@ async fn revocation_after_barrier_entry_keeps_stop_drain_and_atomic_switch_compl
                             .unwrap();
                         Ok(crate::transport_owner::WriteOutcome {
                             projection_cancelled: false,
+                            refresh_schedule:vec![],
                             physical_frames:ticket.frame.physical_frames(),
                             refresh_devices:ticket.refresh_devices.clone(),
                             completed:if result.is_ok(){vec![(ticket.command.id,ticket.command.device_id.clone())]}else{vec![]},

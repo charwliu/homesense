@@ -130,7 +130,7 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
         self.connections
             .keys()
             .filter(|id| {
-                !blocked.contains(*id)
+                !blocked.contains(*id) && !self.query_replies.waiting(id,self.now_ms())
                     && self
                         .local
                         .as_ref()
@@ -194,6 +194,7 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
     }
     fn local_offline(&mut self, wire: &WireScope) -> Result<(), String> {
         let now = self.now_ms();
+        self.query_replies.reset(wire.gateway());
         let local = self.local.as_mut().ok_or("local IO not enabled")?;
         if local.epochs.get(wire.gateway()) != Some(&wire.epoch()) {
             return Err("stale local fault".into());
@@ -369,12 +370,9 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
             events
                 .read_fences
                 .insert(id.clone(), work.written_before_receive);
-            events.reads.push(GatewayRead {
-                gateway_id: id,
-                transport_epoch: work.wire.epoch(),
-                received_at_ms: at,
-                result,
-            });
+            let read=GatewayRead {gateway_id:id,transport_epoch:work.wire.epoch(),received_at_ms:at,result};
+            self.query_replies.observe(&read);
+            events.reads.push(read);
         }
         let connected = self
             .local
@@ -541,9 +539,11 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
         &mut self,
         blocked: &BTreeSet<String>,
     ) -> Result<Option<WriteOutcome>, String> {
-        let available = self.local_available_writers(blocked);
+        let mut available = self.local_available_writers(blocked);
         if available.is_empty() {
-            return Ok(None);
+            self.finish_reply_turnaround().await;
+            available=self.local_available_writers(blocked);
+            if available.is_empty() {return Ok(None);}
         }
         let mut slot = self.wait_write_slot().await;
         let mut guard = OperationGuard {
@@ -552,7 +552,7 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
         };
         let Some(ticket) = self
             .admission
-            .dispatch_available(available)
+            .dispatch_query_filtered(available,self.query_paused.clone())
             .await
             .map_err(|e| format!("local dispatch: {e:?}"))?
         else {
@@ -568,7 +568,7 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
             .remove(&tickets[0].gateway_id)
             .ok_or("available local stream disappeared")?;
         let clock = self.admission.clone();
-        let (connection, tickets, result, _slot) = tokio::task::spawn_blocking(move || {
+        let (connection, mut tickets, result, _slot) = tokio::task::spawn_blocking(move || {
             let result = send_tickets(&tickets, &mut connection, || clock.monotonic_ms());
             *slot = Some(tokio::time::Instant::now() + clock.write_interval);
             (connection, tickets, result, slot)
@@ -576,6 +576,7 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
         .await
         .map_err(|e| format!("local batch writer: {e}"))?;
         let SendAttempt {result,projection}=result;
+        if result.is_ok() {self.track_query_reply(&mut tickets);}
         let projection_cancelled=projection.is_some();
         let completed=if let Some(proof)=projection {
             self.admission.finish_projection_discard(proof).await.map_err(|e|format!("local projection cancellation audit: {e:?}"))?;
@@ -627,6 +628,9 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
             projection_cancelled,
             completed: completed.clone(),
             physical_frames: tickets.iter().map(|t| t.frame.physical_frames()).sum(),
+            refresh_schedule: tickets.iter()
+                .filter(|t| t.command.command!=homesense_core::Command::Query && completed.iter().any(|(id,_)|*id==t.command.id))
+                .flat_map(|t|t.refresh_devices.iter().cloned().map(|id|(id,t.ramp_confirmation))).collect(),
             refresh_devices: tickets
                 .iter()
                 .filter(|t| completed.iter().any(|(id, _)| *id == t.command.id))
