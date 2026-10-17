@@ -29,6 +29,8 @@ HomeSense（中文名：知居）是原生 Rust 家庭中控，通过 TCP485 网
 
 场景可在 `automation.scene_metadata` 中用可选的 `room` 引用同版本设备配置的房间 ID；缺省或 `null` 保持未分配。场景目录 GET 和 WSS 状态统一返回 `room: {id, name, floor} | null`，只展示当前授权可读的场景；引用中的房间不能删除。此项仅补充目录元数据，不改变场景程序或 EA-5 控制范围。配置／草稿、GET/WSS 回归及原生 App 实际 HTTPS/WSS 联调通过；房间回填配置尚未发布。
 
+AD8 自动化目标为 0%／100% 时直接关闭／全开；1%–99% 保留显式原生渐变。其他模块 profile 与组合灯关闭时的亮度记忆保持原规则。
+
 离家模块范围和配置方式见[离家按模块关灯](docs/away-module-off.md)。该操作独立于导入场景，不会自动启用或折叠原场景。
 
 管理接口独立运行时，也会用真实读回推动调光目标收敛；准确目标在写入完成后被确认，发布状态即可从 `pending_target` 返回 `feedback`，不依赖另行开启 HAP 或 LED 同步采样器。Accepted、Writing、过旧反馈和渐变中间值不会提前确认。
