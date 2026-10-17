@@ -110,7 +110,6 @@ async fn snapshot_bound(admission:&Admission,controller:Uuid,generation:TaskGene
     let max_age_ms=feedback.effective_max_age_ms(requested);
     let motor_estimates=admission.curtain_views(controller,generation.clone(),ids.clone()).await.map_err(|e|format!("curtain inference: {e:?}"))?;
     let gateway_views=admission.gateway_availability().await.map_err(|e|format!("gateway view: {e:?}"))?;
-    let recorded=admission.projection_levels(generation.epochs.configuration,feedback.snapshot().cursor.boot_id).await.map_err(|e|format!("recorded levels: {e:?}"))?;
     // Evaluate freshness after awaited reads. The periodic expiration owner may
     // be delayed; a cached Confirmed flag alone cannot establish a current view.
     // Expire physical components before combining, so a fresh dimmer cannot
@@ -126,6 +125,15 @@ async fn snapshot_bound(admission:&Admission,controller:Uuid,generation:TaskGene
             state.quality = homesense_state::Quality::Stale;
         }
     }
+    // A management-only runtime has no HAP/indicator sampler to retire reached
+    // targets. Settle from this genuine snapshot and capture remaining targets
+    // in one actor turn; never acknowledge Accepted/Writing or ramp samples.
+    let recorded = match admission.hap_projection(
+        generation.epochs.configuration, Some(generation.epochs.transport), raw.clone(), max_age_ms,
+    ).await.map_err(|e| format!("management light projection: {e:?}"))? {
+        crate::admission::HapProjection::Ready { targets, .. } => targets,
+        crate::admission::HapProjection::Unavailable => return Err("management light projection unavailable".into()),
+    };
     let snapshot = crate::combined_light::project(&bundle.configuration, &raw)
         .map_err(|e| e.to_string())?;
     let published=crate::light_state::project_pending(&bundle.configuration,&raw,&recorded).map_err(str::to_owned)?;
