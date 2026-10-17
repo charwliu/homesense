@@ -203,7 +203,7 @@ async fn snapshot_bound(admission:&Admission,controller:Uuid,generation:TaskGene
         }
     }
     let mut keypad_execute_scopes=std::collections::BTreeMap::new();
-    if let Some(document)=&bundle.automation {for panel in bundle.configuration.keypads().values(){for key in panel.keys.values(){if let Some(homesense_config::keypad::KeyAction::SceneExecute{scene,..})=&key.action {let ids=homesense_config::keypad::scene_execute_devices(document,&bundle.configuration,scene).map_err(|e|e.to_string())?;keypad_execute_scopes.insert(scene.clone(),ids.into_iter().map(|id|id.as_str().to_owned()).collect());}}}}
+    if let Some(document)=&bundle.automation {for panel in bundle.configuration.keypads().values(){for key in panel.keys.values(){if let Some(homesense_config::keypad::KeyAction::SceneExecute{scene,..}|homesense_config::keypad::KeyAction::SceneToggle{scene,..})=&key.action {let ids=crate::keypad_actions::scene_devices(&bundle.configuration,document,scene).map_err(|e|format!("keypad scene scope: {e:?}"))?;keypad_execute_scopes.insert(scene.clone(),ids.into_iter().map(|id|id.as_str().to_owned()).collect());}}}}
     Ok(DeviceSnapshot {
         boot: admission.boot_id().to_owned(),
         revision: bundle.configuration.revision(),

@@ -147,9 +147,15 @@ pub(crate) async fn snapshot(
                 .map_err(|e| format!("keypad audit: {e:?}"))?,
         );
     }
+    let indications=match admission.keypad_indications(controller,generation.clone(),ids).await {
+        Ok(values)=>values,Err(hap::server::WriteStatus::ResourceBusy)=>Default::default(),Err(e)=>return Err(format!("keypad indication: {e:?}")),
+    };
     let diagnostics=admission.diagnostics(controller,generation).await.map_err(|e|format!("keypad gateway view: {e:?}"))?;
     let (mut panels,endpoints)=project(config,raw,&visible,&records,transport_epoch,now);
     annotate_gateway_availability(config,&mut panels,&diagnostics.gateways,diagnostics.mapping_readable())?;
+    for panel in &mut panels {for key in panel["keys"].as_array_mut().into_iter().flatten(){
+        key["indication"]=key["endpoint_id"].as_str().and_then(|id|indications.iter().find(|(endpoint,_)|endpoint.as_str()==id).map(|(_,value)|json!(value))).unwrap_or(Value::Null);
+    }}
     Ok((panels,endpoints))
 }
 fn annotate_gateway_availability(config:&Configuration,panels:&mut [Value],views:&[crate::gateway_runtime::View],readable:bool)->Result<(),String> {
@@ -268,7 +274,8 @@ fn project(
                 "configured":key.is_some(),"endpoint_id":key.map(|k|&k.led_endpoint.id),
                 "can_write_led":key.is_some() && mode==Some(PanelLedMode::Manual),
                 "key_event":{"pressed":pressed,"quality":if current{"Confirmed"}else if pressed.is_some(){"Stale"}else{"Unknown"},
-                    "observed_at_ms":state.and_then(|s|s.observed_at_ms).map(|n|n.to_string()),"source":"button_feedback"},
+                    "observed_at_ms":state.and_then(|s|s.observed_at_ms).map(|n|n.to_string()),"version":state.map(|s|s.version.to_string()),"source":"button_feedback"},
+                "activation":key.filter(|key|key.action.is_some()).map(|_|json!({"version":1,"path":"/api/v1/keypad-actions","gestures":["activate"],"revision":config.revision().to_string(),"keypad":panel.id.as_str(),"key":number})),
                 "led":{"observed":Value::Null,"quality":"Unknown","source":if written.is_some(){"last_written"}else{"unknown"},
                     "last_request":latest,"last_written":written},
                 "action":key.and_then(|k|k.action.as_ref()).map(|a|match a {
@@ -364,7 +371,10 @@ pub(crate) fn devices_json(
             if !allowed || !target_allowed || is_away && !available {
                 key["action"] = Value::Null;
                 key["card_action"] = Value::Null;
+                key["activation"] = Value::Null;
             }
+            let activation_available=available && key["action"]["scene"].as_str().is_none_or(|scene|snapshot.keypad_execute_scopes.get(scene).is_some_and(|ids|ids.iter().all(|id|grant.may_control_device(id))));
+            if let Some(activation)=key["activation"].as_object_mut(){activation.insert("available".into(),json!(activation_available));}
         }
         let whole_control = grant.role == crate::web_auth::Role::Administrator
             && panel["settings"]["scope_complete"] == true

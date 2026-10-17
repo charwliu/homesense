@@ -109,6 +109,9 @@ pub mod unified_hap;
 pub mod management_devices;
 mod management_keypads;
 mod keypad_motor;
+pub mod keypad_actions;
+mod keypad_origin;
+mod panel_execution_auth;
 pub mod panel_auth;
 pub mod source_auth;
 mod publication_auth;
@@ -202,3 +205,6 @@ mod consumer_refresh;
 
 mod component_modes;
 mod control_batch;
+
+#[cfg(test)]
+mod native_panel_event_tests;

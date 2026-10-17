@@ -362,6 +362,11 @@ pub(crate) async fn drive_with_panel_feeds<S: Read + Write + Send + 'static>(
             } else {
                 guard.panels.consume_feedback(guard.owner.feedback(),now,max_age_ms).await.map_err(|e|e.to_string())?;
             }
+            let native=guard.panels.take_native_dispatch();
+            if !native.is_empty() {
+                let Some((receiver,_))=&mut control.0 else{return Err("native event execution requires the unified control owner".into());};
+                receiver.enqueue_native(native)?;
+            }
             guard.panels.tick_holds(now).await?;
             let results = if let Some(router) = &mut causal {
                 let (_, unowned) = router.poll(guard.scenes, Some((guard.owner.feedback(), max_age_ms))).await?;

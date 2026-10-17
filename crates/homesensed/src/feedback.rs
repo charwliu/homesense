@@ -94,10 +94,12 @@ impl SceneObservationStart {
 pub(crate) struct SceneKeyObservation {
     event: homesense_state::Event,
     lease: RuleLease,
+    wire:Option<homesense_core::gateway_scope::WireScope>,
 }
 impl SceneKeyObservation {
     pub(crate) fn event(&self)->&homesense_state::Event {&self.event}
     pub(crate) fn lease(&self)->&RuleLease {&self.lease}
+    pub(crate) fn wire(&self)->Option<&homesense_core::gateway_scope::WireScope>{self.wire.as_ref()}
 }
 pub struct Feedback {
     lease_version: Arc<Mutex<u64>>,
@@ -501,7 +503,8 @@ impl Feedback {
         let sequence=event.cursor.sequence.checked_sub(1).ok_or("invalid scene key cursor")?;
         let recorded=self.states.events_since(homesense_state::Cursor{boot_id:self.boot,sequence}).map_err(|e|e.to_string())?;
         if recorded.first()!=Some(event) {return Err("scene key is not in the current feedback stream".into())}
-        Ok(SceneKeyObservation {event:event.clone(),lease:RuleLease {motor:None,
+        let wire=self.event_wires.get(&event.cursor.sequence).map(|(gateway,epoch)|homesense_core::gateway_scope::WireScope::from_persisted(gateway.clone(),*epoch).map_err(|e|e.to_string())).transpose()?;
+        Ok(SceneKeyObservation {event:event.clone(),wire,lease:RuleLease {motor:None,
             version:self.lease_version.clone(),expected:*version,boot:self.boot,revision:self.revision,epoch:self.epoch,
             captured_ms:now,expires_ms:None,observations:BTreeMap::new(),recorded_off_reads:std::collections::BTreeSet::new(),indicator_after:None,
         }})
