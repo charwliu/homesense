@@ -37,7 +37,7 @@ fn is_projection(ticket: &crate::admission::DispatchTicket) -> bool {
     matches!(
         ticket.command.command,
         homesense_core::Command::PanelLed(_) | homesense_core::Command::PanelLedOff
-    ) && ticket.feedback_barrier.is_some()
+    ) && (ticket.feedback_barrier.is_some() || ticket.source_authorization.as_ref().is_some_and(|source|source.keypad().is_some()))
 }
 fn send_attempt(
     tickets: &[crate::admission::DispatchTicket],
@@ -124,7 +124,7 @@ fn send_one<S: Read + Write>(
         &ticket.away_authorization,
     ) {
         (Some(lease), None, None, None) => lease.with_valid(send).unwrap_or_else(denied),
-        (None, Some(source), None, None) => source.with_valid(send).unwrap_or_else(denied),
+        (None, Some(source), None, None) => source.with_valid_command(&ticket.command,send).unwrap_or_else(denied),
         (None, None, None, Some(lease)) => lease.with_valid(send).unwrap_or_else(denied),
         (None, None, Some(lease), None) if lease.matches_write(&ticket.command) => send(),
         (None, None, None, None) => send(),
@@ -191,7 +191,7 @@ fn send_tickets<S: Read + Write>(
     let frames = tickets.iter().map(|t| &t.frame).collect::<Vec<_>>();
     let send = || connection.send_batch(&frames, deadline, now);
     let authorized = || match (&first.source_authorization, &first.away_authorization) {
-        (Some(source), None) => source.with_valid(send).unwrap_or_else(denied),
+        (Some(source), None) => source.with_valid_command(&first.command,send).unwrap_or_else(denied),
         (None, Some(away)) => away.with_valid(send).unwrap_or_else(denied),
         (None, None) => send(),
         _ => Err(SendError {

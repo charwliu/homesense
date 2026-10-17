@@ -1,6 +1,7 @@
 //! Boot-scoped physical writer phases. A phase is one already evaluated admission,
-//! never inferred from two absent run IDs. LEDs wait for genuine post-write raw
-//! feedback; this owner does not evaluate scenes, change variables, or query I/O.
+//! never inferred from two absent run IDs. Linked LEDs wait for genuine raw
+//! post-write feedback. One authenticated origin-key cue has its own short lease;
+//! this owner does not evaluate scenes, change variables, or query I/O.
 use crate::{
     admission::{Admission, TaskGeneration},
     feedback::{Feedback, SceneObservationStart},
@@ -23,10 +24,14 @@ pub(crate) enum BudgetRole {
 }
 /// Only a contiguous mixed lighting phase owns a feedback budget.
 /// LED-only writes and non-lighting commands retain ordinary admission TTLs.
+#[cfg(test)]
 pub(crate) fn feedback_roles(
     config: &Configuration,
     intents: &[homesense_hap::requests::Intent],
 ) -> Vec<BudgetRole> {
+    feedback_roles_local(config,intents,None)
+}
+pub(crate) fn feedback_roles_local(config:&Configuration,intents:&[homesense_hap::requests::Intent],local:Option<usize>)->Vec<BudgetRole> {
     let mut result = vec![BudgetRole::Ordinary; intents.len()];
     let mut start = 0;
     while start < intents.len() {
@@ -45,10 +50,10 @@ pub(crate) fn feedback_roles(
             .any(|i| !class(config, &i.device, i.command).unwrap().1)
             && intents[start..end]
                 .iter()
-                .any(|i| class(config, &i.device, i.command).unwrap().1)
+                .enumerate().any(|(offset,i)|Some(start+offset)!=local && class(config, &i.device, i.command).unwrap().1)
         {
-            for (role, intent) in result[start..end].iter_mut().zip(&intents[start..end]) {
-                *role = if class(config, &intent.device, intent.command).unwrap().1 {
+            for (offset,(role, intent)) in result[start..end].iter_mut().zip(&intents[start..end]).enumerate() {
+                *role = if Some(start+offset)==local {BudgetRole::Ordinary} else if class(config, &intent.device, intent.command).unwrap().1 {
                     BudgetRole::FeedbackLed
                 } else {
                     BudgetRole::Lighting
@@ -87,11 +92,7 @@ pub(crate) fn class(
 /// Stable partition within one already evaluated due phase. Motor/STOP,
 /// parameters and queries remain causal barriers; gateway writes stay separate. Sources
 /// are permuted with their commands before durable command IDs are allocated.
-pub(crate) fn partition(
-    config: &Configuration,
-    intents: &mut [homesense_hap::requests::Intent],
-    sources: &mut Option<Vec<String>>,
-) -> Vec<usize> {
+pub(crate) fn partition_local(config:&Configuration,intents:&mut [homesense_hap::requests::Intent],sources:&mut Option<Vec<String>>,local:Option<usize>)->Vec<usize> {
     let mut permutation = (0..intents.len()).collect::<Vec<_>>();
     let mut start = 0;
     while start < intents.len() {
@@ -107,9 +108,7 @@ pub(crate) fn partition(
         }
         let mut indices = (start..end).collect::<Vec<_>>();
         indices.sort_by_key(|i| {
-            class(config, &intents[*i].device, intents[*i].command)
-                .unwrap()
-                .1
+            if Some(*i)==local {0} else if class(config, &intents[*i].device, intents[*i].command).unwrap().1 {2} else {1}
         });
         let old = indices.iter().map(|i| permutation[*i]).collect::<Vec<_>>();
         for (i, value) in (start..end).zip(old) {
@@ -167,12 +166,13 @@ struct Gate {
 pub(crate) struct Owner {
     phases: BTreeMap<u64, Phase>,
     gates: BTreeMap<u64, Gate>,
+    local: BTreeMap<u64,u64>,
 }
 impl Owner {
     pub(crate) fn write_deadline(&self, id: u64) -> Option<u64> {
-        self.gates
+        self.local.get(&id).copied().or_else(||self.gates
             .get(&self.phases.get(&id)?.gate?)?
-            .delivery_deadline
+            .delivery_deadline)
     }
     pub(crate) fn discarded(
         &mut self,
@@ -234,6 +234,8 @@ impl Owner {
         guards: Vec<ReadCheck>,
         manual: &BTreeMap<DeviceId, u64>,
     ) {
+        let local=source.as_ref().and_then(|source|source.keypad()).and_then(|origin|origin.cue()).map(|cue|cue.0);
+        if let Some(command)=commands.iter().find(|command|Some(command.id)==local) {self.local.insert(command.id,command.deadline_ms);}
         let mut start = 0;
         while start < commands.len() {
             if class(config, &commands[start].device_id, commands[start].command).is_none() {
@@ -254,7 +256,7 @@ impl Owner {
                 .collect::<Vec<_>>();
             let leds = commands[start..end]
                 .iter()
-                .filter(|c| class(config, &c.device_id, c.command).unwrap().1)
+                .filter(|c| Some(c.id)!=local && class(config, &c.device_id, c.command).unwrap().1)
                 .map(|c| c.id)
                 .collect::<Vec<_>>();
             let gated = !lights.is_empty() && !leds.is_empty();
@@ -272,7 +274,7 @@ impl Owner {
                         config,
                         &commands[phase_end].device_id,
                         commands[phase_end].command,
-                    ) == Some((gateway.clone(), led))
+                    ) == Some((gateway.clone(), led)) && (Some(commands[phase_end].id)==local)==(Some(commands[phase_start].id)==local)
                 {
                     phase_end += 1;
                 }
@@ -283,7 +285,7 @@ impl Owner {
                             group: commands[phase_start].id,
                             gateway: gateway.clone(),
                             led,
-                            gate: (gated && led).then_some(id),
+                            gate: (gated && led && Some(command.id)!=local).then_some(id),
                         },
                     );
                 }
@@ -342,7 +344,7 @@ impl Owner {
                         manual,
                         deadline: commands[start..end]
                             .iter()
-                            .filter(|c| class(config, &c.device_id, c.command).unwrap().1)
+                            .filter(|c| Some(c.id)!=local && class(config, &c.device_id, c.command).unwrap().1)
                             .map(|c| c.deadline_ms)
                             .min()
                             .unwrap(),
@@ -354,6 +356,11 @@ impl Owner {
                 );
             }
             start = end;
+        }
+        if source.as_ref().is_some_and(|source|source.keypad().is_some()) {
+            for command in commands.iter().filter(|command|matches!(command.command,Command::PanelLed(_)|Command::PanelLedOff)) {
+                if self.phases.get(&command.id).is_some_and(|phase|phase.gate.is_none()){self.local.insert(command.id,command.deadline_ms);}
+            }
         }
     }
     #[allow(clippy::too_many_arguments)]
@@ -490,7 +497,7 @@ impl Owner {
             if generation != Some(&gate.generation)
                 || expired
                 || !authorized(gate.controller)
-                || gate.source.as_ref().is_some_and(|s| !s.valid())
+                || gate.source.as_ref().is_some_and(|s| !s.valid() || !s.indication_current())
                 || gate.away.as_ref().is_some_and(|a| !a.valid())
                 || gate
                     .manual
@@ -539,6 +546,7 @@ impl Owner {
                     Ok(Some(Status::Accepted | Status::Writing))
                 )
         });
+        self.local.retain(|id,_|matches!(store.command_status(generation.map_or("",TaskGeneration::boot_id),*id),Ok(Some(Status::Accepted|Status::Writing))));
         Ok(())
     }
     pub(crate) fn views(&self) -> Vec<View> {
