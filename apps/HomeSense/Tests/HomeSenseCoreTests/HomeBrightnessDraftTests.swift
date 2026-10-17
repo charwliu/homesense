@@ -2,6 +2,24 @@ import Testing
 @testable import HomeSenseCore
 
 @Suite struct HomeBrightnessDraftTests {
+    @Test func delayedRampFeedbackAfterTimeoutDoesNotPullTheTargetBack() throws {
+        var draft = HomeBrightnessDraft()
+        draft.observe(level: 100, confirmed: true, timestamp: 100)
+        draft.beginEditing(); draft.setValue(30)
+        let released = draft.endEditing(feedbackTimestamp: 100)
+        let request = try #require(released)
+        draft.complete(request.id, accepted: true)
+        draft.observe(level: 70, confirmed: true, timestamp: 110)
+        draft.expire(request.id)
+        draft.observe(level: 70, confirmed: true, timestamp: 110)
+        #expect(draft.value == 30 && draft.unconfirmedTarget == 30)
+        draft.observe(level: 30, confirmed: true, timestamp: 100)
+        #expect(draft.unconfirmedTarget == 30)
+        draft.observe(level: 30, confirmed: true, timestamp: 115)
+        #expect(draft.value == 30 && draft.unconfirmedTarget == nil)
+        draft.observe(level: 45, confirmed: true, timestamp: 120)
+        #expect(draft.value == 45)
+    }
     @Test func dragAndReleaseProduceExactlyOneFinalSubmission() throws {
         var draft = HomeBrightnessDraft()
         draft.observe(level: 20, confirmed: true, timestamp: 100)
@@ -59,7 +77,7 @@ import Testing
         draft.expire(request.id)
         #expect(draft.submission == nil && draft.unconfirmedTarget == 70)
         draft.observe(level: 20, confirmed: true, timestamp: 11)
-        #expect(draft.value == 20 && draft.unconfirmedTarget == 70)
+        #expect(draft.value == 70 && draft.unconfirmedTarget == 70)
         draft.beginEditing(); draft.setValue(35)
         let released8 = draft.endEditing(feedbackTimestamp: 11)
         let next = try #require(released8)
