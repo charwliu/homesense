@@ -193,6 +193,10 @@ async fn paired_encrypted_hap_reports_outage_and_preserves_pairing_after_complet
                 if characteristic["value"].is_null(){assert!(unavailable_iids.insert(iid),"duplicate unavailable notification");}else{assert!(unavailable_iids.is_empty(),"stale state became known again before recovery");}
             }
         }
+        // Expiring a sample does not prove a failed transport. AD8 confirmation
+        // now starts after its six-second ramp; require the actual fault gate
+        // before asserting that an explicit write is rejected as offline.
+        wait(||management(web,"/api/v1/diagnostics").is_some_and(|(status,body)|status==200 && body["gateway_ready"]==false && body["ready"]==false),8,"actual silent gateway fault, not only expired observations");
         trace.stage("unavailable-silent");unavailable(&mut session,&mut socket,ids,&trace);
         assert!(management(web,"/health/live").is_some_and(|(status,body)|status==200 && body["live"]==true));
         assert!(management(web,"/health/ready").is_some_and(|(status,body)|status==503 && body["ready"]==false));

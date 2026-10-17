@@ -22,6 +22,7 @@ struct Wire {
     reply: Vec<u8>,
     fail: bool,
     partial: bool,
+    reply_on_query: bool,
 }
 impl Read for Wire {
     fn read(&mut self, output: &mut [u8]) -> io::Result<usize> {
@@ -42,6 +43,9 @@ impl Write for Wire {
                 return Ok(2);
             }
             return Err(io::ErrorKind::BrokenPipe.into());
+        }
+        if self.reply_on_query && (0xa1..=0xa8).contains(&bytes[2]) {
+            self.reply.extend([0xae,bytes[1],bytes[2]+0x30,0xf1,0xee]);
         }
         self.writes
             .lock()
@@ -96,6 +100,12 @@ fn owner(
     reply: Vec<u8>,
     fail: bool,
 ) -> (ObservedTransport<Wire>, Writes) {
+    owner_with_query_replies(admission,config,generation,reply,fail,false)
+}
+fn owner_with_query_replies(
+    admission: &Admission, config: &Configuration, generation: &crate::admission::TaskGeneration,
+    reply: Vec<u8>, fail: bool, reply_on_query: bool,
+) -> (ObservedTransport<Wire>, Writes) {
     let writes = Arc::new(Mutex::new(vec![]));
     let transport = TransportOwner::new(
         admission.clone(),
@@ -107,6 +117,7 @@ fn owner(
                     reply,
                     fail,
                     partial: false,
+                    reply_on_query,
                 },
                 generation.epochs.transport,
             ),
@@ -240,7 +251,12 @@ async fn unbound_and_disabled_reads_use_real_owner_without_creating_control_or_f
                 .status,
             "accepted"
         );
-        owner.step().await.unwrap().unwrap().result.unwrap();
+        let deadline=Instant::now()+Duration::from_secs(1);
+        loop {
+            if let Some(write)=owner.step().await.unwrap() {write.result.unwrap();break;}
+            assert!(Instant::now()<deadline,"queued query did not reach its bounded next slot");
+            tokio::time::sleep(Duration::from_millis(2)).await;
+        }
         assert_eq!(
             admission
                 .module_query_records(controller, generation.clone(), vec![id])
@@ -303,7 +319,7 @@ async fn fallback_and_control_share_ordinary_priority_and_write_pacing() {
         Arc::new(true.into()),
     )
     .await;
-    let (mut owner, writes) = owner(&admission, &config, &generation, vec![], false);
+    let (mut owner, writes) = owner_with_query_replies(&admission, &config, &generation, vec![], false, true);
     assert_eq!(
         admission
             .module_query(
@@ -331,7 +347,12 @@ async fn fallback_and_control_share_ordinary_priority_and_write_pacing() {
         .await
         .unwrap();
     for _ in 0..9 {
-        owner.step().await.unwrap().unwrap().result.unwrap();
+        let deadline=Instant::now()+Duration::from_secs(1);
+        loop {
+            if let Some(write)=owner.step().await.unwrap() {write.result.unwrap();break;}
+            assert!(Instant::now()<deadline,"read reply/turnaround did not release the next slot");
+            tokio::time::sleep(Duration::from_millis(2)).await;
+        }
     }
     {
         let values = writes.lock().unwrap();
@@ -612,4 +633,48 @@ async fn replacement_publication_cancels_queued_reads_and_never_writes_old_locat
     admission.shutdown().await.unwrap();
     drop(owner);
     clean(&path);
+}
+
+#[tokio::test]
+async fn manual_whole_query_holds_controls_until_all_eight_replies_or_bounded_timeout() {
+    let (path, admission, config, controller, generation) = fixture(
+        "ad8_din_rs485_v2_2_1", Options::default(), Arc::new(true.into()),
+    ).await;
+    let replies=(1..=7).flat_map(|ch|[0xae,0x15,0xd0+ch,30,0xee]).collect();
+    let (mut owner,writes)=owner(&admission,&config,&generation,replies,false);
+    admission.module_query(controller,generation,"module".into(),Scope::WholeModule,true).await.unwrap();
+    owner.step().await.unwrap().unwrap().result.unwrap();
+    owner.receive("bus").await.unwrap();
+    admission.submit(homesense_hap::requests::Batch {controller,intents:vec![homesense_hap::requests::Intent {
+        device:DeviceId::new("light").unwrap(),command:homesense_core::Command::SetLevel {level:homesense_core::Percent::new(100).unwrap(),transition:homesense_core::LevelTransition::Immediate},
+    }],subscriptions:vec![]}).await.unwrap();
+    assert!(owner.step().await.unwrap().is_none(),"seven of eight replies must not release a whole-module query");
+    assert_eq!(writes.lock().unwrap().len(),1);
+    tokio::time::sleep(Duration::from_millis(550)).await;
+    owner.step().await.unwrap().unwrap().result.unwrap();
+    assert_eq!(writes.lock().unwrap().len(),2);
+    assert!(owner.feedback().module_truth().module_state("module",8).unwrap().observed.is_none(),
+        "timeout releases the bus without inventing the missing channel");
+    admission.shutdown().await.unwrap();drop(owner);clean(&path);
+}
+
+#[tokio::test]
+async fn direct_status_query_also_blocks_raw_writer_until_response_or_timeout() {
+    let (path,admission,config,controller,generation)=fixture("ad8_din_rs485_v2_2_1",Options::default(),Arc::new(true.into())).await;
+    let writes=Arc::new(Mutex::new(vec![]));
+    let mut transport=TransportOwner::new(admission.clone(),[("bus".into(),hb_transport::Connection::for_simulation(
+        Wire { writes:writes.clone(),reply:vec![0xae,0x15,0xd1,30,0xee],fail:false,partial:false,reply_on_query:false },
+        generation.epochs.transport))].into());
+    transport.query_status_scope("bus",config.module("module").unwrap().1,
+        homesense_core::Channel::new(1).unwrap(),ExecutionContext::Simulation,100,true).await.unwrap();
+    admission.submit(homesense_hap::requests::Batch {controller,intents:vec![homesense_hap::requests::Intent {
+        device:DeviceId::new("light").unwrap(),command:homesense_core::Command::SetLevel {
+            level:homesense_core::Percent::new(100).unwrap(),transition:homesense_core::LevelTransition::Immediate,
+        },
+    }],subscriptions:vec![]}).await.unwrap();
+    transport.receive("bus").await.unwrap();
+    assert!(transport.step().await.unwrap().is_none(),"raw writer must not bypass the incomplete query response");
+    tokio::time::sleep(Duration::from_millis(125)).await;
+    transport.step().await.unwrap().unwrap().result.unwrap();assert_eq!(writes.lock().unwrap().len(),2);
+    transport.finish_status_read("bus");admission.shutdown().await.unwrap();drop(transport);clean(&path);
 }

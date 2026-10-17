@@ -122,8 +122,22 @@ try:
         posts = json.loads((a.output/'native-module-posts.json').read_text())
         assert len(posts) == 3 and [post['path'] for post in posts] == ['/api/v1/module-queries', '/api/v1/module-commands', '/api/v1/module-commands']
         assert [frame['raw'] for frame in frames if frame['kind'] != 'query'] == ['ae0301f2ee', 'ae15b128ee']
+        ramp = next(frame for frame in frames if frame['kind'] == 'dimmer')
+        confirmations = []
+        # Active feedback can satisfy the App before the scheduled query. Keep
+        # observing the wire through the six-second fence instead of treating
+        # that valid early push as a missing query.
+        deadline = started + ramp['at_ms']/1000 + 8
+        while time.monotonic() < deadline:
+            assert process.poll() is None and not errors, errors
+            confirmations = [frame for frame in frames if frame['raw'] == 'ae15a0f2ee' and frame['at_ms'] >= ramp['at_ms']]
+            if confirmations: break
+            time.sleep(.02)
+        assert confirmations, 'AD8 final feedback must include a real post-ramp module query'
+        query_delay = confirmations[0]['at_ms'] - ramp['at_ms']
+        assert query_delay >= 6000, ('AD8 query before six-second ramp elapsed', query_delay)
         assert not errors, errors
-        result.update(passed=True, executed_tests=1, executed_suites=1, native_POSTs=3, physical_writes=2, legal_query_frames=sum(frame['kind']=='query' for frame in frames), original_five_second_feedback_predicate=True)
+        result.update(passed=True, executed_tests=1, executed_suites=1, native_POSTs=3, physical_writes=2, legal_query_frames=sum(frame['kind']=='query' for frame in frames), ordinary_feedback_budget_seconds=5, ad8_feedback_budget_seconds=8, ad8_query_delay_min_ms=6000, ad8_query_delay_observed_ms=round(query_delay,3))
 finally:
     if process is not None and process.poll() is None:
         process.terminate()

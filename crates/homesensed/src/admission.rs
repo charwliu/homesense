@@ -57,6 +57,8 @@ pub struct DispatchTicket {
     pub command: QueuedCommand,
     pub frame: hb_transport::PreparedFrame,
     pub(crate) refresh_devices:Vec<homesense_core::DeviceId>,
+    pub(crate) query_reply:Option<crate::query_response::Scope>,
+    pub(crate) ramp_confirmation:bool,
     pub(crate) feedback_barrier:Option<crate::control_batch::BarrierLease>,
     pub(crate) panel_authorization: Option<crate::panel_auth::Lease>,
     pub(crate) source_authorization: Option<crate::source_auth::Source>,
@@ -509,7 +511,7 @@ enum Message {
         oneshot::Sender<Result<RestoreLevels, WriteStatus>>,
     ),
     TransportFailed(oneshot::Sender<Result<(), WriteStatus>>),
-    Dispatch(Option<std::collections::BTreeSet<String>>,Option<u64>,oneshot::Sender<Result<Option<DispatchTicket>, WriteStatus>>),
+    Dispatch(Option<std::collections::BTreeSet<String>>,Option<u64>,std::collections::BTreeSet<String>,oneshot::Sender<Result<Option<DispatchTicket>, WriteStatus>>),
     Unsent(u64,oneshot::Sender<Result<(),WriteStatus>>),
     DiscardProjection(crate::transport_owner::ProjectionDiscard,oneshot::Sender<Result<(),WriteStatus>>),
     Finished(u64, bool, oneshot::Sender<Result<(), WriteStatus>>),
@@ -649,12 +651,14 @@ impl Admission {
                     .map_err(|e| e.to_string())?;
                     let durable_configuration = store.active().map_err(|e| e.to_string())?.ok_or("active configuration required")?;
                     let mut component_modes=crate::component_modes::Owner::default();
+                    let mut control_batches=crate::control_batch::Owner::default();
                     if let Some(document)=store.active_bundle(options.context).map_err(|e|e.to_string())?.and_then(|b|b.automation){
                         component_modes.synchronize(&mut store,&configuration,&document,&TaskGeneration{boot:worker_boot.clone(),epochs},millis(clock)).map_err(|e|format!("component boot reset: {e:?}"))?;
+                        control_batches.configure(Some(&document));
                     }
-                    Ok((lease, store, configuration, durable_configuration, arbiter,component_modes))
+                    Ok((lease, store, configuration, durable_configuration, arbiter,component_modes,control_batches))
                 };
-                let (lease, mut store, mut configuration, mut durable_configuration, mut arbiter,mut component_modes) = match initialize() {
+                let (lease, mut store, mut configuration, mut durable_configuration, mut arbiter,mut component_modes,mut control_batches) = match initialize() {
                     Ok(v) => {
                         let _ = started.send(Ok(()));
                         v
@@ -682,7 +686,6 @@ impl Admission {
                 let mut led_outputs=crate::indicator_outputs::Ledger::default();
                 let mut in_flight_led=BTreeMap::new();
                 let mut write_members=BTreeMap::<u64,u64>::new();
-                let mut control_batches=crate::control_batch::Owner::default();
                 let mut in_flight: Option<u64> = None;
                 let mut write_deadline: Option<u64> = None;
                 let mut next_id = 1u64;
@@ -1727,6 +1730,8 @@ impl Admission {
                                     arbiter.record_commit(homesense_core::arbiter::CommitResult::Committed(active.revision))
                                         .map_err(|_| WriteStatus::ServiceCommunicationFailure)?;
                                     configuration = next;
+                                    let document=store.active_bundle(options.context).map_err(|_|WriteStatus::ServiceCommunicationFailure)?.and_then(|b|b.automation);
+                                    control_batches.configure(document.as_ref());
                                     manual_versions.clear();
                                     temporary.clear();
                                     durable_configuration = active.clone();
@@ -1797,6 +1802,9 @@ impl Admission {
                             // Disable dispatch before attempting durable audit. A failed
                             // transaction must never reopen control or permit replay.
                             failed = true;
+                            // Retire the watched generation before acknowledging
+                            // the fault, including a fast recovery read's claim.
+                            generation_updates.send_replace(None);
                             for id in write_members.keys().copied().collect::<Vec<_>>(){let _=arbiter.finish_write(id,false);}
                             write_members.clear();in_flight=None;in_flight_led.clear();
                             write_deadline = None;
@@ -1863,7 +1871,7 @@ impl Admission {
                             };
                             let _ = reply.send(result);
                         }
-                        Message::Dispatch(available,anchor,reply) => {
+                        Message::Dispatch(available,anchor,query_paused,reply) => {
                             if reply.is_closed() {
                                 continue;
                             }
@@ -1912,7 +1920,7 @@ impl Admission {
                                         }else if let Some(target)=module_queries.get(&command.id) {
                                             configuration.module(&target.module_id).map(|(g,_)|g.gateway.clone())
                                         }else{configuration.binding(&command.device_id).map(|(d,_)|d.gateway.clone())};
-                                        control_batches.eligible(command.id,millis(clock)) && reset_ready.get(&command.id).is_none_or(|ready|*ready) && gateway.is_none_or(|gateway|available.as_ref().is_none_or(|ids|ids.contains(&gateway)))
+                                        (anchor.is_none() || command.command!=homesense_core::Command::Query) && control_batches.eligible(command.id,millis(clock)) && reset_ready.get(&command.id).is_none_or(|ready|*ready) && gateway.is_none_or(|gateway|available.as_ref().is_none_or(|ids|ids.contains(&gateway)) && (command.command!=homesense_core::Command::Query || !query_paused.contains(&gateway)))
 
                                 };
                                 let dispatch = if let Some(phase)=&batch_phase {
@@ -2028,7 +2036,20 @@ impl Admission {
                                 in_flight=write_members.keys().next().copied();
                                 write_deadline=write_members.values().copied().min();
                                 let away_authorization=module_off_jobs.get(&command.id).map(|target|target.lease.clone());
+                                let query_reply=if command.command==homesense_core::Command::Query {
+                                    let (module,channel)=if let Some(target)=module_queries.get(&command.id) {
+                                        (configuration.module(&target.module_id).ok_or("query module disappeared")?.1,target.channel)
+                                    } else {
+                                        let (device,module)=configuration.binding(&command.device_id).ok_or("query binding disappeared")?;
+                                        (module,Some(device.channel.get()))
+                                    };
+                                    Some(crate::query_response::Scope::new(module,channel,options.context,frame_epoch)?)
+                                } else {None};
+                                let ramp_confirmation=matches!(command.command,homesense_core::Command::SetLevel {level,transition:homesense_core::LevelTransition::Ramp} if !matches!(level.get(),0|100))
+                                    && configuration.binding(&command.device_id).is_some_and(|(_,module)|module.profile()==homesense_core::ProtocolProfile::Ad8Din);
                                 Ok(Some(DispatchTicket {
+                                    ramp_confirmation,
+                                    query_reply,
                                     refresh_devices:module_off_jobs.get(&command.id).map_or_else(||vec![command.device_id.clone()],|job|job.plan.modules()[job.index].devices().to_vec()),
                                     feedback_barrier:control_batches.authorization(command.id),
                                     gateway_id,
@@ -2831,8 +2852,13 @@ impl Admission {
             .map_err(|_| WriteStatus::ServiceCommunicationFailure)?
     }
     /// Called by the sole transport owner. No socket is opened here.
+    #[cfg(test)]
     pub(crate) async fn dispatch_available(&self,available:std::collections::BTreeSet<String>)->Result<Option<DispatchTicket>,WriteStatus> {
-        let(reply,result)=oneshot::channel();self.sender.try_send(Message::Dispatch(Some(available),None,reply)).map_err(|_|WriteStatus::ResourceBusy)?;
+        let(reply,result)=oneshot::channel();self.sender.try_send(Message::Dispatch(Some(available),None,Default::default(),reply)).map_err(|_|WriteStatus::ResourceBusy)?;
+        result.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?
+    }
+    pub(crate) async fn dispatch_query_filtered(&self,available:std::collections::BTreeSet<String>,query_paused:std::collections::BTreeSet<String>)->Result<Option<DispatchTicket>,WriteStatus> {
+        let(reply,result)=oneshot::channel();self.sender.try_send(Message::Dispatch(Some(available),None,query_paused,reply)).map_err(|_|WriteStatus::ResourceBusy)?;
         result.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?
     }
     pub(crate) async fn reserve_physical_read(&self,gateway:String,budget_end_ms:u64)->Result<QueryReadPermit,WriteStatus> {
@@ -2845,14 +2871,14 @@ impl Admission {
     pub async fn dispatch(&self) -> Result<Option<DispatchTicket>, WriteStatus> {
         let (reply, receive) = oneshot::channel();
         self.sender
-            .try_send(Message::Dispatch(None,None,reply))
+            .try_send(Message::Dispatch(None,None,Default::default(),reply))
             .map_err(|_| WriteStatus::ResourceBusy)?;
         receive
             .await
             .map_err(|_| WriteStatus::ServiceCommunicationFailure)?
     }
     /// Full local write is Written, never Observed. Any incomplete result is uncertain.
-    pub(crate) async fn extend_write(&self,anchor:u64)->Result<Option<DispatchTicket>,WriteStatus>{let(tx,rx)=oneshot::channel();self.sender.try_send(Message::Dispatch(None,Some(anchor),tx)).map_err(|_|WriteStatus::ResourceBusy)?;rx.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?}
+    pub(crate) async fn extend_write(&self,anchor:u64)->Result<Option<DispatchTicket>,WriteStatus>{let(tx,rx)=oneshot::channel();self.sender.try_send(Message::Dispatch(None,Some(anchor),Default::default(),tx)).map_err(|_|WriteStatus::ResourceBusy)?;rx.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?}
     pub(crate) async fn control_batch_views(&self,controller:Uuid,generation:TaskGeneration)->Result<Vec<crate::control_batch::View>,WriteStatus>{let(tx,rx)=oneshot::channel();self.sender.try_send(Message::ControlBatchViews(controller,generation,tx)).map_err(|_|WriteStatus::ResourceBusy)?;rx.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?}
     pub(crate) async fn control_batch_proof(&self,controller:Uuid,proof:crate::control_batch::Proof)->Result<(),WriteStatus>{let(tx,rx)=oneshot::channel();self.sender.try_send(Message::ControlBatchProof(controller,proof,tx)).map_err(|_|WriteStatus::ResourceBusy)?;rx.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?}
     pub(crate) async fn component_mode_views(&self,controller:Uuid,generation:TaskGeneration)->Result<Vec<crate::component_modes::View>,WriteStatus>{let(tx,rx)=oneshot::channel();self.sender.try_send(Message::ComponentModeViews(controller,generation,tx)).map_err(|_|WriteStatus::ResourceBusy)?;rx.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?}
@@ -3799,6 +3825,7 @@ mod lifecycle_tests {
         let _ticket=actor.dispatch().await.unwrap().unwrap();
         let writing=actor.diagnostics(controller,generation.clone()).await.unwrap();assert_eq!(writing.queued,0);assert!(writing.in_flight);
         actor.transport_failed().await.unwrap();
+        assert!(actor.generations.borrow().is_none(),"fault acknowledgement must retire cached query generation before another actor message");
         let failed=actor.diagnostics(controller,generation).await.unwrap();
         assert!(failed.failed);assert!(!failed.storage_healthy);assert!(!failed.ready());
         assert!(actor.task_generation().await.is_err());
