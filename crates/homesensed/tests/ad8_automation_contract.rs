@@ -1,4 +1,4 @@
-//! Validated native AD8 automation must retain its explicit ramp instruction.
+//! AD8 automation uses direct endpoints and native ramps for intermediate targets.
 //! Generated fixtures only: no field configuration or non-loopback connections.
 use hap::server::WriteStatus;
 use homesense_core::{Command,DeviceId,ExecutionContext,LevelTransition,Percent};
@@ -22,6 +22,38 @@ impl Read for Wire {fn read(&mut self,_:&mut[u8])->std::io::Result<usize>{Err(st
 impl Write for Wire {
     fn write(&mut self,bytes:&[u8])->std::io::Result<usize>{let(frames,tail)=bytes.as_chunks::<5>();assert!(tail.is_empty());self.0.lock().unwrap().extend_from_slice(frames);Ok(bytes.len())}
     fn flush(&mut self)->std::io::Result<()>{Ok(())}
+}
+#[tokio::test]
+async fn ad8_automation_extremes_are_direct_and_intermediate_targets_keep_native_ramp() {
+    for (level, command) in [(0, 1), (100, 1), (1, 0xb1), (99, 0xb1)] {
+        let directory = std::env::temp_dir().join(format!("ad8-endpoint-{}", Uuid::new_v4()));
+        std::fs::create_dir(&directory).unwrap();
+        let path = directory.join("runtime.sqlite");
+        homesense_storage::Store::open(&path).unwrap().publish_configuration(
+            None, &devices("127.0.0.1:1", "ad8_din_rs485_v2_2_1", false, false),
+            ExecutionContext::Simulation, &[],
+        ).unwrap();
+        let controller = Uuid::new_v4();
+        let actor = Admission::open(path.clone(), Options {
+            context: ExecutionContext::Simulation, ..Default::default()
+        }, move |id| id == controller).await.unwrap();
+        let generation = actor.task_generation().await.unwrap();
+        let bytes = Arc::new(Mutex::new(Vec::new()));
+        let mut owner = homesensed::transport_owner::TransportOwner::new(actor.clone(), [(
+            "bus".into(), hb_transport::Connection::for_simulation(Wire(bytes.clone()), 1),
+        )].into());
+        let ids = actor.submit_rule_update(
+            generation, batch(controller, "light", level, LevelTransition::Ramp), vec![],
+        ).await.unwrap();
+        let sent = owner.step().await.unwrap().unwrap();
+        sent.result.unwrap();
+        assert_eq!(sent.command_id, ids[0]);
+        assert_eq!(*bytes.lock().unwrap(), vec![[0xae, 0x11, command, level, 0xee]],
+            "AD8 {level}% must use the selected physical command, even when the scene requests Ramp");
+        drop(owner);
+        actor.shutdown().await.unwrap();
+        std::fs::remove_dir_all(directory).unwrap();
+    }
 }
 #[tokio::test]
 async fn explicit_automation_ramp_reaches_native_wire_while_manual_raw_ramp_stays_rejected() {
