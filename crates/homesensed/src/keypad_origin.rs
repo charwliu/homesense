@@ -4,6 +4,10 @@ use homesense_core::{Command, DeviceId};
 use std::sync::{Arc, Mutex, RwLock, atomic::{AtomicBool, AtomicU64, Ordering}};
 
 static NEXT: AtomicU64 = AtomicU64::new(1);
+pub(crate) struct MotorIndicator {
+    pub device: DeviceId,
+    pub stop_key: bool,
+}
 pub(crate) struct Origin {
     pub endpoint: DeviceId,
     pub sequence: u64,
@@ -15,13 +19,13 @@ pub(crate) struct Origin {
     cue: Mutex<Option<(u64, Command)>>,
     pub fallback: Option<Command>,
     pub selection: Vec<homesense_storage::variables::ReadCheck>,
-    pub motor_target: Option<DeviceId>,
+    pub motor_target: Option<MotorIndicator>,
     retired: AtomicBool,
 }
 impl Origin {
     #[allow(clippy::too_many_arguments)] // Immutable, server-resolved key action and its original decision fence.
     pub(crate) fn new(endpoint:DeviceId,revision:u64,request_id:String,coverage:bool,now:u64,
-        fallback:Option<Command>,selection:Vec<homesense_storage::variables::ReadCheck>,motor_target:Option<DeviceId>)->Option<Arc<Self>> {
+        fallback:Option<Command>,selection:Vec<homesense_storage::variables::ReadCheck>,motor_target:Option<MotorIndicator>)->Option<Arc<Self>> {
         let sequence=NEXT.try_update(Ordering::Relaxed,Ordering::Relaxed,|n|n.checked_add(1)).ok()?;
         Some(Arc::new(Self{endpoint,sequence,revision,request_id,coverage,immediate_until:now.checked_add(2000)?,
             active:RwLock::new(true),cue:Mutex::new(None),fallback,selection,motor_target,retired:AtomicBool::new(false)}))
@@ -41,11 +45,14 @@ impl Origin {
     pub(crate) fn fallback(&self,now:u64,intents:&[homesense_hap::requests::Intent])->Option<Command> {
         if now>=self.immediate_until || !self.current() || self.cue_retired() || self.cue.lock().ok()?.is_some()
             || intents.iter().any(|intent|intent.device==self.endpoint && matches!(intent.command,Command::PanelLed(_)|Command::PanelLedOff)) {return None;}
-        if let Some(device)=&self.motor_target {
+        if let Some(motor)=&self.motor_target {
             // Repeat-to-stop is decided by Admission's actual written motion,
             // never by the requested direction or a cached App key color.
-            return intents.iter().find(|intent|&intent.device==device).and_then(|intent|match intent.command {
-                Command::Motor(action)=>Some(Command::PanelLed(action!=homesense_core::MotorMotion::Stop)),_=>None,
+            // A resolved STOP makes the dedicated stop key green. A direction
+            // key remains red at a middle stop; green would falsely hint that
+            // its endpoint had been reached before the canonical update.
+            return intents.iter().find(|intent|intent.device==motor.device).and_then(|intent|match intent.command {
+                Command::Motor(action)=>Some(Command::PanelLed(action!=homesense_core::MotorMotion::Stop || !motor.stop_key)),_=>None,
             });
         }
         self.fallback

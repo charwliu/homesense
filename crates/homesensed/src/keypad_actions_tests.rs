@@ -92,15 +92,17 @@ async fn press_motor(f:&Fixture,key:u8)->Vec<u64> {
 }
 
 #[tokio::test]
-async fn real_motor_owner_final_repeat_stop_precedes_green_source_cue() {
+async fn real_motor_owner_repeat_stop_keeps_each_direction_source_red() {
+    for (key,direction) in [(2,0xf1),(3,0xf2)] {
     let f=Fixture::with_motor(false,true,|_|{}).await;let (mut owner,bytes)=owner(&f,None);
-    let first=press_motor(&f,2).await;assert_eq!(first.len(),2);
+    let first=press_motor(&f,key).await;assert_eq!(first.len(),2);
     for _ in 0..2 {f.time.fetch_add(21,Ordering::SeqCst);owner.step().await.unwrap().unwrap().result.unwrap();}
-    let repeat=press_motor(&f,2).await;assert_eq!(repeat.len(),2);
+    let repeat=press_motor(&f,key).await;assert_eq!(repeat.len(),2);
     f.time.fetch_add(21,Ordering::SeqCst);let stopped=owner.step().await.unwrap().unwrap();assert_eq!(stopped.command_id,repeat[0]);stopped.result.unwrap();
     f.time.fetch_add(21,Ordering::SeqCst);owner.step().await.unwrap().unwrap().result.unwrap();
-    assert_eq!(bytes.lock().unwrap().as_slice(),&[vec![0xae,0x22,1,0xf1,0xee],vec![0xae,0x41,2,0xf1,0xee],vec![0xae,0x22,1,0xf0,0xee],vec![0xae,0x41,2,0xf2,0xee]]);
+    assert_eq!(bytes.lock().unwrap().as_slice(),&[vec![0xae,0x22,1,direction,0xee],vec![0xae,0x41,key,0xf1,0xee],vec![0xae,0x22,1,0xf0,0xee],vec![0xae,0x41,key,0xf1,0xee]],"same-direction STOP must not flash a direction key green before canonical middle-position red");
     f.close().await;
+    }
 }
 
 #[tokio::test]
@@ -250,12 +252,13 @@ async fn canonical_motor_stop_leds_retire_temporary_source_cue_without_resurrect
     assert_eq!(stop.command_id,ids[0]);stop.result.unwrap();
     f.time.fetch_add(21,Ordering::SeqCst);wire_owner.step().await.unwrap().unwrap().result.unwrap();
     let earlier_http=prepared.context.finish(Reply::CommandsAccepted(ids)).unwrap();
-    assert_eq!(earlier_http.indication.color,Some("green"));
+    assert_eq!(earlier_http.indication.color,Some("red"));
     // Advance the actual actor-owned canonical model, with no fabricated panel
     // or position feedback and without calling its LED helper directly.
     for _ in 0..16 {f.time.fetch_add(21,Ordering::SeqCst);if let Some(outcome)=wire_owner.step().await.unwrap(){outcome.result.unwrap();}}
     let sent=bytes.lock().unwrap().clone();
-    assert_eq!(&sent[2..4],&[vec![0xae,0x22,1,0xf0,0xee],vec![0xae,0x41,2,0xf2,0xee]]);
+    assert_eq!(&sent[2..4],&[vec![0xae,0x22,1,0xf0,0xee],vec![0xae,0x41,2,0xf1,0xee]]);
+    assert!(!sent[2..].contains(&vec![0xae,0x41,2,0xf2,0xee]),"neither the immediate cue nor canonical projection may flash green after middle STOP");
     let view=crate::management_devices::snapshot(&f.actor,f.controller,f.actor.task_generation().await.unwrap(),f.config.devices().keys().cloned().collect(),&f.feedback).await.unwrap();
     let keys=view.keypads[0]["keys"].as_array().unwrap();
     for (index,color) in [(1,"red"),(2,"red"),(3,"green")] {assert_eq!(keys[index]["led"]["last_written"]["color"],color);}

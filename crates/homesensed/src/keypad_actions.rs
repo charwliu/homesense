@@ -204,7 +204,7 @@ pub(crate) async fn prepare(admission:&Admission,generation:&TaskGeneration,docu
             if !source.permits_device(device.as_str()) {return Err(Rejection::KeypadScopeDenied);}
             if let Some(model)=config.devices().get(&device).and_then(|device|device.curtain_state.as_ref()) {
                 let leds=match action {KeyMotorAction::Open=>&model.leds.open,KeyMotorAction::Close=>&model.leds.close,KeyMotorAction::Stop=>&model.leds.stop};
-                if leds.contains(&endpoint) {coverage=true;motor_target=Some(device.clone());}
+                if leds.contains(&endpoint) {coverage=true;motor_target=Some(crate::keypad_origin::MotorIndicator{device:device.clone(),stop_key:*action==KeyMotorAction::Stop});}
             }
             let command=if *press_behavior==MotorPressBehavior::RepeatToStop && *action!=KeyMotorAction::Stop {
                 crate::management_devices::DeviceAction::KeypadPress {keypad:request.keypad.clone(),key:request.key}
