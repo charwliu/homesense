@@ -335,14 +335,15 @@ private final class UnifiedActualEvents: HomeEventTransport, @unchecked Sendable
             let beforeStop = try f.frames().count
             try await f.send(1)
             let repeatReceipt = try #require(await f.http.captured().last)["response"]
-            #expect(repeatReceipt["indication"]["color"] == .string("green"))
-            try await f.until("repeat resolved STOP and source green") { try f.has("ae2201f0ee", after: beforeStop) && f.has("ae4101f2ee", after: beforeStop) && f.device("curtain")["motor_estimate"]["movement"] == .string("Stopped") }
+            #expect(repeatReceipt["indication"]["color"] == .string("red"))
+            try await f.until("repeat resolved STOP and direction source remains red") { try f.has("ae2201f0ee", after: beforeStop) && f.has("ae4101f1ee", after: beforeStop) && f.device("curtain")["motor_estimate"]["movement"] == .string("Stopped") }
             let frames = try f.frames(after: beforeStop)
-            #expect(try #require(frames.firstIndex { $0["raw"] == .string("ae2201f0ee") }) < #require(frames.firstIndex { $0["raw"] == .string("ae4101f2ee") }))
+            #expect(try #require(frames.firstIndex { $0["raw"] == .string("ae2201f0ee") }) < #require(frames.firstIndex { $0["raw"] == .string("ae4101f1ee") }))
             try await f.until("canonical intermediate idle colors retire the immediate direction cue") {
                 try f.key(1).led.lastWritten == .red && f.key(2).led.lastWritten == .red && f.key(3).led.lastWritten == .green
                     && f.home.keypadActionPresentation("panel", key: 1) == nil
             }
+            #expect(try !f.has("ae4101f2ee", after: beforeStop), "middle STOP must not flash the direction key green")
             try await f.send(3)
             for _ in 0..<2 {
                 #expect(f.home.canStopMotorDevice("curtain"))

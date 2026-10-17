@@ -66,6 +66,40 @@ impl Drop for Operation<'_> {
     }
 }
 impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
+    /// Keep receiving during an ordinary pacing gap, before selecting a new
+    /// query. This retains one scheduling turn instead of creating a new
+    /// producer/dispatch turn for each failed nonblocking slot probe. Real
+    /// input or an overlong slot owner returns to the caller; no selected query
+    /// or response deadline survives this receive window. Original admission
+    /// rechecks protected controls afterwards, without polling that actor for
+    /// every receive probe inside one existing wire-gap quantum.
+    async fn refresh_slot_receive_window(&mut self)->Result<bool,(String,String)> {
+        let until=tokio::time::Instant::now()
+            + std::time::Duration::from_millis(self.transport.write_interval_ms().max(1));
+        while !self.transport.query_write_slot_ready() {
+            if self.transport.local_mode() {
+                let before=self.feedback.module_truth().cursor();
+                self.start_local_reads().map_err(|e|("local refresh receive window".into(),e))?;
+                self.poll_local_events(false).await.map_err(|e|("local refresh receive window".into(),e))?;
+                if self.transport.has_local_fault() || self.feedback.module_truth().cursor()!=before {
+                    return Ok(false);
+                }
+            }else{
+                for gateway in self.gateways.clone() {
+                    let read=self.receive(&gateway).await.map_err(|e|(gateway.clone(),e))?;
+                    if matches!(read.result,hb_transport::Receive::Disconnected{..}) {
+                        return Err((gateway,"gateway disconnected during refresh receive window".into()));
+                    }
+                    if !matches!(read.result,hb_transport::Receive::Idle) {
+                        return Ok(false);
+                    }
+                }
+            }
+            if tokio::time::Instant::now()>=until {return Ok(false);}
+            tokio::time::sleep(std::time::Duration::from_millis(1)).await;
+        }
+        Ok(true)
+    }
     pub(crate) async fn protected_controls(&self,controller:uuid::Uuid)->Result<bool,String> {
         let admission=self.transport.admission();let generation=admission.task_generation().await.map_err(|e|format!("{e:?}"))?;
         admission.diagnostics(controller,generation).await.map(|state|state.ready() && state.protected_queued).map_err(|e|format!("{e:?}"))

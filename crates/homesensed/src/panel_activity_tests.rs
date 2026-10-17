@@ -85,7 +85,7 @@ impl Write for Stream {
         Ok(())
     }
 }
-async fn run(independent: bool, strict: bool, delayed_release: bool, startup_hold: bool, ramp:bool) {
+async fn run(independent: bool, strict: bool, delayed_release: bool, startup_hold: bool, ramp:bool, slot_window:Option<bool>) {
     let gateways = if independent {
         vec!["bus", "other"]
     } else {
@@ -178,6 +178,55 @@ async fn run(independent: bool, strict: bool, delayed_release: bool, startup_hol
         age,
     )
     .unwrap();
+    if let Some(writer_holds_lock) = slot_window {
+        let baseline = buses["bus"].lock().unwrap().writes.len();
+        assert_eq!(baseline, 8);
+        o.configure_consumer_refresh(&[(homesense_core::DeviceId::new("bus-light").unwrap(), 1)].into()).unwrap();
+        tokio::time::sleep(Duration::from_millis(3)).await;
+        // Do not accidentally test the previous startup reply's turnaround
+        // instead of the newly selected query's write-slot wait.
+        o.transport.finish_reply_turnaround().await;
+        let mut slot = a.write_slot.clone().lock_owned().await;
+        *slot = Some(tokio::time::Instant::now() + Duration::from_millis(250));
+        let held_slot = if writer_holds_lock {Some(slot)} else {drop(slot); None};
+        // Arrived after the previous receive; it must get a decode opportunity
+        // instead of waiting behind a newly due query's pacing wait.
+        buses["bus"].lock().unwrap().replies.extend([0xae,0x41,0xd1,0xf1,0xee]);
+        let attempt = tokio::time::timeout(Duration::from_millis(100), async {
+            if independent {o.local_tick().await} else {
+                o.refresh_outputs_if_due().await.map_err(|(_, error)| error)
+            }
+        }).await;
+        drop(held_slot);
+        let query_sent = buses["bus"].lock().unwrap().writes.len() != baseline;
+        if attempt.is_err() || query_sent {
+            drop(o);a.shutdown().await.unwrap();std::fs::remove_dir_all(dir).unwrap();
+            panic!("new refresh query blocked the receive opportunity or sent before buffered press: timed_out={}, query_sent={query_sent}", attempt.is_err());
+        }
+        attempt.unwrap().unwrap();
+        // Make the slot ready, then prove the actual decoded press now gates it.
+        *a.write_slot.clone().lock_owned().await = None;
+        let until = std::time::Instant::now() + Duration::from_millis(120);
+        while std::time::Instant::now() < until {
+            if independent {o.start_local_reads().unwrap();o.local_tick().await.unwrap();}
+            else {o.receive("bus").await.unwrap();o.refresh_outputs_if_due().await.unwrap();}
+            tokio::time::sleep(Duration::from_millis(2)).await;
+        }
+        assert_eq!(o.feedback.module_truth().received_port_state("bus",0x41,1).unwrap().observed,
+            Some(homesense_core::Observation::Button {pressed:true}));
+        assert_eq!(buses["bus"].lock().unwrap().writes.len(),baseline,"ready slot still waits for the real release");
+        buses["bus"].lock().unwrap().replies.extend([0xae,0x41,0xd1,0xf2,0xee]);
+        let until = std::time::Instant::now() + Duration::from_millis(50);
+        while std::time::Instant::now() < until {
+            if independent {o.start_local_reads().unwrap();o.local_tick().await.unwrap();}
+            else {o.receive("bus").await.unwrap();o.refresh_outputs_if_due().await.unwrap();}
+            tokio::time::sleep(Duration::from_millis(2)).await;
+        }
+        assert_eq!(o.feedback.module_truth().received_port_state("bus",0x41,1).unwrap().observed,
+            Some(homesense_core::Observation::Button {pressed:false}));
+        assert_eq!(buses["bus"].lock().unwrap().writes.len(),baseline,"periodic queries still wait300s after release");
+        drop(o);a.shutdown().await.unwrap();std::fs::remove_dir_all(dir).unwrap();return;
+    }
     if ramp {
         let baseline=buses["bus"].lock().unwrap().writes.len();assert_eq!(baseline,9);
         buses["bus"].lock().unwrap().replies.extend([0xae,0x41,0xd1,0xf1,0xee,0xae,0x41,0xd1,0xf2,0xee]);
@@ -380,37 +429,54 @@ async fn run(independent: bool, strict: bool, delayed_release: bool, startup_hol
 }
 #[tokio::test]
 async fn unsolicited_load_feedback_accelerates_single_gateway_normal_round_only() {
-    run(false, false, false, false, false).await;
+    run(false, false, false, false, false, None).await;
 }
 #[tokio::test]
 async fn unsolicited_load_feedback_accelerates_independent_gateway_normal_round_only() {
-    run(true, false, false, false, false).await;
+    run(true, false, false, false, false, None).await;
 }
 
 #[tokio::test]
 async fn strict_consumer_on_independent_bus_never_refreshes_unrelated_ports_or_gateway() {
-    run(true, true, false, false, false).await;
+    run(true, true, false, false, false, None).await;
 }
 
 #[tokio::test]
 async fn short_press_defers_single_bus_queries_until_real_release() {
-    run(false, false, true, false, false).await;
+    run(false, false, true, false, false, None).await;
 }
 #[tokio::test]
 async fn short_press_defers_its_local_bus_without_stalling_other_gateway() {
-    run(true, false, true, false, false).await;
+    run(true, false, true, false, false, None).await;
 }
 
 #[tokio::test]
 async fn startup_queries_also_wait_for_the_received_press_release() {
-    run(false, false, false, true, false).await;
+    run(false, false, false, true, false, None).await;
 }
 
 #[tokio::test]
 async fn keypad_quiet_period_keeps_single_bus_dimmer_confirmation_until_final_feedback() {
-    run(false,false,false,false,true).await;
+    run(false,false,false,false,true, None).await;
 }
 #[tokio::test]
 async fn keypad_quiet_period_keeps_local_bus_dimmer_confirmation_until_final_feedback() {
-    run(true,false,false,false,true).await;
+    run(true,false,false,false,true, None).await;
+}
+
+#[tokio::test]
+async fn due_query_receives_buffered_press_before_future_write_slot_single_bus() {
+    run(false,false,false,false,false,Some(false)).await;
+}
+#[tokio::test]
+async fn due_query_receives_buffered_press_before_locked_write_slot_single_bus() {
+    run(false,false,false,false,false,Some(true)).await;
+}
+#[tokio::test]
+async fn due_query_receives_buffered_press_before_future_write_slot_local_bus() {
+    run(true,false,false,false,false,Some(false)).await;
+}
+#[tokio::test]
+async fn due_query_receives_buffered_press_before_locked_write_slot_local_bus() {
+    run(true,false,false,false,false,Some(true)).await;
 }

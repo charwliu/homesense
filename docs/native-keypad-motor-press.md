@@ -1,6 +1,6 @@
 # Native card motor presses
 
-A reviewed six-key card may opt each Open/Close mapping into `press_behavior: "repeat_to_stop"`. Omission and `"absolute"` preserve existing behavior. Stop cannot opt in. This metadata affects only the native card; details, HAP, physical panel events and existing automatic rules keep their absolute commands.
+A reviewed six-key mapping may opt each Open/Close key into `press_behavior: "repeat_to_stop"`. Omission and `"absolute"` preserve existing behavior. Stop cannot opt in. The native card and enabled HomeSense-owned physical key execution use this mapping; details, HAP and other absolute callers retain their explicit commands. Merely adding this metadata does not enable physical execution ownership.
 
 ```json
 {"kind":"motor","device":"curtain","action":"open","press_behavior":"repeat_to_stop","review_evidence":"Reviewed native card mapping"}
@@ -29,6 +29,8 @@ A separately reviewed `curtain_state.direction_led_policy` enables hints on conf
 Omission or `{"kind":"legacy"}` preserves the prior policy. The delay must be between 1 ms and 24 hours. In the new policy, the requested direction becomes red on actual motor Written; the opposite direction receives no output until the delay, then becomes red. Its prior red, green or unknown value is preserved during the delay. These are written hints, never physical LED observations.
 
 Estimated full-open is Open green/Close red; full-closed is Close green/Open red; an intermediate Stop makes both red. These terminal states take precedence over a delayed hint. Stop LED remains red while moving and uses the existing nonzero `stop_led_idle_ms` after stopping; a reviewed 1 ms value is valid, zero remains invalid.
+
+The immediate source hint distinguishes a direction key from the dedicated Stop key. A repeated direction key resolved to STOP stays red at an intermediate position; it must not briefly turn green before the canonical projection. The dedicated Stop key becomes green. STOP is still written before its source hint, and later canonical output retires the temporary hint without restoring stale response colors or replaying the motor command.
 
 The owner's next deadline includes the delayed edge even without UI reads or bus feedback. A pending command freezes old hints until the next real Written. Reverse/repeat/Stop, invalidation and revocation cancel stale edges; queued hints also recheck the current cause and color at dispatch. No old timer is replayed after reconnect or allowed to overwrite a newer terminal state.
 

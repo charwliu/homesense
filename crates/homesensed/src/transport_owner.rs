@@ -385,6 +385,10 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
     pub(crate) fn write_interval_ms(&self) -> u64 {
         self.admission.write_interval.as_millis() as u64
     }
+    pub(crate) fn query_write_slot_ready(&self) -> bool {
+        self.admission.write_slot.try_lock().is_ok_and(|slot|
+            slot.is_none_or(|until| tokio::time::Instant::now() >= until))
+    }
     pub(crate) async fn idle_for_refresh(
         &self,
         controller: uuid::Uuid,
@@ -473,8 +477,23 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
             timeout_ms,
             whole_module,
             true,
+            false,
         )
         .await
+    }
+    /// A new refresh query yields its write-slot wait to the receive loop.
+    /// Retrying an already issued query uses the original bounded path instead.
+    pub(crate) async fn poll_query_status_scope(
+        &mut self,
+        gateway: &str,
+        module: &homesense_core::ModuleSpec,
+        channel: homesense_core::Channel,
+        context: homesense_core::ExecutionContext,
+        timeout_ms: u64,
+        whole_module: bool,
+    ) -> Result<bool, String> {
+        self.send_status_scope(gateway, module, channel, context, timeout_ms,
+            whole_module, true, true).await
     }
     pub(crate) async fn query_status_scope(
         &mut self,
@@ -494,6 +513,7 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
                 timeout_ms,
                 whole_module,
                 false,
+                false,
             )
             .await?
         {
@@ -512,6 +532,7 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
         timeout_ms: u64,
         whole_module: bool,
         deferrable: bool,
+        yield_slot: bool,
     ) -> Result<bool, String> {
         if self.failed || timeout_ms == 0 || timeout_ms > 5000 {
             return Err("invalid query owner or timeout".into());
@@ -536,7 +557,20 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
             )
         }
         .map_err(|e| e.to_string())?;
-        let mut slot = self.wait_write_slot().await;
+        // Periodic/local refresh is called by the same task that applies
+        // incoming button frames. Do not park that receiver while a previous
+        // writer still owns the slot or its turnaround interval has not ended.
+        let mut slot = if yield_slot {
+            let Ok(slot) = self.admission.write_slot.clone().try_lock_owned() else {
+                return Ok(false);
+            };
+            if slot.is_some_and(|until| tokio::time::Instant::now() < until) {
+                return Ok(false);
+            }
+            slot
+        } else {
+            self.wait_write_slot().await
+        };
         let budget_end_ms = self
             .now_ms()
             .checked_add(timeout_ms)
