@@ -393,6 +393,7 @@ enum Message {
     CurtainInvalidate(Uuid,TaskGeneration,homesense_core::DeviceId),
     ModuleQuery(Uuid,Option<crate::source_auth::Source>,TaskGeneration,String,crate::module_queries::Scope,Instant,bool,oneshot::Sender<Result<crate::module_queries::Accepted,WriteStatus>>),
     ModuleQueryRecords(Uuid,TaskGeneration,Vec<u64>,oneshot::Sender<Result<Vec<homesense_storage::module_history::Record>,WriteStatus>>),
+    KeypadStateRecords(Uuid,TaskGeneration,Vec<homesense_core::DeviceId>,oneshot::Sender<Result<Vec<homesense_storage::module_history::Record>,WriteStatus>>),
     RecentDeviceCommands(Uuid,TaskGeneration,Vec<homesense_core::DeviceId>,usize,oneshot::Sender<Result<Vec<homesense_storage::module_history::Record>,WriteStatus>>),
     BeginSceneObservation(Uuid,TaskGeneration,u64,crate::feedback::SceneObservationStart,oneshot::Sender<Result<homesense_core::scene_observer::Scope,WriteStatus>>),
     ObserveSceneKey(Uuid,TaskGeneration,homesense_core::scene_observer::Scope,crate::feedback::SceneKeyObservation,oneshot::Sender<Result<(),WriteStatus>>),
@@ -1484,6 +1485,14 @@ impl Admission {
                                 else if generation.boot!=worker_boot || generation.epochs!=arbiter.policy().epochs {Err(WriteStatus::InvalidValueInRequest)}
                                 else {store.module_query_records(&worker_boot,configuration.revision(),&ids).map_err(|_|WriteStatus::ServiceCommunicationFailure)};
                             let _=reply.send(result);
+                        }
+                        Message::KeypadStateRecords(controller,generation,ids,reply)=>{
+                            let result=(||{
+                                if !authorize(controller){return Err(WriteStatus::InsufficientPrivileges);}
+                                if failed || generation.boot!=worker_boot || generation.epochs!=arbiter.policy().epochs{return Err(WriteStatus::ServiceCommunicationFailure);}
+                                if ids.iter().any(|id|configuration.binding(id).is_none_or(|(_,m)|m.kind()!=homesense_core::ModuleKind::Keypad)){return Err(WriteStatus::InvalidValueInRequest);}
+                                store.keypad_state_records(&worker_boot,configuration.revision(),&ids).map_err(|_|WriteStatus::ServiceCommunicationFailure)
+                            })();let _=reply.send(result);
                         }
                         Message::RecentDeviceCommands(controller,generation,ids,limit,reply)=>{
                             let result=(||{
@@ -3207,6 +3216,10 @@ impl Admission {
         let (reply,receive)=oneshot::channel();
         self.sender.try_send(Message::ModuleQueryRecords(controller,generation,commands,reply)).map_err(|_|WriteStatus::ResourceBusy)?;
         receive.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?
+    }
+    pub(crate) async fn keypad_state_records(&self,controller:Uuid,generation:TaskGeneration,ids:Vec<homesense_core::DeviceId>)->Result<Vec<homesense_storage::module_history::Record>,WriteStatus>{
+        if ids.len()>128 || ids.iter().collect::<std::collections::BTreeSet<_>>().len()!=ids.len(){return Err(WriteStatus::InvalidValueInRequest);}
+        let (reply,receive)=oneshot::channel();self.sender.try_send(Message::KeypadStateRecords(controller,generation,ids,reply)).map_err(|_|WriteStatus::ResourceBusy)?;receive.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?
     }
     pub(crate) async fn recent_device_commands(&self,controller:Uuid,generation:TaskGeneration,ids:Vec<homesense_core::DeviceId>,limit:usize)->Result<Vec<homesense_storage::module_history::Record>,WriteStatus>{
         if ids.len()>128 || !(1..=64).contains(&limit){return Err(WriteStatus::InvalidValueInRequest);}
