@@ -160,12 +160,13 @@ impl SelectionReader {
     fn active(&self)->bool { !*self.stop.borrow() && self.stop.has_changed().is_ok() }
     async fn read(&self,controller:Uuid,revision:u64)->Result<Reply,String> {
         if !self.active(){return Err("automation runtime stopped".into());}
-        // Same base-controller authorization and same live Admission generation
-        // as the queued runtime path. Only immutable definitions are retained;
-        // every selection/expiry/readability check still runs in Admission.
-        self.admission.variable_snapshot(self.controller,self.generation.clone(),vec![]).await.map_err(|e|format!("{e:?}"))?;
+        // One coherent owner turn preserves both controller authorizations,
+        // exact generation, expiry/projection and mapping checks. No values are
+        // retained here and no physical/control work can use this capability.
+        let snapshot=self.admission.published_scene_selection_snapshot(self.controller,controller,self.generation.clone(),revision,crate::scene_switches::variable_names(&self.document)).await.map_err(|e|format!("{e:?}"))?;
         if !self.admission.source_valid(){return Err("source authority expired after runtime read".into());}
-        selection_reply(&self.admission,&self.generation,&self.document,controller,revision).await
+        if !snapshot.mapping_readable {return Err("scene selection runtime not ready".into());}
+        crate::scene_switches::details(&self.document,&snapshot.values).map(Reply::SceneSelectionDetails)
     }
 }
 
