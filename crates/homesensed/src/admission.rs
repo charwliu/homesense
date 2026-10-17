@@ -89,13 +89,20 @@ pub struct Diagnostics {
     pub valid_configuration_loaded: bool,
     pub wire_capacity:crate::WireCapacity,
 }
+#[allow(clippy::too_many_arguments)]
+fn mapping_readable_fields(failed:bool,stopping:bool,publishing:bool,controller:bool,storage:bool,configuration:bool,gateway_ready:bool,has_gateways:bool)->bool {
+    !failed && !stopping && !publishing && controller && storage && configuration && (gateway_ready || has_gateways)
+}
+struct PublishedSelectionRead {base:Uuid,revision:u64,source:Option<crate::source_auth::Source>}
+pub(crate) struct SelectionSnapshot {
+    pub(crate) values:BTreeMap<String,homesense_storage::scene_observation::Snapshot>,
+    pub(crate) mapping_readable:bool,
+}
 impl Diagnostics {
     /// A partial gateway failure keeps the current mapping readable. This does
     /// not authorize writes: their exact gateway scope is checked by Admission.
     pub(crate) fn mapping_readable(&self) -> bool {
-        !self.failed && !self.stopping && !self.publishing
-            && self.controller_enabled && self.storage_healthy && self.valid_configuration_loaded
-            && (self.gateway_ready || !self.gateways.is_empty())
+        mapping_readable_fields(self.failed,self.stopping,self.publishing,self.controller_enabled,self.storage_healthy,self.valid_configuration_loaded,self.gateway_ready,!self.gateways.is_empty())
     }
     /// Current admission readiness, not end-to-end physical device reachability.
     pub fn ready(&self) -> bool {
@@ -365,6 +372,8 @@ enum GatewayFaultTarget {
 mod query_reservation;
 pub(crate) use query_reservation::Permit as QueryReadPermit;
 
+#[cfg(test)]
+pub(crate) type SelectionTestRead=oneshot::Receiver<Result<BTreeMap<String,homesense_storage::variables::Stored>,WriteStatus>>;
 enum Message {
     ReservePhysicalRead(String,Option<TaskGeneration>,u64,oneshot::Sender<Result<QueryReadPermit,WriteStatus>>),
     ActivateGateways(Vec<crate::gateway_runtime::Initial>,oneshot::Sender<Result<(),WriteStatus>>),
@@ -383,7 +392,7 @@ enum Message {
     RecentDeviceCommands(Uuid,TaskGeneration,Vec<homesense_core::DeviceId>,usize,oneshot::Sender<Result<Vec<homesense_storage::module_history::Record>,WriteStatus>>),
     BeginSceneObservation(Uuid,TaskGeneration,u64,crate::feedback::SceneObservationStart,oneshot::Sender<Result<homesense_core::scene_observer::Scope,WriteStatus>>),
     ObserveSceneKey(Uuid,TaskGeneration,homesense_core::scene_observer::Scope,crate::feedback::SceneKeyObservation,oneshot::Sender<Result<(),WriteStatus>>),
-    SceneSelections(Uuid,TaskGeneration,Vec<String>,oneshot::Sender<Result<BTreeMap<String,homesense_storage::scene_observation::Snapshot>,WriteStatus>>),
+    SceneSelections(Uuid,TaskGeneration,Vec<String>,Option<PublishedSelectionRead>,oneshot::Sender<Result<SelectionSnapshot,WriteStatus>>),
     InitializeSceneSelection(Uuid,TaskGeneration,crate::scene_initialization::Prepared,oneshot::Sender<Result<(),WriteStatus>>),
     ReconcileSceneSelection(Uuid,TaskGeneration,crate::scene_reconciliation::Prepared,oneshot::Sender<Result<(),WriteStatus>>),
     NativeStatus(Uuid,TaskGeneration,String,oneshot::Sender<Result<Option<homesense_storage::native_scene::Record>,WriteStatus>>),
@@ -1457,10 +1466,18 @@ impl Admission {
                             if result==Err(WriteStatus::ServiceCommunicationFailure) {failed=true; audited_transport_failure=false;let _=arbiter.storage_failed();}
                             let _=reply.send(result);
                         }
-                        Message::SceneSelections(controller,generation,names,reply)=>{
+                        Message::SceneSelections(controller,generation,names,published,reply)=>{
                             let selection_started=std::time::Instant::now();
                             let variable_count=names.len();
                             let result=(||{
+                                if let Some(read)=&published {
+                                    // Same base-owner fence as the queued control path,
+                                    // followed by the requested-reader authorization below.
+                                    if !authorize(read.base) {return Err(WriteStatus::InsufficientPrivileges)}
+                                    if failed || generation.boot!=worker_boot || generation.epochs!=arbiter.policy().epochs {return Err(WriteStatus::ServiceCommunicationFailure)}
+                                    if read.source.as_ref().is_some_and(|source|!source.valid()) {return Err(WriteStatus::InsufficientPrivileges)}
+                                    if read.revision!=configuration.revision() {return Err(WriteStatus::InvalidValueInRequest)}
+                                }
                                 if !authorize(controller) {return Err(WriteStatus::InsufficientPrivileges)}
                                 if failed || generation.boot!=worker_boot || generation.epochs!=arbiter.policy().epochs {return Err(WriteStatus::ServiceCommunicationFailure)}
                                 if worker_observation_invalidation.load(Ordering::Acquire)!=observation_fence {scene_observer.invalidate();}
@@ -1474,7 +1491,19 @@ impl Admission {
                                     if let Some(document)=&document && let Some(group)=document.scene_switch_groups.iter().find(|g|g.variable==name) && !component_modes.project_selection(&store,&name,&generation,&mut value)? {crate::scene_reconciliation::project(&mut value,scene_projections.get(&name),group,&store,&configuration,document,&worker_boot,policy.epochs,millis(clock),ready)?;}
                                     if values.insert(name,value).is_some() {return Err(WriteStatus::InvalidValueInRequest)}
                                 }
-                                Ok(values)
+                                // A published read checks selection and mapping in this
+                                // same owner turn, without another FIFO wait. Ordinary
+                                // callers keep their existing snapshot-only contract.
+                                // Diagnostics reauthorized the requested controller after
+                                // projection in the old three-RPC path. Preserve that
+                                // live check even though this read now has one FIFO wait.
+                                if published.is_some() && !authorize(controller) {return Err(WriteStatus::InsufficientPrivileges)}
+                                let mapping_readable=published.is_some() && mapping_readable_fields(
+                                    failed,worker_stop.load(Ordering::Acquire),policy.publishing,policy.controller,policy.storage_healthy,policy.valid_configuration_loaded,
+                                    policy.gateway_ready && gateways.as_ref().is_none_or(|g|g.table.all_ready()),
+                                    gateways.as_ref().is_some_and(|g|g.table.ids().next().is_some()));
+                                if published.as_ref().is_some_and(|read|read.source.as_ref().is_some_and(|source|!source.valid())) {return Err(WriteStatus::InsufficientPrivileges)}
+                                Ok(SelectionSnapshot {values,mapping_readable})
                             })();
                             if selection_started.elapsed()>=Duration::from_millis(100) {
                                 log::warn!("admission_selection_read_lag variables={variable_count} handler_ms={} success={}",selection_started.elapsed().as_millis(),result.is_ok());
@@ -2966,12 +2995,21 @@ impl Admission {
         let (reply,receive)=oneshot::channel();self.sender.try_send(Message::ObserveSceneKey(controller,generation,scope,proof,reply)).map_err(|_|WriteStatus::ResourceBusy)?;
         receive.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?
     }
+    /// Published capability only: both owners, projection and readiness in one
+    /// turn of the same actor. It never queues physical work or caches values.
+    pub(crate) async fn published_scene_selection_snapshot(&self,base:Uuid,controller:Uuid,generation:TaskGeneration,revision:u64,names:Vec<String>)->Result<SelectionSnapshot,WriteStatus> {
+        if names.len()>64 || names.iter().any(|n|n.is_empty() || n.len()>256) {return Err(WriteStatus::InvalidValueInRequest)}
+        let (reply,receive)=oneshot::channel();
+        let published=PublishedSelectionRead {base,revision,source:self.source_authorization.clone()};
+        self.sender.try_send(Message::SceneSelections(controller,generation,names,Some(published),reply)).map_err(|_|WriteStatus::ResourceBusy)?;
+        receive.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?
+    }
     /// Selection consumers may use current inferred values with their source.
     /// Ordinary rule snapshots deliberately continue to mask them as unknown.
     pub async fn scene_selection_snapshot(&self,controller:Uuid,generation:TaskGeneration,names:Vec<String>)->Result<BTreeMap<String,homesense_storage::scene_observation::Snapshot>,WriteStatus> {
         if names.len()>64 || names.iter().any(|n|n.is_empty() || n.len()>256) {return Err(WriteStatus::InvalidValueInRequest)}
-        let (reply,receive)=oneshot::channel();self.sender.try_send(Message::SceneSelections(controller,generation,names,reply)).map_err(|_|WriteStatus::ResourceBusy)?;
-        receive.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?
+        let (reply,receive)=oneshot::channel();self.sender.try_send(Message::SceneSelections(controller,generation,names,None,reply)).map_err(|_|WriteStatus::ResourceBusy)?;
+        receive.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?.map(|snapshot|snapshot.values)
     }
     #[cfg(test)]
     pub(crate) async fn module_query(&self,controller:Uuid,generation:TaskGeneration,module_id:String,scope:crate::module_queries::Scope,submit:bool)->Result<crate::module_queries::Accepted,WriteStatus>{
@@ -3007,6 +3045,14 @@ impl Admission {
     }
     pub(crate) async fn scene_selection_values(&self,controller:Uuid,generation:TaskGeneration,names:Vec<String>)->Result<BTreeMap<String,homesense_storage::variables::Stored>,WriteStatus> {
         Ok(self.scene_selection_snapshot(controller,generation,names).await?.into_iter().map(|(name,snapshot)|(name,snapshot.stored)).collect())
+    }
+    // Test fixture only: enqueue an ordinary authorized read synchronously so
+    // actor callbacks can establish exact FIFO interleavings without a new op.
+    #[cfg(test)]
+    pub(crate) fn enqueue_selection_test_read(&self, controller:Uuid, generation:TaskGeneration)->SelectionTestRead {
+        let (reply,receive)=oneshot::channel();
+        assert!(self.sender.try_send(Message::VariableSnapshot(controller,generation,vec![],reply)).is_ok(),"test read mailbox capacity");
+        receive
     }
     pub async fn variable_snapshot(
         &self,

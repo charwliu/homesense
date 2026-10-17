@@ -1084,3 +1084,7 @@ mod selection_quantum_tests {
 #[cfg(test)]
 #[path="selection_read_fairness_tests.rs"]
 mod selection_read_fairness_tests;
+
+#[cfg(test)]
+#[path="selection_actor_queue_tests.rs"]
+mod selection_actor_queue_tests;

@@ -110,3 +110,6 @@ async fn selection_reader_stop_during_actor_wait_rejects_a_late_result() {
     {let (lock,wake)=&*f.release;*lock.lock().unwrap()=true;wake.notify_all();}
     assert!(tokio::time::timeout(Duration::from_secs(2),read).await.unwrap().unwrap().is_err());assert!(entered.is_ok());f.finish().await;
 }
+
+#[path="coherent_selection_guard_tests.rs"]
+mod coherent;
