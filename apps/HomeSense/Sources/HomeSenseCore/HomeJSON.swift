@@ -72,6 +72,31 @@ public struct HomeRecord: Identifiable, Equatable, Sendable {
     public init(_ raw: HomeJSON) { self.raw = raw }
 }
 
+/// A virtual scene card is presentation, never a physical keypad or LED source.
+public struct HomeScenePanel: Identifiable, Equatable, Sendable {
+    public let id: String
+    public let title: String
+    public let page: Int
+    public let pageCount: Int
+    public let scenes: [HomeRecord]
+}
+
+public enum HomeSceneCardAction: Equatable, Sendable {
+    case execute, selection(Bool)
+    public var on: Bool? { if case .selection(let value) = self { value } else { nil } }
+    public var title: String {
+        switch self { case .execute: "执行"; case .selection(true): "开启"; case .selection(false): "关闭" }
+    }
+}
+
+public extension HomeRecord {
+    var sceneCardAction: HomeSceneCardAction {
+        guard raw["switch_kind"].text == "selection" else { return .execute }
+        // Unknown is an explicit On intent, never evidence of an Off state.
+        return .selection(raw["selected"] != .bool(true))
+    }
+}
+
 public enum HomeServerError: LocalizedError {
     case invalidEndpoint, notAuthenticated, denied, invalidDocument, invalidResponse
     case staleConfiguration, missingAutomation, revisionOverflow, server(String), expiredRequest

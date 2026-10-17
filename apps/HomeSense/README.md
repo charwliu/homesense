@@ -20,15 +20,18 @@ Keypad 使用[原生接口契约](../../docs/keypad-native-api.md)中的真实�
 
 ```sh
 cd apps/HomeSense
+export HOMESENSE_BUILD_ROOT="$PWD/build"
 bash tools/build.sh macos
-open build/macos/Build/Products/Debug/HomeSense.app
+open "$HOMESENSE_BUILD_ROOT/macos/Build/Products/Debug/HomeSense.app"
 
 # iPhone / iPad 无签名编译检查；真机安装通过 Xcode 配置签名。
 bash tools/build.sh ios
 
 # Swift、内存 API 与本机模拟 TCP 回归。
-swift test
+swift test --scratch-path "$HOMESENSE_BUILD_ROOT"
 ```
+
+每个会话固定一个绝对构建根目录，后续原地复用。`tools/build.sh` 将 Xcode 输出放在该根目录的平台子目录；Swift 测试和实际联调脚本分别显式传入 `--scratch-path "$HOMESENSE_BUILD_ROOT"`、`--scratch "$HOMESENSE_BUILD_ROOT"`，避免另建默认 `.build` 或按版本、轮次复制构建缓存。源码快照、日志和必要安装包可另存。
 
 实际 Rust HTTPS/WSS 联调需使用独立、固定且不会被并行构建覆盖的后端二进制。将下面的占位路径替换为该文件的绝对路径，再运行：
 
@@ -36,7 +39,7 @@ swift test
 export HOMESENSE_TEST_BINARY="/absolute/path/to/pinned/homesensed"
 export HOMESENSE_KEYPAD_TEST_BINARY="$HOMESENSE_TEST_BINARY"
 export HOMESENSE_KEYPAD_TEST_FIXTURES="$PWD/../../config/test/native-app-keypad"
-swift test
+swift test --scratch-path "$HOMESENSE_BUILD_ROOT"
 ```
 
 缺少相应环境变量时，两项实际 Rust 集成测试明确跳过。测试使用隔离模拟设备、临时状态及注入的内存凭证存储，不访问用户 Keychain。
@@ -51,7 +54,13 @@ AppIcon 来自仓库的 `docs/assets/homesense-logo-v3.png`；重新生成使用
 
 场景在管理编辑稿中选择房间，归属只存于 `automation.scene_metadata[].room`，不修改动作、按键规则或授权。活动场景通过 GET／WSS 的 `room:{id,name,floor}|null` 显示在对应房间；未分配、旧后端缺字段或暂时找不到房间的场景留在家庭概览，不按名称或动作推断。归属编辑需要支持此元数据字段的后端，发布前仍显示原活动归属。
 
-日常概览和房间页只对同页实际显示的有效六键面板去重：直接绑定 `scene_toggle`／`scene_execute` 的场景不再重复显示独立卡片；未绑定场景、面板不在当前房间、面板被隐藏或按键意图无效时保留独立入口。去重不读取临时选择状态、断网状态或按键就绪状态，也不追踪程序内部的子场景。专用“场景”页与配置管理保留完整授权列表，现有控制门禁、LED 显示与本地调试保持原样。
+房间页只显示服务端允许日常展示的灯、窗帘与明确归属的场景，每个稳定 ID 只出现一次；不按同名合并不同设备或场景，也不把程序内部的子场景推断为房间入口。面板卡片集中在“设备”列表，保留六键控制和 LED 状态；家庭概览显示灯、窗帘及全屋／未分配场景。房间内没有面板，因此已绑定面板的房间场景仍保留独立入口。专用“场景”页与配置管理保留完整授权列表，断网门禁、LED 显示与本地调试保持原样。
+
+场景采用方形卡片，每个房间按两列三行排列，单卡最多六个场景，超出时分卡；相同 ID 不重复出现。点场景键直接走已有场景接口：瞬时场景“执行”，选择场景按明确的“开启／关闭”操作；选择未知时显示“开启”，提交明确 `on:true`，受理不会伪造选择状态。每键有详情入口，分别保留选择状态与负载反馈；断网或目标不可用时控制键置灰，历史状态仍显示。虚拟场景卡不生成实体面板或 LED 反馈。
+
+“设备”页集中显示面板和 R818-DIN／AD8-DIN／C4-DIN 物理模块，标注十六进制总线地址；逻辑灯和窗帘位于房间与家庭概览，完整逻辑设备编辑移至“草稿与发布 → 逻辑设备配置”。管理员模块清单来自只读 `/api/v1/modules`，分页核对版本与 boot，不从逻辑灯名称推断硬件；成员不请求该清单，旧服务无接口时保留面板及既有控制，断连／降权／换版本清除模块缓存。
+
+模块详情可显式发送服务端支持的整模块／单通道查询、开关测试、调光亮度设置和已校准窗帘的明确打开／停止／关闭；每次点击只发送一个带当前版本与独立请求 ID 的请求，无回执重放或预先修改反馈。通道动作同时服从服务端 `actions` 与逻辑绑定授权，供电继电器不绕过组合灯约束。C4 未支持的反馈查询保持不可用，面板设置沿用原详情页能力门禁；未定义的硬件改址／原始参数报文不由客户端推测。
 
 本地调试步骤：
 

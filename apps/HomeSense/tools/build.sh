@@ -1,6 +1,11 @@
 #!/bin/bash
 set -euo pipefail
 project_dir="$(cd "$(dirname "$0")/.." && pwd)"
+build_root="${HOMESENSE_BUILD_ROOT:-$project_dir/build}"
+case "$build_root" in
+    /*) ;;
+    *) echo 'HOMESENSE_BUILD_ROOT must be an absolute path' >&2; exit 2 ;;
+esac
 platform="${1:-macos}"
 case "$platform" in
     macos) destination='generic/platform=macOS'; signing=(CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual) ;;
@@ -10,5 +15,5 @@ case "$platform" in
 esac
 xcodebuild -project "$project_dir/HomeSense.xcodeproj" -scheme HomeSense \
     -destination "$destination" -configuration Debug \
-    -derivedDataPath "$project_dir/build/$platform" \
+    -derivedDataPath "$build_root/$platform" \
     "${signing[@]}" build
