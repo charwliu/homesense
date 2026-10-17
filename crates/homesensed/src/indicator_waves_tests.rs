@@ -7,21 +7,25 @@ use std::{sync::{Arc,Mutex,atomic::{AtomicBool,AtomicU64,Ordering}},io::{Read,Wr
 struct Fixture {actor:Admission,controller:Uuid,clock:&'static AtomicU64,auth:Arc<AtomicBool>,path:PathBuf,document:Document,feedback:Feedback,scenes:SceneScheduler}
 impl Fixture {
     async fn new()->Self { Self::with_combined_light(false).await }
-    async fn with_combined_light(combined:bool)->Self {
+    async fn with_combined_light(combined:bool)->Self {Self::with_lights(combined,false).await}
+    async fn with_lights(combined:bool,separate:bool)->Self {
         let mut modules=(0..28).map(|n|json!({"id":format!("panel{n}"),"address":format!("{:02X}",0x60+n),"profile":"ts6_86_rs485_v2_6_5_6key","led_mode":"manual","verification":{"status":"simulated"}})).collect::<Vec<_>>();
         modules.push(json!({"id":"relay","address":"20","profile":"r8i8_din_pro_v2_7_7","verification":{"status":"simulated"}}));
         if combined {modules.push(json!({"id":"dimmer","address":"21","profile":"ad8_din_rs485_v2_2_1","verification":{"status":"simulated"}}));}
         let mut devices=(0..168).map(|n|json!({"id":format!("led{n}"),"name":"Synthetic indicator","module_id":format!("panel{}",n/6),"channel":n%6+1,"enabled":true})).collect::<Vec<_>>();
         devices.push(if combined {json!({"id":"light","name":"Synthetic combined light","module_id":"dimmer","channel":1,"enabled":true,"default_on_level":100,"supply":{"module_id":"relay","channel":1}})}else{json!({"id":"light","name":"Synthetic relay","module_id":"relay","channel":1,"enabled":true})});
         if combined {devices.push(json!({"id":"supply","name":"Synthetic supply","module_id":"relay","channel":1,"enabled":true}));}
+        if separate {devices.push(json!({"id":"other-light","name":"Independent relay","module_id":"relay","channel":2,"enabled":true}));}
         let config=serde_json::to_vec(&json!({"schema_version":2,"revision":1,"gateways":[{"id":"bus","endpoint":"127.0.0.1:1","modules":modules}],"devices":devices})).unwrap();
         let rules=serde_json::to_vec(&json!({"schema_version":1,"configuration_revision":1,"variables":[],"rules":[],"indicator_links":(0..3).map(|n|json!({"id":format!("link{n}"),"enabled":true,"review_evidence":"synthetic wave capacity","lights":["light"],"leds":(n*64..168.min((n+1)*64)).map(|i|format!("led{i}")).collect::<Vec<_>>()})).collect::<Vec<_>>()})).unwrap();
-        let parsed=homesense_config::Configuration::parse(&config,ExecutionContext::Simulation).unwrap();let document=Document::parse(&rules,&parsed).unwrap();
+        let parsed=homesense_config::Configuration::parse(&config,ExecutionContext::Simulation).unwrap();let mut document=Document::parse(&rules,&parsed).unwrap();
+        if separate {document.indicator_links[0].leds.truncate(2);document.indicator_links[1].leds=(2..66).map(|n|DeviceId::new(format!("led{n}")).unwrap()).collect();document.indicator_links[2].leds=(66..168).map(|n|DeviceId::new(format!("led{n}")).unwrap()).collect();for link in &mut document.indicator_links[1..] {link.lights=vec![DeviceId::new("other-light").unwrap()];}}
         let path=std::env::temp_dir().join(format!("led168-{}.sqlite",Uuid::new_v4()));Store::open(&path).unwrap().publish_automation(None,&config,&rules,ExecutionContext::Simulation,&[]).unwrap();
         let clock=&*Box::leak(Box::new(AtomicU64::new(500)));let auth=Arc::new(AtomicBool::new(true));let flag=auth.clone();
         let actor=Admission::open_with_test_time(path.clone(),Options{context:ExecutionContext::Simulation,write_interval:std::time::Duration::from_millis(20),..Default::default()},move |_|flag.load(Ordering::Acquire),clock).await.unwrap();actor.synchronized(1,1).await.unwrap();
         let controller=Uuid::new_v4();let mut feedback=Feedback::new(&parsed,ExecutionContext::Simulation,Uuid::parse_str(actor.boot_id()).unwrap().as_u128(),1).unwrap();
         feedback.apply(&GatewayRead{gateway_id:"bus".into(),transport_epoch:1,received_at_ms:500,result:hb_transport::Receive::Frames{transport_epoch:1,frames:vec![hb_protocol::RawFrame{address:0x20,command:0xd1,value:0xf2}]}}).unwrap();
+        if separate {feedback.apply(&GatewayRead{gateway_id:"bus".into(),transport_epoch:1,received_at_ms:500,result:hb_transport::Receive::Frames{transport_epoch:1,frames:vec![hb_protocol::RawFrame{address:0x20,command:0xd2,value:0xf2}]}}).unwrap();}
         if combined {feedback.apply(&GatewayRead{gateway_id:"bus".into(),transport_epoch:1,received_at_ms:500,result:hb_transport::Receive::Frames{transport_epoch:1,frames:vec![hb_protocol::RawFrame{address:0x21,command:0xd1,value:100}]}}).unwrap();}
         let scenes=SceneScheduler::new(actor.clone(),controller,8,500).unwrap();Self{actor,controller,clock,auth,path,document,feedback,scenes}
     }
@@ -127,4 +131,50 @@ async fn expired_transition_invalidates_cache_even_with_identical_physical_value
     assert_eq!(pending.lights,expired.lights);
     assert_ne!(pending,expired,"previously deferred indicators must be reconsidered after target expiry");
     f.close().await;
+}
+
+#[tokio::test]
+async fn changed_visited_light_preempts_remaining_catalog_without_replay_or_new_deadline() {
+    let mut f=Fixture::with_lights(false,true).await;
+    let mut waves=Waves::default();let frames=Arc::new(Mutex::new(vec![]));
+    f.feedback.apply(&GatewayRead {gateway_id:"bus".into(),transport_epoch:1,received_at_ms:500,result:hb_transport::Receive::Frames {transport_epoch:1,frames:vec![hb_protocol::RawFrame {address:0x20,command:0xd1,value:0xf1}]}}).unwrap();
+    let first=f.advance(&mut waves,false).await.unwrap();
+    let deadline=waves.cycle.as_ref().unwrap().deadline;
+    assert!(f.write(first,frames.clone()).await);waves.phase_ended(true);f.advance(&mut waves,true).await;
+    assert_eq!(f.count(),14);
+    f.feedback.apply(&GatewayRead {gateway_id:"bus".into(),transport_epoch:1,received_at_ms:f.clock.load(Ordering::SeqCst),result:hb_transport::Receive::Frames {transport_epoch:1,frames:vec![hb_protocol::RawFrame {address:0x20,command:0xd1,value:0xf2}]}}).unwrap();
+    let next=f.advance(&mut waves,false).await.unwrap();
+    assert_eq!(waves.cycle.as_ref().unwrap().deadline,deadline);
+    assert!(f.write(next,frames.clone()).await);waves.phase_ended(true);
+    let written=frames.lock().unwrap().clone();
+    assert_eq!(&written[14][1..4],&[0x60,1,0xf2],"already visited changed LED must lead the next wave");
+    assert_eq!(&written[15][1..4],&[0x60,2,0xf2]);
+    for _ in 0..100 {if let Some(w)=f.advance(&mut waves,false).await {assert!(f.write(w,frames.clone()).await);waves.phase_ended(true);}
+        if waves.cycle.is_none(){break;}}
+    assert_eq!(waves.outcome.as_ref().unwrap().kind,Kind::Synced);
+    assert_eq!(f.count(),168,"unchanged Written LEDs cannot replay during reprioritization");
+    assert_eq!(frames.lock().unwrap().len(),168);
+    f.close().await;
+}
+
+#[tokio::test]
+async fn repeated_hot_feedback_leaves_capacity_for_every_other_indicator() {
+    let mut f=Fixture::with_lights(false,true).await;
+    let mut waves=Waves::default();let frames=Arc::new(Mutex::new(vec![]));let mut deadline=None;
+    for round in 0..30 {
+        let value=if round%2==0 {0xf2}else{0xf1};
+        f.feedback.apply(&GatewayRead {gateway_id:"bus".into(),transport_epoch:1,received_at_ms:f.clock.load(Ordering::SeqCst),result:hb_transport::Receive::Frames {transport_epoch:1,frames:vec![hb_protocol::RawFrame {address:0x20,command:0xd1,value}]}}).unwrap();
+        if let Some(wave)=f.advance(&mut waves,false).await {
+            let current=waves.cycle.as_ref().unwrap().deadline;
+            if let Some(first)=deadline {assert_eq!(current,first);}else{deadline=Some(current);}
+            assert!(wave.batches.iter().map(Vec::len).sum::<usize>()<=16);
+            assert!(f.write(wave,frames.clone()).await);waves.phase_ended(true);
+        }
+        f.advance(&mut waves,true).await;
+        let ordinary=frames.lock().unwrap().iter().filter(|b|!(b[1]==0x60 && b[2]<=2)).map(|b|(b[1],b[2])).collect::<Vec<_>>();
+        let unique=ordinary.iter().collect::<std::collections::BTreeSet<_>>();
+        assert_eq!(unique.len(),ordinary.len(),"unrelated successful writes must not replay");
+        if unique.len()==166 {assert!(round<20,"hot feedback must not starve unrelated indicators");f.close().await;return;}
+    }
+    panic!("hot feedback starved remaining catalog");
 }
