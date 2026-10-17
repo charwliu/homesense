@@ -64,6 +64,11 @@ public struct HomeRecord: Identifiable, Equatable, Sendable {
     public let raw: HomeJSON
     public var id: String { raw["id"].text ?? "" }
     public var name: String { raw["name"].text ?? id }
+    /// Runtime DTOs contain a room object; configuration metadata stores its ID.
+    public var roomID: String? {
+        let id = raw["room"]["id"].text ?? raw["room"].text
+        return id.flatMap { !$0.isEmpty && $0 == $0.trimmingCharacters(in: .whitespacesAndNewlines) ? $0 : nil }
+    }
     public init(_ raw: HomeJSON) { self.raw = raw }
 }
 
