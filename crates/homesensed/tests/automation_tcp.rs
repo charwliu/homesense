@@ -524,13 +524,23 @@ async fn supervision_outlives_fast_budget_and_partial_feedback_until_deadline() 
         devices["gateways"][0]["endpoint"]=bus.local_addr().unwrap().to_string().into();
         devices["gateways"][0]["modules"][0]["verification"]=hap::serde_json::json!({"status":"verified","evidence":"loopback only","verified_at_unix_ms":1});
         let stop=Arc::new(AtomicBool::new(false));let stopped=stop.clone();
+        let began=std::time::Instant::now();
         let server=std::thread::spawn(move|| {
             bus.set_nonblocking(true).unwrap();let mut rounds=0;
             while !stopped.load(Ordering::Acquire) {
                 let (mut socket,_)=match bus.accept(){Ok(value)=>value,Err(error) if error.kind()==std::io::ErrorKind::WouldBlock=>{std::thread::sleep(Duration::from_millis(5));continue},Err(error)=>panic!("{error}")};
                 socket.set_nonblocking(false).unwrap(); // Darwin accepts inherit O_NONBLOCK.
                 socket.set_read_timeout(Some(Duration::from_secs(2))).unwrap();let mut frame=[0;5];
-                match socket.read_exact(&mut frame){Ok(())=>{},Err(_) if stopped.load(Ordering::Acquire)=>break,Err(error)=>panic!("{error}")};
+                match socket.read_exact(&mut frame) {
+                    Ok(())=>{},
+                    Err(_) if stopped.load(Ordering::Acquire)=>break,
+                    // The service closes its last accepted stream at the
+                    // deadline, before returning and setting the fixture flag.
+                    // Premature EOF must still fail this lifetime regression.
+                    Err(error) if began.elapsed()>=Duration::from_secs(4)
+                        && matches!(error.kind(),std::io::ErrorKind::UnexpectedEof|std::io::ErrorKind::ConnectionReset)=>break,
+                    Err(error)=>panic!("{error}"),
+                };
                 assert_eq!(frame,[0xae,0x15,0xa0,0xf2,0xee]);
                 if rounds==0 || synchronized {socket.write_all(&module_levels(0x15,42)).unwrap();}
                 else {socket.write_all(&[0xae,0x15,0xd1,42,0xee]).unwrap();}
@@ -543,7 +553,6 @@ async fn supervision_outlives_fast_budget_and_partial_feedback_until_deadline() 
             }
             rounds
         });
-        let began=std::time::Instant::now();
         let result=homesensed::automation_tcp::serve_supervised(&hap::serde_json::to_vec(&devices).unwrap(),br#"{"schema_version":1,"configuration_revision":1,"variables":[],"rules":[]}"#,&root,Duration::from_secs(4),true,1).await;
         stop.store(true,Ordering::Release);
         let rounds=server.join().unwrap();

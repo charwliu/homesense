@@ -11,6 +11,7 @@ struct Signal {
     lights:Vec<(DeviceId,Option<Observation>,Quality)>,
     variables:BTreeMap<String,homesense_storage::variables::Stored>,
     recorded:BTreeMap<DeviceId,Percent>,
+    pending:BTreeMap<DeviceId,Percent>,
 }
 #[derive(Clone)]
 struct Target {link:usize,id:DeviceId}
@@ -33,16 +34,24 @@ pub(crate) struct Waves {
 impl Waves {
     pub(crate) fn phase_ended(&mut self,all_written:bool) {if let Some(pending)=&mut self.pending {pending.complete=Some(all_written);}}
     fn abort(&mut self) {
-        if let Some(c)=self.cycle.take(){self.outcome=Some(Outcome {kind:Kind::Aborted,targets:c.targets.len(),admitted:c.admitted,waves:c.waves,unresolved:c.unresolved+c.targets.len().saturating_sub(c.cursor)});self.last_signal=Some(c.signal);}
+        if let Some(c)=self.cycle.take(){log::debug!("LED cycle aborted targets={} visited={} admitted={} waves={} unresolved={}",c.targets.len(),c.cursor,c.admitted,c.waves,c.unresolved);self.outcome=Some(Outcome {kind:Kind::Aborted,targets:c.targets.len(),admitted:c.admitted,waves:c.waves,unresolved:c.unresolved+c.targets.len().saturating_sub(c.cursor)});self.last_signal=Some(c.signal);}
         self.pending=None;
     }
     async fn signal(admission:&Admission,controller:Uuid,generation:&TaskGeneration,document:&Document,feedback:&Feedback)->Result<Signal,WriteStatus> {
-        let snapshot=feedback.snapshot();let ids=document.indicator_links.iter().filter(|l|l.enabled).flat_map(|l|l.lights.iter().cloned()).collect::<std::collections::BTreeSet<_>>();
-        let lights=ids.into_iter().filter_map(|id|snapshot.devices.get(&id).map(|s|(id,s.observed,s.quality))).collect();
+        let snapshot=feedback.snapshot();let mut ids=document.indicator_links.iter().filter(|l|l.enabled).flat_map(|l|l.lights.iter().cloned()).collect::<std::collections::BTreeSet<_>>();
+        // A combined light's retained dimmer level does not change when its
+        // supply relay turns off. Cache every physical input used by planning.
+        let supplies=ids.iter().filter_map(|id|feedback.supply_relay(id).cloned()).collect::<Vec<_>>();
+        ids.extend(supplies);
+        let lights=ids.iter().filter_map(|id|snapshot.devices.get(id).map(|s|(id.clone(),s.observed,s.quality))).collect();
         let names=document.scene_switch_groups.iter().map(|g|g.variable.clone()).collect::<std::collections::BTreeSet<_>>().into_iter().collect();
         let variables=admission.variable_snapshot(controller,generation.clone(),names).await?;
         let recorded=admission.recorded_dimmer_levels(controller,generation.clone()).await?;
-        Ok(Signal {lights,variables,recorded})
+        // A wave deferred by a local transition must be reconsidered when the
+        // transition settles or expires, even if physical values stayed equal.
+        let mut pending=admission.projection_levels(generation.epochs.configuration,snapshot.cursor.boot_id).await?;
+        pending.retain(|id,_|ids.contains(id));
+        Ok(Signal {lights,variables,recorded,pending})
     }
     async fn fences(admission:&Admission,controller:Uuid,generation:&TaskGeneration,ids:&[DeviceId])->Result<crate::indicator_outputs::Fence,WriteStatus> {
         let mut result=BTreeMap::new();for chunk in ids.chunks(128) {result.extend(admission.indicator_outputs(controller,generation.clone(),chunk.to_vec(),vec![]).await?.fence);}Ok(result)
@@ -115,7 +124,8 @@ impl Waves {
         let targets=cycle.targets[cycle.cursor..cycle.targets.len().min(cycle.cursor+width)].to_vec();
         let phase_deadline=now.saturating_add(allowance.min(2000));
         let mut subset=document.clone();subset.indicator_links=targets.iter().map(|target|{let mut link=document.indicator_links[target.link].clone();link.leds=vec![target.id.clone()];link}).collect();
-        let visited=self.sync.tick_wave(admission,controller,&subset,scenes,feedback,max_age,phase_deadline.min(now.saturating_add(100))).await?;
+        let visited=self.sync.tick_wave(admission,controller,&subset,scenes,feedback,max_age,phase_deadline).await?;
+        log::debug!("LED wave planned targets={} visited={} remaining_ms={}",targets.len(),visited,phase_deadline.saturating_sub(admission.monotonic_ms()));
         let batches=self.sync.take_emitted_batches();
         if visited==0 {return Ok(None);}
         let mut evaluations=vec![];for target in targets.into_iter().take(visited){let evaluation=self.sync.evaluation(&document.indicator_links[target.link].id,&target.id);evaluations.push((target,evaluation));}

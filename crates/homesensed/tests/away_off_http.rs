@@ -384,9 +384,17 @@ async fn away_without_hap_or_indicators_remembers_settled_brightness_before_off(
                     last_written = last_written.max(at);
                 }
                 drop(sql);
-                let (_, view) = http(web, "/api/v1/devices", None).await.unwrap();
-                let light = view["devices"].as_array().unwrap().iter().find(|d|d["id"]=="dimmer:1").unwrap();
-                if complete && light["quality"]=="Confirmed" && light["observed"]==json!({"level":37,"on":true}) && light["observed_at_ms"].as_u64().is_some_and(|at|i64::try_from(at).is_ok_and(|at|at>last_written)) {break;}
+                // Management device projection now settles targets itself.
+                // Read raw physical slots here to preserve this test's separate
+                // proof: Away must capture brightness without any projection.
+                let (_, view) = http(web, "/api/v1/modules", None).await.unwrap();
+                let modules = view["modules"].as_array().unwrap();
+                let slot = |module: &str| &modules.iter().find(|m|m["module_id"]==module).unwrap()["slots"][0]["binding"];
+                let fresh = |sample: &serde_json::Value| sample["quality"]=="confirmed"
+                    && sample["observed_ms"].as_str().and_then(|s|s.parse::<i64>().ok()).is_some_and(|at|at>last_written);
+                let dimmer = slot("dimmer");
+                let supply_ready = !combined || (fresh(slot("relay")) && slot("relay")["actual"]["on"]==true);
+                if complete && fresh(dimmer) && dimmer["actual"]==json!({"level":37,"on":true}) && supply_ready {break;}
                 tokio::time::sleep(Duration::from_millis(5)).await;
             }
         }).await.unwrap();

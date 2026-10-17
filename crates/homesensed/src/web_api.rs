@@ -213,14 +213,15 @@ impl Api {
         let cookie=request.headers().get("cookie").and_then(|v|v.to_str().ok()).and_then(session_cookie);
         // Capture the write source before any async binding/query preflight.
         // A later lookup must not silently adopt a replacement generation.
-        let control_source=if request.method()==hyper::Method::POST && matches!(request.uri().path(),"/api/v1/scene-actions"|"/api/v1/scene-cancellations"|"/api/v1/device-commands"|"/api/v1/module-commands"|"/api/v1/module-queries"|"/api/v1/scene-relative-actions"|"/api/v1/keypad-settings") {
+        let control_source=if request.method()==hyper::Method::POST && matches!(request.uri().path(),"/api/v1/scene-actions"|"/api/v1/scene-cancellations"|"/api/v1/device-commands"|"/api/v1/module-commands"|"/api/v1/module-queries"|"/api/v1/scene-relative-actions"|"/api/v1/keypad-settings"|"/api/v1/keypad-actions") {
             let Some(source)=self.tokens.module_off_lease(authorization,cookie,request.headers().get("x-csrf-token").and_then(|v|v.to_str().ok())).filter(|source|source.matches_grant(&grant)) else{return deny(StatusCode::FORBIDDEN,"source_credential_required");};
             Some(source)
         } else {None};
         if request.method() == hyper::Method::GET && request.uri().path() == "/api/v1/session" {
             return response(
                 StatusCode::OK,
-                json!({"can_view_diagnostics":grant.role==crate::web_auth::Role::Administrator,"can_manage_configuration":self.can_manage_configuration(&grant)}),
+                json!({"can_view_diagnostics":grant.role==crate::web_auth::Role::Administrator,"can_manage_configuration":self.can_manage_configuration(&grant),
+                    "capabilities":{"keypad_actions":{"version":1,"path":"/api/v1/keypad-actions","gestures":["activate"],"indication_schema":1}}}),
             );
         }
         if request.method() == hyper::Method::DELETE && request.uri().path() == "/api/v1/session" {
@@ -358,7 +359,7 @@ impl Api {
             if request.method()!=hyper::Method::GET {return deny(StatusCode::METHOD_NOT_ALLOWED,"method_not_allowed");}
             if !request.body().is_empty() {return deny(StatusCode::BAD_REQUEST,"unexpected_body");}
             return match runtime.control.request(Action::Diagnostics{controller:grant.controller,revision:runtime.revision}).await {
-                Ok(Reply::Diagnostics(s))=>response(StatusCode::OK,json!({"boot":s.boot,"revision":s.epochs.configuration.to_string(),"transport_epoch":s.epochs.transport.to_string(),"control_epoch":s.epochs.control.to_string(),"queued":s.queued,"in_flight":s.in_flight,"failed":s.failed,"stopping":s.stopping,"publishing":s.publishing,"gateway_ready":s.gateway_ready,"controller_enabled":s.controller_enabled,"ready":s.ready(),"storage_healthy":s.storage_healthy,"valid_configuration_loaded":s.valid_configuration_loaded,"wire_capacity":s.wire_capacity,"web_receipt_policy":self.receipts.lock().ok().map(|r|r.policy().clone()),"daily_backup":self.daily_backup.report(),"hap_bridges":self.hap_bridges.read().map(|s|s.clone()).unwrap_or_default(),"hap":self.hap_status.read().map(|state|*state).unwrap_or_default()})),
+                Ok(Reply::Diagnostics(s))=>response(StatusCode::OK,json!({"boot":s.boot,"revision":s.epochs.configuration.to_string(),"transport_epoch":s.epochs.transport.to_string(),"control_epoch":s.epochs.control.to_string(),"queued":s.queued,"in_flight":s.in_flight,"failed":s.failed,"stopping":s.stopping,"publishing":s.publishing,"gateway_ready":s.gateway_ready,"controller_enabled":s.controller_enabled,"ready":s.ready(),"storage_healthy":s.storage_healthy,"valid_configuration_loaded":s.valid_configuration_loaded,"wire_capacity":s.wire_capacity,"native_events":s.native_events,"web_receipt_policy":self.receipts.lock().ok().map(|r|r.policy().clone()),"daily_backup":self.daily_backup.report(),"hap_bridges":self.hap_bridges.read().map(|s|s.clone()).unwrap_or_default(),"hap":self.hap_status.read().map(|state|*state).unwrap_or_default()})),
                 _=>deny(StatusCode::SERVICE_UNAVAILABLE,"diagnostics_unavailable"),
             };
         }
@@ -748,7 +749,7 @@ impl Api {
         if request.method() != hyper::Method::POST
             || !matches!(
                 request.uri().path(),
-                "/api/v1/scene-actions" | "/api/v1/scene-cancellations" | "/api/v1/device-commands" | "/api/v1/module-commands" | "/api/v1/module-queries" | "/api/v1/scene-relative-actions" | "/api/v1/keypad-settings"
+                "/api/v1/scene-actions" | "/api/v1/scene-cancellations" | "/api/v1/device-commands" | "/api/v1/module-commands" | "/api/v1/module-queries" | "/api/v1/scene-relative-actions" | "/api/v1/keypad-settings" | "/api/v1/keypad-actions"
             )
         {
             return deny(StatusCode::NOT_FOUND, "not_found");
@@ -770,6 +771,9 @@ impl Api {
             || request.body().len() > 4096
         {
             return deny(StatusCode::BAD_REQUEST, "invalid_body");
+        }
+        if request.uri().path()=="/api/v1/keypad-actions" {
+            return self.keypad_action(request,&runtime,&grant,control_source).await;
         }
         #[derive(serde::Deserialize)]
         #[serde(deny_unknown_fields)]
@@ -1011,6 +1015,43 @@ impl Api {
             );
         }
         expiry_header(response(StatusCode::ACCEPTED, outcome))
+    }
+
+    async fn keypad_action(&self,request:&Request<Bytes>,runtime:&Runtime,grant:&crate::web_auth::Grant,
+        lease:Option<crate::web_auth::ModuleOffLease>)->Response<Full<Bytes>> {
+        let Ok(input)=serde_json::from_slice::<crate::keypad_actions::Request>(request.body()) else {
+            return response(StatusCode::BAD_REQUEST,json!({"outcome":"rejected","error":"invalid_body","retry":false}));
+        };
+        let rejected=|status,error|response(status,json!({"request_id":input.request_id,"outcome":"rejected","error":error,"retry":false,"indication":null}));
+        if input.validate().is_err(){return rejected(StatusCode::BAD_REQUEST,"invalid_body");}
+        if input.revision!=runtime.revision.to_string(){return rejected(StatusCode::CONFLICT,"stale_revision");}
+        let action=Action::KeypadAction{controller:grant.controller,request:input.clone()};
+        let Some(lease)=lease else {return rejected(StatusCode::FORBIDDEN,"source_credential_required");};
+        let principal=format!("keypad:{}",lease.credential_id());
+        let fingerprint=crate::keypad_actions::fingerprint(&input,&lease);
+        let Some(source)=crate::source_auth::Source::capture(lease,&action,None) else {
+            return rejected(StatusCode::FORBIDDEN,"source_credential_required");
+        };
+        let endpoint=crate::web_receipts::Endpoint::KeypadActions;
+        let claim=self.receipts.lock().ok().and_then(|mut ledger|ledger.claim_scoped(&principal,&endpoint,&input.request_id,&fingerprint).ok());
+        let Some(claim)=claim else{return rejected(StatusCode::SERVICE_UNAVAILABLE,"persistence_unavailable");};
+        match claim.claim {
+            Claim::Existing(Some(value))=>return receipt_response(StatusCode::OK,
+                serde_json::from_str(&value).unwrap_or(json!({"request_id":input.request_id,"outcome":"unknown","retry":false})),claim.expired),
+            Claim::Existing(None)=>return receipt_response(StatusCode::ACCEPTED,
+                json!({"request_id":input.request_id,"outcome":"unknown","error":"execution_outcome_unknown","retry":false,"indication":null}),claim.expired),
+            Claim::Conflict=>return rejected(StatusCode::CONFLICT,"idempotency_conflict"),
+            Claim::New=>{},
+        }
+        let (status,outcome)=match runtime.control.request_authorized(action,source).await {
+            Ok(Reply::KeypadAccepted(receipt))=>(StatusCode::ACCEPTED,json!(receipt)),
+            Ok(Reply::KeypadRejected(error))=>(error.status(),json!({"request_id":input.request_id,"outcome":"rejected","error":error,"retry":false})),
+            _=>(StatusCode::ACCEPTED,json!({"request_id":input.request_id,"outcome":"unknown","error":"execution_outcome_unknown","retry":false,"indication":null})),
+        };
+        if !self.receipts.lock().ok().is_some_and(|mut ledger|ledger.finish_scoped(&principal,&endpoint,&input.request_id,&outcome.to_string()).is_ok()) {
+            return response(StatusCode::SERVICE_UNAVAILABLE,json!({"request_id":input.request_id,"outcome":"unknown","error":"receipt_unavailable_outcome_unknown","retry":false,"indication":null}));
+        }
+        receipt_response(status,outcome,claim.expired)
     }
 }
 

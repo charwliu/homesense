@@ -171,6 +171,88 @@ struct HomeSceneRoomTests {
         #expect(home.devices.isEmpty && home.scenes.isEmpty)
         #expect(await server.base.captured().allSatisfy { $0.httpMethod == "GET" })
     }
+    @Test func roomShowsOnlyVisibleLightsCurtainsAndEveryAssignedSceneWhileCatalogKeepsPanel() async throws {
+        let server = SceneRoomHTTP(), panel = HomeKeypadTests.record().raw
+        func device(_ id: String, _ kind: String, room: String = "study", visible: Bool = true) -> HomeJSON {
+            .object(["id": .string(id), "name": .string("相同名称"), "kind": .string(kind), "room": .object(["id": .string(room)]), "catalog_visible": .bool(visible)])
+        }
+        let rows = [panel, device("lamp", "Switch"), device("dimmer", "Dimmer"), device("curtain", "Motor"),
+                    device("legacy-led", "Keypad"), device("sensor", "Sensor"),
+                    device("hidden-alias", "Switch", visible: false), device("other-room-lamp", "Switch", room: "other")]
+        await server.base.setPresentedDevices(rows)
+        var scenes = await server.scenes
+        scenes[1]["room"] = scenes[0]["room"]
+        scenes[1]["name"] = scenes[0]["name"]
+        await server.setScenes(scenes)
+        let home = await connect(server)
+        defer { home.disconnect() }
+        let count = await server.base.captured().count, catalog = home.devices
+        #expect(home.roomDevices(inRoom: "study").map(\.id) == ["lamp", "dimmer", "curtain"])
+        #expect(home.dailyActuators.map(\.id) == ["lamp", "dimmer", "curtain", "other-room-lamp"])
+        #expect(home.roomDevices(inRoom: "other").isEmpty)
+        let assigned = home.scenes(inRoom: "study")
+        #expect(assigned.map(\.id) == ["reading", "all-off"])
+        #expect(Set(assigned.map(\.id)).count == assigned.count)
+        #expect(home.independentScenes(assigned, alongside: home.roomDevices(inRoom: "study")) == assigned)
+        #expect(home.dailyDevices.contains { $0.id == "panel" })
+        let keypad = try HomeKeypad(record: #require(home.dailyDevices.first { $0.id == "panel" }))
+        #expect(keypad.keys[0].actionScene == "reading" && keypad.keys[0].led.lastWritten == .red)
+        home.selectInterfaceMode(.management); home.selectInterfaceMode(.daily); home.pause()
+        #expect(home.roomDevices(inRoom: "study").map(\.id) == ["lamp", "dimmer", "curtain"])
+        #expect(home.scenes(inRoom: "study") == assigned && home.devices == catalog)
+        #expect(await server.base.captured().count == count)
+    }
+    @Test func virtualScenePanelsGroupByRoomPaginateSixAndDeduplicateIDsWithoutMergingNames() async throws {
+        let server = SceneRoomHTTP(), home = await connect(server)
+        defer { home.disconnect() }
+        let count = await server.base.captured().count
+        let room: HomeJSON = .object(["id": .string("study")])
+        let rows = (0..<7).map { index in
+            HomeRecord(.object(["id": .string("scene-\(index)"), "name": .string("相同名称"), "room": room]))
+        }
+        let global = HomeRecord(.object(["id": .string("global"), "room": .null]))
+        let unknown = HomeRecord(.object(["id": .string("unresolved"), "room": .object(["id": .string("not-visible")])]))
+        let input = rows + [rows[0], global, unknown]
+        let panels = home.scenePanels(for: input)
+        #expect(panels.map { $0.scenes.count } == [6, 1, 2])
+        #expect(panels[0].title == "书房场景" && panels[0].page == 1 && panels[0].pageCount == 2)
+        #expect(panels[1].page == 2 && panels[1].pageCount == 2)
+        #expect(panels[2].title == "全屋与未分配场景")
+        #expect(panels.flatMap(\.scenes).map(\.id) == rows.map(\.id) + ["global", "unresolved"])
+        #expect(Set(panels.map(\.id)).count == panels.count)
+        #expect(home.scenePanels(for: []).isEmpty)
+        home.pause()
+        #expect(home.scenePanels(for: input) == panels)
+        #expect(await server.base.captured().count == count)
+    }
+    @Test(arguments: ["momentary", "selection-on", "selection-off", "selection-unknown"])
+    func virtualSceneKeyUsesOneExistingExplicitRequestAndNeverInventsSelectedState(_ mode: String) async throws {
+        let server = SceneRoomHTTP()
+        var rows = await server.scenes
+        rows[0]["switch_kind"] = .string(mode == "momentary" ? "momentary" : "selection")
+        rows[0]["selected"] = mode == "selection-on" ? .bool(true) : mode == "selection-off" ? .bool(false) : .null
+        await server.setScenes(rows)
+        let home = await connect(server)
+        defer { home.disconnect() }
+        let scene = try #require(home.scenes.first { $0.id == "reading" }), action = scene.sceneCardAction
+        let expected: HomeSceneCardAction = mode == "momentary" ? .execute : .selection(mode != "selection-on")
+        #expect(action == expected)
+        #expect(home.canControlScene(scene.id))
+        await home.controlScene(scene.id, on: action.on)
+        let posts = await server.base.captured().filter { $0.httpMethod == "POST" }
+        #expect(posts.count == 1)
+        let post = try #require(posts.first)
+        #expect(post.url?.path == "/api/v1/scene-actions")
+        let body = try JSONDecoder().decode(HomeJSON.self, from: #require(post.httpBody))
+        #expect(body["scene"].text == "reading" && body["request_id"].text.flatMap(UUID.init(uuidString:)) != nil)
+        if let on = expected.on { #expect(body["on"] == .bool(on)) }
+        else if case .object(let fields) = body { #expect(fields["on"] == nil) }
+        #expect(home.scenes.first { $0.id == scene.id }?.raw["selected"] == scene.raw["selected"])
+        home.pause()
+        let count = await server.base.captured().count
+        await home.controlScene(scene.id, on: action.on)
+        #expect(await server.base.captured().count == count)
+    }
     @Test func websocketPreservesRoomPlacementAndFullCatalogAcrossOfflineState() async throws {
         let server = SceneRoomHTTP(), events = SceneRoomEvents(), home = await connect(server, events: events)
         defer { home.disconnect() }

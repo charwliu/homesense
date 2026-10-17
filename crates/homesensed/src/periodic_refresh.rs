@@ -17,6 +17,7 @@ pub(super) struct OutputRefresh {
     pub(super) round:RoundTracker,
     adaptive:Option<crate::adaptive_refresh::Schedule>,
     priority:std::collections::BTreeSet<usize>,
+    prefer_postwrite: bool,
     recent_queries:std::collections::BTreeMap<(String,u8,u8),u64>,
     strict:std::collections::BTreeMap<usize,u64>,
 }
@@ -142,6 +143,7 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
         if let Some(plan)=&mut self.output_refresh
             && let Some(pending)=&plan.pending && plan.complete(pending,self.feedback.module_truth(),self.transport.now_ms()) {
                 let index=pending.index;
+                plan.priority.remove(&index);
                 if !pending.strict && let Some(bound)=plan.observed_round(index,self.feedback.module_truth(),self.transport.now_ms()) {self.feedback.set_managed_max_age_ms(bound)?;}
                 self.transport.finish_status_read(&gateway);
                 plan.pending=None;plan.control_opportunity=true;
@@ -214,6 +216,7 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
             control_opportunity: true,
             round,
             adaptive,priority:Default::default(),recent_queries:Default::default(),strict:Default::default(),
+            prefer_postwrite: true,
         });
         Ok(())
     }
@@ -245,6 +248,7 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
         if let Some(pending) = &plan.pending {
             if plan.complete(pending, self.feedback.module_truth(), now) {
                 let index=pending.index;
+                plan.priority.remove(&index);
                 if !pending.strict && let Some(bound)=plan.observed_round(index,self.feedback.module_truth(),now) {self.feedback.set_managed_max_age_ms(bound).map_err(|e|(plan.targets[index].gateway.clone(),e))?;}
                 self.transport.finish_status_read(&plan.targets[index].gateway);
                 plan.pending = None;
@@ -273,8 +277,15 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
             return Ok(());
         }
         let strict_due=plan.strict.iter().filter_map(|(i,age)|{let due=crate::consumer_refresh::due(&plan.targets[*i],self.feedback.module_truth(),*age);(due<=now).then_some((due,*i))}).min();
-        let strict=plan.pending.as_ref().map_or(strict_due.is_some(),|p|p.strict);
-        let index=plan.pending.as_ref().map(|p|p.index).or_else(||strict_due.map(|(_,i)|i)).unwrap_or_else(||plan.oldest(self.feedback.module_truth()));
+        // Changed outputs need genuine post-write reads even when another
+        // consumer is permanently overdue. Alternate the two classes so that
+        // neither feedback confirmation nor strict consumers can starve.
+        let priority = plan.priority.iter().next().copied();
+        let postwrite = priority.is_some() && (plan.prefer_postwrite || strict_due.is_none());
+        let strict=plan.pending.as_ref().map_or(!postwrite && strict_due.is_some(),|p|p.strict);
+        let index=plan.pending.as_ref().map(|p|p.index)
+            .or_else(||if postwrite {priority} else {strict_due.map(|(_,i)|i)})
+            .unwrap_or_else(||plan.oldest(self.feedback.module_truth()));
         let target = &plan.targets[index];
         let gateway = target.gateway.clone();
         if let Some(pending)=plan.pending.as_ref().filter(|pending|pending.retried) {
@@ -302,6 +313,7 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
             .await
             .map_err(|error| (gateway.clone(), error))?;
         if !sent {plan.control_opportunity=true;return Ok(());}
+        if !retry {plan.prefer_postwrite = !postwrite;}
         let deadline = self
             .transport
             .now_ms()

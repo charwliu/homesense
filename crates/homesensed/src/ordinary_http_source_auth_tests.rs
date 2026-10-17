@@ -316,14 +316,16 @@ impl Harness {
     }
     async fn wait_queued(&self) {
         let end = tokio::time::Instant::now() + std::time::Duration::from_secs(3);
-        while self.receiver.receiver.is_empty() {
+        while self.receiver.receiver.is_empty() && self.receiver.stop_receiver.is_empty()
+            && self.receiver.motor_receiver.is_empty() {
             assert!(
                 tokio::time::Instant::now() < end,
                 "HTTP did not reach control mailbox"
             );
             tokio::task::yield_now().await;
         }
-        assert!(self.control.sender.capacity() < 32);
+        assert!(self.control.sender.capacity() < 32 || self.control.stop_sender.capacity() < 32
+            || self.control.motor_sender.capacity() < 32);
     }
     async fn finish_http(
         &mut self,

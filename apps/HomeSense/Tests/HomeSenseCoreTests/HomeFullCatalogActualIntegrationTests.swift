@@ -89,6 +89,12 @@ private final class FullCatalogEvents: HomeEventTransport, @unchecked Sendable {
             try? Data(diagnostics.exportText().utf8).write(to: root.appendingPathComponent("native-diagnostics.jsonl"))
         }
         try #require(home.connected && home.error == nil, "\(home.error ?? "")")
+        await home.loadPhysicalModules()
+        let configuredModules = config["gateways"].values.flatMap { $0["modules"].values }
+        let profiles: Set<String> = ["r8i8_din_pro_v2_7_7", "ad8_din_rs485_v2_2_1", "c4_din_pro_v2_7_7"]
+        #expect(home.moduleInventory.count == configuredModules.count)
+        #expect(home.physicalHardwareModules.count == configuredModules.filter { profiles.contains($0["profile"].text ?? "") }.count)
+        #expect(home.dailyPanels.allSatisfy { home.physicalModule(for: $0) != nil })
         var phases: [HomeJSON] = []
         func verify(_ stage: String) throws {
             #expect(Set(home.scenes.map(\.id)) == expectedSceneIDs && home.scenes.count == 130)
