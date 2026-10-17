@@ -14,9 +14,15 @@ impl Store {
         update: Option<Checkpoint>,
     ) -> Result<Option<i64>, Error> {
         let revision = sql_revision(revision)?;
-        let tx = self
-            .connection
-            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        // Read-only watermark inspection needs a coherent active-revision/value
+        // snapshot, not a reserved writer. Checkpoint updates retain IMMEDIATE
+        // exclusion and the exact expected-value CAS below.
+        let behavior = if update.is_some() {
+            rusqlite::TransactionBehavior::Immediate
+        } else {
+            rusqlite::TransactionBehavior::Deferred
+        };
+        let tx = self.connection.transaction_with_behavior(behavior)?;
         let active: Option<i64> = tx
             .query_row(
                 "SELECT revision FROM active_configuration WHERE singleton=1",
