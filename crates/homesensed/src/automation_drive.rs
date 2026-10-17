@@ -395,6 +395,7 @@ pub(crate) async fn drive_with_panel_feeds<S: Read + Write + Send + 'static>(
                 if written_this_quantum>=hb_transport::MAX_BATCH_FRAMES || *stop.borrow() || background_led_phase.as_ref().is_some_and(|phase|admission.monotonic_ms()>=phase.deadline()) {break;}
                 let Some(outcome)=guard.owner.step_after_refresh_read().await? else{break;};
                 match &outcome.result {
+                    Err(_) if outcome.projection_cancelled=>{log::debug!("projection cancelled before wire command={}",outcome.command_id);},
                     Err(error) if guard.owner.independent() && crate::transport_owner::network_send_failure(error)=>{
                         log::warn!("local actuator write failed without replay command={}: {error:?}",outcome.command_id);
                     },

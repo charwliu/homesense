@@ -56,11 +56,15 @@ struct Harness {
     router: Router,
     directory: std::path::PathBuf,
 }
+type AuthorizationProbe=Arc<dyn Fn(Uuid)+Send+Sync>;
 impl Harness {
     async fn new(rules: Json) -> Self {
         Self::from_inputs(data(), rules).await
     }
     async fn from_inputs(data: Vec<u8>, rules: Json) -> Self {
+        Self::from_inputs_with_probe(data,rules,None).await
+    }
+    async fn from_inputs_with_probe(data:Vec<u8>,rules:Json,probe:Option<AuthorizationProbe>)->Self {
         let directory = std::env::temp_dir().join(format!("immediate-scene-{}", Uuid::new_v4()));
         std::fs::create_dir(&directory).unwrap();
         let path = directory.join("runtime.sqlite");
@@ -86,7 +90,10 @@ impl Harness {
                 context: ExecutionContext::Simulation,
                 ..Default::default()
             },
-            move |id| id == controller || (id == member && permit.load(Ordering::Acquire)),
+            move |id| {
+                if let Some(probe)=&probe {probe(id);}
+                id == controller || (id == member && permit.load(Ordering::Acquire))
+            },
         )
         .await
         .unwrap();
@@ -2439,4 +2446,279 @@ async fn batch_timed_pre_admission_takeover_of_second_member_preserves_first_wit
     let(mut owner,bytes)=batch_owner(&h,usize::MAX);let prior=owner.step().await.unwrap().unwrap();prior.result.unwrap();assert_eq!(prior.completed,vec![(manual[0],b)]);
     let kept=scene.poll(now+1).await.unwrap().unwrap();assert_eq!(kept.len(),1);let next=owner.step().await.unwrap().unwrap();next.result.unwrap();assert_eq!(next.completed,vec![(kept[0],a)]);scene.reconcile().await.unwrap();assert_eq!(scene.status(),Status::Partial);
     assert!(scene.poll(now+2).await.unwrap().is_none());assert!(owner.step().await.unwrap().is_none());assert_eq!(bytes.lock().unwrap().as_slice(),&[vec![0xae,3,2,0xf2,0xee],vec![0xae,3,1,0xf1,0xee]]);h.finish().await;
+}
+
+fn delayed_feedback_phase_inputs() -> (Vec<u8>,Json) {
+    let (cfg, mut doc)=writer_batch_inputs();
+    let sources=doc["immediate_scenes"][0]["activate"].as_array().unwrap().clone();
+    doc["timed_scenes"]=json!([{"id":"delayed-feedback","enabled":true,"review_evidence":"synthetic bounded feedback wait","max_lateness_ms":5000,
+        "steps":sources.iter().map(|node|json!({"source":node["source"],"offset_ms":0,"device":node["action"]["device"],"command":node["action"]["command"]})).collect::<Vec<_>>()}]);
+    (cfg,doc)
+}
+#[tokio::test]
+async fn mixed_phase_leds_wait_for_delayed_exact_feedback_without_extending_light_tickets() {
+    for delay in [2500, 8600] {
+        let (cfg,doc)=delayed_feedback_phase_inputs();
+        let mut h = Harness::from_inputs(cfg, doc).await;
+        let now = h.actor.monotonic_ms();
+        let definition = h.document.timed_scenes["delayed-feedback"].clone();
+        let mut runtime = crate::scene_runtime::SceneRuntime::new(h.actor.clone(),h.controller,definition.steps,now,5000).await.unwrap();
+        assert_eq!(runtime.poll(now).await.unwrap().unwrap().len(),7);
+        let connection = rusqlite::Connection::open(h.directory.join("runtime.sqlite")).unwrap();
+        let deadline = |id| connection.query_row("SELECT deadline_ms FROM command_journal WHERE boot_id=?1 AND command_id=?2",rusqlite::params![h.actor.boot_id(),id],|row|row.get::<_,i64>(0)).unwrap();
+        assert_eq!(deadline(5)-deadline(1),13000,"new LED total budget is separate from unchanged light TTL");
+        drop(connection);
+        let (mut owner,calls) = batch_owner(&h,usize::MAX);
+        let lights=owner.step().await.unwrap().unwrap();lights.result.unwrap();assert_eq!(lights.completed.len(),4);
+        assert!(owner.step().await.unwrap().is_none());
+        tokio::time::sleep(Duration::from_millis(delay)).await;
+        mode_frame(&mut h,3,1,0xf1);mode_frame(&mut h,3,2,0xf1);mode_frame(&mut h,0x15,1,40);
+        crate::control_batch::tick(&h.actor,h.controller,&h.feedback).await.unwrap();
+        let leds = owner.step().await.unwrap().expect("exact physical feedback inside total budget releases LED phase");
+        leds.result.unwrap();assert_eq!(leds.completed.len(),3);
+        runtime.reconcile().await.unwrap();
+        assert_eq!(calls.lock().unwrap().iter().map(Vec::len).collect::<Vec<_>>(),vec![20,15]);
+        let store = Store::open(h.directory.join("runtime.sqlite")).unwrap();
+        for id in 1..=7 {assert_eq!(store.command_status(h.actor.boot_id(),id).unwrap(),Some(homesense_storage::journal::Status::Written));}
+        drop(store);h.finish().await;
+    }
+}
+
+#[tokio::test]
+async fn mixed_phase_led_total_budget_never_overrides_an_earlier_causal_deadline() {
+    use homesense_core::{Command,DeviceId,LevelTransition,Percent};
+    use homesense_hap::requests::{Batch,Intent};
+    let (cfg,doc)=writer_batch_inputs();let mut h=Harness::from_inputs(cfg,doc).await;
+    let cap=h.actor.monotonic_ms()+1000;
+    let batch=Batch {controller:h.controller,subscriptions:vec![],intents:vec![
+        Intent {device:DeviceId::new("light").unwrap(),command:Command::SetLevel {level:Percent::new(40).unwrap(),transition:LevelTransition::Immediate}},
+        Intent {device:DeviceId::new("execute-led").unwrap(),command:Command::PanelLed(true)},
+    ]};
+    let ids=h.actor.submit_scene_with_feedback_before(h.generation.clone(),batch,0,None,Some(cap)).await.unwrap();assert_eq!(ids.len(),2);
+    let connection=rusqlite::Connection::open(h.directory.join("runtime.sqlite")).unwrap();
+    for id in &ids {let deadline=connection.query_row("SELECT deadline_ms FROM command_journal WHERE boot_id=?1 AND command_id=?2",rusqlite::params![h.actor.boot_id(),*id as i64],|row|row.get::<_,i64>(0)).unwrap();assert_eq!(deadline,cap as i64);}
+    drop(connection);
+    let (mut owner,calls)=batch_owner(&h,usize::MAX);let light=owner.step().await.unwrap().unwrap();light.result.unwrap();assert_eq!(light.completed.len(),1);
+    tokio::time::sleep(Duration::from_millis(1200)).await;mode_frame(&mut h,0x15,1,40);
+    crate::control_batch::tick(&h.actor,h.controller,&h.feedback).await.unwrap();assert!(owner.step().await.unwrap().is_none());
+    assert_eq!(calls.lock().unwrap().iter().map(Vec::len).collect::<Vec<_>>(),vec![5]);
+    let store=Store::open(h.directory.join("runtime.sqlite")).unwrap();assert_eq!(store.command_status(h.actor.boot_id(),ids[0]).unwrap(),Some(homesense_storage::journal::Status::Written));assert_eq!(store.command_status(h.actor.boot_id(),ids[1]).unwrap(),Some(homesense_storage::journal::Status::Cancelled));drop(store);h.finish().await;
+}
+
+#[tokio::test]
+async fn mixed_phase_leds_without_feedback_expire_partial_and_late_feedback_never_replays() {
+    let (cfg,doc)=delayed_feedback_phase_inputs();let mut h=Harness::from_inputs(cfg,doc).await;
+    let now=h.actor.monotonic_ms();let definition=h.document.timed_scenes["delayed-feedback"].clone();
+    let mut runtime=crate::scene_runtime::SceneRuntime::new(h.actor.clone(),h.controller,definition.steps,now,5000).await.unwrap();
+    assert_eq!(runtime.poll(now).await.unwrap().unwrap().len(),7);
+    let (mut owner,calls)=batch_owner(&h,usize::MAX);let lights=owner.step().await.unwrap().unwrap();lights.result.unwrap();assert_eq!(lights.completed.len(),4);
+    let connection=rusqlite::Connection::open(h.directory.join("runtime.sqlite")).unwrap();
+    let deadline=connection.query_row("SELECT deadline_ms FROM command_journal WHERE boot_id=?1 AND command_id=5",[h.actor.boot_id()],|row|row.get::<_,i64>(0)).unwrap() as u64;
+    drop(connection);
+    tokio::time::sleep(Duration::from_millis(deadline.saturating_add(30).saturating_sub(h.actor.monotonic_ms()))).await;
+    crate::control_batch::tick(&h.actor,h.controller,&h.feedback).await.unwrap();assert!(owner.step().await.unwrap().is_none());
+    runtime.reconcile().await.unwrap();assert_eq!(runtime.status(),homesense_core::scene::Status::Partial);
+    let connection=rusqlite::Connection::open(h.directory.join("runtime.sqlite")).unwrap();
+    for id in 5..=7 {let row=connection.query_row("SELECT status,cancellation_reason FROM command_journal WHERE boot_id=?1 AND command_id=?2",rusqlite::params![h.actor.boot_id(),id],|r|Ok((r.get::<_,String>(0)?,r.get::<_,String>(1)?))).unwrap();assert_eq!(row,("cancelled".into(),"Expired".into()));}
+    drop(connection);
+    mode_frame(&mut h,3,1,0xf1);mode_frame(&mut h,3,2,0xf1);mode_frame(&mut h,0x15,1,40);
+    crate::control_batch::tick(&h.actor,h.controller,&h.feedback).await.unwrap();assert!(owner.step().await.unwrap().is_none());runtime.reconcile().await.unwrap();assert_eq!(runtime.status(),homesense_core::scene::Status::Partial);
+    assert_eq!(calls.lock().unwrap().iter().map(Vec::len).collect::<Vec<_>>(),vec![20]);h.finish().await;
+}
+
+#[tokio::test]
+async fn production_scene_writes_keep_accepted_feedback_work_after_http_handling_deadline() {
+    for timed in [false,true] {
+        let (cfg,doc)=delayed_feedback_phase_inputs();let mut h=Harness::from_inputs(cfg,doc).await;
+        let id=if timed {"delayed-feedback"} else {"act"};
+        h.request(Action::SceneWrites {controller:h.member,revision:1,scenes:vec![(id.into(),Some(true))]}).await.unwrap();
+        if timed {h.scheduler.tick(h.actor.monotonic_ms()).await.unwrap();}
+        let connection=rusqlite::Connection::open(h.directory.join("runtime.sqlite")).unwrap();
+        let led_deadline=connection.query_row("SELECT deadline_ms FROM command_journal WHERE boot_id=?1 AND command_id=5",[h.actor.boot_id()],|row|row.get::<_,i64>(0)).unwrap() as u64;
+        assert!(led_deadline.saturating_sub(h.actor.monotonic_ms())>14000,"HTTP handling cutoff must not become accepted LED execution cutoff");
+        drop(connection);
+        let (mut owner,calls)=batch_owner(&h,usize::MAX);let lights=owner.step().await.unwrap().unwrap();lights.result.unwrap();assert_eq!(lights.completed.len(),4);
+        assert!(owner.step().await.unwrap().is_none());
+        tokio::time::sleep(Duration::from_millis(8600)).await;
+        mode_frame(&mut h,3,1,0xf1);mode_frame(&mut h,3,2,0xf1);mode_frame(&mut h,0x15,1,40);
+        crate::control_batch::tick(&h.actor,h.member,&h.feedback).await.unwrap();
+        let leds=owner.step().await.unwrap().expect("production entry preserves bounded accepted work");leds.result.unwrap();assert_eq!(leds.completed.len(),3);
+        assert_eq!(calls.lock().unwrap().iter().map(Vec::len).collect::<Vec<_>>(),vec![20,15]);
+        let store=Store::open(h.directory.join("runtime.sqlite")).unwrap();for id in 1..=7 {assert_eq!(store.command_status(h.actor.boot_id(),id).unwrap(),Some(homesense_storage::journal::Status::Written));}drop(store);h.finish().await;
+    }
+}
+
+#[tokio::test]
+async fn selected_led_keeps_short_delivery_fence_through_actual_transport_guard() {
+    let (cfg,doc)=writer_batch_inputs();let mut h=Harness::from_inputs(cfg,doc).await;
+    h.request(Action::SceneWrites {controller:h.member,revision:1,scenes:vec![("act".into(),Some(true))]}).await.unwrap();
+    let (mut owner,_)=batch_owner(&h,usize::MAX);owner.step().await.unwrap().unwrap().result.unwrap();
+    tokio::time::sleep(Duration::from_millis(2)).await;mode_frame(&mut h,3,1,0xf1);mode_frame(&mut h,3,2,0xf1);mode_frame(&mut h,0x15,1,40);
+    crate::control_batch::tick(&h.actor,h.member,&h.feedback).await.unwrap();
+    let ticket=h.actor.dispatch().await.unwrap().unwrap();assert!(matches!(ticket.command.command,homesense_core::Command::PanelLed(_)));
+    let connection=rusqlite::Connection::open(h.directory.join("runtime.sqlite")).unwrap();
+    let total=connection.query_row("SELECT deadline_ms FROM command_journal WHERE boot_id=?1 AND command_id=?2",rusqlite::params![h.actor.boot_id(),ticket.command.id as i64],|r|r.get::<_,i64>(0)).unwrap() as u64;
+    assert!(total-ticket.command.deadline_ms>10000,"selected writer must carry2s wire fence, not15s ticket lifetime");drop(connection);
+    let calls=Arc::new(Mutex::new(vec![]));let mut wire=hb_transport::Connection::for_simulation(CountWrites {calls:calls.clone(),limit:usize::MAX,written:0},1);
+    let expired=ticket.command.deadline_ms;
+    let result=crate::transport_owner::send_ticket(&ticket,&mut wire,||expired).unwrap_err();assert_eq!(result.bytes_written,0);assert!(calls.lock().unwrap().is_empty());
+    h.actor.finish_write(ticket.command.id,false).await.unwrap();h.finish().await;
+}
+
+#[tokio::test]
+async fn invalidated_led_cancel_audit_failure_rolls_back_rows_and_fails_closed_without_wire() {
+    let (cfg,doc)=writer_batch_inputs();let mut h=Harness::from_inputs(cfg,doc).await;
+    h.request(Action::SceneWrites {controller:h.member,revision:1,scenes:vec![("act".into(),Some(true))]}).await.unwrap();
+    let (mut owner,calls)=batch_owner(&h,usize::MAX);owner.step().await.unwrap().unwrap().result.unwrap();
+    let connection=rusqlite::Connection::open(h.directory.join("runtime.sqlite")).unwrap();
+    connection.execute_batch("CREATE TRIGGER reject_led_cancel BEFORE UPDATE OF status ON command_journal WHEN OLD.command_id>=5 AND NEW.status='cancelled' BEGIN SELECT RAISE(ABORT,'synthetic LED cancellation audit failure'); END;").unwrap();
+    h.allowed.store(false,Ordering::Release);
+    assert!(h.actor.dispatch().await.is_err(),"durable cancellation failure must never release pending LEDs");
+    let store=Store::open(h.directory.join("runtime.sqlite")).unwrap();for id in 5..=7 {assert_eq!(store.command_status(h.actor.boot_id(),id).unwrap(),Some(homesense_storage::journal::Status::Accepted),"failed transaction must not claim cancellation success");}drop(store);
+    assert!(!h.actor.diagnostics(h.controller,h.generation.clone()).await.map(|d|d.ready()).unwrap_or(false));
+    assert_eq!(calls.lock().unwrap().iter().map(Vec::len).collect::<Vec<_>>(),vec![20]);
+    connection.execute_batch("DROP TRIGGER reject_led_cancel").unwrap();drop(connection);h.finish().await;
+}
+
+#[test]
+fn expired_or_revoked_projection_through_real_owners_cancels_without_poisoning_healthy_control() {
+    let runtime=tokio::runtime::Builder::new_current_thread().enable_all().max_blocking_threads(1).build().unwrap();
+    runtime.block_on(async {
+        for (local,expiry,audit_fault) in [(false,true,false),(true,true,false),(false,false,false),(true,false,false),(false,false,true)] {
+            use crate::{source_auth::Source,web_auth::{Grant,Role,Tokens}};
+            use homesense_hap::requests::{Batch,Intent};
+            eprintln!("projection owner case local={local} expiry={expiry} audit_fault={audit_fault}");
+            let (cfg,doc)=delayed_feedback_phase_inputs();let mut value:Json=serde_json::from_slice(&cfg).unwrap();
+            if local {
+                let mut module=value["gateways"][0]["modules"].as_array().unwrap().iter().find(|m|m["id"]=="relay").unwrap().clone();module["id"]=json!("independent-module");
+                value["gateways"].as_array_mut().unwrap().push(json!({"id":"other","endpoint":"127.0.0.1:50008","modules":[module]}));
+                value["devices"].as_array_mut().unwrap().push(json!({"id":"independent","name":"Independent synthetic output","module_id":"independent-module","channel":1,"enabled":true}));
+            }
+            let mut h=Harness::from_inputs(serde_json::to_vec(&value).unwrap(),doc).await;
+            let tokens=Arc::new(Tokens::default());let credential=Uuid::new_v4();const SECRET:&str="synthetic-projection-revocation-0123456789";
+            tokens.insert(credential,SECRET,Grant {controller:h.member,role:Role::Member,scenes:["delayed-feedback".into()].into(),devices:h.configuration.devices().keys().map(|id|id.as_str().to_owned()).collect()}).unwrap();
+            let action=Action::SceneWrites {controller:h.member,revision:1,scenes:vec![("delayed-feedback".into(),Some(true))]};
+            let source=Source::capture(tokens.module_off_lease(Some(&format!("Bearer {SECRET}")),None,None).unwrap(),&action,None).unwrap();
+            let control=h.control.clone();let reply=h.drive(tokio::spawn(async move {control.request_authorized(action,source).await})).await.unwrap();
+            let Reply::ScenesAccepted(runs)=reply else {panic!("expected timed production receipt")};let run=runs[0];h.scheduler.tick(h.actor.monotonic_ms()).await.unwrap();
+            let calls=Arc::new(Mutex::new(vec![]));let other_calls=Arc::new(Mutex::new(vec![]));
+            let mut streams=std::collections::BTreeMap::from([("bus".into(),hb_transport::Connection::for_simulation(CountWrites {calls:calls.clone(),limit:usize::MAX,written:0},1))]);
+            if local {streams.insert("other".into(),hb_transport::Connection::for_simulation(CountWrites {calls:other_calls.clone(),limit:usize::MAX,written:0},1));}
+            let mut owner=TransportOwner::new(h.actor.clone(),streams);
+            let connects=Arc::new(std::sync::atomic::AtomicUsize::new(0));let captured=connects.clone();
+            if local {owner.enable_local_io(Arc::new(move |_,_| {captured.fetch_add(1,Ordering::SeqCst);Err(std::io::ErrorKind::ConnectionRefused.into())})).unwrap();}
+            let lights=if local {owner.local_step(&Default::default()).await.unwrap().unwrap()}else{owner.step().await.unwrap().unwrap()};lights.result.unwrap();assert_eq!(lights.completed.len(),4);
+            tokio::time::sleep(Duration::from_millis(2)).await;mode_frame(&mut h,3,1,0xf1);mode_frame(&mut h,3,2,0xf1);mode_frame(&mut h,0x15,1,40);crate::control_batch::tick(&h.actor,h.member,&h.feedback).await.unwrap();
+            let replacement=Feedback::new(&h.configuration,ExecutionContext::Simulation,Uuid::parse_str(h.actor.boot_id()).unwrap().as_u128(),1).unwrap();
+            let feedback=std::mem::replace(&mut h.feedback,replacement);let mut observed=crate::observed_transport::ObservedTransport::new(owner,feedback);
+            let (entered,started)=tokio::sync::oneshot::channel();let (release,wait)=std::sync::mpsc::channel();
+            let blocker=tokio::task::spawn_blocking(move || {entered.send(()).unwrap();wait.recv_timeout(Duration::from_secs(10)).unwrap();});started.await.unwrap();
+            let writer=tokio::spawn(async move {let result=observed.step().await;(observed,result)});
+            let store=Store::open(h.directory.join("runtime.sqlite")).unwrap();let selected_by=tokio::time::Instant::now()+Duration::from_secs(1);
+            while !(5..=7).all(|id|store.command_status(h.actor.boot_id(),id).unwrap()==Some(homesense_storage::journal::Status::Writing)) {assert!(tokio::time::Instant::now()<selected_by,"writer did not select complete LED batch");tokio::time::sleep(Duration::from_millis(5)).await;}
+            let connection=rusqlite::Connection::open(h.directory.join("runtime.sqlite")).unwrap();
+            if audit_fault {connection.execute_batch("CREATE TRIGGER reject_selected_projection BEFORE UPDATE OF status ON command_journal WHEN OLD.command_id>=5 AND OLD.status='writing' AND NEW.status='cancelled' BEGIN SELECT RAISE(ABORT,'synthetic selected projection cancellation failure'); END;").unwrap();}
+            if expiry {tokio::time::sleep(Duration::from_millis(2200)).await;}else{tokens.revoke(credential).unwrap();}
+            assert_eq!(h.actor.task_generation().await.unwrap(),h.generation,"expired wire lease must not expire the original finite result obligation");
+            assert!(h.actor.control_batch_views(h.controller,h.generation.clone()).await.unwrap().is_empty(),"actor observes expiry/revocation before writer result arrives");
+            release.send(()).unwrap();blocker.await.unwrap();let (mut observed,result)=writer.await.unwrap();
+            if audit_fault {
+                assert!(result.is_err());for id in 5..=7 {assert_eq!(store.command_status(h.actor.boot_id(),id).unwrap(),Some(homesense_storage::journal::Status::Writing),"failed audit rolls back every cancellation");}
+                assert!(h.actor.task_generation().await.is_err());connection.execute_batch("DROP TRIGGER reject_selected_projection").unwrap();
+            } else {
+                let cancelled=result.unwrap().unwrap();assert!(cancelled.projection_cancelled);assert_eq!(cancelled.result.unwrap_err().bytes_written,0);assert!(cancelled.completed.is_empty());
+                for id in 5..=7 {assert_eq!(store.command_status(h.actor.boot_id(),id).unwrap(),Some(homesense_storage::journal::Status::Cancelled));let reason=connection.query_row("SELECT cancellation_reason FROM command_journal WHERE boot_id=?1 AND command_id=?2",rusqlite::params![h.actor.boot_id(),id as i64],|r|r.get::<_,String>(0)).unwrap();assert_eq!(reason,if expiry {"Expired"}else{"RunCancelled"});}
+                h.scheduler.tick(h.actor.monotonic_ms()).await.unwrap();assert_eq!(h.scheduler.status(run),Some(homesense_core::scene::Status::Partial));
+                assert_eq!(h.actor.task_generation().await.unwrap(),h.generation);
+                let mut intents=vec![Intent {device:homesense_core::DeviceId::new("marker").unwrap(),command:homesense_core::Command::Switch(false)}];
+                if local {intents.push(Intent {device:homesense_core::DeviceId::new("independent").unwrap(),command:homesense_core::Command::Switch(true)});}
+                h.actor.submit(Batch {controller:h.controller,intents,subscriptions:vec![]}).await.unwrap();
+                for _ in 0..if local {2}else{1} {let next=observed.step().await.unwrap().unwrap();next.result.unwrap();assert!(!next.projection_cancelled);}
+                assert_eq!(calls.lock().unwrap().iter().map(Vec::len).collect::<Vec<_>>(),vec![20,5]);if local {assert_eq!(other_calls.lock().unwrap().iter().map(Vec::len).collect::<Vec<_>>(),vec![5]);}assert_eq!(connects.load(Ordering::SeqCst),0);assert_eq!(h.actor.task_generation().await.unwrap(),h.generation);
+            }
+            drop(connection);drop(store);drop(observed);h.finish().await;
+        }
+    });
+}
+
+struct ProjectionIOFailure {
+    calls:BatchWrites,
+    written:usize,
+    limit:usize,
+    kind:std::io::ErrorKind,
+}
+impl std::io::Read for ProjectionIOFailure {fn read(&mut self,_:&mut[u8])->std::io::Result<usize>{Err(std::io::ErrorKind::WouldBlock.into())}}
+impl std::io::Write for ProjectionIOFailure {
+    fn write(&mut self,bytes:&[u8])->std::io::Result<usize>{
+        if self.written>=self.limit {return Err(self.kind.into());}
+        let n=bytes.len().min(self.limit-self.written);self.calls.lock().unwrap().push(bytes[..n].to_vec());self.written+=n;Ok(n)
+    }
+    fn flush(&mut self)->std::io::Result<()>{panic!("unbuffered")}
+}
+#[tokio::test]
+async fn physical_permission_denial_and_partial_led_io_are_not_projection_cancellations() {
+    for (limit,kind,first_status) in [(20,std::io::ErrorKind::PermissionDenied,homesense_storage::journal::Status::Failed),(22,std::io::ErrorKind::BrokenPipe,homesense_storage::journal::Status::Uncertain)] {
+        let (cfg,doc)=writer_batch_inputs();let mut h=Harness::from_inputs(cfg,doc).await;
+        h.request(Action::SceneWrites {controller:h.member,revision:1,scenes:vec![("act".into(),Some(true))]}).await.unwrap();
+        let calls=Arc::new(Mutex::new(vec![]));let mut owner=TransportOwner::new(h.actor.clone(),[("bus".into(),hb_transport::Connection::for_simulation(ProjectionIOFailure {calls:calls.clone(),written:0,limit,kind},1))].into());
+        owner.step().await.unwrap().unwrap().result.unwrap();
+        tokio::time::sleep(Duration::from_millis(2)).await;mode_frame(&mut h,3,1,0xf1);mode_frame(&mut h,3,2,0xf1);mode_frame(&mut h,0x15,1,40);crate::control_batch::tick(&h.actor,h.member,&h.feedback).await.unwrap();
+        let outcome=owner.step().await.unwrap().unwrap();assert!(!outcome.projection_cancelled);let error=outcome.result.unwrap_err();assert_eq!(error.bytes_written,limit-20);
+        let store=Store::open(h.directory.join("runtime.sqlite")).unwrap();assert_eq!(store.command_status(h.actor.boot_id(),5).unwrap(),Some(first_status));for id in 6..=7 {assert_eq!(store.command_status(h.actor.boot_id(),id).unwrap(),Some(homesense_storage::journal::Status::Failed));}drop(store);
+        assert!(owner.step().await.is_err(),"physical fault requires explicit recovery");assert!(h.actor.task_generation().await.is_err());
+        assert_eq!(calls.lock().unwrap().iter().map(Vec::len).collect::<Vec<_>>(),if limit==20 {vec![20]}else{vec![20,2]});h.finish().await;
+    }
+}
+
+fn short_projection_batch(controller:Uuid)->homesense_hap::requests::Batch {
+    use homesense_core::{Command,DeviceId,LevelTransition,Percent};
+    use homesense_hap::requests::{Batch,Intent};
+    Batch {controller,subscriptions:vec![],intents:vec![
+        Intent {device:DeviceId::new("light").unwrap(),command:Command::SetLevel {level:Percent::new(40).unwrap(),transition:LevelTransition::Immediate}},
+        Intent {device:DeviceId::new("execute-led").unwrap(),command:Command::PanelLed(true)},
+    ]}
+}
+#[tokio::test]
+async fn selected_projection_with_lost_result_keeps_original_finite_watchdog_and_cannot_claim_late_success() {
+    let (cfg,doc)=writer_batch_inputs();let mut h=Harness::from_inputs(cfg,doc).await;
+    let cap=h.actor.monotonic_ms()+1000;
+    h.actor.submit_scene_with_feedback_before(h.generation.clone(),short_projection_batch(h.member),0,None,Some(cap)).await.unwrap();
+    let (mut owner,_)=batch_owner(&h,usize::MAX);owner.step().await.unwrap().unwrap().result.unwrap();
+    tokio::time::sleep(Duration::from_millis(2)).await;mode_frame(&mut h,0x15,1,40);crate::control_batch::tick(&h.actor,h.member,&h.feedback).await.unwrap();
+    let ticket=h.actor.dispatch().await.unwrap().unwrap();assert_eq!(ticket.command.deadline_ms,cap);let id=ticket.command.id;drop(ticket);
+    tokio::time::sleep(Duration::from_millis(cap.saturating_add(30).saturating_sub(h.actor.monotonic_ms()))).await;
+    assert!(h.actor.task_generation().await.is_err());let store=Store::open(h.directory.join("runtime.sqlite")).unwrap();assert_eq!(store.command_status(h.actor.boot_id(),id).unwrap(),Some(homesense_storage::journal::Status::Uncertain));drop(store);
+    assert!(h.actor.finish_write(id,true).await.is_err(),"late claim cannot erase missing-result uncertainty");h.finish().await;
+}
+#[test]
+fn returned_zero_projection_precedes_watchdog_only_when_complete_proof_is_already_queued() {
+    let runtime=tokio::runtime::Builder::new_current_thread().enable_all().max_blocking_threads(1).build().unwrap();
+    runtime.block_on(async {
+        use crate::{source_auth::Source,web_auth::{Grant,Role,Tokens}};
+        let enabled=Arc::new(AtomicBool::new(false));let target=Arc::new(Mutex::new(None));
+        let (entered,started)=tokio::sync::oneshot::channel();let entered=Arc::new(Mutex::new(Some(entered)));
+        let (release_actor,actor_wait)=std::sync::mpsc::channel();let actor_wait=Arc::new(Mutex::new(actor_wait));
+        let probe:AuthorizationProbe={let enabled=enabled.clone();let target=target.clone();Arc::new(move |id| {
+            if *target.lock().unwrap()==Some(id) && enabled.swap(false,Ordering::SeqCst) {
+                entered.lock().unwrap().take().unwrap().send(()).unwrap();actor_wait.lock().unwrap().recv_timeout(Duration::from_secs(10)).unwrap();
+            }
+        })};
+        let (cfg,doc)=writer_batch_inputs();let mut h=Harness::from_inputs_with_probe(cfg,doc,Some(probe)).await;*target.lock().unwrap()=Some(h.controller);
+        let tokens=Arc::new(Tokens::default());let credential=Uuid::new_v4();const SECRET:&str="synthetic-returned-proof-source-0123456789";
+        tokens.insert(credential,SECRET,Grant {controller:h.member,role:Role::Member,scenes:["act".into()].into(),devices:h.configuration.devices().keys().map(|id|id.as_str().to_owned()).collect()}).unwrap();
+        let action=Action::SceneWrites {controller:h.member,revision:1,scenes:vec![("act".into(),Some(true))]};let source=Source::capture(tokens.module_off_lease(Some(&format!("Bearer {SECRET}")),None,None).unwrap(),&action,None).unwrap();
+        let scoped=h.actor.with_source(Some(source));let cap=h.actor.monotonic_ms()+1000;
+        scoped.submit_scene_with_feedback_before(h.generation.clone(),short_projection_batch(h.member),0,None,Some(cap)).await.unwrap();
+        let (mut owner,calls)=batch_owner(&h,usize::MAX);owner.step().await.unwrap().unwrap().result.unwrap();tokio::time::sleep(Duration::from_millis(2)).await;mode_frame(&mut h,0x15,1,40);crate::control_batch::tick(&h.actor,h.member,&h.feedback).await.unwrap();
+        let (worker_entered,worker_started)=tokio::sync::oneshot::channel();let (release_worker,worker_wait)=std::sync::mpsc::channel();let blocker=tokio::task::spawn_blocking(move || {worker_entered.send(()).unwrap();worker_wait.recv_timeout(Duration::from_secs(10)).unwrap();});worker_started.await.unwrap();
+        let writer=tokio::spawn(async move {let result=owner.step().await;(owner,result)});
+        let store=Store::open(h.directory.join("runtime.sqlite")).unwrap();let selected_by=tokio::time::Instant::now()+Duration::from_millis(500);
+        while store.command_status(h.actor.boot_id(),2).unwrap()!=Some(homesense_storage::journal::Status::Writing) {assert!(tokio::time::Instant::now()<selected_by);tokio::time::sleep(Duration::from_millis(5)).await;}
+        enabled.store(true,Ordering::Release);let actor=h.actor.clone();let controller=h.controller;let generation=h.generation.clone();let diagnostics=tokio::spawn(async move {actor.diagnostics(controller,generation).await});started.await.unwrap();
+        tokens.revoke(credential).unwrap();release_worker.send(()).unwrap();blocker.await.unwrap();
+        tokio::time::sleep(Duration::from_millis(cap.saturating_add(30).saturating_sub(h.actor.monotonic_ms()))).await;
+        assert!(!writer.is_finished());assert!(!diagnostics.is_finished());release_actor.send(()).unwrap();diagnostics.await.unwrap().unwrap();
+        let (mut owner,result)=writer.await.unwrap();let cancelled=result.unwrap().unwrap();assert!(cancelled.projection_cancelled);assert_eq!(cancelled.result.unwrap_err().bytes_written,0);assert_eq!(store.command_status(h.actor.boot_id(),2).unwrap(),Some(homesense_storage::journal::Status::Cancelled));assert_eq!(h.actor.task_generation().await.unwrap(),h.generation);
+        h.actor.submit(homesense_hap::requests::Batch {controller:h.controller,subscriptions:vec![],intents:vec![homesense_hap::requests::Intent {device:homesense_core::DeviceId::new("marker").unwrap(),command:homesense_core::Command::Switch(true)}]}).await.unwrap();owner.step().await.unwrap().unwrap().result.unwrap();assert_eq!(calls.lock().unwrap().iter().map(Vec::len).collect::<Vec<_>>(),vec![5,5]);drop(store);h.finish().await;
+    });
 }

@@ -362,6 +362,20 @@ impl Arbiter {
         self.queue = staged;
         Ok(cancelled)
     }
+    /// Cancel exact still-queued tickets after the audit commits. A writer
+    /// already selected from the queue retains its separate write obligation.
+    pub fn cancel_queued_ids_committed<E>(
+        &mut self,
+        ids: &std::collections::BTreeSet<u64>,
+        reason: CancelReason,
+        commit: impl FnOnce(&[Cancellation]) -> Result<(), E>,
+    ) -> Result<Vec<Cancellation>, E> {
+        let mut staged = self.queue.clone();
+        let cancelled = staged.cancel_ids_with_reason(ids, reason);
+        commit(&cancelled)?;
+        self.queue = staged;
+        Ok(cancelled)
+    }
     /// Resolve current access for every candidate. Only one write may be in flight.
     /// A returned command must be encoded against its unchanged configuration.
     pub fn dispatch(

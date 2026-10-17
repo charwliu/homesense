@@ -506,12 +506,14 @@ enum Message {
     TransportFailed(oneshot::Sender<Result<(), WriteStatus>>),
     Dispatch(Option<std::collections::BTreeSet<String>>,Option<u64>,oneshot::Sender<Result<Option<DispatchTicket>, WriteStatus>>),
     Unsent(u64,oneshot::Sender<Result<(),WriteStatus>>),
+    DiscardProjection(crate::transport_owner::ProjectionDiscard,oneshot::Sender<Result<(),WriteStatus>>),
     Finished(u64, bool, oneshot::Sender<Result<(), WriteStatus>>),
     Shutdown(oneshot::Sender<()>),
     Submit(
         Box<Submission>,
         Option<crate::source_auth::Source>,
         Option<SubmissionScope>,
+        u64,
         u64,
         oneshot::Sender<Result<Vec<u64>, SubmissionFailure>>,
     ),
@@ -739,8 +741,15 @@ impl Admission {
                         failed = true; audited_transport_failure=false;
                         let _ = arbiter.storage_failed();
                     }
+                    // A sealed all-members zero-byte result already returned to
+                    // this actor is definite evidence, not an unknown writer.
+                    // No grace is added if the original obligation expires with
+                    // a missing result, partial I/O or any other message.
+                    let returned_zero_projection = matches!(&pending,Ok(Message::DiscardProjection(proof,_))
+                        if !proof.members().is_empty() && proof.members().len()==write_members.len()
+                            && proof.members().iter().all(|(id,deadline)|write_members.contains_key(id) && in_flight_led.contains_key(id) && control_batches.write_deadline(*id)==Some(*deadline)));
                     if let Some(_id) =
-                        in_flight.filter(|_| write_deadline.is_some_and(|deadline| now >= deadline))
+                        in_flight.filter(|_| write_deadline.is_some_and(|deadline| now >= deadline) && !returned_zero_projection)
                     {
                         // The old transport may have written some bytes. Never retry or
                         // accept a late success after the dispatch lease expires.
@@ -769,6 +778,19 @@ impl Admission {
                     }
                     if component_modes.audit(&mut store,mode_generation.as_ref(),millis(clock),&|id|authorize(id),&manual_versions,&|wire|gateways.as_ref().is_some_and(|g|g.table.ready(wire))).is_err(){failed=true;audited_transport_failure=false;let _=arbiter.storage_failed();}
                     if control_batches.audit(&store,mode_generation.as_ref(),millis(clock),|id|authorize(id),&manual_versions).is_err(){failed=true;audited_transport_failure=false;let _=arbiter.storage_failed();}
+                    for (reason, ids) in control_batches.invalidated_leds() {
+                        if failed { break; }
+                        let cancelled = arbiter.cancel_queued_ids_committed(&ids, reason, |rows| {
+                            if rows.is_empty() { Ok(()) } else { store.cancel_queued(&worker_boot, rows, millis(clock)) }
+                        });
+                        match cancelled {
+                            Ok(rows) => for row in rows {
+                                principals.remove(&row.command.id);
+                                curtains.cancelled(row.command.id, row.reason);
+                            },
+                            Err(_) => { failed=true; audited_transport_failure=false; let _=arbiter.storage_failed(); }
+                        }
+                    }
                     match message {
                         Message::ScenePhaseCommands(controller,generation,run,after,reply)=>{
                             let result=if failed||!authorize(controller)||mode_generation.as_ref()!=Some(&generation){Err(WriteStatus::ResourceBusy)}else{store.scene_commands(&worker_boot,&run,after,128).map_err(|_|WriteStatus::ServiceCommunicationFailure)};let _=reply.send(result);
@@ -1853,9 +1875,15 @@ impl Admission {
                                         .map_err(|e| e.to_string())?;
                                     principals.remove(&command.id);
                                 }
-                                let Some(command) = dispatch.command else {
+                                let Some(mut command) = dispatch.command else {
                                     return Ok(None);
                                 };
+                                // The accepted LED ticket has a finite total wait
+                                // budget. Its wire authorization can only shorten
+                                // that bound, never renew an existing ticket.
+                                let obligation_deadline=command.deadline_ms;
+                                command.deadline_ms = control_batches.write_deadline(command.id)
+                                    .unwrap_or(command.deadline_ms).min(command.deadline_ms);
                                 // Projection LEDs are disposable, unlike actuator/STOP
                                 // operations. Do not acquire a Writing obligation at the
                                 // expiry edge: the bounded worker and completion audit
@@ -1915,7 +1943,9 @@ impl Admission {
                                     // This reservation has never been released or handed
                                     // to a transmitter: zero possible wire bytes, even if
                                     // the synchronous Writing commit outlasted its lease.
-                                    reservation.cancel_expired_led_before_delivery(audited).map_err(|e|e.to_string())?;
+                                    if control_batches.write_deadline(command.id).is_some() {
+                                        reservation.cancel_expired_projection_before_delivery(audited,command.deadline_ms).map_err(|e|e.to_string())?;
+                                    } else {reservation.cancel_expired_led_before_delivery(audited).map_err(|e|e.to_string())?;}
                                     arbiter.cancel_selected_before_write(command.id).map_err(|e|e.to_string())?;
                                     principals.remove(&command.id);
                                     log::warn!("dispatch_expired_before_delivery command={} audit_started_ms={} audit_completed_ms={} deadline_ms={} bytes_possible=0",command.id,audit_started,audited,command.deadline_ms);
@@ -1924,7 +1954,10 @@ impl Admission {
                                 reservation.release();
                                 principals.remove(&command.id);
                                 if let Some(color)=crate::indicator_outputs::Ledger::color(command.command){in_flight_led.insert(command.id,(command.device_id.clone(),color,command.epochs));}
-                                write_members.insert(command.id,command.deadline_ms);
+                                // The transmitter enforces the short wire lease. Retain
+                                // its original finite obligation bound until a definite
+                                // byte-progress/zero-byte result is durably recorded.
+                                write_members.insert(command.id,obligation_deadline);
                                 in_flight=write_members.keys().next().copied();
                                 write_deadline=write_members.values().copied().min();
                                 let away_authorization=module_off_jobs.get(&command.id).map(|target|target.lease.clone());
@@ -1957,6 +1990,19 @@ impl Admission {
                                 }
                             }
                         }
+                        Message::DiscardProjection(proof,reply)=>{
+                            let result=(||{
+                                if failed || proof.members().iter().any(|(id,deadline)| !write_members.contains_key(id) || !in_flight_led.contains_key(id) || control_batches.write_deadline(*id)!=Some(*deadline)) {return Err(WriteStatus::ServiceCommunicationFailure);}
+                                store.cancel_projection_before_delivery(&worker_boot,proof.members(),millis(clock),proof.reason()).map_err(|_|WriteStatus::ServiceCommunicationFailure)?;
+                                for (id,_) in proof.members() {
+                                    arbiter.cancel_selected_before_write(*id).map_err(|_|WriteStatus::ServiceCommunicationFailure)?;
+                                    write_members.remove(id);in_flight_led.remove(id);
+                                }
+                                control_batches.discarded(proof.members(),proof.reason());
+                                log::debug!("projection_cancelled_before_wire members={:?} reason={:?} at_ms={}",proof.members(),proof.reason(),millis(clock));
+                                in_flight=write_members.keys().next().copied();write_deadline=write_members.values().copied().min();Ok(())
+                            })();if result.is_err(){failed=true;audited_transport_failure=false;let _=arbiter.storage_failed();}let _=reply.send(result);
+                        },
                         Message::Unsent(id,reply)=>{
                             let result=(||{
                                 if failed||!write_members.contains_key(&id){return Err(WriteStatus::ServiceCommunicationFailure);}
@@ -2025,7 +2071,7 @@ impl Admission {
                             generation_updates.send_replace(result.as_ref().ok().cloned());
                             let _ = reply.send(result);
                         }
-                        Message::Submit(submission, request_source, generation, deadline, reply) => {
+                        Message::Submit(submission, request_source, generation, deadline, led_total_deadline, reply) => {
                             if reply.is_closed() {
                                 continue;
                             }
@@ -2377,6 +2423,7 @@ impl Admission {
                                 }
                                 let permutation=crate::control_batch::partition(&configuration,&mut batch.intents,&mut command_sources);
                                 if phase_links.is_some(){phase_ordinals=permutation.into_iter().map(|i|phase_ordinals[i]).collect();}
+                                let feedback_roles = crate::control_batch::feedback_roles(&configuration, &batch.intents);
                                 let end = next_id
                                     .checked_add(batch.intents.len() as u64)
                                     .ok_or(WriteStatus::ServiceCommunicationFailure)?;
@@ -2404,7 +2451,14 @@ impl Admission {
                                             command,
                                             origin: if automation { Origin::Rule } else { Origin::Hap },
                                             epochs: arbiter.policy().epochs,
-                                            deadline_ms: deadline.min(native_deadline.unwrap_or(deadline)),
+                                            deadline_ms: {
+                                                let bound = match feedback_roles[offset] {
+                                                    crate::control_batch::BudgetRole::FeedbackLed => led_total_deadline,
+                                                    crate::control_batch::BudgetRole::Lighting => deadline.min(led_total_deadline),
+                                                    crate::control_batch::BudgetRole::Ordinary => deadline,
+                                                };
+                                                bound.min(native_deadline.unwrap_or(bound))
+                                            },
                                             run_id: native_run.or_else(||automation.then_some(next_id)),
                                         },
                                         Access {
@@ -2713,6 +2767,7 @@ impl Admission {
     pub(crate) async fn control_batch_proof(&self,controller:Uuid,proof:crate::control_batch::Proof)->Result<(),WriteStatus>{let(tx,rx)=oneshot::channel();self.sender.try_send(Message::ControlBatchProof(controller,proof,tx)).map_err(|_|WriteStatus::ResourceBusy)?;rx.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?}
     pub(crate) async fn component_mode_views(&self,controller:Uuid,generation:TaskGeneration)->Result<Vec<crate::component_modes::View>,WriteStatus>{let(tx,rx)=oneshot::channel();self.sender.try_send(Message::ComponentModeViews(controller,generation,tx)).map_err(|_|WriteStatus::ResourceBusy)?;rx.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?}
     pub(crate) async fn component_mode_proof(&self,controller:Uuid,proof:crate::component_modes::Proof)->Result<bool,WriteStatus>{let(tx,rx)=oneshot::channel();self.sender.try_send(Message::ComponentModeProof(controller,proof,tx)).map_err(|_|WriteStatus::ResourceBusy)?;rx.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?}
+    pub(crate) async fn finish_projection_discard(&self,proof:crate::transport_owner::ProjectionDiscard)->Result<(),WriteStatus>{let(tx,rx)=oneshot::channel();self.sender.try_send(Message::DiscardProjection(proof,tx)).map_err(|_|WriteStatus::ResourceBusy)?;rx.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?}
     pub(crate) async fn finish_unsent(&self,id:u64)->Result<(),WriteStatus>{let(tx,rx)=oneshot::channel();self.sender.try_send(Message::Unsent(id,tx)).map_err(|_|WriteStatus::ResourceBusy)?;rx.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?}
     pub async fn finish_write(&self, id: u64, complete: bool) -> Result<(), WriteStatus> {
         let (reply, receive) = oneshot::channel();
@@ -3246,7 +3301,7 @@ impl Admission {
         let manual_fence=self.manual_fence().await.map_err(DeferredFailure::Rejected)?;
         let controller=rule.batch.controller;
         let starts=rule.starts.clone();
-        let command_ids=self.submit_scoped_before(Submission::Automation{phase:None,entry_reads,software_sample:false,command_sources,batch:rule.batch,variables:rule.variables,audit:Some(rule.audit),starts:rule.starts,feedback:feedback.map(Box::new),manual_fence:None,scene:None},Some(SubmissionScope::Generation(generation.clone())),acceptance_limit).await.map_err(DeferredFailure::Rejected)?;
+        let command_ids=self.submit_scoped_with_limits(Submission::Automation{phase:None,entry_reads,software_sample:false,command_sources,batch:rule.batch,variables:rule.variables,audit:Some(rule.audit),starts:rule.starts,feedback:feedback.map(Box::new),manual_fence:None,scene:None},Some(SubmissionScope::Generation(generation.clone())),acceptance_limit,deadline).await.map_err(SubmissionFailure::status).map_err(DeferredFailure::Rejected)?;
         let mut scenes=Vec::with_capacity(starts.len());
         for start in starts {
             let page=self.scene_history(controller,generation.clone(),homesense_storage::scene_run::Query::Run{boot:self.boot_id().into(),run:start.run.clone(),after:0,limit:1}).await.map_err(DeferredFailure::Uncertain)?.ok_or(DeferredFailure::Uncertain(WriteStatus::ServiceCommunicationFailure))?;
@@ -3518,16 +3573,25 @@ impl Admission {
         self.submit_scoped_detailed(submission,generation,limit).await.map_err(SubmissionFailure::status)
     }
     async fn submit_scoped_detailed(&self,submission:Submission,generation:Option<SubmissionScope>,limit:Option<u64>)->Result<Vec<u64>,SubmissionFailure> {
-        let deadline = millis(self.clock)
+        self.submit_scoped_with_limits(submission,generation,limit,limit).await
+    }
+    /// HTTP handling may have a shorter acceptance deadline. It is not a new
+    /// execution/causal fence for work that was durably accepted before it.
+    async fn submit_scoped_with_limits(&self,submission:Submission,generation:Option<SubmissionScope>,acceptance_limit:Option<u64>,execution_limit:Option<u64>)->Result<Vec<u64>,SubmissionFailure> {
+        let origin = millis(self.clock);
+        let led_total_deadline = origin.checked_add(crate::control_batch::FEEDBACK_TOTAL_MS)
+            .ok_or(WriteStatus::ServiceCommunicationFailure)?;
+        let led_total_deadline = execution_limit.map_or(led_total_deadline, |limit| limit.min(led_total_deadline));
+        let deadline = origin
             .checked_add(
                 u64::try_from(self.ttl.as_millis())
                     .map_err(|_| WriteStatus::ServiceCommunicationFailure)?,
             )
             .ok_or(WriteStatus::ServiceCommunicationFailure)?;
-        let deadline=limit.map_or(deadline,|limit|limit.min(deadline));
+        let deadline=acceptance_limit.map_or(deadline,|limit|limit.min(deadline));
         let (reply, receive) = oneshot::channel();
         self.sender
-            .try_send(Message::Submit(Box::new(submission), self.source_authorization.clone(), generation, deadline, reply))
+            .try_send(Message::Submit(Box::new(submission), self.source_authorization.clone(), generation, deadline, led_total_deadline, reply))
             .map_err(|_| WriteStatus::ResourceBusy)?;
         receive
             .await
