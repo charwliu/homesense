@@ -284,6 +284,11 @@ async fn known_positive_is_absolute_negative_and_source_unused_lamps_are_off() {
                 .all(|(_, id, _, _)| ["light", "down"].contains(&id.as_str()))
         );
         let (main, down) = if scene == "first" { (100, 0) } else { (0, 17) };
+        if controls.iter().any(|(_,_,command,_)|matches!(command,Command::SetLevel{transition:LevelTransition::Ramp,..})) {
+            manager.tick(&h.actor,&h.document,&h.feedback).await;
+            assert!(drain(&h).await.is_empty(),"native ramp must not immediately query an intermediate level");
+            tokio::time::sleep(Duration::from_millis(6001)).await;
+        }
         finish_standalone(&mut h, &mut manager, "absolute", main, down).await;
         h.close().await;
     }

@@ -1,6 +1,6 @@
 use super::*;
 use crate::{admission::Options,transport_owner::GatewayRead,automation_drive::background_led_phase::Phase};
-use homesense_core::ExecutionContext;
+use homesense_core::{Command,ExecutionContext};
 use homesense_storage::Store;
 use serde_json::json;
 use std::{sync::{Arc,Mutex,atomic::{AtomicBool,AtomicU64,Ordering}},io::{Read,Write},path::PathBuf};
@@ -8,7 +8,8 @@ struct Fixture {actor:Admission,controller:Uuid,clock:&'static AtomicU64,auth:Ar
 impl Fixture {
     async fn new()->Self { Self::with_combined_light(false).await }
     async fn with_combined_light(combined:bool)->Self {Self::with_lights(combined,false).await}
-    async fn with_lights(combined:bool,separate:bool)->Self {
+    async fn with_lights(combined:bool,separate:bool)->Self {Self::with_native(combined,separate,false).await}
+    async fn with_native(combined:bool,separate:bool,native:bool)->Self {
         let mut modules=(0..28).map(|n|json!({"id":format!("panel{n}"),"address":format!("{:02X}",0x60+n),"profile":"ts6_86_rs485_v2_6_5_6key","led_mode":"manual","verification":{"status":"simulated"}})).collect::<Vec<_>>();
         modules.push(json!({"id":"relay","address":"20","profile":"r8i8_din_pro_v2_7_7","verification":{"status":"simulated"}}));
         if combined {modules.push(json!({"id":"dimmer","address":"21","profile":"ad8_din_rs485_v2_2_1","verification":{"status":"simulated"}}));}
@@ -17,7 +18,15 @@ impl Fixture {
         if combined {devices.push(json!({"id":"supply","name":"Synthetic supply","module_id":"relay","channel":1,"enabled":true}));}
         if separate {devices.push(json!({"id":"other-light","name":"Independent relay","module_id":"relay","channel":2,"enabled":true}));}
         let config=serde_json::to_vec(&json!({"schema_version":2,"revision":1,"gateways":[{"id":"bus","endpoint":"127.0.0.1:1","modules":modules}],"devices":devices})).unwrap();
-        let rules=serde_json::to_vec(&json!({"schema_version":1,"configuration_revision":1,"variables":[],"rules":[],"indicator_links":(0..3).map(|n|json!({"id":format!("link{n}"),"enabled":true,"review_evidence":"synthetic wave capacity","lights":["light"],"leds":(n*64..168.min((n+1)*64)).map(|i|format!("led{i}")).collect::<Vec<_>>()})).collect::<Vec<_>>()})).unwrap();
+        let mut rules=json!({"schema_version":1,"configuration_revision":1,"variables":[],"rules":[],"indicator_links":(0..3).map(|n|json!({"id":format!("link{n}"),"enabled":true,"review_evidence":"synthetic wave capacity","lights":["light"],"leds":(n*64..168.min((n+1)*64)).map(|i|format!("led{i}")).collect::<Vec<_>>()})).collect::<Vec<_>>()});
+        if native {
+            assert!(separate && !combined);
+            rules["variables"]=json!([{"id":"selection","kind":"integer","lifetime":"persistent"}]);
+            rules["timed_scenes"]=json!([("first",true,false),("second",false,true),("off",false,false)].map(|(id,on,other)|json!({"id":id,"enabled":true,"review_evidence":"synthetic native completion cache","max_lateness_ms":1000,"steps":[{"source":"synthetic main","offset_ms":0,"device":"light","command":{"kind":"switch","on":on}},{"source":"synthetic other","offset_ms":0,"device":"other-light","command":{"kind":"switch","on":other}}]})));
+            rules["scene_switch_groups"]=json!([{"id":"native-group","variable":"selection","review_evidence":"synthetic source group","members":[{"scene":"first","value":1,"off_scene":"off"},{"scene":"second","value":2,"off_scene":"off"}],"reconciliation":{"enabled":true,"policy":"unique_light_on_pattern","max_age_ms":20000,"review_evidence":"synthetic current physical patterns"}}]);
+            for link in rules["indicator_links"].as_array_mut().unwrap(){link["scene"]=json!("first");link["lights"]=json!(["light","other-light"]);}
+        }
+        let rules=serde_json::to_vec(&rules).unwrap();
         let parsed=homesense_config::Configuration::parse(&config,ExecutionContext::Simulation).unwrap();let mut document=Document::parse(&rules,&parsed).unwrap();
         if separate {document.indicator_links[0].leds.truncate(2);document.indicator_links[1].leds=(2..66).map(|n|DeviceId::new(format!("led{n}")).unwrap()).collect();document.indicator_links[2].leds=(66..168).map(|n|DeviceId::new(format!("led{n}")).unwrap()).collect();for link in &mut document.indicator_links[1..] {link.lights=vec![DeviceId::new("other-light").unwrap()];}}
         let path=std::env::temp_dir().join(format!("led168-{}.sqlite",Uuid::new_v4()));Store::open(&path).unwrap().publish_automation(None,&config,&rules,ExecutionContext::Simulation,&[]).unwrap();
@@ -177,4 +186,29 @@ async fn repeated_hot_feedback_leaves_capacity_for_every_other_indicator() {
         if unique.len()==166 {assert!(round<20,"hot feedback must not starve unrelated indicators");f.close().await;return;}
     }
     panic!("hot feedback starved remaining catalog");
+}
+
+#[tokio::test]
+async fn native_completion_rechecks_finished_wave_without_any_new_physical_value_or_variable() {
+    let mut f=Fixture::with_native(false,true,true).await;
+    let apply=|f:&mut Fixture,on:bool,other:bool| {let at=f.clock.fetch_add(2,Ordering::SeqCst)+2;f.feedback.apply(&GatewayRead{gateway_id:"bus".into(),transport_epoch:1,received_at_ms:at,result:hb_transport::Receive::Frames{transport_epoch:1,frames:vec![hb_protocol::RawFrame{address:0x20,command:0xd1,value:if on{0xf1}else{0xf2}},hb_protocol::RawFrame{address:0x20,command:0xd2,value:if other{0xf1}else{0xf2}}]}}).unwrap();};
+    apply(&mut f,true,true);
+    let generation=f.actor.task_generation().await.unwrap();let mut manager=crate::native_scene::Manager::default();
+    manager.start(&f.actor,f.controller,generation.clone(),&f.document,"first".into(),"cache-completion".into(),&f.feedback).await.unwrap();
+    for _ in 0..2 {f.clock.fetch_add(21,Ordering::SeqCst);let t=f.actor.dispatch().await.unwrap().unwrap();assert!(matches!(t.command.command,Command::Switch(_)));f.actor.finish_write(t.command.id,true).await.unwrap();}
+    manager.tick(&f.actor,&f.document,&f.feedback).await;
+    for _ in 0..2 {f.clock.fetch_add(21,Ordering::SeqCst);let t=f.actor.dispatch().await.unwrap().unwrap();assert_eq!(t.command.command,Command::Query);f.actor.finish_write(t.command.id,true).await.unwrap();}
+    apply(&mut f,true,false);
+    let mut waves=Waves::default();
+    for _ in 0..80 {assert!(f.advance(&mut waves,false).await.is_none(),"pending native operation cannot publish success LEDs");if waves.outcome.is_some(){break;}}
+    assert!(waves.cycle.is_none(),"the full pending scan really finished");
+    let before=Waves::signal(&f.actor,f.controller,&generation,&f.document,&f.feedback).await.unwrap();
+    assert!(before.pending.is_empty(),"relay Off cannot create a pending brightness target");
+    manager.tick(&f.actor,&f.document,&f.feedback).await;
+    let row=f.actor.native_scene_status(f.controller,generation.clone(),"cache-completion".into()).await.unwrap().unwrap();assert_eq!(row.status,homesense_storage::native_scene::Status::Observed);assert_eq!(row.selected,Some(1));
+    let after=Waves::signal(&f.actor,f.controller,&generation,&f.document,&f.feedback).await.unwrap();
+    assert_eq!(before.lights,after.lights);assert_eq!(before.variables,after.variables);assert_eq!(before.recorded,after.recorded);assert_eq!(before.pending,after.pending);
+    assert_ne!(before,after,"native completion alone must invalidate the finished LED scan cache");
+    f.clock.fetch_add(251,Ordering::SeqCst);let wave=f.advance(&mut waves,false).await.unwrap();let frames=Arc::new(Mutex::new(vec![]));assert!(f.write(wave,frames.clone()).await);waves.phase_ended(true);
+    assert!(frames.lock().unwrap().iter().all(|b|b[3]==0xf1));assert!(!frames.lock().unwrap().is_empty());f.close().await;
 }

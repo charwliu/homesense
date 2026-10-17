@@ -6,12 +6,14 @@ use homesense_state::Quality;
 use hap::server::WriteStatus;
 use std::collections::BTreeMap;
 use uuid::Uuid;
+type PhysicalSelections=BTreeMap<String,(Option<homesense_core::rule::Value>,bool,bool)>;
 #[derive(Clone,Debug,PartialEq,Eq)]
 struct Signal {
     lights:Vec<(DeviceId,Option<Observation>,Quality)>,
     variables:BTreeMap<String,homesense_storage::variables::Stored>,
     recorded:BTreeMap<DeviceId,Percent>,
     pending:BTreeMap<DeviceId,Percent>,
+    physical:PhysicalSelections,
 }
 #[derive(Clone)]
 struct Target {link:usize,id:DeviceId}
@@ -44,14 +46,20 @@ impl Waves {
         let supplies=ids.iter().filter_map(|id|feedback.supply_relay(id).cloned()).collect::<Vec<_>>();
         ids.extend(supplies);
         let lights=ids.iter().filter_map(|id|snapshot.devices.get(id).map(|s|(id.clone(),s.observed,s.quality))).collect();
-        let names=document.scene_switch_groups.iter().map(|g|g.variable.clone()).collect::<std::collections::BTreeSet<_>>().into_iter().collect();
-        let variables=admission.variable_snapshot(controller,generation.clone(),names).await?;
+        let names:Vec<_>=document.scene_switch_groups.iter().map(|g|g.variable.clone()).collect::<std::collections::BTreeSet<_>>().into_iter().collect();
+        let variables=admission.variable_snapshot(controller,generation.clone(),names.clone()).await?;
+        // Native completion changes pending/selection without necessarily
+        // changing a lamp value or the persisted source variable. Do not
+        // include observation timestamps: identical replies are not new edges.
+        let physical=admission.scene_selection_snapshot(controller,generation.clone(),names).await?.into_iter().filter_map(|(name,state)| {
+            state.physical.map(|p|(name,(state.stored.value,p.pending_relative,p.observed_ms.is_some())))
+        }).collect();
         let recorded=admission.recorded_dimmer_levels(controller,generation.clone()).await?;
         // A wave deferred by a local transition must be reconsidered when the
         // transition settles or expires, even if physical values stayed equal.
         let mut pending=admission.projection_levels(generation.epochs.configuration,snapshot.cursor.boot_id).await?;
-        pending.retain(|id,_|ids.contains(id));
-        Ok(Signal {lights,variables,recorded,pending})
+        pending.retain(|id,_|ids.contains(id)&&snapshot.devices.get(id).is_some_and(|state|state.kind==homesense_core::ModuleKind::Dimmer));
+        Ok(Signal {lights,variables,recorded,pending,physical})
     }
     fn affected_links(before:&Signal,after:&Signal,document:&Document,feedback:&Feedback)->std::collections::BTreeSet<usize> {
         let old=before.lights.iter().map(|(id,value,quality)|(id,(value,quality))).collect::<BTreeMap<_,_>>();
@@ -66,7 +74,7 @@ impl Waves {
             // this link's named lights. Keep the complete reviewed group scope.
             if let Some(group)=group {for member in &group.members {if let Some(scene)=document.timed_scenes.get(&member.scene) {inputs.extend(scene.steps.iter().map(|s|s.device.clone()));}}}
             let supplies=inputs.iter().filter_map(|id|feedback.supply_relay(id).cloned()).collect::<Vec<_>>();inputs.extend(supplies);
-            (inputs.iter().any(|id|changed.contains(id)) || group.is_some_and(|g|before.variables.get(&g.variable)!=after.variables.get(&g.variable))).then_some(index)
+            (inputs.iter().any(|id|changed.contains(id)) || group.is_some_and(|g|before.variables.get(&g.variable)!=after.variables.get(&g.variable)||before.physical.get(&g.variable)!=after.physical.get(&g.variable))).then_some(index)
         }).collect()
     }
     fn reprioritize(cycle:&mut Cycle,signal:Signal,affected:&std::collections::BTreeSet<usize>) {
