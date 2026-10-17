@@ -575,8 +575,14 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
         })
         .await
         .map_err(|e| format!("local batch writer: {e}"))?;
-        let completed = self.audit_batch_progress(&tickets, &result).await?;
+        let SendAttempt {result,projection}=result;
+        let projection_cancelled=projection.is_some();
+        let completed=if let Some(proof)=projection {
+            self.admission.finish_projection_discard(proof).await.map_err(|e|format!("local projection cancellation audit: {e:?}"))?;
+            vec![]
+        } else {self.audit_batch_progress(&tickets,&result).await?};
         match &result {
+            Err(_) if projection_cancelled => {self.connections.insert(wire.gateway().into(),connection);},
             Ok(()) => {
                 self.connections.insert(wire.gateway().into(), connection);
                 let written = self
@@ -618,6 +624,7 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
             device_id,
             command_id: id,
             result,
+            projection_cancelled,
             completed: completed.clone(),
             physical_frames: tickets.iter().map(|t| t.frame.physical_frames()).sum(),
             refresh_devices: tickets

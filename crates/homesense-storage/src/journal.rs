@@ -105,6 +105,11 @@ pub struct UndeliveredWrite<'a> {
 impl UndeliveredWrite<'_> {
     /// Consume the reservation before constructing or delivering a ticket.
     pub fn release(self) {}
+    /// A guarded projection can have a shorter wire lease than its original
+    /// total wait budget. This reservation still proves no ticket was delivered.
+    pub fn cancel_expired_projection_before_delivery(self,now_ms:u64,effective_deadline:u64)->Result<(),Error> {
+        self.store.cancel_projection_before_delivery(&self.boot,&[(self.id,effective_deadline)],now_ms,homesense_core::queue::CancelReason::Expired)
+    }
     /// Only expired LEDs, and only while the exclusive reservation is held.
     /// No connection/ticket exists outside the admission owner at this point.
     pub fn cancel_expired_led_before_delivery(self, now_ms:u64)->Result<(),Error> {
@@ -115,6 +120,48 @@ impl UndeliveredWrite<'_> {
     }
 }
 impl Store {
+    /// Caller must hold an undelivered reservation or the writer's sealed proof
+    /// that this complete projection batch emitted zero bytes. Never use this
+    /// for uncertain/partial I/O or ordinary actuator Writing obligations.
+    pub fn cancel_projection_before_delivery(
+        &mut self,
+        boot_id: &str,
+        members: &[(u64, u64)],
+        now_ms: u64,
+        reason: homesense_core::queue::CancelReason,
+    ) -> Result<(), Error> {
+        boot(boot_id)?;
+        let expired = match reason {
+            homesense_core::queue::CancelReason::Expired => true,
+            homesense_core::queue::CancelReason::RunCancelled => false,
+            _ => return Err(Error::InvalidAudit),
+        };
+        if members.is_empty()
+            || members.len() > 128
+            || members
+                .iter()
+                .map(|(id, _)| id)
+                .collect::<std::collections::BTreeSet<_>>()
+                .len()
+                != members.len()
+            || members
+                .iter()
+                .any(|(_, deadline)| *deadline == 0 || (expired && now_ms < *deadline))
+        {
+            return Err(Error::InvalidAudit);
+        }
+        let tx = self
+            .connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        for (id, deadline) in members {
+            let count=tx.execute("UPDATE command_journal SET status='cancelled',updated_ms=?1,cancellation_reason=?2 WHERE boot_id=?3 AND command_id=?4 AND status='writing' AND updated_ms<=?1 AND deadline_ms>=?5 AND intent IN (?6,?7,?8)",params![integer(now_ms)?,if expired {"Expired"}else{"RunCancelled"},boot_id,integer(*id)?,integer(*deadline)?,intent(Command::PanelLed(false)).as_slice(),intent(Command::PanelLed(true)).as_slice(),intent(Command::PanelLedOff).as_slice()])?;
+            if count != 1 {
+                return Err(Error::Conflict);
+            }
+        }
+        tx.commit()?;
+        Ok(())
+    }
     pub fn accept_module_off_commands(&mut self,boot_id:&str,commands:&[QueuedCommand],cancellations:&[Cancellation],now_ms:u64,effects:&[crate::module_off::Effects])->Result<(),Error> {
         self.accept_queue_batch_detailed(boot_id,commands,cancellations,now_ms,None,&[],None,None,&[],&[],None,effects,None,None,None)
     }
