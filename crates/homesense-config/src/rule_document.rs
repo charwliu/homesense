@@ -325,7 +325,12 @@ pub enum FeedbackBinding {
 }
 #[derive(Clone,Debug,serde::Deserialize,serde::Serialize)]
 #[serde(deny_unknown_fields)]
-pub struct SceneMetadata {pub id:String,pub name:String}
+pub struct SceneMetadata {
+    pub id:String,
+    pub name:String,
+    #[serde(default)]
+    pub room:Option<String>,
+}
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all="snake_case")]
 pub enum SceneExecutionKind { Immediate, Timed }
@@ -353,6 +358,8 @@ pub struct Document {
     pub revision: u64,
     pub scene_tracking: BTreeMap<String,crate::scene_tracking::Policy>,
     pub scene_metadata: BTreeMap<String,String>,
+    /// Resolved from the same revision's room catalog; absent means unassigned.
+    pub scene_rooms: BTreeMap<String,crate::Room>,
     pub variables: BTreeMap<String, Variable>,
     pub variable_migrations: BTreeMap<String, VariableMigration>,
     pub feedback_bindings: BTreeMap<String, FeedbackBinding>,
@@ -958,6 +965,12 @@ impl Document {
             if link.enabled && (!enabled(&link.scene)||!enabled(&link.target)){return Err(invalid("enabled deactivation references disabled scene"));}
             if scene_deactivations.insert(link.scene.clone(),link).is_some(){return Err(invalid("duplicate deactivation link"));}
         }
+        let scene_rooms=input.scene_metadata.iter().filter_map(|metadata| {
+            metadata.room.as_ref().map(|id| {
+                config.rooms().get(id).cloned().map(|room|(metadata.id.clone(),room))
+                    .ok_or_else(||invalid("scene room does not exist"))
+            })
+        }).collect::<Result<BTreeMap<_,_>,_>>()?;
         let document=Self {
             away_off: input.away_off,
             scene_deactivations,
@@ -971,6 +984,7 @@ impl Document {
             disabled_immediate_scenes,
             scene_tracking: input.scene_tracking.iter().map(|p|(p.scene.clone(),p.clone())).collect(),
             scene_metadata: input.scene_metadata.iter().map(|m|(m.id.clone(),m.name.clone())).collect(),
+            scene_rooms,
             schedules,
             gestures,
             holds: input.holds,

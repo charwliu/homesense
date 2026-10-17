@@ -89,3 +89,44 @@ fn metadata_and_tracking_are_strict_and_duplicate_identifiers_are_rejected() {
     v["scene_metadata"][0]["id"] = "missing".into();
     assert!(parse(&v).is_err());
 }
+
+#[test]
+fn scene_room_metadata_is_optional_and_resolves_only_same_revision_rooms() {
+    let mut configuration: Value = serde_json::from_slice(include_bytes!("../../../config/simulation.json")).unwrap();
+    configuration["rooms"] = json!([
+        {"id":"alpha","name":"Alpha","floor":"Upper"},
+        {"id":"beta","name":"Beta"}
+    ]);
+    let config = Configuration::parse(&serde_json::to_vec(&configuration).unwrap(), ExecutionContext::Simulation).unwrap();
+    let mut input = rules();
+    for room in [None, Some(Value::Null)] {
+        if let Some(room) = room { input["scene_metadata"][0]["room"] = room; }
+        let document = Document::parse(&serde_json::to_vec(&input).unwrap(), &config).unwrap();
+        assert!(document.scene_rooms.is_empty());
+        assert_eq!(document.scene_catalog()["scene"], "Friendly name");
+    }
+    for id in ["alpha", "beta"] {
+        input["scene_metadata"][0]["room"] = json!(id);
+        let document = Document::parse(&serde_json::to_vec(&input).unwrap(), &config).unwrap();
+        assert_eq!(document.scene_rooms["scene"], config.rooms()[id]);
+        assert_eq!(document.scene_metadata["scene"], "Friendly name");
+    }
+    input["immediate_scenes"][0]["enabled"] = json!(false);
+    assert!(Document::parse(&serde_json::to_vec(&input).unwrap(), &config).is_err());
+    input["scene_tracking"][0]["enabled"] = json!(false);
+    let disabled = Document::parse(&serde_json::to_vec(&input).unwrap(), &config).unwrap();
+    assert_eq!(disabled.scene_rooms["scene"], config.rooms()["beta"]);
+    assert!(!disabled.scene_catalog().contains_key("scene"));
+    input["immediate_scenes"][0]["enabled"] = json!(true);
+    input["scene_tracking"][0]["enabled"] = json!(true);
+    for invalid in [json!("absent"), json!(""), json!(7), json!({"id":"alpha"})] {
+        input["scene_metadata"][0]["room"] = invalid;
+        assert!(Document::parse(&serde_json::to_vec(&input).unwrap(), &config).is_err());
+    }
+    input["scene_metadata"][0]["room"] = json!("alpha");
+    input["scene_metadata"][0]["id"] = json!("missing_scene");
+    assert!(Document::parse(&serde_json::to_vec(&input).unwrap(), &config).is_err());
+    input["scene_metadata"][0]["id"] = json!("scene");
+    input["configuration_revision"] = json!(2);
+    assert!(Document::parse(&serde_json::to_vec(&input).unwrap(), &config).is_err());
+}

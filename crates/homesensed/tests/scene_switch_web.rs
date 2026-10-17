@@ -20,10 +20,19 @@ use std::{
 };
 use uuid::Uuid;
 
+fn configuration() -> Vec<u8> {
+    let mut value: Value = serde_json::from_slice(include_bytes!("../../../config/simulation.json")).unwrap();
+    value["rooms"] = json!([
+        {"id":"alpha","name":"Alpha","floor":"Upper"},
+        {"id":"beta","name":"Beta"}
+    ]);
+    serde_json::to_vec(&value).unwrap()
+}
 fn rules() -> Vec<u8> {
     let scenes=[("reading",100),("daily",60),("eco",17),("off",0)].map(|(id,level)|json!({"id":id,"enabled":true,"review_evidence":"synthetic reviewed scene","max_lateness_ms":1000,"steps":[{"source":"synthetic","offset_ms":60000,"device":"simulation:light","command":{"kind":"level","value":level,"ramp":false}}]}));
     serde_json::to_vec(&json!({"schema_version":1,"configuration_revision":1,"variables":[{"id":"selection","kind":"integer","lifetime":"persistent"}],"rules":[],"timed_scenes":scenes,
-        "scene_switch_groups":[{"id":"room","variable":"selection","review_evidence":"synthetic reviewed exclusion","members":[{"scene":"reading","value":1,"off_scene":"off"},{"scene":"daily","value":2,"off_scene":"off"},{"scene":"eco","value":3,"off_scene":"off"}],"reset_scenes":["off"]}]})).unwrap()
+        "scene_metadata":[{"id":"reading","name":"reading","room":"alpha"},{"id":"daily","name":"daily","room":"beta"},{"id":"eco","name":"eco","room":null}],
+        "scene_switch_groups":[ {"id":"room","variable":"selection","review_evidence":"synthetic reviewed exclusion","members":[{"scene":"reading","value":1,"off_scene":"off"},{"scene":"daily","value":2,"off_scene":"off"},{"scene":"eco","value":3,"off_scene":"off"}],"reset_scenes":["off"]}]})).unwrap()
 }
 struct Wire;
 impl std::io::Read for Wire {
@@ -93,7 +102,7 @@ async fn owner(
     .unwrap();
     let control = runtime.control();
     let config = homesense_config::Configuration::parse(
-        include_bytes!("../../../config/simulation.json"),
+        &configuration(),
         ExecutionContext::Simulation,
     )
     .unwrap();
@@ -141,7 +150,7 @@ async fn scene_stream_invalidates_stopped_selection_and_recovers_on_same_socket(
         .unwrap()
         .publish_automation(
             None,
-            include_bytes!("../../../config/simulation.json"),
+            &configuration(),
             &rules(),
             ExecutionContext::Simulation,
             &[],
@@ -227,6 +236,11 @@ async fn scene_stream_invalidates_stopped_selection_and_recovers_on_same_socket(
     let initial = next(&mut socket).await;
     assert_eq!(initial["type"], "state");
     assert_eq!(initial["scenes"].as_array().unwrap().len(), 1);
+    let (status, http) = request(&api, secret, "/api/v1/scenes", None).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(http["scenes"], initial["scenes"]);
+    assert_eq!(initial["scenes"][0]["room"], json!({"id":"alpha","name":"Alpha","floor":"Upper"}));
+    assert_eq!(initial["scenes"][0]["id"], "reading");
     assert!(initial["scenes"][0]["selected"].is_null());
     assert_eq!(initial["scenes"][0]["selection_state"], json!({"state":"unknown"}));
     assert_eq!(initial["scenes"][0]["can_control"], true);
@@ -255,6 +269,7 @@ async fn scene_stream_invalidates_stopped_selection_and_recovers_on_same_socket(
     assert_eq!(restored["type"], "state");
     assert_eq!(restored["reset"], true);
     assert_eq!(restored["scenes"][0]["selected"], true);
+    assert_eq!(restored["scenes"][0]["room"], initial["scenes"][0]["room"]);
     assert_eq!(restored["scenes"].as_array().unwrap().len(), 1);
     assert_eq!(definitions(&path), ["reading"]);
     // Another local control entry changes selection; the event stream updates
@@ -322,10 +337,10 @@ async fn web_selection_targets_preserve_scope_legacy_receipts_and_off_cancellati
     let root = std::env::temp_dir().join(format!("scene-web-{}", Uuid::new_v4()));
     std::fs::create_dir(&root).unwrap();
     let path = root.join("runtime.sqlite");
-    let devices = include_bytes!("../../../config/simulation.json");
+    let devices = configuration();
     homesense_storage::Store::open(&path)
         .unwrap()
-        .publish_automation(None, devices, &rules(), ExecutionContext::Simulation, &[])
+        .publish_automation(None, &devices, &rules(), ExecutionContext::Simulation, &[])
         .unwrap();
     let caller = Uuid::new_v4();
     let limited_controller = Uuid::new_v4();
@@ -357,7 +372,7 @@ async fn web_selection_targets_preserve_scope_legacy_receipts_and_off_cancellati
         .unwrap();
         let control = runtime.control();
         let config =
-            homesense_config::Configuration::parse(devices, ExecutionContext::Simulation).unwrap();
+            homesense_config::Configuration::parse(&devices, ExecutionContext::Simulation).unwrap();
         let feedback = Feedback::new(
             &config,
             ExecutionContext::Simulation,
@@ -444,6 +459,13 @@ async fn web_selection_targets_preserve_scope_legacy_receipts_and_off_cancellati
                     .all(|s| s["selected"].is_null())
             );
             for scene in v["scenes"].as_array().unwrap() {
+                let expected = match scene["id"].as_str().unwrap() {
+                    "reading" => json!({"id":"alpha","name":"Alpha","floor":"Upper"}),
+                    "daily" => json!({"id":"beta","name":"Beta","floor":null}),
+                    _ => Value::Null,
+                };
+                assert!(scene.as_object().unwrap().contains_key("room"));
+                assert_eq!(scene["room"], expected);
                 if scene["switch_kind"] == "selection" {
                     assert_eq!(scene["selection_state"], json!({"state":"unknown"}));
                     assert_eq!(scene["can_control"], true);
@@ -617,7 +639,7 @@ async fn unavailable_selection_reads_distinguish_timeout_absent_and_closed_runti
     std::fs::create_dir_all(&root).unwrap();
     let path = root.join("runtime.sqlite");
     homesense_storage::Store::open(&path).unwrap().publish_automation(
-        None, include_bytes!("../../../config/simulation.json"), &rules(), ExecutionContext::Simulation, &[],
+        None, &configuration(), &rules(), ExecutionContext::Simulation, &[],
     ).unwrap();
     let caller = Uuid::new_v4();
     let a = Admission::open(path.clone(), Options { context: ExecutionContext::Simulation, ..Default::default() }, move |id| id == caller).await.unwrap();
@@ -669,7 +691,7 @@ async fn cancellation_rejects_unbound_or_other_runtime_receipts_but_keeps_legiti
     std::fs::create_dir(&root).unwrap();
     let path = root.join("runtime.sqlite");
     homesense_storage::Store::open(&path).unwrap().publish_automation(
-        None, include_bytes!("../../../config/simulation.json"), &rules(),
+        None, &configuration(), &rules(),
         ExecutionContext::Simulation, &[],
     ).unwrap();
     let caller = Uuid::new_v4();
