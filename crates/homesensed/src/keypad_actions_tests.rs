@@ -12,6 +12,9 @@ impl Fixture {
         Self::with_motor(cue,false,scope).await
     }
     async fn with_motor(cue:bool,motor:bool,scope:impl FnOnce(&mut Grant))->Self {
+        Self::with_selection(cue,motor,Some(0),scope).await
+    }
+    async fn with_selection(cue:bool,motor:bool,selection:Option<i64>,scope:impl FnOnce(&mut Grant))->Self {
         let mut config:Value=serde_json::from_slice(include_bytes!("../../../config/test/native-app-keypad/devices.json")).unwrap();
         config["keypads"][0]["keys"][2]["action"]=json!({"kind":"scene_toggle","scene":"meeting","review_evidence":"synthetic second origin key"});
         if cue {config["keypads"][0]["keys"][0]["local_indicator"]=json!({"kind":"scene_selection","group":"reading-group","value":1,"selected_color":"red","unselected_color":"green","review_evidence":"synthetic exact On/Off source review"});}
@@ -42,7 +45,7 @@ impl Fixture {
         let rules=serde_json::to_vec(&rules).unwrap();
         let path=std::env::temp_dir().join(format!("keypad-unified-{}.sqlite",Uuid::new_v4()));
         let mut store=Store::open(&path).unwrap();let bundle=store.publish_automation(None,&bytes,&rules,ExecutionContext::Simulation,&[]).unwrap();
-        store.accept_queue_batch_with_variables("seed",&[],&[],0,None,&[Update{revision:1,name:"selection".into(),expected_version:0,value:Some(homesense_core::rule::Value::Integer(0))}]).unwrap();drop(store);
+        store.accept_queue_batch_with_variables("seed",&[],&[],0,None,&[Update{revision:1,name:"selection".into(),expected_version:0,value:selection.map(homesense_core::rule::Value::Integer)}]).unwrap();drop(store);
         let config=bundle.configuration;let doc=bundle.automation.unwrap();let controller=Uuid::new_v4();let credential=Uuid::new_v4();let tokens=Arc::new(Tokens::default());
         let mut grant=Grant{controller,role:Role::Member,devices:config.devices().keys().map(|id|id.as_str().into()).collect(),scenes:doc.timed_scenes.keys().cloned().collect()};scope(&mut grant);tokens.insert(credential,SECRET,grant).unwrap();
         let time=Box::leak(Box::new(AtomicU64::new(100)));
@@ -302,5 +305,59 @@ async fn cancelled_queued_source_cue_has_no_color_while_source_remains_current()
     let snapshot=crate::management_devices::snapshot(&f.actor,f.controller,f.actor.task_generation().await.unwrap(),f.config.devices().keys().cloned().collect(),&f.feedback).await.unwrap();
     assert_eq!(snapshot.keypads[0]["keys"][0]["indication"]["status"],"cancelled");
     assert!(snapshot.keypads[0]["keys"][0]["indication"]["color"].is_null());
+    f.close().await;
+}
+
+#[tokio::test]
+async fn unknown_recorded_scene_starts_explicit_on_with_source_cue_and_selection_fence() {
+    let f=Fixture::with_selection(true,false,None,|_|{}).await;
+    let prepared=f.prepare(&f.request()).await.unwrap();
+    assert!(matches!(&prepared.action,Action::SceneAction{scene,execute:true,..} if scene=="reading"),
+        "a group without physical reconciliation cannot use a relative recipe");
+    let source=prepared.source.unwrap();let origin=source.keypad().unwrap();
+    assert_eq!(origin.fallback,Some(Command::PanelLed(true)));
+    assert_eq!(origin.selection.len(),1);assert_eq!(origin.selection[0].name,"selection");
+    assert_eq!(origin.selection[0].expected_version,1);
+    let mut store=Store::open(&f.path).unwrap();
+    store.accept_queue_batch_with_variables("concurrent-selection",&[],&[],0,None,
+        &[Update{revision:1,name:"selection".into(),expected_version:1,value:Some(homesense_core::rule::Value::Integer(1))}]).unwrap();drop(store);
+    assert!(f.submit(Some(source),f.batch(true,false,false)).await.is_err(),
+        "a concurrent selection change must invalidate the prepared unknown decision");
+    assert!(f.actor.dispatch().await.unwrap().is_none());f.close().await;
+}
+
+#[tokio::test]
+async fn unknown_reconciled_scene_keeps_relative_per_light_planning_without_fabricated_selection() {
+    let mut f=Fixture::with_selection(true,false,None,|_|{}).await;
+    f.doc.scene_switch_groups[0].reconciliation.as_mut().unwrap().enabled=true;
+    let prepared=f.prepare(&f.request()).await.unwrap();
+    assert!(matches!(prepared.action,Action::SceneRelative{scene,..} if scene=="reading"));
+    let source=prepared.source.unwrap();let origin=source.keypad().unwrap();
+    assert!(origin.fallback.is_none());assert!(origin.selection.is_empty());
+    assert!(f.actor.dispatch().await.unwrap().is_none());f.close().await;
+}
+
+#[tokio::test]
+async fn catalog_group_scope_keeps_both_branches_and_is_recomputed_for_the_next_bundle() {
+    let mut f=Fixture::new(true,|_|{}).await;
+    let off=f.doc.scene_switch_groups[0].members[0].off_scene.clone();
+    for (scene,key) in [("reading".to_owned(),1),(off.clone(),2)] {
+        f.doc.timed_scenes.get_mut(&scene).unwrap().steps.push(homesense_core::scene::Step {
+            source:"synthetic full-branch LED authority".into(),delay_ms:0,device:DeviceId::new(format!("legacy-key-{key}")).unwrap(),command:Command::PanelLed(key==1),
+        });
+    }
+    let first=execution_scopes(&f.config,&f.doc).unwrap();
+    assert_eq!(first["reading"],first["meeting"]);
+    for id in ["fixture-light","fixture-downlight","legacy-key-1","legacy-key-2"] {
+        assert!(first["reading"].contains(id),"both member and off-branch authorities are required");
+    }
+    assert!(!first["reading"].contains("legacy-key-6"));
+    let off=f.doc.scene_switch_groups[0].members[0].off_scene.clone();
+    f.doc.timed_scenes.get_mut(&off).unwrap().steps.push(homesense_core::scene::Step {
+        source:"synthetic changed bundle off-branch LED".into(),delay_ms:0,device:DeviceId::new("legacy-key-6").unwrap(),command:Command::PanelLed(false),
+    });
+    let next=execution_scopes(&f.config,&f.doc).unwrap();
+    assert!(next["reading"].contains("legacy-key-6"));assert_eq!(next["reading"],next["meeting"]);
+    assert!(!first["reading"].contains("legacy-key-6"),"an earlier snapshot cannot gain later bundle rights");
     f.close().await;
 }

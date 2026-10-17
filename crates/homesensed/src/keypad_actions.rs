@@ -136,6 +136,24 @@ pub(crate) fn scene_devices(config:&Configuration,document:&Document,scene:&str)
     }
     Ok(all)
 }
+/// Shared scene groups have the same full-branch authority union. Reuse it
+/// within one immutable bundle snapshot, never across publications or readers.
+pub(crate) fn execution_scopes(config:&Configuration,document:&Document)->Result<std::collections::BTreeMap<String,std::collections::BTreeSet<String>>,Rejection> {
+    use std::collections::{BTreeMap,BTreeSet};
+    let scenes=config.keypads().values().flat_map(|panel|panel.keys.values()).filter_map(|key|match &key.action {
+        Some(KeyAction::SceneExecute{scene,..}|KeyAction::SceneToggle{scene,..})=>Some(scene.clone()),_=>None,
+    }).collect::<BTreeSet<_>>();
+    let mut groups=BTreeMap::<String,BTreeSet<String>>::new();let mut result=BTreeMap::new();
+    for scene in scenes {
+        let group=document.scene_switch_groups.iter().find(|group|group.members.iter().any(|member|member.scene==scene));
+        let scope=if let Some(cached)=group.and_then(|group|groups.get(&group.id)) {cached.clone()} else {
+            let scope=scene_devices(config,document,&scene)?.into_iter().map(|id|id.as_str().to_owned()).collect::<BTreeSet<_>>();
+            if let Some(group)=group {groups.insert(group.id.clone(),scope.clone());}scope
+        };
+        result.insert(scene,scope);
+    }
+    Ok(result)
+}
 fn led_coverage(document:&Document,scene:&str,endpoint:&DeviceId)->bool {
     fn walk(nodes:&[homesense_core::rule::Node],document:&Document,endpoint:&DeviceId)->bool {
         use homesense_core::rule::Action;
@@ -185,17 +203,23 @@ pub(crate) async fn prepare(admission:&Admission,generation:&TaskGeneration,docu
             scene_scope(config,document,source,scene)?;
             let snapshot=admission.scene_selection_snapshot(controller,generation.clone(),crate::scene_switches::variable_names(document)).await.map_err(|_|Rejection::RuntimeUnavailable)?;
             let states=crate::scene_switches::details(document,&snapshot).map_err(|_|Rejection::KeypadActionUnavailable)?;
-            let action=match states.get(scene).and_then(|state|state.selected) {
-                Some(on)=>{
-                    let selected_group=document.scene_switch_groups.iter().find(|candidate|candidate.members.iter().any(|member|&member.scene==scene)).ok_or(Rejection::KeypadActionUnavailable)?;
-                    selection.push(homesense_storage::variables::ReadCheck{revision,name:selected_group.variable.clone(),expected_version:snapshot[&selected_group.variable].stored.version});
-                    if let Some(homesense_config::keypad::LocalIndicator::SceneSelection{group,selected_color,unselected_color,..})=&key.local_indicator {
-                        if &selected_group.id!=group{return Err(Rejection::KeypadActionUnavailable);}
-                        fallback=Some(homesense_core::Command::PanelLed(if on{unselected_color.red()}else{selected_color.red()}));
-                    }
-                    Action::SceneAction{controller,revision,scene:scene.clone(),execute:!on}
-                },
-                None=>Action::SceneRelative{controller,revision,scene:scene.clone(),request_id:request.request_id.clone()},
+            let selected_group=document.scene_switch_groups.iter().find(|candidate|candidate.members.iter().any(|member|&member.scene==scene)).ok_or(Rejection::KeypadActionUnavailable)?;
+            let selected=states.get(scene).and_then(|state|state.selected);
+            let action=if selected.is_none() && selected_group.reconciliation.as_ref().is_some_and(|policy|policy.enabled) {
+                Action::SceneRelative{controller,revision,scene:scene.clone(),request_id:request.request_id.clone()}
+            } else {
+                // Recorded/ambiguous modes have no relative light recipe. On a
+                // fresh unknown selection, execute the reviewed On branch;
+                // only its successful execution may establish local selection.
+                // Keep the read fence even for unknown so a competing action
+                // cannot silently change this decision before queue admission.
+                let on=selected.unwrap_or(false);
+                selection.push(homesense_storage::variables::ReadCheck{revision,name:selected_group.variable.clone(),expected_version:snapshot[&selected_group.variable].stored.version});
+                if let Some(homesense_config::keypad::LocalIndicator::SceneSelection{group,selected_color,unselected_color,..})=&key.local_indicator {
+                    if &selected_group.id!=group{return Err(Rejection::KeypadActionUnavailable);}
+                    fallback=Some(homesense_core::Command::PanelLed(if on{unselected_color.red()}else{selected_color.red()}));
+                }
+                Action::SceneAction{controller,revision,scene:scene.clone(),execute:!on}
             };
             (action,"scene")
         },
