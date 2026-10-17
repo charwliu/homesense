@@ -41,12 +41,35 @@ public final class HomeServerStore: ObservableObject {
     @Published public private(set) var connected = false
     public let diagnostics: HomeDiagnostics
     private var loggedKeypadGates: [String: [HomeKeypadGateState]] = [:]
-    @Published public private(set) var busy = false
+    @Published private var ordinaryBusy = false
+    public var busy: Bool { ordinaryBusy || !pendingKeypadActivations.isEmpty || !priorityMotorStops.isEmpty }
     @Published public private(set) var canManage = false
     @Published public private(set) var interfaceMode: HomeInterfaceMode = .daily
     @Published public private(set) var devices: [HomeRecord] = []
     @Published public private(set) var rooms: [HomeRecord] = []
     @Published public private(set) var scenes: [HomeRecord] = []
+    @Published public private(set) var moduleInventory: [HomePhysicalModule] = []
+    @Published public private(set) var loadingModules = false
+    @Published public private(set) var moduleInventoryMessage = ""
+    private var moduleLoadID = UUID()
+    private var moduleInventoryRevision = ""
+    private var moduleInventoryBoot = ""
+    private var moduleInventoryReady = false
+    @Published public private(set) var unifiedKeypadActionsSupported = false
+    @Published private var keypadActivationState = HomeKeypadActivationState()
+    private var keypadActivationContext: HomeKeypadActivationState.Context?
+    private struct PendingKeypadActivation {
+        let operation: HomeControlOperation
+        let request: HomeKeypadActivationRequest
+        let context: HomeKeypadActivationState.Context
+        let controlGeneration: UUID
+    }
+    @Published private var pendingKeypadActivations: [UUID: PendingKeypadActivation] = [:]
+    private var priorityStopGeneration = UUID()
+    @Published private var priorityMotorStops: Set<UUID> = []
+    private var latestPriorityMessage: String?
+    private var keypadEventVersions: [String: UInt64] = [:]
+    private var keypadEventStates: [String: Bool] = [:]
     @Published public private(set) var revision = ""
     @Published public private(set) var capturedAt: Date?
     @Published public private(set) var message = "连接 HomeSense 服务，读取家庭、设备与场景。"
@@ -96,6 +119,24 @@ public final class HomeServerStore: ObservableObject {
     /// A server-owned presentation hint, never a permission or polling filter.
     /// Keep the complete authorized store for scene feedback and admission.
     public var dailyDevices: [HomeRecord] { devices.filter { $0.raw["catalog_visible"] != .bool(false) } }
+    public var dailyPanels: [HomeRecord] {
+        dailyDevices.filter { $0.raw["kind"].text == "Keypad" && $0.raw["module_id"].text != nil }
+    }
+    public var physicalHardwareModules: [HomePhysicalModule] { moduleInventory.filter { $0.modelName != nil } }
+    public var moduleInventoryContext: String { "\(epoch)-\(revision)-\(snapshotBoot)-\(canManage)" }
+    public func physicalModule(for panel: HomeRecord) -> HomePhysicalModule? {
+        guard let id = panel.raw["module_id"].text else { return nil }
+        return moduleInventory.first { $0.moduleID == id }
+    }
+    /// Room/overview controls show lights and curtains. Keypads remain intact
+    /// in the device catalog, including their key actions and LED state.
+    public var dailyActuators: [HomeRecord] {
+        dailyDevices.filter { ["Switch", "Dimmer", "Motor"].contains($0.raw["kind"].text ?? "") }
+    }
+    public func roomDevices(inRoom id: String) -> [HomeRecord] {
+        guard rooms.contains(where: { $0.id == id }) else { return [] }
+        return dailyActuators.filter { $0.roomID == id }
+    }
     /// Only explicit, currently visible room associations affect navigation.
     /// Missing/unknown rooms stay reachable in the household overview.
     public var householdScenes: [HomeRecord] {
@@ -105,6 +146,24 @@ public final class HomeServerStore: ObservableObject {
     public func scenes(inRoom id: String) -> [HomeRecord] {
         guard rooms.contains(where: { $0.id == id }) else { return [] }
         return scenes.filter { $0.roomID == id }
+    }
+    public func scenePanels(for records: [HomeRecord]) -> [HomeScenePanel] {
+        let roomNames = Dictionary(uniqueKeysWithValues: rooms.map { ($0.id, $0.name) })
+        var order: [String] = [], groups: [String: [HomeRecord]] = [:], seen = Set<String>()
+        for scene in records where !scene.id.isEmpty && seen.insert(scene.id).inserted {
+            let room = scene.roomID.flatMap { roomNames[$0] == nil ? nil : $0 } ?? ""
+            if groups[room] == nil { order.append(room) }
+            groups[room, default: []].append(scene)
+        }
+        return order.flatMap { room -> [HomeScenePanel] in
+            let rows = groups[room] ?? [], pageCount = (rows.count + 5) / 6
+            return stride(from: 0, to: rows.count, by: 6).map { start in
+                HomeScenePanel(id: "\(room.isEmpty ? "household" : "room:" + room):page:\(start / 6)",
+                    title: roomNames[room].map { "\($0)场景" } ?? "全屋与未分配场景",
+                    page: start / 6 + 1, pageCount: pageCount,
+                    scenes: Array(rows[start..<min(start + 6, rows.count)]))
+            }
+        }
     }
     /// Deduplicate only against valid six-key cards rendered on the same page.
     /// This is presentation only: never trim the authorized catalog or infer
@@ -152,8 +211,8 @@ public final class HomeServerStore: ObservableObject {
             let origin = try HomeServerEndpoint(endpointText).origin
             disconnect()
             let generation = epoch
-            busy = true
-            defer { if generation == epoch { busy = false } }
+            ordinaryBusy = true
+            defer { if generation == epoch { ordinaryBusy = false } }
             try await credentialStore.remove(for: origin)
             guard generation == epoch else { return }
             if savedCredentialOrigin == origin { savedCredentialOrigin = nil }
@@ -221,9 +280,9 @@ public final class HomeServerStore: ObservableObject {
         disconnect()
         savedRecoveryOrigin = restoringOrigin
         restoringCredential = restoringOrigin != nil
-        busy = true; error = nil
+        ordinaryBusy = true; error = nil
         let generation = epoch
-        defer { if epoch == generation { busy = false } }
+        defer { if epoch == generation { ordinaryBusy = false } }
         do {
             let endpoint = try HomeServerEndpoint(endpointText)
             guard restoringOrigin == nil || restoringOrigin == endpoint.origin else { throw HomeServerError.expiredRequest }
@@ -232,6 +291,7 @@ public final class HomeServerStore: ObservableObject {
             let capabilities = try await request("/api/v1/session")
             guard case .bool = capabilities["can_manage_configuration"] else { throw HomeServerError.invalidResponse }
             canManage = capabilities["can_manage_configuration"].flag
+            updateUnifiedKeypadCapability(capabilities)
             defaults?.set(endpoint.origin, forKey: "home.server")
             if restoringOrigin != nil {
                 // It is already saved. Recovery must not recreate a credential
@@ -274,10 +334,13 @@ public final class HomeServerStore: ObservableObject {
         }
     }
     public func disconnect() {
+        clearModuleInventory()
         savedRecoveryOrigin = nil
         restoreGeneration = UUID(); restoringCredential = false
         epoch = UUID(); stopEvents(); interfaceMode = .daily
-        token = nil; endpoint = nil; connected = false; canManage = false; busy = false
+        token = nil; endpoint = nil; connected = false; canManage = false; ordinaryBusy = false
+        priorityMotorStops = []; priorityStopGeneration = UUID(); latestPriorityMessage = nil
+        unifiedKeypadActionsSupported = false
         devices = []; rooms = []; scenes = []; drafts = []; serverFloors = []; capturedAt = nil; revision = ""
         snapshotBoot = ""; synchronization = "未连接"
         deviceDocument = nil; automationDocument = nil; preview = nil; draftID = nil
@@ -285,6 +348,7 @@ public final class HomeServerStore: ObservableObject {
         message = "已断开服务端并清除本次会话令牌；本机 Keychain 凭证保留。"
     }
     private func stopEvents() {
+        clearUnifiedKeypadState()
         eventEpoch = UUID(); eventTask?.cancel(); eventTask = nil
         receivingPush = false; eventCursor = nil
     }
@@ -293,7 +357,7 @@ public final class HomeServerStore: ObservableObject {
         if savedRecoveryOrigin != nil {
             // Cancel initial lookup/HTTP completion as well as a retry wait.
             epoch = UUID(); restoreGeneration = UUID()
-            restoringCredential = false; busy = false; connected = false; canManage = false
+            restoringCredential = false; ordinaryBusy = false; connected = false; canManage = false
         }
         stopEvents(); capturedAt = nil; preview = nil; synchronization = "已暂停同步"
     }
@@ -365,6 +429,7 @@ public final class HomeServerStore: ObservableObject {
                         return
                     }
                     self.receivingPush = false; self.eventCursor = nil; self.capturedAt = nil
+                    self.clearUnifiedKeypadState()
                     if !self.connected { self.canManage = false; self.restoringCredential = true; self.error = error.localizedDescription }
                     self.synchronization = self.connected ? "状态推送断开，正在重连" : "服务暂不可用，正在自动连接"
                 }
@@ -377,6 +442,7 @@ public final class HomeServerStore: ObservableObject {
         guard data.count <= 512 * 1024 else { throw HomeServerError.invalidResponse }
         let frame = try JSONDecoder().decode(HomeJSON.self, from: data)
         if frame["type"].text == "unavailable" {
+            clearUnifiedKeypadState()
             receivingPush = false; capturedAt = nil; eventCursor = nil
             synchronization = "服务端状态暂不可用"
             return
@@ -400,6 +466,7 @@ public final class HomeServerStore: ObservableObject {
             guard frame["reset"].flag else { throw HomeServerError.invalidResponse }
         }
         let incoming = try records(frame["devices"]), nextScenes = try records(frame["scenes"])
+        if frame["reset"].flag { clearUnifiedKeypadState() }
         // A publication/restart changes room and permission metadata too.
         if revision != version || snapshotBoot != boot || (eventCursor != nil && eventCursor?["scope"] != cursor["scope"]) {
             try await readSnapshots()
@@ -412,6 +479,8 @@ public final class HomeServerStore: ObservableObject {
             else { next.append(record) }
         }
         devices = next; scenes = nextScenes; eventCursor = cursor
+        synchronizeUnifiedKeypadContext()
+        updateUnifiedKeypadHints(incoming, seedEvents: frame["reset"].flag, clearCues: frame["reset"].flag)
         stateSerial &+= 1; capturedAt = Date(); receivingPush = true
         synchronization = "服务端实时推送"
     }
@@ -428,7 +497,9 @@ public final class HomeServerStore: ObservableObject {
         let capabilities = try await request("/api/v1/session")
         guard case .bool = capabilities["can_manage_configuration"] else { throw HomeServerError.invalidResponse }
         canManage = capabilities["can_manage_configuration"].flag
+        updateUnifiedKeypadCapability(capabilities)
         if !canManage {
+            clearModuleInventory()
             interfaceMode = .daily
             deviceDocument = nil; automationDocument = nil; preview = nil; draftID = nil; drafts = []
             draftChanged = false; baseRevision = ""; candidateRevision = ""
@@ -444,9 +515,12 @@ public final class HomeServerStore: ObservableObject {
         // A later pushed state wins over an older HTTP request that completed late.
         try Task.checkCancellation()
         guard serial == stateSerial else { return }
+        if revision != version || snapshotBoot != d["boot"].text { clearModuleInventory(); clearUnifiedKeypadState() }
         revision = version; devices = nextDevices; rooms = nextRooms; scenes = nextScenes
         serverFloors = r["floors"].values.compactMap(\.text)
         snapshotBoot = d["boot"].text ?? ""
+        synchronizeUnifiedKeypadContext()
+        updateUnifiedKeypadHints(nextDevices, seedEvents: true)
         capturedAt = Date()
     }
     public func canControlDevice(_ id: String) -> Bool {
@@ -454,6 +528,88 @@ public final class HomeServerStore: ObservableObject {
     }
     public func canControlScene(_ id: String) -> Bool {
         controlsAvailable && scenes.contains { $0.id == id && $0.raw["can_control"].flag && $0.targetAvailable }
+    }
+    private func clearModuleInventory() {
+        moduleLoadID = UUID(); loadingModules = false; moduleInventory = []
+        moduleInventoryRevision = ""; moduleInventoryBoot = ""; moduleInventoryReady = false
+        moduleInventoryMessage = ""
+    }
+    public func loadPhysicalModules() async {
+        guard connected, canManage, !loadingModules else { return }
+        let generation = epoch, load = UUID(), version = revision, boot = snapshotBoot
+        guard UInt64(version) != nil, !boot.isEmpty else { return }
+        moduleLoadID = load; loadingModules = true
+        defer { if moduleLoadID == load { loadingModules = false } }
+        do {
+            var all: [HomePhysicalModule] = [], seen = Set<String>(), offset = 0, ready = true
+            for _ in 0..<256 {
+                let page = try await request("/api/v1/modules?offset=\(offset)&limit=64&revision=\(version)", optionalModuleInventory: true)
+                guard epoch == generation, moduleLoadID == load, canManage,
+                      revision == version, snapshotBoot == boot else { throw HomeServerError.expiredRequest }
+                if page == .null {
+                    moduleInventory = []; moduleInventoryReady = false
+                    moduleInventoryMessage = "当前服务未提供可访问的硬件清单。"; return
+                }
+                guard page["revision"].integerText == version, page["boot"].text == boot,
+                      case .bool(let pageReady) = page["ready"],
+                      case .array(let rows) = page["modules"], rows.count <= 64 else { throw HomeServerError.invalidResponse }
+                ready = ready && pageReady
+                for row in rows {
+                    let module = try HomePhysicalModule(row)
+                    guard seen.insert(module.id).inserted else { throw HomeServerError.invalidResponse }
+                    all.append(module)
+                }
+                if page["next_offset"] == .null {
+                    moduleInventory = all; moduleInventoryRevision = version; moduleInventoryBoot = boot
+                    moduleInventoryReady = ready; moduleInventoryMessage = "硬件清单已读取；通道状态为读取时的快照。"
+                    return
+                }
+                guard let next = page["next_offset"].integerText.flatMap(Int.init),
+                      next == offset + rows.count, next > offset, next <= 16320 else { throw HomeServerError.invalidResponse }
+                offset = next
+            }
+            throw HomeServerError.invalidResponse
+        } catch {
+            guard epoch == generation, moduleLoadID == load, !Task.isCancelled else { return }
+            moduleInventory = []; moduleInventoryReady = false
+            moduleInventoryMessage = "无法读取完整硬件清单，请刷新后重试。"
+        }
+    }
+    private var moduleCommandsAvailable: Bool {
+        canManage && controlsAvailable && moduleInventoryReady && moduleInventoryRevision == revision && moduleInventoryBoot == snapshotBoot
+    }
+    public func canQueryPhysicalModule(_ id: String) -> Bool {
+        moduleCommandsAvailable && moduleInventory.contains { $0.id == id && $0.moduleID != nil && $0.supportsQuery }
+    }
+    public func canControlPhysicalModule(_ id: String, channel: Int, command: HomeJSON) -> Bool {
+        guard moduleCommandsAvailable, let module = moduleInventory.first(where: { $0.id == id && $0.moduleID != nil }),
+              module.permits(channel: channel, command: command),
+              let binding = module.slots.first(where: { $0["channel"].integerText == String(channel) })?["binding"]["id"].text else { return false }
+        return canControlDevice(binding)
+    }
+    public func queryPhysicalModule(_ id: String, channel: Int? = nil) async {
+        guard canQueryPhysicalModule(id), let module = moduleInventory.first(where: { $0.id == id }),
+              channel.map({ (1...module.channelCount).contains($0) }) ?? true else { return }
+        let scope: HomeJSON = channel.map { .object(["kind": .string("channel"), "channel": .integer(Int64($0))]) } ?? .object(["kind": .string("whole_module")])
+        await submitModuleRequest("/api/v1/module-queries", module: module, extra: ["scope": scope], message: "查询已受理，等待模块反馈；可再次读取硬件清单核对。")
+    }
+    public func controlPhysicalModule(_ id: String, channel: Int, command: HomeJSON) async {
+        guard canControlPhysicalModule(id, channel: channel, command: command), let module = moduleInventory.first(where: { $0.id == id }) else { return }
+        await submitModuleRequest("/api/v1/module-commands", module: module,
+            extra: ["channel": .integer(Int64(channel)), "command": command], message: "测试指令已受理，等待实际设备反馈。")
+    }
+    private func submitModuleRequest(_ path: String, module: HomePhysicalModule, extra: [String: HomeJSON], message: String) async {
+        await traced(target: module.id) {
+            await self.run {
+                guard self.moduleInventoryRevision == self.revision, self.moduleInventoryBoot == self.snapshotBoot,
+                      let id = module.moduleID else { throw HomeServerError.staleConfiguration }
+                let requestID = UUID().uuidString
+                var body = extra; body["module_id"] = .string(id); body["revision"] = .string(self.revision); body["request_id"] = .string(requestID)
+                let reply = try await self.request(path, method: "POST", body: .object(body))
+                self.message = reply["outcome"].text == "accepted" && reply["request_id"].text == requestID
+                    ? message : "指令结果未知，请核对实际设备；未自动重试。"
+            }
+        }
     }
     public func beginDeviceControl(_ id: String) -> HomeControlOperation {
         let operation = diagnostics.operation(target: id)
@@ -464,6 +620,11 @@ public final class HomeServerStore: ObservableObject {
     public func controlDevice(_ id: String, command: HomeJSON, operation: HomeControlOperation? = nil) async -> HomeDeviceCommandResult {
         var outcome = HomeDeviceCommandResult.notSent
         await traced(operation, target: id) {
+            if command == .object(["action": .string("stop")]) {
+                guard self.canStopMotorDevice(id) else { self.diagnostics.record(.ignored, reason: .deviceUnavailable); return }
+                outcome = await self.sendPriorityMotorStop(id)
+                return
+            }
             guard self.canControlDevice(id) else {
                 self.diagnostics.record(.ignored, reason: !self.connected ? .disconnected : self.busy ? .busy : !self.snapshotIsCurrent ? .snapshotNotCurrent : .deviceUnavailable)
                 return
@@ -471,6 +632,39 @@ public final class HomeServerStore: ObservableObject {
             outcome = await self.sendDeviceCommand(id, command: command, includeRevision: command["action"].text == "motor_press")
         }
         return outcome
+    }
+    public func canStopMotorDevice(_ id: String) -> Bool {
+        snapshotIsCurrent && devices.contains { $0.id == id && $0.raw["kind"] == .string("Motor")
+            && $0.raw["motor_calibrated"] == .bool(true) && $0.raw["can_control"] == .bool(true) && $0.targetAvailable }
+    }
+    private func retireMotorKeyRequests(_ device: String) {
+        for row in devices {
+            guard let panel = try? HomeKeypad(record: row) else { continue }
+            for key in panel.keys where key.actionDevice == device { keypadActivationState.retireLocalRequest(panel.id, key: key.number) }
+        }
+    }
+    private func sendPriorityMotorStop(_ id: String) async -> HomeDeviceCommandResult {
+        let requestID = UUID(), generation = epoch, stopGeneration = UUID()
+        priorityStopGeneration = stopGeneration; priorityMotorStops.insert(requestID)
+        latestPriorityMessage = "停止请求正在提交。"; message = latestPriorityMessage!; error = nil
+        defer { priorityMotorStops.remove(requestID) }
+        do {
+            let result = try await request("/api/v1/device-commands", method: "POST", body: .object([
+                "device": .string(id), "request_id": .string(requestID.uuidString), "command": .object(["action": .string("stop")])]))
+            guard epoch == generation, priorityStopGeneration == stopGeneration else { return .unconfirmed(requestID: requestID.uuidString) }
+            let accepted = result["outcome"] == .string("accepted") && result["request_id"] == .string(requestID.uuidString)
+            if accepted { retireMotorKeyRequests(id) }
+            latestPriorityMessage = accepted ? "停止请求已受理，等待设备反馈。" : "停止结果未知，请核对设备；未自动重试。"
+            message = latestPriorityMessage!
+            if !receivingPush { try await readSnapshots() }
+            return accepted ? .accepted(requestID: requestID.uuidString) : .unconfirmed(requestID: requestID.uuidString)
+        } catch {
+            diagnostics.record(.workFailed, error: error)
+            if epoch == generation, priorityStopGeneration == stopGeneration {
+                self.error = error.localizedDescription; latestPriorityMessage = "停止结果未知，请核对设备；未自动重试。"; message = latestPriorityMessage!
+            }
+            return .unconfirmed(requestID: requestID.uuidString)
+        }
     }
     @discardableResult
     private func sendDeviceCommand(_ id: String, command: HomeJSON, includeRevision: Bool = false) async -> HomeDeviceCommandResult {
@@ -491,6 +685,155 @@ public final class HomeServerStore: ObservableObject {
         }
         return outcome
     }
+    private func updateUnifiedKeypadCapability(_ session: HomeJSON) {
+        let supported = HomeKeypadActionCapability.supported(session["capabilities"]["keypad_actions"])
+        if unifiedKeypadActionsSupported && !supported { clearUnifiedKeypadState() }
+        unifiedKeypadActionsSupported = supported
+    }
+    private func clearUnifiedKeypadState() {
+        pendingKeypadActivations = [:]; keypadActivationContext = nil
+        keypadActivationState.reset(); keypadEventVersions = [:]; keypadEventStates = [:]
+    }
+    private func synchronizeUnifiedKeypadContext() {
+        guard unifiedKeypadActionsSupported, !snapshotBoot.isEmpty, !revision.isEmpty else { return }
+        if keypadActivationContext?.boot != snapshotBoot || keypadActivationContext?.revision != revision {
+            clearUnifiedKeypadState()
+            let context = HomeKeypadActivationState.Context(generation: UUID(), boot: snapshotBoot, revision: revision)
+            keypadActivationContext = context; keypadActivationState.reset(to: context)
+        }
+    }
+    private func keypadEventID(_ panel: String, _ number: Int) -> String { "\(panel.utf8.count):\(panel):\(number)" }
+    private func updateUnifiedKeypadHints(_ records: [HomeRecord], seedEvents: Bool, clearCues: Bool = false) {
+        guard unifiedKeypadActionsSupported, let context = keypadActivationContext else { return }
+        for panel in records where panel.raw["kind"].text == "Keypad" {
+            for raw in panel.raw["keys"].values {
+                guard let number = raw["number"].integerText.flatMap(Int.init), (1...6).contains(number),
+                      let endpoint = raw["endpoint_id"].text, !endpoint.isEmpty else { continue }
+                if raw["indication"] == .null {
+                    keypadActivationState.clearHint(panel.id, key: number, context: context)
+                } else if let cue = try? HomeKeypadActionIndication(raw["indication"], endpoint: endpoint, boot: context.boot) {
+                    keypadActivationState.merge(cue, panel: panel.id, key: number, endpoint: endpoint, context: context)
+                    if clearCues { keypadActivationState.clearHint(panel.id, key: number, context: context) }
+                } else {
+                    keypadActivationState.clearHint(panel.id, key: number, context: context)
+                }
+                let eventID = keypadEventID(panel.id, number), event = raw["key_event"]
+                if seedEvents { keypadEventStates.removeValue(forKey: eventID) }
+                guard event["source"] == .string("button_feedback"), event["quality"] == .string("Confirmed"),
+                      let version = event["version"].text.flatMap(UInt64.init), version > 0,
+                      event["observed_at_ms"].text.flatMap(UInt64.init) != nil,
+                      case .bool(let pressed) = event["pressed"] else { continue }
+                if !seedEvents, version > (keypadEventVersions[eventID] ?? 0) { keypadEventStates[eventID] = pressed }
+                keypadEventVersions[eventID] = max(keypadEventVersions[eventID] ?? 0, version)
+            }
+        }
+    }
+    public func keypadActionPresentation(_ panel: String, key: Int) -> HomeKeypadActionPresentation? {
+        keypadActivationState.presentation(panel, key: key)
+            ?? keypadEventStates[keypadEventID(panel, key)].map { HomeKeypadActionPresentation(phase: $0 ? .pressed : .released) }
+    }
+    public func keypadEventIsPressed(_ panel: String, key: Int) -> Bool {
+        snapshotIsCurrent && keypadEventStates[keypadEventID(panel, key)] == true
+    }
+    public var unifiedKeypadSupportMessage: String? {
+        connected && !unifiedKeypadActionsSupported ? "当前服务未提供兼容的统一按键接口，请更新服务后使用按键动作。" : nil
+    }
+    public func unifiedKeypadGate(_ id: String, key number: Int) -> HomeKeypadGateState {
+        unifiedKeypadGate(id, key: number, owning: nil)
+    }
+    private func unifiedKeypadGate(_ id: String, key number: Int, owning operationID: UUID?) -> HomeKeypadGateState {
+        var state = HomeKeypadGateState()
+        state.connected = connected; state.busy = busy
+        state.current = snapshotIsCurrent; state.receivingPush = receivingPush
+        if !connected { state.reason = .disconnected; return state }
+        if !snapshotIsCurrent { state.reason = .snapshotNotCurrent; return state }
+        guard unifiedKeypadActionsSupported else { state.reason = .unifiedKeypadUnsupported; return state }
+        guard let row = devices.first(where: { $0.id == id }) else { state.reason = .panelMissing; return state }
+        guard let panel = try? HomeKeypad(record: row), let key = panel.keys.first(where: { $0.number == number }),
+              key.endpointID != nil, let raw = row.raw["keys"].values.first(where: { $0["number"] == .integer(Int64(number)) }) else {
+            state.reason = .panelInvalid; return state
+        }
+        state.configured = raw["configured"] == .bool(true)
+        // Motor gestures must reach server-side repeat-to-stop/STOP admission
+        // even while an unrelated request waits for its HTTP receipt.
+        let motorGesture = key.actionDevice != nil && key.motorAction != nil
+        state.busy = busy && operationID.flatMap({ pendingKeypadActivations[$0] }) == nil && !motorGesture
+        state.canControl = HomeKeypadActionCapability.available(raw["activation"], panel: id, key: number, revision: revision)
+        state.targetAvailable = row.targetAvailable && state.canControl
+        if !state.configured || !state.canControl || !state.targetAvailable { state.reason = .deviceUnavailable }
+        else if state.busy { state.reason = .busy }
+        return state
+    }
+    public func canActivateUnifiedKeypad(_ id: String, key number: Int) -> Bool { unifiedKeypadGate(id, key: number).allowed }
+    public func canDisplayKeypadActionCue(_ id: String, key number: Int) -> Bool {
+        let state = unifiedKeypadGate(id, key: number)
+        return state.connected && state.current && state.configured && state.canControl && state.targetAvailable
+    }
+    public func unifiedKeypadGateStates(_ id: String) -> [HomeKeypadGateState] { (1...6).map { unifiedKeypadGate(id, key: $0) } }
+    public func recordUnifiedKeypadGates(_ id: String) {
+        let scope = "unified:" + id, states = unifiedKeypadGateStates(id), previous = loggedKeypadGates["unified:" + id]
+        for (index, state) in states.enumerated() where previous?[index] != state {
+            diagnostics.record(.gateState, operation: diagnostics.operation(target: id, key: index + 1), gate: state)
+        }
+        loggedKeypadGates[scope] = states
+    }
+    /// Reserves the click synchronously, so the pending layer appears before Task scheduling.
+    public func beginUnifiedKeypadClick(_ id: String, key number: Int) -> HomeControlOperation {
+        let operation = diagnostics.operation(target: id, key: number), gate = unifiedKeypadGate(id, key: number)
+        diagnostics.record(.buttonClick, operation: operation, gate: gate)
+        guard gate.allowed, let context = keypadActivationContext,
+              let row = devices.first(where: { $0.id == id }), let panel = try? HomeKeypad(record: row),
+              let endpoint = panel.keys.first(where: { $0.number == number })?.endpointID,
+              let request = try? HomeKeypadActivationRequest(revision: revision, keypad: id, key: number) else { return operation }
+        do { try keypadActivationState.begin(request, endpoint: endpoint, context: context) }
+        catch { return operation }
+        if panel.keys.first(where: { $0.number == number })?.actionDevice != nil {
+            priorityStopGeneration = UUID()
+            latestPriorityMessage = "窗帘按键请求正在提交。"; message = latestPriorityMessage!
+        }
+        pendingKeypadActivations[operation.id] = PendingKeypadActivation(operation: operation, request: request, context: context,
+            controlGeneration: priorityStopGeneration)
+        error = nil
+        return operation
+    }
+    public func activateUnifiedKeypad(_ id: String, key number: Int, operation supplied: HomeControlOperation? = nil) async {
+        let operation = supplied ?? beginUnifiedKeypadClick(id, key: number)
+        await traced(operation, target: id, key: number) {
+            let gate = self.unifiedKeypadGate(id, key: number, owning: operation.id)
+            self.diagnostics.record(.gateCheck, gate: gate)
+            guard let pending = self.pendingKeypadActivations[operation.id],
+                  pending.request.keypad == id, pending.request.key == number else {
+                self.diagnostics.record(.ignored, gate: gate); return
+            }
+            defer {
+                self.pendingKeypadActivations.removeValue(forKey: operation.id)
+            }
+            guard gate.allowed else { self.keypadActivationState.fail(pending.request, context: pending.context, uncertain: false); return }
+            let stopGeneration = pending.controlGeneration
+            do {
+                let result = try await self.request(HomeKeypadActivationRequest.path, method: "POST", body: pending.request.body)
+                guard self.keypadActivationContext == pending.context, stopGeneration == self.priorityStopGeneration else { return }
+                let applied = try self.keypadActivationState.complete(result, request: pending.request, context: pending.context)
+                guard applied, stopGeneration == self.priorityStopGeneration else { return }
+                self.message = result["outcome"] == .string("accepted")
+                    ? "按键请求已受理；本键提示与实际设备反馈分别显示。" : "按键执行结果未知，请核对设备；未自动重试。"
+                if self.latestPriorityMessage != nil { self.latestPriorityMessage = self.message }
+                if !self.receivingPush { try await self.readSnapshots() }
+            } catch {
+                self.diagnostics.record(.workFailed, error: error)
+                guard self.keypadActivationContext == pending.context, stopGeneration == self.priorityStopGeneration else { return }
+                let rejected = (error as? HomeKeypadActionHTTPFailure)?.rejected == true
+                let applied = self.keypadActivationState.fail(pending.request, context: pending.context, uncertain: !rejected)
+                guard applied, stopGeneration == self.priorityStopGeneration else { return }
+                self.error = error.localizedDescription
+                self.message = rejected ? "按键请求未受理；没有改用旧接口。" : "按键执行结果未知，请核对设备；未自动重试。"
+                if self.latestPriorityMessage != nil { self.latestPriorityMessage = self.message }
+                if !rejected { self.capturedAt = nil }
+            }
+        }
+    }
+
+    /// Compatibility API; real six-key UI uses activateUnifiedKeypad exclusively.
     public func keypadGate(_ id: String, key number: Int, card: Bool = false) -> HomeKeypadGateState {
         var state = HomeKeypadGateState()
         state.connected = connected; state.busy = busy
@@ -927,9 +1270,10 @@ public final class HomeServerStore: ObservableObject {
         }
         return records
     }
-    private func request(_ path: String, method: String = "GET", body: HomeJSON? = nil) async throws -> HomeJSON {
+    private func request(_ path: String, method: String = "GET", body: HomeJSON? = nil, optionalModuleInventory: Bool = false) async throws -> HomeJSON {
         guard let endpoint, let token else { throw HomeServerError.notAuthenticated }
         let generation = epoch
+        let stopGeneration = priorityStopGeneration
         let outgoing = try endpoint.request(path: path, method: method, token: token, body: body)
         let trace = HomeControlContext.operation ?? diagnostics.operation(target: "http")
         let requestID = body?["request_id"].text
@@ -938,13 +1282,14 @@ public final class HomeServerStore: ObservableObject {
         do { response = try await transport.send(outgoing) }
         catch {
             diagnostics.record(.requestFailed, operation: trace, method: method, path: path, requestID: requestID, error: error)
-            if method != "GET", generation == epoch {
+            if method != "GET", generation == epoch, stopGeneration == priorityStopGeneration {
                 message = "请求结果未知，服务端可能已执行；请刷新核对，不自动重试。"
             }
             throw error
         }
         diagnostics.record(.response, operation: trace, method: method, path: path, requestID: requestID, status: response.status, responseData: response.data)
         guard generation == epoch, !Task.isCancelled else { throw HomeServerError.expiredRequest }
+        if optionalModuleInventory, [403, 404].contains(response.status) { return .null }
         if response.status == 401 {
             let origin = endpoint.origin
             disconnect(); error = HomeServerError.notAuthenticated.localizedDescription
@@ -969,23 +1314,42 @@ public final class HomeServerStore: ObservableObject {
             }
             throw HomeServerError.notAuthenticated
         }
+        if method == "POST", stopGeneration != priorityStopGeneration,
+           ["/api/v1/device-commands", "/api/v1/scene-actions", "/api/v1/scene-relative-actions", "/api/v1/keypad-actions",
+            "/api/v1/module-commands", "/api/v1/module-queries", "/api/v1/away-off", "/api/v1/keypad-settings"].contains(path) {
+            throw HomeServerError.expiredRequest
+        }
         if method == "GET", [408, 500, 502, 503, 504].contains(response.status) {
             let body = try? JSONDecoder().decode(HomeJSON.self, from: response.data)
             throw HomeRetryableResponse(detail: body?["error"].text ?? "HTTP \(response.status)")
         }
         let value = try JSONDecoder().decode(HomeJSON.self, from: response.data)
+        if path == HomeKeypadActivationRequest.path, !(200...299).contains(response.status) {
+            let matches = value["request_id"] == body?["request_id"] && value["retry"] == .bool(false)
+            if response.status == 503, matches, value["outcome"] == .string("unknown") { return value }
+            throw HomeKeypadActionHTTPFailure(status: response.status,
+                rejected: matches && value["outcome"] == .string("rejected"), code: value["error"].text ?? "HTTP \(response.status)")
+        }
         guard (200...299).contains(response.status) else { throw HomeServerError.server(value["error"].text ?? "HTTP \(response.status)") }
         return value
     }
     private func run(_ work: () async throws -> Void) async {
         guard !busy, connected else { diagnostics.record(.ignored, reason: !connected ? .disconnected : .busy); return }
         let generation = epoch
-        busy = true; error = nil
-        defer { if generation == epoch { busy = false } }
-        do { try await work() }
+        let stopGeneration = priorityStopGeneration
+        ordinaryBusy = true; error = nil
+        defer { if generation == epoch { ordinaryBusy = false } }
+        do {
+            try await work()
+            if generation == epoch, stopGeneration != priorityStopGeneration, let latestPriorityMessage { message = latestPriorityMessage }
+        }
         catch {
             diagnostics.record(.workFailed, error: error)
             guard generation == epoch else { return }
+            if stopGeneration != priorityStopGeneration {
+                if let latestPriorityMessage { message = latestPriorityMessage }
+                return
+            }
             self.error = error.localizedDescription
             if case HomeServerError.staleConfiguration = error { preview = nil }
             capturedAt = nil
