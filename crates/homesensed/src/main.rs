@@ -523,7 +523,7 @@ fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
             )?;
             let linked = document.linked_rules_with_deferred()?;
             println!(
-                "Automation structure and enabled command encoding valid: revision={}, rules={}, enabled={}, variables={}, immediate_scenes={}, schedules={}, gesture_keys={}, context={:?}; no state created or connection opened",
+                "Automation structure and enabled command encoding valid: revision={}, rules={}, enabled={}, variables={}, immediate_scenes={}, schedules={}, gesture_keys={}, native_keypads={}, native_keys={}, context={:?}; no state created or connection opened",
                 document.revision,
                 document.rules.len(),
                 linked.len(),
@@ -531,6 +531,8 @@ fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
                 document.immediate_scenes.len(),
                 document.schedules.len(),
                 document.gestures.len(),
+                config.keypads().values().filter(|panel|panel.executes_events()).count(),
+                config.keypads().values().filter(|panel|panel.executes_events()).map(|panel|panel.keys.len()).sum::<usize>(),
                 context
             );
         }
@@ -600,6 +602,9 @@ fn main() -> ExitCode {
     logger.parse_filters("warn,hap::transport::http=info,homesensed::reconnect=info,homesensed::runtime_hap=info,homesensed::live_service=info");
     if std::env::var("HOMESENSE_LIGHT_DIAGNOSTICS").as_deref() == Ok("1") {
         logger.filter_module("homesense_hap", log::LevelFilter::Debug);
+        logger.filter_module("homesensed::control_batch", log::LevelFilter::Debug);
+        logger.filter_module("homesensed::admission", log::LevelFilter::Debug);
+        logger.filter_module("homesensed::automation_drive::indicator_waves", log::LevelFilter::Debug);
     }
     logger.init();
     match run(&std::env::args().skip(1).collect::<Vec<_>>()) {

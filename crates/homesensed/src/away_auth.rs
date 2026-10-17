@@ -56,11 +56,14 @@ pub(crate) enum KeypadCommand {KeypadPress{keypad:String,key:u8}}
 pub struct KeypadWebLease {source:ModuleOffLease,parent:homesense_core::DeviceId,key:u8}
 impl std::fmt::Debug for KeypadWebLease {fn fmt(&self,f:&mut std::fmt::Formatter<'_>)->std::fmt::Result {f.write_str("KeypadAwayLease(<opaque>)")}}
 #[derive(Clone,Debug)]
+pub struct KeypadPanelLease {source:crate::panel_execution_auth::Lease,parent:homesense_core::DeviceId,key:u8}
+#[derive(Clone,Debug)]
 pub(crate) struct KeypadBinding {pub endpoint:homesense_core::DeviceId,pub reset_green:bool}
 #[derive(Clone, Debug)]
 pub enum Authorization {
     Web(ModuleOffLease),
     KeypadWeb(KeypadWebLease),
+    KeypadPanel(KeypadPanelLease),
     Hap(HapLease),
 }
 impl From<ModuleOffLease> for Authorization {
@@ -72,6 +75,7 @@ impl Authorization {
     pub(crate) fn same_authority(&self,other:&Self)->bool{match(self,other){
         (Self::Web(a),Self::Web(b))=>a.same_authority(b),
         (Self::KeypadWeb(a),Self::KeypadWeb(b))=>a.parent==b.parent&&a.key==b.key&&a.source.same_authority(&b.source),
+        (Self::KeypadPanel(a),Self::KeypadPanel(b))=>a.parent==b.parent&&a.key==b.key&&a.source.same_authority(&b.source),
         (Self::Hap(a),Self::Hap(b))=>a.identity.same_owner(&b.identity)&&a.controller==b.controller&&a.public_key==b.public_key&&a.devices==b.devices&&Arc::ptr_eq(&a.active,&b.active),
         _=>false,
     }}
@@ -81,13 +85,22 @@ impl Authorization {
         if !(1..=6).contains(key) || !source.valid() {return None;}
         Some(Self::KeypadWeb(KeypadWebLease{source,parent:homesense_core::DeviceId::new(keypad).ok()?,key:*key}))
     }
+    pub(crate) fn configured_keypad(source:crate::panel_execution_auth::Lease,keypad:String,key:u8)->Option<Self>{
+        if !(1..=6).contains(&key)||!source.valid(){return None;}
+        Some(Self::KeypadPanel(KeypadPanelLease{source,parent:homesense_core::DeviceId::new(keypad).ok()?,key}))
+    }
+    pub(crate) fn needs_configured_source(&self)->bool{matches!(self,Self::KeypadPanel(_))}
     pub(crate) fn key_binding(&self,config:&homesense_config::Configuration)->Result<Option<KeypadBinding>,String> {
-        let Self::KeypadWeb(lease)=self else {return Ok(None);};
-        if !lease.source.valid() {return Err("Away key source expired".into());}
-        let key=config.keypads().get(&lease.parent).filter(|p|p.enabled).and_then(|p|p.keys.get(&lease.key)).filter(|k|k.led_endpoint.enabled).ok_or("Away key unavailable")?;
+        let (parent,number,devices)=match self {
+            Self::KeypadWeb(lease) if lease.source.valid()=>(&lease.parent,lease.key,lease.source.devices()),
+            Self::KeypadPanel(lease) if lease.source.valid()=>(&lease.parent,lease.key,lease.source.devices()),
+            Self::KeypadWeb(_)|Self::KeypadPanel(_)=>return Err("Away key source expired".into()),
+            _=>return Ok(None),
+        };
+        let key=config.keypads().get(parent).filter(|p|p.enabled).and_then(|p|p.keys.get(&number)).filter(|k|k.led_endpoint.enabled).ok_or("Away key unavailable")?;
         let Some(homesense_config::keypad::KeyAction::AwayOff{indicator_reset,..})=&key.action else {return Err("Away key mapping changed".into());};
         let endpoint=homesense_core::DeviceId::new(&key.led_endpoint.id).map_err(|e|e.to_string())?;
-        if !lease.source.devices().contains(endpoint.as_str()) || config.binding(&endpoint).is_none() {return Err("Away key not authorized".into());}
+        if !devices.contains(endpoint.as_str()) || config.binding(&endpoint).is_none() {return Err("Away key not authorized".into());}
         Ok(Some(KeypadBinding{endpoint,reset_green:indicator_reset.is_some()}))
     }
     pub(crate) fn indicator_lease(&self,config:&homesense_config::Configuration)->Result<Option<(homesense_core::DeviceId,crate::panel_auth::Lease)>,String> {
@@ -97,12 +110,13 @@ impl Authorization {
         Ok(Some((key.endpoint,lease)))
     }
     pub(crate) fn with_valid<T>(&self,operation:impl FnOnce()->T)->Option<T> {
-        match self {Self::Web(source)=>source.with_valid(operation),Self::KeypadWeb(source)=>source.source.with_valid(operation),Self::Hap(source)=>source.valid().then(operation)}
+        match self {Self::Web(source)=>source.with_valid(operation),Self::KeypadWeb(source)=>source.source.with_valid(operation),Self::KeypadPanel(source)=>source.source.with_valid(operation),Self::Hap(source)=>source.valid().then(operation)}
     }
     pub fn controller(&self) -> Uuid {
         match self {
             Self::Web(lease) => lease.controller(),
             Self::KeypadWeb(lease)=>lease.source.controller(),
+            Self::KeypadPanel(lease)=>lease.source.controller(),
             Self::Hap(lease) => lease.controller,
         }
     }
@@ -110,6 +124,7 @@ impl Authorization {
         match self {
             Self::Web(lease) => lease.devices(),
             Self::KeypadWeb(lease)=>lease.source.devices(),
+            Self::KeypadPanel(lease)=>lease.source.devices(),
             Self::Hap(lease) => &lease.devices,
         }
     }
@@ -117,12 +132,14 @@ impl Authorization {
         match self {
             Self::Web(lease) => lease.valid(),
             Self::KeypadWeb(lease)=>lease.source.valid(),
+            Self::KeypadPanel(lease)=>lease.source.valid(),
             Self::Hap(lease) => lease.valid(),
         }
     }
     pub(crate) fn origin(&self) -> Origin {
         match self {
             Self::Web(_) | Self::KeypadWeb(_) => Origin::Http,
+            Self::KeypadPanel(_)=>Origin::Rule,
             Self::Hap(_) => Origin::Hap,
         }
     }

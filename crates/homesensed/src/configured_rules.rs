@@ -193,6 +193,16 @@ impl ConfiguredRules {
                 });
             }
         }
+        let bundle=admission.automation_bundle(controller,generation.clone()).await.map_err(|e|format!("native owner configuration: {e:?}"))?;
+        let owner_document=bundle.automation.as_ref().unwrap_or(document);
+        let native_owner=crate::panel_execution_auth::Owner::new(&bundle.configuration,owner_document,controller,generation.clone())?;
+        let mut native_bindings=BTreeMap::new();
+        if native_owner.is_some(){for panel in bundle.configuration.keypads().values().filter(|panel|panel.executes_events()){for key in panel.keys.values(){
+            let device=DeviceId::new(&key.led_endpoint.id).map_err(|e|e.to_string())?;
+            keys.entry(device.clone()).or_insert_with(||Key{device:device.clone(),settings:gestures.get(&device).copied().unwrap_or_default(),bindings:vec![]});
+            let priority=match key.action {Some(homesense_config::keypad::KeyAction::Motor{action:homesense_config::keypad::KeyMotorAction::Stop,..})=>0,Some(homesense_config::keypad::KeyAction::Motor{..})=>1,_=>2};
+            native_bindings.insert(device,crate::panel_rules::NativeBinding{keypad:panel.id.as_str().into(),key:key.number,priority});
+        }}}
         let events = EventRules::from_document(
             admission.clone(),
             controller,
@@ -231,6 +241,12 @@ impl ConfiguredRules {
             admission.monotonic_ms(),
         )
         .await?;
+        if let Some(owner)=native_owner {
+            let registration=owner.registration();
+            panels.configure_native(owner,native_bindings)?;
+            admission.register_native_owner(controller,generation.clone(),registration).await.map_err(|e|format!("native owner registration: {e:?}"))?;
+            log::info!("configured_keypad_event_owner registered=true endpoints={} legacy_writer_isolation_evidence=operator_declaration",bundle.configuration.keypads().values().filter(|panel|panel.executes_events()).map(|panel|panel.keys.len()).sum::<usize>());
+        }
         if let Some(holds) = &document.holds
             && !hold_bindings.is_empty()
         {

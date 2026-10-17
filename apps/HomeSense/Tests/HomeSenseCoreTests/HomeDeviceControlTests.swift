@@ -21,7 +21,7 @@ private actor DeviceCommandHTTP: HomeHTTPTransport {
     func send(_ request: URLRequest) async throws -> HomeHTTPResponse {
         if request.url?.path == "/api/v1/device-commands", request.httpMethod == "POST" {
             posts.append(request)
-            if hold { await withCheckedContinuation { held = $0 } }
+            if hold { hold = false; await withCheckedContinuation { held = $0 } }
             if mode == "timeout" { throw URLError(.timedOut) }
             if mode == "denied" { return HomeHTTPResponse(data: try HomeJSON.object(["error": .string("source_scope_changed")]).data(), status: 403) }
             let body = try JSONDecoder().decode(HomeJSON.self, from: request.httpBody!)
@@ -98,7 +98,7 @@ private actor DeviceCommandHTTP: HomeHTTPTransport {
         let first = Task { await home.controlDevice("light", command: .object(["action": .string("power"), "on": .bool(false)])) }
         for _ in 0..<1000 { if await http.writes().count == 1 { break }; await Task.yield() }
         try #require(home.busy)
-        let blocked = await home.controlDevice("curtain", command: .object(["action": .string("stop")]))
+        let blocked = await home.controlDevice("curtain", command: .object(["action": .string("open")]))
         let busyWrites = await http.writes()
         #expect(blocked == .notSent && busyWrites.count == 1)
         await http.release(); let accepted = await first.value
@@ -151,7 +151,7 @@ private actor DeviceCommandHTTP: HomeHTTPTransport {
         #expect(await http.writes().count == 1)
         #expect(home.devices.first { $0.id == "curtain" }?.raw == initial)
     }
-    @Test func motorPressKeepsBusyAndOfflineGatesWithoutQueuedReplay() async throws {
+    @Test func motorPressKeepsOrdinaryBusyGateButExplicitStopBypassesWithoutReplay() async throws {
         let (home, http, _) = try await connected(); defer { home.disconnect() }
         await http.holdNext()
         let first = Task { await home.controlDevice("curtain", command: HomeMotorControlAction.open.command) }
@@ -159,18 +159,18 @@ private actor DeviceCommandHTTP: HomeHTTPTransport {
         try #require(home.busy)
         let repeated = await home.controlDevice("curtain", command: HomeMotorControlAction.open.command)
         let stop = await home.controlDevice("curtain", command: HomeMotorControlAction.stop.command)
-        #expect(repeated == .notSent && stop == .notSent)
-        #expect(await http.writes().count == 1)
+        #expect(repeated == .notSent && stop.accepted)
+        #expect(await http.writes().count == 2)
         await http.release(); let accepted = await first.value
-        #expect(accepted.accepted && !home.busy)
-        #expect(await http.writes().count == 1)
+        #expect(!accepted.accepted && accepted != .notSent && !home.busy, "The older movement receipt cannot replace the newer STOP")
+        #expect(await http.writes().count == 2)
         let closing = await home.controlDevice("curtain", command: HomeMotorControlAction.close.command)
         let afterClosing = await http.writes()
-        #expect(closing.accepted && afterClosing.count == 2)
+        #expect(closing.accepted && afterClosing.count == 3)
         home.disconnect()
         let offline = await home.controlDevice("curtain", command: HomeMotorControlAction.close.command)
         let afterOffline = await http.writes()
-        #expect(offline == .notSent && afterOffline.count == 2)
+        #expect(offline == .notSent && afterOffline.count == 3)
     }
 
     @Test func legacyAbsoluteMotorCommandsKeepRevisionFreeEnvelope() async throws {
