@@ -33,6 +33,21 @@ swift test --scratch-path "$HOMESENSE_BUILD_ROOT"
 
 每个会话固定一个绝对构建根目录，后续原地复用。`tools/build.sh` 将 Xcode 输出放在该根目录的平台子目录；Swift 测试和实际联调脚本分别显式传入 `--scratch-path "$HOMESENSE_BUILD_ROOT"`、`--scratch "$HOMESENSE_BUILD_ROOT"`，避免另建默认 `.build` 或按版本、轮次复制构建缓存。源码快照、日志和必要安装包可另存。
 
+真机安装包使用 `tools/package-ios.py`，先签全部内嵌 Mach-O（包括根目录的 `HomeSense.debug.dylib` 和 `__preview.dylib`），再签 App，随后逐个验证签名、团队、描述文件和权限。仅执行 App 层的 `codesign --verify --deep --strict` 不能证明这两份动态库已签名。独立 App 可按下面方式打包；带扩展的 App 需要另外配置各自描述文件。
+
+```sh
+python3 tools/package-ios.py \
+  --app "$HOMESENSE_BUILD_ROOT/ios/Build/Products/Debug-iphoneos/HomeSense.app" \
+  --output "$HOMESENSE_BUILD_ROOT/artifacts/HomeSense.app" \
+  --build-number '<构建号>' --identity '<开发签名标识>' \
+  --profile '<原描述文件路径>' --entitlements '<原权限文件路径>' \
+  --expected-bundle com.ngboss.homesense --expected-team '<原团队ID>' \
+  --report '<私有安装包校验报告路径>'
+```
+
+安装后还应启动原测试机上的 App，核对进程和连接结果。打包工具支持 `--verify-only`，可对现有包逐一检查所有 Mach-O；它不执行安装，也不读取手机数据或钥匙串。
+
+
 实际 Rust HTTPS/WSS 联调需使用独立、固定且不会被并行构建覆盖的后端二进制。将下面的占位路径替换为该文件的绝对路径，再运行：
 
 ```sh
