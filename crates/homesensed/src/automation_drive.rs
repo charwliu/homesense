@@ -435,12 +435,6 @@ pub(crate) async fn drive_with_panel_feeds<S: Read + Write + Send + 'static>(
                 disconnected = Some(gateways[next].clone());
                 return Ok(());
             }
-            if let Err((gateway,error))=guard.owner.refresh_outputs_if_due().await {
-                log::warn!("periodic output query failed gateway={gateway}: {error}");
-                transport_failure=true;
-                disconnected=Some(gateway);
-                return Ok(());
-            }
             }else if guard.owner.independent(){
                 guard.owner.start_local_reads()?;
             }
@@ -458,6 +452,17 @@ pub(crate) async fn drive_with_panel_feeds<S: Read + Write + Send + 'static>(
                         guard.owner.pause_refresh_for_background_leds(true);
                     }
                 }
+            }
+            // Reconcile the completed feedback before starting the next read.
+            // Continuously overdue consumers must not keep a query pending at
+            // every LED preparation opportunity. An admitted bounded wave
+            // pauses refresh; its completion yields a query quantum again.
+            if !guard.owner.independent() && !defer_idle_receive
+                && let Err((gateway,error))=guard.owner.refresh_outputs_if_due().await {
+                log::warn!("periodic output query failed gateway={gateway}: {error}");
+                transport_failure=true;
+                disconnected=Some(gateway);
+                return Ok(());
             }
             if let Some(projection)=&projection {projection.send_replace(guard.owner.snapshot());}
             if !panel_feeds.0.is_empty() {

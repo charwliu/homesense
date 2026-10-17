@@ -563,3 +563,30 @@ async fn explicit_consumer_refreshes_only_its_port_without_shortening_default_id
     {let wire=h.w.lock().unwrap();let queries=&wire.writes[baseline..];assert!(queries.len()>=3,"strict port must refresh independently");assert!(queries.iter().all(|q|*q==[0xae,1,0xa1,0xf2,0xee]),"unrelated seven ports must keep long idle: {queries:?}");}
     assert_eq!(owner.snapshot().devices[&DeviceId::new("lamp001").unwrap()].observed_at_ms,old,"unrequested read cannot renew another port");drop(owner);h.close().await;
 }
+
+
+#[tokio::test]
+async fn postwrite_read_is_not_starved_by_continuously_due_consumer_queries() {
+    let (h, mut owner, _) = delayed_fixture(96, 7, 20).await;
+    owner.configure_output_refresh(&h.c,h.controller,h.a.task_generation().await.unwrap(),
+        ExecutionContext::Simulation,500,h.c.refresh_policy().observation_max_age_ms()).unwrap();
+    let requirements=(56..64).map(|n|(DeviceId::new(format!("lamp{n:03}")).unwrap(),1)).collect();
+    owner.configure_consumer_refresh(&requirements).unwrap();
+    h.a.submit(homesense_hap::requests::Batch {controller:h.controller,
+        intents:vec![homesense_hap::requests::Intent {device:DeviceId::new("lamp003").unwrap(),command:homesense_core::Command::Switch(true)}],subscriptions:vec![]}).await.unwrap();
+    assert!(owner.step().await.unwrap().unwrap().result.is_ok());
+    let baseline=h.w.lock().unwrap().writes.len();
+    let started=Instant::now();
+    while started.elapsed()<Duration::from_millis(400) {
+        owner.receive_pending_output().await.unwrap();
+        owner.step_after_refresh_read().await.unwrap();
+        owner.refresh_outputs_if_due().await.unwrap();
+        tokio::time::sleep(Duration::from_millis(2)).await;
+    }
+    let writes=h.w.lock().unwrap().writes[baseline..].to_vec();
+    let queries=writes.iter().filter(|f|f[2]>=0xa0).collect::<Vec<_>>();
+    assert!(queries.iter().take(2).any(|f|f[1]==1 && f[2]==0xa4),
+        "post-write supply read must run within two query slots despite overdue consumers: {queries:?}");
+    assert!(queries.iter().any(|f|f[1]==8 && f[2]==0xa0),"consumer refresh must also progress");
+    drop(owner);h.close().await;
+}
