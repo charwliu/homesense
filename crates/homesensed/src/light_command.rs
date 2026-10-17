@@ -22,11 +22,21 @@ pub(crate) fn plan(module: &ModuleSpec, target: Command) -> Result<Command, &'st
     }
 }
 
-/// Configured automation may explicitly request a native hardware ramp. Keep
-/// that instruction intact; the admission worker still performs the normal
+/// Configured automation may explicitly request a native hardware ramp. AD8
+/// endpoints always use direct off/full-on; keep intermediate ramps intact.
+/// The admission worker still performs the normal
 /// verified-profile/channel/context encoding check before any durable queueing.
 /// Manual HAP targets continue through `plan` and cannot select this transition.
 pub(crate) fn plan_automation(module:&ModuleSpec,target:Command)->Result<Command,&'static str> {
+    if module.profile() == ProtocolProfile::Ad8Din
+        && let Command::SetLevel { level, .. } = target
+        && matches!(level.get(), 0 | 100)
+    {
+        return Ok(Command::SetLevel {
+            level,
+            transition: LevelTransition::Immediate,
+        });
+    }
     if module.kind()==homesense_core::ModuleKind::Dimmer
         && matches!(target,Command::SetLevel{transition:LevelTransition::Ramp,..}) {
         Ok(target)
