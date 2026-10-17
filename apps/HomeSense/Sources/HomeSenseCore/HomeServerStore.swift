@@ -96,6 +96,31 @@ public final class HomeServerStore: ObservableObject {
     /// A server-owned presentation hint, never a permission or polling filter.
     /// Keep the complete authorized store for scene feedback and admission.
     public var dailyDevices: [HomeRecord] { devices.filter { $0.raw["catalog_visible"] != .bool(false) } }
+    /// Only explicit, currently visible room associations affect navigation.
+    /// Missing/unknown rooms stay reachable in the household overview.
+    public var householdScenes: [HomeRecord] {
+        let ids = Set(rooms.map(\.id))
+        return scenes.filter { scene in scene.roomID.map { !ids.contains($0) } ?? true }
+    }
+    public func scenes(inRoom id: String) -> [HomeRecord] {
+        guard rooms.contains(where: { $0.id == id }) else { return [] }
+        return scenes.filter { $0.roomID == id }
+    }
+    /// Deduplicate only against valid six-key cards rendered on the same page.
+    /// This is presentation only: never trim the authorized catalog or infer
+    /// bindings from nested scene programs. Ignore transient busy/offline state.
+    public func independentScenes(_ candidates: [HomeRecord], alongside visibleDevices: [HomeRecord]) -> [HomeRecord] {
+        let visibleIDs = Set(visibleDevices.map(\.id))
+        var represented = Set<String>()
+        for device in dailyDevices where visibleIDs.contains(device.id) {
+            guard let panel = try? HomeKeypad(record: device) else { continue }
+            for key in panel.keys where key.canActivateCard && key.cardAction == .absolute {
+                guard let id = key.actionScene else { continue }
+                represented.insert(id)
+            }
+        }
+        return candidates.filter { !represented.contains($0.id) }
+    }
     public var snapshotIsCurrent: Bool {
         connected && (eventsWanted ? receivingPush : capturedAt.map { Date().timeIntervalSince($0) < 10 } == true)
     }
@@ -173,8 +198,9 @@ public final class HomeServerStore: ObservableObject {
         return ["immediate_scenes", "timed_scenes"].flatMap { key in
             automationDocument[key].values.map { scene in
                 var row = scene; row["collection"] = .string(key)
-                let name = automationDocument["scene_metadata"].values.first { $0["id"] == scene["id"] }?["name"]
-                row["name"] = name ?? scene["id"]
+                let metadata = automationDocument["scene_metadata"].values.first { $0["id"] == scene["id"] }
+                row["name"] = metadata?["name"] ?? scene["id"]
+                row["room"] = metadata?["room"] ?? .null
                 return HomeRecord(row)
             }
         }
@@ -765,6 +791,7 @@ public final class HomeServerStore: ObservableObject {
     public func removeRoom(_ id: String) throws {
         try requireEditable(); var document = try requireDevices()
         guard !document["devices"].values.contains(where: { $0["room"].text == id }) else { throw HomeServerError.server("room_in_use：请先调整设备归属") }
+        guard !editableScenes.contains(where: { $0.roomID == id }) else { throw HomeServerError.server("room_in_use：请先调整场景归属") }
         document["rooms"] = .array(document["rooms"].values.filter { $0["id"].text != id })
         deviceDocument = document; edited()
     }
@@ -845,18 +872,32 @@ public final class HomeServerStore: ObservableObject {
         document["keypads"] = .array(document["keypads"].values.filter { $0["id"].text != id })
         deviceDocument = document; edited()
     }
-    public func upsertScene(_ row: HomeJSON, collection: String, name: String, originalID: String? = nil) throws {
+    public func upsertScene(_ row: HomeJSON, collection: String, name: String, originalID: String? = nil, room: String? = nil) throws {
         try requireEditable(); try validateLabel(name)
         guard ["immediate_scenes", "timed_scenes"].contains(collection), row.isObject,
               let id = row["id"].text, var document = automationDocument else { throw HomeServerError.invalidDocument }
         try validateLabel(id)
         guard originalID == nil || originalID == id else { throw HomeServerError.invalidDocument }
         if originalID == nil, editableScenes.contains(where: { $0.id == id }) { throw HomeServerError.invalidDocument }
+        if let room, !room.isEmpty {
+            try validateLabel(room)
+            guard editableRooms.contains(where: { $0.id == room }) else { throw HomeServerError.invalidDocument }
+        }
         var rows = document[collection].values
-        if let index = rows.firstIndex(where: { $0["id"].text == id }) { rows[index] = row } else { rows.append(row) }
+        // Presentation fields belong only to scene_metadata, never to programs.
+        let definition = row.removing(["name", "collection", "room"])
+        if let index = rows.firstIndex(where: { $0["id"].text == id }) { rows[index] = definition } else { rows.append(definition) }
         document[collection] = .array(rows)
+        var entry = document["scene_metadata"].values.first { $0["id"].text == id } ?? .object([:])
+        entry["id"] = .string(id); entry["name"] = .string(name)
+        // Omission preserves an existing association for older callers;
+        // the editor passes an empty string to explicitly clear it.
+        if let room {
+            if room.isEmpty { entry = entry.removing(["room"]) }
+            else { entry["room"] = .string(room) }
+        }
         var metadata = document["scene_metadata"].values.filter { $0["id"].text != id }
-        metadata.append(.object(["id": .string(id), "name": .string(name)]))
+        metadata.append(entry)
         document["scene_metadata"] = .array(metadata); automationDocument = document; edited()
     }
     public func removeScene(_ id: String, collection: String) throws {

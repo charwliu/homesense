@@ -37,7 +37,7 @@ struct HomeManagementEditor: View {
         _review = State(initialValue: raw["review_evidence"].text ?? "")
         let scene: HomeJSON = request.record == nil
             ? .object(["id": .string(newID), "enabled": .bool(false), "review_evidence": .string(""), "activate": .array([])])
-            : raw.removing(["name", "collection"])
+            : raw.removing(["name", "collection", "room"])
         _definition = State(initialValue: scene.formatted)
     }
     private var collection: String { request.record?.raw["collection"].text ?? "immediate_scenes" }
@@ -123,6 +123,17 @@ struct HomeManagementEditor: View {
     }
     private var sceneFields: some View {
         Group {
+            Section("所属房间") {
+                Picker("房间", selection: $room) {
+                    Text("全屋／未分配").tag("")
+                    if !room.isEmpty && !home.editableRooms.contains(where: { $0.id == room }) {
+                        Text("原房间不可用（\(room)）").tag(room)
+                    }
+                    ForEach(home.editableRooms) { Text($0.name).tag($0.id) }
+                }
+                Text("全屋或暂未确认归属的场景留空，在家庭概览查看。")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
             Section("场景设置") {
                 Toggle("启用场景", isOn: $enabled)
                 TextField("审核依据", text: $review, axis: .vertical)
@@ -216,7 +227,7 @@ struct HomeManagementEditor: View {
                 if !review.isEmpty { scene["review_evidence"] = .string(review) }
                 else if collection == "immediate_scenes" { throw HomeServerError.server("请填写场景审核依据") }
                 else { scene = scene.removing(["review_evidence"]) }
-                try home.upsertScene(scene, collection: collection, name: name, originalID: request.record?.id)
+                try home.upsertScene(scene, collection: collection, name: name, originalID: request.record?.id, room: room)
             default: throw HomeServerError.invalidDocument
             }
             dismiss()

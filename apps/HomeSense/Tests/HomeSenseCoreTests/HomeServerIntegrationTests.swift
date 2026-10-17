@@ -142,6 +142,10 @@ struct HomeServerIntegrationTests {
         #expect(home.devices.first?.id == "simulation:light")
         try home.addFloor("空楼层")
         try home.upsertRoom(id: "native-study", name: "原生客户端测试房间", floor: "测试楼层")
+        let existingScene = try #require(home.editableScenes.first { $0.id == "simulation-evening" })
+        let originalProgram = existingScene.raw.removing(["name", "collection", "room"])
+        #expect(home.householdScenes.contains { $0.id == existingScene.id })
+        try home.upsertScene(existingScene.raw, collection: "immediate_scenes", name: "房间内原有场景", originalID: existingScene.id, room: "native-study")
         var device = try #require(home.editableDevices.first).raw
         device["room"] = .string("native-study")
         try home.upsertDevice(device, originalID: "simulation:light")
@@ -152,7 +156,7 @@ struct HomeServerIntegrationTests {
                 "command": .object(["kind": .string("level"), "value": .integer(25), "ramp": .bool(true)])
             ])])])
         ])
-        try home.upsertScene(scene, collection: "immediate_scenes", name: "原生测试场景")
+        try home.upsertScene(scene, collection: "immediate_scenes", name: "原生测试场景", room: "native-study")
         await home.saveDraft()
         #expect(home.error == nil, "\(home.error ?? "")")
         #expect(home.draftID != nil)
@@ -165,6 +169,12 @@ struct HomeServerIntegrationTests {
         #expect(home.editableRooms.first?.name == "原生客户端测试房间")
         #expect(home.editableDevices.first?.raw["room"].text == "native-study")
         #expect(home.editableScenes.contains { $0.id == "native-scene" && $0.name == "原生测试场景" })
+        #expect(home.editableScenes.first { $0.id == existingScene.id }?.raw.removing(["name", "collection", "room"]) == originalProgram)
+        #expect(home.editableScenes.first { $0.id == "native-scene" }?.roomID == "native-study")
+        #expect(home.scenes(inRoom: "native-study").contains { $0.id == existingScene.id })
+        #expect(!home.householdScenes.contains { $0.id == existingScene.id })
+        let roomDTO = try #require(home.scenes.first { $0.id == existingScene.id }).raw["room"]
+        #expect(roomDTO["id"].text == "native-study" && roomDTO["name"].text == "原生客户端测试房间" && roomDTO["floor"].text == "测试楼层")
         #expect(home.serverFloors.contains("空楼层"))
         home.resume()
         for _ in 0..<60 {
@@ -172,6 +182,7 @@ struct HomeServerIntegrationTests {
             try await Task.sleep(for: .milliseconds(100))
         }
         #expect(home.receivingPush, "Real URLSession WebSocket handshake and full snapshot")
+        #expect(home.scenes.first { $0.id == existingScene.id }?.raw["room"] == roomDTO)
         let endpoint = try HomeServerEndpoint(origin)
         for level: Int64 in [40, 17] {
             // A second client writes; the App must receive feedback without HTTP refresh.
@@ -187,6 +198,7 @@ struct HomeServerIntegrationTests {
             }
             #expect(home.devices.first?.raw["observed"]["level"] == .integer(level))
             #expect(home.receivingPush && home.controlsAvailable && !home.busy)
+            #expect(home.scenes(inRoom: "native-study").contains { $0.id == existingScene.id })
         }
         try await Task.sleep(for: .seconds(11))
         #expect(home.receivingPush && home.controlsAvailable, "Pong liveness does not age out an idle healthy stream")

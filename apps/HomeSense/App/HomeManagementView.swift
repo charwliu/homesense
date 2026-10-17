@@ -173,8 +173,11 @@ struct HomeManagementView: View {
             if home.rooms.isEmpty { empty("暂无可见房间", "房间和设备清单由服务端授权决定。") }
             Text("设备").font(.title2.bold())
             activeDeviceCards
-            Text("场景").font(.title2.bold())
-            activeSceneCards
+            let scenes = home.independentScenes(home.householdScenes, alongside: filteredDevices)
+            if !scenes.isEmpty {
+                Text("全屋与未分配场景").font(.title2.bold())
+                HomeSceneCards(home: home, scenes: scenes, openDetails: { editor = $0 })
+            }
         }
     }
     private var activeDeviceCards: some View {
@@ -279,8 +282,8 @@ struct HomeManagementView: View {
                     Text(room.name).font(.headline).foregroundStyle(.primary)
                     if showsFloor { Text(room.raw["floor"].text ?? "未分配楼层").font(.caption).foregroundStyle(.secondary) }
                     Text(managing
-                         ? "\(home.editableDevices.filter { $0.raw["room"].text == room.id }.count + home.editableKeypads.filter { $0.raw["room"].text == room.id }.count) 个配置设备"
-                         : "\(home.dailyDevices.filter { $0.raw["room"]["id"].text == room.id }.count) 个可见设备")
+                         ? "\(home.editableDevices.filter { $0.raw["room"].text == room.id }.count + home.editableKeypads.filter { $0.raw["room"].text == room.id }.count) 个配置设备 · \(home.editableScenes.filter { $0.roomID == room.id }.count) 个场景"
+                         : "\(home.dailyDevices.filter { $0.raw["room"]["id"].text == room.id }.count) 个可见设备 · \(home.scenes(inRoom: room.id).count) 个场景")
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 8)
@@ -291,7 +294,7 @@ struct HomeManagementView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityHint("进入房间，查看设备")
+        .accessibilityHint("进入房间，查看设备和场景")
         .accessibilityIdentifier("home.roomLink.\(room.id)")
     }
     private func roomCard(_ room: HomeRecord) -> some View {
@@ -356,6 +359,8 @@ struct HomeManagementView: View {
                 ForEach(home.editableScenes) { scene in
                     panel(scene.name, icon: "doc.text") {
                         Text("\(scene.id) · \(scene.raw["enabled"].flag ? "已启用" : "未启用")").font(.caption).foregroundStyle(.secondary)
+                        Text(home.editableRooms.first(where: { $0.id == scene.roomID })?.name ?? "全屋／未分配")
+                            .font(.caption).foregroundStyle(.secondary)
                         HStack {
                             Button("编辑场景") { editor = HomeEditRequest(kind: "scene", record: scene) }
                             Button("移除", role: .destructive) { removal = HomeEditRequest(kind: "scene", record: scene) }
@@ -367,23 +372,8 @@ struct HomeManagementView: View {
         }
     }
     private var activeSceneCards: some View {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 155), alignment: .top)], alignment: .leading, spacing: 14) {
-            ForEach(home.scenes) { scene in
-                Button { editor = HomeEditRequest(kind: "scene-details", record: scene) } label: {
-                    VStack(alignment: .leading, spacing: 12) {
-                    Image(systemName: "sparkles").font(.title2).foregroundStyle(.teal)
-                    Text(scene.name).font(.headline)
-                    if let status = scene.targetAvailability.description { Text(status).font(.caption).foregroundStyle(.secondary) }
-                    Text("\(home.snapshotIsCurrent && scene.targetAvailable ? "负载反馈" : "历史负载反馈")：\(scene.raw["activity"].text ?? "未知")").foregroundStyle(.secondary)
-                    if scene.raw["switch_kind"].text == "selection" {
-                        Text("\(home.snapshotIsCurrent && scene.targetAvailable ? "场景选择" : "历史选择")：\(selectionDescription(scene.raw["selected"]))").font(.caption)
-                    }
-                    }.padding(18).frame(maxWidth: .infinity, minHeight: 140, alignment: .topLeading)
-                        .background(.background, in: RoundedRectangle(cornerRadius: 20))
-                        .overlay { RoundedRectangle(cornerRadius: 20).strokeBorder(.primary.opacity(0.07)) }
-                }.buttonStyle(.plain)
-            }
-        }
+        // This catalog has no keypad cards; retain every authorized scene entry.
+        HomeSceneCards(home: home, scenes: home.scenes, openDetails: { editor = $0 })
     }
     private var configuration: some View {
         VStack(spacing: 16) {
@@ -439,9 +429,6 @@ struct HomeManagementView: View {
             }
         } catch { home.error = error.localizedDescription }
     }
-    private func selectionDescription(_ value: HomeJSON) -> String {
-        if case .bool(let selected) = value { return selected ? "开启" : "关闭" }; return "未知"
-    }
     private func empty(_ title: String, _ detail: String) -> some View { ContentUnavailableView(title, systemImage: "house", description: Text(detail)) }
     private func statistic(_ title: String, _ count: Int, _ icon: String) -> some View {
         VStack(alignment: .leading, spacing: 10) { Label(title, systemImage: icon).foregroundStyle(.secondary); Text("\(count)").font(.largeTitle.bold()) }
@@ -450,6 +437,35 @@ struct HomeManagementView: View {
     private func panel<Content: View>(_ title: String, icon: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 14) { Label(title, systemImage: icon).font(.headline); content() }
             .padding(20).frame(maxWidth: .infinity, alignment: .leading).background(.background, in: RoundedRectangle(cornerRadius: 16))
+    }
+}
+
+/// Scene details keep the original control/admission path on every surface.
+private struct HomeSceneCards: View {
+    @ObservedObject var home: HomeServerStore
+    let scenes: [HomeRecord]
+    let openDetails: (HomeEditRequest) -> Void
+    var body: some View {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 155), alignment: .top)], alignment: .leading, spacing: 14) {
+            ForEach(scenes) { scene in
+                Button { openDetails(HomeEditRequest(kind: "scene-details", record: scene)) } label: {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Image(systemName: "sparkles").font(.title2).foregroundStyle(.teal)
+                        Text(scene.name).font(.headline)
+                        Text(home.rooms.first(where: { $0.id == scene.roomID })?.name ?? "全屋／未分配")
+                            .font(.caption).foregroundStyle(.secondary)
+                        if let status = scene.targetAvailability.description { Text(status).font(.caption).foregroundStyle(.secondary) }
+                        Text("\(home.snapshotIsCurrent && scene.targetAvailable ? "负载反馈" : "历史负载反馈")：\(scene.raw["activity"].text ?? "未知")").foregroundStyle(.secondary)
+                        if scene.raw["switch_kind"].text == "selection" {
+                            Text("\(home.snapshotIsCurrent && scene.targetAvailable ? "场景选择" : "历史选择")：\(scene.raw["selected"] == .bool(true) ? "开启" : scene.raw["selected"] == .bool(false) ? "关闭" : "未知")").font(.caption)
+                        }
+                    }.padding(18).frame(maxWidth: .infinity, minHeight: 140, alignment: .topLeading)
+                        .background(.background, in: RoundedRectangle(cornerRadius: 20))
+                        .overlay { RoundedRectangle(cornerRadius: 20).strokeBorder(.primary.opacity(0.07)) }
+                }.buttonStyle(.plain)
+                    .accessibilityIdentifier("home.sceneDetails.\(scene.id)")
+            }
+        }
     }
 }
 
@@ -495,6 +511,10 @@ private struct HomeRoomDetail: View {
         activeRoom ?? (managing ? home.editableRooms.first { $0.id == roomID } : nil)
     }
     private var devices: [HomeRecord] { home.dailyDevices.filter { $0.raw["room"]["id"].text == roomID } }
+    private var scenes: [HomeRecord] {
+        let assigned = home.scenes(inRoom: roomID)
+        return managing ? assigned : home.independentScenes(assigned, alongside: devices)
+    }
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
@@ -503,18 +523,22 @@ private struct HomeRoomDetail: View {
                         Label(room.raw["floor"].text ?? "未分配楼层", systemImage: "building.2")
                             .font(.caption).foregroundStyle(.secondary)
                         Text(room.name).font(.largeTitle.bold())
-                        Text("\(devices.count) 个可见设备").font(.subheadline).foregroundStyle(.secondary)
+                        Text("\(devices.count) 个可见设备 · \(home.scenes(inRoom: roomID).count) 个场景").font(.subheadline).foregroundStyle(.secondary)
                         Label(home.connected ? (home.receivingPush ? "状态实时更新" : "正在同步状态") : "未连接，控制暂不可用",
                               systemImage: home.connected && home.receivingPush ? "checkmark.circle" : "arrow.triangle.2.circlepath")
                             .font(.caption).foregroundStyle(.secondary)
                     }
                     if activeRoom == nil {
-                        Text("此房间尚未发布；日常设备以活动配置为准。").font(.subheadline).foregroundStyle(.secondary)
+                        Text("此房间尚未发布；日常设备和场景以活动配置为准。").font(.subheadline).foregroundStyle(.secondary)
                     }
                     if devices.isEmpty {
                         ContentUnavailableView("暂无可见设备", systemImage: "lightbulb", description: Text("此房间尚无当前凭证可见的设备。"))
                     } else {
                         HomeDeviceCards(home: home, devices: devices, openDetails: openDetails)
+                    }
+                    if !scenes.isEmpty {
+                        Text("场景").font(.title2.bold())
+                        HomeSceneCards(home: home, scenes: scenes, openDetails: openDetails)
                     }
                 } else {
                     ContentUnavailableView("房间暂不可见", systemImage: "door.left.hand.open", description: Text("房间可能已调整，或当前凭证无权查看。"))
