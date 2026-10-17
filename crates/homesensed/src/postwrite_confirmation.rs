@@ -58,7 +58,9 @@ impl RampReads {
     pub(crate) fn written(&mut self,config:&Configuration,device:&homesense_core::DeviceId,now:u64,ramped:bool) {
         let Some((binding,module))=config.binding(device) else{return;};
         let key=(binding.gateway.clone(),module.address().get(),binding.channel.get());
-        if ramped {self.0.insert(key,now.saturating_add(6_000));}
+        // Admission's clock floors elapsed time to milliseconds. Retain one
+        // rounding quantum so the real wire-to-query delay is never <6s.
+        if ramped {self.0.insert(key,now.saturating_add(6_001));}
         else {self.0.remove(&key);}
     }
     pub(crate) fn ready(&self,target:&Target,now:u64)->bool {
@@ -89,14 +91,14 @@ mod tests {
         let mut delay=RampReads::default();
         let one=DeviceId::new("one").unwrap();let two=DeviceId::new("two").unwrap();
         delay.written(&config,&one,100,true);
-        assert!(!delay.ready(dimmer,6099));assert!(delay.ready(dimmer,6100));assert!(delay.ready(relay,100));
+        assert!(!delay.ready(dimmer,6100),"floor-rounded write time must retain the last fractional millisecond");assert!(delay.ready(dimmer,6101));assert!(delay.ready(relay,100));
         delay.written(&config,&two,200,true);
         delay.written(&config,&one,300,false);
         assert!(!delay.ready(dimmer,6100),"direct channel one does not erase channel two's ramp");
         delay.written(&config,&two,400,false);
         assert!(delay.ready(dimmer,400),"direct off/full-on cancels old ramp wait");
         delay.written(&config,&one,500,true);delay.written(&config,&one,600,true);
-        assert!(!delay.ready(dimmer,6500));assert!(delay.ready(dimmer,6600),"new ramp restarts its own six seconds");
+        assert!(!delay.ready(dimmer,6500));assert!(!delay.ready(dimmer,6600));assert!(delay.ready(dimmer,6601),"new ramp restarts its own six seconds plus the clock rounding guard");
         delay.forget_gateway("unrelated");assert!(!delay.ready(dimmer,1000));
         delay.forget_gateway("bus");assert!(delay.ready(dimmer,1000),"recovery must query actual state immediately");
     }
