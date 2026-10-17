@@ -15,6 +15,7 @@ use std::collections::BTreeMap;
 use uuid::Uuid;
 pub(crate) const FEEDBACK_TOTAL_MS: u64 = 15_000;
 const LED_DELIVERY_MS: u64 = 2_000;
+pub(crate) const FEEDBACK_SAMPLE_MS: u64 = 5_000;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum BudgetRole {
@@ -144,6 +145,44 @@ pub(crate) struct View {
     targets: BTreeMap<DeviceId, (Command, u64)>,
     deadline: u64,
 }
+impl View {
+    /// Pending LED proof may outlive an early relay reply while an AD8 ramps.
+    /// Refresh only that proof's physical dependencies; never extend its lease.
+    pub(crate) fn query_requirements(&self, config:&Configuration, feedback:&Feedback, targets:&[crate::physical_queries::Target], now:u64)->Vec<(usize,u64)> {
+        if now>=self.deadline {return vec![];}
+        let mut ports=BTreeMap::new();
+        for (id,(command,after)) in &self.targets {
+            let Some((binding,module))=config.binding(id) else {continue;};
+            ports.insert((binding.gateway.clone(),module.address().get(),binding.channel.get()),(*command,*after));
+            if let Command::SetLevel {level,..}=command && let Some(supply)=&binding.supply_relay
+                && let Some((relay,relay_module))=config.binding(supply) {
+                if level.get()==0 {ports.remove(&(binding.gateway.clone(),module.address().get(),binding.channel.get()));}
+                ports.entry((relay.gateway.clone(),relay_module.address().get(),relay.channel.get())).or_insert((Command::Switch(level.get()>0),*after));
+            }
+        }
+        targets.iter().enumerate().filter_map(|(index,target)| {
+            let needed=target.channels.iter().any(|channel| {
+                let key=(target.gateway.clone(),target.module.address().get(),*channel);
+                let Some((expected,after))=ports.get(&key) else{return false;};
+                feedback.module_truth().received_port_state(&key.0,key.1,key.2).is_none_or(|state|
+                    state.quality!=homesense_state::Quality::Confirmed
+                    ||!state.observed.is_some_and(|o|expected.target_matches(o))
+                    ||!state.observed_at_ms.is_some_and(|at|at>*after && at<=now && now-at<FEEDBACK_SAMPLE_MS/2))
+            });
+            needed.then_some((index,self.deadline))
+        }).collect()
+    }
+}
+
+pub(crate) async fn query_requirements(admission:&Admission,feedback:&Feedback,config:&Configuration,targets:&[crate::physical_queries::Target],controller:Uuid)->Result<BTreeMap<usize,u64>,String> {
+    let generation=match admission.task_generation().await {Ok(value)=>value,Err(W::ResourceBusy|W::ServiceCommunicationFailure)=>return Ok(BTreeMap::new()),Err(e)=>return Err(format!("LED query generation: {e:?}"))};
+    let views=match admission.control_batch_views(controller,generation).await {Ok(views)=>views,Err(W::ResourceBusy)=>return Ok(BTreeMap::new()),Err(e)=>return Err(format!("LED query requirements: {e:?}"))};
+    let mut needed=BTreeMap::<usize,u64>::new();
+    for view in views {for (index,deadline) in view.query_requirements(config,feedback,targets,admission.monotonic_ms()) {
+        needed.entry(index).and_modify(|old|*old=(*old).max(deadline)).or_insert(deadline);
+    }}
+    Ok(needed)
+}
 struct Gate {
     generation: TaskGeneration,
     controller: Uuid,
@@ -167,8 +206,23 @@ pub(crate) struct Owner {
     phases: BTreeMap<u64, Phase>,
     gates: BTreeMap<u64, Gate>,
     local: BTreeMap<u64,u64>,
+    power_leds: std::collections::BTreeSet<DeviceId>,
 }
 impl Owner {
+    pub(crate) fn configure(&mut self,document:Option<&homesense_config::rule_document::Document>) {
+        self.power_leds.clear();
+        let Some(document)=document else{return;};
+        for link in document.indicator_links.iter().filter(|link|link.enabled) {
+            let power_only=match &link.scene {
+                None=>true,
+                Some(scene)=>document.scene_switch_groups.iter().find(|g|g.members.iter().any(|m|&m.scene==scene))
+                    .filter(|g|g.reconciliation.as_ref().is_some_and(|p|p.enabled))
+                    .and_then(|g|g.light_on_patterns(&document.timed_scenes).ok())
+                    .is_some_and(|patterns|patterns.values().all(|pattern|patterns.values().filter(|other|*other==pattern).count()==1)),
+            };
+            if power_only {self.power_leds.extend(link.leds.iter().cloned());}
+        }
+    }
     pub(crate) fn write_deadline(&self, id: u64) -> Option<u64> {
         self.local.get(&id).copied().or_else(||self.gates
             .get(&self.phases.get(&id)?.gate?)?
@@ -309,6 +363,23 @@ impl Owner {
                     .collect::<Vec<_>>();
                 for device in redundant {
                     targets.remove(&device);
+                }
+                // A reviewed unique power-pattern LED need not wait for an
+                // unrelated brightness ramp. Colliding scene profiles and
+                // unreviewed LED mappings keep exact level confirmation.
+                let power_only=commands[start..end].iter().filter(|c|leds.contains(&c.id))
+                    .all(|c|self.power_leds.contains(&c.device_id));
+                if power_only {
+                    let replacements=targets.iter().filter_map(|(id,command)| {
+                        let Command::SetLevel{level,..}=command else{return None;};
+                        let supply=config.devices().get(id)?.supply_relay.as_ref()?;
+                        Some((id.clone(),supply.clone(),Command::Switch(level.get()>0)))
+                    }).collect::<Vec<_>>();
+                    for (id,supply,command) in replacements {
+                        // Only an actual supply command in this same phase
+                        // can establish the post-write power witness.
+                        if targets.contains_key(&supply) {targets.remove(&id);targets.insert(supply,command);}
+                    }
                 }
                 let target_ids = targets
                     .keys()
@@ -598,7 +669,7 @@ impl Owner {
                 .is_some_and(|s| {
                     s.quality == homesense_state::Quality::Confirmed
                         && s.observed_at_ms
-                            .is_some_and(|at| at > *after && at <= now && now - at <= 5000)
+                            .is_some_and(|at| at > *after && at <= now && now - at <= FEEDBACK_SAMPLE_MS)
                         && s.observed.is_some_and(|o| command.target_matches(o))
                 })
         }) {
@@ -628,7 +699,7 @@ impl Owner {
                             .devices
                             .get(device)
                             .and_then(|state| state.observed_at_ms)
-                            .map(|at| at.saturating_add(5000))
+                            .map(|at| at.saturating_add(FEEDBACK_SAMPLE_MS))
                     })
                     .min()
                     .unwrap_or(gate.deadline)

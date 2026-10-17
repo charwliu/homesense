@@ -65,7 +65,9 @@ private actor PhysicalModuleActualHTTP: HomeHTTPTransport {
         try #require(home.canControlPhysicalModule(dimmer.id, channel: 1, command: level))
         await home.controlPhysicalModule(dimmer.id, channel: 1, command: level)
         try #require(home.error == nil, "\(home.error ?? "")")
-        try await wait("AD8 level40") {
+        // Six seconds for the hardware ramp, then two seconds for the genuine
+        // confirmation query and WSS delivery. Other steps keep five seconds.
+        try await wait("AD8 level40", budget: .seconds(8)) {
             home.devices.contains { $0.id == "dimmer-light" && $0.raw["quality"].text == "Confirmed" && $0.raw["state_authority"].text == "feedback" && $0.raw["observed"]["level"] == .integer(40) }
         }
         await home.controlPhysicalModule(relay.id, channel: 2, command: off)
@@ -81,10 +83,10 @@ private actor PhysicalModuleActualHTTP: HomeHTTPTransport {
         #expect(ids.count == 3 && home.receivingPush)
         try HomeJSON.array(home.devices.map(\.raw)).data(pretty: true).write(to: root.appendingPathComponent("native-module-feedback.json"))
     }
-    private func wait(_ stage: String, _ predicate: () -> Bool) async throws {
-        let limit = ContinuousClock.now.advanced(by: .seconds(5))
+    private func wait(_ stage: String, budget: Duration = .seconds(5), _ predicate: () -> Bool) async throws {
+        let limit = ContinuousClock.now.advanced(by: budget)
         while ContinuousClock.now < limit { if predicate() { return }; try await Task.sleep(for: .milliseconds(20)) }
-        Issue.record("Physical-module \(stage) feedback did not arrive within original five-second budget")
+        Issue.record("Physical-module \(stage) feedback did not arrive within \(budget) budget")
         throw HomeServerError.invalidResponse
     }
 }

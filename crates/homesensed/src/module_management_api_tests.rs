@@ -347,10 +347,12 @@ async fn administrator_module_controls_use_stable_ids_and_cannot_select_physical
     .await;
     assert_eq!(before["status"]["writes"][0]["status"], "accepted");
     assert_eq!(before["status"]["fresh_channels"], 0);
-    struct Wire(std::sync::Arc<std::sync::Mutex<Vec<Vec<u8>>>>);
+    struct Wire(std::sync::Arc<std::sync::Mutex<Vec<Vec<u8>>>>,std::sync::Arc<std::sync::Mutex<std::collections::VecDeque<u8>>>);
     impl std::io::Read for Wire {
-        fn read(&mut self, _: &mut [u8]) -> std::io::Result<usize> {
-            Err(std::io::ErrorKind::WouldBlock.into())
+        fn read(&mut self, out: &mut [u8]) -> std::io::Result<usize> {
+            let mut input=self.1.lock().unwrap();
+            if input.is_empty(){return Err(std::io::ErrorKind::WouldBlock.into());}
+            let n=out.len().min(input.len());for b in &mut out[..n]{*b=input.pop_front().unwrap();}Ok(n)
         }
     }
     impl std::io::Write for Wire {
@@ -363,12 +365,13 @@ async fn administrator_module_controls_use_stable_ids_and_cannot_select_physical
         }
     }
     let writes = std::sync::Arc::new(std::sync::Mutex::new(vec![]));
+    let input=std::sync::Arc::new(std::sync::Mutex::new(std::collections::VecDeque::new()));
     let mut owner = crate::transport_owner::TransportOwner::new(
         h.actor.clone(),
         [(
             "bus".into(),
             hb_transport::Connection::for_simulation(
-                Wire(writes.clone()),
+                Wire(writes.clone(),input.clone()),
                 h.generation.epochs.transport,
             ),
         )]
@@ -393,21 +396,9 @@ async fn administrator_module_controls_use_stable_ids_and_cannot_select_physical
     .await;
     assert_eq!(written["status"]["writes"][0]["status"], "written");
     assert_eq!(written["status"]["fresh_channels"], 0);
-    h.feedback
-        .apply(&crate::transport_owner::GatewayRead {
-            gateway_id: "bus".into(),
-            transport_epoch: h.generation.epochs.transport,
-            received_at_ms: h.actor.monotonic_ms(),
-            result: hb_transport::Receive::Frames {
-                transport_epoch: h.generation.epochs.transport,
-                frames: vec![hb_protocol::RawFrame {
-                    address: 0x15,
-                    command: 0xd3,
-                    value: 37,
-                }],
-            },
-        })
-        .unwrap();
+    input.lock().unwrap().extend([0xae,0x15,0xd3,37,0xee]);
+    let read=owner.receive("bus").await.unwrap();
+    h.feedback.apply(&read).unwrap();
     let received = json(
         poll_request(
             &h,
@@ -454,7 +445,12 @@ async fn administrator_module_controls_use_stable_ids_and_cannot_select_physical
     )
     .await;
     assert_eq!(whole["commands"].as_array().unwrap().len(), 1);
-    owner.step().await.unwrap().unwrap().result.unwrap();
+    let deadline=std::time::Instant::now()+std::time::Duration::from_secs(1);
+    loop {
+        if let Some(write)=owner.step().await.unwrap(){write.result.unwrap();break;}
+        assert!(std::time::Instant::now()<deadline,"complete channel reply must release the next query after turnaround");
+        tokio::time::sleep(std::time::Duration::from_millis(2)).await;
+    }
     assert_eq!(
         writes.lock().unwrap()[2],
         vec![0xae, 0x15, 0xa0, 0xf2, 0xee]

@@ -355,6 +355,20 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
             })
             .collect::<Result<Vec<_>, _>>()
     }
+    async fn wait_for_query_slot(&mut self,gateway:&str)->Result<(),String> {
+        while self.feedback.query_deferred(gateway,self.transport.now_ms(),true) || self.transport.query_response_pending(gateway) {
+            if self.feedback.query_deferred(gateway,self.transport.now_ms(),true) || self.transport.awaiting_query_response(gateway) {
+                self.receive(gateway).await?;
+                tokio::time::sleep(std::time::Duration::from_millis(1)).await;
+            } else {
+                // Completed replies only need turnaround time, not another
+                // read that would turn an otherwise finished transaction into
+                // a new response wait.
+                self.transport.finish_reply_turnaround().await;
+            }
+        }
+        Ok(())
+    }
     async fn query_physical(
         &mut self,
         config: &homesense_config::Configuration,
@@ -364,6 +378,9 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
         max_age_ms: u64,
         periodic: bool,
     ) -> Result<(), String> {
+        // Startup/recovery also protect an already-received press. Waiting
+        // happens before query admission; no response deadline is renewed.
+        self.wait_for_query_slot(&target.gateway).await?;
         let before = self.physical_query_counts(config, target, timeout_ms, max_age_ms)?;
         let sent = if target.whole {
             self.transport
@@ -402,6 +419,7 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
                 if retry_available {
                     retry_available = false;
                     let retry_timeout = timeout_ms.min(500);
+                    self.wait_for_query_slot(&target.gateway).await?;
                     if let Err(error) = self
                         .transport
                         .query_status_scope(
@@ -599,7 +617,7 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
         let activity=match &read.result {
             hb_transport::Receive::Frames {frames,..}=>frames.iter().filter_map(|frame| {
                 let (_,channel,count)=crate::adaptive_refresh::candidate(operation.feedback.module_truth(),gateway,frame)?;
-                (!self.output_refresh.as_ref().is_some_and(|plan|plan.solicited(gateway,frame.address,channel,read.received_at_ms))).then_some((frame.address,channel,count))
+                (!self.output_refresh.as_ref().is_some_and(|plan|plan.solicited(gateway,frame.address,channel,read.received_at_ms)) && !self.transport.queued_query_solicited(gateway,*frame,read.received_at_ms)).then_some((frame.address,channel,count))
             }).collect::<Vec<_>>(),
             _=>vec![],
         };
@@ -637,11 +655,13 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
         if self.unavailable {
             return Err("observed transport requires recovery".into());
         }
+        let now=self.transport.now_ms();
+        self.transport.pause_queries(self.gateways.iter().filter(|gateway|self.feedback.query_deferred(gateway,now,true)).cloned().collect());
         if self.transport.local_mode() {
-            let blocked=self.local_refresh.as_ref().map_or_else(std::collections::BTreeSet::new,|plan|plan.blocked(self.transport.now_ms(),self.transport.write_interval_ms(),self.background_led_phase));
+            let blocked=self.local_refresh.as_ref().map_or_else(std::collections::BTreeSet::new,|plan|plan.blocked(self.transport.now_ms(),self.transport.write_interval_ms(),self.background_led_phase,&self.feedback));
             let outcome=self.transport.local_step(&blocked).await?;
             if self.transport.has_local_fault() {self.poll_local_events(false).await?;}
-            if let Some(write)=&outcome && write.result.is_ok() && let Some(plan)=&mut self.local_refresh {for device in &write.refresh_devices{plan.written(device,self.transport.now_ms());}}
+            if let Some(write)=&outcome && write.result.is_ok() && let Some(plan)=&mut self.local_refresh {for (device,ramped) in &write.refresh_schedule{plan.written(device,self.transport.now_ms(),*ramped);}}
             return Ok(outcome);
         }
         // Keep a pending response serialized with later writes on this bus.
@@ -649,7 +669,7 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
         // accepted control tickets stay in Admission until the read resolves.
         if let Some(plan)=&self.output_refresh {
             if plan.awaiting_response() {return Ok(None);}
-            if !self.background_led_phase && plan.defer_control(self.transport.now_ms(),self.transport.write_interval_ms())
+            if !self.background_led_phase && plan.defer_control(self.transport.now_ms(),self.transport.write_interval_ms(),&self.feedback)
                 && !self.transport.protected_controls_ready(plan.controller,plan.generation.clone()).await {return Ok(None);}
         }
         let mut operation = Operation {
@@ -659,7 +679,7 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
             complete: false,
         };
         let outcome = self.transport.step().await?;
-        if let Some(write)=&outcome && write.result.is_ok() && let Some(plan)=&mut self.output_refresh {for device in &write.refresh_devices{plan.written(device,self.transport.now_ms());}}
+        if let Some(write)=&outcome && write.result.is_ok() && let Some(plan)=&mut self.output_refresh {for (device,ramped) in &write.refresh_schedule{plan.written(device,self.transport.now_ms(),*ramped);}}
         if outcome.as_ref().is_none_or(|value| value.result.is_ok() || value.projection_cancelled) {
             operation.complete = true;
         }
@@ -680,3 +700,6 @@ mod physical_startup_tests;
 #[cfg(test)]
 #[path="panel_activity_tests.rs"]
 mod panel_activity_tests;
+#[cfg(test)]
+#[path="mixed_feedback_refresh_tests.rs"]
+mod mixed_feedback_refresh_tests;
