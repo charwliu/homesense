@@ -54,9 +54,13 @@ impl Drop for Fixture {
     }
 }
 impl Fixture {
-    async fn new(cookie: bool) -> Self {
-        let keys=(1..=6).map(|n|serde_json::json!({"number":n,"label":n.to_string(),"led_endpoint":{"id":format!("key:{n}"),"name":format!("LED {n}"),"enabled":true}})).collect::<Vec<_>>();
-        let definition=serde_json::to_vec(&serde_json::json!({"schema_version":2,"revision":1,"gateways":[{"id":"bus","endpoint":"127.0.0.1:1","modules":[{"id":"module","address":"41","profile":"ts6_86_rs485_v2_6_5_6key","verification":{"status":"simulated"},"led_mode":"manual"}]}],"devices":[],"keypads":[{"id":"panel","name":"Panel","module_id":"module","enabled":true,"keys":keys}]})).unwrap();
+    async fn new(cookie: bool) -> Self {Self::with_panels(cookie,1).await}
+    async fn with_panels(cookie:bool,count:usize)->Self {
+        assert!((1..=28).contains(&count));
+        let module_id=|n|if n==0 {"module".to_owned()}else{format!("module{n}")};
+        let modules=(0..count).map(|n|serde_json::json!({"id":module_id(n),"address":format!("{:02X}",0x41+n),"profile":"ts6_86_rs485_v2_6_5_6key","verification":{"status":"simulated"},"led_mode":"manual"})).collect::<Vec<_>>();
+        let keypads=(0..count).map(|n|serde_json::json!({"id":if n==0 {"panel".to_owned()}else{format!("panel{n}")},"name":"Synthetic panel","module_id":module_id(n),"enabled":true,"keys":(1..=6).map(|k|serde_json::json!({"number":k,"label":k.to_string(),"led_endpoint":{"id":if n==0 {format!("key:{k}")}else{format!("panel{n}:key{k}")},"name":"Synthetic LED","enabled":true}})).collect::<Vec<_>>()})).collect::<Vec<_>>();
+        let definition=serde_json::to_vec(&serde_json::json!({"schema_version":2,"revision":1,"gateways":[{"id":"bus","endpoint":"127.0.0.1:1","modules":modules}],"devices":[],"keypads":keypads})).unwrap();
         let path = std::env::temp_dir().join(format!("panel-auth-{}.sqlite", Uuid::new_v4()));
         Store::open(&path)
             .unwrap()
@@ -67,7 +71,7 @@ impl Fixture {
                 .unwrap();
         let controller = Uuid::new_v4();
         let tokens = Arc::new(Tokens::default());
-        let devices = (1..=6).map(|n| format!("key:{n}")).collect::<BTreeSet<_>>();
+        let devices = config.keypads().values().flat_map(|p|p.keys.values().map(|k|k.led_endpoint.id.clone())).collect::<BTreeSet<_>>();
         tokens
             .insert(
                 Uuid::new_v4(),
@@ -126,6 +130,13 @@ impl Fixture {
             config,
             bytes: Arc::new(Mutex::new(vec![])),
         }
+    }
+    async fn projected(&self,only:Option<&str>)->Vec<serde_json::Value> {
+        use crate::management_devices::DeviceView;
+        let mut state=homesense_state::StateStore::new(1,1,512,1024).unwrap();
+        for id in &self.source.grant.devices {state.register(DeviceId::new(id).unwrap(),homesense_core::ModuleKind::Keypad).unwrap();}
+        let raw=state.snapshot();let visible=raw.devices.iter().filter(|(id,_)|only.is_none_or(|only|id.as_str()==only)).map(|(id,state)|DeviceView {availability:None,catalog_visible:true,room:None,id:id.clone(),name:id.as_str().to_owned(),motor_calibrated:false,motor_estimate:None,state:state.clone(),reported:None,recorded:false}).collect::<Vec<_>>();
+        management_keypads::snapshot(&self.actor,self.source.grant.controller,self.actor.task_generation().await.unwrap(),&self.config,&raw,&visible,1,self.actor.monotonic_ms()).await.unwrap().0
     }
     fn change(&self, kind: &str) {
         let auth = format!("Bearer {ROOT}");
@@ -345,4 +356,48 @@ async fn ts6_setting_triplet_is_one_receipt_and_only_complete_operation_is_writt
 #[tokio::test]
 async fn ts6_setting_revoked_before_dispatch_cancels_whole_triplet_without_wire_bytes(){
     let f=Fixture::new(false).await;let (batch,lease)=management_keypads::prepare(&f.actor,f.source.grant.controller,f.actor.task_generation().await.unwrap(),"panel",f.lease.clone(),Setting::Backlight{mode:management_keypads::Backlight::Bright}).await.unwrap();let intent=batch.intents.into_iter().next().unwrap();let ids=f.actor.submit_panel_command_for_revision(1,f.source.grant.controller,intent.device,intent.command,lease).await.unwrap();f.change("revoke");let mut owner=f.owner();assert!(owner.step().await.unwrap().is_none());assert!(f.bytes.lock().unwrap().is_empty());assert_eq!(Store::open(&f.path).unwrap().command_status(f.actor.boot_id(),ids[0]).unwrap(),Some(Status::Cancelled));drop(owner);f.actor.clone().shutdown().await.unwrap();
+}
+
+#[tokio::test]
+async fn quiet_key_keeps_last_written_color_after_other_key_fills_recent_history() {
+    use std::time::{Duration,Instant};
+    let f=Fixture::new(false).await;let controller=f.source.grant.controller;let mut owner=f.owner();
+    for number in 0..66 {
+        let device=DeviceId::new(if number==0 {"key:1"}else{"key:2"}).unwrap();
+        let command=Command::PanelLed(number%2==0);
+        let lease=Lease::led(f.lease.clone(),&f.config,device.clone(),command).unwrap();
+        let ids=f.actor.submit_panel_command_for_revision(1,controller,device,command,lease).await.unwrap();
+        let deadline=Instant::now()+Duration::from_secs(2);
+        loop {
+            if let Some(result)=owner.step().await.unwrap() {assert!(result.result.is_ok());break;}
+            assert!(Instant::now()<deadline);tokio::time::sleep(Duration::from_millis(2)).await;
+        }
+        assert_eq!(Store::open(&f.path).unwrap().command_status(f.actor.boot_id(),ids[0]).unwrap(),Some(Status::Written));
+    }
+    assert_eq!(f.bytes.lock().unwrap().len(),66*5,"all writes must pass the transport owner");
+    let panels=f.projected(None).await;
+    let first=&panels[0]["keys"][0];assert_eq!(first["led"]["last_written"]["color"],"red","another key's traffic must not erase a successful LED write");
+    assert_eq!(first["led"]["source"],"last_written");assert!(first["led"]["observed"].is_null());
+    drop(owner);f.actor.clone().shutdown().await.unwrap();
+}
+
+#[tokio::test]
+async fn all168_keypad_states_are_complete_and_pending_or_cancelled_intent_never_becomes_written_color() {
+    use std::time::{Duration,Instant};
+    let f=Fixture::with_panels(false,28).await;let controller=f.source.grant.controller;let mut owner=f.owner();let mut expected=std::collections::BTreeMap::new();
+    for (index,id) in f.source.grant.devices.iter().enumerate() {
+        let device=DeviceId::new(id).unwrap();let on=index%3==0;let command=Command::PanelLed(on);let lease=Lease::led(f.lease.clone(),&f.config,device.clone(),command).unwrap();
+        f.actor.submit_panel_command_for_revision(1,controller,device,command,lease).await.unwrap();let deadline=Instant::now()+Duration::from_secs(2);
+        loop {if let Some(result)=owner.step().await.unwrap() {assert!(result.result.is_ok());break;}assert!(Instant::now()<deadline);tokio::time::sleep(Duration::from_millis(2)).await;}
+        expected.insert(id.clone(),on);
+    }
+    assert_eq!(expected.len(),168);assert_eq!(f.bytes.lock().unwrap().len(),168*5);
+    let panels=f.projected(None).await;assert_eq!(panels.len(),28);
+    for panel in &panels {for key in panel["keys"].as_array().unwrap() {let id=key["endpoint_id"].as_str().unwrap();let led=&key["led"];assert_eq!(led["last_written"]["color"],if expected[id] {"red"}else{"green"},"{id}");assert_eq!(led["last_written"]["current_transport_epoch"],true);assert!(led["observed"].is_null());assert_eq!(led["quality"],"Unknown");}}
+    let partial=f.projected(Some("key:1")).await;assert_eq!(partial.len(),1);assert_eq!(partial[0]["keys"][0]["configured"],true);assert_eq!(partial[0]["settings"]["scope_complete"],false);for key in partial[0]["keys"].as_array().unwrap().iter().skip(1) {assert_eq!(key["configured"],false);assert!(key["led"]["last_written"].is_null());}
+    let device=DeviceId::new("key:1").unwrap();let command=Command::PanelLed(false);let lease=Lease::led(f.lease.clone(),&f.config,device.clone(),command).unwrap();let ids=f.actor.submit_panel_command_for_revision(1,controller,device,command,lease).await.unwrap();
+    let pending=f.projected(Some("key:1")).await;assert_eq!(pending[0]["keys"][0]["led"]["last_request"]["status"],"accepted");assert_eq!(pending[0]["keys"][0]["led"]["last_written"]["color"],"red");
+    f.change("revoke");assert!(owner.step().await.unwrap().is_none());assert_eq!(Store::open(&f.path).unwrap().command_status(f.actor.boot_id(),ids[0]).unwrap(),Some(Status::Cancelled));let cancelled=f.projected(Some("key:1")).await;assert_eq!(cancelled[0]["keys"][0]["led"]["last_request"]["status"],"cancelled");assert_eq!(cancelled[0]["keys"][0]["led"]["last_written"]["color"],"red");assert_eq!(f.bytes.lock().unwrap().len(),168*5);
+    let generation=f.actor.task_generation().await.unwrap();assert!(f.actor.keypad_state_records(controller,generation.clone(),vec![DeviceId::new("not-a-panel").unwrap()]).await.is_err());assert!(f.actor.keypad_state_records(controller,generation,vec![DeviceId::new("key:1").unwrap();2]).await.is_err());
+    drop(owner);f.actor.clone().shutdown().await.unwrap();
 }

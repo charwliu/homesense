@@ -285,6 +285,7 @@ impl Store {
         // schema after migration. The mandatory scope migration above separately
         // advances schema27, which old schema26 programs must reject.
         tx.execute_batch("CREATE INDEX IF NOT EXISTS command_led_request_scope ON command_journal(boot_id,revision,device_id,transport_epoch,control_epoch,command_id DESC) WHERE intent IN (x'01060000',x'01060100',x'010A0000')")?;
+        keypad_history::install_indexes(&tx)?;
         tx.commit()?;
         connection.pragma_update(None, "foreign_keys", "ON")?;
         connection.pragma_update(None, "journal_mode", "WAL")?;
@@ -424,6 +425,7 @@ impl Store {
 pub mod backup;
 
 pub mod module_history;
+pub mod keypad_history;
 
 /// Durable local wire/dependency scopes; receipts are never replay plans.
 pub mod gateway_audit;

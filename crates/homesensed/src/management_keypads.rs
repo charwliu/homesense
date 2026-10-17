@@ -136,13 +136,12 @@ pub(crate) async fn snapshot(
         .filter(|id| visible.contains(id))
         .collect();
     let mut records = vec![];
-    // Bound each audit request to 128 device IDs within the shared scope limit.
-    // If no written row survives this history window, retain unknown rather
-    // than inventing a color from accepted intent or button feedback.
-    for chunk in ids.chunks(128) {
+    // Read bounded per-endpoint state, not a shared recent-history window.
+    // Yield between small chunks so catalog reads do not monopolize the actor.
+    for chunk in ids.chunks(32) {
         records.extend(
             admission
-                .recent_device_commands(controller, generation.clone(), chunk.to_vec(), 64)
+                .keypad_state_records(controller, generation.clone(), chunk.to_vec())
                 .await
                 .map_err(|e| format!("keypad audit: {e:?}"))?,
         );
