@@ -1,6 +1,7 @@
 //! Boot-scoped physical writer phases. A phase is one already evaluated admission,
 //! never inferred from two absent run IDs. Linked LEDs wait for genuine raw
-//! post-write feedback. One authenticated origin-key cue has its own short lease;
+//! post-write feedback. The authenticated origin-key cue shares its lighting
+//! write cohort while retaining its original short lease;
 //! this owner does not evaluate scenes, change variables, or query I/O.
 use crate::{
     admission::{Admission, TaskGeneration},
@@ -16,6 +17,18 @@ use uuid::Uuid;
 pub(crate) const FEEDBACK_TOTAL_MS: u64 = 15_000;
 const LED_DELIVERY_MS: u64 = 2_000;
 pub(crate) const FEEDBACK_SAMPLE_MS: u64 = 5_000;
+
+// A real post-write On is already a failed absolute-Off result. Its owner
+// retries the module; re-querying that same failure is not an Off proof.
+fn away_failed_sample(state:&homesense_state::DeviceState,after:u64,now:u64)->bool {
+    state.quality==homesense_state::Quality::Confirmed
+        && state.observed_at_ms.is_some_and(|at|at>after && at<=now)
+        && state.observed.is_some_and(|observation|match observation {
+            homesense_core::Observation::Switch(on)=>on,
+            homesense_core::Observation::Level(level)=>level.get()>0,
+            _=>false,
+        })
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum BudgetRole {
@@ -138,25 +151,37 @@ pub(crate) fn partition_local(config:&Configuration,intents:&mut [homesense_hap:
     }
     permutation
 }
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct View {
     id: u64,
     generation: TaskGeneration,
     targets: BTreeMap<DeviceId, (Command, u64)>,
     deadline: u64,
+    condition: Option<Condition>,
+    managed_away: bool,
+}
+/// A retained predicate, rather than a frozen dimmer value. Refreshing its
+/// witness never queries a device and never changes the accepted LED budget.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct Condition {
+    postconditions: Vec<homesense_config::component_modes::Postcondition>,
+    max_age_ms: u64,
+    after: BTreeMap<DeviceId, u64>,
+    command_fence: u64,
+    owned: std::collections::BTreeSet<u64>,
 }
 impl View {
     /// Pending LED proof may outlive an early relay reply while an AD8 ramps.
     /// Refresh only that proof's physical dependencies; never extend its lease.
     pub(crate) fn query_requirements(&self, config:&Configuration, feedback:&Feedback, targets:&[crate::physical_queries::Target], now:u64)->Vec<(usize,u64)> {
-        if now>=self.deadline {return vec![];}
+        if now>=self.deadline || self.condition.is_some() {return vec![];}
         let mut ports=BTreeMap::new();
         for (id,(command,after)) in &self.targets {
             let Some((binding,module))=config.binding(id) else {continue;};
             ports.insert((binding.gateway.clone(),module.address().get(),binding.channel.get()),(*command,*after));
             if let Command::SetLevel {level,..}=command && let Some(supply)=&binding.supply_relay
                 && let Some((relay,relay_module))=config.binding(supply) {
-                if level.get()==0 {ports.remove(&(binding.gateway.clone(),module.address().get(),binding.channel.get()));}
+                if level.get()==0 && !self.managed_away {ports.remove(&(binding.gateway.clone(),module.address().get(),binding.channel.get()));}
                 ports.entry((relay.gateway.clone(),relay_module.address().get(),relay.channel.get())).or_insert((Command::Switch(level.get()>0),*after));
             }
         }
@@ -164,10 +189,16 @@ impl View {
             let needed=target.channels.iter().any(|channel| {
                 let key=(target.gateway.clone(),target.module.address().get(),*channel);
                 let Some((expected,after))=ports.get(&key) else{return false;};
-                feedback.module_truth().received_port_state(&key.0,key.1,key.2).is_none_or(|state|
+                feedback.module_truth().received_port_state(&key.0,key.1,key.2).is_none_or(|state| {
+                    if self.managed_away && away_failed_sample(&state,*after,now) {return false;}
                     state.quality!=homesense_state::Quality::Confirmed
-                    ||!state.observed.is_some_and(|o|expected.target_matches(o))
-                    ||!state.observed_at_ms.is_some_and(|at|at>*after && at<=now && now-at<FEEDBACK_SAMPLE_MS/2))
+                    ||state.observed.is_none()
+                    // A fresh On is a real failed Away result, handled by
+                    // its bounded retry owner. Re-querying that same port
+                    // continuously starves other modules' freshness proofs.
+                    ||(!self.managed_away && !state.observed.is_some_and(|o|expected.target_matches(o)))
+                    ||!state.observed_at_ms.is_some_and(|at|at>*after && at<=now && now-at<FEEDBACK_SAMPLE_MS/2)
+                })
             });
             needed.then_some((index,self.deadline))
         }).collect()
@@ -178,6 +209,22 @@ pub(crate) async fn query_requirements(admission:&Admission,feedback:&Feedback,c
     let generation=match admission.task_generation().await {Ok(value)=>value,Err(W::ResourceBusy|W::ServiceCommunicationFailure)=>return Ok(BTreeMap::new()),Err(e)=>return Err(format!("LED query generation: {e:?}"))};
     let views=match admission.control_batch_views(controller,generation).await {Ok(views)=>views,Err(W::ResourceBusy)=>return Ok(BTreeMap::new()),Err(e)=>return Err(format!("LED query requirements: {e:?}"))};
     let mut needed=BTreeMap::<usize,u64>::new();
+    if admission.away_operations_active() {
+        let generation=match admission.task_generation().await {Ok(value)=>value,Err(_)=>return Ok(needed)};
+        let reads=admission.away_read_needs(controller,generation).await.map_err(|e|format!("Away confirmation reads: {e:?}"))?;
+        let now=admission.monotonic_ms();
+        for read in reads {
+            let Some((device,_))=config.binding(&read.device) else {continue;};
+            let state=feedback.module_truth().located_state(&device.gateway,device.address.get(),device.channel.get());
+            let count=feedback.module_truth().port_observation_count(&device.gateway,device.address.get(),device.channel.get()).unwrap_or(0);
+            let received=count>read.before_count && state.as_ref().is_some_and(|state|state.quality==homesense_state::Quality::Confirmed
+                && state.observed.is_some() && state.observed_at_ms.is_some_and(|at|at>=read.after_ms && now.checked_sub(at).is_some_and(|age|age<5000 || away_failed_sample(state,read.after_ms,now))));
+            if received || now>=read.deadline_ms {continue;}
+            for(index,target)in targets.iter().enumerate(){if target.gateway==device.gateway && target.module.address()==device.address && target.channels.contains(&device.channel.get()) {
+                needed.entry(index).and_modify(|old|*old=(*old).max(read.deadline_ms)).or_insert(read.deadline_ms);
+            }}
+        }
+    }
     for view in views {for (index,deadline) in view.query_requirements(config,feedback,targets,admission.monotonic_ms()) {
         needed.entry(index).and_modify(|old|*old=(*old).max(deadline)).or_insert(deadline);
     }}
@@ -200,6 +247,28 @@ struct Gate {
     ready: Option<BarrierLease>,
     invalid: bool,
     cancel_reason: homesense_core::queue::CancelReason,
+    condition: Option<Condition>,
+}
+impl Gate {
+    fn view(&self, id: u64) -> Option<View> {
+        if self.invalid || self.lights.iter().any(|command| !self.written.contains_key(&command.id)) {
+            return None;
+        }
+        Some(View {
+            id, generation: self.generation.clone(),
+            targets: self.targets.iter().map(|(device, target)|
+                (device.clone(), (*target, self.written[&self.target_ids[device]]))).collect(),
+            deadline: self.delivery_deadline.unwrap_or(self.deadline).min(self.deadline),
+            condition: self.condition.clone(),
+            managed_away: self.away.as_ref().is_some_and(crate::away_auth::Authorization::guarded_operation),
+        })
+    }
+}
+/// Prepared before the atomic variable/queue commit, installed only after it.
+pub(crate) struct Completion {
+    id: u64,
+    gate: Gate,
+    phases: BTreeMap<u64, Phase>,
 }
 #[derive(Default)]
 pub(crate) struct Owner {
@@ -209,6 +278,85 @@ pub(crate) struct Owner {
     power_leds: std::collections::BTreeSet<DeviceId>,
 }
 impl Owner {
+    /// Retain actual original writes as evidence; do not enqueue them again.
+    /// The caller must validate Source/Origin and persist the variable CAS and
+    /// LED queue together before installing this prepared gate.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn prepare_completion(
+        &self,
+        config: &Configuration,
+        proof: &crate::keypad_completion::FeedbackProof,
+        source: Source,
+        controller: Uuid,
+        originals: Vec<QueuedCommand>,
+        leds: &[QueuedCommand],
+        manual: &BTreeMap<DeviceId, u64>,
+        send_before: u64,
+        now: u64,
+    ) -> Result<Completion, W> {
+        let evidence = proof.evidence();
+        let generation = &evidence.generation;
+        if proof.decision() != crate::keypad_completion::Decision::Apply
+            || !source.valid_for(controller, generation.epochs.configuration)
+            || now >= send_before || send_before > proof.send_before()
+            || send_before > evidence.deadline || send_before.saturating_sub(now) > LED_DELIVERY_MS
+            || originals.len() != evidence.written.len() || originals.is_empty()
+            || originals.len() > 512 || leds.len() != evidence.effect.indicators.len()
+            || leds.is_empty() || leds.len() > 16
+        { return Err(W::InvalidValueInRequest); }
+        let mut owned = std::collections::BTreeSet::new();
+        for command in &originals {
+            if command.epochs != generation.epochs || !owned.insert(command.id)
+                || evidence.written.get(&command.id).is_none_or(|at| *at >= command.deadline_ms || *at > now)
+            { return Err(W::InvalidValueInRequest); }
+        }
+        let mut phases = BTreeMap::new();
+        let mut seen = std::collections::BTreeSet::new();
+        let id = leds[0].id;
+        let mut previous_gateway = None;
+        let mut group = id;
+        for (command, expected) in leds.iter().zip(&evidence.effect.indicators) {
+            let (device, module) = config.binding(&command.device_id).ok_or(W::ResourceDoesNotExist)?;
+            if command.device_id.as_str() != expected.device || command.command != Command::PanelLed(expected.on)
+                || !device.enabled || module.kind() != ModuleKind::Keypad
+                || module.led_mode() != homesense_core::PanelLedMode::Manual
+                || command.epochs != generation.epochs || command.deadline_ms != send_before
+                || !source.permits_device(command.device_id.as_str()) || command.id == 0
+                || owned.contains(&command.id) || self.phases.contains_key(&command.id)
+                || self.gates.contains_key(&command.id) || !seen.insert(command.id)
+            { return Err(W::InvalidValueInRequest); }
+            if previous_gateway.as_ref() != Some(&device.gateway) {
+                group = command.id;
+                previous_gateway = Some(device.gateway.clone());
+            }
+            phases.insert(command.id, Phase { group, gateway: device.gateway.clone(), led: true, gate: Some(id) });
+        }
+        if proof.lease().observations.keys().any(|device| !source.permits_device(device.as_str())) {
+            return Err(W::InsufficientPrivileges);
+        }
+        let boot = Uuid::parse_str(generation.boot_id()).map_err(|_| W::InvalidValueInRequest)?.as_u128();
+        drop(proof.lease().lock(boot, generation.epochs.configuration, generation.epochs.transport, now)
+            .map_err(|_| W::ResourceBusy)?);
+        Ok(Completion { id, phases, gate: Gate {
+            generation: generation.clone(), controller, source: Some(source), away: None,
+            lights: originals, leds: leds.iter().map(|c| c.id).collect(), targets: BTreeMap::new(),
+            target_ids: BTreeMap::new(), written: evidence.written.clone(),
+            guards: vec![ReadCheck { revision: evidence.variable.revision, name: evidence.variable.name.clone(),
+                expected_version: evidence.variable.expected_version.checked_add(1).ok_or(W::InvalidValueInRequest)? }],
+            manual: proof.lease().observations.keys().map(|device|
+                (device.clone(), manual.get(device).copied().unwrap_or(0))).collect(),
+            deadline: evidence.deadline, delivery_deadline: Some(send_before),
+            ready: Some(BarrierLease { lease: proof.lease().clone(), boot, generation: generation.clone(), deadline: send_before }),
+            invalid: false, cancel_reason: homesense_core::queue::CancelReason::RunCancelled,
+            condition: Some(Condition { postconditions: std::iter::once(evidence.effect.after.clone())
+                    .chain(evidence.effect.when.clone()).collect(), max_age_ms: evidence.effect.max_age_ms,
+                after: evidence.writes_by_device.clone(), command_fence: evidence.command_fence, owned }),
+        } })
+    }
+    pub(crate) fn install_completion(&mut self, prepared: Completion) {
+        self.phases.extend(prepared.phases);
+        self.gates.insert(prepared.id, prepared.gate);
+    }
     pub(crate) fn configure(&mut self,document:Option<&homesense_config::rule_document::Document>) {
         self.power_leds.clear();
         let Some(document)=document else{return;};
@@ -316,19 +464,12 @@ impl Owner {
             let gated = !lights.is_empty() && !leds.is_empty();
             let mut phase_start = start;
             while phase_start < end {
-                let (gateway, led) = class(
-                    config,
-                    &commands[phase_start].device_id,
-                    commands[phase_start].command,
-                )
-                .unwrap();
+                let writer_class=|command:&QueuedCommand|class(config,&command.device_id,command.command)
+                    .map(|(gateway,led)|(gateway,led && Some(command.id)!=local));
+                let (gateway, led) = writer_class(&commands[phase_start]).unwrap();
                 let mut phase_end = phase_start + 1;
                 while phase_end < end
-                    && class(
-                        config,
-                        &commands[phase_end].device_id,
-                        commands[phase_end].command,
-                    ) == Some((gateway.clone(), led)) && (Some(commands[phase_end].id)==local)==(Some(commands[phase_start].id)==local)
+                    && writer_class(&commands[phase_end]) == Some((gateway.clone(), led))
                 {
                     phase_end += 1;
                 }
@@ -423,6 +564,7 @@ impl Owner {
                         delivery_deadline: None,
                         invalid: false,
                         cancel_reason: homesense_core::queue::CancelReason::RunCancelled,
+                        condition: None,
                     },
                 );
             }
@@ -441,6 +583,7 @@ impl Owner {
         commands: Vec<QueuedCommand>,
         targets: &[crate::away_off::Target],
         reset: Option<QueuedCommand>,
+        local_reset: bool,
         generation: TaskGeneration,
         controller: Uuid,
         manual: &BTreeMap<DeviceId, u64>,
@@ -480,6 +623,30 @@ impl Owner {
                 target_ids.insert(device.clone(), command.id);
             }
         }
+        // Only an unarmed completion owned by this exact logical operation
+        // follows its newly committed retry receipts. External/manual changes
+        // retire the job before admission; an invalid or already armed gate is
+        // never revived and its original total deadline is never extended.
+        if targets[0].lease.guarded_operation() {
+            for gate in self.gates.values_mut().filter(|gate|
+                !gate.invalid && gate.delivery_deadline.is_none()
+                && gate.generation == generation && gate.controller == controller
+                && gate.away.as_ref().is_some_and(|lease|lease.same_authority(&targets[0].lease)))
+            {
+                for (device, id) in &target_ids {
+                    if let Some(previous) = gate.target_ids.get_mut(device) {
+                        *previous = *id;
+                        if let Some(version) = gate.manual.get_mut(device) {
+                            *version = manual.get(device).copied().unwrap_or(0);
+                        }
+                    }
+                }
+                gate.lights.retain(|command|gate.target_ids.values().any(|id|*id==command.id));
+                gate.written.retain(|id,_|gate.target_ids.values().any(|current|current==id));
+                gate.lights.extend(commands.iter().cloned());
+                gate.ready = None;
+            }
+        }
         if let Some(reset) = reset {
             let gateway = config
                 .binding(&reset.device_id)
@@ -487,6 +654,12 @@ impl Owner {
                 .0
                 .gateway
                 .clone();
+            if local_reset {
+                let group=commands.iter().filter_map(|command|self.phases.get(&command.id)).find(|phase|phase.gateway==gateway).map_or(reset.id,|phase|phase.group);
+                self.phases.insert(reset.id,Phase{group,gateway,led:false,gate:None});
+                self.local.insert(reset.id,reset.deadline_ms);
+                return;
+            }
             self.phases.insert(
                 reset.id,
                 Phase {
@@ -499,7 +672,7 @@ impl Owner {
             let redundant = expected
                 .keys()
                 .filter(|device| {
-                    config
+                    !targets[0].lease.guarded_operation() && config
                         .devices()
                         .get(*device)
                         .and_then(|d| d.supply_relay.as_ref())
@@ -509,7 +682,9 @@ impl Owner {
                 .collect::<Vec<_>>();
             for device in redundant {
                 expected.remove(&device);
-                target_ids.remove(&device);
+                // Retain every module's receipt fence even when a supply-Off
+                // observation proves a legacy combined light is dark. Managed
+                // Away requires every raw output Off, including its AD8 zero.
             }
             let manual = expected
                 .keys()
@@ -534,6 +709,7 @@ impl Owner {
                     ready: None,
                     invalid: false,
                     cancel_reason: homesense_core::queue::CancelReason::RunCancelled,
+                        condition: None,
                 },
             );
         }
@@ -589,6 +765,15 @@ impl Owner {
                     break;
                 }
             }
+            if let Some(condition) = &gate.condition
+                && !store.keypad_completion_dependencies_current(
+                    gate.generation.boot_id(), gate.generation.epochs.configuration,
+                    condition.command_fence, &condition.owned,
+                    &gate.manual.keys().cloned().collect(),
+                ).map_err(|_| W::ServiceCommunicationFailure)?
+            {
+                gate.invalid = true;
+            }
             for command in &gate.lights {
                 if !matches!(
                     store
@@ -623,28 +808,15 @@ impl Owner {
     pub(crate) fn views(&self) -> Vec<View> {
         self.gates
             .iter()
-            .filter_map(|(id, g)| {
-                if g.invalid || g.lights.iter().any(|c| !g.written.contains_key(&c.id)) {
-                    return None;
-                }
-                let targets = g
-                    .targets
-                    .iter()
-                    .map(|(device, target)| {
-                        let at = g.written[&g.target_ids[device]];
-                        (device.clone(), (*target, at))
-                    })
-                    .collect();
-                Some(View {
-                    id: *id,
-                    generation: g.generation.clone(),
-                    targets,
-                    deadline: g.delivery_deadline.unwrap_or(g.deadline).min(g.deadline),
-                })
-            })
+            .filter_map(|(id, gate)| gate.view(*id))
             .collect()
     }
     pub(crate) fn apply(&mut self, proof: Proof, observer_boot: u128, now: u64) -> Result<(), W> {
+        // A caller cannot alter the predicate, write fence or deadline of a
+        // previously fetched view, including using an ordinary empty vector.
+        if self.gates.get(&proof.view.id).and_then(|gate| gate.view(proof.view.id)).as_ref() != Some(&proof.view) {
+            return Err(W::ResourceBusy);
+        }
         let gate = self.gates.get_mut(&proof.view.id).ok_or(W::ResourceBusy)?;
         if gate.invalid || gate.generation != proof.view.generation || now >= gate.deadline
             || gate.delivery_deadline.is_some_and(|deadline| now >= deadline) {
@@ -660,19 +832,29 @@ impl Owner {
                 now,
             )
             .map_err(|_| W::ResourceBusy)?;
-        if proof.view.targets.iter().all(|(device, (command, after))| {
-            proof
-                .sample
-                .snapshot()
-                .devices
-                .get(device)
-                .is_some_and(|s| {
-                    s.quality == homesense_state::Quality::Confirmed
-                        && s.observed_at_ms
-                            .is_some_and(|at| at > *after && at <= now && now - at <= FEEDBACK_SAMPLE_MS)
-                        && s.observed.is_some_and(|o| command.target_matches(o))
-                })
-        }) {
+        let (matched, valid_until) = match (&gate.condition, &proof.sample) {
+            (None, Sample::Targets(sample)) => (
+                proof.view.targets.iter().all(|(device, (command, after))| {
+                    sample.snapshot().devices.get(device).is_some_and(|s|
+                        s.quality == homesense_state::Quality::Confirmed
+                        && s.observed_at_ms.is_some_and(|at| at > *after && at <= now && now-at <= FEEDBACK_SAMPLE_MS)
+                        && s.observed.is_some_and(|o| command.target_matches(o)))
+                }),
+                proof.view.targets.keys().filter_map(|device|
+                    sample.snapshot().devices.get(device).and_then(|state| state.observed_at_ms)
+                        .map(|at| at.saturating_add(FEEDBACK_SAMPLE_MS))).min().unwrap_or(gate.deadline),
+            ),
+            (Some(_), Sample::Conditions { matched, valid_until, .. }) => {
+                if *matched == Some(false) {
+                    gate.invalid = true;
+                    gate.ready = None;
+                    return Ok(());
+                }
+                (*matched == Some(true), *valid_until)
+            },
+            _ => return Err(W::InvalidValueInRequest),
+        };
+        if matched {
             // Arm once, at the first complete physical proof. Refreshing a
             // witness never restarts this delivery budget.
             let delivery_deadline = match gate.delivery_deadline {
@@ -688,22 +870,7 @@ impl Owner {
                 lease: proof.sample.lease().clone(),
                 boot: observer_boot,
                 generation: gate.generation.clone(),
-                deadline: proof
-                    .view
-                    .targets
-                    .keys()
-                    .filter_map(|device| {
-                        proof
-                            .sample
-                            .snapshot()
-                            .devices
-                            .get(device)
-                            .and_then(|state| state.observed_at_ms)
-                            .map(|at| at.saturating_add(FEEDBACK_SAMPLE_MS))
-                    })
-                    .min()
-                    .unwrap_or(gate.deadline)
-                    .min(delivery_deadline),
+                deadline: valid_until.min(delivery_deadline),
             });
         } else {
             gate.ready = None;
@@ -749,7 +916,41 @@ impl BarrierLease {
 }
 pub(crate) struct Proof {
     view: View,
-    sample: SceneObservationStart,
+    sample: Sample,
+}
+enum Sample {
+    Targets(SceneObservationStart),
+    Conditions { lease: crate::feedback::RuleLease, matched: Option<bool>, valid_until: u64 },
+}
+impl Sample {
+    fn lease(&self) -> &crate::feedback::RuleLease {
+        match self { Self::Targets(sample) => sample.lease(), Self::Conditions { lease, .. } => lease }
+    }
+}
+impl From<SceneObservationStart> for Sample {
+    fn from(sample: SceneObservationStart) -> Self { Self::Targets(sample) }
+}
+impl Proof {
+    fn prepare(view: View, config: Option<&Configuration>, feedback: &Feedback, now: u64) -> Result<Self, String> {
+        if now >= view.deadline { return Err("LED delivery deadline expired".into()); }
+        let sample = if let Some(condition) = &view.condition {
+            let config = config.filter(|config| config.revision() == view.generation.epochs.configuration)
+                .ok_or("conditional LED configuration missing or changed")?;
+            let conditions = condition.postconditions.iter().collect::<Vec<_>>();
+            let (lease, values) = crate::component_modes::sample_conditions(
+                config, &conditions, feedback, now, condition.max_age_ms)?;
+            let current = condition.after.iter().all(|(id, written)|
+                lease.observations.get(id).is_none_or(|at| at.is_some_and(|at| at > *written)));
+            let matched = if !current || values.iter().any(Option::is_none) { None }
+                else { Some(values.iter().all(|value| *value == Some(true))) };
+            let valid_until = lease.observations.values().filter_map(|at| *at).min().unwrap_or(now)
+                .saturating_add(feedback.effective_max_age_ms(condition.max_age_ms)).min(view.deadline);
+            Sample::Conditions { lease, matched, valid_until }
+        } else {
+            Sample::Targets(feedback.scene_observation_start(now)?)
+        };
+        Ok(Self { view, sample })
+    }
 }
 #[derive(Default)]
 pub(crate) struct Consumer {
@@ -793,6 +994,13 @@ async fn tick_round(
     if views.is_empty() {
         return Ok(());
     }
+    let config = if views.iter().any(|view| view.condition.is_some()) {
+        match admission.automation_bundle(controller, views[0].generation.clone()).await {
+            Ok(bundle) => Some(bundle.configuration),
+            Err(W::ResourceBusy) => return Ok(()),
+            Err(e) => return Err(format!("conditional LED configuration: {e:?}")),
+        }
+    } else { None };
     let count = views.len();
     let begin = *next % count;
     *next = (begin + 8.min(count)) % count;
@@ -800,9 +1008,12 @@ async fn tick_round(
         if admission.monotonic_ms() >= view.deadline {
             continue;
         }
-        let sample = feedback.scene_observation_start(admission.monotonic_ms())?;
+        let proof = match Proof::prepare(view, config.as_ref(), feedback, admission.monotonic_ms()) {
+            Ok(proof) => proof,
+            Err(_) => continue,
+        };
         match admission
-            .control_batch_proof(controller, Proof { view, sample })
+            .control_batch_proof(controller, proof)
             .await
         {
             Ok(()) | Err(W::ResourceBusy) => {}
@@ -818,7 +1029,7 @@ mod budget_tests {
     use crate::{admission::Options, transport_owner::GatewayRead};
     use homesense_core::{ExecutionContext, LevelTransition, Percent, queue::Origin};
 
-    async fn fixture() -> (Owner, Feedback, Admission, std::path::PathBuf, u128) {
+    pub(super) async fn fixture() -> (Owner, Feedback, Admission, std::path::PathBuf, u128) {
         let root = std::env::temp_dir().join(format!("batch-budget-{}", Uuid::new_v4()));
         std::fs::create_dir(&root).unwrap();
         let path = root.join("state.sqlite");
@@ -947,29 +1158,50 @@ mod budget_tests {
         );
     }
     #[tokio::test]
+    async fn managed_away_known_failure_yields_reads_but_off_proof_still_expires() {
+        let (owner, mut feedback, admission, root, _) = fixture().await;
+        let config=Configuration::parse(include_bytes!("../../../config/test/native-app-keypad/devices.json"),ExecutionContext::Simulation).unwrap();
+        let targets=crate::physical_queries::plan(&config,ExecutionContext::Simulation).unwrap();
+        let mut view=owner.views().remove(0);
+        observation_sample(&mut feedback,100,100,20); // target is40; actual mismatch remains real
+        assert!(!view.query_requirements(&config,&feedback,&targets,100).is_empty(),"ordinary target confirmations retain their existing behavior");
+        view.managed_away=true;
+        for (command,_) in view.targets.values_mut() {
+            *command=Command::SetLevel{level:homesense_core::Percent::new(0).unwrap(),transition:homesense_core::LevelTransition::Immediate};
+        }
+        assert!(view.query_requirements(&config,&feedback,&targets,100).is_empty(),"fresh failure is for the retry engine, not a hot query loop");
+        assert!(view.query_requirements(&config,&feedback,&targets,2600).is_empty(),"a known failure waits for its owner's new attempt instead of consuming read slots");
+        assert!(!view.query_requirements(&config,&feedback,&targets,99).is_empty(),"future timestamps cannot suppress a read");
+        assert!(view.query_requirements(&config,&feedback,&targets,15000).is_empty(),"the original hard deadline cannot extend");
+        observation_sample(&mut feedback,2700,2700,0);
+        assert!(view.query_requirements(&config,&feedback,&targets,2700).is_empty());
+        assert!(!view.query_requirements(&config,&feedback,&targets,5201).is_empty(),"Off freshness and its pre-expiry refresh remain unchanged");
+        admission.shutdown().await.unwrap();std::fs::remove_dir_all(root).unwrap();
+    }
+    #[tokio::test]
     async fn first_complete_postwrite_proof_arms_delivery_once_and_refresh_cannot_extend_it() {
         let (mut owner, mut feedback, admission, root, boot) = fixture().await;
         for (at, value) in [(10, 40), (2000, 20)] {
             let view = owner.views().remove(0);
             let sample = observation_sample(&mut feedback, at, 2500, value);
-            owner.apply(Proof { view, sample }, boot, 2500).unwrap();
+            owner.apply(Proof { view, sample: sample.into() }, boot, 2500).unwrap();
             assert!(!owner.eligible(2, 2500));
             assert_eq!(owner.write_deadline(2), None);
         }
         let view = owner.views().remove(0);
         let sample = observation_sample(&mut feedback, 2500, 2500, 40);
-        owner.apply(Proof { view, sample }, boot, 2500).unwrap();
+        owner.apply(Proof { view, sample: sample.into() }, boot, 2500).unwrap();
         assert!(owner.eligible(2, 2500));
         assert_eq!(owner.write_deadline(2), Some(4500));
         let view = owner.views().remove(0);
         let sample = observation_sample(&mut feedback, 4400, 4400, 40);
-        owner.apply(Proof { view, sample }, boot, 4400).unwrap();
+        owner.apply(Proof { view, sample: sample.into() }, boot, 4400).unwrap();
         assert_eq!(owner.write_deadline(2), Some(4500));
         assert!(owner.eligible(2, 4499));
         assert!(!owner.eligible(2, 4500));
         let view = owner.views().remove(0);
         let sample = observation_sample(&mut feedback, 4500, 4500, 40);
-        assert!(owner.apply(Proof { view, sample }, boot, 4500).is_err());
+        assert!(owner.apply(Proof { view, sample: sample.into() }, boot, 4500).is_err());
         admission.shutdown().await.unwrap();
         std::fs::remove_dir_all(root).unwrap();
     }
@@ -979,15 +1211,19 @@ mod budget_tests {
         let (mut owner, mut feedback, admission, root, boot) = fixture().await;
         let view = owner.views().remove(0);
         let sample = observation_sample(&mut feedback, 14900, 14900, 40);
-        owner.apply(Proof { view, sample }, boot, 14900).unwrap();
+        owner.apply(Proof { view, sample: sample.into() }, boot, 14900).unwrap();
         assert_eq!(owner.write_deadline(2), Some(15000));
         assert!(owner.eligible(2, 14999));
         assert!(!owner.eligible(2, 15000));
         let view = owner.views().remove(0);
         let sample = observation_sample(&mut feedback, 15000, 15000, 40);
-        assert!(owner.apply(Proof { view, sample }, boot, 15000).is_err());
+        assert!(owner.apply(Proof { view, sample: sample.into() }, boot, 15000).is_err());
         assert!(!owner.eligible(2, 15001));
         admission.shutdown().await.unwrap();
         std::fs::remove_dir_all(root).unwrap();
     }
 }
+
+#[cfg(test)]
+#[path = "control_batch_completion_tests.rs"]
+mod completion_tests;

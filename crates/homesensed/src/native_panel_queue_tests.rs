@@ -91,14 +91,14 @@ async fn per_priority_overload_keeps_existing_stops_and_other_capacity() {
     f.receiver.enqueue_native(stops).unwrap();
     let extra=f.event(0);let motor=f.event(1);let ordinary=f.event(2);
     f.receiver.enqueue_native(vec![extra,motor,ordinary]).unwrap();
-    assert_eq!(f.receiver.native.each_ref().map(|q|q.len()),[64,1,1]);
+    assert_eq!(f.receiver.native.each_ref().map(|q|q.len()),[64,1,1,0]);
     f.finish().await;
 }
 
 #[tokio::test]
 async fn malformed_priority_rejects_batch_before_any_partial_enqueue() {
     let mut f=Fixture::new().await;
-    let stop=f.event(0);let malformed=f.event(3);
+    let stop=f.event(0);let malformed=f.event(4);
     assert!(f.receiver.enqueue_native(vec![stop,malformed]).is_err());
     assert!(f.receiver.native.iter().all(|q|q.is_empty()));
     f.finish().await;
@@ -219,4 +219,40 @@ async fn unified_stop_and_same_direction_keys_bypass_full_ordinary_work() {
     assert!(tokio::time::timeout(Duration::from_millis(200),&mut direction).await.unwrap().is_ok());
     assert_eq!(f.receiver.receiver.len(),32);assert_eq!(f.receiver.native[2].len(),256);
     drop(stop);drop(direction);drop(waiting);f.finish().await;
+}
+
+#[tokio::test]
+async fn away_reserve_survives_full_ordinary_queues_and_runs_after_only_safety_stop() {
+    let mut f=Fixture::new().await;
+    let ordinary=(0..256).map(|_|f.event(2)).collect();f.receiver.enqueue_native(ordinary).unwrap();
+    let mut waiting=vec![];
+    for _ in 0..32 {let(request,reply)=web_request(Action::Diagnostics{controller:f.controller,revision:1});f._control.sender.try_send(request).unwrap();waiting.push(reply);}
+    let away=f.event(3);let motor=f.event(1);let stop=f.event(0);
+    f.receiver.enqueue_native(vec![away,motor,stop]).unwrap();
+    assert_eq!(f.receiver.native.each_ref().map(|q|q.len()),[1,1,256,1]);
+    assert!(f.receiver.next_request().unwrap().1.is_some());assert!(f.receiver.native[0].is_empty());
+    assert!(f.receiver.next_request().unwrap().1.is_some());assert!(f.receiver.native[3].is_empty());
+    assert_eq!(f.receiver.native[1].len(),1,"Away precedes new movement and lighting work");
+    assert_eq!(f.receiver.receiver.len(),32);assert_eq!(f.receiver.native[2].len(),256);
+    drop(waiting);f.finish().await;
+}
+
+#[tokio::test]
+async fn explicit_http_away_has_reserved_capacity_and_fair_service_with_native_away() {
+    let mut f=Fixture::new().await;
+    let ordinary=(0..256).map(|_|f.event(2)).collect();f.receiver.enqueue_native(ordinary).unwrap();
+    let mut waiting=vec![];
+    for _ in 0..32 {let(request,reply)=web_request(Action::Diagnostics{controller:f.controller,revision:1});f._control.sender.try_send(request).unwrap();waiting.push(reply);}
+    let lease=f.tokens.module_off_lease(Some("Bearer synthetic-native-queue-policy-0123456789"),None,None).unwrap();
+    let action=Action::AwayOff{controller:f.controller,revision:1,lease:lease.into(),submit:true};
+    assert_eq!(f._control.request_lane(&action),RequestLane::Away);
+    let mut pending=Box::pin(f._control.request(action));
+    assert!(tokio::time::timeout(Duration::from_millis(20),&mut pending).await.is_err(),"Away is admitted to a separate channel despite saturated ordinary work");
+    let native=f.event(3);f.receiver.enqueue_native(vec![native]).unwrap();
+    let(request,native)=f.receiver.next_request().unwrap();assert!(native.is_none());assert!(matches!(request.action,Action::AwayOff{..}));
+    request.reply.send(Ok(Reply::CommandsAccepted(vec![]))).unwrap();
+    assert!(matches!(pending.await,Ok(Reply::CommandsAccepted(_))));
+    assert!(f.receiver.next_request().unwrap().1.is_some(),"native Away receives the next fair high-priority slot");
+    assert_eq!(f.receiver.receiver.len(),32);assert_eq!(f.receiver.native[2].len(),256);
+    drop(waiting);f.finish().await;
 }

@@ -118,29 +118,52 @@ async fn incomplete_periodic_module_retries_once_without_renewing_missing_port()
             400,
         )
         .unwrap();
-    let error = tokio::time::timeout(Duration::from_secs(1), async {
+    tokio::time::timeout(Duration::from_secs(1), async {
         loop {
             owner.receive("bus").await.unwrap();
-            if let Err(error) = owner.refresh_outputs_if_due().await {
-                break error;
-            }
+            owner.refresh_outputs_if_due().await.unwrap();
+            if owner.snapshot().devices[&missing].quality==Quality::Unknown {break;}
             tokio::time::sleep(Duration::from_millis(5)).await;
         }
     })
     .await
     .unwrap();
-    assert!(error.1.contains("feedback timeout"));
     assert_eq!(h.w.lock().unwrap().writes.len(), 3);
     assert_eq!(owner.snapshot().devices[&missing].observed_at_ms, before);
-    assert!(
-        owner
-            .snapshot()
-            .devices
-            .values()
-            .all(|s| s.quality != Quality::Confirmed)
-    );
+    assert_eq!(owner.snapshot().devices[&missing].quality,Quality::Unknown);
+    assert!(owner.snapshot().devices.iter().filter(|(id,_)|**id!=missing).all(|(_,state)|state.quality==Quality::Confirmed),"a missing port cannot invalidate healthy siblings");
+    assert!(h.a.diagnostics(h.controller,h.a.task_generation().await.unwrap()).await.unwrap().ready(),"missing feedback alone is not a transport failure");
+    assert!(!owner.output_query_pending());
+    for _ in 0..4 {owner.refresh_outputs_if_due().await.unwrap();}
+    assert_eq!(h.w.lock().unwrap().writes.len(),3,"a missing module must yield during its bounded backoff");
+    h.w.lock().unwrap().replies.extend([0xae,1,0xd8,80,0xee]);
+    owner.receive("bus").await.unwrap();
+    assert_eq!(owner.snapshot().devices[&missing].quality,Quality::Confirmed,"a genuine later reply can restore only that port");
+    assert!(owner.snapshot().devices[&missing].observed_at_ms>before);
     drop(owner);
     h.close().await;
+}
+
+#[tokio::test]
+async fn first_partial_reply_is_not_lost_when_the_bounded_retry_is_silent() {
+    let(h,mut owner,_)=delayed_fixture(8,0,20).await;
+    h.w.lock().unwrap().omit=Some(8);
+    owner.configure_output_refresh(&h.c,h.controller,h.a.task_generation().await.unwrap(),ExecutionContext::Simulation,60,400).unwrap();
+    tokio::time::timeout(Duration::from_secs(1),async {
+        loop {
+            owner.receive("bus").await.unwrap();owner.refresh_outputs_if_due().await.unwrap();
+            if h.w.lock().unwrap().writes.len()==2 {h.w.lock().unwrap().silent=true;}
+            if owner.feedback().module_truth().located_state("bus",1,8).unwrap().quality==Quality::Unknown {break;}
+            tokio::time::sleep(Duration::from_millis(5)).await;
+        }
+    }).await.unwrap();
+    assert_eq!(h.w.lock().unwrap().writes.len(),3);
+    for channel in 1..=8 {
+        assert_eq!(owner.feedback().module_truth().located_state("bus",1,channel).unwrap().quality,
+            if channel==8 {Quality::Unknown}else{Quality::Confirmed},"the first query's genuine replies remain evidence when its retry is silent");
+    }
+    assert!(h.a.diagnostics(h.controller,h.a.task_generation().await.unwrap()).await.unwrap().ready());
+    drop(owner);h.close().await;
 }
 
 #[tokio::test]

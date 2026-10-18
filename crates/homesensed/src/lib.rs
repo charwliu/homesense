@@ -207,6 +207,9 @@ mod postwrite_confirmation;
 
 mod component_modes;
 mod control_batch;
+mod keypad_completion;
 
 #[cfg(test)]
 mod native_panel_event_tests;
+
+mod away_execution;

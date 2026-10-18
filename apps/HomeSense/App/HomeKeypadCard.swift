@@ -48,6 +48,7 @@ struct HomeKeypadCard: View {
         let progress = actionPresentation?(key.number)
         let requestCue = progress != nil && progress?.phase != .pressed && progress?.phase != .released
         let cueVisible = controlsAvailable && requestCue && canShowActionPresentation?(key.number) != false
+        let dotColor = cueVisible ? (progress?.requestedColor ?? key.led.displayColor) : key.led.displayColor
         return Button { activate(key.number) } label: {
             VStack(alignment: .leading, spacing: compact ? 2 : 4) {
                 HStack {
@@ -62,9 +63,9 @@ struct HomeKeypadCard: View {
                     }
                     Spacer(minLength: 4)
                     ZStack {
-                        Circle().fill(key.led.displayColor == .red ? Color.red : key.led.displayColor == .green ? Color.green : Color.secondary.opacity(0.2))
-                        if key.led.displayColor == .unknown { Text("?").font(.system(size: 8, weight: .bold)) }
-                        if key.led.displayColor == .off { Circle().strokeBorder(.secondary, lineWidth: 1) }
+                        Circle().fill(dotColor == .red ? Color.red : dotColor == .green ? Color.green : Color.secondary.opacity(0.2))
+                        if dotColor == .unknown { Text("?").font(.system(size: 8, weight: .bold)) }
+                        if dotColor == .off { Circle().strokeBorder(.secondary, lineWidth: 1) }
                     }.frame(width: 11, height: 11).accessibilityHidden(true)
                 }
                 Text(key.name).font(compact ? .caption.weight(.medium) : .subheadline.weight(.medium)).lineLimit(1).minimumScaleFactor(0.65)

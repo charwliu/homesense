@@ -15,6 +15,7 @@ pub mod variables;
 pub mod scene_observation;
 pub mod scene_initialization;
 pub mod native_scene;
+pub mod keypad_completion;
 use homesense_core::queue::CancelReason;
 use rusqlite::{Connection, OptionalExtension, TransactionBehavior, params};
 use std::{path::Path, time::Duration};

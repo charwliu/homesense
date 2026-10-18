@@ -85,7 +85,7 @@ try:
   save('initial-ready.json',ready);before=variables();save('mode-variables-before.json',before)
   assert all(x['value'] is None for x in before.values()),'mode initial state must remain unknown; never seed SQL'
   env={k:v for k,v in os.environ.items() if not k.startswith('HOMESENSE_')};env['HOMESENSE_FULL_CATALOG_ACTUAL_FIXTURE']=str(a.output.resolve())
-  test=['swift','test','--package-path',str(package),'--scratch-path',str(a.scratch),'--filter','HomeFullCatalogActualIntegrationTests']
+  test=['swift','test','--build-system','native','--package-path',str(package),'--scratch-path',str(a.scratch),'--filter','HomeFullCatalogActualIntegrationTests']
   save('command.json',{'CLI_argv':args,'test_argv':test,'test_environment':{'HOMESENSE_FULL_CATALOG_ACTUAL_FIXTURE':env['HOMESENSE_FULL_CATALOG_ACTUAL_FIXTURE']},'private_input_paths':{n:str(x) for n,x in inputs.items()},'input_sha256':input_hashes})
   with (a.output/'swift-test.log').open('xb') as log:r=subprocess.run(test,env=env,stdout=log,stderr=subprocess.STDOUT,timeout=150)
   result['test_exit_code']=r.returncode

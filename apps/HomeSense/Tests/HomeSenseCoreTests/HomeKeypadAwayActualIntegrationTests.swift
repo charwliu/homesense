@@ -90,12 +90,27 @@ private final class AwayActualEvents: HomeEventTransport, @unchecked Sendable {
         #expect(body == .object(["revision": .string(home.revision), "request_id": body["request_id"],
             "command": .object(["action": .string("keypad_press"), "keypad": .string("entry-panel"), "key": .integer(6)])]))
         #expect(body["request_id"].text.flatMap(UUID.init(uuidString:)) != nil)
-        try await until {
-            let lamps = home.devices.filter { $0.id.hasPrefix("relay-") }
-            let parent = home.devices.first { $0.id == "entry-panel" }.flatMap { try? HomeKeypad(record: $0) }
-            return lamps.count == 16 && lamps.allSatisfy { $0.raw["observed"]["on"] == .bool(false) && $0.raw["quality"].text == "Confirmed" }
-                && parent?.keys[5].led.lastWritten == .green
+        let failureRounds = Int(service["failed_rounds"].integerText ?? "0") ?? 0
+        let operationID = try #require(receipt["operation"].text)
+        if failureRounds == 3 {
+            try await until { home.awayStatus?.id == operationID && home.awayStatus?.failed == true }
+            #expect(home.awayStatus?.rounds == 3 && home.awayStatus?.confirmed == 8 && home.awayStatus?.missing.count == 1)
+            #expect(home.awayStatus?.missing.first?.contains("relay-a [1,2,3,4,5,6,7,8]") == true)
+            let panel = try HomeKeypad(record: #require(home.devices.first { $0.id == "entry-panel" }))
+            #expect(panel.keys[5].led.lastWritten != .green, "Failed close cannot produce the completion LED")
+        } else {
+            try await until {
+                let lamps = home.devices.filter { $0.id.hasPrefix("relay-") }
+                let parent = home.devices.first { $0.id == "entry-panel" }.flatMap { try? HomeKeypad(record: $0) }
+                return lamps.count == 16 && lamps.allSatisfy { $0.raw["observed"]["on"] == .bool(false) && $0.raw["quality"].text == "Confirmed" }
+                    && parent?.keys[5].led.lastWritten == .green
+            }
+            try await until { home.awayStatus?.id == operationID && home.awayStatus?.state == "confirmed" }
+            #expect(home.awayStatus?.confirmed == 16 && home.awayStatus?.total == 16 && home.awayStatus?.rounds == failureRounds + 1)
         }
+        let duplicate = try await http.repeatExactly(request)
+        let replay = try JSONDecoder().decode(HomeJSON.self, from: duplicate.data)
+        #expect(replay["operation"].text == operationID && replay["commands"] == receipt["commands"], "HTTP idempotency returns the original operation; it never creates a new retry job")
         #expect(await http.captured().count == 1, "Actual feedback/LED green never causes a follow-up write")
         #expect(home.dailyDevices.map(\.id) == ["entry-panel"] && home.devices.count == 17)
         try HomeJSON.array(home.devices.map(\.raw)).data(pretty: true).write(to: root.appendingPathComponent("actual-client-final-dto.json"))
@@ -106,7 +121,7 @@ private final class AwayActualEvents: HomeEventTransport, @unchecked Sendable {
         for secret in [token,origin,"Authorization","entry-panel"] { #expect(!diagnostics.exportText().contains(secret)) }
     }
     private func until(_ condition: () -> Bool) async throws {
-        for _ in 0..<500 { if condition() { return }; try await Task.sleep(for: .milliseconds(20)) }
+        for _ in 0..<1800 { if condition() { return }; try await Task.sleep(for: .milliseconds(20)) }
         throw URLError(.timedOut)
     }
 }

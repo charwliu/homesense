@@ -206,4 +206,42 @@ struct HomeKeypadStoreTests {
         #expect(home.editableKeypads.isEmpty && home.draftChanged)
         #expect(await server.captured().count == count)
     }
+
+    @Test func keySpecificCompletionSurvivesRenameSavePreviewAndDraftReload() async throws {
+        let server = HomeTestServer(), home = await connected(server)
+        defer { home.disconnect() }
+        let row = try JSONDecoder().decode(HomeJSON.self, from: Data(#"""
+        {"id":"panel","name":"Panel","module_id":"panel-module","enabled":true,"keys":[
+          {"number":1,"label":"Source","led_endpoint":{"id":"legacy-key-1","name":"One","enabled":true},
+           "action":{"kind":"scene_toggle","scene":"reading","review_evidence":"Synthetic reviewed scene"},
+           "selection_completion":{"id":"source-off","after":{"device":"source-light","on":false},
+             "when":[{"device":"condition-light","on":true}],"variable":"linked-mode","value":3,
+             "indicators":[{"device":"linked-led","on":true}],"max_age_ms":5000,
+             "review_evidence":"Synthetic reviewed conditional effect"}}
+        ]}
+        """#.utf8))
+        try home.upsertKeypad(row)
+        var renamed = row
+        renamed["name"] = .string("Renamed panel")
+        var keys = renamed["keys"].values
+        keys[0]["label"] = .string("Renamed source")
+        renamed["keys"] = .array(keys)
+        try home.upsertKeypad(renamed, originalID: "panel")
+        let effect = row["keys"].values[0]["selection_completion"]
+        await home.saveDraft()
+        try #require(home.error == nil, "\(home.error ?? "")")
+        let draft = try #require(home.draftID)
+        await home.previewDraft()
+        try #require(home.error == nil && home.preview != nil)
+        await home.loadActiveConfiguration()
+        #expect(home.editableKeypads.isEmpty)
+        await home.loadDraft(draft)
+        try #require(home.error == nil, "\(home.error ?? "")")
+        let restored = try #require(home.editableKeypads.first).raw
+        #expect(restored["name"].text == "Renamed panel")
+        #expect(restored["keys"].values[0]["label"].text == "Renamed source")
+        #expect(restored["keys"].values[0]["selection_completion"] == effect)
+        #expect(restored["keys"].values[0]["led_endpoint"]["id"].text == "legacy-key-1")
+        #expect(await server.captured().allSatisfy { $0.url?.path != "/api/v1/keypad-actions" && $0.url?.path != "/api/v1/config/activate" })
+    }
 }

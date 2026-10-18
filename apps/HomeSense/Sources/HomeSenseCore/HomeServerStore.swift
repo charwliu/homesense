@@ -48,6 +48,33 @@ public final class HomeServerStore: ObservableObject {
     @Published public private(set) var devices: [HomeRecord] = []
     @Published public private(set) var rooms: [HomeRecord] = []
     @Published public private(set) var scenes: [HomeRecord] = []
+    @Published public private(set) var awayOperations: [HomeAwayOperation] = []
+    @Published private var sceneActionHints: [String: HomeSceneActionPresentation] = [:]
+    private var sceneCueVersions: [String: UInt64] = [:]
+    public var awayStatus: HomeAwayOperation? { receivingPush ? awayOperations.first : nil }
+    public func sceneActionPresentation(_ id: String) -> HomeSceneActionPresentation? {
+        snapshotIsCurrent ? sceneActionHints[id] : nil
+    }
+    private func showSceneAction(_ id: String, requestID: String, selected: Bool?) {
+        guard scenes.contains(where: { $0.id == id }) else { return }
+        let hint = HomeSceneActionPresentation(requestID: requestID, selected: selected)
+        sceneActionHints[id] = hint
+        let generation = epoch
+        Task { [weak self] in
+            try? await Task.sleep(for: .seconds(15))
+            guard !Task.isCancelled, let self, self.epoch == generation, self.sceneActionHints[id] == hint else { return }
+            self.sceneActionHints.removeValue(forKey: id)
+        }
+    }
+    private func clearSceneAction(_ requestID: String) {
+        sceneActionHints = sceneActionHints.filter { $0.value.requestID != requestID }
+    }
+    private func reconcileSceneActions() {
+        sceneActionHints = sceneActionHints.filter { id, hint in
+            guard let scene = scenes.first(where: { $0.id == id }) else { return false }
+            return hint.selected.map { scene.raw["selected"] != .bool($0) } ?? true
+        }
+    }
     @Published public private(set) var moduleInventory: [HomePhysicalModule] = []
     @Published public private(set) var loadingModules = false
     @Published public private(set) var moduleInventoryMessage = ""
@@ -478,9 +505,17 @@ public final class HomeServerStore: ObservableObject {
             if let index = next.firstIndex(where: { $0.id == record.id }) { next[index] = record }
             else { next.append(record) }
         }
+        let nextAway: [HomeAwayOperation]
+        if frame["away_operations"] == .null { nextAway = [] }
+        else {
+            guard case .array(let rows) = frame["away_operations"], rows.count <= 8 else { throw HomeServerError.invalidResponse }
+            nextAway = try rows.map { try HomeAwayOperation($0, boot: boot, revision: version) }
+        }
         devices = next; scenes = nextScenes; eventCursor = cursor
         synchronizeUnifiedKeypadContext()
         updateUnifiedKeypadHints(incoming, seedEvents: frame["reset"].flag, clearCues: frame["reset"].flag)
+        awayOperations = nextAway
+        reconcileSceneActions()
         stateSerial &+= 1; capturedAt = Date(); receivingPush = true
         synchronization = "服务端实时推送"
     }
@@ -693,6 +728,7 @@ public final class HomeServerStore: ObservableObject {
     private func clearUnifiedKeypadState() {
         pendingKeypadActivations = [:]; keypadActivationContext = nil
         keypadActivationState.reset(); keypadEventVersions = [:]; keypadEventStates = [:]
+        sceneActionHints = [:]; sceneCueVersions = [:]; awayOperations = []
     }
     private func synchronizeUnifiedKeypadContext() {
         guard unifiedKeypadActionsSupported, !snapshotBoot.isEmpty, !revision.isEmpty else { return }
@@ -712,7 +748,18 @@ public final class HomeServerStore: ObservableObject {
                 if raw["indication"] == .null {
                     keypadActivationState.clearHint(panel.id, key: number, context: context)
                 } else if let cue = try? HomeKeypadActionIndication(raw["indication"], endpoint: endpoint, boot: context.boot) {
-                    keypadActivationState.merge(cue, panel: panel.id, key: number, endpoint: endpoint, context: context)
+                    let merged = keypadActivationState.merge(cue, panel: panel.id, key: number, endpoint: endpoint, context: context)
+                    let eventID = keypadEventID(panel.id, number)
+                    if seedEvents { sceneCueVersions[eventID] = max(sceneCueVersions[eventID] ?? 0, cue.operationSequence) }
+                    if !seedEvents, !clearCues, merged, cue.operationSequence >= (sceneCueVersions[eventID] ?? 0) {
+                        sceneCueVersions[eventID] = cue.operationSequence
+                        if let scene = raw["action"]["scene"].text {
+                            if [.pending, .written].contains(cue.status) {
+                                let selection = scenes.first(where: { $0.id == scene })?.raw["switch_kind"] == .string("selection")
+                                showSceneAction(scene, requestID: cue.requestID, selected: selection ? cue.color.flatMap { $0 == .red ? true : $0 == .green ? false : nil } : nil)
+                            } else { clearSceneAction(cue.requestID) }
+                        }
+                    } else if merged, ![.pending, .written].contains(cue.status) { clearSceneAction(cue.requestID) }
                     if clearCues { keypadActivationState.clearHint(panel.id, key: number, context: context) }
                 } else {
                     keypadActivationState.clearHint(panel.id, key: number, context: context)
@@ -785,8 +832,12 @@ public final class HomeServerStore: ObservableObject {
               let row = devices.first(where: { $0.id == id }), let panel = try? HomeKeypad(record: row),
               let endpoint = panel.keys.first(where: { $0.number == number })?.endpointID,
               let request = try? HomeKeypadActivationRequest(revision: revision, keypad: id, key: number) else { return operation }
-        do { try keypadActivationState.begin(request, endpoint: endpoint, context: context) }
+        let sceneKey = panel.keys.first(where: { $0.number == number })
+        let scene = sceneKey?.actionScene.flatMap { id in scenes.first { $0.id == id } }
+        let nextSelection: Bool? = scene?.raw["switch_kind"] == .string("selection") ? scene?.raw["selected"] != .bool(true) : nil
+        do { try keypadActivationState.begin(request, endpoint: endpoint, context: context, color: nextSelection.map { $0 ? .red : .green }) }
         catch { return operation }
+        if let scene { showSceneAction(scene.id, requestID: request.requestID.uuidString, selected: nextSelection) }
         if panel.keys.first(where: { $0.number == number })?.actionDevice != nil {
             priorityStopGeneration = UUID()
             latestPriorityMessage = "窗帘按键请求正在提交。"; message = latestPriorityMessage!
@@ -808,13 +859,22 @@ public final class HomeServerStore: ObservableObject {
             defer {
                 self.pendingKeypadActivations.removeValue(forKey: operation.id)
             }
-            guard gate.allowed else { self.keypadActivationState.fail(pending.request, context: pending.context, uncertain: false); return }
+            guard gate.allowed else { self.keypadActivationState.fail(pending.request, context: pending.context, uncertain: false); self.clearSceneAction(pending.request.requestID.uuidString); return }
             let stopGeneration = pending.controlGeneration
             do {
                 let result = try await self.request(HomeKeypadActivationRequest.path, method: "POST", body: pending.request.body)
                 guard self.keypadActivationContext == pending.context, stopGeneration == self.priorityStopGeneration else { return }
                 let applied = try self.keypadActivationState.complete(result, request: pending.request, context: pending.context)
                 guard applied, stopGeneration == self.priorityStopGeneration else { return }
+                if result["outcome"] != .string("accepted") { self.clearSceneAction(pending.request.requestID.uuidString) }
+                else if let row = self.devices.first(where: { $0.id == id }), let panel = try? HomeKeypad(record: row),
+                        let scene = panel.keys.first(where: { $0.number == number })?.actionScene {
+                    if let cue = self.keypadActivationState.indication(id, key: number), cue.requestID == pending.request.requestID.uuidString,
+                       [.pending, .written].contains(cue.status) {
+                        let selection = self.scenes.first(where: { $0.id == scene })?.raw["switch_kind"] == .string("selection")
+                        self.showSceneAction(scene, requestID: cue.requestID, selected: selection ? cue.color.flatMap { $0 == .red ? true : $0 == .green ? false : nil } : nil)
+                    } else { self.clearSceneAction(pending.request.requestID.uuidString) }
+                }
                 self.message = result["outcome"] == .string("accepted")
                     ? "按键请求已受理；本键提示与实际设备反馈分别显示。" : "按键执行结果未知，请核对设备；未自动重试。"
                 if self.latestPriorityMessage != nil { self.latestPriorityMessage = self.message }
@@ -825,6 +885,7 @@ public final class HomeServerStore: ObservableObject {
                 let rejected = (error as? HomeKeypadActionHTTPFailure)?.rejected == true
                 let applied = self.keypadActivationState.fail(pending.request, context: pending.context, uncertain: !rejected)
                 guard applied, stopGeneration == self.priorityStopGeneration else { return }
+                self.clearSceneAction(pending.request.requestID.uuidString)
                 self.error = error.localizedDescription
                 self.message = rejected ? "按键请求未受理；没有改用旧接口。" : "按键执行结果未知，请核对设备；未自动重试。"
                 if self.latestPriorityMessage != nil { self.latestPriorityMessage = self.message }
@@ -1028,10 +1089,15 @@ public final class HomeServerStore: ObservableObject {
             diagnostics.record(.ignored, reason: !connected ? .disconnected : busy ? .busy : !snapshotIsCurrent ? .snapshotNotCurrent : .sceneUnavailable)
             return
         }
+        let requestID = UUID().uuidString
+        showSceneAction(id, requestID: requestID, selected: on)
         await run {
-            var body: HomeJSON = .object(["scene": .string(id), "request_id": .string(UUID().uuidString)])
+            var body: HomeJSON = .object(["scene": .string(id), "request_id": .string(requestID)])
             if let on { body["on"] = .bool(on) }
-            let result = try await self.request("/api/v1/scene-actions", method: "POST", body: body)
+            let result: HomeJSON
+            do { result = try await self.request("/api/v1/scene-actions", method: "POST", body: body) }
+            catch { self.clearSceneAction(requestID); throw error }
+            if result["outcome"].text != "accepted" { self.clearSceneAction(requestID) }
             self.message = result["outcome"].text == "accepted" ? "场景请求已受理，请查看后续状态。" : "场景结果未知，请刷新核对；未自动重试。"
             if !self.receivingPush { try await self.readSnapshots() }
         }

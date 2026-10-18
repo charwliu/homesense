@@ -134,6 +134,7 @@ pub(crate) fn upgrade(
         let mut availability=serde_json::Value::Null;
         let mut directory=serde_json::Value::Null;
         let mut light_projection_state=serde_json::Value::Null;
+        let mut away_operations=serde_json::Value::Null;
     let mut motor_estimates=serde_json::Value::Null;
         let mut interval = tokio::time::interval(Duration::from_millis(500));
         interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
@@ -184,16 +185,27 @@ pub(crate) fn upgrade(
                     // reads awaited. Discard this mixed candidate and resync.
                     if api.runtime.read().ok().is_none_or(|current|current.as_ref().is_none_or(|current|current.revision!=runtime.revision || current.boot!=runtime.boot)){cursor=None;continue;}
                     if current_grant(&api,&headers).as_ref()!=Some(&grant) {cursor=None;continue;}
+                    let next_away=if update.snapshot.keypad_away_scope.as_ref().is_some_and(|scope|scope.permitted(&grant)) {
+                        let lease=api.tokens.module_off_lease(headers.get("authorization").and_then(|v|v.to_str().ok()),
+                            headers.get("cookie").and_then(|v|v.to_str().ok()).and_then(crate::web_api::session_cookie),headers.get("x-csrf-token").and_then(|v|v.to_str().ok()));
+                        if let Some(lease)=lease {
+                            match runtime.control.request(Action::AwayOperations{controller:grant.controller,revision:runtime.revision,lease:lease.into()}).await {
+                                Ok(Reply::AwayOperations(operations))=>json!(operations.into_iter().rev().take(8).collect::<Vec<_>>()),_=>json!([])
+                            }
+                        }else{json!([])}
+                    }else{json!([])};
+                    if api.runtime.read().ok().is_none_or(|current|current.as_ref().is_none_or(|current|current.revision!=runtime.revision || current.boot!=runtime.boot)){cursor=None;continue;}
+                    if current_grant(&api,&headers).as_ref()!=Some(&grant) {cursor=None;continue;}
                     let next_light_projection=light_projection(&update.snapshot);
                     let next_motor_estimates=json!(update.snapshot.devices.iter().filter(|d|d.motor_estimate.is_some()).map(|d|(d.id.as_str(),&d.motor_estimate)).collect::<Vec<_>>());
                     let next_keypads=json!(update.snapshot.keypads);
                     let next_directory=json!(update.snapshot.directory(api.can_manage_configuration(&grant)));
                     let next_availability=json!(update.snapshot.devices.iter().map(|view|(view.id.as_str(),&view.availability)).collect::<Vec<_>>());
-                    if cursor.as_ref()!=Some(&update.cursor) || next_scenes!=scenes || next_motor_estimates!=motor_estimates || next_keypads!=keypads || next_availability!=availability || next_directory!=directory || next_light_projection!=light_projection_state || unavailable {
+                    if cursor.as_ref()!=Some(&update.cursor) || next_scenes!=scenes || next_motor_estimates!=motor_estimates || next_keypads!=keypads || next_availability!=availability || next_directory!=directory || next_light_projection!=light_projection_state || next_away!=away_operations || unavailable {
                         let devices=crate::management_keypads::devices_json(&update.snapshot,&grant);
-                        let frame=json!({"type":"state","cursor":update.cursor,"reset":update.reset,"devices":devices,"scenes":next_scenes["scenes"],"revision":next_scenes["revision"],"rooms":next_directory["rooms"],"floors":next_directory["floors"]}).to_string();
+                        let frame=json!({"type":"state","cursor":update.cursor,"reset":update.reset,"devices":devices,"scenes":next_scenes["scenes"],"revision":next_scenes["revision"],"rooms":next_directory["rooms"],"floors":next_directory["floors"],"away_operations":next_away}).to_string();
                         if frame.len()>512*1024 || !matches!(tokio::time::timeout(Duration::from_secs(2),socket.send(Message::Text(frame.into()))).await,Ok(Ok(()))){break;}
-                        cursor=Some(update.cursor);scenes=next_scenes;motor_estimates=next_motor_estimates;keypads=next_keypads;availability=next_availability;directory=next_directory;light_projection_state=next_light_projection;unavailable=false;last_send=std::time::Instant::now();
+                        cursor=Some(update.cursor);scenes=next_scenes;motor_estimates=next_motor_estimates;keypads=next_keypads;availability=next_availability;directory=next_directory;light_projection_state=next_light_projection;away_operations=next_away;unavailable=false;last_send=std::time::Instant::now();
                     }
                     if last_send.elapsed()>=Duration::from_secs(15) {
                         if !matches!(tokio::time::timeout(Duration::from_secs(2),socket.send(Message::Ping(Bytes::new()))).await,Ok(Ok(()))){break;}

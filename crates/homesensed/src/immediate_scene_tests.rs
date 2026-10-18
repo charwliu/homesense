@@ -2105,6 +2105,86 @@ fn component_inputs()->(Vec<u8>,Json){
 }
 fn mode_value(h:&Harness,name:&str)->Option<homesense_core::rule::Value>{Store::open(h.directory.join("runtime.sqlite")).unwrap().logical_variable(1,name).unwrap().unwrap().value}
 fn mode_frame(h:&mut Harness,addr:u8,channel:u8,value:u8){h.feedback.apply(&GatewayRead{gateway_id:"bus".into(),transport_epoch:1,received_at_ms:h.actor.monotonic_ms(),result:hb_transport::Receive::Frames{transport_epoch:1,frames:vec![hb_protocol::RawFrame{address:addr,command:0xd0+channel,value}]}}).unwrap();}
+fn component_cycle_inputs() -> (Vec<u8>, Json) {
+    let (cfg, mut doc) = component_inputs();
+    let dispatch = &mut doc["immediate_scenes"][0]["activate"][0]["action"];
+    let on = dispatch["then_actions"].clone();
+    let off = dispatch["else_actions"].clone();
+    dispatch["else_actions"] = json!([{
+        "source": "known/toggle",
+        "action": {
+            "kind": "if",
+            "condition": {"kind":"equal", "left":{"kind":"variable", "id":"v"},
+                          "right":{"kind":"integer", "value":1}},
+            "then_actions": off, "else_actions": on
+        }
+    }]);
+    let mut off = doc["component_mode_confirmations"][0].clone();
+    off["id"] = json!("known-off-only");
+    off["first_value"] = json!(0);
+    off["confirm_when_known"] = json!(true);
+    off["postconditions"][0]["on"] = json!(false);
+    doc["component_mode_confirmations"].as_array_mut().unwrap().push(off);
+    (cfg, doc)
+}
+#[tokio::test]
+async fn component_mode_known_off_policy_does_not_reject_third_press_on() {
+    let (cfg, doc) = component_cycle_inputs();
+    let mut h = Harness::from_inputs(cfg, doc).await;
+    for on in [true, false, true, false] {
+        h.request(Action::SceneAction {
+            controller: h.controller, revision: 1, scene: "act".into(), execute: true,
+        }).await.expect("an inactive opposite-result policy must not reject this toggle");
+        assert_eq!(h.wire().await, vec![0xae, 3, 1, if on { 0xf1 } else { 0xf2 }, 0xee]);
+        tokio::time::sleep(Duration::from_millis(2)).await;
+        mode_frame(&mut h, 3, 1, if on { 0xf1 } else { 0xf2 });
+        mode_confirm(&h).await;
+        assert_eq!(mode_value(&h, "v"), Some(homesense_core::rule::Value::Integer(i64::from(on))));
+    }
+    assert_eq!(h.count("command_journal"), 8, "exactly one light and one LED per press");
+    h.finish().await;
+}
+#[tokio::test]
+async fn component_mode_known_peer_with_unknown_whole_source_keeps_partial_cycle_available() {
+    let (cfg, mut doc) = component_cycle_inputs();
+    doc["variables"].as_array_mut().unwrap().extend([
+        json!({"id":"whole", "kind":"integer", "lifetime":"persistent"}),
+        json!({"id":"peer", "kind":"bool", "lifetime":"persistent"}),
+    ]);
+    doc["immediate_scenes"][0]["activate"].as_array_mut().unwrap().extend([
+        command("partial/peer-off", "marker", json!({"kind":"switch", "on":false})),
+        json!({"source":"partial/peer-set", "action":{"kind":"set", "variable":"peer",
+            "value":{"kind":"bool", "value":false}}}),
+    ]);
+    doc["component_mode_confirmations"].as_array_mut().unwrap().extend([
+        json!({"id":"unknown-peer-off", "variable":"peer", "scenes":["act"],
+            "first_value":false, "include_when_first_unknown":true, "timeout_ms":15000,
+            "max_age_ms":5000, "review_evidence":"Synthetic partial first enable clears its peer",
+            "postconditions":[{"device":"marker", "on":false}]}),
+        json!({"id":"whole-zero-peer", "variable":"peer", "scenes":["act"],
+            "first_value":false, "basis":"logical_source", "confirm_when_known":true,
+            "when_values":{"whole":0}, "timeout_ms":15000, "max_age_ms":5000,
+            "review_evidence":"Synthetic known whole-source canonical peer label", "postconditions":[]}),
+    ]);
+    let mut h = Harness::from_inputs(cfg, doc).await;
+    for on in [true, false, true, false] {
+        h.request(Action::SceneAction {
+            controller: h.controller, revision: 1, scene: "act".into(), execute: true,
+        }).await.expect("a dormant whole-source label cannot claim a partial transition");
+        assert_eq!(h.wire().await,
+            vec![0xae, 3, 1, if on { 0xf1 } else { 0xf2 }, 0xee,
+                 0xae, 3, 2, 0xf2, 0xee]);
+        tokio::time::sleep(Duration::from_millis(2)).await;
+        mode_frame(&mut h, 3, 1, if on { 0xf1 } else { 0xf2 });
+        mode_frame(&mut h, 3, 2, 0xf2);
+        mode_confirm(&h).await;
+        assert_eq!(mode_value(&h, "v"), Some(homesense_core::rule::Value::Integer(i64::from(on))));
+        assert_eq!(mode_value(&h, "peer"), Some(homesense_core::rule::Value::Bool(false)));
+        assert_eq!(mode_value(&h, "whole"), None, "partial controls never invent the whole-source mode");
+    }
+    assert_eq!(h.count("command_journal"), 12);
+    h.finish().await;
+}
 async fn mode_confirm(h:&Harness)->usize{
     let has_written_stage=!h.actor.control_batch_views(h.controller,h.generation.clone()).await.unwrap().is_empty();
     crate::control_batch::tick(&h.actor,h.controller,&h.feedback).await.unwrap();if has_written_stage{h.wire().await;}

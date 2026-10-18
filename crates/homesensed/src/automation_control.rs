@@ -13,6 +13,7 @@ use uuid::Uuid;
 pub enum Action {
     KeypadAction {controller:Uuid,request:crate::keypad_actions::Request},
     AwayOff{controller:Uuid,revision:u64,lease:crate::away_auth::Authorization,submit:bool},
+    AwayOperations{controller:Uuid,revision:u64,lease:crate::away_auth::Authorization},
     ModuleQuery{controller:Uuid,revision:u64,module_id:String,scope:crate::module_queries::Scope,submit:bool},
     ModuleQueryStatus{controller:Uuid,revision:u64,module_id:String,scope:crate::module_queries::Scope,commands:Vec<u64>},
     MotorBinding {controller:Uuid,revision:u64,device:homesense_core::DeviceId},
@@ -56,6 +57,8 @@ pub enum Action {
 }
 #[derive(Debug, PartialEq, Eq)]
 pub enum Reply {
+    AwayAccepted(crate::away_execution::Accepted),
+    AwayOperations(Vec<crate::away_execution::View>),
     KeypadAccepted(Box<crate::keypad_actions::Receipt>),
     KeypadRejected(crate::keypad_actions::Rejection),
     ModuleQuery(crate::module_queries::Accepted),
@@ -101,6 +104,31 @@ pub struct SceneCatalogEntry {
     pub activity: crate::scene_activity::SceneActivity,
     pub last_run: Option<LastRun>,
 }
+/// Validate each projection's own lease while amortizing actor round trips.
+/// No scene inherits another scene's pending state or feedback proof.
+async fn settle_catalog_activities(
+    admission: &crate::admission::Admission,
+    controller: Uuid,
+    generation: &crate::admission::TaskGeneration,
+    pending: &mut Vec<(String, crate::scene_activity::SceneActivity, crate::feedback::RuleLease)>,
+    entries: &mut std::collections::BTreeMap<String, SceneCatalogEntry>,
+) -> Result<(), String> {
+    if pending.is_empty() { return Ok(()); }
+    let rows=std::mem::take(pending);
+    let (identities,leases):(Vec<_>,Vec<_>)=rows.into_iter().map(|(id,activity,lease)|((id,activity),lease)).unzip();
+    let results=admission.feedback_settled_batch(controller,generation.clone(),leases).await
+        .map_err(|error|format!("catalog activity: {error:?}"))?;
+    if results.len()!=identities.len(){return Err("catalog activity result mismatch".into());}
+    for ((id,candidate),result) in identities.into_iter().zip(results) {
+        let entry=entries.get_mut(&id).ok_or("catalog activity entry missing")?;
+        entry.activity=match result {
+            Ok(true)=>candidate,
+            Ok(false)=>crate::scene_activity::SceneActivity::Pending,
+            Err(_)=>crate::scene_activity::SceneActivity::Unknown,
+        };
+    }
+    Ok(())
+}
 /// Persisted execution receipt. Timestamps are monotonic within `boot`, and
 /// CommandsWritten is not proof that physical targets were reached.
 #[derive(Debug, PartialEq, Eq)]
@@ -113,6 +141,12 @@ pub struct LastRun {
     pub version: u64,
     pub status: homesense_storage::scene_run::Status,
     pub cause: Option<homesense_storage::scene_run::Cause>,
+}
+impl LastRun {
+    pub(crate) fn from_history(page:homesense_storage::scene_run::Page)->Self {
+        Self{boot:page.boot,run:page.run,revision:page.record.revision,started_ms:page.record.started_ms,
+            updated_ms:page.record.updated_ms,version:page.record.version,status:page.record.status,cause:page.cause}
+    }
 }
 /// Coalesced current state, not a lossless event log. Execution history remains
 /// available through LastRun and the persistent journal.
@@ -139,12 +173,13 @@ struct Request {
 }
 type PolledRequest = (Request, Option<oneshot::Receiver<Result<Reply, String>>>);
 #[derive(Clone,Copy,Debug,PartialEq,Eq)]
-enum RequestLane {Stop,Motor,Ordinary}
+enum RequestLane {Stop,Away,Motor,Ordinary}
 #[derive(Clone)]
 pub struct Control {
     sender: mpsc::Sender<Request>,
     stop_sender: mpsc::Sender<Request>,
     motor_sender: mpsc::Sender<Request>,
+    away_sender: mpsc::Sender<Request>,
     instance: Uuid,
     unavailable:Option<std::sync::Arc<Unavailable>>,
     selection_reader: SelectionReaderSlot,
@@ -187,7 +222,7 @@ impl Control {
     /// A rebuilt scheduler may reuse numeric run handles within the same boot.
     pub(crate) fn instance_id(&self) -> Uuid { self.instance }
     pub(crate) fn unavailable(&self,admission:Admission,generation:TaskGeneration)->Self {
-        Self{sender:self.sender.clone(),stop_sender:self.stop_sender.clone(),motor_sender:self.motor_sender.clone(),instance:self.instance,unavailable:Some(std::sync::Arc::new(Unavailable{admission,generation})),selection_reader:self.selection_reader.clone()}
+        Self{sender:self.sender.clone(),stop_sender:self.stop_sender.clone(),motor_sender:self.motor_sender.clone(),away_sender:self.away_sender.clone(),instance:self.instance,unavailable:Some(std::sync::Arc::new(Unavailable{admission,generation})),selection_reader:self.selection_reader.clone()}
     }
     /// Bounded admission, no retry. A lost response after execution is ambiguous;
     /// callers must inspect history rather than resubmit an action automatically.
@@ -237,6 +272,7 @@ impl Control {
     fn request_lane(&self,action:&Action)->RequestLane {
         use crate::management_devices::DeviceAction;
         match action {
+            Action::AwayOff{..}=>RequestLane::Away,
             Action::DeviceCommand{action:DeviceAction::Stop,..}
             |Action::ModuleCommand{action:DeviceAction::Stop,..}
             |Action::PanelDeviceCommand{action:DeviceAction::Stop,..}=>RequestLane::Stop,
@@ -274,6 +310,7 @@ impl Control {
         // Authorization is still checked by the runtime before execution.
         let sender=match self.request_lane(&action) {
             RequestLane::Stop=>&self.stop_sender,
+            RequestLane::Away=>&self.away_sender,
             RequestLane::Motor=>&self.motor_sender,
             RequestLane::Ordinary=>&self.sender,
         };
@@ -311,28 +348,33 @@ pub(crate) struct Receiver {
     receiver: mpsc::Receiver<Request>,
     stop_receiver: mpsc::Receiver<Request>,
     motor_receiver: mpsc::Receiver<Request>,
+    away_receiver: mpsc::Receiver<Request>,
     controller: Uuid,
     generation: TaskGeneration,
     watchers: std::collections::VecDeque<Watcher>,
     relative: crate::native_scene::Manager,
     budget:homesense_core::rule::Budget,
     selection_reader: SelectionReaderSlot,
-    native:[std::collections::VecDeque<crate::panel_rules::NativeDispatch>;3],
+    native:[std::collections::VecDeque<crate::panel_rules::NativeDispatch>;4],
     prefer_web_stop:bool,
+    prefer_web_away:bool,
     prefer_web_motor:bool,
     prefer_web_work:bool,
+    next_away_tick:u64,
 }
 pub(crate) fn channel(controller: Uuid, generation: TaskGeneration) -> (Control, Receiver) {
     let (sender, receiver) = mpsc::channel(32);
     let (stop_sender, stop_receiver) = mpsc::channel(32);
     let (motor_sender, motor_receiver) = mpsc::channel(32);
+    let (away_sender, away_receiver) = mpsc::channel(32);
     let selection_reader=SelectionReaderSlot::default();
     (
-        Control { sender,stop_sender,motor_sender,instance:Uuid::new_v4(),unavailable:None,selection_reader:selection_reader.clone() },
+        Control { sender,stop_sender,motor_sender,away_sender,instance:Uuid::new_v4(),unavailable:None,selection_reader:selection_reader.clone() },
         Receiver {
             receiver,
             stop_receiver,
             motor_receiver,
+            away_receiver,
             controller,
             generation,
             watchers: Default::default(),
@@ -341,8 +383,10 @@ pub(crate) fn channel(controller: Uuid, generation: TaskGeneration) -> (Control,
             selection_reader,
             native:std::array::from_fn(|_|Default::default()),
             prefer_web_stop:true,
+            prefer_web_away:true,
             prefer_web_motor:true,
             prefer_web_work:true,
+            next_away_tick:0,
         },
     )
 }
@@ -359,6 +403,13 @@ impl Receiver {
             let next=if web {self.stop_receiver.try_recv().ok().map(|request|(request,None))}
                 else {self.take_native_request(0)};
             if next.is_some(){self.prefer_web_stop = !web;return next;}
+        }
+        // Away has independent capacity and precedes normal/motor movement
+        // requests; only explicit safety STOPs retain higher priority.
+        for web in [self.prefer_web_away,!self.prefer_web_away] {
+            let next=if web {self.away_receiver.try_recv().ok().map(|request|(request,None))}
+                else {self.take_native_request(3)};
+            if next.is_some(){self.prefer_web_away = !web;return next;}
         }
         // Open/close key presses can resolve to same-direction STOP. They have
         // independent capacity ahead of lighting, without consuming explicit
@@ -378,8 +429,8 @@ impl Receiver {
     pub(crate) fn enqueue_native(&mut self,events:Vec<crate::panel_rules::NativeDispatch>)->Result<(),String>{
         let limits=crate::panel_rules::NATIVE_QUEUE_CAPACITIES;
         // Reject a malformed internal batch before accepting any part of it.
-        if events.iter().any(|event|event.priority>=3){return Err("invalid native event priority".into());}
-        let mut dropped=[0usize;3];
+        if events.iter().any(|event|usize::from(event.priority)>=limits.len()){return Err("invalid native event priority".into());}
+        let mut dropped=[0usize;4];
         // Capacity is independent per priority. In particular, a full ordinary
         // queue must not discard a STOP that arrived in the same feedback batch.
         // Events are already consumed: overload is recorded, never replayed and
@@ -389,7 +440,7 @@ impl Receiver {
             if self.native[priority].len()>=limits[priority] {dropped[priority]+=1;}
             else {self.native[priority].push_back(event);}
         }
-        if dropped!=[0;3] {log::warn!("configured_keypad_queue_overload dropped_stop={} dropped_motor={} dropped_ordinary={} events_consumed=true replay=false",dropped[0],dropped[1],dropped[2]);}
+        if dropped!=[0;4] {log::warn!("configured_keypad_queue_overload dropped_stop={} dropped_motor={} dropped_ordinary={} dropped_away={} events_consumed=true replay=false",dropped[0],dropped[1],dropped[2],dropped[3]);}
         Ok(())
     }
     /// Production read-only capability. It uses the existing Admission owner,
@@ -404,6 +455,9 @@ impl Receiver {
         let mut key_lanes=std::collections::BTreeMap::new();
         for panel in bundle.configuration.keypads().values().filter(|panel|panel.enabled) {
             for key in panel.keys.values().filter(|key|key.led_endpoint.enabled) {
+                if matches!(key.action,Some(homesense_config::keypad::KeyAction::AwayOff{..})) {
+                    key_lanes.insert((panel.id.as_str().to_owned(),key.number),RequestLane::Away);
+                }
                 if let Some(homesense_config::keypad::KeyAction::Motor{action,..})=&key.action {
                     key_lanes.insert((panel.id.as_str().to_owned(),key.number),
                         if *action==homesense_config::keypad::KeyMotorAction::Stop {RequestLane::Stop}else{RequestLane::Motor});
@@ -435,10 +489,23 @@ impl Receiver {
     }
     #[allow(clippy::too_many_arguments)]
     pub(crate) async fn poll_causal(&mut self,admission:&Admission,document:&Document,scenes:&mut SceneScheduler,feedback:&crate::feedback::Feedback,max_age_ms:u64,calendar:Option<&crate::event_rules::ScheduledRules>,mut causal:Option<&mut crate::deferred_router::Router>) {
+        if admission.away_operations_active() && admission.monotonic_ms()>=self.next_away_tick {
+            self.next_away_tick=admission.monotonic_ms().saturating_add(50);
+            if let Ok(observation)=feedback.away_observation(admission.monotonic_ms()) {
+                let _=admission.tick_away_operations(self.controller,self.generation.clone(),observation).await;
+            }
+        }
         self.relative.tick(admission,document,feedback).await;
         // Bound per-cycle work so incoming control cannot starve bus processing.
         for _ in 0..8 {
             let Some((mut request,native_completion))=self.next_request() else{break;};
+            // Capture identifiers before KeypadAction resolves into a scene.
+            // This borrows authority metadata; it does not consume/replay it.
+            let native_trace=native_completion.as_ref().map(|_|match &request.action {
+                Action::KeypadAction{request:input,..}=>format!("keypad={:?} key={} request_id={:?} event_sequence={:?}",
+                    input.keypad,input.key,input.request_id,request.source.as_ref().and_then(|s|s.event()).map(|e|e.cursor().sequence)),
+                _=>"keypad=unknown".into(),
+            });
             let read_kind=managed_request_kind(&request.action);
             let handling_started=Instant::now();
             let queued_ms=Duration::from_secs(5).saturating_sub(request.deadline.saturating_duration_since(handling_started)).as_millis();
@@ -556,13 +623,20 @@ impl Receiver {
                             }
                             if request.reply.is_closed() || Instant::now()>=request.deadline {return Err("Away operation expired".into());}
                         }
-                        let ids=admission.submit_away_off(revision,lease,submit).await.map_err(|e|format!("{e:?}"))?;
+                        let accepted=if submit {
+                            let observation=feedback.away_observation(admission.monotonic_ms())?;
+                            Some(admission.start_away_operation(self.generation.clone(),lease.clone(),observation,request.deadline).await.map_err(|e|format!("{e:?}"))?)
+                        }else{admission.submit_away_off(revision,lease,false).await.map_err(|e|format!("{e:?}"))?;None};
                         if submit && matches!(document.away_off.as_ref().map(|p|p.active_execution_policy),Some(homesense_config::rule_document::AwayExecutionPolicy::CancelAffectedLighting)) {
                             for device in document.away_off.as_ref().unwrap().modules.iter().flat_map(|m|&m.devices) {
                                 scenes.manual_override(&homesense_core::DeviceId::new(device.clone()).map_err(|e|e.to_string())?).await?;
                             }
                         }
-                        Ok(Reply::CommandsAccepted(ids))
+                        Ok(match accepted {Some(accepted)=>Reply::AwayAccepted(accepted),None=>Reply::CommandsAccepted(vec![])})
+                    },
+                    Action::AwayOperations{controller,revision,lease}=>{
+                        if revision!=document.revision {return Err("Away operation revision expired".into());}
+                        admission.away_operation_views(controller,self.generation.clone(),lease).await.map(Reply::AwayOperations).map_err(|e|format!("{e:?}"))
                     },
                     Action::Modules {controller,revision,offset,limit} => {
                         if revision!=document.revision {return Err("module inventory revision expired".into());}
@@ -763,19 +837,42 @@ impl Receiver {
                         let diagnostics=admission.diagnostics(controller,self.generation.clone()).await.map_err(|e|format!("catalog authorization: {e:?}"))?;
                         if !diagnostics.mapping_readable(){return Err("scene catalog runtime not ready".into());}
                         let bundle=admission.automation_bundle(controller,self.generation.clone()).await.map_err(|e|format!("catalog mapping: {e:?}"))?;
+                        // Read this catalog's metadata in one bounded actor turn
+                        // instead of parking bus processing for one RPC per row.
+                        let history_ids=ids.iter().filter(|id|document.scene_execution_kind(id).is_some_and(|kind|kind!=homesense_config::rule_document::SceneExecutionKind::Immediate)).cloned().collect();
+                        let mut histories=admission.catalog_last_runs(controller,self.generation.clone(),history_ids).await.map_err(|e|format!("catalog history: {e:?}"))?;
                         let mut entries=std::collections::BTreeMap::new();
+                        let mut activities=Vec::with_capacity(32);
+                        // Members of one switch group have the same complete
+                        // control scope. Reuse that immutable scope only within
+                        // this read; actual state/authority is never cached.
+                        let mut scopes=std::collections::BTreeMap::<std::collections::BTreeSet<String>,std::collections::BTreeSet<String>>::new();
                         for id in ids {
                             if request.reply.is_closed() || Instant::now()>=request.deadline {return Err("scene catalog expired or abandoned".into());}
                             let execution_kind=document.scene_execution_kind(&id).ok_or("unknown enabled scene")?;
-                            let gateways=crate::gateway_runtime::scene_devices(document,&id)?.into_iter().map(|device|bundle.configuration.binding(&device).map(|(d,_)|d.gateway.clone()).ok_or("scene target unavailable")).collect::<Result<std::collections::BTreeSet<_>,_>>()?;
+                            let scope=crate::gateway_runtime::scene_scope(document,&id)?;
+                            let gateways=if let Some(gateways)=scopes.get(&scope) {gateways.clone()}else{
+                                let gateways=crate::gateway_runtime::scene_scope_devices(document,&scope)?.into_iter().map(|device|bundle.configuration.binding(&device).map(|(d,_)|d.gateway.clone()).ok_or("scene target unavailable")).collect::<Result<std::collections::BTreeSet<_>,_>>()?;
+                                scopes.insert(scope,gateways.clone());gateways
+                            };
                             let views=diagnostics.gateways.iter().filter(|view|gateways.contains(&view.gateway)).cloned().collect::<Vec<_>>();
                             let available=if diagnostics.gateways.is_empty(){diagnostics.gateway_ready}else{views.len()==gateways.len()&&views.iter().all(|view|view.state=="ready")};
                             let tracking=crate::scene_tracking::read(document,&id,admission,controller,&self.generation,feedback).await?;
-                            let activity=if let Some(value)=&tracking {value.activity}else{crate::scene_tracking::activity(document,&id,admission,controller,&self.generation,feedback,max_age_ms).await.unwrap_or(crate::scene_activity::SceneActivity::Unknown)};
-                            let last_run=if execution_kind==homesense_config::rule_document::SceneExecutionKind::Immediate {None}else{admission.scene_history(controller,self.generation.clone(),homesense_storage::scene_run::Query::Latest{definition:id.clone()}).await.map_err(|e|format!("catalog history: {e:?}"))?.map(|p|LastRun{boot:p.boot,run:p.run,revision:p.record.revision,started_ms:p.record.started_ms,updated_ms:p.record.updated_ms,version:p.record.version,status:p.record.status,cause:p.cause})};
+                            let activity=if let Some(value)=&tracking {value.activity}else{
+                                if execution_kind!=homesense_config::rule_document::SceneExecutionKind::Immediate
+                                    && let Some(scene)=document.timed_scenes.get(&id)
+                                    && scene.enabled && scene.review_evidence.as_ref().is_some_and(|s|!s.trim().is_empty())
+                                    && let Ok(Some((candidate,lease)))=crate::scene_activity::Targets::new(&scene.steps).prepare(feedback,max_age_ms,admission.monotonic_ms()) {
+                                    activities.push((id.clone(),candidate,lease));
+                                }
+                                crate::scene_activity::SceneActivity::Unknown
+                            };
+                            let last_run=histories.remove(&id).flatten();
                             let room=document.scene_rooms.get(&id).cloned();
                             entries.insert(id,SceneCatalogEntry{room,execution_kind,action_gate:crate::gateway_runtime::ActionGate{available,required_gateways:views},tracking,activity,last_run});
+                            if activities.len()==32 {settle_catalog_activities(admission,controller,&self.generation,&mut activities,&mut entries).await?;}
                         }
+                        settle_catalog_activities(admission,controller,&self.generation,&mut activities,&mut entries).await?;
                         Ok(Reply::SceneCatalog(entries))
                     },
                     Action::SceneTracking {controller,revision,scene}=>{
@@ -832,7 +929,7 @@ impl Receiver {
             })
             .await;
             let result=match (result,keypad_context) {
-                (Ok(reply),Some(context))=>context.finish(reply).map(|receipt|Reply::KeypadAccepted(Box::new(receipt))),
+                (Ok(reply),Some(context))=>context.finish_with_scenes(reply,scenes).map(|receipt|Reply::KeypadAccepted(Box::new(receipt))),
                 (result,_)=>result,
             };
             if result.is_ok() && !request.reply.is_closed()
@@ -844,10 +941,11 @@ impl Receiver {
             }
             let _ = request.reply.send(result);
             if let Some(mut completion)=native_completion {
-                match completion.try_recv(){Ok(Ok(Reply::KeypadAccepted(_)))=>log::debug!("configured_keypad_event outcome=accepted"),
-                    Ok(Ok(Reply::KeypadRejected(error)))=>log::warn!("configured_keypad_event outcome=rejected reason={error:?}; not replayed"),
-                    Ok(Err(error))=>log::warn!("configured_keypad_event outcome=failed reason={error}; not replayed"),
-                    _=>log::warn!("configured_keypad_event outcome=unknown; not replayed"),}
+                let trace=native_trace.as_deref().unwrap_or("keypad=unknown");
+                match completion.try_recv(){Ok(Ok(Reply::KeypadAccepted(_)))=>log::debug!("configured_keypad_event {trace} outcome=accepted"),
+                    Ok(Ok(Reply::KeypadRejected(error)))=>log::warn!("configured_keypad_event {trace} outcome=rejected reason={error:?}; not replayed"),
+                    Ok(Err(error))=>log::warn!("configured_keypad_event {trace} outcome=failed reason={error}; not replayed"),
+                    _=>log::warn!("configured_keypad_event {trace} outcome=unknown; not replayed"),}
             }
         }
         // At most one snapshot per cycle, and no more than 10 Hz per watcher.
@@ -884,6 +982,10 @@ impl Receiver {
         }
         self.motor_receiver.close();
         while let Ok(request)=self.motor_receiver.try_recv(){
+            let _=request.reply.send(Err("automation runtime stopped".into()));
+        }
+        self.away_receiver.close();
+        while let Ok(request)=self.away_receiver.try_recv(){
             let _=request.reply.send(Err("automation runtime stopped".into()));
         }
         for queue in &mut self.native{queue.clear();}

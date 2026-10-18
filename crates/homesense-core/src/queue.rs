@@ -46,14 +46,16 @@ impl QueuedCommand {
     fn priority(&self) -> u8 {
         if self.is_stop() {
             0
+        } else if self.command == Command::ModuleAllOff {
+            1
         } else if self.command == Command::Query {
-            4
+            5
         } else {
             match self.origin {
-                Origin::Http | Origin::Hap => 1,
-                Origin::Panel => 2,
-                Origin::Rule => 3,
-                Origin::Background => 4,
+                Origin::Http | Origin::Hap => 2,
+                Origin::Panel => 3,
+                Origin::Rule => 4,
+                Origin::Background => 5,
             }
         }
     }
@@ -538,6 +540,17 @@ mod tests {
                 .collect::<Vec<_>>(),
             [3, 1, 2, 4]
         );
+    }
+    #[test]
+    fn module_off_precedes_every_ordinary_origin_but_stop_stays_first() {
+        let mut q = CommandQueue::new(8, 1).unwrap();
+        for (id, origin) in [(1,Origin::Http),(2,Origin::Hap),(3,Origin::Panel),(4,Origin::Rule),(5,Origin::Background)] {
+            q.enqueue(req(id,&format!("load-{id}"),Command::Switch(true),origin),0,EPOCH).unwrap();
+        }
+        q.enqueue(req(6,"read",Command::Query,Origin::Http),0,EPOCH).unwrap();
+        q.enqueue(req(7,"module-off",Command::ModuleAllOff,Origin::Panel),0,EPOCH).unwrap();
+        q.enqueue(req(8,"motor",Command::Motor(MotorMotion::Stop),Origin::Http),0,EPOCH).unwrap();
+        assert_eq!((0..8).map(|_|q.poll(1,EPOCH).next.unwrap().id).collect::<Vec<_>>(),[8,7,1,2,3,4,5,6]);
     }
     #[test]
     fn coalescing_is_bounded_and_does_not_cross_query_or_run_barriers() {

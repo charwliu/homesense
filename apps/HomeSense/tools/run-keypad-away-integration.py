@@ -6,6 +6,7 @@ import argparse,hashlib,http.client,json,os,signal,socket,sqlite3,ssl,subprocess
 p=argparse.ArgumentParser()
 p.add_argument('--binary',type=Path,required=True);p.add_argument('--sha256',required=True)
 p.add_argument('--output',type=Path,required=True);p.add_argument('--scratch',type=Path,required=True)
+p.add_argument('--failed-rounds',type=int,choices=range(4),default=0,help='Keep relay-a On for the first N module-Off rounds; 3 exhausts all attempts')
 p.add_argument('--full-suite',action='store_true',help='Also enable all three original actual-server integrations in the same Swift run')
 a=p.parse_args();os.umask(0o077)
 sha=lambda p:hashlib.sha256(p.read_bytes()).hexdigest()
@@ -29,7 +30,7 @@ def get(path):
   r=c.getresponse();return {'status':r.status,'body':json.loads(r.read())}
  finally:c.close()
 def gateway():
- states={3:True,4:True}
+ states={3:True,4:True};rounds={3:0,4:0}
  try:
   while not stop.is_set():
    try:c,peer=listener.accept()
@@ -48,8 +49,9 @@ def gateway():
        address,command,value=f[1:4];record={'at_ms':round((time.monotonic()-started)*1000,3),'raw':f.hex()}
        if address in states:
         if command==0:
-         assert value==0xf2;states[address]=False;record['kind']='module_off'
-         c.sendall(b''.join(bytes([0xae,address,0xd0+i,0xf2,0xee]) for i in range(1,9)))
+         assert value==0xf2;rounds[address]+=1;states[address]=address==3 and rounds[address]<=a.failed_rounds;record['kind']='module_off'
+         record['simulated_failure']=states[address]
+         c.sendall(b''.join(bytes([0xae,address,0xd0+i,0xf1 if states[address] else 0xf2,0xee]) for i in range(1,9)))
         elif command==0xa0 or 0xa1<=command<=0xa8:
          assert value==0xf2;record['kind']='query'
          indices=range(1,9) if command==0xa0 else [command-0xa0]
@@ -65,7 +67,7 @@ def gateway():
 config=json.loads((fixture/'devices.template.json').read_text());assert len(config['gateways'])==1 and all(g['endpoint'].startswith('127.0.0.1:') for g in config['gateways'])
 config['gateways'][0]['endpoint']=f'127.0.0.1:{listener.getsockname()[1]}'
 save('devices.json',config);save('automation.json',json.loads((fixture/'automation.json').read_text()))
-save('service.json',{'fixture_kind':'synthetic-loopback-keypad-away','origin':origin,'binary_sha256':a.sha256})
+save('service.json',{'fixture_kind':'synthetic-loopback-keypad-away','origin':origin,'binary_sha256':a.sha256,'failed_rounds':a.failed_rounds})
 cmd=[str(a.binary),'serve-automation-tcp',str(a.output/'devices.json'),str(a.output/'automation.json'),str(a.output/'state'),'forever','--coexistence-confirmed','--recoveries','1','--write-interval-ms','20','--web-listen',f'127.0.0.1:{web}','--web-origin',origin,'--web-token',str(a.output/'token'),'--web-cert',str(cert),'--web-key',str(key),'--web-role','administrator']
 result={'passed':False,'binary_sha256_before':sha(a.binary),'all_endpoints_loopback':True,'production_or_phone_operations':0}
 worker=threading.Thread(target=gateway,daemon=True)
@@ -86,25 +88,27 @@ try:
   env=os.environ.copy();env['HOMESENSE_KEYPAD_AWAY_ACTUAL_FIXTURE']=str(a.output.resolve())
   if a.full_suite:
    test=['python3',str(package/'tools/run-keypad-motor-integration.py'),'--binary',str(a.binary),'--sha256',a.sha256,'--output',str(a.output/'motor-and-full-suite'),'--scratch',str(a.scratch),'--full-suite']
-  else:test=['swift','test','--package-path',str(package),'--scratch-path',str(a.scratch),'--filter','HomeKeypadAwayActualIntegrationTests']
+  else:test=['swift','test','--build-system','native','--package-path',str(package),'--scratch-path',str(a.scratch),'--filter','HomeKeypadAwayActualIntegrationTests']
   save('command.json',{'CLI_argv':cmd,'test_argv':test,'fixture_environment':{'HOMESENSE_KEYPAD_AWAY_ACTUAL_FIXTURE':env['HOMESENSE_KEYPAD_AWAY_ACTUAL_FIXTURE']},'no_real_credentials_or_live_config':True})
   with (a.output/'test-driver.log').open('xb') as log:
    completed=subprocess.run(test,env=env,stdout=log,stderr=subprocess.STDOUT,timeout=180)
   result['test_exit']=completed.returncode;assert completed.returncode==0,'native integration failed; see preserved test-driver/swift-test logs'
   operation=json.loads((a.output/'actual-client-away-operation.json').read_text());save('correlation.json',operation)
   assert operation['http_status']==202 and operation['receipt']['outcome']=='accepted'
-  module_frames=[f for f in frames if f.get('kind')=='module_off'];assert sorted(f['raw'] for f in module_frames)==['ae0300f2ee','ae0400f2ee']
-  led=[f for f in frames if f.get('kind')=='LED' and f['raw']=='ae4106f2ee'];assert len(led)==1
-  assert led[0]['at_ms']>=max(f['at_ms'] for f in module_frames)
+  module_frames=[f for f in frames if f.get('kind')=='module_off'];expected_count=1+min(3,a.failed_rounds+1)
+  assert sorted(f['raw'] for f in module_frames)==['ae0300f2ee']*(expected_count-1)+['ae0400f2ee']
+  led=[f for f in frames if f.get('kind')=='LED' and f['raw']=='ae4106f2ee'];assert len(led)==(0 if a.failed_rounds==3 else 1)
+  if led:assert led[0]['at_ms']>=max(f['at_ms'] for f in module_frames)
   with sqlite3.connect(a.output/'state/automation-tcp.sqlite') as db:
    journal=db.execute('SELECT command_id,device_id,hex(intent),status,updated_ms FROM command_journal ORDER BY command_id').fetchall()
   save('journal.json',journal)
   modules=[r for r in journal if r[1].startswith('module-off-ticket:')]
-  assert len(modules)==2 and all(r[3] in ['written','observed'] for r in modules)
-  assert {str(r[0]) for r in modules}.issubset(set(map(str,operation['receipt']['commands'])))
-  indicator=[r for r in journal if r[1]=='key:6'];assert len(indicator)==1 and indicator[0][3] in ['written','observed']
-  assert indicator[0][4]>=max(r[4] for r in modules)
-  result.update(passed=True,actual_App_POSTs=1,written_module_frames=2,written_green_key6_tail=1,actual_hidden_outputs_retained=16,daily_cards=1,full_suite=a.full_suite,request_id=operation['request']['request_id'])
+  assert len(modules)==expected_count and all(r[3] in ['written','observed'] for r in modules)
+  assert {str(r[0]) for r in modules[:2]}.issubset(set(map(str,operation['receipt']['commands'])))
+  indicator=[r for r in journal if r[1]=='key:6'];assert len(indicator)==1
+  assert indicator[0][3] in (['cancelled'] if a.failed_rounds==3 else ['written','observed'])
+  if a.failed_rounds!=3:assert indicator[0][4]>=max(r[4] for r in modules)
+  result.update(passed=True,actual_App_POSTs=1,written_module_frames=expected_count,written_green_key6_tail=len(led),failed_rounds=a.failed_rounds,actual_hidden_outputs_retained=16,daily_cards=1,full_suite=a.full_suite,request_id=operation['request']['request_id'])
 except BaseException as e:result.update(error=repr(e),traceback=traceback.format_exc())
 finally:
  if process is not None and process.poll() is None:

@@ -226,11 +226,11 @@ async fn away_accepted_after_idle_snapshot_but_before_wire_slot_defers_the_new_q
     f.close().await;
 }
 #[tokio::test]
-async fn pending_reserved_query_rejects_away_before_acceptance_and_releases_without_replay() {
+async fn unfit_reserved_query_rejects_away_before_acceptance_and_releases_without_replay() {
     let f=F::new(true,false,|_|{}).await;let frames=Arc::new(Mutex::new(vec![]));
     let mut owner=crate::transport_owner::TransportOwner::new(f.actor.clone(),[("a".into(),hb_transport::Connection::for_simulation(QueryDelayWire {time:f.time,frames:frames.clone()},1))].into());
     let (module,channel)={let (device,module)=f.config.binding(&DeviceId::new("output-0:1").unwrap()).unwrap();(module.clone(),device.channel)};
-    assert!(owner.try_query_status_scope("a",&module,channel,ExecutionContext::Simulation,500,false).await.unwrap());
+    assert!(owner.try_query_status_scope("a",&module,channel,ExecutionContext::Simulation,5000,false).await.unwrap());
     assert!(matches!(f.actor.submit_away_off(1,f.lease(true),true).await,Err(hap::server::WriteStatus::ResourceBusy)),"not accepted, not silently expired");
     let count:i64=rusqlite::Connection::open(&f.path).unwrap().query_row("SELECT count(*) FROM command_journal",[],|row|row.get(0)).unwrap();assert_eq!(count,0);
     owner.finish_status_read("a");
@@ -240,12 +240,12 @@ async fn pending_reserved_query_rejects_away_before_acceptance_and_releases_with
 }
 
 #[derive(Default)]
-struct HomeReadState {queries:usize,address:u8,channel:u8,reply_sent:bool,frames:Vec<(u64,Vec<u8>)>}
-struct HomeReadWire {time:&'static AtomicU64,state:Arc<Mutex<HomeReadState>>}
+struct HomeReadState {queries:usize,address:u8,channel:u8,reply_sent:bool,frames:Vec<(u64,Vec<u8>)>,query_gateway:String,reads:Vec<(u64,String,bool)>}
+struct HomeReadWire {time:&'static AtomicU64,state:Arc<Mutex<HomeReadState>>,gateway:String}
 impl Write for HomeReadWire {
     fn write(&mut self,bytes:&[u8])->std::io::Result<usize>{
         let mut state=self.state.lock().unwrap();let(frames,tail)=bytes.as_chunks::<5>();assert!(tail.is_empty());for frame in frames{state.frames.push((self.time.load(Ordering::SeqCst),frame.to_vec()));}
-        if bytes.len()==5 && (0xa1..=0xa8).contains(&bytes[2]) {state.queries+=1;state.address=bytes[1];state.channel=bytes[2]-0xa0;}
+        if bytes.len()==5 && (0xa1..=0xa8).contains(&bytes[2]) {state.queries+=1;state.address=bytes[1];state.channel=bytes[2]-0xa0;state.query_gateway=self.gateway.clone();}
         self.time.fetch_add(21,Ordering::SeqCst);Ok(bytes.len())
     }
     fn flush(&mut self)->std::io::Result<()> {Ok(())}
@@ -253,7 +253,9 @@ impl Write for HomeReadWire {
 impl Read for HomeReadWire {
     fn read(&mut self,bytes:&mut[u8])->std::io::Result<usize>{
         self.time.fetch_add(240,Ordering::SeqCst);let mut state=self.state.lock().unwrap();
-        if state.queries>=2 && !state.reply_sent {state.reply_sent=true;bytes[..5].copy_from_slice(&[0xae,state.address,0xd0+state.channel,0xf2,0xee]);return Ok(5);}
+        let reply=state.queries>=2 && !state.reply_sent;
+        state.reads.push((self.time.load(Ordering::SeqCst),self.gateway.clone(),reply));
+        if reply {state.reply_sent=true;bytes[..5].copy_from_slice(&[0xae,state.address,0xd0+state.channel,0xf2,0xee]);return Ok(5);}
         Err(std::io::ErrorKind::WouldBlock.into())
     }
 }
@@ -263,7 +265,7 @@ async fn three_led_home_after_an_existing_pending_read_keeps_its_original_comman
         for key in [1,3,5] {let id=format!("key{key}");scope.insert(id.clone());config["keypads"][0]["keys"].as_array_mut().unwrap().push(json!({"number":key,"label":"Synthetic Home","led_endpoint":{"id":id,"name":"Synthetic Home LED","enabled":true}}));}
         rules["timed_scenes"]=json!([{"id":"home","enabled":true,"review_evidence":"synthetic3LED","max_lateness_ms":1000,"steps":([1,3,5].into_iter().map(|key|json!({"source":format!("LED{key}"),"offset_ms":0,"device":format!("key{key}"),"command":{"kind":"panel_led","on":false}})).collect::<Vec<_>>())}]);
     }).await;
-    let state=Arc::new(Mutex::new(HomeReadState::default()));let wire=|name:&str|(name.to_owned(),hb_transport::Connection::for_simulation(HomeReadWire {time:f.time,state:state.clone()},1));
+    let state=Arc::new(Mutex::new(HomeReadState::default()));let wire=|name:&str|(name.to_owned(),hb_transport::Connection::for_simulation(HomeReadWire {time:f.time,state:state.clone(),gateway:name.into()},1));
     let transport=crate::transport_owner::TransportOwner::new(f.actor.clone(),[wire("a"),wire("b")].into());
     let feedback=crate::feedback::Feedback::new(&f.config,ExecutionContext::Simulation,Uuid::parse_str(f.actor.boot_id()).unwrap().as_u128(),1).unwrap();
     let mut owner=crate::observed_transport::ObservedTransport::new(transport,feedback);
@@ -274,7 +276,7 @@ async fn three_led_home_after_an_existing_pending_read_keeps_its_original_comman
     let generation=f.actor.task_generation().await.unwrap();let (stop,receive)=tokio::sync::watch::channel(false);
     let drive=runtime.drive(&mut owner,std::time::Duration::from_millis(1),5000,receive,||Ok(1_800_000_000_000));
     let monitor=async {loop {let statuses=f.actor.command_statuses(f.controller,generation.clone(),ids.clone()).await.unwrap();if statuses.iter().all(|s|matches!(s,Status::Written|Status::Cancelled|Status::Failed|Status::Uncertain)){stop.send_replace(true);break statuses;}tokio::time::sleep(std::time::Duration::from_millis(2)).await;}};
-    let (result,statuses)=tokio::time::timeout(std::time::Duration::from_secs(4),async {tokio::join!(drive,monitor)}).await.unwrap();result.unwrap();let frames=state.lock().unwrap().frames.clone();assert!(statuses.iter().all(|s|*s==Status::Written),"existing read may wait only within the original shared command lease: {statuses:?}; accepted_at={accepted_at}; frames={frames:?}");
+    let (result,statuses)=tokio::time::timeout(std::time::Duration::from_secs(4),async {tokio::join!(drive,monitor)}).await.unwrap();result.unwrap();let frames=state.lock().unwrap().frames.clone();assert!(statuses.iter().all(|s|*s==Status::Written),"existing read may wait only within the original shared command lease: {statuses:?}; accepted_at={accepted_at}; frames={frames:?}; read_routes={:?}",state.lock().unwrap().reads);
     let leds=frames.iter().filter(|(_,bytes)|bytes[1]==0x6a).collect::<Vec<_>>();assert_eq!(leds.len(),3);assert!(leds.iter().all(|(at,_)|*at<accepted_at+2000));assert_eq!(leds.iter().map(|(_,bytes)|bytes[2]).collect::<Vec<_>>(),[1,3,5]);
     f.close().await;
 }

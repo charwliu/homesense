@@ -816,6 +816,7 @@ dependencies = [
  "homesense-config",
  "homesense-core",
  "rusqlite",
+ "serde_json",
 ]
 
 [[package]]

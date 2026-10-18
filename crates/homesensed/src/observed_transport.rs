@@ -66,39 +66,22 @@ impl Drop for Operation<'_> {
     }
 }
 impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
-    /// Keep receiving during an ordinary pacing gap, before selecting a new
-    /// query. This retains one scheduling turn instead of creating a new
-    /// producer/dispatch turn for each failed nonblocking slot probe. Real
-    /// input or an overlong slot owner returns to the caller; no selected query
-    /// or response deadline survives this receive window. Original admission
-    /// rechecks protected controls afterwards, without polling that actor for
-    /// every receive probe inside one existing wire-gap quantum.
-    async fn refresh_slot_receive_window(&mut self)->Result<bool,(String,String)> {
+    /// Drain the selected bus before a new query, even when its write slot is
+    /// already ready. Unrelated buses must not add blocking reads to its lease.
+    /// A received frame returns to planning before any query is admitted.
+    async fn refresh_slot_receive_window(&mut self,gateway:&str)->Result<bool,(String,String)> {
         let until=tokio::time::Instant::now()
             + std::time::Duration::from_millis(self.transport.write_interval_ms().max(1));
-        while !self.transport.query_write_slot_ready() {
-            if self.transport.local_mode() {
-                let before=self.feedback.module_truth().cursor();
-                self.start_local_reads().map_err(|e|("local refresh receive window".into(),e))?;
-                self.poll_local_events(false).await.map_err(|e|("local refresh receive window".into(),e))?;
-                if self.transport.has_local_fault() || self.feedback.module_truth().cursor()!=before {
-                    return Ok(false);
-                }
-            }else{
-                for gateway in self.gateways.clone() {
-                    let read=self.receive(&gateway).await.map_err(|e|(gateway.clone(),e))?;
-                    if matches!(read.result,hb_transport::Receive::Disconnected{..}) {
-                        return Err((gateway,"gateway disconnected during refresh receive window".into()));
-                    }
-                    if !matches!(read.result,hb_transport::Receive::Idle) {
-                        return Ok(false);
-                    }
-                }
+        loop {
+            let read=self.receive(gateway).await.map_err(|e|(gateway.into(),e))?;
+            if matches!(read.result,hb_transport::Receive::Disconnected{..}) {
+                return Err((gateway.into(),"gateway disconnected during refresh receive window".into()));
             }
+            if !matches!(read.result,hb_transport::Receive::Idle) {return Ok(false);}
+            if self.transport.query_write_slot_ready() {return Ok(true);}
             if tokio::time::Instant::now()>=until {return Ok(false);}
             tokio::time::sleep(std::time::Duration::from_millis(1)).await;
         }
-        Ok(true)
     }
     pub(crate) async fn protected_controls(&self,controller:uuid::Uuid)->Result<bool,String> {
         let admission=self.transport.admission();let generation=admission.task_generation().await.map_err(|e|format!("{e:?}"))?;
@@ -702,6 +685,9 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
             }
             let outcome=self.transport.local_step(&blocked).await?;
             if self.transport.has_local_fault() {self.poll_local_events(false).await?;}
+            if let Some(write)=&outcome && let Some((gateway,devices))=&write.managed_away_outputs {
+                self.feedback.bulk_module_written(gateway.clone(),devices,self.transport.now_ms());
+            }
             if let Some(write)=&outcome && write.result.is_ok() && let Some(plan)=&mut self.local_refresh {for (device,ramped) in &write.refresh_schedule{plan.written(device,self.transport.now_ms(),*ramped);}}
             return Ok(outcome);
         }
@@ -720,6 +706,10 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
             complete: false,
         };
         let outcome = self.transport.step().await?;
+        if let Some(write)=&outcome && let Some((gateway,devices))=&write.managed_away_outputs {
+            operation.feedback.bulk_module_written(gateway.clone(),devices,self.transport.now_ms());
+            if let Some(plan)=&mut self.output_refresh {plan.away_written(gateway,devices,operation.feedback.module_truth(),self.transport.now_ms());}
+        }
         if let Some(write)=&outcome && write.result.is_ok() && let Some(plan)=&mut self.output_refresh {for (device,ramped) in &write.refresh_schedule{plan.written(device,self.transport.now_ms(),*ramped);}}
         if outcome.as_ref().is_none_or(|value| value.result.is_ok() || value.projection_cancelled) {
             operation.complete = true;

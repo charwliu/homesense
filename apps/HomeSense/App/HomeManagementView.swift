@@ -78,6 +78,10 @@ struct HomeManagementView: View {
                             Text(pageTitle).font(.largeTitle.bold())
                             if managing { Text(home.message).font(.subheadline).foregroundStyle(.secondary) }
                             if home.connected { Label(home.receivingPush ? "状态实时更新" : "正在同步状态", systemImage: home.receivingPush ? "checkmark.circle" : "arrow.triangle.2.circlepath").font(.caption).foregroundStyle(.secondary) }
+                            if let away = home.awayStatus {
+                                Label(away.message, systemImage: away.failed ? "exclamationmark.triangle" : "house")
+                                    .font(.caption).foregroundStyle(away.failed ? Color.red : Color.secondary)
+                            }
                             if let error = home.error { Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(.red).textSelection(.enabled) }
                         }
                         if home.busy { ProgressView().controlSize(.small) }
@@ -500,7 +504,8 @@ private struct HomeSceneCards: View {
     private func sceneKey(_ scene: HomeRecord) -> some View {
         let available = home.canControlScene(scene.id), action = scene.sceneCardAction
         let current = home.snapshotIsCurrent && scene.targetAvailable
-        let selected = scene.raw["switch_kind"].text == "selection" && scene.raw["selected"] == .bool(true)
+        let pending = home.sceneActionPresentation(scene.id)
+        let selected = pending?.selected ?? (scene.raw["switch_kind"].text == "selection" && scene.raw["selected"] == .bool(true))
         return ZStack(alignment: .topTrailing) {
             Button {
                 Task { await home.controlScene(scene.id, on: action.on) }
@@ -508,7 +513,7 @@ private struct HomeSceneCards: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(scene.name).font(.caption.weight(.semibold)).lineLimit(1).minimumScaleFactor(0.65).padding(.trailing, 22)
                     HStack(spacing: 3) {
-                        Text(available ? action.title : "不可用").font(.caption2.weight(.medium))
+                        Text(pending?.title ?? (available ? action.title : "不可用")).font(.caption2.weight(.medium))
                         if scene.raw["switch_kind"].text == "selection" {
                             Text("· \(current ? "选择" : "历史选择")\(selected ? "已选" : scene.raw["selected"] == .bool(false) ? "未选" : "未知")")
                                 .font(.system(size: 9)).foregroundStyle(.secondary).lineLimit(1).minimumScaleFactor(0.7)
@@ -517,7 +522,7 @@ private struct HomeSceneCards: View {
                     Text("\(current ? "负载" : "历史负载")：\(scene.sceneActivityDescription)")
                         .font(.system(size: 9)).foregroundStyle(.secondary).lineLimit(1).minimumScaleFactor(0.7)
                 }.padding(8).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-                    .background(available ? (selected && current ? Color.teal.opacity(0.17) : Color.primary.opacity(0.025)) : Color.gray.opacity(0.16), in: RoundedRectangle(cornerRadius: 10))
+                    .background(pending != nil && current ? (selected ? Color.teal.opacity(0.24) : Color.blue.opacity(0.13)) : available ? (selected && current ? Color.teal.opacity(0.17) : Color.primary.opacity(0.025)) : Color.gray.opacity(0.16), in: RoundedRectangle(cornerRadius: 10))
                     .overlay { RoundedRectangle(cornerRadius: 10).strokeBorder(available ? Color.primary.opacity(0.08) : Color.gray.opacity(0.35)) }
                     .contentShape(RoundedRectangle(cornerRadius: 10))
             }.buttonStyle(.plain).disabled(!available)
@@ -594,6 +599,10 @@ private struct HomeRoomDetail: View {
                         Label(home.connected ? (home.receivingPush ? "状态实时更新" : "正在同步状态") : "未连接，控制暂不可用",
                               systemImage: home.connected && home.receivingPush ? "checkmark.circle" : "arrow.triangle.2.circlepath")
                             .font(.caption).foregroundStyle(.secondary)
+                    }
+                    if let away = home.awayStatus {
+                        Label(away.message, systemImage: away.failed ? "exclamationmark.triangle" : "house")
+                            .font(.caption).foregroundStyle(away.failed ? Color.red : Color.secondary)
                     }
                     if activeRoom == nil {
                         Text("此房间尚未发布；日常设备和场景以活动配置为准。").font(.subheadline).foregroundStyle(.secondary)

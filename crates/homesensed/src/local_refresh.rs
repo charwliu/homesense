@@ -114,8 +114,9 @@ impl<S:Read+Write+Send+'static> ObservedTransport<S> {
         self.feedback.enable_local_wires(wires.iter().map(|wire|(wire.gateway().into(),wire.epoch())).collect())?;
         self.transport.enable_local_io(connector)
     }
-    pub(crate) async fn poll_local_events(&mut self,start_connects:bool)->Result<(),String> {
+    pub(crate) async fn poll_local_events(&mut self,start_connects:bool)->Result<BTreeSet<String>,String> {
         let events=self.transport.poll_local_io(start_connects).await?;
+        let checked=events.reads.iter().map(|read|read.gateway_id.clone()).collect();
         for (wire,audit) in events.faults {
             self.transport.finish_status_read(wire.gateway());
             self.feedback.invalidate_gateway(wire.gateway())?;
@@ -162,22 +163,21 @@ impl<S:Read+Write+Send+'static> ObservedTransport<S> {
                 && let Some(plan)=&mut self.local_refresh {plan.activity(read.received_at_ms);}
 
         }
-        Ok(())
+        Ok(checked)
     }
     pub(crate) fn take_local_fault_operations(&mut self)->Vec<homesense_storage::gateway_audit::OperationKey> {
         std::mem::take(&mut self.local_fault_operations)
     }
     pub(crate) async fn local_tick(&mut self)->Result<(),String> {
-        self.poll_local_events(true).await?;
+        let checked=self.poll_local_events(true).await?;
         let now=self.transport.now_ms();
         let window=self.local_refresh.as_ref().is_some_and(|plan|!self.background_led_phase
             && plan.targets.iter().enumerate().any(|(i,target)|!plan.pending.contains_key(&target.gateway)
                 && !plan.recovery.contains_key(&target.gateway) && plan.due_at(i,self.feedback.module_truth())<=now
                 && plan.ramp_reads.ready(target,now) && !self.feedback.query_deferred(&target.gateway,now,plan.priority.contains(&i))));
-        if window && !self.refresh_slot_receive_window().await
-                .map_err(|(gateway,error)|format!("{gateway}: {error}"))? {return Ok(());}
+        let checked=if window {Some(self.local_refresh_receive_window(checked).await?)}else{None};
         let mut plan=self.local_refresh.take().ok_or("local refresh not configured")?;
-        let result=self.advance_local_refresh(&mut plan).await;
+        let result=self.advance_local_refresh(&mut plan,checked.as_ref()).await;
         self.local_refresh=Some(plan);
         result?;
         if self.transport.has_local_fault() {self.poll_local_events(false).await?;}
@@ -191,7 +191,21 @@ impl<S:Read+Write+Send+'static> ObservedTransport<S> {
         }
         Ok(())
     }
-    async fn advance_local_refresh(&mut self,plan:&mut Refresh)->Result<(),String> {
+    // Each completed owned read grants only this scheduling turn's query
+    // opportunity on that bus. Do not immediately loan the returned stream to
+    // another reader: that would starve queries when reads outlast the gap.
+    async fn local_refresh_receive_window(&mut self,mut checked:BTreeSet<String>)->Result<BTreeSet<String>,String> {
+        let until=tokio::time::Instant::now()+std::time::Duration::from_millis(self.transport.write_interval_ms().max(1));
+        self.transport.start_local_reads_except(&checked)?;
+        loop {
+            checked.extend(self.poll_local_events(false).await?);
+            if self.transport.has_local_fault() {return Ok(BTreeSet::new());}
+            if self.transport.query_write_slot_ready() && checked.iter().any(|id|self.transport.local_idle_stream(id)) {return Ok(checked);}
+            if tokio::time::Instant::now()>=until {return Ok(BTreeSet::new());}
+            tokio::time::sleep(std::time::Duration::from_millis(1)).await;
+        }
+    }
+    async fn advance_local_refresh(&mut self,plan:&mut Refresh,checked:Option<&BTreeSet<String>>)->Result<(),String> {
         let now=self.transport.now_ms();
         plan.confirmation_until.retain(|index,until| {if now>=*until {plan.priority.remove(index);false}else{true}});
         for (index,deadline) in crate::control_batch::query_requirements(self.transport.admission(),&self.feedback,&plan.config,&plan.targets,plan.controller).await? {
@@ -269,7 +283,8 @@ impl<S:Read+Write+Send+'static> ObservedTransport<S> {
         }
         // A completed reply's turnaround must not hide another independent
         // bus that is already ready for a read.
-        candidates.retain(|(_,index,_,_)|!self.transport.query_response_pending(&plan.targets[*index].gateway));
+        candidates.retain(|(_,index,_,_)|!self.transport.query_response_pending(&plan.targets[*index].gateway)
+            && checked.is_none_or(|checked|checked.contains(&plan.targets[*index].gateway)));
         candidates.sort_by_key(|candidate|(candidate.0,candidate.1));
         let Some((_,index,retried,recovery))=candidates.first().copied() else{return Ok(());};
         let strict=!recovery && !plan.priority.contains(&index) && plan.pending.get(&plan.targets[index].gateway).map_or_else(||plan.strict.get(&index).is_some_and(|age|crate::consumer_refresh::due(&plan.targets[index],self.feedback.module_truth(),*age)<=now),|p|p.strict);

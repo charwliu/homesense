@@ -1049,6 +1049,7 @@ impl Document {
             }
         }
         crate::component_modes::validate(&document.component_mode_confirmations,&document,config)?;
+        crate::keypad_completion::validate_document(config, &document)?;
         document.validate_curtain_led_owners(config)?;
         document.validate_enabled_motor_predicates(config)?;
         if let Some(settings)=&document.scene_observation {settings.validate_linked(&document)?;}

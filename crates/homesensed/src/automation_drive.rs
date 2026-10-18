@@ -269,6 +269,7 @@ pub(crate) async fn drive_with_panel_feeds<S: Read + Write + Send + 'static>(
         }
         let mut indicators=indicator_waves::Waves::default();
         let mut component_modes=crate::component_modes::Consumer::default();
+        let mut key_completions=crate::keypad_completion::Consumer::default();
         let mut control_batches=crate::control_batch::Consumer::default();
         let mut background_led_phase:Option<background_led_phase::Phase>=None;
         let mut scene_observations=crate::scene_observation_runtime::Consumer::default();
@@ -284,6 +285,11 @@ pub(crate) async fn drive_with_panel_feeds<S: Read + Write + Send + 'static>(
                     indicators.phase_ended(all_written);
                     background_led_phase=None;guard.owner.pause_refresh_for_background_leds(false);
             }
+            // Awaiting Away feedback is protected work even between its
+            // physical attempts. An older background wave cannot reserve the
+            // read opportunity needed to confirm all of those outputs.
+            guard.owner.pause_refresh_for_background_leds(background_led_phase.is_some() && !admission.away_operations_active());
+            let mut received_gateway=None;
             if guard.owner.independent() {
                 guard.owner.local_tick().await?;
                 let operations=guard.owner.take_local_fault_operations();
@@ -302,12 +308,13 @@ pub(crate) async fn drive_with_panel_feeds<S: Read + Write + Send + 'static>(
                     return Err(error);
                 }
             };
-            if let Some(read) = pending_read
-                && matches!(read.result, hb_transport::Receive::Disconnected { .. })
-            {
-                transport_failure = true;
-                disconnected = Some(read.gateway_id);
-                return Ok(());
+            if let Some(read) = pending_read {
+                if matches!(read.result, hb_transport::Receive::Disconnected { .. }) {
+                    transport_failure = true;
+                    disconnected = Some(read.gateway_id);
+                    return Ok(());
+                }
+                received_gateway=Some(read.gateway_id);
             }
             if had_pending_read && !guard.owner.output_query_pending() {
                 // The previous quantum ends with this response. Offer its
@@ -323,6 +330,7 @@ pub(crate) async fn drive_with_panel_feeds<S: Read + Write + Send + 'static>(
             let before_control_ms=quantum_started.elapsed().as_millis();
             if let Some((receiver, document)) = &mut control.0 {
                 scene_observations.tick(admission,receiver.controller(),document,guard.owner.feedback()).await?;
+                key_completions.tick(admission,receiver.controller(),guard.owner.feedback()).await?;
                 control_batches.tick(admission,receiver.controller(),guard.owner.feedback()).await?;
                 component_modes.tick(admission,receiver.controller(),document,guard.owner.feedback()).await?;
                 receiver.poll_causal(admission, document, guard.scenes, guard.owner.feedback(), max_age_ms, guard.calendar.as_deref(),causal.as_deref_mut()).await;
@@ -393,6 +401,7 @@ pub(crate) async fn drive_with_panel_feeds<S: Read + Write + Send + 'static>(
                     }
                 }
             }
+            let after_scenes_ms=quantum_started.elapsed().as_millis();
             let burst_started=tokio::time::Instant::now();let mut written_this_quantum=0;
             // Bounded accepted-work progress. Each dispatch still rechecks STOP,
             // revocation, generation and the original deadline in Admission.
@@ -413,11 +422,16 @@ pub(crate) async fn drive_with_panel_feeds<S: Read + Write + Send + 'static>(
             if *stop.borrow() {
                 return Ok(());
             }
+            let after_burst_ms=quantum_started.elapsed().as_millis();
             let protected_after_burst=if written_this_quantum>0 {
                 if let Some((receiver,_))=&control.0 {guard.owner.protected_controls(receiver.controller()).await?}else{false}
             }else{false};
             let defer_idle_receive=written_this_quantum>0 && protected_after_burst && !guard.owner.output_query_pending();
-            if !guard.owner.independent() && !defer_idle_receive {
+            // The owned response already pumped this bus in this quantum.
+            // Avoid a second blocking idle read of the same stream; other
+            // gateways and the mandatory pre-query receive window still run.
+            if !guard.owner.independent() && !defer_idle_receive
+                && received_gateway.as_ref()!=Some(&gateways[next]) {
             let read = match guard.owner.receive(&gateways[next]).await {
                 Ok(read) => read,
                 Err(error) => {
@@ -438,13 +452,21 @@ pub(crate) async fn drive_with_panel_feeds<S: Read + Write + Send + 'static>(
             }else if guard.owner.independent(){
                 guard.owner.start_local_reads()?;
             }
+            let after_receive_ms=quantum_started.elapsed().as_millis();
             guard.owner.expire(admission.monotonic_ms(), max_age_ms)?;
+            let mut reconcile_ms=0;let mut indicators_ms=0;
             if let Some((receiver,document))=&control.0 {
+                let stage_started=std::time::Instant::now();
                 scene_observations.tick(admission,receiver.controller(),document,guard.owner.feedback()).await?;
-                crate::scene_initialization::tick(admission,receiver.controller(),document,guard.scenes,guard.owner.feedback()).await?;
-                crate::scene_reconciliation::tick(admission,receiver.controller(),document,guard.scenes,guard.owner.feedback()).await?;
-                let round=guard.owner.take_completed_refresh_round();
-                if background_led_phase.is_none() {
+                let away_critical=admission.away_operations_active();
+                if !away_critical {
+                    crate::scene_initialization::tick(admission,receiver.controller(),document,guard.scenes,guard.owner.feedback()).await?;
+                    crate::scene_reconciliation::tick(admission,receiver.controller(),document,guard.scenes,guard.owner.feedback()).await?;
+                }
+                reconcile_ms=stage_started.elapsed().as_millis();
+                let stage_started=std::time::Instant::now();
+                let round=if away_critical {None}else{guard.owner.take_completed_refresh_round()};
+                if !away_critical && background_led_phase.is_none() {
                     let qualified=round.as_ref().is_some_and(|round|round.generation.epochs.configuration==document.revision && round.completed_ms>=round.started_ms && admission.monotonic_ms().saturating_sub(round.started_ms)<round.max_age_ms);
                     if let Some(wave)=indicators.advance(admission,receiver.controller(),document,guard.scenes,guard.owner.feedback(),max_age_ms,guard.owner.write_interval_ms(),qualified,guard.owner.output_query_pending()).await? {
                         let generation=admission.task_generation().await.map_err(|e|format!("LED wave generation: {e:?}"))?;
@@ -452,6 +474,8 @@ pub(crate) async fn drive_with_panel_feeds<S: Read + Write + Send + 'static>(
                         guard.owner.pause_refresh_for_background_leds(true);
                     }
                 }
+                guard.owner.pause_refresh_for_background_leds(background_led_phase.is_some() && !away_critical);
+                indicators_ms=stage_started.elapsed().as_millis();
             }
             // Reconcile the completed feedback before starting the next read.
             // Continuously overdue consumers must not keep a query pending at
@@ -479,9 +503,7 @@ pub(crate) async fn drive_with_panel_feeds<S: Read + Write + Send + 'static>(
                     }
                 }
             }
-            if quantum_started.elapsed()>=std::time::Duration::from_millis(100) {
-                log::warn!("automation_quantum_lag total_ms={} before_control_ms={before_control_ms} control_ms={} after_control_ms={} written_frames={written_this_quantum} pending_read={}",quantum_started.elapsed().as_millis(),after_control_ms.saturating_sub(before_control_ms),quantum_started.elapsed().as_millis().saturating_sub(after_control_ms),guard.owner.output_query_pending());
-            }
+            log::log!(if quantum_started.elapsed()>=std::time::Duration::from_millis(100) {log::Level::Warn}else{log::Level::Debug}, "automation_quantum_lag total_ms={} before_control_ms={before_control_ms} control_ms={} after_control_ms={} scenes_ms={} burst_ms={} receive_ms={} reconcile_ms={reconcile_ms} indicators_ms={indicators_ms} written_frames={written_this_quantum} pending_read={}",quantum_started.elapsed().as_millis(),after_control_ms.saturating_sub(before_control_ms),quantum_started.elapsed().as_millis().saturating_sub(after_control_ms),after_scenes_ms.saturating_sub(after_control_ms),after_burst_ms.saturating_sub(after_scenes_ms),after_receive_ms.saturating_sub(after_burst_ms),guard.owner.output_query_pending());
             next = (next + 1) % gateways.len();
             // Preserve the existing publication boundary: an outstanding read
             // belongs to this generation until it completes or faults. Keep
@@ -490,7 +512,11 @@ pub(crate) async fn drive_with_panel_feeds<S: Read + Write + Send + 'static>(
                 drop(quantum.take());
             }
             tokio::select! {
-                _=tokio::time::sleep(cadence)=>{},
+                // A full96 confirmation cannot spend the ordinary cadence
+                // between both ends of each serialized query. Pump readiness
+                // more often; physical write pacing and reply ownership stay
+                // in the transport, and the original proof deadlines remain.
+                _=tokio::time::sleep(if admission.away_operations_active(){cadence.min(Duration::from_millis(1))}else{cadence})=>{},
                 changed=stop.changed()=>{if changed.is_err() || *stop.borrow() {return Ok(());}}
             }
             if quantum.is_none() {

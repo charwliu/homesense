@@ -155,7 +155,10 @@ private final class UnifiedEvents: HomeEventTransport, @unchecked Sendable {
             let before = await http.posts().count, op = home.beginUnifiedKeypadClick("panel", key: key)
             #expect(home.busy && home.keypadActionPresentation("panel", key: key)?.phase == .submitting)
             #expect(home.canDisplayKeypadActionCue("panel", key: key), "Busy disables repeat submission while preserving the visible cue layer")
-            #expect(home.keypadActionPresentation("panel", key: key)?.requestedColor == nil)
+            let mapped = try HomeKeypad(record: #require(home.devices.first)).keys.first { $0.number == key }?.actionScene
+            let selected = mapped.flatMap { id in home.scenes.first { $0.id == id } }
+            let expected: HomeKeypadLEDColor? = selected?.raw["switch_kind"] == .string("selection") ? (selected?.raw["selected"] == .bool(true) ? .green : .red) : nil
+            #expect(home.keypadActionPresentation("panel", key: key)?.requestedColor == expected)
             #expect(await http.posts().count == before, "Synchronous UI indication does not send another request")
             await home.activateUnifiedKeypad("panel", key: key, operation: op)
             let body = try await http.lastBody()
@@ -512,4 +515,38 @@ private final class UnifiedEvents: HomeEventTransport, @unchecked Sendable {
         #expect(home.keypadActionPresentation("panel", key: 1) == nil && home.receivingPush)
         #expect(await http.posts().isEmpty)
     }
+    @Test func localClickImmediatelyColorsKeyAndRoomSceneWithoutChangingObservedSelection() async throws {
+        let http = UnifiedHTTP(), events = UnifiedEvents(), home = try await connect(http, events: events)
+        defer { home.disconnect() }
+        var frame = UnifiedInputs.frame(await http.currentPanel())
+        frame["scenes"] = .array([.object(["id": .string("reading"), "can_control": .bool(true), "switch_kind": .string("selection"), "selected": .bool(false)])])
+        try events.push(frame); try await gatewayUntil { home.scenes.first?.raw["selected"] == .bool(false) }
+        let before = await http.posts().count
+        let op = home.beginUnifiedKeypadClick("panel", key: 1)
+        #expect(home.keypadActionPresentation("panel", key: 1)?.requestedColor == .red)
+        #expect(home.sceneActionPresentation("reading")?.selected == true)
+        #expect(home.scenes.first?.raw["selected"] == .bool(false), "Requested selection never rewrites canonical feedback")
+        #expect(await http.posts().count == before)
+        await home.activateUnifiedKeypad("panel", key: 1, operation: op)
+        frame["scenes"] = .array([.object(["id": .string("reading"), "can_control": .bool(true), "switch_kind": .string("selection"), "selected": .bool(true)])])
+        try events.push(frame); try await gatewayUntil { home.sceneActionPresentation("reading") == nil }
+        #expect(home.scenes.first?.raw["selected"] == .bool(true))
+    }
+    @Test func wallCueImmediatelyColorsRoomSceneAndCancellationRollsItBackOnSameCursor() async throws {
+        let http = UnifiedHTTP(), events = UnifiedEvents(), home = try await connect(http, events: events)
+        defer { home.disconnect() }
+        let wall = "wall-" + UnifiedInputs.boot.replacingOccurrences(of: "-", with: "") + "-99"
+        let body: HomeJSON = .object(["request_id": .string(wall), "key": .integer(1)])
+        var panel = UnifiedInputs.setting(await http.currentPanel(), field: "indication", value: UnifiedInputs.cue(body, sequence: 99, color: .string("red"), source: "button_event", eventSequence: .string("99")))
+        var frame = UnifiedInputs.frame(panel)
+        frame["scenes"] = .array([.object(["id": .string("reading"), "can_control": .bool(true), "switch_kind": .string("selection"), "selected": .bool(false)])])
+        try events.push(frame); try await gatewayUntil { home.sceneActionPresentation("reading")?.selected == true }
+        #expect(home.keypadActionPresentation("panel", key: 1)?.requestedColor == .red)
+        #expect(home.scenes.first?.raw["selected"] == .bool(false))
+        panel = UnifiedInputs.setting(panel, field: "indication", value: UnifiedInputs.cue(body, sequence: 99, status: "cancelled", color: .null, source: "button_event", eventSequence: .string("99")))
+        frame["devices"] = .array([panel]); try events.push(frame)
+        try await gatewayUntil { home.sceneActionPresentation("reading") == nil }
+        #expect(await http.posts().isEmpty)
+    }
+
 }

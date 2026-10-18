@@ -671,10 +671,10 @@ async fn explicit_off_refreshes_versioned_physical_proof_without_using_saved_int
 }
 
 #[tokio::test]
-async fn scene_catalog_reads_seventeen_scenes_in_one_control_request_and_rejects_bad_revision() {
+async fn scene_catalog_batches_independent_activity_and_history_across_thirty_two_rows() {
     let (config,mut rules)=reconciled();
     let template=rules["timed_scenes"][0].clone();
-    for n in 0..13 {
+    for n in 0..33 {
         let mut scene=template.clone();scene["id"]=json!(format!("directory-{n}"));
         rules["timed_scenes"].as_array_mut().unwrap().push(scene);
     }
@@ -683,13 +683,41 @@ async fn scene_catalog_reads_seventeen_scenes_in_one_control_request_and_rejects
     let (control,mut receiver)=crate::automation_control::channel(h.controller,h.generation.clone());
     let mut scenes=crate::scene_scheduler::SceneScheduler::new(h.actor.clone(),h.controller,8,h.actor.monotonic_ms()).unwrap();
     let ids=h.document.timed_scenes.keys().cloned().collect::<Vec<_>>();
-    assert_eq!(ids.len(),17);
+    assert_eq!(ids.len(),37);
     let reply=poll_request(&h,&mut receiver,&mut scenes,control.request(crate::automation_control::Action::SceneCatalog{controller:h.controller,revision:1,scenes:ids.clone()})).await.unwrap();
     let crate::automation_control::Reply::SceneCatalog(entries)=reply else{panic!("catalog reply")};
-    assert_eq!(entries.len(),17);
+    assert_eq!(entries.len(),37);
     assert!(entries.values().all(|v|v.tracking.is_none()&&v.last_run.is_none()));
+    for id in &ids {
+        let ordinary=crate::scene_tracking::activity(&h.document,id,&h.actor,h.controller,&h.generation,&h.feedback,5000).await.unwrap();
+        assert_eq!(entries[id].activity,ordinary,"batched projection differs for {id}");
+    }
+    let (_,lease)=crate::scene_activity::Targets::new(&h.document.timed_scenes[&ids[0]].steps)
+        .prepare(&h.feedback,5000,h.actor.monotonic_ms()).unwrap().unwrap();
+    assert_eq!(h.actor.feedback_settled_batch(uuid::Uuid::new_v4(),h.generation.clone(),vec![lease.clone()]).await.unwrap_err(),hap::server::WriteStatus::InsufficientPrivileges);
+    assert_eq!(h.actor.feedback_settled_batch(h.controller,h.generation.clone(),vec![lease.clone();33]).await.unwrap_err(),hap::server::WriteStatus::InvalidValueInRequest);
+    let mut stale=h.generation.clone();stale.epochs.configuration+=1;
+    assert_eq!(h.actor.feedback_settled_batch(h.controller,stale,vec![lease]).await.unwrap_err(),hap::server::WriteStatus::ServiceCommunicationFailure);
+    assert_eq!(h.actor.catalog_last_runs(h.controller,h.generation.clone(),vec![ids[0].clone(),ids[0].clone()]).await.unwrap_err(),hap::server::WriteStatus::InvalidValueInRequest);
+    assert_eq!(h.actor.catalog_last_runs(uuid::Uuid::new_v4(),h.generation.clone(),ids.clone()).await.unwrap_err(),hap::server::WriteStatus::InsufficientPrivileges);
+    h.no_output();
+    scenes.start_document(&h.document,&ids[0],h.actor.monotonic_ms()).await.unwrap();
+    let reference=poll_request(&h,&mut receiver,&mut scenes,control.request(crate::automation_control::Action::LastRun(ids[0].clone()))).await.unwrap();
+    let crate::automation_control::Reply::LastRun(reference)=reference else{panic!("history reply")};
+    assert!(reference.is_some());
+    let repeated=poll_request(&h,&mut receiver,&mut scenes,control.request(crate::automation_control::Action::SceneCatalog{controller:h.controller,revision:1,scenes:ids.clone()})).await.unwrap();
+    let crate::automation_control::Reply::SceneCatalog(repeated)=repeated else{panic!("catalog reply")};
+    assert_eq!(repeated[&ids[0]].last_run,reference,"bounded catalog metadata preserves the ordinary history read exactly");
+    for id in &ids {
+        let ordinary=crate::scene_tracking::activity(&h.document,id,&h.actor,h.controller,&h.generation,&h.feedback,5000).await.unwrap();
+        assert_eq!(repeated[id].activity,ordinary,"pending state must remain per scene for {id}");
+    }
     assert!(poll_request(&h,&mut receiver,&mut scenes,control.request(crate::automation_control::Action::SceneCatalog{controller:h.controller,revision:2,scenes:ids})).await.is_err());
-    h.no_output();h.close().await;
+    for table in ["command_journal","rule_admission"] {
+        assert_eq!(h.sql().query_row(&format!("SELECT count(*) FROM {table}"),[],|row|row.get::<_,i64>(0)).unwrap(),0,"catalog reads must not submit control");
+    }
+    assert_eq!(h.sql().query_row("SELECT count(*) FROM scene_run",[],|row|row.get::<_,i64>(0)).unwrap(),1,"only the explicitly started history fixture may exist");
+    h.close().await;
 }
 
 #[tokio::test]

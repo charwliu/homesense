@@ -14,6 +14,10 @@ use std::{
 mod projection_lease;
 #[path="panel_query_guard.rs"]
 mod panel_query_guard;
+#[path="bulk_reply_guard.rs"]
+mod bulk_reply_guard;
+#[path="rule_feedback_scope.rs"]
+mod rule_feedback_scope;
 pub(crate) use projection_lease::{ProjectionLease,Fingerprint as IndicatorFingerprint};
 
 /// Private policy proof for LED planning only. Old evidence becomes Unknown,
@@ -116,6 +120,7 @@ pub struct Feedback {
     local_wires:Option<BTreeMap<String,Option<u64>>>,
     event_wires:BTreeMap<u64,(String,u64)>,
     panel_queries: panel_query_guard::Guard,
+    bulk_replies: bulk_reply_guard::Guard,
     now: u64,
     stopped: bool,
     managed_max_age_ms: Option<u64>,
@@ -235,10 +240,19 @@ impl Feedback {
             .lease_version
             .lock()
             .map_err(|_| "feedback lease poisoned")?;
-        let mut physical = self
-            .states
-            .rule_feedback(self.epoch, now, max_age)
-            .map_err(|e| e.to_string())?;
+        // Catalog activity evaluates many small predicates. Read their bounded
+        // input closure rather than cloning every unrelated panel/light port
+        // for every scene. Actual evaluator reads still create the same lease.
+        let scoped=rule_feedback_scope::inputs(nodes).map(|mut ids| {
+            let supplies=ids.iter().filter_map(|id|self.supply_relays.get(id)).cloned().collect::<Vec<_>>();
+            ids.extend(supplies);
+            self.states.capture_rule_feedback(&ids.into_iter().collect::<Vec<_>>(),self.epoch,now,max_age)
+        });
+        let mut physical=match scoped {
+            Some(Ok(read))=>read.feedback().devices.clone(),
+            None|Some(Err(homesense_state::StateError::Capacity))=>self.states.rule_feedback(self.epoch,now,max_age).map_err(|e|e.to_string())?,
+            Some(Err(error))=>return Err(error.to_string()),
+        };
         if let Some(policy)=policy {physical.retain(|_,s|s.observed_ms>policy.after_ms || (policy.include_boundary && s.observed_ms==policy.after_ms));}
         let mut logical = physical.clone();
         for (device, relay) in &self.supply_relays {
@@ -385,6 +399,7 @@ impl Feedback {
             local_wires:None,
             event_wires:BTreeMap::new(),
             panel_queries: panel_query_guard::Guard::default(),
+            bulk_replies: bulk_reply_guard::Guard::default(),
             now: 0,
             stopped: false,
         })
@@ -406,6 +421,7 @@ impl Feedback {
 
         self.stopped = true;
         self.panel_queries.reset();
+        self.bulk_replies.reset();
         self.states.mark_stale(self.now,0).map_err(|e|e.to_string())?;
         self.refresh_projection_versions()
     }
@@ -427,6 +443,7 @@ impl Feedback {
             *lease_guard = next_version;
             self.refresh_projection_versions()?;
         }
+        self.bulk_replies.expire(&self.states,self.epoch,now);
         self.now = now;
         Ok(())
     }
@@ -459,6 +476,7 @@ impl Feedback {
         self.now = now;
         self.stopped = false;
         self.panel_queries.reset();
+        self.bulk_replies.reset();
         self.refresh_projection_versions()?;
         Ok(())
     }
@@ -495,6 +513,11 @@ impl Feedback {
             captured_ms:now,expires_ms:None,observations:BTreeMap::new(),recorded_off_reads:std::collections::BTreeSet::new(),indicator_after:None,
         }})
     }
+    pub(crate) fn away_observation(&self,now:u64)->Result<crate::away_execution::Observation,String> {
+        let proof=self.scene_observation_start(now)?;
+        let counts=proof.snapshot().devices.keys().filter_map(|id|self.states.observation_count(id).map(|n|(id.clone(),n))).collect();
+        Ok(crate::away_execution::Observation {proof,counts})
+    }
     pub(crate) fn scene_key_observation(&self,event:&homesense_state::Event,now:u64)->Result<SceneKeyObservation,String> {
         let version=self.lease_version.lock().map_err(|_|"feedback lease poisoned")?;
         if self.stopped || event.cursor.boot_id!=self.boot || event.change!=homesense_state::Change::Button
@@ -524,7 +547,7 @@ impl Feedback {
         *guard=guard.checked_add(1).ok_or("feedback lease exhausted")?;
         let wires=self.local_wires.as_mut().ok_or("local wire owner not enabled")?;
         *wires.get_mut(gateway).ok_or("unknown gateway")?=None;
-        self.panel_queries.reset_gateway(gateway);
+        self.panel_queries.reset_gateway(gateway);self.bulk_replies.reset_gateway(gateway);
         self.states.invalidate_gateway(gateway).map_err(|e|e.to_string())?;
         self.refresh_projection_versions()
     }
@@ -532,7 +555,7 @@ impl Feedback {
         if epoch==0 {return Err("zero local epoch".into());}
         let wires=self.local_wires.as_mut().ok_or("local wire owner not enabled")?;
         *wires.get_mut(gateway).ok_or("unknown gateway")?=Some(epoch);
-        self.panel_queries.reset_gateway(gateway);Ok(())
+        self.panel_queries.reset_gateway(gateway);self.bulk_replies.reset_gateway(gateway);Ok(())
     }
     pub(crate) fn gateway_ready(&mut self,gateway:&str)->Result<(),String> {
         let mut guard=self.lease_version.lock().map_err(|_|"feedback lease poisoned")?;
@@ -544,6 +567,27 @@ impl Feedback {
     /// retain their existing evidence, deadlines, and priority.
     pub(crate) fn query_deferred(&self,gateway:&str,now:u64,postwrite_or_retry:bool)->bool {
         self.panel_queries.deferred(gateway,now,postwrite_or_retry)
+            || self.bulk_replies.deferred(gateway,&self.states,self.epoch,now)
+    }
+    pub(crate) fn bulk_module_written(&mut self,gateway:String,devices:&[DeviceId],at:u64) {
+        if devices.len()>8 && !self.stopped && self.registries.contains_key(&gateway) {
+            self.bulk_replies.written(gateway,devices,&self.states,self.epoch,at);
+        }
+    }
+    /// A missing status reply is a port-evidence failure, not socket EOF.
+    /// Retain received values/timestamps while invalidating only missing ports.
+    pub(crate) fn missing_query_ports(&mut self,gateway:&str,address:u8,channels:&[u8],at:u64)->Result<(),String> {
+        if self.stopped || !self.registries.contains_key(gateway) || at<self.now {
+            return Err("inactive or backwards query timeout evidence".into());
+        }
+        if channels.is_empty() {return Ok(());}
+        let version=self.lease_version.clone();let mut guard=version.lock().map_err(|_|"feedback lease poisoned")?;
+        *guard=guard.checked_add(1).ok_or("feedback lease exhausted")?;
+        for channel in channels {
+            self.states.invalidate_port(gateway,address,*channel).map_err(|e|e.to_string())?;
+            self.refresh_projection_port(gateway,address,*channel)?;
+        }
+        self.now=at;Ok(())
     }
     pub fn apply(&mut self, read: &GatewayRead) -> Result<usize, String> {
         self.apply_at(read,read.received_at_ms)
@@ -615,6 +659,7 @@ impl Feedback {
                 if self.local_wires.is_some() {return Err("local disconnect must be audited by its owner before projection".into());}
                 self.stopped = true;
                 self.panel_queries.reset();
+        self.bulk_replies.reset();
                 self.states
                     .disconnect(
                         self.epoch.checked_add(1).ok_or("epoch exhausted")?,

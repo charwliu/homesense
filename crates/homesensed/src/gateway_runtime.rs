@@ -118,6 +118,19 @@ fn synchronize(config:&Configuration,table:&mut GatewayTable,wire:&WireScope,sam
 #[derive(Debug,PartialEq,Eq,serde::Serialize)]
 pub struct ActionGate {pub available:bool,pub required_gateways:Vec<View>}
 pub(crate) fn scene_devices(document:&homesense_config::rule_document::Document,id:&str)->Result<BTreeSet<DeviceId>,String> {
+    scene_scope_devices(document,&scene_scope(document,id)?)
+}
+pub(crate) fn scene_scope(document:&homesense_config::rule_document::Document,id:&str)->Result<BTreeSet<String>,String> {
+    if document.scene_execution_kind(id).is_none(){return Err("unknown enabled scene".into());}
+    let mut scenes=BTreeSet::from([id.to_owned()]);
+    for group in &document.scene_switch_groups {
+        if group.members.iter().any(|member|member.scene==id) {
+            for member in &group.members {scenes.insert(member.scene.clone());scenes.insert(member.off_scene.clone());}
+        }
+    }
+    Ok(scenes)
+}
+pub(crate) fn scene_scope_devices(document:&homesense_config::rule_document::Document,scenes:&BTreeSet<String>)->Result<BTreeSet<DeviceId>,String> {
     use homesense_core::rule::{Action,Condition,Expr,Node};
     fn expr(value:&Expr,ids:&mut BTreeSet<DeviceId>) {
         match value {
@@ -151,16 +164,9 @@ pub(crate) fn scene_devices(document:&homesense_config::rule_document::Document,
         }
         Ok(())
     }
-    if document.scene_execution_kind(id).is_none(){return Err("unknown enabled scene".into());}
-    let mut scenes=BTreeSet::from([id.to_owned()]);
-    for group in &document.scene_switch_groups {
-        if group.members.iter().any(|member|member.scene==id) {
-            for member in &group.members {scenes.insert(member.scene.clone());scenes.insert(member.off_scene.clone());}
-        }
-    }
     let mut ids=BTreeSet::new();
     for scene in scenes {
-        let nodes=document.linked_manual_scenes(&[scene]).map_err(|e|e.to_string())?;
+        let nodes=document.linked_manual_scenes(std::slice::from_ref(scene)).map_err(|e|e.to_string())?;
         walk(&nodes,document,&mut ids)?;
     }
     Ok(ids)

@@ -354,7 +354,7 @@ async fn adaptive_idle_preserves_actual_times_and_unsolicited_feedback_starts_a_
 }
 
 #[tokio::test]
-async fn failed_adaptive_round_does_not_qualify_background_leds_or_preserve_confirmed_truth() {
+async fn failed_adaptive_round_does_not_qualify_background_leds_but_preserves_healthy_ports() {
     let mut f=Fixture::new(false,true).await;let age=f.config.refresh_policy().observation_max_age_ms();
     f.sync(100,age).await.unwrap();
     f.owner.configure_output_refresh(&f.config,f.controller,f.admission.task_generation().await.unwrap(),ExecutionContext::Simulation,30,age).unwrap();
@@ -362,9 +362,14 @@ async fn failed_adaptive_round_does_not_qualify_background_leds_or_preserve_conf
     f.bus.lock().unwrap().replies.extend([0xae,2,0xd3,40,0xee]);f.owner.receive("bus").await.unwrap();
     f.bus.lock().unwrap().omit=Some((1,4));
     let deadline=tokio::time::Instant::now()+Duration::from_secs(2);
-    loop {assert!(tokio::time::Instant::now()<deadline);if f.owner.refresh_outputs_if_due().await.is_err(){break;}f.owner.receive("bus").await.unwrap();tokio::time::sleep(Duration::from_millis(10)).await;}
+    loop {assert!(tokio::time::Instant::now()<deadline);f.owner.refresh_outputs_if_due().await.unwrap();f.owner.receive("bus").await.unwrap();if f.owner.feedback().module_truth().located_state("bus",1,4).unwrap().quality==homesense_state::Quality::Unknown{break;}tokio::time::sleep(Duration::from_millis(10)).await;}
     assert!(f.owner.take_completed_refresh_round().is_none());
-    assert!(f.owner.feedback().snapshot().devices.values().all(|s|s.quality!=homesense_state::Quality::Confirmed));
+    for channel in 1..=8 {
+        assert_eq!(f.owner.feedback().module_truth().located_state("bus",1,channel).unwrap().quality,
+            if channel==4 {homesense_state::Quality::Unknown}else{homesense_state::Quality::Confirmed},
+            "even an unbound missing port prevents round qualification without discarding its healthy siblings");
+    }
+    assert!(f.admission.diagnostics(f.controller,f.admission.task_generation().await.unwrap()).await.unwrap().ready());
     f.close().await;
 }
 

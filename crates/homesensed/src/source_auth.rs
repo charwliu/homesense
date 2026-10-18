@@ -10,6 +10,7 @@ pub struct Source {
     proof: std::sync::Arc<Proof>,
 }
 struct Proof {
+    lineage: std::sync::Arc<()>,
     lease: Authority,
     controller: Uuid,
     revision: u64,
@@ -175,6 +176,9 @@ fn describe(action: &Action) -> Option<Description> {
 }
 impl Source {
     pub(crate) fn same_authority(&self,other:&Self)->bool{std::sync::Arc::ptr_eq(&self.proof,&other.proof)}
+    /// Internal derivation identity, independent of equal controller/grant
+    /// fields. A separate request cannot borrow another key's capture.
+    pub(crate) fn derived_from(&self,other:&Self)->bool{std::sync::Arc::ptr_eq(&self.proof.lineage,&other.proof.lineage)}
 
     pub(crate) fn supports(action: &Action) -> bool {
         describe(action).is_some()
@@ -203,6 +207,7 @@ impl Source {
         }
         Some(Self {
             proof: std::sync::Arc::new(Proof {
+                lineage:std::sync::Arc::new(()),
                 lease,
                 controller,
                 revision,
@@ -226,7 +231,8 @@ impl Source {
     pub(crate) fn event(&self)->Option<&EventEvidence>{self.proof.event.as_ref()}
     pub(crate) fn derive(&self,action:&Action)->Option<Self>{
         let mut derived=Self::capture_authority(self.proof.lease.clone(),action,None)?;
-        std::sync::Arc::get_mut(&mut derived.proof)?.event=self.proof.event.clone();Some(derived)
+        let proof=std::sync::Arc::get_mut(&mut derived.proof)?;
+        proof.event=self.proof.event.clone();proof.lineage=self.proof.lineage.clone();Some(derived)
     }
     pub(crate) fn away_keypad(&self,keypad:String,key:u8)->Option<crate::away_auth::Authorization>{
         match &self.proof.lease {

@@ -19,6 +19,12 @@ impl Fixture {
         Self::build(execute,false,true).await
     }
     async fn build(execute:bool,motor:bool,bind:bool)->Self {
+        Self::build_with_away(execute,motor,bind,false).await
+    }
+    async fn build_with_away(execute:bool,motor:bool,bind:bool,away:bool)->Self {
+        Self::build_with_away_supply(execute,motor,bind,away,false).await
+    }
+    async fn build_with_away_supply(execute:bool,motor:bool,bind:bool,away:bool,combined:bool)->Self {
         let _=env_logger::Builder::new().filter_level(log::LevelFilter::Warn).is_test(true).try_init();
         let mut modules=vec![json!({"id":"relay","address":"03","profile":"r8i8_din_pro_v2_7_7","verification":{"status":"simulated"}})];
         let mut panels=vec![];let mut scenes=vec![];
@@ -42,7 +48,7 @@ impl Fixture {
         let mut devices=vec![json!({"id":"load","name":"Synthetic load","module_id":"relay","channel":1,"enabled":true})];
         if motor {
             scenes.retain(|scene|!matches!(scene["id"].as_str(),Some("scene-0-1"|"scene-0-2"|"scene-0-3")));
-            modules.push(json!({"id":"motor-module","address":"22","profile":"c4_din_pro_v2_7_7","verification":{"status":"simulated"}}));
+            modules.push(json!({"id":"motor-module","address":if away{"7E"}else{"22"},"profile":"c4_din_pro_v2_7_7","verification":{"status":"simulated"}}));
             devices.push(json!({"id":"curtain","name":"Synthetic motor","module_id":"motor-module","channel":1,"enabled":true,
                 "motor_calibration":{"open_direction":"up","stop_verified":true,"evidence":"Synthetic loopback motor","verified_at_unix_ms":1},
                 "curtain_state":{"open_travel_ms":10000,"close_travel_ms":10000,"stop_led_idle_ms":1,
@@ -53,10 +59,35 @@ impl Fixture {
                     "press_behavior":if action=="stop"{"absolute"}else{"repeat_to_stop"},"review_evidence":"Synthetic raw-event motor mapping"});
             }
         }
+        if away {
+            scenes.retain(|scene|scene["id"]!="scene-0-6");
+            panels[0]["keys"][5]["action"]=json!({"kind":"away_off","indicator_reset":"green",
+                "review_evidence":"Synthetic native Away key with twelve reviewed modules"});
+            for n in 0..12u8 {
+                modules.push(json!({"id":format!("away-{n}"),"address":format!("{:02X}",0x20+n),
+                    "profile":if n<7{"r8i8_din_pro_v2_7_7"}else{"ad8_din_rs485_v2_2_1"},"verification":{"status":"simulated"}}));
+                for channel in 1..=8 {
+                    let mut device=json!({"id":format!("away-{n}:{channel}"),"name":"Synthetic Away output",
+                        "module_id":format!("away-{n}"),"channel":channel,"enabled":true});
+                    if combined && n==7 && channel==1 {
+                        device["supply"]=json!({"module_id":"away-0","channel":1});
+                        device["default_on_level"]=json!(100);
+                    }
+                    devices.push(device);
+                }
+            }
+        }
         let config=serde_json::to_vec(&json!({"schema_version":2,"revision":1,
             "gateways":[{"id":"bus","endpoint":"127.0.0.1:1","modules":modules}],
             "devices":devices,"keypads":panels})).unwrap();
-        let rules=serde_json::to_vec(&json!({"schema_version":1,"configuration_revision":1,"variables":[],"rules":[],"immediate_scenes":scenes})).unwrap();
+        let mut rules=json!({"schema_version":1,"configuration_revision":1,"variables":[],"rules":[],"immediate_scenes":scenes});
+        if away {
+            rules["away_off"]=json!({"enabled":true,"review_evidence":"Synthetic complete lighting-only scope",
+                "active_execution_policy":"cancel_affected_lighting","modules":(0..12).map(|n|json!({
+                    "module_id":format!("away-{n}"),"devices":(1..=8).map(|channel|format!("away-{n}:{channel}")).collect::<Vec<_>>(),
+                    "review_evidence":"Synthetic reviewed eight outputs"})).collect::<Vec<_>>()});
+        }
+        let rules=serde_json::to_vec(&rules).unwrap();
         let parsed=homesense_config::Configuration::parse(&config,ExecutionContext::Simulation).unwrap();
         Document::parse(&rules,&parsed).unwrap();
         let directory=std::env::temp_dir().join(format!("native-panels-tcp-{}",Uuid::new_v4()));std::fs::create_dir(&directory).unwrap();
@@ -101,10 +132,9 @@ impl Fixture {
         self.input(&[0xae,0x40+p,0xd0+key,0xf1,0xee,0xae,0x40+p,0xd0+key,0xf2,0xee]).await;
     }
     async fn flush_scene(&mut self) {
-        for _ in 0..2 {
-            self.time.fetch_add(21,Ordering::SeqCst);
-            self.owner.step().await.unwrap().expect("source cue and load must reach writer").result.unwrap();
-        }
+        self.time.fetch_add(21,Ordering::SeqCst);
+        let written=self.owner.step().await.unwrap().expect("source cue and load must share one write");
+        written.result.unwrap();assert_eq!(written.physical_frames,2);
         let mut bytes=[0;10];self.peer.read_exact(&mut bytes).unwrap();
     }
     fn journal_count(&self)->i64 {
@@ -118,7 +148,72 @@ impl Fixture {
 }
 
 #[tokio::test]
-async fn all_28_by_6_raw_tcp_keys_execute_once_with_own_cue_before_load() {
+async fn native_away_keeps_raw_event_authority_through_preflight_and_batches_twelve_modules() {
+    for disconnect in [false,true] {
+        let mut f=Fixture::build_with_away(true,false,true,true).await;
+        f.click(0,6).await;f.collect().await;
+        let pending=f.panels.take_native_dispatch();assert_eq!(pending.len(),1);assert_eq!(pending[0].priority,3,"Away must use its dedicated native reserve");
+        f.receiver.enqueue_native(pending).unwrap();
+        if disconnect {f.panels.disconnect();}
+        f.receiver.poll_causal(&f.actor,&f.document,&mut f.scenes,f.owner.feedback(),5000,None,Some(&mut f.router)).await;
+        if disconnect {
+            assert_eq!(f.journal_count(),0,"retired event owner cannot authorize Away");
+            assert!(f.owner.step().await.unwrap().is_none());
+        } else {
+            assert_eq!(f.journal_count(),13,"twelve module commands and exact source indication");
+            f.time.fetch_add(21,Ordering::SeqCst);
+            let batch=f.owner.step().await.unwrap().expect("Away and source cue share one writer batch");
+            batch.result.unwrap();assert_eq!(batch.physical_frames,13);
+            let mut wire=[0u8;65];f.peer.read_exact(&mut wire).unwrap();
+            let mut modules=std::collections::BTreeSet::new();let mut source_leds=0;
+            for frame in wire.as_chunks::<5>().0 {
+                assert_eq!((frame[0],frame[4]),(0xae,0xee));
+                if frame[1]==0x40 {
+                    assert_eq!(frame,&[0xae,0x40,6,0xf2,0xee]);source_leds+=1;
+                } else {
+                    assert!((0x20..0x2c).contains(&frame[1]));
+                    assert_eq!((frame[2],frame[3]),(0,if frame[1]<0x27{0xf2}else{0}));
+                    assert!(modules.insert(frame[1]),"module must be closed only once");
+                }
+            }
+            assert_eq!((modules.len(),source_leds),(12,1));
+        }
+        f.finish().await;
+    }
+}
+
+#[tokio::test]
+async fn managed_native_away_waits_for_read_without_spending_rounds_or_replaying_retired_source() {
+    for retirement in ["ready","owner-revoked","expired","long-read"] {
+        let mut f=Fixture::build_with_away(true,false,true,true).await;let(_tokens,lease)=away_status_lease(&f);
+        f.click(0,6).await;f.collect().await;
+        let events=f.panels.take_native_dispatch();assert_eq!(events.len(),1);f.receiver.enqueue_native(events).unwrap();
+        let permit=f.actor.reserve_physical_read("bus".into(),f.time.load(Ordering::SeqCst)+if retirement=="long-read"{5000}else{300}).await.unwrap();
+        f.receiver.poll_causal(&f.actor,&f.document,&mut f.scenes,f.owner.feedback(),5000,None,Some(&mut f.router)).await;
+        assert_eq!(f.journal_count(),0,"logical admission waits; no short-lived physical tickets are renewed behind a read");
+        let pending=away_status(&f,&lease).await;assert_eq!((pending.state.as_str(),pending.rounds),("pending",0));
+        assert!(f.owner.step().await.unwrap().is_none());
+        if retirement=="owner-revoked" {f.panels.disconnect();}
+        if retirement=="expired" {f.time.fetch_add(30001,Ordering::SeqCst);}
+        if retirement=="long-read" {f.time.fetch_add(5500,Ordering::SeqCst);}
+        drop(permit);f.time.fetch_add(51,Ordering::SeqCst);tick_away(&mut f).await;
+        if matches!(retirement,"ready"|"long-read") {
+            assert_eq!(f.journal_count(),13);assert_eq!(away_status(&f,&lease).await.rounds,1);
+            f.time.fetch_add(21,Ordering::SeqCst);let batch=f.owner.step().await.unwrap().unwrap();batch.result.unwrap();assert_eq!(batch.physical_frames,13);
+            let mut bytes=[0;65];f.peer.read_exact(&mut bytes).unwrap();
+            assert_eq!(bytes.as_chunks::<5>().0.iter().filter(|f|(0x20..0x2c).contains(&f[1]) && f[2]==0).count(),12);
+        } else {
+            let done=away_status(&f,&lease).await;assert_eq!(done.rounds,0);
+            assert_eq!(done.state,if retirement=="expired"{"failed"}else{"cancelled"});
+            assert!(f.owner.step().await.unwrap().is_none());assert_eq!(f.journal_count(),0);
+            f.peer.set_nonblocking(true).unwrap();let mut byte=[0];assert_eq!(f.peer.read(&mut byte).unwrap_err().kind(),std::io::ErrorKind::WouldBlock);
+        }
+        f.finish().await;
+    }
+}
+
+#[tokio::test]
+async fn all_28_by_6_raw_tcp_keys_execute_once_with_own_cue_in_same_lighting_batch() {
     let mut f=Fixture::new(true).await;
     let diagnostic=f.actor.diagnostics(f.controller,f.actor.task_generation().await.unwrap()).await.unwrap();
     assert_eq!((diagnostic.native_events.configured_keypads,diagnostic.native_events.configured_endpoints),(28,168));assert!(diagnostic.native_events.owner_active);
@@ -129,10 +224,9 @@ async fn all_28_by_6_raw_tcp_keys_execute_once_with_own_cue_before_load() {
         // duplicate API calls. Exactly one release gesture may execute.
         f.input(&[down,down,up,up].concat()).await;
         assert_eq!(f.route().await,1,"panel {p} key {key}");
-        for _ in 0..2 {
-            f.time.fetch_add(21,Ordering::SeqCst);
-            let outcome=f.owner.step().await.unwrap().expect("source cue and load must reach writer");outcome.result.unwrap();
-        }
+        f.time.fetch_add(21,Ordering::SeqCst);
+        let outcome=f.owner.step().await.unwrap().expect("source cue and load must share one write");outcome.result.unwrap();
+        assert_eq!(outcome.physical_frames,2);assert_eq!(outcome.completed.len(),2);
         let on=key%2==1;let mut wire=[0u8;10];f.peer.read_exact(&mut wire).unwrap();
         assert_eq!(wire,[[0xae,0x40+p,key,if on{0xf1}else{0xf2},0xee],[0xae,3,1,if on{0xf1}else{0xf2},0xee]].concat().as_slice());
         let endpoint=DeviceId::new(format!("key-{p}-{key}")).unwrap();
@@ -300,5 +394,263 @@ async fn stop_waits_for_inflight_query_reply_then_takes_the_next_bus_slot() {
     f.time.fetch_add(21,Ordering::SeqCst);
     f.owner.step().await.unwrap().unwrap().result.unwrap();
     f.peer.read_exact(&mut frame).unwrap();assert_eq!(frame,[0xae,0x22,1,0xf0,0xee]);
+    f.finish().await;
+}
+
+fn away_status_lease(f:&Fixture)->(std::sync::Arc<crate::web_auth::Tokens>,crate::away_auth::Authorization) {
+    let tokens=std::sync::Arc::new(crate::web_auth::Tokens::default());
+    let mut scope:std::collections::BTreeSet<_>=f.document.away_off.as_ref().unwrap().modules.iter().flat_map(|m|m.devices.iter().cloned()).collect();
+    scope.insert("key-0-6".into());
+    let secret="synthetic-away-operation-status-reader-0123456789";
+    tokens.insert(Uuid::new_v4(),secret,crate::web_auth::Grant{controller:f.controller,role:crate::web_auth::Role::Member,devices:scope,scenes:Default::default()}).unwrap();
+    let lease=tokens.module_off_lease(Some(&format!("Bearer {secret}")),None,None).unwrap();(tokens,lease.into())
+}
+async fn tick_away(f:&mut Fixture) {
+    let observation=f.owner.feedback().away_observation(f.actor.monotonic_ms()).unwrap();
+    f.actor.tick_away_operations(f.controller,f.actor.task_generation().await.unwrap(),observation).await.unwrap();
+}
+async fn away_status(f:&Fixture,lease:&crate::away_auth::Authorization)->crate::away_execution::View {
+    let views=f.actor.away_operation_views(f.controller,f.actor.task_generation().await.unwrap(),lease.clone()).await.unwrap();
+    assert_eq!(views.len(),1);views.into_iter().next().unwrap()
+}
+async fn away_module_feedback(f:&mut Fixture,n:u8,on:bool) {
+    let frames=(1..=8u8).flat_map(|ch|[0xae,0x20+n,0xd0+ch,if n<7 {if on{0xf1}else{0xf2}}else if on{100}else{0},0xee]).collect::<Vec<_>>();
+    f.input(&frames).await;
+}
+#[tokio::test]
+async fn managed_native_away_retries_only_failed_module_and_reports_all96_confirmed() {
+    let mut f=Fixture::build_with_away(true,false,true,true).await;let(_tokens,lease)=away_status_lease(&f);
+    f.input(&[0xae,3,0xd1,0xf1,0xee]).await; // unrelated physical load staysOn
+    f.click(0,6).await;assert_eq!(f.route().await,1);assert_eq!(f.journal_count(),13);
+    f.time.fetch_add(21,Ordering::SeqCst);let batch=f.owner.step().await.unwrap().unwrap();batch.result.unwrap();assert_eq!(batch.physical_frames,13);
+    let mut first=[0;65];f.peer.read_exact(&mut first).unwrap();
+    for n in 0..12 {away_module_feedback(&mut f,n,n==3).await;}
+    tick_away(&mut f).await;
+    let pending=away_status(&f,&lease).await;assert_eq!(pending.state,"confirming");assert_eq!(pending.rounds,1);assert_eq!(pending.confirmed_outputs,88);
+    f.time.store(8000,Ordering::SeqCst);tick_away(&mut f).await; // feedback window exhausted; now delay1s
+    f.time.store(8999,Ordering::SeqCst);tick_away(&mut f).await;assert_eq!(f.journal_count(),13);
+    f.time.store(9000,Ordering::SeqCst);tick_away(&mut f).await;assert_eq!(f.journal_count(),14,"one failed module; no second cue or repeat of confirmed modules");
+    f.time.fetch_add(21,Ordering::SeqCst);f.owner.step().await.unwrap().unwrap().result.unwrap();
+    let mut retry=[0;5];f.peer.read_exact(&mut retry).unwrap();assert_eq!(retry,[0xae,0x23,0,0xf2,0xee]);
+    for n in 0..12 {away_module_feedback(&mut f,n,false).await;}
+    tick_away(&mut f).await;let done=away_status(&f,&lease).await;
+    assert_eq!((done.state.as_str(),done.rounds,done.confirmed_outputs),("confirmed",2,96));assert!(done.missing.is_empty());
+    assert_eq!(f.owner.feedback().snapshot().devices[&DeviceId::new("load").unwrap()].observed,Some(homesense_core::Observation::Switch(true)));
+    f.time.fetch_add(1000,Ordering::SeqCst);tick_away(&mut f).await;assert_eq!(f.journal_count(),14);assert!(f.owner.step().await.unwrap().is_none());
+    f.finish().await;
+}
+#[tokio::test]
+async fn managed_native_away_missing_feedback_exhausts_three_rounds_with_exact_scope() {
+    let mut f=Fixture::build_with_away(true,false,true,true).await;let(_tokens,lease)=away_status_lease(&f);
+    f.click(0,6).await;f.route().await;
+    f.time.fetch_add(21,Ordering::SeqCst);let batch=f.owner.step().await.unwrap().unwrap();batch.result.unwrap();assert_eq!(batch.physical_frames,13);
+    let mut first=[0;65];f.peer.read_exact(&mut first).unwrap();
+    for n in 0..12 {if n!=11 {away_module_feedback(&mut f,n,false).await;}}
+    tick_away(&mut f).await;
+    // Each failure is a missing AD8 module; refreshed good ports are only
+    // observations, never additional Off commands or forged journal receipts.
+    for (due,next) in [(8000,9000),(17000,18000)] {
+        f.time.store(due,Ordering::SeqCst);tick_away(&mut f).await;
+        f.time.store(next,Ordering::SeqCst);tick_away(&mut f).await;
+        f.time.fetch_add(21,Ordering::SeqCst);f.owner.step().await.unwrap().unwrap().result.unwrap();
+        let mut retry=[0;5];f.peer.read_exact(&mut retry).unwrap();assert_eq!(retry,[0xae,0x2b,0,0,0xee]);
+    }
+    f.time.store(25000,Ordering::SeqCst);
+    for n in 0..12 {if n!=11 {away_module_feedback(&mut f,n,false).await;}}
+    tick_away(&mut f).await;let failed=away_status(&f,&lease).await;
+    assert_eq!((failed.state.as_str(),failed.rounds),("failed",3));assert_eq!(failed.reason.as_deref(),Some("attempts_exhausted"));
+    assert_eq!(failed.missing,vec![crate::away_execution::Missing{module_id:"away-11".into(),channels:(1..=8).collect()}]);assert_eq!(f.journal_count(),15);
+    f.time.fetch_add(1000,Ordering::SeqCst);tick_away(&mut f).await;assert_eq!(away_status(&f,&lease).await,failed);assert!(f.owner.step().await.unwrap().is_none());
+    f.finish().await;
+}
+
+#[tokio::test]
+async fn managed_away_pending_read_preserves_explicit_motor_stop_priority() {
+    let mut f=Fixture::build_with_away(true,true,true,true).await;
+    f.click(0,6).await;
+    let permit=f.actor.reserve_physical_read("bus".into(),f.actor.monotonic_ms()+300).await.unwrap();
+    assert_eq!(f.route().await,1);assert_eq!(f.journal_count(),0);
+    f.click(0,2).await;assert_eq!(f.route().await,1);
+    assert!(f.owner.step().await.unwrap().is_none(),"STOP also waits for the real half-duplex read owner");
+    drop(permit);f.time.fetch_add(21,Ordering::SeqCst);
+    let result=f.owner.step().await.unwrap().expect("STOP is not gated behind a pending Away logical job");result.result.unwrap();
+    let mut first=[0;5];f.peer.read_exact(&mut first).unwrap();assert_eq!(first,[0xae,0x7e,1,0xf0,0xee]);
+    f.finish().await;
+}
+
+#[tokio::test]
+async fn managed_native_away_cancels_delayed_retry_after_owner_retirement_or_manual_override() {
+    for manual in [false,true] {
+        let mut f=Fixture::build_with_away(true,false,true,true).await;let(_tokens,lease)=away_status_lease(&f);
+        f.click(0,6).await;f.route().await;
+        f.time.fetch_add(21,Ordering::SeqCst);let batch=f.owner.step().await.unwrap().unwrap();batch.result.unwrap();assert_eq!(batch.physical_frames,13);
+        let mut first=[0;65];f.peer.read_exact(&mut first).unwrap();
+        f.time.store(8000,Ordering::SeqCst);tick_away(&mut f).await;
+        if manual {
+            f.actor.submit(homesense_hap::requests::Batch{controller:f.controller,intents:vec![homesense_hap::requests::Intent{
+                device:DeviceId::new("away-0:1").unwrap(),command:homesense_core::Command::Switch(true)}],subscriptions:vec![]}).await.unwrap();
+        }else{f.panels.disconnect();}
+        f.time.store(9000,Ordering::SeqCst);tick_away(&mut f).await;
+        let cancelled=away_status(&f,&lease).await;assert_eq!((cancelled.state.as_str(),cancelled.rounds),("cancelled",1));
+        assert_eq!(cancelled.reason.as_deref(),Some(if manual{"manual_override"}else{"authority_changed"}));
+        if manual {
+            f.time.fetch_add(21,Ordering::SeqCst);f.owner.step().await.unwrap().unwrap().result.unwrap();
+            let mut explicit=[0;5];f.peer.read_exact(&mut explicit).unwrap();assert_eq!(explicit,[0xae,0x20,1,0xf1,0xee]);
+        }
+        assert_eq!(f.journal_count(),if manual{14}else{13});
+        f.time.fetch_add(1000,Ordering::SeqCst);tick_away(&mut f).await;assert!(f.owner.step().await.unwrap().is_none());assert_eq!(away_status(&f,&lease).await,cancelled);
+        f.finish().await;
+    }
+}
+
+#[tokio::test]
+async fn managed_away_cancels_queued_and_selected_retry_without_poisoning_transport() {
+    for selected in [false,true] {
+        let mut f=Fixture::build_with_away(true,false,true,true).await;let(_tokens,lease)=away_status_lease(&f);
+        f.click(0,6).await;f.route().await;
+        f.time.fetch_add(21,Ordering::SeqCst);let batch=f.owner.step().await.unwrap().unwrap();batch.result.unwrap();assert_eq!(batch.physical_frames,13);
+        let mut first=[0;65];f.peer.read_exact(&mut first).unwrap();
+        for n in 0..12 {away_module_feedback(&mut f,n,n==3).await;}
+        tick_away(&mut f).await;
+        f.time.store(8000,Ordering::SeqCst);tick_away(&mut f).await;
+        f.time.store(9000,Ordering::SeqCst);tick_away(&mut f).await;
+        assert_eq!(away_status(&f,&lease).await.rounds,2);
+        let ticket=if selected {Some(f.actor.dispatch().await.unwrap().unwrap())}else{None};
+        // Another module was already confirmed Off and is deliberately reopened.
+        // This must cancel the whole operation, including its queued retry of 23.
+        f.actor.submit(homesense_hap::requests::Batch{controller:f.controller,intents:vec![homesense_hap::requests::Intent{
+            device:DeviceId::new("away-0:1").unwrap(),command:homesense_core::Command::Switch(true)}],subscriptions:vec![]}).await.unwrap();
+        if let Some(ticket)=ticket {
+            assert!(ticket.away_authorization.as_ref().unwrap().guarded_operation());
+            let listener=TcpListener::bind("127.0.0.1:0").unwrap();
+            let socket=TcpStream::connect(listener.local_addr().unwrap()).unwrap();let(mut peer,_)=listener.accept().unwrap();
+            let mut connection=hb_transport::Connection::for_simulation(socket,1);
+            let(result,proof)=crate::transport_owner::send_guarded_ticket(&ticket,&mut connection,||f.actor.monotonic_ms());
+            assert_eq!(result.unwrap_err().bytes_written,0);let proof=proof.expect("guard refusal has sealed zero-byte evidence");assert!(proof.away());
+            f.actor.finish_projection_discard(proof).await.unwrap();
+            peer.set_nonblocking(true).unwrap();let mut byte=[0];assert_eq!(peer.read(&mut byte).unwrap_err().kind(),std::io::ErrorKind::WouldBlock);
+        }
+        assert_eq!(away_status(&f,&lease).await.reason.as_deref(),Some("manual_override"));
+        f.time.fetch_add(21,Ordering::SeqCst);f.owner.step().await.unwrap().unwrap().result.unwrap();
+        let mut explicit=[0;5];f.peer.read_exact(&mut explicit).unwrap();assert_eq!(explicit,[0xae,0x20,1,0xf1,0xee]);
+        assert!(f.owner.step().await.unwrap().is_none());
+        assert!(f.actor.task_generation().await.is_ok(),"zero-byte retirement must not fault the transport");
+        let db=rusqlite::Connection::open(f.directory.join("runtime.sqlite")).unwrap();
+        let state:String=db.query_row("SELECT status FROM command_journal WHERE command_id=14",[],|r|r.get(0)).unwrap();assert_eq!(state,"cancelled");drop(db);
+        f.finish().await;
+    }
+}
+
+#[tokio::test]
+async fn managed_away_success_keeps_only_feedback_gated_legacy_reset_authority() {
+    let mut f=Fixture::build_with_away(true,false,true,true).await;
+    let(_tokens,status_lease)=away_status_lease(&f);
+    let crate::away_auth::Authorization::Web(web)=status_lease.clone() else{unreachable!()};
+    let lease=crate::away_auth::Authorization::keypad(web,&crate::away_auth::KeypadCommand::KeypadPress{keypad:"panel-0".into(),key:6}).unwrap();
+    let observation=f.owner.feedback().away_observation(f.actor.monotonic_ms()).unwrap();
+    let accepted=f.actor.start_away_operation(f.actor.task_generation().await.unwrap(),lease,observation,std::time::Instant::now()+Duration::from_secs(2)).await.unwrap();
+    assert_eq!(accepted.commands.len(),13);
+    f.time.fetch_add(21,Ordering::SeqCst);let batch=f.owner.step().await.unwrap().unwrap();batch.result.unwrap();assert_eq!(batch.physical_frames,12);
+    let mut modules=[0;60];f.peer.read_exact(&mut modules).unwrap();
+    assert!(f.owner.step().await.unwrap().is_none(),"legacy reset still waits for raw feedback");
+    for n in 0..12 {away_module_feedback(&mut f,n,false).await;}
+    tick_away(&mut f).await;assert_eq!(away_status(&f,&status_lease).await.state,"confirmed");
+    crate::control_batch::tick(&f.actor,f.controller,f.owner.feedback()).await.unwrap();
+    f.time.fetch_add(21,Ordering::SeqCst);let reset=f.owner.step().await.unwrap().expect("success must not revoke the pending legitimate completion LED");reset.result.unwrap();
+    let mut frame=[0;5];f.peer.read_exact(&mut frame).unwrap();assert_eq!(frame,[0xae,0x40,6,0xf2,0xee]);
+    assert!(f.owner.step().await.unwrap().is_none());
+    f.finish().await;
+}
+
+#[tokio::test]
+async fn managed_away_legacy_completion_follows_retry_writes_and_never_signals_exhaustion() {
+    for exhaust in [false,true] {
+        let mut f=Fixture::build_with_away(true,false,true,true).await;
+        let(_tokens,status_lease)=away_status_lease(&f);
+        let crate::away_auth::Authorization::Web(web)=status_lease.clone() else{unreachable!()};
+        let lease=crate::away_auth::Authorization::keypad(web,&crate::away_auth::KeypadCommand::KeypadPress{keypad:"panel-0".into(),key:6}).unwrap();
+        let observation=f.owner.feedback().away_observation(f.actor.monotonic_ms()).unwrap();
+        let accepted=f.actor.start_away_operation(f.actor.task_generation().await.unwrap(),lease,observation,std::time::Instant::now()+Duration::from_secs(2)).await.unwrap();
+        let reset=*accepted.commands.last().unwrap();
+        f.time.fetch_add(21,Ordering::SeqCst);let batch=f.owner.step().await.unwrap().unwrap();batch.result.unwrap();assert_eq!(batch.physical_frames,12);
+        let mut first=[0;60];f.peer.read_exact(&mut first).unwrap();
+        for n in 0..12 {away_module_feedback(&mut f,n,n==3).await;}
+        tick_away(&mut f).await;
+        crate::control_batch::tick(&f.actor,f.controller,f.owner.feedback()).await.unwrap();
+        assert!(f.owner.step().await.unwrap().is_none());
+        for (due,next) in [(8000,9000),(17000,18000)] {
+            f.time.store(due,Ordering::SeqCst);tick_away(&mut f).await;
+            f.time.store(next,Ordering::SeqCst);tick_away(&mut f).await;
+            if !exhaust {
+                // Old successful samples, even refreshed after retry admission,
+                // cannot release the LED before the new module actually writes.
+                for n in 0..12 {away_module_feedback(&mut f,n,false).await;}
+                crate::control_batch::tick(&f.actor,f.controller,f.owner.feedback()).await.unwrap();
+            }
+            f.time.fetch_add(21,Ordering::SeqCst);let batch=f.owner.step().await.unwrap().unwrap();batch.result.unwrap();assert_eq!(batch.physical_frames,1);
+            let mut retry=[0;5];f.peer.read_exact(&mut retry).unwrap();assert_eq!(retry,[0xae,0x23,0,0xf2,0xee]);
+            crate::control_batch::tick(&f.actor,f.controller,f.owner.feedback()).await.unwrap();
+            assert!(f.owner.step().await.unwrap().is_none(),"pre-write feedback cannot release the original completion LED");
+            for n in 0..12 {away_module_feedback(&mut f,n,exhaust && n==3).await;}
+            tick_away(&mut f).await;
+            crate::control_batch::tick(&f.actor,f.controller,f.owner.feedback()).await.unwrap();
+            if !exhaust {
+                let done=away_status(&f,&status_lease).await;
+                assert_eq!((done.state.as_str(),done.rounds,done.confirmed_outputs),("confirmed",2,96));
+                f.time.fetch_add(21,Ordering::SeqCst);let led=f.owner.step().await.unwrap().expect("same original LED must survive this operation's own retry");led.result.unwrap();
+                let mut frame=[0;5];f.peer.read_exact(&mut frame).unwrap();assert_eq!(frame,[0xae,0x40,6,0xf2,0xee]);
+                assert_eq!(f.journal_count(),14,"retry cannot create a replacement completion ticket");
+                break;
+            }
+            assert!(f.owner.step().await.unwrap().is_none());
+        }
+        if exhaust {
+            f.time.store(25000,Ordering::SeqCst);tick_away(&mut f).await;
+            let waiting=away_status(&f,&status_lease).await;
+            assert_eq!((waiting.state.as_str(),waiting.rounds),("retrying",3),"aged healthy samples require a final read, never a fourth control attempt");
+            assert!(f.owner.step().await.unwrap().is_none(),"completion LED cannot run during the final read");
+            let admitted=f.journal_count();
+            for n in 0..12 {if n!=3 {away_module_feedback(&mut f,n,false).await;}}
+            tick_away(&mut f).await;
+            let failed=away_status(&f,&status_lease).await;
+            assert_eq!((failed.state.as_str(),failed.rounds,failed.confirmed_outputs),("failed",3,88));
+            assert_eq!(failed.missing.len(),1);
+            assert_eq!(f.journal_count(),admitted,"final confirmation must not admit another write or LED ticket");
+            assert!(f.owner.step().await.unwrap().is_none());
+            let db=rusqlite::Connection::open(f.directory.join("runtime.sqlite")).unwrap();
+            let status:String=db.query_row("SELECT status FROM command_journal WHERE command_id=?1",[reset as i64],|row|row.get(0)).unwrap();
+            assert_eq!(status,"cancelled");
+        }
+        f.finish().await;
+    }
+}
+
+#[tokio::test]
+async fn managed_away_completion_requires_combined_dimmer_zero_even_when_supply_is_off() {
+    let mut f=Fixture::build_with_away_supply(true,false,true,true,true).await;
+    let(_tokens,status_lease)=away_status_lease(&f);
+    let crate::away_auth::Authorization::Web(web)=status_lease.clone() else{unreachable!()};
+    let lease=crate::away_auth::Authorization::keypad(web,&crate::away_auth::KeypadCommand::KeypadPress{keypad:"panel-0".into(),key:6}).unwrap();
+    let observation=f.owner.feedback().away_observation(f.actor.monotonic_ms()).unwrap();
+    f.actor.start_away_operation(f.actor.task_generation().await.unwrap(),lease,observation,std::time::Instant::now()+Duration::from_secs(2)).await.unwrap();
+    f.time.fetch_add(21,Ordering::SeqCst);let batch=f.owner.step().await.unwrap().unwrap();batch.result.unwrap();assert_eq!(batch.physical_frames,12);
+    let mut first=[0;60];f.peer.read_exact(&mut first).unwrap();
+    for n in 0..12 {away_module_feedback(&mut f,n,false).await;}
+    // All relays are Off, but one AD8 output did not reach zero.
+    f.input(&[0xae,0x27,0xd1,100,0xee]).await;
+    tick_away(&mut f).await;
+    assert_eq!(away_status(&f,&status_lease).await.confirmed_outputs,95);
+    crate::control_batch::tick(&f.actor,f.controller,f.owner.feedback()).await.unwrap();
+    assert!(f.owner.step().await.unwrap().is_none(),"a dark combined light is not proof that all96 physical outputs closed");
+    f.time.fetch_add(3000,Ordering::SeqCst);
+    let config=homesense_storage::Store::open(f.directory.join("runtime.sqlite")).unwrap().active_bundle(ExecutionContext::Simulation).unwrap().unwrap().configuration;
+    let targets=crate::physical_queries::plan(&config,ExecutionContext::Simulation).unwrap();
+    let reads=crate::control_batch::query_requirements(&f.actor,f.owner.feedback(),&config,&targets,f.controller).await.unwrap();
+    assert!(reads.keys().any(|index|targets[*index].module.address().get()==0x27),"managed Away cannot replace the AD8 refresh with its supply relay");
+    f.input(&[0xae,0x27,0xd1,0,0xee]).await;
+    tick_away(&mut f).await;assert_eq!(away_status(&f,&status_lease).await.state,"confirmed");
+    crate::control_batch::tick(&f.actor,f.controller,f.owner.feedback()).await.unwrap();
+    f.time.fetch_add(21,Ordering::SeqCst);f.owner.step().await.unwrap().unwrap().result.unwrap();
+    let mut led=[0;5];f.peer.read_exact(&mut led).unwrap();assert_eq!(led,[0xae,0x40,6,0xf2,0xee]);
     f.finish().await;
 }

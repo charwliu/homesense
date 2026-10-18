@@ -167,4 +167,29 @@ struct HomePushTests {
         #expect(events.count == 1)
         #expect(await server.captured().allSatisfy { $0.httpMethod == "GET" })
     }
+    @Test func awayRetryProgressUpdatesOnSameCursorWithoutClientReplayAndClearsAfterDisconnect() async throws {
+        let server = HomeTestServer(), events = EventFixture(), home = await connect(server, events)
+        defer { home.disconnect() }
+        try await waitFor { events.count == 1 }
+        var state = frame(0)
+        func operation(_ status: String, _ round: Int64, _ confirmed: Int64) -> HomeJSON {
+            .object(["operation": .string("synthetic-boot-1"), "boot": .string("synthetic-boot"),
+                "revision": .string("9007199254740993"), "state": .string(status), "rounds": .integer(round), "max_rounds": .integer(3),
+                "total_outputs": .integer(8), "confirmed_outputs": .integer(confirmed),
+                "missing": confirmed == 8 ? .array([]) : .array([.object(["module_id": .string("relay"), "channels": .array((1...8).map { .integer(Int64($0)) })])]),
+                "reason": status == "failed" ? .string("attempts_exhausted") : .null])
+        }
+        state["away_operations"] = .array([operation("confirming", 1, 0)])
+        try events.push(state); try await waitFor { home.awayStatus?.rounds == 1 }
+        let count = await server.captured().count
+        state["reset"] = .bool(false); state["away_operations"] = .array([operation("retrying", 2, 0)])
+        try events.push(state); try await waitFor { home.awayStatus?.state == "retrying" }
+        #expect(home.awayStatus?.failed == false)
+        state["away_operations"] = .array([operation("failed", 3, 0)])
+        try events.push(state); try await waitFor { home.awayStatus?.failed == true }
+        #expect(home.awayStatus?.message.contains("relay [1,2,3,4,5,6,7,8]") == true)
+        #expect(await server.captured().count == count, "Server updates never cause a client retry or polling request")
+        home.disconnect(); #expect(home.awayStatus == nil && home.awayOperations.isEmpty)
+    }
+
 }

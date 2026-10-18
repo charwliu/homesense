@@ -6,6 +6,8 @@ use homesense_core::{
     queue::{Cancellation, Origin, QueuedCommand},
 };
 use rusqlite::{OptionalExtension, TransactionBehavior, params};
+type CompletionReceipt<'a> = (&'a str, &'a crate::keypad_completion::Commit, Option<&'a dyn Fn() -> u64>);
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Status {
     Accepted,
@@ -130,6 +132,14 @@ impl Store {
         now_ms: u64,
         reason: homesense_core::queue::CancelReason,
     ) -> Result<(), Error> {
+        self.cancel_guarded_before_delivery(boot_id,members,now_ms,reason,false)
+    }
+    /// Only a synchronous writer's sealed all-members zero-byte proof may retire
+    /// selected Away attempts. Partial/uncertain writes retain their obligations.
+    pub fn cancel_guarded_away_before_delivery(&mut self,boot_id:&str,members:&[(u64,u64)],now_ms:u64,reason:homesense_core::queue::CancelReason)->Result<(),Error> {
+        self.cancel_guarded_before_delivery(boot_id,members,now_ms,reason,true)
+    }
+    fn cancel_guarded_before_delivery(&mut self,boot_id:&str,members:&[(u64,u64)],now_ms:u64,reason:homesense_core::queue::CancelReason,away:bool)->Result<(),Error> {
         boot(boot_id)?;
         let expired = match reason {
             homesense_core::queue::CancelReason::Expired => true,
@@ -154,7 +164,11 @@ impl Store {
             .connection
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
         for (id, deadline) in members {
-            let count=tx.execute("UPDATE command_journal SET status='cancelled',updated_ms=?1,cancellation_reason=?2 WHERE boot_id=?3 AND command_id=?4 AND status='writing' AND updated_ms<=?1 AND deadline_ms>=?5 AND intent IN (?6,?7,?8)",params![integer(now_ms)?,if expired {"Expired"}else{"RunCancelled"},boot_id,integer(*id)?,integer(*deadline)?,intent(Command::PanelLed(false)).as_slice(),intent(Command::PanelLed(true)).as_slice(),intent(Command::PanelLedOff).as_slice()])?;
+            let count=if away {
+                tx.execute("UPDATE command_journal SET status='cancelled',updated_ms=?1,cancellation_reason=?2 WHERE boot_id=?3 AND command_id=?4 AND status='writing' AND updated_ms<=?1 AND deadline_ms=?5 AND ((intent=?6 AND (SELECT count(*) FROM module_off_effect e WHERE e.boot_id=?3 AND e.command_id=?4)=8) OR intent IN (?7,?8))",params![integer(now_ms)?,if expired {"Expired"}else{"RunCancelled"},boot_id,integer(*id)?,integer(*deadline)?,intent(Command::ModuleAllOff).as_slice(),intent(Command::PanelLed(false)).as_slice(),intent(Command::PanelLed(true)).as_slice()])?
+            }else{
+                tx.execute("UPDATE command_journal SET status='cancelled',updated_ms=?1,cancellation_reason=?2 WHERE boot_id=?3 AND command_id=?4 AND status='writing' AND updated_ms<=?1 AND deadline_ms>=?5 AND intent IN (?6,?7,?8)",params![integer(now_ms)?,if expired {"Expired"}else{"RunCancelled"},boot_id,integer(*id)?,integer(*deadline)?,intent(Command::PanelLed(false)).as_slice(),intent(Command::PanelLed(true)).as_slice(),intent(Command::PanelLedOff).as_slice()])?
+            };
             if count != 1 {
                 return Err(Error::Conflict);
             }
@@ -163,7 +177,7 @@ impl Store {
         Ok(())
     }
     pub fn accept_module_off_commands(&mut self,boot_id:&str,commands:&[QueuedCommand],cancellations:&[Cancellation],now_ms:u64,effects:&[crate::module_off::Effects])->Result<(),Error> {
-        self.accept_queue_batch_detailed(boot_id,commands,cancellations,now_ms,None,&[],None,None,&[],&[],None,effects,None,None,None)
+        self.accept_queue_batch_detailed(boot_id,commands,cancellations,now_ms,None,&[],None,None,&[],&[],None,effects,None,None,None,None)
     }
     /// All commands are committed together against the currently active revision.
     /// Duplicate IDs fail the whole transaction; this is not request idempotency.
@@ -295,7 +309,7 @@ impl Store {
         starts:&[crate::scene_run::Start], reads:&[crate::variables::ReadCheck],
         sources:Option<&[String]>,
     )->Result<(),Error> {
-        self.accept_queue_batch_detailed(boot_id,commands,cancellations,now_ms,study,variables,audit,scene,starts,reads,sources,&[],None,None,None)
+        self.accept_queue_batch_detailed(boot_id,commands,cancellations,now_ms,study,variables,audit,scene,starts,reads,sources,&[],None,None,None,None)
     }
     #[allow(clippy::too_many_arguments)]
     fn accept_queue_batch_detailed(
@@ -308,6 +322,7 @@ impl Store {
         gateway_scopes:Option<&crate::gateway_audit::Acceptance>,
         canonical:Option<(&str,&[crate::component_modes::Canonical])>,
         phase:Option<&[crate::scene_run::PhaseStep]>,
+        completion:Option<CompletionReceipt<'_>>,
     )->Result<(),Error> {
         crate::rule_audit::validate_sources(sources, commands.len())?;
         if sources.is_some() && audit.is_none() {return Err(Error::InvalidAudit);}
@@ -407,7 +422,12 @@ impl Store {
         }
         crate::variables::apply(&tx, variables, active)?;
         if let Some((controller,entries))=canonical{crate::component_modes::insert_canonical(&tx,boot_id,controller,variables,entries,now_ms,active)?;}
+        if let Some((controller,completion,_))=completion{crate::keypad_completion::insert(&tx,boot_id,controller,commands,variables,completion,now_ms,active)?;}
         cancel_in_transaction(&tx, boot_id, cancellations, now)?;
+        if let Some((_,receipt,Some(clock)))=completion {
+            let commit_now=clock();
+            if commit_now<now_ms || commit_now>=receipt.send_before_ms {return Err(Error::Conflict);}
+        }
         tx.commit()?;
         Ok(())
     }
@@ -423,18 +443,36 @@ impl Store {
         scopes:&crate::gateway_audit::Acceptance,
     )->Result<(),Error> {
         self.accept_queue_batch_detailed(boot_id,commands,cancellations,now_ms,study,
-            variables,audit,scene,starts,reads,sources,module_effects,Some(scopes),None,None)
+            variables,audit,scene,starts,reads,sources,module_effects,Some(scopes),None,None,None)
     }
     /// Only explicit local canonical metadata; all existing callers keep None.
     #[allow(clippy::too_many_arguments)]
     pub fn accept_queue_batch_with_components(&mut self,boot:&str,commands:&[QueuedCommand],cancelled:&[Cancellation],now:u64,study:Option<(Option<u8>,u8)>,variables:&[crate::variables::Update],audit:Option<&crate::rule_audit::Admission>,scene:Option<&crate::scene_run::StepLink>,starts:&[crate::scene_run::Start],reads:&[crate::variables::ReadCheck],sources:Option<&[String]>,scopes:Option<&crate::gateway_audit::Acceptance>,controller:&str,canonical:&[crate::component_modes::Canonical])->Result<(),Error>{
-        self.accept_queue_batch_detailed(boot,commands,cancelled,now,study,variables,audit,scene,starts,reads,sources,&[],scopes,Some((controller,canonical)),None)
+        self.accept_queue_batch_detailed(boot,commands,cancelled,now,study,variables,audit,scene,starts,reads,sources,&[],scopes,Some((controller,canonical)),None,None)
     }
     /// Every due member keeps its exact source index; all step links and
     /// expanded commands become durable in the original acceptance transaction.
     #[allow(clippy::too_many_arguments)]
     pub fn accept_queue_phase_with_components(&mut self,boot:&str,commands:&[QueuedCommand],cancelled:&[Cancellation],now:u64,study:Option<(Option<u8>,u8)>,variables:&[crate::variables::Update],audit:Option<&crate::rule_audit::Admission>,scene:Option<&crate::scene_run::StepLink>,starts:&[crate::scene_run::Start],reads:&[crate::variables::ReadCheck],sources:Option<&[String]>,scopes:Option<&crate::gateway_audit::Acceptance>,controller:&str,canonical:&[crate::component_modes::Canonical],phase:Option<&[crate::scene_run::PhaseStep]>)->Result<(),Error>{
-        self.accept_queue_batch_detailed(boot,commands,cancelled,now,study,variables,audit,scene.filter(|_|phase.is_none()),starts,reads,sources,&[],scopes,Some((controller,canonical)),phase)
+        self.accept_queue_batch_detailed(boot,commands,cancelled,now,study,variables,audit,scene.filter(|_|phase.is_none()),starts,reads,sources,&[],scopes,Some((controller,canonical)),phase,None)
+    }
+    /// One source completion: component CAS/provenance, consumed gesture and
+    /// bounded LED queue acceptance commit together. This does not deliver or
+    /// replay LEDs and does not authorize a caller from receipt metadata.
+    #[allow(clippy::too_many_arguments)]
+    pub fn accept_keypad_completion(&mut self,boot:&str,commands:&[QueuedCommand],cancelled:&[Cancellation],
+        now:u64,scopes:Option<&crate::gateway_audit::Acceptance>,controller:&str,completion:&crate::keypad_completion::Commit)->Result<(),Error>{
+        self.ensure_keypad_completion_audit()?;
+        self.accept_queue_batch_detailed(boot,commands,cancelled,now,None,std::slice::from_ref(&completion.update),None,None,&[],&[],None,&[],scopes,None,None,Some((controller,completion,None)))
+    }
+    /// Runtime path: check the live monotonic clock inside the transaction,
+    /// after any database wait and before publishing its queue or variable CAS.
+    #[allow(clippy::too_many_arguments)]
+    pub fn accept_keypad_completion_before(&mut self,boot:&str,commands:&[QueuedCommand],cancelled:&[Cancellation],
+        now:u64,scopes:Option<&crate::gateway_audit::Acceptance>,controller:&str,completion:&crate::keypad_completion::Commit,
+        clock:&dyn Fn()->u64)->Result<(),Error>{
+        self.ensure_keypad_completion_audit()?;
+        self.accept_queue_batch_detailed(boot,commands,cancelled,now,None,std::slice::from_ref(&completion.update),None,None,&[],&[],None,&[],scopes,None,None,Some((controller,completion,Some(clock))))
     }
     /// Persist a publication/run barrier before attempting a configuration commit.
     /// Every snapshot must still be Accepted; any mismatch rolls back the batch.

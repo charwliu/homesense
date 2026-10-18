@@ -89,9 +89,10 @@ pub(crate) async fn execute(
         Ok(Reply::CommandsAccepted(_))
     );
     if read {
+        let operations=if available {match runtime.control.request(Action::AwayOperations{controller:grant.controller,revision:runtime.revision,lease}).await {Ok(Reply::AwayOperations(operations))=>operations,_=>vec![]}}else{vec![]};
         return response(
             StatusCode::OK,
-            json!({"available":available,"revision":runtime.revision.to_string()}),
+            json!({"available":available,"revision":runtime.revision.to_string(),"operations":operations}),
         );
     }
     if !available {
@@ -150,6 +151,7 @@ pub(crate) async fn execute(
         })
         .await
     {
+        Ok(Reply::AwayAccepted(accepted))=>json!({"request_id":body.request_id,"outcome":"accepted","boot":runtime.boot,"operation":accepted.operation,"commands":accepted.commands,"physical_result_confirmed":false,"retry":false,"server_retry":{"max_rounds":3,"delay_ms":1000}}),
         Ok(Reply::CommandsAccepted(commands)) => {
             json!({"request_id":body.request_id,"outcome":"accepted","boot":runtime.boot,"commands":commands,"physical_result_confirmed":false,"retry":false})
         }

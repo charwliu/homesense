@@ -230,12 +230,15 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
         Ok(())
     }
     pub(crate) fn start_local_reads(&mut self) -> Result<(), String> {
+        self.start_local_reads_except(&BTreeSet::new())
+    }
+    pub(crate) fn start_local_reads_except(&mut self, checked:&BTreeSet<String>) -> Result<(), String> {
         if self.failed {
             return Err("global transport failure".into());
         }
         let ids = self.connections.keys().cloned().collect::<Vec<_>>();
         for id in ids {
-            if !self.local_connected(&id) {
+            if checked.contains(&id) || !self.local_connected(&id) {
                 continue;
             }
             let wire = self.local_wire(&id)?;
@@ -624,6 +627,7 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
         Ok(Some(WriteOutcome {
             device_id,
             command_id: id,
+            managed_away_outputs: crate::transport_owner::managed_away_outputs(&tickets,result.is_ok()),
             result,
             projection_cancelled,
             completed: completed.clone(),
