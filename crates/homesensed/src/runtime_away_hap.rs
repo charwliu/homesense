@@ -88,7 +88,7 @@ impl WriteBatchHandler for Handler {
                     })
                     .await
                 {
-                    Ok(Reply::CommandsAccepted(_)) => reset.send(()),
+                    Ok(Reply::CommandsAccepted(_)|Reply::AwayAccepted(_)) => reset.send(()),
                     _ => return Err(WriteStatus::ServiceCommunicationFailure),
                 }
             }

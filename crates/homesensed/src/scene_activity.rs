@@ -33,7 +33,6 @@ impl Targets {
         max_age: u64,
     ) -> Result<SceneActivity,String> {
         use crate::scene_activity::SceneActivity as Activity;
-        use homesense_core::rule::{Budget, Lifetime, Value, ValueType, Variable};
         if max_age == 0
             || !feedback.is_active()
             || !admission
@@ -43,8 +42,18 @@ impl Targets {
         {
             return Ok(Activity::Unknown);
         }
+        let Some((activity,lease))=self.prepare(feedback,max_age,admission.monotonic_ms())? else{return Ok(Activity::Unknown);};
+        match admission.feedback_settled(controller,generation.clone(),lease).await {
+            Ok(false)=>Ok(Activity::Pending),Ok(true)=>Ok(activity),
+            Err(hap::server::WriteStatus::ResourceBusy)=>Ok(Activity::Unknown),
+            Err(error)=>Err(format!("scene activity: {error:?}")),
+        }
+    }
+    pub(crate) fn prepare(&self,feedback:&crate::feedback::Feedback,max_age:u64,now:u64)->Result<Option<(SceneActivity,crate::feedback::RuleLease)>,String> {
+        use homesense_core::rule::{Budget,Lifetime,Value,ValueType,Variable};
+        if max_age==0 || !feedback.is_active() {return Ok(None);}
         let Some(nodes) = self.nodes(feedback) else {
-            return Ok(Activity::Unknown);
+            return Ok(None);
         };
         let variables = ["unknown", "mismatch"]
             .into_iter()
@@ -63,27 +72,13 @@ impl Targets {
             &nodes,
             &variables,
             Budget::default(),
-            admission.monotonic_ms(),
+            now,
             max_age,
         )?;
         if plan.variables["unknown"].value == Some(Value::Bool(true)) {
-            return Ok(Activity::Unknown);
+            return Ok(None);
         }
-        match admission
-            .feedback_settled(controller, generation.clone(), lease)
-            .await
-        {
-            Ok(false) => Ok(Activity::Pending),
-            Ok(true) => Ok(
-                if plan.variables["mismatch"].value == Some(Value::Bool(true)) {
-                    Activity::Inactive
-                } else {
-                    Activity::Active
-                },
-            ),
-            Err(hap::server::WriteStatus::ResourceBusy) => Ok(Activity::Unknown),
-            Err(error) => Err(format!("scene activity: {error:?}")),
-        }
+        Ok(Some((if plan.variables["mismatch"].value==Some(Value::Bool(true)){SceneActivity::Inactive}else{SceneActivity::Active},lease)))
     }
     pub fn nodes(&self, feedback: &crate::feedback::Feedback) -> Option<Vec<Node>> {
         self.0.as_ref().map(|targets| {

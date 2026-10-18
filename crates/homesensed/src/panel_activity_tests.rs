@@ -85,7 +85,9 @@ impl Write for Stream {
         Ok(())
     }
 }
-async fn run(independent: bool, strict: bool, delayed_release: bool, startup_hold: bool, ramp:bool, slot_window:Option<bool>) {
+#[derive(Clone,Copy)]
+enum SlotWindow { Gap, Locked, Ready }
+async fn run(independent: bool, strict: bool, delayed_release: bool, startup_hold: bool, ramp:bool, slot_window:Option<SlotWindow>) {
     let gateways = if independent {
         vec!["bus", "other"]
     } else {
@@ -178,7 +180,7 @@ async fn run(independent: bool, strict: bool, delayed_release: bool, startup_hol
         age,
     )
     .unwrap();
-    if let Some(writer_holds_lock) = slot_window {
+    if let Some(window) = slot_window {
         let baseline = buses["bus"].lock().unwrap().writes.len();
         assert_eq!(baseline, 8);
         o.configure_consumer_refresh(&[(homesense_core::DeviceId::new("bus-light").unwrap(), 1)].into()).unwrap();
@@ -187,8 +189,8 @@ async fn run(independent: bool, strict: bool, delayed_release: bool, startup_hol
         // instead of the newly selected query's write-slot wait.
         o.transport.finish_reply_turnaround().await;
         let mut slot = a.write_slot.clone().lock_owned().await;
-        *slot = Some(tokio::time::Instant::now() + Duration::from_millis(250));
-        let held_slot = if writer_holds_lock {Some(slot)} else {drop(slot); None};
+        *slot = if matches!(window,SlotWindow::Ready) {None} else {Some(tokio::time::Instant::now() + Duration::from_millis(250))};
+        let held_slot = if matches!(window,SlotWindow::Locked) {Some(slot)} else {drop(slot); None};
         // Arrived after the previous receive; it must get a decode opportunity
         // instead of waiting behind a newly due query's pacing wait.
         buses["bus"].lock().unwrap().replies.extend([0xae,0x41,0xd1,0xf1,0xee]);
@@ -466,17 +468,26 @@ async fn keypad_quiet_period_keeps_local_bus_dimmer_confirmation_until_final_fee
 
 #[tokio::test]
 async fn due_query_receives_buffered_press_before_future_write_slot_single_bus() {
-    run(false,false,false,false,false,Some(false)).await;
+    run(false,false,false,false,false,Some(SlotWindow::Gap)).await;
 }
 #[tokio::test]
 async fn due_query_receives_buffered_press_before_locked_write_slot_single_bus() {
-    run(false,false,false,false,false,Some(true)).await;
+    run(false,false,false,false,false,Some(SlotWindow::Locked)).await;
 }
 #[tokio::test]
 async fn due_query_receives_buffered_press_before_future_write_slot_local_bus() {
-    run(true,false,false,false,false,Some(false)).await;
+    run(true,false,false,false,false,Some(SlotWindow::Gap)).await;
 }
 #[tokio::test]
 async fn due_query_receives_buffered_press_before_locked_write_slot_local_bus() {
-    run(true,false,false,false,false,Some(true)).await;
+    run(true,false,false,false,false,Some(SlotWindow::Locked)).await;
+}
+
+#[tokio::test]
+async fn due_query_receives_buffered_press_before_ready_write_slot_single_bus() {
+    run(false,false,false,false,false,Some(SlotWindow::Ready)).await;
+}
+#[tokio::test]
+async fn due_query_receives_buffered_press_before_ready_write_slot_local_bus() {
+    run(true,false,false,false,false,Some(SlotWindow::Ready)).await;
 }

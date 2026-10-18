@@ -5,7 +5,7 @@ use homesense_hap::storage::IdentityStore;
 use std::{
     collections::BTreeSet,
     sync::{
-        Arc,
+        Arc, RwLock,
         atomic::{AtomicBool, Ordering},
     },
 };
@@ -59,12 +59,23 @@ impl std::fmt::Debug for KeypadWebLease {fn fmt(&self,f:&mut std::fmt::Formatter
 pub struct KeypadPanelLease {source:crate::panel_execution_auth::Lease,parent:homesense_core::DeviceId,key:u8}
 #[derive(Clone,Debug)]
 pub(crate) struct KeypadBinding {pub endpoint:homesense_core::DeviceId,pub reset_green:bool}
+/// One logical execution may retire its queued/selected writes without revoking
+/// the user's credential. The read lock covers an indivisible transport batch.
+#[derive(Clone, Debug)]
+pub struct OperationLease { source: Box<Authorization>, active: Arc<RwLock<bool>> }
+#[derive(Clone, Debug)]
+pub(crate) struct OperationGate(Arc<RwLock<bool>>);
+impl OperationGate {
+    pub(crate) fn new()->Self {Self(Arc::new(RwLock::new(true)))}
+    pub(crate) fn retire(&self) {if let Ok(mut active)=self.0.write(){*active=false;}}
+}
 #[derive(Clone, Debug)]
 pub enum Authorization {
     Web(ModuleOffLease),
     KeypadWeb(KeypadWebLease),
     KeypadPanel(KeypadPanelLease),
     Hap(HapLease),
+    Operation(OperationLease),
 }
 impl From<ModuleOffLease> for Authorization {
     fn from(lease: ModuleOffLease) -> Self {
@@ -72,11 +83,17 @@ impl From<ModuleOffLease> for Authorization {
     }
 }
 impl Authorization {
+    pub(crate) fn for_operation(&self,gate:&OperationGate)->Self {
+        Self::Operation(OperationLease{source:Box::new(self.clone()),active:gate.0.clone()})
+    }
+    pub(crate) fn guarded_operation(&self)->bool {matches!(self,Self::Operation(_))}
+
     pub(crate) fn same_authority(&self,other:&Self)->bool{match(self,other){
         (Self::Web(a),Self::Web(b))=>a.same_authority(b),
         (Self::KeypadWeb(a),Self::KeypadWeb(b))=>a.parent==b.parent&&a.key==b.key&&a.source.same_authority(&b.source),
         (Self::KeypadPanel(a),Self::KeypadPanel(b))=>a.parent==b.parent&&a.key==b.key&&a.source.same_authority(&b.source),
         (Self::Hap(a),Self::Hap(b))=>a.identity.same_owner(&b.identity)&&a.controller==b.controller&&a.public_key==b.public_key&&a.devices==b.devices&&Arc::ptr_eq(&a.active,&b.active),
+        (Self::Operation(a),Self::Operation(b))=>Arc::ptr_eq(&a.active,&b.active)&&a.source.same_authority(&b.source),
         _=>false,
     }}
 
@@ -89,8 +106,9 @@ impl Authorization {
         if !(1..=6).contains(&key)||!source.valid(){return None;}
         Some(Self::KeypadPanel(KeypadPanelLease{source,parent:homesense_core::DeviceId::new(keypad).ok()?,key}))
     }
-    pub(crate) fn needs_configured_source(&self)->bool{matches!(self,Self::KeypadPanel(_))}
+    pub(crate) fn needs_configured_source(&self)->bool{match self {Self::Operation(lease)=>lease.source.needs_configured_source(),_=>matches!(self,Self::KeypadPanel(_))}}
     pub(crate) fn key_binding(&self,config:&homesense_config::Configuration)->Result<Option<KeypadBinding>,String> {
+        if let Self::Operation(lease)=self {return lease.source.key_binding(config);}
         let (parent,number,devices)=match self {
             Self::KeypadWeb(lease) if lease.source.valid()=>(&lease.parent,lease.key,lease.source.devices()),
             Self::KeypadPanel(lease) if lease.source.valid()=>(&lease.parent,lease.key,lease.source.devices()),
@@ -104,16 +122,23 @@ impl Authorization {
         Ok(Some(KeypadBinding{endpoint,reset_green:indicator_reset.is_some()}))
     }
     pub(crate) fn indicator_lease(&self,config:&homesense_config::Configuration)->Result<Option<(homesense_core::DeviceId,crate::panel_auth::Lease)>,String> {
+        if let Self::Operation(lease)=self {return lease.source.indicator_lease(config);}
         let Self::KeypadWeb(source)=self else {return Ok(None);};
         let Some(key)=self.key_binding(config)?.filter(|key|key.reset_green) else {return Ok(None);};
         let lease=crate::panel_auth::Lease::led(source.source.clone(),config,key.endpoint.clone(),homesense_core::Command::PanelLed(false)).ok_or("Away key green reset not authorized")?;
         Ok(Some((key.endpoint,lease)))
     }
     pub(crate) fn with_valid<T>(&self,operation:impl FnOnce()->T)->Option<T> {
-        match self {Self::Web(source)=>source.with_valid(operation),Self::KeypadWeb(source)=>source.source.with_valid(operation),Self::KeypadPanel(source)=>source.source.with_valid(operation),Self::Hap(source)=>source.valid().then(operation)}
+        if let Self::Operation(lease)=self {
+            let active=lease.active.read().ok()?;
+            if !*active {return None;}
+            return lease.source.with_valid(operation);
+        }
+        match self {Self::Operation(_)=>unreachable!(),Self::Web(source)=>source.with_valid(operation),Self::KeypadWeb(source)=>source.source.with_valid(operation),Self::KeypadPanel(source)=>source.source.with_valid(operation),Self::Hap(source)=>source.valid().then(operation)}
     }
     pub fn controller(&self) -> Uuid {
         match self {
+            Self::Operation(lease)=>lease.source.controller(),
             Self::Web(lease) => lease.controller(),
             Self::KeypadWeb(lease)=>lease.source.controller(),
             Self::KeypadPanel(lease)=>lease.source.controller(),
@@ -122,6 +147,7 @@ impl Authorization {
     }
     pub fn devices(&self) -> &BTreeSet<String> {
         match self {
+            Self::Operation(lease)=>lease.source.devices(),
             Self::Web(lease) => lease.devices(),
             Self::KeypadWeb(lease)=>lease.source.devices(),
             Self::KeypadPanel(lease)=>lease.source.devices(),
@@ -130,6 +156,7 @@ impl Authorization {
     }
     pub(crate) fn valid(&self) -> bool {
         match self {
+            Self::Operation(lease)=>lease.active.read().is_ok_and(|active|*active)&&lease.source.valid(),
             Self::Web(lease) => lease.valid(),
             Self::KeypadWeb(lease)=>lease.source.valid(),
             Self::KeypadPanel(lease)=>lease.source.valid(),
@@ -138,6 +165,7 @@ impl Authorization {
     }
     pub(crate) fn origin(&self) -> Origin {
         match self {
+            Self::Operation(lease)=>lease.source.origin(),
             Self::Web(_) | Self::KeypadWeb(_) => Origin::Http,
             Self::KeypadPanel(_)=>Origin::Rule,
             Self::Hap(_) => Origin::Hap,

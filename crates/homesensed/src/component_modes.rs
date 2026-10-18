@@ -57,6 +57,13 @@ impl Prepared {
                     .iter()
                     .all(|name| snapshot.get(name).is_some_and(|v| v.value.is_none()))
         };
+        let selects_outcome = |p: &Policy| {
+            updates.iter().any(|u| {
+                u.name == p.variable && u.value == Some(p.first_value.value())
+            }) && p.when_values.iter().all(|(name, wanted)| {
+                evaluated.get(name).is_some_and(|v| v.value == Some(wanted.value()))
+            })
+        };
         let primaries = document
             .component_mode_confirmations
             .iter()
@@ -65,6 +72,16 @@ impl Prepared {
                 !p.include_when_first_unknown
                     && (p.confirm_when_known
                         || snapshot.get(&p.variable).is_some_and(|v| v.value.is_none()))
+            })
+            // A known local component may only need a policy for its Off
+            // transition. Likewise, a canonical label only belongs to its
+            // selected whole-source value. Neither dormant result may claim a
+            // different known transition. Unknown components still require a
+            // reviewed outcome; filtering them here would bypass that barrier.
+            .filter(|p| {
+                !p.confirm_when_known
+                    || snapshot.get(&p.variable).is_none_or(|v| v.value.is_none())
+                    || selects_outcome(p)
             })
             .collect::<Vec<_>>();
         if primaries.is_empty() {
@@ -79,8 +96,7 @@ impl Prepared {
                     // Only an actually selected first-unknown outcome owns
                     // companions. A dormant opposite outcome must not activate
                     // physical companions beside a known-source canonical path.
-                    && updates.iter().any(|u|u.name==p.variable&&u.value==Some(p.first_value.value()))
-                    && p.when_values.iter().all(|(name,wanted)|evaluated.get(name).is_some_and(|v|v.value==Some(wanted.value())))
+                    && selects_outcome(p)
             })
             .flat_map(|p| p.scenes.iter().filter(|s| scenes.contains(s)).cloned())
             .collect::<BTreeSet<_>>();
@@ -102,7 +118,7 @@ impl Prepared {
             .map(|p| p.variable.clone())
             .collect::<BTreeSet<_>>();
         for policy in candidates {
-            let update = updates
+            updates
                 .iter()
                 .find(|u| u.name == policy.variable)
                 .ok_or("component executed update missing")?;
@@ -114,13 +130,7 @@ impl Prepared {
             {
                 continue;
             }
-            if update.value != Some(policy.first_value.value())
-                || policy.when_values.iter().any(|(name, wanted)| {
-                    evaluated
-                        .get(name)
-                        .is_none_or(|v| v.value != Some(wanted.value()))
-                })
-            {
+            if !selects_outcome(policy) {
                 continue;
             }
             if !deferred.insert(policy.variable.clone()) {
@@ -387,7 +397,12 @@ struct Record {
     manual: BTreeMap<DeviceId, u64>,
     wires: Vec<homesense_core::gateway_scope::WireScope>,
     deadline: u64,
+    /// Real oldest observation used to confirm this owner; deadlines may be
+    /// clamped independently and must never be used to reconstruct this time.
+    observed_ms: Option<u64>,
+    completion_fence: Option<u64>,
 }
+pub(crate) struct CompletionHandoff { id: u64, record: Record }
 struct Logical {
     generation: TaskGeneration,
     controller: Uuid,
@@ -402,8 +417,65 @@ pub(crate) struct Owner {
     pending: BTreeMap<u64, Record>,
     confirmed: BTreeMap<u64, Record>,
     logical: BTreeMap<u64, Logical>,
+    completion_holds: Vec<ReadCheck>,
 }
 impl Owner {
+    /// Build the post-CAS owner from continuing conditions only. The original
+    /// trigger (for example Shoe Off) must never become a Hall dependency.
+    pub(crate) fn prepare_completion(&self, config: &Configuration,
+        plan: &crate::keypad_completion::Plan, proof: &crate::keypad_completion::FeedbackProof,
+        manual: &BTreeMap<DeviceId,u64>, now: u64) -> Result<CompletionHandoff,W> {
+        let e=proof.evidence();
+        if self.busy(&[e.variable.name.clone()].into()) || !self.capacity() { return Err(W::ResourceBusy); }
+        let id=self.next.checked_add(1).ok_or(W::ServiceCommunicationFailure)?;
+        let mut dependencies=BTreeSet::new();
+        let mut gateways=BTreeSet::new();
+        for condition in &e.effect.when {
+            let target=DeviceId::new(&condition.device).map_err(|_|W::InvalidValueInRequest)?;
+            let binding=config.devices().get(&target).ok_or(W::InvalidValueInRequest)?;
+            dependencies.insert(target);
+            if let Some(supply)=&binding.supply_relay {dependencies.insert(supply.clone());}
+        }
+        for device in &dependencies {
+            gateways.insert(config.devices().get(device).ok_or(W::InvalidValueInRequest)?.gateway.clone());
+        }
+        let observed_ms=proof.lease().observations.iter().filter(|(device,_)|dependencies.contains(*device))
+            .filter_map(|(_,at)|*at).min().ok_or(W::ResourceBusy)?;
+        let deadline=observed_ms.saturating_add(proof.observation_max_age_ms());
+        if now>=deadline {return Err(W::ResourceBusy);}
+        let policy=Policy { id:e.effect.id.clone(),variable:e.effect.variable.clone(),scenes:vec![],
+            first_value:e.effect.value.clone(),basis:Basis::Physical,include_when_first_unknown:false,
+            confirm_when_known:false,shared_selection_group:None,when_values:BTreeMap::new(),when_initial_unknown:vec![],
+            timeout_ms:1,max_age_ms:e.effect.max_age_ms,review_evidence:e.effect.review_evidence.clone(),
+            postconditions:e.effect.when.clone() };
+        let mut update=plan.receipt.update.clone();
+        update.expected_version=update.expected_version.checked_add(1).ok_or(W::InvalidValueInRequest)?;
+        Ok(CompletionHandoff { id, record:Record {
+            view:View {id,generation:e.generation.clone(),policies:vec![policy],after:e.writes_by_device.clone()},
+            controller:plan.controller,source:Some(plan.source.clone()),updates:vec![update],guards:vec![],prior_known:vec![],
+            tickets:vec![],written:e.written.clone(),manual:dependencies.into_iter()
+                .map(|device|{let version=manual.get(&device).copied().unwrap_or(0);(device,version)}).collect(),
+            wires:plan.wires.iter().filter(|wire|gateways.contains(wire.gateway())).cloned().collect(),
+            deadline,observed_ms:Some(observed_ms),completion_fence:Some(e.command_fence),
+        } })
+    }
+    pub(crate) fn install_completion(&mut self, prepared:CompletionHandoff) {
+        let name=&prepared.record.updates[0].name;
+        self.confirmed.retain(|_,record|record.updates.iter().all(|update|&update.name!=name));
+        self.logical.retain(|_,record|&record.canonical.update.name!=name);
+        self.next=prepared.id;
+        self.confirmed.insert(prepared.id,prepared.record);
+    }
+    pub(crate) fn set_completion_holds(&mut self, holds: Vec<ReadCheck>) {
+        self.completion_holds = holds;
+    }
+    fn held(&self, revision: u64, name: &str, version: u64) -> bool {
+        self.completion_holds.iter().any(|read| read.revision == revision
+            && read.name == name && read.expected_version == version)
+    }
+    fn record_held(&self, record: &Record) -> bool {
+        record.updates.iter().any(|u| self.held(u.revision, &u.name, u.expected_version))
+    }
     pub(crate) fn matches_scope(&self, generation: &TaskGeneration) -> bool {
         self.scope.as_ref() == Some(generation)
     }
@@ -412,6 +484,7 @@ impl Owner {
         self.pending.clear();
         self.confirmed.clear();
         self.logical.clear();
+        self.completion_holds.clear();
     }
     pub(crate) fn project_selection(
         &self,
@@ -420,6 +493,14 @@ impl Owner {
         generation: &TaskGeneration,
         snapshot: &mut homesense_storage::scene_observation::Snapshot,
     ) -> Result<bool, W> {
+        if self.scope.as_ref() == Some(generation)
+            && self.held(generation.epochs.configuration, name, snapshot.stored.version)
+        {
+            snapshot.stored.value = None;
+            snapshot.component_inferred = true;
+            snapshot.physical = None;
+            return Ok(true);
+        }
         if self
             .pending
             .values()
@@ -443,12 +524,7 @@ impl Owner {
                     .map_err(|_| W::ServiceCommunicationFailure)?
                     .as_u128(),
                 epochs: generation.epochs,
-                observed_ms: record
-                    .view
-                    .policies
-                    .iter()
-                    .map(|p| record.deadline.saturating_sub(p.max_age_ms))
-                    .min(),
+                observed_ms: record.observed_ms,
                 history_value: snapshot.stored.value.clone(),
                 pending_relative: false,
                 relative_eligible: false,
@@ -637,7 +713,8 @@ impl Owner {
                 || !authorized(r.controller)
                 || r.source.as_ref().is_some_and(|s| !s.valid())
                 || r.wires.iter().any(|w| !wire_ready(w))
-                || changed
+                || (changed && !self.held(r.canonical.update.revision,
+                    &r.canonical.update.name, r.canonical.update.expected_version))
             {
                 Self::invalidate_logical(store, r, now)?;
                 remove.push(*id);
@@ -685,14 +762,18 @@ impl Owner {
                 remove.push(*id);
                 continue;
             }
+            let overridden=if let Some(fence)=r.completion_fence {
+                !store.keypad_completion_dependencies_current(r.view.generation.boot_id(),
+                    r.view.generation.epochs.configuration,fence,&r.written.keys().copied().collect(),
+                    &r.manual.keys().cloned().collect()).map_err(|_|W::ServiceCommunicationFailure)?
+            }else{false};
             if current != Some(&r.view.generation)
-                || now >= r.deadline
                 || r.source.as_ref().is_some_and(|s| !s.valid())
                 || !authorized(r.controller)
-                || r.manual
-                    .iter()
-                    .any(|(id, version)| manual.get(id).copied().unwrap_or(0) != *version)
                 || r.wires.iter().any(|w| !wire_ready(w))
+                || overridden
+                || (!self.record_held(r) && (now >= r.deadline
+                    || r.manual.iter().any(|(id, version)| manual.get(id).copied().unwrap_or(0) != *version)))
             {
                 Self::invalidate(store, r, now)?;
                 remove.push(*id);
@@ -703,10 +784,13 @@ impl Owner {
         }
         Ok(())
     }
+    pub(crate) fn synchronized_for(&self, generation: &TaskGeneration) -> bool {
+        self.scope.as_ref() == Some(generation)
+    }
     pub(crate) fn synchronize(
         &mut self,
         store: &mut Store,
-        _config: &Configuration,
+        config: &Configuration,
         document: &Document,
         generation: &TaskGeneration,
         now: u64,
@@ -717,18 +801,27 @@ impl Owner {
         self.pending.clear();
         self.confirmed.clear();
         self.logical.clear();
-        if !document.component_mode_confirmations.is_empty() {
+        self.completion_holds.clear();
+        let targets = document.component_mode_confirmations.iter()
+            .map(|p| (&p.variable, &p.id))
+            .chain(config.keypads().values().flat_map(|p| p.keys.values())
+                .filter_map(|key| key.selection_completion.as_ref())
+                .map(|effect| (&effect.variable, &effect.id))).collect::<Vec<_>>();
+        if !targets.is_empty() {
             store
                 .ensure_component_mode_audit()
                 .map_err(|_| W::ServiceCommunicationFailure)?;
+            if config.keypads().values().flat_map(|panel| panel.keys.values()).any(|key| key.selection_completion.is_some()) {
+                store.ensure_keypad_completion_audit().map_err(|_|W::ServiceCommunicationFailure)?;
+            }
             let mut seen = BTreeSet::new();
             let mut resets = vec![];
-            for policy in &document.component_mode_confirmations {
-                if !seen.insert(&policy.variable) {
+            for (variable, policy) in targets {
+                if !seen.insert(variable) {
                     continue;
                 }
                 let Some(value) = store
-                    .logical_variable(document.revision, &policy.variable)
+                    .logical_variable(document.revision, variable)
                     .map_err(|_| W::ServiceCommunicationFailure)?
                 else {
                     continue;
@@ -737,18 +830,21 @@ impl Owner {
                     resets.push((
                         Update {
                             revision: document.revision,
-                            name: policy.variable.clone(),
+                            name: variable.clone(),
                             expected_version: value.version,
                             value: None,
                         },
-                        policy.id.clone(),
+                        policy.clone(),
                     ));
                 }
             }
-            if !resets.is_empty() {
+            // A configuration may have completion-only targets in addition to
+            // the ordinary component targets. Keep each storage transaction
+            // bounded; this generation becomes usable only after all resets.
+            for resets in resets.chunks(64) {
                 store
                     .apply_component_mode_inference(
-                        &resets,
+                        resets,
                         &[],
                         generation.boot_id(),
                         "component-generation-reset",
@@ -858,6 +954,8 @@ impl Owner {
                 manual: fence,
                 wires,
                 deadline: now.saturating_add(timeout),
+                observed_ms: None,
+                completion_fence: None,
             },
         );
         Ok(())
@@ -866,9 +964,11 @@ impl Owner {
         let mut views = self
             .confirmed
             .values()
+            .filter(|r| !self.record_held(r))
             .map(|r| r.view.clone())
             .collect::<Vec<_>>();
         for record in self.pending.values() {
+            if self.record_held(record) { continue; }
             let mut written = BTreeMap::new();
             let mut ready = true;
             for ticket in &record.tickets {
@@ -914,9 +1014,25 @@ fn sample(
         .map(|p| p.max_age_ms)
         .min()
         .ok_or("component proof empty")?;
+    let conditions = policies.iter().flat_map(|policy| &policy.postconditions).collect::<Vec<_>>();
+    sample_conditions(config, &conditions, feedback, now, age)
+}
+
+/// One read-only snapshot used by both component ownership and key-specific
+/// completion. This does not initiate a query or convert an LED into truth.
+pub(crate) fn sample_conditions(
+    config: &Configuration,
+    conditions: &[&homesense_config::component_modes::Postcondition],
+    feedback: &Feedback,
+    now: u64,
+    age: u64,
+) -> Result<(RuleLease, Vec<Option<bool>>), String> {
+    if conditions.is_empty() || conditions.len() > 128 || age == 0 {
+        return Err("component observation bound exceeded".into());
+    }
     let mut variables = BTreeMap::new();
     let mut nodes = vec![];
-    for (i, condition) in policies.iter().flat_map(|p| &p.postconditions).enumerate() {
+    for (i, condition) in conditions.iter().enumerate() {
         let logical = DeviceId::new(&condition.device).map_err(|e| e.to_string())?;
         // Off depends solely on a reliable power relay, never residual AD8.
         let source = if !condition.on {
@@ -964,9 +1080,8 @@ fn sample(
         }
     }
     let (plan, lease) = feedback.plan_rule(&nodes, &variables, Budget::default(), now, age)?;
-    let values = policies
+    let values = conditions
         .iter()
-        .flat_map(|p| &p.postconditions)
         .enumerate()
         .map(|(i, c)| {
             let Some(Value::Bool(on)) = plan.variables[&format!("component:{i}:on")].value else {
@@ -990,6 +1105,8 @@ pub(crate) struct Proof {
     lease: RuleLease,
     matched: Option<bool>,
     valid_until: u64,
+    observed_ms: Option<u64>,
+    max_age_ms: u64,
 }
 impl Proof {
     pub(crate) fn prepare(
@@ -1007,20 +1124,21 @@ impl Proof {
         } else {
             Some(values.into_iter().all(|value| value == Some(true)))
         };
-        let age = view.policies.iter().map(|p| p.max_age_ms).min().unwrap();
-        let valid_until = lease
+        let age = feedback.effective_max_age_ms(view.policies.iter().map(|p| p.max_age_ms).min().unwrap());
+        let observed_ms = lease
             .observations
             .values()
             .filter_map(|at| *at)
-            .min()
-            .unwrap_or(now)
-            .saturating_add(age);
+            .min();
+        let valid_until = observed_ms.unwrap_or(now).saturating_add(age);
         Ok(Self {
             id: view.id,
             generation: view.generation.clone(),
             lease,
             matched,
             valid_until,
+            observed_ms,
+            max_age_ms: age,
         })
     }
 }
@@ -1041,6 +1159,8 @@ impl Owner {
         let Some(record) = record else {
             return Ok(false);
         };
+        // A proof fetched before the hold was installed is equally stale.
+        if self.record_held(record) { return Ok(false); }
         if record.view.generation != proof.generation {
             return Ok(false);
         }
@@ -1071,9 +1191,27 @@ impl Owner {
                 }
             }
         }
-        let Some(matched) = proof.matched else {
+        if confirmed && proof.matched.is_none() {
+            // Unknown is not a failed condition. It may, however, certify that
+            // the previously retained observation has aged out under a newly
+            // tightened policy. Validate this current snapshot before clearing
+            // or shortening the old inference; a newer reply invalidates it.
+            let _guard=proof.lease.lock(
+                Uuid::parse_str(proof.generation.boot_id()).map_err(|_|W::InvalidValueInRequest)?.as_u128(),
+                proof.generation.epochs.configuration,proof.generation.epochs.transport,now,
+            ).map_err(|_|W::ResourceBusy)?;
+            if let Some(deadline)=record.observed_ms.map(|at|at.saturating_add(proof.max_age_ms)) {
+                if now>=deadline {
+                    Self::invalidate(store,record,now)?;
+                    self.confirmed.remove(&proof.id);
+                }else{
+                    let record=self.confirmed.get_mut(&proof.id).unwrap();
+                    record.deadline=record.deadline.min(deadline);
+                }
+            }
             return Ok(false);
-        };
+        }
+        let Some(matched) = proof.matched else {return Ok(false);};
         let _guard = proof
             .lease
             .lock(
@@ -1086,22 +1224,25 @@ impl Owner {
             )
             .map_err(|_| W::ResourceBusy)?;
         for (id, at) in &proof.lease.observations {
-            if !store
-                .component_mode_feedback_settled(
+            let settled = if let Some(fence)=record.completion_fence {
+                store.keypad_completion_feedback_settled(proof.generation.boot_id(),id,*at,
+                    proof.generation.epochs.transport,fence,&record.written)
+            } else { store.component_mode_feedback_settled(
                     proof.generation.boot_id(),
                     id,
                     *at,
                     proof.generation.epochs.transport,
                     &record.written,
-                )
-                .map_err(|_| W::ServiceCommunicationFailure)?
-            {
+                ) };
+            if !settled.map_err(|_| W::ServiceCommunicationFailure)? {
                 return Err(W::ResourceBusy);
             }
         }
         if confirmed {
             if matched {
-                self.confirmed.get_mut(&proof.id).unwrap().deadline = proof.valid_until;
+                let record=self.confirmed.get_mut(&proof.id).unwrap();
+                record.deadline = proof.valid_until;
+                record.observed_ms = proof.observed_ms;
                 return Ok(true);
             }
             Self::invalidate(store, record, now)?;
@@ -1207,6 +1348,8 @@ impl Owner {
                         .cloned()
                         .collect(),
                     deadline: proof.valid_until,
+                    observed_ms: proof.observed_ms,
+                    completion_fence: None,
                 },
             );
         }
@@ -1222,12 +1365,9 @@ impl Consumer {
         &mut self,
         admission: &Admission,
         controller: Uuid,
-        document: &Document,
+        _document: &Document,
         feedback: &Feedback,
     ) -> Result<(), String> {
-        if document.component_mode_confirmations.is_empty() {
-            return Ok(());
-        }
         let generation = match admission.task_generation().await {
             Ok(g) => g,
             Err(W::ResourceBusy) => return Ok(()),
@@ -1269,3 +1409,7 @@ impl Consumer {
         Ok(())
     }
 }
+
+#[cfg(test)]
+#[path = "component_mode_handoff_tests.rs"]
+mod handoff_tests;

@@ -146,7 +146,7 @@ async fn successful_cross_key_and_ordinary_led_writes_retire_old_cue_without_raw
     for linked in [false,true] {
         let mut f=Fixture::new(false,|_|{}).await;let (mut owner,bytes)=owner(&f,None);
         let first=f.prepare(&f.request()).await.unwrap();let old=first.source.clone().unwrap();let ids=f.submit(Some(old.clone()),f.batch(true,true,false)).await.unwrap();
-        for _ in 0..2 {f.time.fetch_add(21,Ordering::SeqCst);owner.step().await.unwrap().unwrap().result.unwrap();}
+        f.time.fetch_add(21,Ordering::SeqCst);let mixed=owner.step().await.unwrap().unwrap();mixed.result.unwrap();assert_eq!(mixed.physical_frames,2);
         let prior_reply=first.context.finish(Reply::CommandsAccepted(ids)).unwrap();assert_eq!(prior_reply.indication.color,Some("red"));
         let mut intents=vec![Intent{device:DeviceId::new("legacy-key-1").unwrap(),command:Command::PanelLed(false)}];
         let source=if linked {
@@ -156,7 +156,7 @@ async fn successful_cross_key_and_ordinary_led_writes_retire_old_cue_without_raw
         }else{None};
         f.submit(source,Batch{controller:f.controller,intents,subscriptions:vec![]}).await.unwrap();
         if linked {
-            for _ in 0..2 {f.time.fetch_add(21,Ordering::SeqCst);owner.step().await.unwrap().unwrap().result.unwrap();}
+            f.time.fetch_add(21,Ordering::SeqCst);let mixed=owner.step().await.unwrap().unwrap();mixed.result.unwrap();assert_eq!(mixed.physical_frames,2);
             f.time.fetch_add(21,Ordering::SeqCst);assert!(owner.step().await.unwrap().is_none(),"linked green cannot retire an old cue before target feedback");
             let at=f.time.fetch_add(2,Ordering::SeqCst)+2;f.feedback.apply(&crate::transport_owner::GatewayRead{gateway_id:"bus".into(),transport_epoch:1,received_at_ms:at,result:hb_transport::Receive::Frames{transport_epoch:1,frames:vec![hb_protocol::RawFrame{address:0x15,command:0xd1,value:0}]}}).unwrap();
             crate::control_batch::tick(&f.actor,f.controller,&f.feedback).await.unwrap();

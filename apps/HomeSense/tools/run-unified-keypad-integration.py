@@ -237,7 +237,7 @@ class Fixture:
                 time.sleep(.05)
             save(self.root/'initial-ready.json', ready)
             environment = os.environ.copy(); environment['HOMESENSE_UNIFIED_KEYPAD_ACTUAL_FIXTURE'] = str(self.root.resolve())
-            test = ['swift', 'test', '--package-path', str(package), '--scratch-path', str(a.scratch), '--filter', 'HomeUnifiedKeypadActualIntegrationTests/'+method]
+            test = ['swift', 'test', '--build-system', 'native', '--package-path', str(package), '--scratch-path', str(a.scratch), '--filter', 'HomeUnifiedKeypadActualIntegrationTests/'+method]
             save(self.root/'command.json', {'CLI': command, 'test': test, 'fixture_environment': {'HOMESENSE_UNIFIED_KEYPAD_ACTUAL_FIXTURE': str(self.root.resolve())}})
             with (self.root/'swift-test.log').open('xb') as log:
                 result = subprocess.run(test, env=environment, stdout=log, stderr=subprocess.STDOUT, timeout=90)

@@ -105,10 +105,11 @@ struct HomeDeviceTile: View {
             Text(device.name).font(.title3.weight(.semibold)).lineLimit(2)
             if let status = device.targetAvailability.description { Text(status).font(.caption).foregroundStyle(.secondary) }
             if let room = device.raw["room"]["name"].text { Text(room).font(.caption).foregroundStyle(.secondary) }
-            Text(status).font(.title3.weight(.medium)).foregroundStyle(confirmed ? Color.primary : Color.secondary)
-            if device.raw["state_authority"].text == "pending_target" {
-                Text("目标待确认").font(.caption).foregroundStyle(.orange)
-            }
+            (Text(status).font(.title3.weight(.medium)).foregroundColor(confirmed ? .primary : .secondary)
+                + Text(device.raw["state_authority"].text == "pending_target" ? " · 目标待确认" : "")
+                    .font(.caption).foregroundColor(.orange))
+                .lineLimit(1).minimumScaleFactor(0.65)
+                .frame(height: 25, alignment: .leading)
         }
         .padding(18).frame(maxWidth: .infinity, minHeight: 170, alignment: .topLeading)
         .background(showsBackground ? (isOn ? Color.orange.opacity(0.09) : Color.primary.opacity(0.025)) : Color.clear, in: RoundedRectangle(cornerRadius: 20))
@@ -220,22 +221,206 @@ extension HomeRecord {
     }
 }
 
+/// A native light surface: the local target follows the gesture while actual
+/// feedback has a stable, separate line. No network code lives in this view.
+struct HomeLightControlSurface: View {
+    let name: String
+    let level: Double
+    let levelDescription: String
+    let feedback: String
+    let available: Bool
+    let adjustable: Bool
+    let editing: Bool
+    var notice: String? = nil
+    let change: (Double) -> Void
+    let editingChanged: (Bool) -> Void
+    let toggle: () -> Void
+    let settings: () -> Void
+    let close: () -> Void
+    @State private var dragStart: Double?
+
+    var body: some View {
+        GeometryReader { geometry in
+            let width = min(132.0, geometry.size.width * 0.30)
+            let height = min(360.0, geometry.size.height * 0.45)
+            ZStack {
+                LinearGradient(colors: [Color(red: 0.28, green: 0.46, blue: 0.59), Color(red: 0.54, green: 0.54, blue: 0.48), Color(red: 0.54, green: 0.29, blue: 0.08)], startPoint: .top, endPoint: .bottom)
+                RadialGradient(colors: [.orange.opacity(level > 0 ? 0.34 : 0.05), .clear], center: .bottomTrailing, startRadius: 0, endRadius: geometry.size.height * 0.75)
+                Color.black.opacity(level > 0 ? 0.08 : 0.28)
+                VStack(spacing: 0) {
+                    HStack {
+                        Spacer()
+                        Button(action: close) { Image(systemName: "xmark").font(.system(size: 15, weight: .semibold)).frame(width: 36, height: 36).background(.black.opacity(0.15), in: Circle()) }
+                            .buttonStyle(.plain).accessibilityLabel("关闭灯光详情")
+                    }.padding(.horizontal, 22).padding(.top, 14)
+                    Spacer(minLength: 12)
+                    VStack(spacing: 8) {
+                        Text(name).font(.system(size: 32, weight: .semibold)).lineLimit(2).multilineTextAlignment(.center).minimumScaleFactor(0.7)
+                        Text(levelDescription).font(.system(size: 24, weight: .semibold, design: .rounded)).monospacedDigit().foregroundStyle(Color(red: 0.73, green: 0.86, blue: 0.95))
+                        Text(feedback).font(.caption).foregroundStyle(.white.opacity(0.8))
+                            .lineLimit(1).minimumScaleFactor(0.65).frame(height: 20)
+                    }.padding(.horizontal, 24)
+                    Spacer(minLength: 24)
+                    RoundedRectangle(cornerRadius: width * 0.35, style: .continuous)
+                        .fill(.white.opacity(0.20))
+                        .overlay(alignment: .bottom) {
+                            Rectangle().fill(Color(red: 1, green: 0.84, blue: 0))
+                                .frame(height: max(0, min(1, level / 100)) * height)
+                        }
+                        .overlay(alignment: .bottom) {
+                            Image(systemName: "lightbulb.fill").font(.system(size: 36, weight: .regular))
+                                .foregroundStyle(level > 0 ? .white : .white.opacity(0.65))
+                                .padding(.bottom, 23)
+                        }
+                        .clipShape(RoundedRectangle(cornerRadius: width * 0.35, style: .continuous))
+                        .frame(width: width, height: height)
+                        .shadow(color: .black.opacity(0.08), radius: 12, y: 6)
+                        .contentShape(RoundedRectangle(cornerRadius: width * 0.35))
+                        .gesture(SpatialTapGesture().onEnded { gesture in
+                            guard available else { return }
+                            if adjustable {
+                                guard let target = HomeBrightnessInteraction.tappedLevel(
+                                    verticalPosition: Double(gesture.location.y), height: Double(height)) else { return }
+                                editingChanged(true); change(target); editingChanged(false)
+                            } else { toggle() }
+                        }.exclusively(before: DragGesture(minimumDistance: 3)
+                            .onChanged { gesture in
+                                guard available, adjustable else { return }
+                                if dragStart == nil { dragStart = level; editingChanged(true) }
+                                change(min(100, max(0, (dragStart ?? level) - Double(gesture.translation.height / height) * 100)))
+                            }
+                            .onEnded { _ in
+                                guard dragStart != nil else { return }
+                                dragStart = nil; editingChanged(false)
+                            }))
+                        .animation(editing ? nil : .easeOut(duration: 0.18), value: level)
+                        .opacity(available ? 1 : 0.60)
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel(name + (adjustable ? "亮度" : "开关"))
+                        .accessibilityValue(levelDescription + "，" + feedback)
+                        .accessibilityHint(available ? (adjustable ? "按高度轻点选择百分之十档位；上下拖动精细调光，松手后设置" : "轻点切换开关") : "控制暂不可用")
+                        .accessibilityAdjustableAction { direction in
+                            guard available, adjustable else { return }
+                            editingChanged(true)
+                            switch direction {
+                            case .increment: change(min(100, level + 5))
+                            case .decrement: change(max(0, level - 5))
+                            @unknown default: break
+                            }
+                            editingChanged(false)
+                        }
+                        .accessibilityAction(named: Text("开关")) { if available { toggle() } }
+                        .accessibilityIdentifier("home.light.brightness")
+                    Spacer(minLength: 24)
+                    HStack {
+                        if let notice { Text(notice).font(.caption).foregroundStyle(.white).lineLimit(2) }
+                        else if !available { Text("控制暂不可用").font(.caption).foregroundStyle(.white.opacity(0.8)) }
+                        Spacer()
+                        Button(action: settings) {
+                            Image(systemName: "gearshape.fill").font(.system(size: 26)).frame(width: 54, height: 54)
+                                .background(.ultraThinMaterial.opacity(0.75), in: Circle())
+                                .overlay { Circle().strokeBorder(.white.opacity(0.35), lineWidth: 1) }
+                        }.buttonStyle(.plain).accessibilityLabel("灯光设置")
+                    }.padding(24)
+                }
+            }.foregroundStyle(.white).ignoresSafeArea(edges: .bottom)
+        }
+    }
+}
+
+struct HomeLightDeviceDetails: View {
+    @ObservedObject var home: HomeServerStore
+    let device: HomeRecord
+    let close: () -> Void
+    @State private var brightness = HomeBrightnessDraft()
+    @State private var showingSettings = false
+    private var adjustable: Bool { device.raw["kind"].text == "Dimmer" }
+    private var actualOn: Bool? {
+        guard device.feedbackIsConfirmed(current: home.snapshotIsCurrent), case .bool(let on) = device.raw["observed"]["on"] else { return nil }
+        return on
+    }
+    private var pending: Bool { brightness.submission != nil || brightness.unconfirmedTarget != nil || device.raw["state_authority"].text == "pending_target" }
+    private var feedback: String {
+        let prefix = device.feedbackIsConfirmed(current: home.snapshotIsCurrent) ? "实测 · " : "历史 · "
+        let actual = device.raw["observed"]["level"].integerText.map { $0 + "%" } ?? actualOn.map { $0 ? "开启" : "关闭" } ?? "未知"
+        return prefix + actual + (pending ? " · 目标待确认" : "")
+    }
+    var body: some View {
+        HomeLightControlSurface(name: device.name, level: adjustable ? brightness.value : actualOn == true ? 100 : 0,
+            levelDescription: adjustable ? (!brightness.isEditing && !pending && device.raw["observed"]["level"].integerText == nil ? "状态未知" : "\(Int(brightness.value))%") : actualOn.map { $0 ? "开启" : "关闭" } ?? "状态未知",
+            feedback: feedback, available: home.canControlDevice(device.id), adjustable: adjustable, editing: brightness.isEditing, notice: home.error,
+            change: { brightness.setValue($0) }, editingChanged: { editing in
+                if editing { brightness.beginEditing() } else { submitBrightness() }
+            }, toggle: toggle, settings: { showingSettings = true }, close: close)
+            .onAppear { syncLevel() }
+            .onChange(of: device.raw) { _, _ in syncLevel() }
+            .onChange(of: home.snapshotIsCurrent) { _, current in
+                if !current { brightness.cancel() }
+                syncLevel()
+            }
+            .task(id: brightness.submission?.id) {
+                guard let id = brightness.submission?.id else { return }
+                do { try await Task.sleep(for: .seconds(10)) } catch { return }
+                brightness.expire(id); syncLevel()
+            }
+            .sheet(isPresented: $showingSettings) {
+                NavigationStack {
+                    Form {
+                        Section("灯光") {
+                            LabeledContent("名称", value: device.name)
+                            LabeledContent("房间", value: device.raw["room"]["name"].text ?? "未分配")
+                            Text(feedback)
+                            if let status = device.targetAvailability.description { Text(status) }
+                        }
+                        Section("控制") { HomeLightPowerControls(home: home, device: device, beforeAction: { brightness.cancel(); syncLevel() }) }
+                        if let error = home.error { Section { Text(error).foregroundStyle(.red) } }
+                    }.navigationTitle("灯光设置").toolbar { Button("完成") { showingSettings = false } }
+                }.presentationDetents([.medium, .large])
+            }
+    }
+    private var feedbackTimestamp: UInt64? { device.raw["observed_at_ms"].integerText.flatMap(UInt64.init) }
+    private func syncLevel() {
+        brightness.observe(level: device.raw["observed"]["level"].integerText.flatMap(Int64.init),
+            confirmed: device.feedbackIsConfirmed(current: home.snapshotIsCurrent), timestamp: feedbackTimestamp)
+    }
+    private func submitBrightness() {
+        guard home.canControlDevice(device.id) else { brightness.cancel(); syncLevel(); return }
+        guard let submission = brightness.endEditing(feedbackTimestamp: feedbackTimestamp) else { return }
+        let operation = home.beginDeviceControl(device.id)
+        Task {
+            let result = await home.controlDevice(device.id, command: .object(["action": .string("brightness"), "level": .integer(submission.level)]), operation: operation)
+            brightness.complete(submission.id, accepted: result.accepted); syncLevel()
+        }
+    }
+    private func toggle() {
+        guard home.canControlDevice(device.id) else { return }
+        let on = actualOn != true
+        brightness.cancel(); syncLevel()
+        let operation = home.beginDeviceControl(device.id)
+        Task { await home.controlDevice(device.id, command: .object(["action": .string("power"), "on": .bool(on)]), operation: operation) }
+    }
+}
+
 struct HomeDeviceDetails: View {
     @ObservedObject var home: HomeServerStore
     let deviceID: String
     @Environment(\.dismiss) private var dismiss
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                if let device = home.devices.first(where: { $0.id == deviceID }) {
-                    HomeDeviceCard(home: home, device: device).padding()
-                } else { ContentUnavailableView("设备暂不可用", systemImage: "lightbulb") }
-                if let error = home.error { Text(error).foregroundStyle(.red).padding() }
-                Text(home.message).font(.caption).foregroundStyle(.secondary).padding()
+        Group {
+            if let device = home.devices.first(where: { $0.id == deviceID }), ["Dimmer", "Switch"].contains(device.raw["kind"].text ?? "") {
+                HomeLightDeviceDetails(home: home, device: device, close: { dismiss() })
+            } else {
+                NavigationStack {
+                    ScrollView {
+                        if let device = home.devices.first(where: { $0.id == deviceID }) { HomeDeviceCard(home: home, device: device).padding() }
+                        else { ContentUnavailableView("设备暂不可用", systemImage: "lightbulb") }
+                        if let error = home.error { Text(error).foregroundStyle(.red).padding() }
+                        Text(home.message).font(.caption).foregroundStyle(.secondary).padding()
+                    }.navigationTitle(home.devices.first(where: { $0.id == deviceID })?.name ?? "设备")
+                    .toolbar { Button("完成") { dismiss() } }
+                }
             }
-            .navigationTitle(home.devices.first(where: { $0.id == deviceID })?.name ?? "设备")
-            .toolbar { Button("完成") { dismiss() } }
-        }.frame(idealWidth: 460, idealHeight: 680)
+        }.frame(idealWidth: 460, idealHeight: 780).presentationDetents([.large])
     }
 }
 

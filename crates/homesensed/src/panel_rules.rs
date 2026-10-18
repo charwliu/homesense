@@ -79,7 +79,7 @@ struct Registered {
 }
 pub(crate) struct NativeBinding {pub keypad:String,pub key:u8,pub priority:u8}
 pub(crate) struct NativeDispatch {pub action:crate::automation_control::Action,pub source:crate::source_auth::Source,pub priority:u8,pub deadline:std::time::Instant}
-pub(crate) const NATIVE_QUEUE_CAPACITIES:[usize;3]=[64,128,256];
+pub(crate) const NATIVE_QUEUE_CAPACITIES:[usize;4]=[64,128,256,64];
 pub struct PanelRules {
     admission: Admission,
     controller: Uuid,
@@ -450,7 +450,7 @@ impl PanelRules {
             }
             if self.mode==Mode::Execute && event==Event::Released && let Some(binding)=self.native_bindings.get(key)
                 && let Some(raw)=self.native_event.as_ref() {
-                // Reserve STOP and motor capacity before the central receiver,
+                // Reserve STOP, Away and motor capacity before the central receiver,
                 // too. Ordinary input overload must not retire the owner or
                 // discard a later STOP from the same decoded event batch.
                 if self.native_dispatch.iter().filter(|queued|queued.priority==binding.priority).count()

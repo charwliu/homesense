@@ -20,6 +20,7 @@ struct Wire {
     eof: bool,
     switches: usize,
     channels: u8,
+    silent: bool,
 }
 struct Stream(Arc<Mutex<Wire>>);
 impl Read for Stream {
@@ -43,6 +44,7 @@ impl Write for Stream {
         let(frames,tail)=b.as_chunks::<5>();assert!(tail.is_empty());
         let mut w=self.0.lock().unwrap();w.times.push(Instant::now());
         for &f in frames{w.writes.push(f);
+        if w.silent {continue;}
         let channels: Vec<_> = if f[2] == 0xA0 {
             (1..=w.channels).rev().collect()
         } else if f[2] >= 0xA1 {

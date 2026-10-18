@@ -84,7 +84,7 @@ try:
    time.sleep(.05)
   save('initial-ready.json',ready);save('actual-initial-dto.json',request('/api/v1/devices'))
   env=os.environ.copy();env['HOMESENSE_DEVICE_MOTOR_ACTUAL_FIXTURE']=str(a.output.resolve())
-  test=['swift','test','--package-path',str(package),'--scratch-path',str(a.scratch)]
+  test=['swift','test','--build-system','native','--package-path',str(package),'--scratch-path',str(a.scratch)]
   test+=['--filter','HomeDeviceMotorActualIntegrationTests']
   save('command.json',{'CLI_argv':cmd,'test_argv':test,'fixture_environment':{k:v for k,v in env.items() if k.startswith('HOMESENSE_')},'no_live_inputs_or_real_credentials':True})
   opened={};teststart=time.time()

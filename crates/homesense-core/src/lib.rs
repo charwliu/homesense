@@ -426,3 +426,6 @@ pub mod rule_motor;
 
 /// Target-local transport fences; callers still supply authentication and global policy.
 pub mod gateway_scope;
+
+/// Bounded, feedback-driven Away attempts; the live owner supplies authority.
+pub mod away_execution;

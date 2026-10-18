@@ -3,6 +3,7 @@
 pub mod rule_document;
 pub mod scene_tracking;
 pub mod keypad;
+pub mod keypad_completion;
 use homesense_core::{
     BusAddress, Channel, DeviceId, ExecutionContext, ModuleKind, ModuleSpec, PanelLedMode, Percent,
     ProtocolProfile, ValidationError, Verification, VerificationRecord,
@@ -634,7 +635,7 @@ impl Configuration {
                 }
             }
         }}
-        Ok(Self {
+        let configuration = Self {
             schema_version:input.schema_version,
             module_registry,
             revision: input.revision,
@@ -646,7 +647,9 @@ impl Configuration {
             devices,
             resolved_bindings,
             keypads,
-        })
+        };
+        keypad_completion::validate_bindings(&configuration)?;
+        Ok(configuration)
     }
 }
 fn identifier(value: &str) -> Result<(), Error> {

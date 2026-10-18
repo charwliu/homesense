@@ -659,7 +659,7 @@ async fn manual_whole_query_holds_controls_until_all_eight_replies_or_bounded_ti
 }
 
 #[tokio::test]
-async fn direct_status_query_also_blocks_raw_writer_until_response_or_timeout() {
+async fn direct_status_query_blocks_writer_until_owner_retires_response_or_timeout() {
     let (path,admission,config,controller,generation)=fixture("ad8_din_rs485_v2_2_1",Options::default(),Arc::new(true.into())).await;
     let writes=Arc::new(Mutex::new(vec![]));
     let mut transport=TransportOwner::new(admission.clone(),[("bus".into(),hb_transport::Connection::for_simulation(
@@ -675,6 +675,12 @@ async fn direct_status_query_also_blocks_raw_writer_until_response_or_timeout() 
     transport.receive("bus").await.unwrap();
     assert!(transport.step().await.unwrap().is_none(),"raw writer must not bypass the incomplete query response");
     tokio::time::sleep(Duration::from_millis(125)).await;
+    // Elapsed reply time does not transfer an outstanding owner's unique
+    // reservation. The refresh owner retires it after processing timeout (or
+    // completion), exactly as the real observed/local refresh paths do.
+    assert!(transport.step().await.unwrap().is_none(),"a held read claim still blocks dispatch after the reply timer");
+    assert_eq!(writes.lock().unwrap().len(),1);
+    transport.finish_status_read("bus");
     transport.step().await.unwrap().unwrap().result.unwrap();assert_eq!(writes.lock().unwrap().len(),2);
-    transport.finish_status_read("bus");admission.shutdown().await.unwrap();drop(transport);clean(&path);
+    admission.shutdown().await.unwrap();drop(transport);clean(&path);
 }

@@ -136,7 +136,7 @@ public struct HomeKeypadActionPresentation: Equatable, Sendable {
 
     init(phase: Phase, requestedColor: HomeKeypadLEDColor? = nil) {
         self.phase = phase
-        self.requestedColor = [.pending, .written].contains(phase) && requestedColor != .unknown ? requestedColor : nil
+        self.requestedColor = [.submitting, .pending, .written].contains(phase) && requestedColor != .unknown ? requestedColor : nil
     }
     public var title: String {
         switch phase {
@@ -210,13 +210,16 @@ struct HomeKeypadActivationState {
         guard context != next || next == nil else { return }
         context = next; entries = [:]
     }
-    mutating func begin(_ request: HomeKeypadActivationRequest, endpoint: String, context expected: Context) throws {
+    mutating func begin(_ request: HomeKeypadActivationRequest, endpoint: String, context expected: Context, color: HomeKeypadLEDColor? = nil) throws {
         guard context == expected, !expected.boot.isEmpty, expected.revision == request.revision,
               !endpoint.isEmpty else { throw HomeServerError.expiredRequest }
         let key = Key(panel: request.keypad, number: request.key)
         let old = entries[key]
         entries[key] = Entry(request: request, endpoint: endpoint, latest: old?.latest, cleared: old?.cleared ?? false,
-                             presentation: HomeKeypadActionPresentation(phase: .submitting), retiredRequests: old?.retiredRequests ?? [])
+                             presentation: HomeKeypadActionPresentation(phase: .submitting, requestedColor: color), retiredRequests: old?.retiredRequests ?? [])
+    }
+    func indication(_ panel: String, key: Int) -> HomeKeypadActionIndication? {
+        entries[Key(panel: panel, number: key)]?.latest
     }
     func presentation(_ panel: String, key: Int) -> HomeKeypadActionPresentation? {
         entries[Key(panel: panel, number: key)]?.presentation

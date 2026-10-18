@@ -12,13 +12,15 @@ enum ProjectionRefusal {
     Expired,
     Invalidated,
 }
-/// Minted only by the synchronous writer after a whole guarded LED batch was
-/// refused before any wire byte. It cannot be constructed by an API caller.
+/// Minted only by the synchronous writer after a whole guarded LED or managed
+/// Away batch was refused before any wire byte. It cannot be constructed by an API caller.
 pub(crate) struct ProjectionDiscard {
     members: Vec<(u64, u64)>,
     reason: ProjectionRefusal,
+    away: bool,
 }
 impl ProjectionDiscard {
+    pub(crate) fn away(&self)->bool {self.away}
     pub(crate) fn members(&self) -> &[(u64, u64)] {
         &self.members
     }
@@ -44,7 +46,8 @@ fn send_attempt(
     result: Result<(), SendError>,
     refusal: Option<ProjectionRefusal>,
 ) -> SendAttempt {
-    let projection = if tickets.iter().all(is_projection)
+    let away=tickets.iter().all(|ticket|matches!(ticket.command.command,homesense_core::Command::ModuleAllOff|homesense_core::Command::PanelLed(_)|homesense_core::Command::PanelLedOff) && ticket.away_authorization.as_ref().is_some_and(|lease|lease.guarded_operation()));
+    let projection = if (away || tickets.iter().all(is_projection))
         && result.as_ref().is_err_and(|e| e.bytes_written == 0)
     {
         let reason = if result
@@ -56,6 +59,7 @@ fn send_attempt(
             refusal
         };
         reason.map(|reason| ProjectionDiscard {
+            away,
             members: tickets
                 .iter()
                 .map(|t| (t.command.id, t.command.deadline_ms))
@@ -74,6 +78,15 @@ pub(crate) fn send_ticket<S: Read + Write>(
     now: impl FnMut() -> u64,
 ) -> Result<(), SendError> {
     send_one(ticket, connection, now).result
+}
+#[cfg(test)]
+pub(crate) fn send_ticket_batch<S: Read + Write>(
+    tickets: &[crate::admission::DispatchTicket], connection: &mut Connection<S>,
+    now: impl FnMut() -> u64,
+) -> Result<(), SendError> { send_tickets(tickets, connection, now).result }
+#[cfg(test)]
+pub(crate) fn send_guarded_ticket<S:Read+Write>(ticket:&crate::admission::DispatchTicket,connection:&mut Connection<S>,now:impl FnMut()->u64)->(Result<(),SendError>,Option<ProjectionDiscard>) {
+    let attempt=send_one(ticket,connection,now);(attempt.result,attempt.projection)
 }
 fn send_one<S: Read + Write>(
     ticket: &crate::admission::DispatchTicket,
@@ -240,12 +253,18 @@ pub struct WriteOutcome {
     pub device_id: homesense_core::DeviceId,
     pub command_id: u64,
     pub result: Result<(), SendError>,
-    /// Proven zero-byte projection cancellation, not a successful write.
+    /// Proven zero-byte guarded LED/Away cancellation, not a successful write.
     pub projection_cancelled: bool,
     pub completed: Vec<(u64, homesense_core::DeviceId)>,
     pub physical_frames: usize,
     pub refresh_devices: Vec<homesense_core::DeviceId>,
     pub(crate) refresh_schedule: Vec<(homesense_core::DeviceId,bool)>,
+    pub(crate) managed_away_outputs: Option<(String, Vec<homesense_core::DeviceId>)>,
+}
+pub(crate) fn managed_away_outputs(tickets:&[crate::admission::DispatchTicket],success:bool)->Option<(String,Vec<homesense_core::DeviceId>)> {
+    let modules=tickets.iter().filter(|ticket|ticket.command.command==homesense_core::Command::ModuleAllOff
+        && ticket.away_authorization.as_ref().is_some_and(|lease|lease.guarded_operation())).collect::<Vec<_>>();
+    (success && !modules.is_empty()).then(||(modules[0].gateway_id.clone(),modules.iter().flat_map(|ticket|ticket.refresh_devices.iter().cloned()).collect()))
 }
 impl<S: Read + Write + Send + 'static> TransportOwner<S> {
     pub fn new(admission: Admission, connections: BTreeMap<String, Connection<S>>) -> Self {
@@ -778,6 +797,7 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
         Ok(Some(WriteOutcome {
             command_id: id,
             device_id,
+            managed_away_outputs: managed_away_outputs(&tickets,result.is_ok()),
             result,
             projection_cancelled,
             completed: completed.clone(),

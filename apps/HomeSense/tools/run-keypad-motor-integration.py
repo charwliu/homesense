@@ -89,7 +89,7 @@ try:
    env['HOMESENSE_TEST_BINARY']=str(a.binary)
    env['HOMESENSE_KEYPAD_TEST_BINARY']=str(a.binary)
    env['HOMESENSE_KEYPAD_TEST_FIXTURES']=str(repository/'config/test/native-app-keypad')
-  test=['swift','test','--package-path',str(package),'--scratch-path',str(a.scratch)]
+  test=['swift','test','--build-system','native','--package-path',str(package),'--scratch-path',str(a.scratch)]
   if not a.full_suite:test+=['--filter','HomeKeypadMotorActualIntegrationTests']
   save('command.json',{'CLI_argv':cmd,'test_argv':test,'fixture_environment':{k:v for k,v in env.items() if k.startswith('HOMESENSE_')},'no_live_inputs_or_real_credentials':True})
   opened={};teststart=time.time()

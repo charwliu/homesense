@@ -20,15 +20,20 @@ pub(crate) struct Origin {
     pub fallback: Option<Command>,
     pub selection: Vec<homesense_storage::variables::ReadCheck>,
     pub motor_target: Option<MotorIndicator>,
+    pub completion: Option<Arc<crate::keypad_completion::AuthorizedCapture>>,
+    completion_receipt: Mutex<Option<crate::keypad_completion::Execution>>,
+    completion_started: AtomicBool,
     retired: AtomicBool,
 }
 impl Origin {
     #[allow(clippy::too_many_arguments)] // Immutable, server-resolved key action and its original decision fence.
     pub(crate) fn new(endpoint:DeviceId,revision:u64,request_id:String,coverage:bool,now:u64,
-        fallback:Option<Command>,selection:Vec<homesense_storage::variables::ReadCheck>,motor_target:Option<MotorIndicator>)->Option<Arc<Self>> {
+        fallback:Option<Command>,selection:Vec<homesense_storage::variables::ReadCheck>,motor_target:Option<MotorIndicator>,
+        completion:Option<Arc<crate::keypad_completion::AuthorizedCapture>>)->Option<Arc<Self>> {
         let sequence=NEXT.try_update(Ordering::Relaxed,Ordering::Relaxed,|n|n.checked_add(1)).ok()?;
         Some(Arc::new(Self{endpoint,sequence,revision,request_id,coverage,immediate_until:now.checked_add(2000)?,
-            active:RwLock::new(true),cue:Mutex::new(None),fallback,selection,motor_target,retired:AtomicBool::new(false)}))
+            active:RwLock::new(true),cue:Mutex::new(None),fallback,selection,motor_target,completion,
+            completion_receipt:Mutex::new(None),completion_started:AtomicBool::new(false),retired:AtomicBool::new(false)}))
     }
     pub(crate) fn current(&self)->bool {self.active.read().is_ok_and(|active|*active)}
     pub(crate) fn cue_retired(&self)->bool {self.retired.load(Ordering::Acquire)}
@@ -61,6 +66,16 @@ impl Origin {
         if let Ok(mut cue)=self.cue.lock() && cue.is_none(){*cue=Some((id,command));}
     }
     pub(crate) fn cue(&self)->Option<(u64,Command)> {self.cue.lock().ok().and_then(|cue|*cue)}
+    pub(crate) fn seal_completion(&self,commands:Vec<u64>,runs:Vec<String>) {
+        if self.completion.is_none(){return;}
+        let execution=crate::keypad_completion::Execution::Explicit{commands:commands.into_iter().collect(),runs:runs.into_iter().collect()};
+        if let Ok(mut receipt)=self.completion_receipt.lock(){
+            if receipt.as_ref().is_some_and(|old|old!=&execution){self.invalidate();}else{*receipt=Some(execution);}
+        }else{self.invalidate();}
+    }
+    pub(crate) fn completion_receipt(&self)->Option<crate::keypad_completion::Execution>{self.completion_receipt.lock().ok()?.clone()}
+    pub(crate) fn completion_started(&self)->bool{self.completion_started.load(Ordering::Acquire)}
+    pub(crate) fn start_completion(&self)->bool{!self.completion_started.swap(true,Ordering::AcqRel)}
 }
 
 #[derive(Default)]

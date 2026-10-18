@@ -200,7 +200,7 @@ impl ConfiguredRules {
         if native_owner.is_some(){for panel in bundle.configuration.keypads().values().filter(|panel|panel.executes_events()){for key in panel.keys.values(){
             let device=DeviceId::new(&key.led_endpoint.id).map_err(|e|e.to_string())?;
             keys.entry(device.clone()).or_insert_with(||Key{device:device.clone(),settings:gestures.get(&device).copied().unwrap_or_default(),bindings:vec![]});
-            let priority=match key.action {Some(homesense_config::keypad::KeyAction::Motor{action:homesense_config::keypad::KeyMotorAction::Stop,..})=>0,Some(homesense_config::keypad::KeyAction::Motor{..})=>1,_=>2};
+            let priority=match key.action {Some(homesense_config::keypad::KeyAction::Motor{action:homesense_config::keypad::KeyMotorAction::Stop,..})=>0,Some(homesense_config::keypad::KeyAction::Motor{..})=>1,Some(homesense_config::keypad::KeyAction::AwayOff{..})=>3,_=>2};
             native_bindings.insert(device,crate::panel_rules::NativeBinding{keypad:panel.id.as_str().into(),key:key.number,priority});
         }}}
         let events = EventRules::from_document(

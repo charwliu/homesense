@@ -108,7 +108,7 @@ try:
         save('initial-ready.json', ready)
         env = {k: v for k, v in os.environ.items() if not k.startswith('HOMESENSE_')}
         env['HOMESENSE_PHYSICAL_MODULE_ACTUAL_FIXTURE'] = str(a.output.resolve())
-        command = ['swift', 'test', '--package-path', str(package), '--scratch-path', str(a.scratch), '--filter', 'HomePhysicalModuleActualIntegrationTests']
+        command = ['swift', 'test', '--build-system', 'native', '--package-path', str(package), '--scratch-path', str(a.scratch), '--filter', 'HomePhysicalModuleActualIntegrationTests']
         save('command.json', {'CLI_argv': args, 'test_argv': command, 'fixture_environment': {'HOMESENSE_PHYSICAL_MODULE_ACTUAL_FIXTURE': env['HOMESENSE_PHYSICAL_MODULE_ACTUAL_FIXTURE']}})
         with (a.output/'swift-test.log').open('xb') as log:
             test = subprocess.run(command, env=env, stdout=log, stderr=subprocess.STDOUT, timeout=120)

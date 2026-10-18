@@ -88,6 +88,10 @@ pub struct Key {
     pub action: Option<KeyAction>,
     #[serde(default,skip_serializing_if="Option::is_none")]
     pub local_indicator: Option<LocalIndicator>,
+    /// Conditional local selection effects owned by this exact accepted key
+    /// gesture. Independent light observations never activate this contract.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub selection_completion: Option<crate::keypad_completion::SelectionCompletion>,
 }
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]

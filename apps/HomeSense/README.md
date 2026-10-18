@@ -5,6 +5,8 @@
 ## 主要功能与实现情况
 
 - **日常控制**：以房间、紧凑设备卡片和场景卡片浏览家庭，点卡片进入详情控制。默认进入日常模式；管理员通过工具栏“管理／完成管理”切换配置入口，成员仅有日常入口。
+- **灯光详情**：大号竖向黄色调光条、百分比和背景渐变；按点击高度选择最近的 10% 档位（0–100%），上下拖动保留 1% 精度、松手自动提交，普通开关灯仍可轻点切换。保留独立的实测反馈与防回跳草稿，目标待确认与实测信息同一行显示，详情右下角提供设置入口。
+- **即时操作提示**：App 按键、房间场景卡片即时显示目标或执行待确认；实体键的服务端来源提示同步到卡片。提示与真实选择／LED 反馈分开，失败、取消、断连或到期撤回临时显示。离家进度由服务端推送，显示确认范围及最终失败通道，App 不补发重试。
 - **配置管理**：楼层、房间、设备与场景编辑，支持独立空楼层、设备绑定和完整场景 JSON。编辑先保存为服务端草稿，再预览并显式发布；换绑清除旧电机校准与行程估计。模式切换保留草稿、共有页面和房间筛选，不重连、不自动保存或发布；退出管理专用页面时回到概览。
 - **实时状态**：活动目录与未发布编辑稿分离，通过 WSS 合并状态更新。按目标网关的就绪状态停用离线／同步中的控制，保留同页健康目标可控；历史读回不显示为已确认，恢复不重放旧操作。选择状态、实际反馈、历史与未知分别展示；断开同步后停用控制，恢复时重新鉴权和读取状态，不重放控制或发布。
 - **Keypad**：已迁移的面板父对象作为一张正方形设备卡，与灯、窗帘并列；卡内两列三行 `1 2 / 3 4 / 5 6`。按键底色和小灯点共同表示颜色并注明来源，不可操作时仍保留历史颜色。用途只执行已审核、已授权的场景或已校准窗帘映射。
@@ -28,7 +30,7 @@ open "$HOMESENSE_BUILD_ROOT/macos/Build/Products/Debug/HomeSense.app"
 bash tools/build.sh ios
 
 # Swift、内存 API 与本机模拟 TCP 回归。
-swift test --scratch-path "$HOMESENSE_BUILD_ROOT"
+swift test --build-system native --scratch-path "$HOMESENSE_BUILD_ROOT"
 ```
 
 每个会话固定一个绝对构建根目录，后续原地复用。`tools/build.sh` 将 Xcode 输出放在该根目录的平台子目录；Swift 测试和实际联调脚本分别显式传入 `--scratch-path "$HOMESENSE_BUILD_ROOT"`、`--scratch "$HOMESENSE_BUILD_ROOT"`，避免另建默认 `.build` 或按版本、轮次复制构建缓存。源码快照、日志和必要安装包可另存。
@@ -54,7 +56,7 @@ python3 tools/package-ios.py \
 export HOMESENSE_TEST_BINARY="/absolute/path/to/pinned/homesensed"
 export HOMESENSE_KEYPAD_TEST_BINARY="$HOMESENSE_TEST_BINARY"
 export HOMESENSE_KEYPAD_TEST_FIXTURES="$PWD/../../config/test/native-app-keypad"
-swift test --scratch-path "$HOMESENSE_BUILD_ROOT"
+swift test --build-system native --scratch-path "$HOMESENSE_BUILD_ROOT"
 ```
 
 缺少相应环境变量时，两项实际 Rust 集成测试明确跳过。测试使用隔离模拟设备、临时状态及注入的内存凭证存储，不访问用户 Keychain。
@@ -147,4 +149,4 @@ log stream --style compact --predicate 'subsystem == "com.ngboss.homesense" AND 
 
 新 `motor_press` 意图同时要求父面板与目标电机所在网关可用；父对象的 `can_control` 不作为子键授权条件。详情及旧绝对卡片动作仍沿用原目标门禁。
 
-详情页沿用原 `action` 中的明确 Open／Close／STOP；独立 STOP 键、场景键、LED 设置、Apple 家庭和实体面板均不因卡片模式改变。卡片和详情分别记录门禁状态，继续使用既有点击／请求／响应关联日志、来源权限、校准、逐目标可用性和忙碌门禁。LED 仅展示服务端推送的实测或最后写出，不增加本地计时与预先变色。软件协议测试通过不等于新后端语义或实体窗帘已验收。
+详情页沿用原 `action` 中的明确 Open／Close／STOP；独立 STOP、LED 设置及 Apple 家庭保留原明确命令，六键卡片和已接管实体键按各自审核映射进入统一执行链。卡片和详情分别记录门禁状态，继续使用点击／请求／响应关联日志、来源权限、校准、逐目标可用性和忙碌门禁。实测和最后写出颜色仍来自服务端；本次点击或有效实体键提示可以即时叠加独立的待确认颜色，不冒充硬件反馈，失败、取消、断连或到期撤回。软件协议测试不替代当前版本的现场验收。

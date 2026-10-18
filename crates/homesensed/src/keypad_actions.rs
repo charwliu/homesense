@@ -98,8 +98,28 @@ pub(crate) fn indication(source:&Source,status:Option<homesense_storage::journal
         }),observed:false})
 }
 impl Context {
-    pub(crate) fn finish(self, reply: Reply) -> Result<Receipt, String> {
+    #[cfg(test)]
+    pub(crate) fn finish(self,reply:Reply)->Result<Receipt,String>{self.finish_with_receipts(reply,|_|None)}
+    pub(crate) fn finish_with_scenes(self,reply:Reply,scenes:&crate::scene_scheduler::SceneScheduler)->Result<Receipt,String>{
+        self.finish_with_receipts(reply,|run|scenes.audit_id(run).map(str::to_owned))
+    }
+    fn finish_with_receipts(self, reply: Reply, resolve:impl Fn(u64)->Option<String>) -> Result<Receipt, String> {
+        if let Some(origin)=self.source.keypad().filter(|origin|origin.completion.is_some()){
+            let seal=|commands:Vec<u64>,runs:&[u64]|->Result<(),String>{
+                let runs=runs.iter().map(|run|resolve(*run).ok_or_else(||"key completion timeline receipt unavailable".to_owned())).collect::<Result<Vec<_>,_>>()?;
+                origin.seal_completion(commands,runs);Ok(())
+            };
+            match &reply {
+                Reply::CommandsAccepted(ids)=>seal(ids.clone(),&[])?,
+                Reply::AwayAccepted(accepted)=>seal(accepted.commands.clone(),&[])?,
+                Reply::ImmediateAccepted(receipt)=>seal(receipt.commands.clone(),&receipt.followup_runs)?,
+                Reply::SceneAccepted(run)=>seal(vec![],&run.iter().copied().collect::<Vec<_>>())?,
+                Reply::ScenesAccepted(runs)=>seal(vec![],runs)?,
+                _=>{}, // Native execution is sealed by Admission's original request.
+            }
+        }
         let execution = match reply {
+            Reply::AwayAccepted(accepted)=>json!({"kind":self.kind,"operation":accepted.operation,"commands":accepted.commands,"runs":[],"relative_status":null,"physical_result_confirmed":false,"server_retry":{"max_rounds":3,"delay_ms":1000}}),
             Reply::CommandsAccepted(ids) => json!({"kind":self.kind,"commands":ids,"runs":[],"relative_status":null}),
             Reply::ImmediateAccepted(receipt) => json!({"kind":self.kind,"commands":receipt.commands,"runs":receipt.followup_runs,"relative_status":null,"receipt":receipt}),
             Reply::SceneAccepted(run) => json!({"kind":self.kind,"commands":[],"runs":run.into_iter().collect::<Vec<_>>(),"relative_status":null}),
@@ -245,11 +265,19 @@ pub(crate) async fn prepare(admission:&Admission,generation:&TaskGeneration,docu
         KeyAction::AwayOff{indicator_reset,..} => {
             coverage=indicator_reset.is_some();
             let lease=source.away_keypad(request.keypad.clone(),request.key).ok_or(Rejection::KeypadScopeDenied)?;
-            admission.submit_away_off(revision,lease.clone(),false).await.map_err(|_|Rejection::KeypadScopeDenied)?;
+            // Native leases require the same live raw-event proof at preflight
+            // as at submission; retain the source rather than raising authority.
+            admission.with_source(Some(source.clone())).submit_away_off(revision,lease.clone(),false).await.map_err(|_|Rejection::KeypadScopeDenied)?;
             (Action::AwayOff{controller,revision,lease,submit:true},"away")
         },
     };
-    let origin=crate::keypad_origin::Origin::new(endpoint,revision,request.request_id.clone(),coverage,admission.monotonic_ms(),fallback,selection,motor_target).ok_or(Rejection::RuntimeUnavailable)?;
+    let completion=if key.selection_completion.is_some(){Some(admission.capture_key_completion(controller,generation.clone(),request.clone(),source.clone()).await.map_err(|error|match error {
+        hap::server::WriteStatus::InsufficientPrivileges=>Rejection::KeypadScopeDenied,_=>Rejection::RuntimeUnavailable,
+    })?)}else{None};
+    // Completion is resolved from this exact key before source admission. Its
+    // variable/LED effect is committed separately by the retained owner only
+    // after actual execution and genuine post-write feedback.
+    let origin=crate::keypad_origin::Origin::new(endpoint,revision,request.request_id.clone(),coverage,admission.monotonic_ms(),fallback,selection,motor_target,completion).ok_or(Rejection::RuntimeUnavailable)?;
     let derived=source.derive(&action).ok_or(Rejection::KeypadScopeDenied)?.with_keypad(origin);
     if !source.valid() {return Err(Rejection::KeypadScopeDenied);}
     Ok(Prepared {action,source:Some(derived.clone()),context:Context{request:request.clone(),boot:admission.boot_id().into(),kind,source:derived}})
