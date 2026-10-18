@@ -32,6 +32,9 @@ pub struct Group {
 #[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum ReconciliationPolicy { UniqueLightOnPattern, PowerPatternThenProfileLevel }
+#[derive(Debug, Default, Clone, Copy, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum OmittedTargets { #[default] Off, Preserve }
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Reconciliation {
@@ -40,6 +43,10 @@ pub struct Reconciliation {
     pub policy: ReconciliationPolicy,
     pub max_age_ms: u64,
     pub review_evidence: String,
+    /// Opt-in only: preserve each source scene's actuator scope. Observation
+    /// proofs still require the complete reviewed union of all member lights.
+    #[serde(default)]
+    pub omitted_targets: OmittedTargets,
 }
 #[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -60,8 +67,13 @@ impl LightTarget {
 }
 pub type LightTargets = BTreeMap<i64, BTreeMap<DeviceId, LightTarget>>;
 impl Group {
-    /// Complete absolute logical targets for relative action planning. Source
-    /// omissions become explicit Off only within this reviewed member union.
+    pub fn pattern_scope(&self) -> homesense_core::scene_pattern::PatternScope {
+        if self.reconciliation.as_ref().is_some_and(|p| p.enabled && p.omitted_targets == OmittedTargets::Preserve) {
+            homesense_core::scene_pattern::PatternScope::PreserveOmissions
+        } else { homesense_core::scene_pattern::PatternScope::Complete }
+    }
+    /// Absolute logical targets for relative action planning. Source omissions
+    /// default to Off within the union; an explicit reviewed policy preserves them.
     pub fn absolute_light_targets(&self, scenes:&BTreeMap<String,TimedScene>)->Result<BTreeMap<i64,BTreeMap<DeviceId,Command>>,Error> {
         let mut result=BTreeMap::new();let mut off=BTreeMap::new();
         for member in &self.members {
@@ -80,11 +92,16 @@ impl Group {
             result.insert(member.value,targets);
         }
         if off.is_empty() || off.len()>128 {return Err(invalid("relative light capacity invalid"));}
-        for targets in result.values_mut(){for (id,command) in &off {targets.entry(id.clone()).or_insert(*command);}}
+        if self.pattern_scope() == homesense_core::scene_pattern::PatternScope::PreserveOmissions && result.values().any(BTreeMap::is_empty) {
+            return Err(invalid("preserved scene scope needs light targets in every member"));
+        }
+        if self.pattern_scope() == homesense_core::scene_pattern::PatternScope::Complete {
+            for targets in result.values_mut(){for (id,command) in &off {targets.entry(id.clone()).or_insert(*command);}}
+        }
         Ok(result)
     }
-    /// Reviewed member union only. Omitted source targets are explicitly Off;
-    /// absent physical observations remain unknown at runtime.
+    /// Reviewed member targets. Omissions default to Off, or stay absent under
+    /// the opt-in policy. Missing physical observations always remain unknown.
     pub fn light_on_patterns(&self, scenes: &BTreeMap<String, TimedScene>) -> Result<homesense_core::scene_pattern::MemberPatterns, Error> {
         let mut patterns = BTreeMap::new();
         let mut union = BTreeSet::new();
@@ -105,13 +122,15 @@ impl Group {
             patterns.insert(member.value, targets);
         }
         if union.is_empty() || union.len() > 128 { return Err(invalid("reconciliation light capacity invalid")); }
-        for targets in patterns.values_mut() {
-            for id in &union { targets.entry(id.clone()).or_insert(homesense_core::scene_pattern::LightPower::Off); }
+        if self.pattern_scope() == homesense_core::scene_pattern::PatternScope::Complete {
+            for targets in patterns.values_mut() {
+                for id in &union { targets.entry(id.clone()).or_insert(homesense_core::scene_pattern::LightPower::Off); }
+            }
         }
         Ok(patterns)
     }
-    /// Final logical dimmer targets, completed with explicit Off in the reviewed
-    /// union. These are percentages, not raw Control4 source/rate units.
+    /// Final logical dimmer targets under the reviewed omission policy. These
+    /// are percentages, not raw Control4 source/rate units.
     pub fn profile_level_patterns(&self,scenes:&BTreeMap<String,TimedScene>)->Result<homesense_core::scene_pattern::MemberLevels,Error> {
         Ok(self.absolute_light_targets(scenes)?.into_iter().map(|(value,targets)|(value,targets.into_iter().filter_map(|(id,command)|match command {Command::SetLevel{level,..}=>Some((id,level)),_=>None}).collect())).collect())
     }
@@ -235,9 +254,19 @@ pub(crate) fn validate(
                 if policy.policy==ReconciliationPolicy::PowerPatternThenProfileLevel {
                     let powers=group.light_on_patterns(scenes)?;
                     let levels=group.profile_level_patterns(scenes)?;
+                    if group.pattern_scope()==homesense_core::scene_pattern::PatternScope::PreserveOmissions {
+                        // Sparse candidates can overlap only for some complete
+                        // union observations. Require an established level domain
+                        // for every possible explicit discriminator, not just a
+                        // partially sampled member vector.
+                        for id in levels.values().flat_map(|v|v.keys()) {
+                            let (_,module)=config.binding(id).ok_or_else(||invalid("brightness discriminator disabled"))?;
+                            if module.profile()!=homesense_core::ProtocolProfile::Ad8Din {return Err(invalid("brightness discriminator requires established AD8 percentage readback"));}
+                        }
+                    }
                     for pattern in powers.values() {
                         let actual=pattern.iter().map(|(id,power)|(id.clone(),Some(*power))).collect();
-                        if let Some(reads)=homesense_core::scene_pattern::brightness_reads_for_collision(&powers,&levels,&actual) {
+                        if let Some(reads)=homesense_core::scene_pattern::brightness_reads_for_collision_scoped(&powers,&levels,&actual,group.pattern_scope()) {
                             for id in reads {
                                 let (_,module)=config.binding(&id).ok_or_else(||invalid("brightness discriminator disabled"))?;
                                 // This opt-in starts with the established AD8 0..100

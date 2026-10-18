@@ -974,3 +974,91 @@ async fn web_relative_action_is_explicit_scoped_and_deduplicated_with_pending_st
     assert!(drain(&h).await.is_empty());
     h.close().await;
 }
+
+fn preserved_native_inputs() -> (Vec<u8>, Json) {
+    let (config, mut rules) = inputs_native(false);
+    rules["scene_switch_groups"][0]["members"].as_array_mut().unwrap().truncate(2);
+    rules["scene_observation"]["bindings"].as_array_mut().unwrap().truncate(2);
+    rules["scene_switch_groups"][0]["reconciliation"]["omitted_targets"] = json!("preserve");
+    rules["timed_scenes"][0]["steps"].as_array_mut().unwrap().pop();
+    rules["timed_scenes"][1]["steps"][0]["command"]["value"] = json!(0);
+    let parsed = homesense_config::Configuration::parse(&config, ExecutionContext::Simulation).unwrap();
+    Document::parse(&serde_json::to_vec(&rules).unwrap(), &parsed).unwrap();
+    (config, rules)
+}
+#[tokio::test]
+async fn native_sparse_first_member_never_controls_or_queries_an_omitted_output() {
+    let (config, rules) = preserved_native_inputs();
+    let mut h = harness(config, rules).await;
+    levels(&mut h, None, Some(80));
+    let mut manager = Manager::default();
+    start(&h, &mut manager, "first", "sparse-first").await;
+    let controls = drain(&h).await;
+    assert_eq!(controls.len(), 1);
+    assert_eq!(controls[0].1.as_str(), "light");
+    assert_eq!(controls[0].2, Command::Toggle);
+    assert_eq!(controls[0].3, [0xae, 0x15, 0xa1, 0xf1, 0xee]);
+    manager.tick(&h.actor, &h.document, &h.feedback).await;
+    let queries = drain(&h).await;
+    assert_eq!(queries.len(), 1);
+    assert_eq!(queries[0].1.as_str(), "light");
+    assert_eq!(queries[0].2, Command::Query);
+    tokio::time::sleep(Duration::from_millis(2)).await;
+    levels(&mut h, Some(100), Some(80));
+    manager.tick(&h.actor, &h.document, &h.feedback).await;
+    let complete = row(&h, "sparse-first").await;
+    assert_eq!(complete.status, homesense_storage::native_scene::Status::Observed);
+    assert_eq!(complete.selected, Some(1));
+    assert_eq!(start(&h, &mut manager, "first", "sparse-first").await.status, "observed");
+    assert!(drain(&h).await.is_empty(), "a duplicate request cannot replay the sparse command");
+}
+#[tokio::test]
+async fn native_sparse_nonfirst_member_captures_its_own_scope_not_the_first_members_scope() {
+    let (config, rules) = preserved_native_inputs();
+    let mut h = harness(config, rules).await;
+    levels(&mut h, Some(80), Some(0));
+    let mut manager = Manager::default();
+    start(&h, &mut manager, "second", "sparse-second").await;
+    let controls = drain(&h).await;
+    assert_eq!(controls.len(), 2);
+    assert_eq!(controls.iter().map(|(_, id, _, _)| id.as_str()).collect::<std::collections::BTreeSet<_>>(), ["down", "light"].into());
+    finish_standalone(&mut h, &mut manager, "sparse-second", 0, 100).await;
+    assert_eq!(row(&h, "sparse-second").await.selected, Some(2));
+}
+
+#[tokio::test]
+async fn accepted_native_final_queries_own_the_bus_turn_before_autonomous_refresh() {
+    let (config, rules) = inputs_native(false);
+    let h = harness(config, rules).await;
+    let mut manager = Manager::default();
+    start(&h, &mut manager, "first", "foreground-native-read").await;
+    let controls = drain(&h).await;
+    assert_eq!(controls.len(), 2);
+    manager.tick(&h.actor, &h.document, &h.feedback).await;
+    let state = h.actor.diagnostics(h.controller, h.generation.clone()).await.unwrap();
+    assert_eq!(state.queued, 2, "both final queries are accepted but not yet written");
+    assert!(state.protected_queued, "a fresh automatic read must not interleave ahead of a native operation's fixed-deadline final reads");
+    assert!(matches!(h.actor.reserve_physical_read("bus".into(), h.actor.monotonic_ms()+500).await, Err(hap::server::WriteStatus::ResourceBusy)));
+    let queries = drain(&h).await;
+    assert_eq!(queries.len(), 2);
+    assert!(queries.iter().all(|(_, _, c, _)| *c == Command::Query));
+    assert!(!h.actor.diagnostics(h.controller, h.generation.clone()).await.unwrap().protected_queued, "the reservation ends when the explicit read tickets leave the queue");
+    assert!(h.actor.reserve_physical_read("bus".into(), h.actor.monotonic_ms()+500).await.is_ok());
+}
+
+#[test]
+fn foreground_native_reads_are_limited_to_the_reserved_run_current_epoch_and_original_deadline() {
+    use homesense_core::queue::{Epochs, Origin, QueuedCommand};
+    let epochs = Epochs { configuration: 1, transport: 2, control: 3 };
+    let mut command = QueuedCommand { id: 1, device_id: DeviceId::new("light").unwrap(), command: Command::Query, origin: Origin::Hap, epochs, deadline_ms: 500, run_id: Some((1u64 << 62)+1) };
+    assert!(crate::native_scene::foreground_query(&command, epochs, 499));
+    assert!(!crate::native_scene::foreground_query(&command, epochs, 500));
+    assert!(!crate::native_scene::foreground_query(&command, Epochs { transport: 4, ..epochs }, 499));
+    for id in [None, Some((1u64 << 62)-1), Some(1u64 << 63)] {
+        command.run_id=id;
+        assert!(!crate::native_scene::foreground_query(&command, epochs, 499));
+    }
+    command.run_id=Some((1u64 << 62)+1);
+    command.command=Command::Toggle;
+    assert!(!crate::native_scene::foreground_query(&command, epochs, 499));
+}

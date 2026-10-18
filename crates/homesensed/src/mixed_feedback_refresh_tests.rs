@@ -38,7 +38,7 @@ impl Write for Wire {
     fn flush(&mut self)->std::io::Result<()>{Ok(())}
 }
 
-async fn run(independent:bool,power_policy:Option<bool>) {
+async fn run_with_scope(independent:bool,power_policy:Option<bool>,preserve:bool) {
     let gateways=if independent{vec!["bus","other"]}else{vec!["bus"]};
     let cfg=serde_json::json!({"schema_version":2,"revision":1,
         "gateways":gateways.iter().map(|g|serde_json::json!({"id":g,"endpoint":if *g=="bus"{"127.0.0.1:1"}else{"127.0.0.1:2"},"modules":[
@@ -58,12 +58,18 @@ async fn run(independent:bool,power_policy:Option<bool>) {
     if let Some(collision)=power_policy {
         let step=|id:&str,value:u8|serde_json::json!({"source":"synthetic power review","offset_ms":0,"device":id,"command":if id=="dim"{serde_json::json!({"kind":"level","value":value,"ramp":false})}else{serde_json::json!({"kind":"switch","on":value>0})}});
         let scene=|id:&str,dim:u8,other:u8|serde_json::json!({"id":id,"enabled":true,"review_evidence":"synthetic reviewed power profile","max_lateness_ms":5000,"steps":[step("dim",dim),step("off",other)]});
-        let doc=serde_json::to_vec(&serde_json::json!({"schema_version":1,"configuration_revision":1,
+        let mut doc=serde_json::json!({"schema_version":1,"configuration_revision":1,
             "variables":[{"id":"selection","kind":"integer","lifetime":"persistent"}],"rules":[],
             "timed_scenes":[scene("eco",17,0),scene("other",if collision{30}else{0},if collision{0}else{1}),scene("all-off",0,0)],
             "scene_switch_groups":[{"id":"selection","variable":"selection","review_evidence":"synthetic reviewed selection","members":[{"scene":"eco","value":1,"off_scene":"all-off"},{"scene":"other","value":2,"off_scene":"all-off"}],"reconciliation":{"enabled":true,"policy":if collision{"power_pattern_then_profile_level"}else{"unique_light_on_pattern"},"max_age_ms":20000,"review_evidence":"synthetic uniqueness contract"}}],
             "indicator_links":[{"id":"one","enabled":true,"review_evidence":"synthetic LED profile","lights":["dim","off"],"leds":["led1"],"scene":"eco"},{"id":"two","enabled":true,"review_evidence":"synthetic LED profile","lights":["dim","off"],"leds":["led2"],"scene":"other"}]
-        })).unwrap();
+        });
+        if preserve {
+            doc["scene_switch_groups"][0]["reconciliation"]["omitted_targets"]=serde_json::json!("preserve");
+            doc["timed_scenes"][0]["steps"].as_array_mut().unwrap().pop();
+            doc["indicator_links"][0]["lights"]=serde_json::json!(["dim"]);
+        }
+        let doc=serde_json::to_vec(&doc).unwrap();
         homesense_config::rule_document::Document::parse(&doc,&c).unwrap();
         Store::open(&path).unwrap().publish_automation(None,&raw,&doc,ExecutionContext::Simulation,&[]).unwrap();
     }else {Store::open(&path).unwrap().publish_configuration(None,&raw,ExecutionContext::Simulation,&[]).unwrap();}
@@ -120,3 +126,9 @@ async fn independent_unique_power_scene_led_precedes_ramp_readback(){run(true,So
 async fn colliding_power_profiles_still_wait_for_brightness(){run(false,Some(true)).await;}
 #[tokio::test]
 async fn independent_colliding_power_profiles_still_wait_for_brightness(){run(true,Some(true)).await;}
+
+async fn run(independent:bool,power_policy:Option<bool>) {run_with_scope(independent,power_policy,false).await;}
+#[tokio::test]
+async fn overlapping_sparse_profiles_wait_for_actual_brightness_despite_different_target_maps(){run_with_scope(false,Some(true),true).await;}
+#[tokio::test]
+async fn independent_overlapping_sparse_profiles_wait_for_actual_brightness(){run_with_scope(true,Some(true),true).await;}

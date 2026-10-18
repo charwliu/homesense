@@ -506,3 +506,26 @@ fn bulk_physical_staleness_invalidates_projection_cursor_without_losing_truth() 
         homesense_state::Quality::Stale
     );
 }
+
+#[test]
+fn scoped_capture_preserves_duplicate_references_supply_missing_and_epoch_fences() {
+    let mut value=input();
+    value["devices"].as_array_mut().unwrap().push(json!({"id":"other","name":"Unrelated dimmer","module_id":"stable-dimmer","channel":2,"default_on_level":50,"enabled":true}));
+    let c=config(&value);let mut truth=ModuleTruth::new(&c,7,2).unwrap();
+    truth.observe("bus",0x15,1,Observation::Level(Percent::new(37).unwrap()),2,10).unwrap();
+    truth.observe("bus",0x15,2,Observation::Level(Percent::new(80).unwrap()),2,10).unwrap();
+    truth.observe("bus",0x03,1,Observation::Switch(true),2,10).unwrap();
+    let light=DeviceId::new("light").unwrap();let supply=DeviceId::new("supply").unwrap();
+    let ids=[light.clone(),supply.clone(),light.clone()];
+    let read=truth.capture_rule_feedback(&ids,2,11,50).unwrap();
+    assert_eq!(read.feedback().devices.len(),2);
+    assert_eq!(read.feedback().devices[&light].level,Some(Percent::new(37).unwrap()));
+    assert_eq!(read.feedback().devices[&supply].on,Some(true));
+    assert_eq!(read.expires_at_ms(),Some(60));
+    let missing=truth.capture_rule_feedback(&[light,DeviceId::new("missing").unwrap()],2,11,50).unwrap();
+    assert_eq!(missing.feedback().devices.len(),1);
+    assert!(matches!(truth.capture_rule_feedback(&ids,1,11,50),Err(StateError::WrongTransportEpoch)));
+    assert!(truth.capture_rule_feedback(&ids,2,60,50).unwrap().feedback().devices.is_empty());
+    truth.invalidate_gateway("bus").unwrap();
+    assert!(truth.capture_rule_feedback(&ids,2,61,50).unwrap().feedback().devices.is_empty());
+}

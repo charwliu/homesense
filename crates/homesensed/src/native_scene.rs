@@ -16,6 +16,14 @@ use homesense_storage::{
 use std::collections::{BTreeMap, BTreeSet};
 use uuid::Uuid;
 
+/// Admission reserves [2^62, 2^63) for native-operation run IDs. This only
+/// classifies bounded accepted read work; dispatch still validates its source,
+/// generation, deadline and the shared half-duplex response slot.
+pub(crate) fn foreground_query(command: &homesense_core::queue::QueuedCommand, epochs: Epochs, now: u64) -> bool {
+    command.command == Command::Query && command.epochs == epochs && now < command.deadline_ms
+        && command.run_id.is_some_and(|id| (1u64 << 62..1u64 << 63).contains(&id))
+}
+
 #[derive(Clone)]
 struct Recipe {
     targets: BTreeMap<DeviceId, Command>,
@@ -492,9 +500,9 @@ impl Manager {
         let targets = group
             .absolute_light_targets(&document.timed_scenes)
             .map_err(|e| e.to_string())?;
+        let member = group.members.iter().find(|m| m.scene == scene).ok_or("relative scene member missing")?;
         let ids = targets
-            .values()
-            .next()
+            .get(&member.value)
             .ok_or("relative targets missing")?
             .keys()
             .cloned()

@@ -6,8 +6,8 @@ use std::collections::{BTreeMap,BTreeSet};
 pub(super) struct Refresh {
     config:homesense_config::Configuration,
     targets:Vec<crate::physical_queries::Target>,
-    generation:crate::admission::TaskGeneration,
-    controller:uuid::Uuid,
+    pub(super) generation:crate::admission::TaskGeneration,
+    pub(super) controller:uuid::Uuid,
     context:homesense_core::ExecutionContext,
     timeout:u64,
     max_age:u64,

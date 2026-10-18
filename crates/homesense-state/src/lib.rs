@@ -195,6 +195,17 @@ impl StateStore {
             sequence: self.sequence,
         }
     }
+    fn rule_sample(state:&DeviceState, now_ms:u64, max_age_ms:u64)->Option<homesense_core::rule::Feedback> {
+        if state.quality!=Quality::Confirmed || state.pending_command.is_some() || max_age_ms==0 {return None;}
+        let observed_ms=state.observed_at_ms?;
+        if now_ms.checked_sub(observed_ms)? >= max_age_ms {return None;}
+        let (on,level)=match state.observed? {
+            Observation::Switch(on)=>(Some(on),None),
+            Observation::Level(level)=>(Some(level.get()>0),Some(level)),
+            Observation::Button{..}=>return None,
+        };
+        Some(homesense_core::rule::Feedback{on,level,observed_ms})
+    }
     /// Project only current, settled actual feedback for rule evaluation.
     /// The caller must additionally bind the resulting plan to its configuration
     /// generation and revalidate the read set at command admission.
@@ -212,29 +223,7 @@ impl StateStore {
             .devices
             .iter()
             .filter_map(|(id, state)| {
-                if state.quality != Quality::Confirmed
-                    || state.pending_command.is_some()
-                    || max_age_ms == 0
-                {
-                    return None;
-                }
-                let observed_ms = state.observed_at_ms?;
-                if now_ms.checked_sub(observed_ms)? >= max_age_ms {
-                    return None;
-                }
-                let (on, level) = match state.observed? {
-                    Observation::Switch(on) => (Some(on), None),
-                    Observation::Level(level) => (Some(level.get() > 0), Some(level)),
-                    Observation::Button { .. } => return None,
-                };
-                Some((
-                    id.clone(),
-                    homesense_core::rule::Feedback {
-                        on,
-                        level,
-                        observed_ms,
-                    },
-                ))
+                Self::rule_sample(state, now_ms, max_age_ms).map(|sample| (id.clone(), sample))
             })
             .collect())
     }
@@ -283,12 +272,13 @@ impl StateStore {
         if devices.len() > self.capacity {
             return Err(StateError::Capacity);
         }
-        let mut feedback = self.rule_feedback(expected_epoch, now_ms, max_age_ms)?;
+        self.validate_time(now_ms)?;
+        if expected_epoch!=self.transport_epoch {return Err(StateError::WrongTransportEpoch);}
         let states: BTreeMap<_, _> = devices
             .iter()
             .map(|id| (id.clone(), self.devices.get(id).cloned()))
             .collect();
-        feedback.retain(|id, _| states.contains_key(id));
+        let feedback=states.iter().filter_map(|(id,state)|Self::rule_sample(state.as_ref()?,now_ms,max_age_ms).map(|sample|(id.clone(),sample))).collect();
         Ok(RuleFeedbackRead {
             boot_id: self.boot_id,
             epoch: expected_epoch,

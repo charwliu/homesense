@@ -691,3 +691,21 @@ async fn scene_catalog_reads_seventeen_scenes_in_one_control_request_and_rejects
     assert!(poll_request(&h,&mut receiver,&mut scenes,control.request(crate::automation_control::Action::SceneCatalog{controller:h.controller,revision:2,scenes:ids})).await.is_err());
     h.no_output();h.close().await;
 }
+
+#[tokio::test]
+async fn preserved_source_scope_observes_the_union_and_never_guesses_missing_omitted_feedback() {
+    for (main, down, expected) in [(Some(100), Some(70), Some(1)), (Some(0), Some(70), Some(2)), (Some(0), Some(0), Some(0)), (Some(100), None, None), (None, Some(70), None)] {
+        let (config, mut rules) = reconciled();
+        rules["scene_switch_groups"][0]["members"].as_array_mut().unwrap().truncate(2);
+    rules["scene_observation"]["bindings"].as_array_mut().unwrap().truncate(2);
+        rules["scene_switch_groups"][0]["reconciliation"]["omitted_targets"] = json!("preserve");
+        rules["timed_scenes"][0]["steps"].as_array_mut().unwrap().pop();
+        rules["timed_scenes"][1]["steps"][0]["command"]["value"] = json!(0);
+        let parsed = homesense_config::Configuration::parse(&config, ExecutionContext::Simulation).unwrap();
+        Document::parse(&serde_json::to_vec(&rules).unwrap(), &parsed).unwrap();
+        let mut h = harness(config, rules).await;
+        levels(&mut h, main, down);
+        reconcile(&h).await;
+        assert_eq!(h.selection().await.stored.value, expected.map(Value::Integer), "main={main:?}, down={down:?}");
+    }
+}
