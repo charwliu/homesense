@@ -98,6 +98,25 @@ async fn sync(h: &Harness, s: &mut Synchronizer) {
     .unwrap();
 }
 #[tokio::test]
+async fn current_physical_off_updates_leds_without_discarding_unsettled_restore_target() {
+    let (config,rules)=linked();let mut h=harness(config,rules).await;let mut s=Synchronizer::default();
+    levels(&mut h,Some(100),Some(0));reconcile(&h).await;sync(&h,&mut s).await;
+    assert_eq!(drain_leds(&h).await.get(&(0x41,1)),Some(&true));
+    let id=homesense_core::DeviceId::new("light").unwrap();
+    h.actor.submit_rule_update(h.generation.clone(),homesense_hap::requests::Batch{controller:h.controller,intents:vec![homesense_hap::requests::Intent{device:id.clone(),command:Command::SetLevel{level:homesense_core::Percent::new(100).unwrap(),transition:homesense_core::LevelTransition::Immediate}}],subscriptions:vec![]},vec![]).await.unwrap();
+    let ticket=loop {if let Some(ticket)=h.actor.dispatch().await.unwrap(){break ticket;}tokio::time::sleep(std::time::Duration::from_millis(2)).await;};
+    h.actor.finish_write(ticket.command.id,true).await.unwrap();tokio::time::sleep(std::time::Duration::from_millis(2)).await;
+    // The new current Off is real post-write feedback. It does not prove the
+    // earlier100% target was ever reached, so restore protection must survive.
+    levels(&mut h,Some(0),Some(0));reconcile(&h).await;
+    assert_eq!(h.selection().await.stored.value,Some(Value::Integer(0)));
+    assert_eq!(h.actor.projection_levels(1,h.feedback.snapshot().cursor.boot_id).await.unwrap().get(&id).unwrap().get(),100);
+    sync(&h,&mut s).await;let leds=drain_leds(&h).await;
+    assert_eq!(leds.get(&(0x41,1)),Some(&false),"current fully-proved scene truth must clear its old red LED without waiting sixteen seconds for restore bookkeeping");
+    assert_eq!(leds.get(&(0x42,1)),Some(&false));
+    assert_eq!(h.actor.projection_levels(1,h.feedback.snapshot().cursor.boot_id).await.unwrap().get(&id).unwrap().get(),100,"LED truth must not discard restoration safeguards");h.close().await;
+}
+#[tokio::test]
 async fn startup_reading_and_daily_to_eco_physical_edges_set_all_reviewed_leds() {
     let (config, rules) = linked();
     let mut h = harness(config, rules).await;

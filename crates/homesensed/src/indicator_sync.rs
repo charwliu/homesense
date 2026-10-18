@@ -226,9 +226,6 @@ impl Synchronizer {
         for link in document.indicator_links.iter().filter(|l| l.enabled) {
             if planning_deadline.is_some_and(|deadline|admission.monotonic_ms()>=deadline) || !admission.source_valid() {break;}
             let key=(link.id.clone(),link.leds.clone());self.visited.push(key.clone());
-            if link.lights.iter().any(|id| pending.contains_key(id)) {
-                continue;
-            }
             if let Some(scene) = &link.scene
                 && let Some(group) = document.scene_switch_groups.iter().find(|g| {
                     g.members.iter().any(|m| &m.scene == scene)
@@ -246,6 +243,13 @@ impl Synchronizer {
                     generation.clone(),
                 )
                 .await?;
+                continue;
+            }
+            // A restore target is not current scene truth. Reviewed physical
+            // links above independently require a complete, fresh projection,
+            // settled feedback and no pending native operation. Keep the
+            // conservative target wait for legacy/nonphysical links only.
+            if link.lights.iter().any(|id| pending.contains_key(id)) {
                 continue;
             }
             let names = link

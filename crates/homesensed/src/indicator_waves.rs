@@ -77,13 +77,31 @@ impl Waves {
             (inputs.iter().any(|id|changed.contains(id)) || group.is_some_and(|g|before.variables.get(&g.variable)!=after.variables.get(&g.variable)||before.physical.get(&g.variable)!=after.physical.get(&g.variable))).then_some(index)
         }).collect()
     }
-    fn reprioritize(cycle:&mut Cycle,signal:Signal,affected:&std::collections::BTreeSet<usize>) {
+    fn selection_color(target:&Target,signal:&Signal,document:&Document)->Option<bool> {
+        let scene=document.indicator_links[target.link].scene.as_ref()?;
+        let group=document.scene_switch_groups.iter().find(|group|group.members.iter().any(|member|&member.scene==scene))?;
+        let member=group.members.iter().find(|member|&member.scene==scene)?;
+        let value=if let Some((value,pending,observed))=signal.physical.get(&group.variable) {
+            if *pending || !*observed {return None;}value.as_ref()?
+        }else{signal.variables.get(&group.variable)?.value.as_ref()?};
+        match value {homesense_core::rule::Value::Integer(value)=>Some(*value==member.value),_=>None}
+    }
+    async fn preferred(admission:&Admission,controller:Uuid,generation:&TaskGeneration,targets:&[Target],signal:&Signal,document:&Document,affected:&std::collections::BTreeSet<usize>)->Result<std::collections::BTreeSet<DeviceId>,WriteStatus> {
+        // Ordering only: a projected color never authorizes a write. Each
+        // selected target still gets a fresh Synchronizer proof at admission.
+        let candidates=targets.iter().filter(|target|affected.contains(&target.link)).filter_map(|target|Self::selection_color(target,signal,document).map(|color|(target.id.clone(),color))).collect::<BTreeMap<_,_>>();
+        if candidates.is_empty(){return Ok(Default::default());}
+        let outputs=Self::fences(admission,controller,generation,&candidates.keys().cloned().collect::<Vec<_>>()).await?;
+        Ok(candidates.into_iter().filter_map(|(id,color)|(!Self::matches(outputs.get(&id),color)).then_some(id)).collect())
+    }
+    fn reprioritize(cycle:&mut Cycle,signal:Signal,affected:&std::collections::BTreeSet<usize>,preferred:&std::collections::BTreeSet<DeviceId>) {
         // Retain the original hard deadline and every unvisited target. At most
         // half a full wave jumps the queue, so hot inputs cannot starve the rest.
         let rotated=cycle.targets[cycle.cursor..].iter().chain(&cycle.targets[..cycle.cursor]).cloned().collect::<Vec<_>>();
-        let mut urgent=vec![];let mut ordinary=vec![];
-        for target in rotated {if urgent.len()<8 && affected.contains(&target.link) {urgent.push(target);}else{ordinary.push(target);}}
-        urgent.extend(ordinary);cycle.targets=urgent;cycle.cursor=0;cycle.signal=signal;
+        let mut urgent=vec![];
+        for (index,target) in rotated.iter().enumerate(){if urgent.len()<8 && affected.contains(&target.link) && preferred.contains(&target.id){urgent.push(index);}}
+        for (index,target) in rotated.iter().enumerate(){if urgent.len()<8 && affected.contains(&target.link) && !urgent.contains(&index){urgent.push(index);}}
+        cycle.targets=urgent.iter().map(|index|rotated[*index].clone()).chain(rotated.iter().enumerate().filter(|(index,_)|!urgent.contains(index)).map(|(_,target)|target.clone())).collect();cycle.cursor=0;cycle.signal=signal;
     }
     async fn fences(admission:&Admission,controller:Uuid,generation:&TaskGeneration,ids:&[DeviceId])->Result<crate::indicator_outputs::Fence,WriteStatus> {
         let mut result=BTreeMap::new();for chunk in ids.chunks(128) {result.extend(admission.indicator_outputs(controller,generation.clone(),chunk.to_vec(),vec![]).await?.fence);}Ok(result)
@@ -130,7 +148,10 @@ impl Waves {
         if let Some(cycle)=&mut self.cycle && cycle.signal!=signal && cycle.cursor<cycle.targets.len() {
             let affected=Self::affected_links(&cycle.signal,&signal,document,feedback);
             self.outcome=Some(Outcome {kind:Kind::Changed,targets:cycle.targets.len(),admitted:cycle.admitted,waves:cycle.waves,unresolved:cycle.unresolved});
-            if affected.is_empty() {cycle.signal=signal.clone();}else{Self::reprioritize(cycle,signal.clone(),&affected);}
+            if affected.is_empty() {cycle.signal=signal.clone();}else{
+                let preferred=match Self::preferred(admission,controller,&generation,&cycle.targets,&signal,document,&affected).await{Ok(value)=>value,Err(WriteStatus::ResourceBusy)=>return Ok(None),Err(_)=>{self.abort();return Ok(None);}};
+                Self::reprioritize(cycle,signal.clone(),&affected,&preferred);
+            }
         }
         if self.cycle.as_ref().is_some_and(|c|c.cursor==c.targets.len()) {
             let cycle=self.cycle.take().unwrap();let ids=cycle.expected.keys().cloned().collect::<Vec<_>>();
@@ -153,7 +174,17 @@ impl Waves {
             let available=horizon.saturating_sub(now);let width=((available.min(2000)/2)/gap_ms.max(1)).min(16) as usize;
             if width==0 {self.last_signal=Some(signal);self.last_sequence=Some(sequence);return Ok(None);}
             let bound=(targets.len().div_ceil(width) as u64).saturating_mul(2000+5500+100);
-            self.cycle=Some(Cycle {generation:generation.clone(),signal,deadline:horizon.min(now.saturating_add(bound)),targets,cursor:0,expected:BTreeMap::new(),unresolved:0,not_required:0,waves:0,admitted:0});
+            let mut cycle=Cycle {generation:generation.clone(),signal,deadline:horizon.min(now.saturating_add(bound)),targets,cursor:0,expected:BTreeMap::new(),unresolved:0,not_required:0,waves:0,admitted:0};
+            // A native completion can arrive after the previous scan finished.
+            // Apply the same priority at a fresh cycle, not only mid-scan.
+            if let Some(previous)=&self.last_signal {
+                let affected=Self::affected_links(previous,&cycle.signal,document,feedback);
+                if !affected.is_empty(){
+                    let preferred=match Self::preferred(admission,controller,&generation,&cycle.targets,&cycle.signal,document,&affected).await{Ok(value)=>value,Err(WriteStatus::ResourceBusy)=>return Ok(None),Err(_)=>{self.abort();return Ok(None);}};
+                    let signal=cycle.signal.clone();Self::reprioritize(&mut cycle,signal,&affected,&preferred);
+                }
+            }
+            self.cycle=Some(cycle);
         }
         let cycle=self.cycle.as_ref().unwrap();let available=cycle.deadline.saturating_sub(now);let allowance=available.min(4000)/2;
         let width=((allowance.min(2000)/2)/gap_ms.max(1)).min(16) as usize;
