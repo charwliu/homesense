@@ -207,6 +207,54 @@ async fn exact_source_mapping_scope_revision_and_revocation_precede_outputs() {
 }
 
 #[tokio::test]
+async fn final_same_phase_source_led_cannot_be_overwritten_by_its_earlier_color() {
+    let mut f = Fixture::new(false, |_| {}).await;
+    let prepared = f.prepare(&f.request()).await.unwrap();
+    let source = prepared.source.clone().unwrap();
+    let mut batch = f.batch(true, true, true);
+    batch.intents.insert(0, Intent {
+        device: DeviceId::new("legacy-key-1").unwrap(),
+        command: Command::PanelLed(false),
+    });
+    // Immediate scene expansion uses ordered, audited admission. The ordinary
+    // unordered light API intentionally rejects duplicate device intents.
+    let nodes = batch.intents.into_iter().map(|intent| homesense_core::rule::Node {
+        source: "synthetic ordered source phase".into(),
+        action: homesense_core::rule::Action::Command { device: intent.device, command: intent.command },
+    }).collect::<Vec<_>>();
+    let budget = homesense_core::rule::Budget::default();
+    let mut chain = homesense_core::rule_chain::Chain::new(1, 100, 2_000, budget, 8).unwrap();
+    let run = chain.plan(&chain.root(), "synthetic-ordered-source", &nodes, &Default::default(), 100).unwrap();
+    let actor = f.actor.with_source(Some(source.clone()));
+    let mut rule = crate::rule_runtime::PreparedRule::prepare(&actor, f.controller, vec![], &nodes, budget).await.unwrap();
+    rule.attach_cause("synthetic-ordered-source", &run.cause, run.causation_id);
+    let ids = rule.commit(&actor).await.unwrap();
+    assert_eq!(ids.len(), 3, "the older same-phase source color must not become a later linked write");
+    let local = f.dispatch().await;
+    assert_eq!(local.command.device_id.as_str(), "legacy-key-1");
+    assert_eq!(local.command.command, Command::PanelLed(true));
+    f.finish(&local).await;
+    let light = f.dispatch().await;
+    assert_eq!(light.command.device_id.as_str(), "fixture-light");
+    f.finish(&light).await;
+    assert!(f.actor.dispatch().await.unwrap().is_none());
+    let at = f.time.fetch_add(2, Ordering::SeqCst) + 2;
+    f.feedback.apply(&crate::transport_owner::GatewayRead {
+        gateway_id: "bus".into(), transport_epoch: 1, received_at_ms: at,
+        result: hb_transport::Receive::Frames { transport_epoch: 1, frames: vec![
+            hb_protocol::RawFrame { address: 0x15, command: 0xd1, value: 40 },
+        ] },
+    }).unwrap();
+    crate::control_batch::tick(&f.actor, f.controller, &f.feedback).await.unwrap();
+    let linked = f.dispatch().await;
+    assert_eq!(linked.command.device_id.as_str(), "legacy-key-2");
+    f.finish(&linked).await;
+    assert!(f.actor.dispatch().await.unwrap().is_none());
+    assert_eq!(indication(&source, Some(homesense_storage::journal::Status::Written)).unwrap().color, Some("red"));
+    f.close().await;
+}
+
+#[tokio::test]
 async fn source_led_precedes_lights_and_linked_led_still_requires_exact_post_write_feedback() {
     let mut f=Fixture::new(false,|_|{}).await;let prepared=f.prepare(&f.request()).await.unwrap();let source=prepared.source.clone().unwrap();
     f.submit(Some(source.clone()),f.batch(true,true,true)).await.unwrap();

@@ -103,9 +103,44 @@ pub(crate) fn class(
         _ => None,
     }
 }
+/// Retain the final origin-key color in one evaluated immediate segment.
+/// The caller keeps timeline step receipts outside this transformation.
+pub(crate) fn coalesce_local_cue(
+    config: &Configuration,
+    intents: &mut Vec<homesense_hap::requests::Intent>,
+    sources: &mut Option<Vec<String>>,
+    local: Option<usize>,
+) -> Option<usize> {
+    let local = local?;
+    let endpoint = intents.get(local)?.device.clone();
+    if !class(config, &endpoint, intents[local].command).is_some_and(|(_, led)| led)
+        || sources.as_ref().is_some_and(|labels| labels.len() != intents.len())
+    {
+        return Some(local);
+    }
+    // Promoting the final color must not leave an earlier color queued behind
+    // it. Restrict last-value coalescing to this evaluated lighting segment;
+    // queries, motor/STOP, parameters and other causal barriers stay intact.
+    let start = (0..local).rev()
+        .find(|i| class(config, &intents[*i].device, intents[*i].command).is_none())
+        .map_or(0, |i| i + 1);
+    let keep = intents.iter().enumerate().map(|(i, intent)| {
+        !(start <= i && i < local && intent.device == endpoint
+            && matches!(intent.command, Command::PanelLed(_) | Command::PanelLedOff))
+    }).collect::<Vec<_>>();
+    let next_local = keep[..local].iter().filter(|keep| **keep).count();
+    let mut i = 0;
+    intents.retain(|_| { let retained = keep[i]; i += 1; retained });
+    if let Some(labels) = sources {
+        let mut i = 0;
+        labels.retain(|_| { let retained = keep[i]; i += 1; retained });
+    }
+    Some(next_local)
+}
+
 /// Stable partition within one already evaluated due phase. Motor/STOP,
-/// parameters and queries remain causal barriers; gateway writes stay separate. Sources
-/// are permuted with their commands before durable command IDs are allocated.
+/// parameters and queries remain causal barriers; gateway writes stay separate.
+/// Sources are permuted before durable command IDs are allocated.
 pub(crate) fn partition_local(config:&Configuration,intents:&mut [homesense_hap::requests::Intent],sources:&mut Option<Vec<String>>,local:Option<usize>)->Vec<usize> {
     let mut permutation = (0..intents.len()).collect::<Vec<_>>();
     let mut start = 0;
@@ -1227,3 +1262,7 @@ mod budget_tests {
 #[cfg(test)]
 #[path = "control_batch_completion_tests.rs"]
 mod completion_tests;
+
+#[cfg(test)]
+#[path = "control_batch_cue_tests.rs"]
+mod cue_tests;

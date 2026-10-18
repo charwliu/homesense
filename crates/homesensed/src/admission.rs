@@ -2801,6 +2801,12 @@ impl Admission {
                                     return Ok(Vec::new());
                                 }
                                 let local_index=request_source.as_ref().and_then(|source|source.keypad()).and_then(|origin|origin.candidate(millis(clock),&batch.intents));
+                                // Immediate ordered programs may write a key's LED more
+                                // than once. Keep their final color before promotion;
+                                // timeline step receipts and offsets must remain intact.
+                                let local_index=if phase_links.is_none() {
+                                    crate::control_batch::coalesce_local_cue(&configuration,&mut batch.intents,&mut command_sources,local_index)
+                                }else{local_index};
                                 let permutation=crate::control_batch::partition_local(&configuration,&mut batch.intents,&mut command_sources,local_index);
                                 let local_index=local_index.and_then(|index|permutation.iter().position(|original|*original==index));
                                 if phase_links.is_some(){phase_ordinals=permutation.into_iter().map(|i|phase_ordinals[i]).collect();}
