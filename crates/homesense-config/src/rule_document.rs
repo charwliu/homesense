@@ -29,6 +29,8 @@ struct Input {
     #[serde(default)]
     scene_metadata: Vec<SceneMetadata>,
     #[serde(default)]
+    scene_presentations: Vec<crate::scene_presentation::Presentation>,
+    #[serde(default)]
     schedules: Vec<ScheduleInput>,
     #[serde(default)]
     gestures: Vec<GestureInput>,
@@ -358,6 +360,7 @@ pub struct Document {
     pub revision: u64,
     pub scene_tracking: BTreeMap<String,crate::scene_tracking::Policy>,
     pub scene_metadata: BTreeMap<String,String>,
+    pub scene_presentations: BTreeMap<String,crate::scene_presentation::Presentation>,
     /// Resolved from the same revision's room catalog; absent means unassigned.
     pub scene_rooms: BTreeMap<String,crate::Room>,
     pub variables: BTreeMap<String, Variable>,
@@ -985,6 +988,7 @@ impl Document {
             scene_tracking: input.scene_tracking.iter().map(|p|(p.scene.clone(),p.clone())).collect(),
             scene_metadata: input.scene_metadata.iter().map(|m|(m.id.clone(),m.name.clone())).collect(),
             scene_rooms,
+            scene_presentations:input.scene_presentations.iter().map(|p|(p.scene.clone(),p.clone())).collect(),
             schedules,
             gestures,
             holds: input.holds,
@@ -1049,6 +1053,7 @@ impl Document {
             }
         }
         crate::component_modes::validate(&document.component_mode_confirmations,&document,config)?;
+        crate::scene_presentation::validate(&input.scene_presentations,&document,config)?;
         crate::keypad_completion::validate_document(config, &document)?;
         document.validate_curtain_led_owners(config)?;
         document.validate_enabled_motor_predicates(config)?;
@@ -1150,7 +1155,7 @@ impl Document {
     }
     pub fn scene_catalog(&self)->BTreeMap<String,String> {
         self.immediate_scenes.keys().chain(self.timed_scenes.keys())
-            .filter(|id|self.scene_action_available(id))
+            .filter(|id|self.scene_action_available(id)&&!self.scene_presentations.values().any(|p|p.selection_scene.as_str()==id.as_str()))
             .map(|id|(id.clone(),self.scene_metadata.get(id).cloned().unwrap_or_else(||id.clone()))).collect()
     }
     /// A real manual entry AST, not a generated enabled rule or zero-delay timeline.

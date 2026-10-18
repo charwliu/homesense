@@ -11,6 +11,8 @@ private actor SceneRoomHTTP: HomeHTTPTransport {
         .object(["id": .string("unknown-room"), "name": .string("未知归属"), "room": .object(["id": .string("missing"), "name": .string("不存在的房间")])])
     ]
     var metadata: [HomeJSON] = [.object(["id": .string("reading"), "name": .string("阅读"), "room": .string("study"), "future": .object(["keep": .bool(true)])])]
+    var presentations: [HomeJSON] = []
+    func setPresentations(_ rows: [HomeJSON]) { presentations = rows }
     func setScenes(_ rows: [HomeJSON]) { scenes = rows }
     func setMetadata(_ rows: [HomeJSON]) { metadata = rows }
     func send(_ request: URLRequest) async throws -> HomeHTTPResponse {
@@ -20,6 +22,7 @@ private actor SceneRoomHTTP: HomeHTTPTransport {
         if request.url?.path == "/api/v1/scenes" { body["scenes"] = .array(scenes) }
         if request.url?.path.hasSuffix("/export") == true {
             body["automation"]["scene_metadata"] = .array(metadata)
+            body["automation"]["scene_presentations"] = .array(presentations)
             body["automation"]["timed_scenes"] = .array([.object(["id": .string("later"), "enabled": .bool(false), "steps": .array([])])])
         }
         return HomeHTTPResponse(data: try body.data(), status: response.status)
@@ -267,4 +270,31 @@ struct HomeSceneRoomTests {
         #expect(home.scenes(inRoom: "study").map(\.id) == ["all-off"])
         #expect(await server.base.captured().allSatisfy { $0.httpMethod == "GET" })
     }
+    @Test func movingPublicSceneUpdatesOnlyItsExplicitSelectionPeerAndPreservesDefinitions() async throws {
+        let server = SceneRoomHTTP()
+        await server.setMetadata([
+            .object(["id": .string("reading"), "name": .string("阅读"), "room": .string("study")]),
+            .object(["id": .string("later"), "name": .string("内部配方"), "room": .string("study"), "future": .bool(true)]),
+            .object(["id": .string("legacy"), "name": .string("阅读"), "room": .string("study")])])
+        await server.setPresentations([.object(["scene": .string("reading"), "selection_scene": .string("later"), "review_evidence": .string("synthetic explicit pair")])])
+        let home = await connect(server)
+        defer { home.disconnect() }
+        await home.loadActiveConfiguration()
+        let scene = try #require(home.editableScenes.first { $0.id == "reading" })
+        let definitions = home.automationDocument?["timed_scenes"], pairs = home.automationDocument?["scene_presentations"]
+        try home.upsertScene(scene.raw, collection: "immediate_scenes", name: "新名称", originalID: scene.id, room: "")
+        var metadata = try #require(home.automationDocument?["scene_metadata"].values)
+        #expect(metadata.first { $0["id"].text == "reading" }?["room"] == .null)
+        #expect(metadata.first { $0["id"].text == "later" }?["room"] == .null)
+        #expect(metadata.first { $0["id"].text == "later" }?["name"] == .string("内部配方"))
+        #expect(metadata.first { $0["id"].text == "later" }?["future"] == .bool(true))
+        #expect(metadata.first { $0["id"].text == "legacy" }?["room"] == .string("study"))
+        try home.upsertScene(scene.raw, collection: "immediate_scenes", name: "新名称", originalID: scene.id, room: "study")
+        metadata = try #require(home.automationDocument?["scene_metadata"].values)
+        #expect(metadata.first { $0["id"].text == "later" }?["room"] == .string("study"))
+        #expect(home.automationDocument?["timed_scenes"] == definitions)
+        #expect(home.automationDocument?["scene_presentations"] == pairs)
+        #expect(await server.base.captured().allSatisfy { $0.httpMethod == "GET" })
+    }
+
 }

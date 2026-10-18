@@ -91,6 +91,13 @@ pub(crate) fn details(
             );
         }
     }
+    for presentation in document.scene_presentations.values(){
+        let mut details=result.get(&presentation.selection_scene).cloned().ok_or("presentation selection provider missing")?;
+        // These are source-confirmed absolute actions, never native Toggle on
+        // missing physical truth. Do not advertise the relative-light route.
+        details.relative_unknown_allowed=false;
+        result.insert(presentation.scene.clone(),details);
+    }
     Ok(result)
 }
 pub struct Plan {

@@ -38,6 +38,7 @@ impl ConfiguredRules {
         }
         let index=Document {
                 component_mode_confirmations:document.component_mode_confirmations.clone(),
+                scene_presentations:document.scene_presentations.clone(),
                 away_off: None,
             scene_deactivations:Default::default(),
             revision:document.revision,scene_tracking:document.scene_tracking.clone(),scene_metadata:document.scene_metadata.clone(),scene_rooms:document.scene_rooms.clone(),variables:document.variables.clone(),variable_migrations:document.variable_migrations.clone(),
@@ -208,6 +209,7 @@ impl ConfiguredRules {
             controller,
             &Document {
                 component_mode_confirmations:document.component_mode_confirmations.clone(),
+                scene_presentations:document.scene_presentations.clone(),
                 away_off: None,
                 scene_deactivations:Default::default(),
                 revision: document.revision,

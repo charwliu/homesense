@@ -217,7 +217,10 @@ pub(crate) async fn prepare(admission:&Admission,generation:&TaskGeneration,docu
     let (action,kind)=match mapping {
         KeyAction::SceneExecute{scene,..} => {
             scene_scope(config,document,source,scene)?;
-            (Action::SceneAction{controller,revision,scene:scene.clone(),execute:true},"scene")
+            let action=if document.scene_presentations.contains_key(scene){
+                Action::SceneWrites{controller,revision,scenes:vec![(scene.clone(),None)]}
+            }else{Action::SceneAction{controller,revision,scene:scene.clone(),execute:true}};
+            (action,"scene")
         },
         KeyAction::SceneToggle{scene,..} => {
             scene_scope(config,document,source,scene)?;

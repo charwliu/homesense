@@ -61,11 +61,11 @@ pub(crate) async fn writes(
     }
     let ids = writes
         .iter()
-        .filter(|(_, value)| value.is_some())
+        .filter(|(id, value)| value.is_some()||document.scene_presentations.contains_key(id))
         .map(|(id, _)| id.clone())
         .collect::<Vec<_>>();
     if !writes.iter().any(|(id, value)| {
-        *value == Some(true) || value.is_some() && crate::scene_switches::related(document, id)
+        *value == Some(true) || document.scene_presentations.contains_key(id) || value.is_some() && crate::scene_switches::related(document, id)
     }) {
         return Ok(Reply::ScenesAccepted(vec![]));
     }

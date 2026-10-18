@@ -771,7 +771,7 @@ impl Receiver {
                     Action::SceneActions {controller,revision,scenes:actions} => {
                         if revision!=document.revision {return Err("scene batch revision expired".into());}
                         if actions.iter().any(|(id,_)|document.immediate_scenes.contains_key(id)) {
-                            let writes=actions.iter().map(|(id,on)|(id.clone(),on.then_some(true))).collect::<Vec<_>>();
+                            let writes=actions.iter().map(|(id,on)|(id.clone(),if document.scene_presentations.contains_key(id){Some(*on)}else{on.then_some(true)})).collect::<Vec<_>>();
                             return Box::pin(crate::immediate_scene::writes(admission,document,&self.generation,controller,&writes,causal.as_deref_mut(),scenes,feedback,max_age_ms,self.budget,request.deadline)).await;
                         }
                         for (id,_) in &actions {

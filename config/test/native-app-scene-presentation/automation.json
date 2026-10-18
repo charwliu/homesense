@@ -1,0 +1,476 @@
+{
+  "schema_version": 1,
+  "configuration_revision": 1,
+  "variables": [
+    {
+      "id": "selection",
+      "kind": "integer",
+      "lifetime": "persistent"
+    }
+  ],
+  "rules": [],
+  "immediate_scenes": [
+    {
+      "id": "action-1",
+      "enabled": true,
+      "review_evidence": "Synthetic absolute action",
+      "activate": [
+        {
+          "source": "synthetic/absolute/fixture-light",
+          "action": {
+            "kind": "command",
+            "device": "fixture-light",
+            "command": {
+              "kind": "level",
+              "value": 100,
+              "ramp": false
+            }
+          }
+        },
+        {
+          "source": "synthetic/absolute/legacy-key-1",
+          "action": {
+            "kind": "command",
+            "device": "legacy-key-1",
+            "command": {
+              "kind": "panel_led",
+              "on": true
+            }
+          }
+        },
+        {
+          "source": "synthetic/absolute/legacy-key-2",
+          "action": {
+            "kind": "command",
+            "device": "legacy-key-2",
+            "command": {
+              "kind": "panel_led",
+              "on": false
+            }
+          }
+        },
+        {
+          "source": "synthetic/select",
+          "action": {
+            "kind": "set",
+            "variable": "selection",
+            "value": {
+              "kind": "integer",
+              "value": 1
+            }
+          }
+        }
+      ],
+      "deactivate": [
+        {
+          "source": "synthetic/absolute/fixture-light",
+          "action": {
+            "kind": "command",
+            "device": "fixture-light",
+            "command": {
+              "kind": "level",
+              "value": 0,
+              "ramp": false
+            }
+          }
+        },
+        {
+          "source": "synthetic/absolute/legacy-key-1",
+          "action": {
+            "kind": "command",
+            "device": "legacy-key-1",
+            "command": {
+              "kind": "panel_led",
+              "on": false
+            }
+          }
+        },
+        {
+          "source": "synthetic/absolute/legacy-key-2",
+          "action": {
+            "kind": "command",
+            "device": "legacy-key-2",
+            "command": {
+              "kind": "panel_led",
+              "on": false
+            }
+          }
+        },
+        {
+          "source": "synthetic/select",
+          "action": {
+            "kind": "set",
+            "variable": "selection",
+            "value": {
+              "kind": "integer",
+              "value": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "action-2",
+      "enabled": true,
+      "review_evidence": "Synthetic absolute action",
+      "activate": [
+        {
+          "source": "synthetic/absolute/fixture-light",
+          "action": {
+            "kind": "command",
+            "device": "fixture-light",
+            "command": {
+              "kind": "level",
+              "value": 100,
+              "ramp": false
+            }
+          }
+        },
+        {
+          "source": "synthetic/absolute/legacy-key-1",
+          "action": {
+            "kind": "command",
+            "device": "legacy-key-1",
+            "command": {
+              "kind": "panel_led",
+              "on": false
+            }
+          }
+        },
+        {
+          "source": "synthetic/absolute/legacy-key-2",
+          "action": {
+            "kind": "command",
+            "device": "legacy-key-2",
+            "command": {
+              "kind": "panel_led",
+              "on": true
+            }
+          }
+        },
+        {
+          "source": "synthetic/select",
+          "action": {
+            "kind": "set",
+            "variable": "selection",
+            "value": {
+              "kind": "integer",
+              "value": 2
+            }
+          }
+        }
+      ],
+      "deactivate": [
+        {
+          "source": "synthetic/absolute/fixture-light",
+          "action": {
+            "kind": "command",
+            "device": "fixture-light",
+            "command": {
+              "kind": "level",
+              "value": 0,
+              "ramp": false
+            }
+          }
+        },
+        {
+          "source": "synthetic/absolute/legacy-key-1",
+          "action": {
+            "kind": "command",
+            "device": "legacy-key-1",
+            "command": {
+              "kind": "panel_led",
+              "on": false
+            }
+          }
+        },
+        {
+          "source": "synthetic/absolute/legacy-key-2",
+          "action": {
+            "kind": "command",
+            "device": "legacy-key-2",
+            "command": {
+              "kind": "panel_led",
+              "on": false
+            }
+          }
+        },
+        {
+          "source": "synthetic/select",
+          "action": {
+            "kind": "set",
+            "variable": "selection",
+            "value": {
+              "kind": "integer",
+              "value": 0
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "timed_scenes": [
+    {
+      "id": "off",
+      "enabled": true,
+      "review_evidence": "Synthetic exact physical profile",
+      "max_lateness_ms": 5000,
+      "steps": [
+        {
+          "source": "synthetic/absolute/fixture-light",
+          "offset_ms": 0,
+          "device": "fixture-light",
+          "command": {
+            "kind": "level",
+            "value": 0,
+            "ramp": false
+          }
+        },
+        {
+          "source": "synthetic/absolute/legacy-key-1",
+          "offset_ms": 0,
+          "device": "legacy-key-1",
+          "command": {
+            "kind": "panel_led",
+            "on": false
+          }
+        },
+        {
+          "source": "synthetic/absolute/legacy-key-2",
+          "offset_ms": 0,
+          "device": "legacy-key-2",
+          "command": {
+            "kind": "panel_led",
+            "on": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "profile-1",
+      "enabled": true,
+      "review_evidence": "Synthetic exact physical profile",
+      "max_lateness_ms": 5000,
+      "steps": [
+        {
+          "source": "synthetic/absolute/fixture-light",
+          "offset_ms": 0,
+          "device": "fixture-light",
+          "command": {
+            "kind": "level",
+            "value": 100,
+            "ramp": false
+          }
+        },
+        {
+          "source": "synthetic/absolute/legacy-key-1",
+          "offset_ms": 0,
+          "device": "legacy-key-1",
+          "command": {
+            "kind": "panel_led",
+            "on": true
+          }
+        },
+        {
+          "source": "synthetic/absolute/legacy-key-2",
+          "offset_ms": 0,
+          "device": "legacy-key-2",
+          "command": {
+            "kind": "panel_led",
+            "on": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "profile-2",
+      "enabled": true,
+      "review_evidence": "Synthetic exact physical profile",
+      "max_lateness_ms": 5000,
+      "steps": [
+        {
+          "source": "synthetic/absolute/fixture-light",
+          "offset_ms": 0,
+          "device": "fixture-light",
+          "command": {
+            "kind": "level",
+            "value": 100,
+            "ramp": false
+          }
+        },
+        {
+          "source": "synthetic/absolute/legacy-key-1",
+          "offset_ms": 0,
+          "device": "legacy-key-1",
+          "command": {
+            "kind": "panel_led",
+            "on": false
+          }
+        },
+        {
+          "source": "synthetic/absolute/legacy-key-2",
+          "offset_ms": 0,
+          "device": "legacy-key-2",
+          "command": {
+            "kind": "panel_led",
+            "on": true
+          }
+        }
+      ]
+    }
+  ],
+  "scene_switch_groups": [
+    {
+      "id": "group",
+      "variable": "selection",
+      "review_evidence": "Synthetic ambiguous physical profile",
+      "members": [
+        {
+          "scene": "profile-1",
+          "value": 1,
+          "off_scene": "off"
+        },
+        {
+          "scene": "profile-2",
+          "value": 2,
+          "off_scene": "off"
+        }
+      ],
+      "reconciliation": {
+        "enabled": true,
+        "policy": "power_pattern_then_profile_level",
+        "max_age_ms": 5000,
+        "review_evidence": "Synthetic identical profile remains unknown until explicit source confirmation"
+      }
+    }
+  ],
+  "scene_presentations": [
+    {
+      "scene": "action-1",
+      "selection_scene": "profile-1",
+      "review_evidence": "Single public entry backed by confirmed native member"
+    },
+    {
+      "scene": "action-2",
+      "selection_scene": "profile-2",
+      "review_evidence": "Single public entry backed by confirmed native member"
+    }
+  ],
+  "scene_metadata": [
+    {
+      "id": "off",
+      "name": "全关",
+      "room": "study"
+    },
+    {
+      "id": "action-1",
+      "name": "日常",
+      "room": "study"
+    },
+    {
+      "id": "profile-1",
+      "name": "日常",
+      "room": "study"
+    },
+    {
+      "id": "action-2",
+      "name": "阅读",
+      "room": "study"
+    },
+    {
+      "id": "profile-2",
+      "name": "阅读",
+      "room": "study"
+    }
+  ],
+  "component_mode_confirmations": [
+    {
+      "id": "confirm-1-1",
+      "variable": "selection",
+      "scenes": [
+        "action-1"
+      ],
+      "first_value": 1,
+      "confirm_when_known": true,
+      "shared_selection_group": "group",
+      "when_values": {
+        "selection": 1
+      },
+      "max_age_ms": 5000,
+      "timeout_ms": 15000,
+      "review_evidence": "Written plus fresh actual feedback",
+      "postconditions": [
+        {
+          "device": "fixture-light",
+          "on": true
+        }
+      ]
+    },
+    {
+      "id": "confirm-1-0",
+      "variable": "selection",
+      "scenes": [
+        "action-1"
+      ],
+      "first_value": 0,
+      "confirm_when_known": true,
+      "shared_selection_group": "group",
+      "when_values": {
+        "selection": 0
+      },
+      "max_age_ms": 5000,
+      "timeout_ms": 15000,
+      "review_evidence": "Written plus fresh actual feedback",
+      "postconditions": [
+        {
+          "device": "fixture-light",
+          "on": false
+        }
+      ]
+    },
+    {
+      "id": "confirm-2-2",
+      "variable": "selection",
+      "scenes": [
+        "action-2"
+      ],
+      "first_value": 2,
+      "confirm_when_known": true,
+      "shared_selection_group": "group",
+      "when_values": {
+        "selection": 2
+      },
+      "max_age_ms": 5000,
+      "timeout_ms": 15000,
+      "review_evidence": "Written plus fresh actual feedback",
+      "postconditions": [
+        {
+          "device": "fixture-light",
+          "on": true
+        }
+      ]
+    },
+    {
+      "id": "confirm-2-0",
+      "variable": "selection",
+      "scenes": [
+        "action-2"
+      ],
+      "first_value": 0,
+      "confirm_when_known": true,
+      "shared_selection_group": "group",
+      "when_values": {
+        "selection": 0
+      },
+      "max_age_ms": 5000,
+      "timeout_ms": 15000,
+      "review_evidence": "Written plus fresh actual feedback",
+      "postconditions": [
+        {
+          "device": "fixture-light",
+          "on": false
+        }
+      ]
+    }
+  ]
+}
