@@ -394,3 +394,28 @@ async fn identical_physical_values_after_quality_expiry_do_not_rewrite_same_leds
     assert_eq!(h.sql().query_row("SELECT count(*) FROM command_journal",[],|r|r.get::<_,i64>(0)).unwrap(),before);
     h.close().await;
 }
+
+#[tokio::test]
+async fn sparse_physical_leds_require_the_full_union_and_track_unselected_omitted_lamps() {
+    for (main, down, expected) in [(Some(100), Some(80), Some(1)), (Some(0), Some(80), Some(2)), (Some(0), Some(0), Some(0)), (Some(100), None, None)] {
+        let (config, mut rules) = linked();
+        rules["scene_switch_groups"][0]["members"].as_array_mut().unwrap().truncate(2);
+        rules["scene_observation"]["bindings"].as_array_mut().unwrap().truncate(2);
+        rules["scene_switch_groups"][0]["reconciliation"]["omitted_targets"] = json!("preserve");
+        rules["timed_scenes"][0]["steps"].as_array_mut().unwrap().pop();
+        rules["timed_scenes"][1]["steps"][0]["command"]["value"] = json!(0);
+        rules["indicator_links"].as_array_mut().unwrap().truncate(2);
+        rules["indicator_links"][0]["lights"] = json!(["light"]);
+        let mut h = harness(config, rules).await;
+        levels(&mut h, main, down);
+        reconcile(&h).await;
+        let mut syncer = Synchronizer::default();
+        sync(&h, &mut syncer).await;
+        let actual = drain_leds(&h).await;
+        if let Some(selected) = expected {
+            assert_eq!(actual.get(&(0x41, 1)), Some(&(selected == 1)));
+            assert_eq!(actual.get(&(0x42, 1)), Some(&(selected == 1)));
+            assert_eq!(actual.get(&(0x41, 3)), Some(&(selected == 2)));
+        } else { assert!(actual.is_empty(), "one omitted unknown observation cannot authorize either LED color"); }
+    }
+}

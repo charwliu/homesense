@@ -180,3 +180,93 @@ fn multiple_discriminating_levels_must_match_one_complete_candidate() {
     let mut bad=target.clone();bad.get_mut(&1).unwrap().remove(&device("main"));
     assert_eq!(matching_member_with_levels(&power,&bad,&observations(Some(26),Some(38)),&BTreeMap::new()),None);
 }
+
+#[test]
+fn preserved_omissions_match_complete_truth_without_assuming_omitted_lamps_off() {
+    use homesense_core::scene_pattern::{PatternScope, matching_member_scoped};
+    let targets: MemberPatterns = [(1, [(device("main"), LightPower::On)].into()), (2, pattern(false, true))].into();
+    for main in [None, Some(0), Some(30)] {
+        for down in [None, Some(0), Some(70)] {
+            let expected = match (main, down) {
+                (None, _) | (_, None) => None,
+                (Some(0), Some(0)) => Some(0),
+                (Some(0), Some(_)) => Some(2),
+                _ => Some(1),
+            };
+            let actual = observations(main, down);
+            assert_eq!(matching_member_scoped(&targets, &actual, PatternScope::PreserveOmissions), expected);
+            assert_eq!(matching_member(&targets, &actual), None, "the default complete-vector contract stays strict");
+        }
+    }
+    let mut actual = observations(Some(30), Some(70));
+    actual.remove(&device("down"));
+    assert_eq!(matching_member_scoped(&targets, &actual, PatternScope::PreserveOmissions), None);
+    actual.insert(device("down"), Some(LightPower::On));
+    actual.insert(device("unrelated"), Some(LightPower::Off));
+    assert_eq!(matching_member_scoped(&targets, &actual, PatternScope::PreserveOmissions), None);
+}
+
+#[test]
+fn overlapping_sparse_members_never_select_by_order_or_implicit_zero_level() {
+    use homesense_core::scene_pattern::{PatternScope, MemberLevels, matching_member_scoped, matching_member_with_levels_scoped, brightness_reads_for_collision_scoped};
+    let targets: MemberPatterns = [(1, [(device("main"), LightPower::On)].into()), (2, pattern(true, true))].into();
+    let actual = observations(Some(30), Some(70));
+    let levels: MemberLevels = [(1, [(device("main"), Percent::new(30).unwrap())].into()), (2, [(device("main"), Percent::new(100).unwrap()), (device("down"), Percent::new(70).unwrap())].into())].into();
+    assert_eq!(matching_member_scoped(&targets, &actual, PatternScope::PreserveOmissions), None);
+    assert_eq!(brightness_reads_for_collision_scoped(&targets, &levels, &actual, PatternScope::PreserveOmissions), Some([device("main")].into()));
+    for (value, expected) in [(30, Some(1)), (100, Some(2)), (70, None)] {
+        let read = [(device("main"), Some(Percent::new(value).unwrap()))].into();
+        assert_eq!(matching_member_with_levels_scoped(&targets, &levels, &actual, &read, PatternScope::PreserveOmissions), expected);
+    }
+    let mut omitted = levels.clone();
+    omitted.get_mut(&1).unwrap().clear();
+    assert_eq!(brightness_reads_for_collision_scoped(&targets, &omitted, &actual, PatternScope::PreserveOmissions), None, "an omitted level cannot be synthesized to distinguish candidates");
+    assert_eq!(matching_member_with_levels_scoped(&targets, &levels, &actual, &BTreeMap::new(), PatternScope::PreserveOmissions), None);
+    let extra = [(device("main"), Some(Percent::new(30).unwrap())), (device("down"), Some(Percent::new(70).unwrap()))].into();
+    assert_eq!(matching_member_with_levels_scoped(&targets, &levels, &actual, &extra, PatternScope::PreserveOmissions), None);
+}
+
+#[test]
+fn sparse_policy_rejects_empty_members_invalid_values_and_unknown_union_samples() {
+    use homesense_core::scene_pattern::{PatternScope, matching_member_scoped};
+    let actual = observations(Some(0), Some(0));
+    for targets in [BTreeMap::new(), [(1, BTreeMap::new()), (2, pattern(true, false))].into(), [(0, pattern(true, false))].into(), [(-1, pattern(true, false))].into()] {
+        assert_eq!(matching_member_scoped(&targets, &actual, PatternScope::PreserveOmissions), None);
+    }
+}
+
+#[test]
+fn sparse_nine_and_eleven_output_profiles_keep_all_2048_complete_power_vectors_conservative() {
+    use homesense_core::scene_pattern::{PatternScope, matching_member_scoped};
+    // Synthetic source scopes: three nine-output members omit both hall outputs;
+    // the fourth controls all eleven. All four power profiles are disjoint.
+    let ids = (0..11).map(|i| device(&format!("lamp-{i}"))).collect::<Vec<_>>();
+    let lit: [(i64, &[usize]); 4] = [(1, &[1, 2, 3, 4, 7, 8]), (2, &[1, 2, 7]), (3, &[4, 8]), (4, &[9, 10])];
+    let targets: MemberPatterns = lit.iter().map(|(value, on)| (*value, ids.iter().take(if *value == 4 {11} else {9}).enumerate().map(|(i, id)| (id.clone(), on.contains(&i).into())).collect())).collect();
+    let mut selected = BTreeMap::<i64, usize>::new();
+    for mask in 0..2048 {
+        let actual: Observations = ids.iter().enumerate().map(|(i, id)| (id.clone(), Some((mask & (1 << i) != 0).into()))).collect();
+        let value = matching_member_scoped(&targets, &actual, PatternScope::PreserveOmissions).unwrap();
+        *selected.entry(value).or_default() += 1;
+        for id in &ids {
+            let mut partial = actual.clone();
+            partial.insert(id.clone(), None);
+            assert_eq!(matching_member_scoped(&targets, &partial, PatternScope::PreserveOmissions), None);
+        }
+    }
+    assert_eq!(selected, [(0, 2035), (1, 4), (2, 4), (3, 4), (4, 1)].into());
+}
+
+#[test]
+fn sparse_power_barrier_requires_disjoint_patterns_not_just_different_maps() {
+    use homesense_core::scene_pattern::{PatternScope, power_patterns_disjoint};
+    let overlap: MemberPatterns = [(1, [(device("main"), LightPower::On)].into()), (2, pattern(true, true))].into();
+    assert!(!power_patterns_disjoint(&overlap, PatternScope::PreserveOmissions));
+    let disjoint: MemberPatterns = [(1, [(device("main"), LightPower::On)].into()), (2, pattern(false, true))].into();
+    assert!(power_patterns_disjoint(&disjoint, PatternScope::PreserveOmissions));
+    assert!(!power_patterns_disjoint(&disjoint, PatternScope::Complete));
+    assert!(power_patterns_disjoint(&members(), PatternScope::Complete));
+    let mut duplicate = members();
+    duplicate.insert(4, pattern(true, false));
+    assert!(!power_patterns_disjoint(&duplicate, PatternScope::Complete));
+}

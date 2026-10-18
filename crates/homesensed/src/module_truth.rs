@@ -454,8 +454,15 @@ impl ModuleTruth {
         if ids.len() > self.max_alias_reads {
             return Err(StateError::Capacity);
         }
-        let mut feedback = self.rule_feedback(epoch, now, max_age)?;
-        feedback.retain(|id, _| ids.contains(id));
+        // Capture just this rule's canonical ports, then project its aliases.
+        // Multiple aliases of one port share one physical read and freshness.
+        let keys=ids.iter().filter_map(|id|self.aliases.get(id)).filter(|key|!self.invalid.contains(*key)).cloned().collect::<BTreeSet<_>>();
+        let physical=self.states.capture_rule_feedback(&keys.into_iter().collect::<Vec<_>>(),epoch,now,max_age)?;
+        let feedback=ids.iter().filter_map(|id| {
+            let key=self.aliases.get(id)?;
+            if self.invalid.contains(key) {return None;}
+            physical.feedback().devices.get(key).cloned().map(|value|(id.clone(),value))
+        }).collect::<BTreeMap<_,_>>();
         let expires = feedback
             .values()
             .map(|s| s.observed_ms.saturating_add(max_age))

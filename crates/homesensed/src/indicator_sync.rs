@@ -88,7 +88,9 @@ impl Synchronizer {
                     // including unmatched patterns; it does not mean all-Off.
                     // Read every light again. Admission separately revalidates
                     // this exact physical selection snapshot before LED writes.
-                    Condition::All(patterns.values().next().ok_or("empty physical scene pattern")?.keys().map(|id|
+                    let ids=patterns.values().flat_map(|pattern|pattern.keys()).collect::<std::collections::BTreeSet<_>>();
+                    if ids.is_empty(){return Err("empty physical scene pattern".into());}
+                    Condition::All(ids.into_iter().map(|id|
                         Condition::Not(Box::new(Condition::Unknown(Expr::DeviceOn(id.clone()))))
                     ).collect())
                 } else {

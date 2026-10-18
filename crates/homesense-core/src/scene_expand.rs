@@ -38,16 +38,24 @@ pub fn expand_with_deferred(
 /// Reviewed source-off means the complete target activation, preceded by a
 /// trusted guard. It never inverts source outputs or cancels source timelines.
 pub fn expand_with_deactivations(nodes:&[Node], scenes:&BTreeMap<String,Definition>, deferred:&BTreeSet<String>, deactivations:&BTreeMap<String,String>, max_nodes:usize)->Result<Vec<Node>,Error> {
+    expand_linked(nodes, scenes, deferred, deactivations, max_nodes)
+}
+/// Expand a read-only scene catalog without cloning unrelated definitions.
+/// The same source, cycle, ambiguity and output budgets apply to both adapters.
+pub fn expand_borrowed_with_deactivations(nodes:&[Node], scenes:&BTreeMap<String,&Definition>, deferred:&BTreeSet<String>, deactivations:&BTreeMap<String,String>, max_nodes:usize)->Result<Vec<Node>,Error> {
+    expand_linked(nodes, scenes, deferred, deactivations, max_nodes)
+}
+fn expand_linked<D:std::borrow::Borrow<Definition>>(nodes:&[Node], scenes:&BTreeMap<String,D>, deferred:&BTreeSet<String>, deactivations:&BTreeMap<String,String>, max_nodes:usize)->Result<Vec<Node>,Error> {
     if let Some(id) = deferred.iter().find(|id| scenes.contains_key(*id)) {
         return Err(Error::AmbiguousScene(id.clone()));
     }
     if max_nodes == 0 || max_nodes > 65536 {
         return Err(Error::Budget);
     }
-    struct Links<'a> {scenes:&'a BTreeMap<String,Definition>,deferred:&'a BTreeSet<String>,deactivations:&'a BTreeMap<String,String>}
-    fn visit(
+    struct Links<'a,D> {scenes:&'a BTreeMap<String,D>,deferred:&'a BTreeSet<String>,deactivations:&'a BTreeMap<String,String>}
+    fn visit<D:std::borrow::Borrow<Definition>>(
         nodes: &[Node],
-        links:&Links<'_>,
+        links:&Links<'_,D>,
         remaining: &mut usize,
         path: &mut Vec<String>,
         depth: usize,
@@ -95,7 +103,7 @@ pub fn expand_with_deactivations(nodes:&[Node], scenes:&BTreeMap<String,Definiti
                     }
                     let scene = scenes
                         .get(id)
-                        .ok_or_else(|| Error::MissingScene(id.clone()))?;
+                        .ok_or_else(|| Error::MissingScene(id.clone()))?.borrow();
                     let members = if *activate {
                         &scene.activate
                     } else {

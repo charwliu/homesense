@@ -692,7 +692,14 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
         let now=self.transport.now_ms();
         self.transport.pause_queries(self.gateways.iter().filter(|gateway|self.feedback.query_deferred(gateway,now,true)).cloned().collect());
         if self.transport.local_mode() {
-            let blocked=self.local_refresh.as_ref().map_or_else(std::collections::BTreeSet::new,|plan|plan.blocked(self.transport.now_ms(),self.transport.write_interval_ms(),self.background_led_phase,&self.feedback));
+            let mut blocked=self.local_refresh.as_ref().map_or_else(std::collections::BTreeSet::new,|plan|plan.blocked(self.transport.now_ms(),self.transport.write_interval_ms(),self.background_led_phase,&self.feedback));
+            if !blocked.is_empty() && let Some(plan)=&self.local_refresh
+                && self.transport.protected_controls_ready(plan.controller,plan.generation.clone()).await {
+                // Yield only the next autonomous polling turn. Existing pending
+                // responses remain blocked, and local stream/recovery plus key
+                // and ramp read fences still apply to the queued dispatch.
+                blocked=plan.blocked(self.transport.now_ms(),self.transport.write_interval_ms(),true,&self.feedback);
+            }
             let outcome=self.transport.local_step(&blocked).await?;
             if self.transport.has_local_fault() {self.poll_local_events(false).await?;}
             if let Some(write)=&outcome && write.result.is_ok() && let Some(plan)=&mut self.local_refresh {for (device,ramped) in &write.refresh_schedule{plan.written(device,self.transport.now_ms(),*ramped);}}

@@ -1,3 +1,4 @@
+use std::collections::{BTreeMap,BTreeSet};
 use homesense_core::{
     Command, DeviceId,
     rule::{Action, Node},
@@ -99,4 +100,15 @@ fn deferred_activation_preserves_order_source_and_requires_explicit_link() {
     assert_eq!(expand(&[call("parent",true)],&scenes,4).err(),Some(Error::MissingScene("later".into())));
     assert_eq!(expand_with_deferred(&[call("later",false)],&scenes,&deferred,4).err(),Some(Error::UnknownDeactivation("later".into())));
     assert_eq!(expand_with_deferred(&[],&scenes,&["parent".into()].into(),4).err(),Some(Error::AmbiguousScene("parent".into())));
+}
+
+#[test]
+fn borrowed_definitions_keep_nested_sources_and_global_ambiguity_guards() {
+    let definitions:BTreeMap<String,Definition>=[("outer".into(),Definition{activate:vec![output("before"),call("inner",true)],deactivate:None}),("inner".into(),Definition{activate:vec![output("after")],deactivate:None})].into();
+    let borrowed=definitions.iter().map(|(id,scene)|(id.clone(),scene)).collect();
+    let expanded=expand_borrowed_with_deactivations(&[call("outer",true)],&borrowed,&BTreeSet::new(),&BTreeMap::new(),16).unwrap();
+    assert_eq!(expanded.iter().map(|n|n.source.as_str()).collect::<Vec<_>>(),vec!["caller -> before","caller -> caller -> after"]);
+    assert!(matches!(expand_borrowed_with_deactivations(&[call("outer",true)],&borrowed,&["inner".into()].into(),&BTreeMap::new(),16),Err(Error::AmbiguousScene(id))if id=="inner"));
+    assert!(matches!(expand_borrowed_with_deactivations(&[call("outer",true)],&borrowed,&BTreeSet::new(),&BTreeMap::new(),1),Err(Error::Budget)));
+    assert!(matches!(expand_borrowed_with_deactivations(&[call("inner",false)],&borrowed,&BTreeSet::new(),&BTreeMap::new(),16),Err(Error::UnknownDeactivation(id))if id=="inner"));
 }

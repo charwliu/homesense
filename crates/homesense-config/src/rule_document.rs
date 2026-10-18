@@ -1165,9 +1165,9 @@ impl Document {
     /// Trusted runtime composition can retain provider-generated selection nodes
     /// in the same AST without fabricating an enabled configuration rule.
     pub fn linked_manual_actions(&self,roots:&[Node])->Result<Vec<Node>,Error> {
-        let scenes=self.immediate_scenes.iter().filter(|(id,_)|!self.disabled_immediate_scenes.contains(*id)).map(|(id,s)|(id.clone(),s.clone())).collect();
+        let scenes=self.immediate_scenes.iter().filter(|(id,_)|!self.disabled_immediate_scenes.contains(*id)).map(|(id,s)|(id.clone(),s)).collect();
         let deferred=self.timed_scenes.iter().filter(|(_,s)|s.enabled).map(|(id,_)|id.clone()).collect();
-        let mut actions=homesense_core::scene_expand::expand_with_deactivations(roots,&scenes,&deferred,&self.deactivation_targets(),1024).map_err(|e|invalid(format!("manual immediate scene: {e:?}")))?;
+        let mut actions=homesense_core::scene_expand::expand_borrowed_with_deactivations(roots,&scenes,&deferred,&self.deactivation_targets(),1024).map_err(|e|invalid(format!("manual immediate scene: {e:?}")))?;
         for variable in homesense_core::rule::variable_references_with_deferred(&actions,&deferred).map_err(invalid)? {
             if !self.variables.contains_key(&variable){return Err(invalid("undeclared manual scene variable"));}
         }

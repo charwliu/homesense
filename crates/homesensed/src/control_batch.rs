@@ -217,8 +217,8 @@ impl Owner {
                 None=>true,
                 Some(scene)=>document.scene_switch_groups.iter().find(|g|g.members.iter().any(|m|&m.scene==scene))
                     .filter(|g|g.reconciliation.as_ref().is_some_and(|p|p.enabled))
-                    .and_then(|g|g.light_on_patterns(&document.timed_scenes).ok())
-                    .is_some_and(|patterns|patterns.values().all(|pattern|patterns.values().filter(|other|*other==pattern).count()==1)),
+                    .and_then(|g|g.light_on_patterns(&document.timed_scenes).ok().map(|patterns|(patterns,g.pattern_scope())))
+                    .is_some_and(|(patterns,scope)|homesense_core::scene_pattern::power_patterns_disjoint(&patterns,scope)),
             };
             if power_only {self.power_leds.extend(link.leds.iter().cloned());}
         }

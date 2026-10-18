@@ -10,7 +10,7 @@ use homesense_config::{Configuration, rule_document::Document, scene_switches::{
 use homesense_core::{
     queue::Epochs,
     rule::{Action, Budget, Expr, Lifetime, Node, Value, ValueType, Variable},
-    scene_pattern::{MemberPatterns, MemberLevels, LevelObservations, Observations, matching_member, matching_member_with_levels,brightness_reads_for_collision},
+    scene_pattern::{MemberPatterns, MemberLevels, LevelObservations, Observations, PatternScope, matching_member_scoped, matching_member_with_levels_scoped,brightness_reads_for_collision_scoped},
 };
 use homesense_storage::{
     Store,
@@ -31,6 +31,7 @@ pub(crate) struct Prepared {
     level_patterns: Option<MemberLevels>,
     levels: LevelObservations,
     policy: ReconciliationPolicy,
+    pattern_scope: PatternScope,
     max_age_ms: u64,
     lease: RuleLease,
     projection_lease: Box<ProjectionLease>,
@@ -54,13 +55,12 @@ impl Prepared {
         let patterns = group
             .light_on_patterns(&document.timed_scenes)
             .map_err(|_| WriteStatus::InvalidValueInRequest)?;
-        let first = patterns
-            .values()
-            .next()
-            .ok_or(WriteStatus::InvalidValueInRequest)?;
+        let ids = patterns.values().flat_map(|v| v.keys().cloned()).collect::<std::collections::BTreeSet<_>>();
+        if ids.is_empty() { return Err(WriteStatus::InvalidValueInRequest); }
+        let pattern_scope = group.pattern_scope();
         let mut variables = BTreeMap::new();
         let mut nodes = vec![];
-        for (index, id) in first.keys().enumerate() {
+        for (index, id) in ids.iter().enumerate() {
             let name = format!("sample:{index}");
             variables.insert(
                 name.clone(),
@@ -94,8 +94,8 @@ impl Prepared {
             .as_ref()
             .filter(|_| state.evidence_current)
             .map(|e| e.observed_ms);
-        let powers=|plan:&homesense_core::rule::Plan,lease:&RuleLease|->Observations { first
-            .keys()
+        let powers=|plan:&homesense_core::rule::Plan,lease:&RuleLease|->Observations { ids
+            .iter()
             .enumerate()
             .map(|(index, id)| {
                 let after_external = after.is_none_or(|after| {
@@ -125,7 +125,7 @@ impl Prepared {
         }else{None};
         let mut levels=LevelObservations::new();
         if let Some(targets)=&level_patterns {
-            let reads=brightness_reads_for_collision(&patterns,targets,&actual).unwrap_or_default();
+            let reads=brightness_reads_for_collision_scoped(&patterns,targets,&actual,pattern_scope).unwrap_or_default();
             if !reads.is_empty() {
                 for (index,id) in reads.iter().enumerate() {
                     let name=format!("level:{index}");
@@ -146,7 +146,7 @@ impl Prepared {
             }
         }
         let projection_lease=Box::new(feedback.scene_projection_lease(&lease).map_err(|_|WriteStatus::ResourceBusy)?);
-        let relative_eligible=feedback.native_scene_capture(&first.keys().cloned().collect::<Vec<_>>(),admission.monotonic_ms(),policy.max_age_ms).is_ok();
+        let relative_eligible=feedback.native_scene_capture(&ids.into_iter().collect::<Vec<_>>(),admission.monotonic_ms(),policy.max_age_ms).is_ok();
         Ok(Some(Self {
             controller,
             boot: admission.boot_id().to_owned(),
@@ -159,6 +159,7 @@ impl Prepared {
             level_patterns,
             levels,
             policy: policy.policy,
+            pattern_scope,
             max_age_ms: policy.max_age_ms,
             lease,
             projection_lease,
@@ -198,6 +199,7 @@ impl Prepared {
             || self.generation.epochs != epochs
             || policy.max_age_ms != self.max_age_ms
             || policy.policy != self.policy
+            || group.pattern_scope() != self.pattern_scope
             || (policy.policy==ReconciliationPolicy::PowerPatternThenProfileLevel && group.profile_level_patterns(&document.timed_scenes).map_err(|_|WriteStatus::InvalidValueInRequest)?!=self.level_patterns.clone().ok_or(WriteStatus::InvalidValueInRequest)?)
             || group
                 .light_on_patterns(&document.timed_scenes)
@@ -245,8 +247,8 @@ impl Prepared {
             }
         }
         let selected = match &self.level_patterns {
-            Some(targets)=>matching_member_with_levels(&self.patterns,targets,&self.actual,&self.levels),
-            None=>matching_member(&self.patterns, &self.actual),
+            Some(targets)=>matching_member_with_levels_scoped(&self.patterns,targets,&self.actual,&self.levels,self.pattern_scope),
+            None=>matching_member_scoped(&self.patterns, &self.actual,self.pattern_scope),
         };
         // Unknown samples have no complete observation time. They are never
         // synthesized as Off, including non-queryable panel/motor endpoints.
