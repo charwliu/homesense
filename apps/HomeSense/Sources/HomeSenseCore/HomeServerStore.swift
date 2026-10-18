@@ -1307,6 +1307,19 @@ public final class HomeServerStore: ObservableObject {
         }
         var metadata = document["scene_metadata"].values.filter { $0["id"].text != id }
         metadata.append(entry)
+        if let room {
+            // The server declares this relationship by IDs. Keep a public
+            // action and its internal selection profile in the same room;
+            // equal display names are never a relationship.
+            let peers = document["scene_presentations"].values.filter {
+                $0["scene"].text == id || $0["selection_scene"].text == id
+            }.flatMap { [$0["scene"].text, $0["selection_scene"].text].compactMap { $0 } }
+            for peer in Set(peers) where peer != id {
+                var value = metadata.first { $0["id"].text == peer } ?? .object(["id": .string(peer), "name": .string(peer)])
+                if room.isEmpty { value = value.removing(["room"]) } else { value["room"] = .string(room) }
+                metadata.removeAll { $0["id"].text == peer }; metadata.append(value)
+            }
+        }
         document["scene_metadata"] = .array(metadata); automationDocument = document; edited()
     }
     public func removeScene(_ id: String, collection: String) throws {

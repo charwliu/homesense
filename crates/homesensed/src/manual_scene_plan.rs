@@ -68,6 +68,15 @@ pub(crate) fn compose(
     writes: &[(String, Option<bool>)],
     selection_reads: BTreeMap<String, Snapshot>,
 ) -> Result<Plan, String> {
+    // One explicit source choice per native group. Do not silently resolve
+    // two public aliases (or a profile bypass) by whichever AST runs last.
+    let mut presentation_groups=BTreeSet::new();
+    for (id,_) in writes {
+        if let Some(p)=document.scene_presentations.get(id){
+            let group=document.scene_switch_groups.iter().find(|g|g.members.iter().any(|m|m.scene==p.selection_scene)).ok_or("presentation group missing")?;
+            if !presentation_groups.insert(&group.id)||writes.iter().any(|(other,_)|other!=id&&(group.members.iter().any(|m|m.scene==*other||m.off_scene==*other)||group.reset_scenes.contains(other))){return Err("conflicting presentation group writes".into());}
+        }
+    }
     let snapshot = selection_reads
         .iter()
         .map(|(name, s)| (name.clone(), s.stored.clone()))
@@ -165,7 +174,13 @@ pub(crate) fn compose(
         if let Some(mut nodes) = at.remove(&index) {
             roots.append(&mut nodes);
         }
-        if document.immediate_scenes.contains_key(id) && *value == Some(true) {
+        if let Some(presentation)=document.scene_presentations.get(id) {
+            if let Some(activate)=value {
+                roots.push(Node{source:format!("manual-scene/{id}"),action:Action::Scene{id:id.clone(),activate:*activate}});
+            }else{
+                roots.extend(presentation.toggle_nodes(document).map_err(|e|e.to_string())?);
+            }
+        }else if document.immediate_scenes.contains_key(id) && *value == Some(true) {
             roots.push(Node {
                 source: format!("manual-scene/{id}"),
                 action: Action::Scene {

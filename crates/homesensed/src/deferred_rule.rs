@@ -145,7 +145,7 @@ async fn execute_entry_classified(caller:Caller<'_>,entry:Entry<'_>,chain:&mut C
         &definitions.keys().cloned().collect(),
     )
     .map_err(str::to_owned)?;
-    if let Entry::Scenes(writes)=&entry{for policy in document.component_mode_confirmations.iter().filter(|p|p.scenes.iter().any(|s|writes.iter().any(|(id,on)|id==s&&*on==Some(true)))){names.extend(policy.when_values.keys().cloned());names.extend(policy.when_initial_unknown.iter().cloned());}}
+    if let Entry::Scenes(writes)=&entry{for policy in document.component_mode_confirmations.iter().filter(|p|p.scenes.iter().any(|s|writes.iter().any(|(id,on)|id==s&&(*on==Some(true)||document.scene_presentations.contains_key(id))))){names.extend(policy.when_values.keys().cloned());names.extend(policy.when_initial_unknown.iter().cloned());}}
     let snapshot = admission
         .variable_snapshot(controller, generation.clone(), names.into_iter().collect())
         .await
@@ -226,7 +226,7 @@ async fn execute_entry_classified(caller:Caller<'_>,entry:Entry<'_>,chain:&mut C
             })
             .collect()
     };
-    let requested=match &entry{Entry::Scenes(writes)=>writes.iter().filter(|(_,on)|*on==Some(true)).map(|(id,_)|id.clone()).collect::<Vec<_>>(),_=>vec![]};
+    let requested=match &entry{Entry::Scenes(writes)=>writes.iter().filter(|(id,on)|*on==Some(true)||document.scene_presentations.contains_key(id)).map(|(id,_)|id.clone()).collect::<Vec<_>>(),_=>vec![]};
     let intents=planned.plan.commands.iter().map(|c|Intent{device:c.device.clone(),command:c.command}).collect::<Vec<_>>();
     let mode_confirmation=if requested.is_empty(){None}else{crate::component_modes::Prepared::capture(&document,&bundle.configuration,&requested,&initial_snapshot,&planned.plan.variable_reads,&planned.plan.variables,&updates,&intents,feedback,admission.monotonic_ms()).map_err(ExecutionFailure::RejectedBeforeAcceptance)?};
     if let Some(mode)=&mode_confirmation {let deferred=mode.variables();condition_reads.extend(mode.reads());updates.retain(|u|!deferred.contains(&u.name));changed_variables.retain(|name|!deferred.contains(name));if let Some(baseline)=mode.baseline(){lease=Some(match lease {Some(original)=>original.merge_physical(baseline).map_err(ExecutionFailure::RejectedBeforeAcceptance)?,None=>baseline.clone()});}}

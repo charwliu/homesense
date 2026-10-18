@@ -2802,3 +2802,6 @@ fn returned_zero_projection_precedes_watchdog_only_when_complete_proof_is_alread
         h.actor.submit(homesense_hap::requests::Batch {controller:h.controller,subscriptions:vec![],intents:vec![homesense_hap::requests::Intent {device:homesense_core::DeviceId::new("marker").unwrap(),command:homesense_core::Command::Switch(true)}]}).await.unwrap();owner.step().await.unwrap().unwrap().result.unwrap();assert_eq!(calls.lock().unwrap().iter().map(Vec::len).collect::<Vec<_>>(),vec![5,5]);drop(store);h.finish().await;
     });
 }
+
+#[path = "scene_presentation_tests.rs"]
+mod scene_presentation_tests;
