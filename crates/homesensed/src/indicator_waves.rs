@@ -190,7 +190,14 @@ impl Waves {
         // this delivery slot from the current clock, while retaining the
         // original cycle horizon and every command's proof/deadline checks.
         let now=admission.monotonic_ms();
-        let cycle=self.cycle.as_ref().unwrap();let available=cycle.deadline.saturating_sub(now);let allowance=available.min(4000)/2;
+        let cycle=self.cycle.as_ref().unwrap();let available=cycle.deadline.saturating_sub(now);
+        // Retire only unadmitted metadata when the finite cycle cannot fund a
+        // complete delivery slot. A shortened slot can elapse during the next
+        // ordinary control quantum and cancel newly accepted LEDs well before
+        // their own TTL. A later cycle must capture fresh proofs; no accepted
+        // command or original observation horizon is renewed or replayed.
+        if available<4000 {self.abort();return Ok(None);}
+        let allowance=2000;
         let width=((allowance.min(2000)/2)/gap_ms.max(1)).min(16) as usize;
         if width==0 {self.abort();return Ok(None);}
         let targets=cycle.targets[cycle.cursor..cycle.targets.len().min(cycle.cursor+width)].to_vec();
