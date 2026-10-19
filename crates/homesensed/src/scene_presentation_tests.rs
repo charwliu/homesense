@@ -250,3 +250,70 @@ async fn conflicting_public_members_and_internal_profile_batch_reject_before_out
     }
     h.finish().await;
 }
+
+fn unique_physical_selection_inputs() -> (Vec<u8>, Json) {
+    let (cfg, mut doc) = inputs();
+    doc["immediate_scenes"].as_array_mut().unwrap().retain(|s| s["id"] == "act");
+    doc["timed_scenes"].as_array_mut().unwrap().retain(|s| s["id"] != "profile-other");
+    doc["scene_presentations"].as_array_mut().unwrap().retain(|s| s["scene"] == "act");
+    doc["component_mode_confirmations"].as_array_mut().unwrap().retain(|p| p["scenes"][0] == "act");
+    doc["scene_switch_groups"][0]["members"].as_array_mut().unwrap().retain(|m| m["scene"] == "profile-act");
+    doc["scene_switch_groups"][0]["reconciliation"] = json!({"enabled":true,"policy":"unique_light_on_pattern","max_age_ms":5000,"review_evidence":"synthetic unique actual profile"});
+    (cfg, doc)
+}
+
+#[tokio::test]
+async fn keypad_presentation_toggle_uses_same_current_physical_selection_as_catalog() {
+    let (cfg, doc) = unique_physical_selection_inputs();
+    let mut h = Harness::from_inputs(cfg, doc).await;
+    mode_frame(&mut h, 0x15, 1, 100);
+    crate::scene_reconciliation::tick(&h.actor, h.member, &h.document, &h.scheduler, &h.feedback).await.unwrap();
+    assert_eq!(details(&mut h).await["act"].selected, Some(true));
+    let stored = Store::open(h.directory.join("runtime.sqlite")).unwrap().logical_variable(1, "selection").unwrap().unwrap();
+    assert_eq!(stored.value, None, "physical selection must not rewrite historical source intent");
+    h.request(Action::SceneWrites { controller: h.member, revision: 1, scenes: vec![("act".into(), None)] }).await.unwrap();
+    assert_eq!(h.wire().await, [0xae, 0x15, 1, 0, 0xee], "a currently selected presentation must close, not reopen from stale stored intent");
+    h.finish().await;
+}
+
+#[tokio::test]
+async fn keypad_presentation_off_truth_supersedes_historical_on_intent() {
+    let (cfg, doc) = unique_physical_selection_inputs();
+    let mut h = Harness::from_inputs(cfg, doc).await;
+    set_value(&h, "selection", 1).await;
+    mode_frame(&mut h, 0x15, 1, 0);
+    crate::scene_reconciliation::tick(&h.actor, h.member, &h.document, &h.scheduler, &h.feedback).await.unwrap();
+    assert_eq!(details(&mut h).await["act"].selected, Some(false));
+    assert_eq!(mode_value(&h, "selection"), Some(homesense_core::rule::Value::Integer(1)));
+    h.request(Action::SceneWrites { controller: h.member, revision: 1, scenes: vec![("act".into(), None)] }).await.unwrap();
+    assert_eq!(h.wire().await, [0xae, 0x15, 1, 100, 0xee]);
+    h.finish().await;
+}
+
+#[tokio::test]
+async fn presentation_selection_read_is_rechecked_before_any_output() {
+    for changed in [false, true] {
+        let (cfg, doc) = unique_physical_selection_inputs();
+        let mut h = Harness::from_inputs(cfg, doc).await;
+        mode_frame(&mut h, 0x15, 1, 100);
+        crate::scene_reconciliation::tick(&h.actor, h.member, &h.document, &h.scheduler, &h.feedback).await.unwrap();
+        let captured = crate::manual_scene_plan::capture(&h.actor, h.member, &h.generation, &h.document, &[("act".into(), None)]).await.ok().unwrap();
+        assert_eq!(captured.selection_reads["selection"].stored.value, Some(homesense_core::rule::Value::Integer(1)));
+        if changed {
+            mode_frame(&mut h, 0x15, 1, 0);
+            crate::scene_reconciliation::tick(&h.actor, h.member, &h.document, &h.scheduler, &h.feedback).await.unwrap();
+        }
+        let mut payload = guard_payload(&h);
+        payload.variables.clear();
+        payload.batch.intents[0].command = homesense_core::Command::SetLevel { level: homesense_core::Percent::new(0).unwrap(), transition: homesense_core::LevelTransition::Immediate };
+        let result = h.actor.submit_deferred_rule_for_entry(h.generation.clone(), payload, None, Some(vec!["synthetic/presentation-read".into()]), crate::admission::RuleEntry {selection_reads:Some(captured.selection_reads), ..Default::default()}).await;
+        if changed {
+            assert!(result.is_err(), "a newer physical selection cannot inherit an old decision");
+            assert_eq!(h.count("command_journal"), 0);
+        } else {
+            result.unwrap();
+            assert_eq!(h.wire().await, [0xae, 0x15, 1, 0, 0xee]);
+        }
+        h.finish().await;
+    }
+}

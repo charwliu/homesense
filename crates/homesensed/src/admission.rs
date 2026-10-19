@@ -2515,8 +2515,10 @@ impl Admission {
                                                 for (name,expected) in expected_reads {
                                                     let group=document.scene_switch_groups.iter().find(|g|g.variable==name).ok_or(WriteStatus::InvalidValueInRequest)?;
                                                     let mut current=store.scene_selection(configuration.revision(),&name,scene_observer.scope()).map_err(|_|WriteStatus::ServiceCommunicationFailure)?.ok_or(WriteStatus::InvalidValueInRequest)?;
-                                                    crate::scene_reconciliation::project(&mut current,scene_projections.get(&name),group,&store,&configuration,&document,&worker_boot,policy.epochs,millis(clock),ready)?;
-                                                    if current.stored!=expected.stored || current.evidence!=expected.evidence || current.evidence_current!=expected.evidence_current || current.initialization!=expected.initialization || current.physical!=expected.physical{return Err(WriteStatus::InvalidValueInRequest);}
+                                                    if !component_modes.project_selection(&store,&name,&TaskGeneration{boot:worker_boot.clone(),epochs:policy.epochs},&mut current)? {
+                                                        crate::scene_reconciliation::project(&mut current,scene_projections.get(&name),group,&store,&configuration,&document,&worker_boot,policy.epochs,millis(clock),ready)?;
+                                                    }
+                                                    if current.stored!=expected.stored || current.evidence!=expected.evidence || current.evidence_current!=expected.evidence_current || current.initialization!=expected.initialization || current.physical!=expected.physical || current.component_inferred!=expected.component_inferred{return Err(WriteStatus::InvalidValueInRequest);}
                                                     if versions.insert(name,expected.stored.version).is_some_and(|old|old!=expected.stored.version){return Err(WriteStatus::InvalidValueInRequest);}
                                                 }
                                             }
