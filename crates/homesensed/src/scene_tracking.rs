@@ -1,5 +1,6 @@
 //! Ephemeral actual activity. Never reads saved scene activity, selection intent,
-//! recorded brightness, desired state or completed write targets.
+//! recorded brightness, desired state or completed write targets. An explicitly
+//! configured component provider additionally requires live causal ownership.
 use crate::{
     admission::{Admission, TaskGeneration},
     feedback::Feedback,
@@ -223,6 +224,33 @@ pub async fn read(
     generation: &TaskGeneration,
     feedback: &Feedback,
 ) -> Result<Option<Projection>, String> {
+    if let Some(policy) = document.scene_component_activity.get(id).filter(|p| p.enabled) {
+        let views = admission.component_mode_views(controller, generation.clone()).await
+            .map_err(|e| format!("component activity views: {e:?}"))?;
+        let bundle = admission.automation_bundle(controller, generation.clone()).await
+            .map_err(|e| format!("component activity bundle: {e:?}"))?;
+        let proof = views.iter()
+            .find(|v| v.policies.iter().any(|p| p.variable == policy.variable))
+            .and_then(|view| crate::component_modes::Proof::prepare(
+                view, &bundle.configuration, feedback, admission.monotonic_ms(),
+            ).ok());
+        let (activity, valid_until_ms) = admission
+            .component_activity(controller, generation.clone(), id.into(), proof).await
+            .map_err(|e| format!("component activity: {e:?}"))?;
+        return Ok(Some(Projection {
+            activity,
+            activity_source: "confirmed_component",
+            scene: id.into(),
+            display_name: document.scene_metadata.get(id).cloned(),
+            activity_name: policy.activity_name.clone(),
+            boot: admission.boot_id().into(),
+            revision: document.revision,
+            members: vec![],
+            action_available: document.scene_action_available(id),
+            activity_writable: false,
+            valid_until_ms,
+        }));
+    }
     let Some(policy) = document.scene_tracking.get(id).filter(|p| p.enabled) else {
         return Ok(None);
     };

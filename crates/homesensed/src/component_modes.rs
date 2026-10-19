@@ -1107,6 +1107,7 @@ pub(crate) struct Proof {
     valid_until: u64,
     observed_ms: Option<u64>,
     max_age_ms: u64,
+    policies: Vec<Policy>,
 }
 impl Proof {
     pub(crate) fn prepare(
@@ -1139,10 +1140,59 @@ impl Proof {
             valid_until,
             observed_ms,
             max_age_ms: age,
+            policies: view.policies.clone(),
         })
     }
 }
 impl Owner {
+    /// Publish activity only from an existing, still-owned physical inference
+    /// and a current revalidated observation of that exact vector. This read
+    /// neither confirms a pending mutation nor changes a persistent variable.
+    pub(crate) fn activity(
+        &self,
+        store: &Store,
+        policy: &homesense_config::scene_component_activity::Policy,
+        generation: &TaskGeneration,
+        proof: Option<Proof>,
+        now: u64,
+    ) -> Result<(crate::scene_activity::SceneActivity, Option<u64>), W> {
+        use crate::scene_activity::SceneActivity as A;
+        if !policy.enabled || !self.matches_scope(generation) {
+            return Ok((A::Unknown, None));
+        }
+        if self.pending.values().any(|r| r.view.generation == *generation
+            && r.updates.iter().any(|u| u.name == policy.variable)) {
+            return Ok((A::Pending, None));
+        }
+        let Some(proof) = proof else { return Ok((A::Unknown, None)); };
+        let Some(record) = self.confirmed.get(&proof.id) else { return Ok((A::Unknown, None)); };
+        if record.view.generation != *generation || proof.generation != *generation
+            || record.view.policies != proof.policies || self.record_held(record)
+            || now >= record.deadline || now >= proof.valid_until
+            || proof.matched != Some(true) || !Self::owned(store, record)?
+        { return Ok((A::Unknown, None)); }
+        let Some(update) = record.updates.iter().find(|u|u.name==policy.variable) else {
+            return Ok((A::Unknown, None));
+        };
+        let Ok(_guard) = proof.lease.lock(
+            Uuid::parse_str(generation.boot_id()).map_err(|_|W::InvalidValueInRequest)?.as_u128(),
+            generation.epochs.configuration, generation.epochs.transport, now,
+        ) else { return Ok((A::Unknown, None)); };
+        for (device, at) in &proof.lease.observations {
+            let settled = if let Some(fence) = record.completion_fence {
+                store.keypad_completion_feedback_settled(generation.boot_id(), device, *at,
+                    generation.epochs.transport, fence, &record.written)
+            } else {
+                store.component_mode_feedback_settled(generation.boot_id(), device, *at,
+                    generation.epochs.transport, &record.written)
+            };
+            if !settled.map_err(|_|W::ServiceCommunicationFailure)? {
+                return Ok((A::Unknown, None));
+            }
+        }
+        let activity = if update.value == Some(policy.active_value.value()) { A::Active } else { A::Inactive };
+        Ok((activity, Some(record.deadline.min(proof.valid_until))))
+    }
     pub(crate) fn apply(
         &mut self,
         store: &mut Store,

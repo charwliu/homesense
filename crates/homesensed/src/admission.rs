@@ -507,6 +507,7 @@ enum Message {
     ControlBatchProof(Uuid,crate::control_batch::Proof,oneshot::Sender<Result<(),WriteStatus>>),
     ComponentModeViews(Uuid,TaskGeneration,oneshot::Sender<Result<Vec<crate::component_modes::View>,WriteStatus>>),
     ComponentModeProof(Uuid,crate::component_modes::Proof,oneshot::Sender<Result<bool,WriteStatus>>),
+    ComponentActivity(Uuid,TaskGeneration,String,Option<crate::component_modes::Proof>,oneshot::Sender<Result<(crate::scene_activity::SceneActivity,Option<u64>),WriteStatus>>),
     CaptureKeyCompletion(Uuid,TaskGeneration,crate::keypad_actions::Request,crate::source_auth::Source,oneshot::Sender<Result<Arc<crate::keypad_completion::AuthorizedCapture>,WriteStatus>>),
     KeyCompletionViews(Uuid,TaskGeneration,oneshot::Sender<Result<Vec<crate::keypad_completion::View>,WriteStatus>>),
     KeyCompletionProof(Uuid,crate::keypad_completion::Submission,oneshot::Sender<Result<Vec<u64>,WriteStatus>>),
@@ -1031,6 +1032,15 @@ impl Admission {
                         },
                         Message::ComponentModeProof(controller,proof,reply)=>{
                             let result=(||{if failed||!authorize(controller)||mode_generation.as_ref()!=Some(&proof.generation){return Err(WriteStatus::ResourceBusy)}component_modes.apply(&mut store,&configuration,proof,millis(clock))})();if matches!(result,Err(WriteStatus::ServiceCommunicationFailure)){failed=true;audited_transport_failure=false;let _=arbiter.storage_failed();}let _=reply.send(result);
+                        },
+                        Message::ComponentActivity(controller,generation,scene,proof,reply)=>{
+                            let result=(||{
+                                if failed || !authorize(controller) || mode_generation.as_ref()!=Some(&generation) {return Err(WriteStatus::ResourceBusy);}
+                                let bundle=store.active_bundle_shared(options.context).map_err(|_|WriteStatus::ServiceCommunicationFailure)?.ok_or(WriteStatus::InvalidValueInRequest)?;
+                                let document=bundle.automation.as_ref().ok_or(WriteStatus::InvalidValueInRequest)?;
+                                let policy=document.scene_component_activity.get(&scene).ok_or(WriteStatus::InvalidValueInRequest)?;
+                                component_modes.activity(&store,policy,&generation,proof,millis(clock))
+                            })();let _=reply.send(result);
                         },
                         Message::CaptureKeyCompletion(controller,generation,request,source,reply)=>{
                             let result=(||{
@@ -3187,6 +3197,7 @@ impl Admission {
     pub(crate) async fn control_batch_proof(&self,controller:Uuid,proof:crate::control_batch::Proof)->Result<(),WriteStatus>{let(tx,rx)=oneshot::channel();self.sender.try_send(Message::ControlBatchProof(controller,proof,tx)).map_err(|_|WriteStatus::ResourceBusy)?;rx.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?}
     pub(crate) async fn component_mode_views(&self,controller:Uuid,generation:TaskGeneration)->Result<Vec<crate::component_modes::View>,WriteStatus>{let(tx,rx)=oneshot::channel();self.sender.try_send(Message::ComponentModeViews(controller,generation,tx)).map_err(|_|WriteStatus::ResourceBusy)?;rx.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?}
     pub(crate) async fn component_mode_proof(&self,controller:Uuid,proof:crate::component_modes::Proof)->Result<bool,WriteStatus>{let(tx,rx)=oneshot::channel();self.sender.try_send(Message::ComponentModeProof(controller,proof,tx)).map_err(|_|WriteStatus::ResourceBusy)?;rx.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?}
+    pub(crate) async fn component_activity(&self,controller:Uuid,generation:TaskGeneration,scene:String,proof:Option<crate::component_modes::Proof>)->Result<(crate::scene_activity::SceneActivity,Option<u64>),WriteStatus>{let(tx,rx)=oneshot::channel();self.sender.try_send(Message::ComponentActivity(controller,generation,scene,proof,tx)).map_err(|_|WriteStatus::ResourceBusy)?;rx.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?}
     pub(crate) async fn capture_key_completion(&self,controller:Uuid,generation:TaskGeneration,request:crate::keypad_actions::Request,source:crate::source_auth::Source)->Result<Arc<crate::keypad_completion::AuthorizedCapture>,WriteStatus>{
         let(tx,rx)=oneshot::channel();self.sender.try_send(Message::CaptureKeyCompletion(controller,generation,request,source,tx)).map_err(|_|WriteStatus::ResourceBusy)?;rx.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?
     }
