@@ -59,7 +59,7 @@ impl Fixture {
     }
     fn request(&self)->Request {Request{revision:"1".into(),keypad:"panel".into(),key:1,request_id:Uuid::new_v4().to_string(),gesture:Gesture::Activate}}
     fn source(&self,input:&Request)->Source {Source::capture(self.tokens.module_off_lease(Some(&format!("Bearer {SECRET}")),None,None).unwrap(),&Action::KeypadAction{controller:self.controller,request:input.clone()},None).unwrap()}
-    async fn prepare(&self,input:&Request)->Result<Prepared,Rejection> {prepare(&self.actor,&self.actor.task_generation().await.unwrap(),&self.doc,self.controller,input,&self.source(input)).await}
+    async fn prepare(&self,input:&Request)->Result<Prepared,Rejection> {prepare(&self.actor,&self.actor.task_generation().await.unwrap(),&self.doc,self.controller,input,&self.source(input),&self.feedback).await}
     fn batch(&self,on:bool,own:bool,linked:bool)->Batch {
         let mut intents=vec![Intent{device:DeviceId::new("fixture-light").unwrap(),command:Command::SetLevel{level:Percent::new(if on{40}else{0}).unwrap(),transition:LevelTransition::Immediate}}];
         if own {intents.push(Intent{device:DeviceId::new("legacy-key-1").unwrap(),command:Command::PanelLed(on)});}
@@ -383,7 +383,9 @@ async fn unknown_reconciled_scene_cue_preserves_native_toggle_identity_and_curre
     for known in [false,true] {
     let mut f=Fixture::with_policy(true,false,None,true,|_|{}).await;
     if known {
-        f.feedback.apply(&crate::transport_owner::GatewayRead{gateway_id:"bus".into(),transport_epoch:1,received_at_ms:f.time.load(Ordering::SeqCst),result:hb_transport::Receive::Frames{transport_epoch:1,frames:vec![hb_protocol::RawFrame{address:0x15,command:0xd1,value:17},hb_protocol::RawFrame{address:0x15,command:0xd2,value:17}]}}).unwrap();
+        // Keep one excluded output genuinely never observed. Complete feedback
+        // now establishes the physical selection during foreground preparation.
+        f.feedback.apply(&crate::transport_owner::GatewayRead{gateway_id:"bus".into(),transport_epoch:1,received_at_ms:f.time.load(Ordering::SeqCst),result:hb_transport::Receive::Frames{transport_epoch:1,frames:vec![hb_protocol::RawFrame{address:0x15,command:0xd1,value:17}]}}).unwrap();
     }
     let prepared=f.prepare(&f.request()).await.unwrap();
     assert!(matches!(prepared.action,Action::SceneRelative{ref scene,..} if scene=="reading"));
@@ -411,6 +413,26 @@ async fn unknown_reconciled_scene_cue_preserves_native_toggle_identity_and_curre
     assert_eq!(row.status,homesense_storage::native_scene::Status::Observed);
     assert_eq!(row.selected,Some(1));
     assert_eq!(f.actor.task_generation().await.unwrap().epochs.configuration,1);
+    f.close().await;
+    }
+}
+
+#[tokio::test]
+async fn fresh_physical_selection_without_background_projection_prepares_off() {
+    for (main,other,execute) in [(40,0,false),(17,17,true),(0,0,true)] {
+    let mut f=Fixture::with_policy(true,false,Some(0),true,|_|{}).await;
+    f.feedback.apply(&crate::transport_owner::GatewayRead {
+        gateway_id:"bus".into(),transport_epoch:1,received_at_ms:f.time.load(Ordering::SeqCst),
+        result:hb_transport::Receive::Frames {transport_epoch:1,frames:vec![
+            hb_protocol::RawFrame{address:0x15,command:0xd1,value:main},
+            hb_protocol::RawFrame{address:0x15,command:0xd2,value:other},
+        ]},
+    }).unwrap();
+    let prepared=f.prepare(&f.request()).await.unwrap();
+    assert!(matches!(&prepared.action,Action::SceneAction{scene,execute:on,..}if scene=="reading" && *on==execute),
+        "fresh complete truth must decide On/Off even before the background cursor reaches this group");
+    assert_eq!(prepared.source.unwrap().keypad().unwrap().fallback,Some(Command::PanelLed(execute)));
+    assert!(f.actor.dispatch().await.unwrap().is_none(),"projection refresh must not submit controls or queries");
     f.close().await;
     }
 }
