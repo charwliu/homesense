@@ -15,6 +15,17 @@ pub struct Link {
     #[serde(deserialize_with = "device_ids")]
     pub leds: Vec<DeviceId>,
     pub scene: Option<String>,
+    #[serde(default)]
+    pub power_policy: PowerPolicy,
+}
+/// Opt-in physical reconciliation. Clearing a mode never infers its identity.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PowerPolicy {
+    #[default]
+    LegacyOff,
+    FollowAllOn,
+    ClearIfAnyOff,
 }
 pub(crate) fn validate(
     links: &[Link],
@@ -43,6 +54,9 @@ pub(crate) fn validate(
         }
         if !link.enabled {
             continue;
+        }
+        if link.power_policy != PowerPolicy::LegacyOff && link.scene.is_some() {
+            return Err(invalid("physical power indicator cannot also own scene selection"));
         }
         if !link
             .review_evidence

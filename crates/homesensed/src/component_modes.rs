@@ -820,6 +820,10 @@ impl Owner {
         self.completion_holds.clear();
         let targets = document.component_mode_confirmations.iter()
             .map(|p| (&p.variable, &p.id))
+            .chain(document.scene_component_activity.values().filter(|p| p.enabled).flat_map(|p| {
+                p.program_confirmation.as_ref().and_then(|c| c.recorded_selection.as_ref())
+                    .into_iter().flat_map(move |intent| intent.reset_variables.iter().map(move |v| (v, &p.scene)))
+            }))
             .chain(config.keypads().values().flat_map(|p| p.keys.values())
                 .filter_map(|key| key.selection_completion.as_ref())
                 .map(|effect| (&effect.variable, &effect.id))).collect::<Vec<_>>();

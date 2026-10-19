@@ -97,6 +97,76 @@ async fn sync(h: &Harness, s: &mut Synchronizer) {
     .await
     .unwrap();
 }
+
+#[tokio::test]
+async fn power_indicator_follows_both_physical_ports_and_never_replays_unchanged_color() {
+    let (config, mut rules) = linked();
+    rules["indicator_links"] = json!([{"id":"shared-power","enabled":true,
+        "review_evidence":"Synthetic common supply and independent dimmer",
+        "lights":["light","down"],"leds":["key1"],"power_policy":"follow_all_on"}]);
+    let mut h = harness(config, rules).await;
+    let mut s = Synchronizer::default();
+    sync(&h, &mut s).await;
+    assert!(drain_leds(&h).await.is_empty(), "unknown is not green");
+    for (light, down, red) in [(100,0,false),(100,20,true),(0,20,false)] {
+        levels(&mut h,Some(light),Some(down));
+        sync(&h,&mut s).await;
+        assert_eq!(drain_leds(&h).await.get(&(0x41,1)),Some(&red));
+        sync(&h,&mut s).await;
+        assert!(drain_leds(&h).await.is_empty());
+    }
+    h.close().await;
+}
+
+#[tokio::test]
+async fn power_indicator_negative_clear_never_promotes_a_mode_from_matching_lights() {
+    let (config, mut rules) = linked();
+    rules["indicator_links"] = json!([{"id":"shared-negative","enabled":true,
+        "review_evidence":"Synthetic clear only",
+        "lights":["light","down"],"leds":["key1"],"power_policy":"clear_if_any_off"}]);
+    let mut h=harness(config,rules).await;
+    let mut s=Synchronizer::default();
+    levels(&mut h,Some(100),Some(100));
+    sync(&h,&mut s).await;
+    assert!(drain_leds(&h).await.is_empty(), "matching shape cannot select a mode or set its LED red");
+    levels(&mut h,Some(100),Some(0));
+    sync(&h,&mut s).await;
+    assert_eq!(drain_leds(&h).await.get(&(0x41,1)),Some(&false));
+    levels(&mut h,Some(100),Some(100));
+    sync(&h,&mut s).await;
+    assert!(drain_leds(&h).await.is_empty());
+    h.close().await;
+}
+
+#[tokio::test]
+async fn power_indicator_red_cannot_use_a_bare_fresh_lease_and_output_fence() {
+    use homesense_core::{DeviceId, rule::{Node,Action,Condition,Expr,Budget}};
+    let (config, mut rules)=linked();
+    rules["indicator_links"]=json!([{"id":"sealed-power","enabled":true,"review_evidence":"Synthetic proof boundary",
+        "lights":["light","down"],"leds":["key1"],"power_policy":"follow_all_on"}]);
+    let mut h=harness(config,rules).await;
+    levels(&mut h,Some(100),Some(0));
+    let led=DeviceId::new("key1").unwrap();
+    let nodes=vec![Node {source:"synthetic known but not all on".into(),action:Action::If {
+        condition:Condition::All(["light","down"].into_iter().map(|id|Condition::Not(Box::new(
+            Condition::Unknown(Expr::DeviceOn(DeviceId::new(id).unwrap()))))).collect()),
+        then_actions:vec![Node {source:"synthetic forged red".into(),action:Action::Command {device:led.clone(),command:Command::PanelLed(true)}}],
+        else_actions:vec![],
+    }}];
+    let mut lease=None;
+    let mut prepared=crate::rule_runtime::PreparedRule::prepare_indicator(&h.actor,h.controller,h.generation.clone(),vec![],|variables,_,policy| {
+        let (plan,read)=h.feedback.plan_indicator_rule(&nodes,variables,Budget::default(),h.actor.monotonic_ms(),5000,&BTreeMap::new(),policy)?;
+        assert_eq!(read.observations.len(),2);
+        assert_eq!(plan.commands.len(),1);
+        lease=Some(read);Ok(plan)
+    }).await.map_err(|_|"preparation failed").unwrap();
+    prepared.attach_feedback(lease);
+    let outputs=h.actor.indicator_outputs(h.controller,h.generation.clone(),vec![led],vec![]).await.unwrap();
+    prepared.attach_indicator_outputs(outputs.fence);
+    assert_eq!(prepared.commit_status(&h.actor).await,Err(hap::server::WriteStatus::InvalidValueInRequest));
+    assert!(drain_leds(&h).await.is_empty());
+    h.close().await;
+}
 #[tokio::test]
 async fn current_physical_off_updates_leds_without_discarding_unsettled_restore_target() {
     let (config,rules)=linked();let mut h=harness(config,rules).await;let mut s=Synchronizer::default();

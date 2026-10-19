@@ -33,6 +33,37 @@ pub struct ProgramConfirmation {
     pub timeout_ms: u64,
     pub max_age_ms: u64,
     pub review_evidence: String,
+    /// Recorded mode intent is not an inferred physical state. It is reset at
+    /// scope changes; Active still needs an owned write and fresh feedback.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub recorded_selection: Option<RecordedSelection>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct RecordedSelection {
+    pub source_scenes: Vec<String>,
+    pub reset_variables: Vec<String>,
+    pub review_evidence: String,
+}
+
+fn assigns(nodes: &[homesense_core::rule::Node], variable: &str) -> bool {
+    use homesense_core::rule::Action;
+    nodes.iter().any(|n| match &n.action {
+        Action::Set { variable: name, .. } => name == variable,
+        Action::If { then_actions, else_actions, .. } =>
+            assigns(then_actions, variable) || assigns(else_actions, variable),
+        _ => false,
+    })
+}
+fn has_future_scene(nodes: &[homesense_core::rule::Node]) -> bool {
+    use homesense_core::rule::Action;
+    nodes.iter().any(|n| match &n.action {
+        Action::Scene { .. } => true,
+        Action::If { then_actions, else_actions, .. } =>
+            has_future_scene(then_actions) || has_future_scene(else_actions),
+        _ => false,
+    })
 }
 
 pub(crate) fn validate(
@@ -76,7 +107,7 @@ pub(crate) fn validate(
                     .any(|m| m.scene == p.scene || m.off_scene == p.scene)
                     || g.reset_scenes.contains(&p.scene)
             })
-            || !document.component_mode_confirmations.iter().any(|c| {
+            || p.program_confirmation.as_ref().is_none_or(|c| c.recorded_selection.is_none()) && !document.component_mode_confirmations.iter().any(|c| {
                 c.basis == Basis::Physical
                     && c.variable == p.variable
                     && c.first_value == p.active_value
@@ -88,6 +119,32 @@ pub(crate) fn validate(
             ));
         }
         if let Some(program) = &p.program_confirmation {
+            if let Some(intent) = &program.recorded_selection {
+                let sources = intent.source_scenes.iter().collect::<BTreeSet<_>>();
+                let resets = intent.reset_variables.iter().collect::<BTreeSet<_>>();
+                if sources.is_empty() || sources.len() > 64
+                    || sources.len() != intent.source_scenes.len()
+                    || !sources.contains(&p.scene)
+                    || resets.is_empty() || resets.len() > 64
+                    || resets.len() != intent.reset_variables.len()
+                    || !resets.contains(&p.variable)
+                    || intent.review_evidence.trim().is_empty()
+                    || intent.review_evidence.len() > 8192
+                    || intent.reset_variables.iter().any(|name| {
+                        document.variables.get(name).is_none_or(|v| v.lifetime != Lifetime::Persistent)
+                            || document.component_mode_confirmations.iter().any(|c| &c.variable == name)
+                            || document.scene_switch_groups.iter().any(|g| &g.variable == name)
+                    })
+                    || intent.source_scenes.iter().any(|scene| {
+                        !document.scene_action_available(scene)
+                            || document.scene_execution_kind(scene) != Some(crate::rule_document::SceneExecutionKind::Immediate)
+                            || !document.linked_manual_scenes(std::slice::from_ref(scene))
+                                .is_ok_and(|nodes| assigns(&nodes, &p.variable) && !has_future_scene(&nodes))
+                    })
+                {
+                    return Err(invalid("recorded selection needs distinct reviewed writers and reset-only persistent intent"));
+                }
+            }
             let candidates = document.component_mode_confirmations.iter().filter(|c| {
                 c.basis == Basis::Physical
                     && c.variable == p.variable
@@ -118,7 +175,15 @@ pub(crate) fn validate(
             if declared.is_empty()
                 || declared.len() > 32
                 || declared.len() != program.active_conditions.len()
-                || Some(&declared) != common.as_ref()
+                || program.recorded_selection.is_none() && Some(&declared) != common.as_ref()
+                || program.active_conditions.iter().any(|c| {
+                    homesense_core::DeviceId::new(&c.device).ok()
+                        .and_then(|id| config.binding(&id)).is_none_or(|(_, m)| {
+                            !c.on || !matches!(m.kind(), homesense_core::ModuleKind::Switch | homesense_core::ModuleKind::Dimmer)
+                                || c.level.is_some_and(|level| !(1..=100).contains(&level)
+                                    || m.profile() != homesense_core::ProtocolProfile::Ad8Din)
+                        })
+                })
                 || program.timeout_ms == 0
                 || program.timeout_ms > 15_000
                 || program.max_age_ms == 0

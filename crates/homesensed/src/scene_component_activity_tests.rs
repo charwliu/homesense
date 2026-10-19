@@ -2,6 +2,119 @@
 use super::*;
 use crate::scene_activity::SceneActivity as A;
 
+fn recorded_program_inputs() -> (Vec<u8>, Json) {
+    let (cfg, doc) = component_cycle_inputs();
+    let mut doc = with_program(doc, "v", json!(1));
+    doc["component_mode_confirmations"] = json!([]);
+    doc["scene_component_activity"][0]["program_confirmation"]["recorded_selection"] = json!({
+        "source_scenes":["act"], "reset_variables":["v"],
+        "review_evidence":"Synthetic explicit selection; physical ownership still required"
+    });
+    (cfg, doc)
+}
+
+#[test]
+fn recorded_program_schema_rejects_unowned_writers_resets_and_nonphysical_conditions() {
+    let (cfg, doc) = recorded_program_inputs();
+    let config = Configuration::parse(&cfg, ExecutionContext::Simulation).unwrap();
+    assert!(Document::parse(&serde_json::to_vec(&doc).unwrap(), &config).is_ok());
+    for variant in 0..7 {
+        let mut bad = doc.clone();
+        let p = &mut bad["scene_component_activity"][0]["program_confirmation"];
+        match variant {
+            0 => p["recorded_selection"]["source_scenes"] = json!(["other"]),
+            1 => p["recorded_selection"]["source_scenes"] = json!(["act", "other"]),
+            2 => p["recorded_selection"]["reset_variables"] = json!(["w"]),
+            3 => p["recorded_selection"]["reset_variables"] = json!(["v", "missing"]),
+            4 => p["active_conditions"][0]["on"] = json!(false),
+            5 => p["active_conditions"][0]["device"] = json!("execute-led"),
+            _ => p["recorded_selection"]["review_evidence"] = json!(""),
+        }
+        assert!(Document::parse(&serde_json::to_vec(&bad).unwrap(), &config).is_err(), "variant{variant}");
+    }
+}
+
+#[tokio::test]
+async fn recorded_program_boot_reset_prevents_reusing_a_persistent_selected_intent() {
+    let (cfg, doc) = recorded_program_inputs();
+    let mut h = Harness::from_inputs(cfg, doc).await;
+    execute(&mut h).await;
+    h.wire().await;
+    tokio::time::sleep(Duration::from_millis(2)).await;
+    mode_frame(&mut h,3,1,0xf1);
+    confirm_program(&h).await;
+    drain_linked_led(&h).await;
+    assert_eq!(activity(&h).await.activity,A::Active);
+    h.actor.clone().shutdown().await.unwrap();
+    let controller=h.controller;
+    let actor=Admission::open(h.directory.join("runtime.sqlite"),Options {
+        context:ExecutionContext::Simulation,..Default::default()
+    },move |id|id==controller).await.unwrap();
+    actor.synchronized(1,1).await.unwrap();
+    assert_eq!(mode_value(&h,"v"),None);
+    assert!(actor.program_activity_views(controller,actor.task_generation().await.unwrap()).await.unwrap().is_empty());
+    actor.shutdown().await.unwrap();
+    std::fs::remove_dir_all(h.directory).unwrap();
+}
+
+#[tokio::test]
+async fn recorded_program_gateway_fault_resets_only_registered_scope_without_io() {
+    let (cfg, doc) = recorded_program_inputs();
+    let h = Harness::from_inputs(cfg, doc).await;
+    seed_mode(&h,"v",1);
+    seed_mode(&h,"w",1);
+    let mut owner=crate::program_activity::Owner::default();
+    owner.configure(&h.document,&h.configuration);
+    let mut store=Store::open(h.directory.join("runtime.sqlite")).unwrap();
+    owner.reset_recorded_for_gateway(&mut store,&h.configuration,&h.generation,"unrelated",h.actor.monotonic_ms()).unwrap();
+    assert_eq!(mode_value(&h,"v"),Some(homesense_core::rule::Value::Integer(1)));
+    owner.reset_recorded_for_gateway(&mut store,&h.configuration,&h.generation,"bus",h.actor.monotonic_ms()).unwrap();
+    assert_eq!(mode_value(&h,"v"),None);
+    assert_eq!(mode_value(&h,"w"),Some(homesense_core::rule::Value::Integer(1)));
+    assert_eq!(h.count("command_journal"),0);
+    drop(store);
+    h.finish().await;
+}
+
+#[tokio::test]
+async fn recorded_program_saved_intent_matching_shape_cannot_promote_but_negative_is_read_only() {
+    let (cfg, doc) = recorded_program_inputs();
+    let mut h = Harness::from_inputs(cfg, doc).await;
+    seed_mode(&h, "v", 1);
+    mode_frame(&mut h, 3, 1, 0xf1);
+    assert_eq!(activity(&h).await.activity, A::Unknown, "saved label and shape are not owned execution");
+    mode_frame(&mut h, 3, 1, 0xf2);
+    assert_eq!(activity(&h).await.activity, A::Inactive);
+    assert_eq!(mode_value(&h, "v"), Some(homesense_core::rule::Value::Integer(1)));
+    assert_eq!(h.count("command_journal"), 0);
+    h.finish().await;
+}
+
+#[tokio::test]
+async fn recorded_program_needs_postwrite_confirmation_and_preserves_unrelated_manual_outputs() {
+    let (cfg, doc) = recorded_program_inputs();
+    let mut h = Harness::from_inputs(cfg, doc).await;
+    execute(&mut h).await;
+    assert_eq!(activity(&h).await.activity, A::Pending);
+    mode_frame(&mut h, 3, 1, 0xf1);
+    confirm_program(&h).await;
+    assert_eq!(activity(&h).await.activity, A::Pending);
+    h.wire().await;
+    tokio::time::sleep(Duration::from_millis(2)).await;
+    mode_frame(&mut h, 3, 1, 0xf1);
+    confirm_program(&h).await;
+    drain_linked_led(&h).await;
+    assert_eq!(activity(&h).await.activity, A::Active);
+    mode_frame(&mut h, 3, 2, 0xf1);
+    confirm_program(&h).await;
+    assert_eq!(activity(&h).await.activity, A::Active, "unrelated component cannot revoke the owned primary");
+    mode_frame(&mut h, 3, 1, 0xf2);
+    confirm_program(&h).await;
+    assert_eq!(activity(&h).await.activity, A::Inactive);
+    assert_eq!(mode_value(&h, "v"), Some(homesense_core::rule::Value::Integer(1)), "negative display is not a control mutation");
+    h.finish().await;
+}
+
 fn with_activity(mut document: Json, variable: &str, value: Json) -> Json {
     document["scene_component_activity"] = json!([{
         "scene":"act", "enabled":true, "variable":variable, "active_value":value,
