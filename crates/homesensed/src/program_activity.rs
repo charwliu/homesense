@@ -842,7 +842,7 @@ impl Proof {
         generation: TaskGeneration, now: u64,
     ) -> Result<Self, String> {
         let program = policy.program_confirmation.as_ref().ok_or("missing program")?;
-        if program.recorded_selection.is_none() { return Err("not recorded selection".into()); }
+        if program.recorded_selection.is_none() && !program.negative_feedback { return Err("negative feedback not enabled".into()); }
         let age = feedback.effective_max_age_ms(program.max_age_ms);
         let (lease, signature) = primary_sample(config, &program.active_conditions, feedback, now, age)?;
         let valid_until = lease.observations.values().filter_map(|v| *v).min().unwrap_or(now).saturating_add(age);
@@ -1080,7 +1080,7 @@ impl Owner {
                 return Ok(None);
             }
             let program = policy.program_confirmation.as_ref().unwrap();
-            if program.recorded_selection.is_none() { return Ok(None); }
+            if program.recorded_selection.is_none() && !program.negative_feedback { return Ok(None); }
             let Ok(_guard) = proof.lease.lock(
                 Uuid::parse_str(proof.generation.boot_id()).map_err(|_| W::ServiceCommunicationFailure)?.as_u128(),
                 proof.generation.epochs.configuration, proof.generation.epochs.transport, now,
@@ -1096,7 +1096,7 @@ impl Owner {
                 .any(|(c, a)| a.on != c.on || c.level.is_some_and(|v| a.level != Some(v)));
             let value = store.logical_variable(proof.generation.epochs.configuration, &policy.variable)
                 .map_err(|_| W::ServiceCommunicationFailure)?.and_then(|v| v.value);
-            let negative_intent = value.as_ref().is_some_and(|v| *v != policy.active_value.value()
+            let negative_intent = program.recorded_selection.is_some() && value.as_ref().is_some_and(|v| *v != policy.active_value.value()
                 && program.known_values.iter().any(|known| known.value() == *v));
             return Ok(Some((if mismatch || negative_intent { A::Inactive } else { A::Unknown }, Some(proof.valid_until))));
         };

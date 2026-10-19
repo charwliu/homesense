@@ -91,6 +91,69 @@ async fn recorded_program_saved_intent_matching_shape_cannot_promote_but_negativ
 }
 
 #[tokio::test]
+async fn negative_feedback_program_is_opt_in_and_does_not_establish_control_selection() {
+    let (cfg,doc)=component_cycle_inputs();
+    let legacy=with_program(doc.clone(),"v",json!(1));
+    let mut h=Harness::from_inputs(cfg.clone(),legacy).await;
+    mode_frame(&mut h,3,1,0xf2);
+    assert_eq!(activity(&h).await.activity,A::Unknown,"omitted policy keeps the old unknown contract");
+    h.finish().await;
+    let mut opted=with_program(doc,"v",json!(1));
+    opted["scene_component_activity"][0]["program_confirmation"]["negative_feedback"]=json!(true);
+    let mut h=Harness::from_inputs(cfg,opted).await;
+    mode_frame(&mut h,3,1,0xf2);
+    assert_eq!(activity(&h).await.activity,A::Inactive,"known negative shape can disprove activity");
+    assert_eq!(mode_value(&h,"v"),None,"read-only negative display cannot materialize a mode");
+    assert_eq!(h.count("command_journal"),0);
+    mode_frame(&mut h,3,1,0xf1);
+    assert_eq!(activity(&h).await.activity,A::Unknown,"matching shape alone cannot become Active");
+    h.finish().await;
+}
+
+#[tokio::test]
+async fn negative_feedback_program_ignores_unowned_saved_mode_and_rejects_stale_proof() {
+    let (cfg,doc)=component_cycle_inputs();let mut doc=with_program(doc,"v",json!(1));
+    doc["scene_component_activity"][0]["program_confirmation"]["negative_feedback"]=json!(true);
+    let mut h=Harness::from_inputs(cfg,doc).await;
+    seed_mode(&h,"v",0);
+    mode_frame(&mut h,3,1,0xf1);
+    assert_eq!(activity(&h).await.activity,A::Unknown,"a raw saved off tag is not negative physical evidence");
+    mode_frame(&mut h,3,1,0xf2);
+    assert_eq!(activity(&h).await.activity,A::Inactive);
+    let policy=h.document.scene_component_activity.get("act").unwrap();
+    let proof=crate::program_activity::Proof::prepare_negative(policy,&h.configuration,&h.feedback,h.generation.clone(),h.actor.monotonic_ms()).unwrap();
+    mode_frame(&mut h,3,1,0xf1);
+    let stale=h.actor.program_activity(h.controller,h.generation.clone(),"act".into(),Some(proof)).await.unwrap();
+    assert_eq!(stale,Some((A::Unknown,None)),"a replaced sample invalidates the old negative proof");
+    assert_eq!(mode_value(&h,"v"),Some(homesense_core::rule::Value::Integer(0)));
+    assert_eq!(h.count("command_journal"),0);
+    h.finish().await;
+}
+
+#[tokio::test]
+async fn negative_feedback_program_keeps_owned_first_activation_component_authority() {
+    let (cfg,doc)=component_cycle_inputs();let mut doc=with_program(doc,"v",json!(1));
+    doc["scene_component_activity"][0]["program_confirmation"]["negative_feedback"]=json!(true);
+    let mut h=Harness::from_inputs(cfg,doc).await;
+    mode_frame(&mut h,3,1,0xf2);
+    assert_eq!(activity(&h).await.activity,A::Inactive);
+    execute(&mut h).await;
+    assert_eq!(activity(&h).await.activity,A::Pending,"negative fallback cannot replace an in-flight first activation");
+    assert_eq!(h.wire().await,vec![0xae,3,1,0xf1,0xee]);
+    tokio::time::sleep(Duration::from_millis(2)).await;
+    mode_frame(&mut h,3,1,0xf1);
+    assert_eq!(mode_confirm(&h).await,1);
+    assert!(h.actor.program_activity_views(h.controller,h.generation.clone()).await.unwrap().is_empty(),
+        "first activation is owned by the physical component, not a guessed program record");
+    let writes=h.count("command_journal");
+    let result=activity(&h).await;
+    assert_eq!(result.activity,A::Active,"negative-only fallback must not hide a confirmed physical first activation");
+    assert_eq!(result.activity_source,"confirmed_component");
+    assert_eq!(h.count("command_journal"),writes,"projection must not replay control or query");
+    h.finish().await;
+}
+
+#[tokio::test]
 async fn recorded_program_needs_postwrite_confirmation_and_preserves_unrelated_manual_outputs() {
     let (cfg, doc) = recorded_program_inputs();
     let mut h = Harness::from_inputs(cfg, doc).await;

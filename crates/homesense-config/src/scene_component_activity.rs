@@ -37,7 +37,13 @@ pub struct ProgramConfirmation {
     /// scope changes; Active still needs an owned write and fresh feedback.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub recorded_selection: Option<RecordedSelection>,
+    /// Fresh negative physical feedback may disprove an unowned program. It
+    /// never establishes a selected mode or an Active program from its shape.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub negative_feedback: bool,
 }
+
+fn is_false(value: &bool) -> bool { !*value }
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]

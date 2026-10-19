@@ -134,6 +134,70 @@ fn mixed_power_indicator_requires_reviewed_off_ports_inside_the_complete_scope()
     assert!(parse(&rules).is_err(),"legacy scene ownership cannot acquire a physical-polarity override");
 }
 
+#[test]
+fn level_power_indicator_requires_unique_positive_dimmer_targets_inside_scope() {
+    let(config,mut rules)=linked();
+    let configuration=homesense_config::Configuration::parse(&config,homesense_core::ExecutionContext::Simulation).unwrap();
+    rules["indicator_links"]=json!([{"id":"level-negative","enabled":true,"review_evidence":"Synthetic exact component level",
+        "lights":["light","down"],"level_targets":[{"device":"light","level":10}],"leds":["key1"],"power_policy":"clear_if_any_off"}]);
+    let parse=|input:&Json|Document::parse(&serde_json::to_vec(input).unwrap(),&configuration);
+    assert!(parse(&rules).is_ok());
+    let mut relay=rules.clone();relay["indicator_links"][0]["lights"]=json!(["switch"]);
+    relay["indicator_links"][0]["level_targets"]=json!([]);
+    assert!(parse(&relay).is_ok(),"the plain switch is a valid On/Off input");
+    relay["indicator_links"][0]["level_targets"]=json!([{"device":"switch","level":10}]);
+    assert!(parse(&relay).is_err(),"being inside the input scope cannot make a switch dimmable");
+    for target in [json!([{"device":"switch","level":10}]),json!([{"device":"key1","level":10}]),
+        json!([{"device":"light","level":0}]),json!([{"device":"light","level":101}]),
+        json!([{"device":"light","level":10},{"device":"light","level":20}])] {
+        let mut invalid=rules.clone();invalid["indicator_links"][0]["level_targets"]=target;
+        assert!(parse(&invalid).is_err());
+    }
+    rules["indicator_links"][0]["lights_off"]=json!(["light"]);
+    assert!(parse(&rules).is_err(),"an input required Off cannot also require a positive level");
+    rules["indicator_links"][0].as_object_mut().unwrap().remove("lights_off");
+    rules["indicator_links"][0]["power_policy"]=json!("legacy_off");
+    assert!(parse(&rules).is_err());
+}
+
+#[tokio::test]
+async fn level_power_indicator_clears_nonmatching_nonzero_level_without_inferring_red() {
+    let(config,mut rules)=linked();
+    rules["indicator_links"]=json!([{"id":"level-negative","enabled":true,"review_evidence":"Synthetic exact negative component",
+        "lights":["light","down"],"level_targets":[{"device":"light","level":10}],"leds":["key1"],"power_policy":"clear_if_any_off"}]);
+    let mut h=harness(config,rules).await;let mut s=Synchronizer::default();
+    h.actor.submit_rule_update(h.generation.clone(),homesense_hap::requests::Batch {
+        controller:h.controller,intents:vec![homesense_hap::requests::Intent {
+            device:homesense_core::DeviceId::new("key1").unwrap(),command:Command::PanelLed(true),
+        }],subscriptions:vec![]},vec![]).await.unwrap();
+    assert_eq!(drain_leds(&h).await.get(&(0x41,1)),Some(&true));
+    levels(&mut h,Some(10),None);sync(&h,&mut s).await;
+    assert!(drain_leds(&h).await.is_empty(),"partial input is not evidence");
+    levels(&mut h,Some(10),Some(20));sync(&h,&mut s).await;
+    assert!(drain_leds(&h).await.is_empty(),"matching shape does not establish a program identity");
+    levels(&mut h,Some(30),Some(20));sync(&h,&mut s).await;
+    assert_eq!(drain_leds(&h).await.get(&(0x41,1)),Some(&false),"both lights are On but the required level no longer matches");
+    sync(&h,&mut s).await;assert!(drain_leds(&h).await.is_empty());
+    h.close().await;
+}
+
+#[tokio::test]
+async fn level_power_indicator_proof_binds_exact_target_levels() {
+    let(config,mut rules)=linked();
+    rules["indicator_links"]=json!([{"id":"level-power","enabled":true,"review_evidence":"Synthetic sealed exact level",
+        "lights":["light","down"],"level_targets":[{"device":"light","level":10}],"leds":["key1"],"power_policy":"follow_all_on"}]);
+    let configuration=homesense_config::Configuration::parse(&config,homesense_core::ExecutionContext::Simulation).unwrap();
+    let mut h=harness(config,rules.clone()).await;let mut s=Synchronizer::default();
+    levels(&mut h,Some(90),Some(20));
+    let mut wrong=rules.clone();wrong["indicator_links"][0]["level_targets"][0]["level"]=json!(90);
+    h.document=Document::parse(&serde_json::to_vec(&wrong).unwrap(),&configuration).unwrap();
+    sync(&h,&mut s).await;
+    assert!(drain_leds(&h).await.is_empty(),"the same device IDs cannot substitute a different target level");
+    h.document=Document::parse(&serde_json::to_vec(&rules).unwrap(),&configuration).unwrap();
+    sync(&h,&mut s).await;assert_eq!(drain_leds(&h).await.get(&(0x41,1)),Some(&false));
+    h.close().await;
+}
+
 #[tokio::test]
 async fn mixed_power_indicator_follows_positive_and_negative_feedback_without_replay() {
     let (config,mut rules)=linked();
