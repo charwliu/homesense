@@ -1170,6 +1170,7 @@ async fn ordinary_off_and_preparation_alone_do_not_create_effect_receipts() {
         .automation_bundle(f.controller, generation.clone())
         .await
         .unwrap();
+    let feedback = f.feedback(false, false).await;
     let result = crate::keypad_actions::prepare(
         &f.actor,
         &generation,
@@ -1177,6 +1178,7 @@ async fn ordinary_off_and_preparation_alone_do_not_create_effect_receipts() {
         f.controller,
         &request,
         &source,
+        &feedback,
     )
     .await;
     let prepared = result.unwrap();

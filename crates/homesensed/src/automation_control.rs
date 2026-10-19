@@ -530,7 +530,7 @@ impl Receiver {
                 if request.source.as_ref().is_some_and(|source|!source.matches(&request.action)) {return Err("source authority expired before runtime handling".into());}
                 if let Action::KeypadAction {controller,request:input}=&request.action {
                     let Some(source)=request.source.as_ref() else {return Ok(Reply::KeypadRejected(crate::keypad_actions::Rejection::KeypadScopeDenied));};
-                    let prepared=match crate::keypad_actions::prepare(admission,&self.generation,document,*controller,input,source).await {
+                    let prepared=match crate::keypad_actions::prepare(admission,&self.generation,document,*controller,input,source,feedback).await {
                         Ok(prepared)=>prepared,Err(error)=>return Ok(Reply::KeypadRejected(error)),
                     };
                     request.action=prepared.action;request.source=prepared.source;keypad_context=Some(prepared.context);

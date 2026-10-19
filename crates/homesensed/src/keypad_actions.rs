@@ -188,7 +188,7 @@ fn led_coverage(document:&Document,scene:&str,endpoint:&DeviceId)->bool {
 }
 
 pub(crate) async fn prepare(admission:&Admission,generation:&TaskGeneration,document:&Document,controller:Uuid,
-    request:&Request,source:&Source)->Result<Prepared,Rejection> {
+    request:&Request,source:&Source,feedback:&crate::feedback::Feedback)->Result<Prepared,Rejection> {
     let revision=request.validate()?;
     if revision!=document.revision {return Err(Rejection::StaleRevision);}
     let original=Action::KeypadAction {controller,request:request.clone()};
@@ -224,9 +224,21 @@ pub(crate) async fn prepare(admission:&Admission,generation:&TaskGeneration,docu
         },
         KeyAction::SceneToggle{scene,..} => {
             scene_scope(config,document,source,scene)?;
+            let selected_group=document.scene_switch_groups.iter().find(|candidate|candidate.members.iter().any(|member|&member.scene==scene)).ok_or(Rejection::KeypadActionUnavailable)?;
+            // A bounded background cursor may not have refreshed this group
+            // after another scene changed its inputs. Recompute only this
+            // group's proof from existing feedback before deciding On/Off.
+            // Truly unknown inputs retain the existing relative contract.
+            match crate::scene_reconciliation::Prepared::prepare(admission,controller,generation.clone(),selected_group,document,feedback).await {
+                Ok(Some(proof))=>match admission.reconcile_scene_selection(controller,generation.clone(),proof).await {
+                    Ok(())|Err(hap::server::WriteStatus::ResourceBusy|hap::server::WriteStatus::InvalidValueInRequest)=>{},
+                    Err(_)=>return Err(Rejection::RuntimeUnavailable),
+                },
+                Ok(None)|Err(hap::server::WriteStatus::ResourceBusy|hap::server::WriteStatus::InvalidValueInRequest)=>{},
+                Err(_)=>return Err(Rejection::RuntimeUnavailable),
+            }
             let snapshot=admission.scene_selection_snapshot(controller,generation.clone(),crate::scene_switches::variable_names(document)).await.map_err(|_|Rejection::RuntimeUnavailable)?;
             let states=crate::scene_switches::details(document,&snapshot).map_err(|_|Rejection::KeypadActionUnavailable)?;
-            let selected_group=document.scene_switch_groups.iter().find(|candidate|candidate.members.iter().any(|member|&member.scene==scene)).ok_or(Rejection::KeypadActionUnavailable)?;
             let selected=states.get(scene).and_then(|state|state.selected);
             let action=if selected.is_none() && selected_group.reconciliation.as_ref().is_some_and(|policy|policy.enabled) {
                 // This is an accepted gesture cue, not a guessed final mode.

@@ -49,6 +49,7 @@
     }
   },
   "simulator": {
+    "scope": "Away fault-response fixtures. Other private scenario fixtures in this historical qualification retained their earlier reply timing; this section does not describe those fixtures.",
     "reply_delay_ms": [
       3,
       20

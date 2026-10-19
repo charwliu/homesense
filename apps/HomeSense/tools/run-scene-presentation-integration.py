@@ -2,7 +2,7 @@
 All endpoints and inputs are synthetic loopback fixtures, never live config.
 """
 from pathlib import Path
-import argparse,hashlib,http.client,json,os,re,signal,socket,ssl,subprocess,threading,time,traceback
+import argparse,hashlib,http.client,json,os,random,re,signal,socket,ssl,subprocess,threading,time,traceback
 parser=argparse.ArgumentParser()
 parser.add_argument('--binary',type=Path,required=True)
 parser.add_argument('--sha256',required=True)
@@ -35,6 +35,7 @@ def request(path):
  finally:c.close()
 def gateway():
  levels={i:100 if i==1 else 0 for i in range(1,9)}
+ reply_rng=random.Random(93009)
  try:
   while not stop.is_set():
    try:c,peer=listener.accept()
@@ -53,8 +54,11 @@ def gateway():
       address,command,value=f[1:4];record={'at_ms':round((time.monotonic()-started)*1000,3),'raw':f.hex()}
       if address==0x15 and 0xa0<=command<=0xa8:
        assert value==0xf2;record['kind']='query';indices=range(1,9)if command==0xa0 else[command-0xa0]
-       for i in indices:
-        time.sleep(.023);c.sendall(bytes([0xae,0x15,0xd0+i,levels[i],0xee]))
+       payload=b''.join(bytes([0xae,0x15,0xd0+i,levels[i],0xee])for i in indices)
+       delay=reply_rng.uniform(.003,.020)
+       time.sleep(delay);time.sleep(len(payload)*10/9600)
+       c.sendall(payload)
+       record.update(reply_delay_ms=delay*1000,reply_bytes=len(payload),reply_writes=1)
       elif address==0x15:
        assert 1<=command<=8 and (value<=100 or value in[0xf1,0xf2]),f.hex()
        levels[command]=value if value<=100 else(100 if value==0xf1 else 0)
@@ -73,7 +77,8 @@ save('service.json',{'fixture_kind':'synthetic-loopback-scene-presentation','ori
 cmd=[str(a.binary),'serve-automation-tcp',str(a.output/'devices.json'),str(a.output/'automation.json'),str(a.output/'state'),'forever',
  '--coexistence-confirmed','--recoveries','1','--write-interval-ms','20','--web-listen',f'127.0.0.1:{web}',
  '--web-origin',origin,'--web-token',str(a.output/'token'),'--web-cert',str(cert),'--web-key',str(key),'--web-role','administrator']
-result={'passed':False,'binary_sha256_before':sha(a.binary),'all_endpoints_loopback':True,'production_or_phone_operations':0}
+result={'passed':False,'binary_sha256_before':sha(a.binary),'all_endpoints_loopback':True,'production_or_phone_operations':0,
+ 'reply_model':{'seed':93009,'delay_ms':[3,20],'baud':9600,'serial':'8N1','per_module_writes':1,'per_channel_extra_delay':False}}
 worker=threading.Thread(target=gateway,daemon=True)
 try:
  worker.start()

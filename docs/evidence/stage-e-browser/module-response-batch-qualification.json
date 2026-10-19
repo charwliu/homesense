@@ -1,0 +1,86 @@
+{
+  "state": "passed",
+  "simulator": {
+    "fixtures": 12,
+    "reply_processing_delay_ms": [
+      3,
+      20
+    ],
+    "randomized_once_per_module": true,
+    "per_module_contiguous_writes": 1,
+    "serial_baud": 9600,
+    "serial_frame": "8N1",
+    "eight_five_byte_frames_wire_ms": 41.667,
+    "per_channel_artificial_delay": false,
+    "other_assertions_actions_and_deadlines_preserved": true,
+    "scope": "Scene/program/Away fault fixtures and the native scene-presentation timing fixture; other native authorization fixtures are not physical-wire timing qualification.",
+    "native_scene_presentation_fixture": true
+  },
+  "model_contract": {
+    "actual_functions": 12,
+    "eight_channel_batches": 1200,
+    "passed": true
+  },
+  "Mac": {
+    "workspace_passed": 1691,
+    "workspace_failed": 0,
+    "workspace_ignored": 0,
+    "strict_clippy_all_targets": true,
+    "full_cases": 35,
+    "full_steps": 154,
+    "passed": true
+  },
+  "Linux": {
+    "library_passed": 688,
+    "HAP_passed": 3,
+    "focused_cases": 6,
+    "focused_passed": true,
+    "full_cases": 35,
+    "full_steps": 154,
+    "full_gate_passed": true
+  },
+  "qualification_network": "loopback only, no external routes",
+  "production_changed": true,
+  "private_configuration_published": false,
+  "real_gateway_connections": 0,
+  "historical_failures_retained": true,
+  "physical_RS485_collision_freedom_proven": false,
+  "baseline_runtime_sha256": "4e16851a8adda9cb69c10cdfc170f5ab87cbf84087abdb573aa5df148a991f1b",
+  "runtime_sha256": "fb44ab57c4a461baf3db060628f09f02af12319b637bf2f6562f453b11aac91c",
+  "source_freeze": "R31",
+  "historical_linux_attempt": {
+    "completed_program_cases": 17,
+    "completed_hall_steps": 8,
+    "failure": "A wall toggle incorrectly used the On recipe when its physical scene was already selected; retained separately from the initial missing-reference setup failure."
+  },
+  "repair": {
+    "deterministic_red_reproduced": true,
+    "fresh_physical_on_off_and_unselected_cases_passed": 3,
+    "behavior": "Reconcile only the addressed group from existing feedback before the keypad toggle decision. No extra query or relaxed source/freshness fence.",
+    "genuinely_unknown_inputs_keep_relative_contract": true,
+    "original_Hall13_passed_on_both_platforms": true
+  },
+  "native_App": {
+    "reported_base_tests": 199,
+    "base_executed": 186,
+    "base_skipped": 13,
+    "conditioned_methods_actually_executed": 13,
+    "all_skipped_methods_verified_by_name": true,
+    "scene_presentation_operations": 7
+  },
+  "deployment": {
+    "state": "committed",
+    "configuration_revision": 37,
+    "configuration_publication": false,
+    "credential_and_pairing_changes": false,
+    "identity_and_grants_unchanged": true,
+    "process_id": 433630,
+    "unexpected_restarts": 0,
+    "fresh_modules": 12,
+    "fresh_outputs": 96,
+    "boot_actuator_commands": 0,
+    "boot_audit_LED_commands": 86,
+    "pending_commands": 0,
+    "automatic_rollback_guard_removed_after_health_checks": true
+  }
+}
