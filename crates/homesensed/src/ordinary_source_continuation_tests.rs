@@ -640,7 +640,7 @@ async fn combined_http_partial_write_keeps_the_written_dimmer_and_rejects_unwrit
         assert_eq!(h.send_one().await, Some(first));
         assert_eq!(
             *h.bytes.lock().unwrap(),
-            [0xae, 0x15, 0xb2, 30, 0xee],
+            [0xae, 0x15, 2, 30, 0xee],
             "ordinary combined control writes dimmer before supply by design"
         );
         h.bytes.lock().unwrap().clear();
@@ -751,7 +751,7 @@ async fn native_combined_written_supply_does_not_authorize_later_dimmer_under_a_
             assert!(wire.is_empty());
             assert_eq!(h.count_written(), before);
         } else {
-            assert_eq!(wire, [0xae, 0x15, 0xb2, 30, 0xee]);
+            assert_eq!(wire, [0xae, 0x15, 2, 30, 0xee]);
             assert_eq!(h.count_written(), before + 1);
         }
         let sql = rusqlite::Connection::open(h.directory.join("runtime.sqlite")).unwrap();

@@ -377,7 +377,7 @@ async fn encrypted_hap_external17_off_restore_on_and_owned_ramp_share_reported_r
                     ticket.command.command,
                     homesense_core::Command::SetLevel {
                         level: p(if stage == 3 { 17 } else { 40 }),
-                        transition: homesense_core::LevelTransition::Ramp
+                        transition: homesense_core::LevelTransition::Immediate
                     }
                 );
                 actor

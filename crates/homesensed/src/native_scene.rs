@@ -141,12 +141,9 @@ fn build(
     if physical.len() > 128 {
         return Err(WriteStatus::ResourceBusy);
     }
-    let needs_settle=|id:&DeviceId,command:Command| {
-        config.binding(id).is_some_and(|(_,module)|module.profile()==homesense_core::ProtocolProfile::Ad8Din)
-            && matches!(command,Command::SetLevel{transition:LevelTransition::Ramp,..})
-    };
-    let initial_settle_ms=if initial.iter().any(|(id,command)|needs_settle(id,*command)){crate::postwrite_confirmation::AD8_SETTLE_MS}else{0};
-    let conditional_settle_ms=if conditional.iter().any(|(id,(_,level))|config.binding(id).is_some_and(|(_,module)|module.profile()==homesense_core::ProtocolProfile::Ad8Din)&&!matches!(level.get(),0|100)){crate::postwrite_confirmation::AD8_SETTLE_MS}else{0};
+    // Every physical level is normalized to an immediate percentage.
+    let initial_settle_ms=0;
+    let conditional_settle_ms=0;
     Ok(Recipe {
         targets,
         initial,

@@ -12,7 +12,7 @@ fn restore_prepares_dimmer_before_energizing_supply() {
                 Output::Dimmer,
                 Command::SetLevel {
                     level: percent(30),
-                    transition: LevelTransition::Ramp
+                    transition: LevelTransition::Immediate
                 }
             ),
             (Output::Relay, Command::Switch(true))

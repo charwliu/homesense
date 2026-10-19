@@ -418,6 +418,9 @@ pub(crate) struct Owner {
     confirmed: BTreeMap<u64, Record>,
     logical: BTreeMap<u64, Logical>,
     completion_holds: Vec<ReadCheck>,
+    // Accepted immutable mappings only. Activity, ownership and feedback are
+    // still checked for each read in the Admission owner.
+    activity_policies: BTreeMap<String, homesense_config::scene_component_activity::Policy>,
 }
 impl Owner {
     /// Build the post-CAS owner from continuing conditions only. The original
@@ -485,6 +488,7 @@ impl Owner {
         self.confirmed.clear();
         self.logical.clear();
         self.completion_holds.clear();
+        self.activity_policies.clear();
     }
     pub(crate) fn project_selection(
         &self,
@@ -867,6 +871,7 @@ impl Owner {
                     .map_err(|_| W::ServiceCommunicationFailure)?;
             }
         }
+        self.activity_policies = document.scene_component_activity.clone();
         self.scope = Some(generation.clone());
         Ok(())
     }
@@ -1157,6 +1162,14 @@ impl Proof {
     }
 }
 impl Owner {
+    pub(crate) fn activity_for_scene(
+        &self, store: &Store, scene: &str, generation: &TaskGeneration,
+        proof: Option<Proof>, now: u64,
+    ) -> Result<(crate::scene_activity::SceneActivity, Option<u64>), W> {
+        if !self.matches_scope(generation) { return Err(W::ResourceBusy); }
+        let policy = self.activity_policies.get(scene).ok_or(W::InvalidValueInRequest)?;
+        self.activity(store, policy, generation, proof, now)
+    }
     /// Publish activity only from an existing, still-owned physical inference
     /// and a current revalidated observation of that exact vector. This read
     /// neither confirms a pending mutation nor changes a persistent variable.

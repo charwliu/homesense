@@ -374,7 +374,7 @@ async fn failed_adaptive_round_does_not_qualify_background_leds_but_preserves_he
 }
 
 #[tokio::test]
-async fn direct_and_ramp_writes_during_three_hour_idle_confirm_with_their_respective_delay() {
+async fn direct_percentage_writes_during_three_hour_idle_confirm_without_a_ramp_delay() {
     for level in [100,60] {
     let mut f=Fixture::new(false,true).await;let age=f.config.refresh_policy().observation_max_age_ms();
     f.sync(100,age).await.unwrap();
@@ -390,7 +390,7 @@ async fn direct_and_ramp_writes_during_three_hour_idle_confirm_with_their_respec
         if f.owner.feedback().module_truth().module_state("bound",1).unwrap().observed==Some(Observation::Level(Percent::new(level).unwrap())) {break;}
         tokio::time::sleep(Duration::from_millis(5)).await;
     }}).await.unwrap();
-    if level==60 {assert!(f.admission.monotonic_ms()>=write_started_at+6_000,"AD8 intermediate target waits six seconds after writing before confirmation");}
+    assert!(f.admission.monotonic_ms()<write_started_at+1_000,"direct AD8 targets confirm without an artificial six-second delay");
     assert_eq!(f.owner.feedback().module_truth().module_state("bound",1).unwrap().observed,Some(Observation::Level(Percent::new(level).unwrap())));
     assert!(f.owner.feedback().module_truth().module_state("bound",1).unwrap().observed_at_ms>before);
     assert_eq!(f.bus.lock().unwrap().writes.last().unwrap()[1],1,"changed module read first in the ordinary round");

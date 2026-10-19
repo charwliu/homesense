@@ -95,7 +95,8 @@ fn offline_cli_statistics_use_the_validated_deferred_linker_without_weakening_re
     let mut missing=input.clone();missing["rules"][0]["actions"][0]["action"]["id"]=json!("missing");expect(run(&devices,&missing),false,"missing enabled reference");
     missing["rules"][0]["enabled"]=json!(false);let output=expect(run(&devices,&missing),true,"disabled unresolved rule held");assert!(String::from_utf8_lossy(&output.stdout).contains("enabled=0"));
     let mut invalid_device=input.clone();invalid_device["timed_scenes"][0]["steps"][0]["device"]=json!("missing");expect(run(&devices,&invalid_device),false,"invalid physical device");
-    let mut unsupported=devices.clone();unsupported["gateways"][0]["modules"][0]["profile"]=json!("ad8_din_rs485_v2_2_1");expect(run(&unsupported,&input),false,"AD8 arbitraryImmediate encoding must still fail");
+    let mut ad8=devices.clone();ad8["gateways"][0]["modules"][0]["profile"]=json!("ad8_din_rs485_v2_2_1");expect(run(&ad8,&input),true,"AD8 direct percentage is supported");
+    let mut outside=input.clone();outside["timed_scenes"][0]["steps"][0]["command"]["value"]=json!(101);expect(run(&ad8,&outside),false,"AD8 direct percentage remains bounded");
     nested["immediate_scenes"][0]["activate"][0]["action"]["id"]=json!("wrapper");expect(run(&devices,&nested),false,"cyclic immediate call");
     std::fs::remove_dir_all(directory).unwrap();
 }

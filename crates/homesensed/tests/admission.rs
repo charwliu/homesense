@@ -202,7 +202,7 @@ async fn bounded_mailbox_rejects_overload_and_expired_waiting_request() {
 }
 
 #[tokio::test]
-async fn ad8_acceptance_journals_compiled_ramp_not_immediate_target() {
+async fn ad8_acceptance_journals_direct_percentage_target() {
     let document = std::str::from_utf8(include_bytes!("../../../config/simulation.json"))
         .unwrap()
         .replace("gt_d8_rl_v2_2_6_2", "ad8_din_rs485_v2_2_1");
@@ -220,8 +220,8 @@ async fn ad8_acceptance_journals_compiled_ramp_not_immediate_target() {
             |r| r.get(0),
         )
         .unwrap();
-    // Journal v1 tag 3 is SetLevel/Ramp; tag 2 would be Immediate.
-    assert_eq!(intent, vec![1, 3, 30, 0]);
+    // Journal v1 tag 2 is SetLevel/Immediate; no native Ramp is queued.
+    assert_eq!(intent, vec![1, 2, 30, 0]);
     actor.shutdown().await.unwrap();
 }
 
@@ -1369,7 +1369,7 @@ async fn combined_wire_order_and_each_partial_write_boundary_are_audited() {
         if fail_after<10{assert_eq!(first.result.unwrap_err().bytes_written,fail_after);assert!(owner.step().await.is_err());}
         else{first.result.unwrap();assert!(owner.step().await.unwrap().is_none());}
         assert_eq!(first.completed.iter().map(|(id,_)|*id).collect::<Vec<_>>(),ids.iter().copied().take(fail_after.min(10)/5).collect::<Vec<_>>());
-        let expected = [0xAE, 0x15, 0xB1, 30, 0xEE, 0xAE, 0x03, 0x04, 0xF1, 0xEE];
+        let expected = [0xAE, 0x15, 0x01, 30, 0xEE, 0xAE, 0x03, 0x04, 0xF1, 0xEE];
         assert_eq!(
             bytes.lock().unwrap().as_slice(),
             &expected[..fail_after.min(10)]

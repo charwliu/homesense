@@ -71,6 +71,10 @@ private actor PresentationActualHTTP: HomeHTTPTransport {
         #expect(scene("action-1")["relative_unknown_allowed"] == .bool(false))
         try await until("read-only actual activity") { HomeRecord(scene("light-activity")).sceneCardConfirmedActive == true }
         #expect(HomeRecord(scene("light-activity")).sceneCardAction == .execute)
+        let initialMembers = HomeRecord(scene("action-1")).sceneLightStates(devices: home.devices, current: home.snapshotIsCurrent)
+        #expect(scene("action-1")["lights_complete"] == .bool(true))
+        #expect(initialMembers.map(\.id) == ["fixture-light"], "LEDs and read-only prerequisites are not light members")
+        #expect(initialMembers.first?.status == "实测 · 100%")
         let reads = await http.reads()
         var phases: [HomeJSON] = []
         for (label, action, on, active) in [
@@ -99,6 +103,10 @@ private actor PresentationActualHTTP: HomeHTTPTransport {
                 HomeRecord(scene("light-activity")).sceneCardConfirmedActive == (active != 0)
             }
             #expect(device("fixture-downlight")["observed"]["level"] == .integer(0))
+            let members = HomeRecord(scene("action-\(action)")).sceneLightStates(devices: home.devices, current: home.snapshotIsCurrent)
+            #expect(members.map(\.id) == ["fixture-light"])
+            #expect(members.first?.isConfirmed == true && members.first?.isOn == (active != 0))
+            #expect(members.first?.status == (active == 0 ? "实测 · 关闭 · 0%" : "实测 · 100%"), "scene details follow actual pushed readback")
             #expect(HomeRecord(scene("light-activity")).sceneCardAction == .execute)
             #expect(scene("light-activity")["selected"] == .null)
             #expect(await http.reads() == reads, "Control updates must arrive by WSS, without App polling")

@@ -74,7 +74,9 @@ private final class FullCatalogEvents: HomeEventTransport, @unchecked Sendable {
         try #require(URL(string: origin)?.host == "localhost")
         try #require(config["gateways"].values.allSatisfy { $0["endpoint"].text?.hasPrefix("127.0.0.1:") == true })
         let expectedSceneIDs = Set(expected["scene_ids"].values.compactMap(\.text))
-        try #require(expectedSceneIDs.count == 130 && expected["keypads"].values.count == 28 && expected["floors"].values.count == 3)
+        try #require(!expectedSceneIDs.isEmpty && expected["keypads"].values.count == 28 && expected["floors"].values.count == 3)
+        let expectedExecuteKeys = expected["keypads"].values.flatMap { $0["keys"].values }.filter { $0["action_kind"] == .string("scene_execute") }.count
+        let expectedUnknownExecuteKeys = expected["keypads"].values.flatMap { $0["keys"].values }.filter { $0["action_kind"] == .string("scene_execute") && $0["initial_selected"] == .null }.count
         let trust = try FixtureWebSocketTrust(pem: String(contentsOf: root.appendingPathComponent("cert.pem"), encoding: .utf8))
         let http = FullCatalogReadOnlyHTTP(HomeURLSessionTransport(delegate: trust), output: root)
         let events = FullCatalogEvents(HomeWebSocketTransport(delegate: trust))
@@ -97,7 +99,7 @@ private final class FullCatalogEvents: HomeEventTransport, @unchecked Sendable {
         #expect(home.dailyPanels.allSatisfy { home.physicalModule(for: $0) != nil })
         var phases: [HomeJSON] = []
         func verify(_ stage: String) throws {
-            #expect(Set(home.scenes.map(\.id)) == expectedSceneIDs && home.scenes.count == 130)
+            #expect(Set(home.scenes.map(\.id)) == expectedSceneIDs && home.scenes.count == expectedSceneIDs.count)
             let actualPanels = home.devices.filter { $0.raw["kind"].text == "Keypad" }
             let expectedPanels = expected["keypads"].values
             #expect(Set(actualPanels.map(\.id)) == Set(expectedPanels.compactMap { $0["id"].text }))
@@ -127,7 +129,8 @@ private final class FullCatalogEvents: HomeEventTransport, @unchecked Sendable {
                         if executes {
                             executeKeys += 1
                             let scene = try #require(home.scenes.first { $0.id == key.actionScene })
-                            #expect(scene.raw["selected"] == .null)
+                            #expect(scene.raw["selected"] == wanted["initial_selected"], "initial selection follows the explicit reviewed expectation, not a seeded mode")
+                            if wanted["initial_selected"] == .bool(false) { #expect(scene.raw["selection_source"] == .string("physical_feedback")) }
                             #expect(home.canActivateKeypad(panel.id, key: number, card: true))
                             if scene.raw["selected"] == .null && home.canActivateKeypad(panel.id, key: number, card: true) { unknownExecutableKeys += 1 }
                         }
@@ -138,7 +141,7 @@ private final class FullCatalogEvents: HomeEventTransport, @unchecked Sendable {
                     }
                 }
             }
-            #expect(keys == 168 && executeKeys == 46 && unknownExecutableKeys == 46)
+            #expect(keys == 168 && executeKeys == expectedExecuteKeys && unknownExecutableKeys == expectedUnknownExecuteKeys)
             phases.append(.object(["stage": .string(stage), "scenes": .integer(Int64(home.scenes.count)),
                 "panels": .integer(Int64(actualPanels.count)), "keys": .integer(Int64(keys)), "floors": .integer(Int64(home.activeFloors.count)),
                 "rooms": .integer(Int64(home.rooms.count)), "unknown_scene_execute_keys_available": .integer(Int64(unknownExecutableKeys))]))
@@ -154,7 +157,7 @@ private final class FullCatalogEvents: HomeEventTransport, @unchecked Sendable {
         try #require(home.receivingPush && home.snapshotIsCurrent, "Initial full-catalog WSS did not arrive")
         try verify("WSS")
         let frames = try events.snapshot(); let first = try #require(frames.first)
-        #expect(Set(first["scenes"].values.compactMap { $0["id"].text }) == expectedSceneIDs && first["scenes"].values.count == 130)
+        #expect(Set(first["scenes"].values.compactMap { $0["id"].text }) == expectedSceneIDs && first["scenes"].values.count == expectedSceneIDs.count)
         #expect(await http.verifyReadOnly())
         try await http.save(root)
         let trace = try diagnostics.exportText().split(separator: "\n").dropFirst().map { try JSONDecoder().decode(HomeJSON.self, from: Data($0.utf8)) }

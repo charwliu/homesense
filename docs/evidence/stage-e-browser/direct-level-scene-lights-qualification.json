@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-19",
+  "status": "software_qualified_not_deployed",
+  "capabilities": [
+    "Direct percentage commands across manual, restored combined-light and automation entries",
+    "Authorized scene light membership and pushed actual observations",
+    "Bounded LED delivery after full-catalog metadata reads"
+  ],
+  "Mac_workspace_tests": 1634,
+  "Mac_failed": 0,
+  "Mac_ignored": 0,
+  "strict_workspace_clippy": "passed",
+  "Linux_library_tests": 652,
+  "Linux_original_HAP_tests": 3,
+  "Mac_and_Linux_each": {
+    "program_cycles": 19,
+    "program_steps": 57,
+    "linked_LED_composition_steps": 13,
+    "away_cases": 6
+  },
+  "native_actual_methods": 13,
+  "native_external_fixture_skips": 0,
+  "native_full_catalog_read_only": {
+    "public_scenes": 121,
+    "panels": 28,
+    "keys": 168,
+    "controlled_outputs": 96
+  },
+  "deterministic_regression": {
+    "old_code": "failed: delayed metadata consumed LED delivery slot",
+    "fixed_code": "passed: 16 accepted LED writes; original feedback horizon unchanged",
+    "expired_feedback_horizon": "passed: zero admitted commands"
+  },
+  "qualified_Mac_CLI_sha256": "aa74787c048c16b4e0f1688b9d9a148a3e756d6b94892d13548bf0622e7849cb",
+  "qualified_Linux_CLI_sha256": "9fac7877a897c980de037ac3e322939c17d1cbe5526bd7700716e1dfa29f2ce6",
+  "original_assertions_and_deadlines_preserved": true,
+  "earlier_failed_qualification_records_retained": true,
+  "Linux_network_namespace": "unshare -Urn, loopback only, no external routes",
+  "house_bus_connections": 0,
+  "production_changed": false,
+  "App_installed": false,
+  "private_household_material_published": false
+}

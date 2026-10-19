@@ -51,6 +51,7 @@ pub mod study_runtime;
 pub mod study_commission;
 
 pub mod scene_runtime;
+mod scene_lights;
 
 pub mod rule_runtime;
 

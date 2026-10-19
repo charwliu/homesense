@@ -1,4 +1,4 @@
-//! AD8 automation uses direct endpoints and native ramps for intermediate targets.
+//! AD8 automation normalizes every brightness target to a direct percentage.
 //! Generated fixtures only: no field configuration or non-loopback connections.
 use hap::server::WriteStatus;
 use homesense_core::{Command,DeviceId,ExecutionContext,LevelTransition,Percent};
@@ -24,8 +24,8 @@ impl Write for Wire {
     fn flush(&mut self)->std::io::Result<()>{Ok(())}
 }
 #[tokio::test]
-async fn ad8_automation_extremes_are_direct_and_intermediate_targets_keep_native_ramp() {
-    for (level, command) in [(0, 1), (100, 1), (1, 0xb1), (99, 0xb1)] {
+async fn ad8_automation_extremes_are_direct_and_intermediate_targets_are_direct() {
+    for (level, transition, command) in [(0, LevelTransition::Ramp, 1), (100, LevelTransition::Ramp, 1), (10, LevelTransition::Immediate, 1), (10, LevelTransition::Ramp, 1), (1, LevelTransition::Ramp, 1), (99, LevelTransition::Ramp, 1)] {
         let directory = std::env::temp_dir().join(format!("ad8-endpoint-{}", Uuid::new_v4()));
         std::fs::create_dir(&directory).unwrap();
         let path = directory.join("runtime.sqlite");
@@ -43,36 +43,36 @@ async fn ad8_automation_extremes_are_direct_and_intermediate_targets_keep_native
             "bus".into(), hb_transport::Connection::for_simulation(Wire(bytes.clone()), 1),
         )].into());
         let ids = actor.submit_rule_update(
-            generation, batch(controller, "light", level, LevelTransition::Ramp), vec![],
+            generation, batch(controller, "light", level, transition), vec![],
         ).await.unwrap();
         let sent = owner.step().await.unwrap().unwrap();
         sent.result.unwrap();
         assert_eq!(sent.command_id, ids[0]);
         assert_eq!(*bytes.lock().unwrap(), vec![[0xae, 0x11, command, level, 0xee]],
-            "AD8 {level}% must use the selected physical command, even when the scene requests Ramp");
+            "AD8 {level}% must use the selected physical command, with every transition normalized to direct");
         drop(owner);
         actor.shutdown().await.unwrap();
         std::fs::remove_dir_all(directory).unwrap();
     }
 }
 #[tokio::test]
-async fn explicit_automation_ramp_reaches_native_wire_while_manual_raw_ramp_stays_rejected() {
+async fn legacy_automation_ramp_is_normalized_to_direct_wire_while_manual_raw_ramp_stays_rejected() {
     for profile in ["ad8_din_rs485_v2_2_1","gt_d8_rl_v2_2_6_2"] {
         let directory=std::env::temp_dir().join(format!("automation-ramp-{}",Uuid::new_v4()));std::fs::create_dir(&directory).unwrap();let path=directory.join("runtime.sqlite");
         homesense_storage::Store::open(&path).unwrap().publish_configuration(None,&devices("127.0.0.1:1",profile,false,false),ExecutionContext::Simulation,&[]).unwrap();
         let controller=Uuid::new_v4();let actor=Admission::open(path.clone(),Options{context:ExecutionContext::Simulation,..Default::default()},move|id|id==controller).await.unwrap();let generation=actor.task_generation().await.unwrap();
         let bytes=Arc::new(Mutex::new(Vec::new()));let mut owner=homesensed::transport_owner::TransportOwner::new(actor.clone(),[("bus".into(),hb_transport::Connection::for_simulation(Wire(bytes.clone()),1))].into());
         assert_eq!(actor.submit_for_revision(1,batch(controller,"light",37,LevelTransition::Ramp)).await,Err(WriteStatus::InvalidValueInRequest),"manual adapter cannot request a native transition");
-        let ids=actor.submit_rule_update(generation.clone(),batch(controller,"light",37,LevelTransition::Ramp),vec![]).await.expect("configured native ramp must not be re-normalized as a HAP target");assert_eq!(ids.len(),1);
+        let ids=actor.submit_rule_update(generation.clone(),batch(controller,"light",37,LevelTransition::Ramp),vec![]).await.expect("legacy configured target remains admissible and normalizes before journaling");assert_eq!(ids.len(),1);
         let sent=owner.step().await.unwrap().unwrap();sent.result.unwrap();assert_eq!(sent.command_id,ids[0]);
-        assert_eq!(*bytes.lock().unwrap(),vec![[0xae,0x11,0xb1,37,0xee]],"explicit Ramp must remain a native Ramp, including on GT-D8");
+        assert_eq!(*bytes.lock().unwrap(),vec![[0xae,0x11,1,37,0xee]],"legacy Ramp is normalized to a direct target, including on GT-D8");
         assert_eq!(actor.submit_rule_update(generation,batch(controller,"relay",37,LevelTransition::Ramp),vec![]).await,Err(WriteStatus::InvalidValueInRequest),"unsupported module kind must still reject");
         let db=rusqlite::Connection::open(&path).unwrap();assert_eq!(db.query_row("SELECT count(*) FROM command_journal",[],|r|r.get::<_,i64>(0)).unwrap(),1);assert_eq!(db.query_row("SELECT count(*) FROM command_journal WHERE status='written'",[],|r|r.get::<_,i64>(0)).unwrap(),1);drop(db);
         drop(owner);actor.shutdown().await.unwrap();std::fs::remove_dir_all(directory).unwrap();
     }
 }
 #[tokio::test]
-async fn combined_logical_immediate_still_expands_to_native_ramp_and_raw_logical_ramp_is_rejected() {
+async fn combined_logical_immediate_expands_to_direct_level_and_raw_logical_ramp_is_rejected() {
     let directory=std::env::temp_dir().join(format!("automation-combined-ramp-{}",Uuid::new_v4()));std::fs::create_dir(&directory).unwrap();let path=directory.join("runtime.sqlite");
     homesense_storage::Store::open(&path).unwrap().publish_configuration(None,&devices("127.0.0.1:1","ad8_din_rs485_v2_2_1",true,false),ExecutionContext::Simulation,&[]).unwrap();
     let controller=Uuid::new_v4();let actor=Admission::open(path.clone(),Options{context:ExecutionContext::Simulation,..Default::default()},move|id|id==controller).await.unwrap();let generation=actor.task_generation().await.unwrap();
@@ -80,11 +80,11 @@ async fn combined_logical_immediate_still_expands_to_native_ramp_and_raw_logical
     assert_eq!(actor.submit_rule_update(generation.clone(),batch(controller,"light",37,LevelTransition::Ramp),vec![]).await,Err(WriteStatus::InvalidValueInRequest),"combined logical input must remain normalized Immediate");
     let ids=actor.submit_rule_update(generation,batch(controller,"light",37,LevelTransition::Immediate),vec![]).await.unwrap();assert_eq!(ids.len(),2);
     let sent=owner.step().await.unwrap().unwrap();sent.result.unwrap();assert_eq!(sent.completed.iter().map(|(id,_)|*id).collect::<Vec<_>>(),ids);assert_eq!(sent.physical_frames,2);let store=homesense_storage::Store::open(&path).unwrap();for id in &ids{assert_eq!(store.command_status(actor.boot_id(),*id).unwrap(),Some(homesense_storage::journal::Status::Written));}drop(store);assert!(owner.step().await.unwrap().is_none());
-    assert_eq!(*bytes.lock().unwrap(),vec![[0xae,0x11,0xb1,37,0xee],[0xae,3,1,0xf1,0xee]],"existing dimmer-before-supply expansion unchanged");
+    assert_eq!(*bytes.lock().unwrap(),vec![[0xae,0x11,1,37,0xee],[0xae,3,1,0xf1,0xee]],"existing dimmer-before-supply expansion unchanged");
     drop(owner);actor.shutdown().await.unwrap();std::fs::remove_dir_all(directory).unwrap();
 }
 #[tokio::test]
-async fn live_validated_ad8_startup_and_deferred_timeline_write_the_declared_ramps_once() {
+async fn live_validated_ad8_startup_and_deferred_timeline_write_direct_targets_once() {
     let directory=std::env::temp_dir().join(format!("automation-live-ad8-ramp-{}",Uuid::new_v4()));
     let listener=tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let bytes=devices(&listener.local_addr().unwrap().to_string(),"ad8_din_rs485_v2_2_1",false,true);
@@ -92,7 +92,7 @@ async fn live_validated_ad8_startup_and_deferred_timeline_write_the_declared_ram
     let config=homesense_config::Configuration::parse(&bytes,ExecutionContext::Live).unwrap();
     homesensed::configuration_publish::validate_automation(&config,&serde_json::to_vec(&rules).unwrap(),ExecutionContext::Live).expect("exact native Ramp document must pass the unchanged validation gate");
     let mut invalid:Value=rules.clone();invalid["rules"][0]["actions"][0]["action"]["command"]["ramp"]=json!(false);
-    assert!(homesensed::configuration_publish::validate_automation(&config,&serde_json::to_vec(&invalid).unwrap(),ExecutionContext::Live).is_err(),"unsupported direct AD8 intermediate Immediate encoding still fails");
+    assert!(homesensed::configuration_publish::validate_automation(&config,&serde_json::to_vec(&invalid).unwrap(),ExecutionContext::Live).is_ok(),"direct AD8 intermediate targets validate");
     let frames=Arc::new(Mutex::new(Vec::new()));let received=frames.clone();
     let server=tokio::spawn(async move{
         let (mut socket,peer)=listener.accept().await.unwrap();assert!(peer.ip().is_loopback());let mut levels=[30u8;8];
@@ -101,12 +101,12 @@ async fn live_validated_ad8_startup_and_deferred_timeline_write_the_declared_ram
             if frame[1]==3 {assert!((0xa1..=0xa8).contains(&frame[2]),"unsupported switch operation {frame:?}");assert_eq!(frame[3],0xf2);socket.write_all(&[0xae,3,0xd0+(frame[2]-0xa0),0xf2,0xee]).await.unwrap();continue;}
             assert_eq!((frame[0],frame[1],frame[4]),(0xae,0x11,0xee));
             if frame[2]==0xa0 {assert_eq!(frame[3],0xf2);let replies=levels.iter().enumerate().flat_map(|(index,level)|[0xae,0x11,0xd1+index as u8,*level,0xee]).collect::<Vec<_>>();socket.write_all(&replies).await.unwrap();}
-            else {assert_eq!(frame[2],0xb1);assert!(matches!(frame[3],25|60));received.lock().unwrap().push(frame);levels[0]=frame[3];socket.write_all(&[0xae,0x11,0xd1,levels[0],0xee]).await.unwrap();}
+            else {assert_eq!(frame[2],1);assert!(matches!(frame[3],25|60));received.lock().unwrap().push(frame);levels[0]=frame[3];socket.write_all(&[0xae,0x11,0xd1,levels[0],0xee]).await.unwrap();}
         }
     });
     let result=homesensed::automation_tcp::serve(&bytes,&serde_json::to_vec(&rules).unwrap(),&directory,Duration::from_millis(1400),true).await;
     assert!(result.is_ok(),"validated AD8 startup/timed rules failed runtime admission: {result:?}");
-    server.await.unwrap();assert_eq!(*frames.lock().unwrap(),vec![[0xae,0x11,0xb1,25,0xee],[0xae,0x11,0xb1,60,0xee]],"both configured ramps must reach wire once in source order");
+    server.await.unwrap();assert_eq!(*frames.lock().unwrap(),vec![[0xae,0x11,1,25,0xee],[0xae,0x11,1,60,0xee]],"both configured targets must reach direct wire once in source order");
     let db=rusqlite::Connection::open(directory.join("automation-tcp.sqlite")).unwrap();assert_eq!(db.query_row("SELECT count(*) FROM command_journal WHERE status='written'",[],|r|r.get::<_,i64>(0)).unwrap(),2);assert_eq!(db.query_row("SELECT count(*) FROM rule_admission WHERE rule_id='boot'",[],|r|r.get::<_,i64>(0)).unwrap(),1);assert_eq!(db.query_row("SELECT count(*) FROM scene_run WHERE definition='later' AND status='commands_written'",[],|r|r.get::<_,i64>(0)).unwrap(),1);drop(db);
     std::fs::remove_dir_all(directory).unwrap();
 }

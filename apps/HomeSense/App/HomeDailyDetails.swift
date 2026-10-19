@@ -455,6 +455,33 @@ struct HomeSceneDetails: View {
                             Button("关闭场景") { Task { await home.controlScene(sceneID, on: false) } }
                         } else { Button("执行场景") { Task { await home.controlScene(sceneID, on: nil) } } }
                     }.disabled(!home.canControlScene(sceneID))
+                    Section("灯光状态") {
+                        if scene.sceneLightMembershipAvailable {
+                            let lights = scene.sceneLightStates(devices: home.devices, current: home.snapshotIsCurrent)
+                            ForEach(lights) { light in
+                                HStack(spacing: 12) {
+                                    Image(systemName: light.isOn == true ? "lightbulb.fill" : "lightbulb")
+                                        .foregroundStyle(light.isOn == true ? Color.orange : Color.secondary)
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(light.name)
+                                        Text(light.status).font(.caption).foregroundStyle(.secondary)
+                                            .lineLimit(1).minimumScaleFactor(0.75)
+                                    }
+                                }
+                            }
+                            if lights.isEmpty {
+                                Text(scene.raw["lights_complete"] == .bool(true) ? "此场景不控制灯光" : "没有可查看的灯光")
+                                    .foregroundStyle(.secondary)
+                            }
+                            if scene.raw["lights_complete"] == .bool(false) {
+                                Text("部分灯光没有查看权限").font(.caption).foregroundStyle(.secondary)
+                            }
+                            Text("包含此场景会开启或关闭的灯光。状态随设备反馈更新。")
+                                .font(.caption).foregroundStyle(.secondary)
+                        } else {
+                            Text("服务端尚未提供此场景的灯光清单").foregroundStyle(.secondary)
+                        }
+                    }
                 } else { Text("场景暂不可用") }
                 if let error = home.error { Text(error).foregroundStyle(.red) }
                 Text(home.message).font(.caption).foregroundStyle(.secondary)

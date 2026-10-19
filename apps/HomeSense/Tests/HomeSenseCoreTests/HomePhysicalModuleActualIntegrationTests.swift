@@ -65,9 +65,8 @@ private actor PhysicalModuleActualHTTP: HomeHTTPTransport {
         try #require(home.canControlPhysicalModule(dimmer.id, channel: 1, command: level))
         await home.controlPhysicalModule(dimmer.id, channel: 1, command: level)
         try #require(home.error == nil, "\(home.error ?? "")")
-        // Six seconds for the hardware ramp, then two seconds for the genuine
-        // confirmation query and WSS delivery. Other steps keep five seconds.
-        try await wait("AD8 level40", budget: .seconds(8)) {
+        // Direct percentages use the ordinary five-second feedback budget.
+        try await wait("AD8 level40") {
             home.devices.contains { $0.id == "dimmer-light" && $0.raw["quality"].text == "Confirmed" && $0.raw["state_authority"].text == "feedback" && $0.raw["observed"]["level"] == .integer(40) }
         }
         await home.controlPhysicalModule(relay.id, channel: 2, command: off)

@@ -37,11 +37,7 @@ pub fn plan(
             Output::Dimmer,
             Command::SetLevel {
                 level,
-                transition: if level.get() == 100 {
-                    LevelTransition::Immediate
-                } else {
-                    LevelTransition::Ramp
-                },
+                transition: LevelTransition::Immediate,
             },
         ),
         (Output::Relay, Command::Switch(true)),

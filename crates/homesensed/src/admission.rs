@@ -1057,10 +1057,12 @@ impl Admission {
                         Message::ComponentActivity(controller,generation,scene,proof,reply)=>{
                             let result=(||{
                                 if failed || !authorize(controller) || mode_generation.as_ref()!=Some(&generation) {return Err(WriteStatus::ResourceBusy);}
-                                let bundle=store.active_bundle_shared(options.context).map_err(|_|WriteStatus::ServiceCommunicationFailure)?.ok_or(WriteStatus::InvalidValueInRequest)?;
-                                let document=bundle.automation.as_ref().ok_or(WriteStatus::InvalidValueInRequest)?;
-                                let policy=document.scene_component_activity.get(&scene).ok_or(WriteStatus::InvalidValueInRequest)?;
-                                component_modes.activity(&store,policy,&generation,proof,millis(clock))
+                                // The component owner installs these immutable
+                                // mappings at generation synchronization. Do not
+                                // copy the entire stored configuration for each
+                                // row in a pushed catalog; live proof and source
+                                // ownership are still checked on every read.
+                                component_modes.activity_for_scene(&store,&scene,&generation,proof,millis(clock))
                             })();let _=reply.send(result);
                         },
                         Message::CaptureKeyCompletion(controller,generation,request,source,reply)=>{
