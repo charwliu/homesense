@@ -505,7 +505,7 @@ private struct HomeSceneCards: View {
         let available = home.canControlScene(scene.id), action = scene.sceneCardAction
         let current = home.snapshotIsCurrent && scene.targetAvailable
         let pending = home.sceneActionPresentation(scene.id)
-        let selected = pending?.selected ?? (scene.raw["switch_kind"].text == "selection" && scene.raw["selected"] == .bool(true))
+        let selected = pending?.selected ?? (scene.sceneCardConfirmedActive == true)
         return ZStack(alignment: .topTrailing) {
             Button {
                 Task { await home.controlScene(scene.id, on: action.on) }

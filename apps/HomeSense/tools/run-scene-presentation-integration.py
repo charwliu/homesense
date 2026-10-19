@@ -116,7 +116,7 @@ try:
   assert [f['level']for f in outputs]==[0,100,100,100,0,100,0],outputs
   assert all(f['channel']==1 for f in outputs),'unrelated channel changed'
   result.update(passed=True,actual_App_operations=7,light_writes=len(outputs),no_App_polling=True,
-    public_scene_ids=['action-1','action-2','off'],hidden_profile_ids=['profile-1','profile-2'])
+    public_scene_ids=['action-1','action-2','off','light-activity'],hidden_profile_ids=['profile-1','profile-2'],read_only_activity_checked_each_phase=True)
 except BaseException as e:result.update(error=repr(e),traceback=traceback.format_exc())
 finally:
  if process is not None and process.poll() is None:

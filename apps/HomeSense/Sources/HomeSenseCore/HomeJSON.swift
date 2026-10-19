@@ -90,6 +90,20 @@ public enum HomeSceneCardAction: Equatable, Sendable {
 }
 
 public extension HomeRecord {
+    /// Display-only state. Read-only activity must never become an Off intent.
+    var sceneCardConfirmedActive: Bool? {
+        if raw["switch_kind"].text == "selection" {
+            if case .bool(let selected) = raw["selected"] { return selected }
+            return nil
+        }
+        guard raw["switch_kind"].text == "momentary", raw["activity_kind"].text == "read_only" else { return nil }
+        switch raw["activity"].text {
+        case "Active": return true
+        case "Inactive": return false
+        default: return nil
+        }
+    }
+
     var sceneCardAction: HomeSceneCardAction {
         guard raw["switch_kind"].text == "selection" else { return .execute }
         // Unknown is an explicit On intent, never evidence of an Off state.

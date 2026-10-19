@@ -317,6 +317,24 @@
           }
         }
       ]
+    },
+    {
+      "id": "light-activity",
+      "enabled": true,
+      "review_evidence": "Synthetic separately executable action with reviewed read-only load activity",
+      "max_lateness_ms": 5000,
+      "steps": [
+        {
+          "source": "synthetic/absolute/fixture-light",
+          "offset_ms": 0,
+          "device": "fixture-light",
+          "command": {
+            "kind": "level",
+            "value": 100,
+            "ramp": false
+          }
+        }
+      ]
     }
   ],
   "scene_switch_groups": [
@@ -380,6 +398,11 @@
     {
       "id": "profile-2",
       "name": "阅读",
+      "room": "study"
+    },
+    {
+      "id": "light-activity",
+      "name": "负载活动",
       "room": "study"
     }
   ],
@@ -469,6 +492,30 @@
         {
           "device": "fixture-light",
           "on": false
+        }
+      ]
+    }
+  ],
+  "scene_tracking": [
+    {
+      "scene": "light-activity",
+      "enabled": true,
+      "aggregation": "all",
+      "unknown_policy": "require_all_known",
+      "pending_policy": "block_scene",
+      "control_policy": "separate_action_and_read_only_activity",
+      "activity_name": "合成负载活动",
+      "max_age_ms": 5000,
+      "review_evidence": "Synthetic explicit actual light tracking, separate from scene selection and action",
+      "members": [
+        {
+          "id": "light-on",
+          "device": "fixture-light",
+          "predicate": {
+            "kind": "power",
+            "on": true
+          },
+          "review_evidence": "Synthetic actual powered light, not source mode or selected intent"
         }
       ]
     }

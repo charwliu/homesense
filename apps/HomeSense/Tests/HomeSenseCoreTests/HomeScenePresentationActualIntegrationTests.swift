@@ -64,11 +64,13 @@ private actor PresentationActualHTTP: HomeHTTPTransport {
             home.receivingPush && home.unifiedKeypadActionsSupported && home.canActivateUnifiedKeypad("panel", key: 2) &&
             device("fixture-light")["quality"] == .string("Confirmed") && device("fixture-light")["observed"]["level"] == .integer(100)
         }
-        #expect(Set(home.scenes.map(\.id)) == Set(["action-1", "action-2", "off"]))
-        #expect(Set(home.scenes(inRoom: "study").map(\.id)) == Set(["action-1", "action-2", "off"]))
-        #expect(home.independentScenes(home.scenes, alongside: home.dailyDevices).map(\.id) == ["off"])
+        #expect(Set(home.scenes.map(\.id)) == Set(["action-1", "action-2", "off", "light-activity"]))
+        #expect(Set(home.scenes(inRoom: "study").map(\.id)) == Set(["action-1", "action-2", "off", "light-activity"]))
+        #expect(Set(home.independentScenes(home.scenes, alongside: home.dailyDevices).map(\.id)) == Set(["off", "light-activity"]))
         #expect(scene("action-1")["selected"] == .null && scene("action-2")["selected"] == .null)
         #expect(scene("action-1")["relative_unknown_allowed"] == .bool(false))
+        try await until("read-only actual activity") { HomeRecord(scene("light-activity")).sceneCardConfirmedActive == true }
+        #expect(HomeRecord(scene("light-activity")).sceneCardAction == .execute)
         let reads = await http.reads()
         var phases: [HomeJSON] = []
         for (label, action, on, active) in [
@@ -93,9 +95,12 @@ private actor PresentationActualHTTP: HomeHTTPTransport {
             try await until(label + " new actual feedback and selection") {
                 home.receivingPush && selected(active) && colors(active) &&
                 device("fixture-light")["observed"]["level"] == .integer(active == 0 ? 0 : 100) &&
-                device("fixture-light")["observed_at_ms"] != before
+                device("fixture-light")["observed_at_ms"] != before &&
+                HomeRecord(scene("light-activity")).sceneCardConfirmedActive == (active != 0)
             }
             #expect(device("fixture-downlight")["observed"]["level"] == .integer(0))
+            #expect(HomeRecord(scene("light-activity")).sceneCardAction == .execute)
+            #expect(scene("light-activity")["selected"] == .null)
             #expect(await http.reads() == reads, "Control updates must arrive by WSS, without App polling")
             phases.append(.object(["label": .string(label), "post": post, "light": device("fixture-light"),
                                    "scene": scene("action-\(action)"), "keys": device("panel")["keys"]]))
