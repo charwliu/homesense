@@ -135,6 +135,7 @@ pub(crate) fn upgrade(
         let mut directory=serde_json::Value::Null;
         let mut light_projection_state=serde_json::Value::Null;
         let mut away_operations=serde_json::Value::Null;
+        let mut away_priority=false;
     let mut motor_estimates=serde_json::Value::Null;
         let mut interval = tokio::time::interval(Duration::from_millis(500));
         interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
@@ -161,15 +162,47 @@ pub(crate) fn upgrade(
                     };
                     let ids=grant.devices.iter().map(homesense_core::DeviceId::new).collect::<Result<Vec<_>,_>>();
                     let Ok(ids)=ids else{break;};
-                    let Ok(Reply::DeviceEvents(update))=runtime.control.request(Action::DeviceEvents{controller:grant.controller,revision:runtime.revision,ids,cursor:cursor.clone(),scope:format!("{:?}",grant.role)}).await else{
+                    let lease=api.tokens.module_off_lease(headers.get("authorization").and_then(|v|v.to_str().ok()),
+                        headers.get("cookie").and_then(|v|v.to_str().ok()).and_then(crate::web_api::session_cookie),headers.get("x-csrf-token").and_then(|v|v.to_str().ok()));
+                    let (update,away_response)=tokio::join!(
+                        runtime.control.request(Action::DeviceEvents{controller:grant.controller,revision:runtime.revision,ids,cursor:cursor.clone(),scope:format!("{:?}",grant.role)}),
+                        async {if let Some(lease)=lease {
+                            match runtime.control.request(Action::AwayOperations{controller:grant.controller,revision:runtime.revision,lease:lease.into()}).await {
+                                Ok(Reply::AwayOperations(operations))=>json!(operations.into_iter().rev().take(8).collect::<Vec<_>>()),_=>json!([])
+                            }
+                        }else{json!([])}});
+                    let Ok(Reply::DeviceEvents(update))=update else{
                         if !unavailable {
                             if !matches!(tokio::time::timeout(Duration::from_secs(2),socket.send(Message::Text(json!({"type":"unavailable","selection_state":crate::scene_switches::SelectionState::Unavailable(crate::scene_switches::UnavailableReason::ReadFailed)}).to_string().into()))).await,Ok(Ok(()))){break;}
                             unavailable=true;cursor=None;
                         }
                         continue;
                     };
-                    let mut request=Request::builder().uri("/api/v1/scenes").body(Bytes::new()).unwrap();*request.headers_mut()=headers.clone();
-                    let scene_response=api.handle(request).await;
+                    let next_away=if update.snapshot.keypad_away_scope.as_ref().is_some_and(|scope|scope.permitted(&grant)) {away_response}else{json!([])};
+                    let active_away=next_away.as_array().is_some_and(|operations|operations.iter().any(|operation|
+                        !matches!(operation["state"].as_str(),Some("confirmed"|"failed"|"cancelled"))));
+                    // During bounded Away work, do not repeatedly rebuild the
+                    // whole scene catalog ahead of the bus receive pump. Reuse
+                    // only this connection's same-scope metadata, explicitly
+                    // discarding its old activity proof. The terminal result
+                    // gets the same fast turn; normal truth resumes next tick.
+                    let priority=(active_away || away_priority || next_away!=away_operations)
+                        && !update.reset && scenes["revision"]==json!(runtime.revision.to_string());
+                    away_priority=active_away;
+                    let scene_response=if priority {
+                        let mut pending=scenes.clone();
+                        if let Some(rows)=pending["scenes"].as_array_mut() {for row in rows {
+                            row["activity"]=json!("Unknown");row["selected"]=serde_json::Value::Null;
+                            row["selection_state"]=json!(crate::scene_switches::SelectionState::Unknown);
+                            row["can_control"]=json!(false);row["observation_current"]=json!(false);
+                            row["observed_ms"]=serde_json::Value::Null;
+                            if row["tracking"].is_object(){row["tracking"]["activity"]=json!("Unknown");}
+                        }}
+                        Response::new(Full::new(Bytes::from(pending.to_string())))
+                    }else{
+                        let mut request=Request::builder().uri("/api/v1/scenes").body(Bytes::new()).unwrap();*request.headers_mut()=headers.clone();
+                        api.handle(request).await
+                    };
                     if scene_response.status()!=StatusCode::OK {
                         if !unavailable {
                             let body=scene_response.into_body().collect().await.unwrap();
@@ -185,15 +218,6 @@ pub(crate) fn upgrade(
                     // reads awaited. Discard this mixed candidate and resync.
                     if api.runtime.read().ok().is_none_or(|current|current.as_ref().is_none_or(|current|current.revision!=runtime.revision || current.boot!=runtime.boot)){cursor=None;continue;}
                     if current_grant(&api,&headers).as_ref()!=Some(&grant) {cursor=None;continue;}
-                    let next_away=if update.snapshot.keypad_away_scope.as_ref().is_some_and(|scope|scope.permitted(&grant)) {
-                        let lease=api.tokens.module_off_lease(headers.get("authorization").and_then(|v|v.to_str().ok()),
-                            headers.get("cookie").and_then(|v|v.to_str().ok()).and_then(crate::web_api::session_cookie),headers.get("x-csrf-token").and_then(|v|v.to_str().ok()));
-                        if let Some(lease)=lease {
-                            match runtime.control.request(Action::AwayOperations{controller:grant.controller,revision:runtime.revision,lease:lease.into()}).await {
-                                Ok(Reply::AwayOperations(operations))=>json!(operations.into_iter().rev().take(8).collect::<Vec<_>>()),_=>json!([])
-                            }
-                        }else{json!([])}
-                    }else{json!([])};
                     if api.runtime.read().ok().is_none_or(|current|current.as_ref().is_none_or(|current|current.revision!=runtime.revision || current.boot!=runtime.boot)){cursor=None;continue;}
                     if current_grant(&api,&headers).as_ref()!=Some(&grant) {cursor=None;continue;}
                     let next_light_projection=light_projection(&update.snapshot);

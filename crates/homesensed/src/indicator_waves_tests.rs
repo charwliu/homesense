@@ -11,6 +11,9 @@ impl Fixture {
     async fn with_lights(combined:bool,separate:bool)->Self {Self::with_native(combined,separate,false).await}
     async fn with_native(combined:bool,separate:bool,native:bool)->Self {Self::with_native_layout(combined,separate,native,false).await}
     async fn with_native_layout(combined:bool,separate:bool,native:bool,sparse:bool)->Self {
+        Self::with_layout(combined,separate,native,sparse,false).await
+    }
+    async fn with_layout(combined:bool,separate:bool,native:bool,sparse:bool,power_first:bool)->Self {
         let mut modules=(0..28).map(|n|json!({"id":format!("panel{n}"),"address":format!("{:02X}",0x60+n),"profile":"ts6_86_rs485_v2_6_5_6key","led_mode":"manual","verification":{"status":"simulated"}})).collect::<Vec<_>>();
         modules.push(json!({"id":"relay","address":"20","profile":"r8i8_din_pro_v2_7_7","verification":{"status":"simulated"}}));
         if combined {modules.push(json!({"id":"dimmer","address":"21","profile":"ad8_din_rs485_v2_2_1","verification":{"status":"simulated"}}));}
@@ -20,6 +23,10 @@ impl Fixture {
         if separate {devices.push(json!({"id":"other-light","name":"Independent relay","module_id":"relay","channel":2,"enabled":true}));}
         let config=serde_json::to_vec(&json!({"schema_version":2,"revision":1,"gateways":[{"id":"bus","endpoint":"127.0.0.1:1","modules":modules}],"devices":devices})).unwrap();
         let mut rules=json!({"schema_version":1,"configuration_revision":1,"variables":[],"rules":[],"indicator_links":(0..3).map(|n|json!({"id":format!("link{n}"),"enabled":true,"review_evidence":"synthetic wave capacity","lights":["light"],"leds":(n*64..168.min((n+1)*64)).map(|i|format!("led{i}")).collect::<Vec<_>>()})).collect::<Vec<_>>()});
+        if power_first {
+            rules["indicator_links"][2]["power_policy"]=json!("follow_all_on");
+            rules["indicator_links"][2]["leds"]=json!(["led167"]);
+        }
         if native {
             assert!(separate && !combined);
             rules["variables"]=json!([{"id":"selection","kind":"integer","lifetime":"persistent"}]);
@@ -60,6 +67,32 @@ impl Fixture {
 struct Wire(Arc<Mutex<Vec<Vec<u8>>>>);
 impl Read for Wire{fn read(&mut self,_:&mut[u8])->std::io::Result<usize>{Err(std::io::ErrorKind::WouldBlock.into())}}
 impl Write for Wire{fn write(&mut self,b:&[u8])->std::io::Result<usize>{self.0.lock().unwrap().push(b.to_vec());Ok(b.len())}fn flush(&mut self)->std::io::Result<()>{Ok(())}}
+#[tokio::test]
+async fn independent_power_indicator_is_written_in_first_wave_before_legacy_fanout() {
+    let f=Fixture::with_layout(false,false,false,false,true).await;
+    let mut waves=Waves::default();let frames=Arc::new(Mutex::new(vec![]));
+    let first=f.advance(&mut waves,false).await.unwrap();
+    assert!(f.write(first,frames.clone()).await);
+    {let sent=frames.lock().unwrap();assert_eq!(sent.len(),16);
+    assert_eq!(sent[0],vec![0xae,0x7b,6,0xf2,0xee],"known power state must not wait behind128 unrelated legacy endpoints");
+    assert!(sent.iter().all(|frame|frame[1]!=0x20),"reconciliation emits LEDs only");
+    }f.close().await;
+}
+#[tokio::test]
+async fn changed_independent_power_preempts_unvisited_legacy_fanout_after_first_wave() {
+    let mut f=Fixture::with_layout(false,false,false,false,true).await;
+    let mut waves=Waves::default();let frames=Arc::new(Mutex::new(vec![]));
+    let first=f.advance(&mut waves,false).await.unwrap();assert!(f.write(first,frames.clone()).await);
+    waves.phase_ended(true);assert!(f.advance(&mut waves,true).await.is_none());
+    let before=frames.lock().unwrap().len();assert_eq!(before,16);
+    f.feedback.apply(&GatewayRead {gateway_id:"bus".into(),transport_epoch:1,received_at_ms:f.clock.load(Ordering::SeqCst),
+        result:hb_transport::Receive::Frames {transport_epoch:1,frames:vec![hb_protocol::RawFrame {address:0x20,command:0xd1,value:0xf1}]}}).unwrap();
+    let next=f.advance(&mut waves,false).await.expect("changed power target needs the next bounded wave");
+    assert!(f.write(next,frames.clone()).await);
+    {let sent=frames.lock().unwrap();assert_eq!(sent[before],vec![0xae,0x7b,6,0xf1,0xee]);
+    assert!(sent[before..].iter().all(|frame|frame[1]!=0x20),"priority cannot authorize actuator commands");
+    }f.close().await;
+}
 #[tokio::test]
 async fn all168_actual_admission_finite_waves_keep_ttl_spacing_and_release_query_boundary(){
     let f=Fixture::new().await;let mut waves=Waves::default();let frames=Arc::new(Mutex::new(vec![]));let mut sizes=vec![];

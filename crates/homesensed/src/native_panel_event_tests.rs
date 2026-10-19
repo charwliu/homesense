@@ -194,17 +194,17 @@ async fn managed_native_away_waits_for_read_without_spending_rounds_or_replaying
         let pending=away_status(&f,&lease).await;assert_eq!((pending.state.as_str(),pending.rounds),("pending",0));
         assert!(f.owner.step().await.unwrap().is_none());
         if retirement=="owner-revoked" {f.panels.disconnect();}
-        if retirement=="expired" {f.time.fetch_add(30001,Ordering::SeqCst);}
+        if retirement=="expired" {f.time.fetch_add(5001,Ordering::SeqCst);}
         if retirement=="long-read" {f.time.fetch_add(5500,Ordering::SeqCst);}
         drop(permit);f.time.fetch_add(51,Ordering::SeqCst);tick_away(&mut f).await;
-        if matches!(retirement,"ready"|"long-read") {
+        if retirement=="ready" {
             assert_eq!(f.journal_count(),13);assert_eq!(away_status(&f,&lease).await.rounds,1);
             f.time.fetch_add(21,Ordering::SeqCst);let batch=f.owner.step().await.unwrap().unwrap();batch.result.unwrap();assert_eq!(batch.physical_frames,13);
             let mut bytes=[0;65];f.peer.read_exact(&mut bytes).unwrap();
             assert_eq!(bytes.as_chunks::<5>().0.iter().filter(|f|(0x20..0x2c).contains(&f[1]) && f[2]==0).count(),12);
         } else {
             let done=away_status(&f,&lease).await;assert_eq!(done.rounds,0);
-            assert_eq!(done.state,if retirement=="expired"{"failed"}else{"cancelled"});
+            assert_eq!(done.state,if matches!(retirement,"expired"|"long-read"){"failed"}else{"cancelled"});
             assert!(f.owner.step().await.unwrap().is_none());assert_eq!(f.journal_count(),0);
             f.peer.set_nonblocking(true).unwrap();let mut byte=[0];assert_eq!(f.peer.read(&mut byte).unwrap_err().kind(),std::io::ErrorKind::WouldBlock);
         }
@@ -409,6 +409,21 @@ async fn tick_away(f:&mut Fixture) {
     let observation=f.owner.feedback().away_observation(f.actor.monotonic_ms()).unwrap();
     f.actor.tick_away_operations(f.controller,f.actor.task_generation().await.unwrap(),observation).await.unwrap();
 }
+// This adapter fixture drives Admission directly, without a periodic query
+// worker. Supply a synthetic failed read turn, never synthetic Off observations.
+async fn failed_away_query(f:&mut Fixture,module:u8) {
+    let written=f.actor.monotonic_ms();f.time.fetch_add(500,Ordering::SeqCst);
+    let now=f.actor.monotonic_ms();let mut observation=f.owner.feedback().away_observation(now).unwrap();
+    for channel in 1..=if module<7{1}else{8} {
+        observation.queries.insert(DeviceId::new(format!("away-{module}:{channel}")).unwrap(),
+            homesense_core::away_execution::ReadTurn{written_ms:written,finished_ms:now});
+    }
+    f.actor.tick_away_operations(f.controller,f.actor.task_generation().await.unwrap(),observation).await.unwrap();
+}
+async fn retry_delay(f:&mut Fixture) {
+    f.time.fetch_add(homesense_core::away_execution::Policy::default().delay_ms,Ordering::SeqCst);
+    tick_away(f).await;
+}
 async fn away_status(f:&Fixture,lease:&crate::away_auth::Authorization)->crate::away_execution::View {
     let views=f.actor.away_operation_views(f.controller,f.actor.task_generation().await.unwrap(),lease.clone()).await.unwrap();
     assert_eq!(views.len(),1);views.into_iter().next().unwrap()
@@ -427,9 +442,9 @@ async fn managed_native_away_retries_only_failed_module_and_reports_all96_confir
     for n in 0..12 {away_module_feedback(&mut f,n,n==3).await;}
     tick_away(&mut f).await;
     let pending=away_status(&f,&lease).await;assert_eq!(pending.state,"confirming");assert_eq!(pending.rounds,1);assert_eq!(pending.confirmed_outputs,88);
-    f.time.store(8000,Ordering::SeqCst);tick_away(&mut f).await; // feedback window exhausted; now delay1s
-    f.time.store(8999,Ordering::SeqCst);tick_away(&mut f).await;assert_eq!(f.journal_count(),13);
-    f.time.store(9000,Ordering::SeqCst);tick_away(&mut f).await;assert_eq!(f.journal_count(),14,"one failed module; no second cue or repeat of confirmed modules");
+    let delay=homesense_core::away_execution::Policy::default().delay_ms;
+    f.time.fetch_add(delay-1,Ordering::SeqCst);tick_away(&mut f).await;assert_eq!(f.journal_count(),13);
+    f.time.fetch_add(1,Ordering::SeqCst);tick_away(&mut f).await;assert_eq!(f.journal_count(),14,"one failed module; no second cue or repeat of confirmed modules");
     f.time.fetch_add(21,Ordering::SeqCst);f.owner.step().await.unwrap().unwrap().result.unwrap();
     let mut retry=[0;5];f.peer.read_exact(&mut retry).unwrap();assert_eq!(retry,[0xae,0x23,0,0xf2,0xee]);
     for n in 0..12 {away_module_feedback(&mut f,n,false).await;}
@@ -449,15 +464,14 @@ async fn managed_native_away_missing_feedback_exhausts_three_rounds_with_exact_s
     tick_away(&mut f).await;
     // Each failure is a missing AD8 module; refreshed good ports are only
     // observations, never additional Off commands or forged journal receipts.
-    for (due,next) in [(8000,9000),(17000,18000)] {
-        f.time.store(due,Ordering::SeqCst);tick_away(&mut f).await;
-        f.time.store(next,Ordering::SeqCst);tick_away(&mut f).await;
+    for _ in 0..2 {
+        failed_away_query(&mut f,11).await;
+        retry_delay(&mut f).await;
         f.time.fetch_add(21,Ordering::SeqCst);f.owner.step().await.unwrap().unwrap().result.unwrap();
         let mut retry=[0;5];f.peer.read_exact(&mut retry).unwrap();assert_eq!(retry,[0xae,0x2b,0,0,0xee]);
     }
-    f.time.store(25000,Ordering::SeqCst);
-    for n in 0..12 {if n!=11 {away_module_feedback(&mut f,n,false).await;}}
-    tick_away(&mut f).await;let failed=away_status(&f,&lease).await;
+    failed_away_query(&mut f,11).await;
+    let failed=away_status(&f,&lease).await;
     assert_eq!((failed.state.as_str(),failed.rounds),("failed",3));assert_eq!(failed.reason.as_deref(),Some("attempts_exhausted"));
     assert_eq!(failed.missing,vec![crate::away_execution::Missing{module_id:"away-11".into(),channels:(1..=8).collect()}]);assert_eq!(f.journal_count(),15);
     f.time.fetch_add(1000,Ordering::SeqCst);tick_away(&mut f).await;assert_eq!(away_status(&f,&lease).await,failed);assert!(f.owner.step().await.unwrap().is_none());
@@ -485,12 +499,13 @@ async fn managed_native_away_cancels_delayed_retry_after_owner_retirement_or_man
         f.click(0,6).await;f.route().await;
         f.time.fetch_add(21,Ordering::SeqCst);let batch=f.owner.step().await.unwrap().unwrap();batch.result.unwrap();assert_eq!(batch.physical_frames,13);
         let mut first=[0;65];f.peer.read_exact(&mut first).unwrap();
-        f.time.store(8000,Ordering::SeqCst);tick_away(&mut f).await;
+        for n in 0..12 {away_module_feedback(&mut f,n,true).await;}
+        tick_away(&mut f).await;
         if manual {
             f.actor.submit(homesense_hap::requests::Batch{controller:f.controller,intents:vec![homesense_hap::requests::Intent{
                 device:DeviceId::new("away-0:1").unwrap(),command:homesense_core::Command::Switch(true)}],subscriptions:vec![]}).await.unwrap();
         }else{f.panels.disconnect();}
-        f.time.store(9000,Ordering::SeqCst);tick_away(&mut f).await;
+        retry_delay(&mut f).await;
         let cancelled=away_status(&f,&lease).await;assert_eq!((cancelled.state.as_str(),cancelled.rounds),("cancelled",1));
         assert_eq!(cancelled.reason.as_deref(),Some(if manual{"manual_override"}else{"authority_changed"}));
         if manual {
@@ -512,8 +527,7 @@ async fn managed_away_cancels_queued_and_selected_retry_without_poisoning_transp
         let mut first=[0;65];f.peer.read_exact(&mut first).unwrap();
         for n in 0..12 {away_module_feedback(&mut f,n,n==3).await;}
         tick_away(&mut f).await;
-        f.time.store(8000,Ordering::SeqCst);tick_away(&mut f).await;
-        f.time.store(9000,Ordering::SeqCst);tick_away(&mut f).await;
+        retry_delay(&mut f).await;
         assert_eq!(away_status(&f,&lease).await.rounds,2);
         let ticket=if selected {Some(f.actor.dispatch().await.unwrap().unwrap())}else{None};
         // Another module was already confirmed Off and is deliberately reopened.
@@ -578,9 +592,8 @@ async fn managed_away_legacy_completion_follows_retry_writes_and_never_signals_e
         tick_away(&mut f).await;
         crate::control_batch::tick(&f.actor,f.controller,f.owner.feedback()).await.unwrap();
         assert!(f.owner.step().await.unwrap().is_none());
-        for (due,next) in [(8000,9000),(17000,18000)] {
-            f.time.store(due,Ordering::SeqCst);tick_away(&mut f).await;
-            f.time.store(next,Ordering::SeqCst);tick_away(&mut f).await;
+        for _ in 0..2 {
+            retry_delay(&mut f).await;
             if !exhaust {
                 // Old successful samples, even refreshed after retry admission,
                 // cannot release the LED before the new module actually writes.
@@ -605,10 +618,9 @@ async fn managed_away_legacy_completion_follows_retry_writes_and_never_signals_e
             assert!(f.owner.step().await.unwrap().is_none());
         }
         if exhaust {
-            f.time.store(25000,Ordering::SeqCst);tick_away(&mut f).await;
             let waiting=away_status(&f,&status_lease).await;
-            assert_eq!((waiting.state.as_str(),waiting.rounds),("retrying",3),"aged healthy samples require a final read, never a fourth control attempt");
-            assert!(f.owner.step().await.unwrap().is_none(),"completion LED cannot run during the final read");
+            assert_eq!((waiting.state.as_str(),waiting.rounds),("failed",3),"known On after the third attempt fails without waiting for the total deadline");
+            assert!(f.owner.step().await.unwrap().is_none(),"completion LED cannot run after failure");
             let admitted=f.journal_count();
             for n in 0..12 {if n!=3 {away_module_feedback(&mut f,n,false).await;}}
             tick_away(&mut f).await;

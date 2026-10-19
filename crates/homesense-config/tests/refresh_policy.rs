@@ -12,7 +12,7 @@ fn adaptive_defaults_and_explicit_long_idle_are_validated() {
     )
     .unwrap();
     assert_eq!(c.refresh_policy(), RefreshPolicy::default());
-    assert_eq!(c.refresh_policy().idle_interval_ms, 10_800_000);
+    assert_eq!(c.refresh_policy().idle_interval_ms, 7_200_000);
     let p = RefreshPolicy {
         idle_interval_ms: 43_200_000,
         ..Default::default()
@@ -27,7 +27,7 @@ fn adaptive_defaults_and_explicit_long_idle_are_validated() {
     for (field, value) in [
         ("idle_interval_ms", 0),
         ("idle_interval_ms", 86_400_001),
-        ("active_interval_ms", 60_000),
+        ("active_interval_ms", 600_001),
         ("quiet_rounds_per_step", 0),
         ("round_budget_ms", 0),
         ("observation_grace_ms", 0),

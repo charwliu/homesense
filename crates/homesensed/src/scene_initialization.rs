@@ -249,6 +249,7 @@ impl Prepared {
             })
     }
 }
+#[cfg(test)]
 pub async fn tick(
     admission: &Admission,
     controller: Uuid,
@@ -256,7 +257,13 @@ pub async fn tick(
     scenes: &SceneScheduler,
     feedback: &Feedback,
 ) -> Result<(), String> {
-    if !document.scene_switch_groups.iter().any(|group| {
+    tick_groups(admission,controller,document,scenes,feedback,&document.scene_switch_groups).await
+}
+pub(crate) async fn tick_groups(
+    admission:&Admission,controller:Uuid,document:&Document,
+    scenes:&SceneScheduler,feedback:&Feedback,groups:&[Group],
+)->Result<(),String> {
+    if !groups.iter().any(|group| {
         group
             .initialization
             .as_ref()
@@ -270,7 +277,7 @@ pub async fn tick(
         Err(WriteStatus::ResourceBusy) => return Ok(()),
         Err(error) => return Err(format!("initialization scope: {error:?}")),
     };
-    for group in &document.scene_switch_groups {
+    for group in groups {
         let prepared = match Prepared::prepare(
             admission,
             controller,

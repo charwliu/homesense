@@ -1,0 +1,85 @@
+{
+  "state": "passed",
+  "runtime_sha256": "4e16851a8adda9cb69c10cdfc170f5ab87cbf84087abdb573aa5df148a991f1b",
+  "final_runtime_byte_identical_to_focused_and_full_qualification": true,
+  "source_freeze": "R29",
+  "checks": {
+    "mac_workspace": {
+      "passed": 1690,
+      "failed": 0,
+      "ignored": 0
+    },
+    "strict_clippy_all_targets": true,
+    "linux_library": {
+      "passed": 687,
+      "failed": 0,
+      "ignored": 0
+    },
+    "linux_hap": {
+      "passed": 3,
+      "failed": 0,
+      "ignored": 0
+    },
+    "private_loopback": {
+      "cases": 35,
+      "steps": 154,
+      "passed": true,
+      "process_batches": "serialized"
+    },
+    "focused_original_regressions": {
+      "cases": 8,
+      "passed": true,
+      "terminal_elapsed_ms": {
+        "away-partial": 3613.998,
+        "away-query-only": 4130.405
+      },
+      "operation_budget_ms": 5000
+    },
+    "final_affected_tests": {
+      "led_waves": 16,
+      "fault_fixtures": 6,
+      "failed": 0
+    },
+    "native_app_actual_methods": 12,
+    "swift_base": {
+      "reported": 199,
+      "executed": 189,
+      "skipped": 10,
+      "conditioned_methods_run_separately": true
+    }
+  },
+  "simulator": {
+    "reply_delay_ms": [
+      3,
+      20
+    ],
+    "randomized": true,
+    "module_response": "one contiguous write for all returned channels",
+    "serial": {
+      "baud": 9600,
+      "data_bits": 8,
+      "parity": "none",
+      "stop_bits": 1
+    },
+    "eight_frame_wire_time_ms": 41.667,
+    "per_channel_artificial_wait": false
+  },
+  "earlier_failures_retained": true,
+  "qualification_limit": "Final private gate serializes independent service instances. Earlier overlapping-batch failures remain recorded; this is not a claim of parallel multi-instance qualification.",
+  "production_changed": true,
+  "real_gateway_connections_during_qualification": 0,
+  "deployment": {
+    "state": "committed",
+    "configuration_revision": 37,
+    "configuration_publication": false,
+    "credential_or_pairing_changes": false,
+    "identity_and_grants_unchanged": true,
+    "process_id": 428528,
+    "unexpected_restarts": 0,
+    "fresh_output_modules": 12,
+    "fresh_physical_outputs": 96,
+    "startup_actuator_commands": 0,
+    "startup_led_writes": 2,
+    "automatic_rollback_guard_removed_after_health_checks": true
+  }
+}

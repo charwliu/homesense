@@ -119,6 +119,28 @@ async fn power_indicator_follows_both_physical_ports_and_never_replays_unchanged
 }
 
 #[tokio::test]
+async fn superseded_negative_indicator_can_reconcile_a_new_written_source_override() {
+    let (config,mut rules)=linked();
+    rules["indicator_links"]=json!([{"id":"shared-negative","enabled":true,
+        "review_evidence":"Synthetic replacement followed by a new physical edge",
+        "lights":["light","down"],"leds":["key1"],"power_policy":"clear_if_any_off"}]);
+    let mut h=harness(config,rules).await;let mut s=Synchronizer::default();
+    levels(&mut h,Some(100),Some(0));sync(&h,&mut s).await;
+    // A new source cue replaces the queued startup green before it is written.
+    h.actor.submit_rule_update(h.generation.clone(),homesense_hap::requests::Batch {
+        controller:h.controller,intents:vec![homesense_hap::requests::Intent {
+            device:homesense_core::DeviceId::new("key1").unwrap(),command:Command::PanelLed(true),
+        }],subscriptions:vec![]},vec![]).await.unwrap();
+    assert_eq!(drain_leds(&h).await.get(&(0x41,1)),Some(&true));
+    assert_eq!(h.sql().query_row("SELECT count(*) FROM command_journal WHERE status='cancelled' AND cancellation_reason='Superseded'",[],|r|r.get::<_,i64>(0)).unwrap(),1);
+    levels(&mut h,Some(100),Some(100));sync(&h,&mut s).await;
+    assert!(drain_leds(&h).await.is_empty(),"negative policy cannot select a mode");
+    levels(&mut h,Some(100),Some(0));sync(&h,&mut s).await;
+    assert_eq!(drain_leds(&h).await.get(&(0x41,1)),Some(&false),"a new proved Off edge must clear the later source cue");
+    sync(&h,&mut s).await;assert!(drain_leds(&h).await.is_empty(),"neither cancelled nor completed tickets replay");
+    h.close().await;
+}
+#[tokio::test]
 async fn power_indicator_negative_clear_never_promotes_a_mode_from_matching_lights() {
     let (config, mut rules) = linked();
     rules["indicator_links"] = json!([{"id":"shared-negative","enabled":true,

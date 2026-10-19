@@ -38,6 +38,20 @@ struct Frames(Arc<Mutex<Vec<Vec<u8>>>>);
 impl Read for Frames {fn read(&mut self,_:&mut[u8])->std::io::Result<usize>{Err(std::io::ErrorKind::WouldBlock.into())}}
 impl Write for Frames {fn write(&mut self,bytes:&[u8])->std::io::Result<usize>{self.0.lock().unwrap().push(bytes.to_vec());Ok(bytes.len())}fn flush(&mut self)->std::io::Result<()>{Ok(())}}
 #[tokio::test]
+async fn away_preemption_retires_only_unwritten_background_colors_without_replay() {
+    let f=Fixture::new(3).await;let phase=f.phase();
+    let frames=Arc::new(Mutex::new(vec![]));let mut wire=hb_transport::Connection::for_simulation(Frames(frames.clone()),1);
+    let ticket=f.admission.dispatch().await.unwrap().unwrap();
+    crate::transport_owner::send_ticket(&ticket,&mut wire,||f.clock.load(Ordering::SeqCst)).unwrap();
+    f.admission.finish_write(ticket.command.id,true).await.unwrap();
+    phase.cancel(&f.admission,Some(f.controller)).await;
+    assert_eq!(f.statuses(),vec![Status::Written,Status::Cancelled,Status::Cancelled]);
+    assert_eq!(phase.completion(&f.admission,Some(f.controller)).await,Some(false));
+    assert!(f.admission.dispatch().await.unwrap().is_none());
+    assert_eq!(frames.lock().unwrap().len(),1,"preemption cannot replay cancelled colors");
+    f.close().await;
+}
+#[tokio::test]
 async fn fifty_one_initial_leds_keep_original_phase_cap_with_bounded_status_reads() {
     let f=Fixture::new(51).await;let phase=f.phase();let frames=Arc::new(Mutex::new(vec![]));let mut wire=hb_transport::Connection::for_simulation(Frames(frames.clone()),1);
     f.costly.store(true,Ordering::Release);let mut polls=vec![];

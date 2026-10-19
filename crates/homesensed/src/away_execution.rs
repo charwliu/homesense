@@ -41,6 +41,7 @@ pub(crate) struct ReadNeed {
 pub(crate) struct Observation {
     pub proof: crate::feedback::SceneObservationStart,
     pub counts: BTreeMap<DeviceId, u64>,
+    pub queries: BTreeMap<DeviceId, core::ReadTurn>,
 }
 impl Observation {
     pub fn physical(
@@ -211,6 +212,7 @@ impl Job {
         let evidence=core::Evidence {
             commands,
             physical: observation.physical(self.outputs()),
+            queries: Some(observation.queries.clone()),
         };
         if self.engine.rounds()>1 && log::log_enabled!(log::Level::Debug) {
             let latest=self.receipts.values().map(|r|r.accepted_ms).max();

@@ -13,6 +13,11 @@ impl Phase {
         Self {generation,batches,commands,deadline}
     }
     pub(super) fn deadline(&self)->u64 {self.deadline}
+    pub(super) async fn cancel(&self,admission:&Admission,controller:Option<uuid::Uuid>) {
+        if let Some(controller)=controller {
+            for batch in &self.batches {if let Some(run)=batch.first(){let _=admission.cancel_scene_run(controller,self.generation.clone(),*run).await;}}
+        }
+    }
     #[cfg(test)]
     pub(super) async fn finished(&self,admission:&Admission,controller:Option<uuid::Uuid>)->bool {
         self.completion(admission,controller).await.is_some()
@@ -31,7 +36,7 @@ impl Phase {
             }
         }
         if admission.monotonic_ms()>=self.deadline {
-            for batch in &self.batches {if let Some(run)=batch.first(){let _=admission.cancel_scene_run(controller,self.generation.clone(),*run).await;}}
+            self.cancel(admission,Some(controller)).await;
             return Some(terminal && written);
         }
         terminal.then_some(written)

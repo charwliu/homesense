@@ -12,6 +12,7 @@ pub(super) struct Refresh {
     timeout:u64,
     max_age:u64,
     cycle:u64,
+    scanning:bool,
     due:Vec<u64>,
     pending:BTreeMap<String,Pending>,
     recovery:BTreeMap<String,Recovery>,
@@ -32,27 +33,28 @@ impl Refresh {
         generation:crate::admission::TaskGeneration,controller:uuid::Uuid,context:homesense_core::ExecutionContext,
         timeout:u64,max_age:u64,interval:u64,now:u64)->Result<Self,String> {
         let cycle=interval.checked_mul(targets.len() as u64).ok_or("local refresh cycle overflow")?;
-        let adaptive=(max_age==config.refresh_policy().observation_max_age_ms()).then(||crate::adaptive_refresh::Schedule::new(config.refresh_policy()));
+        let adaptive=(max_age==config.refresh_policy().observation_max_age_ms()).then(||crate::adaptive_refresh::Schedule::for_context(config.refresh_policy(),context));
         let first_delay=adaptive.as_ref().map_or(0,|s|s.interval());
         let due=(0..targets.len()).map(|i| {
             let offset=interval.checked_mul(i as u64+1).ok_or("local refresh slot overflow")?;
             now.checked_add(first_delay).and_then(|at|at.checked_add(offset)).ok_or("local refresh due overflow")
         }).collect::<Result<Vec<_>,_>>()?;
         let control_opportunity=config.gateways().keys().cloned().collect();
-        Ok(Self {config,targets,generation,controller,context,timeout,max_age,cycle,due,pending:BTreeMap::new(),recovery:BTreeMap::new(),control_opportunity,round:RoundTracker::default(),adaptive,recent_queries:BTreeMap::new(),strict:BTreeMap::new(),priority:BTreeSet::new(),confirmation_until:BTreeMap::new(),ramp_reads:Default::default()})
+        Ok(Self {config,targets,generation,controller,context,timeout,max_age,cycle,scanning:false,due,pending:BTreeMap::new(),recovery:BTreeMap::new(),control_opportunity,round:RoundTracker::default(),adaptive,recent_queries:BTreeMap::new(),strict:BTreeMap::new(),priority:BTreeSet::new(),confirmation_until:BTreeMap::new(),ramp_reads:Default::default()})
     }
     pub(super) fn configure_consumers(&mut self,requirements:&BTreeMap<homesense_core::DeviceId,u64>) {self.strict=crate::consumer_refresh::target_ages(&self.config,&self.targets,requirements);}
     fn due_at(&self,index:usize,truth:&crate::module_truth::ModuleTruth)->u64 {if self.priority.contains(&index){return 0;}self.strict.get(&index).map_or(self.due[index],|age|self.due[index].min(crate::consumer_refresh::due(&self.targets[index],truth,*age)))}
     pub(super) fn written(&mut self,device:&homesense_core::DeviceId,now:u64,ramped:bool) {
         if self.adaptive.is_none() {return;}
         let Some((binding,module))=self.config.binding(device) else{return;};
+        if module.kind()==homesense_core::ModuleKind::Motor {self.activity(now);return;}
         if !matches!(module.kind(),homesense_core::ModuleKind::Switch|homesense_core::ModuleKind::Dimmer) {return;}
         let (gateway,address,channel)=(binding.gateway.clone(),binding.address,binding.channel.get());
         self.ramp_reads.written(&self.config,device,now,ramped);
         self.activity(now);
         for (index,target) in self.targets.iter().enumerate() {if target.gateway==gateway && target.module.address()==address && target.channels.contains(&channel) {self.priority.insert(index);self.confirmation_until.insert(index,now.saturating_add(crate::control_batch::FEEDBACK_TOTAL_MS));self.round.forget(index);self.due[index]=0;}}
     }
-    fn activity(&mut self,now:u64) {if let Some(schedule)=&mut self.adaptive {schedule.activity(now);self.round.discard_completion();for due in &mut self.due {*due=(*due).min(now);}}}
+    fn activity(&mut self,now:u64) {if let Some(schedule)=&mut self.adaptive {schedule.activity(now);self.round.discard_completion();if !self.scanning {self.due.fill(now.saturating_add(schedule.interval()));}}}
     fn solicited(&self,gateway:&str,address:u8,channel:u8,now:u64)->bool {if self.recent_queries.get(&(gateway.into(),address,channel)).is_some_and(|deadline|now<=*deadline){return true;}self.pending.get(gateway).is_some_and(|pending| {let target=&self.targets[pending.index];target.module.address().get()==address && target.channels.contains(&channel)})}
     pub(super) fn pending(&self)->bool {!self.pending.is_empty()}
     pub(super) fn blocked(&self,now:u64,gap:u64,background_led_phase:bool,feedback:&Feedback)->BTreeSet<String> {
@@ -218,6 +220,7 @@ impl<S:Read+Write+Send+'static> ObservedTransport<S> {
             let pending=plan.pending.remove(&gateway).ok_or("completed local query missing")?;
             self.transport.finish_status_read(&gateway);
             let target=&plan.targets[pending.index];
+            self.feedback.output_query_finished(&plan.config,target,pending.sent,now);
             let confirming=!pending.recovery && plan.priority.contains(&pending.index)
                 && crate::postwrite_confirmation::needed(self.transport.admission(),&self.feedback,&plan.config,target,plan.confirmation_until.get(&pending.index).copied()).await?;
             if !confirming {plan.priority.remove(&pending.index);plan.confirmation_until.remove(&pending.index);}
@@ -233,9 +236,11 @@ impl<S:Read+Write+Send+'static> ObservedTransport<S> {
                 recovery.next+=1;
             }else if !pending.strict && !confirming {
                 let complete=plan.round.observe(pending.index,&plan.targets,self.feedback.module_truth(),now,plan.max_age,plan.config.refresh_policy().round_budget_ms,&plan.generation);
-                if complete && let Some(schedule)=&mut plan.adaptive {
-                    let due=now.checked_add(schedule.completed()).ok_or("adaptive refresh time exhausted")?;
-                    plan.due.fill(due);self.feedback.set_managed_max_age_ms(schedule.allowance())?;
+                if !plan.round.in_progress() && let Some(schedule)=&mut plan.adaptive {
+                    plan.scanning=false;
+                    let interval=if complete {schedule.completed(now)}else{schedule.timeout()};
+                    let due=now.checked_add(interval).ok_or("adaptive refresh time exhausted")?;
+                    plan.due.fill(due);if complete {self.feedback.set_managed_max_age_ms(schedule.allowance())?;}
                 }else{plan.due[pending.index]=plan.due[pending.index].checked_add(plan.cycle).ok_or("refresh time exhausted")?.max(now);}
 
             }
@@ -269,14 +274,6 @@ impl<S:Read+Write+Send+'static> ObservedTransport<S> {
             let wire=self.transport.local_wire(&gateway)?;
             let audit=self.transport.admission().gateway_fault(wire.clone()).await.map_err(|e|format!("local query-timeout audit: {e:?}"))?;
             self.transport.local_record_fault(wire,audit)?;plan.fault(&gateway);
-        }
-        // Retire the bounded quiet scan only after its outstanding replies or
-        // timeouts ended. The next idle scan cannot overlap that old owner.
-        if plan.pending.is_empty() && plan.recovery.is_empty()
-            && let Some(schedule)=&mut plan.adaptive && schedule.settle_if_quiet(now) {
-            plan.round.reset();
-            plan.due.fill(now.saturating_add(schedule.interval()));
-            self.feedback.set_managed_max_age_ms(schedule.allowance())?;
         }
         if self.background_led_phase && plan.recovery.is_empty() {return Ok(());}
         let mut candidates=vec![];
@@ -317,7 +314,7 @@ impl<S:Read+Write+Send+'static> ObservedTransport<S> {
             Err(error)=>return Err(error),
         }
         let sent=self.transport.now_ms();
-        if !retried&&!recovery&&!strict {plan.round.begin(sent);}
+        if !retried&&!recovery&&!strict {if !plan.priority.contains(&index) {plan.scanning=true;}plan.round.begin(sent);}
         plan.recent_queries.retain(|_,deadline|*deadline>=sent);
         for channel in &target.channels {plan.recent_queries.insert((target.gateway.clone(),target.module.address().get(),*channel),sent.saturating_add(timeout));}
         plan.pending.insert(target.gateway.clone(),Pending {index,before,sent,deadline:sent.checked_add(timeout).ok_or("local deadline overflow")?,retried,recovery,strict});
