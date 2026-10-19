@@ -1,0 +1,56 @@
+{
+  "state": "committed",
+  "configuration_revision": 38,
+  "runtime_sha256": "fb44ab57c4a461baf3db060628f09f02af12319b637bf2f6562f453b11aac91c",
+  "program_unchanged": "R31",
+  "App_build_unchanged": 27,
+  "qualification": {
+    "Mac_workspace": 1691,
+    "Linux_library": 688,
+    "Linux_HAP": 3,
+    "full_cases_each_platform": 35,
+    "full_steps_each_platform": 154,
+    "Mac_recovery_tests": 39,
+    "Linux_recovery_tests": 30,
+    "Rust_Python_owner_lock_interoperability": true,
+    "actual38_catalog_both_platforms": true,
+    "synthetic_network": "loopback only, no external routes"
+  },
+  "publication": {
+    "full_cold_backup": true,
+    "bounded_apply_seconds": 180,
+    "external_recovery_guard_seconds": 240,
+    "guard_removed_after_two_readonly_passes": true,
+    "initial_queue_observation": 3,
+    "settled_pending": 0,
+    "unexpected_restarts": 0,
+    "fresh_outputs": 96,
+    "native_keypads": 28,
+    "native_keys": 168,
+    "public_scenes": 121,
+    "separate_LED_devices": false,
+    "boot_actuator_commands": 0,
+    "boot_audit_LED_commands": 99,
+    "HAP_scope_expansion": false,
+    "HAP_pairing_AID_IID_unchanged": true,
+    "credential_digests_roles_devices_unchanged": true,
+    "full_admin_scene_scopes": {
+      "updated_credentials": 2,
+      "old": 131,
+      "new": 130
+    },
+    "restricted_credential_unchanged": true
+  },
+  "recovery": {
+    "failed_candidate_audit_archived": true,
+    "new_credentials_and_revocations_preserved": true,
+    "pairings_receipts_drafts_not_cold_restored": true,
+    "independent_newer_publication_not_overwritten": true
+  },
+  "limits": [
+    "No new physical scene or curtain action was performed for this release.",
+    "Raw RS485 collision freedom and complete field takeover remain separate acceptance items.",
+    "Command-journal query counts do not measure all physical initialization queries."
+  ],
+  "private_payloads_and_credentials_in_public_evidence": false
+}
