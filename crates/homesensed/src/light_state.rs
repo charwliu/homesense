@@ -12,7 +12,9 @@ pub fn project(
     // Kept for API compatibility: old persistent records do not prove an
     // active local command. Restore brightness is handled separately while Off.
     let _ = recorded;
-    crate::combined_light::project(configuration, physical)
+    let mut logical=crate::combined_light::project(configuration, physical)?;
+    crate::shared_light::project(configuration,physical,&mut logical)?;
+    Ok(logical)
 }
 
 /// Trusted publisher overlay from the actor's bounded, lifecycle-checked targets.
@@ -30,9 +32,7 @@ pub(crate) fn project_pending(
             continue;
         }
         let powered = configuration
-            .devices()
-            .get(id)
-            .and_then(|d| d.supply_relay.as_ref())
+            .logical_supply(id)
             .and_then(|relay| physical.devices.get(relay))
             .and_then(|s| s.observed);
         state.observed = Some(Observation::Level(

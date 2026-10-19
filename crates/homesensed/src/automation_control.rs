@@ -723,6 +723,13 @@ impl Receiver {
                             return admission.submit_motor_for_revision(revision,controller,device,motor).await.map(Reply::CommandsAccepted).map_err(|e|format!("{e:?}"));
                         }
                         if matches!(action,crate::management_devices::DeviceAction::PanelLed{..}|crate::management_devices::DeviceAction::PanelLedOff) {return Err("native LED control requires a source credential lease".into());}
+                        if document.shared_light_devices.contains(&device) {
+                            let prepared=crate::shared_light::prepare(admission,controller,self.generation.clone(),&device,&action,feedback,max_age_ms).await?.ok_or("shared light configuration changed")?;
+                            if request.reply.is_closed() || Instant::now()>=request.deadline {return Err("shared light command expired or abandoned".into());}
+                            let remaining=request.deadline.saturating_duration_since(Instant::now());
+                            let limit=admission.monotonic_ms().saturating_add(u64::try_from(remaining.as_millis()).unwrap_or(u64::MAX));
+                            return admission.submit_shared_light(self.generation.clone(),prepared,limit).await.map(Reply::CommandsAccepted).map_err(|e|format!("{e:?}"));
+                        }
                         let batch=crate::management_devices::prepare(admission,controller,self.generation.clone(),device,action,feedback,max_age_ms).await?;
                         if request.reply.is_closed() || Instant::now()>=request.deadline {return Err("device command expired or abandoned".into());}
                         admission.submit_for_revision(revision,batch).await.map(Reply::CommandsAccepted).map_err(|e|format!("{e:?}"))

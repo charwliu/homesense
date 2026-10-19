@@ -37,6 +37,7 @@ impl ConfiguredRules {
             rule.actions.clear();
         }
         let index=Document {
+            shared_light_devices:document.shared_light_devices.clone(),
                 component_mode_confirmations:document.component_mode_confirmations.clone(),
                 scene_component_activity:document.scene_component_activity.clone(),
                 scene_presentations:document.scene_presentations.clone(),
@@ -209,6 +210,7 @@ impl ConfiguredRules {
             admission.clone(),
             controller,
             &Document {
+                shared_light_devices:document.shared_light_devices.clone(),
                 component_mode_confirmations:document.component_mode_confirmations.clone(),
                 scene_component_activity:document.scene_component_activity.clone(),
                 scene_presentations:document.scene_presentations.clone(),

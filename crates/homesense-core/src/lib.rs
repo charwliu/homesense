@@ -16,6 +16,7 @@ pub mod rule_chain;
 pub mod feedback_cause;
 pub mod scene;
 pub mod scene_expand;
+pub mod shared_light;
 use std::fmt;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -35,6 +35,7 @@ pub mod reconnect;
 pub mod live_service;
 
 pub mod combined_light;
+mod shared_light;
 
 pub mod configuration_publish;
 
