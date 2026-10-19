@@ -124,6 +124,7 @@ pub struct Feedback {
     now: u64,
     stopped: bool,
     managed_max_age_ms: Option<u64>,
+    query_health: crate::query_health::Health,
 }
 type NativeSceneCapture = (
     BTreeMap<DeviceId, Option<bool>>,
@@ -141,6 +142,11 @@ impl Feedback {
 
     pub(crate) fn effective_max_age_ms(&self, requested:u64)->u64 {
         self.managed_max_age_ms.map_or(requested,|bound|requested.min(bound))
+    }
+    /// Continuing ownership uses the adaptive observation allowance. This
+    /// never extends a command's pending confirmation or changes sample times.
+    pub(crate) fn continuing_max_age_ms(&self, confirmation_age:u64)->u64 {
+        self.managed_max_age_ms.unwrap_or(confirmation_age)
     }
     pub(crate) fn set_managed_max_age_ms(&mut self,bound:u64)->Result<(),String> {
         if bound==0 || bound>homesense_config::RefreshPolicy::MAX_OBSERVATION_AGE_MS {return Err("invalid managed observation allowance".into());}
@@ -382,6 +388,7 @@ impl Feedback {
         }
         Ok(Self {
             managed_max_age_ms: None,
+            query_health: Default::default(),
             lease_version: Arc::new(Mutex::new(0)),
             projection_versions: Arc::new(Mutex::new(projection_lease::Versions::new(&states,config,boot,epoch))),
             boot,
@@ -576,6 +583,9 @@ impl Feedback {
     }
     /// A missing status reply is a port-evidence failure, not socket EOF.
     /// Retain received values/timestamps while invalidating only missing ports.
+    pub(crate) fn query_error(&self,bus:&str,address:u8,channel:u8)->Option<crate::query_health::Failure> {
+        self.query_health.alert(bus,address,channel)
+    }
     pub(crate) fn missing_query_ports(&mut self,gateway:&str,address:u8,channels:&[u8],at:u64)->Result<(),String> {
         if self.stopped || !self.registries.contains_key(gateway) || at<self.now {
             return Err("inactive or backwards query timeout evidence".into());
@@ -586,6 +596,7 @@ impl Feedback {
         for channel in channels {
             self.states.invalidate_port(gateway,address,*channel).map_err(|e|e.to_string())?;
             self.refresh_projection_port(gateway,address,*channel)?;
+            self.query_health.missing(gateway,address,*channel,at);
         }
         self.now=at;Ok(())
     }
@@ -631,6 +642,7 @@ impl Feedback {
                     if let Decoded::Feedback {address,channel,observation}=registry.decode(*frame)
                         && self.states.observe_received(&read.gateway_id,address.get(),channel.get(),observation,self.state_epoch,read.received_at_ms,applied_at_ms).map_err(|e|e.to_string())? {
                         count+=1;
+                        self.query_health.received(&read.gateway_id,address.get(),channel.get());
                         if registry.module(address).is_some_and(|module| module.profile()==homesense_core::ProtocolProfile::Ts686Rs485SixKey)
                             && let homesense_core::Observation::Button { pressed } = observation {
                             self.panel_queries.button(&read.gateway_id,address.get(),channel.get(),pressed,read.received_at_ms);

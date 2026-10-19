@@ -99,6 +99,8 @@ impl Fixture {
                 generation: self.generation.clone(),
                 policies: vec![policy],
                 after: BTreeMap::new(),
+                continuing: true,
+                confirmation_deadline: None,
             },
             controller: self.controller,
             source: None,
@@ -647,4 +649,28 @@ async fn startup_resets_all_completion_only_targets_across_storage_batch_boundar
         let _ = std::fs::remove_file(format!("{}{suffix}", path.display()));
     }
     let _ = std::fs::remove_file(path.with_extension("runtime.lock"));
+}
+
+#[tokio::test]
+async fn continuing_mode_uses_adaptive_age_but_pending_confirmation_stays_bounded() {
+    let mut f=Fixture::new().await;
+    let mut feedback=observed_feedback(&f,10);
+    feedback.set_managed_max_age_ms(f.config.refresh_policy().observation_max_age_ms()).unwrap();
+    let view=f.owner.views(&f.store,&f.config).unwrap().pop().unwrap();
+    let now=300_010;
+    let proof=Proof::prepare(&view,&f.config,&feedback,now).unwrap();
+    assert_eq!(proof.matched,Some(true));
+    assert_eq!(proof.observed_ms,Some(10),"waiting does not renew actual samples");
+    assert!(f.owner.apply(&mut f.store,&f.config,proof,now).unwrap());
+    let mut pending=view.clone();pending.continuing=false;pending.confirmation_deadline=Some(now+100);
+    assert_eq!(Proof::prepare(&pending,&f.config,&feedback,now).unwrap().matched,None);
+    let targets=crate::physical_queries::plan(&f.config,ExecutionContext::Simulation).unwrap();
+    assert!(view.query_requirements(&f.config,&feedback,&targets,now).is_empty());
+    assert!(!pending.query_requirements(&f.config,&feedback,&targets,now).is_empty());
+    assert!(pending.query_requirements(&f.config,&feedback,&targets,now+100).is_empty());
+    let expires=10+f.config.refresh_policy().observation_max_age_ms();
+    let proof=Proof::prepare(&view,&f.config,&feedback,expires).unwrap();
+    assert_eq!(proof.matched,None);
+    assert!(!f.owner.apply(&mut f.store,&f.config,proof,expires).unwrap());
+    assert!(f.owner.confirmed.is_empty(),"the published idle bound still expires ownership");
 }

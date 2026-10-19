@@ -90,21 +90,24 @@ impl OutputRefresh {
         let partial=self.away_critical && self.targets.iter().enumerate().any(|(i,other)|
             other.gateway==target.gateway && other.module.address()==target.module.address()
                 && self.away_sample(i,feedback,now,false,false));
-        if partial {self.target_backoff.insert(index,now.saturating_add(5_000));}
-        else {self.query_backoff.insert((target.gateway.clone(),target.module.address().get()),now.saturating_add(5_000));}
+        let delay=self.adaptive.as_mut().map_or(5_000,|schedule|schedule.timeout());
+        self.target_backoff.insert(index,now.saturating_add(delay));
+        if !partial {self.query_backoff.insert((target.gateway.clone(),target.module.address().get()),now.saturating_add(delay));}
     }
     pub(super) fn activity(&mut self,now:u64) {
-        if let Some(schedule)=&mut self.adaptive {schedule.activity();self.round.discard_completion();self.due=self.due.min(now);}
+        if let Some(schedule)=&mut self.adaptive {schedule.activity(now);self.round.discard_completion();self.due=self.due.min(now);}
     }
     pub(super) fn written(&mut self,device:&homesense_core::DeviceId,now:u64,ramped:bool) {
         if self.adaptive.is_none() {return;}
         let Some((binding,module))=self.configuration.binding(device) else{return;};
         if !matches!(module.kind(),homesense_core::ModuleKind::Switch|homesense_core::ModuleKind::Dimmer) {return;}
         let (gateway,address,channel)=(binding.gateway.clone(),binding.address,binding.channel.get());
+        self.query_backoff.remove(&(gateway.clone(),address.get()));
         self.ramp_reads.written(&self.configuration,device,now,ramped);
         self.activity(now);
         for (index,target) in self.targets.iter().enumerate() {
             if target.gateway==gateway && target.module.address()==address && target.channels.contains(&channel) {
+                self.target_backoff.remove(&index);
                 self.priority.insert(index);self.confirmation_until.insert(index,now.saturating_add(crate::control_batch::FEEDBACK_TOTAL_MS));self.round.forget(index);
             }
         }
@@ -351,6 +354,11 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
         plan: &mut OutputRefresh,
     ) -> Result<(), (String, String)> {
         let now = self.transport.now_ms();
+        if plan.pending.is_none() && let Some(schedule)=&mut plan.adaptive && schedule.settle_if_quiet(now) {
+            plan.round.reset();
+            plan.due=now.saturating_add(schedule.interval());
+            self.feedback.set_managed_max_age_ms(schedule.allowance()).map_err(|e|("feedback-proof".into(),e))?;
+        }
         plan.query_backoff.retain(|_,until|now<*until);
         plan.confirmation_until.retain(|index,until| {if now>=*until {plan.priority.remove(index);false}else{true}});
         let required=crate::control_batch::query_requirements(self.transport.admission(),&self.feedback,&plan.configuration,&plan.targets,plan.controller).await.map_err(|e|("feedback-proof".into(),e))?;
@@ -412,9 +420,10 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
                 return Err((gateway,"all registered output feedback unavailable".into()));
             }
             plan.backoff_missing(index,&self.feedback,now);
-            plan.round.forget(index);
+            let finished=plan.round.missing(index,plan.targets.len());
             self.transport.finish_status_read(&gateway);
-            plan.pending=None;plan.control_opportunity=true;plan.due=now;
+            plan.pending=None;plan.control_opportunity=true;
+            plan.due=if finished {now.saturating_add(plan.adaptive.as_ref().map_or(plan.interval_ms,|s|s.interval()))} else {now};
             return Ok(());
         }
         // Already-issued reads keep their original timeout/fault accounting.

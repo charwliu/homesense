@@ -33,6 +33,7 @@ pub enum DeviceAction {
 #[derive(Debug, PartialEq, Eq)]
 pub struct DeviceView {
     pub availability:Option<crate::gateway_runtime::View>,
+    pub(crate) communication_error:Option<crate::query_health::Failure>,
     pub catalog_visible:bool,
     pub room: Option<homesense_config::Room>,
     pub id: DeviceId,
@@ -171,6 +172,7 @@ async fn snapshot_bound(admission:&Admission,controller:Uuid,generation:TaskGene
         let availability=gateway_views.iter().find(|view|view.gateway==device.gateway).cloned();
         if availability.as_ref().is_some_and(|view|view.state!="ready") {state.quality=homesense_state::Quality::Unknown;}
         devices.push(DeviceView {
+            communication_error:feedback.query_error(&device.gateway,device.address.get(),device.channel.get()),
             availability,
             catalog_visible:device.catalog_visible,
             room: device

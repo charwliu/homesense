@@ -117,7 +117,7 @@ async fn read_bound(
             // queryable state exists (keypads and uncalibrated motors).
             // Dimmer overlay settlement can change without a physical event.
             // Retain its bounded view so WSS can compare stable projection data.
-            view.availability.is_some() || view.motor_estimate.is_some()
+            view.communication_error.is_some() || view.availability.is_some() || view.motor_estimate.is_some()
                 || (include_projection && view.state.kind == homesense_core::ModuleKind::Dimmer)
                 || view.recorded || physical.contains(&view.id)
                 || bundle

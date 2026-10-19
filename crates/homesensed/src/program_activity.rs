@@ -860,7 +860,8 @@ impl Proof {
             .program_confirmation
             .as_ref()
             .ok_or("missing program policy")?;
-        let age = feedback.effective_max_age_ms(program.max_age_ms);
+        let requested=if view.confirmed {feedback.continuing_max_age_ms(program.max_age_ms)} else {program.max_age_ms};
+        let age = feedback.effective_max_age_ms(requested);
         let (primary, signature) =
             primary_sample(config, &program.active_conditions, feedback, now, age)?;
         let valid_until = primary

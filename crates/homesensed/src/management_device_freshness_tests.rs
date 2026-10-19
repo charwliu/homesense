@@ -417,3 +417,17 @@ async fn same_value_dimmer_confirmation_advances_projection_without_a_physical_c
     for suffix in ["","-wal","-shm"] {let _=std::fs::remove_file(format!("{}{suffix}",fixture.path.display()));}
     let _=std::fs::remove_file(fixture.path.with_extension("runtime.lock"));
 }
+
+#[tokio::test]
+async fn repeated_query_failures_are_visible_in_scoped_snapshot_and_recovery_clears_them() {
+    static TIME: AtomicU64=AtomicU64::new(0);
+    let mut f=Fixture::new(false,&TIME).await;TIME.store(1,Ordering::Release);f.observe(0x15,40,1);
+    for at in [10,30] {TIME.store(at,Ordering::Release);f.feedback.missing_query_ports("fixture",0x15,&[1],at).unwrap();}
+    assert!(f.view(5000).await.devices[0].communication_error.is_none());
+    TIME.store(70,Ordering::Release);f.feedback.missing_query_ports("fixture",0x15,&[1],70).unwrap();
+    let snapshot=f.view(5000).await;
+    assert_eq!(snapshot.devices[0].communication_error.as_ref().unwrap().consecutive_cycles,3);
+    assert_eq!(snapshot.devices[0].state.quality,Quality::Unknown);
+    TIME.store(80,Ordering::Release);f.observe(0x15,40,80);
+    assert!(f.view(5000).await.devices[0].communication_error.is_none());f.close().await;
+}

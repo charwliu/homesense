@@ -135,7 +135,7 @@ impl Fixture {
         use crate::management_devices::DeviceView;
         let mut state=homesense_state::StateStore::new(1,1,512,1024).unwrap();
         for id in &self.source.grant.devices {state.register(DeviceId::new(id).unwrap(),homesense_core::ModuleKind::Keypad).unwrap();}
-        let raw=state.snapshot();let visible=raw.devices.iter().filter(|(id,_)|only.is_none_or(|only|id.as_str()==only)).map(|(id,state)|DeviceView {availability:None,catalog_visible:true,room:None,id:id.clone(),name:id.as_str().to_owned(),motor_calibrated:false,motor_estimate:None,state:state.clone(),reported:None,recorded:false}).collect::<Vec<_>>();
+        let raw=state.snapshot();let visible=raw.devices.iter().filter(|(id,_)|only.is_none_or(|only|id.as_str()==only)).map(|(id,state)|DeviceView {communication_error:None,availability:None,catalog_visible:true,room:None,id:id.clone(),name:id.as_str().to_owned(),motor_calibrated:false,motor_estimate:None,state:state.clone(),reported:None,recorded:false}).collect::<Vec<_>>();
         management_keypads::snapshot(&self.actor,self.source.grant.controller,self.actor.task_generation().await.unwrap(),&self.config,&raw,&visible,1,self.actor.monotonic_ms()).await.unwrap().0
     }
     fn change(&self, kind: &str) {

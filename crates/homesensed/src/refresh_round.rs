@@ -32,6 +32,12 @@ impl RoundTracker {
         self.started = None;
         self.complete = None;
     }
+    /// A timed-out target ends its turn, but cannot certify a successful round.
+    pub fn missing(&mut self,index:usize,total:usize)->bool {
+        self.seen.insert(index);
+        self.complete=None;
+        if self.seen.len()==total {self.reset();true} else {false}
+    }
     pub fn take(&mut self) -> Option<CompletedRound> {
         self.complete.take()
     }
@@ -67,5 +73,20 @@ impl RoundTracker {
         self.seen.clear();
         self.started = None;
         self.complete.is_some()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn activity_and_timeouts_do_not_restart_an_unfinished_scan() {
+        let mut round=RoundTracker::default();round.begin(10);
+        assert!(!round.missing(0,3));
+        round.discard_completion();round.begin(100);
+        assert!(round.contains(0));assert_eq!(round.started,Some(10));
+        assert!(!round.missing(1,3));assert!(round.contains(0));
+        assert!(round.missing(2,3));assert!(round.take().is_none());
+        assert!(!round.contains(0));round.begin(1000);assert_eq!(round.started,Some(1000));
     }
 }
