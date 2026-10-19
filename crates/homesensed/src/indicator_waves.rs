@@ -186,6 +186,10 @@ impl Waves {
             }
             self.cycle=Some(cycle);
         }
+        // Metadata/owner reads above can be slow on the full catalog. Start
+        // this delivery slot from the current clock, while retaining the
+        // original cycle horizon and every command's proof/deadline checks.
+        let now=admission.monotonic_ms();
         let cycle=self.cycle.as_ref().unwrap();let available=cycle.deadline.saturating_sub(now);let allowance=available.min(4000)/2;
         let width=((allowance.min(2000)/2)/gap_ms.max(1)).min(16) as usize;
         if width==0 {self.abort();return Ok(None);}

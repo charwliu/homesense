@@ -461,7 +461,13 @@ pub(crate) async fn drive_with_panel_feeds<S: Read + Write + Send + 'static>(
                 let stage_started=std::time::Instant::now();
                 scene_observations.tick(admission,receiver.controller(),document,guard.owner.feedback()).await?;
                 let away_critical=admission.away_operations_active();
-                if !away_critical {
+                // A background LED wave already owns a bounded delivery slot.
+                // Rebuilding all physical scene projections between its write
+                // bursts can consume that slot on the full Linux catalog.
+                // Keep input/feedback and admission checks above running; reads
+                // still revalidate their existing proofs. Resume projection
+                // maintenance when this wave finishes or reaches its deadline.
+                if !away_critical && background_led_phase.is_none() {
                     crate::scene_initialization::tick(admission,receiver.controller(),document,guard.scenes,guard.owner.feedback()).await?;
                     crate::scene_reconciliation::tick(admission,receiver.controller(),document,guard.scenes,guard.owner.feedback()).await?;
                 }

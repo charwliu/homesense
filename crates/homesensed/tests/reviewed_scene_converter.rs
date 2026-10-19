@@ -285,7 +285,7 @@ async fn reviewed_logical_combined_target_writes_exact_level_and_supply_with_one
     assert!(owner.step_with_frame_budget(1).await.unwrap().is_none());
     assert_eq!(
         *bytes.lock().unwrap(),
-        [0xae, 0x20, 0xb1, 40, 0xee, 0xae, 0x10, 2, 0xf1, 0xee]
+        [0xae, 0x20, 0x01, 40, 0xee, 0xae, 0x10, 2, 0xf1, 0xee]
     );
     let mixed = scene(103, "none", &[(2000, 40, 0, 0), (2001, 100, 0, 0)]);
     let mixed_event = guarded_event(&call(3, 7, 103, true, true));

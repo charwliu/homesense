@@ -114,7 +114,7 @@ async fn gateway(listener:tokio::net::TcpListener,state:Arc<BusState>,mut stop:t
                             let reply=channels.into_iter().flat_map(|channel|[0xae,0x11,0xd0+channel,level,0xee]).collect::<Vec<_>>();
                             if socket.write_all(&reply).await.is_err(){break;}
                         }else{
-                            assert_eq!(raw[2],0xb1,"AD8 logical brightness must encode a channel1 ramp");
+                            assert_eq!(raw[2],0x01,"AD8 logical brightness must encode a channel1 direct percentage");
                             assert!(matches!(phase,0|3),"unavailable phase wrote control: {raw:?}");
                             assert!(matches!(raw[3],40|25),"unexpected or replayed control: {raw:?}");
                             state.level.store(raw[3],Ordering::Release);
@@ -182,7 +182,7 @@ async fn paired_encrypted_hap_reports_outage_and_preserves_pairing_after_complet
         let subscribe=json!({"characteristics":[{"aid":ids.0,"iid":ids.1,"ev":true},{"aid":ids.0,"iid":ids.2,"ev":true}]}).to_string();
         let (headers,body)=exchange(&mut session,&mut socket,"PUT","/characteristics",&subscribe,&trace);assert!(headers.starts_with("HTTP/1.1 204"),"{headers}: {body}");
         trace.stage("initial-authorized-write");let (headers,body)=write_level(&mut session,&mut socket,ids,40,&trace);assert!(headers.starts_with("HTTP/1.1 204"),"{headers}: {body}");
-        wait(||controls(&observed)==vec![(0,[0xae,0x11,0xb1,40,0xee])],3,"one initial authorized control");
+        wait(||controls(&observed)==vec![(0,[0xae,0x11,0x01,40,0xee])],3,"one initial authorized control");
         wait(||{let (headers,body)=read_level(&mut session,&mut socket,ids,&trace);headers.starts_with("HTTP/1.1 200") && body["characteristics"][1]["value"]==40},3,"confirmed level40");
         trace.stage("silent-gateway");observed.phase.store(1,Ordering::Release);
         let mut unavailable_iids=BTreeSet::new();
@@ -201,12 +201,12 @@ async fn paired_encrypted_hap_reports_outage_and_preserves_pairing_after_complet
         assert!(management(web,"/health/live").is_some_and(|(status,body)|status==200 && body["live"]==true));
         assert!(management(web,"/health/ready").is_some_and(|(status,body)|status==503 && body["ready"]==false));
         wait(||observed.connections.load(Ordering::Acquire)>=2,3,"new recovery connection while silent");
-        assert_eq!(controls(&observed),vec![(0,[0xae,0x11,0xb1,40,0xee])]);
+        assert_eq!(controls(&observed),vec![(0,[0xae,0x11,0x01,40,0xee])]);
         trace.stage("partial-new-generation");observed.phase.store(2,Ordering::Release);
         wait(||observed.partial_queries.load(Ordering::Acquire)>0,6,"bound-channel-only reply");
         std::thread::sleep(Duration::from_millis(700));unavailable(&mut session,&mut socket,ids,&trace);
         assert!(management(web,"/health/ready").is_some_and(|(status,body)|status==503 && body["ready"]==false),"one fresh bound channel must not authorize missing7registered ports");
-        assert_eq!(controls(&observed),vec![(0,[0xae,0x11,0xb1,40,0xee])]);
+        assert_eq!(controls(&observed),vec![(0,[0xae,0x11,0x01,40,0xee])]);
         trace.stage("complete-new-generation");observed.phase.store(3,Ordering::Release);
         wait(||management(web,"/health/ready").is_some_and(|(status,body)|status==200 && body["ready"]==true),8,"complete8port recovery");
         let after=management(web,"/api/v1/diagnostics").unwrap().1["transport_epoch"].as_str().unwrap().parse::<u64>().unwrap();assert!(after>before);
@@ -216,9 +216,9 @@ async fn paired_encrypted_hap_reports_outage_and_preserves_pairing_after_complet
         assert_eq!(graph(&mut session,&mut socket,&trace),ids,"AID/IID changed across recovery");
         let (headers,body)=exchange(&mut session,&mut socket,"PUT","/characteristics",&subscribe,&trace);assert!(headers.starts_with("HTTP/1.1 204"),"recovered event subscription failed {headers}: {body}");
         let (headers,read)=read_level(&mut session,&mut socket,ids,&trace);assert!(headers.starts_with("HTTP/1.1 200"));assert_eq!(read["characteristics"][0]["value"],true);assert_eq!(read["characteristics"][1]["value"],40,"new truth should restore unchanged physical level");
-        assert_eq!(controls(&observed),vec![(0,[0xae,0x11,0xb1,40,0xee])],"old command replayed during recovery");
+        assert_eq!(controls(&observed),vec![(0,[0xae,0x11,0x01,40,0xee])],"old command replayed during recovery");
         trace.stage("fresh-post-recovery-write");let event_start=trace.0.lock().unwrap()["events"].as_array().unwrap().len();let (headers,body)=write_level(&mut session,&mut socket,ids,25,&trace);assert!(headers.starts_with("HTTP/1.1 204"),"{headers}: {body}");
-        wait(||controls(&observed)==vec![(0,[0xae,0x11,0xb1,40,0xee]),(3,[0xae,0x11,0xb1,25,0xee])],3,"new authenticated command exactly once");
+        wait(||controls(&observed)==vec![(0,[0xae,0x11,0x01,40,0xee]),(3,[0xae,0x11,0x01,25,0xee])],3,"new authenticated command exactly once");
         // A completed local write is not a physical observation. Wait for both
         // the encrypted projection and current physical module feedback.
         wait(||{
@@ -233,7 +233,7 @@ async fn paired_encrypted_hap_reports_outage_and_preserves_pairing_after_complet
     trace.stage("deadline-and-pairing-check");service.await.unwrap().unwrap();let _=stop.send(());bus_task.await.unwrap();
     let after=identity.load_config().await.unwrap();assert_eq!(after.device_id,initial.device_id);assert!(after.device_ed25519_keypair.to_bytes()==initial.device_ed25519_keypair.to_bytes(),"long-term accessory identity changed");assert_eq!(after.configuration_number,initial_configuration_number);
     assert_eq!(identity.count_pairings().await.unwrap(),1);let pairing=identity.load_pairing(&controller).await.unwrap();assert_eq!(pairing.public_key,signing_key());assert_eq!(pairing.permissions,hap::pairing::Permissions::Admin);
-    assert_eq!(controls(&state),vec![(0,[0xae,0x11,0xb1,40,0xee]),(3,[0xae,0x11,0xb1,25,0xee])]);
+    assert_eq!(controls(&state),vec![(0,[0xae,0x11,0x01,40,0xee]),(3,[0xae,0x11,0x01,25,0xee])]);
     let db=rusqlite::Connection::open(root.join("automation-tcp.sqlite")).unwrap();assert_eq!(db.query_row("SELECT count(*) FROM command_journal WHERE status='written'",[],|row|row.get::<_,i64>(0)).unwrap(),2);assert_eq!(db.query_row("SELECT count(*) FROM command_journal WHERE status IN ('accepted','writing')",[],|row|row.get::<_,i64>(0)).unwrap(),0);drop(db);
     {let mut report=trace.0.lock().unwrap();report["stage"]="complete".into();report["passed"]=true.into();report["frames"]=json!(state.frames.lock().unwrap().clone());report["pairing_and_identity_unchanged"]=true.into();}
     drop(identity);std::fs::remove_dir_all(root).unwrap();

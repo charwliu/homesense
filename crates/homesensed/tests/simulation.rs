@@ -109,7 +109,7 @@ fn deadline_and_monotonic_clock_prevent_late_execution() {
 }
 
 #[test]
-fn ad8_hap_target_uses_hardware_ramp_and_feedback_confirms() {
+fn ad8_hap_target_uses_direct_level_and_feedback_confirms() {
     let document = String::from_utf8(CONFIG.to_vec())
         .unwrap()
         .replace("gt_d8_rl_v2_2_6_2", "ad8_din_rs485_v2_2_1");

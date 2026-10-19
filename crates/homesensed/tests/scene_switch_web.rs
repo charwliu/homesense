@@ -35,6 +35,62 @@ fn rules() -> Vec<u8> {
         "scene_switch_groups":[ {"id":"room","variable":"selection","review_evidence":"synthetic reviewed exclusion","members":[{"scene":"reading","value":1,"off_scene":"off"},{"scene":"daily","value":2,"off_scene":"off"},{"scene":"eco","value":3,"off_scene":"off"}],"reset_scenes":["off"]}]})).unwrap()
 }
 struct Wire;
+
+#[tokio::test]
+async fn scene_light_membership_obeys_device_grants_without_issuing_commands() {
+    let root = std::env::temp_dir().join(format!("scene-lights-{}", Uuid::new_v4()));
+    std::fs::create_dir(&root).unwrap();
+    let path = root.join("runtime.sqlite");
+    homesense_storage::Store::open(&path).unwrap().publish_automation(
+        None, &configuration(), &rules(), ExecutionContext::Simulation, &[],
+    ).unwrap();
+    let caller = Uuid::new_v4();
+    let tokens = Arc::new(Tokens::default());
+    let hidden = "scene-membership-hidden-01234567890123456789";
+    let visible = "scene-membership-visible-01234567890123456789";
+    for (secret, devices) in [(hidden, Default::default()), (visible, ["simulation:light".into()].into())] {
+        tokens.insert(Uuid::new_v4(), secret, Grant {
+            controller: caller, role: Role::Member,
+            scenes: ["reading".into()].into(), devices,
+        }).unwrap();
+    }
+    let (admission, control, stop, drive) = owner(&path, caller).await;
+    let api = Api {
+        daily_backup: Default::default(), hap_bridges: Default::default(),
+        hap_status: Default::default(), backup_source: None, publisher: None,
+        origin: "http://127.0.0.1:8088".into(), tokens,
+        runtime: std::sync::RwLock::new(Some(Runtime {
+            control, revision: 1, boot: admission.boot_id().into(),
+            scenes: [("reading".into(), "Reading".into())].into(),
+        })),
+        receipts: Mutex::new(Receipts::open(&root.join("web.sqlite")).unwrap()), drafts: None,
+    };
+    for (secret, expected, complete) in [
+        (hidden, json!([]), false),
+        (visible, json!([{"id":"simulation:light","name":"模拟调光灯"}]), true),
+        (hidden, json!([]), false),
+    ] {
+        let (status, body) = request(&api, secret, "/api/v1/scenes", None).await;
+        assert_eq!(status, StatusCode::OK, "{body}");
+        let scenes = body["scenes"].as_array().unwrap();
+        assert_eq!(scenes.len(), 1, "scene grants must remain scoped");
+        assert_eq!(scenes[0]["id"], "reading");
+        assert_eq!(scenes[0]["lights"], expected);
+        assert_eq!(scenes[0]["lights_complete"], complete);
+        if !complete { assert!(!body.to_string().contains("模拟调光灯")); }
+    }
+    stop.send(true).unwrap();
+    drive.await.unwrap().unwrap();
+    admission.shutdown().await.unwrap();
+    let db = rusqlite::Connection::open(&path).unwrap();
+    for table in ["command_journal", "scene_run"] {
+        assert_eq!(db.query_row(&format!("SELECT count(*) FROM {table}"), [], |row| row.get::<_, i64>(0)).unwrap(), 0);
+    }
+    drop(db);
+    drop(api);
+    std::fs::remove_dir_all(root).unwrap();
+}
+
 impl std::io::Read for Wire {
     fn read(&mut self, _: &mut [u8]) -> std::io::Result<usize> {
         Err(std::io::ErrorKind::WouldBlock.into())

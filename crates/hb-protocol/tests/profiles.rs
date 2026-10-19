@@ -313,7 +313,7 @@ fn ts6_six_key_vectors_and_led_mode_gate() {
 }
 
 #[test]
-fn ad8_uses_documented_ramps_and_rejects_unproven_immediate_levels() {
+fn ad8_encodes_direct_percentages_and_explicit_legacy_ramps() {
     use homesense_core::{LevelTransition, Percent};
     let module = ModuleSpec::new(address(), ProtocolProfile::Ad8Din, verified()).unwrap();
     let mut registry = Registry::default();
@@ -342,11 +342,7 @@ fn ad8_uses_documented_ramps_and_rejects_unproven_immediate_levels() {
                     transition: LevelTransition::Immediate,
                 },
             );
-            if matches!(value, 0 | 100) {
-                assert_eq!(immediate.unwrap().bytes(), [0xAE, 0x41, c, value, 0xEE]);
-            } else {
-                assert_eq!(immediate, Err(ProtocolError::UnsupportedCommand));
-            }
+            assert_eq!(immediate.unwrap().bytes(), [0xAE, 0x41, c, value, 0xEE]);
             assert_eq!(
                 registry.decode(RawFrame {
                     address: 0x41,

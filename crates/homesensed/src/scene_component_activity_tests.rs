@@ -943,3 +943,36 @@ async fn known_program_activity_feedback_budget_is_not_the_already_completed_sen
     drain_linked_led(&h).await;
     h.finish().await;
 }
+
+#[tokio::test]
+async fn catalog_shared_component_views_recheck_actual_feedback_without_creating_io() {
+    let (cfg, document) = component_cycle_inputs();
+    let mut h = Harness::from_inputs(cfg, with_activity(document, "v", json!(1))).await;
+    execute(&mut h).await;
+    h.wire().await;
+    tokio::time::sleep(Duration::from_millis(2)).await;
+    mode_frame(&mut h, 3, 1, 0xf1);
+    assert_eq!(mode_confirm(&h).await, 1);
+    let writes = h.count("command_journal");
+    let config = h.configuration.clone();
+    let mut context = crate::scene_tracking::CatalogReadContext::new(&config);
+    for _ in 0..2 {
+        let value = crate::scene_tracking::read_catalog(&h.document, "act", &h.actor,
+            h.controller, &h.generation, &h.feedback, &mut context).await.unwrap().unwrap();
+        assert_eq!(value.activity, A::Active);
+    }
+    tokio::time::sleep(Duration::from_millis(2)).await;
+    mode_frame(&mut h, 3, 1, 0xf2);
+    let value = crate::scene_tracking::read_catalog(&h.document, "act", &h.actor,
+        h.controller, &h.generation, &h.feedback, &mut context).await.unwrap().unwrap();
+    assert_eq!(value.activity, A::Unknown, "a reused catalog view is never cached actual activity");
+    assert_eq!(h.actor.component_activity(h.controller, h.generation.clone(),
+        "not-configured".into(), None).await, Err(hap::server::WriteStatus::InvalidValueInRequest));
+    let mut other_generation = h.generation.clone();
+    other_generation.epochs.configuration += 1;
+    assert_eq!(h.actor.component_activity(h.controller, other_generation,
+        "act".into(), None).await, Err(hap::server::WriteStatus::ResourceBusy));
+    assert_eq!(h.count("command_journal"), writes, "catalog reads never enqueue queries or controls");
+    drop(context);
+    h.finish().await;
+}

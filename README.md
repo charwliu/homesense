@@ -7,7 +7,7 @@ HomeSense 是用 Rust 编写的家庭中控项目：通过 TCP485 网关管理 H
 ## 功能
 
 - **设备控制**：灯光开关与调光、窗帘开／关／停、六键 Keypad 及 LED 提示。
-- **场景与自动化**：经过审核的场景、条件、变量、延迟与渐变；配置发布与运行状态分离。
+- **场景与自动化**：经过审核的场景、条件、变量与延迟；配置发布与运行状态分离。
 - **状态与恢复**：以设备反馈确认实际状态；支持组件确认及实际程序写出证明提供的只读场景活动、断线重连、周期查询、故障隔离与请求审计。
 - **客户端**：Apple 家庭中的 HAP 配件，以及 iPhone／iPad／Mac 原生 App。浏览器管理页面已撤除，HTTPS API 与 WSS 仍供原生 App 使用。
 - **迁移工具**：Control4 资料导入、离线回放、模拟网关和现场诊断工具。
@@ -51,3 +51,7 @@ cargo run --locked -p homesensed -- serve-automation-simulation config/simulatio
 - [参考资料说明](reference/README.md) · [更新记录](CHANGELOG.md)
 
 完整私有工程、凭证和配对数据应保存在忽略的私有目录；`reference/` 是离线参考资料，不是运行配置。
+
+调光控制统一发送直接目标百分比：App、组合灯恢复及自动化入口不再输出硬件渐变指令；场景原有亮度和供电范围保持，明确修改的目标另行记录。场景详情可按授权查看所含灯光的实测开关与亮度，复用设备状态推送。
+
+本轮直接亮度、场景灯光清单及 LED 发送窗口已完成[软件隔离验收](docs/evidence/stage-e-browser/direct-level-scene-lights-qualification.json)，尚未部署现网；隔离结果不替代家庭总线与现场验收。

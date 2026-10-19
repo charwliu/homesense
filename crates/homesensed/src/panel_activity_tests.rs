@@ -57,7 +57,7 @@ impl Write for Stream {
             if frame[2]==0xa0 {
                 b.dimmer_reads+=1;
                 b.dimmer_query_times.push(std::time::Instant::now());
-                if let Some((target,at))=b.dimmer_target && std::time::Instant::now()>=at {
+                if let Some((target,at))=b.dimmer_target && std::time::Instant::now()>=at && b.dimmer_reads>=2 {
                     b.dimmer_level=target;b.dimmer_target=None;
                 }
                 let level=b.dimmer_level;
@@ -264,8 +264,8 @@ async fn run(independent: bool, strict: bool, delayed_release: bool, startup_hol
             "a first intermediate reply cannot postpone final brightness confirmation for five minutes");
         {let state=buses["bus"].lock().unwrap();assert!(state.dimmer_reads>=2);
         let written=state.dimmer_written_at.unwrap();
-        assert!(state.dimmer_query_times.iter().all(|at|at.duration_since(written)>=Duration::from_secs(6)),"no AD8 read before six seconds after actual ramp write: {:?}",state.dimmer_query_times.iter().map(|at|at.duration_since(written)).collect::<Vec<_>>());
-        assert!(state.relay_written_at.unwrap().duration_since(written)<Duration::from_secs(1),"ramp query delay must not block another control");
+        assert!(state.dimmer_query_times.iter().all(|at|at.duration_since(written)<Duration::from_secs(1)),"direct AD8 confirmation must not wait six seconds: {:?}",state.dimmer_query_times.iter().map(|at|at.duration_since(written)).collect::<Vec<_>>());
+        assert!(state.relay_written_at.unwrap().duration_since(written)<Duration::from_secs(1),"direct confirmation must not block another control");
         assert!(state.writes[baseline..].iter().all(|frame|frame[1]==0x15 || (frame[1]==3 && matches!(frame[2],1|0xa1))),"confirmation must not restart unrelated periodic R8 reads");}
         let count=buses["bus"].lock().unwrap().writes.len();
         let until=std::time::Instant::now()+Duration::from_millis(100);

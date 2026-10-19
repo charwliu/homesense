@@ -123,13 +123,9 @@ pub fn encode_in_context(
     {
         return Err(ValidationError::LedModeNotManual.into());
     }
-    // AD8 manual 7.3 documents only immediate off/full-on; arbitrary
-    // percentages are documented under the Bx ramp command in section 7.4.
-    if module.profile() == homesense_core::ProtocolProfile::Ad8Din
-        && matches!(command, Command::SetLevel { level, transition: LevelTransition::Immediate } if !matches!(level.get(), 0 | 100))
-    {
-        return Err(ProtocolError::UnsupportedCommand);
-    }
+    // Direct percentage format was field-verified at 10% with
+    // AE 11 05 0A EE and readback. Channel and Percent validation still bound
+    // every direct target; explicit Bx encoding remains available to old rules.
     if let Command::PanelParameter(parameter) = command {
         if module.profile() != homesense_core::ProtocolProfile::Ts686Rs485SixKey {
             return Err(ProtocolError::UnsupportedCommand);

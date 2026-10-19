@@ -307,7 +307,7 @@ async fn exercise(combined: bool) {
             ticket.command.command,
             homesense_core::Command::SetLevel {
                 level: homesense_core::Percent::new(40).unwrap(),
-                transition: homesense_core::LevelTransition::Ramp
+                transition: homesense_core::LevelTransition::Immediate
             }
         );
         restarted

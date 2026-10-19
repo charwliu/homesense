@@ -12,8 +12,10 @@ expected=json.loads(inputs['expected'].read_text());input_hashes={n:sha(v) for n
 assert expected['fixture_kind']=='private-full-catalog-expectations'
 assert expected['source_sha256']=={n:input_hashes[n] for n in ['devices','automation']}
 config=json.loads(inputs['devices'].read_text());automation=json.loads(inputs['automation'].read_text());assert config['revision']==automation['configuration_revision']
-assert len(expected['scene_ids'])==len(set(expected['scene_ids']))==130 and len(expected['keypads'])==28 and len(expected['floors'])==3
-assert set(expected['scene_ids'])=={s['id'] for group in ['immediate_scenes','timed_scenes'] for s in automation.get(group,[]) if s.get('enabled')}
+scene_count=len(expected['scene_ids']);execute_count=sum(k['action_kind']=='scene_execute' for panel in expected['keypads'] for k in panel['keys']);unknown_execute_count=sum(k['action_kind']=='scene_execute' and k.get('initial_selected')is None for panel in expected['keypads'] for k in panel['keys'])
+assert scene_count>0 and scene_count==len(set(expected['scene_ids'])) and len(expected['keypads'])==28 and len(expected['floors'])==3
+internal={row['selection_scene']for row in automation.get('scene_presentations',[])}
+assert set(expected['scene_ids'])=={s['id'] for group in ['immediate_scenes','timed_scenes'] for s in automation.get(group,[]) if s.get('enabled',group=='immediate_scenes') and s['id']not in internal}
 assert {x['id'] for x in expected['keypads']}=={x['id'] for x in config['keypads']}
 assert len(config['gateways'])==1
 modules={int(m['address'],16):m for m in config['gateways'][0]['modules']};outputs={n:m for n,m in modules.items() if m['profile'].startswith(('r8i8','ad8'))};assert len(outputs)==12
@@ -93,11 +95,11 @@ try:
   text=(a.output/'swift-test.log').read_text();assert 'skipped' not in text and re.search(r'Test run with 1 test in 1 suite passed',text)
   http=json.loads((a.output/'native-http-readonly.json').read_text());assert http['rejected_non_GET']==0 and all(x['method']=='GET' for x in http['requests'])
   phases=json.loads((a.output/'native-readonly-phases.json').read_text());assert [x['stage'] for x in phases]==['HTTP','WSS']
-  assert all(x['scenes']==130 and x['panels']==28 and x['keys']==168 and x['floors']==3 and x['unknown_scene_execute_keys_available']==46 for x in phases)
-  wss=json.loads((a.output/'native-initial-wss.json').read_text());assert wss and len(wss[0]['scenes'])==130
+  assert all(x['scenes']==scene_count and x['panels']==28 and x['keys']==168 and x['floors']==3 and x['unknown_scene_execute_keys_available']==unknown_execute_count for x in phases)
+  wss=json.loads((a.output/'native-initial-wss.json').read_text());assert wss and len(wss[0]['scenes'])==scene_count
   after=variables();save('mode-variables-after.json',after);assert before==after,'read-only native access must not alter mode variables'
   assert not errors,errors
-  result.update(passed=True,executed_tests=1,executed_suites=1,HTTP_and_WSS_scenes=130,typed_panels=28,legal_keys=168,floors=3,rooms=phases[0]['rooms'],unknown_scene_execute_keys_available=46,mode_variables_unknown=len(before),native_GETs=len(http['requests']),native_POSTs=0,native_button_clicks=0,WSS_frames=len(wss),simulated_modules=12,simulated_ports=96,startup_LED_frames=sum(x.get('kind')=='startup_LED' for x in frames))
+  result.update(passed=True,executed_tests=1,executed_suites=1,HTTP_and_WSS_scenes=scene_count,typed_panels=28,legal_keys=168,floors=3,rooms=phases[0]['rooms'],unknown_scene_execute_keys_available=unknown_execute_count,mode_variables_unknown=len(before),native_GETs=len(http['requests']),native_POSTs=0,native_button_clicks=0,WSS_frames=len(wss),simulated_modules=12,simulated_ports=96,startup_LED_frames=sum(x.get('kind')=='startup_LED' for x in frames))
 except BaseException as e:result.update(error=repr(e),traceback=traceback.format_exc())
 finally:
  if process is not None and process.poll() is None:

@@ -99,6 +99,7 @@ pub enum Reply {
 pub struct SceneCatalogEntry {
     pub room: Option<homesense_config::Room>,
     pub scope: homesense_config::rule_document::SceneScope,
+    pub(crate) lights: Vec<crate::scene_lights::Member>,
     pub execution_kind: homesense_config::rule_document::SceneExecutionKind,
     pub action_gate: crate::gateway_runtime::ActionGate,
     pub tracking: Option<crate::scene_tracking::Projection>,
@@ -362,6 +363,7 @@ pub(crate) struct Receiver {
     prefer_web_motor:bool,
     prefer_web_work:bool,
     next_away_tick:u64,
+    scene_lights:crate::scene_lights::Cache,
 }
 pub(crate) fn channel(controller: Uuid, generation: TaskGeneration) -> (Control, Receiver) {
     let (sender, receiver) = mpsc::channel(32);
@@ -388,6 +390,7 @@ pub(crate) fn channel(controller: Uuid, generation: TaskGeneration) -> (Control,
             prefer_web_motor:true,
             prefer_web_work:true,
             next_away_tick:0,
+            scene_lights:Default::default(),
         },
     )
 }
@@ -844,6 +847,7 @@ impl Receiver {
                         let mut histories=admission.catalog_last_runs(controller,self.generation.clone(),history_ids).await.map_err(|e|format!("catalog history: {e:?}"))?;
                         let mut entries=std::collections::BTreeMap::new();
                         let mut activities=Vec::with_capacity(32);
+                        let mut tracking_context=crate::scene_tracking::CatalogReadContext::new(&bundle.configuration);
                         // Members of one switch group have the same complete
                         // control scope. Reuse that immutable scope only within
                         // this read; actual state/authority is never cached.
@@ -858,7 +862,7 @@ impl Receiver {
                             };
                             let views=diagnostics.gateways.iter().filter(|view|gateways.contains(&view.gateway)).cloned().collect::<Vec<_>>();
                             let available=if diagnostics.gateways.is_empty(){diagnostics.gateway_ready}else{views.len()==gateways.len()&&views.iter().all(|view|view.state=="ready")};
-                            let tracking=crate::scene_tracking::read(document,&id,admission,controller,&self.generation,feedback).await?;
+                            let tracking=crate::scene_tracking::read_catalog(document,&id,admission,controller,&self.generation,feedback,&mut tracking_context).await?;
                             let activity=if let Some(value)=&tracking {value.activity}else{
                                 if execution_kind!=homesense_config::rule_document::SceneExecutionKind::Immediate
                                     && let Some(scene)=document.timed_scenes.get(&id)
@@ -871,7 +875,8 @@ impl Receiver {
                             let last_run=histories.remove(&id).flatten();
                             let room=document.scene_rooms.get(&id).cloned();
                             let scope=document.scene_scopes.get(&id).copied().unwrap_or(homesense_config::rule_document::SceneScope::Unassigned);
-                            entries.insert(id,SceneCatalogEntry{room,scope,execution_kind,action_gate:crate::gateway_runtime::ActionGate{available,required_gateways:views},tracking,activity,last_run});
+                            let lights=self.scene_lights.read(&bundle.configuration,document,&id)?;
+                            entries.insert(id,SceneCatalogEntry{room,scope,lights,execution_kind,action_gate:crate::gateway_runtime::ActionGate{available,required_gateways:views},tracking,activity,last_run});
                             if activities.len()==32 {settle_catalog_activities(admission,controller,&self.generation,&mut activities,&mut entries).await?;}
                         }
                         settle_catalog_activities(admission,controller,&self.generation,&mut activities,&mut entries).await?;

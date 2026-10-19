@@ -4,7 +4,7 @@ use homesense_core::{Command,ExecutionContext};
 use homesense_storage::Store;
 use serde_json::json;
 use std::{sync::{Arc,Mutex,atomic::{AtomicBool,AtomicU64,Ordering}},io::{Read,Write},path::PathBuf};
-struct Fixture {actor:Admission,controller:Uuid,clock:&'static AtomicU64,auth:Arc<AtomicBool>,path:PathBuf,document:Document,feedback:Feedback,scenes:SceneScheduler}
+struct Fixture {actor:Admission,controller:Uuid,clock:&'static AtomicU64,auth:Arc<AtomicBool>,metadata_delay:Arc<AtomicU64>,path:PathBuf,document:Document,feedback:Feedback,scenes:SceneScheduler}
 impl Fixture {
     async fn new()->Self { Self::with_combined_light(false).await }
     async fn with_combined_light(combined:bool)->Self {Self::with_lights(combined,false).await}
@@ -37,12 +37,13 @@ impl Fixture {
         if separate && !sparse {document.indicator_links[0].leds.truncate(2);document.indicator_links[1].leds=(2..66).map(|n|DeviceId::new(format!("led{n}")).unwrap()).collect();document.indicator_links[2].leds=(66..168).map(|n|DeviceId::new(format!("led{n}")).unwrap()).collect();for link in &mut document.indicator_links[1..] {link.lights=vec![DeviceId::new("other-light").unwrap()];}}
         let path=std::env::temp_dir().join(format!("led168-{}.sqlite",Uuid::new_v4()));Store::open(&path).unwrap().publish_automation(None,&config,&rules,ExecutionContext::Simulation,&[]).unwrap();
         let clock=&*Box::leak(Box::new(AtomicU64::new(500)));let auth=Arc::new(AtomicBool::new(true));let flag=auth.clone();
-        let actor=Admission::open_with_test_time(path.clone(),Options{context:ExecutionContext::Simulation,write_interval:std::time::Duration::from_millis(20),..Default::default()},move |_|flag.load(Ordering::Acquire),clock).await.unwrap();actor.synchronized(1,1).await.unwrap();
+        let metadata_delay=Arc::new(AtomicU64::new(0));let delay=metadata_delay.clone();
+        let actor=Admission::open_with_test_time(path.clone(),Options{context:ExecutionContext::Simulation,write_interval:std::time::Duration::from_millis(20),..Default::default()},move |_|{clock.fetch_add(delay.swap(0,Ordering::SeqCst),Ordering::SeqCst);flag.load(Ordering::Acquire)},clock).await.unwrap();actor.synchronized(1,1).await.unwrap();
         let controller=Uuid::new_v4();let mut feedback=Feedback::new(&parsed,ExecutionContext::Simulation,Uuid::parse_str(actor.boot_id()).unwrap().as_u128(),1).unwrap();
         feedback.apply(&GatewayRead{gateway_id:"bus".into(),transport_epoch:1,received_at_ms:500,result:hb_transport::Receive::Frames{transport_epoch:1,frames:vec![hb_protocol::RawFrame{address:0x20,command:0xd1,value:0xf2}]}}).unwrap();
         if separate {feedback.apply(&GatewayRead{gateway_id:"bus".into(),transport_epoch:1,received_at_ms:500,result:hb_transport::Receive::Frames{transport_epoch:1,frames:vec![hb_protocol::RawFrame{address:0x20,command:0xd2,value:0xf2}]}}).unwrap();}
         if combined {feedback.apply(&GatewayRead{gateway_id:"bus".into(),transport_epoch:1,received_at_ms:500,result:hb_transport::Receive::Frames{transport_epoch:1,frames:vec![hb_protocol::RawFrame{address:0x21,command:0xd1,value:100}]}}).unwrap();}
-        let scenes=SceneScheduler::new(actor.clone(),controller,8,500).unwrap();Self{actor,controller,clock,auth,path,document,feedback,scenes}
+        let scenes=SceneScheduler::new(actor.clone(),controller,8,500).unwrap();Self{actor,controller,clock,auth,metadata_delay,path,document,feedback,scenes}
     }
     async fn advance(&self,waves:&mut Waves,query:bool)->Option<Wave>{waves.advance(&self.actor,self.controller,&self.document,&self.scenes,&self.feedback,20000,20,false,query).await.unwrap()}
     async fn write(&self,wave:Wave,frames:Arc<Mutex<Vec<Vec<u8>>>>)->bool {
@@ -116,6 +117,23 @@ async fn expired_hard_delivery_deadline_cannot_be_extended_by_shared_preparation
     assert!(sync.take_emitted_batches().is_empty());
     assert_eq!(f.count(),0,"expired hard deadline must admit no LED writes");
     f.close().await;
+}
+
+#[tokio::test]
+async fn metadata_read_delay_preserves_delivery_without_extending_original_feedback_horizon() {
+    let f=Fixture::new().await;let mut waves=Waves::default();
+    // Deterministic owner-read work before the wave is prepared, not wire
+    // latency. The old wave spent 1900ms of its 2000ms before admitting LEDs.
+    f.metadata_delay.store(1900,Ordering::SeqCst);
+    let wave=f.advance(&mut waves,false).await.unwrap();
+    assert_eq!(waves.cycle.as_ref().unwrap().deadline,20500,"the original physical horizon is unchanged");
+    assert!(f.write(wave,Arc::new(Mutex::new(vec![]))).await,"all 16 accepted LEDs must fit their delivery phase");
+    assert_eq!(f.count(),16);f.close().await;
+
+    let f=Fixture::new().await;let mut waves=Waves::default();
+    f.metadata_delay.store(20000,Ordering::SeqCst);
+    assert!(f.advance(&mut waves,false).await.is_none(),"metadata work never extends an already expired feedback horizon");
+    assert_eq!(f.count(),0);f.close().await;
 }
 
 

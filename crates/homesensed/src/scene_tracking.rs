@@ -216,6 +216,18 @@ pub async fn project(
     result
 }
 
+/// One catalog's immutable mapping and captured component views. Each proof is
+/// still revalidated by the admission owner; no observed activity is cached.
+pub(crate) struct CatalogReadContext<'a> {
+    config: &'a homesense_config::Configuration,
+    component_views: Option<Vec<crate::component_modes::View>>,
+}
+impl<'a> CatalogReadContext<'a> {
+    pub(crate) fn new(config: &'a homesense_config::Configuration) -> Self {
+        Self { config, component_views: None }
+    }
+}
+
 pub async fn read(
     document: &homesense_config::rule_document::Document,
     id: &str,
@@ -224,25 +236,63 @@ pub async fn read(
     generation: &TaskGeneration,
     feedback: &Feedback,
 ) -> Result<Option<Projection>, String> {
+    read_inner(document, id, admission, controller, generation, feedback, None).await
+}
+
+pub(crate) async fn read_catalog(
+    document: &homesense_config::rule_document::Document,
+    id: &str,
+    admission: &Admission,
+    controller: uuid::Uuid,
+    generation: &TaskGeneration,
+    feedback: &Feedback,
+    context: &mut CatalogReadContext<'_>,
+) -> Result<Option<Projection>, String> {
+    read_inner(document, id, admission, controller, generation, feedback, Some(context)).await
+}
+
+async fn read_inner(
+    document: &homesense_config::rule_document::Document,
+    id: &str,
+    admission: &Admission,
+    controller: uuid::Uuid,
+    generation: &TaskGeneration,
+    feedback: &Feedback,
+    context: Option<&mut CatalogReadContext<'_>>,
+) -> Result<Option<Projection>, String> {
     if let Some(policy) = document.scene_component_activity.get(id).filter(|p| p.enabled) {
         if policy.program_confirmation.is_some()
             && let Some(view)=admission.program_activity_read_view(controller,generation.clone(),id.into()).await.map_err(|e|format!("program activity view: {e:?}"))? {
             let proof=if let Some(view)=view {
-                let bundle=admission.automation_bundle(controller,generation.clone()).await.map_err(|e|format!("program bundle: {e:?}"))?;
-                crate::program_activity::Proof::prepare(&view,&bundle.configuration,feedback,admission.monotonic_ms()).ok()
+                if let Some(context)=context.as_deref() {
+                    crate::program_activity::Proof::prepare(&view,context.config,feedback,admission.monotonic_ms()).ok()
+                } else {
+                    let bundle=admission.automation_bundle(controller,generation.clone()).await.map_err(|e|format!("program bundle: {e:?}"))?;
+                    crate::program_activity::Proof::prepare(&view,&bundle.configuration,feedback,admission.monotonic_ms()).ok()
+                }
             }else{None};
             let(activity,valid_until_ms)=admission.program_activity(controller,generation.clone(),id.into(),proof).await.map_err(|e|format!("program activity: {e:?}"))?.unwrap_or((SceneActivity::Unknown,None));
             return Ok(Some(Projection{activity,activity_source:"confirmed_program",scene:id.into(),display_name:document.scene_metadata.get(id).cloned(),activity_name:policy.activity_name.clone(),boot:admission.boot_id().into(),revision:document.revision,members:vec![],action_available:document.scene_action_available(id),activity_writable:false,valid_until_ms}));
         }
-        let views = admission.component_mode_views(controller, generation.clone()).await
+        let proof = if let Some(context)=context {
+            if context.component_views.is_none() {
+                context.component_views=Some(admission.component_mode_views(controller,generation.clone()).await
+                    .map_err(|e|format!("catalog component activity views: {e:?}"))?);
+            }
+            context.component_views.as_ref().expect("captured component views").iter()
+                .find(|v|v.policies.iter().any(|p|p.variable==policy.variable))
+                .and_then(|view|crate::component_modes::Proof::prepare(view,context.config,feedback,admission.monotonic_ms()).ok())
+        } else {
+            let views = admission.component_mode_views(controller, generation.clone()).await
             .map_err(|e| format!("component activity views: {e:?}"))?;
         let bundle = admission.automation_bundle(controller, generation.clone()).await
             .map_err(|e| format!("component activity bundle: {e:?}"))?;
-        let proof = views.iter()
+            views.iter()
             .find(|v| v.policies.iter().any(|p| p.variable == policy.variable))
             .and_then(|view| crate::component_modes::Proof::prepare(
                 view, &bundle.configuration, feedback, admission.monotonic_ms(),
-            ).ok());
+            ).ok())
+        };
         let (activity, valid_until_ms) = admission
             .component_activity(controller, generation.clone(), id.into(), proof).await
             .map_err(|e| format!("component activity: {e:?}"))?;
