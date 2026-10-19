@@ -10,6 +10,11 @@ struct Transition {
 #[derive(Default)]
 pub(crate) struct RestorePolicy(BTreeMap<DeviceId, Transition>);
 impl RestorePolicy {
+    /// Retire only the transient logical target. A physical recipe using a
+    /// shared column is not a new logical light intent or restore preference.
+    pub(crate) fn retire_target(&mut self, id: &DeviceId) {
+        self.0.remove(id);
+    }
     pub(crate) fn invalidate_device(&mut self,id:&DeviceId) {self.0.remove(id);}
     pub(crate) fn accepted(&mut self, id: DeviceId, command: Command, now: u64) {
         let target = match command {

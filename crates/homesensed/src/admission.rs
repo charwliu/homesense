@@ -179,6 +179,7 @@ struct RuleEntryReads {
     conditions:Vec<homesense_storage::variables::ReadCheck>,
 }
 enum Submission {
+    SharedLight(Box<crate::shared_light::Prepared>),
      Native(Box<crate::native_scene::Submission>),
     NativePhysical(Batch),
     Indicator {
@@ -290,7 +291,7 @@ fn remember_projection(
         .map_err(|_| WriteStatus::ServiceCommunicationFailure)?;
     let mut settled_reads = BTreeMap::new();
     for (id, state) in &snapshot.devices {
-        let Some((device, module)) = configuration.binding(id) else {
+        let Some((_, module)) = configuration.binding(id) else {
             continue;
         };
         if module.kind() != homesense_core::ModuleKind::Dimmer {
@@ -307,7 +308,7 @@ fn remember_projection(
         let mut settled = store
             .feedback_is_settled_in_epoch(boot, id, state.observed_at_ms, policy.epochs.transport)
             .map_err(|_| WriteStatus::ServiceCommunicationFailure)?;
-        if let Some(relay) = &device.supply_relay {
+        if let Some(relay) = configuration.logical_supply(id) {
             let Some(supply) = snapshot.devices.get(relay).filter(|s| {
                 s.quality == homesense_state::Quality::Confirmed
                     && s.observed_at_ms
@@ -327,7 +328,7 @@ fn remember_projection(
         .devices
         .iter()
         .filter_map(|(id, state)| {
-            let (device, module) = configuration.binding(id)?;
+            let (_, module) = configuration.binding(id)?;
             if module.kind() != homesense_core::ModuleKind::Dimmer
                 || state.quality != homesense_state::Quality::Confirmed
                 || !state
@@ -340,7 +341,7 @@ fn remember_projection(
             let Some(homesense_core::Observation::Level(mut level)) = state.observed else {
                 return None;
             };
-            if let Some(relay) = &device.supply_relay {
+            if let Some(relay) = configuration.logical_supply(id) {
                 let supply = snapshot.devices.get(relay)?;
                 if supply.quality != homesense_state::Quality::Confirmed
                     || !supply
@@ -2473,6 +2474,7 @@ impl Admission {
                             }
                             let mut manual_superseded = false;
                             let native_mode=matches!(&*submission,Submission::Native(_));
+                            let shared_manual=matches!(&*submission,Submission::SharedLight(_));
                             let mut native_attempt:Option<(homesense_storage::native_scene::Request,Option<u64>)>=None;
                             let mut native_accepted:Option<(homesense_storage::native_scene::Request,u64,u64,bool)>=None;
                             let mut native_run=None;let mut native_deadline=None;
@@ -2491,6 +2493,11 @@ impl Admission {
                                 if request_source.as_ref().is_some_and(|source|!source.valid()) {return Err(WriteStatus::InsufficientPrivileges);}
                                 if !keypad_origins.permits(request_source.as_ref().and_then(|source|source.keypad()),configuration.revision()){return Err(WriteStatus::InvalidValueInRequest);}
                                 let (submission, study, automation, variables, feedback, audit, scene, starts) = match *submission {
+                                    Submission::SharedLight(prepared)=>{
+                                        let (batch,lease)=prepared.compile(&configuration,request_source.as_ref())?;
+                                        if !authorize(batch.controller){return Err(WriteStatus::InsufficientPrivileges);}
+                                        (Submission::NativePhysical(batch),None,false,vec![],Some(Box::new(lease)),None,None,vec![])
+                                    },
                                     Submission::Native(prepared)=>{
                                         let policy=arbiter.policy();
                                         let request=prepared.request().clone();
@@ -2688,15 +2695,20 @@ impl Admission {
                                 let mut inference_source = None;
                                 let panel_authorization=match &submission {Submission::PanelCommand{lease,..}=>Some(lease.clone()),_=>None};
                                 let (mut batch, compiled) = match submission {
-                                    Submission::Study { .. } | Submission::Automation { .. } | Submission::Indicator { .. } | Submission::Native(_) => unreachable!(),
-                                    Submission::NativePhysical(batch)=>{restore_intents=batch.intents.iter().filter(|i|!matches!(i.command,homesense_core::Command::Query|homesense_core::Command::Toggle)).map(|i|(i.device.clone(),i.command)).collect();(batch,true)},
+                                    Submission::Study { .. } | Submission::Automation { .. } | Submission::Indicator { .. } | Submission::Native(_) | Submission::SharedLight(_) => unreachable!(),
+                                    Submission::NativePhysical(batch)=>{restore_intents=batch.intents.iter().filter(|i|!matches!(i.command,homesense_core::Command::Query|homesense_core::Command::Toggle) && (!native_mode || configuration.shared_light(&i.device).is_none())).map(|i|(i.device.clone(),i.command)).collect();(batch,true)},
                                     Submission::Lights(mut batch) => {
                                         if !authorize(batch.controller) { return Err(WriteStatus::InsufficientPrivileges); }
-                                        restore_intents = batch.intents.iter().map(|i| (i.device.clone(), i.command)).collect();
+                                        restore_intents = batch.intents.iter().filter(|i| !automation || configuration.shared_light(&i.device).is_none()).map(|i| (i.device.clone(), i.command)).collect();
                                         let mut expanded = Vec::new();
                                         let mut expanded_sources = command_sources.as_ref().map(|_| Vec::new());
                                         let mut seen = std::collections::BTreeSet::new();
                                         for (index, intent) in batch.intents.into_iter().enumerate() {
+                                            if !automation && configuration.shared_light(&intent.device).is_some() {
+                                                // A bare manual target lacks the fresh six-port
+                                                // read lease needed to preserve shared lights.
+                                                return Err(WriteStatus::InvalidValueInRequest);
+                                            }
                                             if (!ordered_rule && !seen.insert(intent.device.clone())) || configuration.devices().values().any(|d| d.enabled && d.supply_relay.as_ref() == Some(&intent.device)) {
                                                 return Err(WriteStatus::InvalidValueInRequest);
                                             }
@@ -2860,6 +2872,9 @@ impl Admission {
                                 let local_index=local_index.and_then(|index|permutation.iter().position(|original|*original==index));
                                 if phase_links.is_some(){phase_ordinals=permutation.into_iter().map(|i|phase_ordinals[i]).collect();}
                                 let feedback_roles = crate::control_batch::feedback_roles_local(&configuration, &batch.intents,local_index);
+                                let shared_restore_invalidations=if shared_manual {Default::default()} else {
+                                    crate::shared_light::physical_target_invalidations(&configuration,&batch.intents)
+                                };
                                 let end = next_id
                                     .checked_add(batch.intents.len() as u64)
                                     .ok_or(WriteStatus::ServiceCommunicationFailure)?;
@@ -3036,6 +3051,7 @@ impl Admission {
                                             }
                                         }
                                         key_completions.accepted(request_source.as_ref(),batch.controller,&batch_tickets,native_deadline.unwrap_or(led_total_deadline),&completion_manual,native_accepted.as_ref().map(|(request,_,_,_)|request),completion_eligible,now);
+                                        for device in shared_restore_invalidations {restore_policy.retire_target(&device);}
                                         for (device, command) in restore_intents {
                                             restore_policy.accepted(device.clone(), command, now);
                                             if matches!(command,homesense_core::Command::SetLevel {..}|homesense_core::Command::Switch(false)) {
@@ -4083,6 +4099,11 @@ impl Admission {
             Some(SubmissionScope::Configuration(revision)),
         )
         .await
+    }
+    pub(crate) async fn submit_shared_light(
+        &self,generation:TaskGeneration,prepared:crate::shared_light::Prepared,deadline:u64,
+    )->Result<Vec<u64>,WriteStatus>{
+        self.submit_scoped_before(Submission::SharedLight(Box::new(prepared)),Some(SubmissionScope::Generation(generation)),Some(deadline)).await
     }
     async fn submit_request(&self, submission: Submission) -> Result<Vec<u64>, WriteStatus> {
         self.submit_scoped(submission, None).await

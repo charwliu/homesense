@@ -55,3 +55,5 @@ cargo run --locked -p homesensed -- serve-automation-simulation config/simulatio
 调光控制统一发送直接目标百分比：App、组合灯恢复及自动化入口不再输出硬件渐变指令；场景原有亮度和供电范围保持，明确修改的目标另行记录。场景详情可按授权查看所含灯光的实测开关与亮度，复用设备状态推送。
 
 本轮直接亮度、场景灯光清单及 LED 发送窗口已完成[软件隔离验收](docs/evidence/stage-e-browser/direct-level-scene-lights-qualification.json)，尚未部署现网；隔离结果不替代家庭总线与现场验收。
+
+共享供电与复用调光列通过显式 [`shared_lights` 配置](docs/shared-lights.md)单独建模，不放宽原组合灯的独占供电约束。独立灯光操作根据实际供电判断另一盏灯是否亮着；复用阅读通道时保留阅读供电，夜灯切换则先退出床头供电。命令准入要求六路当前反馈和完整资源权限，供电关闭时的残留调光值不覆盖灯光恢复亮度。此路径仍在整合，六键场景及现场验收尚未完成，未发布。

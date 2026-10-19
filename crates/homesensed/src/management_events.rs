@@ -122,9 +122,7 @@ async fn read_bound(
                 || view.recorded || physical.contains(&view.id)
                 || bundle
                     .configuration
-                    .devices()
-                    .get(&view.id)
-                    .and_then(|d| d.supply_relay.as_ref())
+                    .logical_supply(&view.id)
                     .is_some_and(|relay| physical.contains(relay))
         });
     }

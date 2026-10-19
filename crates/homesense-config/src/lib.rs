@@ -6,6 +6,7 @@ pub mod scene_component_activity;
 pub mod scene_presentation;
 pub mod keypad;
 pub mod keypad_completion;
+pub mod shared_light;
 use homesense_core::{
     BusAddress, Channel, DeviceId, ExecutionContext, ModuleKind, ModuleSpec, PanelLedMode, Percent,
     ProtocolProfile, ValidationError, Verification, VerificationRecord,
@@ -53,6 +54,8 @@ struct Document {
     devices: Vec<DeviceInput>,
     #[serde(default)]
     keypads: Vec<keypad::KeypadInput>,
+    #[serde(default)]
+    shared_lights: Vec<shared_light::Input>,
 }
 /// Server-owned adaptive observation timing, independent of command leases.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, Deserialize)]
@@ -303,8 +306,22 @@ pub struct Configuration {
     rooms: BTreeMap<String, Room>,
     floors: BTreeSet<String>,
     keypads: BTreeMap<DeviceId, keypad::Keypad>,
+    shared_lights: BTreeMap<String, shared_light::Group>,
 }
 impl Configuration {
+    pub fn shared_lights(&self) -> &BTreeMap<String, shared_light::Group> { &self.shared_lights }
+    pub fn shared_light(&self, id: &DeviceId) -> Option<&shared_light::Group> {
+        self.shared_lights.values().find(|group| group.light(id).is_some())
+    }
+    pub fn shared_resource(&self, id: &DeviceId) -> Option<&shared_light::Group> {
+        self.shared_lights.values().find(|group| group.devices().contains(&id))
+    }
+    /// Logical view/restore dependency only. Reviewed automation still reads
+    /// and writes the physical register matrix explicitly.
+    pub fn logical_supply(&self, id: &DeviceId) -> Option<&DeviceId> {
+        self.resolved_bindings.get(id)?.supply_relay.as_ref()
+            .or_else(|| self.shared_light(id).map(|group| &group.common_supply))
+    }
     pub fn keypads(&self) -> &BTreeMap<DeviceId, keypad::Keypad> { &self.keypads }
     pub fn schema_version(&self)->u32 {self.schema_version}
     pub fn module_registry(&self)->&BTreeMap<String,ModuleLocation>{&self.module_registry}
@@ -637,7 +654,7 @@ impl Configuration {
                 }
             }
         }}
-        let configuration = Self {
+        let mut configuration = Self {
             schema_version:input.schema_version,
             module_registry,
             revision: input.revision,
@@ -649,7 +666,9 @@ impl Configuration {
             devices,
             resolved_bindings,
             keypads,
+            shared_lights: BTreeMap::new(),
         };
+        configuration.shared_lights = shared_light::resolve(input.shared_lights, &configuration)?;
         keypad_completion::validate_bindings(&configuration)?;
         Ok(configuration)
     }

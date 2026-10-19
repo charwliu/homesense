@@ -362,6 +362,9 @@ pub enum AwayExecutionPolicy {RequireQuiescentRuntime,CancelAffectedLighting}
 pub struct AwayModule {pub module_id:String,pub devices:Vec<String>,pub review_evidence:String}
 #[derive(Clone)]
 pub struct Document {
+    /// Immutable routing metadata from the same accepted configuration, not
+    /// feedback or authority. Avoid a second full bundle read on ordinary lights.
+    pub shared_light_devices: std::collections::BTreeSet<DeviceId>,
     pub component_mode_confirmations: Vec<crate::component_modes::Policy>,
     pub away_off: Option<AwayOff>,
     pub scene_deactivations: BTreeMap<String,SceneDeactivation>,
@@ -992,6 +995,7 @@ impl Document {
             Ok((metadata.id.clone(),scope))
         }).collect::<Result<BTreeMap<_,_>,_>>()?;
         let document=Self {
+            shared_light_devices:config.shared_lights().values().flat_map(|group|[group.primary.clone(),group.secondary.clone()]).collect(),
             away_off: input.away_off,
             scene_deactivations,
             revision: input.configuration_revision,
