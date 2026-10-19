@@ -124,6 +124,26 @@ async fn explicit_stop_written_before_zero_byte_cue_io_failure_or_queued_cue_exp
 }
 
 #[tokio::test]
+async fn unified_away_receipt_reports_the_executor_retry_and_failure_budgets() {
+    let f=Fixture::with_motor(false,true,|_|{}).await;
+    let input=Request{key:6,..f.request()};
+    let prepared=f.prepare(&input).await.unwrap();
+    assert!(matches!(prepared.action,Action::AwayOff{..}));
+    let receipt=prepared.context.finish(Reply::AwayAccepted(crate::away_execution::Accepted{
+        operation:"synthetic-away-receipt".into(),commands:vec![11,12],
+    })).unwrap();
+    let policy=homesense_core::away_execution::Policy::default();
+    assert_eq!(receipt.execution["server_retry"],json!({
+        "max_rounds":policy.max_rounds,"delay_ms":policy.delay_ms,
+        "response_ms":policy.response_ms,"total_ms":policy.total_ms,
+    }),"keypad and independent Away entry must describe the same executor policy");
+    assert_eq!(receipt.execution["operation"],"synthetic-away-receipt");
+    assert_eq!(receipt.execution["commands"],json!([11,12]));
+    assert_eq!(receipt.execution["physical_result_confirmed"],false);
+    f.close().await;
+}
+
+#[tokio::test]
 async fn unified_away_origin_green_does_not_wait_for_feedback_and_legacy_reset_still_does() {
     for contextual in [false,true] {
         let f=Fixture::with_motor(false,true,|_|{}).await;let (mut owner,bytes)=owner(&f,None);

@@ -66,6 +66,26 @@ fn failure(status: StatusCode) -> Response<Full<Bytes>> {
         .body(Full::new(Bytes::new()))
         .unwrap()
 }
+async fn state_tick(
+    interval: &mut tokio::time::Interval,
+    terminal_updates: &mut Option<tokio::sync::watch::Receiver<()>>,
+) {
+    let changed=async {
+        match terminal_updates.as_mut() {
+            Some(updates)=>updates.changed().await,
+            None=>std::future::pending().await,
+        }
+    };
+    tokio::select! {
+        _=interval.tick()=>{},
+        result=changed=>{
+            if result.is_err() {
+                *terminal_updates=None;
+                interval.tick().await;
+            }
+        },
+    }
+}
 pub(crate) fn upgrade(
     api: Arc<Api>,
     mut request: Request<Incoming>,
@@ -139,14 +159,22 @@ pub(crate) fn upgrade(
     let mut motor_estimates=serde_json::Value::Null;
         let mut interval = tokio::time::interval(Duration::from_millis(500));
         interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+        let mut terminal_updates=None;
+        let mut terminal_runtime=None;
         let mut unavailable = false;
         let mut previous_grant = None;
         let mut last_send = std::time::Instant::now();
         loop {
+            let runtime=api.runtime.read().ok().and_then(|runtime|runtime.clone());
+            let instance=runtime.as_ref().map(|runtime|runtime.control.instance_id());
+            if instance!=terminal_runtime || terminal_updates.is_none() {
+                terminal_updates=runtime.and_then(|runtime|runtime.control.away_terminal_updates());
+                terminal_runtime=instance;
+            }
             tokio::select! {
                 changed=stop.changed()=>{if changed.is_err() || *stop.borrow(){break;}},
                 message=socket.next()=>match message {Some(Ok(Message::Ping(_)|Message::Pong(_)))=>{},_=>break},
-                _=interval.tick()=>{
+                _=state_tick(&mut interval,&mut terminal_updates)=>{
                     // Resolve current grants, expiry and revocation every tick;
                     // never preserve the handshake's authorization snapshot.
                     let Some(grant)=current_grant(&api,&headers) else {break;};
@@ -241,4 +269,34 @@ pub(crate) fn upgrade(
         let _ = tokio::time::timeout(Duration::from_secs(1), socket.close(None)).await;
     });
     response.map(|_| Full::new(Bytes::new()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test(start_paused=true)]
+    async fn terminal_update_wakes_all_clients_before_the_periodic_tick() {
+        let (sender,receiver)=tokio::sync::watch::channel(());
+        let mut first=Some(receiver.clone());let mut second=Some(receiver);
+        let mut first_tick=tokio::time::interval(Duration::from_millis(500));
+        let mut second_tick=tokio::time::interval(Duration::from_millis(500));
+        first_tick.tick().await;second_tick.tick().await;
+        // Publishing while clients are serializing an older state must not
+        // lose the terminal wake, nor deliver it to just one of the clients.
+        sender.send_replace(());
+        tokio::time::timeout(Duration::from_millis(1),state_tick(&mut first_tick,&mut first)).await.expect("terminal update waited for the500ms periodic tick");
+        tokio::time::timeout(Duration::from_millis(1),state_tick(&mut second_tick,&mut second)).await.expect("second client lost the terminal update");
+    }
+
+    #[tokio::test(start_paused=true)]
+    async fn closed_terminal_subscription_preserves_periodic_recovery_without_spinning() {
+        let (sender,receiver)=tokio::sync::watch::channel(());
+        let mut updates=Some(receiver);let mut interval=tokio::time::interval(Duration::from_millis(500));
+        interval.tick().await;drop(sender);
+        assert!(tokio::time::timeout(Duration::from_millis(1),state_tick(&mut interval,&mut updates)).await.is_err(),"closed subscription became a permanently ready wake");
+        assert!(updates.is_none());
+        tokio::time::advance(Duration::from_millis(500)).await;
+        state_tick(&mut interval,&mut updates).await;
+    }
 }

@@ -223,6 +223,10 @@ impl Control {
     /// Non-secret identity of this request channel, retained by every view/clone.
     /// A rebuilt scheduler may reuse numeric run handles within the same boot.
     pub(crate) fn instance_id(&self) -> Uuid { self.instance }
+    pub(crate) fn away_terminal_updates(&self)->Option<tokio::sync::watch::Receiver<()>> {
+        self.selection_reader.lock().ok().and_then(|reader|reader.as_ref()
+            .filter(|reader|reader.active()).map(|reader|reader.admission.away_terminal_updates()))
+    }
     pub(crate) fn unavailable(&self,admission:Admission,generation:TaskGeneration)->Self {
         Self{sender:self.sender.clone(),stop_sender:self.stop_sender.clone(),motor_sender:self.motor_sender.clone(),away_sender:self.away_sender.clone(),instance:self.instance,unavailable:Some(std::sync::Arc::new(Unavailable{admission,generation})),selection_reader:self.selection_reader.clone()}
     }

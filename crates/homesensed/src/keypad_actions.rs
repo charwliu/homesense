@@ -119,7 +119,7 @@ impl Context {
             }
         }
         let execution = match reply {
-            Reply::AwayAccepted(accepted)=>json!({"kind":self.kind,"operation":accepted.operation,"commands":accepted.commands,"runs":[],"relative_status":null,"physical_result_confirmed":false,"server_retry":{"max_rounds":3,"delay_ms":1000}}),
+            Reply::AwayAccepted(accepted)=>json!({"kind":self.kind,"operation":accepted.operation,"commands":accepted.commands,"runs":[],"relative_status":null,"physical_result_confirmed":false,"server_retry":crate::away_execution::retry_metadata()}),
             Reply::CommandsAccepted(ids) => json!({"kind":self.kind,"commands":ids,"runs":[],"relative_status":null}),
             Reply::ImmediateAccepted(receipt) => json!({"kind":self.kind,"commands":receipt.commands,"runs":receipt.followup_runs,"relative_status":null,"receipt":receipt}),
             Reply::SceneAccepted(run) => json!({"kind":self.kind,"commands":[],"runs":run.into_iter().collect::<Vec<_>>(),"relative_status":null}),

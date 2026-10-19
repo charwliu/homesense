@@ -433,6 +433,27 @@ async fn away_module_feedback(f:&mut Fixture,n:u8,on:bool) {
     f.input(&frames).await;
 }
 #[tokio::test]
+async fn away_terminal_notifies_all_state_readers_once_without_progress_wakes() {
+    let mut f=Fixture::build_with_away(true,false,true,true).await;
+    let(_tokens,lease)=away_status_lease(&f);
+    let mut first=f.actor.away_terminal_updates();let mut second=first.clone();
+    f.click(0,6).await;assert_eq!(f.route().await,1);
+    assert!(!first.has_changed().unwrap(),"acceptance is not a terminal state");
+    f.time.fetch_add(21,Ordering::SeqCst);f.owner.step().await.unwrap().unwrap().result.unwrap();
+    let mut written=[0;65];f.peer.read_exact(&mut written).unwrap();
+    for n in 0..11 {away_module_feedback(&mut f,n,false).await;}
+    tick_away(&mut f).await;
+    assert!(!first.has_changed().unwrap(),"partial feedback must not amplify WSS polling");
+    away_module_feedback(&mut f,11,false).await;tick_away(&mut f).await;
+    tokio::time::timeout(Duration::from_millis(50),first.changed()).await.unwrap().unwrap();
+    tokio::time::timeout(Duration::from_millis(50),second.changed()).await.unwrap().unwrap();
+    assert_eq!(away_status(&f,&lease).await.state,"confirmed");
+    tick_away(&mut f).await;
+    assert!(!first.has_changed().unwrap(),"a completed operation must not wake readers again");
+    f.finish().await;
+}
+
+#[tokio::test]
 async fn managed_native_away_retries_only_failed_module_and_reports_all96_confirmed() {
     let mut f=Fixture::build_with_away(true,false,true,true).await;let(_tokens,lease)=away_status_lease(&f);
     f.input(&[0xae,3,0xd1,0xf1,0xee]).await; // unrelated physical load staysOn

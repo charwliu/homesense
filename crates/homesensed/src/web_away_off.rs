@@ -152,8 +152,7 @@ pub(crate) async fn execute(
         .await
     {
         Ok(Reply::AwayAccepted(accepted))=>{
-            let policy=homesense_core::away_execution::Policy::default();
-            json!({"request_id":body.request_id,"outcome":"accepted","boot":runtime.boot,"operation":accepted.operation,"commands":accepted.commands,"physical_result_confirmed":false,"retry":false,"server_retry":{"max_rounds":policy.max_rounds,"delay_ms":policy.delay_ms,"response_ms":policy.response_ms,"total_ms":policy.total_ms}})
+            json!({"request_id":body.request_id,"outcome":"accepted","boot":runtime.boot,"operation":accepted.operation,"commands":accepted.commands,"physical_result_confirmed":false,"retry":false,"server_retry":crate::away_execution::retry_metadata()})
         },
         Ok(Reply::CommandsAccepted(commands)) => {
             json!({"request_id":body.request_id,"outcome":"accepted","boot":runtime.boot,"commands":commands,"physical_result_confirmed":false,"retry":false})
