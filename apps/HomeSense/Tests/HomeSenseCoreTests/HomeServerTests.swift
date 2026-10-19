@@ -40,6 +40,13 @@ actor HomeTestServer: HomeHTTPTransport {
     func advanceRevision() { active += 1 }
     func captured() -> [URLRequest] { requests }
     func currentDevices() -> HomeJSON { devicesDocument }
+    func setLargeAutomation() {
+        let extra = (0..<144).map { index in
+            HomeJSON.object(["id": .string("synthetic-disabled-\(index)"), "enabled": .bool(false),
+                "review_evidence": .string(String(repeating: "x", count: 6000)), "activate": .array([])])
+        }
+        automation["immediate_scenes"] = .array(automation["immediate_scenes"].values + extra)
+    }
     func send(_ request: URLRequest) async throws -> HomeHTTPResponse {
         requests.append(request)
         if let networkFailure { throw URLError(networkFailure) }
@@ -205,6 +212,38 @@ struct HomeServerTests {
         #expect(encoded.contains("9007199254740993"))
         #expect(encoded.contains("18446744073709551615"))
         #expect(try HomeJSON.parse(encoded) == document)
+    }
+    @Test func fullHomeDraftCanBeReloadedWithoutLosingSourceOrPublishing() async throws {
+        let server = HomeTestServer()
+        await server.setLargeAutomation()
+        let home = await connected(server)
+        await home.loadActiveConfiguration()
+        let original = try #require(home.automationDocument)
+        #expect(try original.data().count > 800_000)
+        let active = home.revision
+        await home.saveDraft()
+        let id = try #require(home.draftID)
+        await home.loadActiveConfiguration()
+        #expect(home.draftID == nil)
+        await home.loadDraft(id)
+        #expect(home.error == nil)
+        #expect(home.draftID == id)
+        #expect(home.automationDocument?["immediate_scenes"] == original["immediate_scenes"])
+        #expect(home.automationDocument?["configuration_revision"].integerText == home.candidateRevision)
+        #expect(home.revision == active)
+        #expect(await server.captured().allSatisfy { !($0.url?.path.contains("/config/activations/") ?? false) })
+        home.pause()
+    }
+    @Test func completeConfigurationParsingKeepsInlineAndUTF8SizeBoundaries() throws {
+        let document = HomeJSON.object(["review": .string(String(repeating: "x", count: 300_000)),
+                                       "revision": .unsigned(UInt64.max)])
+        let source = document.formatted
+        #expect(throws: HomeServerError.self) { try HomeJSON.parse(source) }
+        #expect(try HomeJSON.parseConfiguration(source) == document)
+        let oversized = HomeJSON.object(["review": .string(String(repeating: "界", count: 1_400_000))]).formatted
+        #expect(oversized.count < 4 * 1024 * 1024)
+        #expect(oversized.utf8.count > 4 * 1024 * 1024)
+        #expect(throws: HomeServerError.self) { try HomeJSON.parseConfiguration(oversized) }
     }
     @Test func managementEditsAreDraftOnlyUntilPreviewAndPublication() async throws {
         let server = HomeTestServer(), home = await connected(server)

@@ -1137,7 +1137,9 @@ public final class HomeServerStore: ObservableObject {
             let d = try await self.request("/api/v1/config/drafts/\(id)/source")
             guard let devices = d["devices"].text, let automation = d["automation"].text,
                   let base = d["expected_revision"].text, let revision = d["revision"].text else { throw HomeServerError.invalidResponse }
-            self.deviceDocument = try HomeJSON.parse(devices); self.automationDocument = try HomeJSON.parse(automation)
+            let nextDevices = try HomeJSON.parseConfiguration(devices)
+            let nextAutomation = try HomeJSON.parseConfiguration(automation)
+            self.deviceDocument = nextDevices; self.automationDocument = nextAutomation
             self.baseRevision = base; self.candidateRevision = revision; self.draftID = id
             self.draftChanged = false; self.preview = nil
             self.message = "已读取服务端草稿，尚未发布。"

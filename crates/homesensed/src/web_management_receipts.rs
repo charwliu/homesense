@@ -145,8 +145,10 @@ pub(crate) async fn execute(
     if request.body().len()
         > if op.credential() {
             65536
-        } else {
+        } else if matches!(op, Operation::Draft(_, DraftOperation::Save)) {
             crate::web_drafts::MAX_BYTES
+        } else {
+            crate::web_drafts::MAX_EDIT_BYTES
         }
     {
         return error(
