@@ -27,6 +27,7 @@ private actor SceneRoomHTTP: HomeHTTPTransport {
         }
         return HomeHTTPResponse(data: try body.data(), status: response.status)
     }
+
 }
 
 private final class SceneRoomEvents: HomeEventTransport, @unchecked Sendable {
@@ -228,19 +229,25 @@ struct HomeSceneRoomTests {
         #expect(home.scenePanels(for: input) == panels)
         #expect(await server.base.captured().count == count)
     }
-    @Test(arguments: ["momentary", "selection-on", "selection-off", "selection-unknown"])
+    @Test(arguments: ["momentary", "read-only-active", "read-only-inactive", "selection-on", "selection-off", "selection-unknown"])
     func virtualSceneKeyUsesOneExistingExplicitRequestAndNeverInventsSelectedState(_ mode: String) async throws {
         let server = SceneRoomHTTP()
         var rows = await server.scenes
-        rows[0]["switch_kind"] = .string(mode == "momentary" ? "momentary" : "selection")
+        let momentary = mode == "momentary" || mode.hasPrefix("read-only-")
+        rows[0]["switch_kind"] = .string(momentary ? "momentary" : "selection")
+        if mode.hasPrefix("read-only-") {
+            rows[0]["activity_kind"] = .string("read_only")
+            rows[0]["activity"] = .string(mode == "read-only-active" ? "Active" : "Inactive")
+        }
         rows[0]["selected"] = mode == "selection-on" ? .bool(true) : mode == "selection-off" ? .bool(false) : .null
         await server.setScenes(rows)
         let home = await connect(server)
         defer { home.disconnect() }
         let scene = try #require(home.scenes.first { $0.id == "reading" }), action = scene.sceneCardAction
-        let expected: HomeSceneCardAction = mode == "momentary" ? .execute : .selection(mode != "selection-on")
+        let expected: HomeSceneCardAction = momentary ? .execute : .selection(mode != "selection-on")
         #expect(action == expected)
         #expect(home.canControlScene(scene.id))
+        if mode.hasPrefix("read-only-") { #expect(scene.sceneCardConfirmedActive == (mode == "read-only-active")) }
         await home.controlScene(scene.id, on: action.on)
         let posts = await server.base.captured().filter { $0.httpMethod == "POST" }
         #expect(posts.count == 1)
@@ -297,4 +304,29 @@ struct HomeSceneRoomTests {
         #expect(await server.base.captured().allSatisfy { $0.httpMethod == "GET" })
     }
 
+    @Test func readOnlyActivityColorsSceneWithoutChangingItsAction() {
+        for (activity, expected) in [("Active", true), ("Inactive", false)] {
+            let scene = HomeRecord(.object(["id": .string("program"), "switch_kind": .string("momentary"), "activity_kind": .string("read_only"), "activity": .string(activity), "selected": .bool(true)]))
+            #expect(scene.sceneCardConfirmedActive == expected)
+            #expect(scene.sceneCardAction == .execute)
+            #expect(scene.sceneCardAction.on == nil)
+        }
+        for activity in ["Unknown", "Pending", "Partial", "unrecognized"] {
+            let scene = HomeRecord(.object(["switch_kind": .string("momentary"), "activity_kind": .string("read_only"), "activity": .string(activity)]))
+            #expect(scene.sceneCardConfirmedActive == nil)
+        }
+    }
+
+    @Test func activityDoesNotOverrideSelectionOrUnconfiguredSceneState() {
+        for selected in [HomeJSON.bool(true), .bool(false), .null] {
+            let scene = HomeRecord(.object(["switch_kind": .string("selection"), "selected": selected, "activity_kind": .string("read_only"), "activity": .string("Active")]))
+            #expect(scene.sceneCardConfirmedActive == (selected == .null ? nil : selected == .bool(true)))
+            #expect(scene.sceneCardAction == .selection(selected != .bool(true)))
+        }
+        for kind in ["unconfigured", "load_feedback", "unrecognized"] {
+            let scene = HomeRecord(.object(["switch_kind": .string("momentary"), "activity_kind": .string(kind), "activity": .string("Active")]))
+            #expect(scene.sceneCardConfirmedActive == nil)
+            #expect(scene.sceneCardAction == .execute)
+        }
+    }
 }
