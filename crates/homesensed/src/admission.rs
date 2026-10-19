@@ -1620,9 +1620,10 @@ impl Admission {
                                 let policy=arbiter.policy();
                                 if generation.boot!=worker_boot || generation.epochs!=policy.epochs {return Err(WriteStatus::InvalidValueInRequest);}
                                 if failed || worker_stop.load(Ordering::Acquire) || policy.publishing || !policy.gateway_ready || !policy.controller || !policy.storage_healthy || !policy.valid_configuration_loaded || in_flight.is_some() || arbiter.queued_len()!=0 {return Err(WriteStatus::ResourceBusy);}
-                                let document=store.active_bundle(options.context).map_err(|_|WriteStatus::ServiceCommunicationFailure)?.and_then(|bundle|bundle.automation).ok_or(WriteStatus::InvalidValueInRequest)?;
+                                let bundle=store.active_bundle_shared(options.context).map_err(|_|WriteStatus::ServiceCommunicationFailure)?.ok_or(WriteStatus::InvalidValueInRequest)?;
+                                let document=bundle.automation.as_ref().ok_or(WriteStatus::InvalidValueInRequest)?;
                                 if component_modes.busy(&[prepared.variable().to_owned()].into()){return Err(WriteStatus::ResourceBusy)}
-                                prepared.commit(&mut store,&configuration,&document,&worker_boot,policy.epochs,millis(clock))
+                                prepared.commit(&mut store,&configuration,document,&worker_boot,policy.epochs,millis(clock))
                             })();
                             if result==Err(WriteStatus::ServiceCommunicationFailure) {failed=true; audited_transport_failure=false;let _=arbiter.storage_failed();}
                             let _=reply.send(result);
@@ -1803,8 +1804,9 @@ impl Admission {
                                 let policy=arbiter.policy();
                                 if !prepared.owned_by(controller,&generation) || generation.boot!=worker_boot || generation.epochs!=policy.epochs {return Err(WriteStatus::InvalidValueInRequest);}
                                 if failed || worker_stop.load(Ordering::Acquire) || policy.publishing || !policy.gateway_ready || !policy.controller || !policy.storage_healthy || !policy.valid_configuration_loaded {return Err(WriteStatus::ResourceBusy);}
-                                let document=store.active_bundle(options.context).map_err(|_|WriteStatus::ServiceCommunicationFailure)?.and_then(|b|b.automation).ok_or(WriteStatus::InvalidValueInRequest)?;
-                                prepared.validate(&store,&configuration,&document,&worker_boot,policy.epochs,millis(clock))?;
+                                let bundle=store.active_bundle_shared(options.context).map_err(|_|WriteStatus::ServiceCommunicationFailure)?.ok_or(WriteStatus::InvalidValueInRequest)?;
+                                let document=bundle.automation.as_ref().ok_or(WriteStatus::InvalidValueInRequest)?;
+                                prepared.validate(&store,&configuration,document,&worker_boot,policy.epochs,millis(clock))?;
                                 scene_projections.retain(|name,_|document.scene_switch_groups.iter().any(|g|g.variable==*name && g.reconciliation.as_ref().is_some_and(|p|p.enabled)));
                                 scene_projections.insert(prepared.variable().to_owned(),prepared);
                                 Ok(())
@@ -1828,13 +1830,14 @@ impl Admission {
                                 if failed || generation.boot!=worker_boot || generation.epochs!=arbiter.policy().epochs {return Err(WriteStatus::ServiceCommunicationFailure)}
                                 if worker_observation_invalidation.load(Ordering::Acquire)!=observation_fence {scene_observer.invalidate();}
                                 store.expire_native_scenes(&worker_boot,arbiter.policy().epochs,millis(clock)).map_err(|_|WriteStatus::ServiceCommunicationFailure)?;
-                                let document=store.active_bundle(options.context).map_err(|_|WriteStatus::ServiceCommunicationFailure)?.and_then(|b|b.automation);
+                                let bundle=store.active_bundle_shared(options.context).map_err(|_|WriteStatus::ServiceCommunicationFailure)?;
+                                let document=bundle.as_ref().and_then(|b|b.automation.as_ref());
                                 let policy=arbiter.policy();
                                 let ready=!failed && !worker_stop.load(Ordering::Acquire) && !policy.publishing && policy.gateway_ready && policy.controller && policy.storage_healthy && policy.valid_configuration_loaded;
                                 let mut values=BTreeMap::new();
                                 for name in names {
                                     let mut value=store.scene_selection(configuration.revision(),&name,scene_observer.scope()).map_err(|_|WriteStatus::ServiceCommunicationFailure)?.ok_or(WriteStatus::ResourceDoesNotExist)?;
-                                    if let Some(document)=&document && let Some(group)=document.scene_switch_groups.iter().find(|g|g.variable==name) && !component_modes.project_selection(&store,&name,&generation,&mut value)? {crate::scene_reconciliation::project(&mut value,scene_projections.get(&name),group,&store,&configuration,document,&worker_boot,policy.epochs,millis(clock),ready)?;}
+                                    if let Some(document)=document && let Some(group)=document.scene_switch_groups.iter().find(|g|g.variable==name) && !component_modes.project_selection(&store,&name,&generation,&mut value)? {crate::scene_reconciliation::project(&mut value,scene_projections.get(&name),group,&store,&configuration,document,&worker_boot,policy.epochs,millis(clock),ready)?;}
                                     if values.insert(name,value).is_some() {return Err(WriteStatus::InvalidValueInRequest)}
                                 }
                                 // A published read checks selection and mapping in this

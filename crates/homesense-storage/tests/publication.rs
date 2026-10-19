@@ -544,3 +544,48 @@ fn decoded_bundle_cache_compares_both_current_payloads_even_when_revision_does_n
         assert!(store.active_bundle(Simulation).is_err());
     }
 }
+
+#[test]
+fn shared_bundle_reads_keep_exact_current_payload_and_context_fences() {
+    use homesense_core::ExecutionContext::{Live, Simulation};
+    use std::sync::Arc;
+    for table in ["configuration_revision", "automation_revision"] {
+        let db = Database::new();
+        let mut store = Store::open(db.path()).unwrap();
+        store.publish_automation(None, &bundle_devices(1), &bundle_rules(1, "integer"), Simulation, &[]).unwrap();
+        let held = store.active_bundle_shared(Simulation).unwrap().unwrap();
+        let current = store.active_bundle_shared(Simulation).unwrap().unwrap();
+        assert!(Arc::ptr_eq(&held, &current), "immutable reads must not deep-clone the whole program");
+        assert!(store.active_bundle_shared(Live).is_err(), "an old simulation handle is not live authority");
+        store.active_bundle_shared(Simulation).unwrap().unwrap();
+        let connection = rusqlite::Connection::open(db.path()).unwrap();
+        let trigger = if table == "configuration_revision" { "immutable_configuration_update" } else { "immutable_automation_update" };
+        connection.execute_batch(&format!("DROP TRIGGER {trigger}; UPDATE {table} SET payload=x'7b7d' WHERE revision=1;")).unwrap();
+        assert!(store.active_bundle_shared(Simulation).is_err(), "{table} corruption at the same revision must invalidate a held cache entry");
+        assert!(store.active_bundle(Simulation).is_err(), "owned API shares the same validation fence");
+        assert_eq!(held.configuration.revision(), 1, "held data is immutable history, not current authority");
+    }
+}
+
+#[test]
+fn shared_bundle_publication_changes_identity_without_caching_runtime_variables() {
+    use homesense_core::{ExecutionContext::Simulation, rule::Value};
+    use std::sync::Arc;
+    let db = Database::new();
+    let mut store = Store::open(db.path()).unwrap();
+    store.publish_automation(None, &bundle_devices(1), &bundle_rules(1, "integer"), Simulation, &[]).unwrap();
+    let held = store.active_bundle_shared(Simulation).unwrap().unwrap();
+    let mut owned = store.active_bundle(Simulation).unwrap().unwrap();
+    owned.automation.as_mut().unwrap().revision = 999;
+    assert_eq!(held.automation.as_ref().unwrap().revision, 1);
+    rusqlite::Connection::open(db.path()).unwrap().execute("UPDATE logical_variable SET value=42,version=1 WHERE revision=1 AND name='mode'", []).unwrap();
+    assert!(Arc::ptr_eq(&held, &store.active_bundle_shared(Simulation).unwrap().unwrap()));
+    assert_eq!(store.logical_variable(1, "mode").unwrap().unwrap().value, Some(Value::Integer(42)));
+    let mut other = Store::open(db.path()).unwrap();
+    other.publish_automation(Some(1), &bundle_devices(2), &bundle_rules(2, "integer"), Simulation, &[]).unwrap();
+    let current = store.active_bundle_shared(Simulation).unwrap().unwrap();
+    assert!(!Arc::ptr_eq(&held, &current));
+    assert_eq!(current.configuration.revision(), 2);
+    assert_eq!(current.automation.as_ref().unwrap().revision, 2);
+    assert_eq!(held.configuration.revision(), 1);
+}

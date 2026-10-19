@@ -7,6 +7,7 @@ use homesense_core::{
     rule::{Lifetime, Value, ValueType},
 };
 use rusqlite::{OptionalExtension, Transaction, params};
+use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct Bundle {
@@ -21,7 +22,7 @@ pub(crate) struct CachedBundle {
     devices: Vec<u8>,
     rules: Option<Vec<u8>>,
     context: ExecutionContext,
-    bundle: Bundle,
+    bundle: Arc<Bundle>,
 }
 impl Store {
     pub fn automation_payload(&self, revision: u64) -> Result<Option<Vec<u8>>, Error> {
@@ -64,6 +65,13 @@ impl Store {
     /// Read both halves from one SQLite snapshot, then revalidate stored data.
     /// Legacy revisions explicitly return None, never another revision's rules.
     pub fn active_bundle(&self, context: ExecutionContext) -> Result<Option<Bundle>, Error> {
+        Ok(self.active_bundle_shared(context)?.map(|bundle| (*bundle).clone()))
+    }
+
+    /// Share only immutable decoded definitions. Every lookup still checks
+    /// both exact current SQLite payloads and context; a retained Arc is not
+    /// proof of current revision, permission or physical state.
+    pub fn active_bundle_shared(&self, context: ExecutionContext) -> Result<Option<Arc<Bundle>>, Error> {
         let tx = self.connection.unchecked_transaction()?;
         let stored: Option<(i64, Vec<u8>, Option<Vec<u8>>)> = tx.query_row(
             "SELECT c.revision,c.payload,r.payload FROM active_configuration a JOIN configuration_revision c ON c.revision=a.revision LEFT JOIN automation_revision r ON r.revision=c.revision WHERE a.singleton=1",
@@ -89,7 +97,7 @@ impl Store {
         let automation = rules.as_ref()
             .map(|rules| validate(rules, &configuration))
             .transpose()?;
-        let bundle=Bundle{configuration,automation};
+        let bundle=Arc::new(Bundle{configuration,automation});
         self.active_bundle_cache.replace(Some(CachedBundle{revision,devices,rules,context,bundle:bundle.clone()}));
         Ok(Some(bundle))
     }
