@@ -60,21 +60,34 @@ pub struct Plan {
 
 /// The primary control exits both reading groups. The secondary control keeps
 /// actual reading active (its middle fixtures may follow the shared column),
-/// but exits night-only operation. Both controls preserve the other common
-/// light's *actual* state, not a latent dimmer value behind a disabled supply.
+/// but opening it exits night-only operation. Explicitly closing an already
+/// unpowered secondary preserves the existing bedside/night matrix. Both
+/// controls preserve the other common light's *actual* state, not a latent
+/// dimmer value behind a disabled supply.
 /// Off zeros only the target column; the peer's supply remains on when needed.
 pub fn plan(observed: Observed, light: Light, level: Percent) -> Plan {
-    let preserve_reading = light == Light::Secondary && observed.reading_active();
+    let preserve_bedside = light == Light::Secondary
+        && (observed.reading_active() || level.get() == 0 && !observed.common_supply);
     let mut expected = observed;
-    expected.primary_level = observed.light_level(Light::Primary);
-    expected.secondary_level = observed.light_level(Light::Secondary);
+    let peer_light = match light {
+        Light::Primary => Light::Secondary,
+        Light::Secondary => Light::Primary,
+    };
     match light {
         Light::Primary => expected.primary_level = level,
         Light::Secondary => expected.secondary_level = level,
     }
-    expected.common_supply =
-        expected.primary_level.get() != 0 || expected.secondary_level.get() != 0;
-    if !preserve_reading {
+    expected.common_supply = level.get() != 0 || observed.light_level(peer_light).get() != 0;
+    let energizing = expected.common_supply && !observed.common_supply;
+    // A latent column needs normalization only before enabling its supply.
+    // Otherwise preserve the physical register and its independent fixtures.
+    if energizing {
+        match peer_light {
+            Light::Primary => expected.primary_level = zero(),
+            Light::Secondary => expected.secondary_level = zero(),
+        }
+    }
+    if !preserve_bedside {
         expected.left_supply = false;
         expected.right_supply = false;
     }
@@ -82,11 +95,11 @@ pub fn plan(observed: Observed, light: Light, level: Percent) -> Plan {
     let mut writes = Vec::with_capacity(5);
     // De-energize excluded groups before touching shared dimmer columns. Do not
     // pulse either retained reading supply, even during an Off operation.
-    if !preserve_reading {
+    if !preserve_bedside {
         writes.push((Output::LeftSupply, Command::Switch(false)));
         writes.push((Output::RightSupply, Command::Switch(false)));
     }
-    if !expected.common_supply {
+    if observed.common_supply && !expected.common_supply {
         writes.push((Output::CommonSupply, Command::Switch(false)));
     }
     // Normalize a latent peer before energizing the common supply. This avoids
@@ -99,9 +112,11 @@ pub fn plan(observed: Observed, light: Light, level: Percent) -> Plan {
         Light::Primary => Output::PrimaryLevel,
         Light::Secondary => Output::SecondaryLevel,
     };
-    writes.push((peer.0, immediate(peer.1)));
+    if energizing {
+        writes.push((peer.0, immediate(peer.1)));
+    }
     writes.push((target, immediate(level)));
-    if expected.common_supply {
+    if energizing {
         writes.push((Output::CommonSupply, Command::Switch(true)));
     }
     Plan { writes, expected }

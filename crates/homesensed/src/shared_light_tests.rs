@@ -165,8 +165,8 @@ async fn actual_admission_preserves_reading_for_secondary_on_and_off() {
             .await
             .unwrap();
         let writes = f.drain().await;
-        assert_eq!(ids.len(), 3);
-        assert_eq!(writes.len(), 3);
+        assert_eq!(ids.len(), if target == 0 { 2 } else { 3 });
+        assert_eq!(writes.len(), if target == 0 { 2 } else { 3 });
         assert!(
             !writes
                 .iter()
@@ -182,6 +182,30 @@ async fn actual_admission_preserves_reading_for_secondary_on_and_off() {
         assert!(writes.contains(&("common".into(), Command::Switch(expected_common))));
         f.close().await;
     }
+}
+
+#[tokio::test]
+async fn explicit_secondary_off_does_not_write_the_active_night_resources() {
+    let f = Fixture::new([0, 1, 1, 10, 0, 0]).await;
+    let prepared = f
+        .prepare("secondary", DeviceAction::Power { on: false })
+        .await
+        .unwrap();
+    f.admission
+        .submit_shared_light(f.generation.clone(), prepared, 1000)
+        .await
+        .unwrap();
+    assert_eq!(
+        f.drain().await,
+        vec![(
+            "secondary".into(),
+            Command::SetLevel {
+                level: p(0),
+                transition: LevelTransition::Immediate,
+            }
+        )]
+    );
+    f.close().await;
 }
 
 #[tokio::test]

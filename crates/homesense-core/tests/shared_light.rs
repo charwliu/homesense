@@ -84,6 +84,52 @@ fn secondary_retains_right_or_both_reading_groups() {
 }
 
 #[test]
+fn secondary_does_not_rewrite_an_unchanged_peer_or_common_supply() {
+    for reading in [0, 100] {
+        for target in [0, 35, 100] {
+            let before = state(true, reading > 0, reading > 0, 70, 40, reading);
+            let plan = shared_light::plan(before, Light::Secondary, percent(target));
+            assert!(
+                !plan.writes.iter().any(|(output, _)| matches!(
+                    output,
+                    Output::PrimaryLevel | Output::CommonSupply
+                )),
+                "preserving a live peer does not grant a new write to its unchanged resources"
+            );
+            assert_eq!(plan.expected.primary_level, percent(70));
+            assert!(plan.expected.common_supply);
+            assert!(plan.writes.contains(&(
+                Output::SecondaryLevel,
+                Command::SetLevel {
+                    level: percent(target),
+                    transition: LevelTransition::Immediate,
+                }
+            )));
+        }
+    }
+}
+
+#[test]
+fn secondary_off_while_already_unpowered_preserves_the_night_matrix() {
+    let before = state(false, true, true, 10, 0, 0);
+    let plan = shared_light::plan(before, Light::Secondary, percent(0));
+    assert_eq!(
+        plan.expected, before,
+        "Off for the already-dark secondary is not an activation interlock"
+    );
+    assert_eq!(
+        plan.writes,
+        vec![(
+            Output::SecondaryLevel,
+            Command::SetLevel {
+                level: percent(0),
+                transition: LevelTransition::Immediate,
+            }
+        )]
+    );
+}
+
+#[test]
 fn night_only_secondary_activation_exits_bedside_before_touching_shared_columns() {
     let mut s = state(false, true, true, 10, 0, 0);
     let plan = shared_light::plan(s, Light::Secondary, percent(100));
@@ -200,7 +246,11 @@ fn complete_matrix_preserves_peer_and_reading_at_every_write_prefix() {
                             assert_eq!(after, plan.expected);
                             assert_eq!(fixtures(after)[0][target_column], target);
                             assert_eq!(after.reading_level, before.reading_level);
-                            if !keep_reading {
+                            if !keep_reading
+                                && !(light == Light::Secondary
+                                    && target == 0
+                                    && !before.common_supply)
+                            {
                                 assert!(!after.left_supply && !after.right_supply);
                             }
                             cases += 1;
