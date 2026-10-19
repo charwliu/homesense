@@ -16,11 +16,20 @@ pub struct Link {
     /// policies retain at least one On input and cannot add an unlisted read.
     #[serde(default, deserialize_with = "device_ids")]
     pub lights_off: Vec<DeviceId>,
+    /// Optional exact nonzero levels for inputs already required On.
+    #[serde(default)]
+    pub level_targets: Vec<LevelTarget>,
     #[serde(deserialize_with = "device_ids")]
     pub leds: Vec<DeviceId>,
     pub scene: Option<String>,
     #[serde(default)]
     pub power_policy: PowerPolicy,
+}
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct LevelTarget {
+    pub device: String,
+    pub level: u8,
 }
 /// Opt-in physical reconciliation. Clearing a mode never infers its identity.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize)]
@@ -56,6 +65,9 @@ pub(crate) fn validate(
             || link.lights_off.len() >= link.lights.len()
             || link.lights_off.iter().any(|id| !link.lights.contains(id))
             || (!link.lights_off.is_empty() && link.power_policy == PowerPolicy::LegacyOff)
+            || link.level_targets.len() > link.lights.len()
+            || link.level_targets.iter().map(|t| &t.device).collect::<BTreeSet<_>>().len() != link.level_targets.len()
+            || (!link.level_targets.is_empty() && link.power_policy == PowerPolicy::LegacyOff)
             || link.leds.iter().collect::<BTreeSet<_>>().len() != link.leds.len()
         {
             return Err(invalid("invalid indicator link"));
@@ -83,6 +95,16 @@ pub(crate) fn validate(
                     .any(|d| d.enabled && d.supply_relay.as_ref() == Some(id))
             {
                 return Err(invalid("indicator links require logical light bindings"));
+            }
+        }
+        for target in &link.level_targets {
+            let Some(id) = link.lights.iter().find(|id| id.as_str() == target.device) else {
+                return Err(invalid("indicator level target outside light scope"));
+            };
+            if !(1..=100).contains(&target.level) || link.lights_off.contains(id)
+                || !config.binding(id).is_some_and(|(_, m)| m.kind() == ModuleKind::Dimmer)
+            {
+                return Err(invalid("indicator level requires a positive dimmer input"));
             }
         }
         for id in &link.leds {

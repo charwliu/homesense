@@ -251,6 +251,40 @@ pub(crate) async fn read_catalog(
     read_inner(document, id, admission, controller, generation, feedback, Some(context)).await
 }
 
+// A first activation may still be owned by the physical component rather
+// than by a continuing program record. Read that owner before applying an
+// unowned, negative-only fallback; no read may establish a new selection.
+async fn read_component_state(
+    policy: &homesense_config::scene_component_activity::Policy,
+    admission: &Admission,
+    controller: uuid::Uuid,
+    generation: &TaskGeneration,
+    feedback: &Feedback,
+    context: Option<&mut CatalogReadContext<'_>>,
+) -> Result<(SceneActivity, Option<u64>), String> {
+    let proof = if let Some(context)=context {
+        if context.component_views.is_none() {
+            context.component_views=Some(admission.component_mode_views(controller,generation.clone()).await
+                .map_err(|e|format!("catalog component activity views: {e:?}"))?);
+        }
+        context.component_views.as_ref().expect("captured component views").iter()
+            .find(|v|v.policies.iter().any(|p|p.variable==policy.variable))
+            .and_then(|view|crate::component_modes::Proof::prepare(view,context.config,feedback,admission.monotonic_ms()).ok())
+    } else {
+        let views = admission.component_mode_views(controller, generation.clone()).await
+        .map_err(|e| format!("component activity views: {e:?}"))?;
+    let bundle = admission.automation_bundle(controller, generation.clone()).await
+        .map_err(|e| format!("component activity bundle: {e:?}"))?;
+        views.iter()
+        .find(|v| v.policies.iter().any(|p| p.variable == policy.variable))
+        .and_then(|view| crate::component_modes::Proof::prepare(
+            view, &bundle.configuration, feedback, admission.monotonic_ms(),
+        ).ok())
+    };
+    admission.component_activity(controller, generation.clone(), policy.scene.clone(), proof).await
+        .map_err(|e| format!("component activity: {e:?}"))
+}
+
 async fn read_inner(
     document: &homesense_config::rule_document::Document,
     id: &str,
@@ -258,14 +292,19 @@ async fn read_inner(
     controller: uuid::Uuid,
     generation: &TaskGeneration,
     feedback: &Feedback,
-    context: Option<&mut CatalogReadContext<'_>>,
+    mut context: Option<&mut CatalogReadContext<'_>>,
 ) -> Result<Option<Projection>, String> {
     if let Some(policy) = document.scene_component_activity.get(id).filter(|p| p.enabled) {
-        let recorded = policy.program_confirmation.as_ref().is_some_and(|p| p.recorded_selection.is_some());
+        let negative = policy.program_confirmation.as_ref().is_some_and(|p| p.recorded_selection.is_some() || p.negative_feedback);
         let view = if policy.program_confirmation.is_some() {
             admission.program_activity_read_view(controller,generation.clone(),id.into()).await.map_err(|e|format!("program activity view: {e:?}"))?
         } else { None };
-        if policy.program_confirmation.is_some() && (view.is_some() || recorded) {
+        let component = if view.is_none() && policy.program_confirmation.as_ref()
+            .is_some_and(|p| p.negative_feedback && p.recorded_selection.is_none()) {
+            Some(read_component_state(policy,admission,controller,generation,feedback,context.as_deref_mut()).await?)
+        } else { None };
+        if policy.program_confirmation.is_some() && (view.is_some() || negative)
+            && component.as_ref().is_none_or(|value| value.0 == SceneActivity::Unknown) {
             let missing = view.is_none();
             let proof=if let Some(Some(view))=view {
                 if let Some(context)=context.as_deref() {
@@ -274,7 +313,7 @@ async fn read_inner(
                     let bundle=admission.automation_bundle(controller,generation.clone()).await.map_err(|e|format!("program bundle: {e:?}"))?;
                     crate::program_activity::Proof::prepare(&view,&bundle.configuration,feedback,admission.monotonic_ms()).ok()
                 }
-            }else if missing && recorded {
+            }else if missing && negative {
                 if let Some(context)=context.as_deref() {
                     crate::program_activity::Proof::prepare_negative(policy,context.config,feedback,generation.clone(),admission.monotonic_ms()).ok()
                 } else {
@@ -285,28 +324,10 @@ async fn read_inner(
             let(activity,valid_until_ms)=admission.program_activity(controller,generation.clone(),id.into(),proof).await.map_err(|e|format!("program activity: {e:?}"))?.unwrap_or((SceneActivity::Unknown,None));
             return Ok(Some(Projection{activity,activity_source:"confirmed_program",scene:id.into(),display_name:document.scene_metadata.get(id).cloned(),activity_name:policy.activity_name.clone(),boot:admission.boot_id().into(),revision:document.revision,members:vec![],action_available:document.scene_action_available(id),activity_writable:false,valid_until_ms}));
         }
-        let proof = if let Some(context)=context {
-            if context.component_views.is_none() {
-                context.component_views=Some(admission.component_mode_views(controller,generation.clone()).await
-                    .map_err(|e|format!("catalog component activity views: {e:?}"))?);
-            }
-            context.component_views.as_ref().expect("captured component views").iter()
-                .find(|v|v.policies.iter().any(|p|p.variable==policy.variable))
-                .and_then(|view|crate::component_modes::Proof::prepare(view,context.config,feedback,admission.monotonic_ms()).ok())
-        } else {
-            let views = admission.component_mode_views(controller, generation.clone()).await
-            .map_err(|e| format!("component activity views: {e:?}"))?;
-        let bundle = admission.automation_bundle(controller, generation.clone()).await
-            .map_err(|e| format!("component activity bundle: {e:?}"))?;
-            views.iter()
-            .find(|v| v.policies.iter().any(|p| p.variable == policy.variable))
-            .and_then(|view| crate::component_modes::Proof::prepare(
-                view, &bundle.configuration, feedback, admission.monotonic_ms(),
-            ).ok())
+        let (activity, valid_until_ms) = match component {
+            Some(value) => value,
+            None => read_component_state(policy,admission,controller,generation,feedback,context).await?,
         };
-        let (activity, valid_until_ms) = admission
-            .component_activity(controller, generation.clone(), id.into(), proof).await
-            .map_err(|e| format!("component activity: {e:?}"))?;
         return Ok(Some(Projection {
             activity,
             activity_source: "confirmed_component",
