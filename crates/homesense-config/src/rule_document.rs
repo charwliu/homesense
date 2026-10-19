@@ -27,6 +27,8 @@ struct Input {
     #[serde(default)]
     scene_tracking: Vec<crate::scene_tracking::Policy>,
     #[serde(default)]
+    scene_component_activity: Vec<crate::scene_component_activity::Policy>,
+    #[serde(default)]
     scene_metadata: Vec<SceneMetadata>,
     #[serde(default)]
     scene_presentations: Vec<crate::scene_presentation::Presentation>,
@@ -359,6 +361,7 @@ pub struct Document {
     pub scene_deactivations: BTreeMap<String,SceneDeactivation>,
     pub revision: u64,
     pub scene_tracking: BTreeMap<String,crate::scene_tracking::Policy>,
+    pub scene_component_activity: BTreeMap<String,crate::scene_component_activity::Policy>,
     pub scene_metadata: BTreeMap<String,String>,
     pub scene_presentations: BTreeMap<String,crate::scene_presentation::Presentation>,
     /// Resolved from the same revision's room catalog; absent means unassigned.
@@ -986,6 +989,7 @@ impl Document {
             immediate_scenes,
             disabled_immediate_scenes,
             scene_tracking: input.scene_tracking.iter().map(|p|(p.scene.clone(),p.clone())).collect(),
+            scene_component_activity: input.scene_component_activity.iter().map(|p|(p.scene.clone(),p.clone())).collect(),
             scene_metadata: input.scene_metadata.iter().map(|m|(m.id.clone(),m.name.clone())).collect(),
             scene_rooms,
             scene_presentations:input.scene_presentations.iter().map(|p|(p.scene.clone(),p.clone())).collect(),
@@ -1014,6 +1018,7 @@ impl Document {
                 }
         }
         crate::scene_tracking::validate(&input.scene_tracking,&document,config)?;
+        crate::scene_component_activity::validate(&input.scene_component_activity,&document,config)?;
         if input.scene_metadata.len()!=document.scene_metadata.len() || input.scene_metadata.len()>1024 {return Err(invalid("duplicate/excessive scene metadata"));}
         for metadata in &input.scene_metadata {
             identifier(&metadata.id)?;

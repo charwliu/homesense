@@ -8,7 +8,7 @@ HomeSense 是用 Rust 编写的家庭中控项目：通过 TCP485 网关管理 H
 
 - **设备控制**：灯光开关与调光、窗帘开／关／停、六键 Keypad 及 LED 提示。
 - **场景与自动化**：经过审核的场景、条件、变量、延迟与渐变；配置发布与运行状态分离。
-- **状态与恢复**：以设备反馈确认实际状态；支持断线重连、周期查询、故障隔离与请求审计。
+- **状态与恢复**：以设备反馈确认实际状态；支持组件确认记录提供的只读场景活动、断线重连、周期查询、故障隔离与请求审计。
 - **客户端**：Apple 家庭中的 HAP 配件，以及 iPhone／iPad／Mac 原生 App。浏览器管理页面已撤除，HTTPS API 与 WSS 仍供原生 App 使用。
 - **迁移工具**：Control4 资料导入、离线回放、模拟网关和现场诊断工具。
 
@@ -46,7 +46,7 @@ cargo run --locked -p homesensed -- serve-automation-simulation config/simulatio
 
 - [系统设计](docs/design.md) · [实现说明](docs/implementation.md) · [协议核对](reference/control4/hb-protocol-notes.txt)
 - [阶段 A–C 验收](docs/stages-a-c.md) · [阶段 D 进度](docs/stage-d-progress.md) · [D/E 完成审计](docs/de-completion-audit.md)
-- [原生 App](apps/HomeSense/README.md) · [Keypad 接口](docs/keypad-native-api.md) · [场景入口](docs/scene-presentations.md)
+- [原生 App](apps/HomeSense/README.md) · [Keypad 接口](docs/keypad-native-api.md) · [场景入口](docs/scene-presentations.md) · [组件活动](docs/scene-component-activity.md)
 - [nanopc 部署记录](deployment/nanopc/README.md) · [网络架构](docs/network-architecture.md) · [网络配置手册](docs/network-configuration-runbook.md)
 - [参考资料说明](reference/README.md) · [更新记录](CHANGELOG.md)
 

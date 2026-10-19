@@ -2805,3 +2805,6 @@ fn returned_zero_projection_precedes_watchdog_only_when_complete_proof_is_alread
 
 #[path = "scene_presentation_tests.rs"]
 mod scene_presentation_tests;
+
+#[path = "scene_component_activity_tests.rs"]
+mod scene_component_activity_tests;
