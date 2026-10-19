@@ -23,6 +23,18 @@ struct HomeEditRequest: Identifiable {
     var floor: String?
 }
 
+private struct HomeSyncStatus: View {
+    @ObservedObject var home: HomeServerStore
+    var body: some View {
+        Label(home.connected ? (home.receivingPush ? "状态实时更新" : "正在同步状态") : "未连接",
+              systemImage: home.connected && home.receivingPush ? "checkmark.circle" : "arrow.triangle.2.circlepath")
+            .labelStyle(.titleAndIcon)
+            .font(.caption).foregroundStyle(.secondary)
+            .lineLimit(1).minimumScaleFactor(0.8)
+            .accessibilityIdentifier("home.connectionStatus")
+    }
+}
+
 struct HomeManagementView: View {
     @ObservedObject var home: HomeServerStore
     @State private var page: HomePage? = .overview
@@ -42,8 +54,8 @@ struct HomeManagementView: View {
                 Section {
                     Label {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("HomeSense").font(.title2.bold())
-                            Text("HomeSense · 家庭中控").font(.caption).foregroundStyle(.secondary)
+                            Text("知居").font(.title2.bold())
+                            Text("知居 · 家庭中控").font(.caption).foregroundStyle(.secondary)
                         }
                     } icon: { Image(systemName: "house.circle.fill").font(.largeTitle).foregroundStyle(.teal) }
                     .padding(.vertical, 12)
@@ -67,8 +79,8 @@ struct HomeManagementView: View {
                     Text("\(managing ? home.devices.count : home.dailyDevices.count) 个设备 · \(home.scenes.count) 个场景").font(.caption).foregroundStyle(.secondary)
                 }
             }
-            .navigationTitle("HomeSense")
-            .navigationSplitViewColumnWidth(min: 210, ideal: 245, max: 300)
+            .navigationTitle("知居")
+            .navigationSplitViewColumnWidth(min: 190, ideal: 210, max: 240)
         } detail: {
             NavigationStack(path: $roomPath) {
                 ScrollView {
@@ -77,7 +89,6 @@ struct HomeManagementView: View {
                             Text(managing ? "配置管理" : "我的家").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
                             Text(pageTitle).font(.largeTitle.bold())
                             if managing { Text(home.message).font(.subheadline).foregroundStyle(.secondary) }
-                            if home.connected { Label(home.receivingPush ? "状态实时更新" : "正在同步状态", systemImage: home.receivingPush ? "checkmark.circle" : "arrow.triangle.2.circlepath").font(.caption).foregroundStyle(.secondary) }
                             if let away = home.awayStatus {
                                 Label(away.message, systemImage: away.failed ? "exclamationmark.triangle" : "house")
                                     .font(.caption).foregroundStyle(away.failed ? Color.red : Color.secondary)
@@ -100,19 +111,23 @@ struct HomeManagementView: View {
                             }
                         }
                     }
-                    .padding(24).frame(maxWidth: 950, alignment: .leading).frame(maxWidth: .infinity)
+                    .padding(.horizontal, 12).padding(.vertical, 24)
+                    .frame(maxWidth: 1100, alignment: .leading).frame(maxWidth: .infinity)
                 }
                 .background(.background.secondary)
-                .navigationTitle(managing ? "配置管理" : "HomeSense")
+                .navigationTitle(managing ? "配置管理" : "知居")
                 .toolbar {
-                    if home.canManage {
-                        Button(managing ? "完成管理" : "管理", systemImage: managing ? "checkmark" : "slider.horizontal.3") {
-                            home.selectInterfaceMode(managing ? .daily : .management)
-                        }.accessibilityIdentifier("home.interfaceMode")
-                    }
-                    Button("服务连接", systemImage: "network") { page = .server; compactColumn = .detail }
-                    if home.connected {
-                        Button("刷新", systemImage: "arrow.clockwise") { Task { await home.refresh() } }.disabled(home.busy)
+                    ToolbarItemGroup(placement: .primaryAction) {
+                        HomeSyncStatus(home: home)
+                        if home.canManage {
+                            Button(managing ? "完成管理" : "管理", systemImage: managing ? "checkmark" : "slider.horizontal.3") {
+                                home.selectInterfaceMode(managing ? .daily : .management)
+                            }.accessibilityIdentifier("home.interfaceMode")
+                        }
+                        Button("服务连接", systemImage: "network") { page = .server; compactColumn = .detail }
+                        if home.connected {
+                            Button("刷新", systemImage: "arrow.clockwise") { Task { await home.refresh() } }.disabled(home.busy)
+                        }
                     }
                 }
                 .navigationDestination(for: HomeRoomRoute.self) { route in
@@ -544,7 +559,13 @@ private struct HomeDeviceCards: View {
     @ObservedObject var home: HomeServerStore
     let devices: [HomeRecord]
     let openDetails: (HomeEditRequest) -> Void
-    private let cardColumns = [GridItem(.adaptive(minimum: 260), alignment: .top)]
+    #if os(iOS)
+    @Environment(\.horizontalSizeClass) private var sizeClass
+    private var minimumCardWidth: CGFloat { sizeClass == .regular ? 300 : 260 }
+    #else
+    private let minimumCardWidth: CGFloat = 300
+    #endif
+    private var cardColumns: [GridItem] { [GridItem(.adaptive(minimum: minimumCardWidth), alignment: .top)] }
     var body: some View {
         LazyVGrid(columns: cardColumns, alignment: .leading, spacing: 16) {
             ForEach(devices) { device in
@@ -596,9 +617,6 @@ private struct HomeRoomDetail: View {
                             .font(.caption).foregroundStyle(.secondary)
                         Text(room.name).font(.largeTitle.bold())
                         Text("\(devices.count) 个灯与窗帘 · \(scenes.count) 个场景").font(.subheadline).foregroundStyle(.secondary)
-                        Label(home.connected ? (home.receivingPush ? "状态实时更新" : "正在同步状态") : "未连接，控制暂不可用",
-                              systemImage: home.connected && home.receivingPush ? "checkmark.circle" : "arrow.triangle.2.circlepath")
-                            .font(.caption).foregroundStyle(.secondary)
                     }
                     if let away = home.awayStatus {
                         Label(away.message, systemImage: away.failed ? "exclamationmark.triangle" : "house")
@@ -622,15 +640,19 @@ private struct HomeRoomDetail: View {
                     ContentUnavailableView("房间暂不可见", systemImage: "door.left.hand.open", description: Text("房间可能已调整，或当前凭证无权查看。"))
                 }
             }
-            .padding(24).frame(maxWidth: 950, alignment: .leading).frame(maxWidth: .infinity)
+            .padding(.horizontal, 12).padding(.vertical, 24)
+            .frame(maxWidth: 1100, alignment: .leading).frame(maxWidth: .infinity)
         }
         .background(.background.secondary)
         .navigationTitle(room?.name ?? "房间")
         .accessibilityIdentifier("home.roomDetail.\(roomID)")
         .toolbar {
-            if home.canManage {
-                Button(managing ? "完成管理" : "管理", systemImage: managing ? "checkmark" : "slider.horizontal.3") {
-                    home.selectInterfaceMode(managing ? .daily : .management)
+            ToolbarItemGroup(placement: .primaryAction) {
+                HomeSyncStatus(home: home)
+                if home.canManage {
+                    Button(managing ? "完成管理" : "管理", systemImage: managing ? "checkmark" : "slider.horizontal.3") {
+                        home.selectInterfaceMode(managing ? .daily : .management)
+                    }
                 }
             }
         }
