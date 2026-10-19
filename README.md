@@ -1,191 +1,53 @@
 # HomeSense · 知居
 
-<img src="docs/assets/homesense-logo-v3.png" alt="HomeSense 知居 Logo：橙色家庭大脑连接琥珀色照明、蓝色自动化与绿色节能节点" width="160">
+<img src="docs/assets/homesense-logo-v3.png" alt="HomeSense 知居 Logo" width="160">
 
-HomeSense（中文名：知居）是原生 Rust 家庭中控，通过 TCP485 网关控制 RS485 模块，并通过原生 Rust HAP 接入 Apple 家庭。目标是逐步替代现有的Control4 EA-5 的灯光、窗帘、场景与事件逻辑。
+HomeSense 是用 Rust 编写的家庭中控项目：通过 TCP485 网关管理 HopeBeauty RS485 灯光、窗帘与墙面板，通过原生 HAP 接入 Apple 家庭，并提供 HomeSense App 与 HTTPS/WSS 管理接口。项目正逐步迁移现有 Control4 EA-5 的场景和自动化逻辑。
 
+## 功能
 
-## 主要功能与实现情况
+- **设备控制**：灯光开关与调光、窗帘开／关／停、六键 Keypad 及 LED 提示。
+- **场景与自动化**：经过审核的场景、条件、变量、延迟与渐变；配置发布与运行状态分离。
+- **状态与恢复**：以设备反馈确认实际状态；支持断线重连、周期查询、故障隔离与请求审计。
+- **客户端**：Apple 家庭中的 HAP 配件，以及 iPhone／iPad／Mac 原生 App。浏览器管理页面已撤除，HTTPS API 与 WSS 仍供原生 App 使用。
+- **迁移工具**：Control4 资料导入、离线回放、模拟网关和现场诊断工具。
 
-| 功能 | 能力 | 实现情况 |
-| --- | --- | --- |
-| 灯光控制 | 开关、调光、独立供电组合灯；亮度调节、关灯后恢复亮度；按实际状态禁用重复开／关动作 | 控制与调光已有限定实机复验；恢复亮度使用写后反馈，反馈查询与到期轮询公平调度；本地渐变目标有界保护；修复后的书房亮度恢复及滑块目标已完成限定现场复验 |
-| 控制批次 | 组合灯与同阶段场景将本键提示与灯光合批发送，联动 LED 等真实目标反馈后合批发送；离家按模块关闭 | 基础合批、逐命令审计、取消和不重放已发布，书房完成限定现场验收；本键提示与灯光同批、离家重试及完成指示已实现为未部署候选，全量场景语义和现场验收待完成 |
-| 场景与自动化 | 场景开关、互斥选择、取消、变量、条件、手势／长按、日历、延迟与渐变；审核后的手动程序独立执行 | 即时与时间线入口已实现；原生面板可执行手动程序，未知模式首次明确开启，按实际写出和反馈确认分量，已知源标签有独立来源审计；整合候选的软件、客户端与 Linux 隔离验证通过，发布及现场验收待完成 |
-| 场景实际状态 | 显式审核 All／Any、开关／带电亮度范围、忽略成员与未知策略；只读活动和独立执行入口；选择状态读取独立于串行物理控制工作，同次读取完成鉴权、投影与映射可读性核对 | 通用跟踪及 HAP／原生 API 执行入口已软件复验，接受回执与实际状态分开；繁忙读取保持鉴权、代次、发布与停止门禁；反馈推断覆盖组合灯供电变化；完整软件、客户端与 Linux 隔离回归通过，修复后的现场复验待完成 |
-| 离家关灯 | 显式审核的按模块全关操作；独立优先通道、完整通道权限、受影响照明任务接管与真实反馈联动 | API／可选 HAP 已实现；原生入户面板离家入口已发布并有现场验收，按模块全关的期限调度修复已软件核验；独立优先通道、有界模块重试、执行回执与 App 结果推送已实现为未部署候选；仅对未确认模块重试，更新后现场闭环待复验 |
-| RS485 模块管理 | 独立模块状态、管理员模块目录分页、主动反馈接收、按型号整模块／逐路查询、稳定 `module_id + channel` 引用、组合设备和模块换址 | 单网关 12 模块、96 路初始化和周期查询已上线并通过限定现场复验；R818 地址 01–07 主动反馈已启用并读回确认，书房墙面板开／关后的原生灯光及场景自动同步限定验证通过；AD8 支持整模块查询，R818-DIN-PRO 不支持整模块状态查询，只能逐路查询；模块目录支持按版本分页读取，默认 32 项、单页最多 64 项；模块换址和长期稳定性待验收 |
-| Apple 家庭 | 原生 Rust HAP，灯光、选定场景、窗帘开／关／停、可选面板事件、保留配对与多桥 | 限定灯光、场景、窗帘双向短程动作／停止及 iPhone 实际断网后状态恢复已复验，其余客户端范围待验 |
-| 窗帘状态 | 同逻辑窗帘共享 HAP／Web 手动控制轨迹；按成功写出时刻计时、可选估计百分比、独立停止键提示与审核 LED 绑定 | 软件接入及独立回归完成；书房 HAP 双向动作、中停、估计终态和 LED 已限定实物复验；iPad Web 自动更新、重复命令和中停百分比已限定复验，其余范围待验，原自动规则保持禁用 |
-| 原生 HomeSense App | iPhone／iPad／Mac 的日常卡片与配置管理；卡片直接开关灯、打开／停止／关闭窗帘，详情竖向亮度滑条松手设置；实时推送、楼层／房间导航、草稿及发布 | 共用房间入口、卡片直接控制和自动亮度提交已软件核验；局部网关离线时健康目标继续可控，失效目标禁用并保留历史反馈；既有自动连接、目录、调光和六键卡片已有实机证据，新增导航及控制交互待手机更新后验收 |
-| Keypad 设备 | 每块 TS6-86 一张正方形面板卡，两列三行 1–2／3–4／5–6；按键颜色与灯点显示 LED，背光、声音和工作模式为子功能 | 书房、画室的父对象归并已发布；后端及原生 App 隔离联调通过，旧端点兼容；实际手机两张六键卡片显示、书房三场景开／关、窗帘双向中停及全开／全关终态和双端 LED 验收通过；既往关闭失败原因仍待定位，面板参数及完整硬件验收继续；全屋 28 块／168 键、手动程序入口及完整目录通过软件回归和候选配置回环；最终 App 联调、Linux 更新和全量现场验收待完成 |
-| 管理客户端 | 原生 HomeSense App 统一提供查看、控制及配置管理，保留 HTTPS API／鉴权／WSS 推送 | 浏览器页面与静态资源已从当前服务撤除；原生 App 完整管理及控制入口鉴权验收继续 |
-| App 操作诊断 | 六键卡片及详情的点击、门禁、方向、请求发送和响应结果可按操作编号关联；系统日志及有界本地日志可导出 | 已安装并取回真实点击／请求／响应记录，书房开／关复测通过；既往偶发失败继续保留排查 |
-| App 连接凭证 | 系统 Keychain 按服务器地址保存令牌，重开免输入；首次恢复遇临时网络／服务故障自动退避重连，可取消或移除凭证 | 保存与恢复已实现；原版 iPhone 重开和前后台同步已实机验证，新冷启动故障恢复已软件核验，完整更新包已覆盖安装，免输入自动连接已确认；其余恢复场景继续验收 |
-| 管理 API 请求幂等 | 控制与管理变更的持久请求记录、端点隔离、重复请求查询和有界过期策略 | 软件验证通过；旧记录保留以拒绝重放，凭证仅首次披露；配置与升级说明见 [请求账本](docs/web-receipt-policy.md)，新版现场验收待完成 |
-| 状态与恢复 | 物理反馈与待确认目标分离，权威状态随投影收敛推送；启动／重连查询、按实际反馈新鲜度调度的周期刷新、配置代次隔离、断线不重放旧动作 | 单网关恢复已部署；多个 TCP 网关的独立故障隔离、健康网关继续控制与推送、原作用域延迟及恢复不重放已完成软件核验，Linux常驻更新已上线并保留原配置、配对和授权；现场多网关故障及长期稳定性仍待验；周期查询等待反馈时继续处理请求和状态推送，保留单个待完成读、线速间隔和有界重试 |
-| 多房间接入 | 同一 HAP 桥接入各房间灯光、选定场景和窗帘，保留已有配对与设备标识 | 书房和画室已有限定家庭 App 实机验收；原浏览器验收已取消，原生 App 后续验收继续；原墙面板自动逻辑保留 |
-| 协议与迁移 | HopeBeauty 协议与型号校验、Control4 导入、显式审核场景转换、Agent 场景链接、命令及规则来源审计 | 主要框架已实现；场景转换保留完整来源并输出禁用定义；未知模式首次显式执行及复合模式确认已实现并通过软件回归，最终 Linux 与现场整合验证继续；原 tracking、时序与完整项目迁移仍待审核 |
+功能分批发布，软件验证不等于现网部署或全屋验收。**阶段 D/E 尚未完成**；当前范围、已验证能力及剩余工作以 [D/E 完成审计](docs/de-completion-audit.md) 和 [阶段 E 剩余清单](docs/stage-e-remaining.md) 为准。逐次变更见 [更新记录](CHANGELOG.md)。
 
-场景可在 `automation.scene_metadata` 中用可选的 `room` 引用同版本设备配置的房间 ID；缺省或 `null` 保持未分配。场景目录 GET 和 WSS 状态统一返回 `room: {id, name, floor} | null`，只展示当前授权可读的场景；引用中的房间不能删除。此项仅补充目录元数据，不改变场景程序或 EA-5 控制范围。配置／草稿、GET/WSS 回归及原生 App 实际 HTTPS/WSS 联调通过；房间回填配置尚未发布。
+## 构建与本机模拟
 
-场景反馈完成后，LED 扫描优先处理实际写入颜色需要改变的关联键；新一轮扫描也保留这个优先级。具备完整物理证明的场景 LED 与恢复亮度记忆分别处理。软件回归与 Linux 更新已完成，硬件复验待继续。
-
-场景可经审核后保留各自控制范围：省略的灯不会被自动补成关闭，状态推断仍要求整个组有完整、新鲜反馈；组合重叠时保持未知或按可靠亮度区分。原生最终查询具有有界调度优先级，目录展开和反馈捕获仅处理实际引用的内容。完整软件回归已通过，现场复验待继续。
-
-启用物理推断的未知场景支持逐灯规划、当前按键即时提示，以及 AD8 渐变后的最终读回。来源提示与实际选择保持分离；软件回归及 Linux 更新完成，硬件复验继续。
-
-离家模块范围和配置方式见[离家按模块关灯](docs/away-module-off.md)。该操作独立于导入场景，不会自动启用或折叠原场景。
-
-管理接口独立运行时，也会用真实读回推动调光目标收敛；准确目标在写入完成后被确认，发布状态即可从 `pending_target` 返回 `feedback`，不依赖另行开启 HAP 或 LED 同步采样器。Accepted、Writing、过旧反馈和渐变中间值不会提前确认。已部署并通过原生模块控制联调；AD8 中间亮度的确认查询在渐变写出 6 秒后开始。
-
-统一按键入口与来源键即时提示已实现，协议、幂等、权限及 WSS 退休标记见[统一按键入口](docs/keypad-actions.md)。已审核的实体事件复用同一入口，按运行代次限制单一执行者，保留 STOP 容量、两入口公平性和断连不重放；来源键例外不放宽其他面板的真实反馈门控。Mac／Linux 完整验证与原生联调通过；已发布全屋 28 块面板、168 键的统一实体执行配置，现场验收进行中。实体接管在未显式配置时默认关闭。 候选修复在同一即时灯光阶段保留当前来源键的最终颜色，避免较早颜色在反馈后覆盖即时提示；其他键、查询屏障和时间线步骤保持原顺序。此修复已完成软件验证，尚未部署。
-
-候选支持将一个已确认的原生选择配方关联到唯一公开场景入口，保留同灯光组合下的不同模式，避免房间中重复显示执行程序和配方；房间明确开／关与六键切换共享原输出范围和反馈确认。Mac、Linux及原生客户端软件验证通过，尚未部署及现场验收，见[场景入口与选中状态](docs/scene-presentations.md)。
-
-后端支持原生六键卡片将已审核的按键映射到按模块离家全关，完整目标权限与按键权限共同生效；可选同键变绿须等待所有模块命令完整写出及实际关闭反馈；该批量关灯能力已部署，实体按键触发的现场验收进行中。`catalog_visible` 供原生目录筛选覆盖通道，仍保留查询、场景引用与原权限。配置方式见[原生 Keypad 离家按键](docs/keypad-away.md)。现有入户门卡片已发布并通过人工功能验收；全屋六键配置已发布，各房间实体触发的现场验收进行中；Control4 工程保持原样。
-
-已受理的模块全关与 LED 批次在原执行期限内优先推进，周期查询协调让路；无法容纳的即时批次在受理前返回忙。后台 LED 分波同步并在波间保留查询和控制机会，失败或未知结果不视为同步成功。保留停止、撤权和断线不重放；仿真启动允许无绝对位置反馈的电机保持未知，开关和调光仍须取得确认反馈。
-
-新的灯光与 LED 混合批次使用最多 15 秒的反馈与发送总预算；全部真实目标反馈确认后，LED 整批立即推进，发送窗口最多 2 秒，并受剩余总预算及更早场景因果截止限制。原灯光写入期限、授权、取消、停止及断线不重放保持；已过期票据不会续期。Mac／Linux 完整验证、严格 Clippy 与原生联调通过并已部署，现场验收继续。启用既有 `HOMESENSE_LIGHT_DIAGNOSTICS=1` 可记录首次完整反馈、总截止、发送截止及零字节取消的同一单调时钟证据；默认日志不变，不输出请求正文或令牌。
-
-LED 判据支持区分供电状态与亮度：已审核且开关组合无歧义的场景组可在供电继电器完整反馈后更新 LED，亮度读回独立推进；需要亮度区分的场景继续等亮度，并按需补查等待期间过早到达的反馈。已完成整合回归并部署，实体按键复验进行中。
-
-功能实现、软件验证与现场验收的范围见 [D/E 完成审计](docs/de-completion-audit.md) 和 [阶段 E 剩余清单](docs/stage-e-remaining.md)。逐次提交的实现细节与验证记录见 [CHANGELOG](CHANGELOG.md)。
-
-Calendar 水位的只读加载使用一致的已提交快照，避免占用写锁；检查点写入继续执行写锁互斥、精确 CAS、活动版本与时间单调性校验。旧场景选择读取 501ms 超时已按要求停止追查，保留原因未明记录，不视为已修复；读取截止、准入、授权和 EA-5 控制范围保持不变。
-
-## 原生六键卡片的窗帘按键
-
-窗帘方向键支持通用的“同向再次点按停止”模式：正在打开时再点打开则停止，关闭对称；已停、未知或反向时执行所点方向。既有六键入口仅作用于启用此模式的原生卡片；后端另支持设备卡片与详情使用同向再次点按停止意图，客户端整合验收继续。独立停止键、Apple 家庭、模块绝对命令及实体墙面板保留原行为。
-
-方向 LED 可采用“本方向立即红、对向保持原色并在 2 秒后红”的提示；中停两红，到位后对应方向绿，停止灯可配置为近似立即变绿。后端及原生客户端软件验证通过，支持卡片独立意图和父／目标网关可用性检查；Linux 隔离验证及 App build 13 覆盖安装通过，自动连接和两房间卡片已现场确认；后端及配置 13 已持续部署；书房、画室的同向再按停止、两端终态与卡片／墙面板 LED 时间线已通过现场验收。配置及契约见[原生卡片窗帘按键](docs/native-keypad-motor-press.md)。
-
-## HAP 与 Web 组合模拟
-
-```text
-homesensed serve-combined-simulation DEVICE_FILE AUTOMATION_FILE STATE_DIR SECONDS HAP_LOOPBACK_IP:PORT WEB_LOOPBACK_IP:PORT TOKEN_FILE SCENE...
-```
-
-服务先确认 HAP 端口绑定和初始发现记录就绪，再启动自动化；端口占用不会执行启动规则。两个地址必须是不同的本机回环端点；令牌文件权限须为 0600，Web 角色为 member。该命令使用模拟硬件，在同一运行时发布灯光与指定场景，同时提供 Web 灯光和场景控制。它不支持配置激活；现有 HTTPS/WSS 与 TCP 管理入口不受影响。可执行 `python3 tools/verify_web_simulation.py /path/to/homesensed --combined` 验证会话、重启幂等及错误参数拒绝。
-
-## TCP 服务的原生管理 API
-
-原生 HomeSense App 是管理客户端。当前服务已撤除浏览器首页与 HTML/JS/CSS 资源，原页面地址返回 `410 native_app_required`；HTTPS API、Bearer 鉴权、配置草稿／预览／发布和 WSS 状态恢复继续保留。现有 `--web-*` 参数名称保留兼容，只表示管理 API 监听。旧浏览器验收记录是历史结果。
-
-`serve-automation-tcp` 可附加以下参数，启用与总线运行时共用准入、状态和发布监督的 HTTPS/WSS 管理入口：
-
-```text
---web-listen LAN_IP:PORT --web-origin https://HOST:PORT
---web-cert CERT_PEM --web-key KEY_PEM --web-token TOKEN_FILE
---web-role administrator
-```
-
-同时发布 HAP 时，在上述 TLS 参数之外追加 `--hap-listen PRIVATE_IP:PORT`，并可重复添加 `--hap-scene SCENE` 选择场景。HAP 与 Web 须使用不同端点；HAP 允许明确的私网或回环地址，回环不发布 mDNS。只给 HAP 参数而不提供完整 Web TLS 参数会被拒绝，未选场景时只发布灯光。可用 `python3 tools/verify_web_tls.py /path/to/homesensed --tcp-combined` 在本机假网关验证完整 CLI，不连接现场。
-
-这五项连接／凭据参数须成组提供；角色默认 `member`，配置发布需显式 `administrator`。令牌与私钥文件不得向组或其他用户开放，证书须由客户端信任。原有 `--coexistence-confirmed`、运行模式和已审核配置要求仍适用。此命令连接真实网关并可能执行启用规则。
-
-管理监听就绪后才启动规则；配置发布先暂停视图并备份，发布或断线恢复后须完成反馈查询才能恢复控制。恢复不重放启动规则或旧命令。选定场景须已审核，且在候选配置中继续存在。
-
-普通 HTTP 控制绑定精确凭据／会话来源，撤权会取消尚未写出的控制及延迟／渐变／场景后效；组合灯和 scene-only 授权范围保持原有语义。配置发布在入屏障前复核来源，入屏障后接管已保留的安全 STOP 并完成原子切换。当前服务已包含精确来源授权；新版完整现场验收仍待完成，详见 [精确来源授权](docs/source-authorization.md)。
-
-已建立服务的故障隔离在网关故障期间保留管理监听、会话和 HAP 身份，退役旧连接，以有界退避获取完整新反馈后恢复控制；不重放旧动作。配置提交后尚无反馈时，诊断展示已提交版本，控制继续拒绝；后续激活失败明确报告已提交版本，不自动重试发布。支持显式 `forever` 无期限运行和正常信号停止，原有限时模式保留；E2 已由 systemd 常驻托管，启用开机启动与异常退出重启，现有配置、配对和凭据保留。范围见 [持续服务故障隔离](docs/runtime-availability.md)。
-
-场景推断支持显式 `power_pattern_then_profile_level`：唯一开关组合仍只看开关，碰撞组合才用可靠 AD8 百分比读回区分；未知、过期、未稳定或供电关闭时不以历史亮度猜选，原策略保留。软件已实现，默认不启用，原场景仍须审核配置。见 [场景状态推断规则](docs/scene-state-inference-policy.md)。
-
-场景目录批量读取定义、活动状态和运行记录；配置解析缓存按当前文档内容与执行上下文核对，状态、权限与反馈继续实时读取。显式关闭前重核物理选择证据；尚未交付给传输者的过期 LED 请求可安全取消，后续新请求继续执行，已交付票据的不确定结果仍按原规则处理。
-
-未部署候选的单网关常规轮询支持局部缺包隔离：未回复端口保持未知，健康通道继续采样；场景目录批量校验各自反馈凭据。离家三轮关闭后可在原总期限内补读过旧的健康通道，准确区分部分通道缺失；不把旧反馈续期或增加关闭轮次。Mac工作区、Linux服务库隔离回归及原生联调通过，家庭私有候选的Linux联调、整合部署与现场验收待完成。
-
-场景开关支持独立单成员分组：各自保存选择状态与明确关闭动作，可同时开启；不会把互不相关的场景放进互斥组。软件定向检查已通过，配置接入与现场验收待完成。
-
-## Keypad 父对象与面板控制
-
-每块已核实六键 TS6-86 使用一个稳定 `keypads` 父对象，键事件、LED 与面板参数是子功能。旧逐键 ID 嵌入 `keys[].led_endpoint`，继续用于规则、权限、审计和 HAP；原生清单与 WSS 不重复发布这些子端点。六键固定顺序 1–2／3–4／5–6；接口及授权约束见 [原生 Keypad 契约](docs/keypad-native-api.md)。
-
-面板支持显式 LED 红／绿／灭，以及背光、声音和工作模式的 typed 命令，全部共用准入、幂等收据、审计和唯一传输所有者。整板参数要求管理员完整覆盖六个已启用子端点；硬件模式必须与已发布配置和 LED 联动门禁一致。参数及原生 LED API 另外绑定精确源凭证／会话 generation，在入队、派发与实际写入前检查；同 controller 的其他凭证不能续用旧授权。相关来源授权已软件核验并包含在当前服务中；扩展参数范围的现场验收继续。按键动作只来自已审核的场景切换或已校准窗帘开／停／关映射。每格按实际授权开放，未配置或未授权格保留禁用占位。按下／释放、已受理、Written 与实际读回分别展示；没有核实读回格式的参数和 LED 实际值保持未知。
-
-`tools/migrate_keypad_objects.py CONFIG REVIEW OUTPUT` 只按显式审核的模块与显示信息生成离线表示候选，不改版本、不写运行库、不发布、不设置硬件模式；已有别名、逐键启用范围及物理模块声明保留，未知型号或额外旧字段须人工处理。书房和画室的现有父对象归并已发布，原生卡片已实现并完成隔离接口联调；更大场景范围、实际按键和参数的完整现场验收仍待接续，EA-5 控制范围保持不变。
-
-## 构建与离线验证
-
-使用 Rust edition 2024，最低 Rust 1.99。依赖由 `Cargo.lock` 锁定，SQLite 使用 bundled 构建，HAP 使用仓库内受控的 `vendor/hap`。新环境先获取依赖；缓存齐备后可离线构建。
+需要 Rust 1.99 或更新版本。依赖由 `Cargo.lock` 锁定；首次获取依赖后，可给 Cargo 命令添加 `--offline` 使用本地缓存。
 
 ```sh
 cargo fetch --locked
-cargo build --locked --offline --workspace
-cargo test --locked --offline --workspace
-cargo clippy --locked --offline --workspace --all-targets -- -D warnings
+cargo build --locked --workspace
+cargo test --locked --workspace
+cargo clippy --locked --workspace --all-targets -- -D warnings
 
-cargo run --locked --offline -p homesensed -- check-config config/simulation.json --simulation
-cargo run --locked --offline -p homesensed -- check-automation config/simulation.json config/automation.simulation.json --simulation
-cargo run --locked --offline -p homesensed -- serve-automation-simulation config/simulation.json config/automation.simulation.json /tmp/homesense-automation-demo 10
-cargo run --locked --offline -p homesensed -- demo 30
-cargo run --locked --offline -p homesensed -- decode 'AE 15 D1 1E EE'
-cargo run --locked --offline -p homesense-import --bin study-replay -- config/scenes/study.json 5 0
+cargo run --locked -p homesensed -- check-config config/simulation.json --simulation
+cargo run --locked -p homesensed -- check-automation config/simulation.json config/automation.simulation.json --simulation
+cargo run --locked -p homesensed -- serve-automation-simulation config/simulation.json config/automation.simulation.json /tmp/homesense-automation-demo 10
 ```
 
-`serve-automation-simulation DEVICE_FILE AUTOMATION_FILE STATE_DIR SECONDS [SCENE]` 使用内存网关和独立的 `automation-simulation.sqlite`，不打开现场运行库或配对目录；可指定已启用的定时场景。重启要求文档完全一致，改变配置请使用新模拟目录。
-
-上述工具不连接真实网关；`check-automation` 只校验结构、引用及启用规则的命令编码，`study-replay` 只输出计划。工作区集成测试需要允许本机回环监听。配置发布取消与 HAP 故障隔离测试使用合成 TCP 网关和独立临时身份目录。
-
-## 模拟与现场入口
-
-本机模拟 HAP 服务使用内存网关，只监听 `127.0.0.1`，不发布 mDNS。以下运行 60 秒，状态与身份保存在独立目录：
-
-```sh
-cargo run --locked --offline -p homesensed -- serve-simulation config/simulation-home.json /tmp/homesense-simulation 51826 60
-```
-
-`serve-simulation-lan FILE STATE_DIR PRIVATE_IP:PORT SECONDS` 可在指定私网地址发布 mDNS，供 Apple 家庭模拟联调；仍不连接配置中的真实网关。服务时长上限为 24 小时，重启保留身份和配对，已有状态目录要求配置与监听端口匹配。
-
-现场工具包含 `observe` 被动采集、`query-status` 单通道查询、`query-parameter` 参数查询、`motor-test` 开／关及 STOP 校准、`panel-led` 手动 LED，以及 `serve-live` 限时灯光桥。真实入口使用现场配置及显式确认参数，具体操作与历史证据见 [现场接入记录](deployment/ngr/STUDY-E.md)；限定场景入口见 [阶段 D 场景迁移](docs/stage-d-study.md)。配置变更通过 `publish-config FILE STATE_DIR EXPECTED_REVISION` 在停止服务后发布；已有自动化的版本使用 `publish-automation DEVICE_FILE AUTOMATION_FILE STATE_DIR EXPECTED_REVISION` 同时发布两个文档。先备份运行库；命令要求服务停止，完成后也保持停止，不自动启用规则。
-
-`config/import/` 为禁用导入草案，`config/live/` 为限定现场配置，`config/scenes/` 为书房迁移与调试资料。数据库升级与回退须使用匹配的程序和备份，并保留身份库中的最新配对及撤销状态。
+上述模拟命令使用内存网关和独立状态目录，不连接真实 RS485 网关；部分测试需要本机回环监听。真实网关命令、配置发布和回退请按部署记录执行，不要把模拟状态目录用于现网。
 
 ## 项目结构
 
-| 路径 | 职责 |
+| 路径 | 内容 |
 | --- | --- |
-| `crates/homesense-core` | 设备类型、命令仲裁、场景、规则、手势与日历核心 |
-| `crates/hb-protocol`、`crates/hb-transport` | HopeBeauty 协议与有界 TCP 传输 |
-| `crates/homesense-state`、`crates/homesense-simulator` | 状态及反馈投影、确定性网关模拟 |
-| `crates/homesense-storage`、`crates/homesense-config` | SQLite 日志与变量、设备及规则配置校验 |
-| `crates/homesense-hap`、`vendor/hap` | HAP 适配、身份存储及受控 HAP 实现 |
-| `crates/homesense-import` | Control4 导入、处置报告及离线场景回放 |
-| `crates/homesensed` | 统一准入、传输监督、服务和调试入口 |
+| `crates/homesense-core`、`crates/homesense-state` | 设备、场景、规则及状态投影 |
+| `crates/hb-protocol`、`crates/hb-transport` | HopeBeauty 帧协议与 TCP 传输 |
+| `crates/homesense-config`、`crates/homesense-storage` | 配置校验与 SQLite 持久化 |
+| `crates/homesense-hap`、`crates/homesensed` | Apple 家庭适配与服务入口 |
+| `crates/homesense-import`、`crates/homesense-simulator` | Control4 导入与离线模拟 |
+| `apps/HomeSense` | iPhone／iPad／Mac 原生客户端 |
 
-## 资料
+## 文档入口
 
-- [完整设计](docs/design.md)：系统边界、协议契约、迁移方案及阶段 A–G 计划。
-- [家庭网络架构设计](docs/network-architecture.md)：网络分区、双栈出口和设备迁移。
-- [核心、QNAP 与 AC 配置步骤](docs/network-configuration-runbook.md)：DHCP、IPv6／PD、网络迁移与验收步骤；既有网络的核查及暂停点见对应文档。
-- [更新记录](CHANGELOG.md)：逐次提交的变动细节、验证结果与历史检查点。
-- [A–C 验收跟踪](docs/stages-a-c.md) 与 [逐项证据](docs/evidence/stages-a-c-requirements-20261011.md)：限定验收结论及未关闭问题。
-- [阶段 D 完成审计](docs/stage-d-progress.md)：当前实现、验收缺口和增量验证记录。
-- [书房场景迁移](docs/stage-d-study.md)：源规则、离线回放及手动场景现场证据。
-- [实施记录](docs/implementation.md)：实现过程、测试与历史待办；当前阶段结论以上述审计为准。
-- [nanopc 部署记录](deployment/nanopc/README.md)：候选版本、隔离测试、身份与回退边界；实时运行状态须另查进程。
-- [协议核对记录](reference/control4/hb-protocol-notes.txt)：厂家报文依据和未验证事项。
-- `reference/control4/`：Control4 解析器、HopeBeauty 地址映射和协议核对笔记；私有解析 JSON 与报告仅在本地保留。第三方手册、提取文本和原页截图已移出版本管理。
-- `reference/manifest.json`：资料来源与哈希记录；`removed_third_party_documents` 记录已移除的第三方资料。保留范围与资料管理方式见 [参考资料说明](reference/README.md)。
+- [系统设计](docs/design.md) · [实现说明](docs/implementation.md) · [协议核对](reference/control4/hb-protocol-notes.txt)
+- [阶段 A–C 验收](docs/stages-a-c.md) · [阶段 D 进度](docs/stage-d-progress.md) · [D/E 完成审计](docs/de-completion-audit.md)
+- [原生 App](apps/HomeSense/README.md) · [Keypad 接口](docs/keypad-native-api.md) · [场景入口](docs/scene-presentations.md)
+- [nanopc 部署记录](deployment/nanopc/README.md) · [网络架构](docs/network-architecture.md) · [网络配置手册](docs/network-configuration-runbook.md)
+- [参考资料说明](reference/README.md) · [更新记录](CHANGELOG.md)
 
-原始项目仍在 `/Volumes/m4work/aiml/Control4/Projects/Charlies250801.c4p`；参考目录是离线快照，不是运行配置。完整解析 JSON/报告包含私人住宅资料，默认列入 `.gitignore`，发布前需另行审阅。旧资料保持原位，复制时逐文件核对哈希。
-
-## 协议边界
-
-普通帧为固定 5 字节二进制 `AE ID CMD VALUE EE`，无文档定义的校验和。地址按两位十六进制解析；禁止广播地址 00；亮度是整数 0..100。按注册模块类型区分开关反馈与面板按键，不为未知帧产生设备事件。面板 LED 依赖已处于手动模式，库不修改模块模式。
-
-帧接收器支持拆包、粘包和逐字节恢复，内部至多保留四字节；payload 内的 AE/EE 不作为分隔符。无校验和意味着损坏数据偶然匹配起止字节时不能保证识别，后续语义分类是必要约束。断链应调用 `reset()` 丢弃残帧。
-
-窗帘提供开／关／停，逻辑方向通过逐通道校准映射到电机升／降／停。可选行程配置用于明确标注为估计的运动、位置及百分比；未知起点不猜百分比，停止键活动提示与按钮可用性分开，主动命令不受估计终态或灯色抑制。估计与 LED 联动已有书房 HAP／iPad Web 的限定现场证据，完整范围仍待验。书房两个方向及 STOP 已有限定验收证据，其他通道仍须独立校准。命令接纳或写出不等于设备已完成动作；灯光状态以新鲜实际反馈为准，未知、过期或断线时报告不可用。
-
-项目中的品牌全称统一为 `HopeBeauty`，代码与模块缩写使用 `hb`。原始 Control4 驱动标识、厂家资料路径、手册摘录和归档设计保留来源原文，解析器仍按原始驱动标识识别设备。
-
-现有书房、画室面板已归并为 Keypad 父设备，原生 App 按两列三行显示六格卡片；动作按既有子端点和目标权限开放，未配置或无权访问的格子保持占位禁用。
-
-配置管理员的房间目录包含所有已配置房间（包括空房间）与楼层；HTTP 和 WSS 使用同一快照投影。成员和不具备配置管理能力的用户只获得授权可见设备／面板所关联的目录，隐藏设备的目录标记不会扩大设备或控制授权。原生客户端在版本、启动身份或权限范围变化及重连时重取目录。
-
-自动化服务的自适应轮询在启动／恢复时完成全量查询，随后默认空闲 3 小时（可配置更长）；主动输出反馈及本机实际灯光写入立即触发快轮，安静后按 10→30→60 秒逐步回到空闲间隔。普通查询回复不触发加速。收到有效实体面板按键后，该总线的新周期查询延后 300 秒，后续按键重新计时；灯光写后的确认查询不等待这 300 秒；AD8 中间亮度的首次确认查询在渐变命令成功写出 6 秒后进行，0%／100% 的直接开关立即确认，主动反馈照常接收。按下到释放之间有最长 2 秒的查询接收保护，控制写入不受此保护限制。初始化、周期／写后及管理员手动查询在完整应答或超时前占用该总线，STOP 在总线释放后的发送机会保留优先级。间隔用于完整轮之间，轮内继续有界串行查询；R818 保留逐路查询，AD8 保留整模块查询。`refresh_policy` 统一规定间隔、轮内预算和观测余量，HTTP／HAP／场景使用同一物理有效期，原接收时间与年龄保持；真实故障立即降级，命令与因果链执行时限不随空闲周期延长。主动反馈能力未经核实的设备变化可能要等下轮查询才能发现。
-
-后台 LED 联动在完整查询轮后统一计算并按实际语义变化去重；相同物理值的过期／重确认不重发同色。逐端点 LED 指令仍经过原授权、租约与输出围栏；后台批次等待有界，直接面板、场景及窗帘／STOP 的即时控制不等待空闲轮询。
+完整私有工程、凭证和配对数据应保存在忽略的私有目录；`reference/` 是离线参考资料，不是运行配置。
