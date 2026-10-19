@@ -31,6 +31,12 @@ pub struct Accepted {
     pub operation: String,
     pub commands: Vec<u64>,
 }
+/// Both public entry points describe the policy used by the execution owner.
+pub(crate) fn retry_metadata() -> serde_json::Value {
+    let policy = core::Policy::default();
+    serde_json::json!({"max_rounds":policy.max_rounds,"delay_ms":policy.delay_ms,
+        "response_ms":policy.response_ms,"total_ms":policy.total_ms})
+}
 #[derive(Clone, Debug)]
 pub(crate) struct ReadNeed {
     pub device: DeviceId,

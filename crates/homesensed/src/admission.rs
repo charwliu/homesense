@@ -567,6 +567,7 @@ pub struct Admission {
     ttl: Duration,
     stop_requested: Arc<AtomicBool>,
     away_active:Arc<AtomicBool>,
+    away_terminal:tokio::sync::watch::Receiver<()>,
     generations: tokio::sync::watch::Receiver<Option<TaskGeneration>>,
     observation_invalidation: Arc<AtomicU64>,
 }
@@ -634,6 +635,7 @@ impl Admission {
         let worker_stop = stop_requested.clone();
         let away_active=Arc::new(AtomicBool::new(false));
         let worker_away_active=away_active.clone();
+        let (away_terminal_updates,away_terminal)=tokio::sync::watch::channel(());
         let observation_invalidation=Arc::new(AtomicU64::new(1));
         let worker_observation_invalidation=observation_invalidation.clone();
         std::thread::Builder::new()
@@ -990,6 +992,7 @@ impl Admission {
                                 use homesense_core::away_execution::{Owner,Cancel,Decision};
                                 let job:&mut crate::away_execution::Job=$job;
                                 let observation:&crate::away_execution::Observation=$observation;
+                                let was_active=job.engine.end().is_none();
                                 let now=millis(clock);let policy=arbiter.policy();
                                 let current=TaskGeneration{boot:worker_boot.clone(),epochs:policy.epochs};
                                 let owner=if job.generation.boot!=worker_boot || job.generation.epochs.configuration!=policy.epochs.configuration {Owner::Retired(Cancel::ConfigurationChanged)}
@@ -1017,6 +1020,7 @@ impl Admission {
                                 }
                                 let evidence=job.evidence(&store,observation).map_err(|_|WriteStatus::ServiceCommunicationFailure)?;
                                 job.update_view(&evidence,millis(clock)).map_err(|_|WriteStatus::ServiceCommunicationFailure)?;
+                                if was_active && job.engine.end().is_some() {away_terminal_updates.send_replace(());}
                                 Ok(accepted)
                             })()
                         }};
@@ -3146,6 +3150,7 @@ impl Admission {
             ttl: options.request_ttl,
             stop_requested,
             away_active,
+            away_terminal,
             generations,
             observation_invalidation,
             source_authorization:None,
@@ -3307,6 +3312,13 @@ impl Admission {
         let _ = self.sender.try_send(Message::Wake);
     }
     pub(crate) fn away_operations_active(&self)->bool {self.away_active.load(Ordering::Acquire)}
+    /// A wake contains no result or authority; readers must capture and
+    /// authorize their current runtime snapshot after every notification.
+    pub(crate) fn away_terminal_updates(&self)->tokio::sync::watch::Receiver<()> {
+        let mut updates=self.away_terminal.clone();
+        updates.borrow_and_update();
+        updates
+    }
     pub(crate) fn context(&self)->ExecutionContext {self.context}
     pub(crate) fn monotonic_ms(&self) -> u64 {
         millis(self.clock)

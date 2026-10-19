@@ -1,0 +1,89 @@
+{
+  "state": "qualified_and_published",
+  "configuration_revision": 39,
+  "program": "R33",
+  "runtime_sha256": "5dace9ab842cc211813e71f5f658be69cee783734964249bfd0b62bd5d751055",
+  "changes": [
+    "Shared executor retry metadata for independent and keypad Away acceptance",
+    "Wake current authorized state delivery when Away confirmation/failure becomes terminal",
+    "Explicit room whole-Off survives unchanged old mode after an external physical override"
+  ],
+  "preserved": [
+    "5s Away total limit and original failure assertions",
+    "300-7200s single-owner adaptive bus refresh",
+    "Seven R818 unsolicited-feedback settings and individual-channel status queries",
+    "Existing module/physical output scope, HAP identity and exposure, credential digests/roles/grants"
+  ],
+  "qualification": {
+    "Mac_workspace_passed": 1695,
+    "Mac_workspace_failed": 0,
+    "Mac_workspace_ignored": 0,
+    "strict_Clippy": "passed",
+    "Linux_library_passed": 692,
+    "Linux_HAP_passed": 3,
+    "private_cases_each_platform": 35,
+    "private_steps_each_platform": 154,
+    "new_room_whole_off_cases_each_platform": 3,
+    "new_room_whole_off_steps_each_platform": 9,
+    "actual_native_methods_by_name": 13,
+    "native_scene_presentation_operations": 7,
+    "same_module_batches_checked": 1200,
+    "same_module_response": {
+      "processing_delay_ms": [
+        3,
+        20
+      ],
+      "baud": 9600,
+      "serial": "8N1",
+      "continuous_write_per_module": 1,
+      "per_channel_extra_wait": false
+    },
+    "original_Linux_failure_ms": 5089.751,
+    "original_failure_limit_ms": 5000,
+    "original_retests_ms": {
+      "Mac": 3978.4389999999994,
+      "Linux": 4098.392
+    },
+    "exact_configuration_restore_platforms": [
+      "Mac",
+      "Linux"
+    ],
+    "maintenance_boundary_tests": 10,
+    "household_connections": 0,
+    "retained_attempts": [
+      "Original Linux terminal result exceeded strict5s",
+      "Mac loopback listener sandbox denial retried with loopback permission",
+      "Missing resident reference restored without changing assertions",
+      "Workspace-rebuilt Mac CLI blocked by digest gate; explicit final build restored exact qualified image; only unexecuted CLI suite continued",
+      "Mac exact recovery repeated on final pinned image; native methods reconciled by name"
+    ]
+  },
+  "publication": {
+    "cold_backup": true,
+    "external_recovery_guard_seconds": 240,
+    "two_readonly_checks": "passed",
+    "guard_removed_after_checks": true,
+    "active": true,
+    "unexpected_restarts": 0,
+    "fresh_physical_outputs": 96,
+    "queued_commands": 0,
+    "startup_actuator_commands": 0,
+    "startup_LED_commands": 99,
+    "HAP_identity_unchanged": true,
+    "credentials_unchanged": 3,
+    "credentials_migrated": 0,
+    "public_scenes": 121,
+    "keypads": 28,
+    "keys": 168,
+    "rooms": 27,
+    "floors": 3,
+    "App_build_unchanged": 27
+  },
+  "limits": [
+    "No new physical load/curtain acceptance performed",
+    "Synthetic9600 timing is not real half-duplex conflict proof",
+    "Original runtime semantics and complete Control4 handback remain separate open gates",
+    "Short readonly stability checks do not prove long-term unattended reliability"
+  ],
+  "private_configuration_secrets_and_household_addresses_omitted": true
+}
