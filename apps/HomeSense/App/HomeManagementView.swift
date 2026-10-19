@@ -170,6 +170,8 @@ struct HomeManagementView: View {
     }
 
     private var managing: Bool { home.interfaceMode == .management && home.canManage }
+    private var appVersion: String { Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?" }
+    private var appBuild: String { Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "?" }
     private var pageTitle: String {
         return page == .overview && !managing ? "家庭" : (page ?? .overview).rawValue
     }
@@ -235,6 +237,9 @@ struct HomeManagementView: View {
                 .font(.caption).foregroundStyle(.secondary)
             Text("楼层、房间、设备和场景共用服务端配置版本；修改需保存草稿、预览并发布。")
                 .font(.caption).foregroundStyle(.secondary)
+            Text("HomeSense \(appVersion) Build \(appBuild)")
+                .font(.caption).foregroundStyle(.secondary)
+                .accessibilityIdentifier("home.appBuild")
         }
     }
     private var overview: some View {
