@@ -68,3 +68,17 @@ fn presentation_requires_unique_enabled_source_exact_scope_same_room_and_confirm
         assert!(parse(&v).is_err(), "case{case}");
     }
 }
+
+#[test]
+fn public_action_and_internal_profile_share_household_or_unassigned_scope() {
+    let mut v=rules();
+    for row in v["scene_metadata"].as_array_mut().unwrap() {
+        row.as_object_mut().unwrap().remove("room");
+        row["scope"]=json!("household");
+    }
+    assert!(parse(&v).is_ok());
+    v["scene_metadata"][1]["scope"]=json!("unassigned");
+    assert!(parse(&v).is_err(),"public action and profile must move together");
+    v["scene_metadata"][0]["scope"]=json!("unassigned");
+    assert!(parse(&v).is_ok());
+}

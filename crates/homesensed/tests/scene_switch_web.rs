@@ -31,7 +31,7 @@ fn configuration() -> Vec<u8> {
 fn rules() -> Vec<u8> {
     let scenes=[("reading",100),("daily",60),("eco",17),("off",0)].map(|(id,level)|json!({"id":id,"enabled":true,"review_evidence":"synthetic reviewed scene","max_lateness_ms":1000,"steps":[{"source":"synthetic","offset_ms":60000,"device":"simulation:light","command":{"kind":"level","value":level,"ramp":false}}]}));
     serde_json::to_vec(&json!({"schema_version":1,"configuration_revision":1,"variables":[{"id":"selection","kind":"integer","lifetime":"persistent"}],"rules":[],"timed_scenes":scenes,
-        "scene_metadata":[{"id":"reading","name":"reading","room":"alpha"},{"id":"daily","name":"daily","room":"beta"},{"id":"eco","name":"eco","room":null}],
+        "scene_metadata":[{"id":"reading","name":"reading","room":"alpha"},{"id":"daily","name":"daily","room":"beta"},{"id":"eco","name":"eco","room":null,"scope":"household"}],
         "scene_switch_groups":[ {"id":"room","variable":"selection","review_evidence":"synthetic reviewed exclusion","members":[{"scene":"reading","value":1,"off_scene":"off"},{"scene":"daily","value":2,"off_scene":"off"},{"scene":"eco","value":3,"off_scene":"off"}],"reset_scenes":["off"]}]})).unwrap()
 }
 struct Wire;
@@ -240,6 +240,7 @@ async fn scene_stream_invalidates_stopped_selection_and_recovers_on_same_socket(
     assert_eq!(status, StatusCode::OK);
     assert_eq!(http["scenes"], initial["scenes"]);
     assert_eq!(initial["scenes"][0]["room"], json!({"id":"alpha","name":"Alpha","floor":"Upper"}));
+    assert_eq!(initial["scenes"][0]["scope"], "room");
     assert_eq!(initial["scenes"][0]["id"], "reading");
     assert!(initial["scenes"][0]["selected"].is_null());
     assert_eq!(initial["scenes"][0]["selection_state"], json!({"state":"unknown"}));
@@ -466,6 +467,8 @@ async fn web_selection_targets_preserve_scope_legacy_receipts_and_off_cancellati
                 };
                 assert!(scene.as_object().unwrap().contains_key("room"));
                 assert_eq!(scene["room"], expected);
+                let scope=match scene["id"].as_str().unwrap() {"reading"|"daily"=>"room","eco"=>"household",_=>"unassigned"};
+                assert_eq!(scene["scope"],scope);
                 if scene["switch_kind"] == "selection" {
                     assert_eq!(scene["selection_state"], json!({"state":"unknown"}));
                     assert_eq!(scene["can_control"], true);

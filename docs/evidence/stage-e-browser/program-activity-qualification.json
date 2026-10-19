@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-19",
+  "status": "software_qualified_not_deployed",
+  "capability": "Read-only activity proven by actual executed-program writes, full post-write feedback and continuing source authority",
+  "Mac_workspace_tests": 1628,
+  "strict_workspace_clippy": "passed",
+  "Linux_library_tests": 647,
+  "Linux_original_HAP_integration_tests": 3,
+  "actual_program_cycles": 19,
+  "actual_cycle_steps": 57,
+  "fixture_database_seed_writes": 0,
+  "isolated_loopback_only": true,
+  "qualified_Mac_CLI_sha256": "ecaaaaf1b3b5ea9b6ae2e6ef4e5d67fba0cb3716a5b259509af5fa80637bfffc",
+  "shared_simulation_runtime_heap_owned": true,
+  "original_stack_and_deadlines_unchanged": true,
+  "private_household_material_published": false,
+  "production_changed": false
+}

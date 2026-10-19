@@ -10,7 +10,7 @@ use homesense_core::rule::{Lifetime, ValueType};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Policy {
     pub scene: String,
@@ -19,12 +19,26 @@ pub struct Policy {
     pub active_value: FirstValue,
     pub activity_name: String,
     pub review_evidence: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub program_confirmation: Option<ProgramConfirmation>,
+}
+
+/// Source identity plus the complete reviewed positive component shared by
+/// every first-activation vector. Neither is sufficient on its own.
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProgramConfirmation {
+    pub active_conditions: Vec<crate::component_modes::Postcondition>,
+    pub known_values: Vec<FirstValue>,
+    pub timeout_ms: u64,
+    pub max_age_ms: u64,
+    pub review_evidence: String,
 }
 
 pub(crate) fn validate(
     policies: &[Policy],
     document: &Document,
-    _config: &Configuration,
+    config: &Configuration,
 ) -> Result<(), Error> {
     if policies.len() > 128 {
         return Err(invalid("component activity capacity exceeded"));
@@ -72,6 +86,61 @@ pub(crate) fn validate(
             return Err(invalid(
                 "component activity requires a unique reviewed physical component provider",
             ));
+        }
+        if let Some(program) = &p.program_confirmation {
+            let candidates = document.component_mode_confirmations.iter().filter(|c| {
+                c.basis == Basis::Physical
+                    && c.variable == p.variable
+                    && c.first_value == p.active_value
+                    && c.scenes.contains(&p.scene)
+            });
+            let mut common: Option<
+                std::collections::BTreeMap<String, crate::component_modes::Postcondition>,
+            > = None;
+            for candidate in candidates {
+                let positive = candidate
+                    .postconditions
+                    .iter()
+                    .filter(|c| c.on)
+                    .map(|c| (c.device.clone(), c.clone()))
+                    .collect::<std::collections::BTreeMap<_, _>>();
+                match &mut common {
+                    None => common = Some(positive),
+                    Some(common) => common.retain(|id, c| positive.get(id) == Some(c)),
+                }
+            }
+            let declared = program
+                .active_conditions
+                .iter()
+                .map(|c| (c.device.clone(), c.clone()))
+                .collect::<std::collections::BTreeMap<_, _>>();
+            let values = program.known_values.iter().collect::<BTreeSet<_>>();
+            if declared.is_empty()
+                || declared.len() > 32
+                || declared.len() != program.active_conditions.len()
+                || Some(&declared) != common.as_ref()
+                || program.timeout_ms == 0
+                || program.timeout_ms > 15_000
+                || program.max_age_ms == 0
+                || program.max_age_ms > config.refresh_policy().observation_max_age_ms()
+                || program.review_evidence.trim().is_empty()
+                || program.review_evidence.len() > 8192
+                || values.is_empty()
+                || values.len() > 64
+                || values.len() != program.known_values.len()
+                || !values.contains(&p.active_value)
+                || values.iter().any(|value| {
+                    !matches!(
+                        (variable.value_type, value),
+                        (ValueType::Bool, FirstValue::Bool(_))
+                            | (ValueType::Integer, FirstValue::Integer(_))
+                    )
+                })
+            {
+                return Err(invalid(
+                    "program activity needs a complete reviewed common component and typed outcomes",
+                ));
+            }
         }
     }
     Ok(())

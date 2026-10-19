@@ -269,6 +269,7 @@ pub(crate) async fn drive_with_panel_feeds<S: Read + Write + Send + 'static>(
         }
         let mut indicators=indicator_waves::Waves::default();
         let mut component_modes=crate::component_modes::Consumer::default();
+        let mut program_activity=crate::program_activity::Consumer::default();
         let mut key_completions=crate::keypad_completion::Consumer::default();
         let mut control_batches=crate::control_batch::Consumer::default();
         let mut background_led_phase:Option<background_led_phase::Phase>=None;
@@ -333,6 +334,7 @@ pub(crate) async fn drive_with_panel_feeds<S: Read + Write + Send + 'static>(
                 key_completions.tick(admission,receiver.controller(),guard.owner.feedback()).await?;
                 control_batches.tick(admission,receiver.controller(),guard.owner.feedback()).await?;
                 component_modes.tick(admission,receiver.controller(),document,guard.owner.feedback()).await?;
+                program_activity.tick(admission,receiver.controller(),document,guard.owner.feedback()).await?;
                 receiver.poll_causal(admission, document, guard.scenes, guard.owner.feedback(), max_age_ms, guard.calendar.as_deref(),causal.as_deref_mut()).await;
             }
             let after_control_ms=quantum_started.elapsed().as_millis();

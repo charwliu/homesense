@@ -334,7 +334,13 @@ pub struct SceneMetadata {
     pub name:String,
     #[serde(default)]
     pub room:Option<String>,
+    #[serde(default)]
+    pub scope:Option<SceneScope>,
 }
+/// Explicit display placement only; never changes execution or authorization.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all="snake_case")]
+pub enum SceneScope { Room, Household, Unassigned }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all="snake_case")]
 pub enum SceneExecutionKind { Immediate, Timed }
@@ -366,6 +372,7 @@ pub struct Document {
     pub scene_presentations: BTreeMap<String,crate::scene_presentation::Presentation>,
     /// Resolved from the same revision's room catalog; absent means unassigned.
     pub scene_rooms: BTreeMap<String,crate::Room>,
+    pub scene_scopes: BTreeMap<String,SceneScope>,
     pub variables: BTreeMap<String, Variable>,
     pub variable_migrations: BTreeMap<String, VariableMigration>,
     pub feedback_bindings: BTreeMap<String, FeedbackBinding>,
@@ -977,6 +984,13 @@ impl Document {
                     .ok_or_else(||invalid("scene room does not exist"))
             })
         }).collect::<Result<BTreeMap<_,_>,_>>()?;
+        let scene_scopes=input.scene_metadata.iter().map(|metadata| {
+            let scope=metadata.scope.unwrap_or(if metadata.room.is_some(){SceneScope::Room}else{SceneScope::Unassigned});
+            if (scope==SceneScope::Room)!=metadata.room.is_some() {
+                return Err(invalid("scene scope and room disagree"));
+            }
+            Ok((metadata.id.clone(),scope))
+        }).collect::<Result<BTreeMap<_,_>,_>>()?;
         let document=Self {
             away_off: input.away_off,
             scene_deactivations,
@@ -992,6 +1006,7 @@ impl Document {
             scene_component_activity: input.scene_component_activity.iter().map(|p|(p.scene.clone(),p.clone())).collect(),
             scene_metadata: input.scene_metadata.iter().map(|m|(m.id.clone(),m.name.clone())).collect(),
             scene_rooms,
+            scene_scopes,
             scene_presentations:input.scene_presentations.iter().map(|p|(p.scene.clone(),p.clone())).collect(),
             schedules,
             gestures,

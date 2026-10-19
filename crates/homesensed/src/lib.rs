@@ -206,6 +206,7 @@ mod query_response;
 mod postwrite_confirmation;
 
 mod component_modes;
+mod program_activity;
 mod control_batch;
 mod keypad_completion;
 
