@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-19",
+  "configuration_revision": 36,
+  "status": "published_verified",
+  "scope": "Shared keypad scene actions, three-group composite toggle, and generated scene display names aligned with keypad labels",
+  "display_names_renamed": 45,
+  "stable_scene_identifiers_preserved": true,
+  "independent_reading_names_disambiguated_by_side": true,
+  "qualified_backend_sha256": "17036286fad23b0ff7fdf130864a2efe16f92551c33542fbdb045c157e3a6bf2",
+  "qualification": {
+    "existing_Mac_workspace_tests": 1607,
+    "existing_Linux_library_tests": 628,
+    "existing_native_client_methods": 13,
+    "Linux_original_fixture_steps": 13,
+    "Linux_WSS_delta_merge_steps": 13
+  },
+  "publication_verification": {
+    "exact_export_matches_candidate": true,
+    "active_scene_catalog_entries": 129,
+    "feedback_slots_confirmed": 96,
+    "startup_capture_feedback_slots": 96,
+    "startup_TX_frames": 163,
+    "current_boot_LED_journal_entries_written": 86,
+    "lighting_motor_parameter_controls_sent": 0,
+    "credential_digests_preserved": true,
+    "HAP_identity_preserved": true,
+    "service_restarts": 0,
+    "cold_backup_integrity_verified": true,
+    "independent_recovery_guard_armed_then_disarmed": true
+  },
+  "field_acceptance": "pending",
+  "larger_unqualified_worktree_not_deployed": true
+}
