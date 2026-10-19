@@ -49,6 +49,8 @@ pub(crate) async fn capture(
             writes.iter().any(|(id, value)| {
                 value.is_some() && g.members.iter().any(|m| m.scene == *id)
                     || *value == Some(true) && g.reset_scenes.contains(id)
+                    || value.is_none() && document.scene_presentations.get(id).is_some_and(|p|
+                        g.members.iter().any(|m| m.scene == p.selection_scene))
             })
         })
         .map(|g| g.variable.clone())
@@ -178,7 +180,17 @@ pub(crate) fn compose(
             if let Some(activate)=value {
                 roots.push(Node{source:format!("manual-scene/{id}"),action:Action::Scene{id:id.clone(),activate:*activate}});
             }else{
-                roots.extend(presentation.toggle_nodes(document).map_err(|e|e.to_string())?);
+                // The public state may be a current physical/component
+                // projection while historical intent is still unknown. Use
+                // that same snapshot, retained as a rich admission read,
+                // rather than evaluating the old stored variable again.
+                let group=document.scene_switch_groups.iter().find(|g|
+                    g.members.iter().any(|m|m.scene==presentation.selection_scene))
+                    .ok_or("presentation selection group missing")?;
+                let selected=scene_switches::states_in_groups(std::slice::from_ref(group),&snapshot)?;
+                let activate=selected[&presentation.selection_scene]!=Some(true);
+                roots.push(Node{source:format!("presentation/{}/{}",presentation.scene,if activate{"on"}else{"off"}),
+                    action:Action::Scene{id:id.clone(),activate}});
             }
         }else if document.immediate_scenes.contains_key(id) && *value == Some(true) {
             roots.push(Node {
