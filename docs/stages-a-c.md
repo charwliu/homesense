@@ -369,8 +369,8 @@ a22 Rust 窗帘现场结果：书房 22/2 经 motor_commission → Admission →
 
 连接退出修复已构建并部署为 homesensed-3s-drain（SHA256 ecd2de4df851355fca54bb897836a62d3c2f0e9029153acf80e167bc39dc326b）。现场先开再关，各 3 秒后 STOP，用户分别确认中途停住；两轮已归档 pcap，排空字节均 0，不能据此声称现场覆盖了未读反馈场景。打开抓包仍见网关在 FIN 后 RST，但未见本机 RST；未证明此前无动作根因。当前完整工作区 228 项通过、0 失败、0 忽略。
 
-A5 三份独立导出已补齐：`homesense-import PROJECT --config-plan PLAN --export-dir NEW_DIRECTORY` 生成 configuration.json、coverage-report.json、confirmation-checklist.json；拒绝已有目录，不覆盖历史证据。以原 Charlies250801.c4p 和书房灯光计划实测，136 对象、68 场景、215 程序、3767 引用保留，选中设备全部禁用，重复导出失败且原文件哈希未变。输出见 deployment/nanopc/evidence/20261011-a22-import-bundle/。导入 crate 回归通过；此变更发生在此前 228 项工作区回归之后。
+A5 三份独立导出已补齐：`homesense-import PROJECT --config-plan PLAN --export-dir NEW_DIRECTORY` 生成 configuration.json、coverage-report.json、confirmation-checklist.json；拒绝已有目录，不覆盖历史证据。以原 Charlies250801.c4p 和书房灯光计划实测，136 对象、68 场景、215 程序、3767 引用保留，选中设备全部禁用，重复导出失败且原文件哈希未变。小型输出见 deployment/nanopc/evidence/20261011-a22-import-bundle/；大型 coverage-report.json 已移至 Git 忽略的 deployment/nanopc/private/evidence/20261011-a22-import-bundle/，仓库保留其 SHA-256 审计摘要。导入 crate 回归通过；此变更发生在此前 228 项工作区回归之后。
 
 A5 导出自动回归：CLI 使用独立 XML fixture 生成三份 JSON，检查禁用配置、源指纹一致、选中列表、敏感字段未输出，并确认重复导出拒绝且原文件字节不变。导入 crate 共 10 项通过。审计仍发现第 28 节的“按房间筛选阻塞项”尚未有明确筛选入口及验收，不能仅以报告已有 room 字段视作满足。
 
-A5 房间阻塞项入口已实现：`homesense-import PROJECT --room 书房` 输出房间设备、以 owner 或 target 命中的完整未翻译程序树和场景；无法归属房间的程序／场景及全部未解析引用保留为全局人工复核项，未知房间报错。原始项目书房视图已导出至 study-blockers.json；测试覆盖跨房间目标、未知归属、不存在房间及敏感信息未输出，导入 crate 共 11 项通过。此视图不执行场景，也不把禁用配置自动转为启用。
+A5 房间阻塞项入口已实现：`homesense-import PROJECT --room 书房` 输出房间设备、以 owner 或 target 命中的完整未翻译程序树和场景；无法归属房间的程序／场景及全部未解析引用保留为全局人工复核项，未知房间报错。原始项目书房视图 study-blockers.json 已移至上述本机私有目录，仓库保留其 SHA-256 审计摘要；测试覆盖跨房间目标、未知归属、不存在房间及敏感信息未输出，导入 crate 共 11 项通过。此视图不执行场景，也不把禁用配置自动转为启用。
