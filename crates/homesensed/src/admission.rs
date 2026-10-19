@@ -188,7 +188,7 @@ enum Submission {
         feedback: Box<crate::feedback::RuleLease>,
         reads: BTreeMap<String, homesense_storage::scene_observation::Snapshot>,
         output_fence:Option<crate::indicator_outputs::Fence>,
-        power_proof:Option<crate::indicator_sync::PowerProof>,
+        power_proof:Option<Box<crate::indicator_sync::PowerProof>>,
     },
     Automation {
         phase:Option<Vec<homesense_storage::scene_run::StepLink>>,
@@ -3807,7 +3807,7 @@ impl Admission {
         output_fence:Option<crate::indicator_outputs::Fence>,
         power_proof:Option<crate::indicator_sync::PowerProof>,
     ) -> Result<Vec<u64>,WriteStatus> {
-        self.submit_scoped(Submission::Indicator {batch,variables,feedback:Box::new(feedback),reads,output_fence,power_proof},Some(SubmissionScope::Generation(generation))).await
+        self.submit_scoped(Submission::Indicator {batch,variables,feedback:Box::new(feedback),reads,output_fence,power_proof:power_proof.map(Box::new)},Some(SubmissionScope::Generation(generation))).await
     }
     /// Accept named manual scenes together; reserve scheduler slots first.
     /// Dropping an in-flight request closes admission because acceptance may

@@ -22,6 +22,7 @@ pub(crate) enum Evaluation {Unknown,NotRequired,Desired(bool)}
 pub(crate) struct PowerProof {
     link: String,
     lights: Vec<homesense_core::DeviceId>,
+    lights_off: Vec<homesense_core::DeviceId>,
     leds: Vec<homesense_core::DeviceId>,
     policy: homesense_config::indicator_links::PowerPolicy,
     desired: bool,
@@ -30,7 +31,7 @@ pub(crate) struct PowerProof {
 impl PowerProof {
     pub(crate) fn matches(&self, link: &homesense_config::indicator_links::Link,
         device: &homesense_core::DeviceId, on: bool, lease: &crate::feedback::RuleLease) -> bool {
-        self.link == link.id && self.lights == link.lights && self.policy == link.power_policy
+        self.link == link.id && self.lights == link.lights && self.lights_off == link.lights_off && self.policy == link.power_policy
             && self.leds.contains(device) && self.leds.iter().all(|id| link.leds.contains(id))
             && self.desired == on && lease.covers(&self.lease)
     }
@@ -218,8 +219,10 @@ impl Synchronizer {
         let mut lease = None;
         let mut desired = None;
         let mut known_input = false;
-        let all_on = Condition::All(link.lights.iter().map(|id| Condition::Equal(
-            Expr::DeviceOn(id.clone()), Expr::Literal(Value::Bool(true)))).collect());
+        let matches_power = Condition::All(link.lights.iter().map(|id| {
+            Condition::Equal(Expr::DeviceOn(id.clone()),
+                Expr::Literal(Value::Bool(!link.lights_off.contains(id))))
+        }).collect());
         let known = Condition::All(link.lights.iter().map(|id|
             Condition::Not(Box::new(Condition::Unknown(Expr::DeviceOn(id.clone()))))).collect());
         let writes = |on| link.leds.iter().map(|id| Node {
@@ -228,9 +231,9 @@ impl Synchronizer {
         }).collect();
         let inner = match link.power_policy {
             PowerPolicy::FollowAllOn => Node { source:format!("indicator:{}:all",link.id),
-                action:Action::If { condition:all_on, then_actions:writes(true), else_actions:writes(false) } },
+                action:Action::If { condition:matches_power, then_actions:writes(true), else_actions:writes(false) } },
             PowerPolicy::ClearIfAnyOff => Node { source:format!("indicator:{}:negative",link.id),
-                action:Action::If { condition:Condition::Not(Box::new(all_on)), then_actions:writes(false), else_actions:vec![] } },
+                action:Action::If { condition:Condition::Not(Box::new(matches_power)), then_actions:writes(false), else_actions:vec![] } },
             PowerPolicy::LegacyOff => return Ok(()),
         };
         let flag = format!("indicator:{}:known",link.id);
@@ -257,7 +260,7 @@ impl Synchronizer {
             self.evaluations.insert((link.id.clone(),link.leds.clone()),if known_input {Evaluation::NotRequired}else{Evaluation::Unknown});
             return Ok(());
         };
-        prepared.attach_indicator_power(PowerProof { link:link.id.clone(), lights:link.lights.clone(),
+        prepared.attach_indicator_power(PowerProof { link:link.id.clone(), lights:link.lights.clone(), lights_off:link.lights_off.clone(),
             leds:link.leds.clone(), policy:link.power_policy, desired,
             lease:lease.as_ref().ok_or("power indicator lease missing")?.clone() });
         self.submit_physical(admission,controller,link,feedback,generation,prepared,

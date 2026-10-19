@@ -12,6 +12,10 @@ pub struct Link {
     pub review_evidence: Option<String>,
     #[serde(deserialize_with = "device_ids")]
     pub lights: Vec<DeviceId>,
+    /// Reviewed subset required Off; remaining lights must be On. Physical
+    /// policies retain at least one On input and cannot add an unlisted read.
+    #[serde(default, deserialize_with = "device_ids")]
+    pub lights_off: Vec<DeviceId>,
     #[serde(deserialize_with = "device_ids")]
     pub leds: Vec<DeviceId>,
     pub scene: Option<String>,
@@ -48,6 +52,10 @@ pub(crate) fn validate(
             || link.leds.is_empty()
             || link.leds.len() > 64
             || link.lights.iter().collect::<BTreeSet<_>>().len() != link.lights.len()
+            || link.lights_off.iter().collect::<BTreeSet<_>>().len() != link.lights_off.len()
+            || link.lights_off.len() >= link.lights.len()
+            || link.lights_off.iter().any(|id| !link.lights.contains(id))
+            || (!link.lights_off.is_empty() && link.power_policy == PowerPolicy::LegacyOff)
             || link.leds.iter().collect::<BTreeSet<_>>().len() != link.leds.len()
         {
             return Err(invalid("invalid indicator link"));
