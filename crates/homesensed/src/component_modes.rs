@@ -536,6 +536,18 @@ impl Owner {
     pub(crate) fn capacity(&self) -> bool {
         self.pending.len() < 64 && self.next < u64::MAX - 64
     }
+    /// Continuing predicates of a still-owned physical component, for a
+    /// read-only handoff. Logical labels and pending writes are excluded.
+    pub(crate) fn activity_conditions(&self,store:&Store,name:&str,generation:&TaskGeneration,now:u64,authorized:impl Fn(Uuid)->bool)->Result<Option<(Vec<homesense_config::component_modes::Postcondition>,u64)>,W>{
+        for r in self.confirmed.values(){
+            if r.view.generation==*generation && now<r.deadline && !self.record_held(r)
+                && r.updates.iter().any(|u|u.name==name) && authorized(r.controller)
+                && r.source.as_ref().is_none_or(|s|s.valid_for(r.controller,generation.epochs.configuration))
+                && Self::owned(store,r)? {
+                return Ok(Some((r.view.policies.iter().filter(|p|p.variable==name).flat_map(|p|p.postconditions.clone()).collect(),r.deadline)));
+            }
+        }Ok(None)
+    }
     pub(crate) fn written(&mut self, id: u64, at: u64) {
         for record in self.pending.values_mut() {
             if record.tickets.iter().any(|c| c.id == id) {

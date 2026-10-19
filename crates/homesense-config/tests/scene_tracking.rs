@@ -130,3 +130,28 @@ fn scene_room_metadata_is_optional_and_resolves_only_same_revision_rooms() {
     input["configuration_revision"] = json!(2);
     assert!(Document::parse(&serde_json::to_vec(&input).unwrap(), &config).is_err());
 }
+
+#[test]
+fn household_scope_is_explicit_and_cannot_also_have_a_room() {
+    use homesense_config::rule_document::SceneScope;
+    let mut input=rules();
+    assert_eq!(parse(&input).unwrap().scene_scopes["scene"],SceneScope::Unassigned);
+    input["scene_metadata"][0]["scope"]=json!("household");
+    assert_eq!(parse(&input).unwrap().scene_scopes["scene"],SceneScope::Household);
+    input["scene_metadata"][0]["scope"]=json!("unassigned");
+    assert_eq!(parse(&input).unwrap().scene_scopes["scene"],SceneScope::Unassigned);
+    for scope in [json!("room"),json!("guess"),json!(true)] {
+        input["scene_metadata"][0]["scope"]=scope;
+        assert!(parse(&input).is_err());
+    }
+    let mut configuration:Value=serde_json::from_slice(include_bytes!("../../../config/simulation.json")).unwrap();
+    configuration["rooms"]=json!([{"id":"alpha","name":"Alpha"}]);
+    let config=Configuration::parse(&serde_json::to_vec(&configuration).unwrap(),ExecutionContext::Simulation).unwrap();
+    input["scene_metadata"][0]["room"]=json!("alpha");
+    for scope in ["household","unassigned"] {
+        input["scene_metadata"][0]["scope"]=json!(scope);
+        assert!(Document::parse(&serde_json::to_vec(&input).unwrap(),&config).is_err());
+    }
+    input["scene_metadata"][0]["scope"]=json!("room");
+    assert_eq!(Document::parse(&serde_json::to_vec(&input).unwrap(),&config).unwrap().scene_scopes["scene"],SceneScope::Room);
+}

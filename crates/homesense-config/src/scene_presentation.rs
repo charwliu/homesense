@@ -81,6 +81,8 @@ pub(crate) fn validate(
             || doc.scene_presentations.contains_key(&p.selection_scene)
             || doc.disabled_immediate_scenes.contains(&p.scene)
             || doc.scene_rooms.get(&p.scene) != doc.scene_rooms.get(&p.selection_scene)
+            || doc.scene_scopes.get(&p.scene).copied().unwrap_or(crate::rule_document::SceneScope::Unassigned)
+                != doc.scene_scopes.get(&p.selection_scene).copied().unwrap_or(crate::rule_document::SceneScope::Unassigned)
         {
             return Err(invalid("invalid, chained or cross-room scene presentation"));
         }

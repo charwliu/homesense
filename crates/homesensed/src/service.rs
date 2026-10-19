@@ -453,7 +453,10 @@ async fn serve_automation_simulation_options(
     )
     .await?;
     let daily_backup=crate::daily_backup::Monitor::default();
-    let result = async {
+    // The shared simulation owns HAP, management and nested automation
+    // futures. Its backup supervisor should retain a heap handle, rather than
+    // embedding the complete runtime in every calling task's stack frame.
+    let result = Box::pin(async {
         let mut runtime = crate::automation_runtime::AutomationRuntime::load(
             admission.clone(),
             controller,
@@ -611,7 +614,7 @@ async fn serve_automation_simulation_options(
             }
         }
         Ok(())
-    };
+    });
     let result=crate::daily_backup::supervise_monitored(directory.join("automation-simulation.sqlite"),ExecutionContext::Simulation,result,daily_backup.clone()).await;
     admission.stop_now();
     let _ = admission.shutdown().await;

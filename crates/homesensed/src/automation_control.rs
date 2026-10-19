@@ -98,6 +98,7 @@ pub enum Reply {
 #[derive(Debug, PartialEq, Eq)]
 pub struct SceneCatalogEntry {
     pub room: Option<homesense_config::Room>,
+    pub scope: homesense_config::rule_document::SceneScope,
     pub execution_kind: homesense_config::rule_document::SceneExecutionKind,
     pub action_gate: crate::gateway_runtime::ActionGate,
     pub tracking: Option<crate::scene_tracking::Projection>,
@@ -869,7 +870,8 @@ impl Receiver {
                             };
                             let last_run=histories.remove(&id).flatten();
                             let room=document.scene_rooms.get(&id).cloned();
-                            entries.insert(id,SceneCatalogEntry{room,execution_kind,action_gate:crate::gateway_runtime::ActionGate{available,required_gateways:views},tracking,activity,last_run});
+                            let scope=document.scene_scopes.get(&id).copied().unwrap_or(homesense_config::rule_document::SceneScope::Unassigned);
+                            entries.insert(id,SceneCatalogEntry{room,scope,execution_kind,action_gate:crate::gateway_runtime::ActionGate{available,required_gateways:views},tracking,activity,last_run});
                             if activities.len()==32 {settle_catalog_activities(admission,controller,&self.generation,&mut activities,&mut entries).await?;}
                         }
                         settle_catalog_activities(admission,controller,&self.generation,&mut activities,&mut entries).await?;

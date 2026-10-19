@@ -225,6 +225,15 @@ pub async fn read(
     feedback: &Feedback,
 ) -> Result<Option<Projection>, String> {
     if let Some(policy) = document.scene_component_activity.get(id).filter(|p| p.enabled) {
+        if policy.program_confirmation.is_some()
+            && let Some(view)=admission.program_activity_read_view(controller,generation.clone(),id.into()).await.map_err(|e|format!("program activity view: {e:?}"))? {
+            let proof=if let Some(view)=view {
+                let bundle=admission.automation_bundle(controller,generation.clone()).await.map_err(|e|format!("program bundle: {e:?}"))?;
+                crate::program_activity::Proof::prepare(&view,&bundle.configuration,feedback,admission.monotonic_ms()).ok()
+            }else{None};
+            let(activity,valid_until_ms)=admission.program_activity(controller,generation.clone(),id.into(),proof).await.map_err(|e|format!("program activity: {e:?}"))?.unwrap_or((SceneActivity::Unknown,None));
+            return Ok(Some(Projection{activity,activity_source:"confirmed_program",scene:id.into(),display_name:document.scene_metadata.get(id).cloned(),activity_name:policy.activity_name.clone(),boot:admission.boot_id().into(),revision:document.revision,members:vec![],action_available:document.scene_action_available(id),activity_writable:false,valid_until_ms}));
+        }
         let views = admission.component_mode_views(controller, generation.clone()).await
             .map_err(|e| format!("component activity views: {e:?}"))?;
         let bundle = admission.automation_bundle(controller, generation.clone()).await

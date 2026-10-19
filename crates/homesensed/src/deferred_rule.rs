@@ -228,6 +228,8 @@ async fn execute_entry_classified(caller:Caller<'_>,entry:Entry<'_>,chain:&mut C
     };
     let requested=match &entry{Entry::Scenes(writes)=>writes.iter().filter(|(id,on)|*on==Some(true)||document.scene_presentations.contains_key(id)).map(|(id,_)|id.clone()).collect::<Vec<_>>(),_=>vec![]};
     let intents=planned.plan.commands.iter().map(|c|Intent{device:c.device.clone(),command:c.command}).collect::<Vec<_>>();
+    let activity_scenes=match &entry{Entry::Scenes(writes)=>writes.iter().filter(|(id,_)|document.immediate_scenes.contains_key(id)).map(|(id,_)|id.clone()).collect::<Vec<_>>(),_=>vec![]};
+    let program_activity=crate::program_activity::Input::capture(&document,&activity_scenes,&initial_snapshot,&planned.plan.variable_reads).map(Box::new);
     let mode_confirmation=if requested.is_empty(){None}else{crate::component_modes::Prepared::capture(&document,&bundle.configuration,&requested,&initial_snapshot,&planned.plan.variable_reads,&planned.plan.variables,&updates,&intents,feedback,admission.monotonic_ms()).map_err(ExecutionFailure::RejectedBeforeAcceptance)?};
     if let Some(mode)=&mode_confirmation {let deferred=mode.variables();condition_reads.extend(mode.reads());updates.retain(|u|!deferred.contains(&u.name));changed_variables.retain(|name|!deferred.contains(name));if let Some(baseline)=mode.baseline(){lease=Some(match lease {Some(original)=>original.merge_physical(baseline).map_err(ExecutionFailure::RejectedBeforeAcceptance)?,None=>baseline.clone()});}}
     let starts = invocations
@@ -277,7 +279,7 @@ async fn execute_entry_classified(caller:Caller<'_>,entry:Entry<'_>,chain:&mut C
     }
     let mut guard = Guard(admission.clone(), false);
     let accepted = match admission
-        .submit_deferred_rule_for_entry(generation, payload, lease, Some(command_sources),crate::admission::RuleEntry{deadline:Some(chain.deadline_ms()),admit_before,selection_reads:manual.map(|m|m.selection_reads),condition_reads,deactivated_scenes,mode_confirmation:mode_confirmation.map(Box::new)})
+        .submit_deferred_rule_for_entry(generation, payload, lease, Some(command_sources),crate::admission::RuleEntry{deadline:Some(chain.deadline_ms()),admit_before,selection_reads:manual.map(|m|m.selection_reads),condition_reads,deactivated_scenes,mode_confirmation:mode_confirmation.map(Box::new),program_activity})
         .await
     {
         Ok(v) => v,

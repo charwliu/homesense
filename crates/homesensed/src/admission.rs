@@ -165,12 +165,14 @@ pub struct AcceptedDeferred {
 #[derive(Default)]
 pub(crate) struct RuleEntry {
     pub mode_confirmation:Option<Box<crate::component_modes::Prepared>>,
+    pub program_activity:Option<Box<crate::program_activity::Input>>,
     pub deadline:Option<u64>,pub admit_before:Option<u64>,
     pub selection_reads:Option<BTreeMap<String,homesense_storage::scene_observation::Snapshot>>,
     pub condition_reads:Vec<homesense_storage::variables::ReadCheck>,
     pub deactivated_scenes:std::collections::BTreeSet<String>,
 }
 struct RuleEntryReads {
+    program_activity:Option<Box<crate::program_activity::Input>>,
     mode_confirmation:Option<Box<crate::component_modes::Prepared>>,
     deactivated_scenes:std::collections::BTreeSet<String>,
     selection:Option<BTreeMap<String,homesense_storage::scene_observation::Snapshot>>,
@@ -506,6 +508,10 @@ enum Message {
     ControlBatchViews(Uuid,TaskGeneration,oneshot::Sender<Result<Vec<crate::control_batch::View>,WriteStatus>>),
     ControlBatchProof(Uuid,crate::control_batch::Proof,oneshot::Sender<Result<(),WriteStatus>>),
     ComponentModeViews(Uuid,TaskGeneration,oneshot::Sender<Result<Vec<crate::component_modes::View>,WriteStatus>>),
+    ProgramActivityViews(Uuid,TaskGeneration,oneshot::Sender<Result<Vec<crate::program_activity::View>,WriteStatus>>),
+    ProgramActivityReadView(Uuid,TaskGeneration,String,oneshot::Sender<Result<Option<Option<crate::program_activity::View>>,WriteStatus>>),
+    ProgramActivityProof(Uuid,crate::program_activity::Proof,oneshot::Sender<Result<bool,WriteStatus>>),
+    ProgramActivity(Uuid,TaskGeneration,String,Option<crate::program_activity::Proof>,oneshot::Sender<Result<crate::program_activity::Activity,WriteStatus>>),
     ComponentModeProof(Uuid,crate::component_modes::Proof,oneshot::Sender<Result<bool,WriteStatus>>),
     ComponentActivity(Uuid,TaskGeneration,String,Option<crate::component_modes::Proof>,oneshot::Sender<Result<(crate::scene_activity::SceneActivity,Option<u64>),WriteStatus>>),
     CaptureKeyCompletion(Uuid,TaskGeneration,crate::keypad_actions::Request,crate::source_auth::Source,oneshot::Sender<Result<Arc<crate::keypad_completion::AuthorizedCapture>,WriteStatus>>),
@@ -674,13 +680,15 @@ impl Admission {
                     let durable_configuration = store.active().map_err(|e| e.to_string())?.ok_or("active configuration required")?;
                     let mut component_modes=crate::component_modes::Owner::default();
                     let mut control_batches=crate::control_batch::Owner::default();
+                    let mut program_activity=crate::program_activity::Owner::default();
                     if let Some(document)=store.active_bundle(options.context).map_err(|e|e.to_string())?.and_then(|b|b.automation){
                         component_modes.synchronize(&mut store,&configuration,&document,&TaskGeneration{boot:worker_boot.clone(),epochs},millis(clock)).map_err(|e|format!("component boot reset: {e:?}"))?;
                         control_batches.configure(Some(&document));
+                        program_activity.configure(&document,&configuration);
                     }
-                    Ok((lease, store, configuration, durable_configuration, arbiter,component_modes,control_batches))
+                    Ok((lease, store, configuration, durable_configuration, arbiter,component_modes,control_batches,program_activity))
                 };
-                let (lease, mut store, mut configuration, mut durable_configuration, mut arbiter,mut component_modes,mut control_batches) = match initialize() {
+                let (lease, mut store, mut configuration, mut durable_configuration, mut arbiter,mut component_modes,mut control_batches,mut program_activity) = match initialize() {
                     Ok(v) => {
                         let _ = started.send(Ok(()));
                         v
@@ -814,12 +822,13 @@ impl Admission {
                     if let Some(g)=&gateways {for source in keypad_origins.sources(){if let Some(origin)=source.keypad()
                         && g.wire_for(&configuration,&origin.endpoint).is_err(){origin.invalidate();}}}
                     if let Some(generation)=&mode_generation && !component_modes.matches_scope(generation){
-                        let reset=(||{let document=store.active_bundle(options.context).map_err(|_|WriteStatus::ServiceCommunicationFailure)?.and_then(|b|b.automation);if let Some(document)=document{component_modes.synchronize(&mut store,&configuration,&document,generation,millis(clock))?;}else{component_modes.empty_scope(generation.clone());}Ok::<_,WriteStatus>(())})();
+                        let reset=(||{let document=store.active_bundle(options.context).map_err(|_|WriteStatus::ServiceCommunicationFailure)?.and_then(|b|b.automation);if let Some(document)=document{program_activity.configure(&document,&configuration);component_modes.synchronize(&mut store,&configuration,&document,generation,millis(clock))?;}else{component_modes.empty_scope(generation.clone());}Ok::<_,WriteStatus>(())})();
                         if reset.is_err(){failed=true;audited_transport_failure=false;let _=arbiter.storage_failed();}
                     }
                     if key_completions.audit(&store,mode_generation.as_ref(),&manual_versions,|id|authorize(id),|wire|gateways.as_ref().is_some_and(|g|g.table.ready(wire)),millis(clock)).is_err(){failed=true;audited_transport_failure=false;let _=arbiter.storage_failed();}
                     component_modes.set_completion_holds(key_completions.holds());
                     if component_modes.audit(&mut store,mode_generation.as_ref(),millis(clock),&|id|authorize(id),&manual_versions,&|wire|gateways.as_ref().is_some_and(|g|g.table.ready(wire))).is_err(){failed=true;audited_transport_failure=false;let _=arbiter.storage_failed();}
+                    if program_activity.audit(&store,mode_generation.as_ref(),&manual_versions,|id|authorize(id),|wire|gateways.as_ref().is_some_and(|g|g.table.ready(wire)),millis(clock)).is_err(){failed=true;audited_transport_failure=false;let _=arbiter.storage_failed();}
                     if control_batches.audit(&store,mode_generation.as_ref(),millis(clock),|id|authorize(id),&manual_versions).is_err(){failed=true;audited_transport_failure=false;let _=arbiter.storage_failed();}
                     for (reason, ids) in control_batches.invalidated_leds() {
                         if failed { break; }
@@ -1019,6 +1028,18 @@ impl Admission {
                         },
                         Message::ControlBatchProof(controller,proof,reply)=>{
                             let result=if failed||!authorize(controller){Err(WriteStatus::ResourceBusy)}else{control_batches.apply(proof,observer_boot,millis(clock))};let _=reply.send(result);
+                        },
+                        Message::ProgramActivityViews(controller,generation,reply)=>{
+                            let result=if failed||!authorize(controller)||mode_generation.as_ref()!=Some(&generation){Err(WriteStatus::ResourceBusy)}else{program_activity.views(&store)};let _=reply.send(result);
+                        },
+                        Message::ProgramActivityReadView(controller,generation,scene,reply)=>{
+                            let result=if failed||!authorize(controller)||mode_generation.as_ref()!=Some(&generation){Err(WriteStatus::ResourceBusy)}else{program_activity.read_view(&store,&scene)};let _=reply.send(result);
+                        },
+                        Message::ProgramActivityProof(controller,proof,reply)=>{
+                            let result=if failed||!authorize(controller)||mode_generation.as_ref()!=Some(&proof.generation){Err(WriteStatus::ResourceBusy)}else{program_activity.apply(&store,&configuration,proof,millis(clock))};let _=reply.send(result);
+                        },
+                        Message::ProgramActivity(controller,generation,scene,proof,reply)=>{
+                            let result=if failed||!authorize(controller)||mode_generation.as_ref()!=Some(&generation){Err(WriteStatus::ResourceBusy)}else{program_activity.activity(&store,&scene,proof,millis(clock))};let _=reply.send(result);
                         },
                         Message::ComponentModeViews(controller,generation,reply)=>{
                             let result=(||{
@@ -2309,6 +2330,7 @@ impl Admission {
                                 // The transmitter enforces the short wire lease. Retain
                                 // its original finite obligation bound until a definite
                                 // byte-progress/zero-byte result is durably recorded.
+                                program_activity.dispatched(&command);
                                 write_members.insert(command.id,obligation_deadline);
                                 in_flight=write_members.keys().next().copied();
                                 write_deadline=write_members.values().copied().min();
@@ -2375,6 +2397,7 @@ impl Admission {
                                 if failed||!write_members.contains_key(&id){return Err(WriteStatus::ServiceCommunicationFailure);}
                                 store.transition_command(&worker_boot,id,Status::Writing,Status::Failed,millis(clock)).map_err(|_|WriteStatus::ServiceCommunicationFailure)?;
                                 arbiter.cancel_selected_before_write(id).map_err(|_|WriteStatus::ServiceCommunicationFailure)?;
+                                program_activity.unsent(id);
                                 write_members.remove(&id);in_flight_led.remove(&id);
                                 in_flight=write_members.keys().next().copied();write_deadline=write_members.values().copied().min();Ok(())
                             })();if result.is_err(){failed=true;audited_transport_failure=false;let _=arbiter.storage_failed();}let _=reply.send(result);
@@ -2408,6 +2431,7 @@ impl Admission {
                                         }
                                         curtains.written(id,written_ms);
                                         component_modes.written(id,written_ms);
+                                        program_activity.written(id,written_ms);
                                         control_batches.written(id,written_ms);
                                         away_executions.written(id,written_ms);
                                         if let Some((device,color,epochs))=in_flight_led.remove(&id) {
@@ -2460,7 +2484,7 @@ impl Admission {
                                 let mut selection_checks = vec![];
                                 let mut command_sources = None;
                                 let mut phase_links=None;let mut phase_ordinals=vec![];
-                                let mut mode_confirmation=None;
+                                let mut mode_confirmation=None;let mut program_input=None;
                                 let software_sample = matches!(&*submission, Submission::Automation { software_sample: true, .. });
                                 if request_source.as_ref().is_some_and(|source|!source.valid()) {return Err(WriteStatus::InsufficientPrivileges);}
                                 if !keypad_origins.permits(request_source.as_ref().and_then(|source|source.keypad()),configuration.revision()){return Err(WriteStatus::InvalidValueInRequest);}
@@ -2500,6 +2524,7 @@ impl Admission {
                                         command_sources = sources;
                                         if let Some(reads)=entry_reads {
                                             mode_confirmation=reads.mode_confirmation;
+                                            program_input=reads.program_activity;
                                             if !authorize(batch.controller){return Err(WriteStatus::InsufficientPrivileges);}
                                             if !reads.deactivated_scenes.is_empty() {
                                                 let document=store.active_bundle(options.context).map_err(|_|WriteStatus::ServiceCommunicationFailure)?.and_then(|b|b.automation).ok_or(WriteStatus::InvalidValueInRequest)?;
@@ -2784,6 +2809,12 @@ impl Admission {
                                 }
                                 // Subscription-only requests still require authorization.
                                 if batch.intents.is_empty() {
+                                    let mut program_prepared=if let Some(input)=program_input.as_deref(){
+                                        let bundle=store.active_bundle_shared(options.context).map_err(|_|WriteStatus::ServiceCommunicationFailure)?.ok_or(WriteStatus::InvalidValueInRequest)?;
+                                        crate::program_activity::Prepared::capture(Some(input),bundle.automation.as_ref().ok_or(WriteStatus::InvalidValueInRequest)?,&configuration,&variables,&canonical,&[])
+                                    }else{crate::program_activity::Prepared::invalidate(&variables)};
+                                    program_prepared.inherit(&store,&component_modes,&program_activity,&configuration,&TaskGeneration{boot:worker_boot.clone(),epochs:arbiter.policy().epochs},millis(clock),|id|authorize(id))?;
+                                    let program_wires=if let Some(g)=&gateways{match g.device_requirements(&configuration,program_prepared.devices(&configuration)){Ok(wires)=>wires,Err(_)=>{program_prepared.decline();vec![]}}}else{vec![]};
                                     let commit=||->Result<(),WriteStatus> {
                                     if !variables.is_empty() || audit.is_some() {
                                         let accepted=if let Some(g)=&gateways {
@@ -2811,6 +2842,7 @@ impl Admission {
                                     Ok(())
                                     };
                                     crate::source_auth::commit(request_source.as_ref(),commit).ok_or(WriteStatus::InsufficientPrivileges)??;
+                                    program_activity.accepted(program_prepared,TaskGeneration{boot:worker_boot.clone(),epochs:arbiter.policy().epochs},batch.controller,request_source.clone(),&[],&manual_versions,&configuration,program_wires,native_deadline.map_or(led_total_deadline,|n:u64|n.min(led_total_deadline)),millis(clock));
                                     keypad_origins.accepted(request_source.as_ref());
                                     if let Some(mode)=mode_confirmation{component_modes.accepted(*mode,TaskGeneration{boot:worker_boot.clone(),epochs:arbiter.policy().epochs},batch.controller,request_source.clone(),vec![],&manual_versions,&configuration,vec![],millis(clock))?;}
                                     return Ok(Vec::new());
@@ -2959,6 +2991,13 @@ impl Admission {
                                     Some(scopes)
                                 }else{None};
                                 let batch_tickets=commands.iter().map(|(c,_)|c.clone()).collect::<Vec<_>>();
+                                let mut program_prepared=if let Some(input)=program_input.as_deref(){
+                                    let bundle=store.active_bundle_shared(options.context).map_err(|_|WriteStatus::ServiceCommunicationFailure)?.ok_or(WriteStatus::InvalidValueInRequest)?;
+                                    crate::program_activity::Prepared::capture(Some(input),bundle.automation.as_ref().ok_or(WriteStatus::InvalidValueInRequest)?,&configuration,&variables,&canonical,&batch_tickets)
+                                }else{crate::program_activity::Prepared::invalidate(&variables)};
+                                program_prepared.inherit(&store,&component_modes,&program_activity,&configuration,&TaskGeneration{boot:worker_boot.clone(),epochs:arbiter.policy().epochs},now,|id|authorize(id))?;
+                                let program_wires=if let Some(g)=&gateways{match g.device_requirements(&configuration,program_prepared.devices(&configuration)) {Ok(wires)=>wires,Err(_)=>{program_prepared.decline();vec![]}}}else{vec![]};
+
                                 let batch_guard_names=selection_checks.iter().map(|r|r.name.clone()).chain(variables.iter().map(|u|u.name.clone())).collect::<std::collections::BTreeSet<_>>();
                                 let mode_tickets=mode_confirmation.as_ref().map(|_|commands.iter().map(|(c,_)|c.clone()).collect::<Vec<_>>());
                                 let mode_wires=if let Some(mode)=&mode_confirmation{match &gateways{Some(g)=>g.device_requirements(&configuration,commands.iter().map(|(c,_)|c.device_id.clone()).chain(mode.devices(&configuration)?))?,None=>vec![]}}else{vec![]};
@@ -3016,6 +3055,7 @@ impl Admission {
                                             for id in next_id..end {motor_guard_ids.insert(id,next_id);}
                                         }
                                         if let Some(mode)=mode_confirmation {component_modes.accepted(*mode,TaskGeneration{boot:worker_boot.clone(),epochs:arbiter.policy().epochs},batch.controller,request_source.clone(),mode_tickets.unwrap_or_default(),&manual_versions,&configuration,mode_wires,now)?;}
+                                        program_activity.accepted(program_prepared,TaskGeneration{boot:worker_boot.clone(),epochs:arbiter.policy().epochs},batch.controller,request_source.clone(),&batch_tickets,&manual_versions,&configuration,program_wires,native_deadline.map_or(led_total_deadline,|n:u64|n.min(led_total_deadline)),now);
                                         let batch_guards=batch_guard_names.into_iter().filter_map(|name|match store.logical_variable(configuration.revision(),&name){Ok(Some(value))=>Some(Ok(homesense_storage::variables::ReadCheck{revision:configuration.revision(),name,expected_version:value.version})),Ok(None)=>None,Err(_)=>Some(Err(WriteStatus::ServiceCommunicationFailure))}).collect::<Result<Vec<_>,_>>()?;
                                         control_batches.accepted(&configuration,&batch_tickets,TaskGeneration{boot:worker_boot.clone(),epochs:arbiter.policy().epochs},batch.controller,request_source.clone(),batch_guards,&manual_versions);
                                         let ids = (next_id..end).collect();
@@ -3195,6 +3235,10 @@ impl Admission {
     pub(crate) async fn extend_write(&self,anchor:u64)->Result<Option<DispatchTicket>,WriteStatus>{let(tx,rx)=oneshot::channel();self.sender.try_send(Message::Dispatch(None,Some(anchor),Default::default(),tx)).map_err(|_|WriteStatus::ResourceBusy)?;rx.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?}
     pub(crate) async fn control_batch_views(&self,controller:Uuid,generation:TaskGeneration)->Result<Vec<crate::control_batch::View>,WriteStatus>{let(tx,rx)=oneshot::channel();self.sender.try_send(Message::ControlBatchViews(controller,generation,tx)).map_err(|_|WriteStatus::ResourceBusy)?;rx.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?}
     pub(crate) async fn control_batch_proof(&self,controller:Uuid,proof:crate::control_batch::Proof)->Result<(),WriteStatus>{let(tx,rx)=oneshot::channel();self.sender.try_send(Message::ControlBatchProof(controller,proof,tx)).map_err(|_|WriteStatus::ResourceBusy)?;rx.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?}
+    pub(crate) async fn program_activity_views(&self,controller:Uuid,generation:TaskGeneration)->Result<Vec<crate::program_activity::View>,WriteStatus>{let(tx,rx)=oneshot::channel();self.sender.try_send(Message::ProgramActivityViews(controller,generation,tx)).map_err(|_|WriteStatus::ResourceBusy)?;rx.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?}
+    pub(crate) async fn program_activity_read_view(&self,controller:Uuid,generation:TaskGeneration,scene:String)->Result<Option<Option<crate::program_activity::View>>,WriteStatus>{let(tx,rx)=oneshot::channel();self.sender.try_send(Message::ProgramActivityReadView(controller,generation,scene,tx)).map_err(|_|WriteStatus::ResourceBusy)?;rx.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?}
+    pub(crate) async fn program_activity_proof(&self,controller:Uuid,proof:crate::program_activity::Proof)->Result<bool,WriteStatus>{let(tx,rx)=oneshot::channel();self.sender.try_send(Message::ProgramActivityProof(controller,proof,tx)).map_err(|_|WriteStatus::ResourceBusy)?;rx.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?}
+    pub(crate) async fn program_activity(&self,controller:Uuid,generation:TaskGeneration,scene:String,proof:Option<crate::program_activity::Proof>)->Result<Option<(crate::scene_activity::SceneActivity,Option<u64>)>,WriteStatus>{let(tx,rx)=oneshot::channel();self.sender.try_send(Message::ProgramActivity(controller,generation,scene,proof,tx)).map_err(|_|WriteStatus::ResourceBusy)?;rx.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?}
     pub(crate) async fn component_mode_views(&self,controller:Uuid,generation:TaskGeneration)->Result<Vec<crate::component_modes::View>,WriteStatus>{let(tx,rx)=oneshot::channel();self.sender.try_send(Message::ComponentModeViews(controller,generation,tx)).map_err(|_|WriteStatus::ResourceBusy)?;rx.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?}
     pub(crate) async fn component_mode_proof(&self,controller:Uuid,proof:crate::component_modes::Proof)->Result<bool,WriteStatus>{let(tx,rx)=oneshot::channel();self.sender.try_send(Message::ComponentModeProof(controller,proof,tx)).map_err(|_|WriteStatus::ResourceBusy)?;rx.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?}
     pub(crate) async fn component_activity(&self,controller:Uuid,generation:TaskGeneration,scene:String,proof:Option<crate::component_modes::Proof>)->Result<(crate::scene_activity::SceneActivity,Option<u64>),WriteStatus>{let(tx,rx)=oneshot::channel();self.sender.try_send(Message::ComponentActivity(controller,generation,scene,proof,tx)).map_err(|_|WriteStatus::ResourceBusy)?;rx.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?}
@@ -3761,8 +3805,8 @@ impl Admission {
     /// Admission must finish before the request expires; accepted delayed work
     /// keeps its original causal deadline, not the HTTP request's remaining TTL.
     pub(crate) async fn submit_deferred_rule_for_entry(&self,generation:TaskGeneration,rule:DeferredRule,feedback:Option<crate::feedback::RuleLease>,command_sources:Option<Vec<String>>,entry:RuleEntry)->Result<AcceptedDeferred,DeferredFailure> {
-        let RuleEntry{deadline,admit_before,selection_reads,condition_reads,deactivated_scenes,mode_confirmation}=entry;
-        let entry_reads=if selection_reads.as_ref().is_some_and(|r|!r.is_empty()) || !condition_reads.is_empty() || !deactivated_scenes.is_empty() || mode_confirmation.is_some(){Some(Box::new(RuleEntryReads{selection:selection_reads,conditions:condition_reads,deactivated_scenes,mode_confirmation}))}else{None};
+        let RuleEntry{deadline,admit_before,selection_reads,condition_reads,deactivated_scenes,mode_confirmation,program_activity}=entry;
+        let entry_reads=if selection_reads.as_ref().is_some_and(|r|!r.is_empty()) || !condition_reads.is_empty() || !deactivated_scenes.is_empty() || mode_confirmation.is_some() || program_activity.is_some(){Some(Box::new(RuleEntryReads{selection:selection_reads,conditions:condition_reads,deactivated_scenes,mode_confirmation,program_activity}))}else{None};
         let acceptance_limit=match (deadline,admit_before){(Some(a),Some(b))=>Some(a.min(b)),(a,None)=>a,(None,b)=>b};
         let manual_fence=self.manual_fence().await.map_err(DeferredFailure::Rejected)?;
         let controller=rule.batch.controller;
