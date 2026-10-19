@@ -52,7 +52,7 @@ impl Refresh {
         self.activity(now);
         for (index,target) in self.targets.iter().enumerate() {if target.gateway==gateway && target.module.address()==address && target.channels.contains(&channel) {self.priority.insert(index);self.confirmation_until.insert(index,now.saturating_add(crate::control_batch::FEEDBACK_TOTAL_MS));self.round.forget(index);self.due[index]=0;}}
     }
-    fn activity(&mut self,now:u64) {if let Some(schedule)=&mut self.adaptive {schedule.activity();self.round.discard_completion();for due in &mut self.due {*due=(*due).min(now);}}}
+    fn activity(&mut self,now:u64) {if let Some(schedule)=&mut self.adaptive {schedule.activity(now);self.round.discard_completion();for due in &mut self.due {*due=(*due).min(now);}}}
     fn solicited(&self,gateway:&str,address:u8,channel:u8,now:u64)->bool {if self.recent_queries.get(&(gateway.into(),address,channel)).is_some_and(|deadline|now<=*deadline){return true;}self.pending.get(gateway).is_some_and(|pending| {let target=&self.targets[pending.index];target.module.address().get()==address && target.channels.contains(&channel)})}
     pub(super) fn pending(&self)->bool {!self.pending.is_empty()}
     pub(super) fn blocked(&self,now:u64,gap:u64,background_led_phase:bool,feedback:&Feedback)->BTreeSet<String> {
@@ -260,9 +260,23 @@ impl<S:Read+Write+Send+'static> ObservedTransport<S> {
         let expired=plan.pending.iter().filter(|(_,pending)|now>=pending.deadline&&pending.retried)
             .map(|(gateway,_)|gateway.clone()).collect::<Vec<_>>();
         for gateway in expired {
+            if let Some(pending)=plan.pending.get(&gateway) {
+                let target=&plan.targets[pending.index];
+                let missing=pending.before.iter().filter(|(channel,before)|self.feedback.module_truth().port_observation_count(&gateway,target.module.address().get(),*channel).is_none_or(|count|count<=*before)).map(|(channel,_)|*channel).collect::<Vec<_>>();
+                self.feedback.missing_query_ports(&gateway,target.module.address().get(),&missing,now)?;
+            }
+            if let Some(schedule)=&mut plan.adaptive {schedule.timeout();}
             let wire=self.transport.local_wire(&gateway)?;
             let audit=self.transport.admission().gateway_fault(wire.clone()).await.map_err(|e|format!("local query-timeout audit: {e:?}"))?;
             self.transport.local_record_fault(wire,audit)?;plan.fault(&gateway);
+        }
+        // Retire the bounded quiet scan only after its outstanding replies or
+        // timeouts ended. The next idle scan cannot overlap that old owner.
+        if plan.pending.is_empty() && plan.recovery.is_empty()
+            && let Some(schedule)=&mut plan.adaptive && schedule.settle_if_quiet(now) {
+            plan.round.reset();
+            plan.due.fill(now.saturating_add(schedule.interval()));
+            self.feedback.set_managed_max_age_ms(schedule.allowance())?;
         }
         if self.background_led_phase && plan.recovery.is_empty() {return Ok(());}
         let mut candidates=vec![];

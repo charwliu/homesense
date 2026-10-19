@@ -15,7 +15,9 @@ pub(crate) fn requirements(config:&Configuration,document:&Document)->Result<BTr
     // bound unless a reviewed policy above sets a stricter age for that port.
     for link in document.indicator_links.iter().filter(|l|l.enabled){for id in &link.lights{add(id.clone(),configured);}}
     for id in document.immediate_scenes.keys().filter(|id|document.scene_action_available(id)) {for target in homesense_config::keypad::scene_execute_devices(document,config,id).map_err(|e|e.to_string())? {add(target,configured);}}
-    for policy in &document.component_mode_confirmations {for condition in &policy.postconditions{add(DeviceId::new(&condition.device).map_err(|e|e.to_string())?,policy.max_age_ms);}}
+    // Confirmation max_age is a bounded post-command proof, not a permanent
+    // polling subscription. Written targets and live control-batch owners
+    // already schedule their own finite confirmation reads.
     let supplies=ages.iter().filter_map(|(id,age)|config.devices().get(id).and_then(|d|d.supply_relay.clone()).map(|id|(id,*age))).collect::<Vec<_>>();for (id,age) in supplies{ages.entry(id).and_modify(|old|*old=(*old).min(age)).or_insert(age);}
     Ok(ages)
 }

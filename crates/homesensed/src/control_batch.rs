@@ -242,8 +242,15 @@ impl View {
 
 pub(crate) async fn query_requirements(admission:&Admission,feedback:&Feedback,config:&Configuration,targets:&[crate::physical_queries::Target],controller:Uuid)->Result<BTreeMap<usize,u64>,String> {
     let generation=match admission.task_generation().await {Ok(value)=>value,Err(W::ResourceBusy|W::ServiceCommunicationFailure)=>return Ok(BTreeMap::new()),Err(e)=>return Err(format!("LED query generation: {e:?}"))};
-    let views=match admission.control_batch_views(controller,generation).await {Ok(views)=>views,Err(W::ResourceBusy)=>return Ok(BTreeMap::new()),Err(e)=>return Err(format!("LED query requirements: {e:?}"))};
+    let views=match admission.control_batch_views(controller,generation.clone()).await {Ok(views)=>views,Err(W::ResourceBusy)=>return Ok(BTreeMap::new()),Err(e)=>return Err(format!("LED query requirements: {e:?}"))};
     let mut needed=BTreeMap::<usize,u64>::new();
+    let components=match admission.component_mode_views(controller,generation).await {
+        Ok(views)=>views,Err(W::ResourceBusy)=>vec![],Err(e)=>return Err(format!("component confirmation reads: {e:?}")),
+    };
+    for view in components {for (index,deadline) in view.query_requirements(config,feedback,targets,admission.monotonic_ms()) {
+        needed.entry(index).and_modify(|old|*old=(*old).max(deadline)).or_insert(deadline);
+    }}
+
     if admission.away_operations_active() {
         let generation=match admission.task_generation().await {Ok(value)=>value,Err(_)=>return Ok(needed)};
         let reads=admission.away_read_needs(controller,generation).await.map_err(|e|format!("Away confirmation reads: {e:?}"))?;

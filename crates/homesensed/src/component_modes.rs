@@ -384,6 +384,32 @@ pub(crate) struct View {
     pub generation: TaskGeneration,
     pub policies: Vec<Policy>,
     pub after: BTreeMap<DeviceId, u64>,
+    pub continuing: bool,
+    pub confirmation_deadline: Option<u64>,
+}
+impl View {
+    /// Only an accepted, still-pending command owns these reads. No saved
+    /// declaration or confirmed mode can keep a permanent short poll alive.
+    pub(crate) fn query_requirements(&self, config:&Configuration, feedback:&Feedback,
+        targets:&[crate::physical_queries::Target], now:u64)->Vec<(usize,u64)> {
+        let Some(deadline)=self.confirmation_deadline.filter(|at|!self.continuing && now<*at) else {return vec![];};
+        let mut needed=BTreeMap::<DeviceId,u64>::new();
+        for policy in &self.policies {for condition in &policy.postconditions {
+            let Ok(device)=DeviceId::new(&condition.device) else {continue;};
+            let supply=config.devices().get(&device).and_then(|d|d.supply_relay.clone());
+            let sources=if condition.on {std::iter::once(device).chain(supply).collect::<Vec<_>>()}
+                else {vec![supply.unwrap_or(device)]};
+            for source in sources {
+                let Some((binding,module))=config.binding(&source) else {continue;};
+                let fresh=feedback.module_truth().located_state(&binding.gateway,module.address().get(),binding.channel.get())
+                    .is_some_and(|state|state.quality==homesense_state::Quality::Confirmed && state.observed.is_some()
+                        && state.observed_at_ms.is_some_and(|at|now.checked_sub(at).is_some_and(|age|age<policy.max_age_ms/2)
+                            && self.after.get(&source).is_none_or(|written|at>*written)));
+                if !fresh {needed.entry(source).and_modify(|old|*old=(*old).min(policy.max_age_ms)).or_insert(policy.max_age_ms);}
+            }
+        }}
+        crate::consumer_refresh::target_ages(config,targets,&needed).keys().map(|index|(*index,deadline)).collect()
+    }
 }
 struct Record {
     view: View,
@@ -454,7 +480,7 @@ impl Owner {
         let mut update=plan.receipt.update.clone();
         update.expected_version=update.expected_version.checked_add(1).ok_or(W::InvalidValueInRequest)?;
         Ok(CompletionHandoff { id, record:Record {
-            view:View {id,generation:e.generation.clone(),policies:vec![policy],after:e.writes_by_device.clone()},
+            view:View {id,generation:e.generation.clone(),policies:vec![policy],after:e.writes_by_device.clone(),continuing:true,confirmation_deadline:None},
             controller:plan.controller,source:Some(plan.source.clone()),updates:vec![update],guards:vec![],prior_known:vec![],
             tickets:vec![],written:e.written.clone(),manual:dependencies.into_iter()
                 .map(|device|{let version=manual.get(&device).copied().unwrap_or(0);(device,version)}).collect(),
@@ -964,6 +990,8 @@ impl Owner {
                     generation,
                     policies: prepared.policies,
                     after: Default::default(),
+                    continuing: false,
+                    confirmation_deadline: None,
                 },
                 controller,
                 source,
@@ -986,7 +1014,7 @@ impl Owner {
             .confirmed
             .values()
             .filter(|r| !self.record_held(r))
-            .map(|r| r.view.clone())
+            .map(|r| {let mut view=r.view.clone();view.continuing=true;view})
             .collect::<Vec<_>>();
         for record in self.pending.values() {
             if self.record_held(record) { continue; }
@@ -1019,6 +1047,7 @@ impl Owner {
             }
             let mut view = record.view.clone();
             view.after = written;
+            view.confirmation_deadline=Some(record.deadline);
             views.push(view);
         }
         Ok(views)
@@ -1129,6 +1158,7 @@ pub(crate) struct Proof {
     observed_ms: Option<u64>,
     max_age_ms: u64,
     policies: Vec<Policy>,
+    continuing: bool,
 }
 impl Proof {
     pub(crate) fn prepare(
@@ -1137,7 +1167,10 @@ impl Proof {
         feedback: &Feedback,
         now: u64,
     ) -> Result<Self, String> {
-        let (lease, values) = sample(config, &view.policies, feedback, now)?;
+        let requested = view.policies.iter().map(|p| p.max_age_ms).min().ok_or("component proof empty")?;
+        let requested = if view.continuing {feedback.continuing_max_age_ms(requested)} else {requested};
+        let conditions = view.policies.iter().flat_map(|policy| &policy.postconditions).collect::<Vec<_>>();
+        let (lease, values) = sample_conditions(config, &conditions, feedback, now, requested)?;
         let after_written = lease.observations.iter().all(|(id, at)| {
             at.is_some_and(|at| view.after.get(id).is_none_or(|written| at > *written))
         });
@@ -1146,7 +1179,7 @@ impl Proof {
         } else {
             Some(values.into_iter().all(|value| value == Some(true)))
         };
-        let age = feedback.effective_max_age_ms(view.policies.iter().map(|p| p.max_age_ms).min().unwrap());
+        let age = feedback.effective_max_age_ms(requested);
         let observed_ms = lease
             .observations
             .values()
@@ -1162,6 +1195,7 @@ impl Proof {
             observed_ms,
             max_age_ms: age,
             policies: view.policies.clone(),
+            continuing: view.continuing,
         })
     }
 }
@@ -1230,6 +1264,7 @@ impl Owner {
         now: u64,
     ) -> Result<bool, W> {
         let confirmed = self.confirmed.contains_key(&proof.id);
+        if proof.continuing != confirmed {return Ok(false);}
         let record = if confirmed {
             self.confirmed.get(&proof.id)
         } else {
@@ -1411,6 +1446,8 @@ impl Owner {
                         generation: proof.generation.clone(),
                         policies: vec![policy.clone()],
                         after,
+                        continuing: true,
+                        confirmation_deadline: None,
                     },
                     controller: record.controller,
                     source: record.source.clone(),

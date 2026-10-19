@@ -2808,3 +2808,12 @@ mod scene_presentation_tests;
 
 #[path = "scene_component_activity_tests.rs"]
 mod scene_component_activity_tests;
+
+#[test]
+fn component_confirmation_policies_do_not_install_permanent_short_poll_consumers() {
+    let (bytes,value)=component_cycle_inputs();
+    let config=Configuration::parse(&bytes,ExecutionContext::Simulation).unwrap();
+    let document=Document::parse(&serde_json::to_vec(&value).unwrap(),&config).unwrap();
+    assert!(!document.component_mode_confirmations.is_empty());
+    assert!(crate::consumer_refresh::requirements(&config,&document).unwrap().is_empty());
+}

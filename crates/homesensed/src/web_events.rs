@@ -200,7 +200,7 @@ pub(crate) fn upgrade(
                     let next_motor_estimates=json!(update.snapshot.devices.iter().filter(|d|d.motor_estimate.is_some()).map(|d|(d.id.as_str(),&d.motor_estimate)).collect::<Vec<_>>());
                     let next_keypads=json!(update.snapshot.keypads);
                     let next_directory=json!(update.snapshot.directory(api.can_manage_configuration(&grant)));
-                    let next_availability=json!(update.snapshot.devices.iter().map(|view|(view.id.as_str(),&view.availability)).collect::<Vec<_>>());
+                    let next_availability=json!(update.snapshot.devices.iter().map(|view|(view.id.as_str(),&view.availability,&view.communication_error)).collect::<Vec<_>>());
                     if cursor.as_ref()!=Some(&update.cursor) || next_scenes!=scenes || next_motor_estimates!=motor_estimates || next_keypads!=keypads || next_availability!=availability || next_directory!=directory || next_light_projection!=light_projection_state || next_away!=away_operations || unavailable {
                         let devices=crate::management_keypads::devices_json(&update.snapshot,&grant);
                         let frame=json!({"type":"state","cursor":update.cursor,"reset":update.reset,"devices":devices,"scenes":next_scenes["scenes"],"revision":next_scenes["revision"],"rooms":next_directory["rooms"],"floors":next_directory["floors"],"away_operations":next_away}).to_string();

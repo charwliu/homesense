@@ -100,6 +100,7 @@ public final class HomeServerStore: ObservableObject {
     @Published public private(set) var revision = ""
     @Published public private(set) var capturedAt: Date?
     @Published public private(set) var message = "连接 HomeSense 服务，读取家庭、设备与场景。"
+    private var pushedCommunicationError: String?
     @Published public var error: String?
     @Published public private(set) var deviceDocument: HomeJSON?
     @Published public private(set) var automationDocument: HomeJSON?
@@ -512,12 +513,19 @@ public final class HomeServerStore: ObservableObject {
             nextAway = try rows.map { try HomeAwayOperation($0, boot: boot, revision: version) }
         }
         devices = next; scenes = nextScenes; eventCursor = cursor
+        applyCommunicationAlerts()
         synchronizeUnifiedKeypadContext()
         updateUnifiedKeypadHints(incoming, seedEvents: frame["reset"].flag, clearCues: frame["reset"].flag)
         awayOperations = nextAway
         reconcileSceneActions()
         stateSerial &+= 1; capturedAt = Date(); receivingPush = true
         synchronization = "服务端实时推送"
+    }
+    private func applyCommunicationAlerts() {
+        let next = HomeCommunicationAlerts.message(for: devices)
+        if let next { error = next }
+        else if error == pushedCommunicationError { error = nil }
+        pushedCommunicationError = next
     }
     public func refresh() async {
         guard connected else { return }
@@ -552,6 +560,7 @@ public final class HomeServerStore: ObservableObject {
         guard serial == stateSerial else { return }
         if revision != version || snapshotBoot != d["boot"].text { clearModuleInventory(); clearUnifiedKeypadState() }
         revision = version; devices = nextDevices; rooms = nextRooms; scenes = nextScenes
+        applyCommunicationAlerts()
         serverFloors = r["floors"].values.compactMap(\.text)
         snapshotBoot = d["boot"].text ?? ""
         synchronizeUnifiedKeypadContext()
