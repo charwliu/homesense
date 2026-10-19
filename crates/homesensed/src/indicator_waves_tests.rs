@@ -136,6 +136,48 @@ async fn metadata_read_delay_preserves_delivery_without_extending_original_feedb
     assert_eq!(f.count(),0);f.close().await;
 }
 
+#[tokio::test]
+async fn nearly_finished_cycle_cannot_admit_leds_into_a_truncated_delivery_slot() {
+    let mut f=Fixture::new().await;let mut waves=Waves::default();
+    let frames=Arc::new(Mutex::new(vec![]));
+    let first=f.advance(&mut waves,false).await.unwrap();
+    let original_deadline=waves.cycle.as_ref().unwrap().deadline;
+    assert!(f.write(first,frames.clone()).await);waves.phase_ended(true);
+    assert!(f.advance(&mut waves,true).await.is_none());
+    assert_eq!(f.count(),16);
+    // A later equal reply refreshes physical evidence, but must not renew the
+    // current finite catalog cycle. Linux may spend >250ms in the next control
+    // quantum before reaching the writer; a half-of-remaining slot loses LEDs.
+    f.clock.store(original_deadline-500,Ordering::SeqCst);
+    f.feedback.apply(&GatewayRead {gateway_id:"bus".into(),transport_epoch:1,
+        received_at_ms:f.clock.load(Ordering::SeqCst),result:hb_transport::Receive::Frames {
+            transport_epoch:1,frames:vec![hb_protocol::RawFrame {address:0x20,command:0xd1,value:0xf2}]
+        }}).unwrap();
+    if let Some(wave)=f.advance(&mut waves,false).await {
+        f.clock.fetch_add(300,Ordering::SeqCst);
+        let complete=f.write(wave,frames.clone()).await;
+        let sql=rusqlite::Connection::open(&f.path).unwrap();
+        let cancelled:i64=sql.query_row("SELECT count(*) FROM command_journal WHERE status='cancelled' AND cancellation_reason='RunCancelled' AND updated_ms<deadline_ms",[],|r|r.get(0)).unwrap();
+        assert!(complete,"the truncated phase cancelled {cancelled} accepted LEDs before their command deadlines");
+        panic!("a nearly finished cycle must retire unadmitted metadata instead");
+    }
+    assert_eq!(f.count(),16,"only unadmitted metadata may be retired");
+    assert!(waves.cycle.is_none());
+    f.clock.fetch_add(300,Ordering::SeqCst);
+    for _ in 0..100 {
+        if let Some(wave)=f.advance(&mut waves,false).await {
+            assert!(f.write(wave,frames.clone()).await);waves.phase_ended(true);
+        }
+        if waves.cycle.is_none() && waves.outcome.as_ref().is_some_and(|o|o.kind==Kind::Synced){break;}
+    }
+    assert_eq!(waves.outcome.as_ref().unwrap().kind,Kind::Synced);
+    assert_eq!(f.count(),168,"fresh proofs must finish untouched LEDs without replaying the first16");
+    assert_eq!(frames.lock().unwrap().len(),168);
+    let sql=rusqlite::Connection::open(&f.path).unwrap();
+    assert_eq!(sql.query_row("SELECT count(*) FROM command_journal WHERE status='cancelled'",[],|r|r.get::<_,i64>(0)).unwrap(),0);
+    drop(sql);f.close().await;
+}
+
 
 #[tokio::test]
 async fn combined_supply_only_change_invalidates_indicator_wave_cache() {
