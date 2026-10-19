@@ -78,6 +78,7 @@
       "confirmation-checklist.json"
     ],
     "real_project_evidence": "deployment/nanopc/evidence/20261011-a22-import-bundle/",
+    "large_reports_private_dir": "deployment/nanopc/private/evidence/20261011-a22-import-bundle/ (local only; absent from Git clones)",
     "automated_test": "cli_exports_three_disabled_artifacts_and_refuses_overwrite",
     "verified": [
       "disabled selection",
@@ -93,7 +94,7 @@
     "remaining": "none for export and room blocker view",
     "room_filter": {
       "command": "homesense-import PROJECT --room 书房",
-      "evidence": "deployment/nanopc/evidence/20261011-a22-import-bundle/study-blockers.json",
+      "evidence": "deployment/nanopc/private/evidence/20261011-a22-import-bundle/study-blockers.json (local only)",
       "semantics": "owner or target match; unknown ownership and unresolved references retained for global review",
       "tests_passed": 11
     }
@@ -116,9 +117,9 @@
     "deployment/nanopc/evidence/20261011-a22-motor/drain-close.pcap": "c3cb5fb3995818e6d3669008e068a4db747841414f916b0d90fb186ccb2023ef",
     "deployment/nanopc/evidence/20261011-a21/readonly-eof-bus.json": "88ad3230cceec050ec25f23ebacee14eab282c9e9a80284f466ea737927b8623",
     "deployment/nanopc/evidence/20261011-a21/readonly-timeout-bus.json": "0b259d81bfb9e57c1b1c9160151b1b595db37a17fe5559c38cdc8bd9e8e40564",
-    "deployment/nanopc/evidence/20261011-a22-import-bundle/coverage-report.json": "beab0a403bce8743785a0d0da6eee92b19d9bae895e29770bc919d59139860b9",
+    "deployment/nanopc/private/evidence/20261011-a22-import-bundle/coverage-report.json": "beab0a403bce8743785a0d0da6eee92b19d9bae895e29770bc919d59139860b9",
     "deployment/nanopc/evidence/20261011-a22-import-bundle/confirmation-checklist.json": "fa62803258d1814921b062fcab825be7dfcc3ebe15849bea3325646507f67a63",
     "deployment/nanopc/evidence/20261011-a22-import-bundle/configuration.json": "cb748ca474e53a7af1e8fdbf4c8c8be53a6f8426f5424c84dba94f345e17ab13",
-    "deployment/nanopc/evidence/20261011-a22-import-bundle/study-blockers.json": "4e16dca1cf7037c1168e41ef175498076c04fce3163d1a4d34104e7983688159"
+    "deployment/nanopc/private/evidence/20261011-a22-import-bundle/study-blockers.json": "4e16dca1cf7037c1168e41ef175498076c04fce3163d1a4d34104e7983688159"
   }
 }

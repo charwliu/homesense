@@ -9,8 +9,8 @@
 | A2 发布／存储故障屏障和白名单 | arbiter.rs 的存储故障、发布 STOP 排空；Admission 持久取消、错误恢复、旧代际拒绝 | 已验证；不包含完整在线 HAP 图热替换 |
 | A3 iPhone 配对、虚拟灯读写／反馈、重启身份 | nanopc/20261011-a9.json；a9/server-http.log、server-restart.log；用户操作确认；原身份摘要相同 | 已验证指定序列 |
 | A4 AID/IID、stale、权限、多客户端 | homesense-hap storage、observed、http_loopback；vendor/hap 单会话溢出隔离／撤销测试 | 已验证模拟及加密回环；HAP 依赖 52 项单独计数 |
-| A5 136 对象、68 场景、215 程序、全部引用处置 | a22-import-bundle/coverage-report.json，3767 引用；configuration.json 全禁用；confirmation-checklist.json | 已验证原始 C4P 导出 |
-| A5 独立三文件、源指纹、不丢未知节点、房间阻塞项 | importer CLI export 和 room 回归；study-blockers.json；未知归属保留全局复核；程序树保留 ID／容器路径 | 已验证；未实现程序执行（阶段 D） |
+| A5 136 对象、68 场景、215 程序、全部引用处置 | coverage-report.json 本机私有存档，仓库保留 SHA-256；3767 引用；configuration.json 全禁用；confirmation-checklist.json | 已验证原始 C4P 导出；新克隆需另取原始报告复核 |
+| A5 独立三文件、源指纹、不丢未知节点、房间阻塞项 | importer CLI export 和 room 回归；study-blockers.json 本机私有存档，仓库保留 SHA-256；未知归属保留全局复核；程序树保留 ID／容器路径 | 已验证；未实现程序执行（阶段 D） |
 | A6／B 端点、型号、允许查询、回滚和真实延迟／反馈 | stages-a-c.md 现场边界／操作单；nanopc/README.md；a21/readonly-*-bus.json 与 service.log | 已验证限定书房查询与代理断线／丢回复恢复；不等于物理网关掉电验收 |
 | C 开关与调光 | a21/field-result.json，50→30→关→单开恢复 30，用户确认跟随且无回跳 | 指定序列通过 |
 | C 手动 LED | a20/panel-key2-field-result.json，41/2 绿灯 60 秒恢复红灯 | 指定单键通过；没有逐键颜色读取能力 |

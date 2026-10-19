@@ -1,5 +1,9 @@
 # nanopc 测试部署
 
+## A5 大型导入报告的本机存档
+
+`20261011-a22-import-bundle` 的 `coverage-report.json` 和 `study-blockers.json` 保存在 `deployment/nanopc/private/evidence/20261011-a22-import-bundle/`，不再纳入 Git。公开的审计摘要及 SHA-256 保留在 `docs/evidence/stages-a-c-audit-20261011.json`；其他较小的导出文件仍在 `deployment/nanopc/evidence/20261011-a22-import-bundle/`。新克隆的仓库不包含这两份原始报告。
+
 ## 独立候选版本：20261011-a21
 
 a21 已独立安装并通过 ARM64 包内哈希、模拟／Live 回环各两次重启及面板 LED 回环验证。工作区 226 项通过。包含延迟任务代际／故障取消、Admission 配置发布屏障与读写版本隔离；服务在线热重建尚未公开。current 保持 a19，未启动现场控制或自启动，原身份目录未用于此次隔离测试。详情见 `20261011-a21.json` 和 `evidence/20261011-a21/remote-smoke.log`。
