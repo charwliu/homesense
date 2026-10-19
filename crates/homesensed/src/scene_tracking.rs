@@ -261,14 +261,25 @@ async fn read_inner(
     context: Option<&mut CatalogReadContext<'_>>,
 ) -> Result<Option<Projection>, String> {
     if let Some(policy) = document.scene_component_activity.get(id).filter(|p| p.enabled) {
-        if policy.program_confirmation.is_some()
-            && let Some(view)=admission.program_activity_read_view(controller,generation.clone(),id.into()).await.map_err(|e|format!("program activity view: {e:?}"))? {
-            let proof=if let Some(view)=view {
+        let recorded = policy.program_confirmation.as_ref().is_some_and(|p| p.recorded_selection.is_some());
+        let view = if policy.program_confirmation.is_some() {
+            admission.program_activity_read_view(controller,generation.clone(),id.into()).await.map_err(|e|format!("program activity view: {e:?}"))?
+        } else { None };
+        if policy.program_confirmation.is_some() && (view.is_some() || recorded) {
+            let missing = view.is_none();
+            let proof=if let Some(Some(view))=view {
                 if let Some(context)=context.as_deref() {
                     crate::program_activity::Proof::prepare(&view,context.config,feedback,admission.monotonic_ms()).ok()
                 } else {
                     let bundle=admission.automation_bundle(controller,generation.clone()).await.map_err(|e|format!("program bundle: {e:?}"))?;
                     crate::program_activity::Proof::prepare(&view,&bundle.configuration,feedback,admission.monotonic_ms()).ok()
+                }
+            }else if missing && recorded {
+                if let Some(context)=context.as_deref() {
+                    crate::program_activity::Proof::prepare_negative(policy,context.config,feedback,generation.clone(),admission.monotonic_ms()).ok()
+                } else {
+                    let bundle=admission.automation_bundle(controller,generation.clone()).await.map_err(|e|format!("program bundle: {e:?}"))?;
+                    crate::program_activity::Proof::prepare_negative(policy,&bundle.configuration,feedback,generation.clone(),admission.monotonic_ms()).ok()
                 }
             }else{None};
             let(activity,valid_until_ms)=admission.program_activity(controller,generation.clone(),id.into(),proof).await.map_err(|e|format!("program activity: {e:?}"))?.unwrap_or((SceneActivity::Unknown,None));

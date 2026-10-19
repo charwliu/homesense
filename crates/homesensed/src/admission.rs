@@ -188,6 +188,7 @@ enum Submission {
         feedback: Box<crate::feedback::RuleLease>,
         reads: BTreeMap<String, homesense_storage::scene_observation::Snapshot>,
         output_fence:Option<crate::indicator_outputs::Fence>,
+        power_proof:Option<crate::indicator_sync::PowerProof>,
     },
     Automation {
         phase:Option<Vec<homesense_storage::scene_run::StepLink>>,
@@ -1040,7 +1041,7 @@ impl Admission {
                             let result=if failed||!authorize(controller)||mode_generation.as_ref()!=Some(&proof.generation){Err(WriteStatus::ResourceBusy)}else{program_activity.apply(&store,&configuration,proof,millis(clock))};let _=reply.send(result);
                         },
                         Message::ProgramActivity(controller,generation,scene,proof,reply)=>{
-                            let result=if failed||!authorize(controller)||mode_generation.as_ref()!=Some(&generation){Err(WriteStatus::ResourceBusy)}else{program_activity.activity(&store,&scene,proof,millis(clock))};let _=reply.send(result);
+                            let result=if failed||!authorize(controller)||mode_generation.as_ref()!=Some(&generation)||proof.as_ref().is_some_and(|p|p.generation!=generation){Err(WriteStatus::ResourceBusy)}else{program_activity.activity(&store,&scene,proof,millis(clock))};let _=reply.send(result);
                         },
                         Message::ComponentModeViews(controller,generation,reply)=>{
                             let result=(||{
@@ -1156,6 +1157,9 @@ impl Admission {
                                     }
                                 }
                                 g.faults.insert(wire.gateway().to_owned(),(wire.epoch(),audit.clone()));
+                                if let Some(generation)=mode_generation.as_ref() {
+                                    program_activity.reset_recorded_for_gateway(&mut store,&configuration,generation,wire.gateway(),now)?;
+                                }
                                 Ok(crate::gateway_runtime::FaultReport {audit,retired:false})
                             })();
                             if result.is_err() {failed=true;audited_transport_failure=false;worker_stop.store(true,Ordering::Release);arbiter.storage_failed().ok();}
@@ -2578,13 +2582,20 @@ impl Admission {
                                         if !batch.subscriptions.is_empty() || (batch.intents.is_empty() && variables.is_empty() && audit.is_none()) || variables.len()>1024 || variables.iter().any(|v|v.revision!=configuration.revision()) { return Err(WriteStatus::InvalidValueInRequest); }
                                         (Submission::Lights(batch), None, true, variables, feedback, audit, scene, starts)
                                     },
-                                    Submission::Indicator { batch, variables, feedback, reads,output_fence } => {
+                                    Submission::Indicator { batch, variables, feedback, reads,output_fence,power_proof } => {
                                         if !authorize(batch.controller) { return Err(WriteStatus::InsufficientPrivileges); }
                                         if !batch.subscriptions.is_empty() || batch.intents.is_empty() || feedback.observations.is_empty() || reads.len()>64 || variables.iter().any(|u| !reads.contains_key(&u.name) || u.value!=Some(homesense_core::rule::Value::Integer(0))) {return Err(WriteStatus::InvalidValueInRequest);}
                                         let document=store.active_bundle(options.context).map_err(|_|WriteStatus::ServiceCommunicationFailure)?.and_then(|b|b.automation).ok_or(WriteStatus::InvalidValueInRequest)?;
                                         for intent in &batch.intents {
                                             let homesense_core::Command::PanelLed(on)=intent.command else {return Err(WriteStatus::InvalidValueInRequest);};
                                             let link=document.indicator_links.iter().find(|l|l.enabled && l.leds.contains(&intent.device)).ok_or(WriteStatus::InvalidValueInRequest)?;
+                                            if link.power_policy != homesense_config::indicator_links::PowerPolicy::LegacyOff {
+                                                if !variables.is_empty() || !reads.is_empty() || output_fence.is_none()
+                                                    || !power_proof.as_ref().is_some_and(|p|p.matches(link,&intent.device,on,&feedback)) {
+                                                    return Err(WriteStatus::InvalidValueInRequest);
+                                                }
+                                                continue;
+                                            }
                                             if on {
                                                 if !variables.is_empty() {return Err(WriteStatus::InvalidValueInRequest);}
                                                 let scene=link.scene.as_ref().ok_or(WriteStatus::InvalidValueInRequest)?;
@@ -3776,13 +3787,15 @@ impl Admission {
         )
         .await
     }
+    #[allow(clippy::too_many_arguments)]
     pub(crate) async fn submit_indicator_rule(
         &self, generation: TaskGeneration, batch: Batch,
         variables: Vec<homesense_storage::variables::Update>, feedback: crate::feedback::RuleLease,
         reads: BTreeMap<String, homesense_storage::scene_observation::Snapshot>,
         output_fence:Option<crate::indicator_outputs::Fence>,
+        power_proof:Option<crate::indicator_sync::PowerProof>,
     ) -> Result<Vec<u64>,WriteStatus> {
-        self.submit_scoped(Submission::Indicator {batch,variables,feedback:Box::new(feedback),reads,output_fence},Some(SubmissionScope::Generation(generation))).await
+        self.submit_scoped(Submission::Indicator {batch,variables,feedback:Box::new(feedback),reads,output_fence,power_proof},Some(SubmissionScope::Generation(generation))).await
     }
     /// Accept named manual scenes together; reserve scheduler slots first.
     /// Dropping an in-flight request closes admission because acceptance may

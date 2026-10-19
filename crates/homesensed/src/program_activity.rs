@@ -166,10 +166,10 @@ impl Prepared {
                 .known_values
                 .iter()
                 .any(|v| Some(v.value()) == update.value)
-                || !document.component_mode_confirmations.iter().any(|p| {
+                || !program.recorded_selection.as_ref().map_or_else(|| document.component_mode_confirmations.iter().any(|p| {
                     p.variable == policy.variable
                         && p.scenes.iter().any(|s| input.scenes.contains(s))
-                })
+                }), |intent| intent.source_scenes.iter().any(|s| input.scenes.contains(s)))
             {
                 continue;
             }
@@ -375,6 +375,7 @@ pub(crate) struct Owner {
     tracked: BTreeSet<DeviceId>,
     writing: BTreeMap<u64, DeviceId>,
     receipts: BTreeMap<DeviceId, std::collections::VecDeque<(u64, DeviceId, u64)>>,
+    policies: BTreeMap<String, Policy>,
 }
 fn guards_current(store: &Store, guards: &[Guard]) -> Result<bool, W> {
     for guard in guards {
@@ -389,7 +390,39 @@ fn guards_current(store: &Store, guards: &[Guard]) -> Result<bool, W> {
     Ok(true)
 }
 impl Owner {
+    pub(crate) fn reset_recorded_for_gateway(
+        &self, store: &mut Store, config: &Configuration, generation: &TaskGeneration,
+        gateway: &str, now: u64,
+    ) -> Result<(), W> {
+        let mut targets = BTreeMap::new();
+        for policy in self.policies.values().filter(|p| p.enabled) {
+            let Some(program) = &policy.program_confirmation else { continue; };
+            let Some(intent) = &program.recorded_selection else { continue; };
+            if !program.active_conditions.iter().any(|c| DeviceId::new(&c.device).ok()
+                .and_then(|id| config.devices().get(&id)).is_some_and(|d| d.gateway == gateway)) { continue; }
+            for variable in &intent.reset_variables {
+                targets.insert(variable.clone(), policy.scene.clone());
+            }
+        }
+        if targets.is_empty() { return Ok(()); }
+        store.ensure_component_mode_audit().map_err(|_| W::ServiceCommunicationFailure)?;
+        let mut resets = vec![];
+        for (name, policy) in targets {
+            if let Some(value) = store.logical_variable(generation.epochs.configuration, &name)
+                .map_err(|_| W::ServiceCommunicationFailure)?.filter(|v| v.value.is_some()) {
+                resets.push((Update { revision: generation.epochs.configuration, name,
+                    expected_version: value.version, value: None }, policy));
+            }
+        }
+        for chunk in resets.chunks(64) {
+            store.apply_component_mode_inference(chunk, &[], generation.boot_id(),
+                "recorded-selection-gateway-reset", now, &[], false)
+                .map_err(|_| W::ServiceCommunicationFailure)?;
+        }
+        Ok(())
+    }
     pub(crate) fn configure(&mut self, document: &Document, config: &Configuration) {
+        self.policies = document.scene_component_activity.clone();
         self.tracked = document
             .scene_component_activity
             .values()
@@ -799,8 +832,23 @@ pub(crate) struct Proof {
     signature: Option<Vec<Actual>>,
     cohort: Option<bool>,
     valid_until: u64,
+    negative_policy: Option<Policy>,
 }
 impl Proof {
+    /// A fresh negative observation may disprove an unowned selection. It can
+    /// never reconstruct Active or grant control from a saved intent label.
+    pub(crate) fn prepare_negative(
+        policy: &Policy, config: &Configuration, feedback: &Feedback,
+        generation: TaskGeneration, now: u64,
+    ) -> Result<Self, String> {
+        let program = policy.program_confirmation.as_ref().ok_or("missing program")?;
+        if program.recorded_selection.is_none() { return Err("not recorded selection".into()); }
+        let age = feedback.effective_max_age_ms(program.max_age_ms);
+        let (lease, signature) = primary_sample(config, &program.active_conditions, feedback, now, age)?;
+        let valid_until = lease.observations.values().filter_map(|v| *v).min().unwrap_or(now).saturating_add(age);
+        Ok(Self { id: 0, generation, confirmed: false, lease, signature,
+            cohort: None, valid_until, negative_policy: Some(policy.clone()) })
+    }
     pub(crate) fn prepare(
         view: &View,
         config: &Configuration,
@@ -859,12 +907,13 @@ impl Proof {
             signature,
             cohort,
             valid_until,
+            negative_policy: None,
         })
     }
 }
 impl Owner {
     fn validate_proof(store: &Store, r: &Record, proof: &Proof, now: u64) -> Result<bool, W> {
-        if proof.id != r.id
+        if proof.negative_policy.is_some() || proof.id != r.id
             || proof.generation != r.generation
             || proof.confirmed != r.signature.is_some()
             || now >= r.deadline
@@ -1024,7 +1073,31 @@ impl Owner {
     ) -> Result<Option<(crate::scene_activity::SceneActivity, Option<u64>)>, W> {
         use crate::scene_activity::SceneActivity as A;
         let Some(r) = self.records.get(scene) else {
-            return Ok(None);
+            let Some(proof) = proof else { return Ok(None); };
+            let Some(policy) = self.policies.get(scene).filter(|p| p.enabled) else { return Ok(None); };
+            if proof.negative_policy.as_ref() != Some(policy) || now >= proof.valid_until {
+                return Ok(None);
+            }
+            let program = policy.program_confirmation.as_ref().unwrap();
+            if program.recorded_selection.is_none() { return Ok(None); }
+            let Ok(_guard) = proof.lease.lock(
+                Uuid::parse_str(proof.generation.boot_id()).map_err(|_| W::ServiceCommunicationFailure)?.as_u128(),
+                proof.generation.epochs.configuration, proof.generation.epochs.transport, now,
+            ) else { return Ok(Some((A::Unknown, None))); };
+            for (device, at) in &proof.lease.observations {
+                if !store.component_mode_feedback_settled(proof.generation.boot_id(), device, *at,
+                    proof.generation.epochs.transport, &BTreeMap::new()).map_err(|_| W::ServiceCommunicationFailure)? {
+                    return Ok(Some((A::Pending, None)));
+                }
+            }
+            let Some(signature) = proof.signature else { return Ok(Some((A::Unknown, None))); };
+            let mismatch = program.active_conditions.iter().zip(&signature)
+                .any(|(c, a)| a.on != c.on || c.level.is_some_and(|v| a.level != Some(v)));
+            let value = store.logical_variable(proof.generation.epochs.configuration, &policy.variable)
+                .map_err(|_| W::ServiceCommunicationFailure)?.and_then(|v| v.value);
+            let negative_intent = value.as_ref().is_some_and(|v| *v != policy.active_value.value()
+                && program.known_values.iter().any(|known| known.value() == *v));
+            return Ok(Some((if mismatch || negative_intent { A::Inactive } else { A::Unknown }, Some(proof.valid_until))));
         };
         if now >= r.deadline {
             return Ok(Some((A::Unknown, None)));

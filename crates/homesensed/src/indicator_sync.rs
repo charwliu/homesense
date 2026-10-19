@@ -17,6 +17,25 @@ type AttemptKey=(String,Vec<homesense_core::DeviceId>);
 #[derive(Clone,Copy,Debug,PartialEq,Eq)]
 pub(crate) enum Evaluation {Unknown,NotRequired,Desired(bool)}
 
+/// Sealed proof of the reviewed power predicate, minted only by power_link's
+/// actual-feedback evaluator. A generic lease alone cannot authorize red.
+pub(crate) struct PowerProof {
+    link: String,
+    lights: Vec<homesense_core::DeviceId>,
+    leds: Vec<homesense_core::DeviceId>,
+    policy: homesense_config::indicator_links::PowerPolicy,
+    desired: bool,
+    lease: crate::feedback::RuleLease,
+}
+impl PowerProof {
+    pub(crate) fn matches(&self, link: &homesense_config::indicator_links::Link,
+        device: &homesense_core::DeviceId, on: bool, lease: &crate::feedback::RuleLease) -> bool {
+        self.link == link.id && self.lights == link.lights && self.policy == link.power_policy
+            && self.leds.contains(device) && self.leds.iter().all(|id| link.leds.contains(id))
+            && self.desired == on && lease.covers(&self.lease)
+    }
+}
+
 struct Attempt {
     desired:bool,selection:i64,generation:crate::admission::TaskGeneration,controller:uuid::Uuid,
     fingerprint:crate::feedback::IndicatorFingerprint,
@@ -56,7 +75,6 @@ impl Synchronizer {
         max_age: u64,
         generation: crate::admission::TaskGeneration,
     ) -> Result<(), String> {
-        let key=(link.id.clone(),link.leds.clone());
         let member = group
             .members
             .iter()
@@ -108,7 +126,7 @@ impl Synchronizer {
             lease = Some(read);
             Ok(plan)
         }).await;
-        let mut prepared = match prepared {
+        let prepared = match prepared {
             Ok(p) => p,
             Err(PreparationFailure::Admission(WriteStatus::ResourceBusy)) => return Ok(()),
             Err(PreparationFailure::Admission(e)) => {
@@ -116,10 +134,21 @@ impl Synchronizer {
             }
             Err(PreparationFailure::Planning(e)) => return Err(e),
         };
-        let Some(desired) = desired else {
-            return Ok(());
-        };
-        let lease = lease.ok_or("indicator feedback lease missing")?;
+        let Some(desired) = desired else { return Ok(()); };
+        self.submit_physical(admission, controller, link, feedback, generation,
+            prepared, lease.ok_or("indicator feedback lease missing")?, desired,
+            selection_value.ok_or("physical indicator selection missing")?,
+            group.reconciliation.as_ref().is_some_and(|p| p.policy == homesense_config::scene_switches::ReconciliationPolicy::PowerPatternThenProfileLevel)).await
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    async fn submit_physical(
+        &mut self, admission: &Admission, controller: uuid::Uuid,
+        link: &homesense_config::indicator_links::Link, feedback: &Feedback,
+        generation: crate::admission::TaskGeneration, mut prepared: PreparedRule,
+        lease: crate::feedback::RuleLease, desired: bool, selected: i64, include_levels: bool,
+    ) -> Result<(), String> {
+        let key=(link.id.clone(),link.leds.clone());
         match admission
             .feedback_settled(controller, generation.clone(), lease.clone())
             .await
@@ -129,8 +158,7 @@ impl Synchronizer {
             Err(e) => return Err(format!("{e:?}")),
         }
         self.evaluations.insert(key.clone(),Evaluation::Desired(desired));
-        let selected=selection_value.ok_or("physical indicator selection missing")?;
-        let fingerprint=feedback.indicator_fingerprint(&lease,group.reconciliation.as_ref().is_some_and(|p|p.policy==homesense_config::scene_switches::ReconciliationPolicy::PowerPatternThenProfileLevel))?;
+        let fingerprint=feedback.indicator_fingerprint(&lease,include_levels)?;
         let prior=self.physical_attempted.get(&key).filter(|p|p.generation==generation && p.controller==controller);
         let output=match admission.indicator_outputs(controller,generation.clone(),link.leds.clone(),prior.map(|p|p.commands.clone()).unwrap_or_default()).await {
             Ok(output)=>output,Err(WriteStatus::ResourceBusy)=>return Ok(()),Err(e)=>return Err(format!("indicator output fence: {e:?}")),
@@ -171,6 +199,62 @@ impl Synchronizer {
             ),
         }
         Ok(())
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    async fn power_link(
+        &mut self, admission: &Admission, controller: uuid::Uuid,
+        link: &homesense_config::indicator_links::Link, feedback: &Feedback,
+        max_age: u64, generation: crate::admission::TaskGeneration,
+    ) -> Result<(), String> {
+        use homesense_config::indicator_links::PowerPolicy;
+        let mut lease = None;
+        let mut desired = None;
+        let mut known_input = false;
+        let all_on = Condition::All(link.lights.iter().map(|id| Condition::Equal(
+            Expr::DeviceOn(id.clone()), Expr::Literal(Value::Bool(true)))).collect());
+        let known = Condition::All(link.lights.iter().map(|id|
+            Condition::Not(Box::new(Condition::Unknown(Expr::DeviceOn(id.clone()))))).collect());
+        let writes = |on| link.leds.iter().map(|id| Node {
+            source: format!("indicator:{}:power",link.id),
+            action: Action::Command { device:id.clone(), command:Command::PanelLed(on) },
+        }).collect();
+        let inner = match link.power_policy {
+            PowerPolicy::FollowAllOn => Node { source:format!("indicator:{}:all",link.id),
+                action:Action::If { condition:all_on, then_actions:writes(true), else_actions:writes(false) } },
+            PowerPolicy::ClearIfAnyOff => Node { source:format!("indicator:{}:negative",link.id),
+                action:Action::If { condition:Condition::Not(Box::new(all_on)), then_actions:writes(false), else_actions:vec![] } },
+            PowerPolicy::LegacyOff => return Ok(()),
+        };
+        let flag = format!("indicator:{}:known",link.id);
+        let nodes = vec![Node { source:flag.clone(),
+            action:Action::If { condition:known, then_actions:vec![Node {
+                source:flag.clone(), action:Action::Set { variable:flag.clone(), value:Expr::Literal(Value::Bool(true)) },
+            },inner], else_actions:vec![] } }];
+        let prepared = PreparedRule::prepare_indicator(admission, controller, generation.clone(), vec![], |variables, _, policy| {
+            let mut variables = variables.clone();
+            variables.insert(flag.clone(),homesense_core::rule::Variable { value_type:homesense_core::rule::ValueType::Bool,
+                lifetime:homesense_core::rule::Lifetime::Temporary, value:None });
+            let (plan, read) = feedback.plan_indicator_rule(&nodes,&variables,Budget::default(),admission.monotonic_ms(),max_age,&BTreeMap::new(),policy)?;
+            known_input = plan.variables.get(&flag).is_some_and(|v| v.value == Some(Value::Bool(true)));
+            desired = plan.commands.first().and_then(|c| match c.command {Command::PanelLed(on)=>Some(on),_=>None});
+            lease=Some(read);
+            Ok(plan)
+        }).await;
+        let mut prepared = match prepared {
+            Ok(p)=>p, Err(PreparationFailure::Admission(WriteStatus::ResourceBusy))=>return Ok(()),
+            Err(PreparationFailure::Admission(e))=>return Err(format!("power indicator: {e:?}")),
+            Err(PreparationFailure::Planning(e))=>return Err(e),
+        };
+        let Some(desired)=desired else {
+            self.evaluations.insert((link.id.clone(),link.leds.clone()),if known_input {Evaluation::NotRequired}else{Evaluation::Unknown});
+            return Ok(());
+        };
+        prepared.attach_indicator_power(PowerProof { link:link.id.clone(), lights:link.lights.clone(),
+            leds:link.leds.clone(), policy:link.power_policy, desired,
+            lease:lease.as_ref().ok_or("power indicator lease missing")?.clone() });
+        self.submit_physical(admission,controller,link,feedback,generation,prepared,
+            lease.ok_or("power indicator lease missing")?,desired,i64::from(desired),false).await
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -228,6 +312,10 @@ impl Synchronizer {
         for link in document.indicator_links.iter().filter(|l| l.enabled) {
             if planning_deadline.is_some_and(|deadline|admission.monotonic_ms()>=deadline) || !admission.source_valid() {break;}
             let key=(link.id.clone(),link.leds.clone());self.visited.push(key.clone());
+            if link.power_policy != homesense_config::indicator_links::PowerPolicy::LegacyOff {
+                self.power_link(admission,controller,link,feedback,max_age,generation.clone()).await?;
+                continue;
+            }
             if let Some(scene) = &link.scene
                 && let Some(group) = document.scene_switch_groups.iter().find(|g| {
                     g.members.iter().any(|m| &m.scene == scene)
