@@ -69,8 +69,8 @@ pub struct RefreshPolicy {
     pub observation_grace_ms: u64,
 }
 impl Default for RefreshPolicy {
-    fn default() -> Self { Self { idle_interval_ms:10_800_000, active_interval_ms:10_000,
-        backoff_ms:[30_000,60_000], quiet_rounds_per_step:2, round_budget_ms:10_000,
+    fn default() -> Self { Self { idle_interval_ms:7_200_000, active_interval_ms:300_000,
+        backoff_ms:[600_000,1_200_000], quiet_rounds_per_step:1, round_budget_ms:10_000,
         observation_grace_ms:5_000 } }
 }
 impl RefreshPolicy {

@@ -125,6 +125,7 @@ pub struct Feedback {
     stopped: bool,
     managed_max_age_ms: Option<u64>,
     query_health: crate::query_health::Health,
+    output_query_turns: BTreeMap<DeviceId, homesense_core::away_execution::ReadTurn>,
 }
 type NativeSceneCapture = (
     BTreeMap<DeviceId, Option<bool>>,
@@ -389,6 +390,7 @@ impl Feedback {
         Ok(Self {
             managed_max_age_ms: None,
             query_health: Default::default(),
+            output_query_turns: Default::default(),
             lease_version: Arc::new(Mutex::new(0)),
             projection_versions: Arc::new(Mutex::new(projection_lease::Versions::new(&states,config,boot,epoch))),
             boot,
@@ -523,7 +525,17 @@ impl Feedback {
     pub(crate) fn away_observation(&self,now:u64)->Result<crate::away_execution::Observation,String> {
         let proof=self.scene_observation_start(now)?;
         let counts=proof.snapshot().devices.keys().filter_map(|id|self.states.observation_count(id).map(|n|(id.clone(),n))).collect();
-        Ok(crate::away_execution::Observation {proof,counts})
+        Ok(crate::away_execution::Observation {proof,counts,queries:self.output_query_turns.clone()})
+    }
+    pub(crate) fn output_query_finished(&mut self, configuration:&homesense_config::Configuration,
+        target:&crate::physical_queries::Target, written_ms:u64, finished_ms:u64) {
+        for id in configuration.devices().keys() {
+            if configuration.binding(id).is_some_and(|(binding,module)|
+                binding.gateway==target.gateway && module.address()==target.module.address()
+                    && target.channels.contains(&binding.channel.get())) {
+                self.output_query_turns.insert(id.clone(),homesense_core::away_execution::ReadTurn{written_ms,finished_ms});
+            }
+        }
     }
     pub(crate) fn scene_key_observation(&self,event:&homesense_state::Event,now:u64)->Result<SceneKeyObservation,String> {
         let version=self.lease_version.lock().map_err(|_|"feedback lease poisoned")?;
@@ -888,13 +900,13 @@ mod local_event_scope_tests {
 mod adaptive_lease_tests {
     use super::*;
     #[test]
-    fn retained_three_hour_observation_does_not_become_a_three_hour_execution_lease() {
+    fn retained_idle_observation_does_not_extend_the_short_execution_lease() {
         let config=Configuration::parse(include_bytes!("../../../config/simulation.json"),ExecutionContext::Simulation).unwrap();
         let age=config.refresh_policy().observation_max_age_ms();
         let mut feedback=Feedback::new(&config,ExecutionContext::Simulation,9,7).unwrap();
         feedback.set_managed_max_age_ms(age).unwrap();
         feedback.apply(&GatewayRead {gateway_id:"simulation".into(),transport_epoch:7,received_at_ms:1,result:Receive::Frames {transport_epoch:7,frames:vec![hb_protocol::RawFrame {address:0x15,command:0xd1,value:30}]}}).unwrap();
-        let now=10_800_001;
+        let now=config.refresh_policy().idle_interval_ms+1;
         feedback.expire(now,age).unwrap();
         let id=DeviceId::new("simulation:light").unwrap();
         assert_eq!(feedback.snapshot().devices[&id].observed_at_ms,Some(1));

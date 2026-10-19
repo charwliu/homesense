@@ -336,6 +336,11 @@ async fn run(independent: bool, strict: bool, delayed_release: bool, startup_hol
     // The field trace lost F2 when a newly admitted query followed F1; the
     // receive-only comparison delivered F2 142 ms later.
     if delayed_release {
+        if independent {
+            // An explicitly due consumer on the other bus must still progress;
+            // ordinary background polling now waits at least five minutes.
+            o.configure_consumer_refresh(&[(homesense_core::DeviceId::new("other-light").unwrap(),1)].into()).unwrap();
+        }
         buses["bus"].lock().unwrap().replies.extend([0xae, 0x41, 0xd1, 0xf1, 0xee]);
         let end = std::time::Instant::now() + Duration::from_millis(160);
         while std::time::Instant::now() < end {
@@ -397,44 +402,28 @@ async fn run(independent: bool, strict: bool, delayed_release: bool, startup_hol
         assert_eq!(queries,[[0xae,3,0xa1,0xf2,0xee],[0xae,3,0xa8,0xf2,0xee]].into());
         assert_eq!(sent.len(),3,"one actual write, one confirmation and one explicitly requested query; no periodic reads");
     } else {
-        // Genuine unsolicited load feedback still accelerates a normal round.
-        buses["bus"].lock().unwrap().replies.extend([0xae, 3, 0xd1, 0xf2, 0xee]);
-        let deadline = std::time::Instant::now() + Duration::from_secs(2);
-        while count() < baseline + gateways.len() * 8 || o.output_query_pending() {
-            assert!(std::time::Instant::now() < deadline, "normal output round never accelerated");
-            if independent {
-                o.local_tick().await.unwrap();
-                o.start_local_reads().unwrap();
-            } else {
-                o.receive_pending_output().await.unwrap();
-                o.receive("bus").await.unwrap();
-                o.refresh_outputs_if_due().await.unwrap();
-            }
+        // Module feedback updates canonical state but is not panel/App activity
+        // and therefore cannot pull the next background scan into this cycle.
+        buses["bus"].lock().unwrap().replies.extend([0xae,3,0xd1,0xf2,0xee]);
+        for _ in 0..50 {
+            if independent {o.local_tick().await.unwrap();o.start_local_reads().unwrap();}
+            else {o.receive_pending_output().await.unwrap();o.receive("bus").await.unwrap();o.refresh_outputs_if_due().await.unwrap();}
             tokio::time::sleep(Duration::from_millis(2)).await;
         }
-        assert_eq!(count(), baseline + gateways.len() * 8);
-        for _ in 0..20 {
-            if independent {
-                o.local_tick().await.unwrap();
-                o.start_local_reads().unwrap();
-            } else {
-                o.receive("bus").await.unwrap();
-                o.refresh_outputs_if_due().await.unwrap();
-            }
-            tokio::time::sleep(Duration::from_millis(2)).await;
-        }
-        assert_eq!(count(), baseline + gateways.len() * 8, "solicited replies cannot start more rounds");
+        assert_eq!(count(),baseline,"unsolicited load feedback cannot start a background round");
+        assert_eq!(o.feedback.module_truth().received_port_state("bus",3,1).unwrap().observed,
+            Some(homesense_core::Observation::Switch(false)),"state still updates without polling");
     }
     drop(o);
     a.shutdown().await.unwrap();
     std::fs::remove_dir_all(dir).unwrap();
 }
 #[tokio::test]
-async fn unsolicited_load_feedback_accelerates_single_gateway_normal_round_only() {
+async fn unsolicited_load_feedback_updates_single_gateway_without_restarting_round() {
     run(false, false, false, false, false, None).await;
 }
 #[tokio::test]
-async fn unsolicited_load_feedback_accelerates_independent_gateway_normal_round_only() {
+async fn unsolicited_load_feedback_updates_independent_gateway_without_restarting_round() {
     run(true, false, false, false, false, None).await;
 }
 

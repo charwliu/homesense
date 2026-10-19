@@ -89,10 +89,14 @@ impl Waves {
     async fn preferred(admission:&Admission,controller:Uuid,generation:&TaskGeneration,targets:&[Target],signal:&Signal,document:&Document,affected:&std::collections::BTreeSet<usize>)->Result<std::collections::BTreeSet<DeviceId>,WriteStatus> {
         // Ordering only: a projected color never authorizes a write. Each
         // selected target still gets a fresh Synchronizer proof at admission.
+        let mut preferred=targets.iter().filter(|target|affected.contains(&target.link)
+            && document.indicator_links[target.link].power_policy!=homesense_config::indicator_links::PowerPolicy::LegacyOff)
+            .map(|target|target.id.clone()).collect::<std::collections::BTreeSet<_>>();
         let candidates=targets.iter().filter(|target|affected.contains(&target.link)).filter_map(|target|Self::selection_color(target,signal,document).map(|color|(target.id.clone(),color))).collect::<BTreeMap<_,_>>();
-        if candidates.is_empty(){return Ok(Default::default());}
+        if candidates.is_empty(){return Ok(preferred);}
         let outputs=Self::fences(admission,controller,generation,&candidates.keys().cloned().collect::<Vec<_>>()).await?;
-        Ok(candidates.into_iter().filter_map(|(id,color)|(!Self::matches(outputs.get(&id),color)).then_some(id)).collect())
+        preferred.extend(candidates.into_iter().filter_map(|(id,color)|(!Self::matches(outputs.get(&id),color)).then_some(id)));
+        Ok(preferred)
     }
     fn reprioritize(cycle:&mut Cycle,signal:Signal,affected:&std::collections::BTreeSet<usize>,preferred:&std::collections::BTreeSet<DeviceId>) {
         // Retain the original hard deadline and every unvisited target. At most
@@ -167,7 +171,12 @@ impl Waves {
         }
         if self.cycle.is_none() {
             if !qualified_round && self.last_signal.as_ref()==Some(&signal) && self.last_sequence==Some(sequence) {return Ok(None);}
-            let targets=document.indicator_links.iter().enumerate().filter(|(_,l)|l.enabled).flat_map(|(link,l)|l.leds.iter().cloned().map(move|id|Target {link,id})).collect::<Vec<_>>();
+            let mut targets=document.indicator_links.iter().enumerate().filter(|(_,l)|l.enabled).flat_map(|(link,l)|l.leds.iter().cloned().map(move|id|Target {link,id})).collect::<Vec<_>>();
+            // Initialize independent power indicators before the legacy scene
+            // fanout. Unchanged OFF inputs otherwise never reprioritize these
+            // endpoints, leaving their first confirmed color at the tail.
+            // This changes ordering only; admission still proves every write.
+            targets.sort_by_key(|target|document.indicator_links[target.link].power_policy==homesense_config::indicator_links::PowerPolicy::LegacyOff);
             if targets.is_empty(){return Ok(None);}
             let snapshot=feedback.snapshot();
             let horizon=signal.lights.iter().filter_map(|(id,_,quality)|(*quality==Quality::Confirmed).then(||snapshot.devices.get(id).and_then(|s|s.observed_at_ms)).flatten()).min().map(|at|at.saturating_add(max_age)).unwrap_or(now);

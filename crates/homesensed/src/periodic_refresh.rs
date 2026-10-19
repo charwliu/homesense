@@ -21,6 +21,7 @@ pub(super) struct OutputRefresh {
     ramp_reads:crate::postwrite_confirmation::RampReads,
     prefer_postwrite: bool,
     away_critical: bool,
+    scanning: bool,
     recent_queries:std::collections::BTreeMap<(String,u8,u8),u64>,
     strict:std::collections::BTreeMap<usize,u64>,
     query_backoff:std::collections::BTreeMap<(String,u8),u64>,
@@ -30,6 +31,7 @@ pub(super) struct OutputRefresh {
 }
 struct Pending {
     index: usize,
+    written_ms: u64,
     before: Vec<(u8, u64)>,
     original_before: Vec<(u8,u64)>,
     deadline: u64,
@@ -95,11 +97,12 @@ impl OutputRefresh {
         if !partial {self.query_backoff.insert((target.gateway.clone(),target.module.address().get()),now.saturating_add(delay));}
     }
     pub(super) fn activity(&mut self,now:u64) {
-        if let Some(schedule)=&mut self.adaptive {schedule.activity(now);self.round.discard_completion();self.due=self.due.min(now);}
+        if let Some(schedule)=&mut self.adaptive {schedule.activity(now);self.round.discard_completion();if !self.scanning {self.due=now.saturating_add(schedule.interval());}}
     }
     pub(super) fn written(&mut self,device:&homesense_core::DeviceId,now:u64,ramped:bool) {
         if self.adaptive.is_none() {return;}
         let Some((binding,module))=self.configuration.binding(device) else{return;};
+        if module.kind()==homesense_core::ModuleKind::Motor {self.activity(now);return;}
         if !matches!(module.kind(),homesense_core::ModuleKind::Switch|homesense_core::ModuleKind::Dimmer) {return;}
         let (gateway,address,channel)=(binding.gateway.clone(),binding.address,binding.channel.get());
         self.query_backoff.remove(&(gateway.clone(),address.get()));
@@ -119,9 +122,11 @@ impl OutputRefresh {
     }
     fn observed_round(&mut self,index:usize,truth:&crate::module_truth::ModuleTruth,now:u64)->Option<u64> {
         self.priority.remove(&index);self.confirmation_until.remove(&index);
-        if self.round.observe(index,&self.targets,truth,now,self.max_age_ms,self.configuration.refresh_policy().round_budget_ms,&self.generation)
-            && let Some(schedule)=&mut self.adaptive {
-            self.due=now.saturating_add(schedule.completed());return Some(schedule.allowance());
+        let complete=self.round.observe(index,&self.targets,truth,now,self.max_age_ms,self.configuration.refresh_policy().round_budget_ms,&self.generation);
+        if !self.round.in_progress() && let Some(schedule)=&mut self.adaptive {
+            self.scanning=false;
+            self.due=now.saturating_add(if complete {schedule.completed(now)}else{schedule.timeout()});
+            if complete {return Some(schedule.allowance());}
         }
         None
     }
@@ -238,6 +243,7 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
         if let Some(plan)=&mut self.output_refresh
             && let Some(pending)=&plan.pending && plan.complete(pending,self.feedback.module_truth(),self.transport.now_ms()) {
                 let index=pending.index;
+                self.feedback.output_query_finished(&plan.configuration,&plan.targets[index],pending.written_ms,self.transport.now_ms());
                 let confirming=plan.priority.contains(&index) && crate::postwrite_confirmation::needed(self.transport.admission(),&self.feedback,&plan.configuration,&plan.targets[index],plan.confirmation_until.get(&index).copied()).await?;
                 if !confirming {plan.priority.remove(&index);plan.confirmation_until.remove(&index);}
                 if !confirming && !pending.strict && let Some(bound)=plan.observed_round(index,self.feedback.module_truth(),self.transport.now_ms()) {self.feedback.set_managed_max_age_ms(bound)?;}
@@ -283,7 +289,7 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
             max_age_ms,
             configuration.refresh_policy(),
         )?;
-        let adaptive=(max_age_ms==configuration.refresh_policy().observation_max_age_ms()).then(||crate::adaptive_refresh::Schedule::new(configuration.refresh_policy()));
+        let adaptive=(max_age_ms==configuration.refresh_policy().observation_max_age_ms()).then(||crate::adaptive_refresh::Schedule::for_context(configuration.refresh_policy(),context));
         if let Some(schedule)=&adaptive {self.feedback.set_managed_max_age_ms(schedule.allowance())?;}
         let first_delay=adaptive.as_ref().map_or(interval_ms,|schedule|schedule.interval());
         let mut round=RoundTracker::default();
@@ -313,7 +319,7 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
             round,
             adaptive,priority:Default::default(),confirmation_until:Default::default(),ramp_reads:Default::default(),recent_queries:Default::default(),strict:Default::default(),
             query_backoff:Default::default(),target_backoff:Default::default(),failed_ports:Default::default(),away_writes:Default::default(),prefer_postwrite: true,
-            away_critical: false,
+            away_critical: false,scanning:false,
         });
         Ok(())
     }
@@ -354,11 +360,6 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
         plan: &mut OutputRefresh,
     ) -> Result<(), (String, String)> {
         let now = self.transport.now_ms();
-        if plan.pending.is_none() && let Some(schedule)=&mut plan.adaptive && schedule.settle_if_quiet(now) {
-            plan.round.reset();
-            plan.due=now.saturating_add(schedule.interval());
-            self.feedback.set_managed_max_age_ms(schedule.allowance()).map_err(|e|("feedback-proof".into(),e))?;
-        }
         plan.query_backoff.retain(|_,until|now<*until);
         plan.confirmation_until.retain(|index,until| {if now>=*until {plan.priority.remove(index);false}else{true}});
         let required=crate::control_batch::query_requirements(self.transport.admission(),&self.feedback,&plan.configuration,&plan.targets,plan.controller).await.map_err(|e|("feedback-proof".into(),e))?;
@@ -372,6 +373,7 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
         if let Some(pending) = &plan.pending {
             if plan.complete(pending, self.feedback.module_truth(), now) {
                 let index=pending.index;
+                self.feedback.output_query_finished(&plan.configuration,&plan.targets[index],pending.written_ms,now);
                 let confirming=plan.priority.contains(&index) && crate::postwrite_confirmation::needed(self.transport.admission(),&self.feedback,&plan.configuration,&plan.targets[index],plan.confirmation_until.get(&index).copied()).await.map_err(|e|(plan.targets[index].gateway.clone(),e))?;
                 if !confirming {plan.priority.remove(&index);plan.confirmation_until.remove(&index);}
                 if !confirming && !pending.strict && let Some(bound)=plan.observed_round(index,self.feedback.module_truth(),now) {self.feedback.set_managed_max_age_ms(bound).map_err(|e|(plan.targets[index].gateway.clone(),e))?;}
@@ -415,12 +417,14 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
             // confirmation. Missing observations remain explicitly unknown.
             self.feedback.missing_query_ports(&gateway,target.module.address().get(),&missing,now)
                 .map_err(|error|(gateway.clone(),error))?;
+            self.feedback.output_query_finished(&plan.configuration,target,pending.written_ms,now);
             let address=target.module.address().get();
             if plan.gateway_outputs_missing(&gateway,address,&missing_counts,self.feedback.module_truth()) {
                 return Err((gateway,"all registered output feedback unavailable".into()));
             }
             plan.backoff_missing(index,&self.feedback,now);
             let finished=plan.round.missing(index,plan.targets.len());
+            if finished {plan.scanning=false;}
             self.transport.finish_status_read(&gateway);
             plan.pending=None;plan.control_opportunity=true;
             plan.due=if finished {now.saturating_add(plan.adaptive.as_ref().map_or(plan.interval_ms,|s|s.interval()))} else {now};
@@ -431,7 +435,11 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
         if self.feedback.query_deferred(&gateway,now,retry || postwrite) {
             plan.control_opportunity=true;return Ok(());
         }
-        let timeout = if retry {
+        let timeout = if plan.away_critical {
+            // Two bounded read turns fit well inside the five-second operation
+            // budget, including eight contiguous 8N1 module response frames.
+            plan.timeout_ms.min(250)
+        } else if retry {
             plan.timeout_ms.min(500)
         } else {
             plan.timeout_ms
@@ -465,8 +473,10 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
         plan.recent_queries.retain(|_,old|*old>=self.transport.now_ms());
         for channel in &target.channels {plan.recent_queries.insert((target.gateway.clone(),target.module.address().get(),*channel),deadline);}
         let original_before=plan.pending.as_ref().map_or_else(||before.clone(),|pending|pending.original_before.clone());
+        let written_ms=plan.pending.as_ref().map_or_else(||self.transport.now_ms(),|pending|pending.written_ms);
         plan.pending = Some(Pending {
             index,
+            written_ms,
             before,
             original_before,
             deadline,
@@ -474,6 +484,7 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
             strict,
         });
         if !retry && !strict {
+            if !postwrite {plan.scanning=true;}
             plan.round.begin(self.transport.now_ms());
             plan.next = (index + 1) % plan.targets.len();
             plan.due = plan
@@ -510,7 +521,7 @@ mod priority_tests {
             configuration:config,targets,controller:uuid::Uuid::new_v4(),generation,context:ExecutionContext::Simulation,
             timeout_ms:500,max_age_ms:5000,interval_ms:20,next:0,due:0,pending:None,control_opportunity:false,
             round:Default::default(),adaptive:None,priority:(0..8).collect(),confirmation_until:Default::default(),
-            ramp_reads:Default::default(),prefer_postwrite:true,away_critical:false,recent_queries:Default::default(),strict:Default::default(),query_backoff:Default::default(),target_backoff:Default::default(),failed_ports:Default::default(),away_writes:Default::default(),
+            ramp_reads:Default::default(),prefer_postwrite:true,away_critical:false,scanning:false,recent_queries:Default::default(),strict:Default::default(),query_backoff:Default::default(),target_backoff:Default::default(),failed_ports:Default::default(),away_writes:Default::default(),
         };
         for expected in 0..8 {
             let at=100+expected as u64;
@@ -523,7 +534,7 @@ mod priority_tests {
             },at).unwrap();
         }
         assert_eq!(refresh.next_query(&feedback,1000),Some((0,true,false)));
-        refresh.pending=Some(Pending{index:3,before:vec![],original_before:vec![],deadline:1500,retried:false,strict:false});
+        refresh.pending=Some(Pending{index:3,written_ms:1000,before:vec![],original_before:vec![],deadline:1500,retried:false,strict:false});
         assert_eq!(refresh.next_query(&feedback,1000).unwrap().0,3,"an owned response is never rotated away");
         refresh.pending=None;refresh.strict.insert(7,1);refresh.prefer_postwrite=false;
         assert_eq!(refresh.next_query(&feedback,1000),Some((7,false,true)),"strict consumers keep their alternating turn");
@@ -534,7 +545,7 @@ mod priority_tests {
         assert_eq!(refresh.next_query(&feedback,3000),Some((7,false,true)),"a stricter consumer cannot borrow Away's broader allowance");
         refresh.query_backoff.insert(("bus".into(),3),5000);
         assert_eq!(refresh.next_query(&feedback,3000),None,"a missing module yields both priority and strict read slots");
-        refresh.pending=Some(Pending{index:3,before:vec![],original_before:vec![],deadline:4500,retried:false,strict:false});
+        refresh.pending=Some(Pending{index:3,written_ms:4000,before:vec![],original_before:vec![],deadline:4500,retried:false,strict:false});
         assert_eq!(refresh.next_query(&feedback,3000).unwrap().0,3,"backoff cannot replace an already-owned reply");
         refresh.pending=None;
         assert!(refresh.next_query(&feedback,5000).is_some(),"backoff has a fixed end and cannot disable future recovery reads");

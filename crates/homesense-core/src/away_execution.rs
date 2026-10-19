@@ -8,11 +8,16 @@
 use crate::DeviceId;
 use std::collections::{BTreeMap, BTreeSet};
 
+pub const RESPONSE_TIMEOUT_MS: u64 = 1_000;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Policy {
     pub max_rounds: u8,
     pub delay_ms: u64,
     pub send_ms: u64,
+    /// Reply timeout measured from the actual completed module write. This is
+    /// independent of the age allowed for an already received observation.
+    pub response_ms: u64,
     pub feedback_ms: u64,
     pub total_ms: u64,
 }
@@ -20,10 +25,11 @@ impl Default for Policy {
     fn default() -> Self {
         Self {
             max_rounds: 3,
-            delay_ms: 1000,
+            delay_ms: 200,
             send_ms: 2000,
+            response_ms: RESPONSE_TIMEOUT_MS,
             feedback_ms: 5000,
-            total_ms: 30_000,
+            total_ms: 5_000,
         }
     }
 }
@@ -77,6 +83,15 @@ pub struct Sample {
 pub struct Evidence {
     pub commands: BTreeMap<u64, CommandState>,
     pub physical: BTreeMap<DeviceId, Sample>,
+    /// A queued query is not a device timeout. When a serialized query owner
+    /// exists, an unanswered output gets its own bounded read turn before a
+    /// retry. This never counts as physical confirmation.
+    pub queries: Option<BTreeMap<DeviceId, ReadTurn>>,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ReadTurn {
+    pub written_ms: u64,
+    pub finished_ms: u64,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Cancel {
@@ -123,7 +138,7 @@ pub enum Error {
 enum Phase {
     Ready,
     Proposed(Attempt),
-    Settling { feedback_before: u64 },
+    Settling,
     Delay { until: u64 },
     Confirming,
     /// No more writes. Refresh previously confirmed modules before freezing
@@ -159,6 +174,7 @@ impl Operation {
             || policy.max_rounds > 16
             || policy.delay_ms == 0
             || policy.send_ms == 0
+            || policy.response_ms == 0
             || policy.feedback_ms == 0
             || policy.total_ms == 0
             || policy.total_ms > 300_000
@@ -319,11 +335,6 @@ impl Operation {
                 return Err(Error::InvalidReceipt);
             }
         }
-        let feedback_before = attempt
-            .send_before_ms
-            .checked_add(self.policy.feedback_ms)
-            .ok_or(Error::InvalidPolicy)?
-            .min(self.deadline);
         for receipt in receipts {
             self.used_commands.insert(receipt.command);
             let module = self
@@ -333,7 +344,7 @@ impl Operation {
             module.receipt = Some(receipt);
         }
         self.rounds = attempt.round;
-        self.phase = Phase::Settling { feedback_before };
+        self.phase = Phase::Settling;
         Ok(())
     }
     fn written(receipt: &Receipt, evidence: &Evidence, now: u64) -> Result<Option<u64>, Error> {
@@ -455,7 +466,7 @@ impl Operation {
         }
         match self.phase {
             Phase::Proposed(_) => return Ok(Decision::Wait),
-            Phase::Settling { feedback_before } => {
+            Phase::Settling => {
                 // Absence of a reply is not proof that an accepted/Writing
                 // ticket has retired. Never overlap it with another attempt.
                 if self
@@ -471,7 +482,34 @@ impl Operation {
                 {
                     return Ok(Decision::Wait);
                 }
-                if now < feedback_before {
+                let queries_pending = if let Some(queries) = &evidence.queries {
+                    self.modules.values().filter(|module| !module.verified).any(|module| {
+                        let Some(receipt) = &module.receipt else { return false; };
+                        let Some(CommandState::Written { at_ms }) = evidence.commands.get(&receipt.command) else { return false; };
+                        let replied = |output:&DeviceId| evidence.physical.get(output).is_some_and(|sample|
+                                sample.count > receipt.before_counts[output]
+                                    && sample.received_ms >= *at_ms && sample.received_ms <= now);
+                        let queried = |output:&DeviceId| queries.get(output).is_some_and(|turn|
+                                turn.written_ms >= *at_ms && turn.finished_ms >= turn.written_ms
+                                    && turn.finished_ms <= now);
+                        // One genuinely failed output query is already enough
+                        // to retry this atomic module-Off. The other seven
+                        // unsent reads remain unsent and cannot confirm Off.
+                        let failed=module.outputs.iter().any(|output|
+                            (!replied(output) && queried(output))
+                                || (replied(output) && evidence.physical[output].actual==Physical::On));
+                        !failed && module.outputs.iter().any(|output|!replied(output) && !queried(output))
+                    })
+                } else { false };
+                let waiting_for_reply = self.modules.values().filter(|module| !module.verified)
+                    .filter_map(|module| module.receipt.as_ref())
+                    .any(|receipt| matches!(evidence.commands.get(&receipt.command),
+                        Some(CommandState::Written { at_ms })
+                        if now.saturating_sub(*at_ms) < self.policy.response_ms));
+                // A completed bounded read, including timeout, has already
+                // answered whether this output replied. Do not stack another
+                // unsolicited-response wait on top of that same read turn.
+                if (waiting_for_reply && evidence.queries.is_none()) || queries_pending {
                     return Ok(Decision::Read(
                         self.modules
                             .keys()

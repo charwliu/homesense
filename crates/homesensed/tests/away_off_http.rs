@@ -267,7 +267,15 @@ async fn visible_away_operation_flows_through_http_actor_audit_wire_feedback_and
                         .count()
                         == 2
                 {
-                    break;
+                    // The physical LED proof and the read-only scene projection
+                    // advance independently. Require both to settle within this
+                    // same original two-second budget, rather than assuming a
+                    // cross-stream atomic update after only the LED is written.
+                    let (code, scenes)=http(web,"/api/v1/scenes",None).await.unwrap();
+                    let selected=scenes["scenes"].as_array().unwrap().iter()
+                        .filter(|v|v["id"]=="bright" || v["id"]=="relay-only")
+                        .collect::<Vec<_>>();
+                    if code==200 && selected.len()==2 && selected.iter().all(|v|v["selected"]==false) {break;}
                 }
             }
             tokio::time::sleep(Duration::from_millis(10)).await;

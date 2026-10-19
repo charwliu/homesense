@@ -48,7 +48,10 @@ impl Bus {
     fn levels(&self)->Vec<u8>{self.frames.lock().unwrap().iter().filter(|frame|frame[1]==0x15 && frame[2]==1).map(|frame|frame[3]).collect()}
     async fn shutdown(self){self.stop.send_replace(true);self.task.await.unwrap();}
 }
-fn rules(revision:u64,boot:bool)->Vec<u8>{serde_json::to_vec(&json!({"schema_version":1,"configuration_revision":revision,"variables":[],"rules":if boot{json!([{"id":"boot","enabled":true,"review_evidence":"synthetic","source":"synthetic","trigger":{"kind":"startup_synchronized"},"actions":[{"source":"synthetic","action":{"kind":"command","device":"simulation:light","command":{"kind":"level","value":25,"ramp":false}}}]}])}else{json!([])}})).unwrap()}
+// Fault injection needs an actual scheduled read. A test-only read consumer
+// supplies it; idle sweeps retain the production 300s floor. No extra control
+// is executed: the observed scene below is never invoked.
+fn rules(revision:u64,boot:bool)->Vec<u8>{serde_json::to_vec(&json!({"schema_version":1,"configuration_revision":revision,"variables":[],"rules":if boot{json!([{"id":"boot","enabled":true,"review_evidence":"synthetic","source":"synthetic","trigger":{"kind":"startup_synchronized"},"actions":[{"source":"synthetic","action":{"kind":"command","device":"simulation:light","command":{"kind":"level","value":25,"ramp":false}}}]}])}else{json!([])},"timed_scenes":[{"id":"fault-observation","enabled":true,"review_evidence":"Synthetic read consumer only; never invoked","max_lateness_ms":1000,"steps":[{"source":"synthetic","offset_ms":0,"device":"simulation:light","command":{"kind":"level","value":25,"ramp":false}}]}],"scene_tracking":[{"scene":"fault-observation","enabled":true,"aggregation":"all","unknown_policy":"require_all_known","pending_policy":"block_scene","control_policy":"separate_action_and_read_only_activity","activity_name":"Synthetic fault observation","max_age_ms":1000,"review_evidence":"Explicit bounded read consumer triggers fault detection independently of the 300s idle sweep","members":[{"id":"light","device":"simulation:light","predicate":{"kind":"power","on":true},"review_evidence":"Synthetic single-port observation"}]}]})).unwrap()}
 async fn ready(web:std::net::SocketAddr,revision:&str,service:&tokio::task::JoinHandle<Result<(),String>>){tokio::time::timeout(Duration::from_secs(12),async{loop{
     assert!(!service.is_finished());if tokio::net::TcpStream::connect(web).await.is_ok(){let (code,state)=http(web,"/api/v1/diagnostics",None).await;if code==200 && state["revision"]==revision && state["ready"]==true{break;}}
     tokio::time::sleep(Duration::from_millis(10)).await;
@@ -59,9 +62,7 @@ async fn unavailable(web:std::net::SocketAddr,service:&tokio::task::JoinHandle<R
 }}).await.unwrap();}
 #[tokio::test]
 async fn forever_survives_multi_day_advance_fault_partial_recovery_and_online_publication_without_replay(){
-    let root=std::env::temp_dir().join(format!("forever-runtime-{}",Uuid::new_v4()));let mut bus=Bus::new(false).await;
-    // Preserve the original sub-3s fault/recovery windows with explicit fast idle.
-    bus.devices["refresh_policy"]=json!({"idle_interval_ms":500,"active_interval_ms":100,"backoff_ms":[200,300],"quiet_rounds_per_step":2,"round_budget_ms":1000,"observation_grace_ms":1000});
+    let root=std::env::temp_dir().join(format!("forever-runtime-{}",Uuid::new_v4()));let bus=Bus::new(false).await;
     let web=free_address();let (stop,receive)=tokio::sync::watch::channel(false);let (publisher,requests)=crate::automation_publication::channel();
     let service={let input=serde_json::to_vec(&bus.devices).unwrap();let directory=root.clone();let publisher=publisher.clone();tokio::spawn(async move {serve_inner_running(&input,&rules(1,true),&directory,RunControl::new(RunMode::Forever,receive),true,3,Some(requests),Duration::from_millis(20),Some(crate::service::WebSettings{address:web,secret:"abcdefghijklmnopqrstuvwxyz0123456789".into(),administrator:true,tls:None}),Some(publisher),None,None,None).await})};
     ready(web,"1",&service).await;

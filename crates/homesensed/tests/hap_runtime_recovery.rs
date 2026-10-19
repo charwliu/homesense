@@ -134,9 +134,12 @@ async fn paired_encrypted_hap_reports_outage_and_preserves_pairing_after_complet
     let trace=Trace(Arc::new(Mutex::new(json!({"stage":"prepare","events":[],"passed":false,"synthetic_profile":"ad8_din_rs485_v2_2_1","field_access":false}))));let _report=Report(trace.clone());
     let web=address();let hap=address();assert_ne!(web,hap);
     let bus=tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-    // Fault injection remains inside its original deadlines via explicit fast idle.
-    let devices=serde_json::to_vec(&json!({"schema_version":2,"revision":1,"refresh_policy":{"idle_interval_ms":500,"active_interval_ms":100,"backoff_ms":[200,300],"quiet_rounds_per_step":2,"round_budget_ms":1000,"observation_grace_ms":1000},"gateways":[{"id":"bus","endpoint":bus.local_addr().unwrap().to_string(),"modules":[{"id":"dimmer","address":"11","profile":"ad8_din_rs485_v2_2_1","verification":{"status":"verified","verified_at_unix_ms":1,"evidence":"Generated loopback test, not field calibration"}}]}],"devices":[{"id":"light","name":"Synthetic light","module_id":"dimmer","channel":1,"enabled":true}]})).unwrap();
-    let rules=br#"{"schema_version":1,"configuration_revision":1,"variables":[],"rules":[]}"#;
+    let devices=serde_json::to_vec(&json!({"schema_version":2,"revision":1,"gateways":[{"id":"bus","endpoint":bus.local_addr().unwrap().to_string(),"modules":[{"id":"dimmer","address":"11","profile":"ad8_din_rs485_v2_2_1","verification":{"status":"verified","verified_at_unix_ms":1,"evidence":"Generated loopback test, not field calibration"}}]}],"devices":[{"id":"light","name":"Synthetic light","module_id":"dimmer","channel":1,"enabled":true}]})).unwrap();
+    // A silent peer can only be detected when a read is actually due. Keep the
+    // production idle floor; this explicit test-only freshness consumer creates
+    // the bounded read rather than relying on an obsolete 100ms idle sweep.
+    // Its scene is never invoked, so the original two-control assertion stands.
+    let rules=br#"{"schema_version":1,"configuration_revision":1,"variables":[],"rules":[],"timed_scenes":[{"id":"fault-observation","enabled":true,"review_evidence":"Synthetic read consumer only; never invoked","max_lateness_ms":1000,"steps":[{"source":"synthetic","offset_ms":0,"device":"light","command":{"kind":"level","value":30,"ramp":false}}]}],"scene_tracking":[{"scene":"fault-observation","enabled":true,"aggregation":"all","unknown_policy":"require_all_known","pending_policy":"block_scene","control_policy":"separate_action_and_read_only_activity","activity_name":"Synthetic fault observation","max_age_ms":1000,"review_evidence":"Explicit bounded read consumer triggers fault detection independently of the 300s idle sweep","members":[{"id":"light","device":"light","predicate":{"kind":"power","on":true},"review_evidence":"Synthetic single-port observation"}]}]}"#;
     let mut identity=homesense_hap::storage::IdentityStore::open(root.join("identity")).await.unwrap();
     let initial=hap::Config{host:hap.ip(),port:hap.port(),name:"Paired recovery fixture".into(),..Default::default()};
     identity.save_config(&initial).await.unwrap();identity.initialize_aid_cache().await.unwrap();
@@ -193,8 +196,8 @@ async fn paired_encrypted_hap_reports_outage_and_preserves_pairing_after_complet
                 if characteristic["value"].is_null(){assert!(unavailable_iids.insert(iid),"duplicate unavailable notification");}else{assert!(unavailable_iids.is_empty(),"stale state became known again before recovery");}
             }
         }
-        // Expiring a sample does not prove a failed transport. AD8 confirmation
-        // now starts after its six-second ramp; require the actual fault gate
+        // Expiring a sample does not prove a failed transport. Require the
+        // actual bounded consumer read to fail and close the transport gate
         // before asserting that an explicit write is rejected as offline.
         wait(||management(web,"/api/v1/diagnostics").is_some_and(|(status,body)|status==200 && body["gateway_ready"]==false && body["ready"]==false),8,"actual silent gateway fault, not only expired observations");
         trace.stage("unavailable-silent");unavailable(&mut session,&mut socket,ids,&trace);

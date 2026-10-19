@@ -14,6 +14,7 @@ pub(super) struct RoundTracker {
     complete: Option<CompletedRound>,
 }
 impl RoundTracker {
+    pub fn in_progress(&self)->bool { self.started.is_some() }
     pub fn discard_completion(&mut self) {
         self.complete = None;
     }

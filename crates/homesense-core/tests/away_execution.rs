@@ -1,5 +1,11 @@
 use homesense_core::{DeviceId, away_execution::*};
 use std::collections::{BTreeMap, BTreeSet};
+// The historical ageing/override regressions exercise observations older than
+// five seconds. Their explicit extended budget is independent of the production
+// five-second default, covered by the response tests below.
+fn extended_policy() -> Policy {
+    Policy { delay_ms: 1000, total_ms: 30_000, ..Policy::default() }
+}
 fn id(module: usize, ch: usize) -> DeviceId {
     DeviceId::new(format!("m{module}:{ch}")).unwrap()
 }
@@ -60,7 +66,7 @@ fn off(module: usize, at: u64, count: u64, e: &mut Evidence) {
 }
 #[test]
 fn complete_twelve_modules_requires_all96_postwrite_observations_and_no_second_attempt() {
-    let mut o = Operation::new(scope(12), Policy::default(), 100).unwrap();
+    let mut o = Operation::new(scope(12), extended_policy(), 100).unwrap();
     let mut e = Evidence::default();
     let a = attempt(&mut o, 100, &e);
     assert_eq!(a.modules.len(), 12);
@@ -100,8 +106,148 @@ fn complete_twelve_modules_requires_all96_postwrite_observations_and_no_second_a
     );
 }
 #[test]
+fn millisecond_replies_confirm_immediately_without_waiting_for_timeout() {
+    let mut operation = Operation::new(scope(12), Policy::default(), 0).unwrap();
+    let mut evidence = Evidence::default();
+    let first = attempt(&mut operation, 0, &evidence);
+    let receipts = accept(&mut operation, &first, 1);
+    written(&receipts, 10, &mut evidence);
+    for module in 0..12 {
+        off(module, 33, 2, &mut evidence);
+    }
+    assert_eq!(operation.poll(34, Owner::Current, &evidence).unwrap(),
+        Decision::Finished(End::Confirmed));
+    assert_eq!(operation.rounds(), 1);
+}
+#[test]
+fn silent_module_times_out_one_second_after_write_and_only_it_is_retried() {
+    let mut operation = Operation::new(scope(12), Policy::default(), 0).unwrap();
+    let mut evidence = Evidence::default();
+    let first = attempt(&mut operation, 0, &evidence);
+    let receipts = accept(&mut operation, &first, 1);
+    written(&receipts, 10, &mut evidence);
+    for module in 0..11 {
+        off(module, 33, 2, &mut evidence);
+    }
+    assert!(matches!(operation.poll(34, Owner::Current, &evidence).unwrap(), Decision::Read(_)));
+    assert!(matches!(operation.poll(1009, Owner::Current, &evidence).unwrap(), Decision::Read(_)));
+    // The one-second window starts at Written(10), not at the send lease's
+    // deadline(2000), and not at the 30-second operation ceiling.
+    assert_eq!(operation.poll(1010, Owner::Current, &evidence).unwrap(), Decision::Wait);
+    assert_eq!(operation.poll(1209, Owner::Current, &evidence).unwrap(), Decision::Wait);
+    let retry = attempt(&mut operation, 1210, &evidence);
+    assert_eq!(retry.modules, BTreeSet::from(["m11".into()]));
+    assert_eq!(retry.round, 2);
+    assert_eq!(operation.deadline_ms(), 5000);
+    assert_eq!(operation.missing(&evidence, 1210).unwrap(),
+        BTreeMap::from([("m11".into(), (1..=8).map(|ch| id(11, ch)).collect())]));
+}
+#[test]
+fn queued_write_time_is_not_charged_to_the_device_response_window() {
+    let mut operation = Operation::new(scope(1), Policy::default(), 0).unwrap();
+    let mut evidence = Evidence::default();
+    let first = attempt(&mut operation, 0, &evidence);
+    let receipts = accept(&mut operation, &first, 1);
+    written(&receipts, 1900, &mut evidence);
+    assert!(matches!(operation.poll(2899, Owner::Current, &evidence).unwrap(), Decision::Read(_)));
+    assert_eq!(operation.poll(2900, Owner::Current, &evidence).unwrap(), Decision::Wait);
+    assert_eq!(operation.poll(3099, Owner::Current, &evidence).unwrap(), Decision::Wait);
+    assert_eq!(attempt(&mut operation, 3100, &evidence).round, 2);
+}
+#[test]
+fn silent_channel_exhausts_three_one_second_windows_without_waiting_thirty_seconds() {
+    let mut operation = Operation::new(scope(12), Policy::default(), 0).unwrap();
+    let mut evidence = Evidence::default();
+    for (round, now) in [(1, 0), (2, 1210), (3, 2420)] {
+        let next = attempt(&mut operation, now, &evidence);
+        assert_eq!(next.round, round);
+        assert_eq!(next.modules.len(), if round == 1 { 12 } else { 1 });
+        if round > 1 { assert_eq!(next.modules, BTreeSet::from(["m11".into()])); }
+        let receipts = accept(&mut operation, &next, u64::from(round) * 20);
+        written(&receipts, now + 10, &mut evidence);
+        for module in 0..12 { off(module, now + 33, u64::from(round) + 1, &mut evidence); }
+        evidence.physical.remove(&id(11, 8));
+        assert!(matches!(operation.poll(now + 34, Owner::Current, &evidence).unwrap(), Decision::Read(_)));
+        let decision = operation.poll(now + 1010, Owner::Current, &evidence).unwrap();
+        assert_eq!(decision, if round == 3 { Decision::Finished(End::Exhausted) } else { Decision::Wait });
+    }
+    assert_eq!(operation.terminal_missing(), Some(&BTreeMap::from([
+        ("m11".into(), BTreeSet::from([id(11, 8)]))
+    ])));
+    assert_eq!(operation.deadline_ms(), 5000);
+}
+#[test]
+fn queued_serial_reads_are_not_device_timeouts_and_do_not_manufacture_confirmation() {
+    let mut operation = Operation::new(scope(12), Policy::default(), 0).unwrap();
+    let mut evidence = Evidence { queries: Some(BTreeMap::new()), ..Evidence::default() };
+    let first = attempt(&mut operation, 0, &evidence);
+    let receipts = accept(&mut operation, &first, 1);
+    written(&receipts, 10, &mut evidence);
+    // The gateway is serial: later modules have not yet had a query written.
+    // Waiting in that queue must not cause redundant module-Off retries.
+    for module in 0..12 {
+        let at = 50 + module as u64 * 200;
+        for channel in 1..=8 {
+            evidence.queries.as_mut().unwrap().insert(id(module, channel), ReadTurn { written_ms: at, finished_ms: at + 23 });
+        }
+        // Query completion alone is never proof that an output is Off.
+        if module == 11 {
+            assert_eq!(operation.poll(at + 23, Owner::Current, &evidence).unwrap(), Decision::Wait);
+            assert_eq!(operation.rounds(), 1);
+        }
+        off(module, at + 23, 2, &mut evidence);
+        let decision = operation.poll(at + 24, Owner::Current, &evidence).unwrap();
+        assert_eq!(operation.rounds(), 1);
+        if module == 11 { assert_eq!(decision, Decision::Finished(End::Confirmed)); }
+        else { assert!(matches!(decision, Decision::Read(_))); }
+    }
+}
+#[test]
+fn five_second_deadline_reports_only_silent_output_even_if_query_queue_never_drains() {
+    let mut operation = Operation::new(scope(12), Policy::default(), 0).unwrap();
+    let mut evidence = Evidence { queries: Some(BTreeMap::new()), ..Evidence::default() };
+    let first = attempt(&mut operation, 0, &evidence);
+    let receipts = accept(&mut operation, &first, 1);
+    written(&receipts, 10, &mut evidence);
+    for module in 0..12 { off(module, 33, 2, &mut evidence); }
+    evidence.physical.remove(&id(11, 8));
+    assert!(matches!(operation.poll(4999, Owner::Current, &evidence).unwrap(), Decision::Read(_)));
+    assert_eq!(operation.poll(5000, Owner::Current, &evidence).unwrap(), Decision::Finished(End::Deadline));
+    assert_eq!(operation.terminal_missing(), Some(&BTreeMap::from([("m11".into(), BTreeSet::from([id(11, 8)]))])));
+}
+#[test]
+fn completed_missing_read_does_not_wait_for_a_second_unsolicited_reply_timeout() {
+    let mut operation = Operation::new(scope(1), Policy::default(), 0).unwrap();
+    let mut evidence = Evidence { queries: Some(BTreeMap::new()), ..Evidence::default() };
+    let first = attempt(&mut operation, 0, &evidence);
+    let receipts = accept(&mut operation, &first, 1);
+    written(&receipts, 10, &mut evidence);
+    off(0, 33, 2, &mut evidence);
+    evidence.physical.remove(&id(0, 8));
+    assert!(matches!(operation.poll(200, Owner::Current, &evidence).unwrap(), Decision::Read(_)));
+    evidence.queries.as_mut().unwrap().insert(id(0, 8), ReadTurn { written_ms: 50, finished_ms: 550 });
+    assert_eq!(operation.poll(550, Owner::Current, &evidence).unwrap(), Decision::Wait);
+    assert_eq!(operation.poll(749, Owner::Current, &evidence).unwrap(), Decision::Wait);
+    assert_eq!(attempt(&mut operation, 750, &evidence).modules, BTreeSet::from(["m0".into()]));
+    assert_eq!(operation.missing(&evidence, 750).unwrap(), BTreeMap::from([("m0".into(), BTreeSet::from([id(0, 8)]))]));
+}
+#[test]
+fn a_silent_module_retries_after_its_actual_failed_query_without_inventing_seven_reads() {
+    let mut operation = Operation::new(scope(2), Policy::default(), 0).unwrap();
+    let mut evidence = Evidence { queries: Some(BTreeMap::new()), ..Evidence::default() };
+    let first = attempt(&mut operation, 0, &evidence);
+    let receipts = accept(&mut operation, &first, 1);
+    written(&receipts, 10, &mut evidence);
+    off(0, 33, 2, &mut evidence);
+    evidence.queries.as_mut().unwrap().insert(id(1, 1), ReadTurn { written_ms: 50, finished_ms: 550 });
+    assert_eq!(operation.poll(550, Owner::Current, &evidence).unwrap(), Decision::Wait);
+    assert_eq!(attempt(&mut operation, 750, &evidence).modules, BTreeSet::from(["m1".into()]));
+    assert_eq!(evidence.queries.as_ref().unwrap().len(), 1);
+    assert_eq!(operation.missing(&evidence, 750).unwrap(), BTreeMap::from([("m1".into(), (1..=8).map(|ch| id(1, ch)).collect())]));
+}
+#[test]
 fn retry_only_failed_module_after_one_second_and_install_new_receipts() {
-    let mut o = Operation::new(scope(12), Policy::default(), 0).unwrap();
+    let mut o = Operation::new(scope(12), extended_policy(), 0).unwrap();
     let mut e = Evidence::default();
     let a = attempt(&mut o, 0, &e);
     let r = accept(&mut o, &a, 1);
@@ -143,7 +289,7 @@ fn retry_only_failed_module_after_one_second_and_install_new_receipts() {
 }
 #[test]
 fn three_rounds_then_precise_missing_channel_failure() {
-    let mut o = Operation::new(scope(1), Policy::default(), 0).unwrap();
+    let mut o = Operation::new(scope(1), extended_policy(), 0).unwrap();
     let mut e = Evidence::default();
     for (round, now) in [(1, 0), (2, 8000), (3, 16000)] {
         let a = attempt(&mut o, now, &e);
@@ -190,7 +336,7 @@ fn three_rounds_then_precise_missing_channel_failure() {
 }
 #[test]
 fn waiting_for_query_or_definite_busy_does_not_consume_rounds_or_renew_a_ticket() {
-    let mut o = Operation::new(scope(1), Policy::default(), 0).unwrap();
+    let mut o = Operation::new(scope(1), extended_policy(), 0).unwrap();
     let e = Evidence::default();
     for now in [0, 1000, 2000, 5000] {
         assert_eq!(o.poll(now, Owner::Waiting, &e).unwrap(), Decision::Wait);
@@ -213,7 +359,7 @@ fn waiting_for_query_or_definite_busy_does_not_consume_rounds_or_renew_a_ticket(
 }
 #[test]
 fn exhausted_writes_refresh_only_aged_healthy_modules_before_freezing_failure_scope() {
-    let mut o=Operation::new(scope(2),Policy::default(),0).unwrap();
+    let mut o=Operation::new(scope(2),extended_policy(),0).unwrap();
     let mut e=Evidence::default();
     for (round,now) in [(1,0),(2,8000),(3,16000)] {
         let a=attempt(&mut o,now,&e);
@@ -234,7 +380,7 @@ fn exhausted_writes_refresh_only_aged_healthy_modules_before_freezing_failure_sc
 #[test]
 fn final_read_phase_never_renews_budget_or_suppresses_override_and_late_recovery() {
     for exit in 0..3 {
-        let mut o=Operation::new(scope(2),Policy{max_rounds:1,..Policy::default()},0).unwrap();
+        let mut o=Operation::new(scope(2),Policy{max_rounds:1,..extended_policy()},0).unwrap();
         let mut e=Evidence::default();let a=attempt(&mut o,0,&e);let r=accept(&mut o,&a,1);written(&r,10,&mut e);
         off(0,20,2,&mut e);assert!(matches!(o.poll(30,Owner::Current,&e).unwrap(),Decision::Read(_)));
         assert_eq!(o.poll(7000,Owner::Current,&e).unwrap(),Decision::Read(BTreeSet::from(["m0".into()])));
@@ -248,7 +394,7 @@ fn final_read_phase_never_renews_budget_or_suppresses_override_and_late_recovery
 }
 #[test]
 fn exhausted_partial_module_refreshes_its_aged_off_ports_instead_of_reporting_all_eight_missing() {
-    let mut o=Operation::new(scope(1),Policy{max_rounds:1,..Policy::default()},0).unwrap();
+    let mut o=Operation::new(scope(1),Policy{max_rounds:1,..extended_policy()},0).unwrap();
     let mut e=Evidence::default();let a=attempt(&mut o,0,&e);let r=accept(&mut o,&a,1);written(&r,10,&mut e);
     off(0,20,2,&mut e);e.physical.remove(&id(0,8));
     assert!(matches!(o.poll(30,Owner::Current,&e).unwrap(),Decision::Read(_)));
@@ -261,7 +407,7 @@ fn exhausted_partial_module_refreshes_its_aged_off_ports_instead_of_reporting_al
 #[test]
 fn accepted_or_writing_ticket_cannot_be_replayed_after_its_send_deadline() {
     for state in [CommandState::Accepted, CommandState::Writing] {
-        let mut o = Operation::new(scope(1), Policy::default(), 0).unwrap();
+        let mut o = Operation::new(scope(1), extended_policy(), 0).unwrap();
         let mut e = Evidence::default();
         let a = attempt(&mut o, 0, &e);
         let r = accept(&mut o, &a, 1);
@@ -279,7 +425,7 @@ fn accepted_or_writing_ticket_cannot_be_replayed_after_its_send_deadline() {
 #[test]
 fn no_feedback_or_unconfirmed_actual_is_never_a_successful_write() {
     for physical in [None, Some(Physical::Unknown), Some(Physical::On)] {
-        let mut o = Operation::new(scope(1), Policy::default(), 0).unwrap();
+        let mut o = Operation::new(scope(1), extended_policy(), 0).unwrap();
         let mut e = Evidence::default();
         let a = attempt(&mut o, 0, &e);
         let r = accept(&mut o, &a, 1);
@@ -317,7 +463,7 @@ fn source_configuration_transport_and_manual_invalidation_cancel_without_retry()
         Cancel::Stopped,
         Cancel::AdmissionUnknown,
     ] {
-        let mut o = Operation::new(scope(1), Policy::default(), 0).unwrap();
+        let mut o = Operation::new(scope(1), extended_policy(), 0).unwrap();
         let mut e = Evidence::default();
         let a = attempt(&mut o, 0, &e);
         let r = accept(&mut o, &a, 1);
@@ -335,7 +481,7 @@ fn source_configuration_transport_and_manual_invalidation_cancel_without_retry()
 }
 #[test]
 fn ageing_a_confirmed_off_requests_only_read_without_redundant_write() {
-    let mut o = Operation::new(scope(2), Policy::default(), 0).unwrap();
+    let mut o = Operation::new(scope(2), extended_policy(), 0).unwrap();
     let mut e = Evidence::default();
     let a = attempt(&mut o, 0, &e);
     let r = accept(&mut o, &a, 1);
@@ -368,7 +514,7 @@ fn ageing_a_confirmed_off_requests_only_read_without_redundant_write() {
 }
 #[test]
 fn malformed_scope_receipts_clock_or_late_write_cannot_establish_success() {
-    let policy = Policy::default();
+    let policy = extended_policy();
     assert_eq!(
         Operation::new(vec![], policy, 0).unwrap_err(),
         Error::InvalidScope
@@ -397,7 +543,7 @@ fn malformed_scope_receipts_clock_or_late_write_cannot_establish_success() {
 
 #[test]
 fn late_confirmation_during_delay_releases_admission_fence_for_read_only_completion() {
-    let mut o = Operation::new(scope(2), Policy::default(), 0).unwrap();
+    let mut o = Operation::new(scope(2), extended_policy(), 0).unwrap();
     let mut e = Evidence::default();
     let a = attempt(&mut o, 0, &e);
     let r = accept(&mut o, &a, 1);
@@ -423,7 +569,7 @@ fn late_confirmation_during_delay_releases_admission_fence_for_read_only_complet
 }
 #[test]
 fn newer_on_invalidates_previous_confirmation_while_other_module_is_pending() {
-    let mut o = Operation::new(scope(2), Policy::default(), 0).unwrap();
+    let mut o = Operation::new(scope(2), extended_policy(), 0).unwrap();
     let mut e = Evidence::default();
     let a = attempt(&mut o, 0, &e);
     let r = accept(&mut o, &a, 1);
@@ -446,7 +592,7 @@ fn newer_on_invalidates_previous_confirmation_while_other_module_is_pending() {
 }
 #[test]
 fn a_definitively_retired_failed_ticket_only_retries_its_original_module() {
-    let mut o = Operation::new(scope(2), Policy::default(), 0).unwrap();
+    let mut o = Operation::new(scope(2), extended_policy(), 0).unwrap();
     let mut e = Evidence::default();
     let a = attempt(&mut o, 0, &e);
     let r = accept(&mut o, &a, 1);
@@ -459,25 +605,22 @@ fn a_definitively_retired_failed_ticket_only_retries_its_original_module() {
     // Even a matching actual Off cannot certify a ticket that failed its full
     // write. The next attempt is explicit Off with a new command receipt.
     off(1, 20, 2, &mut e);
-    assert!(matches!(
-        o.poll(30, Owner::Current, &e).unwrap(),
-        Decision::Read(_)
-    ));
-    assert_eq!(o.poll(7000, Owner::Current, &e).unwrap(), Decision::Wait);
-    let b = attempt(&mut o, 8000, &e);
+    assert_eq!(o.poll(30, Owner::Current, &e).unwrap(), Decision::Wait);
+    assert_eq!(o.poll(1029, Owner::Current, &e).unwrap(), Decision::Wait);
+    let b = attempt(&mut o, 1030, &e);
     assert_eq!(b.modules, BTreeSet::from(["m1".into()]));
     let r = accept(&mut o, &b, 10);
-    written(&r, 8010, &mut e);
-    off(0, 8020, 3, &mut e);
-    off(1, 8020, 3, &mut e);
+    written(&r, 1040, &mut e);
+    off(0, 1050, 3, &mut e);
+    off(1, 1050, 3, &mut e);
     assert_eq!(
-        o.poll(8030, Owner::Current, &e).unwrap(),
+        o.poll(1060, Owner::Current, &e).unwrap(),
         Decision::Finished(End::Confirmed)
     );
 }
 #[test]
 fn repeated_poll_and_duplicate_acceptance_cannot_create_another_attempt() {
-    let mut o = Operation::new(scope(1), Policy::default(), 0).unwrap();
+    let mut o = Operation::new(scope(1), extended_policy(), 0).unwrap();
     let e = Evidence::default();
     let a = attempt(&mut o, 0, &e);
     assert_eq!(o.poll(1, Owner::Current, &e).unwrap(), Decision::Wait);

@@ -5,6 +5,13 @@ use homesense_core::DeviceId;
 use homesense_state::Quality;
 use std::collections::BTreeMap;
 
+// An absent unsolicited reply must not reserve the query lane for the full
+// observation freshness period. The operation owner decides failure/retry.
+const RESPONSE_MS: u64 = homesense_core::away_execution::RESPONSE_TIMEOUT_MS;
+// Eight 5-byte 8N1 frames take about42ms at9600baud. Include the module's
+// response latency and gateway packetization before lending the bus to queries.
+const QUIET_MS: u64 = 100;
+
 #[derive(Default)]
 pub(super) struct Guard(BTreeMap<String, Wait>);
 struct Wait {
@@ -15,7 +22,12 @@ struct Wait {
 }
 impl Wait {
     fn deferred(&self, truth: &ModuleTruth, epoch: u64, now: u64) -> bool {
-        self.epoch == epoch && now < self.until && !self.before.iter().all(|(id, count)| {
+        let latest=self.before.keys().filter_map(|id|truth.alias_state(id).and_then(|state|state.observed_at_ms))
+            .filter(|at|*at>=self.written && *at<=now).max().unwrap_or(self.written);
+        // Replies normally start within tens of milliseconds. Once the bus is
+        // quiet, query-only modules can take a read turn without consuming the
+        // whole one-second no-response budget first.
+        self.epoch == epoch && now < self.until && now.saturating_sub(latest)<QUIET_MS && !self.before.iter().all(|(id, count)| {
             truth.observation_count(id).is_some_and(|next| next > *count)
                 && truth.alias_state(id).is_some_and(|state|
                     state.quality == Quality::Confirmed
@@ -28,7 +40,7 @@ impl Guard {
     pub fn written(&mut self, gateway: String, devices: &[DeviceId], truth: &ModuleTruth, epoch: u64, at: u64) {
         if devices.is_empty() { return; }
         self.0.insert(gateway, Wait {
-            epoch, written: at, until: at.saturating_add(crate::control_batch::FEEDBACK_SAMPLE_MS),
+            epoch, written: at, until: at.saturating_add(RESPONSE_MS),
             before: devices.iter().map(|id|(id.clone(),truth.observation_count(id).unwrap_or(0))).collect(),
         });
     }
@@ -83,12 +95,15 @@ mod tests {
     }
     #[test]
     fn receive_window_is_bounded_and_cannot_cross_gateway_or_epoch() {
-        let(feedback,ids)=fixture();let mut guard=Guard::default();
+        let(mut feedback,ids)=fixture();let mut guard=Guard::default();
         guard.written("bus".into(),&ids,feedback.module_truth(),1,100);
         assert!(!guard.deferred("other",feedback.module_truth(),1,101));
         assert!(!guard.deferred("bus",feedback.module_truth(),2,101));
-        assert!(guard.deferred("bus",feedback.module_truth(),1,5099));
-        assert!(!guard.deferred("bus",feedback.module_truth(),1,5100),"missing replies cannot reserve the bus indefinitely");
+        assert!(guard.deferred("bus",feedback.module_truth(),1,199));
+        assert!(!guard.deferred("bus",feedback.module_truth(),1,200),"query-only modules need not wait for the no-response ceiling");
+        receive(&mut feedback,3,std::iter::once(1),1090);
+        assert!(guard.deferred("bus",feedback.module_truth(),1,1099));
+        assert!(!guard.deferred("bus",feedback.module_truth(),1,1100),"missing replies cannot reserve the bus beyond the one-second response window");
         guard.reset_gateway("other");assert!(guard.deferred("bus",feedback.module_truth(),1,101));
         guard.reset_gateway("bus");assert!(!guard.deferred("bus",feedback.module_truth(),1,101));
         guard.written("bus".into(),&ids,feedback.module_truth(),1,100);guard.reset();assert!(guard.0.is_empty());

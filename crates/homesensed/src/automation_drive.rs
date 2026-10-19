@@ -273,6 +273,8 @@ pub(crate) async fn drive_with_panel_feeds<S: Read + Write + Send + 'static>(
         let mut key_completions=crate::keypad_completion::Consumer::default();
         let mut control_batches=crate::control_batch::Consumer::default();
         let mut background_led_phase:Option<background_led_phase::Phase>=None;
+        let mut reconciliation_turn=true;
+        let mut reconciliation_cursor=0usize;
         let mut scene_observations=crate::scene_observation_runtime::Consumer::default();
         let mut next = 0;
         loop {
@@ -403,6 +405,14 @@ pub(crate) async fn drive_with_panel_feeds<S: Read + Write + Send + 'static>(
                     }
                 }
             }
+            // Away's bounded confirmation has priority over old background
+            // colors. Retire only this wave's unwritten tickets, never replay
+            // them or interrupt a write already owned by the transport.
+            if admission.away_operations_active() && let Some(phase)=background_led_phase.take() {
+                phase.cancel(admission,control.0.as_ref().map(|(receiver,_)|receiver.controller())).await;
+                indicators.phase_ended(false);
+                guard.owner.pause_refresh_for_background_leds(false);
+            }
             let after_scenes_ms=quantum_started.elapsed().as_millis();
             let burst_started=tokio::time::Instant::now();let mut written_this_quantum=0;
             // Bounded accepted-work progress. Each dispatch still rechecks STOP,
@@ -467,14 +477,27 @@ pub(crate) async fn drive_with_panel_feeds<S: Read + Write + Send + 'static>(
                 // Keep input/feedback and admission checks above running; reads
                 // still revalidate their existing proofs. Resume projection
                 // maintenance when this wave finishes or reaches its deadline.
-                if !away_critical && background_led_phase.is_none() {
-                    crate::scene_initialization::tick(admission,receiver.controller(),document,guard.scenes,guard.owner.feedback()).await?;
-                    crate::scene_reconciliation::tick(admission,receiver.controller(),document,guard.scenes,guard.owner.feedback()).await?;
+                let background_ready=!away_critical && background_led_phase.is_none();
+                let indicators_turn=background_ready && !reconciliation_turn;
+                if background_ready && reconciliation_turn {
+                    // Bound background metadata work as well as wire work.
+                    // Each group keeps its full definition and proof; merely
+                    // yield to controls/receives between independent groups.
+                    let start=reconciliation_cursor.min(document.scene_switch_groups.len());
+                    let end=(start+2).min(document.scene_switch_groups.len());
+                    let groups=&document.scene_switch_groups[start..end];
+                    crate::scene_initialization::tick_groups(admission,receiver.controller(),document,guard.scenes,guard.owner.feedback(),groups).await?;
+                    crate::scene_reconciliation::tick_groups(admission,receiver.controller(),document,guard.scenes,guard.owner.feedback(),groups).await?;
+                    reconciliation_cursor=if end==document.scene_switch_groups.len(){0}else{end};
                 }
+                // Do not concatenate two full-catalog maintenance passes in
+                // one request/receive quantum. The next loop pumps controls
+                // and read requests between these independent background jobs.
+                if background_ready {reconciliation_turn = !reconciliation_turn;}
                 reconcile_ms=stage_started.elapsed().as_millis();
                 let stage_started=std::time::Instant::now();
-                let round=if away_critical {None}else{guard.owner.take_completed_refresh_round()};
-                if !away_critical && background_led_phase.is_none() {
+                let round=if indicators_turn {guard.owner.take_completed_refresh_round()}else{None};
+                if indicators_turn {
                     let qualified=round.as_ref().is_some_and(|round|round.generation.epochs.configuration==document.revision && round.completed_ms>=round.started_ms && admission.monotonic_ms().saturating_sub(round.started_ms)<round.max_age_ms);
                     if let Some(wave)=indicators.advance(admission,receiver.controller(),document,guard.scenes,guard.owner.feedback(),max_age_ms,guard.owner.write_interval_ms(),qualified,guard.owner.output_query_pending()).await? {
                         let generation=admission.task_generation().await.map_err(|e|format!("LED wave generation: {e:?}"))?;

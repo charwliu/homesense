@@ -123,6 +123,36 @@ fn binary_builder_normalizes_only_reviewed_union_and_requires_explicit_review() 
     );
 }
 #[tokio::test]
+async fn bounded_background_groups_preserve_unvisited_state_and_emit_no_commands() {
+    for initialize in [false,true] {
+        let (config,mut rules)=if initialize {inputs(true)}else{reconciled()};
+        rules["variables"].as_array_mut().unwrap().push(json!({"id":"other-selection","kind":"integer","lifetime":"persistent"}));
+        let mut other=rules["scene_switch_groups"][0].clone();
+        other["id"]=json!("other-group");other["variable"]=json!("other-selection");
+        let copies=rules["timed_scenes"].as_array().unwrap().iter().cloned().map(|mut scene| {
+            scene["id"]=json!(format!("other-{}",scene["id"].as_str().unwrap()));scene
+        }).collect::<Vec<_>>();
+        rules["timed_scenes"].as_array_mut().unwrap().extend(copies);
+        for member in other["members"].as_array_mut().unwrap() {
+            member["scene"]=json!(format!("other-{}",member["scene"].as_str().unwrap()));
+            member["off_scene"]=json!("other-off");
+        }
+        rules["scene_switch_groups"].as_array_mut().unwrap().push(other);
+        let mut h=harness(config,rules).await;levels(&mut h,Some(100),Some(0));
+        let scenes=crate::scene_scheduler::SceneScheduler::new(h.actor.clone(),h.controller,8,h.actor.monotonic_ms()).unwrap();
+        for index in 0..2 {
+            let groups=&h.document.scene_switch_groups[index..index+1];
+            if initialize {crate::scene_initialization::tick_groups(&h.actor,h.controller,&h.document,&scenes,&h.feedback,groups).await.unwrap();}
+            else {crate::scene_reconciliation::tick_groups(&h.actor,h.controller,&h.document,&scenes,&h.feedback,groups).await.unwrap();}
+            let states=h.actor.scene_selection_snapshot(h.controller,h.generation.clone(),vec!["selection".into(),"other-selection".into()]).await.unwrap();
+            assert_eq!(states["selection"].stored.value,Some(Value::Integer(1)));
+            assert_eq!(states["other-selection"].stored.value,(index==1).then_some(Value::Integer(1)),"unvisited groups must remain unknown");
+        }
+        assert_eq!(h.sql().query_row("SELECT count(*) FROM command_journal",[],|r|r.get::<_,i64>(0)).unwrap(),0);
+        h.close().await;
+    }
+}
+#[tokio::test]
 async fn startup_masks_saved_intent_before_tick_and_36_vectors_use_power_only() {
     for main in [None, Some(0), Some(17), Some(30), Some(50), Some(100)] {
         for down in [None, Some(0), Some(17), Some(30), Some(50), Some(100)] {

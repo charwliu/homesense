@@ -165,13 +165,20 @@ impl Synchronizer {
         };
         if output.fence.values().any(|state|state.requested.as_ref().is_some_and(|r|matches!(r.status.as_str(),"accepted"|"writing"|"uncertain"|"failed"))){return Ok(());}
         if let Some(prior)=prior && prior.desired==desired {
-            // An uncompleted/uncertain attempt is never replayed. A later
-            // semantic input or successful independent LED override is a new
-            // reconciliation cause only after this attempt reached Written.
-            if !output.prior_complete {return Ok(());}
             let overridden=output.fence.iter().any(|(id,current)|current.written.as_ref().is_some_and(|w|
                 w.color!=Some(desired) && prior.output_fence.get(id).and_then(|out|out.written.as_ref()).is_none_or(|old|w.sequence>old.sequence)
             ));
+            // Never replay an incomplete or uncertain ticket. A later actual
+            // independent LED write is a new cause after known cancellation;
+            // it must not leave a superseded startup color blocking this link
+            // forever. Prepare a new proof, retaining every authority fence.
+            if !output.prior_complete {
+                if !overridden || prior.commands.is_empty() {return Ok(());}
+                let statuses=match admission.command_statuses(controller,generation.clone(),prior.commands.clone()).await {
+                    Ok(statuses)=>statuses,Err(WriteStatus::ResourceBusy)=>return Ok(()),Err(e)=>return Err(format!("indicator retired output: {e:?}")),
+                };
+                if !statuses.iter().all(|status|matches!(status,homesense_storage::journal::Status::Written|homesense_storage::journal::Status::Observed|homesense_storage::journal::Status::Cancelled)){return Ok(());}
+            }
             if (prior.fingerprint==fingerprint || prior.selection!=selected) && !overridden {
                 // A different selected member may leave this LED's false value
                 // unchanged. Advance its evidence baseline without rewriting it;

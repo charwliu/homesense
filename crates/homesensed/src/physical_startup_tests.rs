@@ -78,10 +78,14 @@ struct Fixture {
 }
 impl Fixture {
     async fn new(switch: bool, aliases: bool) -> Self {
+        Self::with_refresh(switch,aliases,None).await
+    }
+    async fn with_refresh(switch:bool,aliases:bool,refresh:Option<homesense_config::RefreshPolicy>)->Self {
         let mut doc = json!({"schema_version":2,"revision":1,"gateways":[{"id":"bus","endpoint":"127.0.0.1:1","modules":[{"id":"bound","address":"01","profile":"ad8_din_rs485_v2_2_1","verification":{"status":"simulated"}},{"id":"unbound","address":"02","profile":if switch{"r8i8_din_pro_v2_7_7"}else{"ad8_din_rs485_v2_2_1"},"verification":{"status":"simulated"}},{"id":"panel","address":"41","profile":"ts6_86_rs485_v2_6_5_6key","verification":{"status":"simulated"}},{"id":"motor","address":"22","profile":"c4_din_pro_v2_7_7","verification":{"status":"simulated"}}]}],"devices":[]});
         if aliases {
             doc["devices"] = json!([{"id":"light","name":"Synthetic","module_id":"bound","channel":1,"enabled":true},{"id":"disabled","name":"Disabled","module_id":"bound","channel":2,"enabled":false}]);
         }
+        if let Some(policy)=refresh {doc["refresh_policy"]=serde_json::to_value(policy).unwrap();}
         let bytes = serde_json::to_vec(&doc).unwrap();
         let config =
             homesense_config::Configuration::parse(&bytes, ExecutionContext::Simulation).unwrap();
@@ -319,8 +323,8 @@ async fn reconnect_requires_every_port_from_the_new_epoch_before_reopening_admis
 }
 
 #[tokio::test]
-async fn adaptive_idle_preserves_actual_times_and_unsolicited_feedback_starts_a_complete_fast_round() {
-    let mut f=Fixture::new(false,true).await;
+async fn adaptive_idle_preserves_actual_times_and_periodic_replies_do_not_reset_cycle() {
+    let mut f=Fixture::with_refresh(false,true,Some(homesense_config::RefreshPolicy{active_interval_ms:100,idle_interval_ms:1000,backoff_ms:[200,500],quiet_rounds_per_step:1,round_budget_ms:1000,observation_grace_ms:1000})).await;
     let age=f.config.refresh_policy().observation_max_age_ms();
     f.sync(100,age).await.unwrap();
     f.owner.configure_output_refresh(&f.config,f.controller,f.admission.task_generation().await.unwrap(),ExecutionContext::Simulation,100,age).unwrap();
@@ -329,7 +333,7 @@ async fn adaptive_idle_preserves_actual_times_and_unsolicited_feedback_starts_a_
     let writes=f.bus.lock().unwrap().writes.len();
     tokio::time::sleep(Duration::from_millis(60)).await;
     f.owner.refresh_outputs_if_due().await.unwrap();
-    assert_eq!(f.bus.lock().unwrap().writes.len(),writes,"no query during the expected three-hour idle");
+    assert_eq!(f.bus.lock().unwrap().writes.len(),writes,"no query before the scheduled synthetic cycle");
     assert_eq!(f.owner.feedback().module_truth().module_state("bound",1).unwrap().observed_at_ms,before,"waiting never renews feedback");
     f.bus.lock().unwrap().replies.extend([0xae,2,0xd3,40,0xee]);
     f.owner.receive("bus").await.unwrap();
@@ -346,7 +350,7 @@ async fn adaptive_idle_preserves_actual_times_and_unsolicited_feedback_starts_a_
     };
     assert_eq!(round.generation.epochs.configuration,1);
     assert_eq!(f.bus.lock().unwrap().writes.len(),writes+2,"each AD8 queried exactly once; replies are not activity");
-    assert_eq!(f.owner.feedback().effective_max_age_ms(age),25_000);
+    assert_eq!(f.owner.feedback().effective_max_age_ms(age),f.config.refresh_policy().age_for_interval(200));
     tokio::time::sleep(Duration::from_millis(60)).await;
     f.owner.refresh_outputs_if_due().await.unwrap();
     assert_eq!(f.bus.lock().unwrap().writes.len(),writes+2,"ordinary replies leave the next round delayed");
@@ -355,7 +359,7 @@ async fn adaptive_idle_preserves_actual_times_and_unsolicited_feedback_starts_a_
 
 #[tokio::test]
 async fn failed_adaptive_round_does_not_qualify_background_leds_but_preserves_healthy_ports() {
-    let mut f=Fixture::new(false,true).await;let age=f.config.refresh_policy().observation_max_age_ms();
+    let mut f=Fixture::with_refresh(false,true,Some(homesense_config::RefreshPolicy{active_interval_ms:100,idle_interval_ms:1000,backoff_ms:[200,500],quiet_rounds_per_step:1,round_budget_ms:1000,observation_grace_ms:1000})).await;let age=f.config.refresh_policy().observation_max_age_ms();
     f.sync(100,age).await.unwrap();
     f.owner.configure_output_refresh(&f.config,f.controller,f.admission.task_generation().await.unwrap(),ExecutionContext::Simulation,30,age).unwrap();
     f.owner.take_completed_refresh_round();
