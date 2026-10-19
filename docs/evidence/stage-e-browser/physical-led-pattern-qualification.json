@@ -1,0 +1,73 @@
+{
+  "state": "software_checkpoint_not_published",
+  "feature": "Reviewed required-On and required-Off inputs in physical LED proofs",
+  "new_proof_tests": {
+    "count": 4,
+    "actual_passed_platforms": [
+      "Mac",
+      "Linux"
+    ],
+    "methods": [
+      "mixed_power_indicator_requires_reviewed_off_ports_inside_the_complete_scope",
+      "mixed_power_indicator_follows_positive_and_negative_feedback_without_replay",
+      "mixed_power_indicator_negative_policy_clears_a_violated_required_off_input",
+      "mixed_power_indicator_proof_cannot_substitute_an_opposite_input_polarity"
+    ]
+  },
+  "Mac": {
+    "workspace_passed": 1699,
+    "failed": 0,
+    "ignored": 0,
+    "strict_clippy_all_targets": true,
+    "backward_compatibility_cases": 35,
+    "backward_compatibility_steps": 154,
+    "new_physical_LED_steps": 324,
+    "new_physical_LED_cases": 3,
+    "native_actual_methods": 13,
+    "native_presentation_operations": 7
+  },
+  "Linux": {
+    "library_passed": 696,
+    "HAP_passed": 3,
+    "failed": 0,
+    "ignored": 0,
+    "backward_compatibility_cases": 35,
+    "backward_compatibility_steps": 154,
+    "new_physical_LED_integration": "pending separate qualification fixtures"
+  },
+  "reply_model": {
+    "per_module_processing_delay_ms": [
+      3,
+      20
+    ],
+    "per_module_writes": 1,
+    "per_channel_added_delay": false,
+    "baud": 9600,
+    "format": "8N1",
+    "eight_channel_40byte_wire_ms": 41.667,
+    "actual_fixture_functions": 12,
+    "batches": 1200,
+    "distinct_delays_per_100_batch_sample": 100
+  },
+  "contracts": {
+    "legacy_config_behavior_unchanged": true,
+    "lights_off_must_be_subset_of_lights": true,
+    "at_least_one_positive_input": true,
+    "proof_binds_input_polarity": true,
+    "unknown_feedback_cannot_write_color": true,
+    "unchanged_color_not_replayed": true,
+    "load_recipes_changed": false,
+    "new_queries_added": false,
+    "R818_whole_module_query_supported": false,
+    "seven_R818_active_feedback_preserved": true
+  },
+  "remaining": {
+    "program_activity_alias_LED_coherence": "one separately confirmed gap, not fixed by pure physical patterns",
+    "full_takeover_and_physical_collision_proof": "not complete",
+    "new_LED_Linux_and_field_acceptance": "not complete"
+  },
+  "production_changed": false,
+  "phone_changed": false,
+  "private_configuration_disclosed": false,
+  "qualification_household_bus_connections": 0
+}

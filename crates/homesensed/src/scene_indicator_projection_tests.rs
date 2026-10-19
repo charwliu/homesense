@@ -118,6 +118,74 @@ async fn power_indicator_follows_both_physical_ports_and_never_replays_unchanged
     h.close().await;
 }
 
+#[test]
+fn mixed_power_indicator_requires_reviewed_off_ports_inside_the_complete_scope() {
+    let (config,mut rules)=linked();
+    let configuration=homesense_config::Configuration::parse(&config,homesense_core::ExecutionContext::Simulation).unwrap();
+    rules["indicator_links"]=json!([{"id":"mixed-power","enabled":true,"review_evidence":"Synthetic exclusive light pattern",
+        "lights":["light","down"],"lights_off":["down"],"leds":["key1"],"power_policy":"follow_all_on"}]);
+    let parse=|input:&Json|Document::parse(&serde_json::to_vec(input).unwrap(),&configuration);
+    assert!(parse(&rules).is_ok(),"a complete reviewed On/Off pattern must be accepted");
+    for off in [json!(["switch"]),json!(["key1"]),json!(["down","down"]),json!(["light","down"])] {
+        let mut invalid=rules.clone();invalid["indicator_links"][0]["lights_off"]=off;
+        assert!(parse(&invalid).is_err(),"polarity must not introduce hidden or duplicate inputs");
+    }
+    rules["indicator_links"][0]["power_policy"]=json!("legacy_off");
+    assert!(parse(&rules).is_err(),"legacy scene ownership cannot acquire a physical-polarity override");
+}
+
+#[tokio::test]
+async fn mixed_power_indicator_follows_positive_and_negative_feedback_without_replay() {
+    let (config,mut rules)=linked();
+    rules["indicator_links"]=json!([{"id":"mixed-power","enabled":true,"review_evidence":"Synthetic exclusive light pattern",
+        "lights":["light","down"],"lights_off":["down"],"leds":["key1"],"power_policy":"follow_all_on"}]);
+    let mut h=harness(config,rules).await;let mut s=Synchronizer::default();
+    sync(&h,&mut s).await;assert!(drain_leds(&h).await.is_empty(),"unknown must not become green");
+    levels(&mut h,Some(100),None);sync(&h,&mut s).await;
+    assert!(drain_leds(&h).await.is_empty(),"the required-Off input needs actual feedback too");
+    for(main,down,red)in[(100,0,true),(100,20,false),(37,0,true),(0,0,false)] {
+        levels(&mut h,Some(main),Some(down));sync(&h,&mut s).await;
+        assert_eq!(drain_leds(&h).await.get(&(0x41,1)),Some(&red));
+        sync(&h,&mut s).await;assert!(drain_leds(&h).await.is_empty(),"unchanged color must not replay");
+    }
+    h.close().await;
+}
+
+#[tokio::test]
+async fn mixed_power_indicator_negative_policy_clears_a_violated_required_off_input() {
+    let(config,mut rules)=linked();
+    rules["indicator_links"]=json!([{"id":"mixed-negative","enabled":true,"review_evidence":"Synthetic clear-only exclusive pattern",
+        "lights":["light","down"],"lights_off":["down"],"leds":["key1"],"power_policy":"clear_if_any_off"}]);
+    let mut h=harness(config,rules).await;let mut s=Synchronizer::default();
+    h.actor.submit_rule_update(h.generation.clone(),homesense_hap::requests::Batch {
+        controller:h.controller,intents:vec![homesense_hap::requests::Intent {
+            device:homesense_core::DeviceId::new("key1").unwrap(),command:Command::PanelLed(true),
+        }],subscriptions:vec![]},vec![]).await.unwrap();
+    assert_eq!(drain_leds(&h).await.get(&(0x41,1)),Some(&true));
+    levels(&mut h,Some(100),Some(100));sync(&h,&mut s).await;
+    assert_eq!(drain_leds(&h).await.get(&(0x41,1)),Some(&false),"required-Off feedback is a real negative edge");
+    levels(&mut h,Some(100),Some(0));sync(&h,&mut s).await;
+    assert!(drain_leds(&h).await.is_empty(),"clear-only cannot infer a red mode");
+    h.close().await;
+}
+
+#[tokio::test]
+async fn mixed_power_indicator_proof_cannot_substitute_an_opposite_input_polarity() {
+    let(config,mut rules)=linked();
+    rules["indicator_links"]=json!([{"id":"mixed-power","enabled":true,"review_evidence":"Synthetic sealed predicate",
+        "lights":["light","down"],"lights_off":["down"],"leds":["key1"],"power_policy":"follow_all_on"}]);
+    let configuration=homesense_config::Configuration::parse(&config,homesense_core::ExecutionContext::Simulation).unwrap();
+    let mut h=harness(config,rules.clone()).await;let mut s=Synchronizer::default();
+    levels(&mut h,Some(100),Some(100));
+    let mut wrong=rules.clone();wrong["indicator_links"][0].as_object_mut().unwrap().remove("lights_off");
+    h.document=Document::parse(&serde_json::to_vec(&wrong).unwrap(),&configuration).unwrap();
+    sync(&h,&mut s).await;
+    assert!(drain_leds(&h).await.is_empty(),"a fresh lease for the same IDs cannot authorize the opposite predicate");
+    h.document=Document::parse(&serde_json::to_vec(&rules).unwrap(),&configuration).unwrap();
+    sync(&h,&mut s).await;assert_eq!(drain_leds(&h).await.get(&(0x41,1)),Some(&false));
+    h.close().await;
+}
+
 #[tokio::test]
 async fn superseded_negative_indicator_can_reconcile_a_new_written_source_override() {
     let (config,mut rules)=linked();
