@@ -4,7 +4,10 @@ use rusqlite::{Connection, OptionalExtension, params};
 use std::path::Path;
 use uuid::Uuid;
 
-pub const MAX_BYTES: usize = 256 * 1024;
+/// Combined serialized device and automation documents for one private draft.
+pub const MAX_BYTES: usize = 4 * 1024 * 1024;
+/// Small metadata, binding and calibration edits retain their existing budget.
+pub(crate) const MAX_EDIT_BYTES: usize = 256 * 1024;
 #[derive(Debug, serde::Serialize, PartialEq, Eq)]
 pub struct Draft {
     pub id: Uuid,

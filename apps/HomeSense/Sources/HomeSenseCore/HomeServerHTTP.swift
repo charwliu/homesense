@@ -33,10 +33,22 @@ public final class HomeURLSessionTransport: HomeHTTPTransport, Sendable {
     }
     public func send(_ request: URLRequest) async throws -> HomeHTTPResponse {
         let (data, response) = try await session.data(for: request)
-        guard let response = response as? HTTPURLResponse, data.count <= 2 * 1024 * 1024 else {
+        guard let response = response as? HTTPURLResponse, data.count <= Self.responseLimit(for: request) else {
             throw HomeServerError.invalidResponse
         }
         return HomeHTTPResponse(data: data, status: response.statusCode)
+    }
+    private static func responseLimit(for request: URLRequest) -> Int {
+        guard (request.httpMethod ?? "GET") == "GET", let path = request.url?.path else { return 2 * 1024 * 1024 }
+        let parts = path.split(separator: "/").map(String.init)
+        guard parts.count >= 5, Array(parts.prefix(3)) == ["api", "v1", "config"] else { return 2 * 1024 * 1024 }
+        let draft = parts[3] == "drafts" && UUID(uuidString: parts[4]) != nil
+            && (parts.count == 5 || parts.count == 6 && parts[5] == "source")
+        let exported = parts.count == 6 && parts[3] == "versions" && parts[5] == "export"
+            && UInt64(parts[4]).map { $0 > 0 && String($0) == parts[4] } == true
+        // Source responses escape complete JSON documents inside JSON strings.
+        // Other HTTP responses and all WebSocket frames retain their old caps.
+        return draft || exported ? 8 * 1024 * 1024 + 4096 : 2 * 1024 * 1024
     }
 }
 

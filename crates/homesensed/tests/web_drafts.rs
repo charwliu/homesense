@@ -1,6 +1,41 @@
 use homesense_core::ExecutionContext;
 use homesensed::web_drafts::{Draft, Drafts};
 use uuid::Uuid;
+
+#[test]
+fn full_size_drafts_round_trip_and_remain_private_immutable_and_bounded() {
+    let root=std::env::temp_dir().join(format!("homesense-large-drafts-{}",Uuid::new_v4()));
+    std::fs::create_dir(&root).unwrap();
+    let path=root.join("drafts.sqlite");let owner=Uuid::new_v4();
+    let mut devices:serde_json::Value=serde_json::from_slice(include_bytes!("../../../config/simulation.json")).unwrap();
+    devices["revision"]=2.into();
+    let make=|count|Draft {
+        id:Uuid::new_v4(),expected_revision:1,revision:2,devices:devices.clone(),
+        automation:serde_json::json!({"schema_version":1,"configuration_revision":2,"variables":[],"rules":[],
+            "immediate_scenes":(0..count).map(|i|serde_json::json!({"id":format!("synthetic-disabled-{i}"),"enabled":false,
+                "review_evidence":"x".repeat(6000),"activate":[]})).collect::<Vec<_>>()})
+    };
+    let draft=make(144);
+    assert!(serde_json::to_vec(&draft.automation).unwrap().len()>800_000,
+        "exercise an actual valid full-home sized document, not whitespace padding");
+    let mut store=Drafts::open(&path).unwrap();
+    store.save(owner,&draft,ExecutionContext::Simulation).unwrap();
+    store.save(owner,&draft,ExecutionContext::Simulation).unwrap();
+    drop(store);
+    let mut store=Drafts::open(&path).unwrap();
+    assert_eq!(store.get(owner,draft.id).unwrap(),Some(Draft{id:draft.id,expected_revision:1,revision:2,
+        devices:draft.devices.clone(),automation:draft.automation.clone()}));
+    assert!(store.get(Uuid::new_v4(),draft.id).unwrap().is_none());
+    let mut changed=Draft{id:draft.id,expected_revision:1,revision:2,devices:draft.devices.clone(),automation:draft.automation.clone()};
+    changed.devices["devices"][0]["name"]="different valid name".into();
+    assert!(store.save(owner,&changed,ExecutionContext::Simulation).is_err(),"large drafts remain immutable");
+    let too_large=make(800);
+    assert!(serde_json::to_vec(&too_large.automation).unwrap().len()>4*1024*1024);
+    assert!(store.save(owner,&too_large,ExecutionContext::Simulation).is_err(),"the supported four-MiB budget remains finite");
+    assert!(store.get(owner,too_large.id).unwrap().is_none());
+    drop(store);std::fs::remove_dir_all(root).unwrap();
+}
+
 #[test]
 fn validated_drafts_are_immutable_private_and_survive_restart() {
     let root = std::env::temp_dir().join(format!("homesense-drafts-{}", Uuid::new_v4()));

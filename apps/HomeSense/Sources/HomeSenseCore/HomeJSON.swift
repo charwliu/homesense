@@ -58,6 +58,12 @@ public enum HomeJSON: Codable, Equatable, Sendable {
         guard let bytes = text.data(using: .utf8), bytes.count <= 256 * 1024 else { throw HomeServerError.invalidDocument }
         return try JSONDecoder().decode(Self.self, from: bytes)
     }
+    /// Complete saved documents share the server's finite draft budget. Small
+    /// inline editors keep the stricter `parse` limit.
+    public static func parseConfiguration(_ text: String) throws -> Self {
+        guard let bytes = text.data(using: .utf8), bytes.count <= 4 * 1024 * 1024 else { throw HomeServerError.invalidDocument }
+        return try JSONDecoder().decode(Self.self, from: bytes)
+    }
 }
 
 public struct HomeRecord: Identifiable, Equatable, Sendable {
