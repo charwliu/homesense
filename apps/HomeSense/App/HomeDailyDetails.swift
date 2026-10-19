@@ -111,7 +111,8 @@ struct HomeDeviceTile: View {
                 .lineLimit(1).minimumScaleFactor(0.65)
                 .frame(height: 25, alignment: .leading)
         }
-        .padding(18).frame(maxWidth: .infinity, minHeight: 170, alignment: .topLeading)
+        .padding(.horizontal, 14).padding(.vertical, 18)
+        .frame(maxWidth: .infinity, minHeight: 170, alignment: .topLeading)
         .background(showsBackground ? (isOn ? Color.orange.opacity(0.09) : Color.primary.opacity(0.025)) : Color.clear, in: RoundedRectangle(cornerRadius: 20))
         .accessibilityElement(children: .combine)
     }
@@ -137,11 +138,11 @@ struct HomeQuickDeviceCard: View {
                 .accessibilityIdentifier("device.\(device.id).details")
                 .accessibilityHint("查看设备详情")
             if ["Motor", "Dimmer", "Switch"].contains(device.raw["kind"].text ?? "") {
-                Divider().padding(.horizontal, 18)
+                Divider().padding(.horizontal, 14)
                 Group {
                     if device.raw["kind"].text == "Motor" { HomeMotorControls(home: home, device: device) }
                     else { HomeLightPowerControls(home: home, device: device) }
-                }.padding(18)
+                }.padding(.horizontal, 12).padding(.vertical, 14)
             }
         }
         .background(.background, in: RoundedRectangle(cornerRadius: 20))
@@ -153,7 +154,7 @@ struct HomeMotorControls: View {
     @ObservedObject var home: HomeServerStore
     let device: HomeRecord
     var body: some View {
-        HStack {
+        HStack(spacing: 8) {
             action("打开", "arrow.up", .open)
             action("停止", "stop.fill", .stop)
             action("关闭", "arrow.down", .close)
@@ -163,7 +164,13 @@ struct HomeMotorControls: View {
         Button {
             let operation = home.beginDeviceControl(device.id)
             Task { await home.controlDevice(device.id, command: action.command, operation: operation) }
-        } label: { Label(title, systemImage: icon).frame(maxWidth: .infinity) }
+        } label: {
+            ViewThatFits(in: .horizontal) {
+                Label(title, systemImage: icon).fixedSize(horizontal: true, vertical: false)
+                Text(title).lineLimit(1).minimumScaleFactor(0.8)
+            }
+            .frame(maxWidth: .infinity, minHeight: 28)
+        }
             .buttonStyle(.bordered)
             .disabled(action == .stop ? !home.canStopMotorDevice(device.id) : !home.canControlDevice(device.id))
             .accessibilityLabel("\(device.name)\(title)")
