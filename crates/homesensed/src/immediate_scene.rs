@@ -34,6 +34,12 @@ pub(crate) async fn writes(
     budget: Budget,
     deadline: Instant,
 ) -> Result<Reply, String> {
+    if writes.iter().any(|(id,value)| *value==Some(true) && (document.whole_house_off_scene()==Some(id.as_str())||document.whole_house_on_scene()==Some(id.as_str()))) {
+        return Err("household Off requires its managed operation entry".into());
+    }
+    if writes.len()>1 && writes.iter().any(|(id,_)|document.whole_house_on_scene()==Some(id.as_str())) {
+        return Err("household absolute action cannot share a scene batch".into());
+    }
     if writes.is_empty()
         || writes.len() > 64
         || writes

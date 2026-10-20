@@ -17,6 +17,7 @@ pub struct HapLease {
     public_key: [u8; 32],
     devices: BTreeSet<String>,
     active: Arc<AtomicBool>,
+    household_scene: Option<String>,
 }
 impl std::fmt::Debug for HapLease {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -37,7 +38,16 @@ impl HapLease {
             public_key,
             devices,
             active,
+            household_scene: None,
         })
+    }
+    pub(crate) fn for_household(
+        identity: IdentityStore, controller: Uuid, devices: BTreeSet<String>,
+        active: Arc<AtomicBool>, scene: String,
+    ) -> Option<Self> {
+        if scene.is_empty() || scene.len()>250 {return None;}
+        let mut lease=Self::new(identity,controller,devices,active)?;
+        lease.household_scene=Some(scene);Some(lease)
     }
     fn valid(&self) -> bool {
         self.active.load(Ordering::Acquire)
@@ -87,12 +97,20 @@ impl Authorization {
         Self::Operation(OperationLease{source:Box::new(self.clone()),active:gate.0.clone()})
     }
     pub(crate) fn guarded_operation(&self)->bool {matches!(self,Self::Operation(_))}
+    pub(crate) fn permits_household_hap(&self, policy:&homesense_config::rule_document::AwayOff)->bool {
+        match self {
+            Self::Hap(lease)=>lease.household_scene.as_ref().is_some_and(|scene|policy.whole_house_off_scene.as_ref()==Some(scene)),
+            Self::Operation(lease)=>lease.source.permits_household_hap(policy),
+            _=>false,
+        }
+    }
+
 
     pub(crate) fn same_authority(&self,other:&Self)->bool{match(self,other){
         (Self::Web(a),Self::Web(b))=>a.same_authority(b),
         (Self::KeypadWeb(a),Self::KeypadWeb(b))=>a.parent==b.parent&&a.key==b.key&&a.source.same_authority(&b.source),
         (Self::KeypadPanel(a),Self::KeypadPanel(b))=>a.parent==b.parent&&a.key==b.key&&a.source.same_authority(&b.source),
-        (Self::Hap(a),Self::Hap(b))=>a.identity.same_owner(&b.identity)&&a.controller==b.controller&&a.public_key==b.public_key&&a.devices==b.devices&&Arc::ptr_eq(&a.active,&b.active),
+        (Self::Hap(a),Self::Hap(b))=>a.identity.same_owner(&b.identity)&&a.controller==b.controller&&a.public_key==b.public_key&&a.devices==b.devices&&a.household_scene==b.household_scene&&Arc::ptr_eq(&a.active,&b.active),
         (Self::Operation(a),Self::Operation(b))=>Arc::ptr_eq(&a.active,&b.active)&&a.source.same_authority(&b.source),
         _=>false,
     }}

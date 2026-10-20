@@ -26,6 +26,7 @@ struct TrackingGuard {
     generation: crate::admission::TaskGeneration,
 }
 pub struct RuntimeSceneHap {
+    household_active: Arc<std::sync::atomic::AtomicBool>,
     pub accessories: Vec<(SceneBinding, AccessoryHandle)>,
     pub write_handler: Arc<dyn WriteBatchHandler>,
     pub activities: Vec<(SceneActivityBinding, AccessoryHandle)>,
@@ -196,6 +197,12 @@ impl RuntimeSceneHap {
         let cache = selection.clone();
         let state_source = source.clone();
         let serial = writes.clone();
+        let household_active=Arc::new(std::sync::atomic::AtomicBool::new(true));
+        let household_guard=household_active.clone();
+        let household_identity=store.clone();
+        let household_on=document.whole_house_on_scene().map(str::to_owned);
+        let household_off=document.away_off.as_ref().filter(|policy|policy.enabled)
+            .and_then(|policy|policy.whole_house_off_scene.as_ref().map(|id|(id.clone(),policy.modules.iter().flat_map(|m|m.devices.iter().cloned()).collect::<BTreeSet<_>>())));
         let handler = SceneWriteHandler::new(
             requests,
             move |batch: SceneBatch| {
@@ -207,6 +214,10 @@ impl RuntimeSceneHap {
                 let cache = cache.clone();
                 let state_source = state_source.clone();
                 let absolute_actions = absolute_actions.clone();
+                let household_off=household_off.clone();
+                let household_on=household_on.clone();
+                let household_identity=household_identity.clone();
+                let household_guard=household_guard.clone();
                 async move {
                     let _guard = writes.lock().await;
                     if batch
@@ -216,6 +227,11 @@ impl RuntimeSceneHap {
                     {
                         return Err(WriteStatus::InsufficientPrivileges);
                     }
+                    let managed_off=household_off.as_ref().filter(|(id,_)|batch.starts.contains(id));
+                    let managed_on=household_on.as_ref().filter(|id|batch.starts.contains(id));
+                    if managed_on.is_some() && batch.addressed.len()!=1 {return Err(WriteStatus::InvalidValueInRequest);}
+                    if managed_off.is_some() && batch.addressed.len()!=1 {return Err(WriteStatus::InvalidValueInRequest);}
+                    if managed_off.is_some() && !household_guard.load(std::sync::atomic::Ordering::Acquire) {return Err(WriteStatus::InsufficientPrivileges);}
                     let momentary = batch
                         .starts
                         .iter()
@@ -242,14 +258,15 @@ impl RuntimeSceneHap {
                     if changes_selection {
                         cache.invalidate();
                     }
-                    let result = control
-                        .request(Action::SceneWrites {
-                            controller: batch.controller,
-                            revision,
-                            scenes: actions,
-                        })
-                        .await;
-                    let accepted = matches!(result, Ok(Reply::ScenesAccepted(_) | Reply::ImmediateAccepted(_)));
+                    let action=if let Some((scene,devices))=managed_off {
+                        if !household_guard.load(std::sync::atomic::Ordering::Acquire) {return Err(WriteStatus::InsufficientPrivileges);}
+                        let lease=crate::away_auth::HapLease::for_household(household_identity,batch.controller,devices.clone(),household_guard,scene.clone())
+                            .ok_or(WriteStatus::InsufficientPrivileges)?;
+                        Action::AwayOff{controller:batch.controller,revision,lease:crate::away_auth::Authorization::Hap(lease),submit:true}
+                    }else if let Some(scene)=managed_on {Action::SceneAction{controller:batch.controller,revision,scene:scene.clone(),execute:true}}
+                    else{Action::SceneWrites{controller:batch.controller,revision,scenes:actions}};
+                    let result=control.request(action).await;
+                    let accepted = matches!(result, Ok(Reply::ScenesAccepted(_) | Reply::ImmediateAccepted(_) | Reply::AwayAccepted(_) | Reply::CommandsAccepted(_)));
                     if let Err(reason)=&result {
                         log::warn!("HAP scene write rejected: {reason}");
                     }
@@ -416,6 +433,7 @@ impl RuntimeSceneHap {
             }));
         }
         Ok(Self {
+            household_active,
             tracking_ids: tracking,
             tracking_guard: tracking_controller,
             tracking_install,
@@ -617,6 +635,7 @@ impl RuntimeSceneHap {
 }
 impl Drop for RuntimeSceneHap {
     fn drop(&mut self) {
+        self.household_active.store(false,std::sync::atomic::Ordering::Release);
         for task in &self.tracking_tasks {
             task.abort();
         }

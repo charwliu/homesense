@@ -714,3 +714,5 @@ pub mod scene_observation;
 pub fn document_schema_version(payload:&[u8])->Option<u32>{serde_json::from_slice::<serde_json::Value>(payload).ok()?.get("schema_version")?.as_u64().and_then(|n|u32::try_from(n).ok())}
 
 pub mod component_modes;
+
+mod whole_house;

@@ -70,7 +70,7 @@ pub(crate) fn plan(
         .as_ref()
         .filter(|p| p.enabled)
         .ok_or("Away operation not enabled")?;
-    if lease.origin() == homesense_core::queue::Origin::Hap && !policy.hap_expose {
+    if lease.origin() == homesense_core::queue::Origin::Hap && !policy.hap_expose && !lease.permits_household_hap(policy) {
         return Err("HAP Away exposure not enabled".into());
     }
     if policy.review_evidence.trim().is_empty() || policy.modules.len() > 128 {
