@@ -228,6 +228,8 @@ pub struct TransportOwner<S> {
     failed: bool,
     audited_receive_failure: Option<String>,
     local: Option<gateway_io::Local<S>>,
+    #[cfg(test)]
+    worker_spawned: Option<tokio::sync::oneshot::Sender<()>>,
 }
 #[path = "gateway_io.rs"]
 mod gateway_io;
@@ -277,7 +279,13 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
             failed: false,
             audited_receive_failure: None,
             local: None,
+            #[cfg(test)]
+            worker_spawned: None,
         }
+    }
+    #[cfg(test)]
+    pub(crate) fn notify_next_worker_spawned(&mut self, notification:tokio::sync::oneshot::Sender<()>) {
+        self.worker_spawned=Some(notification);
     }
     async fn collect_tickets(
         &self,
@@ -767,12 +775,14 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
             return Err("no connection for configured gateway".into());
         };
         let clock = self.admission.clone();
-        let (connection, mut tickets, result, _slot) = tokio::task::spawn_blocking(move || {
+        let worker = tokio::task::spawn_blocking(move || {
             let result = send_tickets(&tickets, &mut connection, || clock.monotonic_ms());
             *slot = Some(tokio::time::Instant::now() + clock.write_interval);
             (connection, tickets, result, slot)
-        })
-        .await
+        });
+        #[cfg(test)]
+        if let Some(notification)=self.worker_spawned.take(){let _=notification.send(());}
+        let (connection, mut tickets, result, _slot) = worker.await
         .map_err(|e| format!("transport batch worker: {e}"))?;
         let SendAttempt {result,projection}=result;
         let projection_cancelled=projection.is_some();

@@ -890,8 +890,9 @@ impl Receiver {
                         if revision!=document.revision || ids.is_empty() || ids.len()>64{return Err("load state revision or bound invalid".into());}
                         let mut physical=vec![];let mut components=vec![];
                         for id in &ids {
-                            let policy=document.scene_tracking.get(id).filter(|p|p.enabled && p.hap_action.is_some()).ok_or("unknown load-backed HAP action")?;
-                            if document.scene_component_activity.get(id).is_some_and(|p|p.enabled){components.push(id);}else{physical.push(policy);}
+                            if document.hap_scene_action(id).is_none(){return Err("unknown load-backed HAP action".into());}
+                            if document.scene_component_activity.get(id).is_some_and(|p|p.enabled){components.push(id);}
+                            else{physical.push(document.scene_tracking.get(id).ok_or("HAP activity provider missing")?);}
                         }
                         let mut values=crate::scene_tracking::project_many(&physical,admission,controller,&self.generation,feedback).await
                             .into_iter().map(|p|(p.scene.clone(),p.active())).collect::<std::collections::BTreeMap<_,_>>();

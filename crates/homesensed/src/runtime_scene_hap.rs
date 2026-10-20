@@ -90,8 +90,8 @@ impl RuntimeSceneHap {
             admission: admission.clone(),
             controller,
         };
-        let action_ids = specs.iter().filter(|s| document.scene_tracking.get(&s.id)
-            .is_some_and(|p| p.enabled && p.hap_action.is_some())).map(|s| s.id.clone()).collect();
+        let action_ids = specs.iter().filter(|s| document.hap_scene_action(&s.id).is_some())
+            .map(|s| s.id.clone()).collect();
         let source = Source::new(admission, controller, groups).await?
             .with_presentations(presentations)
             .with_actions(control.clone(), document.revision, action_ids);
@@ -123,9 +123,8 @@ impl RuntimeSceneHap {
             .filter(|m| selected.contains(&m.scene))
             .map(|m| m.scene.clone())
             .collect::<BTreeSet<_>>();
-        let absolute_actions = Arc::new(document.scene_tracking.iter()
-            .filter(|(id, policy)| selected.contains(*id) && policy.enabled)
-            .filter_map(|(id, policy)| policy.hap_action.clone().map(|action| (id.clone(), action)))
+        let absolute_actions = Arc::new(selected.iter()
+            .filter_map(|id| document.hap_scene_action(id).cloned().map(|action| (id.clone(), action)))
             .collect::<BTreeMap<_, _>>());
         selection_members.extend(absolute_actions.keys().cloned());
         selection_members.extend(document.scene_presentations.keys()

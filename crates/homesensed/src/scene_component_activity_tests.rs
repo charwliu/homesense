@@ -1,4 +1,6 @@
 //! Real Admission/feedback tests: component activity adds no control authority.
+#[path = "component_hap_tests.rs"]
+mod component_hap_tests;
 use super::*;
 use crate::scene_activity::SceneActivity as A;
 
