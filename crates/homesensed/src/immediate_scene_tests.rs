@@ -2817,3 +2817,6 @@ fn component_confirmation_policies_do_not_install_permanent_short_poll_consumers
     assert!(!document.component_mode_confirmations.is_empty());
     assert!(crate::consumer_refresh::requirements(&config,&document).unwrap().is_empty());
 }
+
+#[path = "hap_room_all_tests.rs"]
+mod hap_room_all_tests;

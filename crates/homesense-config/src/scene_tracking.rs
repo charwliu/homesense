@@ -8,6 +8,11 @@ pub struct Policy {
     /// Keep App activity without allocating a second HomeKit accessory.
     #[serde(default = "default_hap_activity", skip_serializing_if = "is_true")]
     pub hap_activity: bool,
+    /// Project actual load state onto the existing action accessory. The
+    /// reviewed absolute recipes keep HomeKit On/Off idempotent; the App's
+    /// relative room action and physical FullOn/FullOff keys stay independent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hap_action: Option<HapAction>,
     pub aggregation: Aggregation,
     pub unknown_policy: UnknownPolicy,
     pub pending_policy: PendingPolicy,
@@ -16,6 +21,12 @@ pub struct Policy {
     pub max_age_ms: u64,
     pub review_evidence: String,
     pub members: Vec<Member>,
+}
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct HapAction {
+    pub on_scene: String,
+    pub off_scene: String,
 }
 fn default_hap_activity() -> bool { true }
 fn is_true(value: &bool) -> bool { *value }
@@ -71,6 +82,18 @@ pub(crate) fn validate(
     }
     let mut ids = std::collections::BTreeSet::new();
     for p in policies {
+        if let Some(action) = &p.hap_action
+            && (!p.enabled || p.hap_activity || p.aggregation != Aggregation::Any
+                || action.on_scene == action.off_scene
+                || [&action.on_scene, &action.off_scene].into_iter().any(|id| {
+                    id == &p.scene || !document.scene_action_available(id)
+                        || !document.hidden_scene_entries.contains(id)
+                        || document.scene_rooms.get(id) != document.scene_rooms.get(&p.scene)
+                        || policies.iter().any(|other| &other.scene == id && other.hap_action.is_some())
+                }))
+            {
+                return Err(crate::invalid("stateful HAP action requires reviewed same-room hidden absolute recipes and one actual-state provider"));
+            }
         let timed = document.timed_scenes.get(&p.scene);
         let immediate = document.immediate_scenes.contains_key(&p.scene);
         if p.activity_name.trim().is_empty()

@@ -67,6 +67,7 @@ pub(crate) struct Source {
     generation: TaskGeneration,
     controller: Uuid,
     groups: Vec<Group>,
+    actions: Option<(crate::automation_control::Control, u64, Vec<String>)>,
 }
 impl Source {
     pub async fn new(
@@ -83,9 +84,23 @@ impl Source {
             generation,
             controller,
             groups,
+            actions: None,
         })
     }
+    pub fn with_actions(mut self, control: crate::automation_control::Control, revision: u64, scenes: Vec<String>) -> Self {
+        if !scenes.is_empty() { self.actions = Some((control, revision, scenes)); }
+        self
+    }
     pub async fn sample(&self) -> Result<BTreeMap<String, Option<bool>>, UnavailableReason> {
+        self.sample_inner(true).await
+    }
+    /// Endpoint construction precedes the control owner's event loop. Never
+    /// wait on that owner here; leave load-backed actions unknown until the
+    /// ordinary projection task can sample them after startup.
+    pub async fn initial_sample(&self) -> Result<BTreeMap<String, Option<bool>>, UnavailableReason> {
+        self.sample_inner(false).await
+    }
+    async fn sample_inner(&self, read_actions: bool) -> Result<BTreeMap<String, Option<bool>>, UnavailableReason> {
         let names = self.groups.iter().map(|g| g.variable.clone()).collect();
         tokio::time::timeout(Duration::from_millis(500), async {
             let readiness = self.admission.diagnostics(self.controller, self.generation.clone())
@@ -106,8 +121,25 @@ impl Source {
             if !state.ready() {
                 return Err(UnavailableReason::RuntimeNotReady);
             }
-            crate::scene_switches::states_in_groups(&self.groups, &snapshot)
-                .map_err(|_| UnavailableReason::ReadFailed)
+            let mut values = crate::scene_switches::states_in_groups(&self.groups, &snapshot)
+                .map_err(|_| UnavailableReason::ReadFailed)?;
+            if let Some((control, revision, scenes)) = &self.actions {
+                if !read_actions {
+                    values.extend(scenes.iter().map(|id| (id.clone(), None)));
+                    return Ok(values);
+                }
+                use crate::automation_control::{Action, Reply};
+                let Reply::SceneCatalog(entries) = control.request(Action::SceneCatalog {
+                    controller: self.controller, revision: *revision, scenes: scenes.clone(),
+                }).await.map_err(|_| UnavailableReason::ReadFailed)? else {
+                    return Err(UnavailableReason::ReadFailed);
+                };
+                for id in scenes {
+                    let entry = entries.get(id).ok_or(UnavailableReason::ReadFailed)?;
+                    values.insert(id.clone(), entry.tracking.as_ref().and_then(|p| p.active()));
+                }
+            }
+            Ok(values)
         })
         .await
         .map_err(|_| UnavailableReason::ReadTimedOut)?

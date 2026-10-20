@@ -442,6 +442,7 @@ fn tracking_policy(
     }
     Ok(Some(homesense_config::scene_tracking::Policy {
         hap_activity: true,
+        hap_action: None,
         scene: source.id.clone(),
         enabled: false,
         aggregation: c.aggregation,
