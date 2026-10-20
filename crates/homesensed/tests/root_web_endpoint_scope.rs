@@ -158,7 +158,7 @@ async fn root_same_key_is_independent_across_authenticated_web_endpoints() {
         .unwrap();
     let api = Api {
         daily_backup:Default::default(),
-        hap_bridges:Default::default(),hap_status: Default::default(),
+        hap_placement:Default::default(),hap_bridges:Default::default(),hap_status: Default::default(),
         backup_source:None,
         publisher:None,
         origin: "http://127.0.0.1:8088".into(),

@@ -7,6 +7,7 @@ use crate::{
     reconnect::{RetryPolicy, reconnect_tcp},
 };
 use homesense_core::ExecutionContext;
+use hap::storage::Storage;
 use homesense_storage::Store;
 use std::{
     path::Path,
@@ -272,6 +273,12 @@ async fn serve_inner_running(devices:&[u8],rules:&[u8],directory:&Path,control:c
             } else if let Some(endpoint)=&management {endpoint.install(&admission,controller,&runtime).await?;}
             if let Some(endpoint)=&management {endpoint.set_hap_status(if hap.is_some(){crate::web_api::HapStatus::Listening}else if hap_settings.is_some(){crate::web_api::HapStatus::Degraded}else{crate::web_api::HapStatus::Disabled})?;}
             if let (Some(endpoint),Some(group))=(&management,&bridges) {endpoint.set_hap_bridges(group.statuses.borrow().clone())?;}
+            if let Some(endpoint)=&management {
+                let placement=if let Some(group)=&bridges {group.placement.clone()}else if let (Some(hap),Some(identity))=(&hap,&identity) {
+                    Some(crate::hap_placement::Publication::new(admission.boot_id().into(),config.revision(),vec![crate::hap_placement::Bridge{id:"legacy".into(),name:identity.load_config().await.map_err(|e|e.to_string())?.name,available:true,accessories:hap.placement.clone()}]))
+                }else{None};
+                endpoint.set_hap_placement(placement)?;
+            }
             // Initialization may span async identity/listener setup. A stop that
             // arrived there must not start a fresh runtime/startup rule quantum.
             if control.stopped() || deadline.expired(){return Ok(());}

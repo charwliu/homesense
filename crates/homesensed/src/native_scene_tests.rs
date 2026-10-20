@@ -758,7 +758,7 @@ async fn web_relative_action_is_explicit_scoped_and_deduplicated_with_pending_st
     }
     let api = crate::web_api::Api {
         daily_backup: Default::default(),
-        hap_bridges: Default::default(),
+        hap_placement:Default::default(),hap_bridges: Default::default(),
         hap_status: Default::default(),
         backup_source: None,
         publisher: None,

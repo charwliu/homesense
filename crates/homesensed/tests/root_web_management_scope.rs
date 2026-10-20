@@ -16,7 +16,7 @@ impl Lab {
   let runtime=AutomationRuntime::load_with_startup(actor.clone(),caller,1_800_000_000_000,1000,8,Default::default(),StartupPolicy::Suppress).await.unwrap();
   let secret="RootSyntheticManagementSecret0123456789".to_owned();let tokens=Arc::new(Tokens::open(&dir.join("credentials.sqlite")).unwrap());
   tokens.insert(Uuid::new_v4(),&secret,Grant{controller:caller,role:Role::Administrator,devices:["simulation:light".into()].into(),scenes:Default::default()}).unwrap();
-  let api=Api{daily_backup:Default::default(),hap_bridges:Default::default(),hap_status:Default::default(),backup_source:None,publisher:None,origin:"http://127.0.0.1:8088".into(),tokens,runtime:RwLock::new(Some(Runtime{control:runtime.control(),revision:1,boot:actor.boot_id().into(),scenes:Default::default()})),drafts:Some((ExecutionContext::Simulation,Mutex::new(Drafts::open(&dir.join("drafts.sqlite")).unwrap()))),receipts:Mutex::new(Receipts::open(&dir.join("web.sqlite")).unwrap())};
+  let api=Api{daily_backup:Default::default(),hap_placement:Default::default(),hap_bridges:Default::default(),hap_status:Default::default(),backup_source:None,publisher:None,origin:"http://127.0.0.1:8088".into(),tokens,runtime:RwLock::new(Some(Runtime{control:runtime.control(),revision:1,boot:actor.boot_id().into(),scenes:Default::default()})),drafts:Some((ExecutionContext::Simulation,Mutex::new(Drafts::open(&dir.join("drafts.sqlite")).unwrap()))),receipts:Mutex::new(Receipts::open(&dir.join("web.sqlite")).unwrap())};
   Self{dir,api,actor,runtime,caller,secret,devices}
  }
  async fn post(&self,path:&str,key:&str,body:Value)->(StatusCode,Value){
@@ -61,7 +61,7 @@ async fn reopen_same_databases(l:Lab)->Lab {
  let actor=Admission::open(dir.join("runtime.sqlite"),Options{context:ExecutionContext::Simulation,..Default::default()},move|id|id==caller).await.unwrap();actor.synchronized(1,1).await.unwrap();
  let runtime=AutomationRuntime::load_with_startup(actor.clone(),caller,1_800_000_000_000,1000,8,Default::default(),StartupPolicy::Suppress).await.unwrap();
  let tokens=Arc::new(Tokens::open(&dir.join("credentials.sqlite")).unwrap());
- let api=Api{daily_backup:Default::default(),hap_bridges:Default::default(),hap_status:Default::default(),backup_source:None,publisher:None,origin:"http://127.0.0.1:8088".into(),tokens,runtime:RwLock::new(Some(Runtime{control:runtime.control(),revision:1,boot:actor.boot_id().into(),scenes:Default::default()})),drafts:Some((ExecutionContext::Simulation,Mutex::new(Drafts::open(&dir.join("drafts.sqlite")).unwrap()))),receipts:Mutex::new(Receipts::open(&dir.join("web.sqlite")).unwrap())};
+ let api=Api{daily_backup:Default::default(),hap_placement:Default::default(),hap_bridges:Default::default(),hap_status:Default::default(),backup_source:None,publisher:None,origin:"http://127.0.0.1:8088".into(),tokens,runtime:RwLock::new(Some(Runtime{control:runtime.control(),revision:1,boot:actor.boot_id().into(),scenes:Default::default()})),drafts:Some((ExecutionContext::Simulation,Mutex::new(Drafts::open(&dir.join("drafts.sqlite")).unwrap()))),receipts:Mutex::new(Receipts::open(&dir.join("web.sqlite")).unwrap())};
  Lab{dir,api,actor,runtime,caller,secret,devices}
 }
 #[tokio::test]

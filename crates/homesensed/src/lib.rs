@@ -142,6 +142,7 @@ mod management_endpoint;
 pub mod hap_endpoint;
 pub mod hap_bridge_plan;
 pub mod hap_bridges;
+pub mod hap_placement;
 pub mod hap_bridge_group;
 pub mod runtime_motor_hap;
 

@@ -54,7 +54,7 @@ async fn consolidated_catalog_hides_shutdown_but_public_scene_still_accepts_on_a
         scenes: ["reading", "daily", "eco", "off"].map(String::from).into(), devices: Default::default() }).unwrap();
     let (admission, control, stop, drive) = owner(&path, caller).await;
     let api = Api {
-        daily_backup: Default::default(), hap_bridges: Default::default(), hap_status: Default::default(),
+        daily_backup: Default::default(), hap_placement:Default::default(),hap_bridges: Default::default(), hap_status: Default::default(),
         backup_source: None, publisher: None, origin: "http://127.0.0.1:8088".into(), tokens,
         runtime: std::sync::RwLock::new(Some(Runtime { control, revision: 1, boot: admission.boot_id().into(), scenes: document.scene_catalog() })),
         receipts: Mutex::new(Receipts::open(&root.join("web.sqlite")).unwrap()), drafts: None,
@@ -96,7 +96,7 @@ async fn scene_light_membership_obeys_device_grants_without_issuing_commands() {
     }
     let (admission, control, stop, drive) = owner(&path, caller).await;
     let api = Api {
-        daily_backup: Default::default(), hap_bridges: Default::default(),
+        daily_backup: Default::default(), hap_placement:Default::default(),hap_bridges: Default::default(),
         hap_status: Default::default(), backup_source: None, publisher: None,
         origin: "http://127.0.0.1:8088".into(), tokens,
         runtime: std::sync::RwLock::new(Some(Runtime {
@@ -281,7 +281,7 @@ async fn scene_stream_invalidates_stopped_selection_and_recovers_on_same_socket(
     };
     let api = Arc::new(Api {
         daily_backup: Default::default(),
-        hap_bridges: Default::default(),
+        hap_placement:Default::default(),hap_bridges: Default::default(),
         hap_status: Default::default(),
         backup_source: None,
         publisher: None,
@@ -514,7 +514,7 @@ async fn web_selection_targets_preserve_scope_legacy_receipts_and_off_cancellati
         }
         let api = Api {
             daily_backup: Default::default(),
-            hap_bridges: Default::default(),
+            hap_placement:Default::default(),hap_bridges: Default::default(),
             hap_status: Default::default(),
             backup_source: None,
             publisher: None,
@@ -751,7 +751,7 @@ async fn unavailable_selection_reads_distinguish_timeout_absent_and_closed_runti
     tokens.insert(Uuid::new_v4(), secret, Grant { controller: caller, role: Role::Member, scenes: ["reading".into()].into(), devices: Default::default() }).unwrap();
     let view = Runtime { control, revision: 1, boot: a.boot_id().into(), scenes: [("reading".into(), "reading".into())].into() };
     let api = Api {
-        daily_backup: Default::default(), hap_bridges: Default::default(), hap_status: Default::default(),
+        daily_backup: Default::default(), hap_placement:Default::default(),hap_bridges: Default::default(), hap_status: Default::default(),
         backup_source: None, publisher: None, origin: "http://127.0.0.1:8088".into(), tokens,
         runtime: std::sync::RwLock::new(Some(view.clone())),
         receipts: Mutex::new(Receipts::open(&root.join("web.sqlite")).unwrap()), drafts: None,
@@ -802,7 +802,7 @@ async fn cancellation_rejects_unbound_or_other_runtime_receipts_but_keeps_legiti
     }).unwrap();
     let (admission, control, stop, drive) = owner(&path, caller).await;
     let api = Api {
-        daily_backup: Default::default(), hap_bridges: Default::default(),
+        daily_backup: Default::default(), hap_placement:Default::default(),hap_bridges: Default::default(),
         hap_status: Default::default(), backup_source: None, publisher: None,
         origin: "http://127.0.0.1:8088".into(), tokens,
         runtime: std::sync::RwLock::new(Some(Runtime {

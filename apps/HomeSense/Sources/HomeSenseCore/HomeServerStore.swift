@@ -614,6 +614,16 @@ public final class HomeServerStore: ObservableObject {
         moduleInventoryRevision = ""; moduleInventoryBoot = ""; moduleInventoryReady = false
         moduleInventoryMessage = ""
     }
+    /// Explicit read for native HomeKit placement, not a polling subscription.
+    public func homeKitPlacementPublication() async throws -> HomeKitRoomPlacement.Publication {
+        guard connected, canManage else { throw HomeServerError.denied }
+        let version = revision, boot = snapshotBoot
+        let value = try await request("/api/v1/homekit/placement")
+        guard connected, canManage, revision == version, snapshotBoot == boot else { throw HomeServerError.expiredRequest }
+        let publication = try JSONDecoder().decode(HomeKitRoomPlacement.Publication.self, from: JSONEncoder().encode(value))
+        guard publication.revision == version, publication.boot == boot else { throw HomeServerError.invalidResponse }
+        return publication
+    }
     public func loadPhysicalModules() async {
         guard connected, canManage, !loadingModules else { return }
         let generation = epoch, load = UUID(), version = revision, boot = snapshotBoot

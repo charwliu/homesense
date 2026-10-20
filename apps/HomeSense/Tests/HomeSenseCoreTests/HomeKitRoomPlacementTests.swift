@@ -137,4 +137,16 @@ import Testing
             try P.preview(publication: invalid, inventory: f.inventory, bridgeBindings: f.bridgeBindings, roomBindings: f.roomBindings)
         }
     }
+
+    @Test func serverPublicationUsesExplicitWireKeysAndPreservesBridgeLocalIdentifiers() throws {
+        let data = Data(#"{"boot":"boot","revision":"45","generation":"graph","bridges":[{"id":"one","name":"HomeSense","available":true,"accessories":[{"kind":"light","id":"lamp","aid":2,"serial_number":"HS-2","room_id":"bedroom"}]}]}"#.utf8)
+        let publication = try JSONDecoder().decode(P.Publication.self, from: data)
+        let accessory = publication.bridges[0].accessories[0]
+        #expect(accessory.serialNumber == "HS-2" && accessory.roomID == "bedroom")
+        let encoded = try JSONSerialization.jsonObject(with: JSONEncoder().encode(publication)) as? [String: Any]
+        let bridges = encoded?["bridges"] as? [[String: Any]]
+        let accessories = bridges?[0]["accessories"] as? [[String: Any]]
+        #expect(accessories?[0]["serial_number"] as? String == "HS-2")
+        #expect(accessories?[0]["serialNumber"] == nil)
+    }
 }
