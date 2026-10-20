@@ -2791,9 +2791,13 @@ fn returned_zero_projection_precedes_watchdog_only_when_complete_proof_is_alread
         scoped.submit_scene_with_feedback_before(h.generation.clone(),short_projection_batch(h.member),0,None,Some(cap)).await.unwrap();
         let (mut owner,calls)=batch_owner(&h,usize::MAX);owner.step().await.unwrap().unwrap().result.unwrap();tokio::time::sleep(Duration::from_millis(2)).await;mode_frame(&mut h,0x15,1,40);crate::control_batch::tick(&h.actor,h.member,&h.feedback).await.unwrap();
         let (worker_entered,worker_started)=tokio::sync::oneshot::channel();let (release_worker,worker_wait)=std::sync::mpsc::channel();let blocker=tokio::task::spawn_blocking(move || {worker_entered.send(()).unwrap();worker_wait.recv_timeout(Duration::from_secs(10)).unwrap();});worker_started.await.unwrap();
+        let (spawned,queued)=tokio::sync::oneshot::channel();owner.notify_next_worker_spawned(spawned);
         let writer=tokio::spawn(async move {let result=owner.step().await;(owner,result)});
         let store=Store::open(h.directory.join("runtime.sqlite")).unwrap();let selected_by=tokio::time::Instant::now()+Duration::from_millis(500);
         while store.command_status(h.actor.boot_id(),2).unwrap()!=Some(homesense_storage::journal::Status::Writing) {assert!(tokio::time::Instant::now()<selected_by);tokio::time::sleep(Duration::from_millis(5)).await;}
+        // Writing alone precedes tail collection. Stall the actor only after
+        // the actual blocking I/O task has been queued behind the held worker.
+        tokio::time::timeout_at(selected_by,queued).await.unwrap().unwrap();
         enabled.store(true,Ordering::Release);let actor=h.actor.clone();let controller=h.controller;let generation=h.generation.clone();let diagnostics=tokio::spawn(async move {actor.diagnostics(controller,generation).await});started.await.unwrap();
         tokens.revoke(credential).unwrap();release_worker.send(()).unwrap();blocker.await.unwrap();
         tokio::time::sleep(Duration::from_millis(cap.saturating_add(30).saturating_sub(h.actor.monotonic_ms()))).await;

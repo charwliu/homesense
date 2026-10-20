@@ -19,6 +19,10 @@ pub struct Policy {
     pub active_value: FirstValue,
     pub activity_name: String,
     pub review_evidence: String,
+    /// Explicit absolute recipes use this component's existing causal owner
+    /// for HAP readback. The owner itself never executes or authorizes writes.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hap_action: Option<crate::scene_tracking::HapAction>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub program_confirmation: Option<ProgramConfirmation>,
 }
@@ -43,7 +47,9 @@ pub struct ProgramConfirmation {
     pub negative_feedback: bool,
 }
 
-fn is_false(value: &bool) -> bool { !*value }
+fn is_false(value: &bool) -> bool {
+    !*value
+}
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -57,8 +63,11 @@ fn assigns(nodes: &[homesense_core::rule::Node], variable: &str) -> bool {
     use homesense_core::rule::Action;
     nodes.iter().any(|n| match &n.action {
         Action::Set { variable: name, .. } => name == variable,
-        Action::If { then_actions, else_actions, .. } =>
-            assigns(then_actions, variable) || assigns(else_actions, variable),
+        Action::If {
+            then_actions,
+            else_actions,
+            ..
+        } => assigns(then_actions, variable) || assigns(else_actions, variable),
         _ => false,
     })
 }
@@ -66,8 +75,11 @@ fn has_future_scene(nodes: &[homesense_core::rule::Node]) -> bool {
     use homesense_core::rule::Action;
     nodes.iter().any(|n| match &n.action {
         Action::Scene { .. } => true,
-        Action::If { then_actions, else_actions, .. } =>
-            has_future_scene(then_actions) || has_future_scene(else_actions),
+        Action::If {
+            then_actions,
+            else_actions,
+            ..
+        } => has_future_scene(then_actions) || has_future_scene(else_actions),
         _ => false,
     })
 }
@@ -81,6 +93,7 @@ pub(crate) fn validate(
         return Err(invalid("component activity capacity exceeded"));
     }
     let mut scenes = BTreeSet::new();
+    let mut recipes = BTreeSet::new();
     for p in policies {
         crate::identifier(&p.scene)?;
         crate::identifier(&p.variable)?;
@@ -113,42 +126,91 @@ pub(crate) fn validate(
                     .any(|m| m.scene == p.scene || m.off_scene == p.scene)
                     || g.reset_scenes.contains(&p.scene)
             })
-            || p.program_confirmation.as_ref().is_none_or(|c| c.recorded_selection.is_none()) && !document.component_mode_confirmations.iter().any(|c| {
-                c.basis == Basis::Physical
-                    && c.variable == p.variable
-                    && c.first_value == p.active_value
-                    && c.scenes.contains(&p.scene)
-            })
+            || p.program_confirmation
+                .as_ref()
+                .is_none_or(|c| c.recorded_selection.is_none())
+                && !document.component_mode_confirmations.iter().any(|c| {
+                    c.basis == Basis::Physical
+                        && c.variable == p.variable
+                        && c.first_value == p.active_value
+                        && c.scenes.contains(&p.scene)
+                })
         {
             return Err(invalid(
                 "component activity requires a unique reviewed physical component provider",
             ));
         }
+        if let Some(action) = &p.hap_action {
+            if !p.enabled
+                || p.program_confirmation.is_none()
+                || action.readback != crate::scene_tracking::ActionReadback::ConfirmedComponent
+                || action.on_scene == action.off_scene
+                || [&action.on_scene, &action.off_scene].into_iter().any(|id| {
+                    id == &p.scene
+                        || !recipes.insert(id.clone())
+                        || !document.hidden_scene_entries.contains(id)
+                        || !document.scene_action_available(id)
+                        || document.scene_rooms.get(id) != document.scene_rooms.get(&p.scene)
+                        || document.scene_scopes.get(id) != document.scene_scopes.get(&p.scene)
+                        || document
+                            .scene_component_activity
+                            .get(id)
+                            .is_some_and(|p| p.hap_action.is_some())
+                        || document.scene_tracking.values().any(|p| {
+                            p.hap_action.as_ref().is_some_and(|a| {
+                                &p.scene == id || &a.on_scene == id || &a.off_scene == id
+                            })
+                        })
+                })
+            {
+                return Err(invalid(
+                    "component HAP action needs unique hidden same-room absolute recipes and its confirmed owner",
+                ));
+            }
+            crate::component_hap::validate(p, action, document, config)?;
+        }
         if let Some(program) = &p.program_confirmation {
             if let Some(intent) = &program.recorded_selection {
                 let sources = intent.source_scenes.iter().collect::<BTreeSet<_>>();
                 let resets = intent.reset_variables.iter().collect::<BTreeSet<_>>();
-                if sources.is_empty() || sources.len() > 64
+                if sources.is_empty()
+                    || sources.len() > 64
                     || sources.len() != intent.source_scenes.len()
                     || !sources.contains(&p.scene)
-                    || resets.is_empty() || resets.len() > 64
+                    || resets.is_empty()
+                    || resets.len() > 64
                     || resets.len() != intent.reset_variables.len()
                     || !resets.contains(&p.variable)
                     || intent.review_evidence.trim().is_empty()
                     || intent.review_evidence.len() > 8192
                     || intent.reset_variables.iter().any(|name| {
-                        document.variables.get(name).is_none_or(|v| v.lifetime != Lifetime::Persistent)
-                            || document.component_mode_confirmations.iter().any(|c| &c.variable == name)
-                            || document.scene_switch_groups.iter().any(|g| &g.variable == name)
+                        document
+                            .variables
+                            .get(name)
+                            .is_none_or(|v| v.lifetime != Lifetime::Persistent)
+                            || document
+                                .component_mode_confirmations
+                                .iter()
+                                .any(|c| &c.variable == name)
+                            || document
+                                .scene_switch_groups
+                                .iter()
+                                .any(|g| &g.variable == name)
                     })
                     || intent.source_scenes.iter().any(|scene| {
                         !document.scene_action_available(scene)
-                            || document.scene_execution_kind(scene) != Some(crate::rule_document::SceneExecutionKind::Immediate)
-                            || !document.linked_manual_scenes(std::slice::from_ref(scene))
-                                .is_ok_and(|nodes| assigns(&nodes, &p.variable) && !has_future_scene(&nodes))
+                            || document.scene_execution_kind(scene)
+                                != Some(crate::rule_document::SceneExecutionKind::Immediate)
+                            || !document
+                                .linked_manual_scenes(std::slice::from_ref(scene))
+                                .is_ok_and(|nodes| {
+                                    assigns(&nodes, &p.variable) && !has_future_scene(&nodes)
+                                })
                     })
                 {
-                    return Err(invalid("recorded selection needs distinct reviewed writers and reset-only persistent intent"));
+                    return Err(invalid(
+                        "recorded selection needs distinct reviewed writers and reset-only persistent intent",
+                    ));
                 }
             }
             let candidates = document.component_mode_confirmations.iter().filter(|c| {
@@ -183,11 +245,20 @@ pub(crate) fn validate(
                 || declared.len() != program.active_conditions.len()
                 || program.recorded_selection.is_none() && Some(&declared) != common.as_ref()
                 || program.active_conditions.iter().any(|c| {
-                    homesense_core::DeviceId::new(&c.device).ok()
-                        .and_then(|id| config.binding(&id)).is_none_or(|(_, m)| {
-                            !c.on || !matches!(m.kind(), homesense_core::ModuleKind::Switch | homesense_core::ModuleKind::Dimmer)
-                                || c.level.is_some_and(|level| !(1..=100).contains(&level)
-                                    || m.profile() != homesense_core::ProtocolProfile::Ad8Din)
+                    homesense_core::DeviceId::new(&c.device)
+                        .ok()
+                        .and_then(|id| config.binding(&id))
+                        .is_none_or(|(_, m)| {
+                            !c.on
+                                || !matches!(
+                                    m.kind(),
+                                    homesense_core::ModuleKind::Switch
+                                        | homesense_core::ModuleKind::Dimmer
+                                )
+                                || c.level.is_some_and(|level| {
+                                    !(1..=100).contains(&level)
+                                        || m.profile() != homesense_core::ProtocolProfile::Ad8Din
+                                })
                         })
                 })
                 || program.timeout_ms == 0

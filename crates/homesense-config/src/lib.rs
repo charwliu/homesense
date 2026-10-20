@@ -3,6 +3,7 @@
 pub mod rule_document;
 pub mod scene_tracking;
 pub mod scene_component_activity;
+mod component_hap;
 pub mod scene_presentation;
 pub mod keypad;
 pub mod keypad_completion;

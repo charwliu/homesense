@@ -22,7 +22,7 @@ pub struct Policy {
     pub review_evidence: String,
     pub members: Vec<Member>,
 }
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct HapAction {
     pub on_scene: String,
@@ -38,6 +38,7 @@ pub enum ActionReadback {
     #[default]
     AnyLamp,
     AllConditions,
+    ConfirmedComponent,
 }
 fn is_any_lamp(value: &ActionReadback) -> bool {
     *value == ActionReadback::AnyLamp
@@ -117,6 +118,11 @@ pub(crate) fn validate(
                     != match action.readback {
                         ActionReadback::AnyLamp => Aggregation::Any,
                         ActionReadback::AllConditions => Aggregation::All,
+                        ActionReadback::ConfirmedComponent => {
+                            return Err(crate::invalid(
+                                "component HAP readback requires its component owner",
+                            ));
+                        }
                     }
                 || action.on_scene == action.off_scene
                 || [&action.on_scene, &action.off_scene].into_iter().any(|id| {
@@ -128,6 +134,11 @@ pub(crate) fn validate(
                         || policies
                             .iter()
                             .any(|other| &other.scene == id && other.hap_action.is_some())
+                        || document.scene_component_activity.values().any(|other| {
+                            other.hap_action.as_ref().is_some_and(|a| {
+                                &other.scene == id || &a.on_scene == id || &a.off_scene == id
+                            })
+                        })
                 }))
         {
             return Err(crate::invalid(
@@ -372,18 +383,34 @@ fn validate_pattern_action(
 }
 
 impl crate::rule_document::Document {
+    pub fn hap_scene_action(&self, id: &str) -> Option<&HapAction> {
+        self.scene_tracking
+            .get(id)
+            .filter(|p| p.enabled)
+            .and_then(|p| p.hap_action.as_ref())
+            .or_else(|| {
+                self.scene_component_activity
+                    .get(id)
+                    .filter(|p| p.enabled)
+                    .and_then(|p| p.hap_action.as_ref())
+            })
+    }
     /// A HAP absolute recipe retains its canonical scene's confirmation policy.
     /// This changes proof identity only; admission, commands and caller grants
     /// still use the actual requested recipe and its reviewed output scope.
     pub fn scene_confirmation_id<'a>(&'a self, id: &'a str) -> &'a str {
         self.scene_tracking
             .values()
-            .find_map(|policy| {
-                policy
-                    .hap_action
-                    .as_ref()
+            .map(|p| (p.scene.as_str(), p.hap_action.as_ref()))
+            .chain(
+                self.scene_component_activity
+                    .values()
+                    .map(|p| (p.scene.as_str(), p.hap_action.as_ref())),
+            )
+            .find_map(|(scene, action)| {
+                action
                     .filter(|action| action.on_scene == id || action.off_scene == id)
-                    .map(|_| policy.scene.as_str())
+                    .map(|_| scene)
             })
             .unwrap_or(id)
     }
