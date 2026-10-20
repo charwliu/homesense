@@ -15,6 +15,8 @@ pub struct PreparedFrame {
     length: usize,
     transport_epoch: u64,
     context: ExecutionContext,
+    // Minted by the model-checked encoder, never inferred from arbitrary bytes.
+    module_full: Option<[u8; 5]>,
 }
 impl PreparedFrame {
     /// Actual complete five-byte protocol frames held by this logical operation.
@@ -40,6 +42,7 @@ impl PreparedFrame {
             length: copies * 5,
             transport_epoch,
             context,
+            module_full: None,
         }
     }
     /// Encodes one addressed module operation. The runtime must reserve and
@@ -92,9 +95,27 @@ impl PreparedFrame {
         } else {
             1
         };
-        Ok(Self::operation(frame, copies, context, transport_epoch))
+        let mut prepared = Self::operation(frame, copies, context, transport_epoch);
+        if matches!(command, Command::Switch(true)) || matches!(command,
+            Command::SetLevel { level, transition: homesense_core::LevelTransition::Immediate }
+                if level.get() == 100)
+        {
+            prepared.module_full = hb_protocol::encode_module_all_on(module, context)
+                .ok().map(RawFrame::bytes);
+        }
+        if matches!(command, Command::Switch(false)) || matches!(command,
+            Command::SetLevel { level, transition: homesense_core::LevelTransition::Immediate }
+                if level.get() == 0)
+        {
+            prepared.module_full = hb_protocol::encode_module_all_off(module, context)
+                .ok().map(RawFrame::bytes);
+        }
+        Ok(prepared)
     }
 }
+
+mod batch;
+pub use batch::encoded_batch_len;
 
 /// Local stream progress only; Written never asserts that an actuator applied it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -107,17 +128,9 @@ pub fn operation_progress(
     frames: &[&PreparedFrame],
     bytes_written: usize,
 ) -> Option<Vec<OperationProgress>> {
-    let total = frames.iter().map(|frame| frame.length).sum::<usize>();
-    if frames.is_empty() || total > MAX_BATCH_BYTES || bytes_written > total {
-        return None;
-    }
-    let mut end = 0;
-    Some(
-        frames
-            .iter()
-            .map(|frame| {
-                let start = end;
-                end += frame.length;
+    let batch = batch::Plan::new(frames)?;
+    if bytes_written > batch.bytes.len() { return None; }
+    Some(batch.ranges.iter().map(|&(start, end)| {
                 if bytes_written >= end {
                     OperationProgress::Complete
                 } else if bytes_written > start {
@@ -125,9 +138,7 @@ pub fn operation_progress(
                 } else {
                     OperationProgress::Unsent
                 }
-            })
-            .collect(),
-    )
+            }).collect())
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -242,12 +253,10 @@ impl<S: Read + Write> Connection<S> {
         if !self.is_connected() {
             return Err(denied(SendFailure::Disconnected));
         }
-        let length = frames.iter().map(|frame| frame.length).sum::<usize>();
-        if frames.is_empty() || length > MAX_BATCH_BYTES {
-            return Err(denied(SendFailure::Io(io::ErrorKind::InvalidInput)));
-        }
-        let mut bytes = [0u8; MAX_BATCH_BYTES];
-        let mut offset = 0;
+        let plan = batch::Plan::new(frames)
+            .ok_or_else(|| denied(SendFailure::Io(io::ErrorKind::InvalidInput)))?;
+        let bytes = &plan.bytes;
+        let length = bytes.len();
         for frame in frames {
             if frame.transport_epoch != self.epoch {
                 return Err(denied(SendFailure::StaleEpoch));
@@ -257,8 +266,6 @@ impl<S: Read + Write> Connection<S> {
             {
                 return Err(denied(SendFailure::SimulationOnly));
             }
-            bytes[offset..offset + frame.length].copy_from_slice(&frame.bytes[..frame.length]);
-            offset += frame.length;
         }
         let mut written = 0;
         let mut interruptions = 0;

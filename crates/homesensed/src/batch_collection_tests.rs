@@ -80,3 +80,40 @@ async fn batch_tail_collection_preserves_frame_budget_order_and_independent_phas
     assert_eq!(h.count("command_journal"), 24);
     h.finish().await;
 }
+
+#[tokio::test]
+async fn complete_module_on_keeps_all_eight_admitted_and_written_channel_records() {
+    let mut devices: Json = serde_json::from_slice(&data()).unwrap();
+    devices["devices"] = json!([]);
+    for channel in 1..=8 {
+        devices["devices"].as_array_mut().unwrap().push(json!({
+            "id":format!("port-{channel}"),"name":format!("Port {channel}"),
+            "module_id":"relay","channel":channel,"enabled":true
+        }));
+    }
+    let mut r = rules();
+    r["rules"]=json!([]);r["variables"]=json!([]);
+    r["timed_scenes"]=json!([]);
+    r["immediate_scenes"]=json!([{
+        "id":"act","enabled":true,"review_evidence":"Synthetic eight explicit admitted On outputs",
+        "activate":(1..=8).map(|channel|command(&format!("all/{channel}"),&format!("port-{channel}"),json!({"kind":"switch","on":true}))).collect::<Vec<_>>()
+    }]);
+    r["immediate_scenes"].as_array_mut().unwrap().push(json!({
+        "id":"off","enabled":true,"review_evidence":"Synthetic explicit absolute all Off",
+        "activate":(1..=8).map(|channel|command(&format!("off/{channel}"),&format!("port-{channel}"),json!({"kind":"switch","on":false}))).collect::<Vec<_>>()
+    }));
+    let mut h=Harness::from_inputs(serde_json::to_vec(&devices).unwrap(),r).await;
+    h.request(Action::SceneAction{controller:h.controller,revision:1,scene:"act".into(),execute:true}).await.unwrap();
+    assert_eq!(h.count("command_journal"),8,"wire optimization must retain all individually authorized operations");
+    assert_eq!(h.wire().await,[0xae,3,0,0xf1,0xee]);
+    let db=rusqlite::Connection::open(h.directory.join("runtime.sqlite")).unwrap();
+    let written:i64=db.query_row("SELECT count(*) FROM command_journal WHERE status = 'written'",[],|row|row.get(0)).unwrap();
+    assert_eq!(written,8);
+    drop(db);
+    for _ in 0..2 {
+        h.request(Action::SceneAction{controller:h.controller,revision:1,scene:"off".into(),execute:true}).await.unwrap();
+        assert_eq!(h.wire().await,[0xae,3,0,0xf2,0xee],"explicit Off never toggles back On");
+    }
+    assert_eq!(h.count("command_journal"),24);
+    h.finish().await;
+}

@@ -417,3 +417,100 @@ fn batch_short_writes_map_complete_partial_and_unsent_operations_without_replay(
     );
     assert!(bytes.lock().unwrap().is_empty());
 }
+
+fn module_on_frames(profile: ProtocolProfile, address: u8, epoch: u64) -> Vec<PreparedFrame> {
+    let module = ModuleSpec::new(BusAddress::new(address).unwrap(), profile, Verification::Simulated).unwrap();
+    (1..=8).map(|channel| PreparedFrame::prepare(&module, Channel::new(channel).unwrap(),
+        if profile == ProtocolProfile::Ad8Din {
+            Command::SetLevel {level: homesense_core::Percent::new(100).unwrap(), transition: homesense_core::LevelTransition::Immediate}
+        } else { Command::Switch(true) }, ExecutionContext::Simulation, epoch).unwrap()).collect()
+}
+
+#[test]
+fn full_module_on_keeps_eight_receipts_but_sends_one_model_specific_frame() {
+    use hb_transport::{OperationProgress::*, encoded_batch_len, operation_progress};
+    for (profile, value) in [(ProtocolProfile::R8i8DinPro, 0xf1), (ProtocolProfile::Ad8Din, 100)] {
+        let mut frames = module_on_frames(profile, 0x25, 7);
+        frames.reverse(); // the set must be complete; channel ordering need not be numeric
+        let refs = frames.iter().collect::<Vec<_>>();
+        assert_eq!(encoded_batch_len(&refs), Some(5));
+        for accepted in 0..=5 {
+            let wire = stream(accepted);
+            let written = wire.writes.clone();
+            let mut connection = Connection::for_simulation(wire, 7);
+            let result = connection.send_batch(&refs, 100, ||0);
+            assert_eq!(result.is_ok(), accepted == 5);
+            if accepted < 5 { assert_eq!(result.unwrap_err().bytes_written, accepted); }
+            assert_eq!(written.lock().unwrap().as_slice(), &[0xae,0x25,0,value,0xee][..accepted]);
+            let expected = if accepted == 5 {Complete} else if accepted == 0 {Unsent} else {Partial};
+            assert_eq!(operation_progress(&refs, accepted), Some(vec![expected;8]));
+        }
+        assert!(operation_progress(&refs, 6).is_none());
+    }
+}
+
+#[test]
+fn missing_duplicate_unsupported_or_different_generation_ports_never_expand_scope() {
+    use hb_transport::encoded_batch_len;
+    let mut frames = module_on_frames(ProtocolProfile::R8i8DinPro, 1, 7);
+    assert_eq!(encoded_batch_len(&frames[..7].iter().collect::<Vec<_>>()), Some(35), "unselected eighth port is never inferred On");
+    frames[7] = module_on_frames(ProtocolProfile::R8i8DinPro, 1, 7).remove(0);
+    assert_eq!(encoded_batch_len(&frames.iter().collect::<Vec<_>>()), Some(40));
+    frames[7] = module_on_frames(ProtocolProfile::R8i8DinPro, 2, 7).remove(7);
+    assert_eq!(encoded_batch_len(&frames.iter().collect::<Vec<_>>()), Some(40));
+    for profile in [ProtocolProfile::GtC8Rl, ProtocolProfile::R8i8DinPro] {
+        let mut frames = module_on_frames(profile, 1, 7);
+        if profile == ProtocolProfile::R8i8DinPro { frames[7] = module_on_frames(profile, 1, 8).remove(7); }
+        let refs = frames.iter().collect::<Vec<_>>();
+        assert_eq!(encoded_batch_len(&refs), Some(40));
+        if profile == ProtocolProfile::R8i8DinPro {
+            let wire=stream(100);let bytes=wire.writes.clone();let mut c=Connection::for_simulation(wire,7);
+            assert_eq!(c.send_batch(&refs,100,||0).unwrap_err().reason,SendFailure::StaleEpoch);
+            assert!(bytes.lock().unwrap().is_empty());
+        }
+    }
+}
+
+#[test]
+fn mixed_module_batch_preserves_order_and_prefix_receipts_after_compression() {
+    use hb_transport::{OperationProgress::*, encoded_batch_len, operation_progress};
+    let mut frames=vec![frame(7)]; // unrelated ordinary relay stays first
+    frames.extend(module_on_frames(ProtocolProfile::R8i8DinPro,3,7));
+    frames.extend(module_on_frames(ProtocolProfile::Ad8Din,0x11,7));
+    let refs=frames.iter().collect::<Vec<_>>();
+    assert_eq!(encoded_batch_len(&refs),Some(15));
+    let wire=stream(12);let bytes=wire.writes.clone();let mut c=Connection::for_simulation(wire,7);
+    assert_eq!(c.send_batch(&refs,100,||0).unwrap_err().bytes_written,12);
+    assert_eq!(bytes.lock().unwrap().as_slice(), &[0xae,3,1,0xf1,0xee,0xae,3,0,0xf1,0xee,0xae,0x11]);
+    let mut expected=vec![Complete;9]; expected.extend([Partial;8]);
+    assert_eq!(operation_progress(&refs,12),Some(expected));
+    assert_eq!(operation_progress(&refs,10),Some([vec![Complete;9],vec![Unsent;8]].concat()));
+}
+
+#[test]
+fn intermediate_levels_ramps_off_and_oversize_requests_are_not_module_on() {
+    use hb_transport::encoded_batch_len;
+    let m=ModuleSpec::new(BusAddress::new(0x11).unwrap(),ProtocolProfile::Ad8Din,Verification::Simulated).unwrap();
+    for (level,transition) in [(10,homesense_core::LevelTransition::Immediate),(0,homesense_core::LevelTransition::Ramp),(100,homesense_core::LevelTransition::Ramp)] {
+        let frames=(1..=8).map(|c|PreparedFrame::prepare(&m,Channel::new(c).unwrap(),Command::SetLevel {level:homesense_core::Percent::new(level).unwrap(),transition},ExecutionContext::Simulation,7).unwrap()).collect::<Vec<_>>();
+        assert_eq!(encoded_batch_len(&frames.iter().collect::<Vec<_>>()),Some(40));
+    }
+    let frames=(1..=5).flat_map(|address|module_on_frames(ProtocolProfile::R8i8DinPro,address,7)).collect::<Vec<_>>();
+    assert_eq!(encoded_batch_len(&frames.iter().collect::<Vec<_>>()),None,"original 32-operation bound still applies");
+}
+
+#[test]
+fn explicit_all_off_scene_ports_use_one_module_frame_with_per_port_progress() {
+    use hb_transport::{encoded_batch_len,operation_progress,OperationProgress};
+    for (profile,value) in [(ProtocolProfile::R8i8DinPro,0xf2),(ProtocolProfile::Ad8Din,0)] {
+        let m=ModuleSpec::new(BusAddress::new(0x35).unwrap(),profile,Verification::Simulated).unwrap();
+        let frames=(1..=8).map(|c|PreparedFrame::prepare(&m,Channel::new(c).unwrap(),
+            if profile==ProtocolProfile::Ad8Din {Command::SetLevel{level:homesense_core::Percent::new(0).unwrap(),transition:homesense_core::LevelTransition::Immediate}} else {Command::Switch(false)},ExecutionContext::Simulation,7).unwrap()).collect::<Vec<_>>();
+        let refs=frames.iter().collect::<Vec<_>>();
+        assert_eq!(encoded_batch_len(&refs),Some(5));
+        let wire=stream(100);let bytes=wire.writes.clone();let mut c=Connection::for_simulation(wire,7);
+        c.send_batch(&refs,100,||0).unwrap();assert_eq!(bytes.lock().unwrap().as_slice(),&[0xae,0x35,0,value,0xee]);
+        assert_eq!(operation_progress(&refs,4),Some(vec![OperationProgress::Partial;8]));
+        assert_eq!(operation_progress(&refs,5),Some(vec![OperationProgress::Complete;8]));
+    }
+}

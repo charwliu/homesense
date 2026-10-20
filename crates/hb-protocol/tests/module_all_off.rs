@@ -68,3 +68,14 @@ fn module_off_keeps_verification_and_execution_context_gates() {
         );
     }
 }
+
+#[test]
+fn module_on_is_profile_specific_and_cannot_bypass_verification() {
+    use hb_protocol::encode_module_all_on;
+    for (profile,value) in [(ProtocolProfile::R8i8DinPro,0xf1),(ProtocolProfile::Ad8Din,100)] {
+        assert_eq!(encode_module_all_on(&module(profile,verified()),ExecutionContext::Live).unwrap().bytes(),[0xae,0x37,0,value,0xee]);
+        assert_eq!(encode_module_all_on(&module(profile,Verification::Pending),ExecutionContext::Live),Err(ProtocolError::Validation(ValidationError::UnverifiedModule)));
+        assert_eq!(encode_module_all_on(&module(profile,Verification::Simulated),ExecutionContext::Live),Err(ProtocolError::Validation(ValidationError::SimulationOnly)));
+    }
+    assert_eq!(encode_module_all_on(&module(ProtocolProfile::GtC8Rl,verified()),ExecutionContext::Live),Err(ProtocolError::UnsupportedCommand));
+}
