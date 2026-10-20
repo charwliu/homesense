@@ -308,7 +308,7 @@ impl RuntimeHap {
         }
         let (saved,recorded)=match self.admission.hap_projection(self.configuration.revision(),self.projection_epoch,physical.clone(),self.max_age_ms).await.map_err(|e|format!("HAP projection: {e:?}"))? {
             crate::admission::HapProjection::Unavailable=>return self.publish_unavailable(physical).await,
-            crate::admission::HapProjection::Ready{restore,targets,transport_epoch}=>{self.projection_epoch=Some(transport_epoch);(restore,targets)},
+            crate::admission::HapProjection::Ready{restore,targets,transport_epoch,..}=>{self.projection_epoch=Some(transport_epoch);(restore,targets)},
         };
         self.projection.transitions().retain_owned(&recorded);
         let snapshot=light_snapshot(&self.configuration,&physical,self.selected.as_ref(),&recorded)?;

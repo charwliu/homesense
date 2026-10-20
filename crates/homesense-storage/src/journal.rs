@@ -540,6 +540,39 @@ impl Store {
             params![boot_id,device.as_str(),sample,integer(transport_epoch)?],|row|row.get(0))?;
         Ok(!blocked)
     }
+    /// The same completion fence as `feedback_is_settled_in_epoch`, evaluated
+    /// for a publication snapshot in one read. A relay reporting Off does not
+    /// settle an outstanding write to another shared matrix component.
+    pub fn unsettled_feedback_in_epoch(
+        &self,
+        boot_id: &str,
+        observations: &std::collections::BTreeMap<homesense_core::DeviceId, Option<u64>>,
+        transport_epoch: u64,
+    ) -> Result<std::collections::BTreeSet<homesense_core::DeviceId>, Error> {
+        boot(boot_id)?;
+        let mut blocked = std::collections::BTreeSet::new();
+        if observations.is_empty() { return Ok(blocked); }
+        let mut statement = self.connection.prepare(
+            "SELECT device_id, MAX(status IN ('accepted','writing')), MAX(status IN ('written','observed','failed','uncertain')), MAX(CASE WHEN status IN ('written','observed','failed','uncertain') AND transport_epoch>=?2 THEN updated_ms END) FROM command_journal WHERE boot_id=?1 AND status!='cancelled' GROUP BY device_id",
+        )?;
+        let mut rows = statement.query(params![boot_id, integer(transport_epoch)?])?;
+        while let Some(row) = rows.next()? {
+            let device = homesense_core::DeviceId::new(row.get::<_, String>(0)?)
+                .map_err(|_| Error::InvalidAudit)?;
+            let Some(sample) = observations.get(&device) else { continue };
+            let sample = sample.map(integer).transpose()?;
+            let pending: bool = row.get(1)?;
+            let terminal: bool = row.get(2)?;
+            let latest: Option<i64> = row.get(3)?;
+            if pending || match sample {
+                None => terminal,
+                Some(at) => latest.is_some_and(|written| written >= at),
+            } {
+                blocked.insert(device);
+            }
+        }
+        Ok(blocked)
+    }
     pub fn command_status(&self, boot_id: &str, id: u64) -> Result<Option<Status>, Error> {
         boot(boot_id)?;
         let value: Option<String> = self

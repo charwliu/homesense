@@ -535,6 +535,44 @@ fn feedback_rules_wait_for_output_completion_and_a_newer_sample() {
 }
 
 #[test]
+fn snapshot_feedback_fence_matches_single_device_checks_across_epochs_and_statuses() {
+    use std::collections::BTreeMap;
+    let db = Database::new();
+    let mut store = Store::open(&db.0).unwrap();
+    store.publish(None, 1, b"config", &[]).unwrap();
+    let states = [Status::Accepted,Status::Writing,Status::Written,Status::Observed,Status::Cancelled,Status::Failed,Status::Uncertain];
+    let mut devices = vec![DeviceId::new("untouched").unwrap()];
+    for (index,status) in states.into_iter().enumerate() {
+        let mut cmd=command(index as u64+1);cmd.device_id=DeviceId::new(format!("light-{index}")).unwrap();
+        devices.push(cmd.device_id.clone());
+        store.accept_commands("boot1", &[cmd], 10).unwrap();
+        if status!=Status::Accepted {
+            if status==Status::Cancelled {
+                store.transition_command("boot1",index as u64+1,Status::Accepted,status,12).unwrap();
+            }else {
+                store.transition_command("boot1",index as u64+1,Status::Accepted,Status::Writing,11).unwrap();
+                if status!=Status::Writing {
+                    store.transition_command("boot1",index as u64+1,Status::Writing,Status::Written,12).unwrap();
+                    if status!=Status::Written {store.transition_command("boot1",index as u64+1,Status::Written,status,13).unwrap();}
+                }
+            }
+        }
+    }
+    for boot in ["boot1","another-boot"] {
+        for epoch in [0,1,2] {
+            for sample in [None,Some(10),Some(12),Some(13),Some(14)] {
+                let observations=BTreeMap::from_iter(devices.iter().cloned().map(|id|(id,sample)));
+                let blocked=store.unsettled_feedback_in_epoch(boot,&observations,epoch).unwrap();
+                for device in &devices {
+                    assert_eq!(!blocked.contains(device),store.feedback_is_settled_in_epoch(boot,device,sample,epoch).unwrap(),"{boot}/{epoch}/{sample:?}/{device:?}");
+                }
+            }
+        }
+    }
+    assert!(store.unsettled_feedback_in_epoch("boot1",&BTreeMap::new(),1).unwrap().is_empty());
+}
+
+#[test]
 fn calendar_watermark_survives_reopen_and_rejects_stale_or_backward_checkpoints() {
     use homesense_storage::{Error, calendar::Checkpoint};
     let db = Database::new();

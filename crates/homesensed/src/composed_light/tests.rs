@@ -482,6 +482,36 @@ async fn composed_actual_admission_and_catalog_project_four_dimmable_cards_witho
 }
 
 #[tokio::test]
+async fn composed_relay_off_does_not_advertise_ready_until_shared_dimmer_feedback_arrives() {
+    let mut f=Fixture::new([1,0,100,0,0]).await;
+    let prepared=f.prepared("left",DeviceAction::Power{on:false}).await.unwrap();
+    f.admission.submit_shared_light(f.generation.clone(),prepared,1000).await.unwrap();
+    assert_eq!(f.drain().await.len(),2);
+    f.time.store(100,std::sync::atomic::Ordering::Release);
+    f.feedback.apply(&crate::transport_owner::GatewayRead{
+        gateway_id:"bus".into(),transport_epoch:1,received_at_ms:100,
+        result:hb_transport::Receive::Frames{transport_epoch:1,frames:vec![hb_protocol::RawFrame{address:0x31,command:0xd1,value:0xf2}]},
+    }).unwrap();
+    let snapshot=crate::management_devices::snapshot(&f.admission,f.controller,f.generation.clone(),vec![id("left")],&f.feedback).await.unwrap();
+    let light=&snapshot.devices[0];
+    assert_eq!(light.reported,Some(Observation::Level(p(0))));
+    assert_eq!(light.control_error,Some("shared_feedback_pending"));
+    // The actual admission fence remains closed too. Publishing a truthful
+    // Off observation must not authorize a plan using the old dimmer sample.
+    let prepared=f.prepared("left",DeviceAction::Power{on:true}).await.unwrap();
+    assert_eq!(f.admission.submit_shared_light(f.generation.clone(),prepared,1000).await.unwrap_err(),hap::server::WriteStatus::ResourceBusy);
+    assert!(f.drain().await.is_empty());
+    f.time.store(200,std::sync::atomic::Ordering::Release);
+    f.sample([0,0,0,0,0],200);
+    let snapshot=crate::management_devices::snapshot(&f.admission,f.controller,f.generation.clone(),vec![id("left")],&f.feedback).await.unwrap();
+    assert_eq!(snapshot.devices[0].control_error,None);
+    let prepared=f.prepared("left",DeviceAction::Power{on:true}).await.unwrap();
+    f.admission.submit_shared_light(f.generation.clone(),prepared,1000).await.unwrap();
+    assert!(!f.drain().await.is_empty());
+    f.close().await;
+}
+
+#[tokio::test]
 async fn composed_restore_distinguishes_night_from_other_bank_on_the_same_dimmer() {
     let mut f = Fixture::new([0, 1, 0, 0, 35]).await;
     let levels = f
