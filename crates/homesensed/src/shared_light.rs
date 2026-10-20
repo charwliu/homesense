@@ -18,11 +18,12 @@ pub(crate) enum Prepared {
     Master(Box<MasterPrepared>),
     Composed(Box<crate::composed_light::Prepared>),
     Joint(Box<crate::joint_light::Prepared>),
+    HouseholdOn(Box<crate::household_scene::Prepared>),
 }
 impl Prepared {
     pub(crate) fn compile(self, configuration:&Configuration, source:Option<&crate::source_auth::Source>)
         -> Result<(Batch,RuleLease),hap::server::WriteStatus> {
-        match self {Self::Master(p)=>p.compile(configuration,source), Self::Composed(p)=>p.compile(configuration,source),Self::Joint(p)=>p.compile(configuration,source)}
+        match self {Self::Master(p)=>p.compile(configuration,source), Self::Composed(p)=>p.compile(configuration,source),Self::Joint(p)=>p.compile(configuration,source),Self::HouseholdOn(p)=>p.compile(configuration,source)}
     }
 }
 

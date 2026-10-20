@@ -988,6 +988,7 @@ impl Api {
             Ok(Reply::SceneAccepted(Some(run))) => {
                 json!({"request_id":request_id,"outcome":"accepted","boot":runtime.boot,"run":run,"runtime_instance":runtime.control.instance_id().to_string()})
             }
+            Ok(Reply::AwayAccepted(accepted))=>json!({"request_id":request_id,"outcome":"accepted","execution_kind":"managed_household_off","boot":runtime.boot,"operation":accepted.operation,"commands":accepted.commands,"physical_result_confirmed":false,"retry":false,"server_retry":crate::away_execution::retry_metadata()}),
             Ok(Reply::ImmediateAccepted(receipt))=>json!({"request_id":request_id,"outcome":"accepted","execution_kind":"immediate","boot":runtime.boot,"receipt":receipt,"retry":false}),
             Ok(Reply::SceneRelative(receipt))=>json!({"request_id":request_id,"outcome":"accepted","status":receipt.status,"boot":receipt.boot,"selected":receipt.selected,"retry":false}),
             Err(error) if relative=>json!({"request_id":request_id,"outcome":"unknown","error":error,"retry":false}),

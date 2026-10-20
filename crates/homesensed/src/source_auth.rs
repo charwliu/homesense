@@ -234,6 +234,13 @@ impl Source {
         let proof=std::sync::Arc::get_mut(&mut derived.proof)?;
         proof.event=self.proof.event.clone();proof.lineage=self.proof.lineage.clone();Some(derived)
     }
+    pub(crate) fn whole_house_off(&self)->Option<crate::away_auth::Authorization> {
+        if !self.valid() {return None;}
+        match &self.proof.lease {
+            Authority::Web(lease)=>Some(lease.clone().into()),
+            Authority::Panel(_)=>None,
+        }
+    }
     pub(crate) fn away_keypad(&self,keypad:String,key:u8)->Option<crate::away_auth::Authorization>{
         match &self.proof.lease {
             Authority::Web(lease)=>crate::away_auth::Authorization::keypad(lease.clone(),&crate::away_auth::KeypadCommand::KeypadPress{keypad,key}),

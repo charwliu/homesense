@@ -283,6 +283,8 @@ impl Control {
         use crate::management_devices::DeviceAction;
         match action {
             Action::AwayOff{..}=>RequestLane::Away,
+            Action::SceneAction{scene,revision,execute:true,..} if self.selection_reader.lock().ok().and_then(|s|s.clone())
+                .is_some_and(|reader|reader.active() && reader.document.revision==*revision && reader.document.whole_house_off_scene()==Some(scene.as_str()))=>RequestLane::Away,
             Action::DeviceCommand{action:DeviceAction::Stop,..}
             |Action::ModuleCommand{action:DeviceAction::Stop,..}
             |Action::PanelDeviceCommand{action:DeviceAction::Stop,..}=>RequestLane::Stop,
@@ -537,6 +539,15 @@ impl Receiver {
             let mut keypad_context=None;
             let result = Box::pin(async {
                 if request.source.as_ref().is_some_and(|source|!source.matches(&request.action)) {return Err("source authority expired before runtime handling".into());}
+                let household_off=match &request.action {
+                    Action::SceneAction{controller,revision,scene,execute:true} if document.whole_house_off_scene()==Some(scene.as_str())=>Some((*controller,*revision)),
+                    _=>None,
+                };
+                if let Some((controller,revision))=household_off {
+                    if revision!=document.revision {return Err("household Off revision changed".into());}
+                    let lease=request.source.as_ref().and_then(crate::source_auth::Source::whole_house_off).ok_or("household Off requires explicit source authority")?;
+                    request.action=Action::AwayOff{controller,revision,lease,submit:true};request.source=None;
+                }
                 if let Action::KeypadAction {controller,request:input}=&request.action {
                     let Some(source)=request.source.as_ref() else {return Ok(Reply::KeypadRejected(crate::keypad_actions::Rejection::KeypadScopeDenied));};
                     let prepared=match crate::keypad_actions::prepare(admission,&self.generation,document,*controller,input,source,feedback).await {
@@ -822,6 +833,18 @@ impl Receiver {
                     },
                     Action::SceneAction { controller, revision, scene, execute } => {
                         if revision != document.revision { return Err("scene action revision expired".into()); }
+                        if execute && document.whole_house_on_scene()==Some(scene.as_str()) {
+                            let bundle=admission.automation_bundle(controller,self.generation.clone()).await.map_err(|e|format!("{e:?}"))?;
+                            let prepared=crate::household_scene::prepare(&bundle.configuration,document,controller,&scene,feedback,admission.monotonic_ms(),max_age_ms)?;
+                            if request.reply.is_closed()||Instant::now()>=request.deadline {return Err("household On expired or abandoned".into());}
+                            let limit=admission.monotonic_ms().saturating_add(u64::try_from(request.deadline.saturating_duration_since(Instant::now()).as_millis()).unwrap_or(u64::MAX));
+                            let ids=admission.submit_shared_light(self.generation.clone(),crate::shared_light::Prepared::HouseholdOn(Box::new(prepared)),limit).await.map_err(|e|format!("{e:?}"))?;
+                            for device in document.away_off.as_ref().unwrap().modules.iter().flat_map(|m|&m.devices) {
+                                let device=homesense_core::DeviceId::new(device.clone()).map_err(|e|e.to_string())?;
+                                if let Err(reason)=scenes.manual_override(&device).await {log::warn!("accepted household On timeline retirement failed: {reason}");}
+                            }
+                            return Ok(Reply::CommandsAccepted(ids));
+                        }
                         if document.immediate_scenes.contains_key(&scene) {
                             let reply=Box::pin(crate::immediate_scene::writes(admission,document,&self.generation,controller,&[(scene,Some(execute))],causal,scenes,feedback,max_age_ms,self.budget,request.deadline)).await?;
                             return Ok(match reply {Reply::ScenesAccepted(_)=>Reply::SceneAccepted(None),other=>other});

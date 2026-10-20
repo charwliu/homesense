@@ -352,6 +352,11 @@ pub enum SceneExecutionKind { Immediate, Timed }
 #[derive(Debug,Clone,Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct AwayOff {
+    /// Explicit household scene aliases over this same reviewed module scope.
+    #[serde(default)]
+    pub whole_house_on_scene: Option<String>,
+    #[serde(default)]
+    pub whole_house_off_scene: Option<String>,
     #[serde(default)]
     pub hap_expose:bool,
     pub enabled:bool, pub review_evidence:String,
@@ -410,6 +415,7 @@ struct Compiler<'a> {
     config: &'a Configuration,
     variables: &'a BTreeMap<String, Variable>,
     remaining: usize,
+    household_scope: bool,
 }
 fn identifier(s: &str) -> Result<(), Error> {
     if s.is_empty() || s.len() > 256 || s.chars().any(char::is_control) {
@@ -603,7 +609,7 @@ impl Compiler<'_> {
                         // control. A supply is owned by its enabled combined
                         // light; accepting it here would defer rejection until
                         // after earlier scene steps have already been written.
-                        if self.config.devices().values().any(|d| {
+                        if !self.household_scope && self.config.devices().values().any(|d| {
                             d.enabled && d.supply_relay.as_ref() == Some(&device)
                         }) {
                             return Err(invalid("automation must target the logical light, not its supply relay"));
@@ -698,6 +704,7 @@ impl Document {
                     config,
                     variables: &variables,
                     remaining: 0,
+                    household_scope: false,
                 }
                 .device(id, &kinds)?;
                 feedback_bindings.insert(v.id.clone(), binding);
@@ -748,6 +755,7 @@ impl Document {
             config,
             variables: &variables,
             remaining: 65536,
+            household_scope: false,
         };
         if input.immediate_scenes.len() > 1024
             || input.schedules.len() > 256
@@ -763,6 +771,10 @@ impl Document {
                 return Err(invalid("scene review evidence required"));
             }
             if !scene.enabled { disabled_immediate_scenes.insert(scene.id.clone()); }
+            // This provisional exception is accepted only after the complete
+            // absolute module scope is checked by whole_house::validate below.
+            compiler.household_scope=input.away_off.as_ref().is_some_and(|policy|policy.enabled &&
+                (policy.whole_house_on_scene.as_ref()==Some(&scene.id)||policy.whole_house_off_scene.as_ref()==Some(&scene.id)));
             let definition = homesense_core::scene_expand::Definition {
                 activate: compiler.nodes(scene.activate, 0)?,
                 deactivate: scene
@@ -770,6 +782,7 @@ impl Document {
                     .map(|nodes| compiler.nodes(nodes, 0))
                     .transpose()?,
             };
+            compiler.household_scope=false;
             if immediate_scenes.insert(scene.id, definition).is_some() {
                 return Err(invalid("duplicate scene"));
             }
@@ -1043,6 +1056,7 @@ impl Document {
                     if channels.iter().copied().ne(1..=8) || config.logical_devices().iter().any(|(id,b)|b.module_id.as_deref()==Some(reviewed.module_id.as_str()) && !reviewed.devices.iter().any(|name|name==id.as_str())) {return Err(invalid("Away requires every physical output explicitly reviewed"));}
                 }
         }
+        crate::whole_house::validate(&document,config)?;
         crate::scene_tracking::validate(&input.scene_tracking,&document,config)?;
         crate::scene_component_activity::validate(&input.scene_component_activity,&document,config)?;
         if input.scene_metadata.len()!=document.scene_metadata.len() || input.scene_metadata.len()>1024 {return Err(invalid("duplicate/excessive scene metadata"));}
@@ -1176,6 +1190,12 @@ impl Document {
         } else if self.timed_scenes.get(id).is_some_and(|s|s.enabled && s.review_evidence.as_ref().is_some_and(|v|!v.trim().is_empty())) {
             Some(SceneExecutionKind::Timed)
         } else {None}
+    }
+    pub fn whole_house_off_scene(&self)->Option<&str> {
+        self.away_off.as_ref().filter(|policy|policy.enabled).and_then(|policy|policy.whole_house_off_scene.as_deref())
+    }
+    pub fn whole_house_on_scene(&self)->Option<&str> {
+        self.away_off.as_ref().filter(|policy|policy.enabled).and_then(|policy|policy.whole_house_on_scene.as_deref())
     }
     pub fn scene_action_available(&self,id:&str)->bool {
         match self.scene_execution_kind(id) {
