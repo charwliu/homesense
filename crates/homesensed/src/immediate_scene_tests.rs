@@ -2820,3 +2820,6 @@ fn component_confirmation_policies_do_not_install_permanent_short_poll_consumers
 
 #[path = "hap_room_all_tests.rs"]
 mod hap_room_all_tests;
+
+#[path = "batch_collection_tests.rs"]
+mod batch_collection_tests;

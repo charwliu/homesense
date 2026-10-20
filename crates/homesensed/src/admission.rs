@@ -546,7 +546,7 @@ enum Message {
         oneshot::Sender<Result<RestoreLevels, WriteStatus>>,
     ),
     TransportFailed(oneshot::Sender<Result<(), WriteStatus>>),
-    Dispatch(Option<std::collections::BTreeSet<String>>,Option<u64>,std::collections::BTreeSet<String>,oneshot::Sender<Result<Option<DispatchTicket>, WriteStatus>>),
+    Dispatch(Option<std::collections::BTreeSet<String>>,Option<u64>,std::collections::BTreeSet<String>,Option<usize>,oneshot::Sender<Result<Vec<DispatchTicket>, WriteStatus>>),
     Unsent(u64,oneshot::Sender<Result<(),WriteStatus>>),
     DiscardProjection(crate::transport_owner::ProjectionDiscard,oneshot::Sender<Result<(),WriteStatus>>),
     Finished(u64, bool, oneshot::Sender<Result<(), WriteStatus>>),
@@ -2179,7 +2179,7 @@ impl Admission {
                             };
                             let _ = reply.send(result);
                         }
-                        Message::Dispatch(available,anchor,query_paused,reply) => {
+                        Message::Dispatch(available,anchor,query_paused,frame_budget,reply) => {
                             if reply.is_closed() {
                                 continue;
                             }
@@ -2187,10 +2187,16 @@ impl Admission {
                                 let _ = reply.send(Err(WriteStatus::ResourceBusy));
                                 continue;
                             }
-                            let now = millis(clock);
                             let batch_phase=anchor.and_then(|id|control_batches.phase(id).cloned());
-                            if anchor.is_some() && batch_phase.is_none(){let _=reply.send(Ok(None));continue;}
-                            let result = (|| -> Result<Option<DispatchTicket>, String> {
+                            if anchor.is_some() && batch_phase.is_none(){let _=reply.send(Ok(vec![]));continue;}
+                            // Collect a bounded tail in one owner turn. Interleaving
+                            // a catalog RPC between every frame can consume a
+                            // reserved write's lease before any bytes are sent.
+                            let result = (|| -> Result<Vec<DispatchTicket>, String> {
+                              let mut tickets=vec![];let mut frames=0;
+                              loop {
+                               let now=millis(clock);
+                               let ticket=(|| -> Result<Option<DispatchTicket>,String> {
                                 let reset_ready=away_reset_dependencies.iter().map(|(reset,ids)| {
                                     let mut ready=true;for id in ids {ready &= matches!(store.command_status(&worker_boot,*id).map_err(|e|e.to_string())?,Some(Status::Written|Status::Observed));}
                                     Ok((*reset,ready))
@@ -2378,6 +2384,13 @@ impl Admission {
                                     away_authorization,
                                     publication_stop,
                                 }))
+                               })()?;
+                               let Some(ticket)=ticket else{break;};
+                               frames+=ticket.frame.physical_frames();
+                               tickets.push(ticket);
+                               if frame_budget.is_none_or(|limit|frames>=limit){break;}
+                              }
+                              Ok(tickets)
                             })();
                             match result {
                                 Ok(ticket) => {
@@ -3250,12 +3263,12 @@ impl Admission {
     /// Called by the sole transport owner. No socket is opened here.
     #[cfg(test)]
     pub(crate) async fn dispatch_available(&self,available:std::collections::BTreeSet<String>)->Result<Option<DispatchTicket>,WriteStatus> {
-        let(reply,result)=oneshot::channel();self.sender.try_send(Message::Dispatch(Some(available),None,Default::default(),reply)).map_err(|_|WriteStatus::ResourceBusy)?;
-        result.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?
+        let(reply,result)=oneshot::channel();self.sender.try_send(Message::Dispatch(Some(available),None,Default::default(),None,reply)).map_err(|_|WriteStatus::ResourceBusy)?;
+        result.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?.map(|tickets|tickets.into_iter().next())
     }
     pub(crate) async fn dispatch_query_filtered(&self,available:std::collections::BTreeSet<String>,query_paused:std::collections::BTreeSet<String>)->Result<Option<DispatchTicket>,WriteStatus> {
-        let(reply,result)=oneshot::channel();self.sender.try_send(Message::Dispatch(Some(available),None,query_paused,reply)).map_err(|_|WriteStatus::ResourceBusy)?;
-        result.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?
+        let(reply,result)=oneshot::channel();self.sender.try_send(Message::Dispatch(Some(available),None,query_paused,None,reply)).map_err(|_|WriteStatus::ResourceBusy)?;
+        result.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?.map(|tickets|tickets.into_iter().next())
     }
     pub(crate) async fn reserve_physical_read(&self,gateway:String,budget_end_ms:u64)->Result<QueryReadPermit,WriteStatus> {
         // Startup/recovery reads precede the ready-generation watch. The actor
@@ -3267,14 +3280,22 @@ impl Admission {
     pub async fn dispatch(&self) -> Result<Option<DispatchTicket>, WriteStatus> {
         let (reply, receive) = oneshot::channel();
         self.sender
-            .try_send(Message::Dispatch(None,None,Default::default(),reply))
+            .try_send(Message::Dispatch(None,None,Default::default(),None,reply))
             .map_err(|_| WriteStatus::ResourceBusy)?;
         receive
             .await
-            .map_err(|_| WriteStatus::ServiceCommunicationFailure)?
+            .map_err(|_| WriteStatus::ServiceCommunicationFailure)?.map(|tickets|tickets.into_iter().next())
     }
     /// Full local write is Written, never Observed. Any incomplete result is uncertain.
-    pub(crate) async fn extend_write(&self,anchor:u64)->Result<Option<DispatchTicket>,WriteStatus>{let(tx,rx)=oneshot::channel();self.sender.try_send(Message::Dispatch(None,Some(anchor),Default::default(),tx)).map_err(|_|WriteStatus::ResourceBusy)?;rx.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?}
+    pub(crate) async fn extend_write_batch(&self,anchor:u64,frame_budget:usize)->Result<Vec<DispatchTicket>,WriteStatus>{
+        if !(1..=hb_transport::MAX_BATCH_FRAMES).contains(&frame_budget){return Err(WriteStatus::InvalidValueInRequest);}
+        let(tx,rx)=oneshot::channel();self.sender.try_send(Message::Dispatch(None,Some(anchor),Default::default(),Some(frame_budget),tx)).map_err(|_|WriteStatus::ResourceBusy)?;
+        rx.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?
+    }
+    #[cfg(test)]
+    pub(crate) async fn extend_write(&self,anchor:u64)->Result<Option<DispatchTicket>,WriteStatus>{
+        self.extend_write_batch(anchor,1).await.map(|tickets|tickets.into_iter().next())
+    }
     pub(crate) async fn control_batch_views(&self,controller:Uuid,generation:TaskGeneration)->Result<Vec<crate::control_batch::View>,WriteStatus>{let(tx,rx)=oneshot::channel();self.sender.try_send(Message::ControlBatchViews(controller,generation,tx)).map_err(|_|WriteStatus::ResourceBusy)?;rx.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?}
     pub(crate) async fn control_batch_proof(&self,controller:Uuid,proof:crate::control_batch::Proof)->Result<(),WriteStatus>{let(tx,rx)=oneshot::channel();self.sender.try_send(Message::ControlBatchProof(controller,proof,tx)).map_err(|_|WriteStatus::ResourceBusy)?;rx.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?}
     pub(crate) async fn program_activity_views(&self,controller:Uuid,generation:TaskGeneration)->Result<Vec<crate::program_activity::View>,WriteStatus>{let(tx,rx)=oneshot::channel();self.sender.try_send(Message::ProgramActivityViews(controller,generation,tx)).map_err(|_|WriteStatus::ResourceBusy)?;rx.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?}
