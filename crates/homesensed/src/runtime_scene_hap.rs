@@ -64,13 +64,20 @@ impl RuntimeSceneHap {
         controller: Uuid,
         authorize: impl Fn(Uuid, &str) -> bool + Send + Sync + 'static,
     ) -> Result<Self, String> {
+        let presentations = specs.iter().filter_map(|spec| {
+            document.scene_presentations.get(&spec.id)
+                .map(|p| (p.scene.clone(), p.selection_scene.clone()))
+        }).collect::<BTreeMap<_, _>>();
+        let providers = specs.iter().map(|s| {
+            presentations.get(&s.id).unwrap_or(&s.id).clone()
+        }).collect::<BTreeSet<_>>();
         let groups = document
             .scene_switch_groups
             .iter()
             .filter(|g| {
                 g.members
                     .iter()
-                    .any(|m| specs.iter().any(|s| s.id == m.scene))
+                    .any(|m| providers.contains(&m.scene))
             })
             .cloned()
             .collect();
@@ -85,6 +92,7 @@ impl RuntimeSceneHap {
         let action_ids = specs.iter().filter(|s| document.scene_tracking.get(&s.id)
             .is_some_and(|p| p.enabled && p.hap_action.is_some())).map(|s| s.id.clone()).collect();
         let source = Source::new(admission, controller, groups).await?
+            .with_presentations(presentations)
             .with_actions(control.clone(), document.revision, action_ids);
         Self::build(
             store,
@@ -119,6 +127,8 @@ impl RuntimeSceneHap {
             .filter_map(|(id, policy)| policy.hap_action.clone().map(|action| (id.clone(), action)))
             .collect::<BTreeMap<_, _>>());
         selection_members.extend(absolute_actions.keys().cloned());
+        selection_members.extend(document.scene_presentations.keys()
+            .filter(|id| selected.contains(*id)).cloned());
         let tracking = document
             .scene_tracking
             .iter()

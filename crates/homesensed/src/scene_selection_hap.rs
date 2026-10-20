@@ -67,6 +67,7 @@ pub(crate) struct Source {
     generation: TaskGeneration,
     controller: Uuid,
     groups: Vec<Group>,
+    presentations: BTreeMap<String, String>,
     actions: Option<(crate::automation_control::Control, u64, Vec<String>)>,
 }
 impl Source {
@@ -84,11 +85,18 @@ impl Source {
             generation,
             controller,
             groups,
+            presentations: BTreeMap::new(),
             actions: None,
         })
     }
     pub fn with_actions(mut self, control: crate::automation_control::Control, revision: u64, scenes: Vec<String>) -> Self {
         if !scenes.is_empty() { self.actions = Some((control, revision, scenes)); }
+        self
+    }
+    /// Only the accepted document's reviewed presentation mappings are passed
+    /// here. This aliases readback, never execution or authorization.
+    pub fn with_presentations(mut self, presentations: BTreeMap<String, String>) -> Self {
+        self.presentations = presentations;
         self
     }
     pub async fn sample(&self) -> Result<BTreeMap<String, Option<bool>>, UnavailableReason> {
@@ -123,6 +131,11 @@ impl Source {
             }
             let mut values = crate::scene_switches::states_in_groups(&self.groups, &snapshot)
                 .map_err(|_| UnavailableReason::ReadFailed)?;
+            for (public, provider) in &self.presentations {
+                let selected = values.get(provider).copied()
+                    .ok_or(UnavailableReason::ReadFailed)?;
+                values.insert(public.clone(), selected);
+            }
             if let Some((control, revision, scenes)) = &self.actions {
                 if !read_actions {
                     values.extend(scenes.iter().map(|id| (id.clone(), None)));

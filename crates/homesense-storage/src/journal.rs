@@ -616,7 +616,24 @@ impl Store {
         to: Status,
         now_ms: u64,
     ) -> Result<(), Error> {
+        self.transition_commands(boot_id, &[id], from, to, now_ms)
+    }
+    /// One bounded transport receipt, committed together. A bad later member
+    /// rolls back earlier journal and light-setting changes in this receipt.
+    pub fn transition_commands(
+        &mut self,
+        boot_id: &str,
+        ids: &[u64],
+        from: Status,
+        to: Status,
+        now_ms: u64,
+    ) -> Result<(), Error> {
         boot(boot_id)?;
+        if ids.is_empty() || ids.len() > 128
+            || ids.iter().collect::<std::collections::BTreeSet<_>>().len() != ids.len()
+        {
+            return Err(Error::InvalidAudit);
+        }
         if !matches!(
             (from, to),
             (
@@ -633,13 +650,15 @@ impl Store {
             return Err(Error::InvalidAudit);
         }
         let tx=self.connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
-        let count = tx.execute("UPDATE command_journal SET status=?1,updated_ms=?2 WHERE boot_id=?3 AND command_id=?4 AND status=?5 AND updated_ms<=?2",params![to.text(),integer(now_ms)?,boot_id,integer(id)?,from.text()])?;
-        if count != 1 {return Err(Error::Conflict);}
-        if to==Status::Written {
-            let (revision,device,bytes,row):(i64,String,Vec<u8>,i64)=tx.query_row("SELECT revision,device_id,intent,rowid FROM command_journal WHERE boot_id=?1 AND command_id=?2",params![boot_id,integer(id)?],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?)))?;
-            if bytes.len()==4 && bytes[0]==1 && matches!(bytes[1],2|3) && bytes[3]==0 {
-                let level=homesense_core::Percent::new(bytes[2]).map_err(|_|Error::InvalidAudit)?;
-                tx.execute("INSERT INTO light_setting(revision,device_id,level,journal_row) VALUES(?1,?2,?3,?4) ON CONFLICT(revision,device_id) DO UPDATE SET level=excluded.level,journal_row=excluded.journal_row WHERE light_setting.journal_row<excluded.journal_row",params![revision,device,level.get(),row])?;
+        for &id in ids {
+            let count = tx.execute("UPDATE command_journal SET status=?1,updated_ms=?2 WHERE boot_id=?3 AND command_id=?4 AND status=?5 AND updated_ms<=?2",params![to.text(),integer(now_ms)?,boot_id,integer(id)?,from.text()])?;
+            if count != 1 {return Err(Error::Conflict);}
+            if to==Status::Written {
+                let (revision,device,bytes,row):(i64,String,Vec<u8>,i64)=tx.query_row("SELECT revision,device_id,intent,rowid FROM command_journal WHERE boot_id=?1 AND command_id=?2",params![boot_id,integer(id)?],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?)))?;
+                if bytes.len()==4 && bytes[0]==1 && matches!(bytes[1],2|3) && bytes[3]==0 {
+                    let level=homesense_core::Percent::new(bytes[2]).map_err(|_|Error::InvalidAudit)?;
+                    tx.execute("INSERT INTO light_setting(revision,device_id,level,journal_row) VALUES(?1,?2,?3,?4) ON CONFLICT(revision,device_id) DO UPDATE SET level=excluded.level,journal_row=excluded.journal_row WHERE light_setting.journal_row<excluded.journal_row",params![revision,device,level.get(),row])?;
+                }
             }
         }
         tx.commit()?;
@@ -683,6 +702,10 @@ impl Store {
         Ok(self.connection.query_row("SELECT EXISTS(SELECT 1 FROM command_journal WHERE boot_id=?1 AND revision=?2 AND intent!=?3 AND status IN ('accepted','writing','uncertain'))",params![boot_id,revision,intent(Command::Query).as_slice()],|r|r.get(0))?)
     }
 }
+
+#[cfg(test)]
+#[path = "batch_receipt_tests.rs"]
+mod batch_receipt_tests;
 
 #[cfg(test)]
 mod native_toggle_tests {

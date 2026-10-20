@@ -65,8 +65,17 @@ async fn batch_tail_collection_preserves_frame_budget_order_and_independent_phas
             ticket.command.command,
             homesense_core::Command::Switch(n % 2 == 0)
         );
-        h.actor.finish_write(ticket.command.id, true).await.unwrap();
     }
+    let ids = phase.iter().map(|ticket| ticket.command.id).collect::<Vec<_>>();
+    assert!(h.actor.finish_writes(vec![ids[0], u64::MAX]).await.is_err());
+    assert!(h.actor.finish_writes(vec![ids[0], ids[0]]).await.is_err());
+    let unchanged = h.actor.command_statuses(h.controller, h.generation.clone(), ids.clone()).await.unwrap();
+    assert!(unchanged.iter().all(|status| *status == homesense_storage::journal::Status::Writing),
+        "invalid later or duplicate receipt members must not complete a prefix");
+    h.actor.finish_writes(ids).await.unwrap();
+    let statuses = h.actor.command_statuses(h.controller, h.generation.clone(),
+        phase.iter().map(|ticket| ticket.command.id).collect()).await.unwrap();
+    assert!(statuses.iter().all(|status| *status == homesense_storage::journal::Status::Written));
     assert_eq!(h.wire().await, [0xae, 3, 2, 0xf1, 0xee]);
     assert_eq!(h.count("command_journal"), 24);
     h.finish().await;
