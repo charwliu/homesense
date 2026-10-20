@@ -235,10 +235,15 @@ impl RuntimeHap {
                             return Err(hap::server::WriteStatus::InsufficientPrivileges);
                         }
                         let control=control.ok_or(hap::server::WriteStatus::ServiceCommunicationFailure)?;
+                        let diagnostic_device=device.clone();
                         match control.request(crate::automation_control::Action::DeviceCommand{
                             controller:batch.controller,revision,device,action,
                         }).await {
                             Ok(crate::automation_control::Reply::CommandsAccepted(_))=>{},
+                            Err(reason)=>{
+                                log::warn!("HAP logical write rejected device={} reason={reason}",diagnostic_device.as_str());
+                                return Err(hap::server::WriteStatus::ServiceCommunicationFailure);
+                            },
                             _=>return Err(hap::server::WriteStatus::ServiceCommunicationFailure),
                         }
                     } else {

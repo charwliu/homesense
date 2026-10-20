@@ -181,8 +181,11 @@ async fn hap_room_all_keeps_unknown_state_and_unauthorized_writes_unavailable() 
 #[test]
 fn hap_room_all_rejects_missing_public_chained_and_conflicting_recipes() {
     let config = Configuration::parse(&data(), ExecutionContext::Simulation).unwrap();
-    Document::parse(&serde_json::to_vec(&room_rules()).unwrap(), &config).unwrap();
-    for case in 0..6 {
+    let document = Document::parse(&serde_json::to_vec(&room_rules()).unwrap(), &config).unwrap();
+    assert_eq!(document.scene_confirmation_id("all-on"), "all");
+    assert_eq!(document.scene_confirmation_id("all-off"), "all");
+    assert_eq!(document.scene_confirmation_id("unrelated"), "unrelated");
+    for case in 0..7 {
         let mut r = room_rules();
         match case {
             0 => r["scene_tracking"][0]["hap_action"]["on_scene"] = json!("missing"),
@@ -190,11 +193,80 @@ fn hap_room_all_rejects_missing_public_chained_and_conflicting_recipes() {
             2 => r["scene_tracking"][0]["hap_action"]["off_scene"] = json!("all-on"),
             3 => r["scene_metadata"][1]["catalog_hidden"] = json!(false),
             4 => r["scene_tracking"][0]["hap_activity"] = json!(true),
-            _ => r["scene_tracking"][0]["aggregation"] = json!("all"),
+            5 => r["scene_tracking"][0]["aggregation"] = json!("all"),
+            _ => {
+                let mut other = r["scene_tracking"][0].clone();
+                other["scene"] = json!("other-all");
+                r["scene_tracking"].as_array_mut().unwrap().push(other);
+                r["immediate_scenes"].as_array_mut().unwrap().push(json!({
+                    "id":"other-all", "enabled":true, "review_evidence":"another public action",
+                    "activate":[command("other/output","marker",json!({"kind":"switch","on":false}))]
+                }));
+                r["scene_metadata"]
+                    .as_array_mut()
+                    .unwrap()
+                    .push(json!({"id":"other-all","name":"Other all"}));
+            }
         }
         assert!(
             Document::parse(&serde_json::to_vec(&r).unwrap(), &config).is_err(),
             "case {case}"
         );
+    }
+}
+
+#[tokio::test]
+async fn hap_room_all_absolute_recipe_retains_canonical_feedback_confirmation() {
+    for on in [true, false] {
+        let value = i64::from(on);
+        let mut r = room_rules();
+        r["immediate_scenes"][0]["activate"] = json!([{
+            "source":"relative/on", "action":{"kind":"scene","id":"all-on","activate":true}
+        }]);
+        r["immediate_scenes"][if on { 1 } else { 2 }]["activate"].as_array_mut().unwrap().push(json!({
+        "source":"recipe/selection", "action":{"kind":"set","variable":"v","value":{"kind":"integer","value":value}}
+    }));
+        r["component_mode_confirmations"] = json!([{
+            "id":"room-mode", "variable":"v", "scenes":["all"], "first_value":value,
+            "confirm_when_known":true, "when_values":{"v":value}, "timeout_ms":5000,
+            "max_age_ms":5000, "review_evidence":"selection requires written physical confirmation",
+            "postconditions":[{"device":"relay","on":on},{"device":"marker","on":on}]
+        }]);
+        let mut h = Harness::new(r).await;
+        samples(&mut h, !on, !on);
+        let (store, bridge) = install(&mut h).await;
+        let b = &bridge.accessories[0].0;
+        let body = serde_json::to_vec(
+            &json!({"characteristics":[{"aid":b.aid,"iid":b.on_iid,"value":on}]}),
+        )
+        .unwrap();
+        let handler = bridge.write_handler.clone();
+        let member = h.member;
+        h.drive(tokio::spawn(async move {
+            handler.write_async(member, &body).await
+        }))
+        .await
+        .unwrap();
+        let snapshot = h
+            .actor
+            .variable_snapshot(h.member, h.generation.clone(), vec!["v".into()])
+            .await
+            .unwrap();
+        assert_eq!(
+            snapshot["v"].value, None,
+            "HAP recipe must retain the canonical source's feedback gate before any wire write"
+        );
+        assert_eq!(h.wire().await.len(), 10);
+        tokio::time::sleep(Duration::from_millis(2)).await;
+        samples(&mut h, on, on);
+        mode_confirm(&h).await;
+        assert_eq!(
+            mode_value(&h, "v"),
+            Some(homesense_core::rule::Value::Integer(value)),
+            "both absolute recipes must commit after their actual written outputs are confirmed"
+        );
+        drop(bridge);
+        drop(store);
+        h.finish().await;
     }
 }
