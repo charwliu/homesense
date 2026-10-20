@@ -24,6 +24,23 @@ pub struct Grant {
     pub scenes: BTreeSet<String>,
     pub devices: BTreeSet<String>,
 }
+/// First-use scope includes configured keypad entries even when their scenes
+/// are hidden from the independent scene catalogue. Existing grants are never
+/// rewritten: `open_bootstrapped` still honors its initialized marker.
+pub(crate) fn bootstrap_scenes(
+    config: &homesense_config::Configuration,
+    document: &homesense_config::rule_document::Document,
+) -> BTreeSet<String> {
+    use homesense_config::keypad::KeyAction;
+    let mut scenes: BTreeSet<_> = document.scene_catalog().into_keys().collect();
+    for panel in config.keypads().values().filter(|panel| panel.enabled) {
+        for key in panel.keys.values().filter(|key| key.led_endpoint.enabled) {
+            let Some(KeyAction::SceneExecute { scene, .. } | KeyAction::SceneToggle { scene, .. }) = &key.action else { continue; };
+            if document.scene_action_available(scene) { scenes.insert(scene.clone()); }
+        }
+    }
+    scenes
+}
 #[derive(serde::Serialize)]
 pub struct CredentialSummary {
     pub id:Uuid,

@@ -82,7 +82,10 @@ impl Endpoint {
                 } else {
                     crate::web_auth::Role::Member
                 },
-                scenes: view.scenes.keys().cloned().collect(),
+                scenes: crate::web_auth::bootstrap_scenes(
+                    &bundle.configuration,
+                    bundle.automation.as_ref().ok_or("automation missing")?,
+                ),
                 devices: bundle
                     .configuration
                     .devices()
