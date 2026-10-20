@@ -54,7 +54,10 @@ impl Refresh {
         self.activity(now);
         for (index,target) in self.targets.iter().enumerate() {if target.gateway==gateway && target.module.address()==address && target.channels.contains(&channel) {self.priority.insert(index);self.confirmation_until.insert(index,now.saturating_add(crate::control_batch::FEEDBACK_TOTAL_MS));self.round.forget(index);self.due[index]=0;}}
     }
-    fn activity(&mut self,now:u64) {if let Some(schedule)=&mut self.adaptive {schedule.activity(now);self.round.discard_completion();if !self.scanning {self.due.fill(now.saturating_add(schedule.interval()));}}}
+    fn activity(&mut self,now:u64) {if let Some(schedule)=&mut self.adaptive {schedule.activity(now);self.round.discard_completion();if !self.scanning {
+        let reset_due=now.saturating_add(schedule.interval());
+        for due in &mut self.due {*due=(*due).min(reset_due);}
+    }}}
     fn solicited(&self,gateway:&str,address:u8,channel:u8,now:u64)->bool {if self.recent_queries.get(&(gateway.into(),address,channel)).is_some_and(|deadline|now<=*deadline){return true;}self.pending.get(gateway).is_some_and(|pending| {let target=&self.targets[pending.index];target.module.address().get()==address && target.channels.contains(&channel)})}
     pub(super) fn pending(&self)->bool {!self.pending.is_empty()}
     pub(super) fn blocked(&self,now:u64,gap:u64,background_led_phase:bool,feedback:&Feedback)->BTreeSet<String> {
@@ -323,5 +326,47 @@ impl<S:Read+Write+Send+'static> ObservedTransport<S> {
         // publication/startup guard and is never replaced with a local epoch.
         if plan.generation.epochs.configuration!=plan.config.revision() {return Err("local query publication scope changed".into());}
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod activity_tests {
+    use super::*;
+    #[tokio::test]
+    async fn activity_preserves_earlier_bus_slots_and_in_progress_scan() {
+        let bytes=serde_json::to_vec(&serde_json::json!({
+            "schema_version":2,"revision":1,
+            "gateways":[{"id":"bus","endpoint":"127.0.0.1:1","modules":[
+                {"id":"relay","address":"03","profile":"r8i8_din_pro_v2_7_7","verification":{"status":"simulated"}}
+            ]}],"devices":[{"id":"load","name":"Synthetic load","module_id":"relay","channel":1,"enabled":true}]
+        })).unwrap();
+        let context=homesense_core::ExecutionContext::Simulation;
+        let config=homesense_config::Configuration::parse(&bytes,context).unwrap();
+        let root=std::env::temp_dir().join(format!("local-activity-{}",uuid::Uuid::new_v4()));std::fs::create_dir(&root).unwrap();
+        let path=root.join("state.sqlite");homesense_storage::Store::open(&path).unwrap().publish(None,1,&bytes,&[]).unwrap();
+        let actor=crate::admission::Admission::open(path,crate::admission::Options{context,..Default::default()},|_|true).await.unwrap();
+        actor.synchronized(1,1).await.unwrap();
+        let targets=crate::physical_queries::plan(&config,context).unwrap();
+        let age=config.refresh_policy().observation_max_age_ms();
+        let mut refresh=Refresh::new(config,targets,actor.task_generation().await.unwrap(),uuid::Uuid::new_v4(),context,500,age,20,0).unwrap();
+        refresh.due=(0..8).map(|i|900_000+i*20).collect();
+        refresh.activity(400_000);
+        assert_eq!(refresh.due,vec![700_000;8]);
+        // Post-write confirmation on one output must leave quieter siblings
+        // due no later than their existing deadline, including overdue slots.
+        refresh.written(&homesense_core::DeviceId::new("load").unwrap(),500_000,false);
+        assert_eq!(refresh.due[0],0);
+        for at in [600_000,700_000,800_000] {
+            refresh.activity(at);
+            assert_eq!(refresh.due[0],0);
+            assert_eq!(&refresh.due[1..],&[700_000;7]);
+        }
+        refresh.scanning=true;refresh.round.begin(700_000);assert!(!refresh.round.missing(1,8));
+        refresh.pending.insert("bus".into(),Pending{index:2,before:vec![],sent:800_000,deadline:800_500,retried:false,recovery:false,strict:false});
+        refresh.activity(800_100);
+        assert!(refresh.round.contains(1));
+        assert_eq!(refresh.pending["bus"].deadline,800_500);
+        assert_eq!(&refresh.due[1..],&[700_000;7]);
+        actor.shutdown().await.unwrap();std::fs::remove_dir_all(root).unwrap();
     }
 }
