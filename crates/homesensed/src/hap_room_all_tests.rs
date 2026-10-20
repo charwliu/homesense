@@ -1,5 +1,7 @@
 //! Actual HAP action/readback over the ordinary admission and causal owner.
 use super::*;
+#[path = "reviewed_hap_tests.rs"]
+mod reviewed_hap_tests;
 
 fn room_rules() -> Json {
     let mut r = rules();

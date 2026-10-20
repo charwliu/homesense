@@ -262,7 +262,11 @@ pub(crate) async fn drive_with_panel_feeds<S: Read + Write + Send + 'static>(
         quantum = acquire_quantum(handoff_gate.as_ref(), &mut stop).await;
         if *stop.borrow() || stop.has_changed().is_err() { return Ok(()); }
         if let Some((receiver,document))=&mut control.0 {receiver.bind_selection_reader(admission,document,stop.clone()).await?;}
-        if let Some(router)=&mut causal {router.enable_feedback_candidates().await?;}
+        if let Some(router)=&mut causal
+            && guard.calendar.as_ref().is_some_and(|calendar|calendar.needs_feedback_candidates())
+        {
+            router.enable_feedback_candidates().await?;
+        }
         guard.panels.bind_feedback(guard.owner.feedback())?;
         if causal.is_some() && let Some(calendar)=&mut guard.calendar {
             calendar.bind_feedback(guard.owner.feedback())?;

@@ -38,6 +38,9 @@ pub enum ActionReadback {
     #[default]
     AnyLamp,
     AllConditions,
+    /// Physical feedback still owns state; reviewed conditional programs own
+    /// the absolute actions. Scope validation is not a semantic proof.
+    ReviewedConditions,
     ConfirmedComponent,
 }
 fn is_any_lamp(value: &ActionReadback) -> bool {
@@ -117,7 +120,9 @@ pub(crate) fn validate(
                 || p.aggregation
                     != match action.readback {
                         ActionReadback::AnyLamp => Aggregation::Any,
-                        ActionReadback::AllConditions => Aggregation::All,
+                        ActionReadback::AllConditions | ActionReadback::ReviewedConditions => {
+                            Aggregation::All
+                        }
                         ActionReadback::ConfirmedComponent => {
                             return Err(crate::invalid(
                                 "component HAP readback requires its component owner",
@@ -238,6 +243,11 @@ pub(crate) fn validate(
             && action.readback == ActionReadback::AllConditions
         {
             validate_pattern_action(p, action, document, config)?;
+        }
+        if let Some(action) = &p.hap_action
+            && action.readback == ActionReadback::ReviewedConditions
+        {
+            crate::component_hap::validate_tracking(p, action, document, config)?;
         }
     }
     Ok(())
