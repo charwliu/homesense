@@ -114,7 +114,7 @@ impl RuntimeSceneHap {
         let tracking = document
             .scene_tracking
             .iter()
-            .filter(|(id, p)| p.enabled && selected.contains(*id))
+            .filter(|(id, p)| p.enabled && p.hap_activity && selected.contains(*id))
             .map(|(id, _)| id.clone())
             .collect::<BTreeSet<_>>();
         if !selection_members.is_empty() && source.is_none() {

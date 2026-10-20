@@ -37,6 +37,46 @@ fn rules() -> Vec<u8> {
 struct Wire;
 
 #[tokio::test]
+async fn consolidated_catalog_hides_shutdown_but_public_scene_still_accepts_on_and_off() {
+    let root = std::env::temp_dir().join(format!("consolidated-scenes-{}", Uuid::new_v4()));
+    std::fs::create_dir(&root).unwrap();
+    let path = root.join("runtime.sqlite");
+    let mut input: Value = serde_json::from_slice(&rules()).unwrap();
+    input["scene_metadata"].as_array_mut().unwrap().push(json!({"id":"off","name":"阅读关闭","catalog_hidden":true}));
+    let bytes = serde_json::to_vec(&input).unwrap();
+    let config = homesense_config::Configuration::parse(&configuration(), ExecutionContext::Simulation).unwrap();
+    let document = homesense_config::rule_document::Document::parse(&bytes, &config).unwrap();
+    homesense_storage::Store::open(&path).unwrap().publish_automation(None, &configuration(), &bytes, ExecutionContext::Simulation, &[]).unwrap();
+    let caller = Uuid::new_v4();
+    let secret = "consolidated-scene-token-01234567890123456789";
+    let tokens = Arc::new(Tokens::default());
+    tokens.insert(Uuid::new_v4(), secret, Grant { controller: caller, role: Role::Member,
+        scenes: ["reading", "daily", "eco", "off"].map(String::from).into(), devices: Default::default() }).unwrap();
+    let (admission, control, stop, drive) = owner(&path, caller).await;
+    let api = Api {
+        daily_backup: Default::default(), hap_bridges: Default::default(), hap_status: Default::default(),
+        backup_source: None, publisher: None, origin: "http://127.0.0.1:8088".into(), tokens,
+        runtime: std::sync::RwLock::new(Some(Runtime { control, revision: 1, boot: admission.boot_id().into(), scenes: document.scene_catalog() })),
+        receipts: Mutex::new(Receipts::open(&root.join("web.sqlite")).unwrap()), drafts: None,
+    };
+    let (status, body) = request(&api, secret, "/api/v1/scenes", None).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["scenes"].as_array().unwrap().len(), 3);
+    assert!(body["scenes"].as_array().unwrap().iter().all(|s|s["id"] != "off"));
+    let (status, _) = request(&api, secret, "/api/v1/scene-actions", Some(json!({"scene":"off","on":true,"request_id":Uuid::new_v4()}))).await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "a retained legacy grant must not recreate the hidden public endpoint");
+    for on in [true, false] {
+        let (status, body) = request(&api, secret, "/api/v1/scene-actions", Some(json!({"scene":"reading","on":on,"request_id":Uuid::new_v4()}))).await;
+        assert_eq!(status, StatusCode::ACCEPTED, "{body}");
+    }
+    assert_eq!(definitions(&path), ["reading", "off"]);
+    stop.send(true).unwrap();
+    drive.await.unwrap().unwrap();
+    admission.shutdown().await.unwrap();
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[tokio::test]
 async fn scene_light_membership_obeys_device_grants_without_issuing_commands() {
     let root = std::env::temp_dir().join(format!("scene-lights-{}", Uuid::new_v4()));
     std::fs::create_dir(&root).unwrap();

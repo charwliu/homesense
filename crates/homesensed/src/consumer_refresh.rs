@@ -10,7 +10,10 @@ pub(crate) fn requirements(config:&Configuration,document:&Document)->Result<BTr
         if let Some(policy)=group.reconciliation.as_ref().filter(|p|p.enabled) {for id in group.light_on_patterns(&document.timed_scenes).map_err(|e|e.to_string())?.values().flat_map(|v|v.keys()){add(id.clone(),policy.max_age_ms);}}
         if let Some(policy)=group.initialization.as_ref().filter(|p|p.enabled) {for id in group.light_targets(&document.timed_scenes).map_err(|e|e.to_string())?.values().flat_map(|v|v.keys()){add(id.clone(),policy.max_age_ms);}}
     }
-    for policy in document.scene_tracking.values().filter(|p|p.enabled) {for m in &policy.members {if !matches!(m.predicate,homesense_config::scene_tracking::Predicate::Ignore{..}){add(DeviceId::new(&m.device).map_err(|e|e.to_string())?,policy.max_age_ms);}}}
+    for policy in document.scene_tracking.values().filter(|p|p.enabled) {for m in &policy.members {
+        if !matches!(m.predicate,homesense_config::scene_tracking::Predicate::Ignore{..}){add(DeviceId::new(&m.device).map_err(|e|e.to_string())?,policy.max_age_ms);}
+        if let homesense_config::scene_tracking::Predicate::PoweredLight{dimmer}=&m.predicate {add(DeviceId::new(dimmer).map_err(|e|e.to_string())?,policy.max_age_ms);}
+    }}
     // Indicator links and enabled manual feedback use the published runtime
     // bound unless a reviewed policy above sets a stricter age for that port.
     for link in document.indicator_links.iter().filter(|l|l.enabled){for id in &link.lights{add(id.clone(),configured);}}
@@ -30,6 +33,21 @@ pub(crate) fn due(target:&crate::physical_queries::Target,truth:&crate::module_t
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn powered_light_tracking_refreshes_both_components_without_other_ports() {
+        let config=serde_json::json!({"schema_version":2,"revision":1,"gateways":[{"id":"bus","endpoint":"127.0.0.1:1","modules":[
+            {"id":"relay","address":"03","profile":"r8i8_din_pro_v2_7_7","verification":{"status":"simulated"}},
+            {"id":"dim","address":"15","profile":"ad8_din_rs485_v2_2_1","verification":{"status":"simulated"}}]}],
+            "devices":[{"id":"supply","name":"Supply","module_id":"relay","channel":1,"enabled":true},
+                {"id":"dimmer","name":"Dimmer","module_id":"dim","channel":1,"enabled":true}]});
+        let config=Configuration::parse(&serde_json::to_vec(&config).unwrap(),homesense_core::ExecutionContext::Simulation).unwrap();
+        let rules=serde_json::json!({"schema_version":1,"configuration_revision":1,"variables":[],"rules":[],
+            "timed_scenes":[{"id":"all","enabled":true,"review_evidence":"synthetic","max_lateness_ms":1000,"steps":[{"source":"synthetic","offset_ms":0,"device":"supply","command":{"kind":"switch","on":true}}]}],
+            "scene_tracking":[{"scene":"all","enabled":true,"aggregation":"any","unknown_policy":"require_all_known","pending_policy":"block_scene","control_policy":"separate_action_and_read_only_activity","activity_name":"Any light","max_age_ms":5000,"review_evidence":"synthetic",
+                "members":[{"id":"one","device":"supply","predicate":{"kind":"powered_light","dimmer":"dimmer"},"review_evidence":"synthetic"}]}]});
+        let doc=Document::parse(&serde_json::to_vec(&rules).unwrap(),&config).unwrap();
+        assert_eq!(requirements(&config,&doc).unwrap(),[(DeviceId::new("supply").unwrap(),5000),(DeviceId::new("dimmer").unwrap(),5000)].into());
+    }
     #[test]
     fn reviewed_reconciliation_initialization_and_tracking_bounds_remain_scoped(){
         let bytes=include_bytes!("../../../config/test/native-app-keypad-away/devices.template.json");let config=Configuration::parse(bytes,homesense_core::ExecutionContext::Simulation).unwrap();let mut value:serde_json::Value=serde_json::from_slice(include_bytes!("../../../config/test/native-app-keypad-away/automation.json")).unwrap();

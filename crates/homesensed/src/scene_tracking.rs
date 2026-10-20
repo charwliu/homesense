@@ -105,6 +105,13 @@ pub async fn project(
                 },
             });
         }
+        if let Predicate::PoweredLight { dimmer } = &m.predicate {
+            let Ok(dimmer) = DeviceId::new(dimmer) else { return result; };
+            let name = format!("tracking:{i}:dimmer_on");
+            variables.insert(name.clone(), Variable { value_type: ValueType::Bool, lifetime: Lifetime::Temporary, value: None });
+            nodes.push(Node { source: format!("tracking:{}:{}:dimmer", policy.scene, m.id),
+                action: Action::Set { variable: name, value: Expr::DeviceOn(dimmer) } });
+        }
     }
     let Ok((plan, lease)) = feedback.plan_rule(
         &nodes,
@@ -124,6 +131,14 @@ pub async fn project(
                 Some(Value::Bool(v)) => Some(v),
                 _ => None,
             });
+        let on = if matches!(m.predicate, Predicate::PoweredLight { .. }) {
+            let dimmer_on = plan.variables.get(&format!("tracking:{i}:dimmer_on")).and_then(|v|match v.value {Some(Value::Bool(v))=>Some(v),_=>None});
+            match (on, dimmer_on) {
+                (Some(false), _) | (_, Some(false)) => Some(false),
+                (Some(true), Some(true)) => Some(true),
+                _ => None,
+            }
+        } else { on };
         let actual_level = if on == Some(true) {
             plan.variables
                 .get(&format!("tracking:{i}:level"))
@@ -137,6 +152,7 @@ pub async fn project(
         let matches = match m.predicate {
             Predicate::Ignore { .. } => None,
             Predicate::Power { on: target } => on.map(|v| v == target),
+            Predicate::PoweredLight { .. } => on,
             Predicate::LevelRange { minimum, maximum } => match on {
                 Some(false) => Some(false),
                 Some(true) => actual_level.map(|v| v >= minimum && v <= maximum),

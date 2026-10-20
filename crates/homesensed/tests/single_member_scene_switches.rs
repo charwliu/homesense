@@ -43,6 +43,7 @@ fn fixtures() -> (Vec<u8>, Vec<u8>) {
         );
     }
     let rules = json!({"schema_version":1,"configuration_revision":1,"variables":variables,
+        "scene_metadata":[{"id":"courtyard-off","name":"Courtyard off","catalog_hidden":true},{"id":"home-off","name":"Passage off","catalog_hidden":true}],
         "rules":[],"timed_scenes":scenes,"scene_switch_groups":groups});
     (
         serde_json::to_vec(&devices).unwrap(),
@@ -102,6 +103,8 @@ async fn independent_singletons_execute_on_off_without_exclusion_or_unknown_gues
     let (devices, rules) = fixtures();
     let config =
         homesense_config::Configuration::parse(&devices, ExecutionContext::Simulation).unwrap();
+    let document = homesense_config::rule_document::Document::parse(&rules, &config).unwrap();
+    assert_eq!(document.scene_catalog().keys().map(String::as_str).collect::<Vec<_>>(), ["courtyard", "home"]);
     homesense_storage::Store::open(&path)
         .unwrap()
         .publish_automation(None, &devices, &rules, ExecutionContext::Simulation, &[])
