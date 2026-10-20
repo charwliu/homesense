@@ -22,6 +22,26 @@ use std::{
 };
 use uuid::Uuid;
 struct Memory(Arc<Mutex<Vec<u8>>>);
+// Packing may replace eight fully reviewed relay channels with one module
+// command. Compare the exact expanded physical scope, not the old byte count.
+fn assert_target36(bytes: &[u8]) {
+    let (frames, remainder) = bytes.as_chunks::<5>();
+    assert!(remainder.is_empty());
+    let expanded = frames.iter().flat_map(|frame| {
+        assert_eq!((frame[0], frame[3], frame[4]), (0xae, 0xf2, 0xee));
+        let channels: Vec<u8> = if frame[2] == 0 {
+            (1..=8).collect()
+        } else {
+            assert!((1..=8).contains(&frame[2]));
+            vec![frame[2]]
+        };
+        channels.into_iter().flat_map(move |channel| [0xae, frame[1], channel, 0xf2, 0xee])
+    }).collect::<Vec<_>>();
+    let expected = (4u8..40)
+        .flat_map(|i| [0xae, 16 + i / 8, i % 8 + 1, 0xf2, 0xee])
+        .collect::<Vec<_>>();
+    assert_eq!(expanded, expected, "all36 targets once, ordered, without any extra physical output");
+}
 impl std::io::Read for Memory {
     fn read(&mut self, _: &mut [u8]) -> std::io::Result<usize> {
         Err(std::io::ErrorKind::WouldBlock.into())
@@ -203,10 +223,7 @@ async fn all_four_qualified_pairs_write_only_complete_disjoint_target36_and_pres
             assert_eq!(out.command_ids.len(), if tt { 0 } else { 36 });
             assert_eq!(out.scene_runs.len(), usize::from(tt));
             l.settle().await;
-            let expected = (4u8..40)
-                .flat_map(|i| [0xae, 16 + i / 8, i % 8 + 1, 0xf2, 0xee])
-                .collect::<Vec<_>>();
-            assert_eq!(*l.bytes.lock().unwrap(), expected);
+            assert_target36(&l.bytes.lock().unwrap());
             let mut store = Store::open(&l.path).unwrap();
             let chain = store
                 .rule_chain(l.actor.boot_id(), out.cause.correlation_id(), 0, 64)
@@ -312,7 +329,7 @@ async fn active_source_is_rejected_atomically_without_cancelling_or_writing_targ
     l.scheduler.cancel(source).await.unwrap();
     assert!(l.execute().await.is_ok());
     l.settle().await;
-    assert_eq!(l.bytes.lock().unwrap().len(), 36 * 5);
+    assert_target36(&l.bytes.lock().unwrap());
     l.finish().await;
 }
 #[tokio::test]

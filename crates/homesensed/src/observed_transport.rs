@@ -579,6 +579,11 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
     pub(crate) fn audited_receive_failure_gateway(&self) -> Option<&str> {
         if self.retryable_failure() { self.transport.audited_receive_failure_gateway() } else { None }
     }
+    /// A failed write remains uncertain, but an audited network fault may hand
+    /// off to fresh synchronization. No command is resubmitted by this proof.
+    pub(crate) fn audited_write_failure_gateway(&self) -> Option<&str> {
+        if self.retryable_failure() { self.transport.audited_write_failure_gateway() } else { None }
+    }
 
     pub(crate) fn invalidate(&mut self) {
         self.transport.finish_all_status_reads();

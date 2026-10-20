@@ -43,7 +43,11 @@ fn web_ready(address: SocketAddr) -> Option<bool> {
     let text = String::from_utf8(bytes).ok()?;
     let (headers, body) = text.split_once("\r\n\r\n")?;
     let ready = serde_json::from_str::<Value>(body).ok()?["ready"].as_bool()?;
-    let expected = if ready { "HTTP/1.1 200" } else { "HTTP/1.1 503" };
+    let expected = if ready {
+        "HTTP/1.1 200"
+    } else {
+        "HTTP/1.1 503"
+    };
     headers.starts_with(expected).then_some(ready)
 }
 fn hap_graph(
@@ -106,9 +110,11 @@ async fn paired_scene_and_light_survive_gateway_recovery_without_replay() {
     let rules = serde_json::to_vec(&json!({"schema_version":1,"configuration_revision":1,"variables":[],"rules":[],
         "timed_scenes":[{"id":"demo","enabled":true,"review_evidence":"synthetic","max_lateness_ms":1000,"steps":[{"source":"synthetic","offset_ms":0,"device":"light","command":{"kind":"level","value":40,"ramp":false}}]}],
         "scene_tracking":[{"scene":"demo","enabled":true,"aggregation":"all","unknown_policy":"require_all_known","pending_policy":"block_scene","control_policy":"separate_action_and_read_only_activity","activity_name":"Demo activity","max_age_ms":1000,"review_evidence":"bounded synthetic freshness consumer","members":[{"id":"light","device":"light","predicate":{"kind":"power","on":true},"review_evidence":"synthetic"}]}]})).unwrap();
-    let mut identity = homesense_hap::storage::IdentityStore::open(root.join("identity"))
-        .await
-        .unwrap();
+    std::fs::create_dir_all(root.join("hap-bridges/synthetic")).unwrap();
+    let mut identity =
+        homesense_hap::storage::IdentityStore::open(root.join("hap-bridges/synthetic/identity"))
+            .await
+            .unwrap();
     let initial = hap::Config {
         host: hap_address.ip(),
         port: hap_address.port(),
@@ -191,7 +197,7 @@ async fn paired_scene_and_light_survive_gateway_recovery_without_replay() {
     });
     let directory = root.clone();
     let service = tokio::spawn(async move {
-        homesensed::automation_tcp::serve_combined(
+        homesensed::automation_tcp::serve_bridges(
             &devices,
             &rules,
             &directory,
@@ -205,11 +211,11 @@ async fn paired_scene_and_light_survive_gateway_recovery_without_replay() {
                 administrator: true,
                 tls: None,
             },
-            homesensed::hap_endpoint::Settings {
-                address: hap_address,
-                scenes: vec!["demo".into()],
-                motors: vec![],
-            },
+            serde_json::to_vec(&json!({"schema_version":1,"bridges":[{
+                "id":"synthetic", "name":"Paired scene recovery", "address":hap_address.to_string(),
+                "all_lights":true, "scenes":["demo"], "motors":[]
+            }]}))
+            .unwrap(),
         )
         .await
     });
