@@ -184,8 +184,92 @@ async fn household_off_scene_routes_to_the_same_guarded_module_operation_as_away
         if scene=="off" {assert!(matches!(reply,Reply::AwayAccepted(_)),"full-house shutdown must retain managed retry and priority");}
         let wire=h.wire().await;let mut actual=wire.as_chunks::<5>().0.iter().map(|frame|frame.to_vec()).collect::<Vec<_>>();actual.sort();
         let mut wanted=vec![vec![0xae,3,0,expected,0xee],vec![0xae,0x15,0,if scene=="act"{100}else{0},0xee]];wanted.sort();assert_eq!(actual,wanted);
+        let before=h.count("command_journal");
+        let repeated=Action::SceneAction{controller:h.controller,revision:1,scene:scene.into(),execute:true};
+        let source=crate::source_auth::Source::capture(tokens.module_off_lease(Some(&format!("Bearer {secret}")),None,None).unwrap(),&repeated,None).unwrap();
+        let control=h.control.clone();
+        assert!(h.drive(tokio::spawn(async move{control.request_authorized(repeated,source).await})).await.is_err(),"a new request cannot immediately repeat a whole-house direction");
+        assert_eq!(h.count("command_journal"),before,"throttled repeats must have no durable or wire prefix");
+        assert!(h.wire().await.is_empty());
     }
     assert_eq!(h.count("command_journal"),18,"sixteen opening channel records then two existing Away module operations");
+    h.finish().await;
+}
+
+#[tokio::test]
+async fn household_retrigger_bounds_do_not_delay_closing_or_internal_retries() {
+    let (devices,r)=household_inputs();let h=Harness::from_inputs(devices,r).await;
+    let mut limit=crate::household_scene::Limiter::default();let g=&h.generation;
+    assert!(limit.permits(g,true,0,false,false));
+    limit.accepted(g.clone(),true,0,vec![1,2]);
+    assert_eq!(limit.opening_commands(g),[1,2]);
+    assert!(!limit.permits(g,true,4999,false,false));
+    assert!(!limit.permits(g,true,5000,false,true),"unfinished writes remain blocked beyond the interval");
+    assert!(limit.permits(g,true,5000,false,false));
+    assert!(limit.permits(g,false,1,false,true),"closing preempts opening without waiting for cooldown");
+    limit.accepted(g.clone(),false,1,vec![]);
+    assert!(limit.opening_commands(g).is_empty());
+    assert!(!limit.permits(g,false,5000,false,false));
+    assert!(!limit.permits(g,false,5001,true,false),"the active managed operation owns its retries");
+    assert!(limit.permits(g,false,5001,false,false));
+    assert!(!limit.permits(g,true,5000,false,false),"alternating directions cannot reopen immediately after a close");
+    assert!(limit.permits(g,true,5001,false,false));
+    assert!(!limit.permits(g,true,5001,true,false),"opening must not cancel active Away confirmation");
+    let mut next=g.clone();next.epochs.transport+=1;
+    assert!(limit.permits(&next,true,2,false,false),"an old epoch cannot throttle a new runtime");
+    assert!(limit.opening_commands(&next).is_empty());
+    h.finish().await;
+}
+
+#[tokio::test]
+async fn household_open_skips_only_complete_fresh_modules_at_the_exact_target() {
+    for case in 0..5 {
+        let (devices,r)=household_inputs();let mut h=Harness::from_inputs(devices,r).await;
+        if case==4 {h.feedback.set_managed_max_age_ms(10_000).unwrap();}
+        let at=h.actor.monotonic_ms();
+        let frames=[(3,case!=1),(0x15,true)].into_iter().flat_map(|(address,on)|(1..=8).map(move|channel|hb_protocol::RawFrame {
+            address,command:0xd0+channel,value:if address==3 {if on{0xf1}else{0xf2}}else if case==2&&channel==4{10}else{100},
+        })).collect();
+        h.feedback.apply(&GatewayRead{gateway_id:"bus".into(),transport_epoch:1,received_at_ms:at,
+            result:hb_transport::Receive::Frames{transport_epoch:1,frames}}).unwrap();
+        let now=if case>=3 {at+5000}else{h.actor.monotonic_ms()};
+        let prepared=crate::household_scene::prepare(&h.configuration,&h.document,h.controller,"act",&h.feedback,now,5000).unwrap();
+        let (batch,_)=prepared.compile(&h.configuration,None).unwrap();
+        let modules=batch.intents.iter().map(|i|h.configuration.binding(&i.device).unwrap().1.address().get()).collect::<std::collections::BTreeSet<_>>();
+        match case {
+            0|4=>assert!(batch.intents.is_empty(),"all sixteen raw targets remain confirmed within the configured observation lifetime"),
+            1=>{assert_eq!(batch.intents.len(),8);assert_eq!(modules,[3].into());},
+            2=>{assert_eq!(batch.intents.len(),8);assert_eq!(modules,[0x15].into(),"10% is On but does not satisfy full brightness");},
+            _=>assert_eq!(batch.intents.len(),16,"old values cannot suppress explicit opening"),
+        }
+        h.finish().await;
+    }
+}
+
+#[tokio::test]
+async fn household_open_noop_rechecks_feedback_and_full_scope_authorization() {
+    let (devices,r)=household_inputs();let mut h=Harness::from_inputs(devices,r).await;
+    let at=h.actor.monotonic_ms();
+    let frames=[3,0x15].into_iter().flat_map(|address|(1..=8).map(move|channel|hb_protocol::RawFrame {
+        address,command:0xd0+channel,value:if address==3{0xf1}else{100},
+    })).collect();
+    h.feedback.apply(&GatewayRead{gateway_id:"bus".into(),transport_epoch:1,received_at_ms:at,
+        result:hb_transport::Receive::Frames{transport_epoch:1,frames}}).unwrap();
+    let tokens=Arc::new(crate::web_auth::Tokens::default());let secret="synthetic-noop-limited-scope-0123456789";
+    tokens.insert(Uuid::new_v4(),secret,crate::web_auth::Grant{controller:h.controller,role:crate::web_auth::Role::Member,
+        devices:h.configuration.devices().keys().filter(|id|id.as_str()!="port-8").map(|id|id.as_str().to_owned()).collect(),scenes:["act".into()].into()}).unwrap();
+    let action=Action::SceneAction{controller:h.controller,revision:1,scene:"act".into(),execute:true};
+    let source=crate::source_auth::Source::capture(tokens.module_off_lease(Some(&format!("Bearer {secret}")),None,None).unwrap(),&action,None).unwrap();
+    let denied=crate::household_scene::prepare(&h.configuration,&h.document,h.controller,"act",&h.feedback,h.actor.monotonic_ms(),5000).unwrap();
+    assert!(matches!(denied.compile(&h.configuration,Some(&source)),Err(hap::server::WriteStatus::InsufficientPrivileges)),"even a no-op requires the entire reviewed scope");
+    let prepared=crate::household_scene::prepare(&h.configuration,&h.document,h.controller,"act",&h.feedback,h.actor.monotonic_ms(),5000).unwrap();
+    assert!(h.actor.submit_shared_light(h.generation.clone(),crate::shared_light::Prepared::HouseholdOn(Box::new(prepared)),h.actor.monotonic_ms()+2000).await.unwrap().is_empty());
+    assert_eq!(h.count("command_journal"),0);assert!(h.wire().await.is_empty());
+    let prepared=crate::household_scene::prepare(&h.configuration,&h.document,h.controller,"act",&h.feedback,h.actor.monotonic_ms(),5000).unwrap();
+    h.feedback.apply(&GatewayRead{gateway_id:"bus".into(),transport_epoch:1,received_at_ms:h.actor.monotonic_ms(),
+        result:hb_transport::Receive::Frames{transport_epoch:1,frames:vec![hb_protocol::RawFrame{address:3,command:0xd8,value:0xf2}]}}).unwrap();
+    assert!(h.actor.submit_shared_light(h.generation.clone(),crate::shared_light::Prepared::HouseholdOn(Box::new(prepared)),h.actor.monotonic_ms()+2000).await.is_err(),"changed feedback invalidates an all-noop proof");
+    assert_eq!(h.count("command_journal"),0);
     h.finish().await;
 }
 
@@ -215,6 +299,10 @@ async fn household_hap_off_is_paired_managed_and_retired_handler_cannot_replay()
     let wire=h.wire().await;let mut frames=wire.as_chunks::<5>().0.iter().map(|f|f.to_vec()).collect::<Vec<_>>();frames.sort();
     assert_eq!(frames,vec![vec![0xae,3,0,0xf2,0xee],vec![0xae,0x15,0,0,0xee]]);
     assert_eq!(h.count("command_journal"),2);
+    let repeated=bridge.write_handler.clone();let input=body.clone();
+    assert_eq!(h.drive(tokio::spawn(async move{repeated.write_async(member,&input).await})).await,Err(hap::server::WriteStatus::ResourceBusy));
+    assert_eq!(h.count("command_journal"),2);
+    assert!(h.wire().await.is_empty());
     let retained=bridge.write_handler.clone();drop(bridge);
     assert_eq!(retained.write_async(member,&body).await,Err(hap::server::WriteStatus::InsufficientPrivileges));
     assert!(h.wire().await.is_empty());

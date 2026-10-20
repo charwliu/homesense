@@ -4,10 +4,36 @@ use homesense_config::{Configuration, rule_document::Document};
 use homesense_core::{Command, rule::Action as RuleAction};
 use homesense_hap::requests::{Batch, Intent};
 use uuid::Uuid;
+pub(crate) const RETRIGGER_INTERVAL_MS:u64=5_000;
+/// Actor-owned admission throttle shared by App, HAP and wall Away entries.
+/// It never delays/replays a request or applies to an operation's own retries.
+#[derive(Default)]
+pub(crate) struct Limiter {
+    last:Option<(crate::admission::TaskGeneration,bool,u64)>,
+    opening:Option<(crate::admission::TaskGeneration,Vec<u64>)>,
+}
+impl Limiter {
+    pub(crate) fn opening_commands(&self,generation:&crate::admission::TaskGeneration)->&[u64] {
+        self.opening.as_ref().filter(|(g,_)|g==generation).map_or(&[],|(_,ids)|ids.as_slice())
+    }
+    pub(crate) fn permits(&self,generation:&crate::admission::TaskGeneration,on:bool,now:u64,away_active:bool,opening_pending:bool)->bool {
+        if away_active || on && opening_pending {return false;}
+        // Closing may preempt opening immediately. Reopening waits after either
+        // direction, so alternating buttons cannot defeat the ordinary cooldown.
+        !self.last.as_ref().is_some_and(|(g,previous,at)|g==generation && (on || !*previous)
+            && now.checked_sub(*at).is_none_or(|age|age<RETRIGGER_INTERVAL_MS))
+    }
+    pub(crate) fn accepted(&mut self,generation:crate::admission::TaskGeneration,on:bool,now:u64,commands:Vec<u64>) {
+        self.last=Some((generation.clone(),on,now));
+        if on {self.opening=Some((generation,commands));} else {self.opening=None;}
+    }
+}
+
 pub(crate) struct Prepared {
     controller: Uuid,
     revision: u64,
     scene: String,
+    scope: Vec<homesense_core::DeviceId>,
     physical: Vec<Intent>,
     lease: RuleLease,
 }
@@ -27,12 +53,31 @@ pub(crate) fn prepare(config:&Configuration, document:&Document, controller:Uuid
     if actual!=expected || actual.len()!=physical.len() {return Err("household physical scope changed".into());}
     physical.sort_by_key(|intent| {
         let (device,module)=config.binding(&intent.device).expect("validated household binding");
-        (u8::from(module.kind()==homesense_core::ModuleKind::Switch),device.module_id.clone(),device.channel.get())
+        (u8::from(module.kind()==homesense_core::ModuleKind::Switch),device.gateway.clone(),module.address().get(),device.channel.get())
     });
-    // Absolute full-module targets read no prior brightness or relay value.
-    // Retain the same active boot/epoch lease without inventing observations.
-    let (_,_,lease)=feedback.native_scene_capture(&[],now,max_age)?;
-    Ok(Prepared{controller,revision:document.revision,scene:scene.into(),physical,lease})
+    let scope=physical.iter().map(|intent|intent.device.clone()).collect();
+    let (_,_,mut lease)=feedback.native_scene_capture(&[],now,max_age)?;
+    let sample_age=feedback.continuing_max_age_ms(max_age);
+    let mut skip=std::collections::BTreeSet::new();
+    // Omit only a complete module whose eight raw physical samples already
+    // match the absolute target. A cached pending target is never a sample.
+    for group in physical.chunks(8) {
+        if group.len()!=8 {return Err("household module is incomplete".into());}
+        let (first,first_module)=config.binding(&group[0].device).ok_or("household binding missing")?;
+        if !group.iter().all(|intent|config.binding(&intent.device).is_some_and(|(device,module)| {
+            device.gateway==first.gateway && module.address()==first_module.address() && feedback.module_truth().received_port_state(&device.gateway,module.address().get(),device.channel.get())
+                .is_some_and(|state|state.quality==homesense_state::Quality::Confirmed
+                    && state.observed_at_ms.and_then(|at|now.checked_sub(at)).is_some_and(|age|age<feedback.effective_max_age_ms(sample_age))
+                    && state.observed.is_some_and(|actual|intent.command.target_matches(actual)))
+        })) {continue;}
+        let ids=group.iter().map(|intent|intent.device.clone()).collect::<Vec<_>>();
+        if let Ok((_,_,proof))=feedback.native_scene_capture(&ids,now,sample_age) {
+            lease=lease.merge_physical(&proof)?;
+            skip.extend(ids);
+        }
+    }
+    physical.retain(|intent|!skip.contains(&intent.device));
+    Ok(Prepared{controller,revision:document.revision,scene:scene.into(),scope,physical,lease})
 }
 impl Prepared {
     pub(crate) fn compile(self,config:&Configuration,source:Option<&crate::source_auth::Source>)
@@ -41,7 +86,7 @@ impl Prepared {
         if config.revision()!=self.revision {return Err(WriteStatus::InvalidValueInRequest);}
         if let Some(source)=source {
             let original=Action::SceneAction{controller:self.controller,revision:self.revision,scene:self.scene,execute:true};
-            if !source.matches(&original)||self.physical.iter().any(|intent|!source.permits_device(intent.device.as_str())) {
+            if !source.matches(&original)||self.scope.iter().any(|id|!source.permits_device(id.as_str())) {
                 return Err(WriteStatus::InsufficientPrivileges);
             }
         }

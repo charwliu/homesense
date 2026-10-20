@@ -721,6 +721,7 @@ impl Admission {
                 let mut query_slots=BTreeMap::<String,query_reservation::Slot>::new();let mut query_serial=0u64;
                 let mut module_off_jobs = BTreeMap::<u64,crate::away_off::Target>::new();
                 let mut away_executions=crate::away_execution::Registry::default();
+                let mut household_limiter=crate::household_scene::Limiter::default();
                 let mut away_reset_dependencies = BTreeMap::<u64,Vec<u64>>::new();
                 let mut away_local_leases = BTreeMap::<u64,crate::away_auth::Authorization>::new();
                 let mut module_queries = BTreeMap::<u64,crate::module_queries::Target>::new();
@@ -1701,10 +1702,12 @@ impl Admission {
                                 let mut required=targets.iter().map(|t|t.plan.modules()[t.index].gateway_id().to_owned()).collect::<Vec<_>>();
                                 if let Some(binding)=lease.key_binding(&configuration).map_err(|_|WriteStatus::InsufficientPrivileges)? {required.push(configuration.binding(&binding.endpoint).ok_or(WriteStatus::InvalidValueInRequest)?.0.gateway.clone());}
                                 let wires=gateways.as_ref().map(|g|g.table.capture(required).map(|scope|scope.wires().to_vec()).map_err(|_|WriteStatus::ResourceBusy)).transpose()?.unwrap_or_default();
+                                if !household_limiter.permits(&generation,false,now,away_executions.jobs.iter().any(|job|job.engine.end().is_none()),false) {return Err(WriteStatus::ResourceBusy);}
                                 let serial=away_executions.next_serial().map_err(|_|WriteStatus::ResourceBusy)?;
-                                let mut job=crate::away_execution::Job::new(serial,generation,lease,source,targets,wires,&manual_versions,now).map_err(|_|WriteStatus::InvalidValueInRequest)?;
+                                let mut job=crate::away_execution::Job::new(serial,generation.clone(),lease,source,targets,wires,&manual_versions,now).map_err(|_|WriteStatus::InvalidValueInRequest)?;
                                 let commands=advance_away!(&mut job,&observation)?;
                                 let result=crate::away_execution::Accepted{operation:job.id(),commands};
+                                household_limiter.accepted(generation,false,now,vec![]);
                                 away_executions.jobs.push_back(job);worker_away_active.store(true,Ordering::Release);Ok(result)
                             })();
                             if result==Err(WriteStatus::ServiceCommunicationFailure) {failed=true;audited_transport_failure=false;let _=arbiter.storage_failed();}
@@ -2512,6 +2515,7 @@ impl Admission {
                             let mut native_attempt:Option<(homesense_storage::native_scene::Request,Option<u64>)>=None;
                             let mut native_accepted:Option<(homesense_storage::native_scene::Request,u64,u64,bool)>=None;
                             let mut native_run=None;let mut native_deadline=None;
+                            let mut household_on=false;
                             let result = (|| {
                                 if failed || millis(clock) >= deadline || generation.as_ref().is_some_and(|scope| match scope {
                                     SubmissionScope::Generation(g) => g.boot != worker_boot || g.epochs != arbiter.policy().epochs,
@@ -2528,8 +2532,17 @@ impl Admission {
                                 if !keypad_origins.permits(request_source.as_ref().and_then(|source|source.keypad()),configuration.revision()){return Err(WriteStatus::InvalidValueInRequest);}
                                 let (submission, study, automation, variables, feedback, audit, scene, starts) = match *submission {
                                     Submission::SharedLight(prepared)=>{
+                                        household_on=matches!(&*prepared,crate::shared_light::Prepared::HouseholdOn(_));
                                         let (batch,lease)=prepared.compile(&configuration,request_source.as_ref())?;
                                         if !authorize(batch.controller){return Err(WriteStatus::InsufficientPrivileges);}
+                                        if household_on {
+                                            let scope=TaskGeneration{boot:worker_boot.clone(),epochs:arbiter.policy().epochs};
+                                            let pending=household_limiter.opening_commands(&scope).iter().map(|id|store.command_status(&worker_boot,*id))
+                                                .collect::<Result<Vec<_>,_>>().map_err(|_|WriteStatus::ServiceCommunicationFailure)?
+                                                .iter().any(|s|!matches!(s,Some(homesense_storage::journal::Status::Written|homesense_storage::journal::Status::Observed|homesense_storage::journal::Status::Cancelled|homesense_storage::journal::Status::Failed|homesense_storage::journal::Status::Uncertain)));
+                                            let active=away_executions.jobs.iter().any(|job|job.engine.end().is_none());
+                                            if active || !batch.intents.is_empty() && !household_limiter.permits(&scope,true,millis(clock),active,pending) {return Err(WriteStatus::ResourceBusy);}
+                                        }
                                         (Submission::NativePhysical(batch),None,false,vec![],Some(Box::new(lease)),None,None,vec![])
                                     },
                                     Submission::Native(prepared)=>{
@@ -3117,6 +3130,7 @@ impl Admission {
                                         program_activity.accepted(program_prepared,TaskGeneration{boot:worker_boot.clone(),epochs:arbiter.policy().epochs},batch.controller,request_source.clone(),&batch_tickets,&manual_versions,&configuration,program_wires,native_deadline.map_or(led_total_deadline,|n:u64|n.min(led_total_deadline)),now);
                                         let batch_guards=batch_guard_names.into_iter().filter_map(|name|match store.logical_variable(configuration.revision(),&name){Ok(Some(value))=>Some(Ok(homesense_storage::variables::ReadCheck{revision:configuration.revision(),name,expected_version:value.version})),Ok(None)=>None,Err(_)=>Some(Err(WriteStatus::ServiceCommunicationFailure))}).collect::<Result<Vec<_>,_>>()?;
                                         control_batches.accepted(&configuration,&batch_tickets,TaskGeneration{boot:worker_boot.clone(),epochs:arbiter.policy().epochs},batch.controller,request_source.clone(),batch_guards,&manual_versions);
+                                        if household_on {household_limiter.accepted(TaskGeneration{boot:worker_boot.clone(),epochs:arbiter.policy().epochs},true,now,(next_id..end).collect());}
                                         let ids = (next_id..end).collect();
                                         next_id = end;
                                         Ok(ids)

@@ -291,7 +291,9 @@ impl RuntimeSceneHap {
                         }
                     }
                     if !accepted {
-                        return Err(WriteStatus::ServiceCommunicationFailure);
+                        return Err(if matches!(&result,Err(reason)if reason=="ResourceBusy") {
+                            WriteStatus::ResourceBusy
+                        } else {WriteStatus::ServiceCommunicationFailure});
                     }
                     Ok(())
                 }
