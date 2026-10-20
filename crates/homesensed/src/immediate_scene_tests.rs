@@ -1,4 +1,6 @@
 //! Synthetic Immediate -> real Control/Admission/causal owner -> memory wire.
+#[path = "scene_retirement_tests.rs"]
+mod scene_retirement_tests;
 use crate::{
     admission::{Admission, Options, TaskGeneration},
     automation_control::{Action, Control, Receiver, Reply},

@@ -54,6 +54,9 @@ impl SceneRuntime {
     pub(crate) fn settled_terminal(&self) -> bool {
         !self.audit_failed && !self.has_pending() && self.audit_status.terminal()
     }
+    pub(crate) fn delivered_terminal(&self) -> bool {
+        self.result_taken && self.settled_terminal()
+    }
 
     pub(crate) fn take_result(&mut self) -> Option<(String, String, Status)> {
         if self.audit_failed
