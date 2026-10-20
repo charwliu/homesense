@@ -122,8 +122,8 @@ async fn read_bound(
                 || view.recorded || physical.contains(&view.id)
                 || bundle
                     .configuration
-                    .logical_supply(&view.id)
-                    .is_some_and(|relay| physical.contains(relay))
+                    .logical_components(&view.id)
+                    .iter().any(|component| physical.contains(*component))
         });
     }
     Ok(Update {

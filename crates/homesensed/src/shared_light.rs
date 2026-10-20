@@ -14,7 +14,18 @@ use uuid::Uuid;
 #[path = "shared_light_tests.rs"]
 mod tests;
 
-pub(crate) struct Prepared {
+pub(crate) enum Prepared {
+    Master(Box<MasterPrepared>),
+    Composed(Box<crate::composed_light::Prepared>),
+}
+impl Prepared {
+    pub(crate) fn compile(self, configuration:&Configuration, source:Option<&crate::source_auth::Source>)
+        -> Result<(Batch,RuleLease),hap::server::WriteStatus> {
+        match self {Self::Master(p)=>p.compile(configuration,source), Self::Composed(p)=>p.compile(configuration,source)}
+    }
+}
+
+pub(crate) struct MasterPrepared {
     controller: Uuid,
     revision: u64,
     device: DeviceId,
@@ -36,6 +47,9 @@ pub(crate) fn physical_target_invalidations(
         if matches!(intent.command, Command::Query) {
             continue;
         }
+        if let Some(group) = configuration.composed_resource(&intent.device) {
+            result.extend(group.lights.iter().map(|light|light.id.clone()));
+        }
         let Some(group) = configuration.shared_resource(&intent.device) else {
             continue;
         };
@@ -49,7 +63,7 @@ pub(crate) fn physical_target_invalidations(
     result
 }
 
-impl Prepared {
+impl MasterPrepared {
     pub(crate) fn compile(
         self,
         configuration: &Configuration,
@@ -112,6 +126,9 @@ pub(crate) async fn prepare(
     feedback: &Feedback,
     max_age_ms: u64,
 ) -> Result<Option<Prepared>, String> {
+    if let Some(prepared) = crate::composed_light::prepare(admission,controller,generation.clone(),id,action,feedback,max_age_ms).await? {
+        return Ok(Some(Prepared::Composed(Box::new(prepared))));
+    }
     let bundle = admission
         .automation_bundle(controller, generation)
         .await
@@ -172,7 +189,7 @@ pub(crate) async fn prepare(
         secondary_level: dimmer(&group.secondary)?,
         reading_level: dimmer(&group.reading)?,
     };
-    Ok(Some(Prepared {
+    Ok(Some(Prepared::Master(Box::new(MasterPrepared {
         controller,
         revision: bundle.configuration.revision(),
         device: id.clone(),
@@ -181,7 +198,7 @@ pub(crate) async fn prepare(
         observed,
         level,
         lease,
-    }))
+    }))))
 }
 
 /// Project only the common pair. Original scene predicates still consume the

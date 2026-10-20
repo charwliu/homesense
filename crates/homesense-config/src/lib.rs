@@ -7,6 +7,7 @@ pub mod scene_presentation;
 pub mod keypad;
 pub mod keypad_completion;
 pub mod shared_light;
+pub mod composed_light;
 use homesense_core::{
     BusAddress, Channel, DeviceId, ExecutionContext, ModuleKind, ModuleSpec, PanelLedMode, Percent,
     ProtocolProfile, ValidationError, Verification, VerificationRecord,
@@ -56,6 +57,8 @@ struct Document {
     keypads: Vec<keypad::KeypadInput>,
     #[serde(default)]
     shared_lights: Vec<shared_light::Input>,
+    #[serde(default)]
+    composed_lights: Vec<composed_light::Group>,
 }
 /// Server-owned adaptive observation timing, independent of command leases.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, Deserialize)]
@@ -307,8 +310,22 @@ pub struct Configuration {
     floors: BTreeSet<String>,
     keypads: BTreeMap<DeviceId, keypad::Keypad>,
     shared_lights: BTreeMap<String, shared_light::Group>,
+    composed_lights: BTreeMap<String, composed_light::Group>,
 }
 impl Configuration {
+    pub fn composed_lights(&self) -> &BTreeMap<String, composed_light::Group> { &self.composed_lights }
+    pub fn composed_light(&self, id: &DeviceId) -> Option<(&composed_light::Group, &composed_light::Light)> {
+        self.composed_lights.values().find_map(|g| g.light(id).map(|l| (g, l)))
+    }
+    pub fn composed_resource(&self, id: &DeviceId) -> Option<&composed_light::Group> {
+        self.composed_lights.values().find(|g| g.resources().contains(id))
+    }
+    pub fn logical_components(&self, id: &DeviceId) -> Vec<&DeviceId> {
+        if let Some((_, light)) = self.composed_light(id) {
+            return light.members.iter().flat_map(|m| [&m.supply, &m.dimmer]).collect::<BTreeSet<_>>().into_iter().collect();
+        }
+        self.logical_supply(id).into_iter().collect()
+    }
     pub fn shared_lights(&self) -> &BTreeMap<String, shared_light::Group> { &self.shared_lights }
     pub fn shared_light(&self, id: &DeviceId) -> Option<&shared_light::Group> {
         self.shared_lights.values().find(|group| group.light(id).is_some())
@@ -667,8 +684,10 @@ impl Configuration {
             resolved_bindings,
             keypads,
             shared_lights: BTreeMap::new(),
+            composed_lights: BTreeMap::new(),
         };
         configuration.shared_lights = shared_light::resolve(input.shared_lights, &configuration)?;
+        configuration.composed_lights = composed_light::resolve(input.composed_lights, &configuration)?;
         keypad_completion::validate_bindings(&configuration)?;
         Ok(configuration)
     }

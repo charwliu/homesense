@@ -72,3 +72,7 @@ cargo run --locked -p homesensed -- serve-automation-simulation config/simulatio
 ## 完整配置草稿容量（候选，未发布）
 
 完整设备／自动化草稿的保存通道支持最多4 MiB，原生 App 可重新读取和预览完整草稿；保存与预览仍不发布配置。普通控制、小项编辑和 WebSocket 保留原容量及权限限制，详见 [App 配置管理](apps/HomeSense/README.md#完整配置草稿)。
+
+## 共享通道逻辑灯（候选）
+
+原生灯卡片可通过 [`composed_lights`](docs/composed-lights.md) 组合共享供电与调光通道，保留物理绑定供查询、场景和诊断使用。重复的供电＋调光组合会被拒绝；单灯关闭不能切断其他已亮灯所需的共享通道，无法独立关闭时禁用相应操作。逻辑灯分别按实际反馈记忆亮度，场景互斥仍由场景配置负责。此功能未部署，私有接线候选仍需现场核对。
