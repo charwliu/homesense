@@ -1,4 +1,80 @@
 use super::*;
+
+async fn presentation_hap_read(
+    bridge: &crate::runtime_scene_hap::RuntimeSceneHap,
+    scene: &str,
+) -> hap::Result<Json> {
+    let (binding, handle) = bridge.accessories.iter()
+        .find(|(binding, _)| binding.scene == scene).unwrap();
+    let mut accessory = handle.lock().await;
+    accessory.get_mut_services().into_iter()
+        .flat_map(|s| s.get_mut_characteristics())
+        .find(|c| c.get_id() == binding.on_iid).unwrap().get_value().await
+}
+
+#[tokio::test]
+async fn public_presentation_hap_uses_confirmed_provider_without_aliasing_actions_or_permissions() {
+    use homesense_hap::storage::IdentityStore;
+    let (cfg, doc) = inputs();
+    let mut h = Harness::from_inputs(cfg, doc).await;
+    let mut store = IdentityStore::open(h.directory.join("presentation-hap")).await.unwrap();
+    hap::storage::Storage::save_config(&mut store, &hap::Config::default()).await.unwrap();
+    let identity = store.clone();
+    let document = h.document.clone();
+    let control = h.control.clone();
+    let actor = h.actor.clone();
+    let controller = h.controller;
+    let member = h.member;
+    let mut bridge = h.drive(tokio::spawn(async move {
+        crate::runtime_scene_hap::RuntimeSceneHap::new_with_admission(
+            &identity, &document,
+            ["act", "other"].into_iter().map(|id| homesense_hap::scene_graph::SceneSpec {
+                id: id.into(), name: id.into(),
+            }).collect(), control, actor, controller,
+            move |who, scene| who == member && matches!(scene, "act" | "other"),
+        ).await
+    })).await.unwrap();
+    assert_eq!(bridge.accessories.len(), 2);
+    assert!(bridge.activities.is_empty());
+    assert!(bridge.accessories.iter().all(|(b, _)| matches!(b.scene.as_str(), "act" | "other")));
+    assert!(presentation_hap_read(&bridge, "act").await.is_err(), "unknown cannot become false");
+    assert_eq!(h.count("command_journal"), 0, "HAP reads must not query or control the bus");
+    // Explicit On is idempotent, and distinct source modes with identical
+    // physical targets still have distinct confirmed readback.
+    for (scene, on) in [("act", false), ("act", true), ("act", true), ("other", true), ("other", true), ("other", false)] {
+        let binding = &bridge.accessories.iter().find(|(b, _)| b.scene == scene).unwrap().0;
+        let body = serde_json::to_vec(&json!({"characteristics":[{
+            "aid":binding.aid, "iid":binding.on_iid, "value":on
+        }]})).unwrap();
+        let handler = bridge.write_handler.clone();
+        h.drive(tokio::spawn(async move { handler.write_async(member, &body).await })).await.unwrap();
+        assert!(presentation_hap_read(&bridge, scene).await.is_err(), "pending write cannot become confirmed selection");
+        settle(&mut h, on).await;
+        // Match the production projection cadence; a second flush inside the
+        // 100 ms sampling interval deliberately retains the pending cache.
+        tokio::time::sleep(Duration::from_millis(110)).await;
+        bridge = h.drive(tokio::spawn(async move {
+            bridge.flush_resets().await.unwrap();
+            bridge
+        })).await;
+        for id in ["act", "other"] {
+            assert_eq!(presentation_hap_read(&bridge, id).await
+                .unwrap_or_else(|e| panic!("{scene}={on}, read {id}: {e:?}")), json!(on && id == scene));
+        }
+    }
+    let before = h.count("command_journal");
+    let binding = &bridge.accessories[0].0;
+    let body = serde_json::to_vec(&json!({"characteristics":[{
+        "aid":binding.aid, "iid":binding.on_iid, "value":true
+    }]})).unwrap();
+    assert_eq!(bridge.write_handler.write_async(Uuid::new_v4(), &body).await,
+        Err(hap::server::WriteStatus::InsufficientPrivileges));
+    assert_eq!(h.count("command_journal"), before);
+    drop(bridge);
+    drop(store);
+    h.finish().await;
+}
+
 fn inputs() -> (Vec<u8>, Json) {
     let mut cfg: Json = serde_json::from_slice(&data()).unwrap();
     cfg["gateways"][0]["modules"][0]["profile"] = json!("ad8_din_rs485_v2_2_1");

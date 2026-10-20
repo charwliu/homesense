@@ -323,14 +323,17 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
         );
         let progress = hb_transport::operation_progress(&refs, written)
             .ok_or("invalid batch byte progress")?;
+        let complete_ids = tickets.iter().zip(&progress)
+            .filter_map(|(ticket, state)| matches!(state, hb_transport::OperationProgress::Complete)
+                .then_some(ticket.command.id)).collect::<Vec<_>>();
+        if !complete_ids.is_empty() {
+            self.admission.finish_writes(complete_ids).await
+                .map_err(|e| format!("complete transport batch: {e:?}"))?;
+        }
         let mut completed = vec![];
         for (ticket, state) in tickets.iter().zip(progress) {
             match state {
                 hb_transport::OperationProgress::Complete => {
-                    self.admission
-                        .finish_write(ticket.command.id, true)
-                        .await
-                        .map_err(|e| format!("complete batch member: {e:?}"))?;
                     completed.push((ticket.command.id, ticket.command.device_id.clone()));
                 }
                 hb_transport::OperationProgress::Unsent => self

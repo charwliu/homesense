@@ -549,7 +549,7 @@ enum Message {
     Dispatch(Option<std::collections::BTreeSet<String>>,Option<u64>,std::collections::BTreeSet<String>,Option<usize>,oneshot::Sender<Result<Vec<DispatchTicket>, WriteStatus>>),
     Unsent(u64,oneshot::Sender<Result<(),WriteStatus>>),
     DiscardProjection(crate::transport_owner::ProjectionDiscard,oneshot::Sender<Result<(),WriteStatus>>),
-    Finished(u64, bool, oneshot::Sender<Result<(), WriteStatus>>),
+    Finished(Vec<u64>, bool, oneshot::Sender<Result<(), WriteStatus>>),
     Shutdown(oneshot::Sender<()>),
     Submit(
         Box<Submission>,
@@ -2434,48 +2434,53 @@ impl Admission {
                                 in_flight=write_members.keys().next().copied();write_deadline=write_members.values().copied().min();Ok(())
                             })();if result.is_err(){failed=true;audited_transport_failure=false;let _=arbiter.storage_failed();}let _=reply.send(result);
                         },
-                        Message::Finished(id, complete, reply) => {
-                            let result = if failed || !write_members.contains_key(&id) {
+                        Message::Finished(ids, complete, reply) => {
+                            let result = if failed || ids.is_empty() || ids.len()>hb_transport::MAX_BATCH_FRAMES
+                                || (!complete && ids.len()!=1)
+                                || ids.iter().collect::<std::collections::BTreeSet<_>>().len()!=ids.len()
+                                || ids.iter().any(|id|!write_members.contains_key(id)) {
                                 Err(WriteStatus::ServiceCommunicationFailure)
                             } else {
                                 let written_ms=millis(clock);
                                 let audit = if complete {
-                                    store.transition_command(&worker_boot, id, Status::Writing,
+                                    store.transition_commands(&worker_boot, &ids, Status::Writing,
                                         Status::Written, written_ms)
                                 } else {
                                     store.fail_transport(&worker_boot, millis(clock))
                                 };
                                 if audit.is_err()
-                                    || arbiter.finish_write(id, complete).is_err()
+                                    || ids.iter().any(|id|arbiter.finish_write(*id, complete).is_err())
                                 {
                                     failed = true; audited_transport_failure=false;
                                     let _ = arbiter.storage_failed();
                                     Err(WriteStatus::ServiceCommunicationFailure)
                                 } else {
-                                    key_completions.written(id,complete,written_ms);
-                                    if complete {
-                                        // Validate before applying our own write so a different
-                                        // subject changing the owner while in-flight is not absorbed.
-                                        if let Some(group)=motor_guard_ids.get(&id).copied()
-                                            && let Some(guard)=motor_guards.get_mut(&group) {
-                                            let allowed=store.active_bundle(options.context).ok().flatten().and_then(|b|b.automation).and_then(|d|d.enabled_motor_requests().ok()).unwrap_or_default();
-                                            guard.check(homesense_core::curtain_state::Scope{boot:observer_boot,epochs:arbiter.policy().epochs},&allowed,&mut curtains,written_ms,authorize(guard.controller()));
-                                        }
-                                        curtains.written(id,written_ms);
-                                        component_modes.written(id,written_ms);
-                                        program_activity.written(id,written_ms);
-                                        control_batches.written(id,written_ms);
-                                        away_executions.written(id,written_ms);
-                                        if let Some((device,color,epochs))=in_flight_led.remove(&id) {
-                                            if led_outputs.written(device.clone(),id,color,epochs).is_err() {
-                                                failed=true;audited_transport_failure=false;let _=arbiter.storage_failed();
-                                            } else {keypad_origins.led_written(&device,id);}
-                                        }
-                                        if let Some(group)=motor_guard_ids.remove(&id)
-                                            && let Some(guard)=motor_guards.get_mut(&group) {guard.own_written(&mut curtains,written_ms);}
-                                    } else {in_flight_led.clear();curtains.invalidate();}
-                                    write_members.remove(&id);
-                                    if !complete{for member in write_members.keys().copied().collect::<Vec<_>>(){let _=arbiter.finish_write(member,false);}write_members.clear();}
+                                    for id in ids {
+                                        key_completions.written(id,complete,written_ms);
+                                        if complete {
+                                            // Validate before applying our own write so a different
+                                            // subject changing the owner while in-flight is not absorbed.
+                                            if let Some(group)=motor_guard_ids.get(&id).copied()
+                                                && let Some(guard)=motor_guards.get_mut(&group) {
+                                                let allowed=store.active_bundle(options.context).ok().flatten().and_then(|b|b.automation).and_then(|d|d.enabled_motor_requests().ok()).unwrap_or_default();
+                                                guard.check(homesense_core::curtain_state::Scope{boot:observer_boot,epochs:arbiter.policy().epochs},&allowed,&mut curtains,written_ms,authorize(guard.controller()));
+                                            }
+                                            curtains.written(id,written_ms);
+                                            component_modes.written(id,written_ms);
+                                            program_activity.written(id,written_ms);
+                                            control_batches.written(id,written_ms);
+                                            away_executions.written(id,written_ms);
+                                            if let Some((device,color,epochs))=in_flight_led.remove(&id) {
+                                                if led_outputs.written(device.clone(),id,color,epochs).is_err() {
+                                                    failed=true;audited_transport_failure=false;let _=arbiter.storage_failed();
+                                                } else {keypad_origins.led_written(&device,id);}
+                                            }
+                                            if let Some(group)=motor_guard_ids.remove(&id)
+                                                && let Some(guard)=motor_guards.get_mut(&group) {guard.own_written(&mut curtains,written_ms);}
+                                        } else {in_flight_led.clear();curtains.invalidate();}
+                                        write_members.remove(&id);
+                                        if !complete{for member in write_members.keys().copied().collect::<Vec<_>>(){let _=arbiter.finish_write(member,false);}write_members.clear();}
+                                    }
                                     in_flight=write_members.keys().next().copied();
                                     write_deadline=write_members.values().copied().min();
                                     if !complete {
@@ -3317,9 +3322,15 @@ impl Admission {
     pub(crate) async fn finish_projection_discard(&self,proof:crate::transport_owner::ProjectionDiscard)->Result<(),WriteStatus>{let(tx,rx)=oneshot::channel();self.sender.try_send(Message::DiscardProjection(proof,tx)).map_err(|_|WriteStatus::ResourceBusy)?;rx.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?}
     pub(crate) async fn finish_unsent(&self,id:u64)->Result<(),WriteStatus>{let(tx,rx)=oneshot::channel();self.sender.try_send(Message::Unsent(id,tx)).map_err(|_|WriteStatus::ResourceBusy)?;rx.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?}
     pub async fn finish_write(&self, id: u64, complete: bool) -> Result<(), WriteStatus> {
+        self.finish_receipt(vec![id], complete).await
+    }
+    pub(crate) async fn finish_writes(&self, ids: Vec<u64>) -> Result<(), WriteStatus> {
+        self.finish_receipt(ids, true).await
+    }
+    async fn finish_receipt(&self, ids: Vec<u64>, complete: bool) -> Result<(), WriteStatus> {
         let (reply, receive) = oneshot::channel();
         self.sender
-            .try_send(Message::Finished(id, complete, reply))
+            .try_send(Message::Finished(ids, complete, reply))
             .map_err(|_| WriteStatus::ResourceBusy)?;
         receive
             .await
