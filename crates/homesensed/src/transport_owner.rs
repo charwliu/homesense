@@ -298,20 +298,14 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
         if protected {
             return Ok(tickets);
         }
-        while frames < frame_budget {
-            let Some(ticket) = self
-                .admission
-                .extend_write(id)
-                .await
-                .map_err(|e| format!("batch extension: {e:?}"))?
-            else {
-                break;
-            };
-            frames += ticket.frame.physical_frames();
-            if frames > frame_budget {
-                return Err("batch physical frame budget exceeded".into());
+        if frames < frame_budget {
+            let tail=self.admission.extend_write_batch(id,frame_budget-frames).await
+                .map_err(|e|format!("batch extension: {e:?}"))?;
+            for ticket in tail {
+                frames+=ticket.frame.physical_frames();
+                if frames>frame_budget{return Err("batch physical frame budget exceeded".into());}
+                tickets.push(ticket);
             }
-            tickets.push(ticket);
         }
         Ok(tickets)
     }
