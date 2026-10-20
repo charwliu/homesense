@@ -266,7 +266,8 @@ async fn encrypted_scene_switches_keep_selection_exclude_peers_and_restart_witho
             };
             let (h, g) = c.request("GET", "/accessories", None);
             assert!(h.starts_with("HTTP/1.1 200"));
-            assert_eq!(g["accessories"].as_array().unwrap().len(), 6);
+            assert_eq!(g["accessories"].as_array().unwrap().len(), 5);
+            assert!(g["accessories"].as_array().unwrap().iter().flat_map(|a|a["services"].as_array().unwrap()).all(|s|s["type"]!="43"), "no standalone light service");
             if !restarting {
                 for id in ["reading", "daily", "eco"] {
                     let binding = &c.bindings[id];

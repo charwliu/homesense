@@ -7,7 +7,7 @@ use hap::{
 };
 use homesense_hap::{
     graph::{LightGraph, LightSpec},
-    scene_graph::{SceneGraph, SceneSpec},
+    scene_graph::{SceneActivityGraph, SceneGraph, SceneSpec},
     storage::IdentityStore,
 };
 use std::{
@@ -46,7 +46,7 @@ async fn run_resume() {
     )
     .await
     .unwrap();
-    let light = lights.bindings[0].clone();
+    let activity=SceneActivityGraph::build(&identity,vec![SceneSpec{id:"demo".into(),name:"Demo activity".into()}]).await.unwrap().bindings[0].clone();
     let scenes = SceneGraph::build(
         &identity,
         vec![SceneSpec {
@@ -93,7 +93,7 @@ async fn run_resume() {
         .await
         .unwrap();
     let devices = include_bytes!("../../../config/simulation.json");
-    let rules=br#"{"schema_version":1,"configuration_revision":1,"variables":[],"rules":[],"timed_scenes":[{"id":"demo","enabled":true,"review_evidence":"simulation","max_lateness_ms":1000,"steps":[{"source":"fixture","offset_ms":60000,"device":"simulation:light","command":{"kind":"level","value":30,"ramp":false}}]}]}"#;
+    let rules=br#"{"schema_version":1,"configuration_revision":1,"variables":[],"rules":[],"scene_tracking":[{"scene":"demo","enabled":true,"aggregation":"all","unknown_policy":"require_all_known","pending_policy":"block_scene","control_policy":"separate_action_and_read_only_activity","activity_name":"Demo activity","max_age_ms":2000,"review_evidence":"Synthetic reconnect observation","members":[{"id":"level","device":"simulation:light","predicate":{"kind":"level_range","minimum":17,"maximum":17},"review_evidence":"Synthetic exact level"}]}],"timed_scenes":[{"id":"demo","enabled":true,"review_evidence":"simulation","max_lateness_ms":1000,"steps":[{"source":"fixture","offset_ms":60000,"device":"simulation:light","command":{"kind":"level","value":30,"ramp":false}}]}]}"#;
     drop(reservation);
     let web_reservation = TcpListener::bind("127.0.0.1:0").unwrap();
     let web_address = web_reservation.local_addr().unwrap();
@@ -155,7 +155,11 @@ async fn run_resume() {
             &accessory_key,
         );
 
-        let body=serde_json::json!({"characteristics":[{"aid":light.aid,"iid":light.on_iid,"ev":true},{"aid":light.aid,"iid":light.brightness_iid.unwrap(),"ev":true}]}).to_string();
+        let (h,b)=session.request(&mut stream,b"GET /accessories HTTP/1.1\r\nHost: localhost\r\n\r\n");
+        assert!(h.starts_with("HTTP/1.1 200"));
+        let graph:serde_json::Value=serde_json::from_slice(&b).unwrap();
+        assert!(graph["accessories"].as_array().unwrap().iter().flat_map(|a|a["services"].as_array().unwrap()).all(|s|s["type"]!="43"));
+        let body=serde_json::json!({"characteristics":[{"aid":activity.aid,"iid":activity.on_iid,"ev":true}]}).to_string();
         let subscribe = format!(
             "PUT /characteristics HTTP/1.1\r\nHost: localhost\r\nContent-Type: application/hap+json\r\nContent-Length: {}\r\n\r\n{}",
             body.len(),
@@ -202,18 +206,11 @@ async fn run_resume() {
             &accessory_id,
             &accessory_key,
         );
-        let read = format!(
-            "GET /characteristics?id={}.{},{}.{} HTTP/1.1\r\nHost: localhost\r\n\r\n",
-            light.aid,
-            light.on_iid,
-            light.aid,
-            light.brightness_iid.unwrap()
-        );
-        let (h, b) = session.request(&mut stream, read.as_bytes());
+        let read = format!("GET /characteristics?id={}.{} HTTP/1.1\r\nHost: localhost\r\n\r\n",activity.aid,activity.on_iid);
+        let (h,b)=session.request(&mut stream,read.as_bytes());
         assert!(h.starts_with("HTTP/1.1 200"));
-        let v: serde_json::Value = serde_json::from_slice(&b).unwrap();
-        assert_eq!(v["characteristics"][0]["value"], true);
-        assert_eq!(v["characteristics"][1]["value"], 17);
+        let v:serde_json::Value=serde_json::from_slice(&b).unwrap();
+        assert_eq!(v["characteristics"][0]["value"],true);
         // New encrypted session explicitly re-establishes subscriptions.
         let (h, b) = session.request(&mut stream, subscribe.as_bytes());
         assert!(h.starts_with("HTTP/1.1 204"), "{h} {b:?}");
@@ -226,9 +223,9 @@ async fn run_resume() {
                 assert!(h.starts_with("EVENT/"), "{h}");
                 let v: serde_json::Value = serde_json::from_slice(&b).unwrap();
                 let found = v["characteristics"].as_array().unwrap().iter().any(|c| {
-                    c["aid"] == light.aid
-                        && c["iid"] == light.brightness_iid.unwrap()
-                        && c["value"] == target
+                    c["aid"] == activity.aid
+                        && c["iid"] == activity.on_iid
+                        && c["value"] == (target == 17)
                 });
                 if found {
                     break;

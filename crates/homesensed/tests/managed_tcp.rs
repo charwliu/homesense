@@ -181,7 +181,7 @@ async fn run_managed(combined:bool,recover:bool,mixed:bool,motors:bool) {
     let mut old_session=None;
     let mut old_number=None;
     if let Some(store)=&identity {
-        old_session=Some(hap_write(store,hap_address,controller,signing.clone(),30,false,motors.then(||motor_writes.clone())).await);
+        old_session=Some(hap_write(store,(hap_address,address),controller,signing.clone(),30,false,motors.then(||motor_writes.clone())).await);
         old_number=Some(store.load_config().await.unwrap().configuration_number);
     } else {
     let result=request(address,"/api/v1/device-commands",Some(serde_json::json!({"request_id":"one","device":"simulation:light","command":{"action":"brightness","level":30}}))).await;
@@ -251,9 +251,9 @@ async fn run_managed(combined:bool,recover:bool,mixed:bool,motors:bool) {
     assert_eq!(next["revision"], if recover {1}else{2});
     assert_eq!(next["devices"][0]["observed"]["level"], if recover {55}else{30});
     if let Some(store)=&identity {
-        let fresh=hap_write(store,hap_address,controller,signing.clone(),40,!recover,motors.then(||motor_writes.clone())).await;drop(fresh);
+        let fresh=hap_write(store,(hap_address,address),controller,signing.clone(),40,!recover,motors.then(||motor_writes.clone())).await;drop(fresh);
         let number=store.load_config().await.unwrap().configuration_number;
-        if recover {assert_eq!(number,old_number.unwrap());}else{assert!(number>old_number.unwrap());}
+        assert_eq!(number,old_number.unwrap(),"unpublished light rename does not change HAP graph");
         assert!(store.controller_is_paired(controller).unwrap());
     } else {
     let result=request(address,"/api/v1/device-commands",Some(serde_json::json!({"request_id":"two","device":"simulation:light","command":{"action":"brightness","level":40}}))).await;
@@ -320,28 +320,30 @@ async fn occupied_management_port_never_runs_startup_actions() {
     std::fs::remove_dir_all(root).unwrap();
 }
 
-async fn hap_write(store:&homesense_hap::storage::IdentityStore,address:std::net::SocketAddr,controller:Uuid,signing:ed25519_dalek::SigningKey,level:u8,renamed:bool,motor_writes:Option<Arc<Mutex<Vec<u8>>>>)->std::net::TcpStream {
+async fn hap_write(store:&homesense_hap::storage::IdentityStore,(address,web):(std::net::SocketAddr,std::net::SocketAddr),controller:Uuid,signing:ed25519_dalek::SigningKey,level:u8,renamed:bool,motor_writes:Option<Arc<Mutex<Vec<u8>>>>)->std::net::TcpStream {
     let motors=motor_writes.is_some();
     let settings=store.load_config().await.unwrap();
     let id=settings.device_id.to_string();let key=settings.device_ed25519_keypair.verifying_key();
-    tokio::task::spawn_blocking(move || {
+    let stream=tokio::task::spawn_blocking(move || {
         let mut stream=std::net::TcpStream::connect(address).unwrap();
         stream.set_read_timeout(Some(Duration::from_secs(2))).unwrap();stream.set_write_timeout(Some(Duration::from_secs(2))).unwrap();
         let mut session=support::verify(&mut stream,controller,&signing,&id,&key);
         let (header,body)=session.request(&mut stream,b"GET /accessories HTTP/1.1\r\nHost: localhost\r\n\r\n");assert!(header.starts_with("HTTP/1.1 200"));
-        if renamed {assert!(String::from_utf8_lossy(&body).contains("Renamed"));}
+        assert!(!String::from_utf8_lossy(&body).contains("Renamed"),"unpublished light must remain absent");
         let graph:serde_json::Value=serde_json::from_slice(&body).unwrap();
-        assert_eq!(graph["accessories"].as_array().unwrap().len(),if motors{6}else{3});
-        let scene=&graph["accessories"][2];
+        assert_eq!(graph["accessories"].as_array().unwrap().len(),if motors{3}else{2});
+        let scene=&graph["accessories"][1];
         let scene_iid=scene["services"].as_array().unwrap().iter().flat_map(|s|s["characteristics"].as_array().unwrap()).find(|c|c["type"]=="25").unwrap()["iid"].as_u64().unwrap();
         let body=serde_json::json!({"characteristics":[{"aid":scene["aid"],"iid":scene_iid,"value":true}]}).to_string();
         let request=format!("PUT /characteristics HTTP/1.1\r\nHost: localhost\r\nContent-Type: application/hap+json\r\nContent-Length: {}\r\n\r\n{body}",body.len());
         let (header,body)=session.request(&mut stream,request.as_bytes());assert!(header.starts_with("HTTP/1.1 204"),"{header} {body:?}");
         if motors {
-            for accessory in graph["accessories"].as_array().unwrap().iter().skip(3) {
+            let accessory=&graph["accessories"][2];
+            let covering=accessory["services"].as_array().unwrap().iter().find(|s|s["type"]=="8C").unwrap();
+            for (kind,value) in [("7C",serde_json::json!(100)),("7C",serde_json::json!(0)),("6F",serde_json::json!(true))] {
                 let writes=motor_writes.as_ref().unwrap();let before=writes.lock().unwrap().len();
-                let iid=accessory["services"].as_array().unwrap().iter().flat_map(|s|s["characteristics"].as_array().unwrap()).find(|c|c["type"]=="25").unwrap()["iid"].as_u64().unwrap();
-                let body=serde_json::json!({"characteristics":[{"aid":accessory["aid"],"iid":iid,"value":true}]}).to_string();
+                let iid=covering["characteristics"].as_array().unwrap().iter().find(|c|c["type"]==kind).unwrap()["iid"].as_u64().unwrap();
+                let body=serde_json::json!({"characteristics":[{"aid":accessory["aid"],"iid":iid,"value":value}]}).to_string();
                 let request=format!("PUT /characteristics HTTP/1.1\r\nHost: localhost\r\nContent-Type: application/hap+json\r\nContent-Length: {}\r\n\r\n{body}",body.len());
                 let (header,body)=session.request(&mut stream,request.as_bytes());assert!(header.starts_with("HTTP/1.1 204"),"{header} {body:?}");
                 let deadline=std::time::Instant::now()+Duration::from_secs(2);
@@ -351,13 +353,14 @@ async fn hap_write(store:&homesense_hap::storage::IdentityStore,address:std::net
                 }
             }
         }
-        let light=&graph["accessories"][1];let aid=light["aid"].as_u64().unwrap();
-        let iid=light["services"].as_array().unwrap().iter().flat_map(|s|s["characteristics"].as_array().unwrap()).find(|c|c["format"]=="int" && c["unit"]=="percentage").unwrap()["iid"].as_u64().unwrap();
-        let body=serde_json::json!({"characteristics":[{"aid":aid,"iid":iid,"value":level}]}).to_string();
-        let request=format!("PUT /characteristics HTTP/1.1\r\nHost: localhost\r\nContent-Type: application/hap+json\r\nContent-Length: {}\r\n\r\n{body}",body.len());
-        let (header,body)=session.request(&mut stream,request.as_bytes());assert!(header.starts_with("HTTP/1.1 204"),"{header} {body:?}");
         stream
-    }).await.unwrap()
+    }).await.unwrap();
+    // Lights remain controllable through the authenticated native API, while
+    // HAP retains scene and calibrated curtain actions across publication.
+    let result=request(web,"/api/v1/device-commands",Some(serde_json::json!({"request_id":Uuid::new_v4().to_string(),"device":"simulation:light","command":{"action":"brightness","level":level}}))).await;
+    assert_eq!(result.0,202);assert_eq!(result.1["outcome"],"accepted");
+    if renamed {assert_eq!(request(web,"/api/v1/devices",None).await.1["devices"][0]["name"],"Renamed");}
+    stream
 }
 
 fn module_levels(address: u8, level: u8) -> Vec<u8> {

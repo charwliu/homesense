@@ -42,7 +42,7 @@ fn request(
     session.request(stream, request.as_bytes()).0
 }
 #[tokio::test]
-async fn paired_hap_away_uses_its_own_identity_and_native_module_frames() {
+async fn paired_hap_retires_implicit_away_and_rejects_its_old_handle() {
     let root = std::env::temp_dir().join(format!("away-hap-{}", uuid::Uuid::new_v4()));
     std::fs::create_dir_all(&root).unwrap();
     let bus = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
@@ -78,6 +78,8 @@ async fn paired_hap_away_uses_its_own_identity_and_native_module_frames() {
     }
     let config = json!({"schema_version":2,"revision":1,"gateways":[{"id":"bus","endpoint":bus.local_addr().unwrap().to_string(),"modules":modules}],"devices":devices});
     let rules = json!({"schema_version":1,"configuration_revision":1,"variables":[],"rules":[],"away_off":{"enabled":true,"hap_expose":true,"review_evidence":"Synthetic operation","active_execution_policy":"cancel_affected_lighting","modules":reviews}});
+    // Keep the retired semantic ID reserved in the same paired identity store.
+    let (retired_away, _) = homesense_hap::away_graph::build(&identity).await.unwrap();
     let controls = Arc::new(Mutex::new(Vec::<[u8; 5]>::new()));
     let captured = controls.clone();
     let expected_shutdown = Arc::new(std::sync::atomic::AtomicBool::new(false));
@@ -199,77 +201,17 @@ async fn paired_hap_away_uses_its_own_identity_and_native_module_frames() {
         assert!(header.starts_with("HTTP/1.1 200"));
         let graph: Value = serde_json::from_slice(&body).unwrap();
         let accessories = graph["accessories"].as_array().unwrap();
-        let away = accessories
-            .iter()
-            .find(|a| {
-                a["services"]
-                    .as_array()
-                    .unwrap()
-                    .iter()
-                    .flat_map(|s| s["characteristics"].as_array().unwrap())
-                    .any(|c| c["value"] == "离家全部关灯")
-            })
-            .expect("published Away operation");
-        let power = |a: &Value| {
-            a["services"]
-                .as_array()
-                .unwrap()
-                .iter()
-                .flat_map(|s| s["characteristics"].as_array().unwrap())
-                .find(|c| {
-                    c["type"] == "25"
-                        || c["type"]
-                            .as_str()
-                            .is_some_and(|t| t.starts_with("00000025"))
-                })
-                .unwrap()["iid"]
-                .as_u64()
-                .unwrap()
-        };
-        let aid = away["aid"].as_u64().unwrap();
-        let iid = power(away);
-        assert!(
-            request(
-                &mut session,
-                &mut stream,
-                json!([{"aid":aid,"iid":iid,"value":false}])
-            )
-            .starts_with("HTTP/1.1 204")
-        );
-        let light = accessories
-            .iter()
-            .find(|a| a["aid"].as_u64() != Some(1) && a["aid"] != away["aid"])
-            .unwrap();
-        let mixed = request(
-            &mut session,
-            &mut stream,
-            json!([{"aid":aid,"iid":iid,"value":true},{"aid":light["aid"],"iid":power(light),"value":true}]),
-        );
-        assert!(
-            !mixed.starts_with("HTTP/1.1 204"),
-            "mixed groups must reject atomically"
-        );
+        assert_eq!(accessories.len(), 1, "no implicit light or Away accessory");
+        assert_eq!(accessories[0]["aid"], 1);
+        for value in [false, true] {
+            let response = request(&mut session, &mut stream,
+                json!([{"aid":retired_away.aid,"iid":retired_away.on_iid,"value":value}]));
+            assert!(!response.starts_with("HTTP/1.1 204"), "retired Away handle accepted");
+        }
         assert!(controls.lock().unwrap().is_empty());
-        assert!(
-            request(
-                &mut session,
-                &mut stream,
-                json!([{"aid":aid,"iid":iid,"value":true}])
-            )
-            .starts_with("HTTP/1.1 204")
-        );
-        let (_, body) = session.request(
-            &mut stream,
-            format!("GET /characteristics?id={aid}.{iid} HTTP/1.1\r\nHost: localhost\r\n\r\n")
-                .as_bytes(),
-        );
-        assert_eq!(
-            serde_json::from_slice::<Value>(&body).unwrap()["characteristics"][0]["value"],
-            false
-        );
     });
     client.await.unwrap();
-    // Read-only observation credential is never used to submit the HAP action.
+    // Read-only observation confirms rejected retired handles cannot shut down loads.
     tokio::time::timeout(Duration::from_secs(2), async {
         loop {
             let state = actual_devices(web).await;
@@ -277,7 +219,7 @@ async fn paired_hap_away_uses_its_own_identity_and_native_module_frames() {
             if lights.len() == 16
                 && lights.iter().all(|d| {
                     d["quality"] == "Confirmed"
-                        && (d["observed"]["on"] == false || d["observed"]["level"] == 0)
+                        && (d["observed"]["on"] == true || d["observed"]["level"] == 75)
                 })
             {
                 break;
@@ -293,12 +235,12 @@ async fn paired_hap_away_uses_its_own_identity_and_native_module_frames() {
     service.await.unwrap().unwrap();
     gateway.join().unwrap();
     let sql = rusqlite::Connection::open(root.join("automation-tcp.sqlite")).unwrap();
-    assert_eq!(sql.query_row("SELECT count(*) FROM command_journal WHERE intent=x'01080000' AND origin='hap' AND status='written'",[],|r|r.get::<_,i64>(0)).unwrap(),2);
+    assert_eq!(sql.query_row("SELECT count(*) FROM command_journal WHERE intent=x'01080000' AND origin='hap' AND status='written'",[],|r|r.get::<_,i64>(0)).unwrap(),0);
     assert_eq!(
         sql.query_row("SELECT count(*) FROM module_off_effect", [], |r| r
             .get::<_, i64>(0))
             .unwrap(),
-        16
+        0
     );
     drop(sql);
     drop(identity);

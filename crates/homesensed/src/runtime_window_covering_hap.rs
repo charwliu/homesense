@@ -162,18 +162,29 @@ impl RuntimeWindowCoveringHap {
             config
                 .motor_command(&spec.device, MotorAction::Stop)
                 .map_err(|e| e.to_string())?;
+            let timing = config.devices()[&spec.device]
+                .curtain_state.as_ref()
+                .map(|state| state.timing)
+                .unwrap_or(Timing {
+                    open_travel_ms: Some(TRAVEL_MS),
+                    close_travel_ms: Some(TRAVEL_MS),
+                    stop_led_idle_ms: None,
+                });
+            if timing.open_travel_ms != Some(TRAVEL_MS)
+                || timing.close_travel_ms != Some(TRAVEL_MS)
+            {
+                return Err("native HAP covering requires a reviewed 10-second travel".into());
+            }
             // The admission owner, not an independent HAP timer, observes every
             // successful motor write from HAP, Web and physical keypad routes.
+            // Reuse the entire reviewed timing, including its LED idle policy;
+            // a second candidate with a different policy would fork the owner.
             admission
                 .curtain_candidate(
                     controller,
                     generation.clone(),
                     spec.device.clone(),
-                    Timing {
-                        open_travel_ms: Some(TRAVEL_MS),
-                        close_travel_ms: Some(TRAVEL_MS),
-                        stop_led_idle_ms: None,
-                    },
+                    timing,
                 )
                 .await
                 .map_err(|e| format!("covering inference: {e:?}"))?;
