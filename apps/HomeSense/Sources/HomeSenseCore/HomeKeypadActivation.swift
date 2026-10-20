@@ -186,14 +186,14 @@ public struct HomeKeypadActionPresentation: Equatable, Sendable {
 }
 
 /// Correlates local requests only. WSS decoding and transport remain separate.
-struct HomeKeypadActivationState {
+struct HomeKeypadActivationState: Equatable {
     struct Context: Equatable, Sendable {
         let generation: UUID
         let boot: String
         let revision: String
     }
     private struct Key: Hashable { let panel: String; let number: Int }
-    private struct Entry {
+    private struct Entry: Equatable {
         var request: HomeKeypadActivationRequest?
         let endpoint: String
         var handled = false

@@ -1,4 +1,5 @@
 import Foundation
+import Combine
 import Testing
 @testable import HomeSenseCore
 
@@ -133,6 +134,43 @@ private final class UnifiedEvents: HomeEventTransport, @unchecked Sendable {
 }
 
 @Suite @MainActor struct HomeUnifiedKeypadTests {
+    @Test func repeatedFullPanelSnapshotsDoNotFanOutUnchangedViewNotifications() async throws {
+        let http = UnifiedHTTP(), events = UnifiedEvents(), home = try await connect(http, events: events)
+        defer { home.disconnect() }
+        let panels: [HomeJSON] = (0..<28).map { index in
+            var panel = UnifiedInputs.panel(), keys = panel["keys"].values
+            let id = "synthetic-panel-\(index)"
+            panel["id"] = .string(id)
+            for key in keys.indices {
+                keys[key]["activation"]["keypad"] = .string(id)
+                keys[key]["endpoint_id"] = .string("\(id)-key-\(key + 1)")
+            }
+            panel["keys"] = .array(keys)
+            return panel
+        }
+        var state = UnifiedInputs.frame(panels[0], reset: true)
+        state["devices"] = .array(panels)
+        try events.push(state); try await gatewayUntil { home.devices.count == 28 }
+        let requests = await http.posts().count
+        var notifications = 0
+        let subscription = home.objectWillChange.sink { notifications += 1 }
+        defer { subscription.cancel() }
+        state["reset"] = .bool(false)
+        for sequence in 2...21 {
+            state["cursor"]["sequence"] = .integer(Int64(sequence))
+            try events.push(state)
+        }
+        // A later real scene change proves the preceding frames were consumed.
+        var marker = state
+        marker["cursor"]["sequence"] = .integer(22)
+        marker["scenes"] = .array([.object(["id": .string("reading"), "name": .string("完成"), "can_control": .bool(true)])])
+        try events.push(marker); try await gatewayUntil { home.scenes.first?.name == "完成" }
+        print("energy_duplicate_frames=20 panels=28 view_notifications=\(notifications)")
+        #expect(notifications <= 3, "Unchanged snapshots must not trigger a notification for each of 168 panel keys")
+        #expect(await http.posts().count == requests, "Read-only feedback never sends commands")
+        #expect(home.receivingPush && home.controlsAvailable)
+    }
+
     private func connect(_ http: UnifiedHTTP, events: UnifiedEvents? = nil) async throws -> HomeServerStore {
         let home = HomeServerStore(transport: http, eventTransport: events ?? UnifiedEvents(), defaults: nil,
             credentialStore: InMemoryCredentials(), diagnostics: HomeDiagnostics(fileURL: nil, emitSystemLog: false))

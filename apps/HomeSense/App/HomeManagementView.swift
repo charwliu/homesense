@@ -4,13 +4,19 @@ import HomeSenseCore
 
 private enum HomePage: String, CaseIterable, Identifiable {
     case overview = "家庭概览", floors = "楼层", rooms = "房间", devices = "设备", scenes = "场景", drafts = "草稿与发布", server = "服务连接"
+    case climate = "温控", lights = "灯"
     var id: String { rawValue }
     var icon: String {
         switch self {
         case .overview: "house"; case .floors: "building.2"; case .rooms: "door.left.hand.open"
         case .devices: "cpu"; case .scenes: "sparkles"; case .drafts: "doc.badge.gearshape"; case .server: "server.rack"
+        case .climate: HomeDeviceCategory.climate.icon; case .lights: HomeDeviceCategory.lights.icon
         }
     }
+    var category: HomeDeviceCategory? {
+        switch self { case .climate: .climate; case .lights: .lights; default: nil }
+    }
+    static func categoryPage(_ category: HomeDeviceCategory) -> Self { category == .climate ? .climate : .lights }
 }
 private struct HomeRoomRoute: Hashable {
     let id: String
@@ -61,16 +67,11 @@ struct HomeManagementView: View {
                     .padding(.vertical, 12)
                 }
                 Section("家庭") {
-                    ForEach(visiblePages) { destination in
-                        NavigationLink(value: destination) {
-                            HStack {
-                                Image(systemName: destination.icon).frame(width: 20)
-                                    .foregroundStyle(page == destination ? Color.white : Color.secondary)
-                                Text(destination == .overview && !managing ? "家庭" : destination.rawValue)
-                                    .foregroundStyle(page == destination ? Color.white : Color.primary)
-                            }
-                        }
-                        .listRowBackground(page == destination ? Color(red: 0.04, green: 0.38, blue: 0.4) : Color.clear)
+                    ForEach(visiblePages.filter { $0.category == nil }) { navigationRow($0) }
+                }
+                Section("类别") {
+                    ForEach(HomeDeviceCategory.allCases) { category in
+                        navigationRow(.categoryPage(category))
                     }
                 }
                 Section(managing ? "服务端" : "家庭状态") {
@@ -108,6 +109,8 @@ struct HomeManagementView: View {
                             case .scenes: scenes
                             case .drafts: if managing { configuration }
                             case .server: connection
+                            case .climate: categoryContent(.climate)
+                            case .lights: categoryContent(.lights)
                             }
                         }
                     }
@@ -182,8 +185,71 @@ struct HomeManagementView: View {
     private var displayRooms: [HomeRecord] { managing ? home.editableRooms : home.rooms }
     private var displayFloors: [String] { managing ? home.floors : home.activeFloors }
     private let cardColumns = [GridItem(.adaptive(minimum: 260), alignment: .top)]
+    private func navigationRow(_ destination: HomePage) -> some View {
+        NavigationLink(value: destination) {
+            HStack {
+                Image(systemName: destination.icon).frame(width: 20)
+                    .foregroundStyle(page == destination ? Color.white : Color.secondary)
+                Text(destination == .overview && !managing ? "家庭" : destination.rawValue)
+                    .foregroundStyle(page == destination ? Color.white : Color.primary)
+            }
+        }
+        .listRowBackground(page == destination ? Color(red: 0.04, green: 0.38, blue: 0.4) : Color.clear)
+        .accessibilityIdentifier(destination.category.map { "home.categoryLink.\($0.rawValue)" } ?? "home.page.\(destination.id)")
+    }
+    private var categoryShortcuts: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("类别").font(.title2.bold())
+            HStack(spacing: 12) {
+                ForEach(HomeDeviceCategory.allCases) { category in
+                    Button {
+                        page = .categoryPage(category); compactColumn = .detail
+                    } label: {
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Label(category.title, systemImage: category.icon)
+                                    .font(.headline).foregroundStyle(category == .lights ? Color.orange : Color.teal)
+                                Spacer(minLength: 4)
+                                Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
+                            }
+                            Text(category.englishTitle).font(.caption).foregroundStyle(.secondary)
+                            Text(category.summary(devices: home.dailyDevices, current: home.snapshotIsCurrent))
+                                .font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                                .frame(maxWidth: .infinity, minHeight: 32, alignment: .topLeading)
+                        }.padding(16).frame(maxWidth: .infinity, alignment: .leading)
+                            .background(.background, in: RoundedRectangle(cornerRadius: 18))
+                            .overlay { RoundedRectangle(cornerRadius: 18).strokeBorder(.primary.opacity(0.08)) }
+                            .contentShape(RoundedRectangle(cornerRadius: 18))
+                    }.buttonStyle(.plain)
+                        .accessibilityHint("按房间查看\(category.title)设备")
+                        .accessibilityIdentifier("home.category.\(category.id)")
+                }
+            }
+        }
+    }
+    private func categoryContent(_ category: HomeDeviceCategory) -> some View {
+        let groups = category.rooms(devices: home.dailyDevices, rooms: home.rooms)
+        return VStack(alignment: .leading, spacing: 20) {
+            Label(category.englishTitle, systemImage: category.icon).font(.headline).foregroundStyle(.secondary)
+            Text(category.summary(devices: home.dailyDevices, current: home.snapshotIsCurrent)).foregroundStyle(.secondary)
+            if groups.isEmpty {
+                ContentUnavailableView(category == .climate ? "暂无窗帘" : "暂无灯",
+                    systemImage: category.icon, description: Text("此类别中暂无当前凭证可见的设备。"))
+            }
+            ForEach(groups) { group in
+                VStack(alignment: .leading, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(group.name).font(.title2.bold())
+                        if let floor = group.floor { Text(floor).font(.caption).foregroundStyle(.secondary) }
+                    }
+                    HomeDeviceCards(home: home, devices: group.devices, openDetails: { editor = $0 })
+                }.accessibilityIdentifier("home.categoryRoom.\(category.id).\(group.id)")
+            }
+        }.accessibilityIdentifier("home.categoryPage.\(category.id)")
+    }
     private var dailyOverview: some View {
         VStack(alignment: .leading, spacing: 20) {
+            categoryShortcuts
             Text("房间").font(.title2.bold())
             LazyVGrid(columns: cardColumns, alignment: .leading, spacing: 16) {
                 ForEach(home.rooms) { room in
@@ -195,8 +261,13 @@ struct HomeManagementView: View {
             HomeDeviceCards(home: home, devices: home.dailyActuators, openDetails: { editor = $0 })
             let scenes = home.householdScenes
             if !scenes.isEmpty {
-                Text("全屋与未分配场景").font(.title2.bold())
+                Text("全屋场景").font(.title2.bold())
                 HomeSceneCards(home: home, scenes: scenes, openDetails: { editor = $0 })
+            }
+            if !home.unassignedScenes.isEmpty {
+                Text("待分配场景").font(.title2.bold())
+                Text("归属尚未确认，可在管理模式中核对并分配。").font(.caption).foregroundStyle(.secondary)
+                HomeSceneCards(home: home, scenes: home.unassignedScenes, openDetails: { editor = $0 })
             }
         }
     }
@@ -387,7 +458,7 @@ struct HomeManagementView: View {
                 ForEach(home.editableScenes) { scene in
                     panel(scene.name, icon: "doc.text") {
                         Text("\(scene.id) · \(scene.raw["enabled"].flag ? "已启用" : "未启用")").font(.caption).foregroundStyle(.secondary)
-                        Text(home.editableRooms.first(where: { $0.id == scene.roomID })?.name ?? "全屋／未分配")
+                        Text(home.scenePlacementTitle(scene, editing: true))
                             .font(.caption).foregroundStyle(.secondary)
                         HStack {
                             Button("编辑场景") { editor = HomeEditRequest(kind: "scene", record: scene) }
@@ -522,38 +593,57 @@ private struct HomeSceneCards: View {
         }
     }
     private func sceneKey(_ scene: HomeRecord) -> some View {
-        let available = home.canControlScene(scene.id), action = scene.sceneCardAction
-        let current = home.snapshotIsCurrent && scene.targetAvailable
-        let pending = home.sceneActionPresentation(scene.id)
-        let selected = pending?.selected ?? (scene.sceneCardConfirmedActive == true)
+        let state = HomeSceneCardState(scene: scene, current: home.snapshotIsCurrent && scene.targetAvailable,
+            available: home.canControlScene(scene.id), pending: home.sceneActionPresentation(scene.id))
+        return HomeSceneKey(state: state, activate: {
+            Task { await home.controlScene(state.id, on: state.action.on) }
+        }, details: {
+            // Resolve the current record on demand; presentation equality must
+            // not leave the detail sheet using an old observation timestamp.
+            guard let latest = home.scenes.first(where: { $0.id == state.id }) else { return }
+            openDetails(HomeEditRequest(kind: "scene-details", record: latest))
+        }).equatable()
+    }
+}
+
+/// No store subscription here: unrelated feedback and transport liveness may
+/// update the parent, but only changed presentation inputs redraw this key.
+private struct HomeSceneKey: View, Equatable {
+    let state: HomeSceneCardState
+    let activate: () -> Void
+    let details: () -> Void
+    nonisolated static func == (lhs: Self, rhs: Self) -> Bool { lhs.state == rhs.state }
+    var body: some View {
+        let available = state.available, current = state.current
+        let pending = state.pending, selected = state.selected, action = state.action
         return ZStack(alignment: .topTrailing) {
             Button {
-                Task { await home.controlScene(scene.id, on: action.on) }
+                activate()
             } label: {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(scene.name).font(.caption.weight(.semibold)).lineLimit(1).minimumScaleFactor(0.65).padding(.trailing, 22)
+                    Text(state.name).font(.caption.weight(.semibold)).lineLimit(1).minimumScaleFactor(0.65).padding(.trailing, 22)
                     HStack(spacing: 3) {
                         Text(pending?.title ?? (available ? action.title : "不可用")).font(.caption2.weight(.medium))
-                        if scene.raw["switch_kind"].text == "selection" {
-                            Text("· \(current ? "选择" : "历史选择")\(selected ? "已选" : scene.raw["selected"] == .bool(false) ? "未选" : "未知")")
+                        if let selection = state.selectionDescription {
+                            Text(selection)
                                 .font(.system(size: 9)).foregroundStyle(.secondary).lineLimit(1).minimumScaleFactor(0.7)
                         }
                     }
-                    Text("\(current ? "负载" : "历史负载")：\(scene.sceneActivityDescription)")
+                    Text(state.activityDescription)
                         .font(.system(size: 9)).foregroundStyle(.secondary).lineLimit(1).minimumScaleFactor(0.7)
                 }.padding(8).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
                     .background(pending != nil && current ? (selected ? Color.teal.opacity(0.24) : Color.blue.opacity(0.13)) : available ? (selected && current ? Color.teal.opacity(0.17) : Color.primary.opacity(0.025)) : Color.gray.opacity(0.16), in: RoundedRectangle(cornerRadius: 10))
                     .overlay { RoundedRectangle(cornerRadius: 10).strokeBorder(available ? Color.primary.opacity(0.08) : Color.gray.opacity(0.35)) }
                     .contentShape(RoundedRectangle(cornerRadius: 10))
             }.buttonStyle(.plain).disabled(!available)
-                .accessibilityLabel("\(scene.name)，\(action.title)")
+                .accessibilityLabel("\(state.name)，\(action.title)")
                 .accessibilityHint(available ? "执行场景动作；等待服务端反馈" : "控制暂不可用，保留历史状态")
-                .accessibilityIdentifier("home.sceneAction.\(scene.id)")
-            Button { openDetails(HomeEditRequest(kind: "scene-details", record: scene)) } label: {
+                .accessibilityIdentifier("home.sceneAction.\(state.id)")
+            Button { details() } label: {
                 Image(systemName: "info.circle").font(.caption).frame(width: 34, height: 30).contentShape(Rectangle())
             }.buttonStyle(.plain)
-                .accessibilityLabel("\(scene.name)详情")
-                .accessibilityIdentifier("home.sceneDetails.\(scene.id)")
+                .accessibilityLabel("\(state.name)详情")
+                .accessibilityIdentifier("home.sceneDetails.\(state.id)")
         }.frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }

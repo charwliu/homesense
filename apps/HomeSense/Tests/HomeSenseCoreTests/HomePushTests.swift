@@ -1,4 +1,5 @@
 import Foundation
+import Combine
 import Testing
 @testable import HomeSenseCore
 
@@ -6,18 +7,25 @@ private final class EventFixture: HomeEventTransport, @unchecked Sendable {
     private let lock = NSLock()
     private var subscribers: [AsyncThrowingStream<HomeEventMessage, Error>.Continuation] = []
     private var requests: [URLRequest] = []
+    private var terminations = 0
     func events(_ request: URLRequest) -> AsyncThrowingStream<HomeEventMessage, Error> {
         AsyncThrowingStream { continuation in
             lock.withLock { requests.append(request); subscribers.append(continuation) }
+            continuation.onTermination = { [weak self] _ in
+                guard let self else { return }
+                self.lock.withLock { self.terminations += 1 }
+            }
         }
     }
     var count: Int { lock.withLock { subscribers.count } }
+    var activeCount: Int { lock.withLock { subscribers.count - terminations } }
     var lastRequest: URLRequest? { lock.withLock { requests.last } }
     func push(_ frame: HomeJSON, index: Int? = nil) throws {
         let continuation = lock.withLock { subscribers[index ?? (subscribers.count - 1)] }
         continuation.yield(.state(try frame.data()))
     }
     func loseConnection() { lock.withLock { subscribers.last }?.finish(throwing: URLError(.networkConnectionLost)) }
+    func heartbeat() { lock.withLock { subscribers.last }?.yield(.heartbeat) }
 }
 
 @Suite @MainActor
@@ -70,6 +78,100 @@ struct HomePushTests {
         await home.controlDevice("light", command: .object(["action": .string("brightness"), "level": .integer(40)]))
         #expect(await server.captured().count == count + 1, "Only the explicit command, no snapshot polling")
         #expect(home.devices.first?.raw["observed"]["level"] == .integer(17), "Accepted is not actual feedback")
+    }
+    @Test func roomSceneKeyStaysStableUntilRelevantPushAndNeverPollsWhileIdle() async throws {
+        let server = HomeTestServer(), events = EventFixture(), home = await connect(server, events)
+        defer { home.disconnect() }
+        try await waitFor { events.count == 1 }
+        var state = frame(30)
+        var scene: HomeJSON = .object(["id": .string("reading"), "name": .string("阅读"),
+            "room": .object(["id": .string("study")]), "can_control": .bool(true),
+            "switch_kind": .string("selection"), "selected": .bool(false), "activity": .string("Inactive")])
+        state["scenes"] = .array([scene])
+        try events.push(state); try await waitFor { home.receivingPush }
+        func card() throws -> HomeSceneCardState {
+            let row = try #require(home.scenes(inRoom: "study").first)
+            return HomeSceneCardState(scene: row, current: home.snapshotIsCurrent && row.targetAvailable,
+                available: home.canControlScene(row.id), pending: home.sceneActionPresentation(row.id))
+        }
+        let initial = try card(), requests = await server.captured().count
+        var publications = 0
+        let subscription = home.$scenes.dropFirst().sink { _ in publications += 1 }
+        defer { subscription.cancel() }
+        // Healthy silent streams remain current beyond the old snapshot age.
+        events.heartbeat()
+        try await Task.sleep(for: .seconds(11))
+        #expect(try card() == initial)
+        #expect(publications == 0 && home.controlsAvailable)
+        #expect(await server.captured().count == requests)
+
+        let before = home.capturedAt
+        state = frame(17, sequence: 2, reset: false); state["scenes"] = .array([scene])
+        try events.push(state); try await waitFor { home.capturedAt != before }
+        #expect(publications == 0, "An unrelated lamp update must not republish the scene catalog")
+        #expect(try card() == initial)
+
+        // Timestamp-only changes remain available to details, without changing
+        // any input at the equatable SwiftUI scene-key boundary.
+        scene["observed_ms"] = .integer(12345); state["scenes"] = .array([scene])
+        try events.push(state); try await waitFor { publications == 1 }
+        #expect(try card() == initial)
+        #expect(home.scenes.first?.raw["observed_ms"] == .integer(12345))
+
+        // A scene change may legally arrive on the very same device cursor.
+        scene["selected"] = .bool(true); scene["activity"] = .string("Active")
+        state["scenes"] = .array([scene]); try events.push(state)
+        try await waitFor { publications == 2 }
+        let active = try card()
+        #expect(active != initial && active.selected && active.action == .selection(false))
+        #expect(active.activityDescription == "负载：匹配")
+        try events.push(.object(["type": .string("unavailable")]))
+        try await waitFor { !home.controlsAvailable }
+        let offline = try card()
+        #expect(!offline.available && !offline.current && offline.selected)
+        #expect(publications == 2, "Going offline retains historical selection and load feedback")
+        #expect(await server.captured().count == requests, "No background polling or control requests")
+    }
+    @Test func backgroundGateStopsStreamAndCannotBeReopenedByViewCallbacksOrRetry() async throws {
+        let server = HomeTestServer(), events = EventFixture(), home = await connect(server, events)
+        defer { home.disconnect() }
+        try await waitFor { events.count == 1 }; try events.push(frame(30))
+        try await waitFor { home.receivingPush }
+        let devices = home.devices, requests = await server.captured().count
+        home.setApplicationActive(false)
+        try await waitFor { events.activeCount == 0 }
+        #expect(!home.receivingPush && !home.controlsAvailable)
+        // A sheet dismissal or tab callback can request resume after background.
+        home.resume(); await home.restoreSavedConnection()
+        try events.push(frame(99, sequence: 2), index: 0)
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(events.count == 1 && events.activeCount == 0)
+        #expect(home.devices == devices && !home.snapshotIsCurrent)
+        #expect(await server.captured().count == requests)
+
+        home.setApplicationActive(true); home.resume()
+        try await waitFor { events.count == 2 }
+        try events.push(frame(17, sequence: 3))
+        try await waitFor { home.receivingPush }
+        #expect(home.devices.first?.raw["observed"]["level"] == .integer(17))
+        events.loseConnection(); try await waitFor { !home.receivingPush }
+        home.setApplicationActive(false); home.resume()
+        let afterPause = await server.captured().count
+        try await Task.sleep(for: .milliseconds(2200))
+        #expect(events.count == 2 && events.activeCount == 0)
+        #expect(await server.captured().count == afterPause, "No reconnect traffic while backgrounded")
+        #expect(await server.captured().allSatisfy { $0.httpMethod == "GET" })
+    }
+    @Test func backgroundCredentialRestorationDoesNotStartNetworking() async throws {
+        let server = HomeTestServer(), events = EventFixture(), credentials = InMemoryCredentials()
+        await credentials.save("test-token", for: "https://home.example:8444")
+        let home = HomeServerStore(transport: server, eventTransport: events, defaults: nil, credentialStore: credentials)
+        defer { home.disconnect() }
+        home.endpointText = "https://home.example:8444"
+        home.setApplicationActive(false); home.resume(); await home.restoreSavedConnection()
+        #expect(!home.connected && !home.restoringCredential && events.count == 0)
+        #expect(await server.captured().isEmpty)
+        #expect(await credentials.load(for: "https://home.example:8444") == "test-token")
     }
     @Test func disconnectReconnectResyncAndRevocationNeverReplayWrites() async throws {
         let server = HomeTestServer(), events = EventFixture(), home = await connect(server, events)

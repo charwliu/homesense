@@ -6,12 +6,14 @@ private actor SceneRoomHTTP: HomeHTTPTransport {
     let base = HomeTestServer()
     var scenes: [HomeJSON] = [
         .object(["id": .string("reading"), "name": .string("阅读"), "room": .object(["id": .string("study"), "name": .string("书房"), "floor": .string("一层")]), "can_control": .bool(true), "selected": .null]),
-        .object(["id": .string("all-off"), "name": .string("全关"), "room": .null]),
+        .object(["id": .string("all-off"), "name": .string("全关"), "scope": .string("household"), "room": .null]),
         .object(["id": .string("legacy"), "name": .string("书房旧场景")]),
         .object(["id": .string("unknown-room"), "name": .string("未知归属"), "room": .object(["id": .string("missing"), "name": .string("不存在的房间")])])
     ]
     var metadata: [HomeJSON] = [.object(["id": .string("reading"), "name": .string("阅读"), "room": .string("study"), "future": .object(["keep": .bool(true)])])]
     var presentations: [HomeJSON] = []
+    var supportsPlacement = true
+    func setSupportsPlacement(_ supported: Bool) { supportsPlacement = supported }
     func setPresentations(_ rows: [HomeJSON]) { presentations = rows }
     func setScenes(_ rows: [HomeJSON]) { scenes = rows }
     func setMetadata(_ rows: [HomeJSON]) { metadata = rows }
@@ -19,6 +21,9 @@ private actor SceneRoomHTTP: HomeHTTPTransport {
         let response = try await base.send(request)
         guard response.status == 200 else { return response }
         var body = try JSONDecoder().decode(HomeJSON.self, from: response.data)
+        if request.url?.path == "/api/v1/session" && supportsPlacement {
+            body["capabilities"] = .object(["scene_placement": .object(["version": .integer(1)])])
+        }
         if request.url?.path == "/api/v1/scenes" { body["scenes"] = .array(scenes) }
         if request.url?.path.hasSuffix("/export") == true {
             body["automation"]["scene_metadata"] = .array(metadata)
@@ -60,11 +65,12 @@ struct HomeSceneRoomTests {
         defer { home.disconnect() }
         let count = await server.base.captured().count
         #expect(home.scenes(inRoom: "study").map(\.id) == ["reading"])
-        #expect(home.householdScenes.map(\.id) == ["all-off", "legacy", "unknown-room"])
+        #expect(home.householdScenes.map(\.id) == ["all-off"])
+        #expect(home.unassignedScenes.map(\.id) == ["legacy", "unknown-room"])
         #expect(home.scenes(inRoom: "missing").isEmpty)
         try home.upsertRoom(id: "missing", name: "尚未发布", floor: "二层")
         #expect(home.scenes(inRoom: "missing").isEmpty)
-        #expect(home.householdScenes.contains { $0.id == "unknown-room" })
+        #expect(home.unassignedScenes.contains { $0.id == "unknown-room" })
         home.selectInterfaceMode(.management); home.selectInterfaceMode(.daily)
         #expect(home.scenes.count == 4 && home.editableScenes.count == 2)
         #expect(await server.base.captured().count == count)
@@ -214,14 +220,15 @@ struct HomeSceneRoomTests {
         let rows = (0..<7).map { index in
             HomeRecord(.object(["id": .string("scene-\(index)"), "name": .string("相同名称"), "room": room]))
         }
-        let global = HomeRecord(.object(["id": .string("global"), "room": .null]))
+        let global = HomeRecord(.object(["id": .string("global"), "room": .null, "scope": .string("household")]))
         let unknown = HomeRecord(.object(["id": .string("unresolved"), "room": .object(["id": .string("not-visible")])]))
         let input = rows + [rows[0], global, unknown]
         let panels = home.scenePanels(for: input)
-        #expect(panels.map { $0.scenes.count } == [6, 1, 2])
+        #expect(panels.map { $0.scenes.count } == [6, 1, 1, 1])
         #expect(panels[0].title == "书房场景" && panels[0].page == 1 && panels[0].pageCount == 2)
         #expect(panels[1].page == 2 && panels[1].pageCount == 2)
-        #expect(panels[2].title == "全屋与未分配场景")
+        #expect(panels[2].title == "全屋场景")
+        #expect(panels[3].title == "待分配场景")
         #expect(panels.flatMap(\.scenes).map(\.id) == rows.map(\.id) + ["global", "unresolved"])
         #expect(Set(panels.map(\.id)).count == panels.count)
         #expect(home.scenePanels(for: []).isEmpty)
@@ -271,7 +278,7 @@ struct HomeSceneRoomTests {
         try events.push(.object(["type": .string("state"), "reset": .bool(true), "revision": .string("9007199254740993"), "cursor": .object(["boot": .string("synthetic-boot"), "revision": .integer(9_007_199_254_740_993), "transport_epoch": .integer(1), "sequence": .integer(1), "scope": .string("synthetic-scene-room-scope")]), "devices": .array([]), "scenes": .array(rows)]))
         try await waitFor { home.receivingPush }
         #expect(home.scenes(inRoom: "study").map(\.id) == ["all-off"])
-        #expect(home.householdScenes.map(\.id) == ["reading"])
+        #expect(home.unassignedScenes.map(\.id) == ["reading"])
         home.pause()
         #expect(!home.controlsAvailable && home.scenes == rows.map(HomeRecord.init))
         #expect(home.scenes(inRoom: "study").map(\.id) == ["all-off"])
@@ -302,6 +309,48 @@ struct HomeSceneRoomTests {
         #expect(home.automationDocument?["timed_scenes"] == definitions)
         #expect(home.automationDocument?["scene_presentations"] == pairs)
         #expect(await server.base.captured().allSatisfy { $0.httpMethod == "GET" })
+    }
+
+    @Test func explicitHouseholdPlacementMovesPairedMetadataOnlyAndRejectsInvalidScopeAtomically() async throws {
+        let server = SceneRoomHTTP()
+        await server.setPresentations([.object(["scene": .string("reading"), "selection_scene": .string("later")])])
+        let home = await connect(server)
+        defer { home.disconnect() }
+        let scene = try #require(home.editableScenes.first { $0.id == "reading" })
+        let original = try #require(home.automationDocument)
+        try home.upsertScene(scene.raw, collection: "immediate_scenes", name: scene.name, originalID: scene.id, scope: "household")
+        let updated = try #require(home.automationDocument)
+        for id in ["reading", "later"] {
+            let metadata = try #require(updated["scene_metadata"].values.first { $0["id"].text == id })
+            #expect(metadata["scope"].text == "household" && metadata["room"] == .null)
+        }
+        #expect(updated["immediate_scenes"] == original["immediate_scenes"])
+        #expect(updated["timed_scenes"] == original["timed_scenes"])
+        #expect(home.scenes(inRoom: "study").map(\.id) == ["reading"])
+        for scope in ["room", "invalid"] {
+            #expect(throws: HomeServerError.self) { try home.upsertScene(scene.raw, collection: "immediate_scenes", name: scene.name, originalID: scene.id, scope: scope) }
+            #expect(home.automationDocument == updated)
+        }
+        try home.upsertScene(scene.raw, collection: "immediate_scenes", name: scene.name, originalID: scene.id, room: "study", scope: "room")
+        #expect(home.editableScenes.first { $0.id == "reading" }?.raw["scope"].text == "room")
+    }
+
+    @Test func legacyServiceKeepsRoomEditsCompatibleAndDoesNotAcceptHouseholdAsUnassigned() async throws {
+        let server = SceneRoomHTTP()
+        await server.setSupportsPlacement(false)
+        let home = await connect(server)
+        defer { home.disconnect() }
+        #expect(!home.scenePlacementSupported)
+        let scene = try #require(home.editableScenes.first { $0.id == "reading" })
+        try home.upsertScene(scene.raw, collection: "immediate_scenes", name: scene.name, originalID: scene.id, room: "study", scope: "room")
+        var metadata = try #require(home.automationDocument?["scene_metadata"].values.first)
+        #expect(metadata["room"].text == "study" && metadata["scope"] == .null)
+        let draft = home.automationDocument
+        #expect(throws: HomeServerError.self) { try home.upsertScene(scene.raw, collection: "immediate_scenes", name: scene.name, originalID: scene.id, scope: "household") }
+        #expect(home.automationDocument == draft)
+        try home.upsertScene(scene.raw, collection: "immediate_scenes", name: scene.name, originalID: scene.id, scope: "unassigned")
+        metadata = try #require(home.automationDocument?["scene_metadata"].values.first)
+        #expect(metadata["room"] == .null && metadata["scope"] == .null)
     }
 
     @Test func readOnlyActivityColorsSceneWithoutChangingItsAction() {
