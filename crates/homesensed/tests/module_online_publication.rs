@@ -63,7 +63,7 @@ async fn pending_activation(address:SocketAddr,path:&str,body:Value)->Option<(u1
     let text=String::from_utf8(bytes).unwrap();let (header,body)=text.split_once("\r\n\r\n").unwrap();
     Some((header.split_whitespace().nth(1).unwrap().parse().unwrap(),serde_json::from_str(body).unwrap()))
 }
-async fn assert_retired_hap_light_absent(store:&IdentityStore,address:SocketAddr,controller:Uuid,signing:ed25519_dalek::SigningKey,graph:&Value) {
+async fn assert_hap_light_unavailable_without_feedback(store:&IdentityStore,address:SocketAddr,controller:Uuid,signing:ed25519_dalek::SigningKey,graph:&Value) {
     let config=store.load_config().await.unwrap();let id=config.device_id.to_string();let public=config.device_ed25519_keypair.verifying_key();
     let light=&graph["accessories"][1];let aid=light["aid"].as_u64().unwrap();
     let values=light["services"].as_array().unwrap().iter().flat_map(|service|service["characteristics"].as_array().unwrap()).filter(|c|(c["format"]=="bool" && c["perms"].as_array().unwrap().iter().any(|permission|permission=="ev")) || (c["format"]=="int" && c["unit"]=="percentage")).map(|c|c["iid"].as_u64().unwrap()).collect::<Vec<_>>();
@@ -74,7 +74,7 @@ async fn assert_retired_hap_light_absent(store:&IdentityStore,address:SocketAddr
         let request=format!("GET /characteristics?id={aid}.{},{}.{} HTTP/1.1\r\nHost: localhost\r\n\r\n",values[0],aid,values[1]);
         let (header,body)=session.request(&mut socket,request.as_bytes());assert!(header.starts_with("HTTP/1.1 207"),"{header}");
         let body:Value=serde_json::from_slice(&body).unwrap();let characteristics=body["characteristics"].as_array().unwrap();assert_eq!(characteristics.len(),2);
-        for value in characteristics {assert_eq!(value["status"],-70409);assert!(value.get("value").is_none(),"retired HAP light must not expose remembered state: {value}");}
+        for value in characteristics {assert!(value["status"]==-70402 || value["status"]==-70409,"{value}");assert!(value.get("value").is_none(),"unavailable HAP light must not expose remembered state: {value}");}
     }).await.unwrap();
 }
 
@@ -344,7 +344,7 @@ async fn exercise(omit: bool) {
     assert_eq!(initial_view["devices"][0]["observed"]["level"],11);
     let (old_session, old_graph) =
         read_hap(&identity, hap_address, controller, signing.clone()).await;
-    assert_eq!(old_graph["accessories"].as_array().unwrap().len(),1,"legacy light is not published");
+    assert_eq!(old_graph["accessories"].as_array().unwrap().len(),2,"logical light is published");
     let source = Uuid::new_v4();
     let candidate = Uuid::new_v4();
     let mut source_devices = devices.clone();
@@ -383,7 +383,7 @@ async fn exercise(omit: bool) {
         assert_ne!(outcome["outcome"],"activated","missing unbound channel cannot open readiness");
         assert!(!activation_request.is_finished(),"partial feedback cannot acknowledge activation");
         assert!(!service.is_finished());
-        assert_retired_hap_light_absent(&identity,hap_address,controller,signing,&retired_graph).await;
+        assert_hap_light_unavailable_without_feedback(&identity,hap_address,controller,signing,&retired_graph).await;
         tokio::time::sleep(Duration::from_millis(100)).await;
         assert!(!service.is_finished(),"partial feedback must not end the six-second window early");
         outage::assert_gated(web,TOKEN,"3","light").await;
@@ -441,9 +441,9 @@ async fn exercise(omit: bool) {
         assert_eq!(view["devices"][0]["observed"]["level"], 44);
         let (fresh_session, fresh_graph) =
             read_hap(&identity, hap_address, controller, signing).await;
-        assert_eq!(fresh_graph["accessories"].as_array().unwrap().len(),1);
+        assert_eq!(fresh_graph["accessories"].as_array().unwrap().len(),2);
         assert_eq!(bridge_ids(&fresh_graph), bridge_ids(&old_graph));
-        assert_eq!(identifier_rows(&directory.join("identity/identity.sqlite")),old_identifiers,"retired light AID/IIDs remain reserved");
+        assert_eq!(identifier_rows(&directory.join("identity/identity.sqlite")),old_identifiers,"light AID/IIDs remain stable");
         // No retired light handle can leak the obsolete address's 99%.
         // Confirm the remapped value through the native device API instead.
         assert_eq!(view["devices"][0]["observed"]["level"],44,"old-address99 must not reach native state");

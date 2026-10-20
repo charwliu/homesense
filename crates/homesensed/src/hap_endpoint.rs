@@ -135,16 +135,17 @@ impl Endpoint {
             .map_err(|e| format!("{e:?}"))?;
         let document = bundle.automation.as_ref().ok_or("automation missing")?;
         settings.validate(&bundle.configuration, document)?;
-        if selected_lights.as_ref().is_some_and(|lights| !lights.is_empty()) || !selected_panels.is_empty() {
-            log::warn!("HAP ignores legacy light and panel selections; only scenes and curtains are published");
+        if !selected_panels.is_empty() {
+            log::warn!("HAP ignores legacy panel selections");
         }
-        let lights = crate::runtime_hap::RuntimeHap::new_selected(
+        let lights = crate::runtime_hap::RuntimeHap::new_selected_with_control(
             &bundle.configuration,
             initial.clone(),
             identity,
             admission.clone(),
             bundle.configuration.refresh_policy().observation_max_age_ms(),
-            Some(std::collections::BTreeSet::new()),
+            selected_lights,
+            Some(runtime.control()),
         )
         .await?;
         let authorization = identity.clone();
@@ -178,9 +179,7 @@ impl Endpoint {
                 move |id,_|authorization.controller_is_paired(id).unwrap_or(false),
             ).await?)
         };
-        // HAP presents only scenes and native window coverings. Legacy plan
-        // light/panel selections are accepted for identity continuity but are
-        // never exposed as accessories.
+        // HAP presents logical lights, scenes and native window coverings.
         let mut graph = crate::unified_hap::UnifiedHap { lights, scenes, motors:None, window_coverings, away:None };
         let config = identity.load_config().await.map_err(|e| e.to_string())?;
         let server = if settings.address.ip().is_loopback() {

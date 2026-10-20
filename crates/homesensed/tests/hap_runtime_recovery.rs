@@ -73,14 +73,14 @@ fn hap_graph(
     assert!(header.starts_with("HTTP/1.1 200"), "{header}");
     let graph: Value = serde_json::from_slice(&body).unwrap();
     let accessories = graph["accessories"].as_array().unwrap();
-    assert_eq!(accessories.len(), 3); // bridge, scene action, scene activity
+    assert_eq!(accessories.len(), 4); // bridge, light, scene action, scene activity
     assert!(accessories.iter().any(|a| a["aid"] == scene_aid));
     assert!(
-        !accessories
+        accessories
             .iter()
             .flat_map(|a| a["services"].as_array().unwrap())
             .any(|s| s["type"] == "43")
-    ); // no lightbulb
+    );
     if run_scene {
         let body =
             json!({"characteristics":[{"aid":scene_aid,"iid":scene_iid,"value":true}]}).to_string();
@@ -94,7 +94,7 @@ fn hap_graph(
 }
 
 #[tokio::test]
-async fn paired_scene_survives_gateway_recovery_without_light_publication_or_replay() {
+async fn paired_scene_and_light_survive_gateway_recovery_without_replay() {
     let root = std::env::temp_dir().join(format!("homesense-scene-recovery-{}", Uuid::new_v4()));
     std::fs::create_dir(&root).unwrap();
     let bus = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();

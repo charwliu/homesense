@@ -51,7 +51,7 @@ pub async fn prepare(
             name: bridge.name.clone(),
             settings,
             identity,
-            lights: bridge.lights.iter().cloned().collect(),
+            lights: bridge.selected_lights(config),
             panels: bridge.panels.clone(),
         });
     }

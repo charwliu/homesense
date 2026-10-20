@@ -201,8 +201,9 @@ async fn paired_hap_retires_implicit_away_and_rejects_its_old_handle() {
         assert!(header.starts_with("HTTP/1.1 200"));
         let graph: Value = serde_json::from_slice(&body).unwrap();
         let accessories = graph["accessories"].as_array().unwrap();
-        assert_eq!(accessories.len(), 1, "no implicit light or Away accessory");
+        assert!(accessories.len() > 1, "logical lights are published");
         assert_eq!(accessories[0]["aid"], 1);
+        assert!(accessories.iter().flat_map(|a|a["services"].as_array().unwrap()).any(|service|service["type"]=="43"));
         for value in [false, true] {
             let response = request(&mut session, &mut stream,
                 json!([{"aid":retired_away.aid,"iid":retired_away.on_iid,"value":value}]));
