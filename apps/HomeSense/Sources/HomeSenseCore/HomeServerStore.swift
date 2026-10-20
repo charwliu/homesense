@@ -58,6 +58,7 @@ public final class HomeServerStore: ObservableObject {
     private func showSceneAction(_ id: String, requestID: String, selected: Bool?) {
         guard scenes.contains(where: { $0.id == id }) else { return }
         let hint = HomeSceneActionPresentation(requestID: requestID, selected: selected)
+        guard sceneActionHints[id] != hint else { return }
         sceneActionHints[id] = hint
         let generation = epoch
         Task { [weak self] in
@@ -67,13 +68,16 @@ public final class HomeServerStore: ObservableObject {
         }
     }
     private func clearSceneAction(_ requestID: String) {
-        sceneActionHints = sceneActionHints.filter { $0.value.requestID != requestID }
+        let next = sceneActionHints.filter { $0.value.requestID != requestID }
+        if next != sceneActionHints { sceneActionHints = next }
     }
     private func reconcileSceneActions() {
-        sceneActionHints = sceneActionHints.filter { id, hint in
+        guard !sceneActionHints.isEmpty else { return }
+        let next = sceneActionHints.filter { id, hint in
             guard let scene = scenes.first(where: { $0.id == id }) else { return false }
             return hint.selected.map { scene.raw["selected"] != .bool($0) } ?? true
         }
+        if next != sceneActionHints { sceneActionHints = next }
     }
     @Published public private(set) var moduleInventory: [HomePhysicalModule] = []
     @Published public private(set) var loadingModules = false
@@ -83,6 +87,7 @@ public final class HomeServerStore: ObservableObject {
     private var moduleInventoryBoot = ""
     private var moduleInventoryReady = false
     @Published public private(set) var unifiedKeypadActionsSupported = false
+    @Published public private(set) var scenePlacementSupported = false
     @Published private var keypadActivationState = HomeKeypadActivationState()
     private var keypadActivationContext: HomeKeypadActivationState.Context?
     private struct PendingKeypadActivation {
@@ -129,6 +134,7 @@ public final class HomeServerStore: ObservableObject {
     private let eventTransport: any HomeEventTransport
     private var eventTask: Task<Void, Never>?
     private var eventsWanted = true
+    private var applicationActive = true
     private var eventEpoch = UUID()
     private var stateSerial: UInt64 = 0
     private var snapshotBoot = ""
@@ -165,11 +171,21 @@ public final class HomeServerStore: ObservableObject {
         guard rooms.contains(where: { $0.id == id }) else { return [] }
         return dailyActuators.filter { $0.roomID == id }
     }
-    /// Only explicit, currently visible room associations affect navigation.
-    /// Missing/unknown rooms stay reachable in the household overview.
+    /// Only an explicit household scope is a whole-home scene. Old backends
+    /// and unresolved rooms remain reachable in the separate unassigned list.
     public var householdScenes: [HomeRecord] {
+        scenes.filter { $0.roomID == nil && $0.raw["scope"].text == "household" }
+    }
+    public var unassignedScenes: [HomeRecord] {
         let ids = Set(rooms.map(\.id))
-        return scenes.filter { scene in scene.roomID.map { !ids.contains($0) } ?? true }
+        return scenes.filter { scene in
+            if let room = scene.roomID { return !ids.contains(room) }
+            return scene.raw["scope"].text != "household"
+        }
+    }
+    public func scenePlacementTitle(_ scene: HomeRecord, editing: Bool = false) -> String {
+        if let room = (editing ? editableRooms : rooms).first(where: { $0.id == scene.roomID }) { return room.name }
+        return scene.roomID == nil && scene.raw["scope"].text == "household" ? "全屋场景" : "待分配场景"
     }
     public func scenes(inRoom id: String) -> [HomeRecord] {
         guard rooms.contains(where: { $0.id == id }) else { return [] }
@@ -179,15 +195,16 @@ public final class HomeServerStore: ObservableObject {
         let roomNames = Dictionary(uniqueKeysWithValues: rooms.map { ($0.id, $0.name) })
         var order: [String] = [], groups: [String: [HomeRecord]] = [:], seen = Set<String>()
         for scene in records where !scene.id.isEmpty && seen.insert(scene.id).inserted {
-            let room = scene.roomID.flatMap { roomNames[$0] == nil ? nil : $0 } ?? ""
-            if groups[room] == nil { order.append(room) }
-            groups[room, default: []].append(scene)
+            let key = scene.roomID.flatMap { roomNames[$0] == nil ? nil : "room:\($0)" }
+                ?? (scene.roomID == nil && scene.raw["scope"].text == "household" ? "household" : "unassigned")
+            if groups[key] == nil { order.append(key) }
+            groups[key, default: []].append(scene)
         }
-        return order.flatMap { room -> [HomeScenePanel] in
-            let rows = groups[room] ?? [], pageCount = (rows.count + 5) / 6
+        return order.flatMap { key -> [HomeScenePanel] in
+            let rows = groups[key] ?? [], pageCount = (rows.count + 5) / 6
             return stride(from: 0, to: rows.count, by: 6).map { start in
-                HomeScenePanel(id: "\(room.isEmpty ? "household" : "room:" + room):page:\(start / 6)",
-                    title: roomNames[room].map { "\($0)场景" } ?? "全屋与未分配场景",
+                HomeScenePanel(id: "\(key):page:\(start / 6)",
+                    title: key.hasPrefix("room:") ? "\(roomNames[String(key.dropFirst(5))] ?? "")场景" : (key == "household" ? "全屋场景" : "待分配场景"),
                     page: start / 6 + 1, pageCount: pageCount,
                     scenes: Array(rows[start..<min(start + 6, rows.count)]))
             }
@@ -209,7 +226,7 @@ public final class HomeServerStore: ObservableObject {
         return candidates.filter { !represented.contains($0.id) }
     }
     public var snapshotIsCurrent: Bool {
-        connected && (eventsWanted ? receivingPush : capturedAt.map { Date().timeIntervalSince($0) < 10 } == true)
+        applicationActive && connected && (eventsWanted ? receivingPush : capturedAt.map { Date().timeIntervalSince($0) < 10 } == true)
     }
     public var availableInterfaceModes: [HomeInterfaceMode] { canManage ? [.daily, .management] : [.daily] }
     public var hasSavedCredential: Bool {
@@ -217,7 +234,7 @@ public final class HomeServerStore: ObservableObject {
         return savedCredentialOrigin == origin
     }
     public func restoreSavedConnection() async {
-        guard !busy, !connected, !restoringCredential else { return }
+        guard applicationActive, !busy, !connected, !restoringCredential else { return }
         let generation = epoch, restore = UUID()
         restoreGeneration = restore; restoringCredential = true
         defer { if restoreGeneration == restore { restoringCredential = false } }
@@ -288,6 +305,7 @@ public final class HomeServerStore: ObservableObject {
                 let metadata = automationDocument["scene_metadata"].values.first { $0["id"] == scene["id"] }
                 row["name"] = metadata?["name"] ?? scene["id"]
                 row["room"] = metadata?["room"] ?? .null
+                row["scope"] = metadata?["scope"] ?? .null
                 return HomeRecord(row)
             }
         }
@@ -369,6 +387,7 @@ public final class HomeServerStore: ObservableObject {
         token = nil; endpoint = nil; connected = false; canManage = false; ordinaryBusy = false
         priorityMotorStops = []; priorityStopGeneration = UUID(); latestPriorityMessage = nil
         unifiedKeypadActionsSupported = false
+        scenePlacementSupported = false
         devices = []; rooms = []; scenes = []; drafts = []; serverFloors = []; capturedAt = nil; revision = ""
         snapshotBoot = ""; synchronization = "未连接"
         deviceDocument = nil; automationDocument = nil; preview = nil; draftID = nil
@@ -391,8 +410,15 @@ public final class HomeServerStore: ObservableObject {
     }
     public func resume() {
         eventsWanted = true
+        guard applicationActive else { return }
         if savedRecoveryOrigin != nil { restoringCredential = true }
         startEvents()
+    }
+    /// Independent of view/sheet lifecycle. A dismissal callback cannot reopen
+    /// the socket or credential recovery while the application is backgrounded.
+    public func setApplicationActive(_ active: Bool) {
+        applicationActive = active
+        if !active { pause() }
     }
     private static func canRetryConnection(_ error: Error) -> Bool {
         if error is HomeRetryableResponse { return true }
@@ -401,7 +427,7 @@ public final class HomeServerStore: ObservableObject {
                 .timedOut, .cannotFindHost, .dnsLookupFailed].contains(error.code)
     }
     private func startEvents() {
-        guard eventsWanted, connected || savedRecoveryOrigin != nil, eventTask == nil else { return }
+        guard applicationActive, eventsWanted, connected || savedRecoveryOrigin != nil, eventTask == nil else { return }
         let generation = eventEpoch
         let recovering = !connected
         eventTask = Task { [weak self] in
@@ -512,19 +538,28 @@ public final class HomeServerStore: ObservableObject {
             guard case .array(let rows) = frame["away_operations"], rows.count <= 8 else { throw HomeServerError.invalidResponse }
             nextAway = try rows.map { try HomeAwayOperation($0, boot: boot, revision: version) }
         }
-        devices = next; scenes = nextScenes; eventCursor = cursor
+        let changed = devices != next || scenes != nextScenes || awayOperations != nextAway
+        if devices != next { devices = next }
+        // Device feedback and keep-alive frames need not invalidate unchanged
+        // scene controls. Still accept scene changes on the same event cursor.
+        if scenes != nextScenes { scenes = nextScenes }
+        eventCursor = cursor
         applyCommunicationAlerts()
         synchronizeUnifiedKeypadContext()
         updateUnifiedKeypadHints(incoming, seedEvents: frame["reset"].flag, clearCues: frame["reset"].flag)
-        awayOperations = nextAway
+        if awayOperations != nextAway { awayOperations = nextAway }
         reconcileSceneActions()
-        stateSerial &+= 1; capturedAt = Date(); receivingPush = true
-        synchronization = "服务端实时推送"
+        // Even duplicate frames fence out a delayed HTTP response, without
+        // publishing a new timestamp or invalidating every view in the app.
+        stateSerial &+= 1
+        if changed || !receivingPush { capturedAt = Date() }
+        if !receivingPush { receivingPush = true }
+        if synchronization != "服务端实时推送" { synchronization = "服务端实时推送" }
     }
     private func applyCommunicationAlerts() {
         let next = HomeCommunicationAlerts.message(for: devices)
-        if let next { error = next }
-        else if error == pushedCommunicationError { error = nil }
+        if let next { if error != next { error = next } }
+        else if pushedCommunicationError != nil, error == pushedCommunicationError { error = nil }
         pushedCommunicationError = next
     }
     public func refresh() async {
@@ -559,7 +594,8 @@ public final class HomeServerStore: ObservableObject {
         try Task.checkCancellation()
         guard serial == stateSerial else { return }
         if revision != version || snapshotBoot != d["boot"].text { clearModuleInventory(); clearUnifiedKeypadState() }
-        revision = version; devices = nextDevices; rooms = nextRooms; scenes = nextScenes
+        revision = version; devices = nextDevices; rooms = nextRooms
+        if scenes != nextScenes { scenes = nextScenes }
         applyCommunicationAlerts()
         serverFloors = r["floors"].values.compactMap(\.text)
         snapshotBoot = d["boot"].text ?? ""
@@ -730,6 +766,7 @@ public final class HomeServerStore: ObservableObject {
         return outcome
     }
     private func updateUnifiedKeypadCapability(_ session: HomeJSON) {
+        scenePlacementSupported = session["capabilities"]["scene_placement"]["version"].integerText == "1"
         let supported = HomeKeypadActionCapability.supported(session["capabilities"]["keypad_actions"])
         if unifiedKeypadActionsSupported && !supported { clearUnifiedKeypadState() }
         unifiedKeypadActionsSupported = supported
@@ -750,14 +787,15 @@ public final class HomeServerStore: ObservableObject {
     private func keypadEventID(_ panel: String, _ number: Int) -> String { "\(panel.utf8.count):\(panel):\(number)" }
     private func updateUnifiedKeypadHints(_ records: [HomeRecord], seedEvents: Bool, clearCues: Bool = false) {
         guard unifiedKeypadActionsSupported, let context = keypadActivationContext else { return }
+        var nextActivationState = keypadActivationState
         for panel in records where panel.raw["kind"].text == "Keypad" {
             for raw in panel.raw["keys"].values {
                 guard let number = raw["number"].integerText.flatMap(Int.init), (1...6).contains(number),
                       let endpoint = raw["endpoint_id"].text, !endpoint.isEmpty else { continue }
                 if raw["indication"] == .null {
-                    keypadActivationState.clearHint(panel.id, key: number, context: context)
+                    nextActivationState.clearHint(panel.id, key: number, context: context)
                 } else if let cue = try? HomeKeypadActionIndication(raw["indication"], endpoint: endpoint, boot: context.boot) {
-                    let merged = keypadActivationState.merge(cue, panel: panel.id, key: number, endpoint: endpoint, context: context)
+                    let merged = nextActivationState.merge(cue, panel: panel.id, key: number, endpoint: endpoint, context: context)
                     let eventID = keypadEventID(panel.id, number)
                     if seedEvents { sceneCueVersions[eventID] = max(sceneCueVersions[eventID] ?? 0, cue.operationSequence) }
                     if !seedEvents, !clearCues, merged, cue.operationSequence >= (sceneCueVersions[eventID] ?? 0) {
@@ -769,9 +807,9 @@ public final class HomeServerStore: ObservableObject {
                             } else { clearSceneAction(cue.requestID) }
                         }
                     } else if merged, ![.pending, .written].contains(cue.status) { clearSceneAction(cue.requestID) }
-                    if clearCues { keypadActivationState.clearHint(panel.id, key: number, context: context) }
+                    if clearCues { nextActivationState.clearHint(panel.id, key: number, context: context) }
                 } else {
-                    keypadActivationState.clearHint(panel.id, key: number, context: context)
+                    nextActivationState.clearHint(panel.id, key: number, context: context)
                 }
                 let eventID = keypadEventID(panel.id, number), event = raw["key_event"]
                 if seedEvents { keypadEventStates.removeValue(forKey: eventID) }
@@ -783,6 +821,7 @@ public final class HomeServerStore: ObservableObject {
                 keypadEventVersions[eventID] = max(keypadEventVersions[eventID] ?? 0, version)
             }
         }
+        if nextActivationState != keypadActivationState { keypadActivationState = nextActivationState }
     }
     public func keypadActionPresentation(_ panel: String, key: Int) -> HomeKeypadActionPresentation? {
         keypadActivationState.presentation(panel, key: key)
@@ -1292,7 +1331,7 @@ public final class HomeServerStore: ObservableObject {
         document["keypads"] = .array(document["keypads"].values.filter { $0["id"].text != id })
         deviceDocument = document; edited()
     }
-    public func upsertScene(_ row: HomeJSON, collection: String, name: String, originalID: String? = nil, room: String? = nil) throws {
+    public func upsertScene(_ row: HomeJSON, collection: String, name: String, originalID: String? = nil, room: String? = nil, scope: String? = nil) throws {
         try requireEditable(); try validateLabel(name)
         guard ["immediate_scenes", "timed_scenes"].contains(collection), row.isObject,
               let id = row["id"].text, var document = automationDocument else { throw HomeServerError.invalidDocument }
@@ -1305,7 +1344,7 @@ public final class HomeServerStore: ObservableObject {
         }
         var rows = document[collection].values
         // Presentation fields belong only to scene_metadata, never to programs.
-        let definition = row.removing(["name", "collection", "room"])
+        let definition = row.removing(["name", "collection", "room", "scope"])
         if let index = rows.firstIndex(where: { $0["id"].text == id }) { rows[index] = definition } else { rows.append(definition) }
         document[collection] = .array(rows)
         var entry = document["scene_metadata"].values.first { $0["id"].text == id } ?? .object([:])
@@ -1315,10 +1354,22 @@ public final class HomeServerStore: ObservableObject {
         if let room {
             if room.isEmpty { entry = entry.removing(["room"]) }
             else { entry["room"] = .string(room) }
+            entry["scope"] = .string(room.isEmpty ? "unassigned" : "room")
         }
+        if let scope {
+            guard ["room", "household", "unassigned"].contains(scope) else { throw HomeServerError.invalidDocument }
+            if scope == "household" && !scenePlacementSupported {
+                throw HomeServerError.server("当前服务暂不支持设置全屋归属")
+            }
+            if scope == "room" {
+                guard let room = entry["room"].text, editableRooms.contains(where: { $0.id == room }) else { throw HomeServerError.invalidDocument }
+            } else { entry = entry.removing(["room"]) }
+            entry["scope"] = .string(scope)
+        }
+        if (room != nil || scope != nil) && !scenePlacementSupported { entry = entry.removing(["scope"]) }
         var metadata = document["scene_metadata"].values.filter { $0["id"].text != id }
         metadata.append(entry)
-        if let room {
+        if room != nil || scope != nil {
             // The server declares this relationship by IDs. Keep a public
             // action and its internal selection profile in the same room;
             // equal display names are never a relationship.
@@ -1327,7 +1378,9 @@ public final class HomeServerStore: ObservableObject {
             }.flatMap { [$0["scene"].text, $0["selection_scene"].text].compactMap { $0 } }
             for peer in Set(peers) where peer != id {
                 var value = metadata.first { $0["id"].text == peer } ?? .object(["id": .string(peer), "name": .string(peer)])
-                if room.isEmpty { value = value.removing(["room"]) } else { value["room"] = .string(room) }
+                if let room = entry["room"].text { value["room"] = .string(room) } else { value = value.removing(["room"]) }
+                if scenePlacementSupported { value["scope"] = entry["scope"] }
+                else { value = value.removing(["scope"]) }
                 metadata.removeAll { $0["id"].text == peer }; metadata.append(value)
             }
         }

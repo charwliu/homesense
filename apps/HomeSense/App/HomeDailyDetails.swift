@@ -440,7 +440,7 @@ struct HomeSceneDetails: View {
             Form {
                 if let scene = home.scenes.first(where: { $0.id == sceneID }) {
                     Section("场景状态") {
-                        LabeledContent("房间", value: home.rooms.first(where: { $0.id == scene.roomID })?.name ?? "全屋／未分配")
+                        LabeledContent("归属", value: home.scenePlacementTitle(scene))
                         if let status = scene.targetAvailability.description { Text(status).foregroundStyle(.secondary) }
                         Text("\(home.snapshotIsCurrent && scene.targetAvailable ? "负载反馈" : "历史负载反馈")：\(scene.sceneActivityDescription)")
                         if scene.raw["switch_kind"].text == "selection" {

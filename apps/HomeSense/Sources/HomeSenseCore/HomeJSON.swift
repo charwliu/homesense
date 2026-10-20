@@ -128,6 +128,36 @@ public extension HomeRecord {
     }
 }
 
+/// Only visible scene-key inputs participate in SwiftUI equality. Readback
+/// timestamps and unrelated device updates must not redraw an unchanged key.
+public struct HomeSceneCardState: Equatable, Sendable {
+    public let id: String
+    public let name: String
+    public let action: HomeSceneCardAction
+    public let available: Bool
+    public let current: Bool
+    public let pending: HomeSceneActionPresentation?
+    public let selected: Bool
+    public let selectionDescription: String?
+    public let activityDescription: String
+
+    public init(scene: HomeRecord, current: Bool, available: Bool, pending: HomeSceneActionPresentation?) {
+        id = scene.id; name = scene.name; action = scene.sceneCardAction
+        self.current = current; self.available = available; self.pending = pending
+        selected = pending?.selected ?? (scene.sceneCardConfirmedActive == true)
+        selectionDescription = scene.raw["switch_kind"].text == "selection"
+            ? "· \(current ? "选择" : "历史选择")\(selected ? "已选" : scene.raw["selected"] == .bool(false) ? "未选" : "未知")" : nil
+        let activity: String
+        switch scene.raw["activity"].text {
+        case "Active": activity = "匹配"
+        case "Inactive": activity = "未匹配"
+        case "Pending": activity = "待确认"
+        default: activity = "未知"
+        }
+        activityDescription = "\(current ? "负载" : "历史负载")：\(activity)"
+    }
+}
+
 public enum HomeServerError: LocalizedError {
     case invalidEndpoint, notAuthenticated, denied, invalidDocument, invalidResponse
     case staleConfiguration, missingAutomation, revisionOverflow, server(String), expiredRequest

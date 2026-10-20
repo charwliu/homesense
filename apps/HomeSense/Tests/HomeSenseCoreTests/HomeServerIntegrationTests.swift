@@ -143,8 +143,8 @@ struct HomeServerIntegrationTests {
         try home.addFloor("空楼层")
         try home.upsertRoom(id: "native-study", name: "原生客户端测试房间", floor: "测试楼层")
         let existingScene = try #require(home.editableScenes.first { $0.id == "simulation-evening" })
-        let originalProgram = existingScene.raw.removing(["name", "collection", "room"])
-        #expect(home.householdScenes.contains { $0.id == existingScene.id })
+        let originalProgram = existingScene.raw.removing(["name", "collection", "room", "scope"])
+        #expect(home.unassignedScenes.contains { $0.id == existingScene.id })
         try home.upsertScene(existingScene.raw, collection: "immediate_scenes", name: "房间内原有场景", originalID: existingScene.id, room: "native-study")
         var device = try #require(home.editableDevices.first).raw
         device["room"] = .string("native-study")
@@ -169,11 +169,12 @@ struct HomeServerIntegrationTests {
         #expect(home.editableRooms.first?.name == "原生客户端测试房间")
         #expect(home.editableDevices.first?.raw["room"].text == "native-study")
         #expect(home.editableScenes.contains { $0.id == "native-scene" && $0.name == "原生测试场景" })
-        #expect(home.editableScenes.first { $0.id == existingScene.id }?.raw.removing(["name", "collection", "room"]) == originalProgram)
+        #expect(home.editableScenes.first { $0.id == existingScene.id }?.raw.removing(["name", "collection", "room", "scope"]) == originalProgram)
         #expect(home.editableScenes.first { $0.id == "native-scene" }?.roomID == "native-study")
         #expect(home.scenes(inRoom: "native-study").contains { $0.id == existingScene.id })
-        #expect(!home.householdScenes.contains { $0.id == existingScene.id })
+        #expect(!home.unassignedScenes.contains { $0.id == existingScene.id })
         let roomDTO = try #require(home.scenes.first { $0.id == existingScene.id }).raw["room"]
+        if home.scenePlacementSupported { #expect(home.scenes.first { $0.id == existingScene.id }?.raw["scope"].text == "room") }
         #expect(roomDTO["id"].text == "native-study" && roomDTO["name"].text == "原生客户端测试房间" && roomDTO["floor"].text == "测试楼层")
         #expect(home.serverFloors.contains("空楼层"))
         home.resume()

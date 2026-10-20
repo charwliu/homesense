@@ -16,13 +16,23 @@ struct HomeSenseApp: App {
                     .tabItem { Label("本地调试", systemImage: "wrench.and.screwdriver") }.tag(1)
             }
                 .tint(.teal)
-                .task { await home.restoreSavedConnection() }
+                .task {
+                    home.setApplicationActive(phase != .background && tab == 0)
+                    await home.restoreSavedConnection()
+                }
                 .onChange(of: tab) { _, tab in
+                    home.setApplicationActive(phase != .background && tab == 0)
                     if tab == 0 { home.resume() } else { home.pause() }
                 }
                 .onChange(of: phase) { _, phase in
-                    if phase == .background { session.disconnect(); home.pause() }
-                    else if phase == .active, tab == 0 { home.resume() }
+                    if phase == .background { session.disconnect(); home.setApplicationActive(false) }
+                    else if phase == .active {
+                        home.setApplicationActive(tab == 0)
+                        if tab == 0 {
+                            home.resume()
+                            Task { await home.restoreSavedConnection() }
+                        }
+                    }
                 }
         }
         #if os(macOS)

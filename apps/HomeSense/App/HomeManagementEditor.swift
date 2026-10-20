@@ -9,6 +9,7 @@ struct HomeManagementEditor: View {
     @State private var name: String
     @State private var floor: String
     @State private var room: String
+    @State private var sceneScope: String
     @State private var enabled: Bool
     @State private var module: String
     @State private var gateway: String
@@ -29,6 +30,7 @@ struct HomeManagementEditor: View {
         _name = State(initialValue: request.floor ?? raw["name"].text ?? "")
         _floor = State(initialValue: raw["floor"].text ?? "")
         _room = State(initialValue: raw["room"].text ?? "")
+        _sceneScope = State(initialValue: raw["room"].text != nil ? "room" : (raw["scope"].text == "household" ? "household" : "unassigned"))
         _enabled = State(initialValue: raw["enabled"].flag)
         _module = State(initialValue: raw["module_id"].text ?? "")
         _gateway = State(initialValue: raw["gateway"].text ?? "")
@@ -37,7 +39,7 @@ struct HomeManagementEditor: View {
         _review = State(initialValue: raw["review_evidence"].text ?? "")
         let scene: HomeJSON = request.record == nil
             ? .object(["id": .string(newID), "enabled": .bool(false), "review_evidence": .string(""), "activate": .array([])])
-            : raw.removing(["name", "collection", "room"])
+            : raw.removing(["name", "collection", "room", "scope"])
         _definition = State(initialValue: scene.formatted)
     }
     private var collection: String { request.record?.raw["collection"].text ?? "immediate_scenes" }
@@ -123,16 +125,26 @@ struct HomeManagementEditor: View {
     }
     private var sceneFields: some View {
         Group {
-            Section("所属房间") {
-                Picker("房间", selection: $room) {
-                    Text("全屋／未分配").tag("")
-                    if !room.isEmpty && !home.editableRooms.contains(where: { $0.id == room }) {
-                        Text("原房间不可用（\(room)）").tag(room)
-                    }
-                    ForEach(home.editableRooms) { Text($0.name).tag($0.id) }
+            Section("场景归属") {
+                Picker("归属类型", selection: $sceneScope) {
+                    Text("对应房间").tag("room")
+                    Text("全屋场景").tag("household").disabled(!home.scenePlacementSupported)
+                    Text("待分配场景").tag("unassigned")
                 }
-                Text("全屋或暂未确认归属的场景留空，在家庭概览查看。")
+                if sceneScope == "room" {
+                    Picker("房间", selection: $room) {
+                        Text("请选择房间").tag("")
+                        if !room.isEmpty && !home.editableRooms.contains(where: { $0.id == room }) {
+                            Text("原房间不可用（\(room)）").tag(room)
+                        }
+                        ForEach(home.editableRooms) { Text($0.name).tag($0.id) }
+                    }
+                }
+                Text("明确的房间场景放入对应房间；全屋场景与尚未确认的场景分别展示。")
                     .font(.caption).foregroundStyle(.secondary)
+                if !home.scenePlacementSupported {
+                    Text("当前服务暂不支持设置全屋归属。").font(.caption).foregroundStyle(.secondary)
+                }
             }
             Section("场景设置") {
                 Toggle("启用场景", isOn: $enabled)
@@ -227,7 +239,8 @@ struct HomeManagementEditor: View {
                 if !review.isEmpty { scene["review_evidence"] = .string(review) }
                 else if collection == "immediate_scenes" { throw HomeServerError.server("请填写场景审核依据") }
                 else { scene = scene.removing(["review_evidence"]) }
-                try home.upsertScene(scene, collection: collection, name: name, originalID: request.record?.id, room: room)
+                try home.upsertScene(scene, collection: collection, name: name, originalID: request.record?.id,
+                                     room: sceneScope == "room" ? room : "", scope: sceneScope)
             default: throw HomeServerError.invalidDocument
             }
             dismiss()
