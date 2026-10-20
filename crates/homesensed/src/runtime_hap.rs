@@ -28,6 +28,7 @@ fn logical_command(
     logical_ids:&std::collections::BTreeSet<homesense_core::DeviceId>,
 ) -> Result<Option<LogicalCommand>,hap::server::WriteStatus> {
     use hap::server::WriteStatus;
+    if intents.len() > crate::joint_light::MAX_JOINT_LIGHTS {return Err(WriteStatus::InvalidValueInRequest);}
     if !intents.iter().any(|(id,_)|logical_ids.contains(id)){return Ok(None);}
     if intents.iter().any(|(_,command)|!matches!(command,homesense_core::Command::Switch(_)|homesense_core::Command::SetLevel{transition:homesense_core::LevelTransition::Immediate,..})) {
         return Err(WriteStatus::InvalidValueInRequest);
@@ -902,6 +903,14 @@ mod unavailable_publication_tests;
 #[cfg(test)]
 mod logical_write_tests {
     use super::*;
+    #[test]
+    fn combinations_above_ten_are_rejected_for_both_logical_and_ordinary_lights() {
+        let intents=(0..11).map(|n|(homesense_core::DeviceId::new(format!("light-{n}")).unwrap(),homesense_core::Command::Switch(true))).collect::<Vec<_>>();
+        for protected in [std::collections::BTreeSet::new(),std::collections::BTreeSet::from([intents[0].0.clone()])] {
+            assert!(matches!(logical_command(&intents,&protected),Err(hap::server::WriteStatus::InvalidValueInRequest)));
+            assert!(logical_command(&intents[..10],&protected).is_ok());
+        }
+    }
     #[test]
     fn shared_resource_hap_write_routes_mixed_batch_to_one_joint_owner() {
         let logical=homesense_core::DeviceId::new("composed").unwrap();

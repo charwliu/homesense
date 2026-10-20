@@ -319,7 +319,7 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
         let refs = tickets.iter().map(|t| &t.frame).collect::<Vec<_>>();
         let written = result.as_ref().map_or_else(
             |e| e.bytes_written,
-            |_| refs.iter().map(|f| f.encoded_len()).sum(),
+            |_| hb_transport::encoded_batch_len(&refs).unwrap_or(usize::MAX),
         );
         let progress = hb_transport::operation_progress(&refs, written)
             .ok_or("invalid batch byte progress")?;
@@ -798,7 +798,8 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
             result,
             projection_cancelled,
             completed: completed.clone(),
-            physical_frames: tickets.iter().map(|t| t.frame.physical_frames()).sum(),
+            physical_frames: hb_transport::encoded_batch_len(&tickets.iter().map(|t| &t.frame).collect::<Vec<_>>())
+                .ok_or("invalid completed transport batch")? / hb_protocol::FRAME_LEN,
             refresh_schedule: tickets.iter()
                 .filter(|t| t.command.command!=homesense_core::Command::Query && completed.iter().any(|(id,_)|*id==t.command.id))
                 .flat_map(|t|t.refresh_devices.iter().cloned().map(|id|(id,t.ramp_confirmation))).collect(),

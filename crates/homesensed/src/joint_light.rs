@@ -11,6 +11,9 @@ use homesense_hap::requests::{Batch, Intent};
 use std::collections::{BTreeMap, BTreeSet};
 use uuid::Uuid;
 
+/// Client light combinations are deliberately small; large absolute operations use scenes.
+pub(crate) const MAX_JOINT_LIGHTS: usize = 10;
+
 #[derive(Debug)]
 pub(crate) enum Error {
     Invalid(String),
@@ -102,7 +105,7 @@ pub(crate) async fn prepare(
     feedback: &Feedback,
     max_age_ms: u64,
 ) -> Result<Prepared, Error> {
-    if intents.is_empty() || intents.len() > 128 {
+    if intents.is_empty() || intents.len() > MAX_JOINT_LIGHTS {
         return Err("joint light request bound invalid".into());
     }
     let bundle = admission

@@ -100,6 +100,22 @@ pub fn encode_module_all_off(
     Ok(RawFrame { address: module.address().get(), command: 0, value })
 }
 
+/// Immediate full output. R8I8 PRO section 7.3 uses F1; AD8 section
+/// 7.3 uses 64 (100 percent), not the relay opcode. No broadcast address.
+/// A caller must prove that all eight ports are explicitly admitted On.
+pub fn encode_module_all_on(
+    module: &ModuleSpec,
+    context: ExecutionContext,
+) -> Result<RawFrame, ProtocolError> {
+    module.validate_context(context)?;
+    let value = match module.profile() {
+        homesense_core::ProtocolProfile::R8i8DinPro => 0xF1,
+        homesense_core::ProtocolProfile::Ad8Din => 100,
+        _ => return Err(ProtocolError::UnsupportedCommand),
+    };
+    Ok(RawFrame { address: module.address().get(), command: 0, value })
+}
+
 pub fn encode(
     module: &ModuleSpec,
     channel: Channel,
