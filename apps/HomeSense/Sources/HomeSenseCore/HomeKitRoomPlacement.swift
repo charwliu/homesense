@@ -3,6 +3,24 @@ import Foundation
 /// Pure planning only. Native HomeKit discovery and writes belong to the App.
 /// A serial number is scoped to an explicitly selected bridge, never global.
 public enum HomeKitRoomPlacement {
+    /// Ordinary HomeKit clients can read HMAccessory.model, but not its old
+    /// serial characteristic. Both wire fields encode the same stable AID.
+    /// A vendor AID, when available, must agree with an explicit model AID.
+    public static func nativeIdentity(manufacturer: String?, model: String?, vendorAID: UInt64? = nil) -> String? {
+        guard manufacturer == "HomeSense" else { return nil }
+        let prefix = "HomeSense-AID:"
+        var modelAID: UInt64?
+        if let model, model.hasPrefix(prefix) {
+            let value = String(model.dropFirst(prefix.count))
+            guard let aid = UInt64(value), aid > 1, String(aid) == value else { return nil }
+            modelAID = aid
+        }
+        if let vendorAID {
+            guard vendorAID > 1, modelAID == nil || modelAID == vendorAID else { return nil }
+            return "HS-\(vendorAID)"
+        }
+        return modelAID.map { "HS-\($0)" }
+    }
     public enum Kind: String, Codable, Hashable, Sendable { case light, scene, curtain }
 
     public struct Source: Codable, Hashable, Sendable {
@@ -127,7 +145,8 @@ public enum HomeKitRoomPlacement {
     }
 
     public static func preview(publication: Publication, inventory: Inventory,
-                               bridgeBindings: [String: UUID], roomBindings: [String: Destination]) throws -> Preview {
+                               bridgeBindings: [String: UUID], roomBindings: [String: Destination],
+                               unassignedRoom: UUID? = nil) throws -> Preview {
         guard !publication.boot.isEmpty, !publication.revision.isEmpty, !publication.generation.isEmpty,
               !publication.bridges.isEmpty, publication.bridges.count <= 8,
               Set(publication.bridges.map(\.id)).count == publication.bridges.count else {
@@ -168,12 +187,14 @@ public enum HomeKitRoomPlacement {
                     issues.append(Issue(source: source, reason: .accessoryNotDiscovered)); continue
                 }
                 guard nativeIDs.insert(accessory.id).inserted else { throw Failure.invalidInventory }
-                guard let room = published.roomID else {
-                    issues.append(Issue(source: source, reason: .unassignedRoom)); continue
-                }
-                guard let destination = roomBindings[room] else {
-                    issues.append(Issue(source: source, reason: .roomNotSelected)); continue
-                }
+                let destination: Destination
+                if let room = published.roomID {
+                    guard let selected = roomBindings[room] else {
+                        issues.append(Issue(source: source, reason: .roomNotSelected)); continue
+                    }
+                    destination = selected
+                } else if let unassignedRoom { destination = .existing(unassignedRoom) }
+                else { issues.append(Issue(source: source, reason: .unassignedRoom)); continue }
                 if case .existing(let id) = destination, !roomIDs.contains(id) {
                     issues.append(Issue(source: source, reason: .roomNotDiscovered)); continue
                 }

@@ -30,7 +30,11 @@ pub struct LightGraph {
 pub(crate) fn information(aid: u64, name: &str) -> AccessoryInformation {
     AccessoryInformation {
         manufacturer: "HomeSense".into(),
-        model: "HomeSense".into(),
+        // HMAccessory.model is public on supported iOS versions; the serial
+        // characteristic is no longer exposed to ordinary HomeKit clients.
+        // Keep AID/IID/serial and pairing identity unchanged while providing a
+        // bridge-scoped key that the native room-placement client can read.
+        model: if aid==1 {"HomeSense".into()}else{format!("HomeSense-AID:{aid}")},
         name: name.into(),
         serial_number: format!("HS-{aid}"),
         firmware_revision: Some(env!("CARGO_PKG_VERSION").into()),
