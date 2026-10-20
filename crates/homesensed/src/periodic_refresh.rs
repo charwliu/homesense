@@ -97,7 +97,11 @@ impl OutputRefresh {
         if !partial {self.query_backoff.insert((target.gateway.clone(),target.module.address().get()),now.saturating_add(delay));}
     }
     pub(super) fn activity(&mut self,now:u64) {
-        if let Some(schedule)=&mut self.adaptive {schedule.activity(now);self.round.discard_completion();if !self.scanning {self.due=now.saturating_add(schedule.interval());}}
+        if let Some(schedule)=&mut self.adaptive {schedule.activity(now);self.round.discard_completion();if !self.scanning {
+            // Activity may shorten an idle cycle, never postpone the existing
+            // round and let untouched shared-power feedback expire.
+            self.due=self.due.min(now.saturating_add(schedule.interval()));
+        }}
     }
     pub(super) fn written(&mut self,device:&homesense_core::DeviceId,now:u64,ramped:bool) {
         if self.adaptive.is_none() {return;}
@@ -501,8 +505,7 @@ mod priority_tests {
     use super::*;
     use homesense_core::ExecutionContext;
 
-    #[tokio::test]
-    async fn persistent_postwrite_priority_refreshes_every_port_and_keeps_response_and_class_ownership() {
+    async fn fixture() -> (OutputRefresh, Feedback, crate::admission::Admission, std::path::PathBuf) {
         let bytes=serde_json::to_vec(&serde_json::json!({
             "schema_version":2,"revision":1,
             "gateways":[{"id":"bus","endpoint":"127.0.0.1:1","modules":[
@@ -515,14 +518,51 @@ mod priority_tests {
         let actor=crate::admission::Admission::open(path,crate::admission::Options{context:ExecutionContext::Simulation,..Default::default()},|_|true).await.unwrap();
         actor.synchronized(1,1).await.unwrap();let generation=actor.task_generation().await.unwrap();
         let boot=uuid::Uuid::parse_str(actor.boot_id()).unwrap().as_u128();
-        let mut feedback=Feedback::new(&config,ExecutionContext::Simulation,boot,1).unwrap();
+        let feedback=Feedback::new(&config,ExecutionContext::Simulation,boot,1).unwrap();
         let targets=crate::physical_queries::plan(&config,ExecutionContext::Simulation).unwrap();assert_eq!(targets.len(),8);
-        let mut refresh=OutputRefresh{
+        let refresh=OutputRefresh{
             configuration:config,targets,controller:uuid::Uuid::new_v4(),generation,context:ExecutionContext::Simulation,
             timeout_ms:500,max_age_ms:5000,interval_ms:20,next:0,due:0,pending:None,control_opportunity:false,
             round:Default::default(),adaptive:None,priority:(0..8).collect(),confirmation_until:Default::default(),
             ramp_reads:Default::default(),prefer_postwrite:true,away_critical:false,scanning:false,recent_queries:Default::default(),strict:Default::default(),query_backoff:Default::default(),target_backoff:Default::default(),failed_ports:Default::default(),away_writes:Default::default(),
         };
+        (refresh, feedback, actor, root)
+    }
+
+    #[tokio::test]
+    async fn activity_cannot_postpone_quiet_ports_or_replace_an_owned_response() {
+        let (mut refresh, feedback, actor, root)=fixture().await;
+        refresh.priority.clear();
+        let mut schedule=crate::adaptive_refresh::Schedule::new(homesense_config::RefreshPolicy::default());
+        assert_eq!(schedule.completed(300_000),600_000);
+        let allowance=schedule.allowance();
+        refresh.adaptive=Some(schedule);refresh.due=900_000;
+        refresh.query_backoff.insert(("bus".into(),3),950_000);
+        let load=homesense_core::DeviceId::new("load").unwrap();
+        // First activity shortens an idle cycle. Subsequent commands must not
+        // buy more time for untouched shared-power dependencies to go stale.
+        refresh.written(&load,400_000,false);
+        assert_eq!(refresh.due,700_000);
+        for at in [500_000,600_000,699_999,700_000,800_000] {
+            refresh.written(&load,at,false);
+            assert_eq!(refresh.due,700_000,"repeated commands cannot starve quiet physical ports");
+        }
+        assert_eq!(refresh.adaptive.as_ref().unwrap().allowance(),allowance,"activity cannot renew feedback leases");
+        assert!(feedback.module_truth().located_state("bus",3,1).unwrap().observed_at_ms.is_none());
+        refresh.scanning=true;refresh.round.begin(700_000);assert!(!refresh.round.missing(1,8));
+        refresh.pending=Some(Pending {index:2,written_ms:800_000,before:vec![],original_before:vec![],deadline:800_500,retried:false,strict:false});
+        refresh.query_backoff.insert(("bus".into(),3),950_000);
+        refresh.activity(800_100);
+        assert_eq!(refresh.due,700_000);
+        assert!(refresh.round.contains(1));
+        assert_eq!(refresh.pending.as_ref().unwrap().deadline,800_500);
+        assert_eq!(refresh.query_backoff.get(&("bus".into(),3)),Some(&950_000),"unrelated activity cannot clear a real missing-module backoff");
+        actor.shutdown().await.unwrap();std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[tokio::test]
+    async fn persistent_postwrite_priority_refreshes_every_port_and_keeps_response_and_class_ownership() {
+        let (mut refresh, mut feedback, actor, root)=fixture().await;
         for expected in 0..8 {
             let at=100+expected as u64;
             assert_eq!(refresh.next_query(&feedback,at),Some((expected,true,false)),"a still-priority fresh first port cannot starve an unobserved later port");
