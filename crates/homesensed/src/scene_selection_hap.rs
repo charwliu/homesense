@@ -129,14 +129,14 @@ impl Source {
                     return Ok(values);
                 }
                 use crate::automation_control::{Action, Reply};
-                let Reply::SceneCatalog(entries) = control.request(Action::SceneCatalog {
+                let Reply::SceneLoadStates(entries) = control.request(Action::SceneLoadStates {
                     controller: self.controller, revision: *revision, scenes: scenes.clone(),
                 }).await.map_err(|_| UnavailableReason::ReadFailed)? else {
                     return Err(UnavailableReason::ReadFailed);
                 };
                 for id in scenes {
                     let entry = entries.get(id).ok_or(UnavailableReason::ReadFailed)?;
-                    values.insert(id.clone(), entry.tracking.as_ref().and_then(|p| p.active()));
+                    values.insert(id.clone(), *entry);
                 }
             }
             Ok(values)

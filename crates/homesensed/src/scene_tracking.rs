@@ -50,7 +50,80 @@ pub async fn project(
     generation: &TaskGeneration,
     feedback: &Feedback,
 ) -> Projection {
-    let mut result = Projection {
+    project_many(&[policy], admission, controller, generation, feedback)
+        .await
+        .remove(0)
+}
+
+/// One coherent load snapshot and bounded proof batches. No catalog metadata,
+/// full configuration reload, transport query or control is needed for reads.
+pub(crate) async fn project_many(
+    policies: &[&Policy],
+    admission: &Admission,
+    controller: uuid::Uuid,
+    generation: &TaskGeneration,
+    feedback: &Feedback,
+) -> Vec<Projection> {
+    if policies.len() > 64
+        || !admission
+            .diagnostics(controller, generation.clone())
+            .await
+            .is_ok_and(|state| state.mapping_readable())
+    {
+        return policies
+            .iter()
+            .map(|policy| unknown(policy, admission, feedback))
+            .collect();
+    }
+    let mut values = vec![];
+    let mut proofs = vec![];
+    for (index, policy) in policies.iter().enumerate() {
+        let (value, proof) = prepare(policy, admission, feedback);
+        values.push(value);
+        if let Some(proof) = proof {
+            proofs.push((index, proof));
+        }
+    }
+    let mut results =
+        vec![Err(hap::server::WriteStatus::ServiceCommunicationFailure); policies.len()];
+    for chunk in proofs.chunks(32) {
+        if let Ok(settled) = admission
+            .feedback_settled_batch(
+                controller,
+                generation.clone(),
+                chunk.iter().map(|(_, proof)| proof.clone()).collect(),
+            )
+            .await
+            && settled.len() == chunk.len()
+        {
+            for ((index, _), result) in chunk.iter().zip(settled) {
+                results[*index] = result;
+            }
+        }
+    }
+    let ready = admission
+        .diagnostics(controller, generation.clone())
+        .await
+        .is_ok_and(|state| state.mapping_readable());
+    values
+        .into_iter()
+        .enumerate()
+        .map(|(index, value)| {
+            settle(
+                policies[index],
+                value,
+                if ready {
+                    results[index]
+                } else {
+                    Err(hap::server::WriteStatus::ServiceCommunicationFailure)
+                },
+            )
+        })
+        .collect()
+}
+
+fn unknown(policy: &Policy, admission: &Admission, feedback: &Feedback) -> Projection {
+    Projection {
         activity: SceneActivity::Unknown,
         activity_source: "reviewed_tracking",
         scene: policy.scene.clone(),
@@ -62,15 +135,17 @@ pub async fn project(
         action_available: false,
         activity_writable: false,
         valid_until_ms: None,
-    };
-    if !policy.enabled
-        || !feedback.is_active()
-        || !admission
-            .diagnostics(controller, generation.clone())
-            .await
-            .is_ok_and(|d| d.mapping_readable())
-    {
-        return result;
+    }
+}
+
+fn prepare(
+    policy: &Policy,
+    admission: &Admission,
+    feedback: &Feedback,
+) -> (Projection, Option<crate::feedback::RuleLease>) {
+    let mut result = unknown(policy, admission, feedback);
+    if !policy.enabled || !feedback.is_active() {
+        return (result, None);
     }
     let mut nodes = vec![];
     let mut variables = BTreeMap::new();
@@ -79,7 +154,7 @@ pub async fn project(
             continue;
         }
         let Ok(device) = DeviceId::new(&m.device) else {
-            return result;
+            return (result, None);
         };
         for (suffix, expr, kind) in [
             ("on", Expr::DeviceOn(device.clone()), ValueType::Bool),
@@ -106,11 +181,25 @@ pub async fn project(
             });
         }
         if let Predicate::PoweredLight { dimmer } = &m.predicate {
-            let Ok(dimmer) = DeviceId::new(dimmer) else { return result; };
+            let Ok(dimmer) = DeviceId::new(dimmer) else {
+                return (result, None);
+            };
             let name = format!("tracking:{i}:dimmer_on");
-            variables.insert(name.clone(), Variable { value_type: ValueType::Bool, lifetime: Lifetime::Temporary, value: None });
-            nodes.push(Node { source: format!("tracking:{}:{}:dimmer", policy.scene, m.id),
-                action: Action::Set { variable: name, value: Expr::DeviceOn(dimmer) } });
+            variables.insert(
+                name.clone(),
+                Variable {
+                    value_type: ValueType::Bool,
+                    lifetime: Lifetime::Temporary,
+                    value: None,
+                },
+            );
+            nodes.push(Node {
+                source: format!("tracking:{}:{}:dimmer", policy.scene, m.id),
+                action: Action::Set {
+                    variable: name,
+                    value: Expr::DeviceOn(dimmer),
+                },
+            });
         }
     }
     let Ok((plan, lease)) = feedback.plan_rule(
@@ -120,7 +209,7 @@ pub async fn project(
         admission.monotonic_ms(),
         policy.max_age_ms,
     ) else {
-        return result;
+        return (result, None);
     };
     for (i, m) in policy.members.iter().enumerate() {
         let ignored = matches!(m.predicate, Predicate::Ignore { .. });
@@ -132,13 +221,21 @@ pub async fn project(
                 _ => None,
             });
         let on = if matches!(m.predicate, Predicate::PoweredLight { .. }) {
-            let dimmer_on = plan.variables.get(&format!("tracking:{i}:dimmer_on")).and_then(|v|match v.value {Some(Value::Bool(v))=>Some(v),_=>None});
+            let dimmer_on = plan
+                .variables
+                .get(&format!("tracking:{i}:dimmer_on"))
+                .and_then(|v| match v.value {
+                    Some(Value::Bool(v)) => Some(v),
+                    _ => None,
+                });
             match (on, dimmer_on) {
                 (Some(false), _) | (_, Some(false)) => Some(false),
                 (Some(true), Some(true)) => Some(true),
                 _ => None,
             }
-        } else { on };
+        } else {
+            on
+        };
         let actual_level = if on == Some(true) {
             plan.variables
                 .get(&format!("tracking:{i}:level"))
@@ -167,22 +264,21 @@ pub async fn project(
             matches,
         });
     }
-    // This revalidates boot/revision/transport epoch, freshness, feedback lease,
-    // durable pending control and both physical components of a combined light.
-    let valid_until = lease
+    result.valid_until_ms = lease
         .observations
         .values()
         .filter_map(|at| at.and_then(|at| at.checked_add(policy.max_age_ms)))
         .min();
-    let settled = admission
-        .feedback_settled(controller, generation.clone(), lease)
-        .await;
-    if settled.is_err()
-        || !admission
-            .diagnostics(controller, generation.clone())
-            .await
-            .is_ok_and(|d| d.mapping_readable())
-    {
+    (result, Some(lease))
+}
+
+fn settle(
+    policy: &Policy,
+    mut result: Projection,
+    settled: Result<bool, hap::server::WriteStatus>,
+) -> Projection {
+    let valid_until = result.valid_until_ms.take();
+    if settled.is_err() {
         for m in &mut result.members {
             m.on = None;
             m.actual_level = None;
@@ -240,7 +336,10 @@ pub(crate) struct CatalogReadContext<'a> {
 }
 impl<'a> CatalogReadContext<'a> {
     pub(crate) fn new(config: &'a homesense_config::Configuration) -> Self {
-        Self { config, component_views: None }
+        Self {
+            config,
+            component_views: None,
+        }
     }
 }
 
@@ -252,7 +351,10 @@ pub async fn read(
     generation: &TaskGeneration,
     feedback: &Feedback,
 ) -> Result<Option<Projection>, String> {
-    read_inner(document, id, admission, controller, generation, feedback, None).await
+    read_inner(
+        document, id, admission, controller, generation, feedback, None,
+    )
+    .await
 }
 
 pub(crate) async fn read_catalog(
@@ -264,7 +366,16 @@ pub(crate) async fn read_catalog(
     feedback: &Feedback,
     context: &mut CatalogReadContext<'_>,
 ) -> Result<Option<Projection>, String> {
-    read_inner(document, id, admission, controller, generation, feedback, Some(context)).await
+    read_inner(
+        document,
+        id,
+        admission,
+        controller,
+        generation,
+        feedback,
+        Some(context),
+    )
+    .await
 }
 
 // A first activation may still be owned by the physical component rather
@@ -278,26 +389,55 @@ async fn read_component_state(
     feedback: &Feedback,
     context: Option<&mut CatalogReadContext<'_>>,
 ) -> Result<(SceneActivity, Option<u64>), String> {
-    let proof = if let Some(context)=context {
+    let proof = if let Some(context) = context {
         if context.component_views.is_none() {
-            context.component_views=Some(admission.component_mode_views(controller,generation.clone()).await
-                .map_err(|e|format!("catalog component activity views: {e:?}"))?);
+            context.component_views = Some(
+                admission
+                    .component_mode_views(controller, generation.clone())
+                    .await
+                    .map_err(|e| format!("catalog component activity views: {e:?}"))?,
+            );
         }
-        context.component_views.as_ref().expect("captured component views").iter()
-            .find(|v|v.policies.iter().any(|p|p.variable==policy.variable))
-            .and_then(|view|crate::component_modes::Proof::prepare(view,context.config,feedback,admission.monotonic_ms()).ok())
+        context
+            .component_views
+            .as_ref()
+            .expect("captured component views")
+            .iter()
+            .find(|v| v.policies.iter().any(|p| p.variable == policy.variable))
+            .and_then(|view| {
+                crate::component_modes::Proof::prepare(
+                    view,
+                    context.config,
+                    feedback,
+                    admission.monotonic_ms(),
+                )
+                .ok()
+            })
     } else {
-        let views = admission.component_mode_views(controller, generation.clone()).await
-        .map_err(|e| format!("component activity views: {e:?}"))?;
-    let bundle = admission.automation_bundle(controller, generation.clone()).await
-        .map_err(|e| format!("component activity bundle: {e:?}"))?;
-        views.iter()
-        .find(|v| v.policies.iter().any(|p| p.variable == policy.variable))
-        .and_then(|view| crate::component_modes::Proof::prepare(
-            view, &bundle.configuration, feedback, admission.monotonic_ms(),
-        ).ok())
+        let views = admission
+            .component_mode_views(controller, generation.clone())
+            .await
+            .map_err(|e| format!("component activity views: {e:?}"))?;
+        let bundle = admission
+            .automation_bundle(controller, generation.clone())
+            .await
+            .map_err(|e| format!("component activity bundle: {e:?}"))?;
+        views
+            .iter()
+            .find(|v| v.policies.iter().any(|p| p.variable == policy.variable))
+            .and_then(|view| {
+                crate::component_modes::Proof::prepare(
+                    view,
+                    &bundle.configuration,
+                    feedback,
+                    admission.monotonic_ms(),
+                )
+                .ok()
+            })
     };
-    admission.component_activity(controller, generation.clone(), policy.scene.clone(), proof).await
+    admission
+        .component_activity(controller, generation.clone(), policy.scene.clone(), proof)
+        .await
         .map_err(|e| format!("component activity: {e:?}"))
 }
 
@@ -310,39 +450,124 @@ async fn read_inner(
     feedback: &Feedback,
     mut context: Option<&mut CatalogReadContext<'_>>,
 ) -> Result<Option<Projection>, String> {
-    if let Some(policy) = document.scene_component_activity.get(id).filter(|p| p.enabled) {
-        let negative = policy.program_confirmation.as_ref().is_some_and(|p| p.recorded_selection.is_some() || p.negative_feedback);
+    if let Some(policy) = document
+        .scene_component_activity
+        .get(id)
+        .filter(|p| p.enabled)
+    {
+        let negative = policy
+            .program_confirmation
+            .as_ref()
+            .is_some_and(|p| p.recorded_selection.is_some() || p.negative_feedback);
         let view = if policy.program_confirmation.is_some() {
-            admission.program_activity_read_view(controller,generation.clone(),id.into()).await.map_err(|e|format!("program activity view: {e:?}"))?
-        } else { None };
-        let component = if view.is_none() && policy.program_confirmation.as_ref()
-            .is_some_and(|p| p.negative_feedback && p.recorded_selection.is_none()) {
-            Some(read_component_state(policy,admission,controller,generation,feedback,context.as_deref_mut()).await?)
-        } else { None };
-        if policy.program_confirmation.is_some() && (view.is_some() || negative)
-            && component.as_ref().is_none_or(|value| value.0 == SceneActivity::Unknown) {
+            admission
+                .program_activity_read_view(controller, generation.clone(), id.into())
+                .await
+                .map_err(|e| format!("program activity view: {e:?}"))?
+        } else {
+            None
+        };
+        let component = if view.is_none()
+            && policy
+                .program_confirmation
+                .as_ref()
+                .is_some_and(|p| p.negative_feedback && p.recorded_selection.is_none())
+        {
+            Some(
+                read_component_state(
+                    policy,
+                    admission,
+                    controller,
+                    generation,
+                    feedback,
+                    context.as_deref_mut(),
+                )
+                .await?,
+            )
+        } else {
+            None
+        };
+        if policy.program_confirmation.is_some()
+            && (view.is_some() || negative)
+            && component
+                .as_ref()
+                .is_none_or(|value| value.0 == SceneActivity::Unknown)
+        {
             let missing = view.is_none();
-            let proof=if let Some(Some(view))=view {
-                if let Some(context)=context.as_deref() {
-                    crate::program_activity::Proof::prepare(&view,context.config,feedback,admission.monotonic_ms()).ok()
+            let proof = if let Some(Some(view)) = view {
+                if let Some(context) = context.as_deref() {
+                    crate::program_activity::Proof::prepare(
+                        &view,
+                        context.config,
+                        feedback,
+                        admission.monotonic_ms(),
+                    )
+                    .ok()
                 } else {
-                    let bundle=admission.automation_bundle(controller,generation.clone()).await.map_err(|e|format!("program bundle: {e:?}"))?;
-                    crate::program_activity::Proof::prepare(&view,&bundle.configuration,feedback,admission.monotonic_ms()).ok()
+                    let bundle = admission
+                        .automation_bundle(controller, generation.clone())
+                        .await
+                        .map_err(|e| format!("program bundle: {e:?}"))?;
+                    crate::program_activity::Proof::prepare(
+                        &view,
+                        &bundle.configuration,
+                        feedback,
+                        admission.monotonic_ms(),
+                    )
+                    .ok()
                 }
-            }else if missing && negative {
-                if let Some(context)=context.as_deref() {
-                    crate::program_activity::Proof::prepare_negative(policy,context.config,feedback,generation.clone(),admission.monotonic_ms()).ok()
+            } else if missing && negative {
+                if let Some(context) = context.as_deref() {
+                    crate::program_activity::Proof::prepare_negative(
+                        policy,
+                        context.config,
+                        feedback,
+                        generation.clone(),
+                        admission.monotonic_ms(),
+                    )
+                    .ok()
                 } else {
-                    let bundle=admission.automation_bundle(controller,generation.clone()).await.map_err(|e|format!("program bundle: {e:?}"))?;
-                    crate::program_activity::Proof::prepare_negative(policy,&bundle.configuration,feedback,generation.clone(),admission.monotonic_ms()).ok()
+                    let bundle = admission
+                        .automation_bundle(controller, generation.clone())
+                        .await
+                        .map_err(|e| format!("program bundle: {e:?}"))?;
+                    crate::program_activity::Proof::prepare_negative(
+                        policy,
+                        &bundle.configuration,
+                        feedback,
+                        generation.clone(),
+                        admission.monotonic_ms(),
+                    )
+                    .ok()
                 }
-            }else{None};
-            let(activity,valid_until_ms)=admission.program_activity(controller,generation.clone(),id.into(),proof).await.map_err(|e|format!("program activity: {e:?}"))?.unwrap_or((SceneActivity::Unknown,None));
-            return Ok(Some(Projection{activity,activity_source:"confirmed_program",scene:id.into(),display_name:document.scene_metadata.get(id).cloned(),activity_name:policy.activity_name.clone(),boot:admission.boot_id().into(),revision:document.revision,members:vec![],action_available:document.scene_action_available(id),activity_writable:false,valid_until_ms}));
+            } else {
+                None
+            };
+            let (activity, valid_until_ms) = admission
+                .program_activity(controller, generation.clone(), id.into(), proof)
+                .await
+                .map_err(|e| format!("program activity: {e:?}"))?
+                .unwrap_or((SceneActivity::Unknown, None));
+            return Ok(Some(Projection {
+                activity,
+                activity_source: "confirmed_program",
+                scene: id.into(),
+                display_name: document.scene_metadata.get(id).cloned(),
+                activity_name: policy.activity_name.clone(),
+                boot: admission.boot_id().into(),
+                revision: document.revision,
+                members: vec![],
+                action_available: document.scene_action_available(id),
+                activity_writable: false,
+                valid_until_ms,
+            }));
         }
         let (activity, valid_until_ms) = match component {
             Some(value) => value,
-            None => read_component_state(policy,admission,controller,generation,feedback,context).await?,
+            None => {
+                read_component_state(policy, admission, controller, generation, feedback, context)
+                    .await?
+            }
         };
         return Ok(Some(Projection {
             activity,
@@ -388,7 +613,11 @@ pub(crate) async fn activity(
     if let Some(value) = read(document, id, admission, controller, generation, feedback).await? {
         return Ok(value.activity);
     }
-    if document.scene_execution_kind(id)==Some(homesense_config::rule_document::SceneExecutionKind::Immediate){return Ok(SceneActivity::Unknown);}
+    if document.scene_execution_kind(id)
+        == Some(homesense_config::rule_document::SceneExecutionKind::Immediate)
+    {
+        return Ok(SceneActivity::Unknown);
+    }
     let scene = document.timed_scenes.get(id).ok_or("unknown timed scene")?;
     if !scene.enabled
         || scene

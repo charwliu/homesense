@@ -240,6 +240,9 @@ impl RuntimeSceneHap {
                         })
                         .await;
                     let accepted = matches!(result, Ok(Reply::ScenesAccepted(_) | Reply::ImmediateAccepted(_)));
+                    if let Err(reason)=&result {
+                        log::warn!("HAP scene write rejected: {reason}");
+                    }
                     if accepted {
                         for (permit, scene) in permits.zip(momentary) {
                             permit.send(scene);
@@ -252,7 +255,11 @@ impl RuntimeSceneHap {
                                 .map_err(|_| WriteStatus::ServiceCommunicationFailure)?,
                             Err(reason) => {
                                 cache.unavailable(reason);
-                                return Err(WriteStatus::ServiceCommunicationFailure);
+                                // This read cannot undo durable acceptance. Keep
+                                // state unavailable until ordinary projection
+                                // recovers; never misreport an accepted write or
+                                // retry its physical actions from a read failure.
+                                log::warn!("HAP scene projection unavailable accepted={accepted} reason={reason:?}");
                             }
                         }
                     }
