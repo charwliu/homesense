@@ -36,6 +36,7 @@ pub mod live_service;
 
 pub mod combined_light;
 mod shared_light;
+mod composed_light;
 
 pub mod configuration_publish;
 

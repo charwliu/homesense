@@ -81,6 +81,11 @@ pub(crate) fn members(config: &Configuration, document: &Document, scene: &str) 
     collector.scene(scene)?;
     let mut ids = BTreeSet::new();
     for id in collector.outputs {
+        if let Some(group) = config.composed_resource(&id) {
+            ids.extend(group.lights.iter().filter(|light|light.members.iter()
+                .any(|member|member.supply==id || member.dimmer==id)).map(|light|light.id.clone()));
+            continue;
+        }
         let supplied: Vec<_> = config.devices().iter()
             .filter(|(_, device)| device.enabled && device.supply_relay.as_ref() == Some(&id))
             .map(|(id, _)| id.clone()).collect();
@@ -89,7 +94,8 @@ pub(crate) fn members(config: &Configuration, document: &Document, scene: &str) 
     Ok(ids.into_iter().filter_map(|id| {
         let (device, module) = config.binding(&id)?;
         matches!(module.kind(), ModuleKind::Switch | ModuleKind::Dimmer)
-            .then(|| Member { id: id.as_str().to_owned(), name: device.name.clone() })
+            .then(|| Member { id: id.as_str().to_owned(), name: config.composed_light(&id)
+                .map_or_else(||device.name.clone(),|(_,light)|light.name.clone()) })
     }).collect())
 }
 

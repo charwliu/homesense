@@ -32,6 +32,7 @@ pub enum DeviceAction {
 }
 #[derive(Debug, PartialEq, Eq)]
 pub struct DeviceView {
+    pub(crate) control_error:Option<&'static str>,
     pub availability:Option<crate::gateway_runtime::View>,
     pub(crate) communication_error:Option<crate::query_health::Failure>,
     pub catalog_visible:bool,
@@ -135,8 +136,9 @@ async fn snapshot_bound(admission:&Admission,controller:Uuid,generation:TaskGene
         crate::admission::HapProjection::Ready { targets, .. } => targets,
         crate::admission::HapProjection::Unavailable => return Err("management light projection unavailable".into()),
     };
-    let snapshot = crate::combined_light::project(&bundle.configuration, &raw)
+    let mut snapshot = crate::combined_light::project(&bundle.configuration, &raw)
         .map_err(|e| e.to_string())?;
+    crate::composed_light::project(&bundle.configuration,&raw,&mut snapshot).map_err(str::to_owned)?;
     let published=crate::light_state::project_pending(&bundle.configuration,&raw,&recorded).map_err(str::to_owned)?;
     let supplies: std::collections::BTreeSet<_> = bundle
         .configuration
@@ -172,16 +174,23 @@ async fn snapshot_bound(admission:&Admission,controller:Uuid,generation:TaskGene
         let availability=gateway_views.iter().find(|view|view.gateway==device.gateway).cloned();
         if availability.as_ref().is_some_and(|view|view.state!="ready") {state.quality=homesense_state::Quality::Unknown;}
         devices.push(DeviceView {
-            communication_error:feedback.query_error(&device.gateway,device.address.get(),device.channel.get()),
+            control_error:crate::composed_light::control_error(&bundle.configuration,&id,&raw),
+            communication_error:if bundle.configuration.composed_light(&id).is_some() {
+                bundle.configuration.logical_components(&id).into_iter().find_map(|component| {
+                    let (binding,_)=bundle.configuration.binding(component)?;
+                    feedback.query_error(&binding.gateway,binding.address.get(),binding.channel.get())
+                })
+            }else{feedback.query_error(&device.gateway,device.address.get(),device.channel.get())},
             availability,
-            catalog_visible:device.catalog_visible,
+            catalog_visible:if bundle.configuration.composed_light(&id).is_some() {true}
+                else {device.catalog_visible && bundle.configuration.composed_resource(&id).is_none()},
             room: device
                 .room
                 .as_ref()
                 .and_then(|id| bundle.configuration.rooms().get(id))
                 .cloned(),
             id: id.clone(),
-            name: device.name.clone(),
+            name: bundle.configuration.composed_light(&id).map_or_else(||device.name.clone(),|(_,light)|light.name.clone()),
             motor_calibrated,
             motor_estimate: motor_estimates.get(&id).cloned(),
             reported: published.devices.get(&id).and_then(|s|s.observed),

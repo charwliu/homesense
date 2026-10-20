@@ -995,7 +995,8 @@ impl Document {
             Ok((metadata.id.clone(),scope))
         }).collect::<Result<BTreeMap<_,_>,_>>()?;
         let document=Self {
-            shared_light_devices:config.shared_lights().values().flat_map(|group|[group.primary.clone(),group.secondary.clone()]).collect(),
+            shared_light_devices:config.shared_lights().values().flat_map(|group|[group.primary.clone(),group.secondary.clone()])
+                .chain(config.composed_lights().values().flat_map(|g|g.lights.iter().map(|l|l.id.clone()))).collect(),
             away_off: input.away_off,
             scene_deactivations,
             revision: input.configuration_revision,

@@ -14,6 +14,7 @@ pub fn project(
     let _ = recorded;
     let mut logical=crate::combined_light::project(configuration, physical)?;
     crate::shared_light::project(configuration,physical,&mut logical)?;
+    crate::composed_light::project(configuration,physical,&mut logical)?;
     Ok(logical)
 }
 
@@ -25,6 +26,7 @@ pub(crate) fn project_pending(
 ) -> Result<homesense_state::Snapshot, &'static str> {
     let mut logical = project(configuration, physical, &BTreeMap::new())?;
     for (id, level) in targets {
+        if configuration.composed_light(id).is_some() { continue; }
         let Some(state) = logical.devices.get_mut(id) else {
             continue;
         };
