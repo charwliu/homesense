@@ -19,11 +19,13 @@
 	<key>CFBundleShortVersionString</key>
 	<string>1.0</string>
 	<key>CFBundleVersion</key>
-	<string>30</string>
+	<string>32</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>$(MACOSX_DEPLOYMENT_TARGET)</string>
 	<key>NSHighResolutionCapable</key>
 	<true/>
+	<key>NSHomeKitUsageDescription</key>
+	<string>用于读取您选择的Apple家庭，将HomeSense配件分配到对应房间。</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>连接 HomeSense 管理服务同步家庭与设备；本地调试通过 TCP 透明串口网关读取或修改 TS6-86 面板、LH-IO1600 模块地址，并测试指令。</string>
 	<key>UIApplicationSceneManifest</key>

@@ -149,4 +149,28 @@ import Testing
         #expect(accessories?[0]["serial_number"] as? String == "HS-2")
         #expect(accessories?[0]["serialNumber"] == nil)
     }
+
+    @Test func unassignedGlobalAccessoriesRequireAnExplicitExistingRoom() throws {
+        let f = Fixture()
+        let publication = P.Publication(boot: "boot", revision: "1", generation: "graph", bridges: [
+            .init(id: "one", name: "HomeSense", available: true, accessories: [
+                .init(kind: .scene, id: "whole-house", aid: 2, serialNumber: "HS-2", roomID: nil)])])
+        let missing = try P.preview(publication: publication, inventory: f.inventory, bridgeBindings: f.bridgeBindings, roomBindings: [:])
+        #expect(missing.assignments.isEmpty && missing.issues[0].reason == .unassignedRoom)
+        let selected = try P.preview(publication: publication, inventory: f.inventory, bridgeBindings: f.bridgeBindings,
+                                     roomBindings: [:], unassignedRoom: f.secondRoom)
+        #expect(selected.issues.isEmpty && selected.assignments[0].destination == .existing(f.secondRoom))
+        #expect(selected.assignments[0].published.roomID == nil && selected.roomsToCreate.isEmpty)
+    }
+
+    @Test func nativeIdentityUsesCanonicalPublicModelAndNeverGuessesOrIgnoresAConflict() {
+        #expect(P.nativeIdentity(manufacturer: "HomeSense", model: "HomeSense-AID:42") == "HS-42")
+        #expect(P.nativeIdentity(manufacturer: "HomeSense", model: "HomeSense", vendorAID: 42) == "HS-42")
+        #expect(P.nativeIdentity(manufacturer: "HomeSense", model: "HomeSense-AID:42", vendorAID: 42) == "HS-42")
+        #expect(P.nativeIdentity(manufacturer: "HomeSense", model: "HomeSense-AID:42", vendorAID: 43) == nil)
+        #expect(P.nativeIdentity(manufacturer: "Other", model: "HomeSense-AID:42") == nil)
+        for value in ["HomeSense", "HomeSense-AID:1", "HomeSense-AID:0", "HomeSense-AID:02", "HomeSense-AID:-2", "HomeSense-AID:2 extra", "HomeSense-AID:18446744073709551616"] {
+            #expect(P.nativeIdentity(manufacturer: "HomeSense", model: value) == nil)
+        }
+    }
 }

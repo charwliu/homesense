@@ -53,6 +53,9 @@ struct HomeManagementView: View {
     @State private var confirmReload = false
     @State private var removal: HomeEditRequest?
     @State private var compactColumn: NavigationSplitViewColumn = .sidebar
+    #if os(iOS)
+    @State private var homeKitPlacement = false
+    #endif
 
     var body: some View {
         NavigationSplitView(preferredCompactColumn: $compactColumn) {
@@ -138,6 +141,9 @@ struct HomeManagementView: View {
                 }
             }
         }
+        #if os(iOS)
+        .sheet(isPresented: $homeKitPlacement) { HomeKitRoomPlacementView(home: home) }
+        #endif
         .onChange(of: page) { _, _ in roomPath.removeAll() }
         .fileExporter(isPresented: $exportingDiagnostics, document: diagnosticExport, contentType: .plainText, defaultFilename: "HomeSense-diagnostics") { _ in }
         .onChange(of: home.interfaceMode) { _, _ in preserveNavigation() }
@@ -293,6 +299,12 @@ struct HomeManagementView: View {
                 Text(home.canManage ? "管理员 · 可编辑配置草稿" : "设备与场景权限由服务端授权决定")
                 Button("断开服务") { home.disconnect() }.buttonStyle(.bordered).disabled(home.busy && !home.restoringCredential)
             }
+            #if os(iOS)
+            if home.connected && home.canManage {
+                Button("Apple家庭房间归属", systemImage: "house.and.flag") { homeKitPlacement = true }
+                    .accessibilityIdentifier("home.homeKitPlacement")
+            }
+            #endif
             Button("退出并移除本机凭证", role: .destructive) { Task { await home.removeSavedCredential() } }
                 .disabled(home.busy && !home.restoringCredential)
             if !home.credentialStatus.isEmpty { Text(home.credentialStatus).font(.caption).foregroundStyle(.secondary) }

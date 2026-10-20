@@ -16,6 +16,8 @@
 		A00000000000000000000007 /* HomeKeypadCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000001A /* HomeKeypadCard.swift */; };
 		A00000000000000000000008 /* HomeDailyDetails.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000001B /* HomeDailyDetails.swift */; };
 		A00000000000000000000009 /* HomeKeypadEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000001C /* HomeKeypadEditor.swift */; };
+		A0000000000000000000000A /* HomeKitRoomDirectory.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000001D /* HomeKitRoomDirectory.swift */; };
+		A0000000000000000000000B /* HomeKitRoomPlacementView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000001E /* HomeKitRoomPlacementView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -31,6 +33,8 @@
 		A0000000000000000000001A /* HomeKeypadCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeKeypadCard.swift; sourceTree = "<group>"; };
 		A0000000000000000000001B /* HomeDailyDetails.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeDailyDetails.swift; sourceTree = "<group>"; };
 		A0000000000000000000001C /* HomeKeypadEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeKeypadEditor.swift; sourceTree = "<group>"; };
+		A0000000000000000000001D /* HomeKitRoomDirectory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeKitRoomDirectory.swift; sourceTree = "<group>"; };
+		A0000000000000000000001E /* HomeKitRoomPlacementView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeKitRoomPlacementView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -67,6 +71,8 @@
 				A0000000000000000000001A /* HomeKeypadCard.swift */,
 				A0000000000000000000001C /* HomeKeypadEditor.swift */,
 				A0000000000000000000001B /* HomeDailyDetails.swift */,
+				A0000000000000000000001E /* HomeKitRoomPlacementView.swift */,
+				A0000000000000000000001D /* HomeKitRoomDirectory.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -161,6 +167,8 @@
 				A00000000000000000000006 /* HomeManagementEditor.swift in Sources */,
 				A00000000000000000000007 /* HomeKeypadCard.swift in Sources */,
 				A00000000000000000000009 /* HomeKeypadEditor.swift in Sources */,
+				A0000000000000000000000B /* HomeKitRoomPlacementView.swift in Sources */,
+				A0000000000000000000000A /* HomeKitRoomDirectory.swift in Sources */,
 				A00000000000000000000008 /* HomeDailyDetails.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -196,6 +204,8 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = App/HomeSense.entitlements;
+				"CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]" = App/HomeSense-iOS.entitlements;
+				"CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]" = App/HomeSense-iOS.entitlements;
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -223,6 +233,8 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = App/HomeSense.entitlements;
+				"CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]" = App/HomeSense-iOS.entitlements;
+				"CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]" = App/HomeSense-iOS.entitlements;
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				ENABLE_HARDENED_RUNTIME = YES;

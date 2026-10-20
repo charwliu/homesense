@@ -51,7 +51,7 @@ async fn constructed_graph_survives_reorder_rename_extension_and_reopen() {
     let root = Root::new();
     let mut store = IdentityStore::open(&root.0).await.unwrap();
     store.save_config(&Config::default()).await.unwrap();
-    let initial = LightGraph::build(&store, "HomeSense", vec![spec("b", false), spec("a", true)])
+    let mut initial = LightGraph::build(&store, "HomeSense", vec![spec("b", false), spec("a", true)])
         .await
         .unwrap();
     assert_eq!(initial.bridge.get_id(), 1);
@@ -60,12 +60,15 @@ async fn constructed_graph_survives_reorder_rename_extension_and_reopen() {
     let ids = structure(&initial.lights[&a]);
     let bridge_ids = structure(&initial.bridge);
     let aid = initial.lights[&a].get_id();
+    assert_eq!(initial.lights.get_mut(&a).unwrap().accessory_information.model.get_value().await.unwrap(), format!("HomeSense-AID:{aid}"));
+    assert_eq!(initial.lights.get_mut(&a).unwrap().accessory_information.serial_number.get_value().await.unwrap(), format!("HS-{aid}"));
+    assert_eq!(initial.bridge.accessory_information.model.get_value().await.unwrap(), "HomeSense");
     let bid = initial.lights[&b].get_id();
     drop(store);
     let store = IdentityStore::open(&root.0).await.unwrap();
     let mut renamed = spec("a", true);
     renamed.name = "书房灯".into();
-    let updated = LightGraph::build(
+    let mut updated = LightGraph::build(
         &store,
         "HomeSense upstairs",
         vec![spec("c", false), renamed],
@@ -73,6 +76,7 @@ async fn constructed_graph_survives_reorder_rename_extension_and_reopen() {
     .await
     .unwrap();
     assert_eq!(updated.lights[&a].get_id(), aid);
+    assert_eq!(updated.lights.get_mut(&a).unwrap().accessory_information.model.get_value().await.unwrap(), format!("HomeSense-AID:{aid}"));
     assert_eq!(structure(&updated.lights[&a]), ids);
     assert_eq!(structure(&updated.bridge), bridge_ids);
     assert!(updated.lights[&DeviceId::new("c").unwrap()].get_id() > bid);
