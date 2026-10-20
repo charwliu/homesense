@@ -147,6 +147,7 @@ async fn check(combined: bool, relay: bool, time: &'static AtomicU64) {
         lights: graph,
         scenes: None,
         motors: None,
+        window_coverings: None,
         away: None,
     };
     let task = tokio::spawn(async move { graph.project(receive, stopping).await });

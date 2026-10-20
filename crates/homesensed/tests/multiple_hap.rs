@@ -37,30 +37,23 @@ async fn exercise(
     controller: Uuid,
     signing: ed25519_dalek::SigningKey,
     index: usize,
-    observed: u8,
-    target: u8,
 ) -> std::net::TcpStream {
     let config = store.load_config().await.unwrap();
     tokio::task::spawn_blocking(move || {
         let mut socket=std::net::TcpStream::connect(address).unwrap();socket.set_read_timeout(Some(Duration::from_secs(3))).unwrap();socket.set_write_timeout(Some(Duration::from_secs(3))).unwrap();
         let mut session=support::verify(&mut socket,controller,&signing,&config.device_id.to_string(),&config.device_ed25519_keypair.verifying_key());
         let (header,body)=session.request(&mut socket,b"GET /accessories HTTP/1.1\r\nHost: localhost\r\n\r\n");assert!(header.starts_with("HTTP/1.1 200"));
-        let graph:serde_json::Value=serde_json::from_slice(&body).unwrap();assert_eq!(graph["accessories"].as_array().unwrap().len(),2);
-        let text=String::from_utf8(body).unwrap();assert!(text.contains(&format!("Lamp {index}")));assert!(!text.contains(&format!("Lamp {}",1-index)));
-        let light=&graph["accessories"][1];let aid=light["aid"].as_u64().unwrap();
-        let brightness=light["services"].as_array().unwrap().iter().flat_map(|s|s["characteristics"].as_array().unwrap()).find(|c|c["format"]=="int" && c["unit"]=="percentage").unwrap();
-        assert_eq!(brightness["value"],observed);
-        let body=serde_json::json!({"characteristics":[{"aid":aid,"iid":brightness["iid"],"value":target}]}).to_string();
-        let request=format!("PUT /characteristics HTTP/1.1\r\nHost: localhost\r\nContent-Type: application/hap+json\r\nContent-Length: {}\r\n\r\n{body}",body.len());
-        let (header,body)=session.request(&mut socket,request.as_bytes());assert!(header.starts_with("HTTP/1.1 204"),"{header} {body:?}");socket
+        let graph:serde_json::Value=serde_json::from_slice(&body).unwrap();assert_eq!(graph["accessories"].as_array().unwrap().len(),1);
+        let text=String::from_utf8(body).unwrap();assert!(!text.contains(&format!("Lamp {index}")));assert!(!text.contains(&format!("Lamp {}",1-index)));
+        socket
     }).await.unwrap()
 }
 #[tokio::test]
-async fn independent_encrypted_bridges_recover_without_replaying_commands() {
+async fn legacy_light_only_bridges_recover_without_publishing_lights() {
     run_pairing(false).await;
 }
 #[tokio::test]
-async fn fresh_pair_setup_on_both_bridges_survives_recovery_and_restart() {
+async fn fresh_pair_setup_on_legacy_bridges_survives_recovery_and_restart() {
     run_pairing(true).await;
 }
 async fn run_pairing(fresh: bool) {
@@ -274,19 +267,11 @@ async fn run_pairing(fresh: bool) {
                 controllers[index],
                 keys[index].clone(),
                 index,
-                20 + index as u8,
-                30 + index as u8,
             )
             .await,
         );
     }
-    tokio::time::timeout(Duration::from_secs(2), async {
-        while writes.lock().unwrap().len() != 2 {
-            tokio::time::sleep(Duration::from_millis(10)).await;
-        }
-    })
-    .await
-    .unwrap();
+    assert!(writes.lock().unwrap().is_empty());
     let mut numbers = vec![];
     for bridge in &prepared {
         numbers.push(
@@ -340,8 +325,6 @@ async fn run_pairing(fresh: bool) {
                 controllers[index],
                 keys[index].clone(),
                 index,
-                60 + index as u8,
-                40 + index as u8,
             )
             .await,
         );
@@ -405,8 +388,6 @@ async fn run_pairing(fresh: bool) {
                     controllers[index],
                     keys[index].clone(),
                     index,
-                    60 + index as u8,
-                    50 + index as u8,
                 )
                 .await,
             );
@@ -421,21 +402,7 @@ async fn run_pairing(fresh: bool) {
         restarted.await.unwrap().unwrap();
     }
     gateway.await.unwrap();
-    assert_eq!(
-        *writes.lock().unwrap(),
-        if fresh {
-            vec![
-                (0, 0, 30),
-                (0, 1, 31),
-                (1, 0, 40),
-                (1, 1, 41),
-                (2, 0, 50),
-                (2, 1, 51),
-            ]
-        } else {
-            vec![(0, 0, 30), (0, 1, 31), (1, 0, 40), (1, 1, 41)]
-        }
-    );
+    assert!(writes.lock().unwrap().is_empty());
     std::fs::remove_dir_all(root).unwrap();
 }
 
@@ -461,8 +428,8 @@ async fn scene_only_and_motor_only_bridges_control_without_exposing_lights() {
     let addresses = [free_address(), free_address()];
     let web = free_address();
     let plan=serde_json::to_vec(&serde_json::json!({"schema_version":1,"bridges":[
-        {"id":"scenes","name":"Scenes","address":addresses[0],"lights":[],"scenes":["demo"],"motors":[]},
-        {"id":"motors","name":"Motors","address":addresses[1],"lights":[],"scenes":[],"motors":["motor"]}
+        {"id":"scenes","name":"Scenes","address":addresses[0],"lights":["simulation:light"],"scenes":["demo"],"motors":[]},
+        {"id":"motors","name":"Motors","address":addresses[1],"motors":["motor"]}
     ]})).unwrap();
     let mut prepared = homesensed::hap_bridges::prepare(&plan, &config, &document, &root)
         .await
@@ -577,11 +544,11 @@ async fn scene_only_and_motor_only_bridges_control_without_exposing_lights() {
             let mut socket=std::net::TcpStream::connect(address).unwrap();socket.set_read_timeout(Some(Duration::from_secs(2))).unwrap();socket.set_write_timeout(Some(Duration::from_secs(2))).unwrap();
             let mut session=support::verify(&mut socket,controller,&signing,&config.device_id.to_string(),&config.device_ed25519_keypair.verifying_key());
             let (header,body)=session.request(&mut socket,b"GET /accessories HTTP/1.1\r\nHost: localhost\r\n\r\n");assert!(header.starts_with("HTTP/1.1 200"));
-            let graph:serde_json::Value=serde_json::from_slice(&body).unwrap();let accessories=graph["accessories"].as_array().unwrap();assert_eq!(accessories.len(),if index==0 {2}else{4});assert!(!String::from_utf8(body).unwrap().contains("模拟调光灯"));
+            let graph:serde_json::Value=serde_json::from_slice(&body).unwrap();let accessories=graph["accessories"].as_array().unwrap();assert_eq!(accessories.len(),2);assert!(!String::from_utf8(body).unwrap().contains("模拟调光灯"));
             for accessory in accessories.iter().skip(1) {
                 let before=writes.lock().unwrap().len();
-                let iid=accessory["services"].as_array().unwrap().iter().flat_map(|s|s["characteristics"].as_array().unwrap()).find(|c|c["type"]=="25").unwrap()["iid"].as_u64().unwrap();
-                let body=serde_json::json!({"characteristics":[{"aid":accessory["aid"],"iid":iid,"value":true}]}).to_string();let request=format!("PUT /characteristics HTTP/1.1\r\nHost: localhost\r\nContent-Type: application/hap+json\r\nContent-Length: {}\r\n\r\n{body}",body.len());
+                let characteristic=accessory["services"].as_array().unwrap().iter().flat_map(|s|s["characteristics"].as_array().unwrap()).find(|c|c["type"]==if index==0 {"25"}else{"7C"}).unwrap();
+                let body=serde_json::json!({"characteristics":[{"aid":accessory["aid"],"iid":characteristic["iid"],"value":if index==0 {serde_json::json!(true)}else{serde_json::json!(100)} }]}).to_string();let request=format!("PUT /characteristics HTTP/1.1\r\nHost: localhost\r\nContent-Type: application/hap+json\r\nContent-Length: {}\r\n\r\n{body}",body.len());
                 let (header,body)=session.request(&mut socket,request.as_bytes());assert!(header.starts_with("HTTP/1.1 204"),"{header} {body:?}");
                 let deadline=std::time::Instant::now()+Duration::from_secs(2);while writes.lock().unwrap().len()==before {assert!(std::time::Instant::now()<deadline);std::thread::sleep(Duration::from_millis(5));}
             }
@@ -591,12 +558,7 @@ async fn scene_only_and_motor_only_bridges_control_without_exposing_lights() {
     gateway.await.unwrap();
     assert_eq!(
         *writes.lock().unwrap(),
-        vec![
-            [0xae, 0x15, 1, 55, 0xee],
-            [0xae, 0x22, 2, 0xf1, 0xee],
-            [0xae, 0x22, 2, 0xf2, 0xee],
-            [0xae, 0x22, 2, 0xf0, 0xee]
-        ]
+        vec![[0xae, 0x15, 1, 55, 0xee], [0xae, 0x22, 2, 0xf1, 0xee]]
     );
     std::fs::remove_dir_all(root).unwrap();
 }

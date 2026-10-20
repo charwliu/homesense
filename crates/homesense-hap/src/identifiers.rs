@@ -23,6 +23,9 @@ pub enum AccessoryKey {
     /// Read-only activity has its own namespace; never encoded as a scene ID suffix.
     SceneActivity(String),
     Motor(DeviceId, MotorOperation),
+    /// One native covering for a calibrated motor. Legacy action AIDs remain
+    /// reserved in storage and are never reused for this accessory.
+    WindowCovering(DeviceId),
     /// An explicitly selected physical panel key; independent of its label.
     PanelKey(DeviceId, u8),
 }
@@ -36,6 +39,7 @@ impl AccessoryKey {
             Self::Scene(id) => format!("scene:{id}"),
             Self::SceneActivity(id) => format!("sact:{id}"),
             Self::Motor(device,action)=>format!("motor:{}:{}:{}",device.as_str().len(),device.as_str(),action.label().to_ascii_lowercase()),
+            Self::WindowCovering(device)=>format!("window-covering:{}:{}",device.as_str().len(),device.as_str()),
         }
     }
 }
