@@ -168,7 +168,7 @@ async fn curtain_encrypted_hap_web_share_written_motion_leds_and_original_scope(
     drop(web_reservation);
     let api = Arc::new(Api {
         daily_backup: Default::default(),
-        hap_bridges: Default::default(),
+        hap_placement:Default::default(),hap_bridges: Default::default(),
         hap_status: Default::default(),
         backup_source: None,
         publisher: None,

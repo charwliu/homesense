@@ -593,7 +593,7 @@ async fn hap_source_web_metadata_and_manual_off_share_one_scoped_selection() {
         .unwrap();
     let api = crate::web_api::Api {
         daily_backup: Default::default(),
-        hap_bridges: Default::default(),
+        hap_placement:Default::default(),hap_bridges: Default::default(),
         hap_status: Default::default(),
         backup_source: None,
         publisher: None,

@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex, RwLock};
 fn api(root: &std::path::Path) -> Api {
     Api {
         daily_backup: Default::default(),
-        hap_bridges: Default::default(),
+        hap_placement:Default::default(),hap_bridges: Default::default(),
         hap_status: Default::default(),
         backup_source: None,
         publisher: None,

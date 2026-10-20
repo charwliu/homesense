@@ -159,7 +159,7 @@ async fn web_scope_origin_receipts_and_runtime_admission() {
         .unwrap();
     let mut api = Api {
         daily_backup:Default::default(),
-        hap_bridges:Default::default(),hap_status: Default::default(),
+        hap_placement:Default::default(),hap_bridges:Default::default(),hap_status: Default::default(),
         backup_source:None,
         publisher:None,
         origin: "http://127.0.0.1:8088".into(),

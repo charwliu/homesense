@@ -26,6 +26,7 @@ pub enum HapStatus {
     Reconfiguring,
 }
 pub struct Api {
+    pub hap_placement: std::sync::RwLock<Option<crate::hap_placement::Publication>>,
     pub daily_backup: crate::daily_backup::Monitor,
     pub hap_bridges: std::sync::RwLock<BTreeMap<String,crate::hap_bridge_group::Status>>,
     pub hap_status: std::sync::RwLock<HapStatus>,
@@ -353,6 +354,31 @@ impl Api {
         }
         if request.uri().path()=="/api/v1/away-off" {
             return crate::web_away_off::execute(self,&runtime,&grant,request).await;
+        }
+        if request.uri().path() == "/api/v1/homekit/placement" {
+            if grant.role != crate::web_auth::Role::Administrator {return deny(StatusCode::FORBIDDEN,"administrator_required");}
+            if request.method()!=hyper::Method::GET {return deny(StatusCode::METHOD_NOT_ALLOWED,"method_not_allowed");}
+            if !request.body().is_empty() {return deny(StatusCode::BAD_REQUEST,"unexpected_body");}
+            let diagnostics=match runtime.control.request(Action::Diagnostics{controller:grant.controller,revision:runtime.revision}).await {
+                Ok(Reply::Diagnostics(s)) if !s.failed && !s.stopping && !s.publishing && s.storage_healthy=>s,
+                _=>return deny(StatusCode::SERVICE_UNAVAILABLE,"runtime_unavailable"),
+            };
+            // Recheck after the await. Old graph metadata cannot cross a runtime
+            // publication barrier or a supervisor restart at the same revision.
+            if !self.runtime.read().ok().is_some_and(|slot|slot.as_ref().is_some_and(|now|now.boot==runtime.boot && now.revision==runtime.revision)) {
+                return deny(StatusCode::SERVICE_UNAVAILABLE,"runtime_unavailable");
+            }
+            let declaration=self.hap_placement.read().ok().and_then(|p|p.clone());
+            let Some(declaration)=declaration else {return deny(StatusCode::SERVICE_UNAVAILABLE,"hap_placement_unavailable");};
+            let mut statuses=match self.hap_bridges.read(){Ok(s)=>s.clone(),Err(_)=>return deny(StatusCode::SERVICE_UNAVAILABLE,"hap_placement_unavailable")};
+            if declaration.bridges.len()==1 && declaration.bridges[0].id=="legacy" {
+                let ready=self.hap_status.read().ok().is_some_and(|s|matches!(*s,HapStatus::Listening));
+                statuses.insert("legacy".into(),if ready {crate::hap_bridge_group::Status::Listening}else{crate::hap_bridge_group::Status::Degraded});
+            }
+            return match declaration.current(&diagnostics.boot,diagnostics.epochs.configuration,&statuses) {
+                Some(view)=>response(StatusCode::OK,json!(view)),
+                None=>deny(StatusCode::SERVICE_UNAVAILABLE,"hap_placement_unavailable"),
+            };
         }
         if request.uri().path() == "/api/v1/diagnostics" {
             if grant.role != crate::web_auth::Role::Administrator {return deny(StatusCode::FORBIDDEN,"administrator_required");}

@@ -129,7 +129,7 @@ mod large_draft_tests {
         for(secret,role)in[(admin,Role::Administrator),(member,Role::Member)] {
             tokens.insert(Uuid::new_v4(),secret,Grant{controller:caller,role,devices:["simulation:light".into()].into(),scenes:Default::default()}).unwrap();
         }
-        let api=Arc::new(Api{daily_backup:Default::default(),hap_bridges:Default::default(),hap_status:Default::default(),backup_source:None,publisher:None,
+        let api=Arc::new(Api{daily_backup:Default::default(),hap_placement:Default::default(),hap_bridges:Default::default(),hap_status:Default::default(),backup_source:None,publisher:None,
             origin:format!("http://{address}"),tokens,runtime:RwLock::new(Some(crate::web_api::Runtime{control:runtime.control(),revision:1,boot:actor.boot_id().into(),scenes:Default::default()})),
             drafts:Some((ExecutionContext::Simulation,Mutex::new(Drafts::open(&root.join("drafts.sqlite")).unwrap()))),
             receipts:Mutex::new(Receipts::open(&root.join("receipts.sqlite")).unwrap())});

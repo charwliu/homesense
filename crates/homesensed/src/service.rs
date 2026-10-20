@@ -517,6 +517,9 @@ async fn serve_automation_simulation_options(
                 None=>None,
             };
             if let Some(management)=&management {management.set_hap_status(if endpoint.is_some(){crate::web_api::HapStatus::Listening}else{crate::web_api::HapStatus::Degraded})?;}
+            if let (Some(management),Some(endpoint))=(&management,&endpoint) {
+                management.set_hap_placement(Some(crate::hap_placement::Publication::new(admission.boot_id().into(),config.revision(),vec![crate::hap_placement::Bridge{id:"legacy".into(),name:identity.load_config().await.map_err(error)?.name,available:true,accessories:endpoint.placement.clone()}])))?;
+            }
             let (stop,receive)=tokio::sync::watch::channel(false);
             let drive=runtime.drive_hap(&mut owner,snapshots,receive,wall_ms);
             tokio::pin!(drive);
@@ -550,7 +553,7 @@ async fn serve_automation_simulation_options(
             let (publisher,publications)=crate::automation_publication::channel();
             let selected:std::collections::BTreeMap<String,String>=document.scene_catalog();
             let tokens=std::sync::Arc::new(crate::web_auth::Tokens::open_bootstrapped(&directory.join("web-credentials.sqlite"),&web.secret,crate::web_auth::Grant{controller,role:if web.administrator {crate::web_auth::Role::Administrator}else{crate::web_auth::Role::Member},scenes:selected.keys().cloned().collect(),devices:config.devices().iter().filter(|(_,d)|d.enabled).map(|(id,_)|id.as_str().to_owned()).collect()})?);
-            let api=std::sync::Arc::new(crate::web_api::Api{daily_backup:daily_backup.clone(),hap_bridges:Default::default(),hap_status:std::sync::RwLock::new(crate::web_api::HapStatus::Disabled),backup_source:Some(directory.join("automation-simulation.sqlite")),publisher:Some(publisher),origin:web.tls.as_ref().map_or_else(||format!("http://{}",web.address),|tls|tls.origin.clone()),tokens,runtime:std::sync::RwLock::new(Some(crate::web_api::Runtime{control:runtime.control(),revision:document.revision,boot:admission.boot_id().to_owned(),scenes:selected})),drafts:Some((ExecutionContext::Simulation,std::sync::Mutex::new(crate::web_drafts::Drafts::open(&directory.join("web-drafts.sqlite"))?))),receipts:std::sync::Mutex::new(crate::web_receipts::Receipts::open_with_policy(&directory.join("web-receipts.sqlite"),receipt_policy.clone().unwrap())?)});
+            let api=std::sync::Arc::new(crate::web_api::Api{daily_backup:daily_backup.clone(),hap_placement:Default::default(),hap_bridges:Default::default(),hap_status:std::sync::RwLock::new(crate::web_api::HapStatus::Disabled),backup_source:Some(directory.join("automation-simulation.sqlite")),publisher:Some(publisher),origin:web.tls.as_ref().map_or_else(||format!("http://{}",web.address),|tls|tls.origin.clone()),tokens,runtime:std::sync::RwLock::new(Some(crate::web_api::Runtime{control:runtime.control(),revision:document.revision,boot:admission.boot_id().to_owned(),scenes:selected})),drafts:Some((ExecutionContext::Simulation,std::sync::Mutex::new(crate::web_drafts::Drafts::open(&directory.join("web-drafts.sqlite"))?))),receipts:std::sync::Mutex::new(crate::web_receipts::Receipts::open_with_policy(&directory.join("web-receipts.sqlite"),receipt_policy.clone().unwrap())?)});
             let (stop,receive)=tokio::sync::watch::channel(false);
             let drive=crate::web_supervision::run(api.clone(),admission.clone(),controller,runtime,owner,publications,receive.clone(),directory.join("automation-simulation.sqlite"));
             let server=crate::web_server::serve_with_tls(api,web.address,receive,web.tls);

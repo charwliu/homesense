@@ -16,6 +16,7 @@ pub struct Group {
     pub projection: watch::Sender<Snapshot>,
     pub statuses: watch::Receiver<BTreeMap<String, Status>>,
     pub panel_feeds: Vec<crate::runtime_panel_hap::Feed>,
+    pub(crate) placement: Option<crate::hap_placement::Publication>,
     stop: watch::Sender<bool>,
     task: Option<JoinHandle<()>>,
 }
@@ -48,6 +49,7 @@ impl Group {
             crate::hap_bridges::prepare(plan, &bundle.configuration, document, base).await?;
         let mut endpoints = BTreeMap::new();
         let mut statuses = BTreeMap::new();
+        let mut placements=vec![];
         for bridge in prepared {
             match Endpoint::start_selected_panels(
                 &bridge.settings,
@@ -63,10 +65,12 @@ impl Group {
             .await
             {
                 Ok(Some(endpoint)) => {
+                    placements.push(crate::hap_placement::Bridge{id:bridge.id.clone(),name:bridge.name.clone(),available:true,accessories:endpoint.placement.clone()});
                     statuses.insert(bridge.id.clone(), Status::Listening);
                     endpoints.insert(bridge.id, endpoint);
                 }
                 Ok(None) => {
+                    placements.push(crate::hap_placement::Bridge{id:bridge.id.clone(),name:bridge.name.clone(),available:false,accessories:vec![]});
                     statuses.insert(bridge.id, Status::Degraded);
                 }
                 Err(error) => {
@@ -77,7 +81,9 @@ impl Group {
                 }
             }
         }
-        Ok(Self::supervise(endpoints, statuses, initial))
+        let mut group=Self::supervise(endpoints, statuses, initial);
+        group.placement=Some(crate::hap_placement::Publication::new(admission.boot_id().into(),bundle.configuration.revision(),placements));
+        Ok(group)
     }
     fn supervise(
         mut endpoints: BTreeMap<String, Endpoint>,
@@ -118,6 +124,7 @@ impl Group {
             projection,
             statuses,
             panel_feeds,
+            placement:None,
             stop,
             task: Some(task),
         }

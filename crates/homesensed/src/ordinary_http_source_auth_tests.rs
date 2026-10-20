@@ -249,7 +249,7 @@ impl Harness {
         let document = bundle.automation.unwrap();
         let api = Arc::new(Api {
             daily_backup: Default::default(),
-            hap_bridges: Default::default(),
+            hap_placement:Default::default(),hap_bridges: Default::default(),
             hap_status: Default::default(),
             backup_source: None,
             publisher: None,

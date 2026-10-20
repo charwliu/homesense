@@ -506,7 +506,7 @@ async fn actual_hap_cache_and_web_details_distinguish_history_from_current_feedb
         .unwrap();
     let api = crate::web_api::Api {
         daily_backup: Default::default(),
-        hap_bridges: Default::default(),
+        hap_placement:Default::default(),hap_bridges: Default::default(),
         hap_status: Default::default(),
         backup_source: None,
         publisher: None,

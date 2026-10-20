@@ -1,4 +1,6 @@
 //! Actual API/actor tests with synthetic persisted registry; no sockets or hardware.
+#[path = "hap_placement_api_tests.rs"]
+mod placement;
 use super::*;
 use crate::web_auth::{Grant, Role, Tokens};
 use http_body_util::BodyExt;
@@ -55,7 +57,7 @@ async fn administrator_module_controls_use_stable_ids_and_cannot_select_physical
     }
     let api = crate::web_api::Api {
         daily_backup: Default::default(),
-        hap_bridges: Default::default(),
+        hap_placement:Default::default(),hap_bridges: Default::default(),
         hap_status: Default::default(),
         backup_source: None,
         publisher: None,
@@ -511,7 +513,7 @@ async fn diagnostic_exact_source_control_future_layout() {
     let h=Box::pin(harness(config,rules)).await;
     let (control,mut receiver)=crate::automation_control::channel(h.controller,h.generation.clone());
     let mut scenes=crate::scene_scheduler::SceneScheduler::new(h.actor.clone(),h.controller,8,h.actor.monotonic_ms()).unwrap();
-    let api=crate::web_api::Api{daily_backup:Default::default(),hap_bridges:Default::default(),hap_status:Default::default(),backup_source:None,publisher:None,origin:"http://127.0.0.1:8088".into(),tokens:std::sync::Arc::new(Tokens::default()),runtime:std::sync::RwLock::new(Some(crate::web_api::Runtime{control,revision:1,boot:h.actor.boot_id().into(),scenes:Default::default()})),receipts:std::sync::Mutex::new(crate::web_receipts::Receipts::open(&h.directory.join("layout-receipts.sqlite")).unwrap()),drafts:None};
+    let api=crate::web_api::Api{daily_backup:Default::default(),hap_placement:Default::default(),hap_bridges:Default::default(),hap_status:Default::default(),backup_source:None,publisher:None,origin:"http://127.0.0.1:8088".into(),tokens:std::sync::Arc::new(Tokens::default()),runtime:std::sync::RwLock::new(Some(crate::web_api::Runtime{control,revision:1,boot:h.actor.boot_id().into(),scenes:Default::default()})),receipts:std::sync::Mutex::new(crate::web_receipts::Receipts::open(&h.directory.join("layout-receipts.sqlite")).unwrap()),drafts:None};
     let request=||hyper::Request::builder().uri("/api/v1/modules").body(hyper::body::Bytes::new()).unwrap();
     let api_bytes=future_bytes(||api.handle(request()));
     let poll_bytes={let receiver=&mut receiver;let scenes=&mut scenes;let actor=&h.actor;let document=&h.document;let feedback=&h.feedback;future_bytes(move||receiver.poll(actor,document,scenes,feedback,5000,None))};
@@ -556,7 +558,7 @@ async fn module_get_pagination_covers_43_modules_and_preserves_read_only_boundar
         }).unwrap();
     }
     let api = crate::web_api::Api {
-        daily_backup: Default::default(), hap_bridges: Default::default(), hap_status: Default::default(),
+        daily_backup: Default::default(), hap_placement:Default::default(),hap_bridges: Default::default(), hap_status: Default::default(),
         backup_source: None, publisher: None, origin: "http://127.0.0.1:8088".into(), tokens,
         runtime: std::sync::RwLock::new(Some(crate::web_api::Runtime {
             control, revision: 2, boot: h.actor.boot_id().into(), scenes: Default::default(),

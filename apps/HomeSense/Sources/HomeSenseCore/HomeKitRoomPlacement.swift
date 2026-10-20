@@ -6,6 +6,7 @@ public enum HomeKitRoomPlacement {
     public enum Kind: String, Codable, Hashable, Sendable { case light, scene, curtain }
 
     public struct Source: Codable, Hashable, Sendable {
+        private enum CodingKeys: String, CodingKey { case bridgeID = "bridge_id", kind, id }
         public let bridgeID: String
         public let kind: Kind
         public let id: String
@@ -15,6 +16,9 @@ public enum HomeKitRoomPlacement {
     }
 
     public struct PublishedAccessory: Codable, Equatable, Sendable {
+        private enum CodingKeys: String, CodingKey {
+            case kind, id, aid, serialNumber = "serial_number", roomID = "room_id"
+        }
         public let kind: Kind
         public let id: String
         public let aid: UInt64
