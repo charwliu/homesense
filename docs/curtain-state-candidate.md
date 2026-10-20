@@ -59,7 +59,13 @@ LED 边沿由同 Admission／Arbiter／持久队列／TransportOwner 经手动�
 
 ## HAP 与 Web
 
-HAP 保留原三个 momentary Open／Close／Stop 动作、原 AID／IID 和配对：false 写入仍无物理动作，读取及复位仍为 false。红色活动提示不写入 Stop action 的 On 特征，以免点击 false 吞掉一次主动 Stop。不发布未经实际反馈支持的 WindowCovering 位置。
+被 HAP 桥选中的窗帘现在发布为每路一个原生 WindowCovering，包含 CurrentPosition、TargetPosition、PositionState 和可选 HoldPosition；原三个 momentary 开关的 AID／IID 仍保留在身份库中，不复用，桥图变更由 HAP 配置号通知已配对客户端。旧三开关适配器只供既有隔离测试，不与原生窗帘同时发布。当前代码尚未部署到现场。
+
+自动化服务的 HAP 桥只发布场景和窗帘（另有协议要求的桥配件）：单独灯、组合灯、Away 开关和实体面板按键都不发布。旧桥接计划即使仍含 `lights`／`panels` 选择，启动路径也不会创建这些配件；后续整理计划时应将这两项置空，新的计划可直接省略。HomeSense App 和自动化中的灯光控制不受此 HAP 展示策略影响。
+
+Apple Home 的百分比是 **HomeSense 的推断值，不是电机位置反馈**。独立可信位置不存在时从 50% 起算；已核实 Written 的打开／关闭指令沿本次起点至 100%／0% 的线性模型推进，10 秒没有新的 Written 停止或反向指令即显示端点。手动停止保留当时的估算位置。重启、失联或估算所有者失效后重置为 50%，不会用旧位置冒充实际反馈。已有 `curtain_state` 审核配置若与 10 秒行程不一致，原生 HAP 启动会拒绝，需先一致化配置。
+
+HAP 目标 0%／100% 分别发送一次校准后的关闭／打开；1–99% 按当前推断位置选方向，以同一 10 秒行程估算抵达时间，在前一方向命令真正 Written 后安排 STOP。若期间出现新的待写入动作或新的 Written 指令，旧自动停止不会再发；STOP 准入仍由原请求者权限和配置版本约束，失败不会盲目重试，实际停位最多有 HAP 刷新间隔及总线写入延迟。HoldPosition=true 直接请求 STOP，false 不产生动作。上述定位是估算，不能作为精确行程控制或独立安全限位。
 
 Web 的独立 `motor_estimate` 包含明确 Inferred 来源、运动、位置、可选百分比、待决动作、停止键活动提示与最后真实 Written。原 `observed` 保持实际模块数据。WebSocket 将模型变化纳入状态推送，不修改实际 Feedback 的序号或历史；重连仍只读完整快照，不重放命令。三个手动按钮不受估计位置／颜色限制，原权限、忙碌和断流门禁仍适用；HTTP 同 request_id 保留既有幂等收据语义。
 

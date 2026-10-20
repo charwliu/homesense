@@ -1,4 +1,4 @@
-//! One bridge publication for light and explicitly selected scene handles.
+//! One bridge with explicitly selected scene and window-covering handles.
 use crate::{runtime_hap::RuntimeHap, runtime_scene_hap::RuntimeSceneHap};
 use hap::server::{IpServer, WriteBatchHandler};
 use std::sync::Arc;
@@ -7,6 +7,7 @@ pub struct UnifiedHap {
     pub lights: RuntimeHap,
     pub scenes: Option<RuntimeSceneHap>,
     pub motors: Option<crate::runtime_motor_hap::RuntimeMotorHap>,
+    pub window_coverings: Option<crate::runtime_window_covering_hap::RuntimeWindowCoveringHap>,
 }
 impl UnifiedHap {
     pub async fn install(&self, server: &IpServer) -> Result<(), String> {
@@ -52,6 +53,14 @@ impl UnifiedHap {
             handles.extend(motors.accessories.iter().map(|(_, h)| h.clone()));
             groups.push((addresses, motors.write_handler.clone()));
         }
+        if let Some(coverings) = &self.window_coverings {
+            let addresses = coverings.accessories.iter().flat_map(|(b, _)| [
+                (b.aid, b.current_iid), (b.aid, b.state_iid),
+                (b.aid, b.target_iid), (b.aid, b.hold_iid),
+            ]).collect();
+            handles.extend(coverings.accessories.iter().map(|(_, h)| h.clone()));
+            groups.push((addresses, coverings.write_handler.clone()));
+        }
         if let Some(away)=&self.away {
             handles.push(away.accessory.clone());groups.push((vec![(away.binding.aid,away.binding.on_iid)],away.write_handler.clone()));
         }
@@ -74,7 +83,7 @@ impl UnifiedHap {
         mut snapshots: tokio::sync::watch::Receiver<homesense_state::Snapshot>,
         mut stop: tokio::sync::watch::Receiver<bool>,
     ) -> Result<(), String> {
-        let notifications_enabled = !self.lights.lights.is_empty() || self.scenes.as_ref().is_some_and(|s| s.has_tracking()) || self.away.is_some();
+        let notifications_enabled = !self.lights.lights.is_empty() || self.scenes.as_ref().is_some_and(|s| s.has_tracking()) || self.away.is_some() || self.window_coverings.is_some();
         let mut observation_tick = tokio::time::interval(std::time::Duration::from_millis(100));
         observation_tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
         loop {
@@ -98,6 +107,9 @@ impl UnifiedHap {
             if let Some(away)=&mut self.away {away.flush_resets().await?;}
             if let Some(motors) = &mut self.motors {
                 motors.flush_resets().await?;
+            }
+            if let Some(coverings) = &mut self.window_coverings {
+                coverings.refresh().await?;
             }
             if let Some(scenes) = &mut self.scenes {
                 scenes.flush_resets().await?;

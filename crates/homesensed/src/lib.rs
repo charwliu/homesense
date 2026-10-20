@@ -25,6 +25,8 @@ pub mod diagnostics;
 
 pub mod curtain_candidate;
 pub mod curtain_owner;
+mod window_covering_state;
+pub mod runtime_window_covering_hap;
 
 pub mod read_probe;
 

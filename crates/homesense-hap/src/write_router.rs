@@ -25,7 +25,9 @@ impl WriteRouter {
     pub fn new(
         groups: Vec<RouteGroup>,
     ) -> Result<Self, WriteStatus> {
-        if groups.is_empty() || groups.len() > 16 {
+        // A legacy bridge may have no remaining published accessories after
+        // light/panel removal. It still needs to serve its paired identity.
+        if groups.len() > 16 {
             return Err(WriteStatus::InvalidValueInRequest);
         }
         let mut routes = BTreeMap::new();

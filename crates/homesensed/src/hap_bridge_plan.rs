@@ -18,10 +18,13 @@ pub struct Bridge {
     pub id: String,
     pub name: String,
     pub address: SocketAddr,
-    #[serde(deserialize_with = "device_ids")]
+    // Legacy selections remain readable so paired bridge identities survive
+    // a plan transition; the endpoint never publishes these accessories.
+    #[serde(default, deserialize_with = "device_ids")]
     pub lights: Vec<DeviceId>,
+    #[serde(default)]
     pub scenes: Vec<String>,
-    #[serde(deserialize_with = "device_ids")]
+    #[serde(default, deserialize_with = "device_ids")]
     pub motors: Vec<DeviceId>,
     #[serde(default, deserialize_with = "device_ids")]
     pub panels: Vec<DeviceId>,

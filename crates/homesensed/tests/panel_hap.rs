@@ -1,4 +1,4 @@
-//! Encrypted panel subscribers through the shared reconnecting TCP runtime.
+//! A legacy panel selection does not become a HAP accessory.
 #[path = "support/pair_setup.rs"]
 mod pair_setup;
 #[path = "../../homesense-hap/tests/support/mod.rs"]
@@ -30,7 +30,7 @@ fn request(
     session.request(socket,format!("{method} {path} HTTP/1.1\r\nHost: localhost\r\nContent-Type: application/hap+json\r\nContent-Length: {}\r\n\r\n{body}",body.len()).as_bytes())
 }
 #[tokio::test]
-async fn selected_panel_reads_subscribes_and_recovers_without_old_gestures() {
+async fn legacy_selected_panel_is_not_published_after_reconnect() {
     let root = std::env::temp_dir().join(format!(
         "homesense-panel-encrypted-{}",
         uuid::Uuid::new_v4()
@@ -161,55 +161,16 @@ async fn selected_panel_reads_subscribes_and_recovers_without_old_gestures() {
         let (headers, body) = request(&mut session, &mut socket, "GET", "/accessories", "");
         assert!(headers.starts_with("HTTP/1.1 200"));
         let graph: serde_json::Value = serde_json::from_slice(&body).unwrap();
-        assert_eq!(graph["accessories"].as_array().unwrap().len(), 2);
+        assert_eq!(graph["accessories"].as_array().unwrap().len(), 1);
         let text = String::from_utf8(body).unwrap();
-        assert!(text.contains("Panel key 2"));
+        assert!(!text.contains("Panel key 2"));
         assert!(!text.contains("Panel key 6"));
         assert!(!text.contains("模拟调光灯"));
-        let panel = &graph["accessories"][1];
-        let aid = panel["aid"].as_u64().unwrap();
-        let event = panel["services"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .flat_map(|s| s["characteristics"].as_array().unwrap())
-            .find(|c| c["perms"].as_array().unwrap().iter().any(|p| p == "ev"))
-            .unwrap();
-        let iid = event["iid"].as_u64().unwrap();
-        assert!(event["value"].is_null());
-        let subscribe =
-            serde_json::json!({"characteristics":[{"aid":aid,"iid":iid,"ev":true,"remote":true}]})
-                .to_string();
-        let put =
-            serde_json::json!({"characteristics":[{"aid":aid,"iid":iid,"value":0}]}).to_string();
-        let (headers, body) = request(&mut session, &mut socket, "PUT", "/characteristics", &put);
-        assert!(headers.starts_with("HTTP/1.1 207"));
-        assert_eq!(
-            serde_json::from_slice::<serde_json::Value>(&body).unwrap()["characteristics"][0]["status"],
-            -70404
-        );
-        let (headers, _) = request(
-            &mut session,
-            &mut socket,
-            "PUT",
-            "/characteristics",
-            &subscribe,
-        );
-        assert!(headers.starts_with("HTTP/1.1 204"));
         actions.blocking_send(Action::Clicks).unwrap();
-        for _ in 0..2 {
-            let (headers, body) = session.request(&mut socket, b"");
-            assert!(headers.starts_with("EVENT/1.0"));
-            let notification: serde_json::Value = serde_json::from_slice(&body).unwrap();
-            assert_eq!(notification["characteristics"][0]["value"], 0);
-        }
-        let path = format!("/characteristics?id={aid}.{iid}");
-        let (headers, body) = request(&mut session, &mut socket, "GET", &path, "");
-        assert!(headers.starts_with("HTTP/1.1 200"));
-        assert!(serde_json::from_slice::<serde_json::Value>(&body).unwrap()["characteristics"][0]["value"].is_null());
         actions.blocking_send(Action::HoldDisconnect).unwrap();
         assert_eq!(connections.blocking_recv(), Some(1));
         drop(socket);
+        std::thread::sleep(Duration::from_millis(700));
         let mut socket = connect();
         let mut session = support::verify(
             &mut socket,
@@ -218,31 +179,11 @@ async fn selected_panel_reads_subscribes_and_recovers_without_old_gestures() {
             &saved.device_id.to_string(),
             &saved.device_ed25519_keypair.verifying_key(),
         );
-        let (headers, _) = request(
-            &mut session,
-            &mut socket,
-            "PUT",
-            "/characteristics",
-            &subscribe,
-        );
-        assert!(headers.starts_with("HTTP/1.1 204"));
-        // A retained down from the old generation must not become a long press.
-        std::thread::sleep(Duration::from_millis(700));
-        let (headers, body) = request(&mut session, &mut socket, "GET", &path, "");
-        assert!(
-            headers.starts_with("HTTP/1.1 200"),
-            "unexpected replay {headers}"
-        );
-        assert!(serde_json::from_slice::<serde_json::Value>(&body).unwrap()["characteristics"][0]["value"].is_null());
+        let (headers, body) = request(&mut session, &mut socket, "GET", "/accessories", "");
+        assert!(headers.starts_with("HTTP/1.1 200"));
+        let graph: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(graph["accessories"].as_array().unwrap().len(), 1);
         actions.blocking_send(Action::Clicks).unwrap();
-        for _ in 0..2 {
-            let (headers, body) = session.request(&mut socket, b"");
-            assert!(headers.starts_with("EVENT/1.0"));
-            assert_eq!(
-                serde_json::from_slice::<serde_json::Value>(&body).unwrap()["characteristics"][0]["value"],
-                0
-            );
-        }
     });
     client.await.unwrap();
     service.await.unwrap().unwrap();

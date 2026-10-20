@@ -47,11 +47,6 @@ impl Settings {
                 return Err("invalid HAP motor name".into());
             }
         }
-        // Non-light devices remain in automation but are not implicitly exposed
-        // as light characteristics. Their own publication policy is separate.
-        if !config.devices().keys().any(|id|config.binding(id).is_some_and(|(_,module)|matches!(module.kind(),homesense_core::ModuleKind::Switch|homesense_core::ModuleKind::Dimmer))) {
-            return Err("HAP requires an enabled light".into());
-        }
         Ok(())
     }
     pub(crate) async fn identity(&self, directory: &Path) -> Result<IdentityStore, String> {
@@ -125,7 +120,7 @@ impl Endpoint {
         settings:&Settings,identity:&IdentityStore,admission:&Admission,
         controller:Uuid,runtime:&AutomationRuntime,initial:homesense_state::Snapshot,
         allow_listener_failure:bool,
-        lights:Option<std::collections::BTreeSet<homesense_core::DeviceId>>,
+        selected_lights:Option<std::collections::BTreeSet<homesense_core::DeviceId>>,
         selected_panels:&[homesense_core::DeviceId],
     )->Result<Option<Self>,String> {
         let bundle = admission
@@ -140,13 +135,16 @@ impl Endpoint {
             .map_err(|e| format!("{e:?}"))?;
         let document = bundle.automation.as_ref().ok_or("automation missing")?;
         settings.validate(&bundle.configuration, document)?;
+        if selected_lights.as_ref().is_some_and(|lights| !lights.is_empty()) || !selected_panels.is_empty() {
+            log::warn!("HAP ignores legacy light and panel selections; only scenes and curtains are published");
+        }
         let lights = crate::runtime_hap::RuntimeHap::new_selected(
             &bundle.configuration,
             initial.clone(),
             identity,
             admission.clone(),
             bundle.configuration.refresh_policy().observation_max_age_ms(),
-            lights,
+            Some(std::collections::BTreeSet::new()),
         )
         .await?;
         let authorization = identity.clone();
@@ -172,17 +170,18 @@ impl Endpoint {
                 .await?,
             )
         };
-        let motors = if settings.motors.is_empty() {None} else {
+        let window_coverings = if settings.motors.is_empty() {None} else {
             let authorization=identity.clone();
-            Some(crate::runtime_motor_hap::RuntimeMotorHap::new(
-                &bundle.configuration,identity,admission.clone(),
+            Some(crate::runtime_window_covering_hap::RuntimeWindowCoveringHap::new(
+                &bundle.configuration,identity,admission.clone(),controller,
                 settings.motors.iter().map(|id|homesense_hap::motor_graph::MotorSpec{device:id.clone(),name:bundle.configuration.devices()[id].name.clone()}).collect(),
                 move |id,_|authorization.controller_is_paired(id).unwrap_or(false),
             ).await?)
         };
-        let published=lights.lights.iter().map(|(binding,_)|binding.device.clone()).collect();
-        let away=crate::runtime_away_hap::RuntimeAwayHap::new(&bundle.configuration,document,identity,admission,runtime.control(),&published).await?;
-        let mut graph = crate::unified_hap::UnifiedHap { lights, scenes, motors, away };
+        // HAP presents only scenes and native window coverings. Legacy plan
+        // light/panel selections are accepted for identity continuity but are
+        // never exposed as accessories.
+        let mut graph = crate::unified_hap::UnifiedHap { lights, scenes, motors:None, window_coverings, away:None };
         let config = identity.load_config().await.map_err(|e| e.to_string())?;
         let server = if settings.address.ip().is_loopback() {
             IpServer::new_loopback(config, identity.clone()).await
@@ -190,11 +189,8 @@ impl Endpoint {
             IpServer::new(config, identity.clone()).await
         }
         .map_err(|e| e.to_string())?;
-        let panels = if selected_panels.is_empty() { None } else {
-            Some(crate::runtime_panel_hap::RuntimePanelHap::new(&bundle.configuration,document,identity,admission.clone(),selected_panels,initial.cursor).await?)
-        };
-        graph.install_with_panels(&server,panels.as_ref()).await?;
-        let panel_feed = panels.as_ref().map(|panels|panels.feed.clone());
+        graph.install(&server).await?;
+        let panel_feed = None;
         let (projection, updates) = tokio::sync::watch::channel(initial);
         let (ready, started) = tokio::sync::oneshot::channel();
         let task = tokio::spawn(async move {
@@ -202,7 +198,6 @@ impl Endpoint {
             tokio::select! {
                 result=server.run_handle_ready(ready)=>result.map_err(|e|e.to_string()),
                 result=graph.project(updates,receive)=>result.and(Err("HAP projection ended".into())),
-                result=async { match panels {Some(panels)=>panels.run().await,None=>std::future::pending().await} }=>result.and(Err("HAP panel delivery ended".into())),
             }
         });
         let mut endpoint = Self { projection, task:Some(task), panel_feed };

@@ -88,7 +88,7 @@ async fn devices(address: std::net::SocketAddr) -> serde_json::Value {
 }
 
 #[tokio::test]
-async fn idle_combined_light_stays_readable_over_encrypted_hap_and_web() {
+async fn idle_light_stays_readable_over_web_with_bridge_only_hap() {
     let root = std::env::temp_dir().join(format!("idle-feedback-{}", Uuid::new_v4()));
     std::fs::create_dir(&root).unwrap();
     let bus = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
@@ -262,7 +262,7 @@ async fn idle_combined_light_stays_readable_over_encrypted_hap_and_web() {
         );
         assert!(header.starts_with("HTTP/1.1 200"), "{header}");
         let graph: serde_json::Value = serde_json::from_slice(&body).unwrap();
-        assert_eq!(graph["accessories"].as_array().unwrap().len(), 2);
+        assert_eq!(graph["accessories"].as_array().unwrap().len(), 1);
     })
     .await
     .unwrap();
