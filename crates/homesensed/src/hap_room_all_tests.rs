@@ -119,6 +119,69 @@ async fn hap_room_all_reports_any_actual_lamp_without_an_extra_accessory_or_comm
         h.finish().await;
     }
 }
+
+#[tokio::test]
+async fn hap_room_all_batched_load_projection_preserves_partial_pending_and_authority() {
+    let mut h = Harness::new(room_rules()).await;
+    samples(&mut h, false, true);
+    let policies = (0..34)
+        .map(|n| {
+            let mut policy = h.document.scene_tracking["all"].clone();
+            policy.scene = format!("load-{n}");
+            if n % 2 == 1 {
+                policy.aggregation = homesense_config::scene_tracking::Aggregation::All;
+            }
+            policy
+        })
+        .collect::<Vec<_>>();
+    let refs = policies.iter().collect::<Vec<_>>();
+    let read =
+        crate::scene_tracking::project_many(&refs, &h.actor, h.member, &h.generation, &h.feedback)
+            .await;
+    for (n, value) in read.iter().enumerate() {
+        assert_eq!(value.active(), Some(n % 2 == 0));
+    }
+    assert_eq!(
+        h.count("command_journal"),
+        0,
+        "load projection must never query or control the bus"
+    );
+    h.actor
+        .submit(homesense_hap::requests::Batch {
+            controller: h.member,
+            subscriptions: vec![],
+            intents: vec![homesense_hap::requests::Intent {
+                device: homesense_core::DeviceId::new("relay").unwrap(),
+                command: homesense_core::Command::Switch(true),
+            }],
+        })
+        .await
+        .unwrap();
+    let read =
+        crate::scene_tracking::project_many(&refs, &h.actor, h.member, &h.generation, &h.feedback)
+            .await;
+    assert!(
+        read.iter()
+            .all(|p| p.activity == crate::scene_activity::SceneActivity::Pending)
+    );
+    assert_eq!(h.wire().await, [0xae, 3, 1, 0xf1, 0xee]);
+    tokio::time::sleep(Duration::from_millis(2)).await;
+    samples(&mut h, true, true);
+    let read =
+        crate::scene_tracking::project_many(&refs, &h.actor, h.member, &h.generation, &h.feedback)
+            .await;
+    assert!(read.iter().all(|p| p.active() == Some(true)));
+    h.allowed.store(false, Ordering::Release);
+    let read =
+        crate::scene_tracking::project_many(&refs, &h.actor, h.member, &h.generation, &h.feedback)
+            .await;
+    assert!(
+        read.iter()
+            .all(|p| p.active().is_none() && p.valid_until_ms.is_none())
+    );
+    assert_eq!(h.count("command_journal"), 1);
+    h.finish().await;
+}
 #[tokio::test]
 async fn hap_room_all_uses_absolute_recipes_for_repeated_on_and_off_not_the_relative_root() {
     let mut h = Harness::new(room_rules()).await;
@@ -174,6 +237,71 @@ async fn hap_room_all_keeps_unknown_state_and_unauthorized_writes_unavailable() 
         Err(hap::server::WriteStatus::InsufficientPrivileges)
     );
     assert_eq!(h.count("command_journal"), 0);
+    drop(bridge);
+    drop(store);
+    h.finish().await;
+}
+
+#[tokio::test]
+async fn hap_room_all_accepted_write_survives_projection_timeout_without_replaying_controls() {
+    let mut h = Harness::new(room_rules()).await;
+    samples(&mut h, false, false);
+    let (store, bridge) = install(&mut h).await;
+    let binding = &bridge.accessories[0].0;
+    let body = serde_json::to_vec(&json!({"characteristics":[{
+        "aid":binding.aid,"iid":binding.on_iid,"value":true
+    }]}))
+    .unwrap();
+    let handler = bridge.write_handler.clone();
+    let member = h.member;
+    let task = tokio::spawn(async move { handler.write_async(member, &body).await });
+    while h.count("command_journal") == 0 {
+        h.receiver
+            .poll_causal(
+                &h.actor,
+                &h.document,
+                &mut h.scheduler,
+                &h.feedback,
+                5000,
+                None,
+                Some(&mut h.router),
+            )
+            .await;
+        tokio::time::sleep(Duration::from_millis(1)).await;
+    }
+    // Leave the read-only SceneLoadStates request unserviced past its 500 ms
+    // budget, after the actual two-output write was durably accepted.
+    assert!(
+        tokio::time::timeout(Duration::from_secs(1), task)
+            .await
+            .unwrap()
+            .unwrap()
+            .is_ok()
+    );
+    assert!(
+        read(&bridge).await.is_err(),
+        "a timed-out read cannot invent state"
+    );
+    assert_eq!(
+        h.count("command_journal"),
+        2,
+        "projection timeout must not retry controls"
+    );
+    assert_eq!(
+        h.wire().await,
+        [0xae, 3, 1, 0xf1, 0xee, 0xae, 3, 2, 0xf1, 0xee]
+    );
+    tokio::time::sleep(Duration::from_millis(2)).await;
+    samples(&mut h, true, true);
+    let bridge = h
+        .drive(tokio::spawn(async move {
+            let mut bridge = bridge;
+            bridge.flush_resets().await.unwrap();
+            bridge
+        }))
+        .await;
+    assert_eq!(read(&bridge).await.unwrap(), json!(true));
+    assert_eq!(h.count("command_journal"), 2);
     drop(bridge);
     drop(store);
     h.finish().await;

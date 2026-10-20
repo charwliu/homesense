@@ -39,6 +39,7 @@ pub enum Action {
     SceneSelectionDetails {controller:Uuid,revision:u64},
     SceneWrites {controller:Uuid,revision:u64,scenes:Vec<(String,Option<bool>)>},
     SceneCatalog {controller:Uuid,revision:u64,scenes:Vec<String>},
+    SceneLoadStates {controller:Uuid,revision:u64,scenes:Vec<String>},
     SceneDefinition {controller:Uuid,revision:u64,scene:String},
     SceneAvailability {controller:Uuid,revision:u64,scene:String},
     SceneRelative {controller:Uuid,revision:u64,scene:String,request_id:String},
@@ -78,6 +79,7 @@ pub enum Reply {
     SceneAccepted(Option<u64>),
     ImmediateAccepted(crate::immediate_scene::Receipt),
     SceneCatalog(std::collections::BTreeMap<String,SceneCatalogEntry>),
+    SceneLoadStates(std::collections::BTreeMap<String,Option<bool>>),
     SceneDefinition(homesense_config::rule_document::SceneExecutionKind),
     SceneAvailability(crate::gateway_runtime::ActionGate),
     ScenesAccepted(Vec<u64>),
@@ -342,6 +344,7 @@ fn managed_request_kind(action: &Action) -> Option<&'static str> {
     match action {
         Action::SceneSelectionDetails {..} => Some("scene_selection"),
         Action::SceneCatalog {..} => Some("scene_catalog"),
+        Action::SceneLoadStates {..} => Some("scene_load_states"),
         Action::DeviceEvents {..} => Some("device_events"),
         Action::Devices {..} => Some("devices"),
         Action::SceneAction {..} | Action::SceneActions {..} | Action::SceneWrites {..} => Some("scene_write"),
@@ -846,6 +849,20 @@ impl Receiver {
                         if writes.iter().any(|(id,_)|!document.scene_tracking.get(id).is_some_and(|p|p.enabled)){return Err("unknown activity role".into());}
                         if writes.iter().any(|(_,value)|value.is_some()){return Err("activity role is read-only".into());}
                         Ok(Reply::ScenesAccepted(vec![]))
+                    },
+                    Action::SceneLoadStates{controller,revision,scenes:ids}=>{
+                        if revision!=document.revision || ids.is_empty() || ids.len()>64{return Err("load state revision or bound invalid".into());}
+                        let mut physical=vec![];let mut components=vec![];
+                        for id in &ids {
+                            let policy=document.scene_tracking.get(id).filter(|p|p.enabled && p.hap_action.is_some()).ok_or("unknown load-backed HAP action")?;
+                            if document.scene_component_activity.get(id).is_some_and(|p|p.enabled){components.push(id);}else{physical.push(policy);}
+                        }
+                        let mut values=crate::scene_tracking::project_many(&physical,admission,controller,&self.generation,feedback).await
+                            .into_iter().map(|p|(p.scene.clone(),p.active())).collect::<std::collections::BTreeMap<_,_>>();
+                        for id in components {
+                            values.insert(id.clone(),crate::scene_tracking::read(document,id,admission,controller,&self.generation,feedback).await?.and_then(|p|p.active()));
+                        }
+                        Ok(Reply::SceneLoadStates(values))
                     },
                     Action::SceneCatalog {controller,revision,scenes:ids}=>{
                         if revision!=document.revision || ids.len()>2048 || ids.iter().collect::<std::collections::BTreeSet<_>>().len()!=ids.len() {return Err("scene catalog revision or scope invalid".into());}
