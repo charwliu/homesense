@@ -17,7 +17,9 @@ async fn native_covering_reports_fifty_then_auto_stops_at_intermediate_target() 
         "schema_version":1,"revision":1,
         "gateways":[{"id":"bus","endpoint":"127.0.0.1:1","modules":[{"address":"22","profile":"c4_din_pro_v2_7_7","verification":{"status":"simulated"}}]}],
         "devices":[{"id":"motor","name":"Curtain","gateway":"bus","address":"22","channel":2,"enabled":true,
-            "motor_calibration":{"open_direction":"down","stop_verified":true,"evidence":"synthetic","verified_at_unix_ms":1}}]
+            "motor_calibration":{"open_direction":"down","stop_verified":true,"evidence":"synthetic","verified_at_unix_ms":1},
+            "curtain_state":{"open_travel_ms":10000,"close_travel_ms":10000,"stop_led_idle_ms":1,
+                "evidence":"synthetic reviewed shared owner","reviewed_at_unix_ms":1}}]
     });
     let bytes = serde_json::to_vec(&document).unwrap();
     let config =
@@ -65,6 +67,21 @@ async fn native_covering_reports_fifty_then_auto_stops_at_intermediate_target() 
     .await
     .unwrap();
     assert_eq!(covering.accessories.len(), 1);
+    // Reject incompatible reviewed travel before registering another trajectory
+    // or queuing a motor action; preserve the existing owner's LED timing.
+    let mut incompatible = document.clone();
+    incompatible["devices"][0]["curtain_state"]["close_travel_ms"] = 9_000.into();
+    let incompatible = homesense_config::Configuration::parse(
+        &serde_json::to_vec(&incompatible).unwrap(),
+        ExecutionContext::Simulation,
+    ).unwrap();
+    let rejected = RuntimeWindowCoveringHap::new(
+        &incompatible, &identity, admission.clone(), controller,
+        vec![MotorSpec { device: device.clone(), name: "Curtain".into() }],
+        |_, _| true,
+    ).await;
+    assert!(matches!(rejected, Err(reason) if reason.contains("reviewed 10-second travel")));
+    assert!(admission.dispatch().await.unwrap().is_none());
     let binding = &covering.accessories[0].0;
     let covering_aid = binding.aid;
     let target_iid = binding.target_iid;

@@ -16,11 +16,11 @@ use std::{
 };
 use uuid::Uuid;
 #[tokio::test]
-async fn unified_service_publishes_both_graphs_and_does_not_deadlock_writes() {
+async fn unified_service_retires_light_handles_and_does_not_deadlock_scene_writes() {
     run(false).await;
 }
 #[tokio::test]
-async fn combined_service_shares_feedback_and_identity_between_hap_and_web() {
+async fn combined_service_keeps_native_light_control_and_paired_scene_identity() {
     run(true).await;
 }
 async fn run(combined:bool) {
@@ -141,7 +141,8 @@ async fn run(combined:bool) {
         );
         assert!(headers.starts_with("HTTP/1.1 200"));
         let graph: serde_json::Value = serde_json::from_slice(&body).unwrap();
-        assert_eq!(graph["accessories"].as_array().unwrap().len(), 3);
+        assert_eq!(graph["accessories"].as_array().unwrap().len(), 2);
+        assert!(graph["accessories"].as_array().unwrap().iter().all(|a| a["services"].as_array().unwrap().iter().all(|s| s["type"] != "43")));
         let mut write = |items: serde_json::Value| {
             let body = serde_json::json!({"characteristics":items}).to_string();
             let request = format!(
@@ -151,14 +152,20 @@ async fn run(combined:bool) {
             );
             session.request(&mut stream, request.as_bytes())
         };
-        for _ in 0..5 {
+        for index in 0..5 {
             let (h, b) =
                 write(serde_json::json!([{"aid":scene.aid,"iid":scene.on_iid,"value":true}]));
             assert!(h.starts_with("HTTP/1.1 204"), "{h} {b:?}");
             let (h, b) = write(
                 serde_json::json!([{"aid":light.aid,"iid":light.brightness_iid.unwrap(),"value":30}]),
             );
-            assert!(h.starts_with("HTTP/1.1 204"), "{h} {b:?}");
+            assert!(h.starts_with("HTTP/1.1 207"), "{h} {b:?}");
+            let rejected: serde_json::Value = serde_json::from_slice(&b).unwrap();
+            assert_eq!(rejected["characteristics"][0]["status"], -70409);
+            if combined {
+                let (status, value) = web_request(web_address, "/api/v1/device-commands", Some(serde_json::json!({"request_id":format!("web-level-{index}"),"device":"simulation:light","command":{"action":"brightness","level":30}})));
+                assert_eq!(status, 202, "{value}");
+            }
         }
         if combined {
             let deadline=Instant::now()+Duration::from_secs(2);
@@ -189,10 +196,9 @@ async fn run(combined:bool) {
         if combined {
             let deadline=Instant::now()+Duration::from_secs(2);
             loop {
-                let request=format!("GET /characteristics?id={}.{} HTTP/1.1\r\nHost: localhost\r\n\r\n",light.aid,light.brightness_iid.unwrap());
-                let (h,b)=session.request(&mut stream,request.as_bytes());assert!(h.starts_with("HTTP/1.1 200"));
-                let value:serde_json::Value=serde_json::from_slice(&b).unwrap();
-                if value["characteristics"][0]["value"]==40 {break;}
+                let (status, value)=web_request(web_address,"/api/v1/devices",None);
+                assert_eq!(status,200);
+                if value["devices"][0]["observed"]["level"]==40 {break;}
                 assert!(Instant::now()<deadline,"{value}");std::thread::sleep(Duration::from_millis(10));
             }
         }
