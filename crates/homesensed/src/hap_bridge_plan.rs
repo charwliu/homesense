@@ -159,6 +159,9 @@ impl Plan {
             if bridge.all_lights && !bridge.lights.is_empty() {
                 return Err("HAP all_lights cannot be combined with explicit lights".into());
             }
+            if bridge.lights.iter().collect::<BTreeSet<_>>().len() != bridge.lights.len() {
+                return Err("duplicate HAP light selection".into());
+            }
             let settings = crate::hap_endpoint::Settings {
                 address: bridge.address,
                 scenes: bridge.scenes.clone(),
