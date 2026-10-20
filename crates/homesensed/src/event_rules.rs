@@ -476,6 +476,16 @@ pub struct CalendarStatus {
     pub startup_attempted: bool,
 }
 impl ScheduledRules {
+    /// Only feedback-triggered continuations need completed roots retained.
+    /// Persistent-variable cascades and pending scene results already stay in
+    /// their original session; retaining idle roots adds no ancestry there.
+    pub(crate) fn needs_feedback_candidates(&self) -> bool {
+        self.rules.bindings.iter().any(|binding| match &binding.trigger {
+            Trigger::DeviceChanged(_) => true,
+            Trigger::VariableChanged(name) => self.rules.cache_bindings.contains_key(name),
+            _ => false,
+        })
+    }
     pub fn status(&self) -> CalendarStatus {
         CalendarStatus {
             clock: self.calendar.status(),
