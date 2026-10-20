@@ -104,7 +104,9 @@ impl Endpoint {
         initial: homesense_state::Snapshot,
         allow_listener_failure: bool,
     ) -> Result<Option<Self>, String> {
-        Self::start_selected(settings,identity,admission,controller,runtime,initial,allow_listener_failure,None).await
+        // The legacy endpoint selects scenes and motors only. Light expansion
+        // requires an explicit bridge plan, never an implicit default.
+        Self::start_selected(settings,identity,admission,controller,runtime,initial,allow_listener_failure,Some(Default::default())).await
     }
     #[allow(clippy::too_many_arguments)]
     pub async fn start_selected(

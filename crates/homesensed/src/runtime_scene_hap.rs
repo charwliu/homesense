@@ -82,7 +82,10 @@ impl RuntimeSceneHap {
             admission: admission.clone(),
             controller,
         };
-        let source = Source::new(admission, controller, groups).await?;
+        let action_ids = specs.iter().filter(|s| document.scene_tracking.get(&s.id)
+            .is_some_and(|p| p.enabled && p.hap_action.is_some())).map(|s| s.id.clone()).collect();
+        let source = Source::new(admission, controller, groups).await?
+            .with_actions(control.clone(), document.revision, action_ids);
         Self::build(
             store,
             document,
@@ -104,13 +107,18 @@ impl RuntimeSceneHap {
         authorize: impl Fn(Uuid, &str) -> bool + Send + Sync + 'static,
     ) -> Result<Self, String> {
         let selected = specs.iter().map(|s| s.id.clone()).collect::<BTreeSet<_>>();
-        let selection_members = document
+        let mut selection_members = document
             .scene_switch_groups
             .iter()
             .flat_map(|g| g.members.iter())
             .filter(|m| selected.contains(&m.scene))
             .map(|m| m.scene.clone())
             .collect::<BTreeSet<_>>();
+        let absolute_actions = Arc::new(document.scene_tracking.iter()
+            .filter(|(id, policy)| selected.contains(*id) && policy.enabled)
+            .filter_map(|(id, policy)| policy.hap_action.clone().map(|action| (id.clone(), action)))
+            .collect::<BTreeMap<_, _>>());
+        selection_members.extend(absolute_actions.keys().cloned());
         let tracking = document
             .scene_tracking
             .iter()
@@ -145,7 +153,7 @@ impl RuntimeSceneHap {
         if let Some(source) = &source {
             selection.install(
                 source
-                    .sample()
+                    .initial_sample()
                     .await
                     .map_err(|reason| format!("{reason:?}"))?,
             )?;
@@ -188,6 +196,7 @@ impl RuntimeSceneHap {
                 let stateful = stateful.clone();
                 let cache = cache.clone();
                 let state_source = state_source.clone();
+                let absolute_actions = absolute_actions.clone();
                 async move {
                     let _guard = writes.lock().await;
                     if batch
@@ -209,7 +218,13 @@ impl RuntimeSceneHap {
                     let actions = batch
                         .addressed
                         .iter()
-                        .map(|scene| (scene.clone(), batch.values.get(scene).copied()))
+                        .map(|scene| {
+                            let value = batch.values.get(scene).copied();
+                            if let Some(action) = absolute_actions.get(scene)
+                                && let Some(on) = value {
+                                (if on { action.on_scene.clone() } else { action.off_scene.clone() }, Some(true))
+                            } else { (scene.clone(), value) }
+                        })
                         .collect();
                     // Freeze old values while a group write is in flight. This
                     // prevents a delayed projection from publishing the old mode.
@@ -255,11 +270,7 @@ impl RuntimeSceneHap {
                 .scenes
                 .remove(&binding.scene)
                 .ok_or("missing scene accessory")?;
-            if document
-                .scene_switch_groups
-                .iter()
-                .flat_map(|g| g.members.iter())
-                .any(|m| m.scene == binding.scene)
+            if selection_members.contains(&binding.scene)
             {
                 let cache = selection.clone();
                 let id = binding.scene.clone();
