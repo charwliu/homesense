@@ -88,11 +88,31 @@ impl SceneScheduler {
     /// Reserve before committing rule variables. Other starts must respect these
     /// slots; this API alone creates no scene record or physical command.
     pub fn reserve_slots(&mut self, count:usize) -> Result<Reservation,String> {
+        if !self.stopped && count > 0 && count <= self.capacity {
+            self.reclaim_delivered_slots(count);
+        }
         if self.stopped || count==0 || count>self.capacity || self.runs.len()+self.results.len()+self.reserved.load(Ordering::SeqCst)>self.capacity-count {
             return Err("scene reservation capacity unavailable".into());
         }
         self.reserved.fetch_add(count,Ordering::SeqCst);
         Ok(Reservation{owner:self.reserved.clone(),remaining:count})
+    }
+    /// A delivered terminal is a bounded history cache, not live execution.
+    /// Keep it queryable until a new admission actually needs its slot. Never
+    /// evict an active run, an undelivered result, or pending physical output.
+    fn reclaim_delivered_slots(&mut self, count: usize) {
+        let occupied = self.runs.len() + self.results.len() + self.reserved.load(Ordering::SeqCst);
+        let needed = occupied.saturating_add(count).saturating_sub(self.capacity);
+        if needed == 0 { return; }
+        let completed = self.runs.iter()
+            .filter(|(_, run)| run.delivered_terminal())
+            .map(|(id, _)| *id)
+            .take(needed)
+            .collect::<Vec<_>>();
+        // Failed reservations must not discard even cached terminal status.
+        if completed.len() == needed {
+            for id in completed { self.runs.remove(&id); }
+        }
     }
     /// Consume one slot exactly once, including on failed or cancelled start.
     /// This remains a manual start; atomic rule admission is a separate adapter.
@@ -248,6 +268,7 @@ impl SceneScheduler {
         controller: Uuid,
     ) -> Result<u64, String> {
         self.clock(now)?;
+        self.reclaim_delivered_slots(1);
         if self.runs.len() + self.results.len() + self.reserved.load(Ordering::SeqCst) >= self.capacity {
             return Err("scene capacity reached; retire terminal runs".into());
         }
