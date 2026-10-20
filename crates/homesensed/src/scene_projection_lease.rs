@@ -273,7 +273,9 @@ impl ProjectionLease {
             || self.rule.revision != revision
             || self.rule.epoch != epoch
             || now < self.rule.captured_ms
-            || self.rule.expires_ms.is_some_and(|at| now >= at)
+            // A read-only projection expires with its captured physical
+            // sample, not the shorter deadline for submitting an action.
+            || self.rule.sample_expires_ms.is_some_and(|at| now >= at)
             || self.expected.iter().any(|(id, expected)| {
                 let current = versions.entries.get(id);
                 current.map(|entry| entry.version) != *expected

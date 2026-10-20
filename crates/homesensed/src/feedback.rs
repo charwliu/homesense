@@ -41,6 +41,9 @@ pub struct RuleLease {
     epoch: u64,
     captured_ms: u64,
     expires_ms: Option<u64>,
+    /// Original physical sample lifetime for read-only projections. The
+    /// managed two-second action deadline remains separately enforced above.
+    sample_expires_ms: Option<u64>,
     pub(crate) observations: BTreeMap<DeviceId, Option<u64>>,
     /// Zero readings supplied by durable dimmer policy, rather than an actual
     /// supply relay Off. Inferred selections require a post-key completed write.
@@ -52,7 +55,8 @@ impl RuleLease {
     pub(crate) fn merge_physical(mut self,other:&Self)->Result<Self,String>{
         if !Arc::ptr_eq(&self.version,&other.version)||self.expected!=other.expected||self.boot!=other.boot||self.revision!=other.revision||self.epoch!=other.epoch||other.motor.is_some()||other.indicator_after.is_some()||!other.recorded_off_reads.is_empty(){return Err("foreign component baseline lease".into());}
         for (id,at) in &other.observations {if self.observations.get(id).is_some_and(|old|old!=at){return Err("inconsistent component baseline".into());}self.observations.insert(id.clone(),*at);}
-        self.captured_ms=self.captured_ms.max(other.captured_ms);self.expires_ms=match(self.expires_ms,other.expires_ms){(Some(a),Some(b))=>Some(a.min(b)),(a,b)=>a.or(b)};Ok(self)
+        self.captured_ms=self.captured_ms.max(other.captured_ms);self.expires_ms=match(self.expires_ms,other.expires_ms){(Some(a),Some(b))=>Some(a.min(b)),(a,b)=>a.or(b)};
+        self.sample_expires_ms=match(self.sample_expires_ms,other.sample_expires_ms){(Some(a),Some(b))=>Some(a.min(b)),(a,b)=>a.or(b)};Ok(self)
     }
     pub(crate) fn covers(&self,other:&Self)->bool{Arc::ptr_eq(&self.version,&other.version)&&self.expected==other.expected&&self.boot==other.boot&&self.revision==other.revision&&self.epoch==other.epoch&&self.captured_ms>=other.captured_ms&&other.expires_ms.is_none_or(|limit|self.expires_ms.is_some_and(|at|at<=limit))&&other.observations.iter().all(|(id,at)|self.observations.get(id)==Some(at))}
     #[cfg(test)]
@@ -356,6 +360,7 @@ impl Feedback {
                 revision: self.revision,
                 epoch: self.epoch,
                 captured_ms: now,
+                sample_expires_ms: read.expires_at_ms(),
                 expires_ms: if self.managed_max_age_ms.is_some() {Some(read.expires_at_ms().unwrap_or(u64::MAX).min(now.saturating_add(2000)))} else {read.expires_at_ms()},
             },
         ))
@@ -519,7 +524,7 @@ impl Feedback {
         if self.stopped {return Err("scene observation feedback stopped".into())}
         Ok(SceneObservationStart {snapshot:self.states.snapshot(),lease:RuleLease {motor:None,
             version:self.lease_version.clone(),expected:*version,boot:self.boot,revision:self.revision,epoch:self.epoch,
-            captured_ms:now,expires_ms:None,observations:BTreeMap::new(),recorded_off_reads:std::collections::BTreeSet::new(),indicator_after:None,
+            captured_ms:now,expires_ms:None,sample_expires_ms:None,observations:BTreeMap::new(),recorded_off_reads:std::collections::BTreeSet::new(),indicator_after:None,
         }})
     }
     pub(crate) fn away_observation(&self,now:u64)->Result<crate::away_execution::Observation,String> {
@@ -554,7 +559,7 @@ impl Feedback {
         let wire=self.event_wires.get(&event.cursor.sequence).map(|(gateway,epoch)|homesense_core::gateway_scope::WireScope::from_persisted(gateway.clone(),*epoch).map_err(|e|e.to_string())).transpose()?;
         Ok(SceneKeyObservation {event:event.clone(),wire,lease:RuleLease {motor:None,
             version:self.lease_version.clone(),expected:*version,boot:self.boot,revision:self.revision,epoch:self.epoch,
-            captured_ms:now,expires_ms:None,observations:BTreeMap::new(),recorded_off_reads:std::collections::BTreeSet::new(),indicator_after:None,
+            captured_ms:now,expires_ms:None,sample_expires_ms:None,observations:BTreeMap::new(),recorded_off_reads:std::collections::BTreeSet::new(),indicator_after:None,
         }})
     }
     pub(crate) fn enable_local_wires(&mut self,wires:BTreeMap<String,u64>)->Result<(),String> {

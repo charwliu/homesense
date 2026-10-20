@@ -123,6 +123,30 @@ async fn equal_required_reply_preserves_projection_but_not_original_action_lease
 }
 
 #[tokio::test]
+async fn managed_action_deadline_does_not_expire_readonly_scene_projection() {
+    let (config, rules) = reconciled();
+    let (mut h, time) = clocked(config, rules).await;
+    h.feedback.set_managed_max_age_ms(5000).unwrap();
+    levels(&mut h, Some(30), Some(0));
+    reconcile(&h).await;
+    let strict = projection(&h).await;
+    let original = h.selection().await.physical.unwrap();
+    // The managed runtime limits actions to two seconds. A read-only scene
+    // still has the original five-second physical observation, with no I/O.
+    time.store(2100, Ordering::Release);
+    selected(&h, Some(1)).await;
+    assert_eq!(h.selection().await.physical.unwrap(), original);
+    assert_eq!(h.actor.reconcile_scene_selection(h.controller, h.generation.clone(), strict).await,
+        Err(hap::server::WriteStatus::ResourceBusy), "the strict action lease must still expire");
+    time.store(5099, Ordering::Release);
+    selected(&h, Some(1)).await;
+    time.store(5100, Ordering::Release);
+    selected(&h, None).await;
+    h.no_output();
+    h.close().await;
+}
+
+#[tokio::test]
 async fn dependent_value_change_and_same_batch_round_trip_revoke_projection() {
     let (config, rules) = reconciled();
     let (mut h, time) = clocked(config, rules).await;
