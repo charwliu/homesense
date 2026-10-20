@@ -227,6 +227,7 @@ pub struct TransportOwner<S> {
     connections: BTreeMap<String, Connection<S>>,
     failed: bool,
     audited_receive_failure: Option<String>,
+    audited_write_failure: Option<String>,
     local: Option<gateway_io::Local<S>>,
     #[cfg(test)]
     worker_spawned: Option<tokio::sync::oneshot::Sender<()>>,
@@ -278,6 +279,7 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
             connections,
             failed: false,
             audited_receive_failure: None,
+            audited_write_failure: None,
             local: None,
             #[cfg(test)]
             worker_spawned: None,
@@ -371,6 +373,9 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
     }
     pub(crate) fn audited_receive_failure_gateway(&self) -> Option<&str> {
         self.audited_receive_failure.as_deref()
+    }
+    pub(crate) fn audited_write_failure_gateway(&self) -> Option<&str> {
+        self.audited_write_failure.as_deref()
     }
     pub(crate) fn gateway_ids(&self) -> Vec<String> {
         self.local.as_ref().map_or_else(
@@ -744,6 +749,7 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
         if self.failed {
             return Err("transport owner requires recovery".into());
         }
+        self.audited_write_failure = None;
         let mut available=self.connections.keys().filter(|gateway|!self.query_replies.waiting(gateway,self.now_ms())).cloned().collect::<std::collections::BTreeSet<_>>();
         if available.is_empty() {
             self.finish_reply_turnaround().await;
@@ -799,6 +805,14 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
                 .transport_failed()
                 .await
                 .map_err(|e| format!("batch failure audit: {e:?}"))?;
+            // Only a completed durable fault audit permits supervisor recovery.
+            // Expired, invalid-authority and invariant failures stay fatal.
+            if result.as_ref().is_err_and(|error|
+                network_send_failure(error)
+                    && !matches!(error.reason, hb_transport::SendFailure::Expired)
+            ) {
+                self.audited_write_failure = Some(gateway);
+            }
         }
         guard.complete = true;
         Ok(Some(WriteOutcome {

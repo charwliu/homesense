@@ -429,7 +429,15 @@ pub(crate) async fn drive_with_panel_feeds<S: Read + Write + Send + 'static>(
                     Err(error) if guard.owner.independent() && crate::transport_owner::network_send_failure(error)=>{
                         log::warn!("local actuator write failed without replay command={}: {error:?}",outcome.command_id);
                     },
-                    Err(error)=>{transport_failure=true;return Err(format!("automation write: {error:?}"));},
+                    Err(error)=>{
+                        transport_failure=true;
+                        if let Some(gateway)=guard.owner.audited_write_failure_gateway() {
+                            log::warn!("audited gateway write failed without replay gateway={gateway}: {error:?}");
+                            disconnected=Some(gateway.to_owned());
+                            return Ok(());
+                        }
+                        return Err(format!("automation write: {error:?}"));
+                    },
                     Ok(())=>{if let Some(router)=&mut causal {for (id,_) in &outcome.completed{router.observe_written(*id).await?;}}},
                 }
                 written_this_quantum+=outcome.physical_frames;
@@ -608,3 +616,7 @@ pub(crate) async fn drive_with_panel_feeds<S: Read + Write + Send + 'static>(
 #[cfg(test)]
 #[path = "publication_barrier_probe.rs"]
 mod publication_barrier_probe;
+
+#[cfg(test)]
+#[path = "automation_write_recovery_tests.rs"]
+mod write_recovery_tests;

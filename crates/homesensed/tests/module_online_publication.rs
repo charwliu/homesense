@@ -261,7 +261,9 @@ async fn exercise(omit: bool) {
     });
     let controller = Uuid::new_v4();
     let signing = ed25519_dalek::SigningKey::from_bytes(&[82; 32]);
-    let mut identity = IdentityStore::open(directory.join("identity"))
+    let identity_path = directory.join("hap-bridges/synthetic/identity");
+    std::fs::create_dir_all(identity_path.parent().unwrap()).unwrap();
+    let mut identity = IdentityStore::open(&identity_path)
         .await
         .unwrap();
     let identity_config = hap::Config {
@@ -284,7 +286,7 @@ async fn exercise(omit: bool) {
     .await
     .unwrap();
     let retired_graph=json!({"accessories":[serde_json::to_value(&retired_lights.bridge).unwrap(),serde_json::to_value(retired_lights.lights.values().next().unwrap()).unwrap()]});
-    let old_identifiers=identifier_rows(&directory.join("identity/identity.sqlite"));
+    let old_identifiers=identifier_rows(&identity_path.join("identity.sqlite"));
     identity
         .save_pairing(&hap::pairing::Pairing::new(
             controller,
@@ -297,8 +299,12 @@ async fn exercise(omit: bool) {
     let automation = serde_json::to_vec(&rules).unwrap();
     let root = directory.clone();
     let started=std::time::Instant::now();
+    let plan = serde_json::to_vec(&json!({"schema_version":1,"bridges":[{
+        "id":"synthetic", "name":identity_config.name.clone(), "address":hap_address.to_string(),
+        "all_lights":true, "scenes":[], "motors":[]
+    }]})).unwrap();
     let service = tokio::spawn(async move {
-        homesensed::automation_tcp::serve_combined(
+        homesensed::automation_tcp::serve_bridges(
             &input,
             &automation,
             &root,
@@ -312,11 +318,7 @@ async fn exercise(omit: bool) {
                 administrator: true,
                 tls: None,
             },
-            homesensed::hap_endpoint::Settings {
-                address: hap_address,
-                scenes: vec![],
-                motors: vec![],
-            },
+            plan,
         )
         .await
     });
@@ -443,7 +445,7 @@ async fn exercise(omit: bool) {
             read_hap(&identity, hap_address, controller, signing).await;
         assert_eq!(fresh_graph["accessories"].as_array().unwrap().len(),2);
         assert_eq!(bridge_ids(&fresh_graph), bridge_ids(&old_graph));
-        assert_eq!(identifier_rows(&directory.join("identity/identity.sqlite")),old_identifiers,"light AID/IIDs remain stable");
+        assert_eq!(identifier_rows(&identity_path.join("identity.sqlite")),old_identifiers,"light AID/IIDs remain stable");
         // No retired light handle can leak the obsolete address's 99%.
         // Confirm the remapped value through the native device API instead.
         assert_eq!(view["devices"][0]["observed"]["level"],44,"old-address99 must not reach native state");

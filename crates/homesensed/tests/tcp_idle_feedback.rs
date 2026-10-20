@@ -163,7 +163,8 @@ async fn idle_light_stays_readable_over_web_and_hap() {
             socket.write_all(&reply).unwrap();
         }
     });
-    let mut identity = homesense_hap::storage::IdentityStore::open(root.join("identity"))
+    std::fs::create_dir_all(root.join("hap-bridges/synthetic")).unwrap();
+    let mut identity = homesense_hap::storage::IdentityStore::open(root.join("hap-bridges/synthetic/identity"))
         .await
         .unwrap();
     let config = hap::Config {
@@ -200,7 +201,7 @@ async fn idle_light_stays_readable_over_web_and_hap() {
     let directory = root.clone();
     let device_bytes = serde_json::to_vec(&raw).unwrap();
     let service = tokio::spawn(async move {
-        homesensed::automation_tcp::serve_combined(
+        homesensed::automation_tcp::serve_bridges(
             &device_bytes,
             &serde_json::to_vec(&read_observation::observation_rules("simulation:light",1000)).unwrap(),
             &directory,
@@ -214,11 +215,10 @@ async fn idle_light_stays_readable_over_web_and_hap() {
                 administrator: true,
                 tls: None,
             },
-            homesensed::hap_endpoint::Settings {
-                address: hap_address,
-                scenes: vec![],
-                motors: vec![],
-            },
+            serde_json::to_vec(&serde_json::json!({"schema_version":1,"bridges":[{
+                "id":"synthetic", "name":"HomeSense", "address":hap_address.to_string(),
+                "all_lights":true, "scenes":[], "motors":[]
+            }]})).unwrap(),
         )
         .await
     });

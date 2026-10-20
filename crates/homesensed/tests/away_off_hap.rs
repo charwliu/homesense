@@ -43,13 +43,26 @@ fn request(
 }
 #[tokio::test]
 async fn paired_hap_retires_implicit_away_and_rejects_its_old_handle() {
+    retired_away(false).await;
+}
+#[tokio::test]
+async fn explicitly_selected_lights_preserve_retired_away_rejection() {
+    retired_away(true).await;
+}
+async fn retired_away(explicit_lights: bool) {
     let root = std::env::temp_dir().join(format!("away-hap-{}", uuid::Uuid::new_v4()));
     std::fs::create_dir_all(&root).unwrap();
     let bus = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
     let address = free_address();
     let web = free_address();
     assert_ne!(address, web);
-    let mut identity = IdentityStore::open(root.join("identity")).await.unwrap();
+    let identity_path = if explicit_lights {
+        root.join("hap-bridges/synthetic/identity")
+    } else {
+        root.join("identity")
+    };
+    std::fs::create_dir_all(identity_path.parent().unwrap()).unwrap();
+    let mut identity = IdentityStore::open(identity_path).await.unwrap();
     let settings = hap::Config {
         host: address.ip(),
         port: address.port(),
@@ -96,8 +109,12 @@ async fn paired_hap_retires_implicit_away_and_rejects_its_old_handle() {
             match socket.read_exact(&mut frame) {
                 Ok(()) => {}
                 Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => break,
-                Err(e) if e.kind() == std::io::ErrorKind::ConnectionReset
-                    && shutdown_armed.load(std::sync::atomic::Ordering::Acquire) => break,
+                Err(e)
+                    if e.kind() == std::io::ErrorKind::ConnectionReset
+                        && shutdown_armed.load(std::sync::atomic::Ordering::Acquire) =>
+                {
+                    break;
+                }
                 Err(e) => panic!("synthetic gateway: {e}"),
             }
             let module = frame[1];
@@ -139,6 +156,30 @@ async fn paired_hap_retires_implicit_away_and_rejects_its_old_handle() {
     });
     let directory = root.clone();
     let service = tokio::spawn(async move {
+        let web_settings = homesensed::service::WebSettings {
+            address: web,
+            secret: "synthetic-observation-only-token-abcdefghijklmnopqrstuvwxyz".into(),
+            administrator: true,
+            tls: None,
+        };
+        if explicit_lights {
+            let plan = json!({"schema_version":1,"bridges":[{
+                "id":"synthetic", "name":"Synthetic explicit lights", "address":address.to_string(),
+                "all_lights":true, "scenes":[], "motors":[]
+            }]});
+            return homesensed::automation_tcp::serve_bridges(
+                &serde_json::to_vec(&config).unwrap(),
+                &serde_json::to_vec(&rules).unwrap(),
+                &directory,
+                Duration::from_secs(5),
+                true,
+                0,
+                Duration::from_millis(20),
+                web_settings,
+                serde_json::to_vec(&plan).unwrap(),
+            )
+            .await;
+        }
         homesensed::automation_tcp::serve_combined(
             &serde_json::to_vec(&config).unwrap(),
             &serde_json::to_vec(&rules).unwrap(),
@@ -147,12 +188,7 @@ async fn paired_hap_retires_implicit_away_and_rejects_its_old_handle() {
             true,
             0,
             Duration::from_millis(20),
-            homesensed::service::WebSettings {
-                address: web,
-                secret: "synthetic-observation-only-token-abcdefghijklmnopqrstuvwxyz".into(),
-                administrator: true,
-                tls: None,
-            },
+            web_settings,
             homesensed::hap_endpoint::Settings {
                 address,
                 scenes: vec![],
@@ -201,13 +237,30 @@ async fn paired_hap_retires_implicit_away_and_rejects_its_old_handle() {
         assert!(header.starts_with("HTTP/1.1 200"));
         let graph: Value = serde_json::from_slice(&body).unwrap();
         let accessories = graph["accessories"].as_array().unwrap();
-        assert!(accessories.len() > 1, "logical lights are published");
+        assert_eq!(
+            accessories.len(),
+            if explicit_lights { 17 } else { 1 },
+            "only explicitly selected logical lights are published"
+        );
         assert_eq!(accessories[0]["aid"], 1);
-        assert!(accessories.iter().flat_map(|a|a["services"].as_array().unwrap()).any(|service|service["type"]=="43"));
+        assert_eq!(
+            accessories
+                .iter()
+                .flat_map(|a| a["services"].as_array().unwrap())
+                .filter(|service| service["type"] == "43")
+                .count(),
+            if explicit_lights { 16 } else { 0 }
+        );
         for value in [false, true] {
-            let response = request(&mut session, &mut stream,
-                json!([{"aid":retired_away.aid,"iid":retired_away.on_iid,"value":value}]));
-            assert!(!response.starts_with("HTTP/1.1 204"), "retired Away handle accepted");
+            let response = request(
+                &mut session,
+                &mut stream,
+                json!([{"aid":retired_away.aid,"iid":retired_away.on_iid,"value":value}]),
+            );
+            assert!(
+                !response.starts_with("HTTP/1.1 204"),
+                "retired Away handle accepted"
+            );
         }
         assert!(controls.lock().unwrap().is_empty());
     });
