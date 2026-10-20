@@ -28,6 +28,15 @@ fn room_rules() -> Json {
     ]}]);
     r
 }
+fn pattern_rules() -> Json {
+    let mut r = room_rules();
+    r["scene_tracking"][0]["aggregation"] = json!("all");
+    r["scene_tracking"][0]["hap_action"]["readback"] = json!("all_conditions");
+    // The App/wall source is a relative program; its HAP On must use the
+    // independently reviewed absolute recipe, even if the root would turn off.
+    r["immediate_scenes"][0]["activate"] = r["immediate_scenes"][2]["activate"].clone();
+    r
+}
 fn samples(h: &mut Harness, first: bool, second: bool) {
     h.samples(first);
     h.feedback
@@ -117,6 +126,98 @@ async fn hap_room_all_reports_any_actual_lamp_without_an_extra_accessory_or_comm
         drop(bridge);
         drop(store);
         h.finish().await;
+    }
+}
+
+#[tokio::test]
+async fn hap_load_pattern_requires_every_condition_without_changing_room_any_semantics() {
+    for (first, second) in [(false, false), (true, false), (false, true), (true, true)] {
+        let mut h = Harness::new(pattern_rules()).await;
+        samples(&mut h, first, second);
+        let (store, bridge) = install(&mut h).await;
+        assert_eq!(read(&bridge).await.unwrap(), json!(first && second));
+        assert_eq!(bridge.accessories.len(), 1);
+        assert!(bridge.activities.is_empty());
+        assert_eq!(h.count("command_journal"), 0);
+        drop(bridge);
+        drop(store);
+        h.finish().await;
+    }
+}
+
+#[tokio::test]
+async fn hap_load_pattern_repeated_writes_are_absolute_and_do_not_run_the_relative_root() {
+    let mut h = Harness::new(pattern_rules()).await;
+    samples(&mut h, false, false);
+    let (store, bridge) = install(&mut h).await;
+    let binding = &bridge.accessories[0].0;
+    for on in [true, true, false, false] {
+        let body = serde_json::to_vec(&json!({"characteristics":[{
+            "aid":binding.aid,"iid":binding.on_iid,"value":on
+        }]}))
+        .unwrap();
+        let handler = bridge.write_handler.clone();
+        let member = h.member;
+        h.drive(tokio::spawn(async move {
+            handler.write_async(member, &body).await
+        }))
+        .await
+        .unwrap();
+        let code = if on { 0xf1 } else { 0xf2 };
+        assert_eq!(
+            h.wire().await,
+            vec![0xae, 3, 1, code, 0xee, 0xae, 3, 2, code, 0xee]
+        );
+    }
+    drop(bridge);
+    drop(store);
+    h.finish().await;
+}
+
+#[test]
+fn hap_load_pattern_rejects_incomplete_relative_or_out_of_scope_recipes() {
+    let config = Configuration::parse(&data(), ExecutionContext::Simulation).unwrap();
+    Document::parse(&serde_json::to_vec(&pattern_rules()).unwrap(), &config).unwrap();
+    for case in 0..10 {
+        let mut r = pattern_rules();
+        match case {
+            0 => r["scene_tracking"][0]["aggregation"] = json!("any"),
+            1 => r["immediate_scenes"][1]["activate"]
+                .as_array_mut()
+                .unwrap()
+                .truncate(1),
+            2 => r["immediate_scenes"][2]["activate"][0]["action"]["command"]["on"] = json!(true),
+            3 => r["immediate_scenes"][1]["activate"][0]["action"]["command"]["on"] = json!(false),
+            4 => r["scene_tracking"][0]["members"]
+                .as_array_mut()
+                .unwrap()
+                .truncate(1),
+            5 => {
+                r["immediate_scenes"][1]["activate"][0]["action"] =
+                    json!({"kind":"scene","id":"all-off","activate":true})
+            }
+            6 => r["immediate_scenes"][0]["activate"]
+                .as_array_mut()
+                .unwrap()
+                .truncate(1),
+            7 => {
+                r["scene_tracking"][0]["members"][0]["predicate"] =
+                    json!({"kind":"ignore","reason":"not a pattern condition"})
+            }
+            8 => {
+                for member in r["scene_tracking"][0]["members"].as_array_mut().unwrap() {
+                    member["predicate"]["on"] = json!(false);
+                }
+                r["immediate_scenes"][1]["activate"] = r["immediate_scenes"][2]["activate"].clone();
+            }
+            _ => r["immediate_scenes"][0]["activate"].as_array_mut().unwrap().push(json!({
+                "source":"unsupported/source/indirection", "action":{"kind":"scene","id":"all-off","activate":true}
+            })),
+        }
+        assert!(
+            Document::parse(&serde_json::to_vec(&r).unwrap(), &config).is_err(),
+            "case {case}"
+        );
     }
 }
 
