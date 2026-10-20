@@ -88,10 +88,14 @@ public struct HomeScenePanel: Identifiable, Equatable, Sendable {
 }
 
 public enum HomeSceneCardAction: Equatable, Sendable {
-    case execute, selection(Bool)
+    case execute, selection(Bool), serverToggle(active: Bool)
     public var on: Bool? { if case .selection(let value) = self { value } else { nil } }
     public var title: String {
-        switch self { case .execute: "执行"; case .selection(true): "开启"; case .selection(false): "关闭" }
+        switch self {
+        case .execute: "执行"
+        case .selection(true), .serverToggle(active: false): "开启"
+        case .selection(false), .serverToggle(active: true): "关闭"
+        }
     }
 }
 
@@ -111,7 +115,14 @@ public extension HomeRecord {
     }
 
     var sceneCardAction: HomeSceneCardAction {
-        guard raw["switch_kind"].text == "selection" else { return .execute }
+        guard raw["switch_kind"].text == "selection" else {
+            // Only the consolidated room-All card labels its server-decided
+            // action from actual load feedback. It still sends no On/Off intent.
+            if name == "全部", let active = sceneCardConfirmedActive {
+                return .serverToggle(active: active)
+            }
+            return .execute
+        }
         // Unknown is an explicit On intent, never evidence of an Off state.
         return .selection(raw["selected"] != .bool(true))
     }
