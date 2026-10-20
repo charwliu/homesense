@@ -19,6 +19,24 @@ fn error(e: impl std::fmt::Display) -> String {
     e.to_string()
 }
 
+fn logical_command(
+    intents:&[(homesense_core::DeviceId,homesense_core::Command)],
+    logical_ids:&std::collections::BTreeSet<homesense_core::DeviceId>,
+) -> Result<Option<(homesense_core::DeviceId,crate::management_devices::DeviceAction)>,hap::server::WriteStatus> {
+    use hap::server::WriteStatus;
+    if !intents.iter().any(|(id,_)|logical_ids.contains(id)) { return Ok(None); }
+    // The shared-resource owner needs a fresh physical lease. A HAP batch
+    // spanning owners must fail before either side can accept a command.
+    if intents.len()!=1 { return Err(WriteStatus::InvalidValueInRequest); }
+    let (device,command)=&intents[0];
+    let action=match command {
+        homesense_core::Command::SetLevel{level,..}=>crate::management_devices::DeviceAction::Brightness{level:level.get()},
+        homesense_core::Command::Switch(on)=>crate::management_devices::DeviceAction::Power{on:*on},
+        _=>return Err(WriteStatus::InvalidValueInRequest),
+    };
+    Ok(Some((device.clone(),action)))
+}
+
 /// Light publication is a view of the shared physical snapshot. Non-light
 /// observations remain with the automation owner and are not HAP light inputs.
 fn light_snapshot(configuration:&Configuration,physical:&Snapshot,selected:Option<&std::collections::BTreeSet<homesense_core::DeviceId>>,recorded:&std::collections::BTreeMap<homesense_core::DeviceId,homesense_core::Percent>)->Result<Snapshot,String> {
@@ -88,11 +106,27 @@ impl RuntimeHap {
         admission:Admission,max_age_ms:u64,
         selected:Option<std::collections::BTreeSet<homesense_core::DeviceId>>,
     )->Result<Self,String> {
-        if let Some(selected)=&selected {
-            let supplies:std::collections::BTreeSet<_>=configuration.devices().values().filter(|d|d.enabled).filter_map(|d|d.supply_relay.as_ref()).collect();
-            if selected.iter().any(|id|supplies.contains(id) || !configuration.binding(id).is_some_and(|(_,module)|matches!(module.kind(),ModuleKind::Switch|ModuleKind::Dimmer))) {
-                return Err("HAP selection requires enabled logical lights".into());
-            }
+        Self::new_selected_with_control(configuration, initial, store, admission, max_age_ms, selected, None).await
+    }
+    pub async fn new_selected_with_control(
+        configuration:&Configuration,initial:Snapshot,store:&IdentityStore,
+        admission:Admission,max_age_ms:u64,
+        selected:Option<std::collections::BTreeSet<homesense_core::DeviceId>>,
+        control:Option<crate::automation_control::Control>,
+    )->Result<Self,String> {
+        let unspecified = selected.is_none();
+        let selected = selected.unwrap_or_else(||crate::hap_bridge_plan::all_light_ids(configuration));
+        let supplies:std::collections::BTreeSet<_>=configuration.devices().values().filter(|d|d.enabled).filter_map(|d|d.supply_relay.as_ref()).collect();
+        if selected.iter().any(|id|supplies.contains(id)
+            || !configuration.binding(id).is_some_and(|(_,module)|matches!(module.kind(),ModuleKind::Switch|ModuleKind::Dimmer))
+            || configuration.composed_resource(id).is_some() && configuration.composed_light(id).is_none()) {
+            return Err("HAP selection requires enabled logical lights".into());
+        }
+        let logical_ids:std::collections::BTreeSet<_>=selected.iter()
+            .filter(|id|configuration.shared_light(id).is_some() || configuration.composed_light(id).is_some())
+            .cloned().collect();
+        if !logical_ids.is_empty() && control.is_none() {
+            return Err("HAP shared-resource lights require the automation control owner".into());
         }
         // Live standalone graphs can be constructed before their initial sync.
         // Once a ready epoch is captured it is never relabelled after recovery.
@@ -105,7 +139,7 @@ impl RuntimeHap {
         ));
         let physical_snapshot = Arc::new(RwLock::new(initial.clone()));
         let recorded = admission.projection_levels(configuration.revision(), initial.cursor.boot_id).await.map_err(|e|format!("recorded levels: {e:?}"))?;
-        let initial = light_snapshot(configuration, &initial, selected.as_ref(), &recorded)?;
+        let initial = light_snapshot(configuration, &initial, Some(&selected), &recorded)?;
         let supplies: std::collections::BTreeSet<_> = configuration
             .devices()
             .values()
@@ -114,10 +148,17 @@ impl RuntimeHap {
             .collect();
         let mut specs = Vec::new();
         for id in configuration.devices().keys() {
-            if supplies.contains(id) || selected.as_ref().is_some_and(|selected|!selected.contains(id)) {
+            if supplies.contains(id) || !selected.contains(id) {
                 continue;
             }
             if let Some((device, module)) = configuration.binding(id) {
+                if let Some((_, composed)) = configuration.composed_light(id) {
+                    specs.push(LightSpec {
+                        device:id.clone(), name:composed.name.clone(), dimmable:true,
+                        default_on_level:Some(homesense_core::Percent::new(composed.default_on_level).map_err(error)?),
+                    });
+                    continue;
+                }
                 let dimmable = match module.kind() {
                     ModuleKind::Dimmer => true,
                     ModuleKind::Switch => false,
@@ -149,13 +190,14 @@ impl RuntimeHap {
             .await
             .map_err(error)?;
         graph.install_observed_reads(view.clone());
-        if graph.bindings.is_empty() && selected.is_none() {
+        if graph.bindings.is_empty() && unspecified {
             return Err("HAP light publication requires enabled logical lights".into());
         }
         let requests = if graph.bindings.is_empty() {None} else {Some(LightRequests::new(graph.bindings.clone()).map_err(error)?)};
         let revision = configuration.revision();
         let owner = admission.clone();
         let restore = restore_levels.clone();
+        let identity = store.clone();
         let mut lights = Vec::new();
         for binding in graph.bindings {
             let light = graph
@@ -178,6 +220,9 @@ impl RuntimeHap {
                 let owner = owner.clone();
                 let transitions = transitions.clone();
                 let writes = writes.clone();
+                let logical_ids = logical_ids.clone();
+                let control = control.clone();
+                let identity = identity.clone();
                 async move {
                     let _serial = writes.lock().await;
                     let intents: Vec<_> = batch
@@ -185,7 +230,20 @@ impl RuntimeHap {
                         .iter()
                         .map(|i| (i.device.clone(), i.command))
                         .collect();
-                    owner.submit_for_revision(revision, batch).await?;
+                    if let Some((device,action))=logical_command(&intents,&logical_ids)? {
+                        if !identity.controller_is_paired(batch.controller).unwrap_or(false) {
+                            return Err(hap::server::WriteStatus::InsufficientPrivileges);
+                        }
+                        let control=control.ok_or(hap::server::WriteStatus::ServiceCommunicationFailure)?;
+                        match control.request(crate::automation_control::Action::DeviceCommand{
+                            controller:batch.controller,revision,device,action,
+                        }).await {
+                            Ok(crate::automation_control::Reply::CommandsAccepted(_))=>{},
+                            _=>return Err(hap::server::WriteStatus::ServiceCommunicationFailure),
+                        }
+                    } else {
+                        owner.submit_for_revision(revision, batch).await?;
+                    }
                     for (device, command) in intents {
                         transitions.accepted(device, command, owner.monotonic_ms());
                     }
@@ -212,7 +270,7 @@ impl RuntimeHap {
             max_age_ms,
             configuration: configuration.clone(),
             projection_epoch,
-            selected,
+            selected:Some(selected),
             physical_snapshot,
             restore_levels,
         })
@@ -826,3 +884,19 @@ mod publication_tests {
 #[cfg(test)]
 #[path="runtime_hap_publication_tests.rs"]
 mod unavailable_publication_tests;
+
+#[cfg(test)]
+mod logical_write_tests {
+    use super::*;
+    #[test]
+    fn shared_resource_hap_write_rejects_mixed_batch_before_submission() {
+        let logical=homesense_core::DeviceId::new("composed").unwrap();
+        let ordinary=homesense_core::DeviceId::new("ordinary").unwrap();
+        let level=homesense_core::Percent::new(45).unwrap();
+        let command=homesense_core::Command::SetLevel{level,transition:homesense_core::LevelTransition::Immediate};
+        let protected=std::collections::BTreeSet::from([logical.clone()]);
+        assert!(matches!(logical_command(&[(logical.clone(),command),(ordinary.clone(),command)],&protected),Err(hap::server::WriteStatus::InvalidValueInRequest)));
+        assert!(matches!(logical_command(&[(logical,command)],&protected).unwrap().unwrap().1,crate::management_devices::DeviceAction::Brightness{level:45}));
+        assert!(logical_command(&[(ordinary,command)],&protected).unwrap().is_none());
+    }
+}

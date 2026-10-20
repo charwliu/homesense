@@ -43,17 +43,18 @@ async fn exercise(
         let mut socket=std::net::TcpStream::connect(address).unwrap();socket.set_read_timeout(Some(Duration::from_secs(3))).unwrap();socket.set_write_timeout(Some(Duration::from_secs(3))).unwrap();
         let mut session=support::verify(&mut socket,controller,&signing,&config.device_id.to_string(),&config.device_ed25519_keypair.verifying_key());
         let (header,body)=session.request(&mut socket,b"GET /accessories HTTP/1.1\r\nHost: localhost\r\n\r\n");assert!(header.starts_with("HTTP/1.1 200"));
-        let graph:serde_json::Value=serde_json::from_slice(&body).unwrap();assert_eq!(graph["accessories"].as_array().unwrap().len(),1);
-        let text=String::from_utf8(body).unwrap();assert!(!text.contains(&format!("Lamp {index}")));assert!(!text.contains(&format!("Lamp {}",1-index)));
+        let graph:serde_json::Value=serde_json::from_slice(&body).unwrap();assert_eq!(graph["accessories"].as_array().unwrap().len(),2);
+        let text=String::from_utf8(body).unwrap();assert!(text.contains(&format!("Lamp {index}")));assert!(!text.contains(&format!("Lamp {}",1-index)));
+        assert!(graph["accessories"][1]["services"].as_array().unwrap().iter().any(|service|service["type"]=="43"));
         socket
     }).await.unwrap()
 }
 #[tokio::test]
-async fn legacy_light_only_bridges_recover_without_publishing_lights() {
+async fn selected_light_bridges_recover_with_lights_published() {
     run_pairing(false).await;
 }
 #[tokio::test]
-async fn fresh_pair_setup_on_legacy_bridges_survives_recovery_and_restart() {
+async fn fresh_pair_setup_on_light_bridges_survives_recovery_and_restart() {
     run_pairing(true).await;
 }
 async fn run_pairing(fresh: bool) {
@@ -407,7 +408,7 @@ async fn run_pairing(fresh: bool) {
 }
 
 #[tokio::test]
-async fn scene_only_and_motor_only_bridges_control_without_exposing_lights() {
+async fn scene_light_and_motor_bridges_publish_expected_accessories() {
     let root = std::env::temp_dir().join(format!("homesense-actions-only-{}", Uuid::new_v4()));
     let bus = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let mut raw: serde_json::Value =
@@ -544,8 +545,9 @@ async fn scene_only_and_motor_only_bridges_control_without_exposing_lights() {
             let mut socket=std::net::TcpStream::connect(address).unwrap();socket.set_read_timeout(Some(Duration::from_secs(2))).unwrap();socket.set_write_timeout(Some(Duration::from_secs(2))).unwrap();
             let mut session=support::verify(&mut socket,controller,&signing,&config.device_id.to_string(),&config.device_ed25519_keypair.verifying_key());
             let (header,body)=session.request(&mut socket,b"GET /accessories HTTP/1.1\r\nHost: localhost\r\n\r\n");assert!(header.starts_with("HTTP/1.1 200"));
-            let graph:serde_json::Value=serde_json::from_slice(&body).unwrap();let accessories=graph["accessories"].as_array().unwrap();assert_eq!(accessories.len(),2);assert!(!String::from_utf8(body).unwrap().contains("模拟调光灯"));
-            for accessory in accessories.iter().skip(1) {
+            let graph:serde_json::Value=serde_json::from_slice(&body).unwrap();let accessories=graph["accessories"].as_array().unwrap();assert_eq!(accessories.len(),if index==0 {3}else{2});
+            assert_eq!(String::from_utf8(body).unwrap().contains("模拟调光灯"),index==0);
+            for accessory in accessories.iter().skip(1).filter(|accessory| index!=0 || accessory["services"].as_array().unwrap().iter().any(|service|service["type"]=="49")) {
                 let before=writes.lock().unwrap().len();
                 let characteristic=accessory["services"].as_array().unwrap().iter().flat_map(|s|s["characteristics"].as_array().unwrap()).find(|c|c["type"]==if index==0 {"25"}else{"7C"}).unwrap();
                 let body=serde_json::json!({"characteristics":[{"aid":accessory["aid"],"iid":characteristic["iid"],"value":if index==0 {serde_json::json!(true)}else{serde_json::json!(100)} }]}).to_string();let request=format!("PUT /characteristics HTTP/1.1\r\nHost: localhost\r\nContent-Type: application/hap+json\r\nContent-Length: {}\r\n\r\n{body}",body.len());

@@ -18,16 +18,34 @@ pub struct Bridge {
     pub id: String,
     pub name: String,
     pub address: SocketAddr,
-    // Legacy selections remain readable so paired bridge identities survive
-    // a plan transition; the endpoint never publishes these accessories.
     #[serde(default, deserialize_with = "device_ids")]
     pub lights: Vec<DeviceId>,
+    /// Publish every visible logical light, including reviewed composed lights.
+    #[serde(default)]
+    pub all_lights: bool,
     #[serde(default)]
     pub scenes: Vec<String>,
     #[serde(default, deserialize_with = "device_ids")]
     pub motors: Vec<DeviceId>,
     #[serde(default, deserialize_with = "device_ids")]
     pub panels: Vec<DeviceId>,
+}
+pub fn all_light_ids(config: &homesense_config::Configuration) -> BTreeSet<DeviceId> {
+    let supplies: BTreeSet<_> = config.devices().values().filter(|d| d.enabled)
+        .filter_map(|d| d.supply_relay.as_ref()).collect();
+    config.devices().iter().filter_map(|(id, device)| {
+        let (_, module) = config.binding(id)?;
+        if !matches!(module.kind(), ModuleKind::Switch | ModuleKind::Dimmer)
+            || supplies.contains(id) { return None; }
+        if !device.catalog_visible { return None; }
+        if config.composed_light(id).is_some() { return Some(id.clone()); }
+        (config.composed_resource(id).is_none()).then(|| id.clone())
+    }).collect()
+}
+impl Bridge {
+    pub fn selected_lights(&self, config: &homesense_config::Configuration) -> BTreeSet<DeviceId> {
+        if self.all_lights { all_light_ids(config) } else { self.lights.iter().cloned().collect() }
+    }
 }
 fn device_ids<'de, D: serde::Deserializer<'de>>(
     deserializer: D,
@@ -133,8 +151,11 @@ impl Plan {
             if !ids.insert(&bridge.id) || !addresses.insert(bridge.address) {
                 return Err("duplicate HAP bridge id or endpoint".into());
             }
-            if bridge.lights.is_empty() && bridge.scenes.is_empty() && bridge.motors.is_empty() && bridge.panels.is_empty() {
+            if bridge.lights.is_empty() && !bridge.all_lights && bridge.scenes.is_empty() && bridge.motors.is_empty() && bridge.panels.is_empty() {
                 return Err("empty HAP bridge publication".into());
+            }
+            if bridge.all_lights && !bridge.lights.is_empty() {
+                return Err("HAP all_lights cannot be combined with explicit lights".into());
             }
             let settings = crate::hap_endpoint::Settings {
                 address: bridge.address,
@@ -142,19 +163,29 @@ impl Plan {
                 motors: bridge.motors.clone(),
             };
             settings.validate(config, document)?;
-            for id in &bridge.lights {
+            let selected_lights = bridge.selected_lights(config);
+            if bridge.all_lights && selected_lights.is_empty() {
+                return Err("HAP all_lights found no visible logical lights".into());
+            }
+            if selected_lights.len() > 4095 { return Err("too many HAP lights".into()); }
+            for id in &selected_lights {
                 if supplies.contains(id)
                     || !config.binding(id).is_some_and(|(_, module)| {
                         matches!(module.kind(), ModuleKind::Switch | ModuleKind::Dimmer)
                     })
+                    || config.composed_resource(id).is_some() && config.composed_light(id).is_none()
                 {
                     return Err("HAP light selection is not an enabled logical light".into());
+                }
+                let name = config.composed_light(id).map_or_else(|| &config.devices()[id].name, |(_, light)| &light.name);
+                if name.trim().is_empty() || name.len() > 64 || name.chars().any(char::is_control) {
+                    return Err("invalid HAP light name".into());
                 }
             }
             panel_specs(&bridge.panels, config)?;
             validate_panel_ownership(&bridge.panels,document)?;
-            for id in bridge.lights.iter().chain(&bridge.motors).chain(&bridge.panels) {
-                if !devices.insert(id) {
+            for id in selected_lights.iter().chain(&bridge.motors).chain(&bridge.panels) {
+                if !devices.insert(id.clone()) {
                     return Err("device published by multiple HAP bridges".into());
                 }
             }
@@ -183,6 +214,34 @@ impl Plan {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn all_lights_selects_composed_and_ordinary_without_raw_supply() {
+        let raw=serde_json::json!({"schema_version":2,"revision":1,
+            "rooms":[{"id":"room","name":"Room"}],
+            "gateways":[{"id":"bus","endpoint":"127.0.0.1:1","modules":[
+                {"id":"relay","address":"31","profile":"r8i8_din_pro_v2_7_7","verification":{"status":"simulated"}},
+                {"id":"dimmer","address":"32","profile":"ad8_din_rs485_v2_2_1","verification":{"status":"simulated"}}]}],
+            "devices":[
+                {"id":"supply","name":"Raw supply","room":"room","module_id":"relay","channel":1,"enabled":true},
+                {"id":"composed","name":"Raw dimmer","room":"room","module_id":"dimmer","channel":1,"enabled":true,"default_on_level":100},
+                {"id":"ordinary","name":"Ordinary","room":"room","module_id":"dimmer","channel":2,"enabled":true,"default_on_level":100}],
+            "composed_lights":[{"id":"matrix","review_evidence":"synthetic reviewed wiring","lights":[
+                {"id":"composed","name":"Reviewed lamp","members":[{"supply":"supply","dimmer":"composed"}],"default_on_level":70}]}]});
+        let config=homesense_config::Configuration::parse(&serde_json::to_vec(&raw).unwrap(),homesense_core::ExecutionContext::Simulation).unwrap();
+        let doc=homesense_config::rule_document::Document::parse(br#"{"schema_version":1,"configuration_revision":1,"variables":[],"rules":[]}"#,&config).unwrap();
+        let selected=all_light_ids(&config);
+        assert_eq!(selected.iter().map(DeviceId::as_str).collect::<Vec<_>>(),vec!["composed","ordinary"]);
+        let mut hidden=raw.clone();
+        hidden["devices"][1]["catalog_visible"]=false.into();
+        let hidden=homesense_config::Configuration::parse(&serde_json::to_vec(&hidden).unwrap(),homesense_core::ExecutionContext::Simulation).unwrap();
+        assert_eq!(all_light_ids(&hidden).iter().map(DeviceId::as_str).collect::<Vec<_>>(),vec!["ordinary"]);
+        let plan=serde_json::json!({"schema_version":1,"bridges":[{"id":"home","name":"Home","address":"127.0.0.1:51826","all_lights":true}]});
+        assert_eq!(Plan::parse(&serde_json::to_vec(&plan).unwrap(),&config,&doc).unwrap().bridges[0].selected_lights(&config),selected);
+        let mut invalid=plan;
+        invalid["bridges"][0]["all_lights"]=false.into();
+        invalid["bridges"][0]["lights"]=serde_json::json!(["supply"]);
+        assert!(Plan::parse(&serde_json::to_vec(&invalid).unwrap(),&config,&doc).is_err());
+    }
     #[test]
     fn panel_selection_uses_verified_logical_bindings_and_rejects_other_devices() {
         let mut raw: serde_json::Value =
