@@ -52,7 +52,7 @@ async fn reviewed_composed_light_is_a_lightbulb_without_raw_resources() {
             {"id":"dimmer","address":"32","profile":"ad8_din_rs485_v2_2_1","verification":{"status":"simulated"}}]}],
         "devices":[
             {"id":"supply","name":"Raw supply","room":"room","module_id":"relay","channel":1,"enabled":true},
-            {"id":"composed","name":"Raw dimmer","room":"room","module_id":"dimmer","channel":1,"enabled":true,"default_on_level":100},
+            {"id":"composed","name":"Raw dimmer","room":"room","module_id":"dimmer","channel":1,"enabled":true,"default_on_level":100,"catalog_visible":false},
             {"id":"ordinary","name":"Ordinary lamp","room":"room","module_id":"dimmer","channel":2,"enabled":true,"default_on_level":100}],
         "composed_lights":[{"id":"matrix","review_evidence":"synthetic reviewed wiring","lights":[
             {"id":"composed","name":"Reviewed lamp","members":[{"supply":"supply","dimmer":"composed"}],"default_on_level":70}]}]});
