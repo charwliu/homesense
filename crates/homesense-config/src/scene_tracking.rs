@@ -81,12 +81,14 @@ pub(crate) fn validate(
         return Err(crate::invalid("tracking policy capacity exceeded"));
     }
     let mut ids = std::collections::BTreeSet::new();
+    let mut hap_recipes = std::collections::BTreeSet::new();
     for p in policies {
         if let Some(action) = &p.hap_action
             && (!p.enabled || p.hap_activity || p.aggregation != Aggregation::Any
                 || action.on_scene == action.off_scene
                 || [&action.on_scene, &action.off_scene].into_iter().any(|id| {
                     id == &p.scene || !document.scene_action_available(id)
+                        || !hap_recipes.insert(id.clone())
                         || !document.hidden_scene_entries.contains(id)
                         || document.scene_rooms.get(id) != document.scene_rooms.get(&p.scene)
                         || policies.iter().any(|other| &other.scene == id && other.hap_action.is_some())
@@ -179,4 +181,16 @@ pub(crate) fn validate(
         }
     }
     Ok(())
+}
+
+impl crate::rule_document::Document {
+    /// A HAP absolute recipe retains its canonical scene's confirmation policy.
+    /// This changes proof identity only; admission, commands and caller grants
+    /// still use the actual requested recipe and its reviewed output scope.
+    pub fn scene_confirmation_id<'a>(&'a self, id: &'a str) -> &'a str {
+        self.scene_tracking.values().find_map(|policy| {
+            policy.hap_action.as_ref().filter(|action| action.on_scene == id || action.off_scene == id)
+                .map(|_| policy.scene.as_str())
+        }).unwrap_or(id)
+    }
 }
