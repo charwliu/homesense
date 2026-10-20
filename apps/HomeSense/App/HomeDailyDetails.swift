@@ -453,7 +453,7 @@ struct HomeSceneDetails: View {
                         if scene.raw["switch_kind"].text == "selection" {
                             Button("开启场景") { Task { await home.controlScene(sceneID, on: true) } }
                             Button("关闭场景") { Task { await home.controlScene(sceneID, on: false) } }
-                        } else { Button("执行场景") { Task { await home.controlScene(sceneID, on: nil) } } }
+                        } else { Button(scene.sceneCardAction.title) { Task { await home.controlScene(sceneID, on: nil) } } }
                     }.disabled(!home.canControlScene(sceneID))
                     Section("灯光状态") {
                         if scene.sceneLightMembershipAvailable {
