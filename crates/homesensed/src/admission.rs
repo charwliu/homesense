@@ -238,7 +238,7 @@ type RestoreLevels = BTreeMap<homesense_core::DeviceId, homesense_core::Percent>
 /// Unavailable performs no restore read/write and never grants control.
 pub(crate) enum HapProjection {
     Unavailable,
-    Ready {restore:RestoreLevels,targets:RestoreLevels,transport_epoch:u64},
+    Ready {restore:RestoreLevels,targets:RestoreLevels,transport_epoch:u64,unsettled:std::collections::BTreeSet<homesense_core::DeviceId>},
 }
 
 struct PendingPublication {
@@ -1307,7 +1307,9 @@ impl Admission {
                                 if !policy.storage_healthy {return Err(WriteStatus::ServiceCommunicationFailure);}
                                 let restore=remember_projection(&mut store,&mut restore_policy,&configuration,&worker_boot,policy,now,(&snapshot,max_age))?;
                                 let targets=restore_policy.targets(policy.epochs,now,|id|store.command_status(&worker_boot,id)).map_err(|_|WriteStatus::ServiceCommunicationFailure)?;
-                                Ok(HapProjection::Ready{restore,targets,transport_epoch:policy.epochs.transport})
+                                let observations=configuration.composed_lights().values().flat_map(|group|group.resources()).map(|id|(id.clone(),snapshot.devices.get(id).and_then(|state|state.observed_at_ms))).collect();
+                                let unsettled=store.unsettled_feedback_in_epoch(&worker_boot,&observations,policy.epochs.transport).map_err(|_|WriteStatus::ServiceCommunicationFailure)?;
+                                Ok(HapProjection::Ready{restore,targets,transport_epoch:policy.epochs.transport,unsettled})
                             })();
                             let _=reply.send(result);
                         }

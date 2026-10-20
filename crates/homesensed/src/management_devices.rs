@@ -130,10 +130,10 @@ async fn snapshot_bound(admission:&Admission,controller:Uuid,generation:TaskGene
     // A management-only runtime has no HAP/indicator sampler to retire reached
     // targets. Settle from this genuine snapshot and capture remaining targets
     // in one actor turn; never acknowledge Accepted/Writing or ramp samples.
-    let recorded = match admission.hap_projection(
+    let (recorded,unsettled) = match admission.hap_projection(
         generation.epochs.configuration, Some(generation.epochs.transport), raw.clone(), max_age_ms,
     ).await.map_err(|e| format!("management light projection: {e:?}"))? {
-        crate::admission::HapProjection::Ready { targets, .. } => targets,
+        crate::admission::HapProjection::Ready { targets, unsettled, .. } => (targets,unsettled),
         crate::admission::HapProjection::Unavailable => return Err("management light projection unavailable".into()),
     };
     let mut snapshot = crate::combined_light::project(&bundle.configuration, &raw)
@@ -174,7 +174,9 @@ async fn snapshot_bound(admission:&Admission,controller:Uuid,generation:TaskGene
         let availability=gateway_views.iter().find(|view|view.gateway==device.gateway).cloned();
         if availability.as_ref().is_some_and(|view|view.state!="ready") {state.quality=homesense_state::Quality::Unknown;}
         devices.push(DeviceView {
-            control_error:crate::composed_light::control_error(&bundle.configuration,&id,&raw),
+            control_error:if bundle.configuration.composed_light(&id).is_some_and(|(group,_)|group.resources().iter().any(|resource|unsettled.contains(*resource))) {
+                Some("shared_feedback_pending")
+            }else{crate::composed_light::control_error(&bundle.configuration,&id,&raw)},
             communication_error:if bundle.configuration.composed_light(&id).is_some() {
                 bundle.configuration.logical_components(&id).into_iter().find_map(|component| {
                     let (binding,_)=bundle.configuration.binding(component)?;
