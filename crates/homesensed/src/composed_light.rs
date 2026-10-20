@@ -76,12 +76,53 @@ fn plan(
     before: &Matrix,
     level: Percent,
 ) -> Result<Vec<Intent>, &'static str> {
+    plan_targets(group, &BTreeMap::from([(target.id.clone(), level)]), before)
+}
+
+/// Joint constraints are solved against one physical baseline. Planning each
+/// light sequentially could undo an earlier target on a shared relay/column.
+fn plan_targets(
+    group: &Group,
+    targets: &BTreeMap<DeviceId, Percent>,
+    before: &Matrix,
+) -> Result<Vec<Intent>, &'static str> {
     let rows = before.powers.keys().cloned().collect::<Vec<_>>();
     let columns = before.levels.keys().cloned().collect::<Vec<_>>();
-    let target_columns = target
-        .members
+    if targets.is_empty()
+        || targets.len() > group.lights.len()
+        || targets.keys().any(|id| group.light(id).is_none())
+    {
+        return Err("invalid logical light target set");
+    }
+    let mut requested_columns = BTreeMap::new();
+    for (id, level) in targets.iter().filter(|(_, level)| level.get() > 0) {
+        let light = group.light(id).ok_or("logical light missing")?;
+        if light
+            .excludes_on
+            .iter()
+            .any(|peer| targets.get(peer).is_some_and(|level| level.get() > 0))
+        {
+            return Err("requested lights have reviewed mutual exclusions");
+        }
+        for member in &light.members {
+            if requested_columns
+                .insert(member.dimmer.clone(), *level)
+                .is_some_and(|prior| prior != *level)
+            {
+                return Err("conflicting brightness targets share a physical dimmer");
+            }
+        }
+    }
+    let target_columns = targets
+        .keys()
+        .flat_map(|id| group.light(id).unwrap().members.iter().map(|m| &m.dimmer))
+        .collect::<BTreeSet<_>>();
+    let any_on = targets.values().any(|level| level.get() > 0);
+    let excluded = group
+        .lights
         .iter()
-        .map(|m| &m.dimmer)
+        .filter(|light| targets.get(&light.id).is_some_and(|level| level.get() > 0))
+        .flat_map(|light| light.excludes_on.iter())
         .collect::<BTreeSet<_>>();
     let mut best: Option<(usize, Matrix)> = None;
     for row_bits in 0..(1usize << rows.len()) {
@@ -96,8 +137,8 @@ fn plan(
                     .iter()
                     .enumerate()
                     .map(|(i, id)| {
-                        let value = if level.get() > 0 && target_columns.contains(id) {
-                            level
+                        let value = if let Some(level) = requested_columns.get(id) {
+                            *level
                         } else if column_bits & (1 << i) != 0 {
                             before.levels[id]
                         } else {
@@ -108,20 +149,18 @@ fn plan(
                     .collect(),
             };
             let valid = group.lights.iter().all(|light| {
-                if light.id == target.id {
+                if let Some(level) = targets.get(&light.id) {
                     return light
                         .members
                         .iter()
                         .all(|m| candidate.lit(m) == (level.get() > 0));
                 }
-                if level.get() > 0 && target.excludes_on.contains(&light.id) {
+                if excluded.contains(&light.id) {
                     return light.members.iter().all(|m| !candidate.lit(m));
                 }
                 light.members.iter().all(|member| {
                     (candidate.lit(member) == before.lit(member)
-                        || group.allow_shared_side_effects
-                            && level.get() > 0
-                            && !before.lit(member))
+                        || group.allow_shared_side_effects && any_on && !before.lit(member))
                         && (!before.lit(member)
                             || target_columns.contains(&member.dimmer)
                             || candidate.levels[&member.dimmer] == before.levels[&member.dimmer])
@@ -133,9 +172,7 @@ fn plan(
             let collateral = group
                 .lights
                 .iter()
-                .filter(|l| {
-                    l.id != target.id && !(level.get() > 0 && target.excludes_on.contains(&l.id))
-                })
+                .filter(|l| !targets.contains_key(&l.id) && !excluded.contains(&l.id))
                 .flat_map(|l| l.members.iter())
                 .filter(|m| before.lit(m) != candidate.lit(m))
                 .count();
@@ -180,7 +217,7 @@ fn plan(
         }
     }
     for id in &columns {
-        if before.levels[id] != after.levels[id] || level.get() > 0 && target_columns.contains(id) {
+        if before.levels[id] != after.levels[id] || requested_columns.contains_key(id) {
             writes.push(Intent {
                 device: id.clone(),
                 command: Command::SetLevel {
@@ -199,6 +236,7 @@ fn plan(
         }
     }
     if writes.is_empty() {
+        let target = group.light(targets.keys().next().unwrap()).unwrap();
         let member = &target.members[0];
         let (device, command) = if !after.powers[&member.supply] {
             (member.supply.clone(), Command::Switch(false))
@@ -214,6 +252,33 @@ fn plan(
         writes.push(Intent { device, command });
     }
     Ok(writes)
+}
+
+pub(crate) fn plan_joint(
+    group: &Group,
+    targets: &BTreeMap<DeviceId, Percent>,
+    powers: &BTreeMap<DeviceId, bool>,
+    levels: &BTreeMap<DeviceId, Percent>,
+) -> Result<Vec<Intent>, &'static str> {
+    let mut observed = Matrix {
+        powers: BTreeMap::new(),
+        levels: BTreeMap::new(),
+    };
+    for member in group.lights.iter().flat_map(|light| &light.members) {
+        observed.powers.insert(
+            member.supply.clone(),
+            *powers
+                .get(&member.supply)
+                .ok_or("joint supply feedback missing")?,
+        );
+        observed.levels.insert(
+            member.dimmer.clone(),
+            *levels
+                .get(&member.dimmer)
+                .ok_or("joint dimmer feedback missing")?,
+        );
+    }
+    plan_targets(group, targets, &observed)
 }
 
 pub(crate) struct Prepared {

@@ -19,22 +19,29 @@ fn error(e: impl std::fmt::Display) -> String {
     e.to_string()
 }
 
+enum LogicalCommand {
+    Single(homesense_core::DeviceId,crate::management_devices::DeviceAction),
+    Joint(Vec<homesense_hap::requests::Intent>),
+}
 fn logical_command(
     intents:&[(homesense_core::DeviceId,homesense_core::Command)],
     logical_ids:&std::collections::BTreeSet<homesense_core::DeviceId>,
-) -> Result<Option<(homesense_core::DeviceId,crate::management_devices::DeviceAction)>,hap::server::WriteStatus> {
+) -> Result<Option<LogicalCommand>,hap::server::WriteStatus> {
     use hap::server::WriteStatus;
-    if !intents.iter().any(|(id,_)|logical_ids.contains(id)) { return Ok(None); }
-    // The shared-resource owner needs a fresh physical lease. A HAP batch
-    // spanning owners must fail before either side can accept a command.
-    if intents.len()!=1 { return Err(WriteStatus::InvalidValueInRequest); }
-    let (device,command)=&intents[0];
+    if !intents.iter().any(|(id,_)|logical_ids.contains(id)){return Ok(None);}
+    if intents.iter().any(|(_,command)|!matches!(command,homesense_core::Command::Switch(_)|homesense_core::Command::SetLevel{transition:homesense_core::LevelTransition::Immediate,..})) {
+        return Err(WriteStatus::InvalidValueInRequest);
+    }
+    if intents.len()>1 {
+        return Ok(Some(LogicalCommand::Joint(intents.iter().map(|(device,command)|homesense_hap::requests::Intent{device:device.clone(),command:*command}).collect())));
+    }
+    let(device,command)=&intents[0];
     let action=match command {
         homesense_core::Command::SetLevel{level,..}=>crate::management_devices::DeviceAction::Brightness{level:level.get()},
         homesense_core::Command::Switch(on)=>crate::management_devices::DeviceAction::Power{on:*on},
         _=>return Err(WriteStatus::InvalidValueInRequest),
     };
-    Ok(Some((device.clone(),action)))
+    Ok(Some(LogicalCommand::Single(device.clone(),action)))
 }
 
 /// Light publication is a view of the shared physical snapshot. Non-light
@@ -230,18 +237,20 @@ impl RuntimeHap {
                         .iter()
                         .map(|i| (i.device.clone(), i.command))
                         .collect();
-                    if let Some((device,action))=logical_command(&intents,&logical_ids)? {
+                    if let Some(logical)=logical_command(&intents,&logical_ids)? {
                         if !identity.controller_is_paired(batch.controller).unwrap_or(false) {
                             return Err(hap::server::WriteStatus::InsufficientPrivileges);
                         }
                         let control=control.ok_or(hap::server::WriteStatus::ServiceCommunicationFailure)?;
-                        let diagnostic_device=device.clone();
-                        match control.request(crate::automation_control::Action::DeviceCommand{
-                            controller:batch.controller,revision,device,action,
-                        }).await {
+                        let action=match logical {
+                            LogicalCommand::Single(device,action)=>crate::automation_control::Action::DeviceCommand{controller:batch.controller,revision,device,action},
+                            LogicalCommand::Joint(intents)=>crate::automation_control::Action::LightCommands{controller:batch.controller,revision,intents},
+                        };
+                        match control.request(action).await {
                             Ok(crate::automation_control::Reply::CommandsAccepted(_))=>{},
+                            Ok(crate::automation_control::Reply::LightCommandsRejected(status))=>return Err(status),
                             Err(reason)=>{
-                                log::warn!("HAP logical write rejected device={} reason={reason}",diagnostic_device.as_str());
+                                log::warn!("HAP logical write rejected targets={} reason={reason}",intents.len());
                                 return Err(hap::server::WriteStatus::ServiceCommunicationFailure);
                             },
                             _=>return Err(hap::server::WriteStatus::ServiceCommunicationFailure),
@@ -894,14 +903,14 @@ mod unavailable_publication_tests;
 mod logical_write_tests {
     use super::*;
     #[test]
-    fn shared_resource_hap_write_rejects_mixed_batch_before_submission() {
+    fn shared_resource_hap_write_routes_mixed_batch_to_one_joint_owner() {
         let logical=homesense_core::DeviceId::new("composed").unwrap();
         let ordinary=homesense_core::DeviceId::new("ordinary").unwrap();
         let level=homesense_core::Percent::new(45).unwrap();
         let command=homesense_core::Command::SetLevel{level,transition:homesense_core::LevelTransition::Immediate};
         let protected=std::collections::BTreeSet::from([logical.clone()]);
-        assert!(matches!(logical_command(&[(logical.clone(),command),(ordinary.clone(),command)],&protected),Err(hap::server::WriteStatus::InvalidValueInRequest)));
-        assert!(matches!(logical_command(&[(logical,command)],&protected).unwrap().unwrap().1,crate::management_devices::DeviceAction::Brightness{level:45}));
+        assert!(matches!(logical_command(&[(logical.clone(),command),(ordinary.clone(),command)],&protected),Ok(Some(LogicalCommand::Joint(ref intents))) if intents.len()==2));
+        assert!(matches!(logical_command(&[(logical,command)],&protected).unwrap().unwrap(),LogicalCommand::Single(_,crate::management_devices::DeviceAction::Brightness{level:45})));
         assert!(logical_command(&[(ordinary,command)],&protected).unwrap().is_none());
     }
 }

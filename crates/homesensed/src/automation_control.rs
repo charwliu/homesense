@@ -40,6 +40,7 @@ pub enum Action {
     SceneWrites {controller:Uuid,revision:u64,scenes:Vec<(String,Option<bool>)>},
     SceneCatalog {controller:Uuid,revision:u64,scenes:Vec<String>},
     SceneLoadStates {controller:Uuid,revision:u64,scenes:Vec<String>},
+    LightCommands {controller:Uuid,revision:u64,intents:Vec<homesense_hap::requests::Intent>},
     SceneDefinition {controller:Uuid,revision:u64,scene:String},
     SceneAvailability {controller:Uuid,revision:u64,scene:String},
     SceneRelative {controller:Uuid,revision:u64,scene:String,request_id:String},
@@ -80,6 +81,7 @@ pub enum Reply {
     ImmediateAccepted(crate::immediate_scene::Receipt),
     SceneCatalog(std::collections::BTreeMap<String,SceneCatalogEntry>),
     SceneLoadStates(std::collections::BTreeMap<String,Option<bool>>),
+    LightCommandsRejected(hap::server::WriteStatus),
     SceneDefinition(homesense_config::rule_document::SceneExecutionKind),
     SceneAvailability(crate::gateway_runtime::ActionGate),
     ScenesAccepted(Vec<u64>),
@@ -348,7 +350,7 @@ fn managed_request_kind(action: &Action) -> Option<&'static str> {
         Action::DeviceEvents {..} => Some("device_events"),
         Action::Devices {..} => Some("devices"),
         Action::SceneAction {..} | Action::SceneActions {..} | Action::SceneWrites {..} => Some("scene_write"),
-        Action::DeviceCommand {..} | Action::PanelDeviceCommand {..} | Action::ModuleCommand {..} => Some("device_write"),
+        Action::DeviceCommand {..} | Action::LightCommands {..} | Action::PanelDeviceCommand {..} | Action::ModuleCommand {..} => Some("device_write"),
         Action::ModuleQuery {..} | Action::ModuleQueryStatus {..} | Action::Modules {..} => Some("module_read"),
         _ => None,
     }
@@ -703,6 +705,17 @@ impl Receiver {
                         let lease=crate::panel_auth::Lease::led(lease,&bundle.configuration,intent.device.clone(),intent.command).ok_or("panel authorization expired")?;
                         if request.reply.is_closed() || Instant::now()>=request.deadline {return Err("panel command expired or abandoned".into());}
                         admission.submit_panel_command_for_revision(revision,controller,intent.device,intent.command,lease).await.map(Reply::CommandsAccepted).map_err(|e|format!("{e:?}"))
+                    },
+                    Action::LightCommands{controller,revision,intents}=>{
+                        if revision!=document.revision{return Err("joint light revision expired".into());}
+                        let prepared=match crate::joint_light::prepare(admission,controller,self.generation.clone(),revision,intents,feedback,max_age_ms).await {
+                            Ok(prepared)=>prepared,
+                            Err(error)=>{log::warn!("joint HAP light planning rejected: {error}");return Ok(Reply::LightCommandsRejected(error.status()));},
+                        };
+                        if request.reply.is_closed()||Instant::now()>=request.deadline{return Err("joint light command expired or abandoned".into());}
+                        let remaining=request.deadline.saturating_duration_since(Instant::now());
+                        let limit=admission.monotonic_ms().saturating_add(u64::try_from(remaining.as_millis()).unwrap_or(u64::MAX));
+                        Ok(match admission.submit_shared_light(self.generation.clone(),crate::shared_light::Prepared::Joint(Box::new(prepared)),limit).await {Ok(ids)=>Reply::CommandsAccepted(ids),Err(status)=>Reply::LightCommandsRejected(status)})
                     },
                     Action::DeviceCommand {controller,revision,device,action} => {
                         if revision!=document.revision {return Err("device command revision expired".into());}

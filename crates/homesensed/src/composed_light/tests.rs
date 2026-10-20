@@ -39,6 +39,80 @@ fn apply(mut state: Matrix, writes: Vec<Intent>) -> Matrix {
     }
     state
 }
+
+#[test]
+fn composed_joint_targets_preserve_both_reading_lights_and_release_supply_only_after_last_off() {
+    let mut group = south();
+    group
+        .lights
+        .iter_mut()
+        .for_each(|light| light.excludes_on.clear());
+    let before = state(false, false, 0, 0, 0);
+    let targets = BTreeMap::from([(id("left"), p(45)), (id("right"), p(65))]);
+    let after = apply(
+        before.clone(),
+        plan_targets(&group, &targets, &before).unwrap(),
+    );
+    assert!(after.powers[&id("bed")]);
+    assert_eq!(after.levels[&id("left")], p(45));
+    assert_eq!(after.levels[&id("right")], p(65));
+    let targets = BTreeMap::from([(id("left"), p(0)), (id("right"), p(65))]);
+    let after = apply(
+        after.clone(),
+        plan_targets(&group, &targets, &after).unwrap(),
+    );
+    assert!(after.powers[&id("bed")]);
+    assert_eq!(after.levels[&id("left")], p(0));
+    assert_eq!(after.levels[&id("right")], p(65));
+    let targets = BTreeMap::from([(id("left"), p(0)), (id("right"), p(0))]);
+    let after = apply(
+        after.clone(),
+        plan_targets(&group, &targets, &after).unwrap(),
+    );
+    assert!(!after.powers[&id("bed")]);
+}
+
+#[test]
+fn composed_joint_shared_column_rejects_conflicting_levels_and_respects_explicit_off() {
+    let mut group = south();
+    group
+        .lights
+        .iter_mut()
+        .for_each(|light| light.excludes_on.clear());
+    group.allow_shared_side_effects = true;
+    let before = state(false, false, 0, 0, 0);
+    let targets = BTreeMap::from([(id("night"), p(10)), (id("ceiling"), p(100))]);
+    assert!(plan_targets(&group, &targets, &before).is_err());
+    let targets = BTreeMap::from([(id("night"), p(10)), (id("ceiling"), p(10))]);
+    let after = apply(
+        before.clone(),
+        plan_targets(&group, &targets, &before).unwrap(),
+    );
+    assert!(after.powers[&id("bed")] && after.powers[&id("ceiling")]);
+    assert_eq!(after.levels[&id("night")], p(10));
+    let targets = BTreeMap::from([(id("night"), p(0)), (id("ceiling"), p(10))]);
+    let after = apply(
+        after.clone(),
+        plan_targets(&group, &targets, &after).unwrap(),
+    );
+    assert!(!after.powers[&id("bed")] && after.powers[&id("ceiling")]);
+}
+
+#[test]
+fn composed_joint_reviewed_exclusions_and_unknown_targets_are_rejected() {
+    let group = south();
+    let before = state(false, false, 0, 0, 0);
+    assert!(
+        plan_targets(
+            &group,
+            &BTreeMap::from([(id("left"), p(100)), (id("ceiling"), p(100))]),
+            &before
+        )
+        .is_err()
+    );
+    assert!(plan_targets(&group, &BTreeMap::from([(id("missing"), p(100))]), &before).is_err());
+    assert!(plan_targets(&group, &BTreeMap::new(), &before).is_err());
+}
 #[test]
 fn composed_independent_reading_off_preserves_peer_and_night() {
     let g = south();
@@ -253,10 +327,13 @@ struct Fixture {
 }
 impl Fixture {
     async fn new(values: [u8; 5]) -> Self {
+        Self::with_config(config_value(), values).await
+    }
+    async fn with_config(value: serde_json::Value, values: [u8; 5]) -> Self {
         use homesense_core::ExecutionContext;
         let root = std::env::temp_dir().join(format!("composed-light-{}", Uuid::new_v4()));
         std::fs::create_dir_all(&root).unwrap();
-        let bytes = serde_json::to_vec(&config_value()).unwrap();
+        let bytes = serde_json::to_vec(&value).unwrap();
         let path = root.join("state.sqlite");
         let mut store = homesense_storage::Store::open(&path).unwrap();
         store
@@ -278,7 +355,7 @@ impl Fixture {
         .unwrap();
         admission.synchronized(1, 1).await.unwrap();
         let generation = admission.task_generation().await.unwrap();
-        let config = configuration();
+        let config = Configuration::parse(&bytes, ExecutionContext::Simulation).unwrap();
         let feedback = Feedback::new(
             &config,
             ExecutionContext::Simulation,
@@ -465,5 +542,322 @@ async fn composed_capture_expiry_and_physical_change_fence_the_whole_plan() {
             .is_err()
     );
     assert!(f.drain().await.is_empty());
+    f.close().await;
+}
+
+fn target(name: &str, value: u8) -> Intent {
+    Intent {
+        device: id(name),
+        command: Command::SetLevel {
+            level: p(value),
+            transition: LevelTransition::Immediate,
+        },
+    }
+}
+async fn joint(f: &Fixture, intents: Vec<Intent>) -> Result<crate::shared_light::Prepared, String> {
+    crate::joint_light::prepare(
+        &f.admission,
+        f.controller,
+        f.generation.clone(),
+        1,
+        intents,
+        &f.feedback,
+        5000,
+    )
+    .await
+    .map(|prepared| crate::shared_light::Prepared::Joint(Box::new(prepared)))
+    .map_err(|error| error.to_string())
+}
+#[tokio::test]
+async fn composed_joint_actual_admission_mixes_two_resource_groups_and_an_independent_relay() {
+    let mut config = config_value();
+    config["devices"].as_array_mut().unwrap().extend([
+        json!({"id":"hall","name":"hall","room":"room","module_id":"relay","channel":3,"enabled":true}),
+        json!({"id":"supply2","name":"second physical supply","room":"room","module_id":"relay","channel":4,"enabled":true}),
+        json!({"id":"dim2","name":"second physical dimmer","room":"room","module_id":"dimmer","channel":4,"enabled":true,"default_on_level":100}),
+    ]);
+    config["composed_lights"].as_array_mut().unwrap().push(json!({"id":"other-room","review_evidence":"independent reviewed synthetic resource group",
+        "lights":[{"id":"dim2","name":"second light","members":[{"supply":"supply2","dimmer":"dim2"}],"default_on_level":100}]}));
+    let mut f = Fixture::with_config(config, [0, 0, 0, 0, 0]).await;
+    f.feedback
+        .apply(&crate::transport_owner::GatewayRead {
+            gateway_id: "bus".into(),
+            transport_epoch: 1,
+            received_at_ms: 0,
+            result: hb_transport::Receive::Frames {
+                transport_epoch: 1,
+                frames: vec![
+                    hb_protocol::RawFrame {
+                        address: 0x31,
+                        command: 0xd3,
+                        value: 0xf2,
+                    },
+                    hb_protocol::RawFrame {
+                        address: 0x31,
+                        command: 0xd4,
+                        value: 0xf2,
+                    },
+                    hb_protocol::RawFrame {
+                        address: 0x32,
+                        command: 0xd4,
+                        value: 0,
+                    },
+                ],
+            },
+        })
+        .unwrap();
+    let prepared = joint(
+        &f,
+        vec![
+            target("left", 37),
+            target("right", 65),
+            target("dim2", 100),
+            Intent {
+                device: id("hall"),
+                command: Command::Switch(true),
+            },
+        ],
+    )
+    .await
+    .unwrap();
+    let ids = f
+        .admission
+        .submit_shared_light(f.generation.clone(), prepared, 1000)
+        .await
+        .unwrap();
+    assert_eq!(ids.len(), 6);
+    let physical = f.drain().await.into_iter().collect::<BTreeMap<_, _>>();
+    assert_eq!(
+        physical,
+        BTreeMap::from([
+            (id("left"), target("left", 37).command),
+            (id("right"), target("right", 65).command),
+            (id("dim2"), target("dim2", 100).command),
+            (id("bed"), Command::Switch(true)),
+            (id("supply2"), Command::Switch(true)),
+            (id("hall"), Command::Switch(true)),
+        ])
+    );
+    assert_eq!(
+        f.feedback.snapshot().devices[&id("left")].observed,
+        Some(Observation::Level(p(0))),
+        "acceptance and Written never manufacture observed feedback"
+    );
+    f.close().await;
+}
+#[tokio::test]
+async fn composed_joint_conflict_and_unknown_target_never_commit_a_prefix() {
+    let f = Fixture::new([0, 0, 0, 0, 0]).await;
+    for intents in [
+        vec![target("left", 37), target("missing", 65)],
+        vec![target("night", 10), target("ceiling", 100)],
+        vec![target("left", 37), target("left", 65)],
+        vec![
+            target("left", 37),
+            Intent {
+                device: id("bed"),
+                command: Command::Switch(false),
+            },
+        ],
+    ] {
+        assert!(joint(&f, intents).await.is_err());
+        assert!(f.admission.dispatch().await.unwrap().is_none());
+    }
+    assert_eq!(
+        rusqlite::Connection::open(f.root.join("state.sqlite"))
+            .unwrap()
+            .query_row("SELECT count(*) FROM command_journal", [], |row| row
+                .get::<_, i64>(0))
+            .unwrap(),
+        0
+    );
+    f.close().await;
+}
+#[tokio::test]
+async fn composed_joint_changed_feedback_rejects_every_expanded_output() {
+    let mut f = Fixture::new([0, 0, 0, 0, 0]).await;
+    let prepared = joint(&f, vec![target("left", 37), target("right", 65)])
+        .await
+        .unwrap();
+    f.time.store(10, std::sync::atomic::Ordering::Release);
+    f.sample([1, 0, 0, 0, 10], 10);
+    assert!(
+        f.admission
+            .submit_shared_light(f.generation.clone(), prepared, 1000)
+            .await
+            .is_err()
+    );
+    assert!(f.admission.dispatch().await.unwrap().is_none());
+    f.close().await;
+}
+
+#[tokio::test]
+async fn composed_joint_hap_handler_accepts_one_batch_and_denies_conflicts_without_partial_queue() {
+    use hap::storage::Storage;
+    let f = Fixture::new([0, 0, 0, 0, 0]).await;
+    let mut identity = homesense_hap::storage::IdentityStore::open(f.root.join("identity"))
+        .await
+        .unwrap();
+    identity.save_config(&hap::Config::default()).await.unwrap();
+    let (control, mut receiver) =
+        crate::automation_control::channel(f.controller, f.generation.clone());
+    let document = homesense_config::rule_document::Document::parse(
+        &serde_json::to_vec(&json!({
+            "schema_version":1,"configuration_revision":1,"variables":[],"rules":[]
+        }))
+        .unwrap(),
+        &f.config,
+    )
+    .unwrap();
+    let mut scheduler =
+        crate::scene_scheduler::SceneScheduler::new(f.admission.clone(), f.controller, 16, 0)
+            .unwrap();
+    let graph = crate::runtime_hap::RuntimeHap::new_selected_with_control(
+        &f.config,
+        f.feedback.snapshot(),
+        &identity,
+        f.admission.clone(),
+        5000,
+        Some(["left", "right", "night", "ceiling"].map(id).into()),
+        Some(control),
+    )
+    .await
+    .unwrap();
+    let signing = ed25519_dalek::SigningKey::from_bytes(&[19; 32]);
+    identity
+        .save_pairing(&hap::pairing::Pairing::new(
+            f.controller,
+            hap::pairing::Permissions::Admin,
+            signing.verifying_key().to_bytes(),
+        ))
+        .await
+        .unwrap();
+    for (case, changes, who) in [
+        (0, vec![("left", 37), ("right", 65)], f.controller),
+        (1, vec![("night", 10), ("ceiling", 100)], f.controller),
+        (2, vec![("left", 37), ("right", 65)], Uuid::new_v4()),
+    ] {
+        let characteristics = changes
+            .into_iter()
+            .flat_map(|(name, level)| {
+                let binding = &graph
+                    .lights
+                    .iter()
+                    .find(|(binding, _)| binding.device == id(name))
+                    .unwrap()
+                    .0;
+                [
+                    json!({"aid":binding.aid,"iid":binding.on_iid,"value":true}),
+                    json!({"aid":binding.aid,"iid":binding.brightness_iid.unwrap(),"value":level}),
+                ]
+            })
+            .collect::<Vec<_>>();
+        let body = serde_json::to_vec(&json!({"characteristics":characteristics})).unwrap();
+        let handler = graph.write_handler.clone();
+        let task = tokio::spawn(async move { handler.write_async(who, &body).await });
+        let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(3);
+        while !task.is_finished() {
+            assert!(
+                tokio::time::Instant::now() < deadline,
+                "joint HAP control stalled"
+            );
+            receiver
+                .poll(
+                    &f.admission,
+                    &document,
+                    &mut scheduler,
+                    &f.feedback,
+                    5000,
+                    None,
+                )
+                .await;
+            tokio::time::sleep(std::time::Duration::from_millis(1)).await;
+        }
+        let outcome = task.await.unwrap();
+        match case {
+            0 => {
+                outcome.unwrap();
+                assert_eq!(
+                    f.drain().await.into_iter().collect::<BTreeMap<_, _>>(),
+                    BTreeMap::from([
+                        (id("left"), target("left", 37).command),
+                        (id("right"), target("right", 65).command),
+                        (id("bed"), Command::Switch(true)),
+                    ])
+                );
+            }
+            1 => assert_eq!(
+                outcome,
+                Err(hap::server::WriteStatus::InvalidValueInRequest)
+            ),
+            _ => assert_eq!(
+                outcome,
+                Err(hap::server::WriteStatus::InsufficientPrivileges)
+            ),
+        }
+        assert_eq!(
+            rusqlite::Connection::open(f.root.join("state.sqlite"))
+                .unwrap()
+                .query_row("SELECT count(*) FROM command_journal", [], |r| r
+                    .get::<_, i64>(0))
+                .unwrap(),
+            3
+        );
+    }
+    drop(graph);
+    drop(identity);
+    f.close().await;
+}
+
+#[tokio::test]
+async fn composed_joint_combined_off_retains_raw_dimmer_restore_value() {
+    let mut config = config_value();
+    config["devices"].as_array_mut().unwrap().extend([
+        json!({"id":"office-supply","name":"office supply","room":"room","module_id":"relay","channel":5,"enabled":true}),
+        json!({"id":"office","name":"office combined light","room":"room","module_id":"dimmer","channel":5,"enabled":true,"default_on_level":100,"supply":{"module_id":"relay","channel":5}}),
+    ]);
+    let mut f = Fixture::with_config(config, [0, 0, 0, 0, 0]).await;
+    f.feedback
+        .apply(&crate::transport_owner::GatewayRead {
+            gateway_id: "bus".into(),
+            transport_epoch: 1,
+            received_at_ms: 0,
+            result: hb_transport::Receive::Frames {
+                transport_epoch: 1,
+                frames: vec![
+                    hb_protocol::RawFrame {
+                        address: 0x31,
+                        command: 0xd5,
+                        value: 0xf1,
+                    },
+                    hb_protocol::RawFrame {
+                        address: 0x32,
+                        command: 0xd5,
+                        value: 80,
+                    },
+                ],
+            },
+        })
+        .unwrap();
+    let prepared = joint(&f, vec![target("left", 37), target("office", 0)])
+        .await
+        .unwrap();
+    f.admission
+        .submit_shared_light(f.generation.clone(), prepared, 1000)
+        .await
+        .unwrap();
+    let writes = f.drain().await;
+    assert_eq!(
+        writes,
+        vec![
+            (id("office-supply"), Command::Switch(false)),
+            (id("left"), target("left", 37).command),
+            (id("bed"), Command::Switch(true))
+        ]
+    );
+    assert!(
+        !writes.iter().any(|(device, _)| device == &id("office")),
+        "Off must retain the exclusive dimmer's nonzero restore value"
+    );
     f.close().await;
 }

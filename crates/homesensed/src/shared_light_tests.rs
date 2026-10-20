@@ -626,3 +626,63 @@ async fn source_scope_must_cover_all_shared_dependencies_and_revocation_blocks_d
         f.close().await;
     }
 }
+
+#[tokio::test]
+async fn joint_hap_legacy_common_pair_keeps_both_targets_and_reviewed_bedside_exit() {
+    let f = Fixture::new([0, 1, 0, 10, 0, 80]).await;
+    let intents = [("primary", 45), ("secondary", 65)]
+        .into_iter()
+        .map(|(name, value)| homesense_hap::requests::Intent {
+            device: id(name),
+            command: Command::SetLevel {
+                level: p(value),
+                transition: LevelTransition::Immediate,
+            },
+        })
+        .collect();
+    let prepared = crate::joint_light::prepare(
+        &f.admission,
+        f.controller,
+        f.generation.clone(),
+        1,
+        intents,
+        &f.feedback,
+        5000,
+    )
+    .await
+    .unwrap();
+    f.admission
+        .submit_shared_light(
+            f.generation.clone(),
+            Prepared::Joint(Box::new(prepared)),
+            1000,
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        f.drain()
+            .await
+            .into_iter()
+            .collect::<std::collections::BTreeMap<_, _>>(),
+        std::collections::BTreeMap::from([
+            ("left".into(), Command::Switch(false)),
+            ("right".into(), Command::Switch(false)),
+            (
+                "primary".into(),
+                Command::SetLevel {
+                    level: p(45),
+                    transition: LevelTransition::Immediate
+                }
+            ),
+            (
+                "secondary".into(),
+                Command::SetLevel {
+                    level: p(65),
+                    transition: LevelTransition::Immediate
+                }
+            ),
+            ("common".into(), Command::Switch(true)),
+        ])
+    );
+    f.close().await;
+}
