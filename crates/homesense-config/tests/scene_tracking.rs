@@ -14,12 +14,22 @@ fn rules() -> Value {
 fn parse(v: &Value) -> Result<Document, homesense_config::Error> {
     Document::parse(&serde_json::to_vec(v).unwrap(), &cfg())
 }
+
+#[test]
+fn powered_tracking_rejects_missing_or_wrong_kind_dimmer_and_nonrelay_supply() {
+    let mut input = rules();
+    input["scene_tracking"][0]["members"][0]["predicate"] = json!({"kind":"powered_light","dimmer":"simulation:light"});
+    assert!(parse(&input).is_err(), "a dimmer cannot masquerade as the supply relay");
+    input["scene_tracking"][0]["members"][0]["predicate"]["dimmer"] = json!("missing");
+    assert!(parse(&input).is_err());
+}
 #[test]
 fn strict_policy_keeps_display_identity_and_has_no_implicit_unknown_or_pending_strategy() {
     let v = rules();
     let d = parse(&v).unwrap();
     assert_eq!(d.scene_metadata["scene"], "Friendly name");
     assert!(d.scene_tracking["scene"].enabled);
+    assert!(d.scene_tracking["scene"].hap_activity, "legacy tracking keeps its HomeKit activity role");
     for key in [
         "aggregation",
         "unknown_policy",

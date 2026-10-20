@@ -38,6 +38,26 @@ fn devices(combined: bool) -> Vec<u8> {
 fn rules() -> Json {
     json!({"schema_version":1,"configuration_revision":1,"variables":[],"rules":[],"timed_scenes":[{"id":"scene","enabled":true,"review_evidence":"synthetic","max_lateness_ms":1000,"steps":[{"source":"synthetic final target deliberately differs","offset_ms":0,"device":"light","command":{"kind":"level","value":100,"ramp":false}}]}],"scene_metadata":[{"id":"scene","name":"Friendly synthetic name"}],"scene_tracking":[{"scene":"scene","enabled":true,"aggregation":"all","unknown_policy":"require_all_known","pending_policy":"block_scene","control_policy":"separate_action_and_read_only_activity","activity_name":"Synthetic activity","max_age_ms":5000,"review_evidence":"explicit synthetic tracking","members":[{"id":"level","device":"light","predicate":{"kind":"level_range","minimum":20,"maximum":60},"review_evidence":"synthetic actual powered range"},{"id":"power","device":"relay","predicate":{"kind":"power","on":false},"review_evidence":"synthetic actual power"},{"id":"unused","device":"ignored","predicate":{"kind":"ignore","reason":"explicit irrelevant tracking member"},"review_evidence":"synthetic ignored"}]}]})
 }
+
+#[tokio::test]
+async fn any_lit_scene_requires_both_shared_supply_and_dimmer_not_just_a_powered_relay() {
+    let mut rules = rules();
+    rules["scene_tracking"][0]["aggregation"] = json!("any");
+    rules["scene_tracking"][0]["members"] = json!([
+        {"id":"paired","device":"relay","predicate":{"kind":"powered_light","dimmer":"light"},"review_evidence":"synthetic shared channel"}
+    ]);
+    let mut h = Harness::new(false, rules).await;
+    h.samples(None, Some(true));
+    assert_eq!(h.project().await.activity, SceneActivity::Unknown, "supply On cannot guess a missing dimmer reading");
+    for (level, supply, expected) in [(0,true,SceneActivity::Inactive),(100,false,SceneActivity::Inactive),(10,true,SceneActivity::Active),(100,true,SceneActivity::Active)] {
+        h.samples(Some(level), Some(supply));
+        let projection = h.project().await;
+        assert_eq!(projection.activity, expected);
+        assert_eq!(projection.members[0].on, Some(expected==SceneActivity::Active));
+    }
+    h.actor.shutdown().await.unwrap();
+    std::fs::remove_dir_all(h.directory).unwrap();
+}
 struct Harness {
     actor: Admission,
     configuration: Configuration,
@@ -435,6 +455,24 @@ async fn hap_read(h: &mut Harness, handle: hap::server::AccessoryHandle) -> Resu
             .map_err(|e| e.to_string())
     }))
     .await
+}
+
+#[tokio::test]
+async fn app_only_activity_keeps_the_existing_hap_action_without_allocating_an_extra_accessory() {
+    use homesense_hap::{scene_graph::SceneSpec, storage::IdentityStore};
+    let mut rules=rules();rules["scene_tracking"][0]["hap_activity"]=json!(false);
+    let mut h=Harness::new(false,rules).await;
+    h.samples(Some(35),Some(false));
+    assert_eq!(h.project().await.activity,SceneActivity::Active);
+    let mut identity=IdentityStore::open(h.directory.join("identity")).await.unwrap();
+    hap::storage::Storage::save_config(&mut identity,&hap::Config::default()).await.unwrap();
+    let bridge=crate::runtime_scene_hap::RuntimeSceneHap::new_with_admission(
+        &identity,&h.document,vec![SceneSpec{id:"scene".into(),name:"全部".into()}],
+        h.control.clone(),h.actor.clone(),h.controller,|_,_|true).await.unwrap();
+    assert_eq!(bridge.accessories.len(),1);
+    assert!(bridge.activities.is_empty());
+    assert_eq!(h.commands(),0);
+    drop(bridge);h.finish().await;
 }
 #[tokio::test]
 async fn actual_tracking_flows_through_existing_hap_read_and_scoped_web_api_without_writes() {

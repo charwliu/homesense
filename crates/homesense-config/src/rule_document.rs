@@ -332,6 +332,10 @@ pub enum FeedbackBinding {
 pub struct SceneMetadata {
     pub id:String,
     pub name:String,
+    /// Internal recipes remain callable by reviewed automation, not a second
+    /// user-facing scene. Never infer this from a name such as "off".
+    #[serde(default)]
+    pub catalog_hidden:bool,
     #[serde(default)]
     pub room:Option<String>,
     #[serde(default)]
@@ -372,6 +376,7 @@ pub struct Document {
     pub scene_tracking: BTreeMap<String,crate::scene_tracking::Policy>,
     pub scene_component_activity: BTreeMap<String,crate::scene_component_activity::Policy>,
     pub scene_metadata: BTreeMap<String,String>,
+    pub hidden_scene_entries: std::collections::BTreeSet<String>,
     pub scene_presentations: BTreeMap<String,crate::scene_presentation::Presentation>,
     /// Resolved from the same revision's room catalog; absent means unassigned.
     pub scene_rooms: BTreeMap<String,crate::Room>,
@@ -1010,6 +1015,7 @@ impl Document {
             scene_tracking: input.scene_tracking.iter().map(|p|(p.scene.clone(),p.clone())).collect(),
             scene_component_activity: input.scene_component_activity.iter().map(|p|(p.scene.clone(),p.clone())).collect(),
             scene_metadata: input.scene_metadata.iter().map(|m|(m.id.clone(),m.name.clone())).collect(),
+            hidden_scene_entries: input.scene_metadata.iter().filter(|m|m.catalog_hidden).map(|m|m.id.clone()).collect(),
             scene_rooms,
             scene_scopes,
             scene_presentations:input.scene_presentations.iter().map(|p|(p.scene.clone(),p.clone())).collect(),
@@ -1180,7 +1186,7 @@ impl Document {
     }
     pub fn scene_catalog(&self)->BTreeMap<String,String> {
         self.immediate_scenes.keys().chain(self.timed_scenes.keys())
-            .filter(|id|self.scene_action_available(id)&&!self.scene_presentations.values().any(|p|p.selection_scene.as_str()==id.as_str()))
+            .filter(|id|self.scene_action_available(id)&&!self.hidden_scene_entries.contains(*id)&&!self.scene_presentations.values().any(|p|p.selection_scene.as_str()==id.as_str()))
             .map(|id|(id.clone(),self.scene_metadata.get(id).cloned().unwrap_or_else(||id.clone()))).collect()
     }
     /// A real manual entry AST, not a generated enabled rule or zero-delay timeline.

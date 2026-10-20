@@ -5,6 +5,9 @@ use serde::{Deserialize, Serialize};
 pub struct Policy {
     pub scene: String,
     pub enabled: bool,
+    /// Keep App activity without allocating a second HomeKit accessory.
+    #[serde(default = "default_hap_activity", skip_serializing_if = "is_true")]
+    pub hap_activity: bool,
     pub aggregation: Aggregation,
     pub unknown_policy: UnknownPolicy,
     pub pending_policy: PendingPolicy,
@@ -14,6 +17,8 @@ pub struct Policy {
     pub review_evidence: String,
     pub members: Vec<Member>,
 }
+fn default_hap_activity() -> bool { true }
+fn is_true(value: &bool) -> bool { *value }
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum Aggregation {
@@ -48,6 +53,8 @@ pub struct Member {
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Predicate {
     Power { on: bool },
+    /// A relay alone does not prove illumination when its shared dimmer is 0.
+    PoweredLight { dimmer: String },
     LevelRange { minimum: u8, maximum: u8 },
     Ignore { reason: String },
 }
@@ -118,6 +125,13 @@ pub(crate) fn validate(
                 ));
             }
             match &m.predicate {
+                Predicate::PoweredLight { dimmer } => {
+                    let dimmer = DeviceId::new(dimmer)?;
+                    if module.kind() != ModuleKind::Switch || config.binding(&dimmer).is_none_or(|(_, module)|module.kind()!=ModuleKind::Dimmer) {
+                        return Err(crate::invalid("powered light tracking requires an enabled supply and dimmer"));
+                    }
+                    relevant += 1;
+                }
                 Predicate::Ignore { reason } if reason.trim().is_empty() || reason.len() > 8192 => {
                     return Err(crate::invalid("tracking ignore reason required"));
                 }
