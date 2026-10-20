@@ -37,8 +37,10 @@ pub fn all_light_ids(config: &homesense_config::Configuration) -> BTreeSet<Devic
         let (_, module) = config.binding(id)?;
         if !matches!(module.kind(), ModuleKind::Switch | ModuleKind::Dimmer)
             || supplies.contains(id) { return None; }
-        if !device.catalog_visible { return None; }
+        // A reviewed logical light reuses a physical identity. Hiding that raw
+        // channel must not hide the logical card that the App publishes.
         if config.composed_light(id).is_some() { return Some(id.clone()); }
+        if !device.catalog_visible { return None; }
         (config.composed_resource(id).is_none()).then(|| id.clone())
     }).collect()
 }
@@ -234,7 +236,11 @@ mod tests {
         let mut hidden=raw.clone();
         hidden["devices"][1]["catalog_visible"]=false.into();
         let hidden=homesense_config::Configuration::parse(&serde_json::to_vec(&hidden).unwrap(),homesense_core::ExecutionContext::Simulation).unwrap();
-        assert_eq!(all_light_ids(&hidden).iter().map(DeviceId::as_str).collect::<Vec<_>>(),vec!["ordinary"]);
+        assert_eq!(all_light_ids(&hidden).iter().map(DeviceId::as_str).collect::<Vec<_>>(),vec!["composed","ordinary"]);
+        let mut raw_hidden_ordinary=raw.clone();
+        raw_hidden_ordinary["devices"][2]["catalog_visible"]=false.into();
+        let raw_hidden_ordinary=homesense_config::Configuration::parse(&serde_json::to_vec(&raw_hidden_ordinary).unwrap(),homesense_core::ExecutionContext::Simulation).unwrap();
+        assert_eq!(all_light_ids(&raw_hidden_ordinary).iter().map(DeviceId::as_str).collect::<Vec<_>>(),vec!["composed"]);
         let plan=serde_json::json!({"schema_version":1,"bridges":[{"id":"home","name":"Home","address":"127.0.0.1:51826","all_lights":true}]});
         assert_eq!(Plan::parse(&serde_json::to_vec(&plan).unwrap(),&config,&doc).unwrap().bridges[0].selected_lights(&config),selected);
         let mut invalid=plan;
