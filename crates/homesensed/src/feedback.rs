@@ -537,7 +537,7 @@ impl Feedback {
     pub(crate) fn away_observation(&self,now:u64)->Result<crate::away_execution::Observation,String> {
         let proof=self.scene_observation_start(now)?;
         let counts=proof.snapshot().devices.keys().filter_map(|id|self.states.observation_count(id).map(|n|(id.clone(),n))).collect();
-        Ok(crate::away_execution::Observation {proof,counts,queries:self.output_query_turns.clone()})
+        Ok(crate::away_execution::Observation {proof,counts,queries:self.output_query_turns.clone(),last_frames:self.last_frames.clone()})
     }
     pub(crate) fn last_frames(&self)->BTreeMap<String,u64> {self.last_frames.clone()}
     pub(crate) fn output_query_finished(&mut self, configuration:&homesense_config::Configuration,

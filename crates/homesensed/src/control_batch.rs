@@ -302,7 +302,8 @@ struct Gate {
 }
 impl Gate {
     fn view(&self, id: u64) -> Option<View> {
-        if self.invalid || self.lights.iter().any(|command| !self.written.contains_key(&command.id)) {
+        if self.invalid || self.lights.iter().any(|command| !self.written.contains_key(&command.id))
+            || self.targets.keys().any(|device|self.target_ids.get(device).is_none_or(|id|!self.written.contains_key(id))) {
             return None;
         }
         Some(View {
@@ -688,8 +689,8 @@ impl Owner {
                 && gate.away.as_ref().is_some_and(|lease|lease.same_authority(&targets[0].lease)))
             {
                 for (device, id) in &target_ids {
-                    if let Some(previous) = gate.target_ids.get_mut(device) {
-                        *previous = *id;
+                    if gate.targets.contains_key(device) {
+                        gate.target_ids.insert(device.clone(),*id);
                         if let Some(version) = gate.manual.get_mut(device) {
                             *version = manual.get(device).copied().unwrap_or(0);
                         }
@@ -702,6 +703,19 @@ impl Owner {
             }
         }
         if let Some(reset) = reset {
+            // A serial operation initially has only one accepted module. Its
+            // legacy completion must still prove the entire reviewed scope;
+            // future module receipts are filled in as they are committed.
+            if targets[0].lease.guarded_operation() && !local_reset {
+                for module in targets[0].plan.modules() {
+                    for device in module.devices() {
+                        expected.insert(device.clone(),match module.module().kind() {
+                            ModuleKind::Dimmer=>Command::SetLevel {level:homesense_core::Percent::new(0).unwrap(),transition:homesense_core::LevelTransition::Immediate},
+                            _=>Command::Switch(false),
+                        });
+                    }
+                }
+            }
             let gateway = config
                 .binding(&reset.device_id)
                 .expect("validated Away reset binding")

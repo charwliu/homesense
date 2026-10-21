@@ -48,6 +48,7 @@ pub(crate) struct Observation {
     pub proof: crate::feedback::SceneObservationStart,
     pub counts: BTreeMap<DeviceId, u64>,
     pub queries: BTreeMap<DeviceId, core::ReadTurn>,
+    pub last_frames: BTreeMap<String, u64>,
 }
 impl Observation {
     pub fn physical(
@@ -104,6 +105,7 @@ pub(crate) struct Job {
     last: Option<View>,
     last_evidence: core::Evidence,
     pub reads: BTreeSet<String>,
+    indications: BTreeSet<u64>,
 }
 impl Job {
     #[allow(clippy::too_many_arguments)]
@@ -130,7 +132,7 @@ impl Job {
                 }
             })
             .collect();
-        let engine = core::Operation::new(scope, Default::default(), now)
+        let engine = core::Operation::new_serialized(scope, Default::default(), now)
             .map_err(|e| format!("Away scope: {e:?}"))?;
         let manual = targets
             .iter()
@@ -152,6 +154,7 @@ impl Job {
             last: None,
             last_evidence: Default::default(),
             reads: BTreeSet::new(),
+            indications: BTreeSet::new(),
         })
     }
     pub fn retire(&mut self, cause: core::Cancel, now: u64) -> Result<(), String> {
@@ -274,6 +277,7 @@ impl Job {
         for receipt in receipts {
             self.receipts.insert(receipt.module.clone(), receipt);
         }
+        self.indications.extend(ids.iter().skip(targets.len()).copied());
         self.manual = self
             .outputs()
             .map(|id| {
@@ -300,7 +304,7 @@ impl Job {
                             device: device.clone(),
                             before_count: *before,
                             after_ms,
-                            deadline_ms: self.engine.deadline_ms(),
+                            deadline_ms: after_ms.saturating_add(core::RESPONSE_TIMEOUT_MS).min(self.engine.deadline_ms()),
                         })
                     })
             })
@@ -448,6 +452,32 @@ impl Registry {
             })
             .flat_map(|job| job.gateways())
             .collect()
+    }
+    /// No background read or unrelated LED may steal the passive reply window.
+    /// Only the module explicitly requested by the active operation is readable.
+    pub fn query_scopes(&self) -> BTreeMap<String, Option<u8>> {
+        let mut scopes = BTreeMap::new();
+        for job in self.jobs.iter().filter(|job|job.engine.end().is_none()) {
+            for gateway in job.gateways() { scopes.insert(gateway,None); }
+            for target in &job.targets {
+                let module=&target.plan.modules()[target.index];
+                if job.reads.contains(module.module_id()) {
+                    scopes.insert(module.gateway_id().into(),Some(module.module().address().get()));
+                    break;
+                }
+            }
+        }
+        scopes
+    }
+    pub fn read_allowed(&self,gateway:&str,address:Option<u8>)->bool {
+        self.query_scopes().get(gateway).is_none_or(|allowed|allowed.is_some() && *allowed==address)
+    }
+    pub fn allows(&self,gateway:&str,address:u8,command:homesense_core::Command,id:u64)->bool {
+        if matches!(command,homesense_core::Command::Motor(homesense_core::MotorMotion::Stop)) {return true;}
+        if command==homesense_core::Command::Query {return self.read_allowed(gateway,Some(address));}
+        self.jobs.iter().filter(|job|job.engine.end().is_none() && job.gateways().contains(gateway))
+            .all(|job|command==homesense_core::Command::ModuleAllOff && job.receipts.values().any(|r|r.command==id)
+                || job.source.as_ref().is_some_and(|source|source.keypad().is_some()) && job.indications.contains(&id))
     }
 }
 

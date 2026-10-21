@@ -764,8 +764,14 @@ impl Admission {
                     let command=$command;
                     if let Some((binding,module))=configuration.binding(&command.device_id) {
                         household_sequences.allows(&binding.gateway,module.address().get(),command.command,command.id)
+                            && away_executions.allows(&binding.gateway,module.address().get(),command.command,command.id)
                     }else if let Some(query)=module_queries.get(&command.id) {
-                        configuration.module(&query.module_id).is_some_and(|(location,module)|household_sequences.allows(&location.gateway,module.address().get(),command.command,command.id))
+                        configuration.module(&query.module_id).is_some_and(|(location,module)|household_sequences.allows(&location.gateway,module.address().get(),command.command,command.id)
+                            && away_executions.allows(&location.gateway,module.address().get(),command.command,command.id))
+                    }else if let Some(target)=module_off_jobs.get(&command.id) {
+                        let module=&target.plan.modules()[target.index];
+                        household_sequences.allows(module.gateway_id(),module.module().address().get(),command.command,command.id)
+                            && away_executions.allows(module.gateway_id(),module.module().address().get(),command.command,command.id)
                     }else{true}
                 }}; }
 
@@ -1044,14 +1050,16 @@ impl Admission {
                                     else if !authorize(job.lease.controller()) || !job.lease.valid() || job.source.as_ref().is_some_and(|source|!source.valid_for(job.lease.controller(),configuration.revision()))
                                         || !keypad_origins.permits(job.source.as_ref().and_then(|source|source.keypad()),configuration.revision()) {Owner::Retired(Cancel::AuthorityChanged)}
                                     else if job.manual.iter().any(|(id,version)|manual_versions.get(id).copied().unwrap_or(0)!=*version) {Owner::Retired(Cancel::ManualOverride)}
-                                    else if !policy.gateway_ready || in_flight.is_some() || job.gateways().iter().any(|gateway|query_slots.get(gateway).is_some_and(|slot|slot.active.load(Ordering::Acquire)!=0)) {Owner::Waiting}
+                                    else if !policy.gateway_ready || in_flight.is_some() || job.gateways().iter().any(|gateway|
+                                        query_slots.get(gateway).is_some_and(|slot|slot.active.load(Ordering::Acquire)!=0)
+                                        || observation.last_frames.get(gateway).is_some_and(|at|now<at.saturating_add(options.write_interval.as_millis() as u64))) {Owner::Waiting}
                                     else {Owner::Current};
                                 let evidence=job.evidence(&store,observation).map_err(|_|WriteStatus::ServiceCommunicationFailure)?;
                                 let decision=job.engine.poll(now,owner,&evidence).map_err(|_|WriteStatus::ServiceCommunicationFailure)?;
                                 job.reads=match &decision {Decision::Read(modules)=>modules.clone(),_=>Default::default()};
                                 let mut accepted=vec![];
                                 if let Decision::Submit(attempt)=decision {
-                                    match submit_away!(configuration.revision(),job.generation.clone(),job.lease.for_operation(&job.gate),job.source.clone(),attempt.send_before_ms,true,Some(attempt.modules.clone()),attempt.round==1,Some(job.run(attempt.round)),Some(job.engine.deadline_ms())) {
+                                    match submit_away!(configuration.revision(),job.generation.clone(),job.lease.for_operation(&job.gate),job.source.clone(),attempt.send_before_ms,true,Some(attempt.modules.clone()),job.receipts.is_empty(),Some(job.run(attempt.round)),Some(job.engine.deadline_ms())) {
                                         Ok(ids)=>{
                                             job.accepted(&attempt,&ids,observation,&manual_versions,millis(clock)).map_err(|_|WriteStatus::ServiceCommunicationFailure)?;
                                             accepted=ids;
@@ -1275,6 +1283,7 @@ impl Admission {
                                         && job.manual.iter().all(|(id,version)|manual_versions.get(id).copied().unwrap_or(0)==*version));
                                 if away_wait.contains(&gateway) {return Err(WriteStatus::ResourceBusy);}
                                 if !household_sequences.read_allowed(&gateway,address) {return Err(WriteStatus::ResourceBusy);}
+                                if !away_executions.read_allowed(&gateway,address) {return Err(WriteStatus::ResourceBusy);}
                                 let pending=arbiter.has_pending_matching(|command| {
                                     if !household_allows!(command) {return false;}
                                     if (matches!(command.command,homesense_core::Command::PanelLed(_)|homesense_core::Command::PanelLedOff)||away_reset_dependencies.contains_key(&command.id))&&!control_batches.eligible(command.id,millis(clock)){return false;}
@@ -1773,7 +1782,9 @@ impl Admission {
                             worker_household_active.store(household_sequences.active(),Ordering::Release);let _=reply.send(result);
                         }
                         Message::HouseholdQueryScopes(controller,generation,reply)=>{
-                            let result=if !authorize(controller)||generation.boot!=worker_boot||generation.epochs!=arbiter.policy().epochs {Err(WriteStatus::InsufficientPrivileges)}else{Ok(household_sequences.query_scopes())};let _=reply.send(result);
+                            let result=if !authorize(controller)||generation.boot!=worker_boot||generation.epochs!=arbiter.policy().epochs {Err(WriteStatus::InsufficientPrivileges)}else{
+                                let mut scopes=household_sequences.query_scopes();scopes.extend(away_executions.query_scopes());Ok(scopes)
+                            };let _=reply.send(result);
                         }
                         Message::HouseholdViews(controller,generation,reply)=>{
                             let result=if !authorize(controller)||generation.boot!=worker_boot||generation.epochs!=arbiter.policy().epochs {Err(WriteStatus::InsufficientPrivileges)}else{Ok(household_sequences.views())};let _=reply.send(result);
@@ -1804,6 +1815,13 @@ impl Admission {
                                 if !household_limiter.permits(&generation,false,now,away_executions.jobs.iter().any(|job|job.engine.end().is_none()),false) {return Err(WriteStatus::ResourceBusy);}
                                 let serial=away_executions.next_serial().map_err(|_|WriteStatus::ResourceBusy)?;
                                 let mut job=crate::away_execution::Job::new(serial,generation.clone(),lease,source,targets,wires,&manual_versions,now).map_err(|_|WriteStatus::InvalidValueInRequest)?;
+                                if matches!(document.away_off.as_ref().map(|p|p.active_execution_policy),Some(homesense_config::rule_document::AwayExecutionPolicy::CancelAffectedLighting)) {
+                                    // Supersede all96 pending lighting writes now,
+                                    // while admitting only the current module.
+                                    let scope=job.outputs().collect::<Vec<_>>();
+                                    let fence=household_context!().claim_scope(&scope,job.source.as_ref())?;
+                                    for version in job.manual.values_mut(){*version=fence;}
+                                }
                                 let commands=advance_away!(&mut job,&observation)?;
                                 let result=crate::away_execution::Accepted{operation:job.id(),commands};
                                 household_limiter.accepted(generation,false,now,vec![]);

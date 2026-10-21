@@ -17,6 +17,124 @@ fn scope(count: usize) -> Vec<Module> {
         })
         .collect()
 }
+
+#[test]
+fn serialized_off_waits_for_all_eight_and_rx_turnaround_with_fresh_future_leases() {
+    let mut operation=Operation::new_serialized(scope(12),Policy::default(),0).unwrap();
+    let mut evidence=Evidence::default();
+    let mut now=0;
+    let mut seen=BTreeSet::new();
+    for command in 1..=12 {
+        let a=attempt(&mut operation,now,&evidence);
+        assert_eq!(a.modules.len(),1);
+        assert_eq!(a.round,1,"each module is in the same round");
+        assert_eq!(a.send_before_ms,now+2000,"future tickets are minted only when selected");
+        let module=a.modules.first().unwrap();
+        assert!(seen.insert(module.clone()));
+        let n:usize=module[1..].parse().unwrap();
+        let receipts=accept(&mut operation,&a,command);
+        evidence.commands.insert(command,CommandState::Accepted);
+        assert_eq!(operation.poll(now,Owner::Current,&evidence).unwrap(),Decision::Wait);
+        now+=1;written(&receipts,now,&mut evidence);
+        off(n,now+1,2,&mut evidence);
+        // Seven replies cannot release the next module.
+        evidence.physical.remove(&id(n,8));
+        assert_eq!(operation.poll(now+2,Owner::Current,&evidence).unwrap(),Decision::Wait);
+        evidence.physical.insert(id(n,8),Sample{actual:Physical::Off,received_ms:now+3,count:2});
+        assert_eq!(operation.poll(now+4,Owner::Waiting,&evidence).unwrap(),Decision::Wait);
+        // Stay within the original10s, but accumulate >2s before later modules.
+        now+=300;
+        if command==12 {
+            assert_eq!(operation.poll(now,Owner::Current,&evidence).unwrap(),Decision::Finished(End::Confirmed));
+        }
+    }
+    assert_eq!(seen.len(),12);
+    assert!(now>2000);
+}
+
+#[test]
+fn serialized_off_failed_first_module_yields_to_all_healthy_modules_before_retry() {
+    let mut operation=Operation::new_serialized(scope(3),Policy::default(),0).unwrap();
+    let mut evidence=Evidence::default();
+    let mut now=0;
+    let mut writes=vec![];
+    for command in 1..=5 {
+        let a=attempt(&mut operation,now,&evidence);
+        let module=a.modules.first().unwrap().clone();
+        let n:usize=module[1..].parse().unwrap();
+        writes.push((module,a.round));
+        let receipts=accept(&mut operation,&a,command);
+        now+=1;written(&receipts,now,&mut evidence);
+        if n!=0 {off(n,now+1,2,&mut evidence);now+=30;}
+        else {
+            assert_eq!(operation.poll(now+100,Owner::Current,&evidence).unwrap(),Decision::Read(["m0".into()].into()));
+            now+=1000;
+        }
+        if command==3 || command==4 {
+            assert_eq!(operation.poll(now,Owner::Current,&evidence).unwrap(),Decision::Wait);
+            now+=200;
+        } else if command==5 {
+            assert_eq!(operation.poll(now,Owner::Current,&evidence).unwrap(),Decision::Finished(End::Exhausted));
+        }
+    }
+    assert_eq!(writes,vec![("m0".into(),1),("m1".into(),1),("m2".into(),1),("m0".into(),2),("m0".into(),3)]);
+    assert_eq!(operation.terminal_missing().unwrap().keys().cloned().collect::<Vec<_>>(),vec!["m0"]);
+}
+
+#[test]
+fn serialized_off_defer_does_not_skip_a_module_and_retirement_stops_future_proposals() {
+    for cause in [Cancel::AuthorityChanged,Cancel::ConfigurationChanged,Cancel::TransportChanged,Cancel::ManualOverride] {
+        let mut operation=Operation::new_serialized(scope(2),Policy::default(),0).unwrap();
+        let evidence=Evidence::default();
+        let first=attempt(&mut operation,0,&evidence);
+        operation.defer(first.proposal,1).unwrap();
+        let repeated=attempt(&mut operation,1,&evidence);
+        assert_eq!(first.modules,repeated.modules);
+        assert_eq!(repeated.round,1);
+        assert_ne!(first.proposal,repeated.proposal);
+        assert_eq!(operation.poll(2,Owner::Retired(cause),&evidence).unwrap(),Decision::Finished(End::Cancelled(cause)));
+        assert_eq!(operation.poll(3,Owner::Current,&evidence).unwrap(),Decision::Finished(End::Cancelled(cause)));
+    }
+}
+
+#[test]
+fn serialized_off_completed_failed_read_advances_but_never_certifies_shutdown() {
+    let mut operation=Operation::new_serialized(scope(2),Policy::default(),0).unwrap();
+    let mut evidence=Evidence {queries:Some(Default::default()),..Evidence::default()};
+    let a=attempt(&mut operation,0,&evidence);
+    let receipts=accept(&mut operation,&a,1);
+    written(&receipts,1,&mut evidence);
+    evidence.queries.as_mut().unwrap().insert(id(0,1),ReadTurn{written_ms:101,finished_ms:351});
+    assert_eq!(operation.poll(352,Owner::Waiting,&evidence).unwrap(),Decision::Wait);
+    let b=attempt(&mut operation,372,&evidence);
+    assert_eq!(b.modules,["m1".into()].into());
+    assert_eq!(b.round,1);
+    assert!(operation.missing(&evidence,372).unwrap().contains_key("m0"));
+}
+
+#[test]
+fn serialized_off_late_confirmation_removes_only_that_module_from_the_pending_retry_round() {
+    let mut operation=Operation::new_serialized(scope(3),Policy::default(),0).unwrap();
+    let mut evidence=Evidence::default();
+    let mut now=0;
+    for command in 1..=3 {
+        let a=attempt(&mut operation,now,&evidence);
+        let receipts=accept(&mut operation,&a,command);
+        written(&receipts,now+1,&mut evidence);now+=1001;
+    }
+    assert_eq!(operation.poll(now,Owner::Current,&evidence).unwrap(),Decision::Wait);
+    now+=200;
+    let retry=attempt(&mut operation,now,&evidence);
+    assert_eq!(retry.modules,["m0".into()].into());assert_eq!(retry.round,2);
+    let receipts=accept(&mut operation,&retry,4);
+    written(&receipts,now+1,&mut evidence);
+    off(0,now+2,2,&mut evidence);
+    // m1's genuine first-round reply arrives before its second-round turn.
+    off(1,now+3,2,&mut evidence);
+    let remaining=attempt(&mut operation,now+25,&evidence);
+    assert_eq!(remaining.modules,["m2".into()].into(),"confirmed m1 must not be written again");
+    assert_eq!(remaining.round,2);
+}
 fn attempt(operation: &mut Operation, now: u64, evidence: &Evidence) -> Attempt {
     match operation.poll(now, Owner::Current, evidence).unwrap() {
         Decision::Submit(a) => a,
