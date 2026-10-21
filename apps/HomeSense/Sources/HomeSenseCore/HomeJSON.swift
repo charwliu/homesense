@@ -82,8 +82,6 @@ public struct HomeRecord: Identifiable, Equatable, Sendable {
 public struct HomeScenePanel: Identifiable, Equatable, Sendable {
     public let id: String
     public let title: String
-    public let page: Int
-    public let pageCount: Int
     public let scenes: [HomeRecord]
 }
 

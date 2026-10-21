@@ -200,17 +200,19 @@ public final class HomeServerStore: ObservableObject {
             if groups[key] == nil { order.append(key) }
             groups[key, default: []].append(scene)
         }
-        return order.flatMap { key -> [HomeScenePanel] in
-            let rows = groups[key] ?? [], pageCount = (rows.count + 5) / 6
-            return stride(from: 0, to: rows.count, by: 6).map { start in
-                HomeScenePanel(id: "\(key):page:\(start / 6)",
-                    title: key.hasPrefix("room:") ? "\(roomNames[String(key.dropFirst(5))] ?? "")场景" : (key == "household" ? "全屋场景" : "待分配场景"),
-                    page: start / 6 + 1, pageCount: pageCount,
-                    scenes: Array(rows[start..<min(start + 6, rows.count)]))
-            }
+        // Put whole-home actions where users can find them without scrolling
+        // through every room. Each group contains its real entries only.
+        if let index = order.firstIndex(of: "household") {
+            order.remove(at: index)
+            order.insert("household", at: 0)
+        }
+        return order.map { key in
+            HomeScenePanel(id: key,
+                title: key.hasPrefix("room:") ? "\(roomNames[String(key.dropFirst(5))] ?? "")场景" : (key == "household" ? "全屋场景" : "待分配场景"),
+                scenes: groups[key] ?? [])
         }
     }
-    /// Deduplicate only against valid six-key cards rendered on the same page.
+    /// Deduplicate only against valid six-key cards rendered in the same view.
     /// This is presentation only: never trim the authorized catalog or infer
     /// bindings from nested scene programs. Ignore transient busy/offline state.
     public func independentScenes(_ candidates: [HomeRecord], alongside visibleDevices: [HomeRecord]) -> [HomeRecord] {
