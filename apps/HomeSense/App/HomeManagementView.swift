@@ -432,12 +432,18 @@ struct HomeManagementView: View {
             if !home.moduleInventoryMessage.isEmpty { Text(home.moduleInventoryMessage).font(.caption).foregroundStyle(.secondary) }
             LazyVGrid(columns: cardColumns, alignment: .leading, spacing: 16) {
                 ForEach(home.physicalHardwareModules) { module in
-                    panel(module.modelName ?? module.profile, icon: "cpu") {
-                        Text("地址 \(module.address) · HEX").font(.title3.monospaced())
-                        Text("\(module.gateway) · \(module.channelCount) 通道").font(.caption).foregroundStyle(.secondary)
-                        Button("设置与测试", systemImage: "slider.horizontal.3") {
+                    if module.dinChannelIndicators.count == 8 {
+                        HomeDINModuleCard(home: home, module: module) {
                             editor = HomeEditRequest(kind: "module-details", record: HomeRecord(.object(["id": .string(module.id)])))
-                        }.accessibilityIdentifier("module.\(module.id).details")
+                        }
+                    } else {
+                        panel(module.modelName ?? module.profile, icon: "cpu") {
+                            Text("地址 \(module.address) · HEX").font(.title3.monospaced())
+                            Text("\(module.gateway) · \(module.channelCount) 通道").font(.caption).foregroundStyle(.secondary)
+                            Button("设置与测试", systemImage: "slider.horizontal.3") {
+                                editor = HomeEditRequest(kind: "module-details", record: HomeRecord(.object(["id": .string(module.id)])))
+                            }.accessibilityIdentifier("module.\(module.id).details")
+                        }
                     }
                 }
             }
@@ -459,7 +465,13 @@ struct HomeManagementView: View {
                 }
             }
         }
-        .task(id: home.moduleInventoryContext) { await home.loadPhysicalModules() }
+        .task(id: home.moduleInventoryContext) {
+            await home.loadPhysicalModules()
+            while !Task.isCancelled {
+                do { try await Task.sleep(for: .seconds(15)) } catch { break }
+                if home.snapshotIsCurrent { await home.loadPhysicalModules() }
+            }
+        }
     }
     private var scenes: some View {
         VStack(spacing: 16) {
@@ -560,6 +572,68 @@ struct HomeManagementView: View {
     private func panel<Content: View>(_ title: String, icon: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 14) { Label(title, systemImage: icon).font(.headline); content() }
             .padding(20).frame(maxWidth: .infinity, alignment: .leading).background(.background, in: RoundedRectangle(cornerRadius: 16))
+    }
+}
+
+private struct HomeDINModuleCard: View {
+    @ObservedObject var home: HomeServerStore
+    let module: HomePhysicalModule
+    let openDetails: () -> Void
+    private var hasFeedback: Bool { home.snapshotIsCurrent && module.dinHasFeedback }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .top, spacing: 8) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Label(module.modelName ?? module.profile, systemImage: "cpu").font(.headline)
+                    Text("地址 \(module.address) · HEX · \(module.gateway)")
+                        .font(.caption.monospaced()).foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 4)
+                VStack(spacing: 3) {
+                    Circle().fill(hasFeedback ? Color.red : Color.red.opacity(0.16))
+                        .overlay { Circle().strokeBorder(.red.opacity(0.6)) }
+                        .frame(width: 17, height: 17)
+                    Text(hasFeedback ? "通电" : "断电").font(.caption2)
+                }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("供电：\(hasFeedback ? "有反馈，通电" : "无反馈，断电")")
+                .accessibilityIdentifier("module.\(module.id).powerLED")
+            }
+            HStack(alignment: .top, spacing: 4) {
+                ForEach(module.dinChannelIndicators) { indicator in
+                    channel(indicator).frame(maxWidth: .infinity)
+                }
+            }
+            Text("按读取时反馈显示；无反馈视为断电。")
+                .font(.caption2).foregroundStyle(.secondary)
+            Button("设置与测试", systemImage: "slider.horizontal.3", action: openDetails)
+                .accessibilityIdentifier("module.\(module.id).details")
+        }
+        .padding(16).frame(maxWidth: .infinity, alignment: .leading)
+        .background(.background, in: RoundedRectangle(cornerRadius: 16))
+        .overlay { RoundedRectangle(cornerRadius: 16).strokeBorder(.primary.opacity(0.07)) }
+    }
+
+    private func channel(_ indicator: HomeDINChannelIndicator) -> some View {
+        let on = home.snapshotIsCurrent ? indicator.isOn : nil
+        let level = home.snapshotIsCurrent ? indicator.brightness : nil
+        return VStack(spacing: 4) {
+            Text("\(indicator.number)").font(.caption2.monospacedDigit())
+            Circle()
+                .fill(on == true ? Color.green : on == false ? Color.green.opacity(0.15) : Color.gray.opacity(0.22))
+                .overlay { Circle().strokeBorder(on == nil ? Color.gray.opacity(0.5) : Color.green.opacity(0.7)) }
+                .frame(width: 17, height: 17)
+            if module.profile == "ad8_din_rs485_v2_2_1" {
+                Text(level.map { "\($0)%" } ?? "—")
+                    .font(.system(size: 10, design: .rounded)).monospacedDigit()
+                    .foregroundStyle(level == nil ? Color.secondary : Color.primary)
+                    .lineLimit(1).minimumScaleFactor(0.8)
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("通道 \(indicator.number)：\(on.map { $0 ? "开启" : "关闭" } ?? "无反馈")" + (level.map { "，亮度 \($0)%" } ?? ""))
+        .accessibilityIdentifier("module.\(module.id).channel.\(indicator.number)")
     }
 }
 

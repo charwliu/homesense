@@ -1,0 +1,13 @@
+{
+  "schema_version": 2,
+  "revision": 1,
+  "manual_degraded_enabled": false,
+  "gateways": [
+    {
+      "id": "test485-vlan3",
+      "endpoint": "192.168.3.7:8234",
+      "modules": []
+    }
+  ],
+  "devices": []
+}

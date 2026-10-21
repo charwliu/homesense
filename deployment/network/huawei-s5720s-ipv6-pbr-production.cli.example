@@ -1,0 +1,76 @@
+# S5720S-28TP-PWR-LI-ACL / V200R019C10SPC500, 2026-10-14
+# Production-scope template, NOT yet deployed as /64.
+# Both /128 WAN paths and both cross-group router ping/TCP22 paths were tested.
+# This hardware rejects IPv6 destination matching in VLAN/GE0/0/4 inbound policies.
+# Therefore use one SOURCE-ONLY policy on each VLAN, with edge LAN hairpin forwarding.
+# Prerequisite: deploy the matching ipv6-pbr-hairpin-a/b.nft.example at each edge first.
+# Core/edges must have specific internal routes; never point edge WAN defaults at core.
+# Keep these policies OFF VLAN3/4: edge-returned traffic must follow the core route table.
+# No match-order, precedence, physical-port binding, or LOCAL permit behavior is used.
+# Current source prefixes are PD snapshots; update after an actual PD prefix change.
+# User confirmed empty applied-record after testing; check bindings again before applying.
+# ACL3981/3982 were created for this task. Check no unrelated rules before replacing rule5.
+# Existing VLANIF addresses, PD clients, OSPFv3 and security ACLs stay in their own config.
+
+system-view
+acl ipv6 3981
+ undo rule 5
+ rule 5 permit ipv6 source 2408:8207:7866:a785:: 64
+ quit
+acl ipv6 3982
+ undo rule 5
+ rule 5 permit ipv6 source 2408:8207:7865:78b1:: 64
+ quit
+traffic classifier PBR6_A_SOURCE operator or
+ if-match ipv6 acl 3981
+ quit
+traffic classifier PBR6_B_SOURCE operator or
+ if-match ipv6 acl 3982
+ quit
+traffic behavior PBR6_TO_A
+ redirect ipv6-nexthop link-local FE80::B83B:17FF:FE74:32D0 interface Vlanif 3
+ statistics enable
+ quit
+traffic behavior PBR6_TO_B
+ redirect ipv6-nexthop link-local FE80::5434:4EFF:FEFA:68A4 interface Vlanif 4
+ statistics enable
+ quit
+traffic policy PBR6_A_EGRESS
+ classifier PBR6_A_SOURCE behavior PBR6_TO_A
+ quit
+traffic policy PBR6_B_EGRESS
+ classifier PBR6_B_SOURCE behavior PBR6_TO_B
+ quit
+vlan 1
+ traffic-policy PBR6_A_EGRESS inbound
+ quit
+vlan 2
+ traffic-policy PBR6_B_EGRESS inbound
+ quit
+return
+display traffic-policy applied-record
+
+# Enable VLAN1 client RA only AFTER both edge fragments and both /64 policies are active.
+# Confirm Vlanif1 still has its current ng3prefix /64 and valid PIO/autonomous flag.
+# Normal clients use the core's link-local address as IPv6 default gateway.
+# system-view
+# interface Vlanif 1
+#  undo ipv6 nd ra halt
+#  quit
+# return
+# Validate real clients in VLAN1/2: correct source prefix, WAN path, authorized internal
+# TCP/UDP, same-VLAN ND, RA, OSPFv3, MTU/ICMPv6 and policy counters, then save.
+# save
+
+# ROLLBACK core bindings (does not delete objects or change IPv4):
+# system-view
+# vlan 1
+#  undo traffic-policy PBR6_A_EGRESS inbound
+#  quit
+# vlan 2
+#  undo traffic-policy PBR6_B_EGRESS inbound
+#  quit
+# return
+# If VLAN1 RA was newly enabled here, restore its original halted state on rollback.
+# Edge rollback removes only this fragment's two rules by recorded handles,
+# then its two named sets; remove its persistent include as well.

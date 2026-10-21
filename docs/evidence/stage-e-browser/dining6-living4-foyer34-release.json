@@ -1,0 +1,70 @@
+{
+  "checked_at": "2026-10-19T11:53:12.699514+08:00",
+  "status": "PASS_PUBLISHED_FOYER_DINING6_LIVING4_REV34",
+  "base_revision": 33,
+  "revision": 34,
+  "dining_key6": {
+    "label": "门厅日常",
+    "scene_display_name": "门厅日常",
+    "room": "门厅",
+    "scope": "original two foyer endpoints only"
+  },
+  "living_key4": {
+    "label": "门厅日常",
+    "scene_display_name": "门厅日常（客厅全关）",
+    "room": "门厅",
+    "scope": "same two foyer On commands plus nine living Off commands"
+  },
+  "same_action_ID_required": false,
+  "different_recipe_reason": "User explicitly confirmed dining6 must not shut living lights; distinct existing action IDs preserve this difference and original grants.",
+  "shared_LED_endpoints": [
+    "control4:410:key:6",
+    "control4:437:key:4"
+  ],
+  "LED_state_authority": "original foyer two-endpoint physical On/Off pattern, shared group all28-source-foyer",
+  "new_scenes": 0,
+  "scene_programs_changed": false,
+  "backend_binary_changed": false,
+  "permissions_pairings_and_identifiers_preserved": true,
+  "loopback_cases_passed": 13,
+  "raw_wall_events_tested": true,
+  "external_feedback_updates_both_LEDs_without_controls": true,
+  "field_runtime_output_slots_confirmed": 96,
+  "field_linked_LED_written_receipts": [
+    {
+      "command": 82,
+      "device": "control4:410:key:6",
+      "color": "green",
+      "status": "written",
+      "updated_ms": 24506
+    },
+    {
+      "command": 83,
+      "device": "control4:437:key:4",
+      "color": "green",
+      "status": "written",
+      "updated_ms": 26154
+    }
+  ],
+  "field_LED_actual_color_observation_available": false,
+  "early_pcap_covers_linked_LED_writes": false,
+  "capture_note": "Linked LED commands were written at24.506s and26.154s after startup, beyond the early capture window; same-epoch written receipts and complete boot journal verify both.",
+  "field_light_motor_parameter_commands_during_publication": 0,
+  "rollback_guard_disarmed": true,
+  "app_update_required": false,
+  "existing_app_build": 25,
+  "private_evidence_sha256": {
+    "plan34.json": "430c27a15cb2c9de6171ed1ed6ab7dc5dc3584a748a4c134dbf86b6becc61597",
+    "devices34.json": "0eb4c26ee11602903721f42458ee2d36da4478f3dd3fc5780f6c42634ff394fd",
+    "automation34.json": "8e374d539fc6d73454b1f1e9f0ef8d7bb7315293ef0231661f6c98f55f9f2717",
+    "loopback34-r2/result.json": "c637f917f7372698a747082af28250851eb2a0b4b04934fd3f82c799ae32bfa7",
+    "loopback34-r2/frames.json": "fcf4c986d1903868050d3c9ed384f33b39c99ee12cadc0d4ae7056b07b6b5397",
+    "PUBLICATION34-RESULT.json": "a00a38480c300c8e3a1427567d660bc740f02b8fc5931e5dcde8e99f2c9c30fc",
+    "journal34-audit.json": "200e5610335d69f7e3c59d870f9c9d9e723dac37135faf67db8be3c396338f35",
+    "devices34-api.json": "64d1eb55286be2fc72e56d2cc366cbcdd43a103e08a59e116360018a9e48a862",
+    "scenes34.json": "43ee6e28dfb68869891c634e679d3689409b56a2cac27f6df369616a8d322299",
+    "startup-wire.json": "f6baec1918160474e6fdc3579280376af85471bb78bef17d771ac0e6c65d0a5d",
+    "startup.pcap": "9d12024130a25fedbb4aefab9ca7483c091aadc200b8727099987d9bf9656f68",
+    "capture.log": "70dc3d2a8f47efe5832dc7f816997b07688e1ffd0f0f2d0607ea6e46f12dce66"
+  }
+}

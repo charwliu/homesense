@@ -169,4 +169,40 @@ private actor ModuleHTTP: HomeHTTPTransport {
         #expect((try HomePhysicalModule(motor)).permits(channel: 1, command: .object(["action": .string("stop")])))
         #expect(!(try HomePhysicalModule(motor)).permits(channel: 1, command: .object(["action": .string("motor_press"), "direction": .string("open")])))
     }
+    @Test func dinIndicatorsUseConfirmedFeedbackForPowerAndEightChannels() throws {
+        var relay = moduleFixture("relay", address: "04", profile: "r8i8_din_pro_v2_7_7")
+        #expect(!(try HomePhysicalModule(relay)).dinHasFeedback)
+        var slots = relay["slots"].values
+        slots[0]["quality"] = .string("confirmed")
+        slots[0]["actual"] = .object(["on": .bool(false)])
+        slots[1]["quality"] = .string("confirmed")
+        slots[1]["actual"] = .object(["on": .bool(true)])
+        slots[2]["quality"] = .string("stale")
+        slots[2]["actual"] = .object(["on": .bool(true)])
+        relay["slots"] = .array(slots)
+        let relayModule = try HomePhysicalModule(relay)
+        #expect(relayModule.dinHasFeedback)
+        #expect(relayModule.dinChannelIndicators.count == 8)
+        #expect(relayModule.dinChannelIndicators.map(\.number) == Array(1...8))
+        #expect(relayModule.dinChannelIndicators[0].isOn == false)
+        #expect(relayModule.dinChannelIndicators[1].isOn == true)
+        #expect(relayModule.dinChannelIndicators[2].isOn == nil)
+        #expect(relayModule.dinChannelIndicators.allSatisfy { $0.brightness == nil })
+
+        var dimmer = moduleFixture("dimmer", address: "15", profile: "ad8_din_rs485_v2_2_1")
+        slots = dimmer["slots"].values
+        slots[0]["quality"] = .string("confirmed")
+        slots[0]["actual"] = .object(["on": .bool(true), "level": .integer(37)])
+        slots[1]["quality"] = .string("confirmed")
+        slots[1]["actual"] = .object(["on": .bool(false), "level": .integer(0)])
+        slots[2]["quality"] = .string("stale")
+        slots[2]["actual"] = .object(["on": .bool(true), "level": .integer(88)])
+        dimmer["slots"] = .array(slots)
+        let dimmerModule = try HomePhysicalModule(dimmer)
+        #expect(dimmerModule.dinHasFeedback)
+        #expect(dimmerModule.dinChannelIndicators[0].isOn == true && dimmerModule.dinChannelIndicators[0].brightness == 37)
+        #expect(dimmerModule.dinChannelIndicators[1].isOn == false && dimmerModule.dinChannelIndicators[1].brightness == 0)
+        #expect(dimmerModule.dinChannelIndicators[2].isOn == nil && dimmerModule.dinChannelIndicators[2].brightness == nil)
+        #expect((try HomePhysicalModule(moduleFixture("motor", address: "22", profile: "c4_din_pro_v2_7_7", channels: 4))).dinChannelIndicators.isEmpty)
+    }
 }

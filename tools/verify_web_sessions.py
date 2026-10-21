@@ -27,6 +27,8 @@ with tempfile.TemporaryDirectory(prefix='homesense-sessions-') as directory:
 
     def request(method, path, session=None, body=None, bearer=None):
         headers = {'Origin': origin, 'Content-Type': 'application/json'}
+        if method in ('POST', 'PATCH') and path.startswith('/api/v1/credentials'):
+            headers['Idempotency-Key'] = secrets.token_hex(16)
         if session:
             headers.update({'Cookie': session[0], 'X-CSRF-Token': session[1]})
         if bearer:

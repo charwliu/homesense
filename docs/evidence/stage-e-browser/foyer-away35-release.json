@@ -1,0 +1,51 @@
+{
+  "checked_at": "2026-10-19T11:59:17.474029+08:00",
+  "status": "PASS_PUBLISHED_FOYER_AWAY_REV35",
+  "base_revision": 34,
+  "revision": 35,
+  "scene_id": "control4-held46-456-key-6",
+  "scene_name": "门厅离家",
+  "room": {
+    "id": "control4-room-42",
+    "name": "门厅"
+  },
+  "metadata_fields_changed": [
+    "name",
+    "room"
+  ],
+  "scene_programs_changed": false,
+  "scene_ID_changed": false,
+  "other_configuration_changed": false,
+  "configuration_revision_bumped": true,
+  "exact_export_matches_merged_candidate": true,
+  "published_scene_count": 130,
+  "room_assigned_scene_count": 130,
+  "unassigned_scene_count": 0,
+  "backend_binary_changed": false,
+  "permissions_pairings_and_identifiers_preserved": true,
+  "field_runtime_output_slots_confirmed": 96,
+  "passive_capture_output_slots": 96,
+  "captured_lighting_motor_parameter_commands": 0,
+  "startup_health_initial_attempt_passed": false,
+  "startup_health_final_acceptance_passed": true,
+  "rollback_guard_disarmed": true,
+  "field_scene_execution_performed": false,
+  "existing_app_build": 25,
+  "app_update_required": false,
+  "private_evidence_sha256": {
+    "preflight.json": "5d4a3b2ae59e55392ce23300e4c1adf17caaffcaef54498bbc96c305d04b2525",
+    "plan35.json": "f301d1083630e4c236c3ddfd96cd1f8c1fd2fd1b4762576841ba71993211d051",
+    "devices35.json": "7b9405d92c188003dd8e923ba889f9888dbcbe1d6936da04de6ff6a79d8b0077",
+    "automation35.json": "cf58255bd72ee1b408312cc414371136b21075ba2fa872285a246836affeacd1",
+    "remote-plan35.json": "a19d322ec071b467a5f2f377e0e1f5fd034035a32012a9b01b92b8db3ec281e5",
+    "PUBLICATION35-RESULT.json": "b2366ea895490902d6571f7f556c3e6ea239ecfe77975ee8b6d8ad893bf0b8b9",
+    "scenes35.json": "4f968634e38ef16461587c4ee29321c39e1f2d230e3104d6d7b20648b4971f47",
+    "export35.json": "d88d3a2cda25c90a90d6dd9864b7fdda72b514c8601d3bd34343c6d021548003",
+    "modules35.json": "d0282bf20dfbc331e97951d48c5717c02fc27fa0685291e11a47ee4d264b0ae4",
+    "diagnostics35.json": "5664924e6573a99c4a0acd776d53eedcffd92d54dbfeb0da84cdf46a4c159998",
+    "startup-wire.json": "73d13a14d10ee7fbefe222798fac0cbf816db06deb2df0328b7a740aebcbbd55",
+    "startup.pcap": "6bf60e0326768b1fa85b6e697471b03a832c861590a597b7407eee6e6600b3d1",
+    "capture.log": "956a87a7b95f8f29c2a132b2e30e1d3a1491cbf37ecca9d10c105ada508f9d2d",
+    "verification-notes.json": "947e3bba9d5f89a88b7e152e225cee77cc310821c595258a241835594820b4c4"
+  }
+}

@@ -578,6 +578,7 @@ pub struct Admission {
     away_terminal:tokio::sync::watch::Receiver<()>,
     generations: tokio::sync::watch::Receiver<Option<TaskGeneration>>,
     observation_invalidation: Arc<AtomicU64>,
+    projection_refresh: Arc<std::sync::Mutex<crate::scene_projection_refresh::Queue>>,
 }
 #[cfg(not(test))]
 type Clock = Instant;
@@ -646,6 +647,8 @@ impl Admission {
         let (away_terminal_updates,away_terminal)=tokio::sync::watch::channel(());
         let observation_invalidation=Arc::new(AtomicU64::new(1));
         let worker_observation_invalidation=observation_invalidation.clone();
+        let projection_refresh=Arc::new(std::sync::Mutex::new(crate::scene_projection_refresh::Queue::default()));
+        let worker_projection_refresh=projection_refresh.clone();
         std::thread::Builder::new()
             .name("homesense-admission".into())
             .spawn(move || {
@@ -1863,6 +1866,7 @@ impl Admission {
                                 let document=bundle.automation.as_ref().ok_or(WriteStatus::InvalidValueInRequest)?;
                                 prepared.validate(&store,&configuration,document,&worker_boot,policy.epochs,millis(clock))?;
                                 scene_projections.retain(|name,_|document.scene_switch_groups.iter().any(|g|g.variable==*name && g.reconciliation.as_ref().is_some_and(|p|p.enabled)));
+                                worker_projection_refresh.lock().unwrap().completed(&generation,prepared.variable());
                                 scene_projections.insert(prepared.variable().to_owned(),prepared);
                                 Ok(())
                             })();
@@ -1890,9 +1894,15 @@ impl Admission {
                                 let policy=arbiter.policy();
                                 let ready=!failed && !worker_stop.load(Ordering::Acquire) && !policy.publishing && policy.gateway_ready && policy.controller && policy.storage_healthy && policy.valid_configuration_loaded;
                                 let mut values=BTreeMap::new();
+                                let mut refresh=vec![];
+                                // Pending scene work masks all projections. Do not
+                                // turn that global fence into a full-catalog urgent
+                                // scan: only request stale proofs after it settles.
+                                let may_refresh=ready && !store.has_pending_scene(&worker_boot,configuration.revision()).map_err(|_|WriteStatus::ServiceCommunicationFailure)?;
                                 for name in names {
                                     let mut value=store.scene_selection(configuration.revision(),&name,scene_observer.scope()).map_err(|_|WriteStatus::ServiceCommunicationFailure)?.ok_or(WriteStatus::ResourceDoesNotExist)?;
                                     if let Some(document)=document && let Some(group)=document.scene_switch_groups.iter().find(|g|g.variable==name) && !component_modes.project_selection(&store,&name,&generation,&mut value)? {crate::scene_reconciliation::project(&mut value,scene_projections.get(&name),group,&store,&configuration,document,&worker_boot,policy.epochs,millis(clock),ready)?;}
+                                    if may_refresh && value.physical.as_ref().is_some_and(|p|p.observed_ms.is_none() && !p.pending_relative) {refresh.push(name.clone());}
                                     if values.insert(name,value).is_some() {return Err(WriteStatus::InvalidValueInRequest)}
                                 }
                                 // A published read checks selection and mapping in this
@@ -1907,6 +1917,8 @@ impl Admission {
                                     policy.gateway_ready && gateways.as_ref().is_none_or(|g|g.table.all_ready()),
                                     gateways.as_ref().is_some_and(|g|g.table.ids().next().is_some()));
                                 if published.as_ref().is_some_and(|read|read.source.as_ref().is_some_and(|source|!source.valid())) {return Err(WriteStatus::InsufficientPrivileges)}
+                                let mut pending=worker_projection_refresh.lock().unwrap();
+                                for name in refresh {pending.request(&generation,&name);}
                                 Ok(SelectionSnapshot {values,mapping_readable})
                             })();
                             if selection_started.elapsed()>=Duration::from_millis(100) {
@@ -2287,13 +2299,14 @@ impl Admission {
                                 let obligation_deadline=command.deadline_ms;
                                 command.deadline_ms = control_batches.write_deadline(command.id)
                                     .unwrap_or(command.deadline_ms).min(command.deadline_ms);
-                                // Projection LEDs are disposable, unlike actuator/STOP
-                                // operations. Do not acquire a Writing obligation at the
-                                // expiry edge: the bounded worker and completion audit
-                                // need one existing wire-gap quantum. This cancels only
-                                // still-Accepted work, never extends or replays its lease.
+                                // Do not acquire a plain light or projection Writing
+                                // obligation at the expiry edge. Delivery and its audit
+                                // need one existing wire-gap quantum. Keep STOP, module
+                                // and managed-batch obligations on their original path;
+                                // only still-Accepted work is cancelled here, not replayed.
                                 let current=millis(clock);
-                                if matches!(command.command,homesense_core::Command::PanelLed(_)|homesense_core::Command::PanelLedOff)
+                                let ordinary_light=!control_batches.feedback_obligation(command.id) && !away_local_leases.contains_key(&command.id) && matches!(command.command,homesense_core::Command::Switch(_)|homesense_core::Command::SetLevel{..}|homesense_core::Command::Toggle);
+                                if (ordinary_light || matches!(command.command,homesense_core::Command::PanelLed(_)|homesense_core::Command::PanelLedOff))
                                     && current.saturating_add(options.write_interval.as_millis() as u64)>=command.deadline_ms {
                                     store.transition_command(&worker_boot,command.id,Status::Accepted,Status::Cancelled,current).map_err(|e|e.to_string())?;
                                     arbiter.cancel_selected_before_write(command.id).map_err(|e|e.to_string())?;
@@ -2342,11 +2355,13 @@ impl Admission {
                                     return Ok(None);
                                 };
                                 let audited=millis(clock);
-                                if matches!(command.command,homesense_core::Command::PanelLed(_)|homesense_core::Command::PanelLedOff) && audited>=command.deadline_ms {
+                                if (ordinary_light || matches!(command.command,homesense_core::Command::PanelLed(_)|homesense_core::Command::PanelLedOff)) && audited>=command.deadline_ms {
                                     // This reservation has never been released or handed
                                     // to a transmitter: zero possible wire bytes, even if
                                     // the synchronous Writing commit outlasted its lease.
-                                    if control_batches.write_deadline(command.id).is_some() {
+                                    if ordinary_light {
+                                        reservation.cancel_expired_light_before_delivery(command.command,audited).map_err(|e|e.to_string())?;
+                                    } else if control_batches.write_deadline(command.id).is_some() {
                                         reservation.cancel_expired_projection_before_delivery(audited,command.deadline_ms).map_err(|e|e.to_string())?;
                                     } else {reservation.cancel_expired_led_before_delivery(audited).map_err(|e|e.to_string())?;}
                                     arbiter.cancel_selected_before_write(command.id).map_err(|e|e.to_string())?;
@@ -3195,8 +3210,17 @@ impl Admission {
             away_terminal,
             generations,
             observation_invalidation,
+            projection_refresh,
             source_authorization:None,
         })
+    }
+    /// Runtime metadata work only. The normal reconciliation path still checks
+    /// ownership, generation, pending commands and physical feedback proofs.
+    pub(crate) fn projection_refresh_groups(&self, document:&homesense_config::rule_document::Document, cursor:&mut usize)->Vec<homesense_config::scene_switches::Group> {
+        let generation=self.generations.borrow();
+        let Some(generation)=generation.as_ref().filter(|g|g.epochs.configuration==document.revision) else{return vec![]};
+        let names=document.scene_switch_groups.iter().map(|g|g.variable.as_str()).collect::<Vec<_>>();
+        self.projection_refresh.lock().unwrap().batch(generation,&names,cursor).into_iter().map(|index|document.scene_switch_groups[index].clone()).collect()
     }
     /// Trusted runtime coordinator only: validate then enter the publication barrier.
     /// The caller must drain STOP via the transport owner, commit, rebuild projections
@@ -4498,3 +4522,11 @@ mod received_target_causality_tests {
         close(actor,path).await;
     }
 }
+
+#[cfg(test)]
+#[path="scene_projection_refresh_tests.rs"]
+mod projection_refresh_tests;
+
+#[cfg(test)]
+#[path="admission_write_expiry_tests.rs"]
+mod write_expiry_tests;

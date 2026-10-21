@@ -97,7 +97,7 @@ pub fn review(xml: &str) -> Review {
                 let raw = s.fields["AdvScene/toggle_id[0]"].clone();
                 let target = format!("control4:scene:{}:{raw}", s.agent);
                 Contract {
-                    deactivation_runtime:None,
+                    deactivation_runtime: None,
                     tracking: None,
                     scene: s.id.clone(),
                     source_sha256: s.source_sha256.clone(),

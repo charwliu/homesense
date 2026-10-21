@@ -1,0 +1,104 @@
+# S5720S-28TP-PWR-LI-ACL / V200R019C10SPC500, 2026-10-14
+# SOURCE-ONLY candidate. The destination-exemption candidate was rejected by hardware.
+# Confirmed: VLAN1 single-client IPv6 source PBR to nanopi5 WAN works.
+# Confirmed: VLAN2 single-client source PBR to nanopc WAN works.
+# Confirmed: VLAN2->A ping and SSH banner passed with scoped temporary B firewall rules.
+# Those temporary rules were removed; the persistent /64 firewall fragments are candidates.
+# Confirmed: reverse VLAN1->B ping and SSH banner passed with scoped temporary A rules.
+# Both temporary rule sets were removed; broader internal services and /64 remain untested.
+# The /64 deployment template is huawei-s5720s-ipv6-pbr-production.cli.example.
+# Internal packets matching these rules also go to the selected edge router.
+# The edge must route them BACK TO THE CORE via br-lan, without NAT/proxy interception.
+# Keep Vlanif3/4 outside this PBR, so returned packets do not loop to the edge again.
+# Current edge firewall permits LAN hairpin to its own PD pool, not the opposite pool.
+# Cross-group internal forwarding therefore requires separately scoped firewall rules.
+# Do not expand to /64 or save until routes, firewall and real-client tests pass.
+# Existing security ACLs continue to govern authorized internal access.
+# Fixed prefixes below are PD snapshots; update them after an actual prefix change.
+# Initial /128 rules test only the selected clients; /64 expansion is commented below.
+# VLAN1 Mac test without RA initially lacked an en0 on-link route.
+# Even after adding that route, global-core next-hop tests still failed locally.
+# Using the core link-local gateway fe80::fa98:efff:fe77:6450%en0 succeeded.
+# Prefer that link-local gateway for test host routes, as normal RA-based clients do.
+# User terminal (sudo required), only if that route is absent:
+# sudo route -n add -inet6 -net -ifscope en0 2408:8207:7866:a785::/64 -interface en0
+# Clean up only routes added by this test when finished (including the /64 if added).
+
+# STAGE 1: Create UNBOUND source-only objects, reusing ACL3981/3982 from prior candidate.
+# Confirm those ACLs contain only the intended rule 5 before replacing it.
+system-view
+acl ipv6 3981
+ undo rule 5
+ rule 5 permit ipv6 source 2408:8207:7866:a785::c0de:1014 128
+ quit
+acl ipv6 3982
+ undo rule 5
+ rule 5 permit ipv6 source 2408:8207:7865:78b1:14b7:e9c6:ea47:e554 128
+ quit
+traffic classifier PBR6_A_SOURCE operator or
+ if-match ipv6 acl 3981
+ quit
+traffic classifier PBR6_B_SOURCE operator or
+ if-match ipv6 acl 3982
+ quit
+traffic behavior PBR6_TO_A
+ redirect ipv6-nexthop link-local FE80::B83B:17FF:FE74:32D0 interface Vlanif 3
+ statistics enable
+ quit
+traffic behavior PBR6_TO_B
+ redirect ipv6-nexthop link-local FE80::5434:4EFF:FEFA:68A4 interface Vlanif 4
+ statistics enable
+ quit
+traffic policy PBR6_A_EGRESS
+ classifier PBR6_A_SOURCE behavior PBR6_TO_A
+ quit
+traffic policy PBR6_B_EGRESS
+ classifier PBR6_B_SOURCE behavior PBR6_TO_B
+ quit
+return
+
+# STAGE 2: Single-client tests. Each stage needs actual hardware success.
+# The failed destination-based interface binding must first be removed if present.
+# system-view
+# interface GigabitEthernet 0/0/4
+#  undo traffic-policy PBR6_EGRESS inbound
+#  quit
+# vlan 1
+#  undo traffic-policy PBR6_A_SRC_PROBE inbound
+#  traffic-policy PBR6_A_EGRESS inbound
+#  quit
+# vlan 2
+#  undo traffic-policy PBR6_B_SRC_PROBE inbound
+#  traffic-policy PBR6_B_EGRESS inbound
+#  quit
+# return
+# display traffic-policy applied-record
+# Test both WAN paths and authorized internal TCP/UDP/ICMPv6, not just ping.
+# Verify ND/RA and OSPFv3 health; verify internal traffic does not enter either WAN.
+
+# STAGE 3: Only after edge rules and /128 tests pass, expand sources to whole VLANs.
+# system-view
+# acl ipv6 3981
+#  undo rule 5
+#  rule 5 permit ipv6 source 2408:8207:7866:a785:: 64
+#  quit
+# acl ipv6 3982
+#  undo rule 5
+#  rule 5 permit ipv6 source 2408:8207:7865:78b1:: 64
+#  quit
+# return
+# save  <-- only after final validation
+
+# ROLLBACK: Restore the known test bindings, with their then-current /128 ACLs.
+# system-view
+# vlan 1
+#  undo traffic-policy PBR6_A_EGRESS inbound
+#  traffic-policy PBR6_A_SRC_PROBE inbound
+#  quit
+# vlan 2
+#  undo traffic-policy PBR6_B_EGRESS inbound
+#  traffic-policy PBR6_B_SRC_PROBE inbound
+#  quit
+# return
+# Remove only the temporary edge rules created for this test, by their recorded handles.
+# Enabling VLAN1 RA is separate: verify its current PD/PIO before enabling it.

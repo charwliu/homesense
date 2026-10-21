@@ -167,6 +167,7 @@ pub mod light_state;
 pub mod indicator_sync;
 pub mod scene_initialization;
 pub mod scene_reconciliation;
+mod scene_projection_refresh;
 pub mod native_scene;
 
 mod scene_observation_owner;

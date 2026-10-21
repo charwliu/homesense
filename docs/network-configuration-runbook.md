@@ -1,6 +1,6 @@
 # 华为核心、QNAP 与 AC 配置操作手册
 
-版本 0.7，2026 年 10 月 13 日。**离线草案，未执行任何设备配置、DHCP 服务或无线服务启动。** 本文将[网络架构设计](network-architecture.md)转为操作步骤；代码块是未来配置窗口内的人工操作示例，不是自动部署脚本。接口占位符、地址冲突、实际固件和既有规则核查完成后，才能在隔离环境验证。
+版本 0.8，2026 年 10 月 13 日。**新核心配置仍是离线草案，未执行新核心、DHCP 或无线服务切换。** 本文将[网络架构设计](network-architecture.md)转为操作步骤；代码块是未来配置窗口内的人工操作示例，不是自动部署脚本。第 7.1 节单独记录旧核心 VLAN1 IPv6 分流的只读核查与暂停点，不代表已实施。接口占位符、地址冲突、实际固件和既有规则核查完成后，才能在隔离环境验证。
 
 ## 1 顺序、参数与停止条件
 
@@ -420,6 +420,19 @@ interface <CORE_X1>
 | 迁移门槛 | .0.x全量盘点并迁移，依赖与连接配置已更新 | 尚未完成，保留现网100三层服务 |
 | 维护 | 临时 SVI 的 DHCP、双向及 CPU 隔离验收；包无网关/DNS/路由选项，静态绑定正确 | 未启动、未验收 |
 | 恢复 | SSID/DHCP/临时标签关闭，端口和客户端恢复，100网关仍关闭 | 待未来维护结束核查 |
+
+### 7.1 旧核心 VLAN1 IPv6 分流：下次可改线时继续
+
+**当前暂停点（2026-10-13）：** 用户要求暂不改接线，只读核查已结束；完整证据及与新核心目标方案的区别见[架构第 5.2.1 节](network-architecture.md)。现网 QNAP A、B 均直连旧核心，分别通过 Eth-Trunk3、Eth-Trunk4 上联；两台 QNAP 间另有承载 VLAN3/4 的互连 Trunk。旧核心 Vlanif1 已启用 IPv6 并绑定 A 线 `ng3prefix ::1/64`，但未启用 RA；实测电脑 `en0` 未取得全球地址。CLI 帮助接受 `ipv6 nd ra router-lifetime 0`，尚未实际发送或抓取该华为 RA。nanopi5 经 QSW4C 端口 12 和核心 Eth-Trunk3 的 VLAN3 路径可达；Eth-Trunk3 当前排除 VLAN1，QNAP 端口成员尚未核实。nanopi5 对委派给核心的 /64 有回程、A 线公网路由指向 `ppp0`，但当前 rdhcpd 只绑定 VLAN3 的 `br-lan`，防火墙转发也只把 `br-lan` 当作 LAN。Linux 隔离客户端的双 RA 组合通过，实际 networkd 发包、华为、QNAP、macOS 与公网端到端均未通过验收。
+
+下次须按以下顺序逐项执行并保存变更前后的配置与抓包，任何一步失败即恢复该步，不继续放大范围：
+
+1. 从 QNAP 专用管理口进入 QSS，登记 QSW4C 端口 12、连接核心 Eth-Trunk3 的上联口及对应聚合成员的 VLAN1/3 Tagged、Untagged、PVID；同时备份核心 Eth-Trunk3、Vlanif1、QNAP、nanopi5 networkd/nftables 配置。确认管理通道在测试标签变更后仍可达。若无法核实这些端口，保持暂停。
+2. 决定测试接线：在已核实的 QNAP 路径两端临时放通 **Tagged VLAN1**，不改变原有 VLAN3/PVID/LACP；或用 nanopi5 空闲 LAN2 直连华为一个可回退的临时端口。先只在 nanopi5 建立链路本地 VLAN1 测试接口，确认到核心 Vlanif1 链路本地地址的双向 ND/ICMPv6，同时核对 VLAN3 PD、OSPF、DHCP 和现有业务未受影响。二层不通则先撤销标签或临时接线。
+3. 在受控测试窗口核查旧核心 Vlanif1 的 RA Router Lifetime=0 与 A 线 /64 PIO 的**实际报文**，尤其是 M/O、RDNSS、前缀首选/有效期和动态 PD 变化后的撤回；不能仅凭命令帮助判定通过。测试前后保存 `display current-configuration interface Vlanif1`、`display ipv6 interface Vlanif1` 和 PD 状态，确认客户端只取得 A 线前缀、未把核心学作默认路由。停发 RA 不会立即删除已分配的客户端 IPv6 地址，回退时按有效期和客户端状态处理。
+4. 再让 nanopi5 **仅在 VLAN1 测试链路**发送无 PIO、Router Lifetime>0 的默认路由 RA；不要把现有仅绑定 VLAN3 的 rdhcpd 改作 VLAN1 服务。实际发送程序（候选为 systemd-networkd）须先抓包确认来源、Lifetime、PIO 缺席和定时重发；此前独立 networkd 实例的隔离启动因 D-Bus 单例冲突未完成，不能把文档参数当作发包验收。
+5. 给 nanopi5 VLAN1 接口补充限定入接口、A 线源 /64 与 WAN `ppp0` 的临时转发规则，并核查返回方向的连接跟踪、IPv6 防火墙及透明代理规则；当前 nftables 默认转发丢弃未列入 `br-lan` 的新接口。用 VLAN1 测试终端分别核对地址、默认下一跳、到核心/内网的路径、A 线公网 IPv6、回包及不同协议，不以单台边界本机 ping 代替客户端验收。双网卡电脑要指定 VLAN1 接口，避免现有 VLAN3 接口 `en7` 成功而误判 VLAN1 通过。
+6. 再验证 PD Renew/Rebind、/64 不变或变化时的核心地址、PIO、nanopi5 回程、上游 /60 授权期及终端弃用旧地址。记录两线路独立出口与 DNS；完成后决定是否保留方案。若不保留，按逆序撤销新 RA、临时防火墙规则、接口和标签/接线，核对 VLAN3 业务及客户端路由恢复。
 
 核心切换失败时隔离新核心，恢复旧核心及原布线/网关/边界配置；不能同时启用重复`.253`和RID。单台QNAP或AP变更失败先恢复该设备原VLAN和管理配置，不重置所有设备。VLAN100迁移未完成时，不将最终关闭步骤当成故障处理；维护阶段异常则先停临时DHCP/SSID、恢复端口，不擅自改现网DHCP或HomeSense真实控制。
 

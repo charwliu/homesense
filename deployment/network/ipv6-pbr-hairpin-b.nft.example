@@ -1,0 +1,24 @@
+# nanopc / inet ladder / current B PD snapshot, 2026-10-14
+# CANDIDATE: same mechanism passed a /128 source, /128 destination, ICMPv6 and TCP22 test.
+# Whole-/64 and all internal-services scope has NOT been deployed or validated.
+# Actual service loads /etc/nftables.nft; base+this fragment passed nft -c -f checking.
+# Install as /etc/nftables/ipv6-pbr-hairpin.nft and include that file at the end of base.
+# Activate this fragment once with nft -f; repeated standalone adds are not idempotent.
+# Include at the END of the actual loaded nftables configuration, after inet ladder exists.
+# Validate the entire loaded config with nft -c -f before reloading.
+# This fragment is not an idempotent standalone updater: base config must recreate its table.
+# Preserve all existing unrelated rules. No flush ruleset is included here.
+# Return traffic may bypass this edge, so the LAN hairpin allow precedes conntrack invalid drop.
+# Existing switch security ACLs must still enforce the authorized cross-VLAN access matrix.
+# Update both sets with actual PD prefixes after a real prefix change; renew alone is not a change.
+# Only VLAN2's source prefix is included. VLAN3/4 are not newly permitted by this fragment.
+# The destination set does not create routes; verify every intended internal prefix via the core.
+
+add set inet ladder PBR6_SOURCE_V6 { type ipv6_addr; flags interval; elements = { 2408:8207:7865:78b1::/64 }; }
+add set inet ladder PBR6_INTERNAL_V6 { type ipv6_addr; flags interval; elements = { 2408:8207:7866:a780::/60, 2408:8207:7865:78b0::/60 }; }
+
+insert rule inet ladder mangle_prerouting iifname "br-lan" ip6 saddr @PBR6_SOURCE_V6 ip6 daddr @PBR6_INTERNAL_V6 counter return comment "PBR6 internal bypass TPROXY"
+insert rule inet ladder forward iifname "br-lan" oifname "br-lan" ip6 saddr @PBR6_SOURCE_V6 ip6 daddr @PBR6_INTERNAL_V6 counter accept comment "PBR6 internal return to core"
+
+# Add explicit internal/VPN prefixes outside these pools only after route/access review.
+# Do not redirect Vlanif4 ingress on the core, otherwise returned packets may loop.

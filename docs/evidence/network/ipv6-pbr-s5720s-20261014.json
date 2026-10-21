@@ -1,0 +1,121 @@
+{
+  "date": "2026-10-14",
+  "device": "Huawei S5720S-28TP-PWR-LI-ACL",
+  "software": "V200R019C10SPC500, VRP 5.170",
+  "evidence_source": "User-provided core CLI and live Mac/edge-router probes",
+  "confirmed_rejections": {
+    "ipv6_destination_match_vlan_inbound": true,
+    "ipv6_destination_match_ge_0_0_4_inbound": true,
+    "policy_match_order_parameter_absent": true,
+    "policy_binding_precedence_parameter_absent": true,
+    "classifier_precedence_parameter_absent": true
+  },
+  "confirmed_forwarding": {
+    "vlan1_single_client_a_wan": "Previously captured A ppp0 request/reply; 4/4 ping replies in first test",
+    "vlan2_single_client_b_wan": "Captured B ppp0 request/reply; 2/2 ping replies",
+    "source": "2408:8207:7865:78b1:14b7:e9c6:ea47:e554",
+    "mac": "3ea3-f0ab-38ae",
+    "core_mac_learned_port": "GE0/0/4, VLAN2",
+    "public_test_destination": "2606:4700:4700::1111",
+    "internal_test_destination": "2408:8207:7866:a780::3:1"
+  },
+  "internal_test": {
+    "before_b_pbr": {
+      "ping_sent": 2,
+      "ping_received": 2,
+      "ssh_banner_received": true
+    },
+    "b_pbr_without_scoped_edge_rules": {
+      "ping_sent": 2,
+      "ping_received": 0,
+      "tcp_connect_error": "Connection refused"
+    },
+    "b_pbr_with_scoped_edge_rules": {
+      "ping_sent": 2,
+      "ping_received": 2,
+      "tcp_destination_port": 22,
+      "ssh_banner_received": true,
+      "ssh_authentication_attempted": false,
+      "b_capture": "Internal request entered and exited br-lan; public request/reply used ppp0",
+      "a_wan_matching_packets": 0,
+      "rule_counters": {
+        "icmp_forward_packets": 2,
+        "tcp_forward_packets": 5,
+        "tcp_proxy_bypass_packets": 5
+      }
+    },
+    "scope": "Single source /128, single internal destination /128, ICMPv6 and TCP/22 only",
+    "temporary_rule_cleanup": {
+      "deleted_handles": [
+        139,
+        140,
+        141
+      ],
+      "remaining_tagged_test_rules": 0
+    },
+    "firewall_persistence_changed": false,
+    "whole_vlan_source_expansion_applied": false
+  },
+  "remaining_validation": [
+    "Whole-/64 and authorized internal TCP/UDP service coverage",
+    "ND/RA and OSPFv3 health",
+    "Actual loaded firewall configuration and persistent include integration",
+    "PD-prefix-change synchronization and all required internal routes"
+  ],
+  "state_after_scoped_rule_cleanup": {
+    "core_applied_record": "Empty, confirmed by user",
+    "mac_temporary_global_address_present": false,
+    "mac_test_routes_present": false,
+    "A_temporary_test_rules_remaining": 0,
+    "B_temporary_test_rules_remaining": 0,
+    "whole_subnet_production_scope_deployed": false
+  },
+  "reverse_internal_test": {
+    "source": "2408:8207:7866:a785::c0de:1014",
+    "internal_destination": "2408:8207:7865:78b0::1",
+    "without_scoped_a_rules": {
+      "ping_sent": 2,
+      "ping_received": 0,
+      "tcp_connect_error": "Connection refused"
+    },
+    "with_scoped_a_rules": {
+      "public_ping_sent": 2,
+      "public_ping_received": 2,
+      "internal_ping_sent": 2,
+      "internal_ping_received": 2,
+      "ssh_banner_received": true,
+      "ssh_authentication_attempted": false,
+      "a_capture": "Public request/reply used ppp0; internal requests entered and exited br-lan",
+      "b_wan_matching_packets": 0,
+      "rule_counters": {
+        "icmp_forward_packets": 2,
+        "tcp_forward_packets": 5,
+        "tcp_proxy_bypass_packets": 5
+      }
+    },
+    "temporary_rule_cleanup": {
+      "deleted_handles": [
+        168,
+        169,
+        170
+      ],
+      "remaining_tagged_test_rules": 0
+    },
+    "scope": "Single source /128, single internal destination /128, ICMPv6 and TCP/22 only"
+  },
+  "mac_vlan1_route_test": {
+    "on_link_prefix_initially_absent": true,
+    "global_core_gateway_still_failed_after_prefix_route_added": true,
+    "core_link_local_ping_sent": 2,
+    "core_link_local_ping_received": 2,
+    "host_routes_using_core_link_local_gateway_succeeded": true,
+    "global_core_gateway_failure_root_cause": "Not fully established; no claim of a PBR-caused ND failure"
+  },
+  "persistent_firewall_validation": {
+    "actual_loaded_config_both_edges": "/etc/nftables.nft",
+    "base_plus_candidate_nft_check_A": "pass",
+    "base_plus_candidate_nft_check_B": "pass",
+    "persistent_files_modified": false,
+    "whole_subnet_fragment_applied": false
+  }
+}

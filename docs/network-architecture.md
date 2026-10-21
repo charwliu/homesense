@@ -1,8 +1,8 @@
 # 知居家庭网络架构设计
 
-版本 1.10，日期 2026 年 10 月 13 日。状态：核心改造仍是待实机验收、尚未下发的目标架构；第 9.4 节另记录现有 VLAN 3 的测试 TCP485 和 DHCP 保留，第 9.5 节记录两台家庭网关的目标迁移。VLAN 100 的现有网关和路由须等现有设备全部迁移并确认无依赖后再关闭，之后保留为二层维护 VLAN。IPv4/IPv6 双流策略同时应用是核心部署前的关键验证项。
+版本 1.11，日期 2026 年 10 月 13 日。状态：核心改造仍是待实机验收、尚未下发的目标架构；第 5.2.1 节另记旧核心 VLAN1 IPv6 分流的只读核查与暂停点，第 9.4 节记录现有 VLAN 3 的测试 TCP485 和 DHCP 保留，第 9.5 节记录两台家庭网关的目标迁移。VLAN 100 的现有网关和路由须等现有设备全部迁移并确认无依赖后再关闭，之后保留为二层维护 VLAN。IPv4/IPv6 双流策略同时应用是核心部署前的关键验证项。
 
-逐设备操作见[华为核心、QNAP 与 AC 配置操作手册](network-configuration-runbook.md)，含业务端口标签、管理 VLAN/PVID 分支、VLAN100 维护 SSID、交换机临时 DHCP 示例及恢复步骤；全部为离线草案，尚未下发现网。
+逐设备操作见[华为核心、QNAP 与 AC 配置操作手册](network-configuration-runbook.md)，含业务端口标签、管理 VLAN/PVID 分支、VLAN100 维护 SSID、交换机临时 DHCP 示例及恢复步骤；新核心改造部分为离线草案，尚未下发现网，旧核心只读核查另列于第 5.2.1 节。
 
 采用华为 S5735S-L24PN4XE-A3 作为核心，统一承担业务终端网关、跨 VLAN 路由、默认路由 RA、出口分流和 AP PoE。保留五个业务 VLAN 1、2、3、4、5：1/3 为 A 出口组，2/4 为 B 出口组，5 为 AC/AP 管理；另保留维护 VLAN 100（192.168.0.0/24），用于缺省地址设备的初始化和恢复出厂配置。配对表示共用出口与受控业务访问，各 VLAN 保持独立广播域。NAS 双万兆直连核心；两台 QNAP 保留，六千兆口 x86 通过两组独立聚合接入，作为 HomeSense 服务器。桌面采用希力威视 SR-ST3005 网管万兆交换机，作为二层 VLAN 接入，通过换插 A/B 端口切换出口。
 
@@ -237,7 +237,7 @@ traffic policy V4_EGRESS
 
 用户随后提供核心输出：Vlanif4 为 PD 客户端，前缀名 `ng4prefix`，实际获得 /64；Vlanif3 为 PD 客户端，前缀名 `ng3prefix`，其前缀字段尚未提供。两接口快照均为 REBIND，Vlanif4 的 T1=1800、T2=2700、首选期3600、有效期7200秒。这确认上行 PD 获租能力；下游接口核查已证实 VLAN2 的 /64 地址生成，VLAN1 未启用 IPv6，详见下段。现有核心此前报告为 S5720S V200R019，不以它的行为自动证明目标 S5735S-L3 V600 的行为，也不以新版指南否定尚未读到的旧机实际配置。
 
-用户提供的接口配置进一步确认：Vlanif3 使用 `dhcpv6 client pd ng3prefix`，上行地址通过 `ipv6 address auto global` 自动获取；Vlanif2 已配置 `ipv6 address ng4prefix ::1/64`，并开启 RA、M/O 标志、OSPFv3 和接口 DHCPv4。用户随后提供 `display ipv6 interface Vlanif2`：接口和协议均 UP，全球地址为 B 侧实际委派 /64 加 ::1，RA 有效期1800秒、M/O有状态模式。这证明旧核心 /64 PD→下游 /64 地址生成已生效；实际 RA 的 PIO、终端获址与续租稳定性仍待包级确认。Vlanif1 完整配置随后已提供：只有 IPv4 地址和接口 DHCPv4，未启用 IPv6、未绑定 ng3prefix；其 IPv6 查询返回 `No IPv6 address exist on the specified interface`。用户明确确认 VLAN1 当前未配置 IPv6；这是现状，不是故障，也不要求本次补配。未来确有 IPv6 终端需求时，才考虑通过 VLAN3 的 ng3prefix 为 VLAN1 启用 IPv6。ng3prefix 是否用于其他接口仍待核查。现有 Vlanif2 IPv6 地址后缀为 ::1，不要求与 IPv4 网关 .253 数字一致。
+用户提供的接口配置进一步确认：Vlanif3 使用 `dhcpv6 client pd ng3prefix`，上行地址通过 `ipv6 address auto global` 自动获取；Vlanif2 已配置 `ipv6 address ng4prefix ::1/64`，并开启 RA、M/O 标志、OSPFv3 和接口 DHCPv4。用户随后提供 `display ipv6 interface Vlanif2`：接口和协议均 UP，全球地址为 B 侧实际委派 /64 加 ::1，RA 有效期1800秒、M/O有状态模式。这证明旧核心 /64 PD→下游 /64 地址生成已生效；实际 RA 的 PIO、终端获址与续租稳定性仍待包级确认。Vlanif1 当时的完整配置只有 IPv4 地址和接口 DHCPv4，未启用 IPv6、未绑定 ng3prefix；其 IPv6 查询返回 `No IPv6 address exist on the specified interface`。这是较早快照，不是当前状态：用户后来在旧核心 Vlanif1 启用了 IPv6 并绑定 ng3prefix，详见第 5.2.1 节。新核心目标仍暂不在 VLAN1 启用 IPv6。现有 Vlanif2 IPv6 地址后缀为 ::1，不要求与 IPv4 网关 .253 数字一致。
 
 Vlanif2 的 `dhcp select interface` 是 DHCPv4；M/O 标志不自动创建 DHCPv6 服务或中继，该片段未显示这些功能，须核对有状态 DHCPv6 是否实际可达。Vlanif3 没有开启核心 RA 的配置，当前上行自动地址与目标“核心统一默认路由 RA”分工不同，应分别记录现状与目标。
 
@@ -281,6 +281,20 @@ interface Vlanif3
 Vlanif4 使用其 LAN /64 和 `::253`，同样不包含 PIO。rdhcpd 发布各自 VLAN3/4 的 /64；核心 Vlanif2 则在 PD 绑定验收通过后自动形成接口地址和对应 PIO，不把表中示例地址、静态 PIO 与动态绑定并存。此处不提供受 /64 限制阻断的可执行 PD 绑定脚本。
 
 SLAAC 模式两台 RA 发布者均保持 M/O 关闭；rdhcpd 当前有 `--disable-ra-managed`、`--disable-ra-other-config`，需要 DHCPv6 有状态地址时另行统一标志。RDNSS 指向实际 DNS 服务，rdhcpd 默认使用自己的链路本地地址，需核实该地址能解析。PIO 首选/有效期不得超过上游授权剩余期；PD 更新后的旧地址弃用、租约释放与默认路由撤回须抓包验证。[RA 属性](https://support.huawei.com/enterprise/zh/doc/EDOC1100459025/73a81c9a)、[启用 RA](https://support.huawei.com/enterprise/zh/doc/EDOC1100459025/e317010b)
+
+### 5.2.1 旧核心 VLAN1 IPv6 分流探索：只读核查与暂停点（2026-10-13）
+
+本节仅记录现网 S5720S V200R019 的探索，**不修改上面的新核心目标设计，也不表示已在 VLAN1 启用 IPv6 服务**。与第 5.1 节较早的 IPv4-only 快照相比，用户后来在旧核心 Vlanif1 配置了 `ipv6 enable` 和 `ipv6 address ng3prefix ::1/64`；现场 `display current-configuration interface Vlanif1` 没有启用 RA 的命令。Vlanif1 已有 A 线委派 /64 的 `::1` 地址，但客户端能否收到前缀通告是另一件事：本轮电脑 `en0` 只有链路本地 IPv6 地址，IPv6 默认路由来自另一个 VLAN3 接口 `en7`，不来自 `en0`。旧核心命令帮助显示 `ipv6 nd ra router-lifetime` 接受 `0` 或 `4–9000` 秒；尚未实际配置 0，也未抓到这台华为发出的“仅前缀、非默认路由”RA。
+
+现网两台 QNAP **均各自直连旧华为核心**：QNAP A 走 Eth-Trunk3，QNAP B 走 Eth-Trunk4；两台 QNAP 之间另有承载 VLAN3/4 的互连 Trunk。互连链路不意味着 QNAP B 仅经 QNAP A 接入核心。旧核心从 VLAN3 的 `ba3b-1774-32d0` 学到 nanopi5，学习端口是 Eth-Trunk3。该聚合口当前 PVID 为 3、Tagged 3，且显式 `undo port hybrid vlan 1`，所以 VLAN1 目前不能经此口到达 nanopi5。nanopi5 的 `lan1` 通过带标签 VLAN3 子接口 `lab` 接入 `br-lan`；LLDP 在 `lan1` 上显示直连设备名 `QSW4C`、端口 12。QNAP 管理需要连接专门端口，本轮未读取其 12 号口及上联口的 Tagged/Untagged/PVID 配置，也未修改交换机接线或端口成员。
+
+nanopi5 的只读路由查询显示：A 线 /60 有 `unreachable` 汇总兜底路由，已委派给 Vlanif1 的更具体 /64 经核心在 VLAN3 的链路本地地址回程；以该 /64 为源的公网路由查找走 `ppp0`。这个 /60 不是 RA 默认路由；RA 默认路由的前缀是 `::/0`。现有 rdhcpd 只绑定 `br-lan`（VLAN3），启动参数未设置 `--ra-router-lifetime-secs 0`，不会在 VLAN1 发 RA。nanopi5 的 nftables 转发链只将 `br-lan` 识别为 LAN；即使以后新建 VLAN1 子接口，未扩展防火墙规则时其转发仍会被丢弃。
+
+nanopi 的两个断开物理网络的 Linux 命名空间已验证协议组合：模拟核心发送 A 线 /64 PIO、Router Lifetime=0，模拟 nanopi5 发送无 PIO、Router Lifetime>0 的默认路由 RA；测试客户端取得该 /64 地址，并只以模拟 nanopi5 为默认下一跳。这只证明 Linux 客户端接收两份 RA 的机制；未验证真实华为 RA、macOS 行为、QNAP 标签、nanopi5 防火墙与公网端到端流量。另一次尝试在隔离环境启动第二个 systemd-networkd 实例时被宿主 D-Bus 单例占用阻止，不能将它视为 networkd 实际发包验收；临时进程、接口和文件均已清理。
+
+用户决定**暂不改变接线，只完成只读核查**，因此 VLAN1 IPv6 分流停在上述状态。待可以改线时，先经 QNAP 专用管理口核对端口 12 与核心上联的 VLAN 成员及管理回退路径，再选带标签 VLAN1 或 nanopi5 空闲 LAN2 直连的测试接线；确认二层可达后，按[操作手册第 7.1 节](network-configuration-runbook.md)逐步验证 RA、客户端地址与默认路由、防火墙转发、A 线出入方向和前缀续租。所有现网改动须逐项记录并保留回退，不把模拟结果当作已上线。
+
+**候选简化与选型影响，尚未采纳：** 若 A/B 边界分别接入对应客户端 VLAN，并亲自发布该 VLAN 的 /64 PIO、DNS 和默认路由 RA，客户端 IPv6 上网不再需要核心的 IPv6 源前缀 PBR、OSPFv3 或 /64 PD 客户端绑定；若仍由核心发布 PIO，则核心至少还要有相应 IPv6 SVI、RA 与前缀更新能力。无论哪种拆分，只要 IPv4 终端继续以核心为网关、1/3 走 A 而 2/4 走 B，核心就仍需经实机验证的 IPv4 按来源分流能力（例如匹配来源 VLAN/地址的 PBR），单靠一条普通静态默认路由不够；OSPFv2 可在逐条回程静态路由满足需求时单独评估省略。跨 VLAN IPv6、DNS/前缀续租和边界防火墙仍需设计与验收。因而可降低核心的 **IPv6 高级路由要求**，但不能仅凭“三层交换机”标签确定候选型号合格，也不在此处改动既定新核心目标方案。
 
 ### 5.3 IPv6 策略定义
 

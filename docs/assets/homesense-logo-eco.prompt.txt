@@ -1,0 +1,7 @@
+Use case: precise-object-edit
+Asset type: HomeSense 知居 logo, eco-friendly smart-home brain hub.
+Edit target: the supplied orange house roof, orange-and-white brain, and three connected orange-ringed amber device nodes.
+Primary request: Add ONE restrained green element that clearly symbolizes energy efficiency and environmental care.
+Specific change: In the LOWER-RIGHT circular peripheral device node only, replace its existing amber inner disk with a simple fresh medium-green circular disk, containing a single small clean white leaf silhouette angled diagonally upward. The white leaf should have one simple green negative-space central vein, bold enough to read at icon scale. The surrounding orange node ring and connection stay exactly the same. This green eco node remains part of the existing smart-home control network; do not add a separate badge outside the logo.
+Preserve all other shapes, composition, roof, brain outline and folds, white brain fills, both other amber node centers, proportions and placement. Preserve the actual transparent background and alpha channel.
+Style: same clean flat vector-like branding, rounded geometry, warm orange dominant, one green accent only. No text, extra nodes, added background, shadow, gradients, texture, 3D, or mockup.

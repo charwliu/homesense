@@ -1,0 +1,172 @@
+# S5720S-28TP-PWR-LI-ACL / V200R019C10SPC500
+# 2026-10-14: REJECTED on this device. DO NOT DEPLOY this destination-exemption policy.
+# GE0/0/4 inbound rejects it: IPv6 destination ip is not supported on current direction.
+# Objects below are retained as a record of the failed candidate, not a working template.
+# Remove failed interface binding: interface GigabitEthernet 0/0/4
+# undo traffic-policy PBR6_EGRESS inbound
+# An alternative source-only policy requires edge hairpin-routing validation.
+# Confirmed: IPv6 source /128 + link-local redirect works on VLAN1 inbound.
+# Confirmed: VLAN inbound rejects IPv6 destination matching.
+# Confirmed: IPv6 destination matching is also rejected on GE0/0/4 inbound.
+# Internal destination exemptions and LOCAL precedence therefore cannot be validated here.
+# Do not paste the complete file blindly. Sections below are separate stages.
+# No running core configuration has been changed by creating this file.
+# Check ACL 3980/3981/3982 and all object names are unused before creating.
+# Current IPv6 prefixes are PD snapshots, not permanent allocations.
+# User-provided VLAN inventory: VLAN1/2 both show GE0/0/2,4,6,7,8 UP/tagged.
+# User identifies GE0/0/1 through GE0/0/6 as possible client ingress paths.
+# This is a candidate range, not proof of the Mac's actual learned port.
+# Resolve it with display mac-address; verify each interface before binding.
+# GE0/0/7,8 must also be covered if they still carry VLAN1/2 client traffic.
+# Other currently-down VLAN members require review before bringing them up.
+# Eth-Trunk3 = GE0/0/23,24; Eth-Trunk4 = GE0/0/25,26, both LACP UP.
+# Neither aggregate is listed in the supplied VLAN1/2 membership snapshots.
+# Mac en0 now on VLAN2: IPv4 192.168.2.185, MAC 3ea3-f0ab-38ae.
+# Core MAC table confirms 3ea3-f0ab-38ae in VLAN2 on GE0/0/4 (dynamic).
+# User-supplied GE0/0/4 config: hybrid, PVID5; tagged VLAN1-4,6,100;
+# untagged VLAN5; no existing inbound traffic-policy in this interface snapshot.
+# Its existing VLAN membership, PoE and loopback-detect config need no change.
+# Its current stable SLAAC IPv6 is used for the B /128 probe below.
+# The A /128 is the earlier VLAN1 manual test address; recreate only on VLAN1.
+
+# STAGE 1: Create UNBOUND objects. Internal destinations use permit, not deny.
+# The /60 exemptions cover both current LAN/PD pools. They do not create routes.
+# Additional internal/VPN IPv6 ranges outside these pools must be added here.
+system-view
+acl ipv6 3980
+ rule 5 permit ipv6 destination 2408:8207:7866:a780:: 60
+ rule 10 permit ipv6 destination 2408:8207:7865:78b0:: 60
+ rule 15 permit ipv6 destination fc00:: 7
+ rule 20 permit ipv6 destination fe80:: 10
+ rule 25 permit ipv6 destination ff00:: 8
+ quit
+acl ipv6 3981
+ rule 5 permit ipv6 source 2408:8207:7866:a785::c0de:1014 128
+ quit
+acl ipv6 3982
+ rule 5 permit ipv6 source 2408:8207:7865:78b1:14b7:e9c6:ea47:e554 128
+ quit
+traffic classifier PBR6_LOCAL operator or
+ if-match ipv6 acl 3980
+ quit
+traffic classifier PBR6_VLAN1 operator and
+ if-match vlan-id 1
+ if-match ipv6 acl 3981
+ quit
+traffic classifier PBR6_VLAN2 operator and
+ if-match vlan-id 2
+ if-match ipv6 acl 3982
+ quit
+traffic behavior PBR6_ROUTE
+# Device emits: Info: CPCAR may be invalid if traffic behavior is configured as permit.
+# This is a CPU-protection warning, not proof of application failure or success.
+# Include CPU usage and ND/RA/OSPFv3 health in the single-port validation.
+ permit
+ statistics enable
+ quit
+traffic behavior PBR6_TO_A
+ redirect ipv6-nexthop link-local FE80::B83B:17FF:FE74:32D0 interface Vlanif 3
+ statistics enable
+ quit
+traffic behavior PBR6_TO_B
+ redirect ipv6-nexthop link-local FE80::5434:4EFF:FEFA:68A4 interface Vlanif 4
+ statistics enable
+ quit
+# Device CLI accepts only optional atomic here; match-order is not supported.
+# Device CLI also accepts no precedence parameter in classifier/behavior binding.
+# The creation order below is not proof of LOCAL override on this hardware.
+# Global classifier help offers only operator and <cr>; no precedence parameter.
+# Resolve priority semantics and verify overlapping LOCAL/egress before expansion.
+traffic policy PBR6_EGRESS
+ classifier PBR6_LOCAL behavior PBR6_ROUTE
+ classifier PBR6_VLAN1 behavior PBR6_TO_A
+ classifier PBR6_VLAN2 behavior PBR6_TO_B
+ quit
+return
+
+# STAGE 2: Controlled /128 test on the verified Mac ingress GE0/0/4.
+# Use the aggregate itself, not its member ports. Do not overwrite another policy.
+# An existing IPv4 policy needs merging; never replace it with an IPv6-only policy.
+# Record existing bindings first. Removal below concerns only our test policies.
+# system-view
+# vlan 1
+#  undo traffic-policy PBR6_A_SRC_PROBE inbound
+#  quit
+# vlan 2
+#  undo traffic-policy PBR6_B_SRC_PROBE inbound
+#  quit
+# interface GigabitEthernet 0/0/4
+#  traffic-policy PBR6_EGRESS inbound
+#  quit
+# return
+# display traffic-policy applied-record
+# display traffic-policy statistics interface GigabitEthernet 0/0/4 inbound
+# Test: VLAN1 -> A WAN; VLAN2 -> B WAN using the corresponding client /128.
+# Test: VLAN1 <-> VLAN2 and VLAN1/2 -> VLAN3/4, using real hosts and TCP services.
+# Test: the LOCAL counter rises; internal traffic is not redirected through edges.
+# Re-read the Mac's address before testing: Wi-Fi/SLAAC addresses can change.
+# If CLI syntax fails or any slot is fail, stop and restore the probe bindings.
+
+# STAGE 3: Expand only after stage 2 passes, then bind ALL client ingress paths.
+# Check actual current PD prefixes again before expansion.
+# Candidate client-interface bindings AFTER each has been verified:
+# interface GigabitEthernet 0/0/1
+#  traffic-policy PBR6_EGRESS inbound
+#  quit
+# interface GigabitEthernet 0/0/2
+#  traffic-policy PBR6_EGRESS inbound
+#  quit
+# interface GigabitEthernet 0/0/3
+#  traffic-policy PBR6_EGRESS inbound
+#  quit
+# interface GigabitEthernet 0/0/4
+#  traffic-policy PBR6_EGRESS inbound
+#  quit
+# interface GigabitEthernet 0/0/5
+#  traffic-policy PBR6_EGRESS inbound
+#  quit
+# interface GigabitEthernet 0/0/6
+#  traffic-policy PBR6_EGRESS inbound
+#  quit
+# GE0/0/5 is not listed in the supplied VLAN1/2 snapshots; confirm its VLAN config.
+# Reconcile GE0/0/7,8 rather than silently dropping them from ingress coverage.
+# system-view
+# acl ipv6 3981
+#  undo rule 5
+#  rule 5 permit ipv6 source 2408:8207:7866:a785:: 64
+#  quit
+# acl ipv6 3982
+#  undo rule 5
+#  rule 5 permit ipv6 source 2408:8207:7865:78b1:: 64
+#  quit
+# return
+# Recheck applied-record, both WAN paths, internal bidirectional TCP and ND/RA.
+# Keep existing OSPFv3, VLANIF addresses, PD clients, route table and security ACLs.
+# Enable VLAN1 RA only after confirming its actual ng3prefix/PIO is ready:
+# system-view
+# interface Vlanif 1
+#  undo ipv6 nd ra halt
+#  quit
+# return
+# save   <-- only after production validation passes
+
+# ROLLBACK: Remove the new policy from EVERY interface where you applied it.
+# For the single-interface stage 2 test, use GigabitEthernet 0/0/4 below.
+# system-view
+# interface <ACTUAL-INGRESS-INTERFACE>
+#  undo traffic-policy PBR6_EGRESS inbound
+#  quit
+# vlan 1
+#  traffic-policy PBR6_A_SRC_PROBE inbound
+#  quit
+# vlan 2
+#  traffic-policy PBR6_B_SRC_PROBE inbound
+#  quit
+# return
+# This restores the known probe state; it does not restore pre-probe production.
+# If VLAN1 RA was enabled during this procedure and was originally halted:
+# system-view
+# interface Vlanif 1
+#  ipv6 nd ra halt
+#  quit
+# return
