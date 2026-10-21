@@ -772,7 +772,16 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
             guard.complete = true;
             return Ok(None);
         };
-        let tickets = self.collect_tickets(ticket, frame_budget).await?;
+        let mut tickets = self.collect_tickets(ticket, frame_budget).await?;
+        if tickets.iter().any(|t|t.command.command==homesense_core::Command::ModuleAllOff)
+            && tickets.iter().all(|t|t.away_authorization.as_ref().is_some_and(|a|a.guarded_operation())
+                && t.feedback_barrier.is_none()
+                && matches!(t.command.command,homesense_core::Command::ModuleAllOff|homesense_core::Command::PanelLed(_)|homesense_core::Command::PanelLedOff)) {
+            // The current-key cue stays in the same write, ahead of the Off
+            // request. Nothing trails the module request when its passive
+            // replies start. Audit byte ranges follow this exact ticket order.
+            tickets.sort_by_key(|t|t.command.command==homesense_core::Command::ModuleAllOff);
+        }
         let id = tickets[0].command.id;
         let device_id = tickets[0].command.device_id.clone();
         let gateway = tickets[0].gateway_id.clone();

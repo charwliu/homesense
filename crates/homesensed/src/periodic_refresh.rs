@@ -430,7 +430,7 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
         plan: &mut OutputRefresh,
     ) -> Result<(), (String, String)> {
         let now = self.transport.now_ms();
-        plan.household_scopes=if self.transport.admission().household_operations_active() {
+        plan.household_scopes=if self.transport.admission().household_operations_active() || self.transport.admission().away_operations_active() {
             self.transport.admission().household_query_scopes(plan.controller,plan.generation.clone()).await.map_err(|e|("household-query-scope".into(),format!("{e:?}")))?
         }else{Default::default()};
         plan.query_backoff.retain(|_,until|now<*until);

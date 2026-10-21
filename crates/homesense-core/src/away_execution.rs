@@ -155,6 +155,14 @@ struct Tracked {
     receipt: Option<Receipt>,
     verified: bool,
 }
+/// One module at a time within each bounded round. A failed module yields to
+/// the rest of the round before receiving its next attempt.
+#[derive(Clone, Debug, Default)]
+struct SerialRound {
+    number: u8,
+    pending: BTreeSet<String>,
+    current: Option<String>,
+}
 /// One original operation. Retries cannot add modules or change any output.
 #[derive(Clone, Debug)]
 pub struct Operation {
@@ -167,6 +175,7 @@ pub struct Operation {
     proposals: u64,
     used_commands: BTreeSet<u64>,
     terminal_missing: Option<BTreeMap<String, BTreeSet<DeviceId>>>,
+    serial: Option<SerialRound>,
 }
 impl Operation {
     pub fn new(modules: Vec<Module>, policy: Policy, now: u64) -> Result<Self, Error> {
@@ -218,7 +227,15 @@ impl Operation {
             proposals: 0,
             used_commands: BTreeSet::new(),
             terminal_missing: None,
+            serial: None,
         })
+    }
+    /// Physical half-duplex execution. The legacy multi-module proposal model
+    /// remains available to non-I/O callers; production must use this mode.
+    pub fn new_serialized(modules: Vec<Module>, policy: Policy, now: u64) -> Result<Self, Error> {
+        let mut operation = Self::new(modules, policy, now)?;
+        operation.serial = Some(SerialRound::default());
+        Ok(operation)
     }
     fn clock(&mut self, now: u64) -> Result<(), Error> {
         if now < self.last_ms {
@@ -347,6 +364,11 @@ impl Operation {
             module.receipt = Some(receipt);
         }
         self.rounds = attempt.round;
+        if let Some(serial) = &mut self.serial {
+            let module = attempt.modules.first().expect("validated nonempty attempt").clone();
+            serial.pending.remove(&module);
+            serial.current = Some(module);
+        }
         self.phase = Phase::Settling;
         Ok(())
     }
@@ -466,6 +488,9 @@ impl Operation {
             self.terminal_missing = Some(BTreeMap::new());
             self.phase = Phase::End(End::Confirmed);
             return Ok(Decision::Finished(End::Confirmed));
+        }
+        if self.serial.is_some() {
+            return self.poll_serial(now, owner, evidence, &fresh);
         }
         match self.phase {
             Phase::Proposed(_) => return Ok(Decision::Wait),
@@ -604,6 +629,103 @@ impl Operation {
                 .ok_or(Error::InvalidPolicy)?
                 .min(self.deadline),
         };
+        self.phase = Phase::Proposed(attempt.clone());
+        Ok(Decision::Submit(attempt))
+    }
+
+    fn poll_serial(&mut self, now: u64, owner: Owner, evidence: &Evidence,
+                   fresh: &BTreeSet<String>) -> Result<Decision, Error> {
+        match self.phase {
+            Phase::Settling => {
+                let serial = self.serial.as_ref().expect("serial mode");
+                let id = serial.current.as_ref().ok_or(Error::InvalidEvidence)?;
+                let module = &self.modules[id];
+                let receipt = module.receipt.as_ref().ok_or(Error::InvalidReceipt)?;
+                match evidence.commands.get(&receipt.command) {
+                    Some(CommandState::Written { at_ms }) if !fresh.contains(id) => {
+                        let age = now.saturating_sub(*at_ms);
+                        // Give passive replies their own quiet receive window;
+                        // neither a query nor the next module is admitted yet.
+                        if age < 100.min(self.policy.response_ms) { return Ok(Decision::Wait); }
+                        let replied = |output:&DeviceId| evidence.physical.get(output).is_some_and(|sample|
+                            sample.count > receipt.before_counts[output]
+                                && sample.received_ms >= *at_ms && sample.received_ms <= now);
+                        let failed_read = evidence.queries.as_ref().is_some_and(|queries|
+                            module.outputs.iter().any(|output| !replied(output)
+                                && queries.get(output).is_some_and(|turn|turn.written_ms >= *at_ms
+                                    && turn.finished_ms >= turn.written_ms && turn.finished_ms <= now)));
+                        let actual_on = module.outputs.iter().any(|output| replied(output)
+                            && evidence.physical[output].actual == Physical::On);
+                        if age < self.policy.response_ms && !failed_read && !actual_on {
+                            if owner != Owner::Current {return Ok(Decision::Wait);}
+                            return Ok(Decision::Read([id.clone()].into()));
+                        }
+                        // Timed-out/failed reads never imply Off. The next
+                        // module may start only after the owner drains the
+                        // physical read slot and the RX turnaround.
+                    }
+                    Some(CommandState::Written { .. } | CommandState::Retired) => {}
+                    _ => return Ok(Decision::Wait),
+                }
+                if owner != Owner::Current { return Ok(Decision::Wait); }
+                let serial = self.serial.as_mut().expect("serial mode");
+                serial.current = None;
+                serial.pending.retain(|id|!self.modules[id].verified);
+                if serial.pending.is_empty() {
+                    if self.modules.values().all(|m|m.verified) {
+                        self.phase = Phase::Confirming;
+                        return Ok(Decision::Read(self.modules.keys().filter(|id|!fresh.contains(*id)).cloned().collect()));
+                    }
+                    if self.rounds >= self.policy.max_rounds {
+                        return self.exhaust_or_refresh(evidence,now,fresh);
+                    }
+                    self.phase = Phase::Delay {until:now.saturating_add(self.policy.delay_ms).min(self.deadline)};
+                    return Ok(Decision::Wait);
+                }
+                self.phase = Phase::Ready;
+            }
+            Phase::Delay {until} => {
+                if now < until {return Ok(Decision::Wait);}
+                self.serial.as_mut().expect("serial mode").number=0;
+                self.phase = Phase::Ready;
+            }
+            Phase::Confirming => {
+                if self.modules.values().all(|m|m.verified) {
+                    return Ok(Decision::Read(self.modules.keys().filter(|id|!fresh.contains(*id)).cloned().collect()));
+                }
+                if self.rounds >= self.policy.max_rounds {return self.exhaust_or_refresh(evidence,now,fresh);}
+                self.phase = Phase::Delay {until:now.saturating_add(self.policy.delay_ms).min(self.deadline)};
+                return Ok(Decision::Wait);
+            }
+            Phase::Exhausting => return self.exhaust_or_refresh(evidence,now,fresh),
+            Phase::Ready => {}
+            _ => return Ok(Decision::Wait),
+        }
+        if owner != Owner::Current {return Ok(Decision::Wait);}
+        let serial = self.serial.as_mut().expect("serial mode");
+        serial.pending.retain(|id|!self.modules[id].verified);
+        if serial.pending.is_empty() && serial.number>0 && serial.number==self.rounds {
+            if self.modules.values().all(|m|m.verified) {
+                self.phase=Phase::Confirming;
+                return Ok(Decision::Read(self.modules.keys().filter(|id|!fresh.contains(*id)).cloned().collect()));
+            }
+            if self.rounds>=self.policy.max_rounds {return self.exhaust_or_refresh(evidence,now,fresh);}
+            self.phase=Phase::Delay {until:now.saturating_add(self.policy.delay_ms).min(self.deadline)};
+            return Ok(Decision::Wait);
+        }
+        if serial.pending.is_empty() {
+            if self.rounds >= self.policy.max_rounds {return self.exhaust_or_refresh(evidence,now,fresh);}
+            serial.number = self.rounds + 1;
+            serial.pending = self.modules.iter().filter(|(_,m)|!m.verified).map(|(id,_)|id.clone()).collect();
+        }
+        if serial.pending.is_empty() {
+            self.phase = Phase::Confirming;
+            return Ok(Decision::Read(self.modules.keys().filter(|id|!fresh.contains(*id)).cloned().collect()));
+        }
+        self.proposals = self.proposals.checked_add(1).ok_or(Error::CounterExhausted)?;
+        let attempt = Attempt {proposal:self.proposals,round:serial.number,proposed_ms:now,
+            modules:[serial.pending.first().expect("nonempty round").clone()].into(),
+            send_before_ms:now.saturating_add(self.policy.send_ms).min(self.deadline)};
         self.phase = Phase::Proposed(attempt.clone());
         Ok(Decision::Submit(attempt))
     }

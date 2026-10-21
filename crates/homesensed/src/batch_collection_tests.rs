@@ -183,12 +183,10 @@ async fn household_off_scene_routes_to_the_same_guarded_module_operation_as_away
         let control=h.control.clone();let reply=h.drive(tokio::spawn(async move{control.request_authorized(action,source).await})).await.unwrap();
         if scene=="off" {assert!(matches!(reply,Reply::AwayAccepted(_)),"full-house shutdown must retain managed retry and priority");}
         let mut wire=h.wire().await;
-        if scene=="act" {
-            assert_eq!(wire,[0xae,0x15,0,100,0xee],"later modules cannot be sent before first-module feedback");
-            household_reply(&mut h,0x15,true,1..=8).await;
-            wire.extend(h.wire().await);
-            household_reply(&mut h,3,true,1..=8).await;
-        }
+        assert_eq!(wire,[0xae,0x15,0,if scene=="act"{100}else{0},0xee],"later modules cannot be sent before first-module feedback");
+        household_reply(&mut h,0x15,scene=="act",1..=8).await;
+        wire.extend(h.wire().await);
+        household_reply(&mut h,3,scene=="act",1..=8).await;
         let mut actual=wire.as_chunks::<5>().0.iter().map(|frame|frame.to_vec()).collect::<Vec<_>>();actual.sort();
         let mut wanted=vec![vec![0xae,3,0,expected,0xee],vec![0xae,0x15,0,if scene=="act"{100}else{0},0xee]];wanted.sort();assert_eq!(actual,wanted);
         let before=h.count("command_journal");
@@ -306,7 +304,10 @@ async fn household_hap_off_is_paired_managed_and_retired_handler_cannot_replay()
     let body=serde_json::to_vec(&json!({"characteristics":[{"aid":binding.aid,"iid":binding.on_iid,"value":true}]})).unwrap();
     let handler=bridge.write_handler.clone();let input=body.clone();
     h.drive(tokio::spawn(async move{handler.write_async(member,&input).await})).await.unwrap();
-    let wire=h.wire().await;let mut frames=wire.as_chunks::<5>().0.iter().map(|f|f.to_vec()).collect::<Vec<_>>();frames.sort();
+    let mut wire=h.wire().await;assert_eq!(wire,[0xae,0x15,0,0,0xee]);
+    household_reply(&mut h,0x15,false,1..=8).await;wire.extend(h.wire().await);
+    household_reply(&mut h,3,false,1..=8).await;
+    let mut frames=wire.as_chunks::<5>().0.iter().map(|f|f.to_vec()).collect::<Vec<_>>();frames.sort();
     assert_eq!(frames,vec![vec![0xae,3,0,0xf2,0xee],vec![0xae,0x15,0,0,0xee]]);
     assert_eq!(h.count("command_journal"),2);
     let repeated=bridge.write_handler.clone();let input=body.clone();
@@ -325,7 +326,11 @@ async fn household_reply(h:&mut Harness,address:u8,on:bool,channels:std::ops::Ra
         result:hb_transport::Receive::Frames {transport_epoch:1,frames:channels.map(|ch|hb_protocol::RawFrame {
             address,command:0xd0+ch,value:if address==0x15 {if on {100}else{0}}else if on {0xf1}else{0xf2}}).collect()}}).unwrap();
     tokio::time::sleep(Duration::from_millis(21)).await;
-    h.actor.tick_household(h.controller,h.generation.clone(),h.feedback.away_observation(h.actor.monotonic_ms()).unwrap(),h.feedback.last_frames()).await.unwrap();
+    if h.actor.away_operations_active() {
+        h.actor.tick_away_operations(h.controller,h.generation.clone(),h.feedback.away_observation(h.actor.monotonic_ms()).unwrap()).await.unwrap();
+    }else{
+        h.actor.tick_household(h.controller,h.generation.clone(),h.feedback.away_observation(h.actor.monotonic_ms()).unwrap(),h.feedback.last_frames()).await.unwrap();
+    }
 }
 
 #[tokio::test]
@@ -456,7 +461,10 @@ async fn whole_house_on_cannot_delay_stop_or_replay_after_managed_off() {
     let source=crate::source_auth::Source::capture(tokens.module_off_lease(Some(&format!("Bearer {secret}")),None,None).unwrap(),&action,None).unwrap();
     let control=h.control.clone();let reply=h.drive(tokio::spawn(async move{control.request_authorized(action,source).await})).await.unwrap();
     assert!(matches!(reply,Reply::AwayAccepted(_)));
-    let mut wire=h.wire().await.as_chunks::<5>().0.iter().map(|f|f.to_vec()).collect::<Vec<_>>();wire.sort();
+    let mut first=h.wire().await;assert_eq!(first,[0xae,0x15,0,0,0xee]);
+    household_reply(&mut h,0x15,false,1..=8).await;first.extend(h.wire().await);
+    household_reply(&mut h,3,false,1..=8).await;
+    let mut wire=first.as_chunks::<5>().0.iter().map(|f|f.to_vec()).collect::<Vec<_>>();wire.sort();
     assert_eq!(wire,vec![vec![0xae,3,0,0xf2,0xee],vec![0xae,0x15,0,0,0xee]]);
     household_reply(&mut h,0x15,true,1..=8).await;
     assert_eq!(h.actor.household_views(h.controller,h.generation.clone()).await.unwrap()[0].state,"cancelled");

@@ -239,7 +239,7 @@ async fn visible_away_operation_flows_through_http_actor_audit_wire_feedback_and
         .unwrap();
     assert_eq!(code, 202);
     assert_eq!(receipt["outcome"], "accepted");
-    assert_eq!(receipt["commands"].as_array().unwrap().len(), 2);
+    assert_eq!(receipt["commands"].as_array().unwrap().len(), 1,"only the current module has a send lease at acceptance");
     assert_eq!(receipt["physical_result_confirmed"], false);
     let (code, repeated) = http(web, "/api/v1/away-off", Some(body)).await.unwrap();
     assert_eq!(code, 200);
@@ -409,7 +409,7 @@ async fn away_without_hap_or_indicators_remembers_settled_brightness_before_off(
         assert!(homesense_storage::Store::open(root.join("automation-simulation.sqlite")).unwrap().light_restore_levels(1).unwrap().is_empty());
         let (code, receipt) = http(web, "/api/v1/away-off", Some(json!({"revision":"1","request_id":"off-once"}))).await.unwrap();
         assert_eq!(code,202,"{receipt}");
-        assert_eq!(receipt["commands"].as_array().unwrap().len(),2);
+        assert_eq!(receipt["commands"].as_array().unwrap().len(),1,"future module is admitted after current feedback");
         tokio::time::timeout(Duration::from_secs(1), async {
             loop {
                 let (_, view) = http(web, "/api/v1/devices", None).await.unwrap();
