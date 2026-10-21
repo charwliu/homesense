@@ -14,6 +14,7 @@ async fn coherent_selection_matches_ordinary_projection_and_checks_all_scope_bou
         assert_eq!(value.initialization,expected.initialization);assert_eq!(value.physical,expected.physical);assert_eq!(value.component_inferred,expected.component_inferred);
     }
     assert_eq!(combined.mapping_readable,f.admission.diagnostics(f.extra,generation.clone()).await.unwrap().mapping_readable());
+    assert_eq!(combined.runtime_ready,f.admission.diagnostics(f.extra,generation.clone()).await.unwrap().ready());
     assert!(f.admission.published_scene_selection_snapshot(Uuid::new_v4(),f.extra,generation.clone(),1,names.clone()).await.is_err());
     assert!(f.admission.published_scene_selection_snapshot(f.controller,Uuid::new_v4(),generation.clone(),1,names.clone()).await.is_err());
     assert!(f.admission.published_scene_selection_snapshot(f.controller,f.extra,generation.clone(),2,names.clone()).await.is_err());

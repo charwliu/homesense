@@ -2,6 +2,84 @@
 use super::*;
 use homesense_hap::storage::IdentityStore;
 
+#[tokio::test]
+async fn slow_load_metadata_yields_before_a_second_request_without_dropping_it() {
+    let armed = Arc::new(AtomicBool::new(false));
+    let caller = Arc::new(Mutex::new(None));
+    let probe: AuthorizationProbe = {
+        let armed = armed.clone();
+        let caller = caller.clone();
+        Arc::new(move |id| {
+            if *caller.lock().unwrap() == Some(id) && armed.swap(false, Ordering::AcqRel) {
+                std::thread::sleep(Duration::from_millis(80));
+            }
+        })
+    };
+    let (cfg, doc) = inputs();
+    let mut h = Harness::from_inputs_with_probe(cfg, doc, Some(probe)).await;
+    *caller.lock().unwrap() = Some(h.member);
+    let request = || crate::automation_control::Action::SceneLoadStates {
+        controller: h.member, revision: 1, scenes: vec!["act".into()],
+    };
+    let a = h.control.clone(); let first_action = request();
+    let first = tokio::spawn(async move { a.request(first_action).await });
+    tokio::task::yield_now().await; // Enqueue the first read before the second.
+    let b = h.control.clone(); let second_action = request();
+    let second = tokio::spawn(async move { b.request(second_action).await });
+    tokio::task::yield_now().await;
+    armed.store(true, Ordering::Release);
+    h.receiver.poll(&h.actor, &h.document, &mut h.scheduler, &h.feedback, 5000, None).await;
+    let first = first.await.unwrap().unwrap();
+    tokio::task::yield_now().await;
+    let yielded = !second.is_finished();
+    h.receiver.poll(&h.actor, &h.document, &mut h.scheduler, &h.feedback, 5000, None).await;
+    let second = second.await.unwrap().unwrap();
+    for reply in [first, second] {
+        let crate::automation_control::Reply::SceneLoadStates(values) = reply else { panic!("load metadata reply") };
+        assert_eq!(values.get("act"), Some(&None));
+    }
+    assert_eq!(h.count("command_journal"), 0);
+    h.finish().await;
+    assert!(yielded, "an expensive metadata read must yield the bus loop; the next read stays queued");
+}
+
+#[tokio::test]
+async fn background_hap_samples_cannot_queue_a_foreground_read_behind_their_slow_work() {
+    let armed = Arc::new(AtomicBool::new(false));
+    let caller = Arc::new(Mutex::new(None));
+    let probe: AuthorizationProbe = {
+        let armed = armed.clone(); let caller = caller.clone();
+        Arc::new(move |id| {
+            if *caller.lock().unwrap() == Some(id) && armed.swap(false, Ordering::AcqRel) {
+                std::thread::sleep(Duration::from_millis(80));
+            }
+        })
+    };
+    let (cfg, doc) = inputs();
+    let mut h = Harness::from_inputs_with_probe(cfg, doc, Some(probe)).await;
+    *caller.lock().unwrap() = Some(h.member);
+    let a = h.control.clone(); let member = h.member;
+    let sample = tokio::spawn(async move { a.request(crate::automation_control::Action::SceneLoadStates {
+        controller: member, revision: 1, scenes: vec!["act".into()],
+    }).await });
+    tokio::task::yield_now().await;
+    let b = h.control.clone(); let controller = h.controller;
+    let foreground = tokio::spawn(async move { b.request(crate::automation_control::Action::Diagnostics {
+        controller, revision: 1,
+    }).await });
+    tokio::task::yield_now().await;
+    armed.store(true, Ordering::Release);
+    h.receiver.poll(&h.actor, &h.document, &mut h.scheduler, &h.feedback, 5000, None).await;
+    tokio::task::yield_now().await;
+    let foreground_completed = foreground.is_finished();
+    h.receiver.poll(&h.actor, &h.document, &mut h.scheduler, &h.feedback, 5000, None).await;
+    assert!(matches!(foreground.await.unwrap().unwrap(), crate::automation_control::Reply::Diagnostics(_)));
+    assert!(matches!(sample.await.unwrap().unwrap(), crate::automation_control::Reply::SceneLoadStates(_)));
+    assert_eq!(h.count("command_journal"), 0);
+    h.finish().await;
+    assert!(foreground_completed, "periodic HAP sampling must not hide a foreground read behind expensive metadata work");
+}
+
 fn inputs() -> (Vec<u8>, Json) {
     let (cfg, mut d) = recorded_program_inputs();
     let root = &d["immediate_scenes"][0]["activate"][0]["action"];

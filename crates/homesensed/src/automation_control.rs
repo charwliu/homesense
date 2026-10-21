@@ -179,13 +179,14 @@ struct Request {
 }
 type PolledRequest = (Request, Option<oneshot::Receiver<Result<Reply, String>>>);
 #[derive(Clone,Copy,Debug,PartialEq,Eq)]
-enum RequestLane {Stop,Away,Motor,Ordinary}
+enum RequestLane {Stop,Away,Motor,Ordinary,BackgroundRead}
 #[derive(Clone)]
 pub struct Control {
     sender: mpsc::Sender<Request>,
     stop_sender: mpsc::Sender<Request>,
     motor_sender: mpsc::Sender<Request>,
     away_sender: mpsc::Sender<Request>,
+    background_read_sender: mpsc::Sender<Request>,
     instance: Uuid,
     unavailable:Option<std::sync::Arc<Unavailable>>,
     selection_reader: SelectionReaderSlot,
@@ -232,7 +233,7 @@ impl Control {
             .filter(|reader|reader.active()).map(|reader|reader.admission.away_terminal_updates()))
     }
     pub(crate) fn unavailable(&self,admission:Admission,generation:TaskGeneration)->Self {
-        Self{sender:self.sender.clone(),stop_sender:self.stop_sender.clone(),motor_sender:self.motor_sender.clone(),away_sender:self.away_sender.clone(),instance:self.instance,unavailable:Some(std::sync::Arc::new(Unavailable{admission,generation})),selection_reader:self.selection_reader.clone()}
+        Self{sender:self.sender.clone(),stop_sender:self.stop_sender.clone(),motor_sender:self.motor_sender.clone(),away_sender:self.away_sender.clone(),background_read_sender:self.background_read_sender.clone(),instance:self.instance,unavailable:Some(std::sync::Arc::new(Unavailable{admission,generation})),selection_reader:self.selection_reader.clone()}
     }
     /// Bounded admission, no retry. A lost response after execution is ambiguous;
     /// callers must inspect history rather than resubmit an action automatically.
@@ -282,6 +283,7 @@ impl Control {
     fn request_lane(&self,action:&Action)->RequestLane {
         use crate::management_devices::DeviceAction;
         match action {
+            Action::SceneLoadStates{..}=>RequestLane::BackgroundRead,
             Action::AwayOff{..}=>RequestLane::Away,
             Action::SceneAction{scene,revision,execute:true,..} if self.selection_reader.lock().ok().and_then(|s|s.clone())
                 .is_some_and(|reader|reader.active() && reader.document.revision==*revision && reader.document.whole_house_off_scene()==Some(scene.as_str()))=>RequestLane::Away,
@@ -325,6 +327,7 @@ impl Control {
             RequestLane::Away=>&self.away_sender,
             RequestLane::Motor=>&self.motor_sender,
             RequestLane::Ordinary=>&self.sender,
+            RequestLane::BackgroundRead=>&self.background_read_sender,
         };
         sender
             .try_send(Request {
@@ -362,6 +365,7 @@ pub(crate) struct Receiver {
     stop_receiver: mpsc::Receiver<Request>,
     motor_receiver: mpsc::Receiver<Request>,
     away_receiver: mpsc::Receiver<Request>,
+    background_read_receiver: mpsc::Receiver<Request>,
     controller: Uuid,
     generation: TaskGeneration,
     watchers: std::collections::VecDeque<Watcher>,
@@ -373,6 +377,7 @@ pub(crate) struct Receiver {
     prefer_web_away:bool,
     prefer_web_motor:bool,
     prefer_web_work:bool,
+    prefer_background_read:bool,
     next_away_tick:u64,
     scene_lights:crate::scene_lights::Cache,
 }
@@ -381,14 +386,16 @@ pub(crate) fn channel(controller: Uuid, generation: TaskGeneration) -> (Control,
     let (stop_sender, stop_receiver) = mpsc::channel(32);
     let (motor_sender, motor_receiver) = mpsc::channel(32);
     let (away_sender, away_receiver) = mpsc::channel(32);
+    let (background_read_sender, background_read_receiver) = mpsc::channel(32);
     let selection_reader=SelectionReaderSlot::default();
     (
-        Control { sender,stop_sender,motor_sender,away_sender,instance:Uuid::new_v4(),unavailable:None,selection_reader:selection_reader.clone() },
+        Control { sender,stop_sender,motor_sender,away_sender,background_read_sender,instance:Uuid::new_v4(),unavailable:None,selection_reader:selection_reader.clone() },
         Receiver {
             receiver,
             stop_receiver,
             motor_receiver,
             away_receiver,
+            background_read_receiver,
             controller,
             generation,
             watchers: Default::default(),
@@ -400,12 +407,26 @@ pub(crate) fn channel(controller: Uuid, generation: TaskGeneration) -> (Control,
             prefer_web_away:true,
             prefer_web_motor:true,
             prefer_web_work:true,
+            prefer_background_read:false,
             next_away_tick:0,
             scene_lights:Default::default(),
         },
     )
 }
 impl Receiver {
+    fn take_web_work(&mut self)->Option<PolledRequest> {
+        // A periodic HAP sample cannot fill the foreground queue. Both remain
+        // bounded and alternate when busy; STOP/Away/motor lanes stay ahead.
+        for background in [self.prefer_background_read,!self.prefer_background_read] {
+            let next=if background {self.background_read_receiver.try_recv().ok()}
+                else {self.receiver.try_recv().ok()};
+            if let Some(request)=next {
+                self.prefer_background_read = !background;
+                return Some((request,None));
+            }
+        }
+        None
+    }
     fn take_native_request(&mut self,priority:usize)->Option<PolledRequest> {
         let event=self.native[priority].pop_front()?;
         let(tx,rx)=oneshot::channel();
@@ -435,7 +456,7 @@ impl Receiver {
             if next.is_some(){self.prefer_web_motor = !web;return next;}
         }
         for web in [self.prefer_web_work,!self.prefer_web_work] {
-            let next=if web {self.receiver.try_recv().ok().map(|request|(request,None))}
+            let next=if web {self.take_web_work()}
                 else {self.take_native_request(2)};
             if next.is_some(){self.prefer_web_work = !web;return next;}
         }
@@ -512,7 +533,11 @@ impl Receiver {
         }
         self.relative.tick(admission,document,feedback).await;
         // Bound per-cycle work so incoming control cannot starve bus processing.
+        // A request is completed atomically, but a slow metadata read must not
+        // be followed by seven more reads before receiving device feedback.
+        let request_quantum_until=Instant::now()+Duration::from_millis(25);
         for _ in 0..8 {
+            if Instant::now()>=request_quantum_until {break;}
             let Some((mut request,native_completion))=self.next_request() else{break;};
             // Capture identifiers before KeypadAction resolves into a scene.
             // This borrows authority metadata; it does not consume/replay it.
@@ -896,8 +921,16 @@ impl Receiver {
                         }
                         let mut values=crate::scene_tracking::project_many(&physical,admission,controller,&self.generation,feedback).await
                             .into_iter().map(|p|(p.scene.clone(),p.active())).collect::<std::collections::BTreeMap<_,_>>();
-                        for id in components {
-                            values.insert(id.clone(),crate::scene_tracking::read(document,id,admission,controller,&self.generation,feedback).await?.and_then(|p|p.active()));
+                        if !components.is_empty() {
+                            // Reuse immutable mapping/views only within this
+                            // read. Each activity proof is still independently
+                            // checked by Admission against current feedback.
+                            let bundle=admission.automation_bundle(controller,self.generation.clone()).await.map_err(|e|format!("load state mapping: {e:?}"))?;
+                            let mut context=crate::scene_tracking::CatalogReadContext::new(&bundle.configuration);
+                            for id in components {
+                                if request.reply.is_closed() || Instant::now()>=request.deadline {return Err("load state read expired or abandoned".into());}
+                                values.insert(id.clone(),crate::scene_tracking::read_catalog(document,id,admission,controller,&self.generation,feedback,&mut context).await?.and_then(|p|p.active()));
+                            }
                         }
                         Ok(Reply::SceneLoadStates(values))
                     },
@@ -1058,6 +1091,10 @@ impl Receiver {
         }
         self.away_receiver.close();
         while let Ok(request)=self.away_receiver.try_recv(){
+            let _=request.reply.send(Err("automation runtime stopped".into()));
+        }
+        self.background_read_receiver.close();
+        while let Ok(request)=self.background_read_receiver.try_recv(){
             let _=request.reply.send(Err("automation runtime stopped".into()));
         }
         for queue in &mut self.native{queue.clear();}

@@ -83,6 +83,35 @@ fn recorded(store: &mut Store, version: u64, value: Option<i64>) {
         .unwrap();
 }
 #[test]
+fn batch_selection_reads_recheck_scope_updates_and_provenance_with_cached_statements() {
+    let db=Database::new();let mut store=db.store();
+    store.define_logical_variable(1,"other",ValueType::Integer).unwrap();
+    let names=vec!["other".into(),"selection".into(),"missing".into()];
+    recorded(&mut store,0,Some(0));
+    let selected=inference(1,1,Some(2),Basis::SelectMember);
+    store.record_scene_inference(1,"selection",&selected).unwrap();
+    let rows=store.scene_selections(1,&names,Some(scope())).unwrap();
+    assert_eq!(rows.len(),3);assert!(rows[2].is_none());
+    assert_eq!(rows[1].as_ref().unwrap().stored.value,Some(Value::Integer(2)));
+    let mut old=scope();old.epochs.transport+=1;
+    let rows=store.scene_selections(1,&names,Some(old)).unwrap();
+    assert_eq!(rows[1].as_ref().unwrap().stored.value,None);
+    assert_eq!(rows[1].as_ref().unwrap().evidence,Some(selected));
+    recorded(&mut store,2,Some(4));
+    let rows=store.scene_selections(1,&names,Some(scope())).unwrap();
+    assert_eq!(rows[1].as_ref().unwrap().stored.value,Some(Value::Integer(4)));
+    assert_eq!(rows[1].as_ref().unwrap().stored.version,3);
+    store.record_scene_inference(1,"selection",&inference(3,2,Some(2),Basis::SelectMember)).unwrap();
+    let external=rusqlite::Connection::open(db.path()).unwrap();
+    // The audit ledger is immutable. Corrupt the mutable selection instead, so
+    // the full decoder must reject its mismatch with the unchanged evidence.
+    assert!(external.execute("UPDATE scene_observation SET value=999 WHERE name='selection'",[]).is_err());
+    assert_eq!(external.execute("UPDATE logical_variable SET value=999 WHERE revision=1 AND name='selection'",[]).unwrap(),1);
+    assert!(matches!(store.scene_selections(1,&names,Some(scope())),Err(Error::InvalidAudit)),"a valid earlier member cannot hide later corrupt evidence");
+    assert_eq!(external.execute("UPDATE logical_variable SET value=2 WHERE revision=1 AND name='selection'",[]).unwrap(),1);
+    assert_eq!(store.scene_selections(1,&names,Some(scope())).unwrap()[1].as_ref().unwrap().stored.value,Some(Value::Integer(2)),"an error must release its read transaction and not cache corrupt values");
+}
+#[test]
 fn inferred_value_and_unknown_keep_evidence_but_are_not_rule_inputs() {
     let db = Database::new();
     let mut store = db.store();

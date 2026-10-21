@@ -59,8 +59,8 @@ fn snapshot(
     scope: Option<Scope>,
 ) -> Result<Option<Snapshot>, Error> {
     let row: Option<(String, Option<i64>, i64)> = connection
+        .prepare_cached("SELECT kind,value,version FROM logical_variable WHERE revision=?1 AND name=?2")?
         .query_row(
-            "SELECT kind,value,version FROM logical_variable WHERE revision=?1 AND name=?2",
             params![sql_revision(revision)?, name],
             |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
         )
@@ -71,8 +71,7 @@ fn snapshot(
     if kind != "integer" {
         return Err(Error::InvalidAudit);
     }
-    let evidence = connection.query_row(
-        "SELECT group_id,boot_id,transport_epoch,control_epoch,stream_generation,event_sequence,device_id,observed_ms,basis,value FROM scene_observation WHERE revision=?1 AND name=?2 AND variable_version=?3 AND authority='inferred'",
+    let evidence = connection.prepare_cached("SELECT group_id,boot_id,transport_epoch,control_epoch,stream_generation,event_sequence,device_id,observed_ms,basis,value FROM scene_observation WHERE revision=?1 AND name=?2 AND variable_version=?3 AND authority='inferred'")?.query_row(
         params![sql_revision(revision)?, name, version],
         |r| {
             let decode = |column: usize| -> rusqlite::Result<u64> {
@@ -122,6 +121,16 @@ fn snapshot(
     }))
 }
 impl Store {
+    /// One read transaction for a set of selections. Reuse SQL compilation, never
+    /// prior values or provenance: every member uses the same checked decoder.
+    pub fn scene_selections(&self,revision:u64,names:&[String],scope:Option<Scope>)->Result<Vec<Option<Snapshot>>,Error> {
+        if names.is_empty(){return Ok(vec![])}
+        let tx=self.connection.unchecked_transaction()?;
+        let result=names.iter().map(|name|snapshot(&tx,revision,name,scope)).collect::<Result<Vec<_>,_>>()?;
+        tx.commit()?;
+        Ok(result)
+    }
+
     /// A coherent read transaction for selection plus provenance. `None` scope
     /// is useful for read-only inspection: every inferred value becomes unknown.
     pub fn scene_selection(

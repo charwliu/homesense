@@ -44,6 +44,33 @@ fn command(id: u64) -> QueuedCommand {
     }
 }
 #[test]
+fn compiled_audit_reads_never_cache_variables_ticket_status_or_missing_rows() {
+    use homesense_core::rule::{Value,ValueType};
+    let db=Database::new();let mut store=Store::open(&db.0).unwrap();
+    store.publish(None,1,b"config",&[]).unwrap();
+    store.define_logical_variable(1,"guard",ValueType::Integer).unwrap();
+    assert_eq!(store.logical_variable(1,"guard").unwrap().unwrap().value,None);
+    assert_eq!(store.command_status("boot1",1).unwrap(),None);
+    assert_eq!(store.component_mode_ticket("boot1",1).unwrap(),None);
+    let external=rusqlite::Connection::open(&db.0).unwrap();
+    external.execute("UPDATE logical_variable SET value=4,version=1 WHERE name='guard'",[]).unwrap();
+    let updated=store.logical_variable(1,"guard").unwrap().unwrap();
+    assert_eq!(updated.value,Some(Value::Integer(4)));assert_eq!(updated.version,1);
+    store.accept_commands("boot1",&[command(1)],10).unwrap();
+    assert_eq!(store.command_status("boot1",1).unwrap(),Some(Status::Accepted));
+    assert_eq!(store.component_mode_ticket("boot1",1).unwrap(),Some(("accepted".into(),10)));
+    store.transition_command("boot1",1,Status::Accepted,Status::Writing,11).unwrap();
+    store.transition_command("boot1",1,Status::Writing,Status::Written,12).unwrap();
+    assert_eq!(store.command_status("boot1",1).unwrap(),Some(Status::Written));
+    assert_eq!(store.component_mode_ticket("boot1",1).unwrap(),Some(("written".into(),12)));
+    external.execute("UPDATE command_journal SET status='failed',updated_ms=13 WHERE boot_id='boot1' AND command_id=1",[]).unwrap();
+    assert_eq!(store.command_status("boot1",1).unwrap(),Some(Status::Failed));
+    assert_eq!(store.component_mode_ticket("boot1",1).unwrap(),Some(("failed".into(),13)));
+    external.execute("DELETE FROM command_journal WHERE boot_id='boot1' AND command_id=1",[]).unwrap();
+    assert_eq!(store.command_status("boot1",1).unwrap(),None);
+    assert_eq!(store.component_mode_ticket("boot1",1).unwrap(),None);
+}
+#[test]
 fn acceptance_is_atomic_under_insert_failure_and_revision_conflict() {
     let db = Database::new();
     let mut store = Store::open(&db.0).unwrap();
