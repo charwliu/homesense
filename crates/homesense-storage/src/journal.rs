@@ -587,8 +587,8 @@ impl Store {
         boot(boot_id)?;
         let value: Option<String> = self
             .connection
+            .prepare_cached("SELECT status FROM command_journal WHERE boot_id=?1 AND command_id=?2")?
             .query_row(
-                "SELECT status FROM command_journal WHERE boot_id=?1 AND command_id=?2",
                 params![boot_id, integer(id)?],
                 |r| r.get(0),
             )

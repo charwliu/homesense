@@ -36,16 +36,10 @@ impl Owner {
         let Some(session) = &mut self.session else {
             return Ok(());
         };
-        for (name, version) in &mut session.versions {
-            let current = store
-                .scene_selection(
-                    session.scope.epochs.configuration,
-                    name,
-                    Some(session.scope),
-                )?
-                .ok_or(Error::InvalidAudit)?
-                .stored
-                .version;
+        let names=session.versions.keys().cloned().collect::<Vec<_>>();
+        let snapshots=store.scene_selections(session.scope.epochs.configuration,&names,Some(session.scope))?;
+        for ((name, version),snapshot) in session.versions.iter_mut().zip(snapshots) {
+            let current = snapshot.ok_or(Error::InvalidAudit)?.stored.version;
             if current != *version {
                 *version = current;
                 session.local_fences.insert(name.clone(), now);

@@ -115,8 +115,8 @@ impl Store {
     ) -> Result<Option<(String, u64)>, Error> {
         let row: Option<(String, i64)> = self
             .connection
+            .prepare_cached("SELECT status,updated_ms FROM command_journal WHERE boot_id=?1 AND command_id=?2")?
             .query_row(
-                "SELECT status,updated_ms FROM command_journal WHERE boot_id=?1 AND command_id=?2",
                 params![boot, i64::try_from(id).map_err(|_| Error::InvalidAudit)?],
                 |r| Ok((r.get(0)?, r.get(1)?)),
             )

@@ -19,8 +19,7 @@ pub(crate) fn origin(
     name: &str,
     version: i64,
 ) -> Result<Option<Origin>, Error> {
-    Ok(connection.query_row(
-        "SELECT group_id,boot_id,transport_epoch,control_epoch,observed_ms,initialized_ms,value FROM scene_initialization WHERE revision=?1 AND name=?2 AND variable_version=?3",
+    Ok(connection.prepare_cached("SELECT group_id,boot_id,transport_epoch,control_epoch,observed_ms,initialized_ms,value FROM scene_initialization WHERE revision=?1 AND name=?2 AND variable_version=?3")?.query_row(
         params![sql_revision(revision)?, name, version],
         |row| {
             let integer = |i| -> rusqlite::Result<u64> {u64::try_from(row.get::<_,i64>(i)?).map_err(|_|rusqlite::Error::InvalidQuery)};
