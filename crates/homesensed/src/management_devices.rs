@@ -47,6 +47,7 @@ pub struct DeviceView {
 }
 #[derive(Debug, PartialEq, Eq)]
 pub struct DeviceSnapshot {
+    pub household_operations:Vec<crate::household_sequence::View>,
     pub boot: String,
     pub revision: u64,
     pub sequence: u64,
@@ -204,6 +205,10 @@ async fn snapshot_bound(admission:&Admission,controller:Uuid,generation:TaskGene
             state,
         });
     }
+    let household_operations=if bundle.automation.as_ref().and_then(|a|a.away_off.as_ref()).is_some_and(|p|
+        p.modules.iter().flat_map(|m|m.devices.iter()).all(|id|seen.iter().any(|requested|requested.as_str()==id))) {
+        admission.household_views(controller,generation.clone()).await.map_err(|e|format!("household status: {e:?}"))?
+    }else{vec![]};
     let (keypads, keypad_endpoints) = crate::management_keypads::snapshot(
         admission, controller, generation, &bundle.configuration, &raw, &devices, feedback.transport_epoch(), now,
     ).await?;
@@ -219,7 +224,7 @@ async fn snapshot_bound(admission:&Admission,controller:Uuid,generation:TaskGene
     if let Some(document)=&bundle.automation {
         keypad_execute_scopes=crate::keypad_actions::execution_scopes(&bundle.configuration,document).map_err(|e|format!("keypad scene scope: {e:?}"))?;
     }
-    Ok(DeviceSnapshot {
+    Ok(DeviceSnapshot {household_operations,
         boot: admission.boot_id().to_owned(),
         revision: bundle.configuration.revision(),
         sequence: snapshot.cursor.sequence,

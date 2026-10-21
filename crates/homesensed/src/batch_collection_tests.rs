@@ -182,13 +182,23 @@ async fn household_off_scene_routes_to_the_same_guarded_module_operation_as_away
         let source=crate::source_auth::Source::capture(tokens.module_off_lease(Some(&format!("Bearer {secret}")),None,None).unwrap(),&action,None).unwrap();
         let control=h.control.clone();let reply=h.drive(tokio::spawn(async move{control.request_authorized(action,source).await})).await.unwrap();
         if scene=="off" {assert!(matches!(reply,Reply::AwayAccepted(_)),"full-house shutdown must retain managed retry and priority");}
-        let wire=h.wire().await;let mut actual=wire.as_chunks::<5>().0.iter().map(|frame|frame.to_vec()).collect::<Vec<_>>();actual.sort();
+        let mut wire=h.wire().await;
+        if scene=="act" {
+            assert_eq!(wire,[0xae,0x15,0,100,0xee],"later modules cannot be sent before first-module feedback");
+            household_reply(&mut h,0x15,true,1..=8).await;
+            wire.extend(h.wire().await);
+            household_reply(&mut h,3,true,1..=8).await;
+        }
+        let mut actual=wire.as_chunks::<5>().0.iter().map(|frame|frame.to_vec()).collect::<Vec<_>>();actual.sort();
         let mut wanted=vec![vec![0xae,3,0,expected,0xee],vec![0xae,0x15,0,if scene=="act"{100}else{0},0xee]];wanted.sort();assert_eq!(actual,wanted);
         let before=h.count("command_journal");
         let repeated=Action::SceneAction{controller:h.controller,revision:1,scene:scene.into(),execute:true};
         let source=crate::source_auth::Source::capture(tokens.module_off_lease(Some(&format!("Bearer {secret}")),None,None).unwrap(),&repeated,None).unwrap();
         let control=h.control.clone();
-        assert!(h.drive(tokio::spawn(async move{control.request_authorized(repeated,source).await})).await.is_err(),"a new request cannot immediately repeat a whole-house direction");
+        let repeated=h.drive(tokio::spawn(async move{control.request_authorized(repeated,source).await})).await;
+        if scene=="act" {
+            assert!(matches!(repeated,Ok(Reply::HouseholdAccepted(crate::household_sequence::Accepted {commands,..})) if commands.is_empty()),"a fully confirmed On may return an audited no-op without a repeat write");
+        } else {assert!(repeated.is_err(),"shutdown retrigger remains rate limited");}
         assert_eq!(h.count("command_journal"),before,"throttled repeats must have no durable or wire prefix");
         assert!(h.wire().await.is_empty());
     }
@@ -263,12 +273,12 @@ async fn household_open_noop_rechecks_feedback_and_full_scope_authorization() {
     let denied=crate::household_scene::prepare(&h.configuration,&h.document,h.controller,"act",&h.feedback,h.actor.monotonic_ms(),5000).unwrap();
     assert!(matches!(denied.compile(&h.configuration,Some(&source)),Err(hap::server::WriteStatus::InsufficientPrivileges)),"even a no-op requires the entire reviewed scope");
     let prepared=crate::household_scene::prepare(&h.configuration,&h.document,h.controller,"act",&h.feedback,h.actor.monotonic_ms(),5000).unwrap();
-    assert!(h.actor.submit_shared_light(h.generation.clone(),crate::shared_light::Prepared::HouseholdOn(Box::new(prepared)),h.actor.monotonic_ms()+2000).await.unwrap().is_empty());
+    assert!(h.actor.begin_household(h.generation.clone(),prepared,h.feedback.away_observation(h.actor.monotonic_ms()).unwrap(),h.feedback.last_frames(),h.actor.monotonic_ms()+2000).await.unwrap().commands.is_empty());
     assert_eq!(h.count("command_journal"),0);assert!(h.wire().await.is_empty());
     let prepared=crate::household_scene::prepare(&h.configuration,&h.document,h.controller,"act",&h.feedback,h.actor.monotonic_ms(),5000).unwrap();
     h.feedback.apply(&GatewayRead{gateway_id:"bus".into(),transport_epoch:1,received_at_ms:h.actor.monotonic_ms(),
         result:hb_transport::Receive::Frames{transport_epoch:1,frames:vec![hb_protocol::RawFrame{address:3,command:0xd8,value:0xf2}]}}).unwrap();
-    assert!(h.actor.submit_shared_light(h.generation.clone(),crate::shared_light::Prepared::HouseholdOn(Box::new(prepared)),h.actor.monotonic_ms()+2000).await.is_err(),"changed feedback invalidates an all-noop proof");
+    assert!(h.actor.begin_household(h.generation.clone(),prepared,h.feedback.away_observation(h.actor.monotonic_ms()).unwrap(),h.feedback.last_frames(),h.actor.monotonic_ms()+2000).await.is_err(),"changed feedback invalidates an all-noop proof");
     assert_eq!(h.count("command_journal"),0);
     h.finish().await;
 }
@@ -306,5 +316,178 @@ async fn household_hap_off_is_paired_managed_and_retired_handler_cannot_replay()
     let retained=bridge.write_handler.clone();drop(bridge);
     assert_eq!(retained.write_async(member,&body).await,Err(hap::server::WriteStatus::InsufficientPrivileges));
     assert!(h.wire().await.is_empty());
+    h.finish().await;
+}
+
+async fn household_reply(h:&mut Harness,address:u8,on:bool,channels:std::ops::RangeInclusive<u8>) {
+    tokio::time::sleep(Duration::from_millis(1)).await;
+    h.feedback.apply(&GatewayRead {gateway_id:"bus".into(),transport_epoch:1,received_at_ms:h.actor.monotonic_ms(),
+        result:hb_transport::Receive::Frames {transport_epoch:1,frames:channels.map(|ch|hb_protocol::RawFrame {
+            address,command:0xd0+ch,value:if address==0x15 {if on {100}else{0}}else if on {0xf1}else{0xf2}}).collect()}}).unwrap();
+    tokio::time::sleep(Duration::from_millis(21)).await;
+    h.actor.tick_household(h.controller,h.generation.clone(),h.feedback.away_observation(h.actor.monotonic_ms()).unwrap(),h.feedback.last_frames()).await.unwrap();
+}
+
+#[tokio::test]
+async fn whole_house_on_waits_for_all_current_module_feedback_before_admitting_next() {
+    let (devices,rules)=household_inputs();let mut h=Harness::from_inputs(devices,rules).await;
+    let reply=h.request(Action::SceneAction {controller:h.controller,revision:1,scene:"act".into(),execute:true}).await.unwrap();
+    let Reply::HouseholdAccepted(accepted)=reply else{panic!("expected managed module sequence")};
+    assert_eq!(accepted.commands.len(),8);
+    assert_eq!(h.actor.household_query_scopes(h.controller,h.generation.clone()).await.unwrap(),[("bus".into(),None)].into(),"queries wait for the passive feedback window");
+    assert_eq!(h.count("command_journal"),8,"future module has no accepted command or ticking send lease");
+    assert_eq!(h.wire().await,[0xae,0x15,0,100,0xee]);
+    household_reply(&mut h,0x15,true,1..=7).await;
+    assert_eq!(h.count("command_journal"),8);assert!(h.wire().await.is_empty());
+    household_reply(&mut h,0x15,false,8..=8).await;
+    assert_eq!(h.count("command_journal"),8,"a reply with wrong target must not release next module");
+    assert!(h.actor.reserve_module_read("bus".into(),Some(3),h.actor.monotonic_ms()+100).await.is_err(),"an unrelated module cannot steal this bus transaction");
+    household_reply(&mut h,0x15,true,8..=8).await;
+    assert_eq!(h.count("command_journal"),16);
+    assert_eq!(h.wire().await,[0xae,3,0,0xf1,0xee]);
+    household_reply(&mut h,3,true,1..=8).await;
+    let views=h.actor.household_views(h.controller,h.generation.clone()).await.unwrap();
+    assert_eq!(views.len(),1);assert_eq!(views[0].state,"confirmed");assert_eq!(views[0].confirmed_modules,2);
+    h.finish().await;
+}
+
+#[tokio::test]
+async fn whole_house_on_only_current_module_can_acquire_missing_feedback_read() {
+    let (devices,rules)=household_inputs();let mut h=Harness::from_inputs(devices,rules).await;
+    h.request(Action::SceneAction {controller:h.controller,revision:1,scene:"act".into(),execute:true}).await.unwrap();
+    assert_eq!(h.wire().await,[0xae,0x15,0,100,0xee]);
+    tokio::time::sleep(Duration::from_millis(120)).await;
+    h.actor.tick_household(h.controller,h.generation.clone(),h.feedback.away_observation(h.actor.monotonic_ms()).unwrap(),h.feedback.last_frames()).await.unwrap();
+    assert_eq!(h.actor.household_query_scopes(h.controller,h.generation.clone()).await.unwrap(),[("bus".into(),Some(0x15))].into());
+    assert!(h.actor.reserve_module_read("bus".into(),Some(3),h.actor.monotonic_ms()+500).await.is_err());
+    let permit=h.actor.reserve_module_read("bus".into(),Some(0x15),h.actor.monotonic_ms()+500).await.unwrap();
+    household_reply(&mut h,0x15,true,1..=8).await;
+    assert_eq!(h.actor.household_query_scopes(h.controller,h.generation.clone()).await.unwrap(),[("bus".into(),None)].into(),"complete feedback blocks another query while the existing reader drains");
+    assert!(h.wire().await.is_empty());drop(permit);
+    h.actor.tick_household(h.controller,h.generation.clone(),h.feedback.away_observation(h.actor.monotonic_ms()).unwrap(),h.feedback.last_frames()).await.unwrap();
+    assert_eq!(h.wire().await,[0xae,3,0,0xf1,0xee]);
+    h.finish().await;
+}
+
+#[tokio::test]
+async fn whole_house_on_missing_port_retries_current_module_with_fresh_ids_and_stops() {
+    let (devices,rules)=household_inputs();let mut h=Harness::from_inputs(devices,rules).await;
+    h.request(Action::SceneAction {controller:h.controller,revision:1,scene:"act".into(),execute:true}).await.unwrap();
+    let mut wire=h.wire().await;
+    let until=tokio::time::Instant::now()+Duration::from_secs(4);
+    loop {
+        household_reply(&mut h,0x15,true,1..=7).await;
+        wire.extend(h.wire().await);
+        let views=h.actor.household_views(h.controller,h.generation.clone()).await.unwrap();
+        let needs=h.actor.away_read_needs(h.controller,h.generation.clone()).await.unwrap();
+        assert!(needs.iter().all(|r|r.device.as_str().starts_with("dim-")),"only the active module may be queried");
+        if views[0].state=="failed" {assert!(views[0].reason.as_ref().unwrap().contains("NoConfirmation"));break;}
+        assert!(tokio::time::Instant::now()<until,"missing-feedback sequence did not terminate");
+        tokio::time::sleep(Duration::from_millis(15)).await;
+    }
+    assert_eq!(wire,[0xae,0x15,0,100,0xee].repeat(3),"retries must not activate the next module");
+    assert_eq!(h.count("command_journal"),24,"three attempts each retain eight distinct audit ids");
+    let db=rusqlite::Connection::open(h.directory.join("runtime.sqlite")).unwrap();
+    let expired:i64=db.query_row("SELECT count(*) FROM command_journal WHERE cancellation_reason='Expired'",[],|r|r.get(0)).unwrap();
+    assert_eq!(expired,0,"unstarted modules must not expire while another module is retried");
+    drop(db);h.finish().await;
+}
+
+#[tokio::test]
+async fn whole_house_on_manual_override_cancels_future_modules_without_replay() {
+    let (devices,rules)=household_inputs();let mut h=Harness::from_inputs(devices,rules).await;
+    h.request(Action::SceneAction {controller:h.controller,revision:1,scene:"act".into(),execute:true}).await.unwrap();
+    assert_eq!(h.wire().await,[0xae,0x15,0,100,0xee]);
+    h.request(Action::DeviceCommand {controller:h.controller,revision:1,device:homesense_core::DeviceId::new("port-8").unwrap(),action:crate::management_devices::DeviceAction::Power {on:false}}).await.unwrap();
+    assert_eq!(h.wire().await,[0xae,3,8,0xf2,0xee]);
+    let views=h.actor.household_views(h.controller,h.generation.clone()).await.unwrap();
+    assert_eq!(views[0].state,"cancelled");
+    household_reply(&mut h,0x15,true,1..=8).await;
+    assert!(h.wire().await.is_empty(),"a later reply cannot revive a cancelled sequence");
+    assert_eq!(h.count("command_journal"),9);
+    h.finish().await;
+}
+
+#[tokio::test]
+async fn whole_house_on_noop_with_older_pending_off_restores_only_that_module() {
+    let (devices,rules)=household_inputs();let mut h=Harness::from_inputs(devices,rules).await;
+    household_reply(&mut h,0x15,true,1..=8).await;
+    household_reply(&mut h,3,true,1..=8).await;
+    h.request(Action::DeviceCommand {controller:h.controller,revision:1,device:homesense_core::DeviceId::new("port-8").unwrap(),action:crate::management_devices::DeviceAction::Power {on:false}}).await.unwrap();
+    let Reply::HouseholdAccepted(accepted)=h.request(Action::SceneAction {controller:h.controller,revision:1,scene:"act".into(),execute:true}).await.unwrap() else{panic!()};
+    assert_eq!(accepted.commands.len(),8,"an older pending Off invalidates an otherwise matching module's no-op proof");
+    assert_eq!(h.wire().await,[0xae,3,0,0xf1,0xee],"cancel pending Off and retain the genuinely settled dimmer module");
+    household_reply(&mut h,3,true,1..=8).await;
+    assert_eq!(h.actor.household_views(h.controller,h.generation.clone()).await.unwrap().last().unwrap().state,"confirmed");
+    h.finish().await;
+}
+
+#[tokio::test]
+async fn whole_house_on_waiting_for_owned_read_has_no_ticking_send_ticket() {
+    let (devices,rules)=household_inputs();let mut h=Harness::from_inputs(devices,rules).await;
+    let permit=h.actor.reserve_physical_read("bus".into(),h.actor.monotonic_ms()+3000).await.unwrap();
+    let Reply::HouseholdAccepted(accepted)=h.request(Action::SceneAction {controller:h.controller,revision:1,scene:"act".into(),execute:true}).await.unwrap() else{panic!()};
+    assert!(accepted.commands.is_empty());assert_eq!(h.count("command_journal"),0);
+    tokio::time::sleep(Duration::from_millis(1100)).await;
+    h.actor.tick_household(h.controller,h.generation.clone(),h.feedback.away_observation(h.actor.monotonic_ms()).unwrap(),h.feedback.last_frames()).await.unwrap();
+    assert_eq!(h.count("command_journal"),0,"waiting for an old read must not exhaust the new module's one-second send lease");
+    drop(permit);
+    h.actor.tick_household(h.controller,h.generation.clone(),h.feedback.away_observation(h.actor.monotonic_ms()).unwrap(),h.feedback.last_frames()).await.unwrap();
+    assert_eq!(h.count("command_journal"),8);
+    assert_eq!(h.wire().await,[0xae,0x15,0,100,0xee]);
+    h.finish().await;
+}
+
+#[tokio::test]
+async fn whole_house_on_cannot_delay_stop_or_replay_after_managed_off() {
+    use crate::web_auth::{Tokens,Grant,Role};
+    let (devices,rules)=household_inputs();
+    let mut devices:Json=serde_json::from_slice(&devices).unwrap();
+    devices["gateways"][0]["modules"].as_array_mut().unwrap().push(json!({"id":"motor-module","address":"37","profile":"c4_din_pro_v2_7_7","verification":{"status":"simulated"}}));
+    devices["devices"].as_array_mut().unwrap().push(json!({"id":"motor","name":"Synthetic motor","module_id":"motor-module","channel":1,"enabled":true,"motor_calibration":{"open_direction":"up","stop_verified":true,"evidence":"synthetic stop","verified_at_unix_ms":1}}));
+    let mut h=Harness::from_inputs(serde_json::to_vec(&devices).unwrap(),rules).await;
+    h.request(Action::SceneAction {controller:h.controller,revision:1,scene:"act".into(),execute:true}).await.unwrap();
+    assert_eq!(h.wire().await,[0xae,0x15,0,100,0xee]);
+    h.actor.submit_motor(h.controller,homesense_core::DeviceId::new("motor").unwrap(),homesense_core::MotorAction::Stop).await.unwrap();
+    assert_eq!(h.wire().await,[0xae,0x37,1,0xf0,0xee],"urgent STOP may pass the current module reservation without waiting for its feedback");
+    let tokens=Arc::new(Tokens::default());let secret="synthetic-household-preempt-secret-0123456789";
+    tokens.insert(Uuid::new_v4(),secret,Grant {controller:h.controller,role:Role::Administrator,devices:h.configuration.devices().keys().map(|id|id.as_str().to_owned()).collect(),scenes:["off".into()].into()}).unwrap();
+    let action=Action::SceneAction {controller:h.controller,revision:1,scene:"off".into(),execute:true};
+    let source=crate::source_auth::Source::capture(tokens.module_off_lease(Some(&format!("Bearer {secret}")),None,None).unwrap(),&action,None).unwrap();
+    let control=h.control.clone();let reply=h.drive(tokio::spawn(async move{control.request_authorized(action,source).await})).await.unwrap();
+    assert!(matches!(reply,Reply::AwayAccepted(_)));
+    let mut wire=h.wire().await.as_chunks::<5>().0.iter().map(|f|f.to_vec()).collect::<Vec<_>>();wire.sort();
+    assert_eq!(wire,vec![vec![0xae,3,0,0xf2,0xee],vec![0xae,0x15,0,0,0xee]]);
+    household_reply(&mut h,0x15,true,1..=8).await;
+    assert_eq!(h.actor.household_views(h.controller,h.generation.clone()).await.unwrap()[0].state,"cancelled");
+    assert!(h.wire().await.is_empty(),"late On feedback cannot revive work superseded by managed Off");
+    h.finish().await;
+}
+
+#[tokio::test]
+async fn whole_house_on_rechecks_earlier_confirmed_modules_before_final_success() {
+    let (devices,rules)=household_inputs();let mut h=Harness::from_inputs(devices,rules).await;
+    h.request(Action::SceneAction {controller:h.controller,revision:1,scene:"act".into(),execute:true}).await.unwrap();
+    assert_eq!(h.wire().await,[0xae,0x15,0,100,0xee]);
+    household_reply(&mut h,0x15,true,1..=8).await;
+    assert_eq!(h.wire().await,[0xae,3,0,0xf1,0xee]);
+    household_reply(&mut h,0x15,false,1..=1).await;
+    household_reply(&mut h,3,true,1..=8).await;
+    let views=h.actor.household_views(h.controller,h.generation.clone()).await.unwrap();
+    assert_eq!(views[0].state,"failed","a complete later module cannot mask an earlier target changing");
+    assert!(views[0].reason.as_ref().unwrap().contains("target changed"));
+    h.finish().await;
+}
+
+#[tokio::test]
+async fn whole_house_on_status_uses_authorized_scope_even_when_supply_card_is_hidden() {
+    let (devices,rules)=household_inputs();let mut h=Harness::from_inputs(devices,rules).await;
+    h.request(Action::SceneAction {controller:h.controller,revision:1,scene:"act".into(),execute:true}).await.unwrap();
+    let ids=h.configuration.devices().keys().cloned().collect::<Vec<_>>();
+    let Reply::Devices(full)=h.request(Action::Devices {controller:h.controller,revision:1,ids:ids.clone()}).await.unwrap() else{panic!()};
+    assert!(!full.devices.iter().any(|v|v.id.as_str()=="port-1"),"physical supply remains hidden behind logical light");
+    assert_eq!(full.household_operations.len(),1,"hidden display cards must not suppress an authorized operation's push status");
+    let Reply::Devices(limited)=h.request(Action::Devices {controller:h.controller,revision:1,ids:ids.into_iter().filter(|id|id.as_str()!="port-8").collect()}).await.unwrap() else{panic!()};
+    assert!(limited.household_operations.is_empty(),"partial scope cannot disclose whole-house operations");
     h.finish().await;
 }

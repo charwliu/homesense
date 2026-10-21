@@ -24,10 +24,16 @@ pub(super) struct Refresh {
     priority:BTreeSet<usize>,
     confirmation_until:BTreeMap<usize,u64>,
     ramp_reads:crate::postwrite_confirmation::RampReads,
+    household_scopes:BTreeMap<String,Option<u8>>,
 }
 struct Pending { index:usize,before:Vec<(u8,u64)>,sent:u64,deadline:u64,retried:bool,recovery:bool,strict:bool }
 struct Recovery { wire:WireScope,indices:Vec<usize>,next:usize,samples:Vec<crate::gateway_runtime::Sample> }
 impl Refresh {
+    fn query_allowed(&self,index:usize)->bool {
+        let target=&self.targets[index];
+        self.household_scopes.get(&target.gateway).is_none_or(|address|*address==Some(target.module.address().get()))
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub(super) fn new(config:homesense_config::Configuration,targets:Vec<crate::physical_queries::Target>,
         generation:crate::admission::TaskGeneration,controller:uuid::Uuid,context:homesense_core::ExecutionContext,
@@ -40,7 +46,7 @@ impl Refresh {
             now.checked_add(first_delay).and_then(|at|at.checked_add(offset)).ok_or("local refresh due overflow")
         }).collect::<Result<Vec<_>,_>>()?;
         let control_opportunity=config.gateways().keys().cloned().collect();
-        Ok(Self {config,targets,generation,controller,context,timeout,max_age,cycle,scanning:false,due,pending:BTreeMap::new(),recovery:BTreeMap::new(),control_opportunity,round:RoundTracker::default(),adaptive,recent_queries:BTreeMap::new(),strict:BTreeMap::new(),priority:BTreeSet::new(),confirmation_until:BTreeMap::new(),ramp_reads:Default::default()})
+        Ok(Self {config,targets,generation,controller,context,timeout,max_age,cycle,scanning:false,due,pending:BTreeMap::new(),recovery:BTreeMap::new(),control_opportunity,round:RoundTracker::default(),adaptive,recent_queries:BTreeMap::new(),strict:BTreeMap::new(),priority:BTreeSet::new(),confirmation_until:BTreeMap::new(),ramp_reads:Default::default(),household_scopes:Default::default()})
     }
     pub(super) fn configure_consumers(&mut self,requirements:&BTreeMap<homesense_core::DeviceId,u64>) {self.strict=crate::consumer_refresh::target_ages(&self.config,&self.targets,requirements);}
     fn due_at(&self,index:usize,truth:&crate::module_truth::ModuleTruth)->u64 {if self.priority.contains(&index){return 0;}self.strict.get(&index).map_or(self.due[index],|age|self.due[index].min(crate::consumer_refresh::due(&self.targets[index],truth,*age)))}
@@ -63,7 +69,7 @@ impl Refresh {
     pub(super) fn blocked(&self,now:u64,gap:u64,background_led_phase:bool,feedback:&Feedback)->BTreeSet<String> {
         let mut blocked=self.pending.keys().cloned().collect::<BTreeSet<_>>();
         for (i,target) in self.targets.iter().enumerate() {
-            if self.ramp_reads.ready(target,now) && !background_led_phase && !self.control_opportunity.contains(&target.gateway) && now.saturating_add(gap)>=self.due[i] && !feedback.query_deferred(&target.gateway,now,self.priority.contains(&i)) {blocked.insert(target.gateway.clone());}
+            if self.query_allowed(i) && self.ramp_reads.ready(target,now) && !background_led_phase && !self.control_opportunity.contains(&target.gateway) && now.saturating_add(gap)>=self.due[i] && !feedback.query_deferred(&target.gateway,now,self.priority.contains(&i)) {blocked.insert(target.gateway.clone());}
         }
         blocked
     }
@@ -177,7 +183,7 @@ impl<S:Read+Write+Send+'static> ObservedTransport<S> {
         let checked=self.poll_local_events(true).await?;
         let now=self.transport.now_ms();
         let window=self.local_refresh.as_ref().is_some_and(|plan|!self.background_led_phase
-            && plan.targets.iter().enumerate().any(|(i,target)|!plan.pending.contains_key(&target.gateway)
+            && plan.targets.iter().enumerate().any(|(i,target)|!plan.pending.contains_key(&target.gateway) && plan.query_allowed(i)
                 && !plan.recovery.contains_key(&target.gateway) && plan.due_at(i,self.feedback.module_truth())<=now
                 && plan.ramp_reads.ready(target,now) && !self.feedback.query_deferred(&target.gateway,now,plan.priority.contains(&i))));
         let checked=if window {Some(self.local_refresh_receive_window(checked).await?)}else{None};
@@ -212,6 +218,9 @@ impl<S:Read+Write+Send+'static> ObservedTransport<S> {
     }
     async fn advance_local_refresh(&mut self,plan:&mut Refresh,checked:Option<&BTreeSet<String>>)->Result<(),String> {
         let now=self.transport.now_ms();
+        plan.household_scopes=if self.transport.admission().household_operations_active() {
+            self.transport.admission().household_query_scopes(plan.controller,plan.generation.clone()).await.map_err(|e|format!("household query scope: {e:?}"))?
+        }else{Default::default()};
         plan.confirmation_until.retain(|index,until| {if now>=*until {plan.priority.remove(index);false}else{true}});
         for (index,deadline) in crate::control_batch::query_requirements(self.transport.admission(),&self.feedback,&plan.config,&plan.targets,plan.controller).await? {
             plan.priority.insert(index);plan.round.forget(index);plan.due[index]=0;
@@ -289,6 +298,7 @@ impl<S:Read+Write+Send+'static> ObservedTransport<S> {
             }
         }
         for (index,target) in plan.targets.iter().enumerate() {
+            if !plan.query_allowed(index) {continue;}
             if plan.ramp_reads.ready(target,now)&&!plan.pending.contains_key(&target.gateway)&&!plan.recovery.contains_key(&target.gateway)
                 &&self.transport.local_connected(&target.gateway)&&!self.transport.local_syncing(&target.gateway)
                 &&self.transport.local_idle_stream(&target.gateway)&&!self.feedback.query_deferred(&target.gateway,now,plan.priority.contains(&index))&&now>=plan.due_at(index,self.feedback.module_truth())&&(!plan.round.contains(index)||plan.strict.get(&index).is_some_and(|age|crate::consumer_refresh::due(target,self.feedback.module_truth(),*age)<=now)) {

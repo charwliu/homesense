@@ -51,6 +51,11 @@ pub struct RuleLease {
     pub(crate) indicator_after: Option<u64>,
 }
 impl RuleLease {
+    pub(crate) fn same_capture(&self,other:&Self,now:u64)->bool {
+        now>=self.captured_ms && self.expires_ms.is_none_or(|deadline|now<deadline)
+            && Arc::ptr_eq(&self.version,&other.version) && self.expected==other.expected
+            && self.boot==other.boot && self.revision==other.revision && self.epoch==other.epoch
+    }
 
     pub(crate) fn merge_physical(mut self,other:&Self)->Result<Self,String>{
         if !Arc::ptr_eq(&self.version,&other.version)||self.expected!=other.expected||self.boot!=other.boot||self.revision!=other.revision||self.epoch!=other.epoch||other.motor.is_some()||other.indicator_after.is_some()||!other.recorded_off_reads.is_empty(){return Err("foreign component baseline lease".into());}
@@ -112,6 +117,7 @@ impl SceneKeyObservation {
     pub(crate) fn wire(&self)->Option<&homesense_core::gateway_scope::WireScope>{self.wire.as_ref()}
 }
 pub struct Feedback {
+    last_frames: BTreeMap<String,u64>,
     lease_version: Arc<Mutex<u64>>,
     projection_versions: Arc<Mutex<projection_lease::Versions>>,
     boot: u128,
@@ -413,6 +419,7 @@ impl Feedback {
             local_wires:None,
             event_wires:BTreeMap::new(),
             panel_queries: panel_query_guard::Guard::default(),
+            last_frames: BTreeMap::new(),
             bulk_replies: bulk_reply_guard::Guard::default(),
             now: 0,
             stopped: false,
@@ -532,6 +539,7 @@ impl Feedback {
         let counts=proof.snapshot().devices.keys().filter_map(|id|self.states.observation_count(id).map(|n|(id.clone(),n))).collect();
         Ok(crate::away_execution::Observation {proof,counts,queries:self.output_query_turns.clone()})
     }
+    pub(crate) fn last_frames(&self)->BTreeMap<String,u64> {self.last_frames.clone()}
     pub(crate) fn output_query_finished(&mut self, configuration:&homesense_config::Configuration,
         target:&crate::physical_queries::Target, written_ms:u64, finished_ms:u64) {
         for id in configuration.devices().keys() {
@@ -645,6 +653,7 @@ impl Feedback {
                 if *transport_epoch != read.transport_epoch || frames.len() > 103 {
                     return Err("invalid feedback batch".into());
                 }
+                if !frames.is_empty() {self.last_frames.insert(read.gateway_id.clone(),read.received_at_ms);}
                 let mut count = 0;
                 for frame in frames {
                     let before=self.states.cursor();

@@ -22,6 +22,7 @@ pub(super) struct OutputRefresh {
     ramp_reads:crate::postwrite_confirmation::RampReads,
     prefer_postwrite: bool,
     away_critical: bool,
+    household_scopes:std::collections::BTreeMap<String,Option<u8>>,
     scanning: bool,
     recent_queries:std::collections::BTreeMap<(String,u8,u8),u64>,
     strict:std::collections::BTreeMap<usize,u64>,
@@ -81,7 +82,8 @@ impl OutputRefresh {
     }
     fn eligible(&self,index:usize,feedback:&Feedback,now:u64,postwrite:bool)->bool {
         let target=&self.targets[index];
-        self.query_backoff.get(&(target.gateway.clone(),target.module.address().get())).is_none_or(|until|now>=*until)
+        self.household_scopes.get(&target.gateway).is_none_or(|address|*address==Some(target.module.address().get()))
+            && self.query_backoff.get(&(target.gateway.clone(),target.module.address().get())).is_none_or(|until|now>=*until)
             && self.target_backoff.get(&index).is_none_or(|until|now>=*until)
             && self.ramp_reads.ready(target,now) && !feedback.query_deferred(&target.gateway,now,postwrite)
     }
@@ -369,6 +371,7 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
             self.output_refresh=None;return Ok(());
         }
         self.output_refresh = Some(OutputRefresh {
+            household_scopes:Default::default(),
             configuration: configuration.clone(),
             targets,
             controller,
@@ -427,6 +430,9 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
         plan: &mut OutputRefresh,
     ) -> Result<(), (String, String)> {
         let now = self.transport.now_ms();
+        plan.household_scopes=if self.transport.admission().household_operations_active() {
+            self.transport.admission().household_query_scopes(plan.controller,plan.generation.clone()).await.map_err(|e|("household-query-scope".into(),format!("{e:?}")))?
+        }else{Default::default()};
         plan.query_backoff.retain(|_,until|now<*until);
         plan.confirmation_until.retain(|index,until| {if now>=*until {plan.priority.remove(index);false}else{true}});
         let required=crate::control_batch::query_requirements(self.transport.admission(),&self.feedback,&plan.configuration,&plan.targets,plan.controller).await.map_err(|e|("feedback-proof".into(),e))?;
@@ -586,7 +592,7 @@ mod priority_tests {
         let boot=uuid::Uuid::parse_str(actor.boot_id()).unwrap().as_u128();
         let feedback=Feedback::new(&config,ExecutionContext::Simulation,boot,1).unwrap();
         let targets=crate::physical_queries::plan(&config,ExecutionContext::Simulation).unwrap();assert_eq!(targets.len(),8);
-        let refresh=OutputRefresh{
+        let refresh=OutputRefresh{household_scopes:Default::default(),
             configuration:config,targets,controller:uuid::Uuid::new_v4(),generation,context:ExecutionContext::Simulation,
             timeout_ms:500,max_age_ms:5000,interval_ms:20,response_ms:0,next:0,due:0,pending:None,control_opportunity:false,
             round:Default::default(),adaptive:None,priority:(0..8).collect(),confirmation_until:Default::default(),
@@ -594,6 +600,19 @@ mod priority_tests {
             recovery_failures:Default::default(),
         };
         (refresh, feedback, actor, root)
+    }
+
+    #[tokio::test]
+    async fn household_read_scope_filters_existing_priority_before_selecting_a_query() {
+        let (mut refresh,feedback,actor,root)=fixture().await;
+        assert!(refresh.next_query(&feedback,0).is_some());
+        refresh.household_scopes.insert("bus".into(),None);
+        assert!(refresh.next_query(&feedback,0).is_none(),"passive reply interval may not be stolen by an old priority query");
+        refresh.household_scopes.insert("bus".into(),Some(0x11));
+        assert!(refresh.next_query(&feedback,0).is_none(),"other module's priority cannot win before current-module missing read");
+        refresh.household_scopes.insert("bus".into(),Some(3));
+        assert!(refresh.next_query(&feedback,0).is_some(),"current module remains queryable without clearing ordinary priority history");
+        actor.shutdown().await.unwrap();std::fs::remove_dir_all(root).unwrap();
     }
 
     #[tokio::test]

@@ -430,3 +430,6 @@ pub mod gateway_scope;
 
 /// Bounded, feedback-driven Away attempts; the live owner supplies authority.
 pub mod away_execution;
+
+/// Serial full-module transactions. The runtime owns authorization and all I/O.
+pub mod module_sequence;

@@ -608,7 +608,7 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
         if !self.read_permits.contains_key(gateway) {
             match self
                 .admission
-                .reserve_physical_read(gateway.into(), budget_end_ms)
+                .reserve_module_read(gateway.into(), Some(module.address().get()), budget_end_ms)
                 .await
             {
                 Ok(permit) => {

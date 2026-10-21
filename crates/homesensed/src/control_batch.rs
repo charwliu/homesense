@@ -260,7 +260,7 @@ pub(crate) async fn query_requirements(admission:&Admission,feedback:&Feedback,c
         needed.entry(index).and_modify(|old|*old=(*old).max(deadline)).or_insert(deadline);
     }}
 
-    if admission.away_operations_active() {
+    if admission.away_operations_active() || admission.household_operations_active() {
         let generation=match admission.task_generation().await {Ok(value)=>value,Err(_)=>return Ok(needed)};
         let reads=admission.away_read_needs(controller,generation).await.map_err(|e|format!("Away confirmation reads: {e:?}"))?;
         let now=admission.monotonic_ms();

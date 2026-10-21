@@ -265,7 +265,7 @@ impl RuntimeSceneHap {
                     }else if let Some(scene)=managed_on {Action::SceneAction{controller:batch.controller,revision,scene:scene.clone(),execute:true}}
                     else{Action::SceneWrites{controller:batch.controller,revision,scenes:actions}};
                     let result=control.request(action).await;
-                    let accepted = matches!(result, Ok(Reply::ScenesAccepted(_) | Reply::ImmediateAccepted(_) | Reply::AwayAccepted(_) | Reply::CommandsAccepted(_)));
+                    let accepted = matches!(result, Ok(Reply::ScenesAccepted(_) | Reply::ImmediateAccepted(_) | Reply::AwayAccepted(_) | Reply::HouseholdAccepted(_) | Reply::CommandsAccepted(_)));
                     if let Err(reason)=&result {
                         log::warn!("HAP scene write rejected: {reason}");
                     }

@@ -13,6 +13,7 @@ pub(crate) struct Limiter {
     opening:Option<(crate::admission::TaskGeneration,Vec<u64>)>,
 }
 impl Limiter {
+    #[cfg(test)]
     pub(crate) fn opening_commands(&self,generation:&crate::admission::TaskGeneration)->&[u64] {
         self.opening.as_ref().filter(|(g,_)|g==generation).map_or(&[],|(_,ids)|ids.as_slice())
     }
@@ -80,6 +81,8 @@ pub(crate) fn prepare(config:&Configuration, document:&Document, controller:Uuid
     Ok(Prepared{controller,revision:document.revision,scene:scene.into(),scope,physical,lease})
 }
 impl Prepared {
+    pub(crate) fn scope(&self)->Vec<homesense_core::DeviceId> {self.scope.clone()}
+    pub(crate) fn same_observation(&self,proof:&crate::feedback::RuleLease,now:u64)->bool {self.lease.same_capture(proof,now)}
     pub(crate) fn compile(self,config:&Configuration,source:Option<&crate::source_auth::Source>)
         ->Result<(Batch,RuleLease),hap::server::WriteStatus> {
         use hap::server::WriteStatus;
@@ -92,4 +95,32 @@ impl Prepared {
         }
         Ok((Batch{controller:self.controller,intents:self.physical,subscriptions:vec![]},self.lease))
     }
+}
+
+/// A raw cached On is not stable while an older producer still owns a command.
+/// Restore only complete reviewed modules; never create a new output scope.
+pub(crate) fn restore_unsettled(config:&Configuration,scope:&[homesense_core::DeviceId],batch:&mut Batch,
+    mut settled:impl FnMut(&homesense_core::DeviceId)->Result<bool,hap::server::WriteStatus>)->Result<(),hap::server::WriteStatus> {
+    use hap::server::WriteStatus as W;
+    for group in scope.chunks(8) {
+        if group.len()!=8 {return Err(W::InvalidValueInRequest);}
+        if group.iter().all(|id|batch.intents.iter().any(|i|&i.device==id)){continue;}
+        if group.iter().any(|id|batch.intents.iter().any(|i|&i.device==id)){return Err(W::InvalidValueInRequest);}
+        let mut stable=true;for id in group {stable &= settled(id)?;}
+        if stable {continue;}
+        for id in group {
+            let (_,module)=config.binding(id).ok_or(W::InvalidValueInRequest)?;
+            let command=match module.kind() {
+                homesense_core::ModuleKind::Switch=>Command::Switch(true),
+                homesense_core::ModuleKind::Dimmer=>Command::SetLevel {level:homesense_core::Percent::new(100).unwrap(),transition:homesense_core::LevelTransition::Immediate},
+                _=>return Err(W::InvalidValueInRequest),
+            };
+            batch.intents.push(Intent {device:id.clone(),command});
+        }
+    }
+    batch.intents.sort_by_key(|intent| {
+        let (device,module)=config.binding(&intent.device).expect("reviewed household binding");
+        (u8::from(module.kind()==homesense_core::ModuleKind::Switch),device.gateway.clone(),module.address().get(),device.channel.get())
+    });
+    Ok(())
 }
