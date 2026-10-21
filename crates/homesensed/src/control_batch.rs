@@ -206,6 +206,15 @@ struct Condition {
     owned: std::collections::BTreeSet<u64>,
 }
 impl View {
+    // Keep genuine early replies for the owning operation's bounded window.
+    // The separate periodic-query freshness policy does not shorten this proof.
+    fn feedback_max_age_ms(&self) -> u64 {
+        if self.managed_away {
+            homesense_core::away_execution::Policy::default().feedback_ms
+        } else {
+            FEEDBACK_TOTAL_MS
+        }
+    }
     /// Pending LED proof may outlive an early relay reply while an AD8 ramps.
     /// Refresh only that proof's physical dependencies; never extend its lease.
     pub(crate) fn query_requirements(&self, config:&Configuration, feedback:&Feedback, targets:&[crate::physical_queries::Target], now:u64)->Vec<(usize,u64)> {
@@ -232,7 +241,7 @@ impl View {
                     // its bounded retry owner. Re-querying that same port
                     // continuously starves other modules' freshness proofs.
                     ||(!self.managed_away && !state.observed.is_some_and(|o|expected.target_matches(o)))
-                    ||!state.observed_at_ms.is_some_and(|at|at>*after && at<=now && now-at<FEEDBACK_SAMPLE_MS/2)
+                    ||!state.observed_at_ms.is_some_and(|at|at>*after && at<=now && now-at<self.feedback_max_age_ms()/2)
                 })
             });
             needed.then_some((index,self.deadline))
@@ -260,7 +269,7 @@ pub(crate) async fn query_requirements(admission:&Admission,feedback:&Feedback,c
             let state=feedback.module_truth().located_state(&device.gateway,device.address.get(),device.channel.get());
             let count=feedback.module_truth().port_observation_count(&device.gateway,device.address.get(),device.channel.get()).unwrap_or(0);
             let received=count>read.before_count && state.as_ref().is_some_and(|state|state.quality==homesense_state::Quality::Confirmed
-                && state.observed.is_some() && state.observed_at_ms.is_some_and(|at|at>=read.after_ms && now.checked_sub(at).is_some_and(|age|age<5000 || away_failed_sample(state,read.after_ms,now))));
+                && state.observed.is_some() && state.observed_at_ms.is_some_and(|at|at>=read.after_ms && now.checked_sub(at).is_some_and(|age|age<homesense_core::away_execution::Policy::default().feedback_ms || away_failed_sample(state,read.after_ms,now))));
             if received || now>=read.deadline_ms {continue;}
             for(index,target)in targets.iter().enumerate(){if target.gateway==device.gateway && target.module.address()==device.address && target.channels.contains(&device.channel.get()) {
                 needed.entry(index).and_modify(|old|*old=(*old).max(read.deadline_ms)).or_insert(read.deadline_ms);
@@ -859,6 +868,7 @@ impl Owner {
         if self.gates.get(&proof.view.id).and_then(|gate| gate.view(proof.view.id)).as_ref() != Some(&proof.view) {
             return Err(W::ResourceBusy);
         }
+        let feedback_max_age = proof.view.feedback_max_age_ms();
         let gate = self.gates.get_mut(&proof.view.id).ok_or(W::ResourceBusy)?;
         if gate.invalid || gate.generation != proof.view.generation || now >= gate.deadline
             || gate.delivery_deadline.is_some_and(|deadline| now >= deadline) {
@@ -879,12 +889,12 @@ impl Owner {
                 proof.view.targets.iter().all(|(device, (command, after))| {
                     sample.snapshot().devices.get(device).is_some_and(|s|
                         s.quality == homesense_state::Quality::Confirmed
-                        && s.observed_at_ms.is_some_and(|at| at > *after && at <= now && now-at <= FEEDBACK_SAMPLE_MS)
+                        && s.observed_at_ms.is_some_and(|at| at > *after && at <= now && now-at <= feedback_max_age)
                         && s.observed.is_some_and(|o| command.target_matches(o)))
                 }),
                 proof.view.targets.keys().filter_map(|device|
                     sample.snapshot().devices.get(device).and_then(|state| state.observed_at_ms)
-                        .map(|at| at.saturating_add(FEEDBACK_SAMPLE_MS))).min().unwrap_or(gate.deadline),
+                        .map(|at| at.saturating_add(feedback_max_age))).min().unwrap_or(gate.deadline),
             ),
             (Some(_), Sample::Conditions { matched, valid_until, .. }) => {
                 if *matched == Some(false) {
@@ -1217,8 +1227,33 @@ mod budget_tests {
         assert!(view.query_requirements(&config,&feedback,&targets,15000).is_empty(),"the original hard deadline cannot extend");
         observation_sample(&mut feedback,2700,2700,0);
         assert!(view.query_requirements(&config,&feedback,&targets,2700).is_empty());
-        assert!(!view.query_requirements(&config,&feedback,&targets,5201).is_empty(),"Off freshness and its pre-expiry refresh remain unchanged");
+        assert!(!view.query_requirements(&config,&feedback,&targets,2700+view.feedback_max_age_ms()/2+1).is_empty(),"Off feedback refresh remains bounded by its operation policy");
         admission.shutdown().await.unwrap();std::fs::remove_dir_all(root).unwrap();
+    }
+    #[tokio::test]
+    async fn serialized_led_feedback_retains_early_postwrite_replies_past_five_seconds() {
+        let (mut owner, mut feedback, admission, root, boot) = fixture().await;
+        let config = Configuration::parse(
+            include_bytes!("../../../config/test/native-app-keypad/devices.json"),
+            ExecutionContext::Simulation,
+        ).unwrap();
+        let targets = crate::physical_queries::plan(&config, ExecutionContext::Simulation).unwrap();
+        let view = owner.views().remove(0);
+        // A different module may complete the serialized confirmation at6s.
+        // This output already supplied genuine feedback after its write at10ms.
+        let sample = observation_sample(&mut feedback, 100, 6_000, 40);
+        owner.apply(Proof { view, sample: sample.into() }, boot, 6_000).unwrap();
+        assert!(owner.eligible(2, 6_000), "an early own-write reply must survive the existing15s phase budget");
+        assert_eq!(owner.write_deadline(2), Some(8_000));
+        let view = owner.views().remove(0);
+        assert!(view.query_requirements(&config, &feedback, &targets, 6_000).is_empty(),
+            "do not re-query a confirmed early output while later modules complete");
+        let sample = observation_sample(&mut feedback, 6_100, 6_100, 40);
+        owner.apply(Proof { view, sample: sample.into() }, boot, 6_100).unwrap();
+        assert_eq!(owner.write_deadline(2), Some(8_000), "new feedback must not renew LED delivery");
+        assert!(!owner.eligible(2, 8_000));
+        admission.shutdown().await.unwrap();
+        std::fs::remove_dir_all(root).unwrap();
     }
     #[tokio::test]
     async fn first_complete_postwrite_proof_arms_delivery_once_and_refresh_cannot_extend_it() {

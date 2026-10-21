@@ -676,7 +676,7 @@ async fn managed_away_completion_requires_combined_dimmer_zero_even_when_supply_
     assert_eq!(away_status(&f,&status_lease).await.confirmed_outputs,95);
     crate::control_batch::tick(&f.actor,f.controller,f.owner.feedback()).await.unwrap();
     assert!(f.owner.step().await.unwrap().is_none(),"a dark combined light is not proof that all96 physical outputs closed");
-    f.time.fetch_add(3000,Ordering::SeqCst);
+    f.time.fetch_add(homesense_core::away_execution::Policy::default().feedback_ms/2+1,Ordering::SeqCst);
     let config=homesense_storage::Store::open(f.directory.join("runtime.sqlite")).unwrap().active_bundle(ExecutionContext::Simulation).unwrap().unwrap().configuration;
     let targets=crate::physical_queries::plan(&config,ExecutionContext::Simulation).unwrap();
     let reads=crate::control_batch::query_requirements(&f.actor,f.owner.feedback(),&config,&targets,f.controller).await.unwrap();
