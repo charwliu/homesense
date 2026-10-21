@@ -28,8 +28,11 @@ impl Default for Policy {
             delay_ms: 200,
             send_ms: 2000,
             response_ms: RESPONSE_TIMEOUT_MS,
-            feedback_ms: 5000,
-            total_ms: 5_000,
+            // One serialized whole-house confirmation may span more than five
+            // seconds. This ceiling does not lengthen an individual module's
+            // response timeout, send lease, retry delay or attempt count.
+            feedback_ms: 10_000,
+            total_ms: 10_000,
         }
     }
 }

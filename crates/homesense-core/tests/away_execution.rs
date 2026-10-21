@@ -2,9 +2,9 @@ use homesense_core::{DeviceId, away_execution::*};
 use std::collections::{BTreeMap, BTreeSet};
 // The historical ageing/override regressions exercise observations older than
 // five seconds. Their explicit extended budget is independent of the production
-// five-second default, covered by the response tests below.
+// ten-second default, covered by the response tests below.
 fn extended_policy() -> Policy {
-    Policy { delay_ms: 1000, total_ms: 30_000, ..Policy::default() }
+    Policy { delay_ms: 1000, feedback_ms: 5000, total_ms: 30_000, ..Policy::default() }
 }
 fn id(module: usize, ch: usize) -> DeviceId {
     DeviceId::new(format!("m{module}:{ch}")).unwrap()
@@ -132,13 +132,13 @@ fn silent_module_times_out_one_second_after_write_and_only_it_is_retried() {
     assert!(matches!(operation.poll(34, Owner::Current, &evidence).unwrap(), Decision::Read(_)));
     assert!(matches!(operation.poll(1009, Owner::Current, &evidence).unwrap(), Decision::Read(_)));
     // The one-second window starts at Written(10), not at the send lease's
-    // deadline(2000), and not at the 30-second operation ceiling.
+    // deadline(2000), and not at the ten-second operation ceiling.
     assert_eq!(operation.poll(1010, Owner::Current, &evidence).unwrap(), Decision::Wait);
     assert_eq!(operation.poll(1209, Owner::Current, &evidence).unwrap(), Decision::Wait);
     let retry = attempt(&mut operation, 1210, &evidence);
     assert_eq!(retry.modules, BTreeSet::from(["m11".into()]));
     assert_eq!(retry.round, 2);
-    assert_eq!(operation.deadline_ms(), 5000);
+    assert_eq!(operation.deadline_ms(), 10_000);
     assert_eq!(operation.missing(&evidence, 1210).unwrap(),
         BTreeMap::from([("m11".into(), (1..=8).map(|ch| id(11, ch)).collect())]));
 }
@@ -174,7 +174,7 @@ fn silent_channel_exhausts_three_one_second_windows_without_waiting_thirty_secon
     assert_eq!(operation.terminal_missing(), Some(&BTreeMap::from([
         ("m11".into(), BTreeSet::from([id(11, 8)]))
     ])));
-    assert_eq!(operation.deadline_ms(), 5000);
+    assert_eq!(operation.deadline_ms(), 10_000);
 }
 #[test]
 fn queued_serial_reads_are_not_device_timeouts_and_do_not_manufacture_confirmation() {
@@ -203,8 +203,30 @@ fn queued_serial_reads_are_not_device_timeouts_and_do_not_manufacture_confirmati
     }
 }
 #[test]
+fn whole_house_serial_confirmation_can_finish_after_five_seconds_without_extending_module_timeouts() {
+    let policy=Policy::default();
+    assert_eq!((policy.total_ms,policy.feedback_ms),(10_000,10_000));
+    assert_eq!((policy.response_ms,policy.send_ms,policy.delay_ms,policy.max_rounds),(1000,2000,200,3));
+    let mut operation=Operation::new(scope(12),policy,0).unwrap();
+    let mut evidence=Evidence{queries:Some(BTreeMap::new()),..Evidence::default()};
+    let first=attempt(&mut operation,0,&evidence);let receipts=accept(&mut operation,&first,1);
+    written(&receipts,10,&mut evidence);
+    for module in 0..12 {
+        let at=50+module as u64*500;
+        for channel in 1..=8 {
+            evidence.queries.as_mut().unwrap().insert(id(module,channel),ReadTurn{written_ms:at,finished_ms:at+20});
+        }
+        off(module,at+20,2,&mut evidence);
+        let result=operation.poll(at+21,Owner::Current,&evidence).unwrap();
+        if module==11 {assert_eq!(result,Decision::Finished(End::Confirmed));}
+        else {assert!(matches!(result,Decision::Read(_)));}
+        assert_eq!(operation.rounds(),1,"queued reads must not invent a failed device or redundant write");
+        assert_eq!(operation.deadline_ms(),10_000,"progress never renews the operation ceiling");
+    }
+}
+#[test]
 fn five_second_deadline_reports_only_silent_output_even_if_query_queue_never_drains() {
-    let mut operation = Operation::new(scope(12), Policy::default(), 0).unwrap();
+    let mut operation = Operation::new(scope(12), Policy {total_ms:5000,..Policy::default()}, 0).unwrap();
     let mut evidence = Evidence { queries: Some(BTreeMap::new()), ..Evidence::default() };
     let first = attempt(&mut operation, 0, &evidence);
     let receipts = accept(&mut operation, &first, 1);

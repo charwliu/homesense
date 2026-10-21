@@ -184,18 +184,19 @@ async fn native_away_keeps_raw_event_authority_through_preflight_and_batches_twe
 
 #[tokio::test]
 async fn managed_native_away_waits_for_read_without_spending_rounds_or_replaying_retired_source() {
+    let operation_budget=homesense_core::away_execution::Policy::default().total_ms;
     for retirement in ["ready","owner-revoked","expired","long-read"] {
         let mut f=Fixture::build_with_away(true,false,true,true).await;let(_tokens,lease)=away_status_lease(&f);
         f.click(0,6).await;f.collect().await;
         let events=f.panels.take_native_dispatch();assert_eq!(events.len(),1);f.receiver.enqueue_native(events).unwrap();
-        let permit=f.actor.reserve_physical_read("bus".into(),f.time.load(Ordering::SeqCst)+if retirement=="long-read"{5000}else{300}).await.unwrap();
+        let permit=f.actor.reserve_physical_read("bus".into(),f.time.load(Ordering::SeqCst)+if retirement=="long-read"{operation_budget}else{300}).await.unwrap();
         f.receiver.poll_causal(&f.actor,&f.document,&mut f.scenes,f.owner.feedback(),5000,None,Some(&mut f.router)).await;
         assert_eq!(f.journal_count(),0,"logical admission waits; no short-lived physical tickets are renewed behind a read");
         let pending=away_status(&f,&lease).await;assert_eq!((pending.state.as_str(),pending.rounds),("pending",0));
         assert!(f.owner.step().await.unwrap().is_none());
         if retirement=="owner-revoked" {f.panels.disconnect();}
-        if retirement=="expired" {f.time.fetch_add(5001,Ordering::SeqCst);}
-        if retirement=="long-read" {f.time.fetch_add(5500,Ordering::SeqCst);}
+        if retirement=="expired" {f.time.fetch_add(operation_budget+1,Ordering::SeqCst);}
+        if retirement=="long-read" {f.time.fetch_add(operation_budget+500,Ordering::SeqCst);}
         drop(permit);f.time.fetch_add(51,Ordering::SeqCst);tick_away(&mut f).await;
         if retirement=="ready" {
             assert_eq!(f.journal_count(),13);assert_eq!(away_status(&f,&lease).await.rounds,1);
