@@ -240,20 +240,32 @@ pub(crate) async fn prepare(admission:&Admission,generation:&TaskGeneration,docu
             let snapshot=admission.scene_selection_snapshot(controller,generation.clone(),crate::scene_switches::variable_names(document)).await.map_err(|_|Rejection::RuntimeUnavailable)?;
             let states=crate::scene_switches::details(document,&snapshot).map_err(|_|Rejection::KeypadActionUnavailable)?;
             let selected=states.get(scene).and_then(|state|state.selected);
-            let action=if selected.is_none() && selected_group.reconciliation.as_ref().is_some_and(|policy|policy.enabled) {
-                // This is an accepted gesture cue, not a guessed final mode.
-                // Native planning still decides each light from fresh truth.
+            let relative_ready=if selected.is_none() {
+                if let Some(policy)=selected_group.reconciliation.as_ref().filter(|policy|policy.enabled) {
+                    let vectors=selected_group.absolute_light_targets(&document.timed_scenes).map_err(|_|Rejection::KeypadActionUnavailable)?;
+                    let member=selected_group.members.iter().find(|member|&member.scene==scene).ok_or(Rejection::KeypadActionUnavailable)?;
+                    let ids=vectors.get(&member.value).ok_or(Rejection::KeypadActionUnavailable)?.keys().cloned().collect::<Vec<_>>();
+                    match feedback.native_scene_capture(&ids,admission.monotonic_ms(),policy.max_age_ms) {
+                        Ok(_)=>true,
+                        // A failed or expired read is not evidence of power loss.
+                        // Use the reviewed absolute On branch and its source LED
+                        // cue rather than rejecting the physical key press.
+                        Err(error) if matches!(error.as_str(),"relative feedback stale or failed"|"relative feedback response invalid")=>false,
+                        Err(_)=>return Err(Rejection::RuntimeUnavailable),
+                    }
+                } else {false}
+            } else {false};
+            let action=if relative_ready {
                 if let Some(homesense_config::keypad::LocalIndicator::SceneSelection{group,selected_color,..})=&key.local_indicator {
                     if &selected_group.id!=group{return Err(Rejection::KeypadActionUnavailable);}
                     fallback=Some(homesense_core::Command::PanelLed(selected_color.red()));
                 }
                 Action::SceneRelative{controller,revision,scene:scene.clone(),request_id:request.request_id.clone()}
             } else {
-                // Recorded/ambiguous modes have no relative light recipe. On a
-                // fresh unknown selection, execute the reviewed On branch;
-                // only its successful execution may establish local selection.
-                // Keep the read fence even for unknown so a competing action
-                // cannot silently change this decision before queue admission.
+                // Unknown due to failed feedback deterministically turns On;
+                // a recorded selection still takes its explicit opposite.
+                // The variable version fence prevents a concurrent selection
+                // from silently changing this direction before admission.
                 let on=selected.unwrap_or(false);
                 selection.push(homesense_storage::variables::ReadCheck{revision,name:selected_group.variable.clone(),expected_version:snapshot[&selected_group.variable].stored.version});
                 if let Some(homesense_config::keypad::LocalIndicator::SceneSelection{group,selected_color,unselected_color,..})=&key.local_indicator {

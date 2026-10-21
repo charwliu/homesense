@@ -438,6 +438,22 @@ async fn unknown_reconciled_scene_cue_preserves_native_toggle_identity_and_curre
 }
 
 #[tokio::test]
+async fn failed_module_read_does_not_reject_a_wall_key_or_guess_a_hardware_toggle() {
+    let mut f=Fixture::with_policy(true,false,None,true,|_|{}).await;
+    let at=f.time.load(Ordering::SeqCst);
+    f.feedback.apply(&crate::transport_owner::GatewayRead{gateway_id:"bus".into(),transport_epoch:1,received_at_ms:at,
+        result:hb_transport::Receive::Frames{transport_epoch:1,frames:vec![hb_protocol::RawFrame{address:0x15,command:0xd1,value:17}]}}).unwrap();
+    f.feedback.missing_query_ports("bus",0x15,&[1],at).unwrap();
+    let prepared=f.prepare(&f.request()).await.unwrap();
+    assert!(matches!(prepared.action,Action::SceneAction{ref scene,execute:true,..} if scene=="reading"),
+        "invalidated feedback chooses reviewed absolute On, not a relative hardware Toggle");
+    let source=prepared.source.unwrap();let origin=source.keypad().unwrap();
+    assert_eq!(origin.fallback,Some(Command::PanelLed(true)),"the source key has an immediate red cue");
+    assert_eq!(origin.selection.len(),1,"the absolute decision retains its selection version fence");
+    f.close().await;
+}
+
+#[tokio::test]
 async fn fresh_physical_selection_without_background_projection_prepares_off() {
     for (main,other,execute) in [(40,0,false),(17,17,true),(0,0,true)] {
     let mut f=Fixture::with_policy(true,false,Some(0),true,|_|{}).await;
