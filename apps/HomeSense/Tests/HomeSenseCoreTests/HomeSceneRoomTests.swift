@@ -212,7 +212,7 @@ struct HomeSceneRoomTests {
         #expect(home.scenes(inRoom: "study") == assigned && home.devices == catalog)
         #expect(await server.base.captured().count == count)
     }
-    @Test func virtualScenePanelsGroupByRoomPaginateSixAndDeduplicateIDsWithoutMergingNames() async throws {
+    @Test func virtualScenePanelsGroupByRoomWithoutEmptySlotsAndDeduplicateIDsWithoutMergingNames() async throws {
         let server = SceneRoomHTTP(), home = await connect(server)
         defer { home.disconnect() }
         let count = await server.base.captured().count
@@ -224,12 +224,11 @@ struct HomeSceneRoomTests {
         let unknown = HomeRecord(.object(["id": .string("unresolved"), "room": .object(["id": .string("not-visible")])]))
         let input = rows + [rows[0], global, unknown]
         let panels = home.scenePanels(for: input)
-        #expect(panels.map { $0.scenes.count } == [6, 1, 1, 1])
-        #expect(panels[0].title == "书房场景" && panels[0].page == 1 && panels[0].pageCount == 2)
-        #expect(panels[1].page == 2 && panels[1].pageCount == 2)
-        #expect(panels[2].title == "全屋场景")
-        #expect(panels[3].title == "待分配场景")
-        #expect(panels.flatMap(\.scenes).map(\.id) == rows.map(\.id) + ["global", "unresolved"])
+        #expect(panels.map { $0.scenes.count } == [1, 7, 1])
+        #expect(panels[0].title == "全屋场景" && panels[0].scenes.map(\.id) == ["global"])
+        #expect(panels[1].title == "书房场景" && panels[1].scenes.map(\.id) == rows.map(\.id))
+        #expect(panels[2].title == "待分配场景")
+        #expect(panels.flatMap(\.scenes).map(\.id) == ["global"] + rows.map(\.id) + ["unresolved"])
         #expect(Set(panels.map(\.id)).count == panels.count)
         #expect(home.scenePanels(for: []).isEmpty)
         home.pause()

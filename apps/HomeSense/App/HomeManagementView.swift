@@ -256,6 +256,10 @@ struct HomeManagementView: View {
     private var dailyOverview: some View {
         VStack(alignment: .leading, spacing: 20) {
             categoryShortcuts
+            let scenes = home.householdScenes
+            if !scenes.isEmpty {
+                HomeSceneCards(home: home, scenes: scenes, openDetails: { editor = $0 })
+            }
             Text("房间").font(.title2.bold())
             LazyVGrid(columns: cardColumns, alignment: .leading, spacing: 16) {
                 ForEach(home.rooms) { room in
@@ -265,13 +269,7 @@ struct HomeManagementView: View {
             if home.rooms.isEmpty { empty("暂无可见房间", "房间和设备清单由服务端授权决定。") }
             Text("灯与窗帘").font(.title2.bold())
             HomeDeviceCards(home: home, devices: home.dailyActuators, openDetails: { editor = $0 })
-            let scenes = home.householdScenes
-            if !scenes.isEmpty {
-                Text("全屋场景").font(.title2.bold())
-                HomeSceneCards(home: home, scenes: scenes, openDetails: { editor = $0 })
-            }
             if !home.unassignedScenes.isEmpty {
-                Text("待分配场景").font(.title2.bold())
                 Text("归属尚未确认，可在管理模式中核对并分配。").font(.caption).foregroundStyle(.secondary)
                 HomeSceneCards(home: home, scenes: home.unassignedScenes, openDetails: { editor = $0 })
             }
@@ -637,45 +635,31 @@ private struct HomeDINModuleCard: View {
     }
 }
 
-/// Virtual two-column scene keys reuse the existing scene admission/HTTP path.
+/// Scene groups use their actual entry count and the existing admission path.
 private struct HomeSceneCards: View {
     @ObservedObject var home: HomeServerStore
     let scenes: [HomeRecord]
     let openDetails: (HomeEditRequest) -> Void
     var body: some View {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 260), alignment: .top)], alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 16) {
             ForEach(home.scenePanels(for: scenes)) { panel in
-                GeometryReader { geometry in
-                    VStack(spacing: 12) {
-                        HStack {
-                            Label(panel.title, systemImage: "sparkles").font(.headline).lineLimit(1).minimumScaleFactor(0.7)
-                            Spacer(minLength: 4)
-                            Text(panel.pageCount > 1 ? "\(panel.page) / \(panel.pageCount)" : "\(panel.scenes.count) 个")
-                                .font(.caption).foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Label(panel.title, systemImage: "sparkles").font(.headline)
+                        Spacer(minLength: 4)
+                        Text("\(panel.scenes.count) 个").font(.caption).foregroundStyle(.secondary)
+                    }
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 160), alignment: .top)], alignment: .leading, spacing: 8) {
+                        ForEach(panel.scenes) { scene in
+                            sceneKey(scene).frame(height: 82)
                         }
-                        VStack(spacing: 8) {
-                            ForEach(0..<3) { row in
-                                HStack(spacing: 8) {
-                                    sceneSlot(panel, index: row * 2)
-                                    sceneSlot(panel, index: row * 2 + 1)
-                                }.frame(maxHeight: .infinity)
-                            }
-                        }
-                    }.padding(min(18, geometry.size.width * 0.05))
-                        .frame(width: geometry.size.width, height: geometry.size.height)
+                    }
                 }
-                .aspectRatio(1, contentMode: .fit)
+                .padding(16)
                 .background(.background, in: RoundedRectangle(cornerRadius: 20))
                 .overlay { RoundedRectangle(cornerRadius: 20).strokeBorder(.primary.opacity(0.08)) }
                 .accessibilityIdentifier("home.scenePanel.\(panel.id)")
             }
-        }
-    }
-    @ViewBuilder private func sceneSlot(_ panel: HomeScenePanel, index: Int) -> some View {
-        if index < panel.scenes.count { sceneKey(panel.scenes[index]) }
-        else {
-            RoundedRectangle(cornerRadius: 10).fill(.primary.opacity(0.015))
-                .frame(maxWidth: .infinity, maxHeight: .infinity).accessibilityHidden(true)
         }
     }
     private func sceneKey(_ scene: HomeRecord) -> some View {
