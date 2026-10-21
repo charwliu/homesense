@@ -60,6 +60,7 @@ pub enum Action {
 #[derive(Debug, PartialEq, Eq)]
 pub enum Reply {
     AwayAccepted(crate::away_execution::Accepted),
+    HouseholdAccepted(crate::household_sequence::Accepted),
     AwayOperations(Vec<crate::away_execution::View>),
     KeypadAccepted(Box<crate::keypad_actions::Receipt>),
     KeypadRejected(crate::keypad_actions::Rejection),
@@ -379,6 +380,7 @@ pub(crate) struct Receiver {
     prefer_web_work:bool,
     prefer_background_read:bool,
     next_away_tick:u64,
+    next_household_tick:u64,
     scene_lights:crate::scene_lights::Cache,
 }
 pub(crate) fn channel(controller: Uuid, generation: TaskGeneration) -> (Control, Receiver) {
@@ -409,6 +411,7 @@ pub(crate) fn channel(controller: Uuid, generation: TaskGeneration) -> (Control,
             prefer_web_work:true,
             prefer_background_read:false,
             next_away_tick:0,
+            next_household_tick:0,
             scene_lights:Default::default(),
         },
     )
@@ -529,6 +532,12 @@ impl Receiver {
             self.next_away_tick=admission.monotonic_ms().saturating_add(50);
             if let Ok(observation)=feedback.away_observation(admission.monotonic_ms()) {
                 let _=admission.tick_away_operations(self.controller,self.generation.clone(),observation).await;
+            }
+        }
+        if admission.household_operations_active() && admission.monotonic_ms()>=self.next_household_tick {
+            self.next_household_tick=admission.monotonic_ms().saturating_add(20);
+            if let Ok(observation)=feedback.away_observation(admission.monotonic_ms()) {
+                let _=admission.tick_household(self.controller,self.generation.clone(),observation,feedback.last_frames()).await;
             }
         }
         self.relative.tick(admission,document,feedback).await;
@@ -863,12 +872,13 @@ impl Receiver {
                             let prepared=crate::household_scene::prepare(&bundle.configuration,document,controller,&scene,feedback,admission.monotonic_ms(),max_age_ms)?;
                             if request.reply.is_closed()||Instant::now()>=request.deadline {return Err("household On expired or abandoned".into());}
                             let limit=admission.monotonic_ms().saturating_add(u64::try_from(request.deadline.saturating_duration_since(Instant::now()).as_millis()).unwrap_or(u64::MAX));
-                            let ids=admission.submit_shared_light(self.generation.clone(),crate::shared_light::Prepared::HouseholdOn(Box::new(prepared)),limit).await.map_err(|e|format!("{e:?}"))?;
+                            let observation=feedback.away_observation(admission.monotonic_ms())?;
+                            let accepted=admission.begin_household(self.generation.clone(),prepared,observation,feedback.last_frames(),limit).await.map_err(|e|format!("{e:?}"))?;
                             for device in document.away_off.as_ref().unwrap().modules.iter().flat_map(|m|&m.devices) {
                                 let device=homesense_core::DeviceId::new(device.clone()).map_err(|e|e.to_string())?;
                                 if let Err(reason)=scenes.manual_override(&device).await {log::warn!("accepted household On timeline retirement failed: {reason}");}
                             }
-                            return Ok(Reply::CommandsAccepted(ids));
+                            return Ok(Reply::HouseholdAccepted(accepted));
                         }
                         if document.immediate_scenes.contains_key(&scene) {
                             let reply=Box::pin(crate::immediate_scene::writes(admission,document,&self.generation,controller,&[(scene,Some(execute))],causal,scenes,feedback,max_age_ms,self.budget,request.deadline)).await?;

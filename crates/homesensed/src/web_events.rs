@@ -154,7 +154,7 @@ pub(crate) fn upgrade(
         let mut availability=serde_json::Value::Null;
         let mut directory=serde_json::Value::Null;
         let mut light_projection_state=serde_json::Value::Null;
-        let mut away_operations=serde_json::Value::Null;
+        let mut away_operations=serde_json::Value::Null;let mut household_operations=json!([]);
         let mut away_priority=false;
     let mut motor_estimates=serde_json::Value::Null;
         let mut interval = tokio::time::interval(Duration::from_millis(500));
@@ -206,6 +206,7 @@ pub(crate) fn upgrade(
                         }
                         continue;
                     };
+                    let next_household=json!(update.snapshot.household_operations.iter().rev().take(8).collect::<Vec<_>>());
                     let next_away=if update.snapshot.keypad_away_scope.as_ref().is_some_and(|scope|scope.permitted(&grant)) {away_response}else{json!([])};
                     let active_away=next_away.as_array().is_some_and(|operations|operations.iter().any(|operation|
                         !matches!(operation["state"].as_str(),Some("confirmed"|"failed"|"cancelled"))));
@@ -214,7 +215,8 @@ pub(crate) fn upgrade(
                     // only this connection's same-scope metadata, explicitly
                     // discarding its old activity proof. The terminal result
                     // gets the same fast turn; normal truth resumes next tick.
-                    let priority=(active_away || away_priority || next_away!=away_operations)
+                    let active_household=next_household.as_array().is_some_and(|rows|rows.iter().any(|row|row["state"]=="pending"));
+                    let priority=(active_away || active_household || away_priority || next_away!=away_operations || next_household!=household_operations)
                         && !update.reset && scenes["revision"]==json!(runtime.revision.to_string());
                     away_priority=active_away;
                     let scene_response=if priority {
@@ -253,11 +255,11 @@ pub(crate) fn upgrade(
                     let next_keypads=json!(update.snapshot.keypads);
                     let next_directory=json!(update.snapshot.directory(api.can_manage_configuration(&grant)));
                     let next_availability=json!(update.snapshot.devices.iter().map(|view|(view.id.as_str(),&view.availability,&view.communication_error)).collect::<Vec<_>>());
-                    if cursor.as_ref()!=Some(&update.cursor) || next_scenes!=scenes || next_motor_estimates!=motor_estimates || next_keypads!=keypads || next_availability!=availability || next_directory!=directory || next_light_projection!=light_projection_state || next_away!=away_operations || unavailable {
+                    if cursor.as_ref()!=Some(&update.cursor) || next_scenes!=scenes || next_motor_estimates!=motor_estimates || next_keypads!=keypads || next_availability!=availability || next_directory!=directory || next_light_projection!=light_projection_state || next_away!=away_operations || next_household!=household_operations || unavailable {
                         let devices=crate::management_keypads::devices_json(&update.snapshot,&grant);
-                        let frame=json!({"type":"state","cursor":update.cursor,"reset":update.reset,"devices":devices,"scenes":next_scenes["scenes"],"revision":next_scenes["revision"],"rooms":next_directory["rooms"],"floors":next_directory["floors"],"away_operations":next_away}).to_string();
+                        let frame=json!({"type":"state","cursor":update.cursor,"reset":update.reset,"devices":devices,"scenes":next_scenes["scenes"],"revision":next_scenes["revision"],"rooms":next_directory["rooms"],"floors":next_directory["floors"],"away_operations":next_away,"household_operations":next_household}).to_string();
                         if frame.len()>512*1024 || !matches!(tokio::time::timeout(Duration::from_secs(2),socket.send(Message::Text(frame.into()))).await,Ok(Ok(()))){break;}
-                        cursor=Some(update.cursor);scenes=next_scenes;motor_estimates=next_motor_estimates;keypads=next_keypads;availability=next_availability;directory=next_directory;light_projection_state=next_light_projection;away_operations=next_away;unavailable=false;last_send=std::time::Instant::now();
+                        cursor=Some(update.cursor);scenes=next_scenes;motor_estimates=next_motor_estimates;keypads=next_keypads;availability=next_availability;directory=next_directory;light_projection_state=next_light_projection;away_operations=next_away;household_operations=next_household;unavailable=false;last_send=std::time::Instant::now();
                     }
                     if last_send.elapsed()>=Duration::from_secs(15) {
                         if !matches!(tokio::time::timeout(Duration::from_secs(2),socket.send(Message::Ping(Bytes::new()))).await,Ok(Ok(()))){break;}

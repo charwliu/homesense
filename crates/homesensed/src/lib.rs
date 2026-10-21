@@ -10,6 +10,7 @@ pub mod simulation_hap;
 
 mod light_command;
 mod household_scene;
+mod household_sequence;
 
 pub mod transport_owner;
 

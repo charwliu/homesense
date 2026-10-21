@@ -84,6 +84,7 @@ impl TaskGeneration {pub(crate) fn boot_id(&self)->&str{&self.boot}}
 /// One owner-thread snapshot; readiness does not prove physical device state.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Diagnostics {
+    pub household_operations:Vec<crate::household_sequence::View>,
     pub native_events:crate::panel_execution_auth::Status,
     pub gateways:Vec<crate::gateway_runtime::View>,
     pub boot: String,
@@ -403,7 +404,7 @@ pub(crate) use query_reservation::Permit as QueryReadPermit;
 #[cfg(test)]
 pub(crate) type SelectionTestRead=oneshot::Receiver<Result<BTreeMap<String,homesense_storage::variables::Stored>,WriteStatus>>;
 enum Message {
-    ReservePhysicalRead(String,Option<TaskGeneration>,u64,oneshot::Sender<Result<QueryReadPermit,WriteStatus>>),
+    ReservePhysicalRead(String,Option<u8>,Option<TaskGeneration>,u64,oneshot::Sender<Result<QueryReadPermit,WriteStatus>>),
     ActivateGateways(Vec<crate::gateway_runtime::Initial>,oneshot::Sender<Result<(),WriteStatus>>),
     GatewayFault(GatewayFaultTarget,oneshot::Sender<Result<crate::gateway_runtime::FaultReport,WriteStatus>>),
     GatewayAttempt(String,oneshot::Sender<Result<homesense_core::gateway_scope::WireScope,WriteStatus>>),
@@ -411,6 +412,10 @@ enum Message {
     GatewayAvailability(oneshot::Sender<Result<Vec<crate::gateway_runtime::View>,WriteStatus>>),
     ReceivedProjection(homesense_core::gateway_scope::WireScope,Vec<u64>,Vec<homesense_core::DeviceId>,u64,homesense_state::Snapshot,oneshot::Sender<Result<(),WriteStatus>>),
     AwayReadNeeds(Uuid,TaskGeneration,oneshot::Sender<Result<Vec<crate::away_execution::ReadNeed>,WriteStatus>>),
+    BeginHousehold(TaskGeneration,crate::household_scene::Prepared,Option<crate::source_auth::Source>,crate::away_execution::Observation,BTreeMap<String,u64>,u64,oneshot::Sender<Result<crate::household_sequence::Accepted,WriteStatus>>),
+    TickHousehold(Uuid,TaskGeneration,crate::away_execution::Observation,std::collections::BTreeMap<String,u64>,oneshot::Sender<Result<(),WriteStatus>>),
+    HouseholdQueryScopes(Uuid,TaskGeneration,oneshot::Sender<Result<BTreeMap<String,Option<u8>>,WriteStatus>>),
+    HouseholdViews(Uuid,TaskGeneration,oneshot::Sender<Result<Vec<crate::household_sequence::View>,WriteStatus>>),
     StartAway(u64,TaskGeneration,crate::away_auth::Authorization,Option<crate::source_auth::Source>,crate::away_execution::Observation,Instant,oneshot::Sender<Result<crate::away_execution::Accepted,WriteStatus>>),
     TickAway(Uuid,TaskGeneration,crate::away_execution::Observation,oneshot::Sender<Result<(),WriteStatus>>),
     AwayViews(Uuid,TaskGeneration,crate::away_auth::Authorization,oneshot::Sender<Result<Vec<crate::away_execution::View>,WriteStatus>>),
@@ -579,6 +584,7 @@ pub struct Admission {
     ttl: Duration,
     stop_requested: Arc<AtomicBool>,
     away_active:Arc<AtomicBool>,
+    household_active:Arc<AtomicBool>,
     away_terminal:tokio::sync::watch::Receiver<()>,
     generations: tokio::sync::watch::Receiver<Option<TaskGeneration>>,
     observation_invalidation: Arc<AtomicU64>,
@@ -648,6 +654,8 @@ impl Admission {
         let worker_stop = stop_requested.clone();
         let away_active=Arc::new(AtomicBool::new(false));
         let worker_away_active=away_active.clone();
+        let household_active=Arc::new(AtomicBool::new(false));
+        let worker_household_active=household_active.clone();
         let (away_terminal_updates,away_terminal)=tokio::sync::watch::channel(());
         let observation_invalidation=Arc::new(AtomicU64::new(1));
         let worker_observation_invalidation=observation_invalidation.clone();
@@ -729,6 +737,7 @@ impl Admission {
                 let mut module_off_jobs = BTreeMap::<u64,crate::away_off::Target>::new();
                 let mut away_executions=crate::away_execution::Registry::default();
                 let mut household_limiter=crate::household_scene::Limiter::default();
+                let mut household_sequences=crate::household_sequence::Owner::default();
                 let mut away_reset_dependencies = BTreeMap::<u64,Vec<u64>>::new();
                 let mut away_local_leases = BTreeMap::<u64,crate::away_auth::Authorization>::new();
                 let mut module_queries = BTreeMap::<u64,crate::module_queries::Target>::new();
@@ -744,6 +753,21 @@ impl Admission {
                 let mut next_id = 1u64;
                 let mut failed = false;
                 let mut gateways:Option<crate::gateway_runtime::State>=None;
+                macro_rules! household_context { () => { crate::household_sequence::Context {
+                    config:&configuration,store:&mut store,arbiter:&mut arbiter,gateways:gateways.as_ref(),boot:&worker_boot,
+                    next_id:&mut next_id,principals:&mut principals,sources:&mut source_leases,manual:&mut manual_versions,
+                    batches:&mut control_batches,now:millis(clock),
+                } }; }
+
+
+                macro_rules! household_allows { ($command:expr) => {{
+                    let command=$command;
+                    if let Some((binding,module))=configuration.binding(&command.device_id) {
+                        household_sequences.allows(&binding.gateway,module.address().get(),command.command,command.id)
+                    }else if let Some(query)=module_queries.get(&command.id) {
+                        configuration.module(&query.module_id).is_some_and(|(location,module)|household_sequences.allows(&location.gateway,module.address().get(),command.command,command.id))
+                    }else{true}
+                }}; }
 
                 // Only a successful communication-fault audit may keep a HAP
                 // graph locally unavailable. Every other terminal failure clears
@@ -851,6 +875,8 @@ impl Admission {
                     if component_modes.audit(&mut store,mode_generation.as_ref(),millis(clock),&|id|authorize(id),&manual_versions,&|wire|gateways.as_ref().is_some_and(|g|g.table.ready(wire))).is_err(){failed=true;audited_transport_failure=false;let _=arbiter.storage_failed();}
                     if program_activity.audit(&store,mode_generation.as_ref(),&manual_versions,|id|authorize(id),|wire|gateways.as_ref().is_some_and(|g|g.table.ready(wire)),millis(clock)).is_err(){failed=true;audited_transport_failure=false;let _=arbiter.storage_failed();}
                     if control_batches.audit(&store,mode_generation.as_ref(),millis(clock),|id|authorize(id),&manual_versions).is_err(){failed=true;audited_transport_failure=false;let _=arbiter.storage_failed();}
+                    if household_sequences.audit(&mut household_context!(),mode_generation.as_ref(),&|id|authorize(id)).is_err(){failed=true;audited_transport_failure=false;let _=arbiter.storage_failed();}
+                    worker_household_active.store(household_sequences.active(),Ordering::Release);
                     for (reason, ids) in control_batches.invalidated_leds() {
                         if failed { break; }
                         let cancelled = arbiter.cancel_queued_ids_committed(&ids, reason, |rows| {
@@ -1240,7 +1266,7 @@ impl Admission {
                             // never changes admission or its ready-generation subscribers.
                             let _=reply.send(result);
                         }
-                        Message::ReservePhysicalRead(gateway,generation,budget_end_ms,reply)=>{
+                        Message::ReservePhysicalRead(gateway,address,generation,budget_end_ms,reply)=>{
                             let result=(|| {
                                 let policy=arbiter.policy();
                                 if ((failed || !policy.storage_healthy) && !audited_transport_failure) || publication.is_some() || worker_stop.load(Ordering::Acquire) || generation.as_ref().is_some_and(|g|g.boot!=worker_boot || g.epochs!=policy.epochs) || !configuration.gateways().contains_key(&gateway) || !policy.valid_configuration_loaded {return Err(WriteStatus::ResourceBusy);}
@@ -1248,7 +1274,9 @@ impl Admission {
                                     job.wires.iter().all(|wire|gateways.as_ref().is_none_or(|g|g.table.ready(wire)))
                                         && job.manual.iter().all(|(id,version)|manual_versions.get(id).copied().unwrap_or(0)==*version));
                                 if away_wait.contains(&gateway) {return Err(WriteStatus::ResourceBusy);}
+                                if !household_sequences.read_allowed(&gateway,address) {return Err(WriteStatus::ResourceBusy);}
                                 let pending=arbiter.has_pending_matching(|command| {
+                                    if !household_allows!(command) {return false;}
                                     if (matches!(command.command,homesense_core::Command::PanelLed(_)|homesense_core::Command::PanelLedOff)||away_reset_dependencies.contains_key(&command.id))&&!control_batches.eligible(command.id,millis(clock)){return false;}
                                     if command.command!=homesense_core::Command::ModuleAllOff && !command.is_stop()
                                         && !crate::native_scene::foreground_query(command,policy.epochs,millis(clock))
@@ -1273,7 +1301,7 @@ impl Admission {
                             let policy=arbiter.policy();
                             let result=if !authorize(controller) {Err(WriteStatus::InsufficientPrivileges)}
                             else if generation.boot!=worker_boot || generation.epochs.configuration!=policy.epochs.configuration {Err(WriteStatus::ServiceCommunicationFailure)}
-                            else {Ok(Diagnostics {native_events:crate::panel_execution_auth::status(&configuration,native_registration.as_ref(),mode_generation.as_ref()),gateways:gateways.as_ref().map_or_else(Vec::new,|g|g.views()),boot:worker_boot.clone(),epochs:policy.epochs,queued:arbiter.queued_len(),protected_queued:arbiter.has_pending_matching(|command|command.command==homesense_core::Command::ModuleAllOff || command.is_stop() || crate::native_scene::foreground_query(command,policy.epochs,millis(clock)) || (matches!(command.command,homesense_core::Command::PanelLed(_)) && control_batches.eligible(command.id,millis(clock))) || (away_reset_dependencies.contains_key(&command.id)&&control_batches.eligible(command.id,millis(clock)))),in_flight:in_flight.is_some(),failed,stopping:worker_stop.load(Ordering::Acquire),publishing:policy.publishing,gateway_ready:policy.gateway_ready && gateways.as_ref().is_none_or(|g|g.table.all_ready()),controller_enabled:policy.controller,storage_healthy:policy.storage_healthy,valid_configuration_loaded:policy.valid_configuration_loaded,wire_capacity:crate::WireCapacity::for_write_interval(options.write_interval)})};
+                            else {Ok(Diagnostics {household_operations:household_sequences.views(),native_events:crate::panel_execution_auth::status(&configuration,native_registration.as_ref(),mode_generation.as_ref()),gateways:gateways.as_ref().map_or_else(Vec::new,|g|g.views()),boot:worker_boot.clone(),epochs:policy.epochs,queued:arbiter.queued_len(),protected_queued:arbiter.has_pending_matching(|command|household_allows!(command) && (command.command==homesense_core::Command::ModuleAllOff || command.is_stop() || crate::native_scene::foreground_query(command,policy.epochs,millis(clock)) || (matches!(command.command,homesense_core::Command::PanelLed(_)) && control_batches.eligible(command.id,millis(clock))) || (away_reset_dependencies.contains_key(&command.id)&&control_batches.eligible(command.id,millis(clock))))),in_flight:in_flight.is_some(),failed,stopping:worker_stop.load(Ordering::Acquire),publishing:policy.publishing,gateway_ready:policy.gateway_ready && gateways.as_ref().is_none_or(|g|g.table.all_ready()),controller_enabled:policy.controller,storage_healthy:policy.storage_healthy,valid_configuration_loaded:policy.valid_configuration_loaded,wire_capacity:crate::WireCapacity::for_write_interval(options.write_interval)})};
                             let _=reply.send(result);
                         }
                         Message::PublicationState(reply) => { let _=reply.send(!failed && arbiter.policy().publishing && publication.is_some()); },
@@ -1689,12 +1717,73 @@ impl Admission {
                             if result==Err(WriteStatus::ServiceCommunicationFailure) {failed=true; audited_transport_failure=false;let _=arbiter.storage_failed();}
                             let _=reply.send(result);
                         }
+                        Message::BeginHousehold(generation,prepared,source,observation,last_frames,deadline,reply)=>{
+                            let result=(||{
+                                let now=millis(clock);
+                                if failed || worker_stop.load(Ordering::Acquire) || now>=deadline || generation.boot!=worker_boot || generation.epochs!=arbiter.policy().epochs || !arbiter.policy().gateway_ready || arbiter.policy().publishing {return Err(WriteStatus::ResourceBusy);}
+                                if household_sequences.active() || away_executions.jobs.iter().any(|j|j.engine.end().is_none()) {return Err(WriteStatus::ResourceBusy);}
+                                if !prepared.same_observation(observation.proof.lease(),now) {return Err(WriteStatus::ResourceBusy);}
+                                let _proof=observation.proof.lease().lock(observer_boot,configuration.revision(),generation.epochs.transport,now).map_err(|_|WriteStatus::ResourceBusy)?;
+                                let scope=prepared.scope();
+                                let (mut batch,_)=prepared.compile(&configuration,source.as_ref())?;
+                                crate::household_scene::restore_unsettled(&configuration,&scope,&mut batch,|id| {
+                                    let observed=observation.proof.snapshot().devices.get(id).and_then(|s|s.observed_at_ms);
+                                    store.feedback_is_settled_in_epoch(&worker_boot,id,observed,generation.epochs.transport).map_err(|_|WriteStatus::ServiceCommunicationFailure)
+                                })?;
+                                if !authorize(batch.controller) || source.as_ref().is_some_and(|s|!s.valid_for(batch.controller,configuration.revision())) {return Err(WriteStatus::InsufficientPrivileges);}
+                                let controller=batch.controller;
+                                if !batch.intents.is_empty() && !household_limiter.permits(&generation,true,now,false,false) {return Err(WriteStatus::ResourceBusy);}
+                                let wires=gateways.as_ref().map(|g|g.device_requirements(&configuration,scope.iter().cloned())).transpose()?.unwrap_or_default();
+                                let serial=household_sequences.next_serial()?;
+                                if batch.intents.is_empty(){
+                                    household_context!().claim_scope(&scope,source.as_ref())?;
+                                    return Ok(household_sequences.record_noop(&generation,scope.len()/8,serial));
+                                }
+                                let mut job=crate::household_sequence::Job::new(&configuration,batch,generation.clone(),source.clone(),wires,&manual_versions,scope.clone(),serial,now)?;
+                                let fence=household_context!().claim_scope(&scope,source.as_ref())?;
+                                for version in job.manual.values_mut(){*version=fence;}
+                                let quiet=in_flight.is_none() && job.gateway().is_none_or(|gateway|query_slots.get(gateway).is_none_or(|q|q.active.load(Ordering::Acquire)==0)
+                                    && last_frames.get(gateway).is_none_or(|at|now>=at.saturating_add(options.write_interval.as_millis() as u64)));
+                                let commands=household_context!().advance(&mut job,&observation,quiet)?;
+                                let accepted=crate::household_sequence::Accepted {operation:job.operation(),commands:commands.clone()};
+                                household_limiter.accepted(generation,true,now,commands);
+                                household_sequences.jobs.push_back(job);worker_household_active.store(true,Ordering::Release);
+                                let _=controller;Ok(accepted)
+                            })();
+                            if result==Err(WriteStatus::ServiceCommunicationFailure){failed=true;audited_transport_failure=false;let _=arbiter.storage_failed();}
+                            let _=reply.send(result);
+                        }
+                        Message::TickHousehold(controller,generation,observation,last_frames,reply)=>{
+                            let result=(||{
+                                if failed || !authorize(controller) || generation.boot!=worker_boot || generation.epochs!=arbiter.policy().epochs{return Err(WriteStatus::ResourceBusy);}
+                                let now=millis(clock);
+                                let _proof=observation.proof.lease().lock(observer_boot,configuration.revision(),generation.epochs.transport,now).map_err(|_|WriteStatus::ResourceBusy)?;
+                                if let Some(index)=household_sequences.jobs.iter().position(|j|j.active()) {
+                                    let mut job=household_sequences.jobs.remove(index).ok_or(WriteStatus::ServiceCommunicationFailure)?;
+                                    let valid=job.valid(Some(&generation),&manual_versions,&|id|authorize(id),gateways.as_ref())
+                                        && !away_executions.jobs.iter().any(|j|j.engine.end().is_none());
+                                    let quiet=in_flight.is_none() && job.gateway().is_none_or(|gateway|query_slots.get(gateway).is_none_or(|q|q.active.load(Ordering::Acquire)==0)
+                                        && last_frames.get(gateway).is_none_or(|at|now>=at.saturating_add(options.write_interval.as_millis() as u64)));
+                                    let result=if valid {household_context!().advance(&mut job,&observation,quiet).map(|_|())}else{job.retire(now)};
+                                    household_sequences.jobs.insert(index,job);result?;
+                                }
+                                Ok(())
+                            })();
+                            if result==Err(WriteStatus::ServiceCommunicationFailure){failed=true;audited_transport_failure=false;let _=arbiter.storage_failed();}
+                            worker_household_active.store(household_sequences.active(),Ordering::Release);let _=reply.send(result);
+                        }
+                        Message::HouseholdQueryScopes(controller,generation,reply)=>{
+                            let result=if !authorize(controller)||generation.boot!=worker_boot||generation.epochs!=arbiter.policy().epochs {Err(WriteStatus::InsufficientPrivileges)}else{Ok(household_sequences.query_scopes())};let _=reply.send(result);
+                        }
+                        Message::HouseholdViews(controller,generation,reply)=>{
+                            let result=if !authorize(controller)||generation.boot!=worker_boot||generation.epochs!=arbiter.policy().epochs {Err(WriteStatus::InsufficientPrivileges)}else{Ok(household_sequences.views())};let _=reply.send(result);
+                        }
                         Message::AwayReadNeeds(controller,generation,reply)=>{
                             let result=if !authorize(controller) || generation.boot!=worker_boot || generation.epochs!=arbiter.policy().epochs {Err(WriteStatus::InsufficientPrivileges)}else{
                                 Ok(away_executions.jobs.iter().filter(|job|job.generation==generation && job.lease.valid() && authorize(job.lease.controller())
                                     && job.source.as_ref().is_none_or(|s|s.valid_for(job.lease.controller(),configuration.revision()))
                                     && job.manual.iter().all(|(id,v)|manual_versions.get(id).copied().unwrap_or(0)==*v)
-                                    && job.wires.iter().all(|wire|gateways.as_ref().is_none_or(|g|g.table.ready(wire)))).flat_map(|job|job.read_needs()).collect())
+                                    && job.wires.iter().all(|wire|gateways.as_ref().is_none_or(|g|g.table.ready(wire)))).flat_map(|job|job.read_needs()).chain(household_sequences.read_needs()).collect())
                             };let _=reply.send(result);
                         }
                         Message::StartAway(revision,generation,lease,source,observation,admit_before,reply)=>{
@@ -2270,6 +2359,7 @@ impl Admission {
                                     job.wires.iter().all(|wire|gateways.as_ref().is_none_or(|g|g.table.ready(wire)))
                                         && job.manual.iter().all(|(id,version)|manual_versions.get(id).copied().unwrap_or(0)==*version));
                                 let eligible=|command:&QueuedCommand| {
+                                        if !household_allows!(command) {return false;}
                                         let gateway=if let Some(target)=module_off_jobs.get(&command.id) {
                                             Some(target.plan.modules()[target.index].gateway_id().to_owned())
                                         }else if let Some(target)=module_queries.get(&command.id) {
@@ -2511,6 +2601,7 @@ impl Admission {
                                             program_activity.written(id,written_ms);
                                             control_batches.written(id,written_ms);
                                             away_executions.written(id,written_ms);
+                                            household_sequences.written(id,written_ms);
                                             if let Some((device,color,epochs))=in_flight_led.remove(&id) {
                                                 if led_outputs.written(device.clone(),id,color,epochs).is_err() {
                                                     failed=true;audited_transport_failure=false;let _=arbiter.storage_failed();
@@ -2553,7 +2644,6 @@ impl Admission {
                             let mut native_attempt:Option<(homesense_storage::native_scene::Request,Option<u64>)>=None;
                             let mut native_accepted:Option<(homesense_storage::native_scene::Request,u64,u64,bool)>=None;
                             let mut native_run=None;let mut native_deadline=None;
-                            let mut household_on=false;
                             let result = (|| {
                                 if failed || millis(clock) >= deadline || generation.as_ref().is_some_and(|scope| match scope {
                                     SubmissionScope::Generation(g) => g.boot != worker_boot || g.epochs != arbiter.policy().epochs,
@@ -2570,17 +2660,8 @@ impl Admission {
                                 if !keypad_origins.permits(request_source.as_ref().and_then(|source|source.keypad()),configuration.revision()){return Err(WriteStatus::InvalidValueInRequest);}
                                 let (submission, study, automation, variables, feedback, audit, scene, starts) = match *submission {
                                     Submission::SharedLight(prepared)=>{
-                                        household_on=matches!(&*prepared,crate::shared_light::Prepared::HouseholdOn(_));
                                         let (batch,lease)=prepared.compile(&configuration,request_source.as_ref())?;
                                         if !authorize(batch.controller){return Err(WriteStatus::InsufficientPrivileges);}
-                                        if household_on {
-                                            let scope=TaskGeneration{boot:worker_boot.clone(),epochs:arbiter.policy().epochs};
-                                            let pending=household_limiter.opening_commands(&scope).iter().map(|id|store.command_status(&worker_boot,*id))
-                                                .collect::<Result<Vec<_>,_>>().map_err(|_|WriteStatus::ServiceCommunicationFailure)?
-                                                .iter().any(|s|!matches!(s,Some(homesense_storage::journal::Status::Written|homesense_storage::journal::Status::Observed|homesense_storage::journal::Status::Cancelled|homesense_storage::journal::Status::Failed|homesense_storage::journal::Status::Uncertain)));
-                                            let active=away_executions.jobs.iter().any(|job|job.engine.end().is_none());
-                                            if active || !batch.intents.is_empty() && !household_limiter.permits(&scope,true,millis(clock),active,pending) {return Err(WriteStatus::ResourceBusy);}
-                                        }
                                         (Submission::NativePhysical(batch),None,false,vec![],Some(Box::new(lease)),None,None,vec![])
                                     },
                                     Submission::Native(prepared)=>{
@@ -3168,7 +3249,6 @@ impl Admission {
                                         program_activity.accepted(program_prepared,TaskGeneration{boot:worker_boot.clone(),epochs:arbiter.policy().epochs},batch.controller,request_source.clone(),&batch_tickets,&manual_versions,&configuration,program_wires,native_deadline.map_or(led_total_deadline,|n:u64|n.min(led_total_deadline)),now);
                                         let batch_guards=batch_guard_names.into_iter().filter_map(|name|match store.logical_variable(configuration.revision(),&name){Ok(Some(value))=>Some(Ok(homesense_storage::variables::ReadCheck{revision:configuration.revision(),name,expected_version:value.version})),Ok(None)=>None,Err(_)=>Some(Err(WriteStatus::ServiceCommunicationFailure))}).collect::<Result<Vec<_>,_>>()?;
                                         control_batches.accepted(&configuration,&batch_tickets,TaskGeneration{boot:worker_boot.clone(),epochs:arbiter.policy().epochs},batch.controller,request_source.clone(),batch_guards,&manual_versions);
-                                        if household_on {household_limiter.accepted(TaskGeneration{boot:worker_boot.clone(),epochs:arbiter.policy().epochs},true,now,(next_id..end).collect());}
                                         let ids = (next_id..end).collect();
                                         next_id = end;
                                         Ok(ids)
@@ -3228,6 +3308,7 @@ impl Admission {
             ttl: options.request_ttl,
             stop_requested,
             away_active,
+            household_active,
             away_terminal,
             generations,
             observation_invalidation,
@@ -3336,11 +3417,15 @@ impl Admission {
         let(reply,result)=oneshot::channel();self.sender.try_send(Message::Dispatch(Some(available),None,query_paused,None,reply)).map_err(|_|WriteStatus::ResourceBusy)?;
         result.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?.map(|tickets|tickets.into_iter().next())
     }
+    #[cfg(test)]
     pub(crate) async fn reserve_physical_read(&self,gateway:String,budget_end_ms:u64)->Result<QueryReadPermit,WriteStatus> {
+        self.reserve_module_read(gateway,None,budget_end_ms).await
+    }
+    pub(crate) async fn reserve_module_read(&self,gateway:String,address:Option<u8>,budget_end_ms:u64)->Result<QueryReadPermit,WriteStatus> {
         // Startup/recovery reads precede the ready-generation watch. The actor
         // still checks live queue/failure/mapping and linearizes the claim.
         let generation=self.generations.borrow().clone();
-        let (reply,receive)=oneshot::channel();self.sender.try_send(Message::ReservePhysicalRead(gateway,generation,budget_end_ms,reply)).map_err(|_|WriteStatus::ResourceBusy)?;
+        let (reply,receive)=oneshot::channel();self.sender.try_send(Message::ReservePhysicalRead(gateway,address,generation,budget_end_ms,reply)).map_err(|_|WriteStatus::ResourceBusy)?;
         receive.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?
     }
     pub async fn dispatch(&self) -> Result<Option<DispatchTicket>, WriteStatus> {
@@ -3413,6 +3498,21 @@ impl Admission {
         let _ = self.sender.try_send(Message::Wake);
     }
     pub(crate) fn away_operations_active(&self)->bool {self.away_active.load(Ordering::Acquire)}
+    pub(crate) fn household_operations_active(&self)->bool {self.household_active.load(Ordering::Acquire)}
+    pub(crate) async fn begin_household(&self,generation:TaskGeneration,prepared:crate::household_scene::Prepared,observation:crate::away_execution::Observation,last_frames:BTreeMap<String,u64>,deadline:u64)->Result<crate::household_sequence::Accepted,WriteStatus>{
+        let(tx,rx)=oneshot::channel();self.sender.try_send(Message::BeginHousehold(generation,prepared,self.source_authorization.clone(),observation,last_frames,deadline,tx)).map_err(|_|WriteStatus::ResourceBusy)?;rx.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?
+    }
+    pub(crate) async fn tick_household(&self,controller:Uuid,generation:TaskGeneration,observation:crate::away_execution::Observation,last_frames:BTreeMap<String,u64>)->Result<(),WriteStatus>{
+        let(tx,rx)=oneshot::channel();self.sender.try_send(Message::TickHousehold(controller,generation,observation,last_frames,tx)).map_err(|_|WriteStatus::ResourceBusy)?;rx.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?
+    }
+    pub(crate) async fn household_query_scopes(&self,controller:Uuid,generation:TaskGeneration)->Result<BTreeMap<String,Option<u8>>,WriteStatus> {
+        let(tx,rx)=oneshot::channel();self.sender.try_send(Message::HouseholdQueryScopes(controller,generation,tx)).map_err(|_|WriteStatus::ResourceBusy)?;rx.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?
+    }
+    pub(crate) async fn household_views(&self,controller:Uuid,generation:TaskGeneration)->Result<Vec<crate::household_sequence::View>,WriteStatus>{
+        let(tx,rx)=oneshot::channel();self.sender.try_send(Message::HouseholdViews(controller,generation,tx)).map_err(|_|WriteStatus::ResourceBusy)?;rx.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?
+    }
+
+
     /// A wake contains no result or authority; readers must capture and
     /// authorize their current runtime snapshot after every notification.
     pub(crate) fn away_terminal_updates(&self)->tokio::sync::watch::Receiver<()> {
@@ -4475,7 +4575,7 @@ mod transport_fault_reply_tests;
 mod partial_gateway_readiness_tests {
     #[test]
     fn partial_readability_never_reopens_global_failure_or_aggregate_readiness() {
-        let base=super::Diagnostics {
+        let base=super::Diagnostics {household_operations:vec![],
             native_events:Default::default(),
             gateways:vec![crate::gateway_runtime::View {gateway:"synthetic-a".into(),connection_epoch:"7".into(),state:"offline"}],
             boot:"synthetic".into(),epochs:homesense_core::queue::Epochs {configuration:1,transport:1,control:1},

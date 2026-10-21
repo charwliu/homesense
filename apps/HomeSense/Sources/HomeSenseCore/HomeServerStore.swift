@@ -106,6 +106,7 @@ public final class HomeServerStore: ObservableObject {
     @Published public private(set) var capturedAt: Date?
     @Published public private(set) var message = "连接 HomeSense 服务，读取家庭、设备与场景。"
     private var pushedCommunicationError: String?
+    private var pushedHouseholdError: String?
     @Published public var error: String?
     @Published public private(set) var deviceDocument: HomeJSON?
     @Published public private(set) var automationDocument: HomeJSON?
@@ -394,6 +395,7 @@ public final class HomeServerStore: ObservableObject {
         snapshotBoot = ""; synchronization = "未连接"
         deviceDocument = nil; automationDocument = nil; preview = nil; draftID = nil
         baseRevision = ""; candidateRevision = ""; draftChanged = false; error = nil
+        pushedHouseholdError = nil; pushedCommunicationError = nil
         message = "已断开服务端并清除本次会话令牌；本机 Keychain 凭证保留。"
     }
     private func stopEvents() {
@@ -546,6 +548,7 @@ public final class HomeServerStore: ObservableObject {
         // scene controls. Still accept scene changes on the same event cursor.
         if scenes != nextScenes { scenes = nextScenes }
         eventCursor = cursor
+        pushedHouseholdError = HomeCommunicationAlerts.householdMessage(for: frame["household_operations"])
         applyCommunicationAlerts()
         synchronizeUnifiedKeypadContext()
         updateUnifiedKeypadHints(incoming, seedEvents: frame["reset"].flag, clearCues: frame["reset"].flag)
@@ -559,7 +562,7 @@ public final class HomeServerStore: ObservableObject {
         if synchronization != "服务端实时推送" { synchronization = "服务端实时推送" }
     }
     private func applyCommunicationAlerts() {
-        let next = HomeCommunicationAlerts.message(for: devices)
+        let next = pushedHouseholdError ?? HomeCommunicationAlerts.message(for: devices)
         if let next { if error != next { error = next } }
         else if pushedCommunicationError != nil, error == pushedCommunicationError { error = nil }
         pushedCommunicationError = next
