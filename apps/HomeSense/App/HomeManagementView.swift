@@ -592,10 +592,10 @@ private struct HomeDINModuleCard: View {
                     Circle().fill(hasFeedback ? Color.red : Color.red.opacity(0.16))
                         .overlay { Circle().strokeBorder(.red.opacity(0.6)) }
                         .frame(width: 17, height: 17)
-                    Text(hasFeedback ? "通电" : "断电").font(.caption2)
+                    Text(hasFeedback ? "有响应" : "待核").font(.caption2)
                 }
                 .accessibilityElement(children: .ignore)
-                .accessibilityLabel("供电：\(hasFeedback ? "有反馈，通电" : "无反馈，断电")")
+                .accessibilityLabel("模块状态：\(hasFeedback ? "已收到反馈" : "暂无有效反馈，供电状态待核")")
                 .accessibilityIdentifier("module.\(module.id).powerLED")
             }
             HStack(alignment: .top, spacing: 4) {
@@ -603,7 +603,7 @@ private struct HomeDINModuleCard: View {
                     channel(indicator).frame(maxWidth: .infinity)
                 }
             }
-            Text("按读取时反馈显示；无反馈视为断电。")
+            Text("按实际反馈显示；暂无有效反馈时供电状态待核。")
                 .font(.caption2).foregroundStyle(.secondary)
             Button("设置与测试", systemImage: "slider.horizontal.3", action: openDetails)
                 .accessibilityIdentifier("module.\(module.id).details")

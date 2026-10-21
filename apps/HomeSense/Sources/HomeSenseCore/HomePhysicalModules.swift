@@ -44,8 +44,8 @@ public struct HomePhysicalModule: Identifiable, Equatable, Sendable {
             return HomeDINChannelIndicator(number: number, isOn: on, brightness: level)
         }
     }
-    /// A confirmed channel reply is the installation's power proxy. All-off
-    /// replies still mean the module is powered; absent feedback leaves it dark.
+    /// A confirmed channel reply is evidence that the module responded. The
+    /// absence of a reply cannot distinguish lost power from a bus/read fault.
     public var dinHasFeedback: Bool { dinChannelIndicators.contains { $0.isOn != nil } }
     public var supportsQuery: Bool {
         ["whole_module", "individual_channels"].contains(raw["query_mode"].text ?? "")
