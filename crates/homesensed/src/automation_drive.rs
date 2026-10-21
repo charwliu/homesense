@@ -491,16 +491,13 @@ pub(crate) async fn drive_with_panel_feeds<S: Read + Write + Send + 'static>(
                 // maintenance when this wave finishes or reaches its deadline.
                 let background_ready=!away_critical && background_led_phase.is_none();
                 let indicators_turn=background_ready && !reconciliation_turn;
-                if background_ready && reconciliation_turn {
+                if background_ready && reconciliation_turn && guard.scenes.publication_impact().is_empty() {
                     // Bound background metadata work as well as wire work.
                     // Each group keeps its full definition and proof; merely
                     // yield to controls/receives between independent groups.
-                    let start=reconciliation_cursor.min(document.scene_switch_groups.len());
-                    let end=(start+2).min(document.scene_switch_groups.len());
-                    let groups=&document.scene_switch_groups[start..end];
-                    crate::scene_initialization::tick_groups(admission,receiver.controller(),document,guard.scenes,guard.owner.feedback(),groups).await?;
-                    crate::scene_reconciliation::tick_groups(admission,receiver.controller(),document,guard.scenes,guard.owner.feedback(),groups).await?;
-                    reconciliation_cursor=if end==document.scene_switch_groups.len(){0}else{end};
+                    let groups=admission.projection_refresh_groups(document,&mut reconciliation_cursor);
+                    crate::scene_initialization::tick_groups(admission,receiver.controller(),document,guard.scenes,guard.owner.feedback(),&groups).await?;
+                    crate::scene_reconciliation::tick_groups(admission,receiver.controller(),document,guard.scenes,guard.owner.feedback(),&groups).await?;
                 }
                 // Do not concatenate two full-catalog maintenance passes in
                 // one request/receive quantum. The next loop pumps controls

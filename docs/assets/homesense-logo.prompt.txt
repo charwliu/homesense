@@ -1,0 +1,8 @@
+Use case: logo-brand
+Asset type: final logo symbol for the README of HomeSense, Chinese name 知居, a native local smart-home controller.
+Primary request: design one beautifully resolved, distinctive minimalist symbol combining a home's roofline, a subtle H monogram, and a single sensing/connection node. It should communicate a calm, attentive home and reliable local automation.
+Style/medium: crisp flat vector-like logo rendered as a PNG, geometrically balanced, rounded joins, generous negative space, legible at small sizes.
+Composition: one centered symbol, square canvas, symbol fills about 78% of the canvas. No branding presentation sheet, no multiple options.
+Color: rich teal main geometry with a restrained warm amber sensing node; make the teal sufficiently visible on both light and dark backgrounds.
+Text: none; the bilingual name will be typeset separately as actual README text.
+Constraints: genuinely transparent background; clean hard edges with antialiasing; no shadows, no gradients, no 3D, no mockup, no watermark, no tiny circuit details, no generic WiFi arcs. Create one original unified icon, not several separate clipart elements.

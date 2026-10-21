@@ -1,6 +1,6 @@
 # 阶段 E 验收跟踪
 
-目标依据 design.md 第 20、23–25 节：完成原生 Rust HAP 配件公开、场景入口、Web 管理和鉴权，验证配对、反馈、断线恢复与权限；用户已取消后续 Siri 验收。阶段 D 的未完成项继续保留在 stage-d-progress.md，不能因目标扩展而视为完成。
+目标依据 design.md 第 20、23–25 节及后续用户调整：完成原生 Rust HAP 配件公开、场景入口、原生 HomeSense App 管理和鉴权，验证配对、反馈、断线恢复与权限。浏览器管理页面和 Siri 验收已取消，HTTPS API／WSS 保留给原生客户端。当前完整范围和余项见 [D/E 完成审计](de-completion-audit.md) 与 [阶段 E 当前余项](stage-e-remaining.md)；阶段 D 未完成项继续保留，不因旧版本通过而视为完成。下文旧 Web 验收和版本描述作为历史记录保留。
 
 2026-10-13 `884850d` 的Linux来源七项限定回归已独立核查：完整1,026归档文件与提交一致，15份源码／测试指纹与最终Mac候选一致；原始日志重算storage3＋runtime4精确ID，0失败／忽略／过滤，两份实际保留x86_64 ELF逐字节指纹匹配。退出与临时库清理只依据执行及退出后记录，本轮未查询当前远程进程、重跑测试或操作现场。这是两个来源集成目标，不扩大为完整Linux库／工作区、release或客户端验收，也不叠加旧132／indicator6／Mac531。见[Linux来源根核查](evidence/stage-e-browser/rule-source-audit-linux-root-check.json)。原项目语义与当前现场门槛继续保持未完成。
 

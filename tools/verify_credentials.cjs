@@ -1,6 +1,6 @@
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const elements=new Map();const element=id=>{if(!elements.has(id))elements.set(id,{value:'',textContent:'',addEventListener(){}});return elements.get(id)};
-const pending=[];const context=vm.createContext({TextEncoder,document:{getElementById:element},fetch:(path,options)=>new Promise(resolve=>pending.push({path,options,resolve}))});
+const pending=[];const context=vm.createContext({crypto:{randomUUID:()=>'synthetic-management-key'},TextEncoder,document:{getElementById:element},fetch:(path,options)=>new Promise(resolve=>pending.push({path,options,resolve}))});
 vm.runInContext(fs.readFileSync(require('node:path').join(__dirname,'../crates/homesensed/src/web/app.js'),'utf8'),context);
 (async()=>{
  const task=element('read-credentials').onclick();assert.equal(pending[0].path,'/api/v1/credentials');pending.shift().resolve({ok:true,json:async()=>({credentials:[{id:'fixture',grant:{role:'Member',devices:['lamp'],scenes:[]}}]})});await task;

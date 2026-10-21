@@ -3,7 +3,7 @@ const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/st
 const make=()=>({value:'',textContent:'',children:[],addEventListener(){},append(...items){this.children.push(...items)},replaceChildren(){this.children=[]},remove(){this.removed=true}});
 const elements=new Map(),element=id=>{if(!elements.has(id))elements.set(id,make());return elements.get(id)};
 const pending=[];
-const context=vm.createContext({document:{getElementById:element,createElement:make},fetch:(path,options)=>new Promise(resolve=>pending.push({path,options,resolve})),clearTimeout(){},setTimeout(){},location:{origin:'http://127.0.0.1:1'}});
+const context=vm.createContext({crypto:{randomUUID:()=>'synthetic-management-key'},document:{getElementById:element,createElement:make},fetch:(path,options)=>new Promise(resolve=>pending.push({path,options,resolve})),clearTimeout(){},setTimeout(){},location:{origin:'http://127.0.0.1:1'}});
 vm.runInContext(fs.readFileSync(require('node:path').join(__dirname,'../crates/homesensed/src/web/app.js'),'utf8'),context);
 (async()=>{
  vm.runInContext("csrf='synthetic';publicationPreview={draft:'demo'}",context);

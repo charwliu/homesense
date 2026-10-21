@@ -14,7 +14,7 @@ with tempfile.TemporaryDirectory(prefix='homesense-publication-') as directory:
  with socket.socket() as sock:sock.bind(('127.0.0.1',0));port=sock.getsockname()[1]
  origin=f'http://127.0.0.1:{port}'
  def request(path,body=None):
-  req=urllib.request.Request(origin+path,data=None if body is None else json.dumps(body).encode(),headers={'Authorization':'Bearer '+secret,'Origin':origin,'Content-Type':'application/json'})
+  req=urllib.request.Request(origin+path,data=None if body is None else json.dumps(body).encode(),headers={'Authorization':'Bearer '+secret,'Origin':origin,'Content-Type':'application/json','Idempotency-Key':str(uuid.uuid4())})
   try:
    with urllib.request.urlopen(req,timeout=25) as response:return response.status,json.load(response)
   except urllib.error.HTTPError as e:return e.code,json.load(e)
@@ -134,7 +134,7 @@ with tempfile.TemporaryDirectory(prefix='homesense-publication-') as directory:
      archive_path='/api/v1/config/drafts/'+restore_id+'/archive'
      assert request(archive_path, {})[0]==400
      # Archive requires an empty POST body, not a JSON object.
-     req=urllib.request.Request(origin+archive_path,data=b'',headers={'Authorization':'Bearer '+secret,'Origin':origin})
+     req=urllib.request.Request(origin+archive_path,data=b'',headers={'Authorization':'Bearer '+secret,'Origin':origin,'Idempotency-Key':str(uuid.uuid4())})
      for _ in range(2):
       with urllib.request.urlopen(req,timeout=10) as response:assert response.status==200 and json.load(response)['archived'] is True
      assert request('/api/v1/config/drafts/'+restore_id+'/source')[0]==404

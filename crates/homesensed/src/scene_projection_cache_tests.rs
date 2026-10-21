@@ -168,6 +168,27 @@ async fn dependent_value_change_and_same_batch_round_trip_revoke_projection() {
 }
 
 #[tokio::test]
+async fn stale_read_requests_metadata_refresh_without_bypassing_feedback_proof() {
+    let (config, rules) = reconciled();
+    let (mut h, time) = clocked(config, rules).await;
+    levels(&mut h, Some(30), Some(0));
+    reconcile(&h).await;
+    selected(&h, Some(1)).await;
+    time.store(101, Ordering::Release);
+    levels(&mut h, Some(0), Some(0));
+    selected(&h, None).await;
+    let mut cursor=0;
+    let groups=h.actor.projection_refresh_groups(&h.document,&mut cursor);
+    assert_eq!(groups.iter().map(|g|g.variable.as_str()).collect::<Vec<_>>(), ["selection"]);
+    selected(&h, None).await; // taking priority is not evidence of completion
+    let scenes=crate::scene_scheduler::SceneScheduler::new(h.actor.clone(),h.controller,8,h.actor.monotonic_ms()).unwrap();
+    crate::scene_reconciliation::tick_groups(&h.actor,h.controller,&h.document,&scenes,&h.feedback,&groups).await.unwrap();
+    selected(&h, Some(0)).await;
+    h.no_output();
+    h.close().await;
+}
+
+#[tokio::test]
 async fn invalid_dependency_and_recovery_require_a_new_projection() {
     let (config, rules) = reconciled();
     let (mut h, time) = clocked(config, rules).await;

@@ -1,0 +1,11 @@
+Use case: precise-object-edit
+Asset type: HomeSense 知居 orange smart-home brain hub logo with three distinct functional nodes.
+Edit target: the supplied orange pitched roof, orange-and-white brain hub, and three connected peripheral circular nodes, with a green leaf in the rightmost node.
+Primary request: make ALL THREE peripheral nodes have DIFFERENT OUTER SHAPES and DIFFERENT CLEAR CONTENT, while preserving the logo's overall structure.
+Specific edits:
+1. LOWER-LEFT NODE: change its outer orange circle to a rounded SQUARE with a thick orange border and amber interior. Center a simple bold white LIGHTBULB pictogram in that amber interior, representing lighting. A clean bulb outline/solid bulb and small base, no tiny rays or detail.
+2. BOTTOM-CENTER NODE: change its outer orange circle to a rounded regular HEXAGON with a thick orange border and amber interior. Center two simple white curved arrows forming a recognizable AUTOMATION CYCLE in that amber interior. Distinct visible arrowheads and wide negative space, readable when small.
+3. LOWER-RIGHT NODE: keep its ROUND outer orange ring, green inner disk and bold white LEAF silhouette, representing energy efficiency and environmental care.
+Keep the three nodes visually equal in weight and approximately the same size, at their existing positions. Keep all connecting stems smoothly joined to the new node borders. The left is square, middle is hexagonal, right is circular: unmistakably different silhouettes.
+Invariants: keep the exact main roofline, brain silhouette, white brain fills, orange brain folds, overall proportions, central symmetry and composition. Preserve the genuine transparent background and alpha. Keep warm orange dominant with amber and one green accent.
+Style: crisp clean flat vector-like logo, bold rounded geometry, no text, gradients, texture, shadows, 3D, mockup, additional nodes or new background. One finished unified symbol.

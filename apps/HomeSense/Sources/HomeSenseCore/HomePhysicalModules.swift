@@ -1,5 +1,13 @@
 import Foundation
 
+public struct HomeDINChannelIndicator: Identifiable, Equatable, Sendable {
+    public let number: Int
+    /// nil means the module has no confirmed feedback for this channel.
+    public let isOn: Bool?
+    public let brightness: Int?
+    public var id: Int { number }
+}
+
 /// The administrator's physical inventory. No model is inferred from a light
 /// name, a logical device alias, or a module address.
 public struct HomePhysicalModule: Identifiable, Equatable, Sendable {
@@ -19,6 +27,26 @@ public struct HomePhysicalModule: Identifiable, Equatable, Sendable {
         }
     }
     public var slots: [HomeJSON] { raw["slots"].values }
+    public var dinChannelIndicators: [HomeDINChannelIndicator] {
+        guard channelCount == 8,
+              ["r8i8_din_pro_v2_7_7", "ad8_din_rs485_v2_2_1"].contains(profile) else { return [] }
+        return (1...8).map { number in
+            let slot = slots.first { $0["channel"].integerText == String(number) } ?? .null
+            let confirmed = slot["quality"].text == "confirmed"
+            let actual = slot["actual"]
+            let level = profile == "ad8_din_rs485_v2_2_1" && confirmed
+                ? actual["level"].integerText.flatMap(Int.init).flatMap { (0...100).contains($0) ? $0 : nil }
+                : nil
+            let on: Bool?
+            if profile == "ad8_din_rs485_v2_2_1" { on = level.map { $0 > 0 } }
+            else if confirmed, case .bool(let value) = actual["on"] { on = value }
+            else { on = nil }
+            return HomeDINChannelIndicator(number: number, isOn: on, brightness: level)
+        }
+    }
+    /// A confirmed channel reply is the installation's power proxy. All-off
+    /// replies still mean the module is powered; absent feedback leaves it dark.
+    public var dinHasFeedback: Bool { dinChannelIndicators.contains { $0.isOn != nil } }
     public var supportsQuery: Bool {
         ["whole_module", "individual_channels"].contains(raw["query_mode"].text ?? "")
     }

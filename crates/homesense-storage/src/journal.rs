@@ -107,6 +107,16 @@ pub struct UndeliveredWrite<'a> {
 impl UndeliveredWrite<'_> {
     /// Consume the reservation before constructing or delivering a ticket.
     pub fn release(self) {}
+    /// A plain light request may expire during its synchronous Writing commit.
+    /// Only this still-exclusive capability can prove no transmitter received
+    /// it. Motor/STOP/module operations and released tickets are excluded.
+    pub fn cancel_expired_light_before_delivery(self, command:Command, now_ms:u64)->Result<(),Error> {
+        if !matches!(command,Command::Switch(_)|Command::SetLevel{..}|Command::Toggle) {return Err(Error::InvalidAudit)}
+        let tx=self.store.connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let count=tx.execute("UPDATE command_journal SET status='cancelled',updated_ms=?1,cancellation_reason='ExpiredBeforeDelivery' WHERE boot_id=?2 AND command_id=?3 AND status='writing' AND updated_ms<=?1 AND deadline_ms<=?1 AND intent=?4",params![integer(now_ms)?,self.boot,integer(self.id)?,intent(command).as_slice()])?;
+        if count!=1 {return Err(Error::Conflict)}
+        tx.commit()?;Ok(())
+    }
     /// A guarded projection can have a shorter wire lease than its original
     /// total wait budget. This reservation still proves no ticket was delivered.
     pub fn cancel_expired_projection_before_delivery(self,now_ms:u64,effective_deadline:u64)->Result<(),Error> {

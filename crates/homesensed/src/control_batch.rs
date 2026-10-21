@@ -467,6 +467,9 @@ impl Owner {
     pub(crate) fn phase(&self, id: u64) -> Option<&Phase> {
         self.phases.get(&id)
     }
+    pub(crate) fn feedback_obligation(&self,id:u64)->bool {
+        self.gates.values().any(|gate|gate.lights.iter().any(|command|command.id==id))
+    }
     pub(crate) fn eligible(&self, id: u64, now: u64) -> bool {
         self.phases.get(&id).is_none_or(|p| {
             p.gate.is_none_or(|id| {

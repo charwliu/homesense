@@ -2,7 +2,7 @@
 
 <img src="docs/assets/homesense-logo-v3.png" alt="HomeSense 知居 Logo" width="160">
 
-HomeSense 是用 Rust 编写的家庭中控项目：通过 TCP485 网关管理 HopeBeauty RS485 灯光、窗帘与墙面板，通过原生 HAP 接入 Apple 家庭，并提供 HomeSense App 与 HTTPS/WSS 管理接口。项目正逐步迁移现有 Control4 EA-5 的场景和自动化逻辑。
+HomeSense 是用 Rust 编写的家庭中控系统，已部署到家庭现网并取代 Control4 EA-5。它通过 TCP485 网关管理 HopeBeauty RS485 灯光、窗帘与墙面板，通过原生 HAP 接入 Apple 家庭，并提供 HomeSense App 与 HTTPS/WSS 管理接口。
 
 ## 功能
 
@@ -15,7 +15,11 @@ HomeSense 是用 Rust 编写的家庭中控项目：通过 TCP485 网关管理 H
 - **迁移工具**：Control4 资料导入、离线回放、模拟网关和现场诊断工具。
 - **延期刷新与通信告警**：组件短时确认不再维持永久密集查询；静稳后退到长周期，超时递增退避，连续三轮失败向 App 推送告警。见[查询调度说明](docs/adaptive-query-refresh.md)。
 
-功能分批发布，软件验证不等于现网部署或全屋验收。**阶段 D/E 尚未完成**；当前范围、已验证能力及剩余工作以 [D/E 完成审计](docs/de-completion-audit.md) 和 [阶段 E 剩余清单](docs/stage-e-remaining.md) 为准。逐次变更见 [更新记录](CHANGELOG.md)。
+## 现网状态
+
+现网由 `ngr` 上的 `homesense-e2.service` 运行 HomeSense，原 Control4 EA-5 已退出家庭中控角色。2026-10-19 只读核对显示服务处于 `active/running`、重启次数为 0，活动配置为 revision 37。本次 README 更新没有向现场下发配置或控制命令。
+
+功能继续分批发布；下文的本机测试和候选改动不代表它们已进入现网。阶段 D/E 的历史验证与剩余工作见 [D/E 完成审计](docs/de-completion-audit.md) 和 [阶段 E 剩余清单](docs/stage-e-remaining.md)，逐次变更见 [更新记录](CHANGELOG.md)。
 
 离家执行增强与刷新新策略已完成软件隔离回归并更新服务程序，设备配置与控制范围保持：离家最多三轮模块关闭、总预算5秒，依真实写后反馈确认结果并向App推送准确失败范围；普通周期限制在300～7200秒，有面板／App控制活动恢复300秒，不重叠启动未完成扫描。详见[离家执行说明](docs/away-module-off.md)及[查询调度说明](docs/adaptive-query-refresh.md)。
 
@@ -64,6 +68,10 @@ cargo run --locked -p homesensed -- serve-automation-simulation config/simulatio
 - [参考资料说明](reference/README.md) · [更新记录](CHANGELOG.md)
 
 完整私有工程、凭证和配对数据应保存在忽略的私有目录；`reference/` 是离线参考资料，不是运行配置。
+
+## 开发中的候选改动
+
+以下记录属于尚未发布到上述现网 E2 的候选，不能据此推断当前设备行为。
 
 调光控制统一发送直接目标百分比：App、组合灯恢复及自动化入口不再输出硬件渐变指令；场景原有亮度和供电范围保持，明确修改的目标另行记录。场景详情可按授权查看所含灯光的实测开关与亮度，复用设备状态推送。
 
