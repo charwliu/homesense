@@ -210,8 +210,15 @@ async fn delayed_96_port_mixed_polling_preserves_freshness_spacing_and_control_p
         owner.refresh_outputs_if_due().await.unwrap();
         let now = h.a.monotonic_ms();
         owner.expire(now, 5000).unwrap();
-        for state in owner.snapshot().devices.values() {
-            assert_eq!(state.quality, Quality::Confirmed);
+        for (id, state) in &owner.snapshot().devices {
+            assert_eq!(
+                state.quality,
+                Quality::Confirmed,
+                "{id:?}: now={now} observed={:?} age={:?} controls={written} queries={:?}",
+                state.observed_at_ms,
+                state.observed_at_ms.map(|at| now.saturating_sub(at)),
+                h.w.lock().unwrap().writes.iter().filter(|frame| frame[2] >= 0xa0).collect::<Vec<_>>()
+            );
             max_age = max_age.max(now - state.observed_at_ms.unwrap());
         }
         tokio::time::sleep(Duration::from_millis(5)).await;

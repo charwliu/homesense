@@ -10,6 +10,7 @@ pub(super) struct OutputRefresh {
     timeout_ms: u64,
     max_age_ms: u64,
     interval_ms: u64,
+    response_ms: u64,
     next: usize,
     due: u64,
     pending: Option<Pending>,
@@ -164,9 +165,45 @@ impl OutputRefresh {
         self.pending.is_some()
     }
     pub(super) fn defer_control(&self, now: u64, gap: u64,feedback:&Feedback) -> bool {
-        self.awaiting_response()
-            || (!self.control_opportunity && now.saturating_add(gap) >= self.due
-                && self.targets.iter().enumerate().any(|(i,_)|self.eligible(i,feedback,now,self.priority.contains(&i))))
+        // One ordinary control turn after every reply can overrun a physical
+        // observation's deadline when committing that control is slow. Reserve
+        // the existing first-read/retry budget before spending another turn;
+        // only real incoming feedback can renew the observation. Protected
+        // controls still bypass this decision in step_after_refresh_read.
+        if self.awaiting_response() {return true;}
+        if now.saturating_add(gap) < self.due {return false;}
+        let mut deadlines = self.targets.iter().enumerate()
+            .filter(|(i,_)| self.eligible(*i, feedback, now, self.priority.contains(i)))
+            .map(|(i,target)| {
+                let age = self.strict.get(&i).copied().unwrap_or(self.max_age_ms);
+                target.channels.iter().map(|channel|
+                    feedback.module_truth().located_state(&target.gateway, target.module.address().get(), *channel)
+                        .filter(|state| state.quality == Quality::Confirmed && state.observed.is_some())
+                        .and_then(|state| state.observed_at_ms)
+                        .map_or(now, |at| at.saturating_add(age)))
+                    .min().unwrap_or(now)
+            }).collect::<Vec<_>>();
+        if deadlines.is_empty() {return false;}
+        if !self.control_opportunity {return true;}
+        // Every outstanding port needs its own turn. Reserving only the next
+        // reply lets a large mixed registry miss the later ports' deadlines.
+        // Estimate healthy reply cost from real completed reads, while keeping
+        // the existing timeout/retry reserve for a slower turn. This predicts
+        // scheduling pressure; it never extends or certifies feedback quality.
+        deadlines.sort_unstable();
+        let slot = self.response_ms.saturating_add(gap).max(self.interval_ms);
+        let mut read_end = now.saturating_add(self.timeout_ms)
+            .saturating_add(self.timeout_ms.min(500)).saturating_add(gap);
+        deadlines.into_iter().any(|deadline| {
+            read_end = read_end.saturating_add(slot);
+            read_end >= deadline
+        })
+    }
+    fn note_response(&mut self, latency: Option<u64>) {
+        if let Some(latency) = latency {
+            self.response_ms = self.response_ms.saturating_mul(7)
+                .saturating_add(latency.min(self.timeout_ms)).saturating_add(7) / 8;
+        }
     }
     pub(super) fn control_checked(&mut self) {
         self.control_opportunity = false;
@@ -247,11 +284,13 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
         if let Some(plan)=&mut self.output_refresh
             && let Some(pending)=&plan.pending && plan.complete(pending,self.feedback.module_truth(),self.transport.now_ms()) {
                 let index=pending.index;
+                let latency=(!pending.retried).then_some(self.transport.now_ms().saturating_sub(pending.written_ms));
                 self.feedback.output_query_finished(&plan.configuration,&plan.targets[index],pending.written_ms,self.transport.now_ms());
                 let confirming=plan.priority.contains(&index) && crate::postwrite_confirmation::needed(self.transport.admission(),&self.feedback,&plan.configuration,&plan.targets[index],plan.confirmation_until.get(&index).copied()).await?;
                 if !confirming {plan.priority.remove(&index);plan.confirmation_until.remove(&index);}
                 if !confirming && !pending.strict && let Some(bound)=plan.observed_round(index,self.feedback.module_truth(),self.transport.now_ms()) {self.feedback.set_managed_max_age_ms(bound)?;}
                 self.transport.finish_status_read(&gateway);
+                plan.note_response(latency);
                 plan.pending=None;plan.control_opportunity=true;
         }
         Ok(Some(read))
@@ -316,6 +355,7 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
             timeout_ms,
             max_age_ms,
             interval_ms,
+            response_ms: 0,
             next: 0,
             due: self.transport.now_ms().saturating_add(first_delay),
             pending: None,
@@ -377,11 +417,13 @@ impl<S: Read + Write + Send + 'static> ObservedTransport<S> {
         if let Some(pending) = &plan.pending {
             if plan.complete(pending, self.feedback.module_truth(), now) {
                 let index=pending.index;
+                let latency=(!pending.retried).then_some(now.saturating_sub(pending.written_ms));
                 self.feedback.output_query_finished(&plan.configuration,&plan.targets[index],pending.written_ms,now);
                 let confirming=plan.priority.contains(&index) && crate::postwrite_confirmation::needed(self.transport.admission(),&self.feedback,&plan.configuration,&plan.targets[index],plan.confirmation_until.get(&index).copied()).await.map_err(|e|(plan.targets[index].gateway.clone(),e))?;
                 if !confirming {plan.priority.remove(&index);plan.confirmation_until.remove(&index);}
                 if !confirming && !pending.strict && let Some(bound)=plan.observed_round(index,self.feedback.module_truth(),now) {self.feedback.set_managed_max_age_ms(bound).map_err(|e|(plan.targets[index].gateway.clone(),e))?;}
                 self.transport.finish_status_read(&plan.targets[index].gateway);
+                plan.note_response(latency);
                 plan.pending = None;
                 plan.control_opportunity = true;
                 // Leave one control-dispatch opportunity between reads even
@@ -522,11 +564,45 @@ mod priority_tests {
         let targets=crate::physical_queries::plan(&config,ExecutionContext::Simulation).unwrap();assert_eq!(targets.len(),8);
         let refresh=OutputRefresh{
             configuration:config,targets,controller:uuid::Uuid::new_v4(),generation,context:ExecutionContext::Simulation,
-            timeout_ms:500,max_age_ms:5000,interval_ms:20,next:0,due:0,pending:None,control_opportunity:false,
+            timeout_ms:500,max_age_ms:5000,interval_ms:20,response_ms:0,next:0,due:0,pending:None,control_opportunity:false,
             round:Default::default(),adaptive:None,priority:(0..8).collect(),confirmation_until:Default::default(),
             ramp_reads:Default::default(),prefer_postwrite:true,away_critical:false,scanning:false,recent_queries:Default::default(),strict:Default::default(),query_backoff:Default::default(),target_backoff:Default::default(),failed_ports:Default::default(),away_writes:Default::default(),
         };
         (refresh, feedback, actor, root)
+    }
+
+    #[tokio::test]
+    async fn expiring_feedback_reserves_a_bounded_read_before_an_ordinary_control_turn() {
+        let (mut refresh, mut feedback, actor, root) = fixture().await;
+        refresh.priority.clear();
+        refresh.control_opportunity = true;
+        let receive = |at| GatewayRead {
+            gateway_id: "bus".into(),
+            transport_epoch: 1,
+            received_at_ms: at,
+            result: hb_transport::Receive::Frames {
+                transport_epoch: 1,
+                frames: (1..=8).map(|ch| hb_protocol::RawFrame {
+                    address: 3, command: 0xd0 + ch, value: 0xf2,
+                }).collect(),
+            },
+        };
+        feedback.apply_at(&receive(100), 100).unwrap();
+        // The first attempt, its bounded retry and the turnaround must fit
+        // before the original 5s observation expires. Nothing renews its age.
+        assert!(!refresh.defer_control(3919, 20, &feedback));
+        assert!(refresh.defer_control(3920, 20, &feedback));
+        assert_eq!(feedback.module_truth().located_state("bus", 3, 1).unwrap().observed_at_ms, Some(100));
+        refresh.query_backoff.insert(("bus".into(), 3), 5000);
+        assert!(!refresh.defer_control(4200, 20, &feedback), "an ineligible read cannot starve controls");
+        refresh.query_backoff.clear();
+        refresh.due = 8000;
+        assert!(!refresh.defer_control(4200, 20, &feedback), "do not start an idle scan early");
+        refresh.due = 0;
+        feedback.apply_at(&receive(4201), 4201).unwrap();
+        assert!(!refresh.defer_control(4202, 20, &feedback), "real fresh feedback restores the normal control turn");
+        actor.shutdown().await.unwrap();
+        std::fs::remove_dir_all(root).unwrap();
     }
 
     #[tokio::test]
