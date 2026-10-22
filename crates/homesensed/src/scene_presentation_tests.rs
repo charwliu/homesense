@@ -13,6 +13,77 @@ async fn presentation_hap_read(
 }
 
 #[tokio::test]
+async fn presentation_hap_subscriptions_never_execute_scenes_including_mixed_requests() {
+    use homesense_hap::storage::IdentityStore;
+    let (cfg, doc) = inputs();
+    let mut h = Harness::from_inputs(cfg, doc).await;
+    let mut store = IdentityStore::open(h.directory.join("subscription-hap")).await.unwrap();
+    hap::storage::Storage::save_config(&mut store, &hap::Config::default()).await.unwrap();
+    let identity = store.clone();
+    let document = h.document.clone();
+    let control = h.control.clone();
+    let actor = h.actor.clone();
+    let controller = h.controller;
+    let member = h.member;
+    let bridge = h.drive(tokio::spawn(async move {
+        crate::runtime_scene_hap::RuntimeSceneHap::new_with_admission(
+            &identity, &document,
+            ["act", "other"].into_iter().map(|id| homesense_hap::scene_graph::SceneSpec {
+                id: id.into(), name: id.into(),
+            }).collect(), control, actor, controller,
+            move |who, scene| who == member && matches!(scene, "act" | "other"),
+        ).await
+    })).await.unwrap();
+    let characteristic = |scene: &str, value: Option<bool>, ev: bool| {
+        let binding = &bridge.accessories.iter().find(|(b, _)| b.scene == scene).unwrap().0;
+        let mut item = json!({"aid":binding.aid,"iid":binding.on_iid,"ev":ev});
+        if let Some(value) = value { item["value"] = json!(value); }
+        item
+    };
+    // Home subscribes again when reconnecting or opening a room. These are
+    // notifications-only requests even if the physical selection is unknown.
+    for (ev, both) in [(true, false), (false, false), (true, true)] {
+        let mut items = vec![characteristic("act", None, ev)];
+        if both { items.push(characteristic("other", None, ev)); }
+        let body = serde_json::to_vec(&json!({"characteristics":items})).unwrap();
+        let handler = bridge.write_handler.clone();
+        h.drive(tokio::spawn(async move { handler.write_async(member, &body).await })).await.unwrap();
+        assert_eq!(h.count("command_journal"), 0, "subscription must not execute either scene");
+    }
+    // A real value and an unrelated subscription can share one HAP request.
+    let body = serde_json::to_vec(&json!({"characteristics":[
+        characteristic("act", Some(true), true), characteristic("other", None, true)
+    ]})).unwrap();
+    let handler = bridge.write_handler.clone();
+    h.drive(tokio::spawn(async move { handler.write_async(member, &body).await })).await.unwrap();
+    settle(&mut h, true).await;
+    assert_eq!(details(&mut h).await["act"].selected, Some(true));
+    assert_eq!(details(&mut h).await["other"].selected, Some(false));
+    let before = h.count("command_journal");
+    let body = serde_json::to_vec(&json!({"characteristics":[characteristic("act", None, true)]})).unwrap();
+    let handler = bridge.write_handler.clone();
+    h.drive(tokio::spawn(async move { handler.write_async(member, &body).await })).await.unwrap();
+    assert_eq!(h.count("command_journal"), before, "resubscribe must not toggle an active scene off");
+    assert_eq!(details(&mut h).await["act"].selected, Some(true));
+    let body = serde_json::to_vec(&json!({"characteristics":[
+        characteristic("act", Some(false), true), characteristic("other", None, false)
+    ]})).unwrap();
+    let handler = bridge.write_handler.clone();
+    h.drive(tokio::spawn(async move { handler.write_async(member, &body).await })).await.unwrap();
+    settle(&mut h, false).await;
+    assert_eq!(details(&mut h).await["act"].selected, Some(false));
+    assert_eq!(details(&mut h).await["other"].selected, Some(false));
+    let before = h.count("command_journal");
+    let body = serde_json::to_vec(&json!({"characteristics":[characteristic("act", None, true)]})).unwrap();
+    assert_eq!(bridge.write_handler.write_async(Uuid::new_v4(), &body).await,
+        Err(hap::server::WriteStatus::InsufficientPrivileges));
+    assert_eq!(h.count("command_journal"), before);
+    drop(bridge);
+    drop(store);
+    h.finish().await;
+}
+
+#[tokio::test]
 async fn public_presentation_hap_uses_confirmed_provider_without_aliasing_actions_or_permissions() {
     use homesense_hap::storage::IdentityStore;
     let (cfg, doc) = inputs();

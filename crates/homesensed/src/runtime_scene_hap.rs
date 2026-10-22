@@ -226,6 +226,12 @@ impl RuntimeSceneHap {
                     {
                         return Err(WriteStatus::InsufficientPrivileges);
                     }
+                    // Addressed characteristics include notification subscriptions.
+                    // Missing values must never reach the relative scene planner:
+                    // None means a deliberate toggle there, not a HAP subscription.
+                    if batch.values.is_empty() {
+                        return Ok(());
+                    }
                     let managed_off=household_off.as_ref().filter(|(id,_)|batch.starts.contains(id));
                     let managed_on=household_on.as_ref().filter(|id|batch.starts.contains(id));
                     if managed_on.is_some() && batch.addressed.len()!=1 {return Err(WriteStatus::InvalidValueInRequest);}
@@ -243,12 +249,12 @@ impl RuntimeSceneHap {
                     let actions = batch
                         .addressed
                         .iter()
-                        .map(|scene| {
-                            let value = batch.values.get(scene).copied();
+                        .filter_map(|scene| {
+                            let value = batch.values.get(scene).copied()?;
                             if let Some(action) = absolute_actions.get(scene)
-                                && let Some(on) = value {
-                                (if on { action.on_scene.clone() } else { action.off_scene.clone() }, Some(true))
-                            } else { (scene.clone(), value) }
+                            {
+                                Some((if value { action.on_scene.clone() } else { action.off_scene.clone() }, Some(true)))
+                            } else { Some((scene.clone(), Some(value))) }
                         })
                         .collect();
                     // Freeze old values while a group write is in flight. This
