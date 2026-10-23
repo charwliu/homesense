@@ -373,6 +373,7 @@ pub(crate) async fn drive_with_panel_feeds<S: Read + Write + Send + 'static>(
                 }
             }
             }
+            let after_calendar_ms=quantum_started.elapsed().as_millis();
             if let Some(router)=&mut causal {
                 guard.panels.consume_feedback_causal(guard.owner.feedback(),now,max_age_ms,router,guard.scenes).await.map_err(|e|e.to_string())?;
             } else {
@@ -384,6 +385,7 @@ pub(crate) async fn drive_with_panel_feeds<S: Read + Write + Send + 'static>(
                 receiver.enqueue_native(native)?;
             }
             guard.panels.tick_holds(now).await?;
+            let after_panels_ms=quantum_started.elapsed().as_millis();
             let results = if let Some(router) = &mut causal {
                 let (_, unowned) = router.poll(guard.scenes, Some((guard.owner.feedback(), max_age_ms))).await?;
                 unowned
@@ -418,6 +420,9 @@ pub(crate) async fn drive_with_panel_feeds<S: Read + Write + Send + 'static>(
                 guard.owner.pause_refresh_for_background_leds(false);
             }
             let after_scenes_ms=quantum_started.elapsed().as_millis();
+            let calendar_ms=after_calendar_ms.saturating_sub(after_control_ms);
+            let panels_ms=after_panels_ms.saturating_sub(after_calendar_ms);
+            let scene_runs_ms=after_scenes_ms.saturating_sub(after_panels_ms);
             let burst_started=tokio::time::Instant::now();let mut written_this_quantum=0;
             // Bounded accepted-work progress. Each dispatch still rechecks STOP,
             // revocation, generation and the original deadline in Admission.
@@ -543,7 +548,7 @@ pub(crate) async fn drive_with_panel_feeds<S: Read + Write + Send + 'static>(
                     }
                 }
             }
-            log::log!(if quantum_started.elapsed()>=std::time::Duration::from_millis(100) {log::Level::Warn}else{log::Level::Debug}, "automation_quantum_lag total_ms={} before_control_ms={before_control_ms} control_ms={} after_control_ms={} scenes_ms={} burst_ms={} receive_ms={} reconcile_ms={reconcile_ms} indicators_ms={indicators_ms} written_frames={written_this_quantum} pending_read={}",quantum_started.elapsed().as_millis(),after_control_ms.saturating_sub(before_control_ms),quantum_started.elapsed().as_millis().saturating_sub(after_control_ms),after_scenes_ms.saturating_sub(after_control_ms),after_burst_ms.saturating_sub(after_scenes_ms),after_receive_ms.saturating_sub(after_burst_ms),guard.owner.output_query_pending());
+            log::log!(if quantum_started.elapsed()>=std::time::Duration::from_millis(100) {log::Level::Warn}else{log::Level::Debug}, "automation_quantum_lag total_ms={} before_control_ms={before_control_ms} control_ms={} after_control_ms={} scenes_ms={} calendar_ms={calendar_ms} panels_ms={panels_ms} scene_runs_ms={scene_runs_ms} burst_ms={} receive_ms={} reconcile_ms={reconcile_ms} indicators_ms={indicators_ms} written_frames={written_this_quantum} pending_read={}",quantum_started.elapsed().as_millis(),after_control_ms.saturating_sub(before_control_ms),quantum_started.elapsed().as_millis().saturating_sub(after_control_ms),after_scenes_ms.saturating_sub(after_control_ms),after_burst_ms.saturating_sub(after_scenes_ms),after_receive_ms.saturating_sub(after_burst_ms),guard.owner.output_query_pending());
             next = (next + 1) % gateways.len();
             // Preserve the existing publication boundary: an outstanding read
             // belongs to this generation until it completes or faults. Keep

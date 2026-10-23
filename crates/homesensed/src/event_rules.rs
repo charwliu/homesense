@@ -616,19 +616,27 @@ impl ScheduledRules {
             .calendar
             .poll(wall_unix_ms, self.rules.admission.monotonic_ms())
             .map_err(|e| format!("calendar: {e:?}"))?;
+        // An immutable empty calendar cannot dispatch or replay an occurrence.
+        // Keep the authorized, generation-scoped read and expected-value check,
+        // but do not reserve SQLite's writer or fsync an idle-loop checkpoint.
+        let empty = self.calendar.status().schedule_count == 0;
         let persisted = self
             .rules
             .admission
             .calendar_watermark(
                 self.rules.controller,
                 self.rules.generation.clone(),
-                Some(homesense_storage::calendar::Checkpoint {
+                (!empty).then_some(homesense_storage::calendar::Checkpoint {
                     expected: self.watermark,
                     next: poll.watermark_unix_ms,
                 }),
             )
             .await;
         match persisted {
+            Ok(value) if empty && value != self.watermark => {
+                self.calendar.stop();
+                return Err("calendar checkpoint changed outside runtime".into());
+            }
             Ok(value) => self.watermark = value,
             Err(error) => {
                 self.calendar.stop();
