@@ -162,6 +162,7 @@ struct SerialRound {
     number: u8,
     pending: BTreeSet<String>,
     current: Option<String>,
+    reply_windows_ms: BTreeMap<String, u64>,
 }
 /// One original operation. Retries cannot add modules or change any output.
 #[derive(Clone, Debug)]
@@ -233,8 +234,25 @@ impl Operation {
     /// Physical half-duplex execution. The legacy multi-module proposal model
     /// remains available to non-I/O callers; production must use this mode.
     pub fn new_serialized(modules: Vec<Module>, policy: Policy, now: u64) -> Result<Self, Error> {
+        Self::new_serialized_with_reply_windows(modules, policy, now, BTreeMap::new())
+    }
+    /// Reserve a profile-specific passive receive window before querying an
+    /// unconfirmed module. Complete early replies still advance immediately;
+    /// the module response and whole-operation deadlines are never extended.
+    pub fn new_serialized_with_reply_windows(
+        modules: Vec<Module>,
+        policy: Policy,
+        now: u64,
+        reply_windows_ms: BTreeMap<String, u64>,
+    ) -> Result<Self, Error> {
         let mut operation = Self::new(modules, policy, now)?;
-        operation.serial = Some(SerialRound::default());
+        if reply_windows_ms.keys().any(|id| !operation.modules.contains_key(id)) {
+            return Err(Error::InvalidScope);
+        }
+        if reply_windows_ms.values().any(|wait| *wait == 0 || *wait >= policy.response_ms) {
+            return Err(Error::InvalidPolicy);
+        }
+        operation.serial = Some(SerialRound { reply_windows_ms, ..Default::default() });
         Ok(operation)
     }
     fn clock(&mut self, now: u64) -> Result<(), Error> {
@@ -646,7 +664,6 @@ impl Operation {
                         let age = now.saturating_sub(*at_ms);
                         // Give passive replies their own quiet receive window;
                         // neither a query nor the next module is admitted yet.
-                        if age < 100.min(self.policy.response_ms) { return Ok(Decision::Wait); }
                         let replied = |output:&DeviceId| evidence.physical.get(output).is_some_and(|sample|
                             sample.count > receipt.before_counts[output]
                                 && sample.received_ms >= *at_ms && sample.received_ms <= now);
@@ -656,6 +673,11 @@ impl Operation {
                                     && turn.finished_ms >= turn.written_ms && turn.finished_ms <= now)));
                         let actual_on = module.outputs.iter().any(|output| replied(output)
                             && evidence.physical[output].actual == Physical::On);
+                        let passive_ms = serial.reply_windows_ms.get(id).copied().unwrap_or(100);
+                        let complete_failure = actual_on && module.outputs.iter().all(replied);
+                        if age < passive_ms.min(self.policy.response_ms) && !failed_read && !complete_failure {
+                            return Ok(Decision::Wait);
+                        }
                         if age < self.policy.response_ms && !failed_read && !actual_on {
                             if owner != Owner::Current {return Ok(Decision::Wait);}
                             return Ok(Decision::Read([id.clone()].into()));

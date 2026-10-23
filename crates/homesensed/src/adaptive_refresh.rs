@@ -4,13 +4,11 @@ pub(crate) struct Schedule {
     policy: RefreshPolicy,
     interval: u64,
     quiet: u32,
-    allowance: u64,
     last_activity: Option<u64>,
 }
 impl Schedule {
     pub fn new(policy: RefreshPolicy) -> Self {
-        Self { policy, interval:policy.active_interval_ms, quiet:0,
-            allowance:policy.observation_max_age_ms(), last_activity:None }
+        Self { policy, interval:policy.active_interval_ms, quiet:0, last_activity:None }
     }
     /// Keep published older configurations compatible while applying the live
     /// safety bounds. Simulation can still use explicit short virtual clocks.
@@ -23,7 +21,11 @@ impl Schedule {
         Self::new(policy)
     }
     pub fn interval(&self)->u64 { self.interval }
-    pub fn allowance(&self)->u64 { self.allowance }
+    /// Poll cadence does not redefine the published observation lifetime.
+    /// Valid panel activity can intentionally defer an idle scan beyond its
+    /// current interval. Keep the configured maximum age, without restamping
+    /// samples; failed reads and unavailable wires still invalidate their ports.
+    pub fn allowance(&self)->u64 { self.policy.observation_max_age_ms() }
     pub fn activity(&mut self,now:u64) {
         self.last_activity=Some(now);self.interval=self.policy.active_interval_ms;self.quiet=0;
     }
@@ -43,7 +45,7 @@ impl Schedule {
             self.quiet+=1;
             if self.quiet>=self.policy.quiet_rounds_per_step {self.double();self.quiet=0;}
         }
-        self.allowance=self.policy.age_for_interval(self.interval);self.interval
+        self.interval
     }
 }
 /// Pre-receive candidate only: activity requires the unified decoder to advance
@@ -86,6 +88,21 @@ mod tests {
             assert_eq!(schedule.timeout(),next);assert_eq!(schedule.allowance(),allowance);
         }
         schedule.activity(100);assert_eq!(schedule.interval(),300_000);
+    }
+    #[test]
+    fn successful_short_cycles_do_not_shorten_the_configured_observation_lifetime() {
+        let policy=RefreshPolicy::default();
+        let mut schedule=Schedule::new(policy);
+        let allowance=policy.observation_max_age_ms();
+        assert_eq!(schedule.completed(300_000),600_000);
+        assert_eq!(schedule.allowance(),allowance,"a faster next poll is not an earlier expiry of already observed state");
+        for at in (360_000..=960_000).step_by(60_000) {
+            schedule.activity(at);
+            assert_eq!(schedule.interval(),300_000);
+            assert_eq!(schedule.allowance(),allowance,"activity never renews the observation clock");
+        }
+        assert_eq!(schedule.timeout(),600_000);
+        assert_eq!(schedule.allowance(),allowance,"a timeout cannot certify missing feedback");
     }
     #[test]
     fn old_live_policy_is_clamped_without_modifying_the_published_document() {
