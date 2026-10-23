@@ -44,9 +44,13 @@
 
 未明确选择灯光的旧场景／窗帘端点继续维持原范围，新增灯光需通过显式桥接计划。完整发布清单只采用 App 可见灯光和公开场景，内部配方不作为用户卡片发布。
 
-Apple 的房间归属由 HomeKit 家庭管理。服务器端配置的房间字段不等于 Apple「家庭」已分房；自动同步需由获授权的原生 App 调用 `HMHome.assignAccessory`。当前 App 未包含此权限和同步功能，不应声称发布后已经自动归房。已有配件和房间归属应保留，不通过删除桥接器重新配对实现迁移。
+Apple 的房间归属由 HomeKit 家庭管理。服务器端配置的房间字段不等于 Apple「家庭」已分房；原生 App 已实现“Apple家庭房间”的读取、桥匹配、预览和应用流程，实际执行仍须具备HomeKit签名能力及用户授权。当前已复核的App34签名包未包含`com.apple.developer.homekit`权限，因此不能把这份包或服务器元数据视为自动分房已交付。用户可在Apple「家庭」手工调整房间；App内分房还需具备相应能力的原团队描述文件及实际验收。已有配件和房间归属应保留，不通过删除桥接器重新配对实现迁移。
 
 参考：[Apple 房间分配 API](https://developer.apple.com/documentation/homekit/hmhome/assignaccessory(_:to:completionhandler:))、[桥接配件不会自动继承桥接器房间](https://developer.apple.com/documentation/homekit/hmaccessory/isbridged)。
+
+单桥发布数量和单次控制数量是不同边界。当前程序每桥最多选择128个场景，重复、未启用或未经审核的场景仍拒绝；不能据此认为一个桥可以容纳任意数量的灯光和窗帘。Apple官方ADK规定桥本身之外最多149个配件，因此大于150项（含桥）的完整目录需分桥。每个场景开关同样计入配件数；添加第二桥只增加一次家庭配对，不增加服务器或RS485网关。现网两桥的身份和AID/IID分别保存，桥内序列号不能脱离所属桥单独当作全局身份。
+
+依据：[Apple HomeKit ADK桥接数量定义](https://github.com/apple/HomeKitADK/blob/master/HAP/HAP.h)。
 
 ## 验证边界
 
