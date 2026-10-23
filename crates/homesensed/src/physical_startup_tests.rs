@@ -350,7 +350,11 @@ async fn adaptive_idle_preserves_actual_times_and_periodic_replies_do_not_reset_
     };
     assert_eq!(round.generation.epochs.configuration,1);
     assert_eq!(f.bus.lock().unwrap().writes.len(),writes+2,"each AD8 queried exactly once; replies are not activity");
-    assert_eq!(f.owner.feedback().effective_max_age_ms(age),f.config.refresh_policy().age_for_interval(200));
+    assert_eq!(f.owner.feedback().effective_max_age_ms(age),age,
+        "completing a short scan changes its cadence, not the configured maximum observation age");
+    let tighter=f.config.refresh_policy().age_for_interval(200);
+    assert_eq!(f.owner.feedback().effective_max_age_ms(tighter),tighter,
+        "an explicitly tighter consumer must keep its original freshness boundary");
     tokio::time::sleep(Duration::from_millis(60)).await;
     f.owner.refresh_outputs_if_due().await.unwrap();
     assert_eq!(f.bus.lock().unwrap().writes.len(),writes+2,"ordinary replies leave the next round delayed");

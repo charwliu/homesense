@@ -82,6 +82,101 @@ fn serialized_off_failed_first_module_yields_to_all_healthy_modules_before_retry
 }
 
 #[test]
+fn serialized_profile_window_accepts_delayed_passive_reply_without_early_query() {
+    let mut operation = Operation::new_serialized_with_reply_windows(
+        scope(1), Policy::default(), 0, [("m0".into(), 500)].into(),
+    ).unwrap();
+    let mut evidence = Evidence::default();
+    let a = attempt(&mut operation, 0, &evidence);
+    let receipts = accept(&mut operation, &a, 1);
+    written(&receipts, 1, &mut evidence);
+    for at in [101, 251, 399] {
+        assert_eq!(operation.poll(at, Owner::Current, &evidence).unwrap(), Decision::Wait,
+            "do not query over the module's delayed automatic response");
+    }
+    off(0, 400, 2, &mut evidence);
+    assert_eq!(operation.poll(401, Owner::Current, &evidence).unwrap(), Decision::Finished(End::Confirmed));
+    assert_eq!(operation.deadline_ms(), 10_000);
+}
+
+#[test]
+fn serialized_profile_window_does_not_delay_fast_complete_replies_or_extend_missing_reply_budget() {
+    for complete in [true, false] {
+        let mut operation = Operation::new_serialized_with_reply_windows(
+            scope(1), Policy::default(), 0, [("m0".into(), 500)].into(),
+        ).unwrap();
+        let mut evidence = Evidence::default();
+        let a = attempt(&mut operation, 0, &evidence);
+        let receipts = accept(&mut operation, &a, 1);
+        written(&receipts, 1, &mut evidence);
+        off(0, 20, 2, &mut evidence);
+        if complete {
+            assert_eq!(operation.poll(21, Owner::Current, &evidence).unwrap(), Decision::Finished(End::Confirmed));
+        } else {
+            evidence.physical.remove(&id(0, 8));
+            assert_eq!(operation.poll(500, Owner::Current, &evidence).unwrap(), Decision::Wait);
+            assert_eq!(operation.poll(501, Owner::Current, &evidence).unwrap(), Decision::Read(["m0".into()].into()));
+            assert_eq!(operation.deadline_ms(), 10_000);
+            assert_eq!(operation.poll(10_000, Owner::Current, &evidence).unwrap(), Decision::Finished(End::Deadline));
+        }
+    }
+}
+
+#[test]
+fn serialized_profile_window_rejects_unknown_scope_and_unbounded_waits() {
+    assert!(matches!(Operation::new_serialized_with_reply_windows(
+        scope(1), Policy::default(), 0, [("unknown".into(), 500)].into(),
+    ), Err(Error::InvalidScope)));
+    for wait in [0, 1000, 1001] {
+        assert!(matches!(Operation::new_serialized_with_reply_windows(
+            scope(1), Policy::default(), 0, [("m0".into(), wait)].into(),
+        ), Err(Error::InvalidPolicy)));
+    }
+}
+
+#[test]
+fn serialized_profile_window_is_module_scoped_and_leaves_unconfigured_query_timing_unchanged() {
+    let mut operation = Operation::new_serialized_with_reply_windows(
+        scope(2), Policy::default(), 0, [("m0".into(), 500)].into(),
+    ).unwrap();
+    let mut evidence = Evidence::default();
+    let first = attempt(&mut operation, 0, &evidence);
+    let receipts = accept(&mut operation, &first, 1);
+    written(&receipts, 1, &mut evidence);
+    off(0, 20, 2, &mut evidence);
+    let second = attempt(&mut operation, 21, &evidence);
+    assert_eq!(second.modules, ["m1".into()].into());
+    let receipts = accept(&mut operation, &second, 2);
+    written(&receipts, 22, &mut evidence);
+    assert_eq!(operation.poll(121, Owner::Current, &evidence).unwrap(), Decision::Wait);
+    assert_eq!(operation.poll(122, Owner::Current, &evidence).unwrap(), Decision::Read(["m1".into()].into()));
+}
+
+#[test]
+fn serialized_profile_window_yields_complete_failure_but_not_a_partial_reply_burst() {
+    for complete in [false, true] {
+        let mut operation = Operation::new_serialized_with_reply_windows(
+            scope(2), Policy::default(), 0, [("m0".into(), 500)].into(),
+        ).unwrap();
+        let mut evidence = Evidence::default();
+        let first = attempt(&mut operation, 0, &evidence);
+        let receipts = accept(&mut operation, &first, 1);
+        written(&receipts, 1, &mut evidence);
+        off(0, 20, 2, &mut evidence);
+        evidence.physical.get_mut(&id(0, 1)).unwrap().actual = Physical::On;
+        if complete {
+            let next = attempt(&mut operation, 21, &evidence);
+            assert_eq!(next.modules, ["m1".into()].into());
+            assert!(operation.missing(&evidence, 21).unwrap().contains_key("m0"));
+        } else {
+            evidence.physical.remove(&id(0, 8));
+            assert_eq!(operation.poll(21, Owner::Current, &evidence).unwrap(), Decision::Wait);
+            assert_eq!(operation.poll(500, Owner::Current, &evidence).unwrap(), Decision::Wait);
+        }
+    }
+}
+
+#[test]
 fn serialized_off_defer_does_not_skip_a_module_and_retirement_stops_future_proposals() {
     for cause in [Cancel::AuthorityChanged,Cancel::ConfigurationChanged,Cancel::TransportChanged,Cancel::ManualOverride] {
         let mut operation=Operation::new_serialized(scope(2),Policy::default(),0).unwrap();

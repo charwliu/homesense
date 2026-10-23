@@ -68,6 +68,9 @@ impl Fixture {
         Self::with_policy(combined,time,homesense_config::RefreshPolicy {idle_interval_ms:1000,active_interval_ms:100,backoff_ms:[200,500],quiet_rounds_per_step:2,round_budget_ms:1000,observation_grace_ms:3000}).await
     }
     async fn with_policy(combined:bool,time:&'static AtomicU64,policy:homesense_config::RefreshPolicy)->Self {
+        Self::with_policy_and_panel(combined, time, policy, false).await
+    }
+    async fn with_policy_and_panel(combined:bool,time:&'static AtomicU64,policy:homesense_config::RefreshPolicy,panel:bool)->Self {
         time.store(0, Ordering::Release);
         let path = std::env::temp_dir().join(format!("device-read-age-{}.sqlite", Uuid::new_v4()));
         let mut document = serde_json::json!({"schema_version":2,"revision":1,"gateways":[{"id":"fixture","endpoint":"127.0.0.1:1","modules":[{"id":"dimmer","address":"15","profile":"ad8_din_rs485_v2_2_1","verification":{"status":"simulated"}}]}],"devices":[{"id":"light","name":"Synthetic light","module_id":"dimmer","channel":1,"enabled":true}]});
@@ -76,6 +79,12 @@ impl Fixture {
             document["devices"][0]["supply"] = serde_json::json!({"module_id":"switch","channel":1});
             document["devices"][0]["default_on_level"] = 100.into();
             document["devices"].as_array_mut().unwrap().push(serde_json::json!({"id":"supply","name":"Synthetic supply","module_id":"switch","channel":1,"enabled":true}));
+        }
+        if panel {
+            document["gateways"][0]["modules"].as_array_mut().unwrap().push(serde_json::json!({
+                "id":"panel","address":"41","profile":"ts6_86_rs485_v2_6_5_6key",
+                "verification":{"status":"simulated"},"led_mode":"manual"
+            }));
         }
         // Preserve the original 5s boundary checks with an explicit tight policy.
         document["refresh_policy"]=serde_json::to_value(policy).unwrap();
@@ -288,6 +297,42 @@ async fn three_hour_idle_retains_last_observation_and_still_expires_after_the_po
     assert_eq!(view.devices[0].state.quality,Quality::Stale);
     assert_eq!(fixture.feedback.snapshot().devices[&fixture.id].observed_at_ms,Some(0));
     fixture.close().await;
+}
+
+#[tokio::test]
+async fn repeated_panel_quiet_deferrals_do_not_expire_untouched_combined_feedback_before_polling_is_allowed() {
+    static TIME: AtomicU64 = AtomicU64::new(0);
+    let policy = homesense_config::RefreshPolicy::default();
+    let mut fixture = Fixture::with_policy_and_panel(true, &TIME, policy, true).await;
+    let mut schedule = crate::adaptive_refresh::Schedule::for_context(policy, ExecutionContext::Live);
+    let observed = 300_000;
+    TIME.store(observed, Ordering::Release);
+    fixture.observe(0x15, 37, observed);
+    fixture.observe(3, 0xf1, observed);
+    assert_eq!(schedule.completed(observed), 600_000);
+    fixture.feedback.set_managed_max_age_ms(schedule.allowance()).unwrap();
+
+    for at in (360_000..=960_000).step_by(60_000) {
+        schedule.activity(at);
+        fixture.observe(0x41, 0xf1, at);
+        fixture.observe(0x41, 0xf2, at + 1);
+        assert_eq!(schedule.interval(), 300_000);
+        assert!(fixture.feedback.query_deferred("fixture", at + 1, false));
+        assert!(!fixture.feedback.query_deferred("fixture", at + 1, true), "post-write confirmations remain possible after release");
+        TIME.store(at + 1, Ordering::Release);
+        fixture.feedback.set_managed_max_age_ms(schedule.allowance()).unwrap();
+        fixture.feedback.expire(at + 1, policy.observation_max_age_ms()).unwrap();
+    }
+    let view = fixture.view(policy.observation_max_age_ms()).await;
+    let quality = view.devices[0].state.quality;
+    assert_eq!(view.devices[0].state.observed_at_ms, Some(observed), "deferring a scan never restamps old feedback");
+    TIME.store(observed + policy.observation_max_age_ms(), Ordering::Release);
+    fixture.feedback.expire(observed + policy.observation_max_age_ms(), policy.observation_max_age_ms()).unwrap();
+    assert_eq!(fixture.view(policy.observation_max_age_ms()).await.devices[0].state.quality, Quality::Stale,
+        "intentional deferrals cannot exceed the configured maximum observation age");
+    fixture.close().await;
+    assert_eq!(quality, Quality::Confirmed,
+        "the untouched light must not become unavailable while legitimate panel quiet windows still prevent its periodic read");
 }
 
 

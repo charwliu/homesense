@@ -8,6 +8,11 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 pub(crate) const MAX_OPERATIONS: usize = 64;
 const RUN_NAMESPACE: u64 = 1 << 60;
+// Delayed relay bursts observed at the gateway can arrive around 400ms after
+// a module-Off write. Reserve receive time before adding a competing query;
+// early complete replies still advance immediately, within the same 1s/10s
+// response/operation deadlines. AD8 keeps its existing query turnaround.
+const R818_PASSIVE_REPLY_MS: u64 = 500;
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 pub struct Missing {
     pub module_id: String,
@@ -132,7 +137,14 @@ impl Job {
                 }
             })
             .collect();
-        let engine = core::Operation::new_serialized(scope, Default::default(), now)
+        let reply_windows = targets.iter()
+            .map(|target| &target.plan.modules()[target.index])
+            .filter(|module| module.module().profile().id() == "r8i8_din_pro_v2_7_7")
+            .map(|module| (module.module_id().to_owned(), R818_PASSIVE_REPLY_MS))
+            .collect();
+        let engine = core::Operation::new_serialized_with_reply_windows(
+            scope, Default::default(), now, reply_windows,
+        )
             .map_err(|e| format!("Away scope: {e:?}"))?;
         let manual = targets
             .iter()
