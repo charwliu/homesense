@@ -7,6 +7,8 @@ use std::{
     path::Path,
 };
 use uuid::Uuid;
+/// Publication capacity is separate from the limit on one control batch.
+pub const MAX_HAP_SCENES: usize = 128;
 #[derive(Clone)]
 pub struct Settings {
     pub address: SocketAddr,
@@ -28,7 +30,7 @@ impl Settings {
             return Err("HAP requires an explicit private or loopback endpoint".into());
         }
         let unique: std::collections::BTreeSet<_> = self.scenes.iter().collect();
-        if unique.len() != self.scenes.len() || self.scenes.len() > 64 {
+        if unique.len() != self.scenes.len() || self.scenes.len() > MAX_HAP_SCENES {
             return Err("invalid HAP scene selection".into());
         }
         for id in &self.scenes {
@@ -241,6 +243,35 @@ impl Endpoint {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn scene_publication_above_64_preserves_capacity_unique_and_available_checks() {
+        let config = homesense_config::Configuration::parse(
+            include_bytes!("../../../config/simulation.json"),
+            homesense_core::ExecutionContext::Simulation,
+        ).unwrap();
+        let scenes: Vec<_> = (0..129).map(|n| serde_json::json!({
+            "id":format!("scene-{n}"),"enabled":true,"max_lateness_ms":5000,
+            "review_evidence":"Synthetic publication capacity only",
+            "steps":[{"device":"simulation:light","offset_ms":0,
+                "command":{"kind":"level","value":100,"ramp":false},"source":"synthetic"}]
+        })).collect();
+        let document = homesense_config::rule_document::Document::parse(
+            &serde_json::to_vec(&serde_json::json!({"schema_version":1,"configuration_revision":1,
+                "variables":[],"rules":[],"timed_scenes":scenes})).unwrap(), &config,
+        ).unwrap();
+        let mut settings = Settings { address:"127.0.0.1:51826".parse().unwrap(),
+            scenes: (0..67).map(|n|format!("scene-{n}")).collect(), motors:vec![] };
+        assert!(settings.validate(&config,&document).is_ok());
+        settings.scenes=(0..128).map(|n|format!("scene-{n}")).collect();
+        assert!(settings.validate(&config,&document).is_ok());
+        settings.scenes.push("scene-128".into());
+        assert!(settings.validate(&config,&document).is_err());
+        settings.scenes.pop();
+        settings.scenes[127]="scene-0".into();
+        assert!(settings.validate(&config,&document).is_err());
+        settings.scenes[127]="missing".into();
+        assert!(settings.validate(&config,&document).is_err());
+    }
     #[tokio::test]
     async fn consumed_task_result_can_be_cleaned_up_without_polling_again() {
         for failure in [false,true] {

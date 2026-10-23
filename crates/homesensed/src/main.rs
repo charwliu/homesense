@@ -166,7 +166,7 @@ fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
                     "--hap-plan" if hap_plan.is_none()=>hap_plan=Some(read(&pair[1])?),
                     "--hap-listen" if hap_address.is_none()=>hap_address=Some(pair[1].parse::<std::net::SocketAddr>()?),
                     "--hap-motor"=>{if !hap_motors.insert(homesense_core::DeviceId::new(pair[1].clone()).map_err(|e|format!("{e:?}"))?) || hap_motors.len()>64 {return Err("invalid or duplicate HAP motor".into());}},
-                    "--hap-scene"=>{if pair[1].is_empty() || !hap_scenes.insert(pair[1].clone()) || hap_scenes.len()>64 {return Err("invalid or duplicate HAP scene".into());}},
+                    "--hap-scene"=>{if pair[1].is_empty() || !hap_scenes.insert(pair[1].clone()) || hap_scenes.len()>homesensed::hap_endpoint::MAX_HAP_SCENES {return Err("invalid or duplicate HAP scene".into());}},
                     "--recoveries" if recoveries.is_none() => recoveries=Some(pair[1].parse::<u8>()?),
                     "--write-interval-ms" if interval.is_none() => interval=Some(pair[1].parse::<u64>()?),
                     "--web-listen"|"--web-origin"|"--web-cert"|"--web-key"|"--web-token"|"--web-role" => {
