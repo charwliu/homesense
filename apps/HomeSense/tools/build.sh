@@ -1,7 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 project_dir="$(cd "$(dirname "$0")/.." && pwd)"
-build_root="${HOMESENSE_BUILD_ROOT:-$project_dir/build}"
+workspace_root="$(cd "$project_dir/../.." && pwd)"
+build_root="${HOMESENSE_BUILD_ROOT:-$workspace_root/target}"
 case "$build_root" in
     /*) ;;
     *) echo 'HOMESENSE_BUILD_ROOT must be an absolute path' >&2; exit 2 ;;

@@ -24,7 +24,7 @@ Keypad 使用[原生接口契约](../../docs/keypad-native-api.md)中的真实�
 
 ```sh
 cd apps/HomeSense
-export HOMESENSE_BUILD_ROOT="$PWD/build"
+export HOMESENSE_BUILD_ROOT="$(cd ../.. && pwd)/target"
 bash tools/build.sh macos
 open "$HOMESENSE_BUILD_ROOT/macos/Build/Products/Debug/HomeSense.app"
 
@@ -32,10 +32,10 @@ open "$HOMESENSE_BUILD_ROOT/macos/Build/Products/Debug/HomeSense.app"
 bash tools/build.sh ios
 
 # Swift、内存 API 与本机模拟 TCP 回归。
-swift test --build-system native --scratch-path "$HOMESENSE_BUILD_ROOT"
+swift test --build-system native --scratch-path "$HOMESENSE_BUILD_ROOT/swift"
 ```
 
-每个会话固定一个绝对构建根目录，后续原地复用。`tools/build.sh` 将 Xcode 输出放在该根目录的平台子目录；Swift 测试和实际联调脚本分别显式传入 `--scratch-path "$HOMESENSE_BUILD_ROOT"`、`--scratch "$HOMESENSE_BUILD_ROOT"`，避免另建默认 `.build` 或按版本、轮次复制构建缓存。源码快照、日志和必要安装包可另存。
+工作区统一复用仓库根目录的`target/`；脚本未设置环境变量时也默认使用该目录，每个会话后续原地复用。`tools/build.sh` 将 Xcode 输出放在该根目录的平台子目录；Swift 测试和实际联调脚本分别显式传入 `--scratch-path "$HOMESENSE_BUILD_ROOT/swift"`、`--scratch "$HOMESENSE_BUILD_ROOT/swift"`，避免另建默认 `.build` 或按版本、轮次复制构建缓存。源码快照、日志和必要安装包可另存。
 
 真机安装包使用 `tools/package-ios.py`，先签全部内嵌 Mach-O（包括根目录的 `HomeSense.debug.dylib` 和 `__preview.dylib`），再签 App，随后逐个验证签名、团队、描述文件和权限。仅执行 App 层的 `codesign --verify --deep --strict` 不能证明这两份动态库已签名。独立 App 可按下面方式打包；带扩展的 App 需要另外配置各自描述文件。
 
@@ -58,7 +58,7 @@ python3 tools/package-ios.py \
 export HOMESENSE_TEST_BINARY="/absolute/path/to/pinned/homesensed"
 export HOMESENSE_KEYPAD_TEST_BINARY="$HOMESENSE_TEST_BINARY"
 export HOMESENSE_KEYPAD_TEST_FIXTURES="$PWD/../../config/test/native-app-keypad"
-swift test --build-system native --scratch-path "$HOMESENSE_BUILD_ROOT"
+swift test --build-system native --scratch-path "$HOMESENSE_BUILD_ROOT/swift"
 ```
 
 缺少相应环境变量时，两项实际 Rust 集成测试明确跳过。测试使用隔离模拟设备、临时状态及注入的内存凭证存储，不访问用户 Keychain。
