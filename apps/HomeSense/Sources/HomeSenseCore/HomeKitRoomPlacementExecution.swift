@@ -98,8 +98,10 @@ public enum HomeKitRoomPlacementExecution {
             }
             detail = String(describing: error)
         }
+        // Include moves not yet confirmed when a batch stops partway through.
         return Report(assigned: assigned, alreadyAssigned: preview.assignments.count - preview.pendingAssignments.count,
-                      createdRooms: created.keys.sorted().compactMap { created[$0] }, unresolved: preview.issues.count,
+                      createdRooms: created.keys.sorted().compactMap { created[$0] },
+                      unresolved: preview.issues.count + preview.pendingAssignments.count - assigned.count,
                       stopped: stop, detail: detail)
     }
 }

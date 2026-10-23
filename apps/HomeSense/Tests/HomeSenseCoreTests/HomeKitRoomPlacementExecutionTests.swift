@@ -78,6 +78,7 @@ import Testing
         driver.failAfterFirstMove = true
         let first = await HomeKitRoomPlacementExecution.execute(preview, driver: driver) { driver.publication }
         #expect(!first.complete && first.stopped == .operationFailed && driver.moves.count == 1)
+        #expect(first.assigned.isEmpty && first.unresolved == 2)
         driver.failAfterFirstMove = false
         let refreshed = try driver.preview()
         let second = await HomeKitRoomPlacementExecution.execute(refreshed, driver: driver) { driver.publication }
@@ -90,6 +91,7 @@ import Testing
         let changed = HomeKitRoomPlacement.Publication(boot: "new", revision: "1", generation: "new", bridges: driver.publication.bridges)
         let result = await HomeKitRoomPlacementExecution.execute(preview, driver: driver) { changed }
         #expect(result.stopped == .stalePreview && driver.moves.isEmpty && driver.creations == 0)
+        #expect(result.unresolved == 2)
     }
 
     @Test func manualMoveOfAnAlreadyConfirmedTargetStopsBeforeTheNextAccessory() async throws {
@@ -106,5 +108,20 @@ import Testing
             return driver.publication
         }
         #expect(result.stopped == .cancelled && driver.moves.count == 1)
+        #expect(result.assigned.isEmpty && result.unresolved == 2)
+    }
+
+    @Test func cancellationAfterConfirmationCountsOnlyTheRemainingAccessory() async throws {
+        let driver = PlacementDriver(), preview = try driver.preview()
+        var readsAfterMove = 0
+        let result = await HomeKitRoomPlacementExecution.execute(preview, driver: driver) {
+            if !driver.moves.isEmpty {
+                readsAfterMove += 1
+                if readsAfterMove == 2 { throw CancellationError() }
+            }
+            return driver.publication
+        }
+        #expect(result.stopped == .cancelled && driver.moves.count == 1)
+        #expect(result.assigned.count == 1 && result.unresolved == 1)
     }
 }
