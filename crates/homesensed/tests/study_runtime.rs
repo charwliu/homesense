@@ -2799,6 +2799,75 @@ async fn calendar_dispatch_persists_before_rules_and_never_replays_after_restart
     a.shutdown().await.unwrap();
 }
 
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn empty_calendar_reads_do_not_wait_for_unrelated_writer() {
+    use homesensed::event_rules::{EventRules, ScheduledRules};
+    let db = database();
+    let controller = Uuid::new_v4();
+    let a = actor(&db, controller).await;
+    let rules = EventRules::new(a.clone(), controller, vec![], Default::default(), Default::default())
+        .await.unwrap();
+    let due = 946_828_860_000;
+    let mut calendar = ScheduledRules::new(rules, vec![], due - 1, 1000).await.unwrap();
+    let writer = rusqlite::Connection::open(&db.0).unwrap();
+    writer.execute_batch("BEGIN IMMEDIATE").unwrap();
+    let result = tokio::time::timeout(
+        std::time::Duration::from_millis(500), calendar.poll(due, None),
+    ).await;
+    // Release the competing writer even on the original implementation's
+    // timeout, so failure leaves no blocked Admission worker behind.
+    writer.execute_batch("ROLLBACK").unwrap();
+    let queued = a.dispatch().await;
+    a.shutdown().await.unwrap();
+    assert!(result.is_ok(), "empty calendar blocked behind an unrelated SQLite writer");
+    assert!(result.unwrap().expect("empty calendar must remain readable during writer contention").is_empty());
+    assert!(queued.unwrap().is_none());
+    assert_eq!(Store::open(&db.0).unwrap().calendar_watermark(1, None).unwrap(), None);
+}
+
+#[tokio::test]
+async fn empty_calendar_keeps_clock_and_generation_guards() {
+    use homesensed::event_rules::{EventRules, ScheduledRules};
+    let db = database();
+    let controller = Uuid::new_v4();
+    let a = actor(&db, controller).await;
+    let due = 946_828_860_000;
+    let rules = EventRules::new(a.clone(), controller, vec![], Default::default(), Default::default())
+        .await.unwrap();
+    let mut clock = ScheduledRules::new(rules, vec![], due, 1000).await.unwrap();
+    assert!(clock.poll(0, None).await.is_err());
+    assert!(clock.status().clock.stopped);
+    let rules = EventRules::new(a.clone(), controller, vec![], Default::default(), Default::default())
+        .await.unwrap();
+    let mut generation = ScheduledRules::new(rules, vec![], due, 1000).await.unwrap();
+    a.transport_failed().await.unwrap();
+    a.recover_synchronized(2, 1).await.unwrap();
+    assert!(generation.poll(due + 1, None).await.is_err());
+    assert!(generation.status().clock.stopped);
+    a.shutdown().await.unwrap();
+}
+
+#[tokio::test]
+async fn empty_calendar_rejects_an_external_checkpoint_change() {
+    use homesensed::event_rules::{EventRules, ScheduledRules};
+    let db = database();
+    let controller = Uuid::new_v4();
+    let a = actor(&db, controller).await;
+    let due = 946_828_860_000;
+    let rules = EventRules::new(a.clone(), controller, vec![], Default::default(), Default::default())
+        .await.unwrap();
+    let mut calendar = ScheduledRules::new(rules, vec![], due, 1000).await.unwrap();
+    Store::open(&db.0).unwrap().calendar_watermark(1, Some(
+        homesense_storage::calendar::Checkpoint { expected: None, next: due },
+    )).unwrap();
+    assert!(calendar.poll(due + 1, None).await.is_err());
+    assert!(calendar.status().clock.stopped);
+    assert_eq!(calendar.status().persisted_watermark_unix_ms, None);
+    assert_eq!(Store::open(&db.0).unwrap().calendar_watermark(1, None).unwrap(), Some(due));
+    assert!(a.dispatch().await.unwrap().is_none());
+    a.shutdown().await.unwrap();
+}
+
 #[tokio::test]
 async fn strict_rule_document_loads_into_persistent_runtime_without_enabling_drafts() {
     use homesense_core::rule::{Budget, Value, ValueType};
