@@ -39,6 +39,8 @@ swift test --build-system native --scratch-path "$HOMESENSE_BUILD_ROOT/swift"
 
 真机安装包使用 `tools/package-ios.py`，先签全部内嵌 Mach-O（包括根目录的 `HomeSense.debug.dylib` 和 `__preview.dylib`），再签 App，随后逐个验证签名、团队、描述文件和权限。仅执行 App 层的 `codesign --verify --deep --strict` 不能证明这两份动态库已签名。独立 App 可按下面方式打包；带扩展的 App 需要另外配置各自描述文件。
 
+iOS 的「Apple家庭房间归属」需要原团队下明确 App ID 的 HomeKit 专用描述文件。先在 Xcode 的 Signing & Capabilities 添加 HomeKit 并更新描述文件，打包后同时核对实际签名权限和内嵌描述文件都包含 `com.apple.developer.homekit = true`；通用 `*` 描述文件不能交付此功能。iOS 使用 `App/HomeSense-iOS.entitlements`，保留原团队和包标识；描述文件与签名私钥不入库。真机仍需用户授权家庭访问，再选择家庭、对应桥和目标房间，经预览后应用；迁移中断后重新读取，已确认到位的配件会跳过。
+
 ```sh
 python3 tools/package-ios.py \
   --app "$HOMESENSE_BUILD_ROOT/ios/Build/Products/Debug-iphoneos/HomeSense.app" \
