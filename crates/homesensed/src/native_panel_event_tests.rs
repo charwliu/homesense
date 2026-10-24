@@ -162,7 +162,7 @@ async fn native_away_keeps_raw_event_authority_and_serializes_twelve_modules() {
             assert!(f.owner.step().await.unwrap().is_none());assert_eq!(f.journal_count(),0);
         } else {
             serial_away_first_round(&mut f,true,|_|Some(false)).await;
-            assert_eq!(f.journal_count(),13,"twelve separate module commands and one exact source cue");
+            assert_eq!(f.journal_count(),14,"twelve separate modules, exact source red and confirmed completion green");
         }
         f.finish().await;
     }
@@ -185,9 +185,9 @@ async fn managed_native_away_waits_for_read_without_spending_rounds_or_replaying
         if retirement=="long-read" {f.time.fetch_add(operation_budget+500,Ordering::SeqCst);}
         drop(permit);f.time.fetch_add(51,Ordering::SeqCst);tick_away(&mut f).await;
         if retirement=="ready" {
-            assert_eq!(f.journal_count(),2);assert_eq!(away_status(&f,&lease).await.rounds,1);
+            assert_eq!(f.journal_count(),1);assert_eq!(away_status(&f,&lease).await.rounds,0,"red prefix does not spend a module attempt");
             serial_away_first_round(&mut f,true,|_|Some(false)).await;
-            assert_eq!(f.journal_count(),13);
+            assert_eq!(f.journal_count(),14);
         } else {
             let done=away_status(&f,&lease).await;assert_eq!(done.rounds,0);
             assert_eq!(done.state,if matches!(retirement,"expired"|"long-read"){"failed"}else{"cancelled"});
@@ -420,27 +420,125 @@ async fn away_module_feedback(f:&mut Fixture,n:u8,on:bool) {
 }
 // Real admission/writer/decoder, one module per step. No future physical
 // ticket may write before this module replies or its bounded read fails.
+#[tokio::test]
+async fn managed_away_writes_red_before_any_module_off() {
+    let mut f=Fixture::build_with_away(true,false,true,true).await;
+    f.click(0,6).await;assert_eq!(f.route().await,1);
+    f.time.fetch_add(21,Ordering::SeqCst);tick_away(&mut f).await;
+    f.time.fetch_add(21,Ordering::SeqCst);
+    let first=f.owner.step().await.unwrap().unwrap();first.result.unwrap();
+    let mut frame=[0;5];f.peer.read_exact(&mut frame).unwrap();
+    assert_eq!(frame,[0xae,0x40,6,0xf1,0xee],"Away must write this key red before any module-Off, even when all loads were unknown");
+    assert_eq!(first.physical_frames,1,"red and physical Off are separately ordered writes");
+    assert_eq!(f.journal_count(),1,"no physical ticket is admitted until the red write completes");
+    f.finish().await;
+}
+
+#[tokio::test]
+async fn managed_away_red_expiry_or_revocation_never_admits_off_or_green_and_notifies_once() {
+    for revoke in [false,true] {
+        let mut f=Fixture::build_with_away(true,false,true,true).await;let(_tokens,lease)=away_status_lease(&f);
+        let mut terminal=f.actor.away_terminal_updates();
+        f.click(0,6).await;f.route().await;
+        f.time.fetch_add(21,Ordering::SeqCst);tick_away(&mut f).await;
+        assert_eq!(f.journal_count(),1);
+        if revoke {f.panels.disconnect();}else{f.time.fetch_add(2001,Ordering::SeqCst);}
+        tick_away(&mut f).await;
+        let view=away_status(&f,&lease).await;
+        assert_eq!((view.state.as_str(),view.rounds),(if revoke{"cancelled"}else{"failed"},0));
+        if !revoke {assert_eq!(view.reason.as_deref(),Some("red_indicator_failed"));}
+        assert!(terminal.has_changed().unwrap());terminal.borrow_and_update();
+        assert!(f.owner.step().await.unwrap().is_none());assert_eq!(f.journal_count(),1);
+        tick_away(&mut f).await;assert!(!terminal.has_changed().unwrap());
+        f.finish().await;
+    }
+}
+
+#[tokio::test]
+async fn managed_away_completion_waits_for_actual_green_write_and_app_cue_retires_only_then() {
+    for expire in [false,true] {
+        let mut f=Fixture::build_with_away(true,false,true,true).await;let(_tokens,lease)=away_status_lease(&f);
+        let mut terminal=f.actor.away_terminal_updates();
+        f.click(0,6).await;f.route().await;
+        serial_away_first_round_inner(&mut f,true,|_|Some(false),None,false).await;
+        let view=away_status(&f,&lease).await;
+        assert_eq!((view.state.as_str(),view.confirmed_outputs),("confirming",96));
+        assert!(!terminal.has_changed().unwrap());
+        let endpoint=DeviceId::new("key-0-6").unwrap();
+        let before=f.actor.keypad_indications(f.controller,f.actor.task_generation().await.unwrap(),vec![endpoint.clone()]).await.unwrap();
+        assert_eq!(before[&endpoint].color,Some("red"));
+        if expire {
+            f.time.fetch_add(2001,Ordering::SeqCst);tick_away(&mut f).await;
+            let failed=away_status(&f,&lease).await;assert_eq!(failed.state,"failed");
+            assert_eq!(failed.confirmed_outputs,96,"physical success is retained, not confused with LED delivery success");
+            assert!(f.owner.step().await.unwrap().is_none(),"expired completion must not renew or turn green");
+        } else {
+            write_away_green(&mut f).await;assert_eq!(away_status(&f,&lease).await.state,"confirmed");
+            let after=f.actor.keypad_indications(f.controller,f.actor.task_generation().await.unwrap(),vec![endpoint.clone()]).await.unwrap();
+            assert_eq!(after[&endpoint].status,"retired");assert_eq!(after[&endpoint].color,None);
+        }
+        assert!(terminal.has_changed().unwrap());terminal.borrow_and_update();
+        tick_away(&mut f).await;assert!(!terminal.has_changed().unwrap());
+        f.finish().await;
+    }
+}
+
+#[tokio::test]
+async fn managed_away_selected_green_is_revocable_after_all96_close_without_transport_fault() {
+    let mut f=Fixture::build_with_away(true,false,true,true).await;let(_tokens,lease)=away_status_lease(&f);
+    f.click(0,6).await;f.route().await;
+    serial_away_first_round_inner(&mut f,true,|_|Some(false),None,false).await;
+    f.time.fetch_add(21,Ordering::SeqCst);
+    let ticket=f.actor.dispatch().await.unwrap().unwrap();assert_eq!(ticket.command.command,homesense_core::Command::PanelLed(false));
+    f.panels.disconnect();tick_away(&mut f).await;
+    assert_eq!(away_status(&f,&lease).await.state,"cancelled");
+    let listener=TcpListener::bind("127.0.0.1:0").unwrap();
+    let socket=TcpStream::connect(listener.local_addr().unwrap()).unwrap();let(mut peer,_)=listener.accept().unwrap();
+    let mut connection=hb_transport::Connection::for_simulation(socket,1);
+    let(result,proof)=crate::transport_owner::send_guarded_ticket(&ticket,&mut connection,||f.actor.monotonic_ms());
+    assert_eq!(result.unwrap_err().bytes_written,0);let proof=proof.expect("revoked green has sealed zero-byte proof");assert!(!proof.away(),"green uses its shorter feedback-projection lease, not a physical module receipt");
+    f.actor.finish_projection_discard(proof).await.unwrap();
+    peer.set_nonblocking(true).unwrap();let mut byte=[0];assert_eq!(peer.read(&mut byte).unwrap_err().kind(),std::io::ErrorKind::WouldBlock);
+    assert!(f.actor.task_generation().await.is_ok());f.finish().await;
+}
+
+async fn write_away_red(f:&mut Fixture) {
+    f.time.fetch_add(21,Ordering::SeqCst);tick_away(f).await;
+    f.time.fetch_add(21,Ordering::SeqCst);
+    let red=f.owner.step().await.unwrap().expect("source red must be queued before module-Off");
+    red.result.unwrap();assert_eq!(red.physical_frames,1);
+    let mut frame=[0;5];f.peer.read_exact(&mut frame).unwrap();assert_eq!(frame,[0xae,0x40,6,0xf1,0xee]);
+}
+async fn write_away_green(f:&mut Fixture) {
+    crate::control_batch::tick(&f.actor,f.controller,f.owner.feedback()).await.unwrap();
+    f.time.fetch_add(21,Ordering::SeqCst);
+    let green=f.owner.step().await.unwrap().expect("all96 feedback must release the original green tail");
+    green.result.unwrap();assert_eq!(green.physical_frames,1);
+    let mut frame=[0;5];f.peer.read_exact(&mut frame).unwrap();assert_eq!(frame,[0xae,0x40,6,0xf2,0xee]);
+    tick_away(f).await;
+}
 async fn serial_away_first_round(f:&mut Fixture,local_cue:bool,replies:impl Fn(u8)->Option<bool>) {
     serial_away_first_round_partial(f,local_cue,replies,None).await;
 }
 async fn serial_away_first_round_partial(f:&mut Fixture,local_cue:bool,replies:impl Fn(u8)->Option<bool>,partial:Option<u8>) {
+    serial_away_first_round_inner(f,local_cue,replies,partial,true).await;
+}
+async fn serial_away_first_round_inner(f:&mut Fixture,local_cue:bool,replies:impl Fn(u8)->Option<bool>,partial:Option<u8>,complete_green:bool) {
     let mut seen=std::collections::BTreeSet::new();
     let terminal=f.actor.away_terminal_updates();
-    for index in 0..12 {
+    if local_cue {write_away_red(f).await;}
+    for _index in 0..12 {
         f.time.fetch_add(21,Ordering::SeqCst);tick_away(f).await;
         f.time.fetch_add(21,Ordering::SeqCst);
         let batch=f.owner.step().await.unwrap().expect("current module must be queued");
         let count=batch.physical_frames;
-        batch.result.unwrap();assert_eq!(count,1+usize::from(index==0 && local_cue));
+        batch.result.unwrap();assert_eq!(count,1);
         let mut bytes=vec![0;count*5];f.peer.read_exact(&mut bytes).unwrap();
-        if index==0 && local_cue {
-            assert_eq!(&bytes[..5],&[0xae,0x40,6,0xf2,0xee],"source cue precedes module request so no later cue writes into its replies");
-        }
         let mut module=None;
         for frame in bytes.as_chunks::<5>().0 {
             assert_eq!((frame[0],frame[4]),(0xae,0xee));
-            if frame[1]==0x40 {assert_eq!(frame,&[0xae,0x40,6,0xf2,0xee]);}
-            else {
+            assert_ne!(frame[1],0x40,"green must not share a module write or precede all96 feedback");
+            {
                 assert!((0x20..0x2c).contains(&frame[1]));assert_eq!(frame[2],0);
                 assert_eq!(frame[3],if frame[1]<0x27{0xf2}else{0});
                 assert!(module.replace(frame[1]-0x20).is_none());
@@ -460,6 +558,10 @@ async fn serial_away_first_round_partial(f:&mut Fixture,local_cue:bool,replies:i
     }
     assert_eq!(seen.len(),12);
     f.time.fetch_add(21,Ordering::SeqCst);tick_away(f).await;
+    if local_cue {
+        if partial.is_none() && (0..12).all(|n|replies(n)==Some(false)) {if complete_green{write_away_green(f).await;}}
+        else {assert!(f.owner.step().await.unwrap().is_none(),"unconfirmed outputs must not release a green completion");}
+    }
 }
 #[tokio::test]
 async fn away_terminal_notifies_all_state_readers_once_without_progress_wakes() {
@@ -485,15 +587,15 @@ async fn managed_native_away_retries_only_failed_module_and_reports_all96_confir
     serial_away_first_round(&mut f,true,|n|Some(n==3)).await;
     let pending=away_status(&f,&lease).await;assert_eq!(pending.state,"confirming");assert_eq!(pending.rounds,1);assert_eq!(pending.confirmed_outputs,88);
     let delay=homesense_core::away_execution::Policy::default().delay_ms;
-    f.time.fetch_add(delay-1,Ordering::SeqCst);tick_away(&mut f).await;assert_eq!(f.journal_count(),13);
-    f.time.fetch_add(1,Ordering::SeqCst);tick_away(&mut f).await;assert_eq!(f.journal_count(),14,"one failed module; no second cue or repeat of confirmed modules");
+    f.time.fetch_add(delay-1,Ordering::SeqCst);tick_away(&mut f).await;assert_eq!(f.journal_count(),14);
+    f.time.fetch_add(1,Ordering::SeqCst);tick_away(&mut f).await;assert_eq!(f.journal_count(),15,"one failed module; no second cue or repeat of confirmed modules");
     f.time.fetch_add(21,Ordering::SeqCst);f.owner.step().await.unwrap().unwrap().result.unwrap();
     let mut retry=[0;5];f.peer.read_exact(&mut retry).unwrap();assert_eq!(retry,[0xae,0x23,0,0xf2,0xee]);
     for n in 0..12 {away_module_feedback(&mut f,n,false).await;}
-    f.time.fetch_add(21,Ordering::SeqCst);tick_away(&mut f).await;let done=away_status(&f,&lease).await;
+    f.time.fetch_add(21,Ordering::SeqCst);tick_away(&mut f).await;write_away_green(&mut f).await;let done=away_status(&f,&lease).await;
     assert_eq!((done.state.as_str(),done.rounds,done.confirmed_outputs),("confirmed",2,96));assert!(done.missing.is_empty());
     assert_eq!(f.owner.feedback().snapshot().devices[&DeviceId::new("load").unwrap()].observed,Some(homesense_core::Observation::Switch(true)));
-    f.time.fetch_add(1000,Ordering::SeqCst);tick_away(&mut f).await;assert_eq!(f.journal_count(),14);assert!(f.owner.step().await.unwrap().is_none());
+    f.time.fetch_add(1000,Ordering::SeqCst);tick_away(&mut f).await;assert_eq!(f.journal_count(),15);assert!(f.owner.step().await.unwrap().is_none());
     f.finish().await;
 }
 #[tokio::test]
@@ -512,7 +614,7 @@ async fn managed_native_away_missing_feedback_exhausts_three_rounds_with_exact_s
     failed_away_query(&mut f,11).await;
     let failed=away_status(&f,&lease).await;
     assert_eq!((failed.state.as_str(),failed.rounds),("failed",3));assert_eq!(failed.reason.as_deref(),Some("attempts_exhausted"));
-    assert_eq!(failed.missing,vec![crate::away_execution::Missing{module_id:"away-11".into(),channels:(1..=8).collect()}]);assert_eq!(f.journal_count(),15);
+    assert_eq!(failed.missing,vec![crate::away_execution::Missing{module_id:"away-11".into(),channels:(1..=8).collect()}]);assert_eq!(f.journal_count(),16);
     f.time.fetch_add(1000,Ordering::SeqCst);tick_away(&mut f).await;assert_eq!(away_status(&f,&lease).await,failed);assert!(f.owner.step().await.unwrap().is_none());
     f.finish().await;
 }
@@ -545,7 +647,7 @@ async fn managed_away_serial_admission_cancels_future_module_on_before_first_mod
     let status:String=db.query_row("SELECT status FROM command_journal ORDER BY command_id LIMIT 1",[],|r|r.get(0)).unwrap();
     assert_eq!(status,"cancelled");drop(db);
     serial_away_first_round(&mut f,true,|_|Some(false)).await;
-    assert_eq!(f.journal_count(),14);
+    assert_eq!(f.journal_count(),15);
     assert!(f.owner.step().await.unwrap().is_none());
     f.finish().await;
 }
@@ -567,7 +669,7 @@ async fn managed_native_away_cancels_delayed_retry_after_owner_retirement_or_man
             f.time.fetch_add(21,Ordering::SeqCst);f.owner.step().await.unwrap().unwrap().result.unwrap();
             let mut explicit=[0;5];f.peer.read_exact(&mut explicit).unwrap();assert_eq!(explicit,[0xae,0x20,1,0xf1,0xee]);
         }
-        assert_eq!(f.journal_count(),if manual{14}else{13});
+        assert_eq!(f.journal_count(),if manual{15}else{14});
         f.time.fetch_add(1000,Ordering::SeqCst);tick_away(&mut f).await;assert!(f.owner.step().await.unwrap().is_none());assert_eq!(away_status(&f,&lease).await,cancelled);
         f.finish().await;
     }

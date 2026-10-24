@@ -34,6 +34,7 @@ fn away_failed_sample(state:&homesense_state::DeviceState,after:u64,now:u64)->bo
 pub(crate) enum BudgetRole {
     Ordinary,
     Lighting,
+    SequencedLighting,
     FeedbackLed,
 }
 /// Only a contiguous mixed lighting phase owns a feedback budget.
@@ -66,12 +67,11 @@ pub(crate) fn feedback_roles_local(config:&Configuration,intents:&[homesense_hap
                 .iter()
                 .enumerate().any(|(offset,i)|Some(start+offset)!=local && class(config, &i.device, i.command).unwrap().1)
         {
+            let sequenced = sequence_modules(config,intents[start..end].iter().map(|i|(&i.device,i.command)));
             for (offset,(role, intent)) in result[start..end].iter_mut().zip(&intents[start..end]).enumerate() {
                 *role = if Some(start+offset)==local {BudgetRole::Ordinary} else if class(config, &intent.device, intent.command).unwrap().1 {
                     BudgetRole::FeedbackLed
-                } else {
-                    BudgetRole::Lighting
-                };
+                } else if sequenced {BudgetRole::SequencedLighting} else {BudgetRole::Lighting};
             }
         }
         start = end;
@@ -102,6 +102,22 @@ pub(crate) fn class(
         }
         _ => None,
     }
+}
+/// Only unambiguous absolute targets may acquire module confirmation stages.
+/// An ordered program with different values for the same output must not gain
+/// waits for intermediate values which it never promised to hold.
+fn sequence_modules<'a>(config:&Configuration,commands:impl Iterator<Item=(&'a DeviceId,Command)>)->bool {
+    let mut values=BTreeMap::new();let mut modules=BTreeMap::<String,std::collections::BTreeSet<_>>::new();let mut opening=false;
+    for(id,command)in commands {
+        let Some((gateway,false))=class(config,id,command) else{continue;};
+        if matches!(command,Command::SetLevel{transition:homesense_core::LevelTransition::Ramp,..}) {return false;}
+        if values.insert(id,command).is_some_and(|old|old!=command) {return false;}
+        opening |= match command {Command::Switch(on)=>on,Command::SetLevel{level,..}=>level.get()>0,_=>false};
+        if let Some((_,module))=config.binding(id) {modules.entry(gateway).or_default().insert(module.address());}
+    }
+    // Absolute all-Off must continue issuing every original Off even when an
+    // earlier module is unavailable; its existing final-feedback gate remains.
+    opening && modules.values().any(|modules|modules.len()>1)
 }
 /// Retain the final origin-key color in one evaluated immediate segment.
 /// The caller keeps timeline step receipts outside this transformation.
@@ -194,6 +210,7 @@ pub(crate) struct View {
     deadline: u64,
     condition: Option<Condition>,
     managed_away: bool,
+    stage: Option<usize>,
 }
 /// A retained predicate, rather than a frozen dimmer value. Refreshing its
 /// witness never queries a device and never changes the accepted LED budget.
@@ -232,15 +249,16 @@ impl View {
         targets.iter().enumerate().filter_map(|(index,target)| {
             let needed=target.channels.iter().any(|channel| {
                 let key=(target.gateway.clone(),target.module.address().get(),*channel);
-                let Some((expected,after))=ports.get(&key) else{return false;};
+                let Some((_,after))=ports.get(&key) else{return false;};
                 feedback.module_truth().received_port_state(&key.0,key.1,key.2).is_none_or(|state| {
                     if self.managed_away && away_failed_sample(&state,*after,now) {return false;}
                     state.quality!=homesense_state::Quality::Confirmed
                     ||state.observed.is_none()
-                    // A fresh On is a real failed Away result, handled by
-                    // its bounded retry owner. Re-querying that same port
-                    // continuously starves other modules' freshness proofs.
-                    ||(!self.managed_away && !state.observed.is_some_and(|o|expected.target_matches(o)))
+                    // A fresh mismatching reply is still a completed read.
+                    // The proof below retains exact target matching; querying
+                    // this module every turn cannot repair a failed write and
+                    // consumes other modules' confirmation slots. Revisit it
+                    // when its sample ages, without renewing the LED budget.
                     ||!state.observed_at_ms.is_some_and(|at|at>*after && at<=now && now-at<self.feedback_max_age_ms()/2)
                 })
             });
@@ -281,6 +299,12 @@ pub(crate) async fn query_requirements(admission:&Admission,feedback:&Feedback,c
     }}
     Ok(needed)
 }
+struct Stage {
+    group: u64,
+    commands: Vec<QueuedCommand>,
+    opened: Option<u64>,
+    confirmed: bool,
+}
 struct Gate {
     generation: TaskGeneration,
     controller: Uuid,
@@ -299,10 +323,21 @@ struct Gate {
     invalid: bool,
     cancel_reason: homesense_core::queue::CancelReason,
     condition: Option<Condition>,
+    stages: Vec<Stage>,
+    write_window_ms: u64,
 }
 impl Gate {
     fn view(&self, id: u64) -> Option<View> {
-        if self.invalid || self.lights.iter().any(|command| !self.written.contains_key(&command.id))
+        if self.invalid {return None;}
+        if let Some((index,stage))=self.stages.iter().enumerate().find(|(_,stage)|!stage.confirmed) {
+            if stage.opened.is_none() || stage.commands.iter().any(|command|!self.written.contains_key(&command.id)) {return None;}
+            return Some(View {
+                id,generation:self.generation.clone(),
+                targets:stage.commands.iter().map(|command|(command.device_id.clone(),(command.command,self.written[&command.id]))).collect(),
+                deadline:self.deadline,condition:None,managed_away:false,stage:Some(index),
+            });
+        }
+        if self.lights.iter().any(|command| !self.written.contains_key(&command.id))
             || self.targets.keys().any(|device|self.target_ids.get(device).is_none_or(|id|!self.written.contains_key(id))) {
             return None;
         }
@@ -313,6 +348,7 @@ impl Gate {
             deadline: self.delivery_deadline.unwrap_or(self.deadline).min(self.deadline),
             condition: self.condition.clone(),
             managed_away: self.away.as_ref().is_some_and(crate::away_auth::Authorization::guarded_operation),
+            stage:None,
         })
     }
 }
@@ -400,6 +436,7 @@ impl Owner {
             deadline: evidence.deadline, delivery_deadline: Some(send_before),
             ready: Some(BarrierLease { lease: proof.lease().clone(), boot, generation: generation.clone(), deadline: send_before }),
             invalid: false, cancel_reason: homesense_core::queue::CancelReason::RunCancelled,
+            stages:vec![],write_window_ms:0,
             condition: Some(Condition { postconditions: std::iter::once(evidence.effect.after.clone())
                     .chain(evidence.effect.when.clone()).collect(), max_age_ms: evidence.effect.max_age_ms,
                 after: evidence.writes_by_device.clone(), command_fence: evidence.command_fence, owned }),
@@ -423,10 +460,18 @@ impl Owner {
             if power_only {self.power_leds.extend(link.leds.iter().cloned());}
         }
     }
+    pub(crate) fn stages_active(&self)->bool {
+        self.gates.values().any(|gate|!gate.invalid && !gate.stages.is_empty())
+    }
     pub(crate) fn write_deadline(&self, id: u64) -> Option<u64> {
-        self.local.get(&id).copied().or_else(||self.gates
-            .get(&self.phases.get(&id)?.gate?)?
-            .delivery_deadline)
+        self.local.get(&id).copied().or_else(|| {
+            let phase=self.phases.get(&id)?;
+            let gate=self.gates.get(&phase.gate?)?;
+            if !phase.led {
+                gate.stages.iter().find(|stage|stage.group==phase.group)?
+                    .opened.map(|at|at.saturating_add(gate.write_window_ms).min(gate.deadline))
+            } else {gate.delivery_deadline}
+        })
     }
     pub(crate) fn discarded(
         &mut self,
@@ -459,7 +504,7 @@ impl Owner {
                     .gates
                     .values()
                     .filter(|g| g.invalid && g.cancel_reason == reason)
-                    .flat_map(|g| g.leds.iter().copied())
+                    .flat_map(|g| g.leds.iter().copied().chain(g.stages.iter().flat_map(|stage|stage.commands.iter().map(|command|command.id))))
                     .collect::<std::collections::BTreeSet<_>>();
                 (!ids.is_empty()).then_some((reason, ids))
             })
@@ -468,6 +513,19 @@ impl Owner {
     pub(crate) fn phase(&self, id: u64) -> Option<&Phase> {
         self.phases.get(&id)
     }
+    pub(crate) fn control_reply_channels(&self,id:u64,config:&Configuration)->Option<Vec<u8>> {
+        if self.local.contains_key(&id) {return None;}
+        let phase=self.phases.get(&id)?;
+        if phase.led {return None;}
+        let gate=self.gates.get(&phase.gate?)?;
+        let stage=gate.stages.iter().find(|stage|stage.group==phase.group)?;
+        let ports=stage.commands.iter().filter_map(|command|config.binding(&command.device_id)).collect::<Vec<_>>();
+        if ports.is_empty() || ports.iter().any(|(_,m)|m.profile()!=homesense_core::ProtocolProfile::R8i8DinPro) {return None;}
+        Some(ports.iter().map(|(d,_)|d.channel.get()).collect())
+    }
+    pub(crate) fn staged_light(&self,id:u64)->bool {
+        self.phases.get(&id).is_some_and(|phase|!phase.led && phase.gate.is_some()) && !self.local.contains_key(&id)
+    }
     pub(crate) fn feedback_obligation(&self,id:u64)->bool {
         self.gates.values().any(|gate|gate.lights.iter().any(|command|command.id==id))
     }
@@ -475,7 +533,8 @@ impl Owner {
         self.phases.get(&id).is_none_or(|p| {
             p.gate.is_none_or(|id| {
                 self.gates.get(&id).is_some_and(|g| {
-                    g.ready.as_ref().is_some_and(|lease| lease.valid(now)) && !g.invalid
+                    !g.invalid && if p.led {g.ready.as_ref().is_some_and(|lease|lease.valid(now))}
+                    else {g.stages.iter().find(|stage|stage.group==p.group).is_some_and(|stage|stage.opened.is_some()&&!stage.confirmed)}
                 })
             })
         })
@@ -490,6 +549,8 @@ impl Owner {
         source: Option<Source>,
         guards: Vec<ReadCheck>,
         manual: &BTreeMap<DeviceId, u64>,
+        now: u64,
+        write_window_ms: u64,
     ) {
         let local=source.as_ref().and_then(|source|source.keypad()).and_then(|origin|origin.cue()).map(|cue|cue.0);
         if let Some(command)=commands.iter().find(|command|Some(command.id)==local) {self.local.insert(command.id,command.deadline_ms);}
@@ -517,14 +578,21 @@ impl Owner {
                 .map(|c| c.id)
                 .collect::<Vec<_>>();
             let gated = !lights.is_empty() && !leds.is_empty();
+            let sequenced=gated && write_window_ms>0 && sequence_modules(config,lights.iter().map(|c|(&c.device_id,c.command)));
+            let first_module=lights.first().and_then(|command|config.binding(&command.device_id)).map(|(_,module)|module.address());
+            let mut stages=vec![];
             let mut phase_start = start;
             while phase_start < end {
                 let writer_class=|command:&QueuedCommand|class(config,&command.device_id,command.command)
-                    .map(|(gateway,led)|(gateway,led && Some(command.id)!=local));
-                let (gateway, led) = writer_class(&commands[phase_start]).unwrap();
+                    .map(|(gateway,led)| {
+                        let led=led && Some(command.id)!=local;
+                        let module=if sequenced && !led {if Some(command.id)==local {first_module}else{config.binding(&command.device_id).map(|(_,m)|m.address())}}else{None};
+                        (gateway,led,module)
+                    });
+                let (gateway, led, module) = writer_class(&commands[phase_start]).unwrap();
                 let mut phase_end = phase_start + 1;
                 while phase_end < end
-                    && writer_class(&commands[phase_end]) == Some((gateway.clone(), led))
+                    && writer_class(&commands[phase_end]) == Some((gateway.clone(), led,module))
                 {
                     phase_end += 1;
                 }
@@ -535,9 +603,14 @@ impl Owner {
                             group: commands[phase_start].id,
                             gateway: gateway.clone(),
                             led,
-                            gate: (gated && led && Some(command.id)!=local).then_some(id),
+                            gate: (gated && (led || sequenced)).then_some(id),
                         },
                     );
+                }
+                if sequenced && !led {
+                    stages.push(Stage {group:commands[phase_start].id,
+                        commands:commands[phase_start..phase_end].iter().filter(|c|Some(c.id)!=local).cloned().collect(),
+                        opened:stages.is_empty().then_some(now),confirmed:false});
                 }
                 phase_start = phase_end;
             }
@@ -620,6 +693,7 @@ impl Owner {
                         invalid: false,
                         cancel_reason: homesense_core::queue::CancelReason::RunCancelled,
                         condition: None,
+                        stages,write_window_ms,
                     },
                 );
             }
@@ -778,6 +852,7 @@ impl Owner {
                     invalid: false,
                     cancel_reason: homesense_core::queue::CancelReason::RunCancelled,
                         condition: None,
+                        stages:vec![],write_window_ms:0,
                 },
             );
         }
@@ -808,7 +883,10 @@ impl Owner {
             if gate.invalid {
                 continue;
             }
-            let expired = now >= gate.deadline || gate.delivery_deadline.is_some_and(|deadline| now >= deadline);
+            let stage_expired=gate.stages.iter().find(|stage|!stage.confirmed).is_some_and(|stage|
+                stage.opened.is_some_and(|at|now>=at.saturating_add(gate.write_window_ms))
+                && stage.commands.iter().any(|command|!gate.written.contains_key(&command.id)));
+            let expired = now >= gate.deadline || stage_expired || gate.delivery_deadline.is_some_and(|deadline| now >= deadline);
             if generation != Some(&gate.generation)
                 || expired
                 || !authorized(gate.controller)
@@ -833,6 +911,12 @@ impl Owner {
                     break;
                 }
             }
+            if !gate.stages.is_empty() && !store.keypad_completion_dependencies_current(
+                gate.generation.boot_id(),gate.generation.epochs.configuration,
+                gate.lights.iter().map(|c|c.id).min().unwrap(),
+                &gate.lights.iter().map(|c|c.id).collect(),
+                &gate.lights.iter().map(|c|c.device_id.clone()).collect(),
+            ).map_err(|_|W::ServiceCommunicationFailure)? {gate.invalid=true;}
             if let Some(condition) = &gate.condition
                 && !store.keypad_completion_dependencies_current(
                     gate.generation.boot_id(), gate.generation.epochs.configuration,
@@ -923,6 +1007,15 @@ impl Owner {
             },
             _ => return Err(W::InvalidValueInRequest),
         };
+        if let Some(index)=proof.view.stage {
+            if matched {
+                let stage=gate.stages.get_mut(index).ok_or(W::ResourceBusy)?;
+                stage.confirmed=true;
+                if let Some(next)=gate.stages.get_mut(index+1) {next.opened=Some(now);}
+                log::debug!("batch_module_confirmed group={} stage={} at_ms={} total_deadline_ms={}",proof.view.id,index,now,gate.deadline);
+            }
+            return Ok(());
+        }
         if matched {
             // Arm once, at the first complete physical proof. Refreshing a
             // witness never restarts this delivery budget.
@@ -1154,6 +1247,7 @@ mod budget_tests {
             None,
             vec![],
             &Default::default(),
+            0,2000,
         );
         owner.written(1, 10);
         (owner, feedback, admission, root, boot)
@@ -1227,13 +1321,47 @@ mod budget_tests {
         );
     }
     #[tokio::test]
+    async fn fresh_mismatching_reply_defers_requery_without_authorizing_linked_leds() {
+        let (mut owner, mut feedback, admission, root, boot) = fixture().await;
+        let config = Configuration::parse(
+            include_bytes!("../../../config/test/native-app-keypad/devices.json"),
+            ExecutionContext::Simulation,
+        ).unwrap();
+        let targets = crate::physical_queries::plan(&config, ExecutionContext::Simulation).unwrap();
+        let view = owner.views().remove(0);
+        assert!(!view.query_requirements(&config, &feedback, &targets, 100).is_empty());
+        observation_sample(&mut feedback, 9, 100, 20);
+        assert!(!view.query_requirements(&config, &feedback, &targets, 100).is_empty(),
+            "a pre-write reply cannot suppress the required confirmation read");
+        let sample = observation_sample(&mut feedback, 100, 100, 20); // requested40, received20
+        owner.apply(Proof { view, sample: sample.into() }, boot, 100).unwrap();
+        assert!(!owner.eligible(2, 100), "a real reply at the wrong level is not target confirmation");
+        assert_eq!(owner.write_deadline(2), None);
+        let view = owner.views().remove(0);
+        assert!(view.query_requirements(&config, &feedback, &targets, 100).is_empty(),
+            "fresh mismatching feedback must not trigger the same module query every writer turn");
+        assert!(!view.query_requirements(&config, &feedback, &targets, 99).is_empty(),
+            "future-dated feedback cannot suppress a read");
+        assert!(view.query_requirements(&config, &feedback, &targets, 7_599).is_empty());
+        assert!(!view.query_requirements(&config, &feedback, &targets, 7_600).is_empty(),
+            "an aging sample still receives a bounded refresh turn inside the original budget");
+        assert!(!owner.eligible(2, 7_600));
+        let sample = observation_sample(&mut feedback, 7_800, 7_800, 40);
+        owner.apply(Proof { view, sample: sample.into() }, boot, 7_800).unwrap();
+        assert!(owner.eligible(2, 7_800));
+        assert_eq!(owner.write_deadline(2), Some(9_800));
+        assert!(!owner.eligible(2, 9_800));
+        admission.shutdown().await.unwrap();
+        std::fs::remove_dir_all(root).unwrap();
+    }
+    #[tokio::test]
     async fn managed_away_known_failure_yields_reads_but_off_proof_still_expires() {
         let (owner, mut feedback, admission, root, _) = fixture().await;
         let config=Configuration::parse(include_bytes!("../../../config/test/native-app-keypad/devices.json"),ExecutionContext::Simulation).unwrap();
         let targets=crate::physical_queries::plan(&config,ExecutionContext::Simulation).unwrap();
         let mut view=owner.views().remove(0);
         observation_sample(&mut feedback,100,100,20); // target is40; actual mismatch remains real
-        assert!(!view.query_requirements(&config,&feedback,&targets,100).is_empty(),"ordinary target confirmations retain their existing behavior");
+        assert!(view.query_requirements(&config,&feedback,&targets,100).is_empty(),"ordinary mismatching replies also defer repeated reads without granting target proof");
         view.managed_away=true;
         for (command,_) in view.targets.values_mut() {
             *command=Command::SetLevel{level:homesense_core::Percent::new(0).unwrap(),transition:homesense_core::LevelTransition::Immediate};

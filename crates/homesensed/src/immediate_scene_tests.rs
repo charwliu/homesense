@@ -2479,7 +2479,7 @@ async fn batch_gate_expiry_tombstone_never_releases_a_longer_original_led_deadli
     use homesense_core::{queue::{QueuedCommand,Origin},Command,DeviceId,Percent,LevelTransition};
     let(cfg,doc)=writer_batch_inputs();let mut h=Harness::from_inputs(cfg,doc).await;h.request(Action::SceneAction{controller:h.controller,revision:1,scene:"act".into(),execute:true}).await.unwrap();
     let commands=vec![QueuedCommand{id:1,device_id:DeviceId::new("light").unwrap(),command:Command::SetLevel{level:Percent::new(40).unwrap(),transition:LevelTransition::Immediate},origin:Origin::Rule,epochs:h.generation.epochs,deadline_ms:1,run_id:Some(1)},QueuedCommand{id:5,device_id:DeviceId::new("execute-led").unwrap(),command:Command::PanelLed(true),origin:Origin::Rule,epochs:h.generation.epochs,deadline_ms:10000,run_id:Some(1)}];
-    let mut gate=crate::control_batch::Owner::default();gate.accepted(&h.configuration,&commands,h.generation.clone(),h.controller,None,vec![],&Default::default());
+    let mut gate=crate::control_batch::Owner::default();gate.accepted(&h.configuration,&commands,h.generation.clone(),h.controller,None,vec![],&Default::default(),0,0);
     let store=Store::open(h.directory.join("runtime.sqlite")).unwrap();
     for now in [2,100,9999]{gate.audit(&store,Some(&h.generation),now,|_|true,&Default::default()).unwrap();assert!(!gate.eligible(5,now),"expired proof can never turn into a standalone LED request");assert!(gate.views().is_empty());}
     drop(store);h.finish().await;

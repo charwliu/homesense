@@ -10,6 +10,7 @@ pub(crate) struct Scope {
     address: u8,
     channels: BTreeSet<u8>,
     epoch: u64,
+    solicited: bool,
 }
 impl Scope {
     pub(crate) fn new(
@@ -32,7 +33,13 @@ impl Scope {
             address: module.address().get(),
             channels,
             epoch,
+            solicited:true,
         })
+    }
+    pub(crate) fn control(module:&ModuleSpec,channels:Vec<u8>,context:ExecutionContext,epoch:u64)->Result<Self,String> {
+        let mut scope=Self::new(module,None,context,epoch)?;
+        if channels.is_empty() || channels.iter().any(|ch|*ch==0||*ch>module.channels()) {return Err("invalid control reply channels".into());}
+        scope.channels=channels.into_iter().collect();scope.solicited=false;Ok(scope)
     }
     fn channel(&self, frame: hb_protocol::RawFrame) -> Option<u8> {
         match self.registry.decode(frame) {
@@ -143,7 +150,7 @@ impl Replies {
             }
             // Mark the actual received query batch, not a broad future time
             // range: a later genuine change must still accelerate refresh.
-            if !wait.missing.is_empty() && read.received_at_ms <= wait.deadline {
+            if wait.scope.solicited && !wait.missing.is_empty() && read.received_at_ms <= wait.deadline {
                 wait.solicited_batch = Some(SolicitedBatch {
                     received: read.received_at_ms,
                     frames: frames
@@ -277,4 +284,18 @@ mod tests {
         r.clear();
         assert!(r.next(100).is_none());
     }
+    #[test]
+    fn active_control_reply_reserves_turnaround_without_becoming_solicited() {
+        let module=ModuleSpec::new(BusAddress::new(3).unwrap(),ProtocolProfile::R8i8DinPro,Verification::Simulated).unwrap();
+        let mut replies=Replies::default();
+        replies.start("bus".into(),Scope::control(&module,vec![1,2],ExecutionContext::Simulation,1).unwrap(),100,20);
+        let first=read("bus",1,110,vec![[0xae,3,0xd1,0xf1,0xee]]);
+        replies.observe(&first);assert!(replies.waiting("bus",130));
+        assert!(!replies.solicited("bus",hb_protocol::RawFrame::parse(&[0xae,3,0xd1,0xf1,0xee]).unwrap(),110));
+        replies.observe(&read("bus",1,140,vec![[0xae,3,0xd2,0xf2,0xee]]));
+        assert!(replies.waiting("bus",159));assert!(!replies.waiting("bus",160));
+        // Receiving an Off is occupancy evidence, not a successful On proof.
+        assert!(!replies.solicited("bus",hb_protocol::RawFrame::parse(&[0xae,3,0xd2,0xf2,0xee]).unwrap(),140));
+    }
+
 }

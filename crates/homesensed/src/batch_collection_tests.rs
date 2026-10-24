@@ -499,3 +499,164 @@ async fn whole_house_on_status_uses_authorized_scope_even_when_supply_card_is_hi
     assert!(limited.household_operations.is_empty(),"partial scope cannot disclose whole-house operations");
     h.finish().await;
 }
+
+#[tokio::test]
+async fn following_query_waits_for_complete_9600_baud_batch() {
+    use std::io::{Read, Write};
+    let mut r=rules();
+    r["rules"]=json!([]);
+    r["immediate_scenes"]=json!([{
+        "id":"act","enabled":true,"review_evidence":"Synthetic 95-byte transport phase",
+        "activate":(0..19).map(|n|command(&format!("wire/{n}"),"relay",json!({"kind":"switch","on":n%2==0}))).collect::<Vec<_>>()
+    }]);
+    let mut h=Harness::new(r).await;
+    h.request(Action::SceneAction{controller:h.controller,revision:1,scene:"act".into(),execute:true}).await.unwrap();
+    type Writes=Arc<Mutex<Vec<(std::time::Instant,Vec<u8>)>>>;
+    struct Timed(Writes);
+    impl Read for Timed {
+        fn read(&mut self,_:&mut [u8])->std::io::Result<usize>{Err(std::io::ErrorKind::WouldBlock.into())}
+    }
+    impl Write for Timed {
+        fn write(&mut self,bytes:&[u8])->std::io::Result<usize>{self.0.lock().unwrap().push((std::time::Instant::now(),bytes.to_vec()));Ok(bytes.len())}
+        fn flush(&mut self)->std::io::Result<()>{Ok(())}
+    }
+    let writes:Writes=Arc::new(Mutex::new(vec![]));
+    let mut owner=TransportOwner::new(h.actor.clone(),[("bus".into(),hb_transport::Connection::for_simulation(Timed(writes.clone()),1))].into());
+    let outcome=owner.step().await.unwrap().unwrap();
+    outcome.result.unwrap();
+    assert_eq!(outcome.physical_frames,19);
+    let (device,module)=h.configuration.binding(&homesense_core::DeviceId::new("relay").unwrap()).unwrap();
+    owner.query_status("bus",module,device.channel,ExecutionContext::Simulation,100).await.unwrap();
+    {
+        let writes=writes.lock().unwrap();
+        assert_eq!(writes.len(),2);
+        assert_eq!(writes[0].1.len(),95,"retain the admitted merged write");
+        assert_eq!(writes[1].1,[0xae,3,0xa1,0xf2,0xee]);
+        let minimum=Duration::from_millis(99); // ceil(95 * 10 bits * 1000 / 9600)
+        assert!(writes[1].0.duration_since(writes[0].0)>=minimum,
+            "following query must not enter the gateway before the 95-byte batch drains at9600/8N1; gap={:?}",writes[1].0.duration_since(writes[0].0));
+    }
+    drop(owner);
+    h.finish().await;
+}
+
+/// A real Admission/transport/feedback test: no simulated corruption is used.
+/// The failure is the writer crossing a physical module before its reply.
+#[tokio::test]
+async fn cross_module_immediate_phase_waits_for_each_postwrite_reply() {
+    use std::{collections::VecDeque,io::{Read,Write}};
+    let(cfg,mut doc)=writer_batch_inputs();
+    doc["immediate_scenes"][0]["activate"]=json!([
+        command("first/dimmer","light",level(100)),
+        command("second/relay","relay",json!({"kind":"switch","on":true})),
+        command("third/dimmer","light",level(100)),
+        command("linked/led","execute-led",json!({"kind":"panel_led","on":true}))]);
+    let mut h=Harness::from_inputs(cfg,doc).await;
+    mode_frame(&mut h,0x15,1,100); // A matching pre-write cache is not a receipt.
+    h.request(Action::SceneAction{controller:h.controller,revision:1,scene:"act".into(),execute:true}).await.unwrap();
+    type Bytes=Arc<Mutex<Vec<Vec<u8>>>>;
+    struct Bus {writes:Bytes,rx:Arc<Mutex<VecDeque<Vec<u8>>>>}
+    impl Read for Bus {fn read(&mut self,b:&mut[u8])->std::io::Result<usize>{
+        let Some(bytes)=self.rx.lock().unwrap().pop_front() else{return Err(std::io::ErrorKind::WouldBlock.into());};
+        b[..bytes.len()].copy_from_slice(&bytes);Ok(bytes.len())
+    }}
+    impl Write for Bus {fn write(&mut self,b:&[u8])->std::io::Result<usize>{self.writes.lock().unwrap().push(b.to_vec());Ok(b.len())}fn flush(&mut self)->std::io::Result<()>{Ok(())}}
+    let writes:Bytes=Arc::default();let rx:Arc<Mutex<VecDeque<Vec<u8>>>>=Arc::default();
+    let mut owner=TransportOwner::new(h.actor.clone(),[("bus".into(),hb_transport::Connection::for_simulation(Bus{writes:writes.clone(),rx:rx.clone()},1))].into());
+    assert!(h.actor.module_confirmation_active());
+    let first=owner.step().await.unwrap().unwrap();first.result.unwrap();
+    assert_eq!(first.completed.len(),1,"another module must not be concatenated before first-module feedback");
+    assert_eq!(writes.lock().unwrap()[0],[0xae,0x15,1,100,0xee]);
+    crate::control_batch::tick(&h.actor,h.controller,&h.feedback).await.unwrap();
+    assert!(owner.step().await.unwrap().is_none(),"matching pre-write cache cannot start the next module");
+    for value in [64,100] {
+        tokio::time::sleep(Duration::from_millis(3)).await;
+        rx.lock().unwrap().push_back(vec![0xae,0x15,0xd1,value,0xee]);
+        let read=owner.receive("bus").await.unwrap();h.feedback.apply(&read).unwrap();
+        crate::control_batch::tick(&h.actor,h.controller,&h.feedback).await.unwrap();
+        if value==64 {assert!(owner.step().await.unwrap().is_none(),"a genuine wrong-target reply must not advance or turn the LED red");}
+    }
+    let second=owner.step().await.unwrap().unwrap();second.result.unwrap();
+    assert_eq!(writes.lock().unwrap()[1],[0xae,3,1,0xf1,0xee]);
+    assert!(owner.step().await.unwrap().is_none(),"passive relay response owns the bus before the next dimmer control");
+    tokio::time::sleep(Duration::from_millis(3)).await;
+    rx.lock().unwrap().push_back(vec![0xae,3,0xd1,0xf1,0xee]);
+    let read=owner.receive("bus").await.unwrap();h.feedback.apply(&read).unwrap();
+    crate::control_batch::tick(&h.actor,h.controller,&h.feedback).await.unwrap();
+    let third=owner.step().await.unwrap().unwrap();third.result.unwrap();
+    assert_eq!(writes.lock().unwrap()[2],[0xae,0x15,1,100,0xee]);
+    crate::control_batch::tick(&h.actor,h.controller,&h.feedback).await.unwrap();
+    assert!(owner.step().await.unwrap().is_none(),"the earlier100 reply cannot prove a later write to the same channel");
+    tokio::time::sleep(Duration::from_millis(3)).await;
+    rx.lock().unwrap().push_back(vec![0xae,0x15,0xd1,100,0xee]);
+    let read=owner.receive("bus").await.unwrap();h.feedback.apply(&read).unwrap();
+    for _ in 0..2 {crate::control_batch::tick(&h.actor,h.controller,&h.feedback).await.unwrap();}
+    assert!(h.actor.module_confirmation_active(),"the original linked LED tail keeps background work deferred");
+    owner.step().await.unwrap().unwrap().result.unwrap();
+    h.actor.task_generation().await.unwrap();
+    assert!(!h.actor.module_confirmation_active());
+    assert_eq!(writes.lock().unwrap().len(),4,"only the original three controls and original linked LED may be written; no replay");
+    h.finish().await;
+}
+
+#[tokio::test]
+async fn manual_override_retires_unwritten_module_stages_without_replay() {
+    let(cfg,mut doc)=writer_batch_inputs();
+    doc["immediate_scenes"][0]["activate"]=json!([
+        command("first/dimmer","light",level(100)),
+        command("second/relay","relay",json!({"kind":"switch","on":true})),
+        command("linked/led","execute-led",json!({"kind":"panel_led","on":true}))]);
+    let mut h=Harness::from_inputs(cfg,doc).await;
+    h.request(Action::SceneAction{controller:h.controller,revision:1,scene:"act".into(),execute:true}).await.unwrap();
+    let(mut owner,calls)=batch_owner(&h,usize::MAX);
+    owner.step().await.unwrap().unwrap().result.unwrap();
+    assert_eq!(calls.lock().unwrap().as_slice(),&[vec![0xae,0x15,1,100,0xee]]);
+    h.actor.submit(homesense_hap::requests::Batch{controller:h.controller,subscriptions:vec![],intents:vec![homesense_hap::requests::Intent{device:homesense_core::DeviceId::new("light").unwrap(),command:homesense_core::Command::SetLevel{level:homesense_core::Percent::new(0).unwrap(),transition:homesense_core::LevelTransition::Immediate}}]}).await.unwrap();
+    owner.step().await.unwrap().unwrap().result.unwrap();
+    tokio::time::sleep(Duration::from_millis(3)).await;
+    mode_frame(&mut h,0x15,1,100); // Late original feedback cannot undo manual Off.
+    crate::control_batch::tick(&h.actor,h.controller,&h.feedback).await.unwrap();
+    assert!(owner.step().await.unwrap().is_none());
+    assert_eq!(calls.lock().unwrap().as_slice(),&[vec![0xae,0x15,1,100,0xee],vec![0xae,0x15,1,0,0xee]]);
+    let store=Store::open(h.directory.join("runtime.sqlite")).unwrap();
+    for id in [2,3] {assert_eq!(store.command_status(h.actor.boot_id(),id).unwrap(),Some(homesense_storage::journal::Status::Cancelled));}
+    drop(store);h.finish().await;
+}
+
+#[tokio::test]
+async fn absolute_all_off_issues_every_original_module_without_waiting_for_earlier_reply() {
+    let(cfg,mut doc)=writer_batch_inputs();
+    doc["immediate_scenes"][0]["activate"]=json!([
+        command("off/dimmer","light",level(0)),
+        command("off/relay","relay",json!({"kind":"switch","on":false})),
+        command("linked/led","execute-led",json!({"kind":"panel_led","on":false}))]);
+    let mut h=Harness::from_inputs(cfg,doc).await;
+    h.request(Action::SceneAction{controller:h.controller,revision:1,scene:"act".into(),execute:true}).await.unwrap();
+    let(mut owner,calls)=batch_owner(&h,usize::MAX);
+    let outcome=owner.step().await.unwrap().unwrap();outcome.result.unwrap();
+    assert_eq!(outcome.completed.len(),2,"a missing first module cannot withhold later explicit Off commands");
+    assert_eq!(calls.lock().unwrap().as_slice(),&[vec![0xae,0x15,1,0,0xee,0xae,3,1,0xf2,0xee]]);
+    assert!(owner.step().await.unwrap().is_none(),"linked LED still needs real final feedback");
+    tokio::time::sleep(Duration::from_millis(3)).await;
+    mode_frame(&mut h,0x15,1,0);mode_frame(&mut h,3,1,0xf2);
+    crate::control_batch::tick(&h.actor,h.controller,&h.feedback).await.unwrap();
+    owner.step().await.unwrap().unwrap().result.unwrap();h.finish().await;
+}
+
+#[tokio::test]
+async fn an_opened_module_cannot_borrow_the_whole_operation_budget_for_a_late_first_write() {
+    let(cfg,mut doc)=writer_batch_inputs();
+    doc["immediate_scenes"][0]["activate"]=json!([
+        command("first/dimmer","light",level(100)),
+        command("second/relay","relay",json!({"kind":"switch","on":true})),
+        command("linked/led","execute-led",json!({"kind":"panel_led","on":true}))]);
+    let mut h=Harness::from_inputs(cfg,doc).await;
+    h.request(Action::SceneAction{controller:h.controller,revision:1,scene:"act".into(),execute:true}).await.unwrap();
+    tokio::time::sleep(Duration::from_millis(2100)).await;
+    let(mut owner,calls)=batch_owner(&h,usize::MAX);
+    assert!(owner.step().await.unwrap().is_none(),"the original15s operation bound is not permission for a send after this module's2s window");
+    assert!(calls.lock().unwrap().is_empty());
+    let store=Store::open(h.directory.join("runtime.sqlite")).unwrap();
+    for id in 1..=3 {assert_eq!(store.command_status(h.actor.boot_id(),id).unwrap(),Some(homesense_storage::journal::Status::Cancelled));}
+    drop(store);assert!(h.actor.task_generation().await.is_ok());h.finish().await;
+}
