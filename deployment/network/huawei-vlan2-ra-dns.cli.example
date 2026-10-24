@@ -1,0 +1,35 @@
+# VLAN2 RA DNS example; replace IPv6 placeholders with the current PD generation.
+# Merge with existing B_V4_IN6/B_V4_OUT6 and B_ALLOW; do not blindly replay.
+# First confirm ACL3992/3993, classifier names and precedence 2 are available.
+# DNS6 is limited to VLAN2 -> the designated router DNS /128, UDP/TCP53 and replies.
+# Retain other deny rules, IPv4 DNS, VLAN3 RA owner and VLAN2 Low preference.
+# Verify interface-bound DNS queries, received RA options and hardware success before save.
+system-view
+acl ipv6 3992
+rule 5 permit udp source @VLAN2_PREFIX@ 64 destination @WAN_B_DNS_IPV6@ 128 destination-port eq 53
+rule 10 permit tcp source @VLAN2_PREFIX@ 64 destination @WAN_B_DNS_IPV6@ 128 destination-port eq 53
+quit
+acl ipv6 3993
+rule 5 permit udp source @WAN_B_DNS_IPV6@ 128 source-port eq 53 destination @VLAN2_PREFIX@ 64
+rule 10 permit tcp source @WAN_B_DNS_IPV6@ 128 source-port eq 53 destination @VLAN2_PREFIX@ 64
+quit
+traffic classifier V2_DNS6_REQ
+if-match ipv6 acl 3992
+quit
+traffic classifier V2_DNS6_REPLY
+if-match ipv6 acl 3993
+quit
+traffic policy B_V4_OUT6
+classifier V2_DNS6_REQ behavior B_ALLOW precedence 2
+quit
+traffic policy B_V4_IN6
+classifier V2_DNS6_REPLY behavior B_ALLOW precedence 2
+quit
+# This exact DNS host route was required when the learned LAN /64 showed next-hop ::.
+# Confirm the actual route and interface first; do not replace the default route.
+ipv6 route-static @WAN_B_DNS_IPV6@ 128 Vlanif4 @WAN_B_ROUTER_LINK_LOCAL@
+interface Vlanif2
+ipv6 nd ra dns-server @WAN_B_DNS_IPV6@ 1800
+ipv6 nd ra dns-suffix lab.vixal.xyz 1800
+quit
+return

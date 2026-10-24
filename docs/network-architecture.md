@@ -107,6 +107,10 @@ B侧四条策略已有success及此前客户端双栈、DNS例外和隔离验收
 
 Mac同时连VLAN2无线和VLAN3有线时，须区分全局主机路由与接口作用域路由。旧Wi-Fi全局AC路由曾覆盖有线DHCP路由，现已清除其持久设置；VLAN3通过DHCP Option121下发AC专用路由，续租ACK与访问已核对。AC现允许整个VLAN2访问，本次已用无线接口绑定探测确认HTTP200；仍不能把经VLAN3成功的公网探测计作VLAN2出口验收。
 
+2026-10-24完成本机物理拔线／插回验证：残留的NanoPC主机路由曾使自动DNS查询继续使用旧VLAN2源地址，导致有公网TCP通路却无法解析网页。删除全局和en0作用域的旧`.4.1/32`路由后，拔线期间21次采样的DNS、IPv4／IPv6 TCP及HTTPS全部成功，出口为VLAN2 Wi-Fi；插回后3次采样重新优先VLAN3有线。核心隔离规则未因本次修复调整；这是新建连接和网页验证，不是既有会话无缝迁移保证。原因、清理命令和首次失败边界见[操作手册](network-configuration-runbook.md)4.4节。
+
+核心VLAN2现已通过RA发布NanoPC的IPv6 DNS（VLAN4当前前缀加`::4:1`）及搜索域`lab.vixal.xyz`，均为1800秒；本机已实际收到RDNSS／DNSSL。NanoPC的LAN Token、rdhcpd DNS和两侧AAAA同步统一为`::4:1`，旧`::1`仅限时兼容。新增IPv6放行仅涉及VLAN2到该DNS /128的UDP／TCP53及回包，并为该DNS设置经NanoPC链路本地下一跳的/128路由；其他隔离保留。8项VLAN2 IPv6 DNS查询、7条硬件策略及保存均已验证，详见[操作手册](network-configuration-runbook.md)4.5节及[脱敏模板](../deployment/network/huawei-vlan2-ra-dns.cli.example)。前缀变化时须同步维护这些字面地址。
+
 ## 5 已完成、保留与剩余工作
 
 | 范围 | 状态 |
