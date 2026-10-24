@@ -1,441 +1,153 @@
-# 华为核心、QNAP 与 AC 配置操作手册
+# 华为核心、QNAP与AC配置操作手册
 
-版本 0.8，2026 年 10 月 13 日。**新核心配置仍是离线草案，未执行新核心、DHCP 或无线服务切换。** 本文将[网络架构设计](network-architecture.md)转为操作步骤；代码块是未来配置窗口内的人工操作示例，不是自动部署脚本。第 7.1 节单独记录旧核心 VLAN1 IPv6 分流的只读核查与暂停点，不代表已实施。接口占位符、地址冲突、实际固件和既有规则核查完成后，才能在隔离环境验证。
+版本1.2 · 2026-10-24整理。当前接线、VLAN与状态统一以[网络架构](network-architecture.md)第1–3节为准。本次文档核对不下发任何网络设置；本文的后续操作必须先匹配实际设备和当前配置，不重放已完成迁移。
 
-## 1 顺序、参数与停止条件
+## 1 当前维护基线
 
-顺序为：备份与接口登记 → 隔离配置新核心 → 单台 QNAP 验证标签和管理入口 → AC/AP 管理与业务 SSID → 边界回程、DHCP、双栈分流验证 → 核心切换 → 分台迁移 .0.x 设备 → VLAN100 转维护模式 → 维护无线/DHCP 验收。
+- 新核心已承担现用VLAN2／3／4／5／100三层服务，不能重新启用旧核心同地址网关。VLAN1尚未按目标接管，隔离维护口VLAN4092不能被误当作业务VLAN1。
+- NanoPi5 LAN为Tagged3，直连核心23号；nanopc LAN为Tagged4，直连24号。两口分别使用隔离PVID4090／4091并关闭PoE，不能照搬Access模板。
+- QNAP A／B的10号Combo光口接X1／X2；最近核心允许列表分别为2／3／100和2／4／100，隔离PVID分别4093／4094。旧聚合和两核心临时互联不恢复。
+- AC LAN直连2号Access5；AP为15 F00、16 F21、17 F12、18 F01、19 F10、20 F20、21 F02、22 F11。15–22均为PVID5，最近允许2／3／5／100；业务SSID和客户端结果须另核对。
+- 现用485网关接10号Access100，HomeSense仍连接`.0.10:8443`；不要把历史目标`.1.10:50007`写入当前服务。
+- VLAN100仍有业务依赖，保留`.0.253`和现有DHCP。NAS、桌面交换机及PE11迁址均不因文档更新而视为完成。
 
-新核心准备期间不连接生产 LAN，不同时运行与旧核心相同的 `.253` 网关或 OSPF Router ID。已有 AP、QNAP、边界配置的变更应分设备执行，不能一次覆盖整网；遇到管理失联或前置能力不支持时，恢复该设备备份再处理。
+最近核心备份中Vlanif5只有管理地址，未见DHCP绑定；VLAN5地址服务或AC后续调整只有取得新的发布、读回和客户端证据后才能更新为完成。旧版逐分钟接线过程已归为历史，不再与当前操作表混排。
 
-| 参数 | 规划值 / 核查要求 |
-| --- | --- |
-| 核心 | S5735S-L24PN4XE-A3；实际固件及 CLI 接口名待登记 |
-| 业务 VLAN | 1、3 → nanopi5/WAN A；2、4 → nanopc/WAN B；5 → AC/AP 管理，公网按需走 B |
-| IPv4 核心网关 | 192.168.1.253、192.168.2.253、192.168.3.253、192.168.4.253、192.168.5.253，各 /24 |
-| 维护 VLAN | 100，192.168.0.0/24；迁移期保留现有 .0.253，迁移完成后日常只有二层维护，临时核心 DHCP 窗口须启用受限 SVI |
-| 边界 LAN | nanopi5 .3.1；nanopc .4.1；两端 WAN 默认路由仍指向各自 WAN |
-| AC | TL-R489GP-AC，192.168.5.1/24，目标网关 .5.253；仅用 LAN 口连接 QNAP A |
-| ngr / NAS | 保留现有 VLAN3/4 地址，先核查再填；本手册不重配服务器网络或接管设备 |
-| QNAP 管理 | 先保留现有管理地址/可达路径；只有管理 VLAN5 能力经验证后才迁移 |
-| 维护 AP | 核心电口17对应吸顶 AP，记录 MAC/序列号/安装位置；管理 VLAN5 |
-| DHCP 所属 | VLAN1/2/100：核心；VLAN3/4：各自 systemd-networkd DHCPv4、rdhcpd DHCPv6/PD/前缀 RA |
-| 维护 DHCP 示例 | 核心临时 SVI .0.254/24，静态保留维护电脑 .0.200/24；静态租约无限期，须主动关闭服务与释放地址 |
+公开仓库只保留审核后的结构及示例。真实设备导出、MAC、全球IPv6前缀、租约、管理员地址例外和凭证在私有运维目录保存；示例地址不能作为下发参数。
 
-先登记下列占位符，不猜测面板序号与 CLI 的映射：
+## 2 变更前核查
 
-| 占位符 | 对应实际接口 |
-| --- | --- |
-| `<CORE_E17>` | 电口17，维护 AP |
-| `<CORE_E18>` 至 `<CORE_E22>` | 其余5台 AP |
-| `<CORE_E23>` / `<CORE_E24>` | nanopi5 / nanopc LAN |
-| `<CORE_X1>` / `<CORE_X2>` | QNAP A / B 万兆上联 |
-| `<CORE_X3>` / `<CORE_X4>` | NAS VLAN3 / VLAN4 万兆口 |
-| `<ROOM_PORT>` | 某条房间线，实际角色决定 Access VLAN |
-| `<MAINT_WIFI_MAC>` | 维护电脑在维护 SSID 使用的实际 MAC（核对随机 MAC） |
+1. 登记设备型号、固件、实际接口和当前对端，保存运行配置、启动配置及回退入口。完整导出只存私有目录。
+2. 确认没有重复网关、重复DHCP／RA或二层环路。旧核心已退出的接口和临时线不能为方便管理而随手恢复。
+3. 核对本次授权范围，只修改需要的设备和接口，不连带更改服务器、HomeSense总线、SSID或其他VLAN。
+4. 从独立维护入口确认可登录。QNAP仍保留原有6号口本地维护路径；管理CPU是否支持迁到VLAN5尚无完整验证，不修改其管理地址来试错。
+5. 停止条件：管理失联、MAC抖动、错误计数持续增长、DHCP／RA来源不符、路由／隔离不符时停止后续步骤，按本次备份回退。
 
-前置核查包括：QNAP管理流量实际 VLAN、旧 AC 与 Wi-Fi7 AP 兼容性、指定 AP 发布维护 SSID、AP 管理帧是否带标签、IPv4/IPv6 PBR 同入口共存方式、现有聚合模式。未确认时不将候选配置当成已验证脚本。
-
-## 2 华为核心
-
-### 2.1 导出与建立二层 VLAN
-
-未来在配置窗口通过 Console 登记并导出：
+可使用下列只读命令按实机帮助核对；接口名使用实际的MultiGE／10GE名称：
 
 ```text
 display version
 display interface brief
 display current-configuration
 display saved-configuration
+display configuration changes
 display vlan
 display ip routing-table
-display ospf peer
 display ipv6 routing-table
+display ospf peer
+display ospfv3 peer
 ```
 
-备份文件保留在私有运维目录，不把带凭据的导出加入仓库。新核心独立配置 VLAN：
+不把“配置能解析”“硬件应用success”“链路Up”“真实客户端可达”混作同一个完成条件。
 
-```text
-system-view
-vlan batch 1 2 3 4 5 100
-```
+## 3 核心端口、QNAP与AP核对
 
-华为 V600 官方示例使用 `port link-type`、`port trunk pvid vlan` 与 `port trunk allow-pass vlan`；本文将该语法映射到本网络，实际接口及型号限制仍按到货版本确认。[官方接口示例](https://support.huawei.com/enterprise/zh/doc/EDOC1100459020/f9553938)
+### 3.1 边界与隔离PVID
 
-### 2.2 房间、路由器与 NAS：Access
+| 核心口 | 模式 | 允许业务标签 | PVID | PoE |
+| --- | --- | --- | --- | --- |
+| 23，NanoPi5 | Trunk | 3 | 4090 | 关闭 |
+| 24，nanopc | Trunk | 4 | 4091 | 关闭 |
+| X1，QNAP A | Trunk | 2／3／100 | 4093 | 不适用 |
+| X2，QNAP B | Trunk | 2／4／100 | 4094 | 不适用 |
+| 2，AC | Access | 5，未标记 | 5 | 关闭 |
+| 10，现用485网关 | Access | 100，未标记 | 100 | 按实机 |
+| 15–22，AP | Trunk | 2／3／100，管理5 | 5 | 按AP实际供电 |
 
-每条房间线逐条登记为3（A）或2（B），不向普通终端开放4；专用 A组网关线按1，不能把所有房间口统一批量改成一个 VLAN。以下以一条 A 组房间线为例：
+部分Trunk配置会显式保留自身隔离PVID成员；这些VLAN不提供业务三层服务。4092则是已有带管理地址的维护入口，不能按无三层隔离VLAN删除。
 
-```text
-interface <ROOM_PORT>
- port link-type access
- port default vlan 3
- quit
-interface <CORE_E23>
- port link-type access
- port default vlan 3
- quit
-interface <CORE_E24>
- port link-type access
- port default vlan 4
- quit
-interface <CORE_X3>
- port link-type access
- port default vlan 3
- quit
-interface <CORE_X4>
- port link-type access
- port default vlan 4
- quit
-```
+### 3.2 QNAP管理与标签
 
-B组房间口填写另一条已登记的实际接口，使用 VLAN2；不要将下面占位符替换为已接路由器或 NAS 的接口：
+QSW-M408-4C使用QSS的VLAN端口成员设置，T表示Tagged、U表示Untagged。不要仅凭“Trunk”文字忽略每个VLAN的成员和PVID；同一Combo光、电侧不能同时占用。
 
-```text
-interface <ROOM_PORT>
- port link-type access
- port default vlan 2
- quit
-```
+- 10号口是现用核心上联，不再用于两台QNAP互连。
+- 两台原千兆聚合到旧核心的线与旧互联继续按已完成迁移后的状态隔离，不能与新DAC并接形成环路。
+- 原6号口本地维护保留；未验证QSS管理CPU标签前，不承诺跨核心管理可达，也不顺手迁管理VLAN。
+- NAS原有下游接线保留。新核心X3／X4最近尚无Access3／4配置，不能按旧目标图直接迁线。
+- 每次单项保存后重新读回成员、PVID、链路及错误计数，并验证独立维护入口；设备导出不放入公开文档。
 
-端点按无标签配置配套；若 NAS/路由器已有802.1Q标签，先协调移除标签或保留正确 Trunk，不能两端模式不一致。NAS 两口独立地址，不建立跨 VLAN LACP。
+### 3.3 AP与SSID
 
-### 2.3 AP：管理5，业务3/2，维护100按需
+最终名称以F00／F21／F12／F01／F10／F20／F02／F11对应15–22号为准；旧端口description可保留旧名，因此识别时须在私有表核对MAC，不能只看description。
 
-本文选用 **AP管理流量不带标签、业务 SSID 带标签** 的候选模式：AP口 PVID5，5出方向无标签，3/2带标签。如果 AP 已配置管理 VID5 并给管理流量打标签，不套用此候选模式；改为两端一致的 Tagged5，并在隔离测试中验证 AP上线。
+AC管理位于VLAN5。业务A组目标VLAN3、B组VLAN2，维护SSID为单独的VLAN100服务；AP口允许某个标签并不代表该SSID已启用。每块AP分别记录关联、DHCPv4、IPv6地址／默认路由、DNS、公网双栈及隔离结果；此前测试手机的一次10/10不替代所有AP。
 
-```text
-interface <CORE_E17>
- port link-type trunk
- port trunk pvid vlan 5
- undo port trunk allow-pass vlan 1
- undo port trunk allow-pass vlan 4
- port trunk allow-pass vlan 2 3 5
- quit
-```
+维护SSID只选择已登记AP，保持按需启停；不保存真实PSK到仓库。指定AP与本地转发、管理VLAN5和既有业务SSID均须保持独立，不能用AC隧道转发替换原方案。
 
-电口18–22逐口使用同样的管理/业务配置，保持自动协商并验证 PoE供电。日常不放行100；只在维护窗口向电口17增加100。AP若确实需要1业务 SSID，再放行该 VLAN；B组 SSID使用2，不发布4，不默认给每台 AP全部 VLAN。
+## 4 双栈路由、隔离与前缀变化
 
-### 2.4 QNAP上联：业务标签与管理入口分开核对
+### 4.1 服务归属
 
-以下是 **QNAP管理 VLAN5 经验证可用、两端以未标记5承载管理** 时的候选配置：
-
-```text
-interface <CORE_X1>
- port link-type trunk
- port trunk pvid vlan 5
- undo port trunk allow-pass vlan 4
- port trunk allow-pass vlan 1 2 3 5
- quit
-interface <CORE_X2>
- port link-type trunk
- port trunk pvid vlan 5
- undo port trunk allow-pass vlan 1
- port trunk allow-pass vlan 2 4 5
- quit
-```
-
-此时 QNAP A上联的1是带标签业务 VLAN；不能因为 VLAN1是缺省成员就误将家庭网关流量设为未标记。`allow-pass` 会保留已有其他允许成员，须用 `display current-configuration interface <接口>` 逐条核对并撤销不需要的旧成员，不使用 `allow-pass vlan all`。
-
-**若 QNAP管理 VLAN5 未验证，不执行上述 PVID切换。** 先按第3.3节保留其原生管理通道。管理 VLAN/PVID和对应 Untagged 成员须两端一致；如管理5带标签，则按实测改为 Tagged5，不同时套用未标记5方案。
-
-### 2.5 五个业务 SVI、OSPF与出口
-
-在隔离新核心准备五个业务网关，旧核心仍在线时不要连入相同广播域：
-
-```text
-interface Vlanif1
- ip address 192.168.1.253 255.255.255.0
- quit
-interface Vlanif2
- ip address 192.168.2.253 255.255.255.0
- quit
-interface Vlanif3
- ip address 192.168.3.253 255.255.255.0
- quit
-interface Vlanif4
- ip address 192.168.4.253 255.255.255.0
- quit
-interface Vlanif5
- ip address 192.168.5.253 255.255.255.0
- quit
-```
-
-迁移期还须移植原 Vlanif100 `.0.253/24`、旧设备实际经过的二层链路、必要 DHCP服务/中继、专用回程与访问规则；不按下面最终维护模式提前删除它们。
-
-OSPF目标为进程1、RID10.0.0.6、area0，只有Vlanif3/4建立邻居。以下为候选骨架，需合并旧认证、网络类型、优先级和重分发规则；迁移期额外保留原 VLAN100的发布：
-
-```text
-ospf 1 router-id 10.0.0.6
- silent-interface all
- undo silent-interface Vlanif3
- undo silent-interface Vlanif4
- area 0.0.0.0
-  network 192.168.1.253 0.0.0.0
-  network 192.168.2.253 0.0.0.0
-  network 192.168.3.253 0.0.0.0
-  network 192.168.4.253 0.0.0.0
-  network 192.168.5.253 0.0.0.0
-  quit
- quit
-```
-
-静默业务接口仍发布直连网段但不建立邻居；语法参考[华为 OSPF命令说明](https://support.huawei.com/enterprise/zh/doc/EDOC1100352131/753f0155)，该参考不是本型号的实际固件验收。默认出口沿用经 nanopc `.4.1` 的既有外部默认路由，不擅自新增同优先级默认路由，也不让边界 WAN默认指回核心。
-
-随后依次完成：
-
-1. 按架构第7节准备两边的IPv4回程和NAT：A纳入1/3，B纳入2/4/5；迁移期继续保留0网段既有规则。
-2. 按第2.6节配置 DHCP：VLAN1/2 核心地址池；VLAN3/4 保留 systemd-networkd，Router 改为核心 .253；VLAN100 临时池不常驻。检查 Option121，不改变 `.3.7` 的保留记录。
-3. 按架构第4节定义IPv4 PBR：先内网目的豁免，再单机例外，最后1/3→A、2/4/5→B。迁移期补入0网段豁免，避免访问旧设备绕公网。
-4. 按架构第5节核查自动 PD：A侧直接使用 VLAN3 的 LAN /64；B侧 nanopc 的 rdhcpd 从 /60 池给核心 Vlanif4 委派 /64，用于 Vlanif2。VLAN1 保持 IPv4，不新增 PD 绑定或 RA；旧 ng3prefix 引用先核查。旧核心 /64→/64 已生效，目标 V600 指南存在绑定长度限制，新核心兼容性验收前不启用目标绑定与下行 RA。3/4 则要求 rdhcpd 的 RouterLifetime=0、核心默认路由 RA 不含 PIO；该能力已在 Linux 隔离环境通过真实报文验收，实际华为 RA 与启动边界仍须验证后另行部署。5/100 不启用 IPv6。
-5. **先验证第6节双栈策略绑定和ACL/PBR硬件下发，再绑定业务入口。** 不直接连续执行两条 `traffic-policy` 并假定共存；硬件资源或第二策略覆盖第一策略时停止上线。
-6. 安全规则先明确ngr实际来源到`.1.10/.2.11:50007`及回复、管理终端到网关管理页、AP到AC管理流量、必要DNS/DHCP/ND/ICMPv6。配对不是全网放行；只有经过验证的完整规则集才启用隔离。
-
-新核心通过隔离验收后，断开旧核心再接新核心，逐项验收邻居、回程、单栈/双栈出口、终端网关与PoE。不要在本次网络验收中顺带启用HomeSense真实控制。验证配置后执行 `return`、`save`，按提示确认；保留改动前备份和实际命令记录。
-
-### 2.6 DHCPv4、PD 与 RA 职责
-
-A组普通终端可直接进入 VLAN3，保留其 systemd-networkd DHCPv4 与 rdhcpd 前缀服务；B组普通终端全部进入 VLAN2；VLAN4 只用于 nanopc、NAS及单独登记的 ngr 服务器链路，不开放房间/桌面/AP客户端。VLAN2 到 NAS/服务器的访问通过核心路由与受限 ACL；保持其核心 DHCPv4 与 RA。HomeSense 客户端验收入口改为3/2，ngr 的3/4服务器接入不变，VLAN2的发现需要受控跨网段发布/转发验证。
-
-| VLAN | DHCPv4 | IPv6 |
-| --- | --- | --- |
-| 1 | 核心全局池，网关 .1.253 | 保持 IPv4，不启用 IPv6/RA/PD绑定 |
-| 2 | 核心全局池，网关 .2.253 | 核心经4申请 ng4prefix PD 后用于2并发 RA；新核心兼容性验收前停用 |
-| 3/4 | nanopi5/nanopc 的 systemd-networkd | 各自 rdhcpd 管理 DHCPv6/PD 和 PIO；核心另发默认路由 RA |
-| 5 | 保留核对后的唯一 AP 管理地址服务 | 首期停用 |
-| 100 | 原设备迁移完成后日常关闭；核心临时维护池 | 停用 |
-
-核心业务池见 [VLAN1/2 DHCP 模板](../deployment/network/huawei-dhcp-vlan1-vlan2.cli.example)。先填写实际 DNS 与 .1.10 的 MAC，核查动态范围、保留地址及旧 DHCP 关闭窗口，再按实际固件验证 `dhcp enable`、`ip pool`、`dhcp select global`。两个目标网关保留 .1.10、.2.11，不把记录写入 VLAN3 的池。VLAN1/2 静态绑定租约为无限期；其他终端示例租期1天。
-
-VLAN3/4 只合并以下内容到各自当前生效 `.network.d/*.conf`，不覆盖主文件、动态池、DNS、Option121 或 `.3.7` 保留：
-
-```ini
-# nanopi5，VLAN3 DHCPv4
-[DHCPServer]
-EmitRouter=yes
-Router=192.168.3.253
-```
-
-```ini
-# nanopc，VLAN4 DHCPv4
-[DHCPServer]
-EmitRouter=yes
-Router=192.168.4.253
-```
-
-部署窗口核对 systemd 版本和最终合并配置，逐一处理既有 Option121 默认路由及过时 AC 主机路由；只给服务器改 Router 不会立即改变已获租客户端，须验证重新获租后的路由。DNS 地址仍是实际解析服务，不能自动改成 .253。[systemd v257 官方说明](https://github.com/systemd/systemd/blob/v257/man/systemd.network.xml)
-
-WAN /60 由边界 WAN DHCPv6 客户端申请，rdhcpd 管理下游池，不负责运营商拨号侧 PD 请求。核对两边池来源、LAN /64 排除、独立租约文件、核心 DUID、请求接口和实际回程路由。自动获租可能改变下游 /64，须同步内网目的 ACL、跨线路回程及防火墙；现有固定地址示例不是自动同步实现。
-
-PD 客户端和 RA 分工的限制见架构第5节：旧核心已确认上行 /64 获租和 VLANIF2 的 /64 地址生成，目标新核心的 /64→/64 绑定仍需到货固件验证，不把 `--slice-length 63` 当作可直接使用的替代。VLANIF1 保持 IPv4，本次不绑定 ng3prefix。两个上行接口此前快照均为 REBIND；当时源码未处理续租是候选原因。rproxy `63f464b` 已修复 Renew/Rebind，并实现 RA RouterLifetime=0；原有静态 IA_NA 另提交 `d95c3a9`。此前独立修复快照28项本地测试通过；此前基线 `c3caaa1` 的 ARM 二进制已在 nanopi 上实际执行31项单元测试及18项隔离验收，最终均通过。严格 Clippy、格式及 Linux ARM64 编译检查此前已通过；本次采用 macOS交叉编译、Linux实际执行，未在 Linux原生编译。此段描述部署前基线；nanopc 后续已部署 `1368cf2` 并观察到真实 Rebind Reply，nanopi5 尚未更新，证据及初始失败见[隔离记录](evidence/network/rdhcpd-linux-20261013.json)。
-
-未来启用核心默认路由 RA 时，再将以下参数合并到 nanopi5/nanopc 各自原有 rdhcpd 启动参数，不覆盖接口、池、租约文件或 DNS；本次 nanopc 二进制部署未改参数：
-
-```text
---ra-router-lifetime-secs 0
-```
-
-先验证核心在3/4发出的默认路由 RA（RouterLifetime>0、不含 PIO），再切换边界 lifetime=0；边界仍须发布各自 LAN /64 PIO 和真实 DNS。M/O 标志按实际 SLAAC/有状态 DHCPv6 服务统一，lifetime=0 不自动关闭地址服务。抓包确认两类 RA 的来源、PIO、M/O 和有效期，并在客户端核查只有核心默认路由。续租验收核对成功 Reply、前缀不变、租期刷新、PD 回程及重启重载；同时核对两线路源出口、上游剩余授权期和策略同步。Release、自动 PD 路由回收及上游前缀动态跟踪本次未新增，相关验收不可标为通过。Linux隔离环境的内核路由更新、真实 DHCPv6组播收发、RA/SLAAC与模拟核心默认路由分工已通过；实际新核心的PD兼容性和RA仍是部署门槛。DAD/RA 恢复修复候选现已在 nanopi 通过39项单元测试和23项隔离验收：过滤未就绪/不可用链路本地地址；RA 查询、绑定或运行失败按1→2→4→8→16→30秒重试并重新取源；真实 DAD 完成、缺失源地址恢复、实际启动发送错误恢复均无需重启。显式 DNS 配置允许等待期间继续 DHCP；未配置 DNS 时，默认 DNS 最多等待30秒取得就绪源地址，超时仍失败。源码已提交为 rproxy `1368cf2` 并部署到 nanopc，原 RouterLifetime=1800 不变；nanopi5 未部署，实际目标核心 RA/PD 互通仍须验收，不能将模拟核心结果作为华为实机结论。见[DAD/RA 恢复隔离记录](evidence/network/rdhcpd-dad-linux-20261013.json)，其中保留补丁、二进制和测试脚本哈希；未强制复现查询/绑定瞬间源地址消失的微小竞态，也没有主动监听运行中地址变化。
-
-## 3 两台 QNAP QSW-M408-4C
-
-### 3.1 QSS页面与端口矩阵
-
-QNAP官方对本型号的 VLAN操作入口为 **Configuration → VLAN**，在各 VLAN里选择端口 Tagged/Untagged并保存；不是另找一个名为Trunk的总开关。[QNAP Trunk配置说明](https://www.qnap.com/en-ca/how-to/faq/article/how-can-i-configure-trunk-mode-on-a-managed-switch)
-
-表中T=Tagged，U=Untagged，未列出者为非成员。Combo1/2对应物理面板9/10的候选编号，实际以页面为准。**主表前提是QNAP管理5已验证**，PVID5是对应管理入口的未标记帧归属；若不支持独立PVID输入，应核对实际Untagged成员决定的入方向分类。
-
-| QNAP A端口 | 用途 | 日常成员 | PVID/未标记归属 |
-| --- | --- | --- | --- |
-| Combo1（光） | 核心X1 | T1、T2、T3、U5 | 5 |
-| Combo2（电） | 桌面 SR-ST3005 | T2、T3、U5（桌面未标记管理5经验证后） | 5，两端匹配；未验证时保留原管理通道 |
-| 千兆1 | AC LAN | U5 | 5 |
-| 千兆2、3 | ngr 聚合A | U3 | 3，两口及逻辑组一致 |
-| 千兆4 | 家庭网关 | U1 | 1 |
-| 千兆7（维护时） | 单台待配置设备 | U100 | 100；原占用情况先核查 |
-| 千兆8（可选维护口） | 有线维护电脑 | U100 | 100；原占用情况先核查 |
-
-| QNAP B端口 | 用途 | 日常成员 | PVID/未标记归属 |
-| --- | --- | --- | --- |
-| Combo1（光） | 核心X2 | T2、T4、U5 | 5 |
-| 千兆1、2 | ngr 聚合B | U4 | 4，两口及逻辑组一致 |
-| 千兆3 | PE11 | U2 | 2 |
-| 其他端口 | 保留已登记设备 | 按原角色逐口核对 | 不整机恢复出厂 |
-
-维护时只给经过QNAP A的链路增加T100；QNAP B不参与维护时不用增加100。若原来有`.0.x`设备在任一QNAP，迁移完成前保持其Access100及必要上联100；上表是迁移后的日常目标。
-
-实际设置顺序：
-
-1. 导出/记录固件、管理IP/网关、每口 VLAN成员及聚合，保持一个已知可登录的本地管理口。
-2. 创建所需 VLAN；先增加新成员，验证管理路径后再删除旧成员。业务Access口移除无关Untagged成员，确保收发和PVID一致。
-3. 先改一端、使用本地维护电脑确认可达，再匹配核心/桌面另一端；不凭管理IP的网段推断其内部管理VLAN。
-4. 各次点击Save后读回成员和端口状态；完成稳定配置后按实际固件导出配置或截图。支持配置导出的用原生导出，页面没有时不虚构菜单。
-
-### 3.2 聚合与管理保护
-
-若现有ngr聚合为LACP，在 **Configuration → Link Aggregation**（页面名称依固件）分别建立A的2/3、B的1/2，保持服务器模式一致；若原模式不是LACP，先保持原模式，不单方面切换。逻辑LAG及成员的VLAN应一致，禁止跨两台QNAP组成同一组。[QNAP本型号功能规格](https://www.qnap.com/en-us/product/qsw-m408-4c/specs/hardware)
-
-每台单线上联核心，Combo电/光二选一。RSTP/环路保护保持既有已验证设置；若调整生成树根桥优先级，统一让核心为根，不在迁移时随意改变多项链路协议。管理ACL规则先确保当前运维来源可访问，再实施限制；此处不提供会覆盖既有ACL的整表配置。
-
-### 3.3 QNAP管理 VLAN5未验证时的分支
-
-官方功能资料确认业务VLAN与LACP，但本轮未取得这两台设备实际固件的管理VID设置证据，故 **不承诺QSS管理可以迁到5**。先保留现有管理地址/原生VLAN及本地管理口，在隔离环境验证新的管理路径。
-
-若实测管理固定在原生VLAN1，可在既有五业务VLAN内采用受限管理分支：两台管理地址选VLAN1内不冲突的保留地址，核心与各QNAP上联都采用U1/PVID1，其余业务2/3/5或2/4/5保持T成员。此时QNAP B的核心链路也须增加VLAN1，核心X2不得执行移除VLAN1的主表命令；只允许授权管理来源访问交换机管理IP。该分支须先验证管理CPU实际归属，不能将其当成所有固件通用的补救。
-
-不要仅把管理IP改为`.5.x`却继续让管理流量留在1，这会失联。无法确认管理通道时保持原管理路径，不下发主表；不新增第七个业务VLAN，也不依赖维护100维持日常交换机管理。
-
-## 4 TL-R489GP-AC与AP
-
-### 4.1 保留AC功能并旁挂
-
-1. 备份AC及AP配置、SSID/密钥、硬件/固件和AP名单；记录哪个LAN口用于管理连接，不恢复出厂或删除现有无线服务。
-2. AC以LAN口接QNAP A千兆1（U5）；地址`.5.1/24`、目标网关`.5.253`，DNS填写实际可达解析服务。WAN口不接到这个LAN链路，不为本方案再拨号/NAT。
-3. 原AC若承担DHCP，先确定其实际服务对象。AP管理地址池可在AC或其他服务器中择一保留，但Router必须为`.5.253`；不能直接关闭唯一AP地址服务，也不能开启第二个同网段服务。业务3/2与维护100不由AC额外发租约。
-4. AP管理采用第2.3节约定的未标记5或已核对的Tagged5模式，先验证一台AP上线；其他AP逐台确认。跨网段发现不是本方案默认前提，AC/AP处于同一管理VLAN。
-
-### 4.2 业务无线与维护无线
-
-官方R系列资料描述 **AP管理 → AP设置** 和 **AP管理 → 无线服务设置**，后者有绑定VLAN、自动绑定全部AP等字段；资料示例是其他R型号，TL-R489GP-AC的实际页面及新AP支持仍须确认。只将字段映射为本方案，不照抄官网示例中的删除默认服务或示例密码。[TP-LINK配置示例](https://media.tp-link.com.cn/document/articles/4491.html)、[SSID绑定VLAN说明](https://smb.tp-link.com.cn/service/detail_article_2304.html)
-
-| 无线服务 | VLAN | AP范围 | 日常状态 |
-| --- | --- | --- | --- |
-| 现有A组SSID（保留名称） | 3 | 需提供A业务的AP | 启用 |
-| 现有B组SSID（保留名称） | 2 | 需提供B业务的AP | 启用 |
-| Zhiju-Maintenance（可更名） | 100 | 仅电口17对应AP | 禁用，维护时开启 |
-
-具体步骤：
-
-1. 检查现有服务的绑定VLAN，分别调整A=3、B=4，保持本地/分布式转发；不启用AC隧道转发替代已确定的方案。
-2. 新增独立维护服务：SSID=`Zhiju-Maintenance`，VID=100，强PSK；优先实际固件支持的WPA2-AES或兼容WPA3配置，不写真实密钥进仓库。
-3. 关闭“自动绑定所有AP”，只选择已登记的维护AP/所需射频，状态保持禁用。如果只能全局发布，先记录能力缺口，不直接把100放行到所有AP。
-4. 关闭会阻断维护电脑与目标设备必要流量的隔离/访问限制；不要因此取消其他SSID的隔离。若用了MAC白名单，登记电脑在这个SSID上实际使用的Wi-Fi MAC，注意随机MAC变化。
-5. 保存并读回绑定范围、VID和禁用状态。以后维护窗口仅开启该服务，结束后关闭；AP管理仍在5，无须改变AP管理地址或整个AP上联PVID。
-
-## 5 VLAN100从迁移期转为维护期
-
-确认`.0.10→.1.10`、`.0.11→.2.11`及所有其他`.0.x`设备迁移，HomeSense连接与其他依赖已更新、业务验证完成后，才执行本节。**迁移未完成时保留现有`.0.253`网关、专用回程、DHCP及访问规则，不同时开启临时维护DHCP。**
-
-未来人工操作需按实际配置精确撤销：
-
-1. 关闭Vlanif100三层功能，保持VLAN100二层定义。候选命令为 `interface Vlanif100` → `shutdown` → `quit`；核对接口确实不再转发、路由不再存在。需要删除SVI时另行采用该版本支持的命令，不使用 `undo vlan 100` 删除维护VLAN。
-2. 停止原VLAN100 DHCP服务/中继及地址池，停止已有RA（若曾开启），撤销OSPF中该网段的network/import路径以及两边专用静态回程、NAT、PBR与过时访问规则。不能以一条`undo network`覆盖所有发布来源。
-3. 核查核心及两台边界不再有该/24的专用可达路径；共享的`.0.0/16→NULL0`按原用途检查，不盲目删除。五业务VLAN的路由、DHCP、NAT和RA保持正常。
-4. 将原Access100业务口恢复规划用途或关闭；从不需要的Trunk撤销100，只保留VLAN定义。维护SSID保持禁用，不配置常驻维护默认网关或NAT。
-
-## 6 一次无线维护的完整操作
-
-### 6.1 打通临时二层链路
-
-以目标设备在 QNAP A、维护电脑使用无线入口（可选有线口8）为例。先记录千兆7/8原配置并确认可临时使用：
-
-| 位置 | 维护期间 |
+| 服务 | 当前分工与核对 |
 | --- | --- |
-| 核心E17 → AP | 既有PVID5与业务成员保持，增加Tagged100 |
-| 核心X1 → QNAP A Combo1 | 既有管理/业务成员保持，两端增加Tagged100 |
-| QNAP A千兆7 → 目标设备 | 临时U100/PVID100，移除该口其他业务成员 |
-| QNAP A千兆8 → 有线维护电脑（可选） | 临时U100/PVID100，移除该口其他业务成员 |
-| AC维护SSID | 仅指定AP，VID100，开启 |
+| VLAN2 DHCPv4 | 核心接口池，网关`.2.253`，DNS使用实际可达服务 |
+| VLAN2 IPv6 | 核心PD／RA与WAN B回程；核对租约、PIO、M/O、RDNSS和实际默认路由 |
+| VLAN3／4地址服务 | 各自边界保留原有服务，不再开第二套 |
+| VLAN5 | 仅确认当前管理路径；后续DHCP／AC变更独立验收 |
+| VLAN100 | 当前核心网关和DHCP保留，直至全部业务依赖迁移 |
 
-华为临时增加100的示例：
+两条边界的OSPF／OSPFv3邻居、默认路由、委派前缀回程及防火墙必须一致；不能加静态默认路由掩盖邻居失败。Mac有线／无线同时在线时先核对实际出口，不能用经A线的成功探测证明B线正常。
 
-```text
-system-view
-interface <CORE_E17>
- port trunk allow-pass vlan 100
- quit
-interface <CORE_X1>
- port trunk allow-pass vlan 100
- quit
-```
+### 4.2 隔离策略
 
-QNAP在VLAN100行将Combo1选为T、千兆7/8选为U并保存，核查PVID。AC所在QNAP千兆1仍U5，不加入100；本地转发的维护数据不需要经过AC口。目标默认地址重复时一次只接一台。
+已部署策略结构的脱敏示例见[双栈隔离模板](../deployment/network/huawei-b-vlan2-vlan4-isolation.cli.example)。示例使用文档IPv6前缀和虚构管理主机地址，不是可直接执行的现网脚本。
 
-### 6.2 核心临时 DHCP：隔离通过后才启用
+VLAN2默认拒绝访问内网普通地址，只按审核范围放行DNS与精确管理例外。目标固件不支持一个traffic policy混合IPv4／IPv6 ACL分类器，因此分为：
 
-使用 [华为 VLAN100 临时 DHCP 模板](../deployment/network/huawei-vlan100-maintenance.cli.example)，不启动 Linux DHCP 或 dnsmasq。它是候选 CLI：需要临时 SVI `.0.254/24` 以匹配全局池，窗口内会有 `.0.0/24` 直连路由。日常仍关闭 SVI；维护不恢复旧 `.0.253` 网关或公网出口。
+| 接口方向 | 作用 |
+| --- | --- |
+| Vlanif2入方向 | IPv4精确允许例外优先，随后拒绝内网目的 |
+| Vlanif2出方向 | 精确回复例外优先，随后拒绝VLAN4来源 |
+| Vlanif4出方向 | IPv6拒绝到受限内网前缀 |
+| Vlanif4入方向 | IPv6拒绝受限来源到内网前缀 |
+| Vlanif3入／出方向 | 最近备份另有A3_IN6／A3_OUT6附加IPv6隔离；保留并单独核对，不被B侧示例覆盖 |
 
-1. 仅在所有旧 .0.x 迁移后准备；核查没有既有 VLAN100 DHCP/中继，登记池名、ACL编号与接口原配置。
-2. 核查 `.0.254`、`.0.200` 以及待维护设备默认地址无冲突；默认地址相同的设备一次一台。填写维护无线实际 MAC。
-3. 候选 ACL 只允许维护与核心间必要 DHCP，其他经 SVI 的 IPv4 流量拒绝；二层电脑到目标的管理流量应保留。必须在隔离环境验证 VLANIF 入/出绑定实际支持、发往 CPU 的 DHCP 被允许、核心本机其他管理入口被限制、业务到100及100到业务/公网均阻断。不以地址池排除替代 ACL，不使用未验收规则开启 SVI。
-4. 专用全局池仅 `.0.200` 可用并静态绑定该 MAC，其余地址排除；这不是防 MAC 伪造认证。静态租约无限期，示例 `lease` 的15分钟只适用于动态分配，不能作为关闭服务的替代。
-5. 模板不配置网关、DNS、Option121/249，但官方默认行为须用实际 OFFER/ACK 验证。若仍下发 Option3，或 ACL 无法可靠隔离，保持 SVI/DHCP 关闭、维护电脑手动设置 `.0.200/24` 且无网关，沿二层无线入口维护；不编造取消 Option3 的命令。
+`if-match`分类器与deny行为表达隔离；不能用ACL的deny条目冒充需要放行的例外。顺序以已核对的precedence为准。保存前后都要读回受影响方向的全部应用记录、运行／启动配置差异，并分别测允许和拒绝方向。此前B侧四方向的success只证明当次范围，不自动证明A侧附加策略；本轮没有重新执行数据面测试。
 
-配置语法依据 [全局地址池](https://support.huawei.com/enterprise/zh/doc/EDOC1100459025/b4befc01) 与 [接口绑定](https://support.huawei.com/enterprise/zh/doc/EDOC1100459025/c9c90844)，接口须有 IPv4 地址；模板尚未经到货设备解析或包级验收。无 relay，不发布该网段到 OSPF，也不添加边界回程/NAT/PBR。
+### 4.3 IPv6前缀变化保护
 
-### 6.3 无线客户端与包级验收
+实机IPv6 ACL目的匹配只接受字面地址／长度或any，不能直接引用PD名字。当前没有前缀变化时自动更新ACL、自动暂停转发的实现。
 
-维护电脑重新获租后应为 `.0.200/24`，该接口无默认路由、DNS、Option121/249。其他业务接口不能桥接至维护接口。未来可在客户端抓包（接口名填实际无线接口，本次不执行）：
+1. 发现运营商PD变化时，先按获批流程暂停VLAN2 IPv6转发，避免旧ACL对新地址失配。
+2. 读取两条WAN当前授权前缀、边界LAN前缀、新核心获租前缀、租期和回程；不从历史文档复制全球前缀。
+3. 更新本次允许范围内的ACL及边界回程／防火墙集合，确认不会把A／B来源混用或误放行。
+4. 用单独客户端验证双向隔离、DNS、公网IPv6、续租与前缀撤回，再恢复转发并保存。无证据时不标为完成。
 
-```sh
-sudo tcpdump -ni '<MAINT_WIFI_INTERFACE>' -vvv 'udp port 67 or udp port 68'
-```
+## 5 后续迁移与VLAN100维护
 
-核对唯一服务的 DISCOVER/OFFER/REQUEST/ACK、服务器 `.0.254`、客户 MAC、Subnet Mask 及选项；另在核心检查实际地址池租约和计数，命令参数按固件确认：
+### 5.1 尚未完成的迁移
 
-```text
-display ip pool name HS_MAINT100
-display dhcp server statistics
-display ip routing-table
-```
+`.0.10→.1.10`、PE11到VLAN2、NAS直连X3／X4、桌面交换机接入均是后续项目。开始前重新登记依赖、接口、地址、标签及回退，不能在当前端口表上把目标写成已完成。尤其HomeSense仍连接`.0.10:8443`；网关地址和服务配置必须在单独授权的发布中一致变更。
 
-确认未登记 MAC 无可用租约、维护电脑可同 VLAN 访问目标管理页，而跨 VLAN 与公网被阻断；检查核心本机管理面限制。只读取管理页/MAC，不开启 TCP485 透传或发送控制。手机不能因移动数据访问成功而误判维护网有互联网。
+EA-5备份若仍使用`.0.x`，也属于VLAN100业务依赖。全部迁址或退役后，才可以关闭Vlanif100网关和原DHCP、保留VLAN100二层定义，并撤销不再需要的常驻标签；此前不执行这一步。
 
-### 6.4 结束与恢复
+### 5.2 将来临时维护窗口
 
-把目标移回业务 VLAN、验证新地址，关闭维护 SSID。仅解绑维护 DHCP 并关闭 SVI100，不执行全局 `undo dhcp enable`，否则会影响 VLAN1/2：
+确认VLAN100已无业务依赖后，才使用[临时维护示例](../deployment/network/huawei-vlan100-maintenance.cli.example)，并重新核对当前固件语法及双向／CPU隔离。
 
-```text
-system-view
-interface Vlanif100
- shutdown
- undo dhcp select global
- quit
-```
+- 一次只接一台缺省地址设备，核对地址冲突；优先按实际需要用有线维护口。
+- 若启用指定AP维护SSID，记录本轮新增标签、AP选择、临时SVI与地址池，管理5和原业务成员保持。
+- 临时DHCP不得发布网关、DNS或默认路由；静态保留和客户端地址不会因服务关闭立即自动消失，结束时主动清理。
+- 测试选项、隔离、唯一DHCP／RA来源、目标设备访问及公网不可达；任一不符即停止。
+- 结束时关闭临时服务和SSID，移除本轮新增且不被其他业务使用的标签，恢复端口PVID并核对服务已退出；不把临时SVI开放状态保存为开机默认。
 
-按实际固件删除本轮专用池 `HS_MAINT100` 或保持未绑定状态，撤销本轮 ACL 绑定和规则，恢复原配置；先确认没有其他引用。维护电脑释放租约、恢复原 SSID/地址；静态租约不会15分钟自动过期。恢复 QNAP7/8 的成员和 PVID，再撤销本轮新增标签：
+## 6 验收、停止与回退
 
-```text
-system-view
-interface <CORE_E17>
- undo port trunk allow-pass vlan 100
- quit
-interface <CORE_X1>
- undo port trunk allow-pass vlan 100
- quit
-```
-
-只撤销本次新增且不被其他维护链路使用的成员。核查 SVI100 关闭、`.0.0/24` 直连消失、无常驻 DHCP/RA/出口，AC 管理仍在5、各业务 DHCP 和路由正常。不把临时 SVI 开启状态保存为开机默认状态。
-
-## 7 未来验收记录与回退
-
-| 阶段 | 必须记录的通过条件 | 当前状态 |
+| 范围 | 已有依据 | 剩余核对 |
 | --- | --- | --- |
-| 核心基础 | 房间与桌面 A口3/B口2；五业务SVI、PoE、QNAP/NAS 10G、边界2.5G | 未实机验收 |
-| QNAP | T/U/PVID两端一致；管理通道确认；聚合模式一致、单线断链可恢复 | 未实机验收 |
-| AC/AP | 管理5可达、A组SSID→3/B组SSID→2、客户端无VLAN4地址、单AP维护SSID独立启停 | 未实机验收 |
-| rdhcpd Linux隔离 | 组播获租/续租、重启重载、RA 0/1800、SLAAC/模拟核心默认路由、实际PD回程与ping、错误路径 | 此前基线31项单测＋18项隔离验收通过；DAD/RA恢复版39项单测＋23项隔离验收通过；nanopi宿主网络不变、自有进程/netns及临时目录已清理；`1368cf2` 已部署 nanopc 并验证 RA、PD 回程及真实 Rebind，nanopi5 与目标核心待验收 |
-| 双栈 | VLAN1保持IPv4、VLAN3直接接入、VLAN2的PD兼容性验收，OSPF邻居Full、rdhcpd默认路由RA关闭、动态租约到回程/策略同步、双策略硬件有效 | 存在未解除门槛，未实机验收 |
-| HomeSense发现 | 单实例在实际客户端3/2发现并可达；服务器3/4地址回程、受控mDNS发布/转发及权限有效 | 待隔离验收，旧3/4模拟结果不替代 |
-| 迁移门槛 | .0.x全量盘点并迁移，依赖与连接配置已更新 | 尚未完成，保留现网100三层服务 |
-| 维护 | 临时 SVI 的 DHCP、双向及 CPU 隔离验收；包无网关/DNS/路由选项，静态绑定正确 | 未启动、未验收 |
-| 恢复 | SSID/DHCP/临时标签关闭，端口和客户端恢复，100网关仍关闭 | 待未来维护结束核查 |
+| 新核心接管与边界直连 | 配置、用户迁线及最近链路／邻居记录 | 变更后的客户端续租及长时间稳定性 |
+| AP端口与最终命名 | 用户确认及最近Up／速率记录 | 逐AP真实双栈、SSID与隔离，不用端口标签替代 |
+| QNAP与管理入口 | 现用DAC、标签及本地维护路径记录 | QSS管理迁到5尚未验证，不顺手执行 |
+| 双栈隔离 | 四方向策略应用及此前客户端测试 | PD变化保护与自动化仍未完成 |
+| HomeSense | rev52实际配置与已部署程序只读核对 | 现场接管按[独立清单](control4-takeover-checklist.md)，不以网络验收补签 |
+| VLAN100转维护、NAS／桌面迁移 | 仅规划 | 依赖清空、单独授权、配置与数据面验收 |
 
-### 7.1 旧核心 VLAN1 IPv6 分流：下次可改线时继续
+变更失败只恢复本次受影响设备与已保存设置；涉及重复网关或环路时先隔离新路径，再恢复已核对的旧路径。不要把旧核心全套三层服务、旧聚合和临时线一起恢复。配置、配对、凭证及独立维护入口均须保留。
 
-**当前暂停点（2026-10-13）：** 用户要求暂不改接线，只读核查已结束；完整证据及与新核心目标方案的区别见[架构第 5.2.1 节](network-architecture.md)。现网 QNAP A、B 均直连旧核心，分别通过 Eth-Trunk3、Eth-Trunk4 上联；两台 QNAP 间另有承载 VLAN3/4 的互连 Trunk。旧核心 Vlanif1 已启用 IPv6 并绑定 A 线 `ng3prefix ::1/64`，但未启用 RA；实测电脑 `en0` 未取得全球地址。CLI 帮助接受 `ipv6 nd ra router-lifetime 0`，尚未实际发送或抓取该华为 RA。nanopi5 经 QSW4C 端口 12 和核心 Eth-Trunk3 的 VLAN3 路径可达；Eth-Trunk3 当前排除 VLAN1，QNAP 端口成员尚未核实。nanopi5 对委派给核心的 /64 有回程、A 线公网路由指向 `ppp0`，但当前 rdhcpd 只绑定 VLAN3 的 `br-lan`，防火墙转发也只把 `br-lan` 当作 LAN。Linux 隔离客户端的双 RA 组合通过，实际 networkd 发包、华为、QNAP、macOS 与公网端到端均未通过验收。
+## 7 历史与本轮核查边界
 
-下次须按以下顺序逐项执行并保存变更前后的配置与抓包，任何一步失败即恢复该步，不继续放大范围：
+旧核心VLAN1 IPv6分流、仅先迁B侧、QNAP上联未接和AP临时位置等描述已归为历史。原始过程、失败日志及真实配置留在私有目录；本版不再把历史状态混作当前步骤。
 
-1. 从 QNAP 专用管理口进入 QSS，登记 QSW4C 端口 12、连接核心 Eth-Trunk3 的上联口及对应聚合成员的 VLAN1/3 Tagged、Untagged、PVID；同时备份核心 Eth-Trunk3、Vlanif1、QNAP、nanopi5 networkd/nftables 配置。确认管理通道在测试标签变更后仍可达。若无法核实这些端口，保持暂停。
-2. 决定测试接线：在已核实的 QNAP 路径两端临时放通 **Tagged VLAN1**，不改变原有 VLAN3/PVID/LACP；或用 nanopi5 空闲 LAN2 直连华为一个可回退的临时端口。先只在 nanopi5 建立链路本地 VLAN1 测试接口，确认到核心 Vlanif1 链路本地地址的双向 ND/ICMPv6，同时核对 VLAN3 PD、OSPF、DHCP 和现有业务未受影响。二层不通则先撤销标签或临时接线。
-3. 在受控测试窗口核查旧核心 Vlanif1 的 RA Router Lifetime=0 与 A 线 /64 PIO 的**实际报文**，尤其是 M/O、RDNSS、前缀首选/有效期和动态 PD 变化后的撤回；不能仅凭命令帮助判定通过。测试前后保存 `display current-configuration interface Vlanif1`、`display ipv6 interface Vlanif1` 和 PD 状态，确认客户端只取得 A 线前缀、未把核心学作默认路由。停发 RA 不会立即删除已分配的客户端 IPv6 地址，回退时按有效期和客户端状态处理。
-4. 再让 nanopi5 **仅在 VLAN1 测试链路**发送无 PIO、Router Lifetime>0 的默认路由 RA；不要把现有仅绑定 VLAN3 的 rdhcpd 改作 VLAN1 服务。实际发送程序（候选为 systemd-networkd）须先抓包确认来源、Lifetime、PIO 缺席和定时重发；此前独立 networkd 实例的隔离启动因 D-Bus 单例冲突未完成，不能把文档参数当作发包验收。
-5. 给 nanopi5 VLAN1 接口补充限定入接口、A 线源 /64 与 WAN `ppp0` 的临时转发规则，并核查返回方向的连接跟踪、IPv6 防火墙及透明代理规则；当前 nftables 默认转发丢弃未列入 `br-lan` 的新接口。用 VLAN1 测试终端分别核对地址、默认下一跳、到核心/内网的路径、A 线公网 IPv6、回包及不同协议，不以单台边界本机 ping 代替客户端验收。双网卡电脑要指定 VLAN1 接口，避免现有 VLAN3 接口 `en7` 成功而误判 VLAN1 通过。
-6. 再验证 PD Renew/Rebind、/64 不变或变化时的核心地址、PIO、nanopi5 回程、上游 /60 授权期及终端弃用旧地址。记录两线路独立出口与 DNS；完成后决定是否保留方案。若不保留，按逆序撤销新 RA、临时防火墙规则、接口和标签/接线，核对 VLAN3 业务及客户端路由恢复。
+rdhcpd此前修复与Linux隔离结果见[续租／RA历史记录](evidence/network/rdhcpd-linux-20261013.json)、[DAD／RA历史记录](evidence/network/rdhcpd-dad-linux-20261013.json)，只能证明当时范围。当前项目规则要求完整测试在开发本机执行，目标只做必要部署核对，不再上传测试到NGR／NanoPi。
 
-核心切换失败时隔离新核心，恢复旧核心及原布线/网关/边界配置；不能同时启用重复`.253`和RID。单台QNAP或AP变更失败先恢复该设备原VLAN和管理配置，不重置所有设备。VLAN100迁移未完成时，不将最终关闭步骤当成故障处理；维护阶段异常则先停临时DHCP/SSID、恢复端口，不擅自改现网DHCP或HomeSense真实控制。
-
-## 8 本轮核查范围
-
-已核对文档中的 VLAN、端口、DHCP 所属与迁移前后状态。此前查阅官方资料，并通过 SSH 只读查看两台边界的 rdhcpd 参数、租约和 IPv6 路由；核心配置和地址状态来自用户提供的 CLI 输出。2026-10-13 另完成 rproxy 续租与 RA 源码修复、独立提交、本地验证和 nanopi Linux隔离验收，本手册同步记录参数、证据与待验收项。华为 CLI、临时池实际选项、ACL 对 VLANIF/CPU 的覆盖、QSS 管理 VID、旧 AC/AP 兼容性、双栈硬件转发均待实际版本隔离测试；旧核心 /64 PD 到 VLAN2 的 /64 地址生成已实证，目标 V600 指南仍有限制、须到货验证。rdhcpd RouterLifetime=0、续租与PD回程在两个不连接物理网络的匿名netns内通过真实Linux收发，核心默认RA为模拟，实际华为与现网仍未验收。测试进程已退出，netns无剩余持有进程，宿主接口/路由指纹一致；本轮 DAD 地址就绪筛选与 RA 失败恢复候选已通过 nanopi 隔离验证，测试记录保留当时的未提交源码补丁，后续提交为 `1368cf2`。同一二进制已在 nanopc 备份旧程序、unit和租约后安装并重启 rdhcpd；服务持续 active、无自动重启，RA、原有两条 PD 回程和真实客户端 Rebind Reply 均已核对。原 unit、DNS、接口、RouterLifetime=1800 均未更改；nanopi5、核心配置、SSID、透传控制未改。部署记录见[DAD/RA 恢复隔离记录](evidence/network/rdhcpd-dad-linux-20261013.json)，目标华为与双边界完整互通仍待验收。
+本轮核查完成文档之间的端口、标签、业务归属、现用网关地址及计划／已完成状态一致性检查，并构建App工程；没有配置交换机、重启网关、迁线或启动灯光／窗帘／风机。
