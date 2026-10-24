@@ -39,6 +39,8 @@ VLAN100仍服务现有`.0.x`设备，不能现在关闭其三层网关或常驻�
 
 IPv6由两条WAN的实际PD租约决定，不把某次获得的前缀当成永久值。VLAN2使用经验证的PD／RA配置；核心与边界的路由发布、回程、防火墙和隔离ACL必须与同一代前缀一致。
 
+2026-10-24，VLAN3由NanoPi5的rdhcpd发布High默认路由器优先级（`--ra-router-preference high`），VLAN2由核心Vlanif2发布Low（`ipv6 nd ra preference low`），配置已持久保存。核心Vlanif3仍停止发送RA，避免重复来源。已抓到VLAN3 High报文，本机en7也显示`pref=high`；跨接口最终选路仍受终端服务顺序、源地址及具体路由影响，不能把它当作所有主机的强制有线优先。
+
 2026-10-24，两条线路的内网DNS均新增`nanopi.lab.vixal.xyz`：A记录为`192.168.3.3`／`192.168.4.4`，AAAA记录为两侧当前前缀加固定后缀`::3:3`／`::4:4`；`homesense.lab.vixal.xyz`以CNAME指向它，上述记录TTL均为60秒。双侧UDP／TCP查询和macOS系统解析已通过；此前NGR记录保留。该域名已登记两侧地址，HomeSense已以该域名为HTTPS入口完成切换，见[NanoPi部署记录](../deployment/nanopi/README.md)。运营商前缀变化后，静态AAAA记录须同步更新。
 
 ## 3 当前接线与标签

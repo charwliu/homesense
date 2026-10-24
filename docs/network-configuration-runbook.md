@@ -130,6 +130,8 @@ NGX绑定VLAN4，但15–22号AP Trunk此前仅放行2／3／5／100，VLAN4仅�
 
 两条边界的OSPF／OSPFv3邻居、默认路由、委派前缀回程及防火墙必须一致；不能加静态默认路由掩盖邻居失败。Mac有线／无线同时在线时先核对实际出口，不能用经A线的成功探测证明B线正常。
 
+RA优先级已于2026-10-24设为VLAN3 High、VLAN2 Low：在真正的RA来源修改，VLAN3是NanoPi5的rdhcpd参数`--ra-router-preference high`，VLAN2是核心Vlanif2命令`ipv6 nd ra preference low`。不要为此启用核心Vlanif3的RA。rdhcpd增加参数后，本机46项测试及严格Clippy通过，Cargo ARM Release部署使用独立版本路径，并核对实际进程ELF哈希；首次原路径部署失败已回退，原失败记录保留。最终抓包确认High，核心显示Low且保存配置一致，本机en7确认High及有线默认出口。恢复原优先级时，rdhcpd改为`medium`，核心接口执行`undo ipv6 nd ra preference`并保存；仅修改OSPF开销不能替代终端接口优先级。
+
 ### 4.2 隔离策略
 
 已部署策略结构的脱敏示例见[双栈隔离模板](../deployment/network/huawei-b-vlan2-vlan4-isolation.cli.example)。示例使用文档IPv6前缀和虚构管理主机地址，不是可直接执行的现网脚本。
