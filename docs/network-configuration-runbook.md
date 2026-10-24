@@ -134,20 +134,20 @@ RA优先级已于2026-10-24设为VLAN3 High、VLAN2 Low：在真正的RA来源�
 
 ### 4.2 隔离策略
 
-已部署策略结构的脱敏示例见[双栈隔离模板](../deployment/network/huawei-b-vlan2-vlan4-isolation.cli.example)。示例使用文档IPv6前缀和虚构管理主机地址，不是可直接执行的现网脚本。
+此前严格隔离阶段的脱敏示例见[双栈隔离模板](../deployment/network/huawei-b-vlan2-vlan4-isolation.cli.example)。2026-10-24后续授权已改为VLAN2↔VLAN4、VLAN3↔VLAN4互通，见4.6节；旧模板须结合[当前互通增量](../deployment/network/huawei-lan-mutual-access.cli.example)理解。示例使用占位符或文档IPv6前缀，不是可直接执行的现网脚本。
 
-VLAN2默认拒绝访问内网普通地址，只按审核范围放行DNS与精确管理例外。目标固件不支持一个traffic policy混合IPv4／IPv6 ACL分类器，因此分为：
+VLAN2允许访问VLAN4，默认拒绝其他内网普通地址，保留已审核的管理及HomeSense例外。目标固件不支持一个traffic policy混合IPv4／IPv6 ACL分类器，因此分为：
 
 | 接口方向 | 作用 |
 | --- | --- |
-| Vlanif2入方向 | IPv4精确允许例外优先，随后拒绝内网目的 |
-| Vlanif2出方向 | 精确回复例外优先，随后拒绝VLAN4来源 |
-| Vlanif4出方向 | IPv6拒绝到受限内网前缀 |
-| Vlanif4入方向 | IPv6拒绝受限来源到内网前缀 |
+| Vlanif2入方向 | IPv4允许VLAN4及精确例外，随后拒绝其他内网目的 |
+| Vlanif2出方向 | 允许VLAN4及精确回复例外，保留VLAN3普通来源拒绝 |
+| Vlanif4出方向 | IPv6允许授权网段对，随后拒绝受限内网目的 |
+| Vlanif4入方向 | IPv6允许授权网段对，随后执行原受限来源拒绝 |
 | Vlanif3入／出方向 | 最近备份另有A3_IN6／A3_OUT6附加IPv6隔离；保留并单独核对，不被B侧示例覆盖 |
 | Vlanif100出方向 | V100_OUT4限制VLAN3来源到VLAN100：指定管理Mac优先允许，DNS回包及现有HomeSense连接保留，其余VLAN3来源拒绝 |
 
-`if-match`分类器与deny行为表达隔离；不能用ACL的deny条目冒充需要放行的例外。顺序以已核对的precedence为准。保存前后都要读回受影响方向的全部应用记录、运行／启动配置差异，并分别测允许和拒绝方向。此前B侧四方向的success只证明当次范围，不自动证明A侧附加策略；本次未重新执行B侧四方向数据面测试。
+`if-match`分类器与deny行为表达隔离；不能用ACL的deny条目冒充需要放行的例外。顺序以已核对的precedence为准。保存前后都要读回受影响方向的全部应用记录、运行／启动配置差异，并分别测允许和拒绝方向。此前B侧四方向的success只证明当次范围，不自动证明A侧附加策略；本次后续的互通与双向隔离实测见4.6节。
 
 2026-10-24补充验收范围为VLAN3到VLAN100的IPv4访问。NanoPi5的DHCP Option121同时保留AC的`/32`路由和默认路由，新增`192.168.0.0/24 → 192.168.3.253`；支持该选项的客户端续租后生效。指定管理Mac通过有线网卡MAC固定DHCP租约，核心按其固定IPv4放行，真实绑定值留在私有记录。已确认该Mac的DHCP ACK包含新路由、访问两台485网关及录像机成功、另一VLAN3来源被核心丢弃，HomeSense既有连接保持；核心7条策略均为success并已保存。该限制针对跨VLAN转发的设备访问，不等同于管理CPU保护或同VLAN终端隔离，也不包含GVS的`10.255.195.x`网络。
 
@@ -198,6 +198,29 @@ NanoPC的LAN地址已从同一前缀下的`::1`统一为`::4:1`；systemd-networ
 首次地址调整时，LAN的networkd重新配置删除了rdhcpd自动发现所依赖的DHCP不可达委派前缀路由，回退旧Token后仍需按有效PD恢复同一条路由才能恢复服务。失败记录保留；后续流程在停rdhcpd、备份与独立回退保护下显式保留该有效前缀路由，再修改Token并恢复服务，未重拨WAN或请求新前缀。以后调整LAN地址前，必须先记录当前委派及有效期，不能靠恢复地址文件推定路由已恢复，也不能从旧日志复制已失效的前缀。
 
 前缀变化保护还须同步更新RDNSS地址、指定DNS /128路由、DNS6请求／回复ACL、NanoPC通告及两侧AAAA，再验证后恢复VLAN2 IPv6；这些字面地址不会自动跟随PD。上述操作不替代4.4节的旧Mac路由修复。
+
+### 4.6 VLAN2／3／4互通与隔离校正（2026-10-24）
+
+本节取代此前“VLAN2与VLAN4只开放窄例外”的业务边界；4.4／4.5保留各自当时的故障和修复记录。用户最终确认的当前矩阵为：
+
+| 来源／目的 | IPv4 | IPv6 |
+| --- | --- | --- |
+| VLAN3↔VLAN4 | 允许双向访问 | 允许双向访问 |
+| VLAN2↔VLAN4 | 允许双向访问 | 允许双向访问 |
+| VLAN2↔VLAN3 | 普通访问双向拒绝，保留指定HomeSense TCP8444及回包 | 同左，匹配当前及过渡VLAN2前缀 |
+| VLAN2公网出口 | 经核心、VLAN4、NanoPC的WAN B | 同左，核心OSPFv3默认路由仍指向NanoPC |
+
+原ACL3984只匹配VLAN4目标前缀，未限定来源，导致本机VLAN3及NanoPi5访问NanoPC新IPv6地址时也被拒绝。修改前NanoPi5发出的4个SSH SYN在NanoPC均未收到。当前不删除该拒绝分类器，而新增ACL3994，只匹配VLAN3 LAN／VLAN4 LAN及新旧VLAN2／VLAN4的双向网段对；分类器LAN_PAIR6在B_V4_IN6／B_V4_OUT6中使用B_ALLOW、precedence3，位于原拒绝precedence5之前。IPv4仅在ACL3980／3982新增VLAN2↔VLAN4网段允许；ACL3983中原有VLAN3→VLAN2拒绝继续保留。
+
+规则生效后还需修正路由：核心两侧OSPFv3 LAN /64显示下一跳`::`，VLAN3 IPv6回程仍失败；现为两侧当前LAN /64增加经各自边界链路本地地址的静态路由，preference5，不修改双栈默认出口或OSPF邻居。路由器自身和各LAN仍使用原地址服务，核心Vlanif3不新增RA。
+
+本次发现核心当前PD子前缀已改变，但Vlanif2的显式PIO仍是旧值，NanoPC也已没有旧子前缀回程。已把新PIO对齐实读PD（有效7200秒、首选3600秒），旧PIO首选期设0；本机自动取得新前缀地址，旧地址标为deprecated。同步为新前缀补充ACL3986／3987的双向隔离和ACL3988／3989的HomeSense例外。RA仍为Low，RDNSS／DNSSL均1800秒。旧PIO需在客户端迁移后撤销；保持通告会刷新其有效期，不能当作已自动清除。新旧PIO和ACL字面前缀仍需按4.3节人工同步，未实现自动跟随PD。
+
+边界防火墙仅补充必要转发：NanoPC持久及运行规则新增VLAN4→VLAN2 IPv4允许，以及指定HomeSense VLAN3地址、源端口8444到VLAN2新旧前缀的IPv6回复允许。抓包显示双网HomeSense从VLAN3接收请求，却经VLAN4口回包；该精确规则放在连接状态拒绝之前处理这条已授权路径。曾加在NanoPi5的未命中回复规则已完整撤销，文件哈希恢复；NanoPi5没有本轮持久变更。未重启HomeSense或执行灯光、窗帘等控制。
+
+验收共15项：VLAN3／VLAN2到VLAN4双栈SSH，VLAN4到两网的双栈临时监听器，VLAN2↔VLAN3双向普通端口阻断，HomeSense双栈8444例外及另一VLAN4主机IPv6入口，全部通过；NanoPi5→NanoPC IPv6 SSH另外读到正常banner。VLAN2 Wi-Fi接口绑定的IPv4／IPv6 HTTPS均返回200，新前缀的8项UDP／TCP、内外域A／AAAA查询通过；实际收到新旧PIO、RDNSS和搜索域，核心7条策略均success，双协议各两条OSPF邻居Full，运行配置已保存并与启动配置一致。
+
+首轮未通过记录保留。双网测试主机有两项反向探测实际走VLAN3直连，不能作为跨网验收，已用从VLAN4的NanoPC发起、保持相同断言的检查替代。HomeSense真实回包失败按抓包修复后原样复验。原始前缀、配置备份、独立回退记录和SHA留在私有运维目录；脱敏核心增量见[互通配置示例](../deployment/network/huawei-lan-mutual-access.cli.example)。
 
 ## 5 后续迁移与VLAN100维护
 

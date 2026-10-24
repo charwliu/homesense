@@ -1,6 +1,6 @@
 # 知居家庭网络架构
 
-版本1.21 · 2026-10-24整理。本文把当前可核对状态与后续规划分开；操作顺序见[网络配置手册](network-configuration-runbook.md)。本次补充NanoPi R6S双网接入与HomeSense主备切换；NGX修复、VLAN3 DHCP路由与VLAN100管理访问限制继续保留。
+版本1.22 · 2026-10-24整理。本文把当前可核对状态与后续规划分开；操作顺序见[网络配置手册](network-configuration-runbook.md)。本次补充VLAN2／3／4互通边界、IPv6路由与VLAN2前缀校正；NanoPi R6S主备、NGX修复及VLAN100管理限制继续保留。
 
 ## 1 核对范围与当前状态
 
@@ -29,7 +29,7 @@ VLAN100仍服务现有`.0.x`设备，不能现在关闭其三层网关或常驻�
 | VLAN | 用途 | 核心／边界分工 |
 | --- | --- | --- |
 | 1 | 未来A组专用网关接入 | 当前Vlanif1为DHCP取址；隔离维护接口Vlanif4092使用`.1.253`。不能写成业务VLAN1已按目标接管 |
-| 2 | B组客户端 | 核心`.2.253/24`提供网关、DHCPv4和IPv6 RA；公网经VLAN4到WAN B |
+| 2 | B组客户端 | 核心`.2.253/24`提供网关、DHCPv4和IPv6 RA；允许访问VLAN4，公网经VLAN4到WAN B；与VLAN3保留双向隔离及既有精确例外 |
 | 3 | A组LAN、HomeSense | 核心`.3.253/24`路由，NanoPi5`.3.1`提供边界出口及原有地址服务 |
 | 4 | B组边界／服务器LAN、NGX无线直入 | 核心`.4.253/24`路由；NGX终端由nanopc`.4.1`直接提供DHCPv4、IPv6 RA和出口，不沿用VLAN2的客户端隔离边界 |
 | 5 | AC／AP管理 | 核心`.5.253/24`提供DHCPv4全局池`vlan5_ap`；AC100为`.5.1/24`、网关`.5.253`，关闭自身地址分配服务，仅管理AP |
@@ -99,17 +99,19 @@ WAN不进入LAN Trunk；NGR的两个LAN聚合口不桥接，也不承担跨VLAN�
 
 ## 4 隔离与管理入口
 
-VLAN2默认不能直接访问VLAN3／4的普通设备。2026-10-24经用户明确批准，只为HomeSense两侧IPv4及当前IPv6的/128放行TCP8444和对应回包；其他设备、SSH及HAP端口不开放。DNS等必要服务和单机管理入口仍按已审核的来源、目的、端口及回包方向放行，不把窄例外扩大为整段互通。详见[HomeSense附加监听](../deployment/nanopi/web/README.md)。
+2026-10-24按用户最新授权：VLAN3↔VLAN4、VLAN2↔VLAN4允许双向IPv4／IPv6访问；VLAN2经VLAN4的NanoPC访问互联网。VLAN2↔VLAN3普通访问仍双向阻断，保留HomeSense指定地址TCP8444及回包例外；AC、VLAN100等其他管理边界保留。互通通过三层路由转发，各VLAN的地址服务归属保持。HomeSense入口见[附加监听说明](../deployment/nanopi/web/README.md)。
 
-目标固件不能在一个traffic policy中同时使用IPv4和IPv6 ACL分类器。现用结构把IPv4策略放在Vlanif2的入／出方向，把IPv6策略放在Vlanif4的出／入方向。脱敏结构见[双栈隔离示例](../deployment/network/huawei-b-vlan2-vlan4-isolation.cli.example)，不能整份直接下发现网。
+目标固件不能在一个traffic policy中同时使用IPv4和IPv6 ACL分类器。现用结构把IPv4策略放在Vlanif2的入／出方向，把IPv6策略放在Vlanif4的出／入方向，并保留Vlanif3的附加隔离。原[双栈隔离示例](../deployment/network/huawei-b-vlan2-vlan4-isolation.cli.example)记录此前更严格的阶段；当前互通增量见[网段对允许示例](../deployment/network/huawei-lan-mutual-access.cli.example)，均不能整份直接下发现网。
 
-B侧四条策略已有success及此前客户端双栈、DNS例外和隔离验收记录；这不是本轮新增的数据面实测。最近配置备份另记录Vlanif3绑定A3_IN6／A3_OUT6，属于A侧附加IPv6隔离，不能用B侧模板覆盖，也不从配置绑定单独推定数据面通过。动态PD变化后，所有相关IPv6 ACL都不会自动引用新前缀；自动检测、自动暂停和更新尚未实现，必须按手册完成前缀变更保护。
+B侧四条策略已有历史success及客户端双栈、DNS例外和隔离验收记录；本次互通与隔离实测另见下文及手册4.6节。Vlanif3绑定A3_IN6／A3_OUT6，属于A侧附加IPv6隔离，不能用B侧模板覆盖，也不从配置绑定单独推定数据面通过。动态PD变化后，所有相关IPv6 ACL都不会自动引用新前缀；自动检测、自动暂停和更新尚未实现，必须按手册完成前缀变更保护。
 
 Mac同时连VLAN2无线和VLAN3有线时，须区分全局主机路由与接口作用域路由。旧Wi-Fi全局AC路由曾覆盖有线DHCP路由，现已清除其持久设置；VLAN3通过DHCP Option121下发AC专用路由，续租ACK与访问已核对。AC现允许整个VLAN2访问，本次已用无线接口绑定探测确认HTTP200；仍不能把经VLAN3成功的公网探测计作VLAN2出口验收。
 
 2026-10-24完成本机物理拔线／插回验证：残留的NanoPC主机路由曾使自动DNS查询继续使用旧VLAN2源地址，导致有公网TCP通路却无法解析网页。删除全局和en0作用域的旧`.4.1/32`路由后，拔线期间21次采样的DNS、IPv4／IPv6 TCP及HTTPS全部成功，出口为VLAN2 Wi-Fi；插回后3次采样重新优先VLAN3有线。核心隔离规则未因本次修复调整；这是新建连接和网页验证，不是既有会话无缝迁移保证。原因、清理命令和首次失败边界见[操作手册](network-configuration-runbook.md)4.4节。
 
 核心VLAN2现已通过RA发布NanoPC的IPv6 DNS（VLAN4当前前缀加`::4:1`）及搜索域`lab.vixal.xyz`，均为1800秒；本机已实际收到RDNSS／DNSSL。NanoPC的LAN Token、rdhcpd DNS和两侧AAAA同步统一为`::4:1`，旧`::1`仅限时兼容。新增IPv6放行仅涉及VLAN2到该DNS /128的UDP／TCP53及回包，并为该DNS设置经NanoPC链路本地下一跳的/128路由；其他隔离保留。8项VLAN2 IPv6 DNS查询、7条硬件策略及保存均已验证，详见[操作手册](network-configuration-runbook.md)4.5节及[脱敏模板](../deployment/network/huawei-vlan2-ra-dns.cli.example)。前缀变化时须同步维护这些字面地址。
+
+随后按上述最新授权扩大网段互通：核心新增IPv6网段对允许ACL3994，在Vlanif4双方向以precedence3先于原拒绝分类器匹配；IPv4新增VLAN2↔VLAN4允许项。两侧LAN /64显式经各自边界路由器的链路本地下一跳转发，双栈默认出口及OSPF邻居保留。VLAN2的RA已对齐当前PD，旧PIO首选期设0；新旧前缀均保留VLAN2↔VLAN3阻断和HomeSense例外。NanoPC补充VLAN4→VLAN2的IPv4转发，以及HomeSense从VLAN4口发出的精确IPv6 8444回包规则。15项路径检查、8项DNS查询及VLAN2双栈网页HTTP200通过，NanoPi5→NanoPC IPv6 SSH恢复，7条硬件策略success，配置已保存。详见[操作手册](network-configuration-runbook.md)4.6节；旧PIO待客户端迁移后撤销，前缀同步仍为人工保护流程。
 
 ## 5 已完成、保留与剩余工作
 
