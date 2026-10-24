@@ -179,8 +179,9 @@ struct HomeManagementView: View {
     }
 
     private var managing: Bool { home.interfaceMode == .management && home.canManage }
-    private var appVersion: String { Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?" }
-    private var appBuild: String { Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "?" }
+    private var appIdentity: HomeBuildIdentity { HomeBuildIdentity(info: Bundle.main.infoDictionary ?? [:]) }
+    private var appVersion: String { appIdentity.version }
+    private var appBuild: String { appIdentity.displayBuild }
     private var pageTitle: String {
         return page == .overview && !managing ? "家庭" : (page ?? .overview).rawValue
     }

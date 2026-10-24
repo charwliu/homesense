@@ -6,6 +6,7 @@ import hashlib
 import json
 from pathlib import Path
 import plistlib
+import re
 import shutil
 import subprocess
 import sys
@@ -39,6 +40,7 @@ def code_files(app):
 
 def verify(app, bundle, team):
     info = plistlib.loads((app / 'Info.plist').read_bytes())
+    validate_build_metadata(info)
     if info['CFBundleIdentifier'] != bundle:
         raise ValueError('Unexpected application bundle identifier')
     files = code_files(app)
@@ -68,6 +70,9 @@ def verify(app, bundle, team):
     return {
         'status': 'PASS_ALL_MACHO_SIGNATURES',
         'bundle': bundle, 'build': info['CFBundleVersion'], 'team': team,
+        'source_commit': info['HomeSenseGitCommit'],
+        'source_dirty': info['HomeSenseGitDirty'],
+        'source_fingerprint': info['HomeSenseSourceFingerprint'],
         'code_objects': [str(path.relative_to(app)) for path in files],
         'entitlements': entitlements,
         'artifact_tree': [
@@ -75,6 +80,19 @@ def verify(app, bundle, team):
             for path in sorted(app.rglob('*')) if path.is_file()
         ],
     }
+
+
+def validate_build_metadata(info, requested_build=None):
+    if not re.fullmatch(r'[1-9][0-9]*', info.get('CFBundleVersion', '')):
+        raise ValueError('Missing numeric Git commit-count build')
+    if not re.fullmatch(r'[0-9a-f]{40}', info.get('HomeSenseGitCommit', '')):
+        raise ValueError('Missing generated Git source identity; rebuild the app')
+    if not isinstance(info.get('HomeSenseGitDirty'), bool):
+        raise ValueError('Missing source modification marker')
+    if not re.fullmatch(r'[0-9a-f]{64}', info.get('HomeSenseSourceFingerprint', '')):
+        raise ValueError('Missing generated source fingerprint')
+    if requested_build is not None and requested_build != info['CFBundleVersion']:
+        raise ValueError('Packaging cannot renumber a compiled app; rebuild from the intended Git commit')
 
 
 def main():
@@ -92,8 +110,9 @@ def main():
     args = parser.parse_args()
     app = args.app.resolve(strict=True)
     if not args.verify_only:
-        if not all([args.output, args.build_number, args.identity, args.profile, args.entitlements]):
-            parser.error('Packaging requires output, build-number, identity, profile and entitlements')
+        if not all([args.output, args.identity, args.profile, args.entitlements]):
+            parser.error('Packaging requires output, identity, profile and entitlements')
+        validate_build_metadata(plistlib.loads((app / 'Info.plist').read_bytes()), args.build_number)
         if (app / 'PlugIns').exists() or (app / 'Watch').exists():
             raise ValueError('Extensions require separate profiles; this packager is standalone only')
         entitlements = plistlib.loads(args.entitlements.read_bytes())
@@ -108,8 +127,6 @@ def main():
         info = plistlib.loads(info_path.read_bytes())
         if info['CFBundleIdentifier'] != args.expected_bundle:
             raise ValueError('Source bundle identifier differs')
-        info['CFBundleVersion'] = args.build_number
-        info_path.write_bytes(plistlib.dumps(info))
         shutil.copy2(args.profile, app / 'embedded.mobileprovision')
         main_executable = app / info['CFBundleExecutable']
         for path in sorted(code_files(app), key=lambda path: len(path.parts), reverse=True):

@@ -37,6 +37,10 @@ swift test --build-system native --scratch-path "$HOMESENSE_BUILD_ROOT/swift"
 
 工作区统一复用仓库根目录的`target/`；脚本未设置环境变量时也默认使用该目录，每个会话后续原地复用。`tools/build.sh` 将 Xcode 输出放在该根目录的平台子目录；Swift 测试和实际联调脚本分别显式传入 `--scratch-path "$HOMESENSE_BUILD_ROOT/swift"`、`--scratch "$HOMESENSE_BUILD_ROOT/swift"`，避免另建默认 `.build` 或按版本、轮次复制构建缓存。源码快照、日志和必要安装包可另存。
 
+macOS与iOS共用Git版本生成阶段：界面显示`HomeSense 1.0 Build <7位提交号>`，App目录内有未提交的改动时附加“未提交改动”。系统`CFBundleVersion`使用完整Git历史的提交计数，另存完整提交号、修改标记和App源码SHA-256指纹；同一源码提交的两端标识一致。生成的Info.plist只写入根`target/`的派生输出；构建要求完整Git检出，缺失或浅历史会明确失败。忽略的本机签名文件不计入源码指纹。
+
+该目标的Git生成阶段需要读取版本元数据及动态变化的App源码文件集合，因此目标级关闭Xcode用户脚本沙箱；项目其他设置保留，阶段只执行仓库内固定的版本生成脚本。
+
 真机安装包使用 `tools/package-ios.py`，先签全部内嵌 Mach-O（包括根目录的 `HomeSense.debug.dylib` 和 `__preview.dylib`），再签 App，随后逐个验证签名、团队、描述文件和权限。仅执行 App 层的 `codesign --verify --deep --strict` 不能证明这两份动态库已签名。独立 App 可按下面方式打包；带扩展的 App 需要另外配置各自描述文件。
 
 iOS 的「Apple家庭房间归属」需要原团队下明确 App ID 的 HomeKit 专用描述文件。先在 Xcode 的 Signing & Capabilities 添加 HomeKit 并更新描述文件，打包后同时核对实际签名权限和内嵌描述文件都包含 `com.apple.developer.homekit = true`；通用 `*` 描述文件不能交付此功能。iOS 使用 `App/HomeSense-iOS.entitlements`，保留原团队和包标识；描述文件与签名私钥不入库。真机仍需用户授权家庭访问，再选择家庭、对应桥和目标房间，经预览后应用；迁移中断后重新读取，已确认到位的配件会跳过。
@@ -45,13 +49,13 @@ iOS 的「Apple家庭房间归属」需要原团队下明确 App ID 的 HomeKit 
 python3 tools/package-ios.py \
   --app "$HOMESENSE_BUILD_ROOT/ios/Build/Products/Debug-iphoneos/HomeSense.app" \
   --output "$HOMESENSE_BUILD_ROOT/artifacts/HomeSense.app" \
-  --build-number '<构建号>' --identity '<开发签名标识>' \
+  --identity '<开发签名标识>' \
   --profile '<原描述文件路径>' --entitlements '<原权限文件路径>' \
   --expected-bundle com.ngboss.homesense --expected-team '<原团队ID>' \
   --report '<私有安装包校验报告路径>'
 ```
 
-安装后还应启动原测试机上的 App，核对进程和连接结果。打包工具支持 `--verify-only`，可对现有包逐一检查所有 Mach-O；它不执行安装，也不读取手机数据或钥匙串。
+安装后还应启动原测试机上的 App，核对进程和连接结果。打包保留编译时的Git元数据；兼容参数`--build-number`只允许确认同一数值，不能通过重新编号把旧制品当作新源码构建。`--verify-only`核对含Git元数据的新包及所有Mach-O；它不执行安装，也不读取手机数据或钥匙串。
 
 
 实际 Rust HTTPS/WSS 联调需使用独立、固定且不会被并行构建覆盖的后端二进制。将下面的占位路径替换为该文件的绝对路径，再运行：
