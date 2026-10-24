@@ -1,0 +1,24 @@
+[Unit]
+Description=HomeSense online data backup to fenced NGR
+Wants=network-online.target
+After=network-online.target
+ConditionPathExists=/var/lib/homesense-role/primary
+
+[Service]
+Type=oneshot
+User=alarm
+Group=alarm
+WorkingDirectory=/home/alarm/apps/homesense/backup
+UMask=0077
+ExecStart=/usr/bin/python3 -B /usr/local/libexec/homesense-backup.pyc send
+TimeoutStartSec=10min
+Nice=10
+IOSchedulingClass=idle
+CPUQuota=50%
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/alarm/apps/homesense/backup
+PrivateTmp=yes
+StandardOutput=journal
+StandardError=journal

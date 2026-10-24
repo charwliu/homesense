@@ -1,6 +1,6 @@
 # 知居家庭网络架构
 
-版本1.17 · 2026-10-24整理。本文把当前可核对状态与后续规划分开；操作顺序见[网络配置手册](network-configuration-runbook.md)。本次补充NGX的VLAN4无线接入修复与验收；此前VLAN3 DHCP路由与VLAN100管理访问限制继续保留。
+版本1.20 · 2026-10-24整理。本文把当前可核对状态与后续规划分开；操作顺序见[网络配置手册](network-configuration-runbook.md)。本次补充NanoPi R6S双网接入与HomeSense主备切换；NGX修复、VLAN3 DHCP路由与VLAN100管理访问限制继续保留。
 
 ## 1 核对范围与当前状态
 
@@ -14,7 +14,7 @@
 | QNAP A／B | 10号Combo光口分别上联核心X1／X2；上次均10G Up | NAS仍按已登记下游路径使用，不预设已迁到X3／X4 |
 | AC／AP | 新TL-AC100接电口2 Access5，旧AC已断开；8块AP位于15–22，当前全部Up | F01的NGR新接入已完成双栈10/10及网页验收，不代替所有AP验收 |
 | 旧核心 | Vlanif2／4／100关闭；Vlanif3由用户现场确认关闭，Eth-Trunk4退出；两核心临时VLAN2线已拔 | 不恢复重复网关、DHCP或旧互联线 |
-| HomeSense | NGR继续运行rev52；双桥、28面板／168键，部署只读验收已完成 | 本轮不改服务器、总线连接或接管范围 |
+| HomeSense | NanoPi R6S已运行rev52并开机自启，核心5／6口均2.5G，使用当前microSD；NGR禁用且关闭主角色门禁，保留为手动冷备 | 三轮96路只读验收、配对／权限指纹及域名TLS通过；未做动作验收；每小时备份数据到NGR，不启用自动故障切换 |
 | 现用485网关 | 仍在VLAN100，HomeSense连接`192.168.0.10:8443`；`.0.10`经QNAP A上联X1，`.0.11`经QNAP B上联X2 | `.1.10:50007`属于历史目标，未启用，不可据旧图修改现网 |
 | PE11／EA-5 | PE11仍按原维护地址保留；EA-5不承担当前面板控制 | 不因保留备份接入而恢复Control4执行归属 |
 
@@ -39,6 +39,8 @@ VLAN100仍服务现有`.0.x`设备，不能现在关闭其三层网关或常驻�
 
 IPv6由两条WAN的实际PD租约决定，不把某次获得的前缀当成永久值。VLAN2使用经验证的PD／RA配置；核心与边界的路由发布、回程、防火墙和隔离ACL必须与同一代前缀一致。
 
+2026-10-24，两条线路的内网DNS均新增`nanopi.lab.vixal.xyz`：A记录为`192.168.3.3`，AAAA记录为A线当前VLAN3前缀加固定后缀`::3:3`；`homesense.lab.vixal.xyz`以CNAME指向它，三条记录TTL均为60秒。双侧UDP／TCP查询和macOS系统解析已通过；此前NGR记录保留。该域名当前仅登记VLAN3地址，HomeSense已以该域名为HTTPS入口完成切换，见[NanoPi部署记录](../deployment/nanopi/README.md)。运营商前缀变化后，静态AAAA记录须同步更新。
+
 ## 3 当前接线与标签
 
 ```mermaid
@@ -49,8 +51,10 @@ flowchart TB
     NB <-->|"电口24 · Tagged4"| C
     C <-->|"X1 · Tagged2/3/100"| QA["QNAP A · Combo10"]
     C <-->|"X2 · Tagged2/4/100"| QB["QNAP B · Combo10"]
-    QA --> S["NGR／现有下游终端"]
+    QA --> S["NGR冷备／现有下游终端"]
     QB --> S
+    C -->|"电口5 · Access3"| NP["NanoPi R6S · HomeSense主服务器"]
+    C -->|"电口6 · Access4"| NP
     C -->|"电口2 · Access5"| AC["TL-AC100"]
     C -->|"电口15–22 · PVID5"| AP["F00/F21/F12/F01/F10/F20/F02/F11"]
     QA -->|"8号口 · Untagged100"| G["现用485网关 · .0.10:8443"]
@@ -67,8 +71,10 @@ WAN不进入LAN Trunk；NGR的两个LAN聚合口不桥接，也不承担跨VLAN�
 | 1、3 | 隔离维护入口 | Access4092，不能当作已启用的业务VLAN1 |
 | 2 | AC LAN | Access5，PoE关闭；上次1G Up |
 | 4 | 旧临时VLAN2互联口 | shutdown，物理互联线已拔 |
-| 5 | VLAN2测试终端 | Access2，PoE关闭；不推定长期终端身份 |
-| 6–9、12–13 | 未完成对端登记 | 保留配置，不凭旧规划插入业务设备 |
+| 5 | NanoPi R6S的wan，VLAN3 | Access3，PoE关闭，2.5G；`.3.3/24`，RA固定后缀`::3:3` |
+| 6 | NanoPi R6S的lan1／br2，VLAN4 | Access4，PoE关闭，2.5G；`.4.4/24`，RA固定后缀`::4:4` |
+| 7 | 已撤销的NanoPi预留口 | Access1、shutdown、PoE关闭 |
+| 8–9、12–13 | 未完成对端登记 | 保留配置，不凭旧规划插入业务设备 |
 | 10 | VLAN100预留口 | Access100；现用`.0.10`经QNAP A接入，不将预留口视为当前接线 |
 | 11、14 | VLAN100备用 | shutdown |
 | 15 | F00，原F10测试AP | 2026-10-24实时1G Up |
