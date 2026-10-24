@@ -1,0 +1,84 @@
+# 已部署隔离策略结构的脱敏示例；核对日期2026-10-24。
+# 不是可直接下发的现场导出。实际MAC、租约、全球前缀和管理例外留在私有目录。
+# 2001:db8:20:100::/60为文档用B线示例，/64为其LAN；A线示例2001:db8:10:100::/60。
+# 192.168.2.100只是示例管理主机，不代表已获授权的来源。
+# 下发前必须以当时PD、回程、双向隔离及精确管理授权重建规则，逐项预览和验收。
+# IPv4/IPv6不能混在同一traffic policy；当前结构使用Vlanif2和Vlanif4的不同方向。
+# 前缀更新自动化尚未实现；变更时先按批准流程暂停IPv6转发，不能沿用失配ACL。
+# 使用precedence明确排序；ACL permit匹配与deny行为配合，不用ACL deny冒充放行例外。
+# 完整说明见docs/network-configuration-runbook.md。
+system-view
+acl 3980
+ rule 5 permit udp source 192.168.2.0 0.0.0.255 destination 192.168.4.1 0 destination-port eq 53
+ rule 10 permit tcp source 192.168.2.0 0.0.0.255 destination 192.168.4.1 0 destination-port eq 53
+ rule 12 permit tcp source 192.168.2.100 0 destination 192.168.4.1 0 destination-port eq 22
+ rule 15 permit icmp source 192.168.2.0 0.0.0.255 destination 192.168.2.253 0
+ quit
+acl 3981
+ rule 5 permit ip source 192.168.2.0 0.0.0.255 destination 192.168.0.0 0.0.255.255
+ quit
+acl 3982
+ rule 5 permit udp source 192.168.4.1 0 source-port eq 53 destination 192.168.2.0 0.0.0.255
+ rule 10 permit tcp source 192.168.4.1 0 source-port eq 53 destination 192.168.2.0 0.0.0.255
+ rule 15 permit tcp source 192.168.4.1 0 source-port eq 22 destination 192.168.2.100 0
+ quit
+acl 3983
+ rule 5 permit ip source 192.168.4.0 0.0.0.255 destination 192.168.2.0 0.0.0.255
+ quit
+acl ipv6 3984
+ rule 5 permit ipv6 destination 2001:DB8:20:100:: 64
+ rule 10 permit ipv6 destination 2001:DB8:10:100:: 60
+ quit
+acl ipv6 3985
+ rule 5 permit ipv6 source 2001:DB8:20:100:: 64 destination 2001:DB8:20:100:: 60
+ rule 10 permit ipv6 source 2001:DB8:10:100:: 60 destination 2001:DB8:20:100:: 60
+ quit
+traffic classifier B2_ALLOW_DNS4
+ if-match acl 3980
+ quit
+traffic classifier B2_DENY_LAN4
+ if-match acl 3981
+ quit
+traffic classifier B4_ALLOW_DNS_R4
+ if-match acl 3982
+ quit
+traffic classifier B4_DENY_TO_B2_4
+ if-match acl 3983
+ quit
+traffic classifier B2_DENY_TO_B4_6
+ if-match ipv6 acl 3984
+ quit
+traffic classifier B4_DENY_TO_B2_6
+ if-match ipv6 acl 3985
+ quit
+traffic behavior B_ALLOW
+ permit
+ quit
+traffic behavior B_DENY
+ deny
+ quit
+traffic policy B_V2_IN4
+ classifier B2_ALLOW_DNS4 behavior B_ALLOW precedence 5
+ classifier B2_DENY_LAN4 behavior B_DENY precedence 10
+ quit
+traffic policy B_V2_OUT4
+ classifier B4_ALLOW_DNS_R4 behavior B_ALLOW precedence 5
+ classifier B4_DENY_TO_B2_4 behavior B_DENY precedence 10
+ quit
+traffic policy B_V4_OUT6
+ classifier B2_DENY_TO_B4_6 behavior B_DENY precedence 5
+ quit
+traffic policy B_V4_IN6
+ classifier B4_DENY_TO_B2_6 behavior B_DENY precedence 5
+ quit
+interface Vlanif2
+ traffic-policy B_V2_IN4 inbound
+ traffic-policy B_V2_OUT4 outbound
+ quit
+interface Vlanif4
+ traffic-policy B_V4_IN6 inbound
+ traffic-policy B_V4_OUT6 outbound
+ quit
+# 后续修改须逐项核对 applied-record、接口方向、实际 DHCP/DNS、
+# VLAN2↔VLAN4 双向 IPv4/IPv6、公网双栈、OSPFv3/PD 续租与新前缀；
+# 前缀变化时先暂停 VLAN2 IPv6，再更新 ACL，复验通过后恢复并保存。

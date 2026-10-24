@@ -1,6 +1,10 @@
 /target/
 /.idea/
 .DS_Store
+# Generated documents, local diagnostics and Python caches stay on this machine.
+/output/
+/tmp/
+__pycache__/
 # Private source snapshots remain local unless explicitly reviewed for publication.
 /reference/control4/Charlies250801.parsed.json
 /reference/control4/Charlies250801.report.txt
