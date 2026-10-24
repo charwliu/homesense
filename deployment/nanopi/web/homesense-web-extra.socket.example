@@ -1,0 +1,23 @@
+# Replace both IPv6 placeholders with the currently assigned full addresses.
+[Unit]
+DefaultDependencies=no
+Conflicts=shutdown.target
+Before=shutdown.target
+Description=HomeSense additional IPv4 and IPv6 TLS entrypoints
+Wants=network-online.target
+After=network-online.target homesense-e2.service
+BindsTo=homesense-e2.service
+PartOf=homesense-e2.service
+ConditionPathExists=/var/lib/homesense-role/primary
+
+[Socket]
+ListenStream=192.168.4.4:8444
+ListenStream=[@VLAN3_SERVER_IPV6@]:8444
+ListenStream=[@VLAN4_SERVER_IPV6@]:8444
+BindIPv6Only=ipv6-only
+Accept=no
+NoDelay=yes
+KeepAlive=yes
+
+[Install]
+WantedBy=homesense-e2.service

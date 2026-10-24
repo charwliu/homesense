@@ -14,7 +14,7 @@
 
 2026-10-24已完成AC100接管和核心VLAN5 DHCP启用并保存：Vlanif5使用全局池`vlan5_ap`，网关`.5.253`；AC100为`.5.1/24`、网关`.5.253`，关闭自身DHCPv4／DHCPv6及SLAAC分配。旧AC已断开。VLAN5网段经OSPF发布，Vlanif5为静默接口，不建立管理网邻居。旧版逐分钟接线过程已归为历史，不再与当前操作表混排。
 
-两条线路的内网DNS均已配置 `nanopi.lab.vixal.xyz` 的A记录为`.3.3`，AAAA为当前VLAN3前缀加`::3:3`；`homesense.lab.vixal.xyz` 以CNAME指向它，TTL为60秒。HomeSense使用 `https://homesense.lab.vixal.xyz:8444` 及对应域名证书，原App凭证和HomeKit配对保持。NGR服务禁用、主角色门禁关闭，每小时仅接收数据备份；恢复必须先隔离旧主，详见[NanoPi主备记录](../deployment/nanopi/README.md)及[备份恢复边界](../deployment/nanopi/backup/README.md)。
+两条线路的内网DNS均已配置 `nanopi.lab.vixal.xyz` 的A记录为`.3.3`／`.4.4`，AAAA为两侧当前前缀加`::3:3`／`::4:4`；`homesense.lab.vixal.xyz` 以CNAME指向它，TTL为60秒。四个地址的TCP8444通过同一HomeSense服务提供HTTPS／WSS，VLAN2仅放行四地址的该端口及回包；附加套接字与静态IPv6 ACL须随PD变化同步维护，见[附加监听](../deployment/nanopi/web/README.md)。HomeSense使用 `https://homesense.lab.vixal.xyz:8444` 及对应域名证书，原App凭证和HomeKit配对保持。NGR服务禁用、主角色门禁关闭，每小时仅接收数据备份；恢复必须先隔离旧主，详见[NanoPi主备记录](../deployment/nanopi/README.md)及[备份恢复边界](../deployment/nanopi/backup/README.md)。
 
 公开仓库只保留审核后的结构及示例。真实设备导出、MAC、全球IPv6前缀、租约、管理员地址例外和凭证在私有运维目录保存；示例地址不能作为下发参数。
 

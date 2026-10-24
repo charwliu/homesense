@@ -7,7 +7,7 @@
 | 项目 | 当前配置 |
 | --- | --- |
 | App／HTTPS／WSS 入口 | `https://homesense.lab.vixal.xyz:8444` |
-| DNS | `homesense.lab.vixal.xyz` CNAME → `nanopi.lab.vixal.xyz`，A 为 `192.168.3.3` |
+| DNS | `homesense.lab.vixal.xyz` CNAME → `nanopi.lab.vixal.xyz`，A 为 `192.168.3.3`／`192.168.4.4`，AAAA为两侧当前前缀的`::3:3`／`::4:4` |
 | VLAN3 | 核心5号 Access3 → R6S 的 wan；`192.168.3.3/24`，RA 固定后缀 `::3:3` |
 | VLAN4 | 核心6号 Access4 → lan1／br2；`192.168.4.4/24`，RA 固定后缀 `::4:4` |
 | 链路 | 两口均已核对为2.5Gbps，PoE关闭 |
@@ -17,13 +17,17 @@
 | HAP桥 | 沿用原身份和配对，监听 `.3.3:51828` 与 `.3.3:51829` |
 | NGR冷备 | 保留 `.3.2/.4.2`，服务disabled、无运行进程，主角色门禁关闭 |
 
-独立R6S不是核心23号口的NanoPi5路由器。两张服务器网卡不桥接VLAN3和VLAN4，不提供DHCP、RA或跨VLAN转发。DNS的AAAA使用当前VLAN3前缀；前缀变化后须同步维护静态记录。当前HomeSense Web监听显式IPv4地址，域名AAAA登记不代表HTTPS已有原生IPv6监听。
+独立R6S不是核心23号口的NanoPi5路由器。两张服务器网卡不桥接VLAN3和VLAN4，不提供DHCP、RA或跨VLAN转发。前缀变化后须同步维护静态AAAA、附加监听地址和IPv6精确例外。
+
+2026-10-24已启用四地址TCP8444入口：主程序继续监听`.3.3`，系统自带`systemd-socket-proxyd`通过`homesense-web-extra.socket`／`.service`接收`.4.4`和两侧IPv6，原样转发TLS字节流到同一主程序。未增加HomeSense执行器，TLS、Host／Origin及凭证校验仍由同一主服务处理；HAP监听未扩展。四地址均完成实际HTTPS 200、WSS 101和域名证书验证，主进程PID和ELF保持。配置模板及恢复边界见[附加监听](web/README.md)。
+
+核心只新增VLAN2到这四个地址TCP8444及相应回包的例外；其他VLAN2内网隔离保留。两侧DNS均已验证UDP／TCP返回两条A、两条AAAA和原CNAME，TTL为60秒。用户随后确认：终端在NGBOSS（VLAN2）通过域名重新连接成功并能看到状态；没有执行控制验收，也未要求终端逐个强制选择四个地址。
 
 ## 程序、证书与状态
 
 生产根目录为 `/home/alarm/apps/homesense`：
 
-- `releases/20261024-primary-0c3896f7c184/homesensed`：ARM64 Cargo Release，35,539,632字节，SHA-256 `0c3896f7c184b47b148ef8696fe90708671e1556fd7195dd7dd2371eb7e58ba1`。
+- 当前 `releases/20261024-module-confirm52-fda45039d31b/homesensed`：ARM64 Cargo Release，35,640,008字节，SHA-256 `fda45039d31bffa9363f0a5554ddec96b94c7ac810499b6bdd50c967c5e5cd56`。最初主备迁移制品为`0c3896f7c184…`；本次附加监听沿用随后已部署的模块反馈修复版本，未替换程序。
 - `service/config/`：设备、自动化及HAP计划；本轮仅迁移HAP监听地址，未发布新配置版本。
 - `service/state/`：从停止后的NGR最终状态复制；保留两个桥的身份、配对、AID／IID以及App凭证与权限。
 - `service/tls/`：用户提供的 `homesense.lab.vixal.xyz.pem` 和 `homesense.lab.vixal.xyz-key.pem`；证书含服务器叶证书和中间CA，私钥权限600。
