@@ -9,6 +9,65 @@ public protocol HomeEventTransport: Sendable {
     func events(_ request: URLRequest) -> AsyncThrowingStream<HomeEventMessage, Error>
 }
 
+// URLSession may deliver a ping failure again while its task/session is being
+// cancelled. Claim completion under the lock, then resume outside the lock.
+final class HomePingCompletion: @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuation: CheckedContinuation<Void, Error>?
+    private var result: Result<Void, Error>?
+    private var installed = false
+
+    func install(_ continuation: CheckedContinuation<Void, Error>) -> Bool {
+        lock.lock()
+        precondition(!installed)
+        installed = true
+        if let result {
+            lock.unlock()
+            continuation.resume(with: result)
+            return false
+        }
+        self.continuation = continuation
+        lock.unlock()
+        return true
+    }
+
+    @discardableResult
+    func complete(_ result: Result<Void, Error>) -> Bool {
+        lock.lock()
+        guard self.result == nil else { lock.unlock(); return false }
+        self.result = result
+        let continuation = continuation
+        self.continuation = nil
+        lock.unlock()
+        continuation?.resume(with: result)
+        return true
+    }
+}
+
+func waitForHomePing(
+    timeout: Duration = .seconds(5),
+    onTimeout: @escaping @Sendable () -> Void,
+    send: @Sendable (@escaping @Sendable (Error?) -> Void) -> Void
+) async throws {
+    let completion = HomePingCompletion()
+    let deadline = Task {
+        do { try await Task.sleep(for: timeout) } catch { return }
+        if completion.complete(.failure(URLError(.timedOut))) { onTimeout() }
+    }
+    defer { deadline.cancel() }
+    try await withTaskCancellationHandler {
+        try await withCheckedThrowingContinuation { (reply: CheckedContinuation<Void, Error>) in
+            if completion.install(reply) {
+                send { error in
+                    completion.complete(error.map { .failure($0) } ?? .success(()))
+                }
+            }
+        }
+    } onCancel: {
+        completion.complete(.failure(CancellationError()))
+    }
+}
+
 /// Uses system TLS trust and the same Bearer/Origin boundary as HTTPS requests.
 public struct HomeWebSocketTransport: HomeEventTransport {
     private let delegate: any URLSessionDelegate & Sendable
@@ -51,20 +110,15 @@ public struct HomeWebSocketTransport: HomeEventTransport {
                 while !Task.isCancelled {
                     do { try await Task.sleep(for: .seconds(5)) } catch { return }
                     // A missing pong cancels the connection even on a silent network loss.
-                    let timeout = Task {
-                        do { try await Task.sleep(for: .seconds(5)) } catch { return }
-                        socket.cancel(with: .goingAway, reason: nil)
-                    }
                     do {
-                        try await withCheckedThrowingContinuation { (reply: CheckedContinuation<Void, Error>) in
-                            socket.sendPing { error in
-                                if let error { reply.resume(throwing: error) } else { reply.resume() }
-                            }
+                        try await waitForHomePing(onTimeout: {
+                            socket.cancel(with: .goingAway, reason: nil)
+                        }) { reply in
+                            socket.sendPing { error in reply(error) }
                         }
-                        timeout.cancel()
                         continuation.yield(.heartbeat)
                     } catch {
-                        timeout.cancel(); continuation.finish(throwing: error); return
+                        continuation.finish(throwing: error); return
                     }
                 }
             }

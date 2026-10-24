@@ -1,6 +1,6 @@
 # 知居家庭网络架构
 
-版本1.20 · 2026-10-24整理。本文把当前可核对状态与后续规划分开；操作顺序见[网络配置手册](network-configuration-runbook.md)。本次补充NanoPi R6S双网接入与HomeSense主备切换；NGX修复、VLAN3 DHCP路由与VLAN100管理访问限制继续保留。
+版本1.21 · 2026-10-24整理。本文把当前可核对状态与后续规划分开；操作顺序见[网络配置手册](network-configuration-runbook.md)。本次补充NanoPi R6S双网接入与HomeSense主备切换；NGX修复、VLAN3 DHCP路由与VLAN100管理访问限制继续保留。
 
 ## 1 核对范围与当前状态
 
@@ -39,7 +39,7 @@ VLAN100仍服务现有`.0.x`设备，不能现在关闭其三层网关或常驻�
 
 IPv6由两条WAN的实际PD租约决定，不把某次获得的前缀当成永久值。VLAN2使用经验证的PD／RA配置；核心与边界的路由发布、回程、防火墙和隔离ACL必须与同一代前缀一致。
 
-2026-10-24，两条线路的内网DNS均新增`nanopi.lab.vixal.xyz`：A记录为`192.168.3.3`，AAAA记录为A线当前VLAN3前缀加固定后缀`::3:3`；`homesense.lab.vixal.xyz`以CNAME指向它，三条记录TTL均为60秒。双侧UDP／TCP查询和macOS系统解析已通过；此前NGR记录保留。该域名当前仅登记VLAN3地址，HomeSense已以该域名为HTTPS入口完成切换，见[NanoPi部署记录](../deployment/nanopi/README.md)。运营商前缀变化后，静态AAAA记录须同步更新。
+2026-10-24，两条线路的内网DNS均新增`nanopi.lab.vixal.xyz`：A记录为`192.168.3.3`／`192.168.4.4`，AAAA记录为两侧当前前缀加固定后缀`::3:3`／`::4:4`；`homesense.lab.vixal.xyz`以CNAME指向它，上述记录TTL均为60秒。双侧UDP／TCP查询和macOS系统解析已通过；此前NGR记录保留。该域名已登记两侧地址，HomeSense已以该域名为HTTPS入口完成切换，见[NanoPi部署记录](../deployment/nanopi/README.md)。运营商前缀变化后，静态AAAA记录须同步更新。
 
 ## 3 当前接线与标签
 
@@ -95,7 +95,7 @@ WAN不进入LAN Trunk；NGR的两个LAN聚合口不桥接，也不承担跨VLAN�
 
 ## 4 隔离与管理入口
 
-VLAN2默认不能直接访问VLAN3／4的普通设备或HomeSense。DNS等必要服务和单机管理入口只按已审核的来源、目的、端口及回包方向放行，不把窄例外扩大为整段互通。
+VLAN2默认不能直接访问VLAN3／4的普通设备。2026-10-24经用户明确批准，只为HomeSense两侧IPv4及当前IPv6的/128放行TCP8444和对应回包；其他设备、SSH及HAP端口不开放。DNS等必要服务和单机管理入口仍按已审核的来源、目的、端口及回包方向放行，不把窄例外扩大为整段互通。详见[HomeSense附加监听](../deployment/nanopi/web/README.md)。
 
 目标固件不能在一个traffic policy中同时使用IPv4和IPv6 ACL分类器。现用结构把IPv4策略放在Vlanif2的入／出方向，把IPv6策略放在Vlanif4的出／入方向。脱敏结构见[双栈隔离示例](../deployment/network/huawei-b-vlan2-vlan4-isolation.cli.example)，不能整份直接下发现网。
 

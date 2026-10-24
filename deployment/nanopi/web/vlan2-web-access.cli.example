@@ -1,0 +1,42 @@
+# Sanitized record of the approved HomeSense-only TCP8444 exception.
+# Replace all IPv6 placeholders with current assigned addresses/prefix first.
+# Requires the existing B_ALLOW behavior and A3/B4 IPv6 plus V2 IPv4 policies.
+# Verify ACL3988/3989, HS_WEB_REQ6/HS_WEB_REPLY6 and listed rule IDs are unused.
+# Do not apply this entire file to an unverified or already configured device.
+# Read applied-record success and test the actual client before saving.
+system-view
+acl 3980
+rule 25 permit tcp source 192.168.2.0 0.0.0.255 destination 192.168.3.3 0 destination-port eq 8444
+rule 30 permit tcp source 192.168.2.0 0.0.0.255 destination 192.168.4.4 0 destination-port eq 8444
+quit
+acl 3982
+rule 20 permit tcp source 192.168.3.3 0 source-port eq 8444 destination 192.168.2.0 0.0.0.255
+rule 25 permit tcp source 192.168.4.4 0 source-port eq 8444 destination 192.168.2.0 0.0.0.255
+quit
+acl ipv6 3988
+rule 5 permit tcp source @VLAN2_IPV6_PREFIX@ 64 destination @VLAN3_SERVER_IPV6@ 128 destination-port eq 8444
+rule 10 permit tcp source @VLAN2_IPV6_PREFIX@ 64 destination @VLAN4_SERVER_IPV6@ 128 destination-port eq 8444
+quit
+acl ipv6 3989
+rule 5 permit tcp source @VLAN3_SERVER_IPV6@ 128 source-port eq 8444 destination @VLAN2_IPV6_PREFIX@ 64
+rule 10 permit tcp source @VLAN4_SERVER_IPV6@ 128 source-port eq 8444 destination @VLAN2_IPV6_PREFIX@ 64
+quit
+traffic classifier HS_WEB_REQ6
+if-match ipv6 acl 3988
+quit
+traffic classifier HS_WEB_REPLY6
+if-match ipv6 acl 3989
+quit
+traffic policy A3_OUT6
+classifier HS_WEB_REQ6 behavior B_ALLOW precedence 1
+quit
+traffic policy B_V4_OUT6
+classifier HS_WEB_REQ6 behavior B_ALLOW precedence 1
+quit
+traffic policy A3_IN6
+classifier HS_WEB_REPLY6 behavior B_ALLOW precedence 1
+quit
+traffic policy B_V4_IN6
+classifier HS_WEB_REPLY6 behavior B_ALLOW precedence 1
+quit
+return

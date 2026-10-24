@@ -1,0 +1,21 @@
+[Unit]
+Description=HomeSense TLS passthrough to the sole primary API
+After=homesense-e2.service homesense-web-extra.socket
+BindsTo=homesense-e2.service
+Requires=homesense-web-extra.socket
+PartOf=homesense-e2.service
+ConditionPathExists=/var/lib/homesense-role/primary
+
+[Service]
+Type=notify
+User=alarm
+Group=alarm
+ExecStart=/usr/lib/systemd/systemd-socket-proxyd --connections-max=32 192.168.3.3:8444
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+UMask=0077
+Restart=on-failure
+RestartSec=2s

@@ -1,0 +1,8 @@
+; Fragment for the existing lab.vixal.xyz zone on both DNS routers.
+; Replace IPv6 placeholders; preserve other records and advance the SOA serial.
+; This fragment is not a complete zone file and must not replace one.
+nanopi.lab.vixal.xyz. 60 IN A 192.168.3.3
+nanopi.lab.vixal.xyz. 60 IN A 192.168.4.4
+nanopi.lab.vixal.xyz. 60 IN AAAA @VLAN3_SERVER_IPV6@
+nanopi.lab.vixal.xyz. 60 IN AAAA @VLAN4_SERVER_IPV6@
+homesense.lab.vixal.xyz. 60 IN CNAME nanopi.lab.vixal.xyz.
