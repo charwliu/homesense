@@ -117,6 +117,16 @@ impl UndeliveredWrite<'_> {
         if count!=1 {return Err(Error::Conflict)}
         tx.commit()?;Ok(())
     }
+    /// A staged absolute light keeps its original total operation deadline,
+    /// but its current send window may expire during the exclusive commit.
+    /// This never applies to a released ticket, Toggle, motor or module action.
+    pub fn cancel_expired_light_window_before_delivery(self,command:Command,now_ms:u64,effective_deadline:u64)->Result<(),Error> {
+        if effective_deadline==0 || now_ms<effective_deadline || !matches!(command,Command::Switch(_)|Command::SetLevel{..}) {return Err(Error::InvalidAudit);}
+        let tx=self.store.connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let count=tx.execute("UPDATE command_journal SET status='cancelled',updated_ms=?1,cancellation_reason='ExpiredBeforeDelivery' WHERE boot_id=?2 AND command_id=?3 AND status='writing' AND updated_ms<=?1 AND deadline_ms>=?4 AND intent=?5",params![integer(now_ms)?,self.boot,integer(self.id)?,integer(effective_deadline)?,intent(command).as_slice()])?;
+        if count!=1 {return Err(Error::Conflict);}
+        tx.commit()?;Ok(())
+    }
     /// A guarded projection can have a shorter wire lease than its original
     /// total wait budget. This reservation still proves no ticket was delivered.
     pub fn cancel_expired_projection_before_delivery(self,now_ms:u64,effective_deadline:u64)->Result<(),Error> {

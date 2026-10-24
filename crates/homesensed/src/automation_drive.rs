@@ -295,7 +295,7 @@ pub(crate) async fn drive_with_panel_feeds<S: Read + Write + Send + 'static>(
             // Awaiting whole-house feedback is protected work even between its
             // physical attempts. An older background wave cannot reserve the
             // read opportunity needed to confirm all of those outputs.
-            guard.owner.pause_refresh_for_background_leds(background_led_phase.is_some() && !admission.away_operations_active() && !admission.household_operations_active());
+            guard.owner.pause_refresh_for_background_leds(background_led_phase.is_some() && !admission.away_operations_active() && !admission.household_operations_active() && !admission.module_confirmation_active());
             let mut received_gateway=None;
             if guard.owner.independent() {
                 guard.owner.local_tick().await?;
@@ -414,7 +414,7 @@ pub(crate) async fn drive_with_panel_feeds<S: Read + Write + Send + 'static>(
             // Bounded whole-house confirmation has priority over old background
             // colors. Retire only this wave's unwritten tickets, never replay
             // them or interrupt a write already owned by the transport.
-            if (admission.away_operations_active() || admission.household_operations_active()) && let Some(phase)=background_led_phase.take() {
+            if (admission.away_operations_active() || admission.household_operations_active() || admission.module_confirmation_active()) && let Some(phase)=background_led_phase.take() {
                 phase.cancel(admission,control.0.as_ref().map(|(receiver,_)|receiver.controller())).await;
                 indicators.phase_ended(false);
                 guard.owner.pause_refresh_for_background_leds(false);
@@ -487,7 +487,7 @@ pub(crate) async fn drive_with_panel_feeds<S: Read + Write + Send + 'static>(
             if let Some((receiver,document))=&control.0 {
                 let stage_started=std::time::Instant::now();
                 scene_observations.tick(admission,receiver.controller(),document,guard.owner.feedback()).await?;
-                let away_critical=admission.away_operations_active() || admission.household_operations_active();
+                let away_critical=admission.away_operations_active() || admission.household_operations_active() || admission.module_confirmation_active();
                 // A background LED wave already owns a bounded delivery slot.
                 // Rebuilding all physical scene projections between its write
                 // bursts can consume that slot on the full Linux catalog.
@@ -561,7 +561,7 @@ pub(crate) async fn drive_with_panel_feeds<S: Read + Write + Send + 'static>(
                 // between both ends of each serialized query. Pump readiness
                 // more often; physical write pacing and reply ownership stay
                 // in the transport, and the original proof deadlines remain.
-                _=tokio::time::sleep(if admission.away_operations_active() || admission.household_operations_active(){cadence.min(Duration::from_millis(1))}else{cadence})=>{},
+                _=tokio::time::sleep(if admission.away_operations_active() || admission.household_operations_active() || admission.module_confirmation_active(){cadence.min(Duration::from_millis(1))}else{cadence})=>{},
                 changed=stop.changed()=>{if changed.is_err() || *stop.borrow() {return Ok(());}}
             }
             if quantum.is_none() {

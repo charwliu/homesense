@@ -573,7 +573,7 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
         let clock = self.admission.clone();
         let (connection, mut tickets, result, _slot) = tokio::task::spawn_blocking(move || {
             let result = send_tickets(&tickets, &mut connection, || clock.monotonic_ms());
-            *slot = Some(tokio::time::Instant::now() + clock.write_interval);
+            *slot = Some(tokio::time::Instant::now() + post_write_interval(&tickets, &result.result, clock.write_interval));
             (connection, tickets, result, slot)
         })
         .await

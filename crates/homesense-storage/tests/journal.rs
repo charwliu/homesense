@@ -1277,3 +1277,25 @@ fn undelivered_reservation_only_cancels_expired_leds_and_cannot_be_recreated_aft
     assert!(store.reserve_command_write("boot1",4,20,None).unwrap().unwrap().cancel_expired_led_before_delivery(100).is_err());
     assert_eq!(store.command_status("boot1",4).unwrap(),Some(Status::Writing));
 }
+
+#[test]
+fn staged_light_short_window_cancel_is_exclusive_exact_and_capped_by_original_deadline() {
+    let db=Database::new();let mut store=Store::open(&db.0).unwrap();
+    store.publish(None,1,b"config",&[]).unwrap();
+    for (index,(actual,claimed,now,effective,allowed)) in [
+        (Command::Switch(true),Command::Switch(true),200,200,true),
+        (Command::Switch(true),Command::Switch(false),200,200,false),
+        (Command::Switch(true),Command::Switch(true),199,200,false),
+        (Command::Switch(true),Command::Switch(true),2000,1001,false),
+        (Command::Toggle,Command::Toggle,200,200,false),
+        (Command::Switch(true),Command::ModuleAllOff,200,200,false),
+        (Command::Motor(homesense_core::MotorMotion::Stop),Command::Motor(homesense_core::MotorMotion::Stop),200,200,false),
+    ].into_iter().enumerate() {
+        let id=index as u64+1;let mut queued=command(id);queued.command=actual;
+        store.accept_commands("boot",&[queued],10).unwrap();
+        let reservation=store.reserve_command_write("boot",id,20,None).unwrap().unwrap();
+        assert_eq!(reservation.cancel_expired_light_window_before_delivery(claimed,now,effective).is_ok(),allowed);
+        assert_eq!(store.command_status("boot",id).unwrap(),Some(if allowed{Status::Cancelled}else{Status::Writing}));
+        assert!(store.reserve_command_write("boot",id,now,None).is_err(),"consumed reservation cannot be recreated");
+    }
+}

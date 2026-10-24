@@ -585,6 +585,7 @@ pub struct Admission {
     stop_requested: Arc<AtomicBool>,
     away_active:Arc<AtomicBool>,
     household_active:Arc<AtomicBool>,
+    module_confirmation_active:Arc<AtomicBool>,
     away_terminal:tokio::sync::watch::Receiver<()>,
     generations: tokio::sync::watch::Receiver<Option<TaskGeneration>>,
     observation_invalidation: Arc<AtomicU64>,
@@ -656,6 +657,8 @@ impl Admission {
         let worker_away_active=away_active.clone();
         let household_active=Arc::new(AtomicBool::new(false));
         let worker_household_active=household_active.clone();
+        let module_confirmation_active=Arc::new(AtomicBool::new(false));
+        let worker_module_confirmation_active=module_confirmation_active.clone();
         let (away_terminal_updates,away_terminal)=tokio::sync::watch::channel(());
         let observation_invalidation=Arc::new(AtomicU64::new(1));
         let worker_observation_invalidation=observation_invalidation.clone();
@@ -819,7 +822,7 @@ impl Admission {
                             failed=true; audited_transport_failure=false;let _=arbiter.storage_failed();curtains.invalidate();
                         }
                     }
-                    worker_away_active.store(away_executions.jobs.iter().any(|job|job.engine.end().is_none()),Ordering::Release);
+                    worker_away_active.store(away_executions.jobs.iter().any(|job|job.active()),Ordering::Release);
                     generation_updates.send_if_modified(|previous| {
                         if *previous == current { false } else { *previous = current; true }
                     });
@@ -883,6 +886,7 @@ impl Admission {
                     if control_batches.audit(&store,mode_generation.as_ref(),millis(clock),|id|authorize(id),&manual_versions).is_err(){failed=true;audited_transport_failure=false;let _=arbiter.storage_failed();}
                     if household_sequences.audit(&mut household_context!(),mode_generation.as_ref(),&|id|authorize(id)).is_err(){failed=true;audited_transport_failure=false;let _=arbiter.storage_failed();}
                     worker_household_active.store(household_sequences.active(),Ordering::Release);
+                    worker_module_confirmation_active.store(control_batches.stages_active(),Ordering::Release);
                     for (reason, ids) in control_batches.invalidated_leds() {
                         if failed { break; }
                         let cancelled = arbiter.cancel_queued_ids_committed(&ids, reason, |rows| {
@@ -908,12 +912,14 @@ impl Admission {
                             else if !authorize(job.lease.controller()) || !job.lease.valid() || job.source.as_ref().is_some_and(|source|!source.valid_for(job.lease.controller(),configuration.revision()))
                                 || !keypad_origins.permits(job.source.as_ref().and_then(|source|source.keypad()),configuration.revision()) {Some(Cancel::AuthorityChanged)}
                             else if job.manual.iter().any(|(id,version)|manual_versions.get(id).copied().unwrap_or(0)!=*version) {Some(Cancel::ManualOverride)}else{None};
-                        if job.engine.end().is_none() && let Some(cause)=cause
-                            && job.retire(cause,millis(clock)).is_err(){failed=true;audited_transport_failure=false;let _=arbiter.storage_failed();}
-                        if job.engine.end().is_some_and(|end|!matches!(end,homesense_core::away_execution::End::Confirmed)) {
+                        if job.active() && let Some(cause)=cause {
+                            if job.retire(cause,millis(clock)).is_err(){failed=true;audited_transport_failure=false;let _=arbiter.storage_failed();}
+                            away_terminal_updates.send_replace(());
+                        }
+                        if job.unsuccessful() {
                             job.gate.retire();
-                            for round in 1..=job.engine.rounds() {
-                                match arbiter.cancel_run_committed(job.run(round),|items|store.cancel_queued(&worker_boot,items,millis(clock))) {
+                            for run in job.cancellation_runs() {
+                                match arbiter.cancel_run_committed(run,|items|store.cancel_queued(&worker_boot,items,millis(clock))) {
                                     Ok(items)=>for item in items {principals.remove(&item.command.id);},
                                     Err(_)=>{failed=true;audited_transport_failure=false;let _=arbiter.storage_failed();}
                                 }
@@ -982,8 +988,13 @@ impl Admission {
                                 // A compatibility completion LED is one original
                                 // obligation across bounded attempts. Current-key
                                 // cues still share the module's short send budget.
-                                let reset_deadline=if request_source.as_ref().is_none_or(|source|source.keypad().is_none()) {operation_deadline.unwrap_or(deadline)}else{deadline};
-                                let reset=reset_endpoint.as_ref().map(|endpoint|(QueuedCommand{id:modules_end,device_id:endpoint.clone(),command:homesense_core::Command::PanelLed(false),origin:lease.origin(),epochs:policy.epochs,deadline_ms:reset_deadline,run_id:operation_run},Access{authorized:true,device_exists:true,device_verified:true,existing_direct_manual:false}));
+                                let reset_deadline=if lease.guarded_operation() || request_source.as_ref().is_none_or(|source|source.keypad().is_none()) {operation_deadline.unwrap_or(deadline)}else{deadline};
+                                // A Rule's gated completion must not sit ahead of future
+                                // module receipts in that same FIFO run. Slot15 belongs
+                                // only to this operation's completion; retirement cancels
+                                // both it and every physical attempt, never renews either.
+                                let reset_run=operation_run.map(|run|if lease.guarded_operation() && request_source.as_ref().is_some_and(|source|source.keypad().is_some()){(run & !15)+15}else{run});
+                                let reset=reset_endpoint.as_ref().map(|endpoint|(QueuedCommand{id:modules_end,device_id:endpoint.clone(),command:homesense_core::Command::PanelLed(false),origin:lease.origin(),epochs:policy.epochs,deadline_ms:reset_deadline,run_id:reset_run},Access{authorized:true,device_exists:true,device_verified:true,existing_direct_manual:false}));
                                 let mut commands=module_commands.clone();commands.extend(reset.clone());
                                 let effects=targets.iter().enumerate().map(|(n,t)|t.effects(next_id+n as u64)).collect::<Vec<_>>();
                                 for target in &targets {target.frame(&configuration,options.context,policy.epochs.transport).map_err(|_|WriteStatus::InvalidValueInRequest)?;}
@@ -1030,8 +1041,43 @@ impl Admission {
                                     principals.insert(id,controller);module_off_jobs.insert(id,target);
                                 }
                                 if local_origin.is_some() && reset_ticket.is_some(){away_local_leases.insert(modules_end,lease.clone());}
-                                control_batches.away_accepted(&configuration,batch_commands,&targets,reset_ticket.clone(),local_origin.is_some(),generation.clone(),controller,&manual_versions);
+                                control_batches.away_accepted(&configuration,batch_commands,&targets,reset_ticket.clone(),local_origin.is_some() && !lease.guarded_operation(),generation.clone(),controller,&manual_versions);
                                 next_id=end;Ok(ids)
+                            })()
+                        }};
+                    }
+                    // The source red cue is a separate durable write. No module
+                    // Off is admitted until its real transport callback completes.
+                    macro_rules! submit_away_red {
+                        ($job:expr)=>{{
+                            (||->Result<u64,WriteStatus>{
+                                let job:&mut crate::away_execution::Job=$job;
+                                let endpoint=job.red_endpoint().ok_or(WriteStatus::InvalidValueInRequest)?.clone();
+                                let now=millis(clock);let policy=arbiter.policy();
+                                let deadline=now.saturating_add(2000).min(job.engine.deadline_ms());
+                                if now>=deadline{return Err(WriteStatus::ResourceBusy);}
+                                let end=next_id.checked_add(1).ok_or(WriteStatus::ServiceCommunicationFailure)?;
+                                let command=QueuedCommand{id:next_id,device_id:endpoint,command:homesense_core::Command::PanelLed(true),
+                                    origin:job.lease.origin(),epochs:policy.epochs,deadline_ms:deadline,run_id:Some(job.run(1))};
+                                let scopes=gateways.as_ref().map(|g|g.scope(&configuration,std::slice::from_ref(&command),&BTreeMap::new(),&job.wires,vec![])).transpose()?;
+                                let access=Access{authorized:true,device_exists:true,device_verified:true,existing_direct_manual:false};
+                                let lease=job.lease.for_operation(&job.gate);
+                                let accepted=lease.with_valid(||crate::source_auth::commit(job.source.as_ref(),||
+                                    arbiter.submit_batch_committed(vec![(command.clone(),access)],now,|commands,cancelled|match &scopes {
+                                        Some(scopes)=>store.accept_queue_batch_scoped(&worker_boot,commands,cancelled,now,None,&[],None,None,&[],&[],None,&[],scopes),
+                                        None=>store.accept_queue_batch(&worker_boot,commands,cancelled,now),
+                                    }))).flatten().ok_or(WriteStatus::InsufficientPrivileges)?;
+                                match accepted {
+                                    Ok(cancelled)=>{for item in cancelled{principals.remove(&item.command.id);}},
+                                    Err(BatchCommitError::Admission(_))=>return Err(WriteStatus::ResourceBusy),
+                                    Err(BatchCommitError::Persistence(_))=>return Err(WriteStatus::ServiceCommunicationFailure),
+                                }
+                                let source=job.source.as_ref().expect("authorized exact Away source");
+                                keypad_origins.accepted(Some(source));
+                                source.keypad().expect("Away progress key").accepted(next_id,command.command);
+                                source_leases.insert(next_id,source.clone());principals.insert(next_id,job.lease.controller());
+                                away_local_leases.insert(next_id,lease);job.red_accepted(next_id,deadline);
+                                next_id=end;Ok(command.id)
                             })()
                         }};
                     }
@@ -1041,7 +1087,7 @@ impl Admission {
                                 use homesense_core::away_execution::{Owner,Cancel,Decision};
                                 let job:&mut crate::away_execution::Job=$job;
                                 let observation:&crate::away_execution::Observation=$observation;
-                                let was_active=job.engine.end().is_none();
+                                let was_active=job.active();
                                 let now=millis(clock);let policy=arbiter.policy();
                                 let current=TaskGeneration{boot:worker_boot.clone(),epochs:policy.epochs};
                                 let owner=if job.generation.boot!=worker_boot || job.generation.epochs.configuration!=policy.epochs.configuration {Owner::Retired(Cancel::ConfigurationChanged)}
@@ -1054,10 +1100,23 @@ impl Admission {
                                         query_slots.get(gateway).is_some_and(|slot|slot.active.load(Ordering::Acquire)!=0)
                                         || observation.last_frames.get(gateway).is_some_and(|at|now<at.saturating_add(options.write_interval.as_millis() as u64))) {Owner::Waiting}
                                     else {Owner::Current};
+                                if let Owner::Retired(cause)=owner {job.retire(cause,now).map_err(|_|WriteStatus::ServiceCommunicationFailure)?;}
+                                job.poll_indicator(&store,now).map_err(|_|WriteStatus::ServiceCommunicationFailure)?;
+                                let mut prefix=vec![];
+                                if job.active() && owner==Owner::Current && job.red_endpoint().is_some() {
+                                    match submit_away_red!(job) {
+                                        Ok(id)=>prefix.push(id),
+                                        Err(WriteStatus::ResourceBusy)=>{},
+                                        Err(WriteStatus::InsufficientPrivileges)=>job.retire(Cancel::AuthorityChanged,now).map_err(|_|WriteStatus::ServiceCommunicationFailure)?,
+                                        Err(error)=>return Err(error),
+                                    }
+                                }
                                 let evidence=job.evidence(&store,observation).map_err(|_|WriteStatus::ServiceCommunicationFailure)?;
-                                let decision=job.engine.poll(now,owner,&evidence).map_err(|_|WriteStatus::ServiceCommunicationFailure)?;
+                                let decision=if job.unsuccessful(){Decision::Wait}else{
+                                    job.engine.poll(now,if job.red_written(){owner}else{Owner::Waiting},&evidence).map_err(|_|WriteStatus::ServiceCommunicationFailure)?
+                                };
                                 job.reads=match &decision {Decision::Read(modules)=>modules.clone(),_=>Default::default()};
-                                let mut accepted=vec![];
+                                let mut accepted=prefix;
                                 if let Decision::Submit(attempt)=decision {
                                     match submit_away!(configuration.revision(),job.generation.clone(),job.lease.for_operation(&job.gate),job.source.clone(),attempt.send_before_ms,true,Some(attempt.modules.clone()),job.receipts.is_empty(),Some(job.run(attempt.round)),Some(job.engine.deadline_ms())) {
                                         Ok(ids)=>{
@@ -1071,7 +1130,7 @@ impl Admission {
                                 }
                                 let evidence=job.evidence(&store,observation).map_err(|_|WriteStatus::ServiceCommunicationFailure)?;
                                 job.update_view(&evidence,millis(clock)).map_err(|_|WriteStatus::ServiceCommunicationFailure)?;
-                                if was_active && job.engine.end().is_some() {away_terminal_updates.send_replace(());}
+                                if was_active && !job.active() {away_terminal_updates.send_replace(());}
                                 Ok(accepted)
                             })()
                         }};
@@ -1730,7 +1789,7 @@ impl Admission {
                             let result=(||{
                                 let now=millis(clock);
                                 if failed || worker_stop.load(Ordering::Acquire) || now>=deadline || generation.boot!=worker_boot || generation.epochs!=arbiter.policy().epochs || !arbiter.policy().gateway_ready || arbiter.policy().publishing {return Err(WriteStatus::ResourceBusy);}
-                                if household_sequences.active() || away_executions.jobs.iter().any(|j|j.engine.end().is_none()) {return Err(WriteStatus::ResourceBusy);}
+                                if household_sequences.active() || away_executions.jobs.iter().any(|j|j.active()) {return Err(WriteStatus::ResourceBusy);}
                                 if !prepared.same_observation(observation.proof.lease(),now) {return Err(WriteStatus::ResourceBusy);}
                                 let _proof=observation.proof.lease().lock(observer_boot,configuration.revision(),generation.epochs.transport,now).map_err(|_|WriteStatus::ResourceBusy)?;
                                 let scope=prepared.scope();
@@ -1770,7 +1829,7 @@ impl Admission {
                                 if let Some(index)=household_sequences.jobs.iter().position(|j|j.active()) {
                                     let mut job=household_sequences.jobs.remove(index).ok_or(WriteStatus::ServiceCommunicationFailure)?;
                                     let valid=job.valid(Some(&generation),&manual_versions,&|id|authorize(id),gateways.as_ref())
-                                        && !away_executions.jobs.iter().any(|j|j.engine.end().is_none());
+                                        && !away_executions.jobs.iter().any(|j|j.active());
                                     let quiet=in_flight.is_none() && job.gateway().is_none_or(|gateway|query_slots.get(gateway).is_none_or(|q|q.active.load(Ordering::Acquire)==0)
                                         && last_frames.get(gateway).is_none_or(|at|now>=at.saturating_add(options.write_interval.as_millis() as u64)));
                                     let result=if valid {household_context!().advance(&mut job,&observation,quiet).map(|_|())}else{job.retire(now)};
@@ -1812,9 +1871,13 @@ impl Admission {
                                 let mut required=targets.iter().map(|t|t.plan.modules()[t.index].gateway_id().to_owned()).collect::<Vec<_>>();
                                 if let Some(binding)=lease.key_binding(&configuration).map_err(|_|WriteStatus::InsufficientPrivileges)? {required.push(configuration.binding(&binding.endpoint).ok_or(WriteStatus::InvalidValueInRequest)?.0.gateway.clone());}
                                 let wires=gateways.as_ref().map(|g|g.table.capture(required).map(|scope|scope.wires().to_vec()).map_err(|_|WriteStatus::ResourceBusy)).transpose()?.unwrap_or_default();
-                                if !household_limiter.permits(&generation,false,now,away_executions.jobs.iter().any(|job|job.engine.end().is_none()),false) {return Err(WriteStatus::ResourceBusy);}
+                                if !household_limiter.permits(&generation,false,now,away_executions.jobs.iter().any(|job|job.active()),false) {return Err(WriteStatus::ResourceBusy);}
                                 let serial=away_executions.next_serial().map_err(|_|WriteStatus::ResourceBusy)?;
                                 let mut job=crate::away_execution::Job::new(serial,generation.clone(),lease,source,targets,wires,&manual_versions,now).map_err(|_|WriteStatus::InvalidValueInRequest)?;
+                                if job.source.as_ref().is_some_and(|source|source.keypad().is_some())
+                                    && let Some(binding)=job.lease.key_binding(&configuration).map_err(|_|WriteStatus::InsufficientPrivileges)?.filter(|binding|binding.reset_green) {
+                                    job.enable_indicator(binding.endpoint);
+                                }
                                 if matches!(document.away_off.as_ref().map(|p|p.active_execution_policy),Some(homesense_config::rule_document::AwayExecutionPolicy::CancelAffectedLighting)) {
                                     // Supersede all96 pending lighting writes now,
                                     // while admitting only the current module.
@@ -1839,7 +1902,7 @@ impl Admission {
                                 let count=away_executions.jobs.len();
                                 for _ in 0..count {
                                     let Some(mut job)=away_executions.jobs.pop_front() else{break;};
-                                    let active=job.engine.end().is_none();
+                                    let active=job.active();
                                     let result=if active {advance_away!(&mut job,&observation).map(|_|())}else{Ok(())};
                                     away_executions.jobs.push_back(job);
                                     result?;if active {break;}
@@ -2383,7 +2446,7 @@ impl Admission {
                                         }else if let Some(target)=module_queries.get(&command.id) {
                                             configuration.module(&target.module_id).map(|(g,_)|g.gateway.clone())
                                         }else{configuration.binding(&command.device_id).map(|(d,_)|d.gateway.clone())};
-                                        (anchor.is_none() || command.command!=homesense_core::Command::Query) && control_batches.eligible(command.id,millis(clock)) && reset_ready.get(&command.id).is_none_or(|ready|*ready) && gateway.is_none_or(|gateway|(command.is_stop() || command.command==homesense_core::Command::ModuleAllOff || !away_wait.contains(&gateway)) && available.as_ref().is_none_or(|ids|ids.contains(&gateway))
+                                        (anchor.is_none() || command.command!=homesense_core::Command::Query) && control_batches.eligible(command.id,millis(clock)) && reset_ready.get(&command.id).is_none_or(|ready|*ready) && gateway.is_none_or(|gateway|(command.is_stop() || command.command==homesense_core::Command::ModuleAllOff || away_local_leases.contains_key(&command.id) || !away_wait.contains(&gateway)) && available.as_ref().is_none_or(|ids|ids.contains(&gateway))
                                             // A live physical read claim blocks every writer
                                             // on that bus, including direct actor dispatch.
                                             // Its estimated budget is never permission to
@@ -2435,7 +2498,8 @@ impl Admission {
                                 // only still-Accepted work is cancelled here, not replayed.
                                 let current=millis(clock);
                                 let ordinary_light=!control_batches.feedback_obligation(command.id) && !away_local_leases.contains_key(&command.id) && matches!(command.command,homesense_core::Command::Switch(_)|homesense_core::Command::SetLevel{..}|homesense_core::Command::Toggle);
-                                if (ordinary_light || matches!(command.command,homesense_core::Command::PanelLed(_)|homesense_core::Command::PanelLedOff))
+                                let staged_light=control_batches.staged_light(command.id);
+                                if (ordinary_light || staged_light || matches!(command.command,homesense_core::Command::PanelLed(_)|homesense_core::Command::PanelLedOff))
                                     && current.saturating_add(options.write_interval.as_millis() as u64)>=command.deadline_ms {
                                     store.transition_command(&worker_boot,command.id,Status::Accepted,Status::Cancelled,current).map_err(|e|e.to_string())?;
                                     arbiter.cancel_selected_before_write(command.id).map_err(|e|e.to_string())?;
@@ -2484,11 +2548,13 @@ impl Admission {
                                     return Ok(None);
                                 };
                                 let audited=millis(clock);
-                                if (ordinary_light || matches!(command.command,homesense_core::Command::PanelLed(_)|homesense_core::Command::PanelLedOff)) && audited>=command.deadline_ms {
+                                if (ordinary_light || staged_light || matches!(command.command,homesense_core::Command::PanelLed(_)|homesense_core::Command::PanelLedOff)) && audited>=command.deadline_ms {
                                     // This reservation has never been released or handed
                                     // to a transmitter: zero possible wire bytes, even if
                                     // the synchronous Writing commit outlasted its lease.
-                                    if ordinary_light {
+                                    if staged_light {
+                                        reservation.cancel_expired_light_window_before_delivery(command.command,audited,command.deadline_ms).map_err(|e|e.to_string())?;
+                                    } else if ordinary_light {
                                         reservation.cancel_expired_light_before_delivery(command.command,audited).map_err(|e|e.to_string())?;
                                     } else if control_batches.write_deadline(command.id).is_some() {
                                         reservation.cancel_expired_projection_before_delivery(audited,command.deadline_ms).map_err(|e|e.to_string())?;
@@ -2517,6 +2583,9 @@ impl Admission {
                                         (module,Some(device.channel.get()))
                                     };
                                     Some(crate::query_response::Scope::new(module,channel,options.context,frame_epoch)?)
+                                } else if let Some(channels)=control_batches.control_reply_channels(command.id,&configuration) {
+                                    let (_,module)=configuration.binding(&command.device_id).ok_or("control reply binding disappeared")?;
+                                    Some(crate::query_response::Scope::control(module,channels,options.context,frame_epoch)?)
                                 } else {None};
                                 let ramp_confirmation=matches!(command.command,homesense_core::Command::SetLevel {level,transition:homesense_core::LevelTransition::Ramp} if !matches!(level.get(),0|100))
                                     && configuration.binding(&command.device_id).is_some_and(|(_,module)|module.profile()==homesense_core::ProtocolProfile::Ad8Din);
@@ -3062,7 +3131,11 @@ impl Admission {
                                 let permutation=crate::control_batch::partition_local(&configuration,&mut batch.intents,&mut command_sources,local_index);
                                 let local_index=local_index.and_then(|index|permutation.iter().position(|original|*original==index));
                                 if phase_links.is_some(){phase_ordinals=permutation.into_iter().map(|i|phase_ordinals[i]).collect();}
-                                let feedback_roles = crate::control_batch::feedback_roles_local(&configuration, &batch.intents,local_index);
+                                // Explicit timeline steps and the legacy fixed Study
+                                // runtime keep their original dispatch contract.
+                                let confirm_modules=study.is_none() && phase_links.is_none();
+                                let mut feedback_roles = crate::control_batch::feedback_roles_local(&configuration, &batch.intents,local_index);
+                                if !confirm_modules {for role in &mut feedback_roles {if *role==crate::control_batch::BudgetRole::SequencedLighting {*role=crate::control_batch::BudgetRole::Lighting;}}}
                                 let shared_restore_invalidations=if shared_manual && !batch.intents.iter().any(|i|configuration.composed_resource(&i.device).is_some()) {Default::default()} else {
                                     crate::shared_light::physical_target_invalidations(&configuration,&batch.intents)
                                 };
@@ -3097,6 +3170,7 @@ impl Admission {
                                                 let bound = match feedback_roles[offset] {
                                                     crate::control_batch::BudgetRole::FeedbackLed => led_total_deadline,
                                                     crate::control_batch::BudgetRole::Lighting => deadline.min(led_total_deadline),
+                                                    crate::control_batch::BudgetRole::SequencedLighting => led_total_deadline,
                                                     crate::control_batch::BudgetRole::Ordinary => deadline,
                                                 };
                                                 if native_mode && command==homesense_core::Command::Query {
@@ -3237,8 +3311,9 @@ impl Admission {
                                         // manual admission: a selected but not-yet-writing
                                         // retry must see the retired operation gate too.
                                         for job in &mut away_executions.jobs {
-                                            if job.engine.end().is_none() && job.manual.iter().any(|(id,version)|manual_versions.get(id).copied().unwrap_or(0)!=*version) {
+                                            if job.active() && job.manual.iter().any(|(id,version)|manual_versions.get(id).copied().unwrap_or(0)!=*version) {
                                                 job.retire(homesense_core::away_execution::Cancel::ManualOverride,millis(clock)).map_err(|_|WriteStatus::ServiceCommunicationFailure)?;
+                                                away_terminal_updates.send_replace(());
                                             }
                                         }
                                         key_completions.accepted(request_source.as_ref(),batch.controller,&batch_tickets,native_deadline.unwrap_or(led_total_deadline),&completion_manual,native_accepted.as_ref().map(|(request,_,_,_)|request),completion_eligible,now);
@@ -3266,7 +3341,8 @@ impl Admission {
                                         if let Some(mode)=mode_confirmation {component_modes.accepted(*mode,TaskGeneration{boot:worker_boot.clone(),epochs:arbiter.policy().epochs},batch.controller,request_source.clone(),mode_tickets.unwrap_or_default(),&manual_versions,&configuration,mode_wires,now)?;}
                                         program_activity.accepted(program_prepared,TaskGeneration{boot:worker_boot.clone(),epochs:arbiter.policy().epochs},batch.controller,request_source.clone(),&batch_tickets,&manual_versions,&configuration,program_wires,native_deadline.map_or(led_total_deadline,|n:u64|n.min(led_total_deadline)),now);
                                         let batch_guards=batch_guard_names.into_iter().filter_map(|name|match store.logical_variable(configuration.revision(),&name){Ok(Some(value))=>Some(Ok(homesense_storage::variables::ReadCheck{revision:configuration.revision(),name,expected_version:value.version})),Ok(None)=>None,Err(_)=>Some(Err(WriteStatus::ServiceCommunicationFailure))}).collect::<Result<Vec<_>,_>>()?;
-                                        control_batches.accepted(&configuration,&batch_tickets,TaskGeneration{boot:worker_boot.clone(),epochs:arbiter.policy().epochs},batch.controller,request_source.clone(),batch_guards,&manual_versions);
+                                        control_batches.accepted(&configuration,&batch_tickets,TaskGeneration{boot:worker_boot.clone(),epochs:arbiter.policy().epochs},batch.controller,request_source.clone(),batch_guards,&manual_versions,millis(clock),if confirm_modules {options.request_ttl.as_millis() as u64}else{0});
+                                        worker_module_confirmation_active.store(control_batches.stages_active(),Ordering::Release);
                                         let ids = (next_id..end).collect();
                                         next_id = end;
                                         Ok(ids)
@@ -3327,6 +3403,7 @@ impl Admission {
             stop_requested,
             away_active,
             household_active,
+            module_confirmation_active,
             away_terminal,
             generations,
             observation_invalidation,
@@ -3516,6 +3593,7 @@ impl Admission {
         let _ = self.sender.try_send(Message::Wake);
     }
     pub(crate) fn away_operations_active(&self)->bool {self.away_active.load(Ordering::Acquire)}
+    pub(crate) fn module_confirmation_active(&self)->bool {self.module_confirmation_active.load(Ordering::Acquire)}
     pub(crate) fn household_operations_active(&self)->bool {self.household_active.load(Ordering::Acquire)}
     pub(crate) async fn begin_household(&self,generation:TaskGeneration,prepared:crate::household_scene::Prepared,observation:crate::away_execution::Observation,last_frames:BTreeMap<String,u64>,deadline:u64)->Result<crate::household_sequence::Accepted,WriteStatus>{
         let(tx,rx)=oneshot::channel();self.sender.try_send(Message::BeginHousehold(generation,prepared,self.source_authorization.clone(),observation,last_frames,deadline,tx)).map_err(|_|WriteStatus::ResourceBusy)?;rx.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?

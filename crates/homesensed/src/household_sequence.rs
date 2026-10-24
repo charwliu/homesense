@@ -255,7 +255,7 @@ impl Context<'_> {
                     self.manual.insert(command.device_id.clone(),*self.next_id);
                     job.manual.insert(command.device_id.clone(),*self.next_id);
                 }
-                self.batches.accepted(self.config,&tickets,job.generation.clone(),job.controller,job.source.clone(),vec![],self.manual);
+                self.batches.accepted(self.config,&tickets,job.generation.clone(),job.controller,job.source.clone(),vec![],self.manual,self.now,0);
                 job.before_counts=before_counts.clone();
                 job.engine.accepted(attempt.proposal,core::Receipt {commands:ids.clone(),before_counts},self.now).map_err(|_|W::ServiceCommunicationFailure)?;
                 job.ids.extend(ids.iter().copied());job.current_ids=ids.clone();*self.next_id=end;

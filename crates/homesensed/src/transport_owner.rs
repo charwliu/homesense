@@ -35,6 +35,22 @@ struct SendAttempt {
     result: Result<(), SendError>,
     projection: Option<ProjectionDiscard>,
 }
+/// TCP completion only enqueues bytes in the gateway. At the documented
+/// 9600/8N1 line rate the whole encoded batch must drain before lending the
+/// shared write slot to another control or query. Existing longer intervals
+/// still win; compressed module frames use their actual five-byte length.
+fn post_write_interval(
+    tickets: &[crate::admission::DispatchTicket],
+    result: &Result<(), SendError>,
+    configured: std::time::Duration,
+) -> std::time::Duration {
+    let bytes=result.as_ref().map_or_else(|error|error.bytes_written,|_| {
+        hb_transport::encoded_batch_len(&tickets.iter().map(|ticket|&ticket.frame).collect::<Vec<_>>())
+            .unwrap_or(hb_transport::MAX_BATCH_BYTES)
+    });
+    let serial_ms=(bytes as u64 * 10 * 1000).div_ceil(9600);
+    configured.max(std::time::Duration::from_millis(serial_ms))
+}
 fn is_projection(ticket: &crate::admission::DispatchTicket) -> bool {
     matches!(
         ticket.command.command,
@@ -46,7 +62,10 @@ fn send_attempt(
     result: Result<(), SendError>,
     refusal: Option<ProjectionRefusal>,
 ) -> SendAttempt {
-    let away=tickets.iter().all(|ticket|matches!(ticket.command.command,homesense_core::Command::ModuleAllOff|homesense_core::Command::PanelLed(_)|homesense_core::Command::PanelLedOff) && ticket.away_authorization.as_ref().is_some_and(|lease|lease.guarded_operation()));
+    // A feedback-gated completion LED has a shorter, sealed projection lease.
+    // Its zero-byte proof uses the LED journal path (effective <= original
+    // deadline); physical module-Off proofs still require the exact receipt.
+    let away=tickets.iter().all(|ticket|ticket.feedback_barrier.is_none() && matches!(ticket.command.command,homesense_core::Command::ModuleAllOff|homesense_core::Command::PanelLed(_)|homesense_core::Command::PanelLedOff) && ticket.away_authorization.as_ref().is_some_and(|lease|lease.guarded_operation()));
     let projection = if (away || tickets.iter().all(is_projection))
         && result.as_ref().is_err_and(|e| e.bytes_written == 0)
     {
@@ -792,7 +811,7 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
         let clock = self.admission.clone();
         let worker = tokio::task::spawn_blocking(move || {
             let result = send_tickets(&tickets, &mut connection, || clock.monotonic_ms());
-            *slot = Some(tokio::time::Instant::now() + clock.write_interval);
+            *slot = Some(tokio::time::Instant::now() + post_write_interval(&tickets, &result.result, clock.write_interval));
             (connection, tickets, result, slot)
         });
         #[cfg(test)]

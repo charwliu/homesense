@@ -111,6 +111,15 @@ pub(crate) struct Job {
     last_evidence: core::Evidence,
     pub reads: BTreeSet<String>,
     indications: BTreeSet<u64>,
+    indicator: Option<Indicator>,
+    indicator_failure: Option<&'static str>,
+    cancelled: Option<core::Cancel>,
+}
+struct IndicatorTicket { id: u64, deadline_ms: u64 }
+struct Indicator {
+    endpoint: DeviceId,
+    red: Option<IndicatorTicket>,
+    green: Option<IndicatorTicket>,
 }
 impl Job {
     #[allow(clippy::too_many_arguments)]
@@ -167,10 +176,61 @@ impl Job {
             last_evidence: Default::default(),
             reads: BTreeSet::new(),
             indications: BTreeSet::new(),
+            indicator: None,
+            indicator_failure: None,
+            cancelled: None,
         })
+    }
+    /// Only the configured, authorized source key receives a progress cue.
+    pub fn enable_indicator(&mut self, endpoint: DeviceId) {
+        self.indicator=Some(Indicator {endpoint,red:None,green:None});
+    }
+    pub fn red_endpoint(&self)->Option<&DeviceId> {
+        self.indicator.as_ref().filter(|i|i.red.is_none()).map(|i|&i.endpoint)
+    }
+    pub fn red_accepted(&mut self,id:u64,deadline_ms:u64) {
+        let indicator=self.indicator.as_mut().expect("configured Away progress indicator");
+        assert!(indicator.red.is_none());
+        indicator.red=Some(IndicatorTicket{id,deadline_ms});self.indications.insert(id);
+    }
+    pub fn red_written(&self)->bool {
+        self.indicator.as_ref().is_none_or(|i|i.red.as_ref().is_some_and(|r|self.written.contains_key(&r.id)))
+    }
+    fn green_written(&self)->bool {
+        self.indicator.as_ref().is_none_or(|i|i.green.as_ref().is_some_and(|r|self.written.contains_key(&r.id)))
+    }
+    pub fn active(&self)->bool {
+        self.cancelled.is_none() && self.indicator_failure.is_none()
+            && (self.engine.end().is_none() || matches!(self.engine.end(),Some(core::End::Confirmed))
+                && self.last.as_ref().is_none_or(|view|view.state!="confirmed"))
+    }
+    pub fn unsuccessful(&self)->bool {
+        self.cancelled.is_some() || self.indicator_failure.is_some()
+            || self.engine.end().is_some_and(|end|!matches!(end,core::End::Confirmed))
+    }
+    /// A journal acceptance is never proof that a cue reached the wire. The
+    /// transport callback supplies the successful timestamp for each exact ID.
+    pub fn poll_indicator(&mut self,store:&homesense_storage::Store,now:u64)->Result<(),String> {
+        use homesense_storage::journal::Status;
+        let Some(indicator)=&self.indicator else{return Ok(());};
+        for (ticket,reason) in [(&indicator.red,"red_indicator_failed"),(&indicator.green,"green_indicator_failed")] {
+            if let Some(ticket)=ticket {
+                let status=store.command_status(self.generation.boot_id(),ticket.id).map_err(|e|e.to_string())?;
+                if matches!(status,Some(Status::Cancelled|Status::Failed|Status::Uncertain))
+                    || self.written.get(&ticket.id).is_some_and(|at|*at>=ticket.deadline_ms)
+                    || now>=ticket.deadline_ms && !self.written.contains_key(&ticket.id) {
+                    self.indicator_failure=Some(reason);self.gate.retire();break;
+                }
+            }
+        }
+        if now>=self.engine.deadline_ms() && !self.green_written() && matches!(self.engine.end(),Some(core::End::Confirmed)) {
+            self.indicator_failure=Some("green_indicator_deadline");self.gate.retire();
+        }
+        Ok(())
     }
     pub fn retire(&mut self, cause: core::Cancel, now: u64) -> Result<(), String> {
         self.gate.retire();
+        self.cancelled=Some(cause);
         self.engine
             .poll(now, core::Owner::Retired(cause), &self.last_evidence)
             .map_err(|e| format!("Away cancellation: {e:?}"))?;
@@ -182,6 +242,10 @@ impl Job {
     }
     pub fn run(&self, round: u8) -> u64 {
         RUN_NAMESPACE + (self.serial << 4) + u64::from(round - 1)
+    }
+    pub fn cancellation_runs(&self)->impl Iterator<Item=u64> + '_ {
+        (1..=self.engine.rounds().max(1)).map(|round|self.run(round))
+            .chain(self.indicator.is_some().then_some(self.run(1)+15))
     }
     pub fn outputs(&self) -> impl Iterator<Item = DeviceId> + '_ {
         self.targets.iter().flat_map(|target| {
@@ -199,7 +263,7 @@ impl Job {
             .collect()
     }
     pub fn record_written(&mut self, id: u64, at: u64) {
-        if self.receipts.values().any(|r| r.command == id) {
+        if self.indications.contains(&id) || self.receipts.values().any(|r| r.command == id) {
             self.written.entry(id).or_insert(at);
         }
     }
@@ -290,6 +354,10 @@ impl Job {
             self.receipts.insert(receipt.module.clone(), receipt);
         }
         self.indications.extend(ids.iter().skip(targets.len()).copied());
+        if let Some(indicator)=self.indicator.as_mut() && let Some(id)=ids.get(targets.len()) {
+            assert!(indicator.green.is_none(),"completion cue belongs to the original attempt only");
+            indicator.green=Some(IndicatorTicket{id:*id,deadline_ms:self.engine.deadline_ms()});
+        }
         self.manual = self
             .outputs()
             .map(|id| {
@@ -300,7 +368,7 @@ impl Job {
         Ok(())
     }
     pub fn read_needs(&self) -> Vec<ReadNeed> {
-        if self.engine.end().is_some() {
+        if !self.active() || self.engine.end().is_some() {
             return vec![];
         }
         self.receipts
@@ -324,7 +392,8 @@ impl Job {
     }
     pub fn view(&self, evidence: &core::Evidence, now: u64) -> Result<View, String> {
         use core::{Cancel, End};
-        let (state, reason) = match self.engine.end() {
+        let cancelled=self.cancelled.map(End::Cancelled);
+        let (mut state, mut reason) = match cancelled.as_ref().or(self.engine.end()) {
             Some(End::Confirmed) => ("confirmed", None),
             Some(End::Exhausted) => ("failed", Some("attempts_exhausted")),
             Some(End::Deadline) => ("failed", Some("operation_deadline")),
@@ -343,6 +412,8 @@ impl Job {
             None if self.engine.rounds() > 1 => ("retrying", None),
             None => ("confirming", None),
         };
+        if self.cancelled.is_none() && let Some(failure)=self.indicator_failure {state="failed";reason=Some(failure);}
+        else if state=="confirmed" && !self.green_written() {state="confirming";}
         let missing = match self.engine.terminal_missing() {
             Some(missing) => missing.clone(),
             None => self
@@ -384,7 +455,7 @@ impl Job {
     }
     pub fn update_view(&mut self, evidence: &core::Evidence, now: u64) -> Result<(), String> {
         self.last_evidence = evidence.clone();
-        if self.engine.end().is_some_and(|end|!matches!(end,core::End::Confirmed)) {
+        if self.unsuccessful() {
             self.gate.retire();
         }
         let next = self.view(evidence, now)?;
@@ -420,7 +491,7 @@ pub(crate) struct Registry {
 impl Registry {
     pub fn next_serial(&mut self) -> Result<u64, String> {
         while self.jobs.len() >= MAX_OPERATIONS {
-            let Some(index) = self.jobs.iter().position(|job| job.engine.end().is_some()) else {
+            let Some(index) = self.jobs.iter().position(|job| !job.active()) else {
                 return Err("Away operation capacity reached".into());
             };
             self.jobs.remove(index);
@@ -454,7 +525,7 @@ impl Registry {
             .iter()
             .filter(|job| {
                 job.generation == *generation
-                    && job.engine.needs_admission(now)
+                    && job.active() && job.engine.needs_admission(now)
                     && valid(job)
                     && job.lease.valid()
                     && authorize(job.lease.controller())
@@ -469,7 +540,7 @@ impl Registry {
     /// Only the module explicitly requested by the active operation is readable.
     pub fn query_scopes(&self) -> BTreeMap<String, Option<u8>> {
         let mut scopes = BTreeMap::new();
-        for job in self.jobs.iter().filter(|job|job.engine.end().is_none()) {
+        for job in self.jobs.iter().filter(|job|job.active()) {
             for gateway in job.gateways() { scopes.insert(gateway,None); }
             for target in &job.targets {
                 let module=&target.plan.modules()[target.index];
@@ -487,7 +558,7 @@ impl Registry {
     pub fn allows(&self,gateway:&str,address:u8,command:homesense_core::Command,id:u64)->bool {
         if matches!(command,homesense_core::Command::Motor(homesense_core::MotorMotion::Stop)) {return true;}
         if command==homesense_core::Command::Query {return self.read_allowed(gateway,Some(address));}
-        self.jobs.iter().filter(|job|job.engine.end().is_none() && job.gateways().contains(gateway))
+        self.jobs.iter().filter(|job|job.active() && job.gateways().contains(gateway))
             .all(|job|command==homesense_core::Command::ModuleAllOff && job.receipts.values().any(|r|r.command==id)
                 || job.source.as_ref().is_some_and(|source|source.keypad().is_some()) && job.indications.contains(&id))
     }
