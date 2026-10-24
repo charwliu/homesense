@@ -162,6 +162,43 @@ VLAN2默认拒绝访问内网普通地址，只按审核范围放行DNS与精确
 3. 更新本次允许范围内的ACL及边界回程／防火墙集合，确认不会把A／B来源混用或误放行。
 4. 用单独客户端验证双向隔离、DNS、公网IPv6、续租与前缀撤回，再恢复转发并保存。无证据时不标为完成。
 
+### 4.4 Mac双网切换与DNS故障（2026-10-24）
+
+本机同时连接VLAN3有线（en7）和NGBOSS／VLAN2 Wi-Fi（en0）。首次真实拔线后，默认路由已切到Wi-Fi，公网IPv4 TCP为11/11成功、IPv6 TCP为10/11成功，但向`192.168.4.1`查询DNS的11次采样全部超时，IPv4／IPv6网页均报解析超时；插回有线后网页恢复。不能将这一轮记作完整切换通过。
+
+故障来自残留的`192.168.4.1/32 → 192.168.2.253`主机路由，包含全局及en0作用域两条。自动创建的DNS套接字仍选用已不属于本机的旧VLAN2源地址；显式绑定当前VLAN2地址后，UDP／TCP查询立即成功，AAAA也能通过同一IPv4 DNS查询。VLAN2的IPv4 DNS由DHCP下发；故障时RA未包含RDNSS，这并不能解释错误源地址和IPv4 DNS超时。
+
+本次仅在确认目的、网关和接口与残留记录一致后，由用户在Mac执行以下清理。密码只在本机输入，不修改核心隔离规则：
+
+```sh
+sudo route -n delete -host 192.168.4.1 192.168.2.253
+sudo route -n delete -host 192.168.4.1 192.168.2.253 -ifscope en0
+```
+
+若相应记录已不存在，可记录`not in table`后继续核对；不要据此清空整个路由表。删除后，不指定源地址的A／AAAA查询恢复。该DNS地址可按当前默认网络正常选路，无需再保留旧管理主机路由，也无需放宽到其他内网设备的访问。
+
+保持NGBOSS连接，使用本机只读采样跨越物理拔线、插回全过程；系统设置中的“停用”未形成有效断线样本，不作为验证依据。所有公网连接及网页探测均未强制绑定接口。
+
+| 阶段 | 实际IPv4出口 | 实际IPv6出口 | DNS与网页结果 |
+| --- | --- | --- | --- |
+| 拔线前 | VLAN3 en7，经`.3.1` | VLAN3 en7，经NanoPi5链路本地地址 | A／AAAA及双栈网页正常 |
+| 拔线后 | VLAN2 en0，经`.2.253` | VLAN2 en0，经核心链路本地地址 | 连续21次采样中，DNS、公网双栈TCP和IPv4／IPv6 HTTPS全部成功，网页HTTP200 |
+| 插回后 | 重新优先VLAN3 en7 | 重新优先VLAN3 en7 | 连续3次采样正常，有线服务已启用 |
+
+用户同时确认拔线时网页正常。修复前的DNS失败及一次IPv6瞬时无路由记录继续保留；复验不能推定零丢包、既有连接无缝迁移或所有终端行为相同。原始源地址、接口状态、解析器配置、两轮采样和SHA仅留在私有运维证据中。
+
+### 4.5 VLAN2的RDNSS、搜索域与NanoPC地址统一（2026-10-24）
+
+核心Vlanif2已发布RDNSS（NanoPC当前VLAN4前缀加`::4:1`）及DNSSL搜索域`lab.vixal.xyz`，寿命均为1800秒，RA优先级保留Low。macOS的`ipconfig getra en0`实际接收结果同时包含option25、option31及上述寿命；系统解析器也已收录IPv6 DNS。DHCPv4的DNS和域名继续保留。核心Vlanif3仍不发送RA，由NanoPi5发布High及原有DNS／搜索域。
+
+NanoPC的LAN地址已从同一前缀下的`::1`统一为`::4:1`；systemd-networkd的`[DHCPPrefixDelegation] Token=static:::4:1`、rdhcpd的`--ra-rdnss`及两侧DNS中`nanopc.lab.vixal.xyz`的AAAA已同步。IPv4`.4.1`及WAN保持。旧IPv6地址弃用并限时保留1800秒，兼容缓存旧DNS的客户端；不是永久配置第二个地址。两侧区域校验、UDP／TCP查询及其他既有DNS记录保留检查通过。
+
+为使RDNSS可用，仅新增VLAN2当前/64到指定NanoPC DNS /128的UDP／TCP53请求及对应回复例外：ACL3992／3993，分类器V2_DNS6_REQ／V2_DNS6_REPLY，在既有B_V4_OUT6／B_V4_IN6中以precedence2先于拒绝分类器匹配。实机原OSPFv3 LAN /64路由显示下一跳`::`，DNS请求未到达NanoPC；补充仅该DNS /128经Vlanif4、NanoPC链路本地下一跳的路由后，8项VLAN2接口绑定的UDP／TCP、内外域A／AAAA查询全部通过。其他设备、端口及既有拒绝规则逐项对比保留，7条策略硬件success，核心配置已保存。脱敏命令见[RA DNS配置示例](../deployment/network/huawei-vlan2-ra-dns.cli.example)，不能直接复制占位符到现网。
+
+首次地址调整时，LAN的networkd重新配置删除了rdhcpd自动发现所依赖的DHCP不可达委派前缀路由，回退旧Token后仍需按有效PD恢复同一条路由才能恢复服务。失败记录保留；后续流程在停rdhcpd、备份与独立回退保护下显式保留该有效前缀路由，再修改Token并恢复服务，未重拨WAN或请求新前缀。以后调整LAN地址前，必须先记录当前委派及有效期，不能靠恢复地址文件推定路由已恢复，也不能从旧日志复制已失效的前缀。
+
+前缀变化保护还须同步更新RDNSS地址、指定DNS /128路由、DNS6请求／回复ACL、NanoPC通告及两侧AAAA，再验证后恢复VLAN2 IPv6；这些字面地址不会自动跟随PD。上述操作不替代4.4节的旧Mac路由修复。
+
 ## 5 后续迁移与VLAN100维护
 
 ### 5.1 尚未完成的迁移
