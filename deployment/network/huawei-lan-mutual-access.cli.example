@@ -1,0 +1,57 @@
+# 2026-10-24当前授权增量：VLAN3↔VLAN4、VLAN2↔VLAN4双栈互通。
+# VLAN2↔VLAN3普通访问仍双向拒绝，保留HomeSense TCP8444例外。
+# 先核对当前配置、真实PD、回程、编号／名称空闲及precedence，再替换全部占位符。
+# @*_PREFIX@填网络地址（不带/长度）；@*_LINK_LOCAL@填对应边界链路本地地址。
+# 前置条件：原B_*与A3_*策略、B_ALLOW行为及ACL3980/3982/3983/3986-3989已存在。
+# ACL3983须保留VLAN3来源到VLAN2的拒绝匹配，ACL3981保留反方向拒绝匹配。
+# 未包含凭据、真实全球前缀、完整历史例外或边界nft规则；不能整份盲目执行。
+system-view
+acl 3980
+ rule 35 permit ip source 192.168.2.0 0.0.0.255 destination 192.168.4.0 0.0.0.255
+ quit
+acl 3982
+ rule 30 permit ip source 192.168.4.0 0.0.0.255 destination 192.168.2.0 0.0.0.255
+ quit
+acl ipv6 3994
+ rule 5 permit ipv6 source @VLAN3_PREFIX@ 64 destination @VLAN4_PREFIX@ 64
+ rule 10 permit ipv6 source @VLAN4_PREFIX@ 64 destination @VLAN3_PREFIX@ 64
+ rule 15 permit ipv6 source @VLAN2_OLD_PREFIX@ 64 destination @VLAN4_PREFIX@ 64
+ rule 20 permit ipv6 source @VLAN4_PREFIX@ 64 destination @VLAN2_OLD_PREFIX@ 64
+ rule 25 permit ipv6 source @VLAN2_CURRENT_PREFIX@ 64 destination @VLAN4_PREFIX@ 64
+ rule 30 permit ipv6 source @VLAN4_PREFIX@ 64 destination @VLAN2_CURRENT_PREFIX@ 64
+ quit
+traffic classifier LAN_PAIR6
+ if-match ipv6 acl 3994
+ quit
+traffic policy B_V4_OUT6
+ classifier LAN_PAIR6 behavior B_ALLOW precedence 3
+ quit
+traffic policy B_V4_IN6
+ classifier LAN_PAIR6 behavior B_ALLOW precedence 3
+ quit
+acl ipv6 3986
+ rule 10 permit ipv6 source @WAN_A_PD_PREFIX@ 60 destination @VLAN2_CURRENT_PREFIX@ 64
+ quit
+acl ipv6 3987
+ rule 10 permit ipv6 source @VLAN2_CURRENT_PREFIX@ 64 destination @WAN_A_PD_PREFIX@ 60
+ quit
+acl ipv6 3988
+ rule 15 permit tcp source @VLAN2_CURRENT_PREFIX@ 64 destination @HOMESENSE_VLAN3_IPV6@ 128 destination-port eq 8444
+ rule 20 permit tcp source @VLAN2_CURRENT_PREFIX@ 64 destination @HOMESENSE_VLAN4_IPV6@ 128 destination-port eq 8444
+ quit
+acl ipv6 3989
+ rule 15 permit tcp source @HOMESENSE_VLAN3_IPV6@ 128 source-port eq 8444 destination @VLAN2_CURRENT_PREFIX@ 64
+ rule 20 permit tcp source @HOMESENSE_VLAN4_IPV6@ 128 source-port eq 8444 destination @VLAN2_CURRENT_PREFIX@ 64
+ quit
+interface Vlanif2
+ ipv6 nd ra prefix @VLAN2_CURRENT_PREFIX@/64 7200 3600
+ ipv6 nd ra prefix @VLAN2_OLD_PREFIX@/64 7200 0
+ quit
+ipv6 route-static @VLAN3_PREFIX@ 64 Vlanif3 @WAN_A_ROUTER_LINK_LOCAL@ preference 5
+ipv6 route-static @VLAN4_PREFIX@ 64 Vlanif4 @WAN_B_ROUTER_LINK_LOCAL@ preference 5
+return
+# 两条LAN静态路由对应本次“OSPFv3 LAN下一跳::且数据面不通”的实测修正；
+# 其他拓扑先验证实际路由，不改默认出口。旧PIO迁移完成后另行撤销。
+# 同步核对边界防火墙：VLAN4→VLAN2 IPv4转发，以及HomeSense精确IPv6回包。
+# 独立回退保护下验收允许／拒绝双方向、8444例外、DNS／公网与实际RA，
+# 7条硬件策略success后再save并比对启动配置。
