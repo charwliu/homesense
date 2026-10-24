@@ -1,17 +1,20 @@
 # 华为核心、QNAP与AC配置操作手册
 
-版本1.5 · 2026-10-24整理。当前接线、VLAN与状态统一以[网络架构](network-architecture.md)第1–3节为准。本文记录已验收配置；后续操作必须先匹配实际设备和当前配置，不重放已完成迁移。
+版本1.6 · 2026-10-24整理。当前接线、VLAN与状态统一以[网络架构](network-architecture.md)第1–3节为准。本文记录已验收配置；后续操作必须先匹配实际设备和当前配置，不重放已完成迁移。
 
 ## 1 当前维护基线
 
 - 新核心已承担现用VLAN2／3／4／5／100三层服务，不能重新启用旧核心同地址网关。VLAN1尚未按目标接管，隔离维护口VLAN4092不能被误当作业务VLAN1。
 - NanoPi5 LAN为Tagged3，直连核心23号；nanopc LAN为Tagged4，直连24号。两口分别使用隔离PVID4090／4091并关闭PoE，不能照搬Access模板。
+- 独立NanoPi R6S已接替NGR运行HomeSense：wan接5号Access3，`192.168.3.3/24`、RA后缀`::3:3`；lan1／br2接6号Access4，`192.168.4.4/24`、RA后缀`::4:4`。两口均2.5G、关闭PoE；服务器不桥接两网，不与23号NanoPi5路由器混淆。
 - QNAP A／B的10号Combo光口接X1／X2；最近核心允许列表分别为2／3／100和2／4／100，隔离PVID分别4093／4094。旧聚合和两核心临时互联不恢复。
 - AC LAN直连2号Access5；AP为15 F00、16 F21、17 F12、18 F01、19 F10、20 F20、21 F02、22 F11。15–22均为PVID5，当前允许2／3／4／5／100；业务SSID和客户端结果须另核对。
 - 现用485网关`.0.10`经QNAP A上联X1，`.0.11`经QNAP B上联X2；HomeSense仍连接`.0.10:8443`，不要把历史目标`.1.10:50007`写入当前服务。
 - VLAN100仍有业务依赖，保留`.0.253`和现有DHCP。NAS、桌面交换机及PE11迁址均不因文档更新而视为完成。
 
 2026-10-24已完成AC100接管和核心VLAN5 DHCP启用并保存：Vlanif5使用全局池`vlan5_ap`，网关`.5.253`；AC100为`.5.1/24`、网关`.5.253`，关闭自身DHCPv4／DHCPv6及SLAAC分配。旧AC已断开。VLAN5网段经OSPF发布，Vlanif5为静默接口，不建立管理网邻居。旧版逐分钟接线过程已归为历史，不再与当前操作表混排。
+
+两条线路的内网DNS均已配置 `nanopi.lab.vixal.xyz` 的A记录为`.3.3`，AAAA为当前VLAN3前缀加`::3:3`；`homesense.lab.vixal.xyz` 以CNAME指向它，TTL为60秒。HomeSense使用 `https://homesense.lab.vixal.xyz:8444` 及对应域名证书，原App凭证和HomeKit配对保持。NGR服务禁用、主角色门禁关闭，每小时仅接收数据备份；恢复必须先隔离旧主，详见[NanoPi主备记录](../deployment/nanopi/README.md)及[备份恢复边界](../deployment/nanopi/backup/README.md)。
 
 公开仓库只保留审核后的结构及示例。真实设备导出、MAC、全球IPv6前缀、租约、管理员地址例外和凭证在私有运维目录保存；示例地址不能作为下发参数。
 
@@ -51,6 +54,8 @@ display ospfv3 peer
 | X1，QNAP A | Trunk | 2／3／100 | 4093 | 不适用 |
 | X2，QNAP B | Trunk | 2／4／100 | 4094 | 不适用 |
 | 2，AC | Access | 5，未标记 | 5 | 关闭 |
+| 5，NanoPi R6S wan | Access | 3，未标记 | 3 | 关闭 |
+| 6，NanoPi R6S lan1／br2 | Access | 4，未标记 | 4 | 关闭 |
 | 10，现用485网关 | Access | 100，未标记 | 100 | 按实机 |
 | 15–22，AP | Trunk | 2／3／100，管理5 | 5 | 按AP实际供电 |
 

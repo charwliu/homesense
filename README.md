@@ -17,7 +17,7 @@ HomeSense 是用 Rust 编写的家庭中控系统，已部署到家庭现网，�
 
 ## 现网状态
 
-现网由 `ngr` 上的 `homesense-e2.service` 运行 HomeSense，原 Control4 EA-5 已退出家庭中控角色。2026-10-23 已更新观测有效期与轮询周期分离、R818整模块关闭接收窗口修复的 Release 服务，保留空日历写锁修复、单桥128场景、HAP订阅与控制分离及逐模块开启和关闭调度；活动配置仍为 revision 52，接管现场进度按[当前清单](docs/control4-takeover-checklist.md)逐项记录。最新部署窗口两轮只读核对96路反馈正常、队列清空、重启次数为0，随后独立健康复核正常；原配对、凭证和权限保持。最新程序替换只上传一个生产Release ELF，配置未变，部署验收没有上传测试或发送灯光、窗帘及风机控制命令；1861项本机回归、严格Clippy和32项当前配置回环检查通过，生产目录保留当前与最近一个回退版本。
+现网已于2026-10-24迁至NanoPi R6S的 `homesense-e2.service`，NGR保留为关闭主角色门禁的手动冷备；原Control4 EA-5已退出家庭中控角色。服务入口为 `https://homesense.lab.vixal.xyz:8444`，使用用户提供的域名证书。活动配置仍为revision 52，原HomeKit配对、App凭证和权限保持；三轮只读部署验收96路反馈正常、NRestarts为0，已有HomeKit控制器成功认证读取。目标未接收测试或源码，未执行灯光、窗帘及风机动作验收。接线、生产目录、制品哈希和冷备恢复边界见[NanoPi部署记录](deployment/nanopi/README.md)；冷备已配置每小时数据备份，保留24份小时快照和7份每日快照；接管仍需手动恢复选定快照，未启用自动故障切换。
 
 Apple「家庭」的场景通知订阅与控制已分离：打开页面或重连时的纯订阅、取消订阅不再触发场景切换，混合请求仅执行明确带开关值的项目，所有访问仍校验权限。旧实现误生成控制命令的用例已复现；修正后8项定向检查、1850项本机完整回归及严格Clippy通过。
 
@@ -72,7 +72,7 @@ cargo run --locked -p homesensed -- serve-automation-simulation config/simulatio
 - [系统设计](docs/design.md) · [实现说明](docs/implementation.md) · [协议核对](reference/control4/hb-protocol-notes.txt)
 - [阶段 A–C 验收](docs/stages-a-c.md) · [阶段 D 进度](docs/stage-d-progress.md) · [D/E 完成审计](docs/de-completion-audit.md)
 - [原生 App](apps/HomeSense/README.md) · [Keypad 接口](docs/keypad-native-api.md) · [场景入口](docs/scene-presentations.md) · [组件活动](docs/scene-component-activity.md)
-- [nanopc 部署记录](deployment/nanopc/README.md) · [网络架构](docs/network-architecture.md) · [网络配置手册](docs/network-configuration-runbook.md)
+- [NanoPi主服务器](deployment/nanopi/README.md) · [nanopc 部署记录](deployment/nanopc/README.md) · [网络架构](docs/network-architecture.md) · [网络配置手册](docs/network-configuration-runbook.md)
 - [参考资料说明](reference/README.md) · [更新记录](CHANGELOG.md)
 
 完整私有工程、凭证和配对数据应保存在忽略的私有目录；`reference/` 是离线参考资料，不是运行配置。

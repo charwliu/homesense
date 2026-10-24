@@ -1,0 +1,12 @@
+[Unit]
+Description=Hourly HomeSense data backup to NGR
+
+[Timer]
+OnCalendar=*-*-* *:05:00 Asia/Shanghai
+OnBootSec=5min
+RandomizedDelaySec=60s
+Persistent=true
+Unit=homesense-backup.service
+
+[Install]
+WantedBy=timers.target
