@@ -43,6 +43,7 @@ private struct HomeSyncStatus: View {
 
 struct HomeManagementView: View {
     @ObservedObject var home: HomeServerStore
+    var configurationOnly = false
     @State private var page: HomePage? = .overview
     @State private var token = ""
     @State private var exportingDiagnostics = false
@@ -72,9 +73,11 @@ struct HomeManagementView: View {
                 Section("家庭") {
                     ForEach(visiblePages.filter { $0.category == nil }) { navigationRow($0) }
                 }
-                Section("类别") {
-                    ForEach(HomeDeviceCategory.allCases) { category in
-                        navigationRow(.categoryPage(category))
+                if !configurationOnly {
+                    Section("类别") {
+                        ForEach(HomeDeviceCategory.allCases) { category in
+                            navigationRow(.categoryPage(category))
+                        }
                     }
                 }
                 Section(managing ? "服务端" : "家庭状态") {
@@ -101,7 +104,7 @@ struct HomeManagementView: View {
                         }
                         if home.busy { ProgressView().controlSize(.small) }
                         if !home.connected, page != .server {
-                            ContentUnavailableView("连接你的家庭", systemImage: "house", description: Text("连接 ngr 上的 HomeSense 服务，查看家庭状态和控制设备。现有直连测试在“本地调试”中保留。"))
+                            ContentUnavailableView("连接你的家庭", systemImage: "house", description: Text(configurationOnly ? "连接 HomeSense 服务管理配置；日常设备控制请使用“家庭”页面。" : "连接 HomeSense 服务，查看家庭状态和控制设备。"))
                             Button("连接服务") { page = .server }.buttonStyle(.borderedProminent)
                         } else {
                             switch page ?? .overview {
@@ -125,7 +128,7 @@ struct HomeManagementView: View {
                 .toolbar {
                     ToolbarItemGroup(placement: .primaryAction) {
                         HomeSyncStatus(home: home)
-                        if home.canManage {
+                        if home.canManage && !configurationOnly {
                             Button(managing ? "完成管理" : "管理", systemImage: managing ? "checkmark" : "slider.horizontal.3") {
                                 home.selectInterfaceMode(managing ? .daily : .management)
                             }.accessibilityIdentifier("home.interfaceMode")
@@ -137,17 +140,19 @@ struct HomeManagementView: View {
                     }
                 }
                 .navigationDestination(for: HomeRoomRoute.self) { route in
-                    HomeRoomDetail(home: home, roomID: route.id, openDetails: { editor = $0 })
+                    HomeRoomDetail(home: home, configurationOnly: configurationOnly, roomID: route.id, openDetails: { editor = $0 })
                 }
             }
         }
         #if os(iOS)
         .sheet(isPresented: $homeKitPlacement) { HomeKitRoomPlacementView(home: home) }
         #endif
+        .onAppear { if configurationOnly && !home.canManage { page = .server } }
         .onChange(of: page) { _, _ in roomPath.removeAll() }
         .fileExporter(isPresented: $exportingDiagnostics, document: diagnosticExport, contentType: .plainText, defaultFilename: "HomeSense-diagnostics") { _ in }
         .onChange(of: home.interfaceMode) { _, _ in preserveNavigation() }
         .onChange(of: home.canManage) { _, canManage in
+            if configurationOnly && canManage { home.selectInterfaceMode(.management) }
             preserveNavigation()
             if !canManage {
                 if let kind = editor?.kind, !kind.hasSuffix("-details") { editor = nil }
@@ -178,16 +183,20 @@ struct HomeManagementView: View {
         } message: { Text("此操作修改编辑稿，发布后才影响活动配置。移除楼层将保留房间并清除其楼层归属；被引用的房间、设备或场景需先处理引用。") }
     }
 
-    private var managing: Bool { home.interfaceMode == .management && home.canManage }
+    private var managing: Bool { (configurationOnly || home.interfaceMode == .management) && home.canManage }
     private var appIdentity: HomeBuildIdentity { HomeBuildIdentity(info: Bundle.main.infoDictionary ?? [:]) }
     private var appVersion: String { appIdentity.version }
     private var appBuild: String { appIdentity.displayBuild }
     private var pageTitle: String {
+        if configurationOnly { return (page ?? .server).rawValue }
         return page == .overview && !managing ? "家庭" : (page ?? .overview).rawValue
     }
-    private var visiblePages: [HomePage] { HomePage.allCases.filter { managing || $0 != .drafts } }
+    private var visiblePages: [HomePage] {
+        if configurationOnly { return home.canManage ? [.overview, .floors, .rooms, .devices, .scenes, .drafts, .server] : [.server] }
+        return HomePage.allCases.filter { managing || $0 != .drafts }
+    }
     private func preserveNavigation() {
-        if let page, !visiblePages.contains(page) { self.page = .overview }
+        if let page, !visiblePages.contains(page) { self.page = configurationOnly && !home.canManage ? .server : .overview }
     }
     private var displayRooms: [HomeRecord] { managing ? home.editableRooms : home.rooms }
     private var displayFloors: [String] { managing ? home.floors : home.activeFloors }
@@ -416,10 +425,12 @@ struct HomeManagementView: View {
     }
     private var devices: some View {
         VStack(spacing: 16) {
-            Text("面板").font(.title2.bold()).frame(maxWidth: .infinity, alignment: .leading)
-            HomeDeviceCards(home: home, devices: home.dailyPanels, openDetails: { editor = $0 })
-            if let notice = home.unifiedKeypadSupportMessage { Text(notice).font(.caption).foregroundStyle(.secondary) }
-            if home.dailyPanels.isEmpty { Text("暂无当前凭证可见的面板").foregroundStyle(.secondary) }
+            if !configurationOnly {
+                Text("面板").font(.title2.bold()).frame(maxWidth: .infinity, alignment: .leading)
+                HomeDeviceCards(home: home, devices: home.dailyPanels, openDetails: { editor = $0 })
+                if let notice = home.unifiedKeypadSupportMessage { Text(notice).font(.caption).foregroundStyle(.secondary) }
+                if home.dailyPanels.isEmpty { Text("暂无当前凭证可见的面板").foregroundStyle(.secondary) }
+            }
             HStack {
                 Text("DIN 模块").font(.title2.bold())
                 Spacer()
@@ -474,7 +485,7 @@ struct HomeManagementView: View {
     }
     private var scenes: some View {
         VStack(spacing: 16) {
-            activeSceneCards
+            if !configurationOnly { activeSceneCards }
             if managing {
                 editNotice
                 Button("新增场景", systemImage: "plus") { editor = HomeEditRequest(kind: "scene") }.disabled(!canEdit)
@@ -763,6 +774,7 @@ private struct HomeDeviceCards: View {
 
 private struct HomeRoomDetail: View {
     @ObservedObject var home: HomeServerStore
+    var configurationOnly = false
     let roomID: String
     let openDetails: (HomeEditRequest) -> Void
     private var managing: Bool { home.interfaceMode == .management && home.canManage }
@@ -791,15 +803,17 @@ private struct HomeRoomDetail: View {
                     if activeRoom == nil {
                         Text("此房间尚未发布；日常设备和场景以活动配置为准。").font(.subheadline).foregroundStyle(.secondary)
                     }
-                    if !devices.isEmpty {
+                    if !configurationOnly && !devices.isEmpty {
                         Text("灯与窗帘").font(.title2.bold())
                         HomeDeviceCards(home: home, devices: devices, openDetails: openDetails)
                     }
-                    if !scenes.isEmpty {
+                    if !configurationOnly && !scenes.isEmpty {
                         Text("场景").font(.title2.bold())
                         HomeSceneCards(home: home, scenes: scenes, openDetails: openDetails)
                     }
-                    if devices.isEmpty && scenes.isEmpty {
+                    if configurationOnly {
+                        Text("日常设备与场景控制请使用“家庭”页面。")
+                    } else if devices.isEmpty && scenes.isEmpty {
                         ContentUnavailableView("暂无可见控制", systemImage: "lightbulb", description: Text("此房间尚无当前凭证可见的灯、窗帘或场景。"))
                     }
                 } else {
@@ -815,7 +829,7 @@ private struct HomeRoomDetail: View {
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
                 HomeSyncStatus(home: home)
-                if home.canManage {
+                if home.canManage && !configurationOnly {
                     Button(managing ? "完成管理" : "管理", systemImage: managing ? "checkmark" : "slider.horizontal.3") {
                         home.selectInterfaceMode(managing ? .daily : .management)
                     }

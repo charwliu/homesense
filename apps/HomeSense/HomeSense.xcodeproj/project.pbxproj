@@ -18,6 +18,9 @@
 		A00000000000000000000009 /* HomeKeypadEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000001C /* HomeKeypadEditor.swift */; };
 		A0000000000000000000000A /* HomeKitRoomDirectory.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000001D /* HomeKitRoomDirectory.swift */; };
 		A0000000000000000000000B /* HomeKitRoomPlacementView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000001E /* HomeKitRoomPlacementView.swift */; };
+		B00000000000000000000001 /* HomeKitDailyStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000011 /* HomeKitDailyStore.swift */; };
+		B00000000000000000000002 /* HomeKitDailyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000012 /* HomeKitDailyView.swift */; };
+		B00000000000000000000003 /* HomeKitAccessoryDetails.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000013 /* HomeKitAccessoryDetails.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -35,6 +38,9 @@
 		A0000000000000000000001C /* HomeKeypadEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeKeypadEditor.swift; sourceTree = "<group>"; };
 		A0000000000000000000001D /* HomeKitRoomDirectory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeKitRoomDirectory.swift; sourceTree = "<group>"; };
 		A0000000000000000000001E /* HomeKitRoomPlacementView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeKitRoomPlacementView.swift; sourceTree = "<group>"; };
+		B00000000000000000000011 /* HomeKitDailyStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeKitDailyStore.swift; sourceTree = "<group>"; };
+		B00000000000000000000012 /* HomeKitDailyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeKitDailyView.swift; sourceTree = "<group>"; };
+		B00000000000000000000013 /* HomeKitAccessoryDetails.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeKitAccessoryDetails.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -61,6 +67,9 @@
 		A00000000000000000000021 /* App */ = {
 			isa = PBXGroup;
 			children = (
+				B00000000000000000000011 /* HomeKitDailyStore.swift */,
+				B00000000000000000000012 /* HomeKitDailyView.swift */,
+				B00000000000000000000013 /* HomeKitAccessoryDetails.swift */,
 				A00000000000000000000011 /* HomeSenseApp.swift */,
 				A00000000000000000000012 /* ContentView.swift */,
 				A00000000000000000000013 /* Info.plist */,
@@ -181,6 +190,9 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				B00000000000000000000001 /* HomeKitDailyStore.swift in Sources */,
+				B00000000000000000000002 /* HomeKitDailyView.swift in Sources */,
+				B00000000000000000000003 /* HomeKitAccessoryDetails.swift in Sources */,
 				A00000000000000000000001 /* HomeSenseApp.swift in Sources */,
 				A00000000000000000000002 /* ContentView.swift in Sources */,
 				A00000000000000000000005 /* HomeManagementView.swift in Sources */,
@@ -305,8 +317,10 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.ngboss.homesense;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = auto;
-				SUPPORTED_PLATFORMS = "macosx iphoneos iphonesimulator";
-				SUPPORTS_MACCATALYST = NO;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = YES;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER = NO;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Debug;
@@ -337,8 +351,10 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.ngboss.homesense;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = auto;
-				SUPPORTED_PLATFORMS = "macosx iphoneos iphonesimulator";
-				SUPPORTS_MACCATALYST = NO;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = YES;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER = NO;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;

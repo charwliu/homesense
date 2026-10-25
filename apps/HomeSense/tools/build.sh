@@ -9,7 +9,7 @@ case "$build_root" in
 esac
 platform="${1:-macos}"
 case "$platform" in
-    macos) destination='generic/platform=macOS'; signing=(CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual) ;;
+    macos) destination='generic/platform=macOS,variant=Mac Catalyst'; signing=(CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual) ;;
     ios) destination='generic/platform=iOS'; signing=(CODE_SIGNING_ALLOWED=NO) ;;
     simulator) destination='generic/platform=iOS Simulator'; signing=(CODE_SIGNING_ALLOWED=NO) ;;
     *) echo 'Usage: bash tools/build.sh [macos|ios|simulator]' >&2; exit 2 ;;

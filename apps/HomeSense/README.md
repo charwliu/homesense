@@ -1,6 +1,24 @@
 # HomeSense · Swift App
 
-原生 SwiftUI 家庭中控与本地调试工具，支持 macOS 14+、iPhone / iPad（iOS / iPadOS 17+），包标识为 `com.ngboss.homesense`。家庭管理通过 HomeSense HTTPS API 与 WSS 状态推送完成；网关直连测试保留在“本地调试”。
+SwiftUI 家庭中控与配置工具，支持 iPhone / iPad（iOS / iPadOS 17+）及 Mac Catalyst（macOS 14+），包标识保持 `com.ngboss.homesense`。
+
+## 当前入口与状态来源
+
+- **家庭**：通过系统 HomeKit 选择家庭，按房间读取设备并订阅变化；灯光、开关、亮度、窗帘位置/停止、标准传感器和家庭场景使用 HomeKit。HomeSense 发布的场景开关按其 HomeKit 特征操作。其他厂商已加入所选 Apple 家庭的兼容设备也可显示；授权与可写性由 Apple 家庭决定，不沿用服务端令牌权限。
+- **配置管理**：保留 HTTPS/WSS、管理员鉴权、草稿/预览/发布、模块诊断和 Apple 家庭房间分配。日常页面不恢复管理凭证，不建立管理 WSS，也不通过旧 HTTP 接口发送日常设备/场景指令。切到配置管理才恢复其连接，离开后暂停状态订阅；显式模块测试和本地调试仍可发送其说明中的诊断指令。
+- **本地调试**：保留原来的手动网关工具，不自动发送指令。
+
+界面采用家庭中控布局：Mac/iPad 使用房间与类别侧栏，iPhone 可通过“房间”入口切换；总览有类别状态胶囊、常用配件、场景与房间分组。配件是自适应紧凑卡片，亮灯/开启状态使用浅色卡面与强调色图标。点名称/状态打开控制详情，点已知开关图标执行一次快捷开关；未知状态打开详情，保留明确的开启/关闭选择。长按/右键可加入本机常用配件；收藏与 Apple 家庭的收藏设置相互独立。
+
+灯光详情复用大号竖向调光条与百分比，窗帘详情显示独立的打开比例控制、窗帘图形和打开/停止/关闭操作；小高度/横屏可以滚动，操作不被裁切。拖动只改变本地草稿，松手提交一次；中间反馈不会拉回目标，写入确认或目标位置读回不冒充当前位置。停止按钮按自身权限独立可用，位置写入等待期间不会将它一起禁用。同一传感器的温度、湿度和电池服务合成一张卡片，详情保留各项真实读数。
+
+HomeKit 每次进入前台/选择家庭后进行有界并发初始读取，再依靠系统变化通知；没有定时轮询。状态仅来自成功读取或通知，写入目标/成功回调不冒充反馈。单个特征失败只影响自身，设备不可达清除其确认；切换家庭、后台和撤权清除旧确认，迟到回调由订阅代际及读取编号隔离；离线前的读取、被新读取替代的旧回复和新通知之前发起的读取，均不能覆盖新确认状态。写入失败/超时不自动重发；SDK 尚未回调时保持该操作的重复提交保护。未提供标准 HomeKit 特征的 HomeSense 专属功能仍属于管理/诊断入口。
+
+Apple 官方明确 HomeKit 在 Mac 上仅支持 Mac Catalyst，不能用普通 macOS 目标替代；Apple Silicon 直接运行 iPad App 也不能代替这条支持路径。项目已启用 Catalyst、关闭 Designed for iPad on Mac，保留 iPhone/iPad 目标。参见 [Apple DTS 说明](https://developer.apple.com/forums/thread/822517)、[直接运行 iPad App 的限制](https://developer.apple.com/documentation/apple-silicon/adapting-ios-code-to-run-in-the-macos-environment)。
+
+Mac Catalyst 需要原团队下具有 HomeKit 权限的签名与描述文件。旧普通 Mac App 使用文件型登录钥匙串，Catalyst 仅能使用数据保护钥匙串，因此不能宣称旧管理令牌能直接恢复；升级后若无保存项，在配置管理重新输入一次原凭证即可，旧记录不会删除，也不会导出到文件。iPhone/iPad 的凭证存储方式不变，参见 [Apple TN3137](https://developer.apple.com/documentation/technotes/tn3137-on-mac-keychains)。
+
+以下专属能力通过配置管理和诊断入口保留；旧版日常 HTTP/WSS 视图的模型与测试继续维护，但不作为新的日常入口。
 
 ## 主要功能与实现情况
 
@@ -20,13 +38,13 @@ Keypad 使用[原生接口契约](../../docs/keypad-native-api.md)中的真实�
 
 ## 构建与运行
 
-使用 Xcode 打开 `HomeSense.xcodeproj`，选择 `HomeSense` scheme 和 My Mac、iPhone 或 iPad。真机安装需选择自己的开发团队；也可创建已忽略的 `Signing.local.xcconfig`，填写 `DEVELOPMENT_TEAM = 你的团队ID`。首次连接允许本地网络访问。
+使用 Xcode 打开 `HomeSense.xcodeproj`，选择 `HomeSense` scheme 和 My Mac (Mac Catalyst)、iPhone 或 iPad。真机安装需选择自己的开发团队；也可创建已忽略的 `Signing.local.xcconfig`，填写 `DEVELOPMENT_TEAM = 你的团队ID`。首次连接允许本地网络访问。
 
 ```sh
 cd apps/HomeSense
 export HOMESENSE_BUILD_ROOT="$(cd ../.. && pwd)/target"
 bash tools/build.sh macos
-open "$HOMESENSE_BUILD_ROOT/macos/Build/Products/Debug/HomeSense.app"
+open "$HOMESENSE_BUILD_ROOT/macos/Build/Products/Debug-maccatalyst/HomeSense.app"
 
 # iPhone / iPad 无签名编译检查；真机安装通过 Xcode 配置签名。
 bash tools/build.sh ios
@@ -37,7 +55,7 @@ swift test --build-system native --scratch-path "$HOMESENSE_BUILD_ROOT/swift"
 
 工作区统一复用仓库根目录的`target/`；脚本未设置环境变量时也默认使用该目录，每个会话后续原地复用。`tools/build.sh` 将 Xcode 输出放在该根目录的平台子目录；Swift 测试和实际联调脚本分别显式传入 `--scratch-path "$HOMESENSE_BUILD_ROOT/swift"`、`--scratch "$HOMESENSE_BUILD_ROOT/swift"`，避免另建默认 `.build` 或按版本、轮次复制构建缓存。源码快照、日志和必要安装包可另存。
 
-macOS与iOS共用Git版本生成阶段：界面显示`HomeSense 1.0 Build <7位提交号>`，App目录内有未提交的改动时附加“未提交改动”。系统`CFBundleVersion`使用完整Git历史的提交计数，另存完整提交号、修改标记和App源码SHA-256指纹；同一源码提交的两端标识一致。生成的Info.plist只写入根`target/`的派生输出；构建要求完整Git检出，缺失或浅历史会明确失败。忽略的本机签名文件不计入源码指纹。
+Mac Catalyst与iOS共用Git版本生成阶段：界面显示`HomeSense 1.0 Build <7位提交号>`，App目录内有未提交的改动时附加“未提交改动”。系统`CFBundleVersion`使用完整Git历史的提交计数，另存完整提交号、修改标记和App源码SHA-256指纹；同一源码提交的两端标识一致。生成的Info.plist只写入根`target/`的派生输出；构建要求完整Git检出，缺失或浅历史会明确失败。忽略的本机签名文件不计入源码指纹。
 
 该目标的Git生成阶段需要读取版本元数据及动态变化的App源码文件集合，因此目标级关闭Xcode用户脚本沙箱；项目其他设置保留，阶段只执行仓库内固定的版本生成脚本。
 
