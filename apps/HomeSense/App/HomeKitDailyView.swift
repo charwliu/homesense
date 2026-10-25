@@ -39,6 +39,7 @@ struct HomeKitDailyView: View {
     @State private var compactColumn: NavigationSplitViewColumn = .detail
     @State private var selectedService: HomeKitServiceSelection?
     @State private var showHiddenAccessories = false
+    @State private var showRoomOrder = false
     @Environment(\.horizontalSizeClass) private var sizeClass
     @Environment(\.dynamicTypeSize) private var typeSize
     private var title: String {
@@ -145,6 +146,9 @@ struct HomeKitDailyView: View {
                             }
                             Button("隐藏配件", systemImage: "eye.slash") { showHiddenAccessories = true }
                                 .disabled(store.selectedHomeID == nil)
+                            Button("房间排序", systemImage: "arrow.up.arrow.down") { showRoomOrder = true }
+                                .disabled(store.selectedHomeID == nil || store.rooms.isEmpty)
+                                .accessibilityIdentifier("homekit.roomOrder")
                             Button("重新读取状态", systemImage: "arrow.clockwise") { store.synchronize() }
                         } label: { Image(systemName: "ellipsis.circle").font(.title3) }
                         .accessibilityLabel("家庭与状态设置")
@@ -159,11 +163,14 @@ struct HomeKitDailyView: View {
                 .sheet(isPresented: $showHiddenAccessories) {
                     HomeKitHiddenAccessoriesView(store: store)
                 }
+                .sheet(isPresented: $showRoomOrder) {
+                    HomeKitRoomOrderView(store: store)
+                }
             }
         }
         .navigationSplitViewStyle(.balanced)
         .onChange(of: route) { _, _ in compactColumn = .detail }
-        .onChange(of: store.selectedHomeID) { _, _ in route = .home; selectedService = nil }
+        .onChange(of: store.selectedHomeID) { _, _ in route = .home; selectedService = nil; showRoomOrder = false }
         .onChange(of: store.observations.generation) { _, _ in selectedService = nil }
     }
     private var header: some View {
@@ -246,6 +253,37 @@ struct HomeKitDailyView: View {
                     }.buttonStyle(.plain).disabled(store.busy.contains(scene.uniqueIdentifier))
                 }
             }
+        }
+    }
+}
+
+private struct HomeKitRoomOrderView: View {
+    @ObservedObject var store: HomeKitDailyStore
+    @Environment(\.dismiss) private var dismiss
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    ForEach(store.rooms) { room in
+                        Text(room.name).accessibilityIdentifier("homekit.roomOrder.\(room.id)")
+                    }
+                    .onMove { offsets, destination in
+                        var ids = store.rooms.map(\.id)
+                        ids.move(fromOffsets: offsets, toOffset: destination)
+                        store.setRoomOrder(ids)
+                    }
+                } footer: {
+                    Text("拖动右侧手柄调整顺序，家庭页面与房间列表会同步排列。顺序仅保存在本机当前家庭，新房间会排在末尾。")
+                }
+                Section {
+                    Button("恢复默认顺序") { store.restoreDefaultRoomOrder() }
+                        .disabled(store.roomOrder.roomIDs.isEmpty)
+                        .accessibilityIdentifier("homekit.roomOrder.reset")
+                }
+            }
+            .environment(\.editMode, .constant(.active))
+            .navigationTitle("房间排序").navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("完成") { dismiss() } } }
         }
     }
 }

@@ -284,6 +284,25 @@ impl Control {
                 _=>Err("gateway unavailable; control runtime is gated".into()),
             };
         }
+        // Diagnostics are an Admission snapshot, not work for the physical
+        // control owner. Background LED planning must not strand this read
+        // behind an unpolled foreground queue. Keep authorization, generation,
+        // shutdown checks and the existing five-second request budget.
+        if watch.is_none() && let Action::Diagnostics {controller,revision}=&action {
+            let reader=self.selection_reader.lock().map_err(|_|"diagnostic capability poisoned")?.clone();
+            if let Some(reader)=reader {
+                return Box::pin(async {
+                    let valid=||reader.active() && !self.sender.is_closed() && *revision==reader.document.revision
+                        && self.selection_reader.lock().ok().is_some_and(|slot|slot.as_ref().is_some_and(|current|std::sync::Arc::ptr_eq(current,&reader)));
+                    if !valid(){return Err("diagnostic runtime or revision expired".into());}
+                    let result=tokio::time::timeout(Duration::from_secs(5),reader.admission.diagnostics(*controller,reader.generation.clone())).await
+                        .map_err(|_|"diagnostic response timed out".to_owned())?
+                        .map(Reply::Diagnostics).map_err(|e|format!("{e:?}"));
+                    if !valid(){return Err("diagnostic runtime expired during read".into());}
+                    result
+                }).await;
+            }
+        }
         if watch.is_none() {
             let reader=self.selection_reader.lock().map_err(|_|"current state capability poisoned")?.clone();
             if let Some(reader)=reader {

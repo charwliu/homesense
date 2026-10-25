@@ -113,3 +113,30 @@ async fn selection_reader_stop_during_actor_wait_rejects_a_late_result() {
 
 #[path="coherent_selection_guard_tests.rs"]
 mod coherent;
+
+#[tokio::test]
+async fn diagnostics_bypass_an_unpolled_foreground_queue_without_executing_a_write() {
+    let f=Fixture::new().await;
+    {
+        let mut write=Box::pin(f.control.request(Action::SceneAction {controller:f.controller,revision:1,scene:"lights-on".into(),execute:true}));
+        assert!(tokio::time::timeout(Duration::from_millis(20),&mut write).await.is_err());
+        let reply=tokio::time::timeout(Duration::from_millis(200),f.control.request(Action::Diagnostics {controller:f.controller,revision:1})).await;
+        assert!(matches!(reply,Ok(Ok(Reply::Diagnostics(state))) if state.ready()),"diagnostics must not wait for the occupied control owner");
+    }
+    assert!(f.control.request(Action::Diagnostics {controller:Uuid::new_v4(),revision:1}).await.is_err());
+    assert!(f.control.request(Action::Diagnostics {controller:f.controller,revision:2}).await.is_err());
+    f.authorized.store(false,Ordering::Release);
+    assert!(f.control.request(Action::Diagnostics {controller:f.controller,revision:1}).await.is_err());
+    f.finish().await;
+}
+
+#[tokio::test]
+async fn diagnostics_reject_an_owner_closed_during_the_admission_read() {
+    let mut f=Fixture::new().await;f.hold_next.store(true,Ordering::Release);
+    let control=f.control.clone();let controller=f.controller;
+    let read=tokio::spawn(async move{control.request(Action::Diagnostics {controller,revision:1}).await});
+    let entered=tokio::time::timeout(Duration::from_secs(2),f.entered.notified()).await;
+    f.receiver.close();
+    {let (lock,wake)=&*f.release;*lock.lock().unwrap()=true;wake.notify_all();}
+    assert!(tokio::time::timeout(Duration::from_secs(2),read).await.unwrap().unwrap().is_err());assert!(entered.is_ok());f.finish().await;
+}
