@@ -26,6 +26,7 @@ import HomeSenseCore
     @Published private(set) var homes: [Choice] = []
     @Published private(set) var rooms: [Choice] = []
     @Published private(set) var favoriteIDs: Set<UUID> = []
+    @Published private(set) var visibility = HomeAccessoryVisibility()
     @Published private(set) var services: [Service] = []
     @Published private(set) var scenes: [HMActionSet] = []
     @Published private(set) var observations = HomeKitObservations()
@@ -44,6 +45,26 @@ import HomeSenseCore
     private var knownHome: HMHome? { manager?.homes.first { $0.uniqueIdentifier == selectedHomeID } }
     private let defaults = UserDefaults.standard
     var homeName: String { homes.first(where: { $0.id == selectedHomeID })?.name ?? "家庭" }
+    var displayedServices: [Service] { services.filter { !isHidden($0) } }
+    var hiddenServices: [Service] { services.filter(isHidden) }
+    func isHidden(_ item: Service) -> Bool {
+        visibility.isHidden(id: item.id, name: item.name)
+    }
+    func setHidden(_ hidden: Bool, id: UUID) {
+        guard let homeID = selectedHomeID, services.contains(where: { $0.id == id }) else { return }
+        visibility.setHidden(hidden, id: id)
+        visibility.save(homeID: homeID, defaults: defaults)
+    }
+    func setHidesLightStrips(_ hidden: Bool) {
+        guard let homeID = selectedHomeID else { return }
+        visibility.setHidesLightStrips(hidden)
+        visibility.save(homeID: homeID, defaults: defaults)
+    }
+    func restoreAllHidden() {
+        guard let homeID = selectedHomeID else { return }
+        visibility = HomeAccessoryVisibility()
+        visibility.save(homeID: homeID, defaults: defaults)
+    }
     func toggleFavorite(_ id: UUID) {
         guard let homeID = selectedHomeID, services.contains(where: { $0.id == id }) else { return }
         if !favoriteIDs.insert(id).inserted { favoriteIDs.remove(id) }
@@ -82,7 +103,7 @@ import HomeSenseCore
         guard let manager else { return }
         authorized = manager.authorizationStatus.contains(.authorized)
         guard authorized else {
-            homes = []; rooms = []; favoriteIDs = []; status = manager.authorizationStatus.contains(.determined)
+            homes = []; rooms = []; favoriteIDs = []; visibility = .init(); status = manager.authorizationStatus.contains(.determined)
                 ? "请在系统设置中允许 HomeSense 访问家庭。" : "等待系统家庭访问授权…"
             return
         }
@@ -90,12 +111,13 @@ import HomeSenseCore
         homes = manager.homes.map { Choice(id: $0.uniqueIdentifier, name: $0.name) }
         if selectedHomeID == nil, homes.count == 1 { selectedHomeID = homes[0].id }
         guard let home = knownHome else {
-            rooms = []; favoriteIDs = []
+            rooms = []; favoriteIDs = []; visibility = .init()
             status = homes.isEmpty ? "尚无 Apple 家庭，请先在家庭 App 中添加设备。" : "请选择 Apple 家庭。"
             return
         }
         defaults.set(home.uniqueIdentifier.uuidString, forKey: "homekit.daily.home")
         favoriteIDs = Set((defaults.stringArray(forKey: "homekit.daily.favorites.\(home.uniqueIdentifier)") ?? []).compactMap(UUID.init(uuidString:)))
+        visibility = .load(homeID: home.uniqueIdentifier, defaults: defaults)
         rooms = home.rooms.map { Choice(id: $0.uniqueIdentifier, name: $0.name) }.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
         home.delegate = self
         var discovered: [Service] = []

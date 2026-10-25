@@ -38,6 +38,7 @@ struct HomeKitDailyView: View {
     @State private var route: HomeKitDailyRoute? = .home
     @State private var compactColumn: NavigationSplitViewColumn = .detail
     @State private var selectedService: HomeKitServiceSelection?
+    @State private var showHiddenAccessories = false
     @Environment(\.horizontalSizeClass) private var sizeClass
     @Environment(\.dynamicTypeSize) private var typeSize
     private var title: String {
@@ -50,7 +51,7 @@ struct HomeKitDailyView: View {
     }
     private var isHome: Bool { route == .home || route == nil }
     private var visibleServices: [HomeKitDailyStore.Service] {
-        store.services.filter { item in
+        store.displayedServices.filter { item in
             switch route ?? .home {
             case .home: true
             case .favorites: store.favoriteIDs.contains(item.id)
@@ -71,14 +72,14 @@ struct HomeKitDailyView: View {
                 }
                 Section("类别") {
                     ForEach(HomeKitDailyCategory.allCases) { category in
-                        if store.services.contains(where: category.contains) {
+                        if store.displayedServices.contains(where: category.contains) {
                             sidebar(category.rawValue, symbol: category.symbol, route: .category(category))
                         }
                     }
                 }
                 Section("房间") {
                     ForEach(store.rooms) { room in sidebar(room.name, symbol: "door.left.hand.open", route: .room(room.id)) }
-                    if store.services.contains(where: { $0.roomID == nil }) {
+                    if store.displayedServices.contains(where: { $0.roomID == nil }) {
                         sidebar("未分配房间", symbol: "square.grid.2x2", route: .room(nil))
                     }
                 }
@@ -97,15 +98,23 @@ struct HomeKitDailyView: View {
                             ContentUnavailableView("选择家庭", systemImage: "house", description: Text("请从右上角的家庭菜单选择要使用的家庭。"))
                         } else if store.services.isEmpty {
                             ContentUnavailableView("暂无配件", systemImage: "lightbulb", description: Text(store.status))
+                        } else if store.displayedServices.isEmpty && (!isHome || store.scenes.isEmpty) {
+                            ContentUnavailableView {
+                                Label("配件已隐藏", systemImage: "eye.slash")
+                            } description: {
+                                Text("可在隐藏配件设置中恢复显示。")
+                            } actions: {
+                                Button("管理隐藏配件") { showHiddenAccessories = true }
+                            }
                         } else if isHome {
                             if !store.favoriteIDs.isEmpty {
-                                section("常用配件", items: store.services.filter { store.favoriteIDs.contains($0.id) }, showRoom: true)
+                                section("常用配件", items: store.displayedServices.filter { store.favoriteIDs.contains($0.id) }, showRoom: true)
                             }
                             if !store.scenes.isEmpty { scenes }
                             ForEach(store.rooms) { room in
-                                section(room.name, items: store.services.filter { $0.roomID == room.id }, destination: .room(room.id))
+                                section(room.name, items: store.displayedServices.filter { $0.roomID == room.id }, destination: .room(room.id))
                             }
-                            section("未分配房间", items: store.services.filter { $0.roomID == nil }, destination: .room(nil))
+                            section("未分配房间", items: store.displayedServices.filter { $0.roomID == nil }, destination: .room(nil))
                         } else {
                             if visibleServices.isEmpty {
                                 ContentUnavailableView(route == .favorites ? "还没有常用配件" : "暂无配件", systemImage: route == .favorites ? "star" : "square.grid.2x2", description: Text(route == .favorites ? "长按配件卡片，将常用的灯或窗帘加入这里。" : "此房间或类别暂时没有可显示的配件。"))
@@ -134,6 +143,8 @@ struct HomeKitDailyView: View {
                                 Text("选择家庭").tag(UUID?.none)
                                 ForEach(store.homes) { Text($0.name).tag(Optional($0.id)) }
                             }
+                            Button("隐藏配件", systemImage: "eye.slash") { showHiddenAccessories = true }
+                                .disabled(store.selectedHomeID == nil)
                             Button("重新读取状态", systemImage: "arrow.clockwise") { store.synchronize() }
                         } label: { Image(systemName: "ellipsis.circle").font(.title3) }
                         .accessibilityLabel("家庭与状态设置")
@@ -144,6 +155,9 @@ struct HomeKitDailyView: View {
                         HomeKitAccessoryDetails(store: store, item: item)
                             .presentationDetents([.large]).presentationDragIndicator(.visible)
                     }
+                }
+                .sheet(isPresented: $showHiddenAccessories) {
+                    HomeKitHiddenAccessoriesView(store: store)
                 }
             }
         }
@@ -156,7 +170,7 @@ struct HomeKitDailyView: View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title).font(.largeTitle.bold()).accessibilityAddTraits(.isHeader)
             HStack(spacing: 6) {
-                Text(store.authorized ? (isHome ? "\(store.rooms.count) 个房间 · \(store.services.count) 个配件" : "\(visibleServices.count) 个配件") : store.status)
+                Text(store.authorized ? (isHome ? "\(store.rooms.count) 个房间 · \(store.displayedServices.count) 个配件" : "\(visibleServices.count) 个配件") : store.status)
                     .font(.caption).foregroundStyle(.secondary)
             }
         }
@@ -168,7 +182,7 @@ struct HomeKitDailyView: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 10) {
                 ForEach(HomeKitDailyCategory.allCases) { category in
-                    if store.services.contains(where: category.contains) {
+                    if store.displayedServices.contains(where: category.contains) {
                         Button { route = .category(category) } label: {
                             HStack(spacing: 10) {
                                 Image(systemName: category.symbol).font(.title3).foregroundStyle(category == .lights ? Color.orange : .primary)
@@ -185,7 +199,7 @@ struct HomeKitDailyView: View {
         }
     }
     private func summary(_ category: HomeKitDailyCategory) -> String {
-        let items = store.services.filter(category.contains)
+        let items = store.displayedServices.filter(category.contains)
         let values = items.map(store.presentation)
         if category == .lights { return HomeAccessoryPresentation.lightSummary(values) }
         if category == .climate {
@@ -232,6 +246,50 @@ struct HomeKitDailyView: View {
                     }.buttonStyle(.plain).disabled(store.busy.contains(scene.uniqueIdentifier))
                 }
             }
+        }
+    }
+}
+
+private struct HomeKitHiddenAccessoriesView: View {
+    @ObservedObject var store: HomeKitDailyStore
+    @Environment(\.dismiss) private var dismiss
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    Toggle("隐藏“灯带”开头的配件", isOn: Binding(
+                        get: { store.visibility.hidesLightStrips },
+                        set: { store.setHidesLightStrips($0) }))
+                        .accessibilityIdentifier("homekit.hidden.lightStrips")
+                } footer: {
+                    Text("自动隐藏名称以“灯带”开头的配件，新加入的同名配件也适用。可在下方单独恢复；重新开启此规则会再次隐藏全部匹配项。")
+                }
+                Section("已隐藏的配件（\(store.hiddenServices.count)）") {
+                    if store.hiddenServices.isEmpty {
+                        Text("没有已隐藏的配件").foregroundStyle(.secondary)
+                    }
+                    ForEach(store.hiddenServices) { item in
+                        HStack {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(item.name)
+                                Text(item.room).font(.caption).foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Button("恢复显示") { store.setHidden(false, id: item.id) }
+                                .buttonStyle(.borderless)
+                                .accessibilityLabel("恢复显示\(item.name)")
+                        }
+                    }
+                }
+                Section {
+                    Button("恢复显示全部配件") { store.restoreAllHidden() }
+                        .disabled(store.visibility == HomeAccessoryVisibility())
+                } footer: {
+                    Text("仅影响本机当前家庭的显示，不改变Apple家庭、场景或墙面板控制。其他设备需分别设置。隐藏不会清除常用配件，恢复后仍保留。")
+                }
+            }
+            .navigationTitle("隐藏配件").navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("完成") { dismiss() } } }
         }
     }
 }
@@ -284,6 +342,7 @@ private struct HomeKitAccessoryTile: View {
         .contextMenu {
             Button("打开控制", systemImage: "slider.horizontal.3", action: open)
             Button(store.favoriteIDs.contains(item.id) ? "移出常用配件" : "加入常用配件", systemImage: store.favoriteIDs.contains(item.id) ? "star.slash" : "star") { store.toggleFavorite(item.id) }
+            Button("隐藏配件", systemImage: "eye.slash") { store.setHidden(true, id: item.id) }
         }
         .accessibilityIdentifier("homekit.tile.\(item.id)")
     }
