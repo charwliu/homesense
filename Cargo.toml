@@ -4,6 +4,7 @@ resolver = "2"
 exclude = ["vendor/hap"]
 
 [workspace.package]
+license = "Apache-2.0"
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.99"

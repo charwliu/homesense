@@ -66,3 +66,7 @@ cargo run --locked -p homesensed -- serve-automation-simulation config/simulatio
 - [Keypad 接口](docs/keypad-native-api.md) · [场景入口](docs/scene-presentations.md) · [组件活动](docs/scene-component-activity.md)
 - [NanoPi 部署](deployment/nanopi/README.md) · [网络架构](docs/network-architecture.md) · [网络配置](docs/network-configuration-runbook.md)
 - [接管结项清单](docs/control4-takeover-checklist.md) · [更新记录](CHANGELOG.md) · [参考资料](reference/README.md)
+
+## 许可
+
+本项目采用 [Apache License 2.0](LICENSE)。第三方代码遵循各自的许可声明。
