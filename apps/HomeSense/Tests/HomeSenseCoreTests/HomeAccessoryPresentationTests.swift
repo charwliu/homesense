@@ -3,6 +3,14 @@ import Testing
 @testable import HomeSenseCore
 
 @Suite struct HomeAccessoryPresentationTests {
+    @Test func binaryFanHasPowerFeedbackWithoutTemperatureOrBrightness() {
+        let on = HomeAccessoryPresentation(kind: .fan, value: .boolean(true), brightness: 100)
+        #expect(on.isActive && on.status == "开启" && on.on == true)
+        #expect(HomeAccessoryKind.fan.symbol == "fan.fill")
+        #expect(HomeAccessoryPresentation(kind: .fan, value: .boolean(false)).status == "关闭")
+        #expect(HomeAccessoryPresentation(kind: .fan, value: nil).status == "状态未知")
+        #expect(HomeAccessoryPresentation(kind: .fan, value: .boolean(true), reachable: false).status == "未响应")
+    }
     @Test func rememberedBrightnessCannotTurnAnOffOrUnknownLightOn() {
         let off = HomeAccessoryPresentation(kind: .light, value: .boolean(false), brightness: 100)
         #expect(off.status == "关闭" && !off.isActive)

@@ -8,6 +8,7 @@ pub struct PreparedBridge {
     pub identity: homesense_hap::storage::IdentityStore,
     pub lights: BTreeSet<homesense_core::DeviceId>,
     pub panels: Vec<homesense_core::DeviceId>,
+    pub fans: BTreeSet<homesense_core::DeviceId>,
 }
 fn private_directory(path: &Path) -> Result<(), String> {
     match std::fs::symlink_metadata(path) {
@@ -53,6 +54,7 @@ pub async fn prepare(
             identity,
             lights: bridge.selected_lights(config),
             panels: bridge.panels.clone(),
+            fans: bridge.fans.iter().cloned().collect(),
         });
     }
     Ok(prepared)

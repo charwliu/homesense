@@ -9,6 +9,7 @@ use hap::{
     Error, HapType, Result,
     accessory::{
         AccessoryInformation, HapAccessory, bridge::BridgeAccessory, lightbulb::LightbulbAccessory,
+        fan::FanAccessory,
     },
     characteristic::HapCharacteristic,
 };
@@ -25,6 +26,7 @@ pub struct LightSpec {
 pub struct LightGraph {
     pub bridge: BridgeAccessory,
     pub lights: BTreeMap<DeviceId, LightbulbAccessory>,
+    pub fans: BTreeMap<DeviceId, FanAccessory>,
     pub bindings: Vec<LightBinding>,
 }
 pub(crate) fn information(aid: u64, name: &str) -> AccessoryInformation {
@@ -52,6 +54,14 @@ fn light(aid: u64, spec: &LightSpec) -> Result<LightbulbAccessory> {
         light.lightbulb.brightness = None;
     }
     Ok(light)
+}
+fn fan(aid: u64, spec: &LightSpec) -> Result<FanAccessory> {
+    let mut fan = FanAccessory::new(aid, information(aid, &spec.name))?;
+    // Relay-driven exhaust fans expose On only, never speed or direction.
+    fan.fan.name = None;
+    fan.fan.rotation_direction = None;
+    fan.fan.rotation_speed = None;
+    Ok(fan)
 }
 fn type_key(kind: HapType) -> Result<String> {
     // The wire UUID, never Debug output or generated enumeration order.
@@ -110,6 +120,14 @@ impl LightGraph {
         bridge_name: &str,
         specs: Vec<LightSpec>,
     ) -> Result<Self> {
+        Self::build_with_fans(store, bridge_name, specs, BTreeSet::new()).await
+    }
+    pub async fn build_with_fans(
+        store: &IdentityStore,
+        bridge_name: &str,
+        specs: Vec<LightSpec>,
+        fan_ids: BTreeSet<DeviceId>,
+    ) -> Result<Self> {
         let valid_name = |name: &str| {
             !name.trim().is_empty() && name.len() <= 64 && !name.chars().any(char::is_control)
         };
@@ -126,6 +144,9 @@ impl LightGraph {
                 return Err(Error::Storage);
             }
         }
+        if fan_ids.iter().any(|id| sorted.get(id).is_none_or(|s|s.dimmable || s.default_on_level.is_some())) {
+            return Err(Error::Storage);
+        }
         let mut bridge = BridgeAccessory::new(1, information(1, bridge_name))?;
         let mut definitions = vec![AccessoryDefinition {
             key: AccessoryKey::Bridge,
@@ -134,15 +155,24 @@ impl LightGraph {
         for spec in sorted.values() {
             definitions.push(AccessoryDefinition {
                 key: AccessoryKey::Device(spec.device.clone()),
-                resources: resources(&light(2, spec)?)?,
+                resources: if fan_ids.contains(&spec.device) {resources(&fan(2, spec)?)?} else {resources(&light(2, spec)?)?},
             });
         }
         let ids = store.allocate_identifiers(definitions).await?;
         install(&mut bridge, &ids[&AccessoryKey::Bridge])?;
         let mut lights = BTreeMap::new();
+        let mut fans = BTreeMap::new();
         let mut bindings = Vec::new();
         for (device, spec) in sorted {
             let ids = &ids[&AccessoryKey::Device(device.clone())];
+            if fan_ids.contains(&device) {
+                let mut accessory = fan(ids.aid, &spec)?;
+                install(&mut accessory, ids)?;
+                bindings.push(LightBinding {device:device.clone(),aid:ids.aid,
+                    on_iid:accessory.fan.power_state.get_id(),brightness_iid:None,default_on_level:None});
+                fans.insert(device,accessory);
+                continue;
+            }
             let mut accessory = light(ids.aid, &spec)?;
             install(&mut accessory, ids)?;
             bindings.push(LightBinding {
@@ -157,6 +187,7 @@ impl LightGraph {
         Ok(Self {
             bridge,
             lights,
+            fans,
             bindings,
         })
     }

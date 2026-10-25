@@ -2,6 +2,42 @@ import Testing
 @testable import HomeSenseCore
 
 @Suite struct HomeBrightnessInteractionTests {
+    @Test func aDragLatchesAndKeepsItsInitialLevelUntilTheTouchEnds() {
+        var touch = HomeBrightnessInteraction.Touch(level: 80)
+        #expect(touch.move(horizontal: 1, vertical: 2, extent: 300) == nil)
+        #expect(!touch.isDragging)
+        #expect(touch.move(horizontal: 0, vertical: 30, extent: 300) == 70)
+        #expect(touch.isDragging)
+        #expect(touch.move(horizontal: 0, vertical: 129, extent: 300) == 37)
+        #expect(touch.move(horizontal: 0, vertical: 0, extent: 300) == 80)
+        #expect(touch.isDragging, "returning to the starting point must not fire a tap")
+        #expect(touch.move(horizontal: 0, vertical: -300, extent: 300) == 100)
+        #expect(touch.move(horizontal: 0, vertical: 300, extent: 300) == 0)
+    }
+    @Test func invalidDragGeometryDoesNotBeginAnEdit() {
+        for height in [0.0, -1, .infinity, .nan] {
+            var touch = HomeBrightnessInteraction.Touch(level: 50)
+            #expect(touch.move(horizontal: 0, vertical: 30, extent: height) == nil)
+            #expect(!touch.isDragging)
+        }
+    }
+    @Test func horizontalCurtainTouchUsesWidthAndRightIncreasesOpening() {
+        var touch = HomeBrightnessInteraction.Touch(level: 50, axis: .horizontal)
+        #expect(touch.move(horizontal: 40, vertical: 0, extent: 200) == 70)
+        #expect(touch.move(horizontal: -40, vertical: 0, extent: 200) == 30)
+        #expect(touch.move(horizontal: 300, vertical: 0, extent: 200) == 100)
+        #expect(touch.move(horizontal: -300, vertical: 0, extent: 200) == 0)
+        #expect(HomeBrightnessInteraction.tappedLevel(position: 140, extent: 200, axis: .horizontal) == 70)
+        #expect(HomeBrightnessInteraction.tappedLevel(position: 0, extent: 200, axis: .horizontal) == 0)
+        #expect(HomeBrightnessInteraction.tappedLevel(position: 200, extent: 200, axis: .horizontal) == 100)
+    }
+    @Test func perpendicularMovementIsNotMisclassifiedAsATapOrAnEdit() {
+        var touch = HomeBrightnessInteraction.Touch(level: 50, axis: .horizontal)
+        #expect(touch.move(horizontal: 0, vertical: 60, extent: 200) == nil)
+        #expect(touch.hasMoved && !touch.isDragging)
+        #expect(touch.move(horizontal: 0, vertical: 0, extent: 200) == nil)
+        #expect(touch.hasMoved && !touch.isDragging)
+    }
     @Test func tapsSelectEveryTenPercentStopFromBottomToTop() {
         for level in stride(from: 0, through: 100, by: 10) {
             let position = Double(100 - level) * 3

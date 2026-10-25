@@ -128,6 +128,18 @@ impl Endpoint {
         selected_lights:Option<std::collections::BTreeSet<homesense_core::DeviceId>>,
         selected_panels:&[homesense_core::DeviceId],
     )->Result<Option<Self>,String> {
+        Self::start_selected_fans_panels(settings,identity,admission,controller,runtime,initial,
+            allow_listener_failure,selected_lights,selected_panels,Default::default()).await
+    }
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) async fn start_selected_fans_panels(
+        settings:&Settings,identity:&IdentityStore,admission:&Admission,
+        controller:Uuid,runtime:&AutomationRuntime,initial:homesense_state::Snapshot,
+        allow_listener_failure:bool,
+        selected_lights:Option<std::collections::BTreeSet<homesense_core::DeviceId>>,
+        selected_panels:&[homesense_core::DeviceId],
+        fan_ids:std::collections::BTreeSet<homesense_core::DeviceId>,
+    )->Result<Option<Self>,String> {
         let bundle = admission
             .automation_bundle(
                 controller,
@@ -143,13 +155,14 @@ impl Endpoint {
         if !selected_panels.is_empty() {
             log::warn!("HAP ignores legacy panel selections");
         }
-        let lights = crate::runtime_hap::RuntimeHap::new_selected_with_control(
+        let lights = crate::runtime_hap::RuntimeHap::new_selected_with_fans(
             &bundle.configuration,
             initial.clone(),
             identity,
             admission.clone(),
             bundle.configuration.refresh_policy().observation_max_age_ms(),
             selected_lights,
+            fan_ids,
             Some(runtime.control()),
         )
         .await?;

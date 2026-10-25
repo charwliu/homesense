@@ -26,6 +26,7 @@ struct Target {
     accessory: AccessoryHandle,
     last: Option<Observation>,
     last_brightness: Option<homesense_core::Percent>,
+    service_type: HapType,
 }
 /// Bounded notification suppression for locally accepted dimmer transitions.
 /// Physical observations and authenticated reads remain unchanged.
@@ -83,14 +84,14 @@ impl ObservedEvents {
             if !aids.insert(binding.aid) {
                 return Err(ProjectionError::InvalidBinding);
             }
-            {
+            let service_type = {
                 let a = accessory.lock().await;
                 if a.get_id() != binding.aid {
                     return Err(ProjectionError::InvalidBinding);
                 }
-                let service = a
-                    .get_service(HapType::Lightbulb)
-                    .ok_or(ProjectionError::InvalidBinding)?;
+                let services:Vec<_>=a.get_services().into_iter().filter(|s|matches!(s.get_type(),HapType::Lightbulb|HapType::Fan)).collect();
+                if services.len()!=1 {return Err(ProjectionError::InvalidBinding);}
+                let service=services[0];
                 if service
                     .get_characteristic(HapType::PowerState)
                     .map(|c| c.get_id())
@@ -102,7 +103,8 @@ impl ObservedEvents {
                 {
                     return Err(ProjectionError::InvalidBinding);
                 }
-            }
+                service.get_type()
+            };
             if targets
                 .insert(
                     binding.device.clone(),
@@ -111,6 +113,7 @@ impl ObservedEvents {
                         accessory,
                         last: None,
                         last_brightness: None,
+                        service_type,
                     },
                 )
                 .is_some()
@@ -182,7 +185,7 @@ impl ObservedEvents {
             return Err(ProjectionError::InvalidBinding);
         }
         let service = accessory
-            .get_mut_service(HapType::Lightbulb)
+            .get_mut_service(target.service_type)
             .ok_or(ProjectionError::InvalidBinding)?;
         if service
             .get_characteristic(HapType::PowerState)

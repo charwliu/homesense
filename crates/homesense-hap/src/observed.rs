@@ -103,6 +103,13 @@ impl LightGraph {
     /// Install before handing the graph to HAP. The grouped HTTP handler remains
     /// the only write path; per-characteristic fallback is explicitly rejected.
     pub fn install_observed_reads(&mut self, view: ObservedView) {
+        for (device, accessory) in &mut self.fans {
+            let id=device.clone();let reader=view.clone();
+            accessory.fan.power_state.on_read(Some(move ||Ok(Some(reader.power(&id,false)?))));
+            accessory.fan.power_state.on_update(Some(|_:&bool,_:&bool| {
+                Err(Box::new(ReadError::GroupedWriteRequired) as Box<dyn std::error::Error+Send+Sync>)
+            }));
+        }
         for (device, accessory) in &mut self.lights {
             let dimmable = accessory.lightbulb.brightness.is_some();
             let id = device.clone();

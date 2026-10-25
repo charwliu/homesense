@@ -28,6 +28,13 @@ import Testing
         }
     }
 
+    @Test func fanPublicationRetainsItsBridgeScopedIdentityAndRoom() throws {
+        let json = #"{"kind":"fan","id":"relay","aid":2,"serial_number":"HS-2","room_id":"equipment"}"#
+        let accessory = try JSONDecoder().decode(P.PublishedAccessory.self, from: Data(json.utf8))
+        #expect(accessory.kind == .fan && accessory.serialNumber == "HS-2" && accessory.roomID == "equipment")
+        #expect(try JSONDecoder().decode(P.PublishedAccessory.self, from: JSONEncoder().encode(accessory)) == accessory)
+    }
+
     @Test func identicalAIDsSerialsAndNamesRemainScopedToExplicitNativeBridgeAndRoomIDs() throws {
         let f = Fixture(), preview = try f.plan()
         #expect(preview.issues.isEmpty && preview.pendingAssignments.count == 2)

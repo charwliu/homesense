@@ -5,7 +5,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "snake_case")]
-pub enum Kind { Light, Scene, Curtain }
+pub enum Kind { Light, Fan, Scene, Curtain }
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 pub struct Accessory {
@@ -56,7 +56,7 @@ pub(crate) fn installed_accessories(
     let mut rows=vec![];
     for (binding,_) in &graph.lights.lights {
         let device=config.devices().get(&binding.device).ok_or("published light missing")?;
-        rows.push(Accessory {kind:Kind::Light,id:binding.device.as_str().into(),aid:binding.aid,
+        rows.push(Accessory {kind:if graph.lights.fan_ids.contains(&binding.device){Kind::Fan}else{Kind::Light},id:binding.device.as_str().into(),aid:binding.aid,
             serial_number:format!("HS-{}",binding.aid),room_id:device.room.clone()});
     }
     if let Some(scenes)=&graph.scenes {

@@ -21,7 +21,7 @@ public enum HomeKitRoomPlacement {
         }
         return modelAID.map { "HS-\($0)" }
     }
-    public enum Kind: String, Codable, Hashable, Sendable { case light, scene, curtain }
+    public enum Kind: String, Codable, Hashable, Sendable { case light, fan, scene, curtain }
 
     public struct Source: Codable, Hashable, Sendable {
         private enum CodingKeys: String, CodingKey { case bridgeID = "bridge_id", kind, id }

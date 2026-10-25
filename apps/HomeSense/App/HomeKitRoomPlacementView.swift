@@ -188,7 +188,7 @@ struct HomeKitRoomPlacementView: View {
     }
     private func sourceName(_ source: P.Source) -> String {
         switch source.kind {
-        case .light, .curtain: return home.devices.first { $0.id == source.id }?.name ?? "配件"
+        case .light, .fan, .curtain: return home.devices.first { $0.id == source.id }?.name ?? "配件"
         case .scene: return home.scenes.first { $0.id == source.id }?.name ?? "场景"
         }
     }

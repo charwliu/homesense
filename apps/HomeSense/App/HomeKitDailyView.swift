@@ -18,12 +18,12 @@ enum HomeKitDailyCategory: String, CaseIterable, Identifiable {
     }
     @MainActor func contains(_ item: HomeKitDailyStore.Service) -> Bool {
         switch self {
-        case .climate: [.temperature, .humidity].contains(item.kind)
+        case .climate: [.fan, .temperature, .humidity].contains(item.kind)
         case .lights: item.kind == .light
         case .security: [.motion, .contact].contains(item.kind)
         case .curtains: item.kind == .curtain
         case .switches: item.kind == .switchControl
-        case .sensors: ![.light, .switchControl, .curtain].contains(item.kind)
+        case .sensors: ![.light, .fan, .switchControl, .curtain].contains(item.kind)
         }
     }
 }
@@ -304,6 +304,7 @@ private struct HomeKitAccessoryTile: View {
     var kind: HomeAccessoryKind {
         if service.serviceType == HMServiceTypeLightbulb { return .light }
         if service.serviceType == HMServiceTypeWindowCovering { return .curtain }
+        if service.serviceType == HMServiceTypeFan { return .fan }
         if power != nil { return .switchControl }
         if service.characteristics.contains(where: { $0.characteristicType == HMCharacteristicTypeMotionDetected || $0.characteristicType == HMCharacteristicTypeOccupancyDetected }) { return .motion }
         if service.characteristics.contains(where: { $0.characteristicType == HMCharacteristicTypeContactState }) { return .contact }
@@ -318,7 +319,7 @@ private struct HomeKitAccessoryTile: View {
     var observation: HMCharacteristic? {
         let type: String
         switch kind {
-        case .light, .switchControl: return power
+        case .light, .fan, .switchControl: return power
         case .curtain: return currentPosition
         case .temperature: type = HMCharacteristicTypeCurrentTemperature
         case .humidity: type = HMCharacteristicTypeCurrentRelativeHumidity

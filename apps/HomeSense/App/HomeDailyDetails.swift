@@ -228,6 +228,50 @@ extension HomeRecord {
     }
 }
 
+/// A single recognizer owns touches inside the control, ahead of page scrolling.
+/// A tap recognizer placed first in an ExclusiveGesture can swallow the drag.
+struct HomeLevelControlGesture: ViewModifier {
+    let level: Double
+    let extent: Double
+    let available: Bool
+    var axis: HomeBrightnessInteraction.Axis = .vertical
+    var adjustable = true
+    let change: (Double) -> Void
+    let editingChanged: (Bool) -> Void
+    var toggle: () -> Void = {}
+    @State private var touch: HomeBrightnessInteraction.Touch?
+
+    func body(content: Content) -> some View {
+        content.highPriorityGesture(DragGesture(minimumDistance: 0)
+            .onChanged(update)
+            .onEnded { value in
+                update(value)
+                guard let finished = touch else { return }
+                touch = nil
+                if finished.isDragging {
+                    if adjustable { editingChanged(false) }
+                } else if available && !finished.hasMoved {
+                    if adjustable {
+                        guard let target = HomeBrightnessInteraction.tappedLevel(
+                            position: axis == .vertical ? value.location.y : value.location.x,
+                            extent: extent, axis: axis) else { return }
+                        editingChanged(true); change(target); editingChanged(false)
+                    } else { toggle() }
+                }
+            })
+    }
+
+    private func update(_ value: DragGesture.Value) {
+        guard available else { return }
+        if touch == nil { touch = .init(level: level, axis: axis) }
+        let wasDragging = touch?.isDragging == true
+        guard let target = touch?.move(horizontal: value.translation.width,
+            vertical: value.translation.height, extent: extent), adjustable else { return }
+        if !wasDragging { editingChanged(true) }
+        change(target)
+    }
+}
+
 /// A native light surface: the local target follows the gesture while actual
 /// feedback has a stable, separate line. No network code lives in this view.
 struct HomeLightControlSurface: View {
@@ -244,7 +288,6 @@ struct HomeLightControlSurface: View {
     let toggle: () -> Void
     let settings: () -> Void
     let close: () -> Void
-    @State private var dragStart: Double?
 
     var body: some View {
         GeometryReader { geometry in
@@ -283,23 +326,9 @@ struct HomeLightControlSurface: View {
                         .frame(width: width, height: height)
                         .shadow(color: .black.opacity(0.08), radius: 12, y: 6)
                         .contentShape(RoundedRectangle(cornerRadius: width * 0.35))
-                        .gesture(SpatialTapGesture().onEnded { gesture in
-                            guard available else { return }
-                            if adjustable {
-                                guard let target = HomeBrightnessInteraction.tappedLevel(
-                                    verticalPosition: Double(gesture.location.y), height: Double(height)) else { return }
-                                editingChanged(true); change(target); editingChanged(false)
-                            } else { toggle() }
-                        }.exclusively(before: DragGesture(minimumDistance: 3)
-                            .onChanged { gesture in
-                                guard available, adjustable else { return }
-                                if dragStart == nil { dragStart = level; editingChanged(true) }
-                                change(min(100, max(0, (dragStart ?? level) - Double(gesture.translation.height / height) * 100)))
-                            }
-                            .onEnded { _ in
-                                guard dragStart != nil else { return }
-                                dragStart = nil; editingChanged(false)
-                            }))
+                        .modifier(HomeLevelControlGesture(level: level, extent: height,
+                            available: available, adjustable: adjustable, change: change,
+                            editingChanged: editingChanged, toggle: toggle))
                         .animation(editing ? nil : .easeOut(duration: 0.18), value: level)
                         .opacity(available ? 1 : 0.60)
                         .accessibilityElement(children: .ignore)

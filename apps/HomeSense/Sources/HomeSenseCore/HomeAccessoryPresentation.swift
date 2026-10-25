@@ -1,10 +1,11 @@
 import Foundation
 
 public enum HomeAccessoryKind: String, Sendable {
-    case light, switchControl, curtain, temperature, humidity, motion, contact, illuminance, battery, sensor
+    case light, fan, switchControl, curtain, temperature, humidity, motion, contact, illuminance, battery, sensor
     public var symbol: String {
         switch self {
         case .light: "lightbulb.fill"
+        case .fan: "fan.fill"
         case .switchControl: "power"
         case .curtain: "curtains.closed"
         case .temperature: "thermometer.medium"
@@ -40,7 +41,7 @@ public struct HomeAccessoryPresentation: Equatable, Sendable {
     public var isActive: Bool {
         guard reachable else { return false }
         switch kind {
-        case .light, .switchControl, .motion: return on == true
+        case .light, .fan, .switchControl, .motion: return on == true
         case .curtain: return number.map { $0 > 0 && $0 <= 100 } ?? false
         default: return false
         }
@@ -53,7 +54,7 @@ public struct HomeAccessoryPresentation: Equatable, Sendable {
             guard on == true else { return "关闭" }
             if let brightness, brightness.isFinite, (0...100).contains(brightness) { return "\(Int(brightness.rounded()))%" }
             return "开启"
-        case .switchControl: return on == true ? "开启" : "关闭"
+        case .fan, .switchControl: return on == true ? "开启" : "关闭"
         case .curtain:
             guard (0...100).contains(number) else { return "状态未知" }
             if number == 0 { return "已关闭" }

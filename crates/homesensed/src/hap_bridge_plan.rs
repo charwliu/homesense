@@ -20,6 +20,9 @@ pub struct Bridge {
     pub address: SocketAddr,
     #[serde(default, deserialize_with = "device_ids")]
     pub lights: Vec<DeviceId>,
+    /// Explicit binary fans; never inferred from a name or bus address.
+    #[serde(default, deserialize_with = "device_ids")]
+    pub fans: Vec<DeviceId>,
     /// Publish every visible logical light, including reviewed composed lights.
     #[serde(default)]
     pub all_lights: bool,
@@ -46,7 +49,8 @@ pub fn all_light_ids(config: &homesense_config::Configuration) -> BTreeSet<Devic
 }
 impl Bridge {
     pub fn selected_lights(&self, config: &homesense_config::Configuration) -> BTreeSet<DeviceId> {
-        if self.all_lights { all_light_ids(config) } else { self.lights.iter().cloned().collect() }
+        let mut selected=if self.all_lights { all_light_ids(config) } else { self.lights.iter().cloned().collect() };
+        selected.extend(self.fans.iter().cloned());selected
     }
 }
 fn device_ids<'de, D: serde::Deserializer<'de>>(
@@ -153,7 +157,7 @@ impl Plan {
             if !ids.insert(&bridge.id) || !addresses.insert(bridge.address) {
                 return Err("duplicate HAP bridge id or endpoint".into());
             }
-            if bridge.lights.is_empty() && !bridge.all_lights && bridge.scenes.is_empty() && bridge.motors.is_empty() && bridge.panels.is_empty() {
+            if bridge.lights.is_empty() && bridge.fans.is_empty() && !bridge.all_lights && bridge.scenes.is_empty() && bridge.motors.is_empty() && bridge.panels.is_empty() {
                 return Err("empty HAP bridge publication".into());
             }
             if bridge.all_lights && !bridge.lights.is_empty() {
@@ -161,6 +165,12 @@ impl Plan {
             }
             if bridge.lights.iter().collect::<BTreeSet<_>>().len() != bridge.lights.len() {
                 return Err("duplicate HAP light selection".into());
+            }
+            if bridge.fans.iter().collect::<BTreeSet<_>>().len()!=bridge.fans.len()
+                || bridge.fans.iter().any(|id|bridge.lights.contains(id)
+                    || !config.binding(id).is_some_and(|(_,m)|m.kind()==ModuleKind::Switch)
+                    || config.shared_light(id).is_some() || config.composed_resource(id).is_some()) {
+                return Err("HAP fans require unique independent relay switches".into());
             }
             let settings = crate::hap_endpoint::Settings {
                 address: bridge.address,
@@ -219,6 +229,21 @@ impl Plan {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn fan_selection_is_explicit_switch_only_and_exclusive_across_bridges() {
+        let raw=serde_json::json!({"schema_version":2,"revision":1,"rooms":[{"id":"room","name":"Room"}],
+            "gateways":[{"id":"bus","endpoint":"127.0.0.1:1","modules":[{"id":"relay","address":"31","profile":"r8i8_din_pro_v2_7_7","verification":{"status":"simulated"}},{"id":"dimmer","address":"32","profile":"ad8_din_rs485_v2_2_1","verification":{"status":"simulated"}}]}],
+            "devices":[{"id":"fan","name":"Relay","room":"room","module_id":"relay","channel":1,"enabled":true},{"id":"lamp","name":"Lamp","room":"room","module_id":"dimmer","channel":1,"enabled":true}]});
+        let config=homesense_config::Configuration::parse(&serde_json::to_vec(&raw).unwrap(),homesense_core::ExecutionContext::Simulation).unwrap();
+        let doc=homesense_config::rule_document::Document::parse(br#"{"schema_version":1,"configuration_revision":1,"variables":[],"rules":[]}"#,&config).unwrap();
+        let base=serde_json::json!({"schema_version":1,"bridges":[{"id":"one","name":"Test","address":"127.0.0.1:51826","fans":["fan"]}]});
+        let parse=|v:&serde_json::Value|Plan::parse(&serde_json::to_vec(v).unwrap(),&config,&doc);
+        let plan=parse(&base).unwrap();assert_eq!(plan.bridges[0].selected_lights(&config),[DeviceId::new("fan").unwrap()].into());
+        let mut all=base.clone();all["bridges"][0]["all_lights"]=true.into();assert_eq!(parse(&all).unwrap().bridges[0].selected_lights(&config).len(),2);
+        for fans in [serde_json::json!(["fan","fan"]),serde_json::json!(["lamp"]),serde_json::json!(["missing"])] {let mut bad=base.clone();bad["bridges"][0]["fans"]=fans;assert!(parse(&bad).is_err());}
+        let mut duplicate=base.clone();duplicate["bridges"][0]["lights"]=serde_json::json!(["fan"]);assert!(parse(&duplicate).is_err());
+        let mut cross=base.clone();cross["bridges"].as_array_mut().unwrap().push(serde_json::json!({"id":"two","name":"Other","address":"127.0.0.1:51827","lights":["fan"]}));assert!(parse(&cross).is_err());
+    }
     #[test]
     fn all_lights_selects_composed_and_ordinary_without_raw_supply() {
         let raw=serde_json::json!({"schema_version":2,"revision":1,

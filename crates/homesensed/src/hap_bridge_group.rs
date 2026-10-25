@@ -51,7 +51,7 @@ impl Group {
         let mut statuses = BTreeMap::new();
         let mut placements=vec![];
         for bridge in prepared {
-            match Endpoint::start_selected_panels(
+            match Endpoint::start_selected_fans_panels(
                 &bridge.settings,
                 &bridge.identity,
                 admission,
@@ -61,6 +61,7 @@ impl Group {
                 true,
                 Some(bridge.lights),
                 &bridge.panels,
+                bridge.fans,
             )
             .await
             {

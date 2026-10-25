@@ -58,6 +58,7 @@ pub struct RuntimeHap {
     pub bridge: AccessoryHandle,
     pub lights: Vec<(LightBinding, AccessoryHandle)>,
     pub write_handler: Arc<dyn WriteBatchHandler>,
+    pub(crate) fan_ids: std::collections::BTreeSet<homesense_core::DeviceId>,
     admission: Admission,
     current_control:Option<crate::automation_control::Control>,
     snapshot: Arc<RwLock<Snapshot>>,
@@ -123,9 +124,24 @@ impl RuntimeHap {
         selected:Option<std::collections::BTreeSet<homesense_core::DeviceId>>,
         control:Option<crate::automation_control::Control>,
     )->Result<Self,String> {
+        Self::new_selected_with_fans(configuration,initial,store,admission,max_age_ms,selected,
+            std::collections::BTreeSet::new(),control).await
+    }
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) async fn new_selected_with_fans(
+        configuration:&Configuration,initial:Snapshot,store:&IdentityStore,
+        admission:Admission,max_age_ms:u64,
+        selected:Option<std::collections::BTreeSet<homesense_core::DeviceId>>,
+        fan_ids:std::collections::BTreeSet<homesense_core::DeviceId>,
+        control:Option<crate::automation_control::Control>,
+    )->Result<Self,String> {
         let current_control=control.clone();
         let unspecified = selected.is_none();
         let selected = selected.unwrap_or_else(||crate::hap_bridge_plan::all_light_ids(configuration));
+        if !fan_ids.is_subset(&selected) || fan_ids.iter().any(|id| {
+            configuration.shared_light(id).is_some() || configuration.composed_resource(id).is_some()
+                || !configuration.binding(id).is_some_and(|(_,m)|m.kind()==ModuleKind::Switch)
+        }) {return Err("HAP fans require selected independent relay switches".into());}
         let supplies:std::collections::BTreeSet<_>=configuration.devices().values().filter(|d|d.enabled).filter_map(|d|d.supply_relay.as_ref()).collect();
         if selected.iter().any(|id|supplies.contains(id)
             || !configuration.binding(id).is_some_and(|(_,module)|matches!(module.kind(),ModuleKind::Switch|ModuleKind::Dimmer))
@@ -196,7 +212,7 @@ impl RuntimeHap {
             .map_err(error)?
             .with_restore_levels(restore_levels.clone());
         let bridge_name=hap::storage::Storage::load_config(store).await.map_err(error)?.name;
-        let mut graph = LightGraph::build(store, &bridge_name, specs)
+        let mut graph = LightGraph::build_with_fans(store, &bridge_name, specs,fan_ids.clone())
             .await
             .map_err(error)?;
         graph.install_observed_reads(view.clone());
@@ -210,11 +226,9 @@ impl RuntimeHap {
         let identity = store.clone();
         let mut lights = Vec::new();
         for binding in graph.bindings {
-            let light = graph
-                .lights
-                .remove(&binding.device)
-                .ok_or("graph binding missing")?;
-            let handle: AccessoryHandle = Arc::new(hap::futures::lock::Mutex::new(Box::new(light)));
+            let accessory:Box<dyn hap::accessory::HapAccessory>=if let Some(fan)=graph.fans.remove(&binding.device) {Box::new(fan)}
+                else {Box::new(graph.lights.remove(&binding.device).ok_or("graph binding missing")?)};
+            let handle: AccessoryHandle = Arc::new(hap::futures::lock::Mutex::new(accessory));
             lights.push((binding, handle));
         }
         let mut projection = ObservedEvents::new(lights.clone(), max_age_ms)
@@ -280,6 +294,7 @@ impl RuntimeHap {
             bridge: Arc::new(hap::futures::lock::Mutex::new(Box::new(graph.bridge))),
             lights,
             write_handler,
+            fan_ids,
             admission,
             snapshot,
             projection,
@@ -955,3 +970,7 @@ mod logical_write_tests {
         assert!(logical_command(&[(ordinary,command)],&protected).unwrap().is_none());
     }
 }
+
+#[cfg(test)]
+#[path="runtime_fan_hap_tests.rs"]
+mod fan_tests;

@@ -269,7 +269,6 @@ struct HomeCurtainControlSurface: View {
     let shut: () -> Void
     let information: () -> Void
     let close: () -> Void
-    @State private var dragStart: Double?
     var body: some View {
         GeometryReader { geometry in
             let height = min(320.0, max(130.0, geometry.size.height - 490))
@@ -324,20 +323,12 @@ struct HomeCurtainControlSurface: View {
         .frame(width: width, height: height).clipShape(RoundedRectangle(cornerRadius: 30))
         .overlay { RoundedRectangle(cornerRadius: 30).strokeBorder(.white.opacity(0.16), lineWidth: 1) }
         .contentShape(RoundedRectangle(cornerRadius: 30))
-        .gesture(SpatialTapGesture().onEnded { gesture in
-            guard available, let target = HomeBrightnessInteraction.tappedLevel(verticalPosition: Double(gesture.location.y), height: height) else { return }
-            editingChanged(true); change(target); editingChanged(false)
-        }.exclusively(before: DragGesture(minimumDistance: 3).onChanged { gesture in
-            guard available else { return }
-            if dragStart == nil { dragStart = level; editingChanged(true) }
-            change(min(100, max(0, (dragStart ?? level) - Double(gesture.translation.height) / height * 100)))
-        }.onEnded { _ in
-            guard dragStart != nil else { return }
-            dragStart = nil; editingChanged(false)
-        }))
+        .modifier(HomeLevelControlGesture(level: level, extent: width, available: available, axis: .horizontal,
+            change: change, editingChanged: editingChanged))
         .animation(editing ? nil : .easeOut(duration: 0.2), value: level)
         .opacity(available ? 1 : 0.55)
         .accessibilityElement(children: .ignore).accessibilityLabel(name + "打开比例").accessibilityValue(levelDescription + "，" + feedback)
+        .accessibilityHint("左右拖动调整打开比例，向右打开更多；轻点选择百分之十档位")
         .accessibilityAdjustableAction { direction in
             guard available else { return }
             editingChanged(true)
