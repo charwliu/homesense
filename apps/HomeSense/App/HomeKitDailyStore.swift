@@ -18,7 +18,8 @@ import HomeSenseCore
             return ([service] + related).flatMap(\.characteristics).filter { seen.insert($0.uniqueIdentifier).inserted }
         }
         var id: UUID { service.uniqueIdentifier }
-        var name: String { related.isEmpty ? service.name : accessory.name }
+        // Apple Home names tiles by service, including a grouped sensor's primary service.
+        var name: String { service.name }
         var room: String { accessory.room?.name ?? "未分配房间" }
         var roomID: UUID? { accessory.room?.uniqueIdentifier }
     }
@@ -31,6 +32,7 @@ import HomeSenseCore
     @Published private(set) var status = "允许访问 Apple 家庭后，即可查看和控制家庭设备。"
     @Published private(set) var error: String?
     @Published private(set) var busy: Set<UUID> = []
+    @Published private(set) var renaming: Set<UUID> = []
     @Published private(set) var authorized = false
     @Published private(set) var selectedHomeID: UUID?
     private var manager: HMHomeManager?
@@ -221,6 +223,53 @@ import HomeSenseCore
             && characteristic.properties.contains(HMCharacteristicPropertyWritable)
             && !busy.contains(characteristic.uniqueIdentifier)
     }
+    func canRename(_ item: Service) -> Bool {
+        guard active, authorized, manager?.authorizationStatus.contains(.authorized) == true,
+              let home = knownHome, home.homeAccessControl(for: home.currentUser).isAdministrator,
+              home.accessories.contains(where: { $0 === item.accessory }),
+              services.contains(where: { $0.id == item.id && $0.service === item.service }),
+              !renaming.contains(item.accessory.uniqueIdentifier) else { return false }
+        // Names are HomeKit metadata; an offline accessory can still be renamed.
+        return true
+    }
+    func rename(_ name: String, in item: Service) async throws -> String {
+        guard !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw NameFailure.empty
+        }
+        guard canRename(item), let homeID = selectedHomeID else { throw NameFailure.permissionOrPending }
+        if name == item.name { return item.name }
+        let id = item.accessory.uniqueIdentifier, generation = observations.generation
+        renaming.insert(id)
+        try await wait { done in
+            let completion: @Sendable (Error?) -> Void = { [weak self] error in
+                Task { @MainActor in
+                    self?.renaming.remove(id)
+                    if error == nil { self?.accessoryNamesChanged(item.accessory, generation: generation) }
+                    done(error)
+                }
+            }
+            // Keep display, write and confirmation on the same HomeKit service.
+            // The device name and other grouped sensor service names remain independent.
+            item.service.updateName(name, completionHandler: completion)
+        }
+        guard active, selectedHomeID == homeID, observations.generation == generation,
+              manager?.authorizationStatus.contains(.authorized) == true,
+              knownHome?.accessories.contains(where: { $0 === item.accessory }) == true else {
+            throw NameFailure.contextChanged
+        }
+        accessoryNamesChanged(item.accessory, generation: generation)
+        return item.name
+    }
+    private enum NameFailure: LocalizedError {
+        case empty, permissionOrPending, contextChanged
+        var errorDescription: String? {
+            switch self {
+            case .empty: "名称不能为空。"
+            case .permissionOrPending: "需要 Apple 家庭的编辑权限，且上一次名称请求已完成。"
+            case .contextChanged: "家庭或访问权限已变化，请在原家庭中重新核对名称。"
+            }
+        }
+    }
     @discardableResult func write(_ value: Any, to characteristic: HMCharacteristic, in item: Service) async -> Bool {
         guard canWrite(characteristic, in: item) else { return false }
         let id = characteristic.uniqueIdentifier, generation = observations.generation
@@ -264,6 +313,13 @@ import HomeSenseCore
     nonisolated func home(_ home: HMHome, didAdd actionSet: HMActionSet) { Task { @MainActor in self.synchronize() } }
     nonisolated func home(_ home: HMHome, didRemove actionSet: HMActionSet) { Task { @MainActor in self.synchronize() } }
     nonisolated func homeDidUpdateActionSets(_ home: HMHome) { Task { @MainActor in self.synchronize() } }
+    nonisolated func homeDidUpdateAccessControl(forCurrentUser home: HMHome) { Task { @MainActor in self.objectWillChange.send() } }
+    fileprivate func accessoryNamesChanged(_ accessory: HMAccessory, generation: UUID) {
+        guard active, observations.generation == generation,
+              knownHome?.accessories.contains(where: { $0 === accessory }) == true else { return }
+        // Metadata updates must not clear confirmed device states or restart reads.
+        services.sort { ($0.room + $0.name).localizedStandardCompare($1.room + $1.name) == .orderedAscending }
+    }
     fileprivate func accessoryChanged(_ accessory: HMAccessory, generation: UUID, reachability: Bool) {
         guard active, observations.generation == generation,
             knownHome?.accessories.contains(where: { $0 === accessory }) == true else { return }
@@ -305,7 +361,10 @@ import HomeSenseCore
     private let generation: UUID
     init(store: HomeKitDailyStore, generation: UUID) { self.store = store; self.generation = generation }
     nonisolated func accessoryDidUpdateName(_ accessory: HMAccessory) {
-        Task { @MainActor in self.store?.accessoryChanged(accessory, generation: self.generation, reachability: false) }
+        Task { @MainActor in self.store?.accessoryNamesChanged(accessory, generation: self.generation) }
+    }
+    nonisolated func accessory(_ accessory: HMAccessory, didUpdateNameFor service: HMService) {
+        Task { @MainActor in self.store?.accessoryNamesChanged(accessory, generation: self.generation) }
     }
     nonisolated func accessoryDidUpdateServices(_ accessory: HMAccessory) {
         Task { @MainActor in self.store?.accessoryChanged(accessory, generation: self.generation, reachability: false) }

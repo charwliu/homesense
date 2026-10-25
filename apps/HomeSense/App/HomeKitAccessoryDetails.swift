@@ -8,6 +8,7 @@ struct HomeKitAccessoryDetails: View {
     let item: HomeKitDailyStore.Service
     @Environment(\.dismiss) private var dismiss
     @State private var showInformation = false
+    @State private var showRename = false
     var body: some View {
         Group {
             switch item.kind {
@@ -64,12 +65,24 @@ struct HomeKitAccessoryDetails: View {
         NavigationStack {
             Form {
                 Section("配件") {
-                    LabeledContent("名称", value: item.name)
+                    Button { showRename = true } label: {
+                        HStack {
+                            Text("名称").foregroundStyle(.primary)
+                            Spacer()
+                            Text(item.name).foregroundStyle(.secondary)
+                            Image(systemName: "pencil").font(.caption)
+                        }
+                    }.disabled(!store.canRename(item)).accessibilityIdentifier("homekit.rename.open")
                     LabeledContent("房间", value: item.room)
                     LabeledContent("设备", value: item.accessory.name)
+                    LabeledContent("服务名称", value: item.service.name)
                     if let manufacturer = item.accessory.manufacturer { LabeledContent("制造商", value: manufacturer) }
                     if let model = item.accessory.model { LabeledContent("型号", value: model) }
                     LabeledContent("状态", value: store.presentation(item).status)
+                    if !store.canRename(item) {
+                        Text("改名需要 Apple 家庭的编辑权限；已有名称请求未完成时也不能重复保存。")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
                 }
                 Section {
                     Toggle("加入常用配件", isOn: Binding(get: { store.favoriteIDs.contains(item.id) }, set: { desired in
@@ -84,6 +97,43 @@ struct HomeKitAccessoryDetails: View {
                 }
             }.navigationTitle("配件信息")
                 .toolbar { ToolbarItem(placement: .confirmationAction) { Button("完成") { showInformation = false } } }
+                .sheet(isPresented: $showRename) { HomeKitRenameView(store: store, item: item) }
+        }
+    }
+}
+
+private struct HomeKitRenameView: View {
+    @ObservedObject var store: HomeKitDailyStore
+    let item: HomeKitDailyStore.Service
+    @StateObject private var editor: HomeAccessoryNameEditor
+    @Environment(\.dismiss) private var dismiss
+    init(store: HomeKitDailyStore, item: HomeKitDailyStore.Service) {
+        self.store = store; self.item = item
+        _editor = StateObject(wrappedValue: HomeAccessoryNameEditor(name: item.name))
+    }
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    TextField("配件名称", text: $editor.name).disabled(editor.saving)
+                        .accessibilityIdentifier("homekit.rename.name")
+                } header: {
+                    Text("名称")
+                } footer: {
+                    Text("保存到 Apple 家庭，其他设备由系统同步。此操作不会改变 HomeSense 服务端配置或操作灯光、窗帘。")
+                }
+                if let error = editor.error { Section { Text(error).foregroundStyle(.orange).textSelection(.enabled) } }
+                if editor.saving { ProgressView("正在保存到 Apple 家庭…") }
+            }.navigationTitle("修改名称")
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) { Button("取消") { dismiss() }.disabled(editor.saving) }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("保存") {
+                            Task { if await editor.save(using: { try await store.rename($0, in: item) }) { dismiss() } }
+                        }.disabled(!editor.canSave || !store.canRename(item)).accessibilityIdentifier("homekit.rename.save")
+                    }
+                }
+                .interactiveDismissDisabled(editor.saving)
         }
     }
 }
