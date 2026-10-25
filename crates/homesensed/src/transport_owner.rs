@@ -492,10 +492,14 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
         }
     }
     pub(crate) fn queued_query_solicited(&self,gateway:&str,frame:hb_protocol::RawFrame,at:u64)->bool {self.query_replies.solicited(gateway,frame,at)}
-    fn track_query_reply(&mut self,tickets:&mut [crate::admission::DispatchTicket]) {
-        for ticket in tickets { if let Some(scope)=ticket.query_reply.take() {
-            self.query_replies.start(ticket.gateway_id.clone(),scope,self.now_ms(),self.write_interval_ms());
-        } }
+    fn track_query_reply(&mut self,tickets:&mut [crate::admission::DispatchTicket])->Result<(),String> {
+        let mut scopes=std::collections::BTreeMap::<String,crate::query_response::Scope>::new();
+        for ticket in tickets {if let Some(scope)=ticket.query_reply.take() {
+            if let Some(previous)=scopes.get_mut(&ticket.gateway_id) {previous.merge_control(scope)?;}
+            else {scopes.insert(ticket.gateway_id.clone(),scope);}
+        }}
+        for (gateway,scope) in scopes {self.query_replies.start(gateway,scope,self.now_ms(),self.write_interval_ms());}
+        Ok(())
     }
     pub(crate) fn finish_status_read(&mut self, gateway: &str) {
         self.read_permits.remove(gateway);
@@ -824,7 +828,7 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
             self.admission.finish_projection_discard(proof).await.map_err(|e|format!("projection cancellation audit: {e:?}"))?;
             vec![]
         } else {self.audit_batch_progress(&tickets,&result).await?};
-        if result.is_ok() {self.track_query_reply(&mut tickets);}
+        if result.is_ok() {self.track_query_reply(&mut tickets)?;}
         if result.is_ok() || projection_cancelled {
             self.connections.insert(gateway, connection);
             self.failed = false;

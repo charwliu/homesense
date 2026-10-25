@@ -83,7 +83,7 @@ impl UnifiedHap {
         mut snapshots: tokio::sync::watch::Receiver<homesense_state::Snapshot>,
         mut stop: tokio::sync::watch::Receiver<bool>,
     ) -> Result<(), String> {
-        let notifications_enabled = !self.lights.lights.is_empty() || self.scenes.as_ref().is_some_and(|s| s.has_tracking()) || self.away.is_some() || self.window_coverings.is_some();
+        let notifications_enabled = !self.lights.lights.is_empty() || self.scenes.is_some() || self.away.is_some() || self.window_coverings.is_some();
         let mut observation_tick = tokio::time::interval(std::time::Duration::from_millis(100));
         observation_tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
         loop {

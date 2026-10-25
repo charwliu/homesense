@@ -81,6 +81,7 @@ mod manual_scene_plan;
 
 pub mod automation_runtime;
 pub mod automation_control;
+mod current_read_model;
 pub mod publication_recovery;
 
 pub mod deferred_rule;

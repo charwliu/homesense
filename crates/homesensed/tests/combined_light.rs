@@ -1,3 +1,5 @@
+#[path = "support/staged_feedback.rs"]
+mod staged_feedback;
 use homesense_core::{Command, LevelTransition, Percent};
 use homesensed::combined_light::{Output, observed, plan};
 fn percent(n: u8) -> Percent {
@@ -215,6 +217,8 @@ async fn projection_hides_supply_and_uses_the_older_feedback_without_mutating_ph
             hap::serde_json::json!(30)
         );
     }
+    let controller=uuid::Uuid::new_v4();
+    let mut replies=staged_feedback::Replies::new(&actor,&config);
     let binding = &graph.lights[0].0;
     for (iid, value, expected) in [
         (binding.on_iid, hap::serde_json::json!(true), 30),
@@ -227,7 +231,7 @@ async fn projection_hides_supply_and_uses_the_older_feedback_without_mutating_ph
         let body = hap::serde_json::json!({"characteristics":[{"aid":binding.aid,"iid":iid,"value":value}]}).to_string();
         graph
             .write_handler
-            .write_async(uuid::Uuid::new_v4(), body.as_bytes())
+            .write_async(controller, body.as_bytes())
             .await
             .unwrap();
         let ticket = actor.dispatch().await.unwrap().unwrap();
@@ -235,9 +239,11 @@ async fn projection_hides_supply_and_uses_the_older_feedback_without_mutating_ph
             matches!(ticket.command.command, Command::SetLevel { level, .. } if level == percent(expected))
         );
         actor.finish_write(ticket.command.id, true).await.unwrap();
+        replies.written(&actor,controller,&ticket).await;
         let ticket = actor.dispatch().await.unwrap().unwrap();
         assert_eq!(ticket.command.command, Command::Switch(true));
         actor.finish_write(ticket.command.id, true).await.unwrap();
+        replies.written(&actor,controller,&ticket).await;
     }
     drop(graph);
     actor.shutdown().await.unwrap();

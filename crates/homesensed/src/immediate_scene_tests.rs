@@ -1,4 +1,6 @@
 //! Synthetic Immediate -> real Control/Admission/causal owner -> memory wire.
+#[path = "current_read_model_tests.rs"]
+mod current_read_model_tests;
 #[path = "scene_retirement_tests.rs"]
 mod scene_retirement_tests;
 use crate::{
@@ -193,20 +195,21 @@ impl Harness {
             .unwrap()
     }
     async fn wire(&self) -> Vec<u8> {
-        let bytes = Arc::new(Mutex::new(vec![]));
-        let mut owner = TransportOwner::new(
-            self.actor.clone(),
-            [(
-                "bus".into(),
-                hb_transport::Connection::for_simulation(Memory(bytes.clone()), 1),
-            )]
-            .into(),
-        );
-        for _ in 0..64 {
-            let Some(outcome) = owner.step().await.unwrap() else {
-                break;
-            };
+        let bytes=Arc::new(Mutex::new(vec![]));
+        let mut owner=TransportOwner::new(self.actor.clone(),[("bus".into(),hb_transport::Connection::for_simulation(EchoMemory{bytes:bytes.clone(),rx:Default::default()},1))].into());
+        // Management proof tests deliberately keep their main model delayed.
+        // Only staged multi-module recipes receive synthetic wire observations.
+        let mut observed=Feedback::new(&self.configuration,ExecutionContext::Simulation,
+            Uuid::parse_str(self.actor.boot_id()).unwrap().as_u128(),1).unwrap();
+        for _ in 0..128 {
+            let Some(outcome)=owner.step().await.unwrap() else {break;};
             outcome.result.unwrap();
+            tokio::time::sleep(Duration::from_millis(3)).await;
+            let reply=owner.receive("bus").await.unwrap();
+            if self.actor.module_confirmation_active() {
+                observed.apply(&reply).unwrap();
+                for _ in 0..2 {observed.reconcile_control_phases(&self.actor,self.controller).await.unwrap();}
+            }
         }
         bytes.lock().unwrap().clone()
     }
@@ -216,6 +219,24 @@ impl Harness {
     }
 }
 struct Memory(Arc<Mutex<Vec<u8>>>);
+struct EchoMemory {bytes:Arc<Mutex<Vec<u8>>>,rx:std::collections::VecDeque<u8>}
+impl std::io::Read for EchoMemory {
+    fn read(&mut self,out:&mut[u8])->std::io::Result<usize> {
+        if self.rx.is_empty(){return Err(std::io::ErrorKind::WouldBlock.into());}
+        let n=out.len().min(self.rx.len());for byte in &mut out[..n]{*byte=self.rx.pop_front().unwrap();}Ok(n)
+    }
+}
+impl std::io::Write for EchoMemory {
+    fn write(&mut self,bytes:&[u8])->std::io::Result<usize>{
+        self.bytes.lock().unwrap().extend_from_slice(bytes);
+        for frame in bytes.as_chunks::<5>().0 {
+            if frame[0]==0xae && frame[4]==0xee && (1..=8).contains(&frame[2]) {
+                self.rx.extend([0xae,frame[1],0xd0+frame[2],frame[3],0xee]);
+            }
+        }Ok(bytes.len())
+    }
+    fn flush(&mut self)->std::io::Result<()>{Ok(())}
+}
 impl std::io::Read for Memory {
     fn read(&mut self, _: &mut [u8]) -> std::io::Result<usize> {
         Err(std::io::ErrorKind::WouldBlock.into())
@@ -737,7 +758,7 @@ async fn production_runtime_loop_drives_immediate_control_and_persistent_restart
             h.actor.clone(),
             [(
                 "bus".into(),
-                hb_transport::Connection::for_simulation(Memory(bytes.clone()), 1),
+                hb_transport::Connection::for_simulation(EchoMemory{bytes:bytes.clone(),rx:Default::default()}, 1),
             )]
             .into(),
         ),
@@ -2391,41 +2412,69 @@ fn writer_batch_inputs()->(Vec<u8>,Json){
         command("led/c","third-led",json!({"kind":"panel_led","on":false}))]);
     (serde_json::to_vec(&cfg).unwrap(),doc)
 }
-struct CountWrites{calls:Arc<Mutex<Vec<Vec<u8>>>>,limit:usize,written:usize}
-impl std::io::Read for CountWrites{fn read(&mut self,_:&mut[u8])->std::io::Result<usize>{Err(std::io::ErrorKind::WouldBlock.into())}}
+struct CountWrites{calls:Arc<Mutex<Vec<Vec<u8>>>>,limit:usize,written:usize,rx:std::collections::VecDeque<u8>}
+impl std::io::Read for CountWrites{fn read(&mut self,out:&mut[u8])->std::io::Result<usize>{
+    if self.rx.is_empty(){return Err(std::io::ErrorKind::WouldBlock.into());}let n=out.len().min(self.rx.len());for byte in &mut out[..n]{*byte=self.rx.pop_front().unwrap();}Ok(n)
+}}
 impl std::io::Write for CountWrites{
     fn write(&mut self,bytes:&[u8])->std::io::Result<usize>{
         if self.written>=self.limit{return Err(std::io::ErrorKind::BrokenPipe.into());}
-        let n=bytes.len().min(self.limit-self.written);self.calls.lock().unwrap().push(bytes[..n].to_vec());self.written+=n;Ok(n)
+        let n=bytes.len().min(self.limit-self.written);self.calls.lock().unwrap().push(bytes[..n].to_vec());self.written+=n;
+        for frame in bytes[..n].as_chunks::<5>().0 {if (1..=8).contains(&frame[2]){self.rx.extend([0xae,frame[1],0xd0+frame[2],frame[3],0xee]);}}
+        Ok(n)
     }
     fn flush(&mut self)->std::io::Result<()>{panic!("unbuffered")}
 }
 type BatchWrites=Arc<Mutex<Vec<Vec<u8>>>>;
 fn batch_owner(h:&Harness,limit:usize)->(TransportOwner<CountWrites>,BatchWrites){
-    let calls=Arc::default();let owner=TransportOwner::new(h.actor.clone(),[("bus".into(),hb_transport::Connection::for_simulation(CountWrites{calls:Arc::clone(&calls),limit,written:0},1))].into());(owner,calls)
+    let calls=Arc::default();let owner=TransportOwner::new(h.actor.clone(),[("bus".into(),hb_transport::Connection::for_simulation(CountWrites {calls:Arc::clone(&calls),limit,written:0,rx:Default::default()},1))].into());(owner,calls)
+}
+async fn write_lighting_prefix<S:std::io::Read+std::io::Write+Send+'static>(h:&mut Harness,owner:&mut TransportOwner<S>,local:bool)->Vec<usize> {
+    let mut sizes=vec![];
+    let mut completed=0;
+    while completed<4 {
+        owner.finish_reply_turnaround().await;
+        let next=if local {owner.local_step(&Default::default()).await.unwrap()}else{owner.step().await.unwrap()};
+        let outcome=match next {Some(value)=>value,None=>{
+            panic!("staged writer stalled after {completed} lights; views={:?}; physical={:?}",h.actor.control_batch_views(h.controller,h.generation.clone()).await.unwrap(),h.feedback.snapshot());
+        }};
+        outcome.result.unwrap();completed+=outcome.completed.len();sizes.push(outcome.completed.len()*5);
+        assert!(completed<=4,"no LED may escape before the final feedback");
+        tokio::time::sleep(Duration::from_millis(3)).await;
+        let reply=owner.receive("bus").await.unwrap();
+        if completed<4 {
+            h.feedback.apply(&reply).unwrap();
+            for _ in 0..2 {crate::control_batch::tick(&h.actor,h.member,&h.feedback).await.unwrap();}
+        }
+    }
+    owner.finish_reply_turnaround().await;
+    sizes
 }
 #[tokio::test]
-async fn batch_daily_four_lights_one_write_then_three_leds_only_after_postwrite_final_feedback(){
+async fn batch_daily_four_lights_wait_for_modules_then_three_leds_require_postwrite_final_feedback(){
     let(cfg,doc)=writer_batch_inputs();let mut h=Harness::from_inputs(cfg,doc).await;
     mode_frame(&mut h,3,1,0xf1);mode_frame(&mut h,3,2,0xf1);mode_frame(&mut h,0x15,1,40);
     h.request(Action::SceneAction{controller:h.controller,revision:1,scene:"act".into(),execute:true}).await.unwrap();
-    let(mut owner,calls)=batch_owner(&h,usize::MAX);let outcome=owner.step().await.unwrap().unwrap();outcome.result.unwrap();assert_eq!(outcome.completed.len(),4);
-    assert_eq!(calls.lock().unwrap().iter().map(Vec::len).collect::<Vec<_>>(),vec![20]);
-    assert!(owner.step().await.unwrap().is_none(),"LEDs remain Accepted before postwrite feedback");
-    crate::control_batch::tick(&h.actor,h.controller,&h.feedback).await.unwrap();assert!(owner.step().await.unwrap().is_none(),"prewrite matching readings cannot release LEDs");
+    let(mut owner,calls)=batch_owner(&h,usize::MAX);
+    let sizes=write_lighting_prefix(&mut h,&mut owner,false).await;assert_eq!(sizes,vec![5,5,5,5]);
+    assert!(owner.step().await.unwrap().is_none(),"LEDs remain Accepted before final postwrite feedback");
+    crate::control_batch::tick(&h.actor,h.controller,&h.feedback).await.unwrap();assert!(owner.step().await.unwrap().is_none(),"prewrite marker cannot release LEDs");
     tokio::time::sleep(Duration::from_millis(2)).await;
     mode_frame(&mut h,3,1,0xf1);mode_frame(&mut h,3,2,0xf1);mode_frame(&mut h,0x15,1,20);
     crate::control_batch::tick(&h.actor,h.controller,&h.feedback).await.unwrap();assert!(owner.step().await.unwrap().is_none(),"intermediate target20 does not satisfy final40");
     tokio::time::sleep(Duration::from_millis(2)).await;mode_frame(&mut h,0x15,1,40);
     crate::control_batch::tick(&h.actor,h.controller,&h.feedback).await.unwrap();let leds=owner.step().await.unwrap().unwrap();leds.result.unwrap();assert_eq!(leds.completed.len(),3);
-    assert_eq!(calls.lock().unwrap().iter().map(Vec::len).collect::<Vec<_>>(),vec![20,15]);
+    assert_eq!(calls.lock().unwrap().iter().map(Vec::len).collect::<Vec<_>>(),vec![5,5,5,5,15]);
     let store=Store::open(h.directory.join("runtime.sqlite")).unwrap();for id in 1..=7{assert_eq!(store.command_status(h.actor.boot_id(),id).unwrap(),Some(homesense_storage::journal::Status::Written));}drop(store);h.finish().await;
 }
 #[tokio::test]
 async fn batch_partial_write_keeps_complete_prefix_partial_uncertain_unsent_failed_and_no_replay(){
+    // Deliberate timeline phases retain their atomic-write contract; staged
+    // recipes have separate next-module proof tests above and in batch_collection.
     for amount in [0,5,7,10,14,15,19]{
-        let(cfg,doc)=writer_batch_inputs();let mut h=Harness::from_inputs(cfg,doc).await;
-        h.request(Action::SceneAction{controller:h.controller,revision:1,scene:"act".into(),execute:true}).await.unwrap();
+        let(cfg,doc)=delayed_feedback_phase_inputs();let h=Harness::from_inputs(cfg,doc).await;
+        let now=h.actor.monotonic_ms();let mut runtime=crate::scene_runtime::SceneRuntime::new(h.actor.clone(),h.controller,h.document.timed_scenes["delayed-feedback"].steps.clone(),now,5000).await.unwrap();
+        runtime.poll(now).await.unwrap().unwrap();
         let(mut owner,calls)=batch_owner(&h,amount);let outcome=owner.step().await.unwrap().unwrap();assert_eq!(outcome.result.unwrap_err().bytes_written,amount);
         let store=Store::open(h.directory.join("runtime.sqlite")).unwrap();
         for index in 0..4{let expected=if amount>=(index+1)*5{homesense_storage::journal::Status::Written}else if amount>index*5{homesense_storage::journal::Status::Uncertain}else{homesense_storage::journal::Status::Failed};assert_eq!(store.command_status(h.actor.boot_id(),index as u64+1).unwrap(),Some(expected));}
@@ -2442,7 +2491,7 @@ async fn batch_cross_gateway_led_first_cannot_block_lights_or_bypass_feedback_an
     doc["immediate_scenes"][0]["activate"]=json!([command("led-first","execute-led",json!({"kind":"panel_led","on":true})),command("other-bus-light","second-light",json!({"kind":"switch","on":true}))]);
     let mut h=Harness::from_inputs(serde_json::to_vec(&cfg).unwrap(),doc).await;
     h.request(Action::SceneAction{controller:h.controller,revision:1,scene:"act".into(),execute:true}).await.unwrap();
-    let a=Arc::default();let b=Arc::default();let wire=|calls|hb_transport::Connection::for_simulation(CountWrites{calls,limit:usize::MAX,written:0},1);
+    let a=Arc::default();let b=Arc::default();let wire=|calls|hb_transport::Connection::for_simulation(CountWrites {calls,limit:usize::MAX,written:0,rx:Default::default()},1);
     let mut owner=TransportOwner::new(h.actor.clone(),[("bus".into(),wire(Arc::clone(&a))),("second".into(),wire(Arc::clone(&b)))].into());
     let result=owner.step().await.unwrap().unwrap();result.result.unwrap();assert_eq!(result.device_id.as_str(),"second-light");assert!(a.lock().unwrap().is_empty());assert_eq!(b.lock().unwrap()[0].len(),5);
     h.actor.submit(homesense_hap::requests::Batch{controller:h.controller,intents:vec![homesense_hap::requests::Intent{device:homesense_core::DeviceId::new("marker").unwrap(),command:homesense_core::Command::Switch(true)}],subscriptions:vec![]}).await.unwrap();
@@ -2551,7 +2600,7 @@ async fn mixed_phase_leds_wait_for_delayed_exact_feedback_without_extending_ligh
         assert_eq!(deadline(5)-deadline(1),13000,"new LED total budget is separate from unchanged light TTL");
         drop(connection);
         let (mut owner,calls) = batch_owner(&h,usize::MAX);
-        let lights=owner.step().await.unwrap().unwrap();lights.result.unwrap();assert_eq!(lights.completed.len(),4);
+        let _sizes=write_lighting_prefix(&mut h,&mut owner,false).await;
         assert!(owner.step().await.unwrap().is_none());
         tokio::time::sleep(Duration::from_millis(delay)).await;
         mode_frame(&mut h,3,1,0xf1);mode_frame(&mut h,3,2,0xf1);mode_frame(&mut h,0x15,1,40);
@@ -2593,7 +2642,7 @@ async fn mixed_phase_leds_without_feedback_expire_partial_and_late_feedback_neve
     let now=h.actor.monotonic_ms();let definition=h.document.timed_scenes["delayed-feedback"].clone();
     let mut runtime=crate::scene_runtime::SceneRuntime::new(h.actor.clone(),h.controller,definition.steps,now,5000).await.unwrap();
     assert_eq!(runtime.poll(now).await.unwrap().unwrap().len(),7);
-    let (mut owner,calls)=batch_owner(&h,usize::MAX);let lights=owner.step().await.unwrap().unwrap();lights.result.unwrap();assert_eq!(lights.completed.len(),4);
+    let (mut owner,calls)=batch_owner(&h,usize::MAX);let _sizes=write_lighting_prefix(&mut h,&mut owner,false).await;
     let connection=rusqlite::Connection::open(h.directory.join("runtime.sqlite")).unwrap();
     let deadline=connection.query_row("SELECT deadline_ms FROM command_journal WHERE boot_id=?1 AND command_id=5",[h.actor.boot_id()],|row|row.get::<_,i64>(0)).unwrap() as u64;
     drop(connection);
@@ -2619,13 +2668,13 @@ async fn production_scene_writes_keep_accepted_feedback_work_after_http_handling
         let led_deadline=connection.query_row("SELECT deadline_ms FROM command_journal WHERE boot_id=?1 AND command_id=5",[h.actor.boot_id()],|row|row.get::<_,i64>(0)).unwrap() as u64;
         assert!(led_deadline.saturating_sub(h.actor.monotonic_ms())>14000,"HTTP handling cutoff must not become accepted LED execution cutoff");
         drop(connection);
-        let (mut owner,calls)=batch_owner(&h,usize::MAX);let lights=owner.step().await.unwrap().unwrap();lights.result.unwrap();assert_eq!(lights.completed.len(),4);
+        let (mut owner,calls)=batch_owner(&h,usize::MAX);let mut sizes=write_lighting_prefix(&mut h,&mut owner,false).await;
         assert!(owner.step().await.unwrap().is_none());
         tokio::time::sleep(Duration::from_millis(8600)).await;
         mode_frame(&mut h,3,1,0xf1);mode_frame(&mut h,3,2,0xf1);mode_frame(&mut h,0x15,1,40);
-        crate::control_batch::tick(&h.actor,h.member,&h.feedback).await.unwrap();
+        for _ in 0..2 {crate::control_batch::tick(&h.actor,h.member,&h.feedback).await.unwrap();}
         let leds=owner.step().await.unwrap().expect("production entry preserves bounded accepted work");leds.result.unwrap();assert_eq!(leds.completed.len(),3);
-        assert_eq!(calls.lock().unwrap().iter().map(Vec::len).collect::<Vec<_>>(),vec![20,15]);
+        sizes.push(15);assert_eq!(calls.lock().unwrap().iter().map(Vec::len).collect::<Vec<_>>(),sizes);
         let store=Store::open(h.directory.join("runtime.sqlite")).unwrap();for id in 1..=7 {assert_eq!(store.command_status(h.actor.boot_id(),id).unwrap(),Some(homesense_storage::journal::Status::Written));}drop(store);h.finish().await;
     }
 }
@@ -2634,14 +2683,14 @@ async fn production_scene_writes_keep_accepted_feedback_work_after_http_handling
 async fn selected_led_keeps_short_delivery_fence_through_actual_transport_guard() {
     let (cfg,doc)=writer_batch_inputs();let mut h=Harness::from_inputs(cfg,doc).await;
     h.request(Action::SceneWrites {controller:h.member,revision:1,scenes:vec![("act".into(),Some(true))]}).await.unwrap();
-    let (mut owner,_)=batch_owner(&h,usize::MAX);owner.step().await.unwrap().unwrap().result.unwrap();
+    let (mut owner,_)=batch_owner(&h,usize::MAX);write_lighting_prefix(&mut h,&mut owner,false).await;
     tokio::time::sleep(Duration::from_millis(2)).await;mode_frame(&mut h,3,1,0xf1);mode_frame(&mut h,3,2,0xf1);mode_frame(&mut h,0x15,1,40);
-    crate::control_batch::tick(&h.actor,h.member,&h.feedback).await.unwrap();
+    for _ in 0..2 {crate::control_batch::tick(&h.actor,h.member,&h.feedback).await.unwrap();}
     let ticket=h.actor.dispatch().await.unwrap().unwrap();assert!(matches!(ticket.command.command,homesense_core::Command::PanelLed(_)));
     let connection=rusqlite::Connection::open(h.directory.join("runtime.sqlite")).unwrap();
     let total=connection.query_row("SELECT deadline_ms FROM command_journal WHERE boot_id=?1 AND command_id=?2",rusqlite::params![h.actor.boot_id(),ticket.command.id as i64],|r|r.get::<_,i64>(0)).unwrap() as u64;
     assert!(total-ticket.command.deadline_ms>10000,"selected writer must carry2s wire fence, not15s ticket lifetime");drop(connection);
-    let calls=Arc::new(Mutex::new(vec![]));let mut wire=hb_transport::Connection::for_simulation(CountWrites {calls:calls.clone(),limit:usize::MAX,written:0},1);
+    let calls=Arc::new(Mutex::new(vec![]));let mut wire=hb_transport::Connection::for_simulation(CountWrites {calls:calls.clone(),limit:usize::MAX,written:0,rx:Default::default()},1);
     let expired=ticket.command.deadline_ms;
     let result=crate::transport_owner::send_ticket(&ticket,&mut wire,||expired).unwrap_err();assert_eq!(result.bytes_written,0);assert!(calls.lock().unwrap().is_empty());
     h.actor.finish_write(ticket.command.id,false).await.unwrap();h.finish().await;
@@ -2651,14 +2700,14 @@ async fn selected_led_keeps_short_delivery_fence_through_actual_transport_guard(
 async fn invalidated_led_cancel_audit_failure_rolls_back_rows_and_fails_closed_without_wire() {
     let (cfg,doc)=writer_batch_inputs();let mut h=Harness::from_inputs(cfg,doc).await;
     h.request(Action::SceneWrites {controller:h.member,revision:1,scenes:vec![("act".into(),Some(true))]}).await.unwrap();
-    let (mut owner,calls)=batch_owner(&h,usize::MAX);owner.step().await.unwrap().unwrap().result.unwrap();
+    let (mut owner,calls)=batch_owner(&h,usize::MAX);let sizes=write_lighting_prefix(&mut h,&mut owner,false).await;
     let connection=rusqlite::Connection::open(h.directory.join("runtime.sqlite")).unwrap();
     connection.execute_batch("CREATE TRIGGER reject_led_cancel BEFORE UPDATE OF status ON command_journal WHEN OLD.command_id>=5 AND NEW.status='cancelled' BEGIN SELECT RAISE(ABORT,'synthetic LED cancellation audit failure'); END;").unwrap();
     h.allowed.store(false,Ordering::Release);
     assert!(h.actor.dispatch().await.is_err(),"durable cancellation failure must never release pending LEDs");
     let store=Store::open(h.directory.join("runtime.sqlite")).unwrap();for id in 5..=7 {assert_eq!(store.command_status(h.actor.boot_id(),id).unwrap(),Some(homesense_storage::journal::Status::Accepted),"failed transaction must not claim cancellation success");}drop(store);
     assert!(!h.actor.diagnostics(h.controller,h.generation.clone()).await.map(|d|d.ready()).unwrap_or(false));
-    assert_eq!(calls.lock().unwrap().iter().map(Vec::len).collect::<Vec<_>>(),vec![20]);
+    assert_eq!(calls.lock().unwrap().iter().map(Vec::len).collect::<Vec<_>>(),sizes);
     connection.execute_batch("DROP TRIGGER reject_led_cancel").unwrap();drop(connection);h.finish().await;
 }
 
@@ -2684,13 +2733,13 @@ fn expired_or_revoked_projection_through_real_owners_cancels_without_poisoning_h
             let control=h.control.clone();let reply=h.drive(tokio::spawn(async move {control.request_authorized(action,source).await})).await.unwrap();
             let Reply::ScenesAccepted(runs)=reply else {panic!("expected timed production receipt")};let run=runs[0];h.scheduler.tick(h.actor.monotonic_ms()).await.unwrap();
             let calls=Arc::new(Mutex::new(vec![]));let other_calls=Arc::new(Mutex::new(vec![]));
-            let mut streams=std::collections::BTreeMap::from([("bus".into(),hb_transport::Connection::for_simulation(CountWrites {calls:calls.clone(),limit:usize::MAX,written:0},1))]);
-            if local {streams.insert("other".into(),hb_transport::Connection::for_simulation(CountWrites {calls:other_calls.clone(),limit:usize::MAX,written:0},1));}
+            let mut streams=std::collections::BTreeMap::from([("bus".into(),hb_transport::Connection::for_simulation(CountWrites {calls:calls.clone(),limit:usize::MAX,written:0,rx:Default::default()},1))]);
+            if local {streams.insert("other".into(),hb_transport::Connection::for_simulation(CountWrites {calls:other_calls.clone(),limit:usize::MAX,written:0,rx:Default::default()},1));}
             let mut owner=TransportOwner::new(h.actor.clone(),streams);
             let connects=Arc::new(std::sync::atomic::AtomicUsize::new(0));let captured=connects.clone();
+            let sizes=write_lighting_prefix(&mut h,&mut owner,false).await;
             if local {owner.enable_local_io(Arc::new(move |_,_| {captured.fetch_add(1,Ordering::SeqCst);Err(std::io::ErrorKind::ConnectionRefused.into())})).unwrap();}
-            let lights=if local {owner.local_step(&Default::default()).await.unwrap().unwrap()}else{owner.step().await.unwrap().unwrap()};lights.result.unwrap();assert_eq!(lights.completed.len(),4);
-            tokio::time::sleep(Duration::from_millis(2)).await;mode_frame(&mut h,3,1,0xf1);mode_frame(&mut h,3,2,0xf1);mode_frame(&mut h,0x15,1,40);crate::control_batch::tick(&h.actor,h.member,&h.feedback).await.unwrap();
+            tokio::time::sleep(Duration::from_millis(2)).await;mode_frame(&mut h,3,1,0xf1);mode_frame(&mut h,3,2,0xf1);mode_frame(&mut h,0x15,1,40);for _ in 0..2 {crate::control_batch::tick(&h.actor,h.member,&h.feedback).await.unwrap();}
             let replacement=Feedback::new(&h.configuration,ExecutionContext::Simulation,Uuid::parse_str(h.actor.boot_id()).unwrap().as_u128(),1).unwrap();
             let feedback=std::mem::replace(&mut h.feedback,replacement);let mut observed=crate::observed_transport::ObservedTransport::new(owner,feedback);
             let (entered,started)=tokio::sync::oneshot::channel();let (release,wait)=std::sync::mpsc::channel();
@@ -2716,7 +2765,7 @@ fn expired_or_revoked_projection_through_real_owners_cancels_without_poisoning_h
                 if local {intents.push(Intent {device:homesense_core::DeviceId::new("independent").unwrap(),command:homesense_core::Command::Switch(true)});}
                 h.actor.submit(Batch {controller:h.controller,intents,subscriptions:vec![]}).await.unwrap();
                 for _ in 0..if local {2}else{1} {let next=observed.step().await.unwrap().unwrap();next.result.unwrap();assert!(!next.projection_cancelled);}
-                assert_eq!(calls.lock().unwrap().iter().map(Vec::len).collect::<Vec<_>>(),vec![20,5]);if local {assert_eq!(other_calls.lock().unwrap().iter().map(Vec::len).collect::<Vec<_>>(),vec![5]);}assert_eq!(connects.load(Ordering::SeqCst),0);assert_eq!(h.actor.task_generation().await.unwrap(),h.generation);
+                let mut expected=sizes.clone();expected.push(5);assert_eq!(calls.lock().unwrap().iter().map(Vec::len).collect::<Vec<_>>(),expected);if local {assert_eq!(other_calls.lock().unwrap().iter().map(Vec::len).collect::<Vec<_>>(),vec![5]);}assert_eq!(connects.load(Ordering::SeqCst),0);assert_eq!(h.actor.task_generation().await.unwrap(),h.generation);
             }
             drop(connection);drop(store);drop(observed);h.finish().await;
         }
@@ -2728,12 +2777,17 @@ struct ProjectionIOFailure {
     written:usize,
     limit:usize,
     kind:std::io::ErrorKind,
+    rx:std::collections::VecDeque<u8>,
 }
-impl std::io::Read for ProjectionIOFailure {fn read(&mut self,_:&mut[u8])->std::io::Result<usize>{Err(std::io::ErrorKind::WouldBlock.into())}}
+impl std::io::Read for ProjectionIOFailure {fn read(&mut self,out:&mut[u8])->std::io::Result<usize>{
+    if self.rx.is_empty(){return Err(std::io::ErrorKind::WouldBlock.into());}let n=out.len().min(self.rx.len());for byte in &mut out[..n]{*byte=self.rx.pop_front().unwrap();}Ok(n)
+}}
 impl std::io::Write for ProjectionIOFailure {
     fn write(&mut self,bytes:&[u8])->std::io::Result<usize>{
         if self.written>=self.limit {return Err(self.kind.into());}
-        let n=bytes.len().min(self.limit-self.written);self.calls.lock().unwrap().push(bytes[..n].to_vec());self.written+=n;Ok(n)
+        let n=bytes.len().min(self.limit-self.written);self.calls.lock().unwrap().push(bytes[..n].to_vec());self.written+=n;
+        for frame in bytes[..n].as_chunks::<5>().0 {if (1..=8).contains(&frame[2]){self.rx.extend([0xae,frame[1],0xd0+frame[2],frame[3],0xee]);}}
+        Ok(n)
     }
     fn flush(&mut self)->std::io::Result<()>{panic!("unbuffered")}
 }
@@ -2742,13 +2796,13 @@ async fn physical_permission_denial_and_partial_led_io_are_not_projection_cancel
     for (limit,kind,first_status) in [(20,std::io::ErrorKind::PermissionDenied,homesense_storage::journal::Status::Failed),(22,std::io::ErrorKind::BrokenPipe,homesense_storage::journal::Status::Uncertain)] {
         let (cfg,doc)=writer_batch_inputs();let mut h=Harness::from_inputs(cfg,doc).await;
         h.request(Action::SceneWrites {controller:h.member,revision:1,scenes:vec![("act".into(),Some(true))]}).await.unwrap();
-        let calls=Arc::new(Mutex::new(vec![]));let mut owner=TransportOwner::new(h.actor.clone(),[("bus".into(),hb_transport::Connection::for_simulation(ProjectionIOFailure {calls:calls.clone(),written:0,limit,kind},1))].into());
-        owner.step().await.unwrap().unwrap().result.unwrap();
-        tokio::time::sleep(Duration::from_millis(2)).await;mode_frame(&mut h,3,1,0xf1);mode_frame(&mut h,3,2,0xf1);mode_frame(&mut h,0x15,1,40);crate::control_batch::tick(&h.actor,h.member,&h.feedback).await.unwrap();
+        let calls=Arc::new(Mutex::new(vec![]));let mut owner=TransportOwner::new(h.actor.clone(),[("bus".into(),hb_transport::Connection::for_simulation(ProjectionIOFailure {calls:calls.clone(),written:0,limit,kind,rx:Default::default()},1))].into());
+        let mut sizes=write_lighting_prefix(&mut h,&mut owner,false).await;
+        tokio::time::sleep(Duration::from_millis(2)).await;mode_frame(&mut h,3,1,0xf1);mode_frame(&mut h,3,2,0xf1);mode_frame(&mut h,0x15,1,40);for _ in 0..2 {crate::control_batch::tick(&h.actor,h.member,&h.feedback).await.unwrap();}
         let outcome=owner.step().await.unwrap().unwrap();assert!(!outcome.projection_cancelled);let error=outcome.result.unwrap_err();assert_eq!(error.bytes_written,limit-20);
         let store=Store::open(h.directory.join("runtime.sqlite")).unwrap();assert_eq!(store.command_status(h.actor.boot_id(),5).unwrap(),Some(first_status));for id in 6..=7 {assert_eq!(store.command_status(h.actor.boot_id(),id).unwrap(),Some(homesense_storage::journal::Status::Failed));}drop(store);
         assert!(owner.step().await.is_err(),"physical fault requires explicit recovery");assert!(h.actor.task_generation().await.is_err());
-        assert_eq!(calls.lock().unwrap().iter().map(Vec::len).collect::<Vec<_>>(),if limit==20 {vec![20]}else{vec![20,2]});h.finish().await;
+        if limit>20{sizes.push(2);}assert_eq!(calls.lock().unwrap().iter().map(Vec::len).collect::<Vec<_>>(),sizes);h.finish().await;
     }
 }
 

@@ -37,7 +37,7 @@ pub(crate) enum BudgetRole {
     SequencedLighting,
     FeedbackLed,
 }
-/// Only a contiguous mixed lighting phase owns a feedback budget.
+/// Multi-module lighting owns a feedback budget even without linked LEDs.
 /// LED-only writes and non-lighting commands retain ordinary admission TTLs.
 #[cfg(test)]
 pub(crate) fn feedback_roles(
@@ -60,14 +60,14 @@ pub(crate) fn feedback_roles_local(config:&Configuration,intents:&[homesense_hap
             start += 1;
             continue;
         }
-        if intents[start..end]
+        let sequenced = sequence_modules(config,intents[start..end].iter().map(|i|(&i.device,i.command)));
+        if sequenced || intents[start..end]
             .iter()
             .any(|i| !class(config, &i.device, i.command).unwrap().1)
             && intents[start..end]
                 .iter()
                 .enumerate().any(|(offset,i)|Some(start+offset)!=local && class(config, &i.device, i.command).unwrap().1)
         {
-            let sequenced = sequence_modules(config,intents[start..end].iter().map(|i|(&i.device,i.command)));
             for (offset,(role, intent)) in result[start..end].iter_mut().zip(&intents[start..end]).enumerate() {
                 *role = if Some(start+offset)==local {BudgetRole::Ordinary} else if class(config, &intent.device, intent.command).unwrap().1 {
                     BudgetRole::FeedbackLed
@@ -103,21 +103,17 @@ pub(crate) fn class(
         _ => None,
     }
 }
-/// Only unambiguous absolute targets may acquire module confirmation stages.
-/// An ordered program with different values for the same output must not gain
-/// waits for intermediate values which it never promised to hold.
+/// Absolute lighting recipes reserve each consecutive module's reply window.
+/// The last write within that module segment owns its target; revisiting the
+/// same port later requires a new post-write proof, never the earlier sample.
 fn sequence_modules<'a>(config:&Configuration,commands:impl Iterator<Item=(&'a DeviceId,Command)>)->bool {
-    let mut values=BTreeMap::new();let mut modules=BTreeMap::<String,std::collections::BTreeSet<_>>::new();let mut opening=false;
+    let mut modules=BTreeMap::<String,std::collections::BTreeSet<_>>::new();
     for(id,command)in commands {
         let Some((gateway,false))=class(config,id,command) else{continue;};
         if matches!(command,Command::SetLevel{transition:homesense_core::LevelTransition::Ramp,..}) {return false;}
-        if values.insert(id,command).is_some_and(|old|old!=command) {return false;}
-        opening |= match command {Command::Switch(on)=>on,Command::SetLevel{level,..}=>level.get()>0,_=>false};
         if let Some((_,module))=config.binding(id) {modules.entry(gateway).or_default().insert(module.address());}
     }
-    // Absolute all-Off must continue issuing every original Off even when an
-    // earlier module is unavailable; its existing final-feedback gate remains.
-    opening && modules.values().any(|modules|modules.len()>1)
+    modules.values().any(|modules|modules.len()>1)
 }
 /// Retain the final origin-key color in one evaluated immediate segment.
 /// The caller keeps timeline step receipts outside this transformation.
@@ -304,7 +300,9 @@ struct Stage {
     commands: Vec<QueuedCommand>,
     opened: Option<u64>,
     confirmed: bool,
+    timed_out: bool,
 }
+impl Stage {fn finished(&self)->bool {self.confirmed || self.timed_out}}
 struct Gate {
     generation: TaskGeneration,
     controller: Uuid,
@@ -329,7 +327,7 @@ struct Gate {
 impl Gate {
     fn view(&self, id: u64) -> Option<View> {
         if self.invalid {return None;}
-        if let Some((index,stage))=self.stages.iter().enumerate().find(|(_,stage)|!stage.confirmed) {
+        if let Some((index,stage))=self.stages.iter().enumerate().find(|(_,stage)|!stage.finished()) {
             if stage.opened.is_none() || stage.commands.iter().any(|command|!self.written.contains_key(&command.id)) {return None;}
             return Some(View {
                 id,generation:self.generation.clone(),
@@ -521,7 +519,11 @@ impl Owner {
         let stage=gate.stages.iter().find(|stage|stage.group==phase.group)?;
         let ports=stage.commands.iter().filter_map(|command|config.binding(&command.device_id)).collect::<Vec<_>>();
         if ports.is_empty() || ports.iter().any(|(_,m)|m.profile()!=homesense_core::ProtocolProfile::R8i8DinPro) {return None;}
-        Some(ports.iter().map(|(d,_)|d.channel.get()).collect())
+        // A physical-frame budget can split this stage across writes. Reserve
+        // reply space only for the command actually dispatched; the transport
+        // owner unions the scopes of tickets included in the same write.
+        let command=stage.commands.iter().find(|command|command.id==id)?;
+        Some(vec![config.binding(&command.device_id)?.0.channel.get()])
     }
     pub(crate) fn staged_light(&self,id:u64)->bool {
         self.phases.get(&id).is_some_and(|phase|!phase.led && phase.gate.is_some()) && !self.local.contains_key(&id)
@@ -534,7 +536,7 @@ impl Owner {
             p.gate.is_none_or(|id| {
                 self.gates.get(&id).is_some_and(|g| {
                     !g.invalid && if p.led {g.ready.as_ref().is_some_and(|lease|lease.valid(now))}
-                    else {g.stages.iter().find(|stage|stage.group==p.group).is_some_and(|stage|stage.opened.is_some()&&!stage.confirmed)}
+                    else {g.stages.iter().find(|stage|stage.group==p.group).is_some_and(|stage|stage.opened.is_some()&&!stage.finished())}
                 })
             })
         })
@@ -577,8 +579,8 @@ impl Owner {
                 .filter(|c| Some(c.id)!=local && class(config, &c.device_id, c.command).unwrap().1)
                 .map(|c| c.id)
                 .collect::<Vec<_>>();
-            let gated = !lights.is_empty() && !leds.is_empty();
-            let sequenced=gated && write_window_ms>0 && sequence_modules(config,lights.iter().map(|c|(&c.device_id,c.command)));
+            let sequenced=write_window_ms>0 && sequence_modules(config,lights.iter().map(|c|(&c.device_id,c.command)));
+            let gated = !lights.is_empty() && (!leds.is_empty() || sequenced);
             let first_module=lights.first().and_then(|command|config.binding(&command.device_id)).map(|(_,module)|module.address());
             let mut stages=vec![];
             let mut phase_start = start;
@@ -610,7 +612,7 @@ impl Owner {
                 if sequenced && !led {
                     stages.push(Stage {group:commands[phase_start].id,
                         commands:commands[phase_start..phase_end].iter().filter(|c|Some(c.id)!=local).cloned().collect(),
-                        opened:stages.is_empty().then_some(now),confirmed:false});
+                        opened:stages.is_empty().then_some(now),confirmed:false,timed_out:false});
                 }
                 phase_start = phase_end;
             }
@@ -687,7 +689,7 @@ impl Owner {
                             .filter(|c| Some(c.id)!=local && class(config, &c.device_id, c.command).unwrap().1)
                             .map(|c| c.deadline_ms)
                             .min()
-                            .unwrap(),
+                            .unwrap_or_else(||commands[start..end].iter().filter(|c|Some(c.id)!=local).map(|c|c.deadline_ms).min().unwrap()),
                         ready: None,
                         delivery_deadline: None,
                         invalid: false,
@@ -883,7 +885,23 @@ impl Owner {
             if gate.invalid {
                 continue;
             }
-            let stage_expired=gate.stages.iter().find(|stage|!stage.confirmed).is_some_and(|stage|
+            // A silent module must not suppress later absolute Off outputs.
+            // Close its bounded reply window before advancing; retain the
+            // missing target in the final proof, never call a timeout confirmed.
+            let all_off=gate.lights.iter().all(|c|match c.command {
+                Command::Switch(on)=>!on,Command::SetLevel{level,..}=>level.get()==0,_=>false,
+            });
+            if all_off && let Some(index)=gate.stages.iter().position(|stage|!stage.finished()) {
+                let stage=&gate.stages[index];
+                let last=stage.commands.iter().map(|c|gate.written.get(&c.id).copied()).collect::<Option<Vec<_>>>();
+                if let Some(last)=last.and_then(|v|v.into_iter().max())
+                    && now>=last.saturating_add(homesense_core::away_execution::Policy::default().feedback_ms) {
+                    gate.stages[index].timed_out=true;
+                    if let Some(next)=gate.stages.get_mut(index+1) {next.opened=Some(now);}
+                    log::warn!("batch_module_off_feedback_timeout stage={index}; continuing remaining Off outputs without claiming confirmation");
+                }
+            }
+            let stage_expired=gate.stages.iter().find(|stage|!stage.finished()).is_some_and(|stage|
                 stage.opened.is_some_and(|at|now>=at.saturating_add(gate.write_window_ms))
                 && stage.commands.iter().any(|command|!gate.written.contains_key(&command.id)));
             let expired = now >= gate.deadline || stage_expired || gate.delivery_deadline.is_some_and(|deadline| now >= deadline);
@@ -939,12 +957,12 @@ impl Owner {
             }
         }
         self.gates.retain(|_, gate| {
-            gate.leds.iter().any(|id| {
+            gate.leds.iter().copied().chain(gate.lights.iter().map(|c|c.id)).any(|id| {
                 matches!(
-                    store.command_status(gate.generation.boot_id(), *id),
+                    store.command_status(gate.generation.boot_id(), id),
                     Ok(Some(Status::Accepted | Status::Writing))
                 )
-            })
+            }) || (gate.leds.is_empty() && !gate.invalid && gate.ready.is_none())
         });
         // Keep a bounded mapping only while original tickets remain unsettled.
         self.phases.retain(|id, phase| {

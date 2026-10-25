@@ -1,3 +1,5 @@
+#[path = "support/staged_feedback.rs"]
+mod staged_feedback;
 use hap::server::WriteStatus;
 use homesense_core::{Command, DeviceId, ExecutionContext};
 use homesense_hap::requests::{Batch, Intent};
@@ -1355,20 +1357,39 @@ async fn combined_wire_order_and_each_partial_write_boundary_are_audited() {
             [(
                 "simulation".into(),
                 hb_transport::Connection::for_simulation(
-                    OutputStream {
+                    staged_feedback::Echo::new(OutputStream {
                         bytes: bytes.clone(),
                         fail_after,
-                    },
+                    }),
                     1,
                 ),
             )]
             .into(),
         );
+        let mut replies=staged_feedback::Replies::new(&actor,&Store::open(&db.0).unwrap().active_configuration(ExecutionContext::Simulation).unwrap().unwrap());
         let first = owner.step().await.unwrap().unwrap();
-        assert_eq!(first.physical_frames,2);
-        if fail_after<10{assert_eq!(first.result.unwrap_err().bytes_written,fail_after);assert!(owner.step().await.is_err());}
-        else{first.result.unwrap();assert!(owner.step().await.unwrap().is_none());}
-        assert_eq!(first.completed.iter().map(|(id,_)|*id).collect::<Vec<_>>(),ids.iter().copied().take(fail_after.min(10)/5).collect::<Vec<_>>());
+        assert_eq!(first.physical_frames,1,"only the dimmer module may write before feedback");
+        if fail_after<5 {
+            assert_eq!(first.result.unwrap_err().bytes_written,fail_after);
+            assert!(first.completed.is_empty());
+            assert!(owner.step().await.is_err());
+        } else {
+            first.result.unwrap();
+            assert_eq!(first.completed.iter().map(|(id,_)|*id).collect::<Vec<_>>(),ids[..1]);
+            assert!(owner.step().await.unwrap().is_none(),"supply cannot overtake dimmer feedback");
+            replies.received(&actor,controller,&mut owner,"simulation").await;
+            let second=owner.step().await.unwrap().unwrap();
+            assert_eq!(second.physical_frames,1);
+            if fail_after<10 {
+                assert_eq!(second.result.unwrap_err().bytes_written,fail_after-5);
+                assert!(second.completed.is_empty());
+                assert!(owner.step().await.is_err());
+            } else {
+                second.result.unwrap();
+                assert_eq!(second.completed.iter().map(|(id,_)|*id).collect::<Vec<_>>(),ids[1..]);
+                assert!(owner.step().await.unwrap().is_none());
+            }
+        }
         let expected = [0xAE, 0x15, 0x01, 30, 0xEE, 0xAE, 0x03, 0x04, 0xF1, 0xEE];
         assert_eq!(
             bytes.lock().unwrap().as_slice(),
@@ -1376,7 +1397,7 @@ async fn combined_wire_order_and_each_partial_write_boundary_are_audited() {
         );
         let store = Store::open(&db.0).unwrap();
         let statuses = match fail_after {
-            2 => [Status::Uncertain, Status::Failed],
+            2 => [Status::Uncertain, Status::Cancelled],
             7 => [Status::Written, Status::Uncertain],
             _ => [Status::Written, Status::Written],
         };
@@ -1526,7 +1547,9 @@ async fn combined_restore_ignores_ramp_and_off_supply_until_confirmed_target() {
             .get(),
         50
     );
-    actor.submit(batch(Uuid::new_v4())).await.unwrap();
+    let controller=Uuid::new_v4();
+    let mut replies=staged_feedback::Replies::new(&actor,&Store::open(&db.0).unwrap().active_configuration(ExecutionContext::Simulation).unwrap().unwrap());
+    actor.submit(batch(controller)).await.unwrap();
     snapshot.devices.get_mut(&id).unwrap().observed =
         Some(Observation::Level(Percent::new(36).unwrap()));
     assert_eq!(
@@ -1547,6 +1570,7 @@ async fn combined_restore_ignores_ramp_and_off_supply_until_confirmed_target() {
     for _ in 0..2 {
         let ticket = actor.dispatch().await.unwrap().unwrap();
         actor.finish_write(ticket.command.id, true).await.unwrap();
+        replies.written(&actor,controller,&ticket).await;
     }
     tokio::time::sleep(Duration::from_millis(2)).await;
     // The owner stamps fresh feedback with the same clock as the write journal.

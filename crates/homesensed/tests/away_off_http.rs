@@ -239,7 +239,16 @@ async fn visible_away_operation_flows_through_http_actor_audit_wire_feedback_and
         .unwrap();
     assert_eq!(code, 202);
     assert_eq!(receipt["outcome"], "accepted");
-    assert_eq!(receipt["commands"].as_array().unwrap().len(), 1,"only the current module has a send lease at acceptance");
+    // Admission may accept the operation while a query owns the bus. This
+    // grants no physical send lease yet; it must never pre-admit future modules.
+    let initial=receipt["commands"].as_array().unwrap();
+    assert!(initial.len()<=1,"at most the current module has a send lease");
+    assert!(!receipt["operation"].as_str().unwrap().is_empty());
+    if let Some(command)=initial.first() {
+        let sql=rusqlite::Connection::open(root.join("automation-tcp.sqlite")).unwrap();
+        let (module,ports):(String,i64)=sql.query_row("SELECT min(module_id),count(*) FROM module_off_effect WHERE command_id=?1",[i64::try_from(command.as_u64().unwrap()).unwrap()],|r|Ok((r.get(0)?,r.get(1)?))).unwrap();
+        assert_eq!((module.as_str(),ports),("dimmer",8),"initial lease covers exactly the first module");
+    }
     assert_eq!(receipt["physical_result_confirmed"], false);
     let (code, repeated) = http(web, "/api/v1/away-off", Some(body)).await.unwrap();
     assert_eq!(code, 200);
@@ -340,7 +349,7 @@ async fn visible_away_operation_flows_through_http_actor_audit_wire_feedback_and
 
 
 #[tokio::test]
-async fn away_without_hap_or_indicators_remembers_settled_brightness_before_off() {
+async fn shared_producer_without_hap_or_indicators_and_away_preserve_settled_brightness() {
     for combined in [false, true] {
         let root = std::env::temp_dir().join(format!("away-no-projection-{}", uuid::Uuid::new_v4()));
         let free = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
@@ -392,9 +401,9 @@ async fn away_without_hap_or_indicators_remembers_settled_brightness_before_off(
                     last_written = last_written.max(at);
                 }
                 drop(sql);
-                // Management device projection now settles targets itself.
-                // Read raw physical slots here to preserve this test's separate
-                // proof: Away must capture brightness without any projection.
+                // Read raw physical slots independently of the shared publication.
+                // The server-owned producer must also remember confirmed
+                // brightness with zero HAP or indicator consumers.
                 let (_, view) = http(web, "/api/v1/modules", None).await.unwrap();
                 let modules = view["modules"].as_array().unwrap();
                 let slot = |module: &str| &modules.iter().find(|m|m["module_id"]==module).unwrap()["slots"][0]["binding"];
@@ -402,14 +411,23 @@ async fn away_without_hap_or_indicators_remembers_settled_brightness_before_off(
                     && sample["observed_ms"].as_str().and_then(|s|s.parse::<i64>().ok()).is_some_and(|at|at>last_written);
                 let dimmer = slot("dimmer");
                 let supply_ready = !combined || (fresh(slot("relay")) && slot("relay")["actual"]["on"]==true);
-                if complete && fresh(dimmer) && dimmer["actual"]==json!({"level":37,"on":true}) && supply_ready {break;}
+                let saved=homesense_storage::Store::open(root.join("automation-simulation.sqlite")).unwrap().light_restore_levels(1).unwrap();
+                let remembered=saved.get(&homesense_core::DeviceId::new("dimmer:1").unwrap()).is_some_and(|v|v.get()==37);
+                if complete && fresh(dimmer) && dimmer["actual"]==json!({"level":37,"on":true}) && supply_ready && remembered {break;}
                 tokio::time::sleep(Duration::from_millis(5)).await;
             }
         }).await.unwrap();
-        assert!(homesense_storage::Store::open(root.join("automation-simulation.sqlite")).unwrap().light_restore_levels(1).unwrap().is_empty());
+        assert_eq!(homesense_storage::Store::open(root.join("automation-simulation.sqlite")).unwrap().light_restore_levels(1).unwrap().get(&homesense_core::DeviceId::new("dimmer:1").unwrap()).map(|p|p.get()),Some(37),"the independent producer captures settled feedback without client projection");
         let (code, receipt) = http(web, "/api/v1/away-off", Some(json!({"revision":"1","request_id":"off-once"}))).await.unwrap();
         assert_eq!(code,202,"{receipt}");
-        assert_eq!(receipt["commands"].as_array().unwrap().len(),1,"future module is admitted after current feedback");
+        let initial=receipt["commands"].as_array().unwrap();
+        assert!(initial.len()<=1,"a busy bus may defer its first lease, never admit a future module");
+        assert!(!receipt["operation"].as_str().unwrap().is_empty());
+        if let Some(command)=initial.first() {
+            let sql=rusqlite::Connection::open(root.join("automation-simulation.sqlite")).unwrap();
+            let(module,ports):(String,i64)=sql.query_row("SELECT min(module_id),count(*) FROM module_off_effect WHERE command_id=?1",[i64::try_from(command.as_u64().unwrap()).unwrap()],|r|Ok((r.get(0)?,r.get(1)?))).unwrap();
+            assert_eq!((module.as_str(),ports),("dimmer",8));
+        }
         tokio::time::timeout(Duration::from_secs(1), async {
             loop {
                 let (_, view) = http(web, "/api/v1/devices", None).await.unwrap();

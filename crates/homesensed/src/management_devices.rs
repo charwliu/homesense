@@ -30,7 +30,7 @@ pub enum DeviceAction {
     /// accepted as a pre-normalized physical motor direction.
     KeypadPress { keypad: String, key: u8 },
 }
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DeviceView {
     pub(crate) control_error:Option<&'static str>,
     pub availability:Option<crate::gateway_runtime::View>,
@@ -45,8 +45,16 @@ pub struct DeviceView {
     pub reported: Option<homesense_core::Observation>,
     pub recorded: bool,
 }
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct LightPublication {
+    pub physical:homesense_state::Snapshot,
+    pub logical:homesense_state::Snapshot,
+    pub restore:std::collections::BTreeMap<DeviceId,homesense_core::Percent>,
+    pub targets:std::collections::BTreeMap<DeviceId,homesense_core::Percent>,
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DeviceSnapshot {
+    pub(crate) light_publication:Option<LightPublication>,
     pub household_operations:Vec<crate::household_sequence::View>,
     pub boot: String,
     pub revision: u64,
@@ -131,10 +139,10 @@ async fn snapshot_bound(admission:&Admission,controller:Uuid,generation:TaskGene
     // A management-only runtime has no HAP/indicator sampler to retire reached
     // targets. Settle from this genuine snapshot and capture remaining targets
     // in one actor turn; never acknowledge Accepted/Writing or ramp samples.
-    let (recorded,unsettled) = match admission.hap_projection(
+    let (recorded,unsettled,restore) = match admission.hap_projection(
         generation.epochs.configuration, Some(generation.epochs.transport), raw.clone(), max_age_ms,
     ).await.map_err(|e| format!("management light projection: {e:?}"))? {
-        crate::admission::HapProjection::Ready { targets, unsettled, .. } => (targets,unsettled),
+        crate::admission::HapProjection::Ready { targets, unsettled, restore, .. } => (targets,unsettled,restore),
         crate::admission::HapProjection::Unavailable => return Err("management light projection unavailable".into()),
     };
     let mut snapshot = crate::combined_light::project(&bundle.configuration, &raw)
@@ -224,7 +232,7 @@ async fn snapshot_bound(admission:&Admission,controller:Uuid,generation:TaskGene
     if let Some(document)=&bundle.automation {
         keypad_execute_scopes=crate::keypad_actions::execution_scopes(&bundle.configuration,document).map_err(|e|format!("keypad scene scope: {e:?}"))?;
     }
-    Ok(DeviceSnapshot {household_operations,
+    Ok(DeviceSnapshot {light_publication:Some(LightPublication{physical:raw,logical:published,restore,targets:recorded}),household_operations,
         boot: admission.boot_id().to_owned(),
         revision: bundle.configuration.revision(),
         sequence: snapshot.cursor.sequence,

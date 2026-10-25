@@ -90,7 +90,7 @@ impl Source {
         })
     }
     pub fn with_actions(mut self, control: crate::automation_control::Control, revision: u64, scenes: Vec<String>) -> Self {
-        if !scenes.is_empty() { self.actions = Some((control, revision, scenes)); }
+        self.actions = Some((control, revision, scenes));
         self
     }
     /// Only the accepted document's reviewed presentation mappings are passed
@@ -99,6 +99,8 @@ impl Source {
         self.presentations = presentations;
         self
     }
+    pub(crate) fn current_stamp(&self)->Option<crate::current_read_model::Stamp> {self.actions.as_ref()?.0.current_model_stamp()}
+    pub(crate) fn current_ready(&self)->Option<bool> {self.actions.as_ref()?.0.current_model_ready()}
     pub async fn sample(&self) -> Result<BTreeMap<String, Option<bool>>, UnavailableReason> {
         self.sample_inner(true).await
     }
@@ -109,6 +111,23 @@ impl Source {
         self.sample_inner(false).await
     }
     async fn sample_inner(&self, read_actions: bool) -> Result<BTreeMap<String, Option<bool>>, UnavailableReason> {
+        // Production HAP and management adapters consume the same runtime-owned
+        // scene selection/load publication. HAP authorization remains separate.
+        if read_actions && let Some((control,revision,scenes))=&self.actions
+            && control.current_model_ready().is_some() {
+            return tokio::time::timeout(Duration::from_millis(500),async {
+                use crate::automation_control::{Action,Reply};
+                let Reply::SceneSelectionDetails(details)=control.request(Action::SceneSelectionDetails{controller:self.controller,revision:*revision}).await.map_err(|_|UnavailableReason::ReadFailed)? else{return Err(UnavailableReason::ReadFailed);};
+                let mut values=details.into_iter().map(|(id,detail)|(id,detail.selected)).collect::<BTreeMap<_,_>>();
+                for(public,provider)in &self.presentations {values.insert(public.clone(),values.get(provider).copied().ok_or(UnavailableReason::ReadFailed)?);}
+                for chunk in scenes.chunks(64) {
+                    let Reply::SceneLoadStates(loads)=control.request(Action::SceneLoadStates{controller:self.controller,revision:*revision,scenes:chunk.to_vec()}).await.map_err(|_|UnavailableReason::ReadFailed)? else{return Err(UnavailableReason::ReadFailed);};
+                    values.extend(loads);
+                }
+                if control.current_model_ready()!=Some(true){return Err(UnavailableReason::Invalidated);}
+                Ok(values)
+            }).await.map_err(|_|UnavailableReason::ReadTimedOut)?;
+        }
         let names = self.groups.iter().map(|g| g.variable.clone()).collect();
         tokio::time::timeout(Duration::from_millis(500), async {
             let snapshot = self
@@ -129,7 +148,7 @@ impl Source {
                     .ok_or(UnavailableReason::ReadFailed)?;
                 values.insert(public.clone(), selected);
             }
-            if let Some((control, revision, scenes)) = &self.actions {
+            if let Some((control, revision, scenes)) = &self.actions && !scenes.is_empty() {
                 if !read_actions {
                     values.extend(scenes.iter().map(|id| (id.clone(), None)));
                     return Ok(values);

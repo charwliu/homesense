@@ -59,6 +59,7 @@ pub struct RuntimeHap {
     pub lights: Vec<(LightBinding, AccessoryHandle)>,
     pub write_handler: Arc<dyn WriteBatchHandler>,
     admission: Admission,
+    current_control:Option<crate::automation_control::Control>,
     snapshot: Arc<RwLock<Snapshot>>,
     projection: ObservedEvents,
     projection_interrupted: bool,
@@ -122,6 +123,7 @@ impl RuntimeHap {
         selected:Option<std::collections::BTreeSet<homesense_core::DeviceId>>,
         control:Option<crate::automation_control::Control>,
     )->Result<Self,String> {
+        let current_control=control.clone();
         let unspecified = selected.is_none();
         let selected = selected.unwrap_or_else(||crate::hap_bridge_plan::all_light_ids(configuration));
         let supplies:std::collections::BTreeSet<_>=configuration.devices().values().filter(|d|d.enabled).filter_map(|d|d.supply_relay.as_ref()).collect();
@@ -283,6 +285,7 @@ impl RuntimeHap {
             projection,
             projection_interrupted: false,
             max_age_ms,
+            current_control,
             configuration: configuration.clone(),
             projection_epoch,
             selected:Some(selected),
@@ -293,12 +296,18 @@ impl RuntimeHap {
     /// Age the HAP event projection independently of the physical owner and
     /// durable admission. Reads already check this same observation deadline.
     pub(crate) async fn refresh_expiration(&mut self) -> Result<(), String> {
+        if let Some(result)=self.current_control.as_ref().and_then(|control|control.current_lights()) {
+            return self.publish_current_lights(result).await;
+        }
         let snapshot = self.snapshot.read().map_err(|_| "snapshot lock poisoned")?.clone();
         self.projection.refresh_snapshot(&snapshot, self.admission.monotonic_ms()).await.map_err(error)
     }
     /// Coalesced full snapshot path for an independent HAP projection task.
     /// It never borrows the transport owner or blocks its control channel.
     pub async fn publish_snapshot(&mut self, physical:Snapshot)->Result<(),String> {
+        if let Some(result)=self.current_control.as_ref().and_then(|control|control.current_lights()) {
+            return self.publish_current_lights(result).await;
+        }
         {
             let current=self.snapshot.read().map_err(|_|"snapshot lock poisoned")?;
             if physical.cursor.boot_id!=current.cursor.boot_id || physical.cursor.sequence<current.cursor.sequence {return Err("snapshot cursor regressed".into());}
@@ -319,6 +328,29 @@ impl RuntimeHap {
         }
         *self.physical_snapshot.write().map_err(|_|"snapshot lock poisoned")?=physical;
         *self.restore_levels.write().map_err(|_|"restore lock poisoned")?=saved;
+        self.projection.refresh_snapshot(&snapshot,self.admission.monotonic_ms()).await.map_err(error)
+    }
+    /// HAP locks are acquired only after cloning the shared current state.
+    /// A slow controller cannot block the producer or start another projection.
+    async fn publish_current_lights(&mut self,result:Result<crate::management_devices::LightPublication,String>)->Result<(),String> {
+        let value=match result {
+            Ok(value)=>value,
+            Err(_)=>{
+                let physical=self.physical_snapshot.read().map_err(|_|"physical snapshot lock poisoned")?.clone();
+                return self.publish_unavailable(physical).await;
+            },
+        };
+        let mut snapshot=value.logical;
+        snapshot.devices.retain(|id,_|self.configuration.binding(id).is_some_and(|(_,module)|matches!(module.kind(),ModuleKind::Switch|ModuleKind::Dimmer))
+            && self.selected.as_ref().is_none_or(|selected|selected.contains(id)));
+        {
+            let mut current=self.snapshot.write().map_err(|_|"snapshot lock poisoned")?;
+            if snapshot.cursor.boot_id!=current.cursor.boot_id || snapshot.cursor.sequence<current.cursor.sequence {return Ok(());}
+            *current=snapshot.clone();
+        }
+        self.projection.transitions().retain_owned(&value.targets);
+        *self.physical_snapshot.write().map_err(|_|"physical snapshot lock poisoned")?=value.physical;
+        *self.restore_levels.write().map_err(|_|"restore lock poisoned")?=value.restore;
         self.projection.refresh_snapshot(&snapshot,self.admission.monotonic_ms()).await.map_err(error)
     }
     /// Local invalidation only: never turn a closed actor lifecycle gate into

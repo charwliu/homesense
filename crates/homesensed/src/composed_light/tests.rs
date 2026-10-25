@@ -419,6 +419,11 @@ impl Fixture {
         .ok_or("missing".into())
     }
     async fn drain(&self) -> Vec<(DeviceId, Command)> {
+        // Simulate hardware replies after durable writes for staged dispatch.
+        // Keep the deliberately delayed management projection separate: tests
+        // below still inject its raw observations and check stale/read barriers.
+        let mut wire_feedback=Feedback::new(&self.config,homesense_core::ExecutionContext::Simulation,
+            Uuid::parse_str(self.admission.boot_id()).unwrap().as_u128(),1).unwrap();
         let mut out = vec![];
         while let Some(t) = self.admission.dispatch().await.unwrap() {
             out.push((t.command.device_id.clone(), t.command.command));
@@ -428,6 +433,21 @@ impl Fixture {
                 .unwrap();
             self.time
                 .fetch_add(20, std::sync::atomic::Ordering::Release);
+            if self.admission.module_confirmation_active() {
+                let command=&t.command;
+                if let Some((device,module))=self.config.binding(&command.device_id) {
+                    let value=match command.command {
+                        Command::Switch(on)=>Some(if on{0xf1}else{0xf2}),
+                        Command::SetLevel{level,..}=>Some(level.get()),_=>None,
+                    };
+                    if let Some(value)=value {
+                        wire_feedback.apply(&crate::transport_owner::GatewayRead{gateway_id:device.gateway.clone(),transport_epoch:1,
+                            received_at_ms:self.admission.monotonic_ms(),result:hb_transport::Receive::Frames{transport_epoch:1,
+                            frames:vec![hb_protocol::RawFrame{address:module.address().get(),command:0xd0+device.channel.get(),value}]}}).unwrap();
+                        for _ in 0..2 {wire_feedback.reconcile_control_phases(&self.admission,self.controller).await.unwrap();}
+                    }
+                }
+            }
         }
         out
     }

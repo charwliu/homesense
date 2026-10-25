@@ -545,14 +545,15 @@ async fn following_query_waits_for_complete_9600_baud_batch() {
 #[tokio::test]
 async fn cross_module_immediate_phase_waits_for_each_postwrite_reply() {
     use std::{collections::VecDeque,io::{Read,Write}};
+    for first_level in [0,100] {
     let(cfg,mut doc)=writer_batch_inputs();
     doc["immediate_scenes"][0]["activate"]=json!([
-        command("first/dimmer","light",level(100)),
+        command("first/dimmer","light",level(first_level)),
         command("second/relay","relay",json!({"kind":"switch","on":true})),
         command("third/dimmer","light",level(100)),
         command("linked/led","execute-led",json!({"kind":"panel_led","on":true}))]);
     let mut h=Harness::from_inputs(cfg,doc).await;
-    mode_frame(&mut h,0x15,1,100); // A matching pre-write cache is not a receipt.
+    mode_frame(&mut h,0x15,1,first_level); // A matching pre-write cache is not a receipt.
     h.request(Action::SceneAction{controller:h.controller,revision:1,scene:"act".into(),execute:true}).await.unwrap();
     type Bytes=Arc<Mutex<Vec<Vec<u8>>>>;
     struct Bus {writes:Bytes,rx:Arc<Mutex<VecDeque<Vec<u8>>>>}
@@ -566,10 +567,10 @@ async fn cross_module_immediate_phase_waits_for_each_postwrite_reply() {
     assert!(h.actor.module_confirmation_active());
     let first=owner.step().await.unwrap().unwrap();first.result.unwrap();
     assert_eq!(first.completed.len(),1,"another module must not be concatenated before first-module feedback");
-    assert_eq!(writes.lock().unwrap()[0],[0xae,0x15,1,100,0xee]);
+    assert_eq!(writes.lock().unwrap()[0],[0xae,0x15,1,first_level,0xee]);
     crate::control_batch::tick(&h.actor,h.controller,&h.feedback).await.unwrap();
     assert!(owner.step().await.unwrap().is_none(),"matching pre-write cache cannot start the next module");
-    for value in [64,100] {
+    for value in [64,first_level] {
         tokio::time::sleep(Duration::from_millis(3)).await;
         rx.lock().unwrap().push_back(vec![0xae,0x15,0xd1,value,0xee]);
         let read=owner.receive("bus").await.unwrap();h.feedback.apply(&read).unwrap();
@@ -597,8 +598,8 @@ async fn cross_module_immediate_phase_waits_for_each_postwrite_reply() {
     assert!(!h.actor.module_confirmation_active());
     assert_eq!(writes.lock().unwrap().len(),4,"only the original three controls and original linked LED may be written; no replay");
     h.finish().await;
+    }
 }
-
 #[tokio::test]
 async fn manual_override_retires_unwritten_module_stages_without_replay() {
     let(cfg,mut doc)=writer_batch_inputs();
@@ -624,7 +625,7 @@ async fn manual_override_retires_unwritten_module_stages_without_replay() {
 }
 
 #[tokio::test]
-async fn absolute_all_off_issues_every_original_module_without_waiting_for_earlier_reply() {
+async fn absolute_all_off_issues_every_original_module_after_bounded_missing_reply_window() {
     let(cfg,mut doc)=writer_batch_inputs();
     doc["immediate_scenes"][0]["activate"]=json!([
         command("off/dimmer","light",level(0)),
@@ -632,14 +633,18 @@ async fn absolute_all_off_issues_every_original_module_without_waiting_for_earli
         command("linked/led","execute-led",json!({"kind":"panel_led","on":false}))]);
     let mut h=Harness::from_inputs(cfg,doc).await;
     h.request(Action::SceneAction{controller:h.controller,revision:1,scene:"act".into(),execute:true}).await.unwrap();
-    let(mut owner,calls)=batch_owner(&h,usize::MAX);
+    let(mut owner,calls,rx)=reply_owner(&h);
     let outcome=owner.step().await.unwrap().unwrap();outcome.result.unwrap();
-    assert_eq!(outcome.completed.len(),2,"a missing first module cannot withhold later explicit Off commands");
-    assert_eq!(calls.lock().unwrap().as_slice(),&[vec![0xae,0x15,1,0,0xee,0xae,3,1,0xf2,0xee]]);
+    assert_eq!(outcome.completed.len(),1,"reserve the first module reply window");
+    assert!(owner.step().await.unwrap().is_none());
+    tokio::time::sleep(Duration::from_millis(homesense_core::away_execution::Policy::default().feedback_ms+10)).await;
+    crate::control_batch::tick(&h.actor,h.controller,&h.feedback).await.unwrap();
+    owner.step().await.unwrap().unwrap().result.unwrap();
+    assert_eq!(calls.lock().unwrap().as_slice(),&[vec![0xae,0x15,1,0,0xee],vec![0xae,3,1,0xf2,0xee]],"missing feedback cannot suppress any original Off output");
     assert!(owner.step().await.unwrap().is_none(),"linked LED still needs real final feedback");
     tokio::time::sleep(Duration::from_millis(3)).await;
-    mode_frame(&mut h,0x15,1,0);mode_frame(&mut h,3,1,0xf2);
-    crate::control_batch::tick(&h.actor,h.controller,&h.feedback).await.unwrap();
+    deliver_reply(&mut h,&mut owner,&rx,0x15,1,0).await;deliver_reply(&mut h,&mut owner,&rx,3,1,0xf2).await;
+    for _ in 0..2 {crate::control_batch::tick(&h.actor,h.controller,&h.feedback).await.unwrap();}
     owner.step().await.unwrap().unwrap().result.unwrap();h.finish().await;
 }
 
@@ -659,4 +664,106 @@ async fn an_opened_module_cannot_borrow_the_whole_operation_budget_for_a_late_fi
     let store=Store::open(h.directory.join("runtime.sqlite")).unwrap();
     for id in 1..=3 {assert_eq!(store.command_status(h.actor.boot_id(),id).unwrap(),Some(homesense_storage::journal::Status::Cancelled));}
     drop(store);assert!(h.actor.task_generation().await.is_ok());h.finish().await;
+}
+
+#[tokio::test]
+async fn zero_offset_named_recipe_waits_for_each_module_and_keeps_step_receipts() {
+    let(cfg,mut doc)=writer_batch_inputs();
+    doc["timed_scenes"]=json!([{"id":"instant","enabled":true,"review_evidence":"Synthetic simultaneous named lighting recipe","max_lateness_ms":5000,"steps":[
+        {"source":"instant/dimmer","offset_ms":0,"device":"light","command":{"kind":"level","value":100,"ramp":false}},
+        {"source":"instant/relay","offset_ms":0,"device":"relay","command":{"kind":"switch","on":true}},
+        {"source":"instant/led","offset_ms":0,"device":"execute-led","command":{"kind":"panel_led","on":true}}
+    ]}]);
+    let mut h=Harness::from_inputs(cfg,doc).await;
+    let definition=h.document.timed_scenes["instant"].clone();let now=h.actor.monotonic_ms();
+    let mut scene=crate::scene_runtime::SceneRuntime::new_named(h.actor.clone(),h.controller,definition.steps,now,5000,Some("instant".into())).await.unwrap();
+    let ids=scene.poll(now).await.unwrap().unwrap();assert_eq!(ids.len(),3);
+    let(mut owner,calls,rx)=reply_owner(&h);
+    assert!(h.actor.module_confirmation_active());
+    owner.step().await.unwrap().unwrap().result.unwrap();
+    assert_eq!(calls.lock().unwrap().as_slice(),&[vec![0xae,0x15,1,100,0xee]]);
+    assert!(owner.step().await.unwrap().is_none(),"a zero-offset timeline must not bypass module confirmation");
+    tokio::time::sleep(Duration::from_millis(3)).await;deliver_reply(&mut h,&mut owner,&rx,0x15,1,100).await;
+    crate::control_batch::tick(&h.actor,h.controller,&h.feedback).await.unwrap();
+    owner.step().await.unwrap().unwrap().result.unwrap();
+    assert_eq!(calls.lock().unwrap()[1],[0xae,3,1,0xf1,0xee]);
+    assert!(owner.step().await.unwrap().is_none());
+    tokio::time::sleep(Duration::from_millis(3)).await;deliver_reply(&mut h,&mut owner,&rx,3,1,0xf1).await;
+    for _ in 0..2 {crate::control_batch::tick(&h.actor,h.controller,&h.feedback).await.unwrap();}
+    let next=owner.step().await.unwrap();
+    assert!(next.is_some(),"views={:?}; statuses={:?}",h.actor.control_batch_views(h.controller,h.generation.clone()).await.unwrap(),h.actor.command_statuses(h.controller,h.generation.clone(),ids).await.unwrap());
+    next.unwrap().result.unwrap();scene.reconcile().await.unwrap();
+    assert_eq!(calls.lock().unwrap()[2],[0xae,0x41,1,0xf1,0xee]);
+    assert_eq!(scene.status(),homesense_core::scene::Status::CommandsWritten);
+    h.finish().await;
+}
+
+#[tokio::test]
+async fn multi_module_recipe_without_linked_leds_still_waits_for_feedback() {
+    let(cfg,mut doc)=writer_batch_inputs();
+    doc["immediate_scenes"][0]["activate"]=json!([
+        command("first/light","light",level(100)),
+        command("next/relay","relay",json!({"kind":"switch","on":true}))]);
+    let mut h=Harness::from_inputs(cfg,doc).await;
+    h.request(Action::SceneAction{controller:h.controller,revision:1,scene:"act".into(),execute:true}).await.unwrap();
+    let(mut owner,calls,rx)=reply_owner(&h);
+    owner.step().await.unwrap().unwrap().result.unwrap();
+    assert_eq!(calls.lock().unwrap().as_slice(),&[vec![0xae,0x15,1,100,0xee]]);
+    assert!(owner.step().await.unwrap().is_none(),"no LED is required to protect a module's reply");
+    tokio::time::sleep(Duration::from_millis(3)).await;deliver_reply(&mut h,&mut owner,&rx,0x15,1,100).await;
+    crate::control_batch::tick(&h.actor,h.controller,&h.feedback).await.unwrap();
+    owner.step().await.unwrap().unwrap().result.unwrap();
+    assert_eq!(calls.lock().unwrap()[1],[0xae,3,1,0xf1,0xee]);
+    tokio::time::sleep(Duration::from_millis(3)).await;deliver_reply(&mut h,&mut owner,&rx,3,1,0xf1).await;
+    for _ in 0..3 {crate::control_batch::tick(&h.actor,h.controller,&h.feedback).await.unwrap();}
+    h.actor.task_generation().await.unwrap();assert!(!h.actor.module_confirmation_active());
+    h.finish().await;
+}
+
+#[tokio::test]
+async fn all_off_waits_for_silent_module_window_but_still_closes_later_modules() {
+    let(cfg,mut doc)=writer_batch_inputs();
+    doc["immediate_scenes"][0]["activate"]=json!([
+        command("first/off","light",level(0)),
+        command("next/off","relay",json!({"kind":"switch","on":false})),
+        command("linked/green","execute-led",json!({"kind":"panel_led","on":false}))]);
+    let mut h=Harness::from_inputs(cfg,doc).await;
+    h.request(Action::SceneAction{controller:h.controller,revision:1,scene:"act".into(),execute:true}).await.unwrap();
+    let(mut owner,calls,rx)=reply_owner(&h);
+    owner.step().await.unwrap().unwrap().result.unwrap();
+    assert_eq!(calls.lock().unwrap().as_slice(),&[vec![0xae,0x15,1,0,0xee]]);
+    assert!(owner.step().await.unwrap().is_none(),"Off must also reserve the module's reply window");
+    tokio::time::sleep(Duration::from_millis(homesense_core::away_execution::Policy::default().feedback_ms+10)).await;
+    crate::control_batch::tick(&h.actor,h.controller,&h.feedback).await.unwrap();
+    owner.step().await.unwrap().unwrap().result.unwrap();
+    assert_eq!(calls.lock().unwrap()[1],[0xae,3,1,0xf2,0xee],"missing first reply cannot suppress later Off");
+    tokio::time::sleep(Duration::from_millis(3)).await;deliver_reply(&mut h,&mut owner,&rx,3,1,0xf2).await;
+    for _ in 0..2 {crate::control_batch::tick(&h.actor,h.controller,&h.feedback).await.unwrap();}
+    assert!(owner.step().await.unwrap().is_none(),"a timeout is not a successful final feedback proof");
+    assert_eq!(calls.lock().unwrap().len(),2,"the original linked LED must not turn green without all target feedback");
+    h.finish().await;
+}
+
+
+type ReplyQueue=Arc<Mutex<std::collections::VecDeque<Vec<u8>>>>;
+type ReplyWrites=Arc<Mutex<Vec<Vec<u8>>>>;
+fn reply_owner(h:&Harness)->(TransportOwner<impl std::io::Read+std::io::Write+Send+use<>>,ReplyWrites,ReplyQueue) {
+    struct ReplyBus {writes:Arc<Mutex<Vec<Vec<u8>>>>,rx:ReplyQueue}
+    impl std::io::Read for ReplyBus {
+        fn read(&mut self,b:&mut[u8])->std::io::Result<usize>{
+            let Some(bytes)=self.rx.lock().unwrap().pop_front() else{return Err(std::io::ErrorKind::WouldBlock.into());};
+            b[..bytes.len()].copy_from_slice(&bytes);Ok(bytes.len())
+        }
+    }
+    impl std::io::Write for ReplyBus {
+        fn write(&mut self,b:&[u8])->std::io::Result<usize>{self.writes.lock().unwrap().push(b.to_vec());Ok(b.len())}
+        fn flush(&mut self)->std::io::Result<()>{Ok(())}
+    }
+    let writes=Arc::new(Mutex::new(vec![]));let rx=Arc::new(Mutex::new(std::collections::VecDeque::new()));
+    let owner=TransportOwner::new(h.actor.clone(),[("bus".into(),hb_transport::Connection::for_simulation(ReplyBus{writes:writes.clone(),rx:rx.clone()},1))].into());
+    (owner,writes,rx)
+}
+async fn deliver_reply<S:std::io::Read+std::io::Write+Send+'static>(h:&mut Harness,owner:&mut TransportOwner<S>,rx:&ReplyQueue,addr:u8,ch:u8,value:u8) {
+    rx.lock().unwrap().push_back(vec![0xae,addr,0xd0+ch,value,0xee]);
+    let received=owner.receive("bus").await.unwrap();h.feedback.apply(&received).unwrap();
 }

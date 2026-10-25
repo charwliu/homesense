@@ -49,6 +49,9 @@ impl Write for Wire {
 }
 async fn drain(h: &Harness) -> Vec<(u64, DeviceId, Command, [u8; 5])> {
     let mut result = vec![];
+    let bundle=h.actor.automation_bundle(h.controller,h.generation.clone()).await.unwrap();
+    let mut wire_feedback=crate::feedback::Feedback::new(&bundle.configuration,homesense_core::ExecutionContext::Simulation,
+        uuid::Uuid::parse_str(h.actor.boot_id()).unwrap().as_u128(),h.generation.epochs.transport).unwrap();
     for _ in 0..200 {
         if let Some(ticket) = h.actor.dispatch().await.unwrap() {
             let bytes = Arc::new(Mutex::new(vec![]));
@@ -71,6 +74,14 @@ async fn drain(h: &Harness) -> Vec<(u64, DeviceId, Command, [u8; 5])> {
                 frame,
             ));
             h.actor.finish_write(ticket.command.id, true).await.unwrap();
+            if h.actor.module_confirmation_active() && matches!(frame[2],1..=8) {
+                tokio::time::sleep(Duration::from_millis(3)).await;
+                let value=if frame[1]==0x15 && matches!(frame[3],0xf1|0xf2){if frame[3]==0xf1{100}else{0}}else{frame[3]};
+                wire_feedback.apply(&crate::transport_owner::GatewayRead{gateway_id:"bus".into(),transport_epoch:h.generation.epochs.transport,
+                    received_at_ms:h.actor.monotonic_ms(),result:hb_transport::Receive::Frames{transport_epoch:h.generation.epochs.transport,
+                    frames:vec![hb_protocol::RawFrame{address:frame[1],command:0xd0+frame[2],value}]}}).unwrap();
+                for _ in 0..2 {wire_feedback.reconcile_control_phases(&h.actor,h.controller).await.unwrap();}
+            }
         } else {
             let ready = h
                 .actor

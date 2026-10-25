@@ -24,6 +24,12 @@ pub struct Update {
     pub reset: bool,
     pub snapshot: DeviceSnapshot,
 }
+pub(crate) fn scoped_cursor(controller:Uuid,authorization_scope:&str,ids:&[DeviceId],snapshot:&DeviceSnapshot,transport_epoch:u64)->Cursor {
+    let ids=ids.iter().map(DeviceId::as_str).collect::<BTreeSet<_>>();
+    let scope=serde_json::to_vec(&(controller.to_string(),authorization_scope,ids)).expect("string cursor scope");
+    Cursor{boot:snapshot.boot.clone(),revision:snapshot.revision,transport_epoch,sequence:snapshot.sequence,
+        scope:Sha256::digest(scope).iter().map(|byte|format!("{byte:02x}")).collect()}
+}
 #[allow(clippy::too_many_arguments)]
 pub async fn read(
     admission: &Admission,

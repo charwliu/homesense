@@ -37,6 +37,7 @@ pub struct RuntimeSceneHap {
     writes: Arc<tokio::sync::Mutex<()>>,
     published: BTreeMap<String, bool>,
     refreshed: Option<Instant>,
+    sampled_stamp:Option<crate::current_read_model::Stamp>,
     tracking_ids: BTreeSet<String>,
     tracking_guard: Option<TrackingGuard>,
     tracking_install:
@@ -457,6 +458,7 @@ impl RuntimeSceneHap {
             writes,
             published: BTreeMap::new(),
             refreshed: None,
+            sampled_stamp:None,
         })
     }
     /// Call outside the HTTP batch handler, which holds accessory locks. Reset
@@ -488,7 +490,8 @@ impl RuntimeSceneHap {
             count += 1;
         }
         if let Some(source) = &self.source {
-            if self
+            let stamp=source.current_stamp();
+            if stamp!=self.sampled_stamp || (stamp.is_none() && source.current_ready().is_some()) || self
                 .refreshed
                 .is_none_or(|time| time.elapsed() >= Duration::from_millis(100))
             {
@@ -498,6 +501,7 @@ impl RuntimeSceneHap {
                     Err(reason) => self.selection.unavailable(reason),
                 }
                 self.refreshed = Some(Instant::now());
+                self.sampled_stamp=stamp;
             }
             // Off notifications precede On. Reads use one coherent cached map,
             // and the value is rechecked after each accessory lock is acquired.
@@ -538,10 +542,8 @@ impl RuntimeSceneHap {
 }
 
 impl RuntimeSceneHap {
-    pub(crate) fn has_tracking(&self) -> bool {
-        !self.tracking_ids.is_empty()
-    }
     async fn tracking_ready(&self) -> bool {
+        if let Some(ready)=self.source.as_ref().and_then(|source|source.current_ready()){return ready;}
         if let Some(guard) = &self.tracking_guard {
             guard
                 .admission

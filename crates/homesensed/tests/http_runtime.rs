@@ -1,4 +1,6 @@
 //! Actual encrypted HTTP -> RuntimeHap -> durable Admission. No physical bus.
+#[path = "support/staged_feedback.rs"]
+mod staged_feedback;
 #[path = "../../homesense-hap/tests/support/mod.rs"]
 mod support;
 use hap::{
@@ -302,6 +304,7 @@ async fn exercise(combined: bool) {
             .write_async(controller, body.as_bytes())
             .await
             .unwrap();
+        let mut replies=staged_feedback::Replies::new(&restarted,&config);
         let ticket = restarted.dispatch().await.unwrap().unwrap();
         assert_eq!(
             ticket.command.command,
@@ -314,6 +317,7 @@ async fn exercise(combined: bool) {
             .finish_write(ticket.command.id, true)
             .await
             .unwrap();
+        replies.written(&restarted,controller,&ticket).await;
         let relay = restarted.dispatch().await.unwrap().unwrap();
         assert_eq!(relay.command.command, homesense_core::Command::Switch(true));
         restarted

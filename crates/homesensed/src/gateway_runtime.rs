@@ -115,7 +115,7 @@ fn synchronize(config:&Configuration,table:&mut GatewayTable,wire:&WireScope,sam
 /// Health metadata is independent from grants and operation acceptance. Capture
 /// the reviewed scene's possible reads and outputs, including a selection group's
 /// explicit off members; this never schedules any member or invents Off policy.
-#[derive(Debug,PartialEq,Eq,serde::Serialize)]
+#[derive(Clone,Debug,PartialEq,Eq,serde::Serialize)]
 pub struct ActionGate {pub available:bool,pub required_gateways:Vec<View>}
 pub(crate) fn scene_devices(document:&homesense_config::rule_document::Document,id:&str)->Result<BTreeSet<DeviceId>,String> {
     scene_scope_devices(document,&scene_scope(document,id)?)

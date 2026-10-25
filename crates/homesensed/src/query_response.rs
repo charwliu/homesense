@@ -41,6 +41,12 @@ impl Scope {
         if channels.is_empty() || channels.iter().any(|ch|*ch==0||*ch>module.channels()) {return Err("invalid control reply channels".into());}
         scope.channels=channels.into_iter().collect();scope.solicited=false;Ok(scope)
     }
+    pub(crate) fn merge_control(&mut self,other:Self)->Result<(),String> {
+        if self.solicited || other.solicited || self.address!=other.address || self.epoch!=other.epoch {
+            return Err("incompatible control reply scopes in one physical write".into());
+        }
+        self.channels.extend(other.channels);Ok(())
+    }
     fn channel(&self, frame: hb_protocol::RawFrame) -> Option<u8> {
         match self.registry.decode(frame) {
             Decoded::Feedback {
@@ -216,6 +222,24 @@ mod tests {
                     .collect(),
             },
         }
+    }
+    #[test]
+    fn control_reply_scope_contains_only_this_write_and_unions_merged_tickets() {
+        let module=ModuleSpec::new(BusAddress::new(0x15).unwrap(),ProtocolProfile::R8i8DinPro,Verification::Simulated).unwrap();
+        let control=|channels|Scope::control(&module,channels,ExecutionContext::Simulation,2).unwrap();
+        let mut r=Replies::default();
+        r.start("bus".into(),control(vec![1]),100,20);
+        r.observe(&read("bus",2,101,vec![[0xae,0x15,0xd1,0xf1,0xee]]));
+        assert!(!r.awaiting("bus",102),"unwritten ports are not reply obligations");
+        assert!(r.waiting("bus",120));assert!(!r.waiting("bus",121));
+        let mut merged=control(vec![1]);merged.merge_control(control(vec![2])).unwrap();
+        r.start("bus".into(),merged,200,20);
+        r.observe(&read("bus",2,201,vec![[0xae,0x15,0xd1,0xf1,0xee]]));
+        assert!(r.awaiting("bus",222),"every actually merged port must reply");
+        r.observe(&read("bus",2,223,vec![[0xae,0x15,0xd2,0xf1,0xee]]));
+        assert!(!r.awaiting("bus",224));assert!(r.waiting("bus",242));assert!(!r.waiting("bus",243));
+        assert!(!r.solicited("bus",hb_protocol::RawFrame::parse(&[0xae,0x15,0xd2,0xf1,0xee]).unwrap(),223),"passive control feedback keeps its identity");
+        assert!(control(vec![1]).merge_control(scope(2)).is_err(),"query replies cannot be coalesced with control replies");
     }
     #[test]
     fn complete_unique_valid_reply_set_releases_only_its_bus_and_epoch() {

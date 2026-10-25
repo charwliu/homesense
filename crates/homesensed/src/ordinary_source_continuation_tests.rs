@@ -646,6 +646,12 @@ async fn combined_http_partial_write_keeps_the_written_dimmer_and_rejects_unwrit
         h.bytes.lock().unwrap().clear();
         if let Some(kind) = change {
             h.change(kind);
+        } else {
+            h.clock.fetch_add(3,Ordering::Release);
+            h.feedback.apply(&crate::transport_owner::GatewayRead{gateway_id:"bus".into(),transport_epoch:h.receiver.generation.epochs.transport,
+                received_at_ms:h.actor.monotonic_ms(),result:hb_transport::Receive::Frames{transport_epoch:h.receiver.generation.epochs.transport,
+                frames:vec![hb_protocol::RawFrame{address:0x15,command:0xd2,value:30}]}}).unwrap();
+            h.feedback.reconcile_control_phases(&h.actor,h.source.grant.controller).await.unwrap();
         }
         h.drain().await;
         let wire = h.bytes.lock().unwrap().clone();

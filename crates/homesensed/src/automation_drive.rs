@@ -261,7 +261,7 @@ pub(crate) async fn drive_with_panel_feeds<S: Read + Write + Send + 'static>(
         // Failed/cancelled work retains the existing fail-closed guards.
         quantum = acquire_quantum(handoff_gate.as_ref(), &mut stop).await;
         if *stop.borrow() || stop.has_changed().is_err() { return Ok(()); }
-        if let Some((receiver,document))=&mut control.0 {receiver.bind_selection_reader(admission,document,stop.clone()).await?;}
+        if let Some((receiver,document))=&mut control.0 {receiver.bind_selection_reader(admission,document,stop.clone()).await?;receiver.enable_current_model()?;}
         if let Some(router)=&mut causal
             && guard.calendar.as_ref().is_some_and(|calendar|calendar.needs_feedback_candidates())
         {

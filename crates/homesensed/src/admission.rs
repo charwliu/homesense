@@ -105,7 +105,8 @@ pub struct Diagnostics {
 fn mapping_readable_fields(failed:bool,stopping:bool,publishing:bool,controller:bool,storage:bool,configuration:bool,gateway_ready:bool,has_gateways:bool)->bool {
     !failed && !stopping && !publishing && controller && storage && configuration && (gateway_ready || has_gateways)
 }
-struct PublishedSelectionRead {base:Uuid,revision:u64,source:Option<crate::source_auth::Source>,enqueued_at:std::time::Instant,require_ready:bool}
+enum SelectionReadMode { Published, HapSample, CurrentProducer }
+struct PublishedSelectionRead {base:Uuid,revision:u64,source:Option<crate::source_auth::Source>,enqueued_at:std::time::Instant,require_ready:bool,request_refresh:bool}
 pub(crate) struct SelectionSnapshot {
     pub(crate) values:BTreeMap<String,homesense_storage::scene_observation::Snapshot>,
     pub(crate) mapping_readable:bool,
@@ -586,6 +587,7 @@ pub struct Admission {
     away_active:Arc<AtomicBool>,
     household_active:Arc<AtomicBool>,
     module_confirmation_active:Arc<AtomicBool>,
+    read_authority:Arc<dyn Fn(Uuid)->bool+Send+Sync>,
     away_terminal:tokio::sync::watch::Receiver<()>,
     generations: tokio::sync::watch::Receiver<Option<TaskGeneration>>,
     observation_invalidation: Arc<AtomicU64>,
@@ -651,6 +653,7 @@ impl Admission {
         let worker_boot = boot.clone();
         let clock = Clock::now(#[cfg(test)] test_time);
         let authorize = Arc::new(authorize);
+        let read_authority=authorize.clone();
         let stop_requested = Arc::new(AtomicBool::new(false));
         let worker_stop = stop_requested.clone();
         let away_active=Arc::new(AtomicBool::new(false));
@@ -2086,7 +2089,7 @@ impl Admission {
                                 // Pending scene work masks all projections. Do not
                                 // turn that global fence into a full-catalog urgent
                                 // scan: only request stale proofs after it settles.
-                                let may_refresh=ready && !store.has_pending_scene(&worker_boot,configuration.revision()).map_err(|_|WriteStatus::ServiceCommunicationFailure)?;
+                                let may_refresh=ready && published.as_ref().is_none_or(|read|read.request_refresh) && !store.has_pending_scene(&worker_boot,configuration.revision()).map_err(|_|WriteStatus::ServiceCommunicationFailure)?;
                                 let snapshots=store.scene_selections(configuration.revision(),&names,scene_observer.scope()).map_err(|_|WriteStatus::ServiceCommunicationFailure)?;
                                 for (name,snapshot) in names.into_iter().zip(snapshots) {
                                     let mut value=snapshot.ok_or(WriteStatus::ResourceDoesNotExist)?;
@@ -3131,9 +3134,17 @@ impl Admission {
                                 let permutation=crate::control_batch::partition_local(&configuration,&mut batch.intents,&mut command_sources,local_index);
                                 let local_index=local_index.and_then(|index|permutation.iter().position(|original|*original==index));
                                 if phase_links.is_some(){phase_ordinals=permutation.into_iter().map(|i|phase_ordinals[i]).collect();}
-                                // Explicit timeline steps and the legacy fixed Study
-                                // runtime keep their original dispatch contract.
-                                let confirm_modules=study.is_none() && phase_links.is_none();
+                                // A zero-offset lighting recipe is one action, even
+                                // when its durable receipts use the timeline adapter.
+                                // Real timed/fade programs keep their explicit timing.
+                                let instant_phase=if let Some(links)=&phase_links {
+                                    let record=store.scene_run(&worker_boot,&links[0].run).map_err(|_|WriteStatus::ServiceCommunicationFailure)?;
+                                    let bundle=store.active_bundle_shared(options.context).map_err(|_|WriteStatus::ServiceCommunicationFailure)?;
+                                    record.filter(|r|r.revision==configuration.revision()).and_then(|r|r.definition)
+                                        .and_then(|id|bundle.as_ref()?.automation.as_ref()?.timed_scenes.get(&id))
+                                        .is_some_and(|s|s.fades.is_empty() && s.steps.iter().all(|step|step.delay_ms==0))
+                                }else{true};
+                                let confirm_modules=study.is_none() && instant_phase;
                                 let mut feedback_roles = crate::control_batch::feedback_roles_local(&configuration, &batch.intents,local_index);
                                 if !confirm_modules {for role in &mut feedback_roles {if *role==crate::control_batch::BudgetRole::SequencedLighting {*role=crate::control_batch::BudgetRole::Lighting;}}}
                                 let shared_restore_invalidations=if shared_manual && !batch.intents.iter().any(|i|configuration.composed_resource(&i.device).is_some()) {Default::default()} else {
@@ -3404,6 +3415,7 @@ impl Admission {
             away_active,
             household_active,
             module_confirmation_active,
+            read_authority,
             away_terminal,
             generations,
             observation_invalidation,
@@ -3593,6 +3605,14 @@ impl Admission {
         let _ = self.sender.try_send(Message::Wake);
     }
     pub(crate) fn away_operations_active(&self)->bool {self.away_active.load(Ordering::Acquire)}
+    /// Read-only live fence. The same trusted authority callback is checked on
+    /// each read, without sending per-client projection work through the actor.
+    /// Mutation and all physical proofs still require actor admission.
+    pub(crate) fn current_read_authorized(&self,base:Uuid,controller:Uuid,generation:&TaskGeneration)->bool {
+        !self.stop_requested.load(Ordering::Acquire) && self.source_valid()
+            && self.generations.borrow().as_ref()==Some(generation)
+            && (self.read_authority)(base) && (base==controller || (self.read_authority)(controller))
+    }
     pub(crate) fn module_confirmation_active(&self)->bool {self.module_confirmation_active.load(Ordering::Acquire)}
     pub(crate) fn household_operations_active(&self)->bool {self.household_active.load(Ordering::Acquire)}
     pub(crate) async fn begin_household(&self,generation:TaskGeneration,prepared:crate::household_scene::Prepared,observation:crate::away_execution::Observation,last_frames:BTreeMap<String,u64>,deadline:u64)->Result<crate::household_sequence::Accepted,WriteStatus>{
@@ -3897,17 +3917,24 @@ impl Admission {
     /// Published capability only: both owners, projection and readiness in one
     /// turn of the same actor. It never queues physical work or caches values.
     pub(crate) async fn published_scene_selection_snapshot(&self,base:Uuid,controller:Uuid,generation:TaskGeneration,revision:u64,names:Vec<String>)->Result<SelectionSnapshot,WriteStatus> {
-        self.selection_read(base,controller,generation,revision,names,false).await
+        self.selection_read(base,controller,generation,revision,names,SelectionReadMode::Published).await
+    }
+    /// The fixed state producer observes existing selections; it never turns
+    /// a view read into an urgent acquisition request.
+    pub(crate) async fn produced_scene_selection_snapshot(&self,controller:Uuid,generation:TaskGeneration,revision:u64,names:Vec<String>)->Result<SelectionSnapshot,WriteStatus> {
+        self.selection_read(controller,controller,generation,revision,names,SelectionReadMode::CurrentProducer).await
     }
     /// HAP sampling keeps both Diagnostics readiness fences in this same turn.
     pub(crate) async fn sampled_scene_selection_snapshot(&self,controller:Uuid,generation:TaskGeneration,names:Vec<String>)->Result<SelectionSnapshot,WriteStatus> {
         let revision=generation.epochs.configuration;
-        self.selection_read(controller,controller,generation,revision,names,true).await
+        self.selection_read(controller,controller,generation,revision,names,SelectionReadMode::HapSample).await
     }
-    async fn selection_read(&self,base:Uuid,controller:Uuid,generation:TaskGeneration,revision:u64,names:Vec<String>,require_ready:bool)->Result<SelectionSnapshot,WriteStatus> {
+    async fn selection_read(&self,base:Uuid,controller:Uuid,generation:TaskGeneration,revision:u64,names:Vec<String>,mode:SelectionReadMode)->Result<SelectionSnapshot,WriteStatus> {
+        let require_ready=matches!(mode,SelectionReadMode::HapSample);
+        let request_refresh=!matches!(mode,SelectionReadMode::CurrentProducer);
         if names.len()>64 || names.iter().any(|n|n.is_empty() || n.len()>256) {return Err(WriteStatus::InvalidValueInRequest)}
         let (reply,receive)=oneshot::channel();
-        let published=PublishedSelectionRead {base,revision,source:self.source_authorization.clone(),enqueued_at:std::time::Instant::now(),require_ready};
+        let published=PublishedSelectionRead {base,revision,source:self.source_authorization.clone(),enqueued_at:std::time::Instant::now(),require_ready,request_refresh};
         self.sender.try_send(Message::SceneSelections(controller,generation,names,Some(published),reply)).map_err(|_|WriteStatus::ResourceBusy)?;
         receive.await.map_err(|_|WriteStatus::ServiceCommunicationFailure)?
     }

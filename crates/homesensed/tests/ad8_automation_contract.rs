@@ -71,15 +71,37 @@ async fn legacy_automation_ramp_is_normalized_to_direct_wire_while_manual_raw_ra
         drop(owner);actor.shutdown().await.unwrap();std::fs::remove_dir_all(directory).unwrap();
     }
 }
+struct ReplyWire {bytes:Arc<Mutex<Vec<[u8;5]>>>,read:usize}
+impl Read for ReplyWire {
+    fn read(&mut self,out:&mut[u8])->std::io::Result<usize>{
+        let bytes=self.bytes.lock().unwrap();let Some(frame)=bytes.get(self.read)else{return Err(std::io::ErrorKind::WouldBlock.into());};
+        assert!(out.len()>=5);out[..5].copy_from_slice(&[0xae,frame[1],0xd0+frame[2],frame[3],0xee]);self.read+=1;Ok(5)
+    }
+}
+impl Write for ReplyWire {
+    fn write(&mut self,bytes:&[u8])->std::io::Result<usize>{Wire(self.bytes.clone()).write(bytes)}
+    fn flush(&mut self)->std::io::Result<()>{Ok(())}
+}
 #[tokio::test]
 async fn combined_logical_immediate_expands_to_direct_level_and_raw_logical_ramp_is_rejected() {
     let directory=std::env::temp_dir().join(format!("automation-combined-ramp-{}",Uuid::new_v4()));std::fs::create_dir(&directory).unwrap();let path=directory.join("runtime.sqlite");
     homesense_storage::Store::open(&path).unwrap().publish_configuration(None,&devices("127.0.0.1:1","ad8_din_rs485_v2_2_1",true,false),ExecutionContext::Simulation,&[]).unwrap();
     let controller=Uuid::new_v4();let actor=Admission::open(path.clone(),Options{context:ExecutionContext::Simulation,..Default::default()},move|id|id==controller).await.unwrap();let generation=actor.task_generation().await.unwrap();
-    let bytes=Arc::new(Mutex::new(Vec::new()));let mut owner=homesensed::transport_owner::TransportOwner::new(actor.clone(),[("bus".into(),hb_transport::Connection::for_simulation(Wire(bytes.clone()),1))].into());
+    let bytes=Arc::new(Mutex::new(Vec::new()));let mut owner=homesensed::transport_owner::TransportOwner::new(actor.clone(),[("bus".into(),hb_transport::Connection::for_simulation(ReplyWire{bytes:bytes.clone(),read:0},1))].into());
     assert_eq!(actor.submit_rule_update(generation.clone(),batch(controller,"light",37,LevelTransition::Ramp),vec![]).await,Err(WriteStatus::InvalidValueInRequest),"combined logical input must remain normalized Immediate");
     let ids=actor.submit_rule_update(generation,batch(controller,"light",37,LevelTransition::Immediate),vec![]).await.unwrap();assert_eq!(ids.len(),2);
-    let sent=owner.step().await.unwrap().unwrap();sent.result.unwrap();assert_eq!(sent.completed.iter().map(|(id,_)|*id).collect::<Vec<_>>(),ids);assert_eq!(sent.physical_frames,2);let store=homesense_storage::Store::open(&path).unwrap();for id in &ids{assert_eq!(store.command_status(actor.boot_id(),*id).unwrap(),Some(homesense_storage::journal::Status::Written));}drop(store);assert!(owner.step().await.unwrap().is_none());
+    let sent=owner.step().await.unwrap().unwrap();sent.result.unwrap();assert_eq!(sent.completed.iter().map(|(id,_)|*id).collect::<Vec<_>>(),ids[..1]);assert_eq!(sent.physical_frames,1);
+    assert!(owner.step().await.unwrap().is_none(),"supply module must wait for the dimmer's actual reply");
+    let config=homesense_config::Configuration::parse(&devices("127.0.0.1:1","ad8_din_rs485_v2_2_1",true,false),ExecutionContext::Simulation).unwrap();
+    let mut feedback=homesensed::feedback::Feedback::new(&config,ExecutionContext::Simulation,Uuid::parse_str(actor.boot_id()).unwrap().as_u128(),1).unwrap();
+    tokio::time::sleep(Duration::from_millis(3)).await;
+    feedback.apply(&owner.receive("bus").await.unwrap()).unwrap();
+    feedback.reconcile_control_phases(&actor,controller).await.unwrap();
+    let supply=owner.step().await.unwrap().expect("postwrite dimmer feedback releases supply");supply.result.unwrap();assert_eq!(supply.completed.iter().map(|(id,_)|*id).collect::<Vec<_>>(),ids[1..]);assert_eq!(supply.physical_frames,1);
+    tokio::time::sleep(Duration::from_millis(3)).await;
+    feedback.apply(&owner.receive("bus").await.unwrap()).unwrap();
+    for _ in 0..2 {feedback.reconcile_control_phases(&actor,controller).await.unwrap();}
+    let store=homesense_storage::Store::open(&path).unwrap();for id in &ids{assert_eq!(store.command_status(actor.boot_id(),*id).unwrap(),Some(homesense_storage::journal::Status::Written));}drop(store);assert!(owner.step().await.unwrap().is_none());
     assert_eq!(*bytes.lock().unwrap(),vec![[0xae,0x11,1,37,0xee],[0xae,3,1,0xf1,0xee]],"existing dimmer-before-supply expansion unchanged");
     drop(owner);actor.shutdown().await.unwrap();std::fs::remove_dir_all(directory).unwrap();
 }

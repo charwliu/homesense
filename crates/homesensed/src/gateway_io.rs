@@ -579,7 +579,7 @@ impl<S: Read + Write + Send + 'static> TransportOwner<S> {
         .await
         .map_err(|e| format!("local batch writer: {e}"))?;
         let SendAttempt {result,projection}=result;
-        if result.is_ok() {self.track_query_reply(&mut tickets);}
+        if result.is_ok() {self.track_query_reply(&mut tickets)?;}
         let projection_cancelled=projection.is_some();
         let completed=if let Some(proof)=projection {
             self.admission.finish_projection_discard(proof).await.map_err(|e|format!("local projection cancellation audit: {e:?}"))?;

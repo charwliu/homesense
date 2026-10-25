@@ -1,4 +1,6 @@
 //! Reviewed synthetic rule nodes only. No real bus, sockets or device identities.
+#[path = "support/staged_feedback.rs"]
+mod staged_feedback;
 use homesense_core::{
     Command, DeviceId, ExecutionContext, LevelTransition, Percent,
     rule::{Action, Expr, Node, Value, ValueType},
@@ -128,7 +130,7 @@ impl std::io::Write for Wire {
         Ok(())
     }
 }
-fn wire(a: &Admission, fail_after: Option<usize>) -> (TransportOwner<Wire>, Bytes) {
+fn wire(a: &Admission, fail_after: Option<usize>) -> (TransportOwner<staged_feedback::Echo<Wire>>, Bytes) {
     let bytes = Arc::new(Mutex::new(vec![]));
     (
         TransportOwner::new(
@@ -136,11 +138,11 @@ fn wire(a: &Admission, fail_after: Option<usize>) -> (TransportOwner<Wire>, Byte
             [(
                 "bus".into(),
                 hb_transport::Connection::for_simulation(
-                    Wire {
+                    staged_feedback::Echo::new(Wire {
                         bytes: bytes.clone(),
                         fail_after,
                         writes: 0,
-                    },
+                    }),
                     1,
                 ),
             )]
@@ -149,12 +151,14 @@ fn wire(a: &Admission, fail_after: Option<usize>) -> (TransportOwner<Wire>, Byte
         bytes,
     )
 }
-async fn emit(a: &Admission, ids: &[u64]) -> Vec<u8> {
+async fn emit(a: &Admission, controller:Uuid, ids: &[u64]) -> Vec<u8> {
     let (mut owner, bytes) = wire(a, None);
+    let mut replies=staged_feedback::Replies::new(a,&homesense_config::Configuration::parse(&config(),ExecutionContext::Simulation).unwrap());
     for id in ids {
-        let output = owner.step_with_frame_budget(1).await.unwrap().unwrap();
+        let output = owner.step_with_frame_budget(1).await.unwrap().unwrap_or_else(||panic!("expected next frame after bytes {:?}",bytes.lock().unwrap()));
         assert_eq!(output.command_id, *id);
         output.result.unwrap();
+        replies.received(a,controller,&mut owner,"bus").await;
     }
     assert!(owner.step_with_frame_budget(1).await.unwrap().is_none());
     bytes.lock().unwrap().clone()
@@ -225,7 +229,7 @@ async fn same_key_led_nodes_include_off_off_and_off_on_without_deduplication() {
         .await;
         assert!(report.failure.is_none(), "{:?}", report.failure);
         assert_eq!(report.completed[0].commands.len(), 2);
-        let frames = emit(&a, &report.completed[0].commands).await;
+        let frames = emit(&a, id, &report.completed[0].commands).await;
         assert_eq!(
             frames,
             sequence
@@ -275,7 +279,7 @@ async fn repeated_dimmer_zero_nodes_and_endpoint_changes_remain_distinct() {
         .await;
         assert!(report.failure.is_none(), "{:?}", report.failure);
         assert_eq!(
-            emit(&a, &report.completed[0].commands).await,
+            emit(&a, id, &report.completed[0].commands).await,
             sequence
                 .into_iter()
                 .flat_map(|n| [0xae, 0x12, 1, n, 0xee])
@@ -340,7 +344,7 @@ async fn two_immediate_scene_calls_with_overlapping_targets_keep_call_member_sou
     let report = event(&a, id, calls.into(), scenes, vec![]).await;
     assert!(report.failure.is_none(), "{:?}", report.failure);
     assert_eq!(
-        emit(&a, &report.completed[0].commands).await,
+        emit(&a, id, &report.completed[0].commands).await,
         [0xae, 0x12, 1, 0, 0xee, 0xae, 0x12, 1, 0, 0xee]
     );
     a.shutdown().await.unwrap();
@@ -429,7 +433,7 @@ async fn repeated_combined_nodes_preserve_each_expanded_source_and_wire_order() 
             Status::Written,
         ));
         frames.extend([0xae, 3, 2, 0xf2, 0xee]);
-        assert_eq!(emit(&a, &report.completed[0].commands).await, frames);
+        assert_eq!(emit(&a, id, &report.completed[0].commands).await, frames);
         a.shutdown().await.unwrap();
         verify(&db, &boot, &report, &expected);
     }
@@ -597,7 +601,7 @@ async fn cancellation_and_manual_override_remove_all_pending_repeat_nodes_withou
                 })
                 .await
                 .unwrap();
-            assert_eq!(emit(&a, &ids).await, [0xae, 0x12, 1, 100, 0xee]);
+            assert_eq!(emit(&a, id, &ids).await, [0xae, 0x12, 1, 100, 0xee]);
         } else {
             let generation = a.task_generation().await.unwrap();
             assert_eq!(

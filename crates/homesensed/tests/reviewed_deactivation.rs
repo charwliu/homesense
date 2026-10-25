@@ -1,4 +1,6 @@
 //! Synthetic qualified source programs; no physical devices or source approvals.
+#[path = "support/staged_feedback.rs"]
+mod staged_feedback;
 #[path = "../../homesense-import/tests/support/reviewed_scene.rs"]
 mod fixture;
 use fixture::*;
@@ -107,7 +109,7 @@ struct Lab {
     controller: Uuid,
     path: std::path::PathBuf,
     bytes: Arc<Mutex<Vec<u8>>>,
-    owner: TransportOwner<Memory>,
+    owner: TransportOwner<staged_feedback::Echo<Memory>>,
     permit: Arc<AtomicBool>,
 }
 impl Lab {
@@ -154,7 +156,7 @@ impl Lab {
             actor.clone(),
             [(
                 "bus".into(),
-                hb_transport::Connection::for_simulation(Memory(bytes.clone()), 1),
+                hb_transport::Connection::for_simulation(staged_feedback::Echo::new(Memory(bytes.clone())), 1),
             )]
             .into(),
         );
@@ -184,6 +186,7 @@ impl Lab {
         .await
     }
     async fn settle(&mut self) {
+        let mut replies=staged_feedback::Replies::new(&self.actor,&config(false));
         let now = rusqlite::Connection::open(&self.path)
             .unwrap()
             .query_row(
@@ -197,6 +200,7 @@ impl Lab {
             assert!(ticks.iter().all(|t| t.result.is_ok()));
             while let Some(w) = self.owner.step().await.unwrap() {
                 w.result.unwrap();
+                replies.received(&self.actor,self.controller,&mut self.owner,"bus").await;
             }
         }
     }

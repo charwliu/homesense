@@ -139,6 +139,8 @@ pub(crate) fn upgrade(
         #[serde(deny_unknown_fields)]
         struct Resume {
             cursor: Option<Cursor>,
+            #[serde(default)]
+            interval_ms:Option<u64>,
         }
         let Ok(Some(Ok(Message::Text(initial)))) =
             tokio::time::timeout(Duration::from_secs(5), socket.next()).await
@@ -148,6 +150,8 @@ pub(crate) fn upgrade(
         let Ok(resume) = serde_json::from_str::<Resume>(&initial) else {
             return;
         };
+        let interval_ms=resume.interval_ms.unwrap_or(500);
+        if !(250..=5000).contains(&interval_ms){return;}
         let mut cursor = resume.cursor;
         let mut scenes = serde_json::Value::Null;
         let mut keypads=serde_json::Value::Null;
@@ -157,7 +161,7 @@ pub(crate) fn upgrade(
         let mut away_operations=serde_json::Value::Null;let mut household_operations=json!([]);
         let mut away_priority=false;
     let mut motor_estimates=serde_json::Value::Null;
-        let mut interval = tokio::time::interval(Duration::from_millis(500));
+        let mut interval = tokio::time::interval(Duration::from_millis(interval_ms));
         interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
         let mut terminal_updates=None;
         let mut terminal_runtime=None;

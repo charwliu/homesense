@@ -1,3 +1,5 @@
+#[path = "support/staged_feedback.rs"]
+mod staged_feedback;
 use homesense_core::{
     Command, DeviceId, ExecutionContext, LevelTransition, Percent,
     scene::{Status, Step},
@@ -53,6 +55,7 @@ async fn rejected_scene_stops_remaining_steps_but_keeps_other_control_available(
     .await
     .unwrap();
     a.synchronized(1, 1).await.unwrap();
+    let mut replies=staged_feedback::Replies::new(&a,&homesense_config::Configuration::parse(CONFIG,ExecutionContext::Simulation).unwrap());
     // Raw timelines are also public APIs: rejection must be isolated even when
     // document parsing was bypassed. A prior accepted step may already be written.
     for prior_output in [false, true] {
@@ -72,6 +75,7 @@ async fn rejected_scene_stops_remaining_steps_but_keeps_other_control_available(
             assert_eq!(scene.poll(0).await.unwrap().unwrap().len(), 2);
             while let Some(ticket) = a.dispatch().await.unwrap() {
                 a.finish_write(ticket.command.id, true).await.unwrap();
+                replies.written(&a,controller,&ticket).await;
             }
         }
         assert!(scene.poll(1).await.unwrap().is_none());

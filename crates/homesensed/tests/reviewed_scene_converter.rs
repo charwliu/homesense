@@ -1,4 +1,6 @@
 //! Synthetic source -> strict document -> real admission/router -> memory wire.
+#[path = "support/staged_feedback.rs"]
+mod staged_feedback;
 #[path = "../../homesense-import/tests/support/reviewed_scene.rs"]
 mod fixture;
 use fixture::*;
@@ -102,14 +104,16 @@ async fn full_target36_runtime_receipts_wire_order_and_caller_member_chain_survi
         actor.clone(),
         [(
             "bus".into(),
-            hb_transport::Connection::for_simulation(Memory(bytes.clone()), 1),
+            hb_transport::Connection::for_simulation(staged_feedback::Echo::new(Memory(bytes.clone())), 1),
         )]
         .into(),
     );
+    let mut replies=staged_feedback::Replies::new(&actor,&cfg);
     for expected in &result.completed[0].commands {
-        let written = owner.step_with_frame_budget(1).await.unwrap().unwrap();
+        let written = owner.step_with_frame_budget(1).await.unwrap().unwrap_or_else(||panic!("expected next frame after bytes {:?}",bytes.lock().unwrap()));
         assert_eq!(written.command_id, *expected);
         written.result.unwrap();
+        replies.received(&actor,id,&mut owner,"bus").await;
     }
     assert!(owner.step_with_frame_budget(1).await.unwrap().is_none());
     let expected = (4u8..40)
@@ -273,14 +277,16 @@ async fn reviewed_logical_combined_target_writes_exact_level_and_supply_with_one
         actor.clone(),
         [(
             "bus".into(),
-            hb_transport::Connection::for_simulation(Memory(bytes.clone()), 1),
+            hb_transport::Connection::for_simulation(staged_feedback::Echo::new(Memory(bytes.clone())), 1),
         )]
         .into(),
     );
+    let mut replies=staged_feedback::Replies::new(&actor,&cfg);
     for expected in &result.completed[0].commands {
-        let output = owner.step_with_frame_budget(1).await.unwrap().unwrap();
+        let output = owner.step_with_frame_budget(1).await.unwrap().unwrap_or_else(||panic!("expected next frame after bytes {:?}",bytes.lock().unwrap()));
         assert_eq!(output.command_id, *expected);
         output.result.unwrap();
+        replies.received(&actor,id,&mut owner,"bus").await;
     }
     assert!(owner.step_with_frame_budget(1).await.unwrap().is_none());
     assert_eq!(

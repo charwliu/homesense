@@ -332,6 +332,42 @@ fn project(
     (panels, endpoints)
 }
 
+/// Restrict a server-owned full current view before applying the live grant.
+/// Hidden keys use exactly the legacy partial-panel placeholders; panel-wide
+/// audit/settings records require complete six-key coverage.
+pub(crate) fn scope_current(panels:&mut Vec<Value>,visible:&BTreeSet<DeviceId>,now:u64) {
+    panels.retain_mut(|panel| {
+        let Some(keys)=panel["keys"].as_array_mut() else{return false;};
+        let mut count=0;let mut fresh=false;let mut complete=keys.len()==6;
+        for key in keys {
+            let allowed=key["endpoint_id"].as_str().and_then(|id|DeviceId::new(id).ok()).is_some_and(|id|visible.contains(&id));
+            if allowed {
+                count+=1;
+                if key["key_event"]["quality"]=="Confirmed" && key["key_event"]["observed_at_ms"].as_str().and_then(|at|at.parse::<u64>().ok()).and_then(|at|now.checked_sub(at)).is_none_or(|age|age>=5000) {
+                    key["key_event"]["quality"]=json!("Stale");
+                }
+                fresh|=key["key_event"]["quality"]=="Confirmed";continue;
+            }
+            complete=false;
+            let number=key["number"].as_u64().unwrap_or(0);
+            *key=json!({"number":number,"label":number.to_string(),"configured":false,"endpoint_id":null,"can_write_led":false,
+                "key_event":{"pressed":null,"quality":"Unknown","observed_at_ms":null,"version":null,"source":"button_feedback"},
+                "activation":null,"led":{"observed":null,"quality":"Unknown","source":"unknown","last_request":null,"last_written":null},
+                "action":null,"card_action":null,"indication":null});
+        }
+        if count==0{return false;}
+        panel["quality"]=json!(if fresh{"Confirmed"}else{"Unknown"});
+        complete &= panel["settings"]["scope_complete"]==true;
+        if !complete {
+            let configured=panel["settings"]["work_mode"]["configured"].clone();
+            for field in ["work_mode","backlight","sound"] {panel["settings"][field]=setting_value(field,&[],0);}
+            panel["settings"]["work_mode"]["configured"]=configured;
+            panel["settings"]["scope_complete"]=json!(false);
+        }
+        true
+    });
+}
+
 pub(crate) fn devices_json(
     snapshot: &crate::management_devices::DeviceSnapshot,
     grant: &crate::web_auth::Grant,

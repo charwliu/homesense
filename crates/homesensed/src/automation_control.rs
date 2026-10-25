@@ -100,7 +100,7 @@ pub enum Reply {
 }
 /// One read-only control quantum for a directory, avoiding a bus-drive round
 /// trip between every definition, availability, activity and history field.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SceneCatalogEntry {
     pub room: Option<homesense_config::Room>,
     pub scope: homesense_config::rule_document::SceneScope,
@@ -138,7 +138,7 @@ async fn settle_catalog_activities(
 }
 /// Persisted execution receipt. Timestamps are monotonic within `boot`, and
 /// CommandsWritten is not proof that physical targets were reached.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LastRun {
     pub boot: String,
     pub run: String,
@@ -204,6 +204,8 @@ struct SelectionReader {
     // Scheduling hints only: execution still resolves and authorizes the key
     // against the current actor configuration. No client selects this lane.
     key_lanes:std::collections::BTreeMap<(String,u8),RequestLane>,
+    configuration:std::sync::Arc<homesense_config::Configuration>,
+    current:std::sync::Mutex<Option<crate::current_read_model::Shared>>,
 }
 async fn selection_reply(admission:&Admission,generation:&TaskGeneration,document:&Document,controller:Uuid,revision:u64)->Result<Reply,String> {
     if revision!=document.revision {return Err("scene state revision expired".into());}
@@ -229,9 +231,32 @@ impl Control {
     /// Non-secret identity of this request channel, retained by every view/clone.
     /// A rebuilt scheduler may reuse numeric run handles within the same boot.
     pub(crate) fn instance_id(&self) -> Uuid { self.instance }
+    pub(crate) fn current_model_stamp(&self)->Option<crate::current_read_model::Stamp> {
+        let reader=self.selection_reader.lock().ok()?.clone()?;
+        let current=reader.current.lock().ok()?.clone()?;
+        if !reader.active() || !reader.admission.current_read_authorized(reader.controller,reader.controller,&reader.generation){return None;}
+        current.stamp()
+    }
+    pub(crate) fn current_model_ready(&self)->Option<bool> {
+        if self.unavailable.is_some(){return Some(false);}
+        let reader=self.selection_reader.lock().ok()?.clone()?;
+        let current=reader.current.lock().ok()?.clone()?;
+        Some(reader.active() && !self.sender.is_closed() && reader.admission.current_read_authorized(reader.controller,reader.controller,&reader.generation) && current.ready())
+    }
+    pub(crate) fn current_lights(&self)->Option<Result<crate::management_devices::LightPublication,String>> {
+        if self.unavailable.is_some(){return Some(Err("runtime unavailable".into()));}
+        let reader=self.selection_reader.lock().ok()?.clone()?;
+        let current=reader.current.lock().ok()?.clone()?;
+        let valid=||reader.active() && !self.sender.is_closed()
+            && reader.admission.current_read_authorized(reader.controller,reader.controller,&reader.generation);
+        if !valid(){return Some(Err("current light generation expired".into()));}
+        let result=current.lights(reader.admission.monotonic_ms(),&reader.configuration);
+        if !valid(){return Some(Err("current light authority expired during read".into()));}
+        Some(result)
+    }
     pub(crate) fn away_terminal_updates(&self)->Option<tokio::sync::watch::Receiver<()>> {
         self.selection_reader.lock().ok().and_then(|reader|reader.as_ref()
-            .filter(|reader|reader.active()).map(|reader|reader.admission.away_terminal_updates()))
+            .filter(|reader|reader.active()).map(|reader|reader.current.lock().ok().and_then(|current|current.clone()).map_or_else(||reader.admission.away_terminal_updates(),|current|current.terminal_updates())))
     }
     pub(crate) fn unavailable(&self,admission:Admission,generation:TaskGeneration)->Self {
         Self{sender:self.sender.clone(),stop_sender:self.stop_sender.clone(),motor_sender:self.motor_sender.clone(),away_sender:self.away_sender.clone(),background_read_sender:self.background_read_sender.clone(),instance:self.instance,unavailable:Some(std::sync::Arc::new(Unavailable{admission,generation})),selection_reader:self.selection_reader.clone()}
@@ -258,6 +283,37 @@ impl Control {
                 },
                 _=>Err("gateway unavailable; control runtime is gated".into()),
             };
+        }
+        if watch.is_none() {
+            let reader=self.selection_reader.lock().map_err(|_|"current state capability poisoned")?.clone();
+            if let Some(reader)=reader {
+                let current=reader.current.lock().map_err(|_|"current state slot poisoned")?.clone();
+                if let Some(current)=current {
+                    let scope=match &action {
+                        Action::Devices{controller,revision,..}|Action::DeviceEvents{controller,revision,..}
+                        |Action::SceneSelectionDetails{controller,revision}|Action::SceneCatalog{controller,revision,..}
+                        |Action::SceneLoadStates{controller,revision,..}|Action::SceneTracking{controller,revision,..}
+                        |Action::SceneSwitchStates{controller,revision,..}=>Some((*controller,*revision)),_=>None,
+                    };
+                    if let Some((controller,revision))=scope {
+                        let valid=||reader.active() && !self.sender.is_closed() && revision==reader.document.revision
+                            && self.selection_reader.lock().ok().is_some_and(|slot|slot.as_ref().is_some_and(|current|std::sync::Arc::ptr_eq(current,&reader)))
+                            && reader.admission.current_read_authorized(reader.controller,controller,&reader.generation);
+                        if !valid(){return Err("current state authority or generation expired".into());}
+                        let mut updates=current.state_updates();
+                        let until=tokio::time::Instant::now()+Duration::from_millis(450);
+                        while !current.ready_for(&action) {
+                            if !valid(){return Err("current state authority expired while awaiting publication".into());}
+                            match tokio::time::timeout_at(until,updates.changed()).await {
+                                Ok(Ok(()))=>{},_=>return Err("current state publication not ready within read budget".into()),
+                            }
+                        }
+                        let result=current.reply(&action,reader.admission.monotonic_ms(),&reader.configuration,reader.generation.epochs.transport).expect("current read variant");
+                        if !valid(){return Err("current state authority expired during read".into());}
+                        return result;
+                    }
+                }
+            }
         }
         if watch.is_none() && let Action::SceneSelectionDetails {controller,revision}=&action {
             let reader=self.selection_reader.lock().map_err(|_|"scene read capability poisoned")?.clone();
@@ -382,6 +438,7 @@ pub(crate) struct Receiver {
     next_away_tick:u64,
     next_household_tick:u64,
     scene_lights:crate::scene_lights::Cache,
+    current_model:crate::current_read_model::Owner,
 }
 pub(crate) fn channel(controller: Uuid, generation: TaskGeneration) -> (Control, Receiver) {
     let (sender, receiver) = mpsc::channel(32);
@@ -413,6 +470,7 @@ pub(crate) fn channel(controller: Uuid, generation: TaskGeneration) -> (Control,
             next_away_tick:0,
             next_household_tick:0,
             scene_lights:Default::default(),
+            current_model:Default::default(),
         },
     )
 }
@@ -505,10 +563,20 @@ impl Receiver {
         }
         *self.selection_reader.lock().map_err(|_|"scene read capability poisoned")?=Some(std::sync::Arc::new(SelectionReader {
             admission:admission.clone(),controller:self.controller,generation:self.generation.clone(),document:std::sync::Arc::new(document.clone()),stop,
-            key_lanes,
+            key_lanes,configuration:std::sync::Arc::new(bundle.configuration),current:Default::default(),
         }));
         Ok(())
     }
+
+    pub(crate) fn enable_current_model(&mut self)->Result<(),String> {
+        let reader=self.selection_reader.lock().map_err(|_|"current state capability poisoned")?.clone().ok_or("current state capability missing")?;
+        self.current_model.bind(self.controller,(*reader.configuration).clone(),(*reader.document).clone(),reader.admission.away_terminal_updates());
+        *reader.current.lock().map_err(|_|"current state slot poisoned")?=Some(self.current_model.shared.clone());
+        Ok(())
+    }
+
+    #[cfg(test)]
+    pub(crate) fn current_model_samples(&self)->u64 {self.current_model.samples}
 
     pub(crate) fn controller(&self)->Uuid {self.controller}
     pub(crate) fn set_budget(&mut self,budget:homesense_core::rule::Budget){self.budget=budget;}
@@ -545,9 +613,13 @@ impl Receiver {
         // A request is completed atomically, but a slow metadata read must not
         // be followed by seven more reads before receiving device feedback.
         let request_quantum_until=Instant::now()+Duration::from_millis(25);
+        self.current_model.observation_age(feedback.effective_max_age_ms(max_age_ms));
         for _ in 0..8 {
             if Instant::now()>=request_quantum_until {break;}
-            let Some((mut request,native_completion))=self.next_request() else{break;};
+            let (mut request,native_completion,model_reply)=if let Some((request,completion))=self.next_request() {(request,completion,None)}
+            else if let Some(action)=self.current_model.next_request(admission.away_operations_active() || admission.household_operations_active()) {let (reply,receive)=oneshot::channel();
+                (Request{action,source:None,watch:None,deadline:Instant::now()+Duration::from_millis(500),reply},None,Some(receive))
+            }else{break;};
             // Capture identifiers before KeypadAction resolves into a scene.
             // This borrows authority metadata; it does not consume/replay it.
             let native_trace=native_completion.as_ref().map(|_|match &request.action {
@@ -557,7 +629,9 @@ impl Receiver {
             });
             let read_kind=managed_request_kind(&request.action);
             let handling_started=Instant::now();
-            let queued_ms=Duration::from_secs(5).saturating_sub(request.deadline.saturating_duration_since(handling_started)).as_millis();
+            // Producer work is created in this owner turn, not queued by a
+            // client. Its500ms budget must not be reported as4.5s of queueing.
+            let queued_ms=if model_reply.is_some(){0}else{Duration::from_secs(5).saturating_sub(request.deadline.saturating_duration_since(handling_started)).as_millis()};
             if request.reply.is_closed() {
                 if let Some(kind)=read_kind && queued_ms>=100 {
                     log::warn!("automation_request_lag kind={kind} phase=abandoned queue_ms={queued_ms} handler_ms=0");
@@ -571,6 +645,7 @@ impl Receiver {
             // One bounded request at a time: do not embed every action's
             // derived scene/fade/session state in the outer polling future.
             let mut keypad_context=None;
+            let producing_current=model_reply.is_some();
             let result = Box::pin(async {
                 if request.source.as_ref().is_some_and(|source|!source.matches(&request.action)) {return Err("source authority expired before runtime handling".into());}
                 let household_off=match &request.action {
@@ -816,7 +891,13 @@ impl Receiver {
                         if request.reply.is_closed() || Instant::now()>=request.deadline {return Err("cancellation expired or abandoned".into());}
                         scenes.cancel(run).await.map(Reply::Cancelled)
                     },
-                    Action::SceneSelectionDetails {controller,revision}=>selection_reply(admission,&self.generation,document,controller,revision).await,
+                    Action::SceneSelectionDetails {controller,revision}=> {
+                        if producing_current {
+                            let snapshot=admission.produced_scene_selection_snapshot(controller,self.generation.clone(),revision,crate::scene_switches::variable_names(document)).await.map_err(|e|format!("{e:?}"))?;
+                            if !snapshot.mapping_readable{return Err("current selection runtime unavailable".into());}
+                            crate::scene_switches::details(document,&snapshot.values).map(Reply::SceneSelectionDetails)
+                        }else{selection_reply(admission,&self.generation,document,controller,revision).await}
+                    },
                     Action::SceneSwitchStates {controller,revision}=>{
                         if revision!=document.revision {return Err("scene state revision expired".into());}
                         let snapshot=admission.scene_selection_values(controller,self.generation.clone(),crate::scene_switches::variable_names(document)).await.map_err(|e|format!("{e:?}"))?;
@@ -1054,7 +1135,12 @@ impl Receiver {
             if let Some(kind)=read_kind && (queued_ms>=100 || handling_started.elapsed()>=Duration::from_millis(100)) {
                 log::warn!("automation_request_lag kind={kind} phase=complete queue_ms={queued_ms} handler_ms={} abandoned={}",handling_started.elapsed().as_millis(),request.reply.is_closed());
             }
+            if model_reply.is_none() && matches!(&result,Ok(Reply::CommandsAccepted(_)|Reply::SceneAccepted(_)|Reply::ImmediateAccepted(_)|Reply::ScenesAccepted(_)|Reply::SceneRelative(_)|Reply::KeypadAccepted(_)|Reply::Started(_)|Reply::Cancelled(_)|Reply::Retired(_)|Reply::AwayAccepted(_)|Reply::HouseholdAccepted(_))) {
+                self.current_model.shared.mark_changed();
+            }
             let _ = request.reply.send(result);
+            if let Some(receive)=model_reply {self.current_model.completed(receive.await.unwrap_or_else(|_|Err("current state sampler lost reply".into())));}
+
             if let Some(mut completion)=native_completion {
                 let trace=native_trace.as_deref().unwrap_or("keypad=unknown");
                 match completion.try_recv(){Ok(Ok(Reply::KeypadAccepted(_)))=>log::debug!("configured_keypad_event {trace} outcome=accepted"),
@@ -1068,6 +1154,14 @@ impl Receiver {
             && !watcher.sender.is_closed() {
                 if Instant::now()>=watcher.next {
                     let result=async {
+                        let reader=self.selection_reader.lock().ok().and_then(|slot|slot.clone());
+                        if let Some(reader)=reader.filter(|reader|reader.current.lock().ok().is_some_and(|current|current.is_some())) {
+                            if !reader.active() || !admission.current_read_authorized(self.controller,self.controller,&self.generation) {return Err("current observation generation expired".into());}
+                            let Some(result)=self.current_model.shared.reply(&Action::SceneCatalog{controller:self.controller,revision:document.revision,scenes:vec![watcher.scene.clone()]},admission.monotonic_ms(),&reader.configuration,self.generation.epochs.transport) else{return Err("current observation unavailable".into());};
+                            let Reply::SceneCatalog(mut rows)=result? else{return Err("current observation result mismatch".into());};
+                            let row=rows.remove(&watcher.scene).ok_or("current observation row missing")?;
+                            return Ok(SceneObservation{boot:admission.boot_id().to_owned(),revision:document.revision,activity:row.activity,tracking_valid_until_ms:row.tracking.and_then(|projection|projection.valid_until_ms),last_run:row.last_run});
+                        }
                         let tracking=crate::scene_tracking::read(document,&watcher.scene,admission,self.controller,&self.generation,feedback).await?;
                         let activity=if let Some(value)=&tracking {value.activity}else{crate::scene_tracking::activity(document,&watcher.scene,admission,self.controller,&self.generation,feedback,max_age_ms).await?};
                         let tracking_valid_until_ms=tracking.and_then(|p|p.valid_until_ms);
@@ -1083,6 +1177,7 @@ impl Receiver {
         }
     }
     pub(crate) fn close(&mut self) {
+        self.current_model.shared.invalidate();
         if let Ok(mut reader)=self.selection_reader.lock(){*reader=None;}
         for watcher in self.watchers.drain(..) {
             watcher.sender.send_replace(Some(Err("automation runtime stopped".into())));

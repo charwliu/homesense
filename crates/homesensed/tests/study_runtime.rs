@@ -1,3 +1,5 @@
+#[path = "support/staged_feedback.rs"]
+mod staged_feedback;
 use homesense_core::{ExecutionContext, queue::Origin};
 use homesense_storage::{Store, journal::Status};
 use homesensed::{
@@ -6054,9 +6056,11 @@ async fn combined_fade_reserves_expanded_frames_in_group_and_scheduler() {
     group.start(device.clone(),Request{interval_ms:100,..request},&feedback,2000).await.unwrap();
     tokio::time::sleep(std::time::Duration::from_millis(110)).await;
     group.tick().await.unwrap();
+    let mut replies=staged_feedback::Replies::new(&a,&config);
     let first=a.dispatch().await.unwrap().unwrap();
     assert!(matches!(first.command.command,Command::SetLevel{transition:LevelTransition::Immediate,..}));
     a.finish_write(first.command.id,true).await.unwrap();
+    replies.written(&a,controller,&first).await;
     let second=a.dispatch().await.unwrap().unwrap();
     assert_eq!(second.command.command,Command::Switch(true));
     a.finish_write(second.command.id,true).await.unwrap();
