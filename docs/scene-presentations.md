@@ -29,9 +29,7 @@
 
 App 仍按服务端返回的场景 ID 控制和显示状态；房间编辑会依据显式关联同时维护配方的归属，保留动作内容、其他字段及无关联的同名场景。
 
-当前为未部署候选。Mac工作区、严格Clippy、Linux服务库、真实准入／HTTP及App房间编辑回归已通过；原生HTTPS/WSS合成联调验证房间明确开关、重复开启保持开启、六键同配方切换与再次关闭，并核对每次仅一次POST、读回更新不触发App轮询。私有候选Linux和现场验收另行记录。
-
-新增原生集成夹具为 `config/test/native-app-scene-presentation/`，只含合成地址与回环网关。准备当前源码的普通Mac CLI后执行（输出目录必须不存在，构建共用 `target/swift`）：
+原生集成夹具位于 `config/test/native-app-scene-presentation/`，只含合成地址与回环网关。准备当前源码的普通Mac CLI后执行（输出目录必须不存在，构建共用 `target/swift`）：
 
 ```sh
 python3 apps/HomeSense/tools/run-scene-presentation-integration.py \
@@ -47,4 +45,4 @@ python3 apps/HomeSense/tools/run-scene-presentation-integration.py \
 
 `GET /api/v1/scenes` 为每个可见场景返回 `lights: [{id, name}]` 与 `lights_complete`。成员来自该场景命令的两个条件分支、嵌套场景和明确关闭配方；仅用于条件读取的设备、面板 LED 和窗帘不计入。组合供电按逻辑灯光展示，同一 ID 只出现一次。每个成员另行服从设备查看授权，场景权限不会扩大设备权限；列表不完整时不返回被隐藏成员的 ID 或名称。
 
-App 使用已有设备推送中的 `observed` 展示实测开关和亮度，目标覆盖层 `reported` 不作为实测值。断连或反馈过期时标为历史／不可用，待确认同行显示。进入详情不会执行场景或新增硬件查询；旧服务缺少成员字段时明确显示清单尚不可用，不按房间或名称推断。
+管理场景详情使用已有设备推送中的 `observed` 展示实测开关和亮度，目标覆盖层 `reported` 不作为实测值。断连或反馈过期时标为历史／不可用，待确认同行显示。进入详情不会执行场景或新增硬件查询；旧服务缺少成员字段时明确显示清单尚不可用，不按房间或名称推断。

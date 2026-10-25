@@ -60,6 +60,7 @@ cargo run --locked -p homesensed -- serve-automation-simulation config/simulatio
 
 ## 文档
 
+- [文档导航](docs/README.md)
 - [系统设计](docs/design.md) · [实现说明](docs/implementation.md)
 - [原生 App](apps/HomeSense/README.md) · [配置管理](apps/HomeSense/README.md#完整配置草稿)
 - [逻辑灯](docs/composed-lights.md) · [共享通道](docs/shared-lights.md) · [查询与推送](docs/adaptive-query-refresh.md)

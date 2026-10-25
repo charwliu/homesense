@@ -1,6 +1,6 @@
 # Immediate scene action entry
 
-Reviewed, explicitly enabled Immediate definitions can be published as momentary HAP actions and selected by the Web service catalog. Display metadata is separate from canonical scene IDs. No source approval, numeric tracking interpretation or field configuration follows from this software capability.
+Reviewed, explicitly enabled Immediate definitions can be published as momentary HAP actions and selected by the management API catalog. Display metadata is separate from canonical scene IDs. No source approval, numeric tracking interpretation or field configuration follows from this software capability.
 
 ## Execution contract
 
@@ -22,9 +22,9 @@ Internal provider selection bookkeeping does not introduce ordinary variable-cha
 
 ## Receipts and management
 
-An Immediate action returns the accepted canonical IDs, causal correlation/event, command IDs, unknown branch labels and any real deferred run IDs. Acceptance is not Written or physical completion. A pure Immediate execution creates no `scene_run`. The Web card states that no timeline record exists and disables timeline history/cancellation for this kind; it reports accepted command/unknown-branch counts. Durable ordinary rule-command audit retains exact node sources. Duplicate Web request IDs return the stored receipt without re-executing commands.
+An Immediate action returns the accepted canonical IDs, causal correlation/event, command IDs, unknown branch labels and any real deferred run IDs. Acceptance is not Written or physical completion. A pure Immediate execution creates no `scene_run`. The management receipt reports accepted command/unknown-branch counts without inventing a timeline run or timeline cancellation. Durable ordinary rule-command audit retains exact node sources. Duplicate Web request IDs return the stored receipt without re-executing commands.
 
-Without an explicit tracking policy, Immediate activity remains Unknown: condition/variable-dependent final load values are not guessed. With tracking, actual observed activity remains independent of action history. Service startup and publication rebuild both use the same enabled catalog, including display metadata. Low-level direct scheduler/start-scene timeline APIs still require Timed definitions; the new entry is the HAP/Web causal action path.
+Without an explicit tracking policy, Immediate activity remains Unknown: condition/variable-dependent final load values are not guessed. With tracking, actual observed activity remains independent of action history. Service startup and publication rebuild both use the same enabled catalog, including display metadata. Low-level direct scheduler/start-scene timeline APIs still require Timed definitions; the action entry is the HAP/management API causal path.
 
 ## Verification boundary
 

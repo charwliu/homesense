@@ -1,6 +1,6 @@
 # NanoPi → NGR 定时数据备份
 
-2026-10-24已配置。NanoPi继续独占运行HomeSense；NGR仅通过SSH接收数据快照，`homesense-e2.service`保持disabled、MainPID=0，root主角色门禁关闭。备份程序没有启动、停止或启用HomeSense的操作。
+NanoPi 独占运行 HomeSense；NGR仅通过SSH接收数据快照，`homesense-e2.service`保持disabled、MainPID=0，root主角色门禁关闭。备份程序没有启动、停止或启用HomeSense的操作。
 
 ## 时间、范围和保留
 
@@ -8,7 +8,7 @@
 - NGR保留最近24份快照，另保留最近7个有备份日期的每日最新一份；两组重叠只保留一次，最多31份。每日边界按Asia/Shanghai计算。
 - 覆盖当前六个运行SQLite数据库、控制器ID、设备／自动化／HAP配置、启动凭证和TLS证书链／私钥，共13个运行文件。
 - 不备份ELF、源码、测试夹具、旧构建目录、抓包或历史调试报告。NGR现有两份生产ELF独立保留。
-- 当前白名单对应两个HAP桥 `study-e` 与 `house-extension`；新增桥、运行数据库或改变状态布局时，须先扩展并验证备份白名单。
+- HAP 当前使用 `study-e` 单桥身份；备份白名单按实际运行状态布局校验，可能保留退役桥的数据以供恢复，不据备份文件数量判断活动桥数。变更运行数据库或状态布局前，先验证白名单。
 
 使用SQLite在线Backup API读取已提交WAL，不复制仍在写入的数据库文件，也不暂停主服务。每个数据库生成独立的一致性快照。备份前、快照中及备份后核对活动配置、HomeKit身份／配对／AID／IID和App权限指纹；该窗口若发生关键变更，本次任务失败并保留日志，不把不匹配的组合标记为成功。导出的设备和自动化JSON来自备份数据库的活动版本，避免仅复制过期的启动JSON。
 
@@ -26,7 +26,7 @@
 | NGR | `/home/build/apps/homesense/backups/nanopi-periodic/latest`：最新成功快照的原子符号链接 |
 | NGR | 同目录 `last-success.json` 和 `failures/`：接收回执和失败日志 |
 
-每份快照含 `manifest.json`，记录创建时间、配置revision、主程序SHA、文件大小与SHA-256及关键身份指纹。目录权限700，数据文件600。两个目标只接收本机生成、匹配各自Python版本的生产运维字节码；测试和产品源码未上传。
+每份快照含 `manifest.json`，记录创建时间、配置revision、主程序SHA、文件大小与SHA-256及关键身份指纹。目录权限700，数据文件600。生产运维工具须匹配各自主机的 Python 版本；测试和产品源码不随部署上传。
 
 专用SSH私钥保留在NanoPi；NGR公钥授权限制来源IPv4、强制备份接收命令，并禁止shell、PTY与转发。接收器以不可提权方式执行，传输严格校验固定的NGR主机公钥。此密钥没有恢复数据或启动服务的接口。
 
@@ -61,7 +61,7 @@ sudo systemctl start homesense-backup.service
 | --- | --- |
 | `state/` | NGR的生产状态目录；保留整个六库组合及web-controller-id |
 | `config/devices.json`、`automation.json` | 当前活动设备／自动化启动文件，按对应revision配置单元 |
-| `config/hap-plan.json` | NGR的HAP计划；与两个identity库中的host一起从NanoPi地址迁回NGR地址 |
+| `config/hap-plan.json` | NGR的HAP计划；与实际活动 identity 库的 host 一起从 NanoPi 地址迁回 NGR 地址 |
 | `secrets/bootstrap-token` | NGR的 `service/secrets/e2-bootstrap-token` |
 | `tls/server-chain.pem`、`server-private.pem` | NGR服务单元实际引用的同域名证书／私钥 |
 

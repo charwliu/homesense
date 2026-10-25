@@ -1,6 +1,6 @@
 # Control4 场景与面板指示灯核查
 
-`homesense-import` 的只读报告新增 `indicators`，用于复核场景在多个面板入口上的 LED 关联。它读取原始 XML 的程序树，不运行驱动 Lua、不修改 EA-5，也不生成已启用的联动配置。
+`homesense-import` 的只读报告中的 `indicators`，用于复核场景在多个面板入口上的 LED 关联。它读取原始 XML 的程序树，不运行驱动 Lua、不修改 EA-5，也不生成已启用的联动配置。
 
 在已忽略的私有目录中保留报告，文件包含家庭设备标识、事件结构和来源指纹，不能提交到公开仓库：
 
@@ -10,7 +10,7 @@ mkdir -m 700 deployment/ngr/private/indicator-review
 cargo run --locked --offline -p homesense-import -- /path/to/project.c4p > deployment/ngr/private/indicator-review/project.json
 ```
 
-使用新目录保存每次复核，保留原报告。XML 也可作为输入；压缩包、大小和节点限制沿用导入器。原报告中的场景、程序和未支持节点仍保留，新增盘点不能替代它们的语义处置。
+使用新目录保存每次复核，保留原报告。XML 也可作为输入；压缩包、大小和节点限制沿用导入器。报告保留场景、程序和未支持节点，指示灯盘点不能替代语义处置。
 
 ## 证据结构
 

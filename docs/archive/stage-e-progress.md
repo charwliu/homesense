@@ -1,30 +1,32 @@
+> 历史档案：本页保留阶段记录，不作为当前功能、部署版本或操作步骤。现行说明见[文档导航](../README.md)及[接管结项清单](../control4-takeover-checklist.md)。
+
 # 阶段 E 验收跟踪
 
 目标依据 design.md 第 20、23–25 节及后续用户调整：完成原生 Rust HAP 配件公开、场景入口、原生 HomeSense App 管理和鉴权，验证配对、反馈、断线恢复与权限。浏览器管理页面和 Siri 验收已取消，HTTPS API／WSS 保留给原生客户端。当前完整范围和余项见 [D/E 完成审计](de-completion-audit.md) 与 [阶段 E 当前余项](stage-e-remaining.md)；阶段 D 未完成项继续保留，不因旧版本通过而视为完成。下文旧 Web 验收和版本描述作为历史记录保留。
 
-2026-10-13 `884850d` 的Linux来源七项限定回归已独立核查：完整1,026归档文件与提交一致，15份源码／测试指纹与最终Mac候选一致；原始日志重算storage3＋runtime4精确ID，0失败／忽略／过滤，两份实际保留x86_64 ELF逐字节指纹匹配。退出与临时库清理只依据执行及退出后记录，本轮未查询当前远程进程、重跑测试或操作现场。这是两个来源集成目标，不扩大为完整Linux库／工作区、release或客户端验收，也不叠加旧132／indicator6／Mac531。见[Linux来源根核查](evidence/stage-e-browser/rule-source-audit-linux-root-check.json)。原项目语义与当前现场门槛继续保持未完成。
+2026-10-13 `884850d` 的Linux来源七项限定回归已独立核查：完整1,026归档文件与提交一致，15份源码／测试指纹与最终Mac候选一致；原始日志重算storage3＋runtime4精确ID，0失败／忽略／过滤，两份实际保留x86_64 ELF逐字节指纹匹配。退出与临时库清理只依据执行及退出后记录，本轮未查询当前远程进程、重跑测试或操作现场。这是两个来源集成目标，不扩大为完整Linux库／工作区、release或客户端验收，也不叠加旧132／indicator6／Mac531。见[Linux来源根核查](../evidence/stage-e-browser/rule-source-audit-linux-root-check.json)。原项目语义与当前现场门槛继续保持未完成。
 
-2026-10-13 `884850d` 的即时规则命令源节点审计缺口已独立软件验收：根固定提交1,026原文件未变，新增5项探针实际全通过，保留原反例并检查逐命令标签、延迟来源、第二条来源失败回滚及真实旧schema24／schema25备份兼容。组合灯另在同一项测试内覆盖前／后顺序和Switch Off／亮度0四种子例，10次命令出现的来源与持久intent均准确；四子例不计为四项测试。开发侧两包531项／72结果块／70实际二进制、15覆盖源码与最终提交及全部目标严格Clippy记录均独立重算核对，面板和混合延迟路径包含于该原531，不重复计数。新版本schema25不能由旧程序打开，历史来源保留NULL；这只关闭即时命令来源缺口，不批准原65场景／208程序／24变量或新版现场验收，也不称全工作区／Linux通过。见[最终来源审计根证据](evidence/stage-d-study/rule-source-audit-root-check.json)与[来源契约](rule-source-audit.md)。
+2026-10-13 `884850d` 的即时规则命令源节点审计缺口已独立软件验收：根固定提交1,026原文件未变，新增5项探针实际全通过，保留原反例并检查逐命令标签、延迟来源、第二条来源失败回滚及真实旧schema24／schema25备份兼容。组合灯另在同一项测试内覆盖前／后顺序和Switch Off／亮度0四种子例，10次命令出现的来源与持久intent均准确；四子例不计为四项测试。开发侧两包531项／72结果块／70实际二进制、15覆盖源码与最终提交及全部目标严格Clippy记录均独立重算核对，面板和混合延迟路径包含于该原531，不重复计数。新版本schema25不能由旧程序打开，历史来源保留NULL；这只关闭即时命令来源缺口，不批准原65场景／208程序／24变量或新版现场验收，也不称全工作区／Linux通过。见[最终来源审计根证据](../evidence/stage-d-study/rule-source-audit-root-check.json)与[来源契约](../rule-source-audit.md)。
 
-2026-10-13 最新软件检查点 `b31ddeb`：修复相对场景仍 pending 时部分新鲜 Off 反馈提前清两面板 LED。固定角色模块 ID 的六项联合回归及运行时全部目标严格 Clippy通过；根核对供电 On 后条件调光、供电 Off 保留记忆、完整读回前延期、无关联动不阻塞及旧快照提交拒绝。独立副本另实际完整 workspace 779 项通过，0 失败／忽略／过滤，生产／测试／配置／工具源码逐份匹配已提交版本，123实际二进制和133结果块已复核。六项与此前144项限定记录保留，不重复加入779。详见[联合根核查](evidence/stage-e-browser/native-relative-indicator-joint-root-check.json)、[完整工作区核查](evidence/stage-e-browser/native-relative-indicator-workspace-root-check.json)。固定 `b31ddeb` 的 Linux 六项专项已实际通过；根逐份比较1,015个归档文件与提交、重算六个精确测试ID，并核对保留的x86_64 ELF及52帧与Mac记录完全一致。130个原库测试被过滤，不扩大为当前完整Linux库／工作区通过，旧 `ea524bb` Linux132项范围独立保留。清理结论限于执行时记录，本轮未查询当前远程进程；见[Linux根核查](evidence/stage-e-browser/native-relative-indicator-linux-root-check.json)。新版 Apple 客户端、手机 Web、LED／窗帘及真实总线仍挂起，现场版本保持原 `c184e65` 范围。
+2026-10-13 最新软件检查点 `b31ddeb`：修复相对场景仍 pending 时部分新鲜 Off 反馈提前清两面板 LED。固定角色模块 ID 的六项联合回归及运行时全部目标严格 Clippy通过；根核对供电 On 后条件调光、供电 Off 保留记忆、完整读回前延期、无关联动不阻塞及旧快照提交拒绝。独立副本另实际完整 workspace 779 项通过，0 失败／忽略／过滤，生产／测试／配置／工具源码逐份匹配已提交版本，123实际二进制和133结果块已复核。六项与此前144项限定记录保留，不重复加入779。详见[联合根核查](../evidence/stage-e-browser/native-relative-indicator-joint-root-check.json)、[完整工作区核查](../evidence/stage-e-browser/native-relative-indicator-workspace-root-check.json)。固定 `b31ddeb` 的 Linux 六项专项已实际通过；根逐份比较1,015个归档文件与提交、重算六个精确测试ID，并核对保留的x86_64 ELF及52帧与Mac记录完全一致。130个原库测试被过滤，不扩大为当前完整Linux库／工作区通过，旧 `ea524bb` Linux132项范围独立保留。清理结论限于执行时记录，本轮未查询当前远程进程；见[Linux根核查](../evidence/stage-e-browser/native-relative-indicator-linux-root-check.json)。新版 Apple 客户端、手机 Web、LED／窗帘及真实总线仍挂起，现场版本保持原 `c184e65` 范围。
 
-2026-10-13 当前 Linux 增量已独立核查：固定 `ea524bb` 的 1,009 份归档原文件与提交一致，原始日志重算运行时库 130 项、在线模块换址 2 项，均无失败／忽略／过滤；两份实际保留的 x86_64 ELF 测试二进制指纹一致。源码相同的交叉编译 release 已在隔离 Linux 执行两种 HTTPS/WSS 模式，组合模式假网关记录 5 条整模块 Query、8 路反馈、0 控制，权限与会话撤销检查通过。首次离线依赖缺失导致的两次退出 101 保留，补齐依赖后的成功另计。本轮是既有执行证据独立核验，没有新增 132 次测试；不声明完整 Linux workspace、Linux 原生 release 构建或真实客户端／现场通过。清理结论来自执行时记录，未查询当前远程进程。见[Linux 执行记录](evidence/stage-e-browser/linux-isolated-runtime-check.json)、[根独立核查](evidence/stage-e-browser/linux-isolated-runtime-root-check.json)。
+2026-10-13 当前 Linux 增量已独立核查：固定 `ea524bb` 的 1,009 份归档原文件与提交一致，原始日志重算运行时库 130 项、在线模块换址 2 项，均无失败／忽略／过滤；两份实际保留的 x86_64 ELF 测试二进制指纹一致。源码相同的交叉编译 release 已在隔离 Linux 执行两种 HTTPS/WSS 模式，组合模式假网关记录 5 条整模块 Query、8 路反馈、0 控制，权限与会话撤销检查通过。首次离线依赖缺失导致的两次退出 101 保留，补齐依赖后的成功另计。本轮是既有执行证据独立核验，没有新增 132 次测试；不声明完整 Linux workspace、Linux 原生 release 构建或真实客户端／现场通过。清理结论来自执行时记录，未查询当前远程进程。见[Linux 执行记录](../evidence/stage-e-browser/linux-isolated-runtime-check.json)、[根独立核查](../evidence/stage-e-browser/linux-isolated-runtime-root-check.json)。
 
-2026-10-13当前证据边界：最近限定现场仍为 `c184e65`，schema22／revision3，窗口已结束；新版软件为schema24。固定 `99d036a` 全注册表查询修复已通过原1-of16反例及完整库／Admission，并补验原27项场景矩阵，共198个不同测试；16路样本全部Confirmed且零控制。固定 `960c7eb` 又在实际桌面浏览器通过三种模块Query入口，卡片8路状态／统计随完整快照更新、收据两种投影的控制动作按授权过滤，实际越权控制仍403；完整库130、Admission40、浏览器夹具1合计171项实际通过。两项旧显示反例已软件关闭。见[全注册表修复](evidence/stage-e-browser/physical-startup-scope-root-check.json)、[当前浏览器及完整库核查](evidence/stage-e-browser/module-query-receipt-browser-root-check.json)。
+2026-10-13当前证据边界：最近限定现场仍为 `c184e65`，schema22／revision3，窗口已结束；新版软件为schema24。固定 `99d036a` 全注册表查询修复已通过原1-of16反例及完整库／Admission，并补验原27项场景矩阵，共198个不同测试；16路样本全部Confirmed且零控制。固定 `960c7eb` 又在实际桌面浏览器通过三种模块Query入口，卡片8路状态／统计随完整快照更新、收据两种投影的控制动作按授权过滤，实际越权控制仍403；完整库130、Admission40、浏览器夹具1合计171项实际通过。两项旧显示反例已软件关闭。见[全注册表修复](../evidence/stage-e-browser/physical-startup-scope-root-check.json)、[当前浏览器及完整库核查](../evidence/stage-e-browser/module-query-receipt-browser-root-check.json)。
 
 旧固定 `bfe61f2` 的完整workspace735、Clippy、Linux103及96路20ms实际假网关循环保留为历史范围，不能自动提升为新版完整workspace／Linux／真实总线通过。新版Apple客户端／LED／窗帘及手机Web仍待验证，完整原D语义保持开放；本轮未部署或连接真实网关。下文旧版本数量与反例原样保留，D/E综合结论仍未完成。
 
-同一冻结schema2解析草稿另有引用层正向补证：真实Store离线CAS发布revision1→2仅把stable模块地址0x41改为0x61，保存的设备JSON及场景定义完全相同；Admission／Feedback／RuntimeHap重建保留AID2、OnIID9、BrightnessIID10与一条合成配对及生成身份。旧地址反馈被忽略、明确旧epoch反馈被拒绝，新地址50%正常反馈；供电Off时逻辑灯Off而物理调光50%保留，实际命令日志0条。1项实际测试通过，948非覆盖原文件未变；初始化夹具先写配对再分配标识导致的正确拒绝已保留，改正常顺序后通过，未改产品。它不验证在线发布监督、真实配对或独立模块通道真值；下项未绑定反馈缺口继续。见[模块引用换址根核查](evidence/stage-e-browser/module-reference-remap-root-check.json)。
+同一冻结schema2解析草稿另有引用层正向补证：真实Store离线CAS发布revision1→2仅把stable模块地址0x41改为0x61，保存的设备JSON及场景定义完全相同；Admission／Feedback／RuntimeHap重建保留AID2、OnIID9、BrightnessIID10与一条合成配对及生成身份。旧地址反馈被忽略、明确旧epoch反馈被拒绝，新地址50%正常反馈；供电Off时逻辑灯Off而物理调光50%保留，实际命令日志0条。1项实际测试通过，948非覆盖原文件未变；初始化夹具先写配对再分配标识导致的正确拒绝已保留，改正常顺序后通过，未改产品。它不验证在线发布监督、真实配对或独立模块通道真值；下项未绑定反馈缺口继续。见[模块引用换址根核查](../evidence/stage-e-browser/module-reference-remap-root-check.json)。
 
-上述引用层现已提交 `f1b2e8a`：schema2保存稳定模块ID／通道，显式旧配置迁移、受审核换址草稿及管理员模块入口已实现。根对19份受测源码及211项原始成功记录独立核验；另从固定提交归档实际通过2项换址／引用拒绝测试，968原文件未改，保存的灯／场景定义、合成身份与配对保持，15种无效或物理地址混入请求被拒绝，零真实网络和控制。运行时Device的物理兼容字段、canonical模块通道状态拥有者、未绑定／禁用通道反馈及管理查询仍是下一检查点要求，不能计为全部模块架构完成。见[固定引用层根审计](evidence/stage-e-browser/module-reference-checkpoint-root-audit.json)。
+上述引用层现已提交 `f1b2e8a`：schema2保存稳定模块ID／通道，显式旧配置迁移、受审核换址草稿及管理员模块入口已实现。根对19份受测源码及211项原始成功记录独立核验；另从固定提交归档实际通过2项换址／引用拒绝测试，968原文件未改，保存的灯／场景定义、合成身份与配对保持，15种无效或物理地址混入请求被拒绝，零真实网络和控制。运行时Device的物理兼容字段、canonical模块通道状态拥有者、未绑定／禁用通道反馈及管理查询仍是下一检查点要求，不能计为全部模块架构完成。见[固定引用层根审计](../evidence/stage-e-browser/module-reference-checkpoint-root-audit.json)。
 
-三个Store发布入口的schema2防降级门禁又通过1项固定提交根测试，包含6次旧格式／错误CAS拒绝和一次合法schema2正向发布：拒绝均不改变活动配置或插入配置／自动化／取消记录，重开保持；成功发布保留逻辑引用并只写入自身记录。968原文件未改，失败夹具尝试保留；只验证离线存储，不新增在线监督、真实设备或模块独立状态批准。见[发布入口事务补证](evidence/stage-e-browser/module-publication-guard-root-check.json)。
+三个Store发布入口的schema2防降级门禁又通过1项固定提交根测试，包含6次旧格式／错误CAS拒绝和一次合法schema2正向发布：拒绝均不改变活动配置或插入配置／自动化／取消记录，重开保持；成功发布保留逻辑引用并只写入自身记录。968原文件未改，失败夹具尝试保留；只验证离线存储，不新增在线监督、真实设备或模块独立状态批准。见[发布入口事务补证](../evidence/stage-e-browser/module-publication-guard-root-check.json)。
 
-固定`f1b2e8a`引用层又与原27项相对场景矩阵实际集成通过，12对照保留，共39轨迹；所有运行夹具和旧boot反馈重建均使用schema2，四个模块的固定角色ID、组合供电ModuleChannel和78次Store重开保持。根独立重建完整配置并对比124个中间状态的原帧／日志／选择／反馈计数，全部与bfe基线一致；967原文件不变，一文件只追加私有include，无原断言删减。没有覆盖在线换址、canonical模块真值或真实Apple客户端；HAP绝对入口与三条LED链接保持原限定范围。见[集成结果](evidence/stage-d-study/native-scene-relative-schema2-check.json)、[根核查](evidence/stage-d-study/native-scene-schema2-matrix-root-check.json)。
+固定`f1b2e8a`引用层又与原27项相对场景矩阵实际集成通过，12对照保留，共39轨迹；所有运行夹具和旧boot反馈重建均使用schema2，四个模块的固定角色ID、组合供电ModuleChannel和78次Store重开保持。根独立重建完整配置并对比124个中间状态的原帧／日志／选择／反馈计数，全部与bfe基线一致；967原文件不变，一文件只追加私有include，无原断言删减。没有覆盖在线换址、canonical模块真值或真实Apple客户端；HAP绝对入口与三条LED链接保持原限定范围。见[集成结果](../evidence/stage-d-study/native-scene-relative-schema2-check.json)、[根核查](../evidence/stage-d-study/native-scene-schema2-matrix-root-check.json)。
 
-模块真值初版已有冻结草稿正向补证，尚未成为固定功能验收：基于f1b2e8a的六份覆盖和新增module_truth源码，962原文件不变，3项独立根测试通过。真实Registry→Feedback路径接受256／257个合成通道反馈且只有一个逻辑别名，批量过期均成功；257路超出内部事件窗口时明确要求旧订阅重同步，读取当前Stale快照后可从新cursor继续。独立ModuleTruth API另保留禁用通道41%／未绑定通道37%，不创建对应逻辑别名；显式失效只使质量未知而保留旧观测，新有效反馈恢复，旧epoch被拒绝，新epoch未绑定50%不会确认仍陈旧的绑定灯。这一失效检查直接调用invalidate_port，没有注入非法原帧。最初探针误用了不存在的方法、又错误要求溢出后保持增量连续，两次夹具失败保留，均未修改产品。没有证明管理页／权限／查询接口或最终集成，旧版本反例继续保留为历史，固定新检查点仍待验。见[模块真值草稿核查](evidence/stage-e-browser/module-truth-draft-core-root-check.json)。
+模块真值初版已有冻结草稿正向补证，尚未成为固定功能验收：基于f1b2e8a的六份覆盖和新增module_truth源码，962原文件不变，3项独立根测试通过。真实Registry→Feedback路径接受256／257个合成通道反馈且只有一个逻辑别名，批量过期均成功；257路超出内部事件窗口时明确要求旧订阅重同步，读取当前Stale快照后可从新cursor继续。独立ModuleTruth API另保留禁用通道41%／未绑定通道37%，不创建对应逻辑别名；显式失效只使质量未知而保留旧观测，新有效反馈恢复，旧epoch被拒绝，新epoch未绑定50%不会确认仍陈旧的绑定灯。这一失效检查直接调用invalidate_port，没有注入非法原帧。最初探针误用了不存在的方法、又错误要求溢出后保持增量连续，两次夹具失败保留，均未修改产品。没有证明管理页／权限／查询接口或最终集成，旧版本反例继续保留为历史，固定新检查点仍待验。见[模块真值草稿核查](../evidence/stage-e-browser/module-truth-draft-core-root-check.json)。
 
-2026-10-13模块状态层反例：在固定`bfe61f2`运行时加一份冻结schema2配置草稿的独立副本中，8路AD8模块已注册，通道2／37%被协议解码为有效反馈，但因未绑定逻辑设备，Feedback.apply返回0且完整公开状态快照未变；绑定通道1／30%的正向对照返回1并正常更新。948个非覆盖原文件未变，只有配置草稿覆盖及新增私有测试，单项测试通过是在证明现有绑定依赖缺口，不是模块真值验收通过，也不是新固定功能版本回归。稳定module_id引用层已形成上述限定检查点；每模块独立通道状态、未绑定／禁用反馈不自动授予控制、逻辑投影及旧映射隔离仍须完成。已将可运行探针交功能开发，无真实网络或控制。见[模块通道真值反例](evidence/stage-e-browser/module-channel-truth-gap-root-check.json)。
+2026-10-13模块状态层反例：在固定`bfe61f2`运行时加一份冻结schema2配置草稿的独立副本中，8路AD8模块已注册，通道2／37%被协议解码为有效反馈，但因未绑定逻辑设备，Feedback.apply返回0且完整公开状态快照未变；绑定通道1／30%的正向对照返回1并正常更新。948个非覆盖原文件未变，只有配置草稿覆盖及新增私有测试，单项测试通过是在证明现有绑定依赖缺口，不是模块真值验收通过，也不是新固定功能版本回归。稳定module_id引用层已形成上述限定检查点；每模块独立通道状态、未绑定／禁用反馈不自动授予控制、逻辑投影及旧映射隔离仍须完成。已将可运行探针交功能开发，无真实网络或控制。见[模块通道真值反例](../evidence/stage-e-browser/module-channel-truth-gap-root-check.json)。
 
 | 范围 | 已有基础 | 完成所需证据 |
 | --- | --- | --- |
@@ -32,7 +34,7 @@
 | 场景动作入口 | 审核互斥组的有状态 Switch、瞬时动作兼容、原子接受与持久选择、锁外通知 | 加密回环验证开关／互斥／通知／保留身份重启；c184e65阅读开／关、Mac日常→全关及LED有限定现场记录；新启动对账及相对策略的节能、独立关灯、重启／客户端恢复待验；EA-5观察仍现场关闭 |
 | 窗帘动作入口 | 显式选定电机的三个 HAP 动作、校准准入、TCP 发布／恢复及加密回环；Web 开关停 | iPhone／当前集成版现场停止验收；校准表单已完成合成浏览器验收 |
 | Web 管理 | HTTPS/WSS、会话／CSRF、范围权限、设备灯光／窗帘与场景、草稿发布、历史导出、事件恢复；与 HAP 同时装配 TCP 服务 | 390/320 像素布局已验证；Safari／应用内浏览器独立会话的竞争草稿、旧预览失效与保留已验证；实体手机交互与现场验收待完成；已有设备绑定／校准／草稿及持久凭证管理 |
-| RS485 模块管理与整体换址 | schema2 稳定模块 ID／通道、组合供电引用及唯一模块通道真值已实现；99d036a 的全注册表启动／周期查询、960c7eb 的实际浏览器卡片刷新／授权收据已补验。638a1c1 的在线换址保持逻辑定义／HAP 身份、忽略旧地址；缺未绑定端口反馈时拒绝恢复，两项已在 Mac 与 Linux 实际通过。b31ddeb 对应完整 Mac workspace 779 项已包含两项在线测试；旧 ea524bb 的限定 Linux 132 项范围单独保留，见[模块约定](rs485-module-registry.md)与[Linux 根核查](evidence/stage-e-browser/linux-isolated-runtime-root-check.json) | 当前版本的真实固件／总线、Apple 客户端与现场模块管理验收仍待完成；执行时合成身份／反馈及隔离换址不替代这些证据。实际替换前须核对型号能力、冲突与电机校准，并经现有配置预览／发布屏障；不自动发送硬件改址命令，0x41→0x61 仍只是示例 |
+| RS485 模块管理与整体换址 | schema2 稳定模块 ID／通道、组合供电引用及唯一模块通道真值已实现；99d036a 的全注册表启动／周期查询、960c7eb 的实际浏览器卡片刷新／授权收据已补验。638a1c1 的在线换址保持逻辑定义／HAP 身份、忽略旧地址；缺未绑定端口反馈时拒绝恢复，两项已在 Mac 与 Linux 实际通过。b31ddeb 对应完整 Mac workspace 779 项已包含两项在线测试；旧 ea524bb 的限定 Linux 132 项范围单独保留，见[模块约定](../rs485-module-registry.md)与[Linux 根核查](../evidence/stage-e-browser/linux-isolated-runtime-root-check.json) | 当前版本的真实固件／总线、Apple 客户端与现场模块管理验收仍待完成；执行时合成身份／反馈及隔离换址不替代这些证据。实际替换前须核对型号能力、冲突与电机校准，并经现有配置预览／发布屏障；不自动发送硬件改址命令，0x41→0x61 仍只是示例 |
 | 规模与多桥 | 96路20ms真实服务循环的隔离刷新已通过；白名单整模块查询保留逐通道门禁，其他型号逐路；96 路灯图地址／能力／重开身份验证通过；多桥显式清单、独立身份、TCP／CLI 监督和逐桥诊断已接入 | 两桥加密控制／跨桥拒绝／重连已通过；96 路运行时反馈与订阅、纯场景／窗帘桥已通过合成加密回环；多桥首次 Pair Setup／服务重启已通过合成控制器回归，真实客户端仍待现场验收 |
 | HAP 通道故障隔离 | TCP 运行中 HAP 任务失败仅关闭端点并记录降级；Web 与延迟场景继续运行 | Web 通道状态已接诊断；组合模拟入口已复用同一端点；有 Web 时监听启动失败可降级，配置／身份／图错误及 HAP-only 入口仍严格失败；现场面板故障联调待验收 |
 | 可选面板公开 | 显式逻辑按键、稳定身份、事件读取／订阅、多桥独立队列与 TCP 恢复；拒绝与启用的 Rust 面板规则／长按动作重叠 | 首次配对及加密通知合成回环已通过；真实 iPhone、现场按键选择／执行归属仍待验收；LED 和内部变量默认不公开 |
@@ -44,7 +46,7 @@
 
 现场约束：EA-5 配置与控制范围保持不变。阶段 E 不包含阶段 F 的正式部署、72 小时运行或阶段 G 的整屋接管；现场验收需要单独安排。当前阶段 E 未完成。
 
-2026-10-13根独立重算模块查询证据：固定949原文件、本机／Linux指纹一致；735个工作区及103个Linux串行成功结果核对，919条Query覆盖96路、858次重复间隔最大2.852秒，113份HTTP200采样各96路Confirmed且无Stale。首次Linux并行失败保留；20ms隔离假网关结果不替代真实总线／客户端、27项相对矩阵或稳定模块ID架构验收。见[容量根审计](evidence/stage-e-browser/module-query-capacity-root-audit.json)。
+2026-10-13根独立重算模块查询证据：固定949原文件、本机／Linux指纹一致；735个工作区及103个Linux串行成功结果核对，919条Query覆盖96路、858次重复间隔最大2.852秒，113份HTTP200采样各96路Confirmed且无Stale。首次Linux并行失败保留；20ms隔离假网关结果不替代真实总线／客户端、27项相对矩阵或稳定模块ID架构验收。见[容量根审计](../evidence/stage-e-browser/module-query-capacity-root-audit.json)。
 
 ## 当前验收边界复核
 
@@ -57,17 +59,17 @@
 
 ## 早期集成与独立浏览器验收记录
 
-`ea236d6` 已提交源码独立快照完整 workspace 579 项通过、0 失败、0 忽略；12 项前端脚本、HTTPS/WSS 的组合 TCP 与模拟入口、HTTP 配置发布／历史恢复及双会话竞争脚本均通过。之后仅叠加冲突中文提示和对应前端测试，重新构建并复验全部 12 项脚本；579 项 Rust 结果属于叠加前基线，不包含其他工作区改动。详见 [回归记录](evidence/stage-e-browser/clean-de-regression-ea236d6.json)。
+`ea236d6` 已提交源码独立快照完整 workspace 579 项通过、0 失败、0 忽略；12 项前端脚本、HTTPS/WSS 的组合 TCP 与模拟入口、HTTP 配置发布／历史恢复及双会话竞争脚本均通过。之后仅叠加冲突中文提示和对应前端测试，重新构建并复验全部 12 项脚本；579 项 Rust 结果属于叠加前基线，不包含其他工作区改动。详见 [回归记录](../evidence/stage-e-browser/clean-de-regression-ea236d6.json)。
 
-Safari 与应用内浏览器使用独立 Cookie 会话，各保存并预览基于版本 1 的版本 2 草稿；一方先发布后，另一方实时看到新设备名称，旧预览失效，继续预览被拒但草稿 ID、基准版本和内容保留，发布按钮保持禁用。错误提示已改为中文，指引刷新状态、核对草稿版本并重新预览，两个浏览器均复验通过。证据见 [记录](evidence/stage-e-browser/independent-publication-check.json) 和 [截图](evidence/stage-e-browser/independent-publication-conflict.png)。这是交错编辑、顺序发布的冲突验收，不声称两个最终发布 HTTP 请求同时发生。
+Safari 与应用内浏览器使用独立 Cookie 会话，各保存并预览基于版本 1 的版本 2 草稿；一方先发布后，另一方实时看到新设备名称，旧预览失效，继续预览被拒但草稿 ID、基准版本和内容保留，发布按钮保持禁用。错误提示已改为中文，指引刷新状态、核对草稿版本并重新预览，两个浏览器均复验通过。证据见 [记录](../evidence/stage-e-browser/independent-publication-check.json) 和 [截图](../evidence/stage-e-browser/independent-publication-conflict.png)。这是交错编辑、顺序发布的冲突验收，不声称两个最终发布 HTTP 请求同时发生。
 
 本轮均为合成回环服务，测试服务已退出，没有连接真实总线、修改 EA-5 或安装全局证书信任。实机 Apple 客户端、现场面板／窗帘、物理手机交互和 LAN TLS 仍未通过，阶段 E 保持未完成。
 
-测试控制器 API 质量检查：在 `061c3c2` 干净快照中迁移到 `AeadInOut` 和当前定长数组转换，保留 HAP 配对／验证／记录加密报文语义，生产认证代码未改。完整 workspace 579 项再次通过；工作区成员所有目标严格 Clippy 通过且未新增放行，vendor 依赖仍有 54 条警告。初次沙箱拒绝 TCP 绑定不计为通过，获准回环环境已重跑。见 [质量证据](evidence/stage-e-browser/clean-workspace-quality-061c3c2.json)。实机验收继续挂起。
+测试控制器 API 质量检查：在 `061c3c2` 干净快照中迁移到 `AeadInOut` 和当前定长数组转换，保留 HAP 配对／验证／记录加密报文语义，生产认证代码未改。完整 workspace 579 项再次通过；工作区成员所有目标严格 Clippy 通过且未新增放行，vendor 依赖仍有 54 条警告。初次沙箱拒绝 TCP 绑定不计为通过，获准回环环境已重跑。见 [质量证据](../evidence/stage-e-browser/clean-workspace-quality-061c3c2.json)。实机验收继续挂起。
 
-HAP 依赖非加密维护：显式 future 生命周期、测试导入和未使用内部字段；删除无调用的私有旧 TLV 解码器，保留现有严格解码路径。生产依赖警告从 54 降为 23；未改认证／加密算法，余下弃用 API 留待单独验证。工作区 579 项与显式选择 HAP 库的 53 项单元测试通过；后者不在工作区测试计数内，覆盖坏证明／标签、配对、会话边界和故障隔离。工作区严格 Clippy 通过，完整 vendor 严格门槛未宣称通过。见 [证据](evidence/stage-e-browser/hap-noncrypto-quality-9e5b9a7.json)。EA-5 与现场范围保持不变。
+HAP 依赖非加密维护：显式 future 生命周期、测试导入和未使用内部字段；删除无调用的私有旧 TLV 解码器，保留现有严格解码路径。生产依赖警告从 54 降为 23；未改认证／加密算法，余下弃用 API 留待单独验证。工作区 579 项与显式选择 HAP 库的 53 项单元测试通过；后者不在工作区测试计数内，覆盖坏证明／标签、配对、会话边界和故障隔离。工作区严格 Clippy 通过，完整 vendor 严格门槛未宣称通过。见 [证据](../evidence/stage-e-browser/hap-noncrypto-quality-9e5b9a7.json)。EA-5 与现场范围保持不变。
 
-AEAD API 迁移已覆盖 Pair Setup、Pair Verify、加密记录及库内模拟控制器，保留 HKDF、签名、nonce、AAD、标签和计数顺序。离线旧／新 API 64 组对比通过；现有 53 项 HAP 库测试与 579 项工作区回归通过，工作区严格 Clippy 通过，产品／库单元构建均无警告。旧接口只是当前接口的包装，比较见 [程序](../tools/verify_aead_api.rs) 与 [证据](evidence/stage-e-browser/hap-aead-quality-ef1290c.json)。离线工具旧侧故意调用弃用 API；完整 vendor 生成式风格 lint 门槛未宣称通过。EA-5、现场设备与配对数据库未改。
+AEAD API 迁移已覆盖 Pair Setup、Pair Verify、加密记录及库内模拟控制器，保留 HKDF、签名、nonce、AAD、标签和计数顺序。离线旧／新 API 64 组对比通过；现有 53 项 HAP 库测试与 579 项工作区回归通过，工作区严格 Clippy 通过，产品／库单元构建均无警告。旧接口只是当前接口的包装，比较见 [程序](../../tools/verify_aead_api.rs) 与 [证据](../evidence/stage-e-browser/hap-aead-quality-ef1290c.json)。离线工具旧侧故意调用弃用 API；完整 vendor 生成式风格 lint 门槛未宣称通过。EA-5、现场设备与配对数据库未改。
 
 以下检查点按实现时间保留；其中测试数量和缺口描述只对应当时版本。当前范围以上表及最新集成回归记录为准。
 
@@ -717,7 +719,7 @@ Web 历史与详情展示运行／命令状态和取消原因的中文说明，�
 
 ## schema 20 已提交版本集成回归
 
-已提交版本 `2a05c09` 的独立源码完整回归：543 项通过、0 失败、0 忽略（107 个结果块）；11 项前端验证、TCP 组合 HTTPS/WSS 和配置发布／历史恢复脚本通过。覆盖 schema 20 迁移及停止原因接线，不含工作区其他修改或私有夹具。证据见 [schema 20 集成回归](evidence/stage-e-browser/clean-schema20-regression.json)。此为合成回环证据，EA-5 未改变，现场验收继续挂起。
+已提交版本 `2a05c09` 的独立源码完整回归：543 项通过、0 失败、0 忽略（107 个结果块）；11 项前端验证、TCP 组合 HTTPS/WSS 和配置发布／历史恢复脚本通过。覆盖 schema 20 迁移及停止原因接线，不含工作区其他修改或私有夹具。证据见 [schema 20 集成回归](../evidence/stage-e-browser/clean-schema20-regression.json)。此为合成回环证据，EA-5 未改变，现场验收继续挂起。
 
 
 ## 双会话 HTTP 并发与退出隔离
@@ -909,7 +911,7 @@ Web 组合灯列表此前按授权范围查找已被逻辑投影隐藏的供电�
 按用户要求改为 ngr 隔离部署，与活动家庭中枢使用同一 VLAN 的原生发现。原模拟桥及其发现中继已停止并取消自启动；nanopc 限时测试桥和 Mac 临时广告已停止。经明确授权，仅迁移最新 E2 身份库及配对，原库备份保留；离线核对只修改监听主机地址，密钥、配对、AID／IID、配置编号和其他记录保持一致。运行状态和 Web 凭据重新建立，不迁移旧日志或 Web 秘密。当前正在 ngr 使用 Rust 1.99 和锁定依赖构建已提交版本；尚未将新实例验收标为通过。真实配置、身份和详细现场资料保留私有目录，EA-5 配置及控制范围保持不变。
 
 
-ngr 限定部署已启动：`9a940ee` 在 Rust 1.99 下原生构建 x86_64 release，模拟／假网关两轮重启和组合 HTTPS/WSS 鉴权冒烟通过。原 E2 配对保留；原生 Bonjour 全记录及 Mac 访问已通过，Web 就绪、灯光反馈 Confirmed、控制日志零条。用户仍报告未响应，继续检查 Apple 客户端连接，不能将同网段部署视为问题已修复。部署边界与证据见 [ngr 阶段 E](../deployment/ngr/STUDY-E.md)；EA-5 不变。
+ngr 限定部署已启动：`9a940ee` 在 Rust 1.99 下原生构建 x86_64 release，模拟／假网关两轮重启和组合 HTTPS/WSS 鉴权冒烟通过。原 E2 配对保留；原生 Bonjour 全记录及 Mac 访问已通过，Web 就绪、灯光反馈 Confirmed、控制日志零条。用户仍报告未响应，继续检查 Apple 客户端连接，不能将同网段部署视为问题已修复。部署边界与证据见 [ngr 阶段 E](ngr-stage-e-deployment.md)；EA-5 不变。
 
 
 迁移后的手机网络访问检查通过，Apple 家庭端到端响应仍未通过。已采集客户端与服务器诊断用于下一轮对照；详细现场资料全部保留本地。此检查点未验证真实负载控制，不变更 EA-5。
@@ -961,39 +963,39 @@ Web 选择接线已完成，真实手机与新集成版本现场确认、EA-5 �
 
 ## 状态优先级与关闭指示联动
 
-用户确认：开关以读回为准，Dimmer 以 HomeSense 记录为准；场景任一原本应亮负载关闭，就取消场景及关联的全部面板 LED。新增 `indicator_links` 显式配置和运行时同步，复用反馈租约／变量 CAS，LED 手动模式与完整场景灯光范围校验。设定保存采用 schema 21，与完整写出审计原子提交；不重放控制。Web 同时公开实际反馈和发布状态，HAP 读／事件共用同一投影。具体策略、边界和候选范围见[设计补充](state-and-indicator-policy.md)。
+用户确认：开关以读回为准，Dimmer 以 HomeSense 记录为准；场景任一原本应亮负载关闭，就取消场景及关联的全部面板 LED。新增 `indicator_links` 显式配置和运行时同步，复用反馈租约／变量 CAS，LED 手动模式与完整场景灯光范围校验。设定保存采用 schema 21，与完整写出审计原子提交；不重放控制。Web 同时公开实际反馈和发布状态，HAP 读／事件共用同一投影。具体策略、边界和候选范围见[设计补充](../state-and-indicator-policy.md)。
 
 Control4 私有核查和书房修正配置仅留本地。现场仍挂起，EA-5 未改，面板自动触发未开启；schema 21 尚未升级到现场。
 
-独立源码的配置／存储／homesensed 回归最终 **415 项通过**，14 项前端脚本及三个包所有目标严格 Clippy 通过。多桥的两项旧测量值预期已按新优先级更新，仍核对原始 Web 反馈独立保留；专项重跑 3 项通过。浏览器验证显示设定值并验证退出清空状态。范围见 [状态与 LED 联动证据](evidence/stage-e-browser/state-indicator-policy-check.json)；本轮未部署，现场多面板关系与联动仍需验收。
+独立源码的配置／存储／homesensed 回归最终 **415 项通过**，14 项前端脚本及三个包所有目标严格 Clippy 通过。多桥的两项旧测量值预期已按新优先级更新，仍核对原始 Web 反馈独立保留；专项重跑 3 项通过。浏览器验证显示设定值并验证退出清空状态。范围见 [状态与 LED 联动证据](../evidence/stage-e-browser/state-indicator-policy-check.json)；本轮未部署，现场多面板关系与联动仍需验收。
 
 
 ### LED 联动暂忙隔离与拒绝恢复
 
 旧版本回归分别复现：队列腾空后 LED 清除仍被抑制、反馈租约检查暂忙向统一驱动传播退出错误，以及变量 CAS 冲突后未选场景的 LED 清除永久遗漏。现在只将明确未接受的 ResourceBusy／InvalidValueInRequest 作为重新规划边界；下一轮重新读取反馈、设定和变量版本，不复用旧计划。忙碌的只读入口延期；权限、代次和持久化故障仍按原门禁处理。等待提交前保留尝试标记，等待丢失或结果不确定仍不自动重发。
 
-独立源码快照中 169 项相关库／驱动／场景／HAP／Web 回归通过，含 7 项 LED 联动测试；全部 homesensed 目标严格 Clippy 通过。初次沙箱拒绝回环监听不计为通过，获准环境已重跑。范围见 [证据](evidence/stage-e-browser/indicator-pressure-check.json)。未部署现场、未连接真实网关或改变 EA-5，D/E 实机与完整源语义门槛保持挂起。
+独立源码快照中 169 项相关库／驱动／场景／HAP／Web 回归通过，含 7 项 LED 联动测试；全部 homesensed 目标严格 Clippy 通过。初次沙箱拒绝回环监听不计为通过，获准环境已重跑。范围见 [证据](../evidence/stage-e-browser/indicator-pressure-check.json)。未部署现场、未连接真实网关或改变 EA-5，D/E 实机与完整源语义门槛保持挂起。
 
 
 ### 当前提交完整回归及 Linux 候选
 
 `56e922a` 独立 git archive：612 项工作区测试、另行 53 项 HAP 库测试通过，0 失败、0 忽略；工作区全部目标严格 Clippy、14 项前端检查与五组回环 HTTP/TLS 验收通过。ngr Rust 1.99 离线 release 已完成隔离构建；两轮组合模拟请求恢复及两种模式 HTTPS/WSS 通过，测试进程已退出。未安装全局信任、未替换真实 release、未迁移身份或运行库。书房候选的当前代码 Live 离线校验通过，没有建立网关连接。
 
-用户已确认增加已核实按键的选择观察推断，初始未知不猜测同键结果，推断标记且不发送灯光指令。这是尚待接入的代码项，不能仅标为现场确认。D/E 完成结论继续为未完成；完整证据见 [当前回归](evidence/stage-e-browser/committed-56e922a-regression.json)。
+用户已确认增加已核实按键的选择观察推断，初始未知不猜测同键结果，推断标记且不发送灯光指令。这是尚待接入的代码项，不能仅标为现场确认。D/E 完成结论继续为未完成；完整证据见 [当前回归](../evidence/stage-e-browser/committed-56e922a-regression.json)。
 
 
-场景观察状态机基础已完成，但 E 外部选择同步仍未接入：后续必须把选择数值与 inferred 来源事务保存，普通规则不将推断当作确认输入，HAP／Web 与手动规划使用同一来源快照。不能用纯状态机通过宣称外部同步或实机验收通过。见 [观察模式契约](scene-observation.md)。
+场景观察状态机基础已完成，但 E 外部选择同步仍未接入：后续必须把选择数值与 inferred 来源事务保存，普通规则不将推断当作确认输入，HAP／Web 与手动规划使用同一来源快照。不能用纯状态机通过宣称外部同步或实机验收通过。见 [观察模式契约](../scene-observation.md)。
 
-场景观察来源存储已完成 schema 22：选择／推断证据原子保存，重启或代次失配为未知，普通规则与发布迁移不确认推断值。53 项存储回归及旧二进制恢复升级前备份通过。E 的选择发布／手动规划仍待接 scoped 快照及来源呈现；该增量没有现场接线或部署。见 [观察模式](scene-observation.md)。
+场景观察来源存储已完成 schema 22：选择／推断证据原子保存，重启或代次失配为未知，普通规则与发布迁移不确认推断值。53 项存储回归及旧二进制恢复升级前备份通过。E 的选择发布／手动规划仍待接 scoped 快照及来源呈现；该增量没有现场接线或部署。见 [观察模式](../scene-observation.md)。
 
 
-2026-10-12 观察模式运行时检查点：显式默认禁用配置、实际反馈所有权、Admission CAS、流／代次失效、手动规划及 HAP/Web 来源读取已接通；Web 标明推断，HAP 布尔值不冒充来源标签。独立限定快照 634 项工作区测试、全部目标严格 Clippy 和 14 项前端检查通过；首次多桥等待超时及重跑结果保留在 [运行时证据](evidence/stage-d-study/scene-observation-runtime-check.json)。独立 LED 同步与推断变量存在联合缺口，可能把未改变的推断值写成未知；已复现并列为下一项修复，不宣称观察模式完成。本轮未部署／启动现场服务，EA-5 不变，D/E 未完成。
+2026-10-12 观察模式运行时检查点：显式默认禁用配置、实际反馈所有权、Admission CAS、流／代次失效、手动规划及 HAP/Web 来源读取已接通；Web 标明推断，HAP 布尔值不冒充来源标签。独立限定快照 634 项工作区测试、全部目标严格 Clippy 和 14 项前端检查通过；首次多桥等待超时及重跑结果保留在 [运行时证据](../evidence/stage-d-study/scene-observation-runtime-check.json)。独立 LED 同步与推断变量存在联合缺口，可能把未改变的推断值写成未知；已复现并列为下一项修复，不宣称观察模式完成。本轮未部署／启动现场服务，EA-5 不变，D/E 未完成。
 
 
 2026-10-12 推断选择／LED 联动修复：专用来源读取与事务内只读版本条件替代普通规则读集写回，其他成员 LED 清理保留当前推断值、版本及来源；对应应亮负载熄灭才清零。接受前复核流失效、变量 CAS 和按键后的新鲜反馈；Dimmer 持久 0% 另需同 boot 按键后完整写出，旧零值不借新查询取消推断。两面板部分熄灯、另一个成员保留、流失效、人工选择竞争及时间边界已有联合回归。旧 CAS 集成用例改为要求条件读取的选择不推进版本，拒绝及重新规划检查保留。本轮未部署或启动现场服务，观察模式默认禁用；D/E 现场和原项目语义门槛继续挂起，EA-5 配置与控制范围不变。
 
 
-最终限定快照完整工作区 **643 通过、0 失败、0 忽略**，全部目标严格 Clippy 通过；16 项观察／LED 联合回归含本次新增 8 项，新增存储事务条件保护 1 项。旧 Dimmer 零值不能取消新推断，但也不能阻断另一路有效的 Switch Off；其他负载未知仍允许独立明确的部分熄灯取消。证据见 [推断与 LED 联动检查](evidence/stage-d-study/scene-observation-led-check.json)。现场及原项目语义门槛未关闭，EA-5 不变。
+最终限定快照完整工作区 **643 通过、0 失败、0 忽略**，全部目标严格 Clippy 通过；16 项观察／LED 联合回归含本次新增 8 项，新增存储事务条件保护 1 项。旧 Dimmer 零值不能取消新推断，但也不能阻断另一路有效的 Switch Off；其他负载未知仍允许独立明确的部分熄灯取消。证据见 [推断与 LED 联动检查](../evidence/stage-d-study/scene-observation-led-check.json)。现场及原项目语义门槛未关闭，EA-5 不变。
 
 
 ## 2026-10-12 现场复验与剩余门槛
@@ -1002,7 +1004,7 @@ Control4 私有核查和书房修正配置仅留本地。现场仍挂起，EA-5 
 
 手机 Safari 已完成临时测试根证书授权安装和 SSL 信任、无隐私警告登录、有限两灯权限、软键盘／布局、控制、前台家庭通知及退出清空。用户随后确认移除测试证书描述文件；临时凭证均已撤销，旧凭证新会话返回 401。家庭 App 从后台返回曾显示旧状态、重开后一致，原因仍未确定，不记作连接恢复通过。
 
-干净 `a8f5371` 的原数值框仍复现双向回跳。其后仅叠加 Web JS/CSS 的滑动条候选已在 Linux 独立构建，15 项前端检查通过，真实手机确认滑动顺畅、灯光跟随、滑块／目标无回跳、布局正常，以及 0% 关灯后点“开”恢复原亮度且 Web／家庭状态正常。该现场二进制不是干净提交构建，不用它证明其他工作区修改。详细指纹与范围见 [限定现场证据](evidence/stage-e-browser/limited-field-20261012.json)。
+干净 `a8f5371` 的原数值框仍复现双向回跳。其后仅叠加 Web JS/CSS 的滑动条候选已在 Linux 独立构建，15 项前端检查通过，真实手机确认滑动顺畅、灯光跟随、滑块／目标无回跳、布局正常，以及 0% 关灯后点“开”恢复原亮度且 Web／家庭状态正常。该现场二进制不是干净提交构建，不用它证明其他工作区修改。详细指纹与范围见 [限定现场证据](../evidence/stage-e-browser/limited-field-20261012.json)。
 
 以上现场一直使用原配置 revision 2：没有场景互斥组、没有独立 LED 链接，观察模式未启用，自动规则为空。因此当前场景观察／持久互斥／独立 LED 联动的实机、配置发布及启用后恢复门槛仍待完成；额外面板公开和多桥客户端范围需显式核定。D 的全项目语义处置与 E 的综合完成结论继续为未完成。每日备份仍报 snapshot_verification，保留旧快照；此运维事实不得把 F 的正式备份恢复或 72 小时运行扩成 E 的门槛。
 
@@ -1011,19 +1013,19 @@ Control4 私有核查和书房修正配置仅留本地。现场仍挂起，EA-5 
 
 ### 观察边沿核查
 
-候选源分支核查明确书房三个场景在 Release 事件执行；干净 `cb02966` 的生产核心独立探针却在按下 100 ms 时推断选择，持续按住不再推断、松开 2100 ms 时不产生推断。当前按下推断与审核过的松开分支不一致，现场观察继续禁用。长按期间旧灯反馈影响 LED 的联合后果仍需专项回归，不能由核心探针宣称已经证明。修复与回归由“功能开发”推进，“部署”完成离线准备后等待新候选。证据见 [观察边沿审计](evidence/stage-e-browser/scene-observation-edge-audit.json)。
+候选源分支核查明确书房三个场景在 Release 事件执行；干净 `cb02966` 的生产核心独立探针却在按下 100 ms 时推断选择，持续按住不再推断、松开 2100 ms 时不产生推断。当前按下推断与审核过的松开分支不一致，现场观察继续禁用。长按期间旧灯反馈影响 LED 的联合后果仍需专项回归，不能由核心探针宣称已经证明。修复与回归由“功能开发”推进，“部署”完成离线准备后等待新候选。证据见 [观察边沿审计](../evidence/stage-e-browser/scene-observation-edge-audit.json)。
 
 
 ### 外部切换基线核查
 
-独立 `cb02966` 快照使用生产观察核心与源项目的书房 AST 回放证明了一个条件反例：本地记录日常选择 2，而外部变量仍为 0 或 3 时，同一日常墙面键的原 Release 分支选择 2，观察器按本地 2 却推断 ToggleOff 为 0。本地场景意图没有证明 EA-5 私有变量已同步；推断来源标签不能使错误基线成为一致性证据。该反例与按下／松开时间差异分别核查，目前未在现场复现；需建立可靠的外部基线或保留未知，不得凭灯光匹配补造值。证据见 [外部切换基线审计](evidence/stage-e-browser/scene-observation-baseline-audit.json)。观察模式现场启用和外部同步门槛继续保留，修复由“功能开发”处理。
+独立 `cb02966` 快照使用生产观察核心与源项目的书房 AST 回放证明了一个条件反例：本地记录日常选择 2，而外部变量仍为 0 或 3 时，同一日常墙面键的原 Release 分支选择 2，观察器按本地 2 却推断 ToggleOff 为 0。本地场景意图没有证明 EA-5 私有变量已同步；推断来源标签不能使错误基线成为一致性证据。该反例与按下／松开时间差异分别核查，目前未在现场复现；需建立可靠的外部基线或保留未知，不得凭灯光匹配补造值。证据见 [外部切换基线审计](../evidence/stage-e-browser/scene-observation-baseline-audit.json)。观察模式现场启用和外部同步门槛继续保留，修复由“功能开发”处理。
 
 
 ### 外部基线收敛方案验证
 
 依据原分支可建立独立的外部可能值集合：初始未知的第一键后仅知道 0 或该成员，同键重复仍未知；后续不同成员键把两种可能都映射到新成员。实际书房 AST 的离线枚举已通过 3 个初始歧义、3 个同键歧义及 6 个异键序列×4 个合法原状态。全归档程序扫描发现相关变量 9 处引用（3 条条件、6 次赋值），写入只来自已核查的三键事件；这不证明实时项目或驱动内部无其他写入。
 
-该方案可在不借用本地选择的情况下推进推断，但尚未接入产品：本地 HAP/Web 意图和 LED 清除不改变外部集合，流缺口／重启须重新未知，推断来源和事务 CAS 继续保留。现场及原项目语义门槛未关闭。见 [源 AST 收敛证明](evidence/stage-e-browser/scene-observation-convergence-proof.json)。
+该方案可在不借用本地选择的情况下推进推断，但尚未接入产品：本地 HAP/Web 意图和 LED 清除不改变外部集合，流缺口／重启须重新未知，推断来源和事务 CAS 继续保留。现场及原项目语义门槛未关闭。见 [源 AST 收敛证明](../evidence/stage-e-browser/scene-observation-convergence-proof.json)。
 
 
 ### 松开边沿已修复；人工验收挂起
@@ -1037,16 +1039,16 @@ Control4 私有核查和书房修正配置仅留本地。现场仍挂起，EA-5 
 
 实际旧 Linux 候选的三例假网关实验保留全部独立 LED 链接并正常退出：主灯关／筒灯 18% 时仅关闭 LED1／3，未知选择保持 NULL；全关时关闭三颗 LED，但未知选择变为 0；全亮时零输出且选择仍未知。全部没有灯光、供电、电机命令或场景运行。由此证明发布时 NULL 不代表运行后不猜测，未知归零须在新代码修复后重验。
 
-绝对“启动零命令”的脚本断言不符合已授权 LED 熄灯联动，离线候选须逐条允许显式关联的 PanelLed(false)，拒绝其他自动输出，并保持未知选择。旧 HAP-only 启动模板也被 CLI 在连接前拒绝；后续使用既有 HAP/Web TLS 组合，不由此增加 HAP-only 产品需求或要求重新安装手机信任。现场执行继续挂起，旧候选入口在发布前阻断。见 [启动契约审计](evidence/stage-e-browser/indicator-startup-contract-audit.json)。
+绝对“启动零命令”的脚本断言不符合已授权 LED 熄灯联动，离线候选须逐条允许显式关联的 PanelLed(false)，拒绝其他自动输出，并保持未知选择。旧 HAP-only 启动模板也被 CLI 在连接前拒绝；后续使用既有 HAP/Web TLS 组合，不由此增加 HAP-only 产品需求或要求重新安装手机信任。现场执行继续挂起，旧候选入口在发布前阻断。见 [启动契约审计](../evidence/stage-e-browser/indicator-startup-contract-audit.json)。
 
 
 ## 2026-10-13 独立基线实现与候选复验
 
 `c184e65` 已提交并推送：每个外部流从所有合法值可能出发，第一键或同键歧义保持未知，已审核的异键序列可收敛；本地 HAP/Web 意图和 LED 清零只提供事务 CAS 版本，不改外部基线。启用要求完整外部 toggle／写入入口审核、组内全部成员按键绑定，源 Release 分支需显式边沿。流缺口、过期／不确定按键及重启使推断失效，不从持久本地值或灯光补造基线。全关启动保留未知 NULL 和原版本，既定 LED-Off 校正仍允许。
 
-完整独立快照 663 项通过、0 失败、0 忽略，严格 Clippy 通过；根审计核对 10 个源码指纹与提交完全一致、完整测试和 Clippy 日志指纹吻合，并在干净提交独立复验核心 13 项。实现回归枚举 363 个短键序列×4 个原始状态，仍属于合成／源码验证。证据见 [实现回归](evidence/stage-d-study/scene-observation-external-check.json) 和 [基线独立审计](evidence/stage-e-browser/scene-observation-baseline-audit.json)。旧反例保留为历史，不再当作当前代码缺口；新 Linux 二进制、配置启用及实际客户端门槛仍待验证。
+完整独立快照 663 项通过、0 失败、0 忽略，严格 Clippy 通过；根审计核对 10 个源码指纹与提交完全一致、完整测试和 Clippy 日志指纹吻合，并在干净提交独立复验核心 13 项。实现回归枚举 363 个短键序列×4 个原始状态，仍属于合成／源码验证。证据见 [实现回归](../evidence/stage-d-study/scene-observation-external-check.json) 和 [基线独立审计](../evidence/stage-e-browser/scene-observation-baseline-audit.json)。旧反例保留为历史，不再当作当前代码缺口；新 Linux 二进制、配置启用及实际客户端门槛仍待验证。
 
-源审查检查点 `4a68471` 另明确处置 4 个源结构空程序，待原语义审核计数更新为 65 场景、208 程序、24 变量；按类型逐节点核查还识别了此前首错误统计遮蔽的 24 个 SET_LEVEL_TARGET 和 11 个 STOP 站点。它们仍在原 36 个首阻断程序内，不能把条件之外的动作默认为支持。见 [源审查证据](evidence/stage-d-study/source-review-check.json)。
+源审查检查点 `4a68471` 另明确处置 4 个源结构空程序，待原语义审核计数更新为 65 场景、208 程序、24 变量；按类型逐节点核查还识别了此前首错误统计遮蔽的 24 个 SET_LEVEL_TARGET 和 11 个 STOP 站点。它们仍在原 36 个首阻断程序内，不能把条件之外的动作默认为支持。见 [源审查证据](../evidence/stage-d-study/source-review-check.json)。
 
 人的确认和现场操作保持挂起；“部署”继续构建干净 `c184e65` 并在假网关复验全部 LED 链接及全关 NULL，完善受支持 HAP/Web TLS 入口、真实锁和路径、健康与新命令检查。实际发布／启动仍被前置门禁阻断，不把准备通过记为现场通过。D/E 综合结论继续为未完成。
 
@@ -1055,28 +1057,28 @@ Control4 私有核查和书房修正配置仅留本地。现场仍挂起，EA-5 
 
 固定 `c184e65` 的 E10 release 指纹为 `7596e17aa0e61d9b20768918213e1c4a2152ddd52d7277fd4e954eafaafd8315`。根审计逐文件核对源码归档 891 个文件与该提交一致，归档和构建日志指纹匹配，另只读核对 ngr 二进制指纹一致。三种实际 Linux 假 TCP 网关初态均保留全部关联：主灯关／筒灯18%仅 LED1／3 Off，全关仅 LED1／3／5 Off，全开无输出；三例选择均保持 NULL／版本0、零场景，输出均 written，实际 TLS diagnostics 就绪且队列及在途清空。根审计另外独立通过 8 项启动检查器回归，包含旧全关错误归零拒绝、输出失败／不确定、就绪失败及有界等待。
 
-模拟和假 TCP 两种 TLS 冒烟、Live 配置校验、副本 Python／Rust 锁互斥、schema22 revision2→3 发布、配对与 AID/IID 保持，以及独立 revision2 回退和三份 standalone 快照检查通过。首次过早检查初始化、Host/Origin 不一致及 WAL 格式快照拒绝作为测试脚本失败保留，未计为通过。此候选完全关闭观察，未发布真实库，field_enablement=false，现场窗口和人工确认仍挂起。新观察候选及完整外部写入审核继续由部署／功能开发推进，不以本轮模拟结果关闭 D/E。见 [启动契约与当前候选证据](evidence/stage-e-browser/indicator-startup-contract-audit.json)。
+模拟和假 TCP 两种 TLS 冒烟、Live 配置校验、副本 Python／Rust 锁互斥、schema22 revision2→3 发布、配对与 AID/IID 保持，以及独立 revision2 回退和三份 standalone 快照检查通过。首次过早检查初始化、Host/Origin 不一致及 WAL 格式快照拒绝作为测试脚本失败保留，未计为通过。此候选完全关闭观察，未发布真实库，field_enablement=false，现场窗口和人工确认仍挂起。新观察候选及完整外部写入审核继续由部署／功能开发推进，不以本轮模拟结果关闭 D/E。见 [启动契约与当前候选证据](../evidence/stage-e-browser/indicator-startup-contract-audit.json)。
 
 
 ### 2026-10-13 观察候选与加密客户端恢复隔离核查
 
-E11 使用同一干净 `c184e65` Linux 二进制在闭世界归档模拟器中完成 18 个实际 API／SQLite 检查点：首键歧义、异键收敛、本地意图不 seed 外部集合、网关 EOF 后可见推断失效、保留身份／库重启后仍重新未知。根审计逐记录核对：所有观察步骤零新增命令和场景；两个明确的本地场景请求仅在 localhost 产生 14 条命令、2 条场景。缺少 writer review 或成员键绑定的配置被拒绝。现场配置保持关闭，真实库和身份未变；归档中的三条件／六赋值不证明实时项目一致或驱动无隐式写入。观察与独立 LED 联动同时启用的 Linux 集成边界继续验证，现场完整观察仍挂起。见 [Linux 观察证据](evidence/stage-e-browser/scene-observation-linux-check.json)。
+E11 使用同一干净 `c184e65` Linux 二进制在闭世界归档模拟器中完成 18 个实际 API／SQLite 检查点：首键歧义、异键收敛、本地意图不 seed 外部集合、网关 EOF 后可见推断失效、保留身份／库重启后仍重新未知。根审计逐记录核对：所有观察步骤零新增命令和场景；两个明确的本地场景请求仅在 localhost 产生 14 条命令、2 条场景。缺少 writer review 或成员键绑定的配置被拒绝。现场配置保持关闭，真实库和身份未变；归档中的三条件／六赋值不证明实时项目一致或驱动无隐式写入。观察与独立 LED 联动同时启用的 Linux 集成边界继续验证，现场完整观察仍挂起。见 [Linux 观察证据](../evidence/stage-e-browser/scene-observation-linux-check.json)。
 
-另新增单项加密 HAP 协议回归：原会话已订阅后断开，Web 改为17%，同一配对控制器重新认证读取 On=true／17%；重新订阅后，Web 的30%→17%分别产生正确加密通知，无 HAP 控制或刷新。固定干净产品源码仅添加该测试，原891个归档文件均未变；1项通过、0失败／忽略，限定目标严格 Clippy 通过。首轮沙箱拒绝回环监听保留，获准执行通过。此测试使用独立模拟调光灯，不解释真实 iOS 后台生命周期或现场组合灯问题；家庭 App 后台返回旧值的实际原因仍未确定，不能关闭现场恢复门槛。见 [协议恢复回归](evidence/stage-e-browser/client-resume-protocol-check.json)。
+另新增单项加密 HAP 协议回归：原会话已订阅后断开，Web 改为17%，同一配对控制器重新认证读取 On=true／17%；重新订阅后，Web 的30%→17%分别产生正确加密通知，无 HAP 控制或刷新。固定干净产品源码仅添加该测试，原891个归档文件均未变；1项通过、0失败／忽略，限定目标严格 Clippy 通过。首轮沙箱拒绝回环监听保留，获准执行通过。此测试使用独立模拟调光灯，不解释真实 iOS 后台生命周期或现场组合灯问题；家庭 App 后台返回旧值的实际原因仍未确定，不能关闭现场恢复门槛。见 [协议恢复回归](../evidence/stage-e-browser/client-resume-protocol-check.json)。
 
 
 ### 2026-10-13 观察与独立 LED 联动的 Linux 联合验证
 
 E12 保留原组合灯映射及三条 LED links，实际 Linux 二进制通过13个回环检查点：按住期间旧 Off 可以清理关联 LED，但选择仍为 NULL／版本不变；松开才推断，新鲜供电 Off 才取消选择并关闭关联 LED。随后同外部键仍按独立外部基线 toggle，EOF／重启使旧推断不可见，首键重新未知、异键收敛；没有灯光、供电、电机或场景输出。共3条 LED-Off，检查点时为 written；重启后旧 boot 的 written 记录按恢复契约改为 uncertain，不将其当作物理 ACK 或当前新输出失败。
 
-另6项 Dimmer 专项仅在 localhost 夹具移除主灯供电关联，保留三条 links，实际完成旧零写出→松开推断→收到新零查询回复但不取消；新的零命令在松开后完整写出才取消并关闭 LED。本地取消不改外部基线。原组合灯 Web 0% 只写供电 Off，首轮无法生成 Dimmer 零值的断言失败保留；专项证明有拓扑差异，不能替代原组合灯或实物验收。根审计核对19条记录、输出类别、旧/观察/新时间顺序、健康和全部私有证据指纹通过。实际库／身份未变，观察及现场启用仍关闭；归档模型未证明实时完整 writer。见 [联合 Linux 证据](evidence/stage-e-browser/scene-observation-led-linux-check.json)。
+另6项 Dimmer 专项仅在 localhost 夹具移除主灯供电关联，保留三条 links，实际完成旧零写出→松开推断→收到新零查询回复但不取消；新的零命令在松开后完整写出才取消并关闭 LED。本地取消不改外部基线。原组合灯 Web 0% 只写供电 Off，首轮无法生成 Dimmer 零值的断言失败保留；专项证明有拓扑差异，不能替代原组合灯或实物验收。根审计核对19条记录、输出类别、旧/观察/新时间顺序、健康和全部私有证据指纹通过。实际库／身份未变，观察及现场启用仍关闭；归档模型未证明实时完整 writer。见 [联合 Linux 证据](../evidence/stage-e-browser/scene-observation-led-linux-check.json)。
 
 
 ### 2026-10-13 实际 Linux 加密 HAP 观察投影核查
 
 E13 固定同一 `c184e65` 产品二进制，独立控制器通过网络完成一次 SRP Pair Setup、三次 Pair Verify 和三次显式订阅，未向身份库注入配对。根核对控制器使用的两份协议 helper 与已提交源码指纹一致，产品及控制器指纹、全部私有清单一致。13个检查点包含8次未知／歧义／失效：HAP读取返回207、三个场景均为-70402且无value；5次已知选择／关闭读取返回正确布尔值，并有11条加密EVENT。EOF及保留身份重启后重新认证、订阅和收敛通知均通过，Web选择／来源失效逐项一致。
 
-全程保留三条 LED links，零控制命令和场景；根另外分类全部40条发送报文，均为读取查询。实际运行库／配对库未变，服务和测试控制器已退出，现场仍关闭。首次测试工具因SQLite u64不支持而编译失败，修正为i64后通过；产品二进制未变。这是加密模拟控制器的端到端证据，HAP布尔值不携带来源标签，不能替代iPhone／HomePod现场或证明实时writer完整。见 [加密 HAP 证据](evidence/stage-e-browser/scene-observation-encrypted-hap-check.json)。
+全程保留三条 LED links，零控制命令和场景；根另外分类全部40条发送报文，均为读取查询。实际运行库／配对库未变，服务和测试控制器已退出，现场仍关闭。首次测试工具因SQLite u64不支持而编译失败，修正为i64后通过；产品二进制未变。这是加密模拟控制器的端到端证据，HAP布尔值不携带来源标签，不能替代iPhone／HomePod现场或证明实时writer完整。见 [加密 HAP 证据](../evidence/stage-e-browser/scene-observation-encrypted-hap-check.json)。
 
 ### 2026-10-13 书房现场恢复与初始未知显示
 
@@ -1104,11 +1106,11 @@ Mac Safari已到登录页。为本轮书房两灯／四场景签发临时Member�
 
 根进一步逐条只读关联47条命令：39条可精确关联7次场景的step/source，另8条没有scene／rule来源关联且全部为LED-Off，不能补造每条所属indicator链接。初次全关的三条LED-Off全部对应原全关前三步骤，随后才是两路供电Off；整个窗口仅3条LED-On，均属于阅读键1两次和日常键3一次，没有HomeSense发往残红键5的On。这不证明面板已应用Off，也不能归因任何外部发送者。服务日志中39条“scene selection unknown or stale”读取错误发生于UTC00:26:25至00:36:40，之后无characteristic读取错误；NULL保持未知及HAP显式读取不可用符合design.md现行契约，正常未知与真实服务失效的诊断区分仍可改进，禁止默认为false。
 
-已核对本轮8份私有资料及结束清单内5份原始文件指纹，公开聚合见 [2026-10-13限定现场证据](evidence/stage-e-browser/limited-field-20261013.json)。正常停止由日志证明，OS退出码未捕获，不补称exit0。D仍有65场景／208程序／24变量待完整语义审核，E仅关闭上述限定步骤。
+已核对本轮8份私有资料及结束清单内5份原始文件指纹，公开聚合见 [2026-10-13限定现场证据](../evidence/stage-e-browser/limited-field-20261013.json)。正常停止由日志证明，OS退出码未捕获，不补称exit0。D仍有65场景／208程序／24变量待完整语义审核，E仅关闭上述限定步骤。
 
 ### 2026-10-13 选择诊断增量和新增初始化目标
 
-`e580caa`独立三态增量完成：正常NULL与运行不可用分开，Web明示未知可明确开启，采样超时／服务故障等提供不同原因；当前503或断流清除旧选择并禁用控制，新的有效快照恢复原门禁。根审查指出旧HTTP503可能在新WebSocket恢复之后到达并重新降级，已加快照代次保护。根另独立通过实际前端socket handler的7项状态／迟到503／会话切换检查，受测app.js与提交字节一致。9份源码与9份日志指纹核对通过；32个独立Rust测试（33次成功执行中HAP重复1次）及服务全部目标严格Clippy通过。HAP未知-70402、目录null、身份和通知顺序保持；新代码未部署，未启动现场。见 [选择投影根审计](evidence/stage-e-browser/scene-selection-projection-root-audit.json)。
+`e580caa`独立三态增量完成：正常NULL与运行不可用分开，Web明示未知可明确开启，采样超时／服务故障等提供不同原因；当前503或断流清除旧选择并禁用控制，新的有效快照恢复原门禁。根审查指出旧HTTP503可能在新WebSocket恢复之后到达并重新降级，已加快照代次保护。根另独立通过实际前端socket handler的7项状态／迟到503／会话切换检查，受测app.js与提交字节一致。9份源码与9份日志指纹核对通过；32个独立Rust测试（33次成功执行中HAP重复1次）及服务全部目标严格Clippy通过。HAP未知-70402、目录null、身份和通知顺序保持；新代码未部署，未启动现场。见 [选择投影根审计](../evidence/stage-e-browser/scene-selection-projection-root-audit.json)。
 
 用户随后明确提出根据灯光初始化场景选择，目的为点击场景开关即可关闭已经亮着的灯。新的显式审核政策独立推进：只有真正未初始化的本地选择才可依据当前同步后的新鲜完整灯光状态建立0或唯一匹配成员；已有值保持，部分未知／歧义／pending不猜测，EA-5独立外部集合不变，初始化本身零控制／场景输出。书房36项独立静态期望与来源／CAS／租约／默认禁用边界保留私有；尚未实现、构建或现场验证该政策。原独立LED-Off政策继续有效，不把原允许的LED输出归为初始化动作。
 
@@ -1119,14 +1121,14 @@ Mac Safari已到登录页。为本轮书房两灯／四场景签发临时Member�
 
 完整workspace735项、所有目标严格Clippy通过，Linux串行运行时库103项通过。Linux假网关真实服务使用独立debug二进制、独立状态、既有隔离TLS，仅GET diagnostics/devices：96物理端点由61种请求覆盖，35秒共919查询／0控制，首次就绪1.67秒，最大重复间隔2.85秒，113份状态采样全部Confirmed、0 Stale；正常退出且PID不存在。首次Linux多桥并行失败、同源码独立和串行重跑结果均保留，未归因于具体原因。
 
-该证据关闭20ms匿名混合映射的隔离容量缺口；未验证真实固件、100ms混合映射、现场长期稳定性或实际Apple客户端。此容量检查点当时尚未单独执行27项相对夹具；现已由下节独立矩阵完成，不能把容量回归本身计为27项验收。本轮未部署、未连接真实网关、未修改现场身份／数据库，也未新签凭据。见[聚合证据](evidence/stage-d-study/module-query-capacity-check.json)。阶段E保持未完成。
+该证据关闭20ms匿名混合映射的隔离容量缺口；未验证真实固件、100ms混合映射、现场长期稳定性或实际Apple客户端。此容量检查点当时尚未单独执行27项相对夹具；现已由下节独立矩阵完成，不能把容量回归本身计为27项验收。本轮未部署、未连接真实网关、未修改现场身份／数据库，也未新签凭据。见[聚合证据](../evidence/stage-d-study/module-query-capacity-check.json)。阶段E保持未完成。
 
 
 ### 2026-10-13 相对场景软件矩阵与绝对入口边界
 
 固定 `bfe61f2` 的27项私有矩阵实际执行全部通过，0失败／忽略；12个对照子例形成39份轨迹，不增加为39项测试或不同输入。生产SceneWriteHandler／SceneRequests／Control／SceneScheduler验证未知选择的绝对Off拒绝、明确On以及已知选择Off，零原生Toggle；相对请求的Pending／重复收据、旧反馈拒绝、写出后仍未知与最终新反馈投影另行核对。歧义组合的持久请求可为Observed而selected仍为NULL，不能把读取完成当成已知选择；故障RPC不可用也不能冒充合法未知。
 
-此次HAP仅验证解码后生产适配链路，不包含加密网络／会话或实际Apple客户端。原三条LED链接保留并验证配置范围，但完整LED同步、面板物理颜色、真实模块／总线，以及后续稳定模块ID架构的最终集成版仍待验。103个原库测试被过滤，没有新增全工作区／Clippy／Linux／长期服务结论。详见[27项矩阵证据](evidence/stage-d-study/native-scene-relative-matrix-check.json)和[独立根审计](evidence/stage-d-study/native-scene-relative-matrix-root-check.json)。
+此次HAP仅验证解码后生产适配链路，不包含加密网络／会话或实际Apple客户端。原三条LED链接保留并验证配置范围，但完整LED同步、面板物理颜色、真实模块／总线，以及后续稳定模块ID架构的最终集成版仍待验。103个原库测试被过滤，没有新增全工作区／Clippy／Linux／长期服务结论。详见[27项矩阵证据](../evidence/stage-d-study/native-scene-relative-matrix-check.json)和[独立根审计](../evidence/stage-d-study/native-scene-relative-matrix-root-check.json)。
 
 本轮未部署或连接真实网关，未创建凭据或修改现场身份／数据库；最近限定现场仍为已结束的schema22／revision3窗口。仅关闭固定版本的27项软件矩阵待验，阶段E整体仍未完成。
 
@@ -1137,21 +1139,21 @@ Mac Safari已到登录页。为本轮书房两灯／四场景签发临时Member�
 
 5 项直接返回 HAP `InvalidState`，另 5 项服务在就绪前退出。独立私有回归在同一归档仅新增测试文件，复现逻辑 snapshot 的 cursor／state_version 为初始化 `(1,8)`、未绑定反馈后 `(1,9)`、绑定反馈后 `(2,10)`，并复现 Event 的 state.version 与 alias cursor 不等。物理端口状态与逻辑投影使用不同版本域，不能直接把物理版本填入逻辑快照／事件；既有 HAP 严格检查保持不变。该新增回归当前 0 通过、1 失败，保留原失败，不计成功。
 
-逻辑设备只引用模块 ID／通道的结构约束已经实现，但模块真值检查点仍有上述实际集成缺口。已通知功能开发优先修复后复验；本轮没有修改共享产品源码、发布配置、部署或操作真实设备。管理 Query、真实 Apple 客户端及原 D/E 综合门槛继续挂起。见 [固定检查点反例与指纹](evidence/stage-e-browser/module-truth-projection-contract-root-check.json)。
+逻辑设备只引用模块 ID／通道的结构约束已经实现，但模块真值检查点仍有上述实际集成缺口。已通知功能开发优先修复后复验；本轮没有修改共享产品源码、发布配置、部署或操作真实设备。管理 Query、真实 Apple 客户端及原 D/E 综合门槛继续挂起。见 [固定检查点反例与指纹](../evidence/stage-e-browser/module-truth-projection-contract-root-check.json)。
 
 
 ### 2026-10-13 HAP 版本契约修复后的完整库补验
 
 `1e35add` 单独修复逻辑投影版本域，模块 Query 在途改动未包含。根取完整固定归档，核对全部 980 个原文件无修改，仅新增完全相同的私有反例测试。完整运行时库 118 项、Admission 40 项、同一反例 1 项全部通过，合计 159 个实际测试，0 失败／忽略／过滤；前述 10 个原测试失败以及原排除的 9 项逐项通过。两份产品／测试源码与作者四份限定检查日志指纹另行核对。
 
-初始化、未绑定反馈、绑定反馈和显式失效四步中，逻辑 cursor／state_version 依次 `(1,1)`、`(1,1)`、`(2,2)`、`(3,3)`；物理通道观测值及版本与原失败轨迹逐项一致，没有改写 ground truth 或削弱 HAP 校验。保留旧失败记录，关闭此固定检查点的软件集成反例和库回环补验缺口；不推广为完整 workspace、管理员 Query、真实 Apple 客户端或现场通过。见 [修复独立验收](evidence/stage-e-browser/module-truth-projection-repair-root-check.json)。本轮未部署、连接真实网关、创建真实凭据或修改 EA-5。
+初始化、未绑定反馈、绑定反馈和显式失效四步中，逻辑 cursor／state_version 依次 `(1,1)`、`(1,1)`、`(2,2)`、`(3,3)`；物理通道观测值及版本与原失败轨迹逐项一致，没有改写 ground truth 或削弱 HAP 校验。保留旧失败记录，关闭此固定检查点的软件集成反例和库回环补验缺口；不推广为完整 workspace、管理员 Query、真实 Apple 客户端或现场通过。见 [修复独立验收](../evidence/stage-e-browser/module-truth-projection-repair-root-check.json)。本轮未部署、连接真实网关、创建真实凭据或修改 EA-5。
 
 
 ### 2026-10-13 修复后管理视图复验与启动查询范围反例
 
-部署任务将六项管理API探针迁到固定 `1e35add` 完整归档，保留旧 `8685b0b` 的6项通过及库失败历史。实际6项通过，118原库测试过滤，25次Api.handle调用和14份真实模块页响应经固定renderModules渲染；14份页面不是14项独立测试，也不证明浏览器布局。11个原有反馈步骤快照的逻辑版本均与游标一致，既有混合批次新增9个未绑定端口样本而逻辑游标不变；不扩大为独立disabled-only或unbound-only测试。权限／禁用／隐藏供电门禁和接受目标与实际读回分离保持；Query仍400／404，不能记作已实现。归档、全部私有产物及保留的实际测试二进制指纹已核对。见 [修复后的管理核查](evidence/stage-e-browser/module-canonical-management-hap-version-independent-check.json)与[旧检查点历史](evidence/stage-e-browser/module-canonical-management-independent-check.json)。
+部署任务将六项管理API探针迁到固定 `1e35add` 完整归档，保留旧 `8685b0b` 的6项通过及库失败历史。实际6项通过，118原库测试过滤，25次Api.handle调用和14份真实模块页响应经固定renderModules渲染；14份页面不是14项独立测试，也不证明浏览器布局。11个原有反馈步骤快照的逻辑版本均与游标一致，既有混合批次新增9个未绑定端口样本而逻辑游标不变；不扩大为独立disabled-only或unbound-only测试。权限／禁用／隐藏供电门禁和接受目标与实际读回分离保持；Query仍400／404，不能记作已实现。归档、全部私有产物及保留的实际测试二进制指纹已核对。见 [修复后的管理核查](../evidence/stage-e-browser/module-canonical-management-hap-version-independent-check.json)与[旧检查点历史](../evidence/stage-e-browser/module-canonical-management-independent-check.json)。
 
-根另在固定 `1e35add` 模拟流实际运行共用query_recovery_with_policy：两个已注册AD8模块共16路，仅第一模块一路启用逻辑绑定。同步返回Ok，但只写 `AE 01 A1 F2 EE`，1路Confirmed、其余15路Unknown，零控制。新增范围回归0通过／1失败、118原库测试过滤；980归档仅一文件追加私有include。真实启动／重连调用同函数、周期计划也按启用绑定筛选仅由源码核对，本探针没有运行真实Live服务或周期刷新。已将可运行反例交功能开发，在当前管理员Query完成后按模块读取能力完善全注册表查询；权限、型号、代次、同总线写间隔和容量门禁保持。见 [启动查询范围反例](evidence/stage-e-browser/module-startup-query-scope-root-check.json)。
+根另在固定 `1e35add` 模拟流实际运行共用query_recovery_with_policy：两个已注册AD8模块共16路，仅第一模块一路启用逻辑绑定。同步返回Ok，但只写 `AE 01 A1 F2 EE`，1路Confirmed、其余15路Unknown，零控制。新增范围回归0通过／1失败、118原库测试过滤；980归档仅一文件追加私有include。真实启动／重连调用同函数、周期计划也按启用绑定筛选仅由源码核对，本探针没有运行真实Live服务或周期刷新。已将可运行反例交功能开发，在当前管理员Query完成后按模块读取能力完善全注册表查询；权限、型号、代次、同总线写间隔和容量门禁保持。见 [启动查询范围反例](../evidence/stage-e-browser/module-startup-query-scope-root-check.json)。
 
 当前模块层又实际通过上述27项原相对场景矩阵，124中间检查点与旧基线一致；该结果与原159项完整库／Admission补验分别保留，不把新范围失败隐藏在已有通过中。实际现场、完整原D语义及E客户端门槛仍挂起；本轮没有部署、创建真实凭据或修改EA-5。
 
@@ -1160,15 +1162,15 @@ Mac Safari已到登录页。为本轮书房两灯／四场景签发临时Member�
 
 固定 `bcc0d2f` 已接只接受module_id／类型化scope／revision／request_id的管理员查询，白名单A0F2与逐路fallback共用原Arbiter、持久队列及TransportOwner。根核对11份作者源码和9份原日志指纹，再取完整归档：988原文件中987个不变，一文件只追加原矩阵include，另新增同一投影反例。原125项产品库、27项私有矩阵、40项Admission和1项反例实际全部通过，共193项，0失败／忽略／过滤。7个新增Query用例及原9个回环／HAP用例都包含；作者272项限定记录另行核验，不重复累加为本轮新执行数。
 
-39份相对场景轨迹的124个中间检查点继续与1e35add基线一致，40次schema2转换独立重建、78次Store重开及121个最终完整帧保持。读目标在写出前按当前注册表再解析，逻辑设备与私有ticket名称冲突会拒绝；已接受／written与当前通道反馈独立，没有把旧的新鲜样本归因于本次Query，也不声称原子快照。控制授权、禁用／未绑定／隐藏供电边界保持。实际浏览器／手机的新入口及完整全注册表自动查询尚未验收；先前1-of16反例的修复继续，阶段D/E不因此完成。见 [固定Query根验收](evidence/stage-e-browser/module-query-checkpoint-root-check.json)。本轮没有部署、连接真实网关或创建真实凭据。
+39份相对场景轨迹的124个中间检查点继续与1e35add基线一致，40次schema2转换独立重建、78次Store重开及121个最终完整帧保持。读目标在写出前按当前注册表再解析，逻辑设备与私有ticket名称冲突会拒绝；已接受／written与当前通道反馈独立，没有把旧的新鲜样本归因于本次Query，也不声称原子快照。控制授权、禁用／未绑定／隐藏供电边界保持。实际浏览器／手机的新入口及完整全注册表自动查询尚未验收；先前1-of16反例的修复继续，阶段D/E不因此完成。见 [固定Query根验收](../evidence/stage-e-browser/module-query-checkpoint-root-check.json)。本轮没有部署、连接真实网关或创建真实凭据。
 
 ### 2026-10-13 实际桌面浏览器 Query 与全注册表查询修复补验
 
 固定 `bcc0d2f` 的988个原归档文件全部未改，仅新增本机浏览器夹具；真实app.js、Api、AutomationRuntime和TransportOwner接模拟串流，在localhost HTTP实际操作PRO整模块逐路、AD8整模块、AD8单通道三个入口及收据查看。5次成功Query POST实际写12条查询，持久journal也是12条Query／written，零执行器报文。AD8整模块8路Confirmed、单通道3亮度30；PRO奇数4路Confirmed，偶数模拟输入F0非法，保留Unknown，不能宣称全8路或合法关闭读回通过。收据仍明确无查询因果保证／非原子快照。Cookie退出显示“已退出”，模拟令牌撤销、服务器关闭、进程和监听端口消失；实际测试二进制已保存。
 
-发现两项显示缺口：查看收据更新后主卡片仍保留旧的未知／过期槽位和“当前新鲜0/8”统计；无设备控制范围的管理员在收据中仍看到power／brightness动作字段，而inventory已过滤。实际同主体控制请求被正确拒绝403 device_not_permitted，不构成控制权限提升。功能开发已接两项修复；这里保留固定bcc的反例，不能推广为完整浏览器验收。初次无效60000ms参数及第二次240秒看护超时均保留失败与清理记录，第三次600秒窗口人工停止后1项通过，旧失败不删除。见[浏览器限定核查](evidence/stage-e-browser/module-query-browser-root-check.json)和[实际截图](evidence/stage-e-browser/module-query-browser-root.jpg)。
+发现两项显示缺口：查看收据更新后主卡片仍保留旧的未知／过期槽位和“当前新鲜0/8”统计；无设备控制范围的管理员在收据中仍看到power／brightness动作字段，而inventory已过滤。实际同主体控制请求被正确拒绝403 device_not_permitted，不构成控制权限提升。功能开发已接两项修复；这里保留固定bcc的反例，不能推广为完整浏览器验收。初次无效60000ms参数及第二次240秒看护超时均保留失败与清理记录，第三次600秒窗口人工停止后1项通过，旧失败不删除。见[浏览器限定核查](../evidence/stage-e-browser/module-query-browser-root-check.json)和[实际截图](../evidence/stage-e-browser/module-query-browser-root.jpg)。
 
-随后固定 `99d036a` 独立复验原启动范围反例：992个原归档文件中991个不变，一文件只追加私有include；原探针仅更改检查点标签，原断言和假总线不变。相同2个AD8／16路／1个逻辑绑定现在写两条A0F2，16路全部Confirmed，逻辑设备仍1，零控制。完整产品库130项、同一私有反例1项和Admission40项实际全部通过，共171项，0失败／忽略／过滤。先单独执行的反例不重复累加，作者214项相关验证另行记录；随后在同一固定版本单独执行原27项私有场景矩阵，27项全部通过、130原产品库项过滤（已在前述完整库通过）；39份轨迹、124中间检查点与1e35add基线一致，原断言不变，累计198个不同测试。见[新版本场景矩阵核查](evidence/stage-d-study/native-scene-physical-startup-root-check.json)。见[全注册表修复独立核查](evidence/stage-e-browser/physical-startup-scope-root-check.json)。
+随后固定 `99d036a` 独立复验原启动范围反例：992个原归档文件中991个不变，一文件只追加私有include；原探针仅更改检查点标签，原断言和假总线不变。相同2个AD8／16路／1个逻辑绑定现在写两条A0F2，16路全部Confirmed，逻辑设备仍1，零控制。完整产品库130项、同一私有反例1项和Admission40项实际全部通过，共171项，0失败／忽略／过滤。先单独执行的反例不重复累加，作者214项相关验证另行记录；随后在同一固定版本单独执行原27项私有场景矩阵，27项全部通过、130原产品库项过滤（已在前述完整库通过）；39份轨迹、124中间检查点与1e35add基线一致，原断言不变，累计198个不同测试。见[新版本场景矩阵核查](../evidence/stage-d-study/native-scene-physical-startup-root-check.json)。见[全注册表修复独立核查](../evidence/stage-e-browser/physical-startup-scope-root-check.json)。
 
 逻辑设备源码继续只保存模块ID／通道及组合灯的供电模块ID／通道；物理网关／地址由当前版本注册表在传输适配层解析。以上均为模拟或本机回环，未部署、未发现场命令、未新建真实凭据；真实Apple客户端、手机／TLS、当前现场启动恢复与原完整D/E门槛仍未完成。
 
@@ -1177,11 +1179,11 @@ Mac Safari已到登录页。为本轮书房两灯／四场景签发临时Member�
 
 固定 `960c7eb` 完整归档997原文件全部不变，原本机假总线夹具仅改commit标签。实际Cookie登录、PRO整模块逐路／AD8整模块／AD8单通道三个入口，5次Query POST写12帧且journal均为Query／written，零执行器。过期整模块8路保留样本、新查询8/8新鲜、单查第3路请求范围1且全模块1/8新鲜；所有卡片槽位的值／质量／时间及统计与最新captured快照逐项一致，旧收据保留。requested channels与完整module.slots的actions均按无设备授权Admin过滤为空；同主体实际控制403 device_not_permitted且无新控制journal。PRO偶数F0仍为原模拟非法输入，未知不伪装关闭。
 
-实际浏览器退出“已退出”且模块区清空，模拟凭证撤销、服务正常结束exit0，PID／监听端口消失。完整产品库130、Admission40加浏览器夹具1合计171不同测试通过，0失败／忽略／过滤；作者32专项／4前端／Clippy的6源码和4日志指纹已核对，不重复累加。迟到响应／旧清单竞态由作者实际app.js的延迟响应夹具覆盖，不冒充本轮浏览器人为网络延迟测试。见[固定补验](evidence/stage-e-browser/module-query-receipt-browser-root-check.json)和[实际截图](evidence/stage-e-browser/module-query-receipt-browser-root.jpg)。这只关闭bcc的两项显示反例，不新增手机／TLS／真实Apple／现场结论。
+实际浏览器退出“已退出”且模块区清空，模拟凭证撤销、服务正常结束exit0，PID／监听端口消失。完整产品库130、Admission40加浏览器夹具1合计171不同测试通过，0失败／忽略／过滤；作者32专项／4前端／Clippy的6源码和4日志指纹已核对，不重复累加。迟到响应／旧清单竞态由作者实际app.js的延迟响应夹具覆盖，不冒充本轮浏览器人为网络延迟测试。见[固定补验](../evidence/stage-e-browser/module-query-receipt-browser-root-check.json)和[实际截图](../evidence/stage-e-browser/module-query-receipt-browser-root.jpg)。这只关闭bcc的两项显示反例，不新增手机／TLS／真实Apple／现场结论。
 
 ### 2026-10-13 书房稳定模块ID离线候选准备
 
-同一固定960取独立完整归档，997原文件全部不变，仅新增离线私有集成。生产module_migration::prepare对旧书房模板调用一次，生成并保存6个独立UUID模块ID；8个逻辑设备及组合供电引用改为ID／通道，不含物理gateway/address/supply_relay。独立完整重建证明物理位置、协议审核、名称、校准、绑定和控制范围保持，自动化除临时revision3→4外不变；原HAP计划逐字保持，生产解析仍为2灯／4场景／1窗帘／0公开面板。真实Drafts保存／重开相等且不同principal不可读，私有scratch Store离线CAS及重开保持注册表，journal0。无新反馈时32个输出通道全部Unknown，没有恢复旧观测为真值。实际1项通过、0失败／忽略／过滤，受测二进制保存；见[离线候选核查](evidence/stage-e-browser/study-schema2-offline-candidate-root-check.json)。
+同一固定960取独立完整归档，997原文件全部不变，仅新增离线私有集成。生产module_migration::prepare对旧书房模板调用一次，生成并保存6个独立UUID模块ID；8个逻辑设备及组合供电引用改为ID／通道，不含物理gateway/address/supply_relay。独立完整重建证明物理位置、协议审核、名称、校准、绑定和控制范围保持，自动化除临时revision3→4外不变；原HAP计划逐字保持，生产解析仍为2灯／4场景／1窗帘／0公开面板。真实Drafts保存／重开相等且不同principal不可读，私有scratch Store离线CAS及重开保持注册表，journal0。无新反馈时32个输出通道全部Unknown，没有恢复旧观测为真值。实际1项通过、0失败／忽略／过滤，受测二进制保存；见[离线候选核查](../evidence/stage-e-browser/study-schema2-offline-candidate-root-check.json)。
 
 该候选来自旧模板，revision4只是离线占位，field_enablement=false，不能直接部署。现场当前网关地址／返回路径、活动CAS版本与身份／状态拥有者必须在窗口前重新核实；本轮没有读取或修改真实活动库、配对身份、开服务或发物理命令。需要用户参与的现场步骤继续挂起，原65场景／208程序／24变量的完整语义审核仍开放。
 
@@ -1192,6 +1194,6 @@ Mac Safari已到登录页。为本轮书房两灯／四场景签发临时Member�
 
 发布恢复测试更新全八路回复，并区分“AD8仍注册但没有输出逻辑别名”和“真正没有可查询物理输出模块”：前者现在成功查询，管理读取确认8路Confirmed且均无binding，逻辑图仅原校准电机、其位置仍未知；后者新增明确拒绝分支且零查询。错主体、旧代次、不全连接、缺反馈、严格策略不支持和未校准电机拒绝，以及暂停／取消／旧流关闭断言保留；测试函数列表不变。新增状态断言最初误用crate-private feedback方法导致编译拒绝，已改现有管理读取接口，不扩大生产API，原编译失败另存。
 
-两个修复目标113项通过后，固定生产源码加仅这两份测试修补再次完整执行workspace：771项通过，0失败／忽略／过滤，132结果块、122实际测试二进制，退出码0；全部workspace目标严格Clippy及16项前端契约通过。997原文件中995个逐字不变，生产源码未改，受测修补指纹与共享待提交两文件一致。随后另复制638a1c1的两项在线换址测试，受测源码指纹与提交一致，实际2项通过；与771工作区是分开的执行，合计773不同测试，不声称初始960已有该新目标。在线成功／缺一个未绑定端口失败均通过；源码、各轮日志、失败、执行命令和二进制保存。见[完整核查](evidence/stage-e-browser/workspace-module-truth-root-check.json)。
+两个修复目标113项通过后，固定生产源码加仅这两份测试修补再次完整执行workspace：771项通过，0失败／忽略／过滤，132结果块、122实际测试二进制，退出码0；全部workspace目标严格Clippy及16项前端契约通过。997原文件中995个逐字不变，生产源码未改，受测修补指纹与共享待提交两文件一致。随后另复制638a1c1的两项在线换址测试，受测源码指纹与提交一致，实际2项通过；与771工作区是分开的执行，合计773不同测试，不声称初始960已有该新目标。在线成功／缺一个未绑定端口失败均通过；源码、各轮日志、失败、执行命令和二进制保存。见[完整核查](../evidence/stage-e-browser/workspace-module-truth-root-check.json)。
 
 当前960浏览器证据继续有效；后续638／c53是测试与脚本增量，受测生产源码与960逐字一致。Mac回环不能替代当前Linux、真实固件、Apple客户端或现场验收，完整原D语义与E实机门槛仍开放。未部署、连接真实网关、发凭据或修改EA-5。

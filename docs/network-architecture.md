@@ -1,135 +1,94 @@
 # 知居家庭网络架构
 
-版本1.22 · 2026-10-24整理。本文把当前可核对状态与后续规划分开；操作顺序见[网络配置手册](network-configuration-runbook.md)。本次补充VLAN2／3／4互通边界、IPv6路由与VLAN2前缀校正；NanoPi R6S主备、NGX修复及VLAN100管理限制继续保留。
+本文说明家庭网络的接线、业务分工及访问边界。操作步骤见[网络配置手册](network-configuration-runbook.md)，HomeSense 服务维护见[NanoPi 指南](../deployment/nanopi/README.md)。实际 MAC、运营商全球 IPv6 前缀、设备导出和凭据保存在私有运维记录。
 
-## 1 核对范围与当前状态
+## 核心与边界
 
-依据最近的核心配置备份、2026-10-23端口／客户端验收记录，以及2026-10-24的AC100／VLAN5 DHCP接管、F01修复验收和AP端口只读检查整理。15–22号AP口的速率为本次实时读回；其他链路速率仍为此前记录，不据此推定当前在线或长期稳定。
+华为 S5735S-L24PN4XE-A3 承载 VLAN2／3／4／5／100 的三层接口。NanoPi5 是 VLAN3／WAN A 边界，NanoPC 是 VLAN4／WAN B 边界；独立 NanoPi R6S 是 HomeSense 主服务器，NGR 为手动冷备。
 
-| 项目 | 最近核对状态 | 证据边界 |
+| VLAN | 用途 | 网关与地址服务 |
 | --- | --- | --- |
-| 新核心 | 华为S5735S-L24PN4XE-A3，YunShan OS V600R024C10SPC500；承载VLAN2／3／4／5／100现用三层接口 | VLAN1尚非目标业务网关，见下文 |
-| WAN A | NanoPi5的Tagged VLAN3 LAN已从QNAP A改接核心电口23；上次2.5G Up、CRC0 | DHCP／RA重新获址仍须另验，不能由路由器自身探测替代 |
-| WAN B | nanopc的Tagged VLAN4 LAN直连电口24；上次2.5G Up、CRC0 | 不将边界接口误配成Access口 |
-| QNAP A／B | 10号Combo光口分别上联核心X1／X2；上次均10G Up | NAS仍按已登记下游路径使用，不预设已迁到X3／X4 |
-| AC／AP | 新TL-AC100接电口2 Access5，旧AC已断开；8块AP位于15–22，当前全部Up | F01的NGR新接入已完成双栈10/10及网页验收，不代替所有AP验收 |
-| 旧核心 | Vlanif2／4／100关闭；Vlanif3由用户现场确认关闭，Eth-Trunk4退出；两核心临时VLAN2线已拔 | 不恢复重复网关、DHCP或旧互联线 |
-| HomeSense | NanoPi R6S已运行rev52并开机自启，核心5／6口均2.5G，使用当前microSD；NGR禁用且关闭主角色门禁，保留为手动冷备 | 三轮96路只读验收、配对／权限指纹及域名TLS通过；未做动作验收；每小时备份数据到NGR，不启用自动故障切换 |
-| 现用485网关 | 仍在VLAN100，HomeSense连接`192.168.0.10:8443`；`.0.10`经QNAP A上联X1，`.0.11`经QNAP B上联X2 | `.1.10:50007`属于历史目标，未启用，不可据旧图修改现网 |
-| PE11／EA-5 | PE11仍按原维护地址保留；EA-5不承担当前面板控制 | 不因保留备份接入而恢复Control4执行归属 |
+| 1 | 非现行业务接管网 | Vlanif1 使用 DHCP 取址；维护入口使用独立 VLAN4092 |
+| 2 | B组客户端、NGBOSS | 核心`.2.253/24`提供 DHCPv4、PD／RA；公网经 VLAN4 到 WAN B |
+| 3 | A组 LAN、NGR 无线、HomeSense | 核心`.3.253/24`路由，NanoPi5`.3.1`提供边界出口与地址服务 |
+| 4 | B组边界、服务器、NGX | 核心`.4.253/24`路由；NanoPC`.4.1`提供 DHCPv4、RA 与出口 |
+| 5 | AC／AP 管理 | 核心`.5.253/24`及全局池`vlan5_ap`；AC100`.5.1`只管理 AP，不分配地址 |
+| 100 | 现用缺省地址设备与维护 | 核心`.0.253/24`及 DHCP；485网关等业务依赖仍使用该网 |
 
-VLAN100仍服务现有`.0.x`设备，不能现在关闭其三层网关或常驻标签。未来迁到纯二层维护前，必须完成所有设备、备份接入和回程依赖的迁移。
+表中`.3.253`表示`192.168.3.253`，其余同理。VLAN3／4由各自边界提供地址服务，核心不重复发布 DHCP 或默认路由 RA。VLAN5 以静默接口发布 OSPF 回程，不建立管理网邻居。
 
-2026-10-24已验收：NanoPi5向VLAN3通过DHCP Option121下发`192.168.0.0/24 → 192.168.3.253`，保留AC专用路由和原默认出口。核心Vlanif100出方向限制VLAN3来源，仅允许指定管理Mac，保留DNS回包和现有HomeSense服务连接；管理Mac的有线网卡使用固定DHCP租约。已实测续租自动获路由、允许终端访问成功、其他VLAN3来源被拒绝，核心配置已保存。真实管理地址和MAC只存私有记录。
-
-公开文档只保留拓扑、端口及地址规划。实际MAC、运营商全球IPv6前缀、租约、设备导出、管理凭据和现场配置留在私有运维记录，不提交到仓库。
-
-## 2 业务边界与地址服务
-
-| VLAN | 用途 | 核心／边界分工 |
-| --- | --- | --- |
-| 1 | 未来A组专用网关接入 | 当前Vlanif1为DHCP取址；隔离维护接口Vlanif4092使用`.1.253`。不能写成业务VLAN1已按目标接管 |
-| 2 | B组客户端 | 核心`.2.253/24`提供网关、DHCPv4和IPv6 RA；允许访问VLAN4，公网经VLAN4到WAN B；与VLAN3保留双向隔离及既有精确例外 |
-| 3 | A组LAN、HomeSense | 核心`.3.253/24`路由，NanoPi5`.3.1`提供边界出口及原有地址服务 |
-| 4 | B组边界／服务器LAN、NGX无线直入 | 核心`.4.253/24`路由；NGX终端由nanopc`.4.1`直接提供DHCPv4、IPv6 RA和出口，不沿用VLAN2的客户端隔离边界 |
-| 5 | AC／AP管理 | 核心`.5.253/24`提供DHCPv4全局池`vlan5_ap`；AC100为`.5.1/24`、网关`.5.253`，关闭自身地址分配服务，仅管理AP |
-| 100 | 现有默认地址设备与迁移维护 | 核心`.0.253/24`及现有DHCP仍保留，迁移未完成前不撤销 |
-
-表中`.2.253`表示`192.168.2.253`，其他同理。VLAN3／4各自保留边界LAN地址服务，不能因新增核心三层接口而顺手开启第二套DHCP或默认路由RA。
-
-VLAN2允许访问AC管理地址`192.168.5.1/32`（IPv4），不再限定某一管理终端；其他内网隔离边界保留。该例外已完成VLAN2实际网页访问、硬件策略与保存核对。
-
-IPv6由两条WAN的实际PD租约决定，不把某次获得的前缀当成永久值。VLAN2使用经验证的PD／RA配置；核心与边界的路由发布、回程、防火墙和隔离ACL必须与同一代前缀一致。
-
-2026-10-24，VLAN3由NanoPi5的rdhcpd发布High默认路由器优先级（`--ra-router-preference high`），VLAN2由核心Vlanif2发布Low（`ipv6 nd ra preference low`），配置已持久保存。核心Vlanif3仍停止发送RA，避免重复来源。已抓到VLAN3 High报文，本机en7也显示`pref=high`；跨接口最终选路仍受终端服务顺序、源地址及具体路由影响，不能把它当作所有主机的强制有线优先。
-
-2026-10-24，两条线路的内网DNS均新增`nanopi.lab.vixal.xyz`：A记录为`192.168.3.3`／`192.168.4.4`，AAAA记录为两侧当前前缀加固定后缀`::3:3`／`::4:4`；`homesense.lab.vixal.xyz`以CNAME指向它，上述记录TTL均为60秒。双侧UDP／TCP查询和macOS系统解析已通过；此前NGR记录保留。该域名已登记两侧地址，HomeSense已以该域名为HTTPS入口完成切换，见[NanoPi部署记录](../deployment/nanopi/README.md)。运营商前缀变化后，静态AAAA记录须同步更新。
-
-## 3 当前接线与标签
+## 接线与标签
 
 ```mermaid
 flowchart TB
-    A["WAN A"] --> NA["NanoPi5 · VLAN3边界"]
-    B["WAN B"] --> NB["nanopc · VLAN4边界"]
-    NA <-->|"电口23 · Tagged3"| C["华为核心"]
-    NB <-->|"电口24 · Tagged4"| C
-    C <-->|"X1 · Tagged2/3/100"| QA["QNAP A · Combo10"]
-    C <-->|"X2 · Tagged2/4/100"| QB["QNAP B · Combo10"]
-    QA --> S["NGR冷备／现有下游终端"]
-    QB --> S
-    C -->|"电口5 · Access3"| NP["NanoPi R6S · HomeSense主服务器"]
-    C -->|"电口6 · Access4"| NP
-    C -->|"电口2 · Access5"| AC["TL-AC100"]
-    C -->|"电口15–22 · PVID5"| AP["F00/F21/F12/F01/F10/F20/F02/F11"]
-    QA -->|"8号口 · Untagged100"| G["现用485网关 · .0.10:8443"]
-    QB -->|"8号口 · Untagged100"| G2["备用485网关 · .0.11"]
-    QA -.-> NAS["NAS · 保持已登记接线"]
-    QB -.-> NAS
-    C -.-> FUTURE["待规划：NAS直连X3/X4、桌面交换机、网关迁址"]
+    A[WAN A] --> NA[NanoPi5]
+    B[WAN B] --> NB[NanoPC]
+    NA <-->|电口23 Tagged3| C[华为核心]
+    NB <-->|电口24 Tagged4| C
+    C <-->|X1 Tagged2/3/100| QA[QNAP A Combo10]
+    C <-->|X2 Tagged2/4/100| QB[QNAP B Combo10]
+    C -->|电口5 Access3| NP[NanoPi R6S 主服务]
+    C -->|电口6 Access4| NP
+    QA --> NGR[NGR 冷备与下游设备]
+    QB --> NGR
+    C -->|电口2 Access5| AC[TL-AC100]
+    C -->|电口15–22 PVID5| AP[八块 AP]
+    QA -->|8号口 Untagged100| G[485网关 .0.10:8443]
+    QB -->|8号口 Untagged100| G2[备用网关 .0.11]
 ```
 
-WAN不进入LAN Trunk；NGR的两个LAN聚合口不桥接，也不承担跨VLAN转发。NAS双口继续使用不同IP／VLAN，不做跨VLAN聚合。
-
-| 核心端口 | 当前对端／用途 | 最近配置或读回 |
+| 核心端口 | 对端／用途 | 模式及成员 |
 | --- | --- | --- |
-| 1、3 | 隔离维护入口 | Access4092，不能当作已启用的业务VLAN1 |
-| 2 | AC LAN | Access5，PoE关闭；上次1G Up |
-| 4 | 旧临时VLAN2互联口 | shutdown，物理互联线已拔 |
-| 5 | NanoPi R6S的wan，VLAN3 | Access3，PoE关闭，2.5G；`.3.3/24`，RA固定后缀`::3:3` |
-| 6 | NanoPi R6S的lan1／br2，VLAN4 | Access4，PoE关闭，2.5G；`.4.4/24`，RA固定后缀`::4:4` |
-| 7 | 已撤销的NanoPi预留口 | Access1、shutdown、PoE关闭 |
-| 8–9、12–13 | 未完成对端登记 | 保留配置，不凭旧规划插入业务设备 |
-| 10 | VLAN100预留口 | Access100；现用`.0.10`经QNAP A接入，不将预留口视为当前接线 |
+| 1、3 | 隔离维护入口 | Access4092 |
+| 2 | AC LAN | Access5，PoE关闭 |
+| 4 | 停用端口 | shutdown |
+| 5 | R6S wan，`.3.3/24` | Access3，PoE关闭，IPv6后缀`::3:3` |
+| 6 | R6S lan1／br2，`.4.4/24` | Access4，PoE关闭，IPv6后缀`::4:4` |
+| 7 | 停用预留口 | Access1，shutdown，PoE关闭 |
+| 8–9、12–13 | 未登记对端 | 保留配置，使用前核对 |
+| 10 | VLAN100预留口 | Access100；不代表现用网关已直连该口 |
 | 11、14 | VLAN100备用 | shutdown |
-| 15 | F00，原F10测试AP | 2026-10-24实时1G Up |
-| 16 | F21，原F01设备 | 2026-10-24实时1G Up |
-| 17 | F12 | 2026-10-24实时1G Up，端口描述可能仍留旧名 |
-| 18 | 最终F01替换AP | 2026-10-24实时2.5G Up；本次速率快照不证明已无断链或新增错误 |
-| 19 | 新F10 | 2026-10-24实时2.5G Up |
-| 20、21、22 | F20、F02、F11 | 2026-10-24实时均1G Up |
-| 23 | NanoPi5 LAN | Trunk，PVID4090，Tagged3，PoE关闭 |
-| 24 | nanopc LAN | Trunk，PVID4091，Tagged4，PoE关闭 |
-| X1（10GE1/0/1） | QNAP A Combo10 | Tagged2／3／100，PVID4093；最近配置不放行VLAN1 |
-| X2（10GE1/0/2） | QNAP B Combo10 | Tagged2／4／100，PVID4094 |
-| X3／X4 | NAS直连的历史目标 | 最近配置未完成Access3／4设置，不标为已迁移 |
+| 15–22 | F00／F21／F12／F01／F10／F20／F02／F11 | Trunk PVID5，允许2／3／4／5／100 |
+| 23 | NanoPi5 LAN | Trunk，Tagged3，PVID4090，PoE关闭 |
+| 24 | NanoPC LAN | Trunk，Tagged4，PVID4091，PoE关闭 |
+| X1 | QNAP A Combo10 | Tagged2／3／100，PVID4093 |
+| X2 | QNAP B Combo10 | Tagged2／4／100，PVID4094 |
+| X3／X4 | 未接管端口 | 使用前核对实际配置，不按规划直接迁线 |
 
-15–22号AP口均为Trunk PVID5，当前允许VLAN2／3／4／5／100。2026-10-24发现NGX因这些口漏放行VLAN4而无法获址，已仅补充Tagged4；F10／19号口的指定终端新接入后取得VLAN4 IPv4及IPv6，用户确认test-ipv6.com为10/10。PVID5承载未标记管理帧，Tagged业务按实际SSID配置核对；该允许列表与单个终端验收不替代全部AP逐项验收，也不代表VLAN100维护SSID已启用。
+4090／4091／4093／4094隔离 Trunk 未标记流量，不提供业务网关或 DHCP。4092是带维护入口的独立 VLAN。QNAP 本地6号维护口保留，NAS 使用已登记下游路径；NAS双口和服务器双网卡不跨 VLAN 聚合或桥接。
 
-4090／4091／4093／4094用于隔离相应Trunk上的未标记帧，不提供业务网关、DHCP或跨口连通。4092是已有维护入口，不能与这些无三层服务的隔离PVID混为一谈。
+AP 管理帧使用未标记 VLAN5，业务 SSID 使用对应标签；Trunk 放行标签不等于 SSID 已启用或客户端已正确获址。维护 SSID 按需启停，不在仓库存放真实 PSK。
 
-## 4 隔离与管理入口
+## 路由与隔离
 
-2026-10-24按用户最新授权：VLAN3↔VLAN4、VLAN2↔VLAN4允许双向IPv4／IPv6访问；VLAN2经VLAN4的NanoPC访问互联网。VLAN2↔VLAN3普通访问仍双向阻断，保留HomeSense指定地址TCP8444及回包例外；AC、VLAN100等其他管理边界保留。互通通过三层路由转发，各VLAN的地址服务归属保持。HomeSense入口见[附加监听说明](../deployment/nanopi/web/README.md)。
-
-目标固件不能在一个traffic policy中同时使用IPv4和IPv6 ACL分类器。现用结构把IPv4策略放在Vlanif2的入／出方向，把IPv6策略放在Vlanif4的出／入方向，并保留Vlanif3的附加隔离。原[双栈隔离示例](../deployment/network/huawei-b-vlan2-vlan4-isolation.cli.example)记录此前更严格的阶段；当前互通增量见[网段对允许示例](../deployment/network/huawei-lan-mutual-access.cli.example)，均不能整份直接下发现网。
-
-B侧四条策略已有历史success及客户端双栈、DNS例外和隔离验收记录；本次互通与隔离实测另见下文及手册4.6节。Vlanif3绑定A3_IN6／A3_OUT6，属于A侧附加IPv6隔离，不能用B侧模板覆盖，也不从配置绑定单独推定数据面通过。动态PD变化后，所有相关IPv6 ACL都不会自动引用新前缀；自动检测、自动暂停和更新尚未实现，必须按手册完成前缀变更保护。
-
-Mac同时连VLAN2无线和VLAN3有线时，须区分全局主机路由与接口作用域路由。旧Wi-Fi全局AC路由曾覆盖有线DHCP路由，现已清除其持久设置；VLAN3通过DHCP Option121下发AC专用路由，续租ACK与访问已核对。AC现允许整个VLAN2访问，本次已用无线接口绑定探测确认HTTP200；仍不能把经VLAN3成功的公网探测计作VLAN2出口验收。
-
-2026-10-24完成本机物理拔线／插回验证：残留的NanoPC主机路由曾使自动DNS查询继续使用旧VLAN2源地址，导致有公网TCP通路却无法解析网页。删除全局和en0作用域的旧`.4.1/32`路由后，拔线期间21次采样的DNS、IPv4／IPv6 TCP及HTTPS全部成功，出口为VLAN2 Wi-Fi；插回后3次采样重新优先VLAN3有线。核心隔离规则未因本次修复调整；这是新建连接和网页验证，不是既有会话无缝迁移保证。原因、清理命令和首次失败边界见[操作手册](network-configuration-runbook.md)4.4节。
-
-核心VLAN2现已通过RA发布NanoPC的IPv6 DNS（VLAN4当前前缀加`::4:1`）及搜索域`lab.vixal.xyz`，均为1800秒；本机已实际收到RDNSS／DNSSL。NanoPC的LAN Token、rdhcpd DNS和两侧AAAA同步统一为`::4:1`，旧`::1`仅限时兼容。新增IPv6放行仅涉及VLAN2到该DNS /128的UDP／TCP53及回包，并为该DNS设置经NanoPC链路本地下一跳的/128路由；其他隔离保留。8项VLAN2 IPv6 DNS查询、7条硬件策略及保存均已验证，详见[操作手册](network-configuration-runbook.md)4.5节及[脱敏模板](../deployment/network/huawei-vlan2-ra-dns.cli.example)。前缀变化时须同步维护这些字面地址。
-
-随后按上述最新授权扩大网段互通：核心新增IPv6网段对允许ACL3994，在Vlanif4双方向以precedence3先于原拒绝分类器匹配；IPv4新增VLAN2↔VLAN4允许项。两侧LAN /64显式经各自边界路由器的链路本地下一跳转发，双栈默认出口及OSPF邻居保留。VLAN2的RA已对齐当前PD，旧PIO首选期设0；新旧前缀均保留VLAN2↔VLAN3阻断和HomeSense例外。NanoPC补充VLAN4→VLAN2的IPv4转发，以及HomeSense从VLAN4口发出的精确IPv6 8444回包规则。15项路径检查、8项DNS查询及VLAN2双栈网页HTTP200通过，NanoPi5→NanoPC IPv6 SSH恢复，7条硬件策略success，配置已保存。详见[操作手册](network-configuration-runbook.md)4.6节；旧PIO待客户端迁移后撤销，前缀同步仍为人工保护流程。
-
-## 5 已完成、保留与剩余工作
-
-| 范围 | 状态 |
+| 网段对／服务 | IPv4／IPv6边界 |
 | --- | --- |
-| 新核心VLAN2／4接管、QNAP B X2、AC直连 | 已有发布与读回记录 |
-| VLAN3／100接管、QNAP A X1、NanoPi5直连 | 已有后续迁线／配置记录；以本页当前表替代早期“未切换”描述 |
-| AP最终命名和端口15–22 | 当前8口全部Up，无100M连接；F01的NGR新接入已验收，其他逐AP项目仍按各自证据登记 |
-| VLAN5地址服务与AC100接管 | 核心DHCP已启用并保存，AC100仅管理AP；VLAN5通过静默接口发布OSPF回程路由 |
-| 网关`.0.10`、PE11及其他`.0.x`迁址 | 未执行；VLAN100继续承担业务 |
-| NAS直连、桌面SR-ST3005接入 | 尚未完成，不占用规划端口冒充当前接线 |
-| 动态IPv6前缀与隔离ACL同步 | 人工保护流程；自动化未完成 |
-| HomeSense接管验收 | 独立跟踪[接管待办](control4-takeover-checklist.md)，网络文档不增加现场通过数 |
+| VLAN3 ↔ VLAN4 | 允许双向访问 |
+| VLAN2 ↔ VLAN4 | 允许双向访问，VLAN2公网经 NanoPC |
+| VLAN2 ↔ VLAN3 | 普通访问双向拒绝，保留指定 HomeSense 地址的 TCP8444及回包 |
+| VLAN2 → AC | 允许 IPv4 到`.5.1/32` |
+| VLAN3 → VLAN100 | 仅指定管理终端、DNS回包与现有 HomeSense 服务连接例外，其余按策略拒绝 |
 
-2026-10-24的F01故障表现为NGR新接入落入管理VLAN5，而NGBOSS正常进入VLAN2；漫游后保留VLAN3地址不能证明新接入正常。仅重新下发F01的NGR绑定后，抓到带VLAN3标签的客户端DHCP，终端取得VLAN3 IPv4／IPv6，用户确认test-ipv6.com 10/10且网页正常。证据支持“AC记录与F01实际生效状态不一致”，尚不能确定是下发、应用还是固件运行机制失效；详见[修复步骤与验收边界](network-configuration-runbook.md#34-f01的ngr-vlan映射故障与修复2026-10-24)。
+核心固件将 IPv4 与 IPv6 ACL 放在各自支持的 traffic policy 方向，不能混用分类器。IPv4 主要在 Vlanif2，IPv6 网段对允许在 Vlanif4，并保留 Vlanif3 的附加隔离及 Vlanif100 的来源限制。具体 precedence、当前前缀和管理地址例外在维护时逐项核对。
 
-## 6 历史记录的解释
+VLAN3 通过 DHCP Option121获得`192.168.0.0/24 → 192.168.3.253`、AC专用路由及原默认出口。指定管理终端使用固定租约，真实绑定不公开。路由可达不代表跨网访问已授权。
 
-2026-10-13的旧核心VLAN1 IPv6分流排障、2026-10-22仅迁B侧的分阶段计划，以及10月23日AP的08:30／09:40／09:48临时接线均属于历史阶段。后来的新核心接管、两条边界直连及最终AP命名已经取代其中的“当前”陈述；原始导出与过程记录保留在私有运维目录。
+## IPv6、DNS与 HomeSense
 
-此前rdhcpd的Renew／Rebind和DAD／RA恢复修复、隔离测试及部署记录继续保留其当时范围，见[续租／RA历史记录](evidence/network/rdhcpd-linux-20261013.json)和[DAD／RA历史记录](evidence/network/rdhcpd-dad-linux-20261013.json)。它们不代替当前核心和逐AP数据面验收；今后的完整测试在开发本机执行，目标侧只做必要部署核对。
+IPv6来自两条 WAN 的有效 PD。VLAN3 由 NanoPi5 发布 High RA，VLAN2 核心发布 Low RA；核心 Vlanif3 不额外发送 RA。优先级影响主机选择，但不保证所有终端都按同一接口次序选路。
+
+VLAN2 的 RDNSS 指向 NanoPC 当前 VLAN4 前缀加`::4:1`，DNSSL为`lab.vixal.xyz`，寿命1800秒。NanoPC的 LAN Token、DNS通告和域名 AAAA使用同一地址后缀；核心以边界链路本地下一跳维护两侧 LAN 路由及所需 DNS /128路由。
+
+两侧 DNS 的`nanopi.lab.vixal.xyz`提供`.3.3`／`.4.4`和两侧当前 IPv6 地址，`homesense.lab.vixal.xyz`以 CNAME 指向它，TTL为60秒。HTTPS／WSS 使用`https://homesense.lab.vixal.xyz:8444`，证书匹配域名。
+
+HomeSense 主程序监听`.3.3:8444`，附加 socket 透传`.4.4`与两侧 IPv6 的同端口到同一服务。HAP 单桥使用原身份，监听`.3.3:51828`；R6S不承担路由、DHCP或 RA。NGR服务禁用、主角色关闭，定时备份不启动冷备。
+
+IPv6 ACL、静态 AAAA、RDNSS和附加 socket 使用字面地址，PD变化需要人工同步。先按授权保护 VLAN2 转发，再更新前缀、回程、DNS及精确例外，验证后恢复；不能假设它们自动跟随前缀。
+
+## 维护边界
+
+- VLAN100仍承担业务，不能作为纯临时维护网关闭其三层服务或常驻标签。
+- NAS、桌面交换机、设备迁址及 QNAP 管理地址变化独立审核，不将规划端口写成已接线。
+- 逐 AP 的接入、DHCP／RA、DNS、双栈和隔离分别核对；链路速率或一个终端成功不能代表所有 AP。
+- Mac 双网故障先区分全局与接口作用域路由、实际源地址和 DNS路径，不能用另一接口的成功代替故障接口结果。
+- 真实配置、首次失败与现场验收日志保留在私有目录；完整软件测试在开发本机执行，目标仅进行必要部署检查。

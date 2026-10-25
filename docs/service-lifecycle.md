@@ -1,6 +1,6 @@
 # 服务生命周期
 
-数据库格式升级须按[完整状态回退流程](state-upgrade-rollback.md)准备一致快照；跨格式回退不能只切旧二进制。复制恢复须校验内容，避免同大小、同时间戳的 SQLite 文件被跳过。隔离机制演练已通过，真实新格式候选仍须实际验收。
+数据库格式升级须按[完整状态回退流程](state-upgrade-rollback.md)准备一致快照；跨格式回退不能只切旧二进制。复制恢复须校验内容，避免同大小、同时间戳的 SQLite 文件被跳过。每次升级核对实际程序与数据库格式的兼容性。
 
 `serve-automation-tcp` 的运行时长参数支持两种明确模式：
 
@@ -21,4 +21,5 @@ homesensed serve-automation-tcp DEVICES AUTOMATION STATE_DIR forever --coexisten
 
 库调用者可以通过 `RunMode` 和 `RunControl` 明确选择有限／常驻模式，并通过 watch 停止通道结束服务。原有接受 `Duration` 的有限接口继续可用。通道关闭也视为停止请求。
 
-本机整合已通过1128项测试、10个文档测试目标和严格全部目标Clippy；正式AD8常驻程序的断连／恢复和显式SIGTERM停止亦通过。测试中的30天为逻辑时间推进，并非30天实机运行。Linux生产程序已完成隔离启动／SIGTERM烟测，E2 已由 systemd 常驻启动并启用开机启动。Root独立核对实际进程哈希、无整体期限、零重启和可信HTTPS就绪，原rev9、配对与永久管理员凭证保留；集中实机验收仍待恢复。详见[常驻服务发布审计](evidence/stage-e-browser/continuous-service-root-check.json)。
+
+生产服务由 systemd 管理，启动命令从服务单元读取，配置以持久活动版本为准。维护时按[部署指南](../deployment/nanopi/README.md)核对运行程序、主角色、配置和恢复守护，不用周期重启代替正常常驻。

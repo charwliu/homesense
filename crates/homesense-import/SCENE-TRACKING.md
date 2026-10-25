@@ -82,7 +82,7 @@ control IDs.
 
 HAP publication has two explicitly distinct roles. The existing instant action
 keeps its Scene identity, AID/IID and momentary execution semantics. Its On
-value is a trigger acknowledgement, never actual activity. A new typed
+value is a trigger acknowledgement, never actual activity. A typed
 SceneActivity identity publishes read-only actual activity, with an explicit
 reviewed activity label. It uses a separate storage namespace and separate
 binding/handler type, never a scene-ID suffix or a name-based authorization key.
@@ -93,11 +93,11 @@ including false after a true read. The action handler cannot normalize activity
 addresses and vice versa. Web keeps a working independent execute button while
 activity stays separate from selected intent.
 
-A writable stateful activity switch requires a future complete reviewed
-deactivation/off policy. No off vector is inferred. Current independent actions
-execute the already-reviewed scene definition; they do not promise that false
-on a read-only status will turn loads off. Action receipts retain the canonical
-scene identity; reading or writing the status role cannot create an action run.
+Writable stateful switches require an explicit reviewed `hap_action` with
+on/off recipes, as described in [HAP actions](../../docs/hap-room-all-actions.md).
+No off vector is inferred. Independent momentary actions execute their reviewed
+definition; false on a read-only activity cannot turn loads off. Action receipts
+retain the canonical scene identity; the read-only status role cannot create a run.
 
 HAP GETs use current runtime reads. HAP event notifications consume the live
 SceneObservation subscription, not a GET refresh or selection cache. A bounded

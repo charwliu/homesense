@@ -1,6 +1,6 @@
-# Keypad 原生接口候选 v2
+# Keypad 原生接口
 
-本契约供原生 App 并行实现，后端仍是离线候选，尚未部署。父对象属于配置 `keypads`，不是把现有逐键行在客户端分组。物理观测仍由模块所有者提供。一个 TS6-86 对应一个稳定父 ID、`module_id`、名称和房间；旧 LED DeviceId 被移入父对象的 `keys[].led_endpoint`，继续供规则、权限、审计和 HAP 解析。父 ID 不授权整个面板。
+本契约定义管理 API 的面板父对象、逐键状态和设置能力。父对象属于配置 `keypads`，不是把现有逐键行在客户端分组。物理观测仍由模块所有者提供。一个 TS6-86 对应一个稳定父 ID、`module_id`、名称和房间；旧 LED DeviceId 被移入父对象的 `keys[].led_endpoint`，继续供规则、权限、审计和 HAP 解析。父 ID 不授权整个面板。
 
 `GET /api/v1/devices` 的 `devices` 与 `/api/v1/events` 的 `devices` 共用以下记录；已迁移父对象的旧 LED 行不再作为顶层记录出现。未迁移配置保持原格式。增量推送中父对象始终携带完整六键快照，不能将未出现的键复位或推测为关闭。
 
@@ -28,7 +28,7 @@
 
 LED 实测值目前始终未知：现有反馈协议只有按下／释放，没有 LED 颜色读回。`last_request` 为本次启动、当前配置的审计意图，字段 `command/status/color/transport_epoch/control_epoch/updated_ms/current_transport_epoch`；`last_written` 仅来自 `written` 状态，颜色红／绿，source 为 `last_written`，仍不表示实际 LED。写出历史每批最多读取64条；若窗口中无 written 记录，source 为 unknown，不从按键或意图推断颜色。current_transport_epoch 只比较传输 epoch，不表示在线；断连时 Written 仍是历史，重启不从其他 boot 恢复成当前状态。不能将 pressed=true 显示为红灯，不能把 accepted/writing/uncertain 显示为写出成功。LED 灭使用已验证的 F0 编码，与红／绿的布尔接口分开。
 
-显式 LED 设置使用已有 `POST /api/v1/device-commands`：`{"device":"legacy:key:1","request_id":"UUID","command":{"action":"panel_led","on":true}}`。true 红、false 绿，需该子端点的控制权限、已核实 TS6 型号和已配置 manual LED 模式，继续走既有审计、准入、队列和唯一传输所有者。灭灯用同一子端点与 `{"action":"panel_led_off"}`。按键卡片本身不能自动翻转 LED。
+显式 LED 设置使用已有 `POST /api/v1/device-commands`：`{"device":"legacy:key:1","request_id":"UUID","command":{"action":"panel_led","on":true}}`。true 红、false 绿，需该子端点的控制权限、已核实 TS6 型号和已配置 manual LED 模式，继续走既有审计、准入、队列和唯一传输所有者。灭灯用同一子端点与 `{"action":"panel_led_off"}`。客户端不能绕过统一按键执行入口自行翻转 LED；来源提示见[统一按键入口](keypad-actions.md)。
 
 若配置明确设置经过审核的 `scene_toggle` 动作，`keys[].action` 返回 `{"kind":"scene_toggle","scene":"scene-id","path":"/api/v1/scene-relative-actions"}`。仅同时有该键控制范围及场景控制权限时返回；客户端点按时先读取当前选择状态：已知开启／关闭分别调用明确的关闭／开启接口，只有选择状态未知且服务端允许相对操作时才调用 relative 接口；无法判定或不允许时禁用动作。继续使用原有 request_id/未知结果不重试规则。这是 HomeSense 手动场景入口，不伪造物理按键事件，也不启用 EA-5 或禁用规则。另支持经过明确审核并绑定已启用、已校准窗帘目标的 `motor` 动作：`{"kind":"motor","device":"motor-id","command":{"action":"open"},"path":"/api/v1/device-commands"}`，action 是 open／stop／close，需同时有该键与目标电机控制权限。未配置时 action=null，按键不发送动作。
 
@@ -47,12 +47,11 @@ LED 实测值目前始终未知：现有反馈协议只有按下／释放，没�
 
 经过既有准入、审计、队列与唯一传输所有者写出；借用该父对象1键的内部端点作为传输/审计锚点，父设置权限在 API 和运行时重复核对，不复用单键 LED 的控制入口。工作模式值必须与当前已发布模块的 led_mode 一致：改成 self_reset 需先审核配置并处理不兼容的 LED 联动规则，然后发布配置，再显式发硬件命令。不能因配置发布而自动发送。打开卡片、迁移、切换 App 模式和连接时均不发送 C8 或其他参数命令。
 
-界面使用正方形主卡、两列三行 1–2／3–4／5–6，详情放卡外展开区域。日常/管理 App 模式与硬件工作模式无关。此接口候选不改变现网、HAP 配对或 EA-5 控制范围。
+界面使用正方形主卡、两列三行 1–2／3–4／5–6，详情放卡外展开区域。日常/管理 App 模式与硬件工作模式无关。客户端只展示服务端公开的能力，不能扩大执行范围。
 
-## 源凭证派发租约（候选补充）
+## 源凭证派发租约
 
 新整板参数与单键 LED 原生 API 均携带精确凭证 generation；Cookie 来源额外绑定该会话及其有效期。相同 controller 的其他有效凭证不能替代这一来源。运行时重核角色／六键范围，准入和派发检查租约，传输 owner 在实际同步写前再次检查，并在有界写期间持有凭证／会话读锁。已完成降权、缩权、撤销或登出后，旧租约不能产生参数或 LED 帧；写锁的线性化意味着已经开始的有界写可以先于撤销完成，不承诺中止已发送字节。
 
-确定性回归候选覆盖请求证明生成后、入队后及已取派发票据但尚未写入三个边界；保留相同 controller 的另一份 root 凭证，并以新来源的有效写作为正向对照。它们尚待独占构建执行，不能把测试代码存在当作已通过。
 
-本项仅覆盖新 Keypad 参数和新原生 LED API。既存本地可信 `submit_panel_led` 仍采用其调用方的 controller 授权约定；一般灯光／窗帘 HTTP API 仍有 controller 加旧权限捕获路径，本轮未为这些旧路径建立精确来源租约或确定性测试，不声称已经全部修复。
+普通灯光、窗帘、场景和发布同样使用各自的精确来源授权，详见[授权契约](source-authorization.md)。受信任本地接口与 HAP 按独立来源规则处理，不能借用管理凭证证明。
